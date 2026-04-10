@@ -32,7 +32,7 @@ use serde::{
 };
 
 use crate::{
-    layers::drop::size_config::SizeConfig,
+    nn::layers::drop::size_config::SizeConfig,
     utility::{
         burn::{
             kernels,

@@ -153,10 +153,7 @@ mod tests {
     use hamcrest::prelude::*;
 
     use super::*;
-    use crate::{
-        layers::drop::rate_table::progressive_dpr,
-        testing::assert_close_to_vec,
-    };
+    use crate::testing::assert_close_to_vec;
 
     #[test]
     fn test_incremental_drop_rate() {

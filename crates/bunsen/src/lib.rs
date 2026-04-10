@@ -18,7 +18,7 @@ pub mod compat;
 #[allow(dead_code)]
 pub(crate) mod testing;
 
-pub mod layers;
-
+pub mod burn_ext;
 pub mod cache;
+pub mod nn;
 pub mod utility;
