@@ -1,7 +1,7 @@
 use std::hint::black_box;
 
-use bimm::{
-    layers::drop::drop_block::{
+use bunsen::{
+    nn::layers::drop::drop_block::{
         DropBlockOptions,
         drop_block_2d,
     },

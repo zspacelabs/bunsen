@@ -1,3 +1,5 @@
+//! Helper option to describe the size of a wrapper.
+
 use serde::{
     Deserialize,
     Serialize,
