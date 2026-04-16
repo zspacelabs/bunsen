@@ -12,7 +12,7 @@ description = "burn neural network extension library"
 workspace = true
 
 [dependencies]
-bimm-contracts = { workspace = true, features = ["burn"] }
+bimm-contracts = { workspace = true }
 
 # There is a dep/gate bug that requires "ndarray" when using "network".
 burn = { workspace = true, features = ["network", "ndarray"] }

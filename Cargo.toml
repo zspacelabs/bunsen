@@ -10,7 +10,7 @@ members = [
 [workspace.package]
 edition = "2024"
 rust-version = "1.94.1"
-version = "0.0.3"
+version = "0.0.4"
 repository = "https://github.com/zspacelabs/bunsen"
 license = "MIT or Apache-2.0"
 
@@ -27,7 +27,7 @@ burn = "0.20.1"
 burn-import = "0.20.1"
 dirs = "6.0.0"
 
-bimm-contracts = "0.19.2"
+bimm-contracts = "0.20.1"
 
 # Burn coupled-dependencies
 # globwalk = "0.9.1"
