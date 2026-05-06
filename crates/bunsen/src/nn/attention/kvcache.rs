@@ -1,6 +1,6 @@
 //! # KV Cache
 
-use bimm_contracts::{
+use bunsen_contracts::{
     assert_shape_contract_periodically,
     unpack_shape_contract,
 };

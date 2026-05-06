@@ -3,7 +3,7 @@
 //! A [`ConvNorm2d`] module is a [`Conv2d`] layer followed by a [`BatchNorm`]
 //! layer.
 
-use bimm_contracts::{
+use bunsen_contracts::{
     assert_shape_contract_periodically,
     unpack_shape_contract,
 };

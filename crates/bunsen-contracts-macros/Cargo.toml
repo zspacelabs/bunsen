@@ -1,0 +1,24 @@
+[package]
+name = "bunsen-contracts-macros"
+rust-version.workspace = true
+edition.workspace = true
+version.workspace = true
+repository.workspace = true
+license.workspace = true
+description = "shape_contract![] proc-macro for bunsen-contracts"
+
+[lints]
+workspace = true
+
+[lib]
+proc-macro = true
+
+[dependencies]
+proc-macro2 = { workspace = true }
+syn = { workspace = true, features = ["full", "extra-traits"] }
+quote = { workspace = true, features = ["proc-macro"] }
+
+[features]
+default = []
+std = []
+

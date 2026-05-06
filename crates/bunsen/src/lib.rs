@@ -22,3 +22,6 @@ pub mod burn_ext;
 pub mod cache;
 pub mod nn;
 pub mod utility;
+
+#[doc(inline)]
+pub use bunsen_contracts as contracts;

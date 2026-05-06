@@ -1,0 +1,42 @@
+[package]
+name = "bunsen-contracts"
+rust-version.workspace = true
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+repository.workspace = true
+documentation = "https://docs.rs/bimm-contracts/latest/"
+description = "Runtime shape/geometry contracts for the burn framework."
+keywords = ["burn", "contracts", "testing", "shape", "no_std"]
+categories = ["development-tools::debugging"]
+
+[package.metadata.docs.rs]
+all-features = true
+
+[lints]
+workspace = true
+
+[dependencies]
+bunsen-contracts-macros = { version = "0.0.4", path = "../bunsen-contracts-macros" }
+
+burn = { workspace = true, optional = true }
+
+[dev-dependencies]
+burn = { workspace = true, features = ["ndarray"] }
+indoc = { workspace = true }
+
+# Benchmark dependencies
+criterion = { workspace = true }
+
+[[bench]]
+name = "contracts"
+harness = false
+
+[[bench]]
+name = "math"
+harness = false
+
+[features]
+default = []
+std = []
+burn = ["dep:burn"]

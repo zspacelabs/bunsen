@@ -1,5 +1,5 @@
 //! # Patch Embedding layers and operations.
-use bimm_contracts::assert_shape_contract_periodically;
+use bunsen_contracts::assert_shape_contract_periodically;
 use burn::{
     config::Config,
     module::Module,

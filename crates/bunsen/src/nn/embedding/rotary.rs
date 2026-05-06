@@ -157,7 +157,7 @@ impl<B: Backend> RotaryEmbedding<B> {
         input: Tensor<B, 4>,
     ) -> Tensor<B, 4> {
         #[cfg(debug_assertions)]
-        let [b, h] = bimm_contracts::unpack_shape_contract!(
+        let [b, h] = bunsen_contracts::unpack_shape_contract!(
             ["B", "T", "H", "D"],
             &input.dims(),
             &["B", "H"],
@@ -174,7 +174,7 @@ impl<B: Backend> RotaryEmbedding<B> {
         let output = Tensor::cat(vec![y1, y2], 3);
 
         #[cfg(debug_assertions)]
-        bimm_contracts::assert_shape_contract_periodically!(
+        bunsen_contracts::assert_shape_contract_periodically!(
             ["B", "T", "H", "D"],
             &output.dims(),
             &[
@@ -235,7 +235,7 @@ pub fn positional_frequency_table<B: Backend>(
 
 #[cfg(test)]
 mod tests {
-    use bimm_contracts::assert_shape_contract;
+    use bunsen_contracts::assert_shape_contract;
     use burn::{
         backend::Wgpu,
         tensor::{

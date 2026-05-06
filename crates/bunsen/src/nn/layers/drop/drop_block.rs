@@ -6,7 +6,7 @@
 use alloc::format;
 use core::ops::Range;
 
-use bimm_contracts::unpack_shape_contract;
+use bunsen_contracts::unpack_shape_contract;
 use burn::{
     config::Config,
     module::{

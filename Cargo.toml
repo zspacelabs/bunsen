@@ -27,8 +27,6 @@ burn = "0.20.1"
 burn-import = "0.20.1"
 dirs = "6.0.0"
 
-bimm-contracts = "0.20.1"
-
 # Burn coupled-dependencies
 # globwalk = "0.9.1"
 serde = "1.0.228"
@@ -41,8 +39,22 @@ crc = "3.4.0"
 anyhow = "1.0.100"
 
 # Test and/or Examples dependencies
-criterion = "0.7.0"
 hamcrest = "0.1.5"
 indoc = "2.0.7"
 num-traits = "0.2.19"
 
+# macro dependencies
+proc-macro2 = { version = "^1.0.97" }
+syn = { version = "2.0.111" }
+quote = { version = "^1.0.45" }
+
+# Test and/or Examples dependencies
+criterion = { version = "0.8.2" }
+
+hashbrown = { version = "0.17.0" }
+paste = "1.0.9"
+spanned_error_message = "0.1.0"
+thiserror = "2.0.18"
+strum = "0.28.0"
+xot = "0.31.2"
+xee-xpath = "0.1.5"

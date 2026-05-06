@@ -8,7 +8,7 @@
 //! With support for hooking the forward method,
 //! to run code between the norm and application layers.
 
-use bimm_contracts::{
+use bunsen_contracts::{
     assert_shape_contract_periodically,
     unpack_shape_contract,
 };

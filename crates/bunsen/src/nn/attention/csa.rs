@@ -1,6 +1,6 @@
 //! # Causal Self-Attention
 
-use bimm_contracts::{
+use bunsen_contracts::{
     assert_shape_contract_periodically,
     unpack_shape_contract,
 };
@@ -317,7 +317,7 @@ impl<B: Backend> CausalSelfAttention<B> {
 
 #[cfg(test)]
 mod tests {
-    use bimm_contracts::assert_shape_contract;
+    use bunsen_contracts::assert_shape_contract;
     use burn::{
         backend::Wgpu,
         tensor::Distribution,
