@@ -19,7 +19,10 @@ use burn::{
         MultiGradientsParams,
         Optimizer,
         SimpleOptimizer,
-        adaptor::OptimizerAdaptor,
+        adaptor::{
+            GradAdaptor,
+            OptimizerAdaptor,
+        },
         record::AdaptorRecord,
     },
     prelude::{
@@ -39,8 +42,6 @@ use hashbrown::{
 
 use crate::training::optimizers::{
     FixedLrSelector,
-    clone_simple_optimizer,
-    compat::GradAdaptor,
     lr_selectors::LrSelector,
 };
 
@@ -90,10 +91,7 @@ where
         I: IntoIterator<Item = ParamId>,
         M: AutodiffModule<B>,
     {
-        Self::new(
-            params.into_iter().collect(),
-            clone_simple_optimizer(adaptor),
-        )
+        Self::new(params.into_iter().collect(), adaptor.optim().clone())
     }
 
     /// Get the learning rate for this group.
