@@ -22,6 +22,7 @@ pub(crate) mod testing;
 pub mod burn_ext;
 pub mod cache;
 pub mod errors;
+pub mod functional;
 pub mod meta;
 pub mod modules;
 pub mod nn;
