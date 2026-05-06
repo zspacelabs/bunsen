@@ -1,3 +1,4 @@
+//! Optimizer Support.
 mod compat;
 mod group_optimizer;
 mod lr_selectors;

@@ -17,11 +17,11 @@ use crate::{
         BunsenError,
         BunsenResult,
     },
-    meta::tensor_kinds::{
+    meta::{
+        ParamDesc,
         ParamKindBinding,
         TensorKindDesc,
     },
-    modules::ParamDesc,
 };
 
 /// Description af a Tensor.
@@ -47,6 +47,7 @@ where
     }
 }
 
+/// Convert a string to a [`DType`].
 pub fn dtype_from_str(dtype: &str) -> BunsenResult<DType> {
     Ok(match dtype {
         "F64" => DType::F64,

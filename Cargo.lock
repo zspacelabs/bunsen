@@ -506,10 +506,17 @@ dependencies = [
  "criterion",
  "dirs",
  "hamcrest",
+ "hashbrown 0.17.0",
  "indoc",
  "num-traits",
+ "paste",
  "serde",
  "serde_json",
+ "spanned_error_message",
+ "strum 0.28.0",
+ "thiserror 2.0.18",
+ "xee-xpath",
+ "xot",
 ]
 
 [[package]]
@@ -529,21 +536,6 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 2.0.117",
-]
-
-[[package]]
-name = "bunsen-ng"
-version = "0.0.4"
-dependencies = [
- "burn",
- "hashbrown 0.17.0",
- "indoc",
- "paste",
- "spanned_error_message",
- "strum 0.28.0",
- "thiserror 2.0.18",
- "xee-xpath",
- "xot",
 ]
 
 [[package]]

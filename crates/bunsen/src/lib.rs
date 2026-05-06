@@ -1,3 +1,4 @@
+#![cfg_attr(feature = "wgpu", recursion_limit = "512")]
 //!# bunsen burn(er)
 #![warn(missing_docs)]
 
@@ -20,8 +21,13 @@ pub(crate) mod testing;
 
 pub mod burn_ext;
 pub mod cache;
+pub mod errors;
+pub mod meta;
+pub mod modules;
 pub mod nn;
+pub mod training;
 pub mod utility;
+pub mod zspace;
 
 #[doc(inline)]
 pub use bunsen_contracts as contracts;

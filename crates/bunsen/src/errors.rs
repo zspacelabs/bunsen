@@ -1,4 +1,6 @@
-/// Common bunsen errors.
+//! Common bunsen errors.
+
+/// Common bunsen error type.
 #[derive(Debug, thiserror::Error)]
 pub enum BunsenError {
     /// Resource not found.

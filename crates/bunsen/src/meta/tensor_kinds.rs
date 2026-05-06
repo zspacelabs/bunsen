@@ -1,4 +1,5 @@
 use burn::prelude;
+use strum;
 
 /// Encodes a description af [`burn::tensor::TensorKind`].
 #[derive(
@@ -20,6 +21,7 @@ pub enum TensorKindDesc {
 }
 
 impl TensorKindDesc {
+    /// Get the [`TensorKindDesc`] for a burn [`burn::tensor::TensorKind`].
     pub const fn for_kind<K: ParamKindBinding>() -> Self {
         K::KIND
     }
@@ -27,6 +29,7 @@ impl TensorKindDesc {
 
 /// A trait that binds a burn Tensor Kind to a `ParamKind`.
 pub trait ParamKindBinding {
+    /// The [`TensorKindDesc`] kind wrapper.
     const KIND: TensorKindDesc;
 }
 

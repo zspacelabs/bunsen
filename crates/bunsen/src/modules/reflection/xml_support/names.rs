@@ -1,4 +1,5 @@
 //! Various constants used in the module tree.
+#![allow(missing_docs)]
 
 pub const XML_MODULE_TREE_ELEM: &str = "XmlModuleTree";
 pub const PARAM_ELEM: &str = "Param";

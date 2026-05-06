@@ -63,7 +63,10 @@ where
 ///
 /// See: <https://github.com/tracel-ai/burn/pull/4822>
 pub enum GradAdaptor {
+    /// A [`GradientsParams`]
     Single(GradientsParams),
+
+    /// A [`MultiGradientsParams`]
     Multi(MultiGradientsParams),
 }
 
@@ -80,6 +83,7 @@ impl From<MultiGradientsParams> for GradAdaptor {
 }
 
 impl GradAdaptor {
+    /// Remove a parameter from the adaptor.
     pub fn remove<B: Backend, const D: usize>(
         &mut self,
         id: ParamId,

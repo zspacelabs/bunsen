@@ -11,17 +11,17 @@
 //!     tensor::Shape,
 //! };
 //!
-//! use bunsen_ng::{
-//!     errors::BunsenResult,
+//! use bunsen::{
 //!     modules::reflection::{
-//!         XML_MODULE_TREE_VERSION,
-//!         XmlModuleTree,
-//!         XPathModuleQuery,
+//!             XML_MODULE_TREE_VERSION,
+//!             XmlModuleTree,
+//!             XPathModuleQuery,
 //!     },
 //!     meta::{
-//!         TensorKindDesc,
 //!         TensorParamDesc,
+//!         TensorKindDesc,
 //!     },
+//!     errors::BunsenResult,
 //! };
 //!
 //! #[cfg(feature = "cuda")]

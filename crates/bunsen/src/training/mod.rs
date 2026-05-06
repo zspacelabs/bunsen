@@ -1,1 +1,2 @@
+//! Training.
 pub mod optimizers;

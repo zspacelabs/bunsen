@@ -3,6 +3,7 @@ use xot::{
     Xot,
 };
 
+/// Pretty print a node.
 pub fn pretty_print_node(
     xot: &Xot,
     node: Node,

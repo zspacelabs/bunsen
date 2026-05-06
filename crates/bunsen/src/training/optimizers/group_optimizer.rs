@@ -179,6 +179,7 @@ where
 pub enum GroupOptimizerError {
     /// A `ParamId` was assigned to more than one optimizer group.
     DuplicateParamId {
+        /// The `ParamId` of the conflicting assignment.
         param_id: ParamId,
         /// (`type_tag`, index) of the first assignment
         first: (usize, usize),

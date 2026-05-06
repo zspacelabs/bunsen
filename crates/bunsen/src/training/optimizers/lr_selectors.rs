@@ -37,15 +37,18 @@ impl LrSelector for GlobalLrSelector {
     }
 }
 
+/// [`LrSelector`] that always selects a fixed learning rate.
 pub struct FixedLrSelector {
     lr: LearningRate,
 }
 
 impl FixedLrSelector {
+    /// Create a new selector.
     pub fn new(lr: LearningRate) -> Self {
         Self { lr }
     }
 
+    /// Get the fixed learning rate.
     pub fn lr(&self) -> LearningRate {
         self.lr
     }
@@ -79,10 +82,12 @@ pub struct NamedLrSelector {
 }
 
 impl NamedLrSelector {
+    /// Create a new selector.
     pub fn new(name: String) -> Self {
         Self { name }
     }
 
+    /// Get the name of the learning rate.
     pub fn name(&self) -> &str {
         &self.name
     }

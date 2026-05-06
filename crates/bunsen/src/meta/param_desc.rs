@@ -47,6 +47,7 @@ impl<T> ParamDesc<T>
 where
     T: Debug + Clone + Send + PartialEq,
 {
+    /// Create a new [`ParamDesc`].
     pub fn new(
         param_id: ParamId,
         param: T,

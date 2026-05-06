@@ -1,5 +1,4 @@
-#![allow(unused)]
-
+#![allow(unused_imports)]
 use std::{
     fmt::{
         Debug,
@@ -43,17 +42,8 @@ use xot::{
 };
 
 use crate::{
-    errors::{
-        BunsenError,
-        BunsenResult,
-    },
-    meta::{
-        ParamDesc,
-        TensorDesc,
-        TensorKindDesc,
-        TensorParamDesc,
-        dtype_from_str,
-    },
+    errors::BunsenResult,
+    meta::TensorParamDesc,
     modules::reflection::{
         module_visitors::XmlModuleTreeBuilder,
         xml_support::{
@@ -62,9 +52,9 @@ use crate::{
             node_to_tensor_param_desc,
         },
     },
-    zspace::shape_from_xml_attr,
 };
 
+/// The version of the `XmlModuleTree` format.
 pub const XML_MODULE_TREE_VERSION: &str = env!("CARGO_PKG_VERSION");
 
 /// XML/XPath reflection layer for burn [`Module`]s.
@@ -98,12 +88,14 @@ impl XmlModuleTree {
     }
 
     /// Create a new/empty module tree.
-    pub(crate) fn new() -> Self {
+    #[allow(clippy::new_without_default)]
+    pub fn new() -> Self {
         let mut docs = Documents::new();
         let xot = docs.xot_mut();
         let mtree_nid = xot.add_name(names::XML_MODULE_TREE_ELEM);
         let root = xot.new_element(mtree_nid);
-        let doc = xot.new_document_with_element(root).unwrap();
+
+        let _doc = xot.new_document_with_element(root).unwrap();
 
         let version_nid = xot.add_name("version");
         xot.set_attribute(root, version_nid, XML_MODULE_TREE_VERSION);
@@ -139,7 +131,7 @@ impl XmlModuleTree {
     ///
     /// # Returns
     /// A [`NameId`]
-    pub(crate) fn bind_local_name(
+    pub fn bind_local_name(
         &mut self,
         name: &str,
     ) -> NameId {
@@ -150,7 +142,7 @@ impl XmlModuleTree {
     /// Bind a list of local names to [`NameId`]s.
     ///
     /// See [`bind_local_name`].
-    pub(crate) fn bind_local_names<const N: usize>(
+    pub fn bind_local_names<const N: usize>(
         &mut self,
         names: [&str; N],
     ) -> [NameId; N] {
@@ -160,7 +152,7 @@ impl XmlModuleTree {
     /// The root [`Node`] document node of the module tree.
     ///
     /// This is only useful with the XML apis.
-    pub(crate) fn root(&self) -> Node {
+    pub fn root(&self) -> Node {
         self.root
     }
 
@@ -175,12 +167,12 @@ impl XmlModuleTree {
     }
 
     /// Internal. Shorthand access to the [`xot`] arena.
-    pub(crate) fn xot(&self) -> &Xot {
+    pub fn xot(&self) -> &Xot {
         self.docs.xot()
     }
 
     /// Internal. Shorthand access to the mutable [`xot`] arena.
-    pub(crate) fn xot_mut(&mut self) -> &mut Xot {
+    pub fn xot_mut(&mut self) -> &mut Xot {
         self.docs.xot_mut()
     }
 
@@ -218,12 +210,12 @@ impl XmlModuleTree {
     ///
     /// ## Example
     /// ```rust,ignore
-    /// let descs: Vec<ParamDesc<TensorDesc>> = mtree
+    /// let descs: Vec<TensorParamDesc> = mtree
     ///     .param_descs()?
     ///     .collect();
     ///
     /// // Is equivalent to:
-    /// let descs: Vec<ParamDesc<TensorDesc>> = mtree
+    /// let descs: Vec<TensorParamDesc> = mtree
     ///     .query()
     ///     // .params() is implicit to [`ModuleTreeQuery::to_param_descs`],
     ///     // equivalent to: .select("descendant-or-self::Param")
@@ -422,7 +414,7 @@ impl<'a> XPathModuleQuery<'a> {
     }
 
     fn try_append_expr(
-        mut self,
+        self,
         expr: &str,
     ) -> BunsenResult<Self> {
         let expr = format!("{}{}", self.expr, expr);
@@ -588,16 +580,16 @@ impl<'a> XPathModuleQuery<'a> {
     /// # Returns
     /// `Ok(Vec<TensorParamDesc>)` on success, `Err(e)` on
     /// errors.
-    pub fn to_param_descs(mut self) -> BunsenResult<Vec<TensorParamDesc>> {
+    pub fn to_param_descs(self) -> BunsenResult<Vec<TensorParamDesc>> {
         let mut query = self.params();
 
-        let nodes: Vec<Node> = query.xee_execute_many(|docs, item| Ok(item.to_node()?))?;
+        let nodes: Vec<Node> = query.xee_execute_many(|_, item| Ok(item.to_node()?))?;
 
         let xot = query.tree.docs.xot();
         nodes
             .into_iter()
             .map(|node| node_to_tensor_param_desc(xot, node))
-            .collect::<BunsenResult<Vec<ParamDesc<TensorDesc>>>>()
+            .collect::<BunsenResult<Vec<TensorParamDesc>>>()
     }
 
     /// Iterate over [`ParamId`]s for each parameter in the subtree.
@@ -619,7 +611,7 @@ impl<'a> XPathModuleQuery<'a> {
     ///     .map(|d| d.param_id())
     ///     .collect();
     /// ```
-    pub fn to_param_ids(mut self) -> BunsenResult<Vec<ParamId>> {
+    pub fn to_param_ids(self) -> BunsenResult<Vec<ParamId>> {
         Ok(self
             .to_param_descs()?
             .iter()
@@ -673,6 +665,7 @@ mod tests {
     };
 
     use super::*;
+    use crate::meta::TensorParamDesc;
 
     #[test]
     #[cfg(feature = "cuda")]
