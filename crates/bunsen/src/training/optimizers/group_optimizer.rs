@@ -22,9 +22,15 @@ use burn::{
         adaptor::OptimizerAdaptor,
         record::AdaptorRecord,
     },
-    prelude::Backend,
+    prelude::{
+        Backend,
+        Device,
+    },
     record::Record,
-    tensor::backend::AutodiffBackend,
+    tensor::backend::{
+        AutodiffBackend,
+        BackendTypes,
+    },
 };
 use hashbrown::{
     HashMap,
@@ -157,7 +163,7 @@ where
 
     fn from_item<S2: burn::record::PrecisionSettings>(
         item: Self::Item<S2>,
-        device: &<B as Backend>::Device,
+        device: &B::Device,
     ) -> Self {
         Self {
             param_map: item
@@ -199,7 +205,7 @@ fn step_group<B, O, const D: usize>(
     id: ParamId,
     tensor: Tensor<B::InnerBackend, D>,
     grad: Tensor<B::InnerBackend, D>,
-    device: &<B::InnerBackend as Backend>::Device,
+    device: &<<B as AutodiffBackend>::InnerBackend as BackendTypes>::Device,
     lr: LearningRate,
 ) -> Tensor<B::InnerBackend, D>
 where

@@ -23,8 +23,8 @@ doc_markdown = "warn"
 
 
 [workspace.dependencies]
-burn = "0.20.1"
-burn-import = "0.20.1"
+burn = "0.21.0-pre.5"
+burn-import = "0.21.0-pre.5"
 dirs = "6.0.0"
 
 # Burn coupled-dependencies

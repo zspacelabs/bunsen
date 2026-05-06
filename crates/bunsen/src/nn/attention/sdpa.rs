@@ -134,7 +134,7 @@ pub fn sdpa_attn_weight<B: Backend>(
     let mut attn_weight = attn_weight + attn_bias.unsqueeze();
 
     if let Some(prob) = config.dropout
-        && (config.enable_dropout_during_inference || B::ad_enabled())
+        && (config.enable_dropout_during_inference || B::ad_enabled(&attn_weight.device()))
     {
         attn_weight = dropout(prob, attn_weight);
     }

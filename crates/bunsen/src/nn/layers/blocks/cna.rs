@@ -319,7 +319,7 @@ mod tests {
 
         let conv_config = Conv2dConfig::new([2, 4], [3, 3])
             .with_stride([2, 2])
-            .with_padding(PaddingConfig2d::Explicit(1, 1))
+            .with_padding(PaddingConfig2d::Explicit(1, 1, 1, 1))
             .with_bias(false);
 
         let config: CNA2dConfig = abstract_config.build_config(conv_config.clone());
@@ -338,7 +338,7 @@ mod tests {
         let config = CNA2dConfig::new(
             Conv2dConfig::new([2, 4], [3, 3])
                 .with_stride([2, 2])
-                .with_padding(PaddingConfig2d::Explicit(1, 1))
+                .with_padding(PaddingConfig2d::Explicit(1, 1, 1, 1))
                 .with_bias(false),
             NormalizationConfig::Batch(BatchNormConfig::new(0)),
         )

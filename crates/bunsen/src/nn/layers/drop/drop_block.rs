@@ -469,7 +469,7 @@ impl DropBlock2d {
         &self,
         tensor: Tensor<B, 4>,
     ) -> Tensor<B, 4> {
-        if B::ad_enabled() {
+        if B::ad_enabled(&tensor.device()) {
             drop_block_2d(tensor.clone(), &self.options)
         } else {
             tensor
@@ -715,7 +715,7 @@ mod tests {
 
         let tensor: Tensor<B, 4> = Tensor::ones(shape, &device);
 
-        assert_eq!(B::ad_enabled(), false);
+        assert_eq!(B::ad_enabled(&tensor.device()), false);
         let result = module.forward(tensor.clone());
 
         // Not under training; so a no-op.
@@ -745,7 +745,7 @@ mod tests {
 
         let tensor: Tensor<B, 4> = Tensor::ones(shape, &device);
 
-        assert_eq!(B::ad_enabled(), true);
+        assert_eq!(B::ad_enabled(&tensor.device()), true);
         let drop = module.forward(tensor.clone());
 
         // Count all 1.0; which are the non-dropped values.

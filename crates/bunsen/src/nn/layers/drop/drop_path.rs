@@ -175,7 +175,7 @@ impl DropPath {
         &self,
         input: Tensor<B, D>,
     ) -> Tensor<B, D> {
-        let training = B::ad_enabled();
+        let training = B::ad_enabled(&input.device());
         drop_path(input, self.drop_prob, training, self.scale_by_keep)
     }
 

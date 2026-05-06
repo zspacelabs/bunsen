@@ -63,7 +63,6 @@ pub fn dtype_from_str(dtype: &str) -> BunsenResult<DType> {
         "U32" => DType::U32,
         "U16" => DType::U16,
         "U8" => DType::U8,
-        "Bool" => DType::Bool,
         _ => return Err(BunsenError::External(format!("Invalid dtype: {}", dtype))),
     })
 }

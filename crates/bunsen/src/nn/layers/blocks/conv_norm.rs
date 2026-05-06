@@ -107,7 +107,7 @@ pub struct ConvNorm2d<B: Backend> {
 
 impl<B: Backend> ConvNorm2dMeta for ConvNorm2d<B> {
     fn in_channels(&self) -> usize {
-        self.conv.weight.shape().dims[1] * self.groups()
+        self.conv.weight.shape()[1] * self.groups()
     }
 
     fn groups(&self) -> usize {
@@ -115,7 +115,7 @@ impl<B: Backend> ConvNorm2dMeta for ConvNorm2d<B> {
     }
 
     fn out_channels(&self) -> usize {
-        self.conv.weight.shape().dims[0]
+        self.conv.weight.shape()[0]
     }
 
     fn stride(&self) -> &[usize; 2] {
@@ -182,7 +182,7 @@ mod tests {
     fn test_conv_norm_config() {
         let inner_config = Conv2dConfig::new([2, 4], [3, 3])
             .with_stride([2, 2])
-            .with_padding(PaddingConfig2d::Explicit(1, 1))
+            .with_padding(PaddingConfig2d::Explicit(1, 1, 1, 1))
             .with_bias(false);
 
         let config: ConvNorm2dConfig = inner_config.clone().into();
