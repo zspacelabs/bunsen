@@ -19,6 +19,9 @@ pub mod compat;
 #[allow(dead_code)]
 pub(crate) mod testing;
 
+#[cfg(feature = "train")]
+pub mod training;
+
 pub mod burn_ext;
 pub mod cache;
 pub mod errors;
@@ -26,7 +29,8 @@ pub mod functional;
 pub mod meta;
 pub mod modules;
 pub mod nn;
-pub mod training;
+pub mod record;
+pub mod tensor;
 pub mod utility;
 pub mod zspace;
 

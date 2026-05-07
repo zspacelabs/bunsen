@@ -11,40 +11,57 @@ description = "burn neural network extension library"
 [lints]
 workspace = true
 
+[features]
+default = [
+    "reflection",
+    "train",
+]
+std = []
+
+reflection = [
+    "std",
+    "dep:xot",
+    "dep:paste",
+    "dep:xee-xpath",
+    "dep:spanned_error_message",
+]
+train = [
+    "std",
+    "burn/train",
+    "dep:hashbrown",
+]
+
+wgpu = ["burn/wgpu"]
+cuda = ["burn/cuda"]
+
 [dependencies]
+
 bunsen-contracts = { path = "../bunsen-contracts", version = "0.21.0", features = ["std"] }
 
 # There is a dep/gate bug that requires "ndarray" when using "network".
 burn = { workspace = true, features = ["network", "ndarray", "train"] }
-dirs = { workspace = true }
-
-crc = { workspace = true }
+# burn-locked public deps:
+hashbrown = { workspace = true, optional = true }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
 
+dirs = { workspace = true }
+crc = { workspace = true }
 anyhow = { workspace = true }
 num-traits = { workspace = true }
-
 strum = { workspace = true, features = ["derive"] }
 thiserror = { workspace = true }
-spanned_error_message = { workspace = true }
-paste = { workspace = true }
 
-xot = { workspace = true }
-xee-xpath = { workspace = true }
-hashbrown = { workspace = true }
+spanned_error_message = { workspace = true, optional = true }
+paste = { workspace = true, optional = true }
+xot = { workspace = true, optional = true }
+xee-xpath = { workspace = true, optional = true }
 
 [dev-dependencies]
 burn = { workspace = true, features = ["autodiff", "wgpu"] }
 hamcrest = { workspace = true }
 indoc = { workspace = true }
 criterion = { workspace = true }
-
-[features]
-default = []
-std = []
-wgpu = ["burn/wgpu"]
-cuda = ["burn/cuda"]
 
 [[bench]]
 name = "drop_block"

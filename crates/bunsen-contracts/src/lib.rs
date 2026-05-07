@@ -280,7 +280,6 @@ pub mod contracts;
 pub mod expressions;
 pub mod macros;
 pub mod math;
-pub mod shape_argument;
 pub mod support;
 
 pub use bindings::StackEnvironment;
@@ -289,4 +288,7 @@ pub use contracts::{
     ShapeContract,
 };
 pub use expressions::DimExpr;
-pub use shape_argument::ShapeArgument;
+
+mod shape_view;
+#[doc(inline)]
+pub use shape_view::ShapeView;

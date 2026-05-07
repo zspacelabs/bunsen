@@ -60,7 +60,7 @@ use crate::{
         ExprDisplayAdapter,
         MatchResult,
     },
-    shape_argument::ShapeArgument,
+    shape_view::ShapeView,
 };
 
 /// A term in a shape pattern.
@@ -314,14 +314,15 @@ impl<'a> ShapeContract<'a> {
     /// }}
     /// ```
     #[track_caller]
-    pub fn assert_shape<S>(
+    pub fn assert_shape<'b, S>(
         &'a self,
         shape: S,
         env: StackEnvironment<'a>,
     ) where
-        S: ShapeArgument,
+        S: Into<ShapeView<'b>>,
     {
-        match self._loc_try_assert_shape(shape, env, Location::caller()) {
+        let shape = shape.into();
+        match self._loc_try_assert_shape(&shape, env, Location::caller()) {
             Ok(()) => (),
             Err(msg) => panic!("{}", msg),
         }
@@ -368,26 +369,24 @@ impl<'a> ShapeContract<'a> {
     ///     .unwrap();
     /// ```
     #[track_caller]
-    pub fn try_assert_shape<S>(
+    pub fn try_assert_shape<'b, S>(
         &'a self,
         shape: S,
         env: StackEnvironment<'a>,
     ) -> Result<(), String>
     where
-        S: ShapeArgument,
+        S: Into<ShapeView<'b>>,
     {
-        self._loc_try_assert_shape(shape, env, Location::caller())
+        let sv = shape.into();
+        self._loc_try_assert_shape(&sv, env, Location::caller())
     }
 
-    fn _loc_try_assert_shape<S>(
+    fn _loc_try_assert_shape(
         &'a self,
-        shape: S,
+        shape: &ShapeView,
         env: StackEnvironment<'a>,
         loc: &Location<'a>,
-    ) -> Result<(), String>
-    where
-        S: ShapeArgument,
-    {
+    ) -> Result<(), String> {
         let mut scratch: Vec<Option<isize>> = vec![None; self.index.len()];
         for (k, v) in env.iter() {
             let v = *v as isize;
@@ -459,28 +458,26 @@ impl<'a> ShapeContract<'a> {
     /// ```
     #[must_use]
     #[track_caller]
-    pub fn unpack_shape<S, const K: usize>(
+    pub fn unpack_shape<'b, S, const K: usize>(
         &'a self,
         shape: S,
         keys: &[&'a str; K],
         env: StackEnvironment<'a>,
     ) -> [usize; K]
     where
-        S: ShapeArgument,
+        S: Into<ShapeView<'b>>,
     {
-        self._loc_unpack_shape(shape, keys, env, Location::caller())
+        let sv: ShapeView = shape.into();
+        self._loc_unpack_shape(&sv, keys, env, Location::caller())
     }
 
-    fn _loc_unpack_shape<S, const K: usize>(
+    fn _loc_unpack_shape<const K: usize>(
         &'a self,
-        shape: S,
+        shape: &ShapeView,
         keys: &[&'a str; K],
         env: StackEnvironment<'a>,
         loc: &Location<'a>,
-    ) -> [usize; K]
-    where
-        S: ShapeArgument,
-    {
+    ) -> [usize; K] {
         match self._loc_try_unpack_shape(shape, keys, env, loc) {
             Ok(values) => values,
             Err(msg) => panic!("{msg}"),
@@ -535,28 +532,26 @@ impl<'a> ShapeContract<'a> {
     /// assert_eq!(c, 4);
     /// ```
     #[track_caller]
-    pub fn try_unpack_shape<S, const K: usize>(
+    pub fn try_unpack_shape<'b, S, const K: usize>(
         &'a self,
         shape: S,
         keys: &[&'a str; K],
         env: StackEnvironment<'a>,
     ) -> Result<[usize; K], String>
     where
-        S: ShapeArgument,
+        S: Into<ShapeView<'b>>,
     {
-        self._loc_try_unpack_shape(shape, keys, env, Location::caller())
+        let sv: ShapeView = shape.into();
+        self._loc_try_unpack_shape(&sv, keys, env, Location::caller())
     }
 
-    fn _loc_try_unpack_shape<S, const K: usize>(
+    fn _loc_try_unpack_shape<const K: usize>(
         &'a self,
-        shape: S,
+        shape: &ShapeView,
         keys: &[&'a str; K],
         env: StackEnvironment<'a>,
         loc: &Location<'a>,
-    ) -> Result<[usize; K], String>
-    where
-        S: ShapeArgument,
-    {
+    ) -> Result<[usize; K], String> {
         let selection = self.expect_keys_to_selection(keys);
 
         let mut scratch: Vec<Option<isize>> = vec![None; self.index.len()];
@@ -601,16 +596,13 @@ impl<'a> ShapeContract<'a> {
         selection
     }
 
-    fn _loc_try_select<S, const K: usize>(
+    fn _loc_try_select<const K: usize>(
         &'a self,
-        shape: S,
+        shape: &ShapeView,
         selection: &[usize; K],
         env: &mut [Option<isize>],
         loc: &Location<'a>,
-    ) -> Result<[isize; K], String>
-    where
-        S: ShapeArgument,
-    {
+    ) -> Result<[isize; K], String> {
         let num_slots = self.index.len();
         assert_eq!(env.len(), num_slots);
 
@@ -636,29 +628,26 @@ impl<'a> ShapeContract<'a> {
     /// - `Ok(())`: if the shape matches the pattern; will update the `env`.
     /// - `Err(&str)`: if the shape does not match the pattern, with an error
     ///   message.
-    pub(crate) fn format_resolve<S>(
+    pub(crate) fn format_resolve(
         &'a self,
-        shape: S,
+        shape: &ShapeView,
         env: &mut [Option<isize>],
         location: &Location,
-    ) -> Result<(), String>
-    where
-        S: ShapeArgument,
-    {
-        let shape = shape.get_shape_vec();
-        match self._resolve(&shape, env) {
+    ) -> Result<(), String> {
+        match self._resolve(shape.as_ref(), env) {
             Ok(()) => Ok(()),
             Err(msg) => Err(format!(
-                "at {}:{}: Shape Error\n  {msg}\nActual:\n  {shape:?}\nContract:\n  {self}\nBindings:\n  {{{}}}",
-                location.file(),
-                location.line(),
+                "at {file}:{line}: Shape Error\n  {msg}\nActual:\n  {shape:?}\nContract:\n  {self}\nBindings:\n  {{{}}}",
                 self.index
                     .iter()
                     .zip(env.iter())
                     .filter(|(_, v)| v.is_some())
                     .map(|(k, v)| format!("\"{}\": {}", *k, v.unwrap()))
                     .collect::<Vec<_>>()
-                    .join(", ")
+                    .join(", "),
+                file = location.file(),
+                line = location.line(),
+                shape = shape.as_ref(),
             )),
         }
     }

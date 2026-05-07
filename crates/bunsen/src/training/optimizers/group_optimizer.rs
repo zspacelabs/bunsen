@@ -82,7 +82,7 @@ where
         }
     }
 
-    /// Build a [`OptimizerGroup`] from a [`OptimizerAdaptor`].
+    /// Build a [`OptimizerGroup`] from an [`OptimizerAdaptor`].
     pub fn from_adaptor<M, I>(
         params: I,
         adaptor: &OptimizerAdaptor<O, M, B>,
@@ -238,8 +238,8 @@ where
 ///
 /// Each invocation generates:
 /// - `GroupOptimizerAdaptorN<O1, ..., ON, M, B>` — the adaptor struct
-/// - `Optimizer<M, B>` impl with `Record` as a tuple of `Vec<HashMap<ParamId,
-///   AdaptorRecord<Oi, B>>>`
+/// - `Optimizer<M, B>` impl with `Record` as a tuple of
+///   `Vec<HashMap<ParamId, AdaptorRecord<Oi, B>>>`
 macro_rules! define_group_optimizer_adaptor {
     ($N:tt, [$(($O:ident, $idx:tt)),+ $(,)?]) => {
         paste::paste! {
