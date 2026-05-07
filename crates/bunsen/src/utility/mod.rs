@@ -7,5 +7,7 @@
 
 pub mod burn;
 pub mod probability;
-pub mod results;
-pub mod zspace;
+
+mod with_ok_or_panic;
+#[doc(inline)]
+pub use with_ok_or_panic::*;

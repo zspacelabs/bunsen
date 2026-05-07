@@ -18,9 +18,9 @@ use serde::{
     Serialize,
 };
 
-use crate::utility::burn::{
-    clamp::ClampConfig,
-    distribution::DistributionDisplayAdapter,
+use crate::{
+    functional::clamp::ClampConfig,
+    utility::burn::distribution::DistributionDisplayAdapter,
 };
 
 /// Noise Configuration.
@@ -137,7 +137,6 @@ mod tests {
         backend::NdArray,
         module::DisplaySettings,
     };
-    use num_traits::real::Real;
 
     use super::*;
     #[test]
@@ -209,8 +208,6 @@ mod tests {
 
         let reference: Tensor<B, 2> = Tensor::ones([20, 20], &device);
         let numel = reference.shape().num_elements() as f64;
-
-        let p = 0.1;
 
         let noise = NoiseConfig::default()
             .with_clamp(ClampConfig::default().with_min(0.5))

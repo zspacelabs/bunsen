@@ -8,8 +8,6 @@ use burn::{
     tensor::Numeric,
 };
 
-use crate::utility::zspace::expect_point_bounds_check;
-
 /// Build a filter of kernel midpoints.
 ///
 /// Filter is `1.0` at the mid-points of kernels; `0.0` everywhere else.
@@ -51,10 +49,7 @@ where
 mod tests {
     use burn::{
         backend::NdArray,
-        prelude::{
-            Device,
-            TensorData,
-        },
+        prelude::TensorData,
     };
 
     use super::*;

@@ -94,10 +94,8 @@ mod tests {
         },
         tensor::TensorData,
     };
-    use num_traits::clamp;
 
     use super::*;
-    use crate::nn::layers::drop::drop_block::DropBlockOptions;
 
     #[test]
     fn test_clamp_config_display() {

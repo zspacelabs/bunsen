@@ -16,7 +16,7 @@ use core::{
 
 use anyhow::bail;
 
-use crate::utility::results::expect_unwrap;
+use crate::utility::WithOkOrPanic;
 
 /// Z-space `PartialOrd`
 ///
@@ -108,7 +108,7 @@ pub fn expect_point_bounds_check<T>(
 ) where
     T: PartialOrd + Debug,
 {
-    expect_unwrap(try_point_bounds_check(point, start, end))
+    try_point_bounds_check(point, start, end).ok_or_panic()
 }
 
 #[cfg(test)]

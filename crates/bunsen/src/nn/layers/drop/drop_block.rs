@@ -32,14 +32,12 @@ use serde::{
 };
 
 use crate::{
-    nn::layers::drop::size_config::SizeConfig,
-    utility::{
-        burn::{
-            kernels,
-            noise::NoiseConfig,
-        },
-        probability::expect_probability,
+    functional::{
+        conv::conv2d_kernel_midpoint_filter,
+        noise::NoiseConfig,
     },
+    nn::layers::drop::size_config::SizeConfig,
+    utility::probability::expect_probability,
 };
 
 /// Configuration for `DropBlock`.
@@ -326,7 +324,7 @@ fn drop_block_2d_drop_filter_<B: Backend>(
 
     if !partial_edge_blocks {
         selection = selection
-            * kernels::conv2d_kernel_midpoint_filter::<B, Float>([h, w], kernel_shape, device)
+            * conv2d_kernel_midpoint_filter::<B, Float>([h, w], kernel_shape, device)
                 .unsqueeze_dims::<4>(&[0, 1])
                 .cast(dtype);
     }
@@ -489,7 +487,7 @@ mod tests {
     };
 
     use super::*;
-    use crate::utility::burn::noise::NoiseConfig;
+    use crate::functional::noise::NoiseConfig;
 
     #[test]
     fn test_drop_block_options() {
