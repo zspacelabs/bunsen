@@ -18,9 +18,9 @@ use burn::{
     },
 };
 
-use crate::{
-    functional::repeat,
-    nn::functional::drop::dropout,
+use crate::functional::{
+    drop::dropout,
+    repeat,
 };
 
 /// Config for [`ScaledDotProductAttention`].
