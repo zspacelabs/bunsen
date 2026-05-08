@@ -5,6 +5,7 @@ rust-version.workspace = true
 version.workspace = true
 repository.workspace = true
 license.workspace = true
+description = "disk cache for bunsen"
 
 [lints]
 workspace = true
