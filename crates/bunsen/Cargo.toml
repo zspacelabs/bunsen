@@ -6,7 +6,7 @@ repository.workspace = true
 license.workspace = true
 rust-version.workspace = true
 documentation = "https://docs.rs/bunsen/latest/"
-description = "burn neural network extension library"
+description = "bunsen is a community companion library for burn"
 
 [lints]
 workspace = true
@@ -15,8 +15,11 @@ workspace = true
 default = [
     "reflection",
     "train",
+    "cache",
 ]
-std = []
+std = [
+    "bunsen-contracts/std",
+]
 
 reflection = [
     "std",
@@ -30,23 +33,29 @@ train = [
     "burn/train",
     "dep:hashbrown",
 ]
+cache = [
+    "std",
+    "dep:dirs",
+    "dep:crc",
+    "burn/network"
+]
 
 wgpu = ["burn/wgpu"]
 cuda = ["burn/cuda"]
 
 [dependencies]
+bunsen-contracts = { path = "../bunsen-contracts", version = "0.21.0" }
 
-bunsen-contracts = { path = "../bunsen-contracts", version = "0.21.0", features = ["std"] }
-
-# There is a dep/gate bug that requires "ndarray" when using "network".
-burn = { workspace = true, features = ["network", "ndarray", "train"] }
+# VERIFY: There was a dep/gate bug that requires "ndarray" when using "network".
+burn = { workspace = true, features = ["network"] }
 # burn-locked public deps:
 hashbrown = { workspace = true, optional = true }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
 
-dirs = { workspace = true }
-crc = { workspace = true }
+dirs = { workspace = true, optional = true }
+crc = { workspace = true, optional = true }
+
 anyhow = { workspace = true }
 num-traits = { workspace = true }
 strum = { workspace = true, features = ["derive"] }
