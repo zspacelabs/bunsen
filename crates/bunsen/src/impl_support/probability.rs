@@ -45,7 +45,7 @@ pub fn expect_probability<F: Float + Debug>(prob: F) -> F {
 
 #[cfg(test)]
 mod tests {
-    use crate::utility::probability::{
+    use crate::impl_support::probability::{
         expect_probability,
         try_probability,
     };

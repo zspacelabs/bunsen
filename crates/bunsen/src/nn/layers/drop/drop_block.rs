@@ -36,8 +36,8 @@ use crate::{
         conv::conv2d_kernel_midpoint_filter,
         noise::NoiseConfig,
     },
+    impl_support::probability::expect_probability,
     nn::layers::drop::size_config::SizeConfig,
-    utility::probability::expect_probability,
 };
 
 /// Configuration for `DropBlock`.

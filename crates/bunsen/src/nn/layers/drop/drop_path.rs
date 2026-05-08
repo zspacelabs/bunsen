@@ -19,7 +19,7 @@ use burn::{
     tensor::Distribution,
 };
 
-use crate::utility::probability;
+use crate::impl_support::probability;
 
 /// `DropPath` (stochastic depth) regularization.
 ///

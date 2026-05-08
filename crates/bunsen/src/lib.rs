@@ -6,15 +6,13 @@ extern crate alloc;
 
 extern crate core;
 
-#[cfg(test)]
-#[allow(dead_code)]
-pub(crate) mod testing;
-
 #[cfg(feature = "train")]
 pub mod training;
 
 #[cfg(feature = "cache")]
 pub use bunsen_cache as cache;
+
+pub(crate) mod impl_support;
 
 pub mod errors;
 pub mod functional;
@@ -22,7 +20,6 @@ pub mod meta;
 pub mod modules;
 pub mod nn;
 pub mod record;
-pub mod utility;
 pub mod zspace;
 
 #[doc(inline)]

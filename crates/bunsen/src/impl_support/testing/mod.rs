@@ -27,7 +27,7 @@ pub fn assert_close_to_vec<T>(
 
 #[cfg(test)]
 mod tests {
-    use crate::testing::assert_close_to_vec;
+    use crate::impl_support::testing::assert_close_to_vec;
 
     #[test]
     fn test_assert_close_to_vec() {

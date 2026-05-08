@@ -7,6 +7,10 @@
 
 pub mod probability;
 
+#[cfg(test)]
+#[allow(dead_code)]
+pub(crate) mod testing;
 mod with_ok_or_panic;
+
 #[doc(inline)]
 pub use with_ok_or_panic::*;
