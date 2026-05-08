@@ -150,7 +150,7 @@ impl DropPathRateDepthTable {
 mod tests {
     use alloc::vec;
 
-    use hamcrest::prelude::*;
+    use hamcrest::*;
 
     use super::*;
     use crate::testing::assert_close_to_vec;
