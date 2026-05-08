@@ -1,7 +1,7 @@
 use burn::prelude;
 use strum;
 
-/// Encodes a description af [`burn::tensor::TensorKind`].
+/// A meta-descriptor for [`burn::tensor::TensorKind`].
 #[derive(
     Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, strum::EnumString, strum::Display,
 )]
@@ -49,7 +49,7 @@ impl ParamKindBinding for prelude::Int {
 mod tests {
     use burn::tensor;
 
-    use crate::meta::TensorKindDesc;
+    use crate::meta::descriptors::TensorKindDesc;
 
     #[test]
     fn test_tensor_kinds() {

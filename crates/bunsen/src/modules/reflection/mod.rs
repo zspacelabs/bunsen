@@ -17,15 +17,17 @@
 //!             XmlModuleTree,
 //!             XPathModuleQuery,
 //!     },
-//!     meta::{
+//!     meta::descriptors::{
 //!         TensorParamDesc,
 //!         TensorKindDesc,
 //!     },
 //!     errors::BunsenResult,
 //! };
 //!
-//! #[cfg(feature = "cuda")]
-//! basic_module_tree_api_example::<burn::backend::Cuda>().unwrap();
+//! #[test]
+//! fn test_basic_module_tree_api_example() -> BunsenResult<()> {
+//!     basic_module_tree_api_example::<burn::backend::Flex>()
+//! }
 //!
 //! fn basic_module_tree_api_example<B: Backend>() -> BunsenResult<()> {
 //!     let device = Default::default();
@@ -67,7 +69,7 @@
 //!     );
 //!
 //!     // Build a XmlModuleTree from the module.
-//!     // As the XmlModuleTree holds non-Send active active query environment,
+//!     // As the XmlModuleTree holds a non-Send active query environment,
 //!     // it must be `mut` to be useful.
 //!     let mut mtree = XmlModuleTree::build(&module);
 //!

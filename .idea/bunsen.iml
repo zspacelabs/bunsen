@@ -8,6 +8,7 @@
       <sourceFolder url="file://$MODULE_DIR$/crates/bunsen-contracts/benches" isTestSource="true" />
       <sourceFolder url="file://$MODULE_DIR$/crates/bunsen-contracts/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/crates/bunsen-ng/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/crates/bunsen-cache/src" isTestSource="false" />
       <excludeFolder url="file://$MODULE_DIR$/crates/bunsen/target" />
       <excludeFolder url="file://$MODULE_DIR$/target" />
     </content>

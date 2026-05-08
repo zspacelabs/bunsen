@@ -17,14 +17,14 @@ use crate::{
         BunsenError,
         BunsenResult,
     },
-    meta::{
+    meta::descriptors::{
         ParamDesc,
         ParamKindBinding,
         TensorKindDesc,
     },
 };
 
-/// Description af a Tensor.
+/// This is meta-descriptor for a [`Tensor`].
 #[derive(Debug, Clone, PartialEq)]
 pub struct TensorDesc {
     kind: TensorKindDesc,

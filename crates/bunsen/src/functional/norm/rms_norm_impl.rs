@@ -60,18 +60,18 @@ pub fn rms_norm<B: Backend, const R: usize>(
 mod tests {
     use burn::{
         Tensor,
-        backend::Wgpu,
         tensor::Distribution,
     };
 
     use super::*;
+    use crate::BunsenTestBackend;
 
     #[test]
     fn test_rms_norm() {
-        type B = Wgpu;
         let device = Default::default();
 
-        let x: Tensor<B, 3> = Tensor::random([2, 3, 4], Distribution::Default, &device);
+        let x: Tensor<BunsenTestBackend, 3> =
+            Tensor::random([2, 3, 4], Distribution::Default, &device);
         let options = RmsNormOptions::default();
 
         let y = rms_norm(x.clone(), &options);

@@ -236,19 +236,17 @@ pub fn positional_frequency_table<B: Backend>(
 #[cfg(test)]
 mod tests {
     use bunsen_contracts::assert_shape_contract;
-    use burn::{
-        backend::Wgpu,
-        tensor::{
-            Distribution,
-            Tolerance,
-        },
+    use burn::tensor::{
+        Distribution,
+        Tolerance,
     };
 
     use super::*;
+    use crate::BunsenTestBackend;
 
     #[test]
     fn test_inverse_frequency_table() {
-        type B = Wgpu;
+        type B = BunsenTestBackend;
         let device = Default::default();
 
         let base = 10000;
@@ -274,7 +272,7 @@ mod tests {
 
     #[test]
     fn test_frequency_matrix() {
-        type B = Wgpu;
+        type B = BunsenTestBackend;
         let device = Default::default();
 
         let base = 10000;
@@ -307,7 +305,7 @@ mod tests {
 
     #[test]
     fn test_clip_range() {
-        type B = Wgpu;
+        type B = BunsenTestBackend;
         let device = Default::default();
 
         let config = RotaryEmbeddingConfig::new(1024, 64);
@@ -331,7 +329,7 @@ mod tests {
 
     #[test]
     fn test_rotary_embedding() {
-        type B = Wgpu;
+        type B = BunsenTestBackend;
         let device = Default::default();
 
         let batch = 1;

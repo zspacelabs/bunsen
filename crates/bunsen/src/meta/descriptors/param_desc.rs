@@ -9,7 +9,7 @@ use burn::module::{
     Parameter,
 };
 
-/// This is meta-description type of a burn [`burn::module::Param`].
+/// This is meta-descriptor for a [`Param`].
 ///
 /// This type acts as [`AsRef<T>`], [`Deref<T>`].
 ///
@@ -83,10 +83,12 @@ mod tests {
         tensor::DType,
     };
 
-    use super::*;
-    use crate::meta::{
-        TensorDesc,
-        TensorKindDesc,
+    use super::{
+        super::{
+            TensorDesc,
+            TensorKindDesc,
+        },
+        *,
     };
 
     #[test]

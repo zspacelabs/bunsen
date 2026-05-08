@@ -187,15 +187,13 @@ impl<B: Backend> ModuleVisitor<B> for ParamMapBuildingVisitor<B> {
 
 #[cfg(test)]
 mod tests {
-    use burn::{
-        backend::Wgpu,
-        nn::{
-            Linear,
-            LinearConfig,
-        },
+    use burn::nn::{
+        Linear,
+        LinearConfig,
     };
 
     use super::*;
+    use crate::BunsenTestBackend;
 
     #[test]
     fn test_param_kind() {
@@ -243,7 +241,7 @@ mod tests {
 
     #[test]
     fn test_module_path() {
-        type B = Wgpu;
+        type B = BunsenTestBackend;
         let device = Default::default();
 
         let module = TestModule::<B>::init(&device);

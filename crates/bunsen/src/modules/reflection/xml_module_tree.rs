@@ -43,7 +43,7 @@ use xot::{
 
 use crate::{
     errors::BunsenResult,
-    meta::TensorParamDesc,
+    meta::descriptors::TensorParamDesc,
     modules::reflection::{
         module_visitors::XmlModuleTreeBuilder,
         xml_support::{
@@ -665,21 +665,14 @@ mod tests {
     };
 
     use super::*;
-    use crate::meta::TensorParamDesc;
+    use crate::{
+        BunsenTestBackend,
+        meta::descriptors::TensorParamDesc,
+    };
 
     #[test]
-    #[cfg(feature = "cuda")]
-    fn test_debug_cuda() {
-        test_debug::<burn::backend::Cuda>();
-    }
-
-    #[test]
-    #[cfg(feature = "wgpu")]
-    fn test_debug_wgpu() {
-        test_debug::<burn::backend::Wgpu>();
-    }
-
-    fn test_debug<B: Backend>() {
+    fn test_debug() {
+        type B = BunsenTestBackend;
         let device = Default::default();
         let module: Linear<B> = LinearConfig::new(2, 3).init(&device);
 
@@ -722,18 +715,8 @@ mod tests {
     }
 
     #[test]
-    #[cfg(feature = "cuda")]
-    fn test_to_xml_cuda() {
-        test_to_xml::<burn::backend::Cuda>();
-    }
-
-    #[test]
-    #[cfg(feature = "wgpu")]
-    fn test_to_xml_wgpu() {
-        test_to_xml::<burn::backend::Wgpu>();
-    }
-
-    fn test_to_xml<B: Backend>() {
+    fn test_to_xml() {
+        type B = BunsenTestBackend;
         let device = Default::default();
         let module: Linear<B> = LinearConfig::new(2, 3).init(&device);
 

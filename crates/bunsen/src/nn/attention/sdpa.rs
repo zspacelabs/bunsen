@@ -19,7 +19,7 @@ use burn::{
 };
 
 use crate::{
-    burn_ext::tensor,
+    functional::repeat,
     nn::functional::drop::dropout,
 };
 
@@ -88,7 +88,7 @@ pub fn scaled_dot_product_attention<B: Backend>(
     let mut v = v;
     if config.enable_gqa {
         let v_repeats = h_q / h_kv;
-        v = tensor::repeat_interleave::<B, 4, 5, _>(v, v_repeats, 1);
+        v = repeat::repeat_interleave::<B, 4, 5, _>(v, v_repeats, 1);
     }
 
     attn_weight.matmul(v)
@@ -124,7 +124,7 @@ pub fn sdpa_attn_weight<B: Backend>(
 
     if config.enable_gqa {
         let k_repeats = h_q / h_k;
-        k = tensor::repeat_interleave::<B, 4, 5, _>(k, k_repeats, 1);
+        k = repeat::repeat_interleave::<B, 4, 5, _>(k, k_repeats, 1);
     }
 
     let scale_factor = config.scale.unwrap_or(1.0 / (q.dims()[3] as f64).sqrt());
@@ -185,13 +185,12 @@ pub fn sdpa_bias<B: Backend>(
 
 #[cfg(test)]
 mod tests {
-    use burn::backend::Wgpu;
-
     use super::*;
+    use crate::BunsenTestBackend;
 
     #[test]
     fn test_scaled_dot_product_attention_bias() {
-        type B = Wgpu;
+        type B = BunsenTestBackend;
         let device = Default::default();
         let dtype = DType::F32;
 

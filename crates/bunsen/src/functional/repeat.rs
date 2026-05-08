@@ -61,13 +61,12 @@ pub fn repeat_interleave<B: Backend, const R: usize, const R2: usize, D: AsIndex
 
 #[cfg(test)]
 mod tests {
-    use burn::backend::Wgpu;
-
     use super::*;
+    use crate::BunsenTestBackend;
 
     #[test]
     fn test_repeat_interleave() {
-        type B = Wgpu;
+        type B = BunsenTestBackend;
         let device = Default::default();
 
         let input = Tensor::<B, 2>::from_data([[0., 1., 2.], [3., 4., 5.]], &device);

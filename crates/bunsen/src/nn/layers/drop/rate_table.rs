@@ -2,7 +2,7 @@
 
 use alloc::vec::Vec;
 
-use crate::compat::ops::float_vec_linspace;
+use crate::functional::arange::float_vec_linspace;
 
 /// Computes a progressive incremental path drop rate for stochastic depth.
 ///

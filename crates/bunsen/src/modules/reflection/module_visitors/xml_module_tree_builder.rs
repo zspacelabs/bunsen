@@ -18,7 +18,7 @@ use xot::{
 };
 
 use crate::{
-    meta::TensorParamDesc,
+    meta::descriptors::TensorParamDesc,
     modules::reflection::{
         XmlModuleTree,
         module_visitors::container_type_util,

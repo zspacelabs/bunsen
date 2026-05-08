@@ -29,16 +29,14 @@ pub fn dropout<B: Backend, const D: usize>(
 
 #[cfg(test)]
 mod tests {
-    use burn::{
-        backend::Wgpu,
-        prelude::ElementConversion,
-    };
+    use burn::prelude::ElementConversion;
 
     use super::*;
+    use crate::BunsenTestBackend;
 
     #[test]
     fn dropout_prob_0_should_return_input() {
-        type B = Wgpu;
+        type B = BunsenTestBackend;
         let device = Default::default();
         let input = Tensor::<B, 2>::random([10, 3], Distribution::Default, &device);
 
@@ -49,7 +47,7 @@ mod tests {
 
     #[test]
     fn dropout_rates_stochastic_test() {
-        type B = Wgpu;
+        type B = BunsenTestBackend;
         let device = Default::default();
         B::seed(&device, 0);
 
@@ -86,7 +84,7 @@ mod tests {
     #[test]
     #[should_panic = "Dropout probability should be between 0 and 1,"]
     fn dropout_prob_invalid() {
-        type B = Wgpu;
+        type B = BunsenTestBackend;
         let device = Default::default();
 
         let input = Tensor::<B, 1>::ones([10], &device);

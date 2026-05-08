@@ -318,17 +318,17 @@ impl<B: Backend> CausalSelfAttention<B> {
 #[cfg(test)]
 mod tests {
     use bunsen_contracts::assert_shape_contract;
-    use burn::{
-        backend::Wgpu,
-        tensor::Distribution,
-    };
+    use burn::tensor::Distribution;
 
     use super::*;
-    use crate::nn::{
-        attention::kvcache::KVCache,
-        embedding::rotary::{
-            RotaryEmbedding,
-            RotaryEmbeddingConfig,
+    use crate::{
+        BunsenTestBackend,
+        nn::{
+            attention::kvcache::KVCache,
+            embedding::rotary::{
+                RotaryEmbedding,
+                RotaryEmbeddingConfig,
+            },
         },
     };
 
@@ -347,7 +347,7 @@ mod tests {
     #[test]
     #[allow(unused)]
     fn test_csa_forward() {
-        type B = Wgpu;
+        type B = BunsenTestBackend;
         let device = Default::default();
 
         let batch = 1;

@@ -1,0 +1,20 @@
+[package]
+name = "bunsen-cache"
+edition.workspace = true
+rust-version.workspace = true
+version.workspace = true
+repository.workspace = true
+license.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+# VERIFY: There was a dep/gate bug that requires "ndarray" when using "network".
+burn = { workspace = true, features = ["network"] }
+dirs = { workspace = true }
+crc = { workspace = true }
+
+anyhow = { workspace = true }
+serde = { workspace = true, features = ["derive"]}
+

@@ -15,7 +15,7 @@ use crate::{
         BunsenError,
         BunsenResult,
     },
-    meta::{
+    meta::descriptors::{
         ParamDesc,
         TensorDesc,
         TensorKindDesc,
