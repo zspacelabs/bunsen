@@ -1,5 +1,4 @@
 //! # Neural Network / Module Components
 
-pub mod attention;
-pub mod embedding;
-pub mod layers;
+pub mod images;
+pub mod transformers;

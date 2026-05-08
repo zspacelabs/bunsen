@@ -37,7 +37,7 @@ use crate::{
         noise::NoiseConfig,
     },
     impl_support::probability::expect_probability,
-    nn::layers::drop::size_config::SizeConfig,
+    nn::images::drop::size_config::SizeConfig,
 };
 
 /// Configuration for `DropBlock`.

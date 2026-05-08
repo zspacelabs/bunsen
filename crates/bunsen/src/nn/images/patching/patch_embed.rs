@@ -1,4 +1,4 @@
-//! # Patch Embedding layers and operations.
+//! # Patch Embedding images and operations.
 use bunsen_contracts::assert_shape_contract_periodically;
 use burn::{
     config::Config,

@@ -6,7 +6,7 @@
 //! * a [`Activation`] layer.
 //!
 //! With support for hooking the forward method,
-//! to run code between the norm and application layers.
+//! to run code between the norm and application images.
 
 use bunsen_contracts::{
     assert_shape_contract_periodically,
@@ -155,7 +155,7 @@ impl CNA2dConfig {
 /// * a [`Activation`] layer.
 ///
 /// With support for hooking the forward method,
-/// to run code between the norm and application layers.
+/// to run code between the norm and application images.
 ///
 /// Implements [`CNA2dMeta`].
 #[derive(Module, Debug)]
@@ -191,7 +191,7 @@ impl<B: Backend> CNA2dMeta for CNA2d<B> {
 impl<B: Backend> CNA2d<B> {
     /// Forward Pass.
     ///
-    /// Applies the conv/norm/act layers in sequence:
+    /// Applies the conv/norm/act images in sequence:
     ///
     /// ```rust,ignore
     /// let x = self.conv.forward(input);

@@ -2,7 +2,7 @@ use std::hint::black_box;
 
 use bunsen::{
     functional::noise::NoiseConfig,
-    nn::layers::drop::drop_block::{
+    nn::images::drop::drop_block::{
         DropBlockOptions,
         drop_block_2d,
     },

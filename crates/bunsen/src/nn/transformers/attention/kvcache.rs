@@ -29,7 +29,7 @@ pub trait KVCacheMeta {
     /// Dimension of each head.
     fn head_dim(&self) -> usize;
 
-    /// Number of layers.
+    /// Number of images.
     fn num_layers(&self) -> usize;
 }
 
@@ -48,7 +48,7 @@ pub struct KVCacheConfig {
     /// Dimension of each head.
     pub head_dim: usize,
 
-    /// Number of layers.
+    /// Number of images.
     pub num_layers: usize,
 }
 

@@ -1,4 +1,4 @@
-//! # Pooling layers
+//! # Pooling images
 
 mod avg_pool_2d_same;
 

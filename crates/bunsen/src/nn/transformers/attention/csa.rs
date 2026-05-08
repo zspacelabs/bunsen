@@ -25,7 +25,7 @@ use burn::{
     },
 };
 
-use crate::nn::{
+use crate::nn::transformers::{
     attention::{
         kvcache::KVCache,
         sdpa::{
@@ -323,7 +323,7 @@ mod tests {
     use super::*;
     use crate::{
         BunsenTestBackend,
-        nn::{
+        nn::transformers::{
             attention::kvcache::KVCache,
             embedding::rotary::{
                 RotaryEmbedding,

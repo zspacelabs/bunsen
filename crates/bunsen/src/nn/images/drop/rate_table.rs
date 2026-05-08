@@ -11,7 +11,7 @@ use crate::functional::arange::float_vec_linspace;
 /// # Arguments
 ///
 /// * `drop_path_rate`: The final drop path rate to be achieved.
-/// * `depth`: The total number of layers in the model.
+/// * `depth`: The total number of images in the model.
 ///
 /// # Returns
 ///
@@ -26,7 +26,7 @@ pub fn progressive_dpr(
     float_vec_linspace(
         0.0,
         drop_path_rate,
-        // Total number of layers
+        // Total number of images
         depth,
     )
 }
@@ -69,12 +69,12 @@ impl DropPathRateDepthTable {
         &self.layer_depths
     }
 
-    /// Returns the total depth of all layers.
+    /// Returns the total depth of all images.
     pub fn total_depth(&self) -> usize {
         self.layer_depths.iter().sum()
     }
 
-    /// Returns the total number of layers.
+    /// Returns the total number of images.
     #[must_use]
     pub fn num_layers(&self) -> usize {
         self.layer_depths.len()
@@ -101,7 +101,7 @@ impl DropPathRateDepthTable {
     ) -> Vec<f64> {
         if layer_i >= self.num_layers() {
             panic!(
-                "Layer index {} out of bounds for {} layers",
+                "Layer index {} out of bounds for {} images",
                 layer_i,
                 self.num_layers()
             );
@@ -114,7 +114,7 @@ impl DropPathRateDepthTable {
         progressive_dpr1[start..end].to_vec()
     }
 
-    /// Returns the `layer_dprs` for all layers as a vector of vectors.
+    /// Returns the `layer_dprs` for all images as a vector of vectors.
     #[inline(always)]
     #[must_use]
     pub fn layer_rates(&self) -> Vec<Vec<f64>> {
@@ -191,12 +191,12 @@ mod tests {
         assert_close_to_vec(&rates[2], &[0.0625, 0.075, 0.0875, 0.1], 0.001);
     }
 
-    #[should_panic(expected = "Layer index 3 out of bounds for 3 layers")]
+    #[should_panic(expected = "Layer index 3 out of bounds for 3 images")]
     #[test]
     fn test_layer_dprs_out_of_bounds() {
         let depths = vec![2, 3, 4];
         let dpr_table = DropPathRateDepthTable::new(0.1, &depths);
-        // This should panic because there are only 3 layers (0, 1, 2)
+        // This should panic because there are only 3 images (0, 1, 2)
         let _d = dpr_table.layer_dprs(3);
     }
 
