@@ -1,12 +1,11 @@
 #![allow(unused)]
-//! # Utility Support Functions
-//!
-//! This module exists to support developing `bimm` module.
-//! The API stability expectations are lower than for [`crate::layers`]
-//! or [`crate::models`]; but it is not meant to be experimental code.
+//! # Bunsen / Client Support Utilities
 
-pub mod probability;
+pub mod validators;
 
-mod with_ok_or_panic;
+#[cfg(feature = "testing")]
+pub mod testing;
+
+mod result_ext;
 #[doc(inline)]
-pub use with_ok_or_panic::*;
+pub use result_ext::*;

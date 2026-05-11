@@ -12,7 +12,8 @@
 //! };
 //!
 //! use bunsen::{
-//!     errors::BunsenResult,
+//!     BunsenError,
+//!     BunsenResult,
 //!     kit::{
 //!         descriptors::{
 //!             TensorKindDesc,
@@ -529,7 +530,7 @@
 //!         ],
 //!     );
 //!
-//! Ok::<(), bunsen::errors::BunsenError>(())
+//! Ok::<(), BunsenError>(())
 //! ```
 
 pub mod module_visitors;

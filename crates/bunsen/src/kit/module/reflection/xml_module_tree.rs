@@ -17,10 +17,7 @@ use burn::{
         Linear,
         LinearConfig,
     },
-    prelude::{
-        Backend,
-        Shape,
-    },
+    prelude::Backend,
 };
 use xee_xpath::{
     Documents,
@@ -34,8 +31,6 @@ use xee_xpath::{
     query::Convert,
 };
 use xot::{
-    Attribute,
-    Attributes,
     NameId,
     Node,
     Xot,
@@ -143,7 +138,7 @@ impl XmlModuleTree {
 
     /// Bind a list of local names to [`NameId`]s.
     ///
-    /// See [`bind_local_name`].
+    /// See [`Self::bind_local_name`].
     pub fn bind_local_names<const N: usize>(
         &mut self,
         names: [&str; N],
@@ -669,7 +664,7 @@ mod tests {
     use super::*;
     use crate::{
         kit::descriptors::TensorParamDesc,
-        testing::SetupTestBackend,
+        support::testing::SetupTestBackend,
     };
 
     #[test]

@@ -64,9 +64,9 @@
 //! * [`run_periodically`] - a macro for running code on an incrementally
 //!   lengthening schedule.
 //!
-//! ### `ShapeArgument` Support
+//! ### `ShapeView` Support
 //!
-//! The shape methods take a [`ShapeArgument`] parameter; with implementations
+//! The shape methods take a [`ShapeView`] parameter; with implementations
 //! for:
 //! * ``&[usize]``, ``&[usize; D]``,
 //! * ``&[u32]``, ``&[u32; D]``,

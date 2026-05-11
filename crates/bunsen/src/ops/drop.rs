@@ -17,7 +17,7 @@ pub fn dropout<B: Backend, const D: usize>(
         return input;
     }
     if !(0.0..=1.0).contains(&prob) {
-        panic!("Dropout probability should be between 0 and 1, but got {prob}",);
+        panic!("Dropout validators should be between 0 and 1, but got {prob}",);
     }
 
     let prob_keep = 1.0 - prob;
@@ -32,7 +32,7 @@ mod tests {
     use burn::prelude::ElementConversion;
 
     use super::*;
-    use crate::testing::PerfTestBackend;
+    use crate::support::testing::PerfTestBackend;
 
     #[test]
     fn dropout_prob_0_should_return_input() {
@@ -82,7 +82,7 @@ mod tests {
     }
 
     #[test]
-    #[should_panic = "Dropout probability should be between 0 and 1,"]
+    #[should_panic = "Dropout validators should be between 0 and 1,"]
     fn dropout_prob_invalid() {
         type B = PerfTestBackend;
         let device = Default::default();

@@ -242,7 +242,7 @@ mod tests {
     };
 
     use super::*;
-    use crate::testing::PerfTestBackend;
+    use crate::support::testing::PerfTestBackend;
 
     #[test]
     fn test_inverse_frequency_table() {

@@ -23,7 +23,7 @@ use crate::ops::{
     repeat,
 };
 
-/// Config for [`ScaledDotProductAttention`].
+/// Config options for [`scaled_dot_product_attention`].
 #[derive(Config, Debug, Copy)]
 pub struct ScaledDotProductAttentionConfig {
     /// Causal or not.
@@ -186,7 +186,7 @@ pub fn sdpa_bias<B: Backend>(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::testing::PerfTestBackend;
+    use crate::support::testing::PerfTestBackend;
 
     #[test]
     fn test_scaled_dot_product_attention_bias() {

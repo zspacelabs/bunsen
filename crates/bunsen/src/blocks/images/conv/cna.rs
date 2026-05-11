@@ -139,7 +139,7 @@ impl CNA2dConfig {
 
     /// Adjust the norm features to match the conv output size.
     ///
-    /// ['`CNA2dConfig::init`'] does this automatically.
+    /// [`Self::init`] does this automatically.
     pub fn match_norm_features(self) -> Self {
         let features = self.out_channels();
         let norm = self.norm.with_num_features(features);

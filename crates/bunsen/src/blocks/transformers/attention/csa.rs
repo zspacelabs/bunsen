@@ -329,7 +329,7 @@ mod tests {
                 RotaryEmbeddingConfig,
             },
         },
-        testing::SetupTestBackend,
+        support::testing::SetupTestBackend,
     };
 
     #[test]

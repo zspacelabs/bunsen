@@ -153,7 +153,7 @@ mod tests {
     use hamcrest::*;
 
     use super::*;
-    use crate::testing::assert_close_to_vec;
+    use crate::support::testing::assert_close_to_vec;
 
     #[test]
     fn test_incremental_drop_rate() {

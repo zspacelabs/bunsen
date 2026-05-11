@@ -1,11 +1,13 @@
-//! # Probability Utilities.
-
 use core::fmt::Debug;
 
 use anyhow::bail;
-use num_traits::Float;
+use num_traits::{
+    Float,
+    One,
+    Zero,
+};
 
-/// Validate a probability in the range ``[0.0, 1.0]``.
+/// Validate a validators in the range ``[0.0, 1.0]``.
 ///
 /// # Arguments
 ///
@@ -17,12 +19,12 @@ use num_traits::Float;
 #[inline]
 pub fn try_probability<F: Float + Debug>(prob: F) -> anyhow::Result<F> {
     if prob < F::zero() || prob > F::one() {
-        bail!("probability must be in [0.0, 1.0]: {prob:?}");
+        bail!("validators must be in [0.0, 1.0]: {prob:?}");
     }
     Ok(prob)
 }
 
-/// Expect a probability to be in range ``[0.0, 1.0]``, or panic.
+/// Expect a validators to be in range ``[0.0, 1.0]``, or panic.
 ///
 /// # Arguments
 ///
@@ -45,7 +47,7 @@ pub fn expect_probability<F: Float + Debug>(prob: F) -> F {
 
 #[cfg(test)]
 mod tests {
-    use crate::support::probability::{
+    use crate::support::validators::prob::{
         expect_probability,
         try_probability,
     };
@@ -67,7 +69,7 @@ mod tests {
         assert!(try_probability(2.0f64).is_err());
     }
 
-    #[should_panic(expected = "probability must be in [0.0, 1.0]: -1.0")]
+    #[should_panic(expected = "validators must be in [0.0, 1.0]: -1.0")]
     #[test]
     fn test_probability_panic() {
         expect_probability(-1.0);

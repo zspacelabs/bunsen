@@ -37,13 +37,13 @@ use crate::{
         conv::conv2d_kernel_midpoint_filter,
         noise::NoiseConfig,
     },
-    support::probability::expect_probability,
+    support::validators::expect_probability,
 };
 
 /// Configuration for `DropBlock`.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct DropBlockOptions {
-    /// The drop probability.
+    /// The drop validators.
     pub drop_prob: f64,
 
     /// The block size.
@@ -102,11 +102,11 @@ impl Default for DropBlockOptions {
 }
 
 impl DropBlockOptions {
-    /// Extend the options with the given probability.
+    /// Extend the options with the given validators.
     ///
     /// # Arguments
     ///
-    /// - `drop_prob` - the probability.
+    /// - `drop_prob` - the validators.
     ///
     /// # Panics
     ///
@@ -253,7 +253,7 @@ impl DropBlockOptions {
 
     /// Compute the adjusted gamma rate.
     ///
-    /// Gamma is the adjusted probability that any given point is the midpoint
+    /// Gamma is the adjusted validators that any given point is the midpoint
     /// of a dropped block; given the desired `drop_rate`, the block size, and
     /// the input size.
     ///
@@ -357,7 +357,7 @@ fn drop_block_2d_drop_filter_<B: Backend>(
 ///
 /// Dropped values can be resampled from a noise distribution,
 /// kept values can be re-normalized.
-/// The drop probability, block size, and several performance/quality tradeoffs
+/// The drop validators, block size, and several performance/quality tradeoffs
 /// can be configured.
 ///
 /// Based upon [DropBlock (Ghiasi, et al., 2018)](https://arxiv.org/pdf/1810.12890.pdf);

@@ -19,7 +19,7 @@ use burn::{
     tensor::Distribution,
 };
 
-use crate::support::probability;
+use crate::support::validators;
 
 /// `DropPath` (stochastic depth) regularization.
 ///
@@ -75,7 +75,7 @@ fn _drop_path_sample<B: Backend, const D: usize>(
     scale_by_keep: bool,
     sample: fn([usize; D], f64, &B::Device) -> Tensor<B, D>,
 ) -> Tensor<B, D> {
-    probability::expect_probability(drop_prob);
+    validators::expect_probability(drop_prob);
 
     if !training || drop_prob == 0.0 {
         return x;
@@ -99,10 +99,10 @@ fn _drop_path_sample<B: Backend, const D: usize>(
 
 /// Common introspection interface for `DropPath` module.
 pub trait DropPathMeta {
-    /// Returns the drop probability.
+    /// Returns the drop validators.
     fn drop_prob(&self) -> f64;
 
-    /// Returns the keep probability, which is `1.0 - drop_prob`.
+    /// Returns the keep validators, which is `1.0 - drop_prob`.
     fn keep_prob(&self) -> f64 {
         1.0 - self.drop_prob()
     }
@@ -139,7 +139,7 @@ impl DropPathConfig {
     #[must_use]
     pub fn init(&self) -> DropPath {
         DropPath {
-            drop_prob: probability::expect_probability(self.drop_prob),
+            drop_prob: validators::expect_probability(self.drop_prob),
             scale_by_keep: self.scale_by_keep,
         }
     }

@@ -62,7 +62,7 @@ pub fn repeat_interleave<B: Backend, const R: usize, const R2: usize, D: AsIndex
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::testing::SetupTestBackend;
+    use crate::support::testing::SetupTestBackend;
 
     #[test]
     fn test_repeat_interleave() {
