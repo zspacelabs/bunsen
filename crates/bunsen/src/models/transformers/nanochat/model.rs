@@ -51,8 +51,8 @@ use crate::{
     },
 };
 
-/// Common meta for [`GPT`] and [`GPTConfig`].
-pub trait GPTMeta {
+/// Common meta for [`NanoGpt`] and [`NanoGptConfig`].
+pub trait NanoGptMeta {
     /// Return the size of the input and output.
     fn n_embed(&self) -> usize;
 
@@ -79,7 +79,7 @@ pub trait GPTMeta {
 
 /// High-level GPT Config.
 #[derive(Config, Debug)]
-pub struct GPTConfig {
+pub struct NanoGptConfig {
     /// Initial sequence Length.
     #[config(default = "1024")]
     pub init_seq_len: usize,
@@ -126,7 +126,7 @@ pub struct GPTConfig {
     pub norm: NormalizationConfig,
 }
 
-impl GPTMeta for GPTConfig {
+impl NanoGptMeta for NanoGptConfig {
     fn n_embed(&self) -> usize {
         self.n_embed
     }
@@ -152,19 +152,19 @@ impl GPTMeta for GPTConfig {
     }
 }
 
-impl GPTConfig {
-    /// Initialize a [`GPT`].
+impl NanoGptConfig {
+    /// Initialize a [`NanoGpt`].
     pub fn init<B: Backend>(
         self,
         device: &B::Device,
-    ) -> GPT<B> {
+    ) -> NanoGpt<B> {
         self.into_structure().init(device)
     }
 
-    /// Convert this config into a [`GPTStructureConfig`].
-    pub fn into_structure(self) -> GPTStructureConfig {
+    /// Convert this config into a [`NanoGptStructureConfig`].
+    pub fn into_structure(self) -> NanoGptStructureConfig {
         let block_config = self.block_config();
-        GPTStructureConfig {
+        NanoGptStructureConfig {
             wte: EmbeddingConfig::new(self.vocab_size, self.n_embed),
             h: (0..self.n_layer).map(|_| block_config.clone()).collect(),
             lm_head: LinearConfig::new(self.n_embed, self.vocab_size),
@@ -192,7 +192,7 @@ impl GPTConfig {
 ///
 /// This config has a lot of duplicate information.
 #[derive(Config, Debug)]
-pub struct GPTStructureConfig {
+pub struct NanoGptStructureConfig {
     /// The embedding config.
     pub wte: EmbeddingConfig,
 
@@ -219,7 +219,7 @@ pub struct GPTStructureConfig {
     pub norm: NormalizationConfig,
 }
 
-impl GPTMeta for GPTStructureConfig {
+impl NanoGptMeta for NanoGptStructureConfig {
     fn n_embed(&self) -> usize {
         self.wte.d_model
     }
@@ -249,14 +249,14 @@ impl GPTMeta for GPTStructureConfig {
     }
 }
 
-impl GPTStructureConfig {
-    /// Initialize a [`GPT`].
+impl NanoGptStructureConfig {
+    /// Initialize a [`NanoGpt`].
     pub fn init<B: Backend>(
         self,
         device: &B::Device,
-    ) -> GPT<B> {
+    ) -> NanoGpt<B> {
         let n_embed = self.n_embed();
-        GPT {
+        NanoGpt {
             wte: self.wte.init(device),
             h: self
                 .h
@@ -275,7 +275,7 @@ impl GPTStructureConfig {
 
 /// GPT Module
 #[derive(Module, Debug)]
-pub struct GPT<B: Backend> {
+pub struct NanoGpt<B: Backend> {
     wte: Embedding<B>,
     h: Vec<GPTBlock<B>>,
     h_norm: Normalization<B>,
@@ -286,7 +286,7 @@ pub struct GPT<B: Backend> {
     softcap: f64,
 }
 
-impl<B: Backend> GPTMeta for GPT<B> {
+impl<B: Backend> NanoGptMeta for NanoGpt<B> {
     fn n_embed(&self) -> usize {
         self.wte.weight.dims()[0]
     }
@@ -316,7 +316,7 @@ impl<B: Backend> GPTMeta for GPT<B> {
     }
 }
 
-impl<B: Backend> GPT<B> {
+impl<B: Backend> NanoGpt<B> {
     /// Forward Pass.
     ///
     /// # Arguments
@@ -411,7 +411,7 @@ mod tests {
 
     #[test]
     fn test_gpt_config() {
-        let cfg = GPTConfig::new();
+        let cfg = NanoGptConfig::new();
         assert_eq!(cfg.init_seq_len, 1024);
         assert_eq!(cfg.vocab_size, 50304);
         assert_eq!(cfg.n_layer, 12);
@@ -436,11 +436,11 @@ mod tests {
 
         let vocab_size = 1000;
 
-        let cfg = GPTConfig::new()
+        let cfg = NanoGptConfig::new()
             .with_vocab_size(vocab_size)
             .with_n_embed(n_embed)
             .with_n_layer(n_layer);
-        let gpt: GPT<B> = cfg.init(&device);
+        let gpt: NanoGpt<B> = cfg.init(&device);
 
         let mut kv_cache = gpt.new_kv_cache(batch_size);
 

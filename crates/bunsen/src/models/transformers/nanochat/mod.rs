@@ -2,11 +2,11 @@
 
 mod block;
 mod mlp;
-mod nano_gpt;
+mod model;
 
 #[doc(inline)]
 pub use block::*;
 #[doc(inline)]
 pub use mlp::*;
 #[doc(inline)]
-pub use nano_gpt::*;
+pub use model::*;
