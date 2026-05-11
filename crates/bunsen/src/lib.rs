@@ -12,6 +12,11 @@ extern crate core;
 
 #[cfg(feature = "cache")]
 pub use bunsen_cache as cache;
+
+// Make the macro targets public.
+// TODO: re-examine contracts publication.
+#[doc(hidden)]
+pub extern crate bunsen_contracts;
 #[doc(inline)]
 pub use bunsen_contracts as contracts;
 
