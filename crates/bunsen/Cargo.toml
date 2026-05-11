@@ -54,9 +54,9 @@ wgpu = ["burn/wgpu"]
 flex = ["burn/flex"]
 
 [dependencies]
-bunsen-cache = { path = "../bunsen-cache", version = "0.21.0-pre.5", optional = true }
-bunsen-contracts = { path = "../bunsen-contracts", version = "0.21.0-pre.5", features = ["burn"] }
-bunsen-contracts-macros = { version = "0.21.0-pre.5", path = "../bunsen-contracts-macros" }
+bunsen-cache = { path = "../bunsen-cache", version = "0.21.0-pre.6", optional = true }
+bunsen-contracts = { path = "../bunsen-contracts", version = "0.21.0-pre.6", features = ["burn"] }
+bunsen-contracts-macros = { version = "0.21.0-pre.6", path = "../bunsen-contracts-macros" }
 
 burn = { workspace = true }
 # kit-locked public deps:
