@@ -1,4 +1,4 @@
-//! NanoChat
+//! `NanoChat`
 
 mod block;
 mod mlp;
