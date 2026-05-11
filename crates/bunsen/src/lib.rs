@@ -10,40 +10,32 @@
 extern crate alloc;
 extern crate core;
 
+/// Re-export public dependencies.
+#[allow(unused_imports)]
+#[allow(missing_docs)]
+pub mod public {
+    pub use burn;
+    pub use hashbrown;
+}
+
 #[cfg(feature = "cache")]
 pub use bunsen_cache as cache;
 // Make the macro targets public.
 // TODO: re-examine contracts publication.
-#[doc(hidden)]
-pub use bunsen_contracts;
-#[doc(inline)]
-pub use bunsen_contracts as contracts;
-/// A macro which defines a static [`crate::ShapeContract`].
-///
-/// See [`crate::shape_contract`] for documentation on the contract syntax.
-///
-/// ```rust,no_run
-/// use bunsen_contracts::define_shape_contract;
-///
-/// define_shape_contract!(
-///   CONTRACT,
-///   [..., "h" = "h_win" * "ws", "w" = "w_win" * "ws", "c"]);
-/// ```
-#[macro_export]
-macro_rules! define_shape_contract {
-    ($name:ident, [ $($contract_expr:tt)* ] $(,)?) => {
-        static $name: $crate::ShapeContract<'static> = $crate::bunsen_contracts::shape_contract![$($contract_expr)*];
-    };
-}
 
 pub mod blocks;
 pub mod kit;
+pub mod models;
 pub mod ops;
 pub mod support;
 pub mod zspace;
 
+pub use bunsen_contracts as contracts;
+#[doc(inline)]
+pub use bunsen_contracts_macros::shape_contract;
+mod macros;
+
 mod errors;
-pub mod models;
 
 #[doc(inline)]
 pub use errors::*;

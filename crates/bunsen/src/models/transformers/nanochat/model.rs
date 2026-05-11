@@ -1,9 +1,5 @@
 //! # GPT Module
 
-use bunsen_contracts::{
-    assert_shape_contract_periodically,
-    unpack_shape_contract,
-};
 use burn::{
     Tensor,
     module::Module,
@@ -27,6 +23,7 @@ use burn::{
 };
 
 use crate::{
+    assert_shape_contract_periodically,
     blocks::transformers::{
         attention::{
             csa::{
@@ -49,6 +46,7 @@ use crate::{
         NanoGptBlockConfig,
         NanoGptMlpConfig,
     },
+    unpack_shape_contract,
 };
 
 /// Common meta for [`NanoGpt`] and [`NanoGptConfig`].
