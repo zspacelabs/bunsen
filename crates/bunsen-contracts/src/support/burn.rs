@@ -1,27 +1,19 @@
 //! Burn Framework Support
 
-use alloc::vec::Vec;
-
 use burn::{
     prelude::{
         Backend,
         Shape,
         Tensor,
     },
-    tensor::{
-        BasicOps,
-        TensorKind,
-    },
+    tensor::BasicOps,
 };
 
-use crate::{
-    ShapeArgument,
-    shape_view::ShapeView,
-};
+use crate::shape_view::ShapeView;
 
 impl<'a> From<&'a Shape> for ShapeView<'a> {
     fn from(shape: &'a Shape) -> Self {
-        ShapeView::new(shape)
+        shape.as_slice().into()
     }
 }
 
@@ -31,9 +23,13 @@ impl<'a> From<Shape> for ShapeView<'a> {
     }
 }
 
-impl<'a> From<&'a Tensor<B, R, K>> for ShapeView<'a> {
+impl<'a, B, const R: usize, K> From<&'a Tensor<B, R, K>> for ShapeView<'a>
+where
+    B: Backend,
+    K: BasicOps<B>,
+{
     fn from(tensor: &'a Tensor<B, R, K>) -> Self {
-        ShapeView::new(tensor.shape())
+        tensor.shape().into()
     }
 }
 
@@ -45,6 +41,7 @@ mod tests {
     use crate::ShapeView;
 
     #[test]
+    #[allow(unused)]
     fn test_burn_shape_views() {
         let expected = vec![2, 3, 4];
 
@@ -53,7 +50,8 @@ mod tests {
         assert_eq!(sv.as_ref(), &expected);
 
         let shape_ref: &Shape = &shape;
-        assert_eq!(sv.as_ref(), &expected);
+        let sv: ShapeView = shape_ref.into();
+        assert_eq!(shape_ref.as_ref(), &expected);
 
         let tensor: Tensor<burn::backend::NdArray, 2> = Tensor::zeros([2, 2], &Default::default());
         let tensor_ref = &tensor;

@@ -273,7 +273,10 @@
 
 extern crate alloc;
 
-pub use bunsen_contracts_macros::shape_contract;
+pub use bunsen_contracts_macros::{
+    self,
+    shape_contract,
+};
 
 pub mod bindings;
 pub mod contracts;
