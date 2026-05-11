@@ -22,15 +22,15 @@ use crate::contracts::{
     unpack_shape_contract,
 };
 
-/// Common meta for [`MLP`] and [`MLPConfig`].
-pub trait MLPMeta {
+/// Common meta for [`NanoGptMlp`] and [`NanoGptMlpConfig`].
+pub trait NanoGptMlpMeta {
     /// Return the size of the input and output.
     fn n_embed(&self) -> usize;
 }
 
-/// Config for [`MLP`].
+/// Config for [`NanoGptMlp`].
 #[derive(Config, Debug)]
-pub struct MLPConfig {
+pub struct NanoGptMlpConfig {
     /// Embedding Size.
     pub n_embed: usize,
 
@@ -43,19 +43,19 @@ pub struct MLPConfig {
     pub activation: ActivationConfig,
 }
 
-impl MLPMeta for MLPConfig {
+impl NanoGptMlpMeta for NanoGptMlpConfig {
     fn n_embed(&self) -> usize {
         self.n_embed
     }
 }
 
-impl MLPConfig {
+impl NanoGptMlpConfig {
     /// Initialize the module.
     pub fn init<B: Backend>(
         self,
         device: &B::Device,
-    ) -> MLP<B> {
-        MLP {
+    ) -> NanoGptMlp<B> {
+        NanoGptMlp {
             c_fc: LinearConfig::new(self.n_embed(), self.hidden_size())
                 .with_bias(false)
                 .init(device),
@@ -74,7 +74,7 @@ impl MLPConfig {
 
 /// GPT Block MLP Module
 #[derive(Module, Debug)]
-pub struct MLP<B: Backend> {
+pub struct NanoGptMlp<B: Backend> {
     /// Feed Forward Layer.
     pub c_fc: Linear<B>,
 
@@ -85,13 +85,13 @@ pub struct MLP<B: Backend> {
     pub c_proj: Linear<B>,
 }
 
-impl<B: Backend> MLPMeta for MLP<B> {
+impl<B: Backend> NanoGptMlpMeta for NanoGptMlp<B> {
     fn n_embed(&self) -> usize {
         self.c_fc.weight.dims()[0]
     }
 }
 
-impl<B: Backend> MLP<B> {
+impl<B: Backend> NanoGptMlp<B> {
     /// MLP Forward Pass.
     ///
     /// # Arguments
@@ -138,7 +138,7 @@ mod tests {
 
     #[test]
     fn test_mlp_config() {
-        let cfg = MLPConfig::new(3);
+        let cfg = NanoGptMlpConfig::new(3);
 
         assert_eq!(cfg.n_embed, 3);
         assert_eq!(cfg.expansion_factor, 4);
@@ -158,11 +158,11 @@ mod tests {
                 let t = 3;
                 let n_embed = 10;
 
-                let cfg = MLPConfig::new(n_embed)
+                let cfg = NanoGptMlpConfig::new(n_embed)
                     .with_expansion_factor(ef)
                     .with_activation(activation.clone());
 
-                let mlp: MLP<B> = cfg.init(&device);
+                let mlp: NanoGptMlp<B> = cfg.init(&device);
 
                 assert_eq!(mlp.n_embed(), n_embed);
 

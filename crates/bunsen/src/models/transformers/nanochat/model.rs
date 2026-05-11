@@ -45,9 +45,9 @@ use crate::{
         },
     },
     models::transformers::nanochat::{
-        GPTBlock,
-        GPTBlockConfig,
-        MLPConfig,
+        NanoGptBlock,
+        NanoGptBlockConfig,
+        NanoGptMlpConfig,
     },
 };
 
@@ -175,12 +175,12 @@ impl NanoGptConfig {
         }
     }
 
-    /// Build the [`GPTBlockConfig`] for this config.
-    pub fn block_config(&self) -> GPTBlockConfig {
-        GPTBlockConfig::new(
+    /// Build the [`NanoGptBlockConfig`] for this config.
+    pub fn block_config(&self) -> NanoGptBlockConfig {
+        NanoGptBlockConfig::new(
             CausalSelfAttentionConfig::new(self.n_head, self.n_kv_head, self.n_embed)
                 .with_norm(self.norm.clone()),
-            MLPConfig::new(self.n_embed)
+            NanoGptMlpConfig::new(self.n_embed)
                 .with_expansion_factor(self.expansion_factor)
                 .with_activation(self.activation.clone()),
         )
@@ -197,7 +197,7 @@ pub struct NanoGptStructureConfig {
     pub wte: EmbeddingConfig,
 
     /// The main transformer block sequence.
-    pub h: Vec<GPTBlockConfig>,
+    pub h: Vec<NanoGptBlockConfig>,
 
     /// The config for the final linear layer.
     pub lm_head: LinearConfig,
@@ -277,7 +277,7 @@ impl NanoGptStructureConfig {
 #[derive(Module, Debug)]
 pub struct NanoGpt<B: Backend> {
     wte: Embedding<B>,
-    h: Vec<GPTBlock<B>>,
+    h: Vec<NanoGptBlock<B>>,
     h_norm: Normalization<B>,
     lm_head: Linear<B>,
     r_emb: RotaryEmbedding<B>,

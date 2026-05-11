@@ -25,26 +25,26 @@ use crate::{
         embedding::rotary::RotaryEmbedding,
     },
     models::transformers::nanochat::{
-        MLP,
-        MLPConfig,
-        MLPMeta,
+        NanoGptMlp,
+        NanoGptMlpConfig,
+        NanoGptMlpMeta,
     },
 };
 
-/// Common meta for [`GPTBlock`] and [`GPTBlockConfig`].
-pub trait GPTBlockMeta {
+/// Common meta for [`NanoGptBlock`] and [`NanoGptBlockConfig`].
+pub trait NanoGptBlockMeta {
     /// Return the size of the input and output.
     fn n_embed(&self) -> usize;
 }
 
-/// Config for [`GPTBlock`].
+/// Config for [`NanoGptBlock`].
 #[derive(Config, Debug)]
-pub struct GPTBlockConfig {
+pub struct NanoGptBlockConfig {
     /// Causal Self-Attention Config.
     pub attn: CausalSelfAttentionConfig,
 
     /// MLP Config.
-    pub mlp: MLPConfig,
+    pub mlp: NanoGptMlpConfig,
 
     /// Attention Normalization.
     /// This normalization will be adapted to the appropriate feature count.
@@ -52,22 +52,22 @@ pub struct GPTBlockConfig {
     pub norm: NormalizationConfig,
 }
 
-impl GPTBlockMeta for GPTBlockConfig {
+impl NanoGptBlockMeta for NanoGptBlockConfig {
     fn n_embed(&self) -> usize {
         self.attn.n_embed()
     }
 }
 
-impl GPTBlockConfig {
-    /// Initialize a [`GPTBlock`].
+impl NanoGptBlockConfig {
+    /// Initialize a [`NanoGptBlock`].
     pub fn init<B: Backend>(
         self,
         layer_index: usize,
         device: &B::Device,
-    ) -> GPTBlock<B> {
+    ) -> NanoGptBlock<B> {
         assert_eq!(self.attn.n_embed(), self.mlp.n_embed());
         let n_embed = self.n_embed();
-        GPTBlock {
+        NanoGptBlock {
             input_norm: self.norm.clone().with_num_features(n_embed).init(device),
             attn: self.attn.init(layer_index, device),
             attn_norm: self.norm.clone().with_num_features(n_embed).init(device),
@@ -78,7 +78,7 @@ impl GPTBlockConfig {
 
 /// GPT Block
 #[derive(Module, Debug)]
-pub struct GPTBlock<B: Backend> {
+pub struct NanoGptBlock<B: Backend> {
     /// Input Normalization.
     pub input_norm: Normalization<B>,
 
@@ -89,16 +89,16 @@ pub struct GPTBlock<B: Backend> {
     pub attn_norm: Normalization<B>,
 
     /// MLP.
-    pub mlp: MLP<B>,
+    pub mlp: NanoGptMlp<B>,
 }
 
-impl<B: Backend> GPTBlockMeta for GPTBlock<B> {
+impl<B: Backend> NanoGptBlockMeta for NanoGptBlock<B> {
     fn n_embed(&self) -> usize {
         self.attn.n_embed()
     }
 }
 
-impl<B: Backend> GPTBlock<B> {
+impl<B: Backend> NanoGptBlock<B> {
     /// Forward Pass.
     ///
     /// # Usage Note
@@ -146,9 +146,9 @@ mod tests {
         let n_head = 128;
         let n_kv_head = 64;
 
-        let config = GPTBlockConfig::new(
+        let config = NanoGptBlockConfig::new(
             CausalSelfAttentionConfig::new(n_head, n_kv_head, n_embed),
-            MLPConfig::new(n_embed),
+            NanoGptMlpConfig::new(n_embed),
         );
         assert_eq!(config.n_embed(), n_embed);
         assert_eq!(config.attn.n_embed(), n_embed);
@@ -158,7 +158,7 @@ mod tests {
         assert_eq!(config.mlp.n_embed(), n_embed);
 
         let layer_index = 12;
-        let block: GPTBlock<B> = config.init(layer_index, &device);
+        let block: NanoGptBlock<B> = config.init(layer_index, &device);
 
         assert_eq!(block.n_embed(), n_embed);
     }
@@ -176,12 +176,12 @@ mod tests {
         let n_kv_head = 64;
         let layer_index = 12;
 
-        let config = GPTBlockConfig::new(
+        let config = NanoGptBlockConfig::new(
             CausalSelfAttentionConfig::new(n_head, n_kv_head, n_embed),
-            MLPConfig::new(n_embed),
+            NanoGptMlpConfig::new(n_embed),
         );
 
-        let block: GPTBlock<B> = config.init(layer_index, &device);
+        let block: NanoGptBlock<B> = config.init(layer_index, &device);
 
         let input = Tensor::random([batch, seq_len, n_embed], Distribution::Default, &device);
 
