@@ -38,6 +38,11 @@ cache = [
     "dep:bunsen-cache",
 ]
 
+#! Enables testing support features.
+testing = [
+    "flex"
+]
+
 cuda = ["burn/cuda"]
 metal = ["burn/metal"]
 wgpu = ["burn/wgpu"]
@@ -48,7 +53,7 @@ bunsen-cache = { path = "../bunsen-cache", version = "0.21.0-pre.1", optional = 
 bunsen-contracts = { path = "../bunsen-contracts", version = "0.21.0-pre.1" }
 
 burn = { workspace = true }
-# burn-locked public deps:
+# kit-locked public deps:
 hashbrown = { workspace = true, optional = true }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
@@ -64,7 +69,8 @@ xot = { workspace = true, optional = true }
 xee-xpath = { workspace = true, optional = true }
 
 [dev-dependencies]
-burn = { workspace = true, features = ["autodiff", "flex"] }
+bunsen = { path = ".", features = ["testing"] }
+burn = { workspace = true, features = ["autodiff"] }
 hamcrest = { workspace = true }
 indoc = { workspace = true }
 criterion = { workspace = true }

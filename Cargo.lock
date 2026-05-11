@@ -565,6 +565,7 @@ name = "bunsen"
 version = "0.21.0-pre.1"
 dependencies = [
  "anyhow",
+ "bunsen",
  "bunsen-cache",
  "bunsen-contracts",
  "burn",

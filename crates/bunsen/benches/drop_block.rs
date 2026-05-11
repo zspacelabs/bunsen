@@ -1,11 +1,11 @@
 use std::hint::black_box;
 
 use bunsen::{
-    functional::noise::NoiseConfig,
-    nn::images::drop::drop_block::{
+    blocks::images::drop::drop_block::{
         DropBlockOptions,
         drop_block_2d,
     },
+    ops::noise::NoiseConfig,
 };
 use burn::{
     backend::NdArray,

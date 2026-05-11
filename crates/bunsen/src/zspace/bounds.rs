@@ -16,7 +16,7 @@ use core::{
 
 use anyhow::bail;
 
-use crate::impl_support::WithOkOrPanic;
+use crate::support::WithOkOrPanic;
 
 /// Z-space `PartialOrd`
 ///
