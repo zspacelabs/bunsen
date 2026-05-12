@@ -1,5 +1,9 @@
 //! Common bunsen errors.
 
+mod result_ext;
+#[doc(inline)]
+pub use result_ext::*;
+
 /// Common bunsen error type.
 #[derive(Debug, thiserror::Error)]
 pub enum BunsenError {

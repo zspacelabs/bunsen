@@ -272,7 +272,14 @@
 
 mod macros;
 #[doc(inline)]
-pub use macros::*;
+pub use macros::{
+    assert_shape_contract,
+    assert_shape_contract_periodically,
+    define_shape_contract,
+    run_periodically,
+    shape_contract,
+    unpack_shape_contract,
+};
 
 mod shape_view;
 #[doc(inline)]

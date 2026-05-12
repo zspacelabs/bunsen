@@ -99,7 +99,7 @@ macro_rules! __run_periodically {
     }};
 }
 
-/// A macro which defines a static [`crate::ShapeContract`].
+/// Define a static [`ShapeContract`](`crate::contracts::ShapeContract`).
 ///
 /// See [`shape_contract`](`crate::contracts::shape_contract`) for documentation
 /// on the contract syntax.
@@ -121,12 +121,14 @@ macro_rules! __define_shape_contract {
     };
 }
 
-/// A macro which calls [`crate::ShapeContract::assert_shape`] on a static shape
+/// Define and call
+/// [`ShapeContract::assert_shape`](`crate::contracts::ShapeContract::assert_shape`) on a static shape
 /// contract.
 ///
-/// See [`crate::shape_contract`] for documentation on the contract syntax.
-/// See [`crate::ShapeContract::assert_shape`] for documentation on the
-/// assertion api.
+/// See [`crate::contracts::shape_contract`] for documentation
+/// on the contract syntax.
+/// See [`crate::contracts::ShapeContract::assert_shape`] for documentation on
+/// the assertion api.
 ///
 /// ### With a Contract Expression:
 ///
@@ -169,12 +171,14 @@ macro_rules! __assert_shape_contract {
     };
 }
 
-/// A macro which periodically calls [`crate::assert_shape_contract`].
+/// A macro which periodically calls
+/// [`assert_shape_contract`](`crate::contracts::assert_shape_contract`).
 ///
-/// See [`crate::shape_contract`] for documentation on the contract syntax.
-/// See [`crate::ShapeContract::assert_shape`] for documentation on the
-/// assertion api. See [`crate::run_periodically`] for documentation on the
-/// periodic runner.
+/// See [`crate::contracts::shape_contract`] for documentation
+/// on the contract syntax.
+/// See [`crate::contracts::ShapeContract::assert_shape`] for documentation on
+/// the assertion api. See [`crate::contracts::run_periodically`] for
+/// documentation on the periodic runner.
 ///
 /// ### With a Contract Expression:
 ///
@@ -212,12 +216,13 @@ macro_rules! __assert_shape_contract_periodically {
     };
 }
 
-/// A macro which calls [`crate::ShapeContract::unpack_shape`] on a static shape
-/// contract.
+/// Define and call
+/// [`ShapeContract::unpack_shape`](`crate::contracts::ShapeContract::unpack_shape`)
+/// on a static shape contract.
 ///
-/// See [`crate::shape_contract`] for documentation on the contract syntax.
-/// See [`crate::ShapeContract::unpack_shape`] for documentation on the unpack
-/// api.
+/// See [`crate::contracts::shape_contract`] for documentation on the contract
+/// syntax. See [`crate::contracts::ShapeContract::unpack_shape`] for
+/// documentation on the unpack api.
 ///
 /// ### With a Contract Expression:
 ///

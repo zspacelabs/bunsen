@@ -1,4 +1,4 @@
-//! Common low-level module for adding images and operations in Burn.
+//! Image (2D) Manipulation Blocks and Modules.
 
 pub mod conv;
 pub mod drop;

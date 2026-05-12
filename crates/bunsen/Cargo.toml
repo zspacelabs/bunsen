@@ -29,6 +29,7 @@ harness = false
 default = [
     "reflection",
     "train",
+    "testing",
 ]
 std = [
     "burn/std",
@@ -56,14 +57,34 @@ cache = [
     "dep:bunsen-cache",
 ]
 
-#! Enables testing support features.
+## Enables testing support features.
 testing = [
     "flex"
 ]
 
+## Enable the cuda backend in the bunsen build.
+## This will impact the bunsen::support::testing::PerfTestBackend choice.
+## Dependents which enable backends for burn without enabling them for bunsen
+## can still use those backends with bunsen; only bunse specific features will
+## be disabled.
 cuda = ["burn/cuda"]
+## Enable the cuda backend in the bunsen build.
+## This will impact the bunsen::support::testing::PerfTestBackend choice.
+## Dependents which enable backends for burn without enabling them for bunsen
+## can still use those backends with bunsen; only bunse specific features will
+## be disabled.
 metal = ["burn/metal"]
+## Enable the cuda backend in the bunsen build.
+## This will impact the bunsen::support::testing::PerfTestBackend choice.
+## Dependents which enable backends for burn without enabling them for bunsen
+## can still use those backends with bunsen; only bunse specific features will
+## be disabled.
 wgpu = ["burn/wgpu"]
+## Enable the cuda backend in the bunsen build.
+## This will impact the bunsen::support::testing::PerfTestBackend choice.
+## Dependents which enable backends for burn without enabling them for bunsen
+## can still use those backends with bunsen; only bunse specific features will
+## be disabled.
 flex = ["burn/flex"]
 
 

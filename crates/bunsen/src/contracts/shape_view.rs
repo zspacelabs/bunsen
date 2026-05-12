@@ -11,7 +11,7 @@ use burn::{
     tensor::BasicOps,
 };
 
-/// Adaptor to view sources as a &[usize].
+/// Adaptor to view sources as a `&[usize]`.
 pub struct ShapeView<'a> {
     slice: Option<&'a [usize]>,
     vec: Option<Vec<usize>>,

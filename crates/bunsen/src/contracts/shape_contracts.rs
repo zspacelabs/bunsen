@@ -65,7 +65,9 @@ use crate::contracts::{
 
 /// A term in a shape pattern.
 ///
-/// Users should generally use [`crate::shape_contract`] to construct patterns.
+/// Users should generally use
+/// [`shape_contract`](`crate::contracts::shape_contract`) to construct
+/// patterns.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum DimMatcher<'a> {
     /// Matches any dimension size.
@@ -226,7 +228,8 @@ impl<'a> ShapeContract<'a> {
     ///
     /// ## Macro Support
     ///
-    /// Consider using the [`crate::shape_contract`] macro instead.
+    /// Consider using the
+    /// [`shape_contract`](`crate::contracts::shape_contract`) macro instead.
     ///
     /// ```
     /// use bunsen::contracts::{

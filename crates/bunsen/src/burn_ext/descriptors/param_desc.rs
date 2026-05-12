@@ -90,11 +90,12 @@ mod tests {
         },
         *,
     };
+    use crate::support::testing::SetupTestBackend;
+
+    type B = SetupTestBackend;
 
     #[test]
-    #[cfg(feature = "cuda")]
     fn test_from_param() {
-        type B = burn::backend::Cuda;
         let device = Default::default();
 
         let linear = LinearConfig::new(2, 3).init::<B>(&device);

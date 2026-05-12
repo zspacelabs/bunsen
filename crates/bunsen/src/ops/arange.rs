@@ -149,12 +149,11 @@ pub fn float_linspace<B: Backend>(
 
 #[cfg(test)]
 mod tests {
-    use burn::{
-        backend::Flex,
-        prelude::TensorData,
-    };
+    use burn::prelude::TensorData;
 
     use super::*;
+    use crate::support::testing::SetupTestBackend;
+    type B = SetupTestBackend;
 
     #[test]
     fn test_float_arange() {
@@ -162,7 +161,7 @@ mod tests {
         let start: f64 = 3.0;
         let end: f64 = -1.0 - f64::EPSILON;
 
-        let actual = float_arange::<Flex>(start, end, None, &device);
+        let actual = float_arange::<B>(start, end, None, &device);
 
         actual
             .to_data()
@@ -174,7 +173,7 @@ mod tests {
     fn test_float_arange_panic_step_negative() {
         let device = Default::default();
         // This should panic because the step is not negative
-        let _ = float_arange::<Flex>(3.0, -1.0, Some(1.0), &device);
+        let _ = float_arange::<B>(3.0, -1.0, Some(1.0), &device);
     }
 
     #[should_panic(expected = "Step must be positive when start < end")]
@@ -182,7 +181,7 @@ mod tests {
     fn test_float_arange_panic_step_positive() {
         let device = Default::default();
         // This should panic because the step is not positive
-        let _ = float_arange::<Flex>(-1.0, 3.0, Some(-1.0), &device);
+        let _ = float_arange::<B>(-1.0, 3.0, Some(-1.0), &device);
     }
 
     #[test]
@@ -192,7 +191,7 @@ mod tests {
         let end: f64 = 1.0;
         let num: usize = 5;
 
-        let actual = float_linspace::<Flex>(start, end, num, &device);
+        let actual = float_linspace::<B>(start, end, num, &device);
 
         actual
             .to_data()
@@ -206,7 +205,7 @@ mod tests {
         let end: f64 = -0.2;
         let num: usize = 5;
 
-        let actual = float_linspace::<Flex>(start, end, num, &device);
+        let actual = float_linspace::<B>(start, end, num, &device);
 
         actual
             .to_data()
@@ -220,7 +219,7 @@ mod tests {
         let end: f64 = 1.0;
         let num: usize = 1;
 
-        let actual = float_linspace::<Flex>(start, end, num, &device);
+        let actual = float_linspace::<B>(start, end, num, &device);
         // println!("{actual:?}");
 
         actual.to_data().assert_eq(&TensorData::from([0.0]), false);

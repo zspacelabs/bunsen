@@ -7,7 +7,3 @@ pub mod validators;
 pub mod testing;
 
 pub mod math;
-mod result_ext;
-
-#[doc(inline)]
-pub use result_ext::*;

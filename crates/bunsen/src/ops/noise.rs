@@ -20,19 +20,19 @@ use serde::{
 
 use crate::{
     burn_ext::distribution::DistributionDisplayAdapter,
-    ops::clamp::ClampConfig,
+    ops::clamp::ClampOp,
 };
 
 /// Noise Configuration.
 ///
-/// Carries a [`Distribution`] and an optional [`ClampConfig`].
+/// Carries a [`Distribution`] and an optional [`ClampOp`].
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct NoiseConfig {
     /// The noise distribution.
     pub distribution: Distribution,
 
     /// The noise clip range.
-    pub clamp: Option<ClampConfig>,
+    pub clamp: Option<ClampOp>,
 }
 
 impl ModuleDisplay for NoiseConfig {}
@@ -73,13 +73,13 @@ impl NoiseConfig {
         }
     }
 
-    /// Extend the config with the given [`ClampConfig`].
+    /// Extend the config with the given [`ClampOp`].
     pub fn with_clamp<C>(
         self,
         clamp: C,
     ) -> Self
     where
-        C: Into<Option<ClampConfig>>,
+        C: Into<Option<ClampOp>>,
     {
         Self {
             clamp: clamp.into(),
@@ -140,7 +140,7 @@ mod tests {
 
     #[test]
     fn test_noise_config_display() {
-        let config = NoiseConfig::default().with_clamp(ClampConfig::min_max(0.5, 1.0));
+        let config = NoiseConfig::default().with_clamp(ClampOp::min_max(0.5, 1.0));
         let settings = DisplaySettings::default();
 
         assert_eq!(
@@ -148,7 +148,7 @@ mod tests {
             indoc::indoc! {r#"
                 NoiseConfig {
                   distribution: Distribution::Default
-                  clamp: ClampConfig {
+                  clamp: ClampOp {
                       min: 0.5
                       max: 1
                     }
@@ -170,26 +170,26 @@ mod tests {
 
         let cfg = NoiseConfig::default()
             .with_distribution(Distribution::Bernoulli(0.3))
-            .with_clamp(ClampConfig::default());
+            .with_clamp(ClampOp::default());
         assert_eq!(
             cfg,
             NoiseConfig {
                 distribution: Distribution::Bernoulli(0.3),
-                clamp: Some(ClampConfig::default())
+                clamp: Some(ClampOp::default())
             }
         );
 
-        let cfg = NoiseConfig::default().with_clamp(Some(ClampConfig::default()));
+        let cfg = NoiseConfig::default().with_clamp(Some(ClampOp::default()));
         assert_eq!(
             cfg,
             NoiseConfig {
                 distribution: Distribution::Default,
-                clamp: Some(ClampConfig::default())
+                clamp: Some(ClampOp::default())
             }
         );
 
         let cfg = NoiseConfig::default()
-            .with_clamp(ClampConfig::default())
+            .with_clamp(ClampOp::default())
             .with_clamp(None);
         assert_eq!(
             cfg,
@@ -209,7 +209,7 @@ mod tests {
         let numel = reference.shape().num_elements() as f64;
 
         let noise = NoiseConfig::default()
-            .with_clamp(ClampConfig::default().with_min(0.5))
+            .with_clamp(ClampOp::default().with_min(0.5))
             .noise_like(&reference);
 
         assert_eq!(noise.shape(), reference.shape());

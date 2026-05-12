@@ -1,4 +1,4 @@
-//! # Common Building Blocks
+//! Conv Building Blocks
 
 pub mod conv_norm;
 

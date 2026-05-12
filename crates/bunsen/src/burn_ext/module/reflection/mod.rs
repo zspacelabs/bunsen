@@ -12,8 +12,10 @@
 //! };
 //!
 //! use bunsen::{
-//!     BunsenError,
-//!     BunsenResult,
+//!     errors::{
+//!         BunsenError,
+//!         BunsenResult,
+//!     },
 //!     burn_ext::{
 //!         descriptors::{
 //!             TensorKindDesc,
@@ -27,7 +29,7 @@
 //!     },
 //! };
 //!
-//! type B = burn::backend::Flex;
+//! type B = bunsen::support::testing::SetupTestBackend;
 //! let device = Default::default();
 //!
 //! // Create a Linear module, with a bias:
@@ -66,7 +68,7 @@
 //!     module.weight.dtype().size() * 2 * 3
 //! );
 //!
-//! // Build a XmlModuleTree from the module.
+//! // Build an XmlModuleTree from the module.
 //! // As the XmlModuleTree holds a non-Send active query environment,
 //! // it must be `mut` to be useful.
 //! let mut mtree = XmlModuleTree::build(&module);

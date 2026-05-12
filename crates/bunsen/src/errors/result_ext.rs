@@ -2,17 +2,14 @@
 //!
 //! Methods for [`std::result::Result`] manipulation.
 
-use core::fmt::{
-    Debug,
-    Display,
-};
+use core::fmt::Display;
 
 /// Extension trait for `Result<T, E>` to add `ok_or_panic` method.
 pub trait WithOkOrPanic<T> {
     /// Unwraps the `Result`, or panics with the error message.
     ///
     /// This differs from the behavior of [`Result::unwrap`]
-    /// in that the [`Debug`] format of the wrapped error is used
+    /// in that the Debug format of the wrapped error is used
     /// directly as the panic message; and not escaped.
     fn ok_or_panic(self) -> T;
 }
