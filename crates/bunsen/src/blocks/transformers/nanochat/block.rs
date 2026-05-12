@@ -12,19 +12,17 @@ use burn::{
     prelude::Backend,
 };
 
-use crate::{
-    blocks::transformers::{
-        attention::{
-            csa::{
-                CausalSelfAttention,
-                CausalSelfAttentionConfig,
-                CausalSelfAttentionMeta,
-            },
-            kvcache::KVCache,
+use crate::blocks::transformers::{
+    attention::{
+        csa::{
+            CausalSelfAttention,
+            CausalSelfAttentionConfig,
+            CausalSelfAttentionMeta,
         },
-        embedding::rotary::RotaryEmbedding,
+        kvcache::KVCache,
     },
-    models::transformers::nanochat::{
+    embedding::rotary::RotaryEmbedding,
+    nanochat::{
         NanoGptMlp,
         NanoGptMlpConfig,
         NanoGptMlpMeta,

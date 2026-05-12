@@ -11,11 +11,7 @@ use xot::{
 };
 
 use crate::{
-    errors::{
-        BunsenError,
-        BunsenResult,
-    },
-    kit::{
+    burn_ext::{
         descriptors::{
             ParamDesc,
             TensorDesc,
@@ -35,6 +31,10 @@ use crate::{
                 SHAPE_ATTR,
             },
         },
+    },
+    errors::{
+        BunsenError,
+        BunsenResult,
     },
     zspace::{
         shape_from_xml_attr,

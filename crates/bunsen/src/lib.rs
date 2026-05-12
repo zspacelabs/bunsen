@@ -24,8 +24,7 @@ pub use bunsen_cache as cache;
 // TODO: re-examine contracts publication.
 
 pub mod blocks;
-pub mod kit;
-pub mod models;
+pub mod burn_ext;
 pub mod ops;
 pub mod support;
 pub mod zspace;

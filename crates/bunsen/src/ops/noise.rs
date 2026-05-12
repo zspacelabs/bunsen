@@ -19,7 +19,7 @@ use serde::{
 };
 
 use crate::{
-    kit::distribution::DistributionDisplayAdapter,
+    burn_ext::distribution::DistributionDisplayAdapter,
     ops::clamp::ClampConfig,
 };
 

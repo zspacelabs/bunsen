@@ -59,7 +59,7 @@ bunsen-contracts = { path = "../bunsen-contracts", version = "0.21.0-pre.6", fea
 bunsen-contracts-macros = { version = "0.21.0-pre.6", path = "../bunsen-contracts-macros" }
 
 burn = { workspace = true }
-# kit-locked public deps:
+# burn_ext-locked public deps:
 hashbrown = { workspace = true, optional = true }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }

@@ -40,7 +40,7 @@ use hashbrown::{
     HashSet,
 };
 
-use crate::kit::optim::{
+use crate::burn_ext::optim::{
     FixedLrSelector,
     lr_selectors::LrSelector,
 };

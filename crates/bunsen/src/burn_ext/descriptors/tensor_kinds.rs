@@ -21,13 +21,14 @@ pub enum TensorKindDesc {
 }
 
 impl TensorKindDesc {
-    /// Get the [`TensorKindDesc`] for a kit [`burn::tensor::TensorKind`].
+    /// Get the [`TensorKindDesc`] for a `burn_ext`
+    /// [`burn::tensor::TensorKind`].
     pub const fn for_kind<K: ParamKindBinding>() -> Self {
         K::KIND
     }
 }
 
-/// A trait that binds a kit Tensor Kind to a `ParamKind`.
+/// A trait that binds a `burn_ext` Tensor Kind to a `ParamKind`.
 pub trait ParamKindBinding {
     /// The [`TensorKindDesc`] kind wrapper.
     const KIND: TensorKindDesc;
@@ -49,7 +50,7 @@ impl ParamKindBinding for prelude::Int {
 mod tests {
     use burn::tensor;
 
-    use crate::kit::descriptors::TensorKindDesc;
+    use crate::burn_ext::descriptors::TensorKindDesc;
 
     #[test]
     fn test_tensor_kinds() {

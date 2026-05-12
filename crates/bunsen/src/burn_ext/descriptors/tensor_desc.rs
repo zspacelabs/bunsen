@@ -13,14 +13,14 @@ use burn::{
 };
 
 use crate::{
-    errors::{
-        BunsenError,
-        BunsenResult,
-    },
-    kit::descriptors::{
+    burn_ext::descriptors::{
         ParamDesc,
         ParamKindBinding,
         TensorKindDesc,
+    },
+    errors::{
+        BunsenError,
+        BunsenResult,
     },
 };
 

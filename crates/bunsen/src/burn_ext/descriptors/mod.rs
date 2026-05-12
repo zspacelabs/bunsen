@@ -1,4 +1,4 @@
-//! Serializable / Reference-Free descriptors of kit types.
+//! Serializable / Reference-Free descriptors of `burn_ext` types.
 
 mod param_desc;
 mod tensor_desc;

@@ -40,11 +40,11 @@ use crate::{
             RotaryEmbeddingConfig,
             RotaryEmbeddingMeta,
         },
-    },
-    models::transformers::nanochat::{
-        NanoGptBlock,
-        NanoGptBlockConfig,
-        NanoGptMlpConfig,
+        nanochat::{
+            NanoGptBlock,
+            NanoGptBlockConfig,
+            NanoGptMlpConfig,
+        },
     },
     unpack_shape_contract,
 };
@@ -405,7 +405,10 @@ mod tests {
     use burn::tensor::Distribution;
 
     use super::*;
-    use crate::contracts::assert_shape_contract;
+    use crate::{
+        assert_shape_contract,
+        support::testing::PerfTestBackend,
+    };
 
     #[test]
     fn test_gpt_config() {
@@ -422,9 +425,8 @@ mod tests {
     }
 
     #[test]
-    #[cfg(feature = "cuda")]
     fn test_gpt_forward() {
-        type B = burn::backend::Cuda;
+        type B = PerfTestBackend;
         let device = Default::default();
 
         let batch_size = 1;
