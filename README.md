@@ -1,4 +1,12 @@
-# Bunsen Burn(er)
+# Bunsen
+
+*by [ZSpaceLabs](https://zspacelabs.ai)*
+
+[![Crates.io Version](https://img.shields.io/crates/v/bunsen)](https://crates.io/crates/bunsen)
+[![Documentation](https://img.shields.io/docsrs/bunsen)](https://docs.rs/bunsen/latest/bunsen/)
+[![license](https://shields.io/badge/license-MIT%2FApache--2.0-blue)](#license)
+[![Discord](https://img.shields.io/discord/1475229838754316502?label=discord)](https://discord.gg/vBgXHWCeah)
+[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/zspacelabs/bunsen)
 
 `bunsen` aims to be a "batteries included" complementary
 community standard library for extending the [burn](https://burn.dev) tensor library.
