@@ -1,5 +1,3 @@
-//! # Mathematical utilities.
-
 /// Find the exact integer nth root if it exists.
 ///
 /// ## Arguments
@@ -91,7 +89,7 @@ fn pos_maybe_iroot(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use crate::support::math::iroot::maybe_iroot;
 
     #[test]
     fn test_maybe_iroot() {

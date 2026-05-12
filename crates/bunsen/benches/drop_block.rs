@@ -8,7 +8,7 @@ use bunsen::{
     ops::noise::NoiseConfig,
 };
 use burn::{
-    backend::NdArray,
+    backend::Flex,
     prelude::Tensor,
 };
 use criterion::{
@@ -18,7 +18,7 @@ use criterion::{
 };
 
 fn bench_drop_block_10x32x32x3_7_normalise(c: &mut Criterion) {
-    type B = NdArray<f32>;
+    type B = Flex<f32>;
     let device = Default::default();
 
     let batch_size = 10;

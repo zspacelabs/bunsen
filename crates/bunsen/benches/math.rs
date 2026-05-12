@@ -1,4 +1,4 @@
-use bunsen_contracts::math::maybe_iroot;
+use bunsen::support::math::maybe_iroot;
 use criterion::{
     Criterion,
     criterion_group,

@@ -1,8 +1,8 @@
-use bunsen_contracts::{
+use bunsen::contracts::{
     ShapeContract,
     run_periodically,
+    shape_contract,
 };
-use bunsen_contracts_macros::shape_contract;
 use criterion::{
     Criterion,
     criterion_group,

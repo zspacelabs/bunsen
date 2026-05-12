@@ -273,17 +273,19 @@
 mod macros;
 #[doc(inline)]
 pub use macros::*;
+
 mod shape_view;
 #[doc(inline)]
 pub use shape_view::*;
 
-pub mod bindings;
+mod expressions;
+#[doc(inline)]
+pub use expressions::*;
+
+mod bindings;
+#[doc(inline)]
+pub use bindings::*;
 
 mod shape_contracts;
 #[doc(inline)]
 pub use shape_contracts::*;
-
-pub mod expressions;
-
-pub use bindings::StackEnvironment;
-pub use expressions::DimExpr;
