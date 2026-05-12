@@ -315,31 +315,31 @@ impl ExprAST {
             ExprAST::Param(name) => {
                 let param_id = label_to_slot(name, index);
                 quote! {
-                    bunsen_contracts::DimExpr::Param{id: #param_id}
+                    DimExpr::Param{id: #param_id}
                 }
             }
             ExprAST::Negate(expr) => {
                 let inner = expr.to_tokens(index);
                 quote! {
-                    bunsen_contracts::DimExpr::Negate{child: &#inner}
+                    DimExpr::Negate{child: &#inner}
                 }
             }
             ExprAST::Pow(base, exp) => {
                 let base_tokens = base.to_tokens(index);
                 quote! {
-                    bunsen_contracts::DimExpr::Pow{base: &#base_tokens, exp : #exp}
+                    DimExpr::Pow{base: &#base_tokens, exp : #exp}
                 }
             }
             ExprAST::Sum(terms) => {
                 let term_tokens: Vec<_> = terms.iter().map(|t| t.to_tokens(index)).collect();
                 quote! {
-                    bunsen_contracts::DimExpr::Sum{children: &[#(#term_tokens),*]}
+                    DimExpr::Sum{children: &[#(#term_tokens),*]}
                 }
             }
             ExprAST::Prod(factors) => {
                 let factor_tokens: Vec<_> = factors.iter().map(|f| f.to_tokens(index)).collect();
                 quote! {
-                    bunsen_contracts::DimExpr::Prod{children: &[#(#factor_tokens),*]}
+                    DimExpr::Prod{children: &[#(#factor_tokens),*]}
                 }
             }
         }
@@ -353,7 +353,7 @@ impl DimMatcherAST {
     ) -> TokenStream2 {
         match self {
             DimMatcherAST::Any { label } => {
-                let base = quote! { bunsen_contracts::DimMatcher::any() };
+                let base = quote! { DimMatcher::any() };
                 if let Some(label) = label {
                     let label_id = label_to_slot(label, index);
                     quote! { #base.with_label_id(Some(#label_id)) }
@@ -362,7 +362,7 @@ impl DimMatcherAST {
                 }
             }
             DimMatcherAST::Ellipsis { label } => {
-                let base = quote! { bunsen_contracts::DimMatcher::ellipsis() };
+                let base = quote! { DimMatcher::ellipsis() };
                 if let Some(label) = label {
                     let label_id = label_to_slot(label, index);
                     quote! { #base.with_label_id(Some(#label_id)) }
@@ -372,7 +372,7 @@ impl DimMatcherAST {
             }
             DimMatcherAST::Expr { label, expr } => {
                 let expr_tokens = expr.to_tokens(index);
-                let base = quote! { bunsen_contracts::DimMatcher::expr(#expr_tokens) };
+                let base = quote! { DimMatcher::expr(#expr_tokens) };
                 if let Some(label) = label {
                     let label_id = label_to_slot(label, index);
                     quote! { #base.with_label_id(Some(#label_id)) }
@@ -394,7 +394,7 @@ impl ShapeContractAST {
             .collect::<Vec<_>>();
         let term_tokens: Vec<_> = self.terms.iter().map(|t| t.to_tokens(&index)).collect();
         quote! {
-            bunsen_contracts::ShapeContract::new(
+            ShapeContract::new(
                 &[#(#index_tokens),*],
                 &[#(#term_tokens),*],
             )
@@ -486,7 +486,7 @@ mod tests {
         assert_token_stream_eq(
             &input.expr.to_tokens(&index),
             &quote! {
-            bunsen_contracts::DimExpr::Param { id: 0usize }
+            DimExpr::Param { id: 0usize }
             },
         );
     }
@@ -500,7 +500,7 @@ mod tests {
         let index = ["x"];
         assert_eq!(
             input.expr.to_tokens(&index).to_string(),
-            "bunsen_contracts :: DimExpr :: Param { id : 0usize }"
+            "DimExpr :: Param { id : 0usize }"
         );
     }
 
@@ -517,8 +517,8 @@ mod tests {
         assert_token_stream_eq(
             &input.expr.to_tokens(&index),
             &quote! {
-            bunsen_contracts::DimExpr::Negate{ child:
-                &bunsen_contracts::DimExpr::Param { id: 0usize } }
+            DimExpr::Negate{ child:
+                &DimExpr::Param { id: 0usize } }
             },
         );
     }
@@ -554,7 +554,7 @@ mod tests {
         let index = ["x", "a"];
         assert_eq!(
             input.expr.to_tokens(&index).to_string(),
-            "bunsen_contracts :: DimExpr :: Sum { children : & [bunsen_contracts :: DimExpr :: Param { id : 1usize } , bunsen_contracts :: DimExpr :: Negate { child : & bunsen_contracts :: DimExpr :: Negate { child : & bunsen_contracts :: DimExpr :: Param { id : 0usize } } }] }"
+            "DimExpr :: Sum { children : & [DimExpr :: Param { id : 1usize } , DimExpr :: Negate { child : & DimExpr :: Negate { child : & DimExpr :: Param { id : 0usize } } }] }"
         );
     }
 
@@ -573,7 +573,7 @@ mod tests {
         let index = ["x", "a"];
         assert_eq!(
             input.expr.to_tokens(&index).to_string(),
-            "bunsen_contracts :: DimExpr :: Pow { base : & bunsen_contracts :: DimExpr :: Negate { child : & bunsen_contracts :: DimExpr :: Param { id : 0usize } } , exp : 3usize }"
+            "DimExpr :: Pow { base : & DimExpr :: Negate { child : & DimExpr :: Param { id : 0usize } } , exp : 3usize }"
         );
     }
 
@@ -620,22 +620,22 @@ mod tests {
         assert_token_stream_eq(
             &contract.to_tokens(),
             &quote! {
-            bunsen_contracts::ShapeContract::new(
+            ShapeContract::new(
                 &["any", "w", "x", "y", "z"],
                 &[
-                    bunsen_contracts::DimMatcher::any().with_label_id(Some(0usize)),
-                    bunsen_contracts::DimMatcher::expr(
-                        bunsen_contracts::DimExpr::Param { id: 2usize }),
-                    bunsen_contracts::DimMatcher::ellipsis(),
-                    bunsen_contracts::DimMatcher::expr(
-                        bunsen_contracts::DimExpr::Sum{
+                    DimMatcher::any().with_label_id(Some(0usize)),
+                    DimMatcher::expr(
+                        DimExpr::Param { id: 2usize }),
+                    DimMatcher::ellipsis(),
+                    DimMatcher::expr(
+                        DimExpr::Sum{
                             children: &[
-                                bunsen_contracts::DimExpr::Param { id: 3usize },
-                                bunsen_contracts::DimExpr::Pow {
-                                    base: &bunsen_contracts::DimExpr::Prod {
+                                DimExpr::Param { id: 3usize },
+                                DimExpr::Pow {
+                                    base: &DimExpr::Prod {
                                         children: &[
-                                            bunsen_contracts::DimExpr::Param { id: 4usize },
-                                            bunsen_contracts::DimExpr::Param { id: 1usize }
+                                            DimExpr::Param { id: 4usize },
+                                            DimExpr::Param { id: 1usize }
                                         ]
                                     },
                                     exp: 2usize
