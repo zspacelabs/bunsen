@@ -438,10 +438,12 @@ pub fn shape_contract(input: TokenStream) -> TokenStream {
     let tokens = parsed.contract.to_tokens();
     quote! {
         {
+            /*
             extern crate alloc;
             #[allow(unused_imports)]
-            use bunsen_contracts::{ShapeContract, DimMatcher, DimExpr};
+            use bunsen::contracts::{ShapeContract, DimMatcher, DimExpr};
             use alloc::boxed::Box;
+             */
             #tokens
         }
     }

@@ -133,12 +133,11 @@ impl NoiseConfig {
 
 #[cfg(test)]
 mod tests {
-    use burn::{
-        backend::NdArray,
-        module::DisplaySettings,
-    };
+    use burn::module::DisplaySettings;
 
     use super::*;
+    use crate::support::testing::SetupTestBackend;
+
     #[test]
     fn test_noise_config_display() {
         let config = NoiseConfig::default().with_clamp(ClampConfig::min_max(0.5, 1.0));
@@ -203,7 +202,7 @@ mod tests {
 
     #[test]
     fn test_noise_like_default_clamp() {
-        type B = NdArray;
+        type B = SetupTestBackend;
         let device = Default::default();
 
         let reference: Tensor<B, 2> = Tensor::ones([20, 20], &device);
@@ -234,7 +233,7 @@ mod tests {
 
     #[test]
     fn test_noise_like_bernoulli() {
-        type B = NdArray;
+        type B = SetupTestBackend;
         let device = Default::default();
 
         let reference: Tensor<B, 2> = Tensor::ones([20, 20], &device);

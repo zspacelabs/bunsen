@@ -157,7 +157,7 @@ impl<B: Backend> RotaryEmbedding<B> {
         input: Tensor<B, 4>,
     ) -> Tensor<B, 4> {
         #[cfg(debug_assertions)]
-        let [b, h] = bunsen_contracts::unpack_shape_contract!(
+        let [b, h] = crate::contracts::unpack_shape_contract!(
             ["B", "T", "H", "D"],
             &input.dims(),
             &["B", "H"],
@@ -174,7 +174,7 @@ impl<B: Backend> RotaryEmbedding<B> {
         let output = Tensor::cat(vec![y1, y2], 3);
 
         #[cfg(debug_assertions)]
-        bunsen_contracts::assert_shape_contract_periodically!(
+        crate::contracts::assert_shape_contract_periodically!(
             ["B", "T", "H", "D"],
             &output.dims(),
             &[
@@ -235,14 +235,16 @@ pub fn positional_frequency_table<B: Backend>(
 
 #[cfg(test)]
 mod tests {
-    use bunsen_contracts::assert_shape_contract;
     use burn::tensor::{
         Distribution,
         Tolerance,
     };
 
     use super::*;
-    use crate::support::testing::PerfTestBackend;
+    use crate::{
+        contracts::assert_shape_contract,
+        support::testing::PerfTestBackend,
+    };
 
     #[test]
     fn test_inverse_frequency_table() {

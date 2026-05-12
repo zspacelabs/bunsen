@@ -23,7 +23,6 @@ use burn::{
 };
 
 use crate::{
-    assert_shape_contract_periodically,
     blocks::transformers::{
         attention::{
             csa::{
@@ -46,7 +45,10 @@ use crate::{
             NanoGptMlpConfig,
         },
     },
-    unpack_shape_contract,
+    contracts::{
+        assert_shape_contract_periodically,
+        unpack_shape_contract,
+    },
 };
 
 /// Common meta for [`NanoGpt`] and [`NanoGptConfig`].
@@ -406,7 +408,7 @@ mod tests {
 
     use super::*;
     use crate::{
-        assert_shape_contract,
+        contracts::assert_shape_contract,
         support::testing::PerfTestBackend,
     };
 

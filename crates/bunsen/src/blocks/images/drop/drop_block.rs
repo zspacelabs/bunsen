@@ -6,7 +6,6 @@
 use alloc::format;
 use core::ops::Range;
 
-use bunsen_contracts::unpack_shape_contract;
 use burn::{
     config::Config,
     module::{
@@ -33,6 +32,7 @@ use serde::{
 
 use crate::{
     blocks::images::drop::size_config::SizeConfig,
+    contracts::unpack_shape_contract,
     ops::{
         conv::conv2d_kernel_midpoint_filter,
         noise::NoiseConfig,
@@ -477,16 +477,16 @@ impl DropBlock2d {
 #[cfg(test)]
 mod tests {
     use burn::{
-        backend::{
-            Autodiff,
-            NdArray,
-        },
+        backend::Autodiff,
         module::DisplaySettings,
         prelude::TensorData,
     };
 
     use super::*;
-    use crate::ops::noise::NoiseConfig;
+    use crate::{
+        ops::noise::NoiseConfig,
+        support::testing::SetupTestBackend,
+    };
 
     #[test]
     fn test_drop_block_options() {
@@ -562,7 +562,7 @@ mod tests {
 
     #[test]
     fn test_drop_block_2d_drop_filter() {
-        type B = NdArray;
+        type B = SetupTestBackend;
         let device = Default::default();
 
         let selected_blocks: Tensor<B, 4> = Tensor::<B, 2>::from_data(
@@ -612,7 +612,7 @@ mod tests {
 
     #[test]
     fn test_drop_block_2d_no_op() {
-        type B = NdArray;
+        type B = SetupTestBackend;
         let device = Default::default();
 
         let shape = [2, 3, 7, 9];
@@ -632,7 +632,7 @@ mod tests {
 
     #[test]
     fn test_drop_block_2d_with_norm() {
-        type B = NdArray;
+        type B = SetupTestBackend;
         let device = Default::default();
 
         let shape = [2, 3, 100, 100];
@@ -664,7 +664,7 @@ mod tests {
 
     #[test]
     fn test_drop_block_2d_with_noise() {
-        type B = NdArray;
+        type B = SetupTestBackend;
         let device = Default::default();
 
         let shape = [2, 3, 100, 100];
@@ -697,7 +697,7 @@ mod tests {
 
     #[test]
     fn test_module_inference() {
-        type B = NdArray;
+        type B = SetupTestBackend;
         let device = Default::default();
 
         let config = DropBlock2dConfig::new();
@@ -721,7 +721,8 @@ mod tests {
 
     #[test]
     fn test_module_training() {
-        type B = Autodiff<NdArray>;
+        type I = SetupTestBackend;
+        type B = Autodiff<I>;
         let device = Default::default();
 
         let drop_prob = 0.1;

@@ -1,9 +1,5 @@
 //! # Attention Extensions
 
-use bunsen_contracts::{
-    assert_shape_contract_periodically,
-    unpack_shape_contract,
-};
 use burn::{
     Tensor,
     config::Config,
@@ -18,9 +14,15 @@ use burn::{
     },
 };
 
-use crate::ops::{
-    drop::dropout,
-    repeat,
+use crate::{
+    contracts::{
+        assert_shape_contract_periodically,
+        unpack_shape_contract,
+    },
+    ops::{
+        drop::dropout,
+        repeat,
+    },
 };
 
 /// Config options for [`scaled_dot_product_attention`].

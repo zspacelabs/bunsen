@@ -11,6 +11,20 @@ description = "bunsen is a community companion library for burn"
 [lints]
 workspace = true
 
+
+[[bench]]
+name = "drop_block"
+harness = false
+
+[[bench]]
+name = "contracts"
+harness = false
+
+[[bench]]
+name = "math"
+harness = false
+
+
 [features]
 default = [
     "reflection",
@@ -18,7 +32,6 @@ default = [
 ]
 std = [
     "burn/std",
-    "bunsen-contracts/std",
 ]
 
 ## Enable the XmlModuleTree reflection api for querying and transforming modules.
@@ -53,9 +66,10 @@ metal = ["burn/metal"]
 wgpu = ["burn/wgpu"]
 flex = ["burn/flex"]
 
+
 [dependencies]
 bunsen-cache = { path = "../bunsen-cache", version = "0.21.0-pre.6", optional = true }
-bunsen-contracts = { path = "../bunsen-contracts", version = "0.21.0-pre.6", features = ["burn"] }
+# bunsen-contracts = { path = "../bunsen-contracts", version = "0.21.0-pre.6", features = ["burn"] }
 bunsen-contracts-macros = { version = "0.21.0-pre.6", path = "../bunsen-contracts-macros" }
 
 burn = { workspace = true }
@@ -76,6 +90,7 @@ paste = { workspace = true, optional = true }
 xot = { workspace = true, optional = true }
 xee-xpath = { workspace = true, optional = true }
 
+
 [dev-dependencies]
 bunsen = { path = ".", features = ["testing"] }
 burn = { workspace = true, features = ["autodiff"] }
@@ -83,6 +98,3 @@ hamcrest = { workspace = true }
 indoc = { workspace = true }
 criterion = { workspace = true }
 
-[[bench]]
-name = "drop_block"
-harness = false

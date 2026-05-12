@@ -5,7 +5,7 @@ use core::fmt::{
     Formatter,
 };
 
-use crate::math::maybe_iroot;
+use crate::support::math::maybe_iroot;
 
 /// A stack/static expression algebra for dimension sizes.
 #[derive(Debug, Clone, PartialEq, Eq)]

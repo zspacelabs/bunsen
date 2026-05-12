@@ -3,10 +3,6 @@
 //! A [`ConvNorm2d`] module is a [`Conv2d`] layer followed by a [`BatchNorm`]
 //! layer.
 
-use bunsen_contracts::{
-    assert_shape_contract_periodically,
-    unpack_shape_contract,
-};
 use burn::{
     config::Config,
     module::Module,
@@ -23,6 +19,11 @@ use burn::{
         Backend,
         Tensor,
     },
+};
+
+use crate::contracts::{
+    assert_shape_contract_periodically,
+    unpack_shape_contract,
 };
 
 /// [`ConvNorm2d`] Meta.

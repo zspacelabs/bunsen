@@ -1,8 +1,7 @@
-#![no_std]
 #![forbid(unsafe_code)]
 #![deny(unused_must_use)]
 #![warn(missing_docs)]
-//! # bunsen-contracts
+//! # Shape Contracts
 //!
 //! This is a ``no_std`` inline contract programming library for tensor geometry
 //! for the [burn_ext](https://burn.dev) tensor framework.
@@ -30,7 +29,7 @@
 //!
 //! For example:
 //! ```rust,no_run
-//! use bunsen_contracts::unpack_shape_contract;
+//! use bunsen::contracts::unpack_shape_contract;
 //!
 //! let shape = [12, 3 * 4, 5 * 4, 3];
 //!
@@ -91,7 +90,7 @@
 //! bunsen-contracts``:
 //!
 //! ```terminaloutput
-//! Running benches/contracts.rs (target/release/deps/contracts-86950340ff3748c1)
+//! Running benches/shape_contracts (target/release/deps/contracts-86950340ff3748c1)
 //! unpack_shape            time:   [176.03 ns 177.39 ns 178.81 ns]
 //! Found 2 outliers among 100 measurements (2.00%)
 //! 1 (1.00%) high mild
@@ -115,7 +114,7 @@
 //! contract from a shape contract pattern:
 //!
 //! ```rust
-//! use bunsen_contracts::{
+//! use bunsen::contracts::{
 //!     ShapeContract,
 //!     shape_contract,
 //! };
@@ -149,7 +148,7 @@
 //! ```rust,ignore
 //! use burn_ext::prelude::{Tensor, Backend};
 //! use burn_ext::tensor::BasicOps;
-//! use bunsen_contracts::{unpack_shape_contract, assert_shape_contract_periodically};
+//! use bunsen::contracts::{unpack_shape_contract, assert_shape_contract_periodically};
 //!
 //! /// Window Partition
 //! ///
@@ -222,7 +221,7 @@
 //! Error messages are verbose and helpful.
 //!
 //! ```rust
-//! use bunsen_contracts::{
+//! use bunsen::contracts::{
 //!     ShapeContract,
 //!     shape_contract,
 //! };
@@ -271,27 +270,20 @@
 //! }
 //! ```
 
-extern crate alloc;
-
-pub use bunsen_contracts_macros::{
-    self,
-    shape_contract,
-};
-
-pub mod bindings;
-pub mod contracts;
-pub mod expressions;
-pub mod macros;
-pub mod math;
-pub mod support;
-
-pub use bindings::StackEnvironment;
-pub use contracts::{
-    DimMatcher,
-    ShapeContract,
-};
-pub use expressions::DimExpr;
-
+mod macros;
+#[doc(inline)]
+pub use macros::*;
 mod shape_view;
 #[doc(inline)]
-pub use shape_view::ShapeView;
+pub use shape_view::*;
+
+pub mod bindings;
+
+mod shape_contracts;
+#[doc(inline)]
+pub use shape_contracts::*;
+
+pub mod expressions;
+
+pub use bindings::StackEnvironment;
+pub use expressions::DimExpr;

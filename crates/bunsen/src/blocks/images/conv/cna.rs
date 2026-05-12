@@ -8,10 +8,6 @@
 //! With support for hooking the forward method,
 //! to run code between the norm and application images.
 
-use bunsen_contracts::{
-    assert_shape_contract_periodically,
-    unpack_shape_contract,
-};
 use burn::{
     config::Config,
     module::Module,
@@ -33,6 +29,11 @@ use burn::{
         Backend,
         Tensor,
     },
+};
+
+use crate::contracts::{
+    assert_shape_contract_periodically,
+    unpack_shape_contract,
 };
 
 /// Abstract policy for [`CNA2d`] Config.
@@ -297,10 +298,7 @@ impl<B: Backend> CNA2d<B> {
 #[cfg(test)]
 mod tests {
     use burn::{
-        backend::{
-            Autodiff,
-            NdArray,
-        },
+        backend::Autodiff,
         nn::{
             BatchNormConfig,
             PaddingConfig2d,
@@ -311,6 +309,7 @@ mod tests {
     };
 
     use super::*;
+    use crate::support::testing::SetupTestBackend;
 
     #[test]
     fn test_conv_norm_config() {
@@ -332,7 +331,8 @@ mod tests {
 
     #[test]
     fn test_cna() {
-        type B = Autodiff<NdArray<f32>>;
+        type I = SetupTestBackend;
+        type B = Autodiff<I>;
         let device = Default::default();
 
         let config = CNA2dConfig::new(

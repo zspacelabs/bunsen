@@ -567,7 +567,6 @@ dependencies = [
  "anyhow",
  "bunsen",
  "bunsen-cache",
- "bunsen-contracts",
  "bunsen-contracts-macros",
  "burn",
  "criterion",
@@ -595,16 +594,6 @@ dependencies = [
  "crc",
  "dirs",
  "serde",
-]
-
-[[package]]
-name = "bunsen-contracts"
-version = "0.21.0-pre.6"
-dependencies = [
- "bunsen-contracts-macros",
- "burn",
- "criterion",
- "indoc",
 ]
 
 [[package]]

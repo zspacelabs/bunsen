@@ -1,5 +1,4 @@
 //! # Patch Embedding images and operations.
-use bunsen_contracts::assert_shape_contract_periodically;
 use burn::{
     config::Config,
     module::Module,
@@ -16,6 +15,8 @@ use burn::{
         Tensor,
     },
 };
+
+use crate::contracts::assert_shape_contract_periodically;
 
 /// Common introspection interface for `PatchEmbed` module.
 pub trait PatchEmbedMeta {
@@ -254,15 +255,14 @@ impl<B: Backend> PatchEmbed<B> {
 
 #[cfg(test)]
 mod tests {
-    use burn::{
-        backend::NdArray,
-        tensor::TensorData,
-    };
+    use burn::tensor::TensorData;
 
     use super::*;
+    use crate::support::testing::SetupTestBackend;
 
     #[test]
     fn test_patch_embed_meta() {
+        type B = SetupTestBackend;
         let config = PatchEmbedConfig {
             input_resolution: [224, 224],
             patch_size: 16,
@@ -284,7 +284,7 @@ mod tests {
         assert!(config.enable_patch_norm());
 
         let device = Default::default();
-        let patch_embed = config.init::<NdArray>(&device);
+        let patch_embed = config.init::<B>(&device);
 
         assert_eq!(patch_embed.input_resolution(), [224, 224]);
         assert_eq!(patch_embed.patch_size(), 16);
@@ -302,6 +302,7 @@ mod tests {
     #[should_panic(expected = "Input resolution must be divisible by patch size")]
     #[test]
     fn test_patch_embed_invalid_resolution() {
+        type B = SetupTestBackend;
         let config = PatchEmbedConfig {
             input_resolution: [224, 223], // Invalid resolution
             patch_size: 16,
@@ -310,11 +311,12 @@ mod tests {
             enable_patch_norm: true,
         };
         let device = Default::default();
-        let _d = config.init::<NdArray>(&device);
+        let _d = config.init::<B>(&device);
     }
 
     #[test]
     fn test_patch_embed_forward() {
+        type B = SetupTestBackend;
         let config = PatchEmbedConfig {
             input_resolution: [224, 224],
             patch_size: 16,
@@ -323,9 +325,9 @@ mod tests {
             enable_patch_norm: true,
         };
         let device = Default::default();
-        let patch_embed = config.init::<NdArray>(&device);
+        let patch_embed = config.init::<B>(&device);
 
-        let input = Tensor::<NdArray, 4>::from_data(
+        let input = Tensor::<B, 4>::from_data(
             TensorData::new(vec![1.0; 3 * 224 * 224], [1, 3, 224, 224]),
             &device,
         );
@@ -336,6 +338,7 @@ mod tests {
 
     #[test]
     fn test_patch_embed_without_norm() {
+        type B = SetupTestBackend;
         let config = PatchEmbedConfig {
             input_resolution: [224, 224],
             patch_size: 16,
@@ -344,9 +347,9 @@ mod tests {
             enable_patch_norm: false,
         };
         let device = Default::default();
-        let patch_embed = config.init::<NdArray>(&device);
+        let patch_embed = config.init::<B>(&device);
 
-        let input = Tensor::<NdArray, 4>::from_data(
+        let input = Tensor::<B, 4>::from_data(
             TensorData::new(vec![1.0; 3 * 224 * 224], [1, 3, 224, 224]),
             &device,
         );

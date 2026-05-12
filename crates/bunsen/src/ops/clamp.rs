@@ -87,7 +87,6 @@ impl ClampConfig {
 #[cfg(test)]
 mod tests {
     use burn::{
-        backend::NdArray,
         module::{
             DisplaySettings,
             ModuleDisplay,
@@ -96,6 +95,7 @@ mod tests {
     };
 
     use super::*;
+    use crate::support::testing::SetupTestBackend;
 
     #[test]
     fn test_clamp_config_display() {
@@ -128,7 +128,7 @@ mod tests {
 
     #[test]
     fn test_config() {
-        type B = NdArray;
+        type B = SetupTestBackend;
         let device = Default::default();
 
         let cfg = ClampConfig::default();

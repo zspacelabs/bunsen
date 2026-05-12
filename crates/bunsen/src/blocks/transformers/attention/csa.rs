@@ -1,9 +1,5 @@
 //! # Causal Self-Attention
 
-use bunsen_contracts::{
-    assert_shape_contract_periodically,
-    unpack_shape_contract,
-};
 use burn::{
     Tensor,
     config::Config,
@@ -25,15 +21,21 @@ use burn::{
     },
 };
 
-use crate::blocks::transformers::{
-    attention::{
-        kvcache::KVCache,
-        sdpa::{
-            ScaledDotProductAttentionConfig,
-            scaled_dot_product_attention,
+use crate::{
+    blocks::transformers::{
+        attention::{
+            kvcache::KVCache,
+            sdpa::{
+                ScaledDotProductAttentionConfig,
+                scaled_dot_product_attention,
+            },
         },
+        embedding::rotary::RotaryEmbedding,
     },
-    embedding::rotary::RotaryEmbedding,
+    contracts::{
+        assert_shape_contract_periodically,
+        unpack_shape_contract,
+    },
 };
 
 /// Common meta for [`CausalSelfAttention`] and [`CausalSelfAttentionConfig`].
@@ -317,7 +319,6 @@ impl<B: Backend> CausalSelfAttention<B> {
 
 #[cfg(test)]
 mod tests {
-    use bunsen_contracts::assert_shape_contract;
     use burn::tensor::Distribution;
 
     use super::*;
@@ -329,6 +330,7 @@ mod tests {
                 RotaryEmbeddingConfig,
             },
         },
+        contracts::assert_shape_contract,
         support::testing::SetupTestBackend,
     };
 

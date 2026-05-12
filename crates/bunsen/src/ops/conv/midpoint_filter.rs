@@ -47,16 +47,14 @@ where
 
 #[cfg(test)]
 mod tests {
-    use burn::{
-        backend::NdArray,
-        prelude::TensorData,
-    };
+    use burn::prelude::TensorData;
 
     use super::*;
+    use crate::support::testing::SetupTestBackend;
 
     #[test]
     fn test_conv2d_kernel_midpoint_filter() {
-        type B = NdArray;
+        type B = SetupTestBackend;
         let device = Default::default();
 
         let shape = [7, 9];

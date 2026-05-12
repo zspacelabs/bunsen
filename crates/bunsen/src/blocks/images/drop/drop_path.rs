@@ -210,15 +210,16 @@ impl DropPath {
 #[cfg(test)]
 mod tests {
     use burn::{
-        backend::NdArray,
         prelude::Tensor,
         tensor::Distribution,
     };
 
     use super::*;
+    use crate::support::testing::SetupTestBackend;
 
     #[test]
     fn test_drop_path() {
+        type B = SetupTestBackend;
         let device = Default::default();
         let drop_prob = 0.5;
         let scale_by_keep = true;
@@ -230,8 +231,7 @@ mod tests {
 
         let module = config.init();
 
-        let input =
-            Tensor::<NdArray, 4>::random([2, 3, 4, 5], Distribution::Uniform(0.0, 1.0), &device);
+        let input = Tensor::<B, 4>::random([2, 3, 4, 5], Distribution::Uniform(0.0, 1.0), &device);
         let output = module.forward(input.clone());
 
         assert_eq!(input.dims(), output.dims());
@@ -239,12 +239,13 @@ mod tests {
 
     #[test]
     fn test_drop_path_wrapper() {
+        type B = SetupTestBackend;
         let device = Default::default();
 
         let n = 3;
         let shape = [n, 2, 4];
 
-        let x = Tensor::<NdArray, 3>::random(shape, Distribution::Uniform(0.0, 1.0), &device);
+        let x = Tensor::<B, 3>::random(shape, Distribution::Uniform(0.0, 1.0), &device);
 
         // No-op case: not training and drop_prob = 0.0
         let training = false;
@@ -256,12 +257,13 @@ mod tests {
 
     #[test]
     fn test_drop_path_sample() {
+        type B = SetupTestBackend;
         let device = Default::default();
 
         let n = 3;
         let shape = [n, 2, 4];
 
-        let x = Tensor::<NdArray, 3>::random(shape, Distribution::Uniform(0.0, 1.0), &device);
+        let x = Tensor::<B, 3>::random(shape, Distribution::Uniform(0.0, 1.0), &device);
 
         // No-op case: not training and drop_prob = 0.0
         let training = false;
@@ -275,7 +277,7 @@ mod tests {
             |shape, keep_prob, device| {
                 assert_eq!(shape, [3, 1, 1]);
                 assert_eq!(keep_prob, 1.0);
-                Tensor::<NdArray, 3>::from_data([[[1.0]], [[0.0]], [[1.0]]], device)
+                Tensor::<B, 3>::from_data([[[1.0]], [[0.0]], [[1.0]]], device)
             },
         );
         res.to_data().assert_eq(&x.clone().to_data(), true);
@@ -292,7 +294,7 @@ mod tests {
             |shape, keep_prob, device| {
                 assert_eq!(shape, [3, 1, 1]);
                 assert_eq!(keep_prob, 1.0);
-                Tensor::<NdArray, 3>::from_data([[[1.0]], [[0.0]], [[1.0]]], device)
+                Tensor::<B, 3>::from_data([[[1.0]], [[0.0]], [[1.0]]], device)
             },
         );
         res.to_data().assert_eq(&x.clone().to_data(), true);
@@ -309,11 +311,11 @@ mod tests {
             |shape, keep_prob, device| {
                 assert_eq!(shape, [3, 1, 1]);
                 assert_eq!(keep_prob, 0.5);
-                Tensor::<NdArray, 3>::from_data([[[1.0]], [[0.0]], [[1.0]]], device)
+                Tensor::<B, 3>::from_data([[[1.0]], [[0.0]], [[1.0]]], device)
             },
         );
         res.to_data().assert_eq(
-            &(x.clone() * Tensor::<NdArray, 3>::from_data([[[1.0]], [[0.0]], [[1.0]]], &device))
+            &(x.clone() * Tensor::<B, 3>::from_data([[[1.0]], [[0.0]], [[1.0]]], &device))
                 .to_data(),
             true,
         );
@@ -331,11 +333,11 @@ mod tests {
             |shape, keep_prob, device| {
                 assert_eq!(shape, [3, 1, 1]);
                 assert_eq!(keep_prob, 0.5);
-                Tensor::<NdArray, 3>::from_data([[[1.0]], [[0.0]], [[1.0]]], device)
+                Tensor::<B, 3>::from_data([[[1.0]], [[0.0]], [[1.0]]], device)
             },
         );
         res.to_data().assert_eq(
-            &(x.clone() * Tensor::<NdArray, 3>::from_data([[[1.0]], [[0.0]], [[1.0]]], &device))
+            &(x.clone() * Tensor::<B, 3>::from_data([[[1.0]], [[0.0]], [[1.0]]], &device))
                 .div_scalar(keep_prob)
                 .to_data(),
             true,
@@ -344,6 +346,7 @@ mod tests {
 
     #[test]
     fn test_droppath_module() {
+        type B = SetupTestBackend;
         let drop_prob = 0.2;
         let config = DropPathConfig::new().with_drop_prob(drop_prob);
 
@@ -358,7 +361,7 @@ mod tests {
 
         let device = Default::default();
         let shape = [2, 3, 4];
-        let x = Tensor::<NdArray, 3>::random(shape, Distribution::Uniform(0.0, 1.0), &device);
+        let x = Tensor::<B, 3>::random(shape, Distribution::Uniform(0.0, 1.0), &device);
 
         // TODO(crutcher): work out how to enable/disable training mode in tests.
         let output = module.forward(x.clone());

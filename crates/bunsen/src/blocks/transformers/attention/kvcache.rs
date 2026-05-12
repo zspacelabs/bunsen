@@ -1,9 +1,5 @@
 //! # KV Cache
 
-use bunsen_contracts::{
-    assert_shape_contract_periodically,
-    unpack_shape_contract,
-};
 use burn::{
     Tensor,
     config::Config,
@@ -13,6 +9,11 @@ use burn::{
         s,
     },
     tensor::DType,
+};
+
+use crate::contracts::{
+    assert_shape_contract_periodically,
+    unpack_shape_contract,
 };
 
 /// Common meta trait for [`KVCache`] and [`KVCacheConfig`].

@@ -29,10 +29,9 @@ pub mod ops;
 pub mod support;
 pub mod zspace;
 
-pub use bunsen_contracts as contracts;
-#[doc(inline)]
-pub use bunsen_contracts_macros::shape_contract;
-mod macros;
+#[doc(hidden)]
+pub use bunsen_contracts_macros::shape_contract as __proc_shape_contract;
+pub mod contracts;
 
 mod errors;
 

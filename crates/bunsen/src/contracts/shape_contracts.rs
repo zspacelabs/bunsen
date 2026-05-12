@@ -15,7 +15,7 @@
 //! ## Example
 //!
 //! ```rust
-//! use bunsen_contracts::{
+//! use bunsen::contracts::{
 //!     ShapeContract,
 //!     shape_contract,
 //! };
@@ -53,7 +53,7 @@ use core::{
     panic::Location,
 };
 
-use crate::{
+use crate::contracts::{
     StackEnvironment,
     expressions::{
         DimExpr,
@@ -229,7 +229,7 @@ impl<'a> ShapeContract<'a> {
     /// Consider using the [`crate::shape_contract`] macro instead.
     ///
     /// ```
-    /// use bunsen_contracts::{
+    /// use bunsen::contracts::{
     ///     ShapeContract,
     ///     shape_contract,
     /// };
@@ -288,7 +288,7 @@ impl<'a> ShapeContract<'a> {
     /// ## Example
     ///
     /// ```rust
-    /// use bunsen_contracts::{
+    /// use bunsen::contracts::{
     ///     ShapeContract,
     ///     run_periodically,
     ///     shape_contract,
@@ -344,7 +344,7 @@ impl<'a> ShapeContract<'a> {
     /// ## Example
     ///
     /// ```rust
-    /// use bunsen_contracts::{
+    /// use bunsen::contracts::{
     ///     ShapeContract,
     ///     run_periodically,
     ///     shape_contract,
@@ -430,7 +430,7 @@ impl<'a> ShapeContract<'a> {
     /// ## Example
     ///
     /// ```rust
-    /// use bunsen_contracts::{
+    /// use bunsen::contracts::{
     ///     ShapeContract,
     ///     run_periodically,
     ///     shape_contract,
@@ -503,7 +503,7 @@ impl<'a> ShapeContract<'a> {
     /// ## Example
     ///
     /// ```rust
-    /// use bunsen_contracts::{
+    /// use bunsen::contracts::{
     ///     ShapeContract,
     ///     run_periodically,
     ///     shape_contract,
@@ -765,7 +765,7 @@ impl<'a> ShapeContract<'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::expressions::DimExpr;
+    use crate::contracts::DimExpr;
 
     #[test]
     fn test_unpack_shape() {

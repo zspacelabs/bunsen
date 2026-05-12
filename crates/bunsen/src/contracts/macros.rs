@@ -1,5 +1,21 @@
 //! Support macros.
 
+pub use crate::__shape_contract as shape_contract;
+
+#[doc(hidden)]
+#[macro_export]
+macro_rules! __shape_contract {
+    ($($t:tt)*) => {
+        {
+        extern crate alloc;
+        #[allow(unused_imports)]
+        use alloc::boxed::Box;
+        #[allow(unused_imports)]
+        use $crate::contracts::{ShapeContract, DimExpr, DimMatcher};
+        $crate::__proc_shape_contract!($($t)*)
+    }};
+}
+
 /// A macro to run a block of code or an expression every nth time it is called.
 ///
 /// Runs the first 10 times, then doubles the period on each subsequent call,
@@ -17,29 +33,32 @@
 ///
 /// # Usage:
 /// ```rust.no_run
-///  use bunsen_contracts::run_periodically;
+///  use bunsen::contracts::run_periodically;
 ///
 ///  // Run a block of code every 3rd call
 /// run_periodically!(3, {
 ///       println!("This will run every 3rd time.");
 ///       // Your code here
 ///  });
+pub use crate::__run_periodically as run_periodically;
+
+#[doc(hidden)]
 #[macro_export]
-macro_rules! run_periodically {
+macro_rules! __run_periodically {
     ($code:expr) => {
-        $crate::run_periodically!(@internal 1000, $code)
+        $crate::__run_periodically!(@internal 1000, $code)
     };
 
     ($lock:block) => {
-        $crate::run_periodically!(@internal 1000, $block)
+        $crate::__run_periodically!(@internal 1000, $block)
     };
 
     ($period:literal, $code:expr) => {
-        $crate::run_periodically!(@internal $period, $code)
+        $crate::__run_periodically!(@internal $period, $code)
     };
 
     ($period:literal, $lock:block) => {
-        $crate::run_periodically!(@internal $period, $block)
+        $crate::__run_periodically!(@internal $period, $block)
     };
 
     (@internal $period:literal, $($tt:tt)*) => {{
@@ -82,19 +101,23 @@ macro_rules! run_periodically {
 
 /// A macro which defines a static [`crate::ShapeContract`].
 ///
-/// See [`crate::shape_contract`] for documentation on the contract syntax.
+/// See [`shape_contract`](`crate::contracts::shape_contract`) for documentation
+/// on the contract syntax.
 ///
 /// ```rust,no_run
-/// use bunsen_contracts::define_shape_contract;
+/// use bunsen::contracts::define_shape_contract;
 ///
 /// define_shape_contract!(
 ///   CONTRACT,
 ///   [..., "h" = "h_win" * "ws", "w" = "w_win" * "ws", "c"]);
 /// ```
+pub use crate::__define_shape_contract as define_shape_contract;
+
 #[macro_export]
-macro_rules! define_shape_contract {
+#[doc(hidden)]
+macro_rules! __define_shape_contract {
     ($name:ident, [ $($contract_expr:tt)* ] $(,)?) => {
-        static $name: $crate::ShapeContract<'static> = $crate::shape_contract![$($contract_expr)*];
+        static $name: $crate::contracts::ShapeContract<'static> = $crate::contracts::shape_contract![$($contract_expr)*];
     };
 }
 
@@ -108,7 +131,7 @@ macro_rules! define_shape_contract {
 /// ### With a Contract Expression:
 ///
 /// ```rust,no_run
-/// use bunsen_contracts::assert_shape_contract;
+/// use bunsen::contracts::assert_shape_contract;
 ///
 /// let shape = [1, 2, 3, 4 * 2, 5 * 2, 3];
 ///
@@ -121,7 +144,7 @@ macro_rules! define_shape_contract {
 /// ### With a pre-defined contract:
 ///
 /// ```rust,no_run
-/// use bunsen_contracts::{assert_shape_contract, define_shape_contract};
+/// use bunsen::contracts::{assert_shape_contract, define_shape_contract};
 ///
 /// let shape = [1, 2, 3, 4 * 2, 5 * 2, 3];
 ///
@@ -131,11 +154,14 @@ macro_rules! define_shape_contract {
 ///
 /// assert_shape_contract!(CONTRACT,  &shape, &[("ws", 2)]);
 /// ```
+pub use crate::__assert_shape_contract as assert_shape_contract;
+
+#[doc(hidden)]
 #[macro_export]
-macro_rules! assert_shape_contract {
+macro_rules! __assert_shape_contract {
     ([ $($contract_expr:tt)* ], $($args:tt)*) => {{
-        $crate::define_shape_contract!(CONTRACT, [ $($contract_expr)* ]);
-        $crate::assert_shape_contract!(CONTRACT, $($args)*)
+        $crate::__define_shape_contract!(CONTRACT, [ $($contract_expr)* ]);
+        $crate::__assert_shape_contract!(CONTRACT, $($args)*)
     }};
 
     ($name:ident, $shape:expr, $bindings:expr $(,)?) => {
@@ -153,7 +179,7 @@ macro_rules! assert_shape_contract {
 /// ### With a Contract Expression:
 ///
 /// ```rust,no_run
-/// use bunsen_contracts::assert_shape_contract_periodically;
+/// use bunsen::contracts::assert_shape_contract_periodically;
 ///
 /// let shape = [1, 2, 3, 4 * 2, 5 * 2, 3];
 ///
@@ -166,7 +192,7 @@ macro_rules! assert_shape_contract {
 /// ### With a pre-defined contract:
 ///
 /// ```rust,no_run
-/// use bunsen_contracts::{assert_shape_contract_periodically, define_shape_contract};
+/// use bunsen::contracts::{assert_shape_contract_periodically, define_shape_contract};
 ///
 /// let shape = [1, 2, 3, 4 * 2, 5 * 2, 3];
 ///
@@ -176,10 +202,13 @@ macro_rules! assert_shape_contract {
 ///
 /// assert_shape_contract_periodically!(CONTRACT,  &shape, &[("ws", 2)]);
 /// ```
+pub use crate::__assert_shape_contract_periodically as assert_shape_contract_periodically;
+
+#[doc(hidden)]
 #[macro_export]
-macro_rules! assert_shape_contract_periodically {
+macro_rules! __assert_shape_contract_periodically {
     ($($args:tt)*) => {
-        $crate::run_periodically!($crate::assert_shape_contract!($($args)*))
+        $crate::__run_periodically!($crate::__assert_shape_contract!($($args)*))
     };
 }
 
@@ -193,7 +222,7 @@ macro_rules! assert_shape_contract_periodically {
 /// ### With a Contract Expression:
 ///
 /// ```rust,no_run
-/// use bunsen_contracts::unpack_shape_contract;
+/// use bunsen::contracts::unpack_shape_contract;
 ///
 /// let shape = [1, 2, 3, 4 * 2, 5 * 2, 3];
 ///
@@ -213,7 +242,7 @@ macro_rules! assert_shape_contract_periodically {
 /// ### With a pre-defined contract:
 ///
 /// ```rust,no_run
-/// use bunsen_contracts::{define_shape_contract, unpack_shape_contract};
+/// use bunsen::contracts::{define_shape_contract, unpack_shape_contract};
 ///
 /// let shape = [1, 2, 3, 4 * 2, 5 * 2, 3];
 ///
@@ -238,7 +267,7 @@ macro_rules! assert_shape_contract_periodically {
 /// This also works with pre-defined contracts.
 ///
 /// ```rust,no_run
-/// use bunsen_contracts::unpack_shape_contract;
+/// use bunsen::contracts::unpack_shape_contract;
 ///
 /// let shape = [1, 2, 3, 4 * 2, 5 * 2, 3];
 ///
@@ -258,7 +287,7 @@ macro_rules! assert_shape_contract_periodically {
 /// ### Special: When the keys are the expression:
 ///
 /// ```rust,no_run
-/// use bunsen_contracts::unpack_shape_contract;
+/// use bunsen::contracts::unpack_shape_contract;
 ///
 /// let shape = [4, 5, 3];
 ///
@@ -267,16 +296,19 @@ macro_rules! assert_shape_contract_periodically {
 /// assert_eq!(w, 5);
 /// assert_eq!(c, 3);
 /// ```
+pub use crate::__unpack_shape_contract as unpack_shape_contract;
+
+#[doc(hidden)]
 #[macro_export]
-macro_rules! unpack_shape_contract {
+macro_rules! __unpack_shape_contract {
     ([ $($keys:literal),* $(,)? ], $shape:expr $(,)?) => {{
-        $crate::define_shape_contract!(CONTRACT, [ $($keys),* ]);
-        $crate::unpack_shape_contract!(CONTRACT, $shape, &[ $($keys),* ], &[])
+        $crate::__define_shape_contract!(CONTRACT, [ $($keys),* ]);
+        $crate::__unpack_shape_contract!(CONTRACT, $shape, &[ $($keys),* ], &[])
     }};
 
     ([ $($contract_expr:tt)* ], $($args:tt)*) => {{
-        $crate::define_shape_contract!(CONTRACT, [ $($contract_expr)* ]);
-        $crate::unpack_shape_contract!(CONTRACT, $($args)*)
+        $crate::__define_shape_contract!(CONTRACT, [ $($contract_expr)* ]);
+        $crate::__unpack_shape_contract!(CONTRACT, $($args)*)
     }};
 
     ($contract:ident, $shape:expr, $keys:expr, $bindings:expr $(,)?) => {{
@@ -284,7 +316,7 @@ macro_rules! unpack_shape_contract {
     }};
 
     ($contract:ident, $shape:expr, $keys:expr $(,)?) => {{
-        $crate::unpack_shape_contract!($contract, $shape, $keys, &[])
+        $crate::__unpack_shape_contract!($contract, $shape, $keys, &[])
     }};
 }
 
@@ -294,6 +326,8 @@ mod tests {
         vec,
         vec::Vec,
     };
+
+    use super::*;
 
     #[test]
     fn test_run_periodically() {
