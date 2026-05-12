@@ -10,7 +10,7 @@ members = [
 [workspace.package]
 edition = "2024"
 rust-version = "1.94.1"
-version = "0.21.0-pre.6"
+version = "0.21.0-pre.7"
 repository = "https://github.com/zspacelabs/bunsen"
 license = "MIT or Apache-2.0"
 
