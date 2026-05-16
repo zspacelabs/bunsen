@@ -8,7 +8,7 @@ use serde::{
 /// Helper option to describe the size of a wrapper, relative to a wrapped
 /// object.
 ///
-/// TODO: point this at `burn_ext::...::SizeConfig` in "0.19.0"
+/// TODO: point this at `burner::...::SizeConfig` in "0.19.0"
 #[derive(Debug, Clone, Copy, Default, PartialEq, Serialize, Deserialize)]
 pub enum SizeConfig {
     /// Use the size of the source dataset.

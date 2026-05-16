@@ -11,7 +11,7 @@ use xot::{
 };
 
 use crate::{
-    burn_ext::{
+    burner::{
         descriptors::{
             ParamDesc,
             TensorDesc,

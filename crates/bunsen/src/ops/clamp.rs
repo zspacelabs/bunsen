@@ -64,17 +64,6 @@ impl ClampOp {
         self.max
     }
 
-    /// Create a new clamp with both minimum and maximum values.
-    pub fn min_max(
-        min: f64,
-        max: f64,
-    ) -> Self {
-        Self {
-            min: Some(min),
-            max: Some(max),
-        }
-    }
-
     /// Extend the clamp with a minimum value.
     pub fn with_min(
         self,
@@ -139,18 +128,6 @@ mod tests {
                 }"#
             }
         )
-    }
-
-    #[test]
-    fn test_config_min_max() {
-        let cfg = ClampOp::min_max(-1.0, 1.0);
-        assert_eq!(
-            cfg,
-            ClampOp {
-                min: Some(-1.0),
-                max: Some(1.0),
-            }
-        );
     }
 
     #[test]

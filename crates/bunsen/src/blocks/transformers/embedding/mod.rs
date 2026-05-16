@@ -1,2 +1,5 @@
 //! # Embedding Extensions
-pub mod rotary;
+mod rotary;
+
+#[doc(inline)]
+pub use rotary::*;

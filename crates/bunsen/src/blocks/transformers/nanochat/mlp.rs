@@ -22,13 +22,13 @@ use crate::contracts::{
     unpack_shape_contract,
 };
 
-/// Common meta for [`NanoGptMlp`] and [`NanoGptMlpConfig`].
-pub trait NanoGptMlpMeta {
+/// Common meta for [`NanoChatGptMlp`] and [`NanoGptMlpConfig`].
+pub trait NanoChatGptMlpMeta {
     /// Return the size of the input and output.
     fn n_embed(&self) -> usize;
 }
 
-/// Config for [`NanoGptMlp`].
+/// Config for [`NanoChatGptMlp`].
 #[derive(Config, Debug)]
 pub struct NanoGptMlpConfig {
     /// Embedding Size.
@@ -43,7 +43,7 @@ pub struct NanoGptMlpConfig {
     pub activation: ActivationConfig,
 }
 
-impl NanoGptMlpMeta for NanoGptMlpConfig {
+impl NanoChatGptMlpMeta for NanoGptMlpConfig {
     fn n_embed(&self) -> usize {
         self.n_embed
     }
@@ -54,8 +54,8 @@ impl NanoGptMlpConfig {
     pub fn init<B: Backend>(
         self,
         device: &B::Device,
-    ) -> NanoGptMlp<B> {
-        NanoGptMlp {
+    ) -> NanoChatGptMlp<B> {
+        NanoChatGptMlp {
             c_fc: LinearConfig::new(self.n_embed(), self.hidden_size())
                 .with_bias(false)
                 .init(device),
@@ -74,7 +74,7 @@ impl NanoGptMlpConfig {
 
 /// GPT Block MLP Module
 #[derive(Module, Debug)]
-pub struct NanoGptMlp<B: Backend> {
+pub struct NanoChatGptMlp<B: Backend> {
     /// Feed Forward Layer.
     pub c_fc: Linear<B>,
 
@@ -85,13 +85,13 @@ pub struct NanoGptMlp<B: Backend> {
     pub c_proj: Linear<B>,
 }
 
-impl<B: Backend> NanoGptMlpMeta for NanoGptMlp<B> {
+impl<B: Backend> NanoChatGptMlpMeta for NanoChatGptMlp<B> {
     fn n_embed(&self) -> usize {
         self.c_fc.weight.dims()[0]
     }
 }
 
-impl<B: Backend> NanoGptMlp<B> {
+impl<B: Backend> NanoChatGptMlp<B> {
     /// MLP Forward Pass.
     ///
     /// # Arguments
@@ -126,7 +126,6 @@ impl<B: Backend> NanoGptMlp<B> {
 }
 
 #[cfg(test)]
-#[allow(unused_imports)]
 mod tests {
     use burn::tensor::Distribution;
 
@@ -162,7 +161,7 @@ mod tests {
                     .with_expansion_factor(ef)
                     .with_activation(activation.clone());
 
-                let mlp: NanoGptMlp<B> = cfg.init(&device);
+                let mlp: NanoChatGptMlp<B> = cfg.init(&device);
 
                 assert_eq!(mlp.n_embed(), n_embed);
 

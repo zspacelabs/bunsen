@@ -33,7 +33,7 @@
 //! * [`blocks`] - this is a library of [`burn::module::Module`] components.
 //!   This includes simple inner layers, recurrent utility blocks, and entire
 //!   model families.
-//! * [`burn_ext`] - this is a library of [`burn::module::Module`] lifecycle
+//! * [`burner`] - this is a library of [`burn::module::Module`] lifecycle
 //!   components which extend the current functionality of burn.
 //! * [`ops`] - this is a library [`burn::tensor::Tensor`] operations.
 //! * [`support`] - this is a library of support functions for bunsen, including
@@ -86,7 +86,7 @@ pub use bunsen_cache as cache;
 // TODO: re-examine contracts publication.
 
 pub mod blocks;
-pub mod burn_ext;
+pub mod burner;
 pub mod errors;
 pub mod ops;
 pub mod support;

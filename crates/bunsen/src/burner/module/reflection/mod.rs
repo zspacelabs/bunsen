@@ -1,4 +1,4 @@
-//! XML/XPath reflection layer for `burn_ext` [`burn::module::Module`]s.
+//! XML/XPath reflection layer for `burner` [`burn::module::Module`]s.
 //!
 //! ```rust
 //! use burn::{
@@ -16,7 +16,7 @@
 //!         BunsenError,
 //!         BunsenResult,
 //!     },
-//!     burn_ext::{
+//!     burner::{
 //!         descriptors::{
 //!             TensorKindDesc,
 //!             TensorParamDesc,
@@ -90,7 +90,7 @@
 //! //
 //! // # <{NAME} class="{CLASS}"/> - Structural Element
 //! // Structural elements are given a {NAME} and {CLASS} in the local namespace,
-//! // derived from the [`burn_ext::module::ModuleVisitor::enter_module`]
+//! // derived from the [`burner::module::ModuleVisitor::enter_module`]
 //! // `container_type`.
 //! // * `{TYPE}` => NAME=TYPE, CLASS='builtin'
 //! // * `{C}:{TYPE}` => NAME=TYPE, CLASS=lowercase(C)
@@ -157,7 +157,7 @@
 //!
 //! // IMPORTANT: Module Tree Ordering
 //! //
-//! // `burn_ext` Modules order their children in a stable and specific order,
+//! // `burner` Modules order their children in a stable and specific order,
 //! // determined by the order of their declaration in the source code,
 //! // and the current semantics of the `Module` derive macro.
 //! //

@@ -25,23 +25,19 @@ use burn::{
 use crate::{
     blocks::transformers::{
         attention::{
-            csa::{
-                CausalSelfAttentionConfig,
-                CausalSelfAttentionMeta,
-            },
-            kvcache::{
-                KVCache,
-                KVCacheConfig,
-            },
+            CausalSelfAttentionConfig,
+            CausalSelfAttentionMeta,
+            KVCache,
+            KVCacheConfig,
         },
-        embedding::rotary::{
+        embedding::{
             RotaryEmbedding,
             RotaryEmbeddingConfig,
             RotaryEmbeddingMeta,
         },
         nanochat::{
-            NanoGptBlock,
-            NanoGptBlockConfig,
+            NanoChatGptBlock,
+            NanoChatGptBlockConfig,
             NanoGptMlpConfig,
         },
     },
@@ -51,8 +47,8 @@ use crate::{
     },
 };
 
-/// Common meta for [`NanoGpt`] and [`NanoGptConfig`].
-pub trait NanoGptMeta {
+/// Common meta for [`NanoChatGpt`] and [`NanoChatGptConfig`].
+pub trait NanoChatGptMeta {
     /// Return the size of the input and output.
     fn n_embed(&self) -> usize;
 
@@ -79,7 +75,7 @@ pub trait NanoGptMeta {
 
 /// High-level GPT Config.
 #[derive(Config, Debug)]
-pub struct NanoGptConfig {
+pub struct NanoChatGptConfig {
     /// Initial sequence Length.
     #[config(default = "1024")]
     pub init_seq_len: usize,
@@ -126,7 +122,7 @@ pub struct NanoGptConfig {
     pub norm: NormalizationConfig,
 }
 
-impl NanoGptMeta for NanoGptConfig {
+impl NanoChatGptMeta for NanoChatGptConfig {
     fn n_embed(&self) -> usize {
         self.n_embed
     }
@@ -152,19 +148,19 @@ impl NanoGptMeta for NanoGptConfig {
     }
 }
 
-impl NanoGptConfig {
-    /// Initialize a [`NanoGpt`].
+impl NanoChatGptConfig {
+    /// Initialize a [`NanoChatGpt`].
     pub fn init<B: Backend>(
         self,
         device: &B::Device,
-    ) -> NanoGpt<B> {
+    ) -> NanoChatGpt<B> {
         self.into_structure().init(device)
     }
 
-    /// Convert this config into a [`NanoGptStructureConfig`].
-    pub fn into_structure(self) -> NanoGptStructureConfig {
+    /// Convert this config into a [`NanoChatGptStructureConfig`].
+    pub fn into_structure(self) -> NanoChatGptStructureConfig {
         let block_config = self.block_config();
-        NanoGptStructureConfig {
+        NanoChatGptStructureConfig {
             wte: EmbeddingConfig::new(self.vocab_size, self.n_embed),
             h: (0..self.n_layer).map(|_| block_config.clone()).collect(),
             lm_head: LinearConfig::new(self.n_embed, self.vocab_size),
@@ -175,9 +171,9 @@ impl NanoGptConfig {
         }
     }
 
-    /// Build the [`NanoGptBlockConfig`] for this config.
-    pub fn block_config(&self) -> NanoGptBlockConfig {
-        NanoGptBlockConfig::new(
+    /// Build the [`NanoChatGptBlockConfig`] for this config.
+    pub fn block_config(&self) -> NanoChatGptBlockConfig {
+        NanoChatGptBlockConfig::new(
             CausalSelfAttentionConfig::new(self.n_head, self.n_kv_head, self.n_embed)
                 .with_norm(self.norm.clone()),
             NanoGptMlpConfig::new(self.n_embed)
@@ -192,12 +188,12 @@ impl NanoGptConfig {
 ///
 /// This config has a lot of duplicate information.
 #[derive(Config, Debug)]
-pub struct NanoGptStructureConfig {
+pub struct NanoChatGptStructureConfig {
     /// The embedding config.
     pub wte: EmbeddingConfig,
 
     /// The main transformer block sequence.
-    pub h: Vec<NanoGptBlockConfig>,
+    pub h: Vec<NanoChatGptBlockConfig>,
 
     /// The config for the final linear layer.
     pub lm_head: LinearConfig,
@@ -219,7 +215,7 @@ pub struct NanoGptStructureConfig {
     pub norm: NormalizationConfig,
 }
 
-impl NanoGptMeta for NanoGptStructureConfig {
+impl NanoChatGptMeta for NanoChatGptStructureConfig {
     fn n_embed(&self) -> usize {
         self.wte.d_model
     }
@@ -249,14 +245,14 @@ impl NanoGptMeta for NanoGptStructureConfig {
     }
 }
 
-impl NanoGptStructureConfig {
-    /// Initialize a [`NanoGpt`].
+impl NanoChatGptStructureConfig {
+    /// Initialize a [`NanoChatGpt`].
     pub fn init<B: Backend>(
         self,
         device: &B::Device,
-    ) -> NanoGpt<B> {
+    ) -> NanoChatGpt<B> {
         let n_embed = self.n_embed();
-        NanoGpt {
+        NanoChatGpt {
             wte: self.wte.init(device),
             h: self
                 .h
@@ -275,9 +271,9 @@ impl NanoGptStructureConfig {
 
 /// GPT Module
 #[derive(Module, Debug)]
-pub struct NanoGpt<B: Backend> {
+pub struct NanoChatGpt<B: Backend> {
     wte: Embedding<B>,
-    h: Vec<NanoGptBlock<B>>,
+    h: Vec<NanoChatGptBlock<B>>,
     h_norm: Normalization<B>,
     lm_head: Linear<B>,
     r_emb: RotaryEmbedding<B>,
@@ -286,7 +282,7 @@ pub struct NanoGpt<B: Backend> {
     softcap: f64,
 }
 
-impl<B: Backend> NanoGptMeta for NanoGpt<B> {
+impl<B: Backend> NanoChatGptMeta for NanoChatGpt<B> {
     fn n_embed(&self) -> usize {
         self.wte.weight.dims()[0]
     }
@@ -316,7 +312,7 @@ impl<B: Backend> NanoGptMeta for NanoGpt<B> {
     }
 }
 
-impl<B: Backend> NanoGpt<B> {
+impl<B: Backend> NanoChatGpt<B> {
     /// Forward Pass.
     ///
     /// # Arguments
@@ -402,7 +398,6 @@ impl<B: Backend> NanoGpt<B> {
 }
 
 #[cfg(test)]
-#[allow(unused_imports)]
 mod tests {
     use burn::tensor::Distribution;
 
@@ -414,7 +409,7 @@ mod tests {
 
     #[test]
     fn test_gpt_config() {
-        let cfg = NanoGptConfig::new();
+        let cfg = NanoChatGptConfig::new();
         assert_eq!(cfg.init_seq_len, 1024);
         assert_eq!(cfg.vocab_size, 50304);
         assert_eq!(cfg.n_layer, 12);
@@ -438,11 +433,11 @@ mod tests {
 
         let vocab_size = 1000;
 
-        let cfg = NanoGptConfig::new()
+        let cfg = NanoChatGptConfig::new()
             .with_vocab_size(vocab_size)
             .with_n_embed(n_embed)
             .with_n_layer(n_layer);
-        let gpt: NanoGpt<B> = cfg.init(&device);
+        let gpt: NanoChatGpt<B> = cfg.init(&device);
 
         let mut kv_cache = gpt.new_kv_cache(batch_size);
 

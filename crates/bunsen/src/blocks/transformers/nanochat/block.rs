@@ -14,30 +14,28 @@ use burn::{
 
 use crate::blocks::transformers::{
     attention::{
-        csa::{
-            CausalSelfAttention,
-            CausalSelfAttentionConfig,
-            CausalSelfAttentionMeta,
-        },
-        kvcache::KVCache,
+        CausalSelfAttention,
+        CausalSelfAttentionConfig,
+        CausalSelfAttentionMeta,
+        KVCache,
     },
-    embedding::rotary::RotaryEmbedding,
+    embedding::RotaryEmbedding,
     nanochat::{
-        NanoGptMlp,
+        NanoChatGptMlp,
+        NanoChatGptMlpMeta,
         NanoGptMlpConfig,
-        NanoGptMlpMeta,
     },
 };
 
-/// Common meta for [`NanoGptBlock`] and [`NanoGptBlockConfig`].
-pub trait NanoGptBlockMeta {
+/// Common meta for [`NanoChatGptBlock`] and [`NanoChatGptBlockConfig`].
+pub trait NanoChatGptBlockMeta {
     /// Return the size of the input and output.
     fn n_embed(&self) -> usize;
 }
 
-/// Config for [`NanoGptBlock`].
+/// Config for [`NanoChatGptBlock`].
 #[derive(Config, Debug)]
-pub struct NanoGptBlockConfig {
+pub struct NanoChatGptBlockConfig {
     /// Causal Self-Attention Config.
     pub attn: CausalSelfAttentionConfig,
 
@@ -50,22 +48,22 @@ pub struct NanoGptBlockConfig {
     pub norm: NormalizationConfig,
 }
 
-impl NanoGptBlockMeta for NanoGptBlockConfig {
+impl NanoChatGptBlockMeta for NanoChatGptBlockConfig {
     fn n_embed(&self) -> usize {
         self.attn.n_embed()
     }
 }
 
-impl NanoGptBlockConfig {
-    /// Initialize a [`NanoGptBlock`].
+impl NanoChatGptBlockConfig {
+    /// Initialize a [`NanoChatGptBlock`].
     pub fn init<B: Backend>(
         self,
         layer_index: usize,
         device: &B::Device,
-    ) -> NanoGptBlock<B> {
+    ) -> NanoChatGptBlock<B> {
         assert_eq!(self.attn.n_embed(), self.mlp.n_embed());
         let n_embed = self.n_embed();
-        NanoGptBlock {
+        NanoChatGptBlock {
             input_norm: self.norm.clone().with_num_features(n_embed).init(device),
             attn: self.attn.init(layer_index, device),
             attn_norm: self.norm.clone().with_num_features(n_embed).init(device),
@@ -76,7 +74,7 @@ impl NanoGptBlockConfig {
 
 /// GPT Block
 #[derive(Module, Debug)]
-pub struct NanoGptBlock<B: Backend> {
+pub struct NanoChatGptBlock<B: Backend> {
     /// Input Normalization.
     pub input_norm: Normalization<B>,
 
@@ -87,16 +85,16 @@ pub struct NanoGptBlock<B: Backend> {
     pub attn_norm: Normalization<B>,
 
     /// MLP.
-    pub mlp: NanoGptMlp<B>,
+    pub mlp: NanoChatGptMlp<B>,
 }
 
-impl<B: Backend> NanoGptBlockMeta for NanoGptBlock<B> {
+impl<B: Backend> NanoChatGptBlockMeta for NanoChatGptBlock<B> {
     fn n_embed(&self) -> usize {
         self.attn.n_embed()
     }
 }
 
-impl<B: Backend> NanoGptBlock<B> {
+impl<B: Backend> NanoChatGptBlock<B> {
     /// Forward Pass.
     ///
     /// # Usage Note
@@ -124,13 +122,12 @@ impl<B: Backend> NanoGptBlock<B> {
 }
 
 #[cfg(test)]
-#[allow(unused_imports)]
 mod tests {
     use burn::tensor::Distribution;
 
     use super::*;
     use crate::{
-        blocks::transformers::embedding::rotary::RotaryEmbeddingConfig,
+        blocks::transformers::embedding::RotaryEmbeddingConfig,
         contracts::assert_shape_contract,
         support::testing::PerfTestBackend,
     };
@@ -144,7 +141,7 @@ mod tests {
         let n_head = 128;
         let n_kv_head = 64;
 
-        let config = NanoGptBlockConfig::new(
+        let config = NanoChatGptBlockConfig::new(
             CausalSelfAttentionConfig::new(n_head, n_kv_head, n_embed),
             NanoGptMlpConfig::new(n_embed),
         );
@@ -156,7 +153,7 @@ mod tests {
         assert_eq!(config.mlp.n_embed(), n_embed);
 
         let layer_index = 12;
-        let block: NanoGptBlock<B> = config.init(layer_index, &device);
+        let block: NanoChatGptBlock<B> = config.init(layer_index, &device);
 
         assert_eq!(block.n_embed(), n_embed);
     }
@@ -174,12 +171,12 @@ mod tests {
         let n_kv_head = 64;
         let layer_index = 12;
 
-        let config = NanoGptBlockConfig::new(
+        let config = NanoChatGptBlockConfig::new(
             CausalSelfAttentionConfig::new(n_head, n_kv_head, n_embed),
             NanoGptMlpConfig::new(n_embed),
         );
 
-        let block: NanoGptBlock<B> = config.init(layer_index, &device);
+        let block: NanoChatGptBlock<B> = config.init(layer_index, &device);
 
         let input = Tensor::random([batch, seq_len, n_embed], Distribution::Default, &device);
 

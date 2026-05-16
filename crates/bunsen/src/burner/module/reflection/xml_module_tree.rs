@@ -37,7 +37,7 @@ use xot::{
 };
 
 use crate::{
-    burn_ext::{
+    burner::{
         descriptors::TensorParamDesc,
         module::reflection::{
             module_visitors::XmlModuleTreeBuilder,
@@ -54,7 +54,7 @@ use crate::{
 /// The version of the `XmlModuleTree` format.
 pub const XML_MODULE_TREE_VERSION: &str = env!("CARGO_PKG_VERSION");
 
-/// XML/XPath reflection layer for `burn_ext` [`Module`]s.
+/// XML/XPath reflection layer for `burner` [`Module`]s.
 pub struct XmlModuleTree {
     docs: Documents,
     root: Node,
@@ -663,7 +663,7 @@ mod tests {
 
     use super::*;
     use crate::{
-        burn_ext::descriptors::TensorParamDesc,
+        burner::descriptors::TensorParamDesc,
         support::testing::SetupTestBackend,
     };
 

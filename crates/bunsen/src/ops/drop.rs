@@ -6,9 +6,16 @@ use burn::{
     tensor::Distribution,
 };
 
-/// Applies ops dropout on the input tensor.
+/// Applies the random dropout op on the input tensor.
 ///
-/// Always applies, does check for training mode.
+/// ```ignore
+/// p_keep = 1.0 - p;
+/// input * input.random_like(Bernoulli(p_keep)) / p_keep
+/// ```
+///
+/// ## Arguments
+/// * `prob` - the drop probability.
+/// * `input` - the input tensor.
 pub fn dropout<B: Backend, const D: usize>(
     prob: f64,
     input: Tensor<B, D>,

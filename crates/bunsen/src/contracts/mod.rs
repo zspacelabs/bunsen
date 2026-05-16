@@ -4,7 +4,7 @@
 //! # Shape Contracts
 //!
 //! This is a ``no_std`` inline contract programming library for tensor geometry
-//! for the [burn_ext](https://burn.dev) tensor framework.
+//! for the [burner](https://burn.dev) tensor framework.
 //!
 //! Contract programming, or [Design by Contract](https://en.wikipedia.org/wiki/Design_by_contract),
 //! is a programming paradigm that specifies the rights and obligations of
@@ -17,7 +17,7 @@
 //!
 //! ## Features
 //!
-//! - ``burn_ext``: Shape support for [burn_ext](https://burn.dev) types:
+//! - ``burner``: Shape support for [burner](https://burn.dev) types:
 //!    - `&Tensor`, `&Shape`, `Shape`.
 //!
 //! ## API
@@ -74,10 +74,10 @@
 //! * ``&Vec<u32>``,
 //! * ``&Vec<i32>``
 //!
-//! With ``features = ["burn_ext"]``:
-//! * ``burn_ext::prelude::Shape``,
-//! * ``&burn_ext::prelude::Shape``,
-//! * ``&burn_ext::prelude::Tensor``
+//! With ``features = ["burner"]``:
+//! * ``burner::prelude::Shape``,
+//! * ``&burner::prelude::Shape``,
+//! * ``&burner::prelude::Tensor``
 //!
 //! ## Speed and Stack Design
 //!
@@ -146,8 +146,8 @@
 //! ## Usage Example
 //!
 //! ```rust,ignore
-//! use burn_ext::prelude::{Tensor, Backend};
-//! use burn_ext::tensor::BasicOps;
+//! use burner::prelude::{Tensor, Backend};
+//! use burner::tensor::BasicOps;
 //! use bunsen::contracts::{unpack_shape_contract, assert_shape_contract_periodically};
 //!
 //! /// Window Partition

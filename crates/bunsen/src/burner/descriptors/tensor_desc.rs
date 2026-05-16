@@ -13,7 +13,7 @@ use burn::{
 };
 
 use crate::{
-    burn_ext::descriptors::{
+    burner::descriptors::{
         ParamDesc,
         ParamKindBinding,
         TensorKindDesc,

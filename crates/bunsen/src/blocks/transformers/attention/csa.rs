@@ -30,7 +30,7 @@ use crate::{
                 scaled_dot_product_attention,
             },
         },
-        embedding::rotary::RotaryEmbedding,
+        embedding::RotaryEmbedding,
     },
     contracts::{
         assert_shape_contract_periodically,
@@ -324,8 +324,8 @@ mod tests {
     use super::*;
     use crate::{
         blocks::transformers::{
-            attention::kvcache::KVCache,
-            embedding::rotary::{
+            attention::KVCache,
+            embedding::{
                 RotaryEmbedding,
                 RotaryEmbeddingConfig,
             },

@@ -17,7 +17,7 @@ use xot::{
     Xot,
 };
 
-use crate::burn_ext::{
+use crate::burner::{
     descriptors::TensorParamDesc,
     module::reflection::{
         XmlModuleTree,

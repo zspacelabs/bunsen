@@ -19,7 +19,7 @@ use serde::{
 };
 
 use crate::{
-    burn_ext::distribution::DistributionDisplayAdapter,
+    burner::distribution::DistributionDisplayAdapter,
     ops::clamp::ClampOp,
 };
 
@@ -140,7 +140,7 @@ mod tests {
 
     #[test]
     fn test_noise_config_display() {
-        let config = NoiseConfig::default().with_clamp(ClampOp::min_max(0.5, 1.0));
+        let config = NoiseConfig::default().with_clamp(ClampOp::new(0.5, 1.0));
         let settings = DisplaySettings::default();
 
         assert_eq!(

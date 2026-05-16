@@ -1,4 +1,4 @@
-//! Module support utilities for `burn_ext` module.
+//! Module support utilities for `burner` module.
 
 #[cfg(feature = "reflection")]
 pub mod reflection;

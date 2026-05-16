@@ -1,27 +1,27 @@
-//! Private module for internal use in the `bimm` crate.
+//! Testing utilities.
 use std::fmt::Debug;
 
 use num_traits::float::Float;
 
 cfg_select! {
     feature = "cuda" => {
-        /// Testing backend selected for performance.
+        /// Selected burn backend for compute-heavy tests.
         pub type PerfTestBackend = ::burn::backend::Cuda;
     }
     feature = "metal" => {
-        /// Testing backend selected for performance.
+        /// Selected burn backend for compute-heavy tests.
         pub type PerfTestBackend = ::burn::backend::Metal;
     }
     feature = "wgpu" => {
-        /// Testing backend selected for performance.
+        /// Selected burn backend for compute-heavy tests.
         pub type PerfTestBackend = ::burn::backend::Wgpu;
     }
     _ => {
-        /// Testing backend selected for performance.
+        /// Selected burn backend for compute-heavy tests.
         pub type PerfTestBackend = ::burn::backend::Flex;
     }
 }
-/// Testing backend selected for fast setup.
+/// Selected burn backend for fast-setup tests.
 pub type SetupTestBackend = ::burn::backend::Flex;
 
 /// Asserts that two vectors of floating-point numbers are close to each other
