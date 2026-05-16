@@ -90,9 +90,9 @@ flex = ["burn/flex"]
 
 
 [dependencies]
-bunsen-cache = { path = "../bunsen-cache", version = "0.21.0-pre.8", optional = true }
+bunsen-cache = { path = "../bunsen-cache", version = "0.21.0-pre.9", optional = true }
 # bunsen-contracts = { path = "../bunsen-contracts", version = "0.21.0-pre.6", features = ["burn"] }
-bunsen-contracts-macros = { version = "0.21.0-pre.8", path = "../bunsen-contracts-macros" }
+bunsen-contracts-macros = { version = "0.21.0-pre.9", path = "../bunsen-contracts-macros" }
 
 burn = { workspace = true }
 # burner-locked public deps:
