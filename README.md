@@ -30,14 +30,15 @@ from these projects into a single place; where we can closely track the burn rel
 and minimize the dependency-hell churn problem for writing extensions.
 
 I plan on continuing to work on this library, and recruit community involvement for landing
-and publishing new operators and blocks in a place we can lock down their testings and documentation.
+and publishing new operators and blocks in a place we can lock down their testings and
+documentation.
 
 # Components
 
 * `bunsen::blocks` - this is a library of `burn::module::Module` components.
   This includes simple inner layers, recurrent utility blocks, and entire
   model families.
-* `bunsen::burn_ext` - this is a library of `burn::module::Module` lifecycle
+* `bunsen::burner` - this is a library of `burn::module::Module` lifecycle
   components which extend the current functionality of burn.
 * `bunsen::ops` - this is a library `burn::tensor::Tensor` operations.
 * `bunsen::support` - this is a library of support functions for bunsen, including
@@ -48,19 +49,22 @@ and publishing new operators and blocks in a place we can lock down their testin
 
 # Future Components
 
-The base libraries have significant features which haven't been polished and stabilized for bunsen yet.
+The base libraries have significant features which haven't been polished and stabilized for bunsen
+yet.
 
 * weight/data download disk cache - there are several implementations of this in my codebase so far,
   the most robust is probably in the `wordchipper` code.
 * shard fetching - being able to bind a family of shards to URL template + range pattern;
   with information on the target format; and wire that smoothly into the download and cache layer.
   this is also currently in some of the LLM/chat codebases.
-* LLM `DataLoader` - a high-performance burn data loader for LLM models, built on parquet/arrow; and `wordchipper`.
+* LLM `DataLoader` - a high-performance burn data loader for LLM models, built on parquet/arrow; and
+  `wordchipper`.
   This is currently in the `zsl-chat` codebase.
 * Data transform pipeline - I did a pretty solid pass over an in-memory data transform pipeline
   for images, called `bimm-firehose`; and it is still in the `bimm` codebase. Something like
   it is needed to train image models.
-* `clap` tooling - I've built a lot of burn-related clap tools, and I'm pretty sure some of the arguments/setup
+* `clap` tooling - I've built a lot of burn-related clap tools, and I'm pretty sure some of the
+  arguments/setup
   machinery
   could be shared.
 * the rest of the `bimm` models.

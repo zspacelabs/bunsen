@@ -562,7 +562,7 @@ checksum = "5d20789868f4b01b2f2caec9f5c4e0213b41e3e5702a50157d699ae31ced2fcb"
 
 [[package]]
 name = "bunsen"
-version = "0.21.0-pre.9"
+version = "0.21.0"
 dependencies = [
  "anyhow",
  "bunsen",
@@ -587,7 +587,7 @@ dependencies = [
 
 [[package]]
 name = "bunsen-cache"
-version = "0.21.0-pre.9"
+version = "0.21.0"
 dependencies = [
  "anyhow",
  "burn",
@@ -598,7 +598,7 @@ dependencies = [
 
 [[package]]
 name = "bunsen-contracts-macros"
-version = "0.21.0-pre.9"
+version = "0.21.0"
 dependencies = [
  "proc-macro2",
  "quote",
