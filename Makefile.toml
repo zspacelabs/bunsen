@@ -7,6 +7,10 @@ dependencies = [
     "ci",
 ]
 
+
+[tasks.setup]
+dependencies = ["ensure-mdbook-suite"]
+
 [tasks.fix-bimm]
 command = "cargo"
 args = ["make", "--cwd", "demos/bimm", "--makefile", "Makefile.toml", "fix"]
@@ -99,18 +103,55 @@ dependencies = [
 
 [tasks.book]
 description = "Build the mdBook in ./book"
+dependencies = ["ensure-mdbook-suite"]
 cwd = "book"
 command = "mdbook"
 args = ["build"]
 
 [tasks.book-serve]
 description = "Serve the mdBook locally with live reload"
+dependencies = ["ensure-mdbook-suite"]
 cwd = "book"
 command = "mdbook"
 args = ["serve", "--open"]
 
 [tasks.book-clean]
 description = "Remove the mdBook build output"
+dependencies = ["ensure-mdbook-suite"]
 cwd = "book"
 command = "mdbook"
 args = ["clean"]
+
+[tasks.ensure-mdbook-suite]
+dependencies = [
+    "ensure-mdbook",
+    "ensure-mdbook-katex",
+    "ensure-mdbook-linkcheck",
+    "ensure-mdbook-linkcheck2",
+    "ensure-mdbook-mermaid",
+]
+
+[tasks.ensure-mdbook]
+toolchain = "stable"
+command = "cargo"
+args = ["install", "mdbook", "--version", "0.5.1", "--locked", "--force"]
+
+[tasks.ensure-mdbook-katex]
+toolchain = "stable"
+command = "cargo"
+args = ["install", "mdbook-katex", "--version", "0.10.0-alpha", "--locked", "--force"]
+
+[tasks.ensure-mdbook-linkcheck]
+toolchain = "stable"
+command = "cargo"
+args = ["install", "mdbook-linkcheck", "--version", "0.7.7", "--locked", "--force"]
+
+[tasks.ensure-mdbook-linkcheck2]
+toolchain = "stable"
+command = "cargo"
+args = ["install", "mdbook-linkcheck2", "--version", "0.12.0", "--locked", "--force"]
+
+[tasks.ensure-mdbook-mermaid]
+toolchain = "stable"
+command = "cargo"
+args = ["install", "mdbook-mermaid", "--version", "0.17.0", "--locked", "--force"]
