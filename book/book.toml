@@ -1,0 +1,69 @@
+[book]
+title = "The Bunsen Book"
+authors = ["The Bunsen Contributors"]
+description = "A batteries-included community standard library for the burn tensor framework."
+language = "en"
+src = "src"
+
+[rust]
+edition = "2024"
+
+[build]
+build-dir = "book"
+create-missing = false
+extra-watch-dirs = ["theme"]
+
+# ── preprocessors ─────────────────────────────────────────────────────────────
+
+[preprocessor.mermaid]
+command = "mdbook-mermaid"
+
+[preprocessor.katex]
+after = ["links"]
+macros = "./katex-macros.txt"
+
+# ── HTML output ───────────────────────────────────────────────────────────────
+
+[output.html]
+default-theme = "rust"
+preferred-dark-theme = "ayu"
+git-repository-url = "https://github.com/zspacelabs/bunsen"
+edit-url-template = "https://github.com/zspacelabs/bunsen/edit/main/book/src/{path}"
+site-url = "/bunsen/"
+additional-js = ["mermaid.min.js", "mermaid-init.js"]
+additional-css = []
+no-section-label = false
+mathjax-support = false
+
+[output.html.print]
+enable = true
+
+[output.html.fold]
+enable = true
+level = 1
+
+[output.html.search]
+enable = true
+limit-results = 30
+use-boolean-and = true
+boost-title = 2
+boost-hierarchy = 2
+boost-paragraph = 1
+expand = true
+heading-split-level = 3
+
+# ── linkcheck ─────────────────────────────────────────────────────────────────
+# mdbook-linkcheck2 is a backend (not a preprocessor) that runs on
+# `mdbook build`. It is the mdbook-0.5-compatible fork of mdbook-linkcheck.
+
+[output.linkcheck2]
+command = "mdbook-linkcheck2"
+follow-web-links = false
+traverse-parent-directories = false
+exclude = [
+    # External links that frequently rate-limit during CI.
+    "crates\\.io",
+    "docs\\.rs",
+]
+warning-policy = "warn"
+cache-timeout = 86400

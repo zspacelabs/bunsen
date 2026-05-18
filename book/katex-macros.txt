@@ -1,0 +1,7 @@
+% KaTeX macros usable across the Bunsen Book.
+% Define one per line as: \name:\replacement
+\RR:\mathbb{R}
+\NN:\mathbb{N}
+\ZZ:\mathbb{Z}
+\T:\mathbf{T}
+\vec:\mathbf{#1}

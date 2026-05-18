@@ -94,3 +94,23 @@ dependencies = [
     "clippy",
     "tests-all",
 ]
+
+# ── mdBook ────────────────────────────────────────────────────────────────────
+
+[tasks.book]
+description = "Build the mdBook in ./book"
+cwd = "book"
+command = "mdbook"
+args = ["build"]
+
+[tasks.book-serve]
+description = "Serve the mdBook locally with live reload"
+cwd = "book"
+command = "mdbook"
+args = ["serve", "--open"]
+
+[tasks.book-clean]
+description = "Remove the mdBook build output"
+cwd = "book"
+command = "mdbook"
+args = ["clean"]
