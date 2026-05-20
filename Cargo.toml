@@ -5,6 +5,8 @@ resolver = "2"
 
 members = [
     "crates/*",
+    "demos/*",
+    "demos/*/demos/*",
 ]
 
 [workspace.package]
@@ -23,6 +25,7 @@ doc_markdown = "warn"
 
 
 [workspace.dependencies]
+rand = "0.10.1"
 burn = "0.21.0"
 
 # Burn coupled-dependencies
@@ -35,6 +38,8 @@ dirs = "6.0.0"
 clap = "4.5.51"
 
 anyhow = "1.0.100"
+indicatif = "^0.18.3"
+nearly = "^0.4.0"
 
 # Build, Test and/or Examples dependencies
 hamcrest = "0.1.5"
@@ -57,3 +62,12 @@ thiserror = "2.0.18"
 strum = "0.28.0"
 xot = "0.31.2"
 xee-xpath = "0.1.5"
+
+
+piston = "^1.0.0"
+piston2d-graphics = "^0.45.0"
+
+# moving to 0.73.2 crashes in a way I haven't debugged yet.
+pistoncore-glutin_window = "^0.72.0"
+piston2d-opengl_graphics = "^0.89.0"
+gl = "^0.14.0"

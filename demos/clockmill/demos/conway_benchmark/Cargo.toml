@@ -1,0 +1,22 @@
+[package]
+name = "conway_benchmark"
+publish = false
+edition.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+clockmill = { path = "../.." }
+
+burn = { workspace = true, features = ["fusion", "autotune"] }
+clap = { workspace = true, features = ["derive"] }
+indicatif = { workspace = true }
+
+[lints]
+workspace = true
+
+[features]
+default = []
+cuda = ["burn/cuda"]
+metal = ["burn/metal"]
+wgpu = ["burn/wgpu"]
+flex = ["burn/flex"]

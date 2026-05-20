@@ -1,0 +1,35 @@
+[package]
+name = "clockmill"
+description = "Constant-Volume-Grid Simulations for Burn"
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+publish = false
+
+
+[lints]
+workspace = true
+
+
+[[bench]]
+name = "lbm"
+harness = false
+
+
+[features]
+default = []
+
+
+[dependencies]
+burn = { workspace = true }
+bunsen = { path = "../../crates/bunsen" }
+serde = { workspace = true, features = ["derive"] }
+
+[dev-dependencies]
+nearly = { workspace = true }
+
+# For benchmarks:
+criterion = { workspace = true }
+
+

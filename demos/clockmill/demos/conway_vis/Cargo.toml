@@ -1,0 +1,30 @@
+[package]
+name = "conway_vis"
+publish = false
+edition.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+clockmill = { path = "../.." }
+
+burn = { workspace = true, features = ["fusion", "autotune"] }
+
+clap = { workspace = true, features = ["derive"] }
+
+piston = { workspace = true }
+piston2d-graphics = { workspace = true }
+pistoncore-glutin_window = { workspace = true }
+piston2d-opengl_graphics = { workspace = true }
+gl = { workspace = true }
+
+indicatif = { workspace = true }
+
+[lints]
+workspace = true
+
+[features]
+default = []
+cuda = ["burn/cuda"]
+metal = ["burn/metal"]
+wgpu = ["burn/wgpu"]
+flex = ["burn/flex"]

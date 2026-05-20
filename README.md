@@ -70,6 +70,13 @@ yet.
 * the rest of the `bimm` models.
 * the `bimm` and `zsl-chat` training demos.
 
+# Demos
+
+The `bunsen` repo includes a number of complex demos. The goal of the demos is to showcase the capabilities of the
+library; while also collecting a working edge of problems which could and should be improved by further development.
+
+* [clockmill](demos/clockmill/README.md) - this is a demonstration of 2D/3D simulation on constant volume grids.
+
 # License
 
 `bunsen` is distributed under the terms of both the MIT license and the Apache License
