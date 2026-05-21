@@ -3,7 +3,7 @@ use std::sync::Arc;
 
 use bimm_firehose::utility::probability::try_probability;
 use image::DynamicImage;
-use rand::Rng;
+use rand::RngExt;
 use serde::{
     Deserialize,
     Serialize,

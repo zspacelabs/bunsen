@@ -449,7 +449,7 @@ dependencies = [
  "image-compare",
  "indoc",
  "inventory",
- "rand 0.9.4",
+ "rand 0.10.1",
  "serde",
  "serde_json",
  "tempfile",
@@ -6897,7 +6897,7 @@ dependencies = [
  "clap",
  "csv",
  "flate2",
- "rand 0.9.4",
+ "rand 0.10.1",
  "serde",
  "serde_json",
  "tar",
@@ -6914,7 +6914,7 @@ dependencies = [
  "bunsen",
  "burn",
  "clap",
- "rand 0.9.4",
+ "rand 0.10.1",
  "serde",
 ]
 
@@ -7614,7 +7614,7 @@ dependencies = [
  "bunsen",
  "burn",
  "clap",
- "rand 0.9.4",
+ "rand 0.10.1",
  "serde",
 ]
 

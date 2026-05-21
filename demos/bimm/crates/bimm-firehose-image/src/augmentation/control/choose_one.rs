@@ -3,7 +3,7 @@ use std::sync::Arc;
 
 use anyhow::bail;
 use image::DynamicImage;
-use rand::Rng;
+use rand::RngExt;
 use serde::{
     Deserialize,
     Serialize,

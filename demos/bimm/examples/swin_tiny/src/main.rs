@@ -94,7 +94,7 @@ use burn::{
 };
 use clap::Parser;
 use rand::{
-    Rng,
+    RngExt,
     rng,
 };
 

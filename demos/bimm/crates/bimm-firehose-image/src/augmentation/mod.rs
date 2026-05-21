@@ -141,7 +141,7 @@ impl PluginBuilder for GlobalRegistryBuilder {
 }
 
 /// Augmentation context, used by `AugmentationStage::augment_image`.
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct ImageAugContext {
     /// The context random number generator.
     rng: rand::rngs::StdRng,
@@ -192,7 +192,7 @@ pub trait AugmentationStage: Debug + Send + Sync {
     ) -> anyhow::Result<DynamicImage>;
 }
 
-/// Serializable config for name + body for `AugmentationStage`.
+/// Serializable config for name and body for `AugmentationStage`.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AugmentationStageConfig {
     /// The plugin name.
