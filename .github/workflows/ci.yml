@@ -1,0 +1,66 @@
+name: Rust
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  fmt:
+    name: Format
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: rustup toolchain install nightly --profile minimal --component rustfmt
+      - run: cargo +nightly fmt -- --check
+      - run: for d in demos/*; do cargo +nightly fmt --manifest-path $d/Cargo.toml -- --check; done
+
+  clippy:
+    name: Clippy
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: rustup toolchain install stable --profile minimal --component clippy
+      - run: cargo clippy --no-deps -- -D warnings
+      - run: for d in demos/*; do cargo clippy --manifest-path $d/Cargo.toml --no-deps -- -D warnings; done
+
+  test:
+    name: CI
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Cache Cargo binaries and dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/bin
+            ~/.cargo/registry
+            ~/.cargo/git
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-
+
+      - name: Install Toolchain
+        run: rustup toolchain install stable --profile minimal
+
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Rust Cache
+        uses: Swatinem/rust-cache@v2
+
+      # - name: Install Tools
+      #   run: cargo install -q cargo-tarpaulin || true
+
+      # - name: Build and Test
+      #   run: |
+      #     cargo tarpaulin --features=wgpu --coveralls=${{ secrets.COVERALLS_REPO_TOKEN }}
+
+      - name: Build and Test
+        run: cargo test --features=wgpu
+
+      - run: for d in demos/*; do cargo test --manifest-path $d/Cargo.toml --features=wgpu,bunsen/wgpu; done
