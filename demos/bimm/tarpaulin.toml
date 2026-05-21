@@ -1,0 +1,16 @@
+[test_config]
+name = "bimm"
+# engine = "Ptrace"
+engine = "Llvm"
+
+workspace = true
+exclude = [
+  "swin_tiny",
+  "firehose_loadtest"
+]
+
+timeout = "10m"
+fail-under = 80
+
+run-types = ["Tests"]
+
