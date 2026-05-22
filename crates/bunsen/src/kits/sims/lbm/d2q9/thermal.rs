@@ -4,7 +4,7 @@ use burn::{
     prelude::Backend,
 };
 
-use crate::kits::sims::surface::fluids::lbm::d2q9::{
+use crate::kits::sims::lbm::d2q9::{
     C2,
     C4,
     space,
@@ -86,7 +86,7 @@ mod tests {
 
     use super::*;
     use crate::{
-        kits::sims::surface::fluids::lbm::d2q9::{
+        kits::sims::lbm::d2q9::{
             space::{
                 LbmTables,
                 density,

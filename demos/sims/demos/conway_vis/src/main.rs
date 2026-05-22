@@ -14,7 +14,7 @@ use std::{
 };
 
 use bunsen::{
-    kits::sims::surface::conway::life2d::{
+    kits::sims::conway::life2d::{
         ConwayLife2DConfig,
         ConwayLife2DState,
     },

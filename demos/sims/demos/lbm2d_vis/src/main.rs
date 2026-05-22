@@ -15,18 +15,14 @@ use std::{
 
 use bunsen::{
     burner::tensor::TensorDataIndexView,
-    kits::sims::surface::fluids::lbm::d2q9::{
+    kits::sims::lbm::d2q9::{
+        LBMD2Q9Config,
+        LBMD2Q9State,
+        LBMMeta,
+        LbmTables,
+        RelaxationParam,
         SPEED_OF_SOUND,
-        relaxation::RelaxationParam,
-        simulation::{
-            LBMD2Q9Config,
-            LBMD2Q9State,
-            LBMMeta,
-        },
-        space::{
-            LbmTables,
-            macroscopic_momentum,
-        },
+        macroscopic_momentum,
     },
     support::validators::parse_grid_shape,
 };

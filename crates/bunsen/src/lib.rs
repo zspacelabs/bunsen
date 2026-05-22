@@ -7,17 +7,14 @@
 //!
 //! # Motivation
 //!
-//! I've been working on burn extensions and libs for coming on a year and a
-//! half; and I've accumulated a number of interesting ideas and demos:
+//! This library is a synthesis of the utility and extension work that
+//! I've been accumulating in:
 //!
 //! * <https://github.com/zspacelabs/wordchipper>
 //! * <https://github.com/zspacelabs/bimm>
 //! * <https://github.com/zspacelabs/bimm-contracts>
 //! * <https://github.com/zspacelabs/zsl-chat>
 //! * <https://github.com/crutcher/clockmill>
-//!
-//! I've also contributed a fair amount of code to the burn ecosystem,
-//! and I've written up the over motivation and history on my website: <https://zspacelabs.ai/history/>
 //!
 //! This library is a work in progress, and I'm working to fold the various
 //! utilities and support code from these projects into a single place; where we
@@ -30,16 +27,17 @@
 //!
 //! ## Organization
 //!
+//! * [`burner`] - this is a library of [`burn::module::Module`] lifecycle
+//!   components which extend the current functionality of burn.
+//! * [`contracts`] - this is a library of runtime tensor-shape contracts.
 //! * [`blocks`] - this is a library of [`burn::module::Module`] components.
 //!   This includes simple inner layers, recurrent utility blocks, and entire
 //!   model families.
-//! * [`burner`] - this is a library of [`burn::module::Module`] lifecycle
-//!   components which extend the current functionality of burn.
+//! * [`kits`] - this is a library of full models and simulation kits.
 //! * [`ops`] - this is a library [`burn::tensor::Tensor`] operations.
 //! * [`support`] - this is a library of support functions for bunsen, including
 //!   testing tooling which may be useful for clients.
 //! * [`zspace`] - this is a library of z-space / index utilities.
-//! * [`contracts`] - this is a library of runtime tensor-shape contracts.
 //! * [`errors`] - this is a library of error types and tooling.
 //!
 //!

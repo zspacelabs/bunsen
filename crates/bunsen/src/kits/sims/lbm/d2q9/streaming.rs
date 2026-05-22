@@ -8,7 +8,7 @@ use burn::{
     },
 };
 
-use crate::kits::sims::surface::fluids::lbm::d2q9::space;
+use crate::kits::sims::lbm::d2q9::space;
 
 /// Apply the streaming update step to the non-border cells of a population.
 ///

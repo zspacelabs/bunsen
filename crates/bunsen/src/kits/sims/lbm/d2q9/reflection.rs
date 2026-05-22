@@ -22,7 +22,7 @@ pub fn spherical_reflection<B: Backend>(dist: Tensor<B, 4>) -> Tensor<B, 4> {
 }
 
 /// Applies isotropic spherical solid reflection updates to
-/// [`operations::bgk_collision`].
+/// [`bgk_collision`](`super::collision::bgk_collision`).
 ///
 /// This models every solid point as a sphere, normal to all directions.
 ///

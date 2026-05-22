@@ -1,15 +1,13 @@
 use std::hint::black_box;
 
 use bunsen::{
-    kits::sims::surface::fluids::lbm::d2q9::{
-        collision::{
-            bgk_collision,
-            bgk_collision_with_spherical_reflection,
-        },
-        reflection::with_spherical_reflection,
-        relaxation::RelaxationParam,
-        space::LbmTables,
-        streaming::stream_interior_windows,
+    kits::sims::lbm::d2q9::{
+        LbmTables,
+        RelaxationParam,
+        bgk_collision,
+        bgk_collision_with_spherical_reflection,
+        stream_interior_windows,
+        with_spherical_reflection,
     },
     support::testing::PerfTestBackend,
 };

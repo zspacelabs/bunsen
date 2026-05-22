@@ -14,12 +14,12 @@ use burn::{
     tensor::DType,
 };
 
-use crate::kits::sims::surface::fluids::lbm::d2q9::{
-    collision::bgk_collision,
-    reflection::with_spherical_reflection,
-    relaxation::RelaxationParam,
-    space::LbmTables,
-    streaming::outflow_clipping_stream,
+use super::{
+    LbmTables,
+    RelaxationParam,
+    bgk_collision,
+    outflow_clipping_stream,
+    with_spherical_reflection,
 };
 
 /// Introspection trait for [`LBMD2Q9State`]

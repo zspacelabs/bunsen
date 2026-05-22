@@ -16,16 +16,16 @@
       <sourceFolder url="file://$MODULE_DIR$/demos/bimm/examples/swin_tiny/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/crates/bunsen-firehose-image/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/crates/bunsen-firehose/src" isTestSource="false" />
-      <sourceFolder url="file://$MODULE_DIR$/demos/simulations/benches" isTestSource="true" />
-      <sourceFolder url="file://$MODULE_DIR$/demos/simulations/demos/conway_benchmark/src" isTestSource="false" />
-      <sourceFolder url="file://$MODULE_DIR$/demos/simulations/demos/conway_vis/src" isTestSource="false" />
-      <sourceFolder url="file://$MODULE_DIR$/demos/simulations/demos/lbm2d_vis/src" isTestSource="false" />
-      <sourceFolder url="file://$MODULE_DIR$/demos/simulations/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/demos/sims/benches" isTestSource="true" />
+      <sourceFolder url="file://$MODULE_DIR$/demos/sims/demos/conway_benchmark/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/demos/sims/demos/conway_vis/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/demos/sims/demos/lbm2d_vis/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/demos/sims/src" isTestSource="false" />
       <excludeFolder url="file://$MODULE_DIR$/crates/bunsen/target" />
       <excludeFolder url="file://$MODULE_DIR$/target" />
       <excludeFolder url="file://$MODULE_DIR$/demos/bimm/crates/bimm/target" />
       <excludeFolder url="file://$MODULE_DIR$/demos/bimm/target" />
-      <excludeFolder url="file://$MODULE_DIR$/demos/simulations/target" />
+      <excludeFolder url="file://$MODULE_DIR$/demos/sims/target" />
     </content>
     <orderEntry type="inheritedJdk" />
     <orderEntry type="sourceFolder" forTests="false" />

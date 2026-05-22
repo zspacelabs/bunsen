@@ -100,7 +100,7 @@ pub fn next_state_wrapped_3d<B: Backend>(
 ///
 /// # Returns
 /// - the ``[H-2, W-2, Z-2]`` evolved interior state.
-fn next_interior_3d<B: Backend>(
+pub fn next_interior_3d<B: Backend>(
     state: Tensor<B, 3, Bool>,
     rules: &LifeRules,
 ) -> Tensor<B, 3, Bool> {

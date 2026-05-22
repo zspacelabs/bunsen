@@ -1,7 +1,7 @@
 #![allow(unused)]
 use std::time::Instant;
 
-use bunsen::kits::sims::surface::conway::{
+use bunsen::kits::sims::conway::{
     life2d::{
         ConwayLife2DConfig,
         ConwayLife2DState,

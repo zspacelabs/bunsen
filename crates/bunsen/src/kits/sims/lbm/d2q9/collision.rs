@@ -8,15 +8,14 @@ use burn::{
     },
 };
 
-use crate::kits::sims::surface::fluids::lbm::d2q9::{
-    reflection,
-    relaxation,
-    relaxation::{
-        OmegaSource,
-        RelaxationParam,
-    },
-    space,
-    thermal,
+use crate::kits::sims::lbm::d2q9::{
+    LbmTables,
+    OmegaSource,
+    RelaxationParam,
+    moments,
+    relaxed_sum,
+    thermal_equilibrium,
+    with_spherical_reflection,
 };
 
 /// Bhatnagar-Gross-Krook collision operator.
@@ -43,11 +42,11 @@ pub fn bgk_collision<B: Backend, S: Into<OmegaSource<B>>>(
     dist: Tensor<B, 4>,
     relaxation: S,
     correction: Option<f64>,
-    lbm_tables: &space::LbmTables<B>,
+    lbm_tables: &LbmTables<B>,
 ) -> Tensor<B, 4> {
-    let (source_rho, u) = space::moments(dist.clone(), lbm_tables);
-    let eq_dist = thermal::thermal_equilibrium(source_rho.clone(), u, lbm_tables);
-    relaxation::relaxed_sum(dist, eq_dist, relaxation, correction)
+    let (source_rho, u) = moments(dist.clone(), lbm_tables);
+    let eq_dist = thermal_equilibrium(source_rho.clone(), u, lbm_tables);
+    relaxed_sum(dist, eq_dist, relaxation, correction)
 }
 
 /// Combined bgk collision and isotropic reflection operator.
@@ -70,9 +69,9 @@ pub fn bgk_collision_with_spherical_reflection<B: Backend>(
     solid_mask: Tensor<B, 2, Bool>,
     relaxation: RelaxationParam,
     correction: Option<f64>,
-    lbm_tables: &space::LbmTables<B>,
+    lbm_tables: &LbmTables<B>,
 ) -> Tensor<B, 4> {
-    reflection::with_spherical_reflection(
+    with_spherical_reflection(
         dist.clone(),
         bgk_collision(dist, relaxation, correction, lbm_tables),
         solid_mask,
@@ -92,7 +91,11 @@ mod tests {
 
     use super::*;
     use crate::{
-        kits::sims::surface::fluids::lbm::d2q9::space::density,
+        kits::sims::lbm::d2q9::{
+            LbmTables,
+            RelaxationParam,
+            density,
+        },
         support::testing::PerfTestBackend,
     };
 
@@ -107,7 +110,7 @@ mod tests {
             .cast(dtype);
         let rho = density(dist.clone());
 
-        let lbm_tables = space::LbmTables::for_dist(&dist);
+        let lbm_tables = LbmTables::for_dist(&dist);
 
         let col_dist = bgk_collision(dist.clone(), RelaxationParam::Omega(0.5), None, &lbm_tables);
 

@@ -9,7 +9,8 @@ use serde::{
     Serialize,
 };
 
-/// The relaxation operator for [`operations::bgk_collision`].
+/// The relaxation operator for
+/// [`bgk_collision`](`super::collision::bgk_collision`).
 ///
 /// Computes ``correction * (dist_a * (1 - omega) + dist_b * omega)``.
 ///

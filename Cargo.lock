@@ -565,9 +565,9 @@ name = "bunsen"
 version = "0.21.0"
 dependencies = [
  "anyhow",
- "bunsen",
+ "bunsen 0.21.0",
  "bunsen-cache",
- "bunsen-contracts-macros",
+ "bunsen-contracts-macros 0.21.0",
  "burn",
  "criterion",
  "document-features",
@@ -575,6 +575,28 @@ dependencies = [
  "hashbrown 0.17.1",
  "indoc",
  "nearly",
+ "num-traits",
+ "paste",
+ "serde",
+ "serde_json",
+ "spanned_error_message",
+ "strum 0.28.0",
+ "thiserror 2.0.18",
+ "xee-xpath",
+ "xot",
+]
+
+[[package]]
+name = "bunsen"
+version = "0.21.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "008b16e87a70aea2715774e9fcb5f23c79e72cecaaadd186615024f15b0c9eab"
+dependencies = [
+ "anyhow",
+ "bunsen-contracts-macros 0.21.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "burn",
+ "document-features",
+ "hashbrown 0.17.1",
  "num-traits",
  "paste",
  "serde",
@@ -607,6 +629,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "bunsen-contracts-macros"
+version = "0.21.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b5c6a3479c5440e802f0337b322a0e648e1133bd0fbffaed53cd232898e8b6e2"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.117",
+]
+
+[[package]]
 name = "bunsen-firehose"
 version = "0.21.0"
 dependencies = [
@@ -627,7 +660,7 @@ name = "bunsen-firehose-image"
 version = "0.21.0"
 dependencies = [
  "anyhow",
- "bunsen",
+ "bunsen 0.21.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "bunsen-firehose",
  "burn",
  "image",

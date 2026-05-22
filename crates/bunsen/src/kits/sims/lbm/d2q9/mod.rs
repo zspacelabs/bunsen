@@ -23,15 +23,30 @@
 //!
 //! This direction is also available in the `direction_vectors()` interface.
 
-pub use crate::support::math::FRAC_1_SQRT_3;
+mod collision;
+mod reflection;
+mod relaxation;
+mod simulation;
+mod space;
+mod streaming;
+mod thermal;
 
-pub mod collision;
-pub mod reflection;
-pub mod relaxation;
-pub mod simulation;
-pub mod space;
-pub mod streaming;
-pub mod thermal;
+#[doc(inline)]
+pub use collision::*;
+#[doc(inline)]
+pub use reflection::*;
+#[doc(inline)]
+pub use relaxation::*;
+#[doc(inline)]
+pub use simulation::*;
+#[doc(inline)]
+pub use space::*;
+#[doc(inline)]
+pub use streaming::*;
+#[doc(inline)]
+pub use thermal::*;
+
+pub use crate::support::math::FRAC_1_SQRT_3;
 
 /// The speed of sound.
 pub const SPEED_OF_SOUND: f64 = FRAC_1_SQRT_3;
@@ -53,7 +68,7 @@ mod tests {
     use nearly::nearly;
 
     use crate::{
-        kits::sims::surface::fluids::lbm::d2q9::{
+        kits::sims::lbm::d2q9::{
             collision::bgk_collision_with_spherical_reflection,
             relaxation::RelaxationParam,
             space,

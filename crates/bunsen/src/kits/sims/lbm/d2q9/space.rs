@@ -289,10 +289,12 @@ pub fn dist_windows<B: Backend>(dist: Tensor<B, 4>) -> Tensor<B, 6> {
 
 #[cfg(test)]
 mod tests {
-    use bunsen::kits::sims::surface::fluids::lbm::d2q9::space::velocity_squared;
     use burn::tensor::Tolerance;
 
-    use super::*;
+    use super::{
+        super::velocity_squared,
+        *,
+    };
     use crate::support::testing::PerfTestBackend;
 
     #[test]

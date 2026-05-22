@@ -94,9 +94,8 @@ flex = ["burn/flex"]
 
 
 [dependencies]
-bunsen-cache = { path = "../bunsen-cache", version = "0.21.0", optional = true }
-# bunsen-contracts = { path = "../bunsen-contracts", version = "0.21.0-pre.6", features = ["burn"] }
 bunsen-contracts-macros = { version = "0.21.0", path = "../bunsen-contracts-macros" }
+bunsen-cache = { path = "../bunsen-cache", version = "0.21.0", optional = true }
 
 burn = { workspace = true }
 # burner-locked public deps:
@@ -104,23 +103,24 @@ hashbrown = { workspace = true, optional = true }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
 
-document-features = { workspace = true }
-
 anyhow = { workspace = true }
 num-traits = { workspace = true }
 strum = { workspace = true, features = ["derive"] }
 thiserror = { workspace = true }
 
-spanned_error_message = { workspace = true, optional = true }
+document-features = { workspace = true }
 paste = { workspace = true, optional = true }
+
+spanned_error_message = { workspace = true, optional = true }
 xot = { workspace = true, optional = true }
 xee-xpath = { workspace = true, optional = true }
 
 
 [dev-dependencies]
-nearly = { workspace = true }
 bunsen = { path = ".", features = ["testing"] }
 burn = { workspace = true, features = ["autodiff"] }
+
+nearly = { workspace = true }
 hamcrest = { workspace = true }
 indoc = { workspace = true }
 criterion = { workspace = true }

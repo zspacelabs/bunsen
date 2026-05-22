@@ -1,4 +1,4 @@
 //! # Simulations
 
-/// 2D Surface Simulations
-pub mod surface;
+pub mod conway;
+pub mod lbm;

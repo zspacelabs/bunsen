@@ -685,7 +685,6 @@ name = "bunsen-firehose-image"
 version = "0.21.0"
 dependencies = [
  "anyhow",
- "bunsen",
  "bunsen-firehose",
  "burn",
  "image",
