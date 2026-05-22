@@ -10,9 +10,9 @@ repository.workspace = true
 workspace = true
 
 [dependencies]
-bimm = { version = "0.19.5", path = "../../crates/bimm" }
-bimm-firehose = { version = "0.19.5", path = "../../crates/bimm-firehose" }
-bimm-firehose-image = { version = "0.19.5", path = "../../crates/bimm-firehose-image" }
+bimm = { path = "../../crates/bimm" }
+bunsen-firehose = { workspace = true }
+bunsen-firehose-image = { workspace = true }
 
 burn = { workspace = true, features = ["train", "fusion", "autotune", "vision", "dataset", "flex"] }
 bunsen = { workspace = true }

@@ -607,6 +607,40 @@ dependencies = [
 ]
 
 [[package]]
+name = "bunsen-firehose"
+version = "0.21.0"
+dependencies = [
+ "anyhow",
+ "burn",
+ "globwalk",
+ "indoc",
+ "inventory",
+ "num-traits",
+ "regex 1.12.3",
+ "regex-macro",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
+name = "bunsen-firehose-image"
+version = "0.21.0"
+dependencies = [
+ "anyhow",
+ "bunsen",
+ "bunsen-firehose",
+ "burn",
+ "image",
+ "image-compare",
+ "indoc",
+ "inventory",
+ "rand 0.10.1",
+ "serde",
+ "serde_json",
+ "tempfile",
+]
+
+[[package]]
 name = "burn"
 version = "0.21.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -826,10 +860,13 @@ version = "0.21.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ba469fba38357c8bb65458873ddfd82aa97534aec0b3bae93d4c44604fc63839"
 dependencies = [
+ "burn-std",
  "csv",
  "derive-new",
  "dirs",
+ "flate2",
  "gix-tempfile",
+ "globwalk",
  "image",
  "r2d2",
  "r2d2_sqlite",
@@ -3364,6 +3401,30 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0cc23270f6e1808e30a928bdc84dea0b9b4136a8bc82338574f23baf47bbd280"
 
 [[package]]
+name = "globset"
+version = "0.4.18"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "52dfc19153a48bde0cbd630453615c8151bce3a5adfac7a0aebfbf0a1e1f57e3"
+dependencies = [
+ "aho-corasick 1.1.4",
+ "bstr",
+ "log",
+ "regex-automata 0.4.14",
+ "regex-syntax 0.8.10",
+]
+
+[[package]]
+name = "globwalk"
+version = "0.9.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0bf760ebf69878d9fd8f110c89703d90ce35095324d1f1edcb595c63945ee757"
+dependencies = [
+ "bitflags 2.11.1",
+ "ignore",
+ "walkdir",
+]
+
+[[package]]
 name = "glow"
 version = "0.17.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4228,6 +4289,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "ignore"
+version = "0.4.25"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d3d782a365a015e0f5c04902246139249abf769125006fbe7649e2ee88169b4a"
+dependencies = [
+ "crossbeam-deque",
+ "globset",
+ "log",
+ "memchr",
+ "regex-automata 0.4.14",
+ "same-file",
+ "walkdir",
+ "winapi-util",
+]
+
+[[package]]
 name = "image"
 version = "0.25.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4246,9 +4323,22 @@ dependencies = [
  "ravif",
  "rayon",
  "rgb",
+ "serde",
  "tiff",
  "zune-core",
  "zune-jpeg",
+]
+
+[[package]]
+name = "image-compare"
+version = "0.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "176623a137baf75908084aff53578d6336cbd932bffaf12fabe26b343eb13338"
+dependencies = [
+ "image",
+ "itertools 0.14.0",
+ "rayon",
+ "thiserror 2.0.18",
 ]
 
 [[package]]
@@ -4362,6 +4452,15 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 2.0.117",
+]
+
+[[package]]
+name = "inventory"
+version = "0.3.24"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a4f0c30c76f2f4ccee3fe55a2435f691ca00c0e4bd87abe4f4a851b1d4dac39b"
+dependencies = [
+ "rustversion",
 ]
 
 [[package]]
@@ -6488,6 +6587,15 @@ dependencies = [
  "aho-corasick 1.1.4",
  "memchr",
  "regex-syntax 0.8.10",
+]
+
+[[package]]
+name = "regex-macro"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7d306632607af6ec61c0b117971d57a96381b6317cf18ae419b5558048fe016e"
+dependencies = [
+ "regex 1.12.3",
 ]
 
 [[package]]

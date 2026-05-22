@@ -27,6 +27,8 @@ doc_markdown = "warn"
 burn = "=0.21.0"
 burn-store = "=0.21.0"
 bunsen = { path = "../../crates/bunsen" }
+bunsen-firehose = { path = "../../crates/bunsen-firehose" }
+bunsen-firehose-image = { path = "../../crates/bunsen-firehose-image" }
 
 dirs = "6.0.0"
 

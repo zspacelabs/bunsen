@@ -10,12 +10,11 @@ repository.workspace = true
 workspace = true
 
 [dependencies]
-anyhow = { workspace = true }
-bimm = { version = "0.19.5", path = "../../crates/bimm" }
-
 burn = { workspace = true, features = ["train", "fusion", "autotune", "network", "vision", "flex"] }
 bunsen = { workspace = true }
+bimm = { path = "../../crates/bimm" }
 
+anyhow = { workspace = true }
 clap = { workspace = true, features = ["derive"] }
 
 # Dataset files

@@ -59,8 +59,8 @@
 //!   built on parquet/arrow; and `wordchipper`. This is currently in the
 //!   `zsl-chat` codebase.
 //! * Data transform pipeline - I did a pretty solid pass over an in-memory data
-//!   transform pipeline for images, called `bimm-firehose`; and it is still in
-//!   the `bimm` codebase. Something like it is needed to train image models.
+//!   transform pipeline for images, called `bunsen-firehose`; and it is still
+//!   in the `bimm` codebase. Something like it is needed to train image models.
 //! * `clap` tooling - I've built a lot of burn-related clap tools, and I'm
 //!   pretty sure some of the arguments/setup machinery could be shared.
 //! * the rest of the `bimm` models.

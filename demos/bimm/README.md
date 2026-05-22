@@ -169,7 +169,7 @@ where
 }
 ```
 
-### [bimm-firehose](crates/bimm-firehose) - a data loading and augmentation framework.
+### [bimm-firehose](../../crates/bunsen-firehose) - a data loading and augmentation framework.
 
 [![Crates.io Version](https://img.shields.io/crates/v/bimm-firehose)](https://crates.io/crates/bimm-firehose)
 [![docs.rs](https://img.shields.io/docsrs/bimm-firehose)](https://docs.rs/bimm/latest/bimm-firehose/)
@@ -184,5 +184,5 @@ This crate provides a set of image-specific operations for `bimm-firehose`.
 
 Add-on crates:
 
-* [bimm-firehose-image](crates/bimm-firehose-image)
+* [bimm-firehose-image](../../crates/bunsen-firehose-image)
 

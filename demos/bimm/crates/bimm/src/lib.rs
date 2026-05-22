@@ -7,8 +7,8 @@
 //!   ``burn``.
 //! * [`models`] - complete model families.
 //!   * [`models::resnet`] - `ResNet`
-//!   * [`models::swin`] - The SWIN Family.
-//!     * [`models::swin::v2`] - The SWIN-V2 Model.
+//!   * [`imgs::swin`] - The SWIN Family.
+//!     * [`imgs::swin::v2`] - The SWIN-V2 Model.
 #![warn(missing_docs)]
 
 extern crate alloc;

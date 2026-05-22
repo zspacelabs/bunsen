@@ -16,7 +16,8 @@ use bimm::{
         ResNet,
     },
 };
-use bimm_firehose::{
+use bunsen::burner::module::DTypeMapper;
+use bunsen_firehose::{
     burn::{
         batcher::{
             BatcherInputAdapter,
@@ -35,7 +36,7 @@ use bimm_firehose::{
     },
     ops::init_default_operator_environment,
 };
-use bimm_firehose_image::{
+use bunsen_firehose_image::{
     ColorType,
     ImageShape,
     augmentation::{
@@ -52,7 +53,6 @@ use bimm_firehose_image::{
         ResizeSpec,
     },
 };
-use bunsen::burner::module::DTypeMapper;
 use burn::{
     backend::Autodiff,
     data::{

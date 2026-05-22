@@ -9,13 +9,13 @@
       <sourceFolder url="file://$MODULE_DIR$/crates/bunsen-contracts/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/crates/bunsen-ng/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/crates/bunsen-cache/src" isTestSource="false" />
-      <sourceFolder url="file://$MODULE_DIR$/demos/bimm/crates/bimm-firehose-image/src" isTestSource="false" />
-      <sourceFolder url="file://$MODULE_DIR$/demos/bimm/crates/bimm-firehose/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/demos/bimm/crates/bimm/benches" isTestSource="true" />
       <sourceFolder url="file://$MODULE_DIR$/demos/bimm/crates/bimm/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/demos/bimm/examples/resnet_finetune/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/demos/bimm/examples/resnet_tiny/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/demos/bimm/examples/swin_tiny/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/crates/bunsen-firehose-image/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/crates/bunsen-firehose/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/demos/simulations/benches" isTestSource="true" />
       <sourceFolder url="file://$MODULE_DIR$/demos/simulations/demos/conway_benchmark/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/demos/simulations/demos/conway_vis/src" isTestSource="false" />

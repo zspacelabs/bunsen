@@ -1,0 +1,36 @@
+[package]
+name = "bunsen-firehose-image"
+rust-version.workspace = true
+edition.workspace = true
+version.workspace = true
+repository.workspace = true
+license.workspace = true
+documentation = "https://docs.rs/bunsen-firehose-image/latest/"
+description = "bimm-firehose image processing support"
+
+[lints]
+workspace = true
+
+[dependencies]
+burn = { workspace = true, features = ["dataset", "vision", "autotune"] }
+bunsen = { version = "0.21.0", path = "../bunsen" }
+bunsen-firehose = { version = "0.21.0", path = "../bunsen-firehose" }
+
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }
+
+anyhow = { workspace = true }
+
+rand = { workspace = true, features = ["std"] }
+inventory = { workspace = true }
+
+indoc = { workspace = true }
+
+image = { workspace = true, features = ["jpeg", "png", "gif", "serde"] }
+
+# TODO: feature guard this dep behind a `test` feature.
+image-compare = { workspace = true }
+
+[dev-dependencies]
+tempfile = { workspace = true }
+

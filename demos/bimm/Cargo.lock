@@ -411,40 +411,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "bimm-firehose"
-version = "0.19.5"
-dependencies = [
- "anyhow",
- "burn",
- "globwalk",
- "indoc",
- "inventory",
- "num-traits",
- "regex 1.12.3",
- "regex-macro",
- "serde",
- "serde_json",
-]
-
-[[package]]
-name = "bimm-firehose-image"
-version = "0.19.5"
-dependencies = [
- "anyhow",
- "bimm-firehose",
- "bunsen",
- "burn",
- "image",
- "image-compare",
- "indoc",
- "inventory",
- "rand 0.10.1",
- "serde",
- "serde_json",
- "tempfile",
-]
-
-[[package]]
 name = "bincode"
 version = "2.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -696,6 +662,39 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 2.0.117",
+]
+
+[[package]]
+name = "bunsen-firehose"
+version = "0.21.0"
+dependencies = [
+ "anyhow",
+ "burn",
+ "globwalk",
+ "indoc",
+ "inventory",
+ "num-traits",
+ "regex 1.12.3",
+ "regex-macro",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
+name = "bunsen-firehose-image"
+version = "0.21.0"
+dependencies = [
+ "anyhow",
+ "bunsen",
+ "bunsen-firehose",
+ "burn",
+ "image",
+ "image-compare",
+ "indoc",
+ "inventory",
+ "rand 0.10.1",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]
@@ -6826,9 +6825,9 @@ version = "0.0.0"
 dependencies = [
  "anyhow",
  "bimm",
- "bimm-firehose",
- "bimm-firehose-image",
  "bunsen",
+ "bunsen-firehose",
+ "bunsen-firehose-image",
  "burn",
  "clap",
  "rand 0.10.1",
@@ -7525,10 +7524,9 @@ name = "swin_tiny"
 version = "0.0.0"
 dependencies = [
  "anyhow",
- "bimm",
- "bimm-firehose",
- "bimm-firehose-image",
  "bunsen",
+ "bunsen-firehose",
+ "bunsen-firehose-image",
  "burn",
  "clap",
  "rand 0.10.1",
