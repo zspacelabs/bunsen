@@ -61,6 +61,6 @@ jobs:
       #     cargo tarpaulin --features=wgpu --coveralls=${{ secrets.COVERALLS_REPO_TOKEN }}
 
       - name: Build and Test
-        run: cargo test --features=wgpu
+        run: cargo test --features=flex
 
-      - run: for d in demos/*; do cargo test --manifest-path $d/Cargo.toml --features=wgpu,bunsen/wgpu; done
+      - run: for d in demos/*; do cargo test --manifest-path $d/Cargo.toml --features=flex,bunsen/flex; done
