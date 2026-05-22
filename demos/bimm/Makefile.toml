@@ -1,0 +1,40 @@
+[config]
+default_to_workspace = false
+
+[tasks.fix]
+dependencies = [
+    "format",
+    "clippy-fix",
+]
+
+[tasks.check]
+dependencies = [
+    "check-format",
+    "clippy",
+]
+
+[tasks.check-format]
+description = "Check formatting (nightly rustfmt)"
+workspace = false
+toolchain = "nightly"
+install_crate = "rustfmt"
+command = "cargo"
+args = ["fmt", "--check"]
+
+[tasks.format]
+description = "Apply formatting (nightly rustfmt)"
+workspace = false
+toolchain = "nightly"
+install_crate = "rustfmt"
+command = "cargo"
+args = ["fmt"]
+
+[tasks.clippy]
+description = "Lint (treat warnings as errors)"
+command = "cargo"
+args = ["clippy", "--no-deps"]
+
+[tasks.clippy-fix]
+description = "AutoFix Lint (treat warnings as errors)"
+command = "cargo"
+args = ["clippy", "--fix", "--allow-staged", "--allow-dirty", "--no-deps"]

@@ -7,10 +7,33 @@ dependencies = [
     "ci",
 ]
 
+[tasks.fix-bimm]
+command = "cargo"
+args = ["make", "--cwd", "demos/bimm", "--makefile", "Makefile.toml", "fix"]
+
+[tasks.fix-sims]
+command = "cargo"
+args = ["make", "--cwd", "demos/sims", "--makefile", "Makefile.toml", "fix"]
+
+[tasks.check-all]
+dependencies = [
+    "check-bimm",
+    "check-sims",
+]
+
+[tasks.check-bimm]
+command = "cargo"
+args = ["make", "--cwd", "demos/bimm", "--makefile", "Makefile.toml", "check"]
+
+[tasks.check-sims]
+command = "cargo"
+args = ["make", "--cwd", "demos/sims", "--makefile", "Makefile.toml", "check"]
+
 # ── individual tasks ──────────────────────────────────────────────────────────
 
 [tasks.check-format]
 description = "Check formatting (nightly rustfmt)"
+workspace = false
 toolchain = "nightly"
 install_crate = "rustfmt"
 command = "cargo"
@@ -18,6 +41,7 @@ args = ["fmt", "--check"]
 
 [tasks.format]
 description = "Apply formatting (nightly rustfmt)"
+workspace = false
 toolchain = "nightly"
 install_crate = "rustfmt"
 command = "cargo"
@@ -28,16 +52,26 @@ description = "Lint (treat warnings as errors)"
 command = "cargo"
 args = ["clippy", "--no-deps"]
 
+[tasks.clippy-fix]
+description = "AutoFix Lint (treat warnings as errors)"
+command = "cargo"
+args = ["clippy", "--fix", "--allow-staged", "--allow-dirty", "--no-deps"]
+
 [tasks.test]
 description = "Test with default features"
+workspace = false
 command = "cargo"
 args = ["test", "--workspace"]
 
 # ── convenience composites ────────────────────────────────────────────────────
 
 [tasks.fix]
-description = "Format + clippy (mirrors fix.sh)"
-dependencies = ["format", "clippy"]
+dependencies = [
+    "clippy-fix",
+    "format",
+    "fix-bimm",
+    "fix-sims",
+]
 
 [tasks.tests-all]
 description = "All test variants (default, ahash, no_std)"
