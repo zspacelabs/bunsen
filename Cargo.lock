@@ -563,11 +563,33 @@ checksum = "5d20789868f4b01b2f2caec9f5c4e0213b41e3e5702a50157d699ae31ced2fcb"
 [[package]]
 name = "bunsen"
 version = "0.21.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "008b16e87a70aea2715774e9fcb5f23c79e72cecaaadd186615024f15b0c9eab"
 dependencies = [
  "anyhow",
- "bunsen 0.21.0",
- "bunsen-cache",
  "bunsen-contracts-macros 0.21.0",
+ "burn",
+ "document-features",
+ "hashbrown 0.17.1",
+ "num-traits",
+ "paste",
+ "serde",
+ "serde_json",
+ "spanned_error_message",
+ "strum 0.28.0",
+ "thiserror 2.0.18",
+ "xee-xpath",
+ "xot",
+]
+
+[[package]]
+name = "bunsen"
+version = "0.21.1"
+dependencies = [
+ "anyhow",
+ "bunsen 0.21.1",
+ "bunsen-cache",
+ "bunsen-contracts-macros 0.21.1",
  "burn",
  "criterion",
  "document-features",
@@ -587,45 +609,14 @@ dependencies = [
 ]
 
 [[package]]
-name = "bunsen"
-version = "0.21.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "008b16e87a70aea2715774e9fcb5f23c79e72cecaaadd186615024f15b0c9eab"
-dependencies = [
- "anyhow",
- "bunsen-contracts-macros 0.21.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "burn",
- "document-features",
- "hashbrown 0.17.1",
- "num-traits",
- "paste",
- "serde",
- "serde_json",
- "spanned_error_message",
- "strum 0.28.0",
- "thiserror 2.0.18",
- "xee-xpath",
- "xot",
-]
-
-[[package]]
 name = "bunsen-cache"
-version = "0.21.0"
+version = "0.21.1"
 dependencies = [
  "anyhow",
  "burn",
  "crc",
  "dirs",
  "serde",
-]
-
-[[package]]
-name = "bunsen-contracts-macros"
-version = "0.21.0"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn 2.0.117",
 ]
 
 [[package]]
@@ -640,8 +631,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "bunsen-contracts-macros"
+version = "0.21.1"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.117",
+]
+
+[[package]]
 name = "bunsen-firehose"
-version = "0.21.0"
+version = "0.21.1"
 dependencies = [
  "anyhow",
  "burn",
@@ -657,10 +657,10 @@ dependencies = [
 
 [[package]]
 name = "bunsen-firehose-image"
-version = "0.21.0"
+version = "0.21.1"
 dependencies = [
  "anyhow",
- "bunsen 0.21.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "bunsen 0.21.0",
  "bunsen-firehose",
  "burn",
  "image",

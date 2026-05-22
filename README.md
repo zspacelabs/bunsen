@@ -13,8 +13,8 @@ community standard library for extending the [burn](https://burn.dev) tensor lib
 
 # Motivation
 
-I've been working on burn extensions and libs for coming on a year and a half; and I've accumulated
-a number of interesting ideas and demos:
+This library is a synthesis of the utility and extension work that
+I've been accumulating in:
 
 * <https://github.com/zspacelabs/wordchipper>
 * <https://github.com/zspacelabs/bimm>
@@ -22,30 +22,36 @@ a number of interesting ideas and demos:
 * <https://github.com/zspacelabs/zsl-chat>
 * <https://github.com/crutcher/clockmill>
 
-I've also contributed a fair amount of code to the burn ecosystem,
-and I've written up the over motivation and history on my website: <https://zspacelabs.ai/history/>
+This library is a work in progress, and I'm working to fold the various
+utilities and support code from these projects into a single place; where we
+can closely track the burn release cycle, and minimize the dependency-hell
+churn problem for writing extensions.
 
-This library is a work in progress, and I'm working to fold the various utilities and support code
-from these projects into a single place; where we can closely track the burn release cycle,
-and minimize the dependency-hell churn problem for writing extensions.
-
-I plan on continuing to work on this library, and recruit community involvement for landing
-and publishing new operators and blocks in a place we can lock down their testings and
-documentation.
+I plan on continuing to work on this library, and recruit community
+involvement for landing and publishing new operators and blocks in a place
+we can lock down their testings and documentation.
 
 # Components
 
-* `bunsen::blocks` - this is a library of `burn::module::Module` components.
-  This includes simple inner layers, recurrent utility blocks, and entire
-  model families.
+### Burn Extensions
+
 * `bunsen::burner` - this is a library of `burn::module::Module` lifecycle
   components which extend the current functionality of burn.
+* `bunsen::contracts` - this is a library of runtime tensor-shape contracts.
+
+### Component Libraries
+
+* `bunsen::blocks` - this is a library of `burn::module::Module` components.
+  This includes simple inner layers, recurrent utility blocks.
+* `bunsen::kit` - this is a library complete modules and simulators.
 * `bunsen::ops` - this is a library `burn::tensor::Tensor` operations.
+
+### App and Testing Support Libs
+
+* `bunsen::errors` - this is a library of error types and tooling.
 * `bunsen::support` - this is a library of support functions for bunsen, including
   testing tooling which may be useful for clients.
 * `bunsen::zspace` - this is a library of z-space / index utilities.
-* `bunsen::contracts` - this is a library of runtime tensor-shape contracts.
-* `bunsen::errors` - this is a library of error types and tooling.
 
 # Future Components
 
