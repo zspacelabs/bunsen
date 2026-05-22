@@ -63,4 +63,4 @@ jobs:
       - name: Build and Test
         run: cargo test --features=flex
 
-      - run: for d in demos/*; do cargo test --manifest-path $d/Cargo.toml --features=flex,bunsen/flex; done
+      - run: for d in demos/*; do cargo test --manifest-path $d/Cargo.toml --features=bunsen/flex; done
