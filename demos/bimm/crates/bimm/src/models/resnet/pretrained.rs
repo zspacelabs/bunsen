@@ -1,48 +1,16 @@
 //! # Pretrained `ResNet` Models and Configs
 
-use alloc::{
-    sync::Arc,
-    vec,
+use alloc::vec;
+
+use bunsen::cache::{
+    StaticPreFabConfig,
+    StaticPreFabMap,
+    StaticPretrainedWeightsDescriptor,
+    StaticPretrainedWeightsMap,
 };
 
-use crate::{
-    cache::{
-        PreFabConfig,
-        StaticPreFabConfig,
-        StaticPreFabMap,
-        StaticPretrainedWeightsDescriptor,
-        StaticPretrainedWeightsMap,
-    },
-    models::resnet::{
-        ResNetContractConfig,
-        ResNetStructureConfig,
-    },
-};
+use crate::models::resnet::ResNetContractConfig;
 
-impl PreFabConfig<ResNetContractConfig> {
-    /// Convert to a prefab for [`ResNetStructureConfig`].
-    pub fn to_structure_prefab(&self) -> PreFabConfig<ResNetStructureConfig> {
-        let builder = self.builder.clone();
-        PreFabConfig {
-            name: self.name.clone(),
-            description: self.description.clone(),
-            builder: Arc::new(move || builder().to_structure()),
-            weights: self.weights.clone(),
-        }
-    }
-}
-
-impl From<&StaticPreFabConfig<ResNetContractConfig>> for PreFabConfig<ResNetStructureConfig> {
-    fn from(config: &StaticPreFabConfig<ResNetContractConfig>) -> Self {
-        config.to_prefab().to_structure_prefab()
-    }
-}
-
-impl From<&PreFabConfig<ResNetContractConfig>> for PreFabConfig<ResNetStructureConfig> {
-    fn from(config: &PreFabConfig<ResNetContractConfig>) -> Self {
-        config.to_structure_prefab()
-    }
-}
 /// Pretrained [`super::ResNet`] configs and weights.
 pub static PREFAB_RESNET_MAP: StaticPreFabMap<ResNetContractConfig> = StaticPreFabMap {
     name: "resnet",

@@ -8,13 +8,11 @@
 //! Examples of loading pretrained model:
 //!
 //! ```rust,no_run
-//! use bimm::{
-//!     cache::DiskCacheConfig,
-//!     models::resnet::{
-//!         PREFAB_RESNET_MAP,
-//!         ResNet,
-//!     },
+//! use bimm::models::resnet::{
+//!     PREFAB_RESNET_MAP,
+//!     ResNet,
 //! };
+//! use bunsen::cache::DiskCacheConfig;
 //! use burn::backend::Flex;
 //!
 //! let device = Default::default();

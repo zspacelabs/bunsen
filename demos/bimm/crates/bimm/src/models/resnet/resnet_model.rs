@@ -541,13 +541,13 @@ impl<B: Backend> ResNet<B> {
 
 #[cfg(test)]
 mod tests {
-    use bunsen::support::testing::PerfTestBackend;
+    use bunsen::{
+        cache::DiskCacheConfig,
+        support::testing::PerfTestBackend,
+    };
 
     use super::*;
-    use crate::{
-        cache::DiskCacheConfig,
-        models::resnet::PREFAB_RESNET_MAP,
-    };
+    use crate::models::resnet::PREFAB_RESNET_MAP;
 
     fn test_load_pytorch<B: Backend>(
         prefab: &str,

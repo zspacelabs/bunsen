@@ -20,5 +20,4 @@ extern crate core;
 #[macro_use]
 extern crate hamcrest;
 
-pub mod cache;
 pub mod models;
