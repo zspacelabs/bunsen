@@ -1743,6 +1743,7 @@ dependencies = [
 name = "conway_vis"
 version = "0.0.0"
 dependencies = [
+ "bunsen",
  "burn",
  "clap",
  "clockmill",
@@ -4819,6 +4820,7 @@ checksum = "bbd2bcb4c963f2ddae06a2efc7e9f3591312473c50c6685e1f298068316e66fe"
 name = "lbm2d_vis"
 version = "0.0.0"
 dependencies = [
+ "bunsen",
  "burn",
  "clap",
  "clockmill",

@@ -23,9 +23,5 @@ extern crate hamcrest;
 #[allow(dead_code)]
 pub mod compat;
 
-#[cfg(test)]
-#[allow(dead_code)]
-pub(crate) mod testing;
-
 pub mod cache;
 pub mod models;

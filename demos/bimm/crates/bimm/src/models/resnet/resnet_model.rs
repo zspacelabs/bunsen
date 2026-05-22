@@ -27,6 +27,7 @@ use bunsen::{
         },
         drop::drop_block::DropBlockOptions,
     },
+    ops::conv::CONV_INTO_RELU_INITIALIZER,
     support::validators::expect_probability,
 };
 use burn::{
@@ -73,7 +74,6 @@ use super::{
         ResidualBlock,
         ResidualBlockStructureConfig,
     },
-    util::CONV_INTO_RELU_INITIALIZER,
 };
 
 /// ResNet-18 block depths.

@@ -23,7 +23,7 @@
 //!
 //! This direction is also available in the `direction_vectors()` interface.
 
-pub use crate::compat::FRAC_1_SQRT_3;
+pub use bunsen::support::math::FRAC_1_SQRT_3;
 
 pub mod collision;
 pub mod reflection;

@@ -1,8 +1,15 @@
 //! # The `ResNet` Downsample Implementation.
 
-use bunsen::contracts::{
-    assert_shape_contract_periodically,
-    unpack_shape_contract,
+use bunsen::{
+    contracts::{
+        assert_shape_contract_periodically,
+        unpack_shape_contract,
+    },
+    ops::conv::{
+        build_square_conv2d_padding_config,
+        expect_conv_output_shape,
+        get_square_conv2d_padding,
+    },
 };
 use burn::{
     nn::{
@@ -24,14 +31,7 @@ use burn::{
     },
 };
 
-use crate::{
-    compat::conv_shape::expect_conv_output_shape,
-    models::resnet::util::{
-        build_square_conv2d_padding_config,
-        get_square_conv2d_padding,
-        scalar_to_array,
-    },
-};
+use crate::models::resnet::util::scalar_to_array;
 
 /// [`ResNetDownsample`] Meta trait.
 ///

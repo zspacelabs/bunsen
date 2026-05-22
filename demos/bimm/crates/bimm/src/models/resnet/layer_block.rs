@@ -26,6 +26,7 @@ use bunsen::{
         assert_shape_contract_periodically,
         unpack_shape_contract,
     },
+    ops::conv::stride_div_output_resolution,
     support::validators::expect_probability,
 };
 use burn::{
@@ -51,7 +52,6 @@ use super::{
         ResidualBlockStructureConfig,
     },
 };
-use crate::models::resnet::util::stride_div_output_resolution;
 
 /// Abstract [`LayerBlock`] Config.
 #[derive(Config, Debug)]

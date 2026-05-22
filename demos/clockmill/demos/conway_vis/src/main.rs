@@ -13,13 +13,13 @@ use std::{
     time::Duration,
 };
 
+use bunsen::zspace::ravel_dims;
 use burn::prelude::{
     Backend,
     TensorData,
 };
 use clap::Parser;
 use clockmill::{
-    compat::shape::ravel_dims,
     framework::config_parsers::parse_shape,
     simulations::surface::conway::life2d::{
         ConwayLife2DConfig,

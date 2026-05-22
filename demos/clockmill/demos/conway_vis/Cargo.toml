@@ -8,6 +8,7 @@ rust-version.workspace = true
 clockmill = { path = "../.." }
 
 burn = { workspace = true, features = ["fusion", "autotune"] }
+bunsen = { workspace = true }
 
 clap = { workspace = true, features = ["derive"] }
 

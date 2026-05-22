@@ -10,7 +10,7 @@ use burn::{
     },
 };
 
-use crate::compat::shape::ravel_dims;
+use crate::zspace::ravel_dims;
 
 /// Ravel Index View for a `TensorData`.
 #[derive(Debug)]

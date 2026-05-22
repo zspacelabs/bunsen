@@ -10,3 +10,4 @@ pub mod record;
 
 #[cfg(feature = "train")]
 pub mod optim;
+pub mod tensor;

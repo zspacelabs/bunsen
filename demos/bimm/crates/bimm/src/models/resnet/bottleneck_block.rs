@@ -32,6 +32,7 @@ use bunsen::{
             },
         },
     },
+    ops::conv::stride_div_output_resolution,
     support::validators::expect_probability,
 };
 use burn::{
@@ -55,10 +56,7 @@ use crate::models::resnet::{
         ResNetDownsample,
         ResNetDownsampleConfig,
     },
-    util::{
-        scalar_to_array,
-        stride_div_output_resolution,
-    },
+    util::scalar_to_array,
 };
 
 /// Bottleneck Policy.

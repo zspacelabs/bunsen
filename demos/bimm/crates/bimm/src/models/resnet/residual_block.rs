@@ -21,6 +21,7 @@
 
 use bunsen::{
     blocks::images::drop::drop_block::DropBlockOptions,
+    ops::conv::stride_div_output_resolution,
     support::validators::expect_probability,
 };
 use burn::{
@@ -49,7 +50,6 @@ use crate::models::resnet::{
         BottleneckBlockMeta,
         BottleneckPolicyConfig,
     },
-    util::stride_div_output_resolution,
 };
 
 /// Abstract [`ResidualBlock`] Config.

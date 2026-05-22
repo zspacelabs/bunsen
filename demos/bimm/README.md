@@ -10,10 +10,6 @@ The future feature list is:
 
 * `timm` => `bimm`
 
-## Contributing
-
-See the [CONTRIBUTING](CONTRIBUTING.md) guide for build and contribution instructions.
-
 ## Crates
 
 ### [bimm](crates/bimm) - the main crate for image models.

@@ -4,10 +4,23 @@ publish = false
 edition.workspace = true
 rust-version.workspace = true
 
+[lints]
+workspace = true
+
+
+[features]
+default = []
+cuda = ["burn/cuda"]
+metal = ["burn/metal"]
+wgpu = ["burn/wgpu"]
+flex = ["burn/flex"]
+
+
 [dependencies]
 clockmill = { path = "../.." }
 
 burn = { workspace = true, features = ["fusion", "autotune"] }
+bunsen = { workspace = true }
 
 clap = { workspace = true, features = ["derive"] }
 indicatif = { workspace = true }
@@ -18,13 +31,3 @@ pistoncore-glutin_window = { workspace = true }
 piston2d-opengl_graphics = { workspace = true }
 gl = { workspace = true }
 rand = { workspace = true }
-
-[lints]
-workspace = true
-
-[features]
-default = []
-cuda = ["burn/cuda"]
-metal = ["burn/metal"]
-wgpu = ["burn/wgpu"]
-flex = ["burn/flex"]

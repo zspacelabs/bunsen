@@ -13,6 +13,7 @@ use std::{
     time::Duration,
 };
 
+use bunsen::burner::tensor::TensorDataIndexView;
 use burn::{
     Tensor,
     prelude::{
@@ -26,7 +27,6 @@ use burn::{
 };
 use clap::Parser;
 use clockmill::{
-    compat::data_view::TensorDataIndexView,
     framework::config_parsers::parse_shape,
     simulations::surface::fluids::lbm::d2q9::{
         SPEED_OF_SOUND,

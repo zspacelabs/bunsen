@@ -411,14 +411,10 @@ dependencies = [
  "bunsen",
  "burn",
  "burn-store",
- "crc",
  "criterion",
- "dirs",
  "hamcrest",
- "indoc",
  "num-traits",
  "serde",
- "serde_json",
 ]
 
 [[package]]
