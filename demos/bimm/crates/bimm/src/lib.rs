@@ -20,8 +20,5 @@ extern crate core;
 #[macro_use]
 extern crate hamcrest;
 
-#[allow(dead_code)]
-pub mod compat;
-
 pub mod cache;
 pub mod models;

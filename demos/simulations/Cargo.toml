@@ -1,0 +1,45 @@
+[workspace]
+# Require version 2 to avoid "feature" additiveness for dev-dependencies
+# https://doc.rust-lang.org/cargo/reference/resolver.html#feature-resolver-version-2
+resolver = "2"
+
+members = [
+    "demos/*",
+]
+
+[workspace.package]
+edition = "2024"
+rust-version = "1.94.1"
+version = "0.21.0"
+repository = "https://github.com/zspacelabs/bunsen"
+license = "MIT or Apache-2.0"
+
+[workspace.lints.rust]
+warnings = "deny"
+
+[workspace.lints.clippy]
+double_must_use = "allow"
+doc_markdown = "warn"
+
+[workspace.dependencies]
+rand = "0.10.1"
+
+burn = "=0.21.0"
+bunsen = { path = "../../crates/bunsen" }
+
+serde = "1.0.228"
+
+clap = "4.5.51"
+indicatif = "^0.18.3"
+nearly = "^0.4.0"
+
+criterion = { version = "0.8.2" }
+
+
+piston = "^1.0.0"
+piston2d-graphics = "^0.45.0"
+# moving to 0.73.2 crashes in a way I haven't debugged yet.
+pistoncore-glutin_window = "^0.72.0"
+piston2d-opengl_graphics = "^0.89.0"
+gl = "^0.14.0"
+

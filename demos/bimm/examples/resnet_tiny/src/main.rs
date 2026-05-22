@@ -11,7 +11,6 @@ use std::sync::Arc;
 
 use bimm::{
     cache::DiskCacheConfig,
-    compat::type_mapper::DTypeMapper,
     models::resnet::{
         PREFAB_RESNET_MAP,
         ResNet,
@@ -53,6 +52,7 @@ use bimm_firehose_image::{
         ResizeSpec,
     },
 };
+use bunsen::burner::module::DTypeMapper;
 use burn::{
     backend::Autodiff,
     data::{

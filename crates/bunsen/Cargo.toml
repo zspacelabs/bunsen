@@ -25,6 +25,10 @@ harness = false
 name = "math"
 harness = false
 
+[[bench]]
+name = "lbm"
+harness = false
+
 
 [features]
 default = [
@@ -114,6 +118,7 @@ xee-xpath = { workspace = true, optional = true }
 
 
 [dev-dependencies]
+nearly = { workspace = true }
 bunsen = { path = ".", features = ["testing"] }
 burn = { workspace = true, features = ["autodiff"] }
 hamcrest = { workspace = true }

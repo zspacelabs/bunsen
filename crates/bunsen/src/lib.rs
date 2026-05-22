@@ -95,3 +95,4 @@ pub mod zspace;
 #[doc(hidden)]
 pub use bunsen_contracts_macros::shape_contract as __proc_shape_contract;
 pub mod contracts;
+pub mod kits;

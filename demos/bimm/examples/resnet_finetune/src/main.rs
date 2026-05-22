@@ -11,12 +11,12 @@ use std::time::Instant;
 use anyhow::Context;
 use bimm::{
     cache::DiskCacheConfig,
-    compat::type_mapper::DTypeMapper,
     models::resnet::{
         PREFAB_RESNET_MAP,
         ResNet,
     },
 };
+use bunsen::burner::module::DTypeMapper;
 use burn::{
     config::Config,
     data::{
