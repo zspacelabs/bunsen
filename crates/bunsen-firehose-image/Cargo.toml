@@ -32,5 +32,5 @@ image-compare = { workspace = true }
 
 [dev-dependencies]
 tempfile = { workspace = true }
-bunsen = { version = "0.21.2", features = ["testing"], path = "../bunsen" }
+bunsen = { features = ["testing"], path = "../bunsen" }
 
