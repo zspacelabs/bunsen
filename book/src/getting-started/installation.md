@@ -33,6 +33,5 @@ crates. The most important are:
 | `default` | The most commonly used modules.                    |
 | `blocks`  | The `bunsen::blocks` module catalog.               |
 | `ops`     | Additional tensor operations.                      |
-| `support` | Testing helpers.                                   |
 
 See each component chapter for crate-specific features.

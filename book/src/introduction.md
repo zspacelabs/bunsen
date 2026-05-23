@@ -15,31 +15,38 @@ pieces fit together?*
 ```mermaid
 flowchart LR
     burn[burn core] --> bunsen
-    bunsen --> blocks[bunsen::blocks]
-    bunsen --> burner[bunsen::burner]
-    bunsen --> ops[bunsen::ops]
-    bunsen --> support[bunsen::support]
-    bunsen --> zspace[bunsen::zspace]
     bunsen --> contracts[bunsen::contracts]
-    bunsen --> errors[bunsen::errors]
+    bunsen --> ops[bunsen::ops]
+    bunsen --> blocks[bunsen::blocks]
+    bunsen --> kits[bunsen::kits]
+    kits --> bimm[bimm]
+    kits --> gpts[gpts]
+    kits --> sims[sims]
+    bunsen --> burner[bunsen::burner]
 ```
 
 A whirlwind tour:
 
-- **[`bunsen::blocks`](./components/blocks.md)** &mdash; reusable `Module`
-  implementations: inner layers, recurrent utilities, and full model families.
-- **[`bunsen::burner`](./components/burner.md)** &mdash; `Module` lifecycle
-  helpers that extend `burn`'s out-of-the-box functionality.
-- **[`bunsen::ops`](./components/ops.md)** &mdash; additional `Tensor`
-  operations.
-- **[`bunsen::support`](./components/support.md)** &mdash; shared support code,
-  including testing utilities downstream crates can use.
-- **[`bunsen::zspace`](./components/zspace.md)** &mdash; z-space / index
-  utilities.
-- **[`bunsen::contracts`](./components/contracts.md)** &mdash; runtime
-  tensor-shape contracts.
-- **[`bunsen::errors`](./components/errors.md)** &mdash; error types and
-  diagnostic tooling.
+- **[`bunsen::contracts`](./contracts/overview.md)** &mdash; runtime
+  tensor-shape contracts: a small DSL that turns paper-style shape
+  notation into a runtime check, fast enough to stay enabled in
+  release.
+- **[`bunsen::ops`](./ops/overview.md)** &mdash; additional `Tensor`
+  operations as pure functions: range generators, clamp, dropout,
+  noise, RMSNorm, repeat-interleave, and convolution shape arithmetic.
+- **[`bunsen::blocks`](./blocks/overview.md)** &mdash; reusable
+  `Module` building blocks: attention and rotary embeddings for
+  transformers, conv composites / patching / pooling / stochastic
+  regularization for image models.
+- **[`bunsen::kits`](./kits/bimm.md)** &mdash; complete domain
+  implementations built on top of the rest of the crate: image-model
+  families ([`bimm`](./kits/bimm.md)), GPT/LLM variants
+  ([`gpts`](./kits/gpts.md)), and iterative tensor simulations
+  ([`sims`](./kits/sims.md)).
+- **[`bunsen::burner`](./burner/overview.md)** &mdash; `burn`-adjacent
+  infrastructure: parameter descriptors,
+  [module reflection](./burner/module-introspection.md), and the
+  [composite optimizer](./burner/composite-optimizers.md) family.
 
 ## Why a "standard library"?
 
@@ -60,14 +67,18 @@ $$
 y = x \cdot W^{\top} + b \quad \text{where} \quad x \in \RR^{B \times d_{\text{in}}}.
 $$
 
-See [Tensor Contracts](./concepts/contracts.md) for how shapes like
+See [Contracts](./contracts/overview.md) for how shapes like
 $B \times d_{\text{in}}$ become first-class, machine-checked constraints.
 
 ## How to read this book
 
-- New to `bunsen`? Start with [Installation](./getting-started/installation.md)
-  and the [Quick Start](./getting-started/quick-start.md).
+- New to `bunsen`? Start with
+  [Installation](./getting-started/installation.md) and then the
+  [Overview](./getting-started/overview.md) tour.
 - Already shipping models on `burn`? Jump to
-  [Components](./components/blocks.md) for what each module offers.
+  [`bunsen::contracts`](./contracts/overview.md),
+  [`bunsen::ops`](./ops/overview.md), or
+  [`bunsen::blocks`](./blocks/overview.md) for what each layer
+  offers.
 - Considering contributing? See the
   [Contributing Guide](./contributing/index.md).

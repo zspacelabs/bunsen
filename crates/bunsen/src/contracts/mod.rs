@@ -73,8 +73,6 @@
 //! * ``&Vec<usize>``,
 //! * ``&Vec<u32>``,
 //! * ``&Vec<i32>``
-//!
-//! With ``features = ["burner"]``:
 //! * ``burner::prelude::Shape``,
 //! * ``&burner::prelude::Shape``,
 //! * ``&burner::prelude::Tensor``

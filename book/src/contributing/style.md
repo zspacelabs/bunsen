@@ -9,13 +9,13 @@
   `warnings = "deny"`. Run `cargo make clippy`.
 - Public items need rustdoc. Module-level docs should explain *why* the
   module exists, not just *what* it contains.
-- Errors use `bunsen::errors` types where appropriate; avoid leaking
-  `anyhow::Error` across crate boundaries.
+- Avoid leaking `anyhow::Error` across crate boundaries; prefer
+  crate-local error types.
 
 ## Tests
 
-- Prefer `bunsen::support` helpers for tensor assertions; bare `assert_eq!`
-  on floats is almost always wrong.
+- Bare `assert_eq!` on floats is almost always wrong; prefer the
+  approximate-equality helpers in the underlying tensor framework.
 - New public APIs ship with at least one test.
 
 ## Documentation

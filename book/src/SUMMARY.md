@@ -5,30 +5,43 @@
 # Getting Started
 
 - [Installation](./getting-started/installation.md)
-- [Quick Start](./getting-started/quick-start.md)
+- [Overview](./getting-started/overview.md)
 
-# Concepts
+# Contracts
 
-- [Overview](./concepts/overview.md)
-- [Tensor Contracts](./concepts/contracts.md)
-- [Modules and Lifecycle](./concepts/modules.md)
-- [Z-Space Indexing](./concepts/zspace.md)
+- [Overview](./contracts/overview.md)
+- [Pattern Syntax](./contracts/pattern-syntax.md)
+- [Asserting and Unpacking](./contracts/asserting-and-unpacking.md)
+- [Cost Control](./contracts/cost-control.md)
+- [Error Messages](./contracts/error-messages.md)
 
-# Components
+# Ops
 
-- [`bunsen::blocks`](./components/blocks.md)
-- [`bunsen::burner`](./components/burner.md)
-- [`bunsen::ops`](./components/ops.md)
-- [`bunsen::support`](./components/support.md)
-- [`bunsen::zspace`](./components/zspace.md)
-- [`bunsen::contracts`](./components/contracts.md)
-- [`bunsen::errors`](./components/errors.md)
+- [Overview](./ops/overview.md)
+- [Tensor Functions](./ops/tensor-functions.md)
+- [Convolution Support](./ops/convolution.md)
+
+# Blocks
+
+- [Overview](./blocks/overview.md)
+- [Transformers](./blocks/transformers.md)
+- [Images](./blocks/images.md)
+
+# Kits
+
+- [`bunsen::kits::bimm`](./kits/bimm.md)
+- [`bunsen::kits::gpts`](./kits/gpts.md)
+- [`bunsen::kits::sims`](./kits/sims.md)
+
+# Burner
+
+- [Overview](./burner/overview.md)
+- [Module Introspection](./burner/module-introspection.md)
+- [Composite Optimizers](./burner/composite-optimizers.md)
 
 # Guides
 
-- [Writing a `Module`](./guides/writing-a-module.md)
-- [Defining a Tensor Contract](./guides/defining-a-contract.md)
-- [Testing with `bunsen::support`](./guides/testing.md)
+- [Building Reusable Modules](./guides/building-reusable-modules.md)
 
 # Contributing
 
@@ -39,5 +52,4 @@
 
 ---
 
-[Changelog](./changelog.md)
 [License](./license.md)
