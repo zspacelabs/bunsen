@@ -1,5 +1,0 @@
-[unstable]
-public-dependency = true
-
-[env]
-RUST_TEST_THREADS = "2"
