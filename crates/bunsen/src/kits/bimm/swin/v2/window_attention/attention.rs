@@ -30,7 +30,7 @@ use crate::{
         assert_shape_contract_periodically,
         unpack_shape_contract,
     },
-    kits::imgs::swin::v2::window_attention::{
+    kits::bimm::swin::v2::window_attention::{
         OffsetGridRelativePositionBias,
         RelativePositionBiasConfig,
         RelativePositionBiasMeta,

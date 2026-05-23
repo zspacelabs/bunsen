@@ -19,7 +19,7 @@ use crate::{
         assert_shape_contract_periodically,
         define_shape_contract,
     },
-    kits::imgs::swin::v2::swin_block::{
+    kits::bimm::swin::v2::swin_block::{
         ShiftedWindowTransformerBlock,
         ShiftedWindowTransformerBlockConfig,
         ShiftedWindowTransformerBlockMeta,

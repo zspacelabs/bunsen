@@ -32,7 +32,7 @@
 //! * [`burner`] - this is a library of [`burn::module::Module`] lifecycle
 //!   components that extend the current functionality of burn.
 //!   * [`module::reflection`](`burner::module::reflection`) has powerful tools
-//!     for dynamic [`Module`] reflection.
+//!     for dynamic [`burn::module::Module`] reflection.
 //!   * [`optim`](`burner::optim`) has parameter-group optimizer extensions.
 //! * [`contracts`] - this is a library of runtime tensor-shape contracts.
 //!
@@ -46,7 +46,7 @@
 //!   * [`sims`](`kits::sims`) - this is a library of simulation kits, currently
 //!     including "Conways Game of Life" and a 2D "LBM"."
 //!   * [`gpts`](`kits::gpts`) - GPT/Transformer models.
-//!   * [`imgs`](`kits::imgs`) - Image models.
+//!   * [`bimm`](`kits::bimm`) - Image models.
 //!
 //! ### App and Testing Support Libs
 //!

@@ -4,7 +4,7 @@
 //! ## Example
 //!
 //! ```rust,no_run
-//! use bunsen::kits::imgs::swin::v2::swin_model::{
+//! use bunsen::kits::bimm::swin::v2::swin_model::{
 //!     LayerConfig,
 //!     SwinTransformerV2,
 //!     SwinTransformerV2Config,

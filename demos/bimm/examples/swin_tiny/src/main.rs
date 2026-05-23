@@ -9,7 +9,7 @@ use bunsen::{
         DropBlock2dConfig,
         DropBlockOptions,
     },
-    kits::imgs::swin::v2::swin_model::{
+    kits::bimm::swin::v2::swin_model::{
         LayerConfig,
         SwinTransformerV2,
         SwinTransformerV2Config,

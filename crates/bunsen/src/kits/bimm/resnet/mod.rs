@@ -10,7 +10,7 @@
 //! ```rust,no_run
 //! use bunsen::{
 //!     cache::DiskCacheConfig,
-//!     kits::imgs::resnet::{
+//!     kits::bimm::resnet::{
 //!         PREFAB_RESNET_MAP,
 //!         ResNet,
 //!     },

@@ -12,7 +12,7 @@ use anyhow::Context;
 use bunsen::{
     burner::module::DTypeMapper,
     cache::DiskCacheConfig,
-    kits::imgs::resnet::{
+    kits::bimm::resnet::{
         PREFAB_RESNET_MAP,
         ResNet,
     },
@@ -203,7 +203,7 @@ pub struct Args {
 
 #[allow(clippy::too_many_arguments)]
 mod local {
-    use bunsen::kits::imgs::resnet::ResNetContractConfig;
+    use bunsen::kits::bimm::resnet::ResNetContractConfig;
     use burn::config::Config;
 
     /// Log config.

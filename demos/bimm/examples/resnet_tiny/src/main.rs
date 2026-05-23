@@ -12,7 +12,7 @@ use std::sync::Arc;
 use bunsen::{
     burner::module::DTypeMapper,
     cache::DiskCacheConfig,
-    kits::imgs::resnet::{
+    kits::bimm::resnet::{
         PREFAB_RESNET_MAP,
         ResNet,
     },

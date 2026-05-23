@@ -97,18 +97,19 @@ pub struct ResNetContractConfig {
     #[config(default = "32")]
     pub output_stride: usize,
 
-    /// Select between [`BasicBlock`] and [`BottleneckBlock`].
+    /// When enabled, select [`BottleneckBlock`](`super::BottleneckBlock`);
+    /// Otherwise, select [`BasicBlock`](`super::BasicBlock`).
     #[config(default = "None")]
     pub bottleneck_policy: Option<BottleneckPolicyConfig>,
 
-    /// [`crate::compat::normalization_wrapper::Normalization`] config.
+    /// Normalization config.
     ///
     /// The feature size of this config will be replaced
     /// with the appropriate feature size for the input layer.
     #[config(default = "NormalizationConfig::Batch(BatchNormConfig::new(0))")]
     pub normalization: NormalizationConfig,
 
-    /// [`crate::compat::activation_wrapper::Activation`] config.
+    /// Activation config.
     #[config(default = "ActivationConfig::Relu")]
     pub activation: ActivationConfig,
 }
@@ -368,7 +369,7 @@ impl<B: Backend> ResNet<B> {
     pub fn debug_print(&self) {
         for (idx, layer) in self.layers.iter().enumerate() {
             println!(
-                "# Stage[{idx}]/{}:: {} :> {}",
+                "# Stage[{idx:?}]/{}:: {} :> {}",
                 layer.len(),
                 layer.in_planes(),
                 layer.out_planes()
@@ -547,7 +548,7 @@ mod tests {
     ) -> anyhow::Result<()> {
         use bunsen_cache::DiskCacheConfig;
 
-        use crate::kits::imgs::resnet::PREFAB_RESNET_MAP;
+        use crate::kits::bimm::resnet::PREFAB_RESNET_MAP;
 
         let device = Default::default();
 

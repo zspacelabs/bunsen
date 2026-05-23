@@ -9,7 +9,7 @@ use crate::{
         StaticPretrainedWeightsDescriptor,
         StaticPretrainedWeightsMap,
     },
-    kits::imgs::resnet::ResNetContractConfig,
+    kits::bimm::resnet::ResNetContractConfig,
 };
 
 /// Pretrained [`super::ResNet`] configs and weights.

@@ -16,7 +16,7 @@ use burn::{
 
 use crate::{
     contracts::assert_shape_contract_periodically,
-    kits::imgs::swin::v2::window_attention::{
+    kits::bimm::swin::v2::window_attention::{
         window_attention_relative_position_index,
         window_log1p_relative_offset_grid,
     },
@@ -314,7 +314,7 @@ mod tests {
     use super::*;
     use crate::{
         contracts::assert_shape_contract,
-        kits::imgs::swin::v2::window_attention::{
+        kits::bimm::swin::v2::window_attention::{
             window_attention_relative_position_index,
             window_log1p_relative_offset_grid,
         },

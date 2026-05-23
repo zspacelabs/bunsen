@@ -31,7 +31,7 @@ use crate::{
         assert_shape_contract_periodically,
         define_shape_contract,
     },
-    kits::imgs::swin::v2::{
+    kits::bimm::swin::v2::{
         window_attention::{
             WindowAttention,
             WindowAttentionConfig,

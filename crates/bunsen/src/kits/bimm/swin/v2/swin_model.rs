@@ -46,7 +46,7 @@ use crate::{
         assert_shape_contract_periodically,
         unpack_shape_contract,
     },
-    kits::imgs::swin::v2::{
+    kits::bimm::swin::v2::{
         block_sequence::{
             StochasticDepthTransformerBlockSequence,
             StochasticDepthTransformerBlockSequenceConfig,

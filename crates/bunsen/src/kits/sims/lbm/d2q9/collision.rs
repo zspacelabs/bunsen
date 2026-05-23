@@ -53,7 +53,7 @@ pub fn bgk_collision<B: Backend, S: Into<OmegaSource<B>>>(
 ///
 /// This combines:
 /// - [`bgk_collision`]
-/// - [`reflection::with_spherical_reflection`]
+/// - [`with_spherical_reflection`]
 ///
 /// # Arguments
 /// - `dist`: ``[H, W, VY=3, VX=3]`` pre-collision distribution

@@ -20,7 +20,7 @@ use crate::{
         assert_shape_contract_periodically,
         unpack_shape_contract,
     },
-    kits::imgs::swin::v2::windowing::{
+    kits::bimm::swin::v2::windowing::{
         window_partition,
         window_reverse,
     },
