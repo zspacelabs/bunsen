@@ -68,15 +68,15 @@
 //!   smoothly into the download and cache layer. this is also currently in some
 //!   of the LLM/chat codebases.
 //! * LLM `DataLoader` - a high-performance burn data loader for LLM models,
-//!   built on parquet/arrow; and `wordchipper`. This is currently in the
-//!   `zsl-chat` codebase.
+//!   built on parquet/arrow; and `wordchipper`. This is currently in the `chat`
+//!   codebase.
 //! * Data transform pipeline - I did a pretty solid pass over an in-memory data
 //!   transform pipeline for images, called `bunsen-firehose`; and it is still
 //!   in the `bimm` codebase. Something like it is needed to train image models.
 //! * `clap` tooling - I've built a lot of burn-related clap tools, and I'm
 //!   pretty sure some of the arguments/setup machinery could be shared.
 //! * the rest of the `bimm` models.
-//! * the `bimm` and `zsl-chat` training demos.
+//! * the `bimm` and `chat` training demos.
 //!
 //! ## Crate Features
 #![doc = document_features::document_features!()]

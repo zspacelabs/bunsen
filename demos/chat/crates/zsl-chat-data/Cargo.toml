@@ -1,0 +1,27 @@
+[package]
+name = "zsl-chat-data"
+version.workspace = true
+rust-version.workspace = true
+edition.workspace = true
+publish = false
+
+
+[lints]
+workspace = true
+
+
+[dependencies]
+wordchipper = { workspace = true, features = ["client"] }
+
+burn = { workspace = true, features = ["train"] }
+rand = { workspace = true }
+derive-new = { workspace = true }
+parquet = { workspace = true, features = ["arrow"] }
+arrow = { workspace = true }
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }
+log = { workspace = true }
+
+
+[dev-dependencies]
+wordchipper = { workspace = true, features = ["testing"] }

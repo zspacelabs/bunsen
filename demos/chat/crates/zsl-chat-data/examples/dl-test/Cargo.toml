@@ -1,0 +1,26 @@
+[package]
+name = "dl-test"
+rust-version.workspace = true
+edition.workspace = true
+publish = false
+
+[lints]
+workspace = true
+
+[dependencies]
+zsl-data-cache = { path = "../../../zsl-data-cache" }
+zsl-chat-data = { path = "../.." }
+wordchipper = { workspace = true, features = ["client"] }
+wordchipper-cli-util = { workspace = true }
+
+rand = { workspace = true }
+burn = { workspace = true, features = ["cuda"] }
+serde_json = { workspace = true }
+log = { workspace = true }
+arrow = { workspace = true }
+parquet = { workspace = true }
+
+clap = { workspace = true, features = ["derive"] }
+anyhow = { workspace = true }
+
+humansize = { workspace = true }
