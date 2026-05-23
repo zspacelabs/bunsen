@@ -1,16 +1,5 @@
 //! # The `ResNet` Downsample Implementation.
 
-use bunsen::{
-    contracts::{
-        assert_shape_contract_periodically,
-        unpack_shape_contract,
-    },
-    ops::conv::{
-        build_square_conv2d_padding_config,
-        expect_conv_output_shape,
-        get_square_conv2d_padding,
-    },
-};
 use burn::{
     nn::{
         BatchNormConfig,
@@ -31,7 +20,18 @@ use burn::{
     },
 };
 
-use crate::models::resnet::util::scalar_to_array;
+use crate::{
+    contracts::{
+        assert_shape_contract_periodically,
+        unpack_shape_contract,
+    },
+    ops::conv::{
+        build_square_conv2d_padding_config,
+        expect_conv_output_shape,
+        get_square_conv2d_padding,
+    },
+    support::arrays::scalar_to_array,
+};
 
 /// [`ResNetDownsample`] Meta trait.
 ///
@@ -263,12 +263,11 @@ impl<B: Backend> ResNetDownsample<B> {
 
 #[cfg(test)]
 mod tests {
-    use bunsen::{
+    use super::*;
+    use crate::{
         contracts::assert_shape_contract,
         support::testing::PerfTestBackend,
     };
-
-    use super::*;
 
     #[test]
     fn test_downsample_config() {

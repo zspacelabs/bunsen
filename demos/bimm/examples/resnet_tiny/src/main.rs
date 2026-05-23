@@ -9,13 +9,13 @@ use core::{
 };
 use std::sync::Arc;
 
-use bimm::models::resnet::{
-    PREFAB_RESNET_MAP,
-    ResNet,
-};
 use bunsen::{
     burner::module::DTypeMapper,
     cache::DiskCacheConfig,
+    kits::imgs::resnet::{
+        PREFAB_RESNET_MAP,
+        ResNet,
+    },
 };
 use bunsen_firehose::{
     burn::{

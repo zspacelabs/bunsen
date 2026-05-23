@@ -12,7 +12,23 @@
 //! [`BottleneckBlock`] implements [`Module`] and provides
 //! [`BottleneckBlock::forward`].
 
-use bunsen::{
+use burn::{
+    nn::{
+        BatchNormConfig,
+        PaddingConfig2d,
+        activation::ActivationConfig,
+        conv::Conv2dConfig,
+        norm::NormalizationConfig,
+    },
+    prelude::{
+        Backend,
+        Config,
+        Module,
+        Tensor,
+    },
+};
+
+use crate::{
     blocks::images::{
         conv::cna::{
             AbstractCNA2dConfig,
@@ -32,31 +48,15 @@ use bunsen::{
             },
         },
     },
-    ops::conv::stride_div_output_resolution,
-    support::validators::expect_probability,
-};
-use burn::{
-    nn::{
-        BatchNormConfig,
-        PaddingConfig2d,
-        activation::ActivationConfig,
-        conv::Conv2dConfig,
-        norm::NormalizationConfig,
-    },
-    prelude::{
-        Backend,
-        Config,
-        Module,
-        Tensor,
-    },
-};
-
-use crate::models::resnet::{
-    downsample::{
+    kits::imgs::resnet::{
         ResNetDownsample,
         ResNetDownsampleConfig,
     },
-    util::scalar_to_array,
+    ops::conv::stride_div_output_resolution,
+    support::{
+        arrays::scalar_to_array,
+        validators::expect_probability,
+    },
 };
 
 /// Bottleneck Policy.
@@ -456,7 +456,7 @@ impl<B: Backend> BottleneckBlock<B> {
         &self,
         input: Tensor<B, 4>,
     ) -> Tensor<B, 4> {
-        let [batch, in_height, out_height, in_width, out_width] = bunsen::contracts::unpack_shape_contract!(
+        let [batch, in_height, out_height, in_width, out_width] = crate::__unpack_shape_contract!(
             [
                 "batch",
                 "in_planes",
@@ -473,7 +473,7 @@ impl<B: Backend> BottleneckBlock<B> {
             None => input.clone(),
         };
 
-        bunsen::contracts::define_shape_contract!(
+        crate::__define_shape_contract!(
             OUT_CONTRACT,
             ["batch", "out_planes", "out_height", "out_width"],
         );
@@ -483,15 +483,11 @@ impl<B: Backend> BottleneckBlock<B> {
             ("out_height", out_height),
             ("out_width", out_width),
         ];
-        bunsen::contracts::assert_shape_contract_periodically!(
-            OUT_CONTRACT,
-            &identity.dims(),
-            &out_bindings
-        );
+        crate::__assert_shape_contract_periodically!(OUT_CONTRACT, &identity.dims(), &out_bindings);
 
         let x = self.cna1.forward(input);
 
-        bunsen::contracts::assert_shape_contract_periodically!(
+        crate::__assert_shape_contract_periodically!(
             ["batch", "pinch_planes", "in_height", "in_width"],
             &x.dims(),
             &[
@@ -507,7 +503,7 @@ impl<B: Backend> BottleneckBlock<B> {
             None => x,
         });
 
-        bunsen::contracts::assert_shape_contract_periodically!(
+        crate::__assert_shape_contract_periodically!(
             ["batch", "width", "out_height", "out_width"],
             &x.dims(),
             &[
@@ -521,11 +517,7 @@ impl<B: Backend> BottleneckBlock<B> {
         // TODO: anti-aliasing
 
         self.cna3.map_forward(x, |x| {
-            bunsen::contracts::assert_shape_contract_periodically!(
-                OUT_CONTRACT,
-                &x.dims(),
-                &out_bindings
-            );
+            crate::__assert_shape_contract_periodically!(OUT_CONTRACT, &x.dims(), &out_bindings);
 
             // TODO: attention
 
@@ -571,17 +563,16 @@ impl<B: Backend> BottleneckBlock<B> {
 
 #[cfg(test)]
 mod tests {
-    use bunsen::{
-        blocks::images::drop::drop_block::DropBlockOptions,
-        contracts::assert_shape_contract,
-        support::testing::PerfTestBackend,
-    };
     use burn::{
         backend::Autodiff,
         nn::activation::ActivationConfig,
     };
 
     use super::*;
+    use crate::{
+        contracts::assert_shape_contract,
+        support::testing::PerfTestBackend,
+    };
 
     #[test]
     fn test_basic_block_config() {

@@ -9,13 +9,13 @@ use core::clone::Clone;
 use std::time::Instant;
 
 use anyhow::Context;
-use bimm::models::resnet::{
-    PREFAB_RESNET_MAP,
-    ResNet,
-};
 use bunsen::{
     burner::module::DTypeMapper,
     cache::DiskCacheConfig,
+    kits::imgs::resnet::{
+        PREFAB_RESNET_MAP,
+        ResNet,
+    },
 };
 use burn::{
     config::Config,
@@ -203,7 +203,7 @@ pub struct Args {
 
 #[allow(clippy::too_many_arguments)]
 mod local {
-    use bimm::models::resnet::ResNetContractConfig;
+    use bunsen::kits::imgs::resnet::ResNetContractConfig;
     use burn::config::Config;
 
     /// Log config.

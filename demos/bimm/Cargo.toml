@@ -4,7 +4,6 @@
 resolver = "2"
 
 members = [
-    "crates/*",
     "examples/*",
 ]
 
@@ -26,9 +25,9 @@ doc_markdown = "warn"
 [workspace.dependencies]
 burn = "=0.21.0"
 burn-store = "=0.21.0"
-bunsen = { path = "../../crates/bunsen" }
-bunsen-firehose = { path = "../../crates/bunsen-firehose" }
-bunsen-firehose-image = { path = "../../crates/bunsen-firehose-image" }
+bunsen = { version = "0.21.1", path = "../../crates/bunsen" }
+bunsen-firehose = { version = "0.21.1", path = "../../crates/bunsen-firehose" }
+bunsen-firehose-image = { version = "0.21.1", path = "../../crates/bunsen-firehose-image" }
 
 dirs = "6.0.0"
 

@@ -62,10 +62,6 @@
 //!   ]
 //! ```
 
-use bunsen::blocks::images::conv::cna::{
-    CNA2d,
-    CNA2dConfig,
-};
 use burn::{
     module::Module,
     nn::{
@@ -82,6 +78,11 @@ use burn::{
         Backend,
         Tensor,
     },
+};
+
+use crate::blocks::images::conv::cna::{
+    CNA2d,
+    CNA2dConfig,
 };
 
 /// stem contract configuration.

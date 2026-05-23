@@ -17,19 +17,7 @@ use alloc::{
     vec,
     vec::Vec,
 };
-use std::path::PathBuf;
 
-use bunsen::{
-    blocks::images::{
-        conv::conv_norm::{
-            ConvNorm2d,
-            ConvNorm2dConfig,
-        },
-        drop::drop_block::DropBlockOptions,
-    },
-    ops::conv::CONV_INTO_RELU_INITIALIZER,
-    support::validators::expect_probability,
-};
 use burn::{
     module::Module,
     nn::{
@@ -57,23 +45,26 @@ use burn::{
         Tensor,
     },
 };
-use burn_store::{
-    ModuleSnapshot,
-    PytorchStore,
-};
 
 use super::{
-    bottleneck_block::BottleneckPolicyConfig,
-    layer_block::{
-        LayerBlock,
-        LayerBlockContractConfig,
-        LayerBlockMeta,
-        LayerBlockStructureConfig,
+    BottleneckPolicyConfig,
+    LayerBlock,
+    LayerBlockContractConfig,
+    LayerBlockMeta,
+    LayerBlockStructureConfig,
+    ResidualBlock,
+    ResidualBlockStructureConfig,
+};
+use crate::{
+    blocks::images::{
+        conv::conv_norm::{
+            ConvNorm2d,
+            ConvNorm2dConfig,
+        },
+        drop::drop_block::DropBlockOptions,
     },
-    residual_block::{
-        ResidualBlock,
-        ResidualBlockStructureConfig,
-    },
+    ops::conv::CONV_INTO_RELU_INITIALIZER,
+    support::validators::expect_probability,
 };
 
 /// ResNet-18 block depths.
@@ -411,11 +402,16 @@ impl<B: Backend> ResNet<B> {
     }
 
     /// Load weights from a `PyTorch` weights path.
+    #[cfg(feature = "store")]
     pub fn load_pytorch_weights(
         mut self,
-        path: PathBuf,
+        path: impl Into<std::path::PathBuf>,
     ) -> anyhow::Result<Self> {
-        let mut store = PytorchStore::from_file(path.clone())
+        use burn_store::{
+            ModuleSnapshot,
+            PytorchStore,
+        };
+        let mut store = PytorchStore::from_file(path)
             .skip_enum_variants(true)
             .with_key_remapping(r"bn(\d+)\.weight", "bn$1.gamma")
             .with_key_remapping(r"bn(\d+)\.bias", "bn$1.beta")
@@ -541,18 +537,18 @@ impl<B: Backend> ResNet<B> {
 
 #[cfg(test)]
 mod tests {
-    use bunsen::{
-        cache::DiskCacheConfig,
-        support::testing::PerfTestBackend,
-    };
-
     use super::*;
-    use crate::models::resnet::PREFAB_RESNET_MAP;
+    use crate::support::testing::PerfTestBackend;
 
+    #[cfg(feature = "store")]
     fn test_load_pytorch<B: Backend>(
         prefab: &str,
         pretrained: &str,
     ) -> anyhow::Result<()> {
+        use bunsen_cache::DiskCacheConfig;
+
+        use crate::kits::imgs::resnet::PREFAB_RESNET_MAP;
+
         let device = Default::default();
 
         let prefab = PREFAB_RESNET_MAP.expect_lookup_prefab(&prefab);
@@ -565,33 +561,13 @@ mod tests {
             .expect_lookup_pretrained_weights(pretrained)
             .fetch_weights(&DiskCacheConfig::default())?;
 
-        /*
-        let store = PytorchStore::from_file(path.clone());
-        //         println!("{:#?}", store.keys());
-
-        let mut store = store
-            .skip_enum_variants(true)
-            .with_key_remapping(r"bn(\d+)\.weight", "bn$1.gamma")
-            .with_key_remapping(r"bn(\d+)\.bias", "bn$1.beta")
-            .with_key_remapping(r"^conv1\.", "input_conv_norm.conv.")
-            .with_key_remapping(r"^bn1\.", "input_conv_norm.norm.")
-            .with_key_remapping(r"bn(\d+)\.", "cna$1.norm.")
-            .with_key_remapping(r"conv(\d+)\.", "cna$1.conv.")
-            .with_key_remapping(r"downsample\.0\.", "downsample.conv.")
-            .with_key_remapping(r"downsample\.1\.", "downsample.norm.")
-            .with_key_remapping(r"fc\.", "output_fc.")
-            .with_key_remapping(r"layer(\d+)\.", "layers.$1.blocks.");
-
-        println!("{:#?}", store.keys());
-
-        model.load_from(&mut store)?;
-
-         */
         let _model: ResNet<B> = model.load_pytorch_weights(path.clone())?;
 
         Ok(())
     }
+
     #[test]
+    #[cfg(feature = "store")]
     fn test_load_pytorch_prefab() -> anyhow::Result<()> {
         type B = PerfTestBackend;
         let prefab = "resnet18";
@@ -600,6 +576,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature = "store")]
     #[cfg(feature = "cuda")]
     fn test_load_pytorch_prefab_cuda() -> anyhow::Result<()> {
         type B = burn::backend::Cuda;
@@ -609,6 +586,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature = "store")]
     #[cfg(feature = "cuda")]
     fn test_load_pytorch_prefab_cuda_bf16() -> anyhow::Result<()> {
         type B = burn::backend::Cuda<burn::tensor::bf16>;

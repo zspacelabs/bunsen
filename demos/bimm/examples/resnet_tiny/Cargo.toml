@@ -9,22 +9,22 @@ repository.workspace = true
 [lints]
 workspace = true
 
-[dependencies]
-bimm = { path = "../../crates/bimm" }
-bunsen-firehose = { workspace = true }
-bunsen-firehose-image = { workspace = true }
-
-burn = { workspace = true, features = ["train", "fusion", "autotune", "vision", "dataset", "flex"] }
-bunsen = { workspace = true }
-serde = { workspace = true, features = ["derive"] }
-
-clap = { workspace = true, features = ["derive"] }
-
-rand = { workspace = true }
-anyhow = { workspace = true }
-
 [features]
 default = []
 wgpu = ["burn/wgpu"]
 cuda = ["burn/cuda"]
 metal = ["burn/metal"]
+
+
+[dependencies]
+burn = { workspace = true, features = ["train", "fusion", "autotune", "vision", "dataset", "flex"] }
+bunsen = { workspace = true }
+bunsen-firehose = { workspace = true }
+bunsen-firehose-image = { workspace = true }
+
+serde = { workspace = true, features = ["derive"] }
+clap = { workspace = true, features = ["derive"] }
+
+rand = { workspace = true }
+anyhow = { workspace = true }
+

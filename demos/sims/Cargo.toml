@@ -10,9 +10,8 @@ members = [
 [workspace.package]
 edition = "2024"
 rust-version = "1.94.1"
-version = "0.21.0"
-repository = "https://github.com/zspacelabs/bunsen"
 license = "MIT or Apache-2.0"
+publish = false
 
 [workspace.lints.rust]
 warnings = "deny"
@@ -25,7 +24,7 @@ doc_markdown = "warn"
 rand = "0.10.1"
 
 burn = "=0.21.0"
-bunsen = { path = "../../crates/bunsen" }
+bunsen = { version = "0.21.1", path = "../../crates/bunsen" }
 
 serde = "1.0.228"
 

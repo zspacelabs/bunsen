@@ -20,15 +20,6 @@ use alloc::{
     vec::Vec,
 };
 
-use bunsen::{
-    blocks::images::drop::drop_block::DropBlockOptions,
-    contracts::{
-        assert_shape_contract_periodically,
-        unpack_shape_contract,
-    },
-    ops::conv::stride_div_output_resolution,
-    support::validators::expect_probability,
-};
 use burn::{
     config::Config,
     nn::{
@@ -44,13 +35,20 @@ use burn::{
 };
 
 use super::{
-    bottleneck_block::BottleneckPolicyConfig,
-    residual_block::{
-        ResidualBlock,
-        ResidualBlockContractConfig,
-        ResidualBlockMeta,
-        ResidualBlockStructureConfig,
+    BottleneckPolicyConfig,
+    ResidualBlock,
+    ResidualBlockContractConfig,
+    ResidualBlockMeta,
+    ResidualBlockStructureConfig,
+};
+use crate::{
+    blocks::images::drop::drop_block::DropBlockOptions,
+    contracts::{
+        assert_shape_contract_periodically,
+        unpack_shape_contract,
     },
+    ops::conv::stride_div_output_resolution,
+    support::validators::expect_probability,
 };
 
 /// Abstract [`LayerBlock`] Config.
@@ -430,13 +428,12 @@ impl<B: Backend> LayerBlock<B> {
 mod tests {
     use alloc::vec;
 
-    use bunsen::{
+    use super::*;
+    use crate::{
         contracts::assert_shape_contract,
+        kits::imgs::resnet::BasicBlockConfig,
         support::testing::PerfTestBackend,
     };
-
-    use super::*;
-    use crate::models::resnet::basic_block::BasicBlockConfig;
 
     #[test]
     fn test_layer_block_config_build() {

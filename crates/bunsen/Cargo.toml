@@ -35,7 +35,9 @@ default = [
     "reflection",
     "train",
     "testing",
+    "store",
 ]
+
 std = [
     "burn/std",
 ]
@@ -47,6 +49,14 @@ reflection = [
     "dep:paste",
     "dep:xee-xpath",
     "dep:spanned_error_message",
+]
+
+## Enable the burn-store.
+store = [
+    "std",
+    "cache",
+    "burn/store",
+    "burn-store/pytorch"
 ]
 
 ## Enable features to use with `burn/train`.
@@ -98,6 +108,8 @@ bunsen-contracts-macros = { version = "0.21.1", path = "../bunsen-contracts-macr
 bunsen-cache = { path = "../bunsen-cache", version = "0.21.1", optional = true }
 
 burn = { workspace = true }
+burn-store = { workspace = true, optional = true }
+
 # burner-locked public deps:
 hashbrown = { workspace = true, optional = true }
 serde = { workspace = true, features = ["derive"] }
@@ -117,7 +129,7 @@ xee-xpath = { workspace = true, optional = true }
 
 
 [dev-dependencies]
-bunsen = { path = ".", features = ["testing"] }
+bunsen = { version = "0.21.1", path = ".", features = ["testing"] }
 burn = { workspace = true, features = ["autodiff"] }
 
 nearly = { workspace = true }

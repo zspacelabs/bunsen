@@ -19,11 +19,6 @@
 //! * [`From<BasicBlock<B>>`](`BasicBlock`),
 //! * [`From<BottleneckBlock<B>>`](`BottleneckBlock`).
 
-use bunsen::{
-    blocks::images::drop::drop_block::DropBlockOptions,
-    ops::conv::stride_div_output_resolution,
-    support::validators::expect_probability,
-};
 use burn::{
     nn::{
         BatchNormConfig,
@@ -38,18 +33,19 @@ use burn::{
     },
 };
 
-use crate::models::resnet::{
-    basic_block::{
+use crate::{
+    blocks::images::drop::drop_block::DropBlockOptions,
+    kits::imgs::resnet::{
         BasicBlock,
         BasicBlockConfig,
         BasicBlockMeta,
-    },
-    bottleneck_block::{
         BottleneckBlock,
         BottleneckBlockConfig,
         BottleneckBlockMeta,
         BottleneckPolicyConfig,
     },
+    ops::conv::stride_div_output_resolution,
+    support::validators::expect_probability,
 };
 
 /// Abstract [`ResidualBlock`] Config.
@@ -356,12 +352,11 @@ impl<B: Backend> ResidualBlock<B> {
 
 #[cfg(test)]
 mod tests {
-    use bunsen::{
+    use super::*;
+    use crate::{
         contracts::assert_shape_contract,
         support::testing::PerfTestBackend,
     };
-
-    use super::*;
 
     #[test]
     fn test_residual_block_config() {

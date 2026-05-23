@@ -25,6 +25,7 @@ doc_markdown = "warn"
 [workspace.dependencies]
 rand = "0.10.1"
 burn = "0.21.0"
+burn-store = "0.21.0"
 
 # Burn coupled-dependencies
 crc = "3.4.0"

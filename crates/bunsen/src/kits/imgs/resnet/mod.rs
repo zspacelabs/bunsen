@@ -8,11 +8,13 @@
 //! Examples of loading pretrained model:
 //!
 //! ```rust,no_run
-//! use bimm::models::resnet::{
-//!     PREFAB_RESNET_MAP,
-//!     ResNet,
+//! use bunsen::{
+//!     cache::DiskCacheConfig,
+//!     kits::imgs::resnet::{
+//!         PREFAB_RESNET_MAP,
+//!         ResNet,
+//!     },
 //! };
-//! use bunsen::cache::DiskCacheConfig;
 //! use burn::backend::Flex;
 //!
 //! let device = Default::default();
@@ -73,15 +75,30 @@
 //! * anti-aliasing
 //! * block attention
 
-pub mod basic_block;
-pub mod bottleneck_block;
-pub mod downsample;
-pub mod layer_block;
-pub mod pretrained;
-pub mod residual_block;
-pub mod resnet_model;
-pub mod stems;
-pub mod util;
-
+#[cfg(feature = "cache")]
+mod pretrained;
+#[cfg(feature = "cache")]
 pub use pretrained::*;
+
+mod basic_block;
+mod bottleneck_block;
+mod downsample;
+mod layer_block;
+mod residual_block;
+mod resnet_model;
+mod stems;
+
+#[doc(inline)]
+pub use basic_block::*;
+#[doc(inline)]
+pub use bottleneck_block::*;
+#[doc(inline)]
+pub use downsample::*;
+#[doc(inline)]
+pub use layer_block::*;
+#[doc(inline)]
+pub use residual_block::*;
+#[doc(inline)]
 pub use resnet_model::*;
+#[doc(inline)]
+pub use stems::*;

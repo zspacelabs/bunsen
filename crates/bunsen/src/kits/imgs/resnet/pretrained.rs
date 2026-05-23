@@ -2,14 +2,15 @@
 
 use alloc::vec;
 
-use bunsen::cache::{
-    StaticPreFabConfig,
-    StaticPreFabMap,
-    StaticPretrainedWeightsDescriptor,
-    StaticPretrainedWeightsMap,
+use crate::{
+    cache::{
+        StaticPreFabConfig,
+        StaticPreFabMap,
+        StaticPretrainedWeightsDescriptor,
+        StaticPretrainedWeightsMap,
+    },
+    kits::imgs::resnet::ResNetContractConfig,
 };
-
-use crate::models::resnet::ResNetContractConfig;
 
 /// Pretrained [`super::ResNet`] configs and weights.
 pub static PREFAB_RESNET_MAP: StaticPreFabMap<ResNetContractConfig> = StaticPreFabMap {

@@ -11,7 +11,23 @@
 //! [`BasicBlock`] implements [`Module`] and provides
 //! [`BasicBlock::forward`].
 
-use bunsen::{
+use burn::{
+    nn::{
+        BatchNormConfig,
+        PaddingConfig2d,
+        activation::ActivationConfig,
+        conv::Conv2dConfig,
+        norm::NormalizationConfig,
+    },
+    prelude::{
+        Backend,
+        Config,
+        Module,
+        Tensor,
+    },
+};
+
+use crate::{
     blocks::images::{
         conv::cna::{
             AbstractCNA2dConfig,
@@ -31,31 +47,15 @@ use bunsen::{
             },
         },
     },
-    ops::conv::stride_div_output_resolution,
-    support::validators::expect_probability,
-};
-use burn::{
-    nn::{
-        BatchNormConfig,
-        PaddingConfig2d,
-        activation::ActivationConfig,
-        conv::Conv2dConfig,
-        norm::NormalizationConfig,
-    },
-    prelude::{
-        Backend,
-        Config,
-        Module,
-        Tensor,
-    },
-};
-
-use crate::models::resnet::{
-    downsample::{
+    kits::imgs::resnet::{
         ResNetDownsample,
         ResNetDownsampleConfig,
     },
-    util::scalar_to_array,
+    ops::conv::stride_div_output_resolution,
+    support::{
+        arrays::scalar_to_array,
+        validators::expect_probability,
+    },
 };
 
 /// [`BasicBlock`] Meta trait.
@@ -360,7 +360,7 @@ impl<B: Backend> BasicBlock<B> {
         input: Tensor<B, 4>,
     ) -> Tensor<B, 4> {
         #[cfg(debug_assertions)]
-        let [batch, out_height, out_width] = bunsen::contracts::unpack_shape_contract!(
+        let [batch, out_height, out_width] = crate::__unpack_shape_contract!(
             [
                 "batch",
                 "in_planes",
@@ -378,7 +378,7 @@ impl<B: Backend> BasicBlock<B> {
         };
 
         #[cfg(debug_assertions)]
-        bunsen::contracts::define_shape_contract!(
+        crate::__define_shape_contract!(
             OUT_CONTRACT,
             ["batch", "out_planes", "out_height", "out_width"],
         );
@@ -399,7 +399,7 @@ impl<B: Backend> BasicBlock<B> {
         });
 
         #[cfg(debug_assertions)]
-        bunsen::contracts::assert_shape_contract_periodically!(
+        crate::__assert_shape_contract_periodically!(
             ["batch", "first_planes", "out_height", "out_width"],
             &x.dims(),
             &[
@@ -424,11 +424,7 @@ impl<B: Backend> BasicBlock<B> {
         });
 
         #[cfg(debug_assertions)]
-        bunsen::contracts::assert_shape_contract_periodically!(
-            OUT_CONTRACT,
-            &x.dims(),
-            &out_bindings
-        );
+        crate::__assert_shape_contract_periodically!(OUT_CONTRACT, &x.dims(), &out_bindings);
 
         x
     }
@@ -466,17 +462,19 @@ impl<B: Backend> BasicBlock<B> {
 
 #[cfg(test)]
 mod tests {
-    use bunsen::{
-        blocks::images::drop::drop_block::DropBlockOptions,
-        contracts::assert_shape_contract,
-        support::testing::PerfTestBackend,
-    };
     use burn::{
         backend::Autodiff,
         nn::activation::ActivationConfig,
     };
 
     use super::*;
+    use crate::{
+        contracts::assert_shape_contract,
+        support::testing::{
+            PerfTestBackend,
+            SetupTestBackend,
+        },
+    };
 
     #[test]
     fn test_basic_block_config() {
@@ -507,7 +505,7 @@ mod tests {
 
     #[test]
     fn test_basic_block_meta() {
-        type B = PerfTestBackend;
+        type B = SetupTestBackend;
         let device = Default::default();
 
         let in_planes = 2;

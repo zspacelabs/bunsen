@@ -12,7 +12,6 @@ workspace = true
 [dependencies]
 burn = { workspace = true, features = ["train", "fusion", "autotune", "network", "vision", "flex"] }
 bunsen = { workspace = true }
-bimm = { path = "../../crates/bimm" }
 
 anyhow = { workspace = true }
 clap = { workspace = true, features = ["derive"] }
@@ -22,7 +21,6 @@ csv = { workspace = true }
 flate2 = { workspace = true }
 rand = { workspace = true }
 serde = { workspace = true, features = ["std", "derive"] }
-serde_json = { workspace = true }
 tar = { workspace = true }
 
 [features]
