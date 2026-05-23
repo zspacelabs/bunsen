@@ -129,7 +129,7 @@ xee-xpath = { workspace = true, optional = true }
 
 
 [dev-dependencies]
-bunsen = { version = "0.21.2", path = ".", features = ["testing"] }
+bunsen = { path = ".", features = ["testing"] }
 burn = { workspace = true, features = ["autodiff"] }
 
 nearly = { workspace = true }
