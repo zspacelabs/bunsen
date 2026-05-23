@@ -13,7 +13,7 @@ workspace = true
 
 [dependencies]
 burn = { workspace = true, features = ["dataset", "vision", "autotune"] }
-bunsen-firehose = { version = "0.21.1", path = "../bunsen-firehose" }
+bunsen-firehose = { version = "0.21.2", path = "../bunsen-firehose" }
 
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
@@ -32,5 +32,5 @@ image-compare = { workspace = true }
 
 [dev-dependencies]
 tempfile = { workspace = true }
-bunsen = { version = "0.21.1", features = ["testing"], path = "../bunsen" }
+bunsen = { version = "0.21.2", features = ["testing"], path = "../bunsen" }
 

@@ -104,8 +104,8 @@ flex = ["burn/flex"]
 
 
 [dependencies]
-bunsen-contracts-macros = { version = "0.21.1", path = "../bunsen-contracts-macros" }
-bunsen-cache = { path = "../bunsen-cache", version = "0.21.1", optional = true }
+bunsen-contracts-macros = { version = "0.21.2", path = "../bunsen-contracts-macros" }
+bunsen-cache = { path = "../bunsen-cache", version = "0.21.2", optional = true }
 
 burn = { workspace = true }
 burn-store = { workspace = true, optional = true }
@@ -129,7 +129,7 @@ xee-xpath = { workspace = true, optional = true }
 
 
 [dev-dependencies]
-bunsen = { version = "0.21.1", path = ".", features = ["testing"] }
+bunsen = { version = "0.21.2", path = ".", features = ["testing"] }
 burn = { workspace = true, features = ["autodiff"] }
 
 nearly = { workspace = true }
