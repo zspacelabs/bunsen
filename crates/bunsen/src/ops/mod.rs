@@ -16,47 +16,45 @@
 //! ## Map of the module
 //!
 //! ### Tensor generation
-//! - [`arange`] &mdash; floating-point range generators on both
-//!   `Vec<f64>` (`float_vec_arange`, `float_vec_linspace`) and
-//!   `Tensor` (`float_arange`, `float_linspace`).
-//! - [`noise`] &mdash; `NoiseConfig` bundles a `Distribution` with an
-//!   optional [`clamp::ClampOp`], and supplies `noise()` /
-//!   `noise_like()` to materialize tensors from it.
+//! - [`arange`] &mdash; floating-point range generators on both `Vec<f64>`
+//!   (`float_vec_arange`, `float_vec_linspace`) and `Tensor` (`float_arange`,
+//!   `float_linspace`).
+//! - [`noise`] &mdash; `NoiseConfig` bundles a `Distribution` with an optional
+//!   [`clamp::ClampOp`], and supplies `noise()` / `noise_like()` to materialize
+//!   tensors from it.
 //!
 //! ### Element-wise transforms
-//! - [`clamp`] &mdash; `ClampOp` is a small value-object that captures
-//!   an optional min and an optional max as a single reusable
-//!   configuration, with `.clamp(t)` to apply it to a tensor. Useful
-//!   anywhere clamping shows up as a *setting* rather than a one-shot
-//!   call (config files, noise generators, etc.).
-//! - [`mod@drop`] &mdash; functional `dropout()`. The matching trainable
-//!   layer lives in [`crate::blocks::images::drop`].
+//! - [`clamp`] &mdash; `ClampOp` is a small value-object that captures an
+//!   optional min and an optional max as a single reusable configuration, with
+//!   `.clamp(t)` to apply it to a tensor. Useful anywhere clamping shows up as
+//!   a *setting* rather than a one-shot call (config files, noise generators,
+//!   etc.).
+//! - [`mod@drop`] &mdash; functional `dropout()`. The matching trainable layer
+//!   lives in [`crate::blocks::images::drop`].
 //!
 //! ### Normalization
-//! - [`norm`] &mdash; `rms_norm()` and `RmsNormOptions` (RMSNorm
-//!   without trainable parameters). For the parametric layer use
+//! - [`norm`] &mdash; `rms_norm()` and `RmsNormOptions` (`RMSNorm` without
+//!   trainable parameters). For the parametric layer use
 //!   `burn::nn::norm::RmsNorm`.
 //!
 //! ### Shape transforms
-//! - [`repeat`] &mdash; `repeat_interleave()` along a (negatively
-//!   indexable) dimension, mirroring NumPy / PyTorch semantics.
+//! - [`repeat`] &mdash; `repeat_interleave()` along a (negatively indexable)
+//!   dimension, mirroring `NumPy` / `PyTorch` semantics.
 //!
 //! ### Convolution support
-//! - [`conv`] &mdash; everything around convolution that isn't a
-//!   trainable layer:
+//! - [`conv`] &mdash; everything around convolution that isn't a trainable
+//!   layer:
 //!   - **Shape arithmetic.** `maybe_conv_output_shape` /
-//!     `expect_conv_output_shape` (and their `_dyn`,
-//!     `_1d` variants) compute output shapes from kernel/stride/
-//!     padding/dilation; `stride_div_output_resolution` is the
-//!     downsample helper; `get_square_conv2d_padding` /
-//!     `build_square_conv2d_padding_config` are the most-common-case
-//!     wrappers.
-//!   - **Functional convolution.** `convolve_func_2d` folds a
-//!     user-supplied closure over 2-D conv windows, which is the
-//!     starting point for kernels that aren't expressible as a linear
-//!     `Conv2d`.
-//!   - **Filters.** `conv2d_kernel_midpoint_filter` &mdash; a kernel
-//!     that picks the spatial mid-point sample.
+//!     `expect_conv_output_shape` (and their `_dyn`, `_1d` variants) compute
+//!     output shapes from kernel/stride/ padding/dilation;
+//!     `stride_div_output_resolution` is the downsample helper;
+//!     `get_square_conv2d_padding` / `build_square_conv2d_padding_config` are
+//!     the most-common-case wrappers.
+//!   - **Functional convolution.** `convolve_func_2d` folds a user-supplied
+//!     closure over 2-D conv windows, which is the starting point for kernels
+//!     that aren't expressible as a linear `Conv2d`.
+//!   - **Filters.** `conv2d_kernel_midpoint_filter` &mdash; a kernel that picks
+//!     the spatial mid-point sample.
 //!
 //! ## Relationship to [`crate::blocks`] and [`crate::contracts`]
 //!
