@@ -13,7 +13,7 @@ workspace = true
 
 [dependencies]
 burn = { workspace = true, features = ["dataset", "vision", "autotune"] }
-bunsen-firehose = { version = "0.21.2", path = "../bunsen-firehose" }
+bunsen-firehose = { version = "0.21.3", path = "../bunsen-firehose" }
 
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
