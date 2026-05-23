@@ -8,17 +8,17 @@ use std::{
 };
 
 use bunsen::{
-    blocks::transformers::nanochat::{
-        NanoGpt,
-        NanoGptConfig,
-        NanoGptMeta,
-    },
-    burn_ext::{
+    burner::{
         module::reflection::XmlModuleTree,
         optim::{
             GroupOptimizerAdaptor2,
             OptimizerGroup,
         },
+    },
+    kits::gpts::nanochat::{
+        NanoChatGpt,
+        NanoChatGptConfig,
+        NanoChatGptMeta,
     },
     public::hashbrown::HashSet,
 };
@@ -260,12 +260,12 @@ fn run<B: AutodiffBackend>(args: &Args) -> anyhow::Result<()> {
         .with_parallel(true)
         .build(vocab);
 
-    let gpt_config = NanoGptConfig::new()
+    let gpt_config = NanoChatGptConfig::new()
         .with_n_embed(args.n_embed)
         .with_n_layer(args.n_layer)
         .with_vocab_size(vocab_size);
 
-    let gpt: NanoGpt<B> = gpt_config.clone().init::<B>(&device);
+    let gpt: NanoChatGpt<B> = gpt_config.clone().init::<B>(&device);
 
     let host = GptHost { gpt };
 
@@ -431,7 +431,7 @@ fn run<B: AutodiffBackend>(args: &Args) -> anyhow::Result<()> {
 
 #[derive(Module, Debug)]
 pub struct GptHost<B: Backend> {
-    pub gpt: NanoGpt<B>,
+    pub gpt: NanoChatGpt<B>,
 }
 
 impl<B: Backend> GptHost<B> {
