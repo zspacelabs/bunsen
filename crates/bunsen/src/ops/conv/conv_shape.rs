@@ -9,7 +9,7 @@ use burn::{
     nn::PaddingConfig2d,
 };
 
-use crate::__unpack_shape_contract as unpack_shape_contract;
+use crate::contracts::unpack_shape_contract;
 
 /// Predict the output size of a 1D convolution operation.
 ///

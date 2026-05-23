@@ -157,7 +157,7 @@ pub fn next_state_wrapped_2d<B: Backend>(state: Tensor<B, 2, Bool>) -> Tensor<B,
 /// - the ``[H-2, W-2]`` evolved interior state.
 pub fn next_interior_2d<B: Backend>(state: Tensor<B, 2, Bool>) -> Tensor<B, 2, Bool> {
     #[cfg(debug_assertions)]
-    let [h, w] = crate::__unpack_shape_contract!(["h", "w"], &state.dims(),);
+    let [h, w] = crate::contracts::unpack_shape_contract!(["h", "w"], &state.dims(),);
 
     // [H, W]
     let is_live = state.clone().slice(s![1..-1, 1..-1,]);
@@ -183,7 +183,7 @@ pub fn next_interior_2d<B: Backend>(state: Tensor<B, 2, Bool>) -> Tensor<B, 2, B
     let inner = is_2.bool_and(is_live).bool_or(is_3);
 
     #[cfg(debug_assertions)]
-    crate::__assert_shape_contract_periodically!(
+    crate::contracts::assert_shape_contract_periodically!(
         ["h" - "pad", "w" - "pad"],
         &inner.dims(),
         &[("h", h), ("w", w), ("pad", 2)],

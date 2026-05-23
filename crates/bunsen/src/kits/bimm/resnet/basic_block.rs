@@ -360,7 +360,7 @@ impl<B: Backend> BasicBlock<B> {
         input: Tensor<B, 4>,
     ) -> Tensor<B, 4> {
         #[cfg(debug_assertions)]
-        let [batch, out_height, out_width] = crate::__unpack_shape_contract!(
+        let [batch, out_height, out_width] = crate::contracts::unpack_shape_contract!(
             [
                 "batch",
                 "in_planes",
@@ -378,7 +378,7 @@ impl<B: Backend> BasicBlock<B> {
         };
 
         #[cfg(debug_assertions)]
-        crate::__define_shape_contract!(
+        crate::contracts::define_shape_contract!(
             OUT_CONTRACT,
             ["batch", "out_planes", "out_height", "out_width"],
         );
@@ -399,7 +399,7 @@ impl<B: Backend> BasicBlock<B> {
         });
 
         #[cfg(debug_assertions)]
-        crate::__assert_shape_contract_periodically!(
+        crate::contracts::assert_shape_contract_periodically!(
             ["batch", "first_planes", "out_height", "out_width"],
             &x.dims(),
             &[
@@ -424,7 +424,11 @@ impl<B: Backend> BasicBlock<B> {
         });
 
         #[cfg(debug_assertions)]
-        crate::__assert_shape_contract_periodically!(OUT_CONTRACT, &x.dims(), &out_bindings);
+        crate::contracts::assert_shape_contract_periodically!(
+            OUT_CONTRACT,
+            &x.dims(),
+            &out_bindings
+        );
 
         x
     }

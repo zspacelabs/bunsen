@@ -456,7 +456,7 @@ impl<B: Backend> BottleneckBlock<B> {
         &self,
         input: Tensor<B, 4>,
     ) -> Tensor<B, 4> {
-        let [batch, in_height, out_height, in_width, out_width] = crate::__unpack_shape_contract!(
+        let [batch, in_height, out_height, in_width, out_width] = crate::contracts::unpack_shape_contract!(
             [
                 "batch",
                 "in_planes",
@@ -473,7 +473,7 @@ impl<B: Backend> BottleneckBlock<B> {
             None => input.clone(),
         };
 
-        crate::__define_shape_contract!(
+        crate::contracts::define_shape_contract!(
             OUT_CONTRACT,
             ["batch", "out_planes", "out_height", "out_width"],
         );
@@ -483,11 +483,15 @@ impl<B: Backend> BottleneckBlock<B> {
             ("out_height", out_height),
             ("out_width", out_width),
         ];
-        crate::__assert_shape_contract_periodically!(OUT_CONTRACT, &identity.dims(), &out_bindings);
+        crate::contracts::assert_shape_contract_periodically!(
+            OUT_CONTRACT,
+            &identity.dims(),
+            &out_bindings
+        );
 
         let x = self.cna1.forward(input);
 
-        crate::__assert_shape_contract_periodically!(
+        crate::contracts::assert_shape_contract_periodically!(
             ["batch", "pinch_planes", "in_height", "in_width"],
             &x.dims(),
             &[
@@ -503,7 +507,7 @@ impl<B: Backend> BottleneckBlock<B> {
             None => x,
         });
 
-        crate::__assert_shape_contract_periodically!(
+        crate::contracts::assert_shape_contract_periodically!(
             ["batch", "width", "out_height", "out_width"],
             &x.dims(),
             &[
@@ -517,7 +521,11 @@ impl<B: Backend> BottleneckBlock<B> {
         // TODO: anti-aliasing
 
         self.cna3.map_forward(x, |x| {
-            crate::__assert_shape_contract_periodically!(OUT_CONTRACT, &x.dims(), &out_bindings);
+            crate::contracts::assert_shape_contract_periodically!(
+                OUT_CONTRACT,
+                &x.dims(),
+                &out_bindings
+            );
 
             // TODO: attention
 
