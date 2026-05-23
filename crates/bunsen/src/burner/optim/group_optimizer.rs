@@ -483,6 +483,7 @@ macro_rules! define_group_optimizer_adaptor {
 // Instantiations
 // ---------------------------------------------------------------------------
 
+define_group_optimizer_adaptor!(1, [(O1, 0)]);
 define_group_optimizer_adaptor!(2, [(O1, 0), (O2, 1)]);
 define_group_optimizer_adaptor!(3, [(O1, 0), (O2, 1), (O3, 2)]);
 define_group_optimizer_adaptor!(4, [(O1, 0), (O2, 1), (O3, 2), (O4, 3)]);
