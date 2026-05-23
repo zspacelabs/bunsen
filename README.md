@@ -11,6 +11,10 @@
 `bunsen` aims to be a "batteries included" complementary
 community standard library for extending the [burn](https://burn.dev) tensor library.
 
+# Book
+
+Read the [bunsen book](https://zspacelabs.ai/bunsen/book)
+
 # Motivation
 
 This library is a synthesis of the utility and extension work that
