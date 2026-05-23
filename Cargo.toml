@@ -16,6 +16,7 @@ license = "MIT or Apache-2.0"
 
 [workspace.lints.rust]
 warnings = "deny"
+exported-private-dependencies = "allow"
 
 [workspace.lints.clippy]
 double_must_use = "allow"

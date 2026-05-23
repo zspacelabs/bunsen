@@ -17,5 +17,5 @@ dirs = { workspace = true }
 crc = { workspace = true }
 
 anyhow = { workspace = true }
-serde = { workspace = true, features = ["derive"]}
+serde = { workspace = true, features = ["derive"] }
 
