@@ -71,6 +71,7 @@ train = [
 cache = [
     "std",
     "dep:bunsen-cache",
+    "downloader/default-tls",
 ]
 
 ## Enables testing support features.
@@ -116,6 +117,10 @@ hashbrown = { workspace = true, optional = true }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
 
+directories-next = { workspace = true }
+# features=["tui"} incompatible with conflicting indicatif versions.
+downloader = { workspace = true, default-features = false }
+
 anyhow = { workspace = true }
 num-traits = { workspace = true }
 strum = { workspace = true, features = ["derive"] }
@@ -133,6 +138,7 @@ xee-xpath = { workspace = true, optional = true }
 bunsen = { path = ".", features = ["testing"] }
 burn = { workspace = true, features = ["autodiff"] }
 
+serial_test = { workspace = true }
 nearly = { workspace = true }
 hamcrest = { workspace = true }
 indoc = { workspace = true }

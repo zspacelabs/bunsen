@@ -8,6 +8,9 @@ members = [
 ]
 
 [workspace.package]
+authors = [
+    "Crutcher Dunnavant <crutcher@zspacelabs.ai>",
+]
 edition = "2024"
 rust-version = "1.94.1"
 version = "0.21.3"
@@ -39,6 +42,8 @@ serde_json = "1.0.145"
 
 dirs = "6.0.0"
 clap = "4.5.51"
+downloader = { version = "0.2.7", default-features = false }
+directories-next = "2.0.0"
 
 anyhow = "1.0.100"
 indicatif = "^0.18.3"
@@ -62,6 +67,7 @@ syn = "2.0.117"
 # Test and/or Examples dependencies
 criterion = "0.8.2"
 image-compare = "0.5.0"
+serial_test = "3.4.0"
 
 spanned_error_message = "0.1.0"
 thiserror = "2.0.18"

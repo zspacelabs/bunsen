@@ -84,6 +84,9 @@
 extern crate alloc;
 extern crate core;
 
+#[doc(hidden)]
+pub use bunsen_contracts_macros::shape_contract as __proc_shape_contract;
+
 /// Re-export public dependencies.
 #[allow(unused_imports)]
 #[allow(missing_docs)]
@@ -99,12 +102,10 @@ pub use bunsen_cache as cache;
 
 pub mod blocks;
 pub mod burner;
+pub mod contracts;
+pub mod data;
 pub mod errors;
+pub mod kits;
 pub mod ops;
 pub mod support;
 pub mod zspace;
-
-#[doc(hidden)]
-pub use bunsen_contracts_macros::shape_contract as __proc_shape_contract;
-pub mod contracts;
-pub mod kits;
