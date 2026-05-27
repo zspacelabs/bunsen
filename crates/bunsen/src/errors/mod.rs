@@ -22,10 +22,16 @@ pub enum BunsenError {
     /// Error from an external component.
     #[error("{0}")]
     External(String),
+}
 
-    /// Error from an external component.
-    #[error("Wrapped: {0}")]
-    Wrapped(Box<dyn std::error::Error>),
+impl BunsenError {
+    /// Map an error to an External string error.
+    pub fn external<E>(e: E) -> Self
+    where
+        E: std::error::Error + Send + Sync + 'static,
+    {
+        BunsenError::External(e.to_string())
+    }
 }
 
 /// Result type for bunsen operations.

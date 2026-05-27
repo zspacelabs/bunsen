@@ -22,16 +22,6 @@ use crate::DiskCacheConfig;
 
 const X25: crc::Crc<u16> = crc::Crc::<u16>::new(&crc::CRC_16_IBM_SDLC);
 
-/// Returns a local path to model weights file.
-/// If the file does not exist, it will be downloaded from the given URL.
-pub fn fetch_model_weights<S: AsRef<str>>(url: S) -> anyhow::Result<PathBuf> {
-    let cache_key = url_to_cache_key(Some("model"), url.as_ref());
-    let resource = pretrained_weights_resource_key(&cache_key);
-
-    let disk_cache = DiskCacheConfig::default();
-    disk_cache.fetch_resource(url.as_ref(), &resource)
-}
-
 /// Build a cache key (bare cache file name) from a name and URL.
 pub fn url_to_cache_key(
     name: Option<&str>,

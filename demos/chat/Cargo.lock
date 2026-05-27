@@ -865,14 +865,16 @@ checksum = "72f5acc6cb2ba439de613abc23857ec3d78374d8ed5ac84e9d11336e87da8649"
 
 [[package]]
 name = "bunsen"
-version = "0.21.2"
+version = "0.21.3"
 dependencies = [
  "anyhow",
  "bunsen-cache",
  "bunsen-contracts-macros",
  "burn",
  "burn-store",
+ "directories-next",
  "document-features",
+ "downloader",
  "hashbrown 0.17.1",
  "num-traits",
  "paste",
@@ -887,7 +889,7 @@ dependencies = [
 
 [[package]]
 name = "bunsen-cache"
-version = "0.21.2"
+version = "0.21.3"
 dependencies = [
  "anyhow",
  "burn",
@@ -898,7 +900,7 @@ dependencies = [
 
 [[package]]
 name = "bunsen-contracts-macros"
-version = "0.21.2"
+version = "0.21.3"
 dependencies = [
  "proc-macro2",
  "quote",

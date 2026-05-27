@@ -112,7 +112,7 @@ impl BunsenDiskCache {
             Some(builder) => builder(),
             None => Downloader::builder()
                 .build()
-                .map_err(|e| BunsenError::Wrapped(Box::new(e)))?,
+                .map_err(BunsenError::external)?,
         };
 
         Ok(Self {
@@ -189,12 +189,11 @@ impl BunsenDiskCache {
             )));
         }
 
-        fs::create_dir_all(path.parent().unwrap())
-            .map_err(|e| BunsenError::Wrapped(Box::new(e)))?;
+        fs::create_dir_all(path.parent().unwrap()).map_err(BunsenError::external)?;
 
         self.downloader
             .download(&[dl])
-            .map_err(|e| BunsenError::Wrapped(Box::new(e)))?;
+            .map_err(BunsenError::external)?;
 
         Ok(path)
     }
