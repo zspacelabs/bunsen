@@ -5,8 +5,12 @@ default_to_workspace = false
 dependencies = [
     "fix",
     "ci",
+    "doc",
 ]
 
+[tasks.doc]
+command = "cargo"
+args = ["doc", "--no-deps"]
 
 [tasks.setup]
 dependencies = ["ensure-mdbook-suite"]

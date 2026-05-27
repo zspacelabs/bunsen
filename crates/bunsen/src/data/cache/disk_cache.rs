@@ -74,7 +74,7 @@ impl BunsenDiskCacheOptions {
 /// Disk cache for downloaded files.
 ///
 /// Leverages [`Downloader`] for downloading files,
-/// and [`PathResolver`](`crate::PathResolver`) for resolving cache and data
+/// and [`PathResolver`](`super::PathResolver`) for resolving cache and data
 /// paths appropriate for a user/system combo, and any environment overrides.
 pub struct BunsenDiskCache {
     /// Cache directory.
