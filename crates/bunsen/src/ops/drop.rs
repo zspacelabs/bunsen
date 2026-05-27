@@ -37,13 +37,15 @@ pub fn dropout<B: Backend, const D: usize>(
 #[cfg(test)]
 mod tests {
     use burn::prelude::ElementConversion;
+    use serial_test::serial;
 
     use super::*;
-    use crate::support::testing::PerfTestBackend;
+    use crate::support::testing::PerformanceBackend;
 
     #[test]
+    #[serial]
     fn dropout_prob_0_should_return_input() {
-        type B = PerfTestBackend;
+        type B = PerformanceBackend;
         let device = Default::default();
         let input = Tensor::<B, 2>::random([10, 3], Distribution::Default, &device);
 
@@ -53,8 +55,9 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn dropout_rates_stochastic_test() {
-        type B = PerfTestBackend;
+        type B = PerformanceBackend;
         let device = Default::default();
         B::seed(&device, 0);
 
@@ -89,9 +92,10 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     #[should_panic = "Dropout validators should be between 0 and 1,"]
     fn dropout_prob_invalid() {
-        type B = PerfTestBackend;
+        type B = PerformanceBackend;
         let device = Default::default();
 
         let input = Tensor::<B, 1>::ones([10], &device);

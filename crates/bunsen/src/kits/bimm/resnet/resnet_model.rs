@@ -538,8 +538,10 @@ impl<B: Backend> ResNet<B> {
 
 #[cfg(test)]
 mod tests {
+    use serial_test::serial;
+
     use super::*;
-    use crate::support::testing::PerfTestBackend;
+    use crate::support::testing::PerformanceBackend;
 
     #[cfg(feature = "store")]
     fn test_load_pytorch<B: Backend>(
@@ -568,15 +570,17 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     #[cfg(feature = "store")]
     fn test_load_pytorch_prefab() -> anyhow::Result<()> {
-        type B = PerfTestBackend;
+        type B = PerformanceBackend;
         let prefab = "resnet18";
         let pretrained = "tv_in1k";
         test_load_pytorch::<B>(&prefab, &pretrained)
     }
 
     #[test]
+    #[serial]
     #[cfg(feature = "store")]
     #[cfg(feature = "cuda")]
     fn test_load_pytorch_prefab_cuda() -> anyhow::Result<()> {
@@ -587,6 +591,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     #[cfg(feature = "store")]
     #[cfg(feature = "cuda")]
     fn test_load_pytorch_prefab_cuda_bf16() -> anyhow::Result<()> {
@@ -608,8 +613,9 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_to_layers_50_bottleneck() {
-        type B = PerfTestBackend;
+        type B = PerformanceBackend;
         let device = Default::default();
 
         let cfg = ResNetContractConfig::new(RESNET50_BLOCKS.to_vec(), 1000).with_bottleneck(true);

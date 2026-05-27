@@ -244,12 +244,15 @@ impl<B: Backend> ConwayLife3DState<B> {
 
 #[cfg(test)]
 mod tests {
+    use serial_test::serial;
+
     use super::*;
-    use crate::support::testing::PerfTestBackend;
+    use crate::support::testing::PerformanceBackend;
 
     #[test]
+    #[serial]
     fn test_smoke() {
-        type B = PerfTestBackend;
+        type B = PerformanceBackend;
         let device = Default::default();
 
         let steps = 100;

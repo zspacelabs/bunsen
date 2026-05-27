@@ -309,7 +309,7 @@ mod tests {
     };
 
     use super::*;
-    use crate::support::testing::SetupTestBackend;
+    use crate::support::testing::CpuBackend;
 
     #[test]
     fn test_conv_norm_config() {
@@ -331,7 +331,7 @@ mod tests {
 
     #[test]
     fn test_cna() {
-        type I = SetupTestBackend;
+        type I = CpuBackend;
         type B = Autodiff<I>;
         let device = Default::default();
 

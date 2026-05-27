@@ -352,10 +352,12 @@ impl<B: Backend> ResidualBlock<B> {
 
 #[cfg(test)]
 mod tests {
+    use serial_test::serial;
+
     use super::*;
     use crate::{
         contracts::assert_shape_contract,
-        support::testing::PerfTestBackend,
+        support::testing::PerformanceBackend,
     };
 
     #[test]
@@ -387,8 +389,9 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_residual_block_basic_block() {
-        type B = PerfTestBackend;
+        type B = PerformanceBackend;
         let device = Default::default();
 
         let batch_size = 2;
@@ -426,8 +429,9 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_residual_block_bottleneck_block() {
-        type B = PerfTestBackend;
+        type B = PerformanceBackend;
         let device = Default::default();
 
         let batch_size = 2;

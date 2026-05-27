@@ -215,11 +215,11 @@ mod tests {
     };
 
     use super::*;
-    use crate::support::testing::SetupTestBackend;
+    use crate::support::testing::CpuBackend;
 
     #[test]
     fn test_drop_path() {
-        type B = SetupTestBackend;
+        type B = CpuBackend;
         let device = Default::default();
         let drop_prob = 0.5;
         let scale_by_keep = true;
@@ -239,7 +239,7 @@ mod tests {
 
     #[test]
     fn test_drop_path_wrapper() {
-        type B = SetupTestBackend;
+        type B = CpuBackend;
         let device = Default::default();
 
         let n = 3;
@@ -257,7 +257,7 @@ mod tests {
 
     #[test]
     fn test_drop_path_sample() {
-        type B = SetupTestBackend;
+        type B = CpuBackend;
         let device = Default::default();
 
         let n = 3;
@@ -346,7 +346,7 @@ mod tests {
 
     #[test]
     fn test_droppath_module() {
-        type B = SetupTestBackend;
+        type B = CpuBackend;
         let drop_prob = 0.2;
         let config = DropPathConfig::new().with_drop_prob(drop_prob);
 

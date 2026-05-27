@@ -88,6 +88,7 @@ mod tests {
             Tolerance,
         },
     };
+    use serial_test::serial;
 
     use super::*;
     use crate::{
@@ -96,12 +97,13 @@ mod tests {
             RelaxationParam,
             density,
         },
-        support::testing::PerfTestBackend,
+        support::testing::PerformanceBackend,
     };
 
     #[test]
+    #[serial]
     fn test_collision_invariants() {
-        type B = PerfTestBackend;
+        type B = PerformanceBackend;
         let device = Default::default();
 
         let dtype = F32;

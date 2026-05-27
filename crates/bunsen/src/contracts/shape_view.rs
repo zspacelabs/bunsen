@@ -134,7 +134,7 @@ mod tests {
     };
 
     use super::*;
-    use crate::support::testing::SetupTestBackend;
+    use crate::support::testing::CpuBackend;
 
     #[test]
     fn test_shape_views() {
@@ -204,7 +204,7 @@ mod tests {
     #[test]
     #[allow(unused)]
     fn test_burn_shape_views() {
-        type B = SetupTestBackend;
+        type B = CpuBackend;
         let expected = vec![2, 3, 4];
 
         let shape = Shape::from([2, 3, 4]);

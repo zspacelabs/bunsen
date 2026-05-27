@@ -22,6 +22,10 @@ pub enum BunsenError {
     /// Error from an external component.
     #[error("{0}")]
     External(String),
+
+    /// Error from an external component.
+    #[error("Wrapped: {0}")]
+    Wrapped(Box<dyn std::error::Error>),
 }
 
 /// Result type for bunsen operations.

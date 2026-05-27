@@ -6,23 +6,23 @@ use num_traits::float::Float;
 cfg_select! {
     feature = "cuda" => {
         /// Selected burn backend for compute-heavy tests.
-        pub type PerfTestBackend = ::burn::backend::Cuda;
+        pub type PerformanceBackend = ::burn::backend::Cuda;
     }
     feature = "metal" => {
         /// Selected burn backend for compute-heavy tests.
-        pub type PerfTestBackend = ::burn::backend::Metal;
+        pub type PerformanceBackend = ::burn::backend::Metal;
     }
     feature = "wgpu" => {
         /// Selected burn backend for compute-heavy tests.
-        pub type PerfTestBackend = ::burn::backend::Wgpu;
+        pub type PerformanceBackend = ::burn::backend::Wgpu;
     }
     _ => {
         /// Selected burn backend for compute-heavy tests.
-        pub type PerfTestBackend = ::burn::backend::Flex;
+        pub type PerformanceBackend = ::burn::backend::Flex;
     }
 }
 /// Selected burn backend for fast-setup tests.
-pub type SetupTestBackend = ::burn::backend::Flex;
+pub type CpuBackend = ::burn::backend::Flex;
 
 /// Asserts that two vectors of floating-point numbers are close to each other
 /// within a given tolerance.

@@ -29,7 +29,7 @@
 //!     },
 //! };
 //!
-//! type B = bunsen::support::testing::SetupTestBackend;
+//! type B = bunsen::support::testing::CpuBackend;
 //! let device = Default::default();
 //!
 //! // Create a Linear module, with a bias:

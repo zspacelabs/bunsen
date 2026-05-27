@@ -50,11 +50,11 @@ mod tests {
     use burn::prelude::TensorData;
 
     use super::*;
-    use crate::support::testing::SetupTestBackend;
+    use crate::support::testing::CpuBackend;
 
     #[test]
     fn test_conv2d_kernel_midpoint_filter() {
-        type B = SetupTestBackend;
+        type B = CpuBackend;
         let device = Default::default();
 
         let shape = [7, 9];

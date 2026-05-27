@@ -161,13 +161,16 @@ pub fn outflow_clipping_stream<B: Backend>(thermal_dist: Tensor<B, 4>) -> Tensor
 
 #[cfg(test)]
 mod tests {
+    use serial_test::serial;
+
     use super::*;
-    use crate::support::testing::PerfTestBackend;
+    use crate::support::testing::PerformanceBackend;
 
     #[test]
+    #[serial]
     #[rustfmt::skip]
     fn test_stream_interior_windows() {
-        type B = PerfTestBackend;
+        type B = PerformanceBackend;
         let device = Default::default();
 
         let state: Tensor<B, 4> = Tensor::from_data([

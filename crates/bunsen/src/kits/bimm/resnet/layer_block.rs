@@ -428,11 +428,13 @@ impl<B: Backend> LayerBlock<B> {
 mod tests {
     use alloc::vec;
 
+    use serial_test::serial;
+
     use super::*;
     use crate::{
         contracts::assert_shape_contract,
         kits::bimm::resnet::BasicBlockConfig,
-        support::testing::PerfTestBackend,
+        support::testing::PerformanceBackend,
     };
 
     #[test]
@@ -465,8 +467,9 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     pub fn test_layer_block() {
-        type B = PerfTestBackend;
+        type B = PerformanceBackend;
         let device = Default::default();
 
         let a_planes = 16;

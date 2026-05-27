@@ -331,7 +331,7 @@ mod tests {
             },
         },
         contracts::assert_shape_contract,
-        support::testing::SetupTestBackend,
+        support::testing::CpuBackend,
     };
 
     #[test]
@@ -349,7 +349,7 @@ mod tests {
     #[test]
     #[allow(unused)]
     fn test_csa_forward() {
-        type B = SetupTestBackend;
+        type B = CpuBackend;
         let device = Default::default();
 
         let batch = 1;

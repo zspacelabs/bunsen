@@ -485,7 +485,7 @@ mod tests {
     use super::*;
     use crate::{
         ops::noise::NoiseConfig,
-        support::testing::SetupTestBackend,
+        support::testing::CpuBackend,
     };
 
     #[test]
@@ -562,7 +562,7 @@ mod tests {
 
     #[test]
     fn test_drop_block_2d_drop_filter() {
-        type B = SetupTestBackend;
+        type B = CpuBackend;
         let device = Default::default();
 
         let selected_blocks: Tensor<B, 4> = Tensor::<B, 2>::from_data(
@@ -612,7 +612,7 @@ mod tests {
 
     #[test]
     fn test_drop_block_2d_no_op() {
-        type B = SetupTestBackend;
+        type B = CpuBackend;
         let device = Default::default();
 
         let shape = [2, 3, 7, 9];
@@ -632,7 +632,7 @@ mod tests {
 
     #[test]
     fn test_drop_block_2d_with_norm() {
-        type B = SetupTestBackend;
+        type B = CpuBackend;
         let device = Default::default();
 
         let shape = [2, 3, 100, 100];
@@ -664,7 +664,7 @@ mod tests {
 
     #[test]
     fn test_drop_block_2d_with_noise() {
-        type B = SetupTestBackend;
+        type B = CpuBackend;
         let device = Default::default();
 
         let shape = [2, 3, 100, 100];
@@ -697,7 +697,7 @@ mod tests {
 
     #[test]
     fn test_module_inference() {
-        type B = SetupTestBackend;
+        type B = CpuBackend;
         let device = Default::default();
 
         let config = DropBlock2dConfig::new();
@@ -721,7 +721,7 @@ mod tests {
 
     #[test]
     fn test_module_training() {
-        type I = SetupTestBackend;
+        type I = CpuBackend;
         type B = Autodiff<I>;
         let device = Default::default();
 

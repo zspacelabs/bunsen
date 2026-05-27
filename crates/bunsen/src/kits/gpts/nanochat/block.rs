@@ -126,17 +126,19 @@ impl<B: Backend> NanoChatGptBlock<B> {
 #[cfg(test)]
 mod tests {
     use burn::tensor::Distribution;
+    use serial_test::serial;
 
     use super::*;
     use crate::{
         blocks::transformers::embedding::RotaryEmbeddingConfig,
         contracts::assert_shape_contract,
-        support::testing::PerfTestBackend,
+        support::testing::PerformanceBackend,
     };
 
     #[test]
+    #[serial]
     fn test_gpt_block_config() {
-        type B = PerfTestBackend;
+        type B = PerformanceBackend;
         let device = Default::default();
 
         let n_embed = 1024;
@@ -161,8 +163,9 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_gpt_block_forward() {
-        type B = PerfTestBackend;
+        type B = PerformanceBackend;
         let device = Default::default();
 
         let batch = 2;

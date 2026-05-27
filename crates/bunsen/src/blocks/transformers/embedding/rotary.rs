@@ -239,16 +239,18 @@ mod tests {
         Distribution,
         Tolerance,
     };
+    use serial_test::serial;
 
     use super::*;
     use crate::{
         contracts::assert_shape_contract,
-        support::testing::PerfTestBackend,
+        support::testing::PerformanceBackend,
     };
 
     #[test]
+    #[serial]
     fn test_inverse_frequency_table() {
-        type B = PerfTestBackend;
+        type B = PerformanceBackend;
         let device = Default::default();
 
         let base = 10000;
@@ -273,8 +275,9 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_frequency_matrix() {
-        type B = PerfTestBackend;
+        type B = PerformanceBackend;
         let device = Default::default();
 
         let base = 10000;
@@ -306,8 +309,9 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_clip_range() {
-        type B = PerfTestBackend;
+        type B = PerformanceBackend;
         let device = Default::default();
 
         let config = RotaryEmbeddingConfig::new(1024, 64);
@@ -330,8 +334,9 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_rotary_embedding() {
-        type B = PerfTestBackend;
+        type B = PerformanceBackend;
         let device = Default::default();
 
         let batch = 1;

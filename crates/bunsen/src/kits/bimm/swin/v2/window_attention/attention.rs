@@ -420,16 +420,18 @@ mod tests {
         prelude::Tensor,
         tensor::Distribution,
     };
+    use serial_test::serial;
 
     use super::*;
     use crate::{
         contracts::assert_shape_contract,
-        support::testing::PerfTestBackend,
+        support::testing::PerformanceBackend,
     };
 
     #[test]
+    #[serial]
     fn test_window_attention_meta() {
-        type B = PerfTestBackend;
+        type B = PerformanceBackend;
 
         let window_shape = [4, 4];
         let num_heads = 8;
@@ -458,8 +460,9 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_wa() {
-        type B = PerfTestBackend;
+        type B = PerformanceBackend;
 
         let b = 3;
         let num_windows = 2;

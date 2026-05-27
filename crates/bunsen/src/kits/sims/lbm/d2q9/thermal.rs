@@ -83,6 +83,7 @@ mod tests {
         Distribution,
         Tolerance,
     };
+    use serial_test::serial;
 
     use super::*;
     use crate::{
@@ -96,12 +97,13 @@ mod tests {
             },
             thermal::lattice_dot_velocity,
         },
-        support::testing::PerfTestBackend,
+        support::testing::PerformanceBackend,
     };
 
     #[test]
+    #[serial]
     fn test_equilibrium() {
-        type B = PerfTestBackend;
+        type B = PerformanceBackend;
         let device = Default::default();
 
         let dist = Tensor::<B, 4>::random([20, 20, 3, 3], Distribution::Default, &device);
@@ -130,8 +132,9 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_equilibrium_invariants() {
-        type B = PerfTestBackend;
+        type B = PerformanceBackend;
         let device = Default::default();
 
         let dtype = F32;
@@ -151,8 +154,9 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_lattice_dot_velocity() {
-        type B = PerfTestBackend;
+        type B = PerformanceBackend;
         let device = Default::default();
 
         let e: Tensor<B, 3> = direction_vectors(&device);

@@ -470,13 +470,14 @@ mod tests {
         backend::Autodiff,
         nn::activation::ActivationConfig,
     };
+    use serial_test::serial;
 
     use super::*;
     use crate::{
         contracts::assert_shape_contract,
         support::testing::{
-            PerfTestBackend,
-            SetupTestBackend,
+            CpuBackend,
+            PerformanceBackend,
         },
     };
 
@@ -509,7 +510,7 @@ mod tests {
 
     #[test]
     fn test_basic_block_meta() {
-        type B = SetupTestBackend;
+        type B = CpuBackend;
         let device = Default::default();
 
         let in_planes = 2;
@@ -524,8 +525,9 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_basic_block_forward_same_channels_no_downsample_autodiff() {
-        type B = Autodiff<PerfTestBackend>;
+        type B = Autodiff<PerformanceBackend>;
         let device = Default::default();
 
         let batch_size = 2;
@@ -553,8 +555,9 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_basic_block_forward_downsample_drop_block_drop_path_autodiff() {
-        type B = Autodiff<PerfTestBackend>;
+        type B = Autodiff<PerformanceBackend>;
         let device = Default::default();
 
         let batch_size = 2;

@@ -90,9 +90,9 @@ mod tests {
         },
         *,
     };
-    use crate::support::testing::SetupTestBackend;
+    use crate::support::testing::CpuBackend;
 
-    type B = SetupTestBackend;
+    type B = CpuBackend;
 
     #[test]
     fn test_from_param() {

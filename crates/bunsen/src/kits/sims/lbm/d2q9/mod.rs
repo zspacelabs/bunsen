@@ -66,6 +66,7 @@ mod tests {
         },
     };
     use nearly::nearly;
+    use serial_test::serial;
 
     use crate::{
         kits::sims::lbm::d2q9::{
@@ -75,12 +76,13 @@ mod tests {
             space::dbg_dist,
             streaming::outflow_clipping_stream,
         },
-        support::testing::PerfTestBackend,
+        support::testing::PerformanceBackend,
     };
 
     #[test]
+    #[serial]
     fn test_debug_flow_loss() {
-        type B = PerfTestBackend;
+        type B = PerformanceBackend;
         let device = Default::default();
 
         let k = 5;

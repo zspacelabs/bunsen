@@ -114,13 +114,15 @@ mod tests {
             Tolerance,
         },
     };
+    use serial_test::serial;
 
     use super::*;
-    use crate::support::testing::PerfTestBackend;
+    use crate::support::testing::PerformanceBackend;
 
     #[test]
+    #[serial]
     fn test_window_partition() {
-        type B = PerfTestBackend;
+        type B = PerformanceBackend;
         let device = Default::default();
 
         let b = 3;

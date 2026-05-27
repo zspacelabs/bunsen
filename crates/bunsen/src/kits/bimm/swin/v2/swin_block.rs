@@ -680,9 +680,10 @@ impl<B: Backend> ShiftedWindowTransformerBlock<B> {
 #[cfg(test)]
 mod tests {
     use burn::tensor::Distribution;
+    use serial_test::serial;
 
     use super::*;
-    use crate::support::testing::PerfTestBackend;
+    use crate::support::testing::PerformanceBackend;
 
     #[test]
     fn test_block_mlp_meta() {
@@ -715,8 +716,9 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_mlp() {
-        type B = PerfTestBackend;
+        type B = PerformanceBackend;
         let device = Default::default();
 
         let a = 2;
@@ -747,8 +749,9 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_with_shift() {
-        type B = PerfTestBackend;
+        type B = PerformanceBackend;
         let device = Default::default();
         let b = 1;
         let h = 4;
@@ -782,8 +785,9 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_shifted_window_transformer_block_meta() {
-        type B = PerfTestBackend;
+        type B = PerformanceBackend;
         let device = Default::default();
 
         let d_input = 128;
@@ -833,8 +837,9 @@ mod tests {
 
     #[should_panic(expected = "input_resolution must be greater than zero")]
     #[test]
+    #[serial]
     fn test_shifted_window_transformer_block_config_zero_resolution() {
-        type B = PerfTestBackend;
+        type B = PerformanceBackend;
 
         let d_input = 128;
         let num_heads = 4;
@@ -847,8 +852,9 @@ mod tests {
 
     #[should_panic(expected = "input_resolution must be divisible by window size")]
     #[test]
+    #[serial]
     fn test_shifted_window_transformer_block_config_invalid_resolution() {
-        type B = PerfTestBackend;
+        type B = PerformanceBackend;
 
         let d_input = 128;
         let num_heads = 4;
@@ -861,8 +867,9 @@ mod tests {
 
     #[should_panic(expected = "d_input must be greater than zero")]
     #[test]
+    #[serial]
     fn test_shifted_window_transformer_block_config_zero_d_input() {
-        type B = PerfTestBackend;
+        type B = PerformanceBackend;
 
         let d_input = 0; // Invalid d_input
         let num_heads = 4;
@@ -875,8 +882,9 @@ mod tests {
 
     #[should_panic(expected = "num_heads must be greater than zero")]
     #[test]
+    #[serial]
     fn test_shifted_window_transformer_block_config_zero_num_heads() {
-        type B = PerfTestBackend;
+        type B = PerformanceBackend;
 
         let d_input = 128;
         let num_heads = 0; // Invalid num_heads
@@ -889,8 +897,9 @@ mod tests {
 
     #[should_panic(expected = "window_size must be greater than zero")]
     #[test]
+    #[serial]
     fn test_shifted_window_transformer_block_config_zero_window_size() {
-        type B = PerfTestBackend;
+        type B = PerformanceBackend;
 
         let d_input = 128;
         let num_heads = 4;
@@ -904,8 +913,9 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_block() {
-        type B = PerfTestBackend;
+        type B = PerformanceBackend;
 
         let b = 1;
         let num_heads = 4;

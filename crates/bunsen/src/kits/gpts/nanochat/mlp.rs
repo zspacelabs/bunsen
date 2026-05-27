@@ -128,11 +128,12 @@ impl<B: Backend> NanoChatGptMlp<B> {
 #[cfg(test)]
 mod tests {
     use burn::tensor::Distribution;
+    use serial_test::serial;
 
     use super::*;
     use crate::{
         contracts::assert_shape_contract,
-        support::testing::PerfTestBackend,
+        support::testing::PerformanceBackend,
     };
 
     #[test]
@@ -147,8 +148,9 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_mlp() {
-        type B = PerfTestBackend;
+        type B = PerformanceBackend;
         let device = Default::default();
 
         for activation in [ActivationConfig::Relu, ActivationConfig::Gelu] {

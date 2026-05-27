@@ -192,16 +192,17 @@ mod tests {
         prelude::TensorData,
         tensor::Tolerance,
     };
+    use serial_test::serial;
 
     use super::*;
     use crate::support::testing::{
-        PerfTestBackend,
-        SetupTestBackend,
+        CpuBackend,
+        PerformanceBackend,
     };
 
     #[test]
     fn test_window_index_offset_grid() {
-        type B = SetupTestBackend;
+        type B = CpuBackend;
         let device = Default::default();
 
         window_index_offset_grid::<B>([3, 2], &device)
@@ -220,7 +221,7 @@ mod tests {
 
     #[test]
     fn test_window_relative_offset_grid() {
-        type B = SetupTestBackend;
+        type B = CpuBackend;
         let device = Default::default();
 
         window_relative_offset_grid::<B>([3, 2], &device)
@@ -239,8 +240,9 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_window_log_offset_grid() {
-        type B = PerfTestBackend;
+        type B = PerformanceBackend;
         let device = Default::default();
         let base = 8.0;
 
@@ -276,7 +278,7 @@ mod tests {
 
     #[test]
     fn test_relative_position_index() {
-        type B = SetupTestBackend;
+        type B = CpuBackend;
         let window_shape = [2, 3];
 
         let device = Default::default();

@@ -136,7 +136,7 @@ mod tests {
     use burn::module::DisplaySettings;
 
     use super::*;
-    use crate::support::testing::SetupTestBackend;
+    use crate::support::testing::CpuBackend;
 
     #[test]
     fn test_noise_config_display() {
@@ -202,7 +202,7 @@ mod tests {
 
     #[test]
     fn test_noise_like_default_clamp() {
-        type B = SetupTestBackend;
+        type B = CpuBackend;
         let device = Default::default();
 
         let reference: Tensor<B, 2> = Tensor::ones([20, 20], &device);
@@ -233,7 +233,7 @@ mod tests {
 
     #[test]
     fn test_noise_like_bernoulli() {
-        type B = SetupTestBackend;
+        type B = CpuBackend;
         let device = Default::default();
 
         let reference: Tensor<B, 2> = Tensor::ones([20, 20], &device);

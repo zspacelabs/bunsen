@@ -25,7 +25,7 @@ pub use image::ColorType;
 mod tests {
     use std::sync::Arc;
 
-    use bunsen::support::testing::PerfTestBackend;
+    use bunsen::support::testing::PerformanceBackend;
     use bunsen_firehose::{
         core::{
             FirehoseRowBatch,
@@ -69,7 +69,7 @@ mod tests {
     fn test_example() -> anyhow::Result<()> {
         let temp_dir = tempfile::tempdir().unwrap();
 
-        type B = PerfTestBackend;
+        type B = PerformanceBackend;
 
         let device = Default::default();
 

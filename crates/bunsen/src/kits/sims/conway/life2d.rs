@@ -292,13 +292,15 @@ mod tests {
         prelude::s,
         tensor::TensorData,
     };
+    use serial_test::serial;
 
     use super::*;
-    use crate::support::testing::PerfTestBackend;
+    use crate::support::testing::PerformanceBackend;
 
     #[test]
+    #[serial]
     fn test_smoke() {
-        type B = PerfTestBackend;
+        type B = PerformanceBackend;
         let device = Default::default();
 
         let steps = 100;
@@ -316,8 +318,9 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_logic() {
-        type B = PerfTestBackend;
+        type B = PerformanceBackend;
         let device = Default::default();
         let config = ConwayLife2DConfig { shape: [5, 5] };
         let mut conway: ConwayLife2DState<B> = config.init(&device);

@@ -297,10 +297,8 @@ where
 
 #[cfg(test)]
 mod tests {
-    use burn::{
-        prelude::Backend,
-        tensor::Distribution,
-    };
+    use burn::tensor::Distribution;
+    use serial_test::serial;
 
     use super::*;
     use crate::{
@@ -308,12 +306,13 @@ mod tests {
             PatchEmbedConfig,
             PatchEmbedMeta,
         },
-        support::testing::PerfTestBackend,
+        support::testing::PerformanceBackend,
     };
 
-    type B = PerfTestBackend;
+    type B = PerformanceBackend;
 
     #[test]
+    #[serial]
     fn test_collate_patches() {
         let b = 2;
         let h = 4;
@@ -369,12 +368,9 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_patch_merging() {
-        impl_test_patch_merging::<B>();
-    }
-
-    fn impl_test_patch_merging<B: Backend>() {
-        let device: B::Device = Default::default();
+        let device = Default::default();
 
         let b = 2;
         let h = 12;
@@ -420,6 +416,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_patch_embed() {
         let device = Default::default();
 

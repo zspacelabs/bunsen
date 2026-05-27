@@ -128,8 +128,10 @@ impl RelaxationParam {
 
 #[cfg(test)]
 mod tests {
+    use serial_test::serial;
+
     use super::*;
-    use crate::support::testing::PerfTestBackend;
+    use crate::support::testing::PerformanceBackend;
 
     #[test]
     fn test_relaxation_param() {
@@ -159,8 +161,9 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_omega_source_from_relaxation() {
-        type B = PerfTestBackend;
+        type B = PerformanceBackend;
         let device = Default::default();
 
         let relaxation = RelaxationParam::Omega(1.0);

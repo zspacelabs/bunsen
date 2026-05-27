@@ -152,8 +152,8 @@ mod tests {
     use burn::prelude::TensorData;
 
     use super::*;
-    use crate::support::testing::SetupTestBackend;
-    type B = SetupTestBackend;
+    use crate::support::testing::CpuBackend;
+    type B = CpuBackend;
 
     #[test]
     fn test_float_arange() {

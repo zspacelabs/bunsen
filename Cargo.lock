@@ -8983,15 +8983,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "wc-disk-cache"
-version = "0.21.3"
-dependencies = [
- "directories-next",
- "downloader",
- "serial_test",
-]
-
-[[package]]
 name = "web-sys"
 version = "0.3.99"
 source = "registry+https://github.com/rust-lang/crates.io-index"

@@ -290,16 +290,18 @@ pub fn dist_windows<B: Backend>(dist: Tensor<B, 4>) -> Tensor<B, 6> {
 #[cfg(test)]
 mod tests {
     use burn::tensor::Tolerance;
+    use serial_test::serial;
 
     use super::{
         super::velocity_squared,
         *,
     };
-    use crate::support::testing::PerfTestBackend;
+    use crate::support::testing::PerformanceBackend;
 
     #[test]
+    #[serial]
     fn test_population_density() {
-        type B = PerfTestBackend;
+        type B = PerformanceBackend;
         let device = Default::default();
 
         let dist: Tensor<B, 4> = Tensor::from_data(
@@ -325,8 +327,9 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_direction_vectors() {
-        type B = PerfTestBackend;
+        type B = PerformanceBackend;
         let device = Default::default();
 
         let e: Tensor<B, 3> = direction_vectors(&device);
@@ -346,8 +349,9 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_weight_matrix() {
-        type B = PerfTestBackend;
+        type B = PerformanceBackend;
         let device = Default::default();
 
         let w: Tensor<B, 2> = weight_matrix(&device);
@@ -367,8 +371,9 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_momentum_and_velocity() {
-        type B = PerfTestBackend;
+        type B = PerformanceBackend;
         let device = Default::default();
 
         let dist: Tensor<B, 4> = Tensor::from_data(

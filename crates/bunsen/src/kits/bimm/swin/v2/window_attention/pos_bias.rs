@@ -311,6 +311,8 @@ impl<B: Backend> ContinuousPositionBiasMlp<B> {
 
 #[cfg(test)]
 mod tests {
+    use serial_test::serial;
+
     use super::*;
     use crate::{
         contracts::assert_shape_contract,
@@ -319,14 +321,14 @@ mod tests {
             window_log1p_relative_offset_grid,
         },
         support::testing::{
-            PerfTestBackend,
-            SetupTestBackend,
+            CpuBackend,
+            PerformanceBackend,
         },
     };
 
     #[test]
     fn test_rpb_meta() {
-        type B = SetupTestBackend;
+        type B = CpuBackend;
 
         let config = RelativePositionBiasConfig::new(12, [3, 2]);
 
@@ -347,8 +349,9 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_og_rpb() {
-        type B = PerfTestBackend;
+        type B = PerformanceBackend;
         let device = Default::default();
 
         let window_shape = [3, 2];
@@ -388,8 +391,9 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_cpb_mlp_meta() {
-        type B = SetupTestBackend;
+        type B = CpuBackend;
         let config = ContinuousPositionBiasMlpConfig::new(8).with_d_hidden(512);
 
         assert_eq!(config.d_hidden(), 512);

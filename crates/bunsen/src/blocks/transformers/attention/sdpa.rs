@@ -187,12 +187,15 @@ pub fn sdpa_bias<B: Backend>(
 
 #[cfg(test)]
 mod tests {
+    use serial_test::serial;
+
     use super::*;
-    use crate::support::testing::PerfTestBackend;
+    use crate::support::testing::PerformanceBackend;
 
     #[test]
+    #[serial]
     fn test_scaled_dot_product_attention_bias() {
-        type B = PerfTestBackend;
+        type B = PerformanceBackend;
         let device = Default::default();
         let dtype = DType::F32;
 

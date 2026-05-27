@@ -62,11 +62,11 @@ pub fn repeat_interleave<B: Backend, const R: usize, const R2: usize, D: AsIndex
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::support::testing::SetupTestBackend;
+    use crate::support::testing::CpuBackend;
 
     #[test]
     fn test_repeat_interleave() {
-        type B = SetupTestBackend;
+        type B = CpuBackend;
         let device = Default::default();
 
         let input = Tensor::<B, 2>::from_data([[0., 1., 2.], [3., 4., 5.]], &device);

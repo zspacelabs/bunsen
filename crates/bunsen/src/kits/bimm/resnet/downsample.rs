@@ -263,10 +263,12 @@ impl<B: Backend> ResNetDownsample<B> {
 
 #[cfg(test)]
 mod tests {
+    use serial_test::serial;
+
     use super::*;
     use crate::{
         contracts::assert_shape_contract,
-        support::testing::PerfTestBackend,
+        support::testing::PerformanceBackend,
     };
 
     #[test]
@@ -285,8 +287,9 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_downsample() {
-        type B = PerfTestBackend;
+        type B = PerformanceBackend;
         let device = Default::default();
 
         let batch_size = 2;

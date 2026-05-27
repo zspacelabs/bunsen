@@ -258,11 +258,11 @@ mod tests {
     use burn::tensor::TensorData;
 
     use super::*;
-    use crate::support::testing::SetupTestBackend;
+    use crate::support::testing::CpuBackend;
 
     #[test]
     fn test_patch_embed_meta() {
-        type B = SetupTestBackend;
+        type B = CpuBackend;
         let config = PatchEmbedConfig {
             input_resolution: [224, 224],
             patch_size: 16,
@@ -302,7 +302,7 @@ mod tests {
     #[should_panic(expected = "Input resolution must be divisible by patch size")]
     #[test]
     fn test_patch_embed_invalid_resolution() {
-        type B = SetupTestBackend;
+        type B = CpuBackend;
         let config = PatchEmbedConfig {
             input_resolution: [224, 223], // Invalid resolution
             patch_size: 16,
@@ -316,7 +316,7 @@ mod tests {
 
     #[test]
     fn test_patch_embed_forward() {
-        type B = SetupTestBackend;
+        type B = CpuBackend;
         let config = PatchEmbedConfig {
             input_resolution: [224, 224],
             patch_size: 16,
@@ -338,7 +338,7 @@ mod tests {
 
     #[test]
     fn test_patch_embed_without_norm() {
-        type B = SetupTestBackend;
+        type B = CpuBackend;
         let config = PatchEmbedConfig {
             input_resolution: [224, 224],
             patch_size: 16,

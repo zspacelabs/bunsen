@@ -323,8 +323,10 @@ impl<B: Backend> StochasticDepthTransformerBlockSequence<B> {
 mod tests {
     use alloc::vec;
 
+    use serial_test::serial;
+
     use super::*;
-    use crate::support::testing::PerfTestBackend;
+    use crate::support::testing::PerformanceBackend;
 
     #[test]
     fn test_config() {
@@ -393,8 +395,9 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_module_init() {
-        type B = PerfTestBackend;
+        type B = PerformanceBackend;
 
         let d_input = 96;
         let input_resolution = [56, 56];

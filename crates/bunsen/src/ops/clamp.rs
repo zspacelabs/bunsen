@@ -111,7 +111,7 @@ mod tests {
     };
 
     use super::*;
-    use crate::support::testing::SetupTestBackend;
+    use crate::support::testing::CpuBackend;
 
     #[test]
     fn test_clamp_config_display() {
@@ -132,7 +132,7 @@ mod tests {
 
     #[test]
     fn test_config() {
-        type B = SetupTestBackend;
+        type B = CpuBackend;
         let device = Default::default();
 
         let cfg = ClampOp::default();

@@ -647,13 +647,15 @@ mod tests {
         Distribution,
         Tolerance,
     };
+    use serial_test::serial;
 
     use super::*;
-    use crate::support::testing::PerfTestBackend;
+    use crate::support::testing::PerformanceBackend;
 
-    type B = PerfTestBackend;
+    type B = PerformanceBackend;
 
     #[test]
+    #[serial]
     fn test_swin_transformer_v2_meta() {
         let config = SwinTransformerV2Config {
             input_resolution: [224, 224],
@@ -756,8 +758,9 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_smoke_test_ape() {
-        type B = PerfTestBackend;
+        type B = PerformanceBackend;
         let device = Default::default();
 
         let b = 2;
@@ -836,8 +839,9 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_smoke_test_no_ape() {
-        type B = PerfTestBackend;
+        type B = PerformanceBackend;
         let device = Default::default();
 
         let b = 2;

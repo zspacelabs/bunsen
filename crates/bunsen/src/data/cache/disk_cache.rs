@@ -13,9 +13,15 @@ use downloader::{
     Downloader,
 };
 
-use crate::data::cache::{
-    BUNSEN_CACHE_CONFIG,
-    path_utils,
+use crate::{
+    data::cache::{
+        BUNSEN_CACHE_CONFIG,
+        path_utils,
+    },
+    errors::{
+        BunsenError,
+        BunsenResult,
+    },
 };
 
 /// Environment variable key to override the default cache directory.
@@ -89,18 +95,24 @@ impl Default for BunsenDiskCache {
 
 impl BunsenDiskCache {
     /// Construct a new [`BunsenDiskCache`].
-    pub fn new(options: BunsenDiskCacheOptions) -> Result<Self, Box<dyn std::error::Error>> {
+    pub fn new(options: BunsenDiskCacheOptions) -> BunsenResult<Self> {
         let cache_dir = BUNSEN_CACHE_CONFIG
             .resolve_cache_dir(options.cache_dir)
-            .ok_or("failed to resolve cache directory")?;
+            .ok_or(BunsenError::ResourceNotFound(
+                "failed to resolve cache directory".to_string(),
+            ))?;
 
         let data_dir = BUNSEN_CACHE_CONFIG
             .resolve_data_dir(options.data_dir)
-            .ok_or("failed to resolve data directory")?;
+            .ok_or(BunsenError::ResourceNotFound(
+                "failed to resolve data directory".to_string(),
+            ))?;
 
         let downloader = match options.downloader {
             Some(builder) => builder(),
-            None => Downloader::builder().build()?,
+            None => Downloader::builder()
+                .build()
+                .map_err(|e| BunsenError::Wrapped(Box::new(e)))?,
         };
 
         Ok(Self {
@@ -125,6 +137,68 @@ impl BunsenDiskCache {
         &self.downloader
     }
 
+    /// Loads a file from a specified path or downloads it if it does not exist.
+    ///
+    /// # Arguments
+    /// * `context`: A slice of `C` containing path-related context used in
+    ///   determining the cache location. These paths are combined to build the
+    ///   cached file's location.
+    /// * `urls`: A slice of string references specifying the URLs to download
+    ///   the file from if it is not already cached.
+    /// * `download`: A boolean flag indicating whether to attempt downloading
+    ///   the file from the provided URLs if it does not already exist in the
+    ///   cache.
+    ///
+    /// # Returns
+    /// * Returns a [`PathBuf`] pointing to the cached file if it exists or is
+    ///   successfully downloaded.
+    /// * Returns an error if the file is not found in the cache and downloading
+    ///   is not allowed or fails.
+    ///
+    /// # Errors
+    /// * Returns an error if the cached file does not exist and `download` is
+    ///   `false`.
+    /// * Returns an error if the downloading process fails.
+    fn _load_resource<P, C, S>(
+        &mut self,
+        root: &P,
+        context: &[C],
+        urls: &[S],
+        download: bool,
+        // TODO: hash: Option<&str>,
+    ) -> BunsenResult<PathBuf>
+    where
+        P: AsRef<Path>,
+        C: AsRef<Path>,
+        S: AsRef<str>,
+    {
+        let urls: Vec<_> = urls.iter().map(|s| s.as_ref()).collect();
+        let mut dl = Download::new_mirrored(&urls);
+        let file_name = dl.file_name.clone();
+        let path = path_utils::extend_path(root, context, &file_name);
+        dl.file_name = path.clone();
+
+        if path.exists() {
+            return Ok(path);
+        }
+
+        if !download {
+            return Err(BunsenError::ResourceNotFound(format!(
+                "cached file not found: {}",
+                path.display()
+            )));
+        }
+
+        fs::create_dir_all(path.parent().unwrap())
+            .map_err(|e| BunsenError::Wrapped(Box::new(e)))?;
+
+        self.downloader
+            .download(&[dl])
+            .map_err(|e| BunsenError::Wrapped(Box::new(e)))?;
+
+        Ok(path)
+    }
+
     /// Get the cache path for the given key.
     ///
     /// * Does not check that the path exists.
@@ -143,6 +217,26 @@ impl BunsenDiskCache {
         F: AsRef<Path>,
     {
         path_utils::extend_path(&self.cache_dir, context, file)
+    }
+
+    /// Get the data path for the given key.
+    ///
+    /// * Does not check that the path exists.
+    /// * Does not initialize the containing directories.
+    ///
+    /// # Arguments
+    /// * `context` - prefix dirs, inserted between `self.cache_dir` and `file`.
+    /// * `file` - the final file name.
+    pub fn data_path<C, F>(
+        &self,
+        context: &[C],
+        file: F,
+    ) -> PathBuf
+    where
+        C: AsRef<Path>,
+        F: AsRef<Path>,
+    {
+        path_utils::extend_path(&self.data_dir, context, file)
     }
 
     /// Loads a cached file from a specified path or downloads it if it does not
@@ -174,50 +268,51 @@ impl BunsenDiskCache {
         urls: &[S],
         download: bool,
         // TODO: hash: Option<&str>,
-    ) -> Result<PathBuf, Box<dyn std::error::Error>>
+    ) -> BunsenResult<PathBuf>
     where
         C: AsRef<Path>,
         S: AsRef<str>,
     {
-        let urls: Vec<_> = urls.iter().map(|s| s.as_ref()).collect();
-        let mut dl = Download::new_mirrored(&urls);
-        let file_name = dl.file_name.clone();
-        let path = self.cache_path(context, &file_name);
-        dl.file_name = path.clone();
-
-        if path.exists() {
-            return Ok(path);
-        }
-
-        if !download {
-            return Err(format!("cached file not found: {}", path.display()).into());
-        }
-
-        fs::create_dir_all(path.parent().unwrap())?;
-
-        self.downloader.download(&[dl])?;
-
-        Ok(path)
+        let root = self.cache_dir.clone();
+        self._load_resource(&root, context, urls, download)
     }
 
-    /// Get the data path for the given key.
-    ///
-    /// * Does not check that the path exists.
-    /// * Does not initialize the containing directories.
+    /// Loads a data file from a specified path or downloads it if it does not
+    /// exist.
     ///
     /// # Arguments
-    /// * `context` - prefix dirs, inserted between `self.cache_dir` and `file`.
-    /// * `file` - the final file name.
-    pub fn data_path<C, F>(
-        &self,
+    /// * `context`: A slice of `C` containing path-related context used in
+    ///   determining the cache location. These paths are combined to build the
+    ///   data file's location.
+    /// * `urls`: A slice of string references specifying the URLs to download
+    ///   the file from if it is not already data.
+    /// * `download`: A boolean flag indicating whether to attempt downloading
+    ///   the file from the provided URLs if it does not already exist in the
+    ///   cache.
+    ///
+    /// # Returns
+    /// * Returns a [`PathBuf`] pointing to the data file if it exists or is
+    ///   successfully downloaded.
+    /// * Returns an error if the file is not found in the cache and downloading
+    ///   is not allowed or fails.
+    ///
+    /// # Errors
+    /// * Returns an error if the data file does not exist and `download` is
+    ///   `false`.
+    /// * Returns an error if the downloading process fails.
+    pub fn load_data_path<C, S>(
+        &mut self,
         context: &[C],
-        file: F,
-    ) -> PathBuf
+        urls: &[S],
+        download: bool,
+        // TODO: hash: Option<&str>,
+    ) -> BunsenResult<PathBuf>
     where
         C: AsRef<Path>,
-        F: AsRef<Path>,
+        S: AsRef<str>,
     {
-        path_utils::extend_path(&self.data_dir, context, file)
+        let root = self.cache_dir.clone();
+        self._load_resource(&root, context, urls, download)
     }
 }
 

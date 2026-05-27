@@ -9,7 +9,7 @@ use bunsen::{
         stream_interior_windows,
         with_spherical_reflection,
     },
-    support::testing::PerfTestBackend,
+    support::testing::PerformanceBackend,
 };
 use burn::{
     Tensor,
@@ -32,7 +32,7 @@ use criterion::{
 };
 
 fn bench_lbm_d2q9(c: &mut Criterion) {
-    type B = PerfTestBackend;
+    type B = PerformanceBackend;
     let device = Default::default();
 
     let n = 1000;
