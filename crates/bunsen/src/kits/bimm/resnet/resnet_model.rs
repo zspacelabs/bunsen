@@ -63,6 +63,10 @@ use crate::{
         },
         drop::drop_block::DropBlockOptions,
     },
+    errors::{
+        BunsenError,
+        BunsenResult,
+    },
     ops::conv::CONV_INTO_RELU_INITIALIZER,
     support::validators::expect_probability,
 };
@@ -407,7 +411,7 @@ impl<B: Backend> ResNet<B> {
     pub fn load_pytorch_weights(
         mut self,
         path: impl Into<std::path::PathBuf>,
-    ) -> anyhow::Result<Self> {
+    ) -> BunsenResult<Self> {
         use burn_store::{
             ModuleSnapshot,
             PytorchStore,
@@ -425,7 +429,8 @@ impl<B: Backend> ResNet<B> {
             .with_key_remapping(r"fc\.", "output_fc.")
             .with_key_remapping(r"layer(\d+)\.", "layers.$1.blocks.");
 
-        self.load_from(&mut store)?;
+        self.load_from(&mut store)
+            .map_err(|e| BunsenError::External(e.to_string()))?;
 
         Ok(self)
     }
@@ -547,7 +552,7 @@ mod tests {
     fn test_load_pytorch<B: Backend>(
         prefab: &str,
         pretrained: &str,
-    ) -> anyhow::Result<()> {
+    ) -> BunsenResult<()> {
         use bunsen_cache::DiskCacheConfig;
 
         use crate::kits::bimm::resnet::PREFAB_RESNET_MAP;
@@ -562,7 +567,8 @@ mod tests {
 
         let path = prefab
             .expect_lookup_pretrained_weights(pretrained)
-            .fetch_weights(&DiskCacheConfig::default())?;
+            .fetch_weights(&DiskCacheConfig::default())
+            .map_err(|e| BunsenError::External(e.to_string()))?;
 
         let _model: ResNet<B> = model.load_pytorch_weights(path.clone())?;
 
@@ -572,7 +578,7 @@ mod tests {
     #[test]
     #[serial]
     #[cfg(feature = "store")]
-    fn test_load_pytorch_prefab() -> anyhow::Result<()> {
+    fn test_load_pytorch_prefab() -> BunsenResult<()> {
         type B = PerformanceBackend;
         let prefab = "resnet18";
         let pretrained = "tv_in1k";
@@ -583,7 +589,7 @@ mod tests {
     #[serial]
     #[cfg(feature = "store")]
     #[cfg(feature = "cuda")]
-    fn test_load_pytorch_prefab_cuda() -> anyhow::Result<()> {
+    fn test_load_pytorch_prefab_cuda() -> BunsenResult<()> {
         type B = burn::backend::Cuda;
         let prefab = "resnet34";
         let pretrained = "tv_in1k";
@@ -594,7 +600,7 @@ mod tests {
     #[serial]
     #[cfg(feature = "store")]
     #[cfg(feature = "cuda")]
-    fn test_load_pytorch_prefab_cuda_bf16() -> anyhow::Result<()> {
+    fn test_load_pytorch_prefab_cuda_bf16() -> BunsenResult<()> {
         type B = burn::backend::Cuda<burn::tensor::bf16>;
         let prefab = "resnet34";
         let pretrained = "tv_in1k";

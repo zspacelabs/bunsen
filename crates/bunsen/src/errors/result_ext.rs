@@ -28,15 +28,17 @@ where
 
 #[cfg(test)]
 mod tests {
-    use anyhow::bail;
-
     use super::*;
 
     fn try_example(
         value: i32,
         throw: bool,
-    ) -> anyhow::Result<i32> {
-        if throw { bail!("throwing") } else { Ok(value) }
+    ) -> Result<i32, String> {
+        if throw {
+            Err("throwing".to_string())
+        } else {
+            Ok(value)
+        }
     }
 
     #[test]

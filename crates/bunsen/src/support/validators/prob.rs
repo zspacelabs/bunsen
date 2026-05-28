@@ -1,10 +1,14 @@
 use core::fmt::Debug;
 
-use anyhow::bail;
 use num_traits::{
     Float,
     One,
     Zero,
+};
+
+use crate::errors::{
+    BunsenError,
+    BunsenResult,
 };
 
 /// Validate a validators in the range ``[0.0, 1.0]``.
@@ -15,13 +19,16 @@ use num_traits::{
 ///
 /// # Returns
 ///
-/// An `anyhow::Result<prob>`
+/// A `BunsenResult<prob>`
 #[inline]
-pub fn try_probability<F: Float + Debug>(prob: F) -> anyhow::Result<F> {
+pub fn try_probability<F: Float + Debug>(prob: F) -> BunsenResult<F> {
     if prob < F::zero() || prob > F::one() {
-        bail!("validators must be in [0.0, 1.0]: {prob:?}");
+        Err(BunsenError::Invalid(format!(
+            "validators must be in [0.0, 1.0]: {prob:?}"
+        )))
+    } else {
+        Ok(prob)
     }
-    Ok(prob)
 }
 
 /// Expect a validators to be in range ``[0.0, 1.0]``, or panic.

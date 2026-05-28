@@ -605,7 +605,6 @@ checksum = "5d20789868f4b01b2f2caec9f5c4e0213b41e3e5702a50157d699ae31ced2fcb"
 name = "bunsen"
 version = "0.21.3"
 dependencies = [
- "anyhow",
  "bunsen-cache",
  "bunsen-contracts-macros",
  "burn",

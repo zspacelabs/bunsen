@@ -14,9 +14,11 @@ use core::{
     fmt::Debug,
 };
 
-use anyhow::bail;
-
-use crate::errors::WithOkOrPanic;
+use crate::errors::{
+    BunsenError,
+    BunsenResult,
+    WithOkOrPanic,
+};
 
 /// Z-space `PartialOrd`
 ///
@@ -79,13 +81,13 @@ pub fn zspace_partial_cmp<T: PartialOrd>(
 ///
 /// # Returns
 ///
-/// An `anyhow::Result<()>` that is `Ok(())` if the point is in the range,
+/// An `BunsenResult<()>` that is `Ok(())` if the point is in the range,
 /// and a formatted bounds error otherwise.
 pub fn try_point_bounds_check<T>(
     point: &[T],
     start: &[T],
     end: &[T],
-) -> anyhow::Result<()>
+) -> BunsenResult<()>
 where
     T: PartialOrd + Debug,
 {
@@ -94,9 +96,12 @@ where
         Some(Ordering::Less) | Some(Ordering::Equal)
     ) || zspace_partial_cmp(point, end) != Some(Ordering::Less)
     {
-        bail!("{point:?} is not in [ {start:?}, {end:?} )");
+        Err(BunsenError::Invalid(format!(
+            "{point:?} is not in [ {start:?}, {end:?} )"
+        )))
+    } else {
+        Ok(())
     }
-    Ok(())
 }
 
 /// Expects that a `point` is in the half-open range ``[start, end)``
