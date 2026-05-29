@@ -9,7 +9,7 @@
 //!
 //! ```rust,no_run
 //! use bunsen::{
-//!     cache::DiskCacheConfig,
+//!     data::cache::BunsenDiskCache,
 //!     kits::bimm::resnet::{
 //!         PREFAB_RESNET_MAP,
 //!         ResNet,
@@ -23,7 +23,7 @@
 //!
 //! let weights = prefab
 //!     .expect_lookup_pretrained_weights("tv_in1k")
-//!     .fetch_weights(&DiskCacheConfig::default())
+//!     .fetch_weights(&mut BunsenDiskCache::default())
 //!     .expect("Failed to fetch weights");
 //!
 //! let model: ResNet<Flex> = prefab

@@ -10,15 +10,19 @@ use alloc::{
     vec,
     vec::Vec,
 };
+use std::path::PathBuf;
 
 use serde::{
     Deserialize,
     Serialize,
 };
 
-use crate::errors::{
-    BunsenError,
-    BunsenResult,
+use crate::{
+    data::cache::BunsenDiskCache,
+    errors::{
+        BunsenError,
+        BunsenResult,
+    },
 };
 
 const X25: crc::Crc<u16> = crc::Crc::<u16>::new(&crc::CRC_16_IBM_SDLC);
@@ -114,23 +118,22 @@ impl PretrainedWeightsDescriptor {
         url_to_cache_key(Some(&self.name), self.urls.first().unwrap())
     }
 
-    /*
     /// Read-Through Cache the Model Weights
     ///
     /// # Returns
     ///
     /// The disk location of the cached weights.
+    #[cfg(feature = "cache")]
     pub fn fetch_weights(
         &self,
-        disk_cache: &DiskCacheConfig,
-    ) -> anyhow::Result<PathBuf> {
+        disk_cache: &mut BunsenDiskCache,
+    ) -> BunsenResult<PathBuf> {
         let url = self.urls.first().unwrap();
         let cache_key = &self.cache_key();
         let resource = pretrained_weights_resource_key(cache_key);
 
-        disk_cache.fetch_resource(url, &resource)
+        disk_cache.load_cached_path(&resource, &[url], true)
     }
-     */
 }
 
 /// Static [`PretrainedWeightsMap`] builder.

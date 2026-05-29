@@ -70,7 +70,6 @@ train = [
 ## Enable the disk cache.
 cache = [
     "std",
-    "dep:bunsen-cache",
     "downloader/default-tls",
 ]
 
@@ -107,7 +106,6 @@ flex = ["burn/flex"]
 
 [dependencies]
 bunsen-contracts-macros = { version = "0.21.3", path = "../bunsen-contracts-macros" }
-bunsen-cache = { path = "../bunsen-cache", version = "0.21.3", optional = true }
 
 burn = { workspace = true }
 burn-store = { workspace = true, optional = true }
@@ -119,7 +117,7 @@ serde_json = { workspace = true }
 crc = { workspace = true }
 
 directories-next = { workspace = true }
-# features=["tui"} incompatible with conflicting indicatif versions.
+# features=["tui"] incompatible with conflicting indicatif versions.
 downloader = { workspace = true, default-features = false }
 
 num-traits = { workspace = true }

@@ -867,10 +867,10 @@ checksum = "72f5acc6cb2ba439de613abc23857ec3d78374d8ed5ac84e9d11336e87da8649"
 name = "bunsen"
 version = "0.21.3"
 dependencies = [
- "bunsen-cache",
  "bunsen-contracts-macros",
  "burn",
  "burn-store",
+ "crc",
  "directories-next",
  "document-features",
  "downloader",
@@ -884,17 +884,6 @@ dependencies = [
  "thiserror 2.0.18",
  "xee-xpath",
  "xot",
-]
-
-[[package]]
-name = "bunsen-cache"
-version = "0.21.3"
-dependencies = [
- "anyhow",
- "burn",
- "crc",
- "dirs",
- "serde",
 ]
 
 [[package]]

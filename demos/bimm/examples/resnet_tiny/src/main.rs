@@ -11,7 +11,7 @@ use std::sync::Arc;
 
 use bunsen::{
     burner::module::DTypeMapper,
-    cache::DiskCacheConfig,
+    data::cache::BunsenDiskCache,
     kits::bimm::resnet::{
         PREFAB_RESNET_MAP,
         ResNet,
@@ -237,7 +237,7 @@ pub fn backend_main<B: AutodiffBackend>(args: &Args) -> anyhow::Result<()> {
 
             let weights = prefab
                 .expect_lookup_pretrained_weights(pretrained)
-                .fetch_weights(&DiskCacheConfig::default())?;
+                .fetch_weights(&mut BunsenDiskCache::default())?;
 
             resnet
                 .load_pytorch_weights(weights)?

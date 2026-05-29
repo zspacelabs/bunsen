@@ -3,7 +3,7 @@
 use alloc::vec;
 
 use crate::{
-    cache::{
+    data::pretrained::{
         StaticPreFabConfig,
         StaticPreFabMap,
         StaticPretrainedWeightsDescriptor,

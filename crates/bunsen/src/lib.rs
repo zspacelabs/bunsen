@@ -84,6 +84,8 @@
 extern crate alloc;
 extern crate core;
 
+// Make the macro targets public.
+// TODO: re-examine contracts publication.
 #[doc(hidden)]
 pub use bunsen_contracts_macros::shape_contract as __proc_shape_contract;
 
@@ -94,11 +96,6 @@ pub mod public {
     pub use burn;
     pub use hashbrown;
 }
-
-#[cfg(feature = "cache")]
-pub use bunsen_cache as cache;
-// Make the macro targets public.
-// TODO: re-examine contracts publication.
 
 pub mod blocks;
 pub mod burner;

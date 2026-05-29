@@ -11,7 +11,7 @@ use std::time::Instant;
 use anyhow::Context;
 use bunsen::{
     burner::module::DTypeMapper,
-    cache::DiskCacheConfig,
+    data::cache::BunsenDiskCache,
     kits::bimm::resnet::{
         PREFAB_RESNET_MAP,
         ResNet,
@@ -314,13 +314,13 @@ pub fn train<B: AutodiffBackend>(args: &Args) -> anyhow::Result<()> {
 
     B::seed(&device, args.seed);
 
-    let disk_cache = DiskCacheConfig::default();
+    let mut disk_cache = BunsenDiskCache::default();
 
     let prefab = PREFAB_RESNET_MAP.expect_lookup_prefab(&resnet_prefab);
 
     let weights = prefab
         .expect_lookup_pretrained_weights(&resnet_pretrained)
-        .fetch_weights(&disk_cache)
+        .fetch_weights(&mut disk_cache)
         .expect("Failed to fetch pretrained weights");
 
     let mut resnet_config = prefab.to_config();

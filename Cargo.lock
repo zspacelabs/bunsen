@@ -586,7 +586,6 @@ name = "bunsen"
 version = "0.21.3"
 dependencies = [
  "bunsen",
- "bunsen-cache",
  "bunsen-contracts-macros",
  "burn",
  "burn-store",
