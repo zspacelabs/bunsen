@@ -1,5 +1,5 @@
 [package]
-name = "swin_tiny"
+name = "resnet_tiny"
 publish = false
 rust-version.workspace = true
 edition.workspace = true
@@ -8,7 +8,6 @@ repository.workspace = true
 
 [lints]
 workspace = true
-
 
 [features]
 default = []
@@ -19,11 +18,13 @@ metal = ["burn/metal"]
 
 [dependencies]
 burn = { workspace = true, features = ["train", "fusion", "autotune", "vision", "dataset", "flex"] }
-bunsen = { workspace = true }
-bunsen-firehose = { workspace = true }
-bunsen-firehose-image = { workspace = true }
+bunsen = { path = "../../crates/bunsen" }
+bunsen-firehose = { path = "../../crates/bunsen-firehose" }
+bunsen-firehose-image = { path = "../../crates/bunsen-firehose-image" }
 
 serde = { workspace = true, features = ["derive"] }
 clap = { workspace = true, features = ["derive"] }
+
 rand = { workspace = true }
 anyhow = { workspace = true }
+

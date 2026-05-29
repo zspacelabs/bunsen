@@ -1,14 +1,13 @@
 [package]
-name = "train"
+name = "train-chat"
 rust-version.workspace = true
 edition.workspace = true
 publish = false
 
 [dependencies]
-zsl-data-cache = { path = "../../crates/zsl-data-cache", version = "0.0.9" }
-
-bunsen = { workspace = true }
-bunsen-preview-chat-dataloader = { workspace = true }
+zsl-data-cache = { path = "../zsl-data-cache" }
+bunsen = { path = "../../crates/bunsen" }
+bunsen-preview-chat-dataloader = { path = "../../crates/bunsen-preview-chat-dataloader" }
 
 num-traits = { workspace = true }
 rand = { workspace = true }

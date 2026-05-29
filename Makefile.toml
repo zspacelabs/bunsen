@@ -15,37 +15,6 @@ args = ["doc", "--no-deps"]
 [tasks.setup]
 dependencies = ["ensure-mdbook-suite"]
 
-[tasks.fix-bimm]
-command = "cargo"
-args = ["make", "--cwd", "demos/bimm", "--makefile", "Makefile.toml", "fix"]
-
-[tasks.fix-sims]
-command = "cargo"
-args = ["make", "--cwd", "demos/sims", "--makefile", "Makefile.toml", "fix"]
-
-[tasks.fix-chat]
-command = "cargo"
-args = ["make", "--cwd", "demos/chat", "--makefile", "Makefile.toml", "fix"]
-
-[tasks.check-all]
-dependencies = [
-    "check-bimm",
-    "check-sims",
-    "check-chat",
-]
-
-[tasks.check-bimm]
-command = "cargo"
-args = ["make", "--cwd", "demos/bimm", "--makefile", "Makefile.toml", "check"]
-
-[tasks.check-sims]
-command = "cargo"
-args = ["make", "--cwd", "demos/sims", "--makefile", "Makefile.toml", "check"]
-
-[tasks.check-chat]
-command = "cargo"
-args = ["make", "--cwd", "demos/chat", "--makefile", "Makefile.toml", "check"]
-
 # ── individual tasks ──────────────────────────────────────────────────────────
 
 [tasks.check-format]
@@ -86,9 +55,6 @@ args = ["test", "--workspace"]
 dependencies = [
     "clippy-fix",
     "format",
-    "fix-bimm",
-    "fix-sims",
-    "fix-chat",
 ]
 
 [tasks.tests-all]

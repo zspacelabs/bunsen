@@ -11,7 +11,7 @@ workspace = true
 
 [dependencies]
 burn = { workspace = true, features = ["train", "fusion", "autotune", "network", "vision", "flex"] }
-bunsen = { workspace = true }
+bunsen = { path = "../../crates/bunsen" }
 
 anyhow = { workspace = true }
 clap = { workspace = true, features = ["derive"] }

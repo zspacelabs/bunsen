@@ -80,7 +80,7 @@ yet.
 * the rest of the `bimm` models.
 * the `bimm` and `zsl-chat` training demos.
 
-# Demos
+# Examples
 
 The `bunsen` repo includes a number of complex demos. The goal of the demos is to showcase the capabilities of the
 library; while also collecting a working edge of problems which could and should be improved by further development.

@@ -11,24 +11,24 @@
       <sourceFolder url="file://$MODULE_DIR$/crates/bunsen-cache/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/demos/bimm/crates/bimm/benches" isTestSource="true" />
       <sourceFolder url="file://$MODULE_DIR$/demos/bimm/crates/bimm/src" isTestSource="false" />
-      <sourceFolder url="file://$MODULE_DIR$/demos/bimm/examples/resnet_finetune/src" isTestSource="false" />
-      <sourceFolder url="file://$MODULE_DIR$/demos/bimm/examples/resnet_tiny/src" isTestSource="false" />
-      <sourceFolder url="file://$MODULE_DIR$/demos/bimm/examples/swin_tiny/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/crates/bunsen-firehose-image/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/crates/bunsen-firehose/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/demos/sims/benches" isTestSource="true" />
-      <sourceFolder url="file://$MODULE_DIR$/demos/sims/demos/conway_benchmark/src" isTestSource="false" />
-      <sourceFolder url="file://$MODULE_DIR$/demos/sims/demos/conway_vis/src" isTestSource="false" />
-      <sourceFolder url="file://$MODULE_DIR$/demos/sims/demos/lbm2d_vis/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/demos/sims/src" isTestSource="false" />
-      <sourceFolder url="file://$MODULE_DIR$/demos/chat/crates/zsl-data-cache/examples" isTestSource="false" />
-      <sourceFolder url="file://$MODULE_DIR$/demos/chat/crates/zsl-data-cache/examples/pull_shards/src" isTestSource="false" />
-      <sourceFolder url="file://$MODULE_DIR$/demos/chat/crates/zsl-data-cache/src" isTestSource="false" />
-      <sourceFolder url="file://$MODULE_DIR$/demos/chat/examples/train/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/crates/wc-disk-cache/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/crates/bunsen-preview-chat-dataloader/examples" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/crates/bunsen-preview-chat-dataloader/examples/dl-test/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/crates/bunsen-preview-chat-dataloader/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/examples/conway_benchmark/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/examples/conway_vis/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/examples/lbm2d_vis/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/examples/resnet_finetune/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/examples/resnet_tiny/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/examples/swin_tiny/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/examples/train-chat/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/examples/zsl-data-cache/examples" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/examples/zsl-data-cache/examples/pull_shards/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/examples/zsl-data-cache/src" isTestSource="false" />
       <excludeFolder url="file://$MODULE_DIR$/crates/bunsen/target" />
       <excludeFolder url="file://$MODULE_DIR$/target" />
       <excludeFolder url="file://$MODULE_DIR$/demos/bimm/crates/bimm/target" />

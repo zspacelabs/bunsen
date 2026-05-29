@@ -1,14 +1,21 @@
 [package]
-name = "conway_benchmark"
+name = "conway_vis"
 publish = false
 edition.workspace = true
 rust-version.workspace = true
 
 [dependencies]
 burn = { workspace = true, features = ["fusion", "autotune"] }
-bunsen = { workspace = true }
+bunsen = { path = "../../crates/bunsen" }
 
 clap = { workspace = true, features = ["derive"] }
+
+piston = { workspace = true }
+piston2d-graphics = { workspace = true }
+pistoncore-glutin_window = { workspace = true }
+piston2d-opengl_graphics = { workspace = true }
+gl = { workspace = true }
+
 indicatif = { workspace = true }
 
 [lints]
