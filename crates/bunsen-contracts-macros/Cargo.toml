@@ -2,6 +2,8 @@
 name = "bunsen-contracts-macros"
 rust-version.workspace = true
 edition.workspace = true
+
+authors.workspace = true
 version.workspace = true
 repository.workspace = true
 license.workspace = true

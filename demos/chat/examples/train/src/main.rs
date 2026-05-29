@@ -22,6 +22,13 @@ use bunsen::{
     },
     public::hashbrown::HashSet,
 };
+use bunsen_preview_chat_dataloader::{
+    dataloader::ChatDataLoader,
+    tokens::{
+        DenseTokenBlocksOptions,
+        TokenBatchIteratorOptions,
+    },
+};
 use burn::{
     lr_scheduler::linear::LinearLrSchedulerConfig,
     module::{
@@ -70,13 +77,6 @@ use wordchipper::{
     disk_cache::WordchipperDiskCache,
 };
 use wordchipper_cli_util::logging::LogArgs;
-use zsl_chat_data::{
-    dataloader::ChatDataLoader,
-    tokens::{
-        DenseTokenBlocksOptions,
-        TokenBatchIteratorOptions,
-    },
-};
 use zsl_data_cache::dataset::DatasetCacheConfig;
 
 #[derive(Debug, Clone, clap::Args)]

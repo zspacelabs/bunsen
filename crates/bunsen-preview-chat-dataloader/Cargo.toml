@@ -1,9 +1,9 @@
 [package]
-name = "zsl-chat-data"
+name = "bunsen-preview-chat-dataloader"
+authors.workspace = true
 version.workspace = true
 rust-version.workspace = true
 edition.workspace = true
-publish = false
 
 
 [lints]

@@ -21,14 +21,14 @@
       <sourceFolder url="file://$MODULE_DIR$/demos/sims/demos/conway_vis/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/demos/sims/demos/lbm2d_vis/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/demos/sims/src" isTestSource="false" />
-      <sourceFolder url="file://$MODULE_DIR$/demos/chat/crates/zsl-chat-data/examples" isTestSource="false" />
-      <sourceFolder url="file://$MODULE_DIR$/demos/chat/crates/zsl-chat-data/examples/dl-test/src" isTestSource="false" />
-      <sourceFolder url="file://$MODULE_DIR$/demos/chat/crates/zsl-chat-data/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/demos/chat/crates/zsl-data-cache/examples" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/demos/chat/crates/zsl-data-cache/examples/pull_shards/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/demos/chat/crates/zsl-data-cache/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/demos/chat/examples/train/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/crates/wc-disk-cache/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/crates/bunsen-preview-chat-dataloader/examples" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/crates/bunsen-preview-chat-dataloader/examples/dl-test/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/crates/bunsen-preview-chat-dataloader/src" isTestSource="false" />
       <excludeFolder url="file://$MODULE_DIR$/crates/bunsen/target" />
       <excludeFolder url="file://$MODULE_DIR$/target" />
       <excludeFolder url="file://$MODULE_DIR$/demos/bimm/crates/bimm/target" />
