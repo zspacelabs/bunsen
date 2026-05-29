@@ -873,17 +873,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "bunsen-cache"
-version = "0.21.3"
-dependencies = [
- "anyhow",
- "burn",
- "crc",
- "dirs",
- "serde",
-]
-
-[[package]]
 name = "bunsen-contracts-macros"
 version = "0.21.3"
 dependencies = [
