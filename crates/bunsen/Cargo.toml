@@ -116,6 +116,7 @@ burn-store = { workspace = true, optional = true }
 hashbrown = { workspace = true, optional = true }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
+crc = { workspace = true }
 
 directories-next = { workspace = true }
 # features=["tui"} incompatible with conflicting indicatif versions.

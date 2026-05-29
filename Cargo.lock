@@ -590,6 +590,7 @@ dependencies = [
  "bunsen-contracts-macros",
  "burn",
  "burn-store",
+ "crc",
  "criterion",
  "directories-next",
  "document-features",

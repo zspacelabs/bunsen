@@ -2,3 +2,5 @@
 
 #[cfg(feature = "cache")]
 pub mod cache;
+
+pub mod pretrained;
