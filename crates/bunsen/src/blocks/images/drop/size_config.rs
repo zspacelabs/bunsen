@@ -46,7 +46,7 @@ impl SizeConfig {
         match self {
             SizeConfig::Default => source_size,
             SizeConfig::Ratio(ratio) => {
-                assert!(ratio >= 0.0, "Ratio must be positive: {ratio}");
+                assert!(ratio >= 0.0, "Ratio must be non-negative: {ratio}");
                 ((source_size as f64) * ratio) as usize
             }
             SizeConfig::Fixed(size) => size,
