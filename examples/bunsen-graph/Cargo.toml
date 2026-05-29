@@ -1,0 +1,16 @@
+[package]
+name = "bunsen-graph"
+authors.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+version.workspace = true
+repository.workspace = true
+license.workspace = true
+
+[dependencies]
+burn = { workspace = true }
+bunsen = { path = "../../crates/bunsen" }
+uuid = { workspace = true, features = ["v4", "serde"] }
+
+[lints]
+workspace = true

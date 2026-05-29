@@ -45,6 +45,8 @@ regex-macro = "0.3.0"
 serde = "1.0.228"
 serde_json = "1.0.145"
 
+uuid = "1.23.1"
+
 dirs = "6.0.0"
 clap = "4.5.51"
 downloader = { version = "0.2.7", default-features = false }

@@ -1025,6 +1025,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "bunsen-graph"
+version = "0.21.3"
+dependencies = [
+ "bunsen",
+ "burn",
+ "uuid",
+]
+
+[[package]]
 name = "bunsen-preview-chat-dataloader"
 version = "0.21.3"
 dependencies = [
@@ -10260,6 +10269,7 @@ dependencies = [
  "getrandom 0.4.2",
  "js-sys",
  "rand 0.10.1",
+ "serde_core",
  "wasm-bindgen",
 ]
 
