@@ -38,6 +38,12 @@ use crate::{
     },
 };
 
+/// Live, shared statistics for one iteration over the data loader.
+///
+/// The counters are stored as shared atomics so that
+/// [`IterWatcher`]-style callbacks layered into the streaming pipeline can
+/// update them as data flows through, while the training loop reads them
+/// to drive [`Progress`] reporting.
 #[derive(Debug, Default, Clone)]
 pub struct EpochStats {
     file_counter: Arc<AtomicUsize>,
@@ -47,6 +53,10 @@ pub struct EpochStats {
 }
 
 impl EpochStats {
+    /// Builds an `EpochStats` from pre-existing atomic counters.
+    ///
+    /// Primarily intended for testing; the typical construction path is to
+    /// let [`ChatDataLoaderIterator::new`] allocate fresh counters.
     pub fn new(
         file_counter: Arc<AtomicUsize>,
         byte_counter: Arc<AtomicUsize>,
@@ -61,23 +71,29 @@ impl EpochStats {
         }
     }
 
+    /// Number of Parquet shards opened so far this epoch.
     pub fn file_count(&self) -> usize {
         self.file_counter.load(std::sync::atomic::Ordering::Relaxed)
     }
 
+    /// Total number of source text bytes pulled out of Parquet so far.
     pub fn byte_count(&self) -> usize {
         self.byte_counter.load(std::sync::atomic::Ordering::Relaxed)
     }
 
+    /// Total number of tokens emitted by the packer so far.
     pub fn token_count(&self) -> usize {
         self.token_counter
             .load(std::sync::atomic::Ordering::Relaxed)
     }
 
+    /// Total number of shards in the epoch (the denominator for
+    /// [`progress`](Self::progress)).
     pub fn items_total(&self) -> usize {
         self.items_total
     }
 
+    /// Returns a [`Progress`] snapshot suitable for the burn training loop.
     pub fn progress(&self) -> Progress {
         Progress {
             items_processed: self.file_count(),
@@ -86,12 +102,29 @@ impl EpochStats {
     }
 }
 
+/// A single-epoch iterator over packed 2D integer token tensors.
+///
+/// Built by [`ChatDataLoader::start_epoch`]; assembles the full pipeline
+/// (Parquet read -> column select -> tokenize -> dense pack -> optional
+/// shuffle -> tensor materialization) and exposes the shared
+/// [`EpochStats`] used for progress reporting.
 pub struct ChatDataLoaderIterator<B: Backend> {
     stats: Arc<EpochStats>,
     inner: Box<dyn Iterator<Item = Tensor<B, 2, burn::prelude::Int>>>,
 }
 
 impl<B: Backend> ChatDataLoaderIterator<B> {
+    /// Builds the streaming pipeline for one epoch.
+    ///
+    /// ## Arguments
+    /// * `device` - Target burn device for emitted tensors.
+    /// * `tokenizer` - Shared tokenizer used to encode the text column.
+    /// * `shard_paths` - Ordered list of Parquet shards to consume this epoch.
+    /// * `block_options` - Packing configuration (batch shape, BOS / EOS
+    ///   markers).
+    /// * `shuffle_options` - Optional reservoir-shuffle configuration applied
+    ///   to the packed blocks; `None` preserves source order.
+    /// * `text_column` - Name of the UTF-8 column in each shard to tokenize.
     pub fn new(
         device: B::Device,
         tokenizer: Arc<Tokenizer<u32>>,
@@ -167,6 +200,10 @@ impl<B: Backend> ChatDataLoaderIterator<B> {
         }
     }
 
+    /// Returns the shared [`EpochStats`] handle.
+    ///
+    /// The handle is updated as the pipeline runs and can be cloned cheaply
+    /// to observe progress from another thread.
     pub fn stats(&self) -> &Arc<EpochStats> {
         &self.stats
     }
@@ -188,6 +225,13 @@ impl<B: Backend> DataLoaderIterator<Tensor<B, 2, burn::prelude::Int>>
     }
 }
 
+/// A [`burn::data::dataloader::DataLoader`] that streams packed token
+/// tensors out of a set of Parquet shards.
+///
+/// When constructed with an `rng`, [`start_epoch`](Self::start_epoch)
+/// shuffles the shard order and applies a reservoir shuffle to the packed
+/// blocks; without an `rng` the loader is deterministic and returns shards
+/// (and packed blocks) in their input order.
 #[derive(Clone)]
 pub struct ChatDataLoader<B: Backend> {
     shard_paths: Vec<PathBuf>,
@@ -198,6 +242,16 @@ pub struct ChatDataLoader<B: Backend> {
 }
 
 impl<B: Backend> ChatDataLoader<B> {
+    /// Builds a new chat data loader.
+    ///
+    /// ## Arguments
+    /// * `files` - Parquet shard paths consumed each epoch.
+    /// * `rng` - Optional shared rng; presence enables both shard-order
+    ///   shuffling and the reservoir block shuffle.
+    /// * `device` - Target burn device for emitted tensors.
+    /// * `tokenizer` - Shared tokenizer used to encode the text column.
+    /// * `block_options` - Packing configuration (batch shape, BOS / EOS
+    ///   markers).
     pub fn new(
         files: Vec<PathBuf>,
         rng: Option<Arc<Mutex<dyn rand::Rng + Send>>>,

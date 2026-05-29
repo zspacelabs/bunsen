@@ -9,6 +9,16 @@ use arrow::{
 };
 use parquet::arrow::arrow_reader::ParquetRecordBatchReaderBuilder;
 
+/// Streams Arrow [`RecordBatch`] values out of a sequence of Parquet shards.
+///
+/// Each path in `paths` is opened and read in turn; the record batches from
+/// the resulting Parquet readers are concatenated into a single iterator.
+/// I/O errors and decode errors surface as `Err` items inline at the point
+/// the shard is opened, after which the iterator continues with the next
+/// shard.
+///
+/// ## Arguments
+/// * `paths` - Iterator of Parquet shard paths.
 pub fn read_parquet_shards<'a, I>(
     paths: I
 ) -> impl Iterator<Item = ArrowResult<RecordBatch>> + use<'a, I>

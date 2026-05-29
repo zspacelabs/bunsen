@@ -6,12 +6,30 @@ use serde::{
     Serialize,
 };
 
+/// Configuration for the dense token-block packer.
+///
+/// Bundles a [`TokenBatchIteratorOptions`] together with the BOS / EOS
+/// marker token sequences inserted around each packed sample.
 #[derive(Debug, Clone)]
 pub struct DenseTokenBlocksOptions {
+    /// Number of rows per output batch.
     pub batch_size: usize,
+
+    /// Length, in tokens, of each row in an output batch.
     pub batch_seq_len: usize,
+
+    /// Minimum number of buffered source sequences kept before the packer
+    /// tries to emit a row. Larger values give the packer more freedom to
+    /// pick well-fitting sequences at the cost of memory and start-up
+    /// latency.
     pub min_buffer: usize,
+
+    /// Tokens prepended to each source sequence as a beginning-of-sequence
+    /// marker. May be empty.
     pub bos: Vec<u32>,
+
+    /// Tokens appended to each source sequence as an end-of-sequence
+    /// marker. May be empty.
     pub eos: Vec<u32>,
 }
 
@@ -27,6 +45,10 @@ impl Default for DenseTokenBlocksOptions {
     }
 }
 
+/// Sizing parameters for [`DenseTokenBlockBatcher`].
+///
+/// Serializable subset of [`DenseTokenBlocksOptions`], suitable for use
+/// as a `clap`-derived argument group or as part of a training config.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TokenBatchIteratorOptions {
     /// The number of sequences to load per batch.
@@ -51,6 +73,7 @@ impl Default for TokenBatchIteratorOptions {
 }
 
 impl DenseTokenBlocksOptions {
+    /// Wraps `iter` in a [`DenseTokenBlockBatcher`] configured by `self`.
     pub fn build_dense_blocks<I>(
         self,
         iter: I,
@@ -71,6 +94,7 @@ impl DenseTokenBlocksOptions {
     }
 }
 
+/// Free-function alias for [`DenseTokenBlockBatcher::new`].
 pub fn compact_dense_token_blocks<I>(
     options: TokenBatchIteratorOptions,
     bos_seq: Vec<u32>,
@@ -83,6 +107,21 @@ where
     DenseTokenBlockBatcher::new(iter, options, bos_seq, eos_seq)
 }
 
+/// Packs variable-length token sequences into dense fixed-shape batches.
+///
+/// The batcher pulls token sequences from the inner iterator into a small
+/// staging buffer, then greedily fills rows of length
+/// [`batch_seq_len`](TokenBatchIteratorOptions::batch_seq_len) with the
+/// longest buffered sequence that fits, falling back to the shortest
+/// buffered sequence (truncated) when no buffered sequence fits exactly.
+/// Each placed sequence is bracketed by the configured BOS and EOS marker
+/// tokens.
+///
+/// Output batches are exactly
+/// [`batch_size`](TokenBatchIteratorOptions::batch_size) rows of
+/// [`batch_seq_len`](TokenBatchIteratorOptions::batch_seq_len) tokens.
+/// Partial trailing rows and partial trailing batches are dropped to keep
+/// the output shape uniform.
 pub struct DenseTokenBlockBatcher<I>
 where
     I: Iterator<Item = ArrowResult<Vec<Vec<u32>>>>,
@@ -98,6 +137,13 @@ impl<I> DenseTokenBlockBatcher<I>
 where
     I: Iterator<Item = ArrowResult<Vec<Vec<u32>>>>,
 {
+    /// Builds a new batcher over `iter`.
+    ///
+    /// ## Arguments
+    /// * `iter` - Source iterator yielding batches of token sequences.
+    /// * `options` - Output shape and buffering configuration.
+    /// * `bos_seq` - Tokens prepended to each source sequence; may be empty.
+    /// * `eos_seq` - Tokens appended to each source sequence; may be empty.
     pub fn new(
         iter: I,
         options: TokenBatchIteratorOptions,

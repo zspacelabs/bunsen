@@ -1,6 +1,10 @@
 #![allow(clippy::type_complexity)]
 
-/// An `Iterator` wrapper with a callback watcher for each iteration.
+/// An [`Iterator`] adapter that invokes a callback on each yielded item.
+///
+/// The callback receives a borrowed reference to the item and is invoked
+/// only when the inner iterator yields `Some(_)`. The callback is `FnMut`,
+/// allowing it to capture state such as shared atomic counters.
 pub struct IterWatcher<I>
 where
     I: Iterator,
@@ -13,6 +17,7 @@ impl<I> IterWatcher<I>
 where
     I: Iterator,
 {
+    /// Wraps `inner` and runs `watcher` on each yielded item.
     pub fn new(
         inner: I,
         watcher: Box<dyn FnMut(&I::Item)>,

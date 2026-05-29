@@ -5,6 +5,9 @@ use rand::{
 };
 
 /// Options for [`ShuffleIter`].
+///
+/// Controls the reservoir size, the rate at which items are pulled from the
+/// inner iterator per output step, and the rng seed.
 #[derive(Debug, Clone, Copy)]
 pub struct ShuffleIterOptions {
     fill_rate: usize,
@@ -23,10 +26,16 @@ impl Default for ShuffleIterOptions {
 }
 
 impl ShuffleIterOptions {
+    /// Upper bound on calls to `inner.next()` per output step.
     pub fn fill_rate(&self) -> usize {
         self.fill_rate
     }
 
+    /// Sets the [`fill_rate`](Self::fill_rate).
+    ///
+    /// Setting `fill_rate == buffer_size` produces the common semantics of a
+    /// streaming shuffle. A smaller `fill_rate` reduces start-up latency at
+    /// the cost of shuffle quality near the beginning of iteration.
     pub fn with_fill_rate(
         mut self,
         fill_rate: usize,
@@ -35,10 +44,12 @@ impl ShuffleIterOptions {
         self
     }
 
+    /// Capacity of the in-memory shuffle reservoir.
     pub fn buffer_size(&self) -> usize {
         self.buffer_size
     }
 
+    /// Sets the [`buffer_size`](Self::buffer_size).
     pub fn with_buffer_size(
         mut self,
         buffer_size: usize,
@@ -47,10 +58,12 @@ impl ShuffleIterOptions {
         self
     }
 
+    /// The rng seed used to make shuffles deterministic.
     pub fn seed(&self) -> u64 {
         self.seed
     }
 
+    /// Sets the [`seed`](Self::seed).
     pub fn with_seed(
         mut self,
         seed: u64,
@@ -59,6 +72,7 @@ impl ShuffleIterOptions {
         self
     }
 
+    /// Builds a [`ShuffleIter`] over `inner` using these options.
     pub fn init<I: Iterator>(
         self,
         inner: I,
@@ -67,7 +81,15 @@ impl ShuffleIterOptions {
     }
 }
 
-/// An iterator that shuffles the items it iterates over.
+/// An [`Iterator`] adapter that performs a bounded reservoir shuffle.
+///
+/// Items are pulled from the inner iterator into an in-memory buffer; at
+/// each step a uniformly random item is removed from the buffer and
+/// yielded. A buffer larger than the on-disk locality window of the source
+/// gives an effectively uniform shuffle without requiring the entire
+/// dataset to fit in memory.
+///
+/// See [`ShuffleIterOptions`] for tuning.
 pub struct ShuffleIter<I>
 where
     I: Iterator,
@@ -85,15 +107,17 @@ where
 {
     /// Creates a new `ShuffleIter`.
     ///
-    /// Using `fill_rate === buffer_size` will produce the common semantics of
-    /// af streaming shuffle. Using a smaller `fill_rate` can reduce latency
-    /// at the begining of iteration, at the cost of shuffle bias.
+    /// Using `fill_rate == buffer_size` produces the common semantics of a
+    /// streaming shuffle. Using a smaller `fill_rate` can reduce latency at
+    /// the beginning of iteration, at the cost of shuffle bias.
     ///
     /// ## Arguments
     /// * `inner` - The iterator to shuffle.
-    /// * `fill_rate` - The upper limit on calls to `inner.next()` per step.
-    /// * `buffer_size` - The size of the shuffle buffer.
-    /// * `seed` - The rng seed.
+    /// * `options` - Tuning parameters; see [`ShuffleIterOptions`].
+    ///
+    /// ## Panics
+    /// Panics if `options.fill_rate == 0`, `options.fill_rate >
+    /// options.buffer_size`, or `options.buffer_size <= 1`.
     pub fn new(
         inner: I,
         options: ShuffleIterOptions,

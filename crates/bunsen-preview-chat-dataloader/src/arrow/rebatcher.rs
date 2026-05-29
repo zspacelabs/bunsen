@@ -5,6 +5,12 @@ use arrow::{
     error::ArrowError,
 };
 
+/// Re-chunks an iterator of [`RecordBatch`] results to a target batch size.
+///
+/// Wraps Arrow's [`BatchCoalescer`] in an [`Iterator`]: incoming batches
+/// are pushed through the coalescer and emitted at the target size, with
+/// any partial trailing batch flushed when the inner iterator is exhausted.
+/// All input batches must share the schema passed to [`Rebatcher::new`].
 pub struct Rebatcher<I>
 where
     I: Iterator<Item = Result<RecordBatch, ArrowError>>,
@@ -15,6 +21,13 @@ where
 }
 
 impl<I: Iterator<Item = Result<RecordBatch, ArrowError>>> Rebatcher<I> {
+    /// Builds a new rebatcher over `inner`.
+    ///
+    /// ## Arguments
+    /// * `inner` - Source iterator of record batches.
+    /// * `schema` - Schema shared by all input batches.
+    /// * `target_batch_size` - Row count at which coalesced batches are
+    ///   emitted.
     pub fn new(
         inner: I,
         schema: SchemaRef,
