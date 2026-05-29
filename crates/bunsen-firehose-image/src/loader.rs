@@ -1,3 +1,82 @@
+//! # Image loader operator
+//!
+//! [`ImageLoader`] is the configuration for the `LOAD_IMAGE` operator: it opens
+//! an image from a path column and optionally resizes ([`ResizeSpec`]) and
+//! recolors it, writing a [`DynamicImage`] into the output column.
+//!
+//! Call [`ImageLoader::to_plan`] to bind it to concrete input/output columns,
+//! then apply the plan to a schema.
+//!
+//! ```
+//! use std::sync::Arc;
+//!
+//! use bunsen_firehose::{
+//!     core::{
+//!         FirehoseRowBatch,
+//!         FirehoseRowReader,
+//!         FirehoseRowWriter,
+//!         FirehoseTableSchema,
+//!         FirehoseValue,
+//!         operations::executor::{
+//!             FirehoseBatchExecutor,
+//!             SequentialBatchExecutor,
+//!         },
+//!         schema::ColumnSchema,
+//!     },
+//!     ops::init_default_operator_environment,
+//! };
+//! use bunsen_firehose_image::{
+//!     ImageShape,
+//!     loader::{
+//!         ImageLoader,
+//!         ResizeSpec,
+//!     },
+//! };
+//! use image::{
+//!     ColorType,
+//!     DynamicImage,
+//!     RgbImage,
+//! };
+//!
+//! fn main() -> anyhow::Result<()> {
+//!     let env = Arc::new(init_default_operator_environment());
+//!
+//!     let mut schema =
+//!         FirehoseTableSchema::from_columns(&[ColumnSchema::new::<String>(
+//!             "path",
+//!         )]);
+//!     ImageLoader::default()
+//!         .with_resize(ResizeSpec::new(ImageShape {
+//!             width: 8,
+//!             height: 8,
+//!         }))
+//!         .with_recolor(ColorType::L8)
+//!         .to_plan("path", "image")
+//!         .apply_to_schema(&mut schema, env.as_ref())?;
+//!     let schema = Arc::new(schema);
+//!
+//!     let dir = tempfile::tempdir()?;
+//!     let path = dir.path().join("img.png");
+//!     DynamicImage::from(RgbImage::new(20, 20)).save(&path)?;
+//!
+//!     let executor =
+//!         SequentialBatchExecutor::new(schema.clone(), env.clone())?;
+//!     let mut batch = FirehoseRowBatch::new_with_size(schema.clone(), 1);
+//!     batch[0].expect_set(
+//!         "path",
+//!         FirehoseValue::serialized(path.to_string_lossy().to_string())?,
+//!     );
+//!     executor.execute_batch(&mut batch)?;
+//!
+//!     let image = batch[0]
+//!         .maybe_get("image")
+//!         .unwrap()
+//!         .as_ref::<DynamicImage>()?;
+//!     assert_eq!((image.width(), image.height()), (8, 8));
+//!     assert_eq!(image.color(), ColorType::L8);
+//!     Ok(())
+//! }
+//! ```
 use anyhow::Context;
 use bunsen_firehose::{
     core::{
@@ -27,7 +106,6 @@ use serde::{
     Serialize,
 };
 
-/// # # [`Image`] loader operators.
 use crate::{
     ImageShape,
     colortype_support,

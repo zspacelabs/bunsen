@@ -1,3 +1,130 @@
+//! # bunsen-firehose-image - Image operators for the firehose pipeline
+//!
+//! This crate provides ready-to-use [`bunsen_firehose`] operators for image
+//! data: loading from disk, resizing/recoloring, seedable augmentation, and
+//! conversion to [`burn`] tensors. Each operator registers itself into the
+//! global registry, so [`init_default_operator_environment`] returns an
+//! environment that already knows about all of them.
+//!
+//! The modules:
+//!
+//! - [`loader`] — [`ImageLoader`](crate::loader::ImageLoader) (`LOAD_IMAGE`):
+//!   open an image from a path column, optionally resizing and recoloring it
+//!   into a [`DynamicImage`](image::DynamicImage) column.
+//! - [`augmentation`] — the
+//!   [`AugmentationStage`](crate::augmentation::AugmentationStage) plugin
+//!   system and the [`AUGMENT_IMAGE`](crate::augmentation::AUGMENT_IMAGE)
+//!   operator, which applies a seeded sequence of stages (flips, blur, speckle,
+//!   probabilistic control flow, ...).
+//! - [`burn_support`] —
+//!   [`ImageToTensorData`](crate::burn_support::ImageToTensorData)
+//!   (`IMAGE_TO_TENSOR_DATA`) plus helpers like
+//!   [`image_to_f32_tensor`](crate::burn_support::image_to_f32_tensor) and
+//!   [`stack_tensor_data_column`](crate::burn_support::stack_tensor_data_column)
+//!   for assembling tensor batches.
+//! - [`colortype_support`] — [`ColorType`] conversion and (de)serialization
+//!   helpers.
+//! - [`test_util`] — image generation/comparison helpers for tests.
+//!
+//! # Example: load, resize, and tensorize an image
+//!
+//! Build a schema that loads a `path` column into a resized `image` column and
+//! then converts it to a `data` ([`TensorData`](burn::prelude::TensorData))
+//! column, then run a one-row batch through a
+//! [`SequentialBatchExecutor`](bunsen_firehose::core::operations::executor::SequentialBatchExecutor).
+//!
+//! ```
+//! use std::sync::Arc;
+//!
+//! use bunsen_firehose::{
+//!     core::{
+//!         FirehoseRowBatch,
+//!         FirehoseRowReader,
+//!         FirehoseRowWriter,
+//!         FirehoseTableSchema,
+//!         FirehoseValue,
+//!         operations::executor::{
+//!             FirehoseBatchExecutor,
+//!             SequentialBatchExecutor,
+//!         },
+//!         schema::ColumnSchema,
+//!     },
+//!     ops::init_default_operator_environment,
+//! };
+//! use bunsen_firehose_image::{
+//!     ImageShape,
+//!     burn_support::ImageToTensorData,
+//!     loader::{
+//!         ImageLoader,
+//!         ResizeSpec,
+//!     },
+//! };
+//! use burn::prelude::TensorData;
+//! use image::{
+//!     ColorType,
+//!     DynamicImage,
+//!     RgbImage,
+//! };
+//!
+//! fn main() -> anyhow::Result<()> {
+//!     // Every image operator registers itself globally; this collects them
+//!     // (LOAD_IMAGE, IMAGE_TO_TENSOR_DATA, AUGMENT_IMAGE, ...) into one env.
+//!     let env = Arc::new(init_default_operator_environment());
+//!
+//!     // path --LOAD_IMAGE--> image --IMAGE_TO_TENSOR_DATA--> data
+//!     let mut schema =
+//!         FirehoseTableSchema::from_columns(&[ColumnSchema::new::<String>(
+//!             "path",
+//!         )
+//!         .with_description("path to the image")]);
+//!     ImageLoader::default()
+//!         .with_resize(ResizeSpec::new(ImageShape {
+//!             width: 16,
+//!             height: 16,
+//!         }))
+//!         .with_recolor(ColorType::Rgb8)
+//!         .to_plan("path", "image")
+//!         .apply_to_schema(&mut schema, env.as_ref())?;
+//!     ImageToTensorData::default()
+//!         .to_plan("image", "data")
+//!         .apply_to_schema(&mut schema, env.as_ref())?;
+//!     let schema = Arc::new(schema);
+//!
+//!     // Write a throwaway PNG to feed the pipeline.
+//!     let dir = tempfile::tempdir()?;
+//!     let path = dir.path().join("img.png");
+//!     DynamicImage::from(RgbImage::new(32, 32)).save(&path)?;
+//!
+//!     let executor =
+//!         SequentialBatchExecutor::new(schema.clone(), env.clone())?;
+//!     let mut batch = FirehoseRowBatch::new_with_size(schema.clone(), 1);
+//!     batch[0].expect_set(
+//!         "path",
+//!         FirehoseValue::serialized(path.to_string_lossy().to_string())?,
+//!     );
+//!     executor.execute_batch(&mut batch)?;
+//!
+//!     // Both derived columns are now populated.
+//!     let image = batch[0]
+//!         .maybe_get("image")
+//!         .unwrap()
+//!         .as_ref::<DynamicImage>()?;
+//!     assert_eq!((image.width(), image.height()), (16, 16));
+//!
+//!     let data =
+//!         batch[0].maybe_get("data").unwrap().as_ref::<TensorData>()?;
+//!     // [height, width, channels]
+//!     assert_eq!([data.shape[0], data.shape[1], data.shape[2]], [16, 16, 3]);
+//!     Ok(())
+//! }
+//! ```
+//!
+//! For a complete training pipeline that wires these operators into a [`burn`]
+//! `DataLoaderBuilder` — including per-row augmentation seeds — see the
+//! `resnet_tiny` example under `demos/bimm/examples`.
+//!
+//! [`init_default_operator_environment`]: bunsen_firehose::ops::init_default_operator_environment
+
 use serde::{
     Deserialize,
     Serialize,
