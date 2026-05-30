@@ -26,7 +26,7 @@ pub trait ResidualDecoderAttentionBlockMeta {
     fn n_state(&self) -> usize;
 
     /// Return the number of heads.
-    fn n_head(&self) -> usize;
+    fn n_heads(&self) -> usize;
 }
 
 /// Config for [`ResidualDecoderAttentionBlock`].
@@ -44,7 +44,7 @@ impl ResidualDecoderAttentionBlockMeta for ResidualDecoderAttentionBlockConfig {
         self.n_state
     }
 
-    fn n_head(&self) -> usize {
+    fn n_heads(&self) -> usize {
         self.n_head
     }
 }
@@ -101,6 +101,16 @@ pub struct ResidualDecoderAttentionBlock<B: Backend> {
     pub mlp_ln: nn::LayerNorm<B>,
 }
 
+impl<B: Backend> ResidualDecoderAttentionBlockMeta for ResidualDecoderAttentionBlock<B> {
+    fn n_state(&self) -> usize {
+        self.attn.d_model
+    }
+
+    fn n_heads(&self) -> usize {
+        self.attn.n_heads
+    }
+}
+
 impl<B: Backend> ResidualDecoderAttentionBlock<B> {
     /// Forward pass of the residual decoder attention block.
     pub fn forward(
@@ -131,10 +141,9 @@ impl<B: Backend> ResidualDecoderAttentionBlock<B> {
             xa.clone(),
             xa,
         ));
-        let weights = cross_attn_out.weights.clone();
         let x = x + cross_attn_out.context;
 
         let output = x.clone() + self.mlp.forward(self.mlp_ln.forward(x));
-        (output, weights)
+        (output, cross_attn_out.weights)
     }
 }
