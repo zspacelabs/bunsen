@@ -127,6 +127,7 @@ impl<B: Backend> ResidualDecoderAttentionBlock<B> {
             .attn
             .forward(MhaInput::self_attn(self.attn_ln.forward(x.clone())).mask_attn(mask))
             .context;
+
         let x = x + self_attn_out;
 
         let cross_attn_out = self.cross_attn.forward(MhaInput::new(
