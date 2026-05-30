@@ -2,11 +2,14 @@ use burn::{
     Tensor,
     config::Config,
     module::Module,
-    nn,
-    nn::attention::{
-        MhaInput,
-        MultiHeadAttention,
-        MultiHeadAttentionConfig,
+    nn::{
+        LayerNorm,
+        LayerNormConfig,
+        attention::{
+            MhaInput,
+            MultiHeadAttention,
+            MultiHeadAttentionConfig,
+        },
     },
     prelude::{
         Backend,
@@ -55,26 +58,16 @@ impl ResidualDecoderAttentionBlockConfig {
         &self,
         device: &B::Device,
     ) -> ResidualDecoderAttentionBlock<B> {
-        let attn = MultiHeadAttentionConfig::new(self.n_state, self.n_head)
-            .with_dropout(0.0)
-            .init(device);
-        let attn_ln = nn::LayerNormConfig::new(self.n_state).init(device);
-
-        let cross_attn = MultiHeadAttentionConfig::new(self.n_state, self.n_head)
-            .with_dropout(0.0)
-            .init(device);
-        let cross_attn_ln = nn::LayerNormConfig::new(self.n_state).init(device);
-
-        let mlp = MlpConfig::new(self.n_state).init(device);
-        let mlp_ln = nn::LayerNormConfig::new(self.n_state).init(device);
+        let mha_cfg = MultiHeadAttentionConfig::new(self.n_state, self.n_head).with_dropout(0.0);
+        let ln_cfg = LayerNormConfig::new(self.n_state);
 
         ResidualDecoderAttentionBlock {
-            attn,
-            attn_ln,
-            cross_attn,
-            cross_attn_ln,
-            mlp,
-            mlp_ln,
+            attn: mha_cfg.init(device),
+            attn_ln: ln_cfg.init(device),
+            cross_attn: mha_cfg.init(device),
+            cross_attn_ln: ln_cfg.init(device),
+            mlp: MlpConfig::new(self.n_state).init(device),
+            mlp_ln: LayerNormConfig::new(self.n_state).init(device),
         }
     }
 }
@@ -86,19 +79,19 @@ pub struct ResidualDecoderAttentionBlock<B: Backend> {
     pub attn: MultiHeadAttention<B>,
 
     /// Attention Normalization.
-    pub attn_ln: nn::LayerNorm<B>,
+    pub attn_ln: LayerNorm<B>,
 
     /// Cross Attention.
     pub cross_attn: MultiHeadAttention<B>,
 
     /// Cross Attention Normalization.
-    pub cross_attn_ln: nn::LayerNorm<B>,
+    pub cross_attn_ln: LayerNorm<B>,
 
     /// MLP.
     pub mlp: Mlp<B>,
 
     /// MLP Normalization.
-    pub mlp_ln: nn::LayerNorm<B>,
+    pub mlp_ln: LayerNorm<B>,
 }
 
 impl<B: Backend> ResidualDecoderAttentionBlockMeta for ResidualDecoderAttentionBlock<B> {
