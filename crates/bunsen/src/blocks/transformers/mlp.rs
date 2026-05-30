@@ -22,15 +22,18 @@ use crate::contracts::{
     unpack_shape_contract,
 };
 
-/// Common meta for [`NanoChatGptMlp`] and [`NanoGptMlpConfig`].
-pub trait NanoChatGptMlpMeta {
+/// Common meta for [`Mlp`] and [`MlpConfig`].
+pub trait MlpMeta {
     /// Return the size of the input and output.
     fn n_embed(&self) -> usize;
+
+    /// Return the post-activation exponent.
+    fn exp(&self) -> Option<f64>;
 }
 
-/// Config for [`NanoChatGptMlp`].
+/// Config for [`Mlp`].
 #[derive(Config, Debug)]
-pub struct NanoGptMlpConfig {
+pub struct MlpConfig {
     /// Embedding Size.
     pub n_embed: usize,
 
@@ -41,25 +44,34 @@ pub struct NanoGptMlpConfig {
     /// Activation Config.
     #[config(default = "ActivationConfig::Relu")]
     pub activation: ActivationConfig,
+
+    /// Post-Activation Exponent.
+    #[config(default = "None")]
+    pub exp: Option<f64>,
 }
 
-impl NanoChatGptMlpMeta for NanoGptMlpConfig {
+impl MlpMeta for MlpConfig {
     fn n_embed(&self) -> usize {
         self.n_embed
     }
+
+    fn exp(&self) -> Option<f64> {
+        self.exp
+    }
 }
 
-impl NanoGptMlpConfig {
+impl MlpConfig {
     /// Initialize the module.
     pub fn init<B: Backend>(
         self,
         device: &B::Device,
-    ) -> NanoChatGptMlp<B> {
-        NanoChatGptMlp {
+    ) -> Mlp<B> {
+        Mlp {
             c_fc: LinearConfig::new(self.n_embed(), self.hidden_size())
                 .with_bias(false)
                 .init(device),
             act: self.activation.init(device),
+            exp: self.exp,
             c_proj: LinearConfig::new(self.hidden_size(), self.n_embed())
                 .with_bias(false)
                 .init(device),
@@ -74,24 +86,31 @@ impl NanoGptMlpConfig {
 
 /// GPT Block MLP Module
 #[derive(Module, Debug)]
-pub struct NanoChatGptMlp<B: Backend> {
+pub struct Mlp<B: Backend> {
     /// Feed Forward Layer.
     pub c_fc: Linear<B>,
 
     /// Activation.
     pub act: Activation<B>,
 
+    /// Post-Activation Exponent.
+    pub exp: Option<f64>,
+
     /// Output Projection.
     pub c_proj: Linear<B>,
 }
 
-impl<B: Backend> NanoChatGptMlpMeta for NanoChatGptMlp<B> {
+impl<B: Backend> MlpMeta for Mlp<B> {
     fn n_embed(&self) -> usize {
         self.c_fc.weight.dims()[0]
     }
+
+    fn exp(&self) -> Option<f64> {
+        self.exp
+    }
 }
 
-impl<B: Backend> NanoChatGptMlp<B> {
+impl<B: Backend> Mlp<B> {
     /// MLP Forward Pass.
     ///
     /// # Arguments
@@ -112,7 +131,12 @@ impl<B: Backend> NanoChatGptMlp<B> {
 
         let x = self.c_fc.forward(x);
         let x = self.act.forward(x);
-        let x = x.square();
+
+        let x = match self.exp {
+            Some(exp) => x.powf_scalar(exp),
+            None => x,
+        };
+
         let x = self.c_proj.forward(x);
 
         assert_shape_contract_periodically!(
@@ -138,7 +162,7 @@ mod tests {
 
     #[test]
     fn test_mlp_config() {
-        let cfg = NanoGptMlpConfig::new(3);
+        let cfg = MlpConfig::new(3);
 
         assert_eq!(cfg.n_embed, 3);
         assert_eq!(cfg.expansion_factor, 4);
@@ -159,11 +183,12 @@ mod tests {
                 let t = 3;
                 let n_embed = 10;
 
-                let cfg = NanoGptMlpConfig::new(n_embed)
+                let cfg = MlpConfig::new(n_embed)
                     .with_expansion_factor(ef)
+                    .with_exp(Some(2.0))
                     .with_activation(activation.clone());
 
-                let mlp: NanoChatGptMlp<B> = cfg.init(&device);
+                let mlp: Mlp<B> = cfg.init(&device);
 
                 assert_eq!(mlp.n_embed(), n_embed);
 
