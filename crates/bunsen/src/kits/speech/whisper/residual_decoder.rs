@@ -138,32 +138,6 @@ impl<B: Backend> ResidualDecoderAttentionBlock<B> {
         xa: Tensor<B, 3>,
         mask: Tensor<B, 3, Bool>,
     ) -> RdabForwardRecord<B> {
-        #[cfg(any(debug_assertions, test))]
-        let (batch, seq_len) = {
-            crate::contracts::define_shape_contract!(CONTRACT, ["batch", "seq_len", "n_states"]);
-            let n_states = self.n_states();
-
-            let [batch, seq_len] =
-                CONTRACT.unpack_shape(&x, &["batch", "seq_len"], &[("n_states", n_states)]);
-
-            CONTRACT.assert_shape(
-                &xa,
-                &[
-                    ("batch", batch),
-                    ("seq_len", seq_len),
-                    ("n_states", n_states),
-                ],
-            );
-
-            crate::contracts::assert_shape_contract!(
-                ["*", "seq_len", "seq_len"],
-                &mask,
-                &[("seq_len", seq_len)]
-            );
-
-            (batch, seq_len)
-        };
-
         let self_attn = layer_norm_self_attn(&self.attn_ln, &self.attn, x.clone(), mask);
         let x = x + self_attn.context;
 
@@ -173,17 +147,6 @@ impl<B: Backend> ResidualDecoderAttentionBlock<B> {
 
         let mlp = layer_norm_mlp(&self.mlp_ln, &self.mlp, x.clone());
         let x = x + mlp;
-
-        #[cfg(any(debug_assertions, test))]
-        crate::contracts::assert_shape_contract!(
-            ["batch", "n_heads", "seq_len", "seq_len"],
-            &cross_attn.weights,
-            &[
-                ("batch", batch),
-                ("n_heads", self.n_heads()),
-                ("seq_len", seq_len)
-            ],
-        );
 
         RdabForwardRecord {
             output: x,

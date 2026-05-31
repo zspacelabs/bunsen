@@ -19,12 +19,12 @@ use burn::{
 /// ## Arguments
 /// * `layer_norm` - `LayerNorm`.
 /// * `mh_attn` - `MultiHeadAttention`.
-/// * `x` - ``[batch, seq_len, n_states]`` input.
+/// * `x` - ``[batch, seq_len, d_model]`` input.
 /// * `mask` - ``[batch, seq_len, seq_len]`` attention mask.
 ///
 /// ## Returns
 /// `RdabForwardRecord` - forward record.
-/// * `fr.output` : ``[batch, seq_len, n_states]``.
+/// * `fr.output` : ``[batch, seq_len, d_model]``.
 /// * `fr.ca_weights` : ``[batch, n_heads, seq_len, seq_len]``.
 pub fn layer_norm_self_attn<B: Backend>(
     layer_norm: &LayerNorm<B>,
@@ -35,13 +35,19 @@ pub fn layer_norm_self_attn<B: Backend>(
     #[cfg(any(debug_assertions, test))]
     {
         use crate::contracts::*;
-        let n_states = mh_attn.d_model;
+        let d_model = mh_attn.d_model;
+        assert_eq!(
+            d_model,
+            layer_norm.gamma.dims()[0],
+            "layer_norm dims ({}) != d_model ({d_model})",
+            layer_norm.gamma.dims()[0],
+        );
 
         let [batch, seq_len] = unpack_shape_contract!(
-            ["batch", "seq_len", "n_states"],
+            ["batch", "seq_len", "d_model"],
             &x,
             &["batch", "seq_len"],
-            &[("n_states", n_states)]
+            &[("d_model", d_model)]
         );
 
         let [mask_batch] = unpack_shape_contract!(
@@ -68,12 +74,12 @@ pub fn layer_norm_self_attn<B: Backend>(
 /// ## Arguments
 /// * `layer_norm` - `LayerNorm`.
 /// * `mh_attn` - `MultiHeadAttention`.
-/// * `x` - ``[batch, seq_len, n_states]`` input.
-/// * `xa` - ``[batch, seq_len, n_states]`` cross-attention input.
+/// * `x` - ``[batch, seq_len, d_model]`` input.
+/// * `xa` - ``[batch, seq_len, d_model]`` cross-attention input.
 ///
 /// ## Returns
 /// `RdabForwardRecord` - forward record.
-/// * `fr.output` : ``[batch, seq_len, n_states]``.
+/// * `fr.output` : ``[batch, seq_len, d_model]``.
 /// * `fr.ca_weights` : ``[batch, n_heads, seq_len, seq_len]``.
 pub fn layer_norm_cross_attn<B: Backend>(
     layer_norm: &LayerNorm<B>,
@@ -83,19 +89,21 @@ pub fn layer_norm_cross_attn<B: Backend>(
 ) -> MhaOutput<B> {
     #[cfg(any(debug_assertions, test))]
     {
-        crate::contracts::define_shape_contract!(CONTRACT, ["batch", "seq_len", "n_states"]);
-        let n_states = mh_attn.d_model;
+        crate::contracts::define_shape_contract!(CONTRACT, ["batch", "seq_len", "d_model"]);
+        let d_model = mh_attn.d_model;
+        assert_eq!(
+            d_model,
+            layer_norm.gamma.dims()[0],
+            "layer_norm dims ({}) != d_model ({d_model})",
+            layer_norm.gamma.dims()[0],
+        );
 
         let [batch, seq_len] =
-            CONTRACT.unpack_shape(&x, &["batch", "seq_len"], &[("n_states", n_states)]);
+            CONTRACT.unpack_shape(&x, &["batch", "seq_len"], &[("d_model", d_model)]);
 
         CONTRACT.assert_shape(
             &xa,
-            &[
-                ("batch", batch),
-                ("seq_len", seq_len),
-                ("n_states", n_states),
-            ],
+            &[("batch", batch), ("seq_len", seq_len), ("d_model", d_model)],
         );
     };
 

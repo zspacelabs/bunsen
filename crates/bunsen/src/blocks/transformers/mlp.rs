@@ -18,10 +18,22 @@ use burn::{
     },
 };
 
-use crate::contracts::{
-    assert_shape_contract_periodically,
-    unpack_shape_contract,
-};
+/// Compute layer normalized mlp.
+///
+/// ## Arguments
+/// * `layer_norm` - `LayerNorm`.
+/// * `mlp` - `Mlp`.
+/// * `x` - ``[batch, seq_len, n_states]`` input.
+///
+/// ## Returns
+/// ``[batch, seq_len, n_states]``
+pub fn layer_norm_mlp<B: Backend>(
+    layer_norm: &LayerNorm<B>,
+    mlp: &Mlp<B>,
+    x: Tensor<B, 3>,
+) -> Tensor<B, 3> {
+    mlp.forward(layer_norm.forward(x))
+}
 
 /// Common meta for [`Mlp`] and [`MlpConfig`].
 pub trait MlpMeta {
@@ -123,7 +135,8 @@ impl<B: Backend> Mlp<B> {
         &self,
         x: Tensor<B, 3>,
     ) -> Tensor<B, 3> {
-        let [batch, time] = unpack_shape_contract!(
+        #[cfg(any(debug_assertions, test))]
+        let [batch, time] = crate::contracts::unpack_shape_contract!(
             ["batch", "time", "embed"],
             &x,
             &["batch", "time"],
@@ -140,7 +153,8 @@ impl<B: Backend> Mlp<B> {
 
         let x = self.c_proj.forward(x);
 
-        assert_shape_contract_periodically!(
+        #[cfg(any(debug_assertions, test))]
+        crate::contracts::assert_shape_contract_periodically!(
             ["batch", "time", "embed"],
             &x,
             &[("batch", batch), ("time", time), ("embed", self.n_embed())]
@@ -148,23 +162,6 @@ impl<B: Backend> Mlp<B> {
 
         x
     }
-}
-
-/// Compute layer normalized mlp.
-///
-/// ## Arguments
-/// * `layer_norm` - `LayerNorm`.
-/// * `mlp` - `Mlp`.
-/// * `x` - ``[batch, seq_len, n_states]`` input.
-///
-/// ## Returns
-/// ``[batch, seq_len, n_states]``
-pub fn layer_norm_mlp<B: Backend>(
-    layer_norm: &LayerNorm<B>,
-    mlp: &Mlp<B>,
-    x: Tensor<B, 3>,
-) -> Tensor<B, 3> {
-    mlp.forward(layer_norm.forward(x))
 }
 
 #[cfg(test)]
