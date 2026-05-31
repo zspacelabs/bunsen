@@ -203,7 +203,7 @@ impl<B: Backend> CNA2d<B> {
     ///
     /// # Arguments
     ///
-    /// - `input`: \ ``[batch, in_channels, in_height=out_height*stride,
+    /// - `input`: ``[batch, in_channels, in_height=out_height*stride,
     ///   in_width=out_width*stride]``.
     ///
     /// # Returns
