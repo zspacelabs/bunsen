@@ -110,9 +110,9 @@ impl<B: Backend> ResidualDecoderAttentionBlockMeta for ResidualDecoderAttentionB
     }
 }
 
-/// Forward record for [`ResidualDecoderAttentionBlock::forward`].
+/// Decode record for [`ResidualDecoderAttentionBlock::forward`].
 #[derive(Debug, Clone)]
-pub struct RdabForwardRecord<B: Backend> {
+pub struct DecodeRecord<B: Backend> {
     /// Block Output: ``[batch, seq_len, n_states]``.
     pub output: Tensor<B, 3>,
 
@@ -137,7 +137,7 @@ impl<B: Backend> ResidualDecoderAttentionBlock<B> {
         x: Tensor<B, 3>,
         xa: Tensor<B, 3>,
         mask: Option<Tensor<B, 3, Bool>>,
-    ) -> RdabForwardRecord<B> {
+    ) -> DecodeRecord<B> {
         let self_attn = layer_norm_self_attn(&self.attn_ln, &self.attn, x.clone(), mask);
         let x = x + self_attn.context;
 
@@ -148,7 +148,7 @@ impl<B: Backend> ResidualDecoderAttentionBlock<B> {
         let mlp = layer_norm_mlp(&self.mlp_ln, &self.mlp, x.clone());
         let x = x + mlp;
 
-        RdabForwardRecord {
+        DecodeRecord {
             output: x,
             ca_weights: cross_attn.weights,
         }
@@ -213,7 +213,7 @@ mod tests {
             let mlp = layer_norm_mlp(&block.mlp_ln, &block.mlp, x.clone());
             let x = x + mlp;
 
-            RdabForwardRecord::<B> {
+            DecodeRecord::<B> {
                 output: x,
                 ca_weights: cross_attn.weights,
             }
