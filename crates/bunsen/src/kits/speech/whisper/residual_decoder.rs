@@ -63,12 +63,12 @@ impl ResidualDecoderAttentionBlockConfig {
         let ln_cfg = LayerNormConfig::new(self.n_states);
 
         ResidualDecoderAttentionBlock {
-            attn: mha_cfg.init(device),
             attn_ln: ln_cfg.init(device),
-            cross_attn: mha_cfg.init(device),
+            attn: mha_cfg.init(device),
             cross_attn_ln: ln_cfg.init(device),
+            cross_attn: mha_cfg.init(device),
+            mlp_ln: ln_cfg.init(device),
             mlp: MlpConfig::new(self.n_states).init(device),
-            mlp_ln: LayerNormConfig::new(self.n_states).init(device),
         }
     }
 }
