@@ -136,7 +136,7 @@ impl<B: Backend> ResidualDecoderAttentionBlock<B> {
         &self,
         x: Tensor<B, 3>,
         xa: Tensor<B, 3>,
-        mask: Tensor<B, 3, Bool>,
+        mask: Option<Tensor<B, 3, Bool>>,
     ) -> RdabForwardRecord<B> {
         let self_attn = layer_norm_self_attn(&self.attn_ln, &self.attn, x.clone(), mask);
         let x = x + self_attn.context;
@@ -195,11 +195,11 @@ mod tests {
             Tensor::random([1, seq_len, seq_len], Distribution::Bernoulli(0.5), &device);
         let mask = mask.bool();
 
-        let fr = block.forward(x.clone(), xa.clone(), mask.clone());
+        let fr = block.forward(x.clone(), xa.clone(), mask.clone().into());
 
         let expected = {
             let self_attn =
-                layer_norm_self_attn(&block.attn_ln, &block.attn, x.clone(), mask.clone());
+                layer_norm_self_attn(&block.attn_ln, &block.attn, x.clone(), mask.clone().into());
             let x = x + self_attn.context;
 
             let cross_attn = layer_norm_cross_attn(

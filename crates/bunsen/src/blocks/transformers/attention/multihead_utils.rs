@@ -20,7 +20,7 @@ use burn::{
 /// * `layer_norm` - `LayerNorm`.
 /// * `mh_attn` - `MultiHeadAttention`.
 /// * `x` - ``[batch, seq_len, d_model]`` input.
-/// * `mask` - ``[batch, seq_len, seq_len]`` attention mask.
+/// * `mask` - Optional ``[batch, seq_len, seq_len]`` attention mask.
 ///
 /// ## Returns
 /// `RdabForwardRecord` - forward record.
@@ -30,7 +30,7 @@ pub fn layer_norm_self_attn<B: Backend>(
     layer_norm: &LayerNorm<B>,
     mh_attn: &MultiHeadAttention<B>,
     x: Tensor<B, 3>,
-    mask: Tensor<B, 3, Bool>,
+    mask: Option<Tensor<B, 3, Bool>>,
 ) -> MhaOutput<B> {
     #[cfg(any(debug_assertions, test))]
     {
@@ -50,23 +50,30 @@ pub fn layer_norm_self_attn<B: Backend>(
             &[("d_model", d_model)]
         );
 
-        let [mask_batch] = unpack_shape_contract!(
-            ["mask_batch", "seq_len", "seq_len"],
-            &mask,
-            &["mask_batch"],
-            &[("seq_len", seq_len)]
-        );
-        if mask_batch != 1 {
-            assert_eq!(
-                mask_batch, batch,
-                "batch sizes not broadcastable {batch} vs {mask_batch}"
+        if let Some(mask) = &mask {
+            let [mask_batch] = unpack_shape_contract!(
+                ["mask_batch", "seq_len", "seq_len"],
+                mask,
+                &["mask_batch"],
+                &[("seq_len", seq_len)]
             );
-        }
+            if mask_batch != 1 {
+                assert_eq!(
+                    mask_batch, batch,
+                    "batch sizes not broadcastable {batch} vs {mask_batch}"
+                );
+            }
 
-        assert_shape_contract!(["b", "seq_len", "seq_len"], &mask, &[("seq_len", seq_len)]);
+            assert_shape_contract!(["b", "seq_len", "seq_len"], mask, &[("seq_len", seq_len)]);
+        }
     }
 
-    mh_attn.forward(MhaInput::self_attn(layer_norm.forward(x)).mask_attn(mask))
+    let input = MhaInput::self_attn(layer_norm.forward(x));
+    let input = match mask {
+        Some(mask) => input.mask_attn(mask),
+        None => input,
+    };
+    mh_attn.forward(input)
 }
 
 /// Compute layer normalized cross-attn.
