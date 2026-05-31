@@ -147,7 +147,7 @@ mod tests {
 
         let config = NanoChatGptBlockConfig::new(
             CausalSelfAttentionConfig::new(n_head, n_kv_head, n_embed),
-            MlpConfig::new(n_embed).with_exp(Some(2.0)),
+            MlpConfig::new(n_embed).with_act_exponent(Some(2.0)),
         );
         assert_eq!(config.n_embed(), n_embed);
         assert_eq!(config.attn.n_embed(), n_embed);
@@ -178,7 +178,7 @@ mod tests {
 
         let config = NanoChatGptBlockConfig::new(
             CausalSelfAttentionConfig::new(n_head, n_kv_head, n_embed),
-            MlpConfig::new(n_embed).with_exp(Some(2.0)),
+            MlpConfig::new(n_embed).with_act_exponent(Some(2.0)),
         );
 
         let block: NanoChatGptBlock<B> = config.init(layer_index, &device);

@@ -41,7 +41,7 @@ pub trait MlpMeta {
     fn n_embed(&self) -> usize;
 
     /// Return the post-activation exponent.
-    fn exp(&self) -> Option<f64>;
+    fn act_exponent(&self) -> Option<f64>;
 }
 
 /// Config for [`Mlp`].
@@ -60,7 +60,7 @@ pub struct MlpConfig {
 
     /// Post-Activation Exponent.
     #[config(default = "None")]
-    pub exp: Option<f64>,
+    pub act_exponent: Option<f64>,
 }
 
 impl MlpMeta for MlpConfig {
@@ -68,8 +68,8 @@ impl MlpMeta for MlpConfig {
         self.n_embed
     }
 
-    fn exp(&self) -> Option<f64> {
-        self.exp
+    fn act_exponent(&self) -> Option<f64> {
+        self.act_exponent
     }
 }
 
@@ -84,7 +84,7 @@ impl MlpConfig {
                 .with_bias(false)
                 .init(device),
             act: self.activation.init(device),
-            exp: self.exp,
+            act_exponent: self.act_exponent,
             c_proj: LinearConfig::new(self.hidden_size(), self.n_embed())
                 .with_bias(false)
                 .init(device),
@@ -107,7 +107,7 @@ pub struct Mlp<B: Backend> {
     pub act: Activation<B>,
 
     /// Post-Activation Exponent.
-    pub exp: Option<f64>,
+    pub act_exponent: Option<f64>,
 
     /// Output Projection.
     pub c_proj: Linear<B>,
@@ -118,8 +118,8 @@ impl<B: Backend> MlpMeta for Mlp<B> {
         self.c_fc.weight.dims()[0]
     }
 
-    fn exp(&self) -> Option<f64> {
-        self.exp
+    fn act_exponent(&self) -> Option<f64> {
+        self.act_exponent
     }
 }
 
@@ -146,7 +146,7 @@ impl<B: Backend> Mlp<B> {
         let x = self.c_fc.forward(x);
         let x = self.act.forward(x);
 
-        let x = match self.exp {
+        let x = match self.act_exponent {
             Some(exp) => x.powf_scalar(exp),
             None => x,
         };
@@ -200,8 +200,8 @@ mod tests {
 
                 let cfg = MlpConfig::new(n_embed)
                     .with_expansion_factor(ef)
-                    .with_exp(Some(2.0))
-                    .with_activation(activation.clone());
+                    .with_activation(activation.clone())
+                    .with_act_exponent(Some(2.0));
 
                 let mlp: Mlp<B> = cfg.init(&device);
 

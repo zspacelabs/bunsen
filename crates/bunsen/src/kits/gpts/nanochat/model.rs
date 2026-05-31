@@ -177,9 +177,9 @@ impl NanoChatGptConfig {
             CausalSelfAttentionConfig::new(self.n_head, self.n_kv_head, self.n_embed)
                 .with_norm(self.norm.clone()),
             MlpConfig::new(self.n_embed)
-                .with_exp(Some(2.0))
                 .with_expansion_factor(self.expansion_factor)
-                .with_activation(self.activation.clone()),
+                .with_activation(self.activation.clone())
+                .with_act_exponent(Some(2.0)),
         )
         .with_norm(self.norm.clone())
     }
