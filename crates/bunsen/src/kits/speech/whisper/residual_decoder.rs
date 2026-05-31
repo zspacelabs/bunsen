@@ -6,8 +6,6 @@ use burn::{
         LayerNorm,
         LayerNormConfig,
         attention::{
-            MhaInput,
-            MhaOutput,
             MultiHeadAttention,
             MultiHeadAttentionConfig,
         },
@@ -18,9 +16,16 @@ use burn::{
     },
 };
 
-use crate::blocks::transformers::mlp::{
-    Mlp,
-    MlpConfig,
+use crate::blocks::transformers::{
+    attention::{
+        layer_norm_cross_attn,
+        layer_norm_self_attn,
+    },
+    mlp::{
+        Mlp,
+        MlpConfig,
+        layer_norm_mlp,
+    },
 };
 
 /// Common meta for [`ResidualDecoderAttentionBlock`] and
@@ -136,16 +141,17 @@ impl<B: Backend> ResidualDecoderAttentionBlock<B> {
         #[cfg(any(debug_assertions, test))]
         let (batch, seq_len) = {
             crate::contracts::define_shape_contract!(CONTRACT, ["batch", "seq_len", "n_states"]);
+            let n_states = self.n_states();
 
             let [batch, seq_len] =
-                CONTRACT.unpack_shape(&x, &["batch", "seq_len"], &[("n_states", self.n_states())]);
+                CONTRACT.unpack_shape(&x, &["batch", "seq_len"], &[("n_states", n_states)]);
 
             CONTRACT.assert_shape(
                 &xa,
                 &[
                     ("batch", batch),
                     ("seq_len", seq_len),
-                    ("n_states", self.n_states()),
+                    ("n_states", n_states),
                 ],
             );
 
@@ -158,13 +164,14 @@ impl<B: Backend> ResidualDecoderAttentionBlock<B> {
             (batch, seq_len)
         };
 
-        let self_attn = self.self_attn_pass(x.clone(), mask.clone());
+        let self_attn = layer_norm_self_attn(&self.attn_ln, &self.attn, x.clone(), mask);
         let x = x + self_attn.context;
 
-        let cross_attn = self.cross_attn_pass(x.clone(), xa.clone());
+        let cross_attn =
+            layer_norm_cross_attn(&self.cross_attn_ln, &self.cross_attn, x.clone(), xa);
         let x = x + cross_attn.context;
 
-        let mlp = self.mlp_pass(x.clone());
+        let mlp = layer_norm_mlp(&self.mlp_ln, &self.mlp, x.clone());
         let x = x + mlp;
 
         #[cfg(any(debug_assertions, test))]
@@ -182,61 +189,6 @@ impl<B: Backend> ResidualDecoderAttentionBlock<B> {
             output: x,
             ca_weights: cross_attn.weights,
         }
-    }
-
-    /// Compute the normalized self-attn
-    ///
-    /// ## Arguments
-    /// * `x` - ``[batch, seq_len, n_states]`` input.
-    /// * `mask` - ``[batch, seq_len, seq_len]`` attention mask.
-    ///
-    /// ## Returns
-    /// `RdabForwardRecord` - forward record.
-    /// * `fr.output` : ``[batch, seq_len, n_states]``.
-    /// * `fr.ca_weights` : ``[batch, n_heads, seq_len, seq_len]``.
-    pub fn self_attn_pass(
-        &self,
-        x: Tensor<B, 3>,
-        mask: Tensor<B, 3, Bool>,
-    ) -> MhaOutput<B> {
-        self.attn
-            .forward(MhaInput::self_attn(self.attn_ln.forward(x)).mask_attn(mask))
-    }
-
-    /// Compute the normalized cross-attn
-    ///
-    /// ## Arguments
-    /// * `x` - ``[batch, seq_len, n_states]`` input.
-    /// * `xa` - ``[batch, seq_len, n_states]`` cross-attention input.
-    ///
-    /// ## Returns
-    /// `RdabForwardRecord` - forward record.
-    /// * `fr.output` : ``[batch, seq_len, n_states]``.
-    /// * `fr.ca_weights` : ``[batch, n_heads, seq_len, seq_len]``.
-    pub fn cross_attn_pass(
-        &self,
-        x: Tensor<B, 3>,
-        xa: Tensor<B, 3>,
-    ) -> MhaOutput<B> {
-        self.cross_attn.forward(MhaInput::new(
-            self.cross_attn_ln.forward(x.clone()),
-            xa.clone(),
-            xa,
-        ))
-    }
-
-    /// Compute the normalized mlp
-    ///
-    /// ## Arguments
-    /// * `x` - ``[batch, seq_len, n_states]`` input.
-    ///
-    /// ## Returns
-    /// ``[batch, seq_len, n_states]``
-    pub fn mlp_pass(
-        &self,
-        x: Tensor<B, 3>,
-    ) -> Tensor<B, 3> {
-        self.mlp.forward(self.mlp_ln.forward(x))
     }
 }
 
@@ -283,13 +235,19 @@ mod tests {
         let fr = block.forward(x.clone(), xa.clone(), mask.clone());
 
         let expected = {
-            let self_attn = block.self_attn_pass(x.clone(), mask.clone());
+            let self_attn =
+                layer_norm_self_attn(&block.attn_ln, &block.attn, x.clone(), mask.clone());
             let x = x + self_attn.context;
 
-            let cross_attn = block.cross_attn_pass(x.clone(), xa.clone());
+            let cross_attn = layer_norm_cross_attn(
+                &block.cross_attn_ln,
+                &block.cross_attn,
+                x.clone(),
+                xa.clone(),
+            );
             let x = x + cross_attn.context;
 
-            let mlp = block.mlp_pass(x.clone());
+            let mlp = layer_norm_mlp(&block.mlp_ln, &block.mlp, x.clone());
             let x = x + mlp;
 
             RdabForwardRecord::<B> {

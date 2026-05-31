@@ -4,6 +4,7 @@ use burn::{
     config::Config,
     module::Module,
     nn::{
+        LayerNorm,
         Linear,
         LinearConfig,
         activation::{
@@ -147,6 +148,23 @@ impl<B: Backend> Mlp<B> {
 
         x
     }
+}
+
+/// Compute layer normalized mlp.
+///
+/// ## Arguments
+/// * `layer_norm` - `LayerNorm`.
+/// * `mlp` - `Mlp`.
+/// * `x` - ``[batch, seq_len, n_states]`` input.
+///
+/// ## Returns
+/// ``[batch, seq_len, n_states]``
+pub fn layer_norm_mlp<B: Backend>(
+    layer_norm: &LayerNorm<B>,
+    mlp: &Mlp<B>,
+    x: Tensor<B, 3>,
+) -> Tensor<B, 3> {
+    mlp.forward(layer_norm.forward(x))
 }
 
 #[cfg(test)]
