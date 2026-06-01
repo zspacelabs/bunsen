@@ -26,17 +26,57 @@ use crate::{
     kits::speech::whisper::{
         ResidualDecoderAttentionBlock,
         ResidualDecoderAttentionBlockConfig,
+        ResidualDecoderAttentionBlockMeta,
     },
 };
+
+/// Common meta for [`TextDecoder`] and [`TextDecoderConfig`].
+pub trait TextDecoderMeta {
+    /// Return the size of the vocabulary.
+    fn n_vocab(&self) -> usize;
+
+    /// Return the max text context size.
+    fn n_text_ctx(&self) -> usize;
+
+    /// Return the number of text states.
+    fn n_text_state(&self) -> usize;
+}
 
 /// Config for [`TextDecoder`].
 #[derive(Config, Debug)]
 pub struct TextDecoderConfig {
-    n_vocab: usize,
-    n_text_ctx: usize,
-    n_text_state: usize,
-    n_text_head: usize,
-    n_text_layer: usize,
+    /// The size of the vocabulary.
+    pub n_vocab: usize,
+
+    /// The max text context size.
+    pub n_text_ctx: usize,
+
+    /// The text embedding size.
+    pub n_text_state: usize,
+
+    /// The number of decoder heads.
+    pub n_text_head: usize,
+
+    /// The number of decoder layers.
+    pub n_text_layer: usize,
+
+    /// Dropout.
+    #[config(default = "0.0")]
+    pub block_dropout: f64,
+}
+
+impl TextDecoderMeta for TextDecoderConfig {
+    fn n_vocab(&self) -> usize {
+        self.n_vocab
+    }
+
+    fn n_text_ctx(&self) -> usize {
+        self.n_text_ctx
+    }
+
+    fn n_text_state(&self) -> usize {
+        self.n_text_state
+    }
 }
 
 /// Build attention mask for decoder.
@@ -79,16 +119,13 @@ impl TextDecoderConfig {
             blocks: (0..self.n_text_layer)
                 .map(|_| {
                     ResidualDecoderAttentionBlockConfig::new(self.n_text_state, self.n_text_head)
+                        .with_dropout(self.block_dropout)
                         .init(device)
                 })
                 .collect(),
 
             ln: LayerNormConfig::new(self.n_text_state).init(device),
-
-            mask: Param::from_tensor(attn_decoder_mask(self.n_text_ctx, device)),
-
-            n_vocab: self.n_vocab,
-            n_text_ctx: self.n_text_ctx,
+            // mask: Param::from_tensor(attn_decoder_mask(self.n_text_ctx, device)),
         }
     }
 }
@@ -96,13 +133,32 @@ impl TextDecoderConfig {
 /// Text decoder module for Whisper speech recognition model.
 #[derive(Module, Debug)]
 pub struct TextDecoder<B: Backend> {
-    token_embedding: Param<Tensor<B, 2>>,
+    /// The token embedding.
+    pub token_embedding: Param<Tensor<B, 2>>,
+
+    /// The positional embedding.
     positional_embedding: Param<Tensor<B, 2>>,
-    blocks: Vec<ResidualDecoderAttentionBlock<B>>,
-    ln: LayerNorm<B>,
-    mask: Param<Tensor<B, 2>>,
-    n_vocab: usize,
-    n_text_ctx: usize,
+
+    /// The decoder blocks.
+    pub blocks: Vec<ResidualDecoderAttentionBlock<B>>,
+
+    /// The output layer norm.
+    pub ln: LayerNorm<B>,
+    // mask: Param<Tensor<B, 2>>,
+}
+
+impl<B: Backend> TextDecoderMeta for TextDecoder<B> {
+    fn n_vocab(&self) -> usize {
+        self.token_embedding.val().dims()[0]
+    }
+
+    fn n_text_ctx(&self) -> usize {
+        self.positional_embedding.val().dims()[0]
+    }
+
+    fn n_text_state(&self) -> usize {
+        self.blocks[0].n_states()
+    }
 }
 
 impl<B: Backend> TextDecoder<B> {
@@ -115,10 +171,10 @@ impl<B: Backend> TextDecoder<B> {
         let [_n_batch, seq_len] = x.dims();
 
         assert!(
-            seq_len <= self.n_text_ctx,
+            seq_len <= self.n_text_ctx(),
             "Token sequence length {} must not exceed {}.",
             seq_len,
-            self.n_text_ctx
+            self.n_text_ctx()
         );
 
         let x = embedding(self.token_embedding.val(), x)

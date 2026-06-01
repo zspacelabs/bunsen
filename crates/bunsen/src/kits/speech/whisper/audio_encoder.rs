@@ -1,11 +1,10 @@
 use burn::{
     Tensor,
     config::Config,
-    module::{
-        Module,
-        Param,
-    },
+    module::Module,
     nn::{
+        Embedding,
+        EmbeddingConfig,
         LayerNorm,
         LayerNormConfig,
         PaddingConfig1d,
@@ -22,7 +21,6 @@ use burn::{
         Backend,
         s,
     },
-    tensor::Distribution,
 };
 
 use crate::{
@@ -117,11 +115,7 @@ impl AudioEncoderConfig {
                 .init(device),
             act2: self.head_activation.init(device),
 
-            positional_embedding: Param::from_tensor(Tensor::random(
-                [self.max_audio_ctx / 2, self.n_audio_states],
-                Distribution::Normal(0.0, 1.0),
-                device,
-            )),
+            pos: EmbeddingConfig::new(self.max_audio_ctx / 2, self.n_audio_states).init(device),
 
             blocks: (0..self.n_audio_layers)
                 .map(|_| {
@@ -147,7 +141,7 @@ pub struct AudioEncoder<B: Backend> {
     conv2: Conv1d<B>,
     act2: Activation<B>,
 
-    positional_embedding: Param<Tensor<B, 2>>,
+    pos: Embedding<B>,
 
     blocks: Vec<ResidualEncoderAttentionBlock<B>>,
 
@@ -160,7 +154,7 @@ impl<B: Backend> AudioEncoderMeta for AudioEncoder<B> {
     }
 
     fn max_audio_ctx(&self) -> usize {
-        2 * self.positional_embedding.val().dims()[0]
+        2 * self.pos.weight.val().dims()[0]
     }
 
     fn n_audio_states(&self) -> usize {
@@ -213,11 +207,7 @@ impl<B: Backend> AudioEncoder<B> {
         );
 
         let k = x.dims()[1];
-        let x = x + self
-            .positional_embedding
-            .val()
-            .slice(s![0..k])
-            .unsqueeze::<3>();
+        let x = x + self.pos.weight.val().slice(s![0..k]).unsqueeze::<3>();
 
         let x = self.blocks.iter().fold(x, |z, b| b.forward(z));
 
@@ -271,7 +261,7 @@ mod tests {
 
         let batch = 2;
         let k = max_audio_ctx / 2;
-        let x: Tensor<B, 3> = Tensor::random([batch, n_mels, k], Distribution::Default, &device);
+        let x: Tensor<B, 3> = Tensor::random([batch, n_mels, k], Default::default(), &device);
 
         let output = encoder.forward(x.clone());
 
