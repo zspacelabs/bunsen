@@ -1,11 +1,10 @@
 use burn::{
     Tensor,
     config::Config,
-    module::{
-        Module,
-        Param,
-    },
+    module::Module,
     nn::{
+        Embedding,
+        EmbeddingConfig,
         LayerNorm,
         LayerNormConfig,
     },
@@ -15,9 +14,7 @@ use burn::{
     },
     tensor::{
         Bool,
-        Distribution,
         Int,
-        module::embedding,
     },
 };
 
@@ -104,17 +101,10 @@ impl TextDecoderConfig {
         // TODO: Use burn::nn::Embedding
 
         TextDecoder {
-            token_embedding: Param::from_tensor(Tensor::random(
-                [self.n_vocab, self.n_text_state],
-                Distribution::Normal(0.0, 1.0),
-                device,
-            )),
+            token_embedding: EmbeddingConfig::new(self.n_vocab, self.n_text_state).init(device),
 
-            positional_embedding: Param::from_tensor(Tensor::random(
-                [self.n_text_ctx, self.n_text_state],
-                Distribution::Normal(0.0, 1.0),
-                device,
-            )),
+            positional_embedding: EmbeddingConfig::new(self.n_text_ctx, self.n_text_state)
+                .init(device),
 
             blocks: (0..self.n_text_layer)
                 .map(|_| {
@@ -134,10 +124,10 @@ impl TextDecoderConfig {
 #[derive(Module, Debug)]
 pub struct TextDecoder<B: Backend> {
     /// The token embedding.
-    pub token_embedding: Param<Tensor<B, 2>>,
+    pub token_embedding: Embedding<B>,
 
     /// The positional embedding.
-    positional_embedding: Param<Tensor<B, 2>>,
+    positional_embedding: Embedding<B>,
 
     /// The decoder blocks.
     pub blocks: Vec<ResidualDecoderAttentionBlock<B>>,
@@ -149,11 +139,11 @@ pub struct TextDecoder<B: Backend> {
 
 impl<B: Backend> TextDecoderMeta for TextDecoder<B> {
     fn n_vocab(&self) -> usize {
-        self.token_embedding.val().dims()[0]
+        self.token_embedding.weight.val().dims()[0]
     }
 
     fn n_text_ctx(&self) -> usize {
-        self.positional_embedding.val().dims()[0]
+        self.positional_embedding.weight.val().dims()[0]
     }
 
     fn n_text_state(&self) -> usize {
@@ -177,9 +167,10 @@ impl<B: Backend> TextDecoder<B> {
             self.n_text_ctx()
         );
 
-        let x = embedding(self.token_embedding.val(), x)
+        let x = self.token_embedding.forward(x)
             + self
                 .positional_embedding
+                .weight
                 .val()
                 .slice(s![0..seq_len])
                 .unsqueeze::<3>();
@@ -194,6 +185,15 @@ impl<B: Backend> TextDecoder<B> {
             .fold(x, |z, b| b.forward(z, xa.clone(), mask.clone()).output);
 
         let x = self.ln.forward(x);
-        x.matmul(self.token_embedding.val().transpose().unsqueeze::<3>())
+        x.matmul(
+            self.token_embedding
+                .weight
+                .val()
+                .transpose()
+                .unsqueeze::<3>(),
+        )
+
+        // denorm [batch, seq_len, n_vocab]
+        // Needs softmax / beamsearch.
     }
 }
