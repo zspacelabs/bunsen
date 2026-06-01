@@ -36,6 +36,9 @@ pub trait ResidualDecoderAttentionBlockMeta {
 
     /// Return the number of heads.
     fn n_heads(&self) -> usize;
+
+    /// Return the dropout.
+    fn dropout(&self) -> f64;
 }
 
 /// Config for [`ResidualDecoderAttentionBlock`].
@@ -46,6 +49,10 @@ pub struct ResidualDecoderAttentionBlockConfig {
 
     /// Number of Heads.
     pub n_heads: usize,
+
+    /// Dropout.
+    #[config(default = "0.0")]
+    pub dropout: f64,
 }
 
 impl ResidualDecoderAttentionBlockMeta for ResidualDecoderAttentionBlockConfig {
@@ -56,6 +63,10 @@ impl ResidualDecoderAttentionBlockMeta for ResidualDecoderAttentionBlockConfig {
     fn n_heads(&self) -> usize {
         self.n_heads
     }
+
+    fn dropout(&self) -> f64 {
+        self.dropout
+    }
 }
 
 impl ResidualDecoderAttentionBlockConfig {
@@ -64,7 +75,8 @@ impl ResidualDecoderAttentionBlockConfig {
         &self,
         device: &B::Device,
     ) -> ResidualDecoderAttentionBlock<B> {
-        let mha_cfg = MultiHeadAttentionConfig::new(self.n_states, self.n_heads).with_dropout(0.0);
+        let mha_cfg =
+            MultiHeadAttentionConfig::new(self.n_states, self.n_heads).with_dropout(self.dropout);
         let ln_cfg = LayerNormConfig::new(self.n_states);
 
         ResidualDecoderAttentionBlock {
@@ -107,6 +119,10 @@ impl<B: Backend> ResidualDecoderAttentionBlockMeta for ResidualDecoderAttentionB
 
     fn n_heads(&self) -> usize {
         self.attn.n_heads
+    }
+
+    fn dropout(&self) -> f64 {
+        self.attn.dropout.prob
     }
 }
 

@@ -30,6 +30,9 @@ pub trait ResidualEncoderAttentionBlockMeta {
 
     /// Return the number of heads.
     fn n_heads(&self) -> usize;
+
+    /// Return the dropout.
+    fn dropout(&self) -> f64;
 }
 
 /// Config for [`ResidualEncoderAttentionBlock`].
@@ -40,6 +43,10 @@ pub struct ResidualEncoderAttentionBlockConfig {
 
     /// Number of Heads.
     pub n_heads: usize,
+
+    /// Dropout.
+    #[config(default = "0.0")]
+    pub dropout: f64,
 }
 
 impl ResidualEncoderAttentionBlockMeta for ResidualEncoderAttentionBlockConfig {
@@ -50,6 +57,10 @@ impl ResidualEncoderAttentionBlockMeta for ResidualEncoderAttentionBlockConfig {
     fn n_heads(&self) -> usize {
         self.n_heads
     }
+
+    fn dropout(&self) -> f64 {
+        self.dropout
+    }
 }
 
 impl ResidualEncoderAttentionBlockConfig {
@@ -58,7 +69,8 @@ impl ResidualEncoderAttentionBlockConfig {
         &self,
         device: &B::Device,
     ) -> ResidualEncoderAttentionBlock<B> {
-        let mha_cfg = MultiHeadAttentionConfig::new(self.n_states, self.n_heads).with_dropout(0.0);
+        let mha_cfg =
+            MultiHeadAttentionConfig::new(self.n_states, self.n_heads).with_dropout(self.dropout);
         let ln_cfg = LayerNormConfig::new(self.n_states);
 
         ResidualEncoderAttentionBlock {
@@ -93,6 +105,10 @@ impl<B: Backend> ResidualEncoderAttentionBlockMeta for ResidualEncoderAttentionB
 
     fn n_heads(&self) -> usize {
         self.attn.n_heads
+    }
+
+    fn dropout(&self) -> f64 {
+        self.attn.dropout.prob
     }
 }
 
