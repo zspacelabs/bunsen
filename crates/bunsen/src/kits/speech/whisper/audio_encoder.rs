@@ -18,7 +18,10 @@ use burn::{
             Conv1dConfig,
         },
     },
-    prelude::Backend,
+    prelude::{
+        Backend,
+        s,
+    },
     tensor::Distribution,
 };
 
@@ -119,7 +122,6 @@ impl AudioEncoderConfig {
             )),
 
             blocks: (0..self.n_audio_layers)
-                .into_iter()
                 .map(|_| {
                     ResidualEncoderAttentionBlockConfig::new(
                         self.n_audio_states,
@@ -199,11 +201,73 @@ impl<B: Backend> AudioEncoder<B> {
         let x = x + self
             .positional_embedding
             .val()
-            .slice([0..k])
+            .slice(s![0..k])
             .unsqueeze::<3>();
 
         let x = self.blocks.iter().fold(x, |z, b| b.forward(z));
 
         self.ln_post.forward(x)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use serial_test::serial;
+
+    use super::*;
+    use crate::{
+        contracts::assert_shape_contract,
+        support::testing::PerformanceBackend,
+    };
+
+    #[test]
+    #[serial]
+    fn test_audio_encoder_forward() {
+        type B = PerformanceBackend;
+        let device = Default::default();
+
+        let n_audio_ctx = 128;
+        let n_mels = 256;
+        let n_audio_heads = 4;
+        let n_audio_states = n_audio_heads * 32;
+        let n_audio_layers = 2;
+
+        let config = AudioEncoderConfig::new(
+            n_mels,
+            n_audio_ctx,
+            n_audio_states,
+            n_audio_heads,
+            n_audio_layers,
+        );
+
+        assert_eq!(config.n_mels(), n_mels);
+        assert_eq!(config.n_audio_ctx(), n_audio_ctx);
+        assert_eq!(config.n_audio_states(), n_audio_states);
+        assert_eq!(config.n_audio_heads(), n_audio_heads);
+        assert_eq!(config.n_audio_layers(), n_audio_layers);
+
+        let encoder: AudioEncoder<B> = config.init(&device);
+
+        assert_eq!(encoder.n_mels(), n_mels);
+        assert_eq!(encoder.n_audio_ctx(), n_audio_ctx);
+        assert_eq!(encoder.n_audio_states(), n_audio_states);
+        assert_eq!(encoder.n_audio_heads(), n_audio_heads);
+        assert_eq!(encoder.n_audio_layers(), n_audio_layers);
+
+        let batch = 2;
+        let k = n_audio_ctx / 2;
+        let x: Tensor<B, 3> = Tensor::random([batch, n_mels, k], Distribution::Default, &device);
+
+        let output = encoder.forward(x.clone());
+
+        assert_shape_contract!(
+            ["batch", "seq", "n_audio_states"],
+            &output,
+            &[
+                ("batch", batch),
+                ("seq", k / 2),
+                ("n_audio_states", n_audio_states),
+            ],
+        );
     }
 }
