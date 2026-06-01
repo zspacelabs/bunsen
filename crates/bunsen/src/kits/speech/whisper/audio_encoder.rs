@@ -103,6 +103,8 @@ impl AudioEncoderConfig {
         &self,
         device: &B::Device,
     ) -> AudioEncoder<B> {
+        // TODO: Use burn::nn::Embedding
+
         AudioEncoder {
             conv1: Conv1dConfig::new(self.n_mels, self.n_audio_states, 3)
                 .with_padding(PaddingConfig1d::Explicit(1, 1))
