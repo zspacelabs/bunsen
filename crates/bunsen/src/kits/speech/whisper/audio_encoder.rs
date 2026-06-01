@@ -116,7 +116,7 @@ impl AudioEncoderConfig {
             act2: self.head_activation.init(device),
 
             positional_embedding: Param::from_tensor(Tensor::random(
-                [self.max_audio_ctx, self.n_audio_states],
+                [self.max_audio_ctx / 2, self.n_audio_states],
                 Distribution::Normal(0.0, 1.0),
                 device,
             )),
@@ -158,7 +158,7 @@ impl<B: Backend> AudioEncoderMeta for AudioEncoder<B> {
     }
 
     fn max_audio_ctx(&self) -> usize {
-        self.positional_embedding.val().dims()[0]
+        2 * self.positional_embedding.val().dims()[0]
     }
 
     fn n_audio_states(&self) -> usize {
@@ -180,16 +180,17 @@ impl<B: Backend> AudioEncoder<B> {
         &self,
         x: Tensor<B, 3>,
     ) -> Tensor<B, 3> {
-        let [ctx_len] = unpack_shape_contract!(
-            ["batch", "n_mels", "ctx_len"],
+        let [_batch, seq_len] = unpack_shape_contract!(
+            ["batch", "n_mels", "seq_len"],
             &x,
-            &["ctx_len"],
+            &["batch", "seq_len"],
             &[("n_mels", self.n_mels())],
         );
+
         assert!(
-            ctx_len <= self.max_audio_ctx(),
+            seq_len <= self.max_audio_ctx(),
             "Audio length {} cannot exceed {}.",
-            ctx_len,
+            seq_len,
             self.max_audio_ctx()
         );
 
@@ -197,6 +198,18 @@ impl<B: Backend> AudioEncoder<B> {
         let x = self.act2.forward(self.conv2.forward(x));
 
         let x = x.swap_dims(1, 2);
+
+        #[cfg(any(debug_assertions, test))]
+        crate::contracts::assert_shape_contract_periodically!(
+            ["batch", "len", "n_audio_states"],
+            &x,
+            &[
+                ("batch", _batch),
+                ("len", seq_len / 2),
+                ("n_audio_states", self.n_audio_states()),
+            ],
+        );
+
         let k = x.dims()[1];
         let x = x + self
             .positional_embedding
