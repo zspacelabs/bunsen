@@ -23,11 +23,14 @@ pub struct WhisperApiConfig {
     /// The Mel-scale frequency resolution.
     pub n_mels: usize,
 
-    /// Number of Audio Context.
-    pub max_audio_ctx: usize,
-
     /// Embedding Size of the Model.
     pub d_model: usize,
+
+    /// The size of the vocabulary.
+    pub n_vocab: usize,
+
+    /// Maximum Audio Context.
+    pub max_audio_ctx: usize,
 
     /// Number of Audio Heads.
     pub n_audio_heads: usize,
@@ -35,11 +38,8 @@ pub struct WhisperApiConfig {
     /// Number of Audio Layers.
     pub n_audio_layers: usize,
 
-    /// The size of the vocabulary.
-    pub n_vocab: usize,
-
-    /// The max text context size.
-    pub max_text_context: usize,
+    /// Maximum Token Context.
+    pub max_token_context: usize,
 
     /// The number of decoder heads.
     pub n_text_head: usize,
@@ -61,7 +61,7 @@ impl WhisperApiConfig {
             ),
             decoder: TextDecoderConfig::new(
                 self.n_vocab,
-                self.max_text_context,
+                self.max_token_context,
                 self.d_model,
                 self.n_text_head,
                 self.n_text_layer,
@@ -88,12 +88,12 @@ pub trait WhisperMeta {
     }
 
     /// The max audio context size.
-    fn max_encoder_ctx(&self) -> usize {
+    fn max_audio_ctx(&self) -> usize {
         self.encoder().max_context()
     }
 
     /// The max text context size.
-    fn max_decoder_ctx(&self) -> usize {
+    fn max_token_ctx(&self) -> usize {
         self.decoder().max_context()
     }
 
@@ -237,11 +237,11 @@ mod tests {
 
         let config = WhisperApiConfig::new(
             n_mels,
-            max_audio_ctx,
             d_model,
+            vocab_size,
+            max_audio_ctx,
             n_audio_heads,
             n_audio_layers,
-            vocab_size,
             max_text_context,
             n_text_heads,
             n_text_layers,
@@ -252,8 +252,8 @@ mod tests {
         assert_eq!(structural.n_mels(), n_mels);
         assert_eq!(structural.vocab_size(), vocab_size);
         assert_eq!(structural.d_model(), d_model);
-        assert_eq!(structural.max_encoder_ctx(), max_audio_ctx);
-        assert_eq!(structural.max_decoder_ctx(), max_text_context);
+        assert_eq!(structural.max_audio_ctx(), max_audio_ctx);
+        assert_eq!(structural.max_token_ctx(), max_text_context);
 
         assert_eq!(structural.encoder().n_mels(), n_mels);
         assert_eq!(structural.encoder().max_context(), max_audio_ctx);
@@ -269,16 +269,16 @@ mod tests {
         assert_eq!(model.n_mels(), n_mels);
         assert_eq!(model.vocab_size(), vocab_size);
         assert_eq!(model.d_model(), d_model);
-        assert_eq!(model.max_encoder_ctx(), max_audio_ctx);
-        assert_eq!(model.max_decoder_ctx(), max_text_context);
+        assert_eq!(model.max_audio_ctx(), max_audio_ctx);
+        assert_eq!(model.max_token_ctx(), max_text_context);
 
         assert_eq!(model.encoder().n_mels(), n_mels);
         assert_eq!(model.encoder().max_context(), max_audio_ctx);
         assert_eq!(model.encoder().d_model(), d_model);
         assert_eq!(model.decoder().vocab_size(), vocab_size);
         assert_eq!(model.decoder().d_model(), d_model);
-        assert_eq!(model.max_encoder_ctx(), max_audio_ctx);
-        assert_eq!(model.max_decoder_ctx(), max_text_context);
+        assert_eq!(model.max_audio_ctx(), max_audio_ctx);
+        assert_eq!(model.max_token_ctx(), max_text_context);
 
         let batch = 2;
         let audio_len = max_audio_ctx / 2;
