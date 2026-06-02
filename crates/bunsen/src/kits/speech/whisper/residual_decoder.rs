@@ -145,7 +145,7 @@ impl<B: Backend> ResidualDecoderAttentionBlock<B> {
     /// * `mask` : ``[batch, seq_len, seq_len]`` attention mask.
     ///
     /// ## Returns
-    /// `RdabForwardRecord` - forward record.
+    /// `DecodeRecord` - forward record.
     /// * `fr.output` : ``[batch, seq_len, d_model]``.
     /// * `fr.ca_weights` : ``[batch, n_heads, seq_len, seq_len]``.
     pub fn forward(
