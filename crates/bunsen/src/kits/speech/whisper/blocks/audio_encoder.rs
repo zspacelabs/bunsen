@@ -58,6 +58,7 @@ pub struct AudioEncoderConfig {
 
     /// The embedding size of the model.
     pub d_model: usize,
+
     /// Max audio context size.
     pub max_context: usize,
 

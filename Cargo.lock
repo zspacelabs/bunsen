@@ -10854,6 +10854,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "whisper-dev"
+version = "0.21.3"
+dependencies = [
+ "bunsen",
+ "burn",
+ "burn-store",
+ "clap",
+]
+
+[[package]]
 name = "winapi"
 version = "0.3.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
