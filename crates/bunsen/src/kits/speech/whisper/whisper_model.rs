@@ -17,9 +17,62 @@ use crate::kits::speech::whisper::{
     TextDecoderMeta,
 };
 
+/// Whisper API config.
+#[derive(Config, Debug)]
+pub struct WhisperApiConfig {
+    /// The Mel-scale frequency resolution.
+    pub n_mels: usize,
+
+    /// Number of Audio Context.
+    pub max_audio_ctx: usize,
+
+    /// Embedding Size of the Model.
+    pub d_model: usize,
+
+    /// Number of Audio Heads.
+    pub n_audio_heads: usize,
+
+    /// Number of Audio Layers.
+    pub n_audio_layers: usize,
+
+    /// The size of the vocabulary.
+    pub n_vocab: usize,
+
+    /// The max text context size.
+    pub max_text_context: usize,
+
+    /// The number of decoder heads.
+    pub n_text_head: usize,
+
+    /// The number of decoder layers.
+    pub n_text_layer: usize,
+}
+
+impl WhisperApiConfig {
+    /// Convert to a [`WhisperStructuralConfig`].
+    pub fn to_structural_config(self) -> WhisperStructuralConfig {
+        WhisperStructuralConfig {
+            encoder: AudioEncoderConfig::new(
+                self.n_mels,
+                self.max_audio_ctx,
+                self.d_model,
+                self.n_audio_heads,
+                self.n_audio_layers,
+            ),
+            decoder: TextDecoderConfig::new(
+                self.n_vocab,
+                self.max_text_context,
+                self.d_model,
+                self.n_text_head,
+                self.n_text_layer,
+            ),
+        }
+    }
+}
+
 /// [`Whisper`] structural config.
 #[derive(Config, Debug)]
-pub struct WhisperStructConfig {
+pub struct WhisperStructuralConfig {
     /// Encoder config.
     pub encoder: AudioEncoderConfig,
 
@@ -27,7 +80,7 @@ pub struct WhisperStructConfig {
     pub decoder: TextDecoderConfig,
 }
 
-impl WhisperStructConfig {
+impl WhisperStructuralConfig {
     /// Initialize the Whisper model with the given configuration and device.
     pub fn init<B: Backend>(
         self,
@@ -35,6 +88,8 @@ impl WhisperStructConfig {
     ) -> Whisper<B> {
         let encoder = self.encoder.init(device);
         let decoder = self.decoder.init(device);
+
+        assert_eq!(encoder.n_audio_states(), decoder.n_text_state());
 
         Whisper { encoder, decoder }
     }
