@@ -30,32 +30,32 @@ use crate::{
 /// Common meta for [`TextDecoder`] and [`TextDecoderConfig`].
 pub trait TextDecoderMeta {
     /// Return the size of the vocabulary.
-    fn n_vocab(&self) -> usize;
+    fn vocab_size(&self) -> usize;
 
-    /// Return the max text context size.
-    fn max_text_context(&self) -> usize;
+    /// Return the max context size.
+    fn max_context(&self) -> usize;
 
-    /// Return the number of text states.
-    fn n_text_state(&self) -> usize;
+    /// The embedding size of the model.
+    fn d_model(&self) -> usize;
 }
 
 /// Config for [`TextDecoder`].
 #[derive(Config, Debug)]
 pub struct TextDecoderConfig {
     /// The size of the vocabulary.
-    pub n_vocab: usize,
+    pub vocab_size: usize,
 
-    /// The max text context size.
-    pub max_text_context: usize,
+    /// Maximum text context size.
+    pub max_context: usize,
 
-    /// The text embedding size.
-    pub n_text_state: usize,
+    /// The embedding size of the model.
+    pub d_model: usize,
 
-    /// The number of decoder heads.
-    pub n_text_head: usize,
+    /// The number of heads.
+    pub n_heads: usize,
 
-    /// The number of decoder layers.
-    pub n_text_layer: usize,
+    /// The number of layers.
+    pub n_layers: usize,
 
     /// Dropout.
     #[config(default = "0.0")]
@@ -63,16 +63,16 @@ pub struct TextDecoderConfig {
 }
 
 impl TextDecoderMeta for TextDecoderConfig {
-    fn n_vocab(&self) -> usize {
-        self.n_vocab
+    fn vocab_size(&self) -> usize {
+        self.vocab_size
     }
 
-    fn max_text_context(&self) -> usize {
-        self.max_text_context
+    fn max_context(&self) -> usize {
+        self.max_context
     }
 
-    fn n_text_state(&self) -> usize {
-        self.n_text_state
+    fn d_model(&self) -> usize {
+        self.d_model
     }
 }
 
@@ -99,20 +99,19 @@ impl TextDecoderConfig {
         device: &B::Device,
     ) -> TextDecoder<B> {
         TextDecoder {
-            token_embedding: EmbeddingConfig::new(self.n_vocab, self.n_text_state).init(device),
+            token_embedding: EmbeddingConfig::new(self.vocab_size, self.d_model).init(device),
 
-            positional_embedding: EmbeddingConfig::new(self.max_text_context, self.n_text_state)
-                .init(device),
+            positional_embedding: EmbeddingConfig::new(self.max_context, self.d_model).init(device),
 
-            blocks: (0..self.n_text_layer)
+            blocks: (0..self.n_layers)
                 .map(|_| {
-                    ResidualDecoderAttentionBlockConfig::new(self.n_text_state, self.n_text_head)
+                    ResidualDecoderAttentionBlockConfig::new(self.d_model, self.n_heads)
                         .with_dropout(self.block_dropout)
                         .init(device)
                 })
                 .collect(),
 
-            ln: LayerNormConfig::new(self.n_text_state).init(device),
+            ln: LayerNormConfig::new(self.d_model).init(device),
             // mask: Param::from_tensor(attn_decoder_mask(self.max_text_context, device)),
         }
     }
@@ -136,15 +135,15 @@ pub struct TextDecoder<B: Backend> {
 }
 
 impl<B: Backend> TextDecoderMeta for TextDecoder<B> {
-    fn n_vocab(&self) -> usize {
+    fn vocab_size(&self) -> usize {
         self.token_embedding.weight.val().dims()[0]
     }
 
-    fn max_text_context(&self) -> usize {
+    fn max_context(&self) -> usize {
         self.positional_embedding.weight.val().dims()[0]
     }
 
-    fn n_text_state(&self) -> usize {
+    fn d_model(&self) -> usize {
         self.blocks[0].n_states()
     }
 }
@@ -166,10 +165,10 @@ impl<B: Backend> TextDecoder<B> {
         let [_n_batch, seq_len] = x.dims();
 
         assert!(
-            seq_len <= self.max_text_context(),
+            seq_len <= self.max_context(),
             "Token sequence length {} must not exceed {}.",
             seq_len,
-            self.max_text_context()
+            self.max_context()
         );
 
         let x = self.token_embedding.forward(x)
@@ -219,43 +218,37 @@ mod tests {
         type B = PerformanceBackend;
         let device = Default::default();
 
-        let n_vocab = 64;
-        let max_text_context = 128;
-        let n_text_head = 4;
-        let n_text_state = n_text_head * 32;
-        let n_text_layer = 2;
+        let d_model = 128;
+        let vocab_size = 64;
+        let max_context = 128;
+        let n_heads = 4;
+        let n_layers = 2;
 
-        let config = TextDecoderConfig::new(
-            n_vocab,
-            max_text_context,
-            n_text_state,
-            n_text_head,
-            n_text_layer,
-        );
+        let config = TextDecoderConfig::new(vocab_size, max_context, d_model, n_heads, n_layers);
 
-        assert_eq!(config.n_vocab(), n_vocab);
-        assert_eq!(config.max_text_context(), max_text_context);
-        assert_eq!(config.n_text_state(), n_text_state);
+        assert_eq!(config.vocab_size(), vocab_size);
+        assert_eq!(config.max_context(), max_context);
+        assert_eq!(config.d_model(), d_model);
 
         let decoder: TextDecoder<B> = config.init(&device);
 
-        assert_eq!(decoder.n_vocab(), n_vocab);
-        assert_eq!(decoder.max_text_context(), max_text_context);
-        assert_eq!(decoder.n_text_state(), n_text_state);
+        assert_eq!(decoder.vocab_size(), vocab_size);
+        assert_eq!(decoder.max_context(), max_context);
+        assert_eq!(decoder.d_model(), d_model);
 
         let batch = 2;
-        let seq_len = max_text_context / 2;
+        let seq_len = max_context / 2;
 
         let x: Tensor<B, 2, Int> = Tensor::zeros([batch, seq_len], &device);
         let xa: Tensor<B, 3> =
-            Tensor::random([batch, seq_len, n_text_state], Default::default(), &device);
+            Tensor::random([batch, seq_len, d_model], Default::default(), &device);
 
         let output = decoder.forward(x.clone(), xa.clone());
 
         assert_shape_contract!(
             ["batch", "seq", "n_vocab"],
             &output,
-            &[("batch", batch), ("seq", seq_len), ("n_vocab", n_vocab),],
+            &[("batch", batch), ("seq", seq_len), ("n_vocab", vocab_size),],
         );
     }
 }

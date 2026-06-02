@@ -74,17 +74,17 @@ impl WhisperApiConfig {
 pub trait WhisperMeta {
     /// Return the embedding size of the model.
     fn d_model(&self) -> usize {
-        self.encoder().n_audio_states()
+        self.encoder().d_model()
     }
 
     /// The max audio context size.
     fn max_encoder_ctx(&self) -> usize {
-        self.encoder().max_audio_ctx()
+        self.encoder().max_context()
     }
 
     /// The max text context size.
     fn max_decoder_ctx(&self) -> usize {
-        self.decoder().max_text_context()
+        self.decoder().max_context()
     }
 
     /// Return the [`AudioEncoder`] meta.
@@ -123,7 +123,7 @@ impl WhisperStructuralConfig {
         let encoder = self.encoder.init(device);
         let decoder = self.decoder.init(device);
 
-        assert_eq!(encoder.n_audio_states(), decoder.n_text_state());
+        assert_eq!(encoder.d_model(), decoder.d_model());
 
         Whisper { encoder, decoder }
     }
@@ -213,16 +213,17 @@ mod tests {
         type B = PerformanceBackend;
         let device = Default::default();
 
+        let d_model = 128;
         let n_mels = 80;
+        let vocab_size = 64;
+
         let max_audio_ctx = 128;
         let n_audio_heads = 4;
-        let d_model = n_audio_heads * 32;
         let n_audio_layers = 2;
 
-        let n_vocab = 64;
         let max_text_context = 128;
-        let n_text_head = 4;
-        let n_text_layer = 2;
+        let n_text_heads = 4;
+        let n_text_layers = 2;
 
         let config = WhisperApiConfig::new(
             n_mels,
@@ -230,10 +231,10 @@ mod tests {
             d_model,
             n_audio_heads,
             n_audio_layers,
-            n_vocab,
+            vocab_size,
             max_text_context,
-            n_text_head,
-            n_text_layer,
+            n_text_heads,
+            n_text_layers,
         );
 
         let structural = config.to_structural_config();
@@ -243,13 +244,13 @@ mod tests {
         assert_eq!(structural.max_decoder_ctx(), max_text_context);
 
         assert_eq!(structural.encoder().n_mels(), n_mels);
-        assert_eq!(structural.encoder().max_audio_ctx(), max_audio_ctx);
-        assert_eq!(structural.encoder().n_audio_states(), d_model);
-        assert_eq!(structural.encoder().n_audio_heads(), n_audio_heads);
-        assert_eq!(structural.encoder().n_audio_layers(), n_audio_layers);
-        assert_eq!(structural.decoder().n_vocab(), n_vocab);
-        assert_eq!(structural.decoder().max_text_context(), max_text_context);
-        assert_eq!(structural.decoder().n_text_state(), d_model);
+        assert_eq!(structural.encoder().max_context(), max_audio_ctx);
+        assert_eq!(structural.encoder().d_model(), d_model);
+        assert_eq!(structural.encoder().n_heads(), n_audio_heads);
+        assert_eq!(structural.encoder().n_layers(), n_audio_layers);
+        assert_eq!(structural.decoder().vocab_size(), vocab_size);
+        assert_eq!(structural.decoder().max_context(), max_text_context);
+        assert_eq!(structural.decoder().d_model(), d_model);
 
         let model: Whisper<B> = structural.init(&device);
 
@@ -258,10 +259,10 @@ mod tests {
         assert_eq!(model.max_decoder_ctx(), max_text_context);
 
         assert_eq!(model.encoder().n_mels(), n_mels);
-        assert_eq!(model.encoder().max_audio_ctx(), max_audio_ctx);
-        assert_eq!(model.encoder().n_audio_states(), d_model);
-        assert_eq!(model.decoder().n_vocab(), n_vocab);
-        assert_eq!(model.decoder().n_text_state(), d_model);
+        assert_eq!(model.encoder().max_context(), max_audio_ctx);
+        assert_eq!(model.encoder().d_model(), d_model);
+        assert_eq!(model.decoder().vocab_size(), vocab_size);
+        assert_eq!(model.decoder().d_model(), d_model);
         assert_eq!(model.max_encoder_ctx(), max_audio_ctx);
         assert_eq!(model.max_decoder_ctx(), max_text_context);
 
@@ -292,7 +293,11 @@ mod tests {
         assert_shape_contract!(
             ["batch", "seq", "n_vocab"],
             &output,
-            &[("batch", batch), ("seq", token_len), ("n_vocab", n_vocab)],
+            &[
+                ("batch", batch),
+                ("seq", token_len),
+                ("n_vocab", vocab_size)
+            ],
         );
     }
 }

@@ -38,16 +38,16 @@ pub trait AudioEncoderMeta {
     fn n_mels(&self) -> usize;
 
     /// Return the max audio context size.
-    fn max_audio_ctx(&self) -> usize;
+    fn max_context(&self) -> usize;
 
-    /// Return the number of audio states.
-    fn n_audio_states(&self) -> usize;
+    /// The embedding size of the model.
+    fn d_model(&self) -> usize;
 
-    /// Return the number of audio heads.
-    fn n_audio_heads(&self) -> usize;
+    /// Return the number of heads.
+    fn n_heads(&self) -> usize;
 
-    /// Return the number of audio layers.
-    fn n_audio_layers(&self) -> usize;
+    /// Return the number of layers.
+    fn n_layers(&self) -> usize;
 }
 
 /// Config for [`AudioEncoder`].
@@ -56,17 +56,17 @@ pub struct AudioEncoderConfig {
     /// The Mel-scale frequency resolution.
     pub n_mels: usize,
 
-    /// Number of Audio Context.
-    pub max_audio_ctx: usize,
+    /// Max audio context size.
+    pub max_context: usize,
 
-    /// Number of Audio States.
-    pub n_audio_states: usize,
+    /// The embedding size of the model.
+    pub d_model: usize,
 
     /// Number of Audio Heads.
-    pub n_audio_heads: usize,
+    pub n_heads: usize,
 
     /// Number of Audio Layers.
-    pub n_audio_layers: usize,
+    pub n_layers: usize,
 
     /// Head Activation.
     #[config(default = "ActivationConfig::Gelu")]
@@ -78,20 +78,20 @@ impl AudioEncoderMeta for AudioEncoderConfig {
         self.n_mels
     }
 
-    fn max_audio_ctx(&self) -> usize {
-        self.max_audio_ctx
+    fn max_context(&self) -> usize {
+        self.max_context
     }
 
-    fn n_audio_states(&self) -> usize {
-        self.n_audio_states
+    fn d_model(&self) -> usize {
+        self.d_model
     }
 
-    fn n_audio_heads(&self) -> usize {
-        self.n_audio_heads
+    fn n_heads(&self) -> usize {
+        self.n_heads
     }
 
-    fn n_audio_layers(&self) -> usize {
-        self.n_audio_layers
+    fn n_layers(&self) -> usize {
+        self.n_layers
     }
 }
 
@@ -102,31 +102,28 @@ impl AudioEncoderConfig {
         device: &B::Device,
     ) -> AudioEncoder<B> {
         AudioEncoder {
-            conv1: Conv1dConfig::new(self.n_mels, self.n_audio_states, 3)
+            conv1: Conv1dConfig::new(self.n_mels, self.d_model, 3)
                 .with_padding(PaddingConfig1d::Explicit(1, 1))
                 .init(device),
             act1: self.head_activation.init(device),
 
-            conv2: Conv1dConfig::new(self.n_audio_states, self.n_audio_states, 3)
+            conv2: Conv1dConfig::new(self.d_model, self.d_model, 3)
                 .with_padding(PaddingConfig1d::Explicit(1, 1))
                 .with_stride(2)
                 .init(device),
             act2: self.head_activation.init(device),
 
-            positional_embedding: EmbeddingConfig::new(self.max_audio_ctx / 2, self.n_audio_states)
+            positional_embedding: EmbeddingConfig::new(self.max_context / 2, self.d_model)
                 .init(device),
 
-            blocks: (0..self.n_audio_layers)
+            blocks: (0..self.n_layers)
                 .map(|_| {
-                    ResidualEncoderAttentionBlockConfig::new(
-                        self.n_audio_states,
-                        self.n_audio_heads,
-                    )
-                    .init(device)
+                    ResidualEncoderAttentionBlockConfig::new(self.d_model, self.n_heads)
+                        .init(device)
                 })
                 .collect(),
 
-            ln_post: LayerNormConfig::new(self.n_audio_states).init(device),
+            ln_post: LayerNormConfig::new(self.d_model).init(device),
         }
     }
 }
@@ -152,19 +149,19 @@ impl<B: Backend> AudioEncoderMeta for AudioEncoder<B> {
         self.conv1.weight.dims()[1]
     }
 
-    fn max_audio_ctx(&self) -> usize {
+    fn max_context(&self) -> usize {
         2 * self.positional_embedding.weight.val().dims()[0]
     }
 
-    fn n_audio_states(&self) -> usize {
+    fn d_model(&self) -> usize {
         self.blocks[0].n_states()
     }
 
-    fn n_audio_heads(&self) -> usize {
+    fn n_heads(&self) -> usize {
         self.blocks[0].n_heads()
     }
 
-    fn n_audio_layers(&self) -> usize {
+    fn n_layers(&self) -> usize {
         self.blocks.len()
     }
 }
@@ -189,10 +186,10 @@ impl<B: Backend> AudioEncoder<B> {
         );
 
         assert!(
-            seq_len <= self.max_audio_ctx(),
+            seq_len <= self.max_context(),
             "Audio length {} cannot exceed {}.",
             seq_len,
-            self.max_audio_ctx()
+            self.max_context()
         );
 
         let x = self.act1.forward(self.conv1.forward(x));
@@ -207,7 +204,7 @@ impl<B: Backend> AudioEncoder<B> {
             &[
                 ("batch", _batch),
                 ("len", seq_len / 2),
-                ("n_audio_states", self.n_audio_states()),
+                ("n_audio_states", self.d_model()),
             ],
         );
 
@@ -256,18 +253,18 @@ mod tests {
         );
 
         assert_eq!(config.n_mels(), n_mels);
-        assert_eq!(config.max_audio_ctx(), max_audio_ctx);
-        assert_eq!(config.n_audio_states(), n_audio_states);
-        assert_eq!(config.n_audio_heads(), n_audio_heads);
-        assert_eq!(config.n_audio_layers(), n_audio_layers);
+        assert_eq!(config.max_context(), max_audio_ctx);
+        assert_eq!(config.d_model(), n_audio_states);
+        assert_eq!(config.n_heads(), n_audio_heads);
+        assert_eq!(config.n_layers(), n_audio_layers);
 
         let encoder: AudioEncoder<B> = config.init(&device);
 
         assert_eq!(encoder.n_mels(), n_mels);
-        assert_eq!(encoder.max_audio_ctx(), max_audio_ctx);
-        assert_eq!(encoder.n_audio_states(), n_audio_states);
-        assert_eq!(encoder.n_audio_heads(), n_audio_heads);
-        assert_eq!(encoder.n_audio_layers(), n_audio_layers);
+        assert_eq!(encoder.max_context(), max_audio_ctx);
+        assert_eq!(encoder.d_model(), n_audio_states);
+        assert_eq!(encoder.n_heads(), n_audio_heads);
+        assert_eq!(encoder.n_layers(), n_audio_layers);
 
         let batch = 2;
         let k = max_audio_ctx / 2;
