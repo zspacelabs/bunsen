@@ -204,3 +204,60 @@ impl<B: Backend> TextDecoder<B> {
         // Needs softmax / beamsearch.
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use serial_test::serial;
+
+    use super::*;
+    use crate::{
+        contracts::assert_shape_contract,
+        support::testing::PerformanceBackend,
+    };
+
+    #[test]
+    #[serial]
+    fn test_text_decoder_forward() {
+        type B = PerformanceBackend;
+        let device = Default::default();
+
+        let n_vocab = 64;
+        let max_text_context = 128;
+        let n_text_head = 4;
+        let n_text_state = n_text_head * 32;
+        let n_text_layer = 2;
+
+        let config = TextDecoderConfig::new(
+            n_vocab,
+            max_text_context,
+            n_text_state,
+            n_text_head,
+            n_text_layer,
+        );
+
+        assert_eq!(config.n_vocab(), n_vocab);
+        assert_eq!(config.max_text_context(), max_text_context);
+        assert_eq!(config.n_text_state(), n_text_state);
+
+        let decoder: TextDecoder<B> = config.init(&device);
+
+        assert_eq!(decoder.n_vocab(), n_vocab);
+        assert_eq!(decoder.max_text_context(), max_text_context);
+        assert_eq!(decoder.n_text_state(), n_text_state);
+
+        let batch = 2;
+        let seq_len = max_text_context / 2;
+
+        let x: Tensor<B, 2, Int> = Tensor::zeros([batch, seq_len], &device);
+        let xa: Tensor<B, 3> =
+            Tensor::random([batch, seq_len, n_text_state], Default::default(), &device);
+
+        let output = decoder.forward(x.clone(), xa.clone());
+
+        assert_shape_contract!(
+            ["batch", "seq", "n_vocab"],
+            &output,
+            &[("batch", batch), ("seq", seq_len), ("n_vocab", n_vocab),],
+        );
+    }
+}
