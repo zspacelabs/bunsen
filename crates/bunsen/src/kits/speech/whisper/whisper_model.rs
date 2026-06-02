@@ -70,6 +70,15 @@ impl WhisperApiConfig {
     }
 }
 
+/// Common meta for [`Whisper`] and [`WhisperApiConfig`].
+pub trait WhisperMeta {
+    /// Return the [`AudioEncoder`] meta.
+    fn encoder(&self) -> &impl AudioEncoderMeta;
+
+    /// Return the [`TextDecoder`] meta.
+    fn decoder(&self) -> &impl TextDecoderMeta;
+}
+
 /// [`Whisper`] structural config.
 #[derive(Config, Debug)]
 pub struct WhisperStructuralConfig {
@@ -78,6 +87,16 @@ pub struct WhisperStructuralConfig {
 
     /// Decoder config.
     pub decoder: TextDecoderConfig,
+}
+
+impl WhisperMeta for WhisperStructuralConfig {
+    fn encoder(&self) -> &impl AudioEncoderMeta {
+        &self.encoder
+    }
+
+    fn decoder(&self) -> &impl TextDecoderMeta {
+        &self.decoder
+    }
 }
 
 impl WhisperStructuralConfig {
@@ -103,6 +122,16 @@ pub struct Whisper<B: Backend> {
 
     /// The [`TextDecoder`].
     pub decoder: TextDecoder<B>,
+}
+
+impl<B: Backend> WhisperMeta for Whisper<B> {
+    fn encoder(&self) -> &impl AudioEncoderMeta {
+        &self.encoder
+    }
+
+    fn decoder(&self) -> &impl TextDecoderMeta {
+        &self.decoder
+    }
 }
 
 impl<B: Backend> Whisper<B> {
