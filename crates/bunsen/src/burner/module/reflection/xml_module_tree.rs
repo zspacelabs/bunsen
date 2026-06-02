@@ -54,7 +54,7 @@ use crate::{
 /// The version of the `XmlModuleTree` format.
 pub const XML_MODULE_TREE_VERSION: &str = env!("CARGO_PKG_VERSION");
 
-/// XML/XPath reflection layer for `burner` [`Module`]s.
+/// XML/XPath reflection layer for `burner` [Module]s.
 pub struct XmlModuleTree {
     docs: Documents,
     root: Node,
@@ -79,7 +79,7 @@ impl Debug for XmlModuleTree {
 }
 
 impl XmlModuleTree {
-    /// Build a [`XmlModuleTree`] for a [`Module`].
+    /// Build a [`XmlModuleTree`] for a [Module].
     pub fn build<B: Backend, M: Module<B>>(module: &M) -> Self {
         XmlModuleTreeBuilder::build(module)
     }
@@ -121,7 +121,7 @@ impl XmlModuleTree {
             .unwrap()
     }
 
-    /// Bind (add/lookup) a local (no namespace) name in the [`xot`] arena.
+    /// Bind (add/lookup) a local (no namespace) name in the [xot] arena.
     ///
     /// # Arguments
     /// * `name` - a string name.
@@ -146,29 +146,29 @@ impl XmlModuleTree {
         names.map(|name| self.bind_local_name(name))
     }
 
-    /// The root [`Node`] document node of the module tree.
+    /// The root [Node] document node of the module tree.
     ///
     /// This is only useful with the XML apis.
     pub fn root(&self) -> Node {
         self.root
     }
 
-    /// A const view of the [`xee_xpath`] [`Documents`] arena.
+    /// A const view of the [`xee_xpath`] [Documents] arena.
     pub fn docs(&self) -> &Documents {
         &self.docs
     }
 
-    /// A mut view of the [`xee_xpath`] [`Documents`] arena.
+    /// A mut view of the [`xee_xpath`] [Documents] arena.
     pub fn docs_mut(&mut self) -> &mut Documents {
         &mut self.docs
     }
 
-    /// Internal. Shorthand access to the [`xot`] arena.
+    /// Internal. Shorthand access to the [xot] arena.
     pub fn xot(&self) -> &Xot {
         self.docs.xot()
     }
 
-    /// Internal. Shorthand access to the mutable [`xot`] arena.
+    /// Internal. Shorthand access to the mutable [xot] arena.
     pub fn xot_mut(&mut self) -> &mut Xot {
         self.docs.xot_mut()
     }

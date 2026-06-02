@@ -1,4 +1,4 @@
-//! # [`Distribution`] Utility Module
+//! # [Distribution] Utility Module
 
 use burn::{
     module::{
@@ -9,7 +9,7 @@ use burn::{
     tensor::Distribution,
 };
 
-/// Adapter to display a [`Distribution`] in a module.
+/// Adapter to display a [Distribution] in a module.
 pub struct DistributionDisplayAdapter(Distribution);
 
 impl DistributionDisplayAdapter {

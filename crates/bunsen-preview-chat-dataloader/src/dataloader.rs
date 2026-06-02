@@ -43,7 +43,7 @@ use crate::{
 /// The counters are stored as shared atomics so that
 /// [`IterWatcher`]-style callbacks layered into the streaming pipeline can
 /// update them as data flows through, while the training loop reads them
-/// to drive [`Progress`] reporting.
+/// to drive [Progress] reporting.
 #[derive(Debug, Default, Clone)]
 pub struct EpochStats {
     file_counter: Arc<AtomicUsize>,
@@ -88,12 +88,12 @@ impl EpochStats {
     }
 
     /// Total number of shards in the epoch (the denominator for
-    /// [`progress`](Self::progress)).
+    /// [progress](Self::progress)).
     pub fn items_total(&self) -> usize {
         self.items_total
     }
 
-    /// Returns a [`Progress`] snapshot suitable for the burn training loop.
+    /// Returns a [Progress] snapshot suitable for the burn training loop.
     pub fn progress(&self) -> Progress {
         Progress {
             items_processed: self.file_count(),

@@ -163,11 +163,11 @@ impl<B: Backend> BlockMlp<B> {
     ///
     /// # Arguments
     ///
-    /// - `x`: a tensor of ``[batch = ..., in]``.
+    /// - `x`: a tensor of `[batch = ..., in]`.
     ///
     /// # Returns
     ///
-    /// A tensor of ``[batch = ... out]``
+    /// A tensor of `[batch = ... out]`
     #[must_use]
     pub fn forward<const D: usize>(
         &self,
@@ -212,7 +212,7 @@ impl<B: Backend> BlockMlp<B> {
 ///
 /// # Arguments
 ///
-/// * `x` - Input tensor of ``[batch, height, width, channels]``.
+/// * `x` - Input tensor of `[batch, height, width, channels]`.
 /// * `f` - Function to apply on the shifted tensor.
 ///
 /// # Returns
@@ -323,7 +323,7 @@ pub struct ShiftedWindowTransformerBlockConfig {
     /// Input dimension size.
     pub d_input: usize,
 
-    /// Input resolution as ``[height, width]``.
+    /// Input resolution as `[height, width]`.
     pub input_resolution: [usize; 2],
 
     /// Number of attention heads.
@@ -502,12 +502,12 @@ impl ShiftedWindowTransformerBlockConfig {
 
 /// Basic Swin Transformer Block.
 ///
-/// Equivalent to the ``SwinTransformerBlock`` in the python source.
+/// Equivalent to the `SwinTransformerBlock` in the python source.
 ///
 /// Applies one layer of Swin Transformer block with window attention and MLP.
 #[derive(Module, Debug)]
 pub struct ShiftedWindowTransformerBlock<B: Backend> {
-    /// Input resolution of the block, as ``[H, W]``.
+    /// Input resolution of the block, as `[H, W]`.
     pub input_resolution: [usize; 2],
 
     /// Window size for window attention.
@@ -582,11 +582,11 @@ impl<B: Backend> ShiftedWindowTransformerBlock<B> {
     ///
     /// # Arguments
     ///
-    /// * `x` - Input tensor of ``[batch, height * width, channels]``.
+    /// * `x` - Input tensor of `[batch, height * width, channels]`.
     ///
     /// # Returns
     ///
-    /// A new tensor of ``[batch, height * width, channels]``.
+    /// A new tensor of `[batch, height * width, channels]`.
     ///
     /// # Panics
     ///
@@ -644,12 +644,12 @@ impl<B: Backend> ShiftedWindowTransformerBlock<B> {
     ///
     /// # Arguments
     ///
-    /// * `x` - Input tensor of ``[batch, height, width, channels]``.
+    /// * `x` - Input tensor of `[batch, height, width, channels]`.
     /// * `c` - Number of channels in the input tensor.
     ///
     /// # Returns
     ///
-    /// A new tensor of ``[batch, height, width, channels]`` with window
+    /// A new tensor of `[batch, height, width, channels]` with window
     /// attention applied.
     #[must_use]
     #[inline(always)]

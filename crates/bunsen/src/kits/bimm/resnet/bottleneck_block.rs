@@ -6,10 +6,10 @@
 //! [`BottleneckBlockMeta`] defines a common meta-API for [`BottleneckBlock`]
 //! and [`BottleneckBlockConfig`].
 //!
-//! [`BottleneckBlockConfig`] implements [`Config`] and provides
+//! [`BottleneckBlockConfig`] implements [Config] and provides
 //! [`BottleneckBlockConfig::init`] to initialize a [`BottleneckBlock`].
 //!
-//! [`BottleneckBlock`] implements [`Module`] and provides
+//! [`BottleneckBlock`] implements [Module] and provides
 //! [`BottleneckBlock::forward`].
 
 use burn::{
@@ -82,11 +82,11 @@ pub trait BottleneckBlockMeta {
     fn out_planes(&self) -> usize;
 
     /// The bottleneck pinch factor.
-    /// Controls the relative size of ``pinch_planes``.
+    /// Controls the relative size of `pinch_planes`.
     fn pinch_factor(&self) -> usize;
 
     /// The internal pinch planes.
-    /// This is ``out_planes / pinch_factor``.
+    /// This is `out_planes / pinch_factor`.
     fn planes(&self) -> usize {
         self.out_planes() / self.pinch_factor()
     }
@@ -110,7 +110,7 @@ pub trait BottleneckBlockMeta {
 
     /// Get Width Plane.
     ///
-    /// ``pinch_planes * (base_width / 64) * cardinality``
+    /// `pinch_planes * (base_width / 64) * cardinality`
     fn width(&self) -> usize {
         ((self.planes() as f64 * self.base_width() as f64 / 64.0) as usize) * self.cardinality()
     }
@@ -126,12 +126,12 @@ pub trait BottleneckBlockMeta {
     ///
     /// # Arguments
     ///
-    /// - `input_resolution`: ``[in_height=out_height*stride,
-    ///   in_width=out_width*stride]``.
+    /// - `input_resolution`: `[in_height=out_height*stride,
+    ///   in_width=out_width*stride]`.
     ///
     /// # Returns
     ///
-    /// ``[out_height, out_width]``
+    /// `[out_height, out_width]`
     ///
     /// # Panics
     ///
@@ -445,12 +445,12 @@ impl<B: Backend> BottleneckBlock<B> {
     ///
     /// # Arguments
     ///
-    /// - `input`: ``[batch, in_planes, in_height=out_height*stride,
-    ///   in_width=out_width*stride]``.
+    /// - `input`: `[batch, in_planes, in_height=out_height*stride,
+    ///   in_width=out_width*stride]`.
     ///
     /// # Returns
     ///
-    /// A ``[batch, out_planes=planes*expansion_factor, out_height, out_width]``
+    /// A `[batch, out_planes=planes*expansion_factor, out_height, out_width]`
     /// tensor;
     pub fn forward(
         &self,

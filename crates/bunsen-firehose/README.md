@@ -136,7 +136,7 @@ pub struct Args {
     #[arg(long, default_value = "60")]
     num_epochs: usize,
 
-    /// Embedding ratio: ``ratio * channels * patch_size * patch_size``
+    /// Embedding ratio: `ratio * channels * patch_size * patch_size`
     #[arg(long, default_value = "1.25")]
     embed_ratio: f64,
 

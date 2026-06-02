@@ -60,7 +60,7 @@ pub fn maybe_conv1d_output_size(
 
 /// Predict the output size of a 1D convolution operation.
 ///
-/// This is the ``panic``-ing variant of [`maybe_conv1d_output_size`].
+/// This is the `panic`-ing variant of [`maybe_conv1d_output_size`].
 ///
 /// ```text
 /// out_size = floor( ((in_size + 2*padding - dilation*(kernel_size-1) - 1) / stride) + 1 )
@@ -150,7 +150,7 @@ pub fn maybe_conv_output_shape_dyn(
 
 /// Predict the output shape of a D convolution operation.
 ///
-/// This is the ``panic``-ing variant of [`maybe_conv_output_shape_dyn`];
+/// This is the `panic`-ing variant of [`maybe_conv_output_shape_dyn`];
 /// which is the generalization of [`maybe_conv1d_output_size`] to D dimensions.
 ///
 /// # Arguments
@@ -218,7 +218,7 @@ pub fn maybe_conv_output_shape<const D: usize>(
 
 /// Predict the output shape of a D convolution operation.
 ///
-/// This is the ``panic``-ing variant of [`maybe_conv_output_shape`];
+/// This is the `panic`-ing variant of [`maybe_conv_output_shape`];
 /// which is the generalization of [`maybe_conv1d_output_size`] to D dimensions.
 ///
 /// # Arguments
@@ -254,12 +254,12 @@ pub fn expect_conv_output_shape<const D: usize>(
 ///
 /// # Arguments
 ///
-/// - `input_resolution`: ``[in_height=out_height*stride,
-///   in_width=out_width*stride]``.
+/// - `input_resolution`: `[in_height=out_height*stride,
+///   in_width=out_width*stride]`.
 ///
 /// # Returns
 ///
-/// ``[out_height, out_width]``
+/// `[out_height, out_width]`
 ///
 /// # Panics
 ///

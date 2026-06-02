@@ -59,12 +59,12 @@ pub struct BuildPlan {
     #[serde(default)]
     pub config: serde_json::Value,
 
-    /// The input column bindings ``{parameter_name: column_name}``.
+    /// The input column bindings `{parameter_name: column_name}`.
     #[serde(skip_serializing_if = "BTreeMap::is_empty")]
     #[serde(default)]
     pub inputs: BTreeMap<String, String>,
 
-    /// The output column bindings ``{parameter_name: column_name}``.
+    /// The output column bindings `{parameter_name: column_name}`.
     #[serde(skip_serializing_if = "BTreeMap::is_empty")]
     #[serde(default)]
     pub outputs: BTreeMap<String, String>,

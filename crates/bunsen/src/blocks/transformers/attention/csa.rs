@@ -222,12 +222,12 @@ impl<B: Backend> CausalSelfAttention<B> {
     /// Forward Pass.
     ///
     /// # Arguments
-    /// - `input`: a ``[B, T, D]`` sequence.
-    /// - `r_emb`: a rotary embedding with len ``T``.
+    /// - `input`: a `[B, T, D]` sequence.
+    /// - `r_emb`: a rotary embedding with len `T`.
     /// - `kv_cache`: optional KV cache.
     ///
     /// # Returns
-    /// - ``[B, T, D]`` attention.
+    /// - `[B, T, D]` attention.
     pub fn forward(
         &self,
         input: Tensor<B, 3>,

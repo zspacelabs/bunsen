@@ -624,7 +624,7 @@ impl<'a> ShapeContract<'a> {
     ///
     /// - `shape`: the shape to match.
     /// - `env`: the mutable environment to bind parameters.
-    /// - `location`: the location reference from ``#[track_caller]``.
+    /// - `location`: the location reference from `#[track_caller]`.
     ///
     /// ## Returns
     ///

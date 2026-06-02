@@ -1,9 +1,9 @@
 //! # `CNA2d` - conv/norm/activation block.
 //!
 //! A [`CNA2d`] module is:
-//! * a [`Conv2d`] layer,
-//! * a [`Normalization`] layer,
-//! * a [`Activation`] layer.
+//! * a [Conv2d] layer,
+//! * a [Normalization] layer,
+//! * a [Activation] layer.
 //!
 //! With support for hooking the forward method,
 //! to run code between the norm and application images.
@@ -45,7 +45,7 @@ use crate::contracts::{
 /// with the target [`Conv2dConfig`].
 #[derive(Config, Debug)]
 pub struct AbstractCNA2dConfig {
-    /// The [`Normalization`] config.
+    /// The [Normalization] config.
     pub norm: NormalizationConfig,
 
     /// Activation Config.
@@ -92,13 +92,13 @@ pub trait CNA2dMeta {
 /// Implements [`CNA2dMeta`].
 #[derive(Config, Debug)]
 pub struct CNA2dConfig {
-    /// The [`Conv2d`] config.
+    /// The [Conv2d] config.
     pub conv: Conv2dConfig,
 
-    /// The [`Normalization`] config.
+    /// The [Normalization] config.
     pub norm: NormalizationConfig,
 
-    /// The [`Activation`] config.
+    /// The [Activation] config.
     #[config(default = "ActivationConfig::Relu")]
     pub act: ActivationConfig,
 }
@@ -151,9 +151,9 @@ impl CNA2dConfig {
 /// Sequenced conv/norm/activation block.
 ///
 /// A [`CNA2d`] module is:
-/// * a [`Conv2d`] layer,
-/// * a [`Normalization`] layer,
-/// * a [`Activation`] layer.
+/// * a [Conv2d] layer,
+/// * a [Normalization] layer,
+/// * a [Activation] layer.
 ///
 /// With support for hooking the forward method,
 /// to run code between the norm and application images.
@@ -203,12 +203,12 @@ impl<B: Backend> CNA2d<B> {
     ///
     /// # Arguments
     ///
-    /// - `input`: ``[batch, in_channels, in_height=out_height*stride,
-    ///   in_width=out_width*stride]``.
+    /// - `input`: `[batch, in_channels, in_height=out_height*stride,
+    ///   in_width=out_width*stride]`.
     ///
     /// # Returns
     ///
-    /// ``[batch, out_channels, out_height, out_width]``
+    /// `[batch, out_channels, out_height, out_width]`
     pub fn forward(
         &self,
         input: Tensor<B, 4>,
@@ -230,14 +230,14 @@ impl<B: Backend> CNA2d<B> {
     ///
     /// # Arguments
     ///
-    /// - `input`: \ ``[batch, in_channels, in_height=out_height*stride,
-    ///   in_width=out_width*stride]``.
-    /// - `f`: a callback endofunction, from/to ``[batch, in_channels,
-    ///   out_height, out_width]``.
+    /// - `input`: \ `[batch, in_channels, in_height=out_height*stride,
+    ///   in_width=out_width*stride]`.
+    /// - `f`: a callback endofunction, from/to `[batch, in_channels,
+    ///   out_height, out_width]`.
     ///
     /// # Returns
     ///
-    /// ``[batch, out_channels, out_height, out_width]``
+    /// `[batch, out_channels, out_height, out_width]`
     pub fn map_forward<F>(
         &self,
         input: Tensor<B, 4>,

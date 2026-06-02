@@ -1,6 +1,6 @@
 //! # `ConvNorm` Module
 //!
-//! A [`ConvNorm2d`] module is a [`Conv2d`] layer followed by a [`BatchNorm`]
+//! A [`ConvNorm2d`] module is a [Conv2d] layer followed by a [`BatchNorm`]
 //! layer.
 
 use burn::{
@@ -44,7 +44,7 @@ pub trait ConvNorm2dMeta {
 /// [`ConvNorm2d`] Config.
 #[derive(Config, Debug)]
 pub struct ConvNorm2dConfig {
-    /// The [`Conv2d`] config.
+    /// The [Conv2d] config.
     pub conv: Conv2dConfig,
 }
 
@@ -96,7 +96,7 @@ impl ConvNorm2dConfig {
     }
 }
 
-/// Grouped [`Conv2d`] and [`BatchNorm`] layer.
+/// Grouped [Conv2d] and [`BatchNorm`] layer.
 #[derive(Module, Debug)]
 pub struct ConvNorm2d<B: Backend> {
     /// Internal Conv2d layer.

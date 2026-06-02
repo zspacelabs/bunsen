@@ -9,7 +9,7 @@ use burn::module::{
     Parameter,
 };
 
-/// This is meta-descriptor for a [`Param`].
+/// This is meta-descriptor for a [Param].
 ///
 /// This type acts as [`AsRef<T>`], [`Deref<T>`].
 ///

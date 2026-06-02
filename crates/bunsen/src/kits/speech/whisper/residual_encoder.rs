@@ -116,10 +116,10 @@ impl<B: Backend> ResidualEncoderAttentionBlock<B> {
     /// Forward pass of the residual decoder attention block.
     ///
     /// ## Arguments
-    /// * `x` : ``[batch, seq_len, d_model]`` input.
+    /// * `x`: `[batch, seq_len, d_model]` input.
     ///
     /// ## Returns
-    /// ``[batch, seq_len, d_model]``
+    /// `[batch, seq_len, d_model]`
     pub fn forward(
         &self,
         x: Tensor<B, 3>,

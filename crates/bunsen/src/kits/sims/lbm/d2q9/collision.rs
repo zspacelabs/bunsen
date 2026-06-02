@@ -30,7 +30,7 @@ use crate::kits::sims::lbm::d2q9::{
 /// and will default to `1.0` for `None`.
 ///
 /// # Arguments
-/// - `dist`: ``[H, W, VY=3, VX=3]`` current distribution
+/// - `dist`: `[H, W, VY=3, VX=3]` current distribution
 /// - `relaxation`: relaxation parameter.
 /// - `correction`: fused correction factor for the relaxation operator;
 ///   defaults to 1.0.
@@ -56,14 +56,14 @@ pub fn bgk_collision<B: Backend, S: Into<OmegaSource<B>>>(
 /// - [`with_spherical_reflection`]
 ///
 /// # Arguments
-/// - `dist`: ``[H, W, VY=3, VX=3]`` pre-collision distribution
-/// - `solid_mask`: ``[H, W]`` mask of solid locations.
+/// - `dist`: `[H, W, VY=3, VX=3]` pre-collision distribution
+/// - `solid_mask`: `[H, W]` mask of solid locations.
 /// - `correction`: fused correction factor for the relaxation operator;
 ///   defaults to 1.0.
 /// - `lbm_tables`: LBM Reference Tables.
 ///
 /// # Returns
-/// - ``[H, W, VY=3, VX=3]`` distribution.
+/// - `[H, W, VY=3, VX=3]` distribution.
 pub fn bgk_collision_with_spherical_reflection<B: Backend>(
     dist: Tensor<B, 4>,
     solid_mask: Tensor<B, 2, Bool>,

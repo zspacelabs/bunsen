@@ -50,7 +50,7 @@ pub struct RelativePositionBiasConfig {
     /// The number of attention heads.
     pub num_heads: usize,
 
-    /// The shape of the window ``[height, width]``.
+    /// The shape of the window `[height, width]`.
     pub window_shape: [usize; 2],
 
     /// The base value for the relative position bias.
@@ -292,12 +292,12 @@ impl<B: Backend> ContinuousPositionBiasMlp<B> {
     ///
     /// # Arguments
     ///
-    /// * `x`: A tensor of ``[..., 2]`` of the relative log-offset coordinates
+    /// * `x`: A tensor of `[..., 2]` of the relative log-offset coordinates
     ///   table.
     ///
     /// # Returns
     ///
-    /// A tensor of ``[..., num_heads]`` of the learned bias table.
+    /// A tensor of `[..., num_heads]` of the learned bias table.
     #[must_use]
     pub fn forward<const D: usize>(
         &self,

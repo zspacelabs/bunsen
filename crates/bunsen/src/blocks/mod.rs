@@ -19,7 +19,7 @@
 //!
 //! ## Map of the module
 //!
-//! - [`transformers`] &mdash; building blocks for transformer models.
+//! - [transformers] &mdash; building blocks for transformer models.
 //!   - [`transformers::attention`] &mdash; causal self-attention
 //!     (`CausalSelfAttention`), scaled-dot-product attention helpers
 //!     (`scaled_dot_product_attention` and friends), and a `KVCache` for
@@ -28,7 +28,7 @@
 //!     `RotaryEmbedding` (`RoPE`) with a clip-by-range helper for
 //!     KV-cache-friendly slicing.
 //!
-//! - [`images`] &mdash; building blocks for vision models.
+//! - [images] &mdash; building blocks for vision models.
 //!   - [`images::conv`] &mdash; conv composites: `ConvNorm2d` (conv +
 //!     batchnorm) and `CNA2d` (conv / norm / activation).
 //!   - [`images::patching`] &mdash; patch tokenization, currently `PatchEmbed`

@@ -189,11 +189,11 @@ impl<B: Backend> PatchEmbed<B> {
     ///
     /// # Arguments
     ///
-    /// * `x` - Input tensor of shape ``[B, C, H, W]``.
+    /// * `x` - Input tensor of shape `[B, C, H, W]`.
     ///
     /// # Returns
     ///
-    /// * Output tensor of shape ``[B, H/patch_size * W/patch_size, d_output]``.
+    /// * Output tensor of shape `[B, H/patch_size * W/patch_size, d_output]`.
     #[must_use]
     pub fn forward(
         &self,

@@ -129,10 +129,10 @@ impl<B: Backend> ResidualDecoderAttentionBlockMeta for ResidualDecoderAttentionB
 /// Decode record for [`ResidualDecoderAttentionBlock::forward`].
 #[derive(Debug, Clone)]
 pub struct DecodeRecord<B: Backend> {
-    /// Block Output: ``[batch, seq_len, d_model]``.
+    /// Block Output: `[batch, seq_len, d_model]`.
     pub output: Tensor<B, 3>,
 
-    /// Cross-Attention Weights: ``[batch, n_heads, seq_len, seq_len]``.
+    /// Cross-Attention Weights: `[batch, n_heads, seq_len, seq_len]`.
     pub ca_weights: Tensor<B, 4>,
 }
 
@@ -157,14 +157,14 @@ impl<B: Backend> ResidualDecoderAttentionBlock<B> {
     /// Forward pass of the residual decoder attention block.
     ///
     /// ## Arguments
-    /// * `x` : ``[batch, seq_len, d_model]`` input.
-    /// * `xa` : ``[batch, seq_len, d_model]`` cross-attention input.
-    /// * `mask` : ``[batch, seq_len, seq_len]`` attention mask.
+    /// * `x` : `[batch, seq_len, d_model]` input.
+    /// * `xa` : `[batch, seq_len, d_model]` cross-attention input.
+    /// * `mask` : `[batch, seq_len, seq_len]` attention mask.
     ///
     /// ## Returns
     /// `DecodeRecord` - forward record.
-    /// * `fr.output` : ``[batch, seq_len, d_model]``.
-    /// * `fr.ca_weights` : ``[batch, n_heads, seq_len, seq_len]``.
+    /// * `fr.output` : `[batch, seq_len, d_model]`.
+    /// * `fr.ca_weights` : `[batch, n_heads, seq_len, seq_len]`.
     pub fn forward(
         &self,
         x: Tensor<B, 3>,

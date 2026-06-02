@@ -152,11 +152,11 @@ impl<B: Backend> TextDecoder<B> {
     /// Run the decoder.
     ///
     /// ## Arguments
-    /// * `x`: ``[batch, seq]``.
-    /// * `xa`: ``[batch, seq, d_model]``.
+    /// * `x`: `[batch, seq]`.
+    /// * `xa`: `[batch, seq, d_model]`.
     ///
     /// ## Returns
-    /// ``[batch, seq, n_vocab]``.
+    /// `[batch, seq, n_vocab]`.
     pub fn forward(
         &self,
         x: Tensor<B, 2, Int>,

@@ -317,7 +317,7 @@ impl<B: Backend> NanoChatGpt<B> {
     /// Forward Pass.
     ///
     /// # Arguments
-    /// - `idx`: a ``[B, T]`` input.
+    /// - `idx`: a `[B, T]` input.
     /// - `kv_cache`: a `KVCache`.
     pub fn forward(
         &self,

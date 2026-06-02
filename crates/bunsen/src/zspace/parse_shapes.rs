@@ -6,7 +6,7 @@ use crate::errors::{
     BunsenResult,
 };
 
-/// Encode a [`Shape`] to XML/XPath attribute style.
+/// Encode a [Shape] to XML/XPath attribute style.
 ///
 /// Bracketless space-seperated style, eg: "1", "2 4"
 ///
@@ -19,7 +19,7 @@ pub fn shape_to_xml_attr(shape: &Shape) -> String {
         .join(" ")
 }
 
-/// Decode a [`Shape`] from XML/XPath attribute style.
+/// Decode a [Shape] from XML/XPath attribute style.
 ///
 /// Bracketless space-seperated style, eg: "1", "2 4"
 ///

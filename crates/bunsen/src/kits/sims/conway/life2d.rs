@@ -23,11 +23,11 @@ use burn::{
 ///
 /// # Arguments
 ///
-/// - `state`: the ``[H, W]`` input state.
+/// - `state`: the `[H, W]` input state.
 /// - `density`: the probability of flipping a given bit.
 ///
 /// # Returns
-/// - the fuzzed ``[H, W]`` state.
+/// - the fuzzed `[H, W]` state.
 pub fn fuzz_state_2d<B: Backend>(
     state: Tensor<B, 2, Bool>,
     density: f64,
@@ -133,10 +133,10 @@ where
 ///
 /// # Arguments
 ///
-/// - `state`: a ``[H, W]`` game state.
+/// - `state`: a `[H, W]` game state.
 ///
 /// # Returns
-/// - the ``[H, W]`` evolved interior state, with wrapped edges.
+/// - the `[H, W]` evolved interior state, with wrapped edges.
 pub fn next_state_wrapped_2d<B: Backend>(state: Tensor<B, 2, Bool>) -> Tensor<B, 2, Bool> {
     let update = next_interior_2d(state.clone());
 
@@ -151,10 +151,10 @@ pub fn next_state_wrapped_2d<B: Backend>(state: Tensor<B, 2, Bool>) -> Tensor<B,
 /// Return the interior board next-state.
 ///
 /// # Arguments
-/// - `state`: a ``[H, W]`` game state.
+/// - `state`: a `[H, W]` game state.
 ///
 /// # Returns
-/// - the ``[H-2, W-2]`` evolved interior state.
+/// - the `[H-2, W-2]` evolved interior state.
 pub fn next_interior_2d<B: Backend>(state: Tensor<B, 2, Bool>) -> Tensor<B, 2, Bool> {
     #[cfg(debug_assertions)]
     let [h, w] = crate::contracts::unpack_shape_contract!(["h", "w"], &state.dims(),);

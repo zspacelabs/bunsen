@@ -70,7 +70,7 @@ impl WhisperApiConfig {
     }
 }
 
-/// Common meta for [`Whisper`] and [`WhisperApiConfig`].
+/// Common meta for [Whisper] and [`WhisperApiConfig`].
 pub trait WhisperMeta {
     /// Return the Mel-scale frequency resolution.
     fn n_mels(&self) -> usize {
@@ -104,7 +104,7 @@ pub trait WhisperMeta {
     fn decoder(&self) -> &impl TextDecoderMeta;
 }
 
-/// [`Whisper`] structural config.
+/// [Whisper] structural config.
 #[derive(Config, Debug)]
 pub struct WhisperStructuralConfig {
     /// Encoder config.
@@ -163,11 +163,11 @@ impl<B: Backend> Whisper<B> {
     /// Forward pass through the Whisper model.
     ///
     /// ## Arguments
-    /// * `mel`: The input audio spectrogram ``[batch, n_mels, seq]``.
-    /// * `tokens`: ``[batch, seq]``.
+    /// * `mel`: The input audio spectrogram `[batch, n_mels, seq]`.
+    /// * `tokens`: `[batch, seq]`.
     ///
     /// ## Returns
-    /// ``[batch, seq, n_vocab]``.
+    /// `[batch, seq, n_vocab]`.
     pub fn forward(
         &self,
         mel: Tensor<B, 3>,
@@ -179,10 +179,10 @@ impl<B: Backend> Whisper<B> {
     /// Forward pass through the Whisper encoder.
     ///
     /// ## Arguments
-    /// * `mel`: The input audio spectrogram ``[batch, n_mels, seq]``.
+    /// * `mel`: The input audio spectrogram `[batch, n_mels, seq]`.
     ///
     /// ## Returns
-    /// ``[batch, seq, n_audio_states]``.
+    /// `[batch, seq, n_audio_states]`.
     pub fn forward_encoder(
         &self,
         mel: Tensor<B, 3>,
@@ -193,11 +193,11 @@ impl<B: Backend> Whisper<B> {
     /// Forward pass through the Whisper decoder.
     ///
     /// ## Arguments
-    /// * `tokens`: ``[batch, seq]``.
-    /// * `encoder_output`: ``[batch, seq, d_model]``.
+    /// * `tokens`: `[batch, seq]`.
+    /// * `encoder_output`: `[batch, seq, d_model]`.
     ///
     /// ## Returns
-    /// ``[batch, seq, n_vocab]``.
+    /// `[batch, seq, n_vocab]`.
     pub fn forward_decoder(
         &self,
         tokens: Tensor<B, 2, Int>,

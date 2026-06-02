@@ -2,7 +2,7 @@
 #![warn(clippy::missing_docs_in_private_items)]
 //! # bunsen-firehose - Burn-based Data Pipeline
 //!
-//! `bunsen-firehose` is a column-oriented data pipeline for feeding [`burn`]
+//! `bunsen-firehose` is a column-oriented data pipeline for feeding [burn]
 //! models. You describe *what* each column is and *how* derived columns are
 //! computed (a [`FirehoseTableSchema`] of [`ColumnSchema`] + [`BuildPlan`]s),
 //! then run batches of rows ([`FirehoseRowBatch`]) through an executor that
@@ -16,12 +16,12 @@
 //!   read and written through the [`FirehoseRowReader`] / [`FirehoseRowWriter`]
 //!   traits.
 //! - [`core::operations`] — operators ([`FirehoseOperator`]), their factories,
-//!   the lookup [`environment`](core::operations::environment), and the
-//!   [`executor`](core::operations::executor) that runs a schema over a batch.
-//! - [`ops`] — the registry of globally-registered operators and
+//!   the lookup [environment](core::operations::environment), and the
+//!   [executor](core::operations::executor) that runs a schema over a batch.
+//! - [ops] — the registry of globally-registered operators and
 //!   [`init_default_operator_environment`](ops::init_default_operator_environment).
-//! - [`burn`] — adapters that expose a schema as a [`burn`] `Batcher`, plus
-//!   dataset path-scanning helpers.
+//! - [burn] — adapters that expose a schema as a [burn] `Batcher`, plus dataset
+//!   path-scanning helpers.
 //!
 //! # Example: define an operator, plan a column, run a batch
 //!
@@ -113,19 +113,19 @@
 //! }
 //! ```
 //!
-//! For a full training pipeline — image loading, augmentation, and a [`burn`]
+//! For a full training pipeline — image loading, augmentation, and a [burn]
 //! `DataLoaderBuilder` driven by a
 //! [`FirehoseExecutorBatcher`](burn::batcher::FirehoseExecutorBatcher) — see
 //! the `resnet_tiny` example under `demos/bimm/examples`.
 //!
-//! [`FirehoseTableSchema`]: core::schema::FirehoseTableSchema
-//! [`ColumnSchema`]: core::schema::ColumnSchema
-//! [`BuildPlan`]: core::schema::BuildPlan
-//! [`FirehoseRowBatch`]: core::rows::FirehoseRowBatch
-//! [`FirehoseRow`]: core::rows::FirehoseRow
-//! [`FirehoseRowReader`]: core::rows::FirehoseRowReader
-//! [`FirehoseRowWriter`]: core::rows::FirehoseRowWriter
-//! [`FirehoseOperator`]: core::operations::operator::FirehoseOperator
+//! [FirehoseTableSchema]: core::schema::FirehoseTableSchema
+//! [ColumnSchema]: core::schema::ColumnSchema
+//! [BuildPlan]: core::schema::BuildPlan
+//! [FirehoseRowBatch]: core::rows::FirehoseRowBatch
+//! [FirehoseRow]: core::rows::FirehoseRow
+//! [FirehoseRowReader]: core::rows::FirehoseRowReader
+//! [FirehoseRowWriter]: core::rows::FirehoseRowWriter
+//! [FirehoseOperator]: core::operations::operator::FirehoseOperator
 
 /// New Data Table module.
 pub mod core;

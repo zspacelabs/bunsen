@@ -1,10 +1,10 @@
 //! # Config Parsers
 
-/// Parse a shape string into a ``(H, W)`` tuple.
+/// Parse a shape string into a `(H, W)` tuple.
 ///
 /// Accepts:
-/// - ``SHAPE``: ``(SHAPE, SHAPE)``.
-/// - ``H,W``: ``(H, W)``.
+/// - `SHAPE`: `(SHAPE, SHAPE)`.
+/// - `H,W`: `(H, W)`.
 ///
 /// # Returns
 ///

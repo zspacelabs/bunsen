@@ -7,7 +7,7 @@ use arrow::{
 
 /// Re-chunks an iterator of [`RecordBatch`] results to a target batch size.
 ///
-/// Wraps Arrow's [`BatchCoalescer`] in an [`Iterator`]: incoming batches
+/// Wraps Arrow's [`BatchCoalescer`] in an [Iterator]: incoming batches
 /// are pushed through the coalescer and emitted at the target size, with
 /// any partial trailing batch flushed when the inner iterator is exhausted.
 /// All input batches must share the schema passed to [`Rebatcher::new`].

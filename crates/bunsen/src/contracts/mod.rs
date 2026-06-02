@@ -3,7 +3,7 @@
 #![warn(missing_docs)]
 //! # Shape Contracts
 //!
-//! This is a ``no_std`` inline contract programming library for tensor geometry
+//! This is a `no_std` inline contract programming library for tensor geometry
 //! for the [burner](https://burn.dev) tensor framework.
 //!
 //! Contract programming, or [Design by Contract](https://en.wikipedia.org/wiki/Design_by_contract),
@@ -17,7 +17,7 @@
 //!
 //! ## Features
 //!
-//! - ``burner``: Shape support for [burner](https://burn.dev) types:
+//! - `burner`: Shape support for [burner](https://burn.dev) types:
 //!    - `&Tensor`, `&Shape`, `Shape`.
 //!
 //! ## API
@@ -67,15 +67,15 @@
 //!
 //! The shape methods take a [`ShapeView`] parameter; with implementations
 //! for:
-//! * ``&[usize]``, ``&[usize; D]``,
-//! * ``&[u32]``, ``&[u32; D]``,
-//! * ``&[i32]``, ``&[i32; D]``,
-//! * ``&Vec<usize>``,
-//! * ``&Vec<u32>``,
-//! * ``&Vec<i32>``
-//! * ``burner::prelude::Shape``,
-//! * ``&burner::prelude::Shape``,
-//! * ``&burner::prelude::Tensor``
+//! * `&[usize]`, `&[usize; D]`,
+//! * `&[u32]`, `&[u32; D]`,
+//! * `&[i32]`, `&[i32; D]`,
+//! * `&Vec<usize>`,
+//! * `&Vec<u32>`,
+//! * `&Vec<i32>`
+//! * `burner::prelude::Shape`,
+//! * `&burner::prelude::Shape`,
+//! * `&burner::prelude::Tensor`
 //!
 //! ## Speed and Stack Design
 //!
@@ -84,8 +84,8 @@
 //! As a result, this library is designed to be fast at runtime,
 //! focusing on `static` contracts and using stack over heap wherever possible.
 //!
-//! Benchmarks on release builds are available under ``cargo bench -p
-//! bunsen-contracts``:
+//! Benchmarks on release builds are available under `cargo bench -p
+//! bunsen-contracts`:
 //!
 //! ```terminaloutput
 //! Running benches/shape_contracts (target/release/deps/contracts-86950340ff3748c1)

@@ -585,11 +585,11 @@ impl<B: Backend> SwinTransformerV2<B> {
     ///
     /// # Arguments
     ///
-    /// * `input`: A tensor of ``[batch, channels, height, width]``,
+    /// * `input`: A tensor of `[batch, channels, height, width]`,
     ///
     /// # Returns
     ///
-    /// A 2D tensor of ``[batch, num_classes]`` of the classification logits.
+    /// A 2D tensor of `[batch, num_classes]` of the classification logits.
     ///
     /// # Panics
     ///

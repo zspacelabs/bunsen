@@ -8,7 +8,7 @@ use burn::data::dataset::{
     vision::ImageLoaderError,
 };
 
-/// Scan a folder of ``$ROOT/$CLASS/$IMG.{jpg,png}`` into an `InMemDataset`.
+/// Scan a folder of `$ROOT/$CLASS/$IMG.{jpg,png}` into an `InMemDataset`.
 pub fn image_dataset_for_folder<P>(root: P) -> anyhow::Result<InMemDataset<(String, usize)>>
 where
     P: AsRef<std::path::Path>,

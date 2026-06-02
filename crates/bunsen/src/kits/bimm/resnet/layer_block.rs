@@ -5,10 +5,10 @@
 //! [`LayerBlockMeta`] defines a common introspection API for [`LayerBlock`]
 //! and [`LayerBlockStructureConfig`].
 //!
-//! [`LayerBlockStructureConfig`] implements [`Config`], and provides
+//! [`LayerBlockStructureConfig`] implements [Config], and provides
 //! [`LayerBlockStructureConfig::init`] to initialize a [`LayerBlock`].
 //!
-//! [`LayerBlock`] implements [`Module`], and provides
+//! [`LayerBlock`] implements [Module], and provides
 //! [`LayerBlock::forward`].
 
 use alloc::{
@@ -166,12 +166,12 @@ pub trait LayerBlockMeta {
     ///
     /// # Arguments
     ///
-    /// - `input_resolution`: ``[in_height=out_height*stride,
-    ///   in_width=out_width*stride]``.
+    /// - `input_resolution`: `[in_height=out_height*stride,
+    ///   in_width=out_width*stride]`.
     ///
     /// # Returns
     ///
-    /// ``[out_height, out_width]``
+    /// `[out_height, out_width]`
     ///
     /// # Panics
     ///

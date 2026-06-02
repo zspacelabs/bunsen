@@ -49,7 +49,7 @@ pub fn window_index_offset_grid<B: Backend>(
 
 /// Creates a grid of 2D relative offsets for a given window shape.
 ///
-/// Converts `window_index_offset_grid` to ``.float()`` and scales by the
+/// Converts `window_index_offset_grid` to `.float()` and scales by the
 /// maximum offset value.
 ///
 /// # Arguments

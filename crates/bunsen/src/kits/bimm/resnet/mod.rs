@@ -62,7 +62,7 @@
 //! ## Compatibility
 //!
 //! `ResNet` has evolved into a large family of models, and this crate aims
-//! to evolve towards equity with the ``timm`` library of models.
+//! to evolve towards equity with the `timm` library of models.
 //!
 //! Unfortunately, the equivalence matrix itself represents a large
 //! amount of work and is not yet complete.

@@ -110,7 +110,7 @@ impl DropBlockOptions {
     ///
     /// # Panics
     ///
-    /// If the `drop_prob` is not in ``[0.0, 1.0]``.
+    /// If the `drop_prob` is not in `[0.0, 1.0]`.
     pub fn with_drop_prob(
         self,
         drop_prob: f64,
@@ -281,7 +281,7 @@ impl DropBlockOptions {
     ///
     /// # Returns
     ///
-    /// Gamma noise, sampled at ``self.gamma([h, w])`` rate.
+    /// Gamma noise, sampled at `self.gamma([h, w])` rate.
     pub fn gamma_noise<B: Backend>(
         &self,
         noise_shape: [usize; 4],
@@ -365,12 +365,12 @@ fn drop_block_2d_drop_filter_<B: Backend>(
 ///
 /// # Arguments
 ///
-/// * `tensor` - the tensor to operate on, ``[batch, channels, height, width]``.
+/// * `tensor` - the tensor to operate on, `[batch, channels, height, width]`.
 /// * `options` - the algorithm options.
 ///
 /// # Returns
 ///
-/// A ``[batch, channels, height, width]`` tensor.
+/// A `[batch, channels, height, width]` tensor.
 pub fn drop_block_2d<B: Backend>(
     tensor: Tensor<B, 4>,
     options: &DropBlockOptions,

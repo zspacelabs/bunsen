@@ -243,7 +243,7 @@ where
 macro_rules! define_group_optimizer_adaptor {
     ($N:tt, [$(($O:ident, $idx:tt)),+ $(,)?]) => {
         paste::paste! {
-            #[doc=concat!("[`OptimizerGroup`] adapter for ", $N, "types")]
+            #[doc=concat!("[OptimizerGroup] adapter for ", $N, "types")]
             #[derive(Clone)]
             pub struct [<GroupOptimizerAdaptor $N>]<$($O,)+ M, B>
             where

@@ -23,10 +23,10 @@ use burn::{
 /// ## Arguments
 /// * `layer_norm` - `LayerNorm`.
 /// * `mlp` - `Mlp`.
-/// * `x` - ``[batch, seq_len, n_states]`` input.
+/// * `x` - `[batch, seq_len, n_states]` input.
 ///
 /// ## Returns
-/// ``[batch, seq_len, n_states]``
+/// `[batch, seq_len, n_states]`
 pub fn layer_norm_mlp<B: Backend>(
     layer_norm: &LayerNorm<B>,
     mlp: &Mlp<B>,
@@ -35,7 +35,7 @@ pub fn layer_norm_mlp<B: Backend>(
     mlp.forward(layer_norm.forward(x))
 }
 
-/// Common meta for [`Mlp`] and [`MlpConfig`].
+/// Common meta for [Mlp] and [`MlpConfig`].
 pub trait MlpMeta {
     /// Return the size of the input and output.
     fn n_embed(&self) -> usize;
@@ -44,7 +44,7 @@ pub trait MlpMeta {
     fn act_exponent(&self) -> Option<f64>;
 }
 
-/// Config for [`Mlp`].
+/// Config for [Mlp].
 #[derive(Config, Debug)]
 pub struct MlpConfig {
     /// Embedding Size.
@@ -127,10 +127,10 @@ impl<B: Backend> Mlp<B> {
     /// MLP Forward Pass.
     ///
     /// # Arguments
-    /// - `x`: a ``[batch, time, embed]`` input.
+    /// - `x`: a `[batch, time, embed]` input.
     ///
     /// # Returns
-    /// a ``[batch, time, embed]`` result.
+    /// a `[batch, time, embed]` result.
     pub fn forward(
         &self,
         x: Tensor<B, 3>,

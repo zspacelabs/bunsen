@@ -12,10 +12,10 @@ use burn::{
 ///
 /// Filter is `1.0` at the mid-points of kernels; `0.0` everywhere else.
 ///
-/// This predicts the kernel midpoints that ``conv2d`` (and related kernel
+/// This predicts the kernel midpoints that `conv2d` (and related kernel
 /// functions) would place a kernel.
 ///
-/// The *midpoint* of a kernel is computed as ``size / 2``:
+/// The *midpoint* of a kernel is computed as `size / 2`:
 /// * the midpoint of odd kernels is the middle: `mid(3) == 1`
 /// * the midpoint of even kernels is the first point in the second half:
 ///   `mid(4) == 2`

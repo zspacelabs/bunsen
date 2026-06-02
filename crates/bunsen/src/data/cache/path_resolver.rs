@@ -54,7 +54,7 @@ impl PathResolver {
     ///
     /// Resolution Order:
     /// 1. `path`, if present.
-    /// 2. ``env[$VAR]`` for each `self.cache_env_vars`; in order.
+    /// 2. `env[$VAR]` for each `self.cache_env_vars`; in order.
     /// 3. `self.project_dirs().cache_dir()`, if present.
     /// 4. `None`
     ///
@@ -90,7 +90,7 @@ impl PathResolver {
     ///
     /// Resolution Order:
     /// 1. `path`, if present.
-    /// 2. ``env[$VAR]`` for each `self.data_env_vars`; in order.
+    /// 2. `env[$VAR]` for each `self.data_env_vars`; in order.
     /// 3. `self.project_dirs().data_dirs()`, if present.
     /// 4. `None`
     ///

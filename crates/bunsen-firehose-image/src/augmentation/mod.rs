@@ -1,7 +1,7 @@
 //! # Image augmentation operators
 //!
 //! Augmentation is expressed as a sequence of [`AugmentationStage`]s — flips
-//! ([`orientation`]), [`noise`], and control-flow combinators ([`control`],
+//! ([orientation]), [noise], and control-flow combinators ([control],
 //! e.g. apply-with-probability or choose-one). Stages register themselves with
 //! [`define_image_aug_plugin!`](crate::define_image_aug_plugin) so they can be
 //! reconstructed from a serialized [`AugmentationStageConfig`].

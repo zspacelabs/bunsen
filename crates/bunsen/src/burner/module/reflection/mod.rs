@@ -39,22 +39,22 @@
 //! let d_output = 3;
 //! let module: Linear<B> = LinearConfig::new(d_input, d_output).init(&device);
 //!
-//! // [`TensorParamDesc`] can describe a `Param<Tensor<B, R, K>>`:
+//! // [TensorParamDesc] can describe a `Param<Tensor<B, R, K>>`:
 //! let weight_desc: TensorParamDesc = TensorParamDesc::from(&module.weight);
 //! let bias_ref = module.bias.as_ref().unwrap();
 //! let bias_desc: TensorParamDesc = TensorParamDesc::from(bias_ref);
 //!
-//! // [`TensorParamDesc`] exposes the basic `Param` and `Tensor` metadata:
+//! // [TensorParamDesc] exposes the basic `Param` and `Tensor` metadata:
 //! assert_eq!(weight_desc.param_id(), module.weight.id);
 //!
-//! // [`TensorKindDesc`] is an enum which describes the current kind variants:
+//! // [TensorKindDesc] is an enum which describes the current kind variants:
 //! assert_eq!(weight_desc.kind(), TensorKindDesc::Float);
 //! assert_eq!(weight_desc.dtype(), module.weight.dtype());
 //!
 //! assert_eq!(weight_desc.shape(), &module.weight.shape());
 //! assert_eq!(weight_desc.shape(), &Shape::new([d_input, d_output]));
 //!
-//! // [`TensorParamDesc`] also provides some convience methods:
+//! // [TensorParamDesc] also provides some convience methods:
 //! assert_eq!(weight_desc.rank(), 2);
 //! assert_eq!(weight_desc.num_elements(), 2 * 3);
 //! assert_eq!(
@@ -73,7 +73,7 @@
 //! // it must be `mut` to be useful.
 //! let mut mtree = XmlModuleTree::build(&module);
 //!
-//! // [`XmlModuleTree`] builds an XML meta-description of the module structure.
+//! // [XmlModuleTree] builds an XML meta-description of the module structure.
 //! //
 //! // This can be dumped directly to a `String` to examine the module structure.
 //! //
@@ -121,7 +121,7 @@
 //!         }
 //! );
 //!
-//! // [`XmlModuleTree`] has a Debug impl:
+//! // [XmlModuleTree] has a Debug impl:
 //! assert_eq!(
 //!     format!("{:#?}", mtree),
 //!     indoc::formatdoc! {r#"
@@ -142,7 +142,7 @@
 //!         }
 //! );
 //!
-//! // [`XmlModuleTree::param_ids`] iterates over all [`ParamId`]s.
+//! // [`XmlModuleTree::param_ids`] iterates over all [ParamId]s.
 //! //
 //! // This is a useful way to get all the parameter ids in a module;
 //! // but it is actually a wrapper over a series of more complex steps.
@@ -170,7 +170,7 @@
 //!     [module.weight.id, module.bias.as_ref().unwrap().id]
 //! );
 //!
-//! // [`XPathModuleQuery::to_param_ids`] iterates over [`ParamId`]s for
+//! // [`XPathModuleQuery::to_param_ids`] iterates over [ParamId]s for
 //! // each parameter in the subtree.
 //! assert_eq!(
 //!     &mtree.query().to_param_ids()?,
@@ -179,7 +179,7 @@
 //!
 //! // [`XmlModuleTree::param_descs`] iterates over descriptions of every parameter.
 //! //
-//! // This leverages the [`TensorParamDesc`] API to strip generics from
+//! // This leverages the [TensorParamDesc] API to strip generics from
 //! // the introspection api.
 //! //
 //! // Similar to [`XmlModuleTree::param_ids`], this is a wrapper over a series of more
@@ -198,7 +198,7 @@
 //! );
 //!
 //! // [`XPathModuleQuery::to_param_descs`] iterates over
-//! // [`TensorParamDesc`]s for each parameter in the subtree.
+//! // [TensorParamDesc]s for each parameter in the subtree.
 //! assert_eq!(
 //!         &mtree
 //!             .query()
@@ -216,7 +216,7 @@
 //! // by a query by calling `expr()`.
 //! assert_eq!(query.expr(), "/XmlModuleTree/Structure");
 //!
-//! // [`XPathModuleQuery`] has a Debug impl:
+//! // [XPathModuleQuery] has a Debug impl:
 //! assert_eq!(
 //!     format!("{:#?}", query),
 //!     indoc::formatdoc! {r#"

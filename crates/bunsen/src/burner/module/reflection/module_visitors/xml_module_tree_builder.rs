@@ -50,7 +50,7 @@ pub struct XmlModuleTreeBuilder<B: Backend> {
 }
 
 impl<B: Backend> XmlModuleTreeBuilder<B> {
-    /// Build a [`XmlModuleTree`] from a [`Module`].
+    /// Build a [`XmlModuleTree`] from a [Module].
     pub fn build<M: Module<B>>(module: &M) -> XmlModuleTree {
         let mut builder = Self::new();
         module.visit(&mut builder);

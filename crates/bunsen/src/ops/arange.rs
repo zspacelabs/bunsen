@@ -1,4 +1,4 @@
-//! [`Tensor`] ops.
+//! [Tensor] ops.
 
 use alloc::{
     vec,

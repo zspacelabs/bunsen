@@ -8,16 +8,16 @@
 //! * [`ResidualBlock`], and
 //! * [`ResidualBlockStructureConfig`]
 //!
-//! [`ResidualBlockStructureConfig`] implements [`Config`], and provides an
+//! [`ResidualBlockStructureConfig`] implements [Config], and provides an
 //! [`ResidualBlockStructureConfig::init`] constructor pathway to
 //! [`ResidualBlock`].
 //!
-//! [`ResidualBlock`] implements [`Module`],
+//! [`ResidualBlock`] implements [Module],
 //! and provides [`ResidualBlock::forward`].
 //!
 //! [`ResidualBlock`] can also be constructed via:
-//! * [`From<BasicBlock<B>>`](`BasicBlock`),
-//! * [`From<BottleneckBlock<B>>`](`BottleneckBlock`).
+//! * [`From<BasicBlock<B>>`](BasicBlock),
+//! * [`From<BottleneckBlock<B>>`](BottleneckBlock).
 
 use burn::{
     nn::{
@@ -138,12 +138,12 @@ pub trait ResidualBlockMeta {
     ///
     /// # Arguments
     ///
-    /// - `input_resolution`: \ ``[in_height=out_height*stride,
-    ///   in_width=out_width*stride]``.
+    /// - `input_resolution`: \ `[in_height=out_height*stride,
+    ///   in_width=out_width*stride]`.
     ///
     /// # Returns
     ///
-    /// ``[out_height, out_width]``
+    /// `[out_height, out_width]`
     ///
     /// # Panics
     ///
@@ -310,12 +310,12 @@ impl<B: Backend> ResidualBlock<B> {
     ///
     /// # Arguments
     ///
-    /// - `input`: ``[batch, in_planes, in_height=out_height*stride,
-    ///   in_width=out_width*stride]``.
+    /// - `input`: `[batch, in_planes, in_height=out_height*stride,
+    ///   in_width=out_width*stride]`.
     ///
     /// # Returns
     ///
-    /// A ``[batch, out_planes, out_height, out_width]`` tensor;
+    /// A `[batch, out_planes, out_height, out_width]` tensor;
     pub fn forward(
         &self,
         input: Tensor<B, 4>,

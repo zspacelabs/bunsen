@@ -230,9 +230,9 @@ impl StochasticDepthTransformerBlockSequenceConfig {
 
 /// SWIN-Transformer Transformer Block stack.
 ///
-/// Equivalent to ``BasicLayer`` in the original SWIN-Transformer source.
+/// Equivalent to `BasicLayer` in the original SWIN-Transformer source.
 ///
-/// Applies a sequence of shift-window-alternating ``SwinTransformerBlock``
+/// Applies a sequence of shift-window-alternating `SwinTransformerBlock`
 /// modules.
 #[derive(Module, Debug)]
 pub struct StochasticDepthTransformerBlockSequence<B: Backend> {
@@ -288,11 +288,11 @@ impl<B: Backend> StochasticDepthTransformerBlockSequence<B> {
     ///
     /// # Arguments
     ///
-    /// - `x`: Input tensor of shape: ``[batch, height * width, channels]``.
+    /// - `x`: Input tensor of shape: `[batch, height * width, channels]`.
     ///
     /// # Returns
     ///
-    /// Output tensor of shape ``[batch, height * width, channels``.
+    /// Output tensor of shape `[batch, height * width, channels`.
     ///
     /// # Panics
     ///

@@ -16,15 +16,15 @@
 //! ## Map of the module
 //!
 //! ### Tensor generation
-//! - [`arange`] &mdash; floating-point range generators on both `Vec<f64>`
+//! - [arange] &mdash; floating-point range generators on both `Vec<f64>`
 //!   (`float_vec_arange`, `float_vec_linspace`) and `Tensor` (`float_arange`,
 //!   `float_linspace`).
-//! - [`noise`] &mdash; `NoiseConfig` bundles a `Distribution` with an optional
+//! - [noise] &mdash; `NoiseConfig` bundles a `Distribution` with an optional
 //!   [`clamp::ClampOp`], and supplies `noise()` / `noise_like()` to materialize
 //!   tensors from it.
 //!
 //! ### Element-wise transforms
-//! - [`clamp`] &mdash; `ClampOp` is a small value-object that captures an
+//! - [clamp] &mdash; `ClampOp` is a small value-object that captures an
 //!   optional min and an optional max as a single reusable configuration, with
 //!   `.clamp(t)` to apply it to a tensor. Useful anywhere clamping shows up as
 //!   a *setting* rather than a one-shot call (config files, noise generators,
@@ -33,17 +33,16 @@
 //!   lives in [`crate::blocks::images::drop`].
 //!
 //! ### Normalization
-//! - [`norm`] &mdash; `rms_norm()` and `RmsNormOptions` (`RMSNorm` without
+//! - [norm] &mdash; `rms_norm()` and `RmsNormOptions` (`RMSNorm` without
 //!   trainable parameters). For the parametric layer use
 //!   `burn::nn::norm::RmsNorm`.
 //!
 //! ### Shape transforms
-//! - [`repeat`] &mdash; `repeat_interleave()` along a (negatively indexable)
+//! - [repeat] &mdash; `repeat_interleave()` along a (negatively indexable)
 //!   dimension, mirroring `NumPy` / `PyTorch` semantics.
 //!
 //! ### Convolution support
-//! - [`conv`] &mdash; everything around convolution that isn't a trainable
-//!   layer:
+//! - [conv] &mdash; everything around convolution that isn't a trainable layer:
 //!   - **Shape arithmetic.** `maybe_conv_output_shape` /
 //!     `expect_conv_output_shape` (and their `_dyn`, `_1d` variants) compute
 //!     output shapes from kernel/stride/ padding/dilation;

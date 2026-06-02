@@ -14,10 +14,10 @@ use crate::kits::sims::lbm::d2q9::space;
 ///
 /// # Arguments
 ///
-/// - `dist`: a ``[H, W, VY=3, VX=3]`` population distribution.
+/// - `dist`: a `[H, W, VY=3, VX=3]` population distribution.
 ///
 /// # Returns
-/// - The updated ``[H[1:-1], W[1:-1], VY=3, VX=3]`` interior.
+/// - The updated `[H[1:-1], W[1:-1], VY=3, VX=3]` interior.
 pub fn stream_interior_windows<B: Backend>(dist: Tensor<B, 4>) -> Tensor<B, 4> {
     #[cfg(debug_assertions)]
     let [h, w] = crate::contracts::unpack_shape_contract!(
@@ -75,10 +75,10 @@ pub fn stream_interior_windows<B: Backend>(dist: Tensor<B, 4>) -> Tensor<B, 4> {
 ///
 /// # Arguments
 ///
-/// - `dist`: a ``[H, W, VY=3, VX=3]`` population distribution.
+/// - `dist`: a `[H, W, VY=3, VX=3]` population distribution.
 ///
 /// # Returns
-/// - The updated ``[H, W, VY=3, VX=3]`` distribution.
+/// - The updated `[H, W, VY=3, VX=3]` distribution.
 pub fn outflow_clipping_stream<B: Backend>(thermal_dist: Tensor<B, 4>) -> Tensor<B, 4> {
     thermal_dist
         .zeros_like()

@@ -24,11 +24,11 @@ use serde::{
 ///
 /// # Arguments
 ///
-/// - `state`: the ``[H, W, Z]`` input state.
+/// - `state`: the `[H, W, Z]` input state.
 /// - `density`: the probability of flipping a given bit.
 ///
 /// # Returns
-/// - the fuzzed ``[H, W, Z]`` state.
+/// - the fuzzed `[H, W, Z]` state.
 pub fn fuzz_state_3d<B: Backend>(
     state: Tensor<B, 3, Bool>,
     density: f64,
@@ -72,11 +72,11 @@ pub fn wrap_state_3d<B: Backend>(state: Tensor<B, 3, Bool>) -> Tensor<B, 3, Bool
 ///
 /// # Arguments
 ///
-/// - `state`: a ``[H, W, Z]`` game state.
+/// - `state`: a `[H, W, Z]` game state.
 /// - `rules`: a ruleset.
 ///
 /// # Returns
-/// - the ``[H, W, Z]`` evolved interior state, with wrapped edges.
+/// - the `[H, W, Z]` evolved interior state, with wrapped edges.
 pub fn next_state_wrapped_3d<B: Backend>(
     state: Tensor<B, 3, Bool>,
     rules: &LifeRules,
@@ -95,11 +95,11 @@ pub fn next_state_wrapped_3d<B: Backend>(
 ///
 /// # Arguments
 ///
-/// - `state`: a ``[H, W, Z]`` game state.
+/// - `state`: a `[H, W, Z]` game state.
 /// - `rules`: the ruleset to use.
 ///
 /// # Returns
-/// - the ``[H-2, W-2, Z-2]`` evolved interior state.
+/// - the `[H-2, W-2, Z-2]` evolved interior state.
 pub fn next_interior_3d<B: Backend>(
     state: Tensor<B, 3, Bool>,
     rules: &LifeRules,

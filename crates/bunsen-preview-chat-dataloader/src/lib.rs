@@ -2,7 +2,7 @@
 //! # bunsen-preview-chat-dataloader
 //!
 //! A preview implementation of a streaming chat data loader for training
-//! LLM-style models on top of the [`burn`] tensor library.
+//! LLM-style models on top of the [burn] tensor library.
 //!
 //! The pipeline reads Parquet shards, selects a text column, tokenizes the
 //! text with a [`wordchipper::Tokenizer`], packs the tokens into dense

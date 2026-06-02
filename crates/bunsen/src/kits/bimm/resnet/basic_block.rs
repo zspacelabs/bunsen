@@ -5,10 +5,10 @@
 //! [`BasicBlockMeta`] defines a common meta-API for [`BasicBlock`]
 //! and [`BasicBlockConfig`].
 //!
-//! [`BasicBlockConfig`] implements [`Config`] and provides
+//! [`BasicBlockConfig`] implements [Config] and provides
 //! [`BasicBlockConfig::init`] to initialize a [`BasicBlock`].
 //!
-//! [`BasicBlock`] implements [`Module`] and provides
+//! [`BasicBlock`] implements [Module] and provides
 //! [`BasicBlock::forward`].
 
 use burn::{
@@ -82,7 +82,7 @@ pub trait BasicBlockMeta {
 
     /// First conv/norm layer output channels.
     ///
-    /// ``first_planes = planes // reduce_first``
+    /// `first_planes = planes // reduce_first`
     fn first_planes(&self) -> usize {
         self.out_planes() / self.reduce_first()
     }
@@ -98,12 +98,12 @@ pub trait BasicBlockMeta {
     ///
     /// # Arguments
     ///
-    /// - `input_resolution`: \ ``[in_height=out_height*stride,
-    ///   in_width=out_width*stride]``.
+    /// - `input_resolution`: \ `[in_height=out_height*stride,
+    ///   in_width=out_width*stride]`.
     ///
     /// # Returns
     ///
-    /// ``[out_height, out_width]``
+    /// `[out_height, out_width]`
     ///
     /// # Panics
     ///
@@ -348,12 +348,12 @@ impl<B: Backend> BasicBlock<B> {
     ///
     /// # Arguments
     ///
-    /// - `input`: ``[batch, in_planes, in_height=out_height*stride,
-    ///   in_width=out_width*stride]``.
+    /// - `input`: `[batch, in_planes, in_height=out_height*stride,
+    ///   in_width=out_width*stride]`.
     ///
     /// # Returns
     ///
-    /// A ``[batch, out_planes=planes*expansion_factor, out_height, out_width]``
+    /// A `[batch, out_planes=planes*expansion_factor, out_height, out_width]`
     /// tensor.
     pub fn forward(
         &self,

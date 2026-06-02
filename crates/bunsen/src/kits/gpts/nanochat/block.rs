@@ -104,12 +104,12 @@ impl<B: Backend> NanoChatGptBlock<B> {
     /// - this block does not norm on output.
     ///
     /// # Arguments
-    /// - `input`: a ``[B, T, D]`` input.
-    /// - `r_emb`: a ``[1, T, 1, D/2]`` embedding.
+    /// - `input`: a `[B, T, D]` input.
+    /// - `r_emb`: a `[1, T, 1, D/2]` embedding.
     /// - `kv_cache`: optional KV cache.
     ///
     /// # Returns
-    /// - the ``[B, T, D]`` block output.
+    /// - the `[B, T, D]` block output.
     pub fn forward(
         &self,
         input: Tensor<B, 3>,

@@ -12,7 +12,7 @@ use serde::{
 /// The relaxation operator for
 /// [`bgk_collision`](`super::collision::bgk_collision`).
 ///
-/// Computes ``correction * (dist_a * (1 - omega) + dist_b * omega)``.
+/// Computes `correction * (dist_a * (1 - omega) + dist_b * omega)`.
 ///
 /// ## Correction
 ///
@@ -21,8 +21,8 @@ use serde::{
 /// and will default to `1.0` for `None`.
 ///
 /// # Arguments
-/// - `dist_a`: a ``[H, W, VY=3, VX=3]`` distribution.
-/// - `dist_b`: a ``[H, W, VY=3, VX=3]`` distribution.
+/// - `dist_a`: a `[H, W, VY=3, VX=3]` distribution.
+/// - `dist_b`: a `[H, W, VY=3, VX=3]` distribution.
 /// - `relaxation`: relaxation parameter.
 /// - `correction`: fused correction factor for the relaxation operator;
 ///   defaults to 1.0.

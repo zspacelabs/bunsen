@@ -29,31 +29,31 @@
 //!
 //! ### Burn Extensions
 //!
-//! * [`burner`] - this is a library of [`burn::module::Module`] lifecycle
+//! * [burner] - this is a library of [`burn::module::Module`] lifecycle
 //!   components that extend the current functionality of burn.
 //!   * [`module::reflection`](`burner::module::reflection`) has powerful tools
 //!     for dynamic [`burn::module::Module`] reflection.
-//!   * [`optim`](`burner::optim`) has parameter-group optimizer extensions.
-//! * [`contracts`] - this is a library of runtime tensor-shape contracts.
+//!   * [optim](`burner::optim`) has parameter-group optimizer extensions.
+//! * [contracts] - this is a library of runtime tensor-shape contracts.
 //!
 //! ### Component Libraries
 //!
-//! * [`blocks`] - this is a library of [`burn::module::Module`] components.
-//!   This includes simple inner layers, recurrent utility blocks, and entire
-//!   model families.
-//! * [`ops`] - this is a library [`burn::tensor::Tensor`] operations.
-//! * [`kits`] - this is a library of full models and simulation kits.
-//!   * [`sims`](`kits::sims`) - this is a library of simulation kits, currently
+//! * [blocks] - this is a library of [`burn::module::Module`] components. This
+//!   includes simple inner layers, recurrent utility blocks, and entire model
+//!   families.
+//! * [ops] - this is a library [`burn::tensor::Tensor`] operations.
+//! * [kits] - this is a library of full models and simulation kits.
+//!   * [sims](`kits::sims`) - this is a library of simulation kits, currently
 //!     including "Conways Game of Life" and a 2D "LBM"."
-//!   * [`gpts`](`kits::gpts`) - GPT/Transformer models.
-//!   * [`bimm`](`kits::bimm`) - Image models.
+//!   * [gpts](`kits::gpts`) - GPT/Transformer models.
+//!   * [bimm](`kits::bimm`) - Image models.
 //!
 //! ### App and Testing Support Libs
 //!
-//! * [`errors`] - this is a library of error types and tooling.
-//! * [`support`] - this is a library of support functions for bunsen, including
+//! * [errors] - this is a library of error types and tooling.
+//! * [support] - this is a library of support functions for bunsen, including
 //!   testing tooling which may be useful for clients.
-//! * [`zspace`] - this is a library of z-space / index utilities.
+//! * [zspace] - this is a library of z-space / index utilities.
 //!
 //! # Future Components
 //!

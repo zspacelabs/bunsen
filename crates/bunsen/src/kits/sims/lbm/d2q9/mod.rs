@@ -9,17 +9,17 @@
 //!
 //! This is a "D2Q9" LBM Grid; "D2" for 2-dimension, "Q9" for 9-direction.
 //!
-//! This library uses a ``[H, W, VY=3, VX=3]`` layout.
-//! * ``(H, W)`` determines a cell's spatial location.
-//! * at a given ``(H, W)`` point, the 3x3 ``[VY=3, VX=3]`` grid describes the
-//!   local moving particle population.
+//! This library uses a `[H, W, VY=3, VX=3]` layout.
+//! * `(H, W)` determines a cell's spatial location.
+//! * at a given `(H, W)` point, the 3x3 `[VY=3, VX=3]` grid describes the local
+//!   moving particle population.
 //!
-//! The ``[VY=3, VX=3]`` populations are each moving away from the center
-//! at ``(1, 1)``, which is stationary.
+//! The `[VY=3, VX=3]` populations are each moving away from the center
+//! at `(1, 1)`, which is stationary.
 //!
-//! The ``(y, x)`` directions correspond with the direction vectors ``(y-1,
-//! x-1)``; so ``[H, W, 0, 0]`` is the population at ``(H, W)`` which is moving
-//! in the ``(-1, -1)`` direction.
+//! The `(y, x)` directions correspond with the direction vectors `(y-1,
+//! x-1)`; so `[H, W, 0, 0]` is the population at `(H, W)` which is moving
+//! in the `(-1, -1)` direction.
 //!
 //! This direction is also available in the `direction_vectors()` interface.
 

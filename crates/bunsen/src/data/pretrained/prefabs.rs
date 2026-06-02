@@ -83,7 +83,7 @@ where
     }
 }
 
-/// A [`Config`] Well-Known Pre-Fab.
+/// A [Config] Well-Known Pre-Fab.
 #[derive(Clone)]
 pub struct PreFabConfig<C>
 where

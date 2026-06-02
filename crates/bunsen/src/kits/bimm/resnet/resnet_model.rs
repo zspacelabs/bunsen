@@ -2,15 +2,15 @@
 //!
 //! [`ResNet`] is the core `ResNet` module.
 //!
-//! [`ResNetContractConfig`] implements [`Config`], and provides
+//! [`ResNetContractConfig`] implements [Config], and provides
 //! a high-level configuration interface.
 //! It provides [`ResNetContractConfig::to_structure`] to convert
 //! to a [`ResNetStructureConfig`].
 //!
-//! [`ResNetStructureConfig`] implements [`Config`], and provides
+//! [`ResNetStructureConfig`] implements [Config], and provides
 //! [`ResNetStructureConfig::init`] to initialize a [`ResNet`].
 //!
-//! [`ResNet`] implements [`Module`], and provides
+//! [`ResNet`] implements [Module], and provides
 //! [`ResNet::forward`].
 
 use alloc::{
@@ -93,7 +93,7 @@ pub struct ResNetContractConfig {
     pub num_classes: usize,
 
     /// Number of channels in stem convolutions.
-    /// TODO: Replace with a ``ResNetStem`` module.
+    /// TODO: Replace with a `ResNetStem` module.
     #[config(default = "64")]
     pub stem_width: usize,
 

@@ -113,7 +113,7 @@ pub struct PretrainedWeightsDescriptor {
 impl PretrainedWeightsDescriptor {
     /// Cache Key
     ///
-    /// The key is ``{name}-{url crc hash}-{url basename}``.
+    /// The key is `{name}-{url crc hash}-{url basename}`.
     pub fn cache_key(&self) -> String {
         url_to_cache_key(Some(&self.name), self.urls.first().unwrap())
     }

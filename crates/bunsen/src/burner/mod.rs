@@ -15,7 +15,7 @@
 //!   an `XPath` query API, for "select every rank-2 weight under the
 //!   transformer blocks" problems;
 //! - **compose optimizers** &mdash; the `GroupOptimizerAdaptor{N}` family in
-//!   [`optim`] mounts multiple optimizers on a single module (e.g. Muon for
+//!   [optim] mounts multiple optimizers on a single module (e.g. Muon for
 //!   matrix parameters, `AdamW` for the rest), each driving a disjoint group of
 //!   parameters, with per-group learning- rate selectors;
 //! - **carry tensor metadata** in non-generic code paths &mdash;
@@ -32,19 +32,19 @@
 //!
 //! ## Map of the module
 //!
-//! - [`descriptors`] &mdash; type-erased descriptors for tensors and
-//!   parameters. The lingua franca used by the reflection and optimizer
-//!   machinery to talk about parameters uniformly.
-//! - [`module`] &mdash; module-side helpers: a type-mapper for `Module` field
+//! - [descriptors] &mdash; type-erased descriptors for tensors and parameters.
+//!   The lingua franca used by the reflection and optimizer machinery to talk
+//!   about parameters uniformly.
+//! - [module] &mdash; module-side helpers: a type-mapper for `Module` field
 //!   re-typing, and (under `features = ["reflection"]`) the XML/XPath
 //!   reflection layer.
-//! - [`optim`] &mdash; optimizer extensions (under `features = ["train"]`).
+//! - [optim] &mdash; optimizer extensions (under `features = ["train"]`).
 //!   Headlined by the `GroupOptimizerAdaptor{N}` family and the
 //!   `OptimizerGroup` / `LrSelector` building blocks.
-//! - [`record`] &mdash; helpers for working with `burn::record` types.
-//! - [`tensor`] &mdash; tensor helpers that don't fit neatly in [`crate::ops`],
+//! - [record] &mdash; helpers for working with `burn::record` types.
+//! - [tensor] &mdash; tensor helpers that don't fit neatly in [`crate::ops`],
 //!   including a `DataView` abstraction.
-//! - [`distribution`] &mdash; distribution-related utilities.
+//! - [distribution] &mdash; distribution-related utilities.
 
 pub mod descriptors;
 pub mod distribution;

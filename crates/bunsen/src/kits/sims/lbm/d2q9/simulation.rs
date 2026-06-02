@@ -106,12 +106,12 @@ pub struct LBMD2Q9State<B: Backend> {
     /// Total Mass.
     pub correct_total_mass: f64,
 
-    /// The grid velocity: ``[H, W, UY=3, UX=3]``
+    /// The grid velocity: `[H, W, UY=3, UX=3]`
     /// Here the 0-9 velocity terms are unfolded
-    /// into the ``UY`` and ``UX`` dims.
+    /// into the `UY` and `UX` dims.
     pub dist: Tensor<B, 4>,
 
-    /// The solid mask: ``[H, W]``
+    /// The solid mask: `[H, W]`
     pub solid_mask: Tensor<B, 2, Bool>,
 
     /// The relaxation field.

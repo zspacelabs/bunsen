@@ -1,6 +1,6 @@
 #![allow(clippy::type_complexity)]
 
-/// An [`Iterator`] adapter that invokes a callback on each yielded item.
+/// An [Iterator] adapter that invokes a callback on each yielded item.
 ///
 /// The callback receives a borrowed reference to the item and is invoked
 /// only when the inner iterator yields `Some(_)`. The callback is `FnMut`,

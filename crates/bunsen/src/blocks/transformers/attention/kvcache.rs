@@ -200,11 +200,11 @@ impl<B: Backend> KVCache<B> {
     ///
     /// # Arguments
     /// - `layer_idx`: the block layer index.
-    /// - `k`: the ``[B, H_kv, T, D]`` key tensor.
-    /// - `v`: the ``[B, H_kv, T, D]`` value tensor.
+    /// - `k`: the `[B, H_kv, T, D]` key tensor.
+    /// - `v`: the `[B, H_kv, T, D]` value tensor.
     ///
     /// # Returns
-    /// - the extended (k, v) ``[B, H_kv, T, D]`` pair.
+    /// - the extended (k, v) `[B, H_kv, T, D]` pair.
     pub fn insert_kv(
         &mut self,
         layer_idx: usize,

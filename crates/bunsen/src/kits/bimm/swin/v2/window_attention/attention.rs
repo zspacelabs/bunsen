@@ -46,7 +46,7 @@ pub trait WindowAttentionMeta {
     /// Get the input/channel dimension size.
     fn d_input(&self) -> usize;
 
-    /// Get the window shape ``[height, width]``.
+    /// Get the window shape `[height, width]`.
     fn window_shape(&self) -> [usize; 2];
 
     /// Get the height of the window.
@@ -202,12 +202,12 @@ impl<B: Backend> WindowAttention<B> {
     ///
     /// # Arguments
     ///
-    /// - `x`: Input tensor of shape ``[batch * num_windows, Wh*Ww, channels]``.
-    /// - `mask`: Optional mask tensor of shape ``[num_windows, Wh*Ww, Wh*Ww]``.
+    /// - `x`: Input tensor of shape `[batch * num_windows, Wh*Ww, channels]`.
+    /// - `mask`: Optional mask tensor of shape `[num_windows, Wh*Ww, Wh*Ww]`.
     ///
     /// # Returns
     ///
-    /// Output tensor of shape ``[batch * num_windows, Wh*Ww, channels]``.
+    /// Output tensor of shape `[batch * num_windows, Wh*Ww, channels]`.
     ///
     /// # Panics
     ///

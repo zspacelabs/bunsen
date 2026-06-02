@@ -26,11 +26,11 @@ use crate::errors::{
 /// by z-space tuple dominance.
 ///
 /// For example, the following orderings would hold:
-/// * ``cmp([1, 2], [1, 2]) == Some(Ordering::Equal)``
-/// * ``cmp([0, 0], [0, 1]) == Some(Ordering::Less)``
-/// * ``cmp([1, 0], [0, 0]) == Some(Ordering::Greater)``
-/// * ``cmp([0, 0], [1, 1]) == Some(Ordering::Less)``
-/// * ``cmp([1, 0], [0, 1]) == None``
+/// * `cmp([1, 2], [1, 2]) == Some(Ordering::Equal)`
+/// * `cmp([0, 0], [0, 1]) == Some(Ordering::Less)`
+/// * `cmp([1, 0], [0, 0]) == Some(Ordering::Greater)`
+/// * `cmp([0, 0], [1, 1]) == Some(Ordering::Less)`
+/// * `cmp([1, 0], [0, 1]) == None`
 ///
 /// # Arguments
 ///
@@ -77,7 +77,7 @@ pub fn zspace_partial_cmp<T: PartialOrd>(
     Some(ord)
 }
 
-/// Check if a `point` is in the half-open range ``[start, end)``
+/// Check if a `point` is in the half-open range `[start, end)`
 ///
 /// # Returns
 ///
@@ -104,7 +104,7 @@ where
     }
 }
 
-/// Expects that a `point` is in the half-open range ``[start, end)``
+/// Expects that a `point` is in the half-open range `[start, end)`
 #[allow(dead_code)]
 pub fn expect_point_bounds_check<T>(
     point: &[T],

@@ -3,7 +3,7 @@ use std::fmt::Debug;
 use anyhow::bail;
 use num_traits::Float;
 
-/// Validate a probability in the range ``[0.0, 1.0]``.
+/// Validate a probability in the range `[0.0, 1.0]`.
 ///
 /// # Arguments
 ///
@@ -19,7 +19,7 @@ pub fn try_probability<F: Float + Debug>(prob: F) -> anyhow::Result<F> {
     Ok(prob)
 }
 
-/// Expect a probability to be in range ``[0.0, 1.0]``, or panic.
+/// Expect a probability to be in range `[0.0, 1.0]`, or panic.
 ///
 /// # Arguments
 ///

@@ -2,16 +2,16 @@
 //!
 //! This crate provides ready-to-use [`bunsen_firehose`] operators for image
 //! data: loading from disk, resizing/recoloring, seedable augmentation, and
-//! conversion to [`burn`] tensors. Each operator registers itself into the
+//! conversion to [burn] tensors. Each operator registers itself into the
 //! global registry, so [`init_default_operator_environment`] returns an
 //! environment that already knows about all of them.
 //!
 //! The modules:
 //!
-//! - [`loader`] — [`ImageLoader`](crate::loader::ImageLoader) (`LOAD_IMAGE`):
+//! - [loader] — [`ImageLoader`](crate::loader::ImageLoader) (`LOAD_IMAGE)`:
 //!   open an image from a path column, optionally resizing and recoloring it
 //!   into a [`DynamicImage`](image::DynamicImage) column.
-//! - [`augmentation`] — the
+//! - [augmentation] — the
 //!   [`AugmentationStage`](crate::augmentation::AugmentationStage) plugin
 //!   system and the [`AUGMENT_IMAGE`](crate::augmentation::AUGMENT_IMAGE)
 //!   operator, which applies a seeded sequence of stages (flips, blur, speckle,
@@ -119,11 +119,11 @@
 //! }
 //! ```
 //!
-//! For a complete training pipeline that wires these operators into a [`burn`]
+//! For a complete training pipeline that wires these operators into a [burn]
 //! `DataLoaderBuilder` — including per-row augmentation seeds — see the
 //! `resnet_tiny` example under `demos/bimm/examples`.
 //!
-//! [`init_default_operator_environment`]: bunsen_firehose::ops::init_default_operator_environment
+//! [init_default_operator_environment]: bunsen_firehose::ops::init_default_operator_environment
 
 use serde::{
     Deserialize,

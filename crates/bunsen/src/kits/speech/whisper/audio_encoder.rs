@@ -170,10 +170,10 @@ impl<B: Backend> AudioEncoder<B> {
     /// Forward pass through the audio encoder.
     ///
     /// ## Arguments
-    /// * `x`: The input audio spectrogram ``[batch, n_mels, seq]``.
+    /// * `x`: The input audio spectrogram `[batch, n_mels, seq]`.
     ///
     /// ## Returns
-    /// ``[batch, seq, n_audio_states]``.
+    /// `[batch, seq, n_audio_states]`.
     pub fn forward(
         &self,
         x: Tensor<B, 3>,

@@ -123,13 +123,12 @@ impl PatchMergingConfig {
 
 /// SWIN-Transformer v2 `PatchMerging` module.
 ///
-/// This module accepts ``[batch, height * width, channels]`` inputs, and then:
-/// - Collates interleaved patches of size ``[height/2, width/2]`` into
-///   ``[batch, height/2 * width/2, 4 * channels]``.
-/// - Applies a linear layer to reduce the feature dimension to ``2 *
-///   channels``.
+/// This module accepts `[batch, height * width, channels]` inputs, and then:
+/// - Collates interleaved patches of size `[height/2, width/2]` into `[batch,
+///   height/2 * width/2, 4 * channels]`.
+/// - Applies a linear layer to reduce the feature dimension to `2 * channels`.
 /// - Applies layer normalization.
-/// - Yields output of shape ``[batch, height/2 * width/2, 2 * channels]``.
+/// - Yields output of shape `[batch, height/2 * width/2, 2 * channels]`.
 ///
 /// See: <https://github.com/microsoft/Swin-Transformer/blob/main/models/swin_transformer_v2.py>
 #[derive(Module, Debug)]
@@ -159,11 +158,11 @@ impl<B: Backend> PatchMerging<B> {
     ///
     /// # Arguments
     ///
-    /// - `x` - Input tensor of shape ``[batch, height * width, channels]``.
+    /// - `x` - Input tensor of shape `[batch, height * width, channels]`.
     ///
     /// # Returns
     ///
-    /// A tensor of shape ``[batch, height/2 * width/2, 2 * channels]``.
+    /// A tensor of shape `[batch, height/2 * width/2, 2 * channels]`.
     ///
     /// # Panics
     ///
@@ -205,18 +204,18 @@ impl<B: Backend> PatchMerging<B> {
 
 /// Collate patches from a tensor.
 ///
-/// This splits the input into 4 interleaved patches, each ``[height/2,
-/// width/2]``; and then concatenates them along the last dimension.
+/// This splits the input into 4 interleaved patches, each `[height/2,
+/// width/2]`; and then concatenates them along the last dimension.
 ///
 /// # Arguments
 ///
-/// * `x` - Input tensor of shape ``[batch, height * width, channels]``.
+/// * `x` - Input tensor of shape `[batch, height * width, channels]`.
 /// * `h` - Height of the input tensor.
 /// * `w` - Width of the input tensor.
 ///
 /// # Returns
 ///
-/// * A tensor of shape ``[batch, height/2 * width/2, 4 * channels]``.
+/// * A tensor of shape `[batch, height/2 * width/2, 4 * channels]`.
 ///
 /// # Panics
 ///
@@ -251,20 +250,20 @@ where
 
 /// Decollate patches from a tensor.
 ///
-/// This splits the input into 4 patches, each ``[height/2, width/2]``;
+/// This splits the input into 4 patches, each `[height/2, width/2]`;
 /// and interleaves them along the height and width dimensions.
 ///
 /// The inverse operation of `collate_patches`.
 ///
 /// # Arguments
 ///
-/// * `x` - Input tensor of shape ``[batch, height/2 * width/2, 4 * channels]``.
+/// * `x` - Input tensor of shape `[batch, height/2 * width/2, 4 * channels]`.
 /// * `height` - Height of the input tensor.
 /// * `width` - Width of the input tensor.
 ///
 /// # Returns
 ///
-/// * A tensor of shape ``[batch, height * width, channels]``.
+/// * A tensor of shape `[batch, height * width, channels]`.
 ///
 /// # Panics
 ///

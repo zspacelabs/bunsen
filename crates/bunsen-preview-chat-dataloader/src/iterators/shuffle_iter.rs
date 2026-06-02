@@ -63,7 +63,7 @@ impl ShuffleIterOptions {
         self.seed
     }
 
-    /// Sets the [`seed`](Self::seed).
+    /// Sets the [seed](Self::seed).
     pub fn with_seed(
         mut self,
         seed: u64,
@@ -81,7 +81,7 @@ impl ShuffleIterOptions {
     }
 }
 
-/// An [`Iterator`] adapter that performs a bounded reservoir shuffle.
+/// An [Iterator] adapter that performs a bounded reservoir shuffle.
 ///
 /// Items are pulled from the inner iterator into an in-memory buffer; at
 /// each step a uniformly random item is removed from the buffer and

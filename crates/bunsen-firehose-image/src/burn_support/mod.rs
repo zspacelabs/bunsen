@@ -4,7 +4,7 @@
 //! [`DynamicImage`] column and writes a `[height, width, channels]` `f32`
 //! [`TensorData`] column. [`stack_tensor_data_column`] then stacks a batch of
 //! those per-row tensors into a single `[batch, height, width, channels]`
-//! `TensorData` — the bridge used by a [`burn`] batcher.
+//! `TensorData` — the bridge used by a [burn] batcher.
 //!
 //! ```
 //! use std::sync::Arc;

@@ -3,10 +3,10 @@
 //! Operators can be registered *globally* with the
 //! [`register_firehose_operator_factory!
 //! `](crate::register_firehose_operator_factory) / [`define_firehose_operator!
-//! `](crate::define_firehose_operator) macros (built on [`inventory`]).
-//! [`init_default_operator_environment`](crate::ops::init_default_operator_environment)
+//! `](crate::define_firehose_operator) macros (built on [inventory]).
+//! [init_default_operator_environment](crate::ops::init_default_operator_environment)
 //! then collects every such registration — across all linked crates — into a
-//! fresh [`MapOpEnvironment`] ready to validate and run build plans.
+//! fresh [MapOpEnvironment] ready to validate and run build plans.
 //!
 //! This is how downstream crates publish reusable operators: e.g.
 //! `bunsen-firehose-image` registers `IMAGE_TO_TENSOR_DATA`, `AUGMENT_IMAGE`,
@@ -30,7 +30,7 @@
 //! );
 //! ```
 //!
-//! [`MapOpEnvironment`]: crate::core::operations::environment::MapOpEnvironment
+//! [MapOpEnvironment]: crate::core::operations::environment::MapOpEnvironment
 
 use crate::core::operations::{
     environment::MapOpEnvironment,

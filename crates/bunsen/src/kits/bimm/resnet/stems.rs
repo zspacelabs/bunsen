@@ -2,7 +2,7 @@
 //!
 //! This is incompletely implemented.
 //!
-//! The target surface is this pile from ``class ResNet`` in ``timm``:
+//! The target surface is this pile from `class ResNet` in `timm`:
 //! ```python,ignore
 //! # Stem
 //! deep_stem = 'deep' in stem_type
@@ -55,7 +55,7 @@
 //!
 //! Stem:
 //! ```text,ignore
-//!   head: vec<(`ConvNormAct`)>
+//!   head: vec<(ConvNormAct)>
 //!   tail: Union[
 //!     Conv/[AA]?/Norm/Act |
 //!     [Max|AvgPool]? [AA]?
@@ -93,9 +93,9 @@ pub enum ResNetStemContractConfig {
     Default,
 
     /// Three 3x3 convolutions:
-    /// 1. ``stem_width, stride=2``
-    /// 2. ``stem_width, stride=1``
-    /// 3. ``stem_width * 2, stride=1``
+    /// 1. `stem_width, stride=2`
+    /// 2. `stem_width, stride=1`
+    /// 3. `stem_width * 2, stride=1`
     Deep {
         /// The width of the stem convolutions.
         stem_width: usize,
@@ -104,9 +104,9 @@ pub enum ResNetStemContractConfig {
     /// Three 3x3 convolutions:
     DeepTiered {
         /// The width of the stem convolutions.
-        /// 1. ``3 * (stem_width//4), stride=2``
-        /// 2. ``stem_width, stride=1``
-        /// 3. ``stem_width * 2, stride=1``
+        /// 1. `3 * (stem_width//4), stride=2`
+        /// 2. `stem_width, stride=1`
+        /// 3. `stem_width * 2, stride=1`
         stem_width: usize,
     },
 }

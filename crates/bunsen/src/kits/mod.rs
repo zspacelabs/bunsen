@@ -12,12 +12,12 @@
 //!
 //! ## Current kits
 //!
-//! - [`bimm`] &mdash; *Bunsen/Burn Image Models.* An incremental port of the [`timm`](https://github.com/huggingface/pytorch-image-models)
+//! - [bimm] &mdash; *Bunsen/Burn Image Models.* An incremental port of the [timm](https://github.com/huggingface/pytorch-image-models)
 //!   ecosystem to `burn`. Currently includes the `ResNet` family with
 //!   pretrained-weight loaders, and the Swin Transformer V2 family.
-//! - [`gpts`] &mdash; Full GPT / LLM variants. Currently includes `NanoChat`, a
+//! - [gpts] &mdash; Full GPT / LLM variants. Currently includes `NanoChat`, a
 //!   compact GPT suitable for experimentation and fine-tuning.
-//! - [`sims`] &mdash; Iterative tensor simulations. Currently includes Conway's
+//! - [sims] &mdash; Iterative tensor simulations. Currently includes Conway's
 //!   Game of Life in 2D and 3D, and a D2Q9 lattice-Boltzmann fluid solver.
 //!
 //! ## Stability

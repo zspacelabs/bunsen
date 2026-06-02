@@ -60,7 +60,7 @@ impl DatasetSource {
 
     /// Construct a shard filename.
     ///
-    /// Substitutes the ``Self::format_index(index)`` result in for `"{index}"`
+    /// Substitutes the `Self::format_index(index)` result in for `"{index}"`
     /// in the [`Self::shard_template`].
     pub fn format_shard_filename(
         &self,

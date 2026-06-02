@@ -25,7 +25,7 @@ use crate::{
 
 /// Noise Configuration.
 ///
-/// Carries a [`Distribution`] and an optional [`ClampOp`].
+/// Carries a [Distribution] and an optional [`ClampOp`].
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct NoiseConfig {
     /// The noise distribution.
@@ -62,7 +62,7 @@ impl Default for NoiseConfig {
 }
 
 impl NoiseConfig {
-    /// Extend the config with the given [`Distribution`].
+    /// Extend the config with the given [Distribution].
     pub fn with_distribution(
         self,
         distribution: Distribution,

@@ -41,8 +41,8 @@ use crate::{
 ///
 /// # Missing Features
 ///
-/// - *avg*: support for average pooling is blocked on support for ``ceil_mode``
-///   in [`burn`].
+/// - *avg*: support for average pooling is blocked on support for `ceil_mode`
+///   in [burn].
 pub trait ResNetDownsampleMeta {
     /// The size of the in channels dimension.
     fn in_channels(&self) -> usize;
@@ -65,12 +65,12 @@ pub trait ResNetDownsampleMeta {
     ///
     /// # Arguments
     ///
-    /// - `input_resolution`: ``[in_height=out_height*stride,
-    ///   in_width=out_width*stride]``.
+    /// - `input_resolution`: `[in_height=out_height*stride,
+    ///   in_width=out_width*stride]`.
     ///
     /// # Returns
     ///
-    /// ``[out_height, out_width]``
+    /// `[out_height, out_width]`
     ///
     /// # Panics
     ///
@@ -99,8 +99,8 @@ pub trait ResNetDownsampleMeta {
 ///
 /// # Missing Features
 ///
-/// - *avg*: support for average pooling is blocked on support for ``ceil_mode``
-///   in [`burn`].
+/// - *avg*: support for average pooling is blocked on support for `ceil_mode`
+///   in [burn].
 #[derive(Config, Debug)]
 pub struct ResNetDownsampleConfig {
     /// The size of the in channels dimension.
@@ -120,7 +120,7 @@ pub struct ResNetDownsampleConfig {
     #[config(default = 1)]
     dilation: usize,
 
-    /// The [`Normalization`] config.
+    /// The [Normalization] config.
     ///
     /// The feature size will be auto-matched.
     #[config(default = "NormalizationConfig::Batch(BatchNormConfig::new(0))")]
@@ -186,8 +186,8 @@ impl ResNetDownsampleConfig {
 ///
 /// # Missing Features
 ///
-/// - *avg*: support for average pooling is blocked on support for ``ceil_mode``
-///   in [`burn`].
+/// - *avg*: support for average pooling is blocked on support for `ceil_mode`
+///   in [burn].
 #[derive(Module, Debug)]
 pub struct ResNetDownsample<B: Backend> {
     /// Conv layer.
@@ -224,12 +224,12 @@ impl<B: Backend> ResNetDownsample<B> {
     ///
     /// # Arguments
     ///
-    /// - `input`: \ ``[batch, in_channels, in_height=out_height*stride,
-    ///   in_width=out_width*stride]``
+    /// - `input`: \ `[batch, in_channels, in_height=out_height*stride,
+    ///   in_width=out_width*stride]`
     ///
     /// # Returns
     ///
-    /// ``[batch_size, out_channels, h_out, w_out]``
+    /// `[batch_size, out_channels, h_out, w_out]`
     pub fn forward(
         &self,
         input: Tensor<B, 4>,
