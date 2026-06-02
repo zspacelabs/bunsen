@@ -182,7 +182,7 @@ impl<B: Backend> Whisper<B> {
     /// * `mel`: The input audio spectrogram ``[batch, n_mels, seq]``.
     ///
     /// ## Returns
-    /// ``[batch, seq, n_audio_states]``.
+    /// ``[batch, seq, d_model]``.
     pub fn forward_encoder(
         &self,
         mel: Tensor<B, 3>,
