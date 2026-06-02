@@ -41,9 +41,9 @@ use crate::{
         unpack_shape_contract,
     },
     kits::gpts::nanochat::{
+        MlpConfig,
         NanoChatGptBlock,
         NanoChatGptBlockConfig,
-        NanoGptMlpConfig,
     },
 };
 
@@ -176,9 +176,10 @@ impl NanoChatGptConfig {
         NanoChatGptBlockConfig::new(
             CausalSelfAttentionConfig::new(self.n_head, self.n_kv_head, self.n_embed)
                 .with_norm(self.norm.clone()),
-            NanoGptMlpConfig::new(self.n_embed)
+            MlpConfig::new(self.n_embed)
                 .with_expansion_factor(self.expansion_factor)
-                .with_activation(self.activation.clone()),
+                .with_activation(self.activation.clone())
+                .with_act_exponent(Some(2.0)),
         )
         .with_norm(self.norm.clone())
     }

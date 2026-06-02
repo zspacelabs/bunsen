@@ -23,9 +23,9 @@ use crate::{
         embedding::RotaryEmbedding,
     },
     kits::gpts::nanochat::{
-        NanoChatGptMlp,
-        NanoChatGptMlpMeta,
-        NanoGptMlpConfig,
+        Mlp,
+        MlpConfig,
+        MlpMeta,
     },
 };
 
@@ -42,7 +42,7 @@ pub struct NanoChatGptBlockConfig {
     pub attn: CausalSelfAttentionConfig,
 
     /// MLP Config.
-    pub mlp: NanoGptMlpConfig,
+    pub mlp: MlpConfig,
 
     /// Attention Normalization.
     /// This normalization will be adapted to the appropriate feature count.
@@ -87,7 +87,7 @@ pub struct NanoChatGptBlock<B: Backend> {
     pub attn_norm: Normalization<B>,
 
     /// MLP.
-    pub mlp: NanoChatGptMlp<B>,
+    pub mlp: Mlp<B>,
 }
 
 impl<B: Backend> NanoChatGptBlockMeta for NanoChatGptBlock<B> {
@@ -147,7 +147,7 @@ mod tests {
 
         let config = NanoChatGptBlockConfig::new(
             CausalSelfAttentionConfig::new(n_head, n_kv_head, n_embed),
-            NanoGptMlpConfig::new(n_embed),
+            MlpConfig::new(n_embed).with_act_exponent(Some(2.0)),
         );
         assert_eq!(config.n_embed(), n_embed);
         assert_eq!(config.attn.n_embed(), n_embed);
@@ -178,7 +178,7 @@ mod tests {
 
         let config = NanoChatGptBlockConfig::new(
             CausalSelfAttentionConfig::new(n_head, n_kv_head, n_embed),
-            NanoGptMlpConfig::new(n_embed),
+            MlpConfig::new(n_embed).with_act_exponent(Some(2.0)),
         );
 
         let block: NanoChatGptBlock<B> = config.init(layer_index, &device);

@@ -30,3 +30,4 @@
 pub mod bimm;
 pub mod gpts;
 pub mod sims;
+pub mod speech;

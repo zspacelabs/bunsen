@@ -4,6 +4,7 @@ use burn::{
     config::Config,
     module::Module,
     nn::{
+        LayerNorm,
         Linear,
         LinearConfig,
         activation::{
@@ -17,20 +18,35 @@ use burn::{
     },
 };
 
-use crate::contracts::{
-    assert_shape_contract_periodically,
-    unpack_shape_contract,
-};
-
-/// Common meta for [`NanoChatGptMlp`] and [`NanoGptMlpConfig`].
-pub trait NanoChatGptMlpMeta {
-    /// Return the size of the input and output.
-    fn n_embed(&self) -> usize;
+/// Compute layer normalized mlp.
+///
+/// ## Arguments
+/// * `layer_norm` - `LayerNorm`.
+/// * `mlp` - `Mlp`.
+/// * `x` - ``[batch, seq_len, n_states]`` input.
+///
+/// ## Returns
+/// ``[batch, seq_len, n_states]``
+pub fn layer_norm_mlp<B: Backend>(
+    layer_norm: &LayerNorm<B>,
+    mlp: &Mlp<B>,
+    x: Tensor<B, 3>,
+) -> Tensor<B, 3> {
+    mlp.forward(layer_norm.forward(x))
 }
 
-/// Config for [`NanoChatGptMlp`].
+/// Common meta for [`Mlp`] and [`MlpConfig`].
+pub trait MlpMeta {
+    /// Return the size of the input and output.
+    fn n_embed(&self) -> usize;
+
+    /// Return the post-activation exponent.
+    fn act_exponent(&self) -> Option<f64>;
+}
+
+/// Config for [`Mlp`].
 #[derive(Config, Debug)]
-pub struct NanoGptMlpConfig {
+pub struct MlpConfig {
     /// Embedding Size.
     pub n_embed: usize,
 
@@ -41,25 +57,34 @@ pub struct NanoGptMlpConfig {
     /// Activation Config.
     #[config(default = "ActivationConfig::Relu")]
     pub activation: ActivationConfig,
+
+    /// Post-Activation Exponent.
+    #[config(default = "None")]
+    pub act_exponent: Option<f64>,
 }
 
-impl NanoChatGptMlpMeta for NanoGptMlpConfig {
+impl MlpMeta for MlpConfig {
     fn n_embed(&self) -> usize {
         self.n_embed
     }
+
+    fn act_exponent(&self) -> Option<f64> {
+        self.act_exponent
+    }
 }
 
-impl NanoGptMlpConfig {
+impl MlpConfig {
     /// Initialize the module.
     pub fn init<B: Backend>(
         self,
         device: &B::Device,
-    ) -> NanoChatGptMlp<B> {
-        NanoChatGptMlp {
+    ) -> Mlp<B> {
+        Mlp {
             c_fc: LinearConfig::new(self.n_embed(), self.hidden_size())
                 .with_bias(false)
                 .init(device),
             act: self.activation.init(device),
+            act_exponent: self.act_exponent,
             c_proj: LinearConfig::new(self.hidden_size(), self.n_embed())
                 .with_bias(false)
                 .init(device),
@@ -74,24 +99,31 @@ impl NanoGptMlpConfig {
 
 /// GPT Block MLP Module
 #[derive(Module, Debug)]
-pub struct NanoChatGptMlp<B: Backend> {
+pub struct Mlp<B: Backend> {
     /// Feed Forward Layer.
     pub c_fc: Linear<B>,
 
     /// Activation.
     pub act: Activation<B>,
 
+    /// Post-Activation Exponent.
+    pub act_exponent: Option<f64>,
+
     /// Output Projection.
     pub c_proj: Linear<B>,
 }
 
-impl<B: Backend> NanoChatGptMlpMeta for NanoChatGptMlp<B> {
+impl<B: Backend> MlpMeta for Mlp<B> {
     fn n_embed(&self) -> usize {
         self.c_fc.weight.dims()[0]
     }
+
+    fn act_exponent(&self) -> Option<f64> {
+        self.act_exponent
+    }
 }
 
-impl<B: Backend> NanoChatGptMlp<B> {
+impl<B: Backend> Mlp<B> {
     /// MLP Forward Pass.
     ///
     /// # Arguments
@@ -103,7 +135,8 @@ impl<B: Backend> NanoChatGptMlp<B> {
         &self,
         x: Tensor<B, 3>,
     ) -> Tensor<B, 3> {
-        let [batch, time] = unpack_shape_contract!(
+        #[cfg(any(debug_assertions, test))]
+        let [batch, time] = crate::contracts::unpack_shape_contract!(
             ["batch", "time", "embed"],
             &x,
             &["batch", "time"],
@@ -112,10 +145,16 @@ impl<B: Backend> NanoChatGptMlp<B> {
 
         let x = self.c_fc.forward(x);
         let x = self.act.forward(x);
-        let x = x.square();
+
+        let x = match self.act_exponent {
+            Some(exp) => x.powf_scalar(exp),
+            None => x,
+        };
+
         let x = self.c_proj.forward(x);
 
-        assert_shape_contract_periodically!(
+        #[cfg(any(debug_assertions, test))]
+        crate::contracts::assert_shape_contract_periodically!(
             ["batch", "time", "embed"],
             &x,
             &[("batch", batch), ("time", time), ("embed", self.n_embed())]
@@ -138,7 +177,7 @@ mod tests {
 
     #[test]
     fn test_mlp_config() {
-        let cfg = NanoGptMlpConfig::new(3);
+        let cfg = MlpConfig::new(3);
 
         assert_eq!(cfg.n_embed, 3);
         assert_eq!(cfg.expansion_factor, 4);
@@ -159,11 +198,12 @@ mod tests {
                 let t = 3;
                 let n_embed = 10;
 
-                let cfg = NanoGptMlpConfig::new(n_embed)
+                let cfg = MlpConfig::new(n_embed)
                     .with_expansion_factor(ef)
-                    .with_activation(activation.clone());
+                    .with_activation(activation.clone())
+                    .with_act_exponent(Some(2.0));
 
-                let mlp: NanoChatGptMlp<B> = cfg.init(&device);
+                let mlp: Mlp<B> = cfg.init(&device);
 
                 assert_eq!(mlp.n_embed(), n_embed);
 
