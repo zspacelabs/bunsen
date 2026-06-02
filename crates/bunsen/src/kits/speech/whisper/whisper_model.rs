@@ -17,35 +17,36 @@ use crate::kits::speech::whisper::{
     TextDecoderMeta,
 };
 
+/// API config for a pass in the Whisper model.
+#[derive(Config, Debug)]
+pub struct PassConfig {
+    /// Maximum Context Size.
+    pub max_ctx: usize,
+
+    /// Number of Heads.
+    pub n_heads: usize,
+
+    /// Number of Layers.
+    pub n_layers: usize,
+}
+
 /// Whisper API config.
 #[derive(Config, Debug)]
 pub struct WhisperApiConfig {
     /// The Mel-scale frequency resolution.
     pub n_mels: usize,
 
-    /// Number of Audio Context.
-    pub max_audio_ctx: usize,
+    /// The size of the vocabulary.
+    pub vocab_size: usize,
 
     /// Embedding Size of the Model.
     pub d_model: usize,
 
-    /// Number of Audio Heads.
-    pub n_audio_heads: usize,
+    /// API config for the encoder pass.
+    pub audio_encoder: PassConfig,
 
-    /// Number of Audio Layers.
-    pub n_audio_layers: usize,
-
-    /// The size of the vocabulary.
-    pub n_vocab: usize,
-
-    /// The max text context size.
-    pub max_text_context: usize,
-
-    /// The number of decoder heads.
-    pub n_text_head: usize,
-
-    /// The number of decoder layers.
-    pub n_text_layer: usize,
+    /// API config for the decoder pass.
+    pub text_decoder: PassConfig,
 }
 
 impl WhisperApiConfig {
@@ -54,17 +55,17 @@ impl WhisperApiConfig {
         WhisperStructuralConfig {
             encoder: AudioEncoderConfig::new(
                 self.n_mels,
-                self.max_audio_ctx,
                 self.d_model,
-                self.n_audio_heads,
-                self.n_audio_layers,
+                self.audio_encoder.max_ctx,
+                self.audio_encoder.n_heads,
+                self.audio_encoder.n_layers,
             ),
             decoder: TextDecoderConfig::new(
-                self.n_vocab,
-                self.max_text_context,
+                self.vocab_size,
                 self.d_model,
-                self.n_text_head,
-                self.n_text_layer,
+                self.text_decoder.max_ctx,
+                self.text_decoder.n_heads,
+                self.text_decoder.n_layers,
             ),
         }
     }
@@ -88,12 +89,12 @@ pub trait WhisperMeta {
     }
 
     /// The max audio context size.
-    fn max_encoder_ctx(&self) -> usize {
+    fn max_audio_ctx(&self) -> usize {
         self.encoder().max_context()
     }
 
     /// The max text context size.
-    fn max_decoder_ctx(&self) -> usize {
+    fn max_text_ctx(&self) -> usize {
         self.decoder().max_context()
     }
 
@@ -167,7 +168,7 @@ impl<B: Backend> Whisper<B> {
     /// * `tokens`: ``[batch, seq]``.
     ///
     /// ## Returns
-    /// ``[batch, seq, n_vocab]``.
+    /// ``[batch, seq, vocab_size]``.
     pub fn forward(
         &self,
         mel: Tensor<B, 3>,
@@ -197,7 +198,7 @@ impl<B: Backend> Whisper<B> {
     /// * `encoder_output`: ``[batch, seq, d_model]``.
     ///
     /// ## Returns
-    /// ``[batch, seq, n_vocab]``.
+    /// ``[batch, seq, vocab_size]``.
     pub fn forward_decoder(
         &self,
         tokens: Tensor<B, 2, Int>,
@@ -235,50 +236,61 @@ mod tests {
         let n_text_heads = 4;
         let n_text_layers = 2;
 
-        let config = WhisperApiConfig::new(
+        let config = WhisperApiConfig {
             n_mels,
-            max_audio_ctx,
-            d_model,
-            n_audio_heads,
-            n_audio_layers,
             vocab_size,
-            max_text_context,
-            n_text_heads,
-            n_text_layers,
-        );
+            d_model,
+            audio_encoder: PassConfig {
+                max_ctx: max_audio_ctx,
+                n_heads: n_audio_heads,
+                n_layers: n_audio_layers,
+            },
+            text_decoder: PassConfig {
+                max_ctx: max_text_context,
+                n_heads: n_text_heads,
+                n_layers: n_text_layers,
+            },
+        };
 
         let structural = config.to_structure();
 
         assert_eq!(structural.n_mels(), n_mels);
         assert_eq!(structural.vocab_size(), vocab_size);
         assert_eq!(structural.d_model(), d_model);
-        assert_eq!(structural.max_encoder_ctx(), max_audio_ctx);
-        assert_eq!(structural.max_decoder_ctx(), max_text_context);
+        assert_eq!(structural.max_audio_ctx(), max_audio_ctx);
+        assert_eq!(structural.max_text_ctx(), max_text_context);
 
         assert_eq!(structural.encoder().n_mels(), n_mels);
-        assert_eq!(structural.encoder().max_context(), max_audio_ctx);
         assert_eq!(structural.encoder().d_model(), d_model);
+        assert_eq!(structural.encoder().max_context(), max_audio_ctx);
         assert_eq!(structural.encoder().n_heads(), n_audio_heads);
         assert_eq!(structural.encoder().n_layers(), n_audio_layers);
+
         assert_eq!(structural.decoder().vocab_size(), vocab_size);
-        assert_eq!(structural.decoder().max_context(), max_text_context);
         assert_eq!(structural.decoder().d_model(), d_model);
+        assert_eq!(structural.decoder().max_context(), max_text_context);
+        assert_eq!(structural.decoder().n_heads(), n_text_heads);
+        assert_eq!(structural.decoder().n_layers(), n_text_layers);
 
         let model: Whisper<B> = structural.init(&device);
 
         assert_eq!(model.n_mels(), n_mels);
         assert_eq!(model.vocab_size(), vocab_size);
         assert_eq!(model.d_model(), d_model);
-        assert_eq!(model.max_encoder_ctx(), max_audio_ctx);
-        assert_eq!(model.max_decoder_ctx(), max_text_context);
+        assert_eq!(model.max_audio_ctx(), max_audio_ctx);
+        assert_eq!(model.max_text_ctx(), max_text_context);
 
         assert_eq!(model.encoder().n_mels(), n_mels);
-        assert_eq!(model.encoder().max_context(), max_audio_ctx);
         assert_eq!(model.encoder().d_model(), d_model);
+        assert_eq!(model.encoder().max_context(), max_audio_ctx);
+        assert_eq!(model.encoder().n_heads(), n_audio_heads);
+        assert_eq!(model.encoder().n_layers(), n_audio_layers);
+
         assert_eq!(model.decoder().vocab_size(), vocab_size);
         assert_eq!(model.decoder().d_model(), d_model);
-        assert_eq!(model.max_encoder_ctx(), max_audio_ctx);
-        assert_eq!(model.max_decoder_ctx(), max_text_context);
+        assert_eq!(model.decoder().max_context(), max_text_context);
+        assert_eq!(model.decoder().n_heads(), n_text_heads);
+        assert_eq!(model.decoder().n_layers(), n_text_layers);
 
         let batch = 2;
         let audio_len = max_audio_ctx / 2;
@@ -305,12 +317,12 @@ mod tests {
         // The full forward pass produces vocab logits per input token.
         let output = model.forward(mel, tokens);
         assert_shape_contract!(
-            ["batch", "seq", "n_vocab"],
+            ["batch", "seq", "vocab_size"],
             &output,
             &[
                 ("batch", batch),
                 ("seq", token_len),
-                ("n_vocab", vocab_size)
+                ("vocab_size", vocab_size)
             ],
         );
     }

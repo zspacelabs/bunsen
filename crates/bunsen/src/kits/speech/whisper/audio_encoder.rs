@@ -56,11 +56,10 @@ pub struct AudioEncoderConfig {
     /// The Mel-scale frequency resolution.
     pub n_mels: usize,
 
-    /// Max audio context size.
-    pub max_context: usize,
-
     /// The embedding size of the model.
     pub d_model: usize,
+    /// Max audio context size.
+    pub max_context: usize,
 
     /// Number of Audio Heads.
     pub n_heads: usize,
@@ -78,12 +77,12 @@ impl AudioEncoderMeta for AudioEncoderConfig {
         self.n_mels
     }
 
-    fn max_context(&self) -> usize {
-        self.max_context
-    }
-
     fn d_model(&self) -> usize {
         self.d_model
+    }
+
+    fn max_context(&self) -> usize {
+        self.max_context
     }
 
     fn n_heads(&self) -> usize {
@@ -149,12 +148,12 @@ impl<B: Backend> AudioEncoderMeta for AudioEncoder<B> {
         self.conv1.weight.dims()[1]
     }
 
-    fn max_context(&self) -> usize {
-        2 * self.positional_embedding.weight.val().dims()[0]
-    }
-
     fn d_model(&self) -> usize {
         self.blocks[0].d_model()
+    }
+
+    fn max_context(&self) -> usize {
+        2 * self.positional_embedding.weight.val().dims()[0]
     }
 
     fn n_heads(&self) -> usize {
@@ -238,31 +237,32 @@ mod tests {
         type B = PerformanceBackend;
         let device = Default::default();
 
-        let max_audio_ctx = 128;
+        let d_model = 128;
         let n_mels = 256;
+        let max_audio_ctx = 100;
+
         let n_audio_heads = 4;
-        let n_audio_states = n_audio_heads * 32;
         let n_audio_layers = 2;
 
         let config = AudioEncoderConfig::new(
             n_mels,
+            d_model,
             max_audio_ctx,
-            n_audio_states,
             n_audio_heads,
             n_audio_layers,
         );
 
         assert_eq!(config.n_mels(), n_mels);
+        assert_eq!(config.d_model(), d_model);
         assert_eq!(config.max_context(), max_audio_ctx);
-        assert_eq!(config.d_model(), n_audio_states);
         assert_eq!(config.n_heads(), n_audio_heads);
         assert_eq!(config.n_layers(), n_audio_layers);
 
         let encoder: AudioEncoder<B> = config.init(&device);
 
         assert_eq!(encoder.n_mels(), n_mels);
+        assert_eq!(encoder.d_model(), d_model);
         assert_eq!(encoder.max_context(), max_audio_ctx);
-        assert_eq!(encoder.d_model(), n_audio_states);
         assert_eq!(encoder.n_heads(), n_audio_heads);
         assert_eq!(encoder.n_layers(), n_audio_layers);
 
@@ -278,7 +278,7 @@ mod tests {
             &[
                 ("batch", batch),
                 ("seq", k / 2),
-                ("n_audio_states", n_audio_states),
+                ("n_audio_states", d_model),
             ],
         );
     }

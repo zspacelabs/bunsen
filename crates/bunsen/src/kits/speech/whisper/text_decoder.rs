@@ -32,11 +32,17 @@ pub trait TextDecoderMeta {
     /// Return the size of the vocabulary.
     fn vocab_size(&self) -> usize;
 
+    /// The embedding size of the model.
+    fn d_model(&self) -> usize;
+
     /// Return the max context size.
     fn max_context(&self) -> usize;
 
-    /// The embedding size of the model.
-    fn d_model(&self) -> usize;
+    /// Return the number of heads.
+    fn n_heads(&self) -> usize;
+
+    /// Return the number of layers.
+    fn n_layers(&self) -> usize;
 }
 
 /// Config for [`TextDecoder`].
@@ -45,11 +51,11 @@ pub struct TextDecoderConfig {
     /// The size of the vocabulary.
     pub vocab_size: usize,
 
-    /// Maximum text context size.
-    pub max_context: usize,
-
     /// The embedding size of the model.
     pub d_model: usize,
+
+    /// Maximum text context size.
+    pub max_context: usize,
 
     /// The number of heads.
     pub n_heads: usize,
@@ -67,12 +73,20 @@ impl TextDecoderMeta for TextDecoderConfig {
         self.vocab_size
     }
 
+    fn d_model(&self) -> usize {
+        self.d_model
+    }
+
     fn max_context(&self) -> usize {
         self.max_context
     }
 
-    fn d_model(&self) -> usize {
-        self.d_model
+    fn n_heads(&self) -> usize {
+        self.n_heads
+    }
+
+    fn n_layers(&self) -> usize {
+        self.n_layers
     }
 }
 
@@ -139,12 +153,20 @@ impl<B: Backend> TextDecoderMeta for TextDecoder<B> {
         self.token_embedding.weight.val().dims()[0]
     }
 
+    fn d_model(&self) -> usize {
+        self.blocks[0].d_model()
+    }
+
     fn max_context(&self) -> usize {
         self.positional_embedding.weight.val().dims()[0]
     }
 
-    fn d_model(&self) -> usize {
-        self.blocks[0].d_model()
+    fn n_heads(&self) -> usize {
+        self.blocks[0].n_heads()
+    }
+
+    fn n_layers(&self) -> usize {
+        self.blocks.len()
     }
 }
 
@@ -224,17 +246,17 @@ mod tests {
         let n_heads = 4;
         let n_layers = 2;
 
-        let config = TextDecoderConfig::new(vocab_size, max_context, d_model, n_heads, n_layers);
+        let config = TextDecoderConfig::new(vocab_size, d_model, max_context, n_heads, n_layers);
 
         assert_eq!(config.vocab_size(), vocab_size);
-        assert_eq!(config.max_context(), max_context);
         assert_eq!(config.d_model(), d_model);
+        assert_eq!(config.max_context(), max_context);
 
         let decoder: TextDecoder<B> = config.init(&device);
 
         assert_eq!(decoder.vocab_size(), vocab_size);
-        assert_eq!(decoder.max_context(), max_context);
         assert_eq!(decoder.d_model(), d_model);
+        assert_eq!(decoder.max_context(), max_context);
 
         let batch = 2;
         let seq_len = max_context / 2;
