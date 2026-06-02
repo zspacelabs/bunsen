@@ -33,7 +33,7 @@ pub trait TextDecoderMeta {
     fn n_vocab(&self) -> usize;
 
     /// Return the max text context size.
-    fn n_text_ctx(&self) -> usize;
+    fn max_text_context(&self) -> usize;
 
     /// Return the number of text states.
     fn n_text_state(&self) -> usize;
@@ -46,7 +46,7 @@ pub struct TextDecoderConfig {
     pub n_vocab: usize,
 
     /// The max text context size.
-    pub n_text_ctx: usize,
+    pub max_text_context: usize,
 
     /// The text embedding size.
     pub n_text_state: usize,
@@ -67,8 +67,8 @@ impl TextDecoderMeta for TextDecoderConfig {
         self.n_vocab
     }
 
-    fn n_text_ctx(&self) -> usize {
-        self.n_text_ctx
+    fn max_text_context(&self) -> usize {
+        self.max_text_context
     }
 
     fn n_text_state(&self) -> usize {
@@ -103,7 +103,7 @@ impl TextDecoderConfig {
         TextDecoder {
             token_embedding: EmbeddingConfig::new(self.n_vocab, self.n_text_state).init(device),
 
-            positional_embedding: EmbeddingConfig::new(self.n_text_ctx, self.n_text_state)
+            positional_embedding: EmbeddingConfig::new(self.max_text_context, self.n_text_state)
                 .init(device),
 
             blocks: (0..self.n_text_layer)
@@ -115,7 +115,7 @@ impl TextDecoderConfig {
                 .collect(),
 
             ln: LayerNormConfig::new(self.n_text_state).init(device),
-            // mask: Param::from_tensor(attn_decoder_mask(self.n_text_ctx, device)),
+            // mask: Param::from_tensor(attn_decoder_mask(self.max_text_context, device)),
         }
     }
 }
@@ -127,7 +127,7 @@ pub struct TextDecoder<B: Backend> {
     pub token_embedding: Embedding<B>,
 
     /// The positional embedding.
-    positional_embedding: Embedding<B>,
+    pub positional_embedding: Embedding<B>,
 
     /// The decoder blocks.
     pub blocks: Vec<ResidualDecoderAttentionBlock<B>>,
@@ -142,7 +142,7 @@ impl<B: Backend> TextDecoderMeta for TextDecoder<B> {
         self.token_embedding.weight.val().dims()[0]
     }
 
-    fn n_text_ctx(&self) -> usize {
+    fn max_text_context(&self) -> usize {
         self.positional_embedding.weight.val().dims()[0]
     }
 
@@ -153,6 +153,13 @@ impl<B: Backend> TextDecoderMeta for TextDecoder<B> {
 
 impl<B: Backend> TextDecoder<B> {
     /// Run the decoder.
+    ///
+    /// ## Arguments
+    /// * `x`: ``[batch, seq]``.
+    /// * `xa`: ``[batch, seq, n_audio_states]``.
+    ///
+    /// ## Returns
+    /// ``[batch, seq, n_vocab]``.
     pub fn forward(
         &self,
         x: Tensor<B, 2, Int>,
@@ -161,10 +168,10 @@ impl<B: Backend> TextDecoder<B> {
         let [_n_batch, seq_len] = x.dims();
 
         assert!(
-            seq_len <= self.n_text_ctx(),
+            seq_len <= self.max_text_context(),
             "Token sequence length {} must not exceed {}.",
             seq_len,
-            self.n_text_ctx()
+            self.max_text_context()
         );
 
         let x = self.token_embedding.forward(x)
