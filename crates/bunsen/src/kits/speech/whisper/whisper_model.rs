@@ -50,7 +50,7 @@ pub struct WhisperApiConfig {
 
 impl WhisperApiConfig {
     /// Convert to a [`WhisperStructuralConfig`].
-    pub fn to_structural_config(self) -> WhisperStructuralConfig {
+    pub fn to_structure(&self) -> WhisperStructuralConfig {
         WhisperStructuralConfig {
             encoder: AudioEncoderConfig::new(
                 self.n_mels,
@@ -237,7 +237,7 @@ mod tests {
             n_text_layers,
         );
 
-        let structural = config.to_structural_config();
+        let structural = config.to_structure();
 
         assert_eq!(structural.d_model(), d_model);
         assert_eq!(structural.max_encoder_ctx(), max_audio_ctx);
