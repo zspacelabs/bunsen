@@ -31,8 +31,8 @@ use crate::blocks::transformers::{
 /// Common meta for [`ResidualDecoderAttentionBlock`] and
 /// [`ResidualDecoderAttentionBlockConfig`].
 pub trait ResidualDecoderAttentionBlockMeta {
-    /// Return the number of states.
-    fn n_states(&self) -> usize;
+    /// Return the embedding dimensionality.
+    fn d_model(&self) -> usize;
 
     /// Return the number of heads.
     fn n_heads(&self) -> usize;
@@ -44,8 +44,8 @@ pub trait ResidualDecoderAttentionBlockMeta {
 /// Config for [`ResidualDecoderAttentionBlock`].
 #[derive(Config, Debug)]
 pub struct ResidualDecoderAttentionBlockConfig {
-    /// Number of States.
-    pub n_states: usize,
+    /// Return the embedding dimensionality.
+    pub d_model: usize,
 
     /// Number of Heads.
     pub n_heads: usize,
@@ -56,8 +56,8 @@ pub struct ResidualDecoderAttentionBlockConfig {
 }
 
 impl ResidualDecoderAttentionBlockMeta for ResidualDecoderAttentionBlockConfig {
-    fn n_states(&self) -> usize {
-        self.n_states
+    fn d_model(&self) -> usize {
+        self.d_model
     }
 
     fn n_heads(&self) -> usize {
@@ -76,8 +76,8 @@ impl ResidualDecoderAttentionBlockConfig {
         device: &B::Device,
     ) -> ResidualDecoderAttentionBlock<B> {
         let mha_cfg =
-            MultiHeadAttentionConfig::new(self.n_states, self.n_heads).with_dropout(self.dropout);
-        let ln_cfg = LayerNormConfig::new(self.n_states);
+            MultiHeadAttentionConfig::new(self.d_model, self.n_heads).with_dropout(self.dropout);
+        let ln_cfg = LayerNormConfig::new(self.d_model);
 
         ResidualDecoderAttentionBlock {
             attn_ln: ln_cfg.init(device),
@@ -85,7 +85,7 @@ impl ResidualDecoderAttentionBlockConfig {
             cross_attn_ln: ln_cfg.init(device),
             cross_attn: mha_cfg.init(device),
             mlp_ln: ln_cfg.init(device),
-            mlp: MlpConfig::new(self.n_states).init(device),
+            mlp: MlpConfig::new(self.d_model).init(device),
         }
     }
 }
@@ -113,7 +113,7 @@ pub struct ResidualDecoderAttentionBlock<B: Backend> {
 }
 
 impl<B: Backend> ResidualDecoderAttentionBlockMeta for ResidualDecoderAttentionBlock<B> {
-    fn n_states(&self) -> usize {
+    fn d_model(&self) -> usize {
         self.attn.d_model
     }
 
@@ -140,13 +140,13 @@ impl<B: Backend> ResidualDecoderAttentionBlock<B> {
     /// Forward pass of the residual decoder attention block.
     ///
     /// ## Arguments
-    /// * `x` - ``[batch, seq_len, n_states]`` input.
-    /// * `xa` - ``[batch, seq_len, n_states]`` cross-attention input.
-    /// * `mask` - ``[batch, seq_len, seq_len]`` attention mask.
+    /// * `x` : ``[batch, seq_len, d_model]`` input.
+    /// * `xa` : ``[batch, seq_len, d_model]`` cross-attention input.
+    /// * `mask` : ``[batch, seq_len, seq_len]`` attention mask.
     ///
     /// ## Returns
     /// `RdabForwardRecord` - forward record.
-    /// * `fr.output` : ``[batch, seq_len, n_states]``.
+    /// * `fr.output` : ``[batch, seq_len, d_model]``.
     /// * `fr.ca_weights` : ``[batch, n_heads, seq_len, seq_len]``.
     pub fn forward(
         &self,
@@ -188,21 +188,21 @@ mod tests {
         let device = Default::default();
 
         let n_heads = 4;
-        let n_states = 32 * n_heads;
+        let d_model = 32 * n_heads;
 
-        let cfg = ResidualDecoderAttentionBlockConfig::new(n_states, n_heads);
+        let cfg = ResidualDecoderAttentionBlockConfig::new(d_model, n_heads);
 
-        assert_eq!(cfg.n_states(), n_states);
+        assert_eq!(cfg.d_model(), d_model);
         assert_eq!(cfg.n_heads(), n_heads);
 
         let block: ResidualDecoderAttentionBlock<B> = cfg.init(&device);
 
-        assert_eq!(block.n_states(), n_states);
+        assert_eq!(block.d_model(), d_model);
         assert_eq!(block.n_heads(), n_heads);
 
         let batch = 2;
         let seq_len = 10;
-        let shape: Shape = [batch, seq_len, n_states].into();
+        let shape: Shape = [batch, seq_len, d_model].into();
 
         let x: Tensor<B, 3> = Tensor::random(shape.clone(), Distribution::Default, &device);
         let xa: Tensor<B, 3> = Tensor::random(shape.clone(), Distribution::Default, &device);
@@ -245,13 +245,9 @@ mod tests {
             .assert_approx_eq::<f64>(&expected.ca_weights.clone().into_data(), Default::default());
 
         assert_shape_contract!(
-            ["batch", "seq_len", "n_states"],
+            ["batch", "seq_len", "d_model"],
             &fr.output,
-            &[
-                ("batch", batch),
-                ("seq_len", seq_len),
-                ("n_states", n_states),
-            ],
+            &[("batch", batch), ("seq_len", seq_len), ("d_model", d_model),],
         );
 
         assert_shape_contract!(

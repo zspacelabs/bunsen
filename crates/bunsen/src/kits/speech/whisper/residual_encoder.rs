@@ -25,8 +25,8 @@ use crate::blocks::transformers::{
 /// Common meta for [`ResidualEncoderAttentionBlock`] and
 /// [`ResidualEncoderAttentionBlockConfig`].
 pub trait ResidualEncoderAttentionBlockMeta {
-    /// Return the number of states.
-    fn n_states(&self) -> usize;
+    /// Return the embedding dimensionality.
+    fn d_model(&self) -> usize;
 
     /// Return the number of heads.
     fn n_heads(&self) -> usize;
@@ -38,8 +38,8 @@ pub trait ResidualEncoderAttentionBlockMeta {
 /// Config for [`ResidualEncoderAttentionBlock`].
 #[derive(Config, Debug)]
 pub struct ResidualEncoderAttentionBlockConfig {
-    /// Number of States.
-    pub n_states: usize,
+    /// Return the embedding dimensionality.
+    pub d_model: usize,
 
     /// Number of Heads.
     pub n_heads: usize,
@@ -50,8 +50,8 @@ pub struct ResidualEncoderAttentionBlockConfig {
 }
 
 impl ResidualEncoderAttentionBlockMeta for ResidualEncoderAttentionBlockConfig {
-    fn n_states(&self) -> usize {
-        self.n_states
+    fn d_model(&self) -> usize {
+        self.d_model
     }
 
     fn n_heads(&self) -> usize {
@@ -70,14 +70,14 @@ impl ResidualEncoderAttentionBlockConfig {
         device: &B::Device,
     ) -> ResidualEncoderAttentionBlock<B> {
         let mha_cfg =
-            MultiHeadAttentionConfig::new(self.n_states, self.n_heads).with_dropout(self.dropout);
-        let ln_cfg = LayerNormConfig::new(self.n_states);
+            MultiHeadAttentionConfig::new(self.d_model, self.n_heads).with_dropout(self.dropout);
+        let ln_cfg = LayerNormConfig::new(self.d_model);
 
         ResidualEncoderAttentionBlock {
             attn_ln: ln_cfg.init(device),
             attn: mha_cfg.init(device),
             mlp_ln: ln_cfg.init(device),
-            mlp: MlpConfig::new(self.n_states).init(device),
+            mlp: MlpConfig::new(self.d_model).init(device),
         }
     }
 }
@@ -99,7 +99,7 @@ pub struct ResidualEncoderAttentionBlock<B: Backend> {
 }
 
 impl<B: Backend> ResidualEncoderAttentionBlockMeta for ResidualEncoderAttentionBlock<B> {
-    fn n_states(&self) -> usize {
+    fn d_model(&self) -> usize {
         self.attn.d_model
     }
 
@@ -116,10 +116,10 @@ impl<B: Backend> ResidualEncoderAttentionBlock<B> {
     /// Forward pass of the residual decoder attention block.
     ///
     /// ## Arguments
-    /// * `x` - ``[batch, seq_len, n_states]`` input.
+    /// * `x` : ``[batch, seq_len, d_model]`` input.
     ///
     /// ## Returns
-    /// ``[batch, seq_len, n_states]``
+    /// ``[batch, seq_len, d_model]``
     pub fn forward(
         &self,
         x: Tensor<B, 3>,
@@ -148,22 +148,22 @@ mod tests {
         type B = crate::support::testing::PerformanceBackend;
         let device = Default::default();
 
+        let d_model = 128;
         let n_heads = 4;
-        let n_states = 32 * n_heads;
 
-        let cfg = ResidualEncoderAttentionBlockConfig::new(n_states, n_heads);
+        let cfg = ResidualEncoderAttentionBlockConfig::new(d_model, n_heads);
 
-        assert_eq!(cfg.n_states(), n_states);
+        assert_eq!(cfg.d_model(), d_model);
         assert_eq!(cfg.n_heads(), n_heads);
 
         let block: ResidualEncoderAttentionBlock<B> = cfg.init(&device);
 
-        assert_eq!(block.n_states(), n_states);
+        assert_eq!(block.d_model(), d_model);
         assert_eq!(block.n_heads(), n_heads);
 
         let batch = 2;
         let seq_len = 10;
-        let shape: Shape = [batch, seq_len, n_states].into();
+        let shape: Shape = [batch, seq_len, d_model].into();
 
         let x: Tensor<B, 3> = Tensor::random(shape.clone(), Distribution::Default, &device);
 
@@ -183,13 +183,9 @@ mod tests {
             .assert_approx_eq::<f64>(&expected.into_data(), Default::default());
 
         assert_shape_contract!(
-            ["batch", "seq_len", "n_states"],
+            ["batch", "seq_len", "d_model"],
             &output,
-            &[
-                ("batch", batch),
-                ("seq_len", seq_len),
-                ("n_states", n_states),
-            ],
+            &[("batch", batch), ("seq_len", seq_len), ("d_model", d_model),],
         );
     }
 }

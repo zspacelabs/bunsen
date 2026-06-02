@@ -154,7 +154,7 @@ impl<B: Backend> AudioEncoderMeta for AudioEncoder<B> {
     }
 
     fn d_model(&self) -> usize {
-        self.blocks[0].n_states()
+        self.blocks[0].d_model()
     }
 
     fn n_heads(&self) -> usize {

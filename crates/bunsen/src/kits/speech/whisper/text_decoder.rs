@@ -144,7 +144,7 @@ impl<B: Backend> TextDecoderMeta for TextDecoder<B> {
     }
 
     fn d_model(&self) -> usize {
-        self.blocks[0].n_states()
+        self.blocks[0].d_model()
     }
 }
 
@@ -153,7 +153,7 @@ impl<B: Backend> TextDecoder<B> {
     ///
     /// ## Arguments
     /// * `x`: ``[batch, seq]``.
-    /// * `xa`: ``[batch, seq, n_audio_states]``.
+    /// * `xa`: ``[batch, seq, d_model]``.
     ///
     /// ## Returns
     /// ``[batch, seq, n_vocab]``.

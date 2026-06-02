@@ -184,7 +184,7 @@ impl<B: Backend> Whisper<B> {
     ///
     /// ## Arguments
     /// * `tokens`: ``[batch, seq]``.
-    /// * `encoder_output`: ``[batch, seq, n_audio_states]``.
+    /// * `encoder_output`: ``[batch, seq, d_model]``.
     ///
     /// ## Returns
     /// ``[batch, seq, n_vocab]``.
@@ -279,12 +279,12 @@ mod tests {
         // The encoder halves the audio sequence length (conv stride 2).
         let encoder_output = model.forward_encoder(mel.clone());
         assert_shape_contract!(
-            ["batch", "seq", "n_audio_states"],
+            ["batch", "seq", "d_model"],
             &encoder_output,
             &[
                 ("batch", batch),
                 ("seq", audio_len / 2),
-                ("n_audio_states", d_model),
+                ("d_model", d_model),
             ],
         );
 
