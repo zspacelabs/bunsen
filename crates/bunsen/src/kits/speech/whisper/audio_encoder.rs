@@ -101,8 +101,6 @@ impl AudioEncoderConfig {
         &self,
         device: &B::Device,
     ) -> AudioEncoder<B> {
-        // TODO: Use burn::nn::Embedding
-
         AudioEncoder {
             conv1: Conv1dConfig::new(self.n_mels, self.n_audio_states, 3)
                 .with_padding(PaddingConfig1d::Explicit(1, 1))
@@ -115,7 +113,8 @@ impl AudioEncoderConfig {
                 .init(device),
             act2: self.head_activation.init(device),
 
-            pos: EmbeddingConfig::new(self.max_audio_ctx / 2, self.n_audio_states).init(device),
+            positional_embedding: EmbeddingConfig::new(self.max_audio_ctx / 2, self.n_audio_states)
+                .init(device),
 
             blocks: (0..self.n_audio_layers)
                 .map(|_| {
@@ -141,7 +140,7 @@ pub struct AudioEncoder<B: Backend> {
     conv2: Conv1d<B>,
     act2: Activation<B>,
 
-    pos: Embedding<B>,
+    positional_embedding: Embedding<B>,
 
     blocks: Vec<ResidualEncoderAttentionBlock<B>>,
 
@@ -154,7 +153,7 @@ impl<B: Backend> AudioEncoderMeta for AudioEncoder<B> {
     }
 
     fn max_audio_ctx(&self) -> usize {
-        2 * self.pos.weight.val().dims()[0]
+        2 * self.positional_embedding.weight.val().dims()[0]
     }
 
     fn n_audio_states(&self) -> usize {
@@ -213,7 +212,12 @@ impl<B: Backend> AudioEncoder<B> {
         );
 
         let k = x.dims()[1];
-        let x = x + self.pos.weight.val().slice(s![0..k]).unsqueeze::<3>();
+        let x = x + self
+            .positional_embedding
+            .weight
+            .val()
+            .slice(s![0..k])
+            .unsqueeze::<3>();
 
         let x = self.blocks.iter().fold(x, |z, b| b.forward(z));
 

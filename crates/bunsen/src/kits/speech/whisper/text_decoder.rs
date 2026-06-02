@@ -98,8 +98,6 @@ impl TextDecoderConfig {
         &self,
         device: &B::Device,
     ) -> TextDecoder<B> {
-        // TODO: Use burn::nn::Embedding
-
         TextDecoder {
             token_embedding: EmbeddingConfig::new(self.n_vocab, self.n_text_state).init(device),
 
