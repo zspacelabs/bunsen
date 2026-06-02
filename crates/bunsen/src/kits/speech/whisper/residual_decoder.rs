@@ -129,11 +129,28 @@ impl<B: Backend> ResidualDecoderAttentionBlockMeta for ResidualDecoderAttentionB
 /// Decode record for [`ResidualDecoderAttentionBlock::forward`].
 #[derive(Debug, Clone)]
 pub struct DecodeRecord<B: Backend> {
-    /// Block Output: ``[batch, seq_len, n_states]``.
+    /// Block Output: ``[batch, seq_len, d_model]``.
     pub output: Tensor<B, 3>,
 
     /// Cross-Attention Weights: ``[batch, n_heads, seq_len, seq_len]``.
     pub ca_weights: Tensor<B, 4>,
+}
+
+impl<B: Backend> DecodeRecord<B> {
+    /// Get the batch size.
+    pub fn batch_size(&self) -> usize {
+        self.output.shape()[0]
+    }
+
+    /// Get the embedding size.
+    pub fn d_model(&self) -> usize {
+        self.output.shape()[2]
+    }
+
+    /// Get the sequence length.
+    pub fn seq_len(&self) -> usize {
+        self.output.shape()[1]
+    }
 }
 
 impl<B: Backend> ResidualDecoderAttentionBlock<B> {
@@ -211,7 +228,11 @@ mod tests {
             Tensor::random([1, seq_len, seq_len], Distribution::Bernoulli(0.5), &device);
         let mask = mask.bool();
 
-        let fr = block.forward(x.clone(), xa.clone(), mask.clone().into());
+        let result = block.forward(x.clone(), xa.clone(), mask.clone().into());
+
+        assert_eq!(result.batch_size(), batch);
+        assert_eq!(result.d_model(), d_model);
+        assert_eq!(result.seq_len(), seq_len);
 
         let expected = {
             let self_attn =
@@ -235,24 +256,26 @@ mod tests {
             }
         };
 
-        fr.output
+        result
+            .output
             .clone()
             .into_data()
             .assert_approx_eq::<f64>(&expected.output.clone().into_data(), Default::default());
-        fr.ca_weights
+        result
+            .ca_weights
             .clone()
             .into_data()
             .assert_approx_eq::<f64>(&expected.ca_weights.clone().into_data(), Default::default());
 
         assert_shape_contract!(
             ["batch", "seq_len", "d_model"],
-            &fr.output,
+            &result.output,
             &[("batch", batch), ("seq_len", seq_len), ("d_model", d_model),],
         );
 
         assert_shape_contract!(
             ["batch", "n_heads", "seq_len", "seq_len"],
-            &fr.ca_weights,
+            &result.ca_weights,
             &[("batch", batch), ("n_heads", n_heads), ("seq_len", seq_len)],
         );
     }
