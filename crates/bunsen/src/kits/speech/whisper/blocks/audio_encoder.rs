@@ -25,7 +25,7 @@ use burn::{
 
 use crate::{
     contracts::unpack_shape_contract,
-    kits::speech::whisper::{
+    kits::speech::whisper::blocks::{
         ResidualEncoderAttentionBlock,
         ResidualEncoderAttentionBlockConfig,
         ResidualEncoderAttentionBlockMeta,
