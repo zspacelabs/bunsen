@@ -8,7 +8,7 @@ use burn::{
     },
 };
 
-use crate::kits::speech::whisper::{
+use crate::kits::speech::whisper::blocks::{
     AudioEncoder,
     AudioEncoderConfig,
     AudioEncoderMeta,

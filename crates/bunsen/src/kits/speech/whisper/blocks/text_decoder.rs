@@ -20,7 +20,7 @@ use burn::{
 
 use crate::{
     blocks::transformers::attention::causal_mask,
-    kits::speech::whisper::{
+    kits::speech::whisper::blocks::{
         ResidualDecoderAttentionBlock,
         ResidualDecoderAttentionBlockConfig,
         ResidualDecoderAttentionBlockMeta,
