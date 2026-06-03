@@ -12,7 +12,7 @@ license.workspace = true
 workspace = true
 
 [features]
-default = ["cuda"]
+default = ["flex"]
 cuda = ["burn/cuda", "bunsen/cuda"]
 metal = ["burn/metal", "bunsen/metal"]
 wgpu = ["burn/wgpu", "bunsen/metal"]
