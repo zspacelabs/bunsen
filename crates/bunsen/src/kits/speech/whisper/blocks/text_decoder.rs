@@ -22,6 +22,7 @@ use burn::{
     },
 };
 
+use super::WHISPER_DEFAULT_D_MODEL;
 use crate::{
     blocks::transformers::attention::causal_mask,
     kits::speech::whisper::blocks::{
@@ -65,9 +66,8 @@ pub struct TextDecoderConfig {
     /// The number of layers.
     pub n_layers: usize,
 
-    /// Head Dimension.
-    /// Whisper always uses 64 here.
-    #[config(default = "64")]
+    /// Head Dimensionality.
+    #[config(defaul_value = "WHISPER_DEFAULT_D_MODEL")]
     pub d_head: usize,
 
     /// Dropout.

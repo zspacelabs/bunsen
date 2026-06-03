@@ -25,6 +25,7 @@ use burn::{
     tensor::Distribution,
 };
 
+use super::WHISPER_DEFAULT_D_MODEL;
 use crate::{
     contracts::unpack_shape_contract,
     kits::speech::whisper::blocks::{
@@ -73,9 +74,8 @@ pub struct AudioEncoderConfig {
     /// Number of Audio Layers.
     pub n_layers: usize,
 
-    /// Head Dimension.
-    /// Whisper always uses 64 here.
-    #[config(default = "64")]
+    /// Head Dimensionality.
+    #[config(defaul_value = "WHISPER_DEFAULT_D_MODEL")]
     pub d_head: usize,
 
     /// Head Activation.

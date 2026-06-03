@@ -9,7 +9,10 @@ use burn_store::{
     PytorchStore,
 };
 
-use crate::kits::speech::whisper::blocks::WhisperApiConfig;
+use crate::kits::speech::whisper::blocks::{
+    WHISPER_DEFAULT_D_MODEL,
+    WhisperApiConfig,
+};
 
 fn block_layers_from_keys<S: AsRef<str>>(
     kind: &str,
@@ -30,8 +33,8 @@ pub struct PytorchWhisperScanner {
     #[config(default_value = "Some(\"model_state_dict\".to_string())")]
     pub top_level_key: Option<String>,
 
-    /// Head Dimension.
-    #[config(default = "64")]
+    /// Head Dimensionality.
+    #[config(defaul_value = "WHISPER_DEFAULT_D_MODEL")]
     pub d_head: usize,
 }
 

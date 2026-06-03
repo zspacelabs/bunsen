@@ -8,6 +8,7 @@ use burn::{
     },
 };
 
+use super::WHISPER_DEFAULT_D_MODEL;
 use crate::kits::speech::whisper::blocks::{
     AudioEncoder,
     AudioEncoderConfig,
@@ -16,31 +17,6 @@ use crate::kits::speech::whisper::blocks::{
     TextDecoderConfig,
     TextDecoderMeta,
 };
-
-/// API config for a pass in the Whisper model.
-#[derive(Config, Debug)]
-pub struct PassConfig {
-    /// Maximum Context Size.
-    pub max_ctx: usize,
-
-    /// Number of Layers.
-    pub n_layers: usize,
-
-    /// Head Dimension.
-    /// Whisper always uses 64 here.
-    #[config(default = "64")]
-    pub d_head: usize,
-}
-
-impl PassConfig {
-    /// The number of heads for the given model dimension.
-    pub fn n_heads(
-        &self,
-        d_model: usize,
-    ) -> usize {
-        d_model / self.d_head
-    }
-}
 
 /// Whisper API config.
 #[derive(Config, Debug)]
@@ -66,9 +42,8 @@ pub struct WhisperApiConfig {
     /// Number Text Decoder of Layers.
     pub n_decoder_layers: usize,
 
-    /// Head Dimension.
-    /// Whisper always uses 64 here.
-    #[config(default = "64")]
+    /// Head Dimensionality.
+    #[config(defaul_value = "WHISPER_DEFAULT_D_MODEL")]
     pub d_head: usize,
 }
 

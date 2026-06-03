@@ -1,5 +1,8 @@
 //! Whisper Component Blocks
 
+/// Default Whisper Head Dimensionality.
+pub const WHISPER_DEFAULT_D_MODEL: usize = 64;
+
 mod audio_encoder;
 mod decoder_block;
 mod encoder_block;

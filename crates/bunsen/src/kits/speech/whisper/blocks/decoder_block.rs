@@ -16,6 +16,7 @@ use burn::{
     },
 };
 
+use super::WHISPER_DEFAULT_D_MODEL;
 use crate::blocks::transformers::{
     attention::{
         layer_norm_cross_attn,
@@ -47,9 +48,8 @@ pub struct ResidualDecoderAttentionBlockConfig {
     /// Return the embedding dimensionality.
     pub d_model: usize,
 
-    /// Head Dimension.
-    /// Whisper always uses 64 here.
-    #[config(default = "64")]
+    /// Head Dimensionality.
+    #[config(defaul_value = "WHISPER_DEFAULT_D_MODEL")]
     pub d_head: usize,
 
     /// Dropout.
