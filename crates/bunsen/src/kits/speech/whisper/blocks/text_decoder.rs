@@ -1,7 +1,10 @@
 use burn::{
     Tensor,
     config::Config,
-    module::Module,
+    module::{
+        Module,
+        Param,
+    },
     nn::{
         Embedding,
         EmbeddingConfig,
@@ -14,6 +17,7 @@ use burn::{
     },
     tensor::{
         Bool,
+        Distribution,
         Int,
     },
 };
@@ -25,6 +29,7 @@ use crate::{
         ResidualDecoderAttentionBlockConfig,
         ResidualDecoderAttentionBlockMeta,
     },
+    ops::embedding::unembed,
 };
 
 /// Common meta for [`TextDecoder`] and [`TextDecoderConfig`].
@@ -115,7 +120,11 @@ impl TextDecoderConfig {
         TextDecoder {
             token_embedding: EmbeddingConfig::new(self.vocab_size, self.d_model).init(device),
 
-            positional_embedding: EmbeddingConfig::new(self.max_context, self.d_model).init(device),
+            positional_embedding: Param::from_tensor(Tensor::<B, 2>::random(
+                [self.max_context, self.d_model],
+                Distribution::Normal(0.0, 1.0),
+                device,
+            )),
 
             blocks: (0..self.n_layers)
                 .map(|_| {
@@ -138,7 +147,7 @@ pub struct TextDecoder<B: Backend> {
     pub token_embedding: Embedding<B>,
 
     /// The positional embedding.
-    pub positional_embedding: Embedding<B>,
+    pub positional_embedding: Param<Tensor<B, 2>>,
 
     /// The decoder blocks.
     pub blocks: Vec<ResidualDecoderAttentionBlock<B>>,
@@ -158,7 +167,7 @@ impl<B: Backend> TextDecoderMeta for TextDecoder<B> {
     }
 
     fn max_context(&self) -> usize {
-        self.positional_embedding.weight.val().dims()[0]
+        self.positional_embedding.val().dims()[0]
     }
 
     fn n_heads(&self) -> usize {
@@ -184,8 +193,7 @@ impl<B: Backend> TextDecoder<B> {
         x: Tensor<B, 2, Int>,
         xa: Tensor<B, 3>,
     ) -> Tensor<B, 3> {
-        let [_n_batch, seq_len] = x.dims();
-
+        let [_batch, seq_len] = x.dims();
         assert!(
             seq_len <= self.max_context(),
             "Token sequence length {} must not exceed {}.",
@@ -193,34 +201,36 @@ impl<B: Backend> TextDecoder<B> {
             self.max_context()
         );
 
-        let x = self.token_embedding.forward(x)
-            + self
-                .positional_embedding
-                .weight
-                .val()
-                .slice(s![0..seq_len])
-                .unsqueeze::<3>();
+        let x = self.embed(x);
 
         //let mask = attn_decoder_mask(seq_len);
 
         let mask: Option<Tensor<B, 3, Bool>> = causal_mask(seq_len, 0, &x.device()).into();
 
-        let x = self
-            .blocks
-            .iter()
-            .fold(x, |z, b| b.forward(z, xa.clone(), mask.clone()).output);
+        let mut x = x;
+        for b in self.blocks.iter() {
+            x = b.forward(x, xa.clone(), mask.clone()).output;
+        }
 
         let x = self.ln.forward(x);
-        x.matmul(
-            self.token_embedding
-                .weight
-                .val()
-                .transpose()
-                .unsqueeze::<3>(),
-        )
+
+        unembed(&self.token_embedding, x)
 
         // denorm [batch, seq_len, n_vocab]
         // Needs softmax / beamsearch.
+    }
+
+    fn embed(
+        &self,
+        x: Tensor<B, 2, Int>,
+    ) -> Tensor<B, 3> {
+        let seq_len = x.dims()[1];
+        self.token_embedding.forward(x)
+            + self
+                .positional_embedding
+                .val()
+                .slice(s![0..seq_len])
+                .unsqueeze::<3>()
     }
 }
 

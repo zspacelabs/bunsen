@@ -1,6 +1,17 @@
-use std::path::PathBuf;
+use std::{
+    collections::BTreeMap,
+    path::{
+        Path,
+        PathBuf,
+    },
+};
 
 use bunsen::kits::speech::whisper::pretrained::PytorchWhisperScanner;
+use burn_store::{
+    ModuleStore,
+    PytorchStore,
+    TensorSnapshot,
+};
 use clap::Parser;
 
 #[derive(Parser, Debug)]
@@ -15,6 +26,14 @@ pub struct Args {
     pub top_level_key: Option<String>,
 }
 
+pub fn pytorch_snapshots<P: AsRef<Path>>(
+    path: P
+) -> Result<BTreeMap<String, TensorSnapshot>, Box<dyn std::error::Error>> {
+    let mut store = PytorchStore::from_file(path.as_ref());
+    let snapshots = store.get_all_snapshots()?.clone();
+    Ok(snapshots)
+}
+
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args = Args::parse();
     println!("{:#?}", args);
@@ -24,6 +43,11 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         .scan_cfg(PathBuf::from(args.source.clone()))?;
 
     println!("{:#?}", cfg);
+
+    let snapshots = pytorch_snapshots(args.source)?;
+    println!("keys: {:#?}", snapshots.keys());
+
+    // positional_embedding => positional_embedding.weight
 
     Ok(())
 }

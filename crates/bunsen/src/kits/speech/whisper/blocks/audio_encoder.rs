@@ -1,10 +1,11 @@
 use burn::{
     Tensor,
     config::Config,
-    module::Module,
+    module::{
+        Module,
+        Param,
+    },
     nn::{
-        Embedding,
-        EmbeddingConfig,
         LayerNorm,
         LayerNormConfig,
         PaddingConfig1d,
@@ -21,6 +22,7 @@ use burn::{
         Backend,
         s,
     },
+    tensor::Distribution,
 };
 
 use crate::{
@@ -38,6 +40,9 @@ pub trait AudioEncoderMeta {
     fn n_mels(&self) -> usize;
 
     /// Return the max audio context size.
+    ///
+    /// Due to the stride reduction of the conv layers, the max context is
+    /// twice the internal positional embedding.
     fn max_context(&self) -> usize;
 
     /// The embedding size of the model.
@@ -60,6 +65,9 @@ pub struct AudioEncoderConfig {
     pub d_model: usize,
 
     /// Max audio context size.
+    ///
+    /// Due to the stride reduction of the conv layers, the max context is
+    /// twice the internal positional embedding.
     pub max_context: usize,
 
     /// Number of Audio Heads.
@@ -101,6 +109,8 @@ impl AudioEncoderConfig {
         &self,
         device: &B::Device,
     ) -> AudioEncoder<B> {
+        let pos_ctx = self.max_context / 2;
+
         AudioEncoder {
             conv1: Conv1dConfig::new(self.n_mels, self.d_model, 3)
                 .with_padding(PaddingConfig1d::Explicit(1, 1))
@@ -113,8 +123,11 @@ impl AudioEncoderConfig {
                 .init(device),
             act2: self.head_activation.init(device),
 
-            positional_embedding: EmbeddingConfig::new(self.max_context / 2, self.d_model)
-                .init(device),
+            positional_embedding: Param::from_tensor(Tensor::random(
+                [pos_ctx, self.d_model],
+                Distribution::Normal(0.0, 1.0),
+                device,
+            )),
 
             blocks: (0..self.n_layers)
                 .map(|_| {
@@ -137,7 +150,7 @@ pub struct AudioEncoder<B: Backend> {
     conv2: Conv1d<B>,
     act2: Activation<B>,
 
-    positional_embedding: Embedding<B>,
+    positional_embedding: Param<Tensor<B, 2>>,
 
     blocks: Vec<ResidualEncoderAttentionBlock<B>>,
 
@@ -154,7 +167,10 @@ impl<B: Backend> AudioEncoderMeta for AudioEncoder<B> {
     }
 
     fn max_context(&self) -> usize {
-        2 * self.positional_embedding.weight.val().dims()[0]
+        let pos_ctx = self.positional_embedding.val().dims()[0];
+        // Due to the stride reduction of the conv layers, the max context is
+        // twice the internal positional embedding.
+        pos_ctx * 2
     }
 
     fn n_heads(&self) -> usize {
@@ -178,12 +194,14 @@ impl<B: Backend> AudioEncoder<B> {
         &self,
         x: Tensor<B, 3>,
     ) -> Tensor<B, 3> {
-        let [_batch, seq_len] = unpack_shape_contract!(
+        #[cfg(any(debug_assertions, test))]
+        let [batch] = unpack_shape_contract!(
             ["batch", "n_mels", "seq_len"],
             &x,
-            &["batch", "seq_len"],
+            &["batch"],
             &[("n_mels", self.n_mels())],
         );
+        let seq_len = x.dims()[2];
 
         assert!(
             seq_len <= self.max_context(),
@@ -199,26 +217,35 @@ impl<B: Backend> AudioEncoder<B> {
 
         #[cfg(any(debug_assertions, test))]
         crate::contracts::assert_shape_contract_periodically!(
-            ["batch", "len", "n_audio_states"],
+            ["batch", "len", "d_model"],
             &x,
             &[
-                ("batch", _batch),
+                ("batch", batch),
                 ("len", seq_len / 2),
-                ("n_audio_states", self.d_model()),
+                ("d_model", self.d_model()),
             ],
         );
 
-        let k = x.dims()[1];
-        let x = x + self
-            .positional_embedding
-            .weight
-            .val()
-            .slice(s![0..k])
-            .unsqueeze::<3>();
+        let x = self.embed(x);
 
-        let x = self.blocks.iter().fold(x, |z, b| b.forward(z));
+        let mut x = x;
+        for b in self.blocks.iter() {
+            x = b.forward(x);
+        }
 
         self.ln_post.forward(x)
+    }
+
+    fn embed(
+        &self,
+        x: Tensor<B, 3>,
+    ) -> Tensor<B, 3> {
+        let k = x.dims()[1];
+        x + self
+            .positional_embedding
+            .val()
+            .slice(s![0..k])
+            .unsqueeze::<3>()
     }
 }
 
