@@ -1,17 +1,14 @@
-use std::{
-    collections::BTreeMap,
-    path::{
-        Path,
-        PathBuf,
+use std::path::PathBuf;
+
+use bunsen::{
+    errors::WithOkOrPanic,
+    kits::speech::whisper::{
+        blocks::Whisper,
+        pretrained::PytorchWhisperScanner,
     },
 };
-
-use bunsen::kits::speech::whisper::pretrained::PytorchWhisperScanner;
-use burn_store::{
-    ModuleStore,
-    PytorchStore,
-    TensorSnapshot,
-};
+use burn::prelude::Backend;
+use burn_store::ModuleSnapshot;
 use clap::Parser;
 
 #[derive(Parser, Debug)]
@@ -26,28 +23,43 @@ pub struct Args {
     pub top_level_key: Option<String>,
 }
 
-pub fn pytorch_snapshots<P: AsRef<Path>>(
-    path: P
-) -> Result<BTreeMap<String, TensorSnapshot>, Box<dyn std::error::Error>> {
-    let mut store = PytorchStore::from_file(path.as_ref());
-    let snapshots = store.get_all_snapshots()?.clone();
-    Ok(snapshots)
-}
-
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args = Args::parse();
     println!("{:#?}", args);
 
-    let cfg = PytorchWhisperScanner::new()
+    cfg_select! {
+        feature = "cuda" => {
+            run::<burn::backend::cuda::Cuda>(args)
+        }
+        feature = "metal" => {
+            run::<burn::backend::metal::Metal>(args)
+        }
+        feature = "wgpu" => {
+            run::<burn::backend::wgpu::Wgpu>(args)
+        }
+        feature = "flex" => {
+            run::<burn::backend::flex::Flex>(args)
+        }
+        _ => {
+            panic!("No Backend enabled");
+        }
+    }
+}
+
+#[allow(unused)]
+fn run<B: Backend>(args: Args) -> Result<(), Box<dyn std::error::Error>> {
+    let (mut store, cfg) = PytorchWhisperScanner::new()
         .with_top_level_key(args.top_level_key.clone())
         .scan_cfg(PathBuf::from(args.source.clone()))?;
 
     println!("{:#?}", cfg);
+    // println!("keys: {:#?}", store.keys());
 
-    let snapshots = pytorch_snapshots(args.source)?;
-    println!("keys: {:#?}", snapshots.keys());
+    let device = Default::default();
 
-    // mlp.([01]) => mlp.linear\1
+    let mut whisper: Whisper<B> = cfg.to_structure().init(&device);
+
+    whisper.load_from(&mut store).ok_or_panic();
 
     Ok(())
 }

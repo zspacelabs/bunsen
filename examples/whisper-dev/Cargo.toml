@@ -12,12 +12,15 @@ license.workspace = true
 workspace = true
 
 [features]
-default = []
+default = ["cuda"]
 cuda = ["burn/cuda", "bunsen/cuda"]
+metal = ["burn/metal", "bunsen/metal"]
+wgpu = ["burn/wgpu", "bunsen/metal"]
+flex = ["burn/flex", "bunsen/flex"]
 
 
 [dependencies]
-burn = { workspace = true, features = ["store"] }
+burn = { workspace = true, features = ["store", "fusion"] }
 burn-store = { workspace = true, features = ["pytorch"] }
 
 bunsen = { path = "../../crates/bunsen" }

@@ -75,9 +75,14 @@ impl ResidualEncoderAttentionBlockConfig {
             MultiHeadAttentionConfig::new(self.d_model, self.n_heads()).with_dropout(self.dropout);
         let ln_cfg = LayerNormConfig::new(self.d_model);
 
+        // Whisper doesn't use a key bias;
+        // MHA doesn't let us configure this.
+        let mut attn = mha_cfg.init(device);
+        attn.key.bias = None;
+
         ResidualEncoderAttentionBlock {
             attn_ln: ln_cfg.init(device),
-            attn: mha_cfg.init(device),
+            attn,
             mlp_ln: ln_cfg.init(device),
             mlp: MlpConfig::new(self.d_model).init(device),
         }
