@@ -3,14 +3,15 @@ use std::path::{
     PathBuf,
 };
 
-use bunsen::kits::speech::whisper::blocks::{
-    PassConfig,
-    WhisperApiConfig,
-};
 use burn::config::Config;
 use burn_store::{
     ModuleStore,
     PytorchStore,
+};
+
+use crate::kits::speech::whisper::blocks::{
+    PassConfig,
+    WhisperApiConfig,
 };
 
 fn block_layers_from_keys<S: AsRef<str>>(
@@ -25,6 +26,7 @@ fn block_layers_from_keys<S: AsRef<str>>(
         .count()
 }
 
+/// Pytorch Whisper Model Scanner.
 #[derive(Debug, Config)]
 pub struct PytorchWhisperScanner {
     /// Top-level key in the model state dict.

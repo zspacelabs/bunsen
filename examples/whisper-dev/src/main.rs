@@ -1,9 +1,7 @@
-pub mod pytorch_utils;
-
 use std::path::PathBuf;
 
+use bunsen::kits::speech::whisper::pretrained::PytorchWhisperScanner;
 use clap::Parser;
-use pytorch_utils::PytorchWhisperScanner;
 
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
