@@ -70,11 +70,13 @@ pub struct AudioEncoderConfig {
     /// twice the internal positional embedding.
     pub max_context: usize,
 
-    /// Number of Audio Heads.
-    pub n_heads: usize,
-
     /// Number of Audio Layers.
     pub n_layers: usize,
+
+    /// Head Dimension.
+    /// Whisper always uses 64 here.
+    #[config(default = "64")]
+    pub d_head: usize,
 
     /// Head Activation.
     #[config(default = "ActivationConfig::Gelu")]
@@ -95,7 +97,7 @@ impl AudioEncoderMeta for AudioEncoderConfig {
     }
 
     fn n_heads(&self) -> usize {
-        self.n_heads
+        self.d_model / self.d_head
     }
 
     fn n_layers(&self) -> usize {
@@ -131,7 +133,8 @@ impl AudioEncoderConfig {
 
             blocks: (0..self.n_layers)
                 .map(|_| {
-                    ResidualEncoderAttentionBlockConfig::new(self.d_model, self.n_heads)
+                    ResidualEncoderAttentionBlockConfig::new(self.d_model)
+                        .with_d_head(self.d_head)
                         .init(device)
                 })
                 .collect(),
@@ -269,16 +272,10 @@ mod tests {
         let n_mels = 256;
         let max_audio_ctx = 100;
 
-        let n_audio_heads = 4;
         let n_audio_layers = 2;
 
-        let config = AudioEncoderConfig::new(
-            n_mels,
-            d_model,
-            max_audio_ctx,
-            n_audio_heads,
-            n_audio_layers,
-        );
+        let config = AudioEncoderConfig::new(n_mels, d_model, max_audio_ctx, n_audio_layers);
+        let n_audio_heads = config.n_heads();
 
         assert_eq!(config.n_mels(), n_mels);
         assert_eq!(config.d_model(), d_model);
@@ -301,13 +298,9 @@ mod tests {
         let output = encoder.forward(x.clone());
 
         assert_shape_contract!(
-            ["batch", "seq", "n_audio_states"],
+            ["batch", "seq", "d_model"],
             &output,
-            &[
-                ("batch", batch),
-                ("seq", k / 2),
-                ("n_audio_states", d_model),
-            ],
+            &[("batch", batch), ("seq", k / 2), ("d_model", d_model),],
         );
     }
 }

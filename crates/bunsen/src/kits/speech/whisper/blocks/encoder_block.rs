@@ -41,8 +41,10 @@ pub struct ResidualEncoderAttentionBlockConfig {
     /// Return the embedding dimensionality.
     pub d_model: usize,
 
-    /// Number of Heads.
-    pub n_heads: usize,
+    /// Head Dimension.
+    /// Whisper always uses 64 here.
+    #[config(default = "64")]
+    pub d_head: usize,
 
     /// Dropout.
     #[config(default = "0.0")]
@@ -55,7 +57,7 @@ impl ResidualEncoderAttentionBlockMeta for ResidualEncoderAttentionBlockConfig {
     }
 
     fn n_heads(&self) -> usize {
-        self.n_heads
+        self.d_model / self.d_head
     }
 
     fn dropout(&self) -> f64 {
@@ -70,7 +72,7 @@ impl ResidualEncoderAttentionBlockConfig {
         device: &B::Device,
     ) -> ResidualEncoderAttentionBlock<B> {
         let mha_cfg =
-            MultiHeadAttentionConfig::new(self.d_model, self.n_heads).with_dropout(self.dropout);
+            MultiHeadAttentionConfig::new(self.d_model, self.n_heads()).with_dropout(self.dropout);
         let ln_cfg = LayerNormConfig::new(self.d_model);
 
         ResidualEncoderAttentionBlock {
@@ -149,9 +151,9 @@ mod tests {
         let device = Default::default();
 
         let d_model = 128;
-        let n_heads = 4;
 
-        let cfg = ResidualEncoderAttentionBlockConfig::new(d_model, n_heads);
+        let cfg = ResidualEncoderAttentionBlockConfig::new(d_model);
+        let n_heads = cfg.n_heads();
 
         assert_eq!(cfg.d_model(), d_model);
         assert_eq!(cfg.n_heads(), n_heads);

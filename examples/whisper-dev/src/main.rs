@@ -47,7 +47,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let snapshots = pytorch_snapshots(args.source)?;
     println!("keys: {:#?}", snapshots.keys());
 
-    // positional_embedding => positional_embedding.weight
+    // mlp.([01]) => mlp.linear\1
 
     Ok(())
 }

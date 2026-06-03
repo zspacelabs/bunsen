@@ -9,10 +9,7 @@ use burn_store::{
     PytorchStore,
 };
 
-use crate::kits::speech::whisper::blocks::{
-    PassConfig,
-    WhisperApiConfig,
-};
+use crate::kits::speech::whisper::blocks::WhisperApiConfig;
 
 fn block_layers_from_keys<S: AsRef<str>>(
     kind: &str,
@@ -32,6 +29,10 @@ pub struct PytorchWhisperScanner {
     /// Top-level key in the model state dict.
     #[config(default_value = "Some(\"model_state_dict\".to_string())")]
     pub top_level_key: Option<String>,
+
+    /// Head Dimension.
+    #[config(default = "64")]
+    pub d_head: usize,
 }
 
 impl PytorchWhisperScanner {
@@ -77,25 +78,18 @@ impl PytorchWhisperScanner {
             .shape
             .dims();
 
-        // n_layers isn't recoverable from ModelStore.
-
         let encoder_layers = block_layers_from_keys("encoder", &keys);
         let decoder_layers = block_layers_from_keys("decoder", &keys);
 
-        Ok(WhisperApiConfig {
+        Ok(WhisperApiConfig::new(
             n_mels,
             vocab_size,
             d_model,
-            audio_encoder: PassConfig {
-                max_ctx: max_audio_ctx,
-                n_heads: 1,
-                n_layers: encoder_layers,
-            },
-            text_decoder: PassConfig {
-                max_ctx: max_text_ctx,
-                n_heads: 1,
-                n_layers: decoder_layers,
-            },
-        })
+            max_audio_ctx,
+            encoder_layers,
+            max_text_ctx,
+            decoder_layers,
+        )
+        .with_d_head(self.d_head))
     }
 }

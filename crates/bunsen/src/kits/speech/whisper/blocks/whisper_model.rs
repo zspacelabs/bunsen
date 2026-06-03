@@ -23,11 +23,23 @@ pub struct PassConfig {
     /// Maximum Context Size.
     pub max_ctx: usize,
 
-    /// Number of Heads.
-    pub n_heads: usize,
-
     /// Number of Layers.
     pub n_layers: usize,
+
+    /// Head Dimension.
+    /// Whisper always uses 64 here.
+    #[config(default = "64")]
+    pub d_head: usize,
+}
+
+impl PassConfig {
+    /// The number of heads for the given model dimension.
+    pub fn n_heads(
+        &self,
+        d_model: usize,
+    ) -> usize {
+        d_model / self.d_head
+    }
 }
 
 /// Whisper API config.
@@ -42,11 +54,22 @@ pub struct WhisperApiConfig {
     /// Embedding Size of the Model.
     pub d_model: usize,
 
-    /// API config for the encoder pass.
-    pub audio_encoder: PassConfig,
+    /// Maximum Audio Encoder Context Size.
+    pub max_audio_ctx: usize,
 
-    /// API config for the decoder pass.
-    pub text_decoder: PassConfig,
+    /// Number Audio Encoder of Layers.
+    pub n_encoder_layers: usize,
+
+    /// Maximum Text Decoder Context Size.
+    pub max_text_ctx: usize,
+
+    /// Number Text Decoder of Layers.
+    pub n_decoder_layers: usize,
+
+    /// Head Dimension.
+    /// Whisper always uses 64 here.
+    #[config(default = "64")]
+    pub d_head: usize,
 }
 
 impl WhisperApiConfig {
@@ -56,17 +79,17 @@ impl WhisperApiConfig {
             encoder: AudioEncoderConfig::new(
                 self.n_mels,
                 self.d_model,
-                self.audio_encoder.max_ctx,
-                self.audio_encoder.n_heads,
-                self.audio_encoder.n_layers,
-            ),
+                self.max_audio_ctx,
+                self.n_encoder_layers,
+            )
+            .with_d_head(self.d_head),
             decoder: TextDecoderConfig::new(
                 self.vocab_size,
                 self.d_model,
-                self.text_decoder.max_ctx,
-                self.text_decoder.n_heads,
-                self.text_decoder.n_layers,
-            ),
+                self.max_text_ctx,
+                self.n_decoder_layers,
+            )
+            .with_d_head(self.d_head),
         }
     }
 }
@@ -229,30 +252,25 @@ mod tests {
         let vocab_size = 64;
 
         let max_audio_ctx = 128;
-        let n_audio_heads = 4;
         let n_audio_layers = 2;
 
         let max_text_context = 128;
-        let n_text_heads = 4;
         let n_text_layers = 2;
 
-        let config = WhisperApiConfig {
+        let config = WhisperApiConfig::new(
             n_mels,
             vocab_size,
             d_model,
-            audio_encoder: PassConfig {
-                max_ctx: max_audio_ctx,
-                n_heads: n_audio_heads,
-                n_layers: n_audio_layers,
-            },
-            text_decoder: PassConfig {
-                max_ctx: max_text_context,
-                n_heads: n_text_heads,
-                n_layers: n_text_layers,
-            },
-        };
+            max_audio_ctx,
+            n_audio_layers,
+            max_text_context,
+            n_text_layers,
+        );
 
         let structural = config.to_structure();
+
+        let n_audio_heads = structural.encoder.n_heads();
+        let n_text_heads = structural.decoder.n_heads();
 
         assert_eq!(structural.n_mels(), n_mels);
         assert_eq!(structural.vocab_size(), vocab_size);

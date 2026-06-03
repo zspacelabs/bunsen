@@ -62,11 +62,13 @@ pub struct TextDecoderConfig {
     /// Maximum text context size.
     pub max_context: usize,
 
-    /// The number of heads.
-    pub n_heads: usize,
-
     /// The number of layers.
     pub n_layers: usize,
+
+    /// Head Dimension.
+    /// Whisper always uses 64 here.
+    #[config(default = "64")]
+    pub d_head: usize,
 
     /// Dropout.
     #[config(default = "0.0")]
@@ -87,7 +89,7 @@ impl TextDecoderMeta for TextDecoderConfig {
     }
 
     fn n_heads(&self) -> usize {
-        self.n_heads
+        self.d_model / self.d_head
     }
 
     fn n_layers(&self) -> usize {
@@ -128,7 +130,8 @@ impl TextDecoderConfig {
 
             blocks: (0..self.n_layers)
                 .map(|_| {
-                    ResidualDecoderAttentionBlockConfig::new(self.d_model, self.n_heads)
+                    ResidualDecoderAttentionBlockConfig::new(self.d_model)
+                        .with_d_head(self.d_head)
                         .with_dropout(self.block_dropout)
                         .init(device)
                 })
@@ -253,10 +256,9 @@ mod tests {
         let d_model = 128;
         let vocab_size = 64;
         let max_context = 128;
-        let n_heads = 4;
         let n_layers = 2;
 
-        let config = TextDecoderConfig::new(vocab_size, d_model, max_context, n_heads, n_layers);
+        let config = TextDecoderConfig::new(vocab_size, d_model, max_context, n_layers);
 
         assert_eq!(config.vocab_size(), vocab_size);
         assert_eq!(config.d_model(), d_model);

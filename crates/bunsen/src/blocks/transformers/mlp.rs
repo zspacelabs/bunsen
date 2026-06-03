@@ -80,12 +80,12 @@ impl MlpConfig {
         device: &B::Device,
     ) -> Mlp<B> {
         Mlp {
-            c_fc: LinearConfig::new(self.n_embed(), self.hidden_size())
+            linear1: LinearConfig::new(self.n_embed(), self.hidden_size())
                 .with_bias(false)
                 .init(device),
             act: self.activation.init(device),
             act_exponent: self.act_exponent,
-            c_proj: LinearConfig::new(self.hidden_size(), self.n_embed())
+            linear2: LinearConfig::new(self.hidden_size(), self.n_embed())
                 .with_bias(false)
                 .init(device),
         }
@@ -101,7 +101,7 @@ impl MlpConfig {
 #[derive(Module, Debug)]
 pub struct Mlp<B: Backend> {
     /// Feed Forward Layer.
-    pub c_fc: Linear<B>,
+    pub linear1: Linear<B>,
 
     /// Activation.
     pub act: Activation<B>,
@@ -110,12 +110,12 @@ pub struct Mlp<B: Backend> {
     pub act_exponent: Option<f64>,
 
     /// Output Projection.
-    pub c_proj: Linear<B>,
+    pub linear2: Linear<B>,
 }
 
 impl<B: Backend> MlpMeta for Mlp<B> {
     fn n_embed(&self) -> usize {
-        self.c_fc.weight.dims()[0]
+        self.linear1.weight.dims()[0]
     }
 
     fn act_exponent(&self) -> Option<f64> {
@@ -143,7 +143,7 @@ impl<B: Backend> Mlp<B> {
             &[("embed", self.n_embed())]
         );
 
-        let x = self.c_fc.forward(x);
+        let x = self.linear1.forward(x);
         let x = self.act.forward(x);
 
         let x = match self.act_exponent {
@@ -151,7 +151,7 @@ impl<B: Backend> Mlp<B> {
             None => x,
         };
 
-        let x = self.c_proj.forward(x);
+        let x = self.linear2.forward(x);
 
         #[cfg(any(debug_assertions, test))]
         crate::contracts::assert_shape_contract_periodically!(
@@ -217,7 +217,7 @@ mod tests {
                     &[("batch", b), ("time", t), ("embed", n_embed)]
                 );
 
-                let x = mlp.c_fc.forward(x);
+                let x = mlp.linear1.forward(x);
                 assert_shape_contract!(
                     ["batch", "time", "hidden"],
                     &x.dims(),
@@ -232,7 +232,7 @@ mod tests {
                 );
 
                 let x = x.clone() * x;
-                let x = mlp.c_proj.forward(x);
+                let x = mlp.linear2.forward(x);
                 assert_shape_contract!(
                     ["batch", "time", "embed"],
                     &x.dims(),
