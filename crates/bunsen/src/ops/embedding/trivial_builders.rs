@@ -10,7 +10,7 @@ use burn::{
 
 /// Build an iota embedding.
 ///
-/// weight[i, j] = i * d + j  — every row distinct, lookups hand-verifiable.
+/// `weight[i, j] = i * d + j` - every row distinct, lookups hand-verifiable.
 pub fn iota_embedding<B: Backend>(
     n: usize,
     d: usize,
@@ -26,7 +26,7 @@ pub fn iota_embedding<B: Backend>(
 
 /// Build a one-hot passthrough embedding.
 ///
-/// Square identity (`num_embeddings` == dim == n): embedding acts as a one-hot
+/// Square identity (`num_embeddings == dim == n`): embedding acts as a one-hot
 /// passthrough.
 pub fn identity_embedding<B: Backend>(
     n: usize,
