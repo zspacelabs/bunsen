@@ -1,9 +1,6 @@
 use std::path::PathBuf;
 
-use bunsen::kits::speech::whisper::{
-    blocks::Whisper,
-    pretrained::PytorchWhisperScanner,
-};
+use bunsen::kits::speech::whisper::pretrained::PytorchWhisperScanner;
 use burn::prelude::Backend;
 use clap::Parser;
 
@@ -46,9 +43,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 fn run<B: Backend>(args: Args) -> Result<(), Box<dyn std::error::Error>> {
     let device = B::Device::default();
 
-    let (module, cfg): (Whisper<B>, _) = PytorchWhisperScanner::new()
+    let (module, cfg) = PytorchWhisperScanner::new()
         .with_top_level_key(args.top_level_key.clone())
-        .load(PathBuf::from(args.source.clone()), &device)?;
+        .load::<B, _>(PathBuf::from(args.source.clone()), &device)?;
 
     println!("{:#?}", cfg);
 
