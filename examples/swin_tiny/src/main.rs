@@ -7,7 +7,6 @@ use bunsen::{
     blocks::images::drop::drop_block::{
         DropBlock2d,
         DropBlock2dConfig,
-        DropBlockOptions,
     },
     burner::module::ModuleInit,
     errors::{
@@ -19,6 +18,7 @@ use bunsen::{
         SwinTransformerV2,
         SwinTransformerV2Config,
     },
+    ops::drop::DropBlockOptions,
 };
 use bunsen_firehose::{
     burn::{

@@ -1,11 +1,11 @@
 use std::hint::black_box;
 
-use bunsen::{
-    blocks::images::drop::drop_block::{
+use bunsen::ops::{
+    drop::drop_block::{
         DropBlockOptions,
         drop_block_2d,
     },
-    ops::noise::NoiseConfig,
+    noise::NoiseConfig,
 };
 use burn::{
     backend::Flex,

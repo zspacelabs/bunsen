@@ -39,7 +39,6 @@ use super::{
     ResidualBlockStructureConfig,
 };
 use crate::{
-    blocks::images::drop::drop_block::DropBlockOptions,
     burner::module::ModuleInit,
     contracts::{
         assert_shape_contract_periodically,
@@ -49,7 +48,10 @@ use crate::{
         BunsenError,
         BunsenResult,
     },
-    ops::conv::stride_div_output_resolution,
+    ops::{
+        conv::stride_div_output_resolution,
+        drop::DropBlockOptions,
+    },
     support::validators::expect_probability,
 };
 

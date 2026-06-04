@@ -56,19 +56,19 @@ use super::{
     ResidualBlockStructureConfig,
 };
 use crate::{
-    blocks::images::{
-        conv::conv_norm::{
-            ConvNorm2d,
-            ConvNorm2dConfig,
-        },
-        drop::drop_block::DropBlockOptions,
+    blocks::images::conv::conv_norm::{
+        ConvNorm2d,
+        ConvNorm2dConfig,
     },
     burner::module::ModuleInit,
     errors::{
         BunsenError,
         BunsenResult,
     },
-    ops::conv::CONV_INTO_RELU_INITIALIZER,
+    ops::{
+        conv::CONV_INTO_RELU_INITIALIZER,
+        drop::DropBlockOptions,
+    },
     support::validators::expect_probability,
 };
 

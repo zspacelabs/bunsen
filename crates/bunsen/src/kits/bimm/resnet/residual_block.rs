@@ -34,7 +34,6 @@ use burn::{
 };
 
 use crate::{
-    blocks::images::drop::drop_block::DropBlockOptions,
     burner::module::ModuleInit,
     errors::BunsenResult,
     kits::bimm::resnet::{
@@ -46,7 +45,10 @@ use crate::{
         BottleneckBlockMeta,
         BottleneckPolicyConfig,
     },
-    ops::conv::stride_div_output_resolution,
+    ops::{
+        conv::stride_div_output_resolution,
+        drop::DropBlockOptions,
+    },
     support::validators::expect_probability,
 };
 

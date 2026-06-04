@@ -1,5 +1,3 @@
-//! # Drop Extensions
-
 use burn::{
     Tensor,
     prelude::Backend,
@@ -36,11 +34,17 @@ pub fn dropout<B: Backend, const D: usize>(
 
 #[cfg(test)]
 mod tests {
-    use burn::prelude::ElementConversion;
+    use burn::{
+        prelude::ElementConversion,
+        tensor::Distribution,
+    };
     use serial_test::serial;
 
     use super::*;
-    use crate::support::testing::PerformanceBackend;
+    use crate::{
+        ops::drop::dropout,
+        support::testing::PerformanceBackend,
+    };
 
     #[test]
     #[serial]

@@ -40,7 +40,6 @@ use crate::{
             drop_block::{
                 DropBlock2d,
                 DropBlock2dConfig,
-                DropBlockOptions,
             },
             drop_path::{
                 DropPath,
@@ -54,7 +53,10 @@ use crate::{
         ResNetDownsample,
         ResNetDownsampleConfig,
     },
-    ops::conv::stride_div_output_resolution,
+    ops::{
+        conv::stride_div_output_resolution,
+        drop::DropBlockOptions,
+    },
     support::{
         arrays::scalar_to_array,
         validators::expect_probability,
