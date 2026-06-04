@@ -52,3 +52,8 @@ version_group = "bunsen"
 name = "bunsen-firehose-image"
 release = true
 version_group = "bunsen"
+
+[[package]]
+name = "bunsen-preview-chat-dataloader"
+release = true
+version_group = "bunsen"
