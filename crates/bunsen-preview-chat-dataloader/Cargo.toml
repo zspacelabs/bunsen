@@ -5,6 +5,10 @@ version.workspace = true
 rust-version.workspace = true
 edition.workspace = true
 
+repository.workspace = true
+license.workspace = true
+description = "bunsen preview: Arrow-backed chat dataloader with tokenization for training"
+
 
 [lints]
 workspace = true

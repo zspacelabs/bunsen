@@ -26,6 +26,14 @@ semver_check = true
 # Cut a GitHub release (and git tag) for each published crate.
 git_release_enable = true
 
+# Only release when the release PR is merged — not on every push to `main`.
+# Without this, the `release` job publishes any crate whose manifest version
+# isn't on crates.io yet the moment it lands on `main`. That's what caused
+# `bunsen-preview-chat-dataloader` (manifest 0.21.3, never published) to attempt
+# a 0.21.3 back-publish. With releases gated on the release PR, a newly-added
+# crate first publishes at the *next* bumped version, alongside the others.
+release_always = false
+
 
 # --- Published crates -------------------------------------------------------
 # All four crates share a single version (lockstep) via `version_group`, which
