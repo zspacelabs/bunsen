@@ -26,6 +26,7 @@ semver_check = true
 # Cut a GitHub release (and git tag) for each published crate.
 git_release_enable = true
 
+
 # --- Published crates -------------------------------------------------------
 # All four crates share a single version (lockstep) via `version_group`, which
 # matches the `version.workspace = true` inheritance in the root Cargo.toml: a
