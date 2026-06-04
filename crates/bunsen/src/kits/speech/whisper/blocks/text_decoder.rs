@@ -25,6 +25,8 @@ use burn::{
 use super::WHISPER_DEFAULT_D_MODEL;
 use crate::{
     blocks::transformers::attention::causal_mask,
+    burner::module::ModuleInit,
+    errors::BunsenResult,
     kits::speech::whisper::blocks::{
         ResidualDecoderAttentionBlock,
         ResidualDecoderAttentionBlockConfig,
@@ -113,13 +115,12 @@ pub fn attn_decoder_mask<B: Backend>(
     mask
 }
 
-impl TextDecoderConfig {
-    /// Initialize text decoder module.
-    pub fn init<B: Backend>(
+impl<B: Backend> ModuleInit<B, TextDecoder<B>> for TextDecoderConfig {
+    fn try_init(
         &self,
         device: &B::Device,
-    ) -> TextDecoder<B> {
-        TextDecoder {
+    ) -> BunsenResult<TextDecoder<B>> {
+        Ok(TextDecoder {
             token_embedding: EmbeddingConfig::new(self.vocab_size, self.d_model).init(device),
 
             positional_embedding: Param::from_tensor(Tensor::<B, 2>::random(
@@ -133,13 +134,13 @@ impl TextDecoderConfig {
                     ResidualDecoderAttentionBlockConfig::new(self.d_model)
                         .with_d_head(self.d_head)
                         .with_dropout(self.block_dropout)
-                        .init(device)
+                        .try_init(device)
                 })
-                .collect(),
+                .collect::<BunsenResult<Vec<ResidualDecoderAttentionBlock<B>>>>()?,
 
             ln: LayerNormConfig::new(self.d_model).init(device),
             // mask: Param::from_tensor(attn_decoder_mask(self.max_text_context, device)),
-        }
+        })
     }
 }
 

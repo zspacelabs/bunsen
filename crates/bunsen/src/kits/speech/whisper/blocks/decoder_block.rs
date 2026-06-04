@@ -17,16 +17,20 @@ use burn::{
 };
 
 use super::WHISPER_DEFAULT_D_MODEL;
-use crate::blocks::transformers::{
-    attention::{
-        layer_norm_cross_attn,
-        layer_norm_self_attn,
+use crate::{
+    blocks::transformers::{
+        attention::{
+            layer_norm_cross_attn,
+            layer_norm_self_attn,
+        },
+        mlp::{
+            Mlp,
+            MlpConfig,
+            layer_norm_mlp,
+        },
     },
-    mlp::{
-        Mlp,
-        MlpConfig,
-        layer_norm_mlp,
-    },
+    burner::module::ModuleInit,
+    errors::BunsenResult,
 };
 
 /// Common meta for [`ResidualDecoderAttentionBlock`] and
@@ -71,12 +75,13 @@ impl ResidualDecoderAttentionBlockMeta for ResidualDecoderAttentionBlockConfig {
     }
 }
 
-impl ResidualDecoderAttentionBlockConfig {
-    /// Initialize the residual decoder attention block.
-    pub fn init<B: Backend>(
+impl<B: Backend> ModuleInit<B, ResidualDecoderAttentionBlock<B>>
+    for ResidualDecoderAttentionBlockConfig
+{
+    fn try_init(
         &self,
         device: &B::Device,
-    ) -> ResidualDecoderAttentionBlock<B> {
+    ) -> BunsenResult<ResidualDecoderAttentionBlock<B>> {
         let mha_cfg =
             MultiHeadAttentionConfig::new(self.d_model, self.n_heads()).with_dropout(self.dropout);
         let ln_cfg = LayerNormConfig::new(self.d_model);
@@ -88,14 +93,14 @@ impl ResidualDecoderAttentionBlockConfig {
         attn.key.bias = None;
         cross_attn.key.bias = None;
 
-        ResidualDecoderAttentionBlock {
+        Ok(ResidualDecoderAttentionBlock {
             attn_ln: ln_cfg.init(device),
             attn,
             cross_attn_ln: ln_cfg.init(device),
             cross_attn,
             mlp_ln: ln_cfg.init(device),
-            mlp: MlpConfig::new(self.d_model).init(device),
-        }
+            mlp: MlpConfig::new(self.d_model).try_init(device)?,
+        })
     }
 }
 

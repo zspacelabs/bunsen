@@ -27,7 +27,9 @@ use burn::{
 
 use super::WHISPER_DEFAULT_D_MODEL;
 use crate::{
+    burner::module::ModuleInit,
     contracts::unpack_shape_contract,
+    errors::BunsenResult,
     kits::speech::whisper::blocks::{
         ResidualEncoderAttentionBlock,
         ResidualEncoderAttentionBlockConfig,
@@ -105,15 +107,14 @@ impl AudioEncoderMeta for AudioEncoderConfig {
     }
 }
 
-impl AudioEncoderConfig {
-    /// Initialize an `AudioEncoder`.
-    pub fn init<B: Backend>(
+impl<B: Backend> ModuleInit<B, AudioEncoder<B>> for AudioEncoderConfig {
+    fn try_init(
         &self,
         device: &B::Device,
-    ) -> AudioEncoder<B> {
+    ) -> BunsenResult<AudioEncoder<B>> {
         let pos_ctx = self.max_context / 2;
 
-        AudioEncoder {
+        Ok(AudioEncoder {
             conv1: Conv1dConfig::new(self.n_mels, self.d_model, 3)
                 .with_padding(PaddingConfig1d::Explicit(1, 1))
                 .init(device),
@@ -135,12 +136,12 @@ impl AudioEncoderConfig {
                 .map(|_| {
                     ResidualEncoderAttentionBlockConfig::new(self.d_model)
                         .with_d_head(self.d_head)
-                        .init(device)
+                        .try_init(device)
                 })
-                .collect(),
+                .collect::<BunsenResult<Vec<ResidualEncoderAttentionBlock<B>>>>()?,
 
             ln_post: LayerNormConfig::new(self.d_model).init(device),
-        }
+        })
     }
 }
 

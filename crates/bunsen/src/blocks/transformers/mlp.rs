@@ -18,6 +18,11 @@ use burn::{
     },
 };
 
+use crate::{
+    burner::module::ModuleInit,
+    errors::BunsenResult,
+};
+
 /// Compute layer normalized mlp.
 ///
 /// ## Arguments
@@ -74,12 +79,18 @@ impl MlpMeta for MlpConfig {
 }
 
 impl MlpConfig {
-    /// Initialize the module.
-    pub fn init<B: Backend>(
-        self,
+    /// Return the size of the hidden layer.
+    pub fn hidden_size(&self) -> usize {
+        self.n_embed * self.expansion_factor
+    }
+}
+
+impl<B: Backend> ModuleInit<B, Mlp<B>> for MlpConfig {
+    fn try_init(
+        &self,
         device: &B::Device,
-    ) -> Mlp<B> {
-        Mlp {
+    ) -> BunsenResult<Mlp<B>> {
+        Ok(Mlp {
             linear1: LinearConfig::new(self.n_embed(), self.hidden_size())
                 .with_bias(false)
                 .init(device),
@@ -88,12 +99,7 @@ impl MlpConfig {
             linear2: LinearConfig::new(self.hidden_size(), self.n_embed())
                 .with_bias(false)
                 .init(device),
-        }
-    }
-
-    /// Return the size of the hidden layer.
-    pub fn hidden_size(&self) -> usize {
-        self.n_embed * self.expansion_factor
+        })
     }
 }
 

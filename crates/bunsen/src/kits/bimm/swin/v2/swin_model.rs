@@ -42,9 +42,14 @@ use crate::{
             PatchEmbedMeta,
         },
     },
+    burner::module::ModuleInit,
     contracts::{
         assert_shape_contract_periodically,
         unpack_shape_contract,
+    },
+    errors::{
+        BunsenResult,
+        WithOkOrPanic,
     },
     kits::bimm::swin::v2::{
         block_sequence::{
@@ -352,17 +357,18 @@ impl SwinTransformerV2Config {
             block_configs,
         })
     }
+}
 
-    /// Initialize a new [`SwinTransformerV2`] model.
-    #[must_use]
-    pub fn init<B: Backend>(
-        self,
+impl<B: Backend> ModuleInit<B, SwinTransformerV2<B>> for SwinTransformerV2Config {
+    fn try_init(
+        &self,
         device: &B::Device,
-    ) -> SwinTransformerV2<B> {
+    ) -> BunsenResult<SwinTransformerV2<B>> {
         let plan = self.validate().unwrap();
         // println!("plan: {:#?}", plan);
 
-        let patch_embed: PatchEmbed<B> = plan.patch_config.init(device);
+        let self1 = &plan.patch_config;
+        let patch_embed: PatchEmbed<B> = self1.try_init(device).ok_or_panic();
 
         // ape: trunc_normal: ([1, num_patches, d_embed], std=0.02)
         // defaults: (mean=0.0, a=-2.0, b=2.0)
@@ -381,20 +387,21 @@ impl SwinTransformerV2Config {
         let grid_transformer_block_sequences: Vec<StochasticDepthTransformerBlockSequence<B>> =
             plan.block_configs
                 .iter()
-                .map(|config| config.init::<B>(device))
+                .map(|config| config.try_init(device).ok_or_panic())
                 .collect();
 
         let grid_merge_layers: Vec<PatchMerging<B>> = (0..grid_transformer_block_sequences.len()
             - 1)
             .map(|layer_i| {
                 let block = &grid_transformer_block_sequences[layer_i];
-                PatchMergingConfig::new(block.input_resolution(), block.d_input()).init(device)
+                let self1 = &PatchMergingConfig::new(block.input_resolution(), block.d_input());
+                self1.try_init(device).ok_or_panic()
             })
             .collect();
 
         let grid_output_features = *plan.layer_dims.last().unwrap();
 
-        SwinTransformerV2 {
+        let module = SwinTransformerV2 {
             patch_embed,
             patch_ape,
             grid_input_dropout: DropoutConfig::new(self.drop_rate).init(),
@@ -407,7 +414,9 @@ impl SwinTransformerV2Config {
             drop_rate: self.drop_rate,
             attn_drop_rate: self.attn_drop_rate,
             drop_path_rate: self.drop_path_rate,
-        }
+        };
+
+        Ok(module)
     }
 }
 
@@ -721,7 +730,7 @@ mod tests {
         );
 
         let device = Default::default();
-        let model = config.init::<B>(&device);
+        let model: SwinTransformerV2<B> = config.try_init(&device).ok_or_panic();
 
         assert_eq!(model.input_resolution(), [224, 224]);
         assert_eq!(model.input_height(), 224);
@@ -794,7 +803,7 @@ mod tests {
 
         let d_embed = (d_input * patch_size * patch_size) / 2;
 
-        let model = SwinTransformerV2Config::new(
+        let self1 = SwinTransformerV2Config::new(
             [h, w],
             patch_size,
             d_input,
@@ -802,8 +811,8 @@ mod tests {
             d_embed,
             layer_configs,
         )
-        .with_window_size(window_size)
-        .init(&device);
+        .with_window_size(window_size);
+        let model: SwinTransformerV2<B> = self1.try_init(&device).ok_or_panic();
 
         let distribution = Distribution::Normal(0.0, 0.02);
         let input = Tensor::<B, 4>::random([b, d_input, h, w], distribution, &device);
@@ -875,7 +884,7 @@ mod tests {
 
         let d_embed = (d_input * patch_size * patch_size) / 2;
 
-        let model = SwinTransformerV2Config::new(
+        let self1 = SwinTransformerV2Config::new(
             [h, w],
             patch_size,
             d_input,
@@ -884,8 +893,8 @@ mod tests {
             layer_configs,
         )
         .with_enable_ape(false)
-        .with_window_size(window_size)
-        .init(&device);
+        .with_window_size(window_size);
+        let model: SwinTransformerV2<B> = self1.try_init(&device).ok_or_panic();
 
         let distribution = Distribution::Normal(0.0, 0.02);
         let input = Tensor::<B, 4>::random([b, d_input, h, w], distribution, &device);

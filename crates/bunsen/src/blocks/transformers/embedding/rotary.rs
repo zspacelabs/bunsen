@@ -16,6 +16,14 @@ use burn::{
     },
 };
 
+use crate::{
+    burner::module::ModuleInit,
+    errors::{
+        BunsenError,
+        BunsenResult,
+    },
+};
+
 /// Common meta for [`RotaryEmbedding`] and [`RotaryEmbeddingConfig`].
 pub trait RotaryEmbeddingMeta {
     /// Return the sequence length.
@@ -51,17 +59,17 @@ impl RotaryEmbeddingMeta for RotaryEmbeddingConfig {
     }
 }
 
-impl RotaryEmbeddingConfig {
-    /// Initialize the rotary embedding.
-    pub fn init<B: Backend>(
-        self,
+impl<B: Backend> ModuleInit<B, RotaryEmbedding<B>> for RotaryEmbeddingConfig {
+    fn try_init(
+        &self,
         device: &B::Device,
-    ) -> RotaryEmbedding<B> {
-        assert!(
-            self.head_dim.is_multiple_of(2),
-            "Head dimension must be even: {}",
-            self.head_dim
-        );
+    ) -> BunsenResult<RotaryEmbedding<B>> {
+        if !self.head_dim.is_multiple_of(2) {
+            return Err(BunsenError::Invalid(format!(
+                "Head dimension must be even: {}",
+                self.head_dim
+            )));
+        }
 
         let freq_matrix =
             positional_frequency_table(self.seq_len, self.base, self.head_dim, device);
@@ -83,11 +91,11 @@ impl RotaryEmbeddingConfig {
 
         // [1, T, 1, D/2]
 
-        RotaryEmbedding {
+        Ok(RotaryEmbedding {
             head_dim: self.head_dim,
             cos,
             sin,
-        }
+        })
     }
 }
 

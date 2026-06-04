@@ -10,7 +10,10 @@ use core::{
 use std::sync::Arc;
 
 use bunsen::{
-    burner::module::DTypeMapper,
+    burner::module::{
+        DTypeMapper,
+        ModuleInit,
+    },
     data::cache::BunsenDiskCache,
     kits::bimm::resnet::{
         PREFAB_RESNET_MAP,
@@ -229,7 +232,7 @@ pub fn backend_main<B: AutodiffBackend>(args: &Args) -> anyhow::Result<()> {
         .with_activation(ActivationConfig::Gelu)
         .to_structure();
 
-    let resnet: ResNet<B> = resnet_config.init(&device);
+    let resnet: ResNet<B> = resnet_config.try_init(&device)?;
 
     let resnet: ResNet<B> = match &args.resnet_pretrained {
         Some(pretrained) => {

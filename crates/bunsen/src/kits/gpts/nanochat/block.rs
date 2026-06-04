@@ -22,6 +22,12 @@ use crate::{
         },
         embedding::RotaryEmbedding,
     },
+    burner::module::ModuleInit,
+    errors::{
+        BunsenError,
+        BunsenResult,
+        WithOkOrPanic,
+    },
     kits::gpts::nanochat::{
         Mlp,
         MlpConfig,
@@ -58,19 +64,37 @@ impl NanoChatGptBlockMeta for NanoChatGptBlockConfig {
 
 impl NanoChatGptBlockConfig {
     /// Initialize a [`NanoChatGptBlock`].
+    ///
+    /// Panics on errors.
     pub fn init<B: Backend>(
-        self,
+        &self,
         layer_index: usize,
         device: &B::Device,
     ) -> NanoChatGptBlock<B> {
-        assert_eq!(self.attn.n_embed(), self.mlp.n_embed());
-        let n_embed = self.n_embed();
-        NanoChatGptBlock {
-            input_norm: self.norm.clone().with_num_features(n_embed).init(device),
-            attn: self.attn.init(layer_index, device),
-            attn_norm: self.norm.clone().with_num_features(n_embed).init(device),
-            mlp: self.mlp.init(device),
+        self.try_init(layer_index, device).ok_or_panic()
+    }
+
+    /// Initialize a [`NanoChatGptBlock`].
+    pub fn try_init<B: Backend>(
+        &self,
+        layer_index: usize,
+        device: &B::Device,
+    ) -> BunsenResult<NanoChatGptBlock<B>> {
+        if self.attn.n_embed() != self.mlp.n_embed() {
+            return Err(BunsenError::Invalid(format!(
+                "Attn and MLP embed sizes must be equal: {} != {}",
+                self.attn.n_embed(),
+                self.mlp.n_embed()
+            )));
         }
+
+        let n_embed = self.n_embed();
+        Ok(NanoChatGptBlock {
+            input_norm: self.norm.clone().with_num_features(n_embed).init(device),
+            attn: self.attn.try_init(layer_index, device)?,
+            attn_norm: self.norm.clone().with_num_features(n_embed).init(device),
+            mlp: self.mlp.try_init(device)?,
+        })
     }
 }
 

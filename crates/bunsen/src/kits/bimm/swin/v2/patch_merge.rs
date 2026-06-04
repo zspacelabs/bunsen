@@ -16,9 +16,14 @@ use burn::{
 };
 
 use crate::{
+    burner::module::ModuleInit,
     contracts::{
         assert_shape_contract_periodically,
         unpack_shape_contract,
+    },
+    errors::{
+        BunsenError,
+        BunsenResult,
     },
     kits::bimm::swin::v2::windowing::{
         window_partition,
@@ -85,39 +90,26 @@ impl PatchMergingMeta for PatchMergingConfig {
     }
 }
 
-impl PatchMergingConfig {
-    /// Create a new `PatchMerging` configuration.
-    ///
-    /// # Arguments
-    ///
-    /// - `device`: The backend device to initialize the module on.
-    ///
-    /// # Returns
-    ///
-    /// A new `PatchMerging` module initialized with the given configuration.
-    ///
-    /// # Panics
-    ///
-    /// If the config is invalid.
-    #[must_use]
-    pub fn init<B: Backend>(
+impl<B: Backend> ModuleInit<B, PatchMerging<B>> for PatchMergingConfig {
+    fn try_init(
         &self,
         device: &B::Device,
-    ) -> PatchMerging<B> {
+    ) -> BunsenResult<PatchMerging<B>> {
         let [h, w] = self.input_resolution;
-        assert!(
-            h % 2 == 0 && w % 2 == 0,
-            "Input resolution must be divisible by 2: {:?}",
-            self.input_resolution
-        );
+        if h % 2 != 0 || w % 2 != 0 {
+            return Err(BunsenError::Invalid(format!(
+                "Input resolution must be divisible by 2: {:?}",
+                self.input_resolution
+            )));
+        }
 
-        PatchMerging {
+        Ok(PatchMerging {
             input_resolution: self.input_resolution,
             reduction: LinearConfig::new(2 * self.d_output(), self.d_output())
                 .with_bias(false)
                 .init(device),
             norm: LayerNormConfig::new(self.d_output()).init(device),
-        }
+        })
     }
 }
 
@@ -303,17 +295,21 @@ mod tests {
     use super::*;
     use crate::{
         blocks::images::patching::patch_embed::{
+            PatchEmbed,
             PatchEmbedConfig,
             PatchEmbedMeta,
         },
-        support::testing::PerformanceBackend,
+        errors::WithOkOrPanic,
+        support::testing::{
+            CpuBackend,
+            PerformanceBackend,
+        },
     };
-
-    type B = PerformanceBackend;
 
     #[test]
     #[serial]
     fn test_collate_patches() {
+        type B = PerformanceBackend;
         let b = 2;
         let h = 4;
         let w = 6;
@@ -334,6 +330,7 @@ mod tests {
 
     #[test]
     fn test_patch_merging_meta() {
+        type B = PerformanceBackend;
         let config = PatchMergingConfig {
             input_resolution: [12, 8],
             d_input: 3,
@@ -346,7 +343,8 @@ mod tests {
         assert_eq!(config.output_height(), 6);
         assert_eq!(config.output_width(), 4);
 
-        let patch_merging = config.init::<B>(&Default::default());
+        let device = Default::default();
+        let patch_merging: PatchMerging<B> = config.try_init(&device).ok_or_panic();
 
         assert_eq!(patch_merging.input_resolution(), [12, 8]);
         assert_eq!(patch_merging.d_input(), 3);
@@ -359,17 +357,19 @@ mod tests {
     #[should_panic(expected = "Input resolution must be divisible by 2")]
     #[test]
     fn test_patch_merging_invalid_resolution() {
+        type B = PerformanceBackend;
         let config = PatchMergingConfig {
             input_resolution: [13, 8], // Invalid height
             d_input: 3,
         };
         let device = Default::default();
-        let _d = config.init::<B>(&device);
+        let _d: PatchMerging<B> = config.try_init(&device).ok_or_panic();
     }
 
     #[test]
     #[serial]
     fn test_patch_merging() {
+        type B = PerformanceBackend;
         let device = Default::default();
 
         let b = 2;
@@ -381,7 +381,7 @@ mod tests {
             input_resolution: [h, w],
             d_input: c,
         };
-        let patch_merging = config.init::<B>(&device);
+        let patch_merging: PatchMerging<B> = config.try_init(&device).ok_or_panic();
 
         let distribution = Distribution::Normal(0., 1.);
         let x = Tensor::random([b, h * w, c], distribution, &device);
@@ -392,6 +392,7 @@ mod tests {
 
     #[test]
     fn test_patch_embed_meta() {
+        type B = CpuBackend;
         let config = PatchEmbedConfig::new([12, 8], 4, 3, 6).with_enable_patch_norm(false);
 
         assert_eq!(config.input_resolution(), [12, 8]);
@@ -403,7 +404,8 @@ mod tests {
         assert_eq!(config.patches_height(), 3);
         assert_eq!(config.patches_width(), 2);
 
-        let patch_embed = config.init::<B>(&Default::default());
+        let device = Default::default();
+        let patch_embed: PatchEmbed<B> = config.try_init(&device).ok_or_panic();
 
         assert_eq!(patch_embed.input_resolution(), [12, 8]);
         assert_eq!(patch_embed.patch_size(), 4);
@@ -418,6 +420,7 @@ mod tests {
     #[test]
     #[serial]
     fn test_patch_embed() {
+        type B = PerformanceBackend;
         let device = Default::default();
 
         let b = 2;
@@ -435,7 +438,7 @@ mod tests {
         {
             let config = PatchEmbedConfig::new([h, w], patch_size, d_input, d_output)
                 .with_enable_patch_norm(false);
-            let patch_embed = config.init::<B>(&device);
+            let patch_embed = config.try_init(&device).ok_or_panic();
 
             let y = patch_embed.forward(x.clone());
             assert_eq!(&y.dims(), &[b, (h / 4) * (w / 4), d_output]);
@@ -450,7 +453,7 @@ mod tests {
         // With Norm.
         {
             let config = PatchEmbedConfig::new([h, w], patch_size, d_input, d_output);
-            let patch_embed = config.init::<B>(&device);
+            let patch_embed = config.try_init(&device).ok_or_panic();
 
             let y = patch_embed.forward(x.clone());
             assert_eq!(&y.dims(), &[b, (h / 4) * (w / 4), d_output]);

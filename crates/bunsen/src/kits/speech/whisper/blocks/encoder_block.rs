@@ -14,13 +14,16 @@ use burn::{
 };
 
 use super::WHISPER_DEFAULT_D_MODEL;
-use crate::blocks::transformers::{
-    attention::layer_norm_self_attn,
-    mlp::{
-        Mlp,
-        MlpConfig,
-        layer_norm_mlp,
+use crate::{
+    blocks::transformers::{
+        attention::layer_norm_self_attn,
+        mlp::{
+            Mlp,
+            MlpConfig,
+            layer_norm_mlp,
+        },
     },
+    burner::module::ModuleInit,
 };
 
 /// Common meta for [`ResidualEncoderAttentionBlock`] and
@@ -65,12 +68,13 @@ impl ResidualEncoderAttentionBlockMeta for ResidualEncoderAttentionBlockConfig {
     }
 }
 
-impl ResidualEncoderAttentionBlockConfig {
-    /// Initialize a block.
-    pub fn init<B: Backend>(
+impl<B: Backend> ModuleInit<B, ResidualEncoderAttentionBlock<B>>
+    for ResidualEncoderAttentionBlockConfig
+{
+    fn try_init(
         &self,
         device: &B::Device,
-    ) -> ResidualEncoderAttentionBlock<B> {
+    ) -> crate::errors::BunsenResult<ResidualEncoderAttentionBlock<B>> {
         let mha_cfg =
             MultiHeadAttentionConfig::new(self.d_model, self.n_heads()).with_dropout(self.dropout);
         let ln_cfg = LayerNormConfig::new(self.d_model);
@@ -80,12 +84,12 @@ impl ResidualEncoderAttentionBlockConfig {
         let mut attn = mha_cfg.init(device);
         attn.key.bias = None;
 
-        ResidualEncoderAttentionBlock {
+        Ok(ResidualEncoderAttentionBlock {
             attn_ln: ln_cfg.init(device),
             attn,
             mlp_ln: ln_cfg.init(device),
-            mlp: MlpConfig::new(self.d_model).init(device),
-        }
+            mlp: MlpConfig::new(self.d_model).try_init(device)?,
+        })
     }
 }
 

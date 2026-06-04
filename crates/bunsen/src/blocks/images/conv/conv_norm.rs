@@ -21,9 +21,12 @@ use burn::{
     },
 };
 
-use crate::contracts::{
-    assert_shape_contract_periodically,
-    unpack_shape_contract,
+use crate::{
+    burner::module::ModuleInit,
+    contracts::{
+        assert_shape_contract_periodically,
+        unpack_shape_contract,
+    },
 };
 
 /// [`ConvNorm2d`] Meta.
@@ -73,18 +76,6 @@ impl From<Conv2dConfig> for ConvNorm2dConfig {
 }
 
 impl ConvNorm2dConfig {
-    /// Initialize a [`ConvNorm2d`].
-    pub fn init<B: Backend>(
-        self,
-        device: &B::Device,
-    ) -> ConvNorm2d<B> {
-        ConvNorm2d {
-            conv: self.conv.init(device),
-
-            norm: BatchNormConfig::new(self.conv.channels[1]).init(device),
-        }
-    }
-
     /// Set the initializer.
     pub fn with_initializer(
         self,
@@ -93,6 +84,19 @@ impl ConvNorm2dConfig {
         Self {
             conv: self.conv.with_initializer(initializer),
         }
+    }
+}
+
+impl<B: Backend> ModuleInit<B, ConvNorm2d<B>> for ConvNorm2dConfig {
+    fn try_init(
+        &self,
+        device: &B::Device,
+    ) -> crate::errors::BunsenResult<ConvNorm2d<B>> {
+        Ok(ConvNorm2d {
+            conv: self.conv.init(device),
+
+            norm: BatchNormConfig::new(self.conv.channels[1]).init(device),
+        })
     }
 }
 

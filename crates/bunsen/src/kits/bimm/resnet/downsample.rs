@@ -21,10 +21,12 @@ use burn::{
 };
 
 use crate::{
+    burner::module::ModuleInit,
     contracts::{
         assert_shape_contract_periodically,
         unpack_shape_contract,
     },
+    errors::BunsenResult,
     ops::conv::{
         build_square_conv2d_padding_config,
         expect_conv_output_shape,
@@ -149,12 +151,11 @@ impl ResNetDownsampleMeta for ResNetDownsampleConfig {
     }
 }
 
-impl ResNetDownsampleConfig {
-    /// Initialize a [`ResNetDownsample`] `Module`.
-    pub fn init<B: Backend>(
-        self,
+impl<B: Backend> ModuleInit<B, ResNetDownsample<B>> for ResNetDownsampleConfig {
+    fn try_init(
+        &self,
         device: &B::Device,
-    ) -> ResNetDownsample<B> {
+    ) -> BunsenResult<ResNetDownsample<B>> {
         let kernel_size = if self.stride == 1 && self.dilation == 1 {
             1
         } else {
@@ -172,11 +173,15 @@ impl ResNetDownsampleConfig {
         .with_dilation(scalar_to_array(dilation))
         .with_bias(false);
 
-        ResNetDownsample {
+        Ok(ResNetDownsample {
             conv: conv.init(device),
 
-            norm: self.norm.with_num_features(self.out_channels).init(device),
-        }
+            norm: self
+                .norm
+                .clone()
+                .with_num_features(self.out_channels)
+                .init(device),
+        })
     }
 }
 

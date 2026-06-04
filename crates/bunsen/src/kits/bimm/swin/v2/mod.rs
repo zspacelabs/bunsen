@@ -4,10 +4,13 @@
 //! ## Example
 //!
 //! ```rust,no_run
-//! use bunsen::kits::bimm::swin::v2::swin_model::{
-//!     LayerConfig,
-//!     SwinTransformerV2,
-//!     SwinTransformerV2Config,
+//! use bunsen::{
+//!     burner::module::ModuleInit,
+//!     kits::bimm::swin::v2::swin_model::{
+//!         LayerConfig,
+//!         SwinTransformerV2,
+//!         SwinTransformerV2Config,
+//!     },
 //! };
 //! use burn::backend::Flex;
 //!

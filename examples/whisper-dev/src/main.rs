@@ -1,6 +1,7 @@
 use std::path::PathBuf;
 
 use bunsen::{
+    burner::module::ModuleInit,
     errors::WithOkOrPanic,
     kits::speech::whisper::{
         blocks::Whisper,
@@ -57,8 +58,7 @@ fn run<B: Backend>(args: Args) -> Result<(), Box<dyn std::error::Error>> {
 
     let device = Default::default();
 
-    let mut whisper: Whisper<B> = cfg.to_structure().init(&device);
-
+    let mut whisper: Whisper<B> = cfg.try_init(&device)?;
     whisper.load_from(&mut store).ok_or_panic();
 
     Ok(())

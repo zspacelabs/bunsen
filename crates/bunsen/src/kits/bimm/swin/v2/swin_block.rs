@@ -27,9 +27,14 @@ use crate::{
         DropPath,
         DropPathConfig,
     },
+    burner::module::ModuleInit,
     contracts::{
         assert_shape_contract_periodically,
         define_shape_contract,
+    },
+    errors::{
+        BunsenResult,
+        WithOkOrPanic,
     },
     kits::bimm::swin::v2::{
         window_attention::{
@@ -97,30 +102,21 @@ impl BlockMlpMeta for BlockMlpConfig {
     }
 }
 
-impl BlockMlpConfig {
-    /// Creates a new `BlockMlp`.
-    ///
-    /// # Arguments
-    ///
-    /// - `device`: The device on which the MLP will be initialized.
-    ///
-    /// # Returns
-    ///
-    /// A new `BlockMlp` instance.
-    pub fn init<B: Backend>(
+impl<B: Backend> ModuleInit<B, BlockMlp<B>> for BlockMlpConfig {
+    fn try_init(
         &self,
         device: &B::Device,
-    ) -> BlockMlp<B> {
+    ) -> BunsenResult<BlockMlp<B>> {
         let d_input = self.d_input();
         let d_hidden = self.d_hidden();
         let d_output = self.d_output();
 
-        BlockMlp {
+        Ok(BlockMlp {
             fc1: LinearConfig::new(d_input, d_hidden).init(device),
             fc2: LinearConfig::new(d_hidden, d_output).init(device),
             act: self.activation.init(device),
             drop: DropoutConfig { prob: self.drop }.init(),
-        }
+        })
     }
 }
 
@@ -434,30 +430,24 @@ impl ShiftedWindowTransformerBlockConfig {
             "input_resolution must be divisible by window size: {self:#?}",
         );
     }
+}
 
-    /// Initializes a new `SwinTransformerBlock`.
-    ///
-    /// # Arguments
-    ///
-    /// * `device` - The device on which the block will be created.
-    ///
-    /// # Returns
-    ///
-    /// A new `SwinTransformerBlock` configured with the specified parameters.
-    #[must_use]
-    pub fn init<B: Backend>(
+impl<B: Backend> ModuleInit<B, ShiftedWindowTransformerBlock<B>>
+    for ShiftedWindowTransformerBlockConfig
+{
+    fn try_init(
         &self,
         device: &B::Device,
-    ) -> ShiftedWindowTransformerBlock<B> {
+    ) -> BunsenResult<ShiftedWindowTransformerBlock<B>> {
         self.check();
 
         let hidden_dim = (self.d_input as f64 * self.mlp_ratio) as usize;
-        let block_mlp = BlockMlpConfig::new(self.d_input)
+        let self1 = &BlockMlpConfig::new(self.d_input)
             .with_d_hidden(Some(hidden_dim))
-            .with_drop(self.drop_rate)
-            .init(device);
+            .with_drop(self.drop_rate);
+        let block_mlp = self1.try_init(device).ok_or_panic();
 
-        let win_attn = WindowAttentionConfig::new(
+        let self2 = &WindowAttentionConfig::new(
             self.d_input,
             [self.window_size, self.window_size],
             self.num_heads,
@@ -466,8 +456,8 @@ impl ShiftedWindowTransformerBlockConfig {
         .with_attn_drop(self.attn_drop_rate)
         .with_proj_drop(self.drop_rate)
         .with_rpb_mlp_hidden_dim(self.attn_rpb_mlp_hidden_dim)
-        .with_rpb_mlp_activation(self.attn_rpb_mlp_activation.clone())
-        .init(device);
+        .with_rpb_mlp_activation(self.attn_rpb_mlp_activation.clone());
+        let win_attn = self2.try_init(device).ok_or_panic();
 
         let shift_mask = if self.shift_size == 0 {
             None
@@ -484,7 +474,7 @@ impl ShiftedWindowTransformerBlockConfig {
             )
         };
 
-        ShiftedWindowTransformerBlock {
+        Ok(ShiftedWindowTransformerBlock {
             input_resolution: self.input_resolution,
             window_size: self.window_size,
             shift_size: self.shift_size,
@@ -496,7 +486,7 @@ impl ShiftedWindowTransformerBlockConfig {
             norm2: LayerNormConfig::new(self.d_input).init(device),
             win_attn,
             block_mlp,
-        }
+        })
     }
 }
 
@@ -733,7 +723,7 @@ mod tests {
             .with_d_output(Some(d_output))
             .with_drop(drop);
 
-        let mlp: BlockMlp<B> = config.init(&device);
+        let mlp: BlockMlp<B> = config.try_init(&device).ok_or_panic();
 
         assert_eq!(mlp.d_input(), config.d_input());
         assert_eq!(mlp.d_hidden(), config.d_hidden());
@@ -758,7 +748,7 @@ mod tests {
         let w = 4;
         let c = 3;
 
-        let distribution = burn::tensor::Distribution::Uniform(0.0, 1.0);
+        let distribution = Distribution::Uniform(0.0, 1.0);
         let input = Tensor::<B, 4>::random([b, h, w, c], distribution, &device);
 
         let idx: Tensor<B, 4> = Tensor::arange(0..input.shape().num_elements() as i64, &device)
@@ -814,7 +804,7 @@ mod tests {
         assert_eq!(config.mlp_ratio(), 4.0);
         assert_eq!(config.drop_path_rate(), 0.0);
 
-        let block = config.init::<B>(&device);
+        let block: ShiftedWindowTransformerBlock<B> = config.init(&device);
 
         assert_eq!(block.d_input(), d_input);
         assert_eq!(block.input_resolution(), input_resolution);
@@ -847,7 +837,7 @@ mod tests {
 
         let config = ShiftedWindowTransformerBlockConfig::new(d_input, input_resolution, num_heads);
 
-        let _d = config.init::<B>(&Default::default());
+        let _d: ShiftedWindowTransformerBlock<B> = config.init(&Default::default());
     }
 
     #[should_panic(expected = "input_resolution must be divisible by window size")]
@@ -862,7 +852,7 @@ mod tests {
 
         let config = ShiftedWindowTransformerBlockConfig::new(d_input, input_resolution, num_heads);
 
-        let _d = config.init::<B>(&Default::default());
+        let _d: ShiftedWindowTransformerBlock<B> = config.init(&Default::default());
     }
 
     #[should_panic(expected = "d_input must be greater than zero")]
@@ -877,7 +867,7 @@ mod tests {
 
         let config = ShiftedWindowTransformerBlockConfig::new(d_input, input_resolution, num_heads);
 
-        let _d = config.init::<B>(&Default::default());
+        let _d: ShiftedWindowTransformerBlock<B> = config.init(&Default::default());
     }
 
     #[should_panic(expected = "num_heads must be greater than zero")]
@@ -892,7 +882,7 @@ mod tests {
 
         let config = ShiftedWindowTransformerBlockConfig::new(d_input, input_resolution, num_heads);
 
-        let _d = config.init::<B>(&Default::default());
+        let _d: ShiftedWindowTransformerBlock<B> = config.init(&Default::default());
     }
 
     #[should_panic(expected = "window_size must be greater than zero")]
@@ -909,7 +899,7 @@ mod tests {
         let config = ShiftedWindowTransformerBlockConfig::new(d_input, input_resolution, num_heads)
             .with_window_size(window_size);
 
-        let _d = config.init::<B>(&Default::default());
+        let _d: ShiftedWindowTransformerBlock<B> = config.init(&Default::default());
     }
 
     #[test]
@@ -931,9 +921,9 @@ mod tests {
             .with_window_size(window_size);
 
         let device = Default::default();
-        let block = config.init::<B>(&device);
+        let block: ShiftedWindowTransformerBlock<B> = config.init(&device);
 
-        let distribution = burn::tensor::Distribution::Uniform(0.0, 1.0);
+        let distribution = Distribution::Uniform(0.0, 1.0);
         let input = Tensor::<B, 3>::random([b, h * w, d_input], distribution, &device);
 
         let output = block.forward(input.clone());

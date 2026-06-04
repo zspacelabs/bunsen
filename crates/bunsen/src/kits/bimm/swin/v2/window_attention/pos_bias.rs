@@ -15,7 +15,9 @@ use burn::{
 };
 
 use crate::{
+    burner::module::ModuleInit,
     contracts::assert_shape_contract_periodically,
+    errors::BunsenResult,
     kits::bimm::swin::v2::window_attention::{
         window_attention_relative_position_index,
         window_log1p_relative_offset_grid,
@@ -23,7 +25,7 @@ use crate::{
 };
 
 /// Common introspection interface for relative position bias modules.
-pub trait RelativePositionBiasMeta {
+pub trait OffsetGridRelativePositionBiasMeta {
     /// Returns the number of attention heads.
     fn num_heads(&self) -> usize;
 
@@ -46,7 +48,7 @@ pub trait RelativePositionBiasMeta {
 
 /// Configuration for the relative position bias module.
 #[derive(Config, Debug)]
-pub struct RelativePositionBiasConfig {
+pub struct OffsetGridRelativePositionBiasConfig {
     /// The number of attention heads.
     pub num_heads: usize,
 
@@ -66,7 +68,7 @@ pub struct RelativePositionBiasConfig {
     pub mlp_activation: ActivationConfig,
 }
 
-impl RelativePositionBiasMeta for RelativePositionBiasConfig {
+impl OffsetGridRelativePositionBiasMeta for OffsetGridRelativePositionBiasConfig {
     fn num_heads(&self) -> usize {
         self.num_heads
     }
@@ -80,23 +82,14 @@ impl RelativePositionBiasMeta for RelativePositionBiasConfig {
     }
 }
 
-impl RelativePositionBiasConfig {
-    /// Initializes an `OffsetGridRelativePositionBias` module.
-    ///
-    /// # Arguments
-    ///
-    /// * `device`: The device on which the module will be created.
-    ///
-    /// # Returns
-    ///
-    /// An `OffsetGridRelativePositionBias` module.
-    #[inline(always)]
-    #[must_use]
-    pub fn init_offset_grid_rpb<B: Backend>(
+impl<B: Backend> ModuleInit<B, OffsetGridRelativePositionBias<B>>
+    for OffsetGridRelativePositionBiasConfig
+{
+    fn try_init(
         &self,
         device: &B::Device,
-    ) -> OffsetGridRelativePositionBias<B> {
-        OffsetGridRelativePositionBias {
+    ) -> BunsenResult<OffsetGridRelativePositionBias<B>> {
+        Ok(OffsetGridRelativePositionBias {
             base: self.base,
             num_heads: self.num_heads,
             window_shape: self.window_shape,
@@ -113,7 +106,7 @@ impl RelativePositionBiasConfig {
                 .with_d_hidden(self.mlp_hidden_dim)
                 .with_activation(self.mlp_activation.clone())
                 .init(device),
-        }
+        })
     }
 }
 
@@ -141,7 +134,7 @@ pub struct OffsetGridRelativePositionBias<B: Backend> {
     pub cbp: ContinuousPositionBiasMlp<B>,
 }
 
-impl<B: Backend> RelativePositionBiasMeta for OffsetGridRelativePositionBias<B> {
+impl<B: Backend> OffsetGridRelativePositionBiasMeta for OffsetGridRelativePositionBias<B> {
     fn num_heads(&self) -> usize {
         self.num_heads
     }
@@ -269,13 +262,12 @@ impl<B: Backend> ContinuousPositionBiasMlpMeta for ContinuousPositionBiasMlp<B> 
     }
 }
 
-impl ContinuousPositionBiasMlpConfig {
-    /// Initializes the MLP with the given device.
-    fn init<B: Backend>(
+impl<B: Backend> ModuleInit<B, ContinuousPositionBiasMlp<B>> for ContinuousPositionBiasMlpConfig {
+    fn try_init(
         &self,
         device: &B::Device,
-    ) -> ContinuousPositionBiasMlp<B> {
-        ContinuousPositionBiasMlp {
+    ) -> BunsenResult<ContinuousPositionBiasMlp<B>> {
+        Ok(ContinuousPositionBiasMlp {
             l1: nn::LinearConfig::new(2, self.d_hidden).init(device),
 
             act: self.activation.init(device),
@@ -283,7 +275,7 @@ impl ContinuousPositionBiasMlpConfig {
             l2: nn::LinearConfig::new(self.d_hidden, self.num_heads)
                 .with_bias(false)
                 .init(device),
-        }
+        })
     }
 }
 
@@ -316,6 +308,7 @@ mod tests {
     use super::*;
     use crate::{
         contracts::assert_shape_contract,
+        errors::WithOkOrPanic,
         kits::bimm::swin::v2::window_attention::{
             window_attention_relative_position_index,
             window_log1p_relative_offset_grid,
@@ -330,7 +323,7 @@ mod tests {
     fn test_rpb_meta() {
         type B = CpuBackend;
 
-        let config = RelativePositionBiasConfig::new(12, [3, 2]);
+        let config = OffsetGridRelativePositionBiasConfig::new(12, [3, 2]);
 
         assert_eq!(config.base(), 8.0);
         assert_eq!(config.num_heads(), 12);
@@ -339,7 +332,7 @@ mod tests {
         assert_eq!(config.window_width(), 2);
 
         let device = Default::default();
-        let rpb = config.init_offset_grid_rpb::<B>(&device);
+        let rpb: OffsetGridRelativePositionBias<B> = config.try_init(&device).ok_or_panic();
 
         assert_eq!(rpb.base(), 8.0);
         assert_eq!(rpb.num_heads(), 12);
@@ -357,8 +350,8 @@ mod tests {
         let window_shape = [3, 2];
         let num_heads = 8;
 
-        let config = RelativePositionBiasConfig::new(num_heads, window_shape);
-        let rpb = config.init_offset_grid_rpb::<B>(&device);
+        let config = OffsetGridRelativePositionBiasConfig::new(num_heads, window_shape);
+        let rpb: OffsetGridRelativePositionBias<B> = config.try_init(&device).ok_or_panic();
 
         assert_eq!(rpb.base(), 8.0);
         assert_eq!(rpb.num_heads(), num_heads);
@@ -400,7 +393,7 @@ mod tests {
         assert_eq!(config.num_heads(), 8);
 
         let device = Default::default();
-        let mlp = config.init::<B>(&device);
+        let mlp: ContinuousPositionBiasMlp<B> = config.init(&device);
 
         assert_eq!(mlp.d_hidden(), 512);
         assert_eq!(mlp.num_heads(), 8);

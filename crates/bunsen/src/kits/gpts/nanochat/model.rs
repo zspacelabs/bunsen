@@ -36,10 +36,12 @@ use crate::{
             RotaryEmbeddingMeta,
         },
     },
+    burner::module::ModuleInit,
     contracts::{
         assert_shape_contract_periodically,
         unpack_shape_contract,
     },
+    errors::BunsenResult,
     kits::gpts::nanochat::{
         MlpConfig,
         NanoChatGptBlock,
@@ -246,27 +248,26 @@ impl NanoChatGptMeta for NanoChatGptStructureConfig {
     }
 }
 
-impl NanoChatGptStructureConfig {
-    /// Initialize a [`NanoChatGpt`].
-    pub fn init<B: Backend>(
-        self,
+impl<B: Backend> ModuleInit<B, NanoChatGpt<B>> for NanoChatGptStructureConfig {
+    fn try_init(
+        &self,
         device: &B::Device,
-    ) -> NanoChatGpt<B> {
+    ) -> BunsenResult<NanoChatGpt<B>> {
         let n_embed = self.n_embed();
-        NanoChatGpt {
+        Ok(NanoChatGpt {
             wte: self.wte.init(device),
             h: self
                 .h
-                .into_iter()
+                .iter()
                 .enumerate()
-                .map(|(layer_idx, c)| c.init(layer_idx, device))
-                .collect(),
+                .map(|(layer_idx, c)| c.try_init(layer_idx, device))
+                .collect::<BunsenResult<Vec<NanoChatGptBlock<B>>>>()?,
             h_norm: self.norm.clone().with_num_features(n_embed).init(device),
             lm_head: self.lm_head.init(device),
-            r_emb: self.r_emb.init(device),
+            r_emb: self.r_emb.try_init(device)?,
             init_seq_len: self.init_seq_len,
             softcap: self.softcap,
-        }
+        })
     }
 }
 

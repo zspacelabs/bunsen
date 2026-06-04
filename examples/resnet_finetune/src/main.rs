@@ -10,7 +10,10 @@ use std::time::Instant;
 
 use anyhow::Context;
 use bunsen::{
-    burner::module::DTypeMapper,
+    burner::module::{
+        DTypeMapper,
+        ModuleInit,
+    },
     data::cache::BunsenDiskCache,
     kits::bimm::resnet::{
         PREFAB_RESNET_MAP,
@@ -344,7 +347,7 @@ pub fn train<B: AutodiffBackend>(args: &Args) -> anyhow::Result<()> {
         }
     }
 
-    let model: ResNet<B> = resnet_config.clone().to_structure().init(&device);
+    let model: ResNet<B> = resnet_config.clone().try_init(&device)?;
 
     let old_float_type = model.output_fc.weight.dtype();
 

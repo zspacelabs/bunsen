@@ -31,9 +31,13 @@ use burn::{
     },
 };
 
-use crate::contracts::{
-    assert_shape_contract_periodically,
-    unpack_shape_contract,
+use crate::{
+    burner::module::ModuleInit,
+    contracts::{
+        assert_shape_contract_periodically,
+        unpack_shape_contract,
+    },
+    errors::BunsenResult,
 };
 
 /// Abstract policy for [`CNA2d`] Config.
@@ -90,6 +94,9 @@ pub trait CNA2dMeta {
 /// [`CNA2d`] Config.
 ///
 /// Implements [`CNA2dMeta`].
+///
+/// Auto-matches the norm layer input channels
+/// to the conv layer's output channels.
 #[derive(Config, Debug)]
 pub struct CNA2dConfig {
     /// The [`Conv2d`] config.
@@ -122,22 +129,6 @@ impl CNA2dMeta for CNA2dConfig {
 }
 
 impl CNA2dConfig {
-    /// Initialize a [`CNA2d`].
-    ///
-    /// Auto-matches the norm layer input channels
-    /// to the conv layer's output channels.
-    pub fn init<B: Backend>(
-        self,
-        device: &B::Device,
-    ) -> CNA2d<B> {
-        let out_channels = self.out_channels();
-        CNA2d {
-            conv: self.conv.init(device),
-            norm: self.norm.with_num_features(out_channels).init(device),
-            act: self.act.init(device),
-        }
-    }
-
     /// Adjust the norm features to match the conv output size.
     ///
     /// [`Self::init`] does this automatically.
@@ -145,6 +136,26 @@ impl CNA2dConfig {
         let features = self.out_channels();
         let norm = self.norm.with_num_features(features);
         Self { norm, ..self }
+    }
+}
+
+/// Auto-matches the norm layer input channels
+/// to the conv layer's output channels.
+impl<B: Backend> ModuleInit<B, CNA2d<B>> for CNA2dConfig {
+    fn try_init(
+        &self,
+        device: &B::Device,
+    ) -> BunsenResult<CNA2d<B>> {
+        let out_channels = self.out_channels();
+        Ok(CNA2d {
+            conv: self.conv.init(device),
+            norm: self
+                .norm
+                .clone()
+                .with_num_features(out_channels)
+                .init(device),
+            act: self.act.init(device),
+        })
     }
 }
 

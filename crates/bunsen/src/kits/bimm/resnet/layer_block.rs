@@ -13,10 +13,7 @@
 
 use alloc::{
     format,
-    string::{
-        String,
-        ToString,
-    },
+    string::ToString,
     vec::Vec,
 };
 
@@ -43,9 +40,14 @@ use super::{
 };
 use crate::{
     blocks::images::drop::drop_block::DropBlockOptions,
+    burner::module::ModuleInit,
     contracts::{
         assert_shape_contract_periodically,
         unpack_shape_contract,
+    },
+    errors::{
+        BunsenError,
+        BunsenResult,
     },
     ops::conv::stride_div_output_resolution,
     support::validators::expect_probability,
@@ -94,7 +96,7 @@ pub struct LayerBlockContractConfig {
 
 impl LayerBlockContractConfig {
     /// Build the [`ResidualBlockContractConfig`]s for this layer block.
-    pub fn to_block_contracts(self) -> Vec<ResidualBlockContractConfig> {
+    pub fn to_block_contracts(&self) -> Vec<ResidualBlockContractConfig> {
         let mut first_dilation = self.first_dilation;
 
         let mut blocks = Vec::with_capacity(self.num_blocks);
@@ -124,7 +126,7 @@ impl LayerBlockContractConfig {
     }
 
     /// Convert to [`LayerBlockStructureConfig`].
-    pub fn to_structure(self) -> LayerBlockStructureConfig {
+    pub fn to_structure(&self) -> LayerBlockStructureConfig {
         LayerBlockStructureConfig {
             blocks: self
                 .to_block_contracts()
@@ -132,6 +134,15 @@ impl LayerBlockContractConfig {
                 .map(|cfg| cfg.into())
                 .collect(),
         }
+    }
+}
+
+impl<B: Backend> ModuleInit<B, LayerBlock<B>> for LayerBlockContractConfig {
+    fn try_init(
+        &self,
+        device: &B::Device,
+    ) -> BunsenResult<LayerBlock<B>> {
+        self.to_structure().try_init(device)
     }
 }
 
@@ -221,27 +232,23 @@ impl LayerBlockMeta for LayerBlockStructureConfig {
 
 impl LayerBlockStructureConfig {
     /// Check if the config is valid.
-    ///
-    /// # Returns
-    ///
-    /// A `Result<(), String>`
-    pub fn try_validate(&self) -> Result<(), String> {
+    pub fn try_validate(&self) -> BunsenResult<()> {
         if self.is_empty() {
-            return Err("blocks is empty".to_string());
+            return Err(BunsenError::Invalid("blocks is empty".to_string()));
         }
 
         for idx in 1..self.blocks.len() {
             let prev = &self.blocks[idx - 1];
             let curr = &self.blocks[idx];
             if prev.out_planes() != curr.in_planes() {
-                return Err(format!(
+                return Err(BunsenError::Invalid(format!(
                     "block[{}].out_planes({}) != block[{}].in_planes({})\n{:#?}",
                     idx - 1,
                     prev.out_planes(),
                     idx,
                     curr.in_planes(),
                     self,
-                ));
+                )));
             }
         }
         Ok(())
@@ -252,22 +259,6 @@ impl LayerBlockStructureConfig {
         match self.try_validate() {
             Ok(_) => (),
             Err(err) => panic!("{}", err),
-        }
-    }
-
-    /// Initialize a new [`LayerBlock`].
-    pub fn init<B: Backend>(
-        self,
-        device: &B::Device,
-    ) -> LayerBlock<B> {
-        self.expect_valid();
-
-        LayerBlock {
-            blocks: self
-                .blocks
-                .into_iter()
-                .map(|block| block.init(device))
-                .collect(),
         }
     }
 
@@ -304,6 +295,23 @@ impl LayerBlockStructureConfig {
             } else {
                 block.with_drop_block(options.clone())
             }
+        })
+    }
+}
+
+impl<B: Backend> ModuleInit<B, LayerBlock<B>> for LayerBlockStructureConfig {
+    fn try_init(
+        &self,
+        device: &B::Device,
+    ) -> BunsenResult<LayerBlock<B>> {
+        self.try_validate()?;
+
+        Ok(LayerBlock {
+            blocks: self
+                .blocks
+                .iter()
+                .map(|block| block.try_init(device))
+                .collect::<BunsenResult<Vec<ResidualBlock<B>>>>()?,
         })
     }
 }

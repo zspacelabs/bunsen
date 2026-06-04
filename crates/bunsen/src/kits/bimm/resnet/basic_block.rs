@@ -47,6 +47,8 @@ use crate::{
             },
         },
     },
+    burner::module::ModuleInit,
+    errors::BunsenResult,
     kits::bimm::resnet::{
         ResNetDownsample,
         ResNetDownsampleConfig,
@@ -193,12 +195,11 @@ impl BasicBlockMeta for BasicBlockConfig {
     }
 }
 
-impl BasicBlockConfig {
-    /// Initialize a [`BasicBlock`].
-    pub fn init<B: Backend>(
-        self,
+impl<B: Backend> ModuleInit<B, BasicBlock<B>> for BasicBlockConfig {
+    fn try_init(
+        &self,
         device: &B::Device,
-    ) -> BasicBlock<B> {
+    ) -> BunsenResult<BasicBlock<B>> {
         let drop_path_prob = expect_probability(self.drop_path_prob);
 
         let in_planes = self.in_planes();
@@ -253,7 +254,7 @@ impl BasicBlockConfig {
                 .with_bias(false),
         );
 
-        BasicBlock {
+        let module = BasicBlock {
             reduce_first: self.reduce_first,
 
             downsample: downsample.as_ref().map(|cfg| cfg.clone().init(device)),
@@ -274,7 +275,9 @@ impl BasicBlockConfig {
             } else {
                 None
             },
-        }
+        };
+
+        Ok(module)
     }
 }
 

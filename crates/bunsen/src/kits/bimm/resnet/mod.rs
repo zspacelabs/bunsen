@@ -9,6 +9,7 @@
 //!
 //! ```rust,no_run
 //! use bunsen::{
+//!     burner::module::ModuleInit,
 //!     data::cache::BunsenDiskCache,
 //!     kits::bimm::resnet::{
 //!         PREFAB_RESNET_MAP,
@@ -28,7 +29,6 @@
 //!
 //! let model: ResNet<Flex> = prefab
 //!     .to_config()
-//!     .to_structure()
 //!     .init(&device)
 //!     .load_pytorch_weights(weights)
 //!     .expect("Failed to load weights")

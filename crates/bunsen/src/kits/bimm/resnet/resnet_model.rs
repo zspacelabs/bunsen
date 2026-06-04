@@ -63,6 +63,7 @@ use crate::{
         },
         drop::drop_block::DropBlockOptions,
     },
+    burner::module::ModuleInit,
     errors::{
         BunsenError,
         BunsenResult,
@@ -181,7 +182,7 @@ impl ResNetContractConfig {
     }
 
     /// Convert to a [`ResNetStructureConfig`].
-    pub fn to_structure(self) -> ResNetStructureConfig {
+    pub fn to_structure(&self) -> ResNetStructureConfig {
         ResNetStructureConfig::new(
             ConvNorm2dConfig::from(
                 Conv2dConfig::new([3, self.stem_width], [7, 7])
@@ -204,6 +205,15 @@ impl ResNetContractConfig {
     /// Create a ResNet-18 model.
     pub fn resnet18(num_classes: usize) -> Self {
         Self::new(RESNET18_BLOCKS.to_vec(), num_classes) // .with_bottleneck(true)
+    }
+}
+
+impl<B: Backend> ModuleInit<B, ResNet<B>> for ResNetContractConfig {
+    fn try_init(
+        &self,
+        device: &B::Device,
+    ) -> BunsenResult<ResNet<B>> {
+        self.to_structure().try_init(device)
     }
 }
 
@@ -240,40 +250,6 @@ pub struct ResNetStructureConfig {
 }
 
 impl ResNetStructureConfig {
-    /// Initialize a [`ResNet`] model.
-    pub fn init<B: Backend>(
-        self,
-        device: &B::Device,
-    ) -> ResNet<B> {
-        let mut input_conv_norm = self.input_conv_norm.clone();
-        if let Some(initializer) = &self.input_conv_norm_initializer {
-            input_conv_norm.conv = input_conv_norm.conv.with_initializer(initializer.clone());
-        }
-
-        let head_planes = self.layers.last().unwrap().out_planes();
-
-        ResNet {
-            input_conv_norm: input_conv_norm.init(device),
-            input_act: self.input_act.init(device),
-            input_pool: MaxPool2dConfig::new([3, 3])
-                .with_strides([2, 2])
-                .with_padding({
-                    let d = 1;
-                    PaddingConfig2d::Explicit(d, d, d, d)
-                })
-                .init(),
-
-            layers: self
-                .layers
-                .into_iter()
-                .map(|c| c.init(device))
-                .collect::<Vec<_>>(),
-
-            output_pool: AdaptiveAvgPool2dConfig::new([1, 1]).init(),
-            output_fc: LinearConfig::new(head_planes, self.num_classes).init(device),
-        }
-    }
-
     /// Apply the given standard drop block probability scheme.
     pub fn with_standard_drop_block_prob(
         self,
@@ -346,6 +322,43 @@ impl ResNetStructureConfig {
                 .collect(),
             ..self
         }
+    }
+}
+
+impl<B: Backend> ModuleInit<B, ResNet<B>> for ResNetStructureConfig {
+    fn try_init(
+        &self,
+        device: &B::Device,
+    ) -> BunsenResult<ResNet<B>> {
+        let mut input_conv_norm = self.input_conv_norm.clone();
+        if let Some(initializer) = &self.input_conv_norm_initializer {
+            input_conv_norm.conv = input_conv_norm.conv.with_initializer(initializer.clone());
+        }
+
+        let head_planes = self.layers.last().unwrap().out_planes();
+
+        let module = ResNet {
+            input_conv_norm: input_conv_norm.init(device),
+            input_act: self.input_act.init(device),
+            input_pool: MaxPool2dConfig::new([3, 3])
+                .with_strides([2, 2])
+                .with_padding({
+                    let d = 1;
+                    PaddingConfig2d::Explicit(d, d, d, d)
+                })
+                .init(),
+
+            layers: self
+                .layers
+                .iter()
+                .map(|c| c.init(device))
+                .collect::<Vec<_>>(),
+
+            output_pool: AdaptiveAvgPool2dConfig::new([1, 1]).init(),
+            output_fc: LinearConfig::new(head_planes, self.num_classes).init(device),
+        };
+
+        Ok(module)
     }
 }
 

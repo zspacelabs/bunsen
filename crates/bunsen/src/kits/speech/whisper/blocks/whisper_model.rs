@@ -9,13 +9,16 @@ use burn::{
 };
 
 use super::WHISPER_DEFAULT_D_MODEL;
-use crate::kits::speech::whisper::blocks::{
-    AudioEncoder,
-    AudioEncoderConfig,
-    AudioEncoderMeta,
-    TextDecoder,
-    TextDecoderConfig,
-    TextDecoderMeta,
+use crate::{
+    burner::module::ModuleInit,
+    kits::speech::whisper::blocks::{
+        AudioEncoder,
+        AudioEncoderConfig,
+        AudioEncoderMeta,
+        TextDecoder,
+        TextDecoderConfig,
+        TextDecoderMeta,
+    },
 };
 
 /// Whisper API config.
@@ -66,6 +69,15 @@ impl WhisperApiConfig {
             )
             .with_d_head(self.d_head),
         }
+    }
+}
+
+impl<B: Backend> ModuleInit<B, Whisper<B>> for WhisperApiConfig {
+    fn try_init(
+        &self,
+        device: &B::Device,
+    ) -> crate::errors::BunsenResult<Whisper<B>> {
+        self.to_structure().try_init(device)
     }
 }
 
@@ -123,18 +135,17 @@ impl WhisperMeta for WhisperStructuralConfig {
     }
 }
 
-impl WhisperStructuralConfig {
-    /// Initialize the Whisper model with the given configuration and device.
-    pub fn init<B: Backend>(
-        self,
+impl<B: Backend> ModuleInit<B, Whisper<B>> for WhisperStructuralConfig {
+    fn try_init(
+        &self,
         device: &B::Device,
-    ) -> Whisper<B> {
+    ) -> crate::errors::BunsenResult<Whisper<B>> {
         let encoder = self.encoder.init(device);
         let decoder = self.decoder.init(device);
 
         assert_eq!(encoder.d_model(), decoder.d_model());
 
-        Whisper { encoder, decoder }
+        Ok(Whisper { encoder, decoder })
     }
 }
 
@@ -265,7 +276,7 @@ mod tests {
         assert_eq!(structural.decoder().n_heads(), n_text_heads);
         assert_eq!(structural.decoder().n_layers(), n_text_layers);
 
-        let model: Whisper<B> = structural.init(&device);
+        let model: Whisper<B> = structural.try_init(&device).unwrap();
 
         assert_eq!(model.n_mels(), n_mels);
         assert_eq!(model.vocab_size(), vocab_size);

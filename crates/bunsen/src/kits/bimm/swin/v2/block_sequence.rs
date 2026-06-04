@@ -15,10 +15,12 @@ use burn::{
 };
 
 use crate::{
+    burner::module::ModuleInit,
     contracts::{
         assert_shape_contract_periodically,
         define_shape_contract,
     },
+    errors::BunsenResult,
     kits::bimm::swin::v2::swin_block::{
         ShiftedWindowTransformerBlock,
         ShiftedWindowTransformerBlockConfig,
@@ -207,24 +209,22 @@ impl StochasticDepthTransformerBlockSequenceConfig {
             })
             .collect()
     }
+}
 
-    /// Creates a new `BasicLayerConfig` with the specified parameters.
-    ///
-    /// # Arguments
-    ///
-    /// * `device`: Backend device.
-    #[must_use]
-    pub fn init<B: Backend>(
+impl<B: Backend> ModuleInit<B, StochasticDepthTransformerBlockSequence<B>>
+    for StochasticDepthTransformerBlockSequenceConfig
+{
+    fn try_init(
         &self,
         device: &B::Device,
-    ) -> StochasticDepthTransformerBlockSequence<B> {
-        StochasticDepthTransformerBlockSequence {
+    ) -> BunsenResult<StochasticDepthTransformerBlockSequence<B>> {
+        Ok(StochasticDepthTransformerBlockSequence {
             blocks: self
                 .block_configs()
                 .into_iter()
                 .map(|config| config.init(device))
                 .collect(),
-        }
+        })
     }
 }
 
@@ -326,7 +326,10 @@ mod tests {
     use serial_test::serial;
 
     use super::*;
-    use crate::support::testing::PerformanceBackend;
+    use crate::{
+        errors::WithOkOrPanic,
+        support::testing::PerformanceBackend,
+    };
 
     #[test]
     fn test_config() {
@@ -414,7 +417,8 @@ mod tests {
         );
 
         let device = Default::default();
-        let module = config.init::<B>(&device);
+        let module: StochasticDepthTransformerBlockSequence<B> =
+            config.try_init(&device).ok_or_panic();
 
         assert_eq!(module.d_input(), d_input);
         assert_eq!(module.input_resolution(), input_resolution);

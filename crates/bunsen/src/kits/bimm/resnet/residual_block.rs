@@ -35,6 +35,8 @@ use burn::{
 
 use crate::{
     blocks::images::drop::drop_block::DropBlockOptions,
+    burner::module::ModuleInit,
+    errors::BunsenResult,
     kits::bimm::resnet::{
         BasicBlock,
         BasicBlockConfig,
@@ -87,26 +89,35 @@ pub struct ResidualBlockContractConfig {
 
 impl ResidualBlockContractConfig {
     /// Convert to [`ResidualBlockStructureConfig`].
-    pub fn to_structure(self) -> ResidualBlockStructureConfig {
+    pub fn to_structure(&self) -> ResidualBlockStructureConfig {
         let stride = if self.downsample_input { 2 } else { 1 };
 
-        match self.bottleneck_policy {
+        match &self.bottleneck_policy {
             None => BasicBlockConfig::new(self.in_planes, self.out_planes)
                 .with_stride(stride)
                 .with_dilation(self.dilation)
                 .with_first_dilation(self.first_dilation)
-                .with_normalization(self.normalization)
-                .with_activation(self.activation)
+                .with_normalization(self.normalization.clone())
+                .with_activation(self.activation.clone())
                 .into(),
             Some(policy) => BottleneckBlockConfig::new(self.in_planes, self.out_planes)
                 .with_stride(stride)
                 .with_dilation(self.dilation)
                 .with_first_dilation(self.first_dilation)
-                .with_normalization(self.normalization)
-                .with_activation(self.activation)
-                .with_policy(policy)
+                .with_normalization(self.normalization.clone())
+                .with_activation(self.activation.clone())
+                .with_policy(policy.clone())
                 .into(),
         }
+    }
+}
+
+impl<B: Backend> ModuleInit<B, ResidualBlock<B>> for ResidualBlockContractConfig {
+    fn try_init(
+        &self,
+        device: &B::Device,
+    ) -> BunsenResult<ResidualBlock<B>> {
+        self.to_structure().try_init(device)
     }
 }
 
@@ -214,17 +225,6 @@ impl From<BottleneckBlockConfig> for ResidualBlockStructureConfig {
 }
 
 impl ResidualBlockStructureConfig {
-    /// Initialize a [`ResidualBlock`].
-    pub fn init<B: Backend>(
-        self,
-        device: &B::Device,
-    ) -> ResidualBlock<B> {
-        match self {
-            Self::Basic(config) => config.init(device).into(),
-            Self::Bottleneck(config) => config.init(device).into(),
-        }
-    }
-
     /// Set drop block options.
     pub fn with_drop_block(
         self,
@@ -246,6 +246,18 @@ impl ResidualBlockStructureConfig {
             Self::Basic(config) => config.with_drop_path_prob(drop_path_prob).into(),
             Self::Bottleneck(config) => config.with_drop_path_prob(drop_path_prob).into(),
         }
+    }
+}
+
+impl<B: Backend> ModuleInit<B, ResidualBlock<B>> for ResidualBlockStructureConfig {
+    fn try_init(
+        &self,
+        device: &B::Device,
+    ) -> BunsenResult<ResidualBlock<B>> {
+        Ok(match self {
+            Self::Basic(config) => config.try_init(device)?.into(),
+            Self::Bottleneck(config) => config.try_init(device)?.into(),
+        })
     }
 }
 

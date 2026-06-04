@@ -9,6 +9,11 @@ use bunsen::{
         DropBlock2dConfig,
         DropBlockOptions,
     },
+    burner::module::ModuleInit,
+    errors::{
+        BunsenResult,
+        WithOkOrPanic,
+    },
     kits::bimm::swin::v2::swin_model::{
         LayerConfig,
         SwinTransformerV2,
@@ -389,7 +394,7 @@ pub fn backend_main<B: AutodiffBackend>(args: &Args) -> anyhow::Result<()> {
     .summary();
 
     let result = training.launch(Learner::new(
-        training_config.model.init::<B>(&device),
+        training_config.model.try_init(&device)?,
         training_config.optimizer.init(),
         lr_scheduler,
     ));
@@ -408,15 +413,15 @@ pub struct ModelConfig {
     pub swin: SwinTransformerV2Config,
 }
 
-impl ModelConfig {
-    pub fn init<B: Backend>(
-        self,
+impl<B: Backend> ModuleInit<B, Model<B>> for ModelConfig {
+    fn try_init(
+        &self,
         device: &B::Device,
-    ) -> Model<B> {
-        Model {
+    ) -> BunsenResult<Model<B>> {
+        Ok(Model {
             drop_block: self.drop_block.init(),
-            swin: self.swin.init::<B>(device),
-        }
+            swin: self.swin.try_init(device).ok_or_panic(),
+        })
     }
 }
 

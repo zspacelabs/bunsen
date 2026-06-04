@@ -48,6 +48,8 @@ use crate::{
             },
         },
     },
+    burner::module::ModuleInit,
+    errors::BunsenResult,
     kits::bimm::resnet::{
         ResNetDownsample,
         ResNetDownsampleConfig,
@@ -256,12 +258,13 @@ impl BottleneckBlockConfig {
     fn effective_first_dilation(&self) -> usize {
         self.first_dilation().unwrap_or(self.dilation())
     }
+}
 
-    /// Initialize a [`BottleneckBlock`].
-    pub fn init<B: Backend>(
-        self,
+impl<B: Backend> ModuleInit<B, BottleneckBlock<B>> for BottleneckBlockConfig {
+    fn try_init(
+        &self,
         device: &B::Device,
-    ) -> BottleneckBlock<B> {
+    ) -> BunsenResult<BottleneckBlock<B>> {
         let drop_path_prob = expect_probability(self.drop_path_prob);
 
         let in_planes = self.in_planes();
@@ -320,7 +323,7 @@ impl BottleneckBlockConfig {
         assert_eq!(cna2.out_channels(), cna3.in_channels());
         assert_eq!(cna3.out_channels(), self.out_planes());
 
-        BottleneckBlock {
+        let module = BottleneckBlock {
             base_width: self.base_width,
             pinch_factor: self.pinch_factor(),
             reduce_first: self.reduce_first,
@@ -344,7 +347,9 @@ impl BottleneckBlockConfig {
             } else {
                 None
             },
-        }
+        };
+
+        Ok(module)
     }
 }
 

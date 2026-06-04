@@ -26,14 +26,19 @@ use burn::{
 };
 
 use crate::{
+    burner::module::ModuleInit,
     contracts::{
         assert_shape_contract_periodically,
         unpack_shape_contract,
     },
+    errors::{
+        BunsenResult,
+        WithOkOrPanic,
+    },
     kits::bimm::swin::v2::window_attention::{
         OffsetGridRelativePositionBias,
-        RelativePositionBiasConfig,
-        RelativePositionBiasMeta,
+        OffsetGridRelativePositionBiasConfig,
+        OffsetGridRelativePositionBiasMeta,
         apply_attention_mask,
     },
 };
@@ -358,25 +363,19 @@ impl<B: Backend> WindowAttention<B> {
     }
 }
 
-impl WindowAttentionConfig {
-    /// Create a new `WindowAttentionConfig`.
-    ///
-    /// # Arguments
-    ///
-    /// - `device`: The backend device to use.
-    ///
-    /// # Returns
-    ///
-    /// A new instance of `WindowAttentionConfig`.
-    pub fn init<B: Backend>(
+impl<B: Backend> ModuleInit<B, WindowAttention<B>> for WindowAttentionConfig {
+    fn try_init(
         &self,
         device: &B::Device,
-    ) -> WindowAttention<B> {
+    ) -> BunsenResult<WindowAttention<B>> {
         let d_input = self.d_input();
         let num_heads = self.num_heads();
         let window_size = self.window_shape();
 
-        WindowAttention {
+        let self1 = &OffsetGridRelativePositionBiasConfig::new(num_heads, window_size)
+            .with_mlp_hidden_dim(self.rpb_mlp_hidden_dim)
+            .with_mlp_activation(self.rpb_mlp_activation.clone());
+        let module = WindowAttention {
             d_input,
             num_heads,
             q_linear: LinearConfig::new(d_input, d_input)
@@ -399,10 +398,7 @@ impl WindowAttentionConfig {
                 prob: self.attn_drop,
             }
             .init(),
-            rpb_module: RelativePositionBiasConfig::new(num_heads, window_size)
-                .with_mlp_hidden_dim(self.rpb_mlp_hidden_dim)
-                .with_mlp_activation(self.rpb_mlp_activation.clone())
-                .init_offset_grid_rpb(device),
+            rpb_module: self1.try_init(device).ok_or_panic(),
             proj: LinearConfig::new(d_input, d_input)
                 .with_bias(false)
                 .init(device),
@@ -410,7 +406,9 @@ impl WindowAttentionConfig {
                 prob: self.proj_drop,
             }
             .init(),
-        }
+        };
+
+        Ok(module)
     }
 }
 
@@ -449,7 +447,7 @@ mod tests {
         assert_eq!(config.window_width(), 4);
 
         let device = Default::default();
-        let attn_mod = config.init::<B>(&device);
+        let attn_mod: WindowAttention<B> = config.try_init(&device).ok_or_panic();
 
         assert_eq!(attn_mod.d_input(), channels);
         assert_eq!(attn_mod.window_shape(), window_shape);
@@ -476,7 +474,7 @@ mod tests {
         let config = WindowAttentionConfig::new(channels, [window_size, window_size], num_heads);
 
         let device = Default::default();
-        let attn_mod = config.init::<B>(&device);
+        let attn_mod: WindowAttention<B> = config.try_init(&device).ok_or_panic();
 
         assert_eq!(attn_mod.d_input(), channels);
         assert_eq!(attn_mod.window_shape(), [window_size, window_size]);

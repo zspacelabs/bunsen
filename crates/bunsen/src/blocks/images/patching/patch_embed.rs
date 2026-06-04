@@ -16,7 +16,11 @@ use burn::{
     },
 };
 
-use crate::contracts::assert_shape_contract_periodically;
+use crate::{
+    burner::module::ModuleInit,
+    contracts::assert_shape_contract_periodically,
+    errors::BunsenResult,
+};
 
 /// Common introspection interface for `PatchEmbed` module.
 pub trait PatchEmbedMeta {
@@ -108,21 +112,11 @@ impl PatchEmbedMeta for PatchEmbedConfig {
     }
 }
 
-impl PatchEmbedConfig {
-    /// Initialize a `PatchEmbed` module with the given configuration.
-    ///
-    /// # Arguments
-    ///
-    /// * `device` - The device on which the module will be initialized.
-    ///
-    /// # Returns
-    ///
-    /// * A `PatchEmbed` module configured with the specified parameters.
-    #[must_use]
-    pub fn init<B: Backend>(
+impl<B: Backend> ModuleInit<B, PatchEmbed<B>> for PatchEmbedConfig {
+    fn try_init(
         &self,
         device: &B::Device,
-    ) -> PatchEmbed<B> {
+    ) -> BunsenResult<PatchEmbed<B>> {
         let [h, w] = self.input_resolution;
         assert!(
             h % self.patch_size == 0 && w % self.patch_size == 0,
@@ -132,7 +126,7 @@ impl PatchEmbedConfig {
 
         let stride = [self.patch_size, self.patch_size];
 
-        PatchEmbed {
+        let module = PatchEmbed {
             input_resolution: self.input_resolution,
             patch_size: self.patch_size,
             projection: Conv2dConfig::new([self.d_input, self.d_output], stride)
@@ -142,7 +136,9 @@ impl PatchEmbedConfig {
                 true => Some(LayerNormConfig::new(self.d_output()).init(device)),
                 false => None,
             },
-        }
+        };
+
+        Ok(module)
     }
 }
 
@@ -258,7 +254,10 @@ mod tests {
     use burn::tensor::TensorData;
 
     use super::*;
-    use crate::support::testing::CpuBackend;
+    use crate::{
+        errors::WithOkOrPanic,
+        support::testing::CpuBackend,
+    };
 
     #[test]
     fn test_patch_embed_meta() {
@@ -284,7 +283,7 @@ mod tests {
         assert!(config.enable_patch_norm());
 
         let device = Default::default();
-        let patch_embed = config.init::<B>(&device);
+        let patch_embed: PatchEmbed<B> = config.try_init(&device).ok_or_panic();
 
         assert_eq!(patch_embed.input_resolution(), [224, 224]);
         assert_eq!(patch_embed.patch_size(), 16);
@@ -311,7 +310,7 @@ mod tests {
             enable_patch_norm: true,
         };
         let device = Default::default();
-        let _d = config.init::<B>(&device);
+        let _d: PatchEmbed<B> = config.try_init(&device).ok_or_panic();
     }
 
     #[test]
@@ -325,7 +324,7 @@ mod tests {
             enable_patch_norm: true,
         };
         let device = Default::default();
-        let patch_embed = config.init::<B>(&device);
+        let patch_embed = config.try_init(&device).ok_or_panic();
 
         let input = Tensor::<B, 4>::from_data(
             TensorData::new(vec![1.0; 3 * 224 * 224], [1, 3, 224, 224]),
@@ -347,7 +346,7 @@ mod tests {
             enable_patch_norm: false,
         };
         let device = Default::default();
-        let patch_embed = config.init::<B>(&device);
+        let patch_embed = config.try_init(&device).ok_or_panic();
 
         let input = Tensor::<B, 4>::from_data(
             TensorData::new(vec![1.0; 3 * 224 * 224], [1, 3, 224, 224]),

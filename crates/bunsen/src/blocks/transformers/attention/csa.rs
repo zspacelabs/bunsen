@@ -36,6 +36,10 @@ use crate::{
         assert_shape_contract_periodically,
         unpack_shape_contract,
     },
+    errors::{
+        BunsenResult,
+        WithOkOrPanic,
+    },
 };
 
 /// Common meta for [`CausalSelfAttention`] and [`CausalSelfAttentionConfig`].
@@ -135,15 +139,15 @@ impl CausalSelfAttentionConfig {
 
 impl CausalSelfAttentionConfig {
     /// Initialize the module.
-    pub fn init<B: Backend>(
-        self,
+    pub fn try_init<B: Backend>(
+        &self,
         layer_index: usize,
         device: &B::Device,
-    ) -> CausalSelfAttention<B> {
+    ) -> BunsenResult<CausalSelfAttention<B>> {
         self.validate();
         let head_dim = self.head_dim();
 
-        CausalSelfAttention {
+        Ok(CausalSelfAttention {
             layer_index,
             head_dim,
             c_q: LinearConfig::new(self.n_embed, self.n_head * head_dim)
@@ -168,7 +172,16 @@ impl CausalSelfAttentionConfig {
             c_proj: LinearConfig::new(self.n_embed, self.n_embed)
                 .with_bias(false)
                 .init(device),
-        }
+        })
+    }
+
+    /// Initialize the module, or panic.
+    pub fn init<B: Backend>(
+        &self,
+        layer_index: usize,
+        device: &B::Device,
+    ) -> CausalSelfAttention<B> {
+        self.try_init(layer_index, device).ok_or_panic()
     }
 }
 
@@ -330,6 +343,7 @@ mod tests {
                 RotaryEmbeddingConfig,
             },
         },
+        burner::module::ModuleInit,
         contracts::assert_shape_contract,
         support::testing::CpuBackend,
     };
