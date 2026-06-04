@@ -1,0 +1,69 @@
+name: release-plz
+
+# Automates releases for the workspace via release-plz (https://release-plz.dev).
+#
+#   * release-pr — keeps a single open PR that bumps the workspace version and
+#                  regenerates the per-crate CHANGELOG.md files.
+#   * release    — once that PR is merged, publishes the crates to crates.io and
+#                  creates the git tags + GitHub releases.
+#
+# Required configuration (one-time):
+#   * Repository secret CARGO_REGISTRY_TOKEN — a crates.io API token with publish
+#     scope for the bunsen* crates.
+#   * Settings -> Actions -> General -> Workflow permissions: allow GitHub Actions
+#     to create and approve pull requests.
+#
+# Note: PRs opened with the default GITHUB_TOKEN do not trigger other workflows
+# (so ci.yml won't run on the release PR). To get CI on the release PR, replace
+# GITHUB_TOKEN below with a Personal Access Token or GitHub App token. See
+# https://release-plz.dev/docs/github/token
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  # Publish to crates.io and create GitHub releases/tags once a release PR lands.
+  release:
+    name: release-plz release
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+      - name: Run release-plz
+        uses: release-plz/action@v0.5
+        with:
+          command: release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+
+  # Keep the release PR up to date on every push to main.
+  release-pr:
+    name: release-plz release-pr
+    runs-on: ubuntu-latest
+    concurrency:
+      group: release-plz-${{ github.ref }}
+      cancel-in-progress: false
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+      - name: Run release-plz
+        uses: release-plz/action@v0.5
+        with:
+          command: release-pr
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}

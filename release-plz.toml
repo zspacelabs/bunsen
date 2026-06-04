@@ -1,0 +1,54 @@
+# Configuration for release-plz: https://release-plz.dev/docs/config
+#
+# release-plz automates versioning and publishing for this Cargo workspace:
+#
+#   * On every push to `main` it opens (or updates) a "release PR" that bumps the
+#     workspace version and regenerates each released crate's CHANGELOG.md from
+#     the conventional-commit history since the last release.
+#   * When that release PR is merged, it tags the release, publishes the crates
+#     to crates.io, and creates a GitHub release.
+#
+# See the "# Release" section of CONTRIBUTING.md for the human-facing workflow.
+
+[workspace]
+# Opt-in model: nothing is released unless a [[package]] entry below sets
+# `release = true`. This automatically keeps the `examples/*` binaries and the
+# unpublished `bunsen-preview-chat-dataloader` crate out of the release process.
+release = false
+
+# Regenerate each released crate's CHANGELOG.md from git history (via git-cliff).
+changelog_update = true
+
+# Detect API-breaking changes with cargo-semver-checks and pick the bump level
+# (major/minor/patch) accordingly.
+semver_check = true
+
+# Cut a GitHub release (and git tag) for each published crate.
+git_release_enable = true
+
+# --- Published crates -------------------------------------------------------
+# All four crates share a single version (lockstep) via `version_group`, which
+# matches the `version.workspace = true` inheritance in the root Cargo.toml: a
+# bump to any one of them moves all of them to the same new version, and the
+# inter-crate `version = "x.y.z"` path-dependency requirements are updated
+# automatically.
+
+[[package]]
+name = "bunsen"
+release = true
+version_group = "bunsen"
+
+[[package]]
+name = "bunsen-contracts-macros"
+release = true
+version_group = "bunsen"
+
+[[package]]
+name = "bunsen-firehose"
+release = true
+version_group = "bunsen"
+
+[[package]]
+name = "bunsen-firehose-image"
+release = true
+version_group = "bunsen"
