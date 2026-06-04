@@ -7,18 +7,18 @@ use bunsen::{
     blocks::images::drop::drop_block::{
         DropBlock2d,
         DropBlock2dConfig,
+        DropBlockOptions,
     },
     burner::module::ModuleInit,
     errors::{
         BunsenResult,
         WithOkOrPanic,
     },
-    kits::bimm::swin::v2::swin_model::{
+    kits::bimm::swin::v2::{
         LayerConfig,
         SwinTransformerV2,
         SwinTransformerV2Config,
     },
-    ops::drop::DropBlockOptions,
 };
 use bunsen_firehose::{
     burn::{

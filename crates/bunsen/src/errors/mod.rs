@@ -28,7 +28,7 @@ impl BunsenError {
     /// Map an error to an External string error.
     pub fn external<E>(e: E) -> Self
     where
-        E: std::error::Error + Send + Sync + 'static,
+        E: std::error::Error,
     {
         BunsenError::External(e.to_string())
     }

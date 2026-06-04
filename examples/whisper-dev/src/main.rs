@@ -1,22 +1,17 @@
 use std::path::PathBuf;
 
-use bunsen::{
-    burner::module::ModuleInit,
-    errors::WithOkOrPanic,
-    kits::speech::whisper::{
-        blocks::Whisper,
-        pretrained::PytorchWhisperScanner,
-    },
+use bunsen::kits::speech::whisper::{
+    blocks::Whisper,
+    pretrained::PytorchWhisperScanner,
 };
 use burn::prelude::Backend;
-use burn_store::ModuleSnapshot;
 use clap::Parser;
 
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
 pub struct Args {
     /// Path to the source model.
-    #[arg(long, default_value = "/media/Data/models/whisper/base.en.pt")]
+    #[arg(long)]
     pub source: String,
 
     /// Path to the source model.
@@ -49,17 +44,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 #[allow(unused)]
 fn run<B: Backend>(args: Args) -> Result<(), Box<dyn std::error::Error>> {
-    let (mut store, cfg) = PytorchWhisperScanner::new()
+    let device = B::Device::default();
+
+    let (module, cfg): (Whisper<B>, _) = PytorchWhisperScanner::new()
         .with_top_level_key(args.top_level_key.clone())
-        .scan_cfg(PathBuf::from(args.source.clone()))?;
+        .load(PathBuf::from(args.source.clone()), &device)?;
 
     println!("{:#?}", cfg);
-    // println!("keys: {:#?}", store.keys());
-
-    let device = Default::default();
-
-    let mut whisper: Whisper<B> = cfg.try_init(&device)?;
-    whisper.load_from(&mut store).ok_or_panic();
 
     Ok(())
 }

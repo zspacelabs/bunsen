@@ -43,3 +43,6 @@ pub mod swin_block;
 pub mod swin_model;
 pub mod window_attention;
 pub mod windowing;
+
+#[doc(inline)]
+pub use swin_model::*;

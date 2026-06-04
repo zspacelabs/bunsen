@@ -12,10 +12,9 @@ use burn::{
     },
 };
 
-use crate::ops::drop::{
-    DropBlockOptions,
-    drop_block_2d,
-};
+#[doc(inline)]
+pub use crate::ops::drop::DropBlockOptions;
+use crate::ops::drop::drop_block_2d;
 
 /// Config for [`DropBlock2dConfig`] module.
 #[derive(Config, Debug)]

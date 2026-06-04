@@ -3,15 +3,27 @@ use std::path::{
     PathBuf,
 };
 
-use burn::config::Config;
+use burn::{
+    config::Config,
+    prelude::Backend,
+};
 use burn_store::{
+    ModuleSnapshot,
     ModuleStore,
     PytorchStore,
 };
 
-use crate::kits::speech::whisper::blocks::{
-    WHISPER_DEFAULT_D_MODEL,
-    WhisperApiConfig,
+use crate::{
+    burner::module::ModuleInit,
+    errors::{
+        BunsenError,
+        BunsenResult,
+    },
+    kits::speech::whisper::blocks::{
+        WHISPER_DEFAULT_D_MODEL,
+        Whisper,
+        WhisperApiConfig,
+    },
 };
 
 fn block_layers_from_keys<S: AsRef<str>>(
@@ -45,7 +57,7 @@ impl PytorchWhisperScanner {
     pub fn scan_cfg<P: AsRef<Path>>(
         &self,
         path: P,
-    ) -> Result<(PytorchStore, WhisperApiConfig), Box<dyn std::error::Error>> {
+    ) -> BunsenResult<(PytorchStore, WhisperApiConfig)> {
         let path = path.as_ref();
         let path: PathBuf = path.to_path_buf();
 
@@ -63,29 +75,33 @@ impl PytorchWhisperScanner {
 
         let mut store = store;
 
-        let keys = store.keys()?;
+        let keys = store.keys().map_err(BunsenError::external)?;
 
         let [d_model, n_mels] = store
-            .get_snapshot("encoder.conv1.weight")?
+            .get_snapshot("encoder.conv1.weight")
+            .map_err(BunsenError::external)?
             .unwrap()
             .shape
             .dims();
 
         let [vocab_size, _] = store
-            .get_snapshot("decoder.token_embedding.weight")?
+            .get_snapshot("decoder.token_embedding.weight")
+            .map_err(BunsenError::external)?
             .unwrap()
             .shape
             .dims();
 
         let [k, _] = store
-            .get_snapshot("encoder.positional_embedding")?
+            .get_snapshot("encoder.positional_embedding")
+            .map_err(BunsenError::external)?
             .unwrap()
             .shape
             .dims();
         let max_audio_ctx = k * 2;
 
         let [max_text_ctx, _] = store
-            .get_snapshot("decoder.positional_embedding")?
+            .get_snapshot("decoder.positional_embedding")
+            .map_err(BunsenError::external)?
             .unwrap()
             .shape
             .dims();
@@ -106,5 +122,21 @@ impl PytorchWhisperScanner {
             )
             .with_d_head(self.d_head),
         ))
+    }
+
+    /// Load a pytorch whisper model from a checkpoint.
+    pub fn load<B: Backend, P: AsRef<Path>>(
+        &self,
+        path: P,
+        device: &B::Device,
+    ) -> BunsenResult<(Whisper<B>, WhisperApiConfig)> {
+        let (mut store, cfg) = self.scan_cfg(path)?;
+
+        let mut module = cfg.try_init(device)?;
+        module
+            .load_from(&mut store)
+            .map_err(BunsenError::external)?;
+
+        Ok((module, cfg))
     }
 }
