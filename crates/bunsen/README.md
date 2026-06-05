@@ -45,7 +45,7 @@ Read the [bunsen book](https://zspacelabs.ai/bunsen/book)
 The `bunsen` repo includes a number of complex demos. The goal of the demos is to showcase the capabilities of the
 library; while also collecting a working edge of problems which could and should be improved by further development.
 
-See [`examples/`](https://github.io/zspacelabs/bunsen/tree/main/examples/) for the full index.
+See [`examples/`](https://github.com/zspacelabs/bunsen/tree/main/examples/) for the full index.
 
 # License
 
