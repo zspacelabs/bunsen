@@ -42,7 +42,7 @@ use crate::{
     },
 };
 
-/// Load a [`TensorParamDesc`] from an xml `<Param/>` node.
+/// Loads a [`TensorParamDesc`] from an xml `<Param/>` node.
 pub fn node_to_tensor_param_desc(
     xot: &xot::Xot,
     node: xot::Node,
@@ -85,7 +85,7 @@ pub fn node_to_tensor_param_desc(
     ))
 }
 
-/// Build an xml `<Param/>` node from a [`TensorParamDesc`].
+/// Builds an xml `<Param/>` node from a [`TensorParamDesc`].
 pub fn tensor_param_desc_to_node(
     xot: &mut xot::Xot,
     param_desc: &TensorParamDesc,
@@ -95,7 +95,7 @@ pub fn tensor_param_desc_to_node(
     tensor_param_desc_to_attributes(xot, node, param_desc)
 }
 
-/// Write a [`TensorParamDesc`] to the attributes of an xml node.
+/// Writes a [`TensorParamDesc`] to the attributes of an xml node.
 pub fn tensor_param_desc_to_attributes(
     xot: &mut xot::Xot,
     node: Node,

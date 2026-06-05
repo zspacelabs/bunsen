@@ -39,7 +39,7 @@ impl ModuleDisplayDefault for ClampOp {
 }
 
 impl ClampOp {
-    /// Create a new `ClampConfig`..
+    /// Creates a new `ClampConfig`.
     pub fn new<A, B>(
         min: A,
         max: B,
@@ -54,17 +54,17 @@ impl ClampOp {
         }
     }
 
-    /// Get the minimum value.
+    /// Returns the minimum value.
     pub fn min(&self) -> Option<f64> {
         self.min
     }
 
-    /// Get the maximum value.
+    /// Returns the maximum value.
     pub fn max(&self) -> Option<f64> {
         self.max
     }
 
-    /// Extend the clamp with a minimum value.
+    /// Extends the clamp with a minimum value.
     pub fn with_min(
         self,
         min: f64,
@@ -75,7 +75,7 @@ impl ClampOp {
         }
     }
 
-    /// Extend the clamp with a maximum value.
+    /// Extends the clamp with a maximum value.
     pub fn with_max(
         self,
         max: f64,
@@ -86,7 +86,7 @@ impl ClampOp {
         }
     }
 
-    /// Apply the clamp.
+    /// Applies the clamp.
     pub fn clamp<B: Backend, const D: usize>(
         &self,
         tensor: Tensor<B, D>,

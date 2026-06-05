@@ -84,6 +84,12 @@ pub const RESNET101_BLOCKS: [usize; 4] = [3, 4, 23, 3];
 pub const RESNET152_BLOCKS: [usize; 4] = [3, 8, 36, 3];
 
 /// High-level [`ResNet`] model configuration.
+///
+/// The user-facing entry point for building a [`ResNet`]: stage depths, class
+/// count, stem width, output stride, and bottleneck policy. Lowers to a
+/// [`ResNetStructureConfig`] via [`ResNetContractConfig::to_structure`]; call
+/// `.init(device)` to build the [`ResNet`] module, then drive it with
+/// [`ResNet::forward`].
 #[derive(Config, Debug)]
 pub struct ResNetContractConfig {
     /// Layer block depths.
@@ -120,7 +126,7 @@ pub struct ResNetContractConfig {
 }
 
 impl ResNetContractConfig {
-    /// Enable default bottleneck policy.
+    /// Enables default bottleneck policy.
     pub fn with_bottleneck(
         self,
         enable: bool,
@@ -133,7 +139,7 @@ impl ResNetContractConfig {
         self.with_bottleneck_policy(policy)
     }
 
-    /// Build the [`LayerBlockContractConfig`] stack.
+    /// Builds the [`LayerBlockContractConfig`] stack.
     #[allow(unused)]
     pub fn to_layer_contracts(&self) -> Vec<LayerBlockContractConfig> {
         let mut net_stride = 4;
@@ -181,7 +187,7 @@ impl ResNetContractConfig {
         layers
     }
 
-    /// Convert to a [`ResNetStructureConfig`].
+    /// Converts to a [`ResNetStructureConfig`].
     pub fn to_structure(&self) -> ResNetStructureConfig {
         ResNetStructureConfig::new(
             ConvNorm2dConfig::from(
@@ -202,7 +208,7 @@ impl ResNetContractConfig {
         )
     }
 
-    /// Create a ResNet-18 model.
+    /// Creates a ResNet-18 model.
     pub fn resnet18(num_classes: usize) -> Self {
         Self::new(RESNET18_BLOCKS.to_vec(), num_classes) // .with_bottleneck(true)
     }
@@ -229,6 +235,10 @@ impl From<ResNetContractConfig> for ResNetStructureConfig {
 /// This config defines the structure of a converted [`ResNet`] model.
 /// It is not a semantic configuration and does not check the validity
 /// of the internal sizes before or during construction.
+///
+/// Holds the explicit stem, per-stage [`LayerBlockStructureConfig`]s, and head.
+/// Call `.init(device)` to build the [`ResNet`] module, then drive it with
+/// [`ResNet::forward`].
 #[derive(Config, Debug)]
 pub struct ResNetStructureConfig {
     /// The input Conv/Norm block configuration.
@@ -250,7 +260,7 @@ pub struct ResNetStructureConfig {
 }
 
 impl ResNetStructureConfig {
-    /// Apply the given standard drop block probability scheme.
+    /// Applies the given standard drop block probability scheme.
     pub fn with_standard_drop_block_prob(
         self,
         drop_prob: f64,
@@ -273,7 +283,7 @@ impl ResNetStructureConfig {
         self.with_drop_block_options(blocks)
     }
 
-    /// Update the config with stochastic depth.
+    /// Updates the config with stochastic depth.
     pub fn with_stochastic_depth_drop_path_rate(
         self,
         drop_path_rate: f64,
@@ -303,7 +313,7 @@ impl ResNetStructureConfig {
         }
     }
 
-    /// Update the config with the given drop block options.
+    /// Updates the config with the given drop block options.
     ///
     /// # Arguments
     ///
@@ -363,6 +373,14 @@ impl<B: Backend> ModuleInit<B, ResNet<B>> for ResNetStructureConfig {
 }
 
 /// `ResNet` model.
+///
+/// The full image classification network: stem conv/norm/act + max-pool, a
+/// sequence of [`LayerBlock`] stages, then adaptive-average-pool and a linear
+/// classifier head. Configure via [`ResNetContractConfig`], call
+/// `.init(device)` to build, then [`ResNet::forward`] to map a `[batch, 3, h,
+/// w]` image batch to `[batch, num_classes]` logits.
+///
+/// Built by [`ResNetContractConfig`] (high-level) or [`ResNetStructureConfig`].
 #[derive(Module, Debug)]
 pub struct ResNet<B: Backend> {
     /// Input conv/norm.
@@ -419,7 +437,7 @@ impl<B: Backend> ResNet<B> {
         self.output_fc.forward(x)
     }
 
-    /// Load weights from a `PyTorch` weights path.
+    /// Loads weights from a `PyTorch` weights path.
     #[cfg(feature = "store")]
     pub fn load_pytorch_weights(
         mut self,
@@ -448,7 +466,7 @@ impl<B: Backend> ResNet<B> {
         Ok(self)
     }
 
-    /// Re-initialize the last layer with the specified number of output
+    /// Re-initializes the last layer with the specified number of output
     /// classes.
     pub fn with_classes(
         mut self,
@@ -460,7 +478,7 @@ impl<B: Backend> ResNet<B> {
         self
     }
 
-    /// Update the config with stochastic depth.
+    /// Updates the config with stochastic depth.
     pub fn with_stochastic_path_depth(
         self,
         drop_path_rate: f64,
@@ -490,7 +508,7 @@ impl<B: Backend> ResNet<B> {
         }
     }
 
-    /// Update the config with the given drop block options.
+    /// Updates the config with the given drop block options.
     ///
     /// # Arguments
     ///
@@ -511,7 +529,7 @@ impl<B: Backend> ResNet<B> {
         }
     }
 
-    /// Apply the given standard drop block probability scheme.
+    /// Applies the given standard drop block probability scheme.
     pub fn with_stochastic_drop_block(
         self,
         drop_prob: f64,
@@ -534,7 +552,7 @@ impl<B: Backend> ResNet<B> {
         self.with_drop_block_options(blocks)
     }
 
-    /// Apply a mapping over layers.
+    /// Applies a mapping over layers.
     pub fn map_layers<F>(
         self,
         f: F,
@@ -548,7 +566,7 @@ impl<B: Backend> ResNet<B> {
         }
     }
 
-    /// Freeze the layers.
+    /// Freezes the layers.
     pub fn freeze_layers(self) -> Self {
         self.map_layers(|layers| layers.into_iter().map(|layer| layer.no_grad()).collect())
     }

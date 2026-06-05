@@ -56,6 +56,12 @@ use crate::{
 };
 
 /// Abstract [`LayerBlock`] Config.
+///
+/// High-level description of one `ResNet` stage: how many blocks, the channel
+/// sizes, dilation, downsampling, and whether to use bottleneck blocks. Lowers
+/// to a [`LayerBlockStructureConfig`] via
+/// [`LayerBlockContractConfig::to_structure`]; call `.init(device)` to build
+/// the [`LayerBlock`] module, then drive it with [`LayerBlock::forward`].
 #[derive(Config, Debug)]
 pub struct LayerBlockContractConfig {
     /// The number of internal blocks.
@@ -97,7 +103,7 @@ pub struct LayerBlockContractConfig {
 }
 
 impl LayerBlockContractConfig {
-    /// Build the [`ResidualBlockContractConfig`]s for this layer block.
+    /// Builds the [`ResidualBlockContractConfig`]s for this layer block.
     pub fn to_block_contracts(&self) -> Vec<ResidualBlockContractConfig> {
         let mut first_dilation = self.first_dilation;
 
@@ -127,7 +133,7 @@ impl LayerBlockContractConfig {
         blocks
     }
 
-    /// Convert to [`LayerBlockStructureConfig`].
+    /// Converts to [`LayerBlockStructureConfig`].
     pub fn to_structure(&self) -> LayerBlockStructureConfig {
         LayerBlockStructureConfig {
             blocks: self
@@ -159,7 +165,7 @@ pub trait LayerBlockMeta {
     /// The number of blocks.
     fn len(&self) -> usize;
 
-    /// Check if the layer block is empty.
+    /// Checks if the layer block is empty.
     fn is_empty(&self) -> bool {
         self.len() == 0
     }
@@ -170,21 +176,21 @@ pub trait LayerBlockMeta {
     /// The number of output feature planes.
     fn out_planes(&self) -> usize;
 
-    /// Get the effective stride of the layers.
+    /// Returns the effective stride of the layers.
     fn stride(&self) -> usize;
 
-    /// Get the output resolution for a given input resolution.
+    /// Returns the output resolution for a given input resolution.
     ///
     /// The input must be a multiple of the stride.
     ///
     /// # Arguments
     ///
-    /// - `input_resolution`: ``[in_height=out_height*stride,
-    ///   in_width=out_width*stride]``.
+    /// - `input_resolution`: `[in_height=out_height*stride,
+    ///   in_width=out_width*stride]`.
     ///
     /// # Returns
     ///
-    /// ``[out_height, out_width]``
+    /// `[out_height, out_width]`
     ///
     /// # Panics
     ///
@@ -198,6 +204,10 @@ pub trait LayerBlockMeta {
 }
 
 /// [`LayerBlock`] Configuration.
+///
+/// The concrete, per-block structure of a `ResNet` stage: an explicit list of
+/// [`ResidualBlockStructureConfig`]s. Call `.init(device)` to build the
+/// [`LayerBlock`] module, then drive it with [`LayerBlock::forward`].
 ///
 /// Implements [`LayerBlockMeta`].
 #[derive(Config, Debug)]
@@ -233,7 +243,7 @@ impl LayerBlockMeta for LayerBlockStructureConfig {
 }
 
 impl LayerBlockStructureConfig {
-    /// Check if the config is valid.
+    /// Checks if the config is valid.
     pub fn try_validate(&self) -> BunsenResult<()> {
         if self.is_empty() {
             return Err(BunsenError::Invalid("blocks is empty".to_string()));
@@ -256,7 +266,7 @@ impl LayerBlockStructureConfig {
         Ok(())
     }
 
-    /// Panic if `try_validate` returns an error.
+    /// Panics if `try_validate` returns an error.
     pub fn expect_valid(&self) {
         match self.try_validate() {
             Ok(_) => (),
@@ -264,7 +274,7 @@ impl LayerBlockStructureConfig {
         }
     }
 
-    /// Apply a mapping over the blocks.
+    /// Applies a mapping over the blocks.
     pub fn map_blocks<F>(
         self,
         f: &mut F,
@@ -282,7 +292,7 @@ impl LayerBlockStructureConfig {
         }
     }
 
-    /// Update the drop block options.
+    /// Updates the drop block options.
     pub fn with_drop_block<O>(
         self,
         options: O,
@@ -320,7 +330,15 @@ impl<B: Backend> ModuleInit<B, LayerBlock<B>> for LayerBlockStructureConfig {
 
 /// Layer block; stack of [`ResidualBlock`]s.
 ///
+/// One `ResNet` stage: a sequential run of [`ResidualBlock`]s applied in order,
+/// where the first block typically handles channel/stride changes. Configure
+/// via [`LayerBlockContractConfig`], call `.init(device)` to build, then
+/// [`LayerBlock::forward`] to apply.
+///
 /// Implements [`LayerBlockMeta`].
+///
+/// Built by [`LayerBlockContractConfig`] (high-level) or
+/// [`LayerBlockStructureConfig`].
 #[derive(Module, Debug)]
 pub struct LayerBlock<B: Backend> {
     /// Internal blocks.
@@ -358,7 +376,7 @@ impl<B: Backend> LayerBlock<B> {
         }
     }
 
-    /// Apply the layer block.
+    /// Applies the layer block.
     pub fn forward(
         &self,
         input: Tensor<B, 4>,
@@ -394,7 +412,7 @@ impl<B: Backend> LayerBlock<B> {
         x
     }
 
-    /// Apply a mapping over the blocks.
+    /// Applies a mapping over the blocks.
     pub fn map_blocks<F>(
         self,
         f: &mut F,
@@ -412,7 +430,7 @@ impl<B: Backend> LayerBlock<B> {
         }
     }
 
-    /// Update the drop path probability.
+    /// Updates the drop path probability.
     pub fn with_drop_path_prob(
         self,
         prob: f64,
@@ -421,7 +439,7 @@ impl<B: Backend> LayerBlock<B> {
         self.map_blocks(&mut |_, block| block.with_drop_path_prob(prob))
     }
 
-    /// Update the drop block options.
+    /// Updates the drop block options.
     pub fn with_drop_block<O>(
         self,
         options: O,

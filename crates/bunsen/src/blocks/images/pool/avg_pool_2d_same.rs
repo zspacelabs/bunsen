@@ -118,7 +118,7 @@ pub struct AvgPool2dSameConfig {
 }
 
 impl AvgPool2dSameConfig {
-    /// Initialize [`AvgPool2dSame`].
+    /// Initializes [`AvgPool2dSame`].
     pub fn init(self) -> AvgPool2dSame {
         AvgPool2dSame {
             pool: self.pool.init(),
@@ -126,7 +126,14 @@ impl AvgPool2dSameConfig {
     }
 }
 
-/// `AvgPool2dSame` Layer.
+/// 2D average pooling with TensorFlow-style "SAME" padding.
+///
+/// Constructs via [`AvgPool2dSameConfig`] and `.init()`. The [`Self::forward`]
+/// pass dynamically pads the input with [`pad_same`] so the output spatial size
+/// matches TensorFlow's "SAME" convention, then applies the wrapped
+/// [`AvgPool2d`].
+///
+/// Built by [`AvgPool2dSameConfig`].
 #[derive(Module, Clone, Debug)]
 pub struct AvgPool2dSame {
     pool: AvgPool2d,

@@ -17,17 +17,17 @@ use burn::{
     },
 };
 
-/// Fuzz the state.
+/// Fuzzes the state.
 ///
 /// Flips bits with probability `density`.
 ///
 /// # Arguments
 ///
-/// - `state`: the ``[H, W]`` input state.
+/// - `state`: the `[H, W]` input state.
 /// - `density`: the probability of flipping a given bit.
 ///
 /// # Returns
-/// - the fuzzed ``[H, W]`` state.
+/// - the fuzzed `[H, W]` state.
 pub fn fuzz_state_2d<B: Backend>(
     state: Tensor<B, 2, Bool>,
     density: f64,
@@ -46,7 +46,7 @@ pub fn fuzz_state_2d<B: Backend>(
     state.bool_xor(noise)
 }
 
-/// Wrap the board state.
+/// Wraps the board state.
 ///
 /// This simulates a toroidal space by copying the penultimate rows and columns
 /// to the edges of the opposite sides.
@@ -63,7 +63,7 @@ pub fn wrap_state_2d<B: Backend>(state: Tensor<B, 2, Bool>) -> Tensor<B, 2, Bool
         .slice_assign(s![.., -1], left)
 }
 
-/// Expand a tensor by copying the wrap compliment edges.
+/// Expands a tensor by copying the wrap compliment edges.
 pub fn wrap_pad_2d<B: Backend>(state: Tensor<B, 2, Bool>) -> Tensor<B, 2, Bool> {
     let top = state.clone().slice(s![0, ..]);
     let bottom = state.clone().slice(s![-1, ..]);
@@ -129,14 +129,14 @@ where
     result
 }
 
-/// Return the next board.
+/// Returns the next board.
 ///
 /// # Arguments
 ///
-/// - `state`: a ``[H, W]`` game state.
+/// - `state`: a `[H, W]` game state.
 ///
 /// # Returns
-/// - the ``[H, W]`` evolved interior state, with wrapped edges.
+/// - the `[H, W]` evolved interior state, with wrapped edges.
 pub fn next_state_wrapped_2d<B: Backend>(state: Tensor<B, 2, Bool>) -> Tensor<B, 2, Bool> {
     let update = next_interior_2d(state.clone());
 
@@ -148,13 +148,13 @@ pub fn next_state_wrapped_2d<B: Backend>(state: Tensor<B, 2, Bool>) -> Tensor<B,
     wrap_state_2d(state)
 }
 
-/// Return the interior board next-state.
+/// Returns the interior board next-state.
 ///
 /// # Arguments
-/// - `state`: a ``[H, W]`` game state.
+/// - `state`: a `[H, W]` game state.
 ///
 /// # Returns
-/// - the ``[H-2, W-2]`` evolved interior state.
+/// - the `[H-2, W-2]` evolved interior state.
 pub fn next_interior_2d<B: Backend>(state: Tensor<B, 2, Bool>) -> Tensor<B, 2, Bool> {
     #[cfg(debug_assertions)]
     let [h, w] = crate::contracts::unpack_shape_contract!(["h", "w"], &state.dims(),);
@@ -193,6 +193,9 @@ pub fn next_interior_2d<B: Backend>(state: Tensor<B, 2, Bool>) -> Tensor<B, 2, B
 }
 
 /// Config for [`ConwayLife2DState`]
+///
+/// Specifies the `[H, W]` board shape. Call `.init(device)` to build a
+/// zeroed [`ConwayLife2DState`] module, which can then be seeded and stepped.
 #[derive(Config, Debug)]
 pub struct ConwayLife2DConfig {
     /// The shape of the board.
@@ -200,7 +203,7 @@ pub struct ConwayLife2DConfig {
 }
 
 impl ConwayLife2DConfig {
-    /// Initialize a [`ConwayLife2DState`] module.
+    /// Initializes a [`ConwayLife2DState`] module.
     pub fn init<B: Backend>(
         self,
         device: &B::Device,
@@ -212,23 +215,30 @@ impl ConwayLife2DConfig {
 }
 
 /// State module for Conway's Game of Life.
+///
+/// Holds the toroidal `[H, W]` boolean board. Construct it from a
+/// [`ConwayLife2DConfig`] via `.init(device)`, optionally seed it with
+/// [`ConwayLife2DState::fuzz`], then call [`ConwayLife2DState::step`] to
+/// advance the simulation one wrapped generation at a time.
+///
+/// Built by [`ConwayLife2DConfig`].
 pub struct ConwayLife2DState<B: Backend> {
     /// The current state of the board.
     pub state: Tensor<B, 2, Bool>,
 }
 
 impl<B: Backend> ConwayLife2DState<B> {
-    /// Get the device the module is on.
+    /// Returns the device the module is on.
     pub fn device(&self) -> B::Device {
         self.state.device()
     }
 
-    /// Get the board shape.
+    /// Returns the board shape.
     pub fn shape(&self) -> [usize; 2] {
         self.state.shape().dims()
     }
 
-    /// Add uniform positive noise to the board.
+    /// Adds uniform positive noise to the board.
     pub fn fuzz(
         &mut self,
         density: f64,
@@ -236,7 +246,7 @@ impl<B: Backend> ConwayLife2DState<B> {
         self.state = fuzz_state_2d(self.state.clone(), density);
     }
 
-    /// Advance one step.
+    /// Advances one step.
     ///
     /// Wraps edges.
     pub fn step(&mut self) {
@@ -245,7 +255,7 @@ impl<B: Backend> ConwayLife2DState<B> {
         B::sync(&self.device()).unwrap();
     }
 
-    /// Read a slice of the current board state.
+    /// Reads a slice of the current board state.
     pub fn read_slice<R>(
         &self,
         ranges: R,
@@ -256,7 +266,7 @@ impl<B: Backend> ConwayLife2DState<B> {
         read_2d_slice(self.state.clone(), ranges)
     }
 
-    /// Write a slice to the current board state.
+    /// Writes a slice to the current board state.
     pub fn write_slice<R>(
         &mut self,
         ranges: R,

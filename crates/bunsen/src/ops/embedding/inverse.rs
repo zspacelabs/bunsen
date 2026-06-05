@@ -22,14 +22,14 @@ impl<B: Backend> EmbeddingArg<B> for Tensor<B, 2> {
     }
 }
 
-/// Invert an Embedding layer to get logits.
+/// Inverts an Embedding layer to get logits.
 ///
 /// # Arguments
 /// * `emb` - The `[n_vocab, d_model]`, embedding layer to invert.
 /// * `x` - The `[batch, seq_len, d_model]` tensor to unembed.
 ///
 /// # Returns
-/// The logits tensor of shape `[batch, seq_len, n_vocab]`.
+/// The `[batch, seq_len, n_vocab]` logits tensor.
 pub fn unembed<B: Backend, A: EmbeddingArg<B>>(
     emb: A,
     x: Tensor<B, 3>,

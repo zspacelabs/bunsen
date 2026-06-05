@@ -37,7 +37,7 @@ use crate::{
 
 /// Common meta for [`NanoChatGptBlock`] and [`NanoChatGptBlockConfig`].
 pub trait NanoChatGptBlockMeta {
-    /// Return the size of the input and output.
+    /// Returns the size of the input and output.
     fn n_embed(&self) -> usize;
 }
 
@@ -63,7 +63,7 @@ impl NanoChatGptBlockMeta for NanoChatGptBlockConfig {
 }
 
 impl NanoChatGptBlockConfig {
-    /// Initialize a [`NanoChatGptBlock`].
+    /// Initializes a [`NanoChatGptBlock`].
     ///
     /// Panics on errors.
     pub fn init<B: Backend>(
@@ -74,7 +74,7 @@ impl NanoChatGptBlockConfig {
         self.try_init(layer_index, device).ok_or_panic()
     }
 
-    /// Initialize a [`NanoChatGptBlock`].
+    /// Initializes a [`NanoChatGptBlock`].
     pub fn try_init<B: Backend>(
         &self,
         layer_index: usize,
@@ -98,7 +98,14 @@ impl NanoChatGptBlockConfig {
     }
 }
 
-/// GPT Block
+/// A single nanoChat GPT transformer block.
+///
+/// Applies input normalization, causal self-attention, post-attention
+/// normalization, and an MLP, with residual connections handled by the
+/// surrounding model. Used as the repeated unit inside
+/// [`NanoChatGpt`](super::NanoChatGpt).
+///
+/// Built by [`NanoChatGptBlockConfig`].
 #[derive(Module, Debug)]
 pub struct NanoChatGptBlock<B: Backend> {
     /// Input Normalization.
@@ -128,12 +135,12 @@ impl<B: Backend> NanoChatGptBlock<B> {
     /// - this block does not norm on output.
     ///
     /// # Arguments
-    /// - `input`: a ``[B, T, D]`` input.
-    /// - `r_emb`: a ``[1, T, 1, D/2]`` embedding.
+    /// - `input`: a `[B, T, D]` input.
+    /// - `r_emb`: a `[1, T, 1, D/2]` embedding.
     /// - `kv_cache`: optional KV cache.
     ///
     /// # Returns
-    /// - the ``[B, T, D]`` block output.
+    /// - the `[B, T, D]` block output.
     pub fn forward(
         &self,
         input: Tensor<B, 3>,

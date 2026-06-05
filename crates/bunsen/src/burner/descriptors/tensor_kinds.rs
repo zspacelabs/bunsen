@@ -21,7 +21,7 @@ pub enum TensorKindDesc {
 }
 
 impl TensorKindDesc {
-    /// Get the [`TensorKindDesc`] for a `burner`
+    /// Returns the [`TensorKindDesc`] for a `burner`
     /// [`burn::tensor::TensorKind`].
     pub const fn for_kind<K: ParamKindBinding>() -> Self {
         K::KIND

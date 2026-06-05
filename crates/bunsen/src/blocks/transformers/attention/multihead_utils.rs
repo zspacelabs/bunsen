@@ -14,18 +14,18 @@ use burn::{
     },
 };
 
-/// Compute layer normalized self-attn.
+/// Computes layer normalized self-attn.
 ///
-/// ## Arguments
+/// # Arguments
 /// * `layer_norm` - `LayerNorm`.
 /// * `mh_attn` - `MultiHeadAttention`.
-/// * `x` - ``[batch, seq_len, d_model]`` input.
-/// * `mask` - Optional ``[batch, seq_len, seq_len]`` attention mask.
+/// * `x` - `[batch, seq_len, d_model]` input.
+/// * `mask` - Optional `[batch, seq_len, seq_len]` attention mask.
 ///
-/// ## Returns
+/// # Returns
 /// `RdabForwardRecord` - forward record.
-/// * `fr.output` : ``[batch, seq_len, d_model]``.
-/// * `fr.ca_weights` : ``[batch, n_heads, seq_len, seq_len]``.
+/// * `fr.output` : `[batch, seq_len, d_model]`.
+/// * `fr.ca_weights` : `[batch, n_heads, seq_len, seq_len]`.
 pub fn layer_norm_self_attn<B: Backend>(
     layer_norm: &LayerNorm<B>,
     mh_attn: &MultiHeadAttention<B>,
@@ -76,18 +76,18 @@ pub fn layer_norm_self_attn<B: Backend>(
     mh_attn.forward(input)
 }
 
-/// Compute layer normalized cross-attn.
+/// Computes layer normalized cross-attn.
 ///
-/// ## Arguments
+/// # Arguments
 /// * `layer_norm` - `LayerNorm`.
 /// * `mh_attn` - `MultiHeadAttention`.
-/// * `x` - ``[batch, seq_len, d_model]`` input.
-/// * `xa` - ``[batch, seq_len, d_model]`` cross-attention input.
+/// * `x` - `[batch, seq_len, d_model]` input.
+/// * `xa` - `[batch, seq_len, d_model]` cross-attention input.
 ///
-/// ## Returns
+/// # Returns
 /// `RdabForwardRecord` - forward record.
-/// * `fr.output` : ``[batch, seq_len, d_model]``.
-/// * `fr.ca_weights` : ``[batch, n_heads, seq_len, seq_len]``.
+/// * `fr.output` : `[batch, seq_len, d_model]`.
+/// * `fr.ca_weights` : `[batch, n_heads, seq_len, seq_len]`.
 pub fn layer_norm_cross_attn<B: Backend>(
     layer_norm: &LayerNorm<B>,
     mh_attn: &MultiHeadAttention<B>,

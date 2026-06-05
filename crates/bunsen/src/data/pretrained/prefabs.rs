@@ -45,7 +45,7 @@ impl<C> StaticPreFabConfig<C>
 where
     C: 'static + Config + Debug + Clone,
 {
-    /// Convert to a [`PreFabConfig<C>`].
+    /// Converts to a [`PreFabConfig<C>`].
     pub fn to_prefab(&self) -> PreFabConfig<C> {
         let builder = self.builder;
         PreFabConfig {
@@ -56,7 +56,7 @@ where
         }
     }
 
-    /// Build a new config.
+    /// Builds a new config.
     pub fn to_config(&self) -> C {
         (self.builder)()
     }
@@ -131,12 +131,12 @@ impl<C> PreFabConfig<C>
 where
     C: 'static + Config + Debug + Clone,
 {
-    /// Build a new config.
+    /// Builds a new config.
     pub fn to_config(&self) -> C {
         (self.builder)()
     }
 
-    /// Lookup a descriptor.
+    /// Looks up a descriptor.
     pub fn lookup_pretrained_weights(
         &self,
         name: &str,
@@ -147,7 +147,7 @@ where
         }
     }
 
-    /// Lookup a descriptor.
+    /// Looks up a descriptor.
     pub fn try_lookup_pretrained_weights(
         &self,
         name: &str,
@@ -161,7 +161,7 @@ where
         }
     }
 
-    /// Lookup a descriptor.
+    /// Looks up a descriptor.
     pub fn expect_lookup_pretrained_weights(
         &self,
         name: &str,
@@ -193,7 +193,7 @@ impl<C> StaticPreFabMap<C>
 where
     C: 'static + Config + Debug + Clone,
 {
-    /// Convert to a [`PreFabMap`].
+    /// Converts to a [`PreFabMap`].
     pub fn to_prefab_map(&self) -> PreFabMap<C> {
         PreFabMap {
             name: self.name.to_string(),
@@ -206,7 +206,7 @@ where
         }
     }
 
-    /// Lookup a prefab.
+    /// Looks up a prefab.
     pub fn lookup_prefab(
         &self,
         name: &str,
@@ -217,7 +217,7 @@ where
             .map(|c| c.to_prefab())
     }
 
-    /// Lookup a prefab.
+    /// Looks up a prefab.
     pub fn try_lookup_prefab(
         &self,
         name: &str,
@@ -231,7 +231,7 @@ where
         }
     }
 
-    /// Lookup a prefab.
+    /// Looks up a prefab.
     pub fn expect_lookup_prefab(
         &self,
         name: &str,
@@ -263,7 +263,7 @@ impl<C> PreFabMap<C>
 where
     C: 'static + Config + Debug + Clone,
 {
-    /// Lookup a prefab.
+    /// Looks up a prefab.
     pub fn lookup_prefab(
         &self,
         name: &str,
@@ -271,7 +271,7 @@ where
         self.items.get(name).cloned()
     }
 
-    /// Lookup a prefab.
+    /// Looks up a prefab.
     pub fn try_lookup_prefab(
         &self,
         name: &str,
@@ -285,7 +285,7 @@ where
         }
     }
 
-    /// Lookup a prefab.
+    /// Looks up a prefab.
     pub fn expect_lookup_prefab(
         &self,
         name: &str,

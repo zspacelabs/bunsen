@@ -52,20 +52,24 @@ use crate::{
 
 /// Common meta-interface for `BlockMlp` config.
 pub trait BlockMlpMeta {
-    /// Get the input dimension size.
+    /// Returns the input dimension size.
     fn d_input(&self) -> usize;
 
-    /// Get the hidden dimension size.
+    /// Returns the hidden dimension size.
     fn d_hidden(&self) -> usize;
 
-    /// Get the output dimension size.
+    /// Returns the output dimension size.
     fn d_output(&self) -> usize;
 
-    /// Get the dropout rate.
+    /// Returns the dropout rate.
     fn drop(&self) -> f64;
 }
 
-/// Configuration for `BlockMlp`.
+/// Configuration for [`BlockMlp`].
+///
+/// Describes the two-layer feed-forward MLP used inside a Swin transformer
+/// block. Build it with `.init(device)`, then `forward` a tensor whose last
+/// dimension is `d_input`.
 #[derive(Config, Debug)]
 pub struct BlockMlpConfig {
     d_input: usize,
@@ -120,7 +124,12 @@ impl<B: Backend> ModuleInit<B, BlockMlp<B>> for BlockMlpConfig {
     }
 }
 
-/// Swin MLP Module
+/// Swin MLP Module.
+///
+/// A two linear-layer MLP with activation and dropout, applied to the trailing
+/// feature dimension of an input tensor.
+///
+/// Built by [`BlockMlpConfig`].
 #[derive(Module, Debug)]
 pub struct BlockMlp<B: Backend> {
     /// First linear layer.
@@ -155,15 +164,15 @@ impl<B: Backend> BlockMlpMeta for BlockMlp<B> {
 }
 
 impl<B: Backend> BlockMlp<B> {
-    /// Apply the MLP to the input tensor.
+    /// Applies the MLP to the input tensor.
     ///
     /// # Arguments
     ///
-    /// - `x`: a tensor of ``[batch = ..., in]``.
+    /// - `x`: a tensor of `[batch = ..., in]`.
     ///
     /// # Returns
     ///
-    /// A tensor of ``[batch = ... out]``
+    /// A tensor of `[batch = ... out]`
     #[must_use]
     pub fn forward<const D: usize>(
         &self,
@@ -208,7 +217,7 @@ impl<B: Backend> BlockMlp<B> {
 ///
 /// # Arguments
 ///
-/// * `x` - Input tensor of ``[batch, height, width, channels]``.
+/// * `x` - Input tensor of `[batch, height, width, channels]`.
 /// * `f` - Function to apply on the shifted tensor.
 ///
 /// # Returns
@@ -247,43 +256,43 @@ where
 
 /// Common introspection interface for `TransformerBlock`.
 pub trait ShiftedWindowTransformerBlockMeta {
-    /// Get the input dimension size.
+    /// Returns the input dimension size.
     fn d_input(&self) -> usize;
 
-    /// Get the input resolution.
+    /// Returns the input resolution.
     fn input_resolution(&self) -> [usize; 2];
 
-    /// Get the input height.
+    /// Returns the input height.
     fn input_height(&self) -> usize {
         self.input_resolution()[0]
     }
 
-    /// Get the input width.
+    /// Returns the input width.
     fn input_width(&self) -> usize {
         self.input_resolution()[1]
     }
 
-    /// Get the output dimension size.
+    /// Returns the output dimension size.
     fn d_output(&self) -> usize {
         self.d_input()
     }
 
-    /// Get the output resolution.
+    /// Returns the output resolution.
     fn output_resolution(&self) -> [usize; 2] {
         self.input_resolution()
     }
 
-    /// Get the output height.
+    /// Returns the output height.
     fn output_height(&self) -> usize {
         self.input_height()
     }
 
-    /// Get the output width.
+    /// Returns the output width.
     fn output_width(&self) -> usize {
         self.input_width()
     }
 
-    /// Get the number of attention heads.
+    /// Returns the number of attention heads.
     fn num_heads(&self) -> usize;
 
     /// Window size for window attention.
@@ -313,13 +322,19 @@ pub trait ShiftedWindowTransformerBlockMeta {
     fn drop_path_rate(&self) -> f64;
 }
 
-/// Configuration for `TransformerBlock`.
+/// Configuration for `TransformerBlock` (the python name); builds a
+/// [`ShiftedWindowTransformerBlock`].
+///
+/// Specifies a single Swin transformer block: window attention (optionally
+/// shifted) plus an MLP, with residual/drop-path connections. Build it with
+/// `.init(device)`, then `forward` a `[batch, height * width, channels]`
+/// tensor.
 #[derive(Config, Debug)]
 pub struct ShiftedWindowTransformerBlockConfig {
     /// Input dimension size.
     pub d_input: usize,
 
-    /// Input resolution as ``[height, width]``.
+    /// Input resolution as `[height, width]`.
     pub input_resolution: [usize; 2],
 
     /// Number of attention heads.
@@ -495,9 +510,11 @@ impl<B: Backend> ModuleInit<B, ShiftedWindowTransformerBlock<B>>
 /// Equivalent to the ``SwinTransformerBlock`` in the python source.
 ///
 /// Applies one layer of Swin Transformer block with window attention and MLP.
+///
+/// Built by [`ShiftedWindowTransformerBlockConfig`].
 #[derive(Module, Debug)]
 pub struct ShiftedWindowTransformerBlock<B: Backend> {
-    /// Input resolution of the block, as ``[H, W]``.
+    /// Input resolution of the block, as `[H, W]`.
     pub input_resolution: [usize; 2],
 
     /// Window size for window attention.
@@ -572,11 +589,11 @@ impl<B: Backend> ShiftedWindowTransformerBlock<B> {
     ///
     /// # Arguments
     ///
-    /// * `x` - Input tensor of ``[batch, height * width, channels]``.
+    /// * `x` - Input tensor of `[batch, height * width, channels]`.
     ///
     /// # Returns
     ///
-    /// A new tensor of ``[batch, height * width, channels]``.
+    /// A new tensor of `[batch, height * width, channels]`.
     ///
     /// # Panics
     ///
@@ -634,12 +651,12 @@ impl<B: Backend> ShiftedWindowTransformerBlock<B> {
     ///
     /// # Arguments
     ///
-    /// * `x` - Input tensor of ``[batch, height, width, channels]``.
+    /// * `x` - Input tensor of `[batch, height, width, channels]`.
     /// * `c` - Number of channels in the input tensor.
     ///
     /// # Returns
     ///
-    /// A new tensor of ``[batch, height, width, channels]`` with window
+    /// A new tensor of `[batch, height, width, channels]` with window
     /// attention applied.
     #[must_use]
     #[inline(always)]

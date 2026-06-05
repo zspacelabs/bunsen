@@ -39,10 +39,10 @@ use crate::{
 
 /// Common meta for [`AudioEncoder`] and [`AudioEncoderConfig`].
 pub trait AudioEncoderMeta {
-    /// Return the Mel-scale frequency resolution.
+    /// Returns the Mel-scale frequency resolution.
     fn n_mels(&self) -> usize;
 
-    /// Return the max audio context size.
+    /// Returns the max audio context size.
     ///
     /// Due to the stride reduction of the conv layers, the max context is
     /// twice the internal positional embedding.
@@ -51,10 +51,10 @@ pub trait AudioEncoderMeta {
     /// The embedding size of the model.
     fn d_model(&self) -> usize;
 
-    /// Return the number of heads.
+    /// Returns the number of heads.
     fn n_heads(&self) -> usize;
 
-    /// Return the number of layers.
+    /// Returns the number of layers.
     fn n_layers(&self) -> usize;
 }
 
@@ -146,6 +146,10 @@ impl<B: Backend> ModuleInit<B, AudioEncoder<B>> for AudioEncoderConfig {
 }
 
 /// Whisper Audio Encoder.
+///
+/// Encodes a log-Mel spectrogram into audio feature states.
+///
+/// Built by [`AudioEncoderConfig`].
 #[derive(Module, Debug)]
 pub struct AudioEncoder<B: Backend> {
     conv1: Conv1d<B>,
@@ -189,11 +193,11 @@ impl<B: Backend> AudioEncoderMeta for AudioEncoder<B> {
 impl<B: Backend> AudioEncoder<B> {
     /// Forward pass through the audio encoder.
     ///
-    /// ## Arguments
-    /// * `x`: The input audio spectrogram ``[batch, n_mels, seq]``.
+    /// # Arguments
+    /// * `x`: The input audio spectrogram `[batch, n_mels, seq]`.
     ///
-    /// ## Returns
-    /// ``[batch, seq, n_audio_states]``.
+    /// # Returns
+    /// `[batch, seq, n_audio_states]`.
     pub fn forward(
         &self,
         x: Tensor<B, 3>,

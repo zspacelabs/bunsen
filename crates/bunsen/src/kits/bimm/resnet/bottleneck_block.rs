@@ -64,6 +64,12 @@ use crate::{
 };
 
 /// Bottleneck Policy.
+///
+/// Carries the bottleneck `pinch_factor` that sets the internal channel
+/// reduction of a [`BottleneckBlock`]. This is a plain settings config; it
+/// builds no module on its own.
+///
+/// Used by [`BottleneckBlockConfig`].
 #[derive(Config, Debug)]
 pub struct BottleneckPolicyConfig {
     /// Input pinch factor.
@@ -112,7 +118,7 @@ pub trait BottleneckBlockMeta {
     /// Control factor for `first_planes()`
     fn reduce_first(&self) -> usize;
 
-    /// Get Width Plane.
+    /// Returns Width Plane.
     ///
     /// ``pinch_planes * (base_width / 64) * cardinality``
     fn width(&self) -> usize {
@@ -124,18 +130,18 @@ pub trait BottleneckBlockMeta {
     /// Affects downsample behavior.
     fn stride(&self) -> usize;
 
-    /// Get the output resolution for a given input resolution.
+    /// Returns the output resolution for a given input resolution.
     ///
     /// The input must be a multiple of the stride.
     ///
     /// # Arguments
     ///
-    /// - `input_resolution`: ``[in_height=out_height*stride,
-    ///   in_width=out_width*stride]``.
+    /// - `input_resolution`: `[in_height=out_height*stride,
+    ///   in_width=out_width*stride]`.
     ///
     /// # Returns
     ///
-    /// ``[out_height, out_width]``
+    /// `[out_height, out_width]`
     ///
     /// # Panics
     ///
@@ -152,6 +158,10 @@ pub trait BottleneckBlockMeta {
 pub const BOTTLENECK_BLOCK_DEFAULT_PINCH_FACTOR: usize = 4;
 
 /// [`BottleneckBlock`] Config.
+///
+/// Describes the channel sizes, cardinality, bottleneck policy, stride, and
+/// regularization for a [`BottleneckBlock`]. Call `.init(device)` to build the
+/// [`BottleneckBlock`] module, then drive it with [`BottleneckBlock::forward`].
 ///
 /// Implements [`BottleneckBlockMeta`].
 #[derive(Config, Debug)]
@@ -357,7 +367,14 @@ impl<B: Backend> ModuleInit<B, BottleneckBlock<B>> for BottleneckBlockConfig {
 
 /// Bottleneck Block for `ResNet`.
 ///
+/// The three-conv bottleneck `ResNet` residual unit: a `1x1` pinch, a `3x3`
+/// (optionally grouped) conv, and a `1x1` expand, plus an optional downsample
+/// on the residual identity path. Configure via [`BottleneckBlockConfig`],
+/// call `.init(device)` to build, then [`BottleneckBlock::forward`] to apply.
+///
 /// Implements [`BottleneckBlockMeta`].
+///
+/// Built by [`BottleneckBlockConfig`].
 #[derive(Module, Debug)]
 pub struct BottleneckBlock<B: Backend> {
     /// Base width.
@@ -452,12 +469,12 @@ impl<B: Backend> BottleneckBlock<B> {
     ///
     /// # Arguments
     ///
-    /// - `input`: ``[batch, in_planes, in_height=out_height*stride,
-    ///   in_width=out_width*stride]``.
+    /// - `input`: `[batch, in_planes, in_height=out_height*stride,
+    ///   in_width=out_width*stride]`.
     ///
     /// # Returns
     ///
-    /// A ``[batch, out_planes=planes*expansion_factor, out_height, out_width]``
+    /// A `[batch, out_planes=planes*expansion_factor, out_height, out_width]`
     /// tensor;
     pub fn forward(
         &self,
@@ -545,7 +562,7 @@ impl<B: Backend> BottleneckBlock<B> {
         })
     }
 
-    /// Set the drop path probability.
+    /// Sets the drop path probability.
     pub fn with_drop_path_prob(
         self,
         drop_path_prob: f64,
@@ -564,7 +581,7 @@ impl<B: Backend> BottleneckBlock<B> {
         }
     }
 
-    /// Set the drop block behavior.
+    /// Sets the drop block behavior.
     pub fn with_drop_block(
         self,
         drop_block: Option<DropBlockOptions>,

@@ -3,7 +3,7 @@
 //! Implementation of the *`ResNet`* family of models for image recognition.
 //! See: [arXiv:1512.03385v1 [cs.CV]](<https://arxiv.org/abs/1512.03385>)
 //!
-//! ## Example
+//! # Examples
 //!
 //! Examples of loading pretrained model:
 //!

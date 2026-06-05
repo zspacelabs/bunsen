@@ -24,15 +24,15 @@ use super::{
 
 /// Introspection trait for [`LBMD2Q9State`]
 pub trait LBMMeta {
-    /// Get the shape of the simulation: `[HEIGHT, WIDTH]`
+    /// Returns the shape of the simulation: `[HEIGHT, WIDTH]`.
     fn shape(&self) -> [usize; 2];
 
-    /// Get the height of the simulation.
+    /// Returns the height of the simulation.
     fn height(&self) -> usize {
         self.shape()[0]
     }
 
-    /// Get the width of the simulation.
+    /// Returns the width of the simulation.
     fn width(&self) -> usize {
         self.shape()[1]
     }
@@ -40,7 +40,9 @@ pub trait LBMMeta {
 
 /// Config for [`LBMD2Q9State`]
 ///
-/// Implements [`LBMMeta`].
+/// Specifies the `[HEIGHT, WIDTH]` grid shape and the [`RelaxationParam`]. Call
+/// `.init(device, rho)` to build a relaxed [`LBMD2Q9State`] module ready to be
+/// advanced step by step. Implements [`LBMMeta`].
 #[derive(Config, Debug)]
 pub struct LBMD2Q9Config {
     /// The shape of the simulation: `[HEIGHT, WIDTH]`
@@ -58,7 +60,7 @@ impl LBMMeta for LBMD2Q9Config {
 }
 
 impl LBMD2Q9Config {
-    /// Initialize a [`LBMD2Q9State`] module.
+    /// Initializes a [`LBMD2Q9State`] module.
     pub fn init<B: Backend>(
         self,
         device: &B::Device,
@@ -98,6 +100,14 @@ impl LBMD2Q9Config {
 }
 
 /// Lattice-Boltzmann Fluid Simulation State Module
+///
+/// Holds the D2Q9 population distribution `[H, W, 3, 3]`, the relaxation field,
+/// solid mask, and [`LbmTables`] lattice constants. Construct it from a
+/// [`LBMD2Q9Config`] via `.init(device, rho)`, then call
+/// [`LBMD2Q9State::advance_step`] to stream, collide, and reflect the fluid one
+/// step at a time. Implements [`LBMMeta`].
+///
+/// Built by [`LBMD2Q9Config`].
 #[derive(Module, Debug)]
 pub struct LBMD2Q9State<B: Backend> {
     /// The current simulation step.
@@ -106,12 +116,12 @@ pub struct LBMD2Q9State<B: Backend> {
     /// Total Mass.
     pub correct_total_mass: f64,
 
-    /// The grid velocity: ``[H, W, UY=3, UX=3]``
+    /// The grid velocity: `[H, W, UY=3, UX=3]`
     /// Here the 0-9 velocity terms are unfolded
     /// into the ``UY`` and ``UX`` dims.
     pub dist: Tensor<B, 4>,
 
-    /// The solid mask: ``[H, W]``
+    /// The solid mask: `[H, W]`
     pub solid_mask: Tensor<B, 2, Bool>,
 
     /// The relaxation field.
@@ -129,17 +139,17 @@ impl<B: Backend> LBMMeta for LBMD2Q9State<B> {
 }
 
 impl<B: Backend> LBMD2Q9State<B> {
-    /// Get the device the module is on.
+    /// Returns the device the module is on.
     pub fn device(&self) -> B::Device {
         self.dist.device()
     }
 
-    /// Get the datatype of the state.
+    /// Returns the datatype of the state.
     pub fn dtype(&self) -> DType {
         self.dist.dtype()
     }
 
-    /// Recast the datatype of the state.
+    /// Recasts the datatype of the state.
     pub fn to_dtype(
         self,
         dtype: DType,
@@ -151,12 +161,12 @@ impl<B: Backend> LBMD2Q9State<B> {
         }
     }
 
-    /// Get the current simulation step count.
+    /// Returns the current simulation step count.
     pub fn step_count(&self) -> u64 {
         self.step_count
     }
 
-    /// Set the current simulation step count.
+    /// Sets the current simulation step count.
     pub fn set_step_count(
         &mut self,
         step: u64,
@@ -164,17 +174,17 @@ impl<B: Backend> LBMD2Q9State<B> {
         self.step_count = step;
     }
 
-    /// Reset the simulation step count to zero.
+    /// Resets the simulation step count to zero.
     pub fn reset_step_count(&mut self) {
         self.set_step_count(0)
     }
 
-    /// Get the mass correction term.
+    /// Returns the mass correction term.
     pub fn correction_term(&self) -> f64 {
         self.correct_total_mass / self.current_total_mass()
     }
 
-    /// Advance the world simulation by one step.
+    /// Advances the world simulation by one step.
     pub fn advance_step(&mut self) {
         let dist = self.dist.clone();
 
@@ -208,12 +218,12 @@ impl<B: Backend> LBMD2Q9State<B> {
         B::sync(&self.device()).unwrap();
     }
 
-    /// Get the current mass of the simm.
+    /// Returns the current mass of the simm.
     pub fn current_total_mass(&self) -> f64 {
         self.dist.clone().sum().into_scalar().elem()
     }
 
-    /// Save the total energy of the system.
+    /// Saves the total energy of the system.
     pub fn save_correct_total_mass(&mut self) {
         self.correct_total_mass = self.current_total_mass();
     }

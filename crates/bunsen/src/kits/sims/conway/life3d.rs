@@ -18,17 +18,17 @@ use serde::{
     Serialize,
 };
 
-/// Fuzz the state.
+/// Fuzzes the state.
 ///
 /// Flips bits with probability `density`.
 ///
 /// # Arguments
 ///
-/// - `state`: the ``[H, W, Z]`` input state.
+/// - `state`: the `[H, W, Z]` input state.
 /// - `density`: the probability of flipping a given bit.
 ///
 /// # Returns
-/// - the fuzzed ``[H, W, Z]`` state.
+/// - the fuzzed `[H, W, Z]` state.
 pub fn fuzz_state_3d<B: Backend>(
     state: Tensor<B, 3, Bool>,
     density: f64,
@@ -47,7 +47,7 @@ pub fn fuzz_state_3d<B: Backend>(
     state.bool_xor(noise)
 }
 
-/// Wrap the board state.
+/// Wraps the board state.
 ///
 /// This simulates a toroidal space by copying the penultimate rows and columns
 /// to the edges of the opposite sides.
@@ -68,15 +68,15 @@ pub fn wrap_state_3d<B: Backend>(state: Tensor<B, 3, Bool>) -> Tensor<B, 3, Bool
         .slice_assign(s![.., .., -1], front)
 }
 
-/// Return the next board.
+/// Returns the next board.
 ///
 /// # Arguments
 ///
-/// - `state`: a ``[H, W, Z]`` game state.
+/// - `state`: a `[H, W, Z]` game state.
 /// - `rules`: a ruleset.
 ///
 /// # Returns
-/// - the ``[H, W, Z]`` evolved interior state, with wrapped edges.
+/// - the `[H, W, Z]` evolved interior state, with wrapped edges.
 pub fn next_state_wrapped_3d<B: Backend>(
     state: Tensor<B, 3, Bool>,
     rules: &LifeRules,
@@ -91,15 +91,15 @@ pub fn next_state_wrapped_3d<B: Backend>(
     wrap_state_3d(state)
 }
 
-/// Return the interior board next-state.
+/// Returns the interior board next-state.
 ///
 /// # Arguments
 ///
-/// - `state`: a ``[H, W, Z]`` game state.
+/// - `state`: a `[H, W, Z]` game state.
 /// - `rules`: the ruleset to use.
 ///
 /// # Returns
-/// - the ``[H-2, W-2, Z-2]`` evolved interior state.
+/// - the `[H-2, W-2, Z-2]` evolved interior state.
 pub fn next_interior_3d<B: Backend>(
     state: Tensor<B, 3, Bool>,
     rules: &LifeRules,
@@ -173,6 +173,10 @@ impl Default for LifeRules {
 }
 
 /// Config for [`ConwayLife3DState`]
+///
+/// Specifies the `[H, W, Z]` board shape and the [`LifeRules`] ruleset. Call
+/// `.init(device)` to build a zeroed [`ConwayLife3DState`] module, which can
+/// then be seeded and stepped.
 #[derive(Config, Debug)]
 pub struct ConwayLife3DConfig {
     /// The shape of the board.
@@ -183,7 +187,7 @@ pub struct ConwayLife3DConfig {
 }
 
 impl ConwayLife3DConfig {
-    /// Initialize a [`ConwayLife3DState`] module.
+    /// Initializes a [`ConwayLife3DState`] module.
     pub fn init<B: Backend>(
         self,
         device: &B::Device,
@@ -196,6 +200,14 @@ impl ConwayLife3DConfig {
 }
 
 /// State module for Conway's Game of Life.
+///
+/// Holds the toroidal `[H, W, Z]` boolean board together with its
+/// [`LifeRules`]. Construct it from a [`ConwayLife3DConfig`] via
+/// `.init(device)`, optionally seed it with [`ConwayLife3DState::fuzz`], then
+/// call [`ConwayLife3DState::step`] to advance the simulation one wrapped
+/// generation at a time.
+///
+/// Built by [`ConwayLife3DConfig`].
 pub struct ConwayLife3DState<B: Backend> {
     /// The current state of the board.
     pub state: Tensor<B, 3, Bool>,
@@ -205,17 +217,17 @@ pub struct ConwayLife3DState<B: Backend> {
 }
 
 impl<B: Backend> ConwayLife3DState<B> {
-    /// Get the device the module is on.
+    /// Returns the device the module is on.
     pub fn device(&self) -> B::Device {
         self.state.device()
     }
 
-    /// Get the board shape.
+    /// Returns the board shape.
     pub fn shape(&self) -> [usize; 3] {
         self.state.shape().dims()
     }
 
-    /// Add uniform positive noise to the board.
+    /// Adds uniform positive noise to the board.
     pub fn fuzz(
         &mut self,
         density: f64,
@@ -234,7 +246,7 @@ impl<B: Backend> ConwayLife3DState<B> {
         self.state = self.state.clone().bool_or(noise);
     }
 
-    /// Advance the game state.
+    /// Advances the game state.
     pub fn step(&mut self) {
         self.state = next_state_wrapped_3d(self.state.clone(), &self.rules);
 

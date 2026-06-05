@@ -85,7 +85,13 @@ use crate::blocks::images::conv::cna::{
     CNA2dConfig,
 };
 
-/// stem contract configuration.
+/// `ResNet` input stem contract configuration.
+///
+/// High-level choice of stem variant (default single `7x7` conv, or the deep
+/// three-`3x3`-conv variants). Lowers to a [`ResNetStemStructureConfig`] via
+/// [`ResNetStemContractConfig::to_structure`], which in turn describes the
+/// [`ResNetStem`] input module that downsamples and lifts an image batch into
+/// the network's feature space.
 #[derive(Debug, Clone, Default)]
 pub enum ResNetStemContractConfig {
     /// Default; single 7x7 convolution with stride 2.
@@ -112,7 +118,7 @@ pub enum ResNetStemContractConfig {
 }
 
 impl ResNetStemContractConfig {
-    /// Convert to a [`ResNetStemStructureConfig`].
+    /// Converts to a [`ResNetStemStructureConfig`].
     pub fn to_structure(
         &self,
         in_channels: usize,
@@ -154,7 +160,11 @@ impl ResNetStemContractConfig {
     }
 }
 
-/// stem contract configuration.
+/// `ResNet` input stem structure configuration.
+///
+/// The concrete layer layout of a [`ResNetStem`]: one to three conv/norm/act
+/// stages plus an optional pooling layer. Produced by
+/// [`ResNetStemContractConfig::to_structure`].
 #[derive(Debug, Clone)]
 pub struct ResNetStemStructureConfig {
     /// The first convolution.
@@ -170,7 +180,16 @@ pub struct ResNetStemStructureConfig {
     pub pool: Option<MaxPool2dConfig>,
 }
 
-/// stem impl.
+/// `ResNet` input stem module.
+///
+/// The first stage of a `ResNet`: it applies one to three conv/norm/act blocks
+/// followed by an optional max-pool, downsampling the input image and lifting
+/// it into the network's initial feature space before the residual stages.
+/// [`ResNetStem::forward`] maps a `[batch, in_channels, h, w]` image batch to a
+/// `[batch, planes, h', w']` feature tensor.
+///
+/// Its structure is described by [`ResNetStemStructureConfig`], selected via
+/// the high-level [`ResNetStemContractConfig`].
 #[derive(Module, Debug)]
 pub struct ResNetStem<B: Backend> {
     /// The first convolution.

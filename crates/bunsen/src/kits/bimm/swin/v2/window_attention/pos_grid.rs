@@ -19,7 +19,7 @@ use burn::{
 ///
 /// # Returns
 ///
-/// A 3D tensor of shape (2*height-1, 2*width-1, 2) containing the offset
+/// A `[2*height-1, 2*width-1, 2]` 3D tensor containing the offset
 /// indices.
 ///
 /// The first dimension represents the height offsets, the second dimension
@@ -59,7 +59,7 @@ pub fn window_index_offset_grid<B: Backend>(
 ///
 /// # Returns
 ///
-/// A 3D tensor of shape (2*height-1, 2*width-1, 2) containing the relative
+/// A `[2*height-1, 2*width-1, 2]` 3D tensor containing the relative
 /// offsets.
 #[inline(always)]
 #[must_use]
@@ -87,7 +87,7 @@ pub fn window_relative_offset_grid<B: Backend>(
 ///
 /// # Returns
 ///
-/// A 3D tensor of shape (2*height-1, 2*width-1, 2) containing the log-scaled
+/// A `[2*height-1, 2*width-1, 2]` 3D tensor containing the log-scaled
 /// relative offsets.
 #[inline(always)]
 #[must_use]
@@ -104,7 +104,8 @@ pub fn window_log1p_relative_offset_grid<B: Backend>(
     sign * x.abs().log1p() / base.ln()
 }
 
-/// Create a 2D attention bias relative position index for a given window shape.
+/// Creates a 2D attention bias relative position index for a given window
+/// shape.
 ///
 /// # Arguments
 ///
@@ -113,7 +114,7 @@ pub fn window_log1p_relative_offset_grid<B: Backend>(
 ///
 /// # Returns
 ///
-/// A 2D tensor of shape (height * width, height * width) containing the
+/// A `[height * width, height * width]` 2D tensor containing the
 /// relative position indices.
 ///
 /// This has a translation-invariant property, meaning that the relative
@@ -124,7 +125,7 @@ pub fn window_log1p_relative_offset_grid<B: Backend>(
 /// \forall i, j \in [0, h * w), \text{rel}[i, j] = \text{rel}[i + \Delta_i, j + \Delta_j]
 /// ```
 ///
-/// # Example
+/// # Examples
 ///
 /// ```rust.notest
 /// window_attention_relative_position_index([2, 3], device);

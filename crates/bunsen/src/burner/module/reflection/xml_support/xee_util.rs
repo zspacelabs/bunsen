@@ -6,7 +6,7 @@ use xee_xpath::error::ErrorValue;
 
 use crate::errors::BunsenError;
 
-/// Construct a long-form error message from an [`ErrorValue`].
+/// Constructs a long-form error message from an [`ErrorValue`].
 pub fn pretty_errorvalue(e: &ErrorValue) -> String {
     format!("XPath Error: {}: {}\n{}", e.code(), e.message(), e.note())
 }
@@ -23,7 +23,7 @@ fn offset_to_location(
     Location { line, column }
 }
 
-/// Adapt an [`xee_xpath::error::Error`] into a [`BunsenError`].
+/// Adapts an [`xee_xpath::error::Error`] into a [`BunsenError`].
 pub fn adapt_xee_error(
     e: xee_xpath::error::Error,
     src: Option<&str>,

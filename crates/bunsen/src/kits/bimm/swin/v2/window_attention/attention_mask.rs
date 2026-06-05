@@ -7,20 +7,19 @@ use burn::prelude::{
 
 use crate::kits::bimm::swin::v2::windowing::window_partition;
 
-/// Apply an attention mask.
+/// Applies an attention mask.
 ///
 /// # Arguments
 ///
 /// - `b_nw`: Batch size times number of windows.
 /// - `n`: Number of elements in the input tensor, Wh*Ww.
 /// - `num_heads`: Number of attention heads.
-/// - `attn`: Attention logits tensor of shape (`b_nw`, `num_heads`, Wh*Ww,
-///   Wh*Ww).
-/// - `mask`: Mask tensor of shape (`num_windows`, Wh*Ww, Wh*Ww).
+/// - `attn`: `[b_nw, num_heads, Wh*Ww, Wh*Ww]` attention logits tensor.
+/// - `mask`: `[num_windows, Wh*Ww, Wh*Ww]` mask tensor.
 ///
 /// # Returns
 ///
-/// - Output tensor of shape (`b_nw`, `num_heads`, Wh*Ww, Wh*Ww).
+/// - `[b_nw, num_heads, Wh*Ww, Wh*Ww]` output tensor.
 #[inline(always)]
 #[must_use]
 pub fn apply_attention_mask<B: Backend>(
@@ -115,7 +114,7 @@ fn sw_img_mask<B: Backend>(
     img_mask
 }
 
-/// Create a shifted window attention mask.
+/// Creates a shifted window attention mask.
 ///
 /// This function generates a mask for the shifted window attention mechanism.
 ///

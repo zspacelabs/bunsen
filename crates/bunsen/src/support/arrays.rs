@@ -1,5 +1,6 @@
 //! # Array Utilities
-/// Convert a `T` to a `[T; D]`.
+
+/// Converts a `T` to a `[T; D]`.
 pub fn scalar_to_array<const D: usize, T>(v: T) -> [T; D]
 where
     T: Copy,

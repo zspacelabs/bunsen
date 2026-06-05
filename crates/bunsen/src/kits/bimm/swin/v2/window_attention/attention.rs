@@ -48,29 +48,29 @@ pub const EPS: f64 = 1e-12;
 
 /// Common introspection interface for `WindowAttention`.
 pub trait WindowAttentionMeta {
-    /// Get the input/channel dimension size.
+    /// Returns the input/channel dimension size.
     fn d_input(&self) -> usize;
 
-    /// Get the window shape ``[height, width]``.
+    /// Returns the window shape `[height, width]`.
     fn window_shape(&self) -> [usize; 2];
 
-    /// Get the height of the window.
+    /// Returns the height of the window.
     fn window_height(&self) -> usize {
         self.window_shape()[0]
     }
 
-    /// Get the width of the window.
+    /// Returns the width of the window.
     fn window_width(&self) -> usize {
         self.window_shape()[1]
     }
 
-    /// Get the number of attention heads.
+    /// Returns the number of attention heads.
     fn num_heads(&self) -> usize;
 
-    /// Get the drop rate for attention.
+    /// Returns the drop rate for attention.
     fn attn_drop(&self) -> f64;
 
-    /// Get the drop rate for projection.
+    /// Returns the drop rate for projection.
     fn proj_drop(&self) -> f64;
 
     /// Is the QKV bias enabled?
@@ -78,32 +78,32 @@ pub trait WindowAttentionMeta {
 }
 
 impl WindowAttentionMeta for WindowAttentionConfig {
-    /// Get the input/channel dimension size.
+    /// Returns the input/channel dimension size.
     fn d_input(&self) -> usize {
         self.d_input
     }
 
-    /// Get the window shape.
+    /// Returns the window shape.
     fn window_shape(&self) -> [usize; 2] {
         self.window_shape
     }
 
-    /// Get the number of heads.
+    /// Returns the number of heads.
     fn num_heads(&self) -> usize {
         self.num_heads
     }
 
-    /// Get the drop rate for attention.
+    /// Returns the drop rate for attention.
     fn attn_drop(&self) -> f64 {
         self.attn_drop
     }
 
-    /// Get the drop rate for projection.
+    /// Returns the drop rate for projection.
     fn proj_drop(&self) -> f64 {
         self.proj_drop
     }
 
-    /// Check if QKV bias is enabled.
+    /// Checks if QKV bias is enabled.
     fn enable_qkv_bias(&self) -> bool {
         self.enable_qkv_bias
     }
@@ -135,7 +135,7 @@ impl<B: Backend> WindowAttentionMeta for WindowAttention<B> {
     }
 }
 
-/// Configuration for the `WindowAttention` module.
+/// Configuration for SWIN's [`WindowAttention`] module.
 #[derive(Config, Debug)]
 pub struct WindowAttentionConfig {
     /// Input dimension size.
@@ -169,6 +169,13 @@ pub struct WindowAttentionConfig {
 }
 
 /// The `WindowAttention` module.
+///
+/// Windowed multi-head self-attention for Swin Transformer v2: applies cosine
+/// attention with a learnable logit scale and continuous relative position
+/// bias over each window, with an optional shift mask for shifted-window
+/// attention.
+///
+/// Built by [`WindowAttentionConfig`].
 #[derive(Module, Debug)]
 pub struct WindowAttention<B: Backend> {
     /// Input dimension size.
@@ -207,12 +214,12 @@ impl<B: Backend> WindowAttention<B> {
     ///
     /// # Arguments
     ///
-    /// - `x`: Input tensor of shape ``[batch * num_windows, Wh*Ww, channels]``.
-    /// - `mask`: Optional mask tensor of shape ``[num_windows, Wh*Ww, Wh*Ww]``.
+    /// - `x`: `[batch * num_windows, Wh*Ww, channels]` input.
+    /// - `mask`: Optional `[num_windows, Wh*Ww, Wh*Ww]` mask.
     ///
     /// # Returns
     ///
-    /// Output tensor of shape ``[batch * num_windows, Wh*Ww, channels]``.
+    /// Output `[batch * num_windows, Wh*Ww, channels]`.
     ///
     /// # Panics
     ///
@@ -260,19 +267,19 @@ impl<B: Backend> WindowAttention<B> {
         // (b_nw, ws*ws, c)
     }
 
-    /// Compute the attention.
+    /// Computes the attention.
     ///
     /// # Arguments
     ///
     /// - `b_nw`: Batch size times number of windows.
     /// - `n`: Number of elements in the input tensor.
-    /// - `q`: Query tensor of shape (`b_nw`, `num_heads`, ws*ws, `c_per_head`).
-    /// - `k`: Key tensor of shape (`b_nw`, `num_heads`, ws*ws, `c_per_head`).
-    /// - `mask`: Optional mask tensor of shape (`num_windows`, ws*ws, ws*ws).
+    /// - `q`: `[b_nw, num_heads, ws*ws, c_per_head]` query tensor.
+    /// - `k`: `[b_nw, num_heads, ws*ws, c_per_head]` key tensor.
+    /// - `mask`: Optional `[num_windows, ws*ws, ws*ws]` mask tensor.
     ///
     /// # Returns
     ///
-    /// - Output attention tensor of shape (`b_nw`, `num_heads`, ws*ws, ws*ws).
+    /// - `[b_nw, num_heads, ws*ws, ws*ws]` output attention tensor.
     #[must_use]
     fn attention(
         &self,
@@ -318,11 +325,10 @@ impl<B: Backend> WindowAttention<B> {
         attn
     }
 
-    /// Get the learnable logit scale.
+    /// Returns the learnable logit scale.
     ///
     /// # Returns
-    ///
-    /// - Output tensor of shape (`num_heads`, 1, 1).
+    /// * `[num_heads, 1, 1]`
     #[must_use]
     fn logit_scale(&self) -> Tensor<B, 3> {
         // TODO(crutcher): I suspect this is a bug in the original code.
@@ -331,29 +337,23 @@ impl<B: Backend> WindowAttention<B> {
         self.logit_scale.val().clamp_max((1.0f64 / 0.01).ln()).exp()
     }
 
-    /// Get the learnable relative position bias.
+    /// Returns the learnable relative position bias.
     ///
     /// # Returns
-    ///
-    /// - Output tensor of shape (`num_heads`, Wh*Ww, Wh*Ww).
-    #[inline(always)]
+    /// * `[num_heads, Wh*Ww, Wh*Ww]`
     #[must_use]
     fn relative_pos_bias(&self) -> Tensor<B, 3> {
         self.rpb_module.forward()
     }
 
-    /// Encode the attention logits with the logit scale and relative position
+    /// Encodes the attention logits with the logit scale and relative position
     /// bias.
     ///
     /// # Arguments
-    ///
-    /// - `attn`: Attention logits tensor of shape (`b_nw`, `num_heads`, Wh*Ww,
-    ///   Wh*Ww).
+    /// * `attn`: `[b_nw, num_heads, Wh*Ww, Wh*Ww]` logits.
     ///
     /// # Returns
-    ///
-    /// - Output tensor of shape (`b_nw`, `num_heads`, Wh*Ww, Wh*Ww).
-    #[inline(always)]
+    /// * `[b_nw, num_heads, Wh*Ww, Wh*Ww]`.
     #[must_use]
     fn encode_attention(
         &self,

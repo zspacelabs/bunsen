@@ -96,18 +96,18 @@ pub trait BasicBlockMeta {
     /// Affects downsample behavior.
     fn stride(&self) -> usize;
 
-    /// Get the output resolution for a given input resolution.
+    /// Returns the output resolution for a given input resolution.
     ///
     /// The input must be a multiple of the stride.
     ///
     /// # Arguments
     ///
-    /// - `input_resolution`: \ ``[in_height=out_height*stride,
-    ///   in_width=out_width*stride]``.
+    /// - `input_resolution`: \ `[in_height=out_height*stride,
+    ///   in_width=out_width*stride]`.
     ///
     /// # Returns
     ///
-    /// ``[out_height, out_width]``
+    /// `[out_height, out_width]`
     ///
     /// # Panics
     ///
@@ -121,6 +121,10 @@ pub trait BasicBlockMeta {
 }
 
 /// [`BasicBlock`] Config.
+///
+/// Describes the channel sizes, stride, dilation, and regularization for a
+/// [`BasicBlock`]. Call `.init(device)` to build the [`BasicBlock`] module,
+/// then drive it with [`BasicBlock::forward`].
 ///
 /// Implements [`BasicBlockMeta`].
 #[derive(Config, Debug)]
@@ -285,7 +289,14 @@ impl<B: Backend> ModuleInit<B, BasicBlock<B>> for BasicBlockConfig {
 
 /// Basic Block for `ResNet`.
 ///
+/// The standard two-conv `ResNet` residual unit: two `3x3` conv/norm/act
+/// stages plus an optional downsample on the residual identity path.
+/// Configure via [`BasicBlockConfig`], call `.init(device)` to build, then
+/// [`BasicBlock::forward`] to apply.
+///
 /// Implements [`BasicBlockMeta`].
+///
+/// Built by [`BasicBlockConfig`].
 #[derive(Module, Debug)]
 pub struct BasicBlock<B: Backend> {
     /// Reduction factor.
@@ -353,12 +364,12 @@ impl<B: Backend> BasicBlock<B> {
     ///
     /// # Arguments
     ///
-    /// - `input`: ``[batch, in_planes, in_height=out_height*stride,
-    ///   in_width=out_width*stride]``.
+    /// - `input`: `[batch, in_planes, in_height=out_height*stride,
+    ///   in_width=out_width*stride]`.
     ///
     /// # Returns
     ///
-    /// A ``[batch, out_planes=planes*expansion_factor, out_height, out_width]``
+    /// A `[batch, out_planes=planes*expansion_factor, out_height, out_width]`
     /// tensor.
     pub fn forward(
         &self,
@@ -438,7 +449,7 @@ impl<B: Backend> BasicBlock<B> {
         x
     }
 
-    /// Set the drop path probability.
+    /// Sets the drop path probability.
     pub fn with_drop_path_prob(
         self,
         drop_path_prob: f64,
@@ -457,7 +468,7 @@ impl<B: Backend> BasicBlock<B> {
         }
     }
 
-    /// Set the drop block behavior.
+    /// Sets the drop block behavior.
     pub fn with_drop_block(
         self,
         drop_block: Option<DropBlockOptions>,

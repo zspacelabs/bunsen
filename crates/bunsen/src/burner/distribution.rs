@@ -13,7 +13,7 @@ use burn::{
 pub struct DistributionDisplayAdapter(Distribution);
 
 impl DistributionDisplayAdapter {
-    /// Create a new [`DistributionDisplayAdapter`].
+    /// Creates a new [`DistributionDisplayAdapter`].
     pub fn new(distribution: Distribution) -> Self {
         Self(distribution)
     }

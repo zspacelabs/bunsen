@@ -75,7 +75,11 @@ pub trait StochasticDepthTransformerBlockSequenceMeta {
     // TODO: norm_layer config, use_checkpoint, pretrained_window_size.
 }
 
-/// Config for `BasicLayer`.
+/// Config for [`StochasticDepthTransformerBlockSequence`].
+///
+/// Describes a stack of `depth` shift-window-alternating transformer blocks.
+/// Construct it, then call `.init(device)` to build the module and `forward` a
+/// `[batch, height * width, channels]` tensor through it.
 #[derive(Config, Debug)]
 pub struct StochasticDepthTransformerBlockSequenceConfig {
     /// Number of input channels.
@@ -234,6 +238,8 @@ impl<B: Backend> ModuleInit<B, StochasticDepthTransformerBlockSequence<B>>
 ///
 /// Applies a sequence of shift-window-alternating ``SwinTransformerBlock``
 /// modules.
+///
+/// Built by [`StochasticDepthTransformerBlockSequenceConfig`].
 #[derive(Module, Debug)]
 pub struct StochasticDepthTransformerBlockSequence<B: Backend> {
     blocks: Vec<ShiftedWindowTransformerBlock<B>>,
@@ -288,11 +294,11 @@ impl<B: Backend> StochasticDepthTransformerBlockSequence<B> {
     ///
     /// # Arguments
     ///
-    /// - `x`: Input tensor of shape: ``[batch, height * width, channels]``.
+    /// - `x`: `[batch, height * width, channels]` input tensor.
     ///
     /// # Returns
     ///
-    /// Output tensor of shape ``[batch, height * width, channels``.
+    /// `[batch, height * width, channels]` output tensor.
     ///
     /// # Panics
     ///

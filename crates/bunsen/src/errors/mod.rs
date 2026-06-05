@@ -25,7 +25,7 @@ pub enum BunsenError {
 }
 
 impl BunsenError {
-    /// Map an error to an External string error.
+    /// Maps an error to an External string error.
     pub fn external<E>(e: E) -> Self
     where
         E: std::error::Error,

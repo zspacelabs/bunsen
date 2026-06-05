@@ -29,20 +29,20 @@ use crate::{
 /// Common meta for [`ResidualEncoderAttentionBlock`] and
 /// [`ResidualEncoderAttentionBlockConfig`].
 pub trait ResidualEncoderAttentionBlockMeta {
-    /// Return the embedding dimensionality.
+    /// Returns the embedding dimensionality.
     fn d_model(&self) -> usize;
 
-    /// Return the number of heads.
+    /// Returns the number of heads.
     fn n_heads(&self) -> usize;
 
-    /// Return the dropout.
+    /// Returns the dropout.
     fn dropout(&self) -> f64;
 }
 
 /// Config for [`ResidualEncoderAttentionBlock`].
 #[derive(Config, Debug)]
 pub struct ResidualEncoderAttentionBlockConfig {
-    /// Return the embedding dimensionality.
+    /// Returns the embedding dimensionality.
     pub d_model: usize,
 
     /// Head Dimensionality.
@@ -94,6 +94,12 @@ impl<B: Backend> ModuleInit<B, ResidualEncoderAttentionBlock<B>>
 }
 
 /// Residual Encoder Attention Block for Whisper.
+///
+/// One Whisper encoder layer: pre-norm multi-head self-attention followed by a
+/// pre-norm MLP, each wrapped in a residual connection. Stacked inside the
+/// Whisper audio encoder.
+///
+/// Built by [`ResidualEncoderAttentionBlockConfig`].
 #[derive(Module, Debug)]
 pub struct ResidualEncoderAttentionBlock<B: Backend> {
     /// Attention Normalization.
@@ -126,11 +132,11 @@ impl<B: Backend> ResidualEncoderAttentionBlockMeta for ResidualEncoderAttentionB
 impl<B: Backend> ResidualEncoderAttentionBlock<B> {
     /// Forward pass of the residual decoder attention block.
     ///
-    /// ## Arguments
-    /// * `x` : ``[batch, seq_len, d_model]`` input.
+    /// # Arguments
+    /// * `x` : `[batch, seq_len, d_model]` input.
     ///
-    /// ## Returns
-    /// ``[batch, seq_len, d_model]``
+    /// # Returns
+    /// `[batch, seq_len, d_model]`
     pub fn forward(
         &self,
         x: Tensor<B, 3>,

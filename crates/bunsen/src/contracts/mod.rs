@@ -150,16 +150,16 @@
 //!
 //! /// Window Partition
 //! ///
-//! /// ## Parameters
+//! /// # Arguments
 //! ///
-//! /// - `tensor`: Input tensor of shape (B, h_wins * window_size, w_wins * window_size, C).
+//! /// - `tensor`: `[B, h_wins * window_size, w_wins * window_size, C]` input tensor.
 //! /// - `window_size`: Window size.
 //! ///
-//! /// ## Returns
+//! /// # Returns
 //! ///
-//! /// Output tensor of shape (B * h_windows * w_windows, window_size, window_size, C).
+//! /// `[B * h_windows * w_windows, window_size, window_size, C]` output tensor.
 //! ///
-//! /// ## Panics
+//! /// # Panics
 //! ///
 //! /// Panics if the input tensor does not have 4 dimensions.
 //! pub fn window_partition<B: Backend, K>(

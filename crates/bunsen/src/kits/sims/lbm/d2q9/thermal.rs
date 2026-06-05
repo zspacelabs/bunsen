@@ -11,11 +11,11 @@ use crate::kits::sims::lbm::d2q9::{
     space::LbmTables,
 };
 
-/// Compute thermal equilibrium.
+/// Computes thermal equilibrium.
 ///
 /// # Arguments
-/// - `rho`: ``[H, W]`` population density
-/// - `u`: ``[H, W, (Y, X)=2]`` macroscopic velocity
+/// - `rho`: `[H, W]` population density
+/// - `u`: `[H, W, (Y, X)=2]` macroscopic velocity
 /// - `lbm_tables`: LBM Reference Tables.
 ///
 /// # Returns
@@ -43,14 +43,14 @@ pub fn thermal_equilibrium<B: Backend>(
     )
 }
 
-/// Compute e·u for each lattice direction
+/// Computes e·u for each lattice direction.
 ///
 /// # Arguments
-/// - `e`: ``[Y=3, X=3, (Y, X)=2]`` direction vectors
-/// - `u`: ``[H, W, (Y, X)=2]`` macroscopic velocity
+/// - `e`: `[Y=3, X=3, (Y, X)=2]` direction vectors
+/// - `u`: `[H, W, (Y, X)=2]` macroscopic velocity
 ///
 /// # Returns
-/// - ``[H, W, Y=3, X=3]`` dot product at each grid point and direction.
+/// - `[H, W, Y=3, X=3]` dot product at each grid point and direction.
 pub fn lattice_dot_velocity<B: Backend>(
     u: Tensor<B, 3>,
     e: Tensor<B, 3>,
@@ -61,11 +61,11 @@ pub fn lattice_dot_velocity<B: Backend>(
 /// The projection component of [`lattice_dot_velocity`].
 ///
 /// # Arguments
-/// - `e`: ``[Y=3, X=3, (Y, X)=2]`` direction vectors
-/// - `u`: ``[H, W, (Y, X)=2]`` macroscopic velocity
+/// - `e`: `[Y=3, X=3, (Y, X)=2]` direction vectors
+/// - `u`: `[H, W, (Y, X)=2]` macroscopic velocity
 ///
 /// # Returns
-/// - ``[H, W, Y=3, X=3, (Y, X)=2]`` projection.
+/// - `[H, W, Y=3, X=3, (Y, X)=2]` projection.
 pub fn ldv_projection<B: Backend>(
     e: Tensor<B, 3>,
     u: Tensor<B, 3>,

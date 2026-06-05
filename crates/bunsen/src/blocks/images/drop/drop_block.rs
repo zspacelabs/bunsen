@@ -16,7 +16,7 @@ use burn::{
 pub use crate::ops::drop::DropBlockOptions;
 use crate::ops::drop::drop_block_2d;
 
-/// Config for [`DropBlock2dConfig`] module.
+/// Config for [`DropBlock2d`].
 #[derive(Config, Debug)]
 pub struct DropBlock2dConfig {
     /// The options for the drop block algorithm.
@@ -31,7 +31,7 @@ impl From<DropBlockOptions> for DropBlock2dConfig {
 }
 
 impl DropBlock2dConfig {
-    /// Initialize a [`DropBlock2d`] module.
+    /// Initializes a [`DropBlock2d`] module.
     pub fn init(&self) -> DropBlock2d {
         DropBlock2d {
             options: self.options.clone(),
@@ -45,6 +45,8 @@ impl DropBlock2dConfig {
 ///
 /// Based upon [DropBlock (Ghiasi et al., 2018)](https://arxiv.org/pdf/1810.12890.pdf);
 /// inspired also by the `python-image-models` implementation.
+///
+/// Built by [`DropBlock2dConfig`].
 #[derive(Module, Clone, Debug)]
 pub struct DropBlock2d {
     /// The options for the drop block algorithm.

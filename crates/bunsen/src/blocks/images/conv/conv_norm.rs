@@ -40,7 +40,7 @@ pub trait ConvNorm2dMeta {
     /// Number of output channels.
     fn out_channels(&self) -> usize;
 
-    /// Get the stride.
+    /// Returns the stride.
     fn stride(&self) -> &[usize; 2];
 }
 
@@ -76,7 +76,7 @@ impl From<Conv2dConfig> for ConvNorm2dConfig {
 }
 
 impl ConvNorm2dConfig {
-    /// Set the initializer.
+    /// Sets the initializer.
     pub fn with_initializer(
         self,
         initializer: Initializer,
@@ -101,6 +101,12 @@ impl<B: Backend> ModuleInit<B, ConvNorm2d<B>> for ConvNorm2dConfig {
 }
 
 /// Grouped [`Conv2d`] and [`BatchNorm`] layer.
+///
+/// Constructs via [`ConvNorm2dConfig`] and `.init(device)`, then call
+/// [`Self::forward`] on a `[batch, in_channels, height, width]` tensor to
+/// apply the convolution followed by batch normalization.
+///
+/// Built by [`ConvNorm2dConfig`].
 #[derive(Module, Debug)]
 pub struct ConvNorm2d<B: Backend> {
     /// Internal Conv2d layer.

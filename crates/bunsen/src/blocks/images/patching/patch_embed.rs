@@ -70,7 +70,7 @@ pub trait PatchEmbedMeta {
     fn enable_patch_norm(&self) -> bool;
 }
 
-/// Configuration for `PatchEmbed`.
+/// Configuration for [`PatchEmbed`].
 #[derive(Config, Debug, Copy)]
 pub struct PatchEmbedConfig {
     /// Input resolution (height, width).
@@ -143,6 +143,8 @@ impl<B: Backend> ModuleInit<B, PatchEmbed<B>> for PatchEmbedConfig {
 }
 
 /// SWIN-Transformer v2 `PatchEmbed` module.
+///
+/// Built by [`PatchEmbedConfig`].
 #[derive(Module, Debug)]
 pub struct PatchEmbed<B: Backend> {
     /// Input resolution (height, width).
@@ -181,15 +183,15 @@ impl<B: Backend> PatchEmbedMeta for PatchEmbed<B> {
 }
 
 impl<B: Backend> PatchEmbed<B> {
-    /// Apply the `PatchEmbed` module to an input tensor.
+    /// Applies the `PatchEmbed` module to an input tensor.
     ///
     /// # Arguments
     ///
-    /// * `x` - Input tensor of shape ``[B, C, H, W]``.
+    /// * `x` - `[B, C, H, W]` input tensor.
     ///
     /// # Returns
     ///
-    /// * Output tensor of shape ``[B, H/patch_size * W/patch_size, d_output]``.
+    /// * `[B, H/patch_size * W/patch_size, d_output]` output tensor.
     #[must_use]
     pub fn forward(
         &self,

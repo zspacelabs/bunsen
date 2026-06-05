@@ -10,13 +10,13 @@ use crate::errors::{
 
 /// Trait for initializing a Module.
 pub trait ModuleInit<B: Backend, M: Module<B>> {
-    /// Initialize a Module.
+    /// Initializes a Module.
     fn try_init(
         &self,
         device: &B::Device,
     ) -> BunsenResult<M>;
 
-    /// Initialize a Module, panicking on error.
+    /// Initializes a Module, panicking on error.
     fn init(
         &self,
         device: &B::Device,

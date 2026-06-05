@@ -6,22 +6,22 @@ use burn::{
     tensor::BasicOps,
 };
 
-/// Convolve a neighborhood function over a 2D tensor.
+/// Convolves a neighborhood function over a 2D tensor.
 ///
 /// Here ``h_wins`` and ``w_wins`` refer to
 /// ``burn::tensor::ops::unfold::calculate_unfold_windows(dim, kernel, 1)``
 ///
 /// # Arguments
 ///
-/// * `input` - a ``[batch, c_in, height, width]`` tensor.
-/// * `func` - a func from ``[batch, h_wins, w_wins, c_in, kernel[0],
-///   kernel[1]]`` to ``[batch, h_wins, w_wins, c_out]``
-/// * `kernel` - a kernel shape, e.g. ``[3, 3]``.
-/// * `stride` - a kernel stride, e.g. ``[1, 1]``.
+/// * `input` - a `[batch, c_in, height, width]` tensor.
+/// * `func` - a func from `[batch, h_wins, w_wins, c_in, kernel[0], kernel[1]]`
+///   to `[batch, h_wins, w_wins, c_out]`
+/// * `kernel` - a kernel shape, e.g. `[3, 3]`.
+/// * `stride` - a kernel stride, e.g. `[1, 1]`.
 ///
 /// # Returns
 ///
-/// A tensor in ``[batch, c_out, h_wins, w_wins]``
+/// A tensor in `[batch, c_out, h_wins, w_wins]`
 pub fn convolve_func_2d<B, KIn, KOut, F>(
     input: Tensor<B, 4, KIn>,
     func: F,

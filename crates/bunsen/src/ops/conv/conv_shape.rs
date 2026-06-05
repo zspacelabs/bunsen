@@ -11,7 +11,7 @@ use burn::{
 
 use crate::contracts::unpack_shape_contract;
 
-/// Predict the output size of a 1D convolution operation.
+/// Predicts the output size of a 1D convolution operation.
 ///
 /// ```text
 /// out_size = floor( ((in_size + 2*padding - dilation*(kernel_size-1) - 1) / stride) + 1 )
@@ -58,7 +58,7 @@ pub fn maybe_conv1d_output_size(
     if x < 1 { None } else { Some(x) }
 }
 
-/// Predict the output size of a 1D convolution operation.
+/// Predicts the output size of a 1D convolution operation.
 ///
 /// This is the ``panic``-ing variant of [`maybe_conv1d_output_size`].
 ///
@@ -103,7 +103,7 @@ pub fn expect_conv1d_output_size(
     }
 }
 
-/// Predict the output shape of a D convolution operation; for dynamic slices.
+/// Predicts the output shape of a D convolution operation; for dynamic slices.
 ///
 /// This is the generalization of [`maybe_conv1d_output_size`] to D dimensions.
 ///
@@ -148,7 +148,7 @@ pub fn maybe_conv_output_shape_dyn(
     Some(output_shape)
 }
 
-/// Predict the output shape of a D convolution operation.
+/// Predicts the output shape of a D convolution operation.
 ///
 /// This is the ``panic``-ing variant of [`maybe_conv_output_shape_dyn`];
 /// which is the generalization of [`maybe_conv1d_output_size`] to D dimensions.
@@ -180,7 +180,7 @@ pub fn expect_conv_output_shape_dyn(
     }
 }
 
-/// Predict the output shape of a D convolution operation.
+/// Predicts the output shape of a D convolution operation.
 ///
 /// This is the generalization of [`maybe_conv1d_output_size`] to D dimensions.
 ///
@@ -216,7 +216,7 @@ pub fn maybe_conv_output_shape<const D: usize>(
     Some(output_shape)
 }
 
-/// Predict the output shape of a D convolution operation.
+/// Predicts the output shape of a D convolution operation.
 ///
 /// This is the ``panic``-ing variant of [`maybe_conv_output_shape`];
 /// which is the generalization of [`maybe_conv1d_output_size`] to D dimensions.
@@ -248,18 +248,18 @@ pub fn expect_conv_output_shape<const D: usize>(
     }
 }
 
-/// Get the output resolution for a given input resolution.
+/// Returns the output resolution for a given input resolution.
 ///
 /// The input must be a multiple of the stride.
 ///
 /// # Arguments
 ///
-/// - `input_resolution`: ``[in_height=out_height*stride,
-///   in_width=out_width*stride]``.
+/// - `input_resolution`: `[in_height=out_height*stride,
+///   in_width=out_width*stride]`.
 ///
 /// # Returns
 ///
-/// ``[out_height, out_width]``
+/// `[out_height, out_width]`
 ///
 /// # Panics
 ///
@@ -285,7 +285,7 @@ pub static CONV_INTO_RELU_INITIALIZER: Initializer = Initializer::KaimingNormal 
     fan_out_only: true,
 };
 
-/// Compute the necessary [`burn::nn::conv::Conv2d`] padding for the given
+/// Computes the necessary [`burn::nn::conv::Conv2d`] padding for the given
 /// square parameters.
 ///
 /// All parameters are assumed square (the same in height and width).
@@ -310,7 +310,7 @@ pub fn get_square_conv2d_padding(
     ((stride - 1) + dilation * (kernel - 1)) / 2
 }
 
-/// Compute the necessary [`burn::nn::conv::Conv2d`] padding for the given
+/// Computes the necessary [`burn::nn::conv::Conv2d`] padding for the given
 /// square parameters.
 ///
 /// All parameters are assumed square (the same in height and width).

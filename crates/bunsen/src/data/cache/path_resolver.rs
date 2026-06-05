@@ -45,12 +45,12 @@ pub struct PathResolver {
 }
 
 impl PathResolver {
-    /// Get the [`ProjectDirs`] for this config.
+    /// Returns the [`ProjectDirs`] for this config.
     pub fn project_dirs(&self) -> Option<ProjectDirs> {
         ProjectDirs::from(self.organization, self.application, self.qualifier)
     }
 
-    /// Resolve the cache directory for this config.
+    /// Resolves the cache directory for this config.
     ///
     /// Resolution Order:
     /// 1. `path`, if present.
@@ -86,7 +86,7 @@ impl PathResolver {
         None
     }
 
-    /// Resolve the data directory for this config.
+    /// Resolves the data directory for this config.
     ///
     /// Resolution Order:
     /// 1. `path`, if present.

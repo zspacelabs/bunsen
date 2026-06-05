@@ -7,7 +7,7 @@ pub fn container_type_is_sequence(container_type: &str) -> bool {
     SEQUENCE_TYPES.contains(&container_type)
 }
 
-/// Parse the container type into (class, name).
+/// Parses the container type into (class, name).
 ///
 /// See: [`burn::module::ModuleVisitor::enter_module`].
 ///

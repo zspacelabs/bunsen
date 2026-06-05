@@ -9,11 +9,11 @@ where
 {
     /// Looks up a value associated with the given key in the stack.
     ///
-    /// ## Arguments
+    /// # Arguments
     ///
     /// * `key`: The key to look up.
     ///
-    /// ## Returns
+    /// # Returns
     ///
     /// An `Option<V>` containing the value if found, or `None` if not found.
     #[must_use]
@@ -24,15 +24,15 @@ where
 
     /// Exports the values for the given keys from the local bindings.
     ///
-    /// ## Arguments
+    /// # Arguments
     ///
     /// * `keys`: An array of keys to look up in the local bindings.
     ///
-    /// ## Returns
+    /// # Returns
     ///
     /// An array of values corresponding to the keys. If a key is not found,
     ///
-    /// ## Panics
+    /// # Panics
     ///
     /// Panics if any key is not found in the local bindings.
     #[must_use]
@@ -83,12 +83,12 @@ where
     /// It is an error to bind a key which is already present;
     /// but this is only checked when `debug_assertions` are on.
     ///
-    /// ## Arguments
+    /// # Arguments
     ///
     /// * `key`: The key to insert.
     /// * `value`: The value to associate with the key.
     ///
-    /// ## Returns
+    /// # Returns
     ///
     /// This method does not return a value,
     /// but modifies the stack by inserting the key-value pair.
@@ -114,11 +114,11 @@ impl<'a> MutableStackEnvironment<'a> {
     /// This is useful when exporting values, as the newly bound values
     /// tend to be the keys being exported.
     ///
-    /// ## Arguments
+    /// # Arguments
     ///
     /// * `key`: The key to look up.
     ///
-    /// ## Returns
+    /// # Returns
     ///
     /// An `Option<usize>` containing the value if found in updates,
     /// or `None` if not found.

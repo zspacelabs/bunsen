@@ -8,7 +8,7 @@ use burn::{
     },
 };
 
-/// Compute the ravel index for the given coordinates.
+/// Computes the ravel index for the given coordinates.
 ///
 /// This returns the row-major order raveling.
 ///
@@ -24,7 +24,7 @@ pub fn ravel_shape<I: AsIndex>(
     ravel_dims(shape.as_slice(), coords)
 }
 
-/// Compute the ravel index for the given coordinates.
+/// Computes the ravel index for the given coordinates.
 ///
 /// This returns the row-major order raveling.
 ///

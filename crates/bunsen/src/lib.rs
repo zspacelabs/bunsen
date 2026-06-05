@@ -89,7 +89,7 @@ extern crate core;
 #[doc(hidden)]
 pub use bunsen_contracts_macros::shape_contract as __proc_shape_contract;
 
-/// Re-export public dependencies.
+/// Re-exports public dependencies.
 #[allow(unused_imports)]
 #[allow(missing_docs)]
 pub mod public {

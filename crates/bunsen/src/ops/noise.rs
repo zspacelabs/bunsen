@@ -62,7 +62,7 @@ impl Default for NoiseConfig {
 }
 
 impl NoiseConfig {
-    /// Extend the config with the given [`Distribution`].
+    /// Extends the config with the given [`Distribution`].
     pub fn with_distribution(
         self,
         distribution: Distribution,
@@ -73,7 +73,7 @@ impl NoiseConfig {
         }
     }
 
-    /// Extend the config with the given [`ClampOp`].
+    /// Extends the config with the given [`ClampOp`].
     pub fn with_clamp<C>(
         self,
         clamp: C,
@@ -87,7 +87,7 @@ impl NoiseConfig {
         }
     }
 
-    /// Generate noise.
+    /// Generates noise.
     ///
     /// Noise is drawn from the distribution; and optionally clamped.
     ///

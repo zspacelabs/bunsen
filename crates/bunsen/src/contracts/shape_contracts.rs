@@ -12,7 +12,7 @@
 //! A [`ShapeContract`] should usually be constructed using the
 //! [`crate::shape_contract`] macro.
 //!
-//! ## Example
+//! # Examples
 //!
 //! ```rust
 //! use bunsen::contracts::{
@@ -93,24 +93,24 @@ pub enum DimMatcher<'a> {
 }
 
 impl<'a> DimMatcher<'a> {
-    /// Create a new `DimMatcher` that matches any dimension size.
+    /// Creates a new `DimMatcher` that matches any dimension size.
     pub const fn any() -> Self {
         DimMatcher::Any { label_id: None }
     }
 
-    /// Create a new `DimMatcher` that matches a variable number of dimensions
+    /// Creates a new `DimMatcher` that matches a variable number of dimensions
     /// (ellipsis).
     pub const fn ellipsis() -> Self {
         DimMatcher::Ellipsis { label_id: None }
     }
 
-    /// Create a new `DimMatcher` from a dimension expression.
+    /// Creates a new `DimMatcher` from a dimension expression.
     ///
-    /// ## Arguments
+    /// # Arguments
     ///
     /// - `expr`: a dimension expression that must match a specific value.
     ///
-    /// ## Returns
+    /// # Returns
     ///
     /// A new `DimMatcher` that matches the given expression.
     pub const fn expr(expr: DimExpr<'a>) -> Self {
@@ -120,7 +120,7 @@ impl<'a> DimMatcher<'a> {
         }
     }
 
-    /// Get the label of the matcher, if any.
+    /// Returns the label of the matcher, if any.
     pub const fn label_id(&self) -> Option<usize> {
         match self {
             DimMatcher::Any { label_id } => *label_id,
@@ -131,11 +131,11 @@ impl<'a> DimMatcher<'a> {
 
     /// Attach a label to the matcher.
     ///
-    /// ## Arguments
+    /// # Arguments
     ///
     /// - `label_id`: an optional label to attach to the matcher.
     ///
-    /// ## Returns
+    /// # Returns
     ///
     /// A new `DimMatcher` with the label attached.
     pub const fn with_label_id(
@@ -216,13 +216,13 @@ impl Display for ShapeContract<'_> {
 }
 
 impl<'a> ShapeContract<'a> {
-    /// Create a new shape pattern from a slice of terms.
+    /// Creates a new shape pattern from a slice of terms.
     ///
-    /// ## Arguments
+    /// # Arguments
     ///
     /// - `terms`: a slice of `ShapePatternTerm` that defines the pattern.
     ///
-    /// ## Returns
+    /// # Returns
     ///
     /// A new `ShapePattern` instance.
     ///
@@ -268,7 +268,7 @@ impl<'a> ShapeContract<'a> {
         }
     }
 
-    /// Convert a key to an index.
+    /// Converts a key to an index.
     pub fn maybe_key_to_index(
         &self,
         key: &str,
@@ -276,19 +276,19 @@ impl<'a> ShapeContract<'a> {
         self.index.iter().position(|&s| s == key)
     }
 
-    /// Assert that the shape matches the pattern.
+    /// Asserts that the shape matches the pattern.
     ///
-    /// ## Arguments
+    /// # Arguments
     ///
     /// - `shape`: the shape to match.
     /// - `env`: the params which are already bound.
     ///
-    /// ## Panics
+    /// # Panics
     ///
     /// If the shape does not match the pattern, or if there is a conflict in
     /// the bindings.
     ///
-    /// ## Example
+    /// # Examples
     ///
     /// ```rust
     /// use bunsen::contracts::{
@@ -331,20 +331,20 @@ impl<'a> ShapeContract<'a> {
         }
     }
 
-    /// Assert that the shape matches the pattern.
+    /// Asserts that the shape matches the pattern.
     ///
-    /// ## Arguments
+    /// # Arguments
     ///
     /// - `shape`: the shape to match.
     /// - `env`: the params which are already bound.
     ///
-    /// ## Returns
+    /// # Returns
     ///
     /// - `Ok(())`: if the shape matches the pattern.
     /// - `Err(String)`: if the shape does not match the pattern, with an error
     ///   message.
     ///
-    /// ## Example
+    /// # Examples
     ///
     /// ```rust
     /// use bunsen::contracts::{
@@ -407,7 +407,7 @@ impl<'a> ShapeContract<'a> {
         self.format_resolve(shape, scratch.as_mut_slice(), loc)
     }
 
-    /// Match and unpack `K` keys from a shape pattern.
+    /// Matches and unpacks `K` keys from a shape pattern.
     ///
     /// Wraps `try_unpack_shape` and panics if the shape does not match.
     ///
@@ -415,22 +415,22 @@ impl<'a> ShapeContract<'a> {
     ///
     /// - `K`: the length of the `keys` array.
     ///
-    /// ## Arguments
+    /// # Arguments
     ///
     /// - `shape`: the shape to match.
     /// - `keys`: the bound keys to export.
     /// - `env`: the params which are already bound.
     ///
-    /// ## Returns
+    /// # Returns
     ///
     /// An `[usize; K]` of the unpacked `keys` values.
     ///
-    /// ## Panics
+    /// # Panics
     ///
     /// If the shape does not match the pattern, or if there is a conflict in
     /// the bindings.
     ///
-    /// ## Example
+    /// # Examples
     ///
     /// ```rust
     /// use bunsen::contracts::{
@@ -487,23 +487,23 @@ impl<'a> ShapeContract<'a> {
         }
     }
 
-    /// Try and match and unpack `K` keys from a shape pattern.
+    /// Tries to match and unpack `K` keys from a shape pattern.
     ///
     /// ## Generics
     ///
     /// - `K`: the length of the `keys` array.
     ///
-    /// ## Arguments
+    /// # Arguments
     ///
     /// - `shape`: the shape to match.
     /// - `keys`: the bound keys to export.
     /// - `env`: the params which are already bound.
     ///
-    /// ## Returns
+    /// # Returns
     ///
     /// A `Result<[usize; K], String>` of the unpacked `keys` values.
     ///
-    /// ## Example
+    /// # Examples
     ///
     /// ```rust
     /// use bunsen::contracts::{
@@ -584,7 +584,7 @@ impl<'a> ShapeContract<'a> {
         Ok(result)
     }
 
-    /// Convert a list of keys to a selection.
+    /// Converts a list of keys to a selection.
     pub fn expect_keys_to_selection<const D: usize>(
         &'a self,
         keys: &[&'a str; D],
@@ -620,13 +620,13 @@ impl<'a> ShapeContract<'a> {
 
     /// Resolve the match for the shape against the pattern.
     ///
-    /// ## Arguments
+    /// # Arguments
     ///
     /// - `shape`: the shape to match.
     /// - `env`: the mutable environment to bind parameters.
     /// - `location`: the location reference from ``#[track_caller]``.
     ///
-    /// ## Returns
+    /// # Returns
     ///
     /// - `Ok(())`: if the shape matches the pattern; will update the `env`.
     /// - `Err(&str)`: if the shape does not match the pattern, with an error
@@ -727,13 +727,13 @@ impl<'a> ShapeContract<'a> {
         Ok(())
     }
 
-    /// Check if the pattern has an ellipsis.
+    /// Checks if the pattern has an ellipsis.
     ///
-    /// ## Arguments
+    /// # Arguments
     ///
     /// - `rank`: the number of dims of the shape to match.
     ///
-    /// ## Returns
+    /// # Returns
     ///
     /// - `Ok((usize, usize))`: the position of the ellipsis and the number of
     ///   dimensions it matches.

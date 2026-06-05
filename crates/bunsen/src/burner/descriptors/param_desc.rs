@@ -47,7 +47,7 @@ impl<T> ParamDesc<T>
 where
     T: Debug + Clone + Send + PartialEq,
 {
-    /// Create a new [`ParamDesc`].
+    /// Creates a new [`ParamDesc`].
     pub fn new(
         param_id: ParamId,
         param: T,
@@ -58,7 +58,7 @@ where
         }
     }
 
-    /// Get the [`ParamId`].
+    /// Returns the [`ParamId`].
     pub fn param_id(&self) -> ParamId {
         self.param_id
     }

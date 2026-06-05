@@ -37,19 +37,19 @@ use crate::{
 
 /// Common meta for [`TextDecoder`] and [`TextDecoderConfig`].
 pub trait TextDecoderMeta {
-    /// Return the size of the vocabulary.
+    /// Returns the size of the vocabulary.
     fn vocab_size(&self) -> usize;
 
     /// The embedding size of the model.
     fn d_model(&self) -> usize;
 
-    /// Return the max context size.
+    /// Returns the max context size.
     fn max_context(&self) -> usize;
 
-    /// Return the number of heads.
+    /// Returns the number of heads.
     fn n_heads(&self) -> usize;
 
-    /// Return the number of layers.
+    /// Returns the number of layers.
     fn n_layers(&self) -> usize;
 }
 
@@ -99,7 +99,7 @@ impl TextDecoderMeta for TextDecoderConfig {
     }
 }
 
-/// Build attention mask for decoder.
+/// Builds attention mask for decoder.
 pub fn attn_decoder_mask<B: Backend>(
     seq_length: usize,
     device: &B::Device,
@@ -145,6 +145,13 @@ impl<B: Backend> ModuleInit<B, TextDecoder<B>> for TextDecoderConfig {
 }
 
 /// Text decoder module for Whisper speech recognition model.
+///
+/// Autoregressive token decoder: token plus positional embeddings, a stack of
+/// [`ResidualDecoderAttentionBlock`] layers (causally-masked self-attention and
+/// cross-attention over the audio encoder output), a final layer norm, and an
+/// unembedding into vocabulary logits.
+///
+/// Built by [`TextDecoderConfig`].
 #[derive(Module, Debug)]
 pub struct TextDecoder<B: Backend> {
     /// The token embedding.
@@ -184,14 +191,14 @@ impl<B: Backend> TextDecoderMeta for TextDecoder<B> {
 }
 
 impl<B: Backend> TextDecoder<B> {
-    /// Run the decoder.
+    /// Runs the decoder.
     ///
-    /// ## Arguments
-    /// * `x`: ``[batch, seq]``.
-    /// * `xa`: ``[batch, seq, d_model]``.
+    /// # Arguments
+    /// * `x`: `[batch, seq]`.
+    /// * `xa`: `[batch, seq, d_model]`.
     ///
-    /// ## Returns
-    /// ``[batch, seq, n_vocab]``.
+    /// # Returns
+    /// `[batch, seq, n_vocab]`.
     pub fn forward(
         &self,
         x: Tensor<B, 2, Int>,

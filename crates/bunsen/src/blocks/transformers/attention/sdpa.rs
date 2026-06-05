@@ -55,11 +55,11 @@ pub struct ScaledDotProductAttentionConfig {
 /// - [pytorch scaled_dot_product_attention](https://docs.pytorch.org/docs/stable/generated/torch.nn.functional.scaled_dot_product_attention.html)
 ///
 /// # Arguments
-/// - `q`: the query tensor, as ``[B, H_q, T_q, D]``.
-/// - `k`: the key tensor, as ``[B, H_k, T_kv, D]``.
-/// - `v`: the value tensor, as ``[B, H_v, T_kv, D]``.
-/// - `bias`: optional additive bias, as ``[T_q, T_kv]``.
-/// - `mask`: optional bias mask, as ``[T_q, T_kv]``.
+/// - `q`: the query tensor, as `[B, H_q, T_q, D]`.
+/// - `k`: the key tensor, as `[B, H_k, T_kv, D]`.
+/// - `v`: the value tensor, as `[B, H_v, T_kv, D]`.
+/// - `bias`: optional additive bias, as `[T_q, T_kv]`.
+/// - `mask`: optional bias mask, as `[T_q, T_kv]`.
 /// - `config`: attention config.
 ///
 /// # Returns
@@ -96,13 +96,13 @@ pub fn scaled_dot_product_attention<B: Backend>(
     attn_weight.matmul(v)
 }
 
-/// Build the Attention Weight for [`scaled_dot_product_attention`].
+/// Builds the Attention Weight for [`scaled_dot_product_attention`].
 ///
 /// # Arguments
-/// - `q`: the query tensor, as ``[B, H_q, T_q, D]``.
-/// - `k`: the key tensor, as ``[B, H_k, T_k, D]``.
-/// - `bias`: optional additive bias, as ``[T_q, T_k]``.
-/// - `mask`: optional bias mask, as ``[T_q, T_k]``.
+/// - `q`: the query tensor, as `[B, H_q, T_q, D]`.
+/// - `k`: the key tensor, as `[B, H_k, T_k, D]`.
+/// - `bias`: optional additive bias, as `[T_q, T_k]`.
+/// - `mask`: optional bias mask, as `[T_q, T_k]`.
 /// - `config`: attention config.
 pub fn sdpa_attn_weight<B: Backend>(
     q: Tensor<B, 4>,
@@ -144,7 +144,7 @@ pub fn sdpa_attn_weight<B: Backend>(
     softmax(attn_weight, 3)
 }
 
-/// Build the Attention Bias for [`scaled_dot_product_attention`].
+/// Builds the Attention Bias for [`scaled_dot_product_attention`].
 ///
 /// # Arguments
 /// - `l`: the query time dimension.
@@ -156,7 +156,7 @@ pub fn sdpa_attn_weight<B: Backend>(
 /// - `device`: the target device of the bias.
 ///
 /// # Returns
-/// - a ``[l, s]`` attention bias tensor.
+/// - a `[l, s]` attention bias tensor.
 pub fn sdpa_bias<B: Backend>(
     l: usize,
     s: usize,

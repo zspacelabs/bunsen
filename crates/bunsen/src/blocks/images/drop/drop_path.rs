@@ -111,7 +111,7 @@ pub trait DropPathMeta {
     fn scale_by_keep(&self) -> bool;
 }
 
-/// Configuration for the `DropPath` module.
+/// Configuration for the [`DropPath`] module.
 #[derive(Config, Debug)]
 pub struct DropPathConfig {
     /// Probability of dropping a path.
@@ -149,6 +149,8 @@ impl DropPathConfig {
 ///
 /// Burn Module that implements the `DropPath` (Stochastic Depth)
 /// regularization.
+///
+/// Built by [`DropPathConfig`].
 #[derive(Module, Clone, Debug)]
 pub struct DropPath {
     /// Probability of dropping a path.
@@ -184,9 +186,9 @@ impl DropPath {
     ///
     /// This is used for stochastic depth in the transformer block.
     ///
-    /// # Parameters
+    /// # Arguments
     ///
-    /// * `x` - Input tensor of shape (B, D).
+    /// * `x` - `[B, D]` input tensor.
     /// * `f` - Function to apply on the input tensor.
     ///
     /// # Returns

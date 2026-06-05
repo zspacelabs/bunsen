@@ -77,7 +77,7 @@ pub fn zspace_partial_cmp<T: PartialOrd>(
     Some(ord)
 }
 
-/// Check if a `point` is in the half-open range ``[start, end)``
+/// Checks if a `point` is in the half-open range ``[start, end)``.
 ///
 /// # Returns
 ///

@@ -53,6 +53,12 @@ use crate::{
 };
 
 /// Abstract [`ResidualBlock`] Config.
+///
+/// High-level description of a single residual unit: channel sizes, dilation,
+/// downsampling, and whether to select a [`BasicBlock`] or [`BottleneckBlock`].
+/// Lowers to a [`ResidualBlockStructureConfig`] via
+/// [`ResidualBlockContractConfig::to_structure`]; call `.init(device)` to build
+/// the [`ResidualBlock`] module, then drive it with [`ResidualBlock::forward`].
 #[derive(Config, Debug)]
 pub struct ResidualBlockContractConfig {
     /// The number of input feature planes.
@@ -90,7 +96,7 @@ pub struct ResidualBlockContractConfig {
 }
 
 impl ResidualBlockContractConfig {
-    /// Convert to [`ResidualBlockStructureConfig`].
+    /// Converts to [`ResidualBlockStructureConfig`].
     pub fn to_structure(&self) -> ResidualBlockStructureConfig {
         let stride = if self.downsample_input { 2 } else { 1 };
 
@@ -145,18 +151,18 @@ pub trait ResidualBlockMeta {
     /// Affects downsample behavior.
     fn stride(&self) -> usize;
 
-    /// Get the output resolution for a given input resolution.
+    /// Returns the output resolution for a given input resolution.
     ///
     /// The input must be a multiple of the stride.
     ///
     /// # Arguments
     ///
-    /// - `input_resolution`: \ ``[in_height=out_height*stride,
-    ///   in_width=out_width*stride]``.
+    /// - `input_resolution`: \ `[in_height=out_height*stride,
+    ///   in_width=out_width*stride]`.
     ///
     /// # Returns
     ///
-    /// ``[out_height, out_width]``
+    /// `[out_height, out_width]`
     ///
     /// # Panics
     ///
@@ -170,6 +176,11 @@ pub trait ResidualBlockMeta {
 }
 
 /// [`ResidualBlock`] Config.
+///
+/// The concrete, resolved choice of inner block ([`BasicBlockConfig`] or
+/// [`BottleneckBlockConfig`]) for one residual unit. Call `.init(device)` to
+/// build the [`ResidualBlock`] module, then drive it with
+/// [`ResidualBlock::forward`].
 ///
 /// Implements [`ResidualBlockMeta`].
 #[derive(Config, Debug)]
@@ -227,7 +238,7 @@ impl From<BottleneckBlockConfig> for ResidualBlockStructureConfig {
 }
 
 impl ResidualBlockStructureConfig {
-    /// Set drop block options.
+    /// Sets drop block options.
     pub fn with_drop_block(
         self,
         options: Option<DropBlockOptions>,
@@ -238,7 +249,7 @@ impl ResidualBlockStructureConfig {
         }
     }
 
-    /// Set the drop path probability.
+    /// Sets the drop path probability.
     pub fn with_drop_path_prob(
         self,
         drop_path_prob: f64,
@@ -265,7 +276,15 @@ impl<B: Backend> ModuleInit<B, ResidualBlock<B>> for ResidualBlockStructureConfi
 
 /// A `ResNet` [`BasicBlock`] or [`BottleneckBlock`] wrapper.
 ///
+/// A uniform residual-unit module that dispatches to either a [`BasicBlock`] or
+/// a [`BottleneckBlock`], letting a stage hold a homogeneous list of blocks.
+/// Configure via [`ResidualBlockContractConfig`], call `.init(device)` to
+/// build, then [`ResidualBlock::forward`] to apply.
+///
 /// Implements [`ResidualBlockMeta`].
+///
+/// Built by [`ResidualBlockContractConfig`] (high-level) or
+/// [`ResidualBlockStructureConfig`].
 #[derive(Module, Debug)]
 #[allow(clippy::large_enum_variant)]
 pub enum ResidualBlock<B: Backend> {
@@ -320,16 +339,16 @@ impl<B: Backend> ResidualBlock<B> {
         }
     }
 
-    /// Apply the wrapped block to the input.
+    /// Applies the wrapped block to the input.
     ///
     /// # Arguments
     ///
-    /// - `input`: ``[batch, in_planes, in_height=out_height*stride,
-    ///   in_width=out_width*stride]``.
+    /// - `input`: `[batch, in_planes, in_height=out_height*stride,
+    ///   in_width=out_width*stride]`.
     ///
     /// # Returns
     ///
-    /// A ``[batch, out_planes, out_height, out_width]`` tensor;
+    /// A `[batch, out_planes, out_height, out_width]` tensor;
     pub fn forward(
         &self,
         input: Tensor<B, 4>,
@@ -340,7 +359,7 @@ impl<B: Backend> ResidualBlock<B> {
         }
     }
 
-    /// Set the drop path probability.
+    /// Sets the drop path probability.
     pub fn with_drop_path_prob(
         self,
         drop_path_prob: f64,
@@ -352,7 +371,7 @@ impl<B: Backend> ResidualBlock<B> {
         }
     }
 
-    /// Set drop block options.
+    /// Sets drop block options.
     pub fn with_drop_block(
         self,
         options: Option<DropBlockOptions>,

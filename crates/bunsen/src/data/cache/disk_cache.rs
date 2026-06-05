@@ -43,7 +43,7 @@ pub struct BunsenDiskCacheOptions {
 }
 
 impl BunsenDiskCacheOptions {
-    /// Set the cache directory.
+    /// Sets the cache directory.
     pub fn with_cache_dir<P: AsRef<Path>>(
         mut self,
         cache_dir: Option<P>,
@@ -52,7 +52,7 @@ impl BunsenDiskCacheOptions {
         self
     }
 
-    /// Set the data directory.
+    /// Sets the data directory.
     pub fn with_data_dir<P: AsRef<Path>>(
         mut self,
         data_dir: Option<P>,
@@ -61,7 +61,7 @@ impl BunsenDiskCacheOptions {
         self
     }
 
-    /// Set the downloader builder.
+    /// Sets the downloader builder.
     pub fn with_downloader(
         mut self,
         downloader: Option<fn() -> Downloader>,
@@ -94,7 +94,7 @@ impl Default for BunsenDiskCache {
 }
 
 impl BunsenDiskCache {
-    /// Construct a new [`BunsenDiskCache`].
+    /// Constructs a new [`BunsenDiskCache`].
     pub fn new(options: BunsenDiskCacheOptions) -> BunsenResult<Self> {
         let cache_dir = BUNSEN_CACHE_CONFIG
             .resolve_cache_dir(options.cache_dir)
@@ -122,17 +122,17 @@ impl BunsenDiskCache {
         })
     }
 
-    /// Get the cache directory.
+    /// Returns the cache directory.
     pub fn cache_dir(&self) -> &Path {
         &self.cache_dir
     }
 
-    /// Get the data directory.
+    /// Returns the data directory.
     pub fn data_dir(&self) -> &Path {
         &self.data_dir
     }
 
-    /// Get the downloader.
+    /// Returns the downloader.
     pub fn downloader(&self) -> &Downloader {
         &self.downloader
     }
@@ -198,7 +198,7 @@ impl BunsenDiskCache {
         Ok(path)
     }
 
-    /// Get the cache path for the given key.
+    /// Returns the cache path for the given key.
     ///
     /// * Does not check that the path exists.
     /// * Does not initialize the containing directories.
@@ -218,7 +218,7 @@ impl BunsenDiskCache {
         path_utils::extend_path(&self.cache_dir, context, file)
     }
 
-    /// Get the data path for the given key.
+    /// Returns the data path for the given key.
     ///
     /// * Does not check that the path exists.
     /// * Does not initialize the containing directories.

@@ -18,7 +18,7 @@ pub struct ShapeView<'a> {
 }
 
 impl<'a> ShapeView<'a> {
-    /// Build an adaptor from a slice reference.
+    /// Builds an adaptor from a slice reference.
     pub fn from_slice(slice: &'a [usize]) -> Self {
         Self {
             slice: Some(slice),
@@ -26,7 +26,7 @@ impl<'a> ShapeView<'a> {
         }
     }
 
-    /// Build an adaptor from a vector.
+    /// Builds an adaptor from a vector.
     pub fn from_vec(shape: Vec<usize>) -> Self {
         Self {
             slice: None,

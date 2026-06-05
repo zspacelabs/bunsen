@@ -22,6 +22,13 @@ use crate::{
 };
 
 /// Whisper API config.
+///
+/// User-facing configuration for the [`Whisper`] model, exposing the flat
+/// hyperparameters (Mel resolution, vocabulary, model/head sizes, context
+/// limits, and encoder/decoder layer counts). Expands via
+/// [`to_structure`](WhisperApiConfig::to_structure) into a
+/// [`WhisperStructuralConfig`], and builds the [`Whisper`] module directly via
+/// [`ModuleInit`].
 #[derive(Config, Debug)]
 pub struct WhisperApiConfig {
     /// The Mel-scale frequency resolution.
@@ -51,7 +58,7 @@ pub struct WhisperApiConfig {
 }
 
 impl WhisperApiConfig {
-    /// Convert to a [`WhisperStructuralConfig`].
+    /// Converts to a [`WhisperStructuralConfig`].
     pub fn to_structure(&self) -> WhisperStructuralConfig {
         WhisperStructuralConfig {
             encoder: AudioEncoderConfig::new(
@@ -83,17 +90,17 @@ impl<B: Backend> ModuleInit<B, Whisper<B>> for WhisperApiConfig {
 
 /// Common meta for [`Whisper`] and [`WhisperApiConfig`].
 pub trait WhisperMeta {
-    /// Return the Mel-scale frequency resolution.
+    /// Returns the Mel-scale frequency resolution.
     fn n_mels(&self) -> usize {
         self.encoder().n_mels()
     }
 
-    /// Return the vocabulary size.
+    /// Returns the vocabulary size.
     fn vocab_size(&self) -> usize {
         self.decoder().vocab_size()
     }
 
-    /// Return the embedding size of the model.
+    /// Returns the embedding size of the model.
     fn d_model(&self) -> usize {
         self.encoder().d_model()
     }
@@ -108,14 +115,18 @@ pub trait WhisperMeta {
         self.decoder().max_context()
     }
 
-    /// Return the [`AudioEncoder`] meta.
+    /// Returns the [`AudioEncoder`] meta.
     fn encoder(&self) -> &impl AudioEncoderMeta;
 
-    /// Return the [`TextDecoder`] meta.
+    /// Returns the [`TextDecoder`] meta.
     fn decoder(&self) -> &impl TextDecoderMeta;
 }
 
 /// [`Whisper`] structural config.
+///
+/// The fully-expanded structural configuration for the [`Whisper`] model,
+/// pairing an [`AudioEncoderConfig`] with a [`TextDecoderConfig`]. Builds the
+/// [`Whisper`] module via [`ModuleInit`].
 #[derive(Config, Debug)]
 pub struct WhisperStructuralConfig {
     /// Encoder config.
@@ -150,6 +161,12 @@ impl<B: Backend> ModuleInit<B, Whisper<B>> for WhisperStructuralConfig {
 }
 
 /// Whisper model
+///
+/// End-to-end Whisper speech recognition model, composing an [`AudioEncoder`]
+/// over the input log-Mel spectrogram with a [`TextDecoder`] that
+/// cross-attends to the encoder output to produce vocabulary logits.
+///
+/// Built by [`WhisperApiConfig`].
 #[derive(Module, Debug)]
 pub struct Whisper<B: Backend> {
     /// The [`AudioEncoder`].
@@ -172,12 +189,12 @@ impl<B: Backend> WhisperMeta for Whisper<B> {
 impl<B: Backend> Whisper<B> {
     /// Forward pass through the Whisper model.
     ///
-    /// ## Arguments
-    /// * `mel`: The input audio spectrogram ``[batch, n_mels, seq]``.
-    /// * `tokens`: ``[batch, seq]``.
+    /// # Arguments
+    /// * `mel`: The input audio spectrogram `[batch, n_mels, seq]`.
+    /// * `tokens`: `[batch, seq]`.
     ///
-    /// ## Returns
-    /// ``[batch, seq, vocab_size]``.
+    /// # Returns
+    /// `[batch, seq, vocab_size]`.
     pub fn forward(
         &self,
         mel: Tensor<B, 3>,
@@ -188,11 +205,11 @@ impl<B: Backend> Whisper<B> {
 
     /// Forward pass through the Whisper encoder.
     ///
-    /// ## Arguments
-    /// * `mel`: The input audio spectrogram ``[batch, n_mels, seq]``.
+    /// # Arguments
+    /// * `mel`: The input audio spectrogram `[batch, n_mels, seq]`.
     ///
-    /// ## Returns
-    /// ``[batch, seq, n_audio_states]``.
+    /// # Returns
+    /// `[batch, seq, n_audio_states]`.
     pub fn forward_encoder(
         &self,
         mel: Tensor<B, 3>,
@@ -202,12 +219,12 @@ impl<B: Backend> Whisper<B> {
 
     /// Forward pass through the Whisper decoder.
     ///
-    /// ## Arguments
-    /// * `tokens`: ``[batch, seq]``.
-    /// * `encoder_output`: ``[batch, seq, d_model]``.
+    /// # Arguments
+    /// * `tokens`: `[batch, seq]`.
+    /// * `encoder_output`: `[batch, seq, d_model]`.
     ///
-    /// ## Returns
-    /// ``[batch, seq, vocab_size]``.
+    /// # Returns
+    /// `[batch, seq, vocab_size]`.
     pub fn forward_decoder(
         &self,
         tokens: Tensor<B, 2, Int>,

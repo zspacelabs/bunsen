@@ -54,7 +54,7 @@ pub struct KVCacheConfig {
 }
 
 impl KVCacheConfig {
-    /// Set the `batch_size`.
+    /// Sets the `batch_size`.
     pub fn with_batch_size(
         self,
         batch_size: usize,
@@ -86,7 +86,7 @@ impl KVCacheMeta for KVCacheConfig {
 }
 
 impl KVCacheConfig {
-    /// Initialize a [`KVCache`].
+    /// Initializes a [`KVCache`].
     pub fn init<B: Backend>(self) -> KVCache<B> {
         KVCache {
             batch_size: self.batch_size,
@@ -103,6 +103,19 @@ impl KVCacheConfig {
 }
 
 /// KV Cache
+///
+/// A growable key/value cache for incremental (autoregressive) attention
+/// decoding. It stores per-layer key and value tensors across decoding steps
+/// so each new token only attends over freshly computed keys/values plus the
+/// cached history. Use [`insert_kv`](KVCache::insert_kv) to append a step's
+/// `(k, v)` and obtain the full cached slices, [`pos`](KVCache::pos) /
+/// [`reset`](KVCache::reset) to query or rewind the position, and
+/// [`prefill`](KVCache::prefill) to seed it from another cache. The backing
+/// storage grows in chunks as the sequence length increases.
+///
+/// Constructs via [`KVCacheConfig`] and `.init()`.
+///
+/// Built by [`KVCacheConfig`].
 #[derive(Module, Debug)]
 pub struct KVCache<B: Backend> {
     batch_size: usize,
@@ -141,14 +154,14 @@ impl<B: Backend> KVCacheMeta for KVCache<B> {
 }
 
 impl<B: Backend> KVCache<B> {
-    /// Reset the current position.
+    /// Resets the current position.
     ///
     /// Does not drop/re-allocate the cache.
     pub fn reset(&mut self) {
         self.pos = 0;
     }
 
-    /// Get the current position.
+    /// Returns the current position.
     pub fn pos(&self) -> usize {
         self.pos
     }
@@ -196,15 +209,15 @@ impl<B: Backend> KVCache<B> {
         self.pos = other.pos;
     }
 
-    /// Insert and extend a (k, v) pair.
+    /// Inserts and extends a `(k, v)` pair.
     ///
     /// # Arguments
     /// - `layer_idx`: the block layer index.
-    /// - `k`: the ``[B, H_kv, T, D]`` key tensor.
-    /// - `v`: the ``[B, H_kv, T, D]`` value tensor.
+    /// - `k`: the `[B, H_kv, T, D]` key tensor.
+    /// - `v`: the `[B, H_kv, T, D]` value tensor.
     ///
     /// # Returns
-    /// - the extended (k, v) ``[B, H_kv, T, D]`` pair.
+    /// - the extended (k, v) `[B, H_kv, T, D]` pair.
     pub fn insert_kv(
         &mut self,
         layer_idx: usize,
@@ -302,7 +315,7 @@ impl<B: Backend> KVCache<B> {
         .cast(dtype)
     }
 
-    /// Compute the target allocation size for a given required size.
+    /// Computes the target allocation size for a given required size.
     pub fn allocation_size(
         &self,
         required_size: usize,

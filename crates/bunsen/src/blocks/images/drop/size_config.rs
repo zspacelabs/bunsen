@@ -25,18 +25,18 @@ pub enum SizeConfig {
 }
 
 impl SizeConfig {
-    /// Construct a source which will have the same size as the source dataset.
+    /// Constructs a source which will have the same size as the source dataset.
     pub fn source() -> Self {
         Self::Default
     }
 
     /// Resolve the effective size.
     ///
-    /// ## Arguments
+    /// # Arguments
     ///
     /// - `source_size`: the size of the source dataset.
     ///
-    /// ## Returns
+    /// # Returns
     ///
     /// The resolved size of the wrapper dataset.
     pub fn resolve(

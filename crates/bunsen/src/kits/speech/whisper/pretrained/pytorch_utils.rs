@@ -124,7 +124,7 @@ impl PytorchWhisperScanner {
         ))
     }
 
-    /// Load a pytorch whisper model from a checkpoint.
+    /// Loads a pytorch whisper model from a checkpoint.
     pub fn load<B: Backend, P: AsRef<Path>>(
         &self,
         path: P,

@@ -13,10 +13,10 @@ use burn::{
 /// This point as a sphere, normal to all directions.
 ///
 /// # Arguments
-/// - `dist`: ``[H, W, VY=3, VX=3]`` pre-collision distribution
+/// - `dist`: `[H, W, VY=3, VX=3]` pre-collision distribution
 ///
 /// # Returns
-/// - ``[H, W, VY=3, VX=3]`` distribution.
+/// - `[H, W, VY=3, VX=3]` distribution.
 pub fn spherical_reflection<B: Backend>(dist: Tensor<B, 4>) -> Tensor<B, 4> {
     dist.flip([2, 3])
 }
@@ -27,12 +27,12 @@ pub fn spherical_reflection<B: Backend>(dist: Tensor<B, 4>) -> Tensor<B, 4> {
 /// This models every solid point as a sphere, normal to all directions.
 ///
 /// # Arguments
-/// - `pre_dist`: ``[H, W, VY=3, VX=3]`` pre-collision distribution
-/// - `naive_dist`: ``[H, W, VY=3, VX=3]`` post-collision distribution
-/// - `solid_mask`: ``[H, W]`` mask of solid locations.
+/// - `pre_dist`: `[H, W, VY=3, VX=3]` pre-collision distribution
+/// - `naive_dist`: `[H, W, VY=3, VX=3]` post-collision distribution
+/// - `solid_mask`: `[H, W]` mask of solid locations.
 ///
 /// # Returns
-/// - ``[H, W, VY=3, VX=3]`` distribution.
+/// - `[H, W, VY=3, VX=3]` distribution.
 pub fn with_spherical_reflection<B: Backend>(
     pre_dist: Tensor<B, 4>,
     naive_dist: Tensor<B, 4>,

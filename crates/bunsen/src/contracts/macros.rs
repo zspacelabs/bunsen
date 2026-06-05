@@ -26,7 +26,7 @@ macro_rules! __shape_contract {
 /// of code to every nth call, such as logging, sampling, or throttling
 /// operations.
 ///
-/// ## Arguments:
+/// # Arguments:
 ///
 /// - `$period`: [optional; default=1000] the period.
 /// - `$code`: An expression to be executed every nth time.

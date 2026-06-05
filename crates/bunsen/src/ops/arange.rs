@@ -11,12 +11,12 @@ use burn::prelude::{
     Tensor,
 };
 
-/// Create a vector with evenly spaced floating point values.
+/// Creates a vector with evenly spaced floating point values.
 ///
 /// This function generates a vector starting from `start`, ending at `end`, and
 /// incrementing by `step`.
 ///
-/// # Parameters
+/// # Arguments
 ///
 /// - `start`: The starting value of the range.
 /// - `end`: The end value of the range (exclusive).
@@ -59,12 +59,12 @@ pub fn float_vec_arange(
     values
 }
 
-/// Create a vector with evenly spaced floating point values.
+/// Creates a vector with evenly spaced floating point values.
 ///
 /// This function generates a vector with `num` values starting from `start`,
 /// ending at `end`, and evenly spaced.
 ///
-/// # Parameters
+/// # Arguments
 ///
 /// - `start`: The starting value of the range.
 /// - `end`: The end value of the range (inclusive).
@@ -95,13 +95,13 @@ pub fn float_vec_linspace(
 
     float_vec_arange(start, end, Some(step))
 }
-/// Create a 1D tensor with evenly spaced floating point values.
+/// Creates a 1D tensor with evenly spaced floating point values.
 ///
 /// This function generates a tensor with values starting from `start`, ending
 /// at `end`, and incrementing by `step`. If `step` is not provided, it defaults
 /// to `1.0` if `start < end`, or `-1.0` if `start > end`.
 ///
-/// # Parameters
+/// # Arguments
 ///
 /// - `start`: The starting value of the range.
 /// - `end`: The end value of the range (exclusive).
@@ -122,12 +122,12 @@ pub fn float_arange<B: Backend>(
     Tensor::from_data(values.as_slice(), device)
 }
 
-/// Create a 1D tensor with evenly spaced floating point values.
+/// Creates a 1D tensor with evenly spaced floating point values.
 ///
 /// This function generates a tensor with `num` values starting from `start`,
 /// ending at `end`, and evenly spaced.
 ///
-/// # Parameters
+/// # Arguments
 ///
 /// - `start`: The starting value of the range.
 /// - `end`: The end value of the range (inclusive).

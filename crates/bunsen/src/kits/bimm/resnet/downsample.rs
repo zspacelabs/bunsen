@@ -61,18 +61,18 @@ pub trait ResNetDownsampleMeta {
     /// The stride of the downsample layer.
     fn stride(&self) -> usize;
 
-    /// Get the output resolution for a given input resolution.
+    /// Returns the output resolution for a given input resolution.
     ///
     /// The input must be a multiple of the stride.
     ///
     /// # Arguments
     ///
-    /// - `input_resolution`: ``[in_height=out_height*stride,
-    ///   in_width=out_width*stride]``.
+    /// - `input_resolution`: `[in_height=out_height*stride,
+    ///   in_width=out_width*stride]`.
     ///
     /// # Returns
     ///
-    /// ``[out_height, out_width]``
+    /// `[out_height, out_width]`
     ///
     /// # Panics
     ///
@@ -96,6 +96,11 @@ pub trait ResNetDownsampleMeta {
 }
 
 /// [`ResNetDownsample`] configuration.
+///
+/// Describes the conv (channels, kernel, stride, dilation) and normalization
+/// used to project a residual identity path onto the block output shape. Call
+/// `.init(device)` to build the [`ResNetDownsample`] module, then drive it with
+/// [`ResNetDownsample::forward`].
 ///
 /// Implements [`ResNetDownsampleMeta`].
 ///
@@ -187,7 +192,14 @@ impl<B: Backend> ModuleInit<B, ResNetDownsample<B>> for ResNetDownsampleConfig {
 
 /// `ResNet` Downsample Layer.
 ///
+/// A conv + norm that reshapes a residual identity tensor (channels and/or
+/// spatial stride) so it can be added to a block output. Configure via
+/// [`ResNetDownsampleConfig`], call `.init(device)` to build, then
+/// [`ResNetDownsample::forward`] to apply.
+///
 /// Implements [`ResNetDownsampleMeta`].
+///
+/// Built by [`ResNetDownsampleConfig`].
 ///
 /// # Missing Features
 ///
@@ -229,12 +241,12 @@ impl<B: Backend> ResNetDownsample<B> {
     ///
     /// # Arguments
     ///
-    /// - `input`: \ ``[batch, in_channels, in_height=out_height*stride,
-    ///   in_width=out_width*stride]``
+    /// - `input`: \ `[batch, in_channels, in_height=out_height*stride,
+    ///   in_width=out_width*stride]`
     ///
     /// # Returns
     ///
-    /// ``[batch_size, out_channels, h_out, w_out]``
+    /// `[batch_size, out_channels, h_out, w_out]`
     pub fn forward(
         &self,
         input: Tensor<B, 4>,

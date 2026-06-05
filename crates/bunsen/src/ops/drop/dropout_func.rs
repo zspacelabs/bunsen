@@ -11,7 +11,7 @@ use burn::{
 /// input * input.random_like(Bernoulli(p_keep)) / p_keep
 /// ```
 ///
-/// ## Arguments
+/// # Arguments
 /// * `prob` - the drop probability.
 /// * `input` - the input tensor.
 pub fn dropout<B: Backend, const D: usize>(

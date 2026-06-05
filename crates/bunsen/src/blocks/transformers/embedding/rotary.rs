@@ -26,10 +26,10 @@ use crate::{
 
 /// Common meta for [`RotaryEmbedding`] and [`RotaryEmbeddingConfig`].
 pub trait RotaryEmbeddingMeta {
-    /// Return the sequence length.
+    /// Returns the sequence length.
     fn seq_len(&self) -> usize;
 
-    /// Return the head dimension.
+    /// Returns the head dimension.
     fn head_dim(&self) -> usize;
 }
 
@@ -100,15 +100,25 @@ impl<B: Backend> ModuleInit<B, RotaryEmbedding<B>> for RotaryEmbeddingConfig {
 }
 
 /// Rotary Embedding Module
+///
+/// Precomputed rotary positional embedding (RoPE). It holds per-position
+/// `cos`/`sin` tables and applies position-dependent rotations to the
+/// query/key head dimensions via [`apply`](RotaryEmbedding::apply); use
+/// [`clip_range`](RotaryEmbedding::clip_range) to restrict it to a
+/// sub-range of positions. Construct via [`RotaryEmbeddingConfig`] and
+/// `.init(device)`, then call [`apply`](RotaryEmbedding::apply) on a
+/// `[B, T, H, D]` tensor.
+///
+/// Built by [`RotaryEmbeddingConfig`].
 #[derive(Module, Debug)]
 pub struct RotaryEmbedding<B: Backend> {
     /// Head Dimension, D
     pub head_dim: usize,
 
-    /// a ``[1, T, 1, D/2]`` tensor.
+    /// a `[1, T, 1, D/2]` tensor.
     pub cos: Tensor<B, 4>,
 
-    /// a ``[1, T, 1, D/2]`` tensor.
+    /// a `[1, T, 1, D/2]` tensor.
     pub sin: Tensor<B, 4>,
 }
 
@@ -123,7 +133,7 @@ impl<B: Backend> RotaryEmbeddingMeta for RotaryEmbedding<B> {
 }
 
 impl<B: Backend> RotaryEmbedding<B> {
-    /// Cast the embedding to a different dtype.
+    /// Casts the embedding to a different dtype.
     pub fn cast(
         self,
         dtype: DType,
@@ -153,13 +163,13 @@ impl<B: Backend> RotaryEmbedding<B> {
         }
     }
 
-    /// Apply the rotary embedding to the input.
+    /// Applies the rotary embedding to the input.
     ///
     /// # Arguments
-    /// - `input`: a ``[B, T, H, D]`` tensor.
+    /// - `input`: a `[B, T, H, D]` tensor.
     ///
     /// # Returns
-    /// - a ``[B, T, H, D]`` tensor.
+    /// - a `[B, T, H, D]` tensor.
     pub fn apply(
         &self,
         input: Tensor<B, 4>,
@@ -197,7 +207,7 @@ impl<B: Backend> RotaryEmbedding<B> {
     }
 }
 
-/// Compute the rotary embedding inverse frequency table.
+/// Computes the rotary embedding inverse frequency table.
 ///
 /// # Arguments
 /// - `base`: the base.
@@ -205,7 +215,7 @@ impl<B: Backend> RotaryEmbedding<B> {
 /// - `device`: the target device.
 ///
 /// # Returns
-/// - ``[(1.0 / (base**(d / head_dim))) for d in 0:head_dim:2]``
+/// - `[(1.0 / (base**(d / head_dim))) for d in 0:head_dim:2]`
 pub fn inverse_frequency_table<B: Backend>(
     base: usize,
     head_dim: usize,
@@ -218,7 +228,7 @@ pub fn inverse_frequency_table<B: Backend>(
     )
 }
 
-/// Compute the positionally shifted frequency table.
+/// Computes the positionally shifted frequency table.
 ///
 /// # Arguments
 /// - `seq_len`: the sequence length.
@@ -227,7 +237,7 @@ pub fn inverse_frequency_table<B: Backend>(
 /// - `device`: the target device.
 ///
 /// # Returns
-/// - ``[T, F=D/2]`` sequence x inverse frequency table.
+/// - `[T, F=D/2]` sequence x inverse frequency table.
 pub fn positional_frequency_table<B: Backend>(
     seq_len: usize,
     base: usize,

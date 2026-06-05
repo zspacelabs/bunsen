@@ -58,7 +58,7 @@ pub struct AbstractCNA2dConfig {
 }
 
 impl AbstractCNA2dConfig {
-    /// Merge with a [`Conv2dConfig`] to construct a [`CNA2dConfig`].
+    /// Merges with a [`Conv2dConfig`] to construct a [`CNA2dConfig`].
     ///
     /// The abstract [`NormalizationConfig`] will be feature matched
     /// with the target [`Conv2dConfig`], resulting in a normalization
@@ -87,7 +87,7 @@ pub trait CNA2dMeta {
     /// Number of groups.
     fn groups(&self) -> usize;
 
-    /// Get the stride.
+    /// Returns the stride.
     fn stride(&self) -> [usize; 2];
 }
 
@@ -170,6 +170,8 @@ impl<B: Backend> ModuleInit<B, CNA2d<B>> for CNA2dConfig {
 /// to run code between the norm and application images.
 ///
 /// Implements [`CNA2dMeta`].
+///
+/// Built by [`CNA2dConfig`].
 #[derive(Module, Debug)]
 pub struct CNA2d<B: Backend> {
     /// Internal Conv2d layer.
@@ -214,12 +216,12 @@ impl<B: Backend> CNA2d<B> {
     ///
     /// # Arguments
     ///
-    /// - `input`: ``[batch, in_channels, in_height=out_height*stride,
-    ///   in_width=out_width*stride]``.
+    /// - `input`: `[batch, in_channels, in_height=out_height*stride,
+    ///   in_width=out_width*stride]`.
     ///
     /// # Returns
     ///
-    /// ``[batch, out_channels, out_height, out_width]``
+    /// `[batch, out_channels, out_height, out_width]`
     pub fn forward(
         &self,
         input: Tensor<B, 4>,
@@ -241,14 +243,14 @@ impl<B: Backend> CNA2d<B> {
     ///
     /// # Arguments
     ///
-    /// - `input`: \ ``[batch, in_channels, in_height=out_height*stride,
-    ///   in_width=out_width*stride]``.
-    /// - `f`: a callback endofunction, from/to ``[batch, in_channels,
-    ///   out_height, out_width]``.
+    /// - `input`: \ `[batch, in_channels, in_height=out_height*stride,
+    ///   in_width=out_width*stride]`.
+    /// - `f`: a callback endofunction, from/to `[batch, in_channels,
+    ///   out_height, out_width]`.
     ///
     /// # Returns
     ///
-    /// ``[batch, out_channels, out_height, out_width]``
+    /// `[batch, out_channels, out_height, out_width]`
     pub fn map_forward<F>(
         &self,
         input: Tensor<B, 4>,

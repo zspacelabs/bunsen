@@ -51,31 +51,36 @@ use crate::{
 
 /// Common meta for [`NanoChatGpt`] and [`NanoChatGptConfig`].
 pub trait NanoChatGptMeta {
-    /// Return the size of the input and output.
+    /// Returns the size of the input and output.
     fn n_embed(&self) -> usize;
 
-    /// Return the number of heads.
+    /// Returns the number of heads.
     fn n_head(&self) -> usize;
 
-    /// Return the number of KV heads.
+    /// Returns the number of KV heads.
     fn n_kv_head(&self) -> usize;
 
-    /// Return the size of each head.
+    /// Returns the size of each head.
     fn head_dim(&self) -> usize {
         self.n_embed() / self.n_head()
     }
 
-    /// Return the initial sequence length.
+    /// Returns the initial sequence length.
     fn init_seq_len(&self) -> usize;
 
-    /// Return the maximum sequence length.
+    /// Returns the maximum sequence length.
     fn max_seq_len(&self) -> usize;
 
-    /// Return the number of layers.
+    /// Returns the number of layers.
     fn n_layer(&self) -> usize;
 }
 
 /// High-level GPT Config.
+///
+/// User-facing configuration for the nanoChat GPT model, exposing the common
+/// hyperparameters (sizes, layer/head counts, vocabulary, softcap). Expands via
+/// [`into_structure`](NanoChatGptConfig::into_structure) into a
+/// [`NanoChatGptStructureConfig`], which builds the [`NanoChatGpt`] module.
 #[derive(Config, Debug)]
 pub struct NanoChatGptConfig {
     /// Initial sequence Length.
@@ -151,7 +156,7 @@ impl NanoChatGptMeta for NanoChatGptConfig {
 }
 
 impl NanoChatGptConfig {
-    /// Initialize a [`NanoChatGpt`].
+    /// Initializes a [`NanoChatGpt`].
     pub fn init<B: Backend>(
         self,
         device: &B::Device,
@@ -159,7 +164,7 @@ impl NanoChatGptConfig {
         self.into_structure().init(device)
     }
 
-    /// Convert this config into a [`NanoChatGptStructureConfig`].
+    /// Converts this config into a [`NanoChatGptStructureConfig`].
     pub fn into_structure(self) -> NanoChatGptStructureConfig {
         let block_config = self.block_config();
         NanoChatGptStructureConfig {
@@ -173,7 +178,7 @@ impl NanoChatGptConfig {
         }
     }
 
-    /// Build the [`NanoChatGptBlockConfig`] for this config.
+    /// Builds the [`NanoChatGptBlockConfig`] for this config.
     pub fn block_config(&self) -> NanoChatGptBlockConfig {
         NanoChatGptBlockConfig::new(
             CausalSelfAttentionConfig::new(self.n_head, self.n_kv_head, self.n_embed)
@@ -188,6 +193,10 @@ impl NanoChatGptConfig {
 }
 
 /// Low-level GPT Structure Config.
+///
+/// The fully-expanded structural configuration for the [`NanoChatGpt`] module,
+/// holding the explicit sub-configs (embedding, per-layer blocks, head, rotary
+/// embedding). Directly builds the [`NanoChatGpt`] module via [`ModuleInit`].
 ///
 /// This config has a lot of duplicate information.
 #[derive(Config, Debug)]
@@ -271,7 +280,14 @@ impl<B: Backend> ModuleInit<B, NanoChatGpt<B>> for NanoChatGptStructureConfig {
     }
 }
 
-/// GPT Module
+/// nanoChat GPT language model.
+///
+/// A decoder-only transformer: token embedding, a stack of
+/// [`NanoChatGptBlock`] layers, a final normalization, and a tied/linear head
+/// producing softcapped vocabulary logits. Supports incremental decoding via a
+/// [`KVCache`].
+///
+/// Built by [`NanoChatGptConfig`].
 #[derive(Module, Debug)]
 pub struct NanoChatGpt<B: Backend> {
     wte: Embedding<B>,
@@ -318,7 +334,7 @@ impl<B: Backend> NanoChatGpt<B> {
     /// Forward Pass.
     ///
     /// # Arguments
-    /// - `idx`: a ``[B, T]`` input.
+    /// - `idx`: a `[B, T]` input.
     /// - `kv_cache`: a `KVCache`.
     pub fn forward(
         &self,
@@ -382,7 +398,7 @@ impl<B: Backend> NanoChatGpt<B> {
         .init()
     }
 
-    /// Calculate the estimated FLOPs per token for the model.
+    /// Calculates the estimated FLOPs per token for the model.
     ///
     /// Ref: <https://arxiv.org/abs/2204.02311>
     pub fn estimate_flops_per_token(&self) -> usize {

@@ -154,13 +154,13 @@ pub enum MatchResult {
 }
 
 impl<'a> DimExpr<'a> {
-    /// Evaluate an expression.
+    /// Evaluates an expression.
     ///
-    /// ## Arguments
+    /// # Arguments
     ///
     /// - `env` - the binding environment.
     ///
-    /// ## Returns
+    /// # Returns
     ///
     /// A `TryEvalResult`:
     /// * `Value(value)` - the evaluated value of the expression.
@@ -216,14 +216,14 @@ impl<'a> DimExpr<'a> {
         }
     }
 
-    /// Reconcile an expression against a target value.
+    /// Reconciles an expression against a target value.
     ///
-    /// ## Arguments
+    /// # Arguments
     ///
     /// * `target`: The target value to match.
     /// * `env`: The environment containing bindings for parameters.
     ///
-    /// ## Returns
+    /// # Returns
     ///
     /// * `Ok(MatchResult::Match)` if the expression matches the target.
     /// * `Ok(MatchResult::MissMatch)` if the expression does not match the

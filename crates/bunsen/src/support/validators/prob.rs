@@ -11,7 +11,7 @@ use crate::errors::{
     BunsenResult,
 };
 
-/// Validate a validators in the range ``[0.0, 1.0]``.
+/// Validates a validators in the range `[0.0, 1.0]`.
 ///
 /// # Arguments
 ///
@@ -31,7 +31,7 @@ pub fn try_probability<F: Float + Debug>(prob: F) -> BunsenResult<F> {
     }
 }
 
-/// Expect a validators to be in range ``[0.0, 1.0]``, or panic.
+/// Expects a validators to be in range `[0.0, 1.0]`, or panic.
 ///
 /// # Arguments
 ///

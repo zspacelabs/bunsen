@@ -14,13 +14,13 @@ use crate::contracts::unpack_shape_contract;
 ///
 /// # Arguments
 ///
-/// - `tensor`: Input tensor of ``[batch, height, width, channels]``.
+/// - `tensor`: Input tensor of `[batch, height, width, channels]`.
 /// - `window_size`: Window size.
 ///
 /// # Returns
 ///
-/// Output tensor of ``[batch * h_windows * w_windows, window_size, window_size,
-/// channels]``.
+/// Output tensor of `[batch * h_windows * w_windows, window_size, window_size,
+/// channels]`.
 ///
 /// # Panics
 ///
@@ -56,15 +56,15 @@ where
 ///
 /// # Arguments
 ///
-/// - `windows`: Input tensor of ``[batch * h_windows * w_windows, window_size,
-///   window_size, channels]``.
+/// - `windows`: Input tensor of `[batch * h_windows * w_windows, window_size,
+///   window_size, channels]`.
 /// - `window_size`: Window size.
 /// - `height`: Height of the original image.
 /// - `width`: Width of the original image.
 ///
 /// # Returns
 ///
-/// Output tensor of shape ``[batch, height, width, channels]``.
+/// `[batch, height, width, channels]` output tensor.
 ///
 /// # Panics
 ///

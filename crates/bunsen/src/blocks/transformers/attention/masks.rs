@@ -6,7 +6,7 @@ use burn::{
     },
 };
 
-/// Generate a Bool causal mask [1, `seq_len`, `n_past` + `seq_len`].
+/// Generates a Bool causal mask `[1, seq_len, n_past + seq_len]`.
 /// `true` = masked (future positions blocked), `false` = attend.
 pub fn causal_mask<B: Backend>(
     seq_len: usize,

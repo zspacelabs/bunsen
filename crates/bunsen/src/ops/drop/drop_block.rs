@@ -52,7 +52,7 @@ pub struct DropBlockOptions {
     /// Should color drop be coupled, or independent?
     pub couple_channels: bool,
 
-    /// Permit partial conv at the edges.
+    /// Permits partial conv at the edges.
     /// This results in a significant speedup when using noise.
     pub partial_edge_blocks: bool,
 
@@ -95,7 +95,7 @@ impl Default for DropBlockOptions {
 }
 
 impl DropBlockOptions {
-    /// Extend the options with the given validators.
+    /// Extends the options with the given validators.
     ///
     /// # Arguments
     ///
@@ -103,7 +103,7 @@ impl DropBlockOptions {
     ///
     /// # Panics
     ///
-    /// If the `drop_prob` is not in ``[0.0, 1.0]``.
+    /// If the `drop_prob` is not in `[0.0, 1.0]`.
     pub fn with_drop_prob(
         self,
         drop_prob: f64,
@@ -114,7 +114,7 @@ impl DropBlockOptions {
         }
     }
 
-    /// Set the symmetric kernel block size.
+    /// Sets the symmetric kernel block size.
     ///
     /// This is equivalent to `.with_kernel([block_size; 2])`
     ///
@@ -151,7 +151,7 @@ impl DropBlockOptions {
         Self { kernel, ..self }
     }
 
-    /// Set the gamma scale.
+    /// Sets the gamma scale.
     pub fn with_gamma_scale(
         self,
         gamma_scale: f64,
@@ -162,7 +162,7 @@ impl DropBlockOptions {
         }
     }
 
-    /// Set whether to use noise.
+    /// Sets whether to use noise.
     pub fn with_noise<N>(
         self,
         noise_cfg: N,
@@ -176,7 +176,7 @@ impl DropBlockOptions {
         }
     }
 
-    /// Set if batchwise noise should be used.
+    /// Sets if batchwise noise should be used.
     ///
     /// When `batchwise` is enabled, the entire batch shares the same noise;
     /// otherwise, each image gets its own noise.
@@ -193,7 +193,7 @@ impl DropBlockOptions {
         Self { batchwise, ..self }
     }
 
-    /// Set if channels should be coupled.
+    /// Sets if channels should be coupled.
     pub fn with_couple_channels(
         self,
         couple_channels: bool,
@@ -204,7 +204,7 @@ impl DropBlockOptions {
         }
     }
 
-    /// Set if partial edge conv should be used.
+    /// Sets if partial edge conv should be used.
     ///
     /// Partial edge conv are conv which overlap the edge;
     /// and are smaller than the full kernel; but not performing
@@ -223,7 +223,7 @@ impl DropBlockOptions {
         }
     }
 
-    /// Clip the kernel to fit within the shape.
+    /// Clips the kernel to fit within the shape.
     ///
     /// # Arguments
     ///
@@ -244,7 +244,7 @@ impl DropBlockOptions {
         [core::cmp::min(h, kh), core::cmp::min(w, kw)]
     }
 
-    /// Compute the adjusted gamma rate.
+    /// Computes the adjusted gamma rate.
     ///
     /// Gamma is the adjusted validators that any given point is the midpoint
     /// of a dropped block; given the desired `drop_rate`, the block size, and
@@ -266,7 +266,7 @@ impl DropBlockOptions {
             / (((h - kh + 1) * (w - kw + 1)) as f64)
     }
 
-    /// Compute the gamma noise for the given noise batch shape.
+    /// Computes the gamma noise for the given noise batch shape.
     ///
     /// # Args
     ///
@@ -286,7 +286,7 @@ impl DropBlockOptions {
     }
 }
 
-/// Convert drop block gamma noise to a selection filter.
+/// Converts drop block gamma noise to a selection filter.
 ///
 /// This is a deterministic internal component of `drop_block`.
 ///
@@ -358,12 +358,12 @@ pub fn drop_block_2d_drop_filter_<B: Backend>(
 ///
 /// # Arguments
 ///
-/// * `tensor` - the tensor to operate on, ``[batch, channels, height, width]``.
+/// * `tensor` - the tensor to operate on, `[batch, channels, height, width]`.
 /// * `options` - the algorithm options.
 ///
 /// # Returns
 ///
-/// A ``[batch, channels, height, width]`` tensor.
+/// A `[batch, channels, height, width]` tensor.
 pub fn drop_block_2d<B: Backend>(
     tensor: Tensor<B, 4>,
     options: &DropBlockOptions,

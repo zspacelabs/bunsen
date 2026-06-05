@@ -23,15 +23,15 @@ use crate::{
     errors::BunsenResult,
 };
 
-/// Compute layer normalized mlp.
+/// Computes layer normalized mlp.
 ///
-/// ## Arguments
+/// # Arguments
 /// * `layer_norm` - `LayerNorm`.
 /// * `mlp` - `Mlp`.
-/// * `x` - ``[batch, seq_len, n_states]`` input.
+/// * `x` - `[batch, seq_len, n_states]` input.
 ///
-/// ## Returns
-/// ``[batch, seq_len, n_states]``
+/// # Returns
+/// `[batch, seq_len, n_states]`
 pub fn layer_norm_mlp<B: Backend>(
     layer_norm: &LayerNorm<B>,
     mlp: &Mlp<B>,
@@ -42,10 +42,10 @@ pub fn layer_norm_mlp<B: Backend>(
 
 /// Common meta for [`Mlp`] and [`MlpConfig`].
 pub trait MlpMeta {
-    /// Return the size of the input and output.
+    /// Returns the size of the input and output.
     fn n_embed(&self) -> usize;
 
-    /// Return the post-activation exponent.
+    /// Returns the post-activation exponent.
     fn act_exponent(&self) -> Option<f64>;
 }
 
@@ -79,7 +79,7 @@ impl MlpMeta for MlpConfig {
 }
 
 impl MlpConfig {
-    /// Return the size of the hidden layer.
+    /// Returns the size of the hidden layer.
     pub fn hidden_size(&self) -> usize {
         self.n_embed * self.expansion_factor
     }
@@ -104,6 +104,14 @@ impl<B: Backend> ModuleInit<B, Mlp<B>> for MlpConfig {
 }
 
 /// GPT Block MLP Module
+///
+/// The position-wise feed-forward block of a transformer: an up-projection to
+/// an expanded hidden size, an activation (optionally raised to a configured
+/// exponent), and a down-projection back to the embedding size. Construct via
+/// [`MlpConfig`] and `.init(device)`, then call [`forward`](Mlp::forward) on a
+/// `[batch, time, embed]` input.
+///
+/// Built by [`MlpConfig`].
 #[derive(Module, Debug)]
 pub struct Mlp<B: Backend> {
     /// Feed Forward Layer.
@@ -133,10 +141,10 @@ impl<B: Backend> Mlp<B> {
     /// MLP Forward Pass.
     ///
     /// # Arguments
-    /// - `x`: a ``[batch, time, embed]`` input.
+    /// - `x`: a `[batch, time, embed]` input.
     ///
     /// # Returns
-    /// a ``[batch, time, embed]`` result.
+    /// a `[batch, time, embed]` result.
     pub fn forward(
         &self,
         x: Tensor<B, 3>,

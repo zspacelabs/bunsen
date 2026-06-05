@@ -8,7 +8,7 @@ use burn::{
     tensor::Numeric,
 };
 
-/// Build a filter of kernel midpoints.
+/// Builds a filter of kernel midpoints.
 ///
 /// Filter is `1.0` at the mid-points of kernels; `0.0` everywhere else.
 ///

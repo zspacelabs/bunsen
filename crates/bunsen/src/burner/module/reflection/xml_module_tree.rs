@@ -79,12 +79,12 @@ impl Debug for XmlModuleTree {
 }
 
 impl XmlModuleTree {
-    /// Build a [`XmlModuleTree`] for a [`Module`].
+    /// Builds a [`XmlModuleTree`] for a [`Module`].
     pub fn build<B: Backend, M: Module<B>>(module: &M) -> Self {
         XmlModuleTreeBuilder::build(module)
     }
 
-    /// Create a new/empty module tree.
+    /// Creates a new/empty module tree.
     #[allow(clippy::new_without_default)]
     pub fn new() -> Self {
         let mut docs = Documents::new();
@@ -100,7 +100,7 @@ impl XmlModuleTree {
         Self { docs, root }
     }
 
-    /// Serialize the module tree to an XML string.
+    /// Serializes the module tree to an XML string.
     pub fn to_xml(
         &self,
         pretty: bool,
@@ -121,7 +121,7 @@ impl XmlModuleTree {
             .unwrap()
     }
 
-    /// Bind (add/lookup) a local (no namespace) name in the [`xot`] arena.
+    /// Binds (add/lookup) a local (no namespace) name in the [`xot`] arena.
     ///
     /// # Arguments
     /// * `name` - a string name.
@@ -136,7 +136,7 @@ impl XmlModuleTree {
         xot.add_name(name)
     }
 
-    /// Bind a list of local names to [`NameId`]s.
+    /// Binds a list of local names to [`NameId`]s.
     ///
     /// See [`Self::bind_local_name`].
     pub fn bind_local_names<const N: usize>(
@@ -173,14 +173,14 @@ impl XmlModuleTree {
         self.docs.xot_mut()
     }
 
-    /// Iterate over [`ParamId`]s for each parameter in the subtree.
+    /// Iterates over [`ParamId`]s for each parameter in the subtree.
     ///
     /// Implicitly calls [`XPathModuleQuery::params`].
     ///
     /// # Returns
     /// `Ok(Vec<ParamId>)` on success, `Err(e)` on errors.
     ///
-    /// ## Example
+    /// # Examples
     /// ```rust,ignore
     /// let param_ids: HashSet<ParamId> = mtree
     ///     .param_ids()?
@@ -198,14 +198,14 @@ impl XmlModuleTree {
         self.query().to_param_ids()
     }
 
-    /// Iterate over [`TensorParamDesc`]s for each parameter in the subtree.
+    /// Iterates over [`TensorParamDesc`]s for each parameter in the subtree.
     ///
     /// Implicitly calls [`XPathModuleQuery::params`].
     ///
     /// # Returns
     /// `Ok(Vec<TensorParamDesc>)` on success, `Err(e)` on errors.
     ///
-    /// ## Example
+    /// # Examples
     /// ```rust,ignore
     /// let descs: Vec<TensorParamDesc> = mtree
     ///     .param_descs()?
@@ -223,7 +223,7 @@ impl XmlModuleTree {
         self.query().to_param_descs()
     }
 
-    /// Create a new default [`XPathModuleQuery`] for this module tree.
+    /// Creates a new default [`XPathModuleQuery`] for this module tree.
     ///
     /// The query builder has a fluent api to incrementally refine a query.
     /// It begins with broad selection over the entire module structure.
@@ -239,7 +239,7 @@ impl XmlModuleTree {
     /// # Panics
     /// On invalid `XPath` expressions.
     ///
-    /// # Example
+    /// # Examples
     /// ```rust,ignore
     /// let q: QueryBuilder<_> = mtree
     ///     .select("GPT/Linear");
@@ -261,7 +261,7 @@ impl XmlModuleTree {
     /// # Returns
     /// `Ok(query)` on success, `Err(e)` on `XPath` errors.
     ///
-    /// # Example
+    /// # Examples
     /// ```rust,ignore
     /// let q: QueryBuilder<_> = mtree
     ///     .select("GPT/Linear");
@@ -283,7 +283,7 @@ impl XmlModuleTree {
     /// # Panics
     /// On invalid `XPath` expressions.
     ///
-    /// # Example
+    /// # Examples
     /// ```rust,ignore
     /// let q: QueryBuilder<_> = mtree
     ///     .select_params("GPT/Linear");
@@ -311,7 +311,7 @@ impl XmlModuleTree {
     /// # Returns
     /// `Ok(query)` on success, `Err(e)` on `XPath` errors.
     ///
-    /// # Example
+    /// # Examples
     /// ```rust,ignore
     /// let q: QueryBuilder<_> = mtree
     ///     .select_params("GPT/Linear");
@@ -334,13 +334,13 @@ impl XmlModuleTree {
         Ok(self.try_select(expr)?.params())
     }
 
-    /// Return an iterator over the parameter [`ParamId`]s of a subtree.
+    /// Returns an iterator over the parameter [`ParamId`]s of a subtree.
     ///
     /// # Returns
     /// `Ok(impl Iterator<Item = ParamId>)` on success, `Err(e)` on `XPath`
     /// errors.
     ///
-    /// # Example
+    /// # Examples
     /// ```rust,ignore
     /// let param_ids : HashSet<ParamId> = mtree
     ///     .select_param_ids("GPT/Linear")?
@@ -405,7 +405,7 @@ impl<'a> XPathModuleQuery<'a> {
         Self { tree, expr }
     }
 
-    /// Get the current `XPath` expression.
+    /// Returns the current `XPath` expression.
     pub fn expr(&self) -> &String {
         &self.expr
     }
@@ -423,7 +423,7 @@ impl<'a> XPathModuleQuery<'a> {
         Ok(Self { expr, ..self })
     }
 
-    /// Execute a [`xee_xpath::Queries::many`] on the current selection.
+    /// Executes a [`xee_xpath::Queries::many`] on the current selection.
     ///
     /// This exposes the `xot`/`xee_xpath` query execution functionality.
     pub fn xee_execute_many<V, F>(
@@ -443,7 +443,7 @@ impl<'a> XPathModuleQuery<'a> {
             .map_err(|e| adapt_xee_error(e, Some(expr)))
     }
 
-    /// Refine the current selection by appending an `XPath` path expression.
+    /// Refines the current selection by appending an `XPath` path expression.
     ///
     /// This is: `{EXPR}` => `{EXPR}/{expr}`
     ///
@@ -456,7 +456,7 @@ impl<'a> XPathModuleQuery<'a> {
         self.try_select(expr).unwrap_or_else(|e| panic!("{}", e))
     }
 
-    /// Refine the current selection by appending an `XPath` path expression.
+    /// Refines the current selection by appending an `XPath` path expression.
     ///
     /// This is: `{EXPR}` => `{EXPR}/{expr}`
     ///
@@ -469,7 +469,7 @@ impl<'a> XPathModuleQuery<'a> {
         self.try_append_expr(format!("/{}", expr.as_ref()).as_str())
     }
 
-    /// Refine the current selection by appending an `XPath` predicate
+    /// Refines the current selection by appending an `XPath` predicate
     /// expression.
     ///
     /// Predicate expressions filter the current node-set, keeping only those
@@ -478,7 +478,7 @@ impl<'a> XPathModuleQuery<'a> {
     ///
     /// This is: `{EXPR}` => `{EXPR}[{expr}]`
     ///
-    /// # Example
+    /// # Examples
     /// * `filter("@name='foo'")` - select only nodes with a "name" attribute
     ///   equal to "foo".
     ///
@@ -491,7 +491,7 @@ impl<'a> XPathModuleQuery<'a> {
         self.try_filter(pred).unwrap_or_else(|e| panic!("{}", e))
     }
 
-    /// Refine the current selection by appending an `XPath` predicate
+    /// Refines the current selection by appending an `XPath` predicate
     /// expression.
     ///
     /// Predicate expressions filter the current node-set, keeping only those
@@ -500,7 +500,7 @@ impl<'a> XPathModuleQuery<'a> {
     ///
     /// This is: `{EXPR}` => `{EXPR}[{expr}]`
     ///
-    /// # Example
+    /// # Examples
     /// * `filter("@name='foo'")` - select only nodes with a "name" attribute
     ///   equal to "foo".
     ///
@@ -513,14 +513,14 @@ impl<'a> XPathModuleQuery<'a> {
         self.try_append_expr(format!("[{}]", pred.as_ref()).as_str())
     }
 
-    /// Select children of the current set.
+    /// Selects children of the current set.
     ///
     /// This is: "{EXPR}" => "{EXPR}/*"
     pub fn children(self) -> XPathModuleQuery<'a> {
         self.select("*")
     }
 
-    /// Select children withh the given `name` attribute.
+    /// Selects children withh the given `name` attribute.
     ///
     /// This is: `{EXPR}` => `{EXPR}/*[@name='{name}']`
     pub fn named_children(
@@ -530,7 +530,7 @@ impl<'a> XPathModuleQuery<'a> {
         self.select(format!("*[@name='{name}']"))
     }
 
-    /// Select children with the given positional index.
+    /// Selects children with the given positional index.
     ///
     /// NOTE: `XPath` indexing is 1-based; so this method adds 1 to the index.
     ///
@@ -542,7 +542,7 @@ impl<'a> XPathModuleQuery<'a> {
         self.select(format!("*[{}]", index + 1))
     }
 
-    /// Recursively select all descedant or self elements with `name`.
+    /// Recursively selects all descedant or self elements with `name`.
     ///
     /// This is: `{EXPR}` => `{EXPR}/descendant-or-self::{name}`
     pub fn subtree_elements(
@@ -552,14 +552,14 @@ impl<'a> XPathModuleQuery<'a> {
         self.select(format!("descendant-or-self::{}", name))
     }
 
-    /// Recursively select all parameter elements in the current context.
+    /// Recursively selects all parameter elements in the current context.
     ///
     /// Equivalent to `.desdendant_or_self_elem(names::PARAM_ELEM)`
     pub fn params(self) -> Self {
         self.subtree_elements(names::PARAM_ELEM)
     }
 
-    /// Filter the selection to nodes where the `rank` attribute has the given
+    /// Filters the selection to nodes where the `rank` attribute has the given
     /// value.
     ///
     /// Equivalent to `.filter(format!("@rank={rank}"))`
@@ -570,7 +570,7 @@ impl<'a> XPathModuleQuery<'a> {
         self.filter(format!("@rank={}", rank))
     }
 
-    /// Iterate over [`TensorParamDesc`]s for each parameter in the subtree.
+    /// Iterates over [`TensorParamDesc`]s for each parameter in the subtree.
     ///
     /// Implicitly calls [`Self::params`].
     ///
@@ -589,14 +589,14 @@ impl<'a> XPathModuleQuery<'a> {
             .collect::<BunsenResult<Vec<TensorParamDesc>>>()
     }
 
-    /// Iterate over [`ParamId`]s for each parameter in the subtree.
+    /// Iterates over [`ParamId`]s for each parameter in the subtree.
     ///
     /// Implicitly calls [`Self::params`].
     ///
     /// # Returns
     /// `Ok(Vec<ParamId>)` on success, `Err(e)` on errors.
     ///
-    /// # Example
+    /// # Examples
     /// ```rust,ignore
     /// let param_ids : HashSet<ParamId> = query
     ///     .to_param_ids()?
@@ -616,7 +616,7 @@ impl<'a> XPathModuleQuery<'a> {
             .collect())
     }
 
-    /// Iterate over string fragments for the current expression matches.
+    /// Iterates over string fragments for the current expression matches.
     ///
     /// # Arguments
     /// * `pretty` - pretty-print/indent the xml fragments.

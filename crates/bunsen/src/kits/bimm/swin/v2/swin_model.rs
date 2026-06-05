@@ -65,6 +65,11 @@ use crate::{
 };
 
 /// Configuration for a single layer in the Swin Transformer V2 model.
+///
+/// One entry per stage in a [`SwinTransformerV2Config`]'s `layer_configs`
+/// vector. Records the per-stage block `depth` and attention head count;
+/// stage-level resolution, channels and drop-path rates are derived by the
+/// parent config during [`SwinTransformerV2Config::validate`].
 #[derive(Config, Debug, PartialEq, Eq)]
 pub struct LayerConfig {
     /// The depth of the layer, i.e., the number of transformer blocks in this
@@ -130,7 +135,13 @@ pub trait SwinTransformerV2Meta {
     fn enable_patch_norm(&self) -> bool;
 }
 
-/// Configuration for `SwinTransformerV2` model.
+/// Configuration for the [`SwinTransformerV2`] model.
+///
+/// Top-level config describing the patch embedding, per-stage
+/// [`LayerConfig`]s, window size and training options. Build the model with
+/// `.init(device)` (or validate first via
+/// [`SwinTransformerV2Config::validate`]), then `forward` a `[batch,
+/// channels, height, width]` image tensor to get classification logits.
 #[derive(Config, Debug)]
 pub struct SwinTransformerV2Config {
     /// The input image resolution as [height, width].
@@ -259,7 +270,7 @@ pub struct SwinTransformerV2Plan {
 }
 
 impl SwinTransformerV2Config {
-    /// Check config validity and return a plan for the Swin Transformer V2
+    /// Checks config validity and returns a plan for the Swin Transformer V2
     /// model.
     ///
     /// Performs model constraint validation tests without initializing a model.
@@ -421,6 +432,8 @@ impl<B: Backend> ModuleInit<B, SwinTransformerV2<B>> for SwinTransformerV2Config
 }
 
 /// High-level SWIN Transformer V2 model.
+///
+/// Built by [`SwinTransformerV2Config`].
 #[derive(Module, Debug)]
 pub struct SwinTransformerV2<B: Backend> {
     /// The patch embedding layer that converts the input image into patches.
@@ -526,7 +539,7 @@ impl<B: Backend> SwinTransformerV2Meta for SwinTransformerV2<B> {
 }
 
 impl<B: Backend> SwinTransformerV2<B> {
-    /// Apply patch embedding and absolute positional encoding (APE) to the
+    /// Applies patch embedding and absolute positional encoding (APE) to the
     /// input image tensor.
     #[inline(always)]
     #[must_use]
@@ -594,11 +607,11 @@ impl<B: Backend> SwinTransformerV2<B> {
     ///
     /// # Arguments
     ///
-    /// * `input`: A tensor of ``[batch, channels, height, width]``,
+    /// * `input`: A tensor of `[batch, channels, height, width]`,
     ///
     /// # Returns
     ///
-    /// A 2D tensor of ``[batch, num_classes]`` of the classification logits.
+    /// A 2D tensor of `[batch, num_classes]` of the classification logits.
     ///
     /// # Panics
     ///

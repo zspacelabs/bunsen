@@ -21,8 +21,8 @@ use serde::{
 /// and will default to `1.0` for `None`.
 ///
 /// # Arguments
-/// - `dist_a`: a ``[H, W, VY=3, VX=3]`` distribution.
-/// - `dist_b`: a ``[H, W, VY=3, VX=3]`` distribution.
+/// - `dist_a`: a `[H, W, VY=3, VX=3]` distribution.
+/// - `dist_b`: a `[H, W, VY=3, VX=3]` distribution.
 /// - `relaxation`: relaxation parameter.
 /// - `correction`: fused correction factor for the relaxation operator;
 ///   defaults to 1.0.
@@ -55,7 +55,7 @@ pub enum OmegaSource<B: Backend> {
 }
 
 impl<B: Backend> OmegaSource<B> {
-    /// Get the omega tensor.
+    /// Returns the omega tensor.
     pub fn omega(
         &self,
         device: &B::Device,
@@ -94,7 +94,7 @@ pub enum RelaxationParam {
 }
 
 impl RelaxationParam {
-    /// Validate the relaxation; or panic.
+    /// Validates the relaxation; or panic.
     pub fn validate(&self) {
         match self {
             RelaxationParam::Omega(omega) => {
@@ -109,7 +109,7 @@ impl RelaxationParam {
         }
     }
 
-    /// Get the relaxation frequency (1/tau), typically in (0, 2)
+    /// Returns the relaxation frequency (1/tau), typically in (0, 2).
     pub fn as_omega_value(&self) -> f64 {
         match self {
             RelaxationParam::Omega(omega) => *omega,
@@ -117,7 +117,7 @@ impl RelaxationParam {
         }
     }
 
-    /// Get the relaxation time (1/omega), typically > 0.5
+    /// Returns the relaxation time (1/omega), typically > 0.5.
     pub fn as_tau_value(&self) -> f64 {
         match self {
             RelaxationParam::Omega(omega) => 1.0 / *omega,

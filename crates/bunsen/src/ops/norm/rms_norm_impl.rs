@@ -18,7 +18,7 @@ impl Default for RmsNormOptions {
 }
 
 impl RmsNormOptions {
-    /// Set epsilon value.
+    /// Sets epsilon value.
     pub fn with_eps(
         mut self,
         eps: f32,
@@ -27,7 +27,7 @@ impl RmsNormOptions {
         self
     }
 
-    /// Apply root-mean-square norm.
+    /// Applies root-mean-square norm.
     pub fn norm<B: Backend, const R: usize>(
         &self,
         x: Tensor<B, R>,
@@ -36,7 +36,7 @@ impl RmsNormOptions {
     }
 }
 
-/// Apply root-mean-square norm.
+/// Applies root-mean-square norm.
 pub fn rms_norm<B: Backend, const R: usize>(
     x: Tensor<B, R>,
     options: &RmsNormOptions,

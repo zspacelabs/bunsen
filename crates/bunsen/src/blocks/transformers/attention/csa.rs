@@ -44,16 +44,16 @@ use crate::{
 
 /// Common meta for [`CausalSelfAttention`] and [`CausalSelfAttentionConfig`].
 pub trait CausalSelfAttentionMeta {
-    /// Return the size of the input and output.
+    /// Returns the size of the input and output.
     fn n_embed(&self) -> usize;
 
-    /// Return the number of heads.
+    /// Returns the number of heads.
     fn n_head(&self) -> usize;
 
-    /// Return the number of KV heads.
+    /// Returns the number of KV heads.
     fn n_kv_head(&self) -> usize;
 
-    /// Return the size of each head.
+    /// Returns the size of each head.
     fn head_dim(&self) -> usize {
         self.n_embed() / self.n_head()
     }
@@ -138,7 +138,7 @@ impl CausalSelfAttentionConfig {
 }
 
 impl CausalSelfAttentionConfig {
-    /// Initialize the module.
+    /// Initializes the module.
     pub fn try_init<B: Backend>(
         &self,
         layer_index: usize,
@@ -175,7 +175,7 @@ impl CausalSelfAttentionConfig {
         })
     }
 
-    /// Initialize the module, or panic.
+    /// Initializes the module, or panic.
     pub fn init<B: Backend>(
         &self,
         layer_index: usize,
@@ -186,6 +186,15 @@ impl CausalSelfAttentionConfig {
 }
 
 /// Causal Self-Attention Module
+///
+/// Multi-head causal self-attention with rotary positional embeddings,
+/// optional Group Query Attention (fewer KV heads than query heads), and
+/// per-head query/key normalization. Construct via
+/// [`CausalSelfAttentionConfig`] and `.init(layer_index, device)`, then call
+/// [`forward`](CausalSelfAttention::forward) with an input sequence, a
+/// [`RotaryEmbedding`], and an optional [`KVCache`].
+///
+/// Built by [`CausalSelfAttentionConfig`].
 #[derive(Module, Debug)]
 pub struct CausalSelfAttention<B: Backend> {
     /// Layer Index.
@@ -235,12 +244,12 @@ impl<B: Backend> CausalSelfAttention<B> {
     /// Forward Pass.
     ///
     /// # Arguments
-    /// - `input`: a ``[B, T, D]`` sequence.
+    /// - `input`: a `[B, T, D]` sequence.
     /// - `r_emb`: a rotary embedding with len ``T``.
     /// - `kv_cache`: optional KV cache.
     ///
     /// # Returns
-    /// - ``[B, T, D]`` attention.
+    /// - `[B, T, D]` attention.
     pub fn forward(
         &self,
         input: Tensor<B, 3>,

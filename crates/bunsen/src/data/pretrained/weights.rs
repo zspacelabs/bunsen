@@ -27,7 +27,7 @@ use crate::{
 
 const X25: crc::Crc<u16> = crc::Crc::<u16>::new(&crc::CRC_16_IBM_SDLC);
 
-/// Build a cache key (bare cache file name) from a name and URL.
+/// Builds a cache key (bare cache file name) from a name and URL.
 pub fn url_to_cache_key(
     name: Option<&str>,
     url: &str,
@@ -40,7 +40,7 @@ pub fn url_to_cache_key(
     }
 }
 
-/// Get the cache resource key for a pretrained weights file.
+/// Returns the cache resource key for a pretrained weights file.
 ///
 /// # Arguments
 ///
@@ -73,7 +73,7 @@ pub struct StaticPretrainedWeightsDescriptor<'a> {
 }
 
 impl<'a> StaticPretrainedWeightsDescriptor<'a> {
-    /// Convert to a [`PretrainedWeightsDescriptor`].
+    /// Converts to a [`PretrainedWeightsDescriptor`].
     pub fn to_descriptor(&self) -> PretrainedWeightsDescriptor {
         PretrainedWeightsDescriptor {
             name: self.name.to_string(),
@@ -144,7 +144,7 @@ pub struct StaticPretrainedWeightsMap<'a> {
 }
 
 impl<'a> StaticPretrainedWeightsMap<'a> {
-    /// Convert to a [`PretrainedWeightsMap`].
+    /// Converts to a [`PretrainedWeightsMap`].
     pub fn to_directory(&self) -> PretrainedWeightsMap {
         PretrainedWeightsMap {
             items: self
@@ -173,7 +173,7 @@ pub struct PretrainedWeightsMap {
 }
 
 impl PretrainedWeightsMap {
-    /// Lookup a descriptor by name.
+    /// Looks up a descriptor by name.
     pub fn lookup_by_name(
         &self,
         name: &str,
@@ -181,7 +181,7 @@ impl PretrainedWeightsMap {
         self.items.get(name).cloned()
     }
 
-    /// Lookup a descriptor.
+    /// Looks up a descriptor.
     pub fn try_lookup_by_name(
         &self,
         name: &str,
@@ -195,7 +195,7 @@ impl PretrainedWeightsMap {
         }
     }
 
-    /// Lookup a descriptor.
+    /// Looks up a descriptor.
     pub fn expect_lookup_by_name(
         &self,
         name: &str,

@@ -47,7 +47,7 @@ where
     }
 }
 
-/// Convert a string to a [`DType`].
+/// Converts a string to a [`DType`].
 pub fn dtype_from_str(dtype: &str) -> BunsenResult<DType> {
     Ok(match dtype {
         "F64" => DType::F64,
@@ -68,7 +68,7 @@ pub fn dtype_from_str(dtype: &str) -> BunsenResult<DType> {
 }
 
 impl TensorDesc {
-    /// Create a new `TensorDesc`.
+    /// Creates a new `TensorDesc`.
     pub fn new(
         kind: TensorKindDesc,
         dtype: DType,

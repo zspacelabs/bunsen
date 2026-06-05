@@ -5,7 +5,7 @@ use std::path::{
     PathBuf,
 };
 
-/// Extend a path with a context and filename.
+/// Extends a path with a context and filename.
 ///
 /// * Does not check that the path exists.
 /// * Does not initialize the containing directories.

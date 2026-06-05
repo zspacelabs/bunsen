@@ -69,7 +69,7 @@ where
     B: AutodiffBackend,
     O: SimpleOptimizer<B::InnerBackend>,
 {
-    /// Create a new `GroupOptimizer` with the given parameters and optimizer.
+    /// Creates a new `GroupOptimizer` with the given parameters and optimizer.
     pub fn new(
         params: HashSet<ParamId>,
         optim: O,
@@ -82,7 +82,7 @@ where
         }
     }
 
-    /// Build a [`OptimizerGroup`] from an [`OptimizerAdaptor`].
+    /// Builds a [`OptimizerGroup`] from an [`OptimizerAdaptor`].
     pub fn from_adaptor<M, I>(
         params: I,
         adaptor: &OptimizerAdaptor<O, M, B>,
@@ -94,7 +94,7 @@ where
         Self::new(params.into_iter().collect(), adaptor.optim().clone())
     }
 
-    /// Get the learning rate for this group.
+    /// Returns the learning rate for this group.
     pub fn lr(
         &self,
         global: LearningRate,
@@ -106,12 +106,12 @@ where
             .unwrap_or(global)
     }
 
-    /// Get the learning rate mapping function.
+    /// Returns the learning rate mapping function.
     pub fn lr_selector(&self) -> Option<Arc<dyn LrSelector>> {
         self.lr_selector.clone()
     }
 
-    /// Set the learning rate mapping function.
+    /// Sets the learning rate mapping function.
     pub fn with_lr_selector<F>(
         mut self,
         selector: F,
@@ -123,7 +123,7 @@ where
         self
     }
 
-    /// Set a fixed learning rate for this group.
+    /// Sets a fixed learning rate for this group.
     pub fn with_fixed_lr(
         self,
         lr: LearningRate,
@@ -226,7 +226,7 @@ where
 // Macro
 // ---------------------------------------------------------------------------
 
-/// Define a `GroupOptimizerAdaptorN` and its associated mapper for N
+/// Defines a `GroupOptimizerAdaptorN` and its associated mapper for N
 /// `SimpleOptimizer` types.
 ///
 /// # Usage
@@ -268,7 +268,7 @@ macro_rules! define_group_optimizer_adaptor {
                 M: AutodiffModule<B>,
                 B: AutodiffBackend,
             {
-                /// Construct and validate.
+                /// Constructs and validates.
                 ///
                 /// Returns an error if any `ParamId` appears in more than one
                 /// group.

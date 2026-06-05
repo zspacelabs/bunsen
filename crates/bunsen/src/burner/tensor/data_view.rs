@@ -20,7 +20,7 @@ pub struct TensorDataIndexView<'a, E: Element> {
 }
 
 impl<'a, E: Element> TensorDataIndexView<'a, E> {
-    /// Get an indexed view of the data.
+    /// Returns an indexed view of the data.
     pub fn view(data: &'a TensorData) -> TensorDataIndexView<'a, E> {
         TensorDataIndexView {
             data,

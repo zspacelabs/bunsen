@@ -19,7 +19,7 @@ pub struct DTypeMapper<B: Backend> {
 }
 
 impl<B: Backend> DTypeMapper<B> {
-    /// Create a new type mapper with the specified target data type.
+    /// Creates a new type mapper with the specified target data type.
     pub fn new(dt: DType) -> Self {
         Self {
             dt,

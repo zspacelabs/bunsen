@@ -46,13 +46,17 @@ pub trait OffsetGridRelativePositionBiasMeta {
     fn base(&self) -> f64;
 }
 
-/// Configuration for the relative position bias module.
+/// Configuration for the [`OffsetGridRelativePositionBias`] module.
+///
+/// Specifies the head count, window shape and base scale for the continuous
+/// relative position bias. Build it with `.init(device)`, then call `forward`
+/// to produce the per-head bias table.
 #[derive(Config, Debug)]
 pub struct OffsetGridRelativePositionBiasConfig {
     /// The number of attention heads.
     pub num_heads: usize,
 
-    /// The shape of the window ``[height, width]``.
+    /// The shape of the window `[height, width]`.
     pub window_shape: [usize; 2],
 
     /// The base value for the relative position bias.
@@ -113,6 +117,8 @@ impl<B: Backend> ModuleInit<B, OffsetGridRelativePositionBias<B>>
 /// An offset grid relative position bias module.
 ///
 /// Published/Used in SWIN-Transformer v2.
+///
+/// Built by [`OffsetGridRelativePositionBiasConfig`].
 #[derive(Module, Debug)]
 pub struct OffsetGridRelativePositionBias<B: Backend> {
     /// The base value for the relative position bias.
@@ -157,7 +163,7 @@ impl<B: Backend> OffsetGridRelativePositionBias<B> {
     ///
     /// # Returns
     ///
-    /// A 3D tensor of shape (`num_heads`, height * width, height * width)
+    /// A `[num_heads, height * width, height * width]` 3D tensor
     /// containing the relative position bias for each head and position
     /// pair.
     #[must_use]
@@ -219,7 +225,11 @@ pub trait ContinuousPositionBiasMlpMeta {
     fn num_heads(&self) -> usize;
 }
 
-/// Configuration for `ContinuousPositionBiasMlp`.
+/// Configuration for [`ContinuousPositionBiasMlp`].
+///
+/// Specifies the head count, hidden width and activation for the small MLP that
+/// maps relative-offset coordinates to per-head bias values. Build it with
+/// `.init(device)`, then `forward` a `[..., 2]` coordinate tensor.
 #[derive(Config, Debug)]
 pub struct ContinuousPositionBiasMlpConfig {
     /// The number of heads.
@@ -245,6 +255,8 @@ impl ContinuousPositionBiasMlpMeta for ContinuousPositionBiasMlpConfig {
 }
 
 /// A multi-layer perceptron (MLP) for continuous position bias.
+///
+/// Built by [`ContinuousPositionBiasMlpConfig`].
 #[derive(Module, Debug)]
 pub struct ContinuousPositionBiasMlp<B: Backend> {
     l1: nn::Linear<B>,
@@ -284,12 +296,12 @@ impl<B: Backend> ContinuousPositionBiasMlp<B> {
     ///
     /// # Arguments
     ///
-    /// * `x`: A tensor of ``[..., 2]`` of the relative log-offset coordinates
+    /// * `x`: A tensor of `[..., 2]` of the relative log-offset coordinates
     ///   table.
     ///
     /// # Returns
     ///
-    /// A tensor of ``[..., num_heads]`` of the learned bias table.
+    /// A tensor of `[..., num_heads]` of the learned bias table.
     #[must_use]
     pub fn forward<const D: usize>(
         &self,

@@ -19,7 +19,7 @@ use crate::contracts::unpack_shape_contract;
 ///
 /// # Returns
 ///
-/// The ``[VY=3, VX=3, (VY, VX)=2]`` int direction indices.
+/// The `[VY=3, VX=3, (VY, VX)=2]` int direction indices.
 pub fn direction_indices<B: Backend>(device: &B::Device) -> Tensor<B, 3, Int> {
     Tensor::<B, 3, Int>::from_data(
         [
@@ -35,7 +35,7 @@ pub fn direction_indices<B: Backend>(device: &B::Device) -> Tensor<B, 3, Int> {
 ///
 /// # Returns
 ///
-/// The ``[VY=3, VX=3, (VY, VX)=2]`` float direction vectors.
+/// The `[VY=3, VX=3, (VY, VX)=2]` float direction vectors.
 pub fn direction_vectors<B: Backend>(device: &B::Device) -> Tensor<B, 3> {
     direction_indices(device).float()
 }
@@ -44,7 +44,7 @@ pub fn direction_vectors<B: Backend>(device: &B::Device) -> Tensor<B, 3> {
 ///
 /// # Returns
 ///
-/// The ``[VY=3, VX=3]`` equilibrium weight matrix.
+/// The `[VY=3, VX=3]` equilibrium weight matrix.
 pub fn weight_matrix<B: Backend>(device: &B::Device) -> Tensor<B, 2> {
     Tensor::<B, 2>::from_data(
         [
@@ -57,20 +57,27 @@ pub fn weight_matrix<B: Backend>(device: &B::Device) -> Tensor<B, 2> {
 }
 
 /// LBM Space Constants
+///
+/// Bundles the static D2Q9 lattice tables: the integer direction indices
+/// (`e_idx`), the float direction vectors (`e_vec`), and the equilibrium weight
+/// matrix (`w`). Built via [`LbmTables::init`] (or [`LbmTables::for_dist`]) for
+/// a device and dtype rather than from a Config.
+///
+/// Used by [`LBMD2Q9State`](super::LBMD2Q9State).
 #[derive(Module, Debug)]
 pub struct LbmTables<B: Backend> {
-    /// ``[H, W, (Y, X)=2]`` integer direction indices.
+    /// `[H, W, (Y, X)=2]` integer direction indices.
     e_idx: Tensor<B, 3, Int>,
 
-    /// ``[H, W, (Y, X)=2]`` float direction vectors.
+    /// `[H, W, (Y, X)=2]` float direction vectors.
     e_vec: Tensor<B, 3>,
 
-    /// ``[Y=3, X=3]`` equilibrium weights
+    /// `[Y=3, X=3]` equilibrium weights
     w: Tensor<B, 2>,
 }
 
 impl<B: Backend> LbmTables<B> {
-    /// Create new space `lbm_tables`.
+    /// Creates new space `lbm_tables`.
     pub fn init(device: &B::Device) -> Self {
         let e_idx = direction_indices(device);
         let e_vec = e_idx.clone().float();
@@ -81,12 +88,12 @@ impl<B: Backend> LbmTables<B> {
         }
     }
 
-    /// Get appropriate `lbm_tables` for the distribution.
+    /// Returns appropriate `lbm_tables` for the distribution.
     pub fn for_dist(dist: &Tensor<B, 4>) -> Self {
         Self::init(&dist.device()).to_dtype(dist.dtype())
     }
 
-    /// Cast the `lbm_tables` to the given dtype.
+    /// Casts the `lbm_tables` to the given dtype.
     pub fn to_dtype(
         self,
         dtype: DType,
@@ -98,23 +105,23 @@ impl<B: Backend> LbmTables<B> {
         }
     }
 
-    /// Get the direction indices.
+    /// Returns the direction indices.
     pub fn e_idx(&self) -> Tensor<B, 3, Int> {
         self.e_idx.clone()
     }
 
-    /// Get the direction vectors.
+    /// Returns the direction vectors.
     pub fn e_vec(&self) -> Tensor<B, 3> {
         self.e_vec.clone()
     }
 
-    /// Get the equilibrium weight matrix.
+    /// Returns the equilibrium weight matrix.
     pub fn w(&self) -> Tensor<B, 2> {
         self.w.clone()
     }
 }
 
-/// Print a distribution.
+/// Prints a distribution.
 ///
 /// Doesn't work well on big distributions.
 ///
@@ -172,27 +179,27 @@ pub fn dbg_dist<B: Backend>(
 ///
 /// # Arguments
 ///
-/// - `dist`: a ``[H, W, VY=3, VX=3]`` population distribution.
+/// - `dist`: a `[H, W, VY=3, VX=3]` population distribution.
 ///
 /// # Returns
 ///
-/// A ``[H, W]`` population density.
+/// A `[H, W]` population density.
 pub fn density<B: Backend>(dist: Tensor<B, 4>) -> Tensor<B, 2> {
     dist.sum_dims(&[2, 3]).squeeze_dims::<2>(&[2, 3])
 }
 
-/// Compute the directional macroscopic momentum.
+/// Computes the directional macroscopic momentum.
 ///
 /// This is the unnormalized macroscopic momentum.
 ///
 /// # Arguments
 ///
-/// - `dist`: a ``[H, W, VY, VX]`` population distribution.
+/// - `dist`: a `[H, W, VY, VX]` population distribution.
 /// - `e`: the D2Q9 direction vectors.
 ///
 /// # Returns
 ///
-/// The ``[H, W, (Y, X)=2]`` momentum.
+/// The `[H, W, (Y, X)=2]` momentum.
 pub fn macroscopic_momentum<B: Backend>(
     dist: Tensor<B, 4>,
     e: Tensor<B, 3>,
@@ -207,12 +214,12 @@ pub fn macroscopic_momentum<B: Backend>(
 ///
 /// # Arguments
 ///
-/// - `m`: ``[H, W, (Y, X)=2]`` macroscopic momentum.
-/// - `rho`: ``[H, W]`` population density.
+/// - `m`: `[H, W, (Y, X)=2]` macroscopic momentum.
+/// - `rho`: `[H, W]` population density.
 ///
 /// # Returns
 ///
-/// The ``[H, W, (Y, X)=2]`` velocity.
+/// The `[H, W, (Y, X)=2]` velocity.
 pub fn normalize_velocity<B: Backend>(
     m: Tensor<B, 3>,
     rho: Tensor<B, 2>,
@@ -222,15 +229,15 @@ pub fn normalize_velocity<B: Backend>(
     m.div(rho.unsqueeze_dim(2))
 }
 
-/// Compute the directional macroscopic velocity.
+/// Computes the directional macroscopic velocity.
 ///
 /// # Arguments
 ///
-/// - `dist`: a ``[H, W, VY, VX]`` population distribution.
+/// - `dist`: a `[H, W, VY, VX]` population distribution.
 /// - `e`: the D2Q9 direction vectors.
 ///
 /// # Returns
-/// - ``[H, W, (Y, X)=2]`` velocity.
+/// - `[H, W, (Y, X)=2]` velocity.
 pub fn macroscopic_velocity<B: Backend>(
     dist: Tensor<B, 4>,
     rho: Tensor<B, 2>,
@@ -239,28 +246,28 @@ pub fn macroscopic_velocity<B: Backend>(
     normalize_velocity(macroscopic_momentum(dist, e), rho)
 }
 
-/// Compute the squared velocity field.
+/// Computes the squared velocity field.
 ///
 /// # Arguments
-/// - `u`: ``[H, W, (Y, X)=2]`` macroscopic velocity
+/// - `u`: `[H, W, (Y, X)=2]` macroscopic velocity
 ///
 /// # Returns
-/// - ``[H, W]`` velocity magnitude squared
+/// - `[H, W]` velocity magnitude squared
 pub fn velocity_squared<B: Backend>(u: Tensor<B, 3>) -> Tensor<B, 2> {
     u.square().sum_dim(2).squeeze_dims::<2>(&[2])
 }
 
-/// Compute the first (density) and second (macro velocity) moments.
+/// Computes the first (density) and second (macro velocity) moments.
 ///
 /// # Arguments
 ///
-/// - `dist`: a ``[H, W, VY, VX]`` population distribution.
+/// - `dist`: a `[H, W, VY, VX]` population distribution.
 /// - `e`: the D2Q9 direction vectors.
 ///
 /// # Returns
 /// ``(density, velocity)`` where:
-/// - `density`: ``[H, W]``
-/// - `velocity`: ``[H, W, (Y, X)=2]``
+/// - `density`: `[H, W]`
+/// - `velocity`: `[H, W, (Y, X)=2]`
 pub fn moments<B: Backend>(
     dist: Tensor<B, 4>,
     lbm_tables: &LbmTables<B>,
@@ -270,19 +277,19 @@ pub fn moments<B: Backend>(
     (rho, u)
 }
 
-/// Fold a distribution into windows.
+/// Folds a distribution into windows.
 ///
-/// Note the geometry: ``[H-2, W-2, VY=3, VX=3, WIN_Y=3, WIN_X=3]``
+/// Note the geometry: `[H-2, W-2, VY=3, VX=3, WIN_Y=3, WIN_X=3]`
 /// - ``(H, W)``: the spatial position of the "current" cell.
 /// - ``(WIN_Y, WIN_X)``: the current window; with the current cell in the
 ///   center.
 /// - ``(VY, VX)``: the 3x3 distribution in each cell.
 ///
 /// # Arguments
-/// - `dist`: a ``[H, W, VY=3, VX=3]`` distribution.
+/// - `dist`: a `[H, W, VY=3, VX=3]` distribution.
 ///
 /// # Returns
-/// ``[H, W, VY=3, VX=3, WIN_Y=3, WIN_X=3]`` folded windows.
+/// `[H, W, VY=3, VX=3, WIN_Y=3, WIN_X=3]` folded windows.
 pub fn dist_windows<B: Backend>(dist: Tensor<B, 4>) -> Tensor<B, 6> {
     dist.unfold::<5, _>(0, 3, 1).unfold::<6, _>(1, 3, 1)
 }

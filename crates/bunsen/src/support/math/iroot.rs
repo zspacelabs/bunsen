@@ -1,11 +1,11 @@
-/// Find the exact integer nth root if it exists.
+/// Finds the exact integer nth root if it exists.
 ///
-/// ## Arguments
+/// # Arguments
 ///
 /// - `value` - the value.
 /// - `exp` - the exponent.
 ///
-/// ## Returns
+/// # Returns
 ///
 /// Either the exact root (positive if possible) or None.
 pub fn maybe_iroot(
