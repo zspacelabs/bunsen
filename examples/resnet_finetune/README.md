@@ -1,7 +1,31 @@
 # resnet-finetune example
 
-The dataload on this example is base on the tracel-ai models repository:
+This example fine-tunes a pretrained ImageNet ResNet for multi-label image
+classification. It downloads pretrained weights and a sample fine-tune dataset,
+rebuilds the classifier head, and trains with the Burn `Learner` (gradient
+accumulation, label smoothing, a multi-label Hamming-score metric, and
+early-stopping). It also showcases bunsen's model-surgery options: swapping the
+network's activation (e.g. LeakyReLU / GELU), enabling DropBlock / stochastic
+depth regularization, optionally freezing layers, and cautious weight decay.
+Running with `--help` (or with no dataset present) will also list the available
+pretrained ResNet variants.
+
+The data loading in this example is based on the tracel-ai models repository:
 https://github.com/tracel-ai/models/blob/main/resnet-burn/examples/finetune/examples/finetune.rs
+
+## Bunsen features exercised
+
+- `bunsen::kits::bimm::resnet` — the bimm `ResNet` model, the
+  `PREFAB_RESNET_MAP` registry of pretrained variants, and `ResNetContractConfig`
+  shape contracts.
+- `bunsen::burner::module` — `ModuleInit` for building/initializing the module
+  and `DTypeMapper` for dtype remapping during load.
+- `bunsen::data::cache::BunsenDiskCache` — on-disk caching of downloaded model
+  weights and dataset artifacts.
+
+It demonstrates pretrained-weight loading plus post-hoc module rewriting
+(activation replacement, regularization injection, layer freezing) on a bimm
+backbone.
 
 ## Running the Example
 

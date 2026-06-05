@@ -1,7 +1,28 @@
 # resnet_tiny example
 
-This example shows how to train a basic ResNet model
-for image classification.
+This example trains a ResNet image classifier from scratch on the CINIC-10
+dataset (a CIFAR-10-style 10-class image set). It scans an on-disk image folder,
+streams batches through a bunsen-firehose data pipeline with on-the-fly image
+decoding, resizing, tensor conversion, and randomized augmentation (horizontal
+flip), and trains with the Burn `Learner`. It is the lighter-weight companion to
+the `swin_tiny` example, sharing the same data-loading machinery.
+
+## Bunsen features exercised
+
+- `bunsen::kits::bimm::resnet` — the bimm `ResNet` model and `PREFAB_RESNET_MAP`
+  registry.
+- `bunsen::burner::module` — `ModuleInit` / `DTypeMapper` for module init and
+  dtype mapping.
+- `bunsen::data::cache::BunsenDiskCache` — on-disk artifact caching.
+- `bunsen-firehose` — the columnar batch data engine: `FirehoseTableSchema` /
+  `ColumnSchema`, row readers/writers, path scanning, and the Burn
+  `FirehoseExecutorBatcher` bridge.
+- `bunsen-firehose-image` — image loading/augmentation operators
+  (`ImageLoader`, `ResizeSpec`, `HorizontalFlipStage`, `WithProbStage`) and
+  `ImageToTensorData` / `stack_tensor_data_column` Burn conversion helpers.
+
+It demonstrates wiring a bunsen-firehose image pipeline into a Burn training
+loop.
 
 ## Installing the Dataset
 

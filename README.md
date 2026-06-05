@@ -15,27 +15,49 @@ community standard library for extending the [burn](https://burn.dev) tensor lib
 
 Read the [bunsen book](https://zspacelabs.ai/bunsen/book)
 
-# Components
+# Crates
 
-### Burn Extensions
+## Public / API Crates
 
-* `bunsen::burner` - this is a library of `burn::module::Module` lifecycle
-  components which extend the current functionality of burn.
-* `bunsen::contracts` - this is a library of runtime tensor-shape contracts.
+* [`bunsen-firehose`](crates/bunsen-firehose) — a columnar dataloader /
+  processing pipeline, with a burn batcher bridge.
 
-### Component Libraries
+## Utility Crates
 
-* `bunsen::blocks` - this is a library of `burn::module::Module` components.
-  This includes simple inner layers, recurrent utility blocks.
-* `bunsen::kit` - this is a library complete modules and simulators.
-* `bunsen::ops` - this is a library `burn::tensor::Tensor` operations.
+* [`bunsen-contracts-macros`](crates/bunsen-contracts-macros) — the
+  `shape_contract![]` proc-macro backing `bunsen`'s runtime tensor-shape
+  contracts.
 
-### App and Testing Support Libs
+## Experimental Crates
 
-* `bunsen::errors` - this is a library of error types and tooling.
-* `bunsen::support` - this is a library of support functions for bunsen, including
-  testing tooling which may be useful for clients.
-* `bunsen::zspace` - this is a library of z-space / index utilities.
+These represent complex-interface + work-in-progress, unstable interface
+extensions to `bunsen`; particulary those which incur large dependencies
+or are not yet ready for general consumption.
+
+* [`bunsen-firehose-image`](crates/bunsen-firehose-image) — image loading,
+  augmentation, and tensor-conversion operators for `bunsen-firehose`.
+* [`bunsen`](crates/bunsen) — the main "batteries included" library extending
+  burn: model blocks, kits, ops, contracts, and support tooling.
+* [`bunsen-preview-chat-dataloader`](crates/bunsen-preview-chat-dataloader) —
+  *(preview)* an Arrow-backed chat dataloader with tokenization for LLM
+  training.
+
+# Examples
+
+The `bunsen` repo includes a number of complex demos. The goal of the demos is to showcase the capabilities of the
+library; while also collecting a working edge of problems which could and should be improved by further development.
+
+See [`examples/`](examples/) for the full index. At a glance:
+
+* [`conway_benchmark`](examples/conway_benchmark) — headless Game of Life (2D/3D) throughput benchmark.
+* [`conway_vis`](examples/conway_vis) — real-time OpenGL Game of Life visualization.
+* [`lbm2d_vis`](examples/lbm2d_vis) — real-time 2D Lattice Boltzmann fluid-flow visualization.
+* [`resnet_finetune`](examples/resnet_finetune) — fine-tune a pretrained ResNet with model surgery.
+* [`resnet_tiny`](examples/resnet_tiny) — train a ResNet from scratch on CINIC-10 via a firehose pipeline.
+* [`swin_tiny`](examples/swin_tiny) — train a Swin Transformer V2 Tiny on CINIC-10.
+* [`train-chat`](examples/train-chat) — train a NanoChat-style GPT with per-group Muon/AdamW optimizers.
+* [`whisper-dev`](examples/whisper-dev) — import an OpenAI Whisper model from a PyTorch checkpoint.
+* [`zsl-data-cache`](examples/zsl-data-cache) — nanochat dataset shard download/disk cache (+ `pull_shards` CLI).
 
 # Motivation
 
@@ -74,11 +96,6 @@ yet.
   arguments/setup
   machinery
   could be shared.
-
-# Examples
-
-The `bunsen` repo includes a number of complex demos. The goal of the demos is to showcase the capabilities of the
-library; while also collecting a working edge of problems which could and should be improved by further development.
 
 # License
 
