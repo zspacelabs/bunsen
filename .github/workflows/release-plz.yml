@@ -14,9 +14,13 @@ name: release-plz
 #     to create and approve pull requests.
 #
 # Note: PRs opened with the default GITHUB_TOKEN do not trigger other workflows
-# (so ci.yml won't run on the release PR). To get CI on the release PR, replace
-# GITHUB_TOKEN below with a Personal Access Token or GitHub App token. See
-# https://release-plz.dev/docs/github/token
+# (so ci.yml won't run on the release PR). To get CI on the release PR, set a
+# repository secret RELEASE_PLZ_TOKEN to a Personal Access Token or GitHub App
+# token; the jobs below prefer it and fall back to GITHUB_TOKEN when it is unset.
+# See https://release-plz.dev/docs/github/token
+#
+# Fine-grained PAT scope: Contents (read/write) + Pull requests (read/write).
+# Classic PAT scope: repo. A GitHub App token is preferred (no expiry, scoped).
 
 on:
   push:
@@ -43,7 +47,7 @@ jobs:
         with:
           command: release
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.RELEASE_PLZ_TOKEN || secrets.GITHUB_TOKEN }}
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
 
   # Keep the release PR up to date on every push to main.
@@ -65,5 +69,5 @@ jobs:
         with:
           command: release-pr
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.RELEASE_PLZ_TOKEN || secrets.GITHUB_TOKEN }}
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
