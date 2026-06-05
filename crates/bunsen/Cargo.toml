@@ -11,7 +11,7 @@ license.workspace = true
 rust-version.workspace = true
 homepage = "https://zspacelabs.ai/bunsen/book"
 documentation = "https://docs.rs/bunsen/latest/"
-description = "bunsen is acceleration tooling for burn"
+description = "bunsen is a batteries included common library for burn"
 
 [lints]
 workspace = true
