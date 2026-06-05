@@ -10,6 +10,38 @@ use burn::{
 };
 
 /// Adapter to display a [`Distribution`] in a module.
+///
+/// This exists to allow [`Distribution`] to be included in formated
+/// [`ModuleDisplay`] implementations.
+///
+/// # Example
+/// ```rust,ignore
+/// #[derive(Debug, Clone)]
+/// pub struct NoiseConfig {
+///     /// The noise distribution.
+///     pub distribution: Distribution,
+///
+///     /// The noise clip range.
+///     pub clamp: Option<ClampOp>,
+/// }
+///
+/// impl ModuleDisplay for crate::ops::noise::NoiseConfig {}
+/// impl ModuleDisplayDefault for crate::ops::noise::NoiseConfig {
+///     fn content(
+///         &self,
+///         content: Content,
+///     ) -> Option<Content> {
+///         Some(
+///             content
+///                 .add(
+///                     "distribution",
+///                     &DistributionDisplayAdapter::new(self.distribution),
+///                 )
+///                 .add("clamp", &self.clamp),
+///         )
+///     }
+/// }
+/// ```
 pub struct DistributionDisplayAdapter(Distribution);
 
 impl DistributionDisplayAdapter {

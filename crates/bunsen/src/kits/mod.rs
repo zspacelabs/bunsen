@@ -19,6 +19,8 @@
 //!   compact GPT suitable for experimentation and fine-tuning.
 //! - [`sims`] &mdash; Iterative tensor simulations. Currently includes Conway's
 //!   Game of Life in 2D and 3D, and a D2Q9 lattice-Boltzmann fluid solver.
+//! - [`speech`] &mdash; Full speech recognition models. Currently includes
+//!   `Whisper` and `Hubert`.
 //!
 //! ## Stability
 //!

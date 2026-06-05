@@ -1,7 +1,7 @@
 use std::hint::black_box;
 
 use bunsen::ops::{
-    drop::drop_block::{
+    drop::{
         DropBlockOptions,
         drop_block_2d,
     },
