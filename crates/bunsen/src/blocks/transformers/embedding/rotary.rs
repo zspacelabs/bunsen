@@ -101,7 +101,7 @@ impl<B: Backend> ModuleInit<B, RotaryEmbedding<B>> for RotaryEmbeddingConfig {
 
 /// Rotary Embedding Module
 ///
-/// Precomputed rotary positional embedding (RoPE). It holds per-position
+/// Precomputed rotary positional embedding (`RoPE`). It holds per-position
 /// `cos`/`sin` tables and applies position-dependent rotations to the
 /// query/key head dimensions via [`apply`](RotaryEmbedding::apply); use
 /// [`clip_range`](RotaryEmbedding::clip_range) to restrict it to a

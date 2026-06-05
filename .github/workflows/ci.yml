@@ -59,7 +59,7 @@ jobs:
       #     cargo tarpaulin --features=wgpu --coveralls=${{ secrets.COVERALLS_REPO_TOKEN }}
 
       - name: Docs
-        run: cargo doc --no-deps
+        run: cargo doc --no-deps --all-features
 
       - name: Build and Test
         run: cargo test --features=flex
