@@ -25,6 +25,7 @@ use crate::zspace::ravel_dims;
 /// use burn::prelude::*;
 ///
 /// let data = TensorData::from([[1.0, 2.0], [3.0, 4.0]]);
+/// let shape = data.shape.clone();
 /// let view: TensorDataIndexView<f64> = TensorDataIndexView::view(&data);
 ///
 /// // Deref
@@ -87,6 +88,7 @@ impl<'a, I: AsIndex, E: Element> Index<&[I]> for TensorDataIndexView<'a, E> {
 /// use burn::prelude::*;
 ///
 /// let mut data = TensorData::from([[1.0, 2.0], [3.0, 4.0]]);
+/// let shape = data.shape.clone();
 /// let mut view: TensorDataIndexView<f64> =
 ///     TensorDataIndexView::view(&mut data);
 ///
