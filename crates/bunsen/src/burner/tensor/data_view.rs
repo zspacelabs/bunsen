@@ -89,8 +89,8 @@ impl<'a, I: AsIndex, E: Element> Index<&[I]> for TensorDataIndexView<'a, E> {
 ///
 /// let mut data = TensorData::from([[1.0, 2.0], [3.0, 4.0]]);
 /// let shape = data.shape.clone();
-/// let mut view: TensorDataIndexView<f64> =
-///     TensorDataIndexView::view(&mut data);
+/// let mut view: TensorDataIndexMutView<f64> =
+///     TensorDataIndexMutView::view(&mut data);
 ///
 /// // Deref
 /// assert_eq!(&view.shape, &shape);
