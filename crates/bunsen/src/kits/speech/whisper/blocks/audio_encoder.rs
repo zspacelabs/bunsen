@@ -28,7 +28,6 @@ use burn::{
 use super::WHISPER_DEFAULT_D_MODEL;
 use crate::{
     burner::module::ModuleInit,
-    contracts::unpack_shape_contract,
     errors::BunsenResult,
     kits::speech::whisper::blocks::{
         ResidualEncoderAttentionBlock,
@@ -203,7 +202,7 @@ impl<B: Backend> AudioEncoder<B> {
         x: Tensor<B, 3>,
     ) -> Tensor<B, 3> {
         #[cfg(any(debug_assertions, test))]
-        let [batch] = unpack_shape_contract!(
+        let [batch] = crate::contracts::unpack_shape_contract!(
             ["batch", "n_mels", "seq_len"],
             &x,
             &["batch"],
