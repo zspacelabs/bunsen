@@ -3,27 +3,14 @@
 use burn::{
     nn::{
         BatchNormConfig,
-        conv::{
-            Conv2d,
-            Conv2dConfig,
-        },
-        norm::{
-            Normalization,
-            NormalizationConfig,
-        },
+        conv::Conv2dConfig,
+        norm::NormalizationConfig,
     },
-    prelude::{
-        Backend,
-        Config,
-        Module,
-        Tensor,
-    },
+    prelude::Config,
 };
 
 use crate::{
     blocks::conv::ConvBlock2dConfig,
-    burner::module::ModuleInit,
-    errors::BunsenResult,
     ops::conv::{
         build_square_conv2d_padding_config,
         expect_conv_output_shape,
@@ -191,126 +178,9 @@ impl ResNetDownsampleConfig {
     }
 }
 
-impl<B: Backend> ModuleInit<B, ResNetDownsample<B>> for ResNetDownsampleConfig {
-    fn try_init(
-        &self,
-        device: &B::Device,
-    ) -> BunsenResult<ResNetDownsample<B>> {
-        Ok(ResNetDownsample {
-            conv: self.build_conv().init(device),
-
-            norm: self
-                .norm
-                .clone()
-                .with_num_features(self.out_channels)
-                .init(device),
-        })
-    }
-}
-
-/// `ResNet` Downsample Layer.
-///
-/// A conv + norm that reshapes a residual identity tensor (channels and/or
-/// spatial stride) so it can be added to a block output. Configure via
-/// [`ResNetDownsampleConfig`], call `.init(device)` to build, then
-/// [`ResNetDownsample::forward`] to apply.
-///
-/// Implements [`ResNetDownsampleMeta`].
-///
-/// Built by [`ResNetDownsampleConfig`].
-///
-/// # Missing Features
-///
-/// - *avg*: support for average pooling is blocked on support for ``ceil_mode``
-///   in [`burn`].
-#[derive(Module, Debug)]
-pub struct ResNetDownsample<B: Backend> {
-    /// Conv layer.
-    pub conv: Conv2d<B>,
-
-    /// Norm layer.
-    pub norm: Normalization<B>,
-}
-
-impl<B: Backend> ResNetDownsampleMeta for ResNetDownsample<B> {
-    fn in_channels(&self) -> usize {
-        self.conv.weight.shape()[1]
-    }
-
-    fn out_channels(&self) -> usize {
-        self.conv.weight.shape()[0]
-    }
-
-    fn kernel_size(&self) -> usize {
-        self.conv.kernel_size[0]
-    }
-
-    fn dilation(&self) -> usize {
-        self.conv.dilation[0]
-    }
-
-    fn stride(&self) -> usize {
-        self.conv.stride[0]
-    }
-}
-
-impl<B: Backend> ResNetDownsample<B> {
-    /// Forward pass.
-    ///
-    /// # Arguments
-    ///
-    /// - `input`: \ `[batch, in_channels, in_height=out_height*stride,
-    ///   in_width=out_width*stride]`
-    ///
-    /// # Returns
-    ///
-    /// `[batch_size, out_channels, h_out, w_out]`
-    pub fn forward(
-        &self,
-        input: Tensor<B, 4>,
-    ) -> Tensor<B, 4> {
-        #[cfg(debug_assertions)]
-        use crate::contracts::*;
-
-        #[cfg(debug_assertions)]
-        let [batch, in_height, in_width] = unpack_shape_contract!(
-            ["batch", "in_channels", "in_height", "in_width",],
-            &input.dims(),
-            &["batch", "in_height", "in_width"],
-            &[("in_channels", self.in_channels()),]
-        );
-
-        let out = self.conv.forward(input);
-        let out = self.norm.forward(out);
-
-        #[cfg(debug_assertions)]
-        {
-            let [out_height, out_width] = self.output_resolution([in_height, in_width]);
-            assert_shape_contract_periodically!(
-                ["batch", "out_channels", "out_height", "out_width"],
-                &out.dims(),
-                &[
-                    ("batch", batch),
-                    ("out_channels", self.out_channels()),
-                    ("out_height", out_height),
-                    ("out_width", out_width)
-                ]
-            );
-        }
-
-        out
-    }
-}
-
 #[cfg(test)]
 mod tests {
-    use serial_test::serial;
-
     use super::*;
-    use crate::{
-        contracts::assert_shape_contract,
-        support::testing::PerformanceBackend,
-    };
 
     #[test]
     fn test_downsample_config() {
@@ -325,37 +195,18 @@ mod tests {
         let config = config.with_stride(2);
         assert_eq!(config.stride(), 2);
         assert_eq!(config.output_resolution([8, 8]), [4, 4]);
-    }
 
-    #[test]
-    #[serial]
-    fn test_downsample() {
-        type B = PerformanceBackend;
-        let device = Default::default();
+        let conv_block = config.to_conv_block_config();
+        assert_eq!(conv_block.conv.kernel_size, [3, 3]);
+        assert_eq!(conv_block.conv.stride, [2, 2]);
+        assert_eq!(conv_block.conv.dilation, [1, 1]);
+        assert!(conv_block.act.is_none());
 
-        let batch_size = 2;
-        let in_channels = 2;
-        let out_channels = 4;
-        let in_height = 8;
-        let in_width = 8;
-
-        let downsample: ResNetDownsample<B> =
-            ResNetDownsampleConfig::new(in_channels, out_channels, 1)
-                .with_stride(2)
-                .init(&device);
-
-        let tensor = Tensor::ones([batch_size, in_channels, in_height, in_width], &device);
-        let out = downsample.forward(tensor);
-
-        assert_shape_contract!(
-            ["batch", "out_channels", "out_height", "out_width"],
-            &out.dims(),
-            &[
-                ("batch", batch_size),
-                ("out_channels", out_channels),
-                ("out_height", in_height / 2),
-                ("out_width", in_width / 2)
-            ]
-        );
+        match &conv_block.norm {
+            Some(NormalizationConfig::Batch(bc)) => {
+                assert_eq!(bc.num_features, 4);
+            }
+            _ => panic!("Expected BatchNormConfig"),
+        }
     }
 }
