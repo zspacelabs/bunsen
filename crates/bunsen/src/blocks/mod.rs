@@ -29,8 +29,8 @@
 //!     KV-cache-friendly slicing.
 //!
 //! - [`images`] &mdash; building blocks for vision models.
-//!   - [`images::conv`] &mdash; conv composites: `ConvNorm2d` (conv +
-//!     batchnorm) and `ConvBlock2d` (conv / norm / activation).
+//!   - [`conv`] &mdash; conv composites: `ConvNorm2d` (conv + batchnorm) and
+//!     `ConvBlock2d` (conv / norm / activation).
 //!   - [`images::patching`] &mdash; patch tokenization, currently `PatchEmbed`
 //!     (ViT-style patch &rarr; embedding projection).
 //!   - [`images::pool`] &mdash; pooling that doesn't fit `burn`'s defaults,
@@ -59,5 +59,6 @@
 //! See the per-item rustdoc for shape contracts, defaults, and the
 //! papers each block implements.
 
+pub mod conv;
 pub mod images;
 pub mod transformers;

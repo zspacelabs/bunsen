@@ -80,7 +80,7 @@ use burn::{
     },
 };
 
-use crate::blocks::images::conv::{
+use crate::blocks::conv::{
     ConvBlock2d,
     ConvBlock2dConfig,
 };
@@ -130,7 +130,7 @@ impl ResNetStemContractConfig {
             _ => unimplemented!("{:?}", self),
         }
 
-        let cna1 = ConvBlock2dConfig {
+        let cb1 = ConvBlock2dConfig {
             conv: Conv2dConfig::new([in_channels, 64], [7, 7])
                 .with_stride([2, 2])
                 .with_padding({
@@ -152,9 +152,9 @@ impl ResNetStemContractConfig {
         );
 
         ResNetStemStructureConfig {
-            cna1,
-            cna2: None,
-            cna3: None,
+            cb1,
+            cb2: None,
+            cb3: None,
             pool,
         }
     }
@@ -168,13 +168,13 @@ impl ResNetStemContractConfig {
 #[derive(Debug, Clone)]
 pub struct ResNetStemStructureConfig {
     /// The first convolution.
-    pub cna1: ConvBlock2dConfig,
+    pub cb1: ConvBlock2dConfig,
 
     /// The second convolution.
-    pub cna2: Option<ConvBlock2dConfig>,
+    pub cb2: Option<ConvBlock2dConfig>,
 
     /// The third convolution.
-    pub cna3: Option<ConvBlock2dConfig>,
+    pub cb3: Option<ConvBlock2dConfig>,
 
     /// The pooling layer.
     pub pool: Option<MaxPool2dConfig>,
@@ -193,11 +193,11 @@ pub struct ResNetStemStructureConfig {
 #[derive(Module, Debug)]
 pub struct ResNetStem<B: Backend> {
     /// The first convolution.
-    pub cna1: ConvBlock2d<B>,
+    pub cb1: ConvBlock2d<B>,
     /// The second convolution.
-    pub cna2: Option<ConvBlock2d<B>>,
+    pub cb2: Option<ConvBlock2d<B>>,
     /// The third convolution.
-    pub cna3: Option<ConvBlock2d<B>>,
+    pub cb3: Option<ConvBlock2d<B>>,
     /// The pooling.
     pub pool: Option<MaxPool2d>,
 }
@@ -209,12 +209,12 @@ impl<B: Backend> ResNetStem<B> {
         input: Tensor<B, 4>,
     ) -> Tensor<B, 4> {
         let mut x = input;
-        x = self.cna1.forward(x);
-        if let Some(cna2) = &self.cna2 {
-            x = cna2.forward(x);
+        x = self.cb1.forward(x);
+        if let Some(cb2) = &self.cb2 {
+            x = cb2.forward(x);
         }
-        if let Some(cna3) = &self.cna3 {
-            x = cna3.forward(x);
+        if let Some(cb3) = &self.cb3 {
+            x = cb3.forward(x);
         }
         if let Some(pool) = &self.pool {
             x = pool.forward(x);

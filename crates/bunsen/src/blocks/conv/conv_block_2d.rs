@@ -364,7 +364,7 @@ mod tests {
     }
 
     #[test]
-    fn test_cna() {
+    fn test_cb() {
         type I = CpuBackend;
         type B = Autodiff<I>;
         let device = Default::default();

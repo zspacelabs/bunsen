@@ -29,14 +29,14 @@ use burn::{
 };
 
 use crate::{
-    blocks::images::{
+    blocks::{
         conv::{
             AbstractConvBlock2dConfig,
             ConvBlock2d,
             ConvBlock2dConfig,
             ConvBlock2dMeta,
         },
-        drop::{
+        images::drop::{
             drop_block::{
                 DropBlock2d,
                 DropBlock2dConfig,
@@ -305,16 +305,16 @@ impl<B: Backend> ModuleInit<B, BottleneckBlock<B>> for BottleneckBlockConfig {
             None
         };
 
-        let cna_builder = AbstractConvBlock2dConfig {
+        let cb_builder = AbstractConvBlock2dConfig {
             norm: self.normalization.clone().into(),
             act: self.activation.clone().into(),
         };
 
-        let cna1: ConvBlock2dConfig = cna_builder.build_config(
+        let cb1: ConvBlock2dConfig = cb_builder.build_config(
             Conv2dConfig::new([in_planes, first_planes], scalar_to_array(1)).with_bias(false),
         );
 
-        let cna2: ConvBlock2dConfig = cna_builder.build_config(
+        let cb2: ConvBlock2dConfig = cb_builder.build_config(
             Conv2dConfig::new([first_planes, width], scalar_to_array(3))
                 .with_bias(false)
                 .with_stride(scalar_to_array(stride))
@@ -326,14 +326,14 @@ impl<B: Backend> ModuleInit<B, BottleneckBlock<B>> for BottleneckBlockConfig {
                 .with_groups(self.cardinality()),
         );
 
-        let cna3: ConvBlock2dConfig = cna_builder.build_config(
+        let cb3: ConvBlock2dConfig = cb_builder.build_config(
             Conv2dConfig::new([width, out_planes], scalar_to_array(1)).with_bias(false),
         );
 
-        assert_eq!(self.in_planes(), cna1.in_channels());
-        assert_eq!(cna1.out_channels(), cna2.in_channels());
-        assert_eq!(cna2.out_channels(), cna3.in_channels());
-        assert_eq!(cna3.out_channels(), self.out_planes());
+        assert_eq!(self.in_planes(), cb1.in_channels());
+        assert_eq!(cb1.out_channels(), cb2.in_channels());
+        assert_eq!(cb2.out_channels(), cb3.in_channels());
+        assert_eq!(cb3.out_channels(), self.out_planes());
 
         let module = BottleneckBlock {
             base_width: self.base_width,
@@ -342,9 +342,9 @@ impl<B: Backend> ModuleInit<B, BottleneckBlock<B>> for BottleneckBlockConfig {
 
             downsample: downsample.as_ref().map(|c| c.clone().init(device)),
 
-            cna1: cna1.init(device),
-            cna2: cna2.init(device),
-            cna3: cna3.init(device),
+            cb1: cb1.init(device),
+            cb2: cb2.init(device),
+            cb3: cb3.init(device),
 
             drop_block: self
                 .drop_block
@@ -390,11 +390,11 @@ pub struct BottleneckBlock<B: Backend> {
     pub downsample: Option<ResNetDownsample<B>>,
 
     /// First conv/norm/act layer.
-    pub cna1: ConvBlock2d<B>,
+    pub cb1: ConvBlock2d<B>,
     /// Second conv/norm/act layer.
-    pub cna2: ConvBlock2d<B>,
+    pub cb2: ConvBlock2d<B>,
     /// Third conv/norm/act layer.
-    pub cna3: ConvBlock2d<B>,
+    pub cb3: ConvBlock2d<B>,
 
     /// Optional `DropBlock` layer.
     pub drop_block: Option<DropBlock2d>,
@@ -405,11 +405,11 @@ pub struct BottleneckBlock<B: Backend> {
 
 impl<B: Backend> BottleneckBlockMeta for BottleneckBlock<B> {
     fn in_planes(&self) -> usize {
-        self.cna1.in_channels()
+        self.cb1.in_channels()
     }
 
     fn out_planes(&self) -> usize {
-        self.cna3.out_channels()
+        self.cb3.out_channels()
     }
 
     fn pinch_factor(&self) -> usize {
@@ -417,11 +417,11 @@ impl<B: Backend> BottleneckBlockMeta for BottleneckBlock<B> {
     }
 
     fn dilation(&self) -> usize {
-        self.cna3.conv.dilation[0]
+        self.cb3.conv.dilation[0]
     }
 
     fn cardinality(&self) -> usize {
-        self.cna2.groups()
+        self.cb2.groups()
     }
 
     fn base_width(&self) -> usize {
@@ -433,11 +433,11 @@ impl<B: Backend> BottleneckBlockMeta for BottleneckBlock<B> {
     }
 
     fn width(&self) -> usize {
-        self.cna3.in_channels()
+        self.cb3.in_channels()
     }
 
     fn stride(&self) -> usize {
-        self.cna2.stride()[0]
+        self.cb2.stride()[0]
     }
 }
 
@@ -457,12 +457,12 @@ impl<B: Backend> BottleneckBlock<B> {
         eprintln!("  cardinality: {}", self.cardinality());
 
         eprintln!();
-        eprintln!("  cna1.in_channels: {}", self.cna1.in_channels());
-        eprintln!("  cna1.out_channels: {}", self.cna1.out_channels());
-        eprintln!("  cna2.in_channels: {}", self.cna2.in_channels());
-        eprintln!("  cna2.out_channels: {}", self.cna2.out_channels());
-        eprintln!("  cna3.in_channels: {}", self.cna3.in_channels());
-        eprintln!("  cna3.out_channels: {}", self.cna3.out_channels());
+        eprintln!("  cb1.in_channels: {}", self.cb1.in_channels());
+        eprintln!("  cb1.out_channels: {}", self.cb1.out_channels());
+        eprintln!("  cb2.in_channels: {}", self.cb2.in_channels());
+        eprintln!("  cb2.out_channels: {}", self.cb2.out_channels());
+        eprintln!("  cb3.in_channels: {}", self.cb3.in_channels());
+        eprintln!("  cb3.out_channels: {}", self.cb3.out_channels());
     }
 
     /// Forward Pass.
@@ -513,7 +513,7 @@ impl<B: Backend> BottleneckBlock<B> {
             &out_bindings
         );
 
-        let x = self.cna1.forward(input);
+        let x = self.cb1.forward(input);
 
         crate::contracts::assert_shape_contract_periodically!(
             ["batch", "pinch_planes", "in_height", "in_width"],
@@ -526,7 +526,7 @@ impl<B: Backend> BottleneckBlock<B> {
             ],
         );
 
-        let x = self.cna2.map_forward(x, |x| match &self.drop_block {
+        let x = self.cb2.map_forward(x, |x| match &self.drop_block {
             Some(drop_block) => drop_block.forward(x),
             None => x,
         });
@@ -544,7 +544,7 @@ impl<B: Backend> BottleneckBlock<B> {
 
         // TODO: anti-aliasing
 
-        self.cna3.map_forward(x, |x| {
+        self.cb3.map_forward(x, |x| {
             crate::contracts::assert_shape_contract_periodically!(
                 OUT_CONTRACT,
                 &x.dims(),

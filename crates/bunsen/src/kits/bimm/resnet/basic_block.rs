@@ -28,14 +28,14 @@ use burn::{
 };
 
 use crate::{
-    blocks::images::{
+    blocks::{
         conv::{
             AbstractConvBlock2dConfig,
             ConvBlock2d,
             ConvBlock2dConfig,
             ConvBlock2dMeta,
         },
-        drop::{
+        images::drop::{
             drop_block::{
                 DropBlock2d,
                 DropBlock2dConfig,
@@ -230,12 +230,12 @@ impl<B: Backend> ModuleInit<B, BasicBlock<B>> for BasicBlockConfig {
             None
         };
 
-        let cna_builder = AbstractConvBlock2dConfig {
+        let cb_builder = AbstractConvBlock2dConfig {
             norm: self.normalization.clone().into(),
             act: self.activation.clone().into(),
         };
 
-        let cna1: ConvBlock2dConfig = cna_builder.build_config(
+        let cb1: ConvBlock2dConfig = cb_builder.build_config(
             Conv2dConfig::new([in_planes, first_planes], scalar_to_array(3))
                 .with_stride(scalar_to_array(stride))
                 .with_dilation(scalar_to_array(first_dilation))
@@ -248,7 +248,7 @@ impl<B: Backend> ModuleInit<B, BasicBlock<B>> for BasicBlockConfig {
                 .with_bias(false),
         );
 
-        let cna2: ConvBlock2dConfig = cna_builder.build_config(
+        let cb2: ConvBlock2dConfig = cb_builder.build_config(
             Conv2dConfig::new([first_planes, out_planes], scalar_to_array(3))
                 .with_dilation(scalar_to_array(self.dilation))
                 .with_padding(PaddingConfig2d::Explicit(
@@ -266,8 +266,8 @@ impl<B: Backend> ModuleInit<B, BasicBlock<B>> for BasicBlockConfig {
             downsample: downsample.as_ref().map(|cfg| cfg.clone().init(device)),
 
             // Group 1
-            cna1: cna1.init(device),
-            cna2: cna2.init(device),
+            cb1: cb1.init(device),
+            cb2: cb2.init(device),
 
             drop_block: self
                 .drop_block
@@ -306,9 +306,9 @@ pub struct BasicBlock<B: Backend> {
     pub downsample: Option<ResNetDownsample<B>>,
 
     /// First Conv/Norm/Act Block.
-    pub cna1: ConvBlock2d<B>,
+    pub cb1: ConvBlock2d<B>,
     /// Second Conv/Norm/Act Block.
-    pub cna2: ConvBlock2d<B>,
+    pub cb2: ConvBlock2d<B>,
 
     /// Optional `DropBlock` layer.
     pub drop_block: Option<DropBlock2d>,
@@ -319,20 +319,20 @@ pub struct BasicBlock<B: Backend> {
 
 impl<B: Backend> BasicBlockMeta for BasicBlock<B> {
     fn in_planes(&self) -> usize {
-        self.cna1.in_channels()
+        self.cb1.in_channels()
     }
 
     fn out_planes(&self) -> usize {
-        self.cna2.out_channels()
+        self.cb2.out_channels()
     }
 
     fn dilation(&self) -> usize {
-        self.cna1.conv.dilation[0]
+        self.cb1.conv.dilation[0]
     }
 
     fn first_dilation(&self) -> Option<usize> {
-        let d1 = self.cna1.conv.dilation[0];
-        let d2 = self.cna2.conv.dilation[0];
+        let d1 = self.cb1.conv.dilation[0];
+        let d2 = self.cb2.conv.dilation[0];
         if d1 == d2 { None } else { Some(d1) }
     }
 
@@ -341,11 +341,11 @@ impl<B: Backend> BasicBlockMeta for BasicBlock<B> {
     }
 
     fn first_planes(&self) -> usize {
-        self.cna1.out_channels()
+        self.cb1.out_channels()
     }
 
     fn stride(&self) -> usize {
-        self.cna1.stride()[0]
+        self.cb1.stride()[0]
     }
 }
 
@@ -409,7 +409,7 @@ impl<B: Backend> BasicBlock<B> {
         //  bunsen::contracts::assert_shape_contract_periodically!(OUT_CONTRACT,
         // &identity, &out_bindings);
 
-        let x = self.cna1.map_forward(input, |x| match &self.drop_block {
+        let x = self.cb1.map_forward(input, |x| match &self.drop_block {
             Some(drop_block) => drop_block.forward(x),
             None => x,
         });
@@ -428,7 +428,7 @@ impl<B: Backend> BasicBlock<B> {
 
         // TODO: anti-aliasing
 
-        let x = self.cna2.map_forward(x, |x| {
+        let x = self.cb2.map_forward(x, |x| {
             // TODO: attention
 
             let x = match &self.drop_path {

@@ -52,7 +52,7 @@ use super::{
     ResidualBlockStructureConfig,
 };
 use crate::{
-    blocks::images::conv::{
+    blocks::conv::{
         ConvBlock2d,
         ConvBlock2dConfig,
     },
@@ -240,7 +240,7 @@ impl From<ResNetContractConfig> for ResNetStructureConfig {
 #[derive(Config, Debug)]
 pub struct ResNetStructureConfig {
     /// The input Conv/Norm block configuration.
-    pub input_conv: ConvBlock2dConfig,
+    pub input_cb: ConvBlock2dConfig,
 
     /// The inner layers configuration.
     pub layers: Vec<LayerBlockStructureConfig>,
@@ -333,7 +333,7 @@ impl<B: Backend> ModuleInit<B, ResNet<B>> for ResNetStructureConfig {
         let head_planes = self.layers.last().unwrap().out_planes();
 
         let module = ResNet {
-            input_conv: self.input_conv.init(device),
+            input_cb: self.input_cb.init(device),
             input_pool: MaxPool2dConfig::new([3, 3])
                 .with_strides([2, 2])
                 .with_padding({
@@ -368,7 +368,7 @@ impl<B: Backend> ModuleInit<B, ResNet<B>> for ResNetStructureConfig {
 #[derive(Module, Debug)]
 pub struct ResNet<B: Backend> {
     /// Input conv/norm.
-    pub input_conv: ConvBlock2d<B>,
+    pub input_cb: ConvBlock2d<B>,
     /// Input pool.
     pub input_pool: MaxPool2d,
 
@@ -402,7 +402,7 @@ impl<B: Backend> ResNet<B> {
         input: Tensor<B, 4>,
     ) -> Tensor<B, 2> {
         // Prep block
-        let x = self.input_conv.forward(input);
+        let x = self.input_cb.forward(input);
         let x = self.input_pool.forward(x);
 
         // Residual blocks
@@ -432,10 +432,10 @@ impl<B: Backend> ResNet<B> {
             .skip_enum_variants(true)
             .with_key_remapping(r"bn(\d+)\.weight", "bn$1.gamma")
             .with_key_remapping(r"bn(\d+)\.bias", "bn$1.beta")
-            .with_key_remapping(r"^conv1\.", "input_conv.conv.")
-            .with_key_remapping(r"^bn1\.", "input_conv.norm.")
-            .with_key_remapping(r"bn(\d+)\.", "cna$1.norm.")
-            .with_key_remapping(r"conv(\d+)\.", "cna$1.conv.")
+            .with_key_remapping(r"^conv1\.", "input_cb.conv.")
+            .with_key_remapping(r"^bn1\.", "input_cb.norm.")
+            .with_key_remapping(r"bn(\d+)\.", "cb$1.norm.")
+            .with_key_remapping(r"conv(\d+)\.", "cb$1.conv.")
             .with_key_remapping(r"downsample\.0\.", "downsample.conv.")
             .with_key_remapping(r"downsample\.1\.", "downsample.norm.")
             .with_key_remapping(r"fc\.", "output_fc.")
