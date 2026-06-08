@@ -9,14 +9,8 @@ use burn::{
         LayerNorm,
         LayerNormConfig,
         PaddingConfig1d,
-        activation::{
-            Activation,
-            ActivationConfig,
-        },
-        conv::{
-            Conv1d,
-            Conv1dConfig,
-        },
+        activation::ActivationConfig,
+        conv::Conv1dConfig,
     },
     prelude::{
         Backend,
@@ -27,6 +21,11 @@ use burn::{
 
 use super::WHISPER_DEFAULT_D_MODEL;
 use crate::{
+    blocks::conv::{
+        ConvBlock1d,
+        ConvBlock1dConfig,
+        ConvBlock1dMeta,
+    },
     burner::module::ModuleInit,
     errors::BunsenResult,
     kits::speech::whisper::blocks::{
@@ -114,16 +113,20 @@ impl<B: Backend> ModuleInit<B, AudioEncoder<B>> for AudioEncoderConfig {
         let pos_ctx = self.max_context / 2;
 
         Ok(AudioEncoder {
-            conv1: Conv1dConfig::new(self.n_mels, self.d_model, 3)
-                .with_padding(PaddingConfig1d::Explicit(1, 1))
-                .init(device),
-            act1: self.head_activation.init(device),
+            cb1: ConvBlock1dConfig::new(
+                Conv1dConfig::new(self.n_mels, self.d_model, 3)
+                    .with_padding(PaddingConfig1d::Explicit(1, 1)),
+            )
+            .with_act(Some(self.head_activation.clone()))
+            .try_init(device)?,
 
-            conv2: Conv1dConfig::new(self.d_model, self.d_model, 3)
-                .with_padding(PaddingConfig1d::Explicit(1, 1))
-                .with_stride(2)
-                .init(device),
-            act2: self.head_activation.init(device),
+            cb2: ConvBlock1dConfig::new(
+                Conv1dConfig::new(self.d_model, self.d_model, 3)
+                    .with_padding(PaddingConfig1d::Explicit(1, 1))
+                    .with_stride(2),
+            )
+            .with_act(Some(self.head_activation.clone()))
+            .try_init(device)?,
 
             positional_embedding: Param::from_tensor(Tensor::random(
                 [pos_ctx, self.d_model],
@@ -151,11 +154,9 @@ impl<B: Backend> ModuleInit<B, AudioEncoder<B>> for AudioEncoderConfig {
 /// Built by [`AudioEncoderConfig`].
 #[derive(Module, Debug)]
 pub struct AudioEncoder<B: Backend> {
-    conv1: Conv1d<B>,
-    act1: Activation<B>,
+    cb1: ConvBlock1d<B>,
 
-    conv2: Conv1d<B>,
-    act2: Activation<B>,
+    cb2: ConvBlock1d<B>,
 
     positional_embedding: Param<Tensor<B, 2>>,
 
@@ -166,7 +167,7 @@ pub struct AudioEncoder<B: Backend> {
 
 impl<B: Backend> AudioEncoderMeta for AudioEncoder<B> {
     fn n_mels(&self) -> usize {
-        self.conv1.weight.dims()[1]
+        self.cb1.in_channels()
     }
 
     fn d_model(&self) -> usize {
@@ -217,8 +218,8 @@ impl<B: Backend> AudioEncoder<B> {
             self.max_context()
         );
 
-        let x = self.act1.forward(self.conv1.forward(x));
-        let x = self.act2.forward(self.conv2.forward(x));
+        let x = self.cb1.forward(x);
+        let x = self.cb2.forward(x);
 
         let x = x.swap_dims(1, 2);
 

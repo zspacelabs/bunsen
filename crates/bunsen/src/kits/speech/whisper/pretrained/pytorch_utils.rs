@@ -63,6 +63,7 @@ impl PytorchWhisperScanner {
 
         let store = PytorchStore::from_file(path.clone())
             .map_indices_contiguous(false)
+            .with_key_remapping(r"encoder.conv(.)", "encoder.cb$1.conv")
             .with_key_remapping(r"\.attn\.out", ".attn.output")
             .with_key_remapping(r"\.cross_attn\.out", ".cross_attn.output")
             .with_key_remapping(r"\.mlp\.2", ".mlp.linear2")
@@ -78,7 +79,7 @@ impl PytorchWhisperScanner {
         let keys = store.keys().map_err(BunsenError::external)?;
 
         let [d_model, n_mels] = store
-            .get_snapshot("encoder.conv1.weight")
+            .get_snapshot("encoder.cb1.conv.weight")
             .map_err(BunsenError::external)?
             .unwrap()
             .shape
