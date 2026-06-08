@@ -40,10 +40,6 @@ use super::{
 };
 use crate::{
     burner::module::ModuleInit,
-    contracts::{
-        assert_shape_contract_periodically,
-        unpack_shape_contract,
-    },
     errors::{
         BunsenError,
         BunsenResult,
@@ -381,6 +377,10 @@ impl<B: Backend> LayerBlock<B> {
         &self,
         input: Tensor<B, 4>,
     ) -> Tensor<B, 4> {
+        #[cfg(debug_assertions)]
+        use crate::contracts::*;
+
+        #[cfg(debug_assertions)]
         let [batch, out_height, out_width] = unpack_shape_contract!(
             [
                 "batch",
@@ -398,6 +398,7 @@ impl<B: Backend> LayerBlock<B> {
             x = block.forward(x);
         }
 
+        #[cfg(debug_assertions)]
         assert_shape_contract_periodically!(
             ["batch", "out_planes", "out_height", "out_width"],
             &x.dims(),

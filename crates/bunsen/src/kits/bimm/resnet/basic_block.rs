@@ -376,7 +376,10 @@ impl<B: Backend> BasicBlock<B> {
         input: Tensor<B, 4>,
     ) -> Tensor<B, 4> {
         #[cfg(debug_assertions)]
-        let [batch, out_height, out_width] = crate::contracts::unpack_shape_contract!(
+        use crate::contracts::*;
+
+        #[cfg(debug_assertions)]
+        let [batch, out_height, out_width] = unpack_shape_contract!(
             [
                 "batch",
                 "in_planes",
@@ -394,7 +397,7 @@ impl<B: Backend> BasicBlock<B> {
         };
 
         #[cfg(debug_assertions)]
-        crate::contracts::define_shape_contract!(
+        define_shape_contract!(
             OUT_CONTRACT,
             ["batch", "out_planes", "out_height", "out_width"],
         );
@@ -405,9 +408,8 @@ impl<B: Backend> BasicBlock<B> {
             ("out_height", out_height),
             ("out_width", out_width),
         ];
-        // #[cfg(debug_assertions)]
-        //  bunsen::contracts::assert_shape_contract_periodically!(OUT_CONTRACT,
-        // &identity, &out_bindings);
+        #[cfg(debug_assertions)]
+        assert_shape_contract_periodically!(OUT_CONTRACT, &identity, &out_bindings);
 
         let x = self.cb1.map_forward(input, |x| match &self.drop_block {
             Some(drop_block) => drop_block.forward(x),
@@ -415,7 +417,7 @@ impl<B: Backend> BasicBlock<B> {
         });
 
         #[cfg(debug_assertions)]
-        crate::contracts::assert_shape_contract_periodically!(
+        assert_shape_contract_periodically!(
             ["batch", "first_planes", "out_height", "out_width"],
             &x.dims(),
             &[
@@ -440,11 +442,7 @@ impl<B: Backend> BasicBlock<B> {
         });
 
         #[cfg(debug_assertions)]
-        crate::contracts::assert_shape_contract_periodically!(
-            OUT_CONTRACT,
-            &x.dims(),
-            &out_bindings
-        );
+        assert_shape_contract_periodically!(OUT_CONTRACT, &x.dims(), &out_bindings);
 
         x
     }

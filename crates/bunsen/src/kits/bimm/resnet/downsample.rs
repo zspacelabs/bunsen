@@ -22,10 +22,6 @@ use burn::{
 
 use crate::{
     burner::module::ModuleInit,
-    contracts::{
-        assert_shape_contract_periodically,
-        unpack_shape_contract,
-    },
     errors::BunsenResult,
     ops::conv::{
         build_square_conv2d_padding_config,
@@ -251,6 +247,10 @@ impl<B: Backend> ResNetDownsample<B> {
         &self,
         input: Tensor<B, 4>,
     ) -> Tensor<B, 4> {
+        #[cfg(debug_assertions)]
+        use crate::contracts::*;
+
+        #[cfg(debug_assertions)]
         let [batch, in_height, in_width] = unpack_shape_contract!(
             ["batch", "in_channels", "in_height", "in_width",],
             &input.dims(),
@@ -261,18 +261,20 @@ impl<B: Backend> ResNetDownsample<B> {
         let out = self.conv.forward(input);
         let out = self.norm.forward(out);
 
-        let [out_height, out_width] = self.output_resolution([in_height, in_width]);
-
-        assert_shape_contract_periodically!(
-            ["batch", "out_channels", "out_height", "out_width"],
-            &out.dims(),
-            &[
-                ("batch", batch),
-                ("out_channels", self.out_channels()),
-                ("out_height", out_height),
-                ("out_width", out_width)
-            ]
-        );
+        #[cfg(debug_assertions)]
+        {
+            let [out_height, out_width] = self.output_resolution([in_height, in_width]);
+            assert_shape_contract_periodically!(
+                ["batch", "out_channels", "out_height", "out_width"],
+                &out.dims(),
+                &[
+                    ("batch", batch),
+                    ("out_channels", self.out_channels()),
+                    ("out_height", out_height),
+                    ("out_width", out_width)
+                ]
+            );
+        }
 
         out
     }

@@ -480,7 +480,10 @@ impl<B: Backend> BottleneckBlock<B> {
         &self,
         input: Tensor<B, 4>,
     ) -> Tensor<B, 4> {
-        let [batch, in_height, out_height, in_width, out_width] = crate::contracts::unpack_shape_contract!(
+        #[cfg(debug_assertions)]
+        use crate::contracts::*;
+        #[cfg(debug_assertions)]
+        let [batch, in_height, out_height, in_width, out_width] = unpack_shape_contract!(
             [
                 "batch",
                 "in_planes",
@@ -497,25 +500,25 @@ impl<B: Backend> BottleneckBlock<B> {
             None => input.clone(),
         };
 
-        crate::contracts::define_shape_contract!(
+        #[cfg(debug_assertions)]
+        define_shape_contract!(
             OUT_CONTRACT,
             ["batch", "out_planes", "out_height", "out_width"],
         );
+        #[cfg(debug_assertions)]
         let out_bindings = [
             ("batch", batch),
             ("out_planes", self.out_planes()),
             ("out_height", out_height),
             ("out_width", out_width),
         ];
-        crate::contracts::assert_shape_contract_periodically!(
-            OUT_CONTRACT,
-            &identity.dims(),
-            &out_bindings
-        );
+        #[cfg(debug_assertions)]
+        assert_shape_contract_periodically!(OUT_CONTRACT, &identity.dims(), &out_bindings);
 
         let x = self.cb1.forward(input);
 
-        crate::contracts::assert_shape_contract_periodically!(
+        #[cfg(debug_assertions)]
+        assert_shape_contract_periodically!(
             ["batch", "pinch_planes", "in_height", "in_width"],
             &x.dims(),
             &[
@@ -531,7 +534,8 @@ impl<B: Backend> BottleneckBlock<B> {
             None => x,
         });
 
-        crate::contracts::assert_shape_contract_periodically!(
+        #[cfg(debug_assertions)]
+        assert_shape_contract_periodically!(
             ["batch", "width", "out_height", "out_width"],
             &x.dims(),
             &[
@@ -545,11 +549,8 @@ impl<B: Backend> BottleneckBlock<B> {
         // TODO: anti-aliasing
 
         self.cb3.map_forward(x, |x| {
-            crate::contracts::assert_shape_contract_periodically!(
-                OUT_CONTRACT,
-                &x.dims(),
-                &out_bindings
-            );
+            #[cfg(debug_assertions)]
+            assert_shape_contract_periodically!(OUT_CONTRACT, &x.dims(), &out_bindings);
 
             // TODO: attention
 
