@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.23.0](https://github.com/zspacelabs/bunsen/compare/bunsen-v0.22.2...bunsen-v0.23.0) - 2026-06-08
+
+### Added
+
+- unify around reusable Conv blocks. ([#81](https://github.com/zspacelabs/bunsen/pull/81))
+- add `shape` deref tests and examples for TensorDataIndexView and TensorDataIndexMutView ([#76](https://github.com/zspacelabs/bunsen/pull/76))
+
+### Fixed
+
+- update module path for `unpack_shape_contract` in debug/test builds ([#80](https://github.com/zspacelabs/bunsen/pull/80))
+
+### Other
+
+- make `AudioEncoder` fields public with detailed rustdoc comments ([#82](https://github.com/zspacelabs/bunsen/pull/82))
+- add API examples showcasing key `bunsen` features ([#77](https://github.com/zspacelabs/bunsen/pull/77))
+
 ## [0.22.2](https://github.com/zspacelabs/bunsen/compare/bunsen-v0.22.1...bunsen-v0.22.2) - 2026-06-06
 
 ### Fixed
