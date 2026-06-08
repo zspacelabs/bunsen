@@ -154,15 +154,20 @@ impl<B: Backend> ModuleInit<B, AudioEncoder<B>> for AudioEncoderConfig {
 /// Built by [`AudioEncoderConfig`].
 #[derive(Module, Debug)]
 pub struct AudioEncoder<B: Backend> {
-    cb1: ConvBlock1d<B>,
+    /// The first head conv block.
+    pub cb1: ConvBlock1d<B>,
 
-    cb2: ConvBlock1d<B>,
+    /// The second head conv block.
+    pub cb2: ConvBlock1d<B>,
 
-    positional_embedding: Param<Tensor<B, 2>>,
+    /// The positional embedding.
+    pub positional_embedding: Param<Tensor<B, 2>>,
 
-    blocks: Vec<ResidualEncoderAttentionBlock<B>>,
+    /// The audio encoder blocks.
+    pub blocks: Vec<ResidualEncoderAttentionBlock<B>>,
 
-    ln_post: LayerNorm<B>,
+    /// The final `LayerNorm`.
+    pub ln_post: LayerNorm<B>,
 }
 
 impl<B: Backend> AudioEncoderMeta for AudioEncoder<B> {
