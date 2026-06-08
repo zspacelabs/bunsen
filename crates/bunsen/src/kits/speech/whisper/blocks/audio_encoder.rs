@@ -202,6 +202,29 @@ impl<B: Backend> AudioEncoder<B> {
         &self,
         x: Tensor<B, 3>,
     ) -> Tensor<B, 3> {
+        let x = self.forward_head(x);
+
+        let x = self.embed(x);
+
+        let mut x = x;
+        for b in self.blocks.iter() {
+            x = b.forward(x);
+        }
+
+        self.ln_post.forward(x)
+    }
+
+    /// Forward pass through the audio encoder head.
+    ///
+    /// # Arguments
+    /// * `x`: The input audio spectrogram `[batch, n_mels, seq]`.
+    ///
+    /// # Returns
+    /// `[batch, seq, d_model]`.
+    pub fn forward_head(
+        &self,
+        x: Tensor<B, 3>,
+    ) -> Tensor<B, 3> {
         #[cfg(any(debug_assertions, test))]
         let [batch] = crate::contracts::unpack_shape_contract!(
             ["batch", "n_mels", "seq_len"],
@@ -234,17 +257,17 @@ impl<B: Backend> AudioEncoder<B> {
             ],
         );
 
-        let x = self.embed(x);
-
-        let mut x = x;
-        for b in self.blocks.iter() {
-            x = b.forward(x);
-        }
-
-        self.ln_post.forward(x)
+        x
     }
 
-    fn embed(
+    /// Add the positional embedding.
+    ///
+    /// # Arguments
+    /// * `x`: The input audio spectrogram `[batch, n_mels, seq]`.
+    ///
+    /// # Returns
+    /// `[batch, seq, d_model]`.
+    pub fn embed(
         &self,
         x: Tensor<B, 3>,
     ) -> Tensor<B, 3> {
