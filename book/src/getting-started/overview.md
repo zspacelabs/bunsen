@@ -92,7 +92,7 @@ trained. Organized by domain:
   grouped-query support, a KV cache for autoregressive decoding,
   scaled-dot-product attention helpers, and rotary positional
   embeddings.
-- **Images** &mdash; conv composites (`ConvNorm2d`, `CNA2d`),
+- **Images** &mdash; conv composites (`ConvNorm2d`, `ConvBlock2d`),
   ViT-style patch tokenization (`PatchEmbed`), TF-style same-padding
   pooling, and stochastic regularization layers (`DropBlock`,
   `DropPath`).

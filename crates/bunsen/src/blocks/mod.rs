@@ -30,7 +30,7 @@
 //!
 //! - [`images`] &mdash; building blocks for vision models.
 //!   - [`images::conv`] &mdash; conv composites: `ConvNorm2d` (conv +
-//!     batchnorm) and `CNA2d` (conv / norm / activation).
+//!     batchnorm) and `ConvBlock2d` (conv / norm / activation).
 //!   - [`images::patching`] &mdash; patch tokenization, currently `PatchEmbed`
 //!     (ViT-style patch &rarr; embedding projection).
 //!   - [`images::pool`] &mdash; pooling that doesn't fit `burn`'s defaults,

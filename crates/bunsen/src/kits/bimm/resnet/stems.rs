@@ -80,9 +80,9 @@ use burn::{
     },
 };
 
-use crate::blocks::images::conv::cna::{
-    CNA2d,
-    CNA2dConfig,
+use crate::blocks::images::conv::{
+    ConvBlock2d,
+    ConvBlock2dConfig,
 };
 
 /// `ResNet` input stem contract configuration.
@@ -130,7 +130,7 @@ impl ResNetStemContractConfig {
             _ => unimplemented!("{:?}", self),
         }
 
-        let cna1 = CNA2dConfig {
+        let cna1 = ConvBlock2dConfig {
             conv: Conv2dConfig::new([in_channels, 64], [7, 7])
                 .with_stride([2, 2])
                 .with_padding({
@@ -138,8 +138,8 @@ impl ResNetStemContractConfig {
                     PaddingConfig2d::Explicit(d, d, d, d)
                 })
                 .with_bias(false),
-            norm: normalization.clone(),
-            act: activation.clone(),
+            norm: normalization.clone().into(),
+            act: activation.clone().into(),
         };
 
         let pool = Some(
@@ -168,13 +168,13 @@ impl ResNetStemContractConfig {
 #[derive(Debug, Clone)]
 pub struct ResNetStemStructureConfig {
     /// The first convolution.
-    pub cna1: CNA2dConfig,
+    pub cna1: ConvBlock2dConfig,
 
     /// The second convolution.
-    pub cna2: Option<CNA2dConfig>,
+    pub cna2: Option<ConvBlock2dConfig>,
 
     /// The third convolution.
-    pub cna3: Option<CNA2dConfig>,
+    pub cna3: Option<ConvBlock2dConfig>,
 
     /// The pooling layer.
     pub pool: Option<MaxPool2dConfig>,
@@ -193,11 +193,11 @@ pub struct ResNetStemStructureConfig {
 #[derive(Module, Debug)]
 pub struct ResNetStem<B: Backend> {
     /// The first convolution.
-    pub cna1: CNA2d<B>,
+    pub cna1: ConvBlock2d<B>,
     /// The second convolution.
-    pub cna2: Option<CNA2d<B>>,
+    pub cna2: Option<ConvBlock2d<B>>,
     /// The third convolution.
-    pub cna3: Option<CNA2d<B>>,
+    pub cna3: Option<ConvBlock2d<B>>,
     /// The pooling.
     pub pool: Option<MaxPool2d>,
 }

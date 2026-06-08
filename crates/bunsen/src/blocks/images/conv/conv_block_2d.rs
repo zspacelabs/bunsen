@@ -1,9 +1,9 @@
-//! # `CNA2d` - conv/norm/activation block.
+//! # `ConvBlock2d` - conv/norm/activation block.
 //!
-//! A [`CNA2d`] module is:
+//! A [`ConvBlock2d`] module is:
 //! * a [`Conv2d`] layer,
-//! * a [`Normalization`] layer,
-//! * a [`Activation`] layer.
+//! * an optional [`Normalization`] layer,
+//! * an optional [`Activation`] layer.
 //!
 //! With support for hooking the forward method,
 //! to run code between the norm and application images.
@@ -33,32 +33,28 @@ use burn::{
 
 use crate::{
     burner::module::ModuleInit,
-    contracts::{
-        assert_shape_contract_periodically,
-        unpack_shape_contract,
-    },
     errors::BunsenResult,
 };
 
-/// Abstract policy for [`CNA2d`] Config.
+/// Abstract policy for [`ConvBlock2d`] Config.
 ///
 /// Defines a [`NormalizationConfig`] and [`ActivationConfig`],
-/// and can be lifted to a [`CNA2dConfig`] to match a [`Conv2dConfig`].
+/// and can be lifted to a [`ConvBlock2dConfig`] to match a [`Conv2dConfig`].
 ///
 /// The abstract [`NormalizationConfig`] will be feature matched
 /// with the target [`Conv2dConfig`].
 #[derive(Config, Debug)]
-pub struct AbstractCNA2dConfig {
+pub struct AbstractConvBlock2dConfig {
     /// The [`Normalization`] config.
-    pub norm: NormalizationConfig,
+    pub norm: Option<NormalizationConfig>,
 
     /// Activation Config.
-    #[config(default = "ActivationConfig::Relu")]
-    pub act: ActivationConfig,
+    #[config(default = "Some(ActivationConfig::Relu)")]
+    pub act: Option<ActivationConfig>,
 }
 
-impl AbstractCNA2dConfig {
-    /// Merges with a [`Conv2dConfig`] to construct a [`CNA2dConfig`].
+impl AbstractConvBlock2dConfig {
+    /// Merges with a [`Conv2dConfig`] to construct a [`ConvBlock2dConfig`].
     ///
     /// The abstract [`NormalizationConfig`] will be feature matched
     /// with the target [`Conv2dConfig`], resulting in a normalization
@@ -66,8 +62,8 @@ impl AbstractCNA2dConfig {
     pub fn build_config(
         &self,
         conv: Conv2dConfig,
-    ) -> CNA2dConfig {
-        CNA2dConfig {
+    ) -> ConvBlock2dConfig {
+        ConvBlock2dConfig {
             conv,
             norm: self.norm.clone(),
             act: self.act.clone(),
@@ -76,8 +72,8 @@ impl AbstractCNA2dConfig {
     }
 }
 
-/// [`CNA2d`] Meta.
-pub trait CNA2dMeta {
+/// [`ConvBlock2d`] Meta.
+pub trait ConvBlock2dMeta {
     /// Number of input channels.
     fn in_channels(&self) -> usize;
 
@@ -91,26 +87,26 @@ pub trait CNA2dMeta {
     fn stride(&self) -> [usize; 2];
 }
 
-/// [`CNA2d`] Config.
+/// [`ConvBlock2d`] Config.
 ///
-/// Implements [`CNA2dMeta`].
+/// Implements [`ConvBlock2dMeta`].
 ///
 /// Auto-matches the norm layer input channels
 /// to the conv layer's output channels.
 #[derive(Config, Debug)]
-pub struct CNA2dConfig {
+pub struct ConvBlock2dConfig {
     /// The [`Conv2d`] config.
     pub conv: Conv2dConfig,
 
     /// The [`Normalization`] config.
-    pub norm: NormalizationConfig,
+    pub norm: Option<NormalizationConfig>,
 
     /// The [`Activation`] config.
-    #[config(default = "ActivationConfig::Relu")]
-    pub act: ActivationConfig,
+    #[config(default = "Some(ActivationConfig::Relu)")]
+    pub act: Option<ActivationConfig>,
 }
 
-impl CNA2dMeta for CNA2dConfig {
+impl ConvBlock2dMeta for ConvBlock2dConfig {
     fn in_channels(&self) -> usize {
         self.conv.channels[0]
     }
@@ -128,63 +124,62 @@ impl CNA2dMeta for CNA2dConfig {
     }
 }
 
-impl CNA2dConfig {
+impl ConvBlock2dConfig {
     /// Adjust the norm features to match the conv output size.
     ///
     /// [`Self::init`] does this automatically.
     pub fn match_norm_features(self) -> Self {
         let features = self.out_channels();
-        let norm = self.norm.with_num_features(features);
+        let norm = self.norm.map(|config| config.with_num_features(features));
         Self { norm, ..self }
     }
 }
 
 /// Auto-matches the norm layer input channels
 /// to the conv layer's output channels.
-impl<B: Backend> ModuleInit<B, CNA2d<B>> for CNA2dConfig {
+impl<B: Backend> ModuleInit<B, ConvBlock2d<B>> for ConvBlock2dConfig {
     fn try_init(
         &self,
         device: &B::Device,
-    ) -> BunsenResult<CNA2d<B>> {
+    ) -> BunsenResult<ConvBlock2d<B>> {
         let out_channels = self.out_channels();
-        Ok(CNA2d {
+        Ok(ConvBlock2d {
             conv: self.conv.init(device),
             norm: self
                 .norm
-                .clone()
-                .with_num_features(out_channels)
-                .init(device),
-            act: self.act.init(device),
+                .as_ref()
+                .map(|config| config.clone().with_num_features(out_channels).init(device)),
+            act: self.act.as_ref().map(|config| config.init(device)),
         })
     }
 }
 
 /// Sequenced conv/norm/activation block.
 ///
-/// A [`CNA2d`] module is:
+/// A [`ConvBlock2d`] module is:
 /// * a [`Conv2d`] layer,
-/// * a [`Normalization`] layer,
-/// * a [`Activation`] layer.
+/// * an optional [`Normalization`] layer,
+/// * an optional [`Activation`] layer.
 ///
 /// With support for hooking the forward method,
 /// to run code between the norm and application images.
 ///
-/// Implements [`CNA2dMeta`].
+/// Implements [`ConvBlock2dMeta`].
 ///
-/// Built by [`CNA2dConfig`].
+/// Built by [`ConvBlock2dConfig`].
 #[derive(Module, Debug)]
-pub struct CNA2d<B: Backend> {
+pub struct ConvBlock2d<B: Backend> {
     /// Internal Conv2d layer.
     pub conv: Conv2d<B>,
 
     /// Internal Norm Layer.
-    pub norm: Normalization<B>,
+    pub norm: Option<Normalization<B>>,
 
     /// Activation layer.
-    pub act: Activation<B>,
+    pub act: Option<Activation<B>>,
 }
 
-impl<B: Backend> CNA2dMeta for CNA2d<B> {
+impl<B: Backend> ConvBlock2dMeta for ConvBlock2d<B> {
     fn in_channels(&self) -> usize {
         self.conv.weight.dims()[1] * self.groups()
     }
@@ -202,15 +197,21 @@ impl<B: Backend> CNA2dMeta for CNA2d<B> {
     }
 }
 
-impl<B: Backend> CNA2d<B> {
+impl<B: Backend> ConvBlock2d<B> {
     /// Forward Pass.
     ///
     /// Applies the conv/norm/act images in sequence:
     ///
     /// ```rust,ignore
     /// let x = self.conv.forward(input);
-    /// let x = self.norm.forward(x);
-    /// let x = self.act.forward(x);
+    /// let x = match &self.norm {
+    ///     Some(n) => n.forward(x),
+    ///     None => x,
+    /// };
+    /// let x = match &self.act {
+    ///     Some(a) => a.forward(x),
+    ///     None => x,
+    /// };
     /// return x
     /// ```
     ///
@@ -235,9 +236,15 @@ impl<B: Backend> CNA2d<B> {
     ///
     /// ```rust,ignore
     /// let x = self.conv.forward(input);
+    /// let x = match &self.norm {
+    ///     Some(n) => n.forward(x),
+    ///     None => x,
+    /// };
     /// let x = self.norm.forward(x);
-    /// let x = f(x);
-    /// let x = self.act.forward(x);
+    /// let x = match &self.act {
+    ///     Some(a) => a.forward(x),
+    ///     None => x,
+    /// };
     /// return x
     /// ```
     ///
@@ -259,6 +266,12 @@ impl<B: Backend> CNA2d<B> {
     where
         F: FnOnce(Tensor<B, 4>) -> Tensor<B, 4>,
     {
+        #[cfg(debug_assertions)]
+        use crate::contracts::{
+            assert_shape_contract_periodically,
+            unpack_shape_contract,
+        };
+        #[cfg(debug_assertions)]
         let [batch, out_height, out_width] = unpack_shape_contract!(
             [
                 "batch",
@@ -276,6 +289,7 @@ impl<B: Backend> CNA2d<B> {
         );
         let x = self.conv.forward(input);
 
+        #[cfg(debug_assertions)]
         assert_shape_contract_periodically!(
             ["batch", "out_channels", "out_height", "out_width"],
             &x.dims(),
@@ -287,12 +301,19 @@ impl<B: Backend> CNA2d<B> {
             ]
         );
 
-        let x = self.norm.forward(x);
+        let x = match &self.norm {
+            Some(norm) => norm.forward(x),
+            None => x,
+        };
 
         let x = f(x);
 
-        let x = self.act.forward(x);
+        let x = match &self.act {
+            Some(act) => act.forward(x),
+            None => x,
+        };
 
+        #[cfg(debug_assertions)]
         assert_shape_contract_periodically!(
             ["batch", "out_channels", "out_height", "out_width"],
             &x.dims(),
@@ -326,15 +347,15 @@ mod tests {
 
     #[test]
     fn test_conv_norm_config() {
-        let abstract_config =
-            AbstractCNA2dConfig::new(NormalizationConfig::Batch(BatchNormConfig::new(0)));
+        let abstract_config = AbstractConvBlock2dConfig::new()
+            .with_norm(Some(NormalizationConfig::Batch(BatchNormConfig::new(0))));
 
         let conv_config = Conv2dConfig::new([2, 4], [3, 3])
             .with_stride([2, 2])
             .with_padding(PaddingConfig2d::Explicit(1, 1, 1, 1))
             .with_bias(false);
 
-        let config: CNA2dConfig = abstract_config.build_config(conv_config.clone());
+        let config: ConvBlock2dConfig = abstract_config.build_config(conv_config.clone());
 
         assert_eq!(config.in_channels(), 2);
         assert_eq!(config.out_channels(), 4);
@@ -348,16 +369,16 @@ mod tests {
         type B = Autodiff<I>;
         let device = Default::default();
 
-        let config = CNA2dConfig::new(
+        let config = ConvBlock2dConfig::new(
             Conv2dConfig::new([2, 4], [3, 3])
                 .with_stride([2, 2])
                 .with_padding(PaddingConfig2d::Explicit(1, 1, 1, 1))
                 .with_bias(false),
-            NormalizationConfig::Batch(BatchNormConfig::new(0)),
         )
-        .with_act(ActivationConfig::Relu);
+        .with_norm(Some(NormalizationConfig::Batch(BatchNormConfig::new(0))))
+        .with_act(Some(ActivationConfig::Relu));
 
-        let layer: CNA2d<B> = config.init(&device);
+        let layer: ConvBlock2d<B> = config.init(&device);
         assert_eq!(layer.in_channels(), 2);
         assert_eq!(layer.out_channels(), 4);
         assert_eq!(layer.groups(), 1);
@@ -378,8 +399,8 @@ mod tests {
             let output = layer.forward(input.clone());
             let expected = {
                 let x = layer.conv.forward(input.clone());
-                let x = layer.norm.forward(x);
-                let x = layer.act.forward(x);
+                let x = layer.norm.as_ref().unwrap().forward(x);
+                let x = layer.act.as_ref().unwrap().forward(x);
                 x
             };
             output.to_data().assert_eq(&expected.to_data(), true);
@@ -391,9 +412,9 @@ mod tests {
             let output = layer.map_forward(input.clone(), hook);
             let expected = {
                 let x = layer.conv.forward(input.clone());
-                let x = layer.norm.forward(x);
+                let x = layer.norm.as_ref().unwrap().forward(x);
                 let x = hook(x);
-                let x = layer.act.forward(x);
+                let x = layer.act.as_ref().unwrap().forward(x);
                 x
             };
             output.to_data().assert_eq(&expected.to_data(), true);

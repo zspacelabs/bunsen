@@ -22,14 +22,10 @@ use burn::{
     module::Module,
     nn::{
         BatchNormConfig,
-        Initializer,
         Linear,
         LinearConfig,
         PaddingConfig2d,
-        activation::{
-            Activation,
-            ActivationConfig,
-        },
+        activation::ActivationConfig,
         conv::Conv2dConfig,
         norm::NormalizationConfig,
         pool::{
@@ -56,9 +52,9 @@ use super::{
     ResidualBlockStructureConfig,
 };
 use crate::{
-    blocks::images::conv::conv_norm::{
-        ConvNorm2d,
-        ConvNorm2dConfig,
+    blocks::images::conv::{
+        ConvBlock2d,
+        ConvBlock2dConfig,
     },
     burner::module::ModuleInit,
     errors::{
@@ -190,16 +186,18 @@ impl ResNetContractConfig {
     /// Converts to a [`ResNetStructureConfig`].
     pub fn to_structure(&self) -> ResNetStructureConfig {
         ResNetStructureConfig::new(
-            ConvNorm2dConfig::from(
+            ConvBlock2dConfig::new(
                 Conv2dConfig::new([3, self.stem_width], [7, 7])
                     .with_stride([2, 2])
                     .with_padding({
                         let d = 3;
                         PaddingConfig2d::Explicit(d, d, d, d)
                     })
-                    .with_bias(false),
+                    .with_bias(false)
+                    .with_initializer(CONV_INTO_RELU_INITIALIZER.clone()),
             )
-            .with_initializer(CONV_INTO_RELU_INITIALIZER.clone()),
+            .with_norm(Some(BatchNormConfig::new(self.stem_width).into()))
+            .with_act(Some(self.activation.clone())),
             self.to_layer_contracts()
                 .into_iter()
                 .map(|c| c.into())
@@ -242,15 +240,7 @@ impl From<ResNetContractConfig> for ResNetStructureConfig {
 #[derive(Config, Debug)]
 pub struct ResNetStructureConfig {
     /// The input Conv/Norm block configuration.
-    pub input_conv_norm: ConvNorm2dConfig,
-
-    /// Optional override for the input Conv2d initializer.
-    #[config(default = "CONV_INTO_RELU_INITIALIZER.clone().into()")]
-    pub input_conv_norm_initializer: Option<Initializer>,
-
-    /// The input activation configuration.
-    #[config(default = "ActivationConfig::Relu")]
-    pub input_act: ActivationConfig,
+    pub input_conv: ConvBlock2dConfig,
 
     /// The inner layers configuration.
     pub layers: Vec<LayerBlockStructureConfig>,
@@ -340,16 +330,10 @@ impl<B: Backend> ModuleInit<B, ResNet<B>> for ResNetStructureConfig {
         &self,
         device: &B::Device,
     ) -> BunsenResult<ResNet<B>> {
-        let mut input_conv_norm = self.input_conv_norm.clone();
-        if let Some(initializer) = &self.input_conv_norm_initializer {
-            input_conv_norm.conv = input_conv_norm.conv.with_initializer(initializer.clone());
-        }
-
         let head_planes = self.layers.last().unwrap().out_planes();
 
         let module = ResNet {
-            input_conv_norm: input_conv_norm.init(device),
-            input_act: self.input_act.init(device),
+            input_conv: self.input_conv.init(device),
             input_pool: MaxPool2dConfig::new([3, 3])
                 .with_strides([2, 2])
                 .with_padding({
@@ -384,9 +368,7 @@ impl<B: Backend> ModuleInit<B, ResNet<B>> for ResNetStructureConfig {
 #[derive(Module, Debug)]
 pub struct ResNet<B: Backend> {
     /// Input conv/norm.
-    pub input_conv_norm: ConvNorm2d<B>,
-    /// Input activation.
-    pub input_act: Activation<B>,
+    pub input_conv: ConvBlock2d<B>,
     /// Input pool.
     pub input_pool: MaxPool2d,
 
@@ -420,8 +402,7 @@ impl<B: Backend> ResNet<B> {
         input: Tensor<B, 4>,
     ) -> Tensor<B, 2> {
         // Prep block
-        let x = self.input_conv_norm.forward(input);
-        let x = self.input_act.forward(x);
+        let x = self.input_conv.forward(input);
         let x = self.input_pool.forward(x);
 
         // Residual blocks
@@ -451,8 +432,8 @@ impl<B: Backend> ResNet<B> {
             .skip_enum_variants(true)
             .with_key_remapping(r"bn(\d+)\.weight", "bn$1.gamma")
             .with_key_remapping(r"bn(\d+)\.bias", "bn$1.beta")
-            .with_key_remapping(r"^conv1\.", "input_conv_norm.conv.")
-            .with_key_remapping(r"^bn1\.", "input_conv_norm.norm.")
+            .with_key_remapping(r"^conv1\.", "input_conv.conv.")
+            .with_key_remapping(r"^bn1\.", "input_conv.norm.")
             .with_key_remapping(r"bn(\d+)\.", "cna$1.norm.")
             .with_key_remapping(r"conv(\d+)\.", "cna$1.conv.")
             .with_key_remapping(r"downsample\.0\.", "downsample.conv.")

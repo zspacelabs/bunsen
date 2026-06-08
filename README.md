@@ -105,7 +105,7 @@ use bunsen::burner::tensor::*;
 use burn::prelude::*;
 
 let data = TensorData::from([[1.0, 2.0], [3.0, 4.0]]);
-let view: TensorDataIndexView<f64> = TensorDataIndexView::view(&data);
+let view: TensorDataIndexView<f64> = TensorDataIndexView::view( & data);
 
 // Deref exposes the underlying TensorData metadata:
 assert_eq!(view.shape, [2, 2]);
@@ -121,9 +121,9 @@ use bunsen::burner::tensor::*;
 use burn::prelude::*;
 
 let mut data = TensorData::from([[1.0, 2.0], [3.0, 4.0]]);
-let mut view: TensorDataIndexMutView<f64> = TensorDataIndexMutView::view(&mut data);
+let mut view: TensorDataIndexMutView<f64> = TensorDataIndexMutView::view( & mut data);
 
-view[&[0, 0]] = 10.0;
+view[& [0, 0]] = 10.0;
 assert_eq!(view[&[0, 0]], 10.0);
 ```
 
@@ -148,8 +148,8 @@ struct Block<B: Backend> {
 }
 
 let module = Block::<B> {
-    linear: LinearConfig::new(4, 8).init(&device),
-    norm: LayerNormConfig::new(8).init(&device),
+linear: LinearConfig::new(4, 8).init( & device),
+norm: LayerNormConfig::new(8).init( & device),
 };
 ```
 
@@ -160,7 +160,7 @@ use bunsen::burner::module::reflection::XmlModuleTree;
 
 // As XmlModuleTree holds a non-Send active query environment, it must be `mut`
 // to run queries.
-let mut mtree = XmlModuleTree::build(&module);
+let mut mtree = XmlModuleTree::build( & module);
 
 // Dump the structure to inspect it:
 println!("{}", mtree.to_xml(true));
@@ -168,27 +168,32 @@ println!("{}", mtree.to_xml(true));
 // Select parameters by XPath and collect their ParamIds — e.g. just the
 // rank-2 Linear weights:
 let matrix_params = mtree
-    .select_params("Block/Linear/*[@name='weight',@rank=2]")
-    .to_param_ids()?;
+.select_params("Block/Linear/*[@name='weight',@rank=2]")
+.to_param_ids() ?;
 ```
 
 The dumped structure mirrors the module's fields, with each `@name` taken from
 the struct field and a stable `param_id` per tensor:
 
 ```xml
+
 <XmlModuleTree version="0.22.2">
-  <Structure>
-    <Block id="n:1" class="struct">
-      <Linear id="n:2" name="linear" class="struct">
-        <Param id="n:3" name="weight" param_id="si0gu6g09smnm" class="tensor" kind="Float" dtype="F32" shape="4 8" rank="2"/>
-        <Param id="n:4" name="bias" param_id="sai8ouqd8krmg" class="tensor" kind="Float" dtype="F32" shape="8" rank="1"/>
-      </Linear>
-      <LayerNorm id="n:5" name="norm" class="struct">
-        <Param id="n:6" name="gamma" param_id="7ufbn5ojagumq" class="tensor" kind="Float" dtype="F32" shape="8" rank="1"/>
-        <Param id="n:7" name="beta" param_id="ho9nkq19bnm6i" class="tensor" kind="Float" dtype="F32" shape="8" rank="1"/>
-      </LayerNorm>
-    </Block>
-  </Structure>
+    <Structure>
+        <Block id="n:1" class="struct">
+            <Linear id="n:2" name="linear" class="struct">
+                <Param id="n:3" name="weight" param_id="si0gu6g09smnm" class="tensor" kind="Float" dtype="F32"
+                       shape="4 8" rank="2"/>
+                <Param id="n:4" name="bias" param_id="sai8ouqd8krmg" class="tensor" kind="Float" dtype="F32" shape="8"
+                       rank="1"/>
+            </Linear>
+            <LayerNorm id="n:5" name="norm" class="struct">
+                <Param id="n:6" name="gamma" param_id="7ufbn5ojagumq" class="tensor" kind="Float" dtype="F32" shape="8"
+                       rank="1"/>
+                <Param id="n:7" name="beta" param_id="ho9nkq19bnm6i" class="tensor" kind="Float" dtype="F32" shape="8"
+                       rank="1"/>
+            </LayerNorm>
+        </Block>
+    </Structure>
 </XmlModuleTree>
 ```
 
@@ -206,7 +211,7 @@ blocks/
 │   ├── embedding   — RotaryEmbedding (RoPE)
 │   └── mlp          — Mlp feed-forward block, layer_norm_mlp
 └── images/
-    ├── conv         — ConvNorm2d, CNA2d (Conv → Norm → Activation)
+    ├── conv         — ConvNorm2d, ConvBlock2d (Conv → Norm → Activation)
     ├── patching     — PatchEmbed (ViT-style patch tokenizer)
     ├── pool         — AvgPool2dSame (TF-style SAME padding)
     └── drop         — DropBlock2d, DropPath (stochastic depth)

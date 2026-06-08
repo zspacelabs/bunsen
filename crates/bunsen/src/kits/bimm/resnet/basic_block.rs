@@ -29,11 +29,11 @@ use burn::{
 
 use crate::{
     blocks::images::{
-        conv::cna::{
-            AbstractCNA2dConfig,
-            CNA2d,
-            CNA2dConfig,
-            CNA2dMeta,
+        conv::{
+            AbstractConvBlock2dConfig,
+            ConvBlock2d,
+            ConvBlock2dConfig,
+            ConvBlock2dMeta,
         },
         drop::{
             drop_block::{
@@ -230,12 +230,12 @@ impl<B: Backend> ModuleInit<B, BasicBlock<B>> for BasicBlockConfig {
             None
         };
 
-        let cna_builder = AbstractCNA2dConfig {
-            norm: self.normalization.clone(),
-            act: self.activation.clone(),
+        let cna_builder = AbstractConvBlock2dConfig {
+            norm: self.normalization.clone().into(),
+            act: self.activation.clone().into(),
         };
 
-        let cna1: CNA2dConfig = cna_builder.build_config(
+        let cna1: ConvBlock2dConfig = cna_builder.build_config(
             Conv2dConfig::new([in_planes, first_planes], scalar_to_array(3))
                 .with_stride(scalar_to_array(stride))
                 .with_dilation(scalar_to_array(first_dilation))
@@ -248,7 +248,7 @@ impl<B: Backend> ModuleInit<B, BasicBlock<B>> for BasicBlockConfig {
                 .with_bias(false),
         );
 
-        let cna2: CNA2dConfig = cna_builder.build_config(
+        let cna2: ConvBlock2dConfig = cna_builder.build_config(
             Conv2dConfig::new([first_planes, out_planes], scalar_to_array(3))
                 .with_dilation(scalar_to_array(self.dilation))
                 .with_padding(PaddingConfig2d::Explicit(
@@ -306,9 +306,9 @@ pub struct BasicBlock<B: Backend> {
     pub downsample: Option<ResNetDownsample<B>>,
 
     /// First Conv/Norm/Act Block.
-    pub cna1: CNA2d<B>,
+    pub cna1: ConvBlock2d<B>,
     /// Second Conv/Norm/Act Block.
-    pub cna2: CNA2d<B>,
+    pub cna2: ConvBlock2d<B>,
 
     /// Optional `DropBlock` layer.
     pub drop_block: Option<DropBlock2d>,

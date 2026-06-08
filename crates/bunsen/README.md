@@ -209,7 +209,7 @@ blocks/
 │   ├── embedding   — RotaryEmbedding (RoPE)
 │   └── mlp          — Mlp feed-forward block, layer_norm_mlp
 └── images/
-    ├── conv         — ConvNorm2d, CNA2d (Conv → Norm → Activation)
+    ├── conv         — ConvNorm2d, ConvBlock2d (Conv → Norm → Activation)
     ├── patching     — PatchEmbed (ViT-style patch tokenizer)
     ├── pool         — AvgPool2dSame (TF-style SAME padding)
     └── drop         — DropBlock2d, DropPath (stochastic depth)

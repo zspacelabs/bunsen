@@ -1,5 +1,6 @@
 //! Conv Building Blocks
 
-pub mod conv_norm;
+mod conv_block_2d;
 
-pub mod cna;
+#[doc(inline)]
+pub use conv_block_2d::*;

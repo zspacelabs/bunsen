@@ -22,9 +22,9 @@ carries `zero_init_norm()` &mdash; the "zero-initialize the last batch
 norm in a residual branch" trick used by `ResNet` and successors to
 make residual branches start as identities.
 
-### `CNA2d`
+### `ConvBlock2d`
 
-[`CNA2d`](https://docs.rs/bunsen/latest/bunsen/blocks/images/conv/struct.CNA2d.html)
+[`ConvBlock2d`](https://docs.rs/bunsen/latest/bunsen/blocks/images/conv/struct.ConvBlock2d.html)
 is the more general *Conv / Norm / Activation* block. Beyond the
 basic forward, it provides:
 

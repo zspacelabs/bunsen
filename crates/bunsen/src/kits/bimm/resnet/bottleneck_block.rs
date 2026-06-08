@@ -30,11 +30,11 @@ use burn::{
 
 use crate::{
     blocks::images::{
-        conv::cna::{
-            AbstractCNA2dConfig,
-            CNA2d,
-            CNA2dConfig,
-            CNA2dMeta,
+        conv::{
+            AbstractConvBlock2dConfig,
+            ConvBlock2d,
+            ConvBlock2dConfig,
+            ConvBlock2dMeta,
         },
         drop::{
             drop_block::{
@@ -305,16 +305,16 @@ impl<B: Backend> ModuleInit<B, BottleneckBlock<B>> for BottleneckBlockConfig {
             None
         };
 
-        let cna_builder = AbstractCNA2dConfig {
-            norm: self.normalization.clone(),
-            act: self.activation.clone(),
+        let cna_builder = AbstractConvBlock2dConfig {
+            norm: self.normalization.clone().into(),
+            act: self.activation.clone().into(),
         };
 
-        let cna1: CNA2dConfig = cna_builder.build_config(
+        let cna1: ConvBlock2dConfig = cna_builder.build_config(
             Conv2dConfig::new([in_planes, first_planes], scalar_to_array(1)).with_bias(false),
         );
 
-        let cna2: CNA2dConfig = cna_builder.build_config(
+        let cna2: ConvBlock2dConfig = cna_builder.build_config(
             Conv2dConfig::new([first_planes, width], scalar_to_array(3))
                 .with_bias(false)
                 .with_stride(scalar_to_array(stride))
@@ -326,7 +326,7 @@ impl<B: Backend> ModuleInit<B, BottleneckBlock<B>> for BottleneckBlockConfig {
                 .with_groups(self.cardinality()),
         );
 
-        let cna3: CNA2dConfig = cna_builder.build_config(
+        let cna3: ConvBlock2dConfig = cna_builder.build_config(
             Conv2dConfig::new([width, out_planes], scalar_to_array(1)).with_bias(false),
         );
 
@@ -390,11 +390,11 @@ pub struct BottleneckBlock<B: Backend> {
     pub downsample: Option<ResNetDownsample<B>>,
 
     /// First conv/norm/act layer.
-    pub cna1: CNA2d<B>,
+    pub cna1: ConvBlock2d<B>,
     /// Second conv/norm/act layer.
-    pub cna2: CNA2d<B>,
+    pub cna2: ConvBlock2d<B>,
     /// Third conv/norm/act layer.
-    pub cna3: CNA2d<B>,
+    pub cna3: ConvBlock2d<B>,
 
     /// Optional `DropBlock` layer.
     pub drop_block: Option<DropBlock2d>,

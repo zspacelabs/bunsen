@@ -22,7 +22,7 @@ domain's worth of building blocks.
   (`CausalSelfAttention`, scaled-dot-product attention helpers,
   `KVCache`) and positional embedding (`RotaryEmbedding`).
 - **[Images](./images.md)** &mdash; convolutional composites
-  (`ConvNorm2d`, `CNA2d`), patch tokenization (`PatchEmbed`),
+  (`ConvNorm2d`, `ConvBlock2d`), patch tokenization (`PatchEmbed`),
   same-padding pooling (`AvgPool2dSame`), and stochastic
   regularization layers (`DropBlock`, `DropPath`).
 
