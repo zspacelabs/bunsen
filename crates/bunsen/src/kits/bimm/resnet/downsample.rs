@@ -21,6 +21,7 @@ use burn::{
 };
 
 use crate::{
+    blocks::conv::ConvBlock2dConfig,
     burner::module::ModuleInit,
     errors::BunsenResult,
     ops::conv::{
@@ -152,11 +153,12 @@ impl ResNetDownsampleMeta for ResNetDownsampleConfig {
     }
 }
 
-impl<B: Backend> ModuleInit<B, ResNetDownsample<B>> for ResNetDownsampleConfig {
-    fn try_init(
-        &self,
-        device: &B::Device,
-    ) -> BunsenResult<ResNetDownsample<B>> {
+impl ResNetDownsampleConfig {
+    /// Builds the downsample [`Conv2dConfig`].
+    ///
+    /// A `stride == 1`, `dilation == 1` downsample collapses to a `1x1` conv;
+    /// dilation only applies when the kernel is larger than `1`.
+    fn build_conv(&self) -> Conv2dConfig {
         let kernel_size = if self.stride == 1 && self.dilation == 1 {
             1
         } else {
@@ -165,17 +167,37 @@ impl<B: Backend> ModuleInit<B, ResNetDownsample<B>> for ResNetDownsampleConfig {
         let dilation = if kernel_size > 1 { self.dilation } else { 1 };
         let padding = build_square_conv2d_padding_config(kernel_size, self.stride, dilation);
 
-        let conv = Conv2dConfig::new(
+        Conv2dConfig::new(
             [self.in_channels, self.out_channels],
             scalar_to_array(kernel_size),
         )
         .with_stride(scalar_to_array(self.stride))
         .with_padding(padding)
         .with_dilation(scalar_to_array(dilation))
-        .with_bias(false);
+        .with_bias(false)
+    }
 
+    /// Lifts this downsample into an equivalent [`ConvBlock2dConfig`].
+    ///
+    /// The result is a conv + norm with no activation, matching the historical
+    /// [`ResNetDownsample`] behavior. The norm features are matched to the conv
+    /// output channels. This is the preferred way to embed a downsample into a
+    /// residual block.
+    pub fn to_conv_block_config(&self) -> ConvBlock2dConfig {
+        ConvBlock2dConfig::new(self.build_conv())
+            .with_norm(Some(self.norm.clone()))
+            .with_act(None)
+            .match_norm_features()
+    }
+}
+
+impl<B: Backend> ModuleInit<B, ResNetDownsample<B>> for ResNetDownsampleConfig {
+    fn try_init(
+        &self,
+        device: &B::Device,
+    ) -> BunsenResult<ResNetDownsample<B>> {
         Ok(ResNetDownsample {
-            conv: conv.init(device),
+            conv: self.build_conv().init(device),
 
             norm: self
                 .norm

@@ -48,10 +48,7 @@ use crate::{
     },
     burner::module::ModuleInit,
     errors::BunsenResult,
-    kits::bimm::resnet::{
-        ResNetDownsample,
-        ResNetDownsampleConfig,
-    },
+    kits::bimm::resnet::ResNetDownsampleConfig,
     ops::{
         conv::stride_div_output_resolution,
         drop::DropBlockOptions,
@@ -221,11 +218,17 @@ impl<B: Backend> ModuleInit<B, BasicBlock<B>> for BasicBlockConfig {
         // stride = 1 if use_aa else stride
 
         let downsample = if stride != 1 || in_planes != out_planes {
-            ResNetDownsampleConfig::new(self.in_planes(), self.out_planes(), self.down_kernel_size)
+            Some(
+                ResNetDownsampleConfig::new(
+                    self.in_planes(),
+                    self.out_planes(),
+                    self.down_kernel_size,
+                )
                 .with_stride(self.stride())
                 .with_dilation(first_dilation)
                 .with_norm(self.normalization.clone())
-                .into()
+                .to_conv_block_config(),
+            )
         } else {
             None
         };
@@ -302,8 +305,8 @@ pub struct BasicBlock<B: Backend> {
     /// Reduction factor.
     pub reduce_first: usize,
 
-    /// Optional `DownSample` layer; for the residual connection.
-    pub downsample: Option<ResNetDownsample<B>>,
+    /// Optional downsample (conv + norm) for the residual connection.
+    pub downsample: Option<ConvBlock2d<B>>,
 
     /// First Conv/Norm/Act Block.
     pub cb1: ConvBlock2d<B>,

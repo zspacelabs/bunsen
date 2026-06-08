@@ -49,10 +49,7 @@ use crate::{
     },
     burner::module::ModuleInit,
     errors::BunsenResult,
-    kits::bimm::resnet::{
-        ResNetDownsample,
-        ResNetDownsampleConfig,
-    },
+    kits::bimm::resnet::ResNetDownsampleConfig,
     ops::{
         conv::stride_div_output_resolution,
         drop::DropBlockOptions,
@@ -296,11 +293,13 @@ impl<B: Backend> ModuleInit<B, BottleneckBlock<B>> for BottleneckBlockConfig {
         let _use_aa = enable_aa && (stride != 1 || first_dilation != dilation);
 
         let downsample = if stride != 1 || in_planes != out_planes {
-            ResNetDownsampleConfig::new(in_planes, out_planes, self.down_kernel_size)
-                .with_stride(self.stride())
-                .with_dilation(self.dilation())
-                .with_norm(self.normalization.clone())
-                .into()
+            Some(
+                ResNetDownsampleConfig::new(in_planes, out_planes, self.down_kernel_size)
+                    .with_stride(self.stride())
+                    .with_dilation(self.dilation())
+                    .with_norm(self.normalization.clone())
+                    .to_conv_block_config(),
+            )
         } else {
             None
         };
@@ -386,8 +385,8 @@ pub struct BottleneckBlock<B: Backend> {
     /// Reduction factor.
     pub reduce_first: usize,
 
-    /// Optional `DownSample` layer; for the residual connection.
-    pub downsample: Option<ResNetDownsample<B>>,
+    /// Optional downsample (conv + norm) for the residual connection.
+    pub downsample: Option<ConvBlock2d<B>>,
 
     /// First conv/norm/act layer.
     pub cb1: ConvBlock2d<B>,
