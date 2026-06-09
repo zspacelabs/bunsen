@@ -6,7 +6,7 @@
 //! ```rust,no_run
 //! use bunsen::{
 //!     burner::module::ModuleInit,
-//!     kits::bimm::swin::v2::swin_model::{
+//!     kits::bimm::swin::v2::{
 //!         LayerConfig,
 //!         SwinTransformerV2,
 //!         SwinTransformerV2Config,
