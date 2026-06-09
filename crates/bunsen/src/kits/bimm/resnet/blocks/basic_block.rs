@@ -34,6 +34,9 @@ use crate::{
             ConvBlock2d,
             ConvBlock2dConfig,
             ConvBlock2dMeta,
+            ConvSeq2d,
+            ConvSeq2dConfig,
+            ConvSeq2dMeta,
         },
         images::drop::{
             drop_block::{
@@ -268,9 +271,7 @@ impl<B: Backend> ModuleInit<B, BasicBlock<B>> for BasicBlockConfig {
 
             downsample: downsample.as_ref().map(|cfg| cfg.clone().init(device)),
 
-            // Group 1
-            cb1: cb1.init(device),
-            cb2: cb2.init(device),
+            convs: ConvSeq2dConfig::new(vec![cb1, cb2]).try_init(device)?,
 
             drop_block: self
                 .drop_block
@@ -308,10 +309,13 @@ pub struct BasicBlock<B: Backend> {
     /// Optional downsample (conv + norm) for the residual connection.
     pub downsample: Option<ConvBlock2d<B>>,
 
-    /// First Conv/Norm/Act Block.
-    pub cb1: ConvBlock2d<B>,
-    /// Second Conv/Norm/Act Block.
-    pub cb2: ConvBlock2d<B>,
+    /// The two `3x3` conv/norm/act stages, as a [`ConvSeq2d`].
+    ///
+    /// `blocks[0]` is the first (optionally strided) conv; `blocks[1]` is the
+    /// second. The drop-block and drop-path/residual hooks are woven between
+    /// each stage's norm and activation via
+    /// [`map_forward`](ConvBlock2d::map_forward) in [`Self::forward`].
+    pub convs: ConvSeq2d<B>,
 
     /// Optional `DropBlock` layer.
     pub drop_block: Option<DropBlock2d>,
@@ -322,20 +326,20 @@ pub struct BasicBlock<B: Backend> {
 
 impl<B: Backend> BasicBlockMeta for BasicBlock<B> {
     fn in_planes(&self) -> usize {
-        self.cb1.in_channels()
+        self.convs.in_channels()
     }
 
     fn out_planes(&self) -> usize {
-        self.cb2.out_channels()
+        self.convs.out_channels()
     }
 
     fn dilation(&self) -> usize {
-        self.cb1.conv.dilation[0]
+        self.convs.blocks[0].dilation()[0]
     }
 
     fn first_dilation(&self) -> Option<usize> {
-        let d1 = self.cb1.conv.dilation[0];
-        let d2 = self.cb2.conv.dilation[0];
+        let d1 = self.convs.blocks[0].dilation()[0];
+        let d2 = self.convs.blocks[1].dilation()[0];
         if d1 == d2 { None } else { Some(d1) }
     }
 
@@ -344,11 +348,11 @@ impl<B: Backend> BasicBlockMeta for BasicBlock<B> {
     }
 
     fn first_planes(&self) -> usize {
-        self.cb1.out_channels()
+        self.convs.blocks[0].out_channels()
     }
 
     fn stride(&self) -> usize {
-        self.cb1.stride()[0]
+        self.convs.stride()[0]
     }
 }
 
@@ -414,7 +418,9 @@ impl<B: Backend> BasicBlock<B> {
         #[cfg(debug_assertions)]
         assert_shape_contract_periodically!(OUT_CONTRACT, &identity, &out_bindings);
 
-        let x = self.cb1.map_forward(input, |x| match &self.drop_block {
+        let [cb1, cb2] = [&self.convs.blocks[0], &self.convs.blocks[1]];
+
+        let x = cb1.map_forward(input, |x| match &self.drop_block {
             Some(drop_block) => drop_block.forward(x),
             None => x,
         });
@@ -433,7 +439,7 @@ impl<B: Backend> BasicBlock<B> {
 
         // TODO: anti-aliasing
 
-        let x = self.cb2.map_forward(x, |x| {
+        let x = cb2.map_forward(x, |x| {
             // TODO: attention
 
             let x = match &self.drop_path {

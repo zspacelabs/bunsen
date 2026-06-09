@@ -12,6 +12,7 @@ use burn::{
     config::Config,
     module::Module,
     nn::{
+        PaddingConfig1d,
         activation::{
             Activation,
             ActivationConfig,
@@ -33,7 +34,11 @@ use burn::{
 
 use crate::{
     burner::module::ModuleInit,
-    errors::BunsenResult,
+    errors::{
+        BunsenError,
+        BunsenResult,
+    },
+    ops::conv::maybe_conv1d_output_size,
 };
 
 /// Abstract policy for [`ConvBlock1d`] Config.
@@ -85,6 +90,68 @@ pub trait ConvBlock1dMeta {
 
     /// Returns the stride.
     fn stride(&self) -> [usize; 1];
+
+    /// Returns the kernel size.
+    fn kernel_size(&self) -> usize;
+
+    /// Returns the dilation.
+    fn dilation(&self) -> usize;
+
+    /// Returns the padding configuration.
+    fn padding(&self) -> PaddingConfig1d;
+
+    /// Predicts the output length for a given input length.
+    ///
+    /// Computes the true 1D convolution output length, factoring in the kernel
+    /// size, padding, dilation, and stride:
+    ///
+    /// ```text
+    /// out = floor((in + total_padding - dilation*(kernel_size - 1) - 1) / stride) + 1
+    /// ```
+    ///
+    /// # Arguments
+    ///
+    /// * `in_length` - The input length.
+    ///
+    /// # Returns
+    ///
+    /// The predicted output length.
+    ///
+    /// # Errors
+    ///
+    /// [`BunsenError::Invalid`] if there is no legal output length (the kernel
+    /// does not fit the padded input).
+    fn try_output_length(
+        &self,
+        in_length: usize,
+    ) -> BunsenResult<usize> {
+        let stride = self.stride()[0];
+        let kernel_size = self.kernel_size();
+        let total_padding = match self.padding() {
+            PaddingConfig1d::Valid => 0,
+            PaddingConfig1d::Explicit(left, right) => left + right,
+            // Matches burn's same-padding (`calculate_same_padding`), which
+            // targets `out = ceil(in / stride)` and ignores dilation.
+            PaddingConfig1d::Same => {
+                let out = in_length.div_ceil(stride);
+                (out.saturating_sub(1) * stride + kernel_size).saturating_sub(in_length)
+            }
+        };
+        // Fold the (possibly asymmetric) total padding into the effective input
+        // length so we can reuse the symmetric `maybe_conv1d_output_size`.
+        maybe_conv1d_output_size(
+            in_length + total_padding,
+            kernel_size,
+            stride,
+            0,
+            self.dilation(),
+        )
+        .ok_or_else(|| {
+            BunsenError::Invalid(format!(
+                "ConvBlock1d has no legal output length for input length ({in_length})"
+            ))
+        })
+    }
 }
 
 /// [`ConvBlock1d`] Config.
@@ -121,6 +188,18 @@ impl ConvBlock1dMeta for ConvBlock1dConfig {
 
     fn stride(&self) -> [usize; 1] {
         [self.conv.stride]
+    }
+
+    fn kernel_size(&self) -> usize {
+        self.conv.kernel_size
+    }
+
+    fn dilation(&self) -> usize {
+        self.conv.dilation
+    }
+
+    fn padding(&self) -> PaddingConfig1d {
+        self.conv.padding.clone()
     }
 }
 
@@ -195,6 +274,18 @@ impl<B: Backend> ConvBlock1dMeta for ConvBlock1d<B> {
     fn stride(&self) -> [usize; 1] {
         [self.conv.stride]
     }
+
+    fn kernel_size(&self) -> usize {
+        self.conv.kernel_size
+    }
+
+    fn dilation(&self) -> usize {
+        self.conv.dilation
+    }
+
+    fn padding(&self) -> PaddingConfig1d {
+        self.conv.padding.clone()
+    }
 }
 
 impl<B: Backend> ConvBlock1d<B> {
@@ -217,11 +308,12 @@ impl<B: Backend> ConvBlock1d<B> {
     ///
     /// # Arguments
     ///
-    /// - `input`: `[batch, in_channels, in_length=out_length*stride]`.
+    /// - `input`: `[batch, in_channels, in_length]`.
     ///
     /// # Returns
     ///
-    /// `[batch, out_channels, out_length]`
+    /// `[batch, out_channels, out_length]`, where `out_length` is predicted by
+    /// [`ConvBlock1dMeta::try_output_length`].
     pub fn forward(
         &self,
         input: Tensor<B, 3>,
@@ -249,13 +341,14 @@ impl<B: Backend> ConvBlock1d<B> {
     ///
     /// # Arguments
     ///
-    /// - `input`: \ `[batch, in_channels, in_length=out_length*stride]`.
+    /// - `input`: \ `[batch, in_channels, in_length]`.
     /// - `f`: a callback endofunction, from/to `[batch, in_channels,
     ///   out_length]`.
     ///
     /// # Returns
     ///
-    /// `[batch, out_channels, out_length]`
+    /// `[batch, out_channels, out_length]`, where `out_length` is predicted by
+    /// [`ConvBlock1dMeta::try_output_length`].
     pub fn map_forward<F>(
         &self,
         input: Tensor<B, 3>,
@@ -265,24 +358,23 @@ impl<B: Backend> ConvBlock1d<B> {
         F: FnOnce(Tensor<B, 3>) -> Tensor<B, 3>,
     {
         #[cfg(debug_assertions)]
-        use crate::contracts::{
-            assert_shape_contract_periodically,
-            unpack_shape_contract,
+        use crate::{
+            contracts::{
+                assert_shape_contract_periodically,
+                unpack_shape_contract,
+            },
+            errors::WithOkOrPanic,
         };
         #[cfg(debug_assertions)]
-        let [batch, out_length] = unpack_shape_contract!(
-            [
-                "batch",
-                "in_channels",
-                "in_length" = "out_length" * "length_stride"
-            ],
+        let [batch, in_length] = unpack_shape_contract!(
+            ["batch", "in_channels", "in_length"],
             &input.dims(),
-            &["batch", "out_length"],
-            &[
-                ("in_channels", self.in_channels()),
-                ("length_stride", self.stride()[0]),
-            ]
+            &["batch", "in_length"],
+            &[("in_channels", self.in_channels())]
         );
+        // True conv arithmetic; factors in kernel size, padding, and dilation.
+        #[cfg(debug_assertions)]
+        let out_length = self.try_output_length(in_length).ok_or_panic();
         let x = self.conv.forward(input);
 
         #[cfg(debug_assertions)]
@@ -355,6 +447,73 @@ mod tests {
         assert_eq!(config.out_channels(), 4);
         assert_eq!(config.groups(), 1);
         assert_eq!(config.stride(), [2]);
+    }
+
+    #[test]
+    fn test_output_length() {
+        let block = |conv: Conv1dConfig| ConvBlock1dConfig::new(conv);
+
+        // kernel=3, stride=1, dilation=2, "same" padding -> length preserved.
+        let same = block(
+            Conv1dConfig::new(2, 4, 3)
+                .with_stride(1)
+                .with_dilation(2)
+                .with_padding(PaddingConfig1d::Explicit(2, 2)),
+        );
+        assert_eq!(same.try_output_length(10).unwrap(), 10);
+
+        // Valid padding shrinks by `dilation * (kernel - 1)` = 4.
+        let valid_dilated = block(
+            Conv1dConfig::new(2, 4, 3)
+                .with_dilation(2)
+                .with_padding(PaddingConfig1d::Valid),
+        );
+        assert_eq!(valid_dilated.try_output_length(10).unwrap(), 6);
+
+        // With dilation=1, valid padding only shrinks by `kernel - 1` = 2.
+        let valid = block(Conv1dConfig::new(2, 4, 3).with_padding(PaddingConfig1d::Valid));
+        assert_eq!(valid.try_output_length(10).unwrap(), 8);
+
+        // Stride downsamples: kernel=3, stride=2, "same" -> ceil(10/2) = 5.
+        let strided = block(
+            Conv1dConfig::new(2, 4, 3)
+                .with_stride(2)
+                .with_padding(PaddingConfig1d::Explicit(1, 1)),
+        );
+        assert_eq!(strided.try_output_length(10).unwrap(), 5);
+
+        // No legal output when the kernel cannot fit.
+        let too_big = block(Conv1dConfig::new(2, 4, 5).with_padding(PaddingConfig1d::Valid));
+        assert!(matches!(
+            too_big.try_output_length(3),
+            Err(BunsenError::Invalid(_))
+        ));
+    }
+
+    #[test]
+    fn test_dilated_forward_shape() {
+        type I = CpuBackend;
+        type B = Autodiff<I>;
+        let device = Default::default();
+
+        // Dilated, valid-padded block: previously incompatible with the
+        // stride-division contract; now modeled by true conv arithmetic.
+        let config = ConvBlock1dConfig::new(
+            Conv1dConfig::new(2, 4, 3)
+                .with_dilation(2)
+                .with_padding(PaddingConfig1d::Valid)
+                .with_bias(false),
+        )
+        .with_norm(None)
+        .with_act(None);
+
+        let layer: ConvBlock1d<B> = config.init(&device);
+
+        let input = Tensor::random([2, 2, 10], Distribution::Default, &device);
+        let output = layer.forward(input);
+
+        assert_eq!(output.dims(), [2, 4, layer.try_output_length(10).unwrap()]);
+        assert_eq!(output.dims(), [2, 4, 6]);
     }
 
     #[test]

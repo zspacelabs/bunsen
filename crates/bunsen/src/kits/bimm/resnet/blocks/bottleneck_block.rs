@@ -35,6 +35,9 @@ use crate::{
             ConvBlock2d,
             ConvBlock2dConfig,
             ConvBlock2dMeta,
+            ConvSeq2d,
+            ConvSeq2dConfig,
+            ConvSeq2dMeta,
         },
         images::drop::{
             drop_block::{
@@ -329,9 +332,9 @@ impl<B: Backend> ModuleInit<B, BottleneckBlock<B>> for BottleneckBlockConfig {
             Conv2dConfig::new([width, out_planes], scalar_to_array(1)).with_bias(false),
         );
 
+        // Boundary channels; the inner chaining (cb1 -> cb2 -> cb3) is
+        // validated by `ConvSeq2d::try_new`.
         assert_eq!(self.in_planes(), cb1.in_channels());
-        assert_eq!(cb1.out_channels(), cb2.in_channels());
-        assert_eq!(cb2.out_channels(), cb3.in_channels());
         assert_eq!(cb3.out_channels(), self.out_planes());
 
         let module = BottleneckBlock {
@@ -341,9 +344,7 @@ impl<B: Backend> ModuleInit<B, BottleneckBlock<B>> for BottleneckBlockConfig {
 
             downsample: downsample.as_ref().map(|c| c.clone().init(device)),
 
-            cb1: cb1.init(device),
-            cb2: cb2.init(device),
-            cb3: cb3.init(device),
+            convs: ConvSeq2dConfig::new(vec![cb1, cb2, cb3]).try_init(device)?,
 
             drop_block: self
                 .drop_block
@@ -388,12 +389,14 @@ pub struct BottleneckBlock<B: Backend> {
     /// Optional downsample (conv + norm) for the residual connection.
     pub downsample: Option<ConvBlock2d<B>>,
 
-    /// First conv/norm/act layer.
-    pub cb1: ConvBlock2d<B>,
-    /// Second conv/norm/act layer.
-    pub cb2: ConvBlock2d<B>,
-    /// Third conv/norm/act layer.
-    pub cb3: ConvBlock2d<B>,
+    /// The three conv/norm/act stages, as a [`ConvSeq2d`].
+    ///
+    /// `blocks[0]` is the `1x1` pinch, `blocks[1]` the `3x3` (optionally
+    /// strided/grouped) conv, and `blocks[2]` the `1x1` expand. The drop-block
+    /// and drop-path/residual hooks are woven between the relevant stage's norm
+    /// and activation via [`map_forward`](ConvBlock2d::map_forward) in
+    /// [`Self::forward`].
+    pub convs: ConvSeq2d<B>,
 
     /// Optional `DropBlock` layer.
     pub drop_block: Option<DropBlock2d>,
@@ -404,11 +407,11 @@ pub struct BottleneckBlock<B: Backend> {
 
 impl<B: Backend> BottleneckBlockMeta for BottleneckBlock<B> {
     fn in_planes(&self) -> usize {
-        self.cb1.in_channels()
+        self.convs.in_channels()
     }
 
     fn out_planes(&self) -> usize {
-        self.cb3.out_channels()
+        self.convs.out_channels()
     }
 
     fn pinch_factor(&self) -> usize {
@@ -416,11 +419,11 @@ impl<B: Backend> BottleneckBlockMeta for BottleneckBlock<B> {
     }
 
     fn dilation(&self) -> usize {
-        self.cb3.conv.dilation[0]
+        self.convs.blocks[2].dilation()[0]
     }
 
     fn cardinality(&self) -> usize {
-        self.cb2.groups()
+        self.convs.blocks[1].groups()
     }
 
     fn base_width(&self) -> usize {
@@ -432,11 +435,11 @@ impl<B: Backend> BottleneckBlockMeta for BottleneckBlock<B> {
     }
 
     fn width(&self) -> usize {
-        self.cb3.in_channels()
+        self.convs.blocks[2].in_channels()
     }
 
     fn stride(&self) -> usize {
-        self.cb2.stride()[0]
+        self.convs.stride()[0]
     }
 }
 
@@ -456,12 +459,10 @@ impl<B: Backend> BottleneckBlock<B> {
         eprintln!("  cardinality: {}", self.cardinality());
 
         eprintln!();
-        eprintln!("  cb1.in_channels: {}", self.cb1.in_channels());
-        eprintln!("  cb1.out_channels: {}", self.cb1.out_channels());
-        eprintln!("  cb2.in_channels: {}", self.cb2.in_channels());
-        eprintln!("  cb2.out_channels: {}", self.cb2.out_channels());
-        eprintln!("  cb3.in_channels: {}", self.cb3.in_channels());
-        eprintln!("  cb3.out_channels: {}", self.cb3.out_channels());
+        for (idx, cb) in self.convs.blocks.iter().enumerate() {
+            eprintln!("  cb{}.in_channels: {}", idx + 1, cb.in_channels());
+            eprintln!("  cb{}.out_channels: {}", idx + 1, cb.out_channels());
+        }
     }
 
     /// Forward Pass.
@@ -514,7 +515,13 @@ impl<B: Backend> BottleneckBlock<B> {
         #[cfg(debug_assertions)]
         assert_shape_contract_periodically!(OUT_CONTRACT, &identity.dims(), &out_bindings);
 
-        let x = self.cb1.forward(input);
+        let [cb1, cb2, cb3] = [
+            &self.convs.blocks[0],
+            &self.convs.blocks[1],
+            &self.convs.blocks[2],
+        ];
+
+        let x = cb1.forward(input);
 
         #[cfg(debug_assertions)]
         assert_shape_contract_periodically!(
@@ -528,7 +535,7 @@ impl<B: Backend> BottleneckBlock<B> {
             ],
         );
 
-        let x = self.cb2.map_forward(x, |x| match &self.drop_block {
+        let x = cb2.map_forward(x, |x| match &self.drop_block {
             Some(drop_block) => drop_block.forward(x),
             None => x,
         });
@@ -547,7 +554,7 @@ impl<B: Backend> BottleneckBlock<B> {
 
         // TODO: anti-aliasing
 
-        self.cb3.map_forward(x, |x| {
+        cb3.map_forward(x, |x| {
             #[cfg(debug_assertions)]
             assert_shape_contract_periodically!(OUT_CONTRACT, &x.dims(), &out_bindings);
 

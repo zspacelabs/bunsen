@@ -22,9 +22,10 @@ use burn::{
 use super::WHISPER_DEFAULT_D_MODEL;
 use crate::{
     blocks::conv::{
-        ConvBlock1d,
         ConvBlock1dConfig,
-        ConvBlock1dMeta,
+        ConvSeq1d,
+        ConvSeq1dConfig,
+        ConvSeq1dMeta,
     },
     burner::module::ModuleInit,
     errors::BunsenResult,
@@ -113,19 +114,19 @@ impl<B: Backend> ModuleInit<B, AudioEncoder<B>> for AudioEncoderConfig {
         let pos_ctx = self.max_context / 2;
 
         Ok(AudioEncoder {
-            cb1: ConvBlock1dConfig::new(
-                Conv1dConfig::new(self.n_mels, self.d_model, 3)
-                    .with_padding(PaddingConfig1d::Explicit(1, 1)),
-            )
-            .with_act(Some(self.head_activation.clone()))
-            .try_init(device)?,
-
-            cb2: ConvBlock1dConfig::new(
-                Conv1dConfig::new(self.d_model, self.d_model, 3)
-                    .with_padding(PaddingConfig1d::Explicit(1, 1))
-                    .with_stride(2),
-            )
-            .with_act(Some(self.head_activation.clone()))
+            head: ConvSeq1dConfig::new(vec![
+                ConvBlock1dConfig::new(
+                    Conv1dConfig::new(self.n_mels, self.d_model, 3)
+                        .with_padding(PaddingConfig1d::Explicit(1, 1)),
+                )
+                .with_act(Some(self.head_activation.clone())),
+                ConvBlock1dConfig::new(
+                    Conv1dConfig::new(self.d_model, self.d_model, 3)
+                        .with_padding(PaddingConfig1d::Explicit(1, 1))
+                        .with_stride(2),
+                )
+                .with_act(Some(self.head_activation.clone())),
+            ])
             .try_init(device)?,
 
             positional_embedding: Param::from_tensor(Tensor::random(
@@ -154,11 +155,9 @@ impl<B: Backend> ModuleInit<B, AudioEncoder<B>> for AudioEncoderConfig {
 /// Built by [`AudioEncoderConfig`].
 #[derive(Module, Debug)]
 pub struct AudioEncoder<B: Backend> {
-    /// The first head conv block.
-    pub cb1: ConvBlock1d<B>,
-
-    /// The second head conv block.
-    pub cb2: ConvBlock1d<B>,
+    /// The head conv stack; a stride-2 down-sampling sequence of
+    /// [`ConvBlock1d`](crate::blocks::conv::ConvBlock1d) modules.
+    pub head: ConvSeq1d<B>,
 
     /// The positional embedding.
     pub positional_embedding: Param<Tensor<B, 2>>,
@@ -172,7 +171,7 @@ pub struct AudioEncoder<B: Backend> {
 
 impl<B: Backend> AudioEncoderMeta for AudioEncoder<B> {
     fn n_mels(&self) -> usize {
-        self.cb1.in_channels()
+        self.head.in_channels()
     }
 
     fn d_model(&self) -> usize {
@@ -246,8 +245,7 @@ impl<B: Backend> AudioEncoder<B> {
             self.max_context()
         );
 
-        let x = self.cb1.forward(x);
-        let x = self.cb2.forward(x);
+        let x = self.head.forward(x);
 
         let x = x.swap_dims(1, 2);
 
@@ -257,7 +255,7 @@ impl<B: Backend> AudioEncoder<B> {
             &x,
             &[
                 ("batch", batch),
-                ("len", seq_len / 2),
+                ("len", self.head.try_output_length(seq_len).unwrap()),
                 ("d_model", self.d_model()),
             ],
         );

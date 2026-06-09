@@ -426,8 +426,15 @@ impl<B: Backend> ResNet<B> {
             .with_key_remapping(r"bn(\d+)\.bias", "bn$1.beta")
             .with_key_remapping(r"^conv1\.", "input_cb.conv.")
             .with_key_remapping(r"^bn1\.", "input_cb.norm.")
-            .with_key_remapping(r"bn(\d+)\.", "cb$1.norm.")
-            .with_key_remapping(r"conv(\d+)\.", "cb$1.conv.")
+            // PyTorch's 1-based per-block `conv{N}`/`bn{N}` map to the 0-based
+            // `ConvSeq2d` blocks of the residual block's `convs` field. (Stem
+            // `conv1`/`bn1` are anchored above and already consumed.)
+            .with_key_remapping(r"bn1\.", "convs.blocks.0.norm.")
+            .with_key_remapping(r"bn2\.", "convs.blocks.1.norm.")
+            .with_key_remapping(r"bn3\.", "convs.blocks.2.norm.")
+            .with_key_remapping(r"conv1\.", "convs.blocks.0.conv.")
+            .with_key_remapping(r"conv2\.", "convs.blocks.1.conv.")
+            .with_key_remapping(r"conv3\.", "convs.blocks.2.conv.")
             .with_key_remapping(r"downsample\.0\.", "downsample.conv.")
             .with_key_remapping(r"downsample\.1\.", "downsample.norm.")
             .with_key_remapping(r"fc\.", "output_fc.")
