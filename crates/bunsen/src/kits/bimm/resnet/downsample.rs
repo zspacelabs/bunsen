@@ -19,11 +19,10 @@ use crate::{
     support::arrays::scalar_to_array,
 };
 
-/// [`ResNetDownsample`] Meta trait.
+/// [`ResNetDownsampleConfig`] Meta trait.
 ///
 /// Implemented by:
 /// * [`ResNetDownsampleConfig`]
-/// * [`ResNetDownsample`]
 ///
 /// # Missing Features
 ///
@@ -79,12 +78,7 @@ pub trait ResNetDownsampleMeta {
     }
 }
 
-/// [`ResNetDownsample`] configuration.
-///
-/// Describes the conv (channels, kernel, stride, dilation) and normalization
-/// used to project a residual identity path onto the block output shape. Call
-/// `.init(device)` to build the [`ResNetDownsample`] module, then drive it with
-/// [`ResNetDownsample::forward`].
+/// ResNet Downsample configuration.
 ///
 /// Implements [`ResNetDownsampleMeta`].
 ///
@@ -165,11 +159,6 @@ impl ResNetDownsampleConfig {
     }
 
     /// Lifts this downsample into an equivalent [`ConvBlock2dConfig`].
-    ///
-    /// The result is a conv + norm with no activation, matching the historical
-    /// [`ResNetDownsample`] behavior. The norm features are matched to the conv
-    /// output channels. This is the preferred way to embed a downsample into a
-    /// residual block.
     pub fn to_conv_block_config(&self) -> ConvBlock2dConfig {
         ConvBlock2dConfig::new(self.build_conv())
             .with_norm(Some(self.norm.clone()))
