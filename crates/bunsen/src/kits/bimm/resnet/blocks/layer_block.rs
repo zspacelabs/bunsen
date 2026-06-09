@@ -31,18 +31,18 @@ use burn::{
     },
 };
 
-use super::{
-    BottleneckPolicyConfig,
-    ResidualBlock,
-    ResidualBlockContractConfig,
-    ResidualBlockMeta,
-    ResidualBlockStructureConfig,
-};
 use crate::{
     burner::module::ModuleInit,
     errors::{
         BunsenError,
         BunsenResult,
+    },
+    kits::bimm::resnet::blocks::{
+        BottleneckPolicyConfig,
+        ResidualBlock,
+        ResidualBlockContractConfig,
+        ResidualBlockMeta,
+        ResidualBlockStructureConfig,
     },
     ops::{
         conv::stride_div_output_resolution,
@@ -462,7 +462,7 @@ mod tests {
     use super::*;
     use crate::{
         contracts::assert_shape_contract,
-        kits::bimm::resnet::BasicBlockConfig,
+        kits::bimm::resnet::blocks::BasicBlockConfig,
         support::testing::PerformanceBackend,
     };
 

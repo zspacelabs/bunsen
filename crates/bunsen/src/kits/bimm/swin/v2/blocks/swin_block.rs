@@ -36,17 +36,15 @@ use crate::{
         BunsenResult,
         WithOkOrPanic,
     },
-    kits::bimm::swin::v2::{
+    kits::bimm::swin::v2::blocks::{
         window_attention::{
             WindowAttention,
             WindowAttentionConfig,
             WindowAttentionMeta,
             sw_attn_mask,
         },
-        windowing::{
-            window_partition,
-            window_reverse,
-        },
+        window_partition,
+        window_reverse,
     },
 };
 

@@ -5,7 +5,7 @@ use burn::prelude::{
     Tensor,
 };
 
-use crate::kits::bimm::swin::v2::windowing::window_partition;
+use crate::kits::bimm::swin::v2::blocks::window_partition;
 
 /// Applies an attention mask.
 ///

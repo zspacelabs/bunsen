@@ -35,7 +35,7 @@ use crate::{
         BunsenResult,
         WithOkOrPanic,
     },
-    kits::bimm::swin::v2::window_attention::{
+    kits::bimm::swin::v2::blocks::window_attention::{
         OffsetGridRelativePositionBias,
         OffsetGridRelativePositionBiasConfig,
         OffsetGridRelativePositionBiasMeta,

@@ -48,7 +48,7 @@ use crate::{
     },
     burner::module::ModuleInit,
     errors::BunsenResult,
-    kits::bimm::resnet::ResNetDownsampleConfig,
+    kits::bimm::resnet::blocks::ResNetDownsampleConfig,
     ops::{
         conv::stride_div_output_resolution,
         drop::DropBlockOptions,

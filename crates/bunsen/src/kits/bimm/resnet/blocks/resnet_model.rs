@@ -42,15 +42,6 @@ use burn::{
     },
 };
 
-use super::{
-    BottleneckPolicyConfig,
-    LayerBlock,
-    LayerBlockContractConfig,
-    LayerBlockMeta,
-    LayerBlockStructureConfig,
-    ResidualBlock,
-    ResidualBlockStructureConfig,
-};
 use crate::{
     blocks::conv::{
         ConvBlock2d,
@@ -61,23 +52,24 @@ use crate::{
         BunsenError,
         BunsenResult,
     },
+    kits::bimm::resnet::{
+        RESNET18_BLOCKS,
+        blocks::{
+            BottleneckPolicyConfig,
+            LayerBlock,
+            LayerBlockContractConfig,
+            LayerBlockMeta,
+            LayerBlockStructureConfig,
+            ResidualBlock,
+            ResidualBlockStructureConfig,
+        },
+    },
     ops::{
         conv::CONV_INTO_RELU_INITIALIZER,
         drop::DropBlockOptions,
     },
     support::validators::expect_probability,
 };
-
-/// ResNet-18 block depths.
-pub const RESNET18_BLOCKS: [usize; 4] = [2, 2, 2, 2];
-/// ResNet-34 block depths.
-pub const RESNET34_BLOCKS: [usize; 4] = [3, 4, 6, 3];
-/// ResNet-50 block depths.
-pub const RESNET50_BLOCKS: [usize; 4] = [3, 4, 6, 3];
-/// ResNet-101 block depths.
-pub const RESNET101_BLOCKS: [usize; 4] = [3, 4, 23, 3];
-/// ResNet-152 block depths.
-pub const RESNET152_BLOCKS: [usize; 4] = [3, 8, 36, 3];
 
 /// High-level [`ResNet`] model configuration.
 ///
@@ -560,6 +552,10 @@ mod tests {
     use super::*;
     use crate::{
         data::cache::BunsenDiskCache,
+        kits::bimm::resnet::{
+            RESNET34_BLOCKS,
+            RESNET50_BLOCKS,
+        },
         support::testing::PerformanceBackend,
     };
 

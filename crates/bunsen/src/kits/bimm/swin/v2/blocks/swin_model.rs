@@ -51,16 +51,12 @@ use crate::{
         BunsenResult,
         WithOkOrPanic,
     },
-    kits::bimm::swin::v2::{
-        block_sequence::{
-            StochasticDepthTransformerBlockSequence,
-            StochasticDepthTransformerBlockSequenceConfig,
-            StochasticDepthTransformerBlockSequenceMeta,
-        },
-        patch_merge::{
-            PatchMerging,
-            PatchMergingConfig,
-        },
+    kits::bimm::swin::v2::blocks::{
+        PatchMerging,
+        PatchMergingConfig,
+        StochasticDepthTransformerBlockSequence,
+        StochasticDepthTransformerBlockSequenceConfig,
+        StochasticDepthTransformerBlockSequenceMeta,
     },
 };
 

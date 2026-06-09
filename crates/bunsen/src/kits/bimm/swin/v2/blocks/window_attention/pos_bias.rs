@@ -18,7 +18,7 @@ use crate::{
     burner::module::ModuleInit,
     contracts::assert_shape_contract_periodically,
     errors::BunsenResult,
-    kits::bimm::swin::v2::window_attention::{
+    kits::bimm::swin::v2::blocks::window_attention::{
         window_attention_relative_position_index,
         window_log1p_relative_offset_grid,
     },
@@ -321,10 +321,6 @@ mod tests {
     use crate::{
         contracts::assert_shape_contract,
         errors::WithOkOrPanic,
-        kits::bimm::swin::v2::window_attention::{
-            window_attention_relative_position_index,
-            window_log1p_relative_offset_grid,
-        },
         support::testing::{
             CpuBackend,
             PerformanceBackend,

@@ -21,17 +21,17 @@ use crate::{
             KVCache,
         },
         embedding::RotaryEmbedding,
+        mlp::{
+            Mlp,
+            MlpConfig,
+            MlpMeta,
+        },
     },
     burner::module::ModuleInit,
     errors::{
         BunsenError,
         BunsenResult,
         WithOkOrPanic,
-    },
-    kits::gpts::nanochat::{
-        Mlp,
-        MlpConfig,
-        MlpMeta,
     },
 };
 

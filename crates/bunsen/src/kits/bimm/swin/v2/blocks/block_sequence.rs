@@ -21,7 +21,7 @@ use crate::{
         define_shape_contract,
     },
     errors::BunsenResult,
-    kits::bimm::swin::v2::swin_block::{
+    kits::bimm::swin::v2::blocks::{
         ShiftedWindowTransformerBlock,
         ShiftedWindowTransformerBlockConfig,
         ShiftedWindowTransformerBlockMeta,

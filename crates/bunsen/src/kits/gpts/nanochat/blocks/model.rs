@@ -35,6 +35,7 @@ use crate::{
             RotaryEmbeddingConfig,
             RotaryEmbeddingMeta,
         },
+        mlp::MlpConfig,
     },
     burner::module::ModuleInit,
     contracts::{
@@ -42,8 +43,7 @@ use crate::{
         unpack_shape_contract,
     },
     errors::BunsenResult,
-    kits::gpts::nanochat::{
-        MlpConfig,
+    kits::gpts::nanochat::blocks::{
         NanoChatGptBlock,
         NanoChatGptBlockConfig,
     },

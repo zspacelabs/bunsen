@@ -1,12 +1,6 @@
 //! `NanoChat`
 
-mod block;
-mod model;
+pub mod blocks;
 
 #[doc(inline)]
-pub use block::*;
-#[doc(inline)]
-pub use model::*;
-
-#[doc(inline)]
-pub use crate::blocks::transformers::mlp::*;
+pub use blocks::model::*;

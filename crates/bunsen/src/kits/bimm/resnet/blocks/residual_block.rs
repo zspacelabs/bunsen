@@ -36,7 +36,7 @@ use burn::{
 use crate::{
     burner::module::ModuleInit,
     errors::BunsenResult,
-    kits::bimm::resnet::{
+    kits::bimm::resnet::blocks::{
         BasicBlock,
         BasicBlockConfig,
         BasicBlockMeta,

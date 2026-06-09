@@ -37,12 +37,7 @@
 //! .init(&device);
 //! ```
 
-pub mod block_sequence;
-pub mod patch_merge;
-pub mod swin_block;
-pub mod swin_model;
-pub mod window_attention;
-pub mod windowing;
+pub mod blocks;
 
 #[doc(inline)]
-pub use swin_model::*;
+pub use blocks::swin_model::*;

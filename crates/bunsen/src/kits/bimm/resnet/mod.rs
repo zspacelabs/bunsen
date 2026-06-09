@@ -80,22 +80,18 @@ mod pretrained;
 #[cfg(feature = "cache")]
 pub use pretrained::*;
 
-mod basic_block;
-mod bottleneck_block;
-mod downsample;
-mod layer_block;
-mod residual_block;
-mod resnet_model;
+pub mod blocks;
 
 #[doc(inline)]
-pub use basic_block::*;
-#[doc(inline)]
-pub use bottleneck_block::*;
-#[doc(inline)]
-pub use downsample::*;
-#[doc(inline)]
-pub use layer_block::*;
-#[doc(inline)]
-pub use residual_block::*;
-#[doc(inline)]
-pub use resnet_model::*;
+pub use blocks::resnet_model::*;
+
+/// ResNet-18 block depths.
+pub const RESNET18_BLOCKS: [usize; 4] = [2, 2, 2, 2];
+/// ResNet-34 block depths.
+pub const RESNET34_BLOCKS: [usize; 4] = [3, 4, 6, 3];
+/// ResNet-50 block depths.
+pub const RESNET50_BLOCKS: [usize; 4] = [3, 4, 6, 3];
+/// ResNet-101 block depths.
+pub const RESNET101_BLOCKS: [usize; 4] = [3, 4, 23, 3];
+/// ResNet-152 block depths.
+pub const RESNET152_BLOCKS: [usize; 4] = [3, 8, 36, 3];

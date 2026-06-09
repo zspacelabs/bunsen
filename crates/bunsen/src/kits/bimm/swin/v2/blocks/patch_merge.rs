@@ -25,7 +25,7 @@ use crate::{
         BunsenError,
         BunsenResult,
     },
-    kits::bimm::swin::v2::windowing::{
+    kits::bimm::swin::v2::blocks::{
         window_partition,
         window_reverse,
     },
