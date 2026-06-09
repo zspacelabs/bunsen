@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.24.0](https://github.com/zspacelabs/bunsen/compare/bunsen-v0.23.0...bunsen-v0.24.0) - 2026-06-09
+
+### Fixed
+
+- conditionally import `contracts` APIs only in debug builds ([#84](https://github.com/zspacelabs/bunsen/pull/84))
+
+### Other
+
+- crutcher/convseq ([#88](https://github.com/zspacelabs/bunsen/pull/88))
+- consolidate module organization under `blocks` directories across kits ([#87](https://github.com/zspacelabs/bunsen/pull/87))
+- remove `ResNetDownsample`, migrate to `ConvBlock2d` for downsampling ([#86](https://github.com/zspacelabs/bunsen/pull/86)) ([#86](https://github.com/zspacelabs/bunsen/pull/86))
+- replace `ResNetDownsample` with `ConvBlock2d` for residual connections ([#85](https://github.com/zspacelabs/bunsen/pull/85))
+
 ## [0.23.0](https://github.com/zspacelabs/bunsen/compare/bunsen-v0.22.2...bunsen-v0.23.0) - 2026-06-08
 
 ### Added
