@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.24.1](https://github.com/zspacelabs/bunsen/compare/bunsen-v0.24.0...bunsen-v0.24.1) - 2026-06-09
+
+### Added
+
+- add `with_act` and `with_norm` methods to `ConvSeq1dConfig` and `ConvSeq2dConfig` ([#90](https://github.com/zspacelabs/bunsen/pull/90))
+
 ## [0.24.0](https://github.com/zspacelabs/bunsen/compare/bunsen-v0.23.0...bunsen-v0.24.0) - 2026-06-09
 
 ### Fixed
