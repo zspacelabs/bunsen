@@ -78,7 +78,7 @@ pub trait ResNetDownsampleMeta {
     }
 }
 
-/// ResNet Downsample configuration.
+/// `ResNet` Downsample configuration.
 ///
 /// Implements [`ResNetDownsampleMeta`].
 ///

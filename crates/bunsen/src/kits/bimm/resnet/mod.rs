@@ -86,7 +86,6 @@ mod downsample;
 mod layer_block;
 mod residual_block;
 mod resnet_model;
-mod stems;
 
 #[doc(inline)]
 pub use basic_block::*;
@@ -100,5 +99,3 @@ pub use layer_block::*;
 pub use residual_block::*;
 #[doc(inline)]
 pub use resnet_model::*;
-#[doc(inline)]
-pub use stems::*;
