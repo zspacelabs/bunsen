@@ -40,22 +40,6 @@
 //!     2016), and supporting types (`progressive_dpr` rate tables,
 //!     `SizeConfig`).
 //!
-//! ## Conventions
-//!
-//! Every block follows the patterns documented in the *Building
-//! Reusable Modules* guide:
-//!
-//! - **`{Block}Meta` traits** when sub-modules want to introspect the block.
-//!   For example, [`transformers::attention::CausalSelfAttentionMeta`] is
-//!   implemented on the config and the live module, so a parent can read
-//!   `n_head`, `n_kv_head`, `head_dim` without caching its own copy.
-//! - **Contract &rarr; Structure splits** when the user-facing config is
-//!   smaller than the implementation parameter list (see
-//!   [`crate::kits::bimm::resnet::ResidualBlockContractConfig`] for a
-//!   block-level example).
-//! - **Tensor contracts** at module boundaries via [`crate::contracts`] for
-//!   both runtime safety and as machine-checked documentation.
-//!
 //! See the per-item rustdoc for shape contracts, defaults, and the
 //! papers each block implements.
 
