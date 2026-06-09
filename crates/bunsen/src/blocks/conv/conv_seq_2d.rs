@@ -209,7 +209,7 @@ impl ConvSeq2dMeta for ConvSeq2dConfig {
 }
 
 impl ConvSeq2dConfig {
-    /// Set the [Option<ActivationConfig>] for all blocks.
+    /// Set the [`Option<ActivationConfig>`] for all blocks.
     pub fn with_act<A: Into<Option<ActivationConfig>>>(
         self,
         act: A,
@@ -224,7 +224,7 @@ impl ConvSeq2dConfig {
         }
     }
 
-    /// Set the [Option<NormalizationConfig>] for all blocks.
+    /// Set the [`Option<NormalizationConfig>`] for all blocks.
     pub fn with_norm<N: Into<Option<NormalizationConfig>>>(
         self,
         norm: N,
