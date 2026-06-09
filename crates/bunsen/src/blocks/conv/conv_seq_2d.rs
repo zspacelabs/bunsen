@@ -4,6 +4,10 @@ use burn::{
     Tensor,
     config::Config,
     module::Module,
+    nn::{
+        activation::ActivationConfig,
+        norm::NormalizationConfig,
+    },
     prelude::Backend,
 };
 
@@ -201,6 +205,38 @@ impl ConvSeq2dMeta for ConvSeq2dConfig {
             .iter()
             .map(|config| config as &dyn ConvBlock2dMeta)
             .collect()
+    }
+}
+
+impl ConvSeq2dConfig {
+    /// Set the [Option<ActivationConfig>] for all blocks.
+    pub fn with_act<A: Into<Option<ActivationConfig>>>(
+        self,
+        act: A,
+    ) -> Self {
+        let act = act.into();
+        Self {
+            blocks: self
+                .blocks
+                .into_iter()
+                .map(|block| block.with_act(act.clone()))
+                .collect(),
+        }
+    }
+
+    /// Set the [Option<NormalizationConfig>] for all blocks.
+    pub fn with_norm<N: Into<Option<NormalizationConfig>>>(
+        self,
+        norm: N,
+    ) -> Self {
+        let norm = norm.into();
+        Self {
+            blocks: self
+                .blocks
+                .into_iter()
+                .map(|block| block.with_norm(norm.clone()))
+                .collect(),
+        }
     }
 }
 

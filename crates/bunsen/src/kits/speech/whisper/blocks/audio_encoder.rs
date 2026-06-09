@@ -118,15 +118,14 @@ impl<B: Backend> ModuleInit<B, AudioEncoder<B>> for AudioEncoderConfig {
                 ConvBlock1dConfig::new(
                     Conv1dConfig::new(self.n_mels, self.d_model, 3)
                         .with_padding(PaddingConfig1d::Explicit(1, 1)),
-                )
-                .with_act(Some(self.head_activation.clone())),
+                ),
                 ConvBlock1dConfig::new(
                     Conv1dConfig::new(self.d_model, self.d_model, 3)
                         .with_padding(PaddingConfig1d::Explicit(1, 1))
                         .with_stride(2),
-                )
-                .with_act(Some(self.head_activation.clone())),
+                ),
             ])
+            .with_act(self.head_activation.clone())
             .try_init(device)?,
 
             positional_embedding: Param::from_tensor(Tensor::random(
