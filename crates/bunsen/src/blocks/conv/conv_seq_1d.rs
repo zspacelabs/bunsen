@@ -192,6 +192,59 @@ pub trait ConvSeq1dMeta {
 ///
 /// Built into a [`ConvSeq1d`] via [`ModuleInit::init`] /
 /// [`ModuleInit::try_init`].
+///
+/// # Example
+///
+/// Building a stride-2 down-sampling head (as used by the Whisper audio
+/// encoder): a "same"-padded 3-wide conv followed by a stride-2 conv that
+/// halves the length. Each block's `out_channels` feeds the next block's
+/// `in_channels`.
+///
+/// ```rust,no_run
+/// use bunsen::{
+///     blocks::conv::{
+///         ConvBlock1dConfig,
+///         ConvSeq1d,
+///         ConvSeq1dConfig,
+///         ConvSeq1dMeta,
+///     },
+///     burner::module::ModuleInit,
+/// };
+/// use burn::{
+///     backend::Flex,
+///     nn::{
+///         PaddingConfig1d,
+///         activation::ActivationConfig,
+///         conv::Conv1dConfig,
+///     },
+/// };
+///
+/// let device = Default::default();
+///
+/// let config = ConvSeq1dConfig::new(vec![
+///     ConvBlock1dConfig::new(
+///         Conv1dConfig::new(80, 512, 3)
+///             .with_padding(PaddingConfig1d::Explicit(1, 1)),
+///     ),
+///     ConvBlock1dConfig::new(
+///         Conv1dConfig::new(512, 512, 3)
+///             .with_padding(PaddingConfig1d::Explicit(1, 1))
+///             .with_stride(2),
+///     ),
+/// ])
+/// // Apply a shared activation to every block:
+/// .with_act(ActivationConfig::Gelu);
+///
+/// // Predict the output shape before building:
+/// // [batch, 80, 3000] -> [batch, 512, 1500].
+/// assert_eq!(
+///     config.try_output_shape([1, 80, 3000]).unwrap(),
+///     [1, 512, 1500]
+/// );
+///
+/// // `try_init` builds and validates the sequence.
+/// let seq: ConvSeq1d<Flex> = config.try_init(&device).unwrap();
+/// ```
 #[derive(Config, Debug)]
 pub struct ConvSeq1dConfig {
     /// The [`ConvBlock1dConfig`] modules, in sequence order.
@@ -261,6 +314,62 @@ impl<B: Backend> ModuleInit<B, ConvSeq1d<B>> for ConvSeq1dConfig {
 /// Implements [`ConvSeq1dMeta`].
 ///
 /// Built (and validated) via [`Self::try_new`], or from a [`ConvSeq1dConfig`].
+///
+/// # Example
+///
+/// Building a two-block, stride-2 down-sampling sequence via
+/// [`try_init`](ModuleInit::try_init), then running a forward pass:
+///
+/// ```rust,no_run
+/// use bunsen::{
+///     blocks::conv::{
+///         ConvBlock1dConfig,
+///         ConvSeq1d,
+///         ConvSeq1dConfig,
+///         ConvSeq1dMeta,
+///     },
+///     burner::module::ModuleInit,
+/// };
+/// use burn::{
+///     Tensor,
+///     backend::Flex,
+///     nn::{
+///         PaddingConfig1d,
+///         conv::Conv1dConfig,
+///     },
+///     tensor::Distribution,
+/// };
+///
+/// let device = Default::default();
+///
+/// // Two stride-2 down-sampling blocks (kernel 3, "same" padding), each
+/// // halving the length. `try_init` builds and validates the sequence.
+/// let seq: ConvSeq1d<Flex> = ConvSeq1dConfig::new(vec![
+///     ConvBlock1dConfig::new(
+///         Conv1dConfig::new(80, 256, 3)
+///             .with_padding(PaddingConfig1d::Explicit(1, 1))
+///             .with_stride(2),
+///     ),
+///     ConvBlock1dConfig::new(
+///         Conv1dConfig::new(256, 512, 3)
+///             .with_padding(PaddingConfig1d::Explicit(1, 1))
+///             .with_stride(2),
+///     ),
+/// ])
+/// .try_init(&device)
+/// .unwrap();
+///
+/// // [batch, 80, 3000] -> [batch, 512, 750]; predicted by `try_output_shape`.
+/// assert_eq!(seq.try_output_shape([2, 80, 3000]).unwrap(), [2, 512, 750]);
+///
+/// let input = Tensor::<Flex, 3>::random(
+///     [2, 80, 3000],
+///     Distribution::Default,
+///     &device,
+/// );
+/// let output = seq.forward(input);
+/// assert_eq!(output.dims(), [2, 512, 750]);
+/// ```
 #[derive(Module, Debug)]
 pub struct ConvSeq1d<B: Backend> {
     /// The internal [`ConvBlock1d`] modules.
