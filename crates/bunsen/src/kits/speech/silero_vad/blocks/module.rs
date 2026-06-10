@@ -333,19 +333,20 @@ impl<B: Backend> SileroVad<B> {
     ) -> Tensor<B, 2> {
         // Reflect-pad, then add the channel axis: [n, 1, samples + pad].
         let x = input.pad([(0, 0), (0, self.input_pad)], PadMode::Reflect);
-        let x: Tensor<B, 3> = x.unsqueeze_dims::<3>(&[1]);
+        let x: Tensor<B, 3> = x.unsqueeze_dim::<3>(1);
 
         // STFT magnitude: split the [n, 2F, T] conv into real / imaginary
         // halves and combine as sqrt(real^2 + imag^2) -> [n, F, T].
         let x = self.stft.forward(x);
         let f = x.dims()[1] / 2;
-        let real = x.clone().slice(s![.., 0..f, ..]);
-        let imag = x.slice(s![.., f.., ..]);
+        let real = x.clone().slice_dim(1, ..f);
+        let imag = x.slice_dim(1, f..);
         let mag = (real.powi_scalar(2) + imag.powi_scalar(2)).sqrt();
 
         // Encode, then take the first (and, for a single chunk, only) frame.
         let encoded = self.encoder.forward(mag);
-        encoded.slice(s![.., .., 0]).squeeze_dim::<2>(2)
+
+        encoded.slice_dim(2, 0).squeeze_dim::<2>(2)
     }
 
     /// Runs one LSTM step.
@@ -365,13 +366,11 @@ impl<B: Backend> SileroVad<B> {
         hidden: Tensor<B, 2>,
         cell: Tensor<B, 2>,
     ) -> (Tensor<B, 2>, Tensor<B, 2>) {
-        let h = self.hidden_size();
-
         // Gates: recurrent projection of `hidden` plus input projection of
         // `feature`, split into [input, forget, cell, output] gates.
-        let gates = self.hidden_gate.forward(hidden) + self.input_gate.forward(feature);
-        let parts = gates.split_with_sizes([h, h, h, h].into(), 1);
-        let [g_i, g_f, g_g, g_o]: [Tensor<B, 2>; 4] = parts.try_into().unwrap();
+        let gates = self.input_gate.forward(feature) + self.hidden_gate.forward(hidden);
+
+        let [g_i, g_f, g_g, g_o] = gates.chunk(4, 1).try_into().unwrap();
 
         let i = sigmoid(g_i);
         let forget = sigmoid(g_f);
@@ -396,19 +395,17 @@ impl<B: Backend> SileroVad<B> {
         &self,
         hidden: Tensor<B, 2>,
     ) -> Tensor<B, 2> {
-        let n = hidden.dims()[0];
-        let x: Tensor<B, 3> = hidden.unsqueeze_dims::<3>(&[-1]);
+        let x: Tensor<B, 3> = hidden.unsqueeze_dim::<3>(2);
         let x = relu(x);
         let x = self.decoder.forward(x);
         let x = sigmoid(x);
-        // [n, 1, 1] -> [n, 1]; the head length is 1, so the mean is a reshape.
-        x.reshape([n, 1])
+        x.squeeze_dim::<2>(2)
     }
 
     /// Splits a packed `[2, batch, hidden]` state into `(hidden, cell)`.
     fn unpack_state(state: Tensor<B, 3>) -> (Tensor<B, 2>, Tensor<B, 2>) {
-        let hidden = state.clone().slice(s![0, .., ..]).squeeze_dim::<2>(0);
-        let cell = state.slice(s![1, .., ..]).squeeze_dim::<2>(0);
+        let hidden = state.clone().slice_dim(0, 0).squeeze_dim::<2>(0);
+        let cell = state.slice_dim(0, 1).squeeze_dim::<2>(0);
         (hidden, cell)
     }
 
@@ -417,9 +414,7 @@ impl<B: Backend> SileroVad<B> {
         hidden: Tensor<B, 2>,
         cell: Tensor<B, 2>,
     ) -> Tensor<B, 3> {
-        let hidden: Tensor<B, 3> = hidden.unsqueeze_dims::<3>(&[0]);
-        let cell: Tensor<B, 3> = cell.unsqueeze_dims::<3>(&[0]);
-        Tensor::cat([hidden, cell].into(), 0)
+        Tensor::stack(vec![hidden, cell], 0)
     }
 
     /// Single-step forward pass; one chunk per batch row.
