@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 
-use bunsen::kits::speech::whisper::PytorchWhisperScanner;
+use bunsen::kits::speech::whisper::pretrained::PytorchWhisperScanner;
 use burn::prelude::Backend;
 use clap::Parser;
 

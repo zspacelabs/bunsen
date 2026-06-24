@@ -47,6 +47,7 @@ pub use bunsen_contracts_macros::shape_contract as __proc_shape_contract;
 #[allow(missing_docs)]
 pub mod public {
     pub use burn;
+    #[cfg(feature = "train")]
     pub use hashbrown;
 }
 

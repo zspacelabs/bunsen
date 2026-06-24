@@ -10,6 +10,7 @@ use alloc::{
     vec,
     vec::Vec,
 };
+#[cfg(feature = "cache")]
 use std::path::PathBuf;
 
 use serde::{
@@ -17,12 +18,11 @@ use serde::{
     Serialize,
 };
 
-use crate::{
-    data::cache::BunsenDiskCache,
-    errors::{
-        BunsenError,
-        BunsenResult,
-    },
+#[cfg(feature = "cache")]
+use crate::data::cache::BunsenDiskCache;
+use crate::errors::{
+    BunsenError,
+    BunsenResult,
 };
 
 const X25: crc::Crc<u16> = crc::Crc::<u16>::new(&crc::CRC_16_IBM_SDLC);

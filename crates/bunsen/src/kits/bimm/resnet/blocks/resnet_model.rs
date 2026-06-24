@@ -42,16 +42,15 @@ use burn::{
     },
 };
 
+#[allow(unused_imports)]
+use crate::errors::BunsenError;
 use crate::{
     blocks::conv::{
         ConvBlock2d,
         ConvBlock2dConfig,
     },
     burner::module::ModuleInit,
-    errors::{
-        BunsenError,
-        BunsenResult,
-    },
+    errors::BunsenResult,
     kits::bimm::resnet::{
         RESNET18_BLOCKS,
         blocks::{
