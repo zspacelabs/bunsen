@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.25.0](https://github.com/zspacelabs/bunsen/compare/bunsen-v0.24.2...bunsen-v0.25.0) - 2026-06-24
+
+### Added
+
+- add Silero VAD model implementation ([#94](https://github.com/zspacelabs/bunsen/pull/94))
+
+### Other
+
+- cleanup unused imports and add conditional imports for feature-specific modules ([#96](https://github.com/zspacelabs/bunsen/pull/96))
+
 ## [0.24.2](https://github.com/zspacelabs/bunsen/compare/bunsen-v0.24.1...bunsen-v0.24.2) - 2026-06-10
 
 ### Other
