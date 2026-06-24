@@ -14,5 +14,3 @@ pub use blocks::{
     WhisperMeta,
     WhisperStructuralConfig,
 };
-#[doc(inline)]
-pub use pretrained::PytorchWhisperScanner;
