@@ -23,7 +23,7 @@ use crate::{
     },
 };
 
-/// Load a pretrained SileroVad model from a file.
+/// Load a pretrained Silero VAD model from a file.
 pub fn load_pretrained_silerovad<B: Backend, P: AsRef<Path>>(
     path: P,
     device: &B::Device,
