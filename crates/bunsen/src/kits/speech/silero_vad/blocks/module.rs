@@ -174,11 +174,8 @@ pub struct SileroVadConfig {
     /// The 4-block `ReLU` conv encoder.
     pub encoder: ConvSeq1dConfig,
 
-    /// The LSTM input (feature -> gates) projection.
-    pub input_gate: LinearConfig,
-
-    /// The LSTM recurrent (hidden -> gates) projection.
-    pub hidden_gate: LinearConfig,
+    /// The LSTM Gate (hidden, feature -> gates) projection config.
+    pub gate_config: LinearConfig,
 
     /// The `1x1` output-head conv: `hidden -> 1`.
     pub decoder: Conv1dConfig,
@@ -228,7 +225,7 @@ impl SileroVadConfig {
         stft_stride: usize,
         n_freq: usize,
     ) -> Self {
-        Self::common_model(
+        Self::build_config(
             128,
             sample_rate,
             input_pad,
@@ -247,7 +244,7 @@ impl SileroVadConfig {
     /// * `stft_kernel` - size of the stft kernel.
     /// * `stft_stride` - stride of the stft kernel.
     /// * `n_freq` - number of frequency bins.
-    pub fn common_model(
+    pub fn build_config(
         hidden: usize,
         sample_rate: usize,
         input_pad: usize,
@@ -263,8 +260,7 @@ impl SileroVadConfig {
                 .with_padding(PaddingConfig1d::Valid)
                 .with_bias(false),
             encoder: encoder_config(hidden, n_freq),
-            input_gate: lstm_gate_config(hidden),
-            hidden_gate: lstm_gate_config(hidden),
+            gate_config: lstm_gate_config(hidden),
             decoder: Conv1dConfig::new(hidden, 1, 1)
                 .with_padding(PaddingConfig1d::Valid)
                 .with_bias(true),
@@ -288,22 +284,6 @@ impl SileroVadConfig {
                 self.n_freq(),
             )));
         }
-        if self.hidden_gate.d_input != hidden || self.input_gate.d_input != hidden {
-            return Err(BunsenError::Invalid(format!(
-                "SileroVad gate inputs ({}, {}) must both equal hidden ({hidden})",
-                self.hidden_gate.d_input, self.input_gate.d_input,
-            )));
-        }
-        if self.hidden_gate.d_output != self.gate_size()
-            || self.input_gate.d_output != self.gate_size()
-        {
-            return Err(BunsenError::Invalid(format!(
-                "SileroVad gate outputs ({}, {}) must both equal gate_size ({})",
-                self.hidden_gate.d_output,
-                self.input_gate.d_output,
-                self.gate_size(),
-            )));
-        }
         if self.decoder.channels_in != hidden || self.decoder.channels_out != 1 {
             return Err(BunsenError::Invalid(format!(
                 "SileroVad decoder must map hidden ({hidden}) -> 1, got {} -> {}",
@@ -325,8 +305,8 @@ impl<B: Backend> ModuleInit<B, SileroVad<B>> for SileroVadConfig {
             input_pad: self.input_pad,
             stft: self.stft.init(device),
             encoder: self.encoder.try_init(device)?,
-            input_gate: self.input_gate.init(device),
-            hidden_gate: self.hidden_gate.init(device),
+            input_gate: self.gate_config.init(device),
+            hidden_gate: self.gate_config.init(device),
             decoder: self.decoder.init(device),
         })
     }
