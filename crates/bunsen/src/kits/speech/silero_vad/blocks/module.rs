@@ -107,7 +107,11 @@ pub struct SileroVadAbstractConfig {
 
     /// The recurrent hidden / cell width of the LSTM.
     #[config(default = "128")]
-    pub hidden: usize,
+    pub d_hidden: usize,
+
+    /// The encoder bottleneck dimension.
+    #[config(default = "64")]
+    pub d_bottleneck: usize,
 }
 
 impl SileroVadAbstractConfig {
@@ -147,9 +151,9 @@ impl SileroVadAbstractConfig {
                 .with_stride(self.stft_stride)
                 .with_padding(PaddingConfig1d::Valid)
                 .with_bias(false),
-            encoder: encoder_config(self.hidden, self.n_freq),
-            gate_config: lstm_gate_config(self.hidden),
-            decoder: Conv1dConfig::new(self.hidden, 1, 1)
+            encoder: encoder_config(self.d_hidden, self.d_bottleneck, self.n_freq),
+            gate_config: lstm_gate_config(self.d_hidden),
+            decoder: Conv1dConfig::new(self.d_hidden, 1, 1)
                 .with_padding(PaddingConfig1d::Valid)
                 .with_bias(true),
         }
@@ -213,6 +217,7 @@ pub trait SileroVadMeta {
 /// striding by 2. Blocks default to no norm and `ReLU` activation.
 pub fn encoder_config(
     hidden: usize,
+    bottleneck: usize,
     n_freq: usize,
 ) -> ConvSeq1dConfig {
     let block = |in_channels: usize, out_channels: usize, stride: usize| {
@@ -226,9 +231,9 @@ pub fn encoder_config(
     };
     ConvSeq1dConfig::new(vec![
         block(n_freq, hidden, 1),
-        block(hidden, 64, 2),
-        block(64, 64, 2),
-        block(64, hidden, 1),
+        block(hidden, bottleneck, 2),
+        block(bottleneck, bottleneck, 2),
+        block(bottleneck, hidden, 1),
     ])
 }
 
@@ -666,7 +671,7 @@ mod tests {
     fn test_validate_rejects_mismatch() {
         // An encoder whose input does not match the magnitude bins is invalid.
         let bad = SileroVadStructureConfig {
-            encoder: encoder_config(128, 64),
+            encoder: encoder_config(128, 64, 64),
             ..SileroVadAbstractConfig::standard_16khz().to_structure()
         };
         assert!(matches!(bad.validate(), Err(BunsenError::Invalid(_))));
