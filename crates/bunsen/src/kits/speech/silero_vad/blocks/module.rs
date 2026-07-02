@@ -78,17 +78,13 @@ use crate::{
         ConvSeq1dMeta,
     },
     burner::module::ModuleInit,
-    contracts::{
-        assert_shape_contract_periodically,
-        unpack_shape_contract,
-    },
     errors::{
         BunsenError,
         BunsenResult,
     },
 };
 
-/// ['SileroVad'] Signal Config.
+/// ['`SileroVad`'] Signal Config.
 #[derive(Config, Debug)]
 pub struct SileroVadSignalConfig {
     /// The sample rate (in Hz) this model expects, e.g. `16000`.
@@ -117,7 +113,7 @@ impl SileroVadSignalConfig {
         Self::new(8000, 65)
     }
 
-    /// Converts to ['SileroVadStftConfig'].
+    /// Converts to ['`SileroVadStftConfig`'].
     pub fn to_stft(&self) -> SileroVadStftConfig {
         let sample_rate = self.sample_rate;
         let n_freq = self.n_freq;
@@ -129,7 +125,7 @@ impl SileroVadSignalConfig {
             .with_d_bottleneck(self.d_bottleneck)
     }
 
-    /// Converts to ['SileroVadStructureConfig'].
+    /// Converts to ['`SileroVadStructureConfig`'].
     pub fn to_structure(&self) -> SileroVadStructureConfig {
         self.to_stft().to_structure()
     }
@@ -140,11 +136,11 @@ impl<B: Backend> ModuleInit<B, SileroVad<B>> for SileroVadSignalConfig {
         &self,
         device: &B::Device,
     ) -> BunsenResult<SileroVad<B>> {
-        Ok(self.to_stft().try_init(device)?)
+        self.to_stft().try_init(device)
     }
 }
 
-/// ['SileroVad'] Stft Config.
+/// ['`SileroVad`'] Stft Config.
 #[derive(Config, Debug)]
 pub struct SileroVadStftConfig {
     /// The sample rate (in Hz) this model expects, e.g. `16000`.
@@ -212,7 +208,7 @@ impl<B: Backend> ModuleInit<B, SileroVad<B>> for SileroVadStftConfig {
         &self,
         device: &B::Device,
     ) -> BunsenResult<SileroVad<B>> {
-        Ok(self.to_structure().try_init(device)?)
+        self.to_structure().try_init(device)
     }
 }
 
@@ -243,7 +239,7 @@ pub trait SileroVadMeta {
 
     /// The stride of the STFT conv.
     ///
-    /// This is generally n_freq - 1.
+    /// This is generally `n_freq` - 1.
     fn stft_stride(&self) -> usize;
 
     /// The recurrent hidden / cell width (the encoder output width, and the
@@ -501,7 +497,7 @@ impl<B: Backend> SileroVad<B> {
         #[cfg(any(test, debug_assertions))]
         {
             let [batch, _samples] = input.dims();
-            assert_shape_contract_periodically!(
+            crate::contracts::assert_shape_contract_periodically!(
                 ["2", "batch", "d_hidden"],
                 &state,
                 &[("batch", batch), ("d_hidden", self.d_hidden())]
@@ -540,20 +536,23 @@ impl<B: Backend> SileroVad<B> {
         // One feature frame per chunk: [steps, hidden].
         let mut seq_buf = self.frame_features(input);
 
-        let d_hidden = self.d_hidden();
-
         cfg_select! {
             any(test, debug_assertions) => {
+                use crate::contracts::unpack_shape_contract;
+                use crate::contracts::assert_shape_contract_periodically;
+
+                let d_hidden = self.d_hidden();
+
                 let [steps] = unpack_shape_contract!(
                     ["steps", "d_hidden"],
                     &seq_buf,
                     &["steps"],
-                    &[("d_hidden", self.d_hidden())]
+                    &[("d_hidden", d_hidden)]
                 );
                 assert_shape_contract_periodically!(["2", "1", "d_hidden"], &state, &[("d_hidden", d_hidden)]);
             }
             _ => {
-                let steps = features.dims()[0];
+                let steps = seq_buf.dims()[0];
             }
         }
 
