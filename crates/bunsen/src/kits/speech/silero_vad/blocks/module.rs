@@ -613,8 +613,8 @@ impl<B: Backend> SileroVad<B> {
     /// Splits a packed `[2, batch, hidden]` state into `(cell, hidden)`.
     /// Of shape `[batch, hidden]`.
     fn unpack_state(state: Tensor<B, 3>) -> (Tensor<B, 2>, Tensor<B, 2>) {
-        let cell = state.clone().slice_dim(0, 0).squeeze_dim::<2>(0);
-        let hidden = state.slice_dim(0, 1).squeeze_dim::<2>(0);
+        let hidden = state.clone().slice_dim(0, 0).squeeze_dim::<2>(0);
+        let cell = state.slice_dim(0, 1).squeeze_dim::<2>(0);
         (cell, hidden)
     }
 
@@ -623,7 +623,7 @@ impl<B: Backend> SileroVad<B> {
         cell: Tensor<B, 2>,
         hidden: Tensor<B, 2>,
     ) -> Tensor<B, 3> {
-        Tensor::stack(vec![cell, hidden], 0)
+        Tensor::stack(vec![hidden, cell], 0)
     }
 
     /// Runs one LSTM step.
@@ -1072,35 +1072,37 @@ impl<B: Backend> ReferenceVAD<B> {
             let relu33_out1 = relu(conv1d40_out1);
             let conv1d41_out1 = self.conv1d41.forward(relu33_out1);
             let relu34_out1 = relu(conv1d41_out1);
-
-            let feature = {
+            let gather21_out1 = {
                 let sliced = relu34_out1.slice(s![.., .., 0i64]);
                 sliced.squeeze_dim::<2usize>(2)
             };
-
-            let (cell, hidden) = SileroVad::unpack_state(state.clone());
-
-            let linear13_out1 = self.linear13.forward(hidden);
-            let linear14_out1 = self.linear14.forward(feature);
+            let gather22_out1 = {
+                let sliced = state.clone().slice(s![0i64, .., ..]);
+                sliced.squeeze_dim::<2usize>(0)
+            };
+            let gather23_out1 = {
+                let sliced = state.slice(s![1i64, .., ..]);
+                sliced.squeeze_dim::<2usize>(0)
+            };
+            let linear13_out1 = self.linear13.forward(gather22_out1);
+            let linear14_out1 = self.linear14.forward(gather21_out1);
             let add20_out1 = linear13_out1.add(linear14_out1);
+            let split_tensors = add20_out1.split_with_sizes([128, 128, 128, 128].into(), 1);
+            let [split7_out1, split7_out2, split7_out3, split7_out4] =
+                split_tensors.try_into().unwrap();
+            let sigmoid25_out1 = sigmoid(split7_out1);
+            let sigmoid26_out1 = sigmoid(split7_out2);
+            let tanh13_out1 = split7_out3.tanh();
+            let sigmoid27_out1 = sigmoid(split7_out4);
+            let mul19_out1 = sigmoid26_out1.mul(gather23_out1);
+            let mul20_out1 = sigmoid25_out1.mul(tanh13_out1);
+            let add21_out1 = mul19_out1.add(mul20_out1);
+            let tanh14_out1 = add21_out1.clone().tanh();
+            let new_hidden = sigmoid27_out1.mul(tanh14_out1);
 
-            let [g_i, g_f, g_c, g_o] = add20_out1.chunk(4, 1).try_into().unwrap();
-            let i = sigmoid(g_i);
-            let f = sigmoid(g_f);
-            let c = g_c.tanh();
-            let o = sigmoid(g_o);
-
-            let new_cell = (f * cell) + (i * c);
-            let new_hidden = o * new_cell.clone().tanh();
-
-            let new_state = Tensor::cat(
-                [
-                    new_hidden.clone().unsqueeze_dims::<3>(&[0]),
-                    new_cell.unsqueeze_dims::<3>(&[0]),
-                ]
-                .into(),
-                0,
-            );
+            let unsqueeze33_out1: Tensor<B, 3> = new_hidden.clone().unsqueeze_dims::<3>(&[0]);
+            let unsqueeze34_out1: Tensor<B, 3> = add21_out1.unsqueeze_dims::<3>(&[0]);
+            let new_cell = Tensor::cat([unsqueeze33_out1, unsqueeze34_out1].into(), 0);
 
             // output head
             let unsqueeze32_out1: Tensor<B, 3> = new_hidden.clone().unsqueeze_dims::<3>(&[-1]);
@@ -1109,8 +1111,8 @@ impl<B: Backend> ReferenceVAD<B> {
             let sigmoid28_out1 = sigmoid(conv1d42_out1);
             let squeeze7_out1 = sigmoid28_out1.squeeze_dims::<2>(&[1]);
             let reducemean7_out1 = { squeeze7_out1.mean_dim(1usize).squeeze_dims::<1usize>(&[1]) };
-            let probs: Tensor<B, 2> = reducemean7_out1.unsqueeze_dims::<2>(&[1]);
-            (probs, new_state)
+            let unsqueeze35_out1: Tensor<B, 2> = reducemean7_out1.unsqueeze_dims::<2>(&[1]);
+            (unsqueeze35_out1, new_cell)
         } else {
             let input = input.clone();
             let state = state.clone();
