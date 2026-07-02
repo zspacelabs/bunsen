@@ -116,21 +116,21 @@ impl SileroVadSignalConfig {
         Self::new(8000, 65)
     }
 
-    /// Converts to ['SileroVadAbstractConfig'].
-    pub fn to_abstract(&self) -> SileroVadAbstractConfig {
+    /// Converts to ['SileroVadStftConfig'].
+    pub fn to_stft(&self) -> SileroVadStftConfig {
         let sample_rate = self.sample_rate;
         let n_freq = self.n_freq;
         let stft_stride = n_freq - 1;
         let stft_kernel = stft_stride * 2;
         let input_pad = stft_stride / 2;
-        SileroVadAbstractConfig::new(sample_rate, n_freq, input_pad, stft_kernel, stft_stride)
+        SileroVadStftConfig::new(sample_rate, n_freq, input_pad, stft_kernel, stft_stride)
             .with_d_hidden(self.d_hidden)
             .with_d_bottleneck(self.d_bottleneck)
     }
 
     /// Converts to ['SileroVadStructureConfig'].
     pub fn to_structure(&self) -> SileroVadStructureConfig {
-        self.to_abstract().to_structure()
+        self.to_stft().to_structure()
     }
 }
 
@@ -139,13 +139,13 @@ impl<B: Backend> ModuleInit<B, SileroVad<B>> for SileroVadSignalConfig {
         &self,
         device: &B::Device,
     ) -> BunsenResult<SileroVad<B>> {
-        Ok(self.to_abstract().try_init(device)?)
+        Ok(self.to_stft().try_init(device)?)
     }
 }
 
-/// ['SileroVad'] Abstract Config.
+/// ['SileroVad'] Stft Config.
 #[derive(Config, Debug)]
-pub struct SileroVadAbstractConfig {
+pub struct SileroVadStftConfig {
     /// The sample rate (in Hz) this model expects, e.g. `16000`.
     pub sample_rate: usize,
 
@@ -170,7 +170,7 @@ pub struct SileroVadAbstractConfig {
     pub d_bottleneck: usize,
 }
 
-impl SileroVadAbstractConfig {
+impl SileroVadStftConfig {
     /// Derive a common configuration for the given sample rate and number of
     /// frequency bins.
     ///
@@ -206,7 +206,7 @@ impl SileroVadAbstractConfig {
     }
 }
 
-impl<B: Backend> ModuleInit<B, SileroVad<B>> for SileroVadAbstractConfig {
+impl<B: Backend> ModuleInit<B, SileroVad<B>> for SileroVadStftConfig {
     fn try_init(
         &self,
         device: &B::Device,
