@@ -262,7 +262,7 @@ pub struct SileroVadStructureConfig {
     /// The 4-block `ReLU` conv encoder.
     pub encoder: ConvSeq1dConfig,
 
-    /// The LSTM Gate (hidden, feature -> gates) projection config.
+    /// The shared LSTM Gate (hidden, feature -> gates) projection config.
     pub gate_config: LinearConfig,
 
     /// The `1x1` output-head conv: `hidden -> 1`.
