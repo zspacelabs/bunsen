@@ -644,9 +644,9 @@ impl<B: Backend> SileroVad<B> {
         let candidate_cell_values = tanh(g_c);
         let output_values = sigmoid(g_o);
 
-        let new_cell = forget_values * cell + input_values * candidate_cell_values;
-        let new_hidden = output_values * tanh(new_cell.clone());
-        (new_cell, new_hidden)
+        let cell = forget_values * cell + input_values * candidate_cell_values;
+        let hidden = output_values * tanh(cell.clone());
+        (cell, hidden)
     }
 
     /// Runs the `1x1` conv + sigmoid output head.
