@@ -87,20 +87,11 @@ use crate::{
     },
 };
 
-/// ['SileroVad'] Abstract Config.
+/// ['SileroVad'] Signal Config.
 #[derive(Config, Debug)]
-pub struct SileroVadAbstractConfig {
+pub struct SileroVadSignalConfig {
     /// The sample rate (in Hz) this model expects, e.g. `16000`.
     pub sample_rate: usize,
-
-    /// The reflect-padding applied to the right of the input before the STFT.
-    pub input_pad: usize,
-
-    /// STFT kernel size.
-    pub stft_kernel: usize,
-
-    /// STFT stride.
-    pub stft_stride: usize,
 
     /// Number of frequency bins.
     pub n_freq: usize,
@@ -114,17 +105,72 @@ pub struct SileroVadAbstractConfig {
     pub d_bottleneck: usize,
 }
 
-impl SileroVadAbstractConfig {
+impl SileroVadSignalConfig {
     /// The canonical 16 kHz model config.
     pub fn standard_16khz() -> Self {
-        Self::from_signal(16000, 129)
+        Self::new(16000, 129)
     }
 
     /// The canonical 8 kHz model config.
     pub fn standard_8khz() -> Self {
-        Self::from_signal(8000, 65)
+        Self::new(8000, 65)
     }
 
+    /// Converts to ['SileroVadAbstractConfig'].
+    pub fn to_abstract(&self) -> SileroVadAbstractConfig {
+        let sample_rate = self.sample_rate;
+        let n_freq = self.n_freq;
+        let stft_stride = n_freq - 1;
+        let stft_kernel = stft_stride * 2;
+        let input_pad = stft_stride / 2;
+        SileroVadAbstractConfig::new(sample_rate, n_freq, input_pad, stft_kernel, stft_stride)
+            .with_d_hidden(self.d_hidden)
+            .with_d_bottleneck(self.d_bottleneck)
+    }
+
+    /// Converts to ['SileroVadStructureConfig'].
+    pub fn to_structure(&self) -> SileroVadStructureConfig {
+        self.to_abstract().to_structure()
+    }
+}
+
+impl<B: Backend> ModuleInit<B, SileroVad<B>> for SileroVadSignalConfig {
+    fn try_init(
+        &self,
+        device: &B::Device,
+    ) -> BunsenResult<SileroVad<B>> {
+        Ok(self.to_abstract().try_init(device)?)
+    }
+}
+
+/// ['SileroVad'] Abstract Config.
+#[derive(Config, Debug)]
+pub struct SileroVadAbstractConfig {
+    /// The sample rate (in Hz) this model expects, e.g. `16000`.
+    pub sample_rate: usize,
+
+    /// Number of frequency bins.
+    pub n_freq: usize,
+
+    /// The reflect-padding applied to the right of the input before the STFT.
+    pub input_pad: usize,
+
+    /// STFT kernel size.
+    pub stft_kernel: usize,
+
+    /// STFT stride.
+    pub stft_stride: usize,
+
+    /// The recurrent hidden / cell width of the LSTM.
+    #[config(default = "128")]
+    pub d_hidden: usize,
+
+    /// The encoder bottleneck dimension.
+    #[config(default = "64")]
+    pub d_bottleneck: usize,
+}
+
+impl SileroVadAbstractConfig {
     /// Derive a common configuration for the given sample rate and number of
     /// frequency bins.
     ///
@@ -302,16 +348,6 @@ impl SileroVadMeta for SileroVadStructureConfig {
 }
 
 impl SileroVadStructureConfig {
-    /// The canonical 16 kHz model.
-    pub fn standard_16khz() -> Self {
-        SileroVadAbstractConfig::standard_16khz().to_structure()
-    }
-
-    /// The canonical 8 kHz model.
-    pub fn standard_8khz() -> Self {
-        SileroVadAbstractConfig::standard_8khz().to_structure()
-    }
-
     /// Validates the structural consistency of the model.
     ///
     /// # Errors
@@ -650,7 +686,7 @@ mod tests {
 
     #[test]
     fn test_config_meta() {
-        let cfg16 = SileroVadAbstractConfig::standard_16khz().to_structure();
+        let cfg16 = SileroVadSignalConfig::standard_16khz().to_structure();
         assert_eq!(cfg16.sample_rate(), 16000);
         assert_eq!(cfg16.input_pad(), 64);
         assert_eq!(cfg16.n_freq(), 129);
@@ -660,7 +696,7 @@ mod tests {
         assert_eq!(cfg16.encoder.in_channels(), cfg16.n_freq());
         cfg16.validate().unwrap();
 
-        let cfg8 = SileroVadStructureConfig::standard_8khz();
+        let cfg8 = SileroVadSignalConfig::standard_8khz().to_structure();
         assert_eq!(cfg8.sample_rate(), 8000);
         assert_eq!(cfg8.input_pad(), 32);
         assert_eq!(cfg8.n_freq(), 65);
@@ -674,7 +710,7 @@ mod tests {
         // An encoder whose input does not match the magnitude bins is invalid.
         let bad = SileroVadStructureConfig {
             encoder: encoder_config(128, 64, 64),
-            ..SileroVadAbstractConfig::standard_16khz().to_structure()
+            ..SileroVadSignalConfig::standard_16khz().to_structure()
         };
         assert!(matches!(bad.validate(), Err(BunsenError::Invalid(_))));
     }
@@ -684,11 +720,8 @@ mod tests {
         let device = Default::default();
 
         for (cfg, n_freq) in [
-            (
-                SileroVadAbstractConfig::standard_16khz().to_structure(),
-                129,
-            ),
-            (SileroVadStructureConfig::standard_8khz(), 65),
+            (SileroVadSignalConfig::standard_16khz().to_structure(), 129),
+            (SileroVadSignalConfig::standard_8khz().to_structure(), 65),
         ] {
             let model: SileroVad<B> = cfg.init(&device);
             assert_eq!(model.sample_rate(), cfg.sample_rate());
@@ -703,8 +736,8 @@ mod tests {
         let device = Default::default();
 
         for cfg in [
-            SileroVadAbstractConfig::standard_16khz().to_structure(),
-            SileroVadStructureConfig::standard_8khz(),
+            SileroVadSignalConfig::standard_16khz().to_structure(),
+            SileroVadSignalConfig::standard_8khz().to_structure(),
         ] {
             let model: SileroVad<B> = cfg.init(&device);
             let batch = 3;
@@ -731,8 +764,8 @@ mod tests {
         let device = Default::default();
 
         for cfg in [
-            SileroVadAbstractConfig::standard_16khz().to_structure(),
-            SileroVadStructureConfig::standard_8khz(),
+            SileroVadSignalConfig::standard_16khz().to_structure(),
+            SileroVadSignalConfig::standard_8khz().to_structure(),
         ] {
             let model: SileroVad<B> = cfg.init(&device);
             let steps = 5;
@@ -755,7 +788,7 @@ mod tests {
         // Streaming a single stream must match looping the single-step forward
         // while carrying state.
         let device = Default::default();
-        let model: SileroVad<B> = SileroVadAbstractConfig::standard_16khz()
+        let model: SileroVad<B> = SileroVadSignalConfig::standard_16khz()
             .to_structure()
             .init(&device);
 
