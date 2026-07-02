@@ -8,8 +8,8 @@ pub mod pretrained;
 #[doc(inline)]
 pub use blocks::{
     SileroVad,
-    SileroVadBranch,
-    SileroVadBranchAbstractConfig,
-    SileroVadBranchMeta,
-    SileroVadBranchStructureConfig,
+    SileroVad16x8,
+    SileroVadAbstractConfig,
+    SileroVadMeta,
+    SileroVadStructureConfig,
 };

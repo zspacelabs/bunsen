@@ -6,7 +6,7 @@
 //!
 //! [s]: https://github.com/snakers4/silero-vad
 //!
-//! A [`SileroVadBranch`] model is
+//! A [`SileroVad`] model is
 //! built for a single sample rate &mdash; the rate is a property of the model
 //! (and its loaded weights), not a forward-time argument. Multi-rate routing,
 //! if needed, belongs at a higher level.
@@ -26,8 +26,8 @@
 //! The recurrent state is packed as `[2, batch, hidden]`, stacking the LSTM
 //! hidden and cell states along dim 0.
 //!
-//! [`SileroVadBranch::forward`] runs one chunk per call (matching the ONNX
-//! graph), while [`SileroVadBranch::forward_sequence`] streams a whole
+//! [`SileroVad::forward`] runs one chunk per call (matching the ONNX
+//! graph), while [`SileroVad::forward_sequence`] streams a whole
 //! chunk-sequence through a single stream, carrying state across chunks.
 
 use burn::{
@@ -89,7 +89,7 @@ use crate::{
 
 /// ['SileroVad'] Abstract Config.
 #[derive(Config, Debug)]
-pub struct SileroVadBranchAbstractConfig {
+pub struct SileroVadAbstractConfig {
     /// The sample rate (in Hz) this model expects, e.g. `16000`.
     pub sample_rate: usize,
 
@@ -114,7 +114,7 @@ pub struct SileroVadBranchAbstractConfig {
     pub d_bottleneck: usize,
 }
 
-impl SileroVadBranchAbstractConfig {
+impl SileroVadAbstractConfig {
     /// The canonical 16 kHz model config.
     pub fn standard_16khz() -> Self {
         Self::from_signal(16000, 129)
@@ -142,9 +142,9 @@ impl SileroVadBranchAbstractConfig {
         Self::new(sample_rate, input_pad, stft_kernel, stft_stride, n_freq)
     }
 
-    /// Convert this config into a [`SileroVadBranchStructureConfig`].
-    fn to_structure(&self) -> SileroVadBranchStructureConfig {
-        SileroVadBranchStructureConfig {
+    /// Convert this config into a [`SileroVadStructureConfig`].
+    fn to_structure(&self) -> SileroVadStructureConfig {
+        SileroVadStructureConfig {
             sample_rate: self.sample_rate,
             input_pad: self.input_pad,
             stft: Conv1dConfig::new(1, 2 * self.n_freq, self.stft_kernel)
@@ -160,21 +160,21 @@ impl SileroVadBranchAbstractConfig {
     }
 }
 
-impl<B: Backend> ModuleInit<B, SileroVadBranch<B>> for SileroVadBranchAbstractConfig {
+impl<B: Backend> ModuleInit<B, SileroVad<B>> for SileroVadAbstractConfig {
     fn try_init(
         &self,
         device: &B::Device,
-    ) -> BunsenResult<SileroVadBranch<B>> {
+    ) -> BunsenResult<SileroVad<B>> {
         Ok(self.to_structure().try_init(device)?)
     }
 }
 
-/// [`SileroVadBranch`] Meta.
+/// [`SileroVad`] Meta.
 ///
 /// Implemented by:
-/// * [`SileroVadBranchStructureConfig`]
-/// * [`SileroVadBranch`]
-pub trait SileroVadBranchMeta {
+/// * [`SileroVadStructureConfig`]
+/// * [`SileroVad`]
+pub trait SileroVadMeta {
     /// The sample rate (in Hz) this model expects, e.g. `16000`.
     fn sample_rate(&self) -> usize;
 
@@ -205,7 +205,7 @@ pub trait SileroVadBranchMeta {
 
     /// The combined LSTM gate width; four gates of [`hidden_size`].
     ///
-    /// [`hidden_size`]: SileroVadBranchMeta::hidden_size
+    /// [`hidden_size`]: SileroVadMeta::hidden_size
     fn gate_size(&self) -> usize {
         4 * self.hidden_size()
     }
@@ -247,14 +247,14 @@ pub fn lstm_gate_config(hidden: usize) -> LinearConfig {
         .with_layout(LinearLayout::Col)
 }
 
-/// [`SileroVadBranch`] Structure Config.
+/// [`SileroVad`] Structure Config.
 ///
 /// The fully explicit structural config for a single-rate Silero VAD model.
 ///
-/// Implements [`SileroVadBranchMeta`]; built into a [`SileroVadBranch`] via
+/// Implements [`SileroVadMeta`]; built into a [`SileroVad`] via
 /// [`ModuleInit`].
 #[derive(Config, Debug)]
-pub struct SileroVadBranchStructureConfig {
+pub struct SileroVadStructureConfig {
     /// The sample rate (in Hz) this model expects.
     pub sample_rate: usize,
 
@@ -275,7 +275,7 @@ pub struct SileroVadBranchStructureConfig {
     pub decoder: Conv1dConfig,
 }
 
-impl SileroVadBranchMeta for SileroVadBranchStructureConfig {
+impl SileroVadMeta for SileroVadStructureConfig {
     fn sample_rate(&self) -> usize {
         self.sample_rate
     }
@@ -301,15 +301,15 @@ impl SileroVadBranchMeta for SileroVadBranchStructureConfig {
     }
 }
 
-impl SileroVadBranchStructureConfig {
+impl SileroVadStructureConfig {
     /// The canonical 16 kHz model.
     pub fn standard_16khz() -> Self {
-        SileroVadBranchAbstractConfig::standard_16khz().to_structure()
+        SileroVadAbstractConfig::standard_16khz().to_structure()
     }
 
     /// The canonical 8 kHz model.
     pub fn standard_8khz() -> Self {
-        SileroVadBranchAbstractConfig::standard_8khz().to_structure()
+        SileroVadAbstractConfig::standard_8khz().to_structure()
     }
 
     /// Validates the structural consistency of the model.
@@ -339,13 +339,13 @@ impl SileroVadBranchStructureConfig {
     }
 }
 
-impl<B: Backend> ModuleInit<B, SileroVadBranch<B>> for SileroVadBranchStructureConfig {
+impl<B: Backend> ModuleInit<B, SileroVad<B>> for SileroVadStructureConfig {
     fn try_init(
         &self,
         device: &B::Device,
-    ) -> BunsenResult<SileroVadBranch<B>> {
+    ) -> BunsenResult<SileroVad<B>> {
         self.validate()?;
-        Ok(SileroVadBranch {
+        Ok(SileroVad {
             sample_rate: self.sample_rate,
             input_pad: self.input_pad,
             stft: self.stft.init(device),
@@ -359,20 +359,20 @@ impl<B: Backend> ModuleInit<B, SileroVadBranch<B>> for SileroVadBranchStructureC
 
 /// Silero VAD model for a single sample rate.
 ///
-/// Implements [`SileroVadBranchMeta`]; built by
-/// [`SileroVadBranchStructureConfig`].
+/// Implements [`SileroVadMeta`]; built by
+/// [`SileroVadStructureConfig`].
 ///
 /// See the [module docs](self) for the pipeline structure. The forward
 /// primitives ([`frame_features`], [`lstm_step`], [`output_head`]) are shared
 /// by the single-step [`forward`] and the streaming [`forward_sequence`].
 ///
-/// [`frame_features`]: SileroVadBranch::frame_features
-/// [`lstm_step`]: SileroVadBranch::lstm_step
-/// [`output_head`]: SileroVadBranch::output_head
-/// [`forward`]: SileroVadBranch::forward
-/// [`forward_sequence`]: SileroVadBranch::forward_sequence
+/// [`frame_features`]: SileroVad::frame_features
+/// [`lstm_step`]: SileroVad::lstm_step
+/// [`output_head`]: SileroVad::output_head
+/// [`forward`]: SileroVad::forward
+/// [`forward_sequence`]: SileroVad::forward_sequence
 #[derive(Module, Debug)]
-pub struct SileroVadBranch<B: Backend> {
+pub struct SileroVad<B: Backend> {
     sample_rate: usize,
     input_pad: usize,
 
@@ -392,7 +392,7 @@ pub struct SileroVadBranch<B: Backend> {
     pub decoder: Conv1d<B>,
 }
 
-impl<B: Backend> SileroVadBranchMeta for SileroVadBranch<B> {
+impl<B: Backend> SileroVadMeta for SileroVad<B> {
     fn sample_rate(&self) -> usize {
         self.sample_rate
     }
@@ -418,7 +418,7 @@ impl<B: Backend> SileroVadBranchMeta for SileroVadBranch<B> {
     }
 }
 
-impl<B: Backend> SileroVadBranch<B> {
+impl<B: Backend> SileroVad<B> {
     /// Allocates a zeroed recurrent state of shape `[2, batch, hidden]`.
     pub fn init_state(
         &self,
@@ -435,7 +435,7 @@ impl<B: Backend> SileroVadBranch<B> {
     /// # Arguments
     ///
     /// * `input` - `[batch, samples]` mono audio chunks (at this model's
-    ///   [`sample_rate`](SileroVadBranchMeta::sample_rate)).
+    ///   [`sample_rate`](SileroVadMeta::sample_rate)).
     /// * `state` - `[2, batch, hidden]` recurrent state (see
     ///   [`init_state`](Self::init_state)).
     ///
@@ -650,7 +650,7 @@ mod tests {
 
     #[test]
     fn test_config_meta() {
-        let cfg16 = SileroVadBranchAbstractConfig::standard_16khz().to_structure();
+        let cfg16 = SileroVadAbstractConfig::standard_16khz().to_structure();
         assert_eq!(cfg16.sample_rate(), 16000);
         assert_eq!(cfg16.input_pad(), 64);
         assert_eq!(cfg16.n_freq(), 129);
@@ -660,7 +660,7 @@ mod tests {
         assert_eq!(cfg16.encoder.in_channels(), cfg16.n_freq());
         cfg16.validate().unwrap();
 
-        let cfg8 = SileroVadBranchStructureConfig::standard_8khz();
+        let cfg8 = SileroVadStructureConfig::standard_8khz();
         assert_eq!(cfg8.sample_rate(), 8000);
         assert_eq!(cfg8.input_pad(), 32);
         assert_eq!(cfg8.n_freq(), 65);
@@ -672,9 +672,9 @@ mod tests {
     #[test]
     fn test_validate_rejects_mismatch() {
         // An encoder whose input does not match the magnitude bins is invalid.
-        let bad = SileroVadBranchStructureConfig {
+        let bad = SileroVadStructureConfig {
             encoder: encoder_config(128, 64, 64),
-            ..SileroVadBranchAbstractConfig::standard_16khz().to_structure()
+            ..SileroVadAbstractConfig::standard_16khz().to_structure()
         };
         assert!(matches!(bad.validate(), Err(BunsenError::Invalid(_))));
     }
@@ -685,12 +685,12 @@ mod tests {
 
         for (cfg, n_freq) in [
             (
-                SileroVadBranchAbstractConfig::standard_16khz().to_structure(),
+                SileroVadAbstractConfig::standard_16khz().to_structure(),
                 129,
             ),
-            (SileroVadBranchStructureConfig::standard_8khz(), 65),
+            (SileroVadStructureConfig::standard_8khz(), 65),
         ] {
-            let model: SileroVadBranch<B> = cfg.init(&device);
+            let model: SileroVad<B> = cfg.init(&device);
             assert_eq!(model.sample_rate(), cfg.sample_rate());
             assert_eq!(model.hidden_size(), cfg.hidden_size());
             assert_eq!(model.n_freq(), n_freq);
@@ -703,10 +703,10 @@ mod tests {
         let device = Default::default();
 
         for cfg in [
-            SileroVadBranchAbstractConfig::standard_16khz().to_structure(),
-            SileroVadBranchStructureConfig::standard_8khz(),
+            SileroVadAbstractConfig::standard_16khz().to_structure(),
+            SileroVadStructureConfig::standard_8khz(),
         ] {
-            let model: SileroVadBranch<B> = cfg.init(&device);
+            let model: SileroVad<B> = cfg.init(&device);
             let batch = 3;
             let input = Tensor::<B, 2>::random(
                 [batch, chunk_samples(model.sample_rate())],
@@ -731,10 +731,10 @@ mod tests {
         let device = Default::default();
 
         for cfg in [
-            SileroVadBranchAbstractConfig::standard_16khz().to_structure(),
-            SileroVadBranchStructureConfig::standard_8khz(),
+            SileroVadAbstractConfig::standard_16khz().to_structure(),
+            SileroVadStructureConfig::standard_8khz(),
         ] {
-            let model: SileroVadBranch<B> = cfg.init(&device);
+            let model: SileroVad<B> = cfg.init(&device);
             let steps = 5;
             let input = Tensor::<B, 2>::random(
                 [steps, chunk_samples(model.sample_rate())],
@@ -755,7 +755,7 @@ mod tests {
         // Streaming a single stream must match looping the single-step forward
         // while carrying state.
         let device = Default::default();
-        let model: SileroVadBranch<B> = SileroVadBranchAbstractConfig::standard_16khz()
+        let model: SileroVad<B> = SileroVadAbstractConfig::standard_16khz()
             .to_structure()
             .init(&device);
 
@@ -1027,7 +1027,7 @@ impl<B: Backend> ReferenceVAD<B> {
                 sliced.squeeze_dim::<2usize>(2)
             };
 
-            let (cell, hidden) = SileroVadBranch::unpack_state(state.clone());
+            let (cell, hidden) = SileroVad::unpack_state(state.clone());
 
             let linear13_out1 = self.linear13.forward(hidden);
             let linear14_out1 = self.linear14.forward(feature);

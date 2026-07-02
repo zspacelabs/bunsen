@@ -19,12 +19,12 @@ use crate::{
     },
     kits::speech::silero_vad::{
         SileroVad,
-        SileroVadBranch,
-        SileroVadBranchAbstractConfig,
+        SileroVad16x8,
+        SileroVadAbstractConfig,
     },
 };
 
-impl<B: Backend> SileroVad<B> {
+impl<B: Backend> SileroVad16x8<B> {
     /// Load from a burnpack file.
     pub fn load_from_burnpack<P: AsRef<Path>>(
         path: P,
@@ -33,8 +33,8 @@ impl<B: Backend> SileroVad<B> {
         let path = path.as_ref();
         let path: PathBuf = path.to_path_buf();
 
-        let vad16: SileroVadBranch<B> = {
-            let cfg = SileroVadBranchAbstractConfig::standard_16khz();
+        let vad16: SileroVad<B> = {
+            let cfg = SileroVadAbstractConfig::standard_16khz();
 
             let mut store = BurnpackStore::from_file(path.clone())
                 .with_remap_pattern("conv1d37", "stft")
@@ -56,8 +56,8 @@ impl<B: Backend> SileroVad<B> {
             module
         };
 
-        let vad8: SileroVadBranch<B> = {
-            let cfg = SileroVadBranchAbstractConfig::standard_8khz();
+        let vad8: SileroVad<B> = {
+            let cfg = SileroVadAbstractConfig::standard_8khz();
 
             let mut store = BurnpackStore::from_file(path.clone())
                 .with_remap_pattern("conv1d43", "stft")
@@ -79,7 +79,7 @@ impl<B: Backend> SileroVad<B> {
             module
         };
 
-        Ok(SileroVad { vad16, vad8 })
+        Ok(SileroVad16x8 { vad16, vad8 })
     }
 }
 
@@ -105,6 +105,7 @@ mod tests {
         let path = silero_burnpack_path();
         let device = Default::default();
 
-        let _vad: SileroVad<B> = SileroVad::load_from_burnpack(&path, &device).ok_or_panic();
+        let _vad: SileroVad16x8<B> =
+            SileroVad16x8::load_from_burnpack(&path, &device).ok_or_panic();
     }
 }
