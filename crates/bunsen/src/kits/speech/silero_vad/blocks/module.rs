@@ -424,11 +424,14 @@ impl<B: Backend> SileroVad<B> {
             );
         }
 
-        let feature = self.frame_features(input);
+        let features = self.frame_features(input);
         let (cell, hidden) = Self::unpack_state(state);
-        let (cell, hidden) = self.lstm_step(feature, cell, hidden);
-        let prob = self.output_head(hidden.clone());
-        (prob, Self::pack_state(cell, hidden))
+        let (cell, hidden) = self.lstm_step(features, cell, hidden);
+
+        (
+            self.output_head(hidden.clone()),
+            Self::pack_state(cell, hidden),
+        )
     }
 
     /// Streaming forward pass over a single stream's chunk-sequence.
@@ -451,7 +454,7 @@ impl<B: Backend> SileroVad<B> {
         state: Tensor<B, 3>,
     ) -> (Tensor<B, 2>, Tensor<B, 3>) {
         // One feature frame per chunk: [steps, hidden].
-        let features = self.frame_features(input);
+        let features_seq = self.frame_features(input);
 
         let d_hidden = self.hidden_size();
 
@@ -459,7 +462,7 @@ impl<B: Backend> SileroVad<B> {
             any(test, debug_assertions) => {
                 let [steps] = unpack_shape_contract!(
                     ["steps", "d_hidden"],
-                    &features,
+                    &features_seq,
                     &["steps"],
                     &[("d_hidden", self.hidden_size())]
                 );
@@ -471,14 +474,14 @@ impl<B: Backend> SileroVad<B> {
         }
 
         let (mut cell, mut hidden) = Self::unpack_state(state);
-        let mut hs = Tensor::empty([steps, d_hidden], &features.device());
-        for (step, feature) in features.iter_dim(0).enumerate() {
-            (cell, hidden) = self.lstm_step(feature, cell, hidden);
-            hs = hs.slice_assign(s![step, ..], hidden.clone());
+        let mut hidden_seq = Tensor::empty([steps, d_hidden], &features_seq.device());
+        for (step, features) in features_seq.iter_dim(0).enumerate() {
+            (cell, hidden) = self.lstm_step(features, cell, hidden);
+            hidden_seq = hidden_seq.slice_assign(s![step, ..], hidden.clone());
         }
 
         // Batch the output head over all steps at once.
-        (self.output_head(hs), Self::pack_state(cell, hidden))
+        (self.output_head(hidden_seq), Self::pack_state(cell, hidden))
     }
 
     /// Extracts the encoder feature frame for each row of `input`.
@@ -545,13 +548,13 @@ impl<B: Backend> SileroVad<B> {
     /// The `(cell, hidden)` next states, each `[n, hidden]`.
     pub fn lstm_step(
         &self,
-        feature: Tensor<B, 2>,
+        features: Tensor<B, 2>,
         cell: Tensor<B, 2>,
         hidden: Tensor<B, 2>,
     ) -> (Tensor<B, 2>, Tensor<B, 2>) {
         // Gates: recurrent projection of `hidden` plus input projection of
         // `feature`, split into [input, forget, cell, output] gates.
-        let gates = self.input_gate.forward(feature) + self.hidden_gate.forward(hidden);
+        let gates = self.input_gate.forward(features) + self.hidden_gate.forward(hidden);
 
         let [g_i, g_f, g_c, g_o] = gates.chunk(4, 1).try_into().unwrap();
 
