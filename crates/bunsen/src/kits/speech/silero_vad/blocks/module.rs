@@ -176,12 +176,24 @@ pub trait SileroVadMeta {
 
     /// The reflect-padding applied to the right of the input before the STFT
     /// conv.
+    ///
+    /// This is generally 2x the STFT stride.
     fn input_pad(&self) -> usize;
 
     /// The number of magnitude frequency bins feeding the encoder.
     ///
     /// This is half the STFT conv's output channels.
     fn n_freq(&self) -> usize;
+
+    /// The kernel size of the STFT conv.
+    ///
+    /// This is generally 2x the STFT stride.
+    fn stft_kernel(&self) -> usize;
+
+    /// The stride of the STFT conv.
+    ///
+    /// This is generally n_freq - 1.
+    fn stft_stride(&self) -> usize;
 
     /// The recurrent hidden / cell width (the encoder output width, and the
     /// LSTM state width).
@@ -268,6 +280,14 @@ impl SileroVadMeta for SileroVadStructureConfig {
 
     fn n_freq(&self) -> usize {
         self.stft.channels_out / 2
+    }
+
+    fn stft_kernel(&self) -> usize {
+        self.stft.kernel_size
+    }
+
+    fn stft_stride(&self) -> usize {
+        self.stft.stride
     }
 
     fn hidden_size(&self) -> usize {
@@ -376,6 +396,14 @@ impl<B: Backend> SileroVadMeta for SileroVad<B> {
 
     fn n_freq(&self) -> usize {
         self.stft.weight.dims()[0] / 2
+    }
+
+    fn stft_kernel(&self) -> usize {
+        self.stft.weight.dims()[1]
+    }
+
+    fn stft_stride(&self) -> usize {
+        self.stft.stride
     }
 
     fn hidden_size(&self) -> usize {
