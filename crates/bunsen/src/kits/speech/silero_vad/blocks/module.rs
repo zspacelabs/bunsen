@@ -602,14 +602,14 @@ impl<B: Backend> SileroVad<B> {
 
     /// Splits a packed `[2, batch, hidden]` state into `(cell, hidden)`.
     /// Of shape `[batch, hidden]`.
-    fn unpack_state(state: Tensor<B, 3>) -> (Tensor<B, 2>, Tensor<B, 2>) {
+    pub fn unpack_state(state: Tensor<B, 3>) -> (Tensor<B, 2>, Tensor<B, 2>) {
         let hidden = state.clone().slice_dim(0, 0).squeeze_dim::<2>(0);
         let cell = state.slice_dim(0, 1).squeeze_dim::<2>(0);
         (cell, hidden)
     }
 
     /// Stacks `(cell, hidden)` into a packed `[2, batch, hidden]` state.
-    fn pack_state(
+    pub fn pack_state(
         cell: Tensor<B, 2>,
         hidden: Tensor<B, 2>,
     ) -> Tensor<B, 3> {
