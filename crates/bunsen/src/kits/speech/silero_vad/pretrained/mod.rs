@@ -92,14 +92,16 @@ mod tests {
         support::testing::CpuBackend,
     };
 
+    fn silero_burnpack_path() -> PathBuf {
+        PathBuf::from("/home/crutcher/git/fast-whisper-burn/src/vad/silero_vad_op18_ifless.bpk")
+    }
+
     #[test]
     #[ignore]
     fn test_load_pretrained() {
         type B = CpuBackend;
 
-        let path = PathBuf::from(
-            "/home/crutcher/git/fast-whisper-burn/src/vad/silero_vad_op18_ifless.bpk",
-        );
+        let path = silero_burnpack_path();
         let device = Default::default();
 
         let (_vad16, _vad8) = load_pretrained_silero_vad::<B, _>(path, &device).ok_or_panic();
