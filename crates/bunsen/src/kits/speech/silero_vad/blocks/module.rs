@@ -115,14 +115,19 @@ impl SileroVadSignalConfig {
 
     /// Converts to ['`SileroVadStftConfig`'].
     pub fn to_stft(&self) -> SileroVadStftConfig {
-        let sample_rate = self.sample_rate;
-        let n_freq = self.n_freq;
-        let stft_stride = n_freq - 1;
+        let stft_stride = self.n_freq - 1;
         let stft_kernel = stft_stride * 2;
         let input_pad = stft_stride / 2;
-        SileroVadStftConfig::new(sample_rate, n_freq, input_pad, stft_kernel, stft_stride)
-            .with_d_hidden(self.d_hidden)
-            .with_d_bottleneck(self.d_bottleneck)
+
+        SileroVadStftConfig::new(
+            self.sample_rate,
+            self.n_freq,
+            input_pad,
+            stft_kernel,
+            stft_stride,
+        )
+        .with_d_hidden(self.d_hidden)
+        .with_d_bottleneck(self.d_bottleneck)
     }
 
     /// Converts to ['`SileroVadStructureConfig`'].
