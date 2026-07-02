@@ -142,8 +142,8 @@ mod tests {
                 &device,
             );
 
-            let (s_out, s_state) = s_mod.vad16.forward(input.clone(), state.clone());
-            let (r_out, r_state) = r_mod.forward_16khz(input.clone(), state.clone());
+            let (s_out, s_state) = s_mod.forward(input.clone(), sample_rate, state.clone());
+            let (r_out, r_state) = r_mod.forward(input.clone(), sample_rate, state.clone());
 
             s_out
                 .to_data()
@@ -164,8 +164,8 @@ mod tests {
                 &device,
             );
 
-            let (s_out, s_state) = s_mod.vad8.forward(input.clone(), state.clone());
-            let (r_out, r_state) = r_mod.forward_8khz(input.clone(), state.clone());
+            let (s_out, s_state) = s_mod.forward(input.clone(), sample_rate, state.clone());
+            let (r_out, r_state) = r_mod.forward(input.clone(), sample_rate, state.clone());
 
             s_out
                 .to_data()

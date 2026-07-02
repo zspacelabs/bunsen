@@ -1048,13 +1048,13 @@ impl<B: Backend> ReferenceVAD<B> {
     pub fn forward(
         &self,
         input: Tensor<B, 2>,
-        sr: i64,
+        sr: usize,
         state: Tensor<B, 3>,
     ) -> (Tensor<B, 2>, Tensor<B, 3>) {
-        if sr == 16000i64 {
-            self.forward_16khz(input, state)
-        } else {
-            self.forward_8khz(input, state)
+        match sr {
+            16000 => self.forward_16khz(input, state),
+            8000 => self.forward_8khz(input, state),
+            _ => panic!("unsupported sample rate: {sr}"),
         }
     }
 
