@@ -113,11 +113,10 @@ mod tests {
     }
 
     fn silero_burnpack_path() -> PathBuf {
-        PathBuf::from("/home/crutcher/git/fast-whisper-burn/src/vad/silero_vad_op18_ifless.bpk")
+        PathBuf::from("silero_vad_op18_ifless.bpk")
     }
 
     #[test]
-    #[ignore]
     fn test_load_forward_pretrained() {
         type B = PerformanceBackend;
         type F = <B as BackendTypes>::FloatElem;
