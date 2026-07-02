@@ -610,11 +610,11 @@ impl<B: Backend> SileroVad<B> {
             .squeeze_dim::<2>(2)
     }
 
-    /// Splits a packed `[2, batch, hidden]` state into `(cell, hidden)`.
+    /// Splits a packed `[2, batch, hidden]` state into `(hidden, cell)`.
     /// Of shape `[batch, hidden]`.
     fn unpack_state(state: Tensor<B, 3>) -> (Tensor<B, 2>, Tensor<B, 2>) {
-        let cell = state.clone().slice_dim(0, 0).squeeze_dim::<2>(0);
-        let hidden = state.slice_dim(0, 1).squeeze_dim::<2>(0);
+        let hidden = state.clone().slice_dim(0, 0).squeeze_dim::<2>(0);
+        let cell = state.slice_dim(0, 1).squeeze_dim::<2>(0);
         (cell, hidden)
     }
 
@@ -623,7 +623,7 @@ impl<B: Backend> SileroVad<B> {
         cell: Tensor<B, 2>,
         hidden: Tensor<B, 2>,
     ) -> Tensor<B, 3> {
-        Tensor::stack(vec![cell, hidden], 0)
+        Tensor::stack(vec![hidden, cell], 0)
     }
 
     /// Runs one LSTM step.
