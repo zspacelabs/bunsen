@@ -197,7 +197,7 @@ impl SileroVadStftConfig {
                 .with_stride(self.stft_stride)
                 .with_padding(PaddingConfig1d::Valid)
                 .with_bias(false),
-            encoder: encoder_config(self.d_hidden, self.d_bottleneck, self.n_freq),
+            encoder: encoder_config(self.n_freq, self.d_hidden, self.d_bottleneck),
             gate_config: lstm_gate_config(self.d_hidden),
             decoder: Conv1dConfig::new(self.d_hidden, 1, 1)
                 .with_padding(PaddingConfig1d::Valid)
@@ -259,12 +259,14 @@ pub trait SileroVadMeta {
 
 /// Builds the canonical 4-block `ReLU` conv encoder for `n_freq` input bins.
 ///
-/// Channel flow: `n_freq -> 128 -> 64 -> 64 -> 128`, with the middle two blocks
-/// striding by 2. Blocks default to no norm and `ReLU` activation.
+/// Channel flow: `n_freq -> d_hidden -> d_bottleneck -> d_bottleneck ->
+/// d_hidden`, with the middle two blocks striding by 2.
+///
+/// Blocks default to no norm and `ReLU` activation.
 pub fn encoder_config(
-    hidden: usize,
-    bottleneck: usize,
     n_freq: usize,
+    d_hidden: usize,
+    d_bottleneck: usize,
 ) -> ConvSeq1dConfig {
     let block = |in_channels: usize, out_channels: usize, stride: usize| {
         ConvBlock1dConfig::new(
@@ -276,19 +278,19 @@ pub fn encoder_config(
         .with_act(Some(ActivationConfig::Relu))
     };
     ConvSeq1dConfig::new(vec![
-        block(n_freq, hidden, 1),
-        block(hidden, bottleneck, 2),
-        block(bottleneck, bottleneck, 2),
-        block(bottleneck, hidden, 1),
+        block(n_freq, d_hidden, 1),
+        block(d_hidden, d_bottleneck, 2),
+        block(d_bottleneck, d_bottleneck, 2),
+        block(d_bottleneck, d_hidden, 1),
     ])
 }
 
-/// Builds an LSTM gate projection: `hidden -> 4 * hidden`, column layout.
+/// Builds an LSTM gate projection: `d_hidden -> 4 * d_hidden`, column layout.
 ///
 /// The column layout matches the ONNX export so the original weights load
 /// without transposition.
-pub fn lstm_gate_config(hidden: usize) -> LinearConfig {
-    LinearConfig::new(hidden, 4 * hidden)
+pub fn lstm_gate_config(d_hidden: usize) -> LinearConfig {
+    LinearConfig::new(d_hidden, 4 * d_hidden)
         .with_bias(true)
         .with_layout(LinearLayout::Col)
 }
@@ -709,7 +711,7 @@ mod tests {
     fn test_validate_rejects_mismatch() {
         // An encoder whose input does not match the magnitude bins is invalid.
         let bad = SileroVadStructureConfig {
-            encoder: encoder_config(128, 64, 64),
+            encoder: encoder_config(64, 128, 64),
             ..SileroVadSignalConfig::standard_16khz().to_structure()
         };
         assert!(matches!(bad.validate(), Err(BunsenError::Invalid(_))));
