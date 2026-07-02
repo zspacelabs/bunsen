@@ -74,7 +74,7 @@ use crate::{
     },
 };
 
-/// ['`SileroVad`'] Signal Config.
+/// [`SileroVad`] Signal Config.
 #[derive(Config, Debug)]
 pub struct SileroVadSignalConfig {
     /// The sample rate (in Hz) this model expects, e.g. `16000`.
@@ -103,7 +103,7 @@ impl SileroVadSignalConfig {
         Self::new(8000, 65)
     }
 
-    /// Converts to ['`SileroVadStftConfig`'].
+    /// Converts to [`SileroVadStftConfig`].
     pub fn to_stft(&self) -> SileroVadStftConfig {
         let stft_stride = self.n_freq - 1;
         let stft_kernel = stft_stride * 2;
@@ -120,7 +120,7 @@ impl SileroVadSignalConfig {
         .with_d_bottleneck(self.d_bottleneck)
     }
 
-    /// Converts to ['`SileroVadStructureConfig`'].
+    /// Converts to [`SileroVadStructureConfig`].
     pub fn to_structure(&self) -> SileroVadStructureConfig {
         self.to_stft().to_structure()
     }
@@ -135,7 +135,7 @@ impl<B: Backend> ModuleInit<B, SileroVad<B>> for SileroVadSignalConfig {
     }
 }
 
-/// ['`SileroVad`'] Stft Config.
+/// [`SileroVad`] Stft Config.
 #[derive(Config, Debug)]
 pub struct SileroVadStftConfig {
     /// The sample rate (in Hz) this model expects, e.g. `16000`.
@@ -399,7 +399,7 @@ impl<B: Backend> ModuleInit<B, SileroVad<B>> for SileroVadStructureConfig {
 /// Implements [`SileroVadMeta`]; built by
 /// [`SileroVadStructureConfig`].
 ///
-/// See the [module docs](self) for the pipeline structure. The forward
+/// The forward
 /// primitives ([`frame_features`], [`lstm_step`], [`output_head`]) are shared
 /// by the single-step [`forward`] and the streaming [`forward_sequence`].
 ///
