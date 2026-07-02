@@ -434,7 +434,7 @@ impl<B: Backend> SileroVad<B> {
         state: Tensor<B, 3>,
     ) -> (Tensor<B, 2>, Tensor<B, 3>) {
         // One feature frame per chunk: [steps, hidden].
-        let features_seq = self.frame_features(input);
+        let mut seq_buf = self.frame_features(input);
 
         let d_hidden = self.hidden_size();
 
@@ -442,7 +442,7 @@ impl<B: Backend> SileroVad<B> {
             any(test, debug_assertions) => {
                 let [steps] = unpack_shape_contract!(
                     ["steps", "d_hidden"],
-                    &features_seq,
+                    &seq_buf,
                     &["steps"],
                     &[("d_hidden", self.hidden_size())]
                 );
@@ -454,14 +454,17 @@ impl<B: Backend> SileroVad<B> {
         }
 
         let (mut cell, mut hidden) = Self::unpack_state(state);
-        let mut hidden_seq = Tensor::empty([steps, d_hidden], &features_seq.device());
-        for (step, features) in features_seq.iter_dim(0).enumerate() {
+        for step in 0..steps {
+            let features = seq_buf.clone().slice_dim(0, step);
             (cell, hidden) = self.lstm_step(features, cell, hidden);
-            hidden_seq = hidden_seq.slice_assign(s![step, ..], hidden.clone());
+
+            // We expect this to be a hidden in-place update,
+            // as there are no other references to seq_buf.
+            seq_buf = seq_buf.slice_assign(s![step, ..], hidden.clone());
         }
 
         // Batch the output head over all steps at once.
-        (self.output_head(hidden_seq), Self::pack_state(cell, hidden))
+        (self.output_head(seq_buf), Self::pack_state(cell, hidden))
     }
 
     /// Extracts the encoder feature frame for each row of `input`.
