@@ -247,13 +247,13 @@ pub trait SileroVadMeta {
 
     /// The recurrent hidden / cell width (the encoder output width, and the
     /// LSTM state width).
-    fn hidden_size(&self) -> usize;
+    fn d_hidden(&self) -> usize;
 
     /// The combined LSTM gate width; four gates of [`hidden_size`].
     ///
-    /// [`hidden_size`]: SileroVadMeta::hidden_size
+    /// [`hidden_size`]: SileroVadMeta::d_hidden
     fn gate_size(&self) -> usize {
-        4 * self.hidden_size()
+        4 * self.d_hidden()
     }
 }
 
@@ -319,7 +319,7 @@ pub struct SileroVadStructureConfig {
     /// The shared LSTM Gate (hidden, feature -> gates) projection config.
     pub gate_config: LinearConfig,
 
-    /// The `1x1` output-head conv: `hidden -> 1`.
+    /// The `1x1` output-head conv: `d_hidden -> 1`.
     pub decoder: Conv1dConfig,
 }
 
@@ -344,7 +344,7 @@ impl SileroVadMeta for SileroVadStructureConfig {
         self.stft.stride
     }
 
-    fn hidden_size(&self) -> usize {
+    fn d_hidden(&self) -> usize {
         self.encoder.out_channels()
     }
 }
@@ -359,7 +359,7 @@ impl SileroVadStructureConfig {
     pub fn validate(&self) -> BunsenResult<()> {
         self.encoder.validate()?;
 
-        let hidden = self.hidden_size();
+        let hidden = self.d_hidden();
         if self.encoder.in_channels() != self.n_freq() {
             return Err(BunsenError::Invalid(format!(
                 "SileroVad encoder in_channels ({}) != n_freq ({})",
@@ -451,7 +451,7 @@ impl<B: Backend> SileroVadMeta for SileroVad<B> {
         self.stft.stride
     }
 
-    fn hidden_size(&self) -> usize {
+    fn d_hidden(&self) -> usize {
         self.encoder.out_channels()
     }
 }
@@ -463,7 +463,7 @@ impl<B: Backend> SileroVad<B> {
         batch: usize,
         device: &B::Device,
     ) -> Tensor<B, 3> {
-        Tensor::zeros([2, batch, self.hidden_size()], device)
+        Tensor::zeros([2, batch, self.d_hidden()], device)
     }
 
     /// Single-step forward pass; one chunk per batch row.
@@ -492,7 +492,7 @@ impl<B: Backend> SileroVad<B> {
             assert_shape_contract_periodically!(
                 ["2", "batch", "d_hidden"],
                 &state,
-                &[("batch", batch), ("d_hidden", self.hidden_size())]
+                &[("batch", batch), ("d_hidden", self.d_hidden())]
             );
         }
 
@@ -528,7 +528,7 @@ impl<B: Backend> SileroVad<B> {
         // One feature frame per chunk: [steps, hidden].
         let mut seq_buf = self.frame_features(input);
 
-        let d_hidden = self.hidden_size();
+        let d_hidden = self.d_hidden();
 
         cfg_select! {
             any(test, debug_assertions) => {
@@ -536,7 +536,7 @@ impl<B: Backend> SileroVad<B> {
                     ["steps", "d_hidden"],
                     &seq_buf,
                     &["steps"],
-                    &[("d_hidden", self.hidden_size())]
+                    &[("d_hidden", self.d_hidden())]
                 );
                 assert_shape_contract_periodically!(["2", "1", "d_hidden"], &state, &[("d_hidden", d_hidden)]);
             }
@@ -692,7 +692,7 @@ mod tests {
         assert_eq!(cfg16.sample_rate(), 16000);
         assert_eq!(cfg16.input_pad(), 64);
         assert_eq!(cfg16.n_freq(), 129);
-        assert_eq!(cfg16.hidden_size(), 128);
+        assert_eq!(cfg16.d_hidden(), 128);
         assert_eq!(cfg16.gate_size(), 512);
         // The encoder consumes the magnitude bins.
         assert_eq!(cfg16.encoder.in_channels(), cfg16.n_freq());
@@ -702,7 +702,7 @@ mod tests {
         assert_eq!(cfg8.sample_rate(), 8000);
         assert_eq!(cfg8.input_pad(), 32);
         assert_eq!(cfg8.n_freq(), 65);
-        assert_eq!(cfg8.hidden_size(), 128);
+        assert_eq!(cfg8.d_hidden(), 128);
         assert_eq!(cfg8.encoder.in_channels(), cfg8.n_freq());
         cfg8.validate().unwrap();
     }
@@ -727,7 +727,7 @@ mod tests {
         ] {
             let model: SileroVad<B> = cfg.init(&device);
             assert_eq!(model.sample_rate(), cfg.sample_rate());
-            assert_eq!(model.hidden_size(), cfg.hidden_size());
+            assert_eq!(model.d_hidden(), cfg.d_hidden());
             assert_eq!(model.n_freq(), n_freq);
             assert_eq!(model.input_pad(), cfg.input_pad());
         }
