@@ -42,6 +42,7 @@ use burn::{
         LinearConfig,
         LinearLayout,
         PaddingConfig1d,
+        activation::ActivationConfig,
         conv::{
             Conv1d,
             Conv1dConfig,
@@ -86,9 +87,6 @@ use crate::{
     },
 };
 
-/// The recurrent hidden / cell width of the Silero VAD LSTM.
-const HIDDEN: usize = 128;
-
 /// [`SileroVad`] Meta.
 ///
 /// Implemented by:
@@ -119,6 +117,41 @@ pub trait SileroVadMeta {
     }
 }
 
+/// Builds the canonical 4-block `ReLU` conv encoder for `n_freq` input bins.
+///
+/// Channel flow: `n_freq -> 128 -> 64 -> 64 -> 128`, with the middle two blocks
+/// striding by 2. Blocks default to no norm and `ReLU` activation.
+pub fn encoder_config(
+    hidden: usize,
+    n_freq: usize,
+) -> ConvSeq1dConfig {
+    let block = |in_channels: usize, out_channels: usize, stride: usize| {
+        ConvBlock1dConfig::new(
+            Conv1dConfig::new(in_channels, out_channels, 3)
+                .with_stride(stride)
+                .with_padding(PaddingConfig1d::Explicit(1, 1))
+                .with_bias(true),
+        )
+        .with_act(Some(ActivationConfig::Relu))
+    };
+    ConvSeq1dConfig::new(vec![
+        block(n_freq, hidden, 1),
+        block(hidden, 64, 2),
+        block(64, 64, 2),
+        block(64, hidden, 1),
+    ])
+}
+
+/// Builds an LSTM gate projection: `hidden -> 4 * hidden`, column layout.
+///
+/// The column layout matches the ONNX export so the original weights load
+/// without transposition.
+pub fn lstm_gate_config(hidden: usize) -> LinearConfig {
+    LinearConfig::new(hidden, 4 * hidden)
+        .with_bias(true)
+        .with_layout(LinearLayout::Col)
+}
+
 /// [`SileroVad`] Config.
 ///
 /// The fully-explicit structural config for a single-rate Silero VAD model.
@@ -142,10 +175,10 @@ pub struct SileroVadConfig {
     pub encoder: ConvSeq1dConfig,
 
     /// The LSTM input (feature -> gates) projection.
-    pub input_transform: LinearConfig,
+    pub input_gate: LinearConfig,
 
     /// The LSTM recurrent (hidden -> gates) projection.
-    pub hidden_transform: LinearConfig,
+    pub hidden_gate: LinearConfig,
 
     /// The `1x1` output-head conv: `hidden -> 1`.
     pub decoder: Conv1dConfig,
@@ -182,12 +215,40 @@ impl SileroVadConfig {
 
     /// Builds a standard model from its rate-specific dimensions.
     ///
-    /// * `stft_kernel` / `stft_stride` size the analysis conv; it maps `1`
-    ///   input channel to `2 * n_freq` output channels (real and imaginary
-    ///   halves).
-    /// * The encoder, LSTM, and output head are shared in structure across
-    ///   rates.
-    fn standard(
+    /// # Arguments
+    /// * `sample_rate` - The sample rate (in Hz) this model expects.
+    /// * `input_pad` - The number of samples to pad the input with.
+    /// * `stft_kernel` - size of the stft kernel.
+    /// * `stft_stride` - stride of the stft kernel.
+    /// * `n_freq` - number of frequency bins.
+    pub fn standard(
+        sample_rate: usize,
+        input_pad: usize,
+        stft_kernel: usize,
+        stft_stride: usize,
+        n_freq: usize,
+    ) -> Self {
+        Self::common_model(
+            128,
+            sample_rate,
+            input_pad,
+            stft_kernel,
+            stft_stride,
+            n_freq,
+        )
+    }
+
+    /// Builds a standard model from its rate-specific dimensions.
+    ///
+    /// # Arguments
+    /// * `hidden` - The recurrent hidden / cell width of the Silero VAD LSTM.
+    /// * `sample_rate` - The sample rate (in Hz) this model expects.
+    /// * `input_pad` - The number of samples to pad the input with.
+    /// * `stft_kernel` - size of the stft kernel.
+    /// * `stft_stride` - stride of the stft kernel.
+    /// * `n_freq` - number of frequency bins.
+    pub fn common_model(
+        hidden: usize,
         sample_rate: usize,
         input_pad: usize,
         stft_kernel: usize,
@@ -201,10 +262,10 @@ impl SileroVadConfig {
                 .with_stride(stft_stride)
                 .with_padding(PaddingConfig1d::Valid)
                 .with_bias(false),
-            encoder: encoder_config(n_freq),
-            input_transform: lstm_gate_config(HIDDEN),
-            hidden_transform: lstm_gate_config(HIDDEN),
-            decoder: Conv1dConfig::new(HIDDEN, 1, 1)
+            encoder: encoder_config(hidden, n_freq),
+            input_gate: lstm_gate_config(hidden),
+            hidden_gate: lstm_gate_config(hidden),
+            decoder: Conv1dConfig::new(hidden, 1, 1)
                 .with_padding(PaddingConfig1d::Valid)
                 .with_bias(true),
         }
@@ -227,19 +288,19 @@ impl SileroVadConfig {
                 self.n_freq(),
             )));
         }
-        if self.hidden_transform.d_input != hidden || self.input_transform.d_input != hidden {
+        if self.hidden_gate.d_input != hidden || self.input_gate.d_input != hidden {
             return Err(BunsenError::Invalid(format!(
                 "SileroVad gate inputs ({}, {}) must both equal hidden ({hidden})",
-                self.hidden_transform.d_input, self.input_transform.d_input,
+                self.hidden_gate.d_input, self.input_gate.d_input,
             )));
         }
-        if self.hidden_transform.d_output != self.gate_size()
-            || self.input_transform.d_output != self.gate_size()
+        if self.hidden_gate.d_output != self.gate_size()
+            || self.input_gate.d_output != self.gate_size()
         {
             return Err(BunsenError::Invalid(format!(
                 "SileroVad gate outputs ({}, {}) must both equal gate_size ({})",
-                self.hidden_transform.d_output,
-                self.input_transform.d_output,
+                self.hidden_gate.d_output,
+                self.input_gate.d_output,
                 self.gate_size(),
             )));
         }
@@ -264,8 +325,8 @@ impl<B: Backend> ModuleInit<B, SileroVad<B>> for SileroVadConfig {
             input_pad: self.input_pad,
             stft: self.stft.init(device),
             encoder: self.encoder.try_init(device)?,
-            input_gate: self.input_transform.init(device),
-            hidden_gate: self.hidden_transform.init(device),
+            input_gate: self.input_gate.init(device),
+            hidden_gate: self.hidden_gate.init(device),
             decoder: self.decoder.init(device),
         })
     }
@@ -331,110 +392,6 @@ impl<B: Backend> SileroVad<B> {
         device: &B::Device,
     ) -> Tensor<B, 3> {
         Tensor::zeros([2, batch, self.hidden_size()], device)
-    }
-
-    /// Extracts the encoder feature frame for each row of `input`.
-    ///
-    /// # Arguments
-    ///
-    /// * `input` - `[n, samples]` mono audio chunks.
-    ///
-    /// # Returns
-    ///
-    /// `[n, hidden]` feature frames (the encoder output at frame 0).
-    pub fn frame_features(
-        &self,
-        input: Tensor<B, 2>,
-    ) -> Tensor<B, 2> {
-        // Reflect-pad, then add the channel axis: [n, 1, samples + pad].
-        let x = input.pad([(0, 0), (0, self.input_pad)], PadMode::Reflect);
-        let x: Tensor<B, 3> = x.unsqueeze_dim::<3>(1);
-
-        // STFT magnitude: split the [n, 2F, T] conv into real / imaginary
-        // halves and combine as sqrt(real^2 + imag^2) -> [n, F, T].
-        let [real_2, imag_2] = self
-            .stft
-            .forward(x)
-            .square()
-            .chunk(2, 1)
-            .try_into()
-            .unwrap();
-        let mag = (real_2 + imag_2).sqrt();
-
-        // Encode, then take the first (and, for a single chunk, only) frame.
-        self.encoder
-            .forward(mag)
-            .slice_dim(2, 0)
-            .squeeze_dim::<2>(2)
-    }
-
-    /// Runs one LSTM step.
-    ///
-    /// # Arguments
-    ///
-    /// * `feature` - `[n, hidden]` encoder feature frame.
-    /// * `hidden` - `[n, hidden]` previous hidden state.
-    /// * `cell` - `[n, hidden]` previous cell state.
-    ///
-    /// # Returns
-    ///
-    /// The `(cell, hidden)` next states, each `[n, hidden]`.
-    pub fn lstm_step(
-        &self,
-        feature: Tensor<B, 2>,
-        cell: Tensor<B, 2>,
-        hidden: Tensor<B, 2>,
-    ) -> (Tensor<B, 2>, Tensor<B, 2>) {
-        // Gates: recurrent projection of `hidden` plus input projection of
-        // `feature`, split into [input, forget, cell, output] gates.
-        let gates = self.input_gate.forward(feature) + self.hidden_gate.forward(hidden);
-
-        let [g_i, g_f, g_c, g_o] = gates.chunk(4, 1).try_into().unwrap();
-
-        let input_values = sigmoid(g_i);
-        let forget_values = sigmoid(g_f);
-        let candidate_cell_values = tanh(g_c);
-        let output_values = sigmoid(g_o);
-
-        let new_cell = forget_values * cell + input_values * candidate_cell_values;
-        let new_hidden = output_values * tanh(new_cell.clone());
-        (new_cell, new_hidden)
-    }
-
-    /// Runs the `1x1` conv + sigmoid output head.
-    ///
-    /// # Arguments
-    ///
-    /// * `hidden` - `[n, hidden]` LSTM hidden states.
-    ///
-    /// # Returns
-    ///
-    /// `[n, 1]` speech probabilities in `[0, 1]`.
-    pub fn output_head(
-        &self,
-        hidden: Tensor<B, 2>,
-    ) -> Tensor<B, 2> {
-        let x: Tensor<B, 3> = hidden.unsqueeze_dim::<3>(2);
-        let x = relu(x);
-        let x = self.decoder.forward(x);
-        let x = sigmoid(x);
-        x.squeeze_dim::<2>(2).mean_dim(1)
-    }
-
-    /// Splits a packed `[2, batch, hidden]` state into `(cell, hidden)`.
-    /// Of shape `[batch, hidden]`.
-    fn unpack_state(state: Tensor<B, 3>) -> (Tensor<B, 2>, Tensor<B, 2>) {
-        let hidden = state.clone().slice_dim(0, 0).squeeze_dim::<2>(0);
-        let cell = state.slice_dim(0, 1).squeeze_dim::<2>(0);
-        (cell, hidden)
-    }
-
-    /// Stacks `(cell, hidden)` into a packed `[2, batch, hidden]` state.
-    fn pack_state(
-        cell: Tensor<B, 2>,
-        hidden: Tensor<B, 2>,
-    ) -> Tensor<B, 3> {
-        Tensor::stack(vec![hidden, cell], 0)
     }
 
     /// Single-step forward pass; one chunk per batch row.
@@ -528,37 +485,110 @@ impl<B: Backend> SileroVad<B> {
         let state = Self::pack_state(cell, hidden);
         (probs, state)
     }
-}
 
-/// Builds the canonical 4-block `ReLU` conv encoder for `n_freq` input bins.
-///
-/// Channel flow: `n_freq -> 128 -> 64 -> 64 -> 128`, with the middle two blocks
-/// striding by 2. Blocks default to no norm and `ReLU` activation.
-fn encoder_config(n_freq: usize) -> ConvSeq1dConfig {
-    let block = |in_channels: usize, out_channels: usize, stride: usize| {
-        ConvBlock1dConfig::new(
-            Conv1dConfig::new(in_channels, out_channels, 3)
-                .with_stride(stride)
-                .with_padding(PaddingConfig1d::Explicit(1, 1))
-                .with_bias(true),
-        )
-    };
-    ConvSeq1dConfig::new(vec![
-        block(n_freq, HIDDEN, 1),
-        block(HIDDEN, 64, 2),
-        block(64, 64, 2),
-        block(64, HIDDEN, 1),
-    ])
-}
+    /// Extracts the encoder feature frame for each row of `input`.
+    ///
+    /// # Arguments
+    ///
+    /// * `input` - `[n, samples]` mono audio chunks.
+    ///
+    /// # Returns
+    ///
+    /// `[n, hidden]` feature frames (the encoder output at frame 0).
+    pub fn frame_features(
+        &self,
+        input: Tensor<B, 2>,
+    ) -> Tensor<B, 2> {
+        // Reflect-pad, then add the channel axis: [n, 1, samples + pad].
+        let x = input.pad([(0, 0), (0, self.input_pad)], PadMode::Reflect);
+        let x: Tensor<B, 3> = x.unsqueeze_dim::<3>(1);
 
-/// Builds an LSTM gate projection: `hidden -> 4 * hidden`, column layout.
-///
-/// The column layout matches the ONNX export so the original weights load
-/// without transposition.
-fn lstm_gate_config(hidden: usize) -> LinearConfig {
-    LinearConfig::new(hidden, 4 * hidden)
-        .with_bias(true)
-        .with_layout(LinearLayout::Col)
+        // STFT magnitude: split the [n, 2F, T] conv into real / imaginary
+        // halves and combine as sqrt(real^2 + imag^2) -> [n, F, T].
+        let [real_2, imag_2] = self
+            .stft
+            .forward(x)
+            .square()
+            .chunk(2, 1)
+            .try_into()
+            .unwrap();
+        let mag = (real_2 + imag_2).sqrt();
+
+        // Encode, then take the first (and, for a single chunk, only) frame.
+        self.encoder
+            .forward(mag)
+            .slice_dim(2, 0)
+            .squeeze_dim::<2>(2)
+    }
+
+    /// Splits a packed `[2, batch, hidden]` state into `(cell, hidden)`.
+    /// Of shape `[batch, hidden]`.
+    fn unpack_state(state: Tensor<B, 3>) -> (Tensor<B, 2>, Tensor<B, 2>) {
+        let cell = state.clone().slice_dim(0, 0).squeeze_dim::<2>(0);
+        let hidden = state.slice_dim(0, 1).squeeze_dim::<2>(0);
+        (cell, hidden)
+    }
+
+    /// Stacks `(cell, hidden)` into a packed `[2, batch, hidden]` state.
+    fn pack_state(
+        cell: Tensor<B, 2>,
+        hidden: Tensor<B, 2>,
+    ) -> Tensor<B, 3> {
+        Tensor::stack(vec![cell, hidden], 0)
+    }
+
+    /// Runs one LSTM step.
+    ///
+    /// # Arguments
+    ///
+    /// * `feature` - `[n, hidden]` encoder feature frame.
+    /// * `hidden` - `[n, hidden]` previous hidden state.
+    /// * `cell` - `[n, hidden]` previous cell state.
+    ///
+    /// # Returns
+    ///
+    /// The `(cell, hidden)` next states, each `[n, hidden]`.
+    pub fn lstm_step(
+        &self,
+        feature: Tensor<B, 2>,
+        cell: Tensor<B, 2>,
+        hidden: Tensor<B, 2>,
+    ) -> (Tensor<B, 2>, Tensor<B, 2>) {
+        // Gates: recurrent projection of `hidden` plus input projection of
+        // `feature`, split into [input, forget, cell, output] gates.
+        let gates = self.input_gate.forward(feature) + self.hidden_gate.forward(hidden);
+
+        let [g_i, g_f, g_c, g_o] = gates.chunk(4, 1).try_into().unwrap();
+
+        let input_values = sigmoid(g_i);
+        let forget_values = sigmoid(g_f);
+        let candidate_cell_values = tanh(g_c);
+        let output_values = sigmoid(g_o);
+
+        let new_cell = forget_values * cell + input_values * candidate_cell_values;
+        let new_hidden = output_values * tanh(new_cell.clone());
+        (new_cell, new_hidden)
+    }
+
+    /// Runs the `1x1` conv + sigmoid output head.
+    ///
+    /// # Arguments
+    ///
+    /// * `hidden` - `[n, hidden]` LSTM hidden states.
+    ///
+    /// # Returns
+    ///
+    /// `[n, 1]` speech probabilities in `[0, 1]`.
+    pub fn output_head(
+        &self,
+        hidden: Tensor<B, 2>,
+    ) -> Tensor<B, 2> {
+        let x: Tensor<B, 3> = hidden.unsqueeze_dim::<3>(2);
+        let x = relu(x);
+        let x = self.decoder.forward(x);
+        let x = sigmoid(x);
+        x.squeeze_dim::<2>(2).mean_dim(1)
+    }
 }
 
 #[cfg(test)]
@@ -607,7 +637,7 @@ mod tests {
     fn test_validate_rejects_mismatch() {
         // An encoder whose input does not match the magnitude bins is invalid.
         let bad = SileroVadConfig {
-            encoder: encoder_config(64),
+            encoder: encoder_config(128, 64),
             ..SileroVadConfig::standard_16khz()
         };
         assert!(matches!(bad.validate(), Err(BunsenError::Invalid(_))));

@@ -40,8 +40,8 @@ pub fn load_pretrained_silerovad<B: Backend, P: AsRef<Path>>(
             .with_remap_pattern("conv1d39", "encoder.blocks.1.conv")
             .with_remap_pattern("conv1d40", "encoder.blocks.2.conv")
             .with_remap_pattern("conv1d41", "encoder.blocks.3.conv")
-            .with_remap_pattern("linear13", "hidden_transform")
-            .with_remap_pattern("linear14", "input_transform")
+            .with_remap_pattern("linear13", "hidden_gate")
+            .with_remap_pattern("linear14", "input_gate")
             .with_remap_pattern("conv1d42", "decoder");
 
         // println!("keys: {:#?}", store.keys());
@@ -63,8 +63,8 @@ pub fn load_pretrained_silerovad<B: Backend, P: AsRef<Path>>(
             .with_remap_pattern("conv1d45", "encoder.blocks.1.conv")
             .with_remap_pattern("conv1d46", "encoder.blocks.2.conv")
             .with_remap_pattern("conv1d47", "encoder.blocks.3.conv")
-            .with_remap_pattern("linear15", "hidden_transform")
-            .with_remap_pattern("linear16", "input_transform")
+            .with_remap_pattern("linear15", "hidden_gate")
+            .with_remap_pattern("linear16", "input_gate")
             .with_remap_pattern("conv1d48", "decoder");
 
         // println!("keys: {:#?}", store.keys());
