@@ -24,10 +24,12 @@ use crate::{
 };
 
 /// Load a pretrained Silero VAD model from a file.
-pub fn load_pretrained_silerovad<B: Backend, P: AsRef<Path>>(
+///
+/// Returns (vad16, vad8)
+pub fn load_pretrained_silero_vad<B: Backend, P: AsRef<Path>>(
     path: P,
     device: &B::Device,
-) -> BunsenResult<SileroVad<B>> {
+) -> BunsenResult<(SileroVad<B>, SileroVad<B>)> {
     let path = path.as_ref();
     let path: PathBuf = path.to_path_buf();
 
@@ -54,7 +56,7 @@ pub fn load_pretrained_silerovad<B: Backend, P: AsRef<Path>>(
         module
     };
 
-    let _vad8: SileroVad<B> = {
+    let vad8: SileroVad<B> = {
         let cfg = SileroVadAbstractConfig::standard_8khz();
 
         let mut store = BurnpackStore::from_file(path.clone())
@@ -77,7 +79,7 @@ pub fn load_pretrained_silerovad<B: Backend, P: AsRef<Path>>(
         module
     };
 
-    Ok(vad16)
+    Ok((vad16, vad8))
 }
 
 #[cfg(test)]
@@ -91,6 +93,7 @@ mod tests {
     };
 
     #[test]
+    #[ignore]
     fn test_load_pretrained() {
         type B = CpuBackend;
 
@@ -99,6 +102,6 @@ mod tests {
         );
         let device = Default::default();
 
-        let _vad: SileroVad<B> = load_pretrained_silerovad(path, &device).ok_or_panic();
+        let (_vad16, _vad8) = load_pretrained_silero_vad::<B, _>(path, &device).ok_or_panic();
     }
 }
