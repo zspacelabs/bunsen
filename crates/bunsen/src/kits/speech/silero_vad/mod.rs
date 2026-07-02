@@ -6,9 +6,10 @@ pub mod blocks;
 pub mod pretrained;
 
 #[doc(inline)]
-pub use blocks::module::{
+pub use blocks::{
     SileroVad,
-    SileroVadAbstractConfig,
-    SileroVadMeta,
-    SileroVadStructureConfig,
+    SileroVadBranch,
+    SileroVadBranchAbstractConfig,
+    SileroVadBranchMeta,
+    SileroVadBranchStructureConfig,
 };
