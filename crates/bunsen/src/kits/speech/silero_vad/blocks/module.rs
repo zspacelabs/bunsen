@@ -72,6 +72,7 @@ use burn_store::{
 use crate::{
     blocks::conv::{
         ConvBlock1dConfig,
+        ConvBlock1dMeta,
         ConvSeq1d,
         ConvSeq1dConfig,
         ConvSeq1dMeta,
@@ -249,9 +250,12 @@ pub trait SileroVadMeta {
     /// LSTM state width).
     fn d_hidden(&self) -> usize;
 
-    /// The combined LSTM gate width; four gates of [`hidden_size`].
+    /// The bottleneck width of the encoder.
+    fn d_bottleneck(&self) -> usize;
+
+    /// The combined LSTM gate width; four gates of [`d_hidden`].
     ///
-    /// [`hidden_size`]: SileroVadMeta::d_hidden
+    /// [`d_hidden`]: SileroVadMeta::d_hidden
     fn gate_size(&self) -> usize {
         4 * self.d_hidden()
     }
@@ -346,6 +350,10 @@ impl SileroVadMeta for SileroVadStructureConfig {
 
     fn d_hidden(&self) -> usize {
         self.encoder.out_channels()
+    }
+
+    fn d_bottleneck(&self) -> usize {
+        self.encoder.blocks.last().unwrap().in_channels()
     }
 }
 
@@ -453,6 +461,10 @@ impl<B: Backend> SileroVadMeta for SileroVad<B> {
 
     fn d_hidden(&self) -> usize {
         self.encoder.out_channels()
+    }
+
+    fn d_bottleneck(&self) -> usize {
+        self.encoder.blocks.last().unwrap().in_channels()
     }
 }
 
