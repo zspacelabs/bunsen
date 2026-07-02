@@ -397,8 +397,8 @@ impl<B: Backend> ModuleInit<B, SileroVad<B>> for SileroVadStructureConfig {
             input_pad: self.input_pad,
             stft: self.stft.init(device),
             encoder: self.encoder.try_init(device)?,
-            input_gate: self.gate_config.init(device),
-            hidden_gate: self.gate_config.init(device),
+            lstm_features: self.gate_config.init(device),
+            lstm_hidden: self.gate_config.init(device),
             decoder: self.decoder.init(device),
         })
     }
@@ -430,10 +430,10 @@ pub struct SileroVad<B: Backend> {
     pub encoder: ConvSeq1d<B>,
 
     /// The LSTM input (feature -> gates) projection.
-    pub input_gate: Linear<B>,
+    pub lstm_features: Linear<B>,
 
     /// The LSTM recurrent (hidden -> gates) projection.
-    pub hidden_gate: Linear<B>,
+    pub lstm_hidden: Linear<B>,
 
     /// The `1x1` output-head conv.
     pub decoder: Conv1d<B>,
@@ -645,7 +645,7 @@ impl<B: Backend> SileroVad<B> {
     ) -> (Tensor<B, 2>, Tensor<B, 2>) {
         // Gates: recurrent projection of `hidden` plus input projection of
         // `feature`, split into [input, forget, cell, output] gates.
-        let gates = self.input_gate.forward(features) + self.hidden_gate.forward(hidden);
+        let gates = self.lstm_features.forward(features) + self.lstm_hidden.forward(hidden);
 
         let [g_i, g_f, g_c, g_o] = gates.chunk(4, 1).try_into().unwrap();
 
@@ -676,7 +676,7 @@ impl<B: Backend> SileroVad<B> {
         let x = relu(x);
         let x = self.decoder.forward(x);
         let x = sigmoid(x);
-        let x = x.squeeze_dim::<2>(2);
+        let x = x.squeeze_dim::<2>(1);
         x.mean_dim(1)
     }
 }
@@ -694,7 +694,7 @@ mod tests {
     type B = CpuBackend;
 
     /// A valid chunk length for the given sample rate (standard Silero chunk).
-    fn chunk_samples(sample_rate: usize) -> usize {
+    pub fn chunk_samples(sample_rate: usize) -> usize {
         match sample_rate {
             16000 => 512,
             8000 => 256,
@@ -1051,127 +1051,162 @@ impl<B: Backend> ReferenceVAD<B> {
         sr: i64,
         state: Tensor<B, 3>,
     ) -> (Tensor<B, 2>, Tensor<B, 3>) {
-        let equal1_out1 = sr == 16000i64;
-        let (if1_out1, if1_out2) = if equal1_out1 {
-            let input = input.clone();
-            let state = state.clone();
-            let pad7_out1 = input.pad([(0usize, 0usize), (0usize, 64usize)], PadMode::Reflect);
-            let unsqueeze31_out1: Tensor<B, 3> = pad7_out1.unsqueeze_dims::<3>(&[1]);
-            let conv1d37_out1 = self.conv1d37.forward(unsqueeze31_out1);
-            let slice13_out1 = conv1d37_out1.clone().slice(s![.., 0..129, ..]);
-            let slice14_out1 = conv1d37_out1.slice(s![.., 129.., ..]);
-            let pow13_out1 = slice13_out1.clone() * slice13_out1;
-            let pow14_out1 = slice14_out1.clone() * slice14_out1;
-            let add19_out1 = pow13_out1.add(pow14_out1);
-            let sqrt7_out1 = add19_out1.sqrt();
-            let conv1d38_out1 = self.conv1d38.forward(sqrt7_out1);
-            let relu31_out1 = relu(conv1d38_out1);
-            let conv1d39_out1 = self.conv1d39.forward(relu31_out1);
-            let relu32_out1 = relu(conv1d39_out1);
-            let conv1d40_out1 = self.conv1d40.forward(relu32_out1);
-            let relu33_out1 = relu(conv1d40_out1);
-            let conv1d41_out1 = self.conv1d41.forward(relu33_out1);
-            let relu34_out1 = relu(conv1d41_out1);
-            let gather21_out1 = {
-                let sliced = relu34_out1.slice(s![.., .., 0i64]);
-                sliced.squeeze_dim::<2usize>(2)
-            };
-            let gather22_out1 = {
-                let sliced = state.clone().slice(s![0i64, .., ..]);
-                sliced.squeeze_dim::<2usize>(0)
-            };
-            let gather23_out1 = {
-                let sliced = state.slice(s![1i64, .., ..]);
-                sliced.squeeze_dim::<2usize>(0)
-            };
-            let linear13_out1 = self.linear13.forward(gather22_out1);
-            let linear14_out1 = self.linear14.forward(gather21_out1);
-            let add20_out1 = linear13_out1.add(linear14_out1);
-            let split_tensors = add20_out1.split_with_sizes([128, 128, 128, 128].into(), 1);
-            let [split7_out1, split7_out2, split7_out3, split7_out4] =
-                split_tensors.try_into().unwrap();
-            let sigmoid25_out1 = sigmoid(split7_out1);
-            let sigmoid26_out1 = sigmoid(split7_out2);
-            let tanh13_out1 = split7_out3.tanh();
-            let sigmoid27_out1 = sigmoid(split7_out4);
-            let mul19_out1 = sigmoid26_out1.mul(gather23_out1);
-            let mul20_out1 = sigmoid25_out1.mul(tanh13_out1);
-            let add21_out1 = mul19_out1.add(mul20_out1);
-            let tanh14_out1 = add21_out1.clone().tanh();
-            let new_hidden = sigmoid27_out1.mul(tanh14_out1);
-
-            let unsqueeze33_out1: Tensor<B, 3> = new_hidden.clone().unsqueeze_dims::<3>(&[0]);
-            let unsqueeze34_out1: Tensor<B, 3> = add21_out1.unsqueeze_dims::<3>(&[0]);
-            let new_cell = Tensor::cat([unsqueeze33_out1, unsqueeze34_out1].into(), 0);
-
-            // output head
-            let unsqueeze32_out1: Tensor<B, 3> = new_hidden.clone().unsqueeze_dims::<3>(&[-1]);
-            let relu35_out1 = relu(unsqueeze32_out1);
-            let conv1d42_out1 = self.conv1d42.forward(relu35_out1);
-            let sigmoid28_out1 = sigmoid(conv1d42_out1);
-            let squeeze7_out1 = sigmoid28_out1.squeeze_dims::<2>(&[1]);
-            let reducemean7_out1 = { squeeze7_out1.mean_dim(1usize).squeeze_dims::<1usize>(&[1]) };
-            let unsqueeze35_out1: Tensor<B, 2> = reducemean7_out1.unsqueeze_dims::<2>(&[1]);
-            (unsqueeze35_out1, new_cell)
+        if sr == 16000i64 {
+            self.forward_16khz(input, state)
         } else {
-            let input = input.clone();
-            let state = state.clone();
-            let pad8_out1 = input.pad([(0usize, 0usize), (0usize, 32usize)], PadMode::Reflect);
-            let unsqueeze36_out1: Tensor<B, 3> = pad8_out1.unsqueeze_dims::<3>(&[1]);
-            let conv1d43_out1 = self.conv1d43.forward(unsqueeze36_out1);
-            let slice15_out1 = conv1d43_out1.clone().slice(s![.., 0..65, ..]);
-            let slice16_out1 = conv1d43_out1.slice(s![.., 65.., ..]);
-            let pow15_out1 = slice15_out1.clone() * slice15_out1;
-            let pow16_out1 = slice16_out1.clone() * slice16_out1;
-            let add22_out1 = pow15_out1.add(pow16_out1);
-            let sqrt8_out1 = add22_out1.sqrt();
-            let conv1d44_out1 = self.conv1d44.forward(sqrt8_out1);
-            let relu36_out1 = relu(conv1d44_out1);
-            let conv1d45_out1 = self.conv1d45.forward(relu36_out1);
-            let relu37_out1 = relu(conv1d45_out1);
-            let conv1d46_out1 = self.conv1d46.forward(relu37_out1);
-            let relu38_out1 = relu(conv1d46_out1);
-            let conv1d47_out1 = self.conv1d47.forward(relu38_out1);
-            let relu39_out1 = relu(conv1d47_out1);
-            let gather24_out1 = {
-                let sliced = relu39_out1.slice(s![.., .., 0i64]);
-                sliced.squeeze_dim::<2usize>(2)
-            };
-            let gather25_out1 = {
-                let sliced = state.clone().slice(s![0i64, .., ..]);
-                sliced.squeeze_dim::<2usize>(0)
-            };
-            let gather26_out1 = {
-                let sliced = state.slice(s![1i64, .., ..]);
-                sliced.squeeze_dim::<2usize>(0)
-            };
-            let linear15_out1 = self.linear15.forward(gather25_out1);
-            let linear16_out1 = self.linear16.forward(gather24_out1);
-            let add23_out1 = linear15_out1.add(linear16_out1);
-            let split_tensors = add23_out1.split_with_sizes([128, 128, 128, 128].into(), 1);
-            let [split8_out1, split8_out2, split8_out3, split8_out4] =
-                split_tensors.try_into().unwrap();
-            let sigmoid29_out1 = sigmoid(split8_out1);
-            let sigmoid30_out1 = sigmoid(split8_out2);
-            let tanh15_out1 = split8_out3.tanh();
-            let sigmoid31_out1 = sigmoid(split8_out4);
-            let mul22_out1 = sigmoid30_out1.mul(gather26_out1);
-            let mul23_out1 = sigmoid29_out1.mul(tanh15_out1);
-            let add24_out1 = mul22_out1.add(mul23_out1);
-            let tanh16_out1 = add24_out1.clone().tanh();
-            let mul24_out1 = sigmoid31_out1.mul(tanh16_out1);
-            let unsqueeze37_out1: Tensor<B, 3> = mul24_out1.clone().unsqueeze_dims::<3>(&[-1]);
-            let unsqueeze38_out1: Tensor<B, 3> = mul24_out1.unsqueeze_dims::<3>(&[0]);
-            let unsqueeze39_out1: Tensor<B, 3> = add24_out1.unsqueeze_dims::<3>(&[0]);
-            let concat8_out1 = Tensor::cat([unsqueeze38_out1, unsqueeze39_out1].into(), 0);
-            let relu40_out1 = relu(unsqueeze37_out1);
-            let conv1d48_out1 = self.conv1d48.forward(relu40_out1);
-            let sigmoid32_out1 = sigmoid(conv1d48_out1);
-            let squeeze8_out1 = sigmoid32_out1.squeeze_dims::<2>(&[1]);
-            let reducemean8_out1 = { squeeze8_out1.mean_dim(1usize).squeeze_dims::<1usize>(&[1]) };
-            let unsqueeze40_out1: Tensor<B, 2> = reducemean8_out1.unsqueeze_dims::<2>(&[1]);
-            (unsqueeze40_out1, concat8_out1)
+            self.forward_8khz(input, state)
+        }
+    }
+
+    /// (cell, hidden)
+    fn unpack_state(state: Tensor<B, 3>) -> (Tensor<B, 2>, Tensor<B, 2>) {
+        let hidden = state.clone().slice_dim(0, 0).squeeze_dim::<2usize>(0);
+        let cell = state.slice_dim(0, 1).squeeze_dim::<2usize>(0);
+        (cell, hidden)
+    }
+
+    /// Stacks `(cell, hidden)` into a packed `[2, batch, hidden]` state.
+    fn pack_state(
+        cell: Tensor<B, 2>,
+        hidden: Tensor<B, 2>,
+    ) -> Tensor<B, 3> {
+        Tensor::stack(vec![hidden, cell], 0)
+    }
+
+    /// Frame Features, 16khz
+    pub fn frame_features_16khz(
+        &self,
+        input: Tensor<B, 2>,
+    ) -> Tensor<B, 2> {
+        let x = input.pad([(0, 0), (0, 64)], PadMode::Reflect);
+        let x: Tensor<B, 3> = x.unsqueeze_dim::<3>(1);
+
+        let [real_2, imag_2] = self
+            .conv1d37
+            .forward(x)
+            .square()
+            .chunk(2, 1)
+            .try_into()
+            .unwrap();
+        let x = (real_2 + imag_2).sqrt();
+
+        // Encoder
+        let x = self.conv1d38.forward(x);
+        let x = relu(x);
+        let x = self.conv1d39.forward(x);
+        let x = relu(x);
+        let x = self.conv1d40.forward(x);
+        let x = relu(x);
+        let x = self.conv1d41.forward(x);
+        let x = relu(x);
+
+        x.slice_dim(2, 0).squeeze_dim::<2usize>(2)
+    }
+
+    /// Run the module.
+    #[allow(clippy::let_and_return, clippy::approx_constant)]
+    pub fn forward_16khz(
+        &self,
+        input: Tensor<B, 2>,
+        state: Tensor<B, 3>,
+    ) -> (Tensor<B, 2>, Tensor<B, 3>) {
+        let input = input.clone();
+        let state = state.clone();
+
+        let features = self.frame_features_16khz(input);
+
+        let (cell, hidden) = Self::unpack_state(state);
+
+        let gates = self.linear13.forward(hidden) + self.linear14.forward(features);
+
+        let [g_i, g_f, g_c, g_o] = gates.chunk(4, 1).try_into().unwrap();
+
+        let input_values = sigmoid(g_i);
+        let forget_values = sigmoid(g_f);
+        let candidate_cell_values = tanh(g_c);
+        let output_values = sigmoid(g_o);
+
+        let cell = (forget_values * cell) + (input_values * candidate_cell_values);
+        let hidden = output_values * tanh(cell.clone());
+
+        let state = Self::pack_state(cell, hidden.clone());
+
+        // output head
+        let x: Tensor<B, 3> = hidden.unsqueeze_dim::<3>(2);
+        let x = relu(x);
+        let x = self.conv1d42.forward(x);
+        let x = sigmoid(x);
+        let x = x.squeeze_dims::<2>(&[1]);
+        let x = x.mean_dim(1);
+        // let x: Tensor<B, 2> = x.squeeze_dims::<1>(&[1]).unsqueeze_dims::<2>(&[1]);
+
+        (x, state)
+    }
+
+    /// Run the module.
+    #[allow(clippy::let_and_return, clippy::approx_constant)]
+    pub fn forward_8khz(
+        &self,
+        input: Tensor<B, 2>,
+        state: Tensor<B, 3>,
+    ) -> (Tensor<B, 2>, Tensor<B, 3>) {
+        let input = input.clone();
+        let state = state.clone();
+
+        let pad8_out1 = input.pad([(0usize, 0usize), (0usize, 32usize)], PadMode::Reflect);
+        let unsqueeze36_out1: Tensor<B, 3> = pad8_out1.unsqueeze_dims::<3>(&[1]);
+        let conv1d43_out1 = self.conv1d43.forward(unsqueeze36_out1);
+        let slice15_out1 = conv1d43_out1.clone().slice(s![.., 0..65, ..]);
+        let slice16_out1 = conv1d43_out1.slice(s![.., 65.., ..]);
+        let pow15_out1 = slice15_out1.square();
+        let pow16_out1 = slice16_out1.square();
+        let sqrt8_out1 = (pow15_out1 + pow16_out1).sqrt();
+        let conv1d44_out1 = self.conv1d44.forward(sqrt8_out1);
+        let relu36_out1 = relu(conv1d44_out1);
+        let conv1d45_out1 = self.conv1d45.forward(relu36_out1);
+        let relu37_out1 = relu(conv1d45_out1);
+        let conv1d46_out1 = self.conv1d46.forward(relu37_out1);
+        let relu38_out1 = relu(conv1d46_out1);
+        let conv1d47_out1 = self.conv1d47.forward(relu38_out1);
+        let relu39_out1 = relu(conv1d47_out1);
+        let features = {
+            let sliced = relu39_out1.slice(s![.., .., 0i64]);
+            sliced.squeeze_dim::<2usize>(2)
         };
-        (if1_out1, if1_out2)
+
+        let gather25_out1 = {
+            let sliced = state.clone().slice(s![0i64, .., ..]);
+            sliced.squeeze_dim::<2usize>(0)
+        };
+        let gather26_out1 = {
+            let sliced = state.slice(s![1i64, .., ..]);
+            sliced.squeeze_dim::<2usize>(0)
+        };
+        let linear15_out1 = self.linear15.forward(gather25_out1);
+        let linear16_out1 = self.linear16.forward(features);
+        let add23_out1 = linear15_out1.add(linear16_out1);
+        let split_tensors = add23_out1.split_with_sizes([128, 128, 128, 128].into(), 1);
+        let [split8_out1, split8_out2, split8_out3, split8_out4] =
+            split_tensors.try_into().unwrap();
+        let sigmoid29_out1 = sigmoid(split8_out1);
+        let sigmoid30_out1 = sigmoid(split8_out2);
+        let tanh15_out1 = split8_out3.tanh();
+        let sigmoid31_out1 = sigmoid(split8_out4);
+        let mul22_out1 = sigmoid30_out1.mul(gather26_out1);
+        let mul23_out1 = sigmoid29_out1.mul(tanh15_out1);
+        let add24_out1 = mul22_out1.add(mul23_out1);
+        let tanh16_out1 = add24_out1.clone().tanh();
+        let mul24_out1 = sigmoid31_out1.mul(tanh16_out1);
+        let unsqueeze37_out1: Tensor<B, 3> = mul24_out1.clone().unsqueeze_dims::<3>(&[-1]);
+        let unsqueeze38_out1: Tensor<B, 3> = mul24_out1.unsqueeze_dims::<3>(&[0]);
+        let unsqueeze39_out1: Tensor<B, 3> = add24_out1.unsqueeze_dims::<3>(&[0]);
+        let concat8_out1 = Tensor::cat([unsqueeze38_out1, unsqueeze39_out1].into(), 0);
+        let relu40_out1 = relu(unsqueeze37_out1);
+        let conv1d48_out1 = self.conv1d48.forward(relu40_out1);
+        let sigmoid32_out1 = sigmoid(conv1d48_out1);
+        let squeeze8_out1 = sigmoid32_out1.squeeze_dims::<2>(&[1]);
+        let reducemean8_out1 = { squeeze8_out1.mean_dim(1usize).squeeze_dims::<1usize>(&[1]) };
+        let unsqueeze40_out1: Tensor<B, 2> = reducemean8_out1.unsqueeze_dims::<2>(&[1]);
+        (unsqueeze40_out1, concat8_out1)
     }
 }
