@@ -568,7 +568,8 @@ impl<B: Backend> SileroVad<B> {
         let x = relu(x);
         let x = self.decoder.forward(x);
         let x = sigmoid(x);
-        x.squeeze_dim::<2>(2).mean_dim(1)
+        let x = x.squeeze_dim::<2>(2);
+        x.mean_dim(1)
     }
 }
 
