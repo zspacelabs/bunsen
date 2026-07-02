@@ -32,7 +32,11 @@
 
 use burn::{
     config::Config,
-    module::Module,
+    module::{
+        Module,
+        Param,
+        ParamId,
+    },
     nn::{
         Linear,
         LinearConfig,
@@ -49,12 +53,19 @@ use burn::{
         s,
     },
     tensor::{
+        Bytes,
+        Int,
         activation::{
             relu,
             sigmoid,
+            tanh,
         },
         ops::PadMode,
     },
+};
+use burn_store::{
+    BurnpackStore,
+    ModuleSnapshot,
 };
 
 use crate::{
@@ -65,6 +76,10 @@ use crate::{
         ConvSeq1dMeta,
     },
     burner::module::ModuleInit,
+    contracts::{
+        assert_shape_contract_periodically,
+        unpack_shape_contract,
+    },
     errors::{
         BunsenError,
         BunsenResult,
@@ -126,11 +141,11 @@ pub struct SileroVadConfig {
     /// The 4-block `ReLU` conv encoder.
     pub encoder: ConvSeq1dConfig,
 
-    /// The LSTM recurrent (hidden -> gates) projection.
-    pub hidden_gate: LinearConfig,
-
     /// The LSTM input (feature -> gates) projection.
-    pub input_gate: LinearConfig,
+    pub input_transform: LinearConfig,
+
+    /// The LSTM recurrent (hidden -> gates) projection.
+    pub hidden_transform: LinearConfig,
 
     /// The `1x1` output-head conv: `hidden -> 1`.
     pub decoder: Conv1dConfig,
@@ -187,8 +202,8 @@ impl SileroVadConfig {
                 .with_padding(PaddingConfig1d::Valid)
                 .with_bias(false),
             encoder: encoder_config(n_freq),
-            hidden_gate: lstm_gate_config(HIDDEN),
-            input_gate: lstm_gate_config(HIDDEN),
+            input_transform: lstm_gate_config(HIDDEN),
+            hidden_transform: lstm_gate_config(HIDDEN),
             decoder: Conv1dConfig::new(HIDDEN, 1, 1)
                 .with_padding(PaddingConfig1d::Valid)
                 .with_bias(true),
@@ -212,19 +227,19 @@ impl SileroVadConfig {
                 self.n_freq(),
             )));
         }
-        if self.hidden_gate.d_input != hidden || self.input_gate.d_input != hidden {
+        if self.hidden_transform.d_input != hidden || self.input_transform.d_input != hidden {
             return Err(BunsenError::Invalid(format!(
                 "SileroVad gate inputs ({}, {}) must both equal hidden ({hidden})",
-                self.hidden_gate.d_input, self.input_gate.d_input,
+                self.hidden_transform.d_input, self.input_transform.d_input,
             )));
         }
-        if self.hidden_gate.d_output != self.gate_size()
-            || self.input_gate.d_output != self.gate_size()
+        if self.hidden_transform.d_output != self.gate_size()
+            || self.input_transform.d_output != self.gate_size()
         {
             return Err(BunsenError::Invalid(format!(
                 "SileroVad gate outputs ({}, {}) must both equal gate_size ({})",
-                self.hidden_gate.d_output,
-                self.input_gate.d_output,
+                self.hidden_transform.d_output,
+                self.input_transform.d_output,
                 self.gate_size(),
             )));
         }
@@ -249,8 +264,8 @@ impl<B: Backend> ModuleInit<B, SileroVad<B>> for SileroVadConfig {
             input_pad: self.input_pad,
             stft: self.stft.init(device),
             encoder: self.encoder.try_init(device)?,
-            hidden_gate: self.hidden_gate.init(device),
-            input_gate: self.input_gate.init(device),
+            input_gate: self.input_transform.init(device),
+            hidden_gate: self.hidden_transform.init(device),
             decoder: self.decoder.init(device),
         })
     }
@@ -280,11 +295,11 @@ pub struct SileroVad<B: Backend> {
     /// The `ReLU` conv encoder.
     pub encoder: ConvSeq1d<B>,
 
-    /// The LSTM recurrent (hidden -> gates) projection.
-    pub hidden_gate: Linear<B>,
-
     /// The LSTM input (feature -> gates) projection.
     pub input_gate: Linear<B>,
+
+    /// The LSTM recurrent (hidden -> gates) projection.
+    pub hidden_gate: Linear<B>,
 
     /// The `1x1` output-head conv.
     pub decoder: Conv1d<B>,
@@ -337,16 +352,20 @@ impl<B: Backend> SileroVad<B> {
 
         // STFT magnitude: split the [n, 2F, T] conv into real / imaginary
         // halves and combine as sqrt(real^2 + imag^2) -> [n, F, T].
-        let x = self.stft.forward(x);
-        let f = x.dims()[1] / 2;
-        let real = x.clone().slice_dim(1, ..f);
-        let imag = x.slice_dim(1, f..);
-        let mag = (real.powi_scalar(2) + imag.powi_scalar(2)).sqrt();
+        let [real_2, imag_2] = self
+            .stft
+            .forward(x)
+            .square()
+            .chunk(2, 1)
+            .try_into()
+            .unwrap();
+        let mag = (real_2 + imag_2).sqrt();
 
         // Encode, then take the first (and, for a single chunk, only) frame.
-        let encoded = self.encoder.forward(mag);
-
-        encoded.slice_dim(2, 0).squeeze_dim::<2>(2)
+        self.encoder
+            .forward(mag)
+            .slice_dim(2, 0)
+            .squeeze_dim::<2>(2)
     }
 
     /// Runs one LSTM step.
@@ -359,27 +378,27 @@ impl<B: Backend> SileroVad<B> {
     ///
     /// # Returns
     ///
-    /// The `(hidden, cell)` next states, each `[n, hidden]`.
+    /// The `(cell, hidden)` next states, each `[n, hidden]`.
     pub fn lstm_step(
         &self,
         feature: Tensor<B, 2>,
-        hidden: Tensor<B, 2>,
         cell: Tensor<B, 2>,
+        hidden: Tensor<B, 2>,
     ) -> (Tensor<B, 2>, Tensor<B, 2>) {
         // Gates: recurrent projection of `hidden` plus input projection of
         // `feature`, split into [input, forget, cell, output] gates.
         let gates = self.input_gate.forward(feature) + self.hidden_gate.forward(hidden);
 
-        let [g_i, g_f, g_g, g_o] = gates.chunk(4, 1).try_into().unwrap();
+        let [g_i, g_f, g_c, g_o] = gates.chunk(4, 1).try_into().unwrap();
 
-        let i = sigmoid(g_i);
-        let forget = sigmoid(g_f);
-        let g = g_g.tanh();
-        let o = sigmoid(g_o);
+        let input_values = sigmoid(g_i);
+        let forget_values = sigmoid(g_f);
+        let candidate_cell_values = tanh(g_c);
+        let output_values = sigmoid(g_o);
 
-        let new_cell = forget * cell + i * g;
-        let new_hidden = o * new_cell.clone().tanh();
-        (new_hidden, new_cell)
+        let new_cell = forget_values * cell + input_values * candidate_cell_values;
+        let new_hidden = output_values * tanh(new_cell.clone());
+        (new_cell, new_hidden)
     }
 
     /// Runs the `1x1` conv + sigmoid output head.
@@ -399,20 +418,21 @@ impl<B: Backend> SileroVad<B> {
         let x = relu(x);
         let x = self.decoder.forward(x);
         let x = sigmoid(x);
-        x.squeeze_dim::<2>(2)
+        x.squeeze_dim::<2>(2).mean_dim(1)
     }
 
-    /// Splits a packed `[2, batch, hidden]` state into `(hidden, cell)`.
+    /// Splits a packed `[2, batch, hidden]` state into `(cell, hidden)`.
+    /// Of shape `[batch, hidden]`.
     fn unpack_state(state: Tensor<B, 3>) -> (Tensor<B, 2>, Tensor<B, 2>) {
         let hidden = state.clone().slice_dim(0, 0).squeeze_dim::<2>(0);
         let cell = state.slice_dim(0, 1).squeeze_dim::<2>(0);
-        (hidden, cell)
+        (cell, hidden)
     }
 
-    /// Stacks `(hidden, cell)` into a packed `[2, batch, hidden]` state.
+    /// Stacks `(cell, hidden)` into a packed `[2, batch, hidden]` state.
     fn pack_state(
-        hidden: Tensor<B, 2>,
         cell: Tensor<B, 2>,
+        hidden: Tensor<B, 2>,
     ) -> Tensor<B, 3> {
         Tensor::stack(vec![hidden, cell], 0)
     }
@@ -437,11 +457,21 @@ impl<B: Backend> SileroVad<B> {
         input: Tensor<B, 2>,
         state: Tensor<B, 3>,
     ) -> (Tensor<B, 2>, Tensor<B, 3>) {
+        #[cfg(any(test, debug_assertions))]
+        {
+            let [batch, _samples] = input.dims();
+            assert_shape_contract_periodically!(
+                ["2", "batch", "d_hidden"],
+                &state,
+                &[("batch", batch), ("d_hidden", self.hidden_size())]
+            );
+        }
+
         let feature = self.frame_features(input);
-        let (hidden, cell) = Self::unpack_state(state);
-        let (hidden, cell) = self.lstm_step(feature, hidden, cell);
+        let (cell, hidden) = Self::unpack_state(state);
+        let (cell, hidden) = self.lstm_step(feature, cell, hidden);
         let prob = self.output_head(hidden.clone());
-        (prob, Self::pack_state(hidden, cell))
+        (prob, Self::pack_state(cell, hidden))
     }
 
     /// Streaming forward pass over a single stream's chunk-sequence.
@@ -465,23 +495,38 @@ impl<B: Backend> SileroVad<B> {
     ) -> (Tensor<B, 2>, Tensor<B, 3>) {
         // One feature frame per chunk: [steps, hidden].
         let features = self.frame_features(input);
-        let steps = features.dims()[0];
 
-        let (mut hidden, mut cell) = Self::unpack_state(state);
+        let d_hidden = self.hidden_size();
 
-        let mut hidden_steps = Vec::with_capacity(steps);
+        cfg_select! {
+            any(test, debug_assertions) => {
+                let [steps] = unpack_shape_contract!(
+                    ["steps", "d_hidden"],
+                    &features,
+                    &["steps"],
+                    &[("d_hidden", self.hidden_size())]
+                );
+                assert_shape_contract_periodically!(["2", "1", "d_hidden"], &state, &[("d_hidden", d_hidden)]);
+            }
+            _ => {
+                let steps = features.dims()[0];
+            }
+        }
+
+        let (mut cell, mut hidden) = Self::unpack_state(state);
+
+        let mut hs = Tensor::empty([steps, d_hidden], &hidden.device());
+
         for step in 0..steps {
-            let feature = features.clone().slice(s![step..step + 1, ..]);
-            let (new_hidden, new_cell) = self.lstm_step(feature, hidden, cell);
-            hidden = new_hidden.clone();
-            cell = new_cell;
-            hidden_steps.push(new_hidden);
+            let feature = features.clone().slice_dim(0, step);
+            (cell, hidden) = self.lstm_step(feature, cell, hidden);
+            hs = hs.slice_assign(s![step, ..], hidden.clone());
         }
 
         // Batch the output head over all steps at once.
-        let all_hidden = Tensor::cat(hidden_steps, 0);
-        let probs = self.output_head(all_hidden);
-        (probs, Self::pack_state(hidden, cell))
+        let probs = self.output_head(hs);
+        let state = Self::pack_state(cell, hidden);
+        (probs, state)
     }
 }
 
@@ -671,5 +716,338 @@ mod tests {
         seq_state
             .into_data()
             .assert_approx_eq::<f32>(&state.into_data(), tol);
+    }
+}
+
+/// Reference model for Silero VAD.
+#[derive(Module, Debug)]
+pub struct ReferenceVAD<B: Backend> {
+    constant32: Param<Tensor<B, 1, Int>>,
+    constant41: Param<Tensor<B, 1, Int>>,
+    constant42: Param<Tensor<B, 1>>,
+    conv1d37: Conv1d<B>,
+    conv1d38: Conv1d<B>,
+    conv1d39: Conv1d<B>,
+    conv1d40: Conv1d<B>,
+    conv1d41: Conv1d<B>,
+    linear13: Linear<B>,
+    linear14: Linear<B>,
+    conv1d42: Conv1d<B>,
+    conv1d43: Conv1d<B>,
+    conv1d44: Conv1d<B>,
+    conv1d45: Conv1d<B>,
+    conv1d46: Conv1d<B>,
+    conv1d47: Conv1d<B>,
+    linear15: Linear<B>,
+    linear16: Linear<B>,
+    conv1d48: Conv1d<B>,
+}
+
+impl<B: Backend> ReferenceVAD<B> {
+    /// Load model weights from a burnpack file.
+    pub fn from_file(
+        file: &str,
+        device: &B::Device,
+    ) -> Self {
+        let mut model = Self::new(device);
+        let mut store = BurnpackStore::from_file(file);
+        model
+            .load_from(&mut store)
+            .expect("Failed to load burnpack file");
+        model
+    }
+
+    /// Load model weights from in-memory bytes.
+    ///
+    /// The bytes must be the contents of a `.bpk` file.
+    pub fn from_bytes(
+        bytes: Bytes,
+        device: &B::Device,
+    ) -> Self {
+        let mut model = Self::new(device);
+        let mut store = BurnpackStore::from_bytes(Some(bytes));
+        model
+            .load_from(&mut store)
+            .expect("Failed to load burnpack bytes");
+        model
+    }
+}
+
+impl<B: Backend> ReferenceVAD<B> {
+    /// Build a new reference model.
+    #[allow(unused_variables)]
+    pub fn new(device: &B::Device) -> Self {
+        let constant32: Param<Tensor<B, 1, Int>> = Param::uninitialized(
+            ParamId::new(),
+            move |device, _require_grad| Tensor::<B, 1, Int>::from_data([0i64], device),
+            device.clone(),
+            false,
+            [1].into(),
+        );
+        let constant41: Param<Tensor<B, 1, Int>> = Param::uninitialized(
+            ParamId::new(),
+            move |device, _require_grad| Tensor::<B, 1, Int>::from_data([1i64], device),
+            device.clone(),
+            false,
+            [1].into(),
+        );
+        let constant42: Param<Tensor<B, 1>> = Param::uninitialized(
+            ParamId::new(),
+            move |device, _require_grad| Tensor::<B, 1>::from_data([2f64], device),
+            device.clone(),
+            false,
+            [1].into(),
+        );
+        let conv1d37 = Conv1dConfig::new(1, 258, 256)
+            .with_stride(128)
+            .with_padding(PaddingConfig1d::Valid)
+            .with_dilation(1)
+            .with_groups(1)
+            .with_bias(false)
+            .init(device);
+        let conv1d38 = Conv1dConfig::new(129, 128, 3)
+            .with_stride(1)
+            .with_padding(PaddingConfig1d::Explicit(1, 1))
+            .with_dilation(1)
+            .with_groups(1)
+            .with_bias(true)
+            .init(device);
+        let conv1d39 = Conv1dConfig::new(128, 64, 3)
+            .with_stride(2)
+            .with_padding(PaddingConfig1d::Explicit(1, 1))
+            .with_dilation(1)
+            .with_groups(1)
+            .with_bias(true)
+            .init(device);
+        let conv1d40 = Conv1dConfig::new(64, 64, 3)
+            .with_stride(2)
+            .with_padding(PaddingConfig1d::Explicit(1, 1))
+            .with_dilation(1)
+            .with_groups(1)
+            .with_bias(true)
+            .init(device);
+        let conv1d41 = Conv1dConfig::new(64, 128, 3)
+            .with_stride(1)
+            .with_padding(PaddingConfig1d::Explicit(1, 1))
+            .with_dilation(1)
+            .with_groups(1)
+            .with_bias(true)
+            .init(device);
+        let linear13 = LinearConfig::new(128, 512)
+            .with_bias(true)
+            .with_layout(LinearLayout::Col)
+            .init(device);
+        let linear14 = LinearConfig::new(128, 512)
+            .with_bias(true)
+            .with_layout(LinearLayout::Col)
+            .init(device);
+        let conv1d42 = Conv1dConfig::new(128, 1, 1)
+            .with_stride(1)
+            .with_padding(PaddingConfig1d::Valid)
+            .with_dilation(1)
+            .with_groups(1)
+            .with_bias(true)
+            .init(device);
+        let conv1d43 = Conv1dConfig::new(1, 130, 128)
+            .with_stride(64)
+            .with_padding(PaddingConfig1d::Valid)
+            .with_dilation(1)
+            .with_groups(1)
+            .with_bias(false)
+            .init(device);
+        let conv1d44 = Conv1dConfig::new(65, 128, 3)
+            .with_stride(1)
+            .with_padding(PaddingConfig1d::Explicit(1, 1))
+            .with_dilation(1)
+            .with_groups(1)
+            .with_bias(true)
+            .init(device);
+        let conv1d45 = Conv1dConfig::new(128, 64, 3)
+            .with_stride(2)
+            .with_padding(PaddingConfig1d::Explicit(1, 1))
+            .with_dilation(1)
+            .with_groups(1)
+            .with_bias(true)
+            .init(device);
+        let conv1d46 = Conv1dConfig::new(64, 64, 3)
+            .with_stride(2)
+            .with_padding(PaddingConfig1d::Explicit(1, 1))
+            .with_dilation(1)
+            .with_groups(1)
+            .with_bias(true)
+            .init(device);
+        let conv1d47 = Conv1dConfig::new(64, 128, 3)
+            .with_stride(1)
+            .with_padding(PaddingConfig1d::Explicit(1, 1))
+            .with_dilation(1)
+            .with_groups(1)
+            .with_bias(true)
+            .init(device);
+        let linear15 = LinearConfig::new(128, 512)
+            .with_bias(true)
+            .with_layout(LinearLayout::Col)
+            .init(device);
+        let linear16 = LinearConfig::new(128, 512)
+            .with_bias(true)
+            .with_layout(LinearLayout::Col)
+            .init(device);
+        let conv1d48 = Conv1dConfig::new(128, 1, 1)
+            .with_stride(1)
+            .with_padding(PaddingConfig1d::Valid)
+            .with_dilation(1)
+            .with_groups(1)
+            .with_bias(true)
+            .init(device);
+        Self {
+            constant32,
+            constant41,
+            constant42,
+            conv1d37,
+            conv1d38,
+            conv1d39,
+            conv1d40,
+            conv1d41,
+            linear13,
+            linear14,
+            conv1d42,
+            conv1d43,
+            conv1d44,
+            conv1d45,
+            conv1d46,
+            conv1d47,
+            linear15,
+            linear16,
+            conv1d48,
+        }
+    }
+
+    /// Run the module.
+    #[allow(clippy::let_and_return, clippy::approx_constant)]
+    pub fn forward(
+        &self,
+        input: Tensor<B, 2>,
+        sr: i64,
+        state: Tensor<B, 3>,
+    ) -> (Tensor<B, 2>, Tensor<B, 3>) {
+        let equal1_out1 = sr == 16000i64;
+        let (if1_out1, if1_out2) = if equal1_out1 {
+            let input = input.clone();
+            let state = state.clone();
+            let pad7_out1 = input.pad([(0usize, 0usize), (0usize, 64usize)], PadMode::Reflect);
+            let unsqueeze31_out1: Tensor<B, 3> = pad7_out1.unsqueeze_dims::<3>(&[1]);
+            let conv1d37_out1 = self.conv1d37.forward(unsqueeze31_out1);
+            let slice13_out1 = conv1d37_out1.clone().slice(s![.., 0..129, ..]);
+            let slice14_out1 = conv1d37_out1.slice(s![.., 129.., ..]);
+            let pow13_out1 = slice13_out1.clone() * slice13_out1;
+            let pow14_out1 = slice14_out1.clone() * slice14_out1;
+            let add19_out1 = pow13_out1.add(pow14_out1);
+            let sqrt7_out1 = add19_out1.sqrt();
+            let conv1d38_out1 = self.conv1d38.forward(sqrt7_out1);
+            let relu31_out1 = relu(conv1d38_out1);
+            let conv1d39_out1 = self.conv1d39.forward(relu31_out1);
+            let relu32_out1 = relu(conv1d39_out1);
+            let conv1d40_out1 = self.conv1d40.forward(relu32_out1);
+            let relu33_out1 = relu(conv1d40_out1);
+            let conv1d41_out1 = self.conv1d41.forward(relu33_out1);
+            let relu34_out1 = relu(conv1d41_out1);
+
+            let feature = {
+                let sliced = relu34_out1.slice(s![.., .., 0i64]);
+                sliced.squeeze_dim::<2usize>(2)
+            };
+
+            let (cell, hidden) = SileroVad::unpack_state(state.clone());
+
+            let linear13_out1 = self.linear13.forward(hidden);
+            let linear14_out1 = self.linear14.forward(feature);
+            let add20_out1 = linear13_out1.add(linear14_out1);
+
+            let [g_i, g_f, g_c, g_o] = add20_out1.chunk(4, 1).try_into().unwrap();
+            let i = sigmoid(g_i);
+            let f = sigmoid(g_f);
+            let c = g_c.tanh();
+            let o = sigmoid(g_o);
+
+            let new_cell = (f * cell) + (i * c);
+            let new_hidden = o * new_cell.clone().tanh();
+
+            let new_state = Tensor::cat(
+                [
+                    new_hidden.clone().unsqueeze_dims::<3>(&[0]),
+                    new_cell.unsqueeze_dims::<3>(&[0]),
+                ]
+                .into(),
+                0,
+            );
+
+            // output head
+            let unsqueeze32_out1: Tensor<B, 3> = new_hidden.clone().unsqueeze_dims::<3>(&[-1]);
+            let relu35_out1 = relu(unsqueeze32_out1);
+            let conv1d42_out1 = self.conv1d42.forward(relu35_out1);
+            let sigmoid28_out1 = sigmoid(conv1d42_out1);
+            let squeeze7_out1 = sigmoid28_out1.squeeze_dims::<2>(&[1]);
+            let reducemean7_out1 = { squeeze7_out1.mean_dim(1usize).squeeze_dims::<1usize>(&[1]) };
+            let probs: Tensor<B, 2> = reducemean7_out1.unsqueeze_dims::<2>(&[1]);
+            (probs, new_state)
+        } else {
+            let input = input.clone();
+            let state = state.clone();
+            let pad8_out1 = input.pad([(0usize, 0usize), (0usize, 32usize)], PadMode::Reflect);
+            let unsqueeze36_out1: Tensor<B, 3> = pad8_out1.unsqueeze_dims::<3>(&[1]);
+            let conv1d43_out1 = self.conv1d43.forward(unsqueeze36_out1);
+            let slice15_out1 = conv1d43_out1.clone().slice(s![.., 0..65, ..]);
+            let slice16_out1 = conv1d43_out1.slice(s![.., 65.., ..]);
+            let pow15_out1 = slice15_out1.clone() * slice15_out1;
+            let pow16_out1 = slice16_out1.clone() * slice16_out1;
+            let add22_out1 = pow15_out1.add(pow16_out1);
+            let sqrt8_out1 = add22_out1.sqrt();
+            let conv1d44_out1 = self.conv1d44.forward(sqrt8_out1);
+            let relu36_out1 = relu(conv1d44_out1);
+            let conv1d45_out1 = self.conv1d45.forward(relu36_out1);
+            let relu37_out1 = relu(conv1d45_out1);
+            let conv1d46_out1 = self.conv1d46.forward(relu37_out1);
+            let relu38_out1 = relu(conv1d46_out1);
+            let conv1d47_out1 = self.conv1d47.forward(relu38_out1);
+            let relu39_out1 = relu(conv1d47_out1);
+            let gather24_out1 = {
+                let sliced = relu39_out1.slice(s![.., .., 0i64]);
+                sliced.squeeze_dim::<2usize>(2)
+            };
+            let gather25_out1 = {
+                let sliced = state.clone().slice(s![0i64, .., ..]);
+                sliced.squeeze_dim::<2usize>(0)
+            };
+            let gather26_out1 = {
+                let sliced = state.slice(s![1i64, .., ..]);
+                sliced.squeeze_dim::<2usize>(0)
+            };
+            let linear15_out1 = self.linear15.forward(gather25_out1);
+            let linear16_out1 = self.linear16.forward(gather24_out1);
+            let add23_out1 = linear15_out1.add(linear16_out1);
+            let split_tensors = add23_out1.split_with_sizes([128, 128, 128, 128].into(), 1);
+            let [split8_out1, split8_out2, split8_out3, split8_out4] =
+                split_tensors.try_into().unwrap();
+            let sigmoid29_out1 = sigmoid(split8_out1);
+            let sigmoid30_out1 = sigmoid(split8_out2);
+            let tanh15_out1 = split8_out3.tanh();
+            let sigmoid31_out1 = sigmoid(split8_out4);
+            let mul22_out1 = sigmoid30_out1.mul(gather26_out1);
+            let mul23_out1 = sigmoid29_out1.mul(tanh15_out1);
+            let add24_out1 = mul22_out1.add(mul23_out1);
+            let tanh16_out1 = add24_out1.clone().tanh();
+            let mul24_out1 = sigmoid31_out1.mul(tanh16_out1);
+            let unsqueeze37_out1: Tensor<B, 3> = mul24_out1.clone().unsqueeze_dims::<3>(&[-1]);
+            let unsqueeze38_out1: Tensor<B, 3> = mul24_out1.unsqueeze_dims::<3>(&[0]);
+            let unsqueeze39_out1: Tensor<B, 3> = add24_out1.unsqueeze_dims::<3>(&[0]);
+            let concat8_out1 = Tensor::cat([unsqueeze38_out1, unsqueeze39_out1].into(), 0);
+            let relu40_out1 = relu(unsqueeze37_out1);
+            let conv1d48_out1 = self.conv1d48.forward(relu40_out1);
+            let sigmoid32_out1 = sigmoid(conv1d48_out1);
+            let squeeze8_out1 = sigmoid32_out1.squeeze_dims::<2>(&[1]);
+            let reducemean8_out1 = { squeeze8_out1.mean_dim(1usize).squeeze_dims::<1usize>(&[1]) };
+            let unsqueeze40_out1: Tensor<B, 2> = reducemean8_out1.unsqueeze_dims::<2>(&[1]);
+            (unsqueeze40_out1, concat8_out1)
+        };
+        (if1_out1, if1_out2)
     }
 }
