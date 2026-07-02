@@ -19,7 +19,7 @@ use crate::{
     },
     kits::speech::silero_vad::{
         SileroVad,
-        SileroVadConfig,
+        SileroVadAbstractConfig,
     },
 };
 
@@ -32,7 +32,7 @@ pub fn load_pretrained_silerovad<B: Backend, P: AsRef<Path>>(
     let path: PathBuf = path.to_path_buf();
 
     let vad16: SileroVad<B> = {
-        let cfg = SileroVadConfig::standard_16khz();
+        let cfg = SileroVadAbstractConfig::standard_16khz();
 
         let mut store = BurnpackStore::from_file(path.clone())
             .with_remap_pattern("conv1d37", "stft")
@@ -55,7 +55,7 @@ pub fn load_pretrained_silerovad<B: Backend, P: AsRef<Path>>(
     };
 
     let _vad8: SileroVad<B> = {
-        let cfg = SileroVadConfig::standard_8khz();
+        let cfg = SileroVadAbstractConfig::standard_8khz();
 
         let mut store = BurnpackStore::from_file(path.clone())
             .with_remap_pattern("conv1d43", "stft")
