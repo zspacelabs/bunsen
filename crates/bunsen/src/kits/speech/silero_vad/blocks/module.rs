@@ -225,16 +225,16 @@ pub trait SileroVadMeta {
     /// The sample rate (in Hz) this model expects, e.g. `16000`.
     fn sample_rate(&self) -> usize;
 
+    /// The number of magnitude frequency bins feeding the encoder.
+    ///
+    /// This is half the STFT conv's output channels.
+    fn n_freq(&self) -> usize;
+
     /// The reflect-padding applied to the right of the input before the STFT
     /// conv.
     ///
     /// This is generally 2x the STFT stride.
     fn input_pad(&self) -> usize;
-
-    /// The number of magnitude frequency bins feeding the encoder.
-    ///
-    /// This is half the STFT conv's output channels.
-    fn n_freq(&self) -> usize;
 
     /// The kernel size of the STFT conv.
     ///
@@ -332,12 +332,12 @@ impl SileroVadMeta for SileroVadStructureConfig {
         self.sample_rate
     }
 
-    fn input_pad(&self) -> usize {
-        self.input_pad
-    }
-
     fn n_freq(&self) -> usize {
         self.stft.channels_out / 2
+    }
+
+    fn input_pad(&self) -> usize {
+        self.input_pad
     }
 
     fn stft_kernel(&self) -> usize {
@@ -443,12 +443,12 @@ impl<B: Backend> SileroVadMeta for SileroVad<B> {
         self.sample_rate
     }
 
-    fn input_pad(&self) -> usize {
-        self.input_pad
-    }
-
     fn n_freq(&self) -> usize {
         self.stft.weight.dims()[0] / 2
+    }
+
+    fn input_pad(&self) -> usize {
+        self.input_pad
     }
 
     fn stft_kernel(&self) -> usize {
