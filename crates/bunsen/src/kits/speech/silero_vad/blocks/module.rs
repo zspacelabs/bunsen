@@ -471,19 +471,14 @@ impl<B: Backend> SileroVad<B> {
         }
 
         let (mut cell, mut hidden) = Self::unpack_state(state);
-
-        let mut hs = Tensor::empty([steps, d_hidden], &hidden.device());
-
-        for step in 0..steps {
-            let feature = features.clone().slice_dim(0, step);
+        let mut hs = Tensor::empty([steps, d_hidden], &features.device());
+        for (step, feature) in features.iter_dim(0).enumerate() {
             (cell, hidden) = self.lstm_step(feature, cell, hidden);
             hs = hs.slice_assign(s![step, ..], hidden.clone());
         }
 
         // Batch the output head over all steps at once.
-        let probs = self.output_head(hs);
-        let state = Self::pack_state(cell, hidden);
-        (probs, state)
+        (self.output_head(hs), Self::pack_state(cell, hidden))
     }
 
     /// Extracts the encoder feature frame for each row of `input`.
