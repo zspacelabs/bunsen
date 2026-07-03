@@ -163,23 +163,6 @@ pub struct SileroVadStftConfig {
 }
 
 impl SileroVadStftConfig {
-    /// Derive a common configuration for the given sample rate and number of
-    /// frequency bins.
-    ///
-    /// This sets:
-    /// * `stft_stride = n_freq - 1`
-    /// * `stft_kernel = stft_stride * 2`
-    /// * `input_pad = stft_stride / 2`
-    pub fn from_signal(
-        sample_rate: usize,
-        n_freq: usize,
-    ) -> Self {
-        let stft_stride = n_freq - 1;
-        let stft_kernel = stft_stride * 2;
-        let input_pad = stft_stride / 2;
-        Self::new(sample_rate, input_pad, stft_kernel, stft_stride, n_freq)
-    }
-
     /// Convert this config into a [`SileroVadStructureConfig`].
     fn to_structure(&self) -> SileroVadStructureConfig {
         SileroVadStructureConfig {
@@ -694,23 +677,59 @@ mod tests {
 
     #[test]
     fn test_config_meta() {
-        let cfg16 = SileroVadSignalConfig::standard_16khz().to_structure();
-        assert_eq!(cfg16.sample_rate(), 16000);
-        assert_eq!(cfg16.input_pad(), 64);
-        assert_eq!(cfg16.n_freq(), 129);
-        assert_eq!(cfg16.d_hidden(), 128);
-        assert_eq!(cfg16.gate_size(), 512);
-        // The encoder consumes the magnitude bins.
-        assert_eq!(cfg16.encoder.in_channels(), cfg16.n_freq());
-        cfg16.validate().unwrap();
+        {
+            let cfg = SileroVadSignalConfig::standard_16khz();
+            assert_eq!(cfg.sample_rate, 16000);
+            assert_eq!(cfg.n_freq, 129);
 
-        let cfg8 = SileroVadSignalConfig::standard_8khz().to_structure();
-        assert_eq!(cfg8.sample_rate(), 8000);
-        assert_eq!(cfg8.input_pad(), 32);
-        assert_eq!(cfg8.n_freq(), 65);
-        assert_eq!(cfg8.d_hidden(), 128);
-        assert_eq!(cfg8.encoder.in_channels(), cfg8.n_freq());
-        cfg8.validate().unwrap();
+            let cfg = cfg.to_stft();
+            assert_eq!(cfg.sample_rate, 16000);
+            assert_eq!(cfg.n_freq, 129);
+            assert_eq!(cfg.stft_stride, 128);
+            assert_eq!(cfg.stft_kernel, 256);
+            assert_eq!(cfg.input_pad, 64);
+            assert_eq!(cfg.d_hidden, 128);
+            assert_eq!(cfg.d_bottleneck, 64);
+
+            let cfg = cfg.to_structure();
+            assert_eq!(cfg.sample_rate(), 16000);
+            assert_eq!(cfg.n_freq(), 129);
+            assert_eq!(cfg.input_pad(), 64);
+            assert_eq!(cfg.stft_kernel(), 256);
+            assert_eq!(cfg.stft_stride(), 128);
+            assert_eq!(cfg.gate_size(), 512);
+            assert_eq!(cfg.encoder.in_channels(), cfg.n_freq());
+            assert_eq!(cfg.d_hidden(), 128);
+            assert_eq!(cfg.d_bottleneck(), 64);
+            cfg.validate().unwrap();
+        }
+
+        {
+            let cfg = SileroVadSignalConfig::standard_8khz();
+            assert_eq!(cfg.sample_rate, 8000);
+            assert_eq!(cfg.n_freq, 65);
+
+            let cfg = cfg.to_stft();
+            assert_eq!(cfg.sample_rate, 8000);
+            assert_eq!(cfg.n_freq, 65);
+            assert_eq!(cfg.stft_stride, 64);
+            assert_eq!(cfg.stft_kernel, 128);
+            assert_eq!(cfg.input_pad, 32);
+            assert_eq!(cfg.d_hidden, 128);
+            assert_eq!(cfg.d_bottleneck, 64);
+
+            let cfg = cfg.to_structure();
+            assert_eq!(cfg.sample_rate(), 8000);
+            assert_eq!(cfg.n_freq(), 65);
+            assert_eq!(cfg.input_pad(), 32);
+            assert_eq!(cfg.stft_kernel(), 128);
+            assert_eq!(cfg.stft_stride(), 64);
+            assert_eq!(cfg.gate_size(), 512);
+            assert_eq!(cfg.encoder.in_channels(), cfg.n_freq());
+            assert_eq!(cfg.d_hidden(), 128);
+            assert_eq!(cfg.d_bottleneck(), 64);
+            cfg.validate().unwrap();
+        }
     }
 
     #[test]
