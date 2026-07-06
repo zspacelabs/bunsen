@@ -724,10 +724,18 @@ impl<B: Backend> SileroVad<B> {
         // `feature`, split into [input, forget, cell, output] gates.
         let gates = self.lstm_features.forward(features) + self.lstm_hidden.forward(hidden);
 
+        /*
         let [g_i, g_f, g_c, g_o] = gates.chunk(4, 1).try_into().unwrap();
 
         let input_values = sigmoid(g_i);
         let forget_values = sigmoid(g_f);
+         */
+
+        let [g_i_f, g_c_o] = gates.chunk(2, 1).try_into().unwrap();
+        let [input_values, forget_values] = sigmoid(g_i_f).chunk(2, 1).try_into().unwrap();
+
+        let [g_c, g_o] = g_c_o.chunk(2, 1).try_into().unwrap();
+
         let candidate_cell_values = tanh(g_c);
         let output_values = sigmoid(g_o);
 

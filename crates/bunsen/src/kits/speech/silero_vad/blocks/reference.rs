@@ -429,6 +429,7 @@ mod tests {
     };
 
     #[test]
+    #[serial_test::serial]
     fn test_load_forward_pretrained() {
         type B = PerformanceBackend;
         type F = <B as BackendTypes>::FloatElem;
