@@ -409,8 +409,6 @@ impl<B: Backend> ReferenceVAD<B> {
 
 #[cfg(test)]
 mod tests {
-    use std::path::PathBuf;
-
     use burn::{
         Tensor,
         tensor::{
@@ -423,7 +421,10 @@ mod tests {
     use super::*;
     use crate::{
         errors::*,
-        kits::speech::silero_vad::blocks::SileroVad16x8,
+        kits::speech::silero_vad::{
+            blocks::SileroVad16x8,
+            pretrained::silero_vad_pretrained_bytes,
+        },
         support::testing::PerformanceBackend,
     };
 
@@ -436,22 +437,17 @@ mod tests {
         }
     }
 
-    fn silero_burnpack_path() -> PathBuf {
-        PathBuf::from("silero_vad_op18_ifless.bpk")
-    }
-
     #[test]
     fn test_load_forward_pretrained() {
         type B = PerformanceBackend;
         type F = <B as BackendTypes>::FloatElem;
 
-        let path = silero_burnpack_path();
         let device = Default::default();
 
-        let s_mod: SileroVad16x8<B> =
-            SileroVad16x8::load_from_burnpack(&path, &device).ok_or_panic();
+        let s_mod: SileroVad16x8<B> = SileroVad16x8::load_pretrained(&device).ok_or_panic();
 
-        let r_mod: ReferenceVAD<B> = ReferenceVAD::from_file(path.to_str().unwrap(), &device);
+        let r_mod: ReferenceVAD<B> =
+            ReferenceVAD::from_bytes(silero_vad_pretrained_bytes(), &device);
 
         let batch = 2;
         let state = Tensor::zeros([2, batch, 128], &device);
