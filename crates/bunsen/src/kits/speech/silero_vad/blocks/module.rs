@@ -739,11 +739,11 @@ impl<B: Backend> SileroVad<B> {
         let forget_values = sigmoid(g_f);
          */
 
+        // Funny chunking to reduce sigmoid() calls.
         let [g_i_f, g_c_o] = gates.chunk(2, 1).try_into().unwrap();
-        let [input_values, forget_values] = sigmoid(g_i_f).chunk(2, 1).try_into().unwrap();
-
         let [g_c, g_o] = g_c_o.chunk(2, 1).try_into().unwrap();
 
+        let [input_values, forget_values] = sigmoid(g_i_f).chunk(2, 1).try_into().unwrap();
         let candidate_cell_values = tanh(g_c);
         let output_values = sigmoid(g_o);
 
