@@ -512,7 +512,7 @@ impl<B: Backend> SileroVad<B> {
         state: Tensor<B, 3>,
     ) -> (Tensor<B, 2>, Tensor<B, 3>) {
         // One feature frame per chunk: [steps, hidden].
-        let mut seq_buf = self.frame_features(input);
+        let mut seq_features = self.frame_features(input);
 
         cfg_select! {
             any(test, debug_assertions) => {
@@ -523,7 +523,7 @@ impl<B: Backend> SileroVad<B> {
 
                 let [steps] = unpack_shape_contract!(
                     ["steps", "d_hidden"],
-                    &seq_buf,
+                    &seq_features,
                     &["steps"],
                     &[("d_hidden", d_hidden)]
                 );
@@ -535,17 +535,40 @@ impl<B: Backend> SileroVad<B> {
         }
 
         let (mut cell, mut hidden) = Self::unpack_state(state);
-        for step in 0..steps {
-            let features = seq_buf.clone().slice_dim(0, step);
-            (cell, hidden) = self.lstm_step(features, cell, hidden);
 
-            // We expect this to be a hidden in-place update,
-            // as there are no other references to seq_buf.
-            seq_buf = seq_buf.slice_assign(s![step, ..], hidden.clone());
-        }
+        let seq_hidden = if B::ad_enabled(&seq_features.device()) {
+            // Differentiable Sequence.
+            let mut seq_hidden = Tensor::zeros_like(&seq_features);
+
+            for step in 0..steps {
+                let features = seq_features.clone().slice_dim(0, step);
+                (cell, hidden) = self.lstm_step(features, cell, hidden);
+
+                // Collect the hidden states.
+                seq_hidden = seq_hidden.slice_assign(s![step, ..], hidden.clone());
+            }
+            seq_hidden
+        } else {
+            // Non-differentiable Optimization.
+            // TODO: Verify that this fires.
+            //
+            // As there is only one reference to seq_features, the slice_assign
+            // *should* convert to an in-place update, and reuse the memory.
+            //
+            // This is not differentiable.
+
+            for step in 0..steps {
+                let features = seq_features.clone().slice_dim(0, step);
+                (cell, hidden) = self.lstm_step(features, cell, hidden);
+
+                // Collect the hidden states.
+                seq_features = seq_features.slice_assign(s![step, ..], hidden.clone());
+            }
+            seq_features
+        };
 
         // Batch the output head over all steps at once.
-        (self.output_head(seq_buf), Self::pack_state(cell, hidden))
+        (self.output_head(seq_hidden), Self::pack_state(cell, hidden))
     }
 
     /// Extracts the encoder feature frame for each row of `input`.
