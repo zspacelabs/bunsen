@@ -500,14 +500,14 @@ impl<B: Backend> SileroVad<B> {
         let features = self.frame_features(input);
 
         // [batch, d_hidden]
-        let (cell, hidden) = Self::unpack_state(state);
+        let (hidden, cell) = Self::unpack_state(state);
 
         // [batch, d_hidden]
-        let (cell, hidden) = self.lstm_step(features, cell, hidden);
+        let (hidden, cell) = self.lstm_step(features, hidden, cell);
 
         (
             self.output_head(hidden.clone()),
-            Self::pack_state(cell, hidden),
+            Self::pack_state(hidden, cell),
         )
     }
 
@@ -549,7 +549,7 @@ impl<B: Backend> SileroVad<B> {
             _ => {
                 let [steps, batch, _] = input.dims();
             }
-        };
+        }
 
         // [steps, batch, d_hidden].
         let mut seq_features =
@@ -557,7 +557,7 @@ impl<B: Backend> SileroVad<B> {
                 .reshape([steps, batch, self.d_hidden()]);
 
         // [batch, d_hidden]
-        let (mut cell, mut hidden) = Self::unpack_state(state);
+        let (mut hidden, mut cell) = Self::unpack_state(state);
 
         macro_rules! process_steps {
             (mut $acc:ident) => {{
@@ -566,7 +566,7 @@ impl<B: Backend> SileroVad<B> {
                     let features = seq_features.clone().slice_dim(0, step).squeeze_dim::<2>(0);
 
                     // [batch, d_hidden]
-                    (cell, hidden) = self.lstm_step(features, cell, hidden);
+                    (hidden, cell) = self.lstm_step(features, hidden, cell);
 
                     // Collect the hidden states.
                     // [1, batch, d_hidden]
@@ -597,7 +597,7 @@ impl<B: Backend> SileroVad<B> {
             .output_head(seq_hidden.flatten(0, 1))
             .reshape([steps, batch]);
 
-        let state = Self::pack_state(cell, hidden);
+        let state = Self::pack_state(hidden, cell);
 
         (out, state)
     }
@@ -667,18 +667,17 @@ impl<B: Backend> SileroVad<B> {
         x
     }
 
-    /// Splits a packed `[2, batch, d_hidden]` state into `(cell, hidden)`.
+    /// Splits a packed `[2, batch, d_hidden]` state into `(hidden, cell)`.
     /// Of shape `[batch, d_hidden]`.
     pub fn unpack_state(state: Tensor<B, 3>) -> (Tensor<B, 2>, Tensor<B, 2>) {
-        let hidden = state.clone().slice_dim(0, 0).squeeze_dim::<2>(0);
-        let cell = state.slice_dim(0, 1).squeeze_dim::<2>(0);
-        (cell, hidden)
+        let [hidden, cell] = state.chunk(2, 0).try_into().unwrap();
+        (hidden.squeeze_dim::<2>(0), cell.squeeze_dim::<2>(0))
     }
 
-    /// Stacks `(cell, hidden)` into a packed `[2, batch, d_hidden]` state.
+    /// Stacks `(hidden, cell)` into a packed `[2, batch, d_hidden]` state.
     pub fn pack_state(
-        cell: Tensor<B, 2>,
         hidden: Tensor<B, 2>,
+        cell: Tensor<B, 2>,
     ) -> Tensor<B, 3> {
         Tensor::stack(vec![hidden, cell], 0)
     }
@@ -693,12 +692,12 @@ impl<B: Backend> SileroVad<B> {
     ///
     /// # Returns
     ///
-    /// The `(cell, hidden)` next states, each `[batch, d_hidden]`.
+    /// The `(hidden, cell)` next states, each `[batch, d_hidden]`.
     pub fn lstm_step(
         &self,
         features: Tensor<B, 2>,
-        cell: Tensor<B, 2>,
         hidden: Tensor<B, 2>,
+        cell: Tensor<B, 2>,
     ) -> (Tensor<B, 2>, Tensor<B, 2>) {
         cfg_select! {
             any(test, debug_assertions) => {
@@ -749,7 +748,7 @@ impl<B: Backend> SileroVad<B> {
 
         let cell = forget_values * cell + input_values * candidate_cell_values;
         let hidden = output_values * tanh(cell.clone());
-        (cell, hidden)
+        (hidden, cell)
     }
 
     /// Runs the `1x1` conv + sigmoid output head.
