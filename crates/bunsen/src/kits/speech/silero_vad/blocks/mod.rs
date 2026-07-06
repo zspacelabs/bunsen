@@ -1,10 +1,10 @@
 //! Silero VAD blocks
 
-mod container;
+mod collection;
 mod module;
 
 #[doc(inline)]
-pub use container::*;
+pub use collection::*;
 #[doc(inline)]
 pub use module::*;
 

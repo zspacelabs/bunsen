@@ -21,7 +21,7 @@ use crate::{
     },
     kits::speech::silero_vad::{
         SileroVad,
-        SileroVad16x8,
+        SileroVadCollection,
         SileroVadSignalConfig,
     },
 };
@@ -34,7 +34,7 @@ pub fn silero_vad_pretrained_bytes() -> burn::tensor::Bytes {
     burn::tensor::Bytes::from_bytes_vec(SILERO_VAD6_WEIGHTS.to_vec())
 }
 
-impl<B: Backend> SileroVad16x8<B> {
+impl<B: Backend> SileroVadCollection<B> {
     /// Load from a burnpack file.
     pub fn load_pretrained(device: &B::Device) -> BunsenResult<Self> {
         Self::load_from_burnpack_bytes(silero_vad_pretrained_bytes(), device)
@@ -105,7 +105,9 @@ impl<B: Backend> SileroVad16x8<B> {
             device,
         )?;
 
-        Ok(SileroVad16x8 { vad16, vad8 })
+        Ok(SileroVadCollection {
+            branches: vec![(16000, vad16), (8000, vad8)],
+        })
     }
 
     /// Load from a burnpack file.
@@ -130,6 +132,8 @@ impl<B: Backend> SileroVad16x8<B> {
             device,
         )?;
 
-        Ok(SileroVad16x8 { vad16, vad8 })
+        Ok(SileroVadCollection {
+            branches: vec![(16000, vad16), (8000, vad8)],
+        })
     }
 }
