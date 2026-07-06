@@ -422,7 +422,7 @@ mod tests {
     use crate::{
         errors::*,
         kits::speech::silero_vad::{
-            blocks::SileroVad16x8,
+            SileroVadCollection,
             pretrained::silero_vad_pretrained_bytes,
         },
         support::testing::PerformanceBackend,
@@ -435,7 +435,8 @@ mod tests {
 
         let device = Default::default();
 
-        let s_mod: SileroVad16x8<B> = SileroVad16x8::load_pretrained(&device).ok_or_panic();
+        let s_mod: SileroVadCollection<B> =
+            SileroVadCollection::load_pretrained(&device).ok_or_panic();
 
         let r_mod: ReferenceVAD<B> =
             ReferenceVAD::from_bytes(silero_vad_pretrained_bytes(), &device);
@@ -450,7 +451,9 @@ mod tests {
             );
             let state = s_mod.init_state(sample_rate, batch, &device);
 
+            // ([batch], [2, batch, d_hidden])
             let (s_out, s_state) = s_mod.forward(sample_rate, input.clone(), state.clone());
+            // ([batch, 1], [2, batch, d_hidden])
             let (r_out, r_state) = r_mod.forward(input, sample_rate, state.clone());
 
             s_out

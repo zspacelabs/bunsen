@@ -9,26 +9,23 @@ use crate::kits::speech::silero_vad::{
     SileroVadMeta,
 };
 
-/// Common 16/8 khz Silero VAD Container.
+/// Collection of sample-rate Silero VAD models.
 #[derive(Module, Debug)]
-pub struct SileroVad16x8<B: Backend> {
-    /// 16 kHz model.
-    pub vad16: SileroVad<B>,
-
-    /// 8 kHz model.
-    pub vad8: SileroVad<B>,
+pub struct SileroVadCollection<B: Backend> {
+    /// Per-sample-rate models.
+    pub branches: Vec<(usize, SileroVad<B>)>,
 }
 
-impl<B: Backend> SileroVad16x8<B> {
+impl<B: Backend> SileroVadCollection<B> {
     fn branch(
         &self,
         sr: usize,
     ) -> &SileroVad<B> {
-        match sr {
-            16000 => &self.vad16,
-            8000 => &self.vad8,
-            _ => panic!("unsupported sample rate: {sr}"),
-        }
+        self.branches
+            .iter()
+            .find(|(rate, _)| *rate == sr)
+            .map(|(_, vad)| vad)
+            .expect("unsupported sample rate")
     }
 
     /// Forward.

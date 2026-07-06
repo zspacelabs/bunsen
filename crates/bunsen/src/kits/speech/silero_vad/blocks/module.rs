@@ -23,7 +23,7 @@
 //! 4. a `1x1` [`Conv1d`] + sigmoid output head producing the speech
 //!    probability.
 //!
-//! The recurrent state is packed as `[2, batch, hidden]`, stacking the LSTM
+//! The recurrent state is packed as `[2, batch, d_hidden]`, stacking the LSTM
 //! hidden and cell states along dim 0.
 //!
 //! [`SileroVad::forward`] runs one chunk per call (matching the ONNX
@@ -452,7 +452,7 @@ impl<B: Backend> SileroVadMeta for SileroVad<B> {
 }
 
 impl<B: Backend> SileroVad<B> {
-    /// Allocates a zeroed recurrent state of shape `[2, batch, hidden]`.
+    /// Allocates a zeroed recurrent state of shape `[2, batch, d_hidden]`.
     pub fn init_state(
         &self,
         batch: usize,
@@ -469,13 +469,13 @@ impl<B: Backend> SileroVad<B> {
     ///
     /// * `input` - `[batch, samples = chunk_size]` mono audio chunks (at this
     ///   model's [`sample_rate`](SileroVadMeta::sample_rate)).
-    /// * `state` - `[2, batch, hidden]` recurrent state (see
+    /// * `state` - `[2, batch, d_hidden]` recurrent state (see
     ///   [`init_state`](Self::init_state)).
     ///
     /// # Returns
     ///
     /// `(probabilities, state)`, with `probabilities` of shape `[batch, 1]` and
-    /// the next `state` of shape `[2, batch, hidden]`.
+    /// the next `state` of shape `[2, batch, d_hidden]`.
     pub fn forward(
         &self,
         input: Tensor<B, 2>,
@@ -520,12 +520,13 @@ impl<B: Backend> SileroVad<B> {
     ///
     /// * `input` - `[steps, batch, samples = chunk_size]` consecutive mono
     ///   audio chunks.
-    /// * `state` - `[2, batch, hidden]` recurrent state for the single stream.
+    /// * `state` - `[2, batch, d_hidden]` recurrent state for the single
+    ///   stream.
     ///
     /// # Returns
     ///
     /// `(probabilities, state)`, with `probabilities` of shape `[steps, batch]`
-    /// (one per chunk) and the next `state` of shape `[2, batch, hidden]`.
+    /// (one per chunk) and the next `state` of shape `[2, batch, d_hidden]`.
     pub fn forward_sequence(
         &self,
         input: Tensor<B, 3>,
@@ -666,15 +667,15 @@ impl<B: Backend> SileroVad<B> {
         x
     }
 
-    /// Splits a packed `[2, batch, hidden]` state into `(cell, hidden)`.
-    /// Of shape `[batch, hidden]`.
+    /// Splits a packed `[2, batch, d_hidden]` state into `(cell, hidden)`.
+    /// Of shape `[batch, d_hidden]`.
     pub fn unpack_state(state: Tensor<B, 3>) -> (Tensor<B, 2>, Tensor<B, 2>) {
         let hidden = state.clone().slice_dim(0, 0).squeeze_dim::<2>(0);
         let cell = state.slice_dim(0, 1).squeeze_dim::<2>(0);
         (cell, hidden)
     }
 
-    /// Stacks `(cell, hidden)` into a packed `[2, batch, hidden]` state.
+    /// Stacks `(cell, hidden)` into a packed `[2, batch, d_hidden]` state.
     pub fn pack_state(
         cell: Tensor<B, 2>,
         hidden: Tensor<B, 2>,
@@ -686,13 +687,13 @@ impl<B: Backend> SileroVad<B> {
     ///
     /// # Arguments
     ///
-    /// * `feature` - `[n, hidden]` encoder feature frame.
-    /// * `cell` - `[n, hidden]` previous cell state.
-    /// * `hidden` - `[n, hidden]` previous hidden state.
+    /// * `feature` - `[batch, d_hidden]` encoder feature frame.
+    /// * `cell` - `[batch, d_hidden]` previous cell state.
+    /// * `hidden` - `[batch, d_hidden]` previous hidden state.
     ///
     /// # Returns
     ///
-    /// The `(cell, hidden)` next states, each `[n, hidden]`.
+    /// The `(cell, hidden)` next states, each `[batch, d_hidden]`.
     pub fn lstm_step(
         &self,
         features: Tensor<B, 2>,
@@ -739,11 +740,11 @@ impl<B: Backend> SileroVad<B> {
     ///
     /// # Arguments
     ///
-    /// * `hidden` - `[batch, hidden]` LSTM hidden states.
+    /// * `hidden` - `[batch, d_hidden]` LSTM hidden states.
     ///
     /// # Returns
     ///
-    /// `[batch, 1]` speech probabilities in `[0, 1]`.
+    /// `[batch]` speech probabilities in `[0, 1]`.
     pub fn output_head(
         &self,
         hidden: Tensor<B, 2>,
