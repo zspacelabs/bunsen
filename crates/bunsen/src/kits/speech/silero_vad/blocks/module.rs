@@ -700,29 +700,37 @@ impl<B: Backend> SileroVad<B> {
         cell: Tensor<B, 2>,
         hidden: Tensor<B, 2>,
     ) -> (Tensor<B, 2>, Tensor<B, 2>) {
-        #[cfg(any(test, debug_assertions))]
-        {
-            let [batch] = unpack_shape_contract!(
-                ["batch", "d_hidden"],
-                &features,
-                &["batch"],
-                &[("d_hidden", self.d_hidden())],
-            );
-            assert_shape_contract_periodically!(
-                ["batch", "d_hidden"],
-                &cell,
-                &[("batch", batch), ("d_hidden", self.d_hidden())]
-            );
-            assert_shape_contract_periodically!(
-                ["batch", "d_hidden"],
-                &hidden,
-                &[("batch", batch), ("d_hidden", self.d_hidden())]
-            );
+        cfg_select! {
+            any(test, debug_assertions) => {
+                let [batch] = unpack_shape_contract!(
+                    ["batch", "d_hidden"],
+                    &features,
+                    &["batch"],
+                    &[("d_hidden", self.d_hidden())],
+                );
+                assert_shape_contract_periodically!(
+                    ["batch", "d_hidden"],
+                    &cell,
+                    &[("batch", batch), ("d_hidden", self.d_hidden())]
+                );
+                assert_shape_contract_periodically!(
+                    ["batch", "d_hidden"],
+                    &hidden,
+                    &[("batch", batch), ("d_hidden", self.d_hidden())]
+                );
+            }
         }
 
         // Gates: recurrent projection of `hidden` plus input projection of
         // `feature`, split into [input, forget, cell, output] gates.
         let gates = self.lstm_features.forward(features) + self.lstm_hidden.forward(hidden);
+
+        #[cfg(any(test, debug_assertions))]
+        assert_shape_contract_periodically!(
+            ["batch", "4" * "d_hidden"],
+            &gates,
+            &[("batch", batch), ("4", 4), ("d_hidden", self.d_hidden())]
+        );
 
         /*
         let [g_i, g_f, g_c, g_o] = gates.chunk(4, 1).try_into().unwrap();
