@@ -68,6 +68,10 @@ use crate::{
         ConvSeq1dMeta,
     },
     burner::module::ModuleInit,
+    contracts::{
+        assert_shape_contract_periodically,
+        unpack_shape_contract,
+    },
     errors::{
         BunsenError,
         BunsenResult,
@@ -203,6 +207,11 @@ pub trait SileroVadMeta {
     ///
     /// This is half the STFT conv's output channels.
     fn n_freq(&self) -> usize;
+
+    /// The processing chunk size.
+    fn chunk_size(&self) -> usize {
+        self.n_freq() * 2
+    }
 
     /// The reflect-padding applied to the right of the input before the STFT
     /// conv.
@@ -458,8 +467,8 @@ impl<B: Backend> SileroVad<B> {
     ///
     /// # Arguments
     ///
-    /// * `input` - `[batch, samples]` mono audio chunks (at this model's
-    ///   [`sample_rate`](SileroVadMeta::sample_rate)).
+    /// * `input` - `[batch, samples = chunk_size]` mono audio chunks (at this
+    ///   model's [`sample_rate`](SileroVadMeta::sample_rate)).
     /// * `state` - `[2, batch, hidden]` recurrent state (see
     ///   [`init_state`](Self::init_state)).
     ///
@@ -471,19 +480,29 @@ impl<B: Backend> SileroVad<B> {
         &self,
         input: Tensor<B, 2>,
         state: Tensor<B, 3>,
-    ) -> (Tensor<B, 2>, Tensor<B, 3>) {
+    ) -> (Tensor<B, 1>, Tensor<B, 3>) {
         #[cfg(any(test, debug_assertions))]
         {
-            let [batch, _samples] = input.dims();
-            crate::contracts::assert_shape_contract_periodically!(
+            let [batch] = unpack_shape_contract!(
+                ["batch", "samples"],
+                &input,
+                &["batch"],
+                &[("samples", self.chunk_size())],
+            );
+            assert_shape_contract_periodically!(
                 ["2", "batch", "d_hidden"],
                 &state,
-                &[("batch", batch), ("d_hidden", self.d_hidden())]
+                &[("2", 2), ("batch", batch), ("d_hidden", self.d_hidden())]
             );
         }
 
+        // [batch, d_hidden]
         let features = self.frame_features(input);
+
+        // [batch, d_hidden]
         let (cell, hidden) = Self::unpack_state(state);
+
+        // [batch, d_hidden]
         let (cell, hidden) = self.lstm_step(features, cell, hidden);
 
         (
@@ -499,55 +518,69 @@ impl<B: Backend> SileroVad<B> {
     ///
     /// # Arguments
     ///
-    /// * `input` - `[steps, samples]` consecutive mono audio chunks.
-    /// * `state` - `[2, 1, hidden]` recurrent state for the single stream.
+    /// * `input` - `[steps, batch, samples = chunk_size]` consecutive mono
+    ///   audio chunks.
+    /// * `state` - `[2, batch, hidden]` recurrent state for the single stream.
     ///
     /// # Returns
     ///
-    /// `(probabilities, state)`, with `probabilities` of shape `[steps, 1]`
-    /// (one per chunk) and the next `state` of shape `[2, 1, hidden]`.
+    /// `(probabilities, state)`, with `probabilities` of shape `[steps, batch]`
+    /// (one per chunk) and the next `state` of shape `[2, batch, hidden]`.
     pub fn forward_sequence(
         &self,
-        input: Tensor<B, 2>,
+        input: Tensor<B, 3>,
         state: Tensor<B, 3>,
     ) -> (Tensor<B, 2>, Tensor<B, 3>) {
-        // One feature frame per chunk: [steps, hidden].
-        let mut seq_features = self.frame_features(input);
-
         cfg_select! {
             any(test, debug_assertions) => {
-                use crate::contracts::unpack_shape_contract;
-                use crate::contracts::assert_shape_contract_periodically;
-
-                let d_hidden = self.d_hidden();
-
-                let [steps] = unpack_shape_contract!(
-                    ["steps", "d_hidden"],
-                    &seq_features,
-                    &["steps"],
-                    &[("d_hidden", d_hidden)]
+                let [steps, batch] = unpack_shape_contract!(
+                    ["steps", "batch", "samples"],
+                    &input,
+                    &["steps", "batch"],
+                    &[("samples", self.chunk_size())]
                 );
-                assert_shape_contract_periodically!(["2", "1", "d_hidden"], &state, &[("d_hidden", d_hidden)]);
+                assert_shape_contract_periodically!(
+                    ["2", "batch", "d_hidden"],
+                    &state,
+                    &[("2", 2), ("batch", batch), ("d_hidden", self.d_hidden())]
+                );
             }
             _ => {
-                let steps = seq_buf.dims()[0];
+                let [steps, batch, _] = input.dims();
             }
-        }
+        };
 
+        // [steps, batch, d_hidden].
+        let mut seq_features =
+            self.frame_features(input.flatten::<2>(0, 1))
+                .reshape([steps, batch, self.d_hidden()]);
+
+        // [batch, d_hidden]
         let (mut cell, mut hidden) = Self::unpack_state(state);
 
-        let seq_hidden = if B::ad_enabled(&seq_features.device()) {
+        macro_rules! process_steps {
+            (mut $acc:ident) => {{
+                for step in 0..steps {
+                    // [batch, d_hidden]
+                    let features = seq_features.clone().slice_dim(0, step).squeeze_dim::<2>(0);
+
+                    // [batch, d_hidden]
+                    (cell, hidden) = self.lstm_step(features, cell, hidden);
+
+                    // Collect the hidden states.
+                    // [1, batch, d_hidden]
+                    let step_hidden = hidden.clone().unsqueeze_dim::<3>(0);
+                    $acc = $acc.slice_assign(s![step, .., ..], step_hidden);
+                }
+                $acc
+            }};
+        }
+
+        // [steps, batch, d_hidden]
+        let seq_hidden: Tensor<B, 3> = if B::ad_enabled(&seq_features.device()) {
             // Differentiable Sequence.
             let mut seq_hidden = Tensor::zeros_like(&seq_features);
-
-            for step in 0..steps {
-                let features = seq_features.clone().slice_dim(0, step);
-                (cell, hidden) = self.lstm_step(features, cell, hidden);
-
-                // Collect the hidden states.
-                seq_hidden = seq_hidden.slice_assign(s![step, ..], hidden.clone());
-            }
-            seq_hidden
+            process_steps!(mut seq_hidden)
         } else {
             // Non-differentiable Optimization.
             // TODO: Verify that this fires.
@@ -556,54 +589,81 @@ impl<B: Backend> SileroVad<B> {
             // *should* convert to an in-place update, and reuse the memory.
             //
             // This is not differentiable.
-
-            for step in 0..steps {
-                let features = seq_features.clone().slice_dim(0, step);
-                (cell, hidden) = self.lstm_step(features, cell, hidden);
-
-                // Collect the hidden states.
-                seq_features = seq_features.slice_assign(s![step, ..], hidden.clone());
-            }
-            seq_features
+            process_steps!(mut seq_features)
         };
 
-        // Batch the output head over all steps at once.
-        (self.output_head(seq_hidden), Self::pack_state(cell, hidden))
+        let out = self
+            .output_head(seq_hidden.flatten(0, 1))
+            .reshape([steps, batch]);
+
+        let state = Self::pack_state(cell, hidden);
+
+        (out, state)
     }
 
     /// Extracts the encoder feature frame for each row of `input`.
     ///
     /// # Arguments
     ///
-    /// * `input` - `[n, samples]` mono audio chunks.
+    /// * `input` - `[batch, samples = chunk_size]` mono audio chunks.
     ///
     /// # Returns
     ///
-    /// `[n, hidden]` feature frames (the encoder output at frame 0).
+    /// `[batch, d_hidden]` feature frames (the encoder output at frame 0).
     pub fn frame_features(
         &self,
         input: Tensor<B, 2>,
     ) -> Tensor<B, 2> {
-        // Reflect-pad, then add the channel axis: [n, 1, samples + pad].
-        let x = input.pad([(0, 0), (0, self.input_pad)], PadMode::Reflect);
-        let x: Tensor<B, 3> = x.unsqueeze_dim::<3>(1);
+        #[cfg(any(test, debug_assertions))]
+        let [batch] = unpack_shape_contract!(
+            ["batch", "samples"],
+            &input,
+            &["batch"],
+            &[("samples", self.chunk_size())]
+        );
+
+        // Reflect-pad, then add the channel axis.
+        // [batch, 1, samples + pad]
+        let x: Tensor<B, 3> = input
+            .pad([(0, 0), (0, self.input_pad)], PadMode::Reflect)
+            .unsqueeze_dim::<3>(1);
 
         // STFT magnitude: split the [n, 2F, T] conv into real / imaginary
         // halves and combine as sqrt(real^2 + imag^2) -> [n, F, T].
-        let [real_2, imag_2] = self
-            .stft
-            .forward(x)
-            .square()
-            .chunk(2, 1)
-            .try_into()
-            .unwrap();
+
+        // [batch, 2 * n_freq, 1]
+        let x = self.stft.forward(x);
+        #[cfg(any(test, debug_assertions))]
+        assert_shape_contract_periodically!(
+            ["batch", "2" * "n_freq", "1"],
+            &x,
+            &[
+                ("2", 2),
+                ("1", 1),
+                ("batch", batch),
+                ("n_freq", self.n_freq())
+            ],
+        );
+
+        // [batch, n_freq, 1]
+        let [real_2, imag_2] = x.square().chunk(2, 1).try_into().unwrap();
         let mag = (real_2 + imag_2).sqrt();
 
         // Encode, then take the first (and, for a single chunk, only) frame.
-        self.encoder
+        let x = self
+            .encoder
             .forward(mag)
             .slice_dim(2, 0)
-            .squeeze_dim::<2>(2)
+            .squeeze_dim::<2>(2);
+
+        #[cfg(any(test, debug_assertions))]
+        assert_shape_contract_periodically!(
+            ["batch", "d_hidden"],
+            &x,
+            &[("batch", batch), ("d_hidden", self.d_hidden())],
+        );
+
+        x
     }
 
     /// Splits a packed `[2, batch, hidden]` state into `(cell, hidden)`.
@@ -627,8 +687,8 @@ impl<B: Backend> SileroVad<B> {
     /// # Arguments
     ///
     /// * `feature` - `[n, hidden]` encoder feature frame.
-    /// * `hidden` - `[n, hidden]` previous hidden state.
     /// * `cell` - `[n, hidden]` previous cell state.
+    /// * `hidden` - `[n, hidden]` previous hidden state.
     ///
     /// # Returns
     ///
@@ -639,6 +699,26 @@ impl<B: Backend> SileroVad<B> {
         cell: Tensor<B, 2>,
         hidden: Tensor<B, 2>,
     ) -> (Tensor<B, 2>, Tensor<B, 2>) {
+        #[cfg(any(test, debug_assertions))]
+        {
+            let [batch] = unpack_shape_contract!(
+                ["batch", "d_hidden"],
+                &features,
+                &["batch"],
+                &[("d_hidden", self.d_hidden())],
+            );
+            assert_shape_contract_periodically!(
+                ["batch", "d_hidden"],
+                &cell,
+                &[("batch", batch), ("d_hidden", self.d_hidden())]
+            );
+            assert_shape_contract_periodically!(
+                ["batch", "d_hidden"],
+                &hidden,
+                &[("batch", batch), ("d_hidden", self.d_hidden())]
+            );
+        }
+
         // Gates: recurrent projection of `hidden` plus input projection of
         // `feature`, split into [input, forget, cell, output] gates.
         let gates = self.lstm_features.forward(features) + self.lstm_hidden.forward(hidden);
@@ -659,21 +739,22 @@ impl<B: Backend> SileroVad<B> {
     ///
     /// # Arguments
     ///
-    /// * `hidden` - `[n, hidden]` LSTM hidden states.
+    /// * `hidden` - `[batch, hidden]` LSTM hidden states.
     ///
     /// # Returns
     ///
-    /// `[n, 1]` speech probabilities in `[0, 1]`.
+    /// `[batch, 1]` speech probabilities in `[0, 1]`.
     pub fn output_head(
         &self,
         hidden: Tensor<B, 2>,
-    ) -> Tensor<B, 2> {
+    ) -> Tensor<B, 1> {
         let x: Tensor<B, 3> = hidden.unsqueeze_dim::<3>(2);
         let x = relu(x);
         let x = self.decoder.forward(x);
         let x = sigmoid(x);
         let x = x.squeeze_dim::<2>(1);
-        x.mean_dim(1)
+        let x = x.mean_dim(1);
+        x.squeeze_dim::<1>(1)
     }
 }
 
@@ -682,21 +763,13 @@ mod tests {
     use burn::tensor::{
         Distribution,
         Tolerance,
+        backend::BackendTypes,
     };
 
     use super::*;
-    use crate::support::testing::CpuBackend;
+    use crate::support::testing::PerformanceBackend;
 
-    type B = CpuBackend;
-
-    /// A valid chunk length for the given sample rate (standard Silero chunk).
-    pub fn chunk_samples(sample_rate: usize) -> usize {
-        match sample_rate {
-            16000 => 512,
-            8000 => 256,
-            other => panic!("no test chunk for {other}"),
-        }
-    }
+    type B = PerformanceBackend;
 
     #[test]
     fn test_config_meta() {
@@ -782,6 +855,7 @@ mod tests {
     }
 
     #[test]
+    #[serial_test::serial]
     fn test_forward_shapes_and_range() {
         let device = Default::default();
 
@@ -791,16 +865,13 @@ mod tests {
         ] {
             let model: SileroVad<B> = cfg.init(&device);
             let batch = 3;
-            let input = Tensor::<B, 2>::random(
-                [batch, chunk_samples(model.sample_rate())],
-                Distribution::Default,
-                &device,
-            );
+            let input =
+                Tensor::<B, 2>::random([batch, model.chunk_size()], Distribution::Default, &device);
             let state = model.init_state(batch, &device);
 
             let (prob, next_state) = model.forward(input, state);
 
-            assert_eq!(prob.dims(), [batch, 1]);
+            assert_eq!(prob.dims(), [batch]);
             assert_eq!(next_state.dims(), [2, batch, 128]);
 
             // Probabilities are sigmoid outputs in [0, 1].
@@ -810,31 +881,36 @@ mod tests {
     }
 
     #[test]
+    #[serial_test::serial]
     fn test_forward_sequence_shapes() {
         let device = Default::default();
+
+        let batch = 8;
+        let steps = 5;
 
         for cfg in [
             SileroVadSignalConfig::standard_16khz().to_structure(),
             SileroVadSignalConfig::standard_8khz().to_structure(),
         ] {
             let model: SileroVad<B> = cfg.init(&device);
-            let steps = 5;
-            let input = Tensor::<B, 2>::random(
-                [steps, chunk_samples(model.sample_rate())],
+            let input = Tensor::random(
+                [steps, batch, model.chunk_size()],
                 Distribution::Default,
                 &device,
             );
-            let state = model.init_state(1, &device);
+            let state = model.init_state(batch, &device);
 
             let (probs, next_state) = model.forward_sequence(input, state);
 
-            assert_eq!(probs.dims(), [steps, 1]);
-            assert_eq!(next_state.dims(), [2, 1, 128]);
+            assert_eq!(probs.dims(), [steps, batch]);
+            assert_eq!(next_state.dims(), [2, batch, 128]);
         }
     }
 
-    #[test]
-    fn test_sequence_matches_stepwise() {
+    fn check_sequence_matches_stepwise<B: Backend, F>()
+    where
+        F: num_traits::Float + burn::tensor::Element,
+    {
         // Streaming a single stream must match looping the single-step forward
         // while carrying state.
         let device = Default::default();
@@ -842,33 +918,50 @@ mod tests {
             .to_structure()
             .init(&device);
 
-        let steps = 4;
-        let input = Tensor::<B, 2>::random(
-            [steps, chunk_samples(model.sample_rate())],
+        let steps = 5;
+        let batch = 8;
+
+        let input = Tensor::random(
+            [steps, batch, model.chunk_size()],
             Distribution::Default,
             &device,
         );
 
-        let (seq_probs, seq_state) =
-            model.forward_sequence(input.clone(), model.init_state(1, &device));
+        let mut state = model.init_state(batch, &device);
+
+        let (seq_probs, seq_state) = model.forward_sequence(input.clone(), state.clone());
 
         // Reference: feed each chunk through the single-step forward, one stream.
-        let mut state = model.init_state(1, &device);
         let mut step_probs = Vec::with_capacity(steps);
         for step in 0..steps {
-            let chunk = input.clone().slice(s![step..step + 1, ..]);
+            let chunk = input.clone().slice_dim(0, step).squeeze_dim::<2>(0);
+
             let (prob, next_state) = model.forward(chunk, state);
             state = next_state;
             step_probs.push(prob);
         }
-        let step_probs = Tensor::cat(step_probs, 0);
+        let step_probs: Tensor<B, 2> = Tensor::stack(step_probs, 0);
 
-        let tol = Tolerance::<f32>::default();
+        let tol = Tolerance::<F>::default();
         seq_probs
             .into_data()
-            .assert_approx_eq::<f32>(&step_probs.into_data(), tol);
+            .assert_approx_eq::<F>(&step_probs.into_data(), tol);
         seq_state
             .into_data()
-            .assert_approx_eq::<f32>(&state.into_data(), tol);
+            .assert_approx_eq::<F>(&state.into_data(), tol);
+    }
+
+    #[test]
+    #[serial_test::serial]
+    fn test_sequence_matches_stepwise_no_ad() {
+        type F = <B as BackendTypes>::FloatElem;
+        check_sequence_matches_stepwise::<B, F>();
+    }
+
+    #[test]
+    #[serial_test::serial]
+    fn test_sequence_matches_stepwise_autodiff() {
+        type F = <B as BackendTypes>::FloatElem;
+        check_sequence_matches_stepwise::<burn::backend::Autodiff<B>, F>();
     }
 }
