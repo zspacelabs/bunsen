@@ -1,7 +1,7 @@
 <component name="ProjectRunConfigurationManager">
-  <configuration default="false" name="Test kits::speech::silero_vad::blocks::reference::tests::test_load_forward_pretrained" type="CargoCommandRunConfiguration" factoryName="Cargo Command">
+  <configuration default="false" name="Test silero_vad (cuda)" type="CargoCommandRunConfiguration" factoryName="Cargo Command">
     <option name="buildProfileId" value="test" />
-    <option name="command" value="test --package bunsen --lib --features cuda -- kits::speech::silero_vad::blocks::reference::tests::test_load_forward_pretrained --exact --ignored" />
+    <option name="command" value="test --package bunsen --lib --features cuda -- kits::speech::silero_vad" />
     <option name="workingDirectory" value="file://$PROJECT_DIR$" />
     <envs />
     <option name="emulateTerminal" value="true" />
@@ -14,7 +14,7 @@
     <option name="isRedirectInput" value="false" />
     <option name="redirectInputPath" value="" />
     <method v="2">
-      <option name="CARGO.BUILD_TASK_PROVIDER" enabled="true" />
+      <option name="RunConfigurationTask" enabled="true" run_configuration_name="Fix" run_configuration_type="CargoCommandRunConfiguration" />
     </method>
   </configuration>
 </component>
