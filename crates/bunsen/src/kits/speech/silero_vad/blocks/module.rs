@@ -467,8 +467,8 @@ impl<B: Backend> SileroVad<B> {
     ///
     /// # Arguments
     ///
-    /// * `input` - `[batch, samples = chunk_size]` mono audio chunks (at this
-    ///   model's [`sample_rate`](SileroVadMeta::sample_rate)).
+    /// * `input` - `[batch, samples]` mono audio chunks (at this model's
+    ///   [`sample_rate`](SileroVadMeta::sample_rate)).
     /// * `state` - `[2, batch, d_hidden]` recurrent state (see
     ///   [`init_state`](Self::init_state)).
     ///
@@ -483,12 +483,7 @@ impl<B: Backend> SileroVad<B> {
     ) -> (Tensor<B, 1>, Tensor<B, 3>) {
         #[cfg(any(test, debug_assertions))]
         {
-            let [batch] = unpack_shape_contract!(
-                ["batch", "samples"],
-                &input,
-                &["batch"],
-                &[("samples", self.chunk_size())],
-            );
+            let [batch] = unpack_shape_contract!(["batch", "samples"], &input, &["batch"],);
             assert_shape_contract_periodically!(
                 ["2", "batch", "d_hidden"],
                 &state,
@@ -516,10 +511,10 @@ impl<B: Backend> SileroVad<B> {
     /// The rows of `input` are consecutive chunks of one stream; the LSTM is
     /// run across them in order, carrying state from chunk to chunk.
     ///
-    /// # Arguments
+    /// Note: context is assumed to have already been added to chunks.
     ///
-    /// * `input` - `[steps, batch, samples = chunk_size]` consecutive mono
-    ///   audio chunks.
+    /// # Arguments
+    /// * `input` - `[steps, batch, samples]` consecutive mono audio chunks.
     /// * `state` - `[2, batch, d_hidden]` recurrent state for the single
     ///   stream.
     ///
@@ -538,7 +533,6 @@ impl<B: Backend> SileroVad<B> {
                     ["steps", "batch", "samples"],
                     &input,
                     &["steps", "batch"],
-                    &[("samples", self.chunk_size())]
                 );
                 assert_shape_contract_periodically!(
                     ["2", "batch", "d_hidden"],
@@ -606,7 +600,7 @@ impl<B: Backend> SileroVad<B> {
     ///
     /// # Arguments
     ///
-    /// * `input` - `[batch, samples = chunk_size]` mono audio chunks.
+    /// * `input` - `[batch, samples]` mono audio chunks.
     ///
     /// # Returns
     ///
@@ -616,37 +610,27 @@ impl<B: Backend> SileroVad<B> {
         input: Tensor<B, 2>,
     ) -> Tensor<B, 2> {
         #[cfg(any(test, debug_assertions))]
-        let [batch] = unpack_shape_contract!(
-            ["batch", "samples"],
-            &input,
-            &["batch"],
-            &[("samples", self.chunk_size())]
-        );
+        let [batch] = unpack_shape_contract!(["batch", "samples"], &input, &["batch"],);
 
         // Reflect-pad, then add the channel axis.
         // [batch, 1, samples + pad]
         let x: Tensor<B, 3> = input
-            .pad([(0, 0), (0, self.input_pad)], PadMode::Reflect)
+            .pad([(0, self.input_pad)], PadMode::Reflect)
             .unsqueeze_dim::<3>(1);
 
         // STFT magnitude: split the [n, 2F, T] conv into real / imaginary
         // halves and combine as sqrt(real^2 + imag^2) -> [n, F, T].
 
-        // [batch, 2 * n_freq, 1]
+        // [batch, 2 * n_freq, T]
         let x = self.stft.forward(x);
         #[cfg(any(test, debug_assertions))]
         assert_shape_contract_periodically!(
-            ["batch", "2" * "n_freq", "1"],
+            ["batch", "2" * "n_freq", "T"],
             &x,
-            &[
-                ("2", 2),
-                ("1", 1),
-                ("batch", batch),
-                ("n_freq", self.n_freq())
-            ],
+            &[("2", 2), ("batch", batch), ("n_freq", self.n_freq())],
         );
 
-        // [batch, n_freq, 1]
+        // [batch, n_freq, T]
         let [real_2, imag_2] = x.square().chunk(2, 1).try_into().unwrap();
         let mag = (real_2 + imag_2).sqrt();
 
@@ -881,8 +865,14 @@ mod tests {
         ] {
             let model: SileroVad<B> = cfg.init(&device);
             let batch = 3;
-            let input =
-                Tensor::<B, 2>::random([batch, model.chunk_size()], Distribution::Default, &device);
+
+            let context = 64;
+
+            let input = Tensor::<B, 2>::random(
+                [batch, context + model.chunk_size()],
+                Distribution::Default,
+                &device,
+            );
             let state = model.init_state(batch, &device);
 
             let (prob, next_state) = model.forward(input, state);
@@ -903,6 +893,7 @@ mod tests {
 
         let batch = 8;
         let steps = 5;
+        let context = 64;
 
         for cfg in [
             SileroVadSignalConfig::standard_16khz().to_structure(),
@@ -910,7 +901,7 @@ mod tests {
         ] {
             let model: SileroVad<B> = cfg.init(&device);
             let input = Tensor::random(
-                [steps, batch, model.chunk_size()],
+                [steps, batch, context + model.chunk_size()],
                 Distribution::Default,
                 &device,
             );
@@ -936,9 +927,10 @@ mod tests {
 
         let steps = 5;
         let batch = 8;
+        let context = 64;
 
         let input = Tensor::random(
-            [steps, batch, model.chunk_size()],
+            [steps, batch, context + model.chunk_size()],
             Distribution::Default,
             &device,
         );

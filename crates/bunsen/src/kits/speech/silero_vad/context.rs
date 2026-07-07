@@ -1,10 +1,22 @@
 use burn::{
     Tensor,
     config::Config,
-    prelude::Backend,
+    prelude::{
+        Backend,
+        s,
+    },
 };
 
-use crate::kits::speech::silero_vad::SileroVad;
+use crate::{
+    contracts::{
+        assert_shape_contract,
+        unpack_shape_contract,
+    },
+    kits::speech::silero_vad::{
+        SileroVad,
+        SileroVadMeta,
+    },
+};
 
 /// Common meta for [`VadRunningContext`] and [`VadRunningContextConfig`].
 pub trait VadRunningContextMeta {
@@ -56,7 +68,6 @@ impl VadRunningContextConfig {
     ) -> VadRunningContext<B> {
         VadRunningContext {
             sample_rate: self.sample_rate,
-            step_count: 0,
             context: Tensor::zeros([self.batch_size, self.context_size], device),
             state: vad.init_state(self.batch_size, device),
         }
@@ -69,9 +80,6 @@ impl VadRunningContextConfig {
 pub struct VadRunningContext<B: Backend> {
     /// The sample rate (in Hz) this context expects, e.g. `16000`.
     pub sample_rate: usize,
-
-    /// The number of samples processed so far.
-    pub step_count: usize,
 
     /// The preceding input context.
     pub context: Tensor<B, 2>,
@@ -95,35 +103,88 @@ impl<B: Backend> VadRunningContextMeta for VadRunningContext<B> {
 }
 
 impl<B: Backend> VadRunningContext<B> {
-    /// The elapsed time in seconds.
-    pub fn elapsed_seconds(&self) -> f32 {
-        self.step_count as f32 / self.sample_rate as f32
-    }
-
-    /*
-    /// Advance the context.
-    pub fn advance(
-        self,
-        input: Tensor<B, 2>,
+    /// Predict the VAD output for a chunk of input.
+    ///
+    /// Advances the context.
+    ///
+    /// # Arguments
+    /// * `chunk`: A tensor of shape `[batch, samples = vad.chunk_size()]`.
+    /// * `vad`: the VAD model.
+    ///
+    /// # Returns
+    /// * Predictions of shape `[batch]`.
+    pub fn predict_chunk(
+        &mut self,
+        chunk: Tensor<B, 2>,
         vad: &SileroVad<B>,
-    ) -> Self {
-        assert_eq!(
-            self.sample_rate,
-            vad.sample_rate(),
-            "Sample rate mismatch: {} vs. {}",
-            self.sample_rate,
-            vad.sample_rate()
+    ) -> Tensor<B, 1> {
+        assert_eq!(self.sample_rate, vad.sample_rate());
+        assert_shape_contract!(
+            ["batch", "samples"],
+            &chunk,
+            &[("batch", self.batch_size()), ("samples", vad.chunk_size())],
         );
 
-        let steps = input.dims()[0];
+        let ext_input = Tensor::cat(vec![self.context.clone(), chunk], 1);
+        self.context = ext_input
+            .clone()
+            .slice(s![.., -(self.context_size() as isize)..]);
 
-        let context: Tensor<B, 2> = self.context;
+        let (out, state) = vad.forward(ext_input, self.state.clone());
+        self.state = state;
 
-        let buf: Tensor<B, 2> = Tensor::cat(vec![self.context, input], 0);
-
-        let (out, state) = vad.forward_sequence(buf, self.state);
-
-        let out = out.slice(s![])
+        // [batch]
+        out
     }
-     */
+
+    /// Process a series of chunks.
+    ///
+    /// Advances the context.
+    ///
+    /// # Arguments
+    /// * `chunk_seq`: A tensor of shape `[steps, batch, samples =
+    ///   vad.chunk_size()]`.
+    /// * `vad`: The VAD model.
+    ///
+    /// # Returns
+    /// * Predictions of shape `[steps, batch]`.
+    pub fn predict_chunk_sequence(
+        &mut self,
+        chunk_seq: Tensor<B, 3>,
+        vad: &SileroVad<B>,
+    ) -> Tensor<B, 2> {
+        assert_eq!(self.sample_rate, vad.sample_rate());
+        let [steps] = unpack_shape_contract!(
+            ["steps", "batch", "samples"],
+            &chunk_seq,
+            &["steps"],
+            &[("batch", self.batch_size()), ("samples", vad.chunk_size())],
+        );
+
+        // [1, batch, context_size]
+        let context: Tensor<B, 3> = self.context.clone().unsqueeze_dim(0);
+
+        // [steps, batch, context_size]
+        let context: Tensor<B, 3> = if steps <= 1 {
+            context
+        } else {
+            let tails = chunk_seq
+                .clone()
+                .slice(s![0..-1, -(self.context_size() as i32)..]);
+            Tensor::cat(vec![context, tails], 0)
+        };
+
+        // [steps, batch, context_size + samples]
+        let ext_chunk_seq: Tensor<B, 3> = Tensor::cat(vec![context, chunk_seq.clone()], 2);
+        self.context = ext_chunk_seq
+            .clone()
+            .slice(s![-1, .., -(self.context_size() as i32)..])
+            .unsqueeze_dim(0);
+
+        let (out_seq, state) = vad.forward_sequence(ext_chunk_seq, self.state.clone());
+        self.state = state;
+
+        // [steps, batch]
+        out_seq
+    }
 }
