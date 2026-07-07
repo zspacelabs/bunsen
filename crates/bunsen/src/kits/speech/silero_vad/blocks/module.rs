@@ -506,12 +506,10 @@ impl<B: Backend> SileroVad<B> {
         )
     }
 
-    /// Streaming forward pass over a single stream's chunk-sequence.
+    /// Optimized [`Self::forward`] sequence.
     ///
-    /// The rows of `input` are consecutive chunks of one stream; the LSTM is
-    /// run across them in order, carrying state from chunk to chunk.
-    ///
-    /// Note: context is assumed to have already been added to chunks.
+    /// This is not context-aware, this is just a faster implementation
+    /// of calling `self.forward` on an iterative sequence of churks.
     ///
     /// # Arguments
     /// * `input` - `[steps, batch, samples]` consecutive mono audio chunks.
@@ -519,7 +517,6 @@ impl<B: Backend> SileroVad<B> {
     ///   stream.
     ///
     /// # Returns
-    ///
     /// `(probabilities, state)`, with `probabilities` of shape `[steps, batch]`
     /// (one per chunk) and the next `state` of shape `[2, batch, d_hidden]`.
     pub fn forward_sequence(
