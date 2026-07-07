@@ -1,0 +1,19 @@
+[package]
+name = "silero-bench"
+authors.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+version.workspace = true
+repository.workspace = true
+license.workspace = true
+
+[dependencies]
+burn = { workspace = true, features = ["fusion", "autotune"] }
+bunsen = { path = "../../crates/bunsen" }
+polars = { workspace = true, features = ["ipc", "strings", "lazy", "parquet"] }
+polars-arrow = { workspace = true, features = ["arrow-format"] }
+
+clap = { workspace = true, features = ["derive"] }
+
+[lints]
+workspace = true
