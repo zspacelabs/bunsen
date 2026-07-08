@@ -525,12 +525,12 @@ impl<B: Backend> SileroVad<B> {
     ) -> (Tensor<B, 2>, Tensor<B, 3>) {
         cfg_select! {
             any(test, debug_assertions) => {
-                let [steps, batch] = unpack_shape_contract!(
+                let [steps, batch] = crate::contracts::unpack_shape_contract!(
                     ["steps", "batch", "samples"],
                     &input,
                     &["steps", "batch"],
                 );
-                assert_shape_contract_periodically!(
+                crate::contracts::assert_shape_contract_periodically!(
                     ["2", "batch", "d_hidden"],
                     &state,
                     &[("2", 2), ("batch", batch), ("d_hidden", self.d_hidden())]
