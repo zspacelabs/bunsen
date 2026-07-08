@@ -60,7 +60,7 @@ store = [
     "cache",
     "burn/store",
     "burn-store/pytorch",
-    "bunsen-silero-onnx",
+    "bunsen-onnx-gen",
 ]
 
 ## Enable features to use with `burn/train`.
@@ -109,7 +109,7 @@ flex = ["burn/flex"]
 
 [dependencies]
 bunsen-contracts-macros = { version = "0.25.0", path = "../bunsen-contracts-macros" }
-bunsen-silero-onnx = { version = "0.25.0", path = "../bunsen-silero-onnx", optional = true }
+bunsen-onnx-gen = { version = "0.25.0", path = "../bunsen-onnx-gen", optional = true }
 
 burn = { workspace = true }
 burn-store = { workspace = true, optional = true }

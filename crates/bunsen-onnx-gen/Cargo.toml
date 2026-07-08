@@ -1,5 +1,5 @@
 [package]
-name = "bunsen-silero-onnx"
+name = "bunsen-onnx-gen"
 authors.workspace = true
 edition.workspace = true
 rust-version.workspace = true

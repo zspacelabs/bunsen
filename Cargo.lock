@@ -967,7 +967,7 @@ version = "0.25.0"
 dependencies = [
  "bunsen",
  "bunsen-contracts-macros",
- "bunsen-silero-onnx",
+ "bunsen-onnx-gen",
  "burn",
  "burn-store",
  "crc",
@@ -1035,6 +1035,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "bunsen-onnx-gen"
+version = "0.25.0"
+dependencies = [
+ "burn",
+ "burn-onnx",
+ "burn-store",
+]
+
+[[package]]
 name = "bunsen-preview-chat-dataloader"
 version = "0.25.0"
 dependencies = [
@@ -1047,15 +1056,6 @@ dependencies = [
  "serde",
  "serde_json",
  "wordchipper",
-]
-
-[[package]]
-name = "bunsen-silero-onnx"
-version = "0.25.0"
-dependencies = [
- "burn",
- "burn-onnx",
- "burn-store",
 ]
 
 [[package]]

@@ -2,7 +2,7 @@
 
 /// The reference model.
 #[cfg(feature = "store")]
-pub use bunsen_silero_onnx::silero_vad_op18_ifless as reference;
+pub use bunsen_onnx_gen::silero_vad_op18_ifless as reference;
 #[cfg(feature = "store")]
 mod cross_test;
 #[cfg(feature = "store")]
