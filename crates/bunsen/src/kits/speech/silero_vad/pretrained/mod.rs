@@ -26,12 +26,11 @@ use crate::{
     },
 };
 
-/// Pretrained dual branch 16khz/8khs model.
-pub const SILERO_VAD6_WEIGHTS: &[u8] = include_bytes!("silero_vad_op18_ifless.bpk");
-
 /// Get the pretrained bytes.
 pub fn silero_vad_pretrained_bytes() -> burn::tensor::Bytes {
-    burn::tensor::Bytes::from_bytes_vec(SILERO_VAD6_WEIGHTS.to_vec())
+    burn::tensor::Bytes::from_bytes_vec(
+        bunsen_silero_onnx::silero_vad_op18_ifless::BURNPACK_WEIGHTS.to_vec(),
+    )
 }
 
 impl<B: Backend> SileroVadCollection<B> {

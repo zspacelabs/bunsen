@@ -3,7 +3,7 @@
 pub mod blocks;
 mod context;
 
-#[cfg(feature = "cache")]
+#[cfg(feature = "store")]
 pub mod pretrained;
 
 #[doc(inline)]

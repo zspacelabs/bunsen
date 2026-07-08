@@ -35,11 +35,13 @@ wordchipper-cli-util = { version = "0.9.2" }
 
 rand = "0.10.1"
 burn = "0.21.0"
+burn-onnx = "0.21.0"
 burn-store = "0.21.0"
 
 # Burn coupled-dependencies
 crc = "3.4.0"
 globwalk = "0.9.1"
+glob = "0.3.3"
 hashbrown = "0.17.0"
 regex = "1.12.2"
 regex-macro = "0.3.0"
