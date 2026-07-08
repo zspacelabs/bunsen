@@ -1,7 +1,7 @@
 <component name="ProjectRunConfigurationManager">
   <configuration default="false" name="Run silero-bench" type="CargoCommandRunConfiguration" factoryName="Cargo Command">
-    <option name="buildProfileId" value="dev" />
-    <option name="command" value="run --package silero-bench --bin silero-bench -- --path $USER_HOME$/Downloads/VoxLingua107.feather" />
+    <option name="buildProfileId" value="release" />
+    <option name="command" value="run --package silero-bench --bin silero-bench --features bunsen/cuda -- --path $PROJECT_DIR$/../ten-vad/testset/testset-audio-01.wav" />
     <option name="workingDirectory" value="file://$PROJECT_DIR$" />
     <envs />
     <option name="emulateTerminal" value="true" />

@@ -9,9 +9,8 @@ license.workspace = true
 
 [dependencies]
 burn = { workspace = true, features = ["fusion", "autotune"] }
-bunsen = { path = "../../crates/bunsen" }
-polars = { workspace = true, features = ["ipc", "strings", "lazy", "parquet"] }
-polars-arrow = { workspace = true, features = ["arrow-format"] }
+bunsen = { path = "../../crates/bunsen", features = ["testing"] }
+hound = { workspace = true }
 
 clap = { workspace = true, features = ["derive"] }
 

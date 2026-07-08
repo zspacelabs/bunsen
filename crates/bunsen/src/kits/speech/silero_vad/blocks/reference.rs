@@ -423,6 +423,7 @@ mod tests {
         errors::*,
         kits::speech::silero_vad::{
             SileroVadCollection,
+            SileroVadMeta,
             pretrained::silero_vad_pretrained_bytes,
         },
         support::testing::PerformanceBackend,
@@ -436,7 +437,7 @@ mod tests {
 
         let device = Default::default();
 
-        let s_mod: SileroVadCollection<B> =
+        let sc: SileroVadCollection<B> =
             SileroVadCollection::load_pretrained(&device).ok_or_panic();
 
         let r_mod: ReferenceVAD<B> =
@@ -445,15 +446,21 @@ mod tests {
         let batch = 8;
 
         for sample_rate in [16000, 8000] {
-            let input = Tensor::<B, 2>::random(
-                [batch, s_mod.chunk_size(sample_rate)],
-                Distribution::Default,
-                &device,
-            );
-            let state = s_mod.init_state(sample_rate, batch, &device);
+            let vad = sc.expect_branch(sample_rate);
+
+            if sample_rate == 16000 {
+                assert_eq!(vad.chunk_size(), 512)
+            }
+
+            let input =
+                Tensor::<B, 2>::random([batch, vad.chunk_size()], Distribution::Default, &device);
+            let state = vad.init_state(batch, &device);
 
             // ([batch], [2, batch, d_hidden])
-            let (s_out, s_state) = s_mod.forward(sample_rate, input.clone(), state.clone());
+            let input1 = input.clone();
+            let state1 = state.clone();
+            let (s_out, s_state) = vad.forward(input1, state1);
+
             // ([batch, 1], [2, batch, d_hidden])
             let (r_out, r_state) = r_mod.forward(input, sample_rate, state.clone());
 

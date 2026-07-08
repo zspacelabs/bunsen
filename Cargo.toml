@@ -53,13 +53,13 @@ directories-next = "2.0.0"
 
 anyhow = "1.0.100"
 indicatif = "^0.18.3"
+
 image = "0.25.10"
+hound = "3.5.1"
 
 derive-new = "0.7.0"
 arrow = "58.1.0"
 parquet = "58.1.0"
-polars = { version = "0.54.4" }
-polars-arrow = { version = "0.54.4" }
 
 # Build, Test and/or Examples dependencies
 hamcrest = "0.1.5"
