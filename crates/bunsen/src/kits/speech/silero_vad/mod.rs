@@ -1,10 +1,13 @@
 //! Silero VAD voice-activity-detection model.
 
-pub mod blocks;
-mod context;
-
+/// The reference model.
+#[cfg(feature = "store")]
+pub use bunsen_silero_onnx::silero_vad_op18_ifless as reference;
 #[cfg(feature = "store")]
 pub mod pretrained;
+
+pub mod blocks;
+mod context;
 
 #[doc(inline)]
 pub use blocks::*;
