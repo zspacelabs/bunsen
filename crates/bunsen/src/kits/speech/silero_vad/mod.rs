@@ -4,6 +4,8 @@
 #[cfg(feature = "store")]
 pub use bunsen_silero_onnx::silero_vad_op18_ifless as reference;
 #[cfg(feature = "store")]
+mod cross_test;
+#[cfg(feature = "store")]
 pub mod pretrained;
 
 pub mod blocks;

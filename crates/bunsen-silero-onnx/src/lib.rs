@@ -9,4 +9,11 @@ pub mod silero_vad_op18_ifless {
     pub fn burnpack_as_burn_bytes() -> burn::tensor::Bytes {
         burn::tensor::Bytes::from_bytes_vec(BURNPACK_WEIGHTS.to_vec())
     }
+
+    impl<B: Backend> Model<B> {
+        /// Load the pretrained model.
+        pub fn load_pretrained(device: &B::Device) -> Model<B> {
+            Model::from_bytes(burnpack_as_burn_bytes(), device)
+        }
+    }
 }
