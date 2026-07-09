@@ -792,6 +792,7 @@ mod tests {
             let cfg = cfg.to_structure();
             assert_eq!(cfg.sample_rate(), 16000);
             assert_eq!(cfg.n_freq(), 129);
+            assert_eq!(cfg.chunk_size(), 512);
             assert_eq!(cfg.input_pad(), 64);
             assert_eq!(cfg.stft_kernel(), 256);
             assert_eq!(cfg.stft_stride(), 128);
@@ -819,6 +820,7 @@ mod tests {
             let cfg = cfg.to_structure();
             assert_eq!(cfg.sample_rate(), 8000);
             assert_eq!(cfg.n_freq(), 65);
+            assert_eq!(cfg.chunk_size(), 256);
             assert_eq!(cfg.input_pad(), 32);
             assert_eq!(cfg.stft_kernel(), 128);
             assert_eq!(cfg.stft_stride(), 64);
@@ -844,14 +846,25 @@ mod tests {
     fn test_config_meta_matches_module() {
         let device = Default::default();
 
-        for (cfg, n_freq) in [
-            (SileroVadSignalConfig::standard_16khz().to_structure(), 129),
-            (SileroVadSignalConfig::standard_8khz().to_structure(), 65),
+        for (cfg, n_freq, chunk_size) in [
+            (
+                SileroVadSignalConfig::standard_16khz().to_structure(),
+                129,
+                512,
+            ),
+            (
+                SileroVadSignalConfig::standard_8khz().to_structure(),
+                65,
+                256,
+            ),
         ] {
+            assert_eq!(cfg.chunk_size(), chunk_size);
+            assert_eq!(cfg.n_freq(), n_freq);
+
             let model: SileroVad<B> = cfg.init(&device);
             assert_eq!(model.sample_rate(), cfg.sample_rate());
+            assert_eq!(model.chunk_size(), cfg.chunk_size());
             assert_eq!(model.d_hidden(), cfg.d_hidden());
-            assert_eq!(model.n_freq(), n_freq);
             assert_eq!(model.input_pad(), cfg.input_pad());
             assert_eq!(model.stft_kernel(), cfg.stft_kernel());
             assert_eq!(model.stft_stride(), cfg.stft_stride());
