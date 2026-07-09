@@ -9,12 +9,21 @@ use bunsen::{
         SileroVad,
         SileroVadCollection,
         SileroVadMeta,
+        reference::ReferenceModel,
     },
     support::testing::PerformanceBackend,
 };
-use burn::Tensor;
+use burn::{
+    Tensor,
+    tensor::Tolerance,
+};
 use clap::Parser;
-use hound::SampleFormat;
+use hound::{
+    SampleFormat,
+    WavSpec,
+};
+
+type B = PerformanceBackend;
 
 /// Silero VAD Benchmark tool.
 #[derive(Parser, Debug)]
@@ -31,25 +40,27 @@ pub struct Args {
 
 fn main() -> BunsenResult<()> {
     let args = Args::parse();
-    println!("{:#?}", args);
+    println!("* {:#?}", args);
 
-    type B = PerformanceBackend;
+    println!("\n> Loading models");
     let device = Default::default();
+    println!("* device: {:?}", device);
 
-    println!("device: {:?}", device);
-
-    let vad: SileroVad<B> = {
-        SileroVadCollection::load_pretrained(&device)?
-            .try_branch(args.sample_rate)?
-            .clone()
-    };
+    println!("* SileroVad");
+    let vad: SileroVad<B> = SileroVadCollection::load_pretrained(&device)?
+        .try_branch(args.sample_rate)?
+        .clone();
 
     let chunk_size = vad.chunk_size();
-    println!("chunk_size: {}", chunk_size);
+    println!("  - {} chunk_size: {}", args.sample_rate, chunk_size);
 
-    // [steps, batch=1, samples=chunk_size]
-    let samples: Tensor<B, 3> = {
-        let (mut wav_vec, _) = load_audio_mono_sr(&args.path, args.sample_rate)?;
+    println!("* ONNX ReferenceModel");
+    let reference = ReferenceModel::<B>::load_pretrained(&device);
+
+    println!("\n> Loading audio file: \"{}\"", args.path);
+    let samples = {
+        let (spec, mut wav_vec) = load_audio_mono_sr(&args.path, args.sample_rate)?;
+        println!("* {:?}", spec);
 
         let tail_len = wav_vec.len() % chunk_size;
         if tail_len != 0 {
@@ -57,20 +68,34 @@ fn main() -> BunsenResult<()> {
             wav_vec.resize(wav_vec.len() + pad_len, 0.0);
         }
 
-        Tensor::<B, 1>::from_floats(wav_vec.as_slice(), &device).reshape([
-            -1,
-            1,
-            chunk_size as isize,
-        ])
+        let samples = Tensor::<B, 1>::from_floats(wav_vec.as_slice(), &device);
+
+        // [chunks, samples=chunk_size]
+        samples.reshape([-1, chunk_size as isize])
     };
+    println!("* samples.dims: {:?}", samples.dims());
 
-    println!("samples.dims: {:#?}", samples.dims());
+    println!("\n> Testing SileroVad::forward([batch, chunk_size], state):");
+    let state0 = vad.init_state(1, &device);
+    let (mod_out, _) = vad.forward(samples.clone(), state0.clone());
+    let mod_out = mod_out.to_data();
 
-    let (probs, _) = vad.forward_sequence(samples, vad.init_state(1, &device));
+    println!(
+        "{:0.4?}",
+        mod_out
+            .clone()
+            .to_vec::<f32>()
+            .map_err(BunsenError::external)?
+    );
 
-    let probs: Vec<f32> = probs.to_data().to_vec().map_err(BunsenError::external)?;
+    print!("* ReferenceModel::forward: ");
+    // [batch, 1]
+    let (ref_out, _) = reference.forward(samples.clone(), args.sample_rate as i64, state0.clone());
+    // [batch]
+    let ref_out = ref_out.flatten::<1>(0, 1).to_data();
 
-    println!("{:0.4?}", probs);
+    mod_out.assert_approx_eq::<f32>(&ref_out, Tolerance::default());
+    println!("approx_eq");
 
     Ok(())
 }
@@ -83,7 +108,7 @@ fn main() -> BunsenResult<()> {
 pub fn load_audio_mono_sr<P: AsRef<Path>>(
     filename: P,
     sample_rate: usize,
-) -> BunsenResult<(Vec<f32>, usize)> {
+) -> BunsenResult<(WavSpec, Vec<f32>)> {
     let filename = filename.as_ref();
 
     let mut reader = hound::WavReader::open(filename).map_err(BunsenError::external)?;
@@ -100,8 +125,6 @@ pub fn load_audio_mono_sr<P: AsRef<Path>>(
             sample_rate, spec.sample_rate
         )));
     }
-
-    println!("{:#?}", spec);
 
     let spec = reader.spec();
     let samples: Vec<f32> = match (spec.sample_format, spec.bits_per_sample) {
@@ -122,5 +145,5 @@ pub fn load_audio_mono_sr<P: AsRef<Path>>(
         _ => unreachable!("hound rejects other formats at open"),
     };
 
-    Ok((samples, sample_rate))
+    Ok((spec, samples))
 }

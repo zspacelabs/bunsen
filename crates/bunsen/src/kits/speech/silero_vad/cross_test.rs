@@ -14,7 +14,7 @@ mod tests {
         kits::speech::silero_vad::{
             SileroVadCollection,
             SileroVadMeta,
-            reference::Model as ReferenceModel,
+            reference::ReferenceModel,
         },
         support::testing::PerformanceBackend,
     };
