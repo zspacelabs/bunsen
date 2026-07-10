@@ -15,9 +15,6 @@ mod cross_test;
 pub mod pretrained;
 
 pub mod blocks;
-mod context;
 
 #[doc(inline)]
 pub use blocks::*;
-#[doc(inline)]
-pub use context::*;

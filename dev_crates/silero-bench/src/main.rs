@@ -8,8 +8,8 @@ use bunsen::{
     kits::speech::silero_vad::{
         SileroVad,
         SileroVadCollection,
+        SileroVadContextConfig,
         SileroVadMeta,
-        VadRunningContextConfig,
     },
     support::testing::PerformanceBackend,
 };
@@ -69,16 +69,19 @@ fn main() -> BunsenResult<()> {
     };
     println!("* chunk_seq.dims: {:?}", chunk_seq.dims());
 
-    println!("\n> VadRunningContext::predict_chunk_sequence([steps, batch, chunk_size]):");
-    let ctx = VadRunningContextConfig::new(args.sample_rate).init(&vad, &device);
-
-    let (_ctx, seq_out) = ctx.predict_chunk_sequence(chunk_seq.clone(), &vad);
-    let seq_out = seq_out
+    println!("\n> SileroVad::context_forward_sequence([steps, batch, chunk_size], ctx):");
+    // [steps, batch=1]
+    let (chunk_probs, _ctx) = vad.context_forward_sequence(
+        chunk_seq,
+        SileroVadContextConfig::new(args.sample_rate).init(&vad, &device),
+    );
+    // [steps]
+    let chunk_probs = chunk_probs
         .squeeze_dim::<1>(1)
         .to_data()
         .to_vec::<f32>()
         .map_err(BunsenError::external)?;
-    println!("{:0.4?}", seq_out);
+    println!("{:0.4?}", chunk_probs);
 
     Ok(())
 }
