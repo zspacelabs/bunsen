@@ -10,14 +10,10 @@ use bunsen::{
         SileroVadCollection,
         SileroVadMeta,
         VadRunningContextConfig,
-        reference::ReferenceModel,
     },
     support::testing::PerformanceBackend,
 };
-use burn::{
-    Tensor,
-    tensor::Tolerance,
-};
+use burn::Tensor;
 use clap::Parser;
 use hound::{
     SampleFormat,
@@ -55,11 +51,8 @@ fn main() -> BunsenResult<()> {
     let chunk_size = vad.chunk_size();
     println!("  - {} chunk_size: {}", args.sample_rate, chunk_size);
 
-    println!("* ONNX ReferenceModel");
-    let reference = ReferenceModel::<B>::load_pretrained(&device);
-
     println!("\n> Loading audio file: \"{}\"", args.path);
-    let samples = {
+    let chunk_seq: Tensor<B, 3> = {
         let (spec, mut wav_vec) = load_audio_mono_sr(&args.path, args.sample_rate)?;
         println!("* {:?}", spec);
 
@@ -71,49 +64,21 @@ fn main() -> BunsenResult<()> {
 
         let samples = Tensor::<B, 1>::from_floats(wav_vec.as_slice(), &device);
 
-        // [chunks, samples=chunk_size]
-        samples.reshape([-1, chunk_size as isize])
+        // [chunks, 1, samples=chunk_size]
+        samples.reshape([-1, 1, chunk_size as isize])
     };
-    println!("* samples.dims: {:?}", samples.dims());
+    println!("* chunk_seq.dims: {:?}", chunk_seq.dims());
 
     println!("\n> VadRunningContext::predict_chunk_sequence([steps, batch, chunk_size]):");
-    {
-        let chunk_seq = samples.clone().reshape([-1, 1, chunk_size as isize]);
-        let ctx = VadRunningContextConfig::new(args.sample_rate).init(&vad, &device);
+    let ctx = VadRunningContextConfig::new(args.sample_rate).init(&vad, &device);
 
-        let (_ctx, seq_out) = ctx.predict_chunk_sequence(chunk_seq, &vad);
-
-        let seq_out = seq_out
-            .squeeze_dim::<1>(1)
-            .to_data()
-            .to_vec::<f32>()
-            .map_err(BunsenError::external)?;
-        println!("{:0.4?}", seq_out);
-    }
-
-    let steps = samples.dims()[0];
-
-    println!("\n> Testing SileroVad::forward([batch, chunk_size], state):");
-    let state0 = vad.init_state(steps, &device);
-    let (mod_out, _) = vad.forward(samples.clone(), state0.clone());
-    let mod_out = mod_out.to_data();
-
-    println!(
-        "{:0.4?}",
-        mod_out
-            .clone()
-            .to_vec::<f32>()
-            .map_err(BunsenError::external)?
-    );
-
-    print!("* ReferenceModel::forward: ");
-    // [batch, 1]
-    let (ref_out, _) = reference.forward(samples.clone(), args.sample_rate as i64, state0.clone());
-    // [batch]
-    let ref_out = ref_out.flatten::<1>(0, 1).to_data();
-
-    mod_out.assert_approx_eq::<f32>(&ref_out, Tolerance::permissive());
-    println!("approx_eq");
+    let (_ctx, seq_out) = ctx.predict_chunk_sequence(chunk_seq.clone(), &vad);
+    let seq_out = seq_out
+        .squeeze_dim::<1>(1)
+        .to_data()
+        .to_vec::<f32>()
+        .map_err(BunsenError::external)?;
+    println!("{:0.4?}", seq_out);
 
     Ok(())
 }
