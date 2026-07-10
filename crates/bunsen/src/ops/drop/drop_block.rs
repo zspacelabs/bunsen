@@ -70,7 +70,7 @@ impl ModuleDisplayDefault for DropBlockOptions {
         Some(
             content
                 .add("drop_prob", &self.drop_prob)
-                .add("kernel", format!("{:?}", &self.kernel).as_str())
+                .add("kernel", format!("{:?}", self.kernel).as_str())
                 .add("gamma_scale", &self.gamma_scale)
                 .add("batchwise", &self.batchwise)
                 .add("couple_channels", &self.couple_channels)

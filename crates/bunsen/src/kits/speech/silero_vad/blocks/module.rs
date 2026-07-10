@@ -68,10 +68,6 @@ use crate::{
         ConvSeq1dMeta,
     },
     burner::module::ModuleInit,
-    contracts::{
-        assert_shape_contract_periodically,
-        unpack_shape_contract,
-    },
     errors::{
         BunsenError,
         BunsenResult,
@@ -168,7 +164,7 @@ pub struct SileroVadStftConfig {
 
 impl SileroVadStftConfig {
     /// Convert this config into a [`SileroVadStructureConfig`].
-    fn to_structure(&self) -> SileroVadStructureConfig {
+    pub fn to_structure(&self) -> SileroVadStructureConfig {
         SileroVadStructureConfig {
             sample_rate: self.sample_rate,
             input_pad: self.input_pad,
@@ -209,8 +205,10 @@ pub trait SileroVadMeta {
     fn n_freq(&self) -> usize;
 
     /// The processing chunk size.
+    ///
+    /// This is 2x the STFT kernel size.
     fn chunk_size(&self) -> usize {
-        self.n_freq() * 2
+        2 * self.stft_kernel()
     }
 
     /// The reflect-padding applied to the right of the input before the STFT
@@ -435,7 +433,7 @@ impl<B: Backend> SileroVadMeta for SileroVad<B> {
     }
 
     fn stft_kernel(&self) -> usize {
-        self.stft.weight.dims()[1]
+        self.stft.kernel_size
     }
 
     fn stft_stride(&self) -> usize {
@@ -483,8 +481,9 @@ impl<B: Backend> SileroVad<B> {
     ) -> (Tensor<B, 1>, Tensor<B, 3>) {
         #[cfg(any(test, debug_assertions))]
         {
-            let [batch] = unpack_shape_contract!(["batch", "samples"], &input, &["batch"],);
-            assert_shape_contract_periodically!(
+            let [batch] =
+                crate::contracts::unpack_shape_contract!(["batch", "samples"], &input, &["batch"],);
+            crate::contracts::assert_shape_contract_periodically!(
                 ["2", "batch", "d_hidden"],
                 &state,
                 &[("2", 2), ("batch", batch), ("d_hidden", self.d_hidden())]
@@ -526,12 +525,12 @@ impl<B: Backend> SileroVad<B> {
     ) -> (Tensor<B, 2>, Tensor<B, 3>) {
         cfg_select! {
             any(test, debug_assertions) => {
-                let [steps, batch] = unpack_shape_contract!(
+                let [steps, batch] = crate::contracts::unpack_shape_contract!(
                     ["steps", "batch", "samples"],
                     &input,
                     &["steps", "batch"],
                 );
-                assert_shape_contract_periodically!(
+                crate::contracts::assert_shape_contract_periodically!(
                     ["2", "batch", "d_hidden"],
                     &state,
                     &[("2", 2), ("batch", batch), ("d_hidden", self.d_hidden())]
@@ -607,7 +606,8 @@ impl<B: Backend> SileroVad<B> {
         input: Tensor<B, 2>,
     ) -> Tensor<B, 2> {
         #[cfg(any(test, debug_assertions))]
-        let [batch] = unpack_shape_contract!(["batch", "samples"], &input, &["batch"],);
+        let [batch] =
+            crate::contracts::unpack_shape_contract!(["batch", "samples"], &input, &["batch"],);
 
         // Reflect-pad, then add the channel axis.
         // [batch, 1, samples + pad]
@@ -621,7 +621,7 @@ impl<B: Backend> SileroVad<B> {
         // [batch, 2 * n_freq, T]
         let x = self.stft.forward(x);
         #[cfg(any(test, debug_assertions))]
-        assert_shape_contract_periodically!(
+        crate::contracts::assert_shape_contract_periodically!(
             ["batch", "2" * "n_freq", "T"],
             &x,
             &[("2", 2), ("batch", batch), ("n_freq", self.n_freq())],
@@ -639,7 +639,7 @@ impl<B: Backend> SileroVad<B> {
             .squeeze_dim::<2>(2);
 
         #[cfg(any(test, debug_assertions))]
-        assert_shape_contract_periodically!(
+        crate::contracts::assert_shape_contract_periodically!(
             ["batch", "d_hidden"],
             &x,
             &[("batch", batch), ("d_hidden", self.d_hidden())],
@@ -680,26 +680,31 @@ impl<B: Backend> SileroVad<B> {
         hidden: Tensor<B, 2>,
         cell: Tensor<B, 2>,
     ) -> (Tensor<B, 2>, Tensor<B, 2>) {
-        cfg_select! {
-            any(test, debug_assertions) => {
-                let [batch] = unpack_shape_contract!(
-                    ["batch", "d_hidden"],
-                    &features,
-                    &["batch"],
-                    &[("d_hidden", self.d_hidden())],
-                );
-                assert_shape_contract_periodically!(
-                    ["batch", "d_hidden"],
-                    &cell,
-                    &[("batch", batch), ("d_hidden", self.d_hidden())]
-                );
-                assert_shape_contract_periodically!(
-                    ["batch", "d_hidden"],
-                    &hidden,
-                    &[("batch", batch), ("d_hidden", self.d_hidden())]
-                );
-            }
-        }
+        #[cfg(any(test, debug_assertions))]
+        use crate::contracts::{
+            assert_shape_contract_periodically,
+            unpack_shape_contract,
+        };
+        #[cfg(any(test, debug_assertions))]
+        let batch = {
+            let [batch] = unpack_shape_contract!(
+                ["batch", "d_hidden"],
+                &features,
+                &["batch"],
+                &[("d_hidden", self.d_hidden())],
+            );
+            assert_shape_contract_periodically!(
+                ["batch", "d_hidden"],
+                &cell,
+                &[("batch", batch), ("d_hidden", self.d_hidden())]
+            );
+            assert_shape_contract_periodically!(
+                ["batch", "d_hidden"],
+                &hidden,
+                &[("batch", batch), ("d_hidden", self.d_hidden())]
+            );
+            batch
+        };
 
         // Gates: recurrent projection of `hidden` plus input projection of
         // `feature`, split into [input, forget, cell, output] gates.
@@ -787,6 +792,7 @@ mod tests {
             let cfg = cfg.to_structure();
             assert_eq!(cfg.sample_rate(), 16000);
             assert_eq!(cfg.n_freq(), 129);
+            assert_eq!(cfg.chunk_size(), 512);
             assert_eq!(cfg.input_pad(), 64);
             assert_eq!(cfg.stft_kernel(), 256);
             assert_eq!(cfg.stft_stride(), 128);
@@ -814,6 +820,7 @@ mod tests {
             let cfg = cfg.to_structure();
             assert_eq!(cfg.sample_rate(), 8000);
             assert_eq!(cfg.n_freq(), 65);
+            assert_eq!(cfg.chunk_size(), 256);
             assert_eq!(cfg.input_pad(), 32);
             assert_eq!(cfg.stft_kernel(), 128);
             assert_eq!(cfg.stft_stride(), 64);
@@ -839,15 +846,30 @@ mod tests {
     fn test_config_meta_matches_module() {
         let device = Default::default();
 
-        for (cfg, n_freq) in [
-            (SileroVadSignalConfig::standard_16khz().to_structure(), 129),
-            (SileroVadSignalConfig::standard_8khz().to_structure(), 65),
+        for (cfg, n_freq, chunk_size) in [
+            (
+                SileroVadSignalConfig::standard_16khz().to_structure(),
+                129,
+                512,
+            ),
+            (
+                SileroVadSignalConfig::standard_8khz().to_structure(),
+                65,
+                256,
+            ),
         ] {
+            assert_eq!(cfg.chunk_size(), chunk_size);
+            assert_eq!(cfg.n_freq(), n_freq);
+
             let model: SileroVad<B> = cfg.init(&device);
             assert_eq!(model.sample_rate(), cfg.sample_rate());
+            assert_eq!(model.chunk_size(), cfg.chunk_size());
             assert_eq!(model.d_hidden(), cfg.d_hidden());
-            assert_eq!(model.n_freq(), n_freq);
             assert_eq!(model.input_pad(), cfg.input_pad());
+            assert_eq!(model.stft_kernel(), cfg.stft_kernel());
+            assert_eq!(model.stft_stride(), cfg.stft_stride());
+            assert_eq!(model.gate_size(), cfg.gate_size());
+            assert_eq!(model.d_bottleneck(), cfg.d_bottleneck());
         }
     }
 

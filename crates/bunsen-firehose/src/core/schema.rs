@@ -417,7 +417,7 @@ impl FirehoseTableSchema {
 
         let mut base_columns: Vec<String> = column_names.clone();
         for plan in plans {
-            for (_, cname) in plan.outputs.iter() {
+            for cname in plan.outputs.values() {
                 base_columns.retain(|c| c != cname);
             }
         }
@@ -444,7 +444,7 @@ impl FirehoseTableSchema {
                     .all(|cname| scheduled_columns.contains(cname))
                 {
                     // All inputs are scheduled, we can schedule this plan.
-                    for (_, cname) in plan.outputs.iter() {
+                    for cname in plan.outputs.values() {
                         if !scheduled_columns.contains(cname) {
                             scheduled_columns.push(cname.clone());
                         }

@@ -5,6 +5,7 @@ resolver = "2"
 
 members = [
     "crates/*",
+    "dev_crates/*",
     "examples/*"
 ]
 
@@ -34,11 +35,13 @@ wordchipper-cli-util = { version = "0.9.2" }
 
 rand = "0.10.1"
 burn = "0.21.0"
+burn-onnx = "0.21.0"
 burn-store = "0.21.0"
 
 # Burn coupled-dependencies
 crc = "3.4.0"
 globwalk = "0.9.1"
+glob = "0.3.3"
 hashbrown = "0.17.0"
 regex = "1.12.2"
 regex-macro = "0.3.0"
@@ -52,7 +55,9 @@ directories-next = "2.0.0"
 
 anyhow = "1.0.100"
 indicatif = "^0.18.3"
+
 image = "0.25.10"
+hound = "3.5.1"
 
 derive-new = "0.7.0"
 arrow = "58.1.0"

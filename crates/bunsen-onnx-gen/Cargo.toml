@@ -1,0 +1,18 @@
+[package]
+name = "bunsen-onnx-gen"
+authors.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+version.workspace = true
+repository.workspace = true
+license.workspace = true
+
+[dependencies]
+burn = { workspace = true, features = ["store"] }
+burn-store = { workspace = true }
+
+[build-dependencies]
+burn-onnx = { workspace = true }
+
+[lints]
+workspace = true

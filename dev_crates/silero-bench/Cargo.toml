@@ -1,0 +1,18 @@
+[package]
+name = "silero-bench"
+authors.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+version.workspace = true
+repository.workspace = true
+license.workspace = true
+
+[dependencies]
+clap = { workspace = true, features = ["derive"] }
+
+burn = { workspace = true, features = ["fusion", "autotune"] }
+bunsen = { path = "../../crates/bunsen", features = ["testing"] }
+hound = { workspace = true }
+
+[lints]
+workspace = true

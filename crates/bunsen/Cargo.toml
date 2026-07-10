@@ -59,7 +59,8 @@ store = [
     "std",
     "cache",
     "burn/store",
-    "burn-store/pytorch"
+    "burn-store/pytorch",
+    "bunsen-onnx-gen",
 ]
 
 ## Enable features to use with `burn/train`.
@@ -85,7 +86,7 @@ testing = [
 ## Dependents which enable backends for burn without enabling them for bunsen
 ## can still use those backends with bunsen; only bunse specific features will
 ## be disabled.
-cuda = ["burn/cuda"]
+cuda = ["burn/cuda", "burn/fusion"]
 ## Enable the cuda backend in the bunsen build.
 ## This will impact the bunsen::support::testing::PerformanceBackend choice.
 ## Dependents which enable backends for burn without enabling them for bunsen
@@ -97,7 +98,7 @@ metal = ["burn/metal"]
 ## Dependents which enable backends for burn without enabling them for bunsen
 ## can still use those backends with bunsen; only bunse specific features will
 ## be disabled.
-wgpu = ["burn/wgpu"]
+wgpu = ["burn/wgpu", "burn/fusion"]
 ## Enable the cuda backend in the bunsen build.
 ## This will impact the bunsen::support::testing::PerformanceBackend choice.
 ## Dependents which enable backends for burn without enabling them for bunsen
@@ -108,6 +109,7 @@ flex = ["burn/flex"]
 
 [dependencies]
 bunsen-contracts-macros = { version = "0.25.0", path = "../bunsen-contracts-macros" }
+bunsen-onnx-gen = { version = "0.25.0", path = "../bunsen-onnx-gen", optional = true }
 
 burn = { workspace = true }
 burn-store = { workspace = true, optional = true }
