@@ -449,6 +449,85 @@ impl<B: Backend> SileroVadMeta for SileroVad<B> {
     }
 }
 
+/// Common methods for [`SileroVad`] and [`SileroVadContext`].
+pub trait SileroVadContextMeta {
+    /// The sample rate (in Hz) this context expects, e.g. `16000`.
+    fn sample_rate(&self) -> usize;
+
+    /// The batch size.
+    fn batch_size(&self) -> usize;
+
+    /// The size of the previous sequence window to preserve.
+    fn context_size(&self) -> usize;
+}
+
+/// Config for [`SileroVadContext`].
+#[derive(Config, Debug)]
+pub struct SileroVadContextConfig {
+    /// The sample rate (in Hz) this context expects, e.g. `16000`.
+    pub sample_rate: usize,
+
+    /// The batch size.
+    #[config(default = "1")]
+    pub batch_size: usize,
+
+    /// The size of the previous sequence window to preserve.
+    #[config(default = "64")]
+    pub context_size: usize,
+}
+
+impl SileroVadContextMeta for SileroVadContextConfig {
+    fn sample_rate(&self) -> usize {
+        self.sample_rate
+    }
+
+    fn batch_size(&self) -> usize {
+        self.batch_size
+    }
+
+    fn context_size(&self) -> usize {
+        self.context_size
+    }
+}
+
+impl SileroVadContextConfig {
+    /// Initializes a new context.
+    pub fn init<B: Backend>(
+        &self,
+        vad: &SileroVad<B>,
+        device: &B::Device,
+    ) -> SileroVadContext<B> {
+        vad.init_context(self.batch_size, self.context_size, device)
+    }
+}
+
+/// Context and state for running the model.
+#[derive(Module, Debug)]
+pub struct SileroVadContext<B: Backend> {
+    /// The sample rate of the context.
+    pub sample_rate: usize,
+
+    /// The preceding input context.
+    pub context: Tensor<B, 2>,
+
+    /// The current input state.
+    pub state: Tensor<B, 3>,
+}
+
+impl<B: Backend> SileroVadContextMeta for SileroVadContext<B> {
+    fn sample_rate(&self) -> usize {
+        self.sample_rate
+    }
+
+    fn batch_size(&self) -> usize {
+        self.context.dims()[0]
+    }
+
+    fn context_size(&self) -> usize {
+        self.context.dims()[1]
+    }
+}
+
 impl<B: Backend> SileroVad<B> {
     /// Allocates a zeroed recurrent state of shape `[2, batch, d_hidden]`.
     pub fn init_state(
@@ -459,49 +538,161 @@ impl<B: Backend> SileroVad<B> {
         Tensor::zeros([2, batch, self.d_hidden()], device)
     }
 
-    /// Single-step forward pass; one chunk per batch row.
-    ///
-    /// Each batch row is an independent stream with its own recurrent state.
+    /// Construct an initial continuation context.
+    pub fn init_context(
+        &self,
+        batch: usize,
+        context_size: usize,
+        device: &B::Device,
+    ) -> SileroVadContext<B> {
+        SileroVadContext {
+            sample_rate: self.sample_rate(),
+            context: Tensor::zeros([batch, context_size], device),
+            state: self.init_state(batch, device),
+        }
+    }
+
+    /// Iterative forward sequence, with context.
     ///
     /// # Arguments
-    ///
-    /// * `input` - `[batch, samples]` mono audio chunks (at this model's
-    ///   [`sample_rate`](SileroVadMeta::sample_rate)).
-    /// * `state` - `[2, batch, d_hidden]` recurrent state (see
-    ///   [`init_state`](Self::init_state)).
+    /// # Arguments
+    /// * `chunk_seq`: `[step, batch, samples]` input.
+    /// * `context`: previous continuation context.
     ///
     /// # Returns
-    ///
-    /// `(probabilities, state)`, with `probabilities` of shape `[batch, 1]` and
-    /// the next `state` of shape `[2, batch, d_hidden]`.
-    pub fn forward(
+    /// `(probabilities, context)`, with:
+    /// * `probabilities` : `[steps, batch]`
+    /// * `context`: continuation context
+    pub fn context_forward_sequence(
         &self,
-        input: Tensor<B, 2>,
-        state: Tensor<B, 3>,
-    ) -> (Tensor<B, 1>, Tensor<B, 3>) {
-        #[cfg(any(test, debug_assertions))]
-        {
-            let [batch] =
-                crate::contracts::unpack_shape_contract!(["batch", "samples"], &input, &["batch"],);
-            crate::contracts::assert_shape_contract_periodically!(
-                ["2", "batch", "d_hidden"],
-                &state,
-                &[("2", 2), ("batch", batch), ("d_hidden", self.d_hidden())]
-            );
+        chunk_seq: Tensor<B, 3>,
+        context: SileroVadContext<B>,
+    ) -> (Tensor<B, 2>, SileroVadContext<B>) {
+        let SileroVadContext {
+            sample_rate,
+            context,
+            state,
+        } = context;
+        assert_eq!(sample_rate, self.sample_rate());
+
+        cfg_select! {
+            any(test, debug_assertions) => {
+                use crate::contracts::{unpack_shape_contract, assert_shape_contract_periodically};
+                let [steps, batch] = unpack_shape_contract!(
+                    ["steps", "batch", "samples"],
+                    &chunk_seq,
+                    &["steps", "batch"],
+                    &[("samples", self.chunk_size())]
+                );
+                let [context_size] = unpack_shape_contract!(
+                    ["batch", "context_size"],
+                    &context,
+                    &["context_size"],
+                    &[("batch", batch)],
+                );
+                assert_shape_contract_periodically!(
+                    ["2", "batch", "d_hidden"],
+                    &state,
+                    &[("2", 2), ("batch", batch), ("d_hidden", self.d_hidden())]
+                );
+            }
+            _ => {
+                let [steps, context_size, _] = chunk_seq.dims();
+            }
         }
 
-        // [batch, d_hidden]
-        let features = self.frame_features(input);
+        // [1, batch, context_size]
+        let context: Tensor<B, 3> = context.unsqueeze_dim(0);
 
-        // [batch, d_hidden]
-        let (hidden, cell) = Self::unpack_state(state);
+        // [steps, batch, context_size]
+        let context: Tensor<B, 3> = if steps <= 1 {
+            context
+        } else {
+            let tails = chunk_seq
+                .clone()
+                .slice(s![0..-1, .., -(context_size as isize)..]);
+            Tensor::cat(vec![context, tails], 0)
+        };
 
-        // [batch, d_hidden]
-        let (hidden, cell) = self.lstm_step(features, hidden, cell);
+        // [steps, batch, context_size + samples]
+        let ext_chunk_seq: Tensor<B, 3> = Tensor::cat(vec![context, chunk_seq.clone()], 2);
+        let context = ext_chunk_seq
+            .clone()
+            .slice(s![-1, .., -(context_size as isize)..])
+            .squeeze_dim::<2>(0);
+
+        let (out, state) = self.forward_sequence(ext_chunk_seq, state);
 
         (
-            self.output_head(hidden.clone()),
-            Self::pack_state(hidden, cell),
+            out,
+            SileroVadContext {
+                sample_rate,
+                context,
+                state,
+            },
+        )
+    }
+
+    /// Single-step forward pass with context.
+    ///
+    /// # Arguments
+    /// * `chunk`: `[batch, samples]` input.
+    /// * `context`: previous continuation context.
+    ///
+    /// # Returns
+    /// `(probabilities, context)`, with:
+    /// * `probabilities` : `[batch]`
+    /// * `context`: the continuation context.
+    pub fn context_forward(
+        &self,
+        chunk: Tensor<B, 2>,
+        context: SileroVadContext<B>,
+    ) -> (Tensor<B, 1>, SileroVadContext<B>) {
+        let SileroVadContext {
+            sample_rate,
+            context,
+            state,
+        } = context;
+        assert_eq!(sample_rate, self.sample_rate());
+
+        cfg_select! {
+            any(test, debug_assertions) => {
+                use crate::contracts::{unpack_shape_contract, assert_shape_contract_periodically};
+                let [batch] = unpack_shape_contract!(
+                    [ "batch", "samples"],
+                    &chunk,
+                    &["batch"],
+                    &[("samples", self.chunk_size())]
+                );
+                let [context_size] = unpack_shape_contract!(
+                    ["batch", "context_size"],
+                    &context,
+                    &["context_size"],
+                    &[("batch", batch)],
+                );
+                assert_shape_contract_periodically!(
+                    ["2", "batch", "d_hidden"],
+                    &state,
+                    &[("2", 2), ("batch", batch), ("d_hidden", self.d_hidden())]
+                );
+            }
+            _ => {
+                let context_size = context.dims()[1];
+            }
+        }
+
+        let ext_input = Tensor::cat(vec![context, chunk], 1);
+        let context = ext_input.clone().slice(s![.., -(context_size as isize)..]);
+
+        let (out, state) = self.forward(ext_input, state);
+
+        (
+            out,
+            SileroVadContext {
+                sample_rate,
+                context,
+                state,
+            },
         )
     }
 
@@ -516,18 +707,19 @@ impl<B: Backend> SileroVad<B> {
     ///   stream.
     ///
     /// # Returns
-    /// `(probabilities, state)`, with `probabilities` of shape `[steps, batch]`
-    /// (one per chunk) and the next `state` of shape `[2, batch, d_hidden]`.
+    /// `(probabilities, context, state)`, with:
+    /// * `probabilities` : `[steps, batch]`
+    /// * `state`: `[2, batch, d_hidden]`
     pub fn forward_sequence(
         &self,
-        input: Tensor<B, 3>,
+        chunk_seq: Tensor<B, 3>,
         state: Tensor<B, 3>,
     ) -> (Tensor<B, 2>, Tensor<B, 3>) {
         cfg_select! {
             any(test, debug_assertions) => {
                 let [steps, batch] = crate::contracts::unpack_shape_contract!(
                     ["steps", "batch", "samples"],
-                    &input,
+                    &chunk_seq,
                     &["steps", "batch"],
                 );
                 crate::contracts::assert_shape_contract_periodically!(
@@ -542,9 +734,11 @@ impl<B: Backend> SileroVad<B> {
         }
 
         // [steps, batch, d_hidden].
-        let mut seq_features =
-            self.frame_features(input.flatten::<2>(0, 1))
-                .reshape([steps, batch, self.d_hidden()]);
+        let mut seq_features = self.frame_features(chunk_seq.flatten::<2>(0, 1)).reshape([
+            steps,
+            batch,
+            self.d_hidden(),
+        ]);
 
         // [batch, d_hidden]
         let (mut hidden, mut cell) = Self::unpack_state(state);
@@ -590,6 +784,52 @@ impl<B: Backend> SileroVad<B> {
         let state = Self::pack_state(hidden, cell);
 
         (out, state)
+    }
+
+    /// Single-step forward pass; one chunk per batch row.
+    ///
+    /// Each batch row is an independent stream with its own recurrent state.
+    ///
+    /// # Arguments
+    ///
+    /// * `chunk` - `[batch, samples]` mono audio chunks (at this model's
+    ///   [`sample_rate`](SileroVadMeta::sample_rate)).
+    /// * `state` - `[2, batch, d_hidden]` recurrent state (see
+    ///   [`init_state`](Self::init_state)).
+    ///
+    /// # Returns
+    /// `(probabilities, context, state)`, with:
+    /// * `probabilities` : `[batch]`
+    /// * `state`: `[2, batch, d_hidden]`
+    pub fn forward(
+        &self,
+        chunk: Tensor<B, 2>,
+        state: Tensor<B, 3>,
+    ) -> (Tensor<B, 1>, Tensor<B, 3>) {
+        #[cfg(any(test, debug_assertions))]
+        {
+            let [batch] =
+                crate::contracts::unpack_shape_contract!(["batch", "samples"], &chunk, &["batch"],);
+            crate::contracts::assert_shape_contract_periodically!(
+                ["2", "batch", "d_hidden"],
+                &state,
+                &[("2", 2), ("batch", batch), ("d_hidden", self.d_hidden())]
+            );
+        }
+
+        // [batch, d_hidden]
+        let features = self.frame_features(chunk);
+
+        // [batch, d_hidden]
+        let (hidden, cell) = Self::unpack_state(state);
+
+        // [batch, d_hidden]
+        let (hidden, cell) = self.lstm_step(features, hidden, cell);
+
+        (
+            self.output_head(hidden.clone()),
+            Self::pack_state(hidden, cell),
+        )
     }
 
     /// Extracts the encoder feature frame for each row of `input`.
