@@ -52,6 +52,7 @@ fn main() -> BunsenResult<()> {
     println!("  - {} chunk_size: {}", args.sample_rate, chunk_size);
 
     println!("\n> Loading audio file: \"{}\"", args.path);
+    // [steps, 1, samples=chunk_size]
     let chunk_seq: Tensor<B, 3> = {
         let (spec, mut wav_vec) = load_audio_mono_sr(&args.path, args.sample_rate)?;
         println!("* {:?}", spec);
@@ -64,7 +65,6 @@ fn main() -> BunsenResult<()> {
 
         let samples = Tensor::<B, 1>::from_floats(wav_vec.as_slice(), &device);
 
-        // [chunks, 1, samples=chunk_size]
         samples.reshape([-1, 1, chunk_size as isize])
     };
     println!("* chunk_seq.dims: {:?}", chunk_seq.dims());
