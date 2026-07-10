@@ -1,9 +1,11 @@
 <component name="ProjectRunConfigurationManager">
   <configuration default="false" name="Run silero-bench" type="CargoCommandRunConfiguration" factoryName="Cargo Command">
-    <option name="buildProfileId" value="release" />
+    <option name="buildProfileId" value="test" />
     <option name="command" value="run --package silero-bench --bin silero-bench --features bunsen/cuda -- --path $PROJECT_DIR$/../ten-vad/testset/testset-audio-01.wav" />
     <option name="workingDirectory" value="file://$PROJECT_DIR$" />
-    <envs />
+    <envs>
+      <env name="RUST_BACKTRACE" value="full" />
+    </envs>
     <option name="emulateTerminal" value="true" />
     <option name="channel" value="DEFAULT" />
     <option name="requiredFeatures" value="true" />

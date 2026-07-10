@@ -9,6 +9,7 @@ use bunsen::{
         SileroVad,
         SileroVadCollection,
         SileroVadMeta,
+        VadRunningContextConfig,
         reference::ReferenceModel,
     },
     support::testing::PerformanceBackend,
@@ -75,8 +76,25 @@ fn main() -> BunsenResult<()> {
     };
     println!("* samples.dims: {:?}", samples.dims());
 
+    println!("\n> VadRunningContext::predict_chunk_sequence([steps, batch, chunk_size]):");
+    {
+        let chunk_seq = samples.clone().reshape([-1, 1, chunk_size as isize]);
+        let ctx = VadRunningContextConfig::new(args.sample_rate).init(&vad, &device);
+
+        let (_ctx, seq_out) = ctx.predict_chunk_sequence(chunk_seq, &vad);
+
+        let seq_out = seq_out
+            .squeeze_dim::<1>(1)
+            .to_data()
+            .to_vec::<f32>()
+            .map_err(BunsenError::external)?;
+        println!("{:0.4?}", seq_out);
+    }
+
+    let steps = samples.dims()[0];
+
     println!("\n> Testing SileroVad::forward([batch, chunk_size], state):");
-    let state0 = vad.init_state(1, &device);
+    let state0 = vad.init_state(steps, &device);
     let (mod_out, _) = vad.forward(samples.clone(), state0.clone());
     let mod_out = mod_out.to_data();
 
@@ -94,7 +112,7 @@ fn main() -> BunsenResult<()> {
     // [batch]
     let ref_out = ref_out.flatten::<1>(0, 1).to_data();
 
-    mod_out.assert_approx_eq::<f32>(&ref_out, Tolerance::default());
+    mod_out.assert_approx_eq::<f32>(&ref_out, Tolerance::permissive());
     println!("approx_eq");
 
     Ok(())

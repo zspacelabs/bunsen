@@ -186,7 +186,7 @@ impl<B: Backend> VadRunningContext<B> {
         let context: Tensor<B, 3> = if steps <= 1 {
             context
         } else {
-            let tails = chunk_seq.clone().slice(s![0..-1, -context_size..]);
+            let tails = chunk_seq.clone().slice(s![0..-1, .., -context_size..]);
             Tensor::cat(vec![context, tails], 0)
         };
 
@@ -195,7 +195,7 @@ impl<B: Backend> VadRunningContext<B> {
         let context = ext_chunk_seq
             .clone()
             .slice(s![-1, .., -context_size..])
-            .unsqueeze_dim(0);
+            .squeeze_dim::<2>(0);
 
         let (out_seq, state) = vad.forward_sequence(ext_chunk_seq, state);
 
