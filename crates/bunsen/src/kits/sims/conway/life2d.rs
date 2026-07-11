@@ -8,11 +8,10 @@ use burn::{
         Bool,
         Int,
         SliceArg,
-        ToElement,
         s,
     },
     tensor::{
-        DType,
+        DType::I32,
         Distribution,
         Slice,
     },
@@ -112,19 +111,18 @@ where
     let slices: [Slice; 2] = ranges.into_slices(&state.shape()).try_into().unwrap();
     let [h, w] = slices_shape(&slices);
 
-    let block_data = state.clone().slice(slices).int().cast(DType::U8).to_data();
-    let block_data = block_data.to_vec::<u8>().unwrap();
+    let block_data = state.clone().slice(slices).int().cast(I32).to_data();
+    let block_data = block_data.to_vec::<i32>().unwrap();
 
     let mut result = Vec::with_capacity(h);
     for hidx in 0..h {
         let start = hidx * w;
-
         result.push(
             block_data[start..start + w]
                 .iter()
-                .map(|&cell| cell.to_bool())
-                .collect(),
-        )
+                .map(|&b| b != 0)
+                .collect::<Vec<_>>(),
+        );
     }
 
     result
@@ -167,7 +165,7 @@ pub fn next_interior_2d<B: Backend>(state: Tensor<B, 2, Bool>) -> Tensor<B, 2, B
     let int_state = state.clone().int(); // .cast(U8);
 
     // [H, W]
-    let self_count = int_state.clone().slice(s![1..-1, 1..-1]);
+    let self_count = is_live.clone().int();
 
     // [H, W, 3]
     let windows: Tensor<B, 4, Int> = int_state.unfold::<3, _>(0, 3, 1).unfold::<4, _>(1, 3, 1);
@@ -342,6 +340,11 @@ mod tests {
         );
 
         conway.write_slice(s![1..3, 1..3], vec![vec![true, true], vec![true, false]]);
+
+        assert_eq!(
+            conway.read_slice(s![1..3, 1..3]),
+            vec![vec![true, true], vec![true, false]]
+        );
 
         conway.write_slice(s![-2.., -2..], vec![vec![false, true], vec![true, true]]);
 
