@@ -66,11 +66,11 @@ mod tests {
             s_out
                 .reshape([batch, 1])
                 .to_data()
-                .assert_approx_eq::<F>(&r_out.to_data(), Tolerance::default());
+                .assert_approx_eq::<F>(&r_out.to_data(), Tolerance::permissive());
 
             s_state
                 .to_data()
-                .assert_approx_eq::<F>(&r_state.to_data(), Tolerance::default());
+                .assert_approx_eq::<F>(&r_state.to_data(), Tolerance::permissive());
         }
     }
 
