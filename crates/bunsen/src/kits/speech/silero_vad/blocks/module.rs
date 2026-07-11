@@ -597,7 +597,8 @@ impl<B: Backend> SileroVad<B> {
                 );
             }
             _ => {
-                let [steps, context_size, _] = chunk_seq.dims();
+                let steps = chunk_seq.dims()[0];
+                let context_size = context.dims()[1];
             }
         }
 
@@ -729,7 +730,7 @@ impl<B: Backend> SileroVad<B> {
                 );
             }
             _ => {
-                let [steps, batch, _] = input.dims();
+                let [steps, batch, _] = chunk_seq.dims();
             }
         }
 

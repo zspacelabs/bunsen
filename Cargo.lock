@@ -977,6 +977,7 @@ dependencies = [
  "downloader",
  "hamcrest",
  "hashbrown 0.17.1",
+ "hound",
  "indoc",
  "nearly",
  "num-traits",
@@ -9099,6 +9100,7 @@ dependencies = [
  "burn",
  "clap",
  "hound",
+ "serde_json",
 ]
 
 [[package]]

@@ -13,7 +13,11 @@ use bunsen::{
     },
     support::testing::PerformanceBackend,
 };
-use burn::Tensor;
+use burn::{
+    Tensor,
+    prelude::TensorData,
+    tensor::Tolerance,
+};
 use clap::Parser;
 use hound::{
     SampleFormat,
@@ -29,6 +33,10 @@ pub struct Args {
     /// Path to `.wav` file. Must be mono, with the target sample rate.
     #[arg(long)]
     pub path: String,
+
+    /// Expected output; json array file path.
+    #[arg(long)]
+    pub expected: Option<String>,
 
     /// The sample rate.
     #[arg(long, default_value = "16000")]
@@ -52,19 +60,22 @@ fn main() -> BunsenResult<()> {
     println!("  - {} chunk_size: {}", args.sample_rate, chunk_size);
 
     println!("\n> Loading audio file: \"{}\"", args.path);
+    let (spec, mut wav_vec) = load_audio_mono_sr(&args.path, args.sample_rate)?;
+    println!("* {:?}", spec);
+
     // [steps, 1, samples=chunk_size]
     let chunk_seq: Tensor<B, 3> = {
-        let (spec, mut wav_vec) = load_audio_mono_sr(&args.path, args.sample_rate)?;
-        println!("* {:?}", spec);
-
+        // Pad the audio to the chunk size.
         let tail_len = wav_vec.len() % chunk_size;
         if tail_len != 0 {
             let pad_len = chunk_size - tail_len;
             wav_vec.resize(wav_vec.len() + pad_len, 0.0);
         }
 
+        // Convert to tensor.
         let samples = Tensor::<B, 1>::from_floats(wav_vec.as_slice(), &device);
 
+        // Chunk the audio into chunks of size `chunk_size`.
         samples.reshape([-1, 1, chunk_size as isize])
     };
     println!("* chunk_seq.dims: {:?}", chunk_seq.dims());
@@ -76,12 +87,25 @@ fn main() -> BunsenResult<()> {
         SileroVadContextConfig::new(args.sample_rate).init(&vad, &device),
     );
     // [steps]
-    let chunk_probs = chunk_probs
-        .squeeze_dim::<1>(1)
-        .to_data()
-        .to_vec::<f32>()
-        .map_err(BunsenError::external)?;
-    println!("{:0.4?}", chunk_probs);
+    let chunk_probs = chunk_probs.squeeze_dim::<1>(1).to_data();
+    println!(
+        "{:0.4?}",
+        chunk_probs
+            .clone()
+            .to_vec::<f32>()
+            .map_err(BunsenError::external)?
+    );
+
+    if let Some(expected) = &args.expected {
+        println!("\n> Checking against expected output: \"{}\"", expected);
+        let expected: Vec<f32> =
+            serde_json::from_reader(std::fs::File::open(expected).map_err(BunsenError::external)?)
+                .map_err(BunsenError::external)?;
+
+        let expected: TensorData = TensorData::from(expected.as_slice());
+        chunk_probs.assert_approx_eq(&expected, Tolerance::<f32>::permissive());
+        println!("  - OK");
+    }
 
     Ok(())
 }
