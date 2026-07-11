@@ -12,6 +12,7 @@ use burn::{
         s,
     },
     tensor::{
+        DType,
         Distribution,
         Slice,
     },
@@ -111,15 +112,15 @@ where
     let slices: [Slice; 2] = ranges.into_slices(&state.shape()).try_into().unwrap();
     let [h, w] = slices_shape(&slices);
 
-    let block_data = state.clone().slice(slices).to_data();
-    let block_slice = block_data.as_slice::<B::BoolElem>().unwrap();
+    let block_data = state.clone().slice(slices).int().cast(DType::U8).to_data();
+    let block_data = block_data.to_vec::<u8>().unwrap();
 
     let mut result = Vec::with_capacity(h);
     for hidx in 0..h {
         let start = hidx * w;
 
         result.push(
-            block_slice[start..start + w]
+            block_data[start..start + w]
                 .iter()
                 .map(|&cell| cell.to_bool())
                 .collect(),

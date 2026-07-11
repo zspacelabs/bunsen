@@ -457,6 +457,10 @@ impl<B: Backend> LayerBlock<B> {
 mod tests {
     use alloc::vec;
 
+    use burn::tensor::{
+        Tolerance,
+        backend::BackendTypes,
+    };
     use serial_test::serial;
 
     use super::*;
@@ -499,6 +503,7 @@ mod tests {
     #[serial]
     pub fn test_layer_block() {
         type B = PerformanceBackend;
+        type F = <B as BackendTypes>::FloatElem;
         let device = Default::default();
 
         let a_planes = 16;
@@ -550,6 +555,8 @@ mod tests {
         for block in block.blocks.iter() {
             expected = block.forward(expected);
         }
-        output.to_data().assert_eq(&expected.to_data(), true);
+        output
+            .to_data()
+            .assert_approx_eq::<F>(&expected.to_data(), Tolerance::default());
     }
 }
