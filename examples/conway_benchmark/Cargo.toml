@@ -5,7 +5,7 @@ edition.workspace = true
 rust-version.workspace = true
 
 [dependencies]
-burn = { workspace = true, features = ["fusion", "autotune"] }
+burn = { workspace = true, features = ["fusion"] }
 bunsen = { path = "../../crates/bunsen" }
 
 clap = { workspace = true, features = ["derive"] }
@@ -15,7 +15,7 @@ indicatif = { workspace = true }
 workspace = true
 
 [features]
-default = []
+default = ["flex"]
 cuda = ["burn/cuda"]
 metal = ["burn/metal"]
 wgpu = ["burn/wgpu"]
