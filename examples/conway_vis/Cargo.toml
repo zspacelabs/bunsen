@@ -5,10 +5,11 @@ edition.workspace = true
 rust-version.workspace = true
 
 [dependencies]
-burn = { workspace = true, features = ["fusion", "autotune"] }
+burn = { workspace = true, features = ["fusion"] }
 bunsen = { path = "../../crates/bunsen" }
 
 clap = { workspace = true, features = ["derive"] }
+indicatif = { workspace = true }
 
 piston = { workspace = true }
 piston2d-graphics = { workspace = true }
@@ -16,13 +17,11 @@ pistoncore-glutin_window = { workspace = true }
 piston2d-opengl_graphics = { workspace = true }
 gl = { workspace = true }
 
-indicatif = { workspace = true }
-
 [lints]
 workspace = true
 
 [features]
-default = []
+default = ["flex"]
 cuda = ["burn/cuda"]
 metal = ["burn/metal"]
 wgpu = ["burn/wgpu"]

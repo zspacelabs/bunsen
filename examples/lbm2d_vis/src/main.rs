@@ -94,17 +94,27 @@ fn main() {
     let args = Args::parse();
     println!("{:#?}", args);
 
-    #[cfg(feature = "wgpu")]
-    run::<burn::backend::Wgpu<burn::tensor::bf16, i16>>(&args, DType::F32);
-
-    #[cfg(feature = "cuda")]
-    run::<burn::backend::Cuda<burn::tensor::bf16, i16>>(&args, DType::F32);
-
-    #[cfg(feature = "metal")]
-    run::<burn::backend::Metal<burn::tensor::bf16, i16>>(&args, DType::F32);
-
-    #[cfg(feature = "flex")]
-    run::<burn::backend::Flex>(&args, DType::F32);
+    cfg_select! {
+        feature = "cuda" => {
+            println!("CUDA enabled");
+            run::<burn::backend::Cuda<f32, i32>>(&args, DType::F32);
+        }
+        feature = "metal" => {
+            println!("Metal enabled");
+            run::<burn::backend::Metal<f32, i32>>(&args, DType::F32);
+        }
+        feature = "wgpu" => {
+            println!("WGPU enabled");
+            run::<burn::backend::Wgpu<f32, i32>>(&args, DType::F32);
+        }
+        feature = "flex" => {
+            println!("Flex enabled");
+            run::<burn::backend::Flex>(&args, DType::F32);
+        }
+        _ => {
+            panic!("No backend selected");
+        }
+    }
 }
 
 fn run<B: Backend>(

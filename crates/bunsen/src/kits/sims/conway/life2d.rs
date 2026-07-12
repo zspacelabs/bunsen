@@ -41,7 +41,7 @@ pub fn fuzz_state_2d<B: Backend>(
         Distribution::Bernoulli(density),
         &state.device(),
     )
-    .equal_elem(1.0);
+    .bool();
 
     state.bool_xor(noise)
 }
@@ -51,46 +51,17 @@ pub fn fuzz_state_2d<B: Backend>(
 /// This simulates a toroidal space by copying the penultimate rows and columns
 /// to the edges of the opposite sides.
 pub fn wrap_state_2d<B: Backend>(state: Tensor<B, 2, Bool>) -> Tensor<B, 2, Bool> {
-    let top = state.clone().slice(s![1, ..]);
     let bottom = state.clone().slice(s![-2, ..]);
-    let left = state.clone().slice(s![.., 1]);
+    let state = state.slice_assign(s![0, ..], bottom);
+
+    let top = state.clone().slice(s![1, ..]);
+    let state = state.slice_assign(s![-1, ..], top);
+
     let right = state.clone().slice(s![.., -2]);
+    let state = state.slice_assign(s![.., 0], right);
 
-    state
-        .slice_assign(s![0, ..], bottom)
-        .slice_assign(s![-1, ..], top)
-        .slice_assign(s![.., 0], right)
-        .slice_assign(s![.., -1], left)
-}
-
-/// Expands a tensor by copying the wrap compliment edges.
-pub fn wrap_pad_2d<B: Backend>(state: Tensor<B, 2, Bool>) -> Tensor<B, 2, Bool> {
-    let top = state.clone().slice(s![0, ..]);
-    let bottom = state.clone().slice(s![-1, ..]);
-
-    let left = state.clone().slice(s![.., 0]);
-    let right = state.clone().slice(s![.., -1]);
-    let middle = Tensor::cat(vec![left, state, right], 1);
-
-    // cross-pad the corners.
-    let top = Tensor::cat(
-        vec![
-            top.clone().slice_dim(1, s![-1]),
-            top.clone(),
-            top.slice_dim(1, s![0]),
-        ],
-        1,
-    );
-    let bottom = Tensor::cat(
-        vec![
-            bottom.clone().slice_dim(1, s![-1]),
-            bottom.clone(),
-            bottom.slice_dim(1, s![0]),
-        ],
-        1,
-    );
-
-    Tensor::cat(vec![top, middle, bottom], 0)
+    let left = state.clone().slice(s![.., 1]);
+    state.slice_assign(s![.., -1], left)
 }
 
 fn slice_size(slice: &Slice) -> usize {
@@ -139,12 +110,8 @@ where
 pub fn next_state_wrapped_2d<B: Backend>(state: Tensor<B, 2, Bool>) -> Tensor<B, 2, Bool> {
     let update = next_interior_2d(state.clone());
 
-    // There's a *significant* performance speedup (+60%) from re-using the state,
-    // rather than building a new state with pad-expansion.
-    // This appears to mainly be a result of backend optimizations.
-    let state = state.slice_assign(s![1..-1, 1..-1], update);
-
-    wrap_state_2d(state)
+    // This is faster than re-padding; due to in-place update optimizations.
+    wrap_state_2d(state.slice_assign(s![1..-1, 1..-1], update))
 }
 
 /// Returns the interior board next-state.
@@ -155,39 +122,31 @@ pub fn next_state_wrapped_2d<B: Backend>(state: Tensor<B, 2, Bool>) -> Tensor<B,
 /// # Returns
 /// - the `[H-2, W-2]` evolved interior state.
 pub fn next_interior_2d<B: Backend>(state: Tensor<B, 2, Bool>) -> Tensor<B, 2, Bool> {
-    #[cfg(debug_assertions)]
-    let [h, w] = crate::contracts::unpack_shape_contract!(["h", "w"], &state.dims(),);
+    #[cfg(any(test, debug_assertions))]
+    let [h, w] = crate::contracts::unpack_shape_contract!(["h", "w"], &state.dims());
 
-    // [H, W]
-    let is_live = state.clone().slice(s![1..-1, 1..-1,]);
+    // [H-2, W-2]
+    let is_live = state.clone().slice(s![1..-1, 1..-1]);
 
-    // All int conversions should descend from this.
-    let int_state = state.clone().int(); // .cast(U8);
+    // [H-2, W-2, 3, 3]
+    let windows: Tensor<B, 4, Int> = state.int().unfold::<3, _>(0, 3, 1).unfold::<4, _>(1, 3, 1);
 
-    // [H, W]
-    let self_count = is_live.clone().int();
-
-    // [H, W, 3]
-    let windows: Tensor<B, 4, Int> = int_state.unfold::<3, _>(0, 3, 1).unfold::<4, _>(1, 3, 1);
-
-    // [H, W]
+    // [H-2, W-2]
     let window_count = windows.sum_dims(&[2, 3]).squeeze_dims::<2>(&[2, 3]);
 
-    // [H, W]
-    let neighbor_count = window_count - self_count;
+    let n_is_3 = window_count.clone().equal_elem(3);
+    let n_is_4 = window_count.equal_elem(4);
 
-    let is_2 = neighbor_count.clone().equal_elem(2);
-    let is_3 = neighbor_count.clone().equal_elem(3);
+    let inner = n_is_3.bool_or(n_is_4.bool_and(is_live));
 
-    let inner = is_2.bool_and(is_live).bool_or(is_3);
-
-    #[cfg(debug_assertions)]
+    #[cfg(any(test, debug_assertions))]
     crate::contracts::assert_shape_contract_periodically!(
         ["h" - "pad", "w" - "pad"],
         &inner.dims(),
         &[("h", h), ("w", w), ("pad", 2)],
     );
 
+    // [H-2, W-2]
     inner
 }
 
@@ -288,10 +247,11 @@ impl<B: Backend> ConwayLife2DState<B> {
             }
         }
 
-        let data = Tensor::<B, 1, Int>::from_data(block.as_slice(), &self.device());
-        let data = data.bool().reshape([h, w]);
+        let data = Tensor::<B, 1, Int>::from_ints(block.as_slice(), &self.device())
+            .bool()
+            .reshape([h, w]);
 
-        self.state = self.state.clone().slice_assign(slices, data);
+        self.state.inplace(|s| s.slice_assign(slices, data));
     }
 }
 
