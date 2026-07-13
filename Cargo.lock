@@ -1042,6 +1042,7 @@ dependencies = [
  "burn",
  "burn-onnx",
  "burn-store",
+ "document-features",
 ]
 
 [[package]]

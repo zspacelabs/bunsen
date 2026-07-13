@@ -76,10 +76,10 @@ mod tests {
 
     #[test]
     #[serial_test::serial]
-    /// This is stable for `flex`, `wgpu`.
-    ///
-    /// This produces inaccurate results for `cuda`.
     fn test_golden_context() -> Result<(), Box<dyn std::error::Error>> {
+        #[cfg(feature = "cuda")]
+        eprintln!("This test is known to fail on the CUDA backend.\n");
+
         let wav_path = concat!(env!("CARGO_MANIFEST_DIR"), "/testdata/silero/test.wav");
         let expected_path = concat!(env!("CARGO_MANIFEST_DIR"), "/testdata/silero/test.json");
         let sample_rate = 16000;
