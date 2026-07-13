@@ -93,13 +93,13 @@ impl<B: Backend> FusedLstm<B> {
     ///
     /// # Arguments
     ///
-    /// * `feature` - `[batch, d_hidden]` encoder feature frame.
-    /// * `cell` - `[batch, d_hidden]` previous cell state.
-    /// * `hidden` - `[batch, d_hidden]` previous hidden state.
+    /// * `feature` - `[batch, d_model]` encoder feature frame.
+    /// * `cell` - `[batch, d_model]` previous cell state.
+    /// * `hidden` - `[batch, d_model]` previous hidden state.
     ///
     /// # Returns
     ///
-    /// The `(hidden, cell)` next states, each `[batch, d_hidden]`.
+    /// The `(hidden, cell)` next states, each `[batch, d_model]`.
     pub fn step(
         &self,
         features: Tensor<B, 2>,
@@ -114,20 +114,20 @@ impl<B: Backend> FusedLstm<B> {
         #[cfg(any(test, debug_assertions))]
         let batch = {
             let [batch] = unpack_shape_contract!(
-                ["batch", "d_hidden"],
+                ["batch", "d_model"],
                 &features,
                 &["batch"],
-                &[("d_hidden", self.d_model())],
+                &[("d_model", self.d_model())],
             );
             assert_shape_contract_periodically!(
-                ["batch", "d_hidden"],
+                ["batch", "d_model"],
                 &cell,
-                &[("batch", batch), ("d_hidden", self.d_model())]
+                &[("batch", batch), ("d_model", self.d_model())]
             );
             assert_shape_contract_periodically!(
-                ["batch", "d_hidden"],
+                ["batch", "d_model"],
                 &hidden,
-                &[("batch", batch), ("d_hidden", self.d_model())]
+                &[("batch", batch), ("d_model", self.d_model())]
             );
             batch
         };
@@ -138,9 +138,9 @@ impl<B: Backend> FusedLstm<B> {
 
         #[cfg(any(test, debug_assertions))]
         assert_shape_contract_periodically!(
-            ["batch", "4" * "d_hidden"],
+            ["batch", "4" * "d_model"],
             &gates,
-            &[("batch", batch), ("4", 4), ("d_hidden", self.d_model())]
+            &[("batch", batch), ("4", 4), ("d_model", self.d_model())]
         );
 
         /*
