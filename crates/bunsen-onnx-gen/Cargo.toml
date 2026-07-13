@@ -6,6 +6,7 @@ rust-version.workspace = true
 version.workspace = true
 repository.workspace = true
 license.workspace = true
+description = "Bunsen utility burn (onnx => rust + burnpack) model generation."
 
 [dependencies]
 burn = { workspace = true, features = ["store"] }
