@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.26.0](https://github.com/zspacelabs/bunsen/compare/bunsen-firehose-v0.25.0...bunsen-firehose-v0.26.0) - 2026-07-13
+
+### Added
+
+- *(silero-vad bench)* benchmark tool ([#105](https://github.com/zspacelabs/bunsen/pull/105))
+
 ## [0.22.0](https://github.com/zspacelabs/bunsen/compare/bunsen-firehose-v0.21.3...bunsen-firehose-v0.22.0) - 2026-06-05
 
 ### Other
