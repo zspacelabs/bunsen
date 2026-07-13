@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.28.0](https://github.com/zspacelabs/bunsen/compare/bunsen-v0.27.0...bunsen-v0.28.0) - 2026-07-13
+
+### Other
+
+- Remove Unused util ([#120](https://github.com/zspacelabs/bunsen/pull/120))
+
 ## [0.27.0](https://github.com/zspacelabs/bunsen/compare/bunsen-v0.26.0...bunsen-v0.27.0) - 2026-07-13
 
 ### Other

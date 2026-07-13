@@ -110,8 +110,8 @@ flex = ["burn/flex"]
 
 
 [dependencies]
-bunsen-contracts-macros = { version = "0.27.0", path = "../bunsen-contracts-macros" }
-bunsen-onnx-gen = { version = "0.27.0", path = "../bunsen-onnx-gen", optional = true }
+bunsen-contracts-macros = { version = "0.28.0", path = "../bunsen-contracts-macros" }
+bunsen-onnx-gen = { version = "0.28.0", path = "../bunsen-onnx-gen", optional = true }
 
 burn = { workspace = true }
 burn-store = { workspace = true, optional = true }
