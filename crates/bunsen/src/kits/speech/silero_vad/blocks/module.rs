@@ -34,7 +34,6 @@ use burn::{
     config::Config,
     module::Module,
     nn::{
-        Linear,
         LinearConfig,
         LinearLayout,
         PaddingConfig1d,
@@ -53,7 +52,6 @@ use burn::{
         activation::{
             relu,
             sigmoid,
-            tanh,
         },
         ops::PadMode,
     },
@@ -71,6 +69,10 @@ use crate::{
     errors::{
         BunsenError,
         BunsenResult,
+    },
+    kits::speech::silero_vad::{
+        FusedLstm,
+        FusedLstmConfig,
     },
 };
 
@@ -173,7 +175,7 @@ impl SileroVadStftConfig {
                 .with_padding(PaddingConfig1d::Valid)
                 .with_bias(false),
             encoder: encoder_config(self.n_freq, self.d_hidden, self.d_bottleneck),
-            gate_config: lstm_gate_config(self.d_hidden),
+            lstm: FusedLstmConfig::new(self.d_hidden).with_layout(LinearLayout::Col),
             decoder: Conv1dConfig::new(self.d_hidden, 1, 1)
                 .with_padding(PaddingConfig1d::Valid)
                 .with_bias(true),
@@ -301,8 +303,8 @@ pub struct SileroVadStructureConfig {
     /// The 4-block `ReLU` conv encoder.
     pub encoder: ConvSeq1dConfig,
 
-    /// The shared LSTM Gate (hidden, feature -> gates) projection config.
-    pub gate_config: LinearConfig,
+    /// The config for the LSTM.
+    pub lstm: FusedLstmConfig,
 
     /// The `1x1` output-head conv: `d_hidden -> 1`.
     pub decoder: Conv1dConfig,
@@ -377,8 +379,7 @@ impl<B: Backend> ModuleInit<B, SileroVad<B>> for SileroVadStructureConfig {
             input_pad: self.input_pad,
             stft: self.stft.init(device),
             encoder: self.encoder.try_init(device)?,
-            lstm_features: self.gate_config.init(device),
-            lstm_hidden: self.gate_config.init(device),
+            lstm: self.lstm.init(device),
             decoder: self.decoder.init(device),
         })
     }
@@ -388,16 +389,6 @@ impl<B: Backend> ModuleInit<B, SileroVad<B>> for SileroVadStructureConfig {
 ///
 /// Implements [`SileroVadMeta`]; built by
 /// [`SileroVadStructureConfig`].
-///
-/// The forward
-/// primitives ([`frame_features`], [`lstm_step`], [`output_head`]) are shared
-/// by the single-step [`forward`] and the streaming [`forward_sequence`].
-///
-/// [`frame_features`]: SileroVad::frame_features
-/// [`lstm_step`]: SileroVad::lstm_step
-/// [`output_head`]: SileroVad::output_head
-/// [`forward`]: SileroVad::forward
-/// [`forward_sequence`]: SileroVad::forward_sequence
 #[derive(Module, Debug)]
 pub struct SileroVad<B: Backend> {
     sample_rate: usize,
@@ -409,11 +400,8 @@ pub struct SileroVad<B: Backend> {
     /// The `ReLU` conv encoder.
     pub encoder: ConvSeq1d<B>,
 
-    /// The LSTM input (feature -> gates) projection.
-    pub lstm_features: Linear<B>,
-
-    /// The LSTM recurrent (hidden -> gates) projection.
-    pub lstm_hidden: Linear<B>,
+    /// The lstm.
+    pub lstm: FusedLstm<B>,
 
     /// The `1x1` output-head conv.
     pub decoder: Conv1d<B>,
@@ -921,61 +909,7 @@ impl<B: Backend> SileroVad<B> {
         hidden: Tensor<B, 2>,
         cell: Tensor<B, 2>,
     ) -> (Tensor<B, 2>, Tensor<B, 2>) {
-        #[cfg(any(test, debug_assertions))]
-        use crate::contracts::{
-            assert_shape_contract_periodically,
-            unpack_shape_contract,
-        };
-        #[cfg(any(test, debug_assertions))]
-        let batch = {
-            let [batch] = unpack_shape_contract!(
-                ["batch", "d_hidden"],
-                &features,
-                &["batch"],
-                &[("d_hidden", self.d_hidden())],
-            );
-            assert_shape_contract_periodically!(
-                ["batch", "d_hidden"],
-                &cell,
-                &[("batch", batch), ("d_hidden", self.d_hidden())]
-            );
-            assert_shape_contract_periodically!(
-                ["batch", "d_hidden"],
-                &hidden,
-                &[("batch", batch), ("d_hidden", self.d_hidden())]
-            );
-            batch
-        };
-
-        // Gates: recurrent projection of `hidden` plus input projection of
-        // `feature`, split into [input, forget, cell, output] gates.
-        let gates = self.lstm_features.forward(features) + self.lstm_hidden.forward(hidden);
-
-        #[cfg(any(test, debug_assertions))]
-        assert_shape_contract_periodically!(
-            ["batch", "4" * "d_hidden"],
-            &gates,
-            &[("batch", batch), ("4", 4), ("d_hidden", self.d_hidden())]
-        );
-
-        /*
-        let [g_i, g_f, g_c, g_o] = gates.chunk(4, 1).try_into().unwrap();
-
-        let input_values = sigmoid(g_i);
-        let forget_values = sigmoid(g_f);
-         */
-
-        // Funny chunking to reduce sigmoid() calls.
-        let [g_i_f, g_c_o] = gates.chunk(2, 1).try_into().unwrap();
-        let [g_c, g_o] = g_c_o.chunk(2, 1).try_into().unwrap();
-
-        let [input_values, forget_values] = sigmoid(g_i_f).chunk(2, 1).try_into().unwrap();
-        let candidate_cell_values = tanh(g_c);
-        let output_values = sigmoid(g_o);
-
-        let cell = forget_values * cell + input_values * candidate_cell_values;
-        let hidden = output_values * tanh(cell.clone());
-        (hidden, cell)
+        self.lstm.step(features, hidden, cell)
     }
 
     /// Runs the `1x1` conv + sigmoid output head.

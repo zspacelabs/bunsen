@@ -97,8 +97,8 @@ impl<B: Backend> SileroVad<B> {
             ("conv1d39", "encoder.blocks.1.conv"),
             ("conv1d40", "encoder.blocks.2.conv"),
             ("conv1d41", "encoder.blocks.3.conv"),
-            ("linear13", "lstm_hidden"),
-            ("linear14", "lstm_features"),
+            ("linear13", "lstm.hidden"),
+            ("linear14", "lstm.features"),
             ("conv1d42", "decoder"),
         ])
         .ok_or_panic()
@@ -112,8 +112,8 @@ impl<B: Backend> SileroVad<B> {
             ("conv1d45", "encoder.blocks.1.conv"),
             ("conv1d46", "encoder.blocks.2.conv"),
             ("conv1d47", "encoder.blocks.3.conv"),
-            ("linear15", "lstm_hidden"),
-            ("linear16", "lstm_features"),
+            ("linear15", "lstm.hidden"),
+            ("linear16", "lstm.features"),
             ("conv1d48", "decoder"),
         ])
         .ok_or_panic()
