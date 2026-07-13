@@ -27,18 +27,22 @@ Read the [bunsen book](https://zspacelabs.ai/bunsen/book)
 
 ### Component Libraries
 
-* `blocks` - this is a library of `burn::module::Module` components.
+* `bunsen::blocks` - this is a library of `burn::module::Module` components.
   This includes simple inner layers, recurrent utility blocks, and entire
   model families.
-* `ops` - this is a library `burn::tensor::Tensor` operations.
-* `kits` - this is a library of full models and simulation kits.
+* `bunsen::ops` - this is a library `burn::tensor::Tensor` operations.
+* `bunsen::kits` - this is a library of full models and simulation kits.
+    * `bimm` - image models: `resnet`, `swinn`
+    * `gpts` - partial implementation of `nanochat`
+    * `sims` - `conway` game of life, `lbm` 2D fluid flow.
+    * `speech` - complete `silero_vad`, partial `whisper`
 
 ### App and Testing Support Libs
 
-* `errors` - this is a library of error types and tooling.
-* `support` - this is a library of support functions for bunsen, including
+* `bunsen::errors` - this is a library of error types and tooling.
+* `bunsen::support` - this is a library of support functions for bunsen, including
   testing tooling which may be useful for clients.
-* `zspace` - this is a library of z-space / index utilities.
+* `bunsen::zspace` - this is a library of z-space / index utilities.
 
 # API Examples
 
