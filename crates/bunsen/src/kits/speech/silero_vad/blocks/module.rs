@@ -34,7 +34,6 @@ use burn::{
     config::Config,
     module::Module,
     nn::{
-        LinearConfig,
         LinearLayout,
         PaddingConfig1d,
         activation::ActivationConfig,
@@ -271,16 +270,6 @@ pub fn encoder_config(
         block(d_bottleneck, d_bottleneck, 2),
         block(d_bottleneck, d_hidden, 1),
     ])
-}
-
-/// Builds an LSTM gate projection: `d_hidden -> 4 * d_hidden`, column layout.
-///
-/// The column layout matches the ONNX export so the original weights load
-/// without transposition.
-pub fn lstm_gate_config(d_hidden: usize) -> LinearConfig {
-    LinearConfig::new(d_hidden, 4 * d_hidden)
-        .with_bias(true)
-        .with_layout(LinearLayout::Col)
 }
 
 /// [`SileroVad`] Structure Config.
