@@ -1,7 +1,4 @@
-use std::path::{
-    Path,
-    PathBuf,
-};
+use std::path::Path;
 
 use burn::prelude::Backend;
 use burn_store::{
@@ -25,10 +22,71 @@ use crate::{
     },
 };
 
-impl<B: Backend> SileroVadCollection<B> {
-    /// Load from a burnpack file.
-    pub fn load_pretrained(device: &B::Device) -> BunsenResult<Self> {
-        Self::load_from_burnpack_bytes(reference::burnpack_as_burn_bytes(), device)
+impl<B: Backend> SileroVad<B> {
+    /// Load the pretrained 16khz model.
+    pub fn load_16khz_pretrained(device: &B::Device) -> BunsenResult<Self> {
+        Self::load_16khz_from_burnpack_bytes(reference::burnpack_as_burn_bytes(), device)
+    }
+
+    /// Load the pretrained 8khz model.
+    pub fn load_8khz_pretrained(device: &B::Device) -> BunsenResult<Self> {
+        Self::load_8khz_from_burnpack_bytes(reference::burnpack_as_burn_bytes(), device)
+    }
+
+    /// Load the 16khz model from pretrained burnpack bytes.
+    /// Uses the upstream `silero_vad` keying.
+    pub fn load_16khz_from_burnpack_bytes(
+        bytes: burn::tensor::Bytes,
+        device: &B::Device,
+    ) -> BunsenResult<Self> {
+        Self::load_from_burnpack(
+            BurnpackStore::from_bytes(Some(bytes)),
+            SileroVadSignalConfig::standard_16khz(),
+            Self::pretrained_16khz_remapper(),
+            device,
+        )
+    }
+
+    /// Load the 16khz model from a burnpack file.
+    /// Uses the upstream `silero_vad` keying.
+    pub fn load_16khz_from_burnpack_file(
+        path: impl AsRef<Path>,
+        device: &B::Device,
+    ) -> BunsenResult<SileroVad<B>> {
+        Self::load_from_burnpack(
+            BurnpackStore::from_file(path),
+            SileroVadSignalConfig::standard_16khz(),
+            Self::pretrained_16khz_remapper(),
+            device,
+        )
+    }
+
+    /// Load the 8khz model from pretrained burnpack bytes.
+    /// Uses the upstream `silero_vad` keying.
+    pub fn load_8khz_from_burnpack_bytes(
+        bytes: burn::tensor::Bytes,
+        device: &B::Device,
+    ) -> BunsenResult<Self> {
+        Self::load_from_burnpack(
+            BurnpackStore::from_bytes(Some(bytes)),
+            SileroVadSignalConfig::standard_8khz(),
+            Self::pretrained_8khz_remapper(),
+            device,
+        )
+    }
+
+    /// Load the 8khz model from a burnpack file.
+    /// Uses the upstream `silero_vad` keying.
+    pub fn load_8khz_from_burnpack_file(
+        path: impl AsRef<Path>,
+        device: &B::Device,
+    ) -> BunsenResult<SileroVad<B>> {
+        Self::load_from_burnpack(
+            BurnpackStore::from_file(path),
+            SileroVadSignalConfig::standard_8khz(),
+            Self::pretrained_8khz_remapper(),
+            device,
+        )
     }
 
     /// The key remapping for the 16khz model.
@@ -61,14 +119,17 @@ impl<B: Backend> SileroVadCollection<B> {
         .ok_or_panic()
     }
 
-    fn load_from_burnpack(
+    /// Load from a burnpack store.
+    pub fn load_from_burnpack<C>(
         store: BurnpackStore,
-        cfg: SileroVadSignalConfig,
+        cfg: C,
         remapper: KeyRemapper,
         device: &B::Device,
-    ) -> BunsenResult<SileroVad<B>> {
+    ) -> BunsenResult<SileroVad<B>>
+    where
+        C: ModuleInit<B, SileroVad<B>>,
+    {
         let mut store = store.remap(remapper);
-
         let mut module = cfg.try_init(device)?;
         module
             .load_from(&mut store)
@@ -76,55 +137,48 @@ impl<B: Backend> SileroVadCollection<B> {
 
         Ok(module)
     }
+}
 
-    /// Load from a burnpack file.
+impl<B: Backend> SileroVadCollection<B> {
+    fn new_common_collection(
+        vad_16: SileroVad<B>,
+        vad_8: SileroVad<B>,
+    ) -> Self {
+        Self {
+            branches: vec![(16000, vad_16), (8000, vad_8)],
+        }
+    }
+
+    /// Load the standard 16khz/8khz pretrained models.
+    pub fn load_pretrained(device: &B::Device) -> BunsenResult<Self> {
+        Ok(Self::new_common_collection(
+            SileroVad::load_16khz_pretrained(device)?,
+            SileroVad::load_8khz_pretrained(device)?,
+        ))
+    }
+
+    /// Load the standard 16khz/8khz pretrained models from burnpack bytes.
+    /// Uses the upstream `silero_vad` keying.
     pub fn load_from_burnpack_bytes(
         bytes: burn::tensor::Bytes,
         device: &B::Device,
     ) -> BunsenResult<Self> {
-        let vad16: SileroVad<B> = Self::load_from_burnpack(
-            BurnpackStore::from_bytes(Some(bytes.clone())),
-            SileroVadSignalConfig::standard_16khz(),
-            Self::pretrained_16khz_remapper(),
-            device,
-        )?;
-
-        let vad8: SileroVad<B> = Self::load_from_burnpack(
-            BurnpackStore::from_bytes(Some(bytes.clone())),
-            SileroVadSignalConfig::standard_8khz(),
-            Self::pretrained_8khz_remapper(),
-            device,
-        )?;
-
-        Ok(SileroVadCollection {
-            branches: vec![(16000, vad16), (8000, vad8)],
-        })
+        Ok(Self::new_common_collection(
+            SileroVad::load_16khz_from_burnpack_bytes(bytes.clone(), device)?,
+            SileroVad::load_8khz_from_burnpack_bytes(bytes, device)?,
+        ))
     }
 
-    /// Load from a burnpack file.
-    pub fn load_from_burnpack_path<P: AsRef<Path>>(
+    /// Load the standard 16khz/8khz pretrained models from a burnpack file.
+    /// Uses the upstream `silero_vad` keying.
+    pub fn load_from_burnpack_file<P: AsRef<Path>>(
         path: P,
         device: &B::Device,
     ) -> BunsenResult<Self> {
         let path = path.as_ref();
-        let path: PathBuf = path.to_path_buf();
-
-        let vad16: SileroVad<B> = Self::load_from_burnpack(
-            BurnpackStore::from_file(path.clone()),
-            SileroVadSignalConfig::standard_16khz(),
-            Self::pretrained_16khz_remapper(),
-            device,
-        )?;
-
-        let vad8: SileroVad<B> = Self::load_from_burnpack(
-            BurnpackStore::from_file(path.clone()),
-            SileroVadSignalConfig::standard_8khz(),
-            Self::pretrained_8khz_remapper(),
-            device,
-        )?;
-
-        Ok(SileroVadCollection {
-            branches: vec![(16000, vad16), (8000, vad8)],
-        })
+        Ok(Self::new_common_collection(
+            SileroVad::load_16khz_from_burnpack_file(path, device)?,
+            SileroVad::load_8khz_from_burnpack_file(path, device)?,
+        ))
     }
 }
