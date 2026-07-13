@@ -29,11 +29,11 @@ pub struct FusedLstmConfig {
     /// The recurrent hidden / cell width of the LSTM.
     pub d_model: usize,
 
-    /// The LSTM input (feature -> gates) projection.
+    /// Do the LSTM gate projections have a bias?
     #[config(default = "true")]
     pub bias: bool,
 
-    /// The LSTM recurrent (hidden -> gates) projection.
+    /// What is the configured IO layout of the Linear weights?
     #[config(default = "burn::nn::LinearLayout::Row")]
     pub layout: burn::nn::LinearLayout,
 }
