@@ -70,10 +70,10 @@ use crate::{
         BunsenError,
         BunsenResult,
     },
-    kits::speech::silero_vad::blocks::context::SileroVadContext,
     kits::speech::silero_vad::{
         FusedLstm,
         FusedLstmConfig,
+        blocks::context::SileroVadContext,
     },
 };
 
