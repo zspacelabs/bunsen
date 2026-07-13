@@ -73,6 +73,8 @@ train = [
 ## Enable the disk cache.
 cache = [
     "std",
+    "dep:downloader",
+    "dep:directories-next",
     "downloader/default-tls",
 ]
 
@@ -120,9 +122,9 @@ serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
 crc = { workspace = true }
 
-directories-next = { workspace = true }
+directories-next = { workspace = true, optional = true }
 # features=["tui"] incompatible with conflicting indicatif versions.
-downloader = { workspace = true, default-features = false }
+downloader = { workspace = true, default-features = false, optional = true }
 
 num-traits = { workspace = true }
 strum = { workspace = true, features = ["derive"] }
