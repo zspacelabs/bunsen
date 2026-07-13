@@ -7,6 +7,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.26.0](https://github.com/zspacelabs/bunsen/compare/bunsen-v0.25.0...bunsen-v0.26.0) - 2026-07-13
+
+### Added
+
+- *(cuda, silero-vad)* add CUDA test support, document features, and update configurations ([#110](https://github.com/zspacelabs/bunsen/pull/110))
+- *(silero-vad)* add golden context cross-test, expected output checks, and refine benchmark logic ([#107](https://github.com/zspacelabs/bunsen/pull/107))
+- *(silero-vad bench)* benchmark tool ([#105](https://github.com/zspacelabs/bunsen/pull/105))
+
+### Fixed
+
+- make downloader and directories-next optional, activated by the cache feature ([#112](https://github.com/zspacelabs/bunsen/pull/112))
+
+### Other
+
+- *(silero-vad)* modularize pretrained model loading with 16kHz and 8kHz support ([#115](https://github.com/zspacelabs/bunsen/pull/115))
+- *(bunsen)* update README component library names and document `silero_vad` and `whisper` modules in speech kits ([#111](https://github.com/zspacelabs/bunsen/pull/111))
+- *(life2d)* optimize tensor updates, improve backend feature handling, and simplify `wrap_state_2d` logic ([#109](https://github.com/zspacelabs/bunsen/pull/109))
+- *(life2d)* update data casting to `i32`, simplify slice handling, and enhance boolean conversion logic ([#108](https://github.com/zspacelabs/bunsen/pull/108))
+- *(silero-vad)* replace `VadRunningContext` with `SileroVadContext`, update context handling methods, and streamline API usage in benchmarks ([#106](https://github.com/zspacelabs/bunsen/pull/106))
+- Refactor Silero VAD for improved immutability and clarity ([#104](https://github.com/zspacelabs/bunsen/pull/104))
+- Refactor Silero VAD for consistency, readability, and streaming support ([#102](https://github.com/zspacelabs/bunsen/pull/102))
+- Refactor Silero VAD module for clarity and optimization ([#101](https://github.com/zspacelabs/bunsen/pull/101))
+- *(silero)* improve test coverage. ([#99](https://github.com/zspacelabs/bunsen/pull/99))
+- *(silero)* Silero VAD for improved clarity and structure ([#98](https://github.com/zspacelabs/bunsen/pull/98))
+
 ## [0.25.0](https://github.com/zspacelabs/bunsen/compare/bunsen-v0.24.2...bunsen-v0.25.0) - 2026-06-24
 
 ### Added
