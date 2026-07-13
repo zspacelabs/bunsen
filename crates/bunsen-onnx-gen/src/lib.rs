@@ -1,4 +1,10 @@
-pub mod silero_vad_op18_ifless {
+//! Bunsen ONNX model generation.
+//!
+//! ## Crate Features
+#![doc = document_features::document_features!()]
+
+#[cfg(feature = "silero")]
+pub mod silero {
     include!(concat!(env!("OUT_DIR"), "/silero_vad_op18_ifless.rs"));
 
     /// Pretrained dual branch 16khz/8khs model.
