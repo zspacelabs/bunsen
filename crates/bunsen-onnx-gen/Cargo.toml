@@ -22,3 +22,4 @@ workspace = true
 [features]
 default = ["silero"]
 silero = []
+ten = []
