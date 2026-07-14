@@ -3,6 +3,8 @@
 //! ## Crate Features
 #![doc = document_features::document_features!()]
 
+extern crate alloc;
+
 #[cfg(feature = "silero")]
 pub mod silero {
     include!(concat!(env!("OUT_DIR"), "/silero_vad_op18_ifless.rs"));
@@ -26,6 +28,10 @@ pub mod silero {
 
 #[cfg(feature = "ten")]
 pub mod ten {
+    use alloc::vec;
+
+    use super::*;
+
     include!(concat!(env!("OUT_DIR"), "/ten-vad.rs"));
 
     pub const BURNPACK_WEIGHTS: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/ten-vad.bpk"));
