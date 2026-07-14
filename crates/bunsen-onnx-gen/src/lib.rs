@@ -28,10 +28,6 @@ pub mod silero {
 
 #[cfg(feature = "ten")]
 pub mod ten {
-    use alloc::vec;
-
-    use super::*;
-
     include!(concat!(env!("OUT_DIR"), "/ten-vad.rs"));
 
     pub const BURNPACK_WEIGHTS: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/ten-vad.bpk"));
