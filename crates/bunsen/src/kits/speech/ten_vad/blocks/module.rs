@@ -117,24 +117,14 @@ impl<B: Backend> ModuleInit<B, TenVad<B>> for TenVadStructureConfig {
         &self,
         device: &B::Device,
     ) -> BunsenResult<TenVad<B>> {
-        let cs1 = self.cs1.try_init(device)?;
-        let pool = self.pool.init();
-        let cs2 = self.cs2.try_init(device)?;
-
-        let lstm1 = self.lstm1.init(device);
-        let lstm2 = self.lstm2.init(device);
-
-        let linear1 = self.linear1.init(device);
-        let linear2 = self.linear2.init(device);
-
         Ok(TenVad {
-            cs1,
-            pool,
-            cs2,
-            lstm1,
-            lstm2,
-            linear1,
-            linear2,
+            cs1: self.cs1.try_init(device)?,
+            pool: self.pool.init(),
+            cs2: self.cs2.try_init(device)?,
+            lstm1: self.lstm1.init(device),
+            lstm2: self.lstm2.init(device),
+            linear1: self.linear1.init(device),
+            linear2: self.linear2.init(device),
         })
     }
 }
