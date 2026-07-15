@@ -208,7 +208,8 @@ impl<B: Backend> TenVad<B> {
         &self,
         input: Tensor<B, 3>,
     ) -> Tensor<B, 3> {
-        let x = input.reshape([-1, 1, 3, 41]);
+        // this *appears* batch-able.
+        let x = input.reshape([1, -1, 3, 41]);
         let x = self.cs1.forward(x);
         let x = self.pool.forward(x);
         let x = self.cs2.forward(x);
@@ -222,6 +223,9 @@ impl<B: Backend> TenVad<B> {
         state1: Option<LstmState<B, 2>>,
         state2: Option<LstmState<B, 2>>,
     ) -> (Tensor<B, 3>, LstmState<B, 2>, LstmState<B, 2>) {
+        // converting this to batch seems odd.
+        // The existing re-shape seems to feed [batch=-1, seq=1, features=80];
+        // which is a weird way to run this ...?
         let x = features.reshape([-1, 1, 80]);
         let (x, state1) = self.lstm1.forward(x, state1);
         let y = x.reshape([1, -1, 64]);
@@ -239,6 +243,7 @@ impl<B: Backend> TenVad<B> {
         &self,
         hidden: Tensor<B, 3>,
     ) -> Tensor<B, 3> {
+        // this *appears* batch-able.
         let mut shape1: [usize; 3] = hidden.dims();
         shape1[2] = 32;
         let x = hidden.reshape([-1, 128]);
