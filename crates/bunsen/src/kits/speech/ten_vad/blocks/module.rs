@@ -1,9 +1,5 @@
 #![allow(missing_docs)]
 use burn::{
-    module::{
-        Param,
-        ParamId,
-    },
     nn::{
         Linear,
         LinearConfig,
@@ -21,7 +17,6 @@ use burn::{
     prelude::*,
     tensor::{
         Bytes,
-        DType,
         activation::{
             relu,
             sigmoid,
@@ -52,7 +47,7 @@ pub struct TenVadStructureConfig {
     pub cs1: ConvSeq2dConfig,
 
     /// The maxpooling block.
-    pub maxpool: MaxPool2dConfig,
+    pub pool: MaxPool2dConfig,
 
     /// The second ConvSeq2d block.
     pub cs2: ConvSeq2dConfig,
@@ -96,7 +91,11 @@ impl Default for TenVadStructureConfig {
             ],
         };
 
-        Self { cs1, maxpool, cs2 }
+        Self {
+            cs1,
+            pool: maxpool,
+            cs2,
+        }
     }
 }
 
@@ -105,24 +104,9 @@ impl<B: Backend> ModuleInit<B, TenVad<B>> for TenVadStructureConfig {
         &self,
         device: &B::Device,
     ) -> BunsenResult<TenVad<B>> {
-        let constant23: Param<Tensor<B, 1>> = Param::uninitialized(
-            ParamId::new(),
-            move |device, _require_grad| Tensor::<B, 1>::zeros([32], (device, DType::F32)),
-            device.clone(),
-            false,
-            [32].into(),
-        );
-        let constant27: Param<Tensor<B, 1>> = Param::uninitialized(
-            ParamId::new(),
-            move |device, _require_grad| Tensor::<B, 1>::zeros([1], (device, DType::F32)),
-            device.clone(),
-            false,
-            [1].into(),
-        );
-
         let cs1 = self.cs1.try_init(device)?;
         let cs2 = self.cs2.try_init(device)?;
-        let maxpool = self.maxpool.init();
+        let pool = self.pool.init();
 
         let lstm1 = LstmConfig::new(80, 64, true)
             .with_batch_first(false)
@@ -132,21 +116,18 @@ impl<B: Backend> ModuleInit<B, TenVad<B>> for TenVadStructureConfig {
             .with_batch_first(false)
             .with_input_forget(false)
             .init(device);
-        let linear1 = LinearConfig::new(128, 32).with_bias(false).init(device);
-        let linear2 = LinearConfig::new(32, 1).with_bias(false).init(device);
+        let linear1 = LinearConfig::new(128, 32).with_bias(true).init(device);
+        let linear2 = LinearConfig::new(32, 1).with_bias(true).init(device);
 
         Ok(TenVad {
-            constant23,
-            constant27,
             cs1,
-            maxpool,
+            pool,
             cs2,
             lstm1,
             lstm2,
             linear1,
             linear2,
             phantom: core::marker::PhantomData,
-            device: device.clone(),
         })
     }
 }
@@ -156,18 +137,14 @@ impl<B: Backend> ModuleInit<B, TenVad<B>> for TenVadStructureConfig {
 /// Built by [`TenVadStructureConfig`].
 #[derive(Module, Debug)]
 pub struct TenVad<B: Backend> {
-    constant23: Param<Tensor<B, 1>>,
-    constant27: Param<Tensor<B, 1>>,
-    cs1: ConvSeq2d<B>,
-    maxpool: MaxPool2d,
-    cs2: ConvSeq2d<B>,
-    lstm1: Lstm<B>,
-    lstm2: Lstm<B>,
-    linear1: Linear<B>,
-    linear2: Linear<B>,
-    phantom: core::marker::PhantomData<B>,
-    #[module(skip)]
-    device: B::Device,
+    pub cs1: ConvSeq2d<B>,
+    pub pool: MaxPool2d,
+    pub cs2: ConvSeq2d<B>,
+    pub lstm1: Lstm<B>,
+    pub lstm2: Lstm<B>,
+    pub linear1: Linear<B>,
+    pub linear2: Linear<B>,
+    pub phantom: core::marker::PhantomData<B>,
 }
 
 impl<B: Backend> TenVad<B> {
@@ -205,23 +182,23 @@ impl<B: Backend> TenVad<B> {
     pub fn forward(
         &self,
         input_1: Tensor<B, 3>,
-        state1: LstmState<B, 2>,
-        state2: LstmState<B, 2>,
+        state1: Option<LstmState<B, 2>>,
+        state2: Option<LstmState<B, 2>>,
     ) -> (Tensor<B, 3>, LstmState<B, 2>, LstmState<B, 2>) {
         let x = input_1.reshape([-1, 1, 3, 41]);
         let x = self.cs1.forward(x);
-        let x = self.maxpool.forward(x);
+        let x = self.pool.forward(x);
         let x = self.cs2.forward(x);
 
         let x = x.permute([0, 2, 3, 1]);
         let x = x.reshape([-1, 1, 80]);
 
-        let (x, state1) = self.lstm1.forward(x, Some(state1));
+        let (x, state1) = self.lstm1.forward(x, state1);
         let y = x.reshape([1, -1, 64]);
 
         let x = y.clone().swap_dims(0, 1);
 
-        let (x, state2) = self.lstm2.forward(x, Some(state2));
+        let (x, state2) = self.lstm2.forward(x, state2);
         let x = x.swap_dims(0, 1);
 
         let x = Tensor::cat([x, y].into(), 2);
@@ -232,7 +209,6 @@ impl<B: Backend> TenVad<B> {
         let x = self.linear1.forward(x);
         let x = x.reshape(shape1);
 
-        let x = x + self.constant23.val().unsqueeze();
         let x = relu(x);
 
         let mut shape2: [usize; 3] = x.dims();
@@ -241,7 +217,6 @@ impl<B: Backend> TenVad<B> {
         let x = self.linear2.forward(x);
         let x = x.reshape(shape2);
 
-        let x = x + self.constant27.val().unsqueeze();
         let x = sigmoid(x);
 
         (x, state1, state2)

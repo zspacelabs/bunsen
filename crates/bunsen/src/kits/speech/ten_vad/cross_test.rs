@@ -55,8 +55,7 @@ mod test {
             );
 
         // TODO: LstmState is not Clone! Fix/Work-around.
-        let (mod_prob, mod_lstm1_state, mod_lstm2_state) =
-            vad.forward(input.clone(), state1_init, state2_init);
+        let (mod_prob, mod_lstm1_state, mod_lstm2_state) = vad.forward(input.clone(), None, None);
 
         mod_prob
             .to_data()

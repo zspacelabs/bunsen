@@ -35,6 +35,8 @@ impl<B: Backend> TenVad<B> {
             ("conv2d4", "cs2.blocks.1.conv"),
             ("conv2d5", "cs2.blocks.2.conv"),
             ("conv2d6", "cs2.blocks.3.conv"),
+            ("constant23", "linear1.bias"),
+            ("constant27", "linear2.bias"),
         ])
         .ok_or_panic()
     }
