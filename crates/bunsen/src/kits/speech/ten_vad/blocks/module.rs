@@ -1,4 +1,3 @@
-#![allow(missing_docs)]
 use burn::{
     nn::{
         Linear,
@@ -51,50 +50,64 @@ pub struct TenVadStructureConfig {
 
     /// The second ConvSeq2d block.
     pub cs2: ConvSeq2dConfig,
+
+    /// The first Lstm block.
+    pub lstm1: LstmConfig,
+
+    /// The second Lstm block.
+    pub lstm2: LstmConfig,
+
+    /// The first linear output block.
+    pub linear1: LinearConfig,
+
+    /// The second linear output block.
+    pub linear2: LinearConfig,
 }
 
 impl Default for TenVadStructureConfig {
     fn default() -> Self {
-        let cs1 = ConvSeq2dConfig {
-            blocks: vec![
-                ConvBlock2dConfig::new(Conv2dConfig::new([1, 1], [3, 3]).with_bias(false))
-                    .with_act(None),
-                ConvBlock2dConfig::new(Conv2dConfig::new([1, 16], [1, 1]))
-                    .with_act(Some(ActivationConfig::Relu)),
-            ],
-        };
-
-        let maxpool = MaxPool2dConfig::new([1, 3]).with_strides([1, 2]);
-
-        let cs2 = ConvSeq2dConfig {
-            blocks: vec![
-                ConvBlock2dConfig::new(
-                    Conv2dConfig::new([16, 16], [1, 3])
-                        .with_stride([2, 2])
-                        .with_padding(PaddingConfig2d::Explicit(0, 1, 0, 1))
-                        .with_groups(16)
-                        .with_bias(false),
-                )
-                .with_act(None),
-                ConvBlock2dConfig::new(Conv2dConfig::new([16, 16], [1, 1]))
-                    .with_act(Some(ActivationConfig::Relu)),
-                ConvBlock2dConfig::new(
-                    Conv2dConfig::new([16, 16], [1, 3])
-                        .with_stride([2, 2])
-                        .with_padding(PaddingConfig2d::Explicit(0, 0, 0, 1))
-                        .with_groups(16)
-                        .with_bias(false),
-                )
-                .with_act(None),
-                ConvBlock2dConfig::new(Conv2dConfig::new([16, 16], [1, 1]))
-                    .with_act(Some(ActivationConfig::Relu)),
-            ],
-        };
-
         Self {
-            cs1,
-            pool: maxpool,
-            cs2,
+            cs1: ConvSeq2dConfig {
+                blocks: vec![
+                    ConvBlock2dConfig::new(Conv2dConfig::new([1, 1], [3, 3]).with_bias(false))
+                        .with_act(None),
+                    ConvBlock2dConfig::new(Conv2dConfig::new([1, 16], [1, 1]))
+                        .with_act(Some(ActivationConfig::Relu)),
+                ],
+            },
+            pool: MaxPool2dConfig::new([1, 3]).with_strides([1, 2]),
+            cs2: ConvSeq2dConfig {
+                blocks: vec![
+                    ConvBlock2dConfig::new(
+                        Conv2dConfig::new([16, 16], [1, 3])
+                            .with_stride([2, 2])
+                            .with_padding(PaddingConfig2d::Explicit(0, 1, 0, 1))
+                            .with_groups(16)
+                            .with_bias(false),
+                    )
+                    .with_act(None),
+                    ConvBlock2dConfig::new(Conv2dConfig::new([16, 16], [1, 1]))
+                        .with_act(Some(ActivationConfig::Relu)),
+                    ConvBlock2dConfig::new(
+                        Conv2dConfig::new([16, 16], [1, 3])
+                            .with_stride([2, 2])
+                            .with_padding(PaddingConfig2d::Explicit(0, 0, 0, 1))
+                            .with_groups(16)
+                            .with_bias(false),
+                    )
+                    .with_act(None),
+                    ConvBlock2dConfig::new(Conv2dConfig::new([16, 16], [1, 1]))
+                        .with_act(Some(ActivationConfig::Relu)),
+                ],
+            },
+            lstm1: LstmConfig::new(80, 64, true)
+                .with_batch_first(false)
+                .with_input_forget(false),
+            lstm2: LstmConfig::new(64, 64, true)
+                .with_batch_first(false)
+                .with_input_forget(false),
+            linear1: LinearConfig::new(128, 32).with_bias(true),
+            linear2: LinearConfig::new(32, 1).with_bias(true),
         }
     }
 }
@@ -105,19 +118,14 @@ impl<B: Backend> ModuleInit<B, TenVad<B>> for TenVadStructureConfig {
         device: &B::Device,
     ) -> BunsenResult<TenVad<B>> {
         let cs1 = self.cs1.try_init(device)?;
-        let cs2 = self.cs2.try_init(device)?;
         let pool = self.pool.init();
+        let cs2 = self.cs2.try_init(device)?;
 
-        let lstm1 = LstmConfig::new(80, 64, true)
-            .with_batch_first(false)
-            .with_input_forget(false)
-            .init(device);
-        let lstm2 = LstmConfig::new(64, 64, true)
-            .with_batch_first(false)
-            .with_input_forget(false)
-            .init(device);
-        let linear1 = LinearConfig::new(128, 32).with_bias(true).init(device);
-        let linear2 = LinearConfig::new(32, 1).with_bias(true).init(device);
+        let lstm1 = self.lstm1.init(device);
+        let lstm2 = self.lstm2.init(device);
+
+        let linear1 = self.linear1.init(device);
+        let linear2 = self.linear2.init(device);
 
         Ok(TenVad {
             cs1,
@@ -127,7 +135,6 @@ impl<B: Backend> ModuleInit<B, TenVad<B>> for TenVadStructureConfig {
             lstm2,
             linear1,
             linear2,
-            phantom: core::marker::PhantomData,
         })
     }
 }
@@ -137,14 +144,26 @@ impl<B: Backend> ModuleInit<B, TenVad<B>> for TenVadStructureConfig {
 /// Built by [`TenVadStructureConfig`].
 #[derive(Module, Debug)]
 pub struct TenVad<B: Backend> {
+    /// The first ConvSeq2d block.
     pub cs1: ConvSeq2d<B>,
+
+    /// The MaxPool2d block.
     pub pool: MaxPool2d,
+
+    /// The second ConvSeq2d block.
     pub cs2: ConvSeq2d<B>,
+
+    /// The first Lstm block.
     pub lstm1: Lstm<B>,
+
+    /// The second Lstm block.
     pub lstm2: Lstm<B>,
+
+    /// The first linear output block.
     pub linear1: Linear<B>,
+
+    /// The second linear output block.
     pub linear2: Linear<B>,
-    pub phantom: core::marker::PhantomData<B>,
 }
 
 impl<B: Backend> TenVad<B> {
@@ -178,14 +197,14 @@ impl<B: Backend> TenVad<B> {
 }
 
 impl<B: Backend> TenVad<B> {
-    #[allow(clippy::let_and_return, clippy::approx_constant)]
+    /// Forward pass.
     pub fn forward(
         &self,
-        input_1: Tensor<B, 3>,
+        input: Tensor<B, 3>,
         state1: Option<LstmState<B, 2>>,
         state2: Option<LstmState<B, 2>>,
     ) -> (Tensor<B, 3>, LstmState<B, 2>, LstmState<B, 2>) {
-        let x = input_1.reshape([-1, 1, 3, 41]);
+        let x = input.reshape([-1, 1, 3, 41]);
         let x = self.cs1.forward(x);
         let x = self.pool.forward(x);
         let x = self.cs2.forward(x);
