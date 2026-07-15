@@ -30,7 +30,6 @@ impl<B: Backend> TenVad<B> {
         KeyRemapper::from_patterns(vec![
             ("conv2d1", "cs1.blocks.0.conv"),
             ("conv2d2", "cs1.blocks.1.conv"),
-            ("maxpool2d", "maxpool"),
             ("conv2d3", "cs2.blocks.0.conv"),
             ("conv2d4", "cs2.blocks.1.conv"),
             ("conv2d5", "cs2.blocks.2.conv"),
