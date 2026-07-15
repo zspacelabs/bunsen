@@ -66,6 +66,7 @@ pub struct TenVadStructureConfig {
 
 impl Default for TenVadStructureConfig {
     fn default() -> Self {
+        let d_hidden = 64;
         Self {
             cs1: ConvSeq2dConfig {
                 blocks: vec![
@@ -100,14 +101,14 @@ impl Default for TenVadStructureConfig {
                         .with_act(Some(ActivationConfig::Relu)),
                 ],
             },
-            lstm1: LstmConfig::new(80, 64, true)
+            lstm1: LstmConfig::new(80, d_hidden, true)
                 .with_batch_first(false)
                 .with_input_forget(false),
-            lstm2: LstmConfig::new(64, 64, true)
+            lstm2: LstmConfig::new(d_hidden, d_hidden, true)
                 .with_batch_first(false)
                 .with_input_forget(false),
-            linear1: LinearConfig::new(128, 32).with_bias(true),
-            linear2: LinearConfig::new(32, 1).with_bias(true),
+            linear1: LinearConfig::new(2 * d_hidden, d_hidden / 2).with_bias(true),
+            linear2: LinearConfig::new(d_hidden / 2, 1).with_bias(true),
         }
     }
 }
