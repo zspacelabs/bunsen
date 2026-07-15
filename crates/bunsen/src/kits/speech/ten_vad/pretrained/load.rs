@@ -19,7 +19,7 @@ use crate::{
 };
 
 impl<B: Backend> TenVad<B> {
-    /// Load the common pretrained TenVAD model.
+    /// Load the common pretrained `TenVAD` model.
     pub fn load_pretrained(device: &B::Device) -> Self {
         Self::from_bytes(reference::burnpack_as_burn_bytes(), device)
     }

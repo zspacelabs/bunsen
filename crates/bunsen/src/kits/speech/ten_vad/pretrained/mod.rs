@@ -1,3 +1,3 @@
-//! Pretrained TenVAD models.
+//! Pretrained `TenVAD` models.
 
 mod load;
