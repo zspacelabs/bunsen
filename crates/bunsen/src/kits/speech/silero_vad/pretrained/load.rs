@@ -53,7 +53,7 @@ impl<B: Backend> SileroVad<B> {
     pub fn load_16khz_from_burnpack_file(
         path: impl AsRef<Path>,
         device: &B::Device,
-    ) -> BunsenResult<SileroVad<B>> {
+    ) -> BunsenResult<Self> {
         Self::load_from_burnpack(
             BurnpackStore::from_file(path),
             SileroVadSignalConfig::standard_16khz(),
@@ -81,7 +81,7 @@ impl<B: Backend> SileroVad<B> {
     pub fn load_8khz_from_burnpack_file(
         path: impl AsRef<Path>,
         device: &B::Device,
-    ) -> BunsenResult<SileroVad<B>> {
+    ) -> BunsenResult<Self> {
         Self::load_from_burnpack(
             BurnpackStore::from_file(path),
             SileroVadSignalConfig::standard_8khz(),
@@ -126,9 +126,9 @@ impl<B: Backend> SileroVad<B> {
         cfg: C,
         remapper: KeyRemapper,
         device: &B::Device,
-    ) -> BunsenResult<SileroVad<B>>
+    ) -> BunsenResult<Self>
     where
-        C: ModuleInit<B, SileroVad<B>>,
+        C: ModuleInit<B, Self>,
     {
         let mut store = store.remap(remapper);
         let mut module = cfg.try_init(device)?;

@@ -35,6 +35,29 @@ use burn_store::{
     ModuleSnapshot,
 };
 
+use crate::{
+    burner::module::ModuleInit,
+    errors::BunsenResult,
+};
+
+/// Config for [`TenVad`].
+///
+/// Builds [`TenVad`].
+#[derive(Config, Debug)]
+pub struct TenVadStructureConfig {}
+
+impl<B: Backend> ModuleInit<B, TenVad<B>> for TenVadStructureConfig {
+    fn try_init(
+        &self,
+        device: &B::Device,
+    ) -> BunsenResult<TenVad<B>> {
+        Ok(TenVad::new(device))
+    }
+}
+
+/// ten-vad module.
+///
+/// Built by [`TenVadStructureConfig`].
 #[derive(Module, Debug)]
 pub struct TenVad<B: Backend> {
     constant23: Param<Tensor<B, 1>>,
