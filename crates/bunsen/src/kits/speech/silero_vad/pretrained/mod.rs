@@ -1,3 +1,3 @@
 //! Pretrained models
 
-mod load;
+pub mod load;

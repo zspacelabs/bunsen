@@ -1,3 +1,4 @@
+//! Load pretrained models.
 use std::path::Path;
 
 use burn::prelude::Backend;
