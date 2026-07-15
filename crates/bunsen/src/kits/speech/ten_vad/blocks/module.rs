@@ -11,10 +11,8 @@ use burn::{
         LstmConfig,
         LstmState,
         PaddingConfig2d,
-        conv::{
-            Conv2d,
-            Conv2dConfig,
-        },
+        activation::ActivationConfig,
+        conv::Conv2dConfig,
         pool::{
             MaxPool2d,
             MaxPool2dConfig,
@@ -36,6 +34,11 @@ use burn_store::{
 };
 
 use crate::{
+    blocks::conv::{
+        ConvBlock2dConfig,
+        ConvSeq2d,
+        ConvSeq2dConfig,
+    },
     burner::module::ModuleInit,
     errors::BunsenResult,
 };
@@ -44,14 +47,107 @@ use crate::{
 ///
 /// Builds [`TenVad`].
 #[derive(Config, Debug)]
-pub struct TenVadStructureConfig {}
+pub struct TenVadStructureConfig {
+    /// The first ConvSeq2d block.
+    pub cs1: ConvSeq2dConfig,
+
+    /// The maxpooling block.
+    pub maxpool: MaxPool2dConfig,
+
+    /// The second ConvSeq2d block.
+    pub cs2: ConvSeq2dConfig,
+}
+
+impl Default for TenVadStructureConfig {
+    fn default() -> Self {
+        let cs1 = ConvSeq2dConfig {
+            blocks: vec![
+                ConvBlock2dConfig::new(Conv2dConfig::new([1, 1], [3, 3]).with_bias(false))
+                    .with_act(None),
+                ConvBlock2dConfig::new(Conv2dConfig::new([1, 16], [1, 1]))
+                    .with_act(Some(ActivationConfig::Relu)),
+            ],
+        };
+
+        let maxpool = MaxPool2dConfig::new([1, 3]).with_strides([1, 2]);
+
+        let cs2 = ConvSeq2dConfig {
+            blocks: vec![
+                ConvBlock2dConfig::new(
+                    Conv2dConfig::new([16, 16], [1, 3])
+                        .with_stride([2, 2])
+                        .with_padding(PaddingConfig2d::Explicit(0, 1, 0, 1))
+                        .with_groups(16)
+                        .with_bias(false),
+                )
+                .with_act(None),
+                ConvBlock2dConfig::new(Conv2dConfig::new([16, 16], [1, 1]))
+                    .with_act(Some(ActivationConfig::Relu)),
+                ConvBlock2dConfig::new(
+                    Conv2dConfig::new([16, 16], [1, 3])
+                        .with_stride([2, 2])
+                        .with_padding(PaddingConfig2d::Explicit(0, 0, 0, 1))
+                        .with_groups(16)
+                        .with_bias(false),
+                )
+                .with_act(None),
+                ConvBlock2dConfig::new(Conv2dConfig::new([16, 16], [1, 1]))
+                    .with_act(Some(ActivationConfig::Relu)),
+            ],
+        };
+
+        Self { cs1, maxpool, cs2 }
+    }
+}
 
 impl<B: Backend> ModuleInit<B, TenVad<B>> for TenVadStructureConfig {
     fn try_init(
         &self,
         device: &B::Device,
     ) -> BunsenResult<TenVad<B>> {
-        Ok(TenVad::new(device))
+        let constant23: Param<Tensor<B, 1>> = Param::uninitialized(
+            ParamId::new(),
+            move |device, _require_grad| Tensor::<B, 1>::zeros([32], (device, DType::F32)),
+            device.clone(),
+            false,
+            [32].into(),
+        );
+        let constant27: Param<Tensor<B, 1>> = Param::uninitialized(
+            ParamId::new(),
+            move |device, _require_grad| Tensor::<B, 1>::zeros([1], (device, DType::F32)),
+            device.clone(),
+            false,
+            [1].into(),
+        );
+
+        let cs1 = self.cs1.try_init(device)?;
+        let cs2 = self.cs2.try_init(device)?;
+        let maxpool = self.maxpool.init();
+
+        let lstm1 = LstmConfig::new(80, 64, true)
+            .with_batch_first(false)
+            .with_input_forget(false)
+            .init(device);
+        let lstm2 = LstmConfig::new(64, 64, true)
+            .with_batch_first(false)
+            .with_input_forget(false)
+            .init(device);
+        let linear1 = LinearConfig::new(128, 32).with_bias(false).init(device);
+        let linear2 = LinearConfig::new(32, 1).with_bias(false).init(device);
+
+        Ok(TenVad {
+            constant23,
+            constant27,
+            cs1,
+            maxpool,
+            cs2,
+            lstm1,
+            lstm2,
+            linear1,
+            linear2,
+            phantom: core::marker::PhantomData,
+            device: device.clone(),
+        })
     }
 }
 
@@ -62,13 +158,9 @@ impl<B: Backend> ModuleInit<B, TenVad<B>> for TenVadStructureConfig {
 pub struct TenVad<B: Backend> {
     constant23: Param<Tensor<B, 1>>,
     constant27: Param<Tensor<B, 1>>,
-    conv2d1: Conv2d<B>,
-    conv2d2: Conv2d<B>,
-    maxpool2d1: MaxPool2d,
-    conv2d3: Conv2d<B>,
-    conv2d4: Conv2d<B>,
-    conv2d5: Conv2d<B>,
-    conv2d6: Conv2d<B>,
+    cs1: ConvSeq2d<B>,
+    maxpool: MaxPool2d,
+    cs2: ConvSeq2d<B>,
     lstm1: Lstm<B>,
     lstm2: Lstm<B>,
     linear1: Linear<B>,
@@ -84,7 +176,7 @@ impl<B: Backend> TenVad<B> {
         file: P,
         device: &B::Device,
     ) -> Self {
-        let mut model = Self::new(device);
+        let mut model = TenVadStructureConfig::default().try_init(device).unwrap();
         let mut store = BurnpackStore::from_file(file);
         model
             .load_from(&mut store)
@@ -99,7 +191,7 @@ impl<B: Backend> TenVad<B> {
         bytes: Bytes,
         device: &B::Device,
     ) -> Self {
-        let mut model = Self::new(device);
+        let mut model = TenVadStructureConfig::default().try_init(device).unwrap();
         let mut store = BurnpackStore::from_bytes(Some(bytes));
         model
             .load_from(&mut store)
@@ -109,172 +201,49 @@ impl<B: Backend> TenVad<B> {
 }
 
 impl<B: Backend> TenVad<B> {
-    #[allow(unused_variables)]
-    pub fn new(device: &B::Device) -> Self {
-        let constant23: Param<Tensor<B, 1>> = Param::uninitialized(
-            ParamId::new(),
-            move |device, _require_grad| Tensor::<B, 1>::zeros([32], (device, DType::F32)),
-            device.clone(),
-            false,
-            [32].into(),
-        );
-        let constant27: Param<Tensor<B, 1>> = Param::uninitialized(
-            ParamId::new(),
-            move |device, _require_grad| Tensor::<B, 1>::zeros([1], (device, DType::F32)),
-            device.clone(),
-            false,
-            [1].into(),
-        );
-        let conv2d1 = Conv2dConfig::new([1, 1], [3, 3])
-            .with_stride([1, 1])
-            .with_padding(PaddingConfig2d::Valid)
-            .with_dilation([1, 1])
-            .with_groups(1)
-            .with_bias(false)
-            .init(device);
-        let conv2d2 = Conv2dConfig::new([1, 16], [1, 1])
-            .with_stride([1, 1])
-            .with_padding(PaddingConfig2d::Valid)
-            .with_dilation([1, 1])
-            .with_groups(1)
-            .with_bias(true)
-            .init(device);
-        let maxpool2d1 = MaxPool2dConfig::new([1, 3])
-            .with_strides([1, 2])
-            .with_padding(PaddingConfig2d::Valid)
-            .with_dilation([1, 1])
-            .with_ceil_mode(false)
-            .init();
-        let conv2d3 = Conv2dConfig::new([16, 16], [1, 3])
-            .with_stride([2, 2])
-            .with_padding(PaddingConfig2d::Explicit(0, 1, 0, 1))
-            .with_dilation([1, 1])
-            .with_groups(16)
-            .with_bias(false)
-            .init(device);
-        let conv2d4 = Conv2dConfig::new([16, 16], [1, 1])
-            .with_stride([1, 1])
-            .with_padding(PaddingConfig2d::Valid)
-            .with_dilation([1, 1])
-            .with_groups(1)
-            .with_bias(true)
-            .init(device);
-        let conv2d5 = Conv2dConfig::new([16, 16], [1, 3])
-            .with_stride([2, 2])
-            .with_padding(PaddingConfig2d::Explicit(0, 0, 0, 1))
-            .with_dilation([1, 1])
-            .with_groups(16)
-            .with_bias(false)
-            .init(device);
-        let conv2d6 = Conv2dConfig::new([16, 16], [1, 1])
-            .with_stride([1, 1])
-            .with_padding(PaddingConfig2d::Valid)
-            .with_dilation([1, 1])
-            .with_groups(1)
-            .with_bias(true)
-            .init(device);
-        let lstm1 = LstmConfig::new(80, 64, true)
-            .with_batch_first(false)
-            .with_input_forget(false)
-            .init(device);
-        let lstm2 = LstmConfig::new(64, 64, true)
-            .with_batch_first(false)
-            .with_input_forget(false)
-            .init(device);
-        let linear1 = LinearConfig::new(128, 32).with_bias(false).init(device);
-        let linear2 = LinearConfig::new(32, 1).with_bias(false).init(device);
-        Self {
-            constant23,
-            constant27,
-            conv2d1,
-            conv2d2,
-            maxpool2d1,
-            conv2d3,
-            conv2d4,
-            conv2d5,
-            conv2d6,
-            lstm1,
-            lstm2,
-            linear1,
-            linear2,
-            phantom: core::marker::PhantomData,
-            device: device.clone(),
-        }
-    }
-
     #[allow(clippy::let_and_return, clippy::approx_constant)]
     pub fn forward(
         &self,
         input_1: Tensor<B, 3>,
-        lstm1_hidden: Tensor<B, 2>,
-        lstm1_cell: Tensor<B, 2>,
-        lstm2_hidden: Tensor<B, 2>,
-        lstm2_cell: Tensor<B, 2>,
-    ) -> (
-        Tensor<B, 3>,
-        Tensor<B, 2>,
-        Tensor<B, 2>,
-        Tensor<B, 2>,
-        Tensor<B, 2>,
-    ) {
-        let reshape1_out1 = input_1.reshape([-1, 1, 3, 41]);
-        // ConvSeq1d
-        let conv2d1_out1 = self.conv2d1.forward(reshape1_out1);
-        let conv2d2_out1 = self.conv2d2.forward(conv2d1_out1);
-        let relu1_out1 = relu(conv2d2_out1);
+        state1: LstmState<B, 2>,
+        state2: LstmState<B, 2>,
+    ) -> (Tensor<B, 3>, LstmState<B, 2>, LstmState<B, 2>) {
+        let x = input_1.reshape([-1, 1, 3, 41]);
+        let x = self.cs1.forward(x);
+        let x = self.maxpool.forward(x);
+        let x = self.cs2.forward(x);
 
-        let maxpool2d1_out1 = self.maxpool2d1.forward(relu1_out1);
+        let x = x.permute([0, 2, 3, 1]);
+        let x = x.reshape([-1, 1, 80]);
 
-        // ConvSeq1d
-        let conv2d3_out1 = self.conv2d3.forward(maxpool2d1_out1);
-        let conv2d4_out1 = self.conv2d4.forward(conv2d3_out1);
-        let relu2_out1 = relu(conv2d4_out1);
-        let conv2d5_out1 = self.conv2d5.forward(relu2_out1);
-        let conv2d6_out1 = self.conv2d6.forward(conv2d5_out1);
-        let relu3_out1 = relu(conv2d6_out1);
+        let (x, state1) = self.lstm1.forward(x, Some(state1));
+        let y = x.reshape([1, -1, 64]);
 
-        let transpose1_out1 = relu3_out1.permute([0, 2, 3, 1]);
-        let reshape2_out1 = transpose1_out1.reshape([-1, 1, 80]);
+        let x = y.clone().swap_dims(0, 1);
 
-        let (lstm1_out1, lstm1_state) = self.lstm1.forward(
-            reshape2_out1,
-            Some(LstmState::new(lstm1_cell, lstm1_hidden)),
-        );
-        let reshape3_out1 = lstm1_out1.reshape([1, -1, 64]);
-        let transpose2_out1 = reshape3_out1.clone().swap_dims(0, 1);
+        let (x, state2) = self.lstm2.forward(x, Some(state2));
+        let x = x.swap_dims(0, 1);
 
-        let (lstm2_out1, lstm2_state) = self.lstm2.forward(
-            transpose2_out1,
-            Some(LstmState::new(lstm2_cell, lstm2_hidden)),
-        );
-        let transpose3_out1 = lstm2_out1.swap_dims(0, 1);
+        let x = Tensor::cat([x, y].into(), 2);
 
-        let concat1_out1 = Tensor::cat([transpose3_out1, reshape3_out1].into(), 2);
-
-        let mut shape1: [usize; 3] = concat1_out1.dims();
+        let mut shape1: [usize; 3] = x.dims();
         shape1[2] = 32;
-        let reshape4_out1 = concat1_out1.reshape([-1, 128]);
-        let linear1_out1 = self.linear1.forward(reshape4_out1);
-        let reshape5_out1 = linear1_out1.reshape(shape1);
+        let x = x.reshape([-1, 128]);
+        let x = self.linear1.forward(x);
+        let x = x.reshape(shape1);
 
-        let add1_out1 = reshape5_out1 + self.constant23.val().unsqueeze();
-        let relu4_out1 = relu(add1_out1);
+        let x = x + self.constant23.val().unsqueeze();
+        let x = relu(x);
 
-        let mut shape2: [usize; 3] = relu4_out1.dims();
+        let mut shape2: [usize; 3] = x.dims();
         shape2[2] = 1;
-        let reshape6_out1 = relu4_out1.reshape([-1, 32]);
-        let linear2_out1 = self.linear2.forward(reshape6_out1);
-        let reshape7_out1 = linear2_out1.reshape(shape2);
+        let x = x.reshape([-1, 32]);
+        let x = self.linear2.forward(x);
+        let x = x.reshape(shape2);
 
-        let add2_out1 = reshape7_out1 + self.constant27.val().unsqueeze();
-        let sigmoid1_out1 = sigmoid(add2_out1);
+        let x = x + self.constant27.val().unsqueeze();
+        let x = sigmoid(x);
 
-        (
-            sigmoid1_out1,
-            lstm1_state.hidden,
-            lstm1_state.cell,
-            lstm2_state.hidden,
-            lstm2_state.cell,
-        )
+        (x, state1, state2)
     }
 }

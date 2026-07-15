@@ -10,6 +10,7 @@ use crate::{
     errors::{
         BunsenError,
         BunsenResult,
+        WithOkOrPanic,
     },
     kits::speech::ten_vad::{
         TenVad,
@@ -20,13 +21,22 @@ use crate::{
 
 impl<B: Backend> TenVad<B> {
     /// Load the common pretrained `TenVAD` model.
-    pub fn load_pretrained(device: &B::Device) -> Self {
-        Self::from_bytes(reference::burnpack_as_burn_bytes(), device)
+    pub fn load_pretrained(device: &B::Device) -> BunsenResult<Self> {
+        Self::load_from_burnpack_bytes(reference::burnpack_as_burn_bytes(), device)
     }
 
     /// The key remapping for the pretrained model.
     pub fn pretrained_mapper() -> KeyRemapper {
-        KeyRemapper::new()
+        KeyRemapper::from_patterns(vec![
+            ("conv2d1", "cs1.blocks.0.conv"),
+            ("conv2d2", "cs1.blocks.1.conv"),
+            ("maxpool2d", "maxpool"),
+            ("conv2d3", "cs2.blocks.0.conv"),
+            ("conv2d4", "cs2.blocks.1.conv"),
+            ("conv2d5", "cs2.blocks.2.conv"),
+            ("conv2d6", "cs2.blocks.3.conv"),
+        ])
+        .ok_or_panic()
     }
 
     /// Load from pretrained burnpack bytes.
@@ -36,7 +46,7 @@ impl<B: Backend> TenVad<B> {
     ) -> BunsenResult<Self> {
         Self::load_from_burnpack(
             BurnpackStore::from_bytes(Some(bytes)),
-            TenVadStructureConfig::new(),
+            TenVadStructureConfig::default(),
             Self::pretrained_mapper(),
             device,
         )
@@ -49,7 +59,7 @@ impl<B: Backend> TenVad<B> {
     ) -> BunsenResult<Self> {
         Self::load_from_burnpack(
             BurnpackStore::from_file(path),
-            TenVadStructureConfig::new(),
+            TenVadStructureConfig::default(),
             Self::pretrained_mapper(),
             device,
         )
