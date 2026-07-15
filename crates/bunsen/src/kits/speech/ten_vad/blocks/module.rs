@@ -195,14 +195,34 @@ impl<B: Backend> TenVad<B> {
         state1: Option<LstmState<B, 2>>,
         state2: Option<LstmState<B, 2>>,
     ) -> (Tensor<B, 3>, LstmState<B, 2>, LstmState<B, 2>) {
+        let x = self.frame_features(input);
+
+        let (x, state1, state2) = self.lstm_step(x, state1, state2);
+
+        let x = self.output_head(x);
+
+        (x, state1, state2)
+    }
+
+    fn frame_features(
+        &self,
+        input: Tensor<B, 3>,
+    ) -> Tensor<B, 3> {
         let x = input.reshape([-1, 1, 3, 41]);
         let x = self.cs1.forward(x);
         let x = self.pool.forward(x);
         let x = self.cs2.forward(x);
+        let x = x.squeeze_dim(2);
+        x.permute([0, 2, 1])
+    }
 
-        let x = x.permute([0, 2, 3, 1]);
-        let x = x.reshape([-1, 1, 80]);
-
+    fn lstm_step(
+        &self,
+        features: Tensor<B, 3>,
+        state1: Option<LstmState<B, 2>>,
+        state2: Option<LstmState<B, 2>>,
+    ) -> (Tensor<B, 3>, LstmState<B, 2>, LstmState<B, 2>) {
+        let x = features.reshape([-1, 1, 80]);
         let (x, state1) = self.lstm1.forward(x, state1);
         let y = x.reshape([1, -1, 64]);
 
@@ -212,10 +232,16 @@ impl<B: Backend> TenVad<B> {
         let x = x.swap_dims(0, 1);
 
         let x = Tensor::cat([x, y].into(), 2);
+        (x, state1, state2)
+    }
 
-        let mut shape1: [usize; 3] = x.dims();
+    fn output_head(
+        &self,
+        hidden: Tensor<B, 3>,
+    ) -> Tensor<B, 3> {
+        let mut shape1: [usize; 3] = hidden.dims();
         shape1[2] = 32;
-        let x = x.reshape([-1, 128]);
+        let x = hidden.reshape([-1, 128]);
         let x = self.linear1.forward(x);
         let x = x.reshape(shape1);
 
@@ -227,8 +253,6 @@ impl<B: Backend> TenVad<B> {
         let x = self.linear2.forward(x);
         let x = x.reshape(shape2);
 
-        let x = sigmoid(x);
-
-        (x, state1, state2)
+        sigmoid(x)
     }
 }
