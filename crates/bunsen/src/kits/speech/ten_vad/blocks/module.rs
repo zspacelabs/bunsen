@@ -240,6 +240,7 @@ impl<B: Backend> TenVad<B> {
         state1: Option<ExtLstmState<B, 2>>,
         state2: Option<ExtLstmState<B, 2>>,
     ) -> (Tensor<B, 1>, ExtLstmState<B, 2>, ExtLstmState<B, 2>) {
+        // TODO: debug the 1, 1 dims; relationship to batch, seq.
         assert_eq!(state1.is_some(), state2.is_some());
         #[cfg(any(test, debug_assertions))]
         {
@@ -279,6 +280,7 @@ impl<B: Backend> TenVad<B> {
         &self,
         x: Tensor<B, 3>,
     ) -> Tensor<B, 3> {
+        // TODO: debug the 1, 1 dims; relationship to batch, seq.
         cfg_select! {
             any(test, debug_assertions) => {
                 let [a] = crate::contracts::unpack_shape_contract!(
@@ -323,6 +325,7 @@ impl<B: Backend> TenVad<B> {
         state1: Option<ExtLstmState<B, 2>>,
         state2: Option<ExtLstmState<B, 2>>,
     ) -> (Tensor<B, 3>, ExtLstmState<B, 2>, ExtLstmState<B, 2>) {
+        // TODO: debug the 1, 1 dims; relationship to batch, seq.
         assert_eq!(state1.is_some(), state2.is_some());
         #[cfg(any(test, debug_assertions))]
         let a = {
@@ -391,6 +394,7 @@ impl<B: Backend> TenVad<B> {
         &self,
         x: Tensor<B, 3>,
     ) -> Tensor<B, 2> {
+        // TODO: debug the 1, 1 dims; relationship to batch, seq.
         #[cfg(any(test, debug_assertions))]
         let [a] = crate::contracts::unpack_shape_contract!(
             ["a", "1", "2" * "d_hidden"],
