@@ -360,7 +360,7 @@ impl<B: Backend> TenVad<B> {
             assert_shape_contract!(
                 ["1", "1", "2" * "d_hidden"],
                 &x,
-                &[("1", 1), ("d_hidden", self.d_hidden())]
+                &[("1", 1), ("2", 2), ("d_hidden", self.d_hidden())]
             );
             assert_shape_contract!(
                 ["batch", "d_hidden"],
@@ -384,7 +384,7 @@ impl<B: Backend> TenVad<B> {
         crate::contracts::assert_shape_contract!(
             ["1", "1", "2" * "d_hidden"],
             &lstm_out,
-            &[("1", 1), ("d_hidden", self.d_hidden())]
+            &[("1", 1), ("2", 2), ("d_hidden", self.d_hidden())]
         );
 
         // this *appears* batch-able.
