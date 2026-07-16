@@ -227,19 +227,23 @@ impl<B: Backend> TenVad<B> {
 impl<B: Backend> TenVad<B> {
     /// Forward pass.
     ///
+    /// There are messy questions about `a` wrt batching and sequences;
+    /// this seems to currently be bound to 1 per the reference model,
+    /// this needs some R&D.
+    ///
     /// # Argument
     /// * `input`: `[a, d_ctx, n_freq]`
     /// * `state1`: `[a, d_hidden]` LSTM state.
     /// * `state2`: `[a, d_hidden]` LSTM state.
     ///
     /// # Returns
-    /// `[a]` probs.
+    /// `[(a,1)?, (a,1)?]` probs.
     pub fn forward(
         &self,
         input: Tensor<B, 3>,
         state1: Option<ExtLstmState<B, 2>>,
         state2: Option<ExtLstmState<B, 2>>,
-    ) -> (Tensor<B, 1>, ExtLstmState<B, 2>, ExtLstmState<B, 2>) {
+    ) -> (Tensor<B, 2>, ExtLstmState<B, 2>, ExtLstmState<B, 2>) {
         // TODO: debug the 1, 1 dims; relationship to batch, seq.
         assert_eq!(state1.is_some(), state2.is_some());
         #[cfg(any(test, debug_assertions))]
@@ -271,7 +275,6 @@ impl<B: Backend> TenVad<B> {
         let (x, state1, state2) = self.lstm_step(x, state1, state2);
 
         let x = self.output_head(x);
-        let x = x.squeeze_dim(1);
 
         (x, state1, state2)
     }
