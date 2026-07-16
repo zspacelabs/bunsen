@@ -226,37 +226,42 @@ impl<B: Backend> TenVad<B> {
 
 impl<B: Backend> TenVad<B> {
     /// Forward pass.
+    ///
+    /// # Argument
+    /// * `input`: `[a, d_ctx, n_freq]`
+    /// * `state1`: `[a, d_hidden]` LSTM state.
+    /// * `state2`: `[a, d_hidden]` LSTM state.
+    ///
+    /// # Returns
+    /// `[a]` probs.
     pub fn forward(
         &self,
         input: Tensor<B, 3>,
         state1: Option<ExtLstmState<B, 2>>,
         state2: Option<ExtLstmState<B, 2>>,
-    ) -> (Tensor<B, 2>, ExtLstmState<B, 2>, ExtLstmState<B, 2>) {
+    ) -> (Tensor<B, 1>, ExtLstmState<B, 2>, ExtLstmState<B, 2>) {
         assert_eq!(state1.is_some(), state2.is_some());
         #[cfg(any(test, debug_assertions))]
         {
             use crate::contracts::assert_shape_contract;
-            assert_shape_contract!(
-                ["batch", "d_ctx", "n_freq"],
+            let [a] = crate::contracts::unpack_shape_contract!(
+                ["a", "d_ctx", "n_freq"],
                 &input,
-                &[
-                    ("batch", 1),
-                    ("d_ctx", self.d_ctx()),
-                    ("n_freq", self.n_freq())
-                ]
+                &["a"],
+                &[("a", 1), ("d_ctx", self.d_ctx()), ("n_freq", self.n_freq())]
             );
             if let Some(state1) = &state1 {
                 assert_shape_contract!(
-                    ["batch", "d_hidden"],
+                    ["a", "d_hidden"],
                     state1.shape(),
-                    &[("batch", 1), ("d_hidden", self.d_hidden())],
+                    &[("a", a), ("d_hidden", self.d_hidden())],
                 );
             }
             if let Some(state2) = &state2 {
                 assert_shape_contract!(
-                    ["batch", "d_hidden"],
+                    ["a", "d_hidden"],
                     state2.shape(),
-                    &[("batch", 1), ("d_hidden", self.d_hidden())],
+                    &[("a", a), ("d_hidden", self.d_hidden())],
                 );
             }
         }
@@ -265,6 +270,7 @@ impl<B: Backend> TenVad<B> {
         let (x, state1, state2) = self.lstm_step(x, state1, state2);
 
         let x = self.output_head(x);
+        let x = x.squeeze_dim(1);
 
         (x, state1, state2)
     }
@@ -386,11 +392,11 @@ impl<B: Backend> TenVad<B> {
         x: Tensor<B, 3>,
     ) -> Tensor<B, 2> {
         #[cfg(any(test, debug_assertions))]
-        let [a, b] = crate::contracts::unpack_shape_contract!(
-            ["a", "b", "2" * "d_hidden"],
+        let [a] = crate::contracts::unpack_shape_contract!(
+            ["a", "1", "2" * "d_hidden"],
             &x,
-            &["a", "b"],
-            &[("2", 2), ("d_hidden", self.d_hidden())]
+            &["a"],
+            &[("1", 1), ("2", 2), ("d_hidden", self.d_hidden())]
         );
 
         let half_hidden = self.d_hidden() / 2;
@@ -399,26 +405,26 @@ impl<B: Backend> TenVad<B> {
         // this *appears* batch-able.
         let mut shape1: [usize; 3] = x.dims();
         shape1[2] = self.d_hidden() / 2;
-        // [a * b, 2 * d_hidden]
+        // [a * 1, 2 * d_hidden]
         let x = x.reshape([-1, twice_hidden as isize]);
         let x = self.linear1.forward(x);
         let x = relu(x);
-        // [a * b, d_hidden / 2]
+        // [a * 1, d_hidden / 2]
         let x = x.reshape(shape1);
 
         let mut shape2: [usize; 3] = x.dims();
         shape2[2] = 1;
-        // [a * b, d_hidden / 2]
+        // [a * 1, d_hidden / 2]
         let x = x.reshape([-1, half_hidden as isize]);
         let x = self.linear2.forward(x);
         let x = sigmoid(x);
         let x = x.reshape(shape2);
-        // [a, b]
+        // [a, 1]
         let x = x.squeeze_dim(2);
 
         #[cfg(any(test, debug_assertions))]
         // TODO: really?
-        crate::contracts::assert_shape_contract!(["a", "b"], &x, &[("a", a), ("b", b)]);
+        crate::contracts::assert_shape_contract!(["a", "1"], &x, &[("a", a), ("1", 1)]);
         x
     }
 }
