@@ -289,11 +289,13 @@ impl<B: Backend> TenVad<B> {
 
         #[cfg(any(test, debug_assertions))]
         crate::contracts::assert_shape_contract!(
-            ["batch", "f_ctx", "d_features"],
+            ["batch", "2" * "d_ctx" - "1", "d_features"],
             &x,
             &[
                 ("batch", 1),
-                ("f_ctx", (2 * self.d_ctx()) - 1),
+                ("1", 1),
+                ("2", 2),
+                ("d_ctx", self.d_ctx()),
                 ("d_features", self.d_features())
             ]
         );
@@ -311,11 +313,13 @@ impl<B: Backend> TenVad<B> {
         {
             use crate::contracts::assert_shape_contract;
             assert_shape_contract!(
-                ["batch", "f_ctx", "d_features"],
+                ["batch", "2" * "d_ctx" - "1", "d_features"],
                 &frame,
                 &[
                     ("batch", 1),
-                    ("f_ctx", (2 * self.d_ctx()) - 1),
+                    ("1", 1),
+                    ("2", 2),
+                    ("d_ctx", self.d_ctx()),
                     ("d_features", self.d_features())
                 ]
             );
