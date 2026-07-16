@@ -13,7 +13,7 @@ use burn::{
 /// State bundle for LSTM implementations.
 ///
 /// This is a stand-in for [`LstmState`].
-/// Waiting on: https://github.com/tracel-ai/burn/pull/5167
+/// Waiting on: <https://github.com/tracel-ai/burn/pull/5167>
 #[derive(Debug, Clone)]
 pub struct ExtLstmState<B: Backend, const D: usize> {
     /// The cell state.
