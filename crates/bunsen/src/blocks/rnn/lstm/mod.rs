@@ -1,6 +1,6 @@
 //! LSTM Blocks
 
-mod lstm_state_ext;
+mod ext_lstm_state;
 
 #[doc(inline)]
-pub use lstm_state_ext::*;
+pub use ext_lstm_state::*;

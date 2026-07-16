@@ -1,16 +1,14 @@
 #[cfg(test)]
 mod test {
-    use burn::{
-        nn::LstmState,
-        tensor::{
-            Distribution,
-            Tensor,
-            Tolerance,
-            backend::BackendTypes,
-        },
+    use burn::tensor::{
+        Distribution,
+        Tensor,
+        Tolerance,
+        backend::BackendTypes,
     };
 
     use crate::{
+        blocks::rnn::lstm::ExtLstmState,
         kits::speech::ten_vad::{
             TenVad,
             reference::ReferenceModel,
@@ -32,18 +30,12 @@ mod test {
         let vad: TenVad<B> = TenVad::load_pretrained(&device).unwrap();
 
         // TODO: batch support appears to be broken?
-        let batch = 1;
+        let shape = [1, 64];
 
-        let input = Tensor::random([batch, 3, 41], Distribution::Default, &device);
+        let input = Tensor::random([1, 3, 41], Distribution::Default, &device);
 
-        let state1_init = LstmState::new(
-            Tensor::zeros([batch, 64], &device).clone(),
-            Tensor::zeros([batch, 64], &device).clone(),
-        );
-        let state2_init = LstmState::new(
-            Tensor::zeros([batch, 64], &device).clone(),
-            Tensor::zeros([batch, 64], &device).clone(),
-        );
+        let state1_init = ExtLstmState::initial(shape, &device);
+        let state2_init = ExtLstmState::initial(shape, &device);
 
         let (ref_prob, ref_lstm1_hidden, ref_lstm1_cell, ref_lstm2_hidden, ref_lstm2_cell) =
             ref_vad.forward(
@@ -54,7 +46,6 @@ mod test {
                 state2_init.cell.clone(),
             );
 
-        // TODO: LstmState is not Clone! Fix/Work-around.
         let (mod_prob, mod_lstm1_state, mod_lstm2_state) = vad.forward(input.clone(), None, None);
 
         mod_prob

@@ -28,10 +28,13 @@ use burn_store::{
 };
 
 use crate::{
-    blocks::conv::{
-        ConvBlock2dConfig,
-        ConvSeq2d,
-        ConvSeq2dConfig,
+    blocks::{
+        conv::{
+            ConvBlock2dConfig,
+            ConvSeq2d,
+            ConvSeq2dConfig,
+        },
+        rnn::lstm::ExtLstmState,
     },
     burner::module::ModuleInit,
     errors::BunsenResult,
@@ -42,13 +45,13 @@ use crate::{
 /// Builds [`TenVad`].
 #[derive(Config, Debug)]
 pub struct TenVadStructureConfig {
-    /// The first ConvSeq2d block.
+    /// The first `ConvSeq2d` block.
     pub cs1: ConvSeq2dConfig,
 
     /// The maxpooling block.
     pub pool: MaxPool2dConfig,
 
-    /// The second ConvSeq2d block.
+    /// The second `ConvSeq2d` block.
     pub cs2: ConvSeq2dConfig,
 
     /// The first Lstm block.
@@ -135,13 +138,13 @@ impl<B: Backend> ModuleInit<B, TenVad<B>> for TenVadStructureConfig {
 /// Built by [`TenVadStructureConfig`].
 #[derive(Module, Debug)]
 pub struct TenVad<B: Backend> {
-    /// The first ConvSeq2d block.
+    /// The first `ConvSeq2d` block.
     pub cs1: ConvSeq2d<B>,
 
-    /// The MaxPool2d block.
+    /// The `MaxPool2d` block.
     pub pool: MaxPool2d,
 
-    /// The second ConvSeq2d block.
+    /// The second `ConvSeq2d` block.
     pub cs2: ConvSeq2d<B>,
 
     /// The first Lstm block.
@@ -192,16 +195,16 @@ impl<B: Backend> TenVad<B> {
     pub fn forward(
         &self,
         input: Tensor<B, 3>,
-        state1: Option<LstmState<B, 2>>,
-        state2: Option<LstmState<B, 2>>,
-    ) -> (Tensor<B, 3>, LstmState<B, 2>, LstmState<B, 2>) {
+        state1: Option<ExtLstmState<B, 2>>,
+        state2: Option<ExtLstmState<B, 2>>,
+    ) -> (Tensor<B, 3>, ExtLstmState<B, 2>, ExtLstmState<B, 2>) {
         let x = self.frame_features(input);
 
-        let (x, state1, state2) = self.lstm_step(x, state1, state2);
+        let (x, state1, state2) = self.lstm_step(x, state1.map(Into::into), state2.map(Into::into));
 
         let x = self.output_head(x);
 
-        (x, state1, state2)
+        (x, state1.into(), state2.into())
     }
 
     fn frame_features(
