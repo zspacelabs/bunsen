@@ -10,6 +10,12 @@ use crate::support::math::maybe_iroot;
 /// A stack/static expression algebra for dimension sizes.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum DimExpr<'a> {
+    /// A constant value.
+    Const {
+        /// The value of the constant.
+        value: isize,
+    },
+
     /// A parameter reference.
     Param {
         /// The id of the parameter.
@@ -59,6 +65,7 @@ impl<'a> Display for ExprDisplayAdapter<'a> {
         f: &mut Formatter<'_>,
     ) -> core::fmt::Result {
         match self.expr {
+            DimExpr::Const { value } => write!(f, "{value}"),
             DimExpr::Param { id } => write!(f, "{}", self.index[*id]),
             DimExpr::Negate { child } => write!(
                 f,
@@ -193,6 +200,7 @@ impl<'a> DimExpr<'a> {
         }
 
         match self {
+            DimExpr::Const { value } => EvalResult::Value { value: *value },
             DimExpr::Param { id } => match env[*id] {
                 Some(value) => EvalResult::Value { value },
                 None => EvalResult::UnboundParams { count: 1 },
@@ -266,6 +274,13 @@ impl<'a> DimExpr<'a> {
         }
 
         match self {
+            DimExpr::Const { value } => {
+                if *value == target {
+                    Ok(MatchResult::Match)
+                } else {
+                    Ok(MatchResult::Conflict)
+                }
+            }
             DimExpr::Param { id } => {
                 let id = *id;
                 if let Some(value) = env[id] {
@@ -328,11 +343,14 @@ mod tests {
             format!(
                 "{}",
                 ExprDisplayAdapter {
-                    expr: &expr,
+                    expr,
                     index: &INDEX
                 }
             )
         }
+
+        assert_eq!(fmt(&DimExpr::Const { value: 7 }), "7");
+        assert_eq!(fmt(&DimExpr::Const { value: -7 }), "-7");
 
         assert_eq!(
             fmt(&DimExpr::Param {
@@ -364,6 +382,47 @@ mod tests {
             ],
         };
         assert_eq!(fmt(&_expr), "(a*b*(c+(d^2)+(-e)))");
+    }
+
+    #[test]
+    fn test_eval_const() {
+        let env: [Option<isize>; 0] = [];
+
+        let expr = DimExpr::Const { value: 5 };
+        assert_eq!(expr.try_eval(&env), EvalResult::Value { value: 5 });
+        assert_eq!(expr.try_match(5, &env), Ok(MatchResult::Match));
+        assert_eq!(expr.try_match(42, &env), Ok(MatchResult::Conflict));
+
+        let expr = DimExpr::Const { value: -3 };
+        assert_eq!(expr.try_eval(&env), EvalResult::Value { value: -3 });
+        assert_eq!(expr.try_match(-3, &env), Ok(MatchResult::Match));
+        assert_eq!(expr.try_match(3, &env), Ok(MatchResult::Conflict));
+    }
+
+    #[test]
+    fn test_eval_const_composite() {
+        // (2 * a) + 3
+        let expr = DimExpr::Sum {
+            children: &[
+                DimExpr::Prod {
+                    children: &[DimExpr::Const { value: 2 }, DimExpr::Param { id: 0 }],
+                },
+                DimExpr::Const { value: 3 },
+            ],
+        };
+
+        let env = [Some(5)];
+        assert_eq!(expr.try_eval(&env), EvalResult::Value { value: 13 });
+        assert_eq!(expr.try_match(13, &env), Ok(MatchResult::Match));
+        assert_eq!(expr.try_match(42, &env), Ok(MatchResult::Conflict));
+
+        let env = [None];
+        assert_eq!(expr.try_eval(&env), EvalResult::UnboundParams { count: 1 });
+        assert_eq!(
+            expr.try_match(13, &env),
+            Ok(MatchResult::ParamConstraint { id: 0, value: 5 })
+        );
+        assert_eq!(expr.try_match(14, &env), Err("No integer solution."));
     }
 
     #[test]
