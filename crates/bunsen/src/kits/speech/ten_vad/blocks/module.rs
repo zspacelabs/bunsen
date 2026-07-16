@@ -4,7 +4,6 @@ use burn::{
         LinearConfig,
         Lstm,
         LstmConfig,
-        LstmState,
         PaddingConfig2d,
         activation::ActivationConfig,
         conv::Conv2dConfig,
@@ -31,6 +30,7 @@ use crate::{
     blocks::{
         conv::{
             ConvBlock2dConfig,
+            ConvBlock2dMeta,
             ConvSeq2d,
             ConvSeq2dConfig,
         },
@@ -40,18 +40,42 @@ use crate::{
     errors::BunsenResult,
 };
 
+/// Common meta for [`TenVad`].
+pub trait TenVadMeta {
+    /// The context length.
+    fn d_ctx(&self) -> usize {
+        3
+    }
+
+    /// The internal feature context length.
+    fn f_ctx(&self) -> usize {
+        2 * self.d_ctx() - 1
+    }
+
+    /// The number of frequency bins.
+    fn n_freq(&self) -> usize {
+        41
+    }
+
+    /// The dimension of the feature space.
+    fn d_features(&self) -> usize;
+
+    /// The dimension of the embedding space.
+    fn d_hidden(&self) -> usize;
+}
+
 /// Config for [`TenVad`].
 ///
 /// Builds [`TenVad`].
 #[derive(Config, Debug)]
 pub struct TenVadStructureConfig {
-    /// The first `ConvSeq2d` block.
+    /// Embedding first `ConvSeq2d` block.
     pub cs1: ConvSeq2dConfig,
 
-    /// The maxpooling block.
+    /// Embedding `MaxPool2d` block.
     pub pool: MaxPool2dConfig,
 
-    /// The second `ConvSeq2d` block.
+    /// Embedding second `ConvSeq2d` block.
     pub cs2: ConvSeq2dConfig,
 
     /// The first Lstm block.
@@ -60,10 +84,10 @@ pub struct TenVadStructureConfig {
     /// The second Lstm block.
     pub lstm2: LstmConfig,
 
-    /// The first linear output block.
+    /// Projection first `Linear` block.
     pub linear1: LinearConfig,
 
-    /// The second linear output block.
+    /// Projection second `Linear` block.
     pub linear2: LinearConfig,
 }
 
@@ -138,13 +162,13 @@ impl<B: Backend> ModuleInit<B, TenVad<B>> for TenVadStructureConfig {
 /// Built by [`TenVadStructureConfig`].
 #[derive(Module, Debug)]
 pub struct TenVad<B: Backend> {
-    /// The first `ConvSeq2d` block.
+    /// Embedding first `ConvSeq2d` block.
     pub cs1: ConvSeq2d<B>,
 
-    /// The `MaxPool2d` block.
+    /// Embedding `MaxPool2d` block.
     pub pool: MaxPool2d,
 
-    /// The second `ConvSeq2d` block.
+    /// Embedding second `ConvSeq2d` block.
     pub cs2: ConvSeq2d<B>,
 
     /// The first Lstm block.
@@ -153,11 +177,21 @@ pub struct TenVad<B: Backend> {
     /// The second Lstm block.
     pub lstm2: Lstm<B>,
 
-    /// The first linear output block.
+    /// Projection first `Linear` block.
     pub linear1: Linear<B>,
 
-    /// The second linear output block.
+    /// Projection second `Linear` block.
     pub linear2: Linear<B>,
+}
+
+impl<B: Backend> TenVadMeta for TenVad<B> {
+    fn d_features(&self) -> usize {
+        self.cs1.blocks.last().unwrap().out_channels()
+    }
+
+    fn d_hidden(&self) -> usize {
+        self.lstm1.d_hidden
+    }
 }
 
 impl<B: Backend> TenVad<B> {
@@ -192,75 +226,209 @@ impl<B: Backend> TenVad<B> {
 
 impl<B: Backend> TenVad<B> {
     /// Forward pass.
+    ///
+    /// # Argument
+    /// * `input`: `[a, d_ctx, n_freq]`
+    /// * `state1`: `[a, d_hidden]` LSTM state.
+    /// * `state2`: `[a, d_hidden]` LSTM state.
+    ///
+    /// # Returns
+    /// `[a]` probs.
     pub fn forward(
         &self,
         input: Tensor<B, 3>,
         state1: Option<ExtLstmState<B, 2>>,
         state2: Option<ExtLstmState<B, 2>>,
-    ) -> (Tensor<B, 3>, ExtLstmState<B, 2>, ExtLstmState<B, 2>) {
+    ) -> (Tensor<B, 1>, ExtLstmState<B, 2>, ExtLstmState<B, 2>) {
+        // TODO: debug the 1, 1 dims; relationship to batch, seq.
+        assert_eq!(state1.is_some(), state2.is_some());
+        #[cfg(any(test, debug_assertions))]
+        {
+            use crate::contracts::assert_shape_contract;
+            let [a] = crate::contracts::unpack_shape_contract!(
+                ["a", "d_ctx", "n_freq"],
+                &input,
+                &["a"],
+                &[("a", 1), ("d_ctx", self.d_ctx()), ("n_freq", self.n_freq())]
+            );
+            if let Some(state1) = &state1 {
+                assert_shape_contract!(
+                    ["a", "d_hidden"],
+                    state1.shape(),
+                    &[("a", a), ("d_hidden", self.d_hidden())],
+                );
+            }
+            if let Some(state2) = &state2 {
+                assert_shape_contract!(
+                    ["a", "d_hidden"],
+                    state2.shape(),
+                    &[("a", a), ("d_hidden", self.d_hidden())],
+                );
+            }
+        }
         let x = self.frame_features(input);
 
-        let (x, state1, state2) = self.lstm_step(x, state1.map(Into::into), state2.map(Into::into));
+        let (x, state1, state2) = self.lstm_step(x, state1, state2);
 
         let x = self.output_head(x);
+        let x = x.squeeze_dim(1);
 
-        (x, state1.into(), state2.into())
+        (x, state1, state2)
     }
 
     fn frame_features(
         &self,
-        input: Tensor<B, 3>,
+        x: Tensor<B, 3>,
     ) -> Tensor<B, 3> {
+        // TODO: debug the 1, 1 dims; relationship to batch, seq.
+        cfg_select! {
+            any(test, debug_assertions) => {
+                let [a] = crate::contracts::unpack_shape_contract!(
+                    ["a", "d_ctx", "n_freq"],
+                    &x,
+                    &["a"],
+                    &[
+                        ("d_ctx", self.d_ctx()),
+                        ("n_freq", self.n_freq())
+                    ]
+                );
+            }
+            _ => {
+                let a = x.dims()[0];
+            }
+        }
+
         // this *appears* batch-able.
-        let x = input.reshape([1, -1, 3, 41]);
+        let x = x.reshape([1, -1, 3, self.n_freq() as isize]);
         let x = self.cs1.forward(x);
         let x = self.pool.forward(x);
         let x = self.cs2.forward(x);
         let x = x.squeeze_dim(2);
-        x.permute([0, 2, 1])
+        let x = x.permute([0, 2, 1]);
+
+        #[cfg(any(test, debug_assertions))]
+        crate::contracts::assert_shape_contract!(
+            ["a", "f_ctx", "d_features"],
+            &x,
+            &[
+                ("a", a),
+                ("f_ctx", self.f_ctx()),
+                ("d_features", self.d_features())
+            ]
+        );
+        x
     }
 
     fn lstm_step(
         &self,
-        features: Tensor<B, 3>,
-        state1: Option<LstmState<B, 2>>,
-        state2: Option<LstmState<B, 2>>,
-    ) -> (Tensor<B, 3>, LstmState<B, 2>, LstmState<B, 2>) {
+        x: Tensor<B, 3>,
+        state1: Option<ExtLstmState<B, 2>>,
+        state2: Option<ExtLstmState<B, 2>>,
+    ) -> (Tensor<B, 3>, ExtLstmState<B, 2>, ExtLstmState<B, 2>) {
+        // TODO: debug the 1, 1 dims; relationship to batch, seq.
+        assert_eq!(state1.is_some(), state2.is_some());
+        #[cfg(any(test, debug_assertions))]
+        let a = {
+            use crate::contracts::assert_shape_contract;
+            let [a] = crate::contracts::unpack_shape_contract!(
+                ["a", "f_ctx", "d_features"],
+                &x,
+                &["a"],
+                &[("f_ctx", self.f_ctx()), ("d_features", self.d_features())]
+            );
+            if let Some(state1) = &state1 {
+                assert_shape_contract!(
+                    ["a", "d_hidden"],
+                    state1.shape(),
+                    &[("a", a), ("d_hidden", self.d_hidden())],
+                );
+            }
+            if let Some(state2) = &state2 {
+                assert_shape_contract!(
+                    ["a", "d_hidden"],
+                    state2.shape(),
+                    &[("a", a), ("d_hidden", self.d_hidden())],
+                );
+            }
+            a
+        };
+
         // converting this to batch seems odd.
         // The existing re-shape seems to feed [batch=-1, seq=1, features=80];
         // which is a weird way to run this ...?
-        let x = features.reshape([-1, 1, 80]);
-        let (x, state1) = self.lstm1.forward(x, state1);
-        let y = x.reshape([1, -1, 64]);
+        let x = x.reshape([-1, 1, (self.f_ctx() * self.d_features()) as isize]);
+        let (x, state1) = self.lstm1.forward(x, state1.map(Into::into));
+        let y = x.reshape([1, -1, self.d_hidden() as isize]);
 
         let x = y.clone().swap_dims(0, 1);
 
-        let (x, state2) = self.lstm2.forward(x, state2);
+        let (x, state2) = self.lstm2.forward(x, state2.map(Into::into));
         let x = x.swap_dims(0, 1);
 
         let x = Tensor::cat([x, y].into(), 2);
+        let state1: ExtLstmState<B, 2> = state1.into();
+        let state2: ExtLstmState<B, 2> = state2.into();
+        #[cfg(any(test, debug_assertions))]
+        {
+            use crate::contracts::assert_shape_contract;
+            assert_shape_contract!(
+                ["a", "1", "2" * "d_hidden"],
+                &x,
+                &[("a", a), ("1", 1), ("2", 2), ("d_hidden", self.d_hidden())]
+            );
+            assert_shape_contract!(
+                ["a", "d_hidden"],
+                &state1.shape(),
+                &[("a", 1), ("d_hidden", self.d_hidden())],
+            );
+            assert_shape_contract!(
+                ["a", "d_hidden"],
+                &state2.shape(),
+                &[("a", 1), ("d_hidden", self.d_hidden())],
+            );
+        }
         (x, state1, state2)
     }
 
     fn output_head(
         &self,
-        hidden: Tensor<B, 3>,
-    ) -> Tensor<B, 3> {
-        // this *appears* batch-able.
-        let mut shape1: [usize; 3] = hidden.dims();
-        shape1[2] = 32;
-        let x = hidden.reshape([-1, 128]);
-        let x = self.linear1.forward(x);
-        let x = x.reshape(shape1);
+        x: Tensor<B, 3>,
+    ) -> Tensor<B, 2> {
+        // TODO: debug the 1, 1 dims; relationship to batch, seq.
+        #[cfg(any(test, debug_assertions))]
+        let [a] = crate::contracts::unpack_shape_contract!(
+            ["a", "1", "2" * "d_hidden"],
+            &x,
+            &["a"],
+            &[("1", 1), ("2", 2), ("d_hidden", self.d_hidden())]
+        );
 
+        let half_hidden = self.d_hidden() / 2;
+        let twice_hidden = self.d_hidden() * 2;
+
+        // this *appears* batch-able.
+        let mut shape1: [usize; 3] = x.dims();
+        shape1[2] = self.d_hidden() / 2;
+        // [a * 1, 2 * d_hidden]
+        let x = x.reshape([-1, twice_hidden as isize]);
+        let x = self.linear1.forward(x);
         let x = relu(x);
+        // [a * 1, d_hidden / 2]
+        let x = x.reshape(shape1);
 
         let mut shape2: [usize; 3] = x.dims();
         shape2[2] = 1;
-        let x = x.reshape([-1, 32]);
+        // [a * 1, d_hidden / 2]
+        let x = x.reshape([-1, half_hidden as isize]);
         let x = self.linear2.forward(x);
+        let x = sigmoid(x);
         let x = x.reshape(shape2);
+        // [a, 1]
+        let x = x.squeeze_dim(2);
 
-        sigmoid(x)
+        #[cfg(any(test, debug_assertions))]
+        // TODO: really?
+        crate::contracts::assert_shape_contract!(["a", "1"], &x, &[("a", a), ("1", 1)]);
+        x
     }
 }

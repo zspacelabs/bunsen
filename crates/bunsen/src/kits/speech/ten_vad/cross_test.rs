@@ -49,6 +49,7 @@ mod test {
         let (mod_prob, mod_lstm1_state, mod_lstm2_state) = vad.forward(input.clone(), None, None);
 
         mod_prob
+            .unsqueeze_dims::<3>(&[1, 2])
             .to_data()
             .assert_approx_eq::<F>(&ref_prob.to_data(), Tolerance::permissive());
 
