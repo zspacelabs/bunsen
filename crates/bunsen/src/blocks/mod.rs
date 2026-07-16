@@ -45,4 +45,5 @@
 
 pub mod conv;
 pub mod images;
+pub mod rnn;
 pub mod transformers;
