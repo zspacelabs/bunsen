@@ -25,7 +25,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             run::<burn::backend::cuda::Cuda>(args)
         }
         feature = "metal" => {
-            run::<burn::backend::metal::Metal>(args)
+            run::<burn::backend::Metal>(args)
         }
         feature = "wgpu" => {
             run::<burn::backend::wgpu::Wgpu>(args)

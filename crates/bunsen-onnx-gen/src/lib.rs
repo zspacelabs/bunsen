@@ -1,3 +1,4 @@
+#![allow(clippy::type_complexity)]
 //! Bunsen ONNX model generation.
 //!
 //! ## Crate Features
