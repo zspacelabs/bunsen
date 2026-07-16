@@ -384,17 +384,15 @@ impl<'a> ShapeContract<'a> {
         self._loc_try_assert_shape(&sv, env, Location::caller())
     }
 
-    fn _loc_try_assert_shape(
+    fn _key_index(
         &'a self,
-        shape: &ShapeView,
         env: StackEnvironment<'a>,
-        loc: &Location<'a>,
-    ) -> Result<(), String> {
-        let mut scratch: Vec<Option<isize>> = vec![None; self.index.len()];
+    ) -> Result<Vec<Option<isize>>, String> {
+        let mut key_index: Vec<Option<isize>> = vec![None; self.index.len()];
         for (k, v) in env.iter() {
             let v = *v as isize;
             match self.maybe_key_to_index(k) {
-                Some(param_id) => scratch[param_id] = Some(v),
+                Some(param_id) => key_index[param_id] = Some(v),
                 None => {
                     return Err(
                         format!("The key \"{k}\" is not indexed in the contract:\n{self}")
@@ -403,8 +401,17 @@ impl<'a> ShapeContract<'a> {
                 }
             }
         }
+        Ok(key_index)
+    }
 
-        self.format_resolve(shape, scratch.as_mut_slice(), loc)
+    fn _loc_try_assert_shape(
+        &'a self,
+        shape: &ShapeView,
+        env: StackEnvironment<'a>,
+        loc: &Location<'a>,
+    ) -> Result<(), String> {
+        let mut key_index = self._key_index(env)?;
+        self.format_resolve(shape, key_index.as_mut_slice(), loc)
     }
 
     /// Matches and unpacks `K` keys from a shape pattern.
@@ -557,22 +564,10 @@ impl<'a> ShapeContract<'a> {
     ) -> Result<[usize; K], String> {
         let selection = self.expect_keys_to_selection(keys);
 
-        let mut scratch: Vec<Option<isize>> = vec![None; self.index.len()];
-        for (k, v) in env.iter() {
-            let v = *v as isize;
-            match self.maybe_key_to_index(k) {
-                Some(param_id) => scratch[param_id] = Some(v),
-                None => {
-                    return Err(
-                        format!("The key \"{k}\" is not indexed in the contract:\n{self}")
-                            .to_string(),
-                    );
-                }
-            }
-        }
+        let mut key_index = self._key_index(env)?;
 
         let selected: [isize; K] =
-            self._loc_try_select(shape, &selection, scratch.as_mut_slice(), loc)?;
+            self._loc_try_select(shape, &selection, key_index.as_mut_slice(), loc)?;
 
         let result: [usize; K] = selected
             .into_iter()
