@@ -132,7 +132,7 @@ macro_rules! __define_shape_contract {
 ///
 /// ### With a Contract Expression:
 ///
-/// ```rust,no_run
+/// ```rust
 /// use bunsen::contracts::assert_shape_contract;
 ///
 /// let shape = [1, 2, 3, 4 * 2, 5 * 2, 3];
@@ -145,7 +145,7 @@ macro_rules! __define_shape_contract {
 /// ```
 /// ### With a pre-defined contract:
 ///
-/// ```rust,no_run
+/// ```rust
 /// use bunsen::contracts::{assert_shape_contract, define_shape_contract};
 ///
 /// let shape = [1, 2, 3, 4 * 2, 5 * 2, 3];
@@ -182,20 +182,20 @@ macro_rules! __assert_shape_contract {
 ///
 /// ### With a Contract Expression:
 ///
-/// ```rust,no_run
+/// ```rust
 /// use bunsen::contracts::assert_shape_contract_periodically;
 ///
-/// let shape = [1, 2, 3, 4 * 2, 5 * 2, 3];
+/// let shape = [1, 2, 3, 4 * 2, 5 * 2, 9];
 ///
 /// assert_shape_contract_periodically!(
-///   [..., "h" = "h_win" * "ws", "w" = "w_win" * "ws", "c"],
+///   [..., "h" = "h_win" * "ws", "w" = "w_win" * "ws", 3 * "c"],
 ///   &shape,
 ///   &[("ws", 2)],
 /// );
 /// ```
 /// ### With a pre-defined contract:
 ///
-/// ```rust,no_run
+/// ```rust
 /// use bunsen::contracts::{assert_shape_contract_periodically, define_shape_contract};
 ///
 /// let shape = [1, 2, 3, 4 * 2, 5 * 2, 3];
@@ -226,13 +226,13 @@ macro_rules! __assert_shape_contract_periodically {
 ///
 /// ### With a Contract Expression:
 ///
-/// ```rust,no_run
+/// ```rust
 /// use bunsen::contracts::unpack_shape_contract;
 ///
-/// let shape = [1, 2, 3, 4 * 2, 5 * 2, 3];
+/// let shape = [1, 2, 3, 4 * 2, 5 * 2, 9];
 ///
 /// let [h, h_win, w, w_win, c] = unpack_shape_contract!(
-///   [..., "h" = "h_win" * "ws", "w" = "w_win" * "ws", "c"],
+///   [..., "h" = "h_win" * "ws", "w" = "w_win" * "ws", 3 * "c"],
 ///   &shape,
 ///   &["h", "h_win", "w", "w_win", "c"],
 ///   &[("ws", 2)],
@@ -246,7 +246,7 @@ macro_rules! __assert_shape_contract_periodically {
 ///
 /// ### With a pre-defined contract:
 ///
-/// ```rust,no_run
+/// ```rust
 /// use bunsen::contracts::{define_shape_contract, unpack_shape_contract};
 ///
 /// let shape = [1, 2, 3, 4 * 2, 5 * 2, 3];
@@ -271,27 +271,19 @@ macro_rules! __assert_shape_contract_periodically {
 ///
 /// This also works with pre-defined contracts.
 ///
-/// ```rust,no_run
+/// ```rust
 /// use bunsen::contracts::unpack_shape_contract;
 ///
-/// let shape = [1, 2, 3, 4 * 2, 5 * 2, 3];
+/// let shape = [4, 12];
 ///
-/// let [h, h_win, w, w_win, ws, c] = unpack_shape_contract!(
-///   [..., "h" = "h_win" * "ws", "w" = "w_win" * "ws", "c"],
-///   &shape,
-///   &["h", "h_win", "w", "w_win", "ws", "c"],
-/// );
-/// assert_eq!(ws, 2);
-/// assert_eq!(h, 8);
-/// assert_eq!(h_win, 4);
-/// assert_eq!(w, 10);
-/// assert_eq!(w_win, 5);
-/// assert_eq!(c, 3);
+/// let [a, b] = unpack_shape_contract!(["a", "a" * "b"], &shape, &["a", "b"]);
+/// assert_eq!(a, 4);
+/// assert_eq!(b, 3);
 /// ```
 ///
 /// ### Special: When the keys are the expression:
 ///
-/// ```rust,no_run
+/// ```rust
 /// use bunsen::contracts::unpack_shape_contract;
 ///
 /// let shape = [4, 5, 3];

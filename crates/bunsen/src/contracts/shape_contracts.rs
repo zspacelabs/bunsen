@@ -806,4 +806,21 @@ mod tests {
         assert_eq!(u_w, w);
         assert_eq!(u_z, z);
     }
+
+    #[test]
+    fn test_shape_contract_macro_const() {
+        use crate::contracts::shape_contract;
+
+        static CONTRACT: ShapeContract = shape_contract!["b", 3, 2 * "h" + 1];
+
+        let b = 2;
+        let h = 5;
+
+        let shape = [b, 3, 2 * h + 1];
+        CONTRACT.assert_shape(&shape, &[]);
+
+        let [u_b, u_h] = CONTRACT.unpack_shape(&shape, &["b", "h"], &[]);
+        assert_eq!(u_b, b);
+        assert_eq!(u_h, h);
+    }
 }
