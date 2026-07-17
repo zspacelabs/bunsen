@@ -490,9 +490,9 @@ impl<B: Backend> SileroVad<B> {
                     &[("batch", batch)],
                 );
                 assert_shape_contract_periodically!(
-                    ["2", "batch", "d_hidden"],
+                    [2, "batch", "d_hidden"],
                     &state,
-                    &[("2", 2), ("batch", batch), ("d_hidden", self.d_hidden())]
+                    &[("batch", batch), ("d_hidden", self.d_hidden())]
                 );
             }
             _ => {
@@ -571,9 +571,9 @@ impl<B: Backend> SileroVad<B> {
                     &[("batch", batch)],
                 );
                 assert_shape_contract_periodically!(
-                    ["2", "batch", "d_hidden"],
+                    [2, "batch", "d_hidden"],
                     &state,
-                    &[("2", 2), ("batch", batch), ("d_hidden", self.d_hidden())]
+                    &[("batch", batch), ("d_hidden", self.d_hidden())]
                 );
             }
             _ => {
@@ -623,9 +623,9 @@ impl<B: Backend> SileroVad<B> {
                     &["steps", "batch"],
                 );
                 crate::contracts::assert_shape_contract_periodically!(
-                    ["2", "batch", "d_hidden"],
+                    [2, "batch", "d_hidden"],
                     &state,
-                    &[("2", 2), ("batch", batch), ("d_hidden", self.d_hidden())]
+                    &[("batch", batch), ("d_hidden", self.d_hidden())]
                 );
             }
             _ => {
@@ -711,9 +711,9 @@ impl<B: Backend> SileroVad<B> {
             let [batch] =
                 crate::contracts::unpack_shape_contract!(["batch", "samples"], &chunk, &["batch"],);
             crate::contracts::assert_shape_contract_periodically!(
-                ["2", "batch", "d_hidden"],
+                [2, "batch", "d_hidden"],
                 &state,
-                &[("2", 2), ("batch", batch), ("d_hidden", self.d_hidden())]
+                &[("batch", batch), ("d_hidden", self.d_hidden())]
             );
         }
 
@@ -747,7 +747,7 @@ impl<B: Backend> SileroVad<B> {
     ) -> Tensor<B, 2> {
         #[cfg(any(test, debug_assertions))]
         let [batch] =
-            crate::contracts::unpack_shape_contract!(["batch", "samples"], &input, &["batch"],);
+            crate::contracts::unpack_shape_contract!(["batch", "samples"], &input, &["batch"]);
 
         // Reflect-pad, then add the channel axis.
         // [batch, 1, samples + pad]
@@ -762,9 +762,9 @@ impl<B: Backend> SileroVad<B> {
         let x = self.stft.forward(x);
         #[cfg(any(test, debug_assertions))]
         crate::contracts::assert_shape_contract_periodically!(
-            ["batch", "2" * "n_freq", "T"],
+            ["batch", 2 * "n_freq", "T"],
             &x,
-            &[("2", 2), ("batch", batch), ("n_freq", self.n_freq())],
+            &[("batch", batch), ("n_freq", self.n_freq())],
         );
 
         // [batch, n_freq, T]

@@ -141,9 +141,9 @@ pub fn next_interior_2d<B: Backend>(state: Tensor<B, 2, Bool>) -> Tensor<B, 2, B
 
     #[cfg(any(test, debug_assertions))]
     crate::contracts::assert_shape_contract_periodically!(
-        ["h" - "pad", "w" - "pad"],
+        ["h" - 2, "w" - 2],
         &inner.dims(),
-        &[("h", h), ("w", w), ("pad", 2)],
+        &[("h", h), ("w", w)],
     );
 
     // [H-2, W-2]

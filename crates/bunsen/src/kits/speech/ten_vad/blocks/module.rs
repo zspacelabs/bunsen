@@ -375,9 +375,9 @@ impl<B: Backend> TenVad<B> {
         {
             use crate::contracts::assert_shape_contract;
             assert_shape_contract!(
-                ["a", "1", "2" * "d_hidden"],
+                ["a", 1, 2 * "d_hidden"],
                 &x,
-                &[("a", a), ("1", 1), ("2", 2), ("d_hidden", self.d_hidden())]
+                &[("a", a), ("d_hidden", self.d_hidden())]
             );
             assert_shape_contract!(
                 ["a", "d_hidden"],
@@ -400,10 +400,10 @@ impl<B: Backend> TenVad<B> {
         // TODO: debug the 1, 1 dims; relationship to batch, seq.
         #[cfg(any(test, debug_assertions))]
         let [a] = crate::contracts::unpack_shape_contract!(
-            ["a", "1", "2" * "d_hidden"],
+            ["a", 1, 2 * "d_hidden"],
             &x,
             &["a"],
-            &[("1", 1), ("2", 2), ("d_hidden", self.d_hidden())]
+            &[("d_hidden", self.d_hidden())]
         );
 
         let half_hidden = self.d_hidden() / 2;
@@ -431,7 +431,7 @@ impl<B: Backend> TenVad<B> {
 
         #[cfg(any(test, debug_assertions))]
         // TODO: really?
-        crate::contracts::assert_shape_contract!(["a", "1"], &x, &[("a", a), ("1", 1)]);
+        crate::contracts::assert_shape_contract!(["a", 1], &x, &[("a", a)]);
         x
     }
 }

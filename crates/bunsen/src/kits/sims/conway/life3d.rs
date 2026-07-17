@@ -105,7 +105,7 @@ pub fn next_interior_3d<B: Backend>(
     rules: &LifeRules,
 ) -> Tensor<B, 3, Bool> {
     #[cfg(debug_assertions)]
-    let [h, w, z] = crate::contracts::unpack_shape_contract!(["h", "w", "z"], &state.dims(),);
+    let [h, w, z] = crate::contracts::unpack_shape_contract!(["h", "w", "z"], &state.dims());
 
     // [H, W, Z]
     let is_live = state.clone().slice(s![1..-1, 1..-1, 1..-1,]);
@@ -145,9 +145,9 @@ pub fn next_interior_3d<B: Backend>(
     let update = spawns.bool_or(keeps);
     #[cfg(debug_assertions)]
     crate::contracts::assert_shape_contract_periodically!(
-        ["h" - "pad", "w" - "pad", "z" - "pad"],
+        ["h" - 2, "w" - 2, "z" - 2],
         &update.dims(),
-        &[("h", h), ("w", w), ("z", z), ("pad", 2)],
+        &[("h", h), ("w", w), ("z", z)],
     );
 
     update

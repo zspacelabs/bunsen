@@ -88,6 +88,9 @@ fn parse_dim_matcher_tokens(input: ParseStream) -> SynResult<DimMatcherAST> {
 /// Represents a node in a dimension expression.
 #[derive(Debug, Clone, PartialEq)]
 enum ExprAST {
+    /// A constant value (integer literal).
+    Const(isize),
+
     /// A parameter (string literal).
     Param(String),
 
@@ -111,6 +114,7 @@ impl ExprAST {
         labels: &mut BTreeSet<String>,
     ) {
         match self {
+            ExprAST::Const(_) => {}
             ExprAST::Param(name) => {
                 labels.insert(name.clone());
             }
@@ -300,9 +304,16 @@ fn parse_factor_expr(input: ParseStream) -> SynResult<ExprAST> {
         return Ok(ExprAST::Param(lit.value()));
     }
 
+    // Handle integer literals (constants)
+    if input.peek(syn::LitInt) {
+        let lit: syn::LitInt = input.parse()?;
+        let value: isize = lit.base10_parse()?;
+        return Ok(ExprAST::Const(value));
+    }
+
     Err(syn::Error::new(
         input.span(),
-        "Expected parameter, parentheses, or unary operator",
+        "Expected parameter, constant, parentheses, or unary operator",
     ))
 }
 
@@ -312,6 +323,11 @@ impl ExprAST {
         index: &[&str],
     ) -> TokenStream2 {
         match self {
+            ExprAST::Const(value) => {
+                quote! {
+                    DimExpr::Const{value: #value}
+                }
+            }
             ExprAST::Param(name) => {
                 let param_id = label_to_slot(name, index);
                 quote! {
@@ -419,8 +435,9 @@ impl ShapeContractAST {
 /// Expr => <Term> { <AddOp> <Term> }
 /// Term => <Power> { <MulOp> <Power> }
 /// Power => <Factor> [ ^ <usize> ]
-/// Factor => <Param> | ( '(' <Expression> ')' ) | NegOp <Factor>
+/// Factor => <Param> | <Const> | ( '(' <Expression> ')' ) | NegOp <Factor>
 /// Param => '"' <identifier> '"'
+/// Const => <integer literal>
 /// identifier => { <alpha> | "_" } { <alphanumeric> | "_" }*
 /// NegOp =>      '+' | '-'
 /// AddOp =>      '+' | '-'
@@ -576,6 +593,97 @@ mod tests {
         assert_eq!(
             input.expr.to_tokens(&index).to_string(),
             "DimExpr :: Pow { base : & DimExpr :: Negate { child : & DimExpr :: Param { id : 0usize } } , exp : 3usize }"
+        );
+    }
+
+    #[test]
+    fn test_parse_const() {
+        let tokens: proc_macro2::TokenStream = r#"3"#.parse().unwrap();
+        let input = syn::parse2::<ExprSyntax>(tokens).unwrap();
+        assert_eq!(input.expr, ExprAST::Const(3));
+
+        let index: [&str; 0] = [];
+        assert_token_stream_eq(
+            &input.expr.to_tokens(&index),
+            &quote! {
+            DimExpr::Const { value: 3isize }
+            },
+        );
+    }
+
+    #[test]
+    fn test_parse_negative_const() {
+        let tokens: proc_macro2::TokenStream = r#"-3"#.parse().unwrap();
+        let input = syn::parse2::<ExprSyntax>(tokens).unwrap();
+        assert_eq!(input.expr, ExprAST::Negate(Box::new(ExprAST::Const(3))));
+
+        let index: [&str; 0] = [];
+        assert_token_stream_eq(
+            &input.expr.to_tokens(&index),
+            &quote! {
+            DimExpr::Negate { child:
+                &DimExpr::Const { value: 3isize } }
+            },
+        );
+    }
+
+    #[test]
+    fn test_parse_const_expression() {
+        let tokens: proc_macro2::TokenStream = r#"2 * "x" + 1"#.parse().unwrap();
+        let input = syn::parse2::<ExprSyntax>(tokens).unwrap();
+        assert_eq!(
+            input.expr,
+            ExprAST::Sum(vec![
+                ExprAST::Prod(vec![ExprAST::Const(2), ExprAST::Param("x".to_string()),]),
+                ExprAST::Const(1),
+            ])
+        );
+
+        // Constants contribute no labels.
+        let mut labels = BTreeSet::new();
+        input.expr.collect_labels(&mut labels);
+        assert_eq!(labels.into_iter().collect::<Vec<_>>(), vec!["x"]);
+
+        let index = ["x"];
+        assert_token_stream_eq(
+            &input.expr.to_tokens(&index),
+            &quote! {
+            DimExpr::Sum { children: &[
+                DimExpr::Prod { children: &[
+                    DimExpr::Const { value: 2isize },
+                    DimExpr::Param { id: 0usize }
+                ] },
+                DimExpr::Const { value: 1isize }
+            ] }
+            },
+        );
+    }
+
+    #[test]
+    fn test_parse_shape_contract_with_const() {
+        let tokens: proc_macro2::TokenStream = r#""x", 3"#.parse().unwrap();
+        let input = syn::parse2::<ContractSyntax>(tokens).unwrap();
+        let contract = input.contract;
+
+        assert_eq!(contract.terms.len(), 2);
+        assert_eq!(
+            contract.terms[1],
+            DimMatcherAST::Expr {
+                label: None,
+                expr: ExprAST::Const(3)
+            }
+        );
+
+        assert_token_stream_eq(
+            &contract.to_tokens(),
+            &quote! {
+            ShapeContract::new(
+                &["x"],
+                &[
+                    DimMatcher::expr(DimExpr::Param { id: 0usize }),
+                    DimMatcher::expr(DimExpr::Const { value: 3isize })
+                ],
+            )},
         );
     }
 

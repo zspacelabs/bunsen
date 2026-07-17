@@ -138,9 +138,9 @@ impl<B: Backend> FusedLstm<B> {
 
         #[cfg(any(test, debug_assertions))]
         assert_shape_contract_periodically!(
-            ["batch", "4" * "d_model"],
+            ["batch", 4 * "d_model"],
             &gates,
-            &[("batch", batch), ("4", 4), ("d_model", self.d_model())]
+            &[("batch", batch), ("d_model", self.d_model())]
         );
 
         /*

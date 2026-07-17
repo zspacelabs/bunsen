@@ -174,14 +174,12 @@ impl<B: Backend> OffsetGridRelativePositionBias<B> {
         let lookup_table = self.cbp.forward(self.rel_coords_table.clone());
         assert_shape_contract_periodically!(
             [
-                "height" = "two" * "win_height" - "clip",
-                "width" = "two" * "win_width" - "clip",
+                "height" = 2 * "win_height" - 1,
+                "width" = 2 * "win_width" - 1,
                 "heads"
             ],
             &lookup_table.dims(),
             &[
-                ("two", 2),
-                ("clip", 1),
                 ("win_height", self.window_height()),
                 ("win_width", self.window_width()),
                 ("heads", self.num_heads()),
