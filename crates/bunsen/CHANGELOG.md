@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.29.0](https://github.com/zspacelabs/bunsen/compare/bunsen-v0.28.0...bunsen-v0.29.0) - 2026-07-17
+
+### Added
+
+- *(ten-vad)* initial shape contracts for ten-vad. ([#128](https://github.com/zspacelabs/bunsen/pull/128))
+
+### Fixed
+
+- fix docs ([#122](https://github.com/zspacelabs/bunsen/pull/122))
+
+### Other
+
+- crutcher/key index ([#130](https://github.com/zspacelabs/bunsen/pull/130))
+- *(ten)* minor shape refactor ([#129](https://github.com/zspacelabs/bunsen/pull/129))
+- Refactor and modularize TenVad implementation ([#126](https://github.com/zspacelabs/bunsen/pull/126))
+- Backport LstmState updates ([#127](https://github.com/zspacelabs/bunsen/pull/127))
+
 ## [0.28.0](https://github.com/zspacelabs/bunsen/compare/bunsen-v0.27.0...bunsen-v0.28.0) - 2026-07-13
 
 ### Other
