@@ -58,9 +58,9 @@ pub fn stream_interior_windows<B: Backend>(dist: Tensor<B, 4>) -> Tensor<B, 4> {
 
     #[cfg(debug_assertions)]
     crate::contracts::assert_shape_contract_periodically!(
-        ["H" - "PAD", "W" - "PAD", "VY", "VX"],
+        ["H" - 2, "W" - 2, "VY", "VX"],
         result.shape().as_slice(),
-        &[("H", h), ("W", w), ("PAD", 2), ("VY", 3), ("VX", 3)]
+        &[("H", h), ("W", w), ("VY", 3), ("VX", 3)]
     );
 
     result

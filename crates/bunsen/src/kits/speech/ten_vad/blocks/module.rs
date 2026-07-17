@@ -431,7 +431,7 @@ impl<B: Backend> TenVad<B> {
 
         #[cfg(any(test, debug_assertions))]
         // TODO: really?
-        crate::contracts::assert_shape_contract!(["a", "1"], &x, &[("a", a), ("1", 1)]);
+        crate::contracts::assert_shape_contract!(["a", 1], &x, &[("a", a)]);
         x
     }
 }
