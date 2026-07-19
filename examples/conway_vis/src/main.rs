@@ -103,7 +103,7 @@ fn main() {
             run::<burn::backend::Flex>(&args);
         }
         _ => {
-            panic!("No backend selected");
+            complie_error!("No backend selected");
         }
     }
 }

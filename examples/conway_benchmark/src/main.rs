@@ -66,7 +66,7 @@ fn main() {
             run::<burn::backend::Flex>(&args);
         }
         _ => {
-            panic!("No backend selected");
+            compile_error!("No backend selected");
         }
     }
 }

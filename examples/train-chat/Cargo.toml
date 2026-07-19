@@ -17,12 +17,12 @@ log = { workspace = true }
 wordchipper = { workspace = true, features = ["client"] }
 wordchipper-cli-util = { workspace = true }
 burn = { workspace = true, features = ["train", "fusion", "autotune"] }
-regex = { workspace = true }
 
 [features]
-default = ["cuda"]
+default = ["wgpu"]
 cuda = ["burn/cuda"]
-
+wgpu = ["burn/wgpu"]
+metal = ["burn/metal"]
 
 [lints]
 workspace = true

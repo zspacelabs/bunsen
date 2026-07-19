@@ -63,3 +63,6 @@ jobs:
 
       - name: Build and Test
         run: cargo test --features=flex
+
+      - name: No default features build.
+        run: cargo test -p bunsen --no-default-features

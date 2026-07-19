@@ -34,7 +34,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
             run::<burn::backend::flex::Flex>(args)
         }
         _ => {
-            panic!("No Backend enabled");
+            compile_error!("No Backend enabled");
         }
     }
 }

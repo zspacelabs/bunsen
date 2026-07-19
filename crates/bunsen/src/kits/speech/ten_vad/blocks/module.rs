@@ -13,14 +13,12 @@ use burn::{
         },
     },
     prelude::*,
-    tensor::{
-        Bytes,
-        activation::{
-            relu,
-            sigmoid,
-        },
+    tensor::activation::{
+        relu,
+        sigmoid,
     },
 };
+#[cfg(feature = "store")]
 use burn_store::{
     BurnpackStore,
     ModuleSnapshot,
@@ -194,6 +192,7 @@ impl<B: Backend> TenVadMeta for TenVad<B> {
     }
 }
 
+#[cfg(feature = "store")]
 impl<B: Backend> TenVad<B> {
     /// Load model weights from a burnpack file.
     pub fn from_file<P: AsRef<std::path::Path>>(
@@ -212,7 +211,7 @@ impl<B: Backend> TenVad<B> {
     ///
     /// The bytes must be the contents of a `.bpk` file.
     pub fn from_bytes(
-        bytes: Bytes,
+        bytes: burn::tensor::Bytes,
         device: &B::Device,
     ) -> Self {
         let mut model = TenVadStructureConfig::default().try_init(device).unwrap();
