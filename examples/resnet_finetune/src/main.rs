@@ -238,32 +238,32 @@ fn main() -> anyhow::Result<()> {
     if args.half_precision {
         cfg_select! {
             feature = "cuda" => {
-                type B =burn::backend::Cuda<burn::tensor::bf16>;
+                type B = burn::backend::Cuda<burn::tensor::bf16>;
             }
             feature = "metal" => {
-                type B =burn::backend::Metal<burn::tensor::bf16>;
+                type B = burn::backend::Metal<burn::tensor::bf16>;
             }
             feature = "wgpu" => {
                 type B = burn::backend::Wgpu<burn::tensor::bf16>;
             }
             _ => {
-                type B =burn::backend::Flex;
+                type B = burn::backend::Flex;
             }
         }
         train::<burn::backend::Autodiff<B>>(&args)
     } else {
         cfg_select! {
             feature = "cuda" => {
-                type B =burn::backend::Cuda;
+                type B = burn::backend::Cuda;
             }
             feature = "metal" => {
-                type B =burn::backend::Metal;
+                type B = burn::backend::Metal;
             }
             feature = "wgpu" => {
                 type B = burn::backend::Wgpu;
             }
             _ => {
-                type B =burn::backend::Flex;
+                type B = burn::backend::Flex;
             }
         }
         train::<burn::backend::Autodiff<B>>(&args)

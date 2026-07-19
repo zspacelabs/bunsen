@@ -10256,7 +10256,6 @@ dependencies = [
  "log",
  "num-traits",
  "rand 0.10.2",
- "regex 1.12.4",
  "wordchipper",
  "wordchipper-cli-util",
  "zsl-data-cache",

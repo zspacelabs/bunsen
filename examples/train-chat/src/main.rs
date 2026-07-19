@@ -49,7 +49,6 @@ use burn::{
         Slice,
         Tensor,
         backend::AutodiffBackend,
-        bf16,
         s,
     },
     train::{
@@ -181,12 +180,29 @@ fn ensure_artifact_dir(artifact_dir: &str) -> anyhow::Result<()> {
     Ok(())
 }
 
-#[cfg(feature = "cuda")]
 fn main() -> anyhow::Result<()> {
     let args = Args::parse();
-    // args.logging.setup_logging(3).unwrap();
 
-    run::<burn::backend::Autodiff<burn::backend::cuda::Cuda<bf16>>>(&args)
+    cfg_select! {
+        feature = "cuda" => {
+            type B = burn::backend::Cuda;
+            println!("Using Cuda backend.");
+            run::<burn::backend::Autodiff<B>>(&args)
+        }
+        feature = "metal" => {
+            type B = burn::backend::Metal;
+            println!("Using Metal backend.");
+            run::<burn::backend::Autodiff<B>>(&args)
+        }
+        feature = "wgpu" => {
+            type B = burn::backend::Wgpu;
+            println!("Using Wgpu backend.");
+            run::<burn::backend::Autodiff<B>>(&args)
+        }
+        _ => {
+            compile_error!("No backend feature selected");
+        }
+    }
 }
 
 fn run<B: AutodiffBackend>(args: &Args) -> anyhow::Result<()> {

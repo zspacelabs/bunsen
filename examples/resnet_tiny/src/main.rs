@@ -190,11 +190,10 @@ fn main() -> anyhow::Result<()> {
 
     cfg_select! {
         feature = "cuda" => {
-            // type B =burn::backend::Cuda<burn::tensor::bf16>;
-            type B =burn::backend::Cuda<burn::tensor::bf16>;
+            type B = burn::backend::Cuda<burn::tensor::bf16>;
         }
         feature = "metal" => {
-            type B =burn::backend::Metal<burn::tensor::bf16>;
+            type B = burn::backend::Metal<burn::tensor::bf16>;
         }
         feature = "wgpu" => {
             type B = burn::backend::Wgpu<burn::tensor::bf16>;

@@ -9,7 +9,7 @@ workspace = true
 
 
 [features]
-default = []
+default = ["flex"]
 cuda = ["burn/cuda"]
 metal = ["burn/metal"]
 wgpu = ["burn/wgpu"]

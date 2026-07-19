@@ -112,7 +112,7 @@ fn main() {
             run::<burn::backend::Flex>(&args, DType::F32);
         }
         _ => {
-            panic!("No backend selected");
+            compile_error!("No backend selected");
         }
     }
 }
