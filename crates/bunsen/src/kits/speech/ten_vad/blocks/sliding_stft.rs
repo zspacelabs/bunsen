@@ -30,10 +30,13 @@ use burn::{
     tensor::signal::rfft,
 };
 
-use crate::errors::{
-    BunsenError,
-    BunsenResult,
-    WithOkOrPanic,
+use crate::{
+    errors::{
+        BunsenError,
+        BunsenResult,
+        WithOkOrPanic,
+    },
+    ops::arange::arange_start_step,
 };
 
 /// Common meta for [`SlidingStftConfig`], [`SlidingStft`], and
@@ -62,12 +65,22 @@ pub enum SlidingStftWindow {
     /// The reference analyzer default when no coefficient table is provided.
     Ones,
 
-    /// Periodic Hann window: `0.5 * (1 - cos(2π n / win_len))`.
+    /// Periodic Hann window: `0.5 - 0.5 * cos(2π n / win_len)`.
     ///
     /// Matches the reference `AUP_AED_STFTWindow_Hann768` table (`coeff.h`).
     Hann,
+
+    /// Periodic Hamming window: `0.54 - 0.46 * cos(2π n / win_len)`.
+    Hamming,
+
+    /// Custom period.
+    /// Window: `alpha - beta * cos(2π n / win_len)`.
+    Custom(f64, f64),
 }
 
+// The `Config` derive does not preserve the `#[default]` helper attribute,
+// so `Default` cannot be derived alongside it.
+#[allow(clippy::derivable_impls)]
 impl Default for SlidingStftWindow {
     fn default() -> Self {
         SlidingStftWindow::Hann
@@ -75,41 +88,55 @@ impl Default for SlidingStftWindow {
 }
 
 impl SlidingStftWindow {
+    /// The `(alpha, beta)` parameters of the periodic raised-cosine family,
+    /// `w[n] = alpha - beta * cos(2π n / win_len)`; `None` for [`Self::Ones`].
+    fn window_params(&self) -> Option<(f64, f64)> {
+        match self {
+            Self::Ones => Some((1.0, 0.0)),
+            Self::Hann => Some((0.5, 0.5)),
+            Self::Hamming => Some((0.54, 0.46)),
+            Self::Custom(alpha, beta) => Some((*alpha, *beta)),
+        }
+    }
+
     /// The window coefficient table for a `win_len`-sample window.
     pub fn coefficients(
         &self,
         win_len: usize,
     ) -> Vec<f32> {
-        match self {
-            Self::Ones => vec![1.0; win_len],
-            Self::Hann => (0..win_len)
-                .map(|n| {
-                    let theta = core::f64::consts::TAU * n as f64 / win_len as f64;
-                    (0.5 * (1.0 - theta.cos())) as f32
-                })
-                .collect(),
+        match self.window_params() {
+            None => vec![1.0; win_len],
+            Some((alpha, beta)) => {
+                let scale = core::f64::consts::TAU / win_len as f64;
+                (0..win_len)
+                    .map(|n| {
+                        // (2π | τ) * n / win_len
+                        let theta = (n as f64) * scale;
+
+                        (alpha - beta * theta.cos()) as f32
+                    })
+                    .collect()
+            }
         }
     }
 
-    /// The window coefficient table for a `win_len`-sample window.
+    /// The window coefficient table for a `win_len`-sample window,
+    /// materialized on `device`.
     pub fn coefficients_tensor<B: Backend>(
         &self,
         win_len: usize,
         device: &B::Device,
     ) -> Tensor<B, 1> {
-        /*
-        Tensor::from_data(
-            TensorData::from(self.coefficients(win_len).as_slice()),
-            device,
-        )
-        */
+        match self.window_params() {
+            None => Tensor::ones([win_len], device),
+            Some((alpha, beta)) => {
+                // (2π | τ) * n / win_len
+                let step = core::f64::consts::TAU / win_len as f64;
+                let theta = arange_start_step(win_len, 0.0, Some(step), device);
 
-        let scale = core::f64::consts::TAU / win_len as f64;
-        let theta = Tensor::arange(0..(win_len as i64), device)
-            .float()
-            .mul_scalar(scale);
-
-        theta.cos().neg().add_scalar(1.0).mul_scalar(0.5)
+                theta.cos().mul_scalar(-beta).add_scalar(alpha)
+            }
+        }
     }
 }
 
@@ -532,6 +559,42 @@ mod tests {
         // The periodic window satisfies w[n] == w[win_len - n].
         for n in 1..768 {
             assert!((hann[n] - hann[768 - n]).abs() <= 1e-7);
+        }
+    }
+
+    #[test]
+    fn test_hamming_coefficients() {
+        let hamming = SlidingStftWindow::Hamming.coefficients(768);
+
+        // Periodic Hamming anchors: `0.54 - 0.46` at n = 0, and the peak
+        // `0.54 + 0.46` at the (even) midpoint.
+        assert!((hamming[0] - 0.08).abs() <= 1e-7);
+        assert!((hamming[384] - 1.0).abs() <= 1e-7);
+
+        // The periodic window satisfies w[n] == w[win_len - n].
+        for n in 1..768 {
+            assert!((hamming[n] - hamming[768 - n]).abs() <= 1e-7);
+        }
+
+        // Anchor against the standard table value at win_len = 8, n = 1:
+        // 0.54 - 0.46 * cos(π / 4).
+        let hamming8 = SlidingStftWindow::Hamming.coefficients(8);
+        assert!((hamming8[1] - 0.21473088).abs() <= 1e-7);
+    }
+
+    #[test]
+    fn test_coefficients_tensor_matches_host() {
+        let device = Default::default();
+        for window in [
+            SlidingStftWindow::Ones,
+            SlidingStftWindow::Hann,
+            SlidingStftWindow::Hamming,
+        ] {
+            let host = window.coefficients(48);
+            let tensor: Tensor<B, 1> = window.coefficients_tensor(48, &device);
+            tensor
+                .to_data()
+                .assert_approx_eq::<F>(&TensorData::new(host, [48]), Tolerance::permissive());
         }
     }
 
