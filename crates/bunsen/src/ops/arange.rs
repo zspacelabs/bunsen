@@ -37,6 +37,8 @@ pub fn vec_arange_start_step(
 /// - `end`: The end value of the range (inclusive).
 /// - `num`: The number of points to generate in the range.
 ///
+/// If `num` == 1; the result will be `[start]`.
+///
 /// # Returns
 ///
 /// A vector containing the generated floating point values.
@@ -92,6 +94,8 @@ pub fn tensor_arange_start_step<B: Backend>(
 /// * `end`: The end value of the range (inclusive).
 /// * `num`: The number of points to generate in the range.
 /// * `device`: the tensor device to allocate on.
+///
+/// If `num` == 1; the result will be `[start]`.
 ///
 /// # Returns
 ///
