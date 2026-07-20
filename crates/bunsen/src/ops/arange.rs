@@ -14,7 +14,7 @@ use burn::prelude::{
 ///
 /// # Returns
 /// `[num]` sized vector.
-pub fn float_arange_start_step(
+pub fn vec_arange_start_step(
     num: usize,
     start: f64,
     step: Option<f64>,
@@ -40,7 +40,7 @@ pub fn float_arange_start_step(
 /// # Returns
 ///
 /// A vector containing the generated floating point values.
-pub fn float_vec_linspace(
+pub fn vec_linspace(
     start: f64,
     end: f64,
     num: usize,
@@ -52,7 +52,7 @@ pub fn float_vec_linspace(
     }
 
     let step = (end - start) / (num as f64 - 1.0);
-    float_arange_start_step(num - 1, start, Some(step))
+    vec_arange_start_step(num, start, Some(step))
 }
 
 /// Creates a 1D tensor `[for i in 0..n | start + i * step]`.
@@ -65,7 +65,7 @@ pub fn float_vec_linspace(
 ///
 /// # Returns
 /// `[num]` sized tensor.
-pub fn arange_start_step<B: Backend>(
+pub fn tensor_arange_start_step<B: Backend>(
     num: usize,
     start: f64,
     step: Option<f64>,
@@ -96,7 +96,7 @@ pub fn arange_start_step<B: Backend>(
 /// # Returns
 ///
 /// A 1D tensor containing the generated floating point values.
-pub fn float_linspace<B: Backend>(
+pub fn tensor_linspace<B: Backend>(
     start: f64,
     end: f64,
     num: usize,
@@ -109,7 +109,7 @@ pub fn float_linspace<B: Backend>(
     }
 
     let step = (end - start) / (num as f64 - 1.0);
-    arange_start_step(num - 1, start, Some(step), device)
+    tensor_arange_start_step(num, start, Some(step), device)
 }
 
 #[cfg(test)]
@@ -123,19 +123,107 @@ mod tests {
     };
 
     use super::*;
-    use crate::support::testing::CpuBackend;
+    use crate::support::testing::{
+        CpuBackend,
+        assert_close_to_vec,
+    };
     type B = CpuBackend;
 
     #[test]
     fn test_arange_start_step() {
         let device = Default::default();
-        let start: f64 = -3.0;
 
-        let actual = arange_start_step::<B>(5, start, Some(-1.0), &device);
+        let num = 5;
 
-        actual
-            .to_data()
-            .assert_eq(&TensorData::from([-3.0, -2.0, -1.0, 0.0, 1.0]), false);
+        // Pos step
+        for step in [None, Some(1.0)] {
+            let start: f64 = -3.0;
+
+            let expected = vec![-3.0, -2.0, -1.0, 0.0, 1.0];
+
+            let vec_actual = vec_arange_start_step(num, start, step);
+            let tensor_actual = tensor_arange_start_step::<B>(num, start, step, &device);
+
+            assert_close_to_vec(&vec_actual, &expected, 0.0001);
+            tensor_actual
+                .to_data()
+                .assert_eq(&TensorData::from(expected.as_slice()), false);
+        }
+
+        // Neg step
+        {
+            let step = Some(-1.0);
+
+            let start: f64 = 3.0;
+
+            let expected = vec![3.0, 2.0, 1.0, 0.0, -1.0];
+
+            let vec_actual = vec_arange_start_step(num, start, step);
+            let tensor_actual = tensor_arange_start_step::<B>(num, start, step, &device);
+
+            assert_close_to_vec(&vec_actual, &expected, 0.0001);
+
+            tensor_actual
+                .to_data()
+                .assert_eq(&TensorData::from(expected.as_slice()), false);
+        }
+    }
+
+    #[test]
+    fn test_arange_linspace() {
+        let device = Default::default();
+
+        let num = 5;
+
+        for expected in [
+            vec![3.0, 2.0, 1.0, 0.0, -1.0],
+            vec![-3.0, -2.0, -1.0, 0.0, 1.0],
+        ] {
+            let num = expected.len();
+            let start = expected[0];
+            let end = expected[num - 1];
+
+            let vec_actual = vec_linspace(start, end, num);
+            let tensor_actual = tensor_linspace::<B>(start, end, num, &device);
+
+            assert_close_to_vec(&vec_actual, &expected, 0.0001);
+
+            tensor_actual
+                .to_data()
+                .assert_eq(&TensorData::from(expected.as_slice()), false);
+        }
+
+        // Pos.
+        {
+            let start: f64 = -3.0;
+            let end = 1.0;
+
+            let expected = vec![-3.0, -2.0, -1.0, 0.0, 1.0];
+
+            let vec_actual = vec_linspace(start, end, num);
+            let tensor_actual = tensor_linspace::<B>(start, end, num, &device);
+
+            assert_close_to_vec(&vec_actual, &expected, 0.0001);
+            tensor_actual
+                .to_data()
+                .assert_eq(&TensorData::from(expected.as_slice()), false);
+        }
+
+        // Neg step
+        {
+            let start: f64 = 3.0;
+            let end = -1.0;
+
+            let expected = vec![3.0, 2.0, 1.0, 0.0, -1.0];
+
+            let vec_actual = vec_linspace(start, end, num);
+            let tensor_actual = tensor_linspace::<B>(start, end, num, &device);
+
+            assert_close_to_vec(&vec_actual, &expected, 0.0001);
+            tensor_actual
+                .to_data()
+                .assert_eq(&TensorData::from(expected.as_slice()), false);
+        }
     }
 
     #[test]
@@ -147,7 +235,7 @@ mod tests {
         let end: f64 = 1.0;
         let num: usize = 5;
 
-        let actual = float_linspace::<B>(start, end, num, &device);
+        let actual = tensor_linspace::<B>(start, end, num, &device);
 
         actual.to_data().assert_approx_eq::<F>(
             &TensorData::from([0.0, 0.25, 0.5, 0.75, 1.0]),
@@ -164,7 +252,7 @@ mod tests {
         let end: f64 = -0.2;
         let num: usize = 5;
 
-        let actual = float_linspace::<B>(start, end, num, &device);
+        let actual = tensor_linspace::<B>(start, end, num, &device);
 
         actual.to_data().assert_approx_eq::<F>(
             &TensorData::from([1.0, 0.7, 0.4, 0.1, -0.2]),
@@ -181,7 +269,7 @@ mod tests {
         let end: f64 = 1.0;
         let num: usize = 1;
 
-        let actual = float_linspace::<B>(start, end, num, &device);
+        let actual = tensor_linspace::<B>(start, end, num, &device);
 
         actual
             .to_data()

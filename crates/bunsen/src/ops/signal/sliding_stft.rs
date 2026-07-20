@@ -16,18 +16,29 @@
 //!
 //! The spectrum follows the standard real-DFT convention,
 //! `X[k] = Σ_n x[n]·e^(-2πikn/fft_size)` (`numpy.fft.rfft`-compatible),
-//! with no normalization; it is computed with [`burn::tensor::signal::rfft`].
+//! with no normalization; it is computed with [`burn::tensor::signal::stft`].
 //! The C reference emits the same spectrum with the imaginary parts negated
 //! (an artifact of its FFTW half-complex packing); bin powers `re² + im²`
 //! agree.
 //!
-//! Note: burn's `rfft` does not yet support autodiff (the backward is
-//! unimplemented upstream), so this analyzer cannot currently be
-//! differentiated through.
+//! Note: `stft` center-pads windows shorter than `n_fft`, while the ten-vad
+//! layout puts the window at the frame start with zero-padding at the end;
+//! the analyzer therefore carries its window pre-padded to `fft_size` and
+//! feeds `stft` full-frame windows.
+//!
+//! Note: burn's `stft` (via the `rfft` beneath it) does not yet support
+//! autodiff (the backward is unimplemented upstream), so this analyzer
+//! cannot currently be differentiated through.
 
 use burn::{
     prelude::*,
-    tensor::signal::rfft,
+    tensor::{
+        ops::PadMode,
+        signal::{
+            StftOptions,
+            stft,
+        },
+    },
 };
 
 use crate::{
@@ -36,7 +47,7 @@ use crate::{
         BunsenResult,
         WithOkOrPanic,
     },
-    ops::arange::arange_start_step,
+    ops::signal::stft_window::StftWindowConfig,
 };
 
 /// Common meta for [`SlidingStftConfig`], [`SlidingStft`], and
@@ -54,89 +65,6 @@ pub trait SlidingStftMeta {
     /// The number of frequency bins: `fft_size / 2 + 1`.
     fn n_bins(&self) -> usize {
         self.fft_size() / 2 + 1
-    }
-}
-
-/// Analysis window function for [`SlidingStft`].
-#[derive(Config, Debug, PartialEq)]
-pub enum SlidingStftWindow {
-    /// All-ones (rectangular) window.
-    ///
-    /// The reference analyzer default when no coefficient table is provided.
-    Ones,
-
-    /// Periodic Hann window: `0.5 - 0.5 * cos(2π n / win_len)`.
-    ///
-    /// Matches the reference `AUP_AED_STFTWindow_Hann768` table (`coeff.h`).
-    Hann,
-
-    /// Periodic Hamming window: `0.54 - 0.46 * cos(2π n / win_len)`.
-    Hamming,
-
-    /// Custom period.
-    /// Window: `alpha - beta * cos(2π n / win_len)`.
-    Custom(f64, f64),
-}
-
-// The `Config` derive does not preserve the `#[default]` helper attribute,
-// so `Default` cannot be derived alongside it.
-#[allow(clippy::derivable_impls)]
-impl Default for SlidingStftWindow {
-    fn default() -> Self {
-        SlidingStftWindow::Hann
-    }
-}
-
-impl SlidingStftWindow {
-    /// The `(alpha, beta)` parameters of the periodic raised-cosine family,
-    /// `w[n] = alpha - beta * cos(2π n / win_len)`; `None` for [`Self::Ones`].
-    fn window_params(&self) -> Option<(f64, f64)> {
-        match self {
-            Self::Ones => Some((1.0, 0.0)),
-            Self::Hann => Some((0.5, 0.5)),
-            Self::Hamming => Some((0.54, 0.46)),
-            Self::Custom(alpha, beta) => Some((*alpha, *beta)),
-        }
-    }
-
-    /// The window coefficient table for a `win_len`-sample window.
-    pub fn coefficients(
-        &self,
-        win_len: usize,
-    ) -> Vec<f32> {
-        match self.window_params() {
-            None => vec![1.0; win_len],
-            Some((alpha, beta)) => {
-                let scale = core::f64::consts::TAU / win_len as f64;
-                (0..win_len)
-                    .map(|n| {
-                        // (2π | τ) * n / win_len
-                        let theta = (n as f64) * scale;
-
-                        (alpha - beta * theta.cos()) as f32
-                    })
-                    .collect()
-            }
-        }
-    }
-
-    /// The window coefficient table for a `win_len`-sample window,
-    /// materialized on `device`.
-    pub fn coefficients_tensor<B: Backend>(
-        &self,
-        win_len: usize,
-        device: &B::Device,
-    ) -> Tensor<B, 1> {
-        match self.window_params() {
-            None => Tensor::ones([win_len], device),
-            Some((alpha, beta)) => {
-                // (2π | τ) * n / win_len
-                let step = core::f64::consts::TAU / win_len as f64;
-                let theta = arange_start_step(win_len, 0.0, Some(step), device);
-
-                theta.cos().mul_scalar(-beta).add_scalar(alpha)
-            }
-        }
     }
 }
 
@@ -160,9 +88,9 @@ pub struct SlidingStftConfig {
     #[config(default = "1024")]
     pub fft_size: usize,
 
-    /// The analysis window function.
-    #[config(default = "SlidingStftWindow::Hann")]
-    pub window: SlidingStftWindow,
+    /// The analysis window config.
+    #[config(default = "StftWindowConfig::Hann")]
+    pub window: StftWindowConfig,
 }
 
 impl SlidingStftMeta for SlidingStftConfig {
@@ -227,11 +155,21 @@ impl SlidingStftConfig {
 
         let win_len = self.win_len;
 
-        let window = self.window.coefficients_tensor(win_len, device);
+        let window = self.window.to_tensor_window(win_len, device);
+
+        // Right-pad the window to `fft_size`: `stft` consumes full-frame
+        // windows, and the ten-vad layout puts the window at the frame
+        // start with zero-padding at the end.
+        let pad = self.fft_size - win_len;
+        let window = if pad > 0 {
+            window.pad([(0, pad)], PadMode::Constant(0.0))
+        } else {
+            window
+        };
 
         Ok(SlidingStft {
             hop_size: self.hop_size,
-            fft_size: self.fft_size,
+            win_len,
             window,
         })
     }
@@ -257,15 +195,20 @@ impl SlidingStftConfig {
 #[derive(Debug, Clone)]
 pub struct SlidingStft<B: Backend> {
     hop_size: usize,
-    fft_size: usize,
+    win_len: usize,
 
-    /// The analysis window coefficients: `[win_len]`.
+    /// The analysis window, right-padded with zeros from `win_len` to
+    /// `[fft_size]`.
+    ///
+    /// This is the ten-vad frame layout (window at the frame start,
+    /// zero-padding at the end), and the full-frame window layout consumed
+    /// by [`stft`].
     pub window: Tensor<B, 1>,
 }
 
 impl<B: Backend> SlidingStftMeta for SlidingStft<B> {
     fn win_len(&self) -> usize {
-        self.window.dims()[0]
+        self.win_len
     }
 
     fn hop_size(&self) -> usize {
@@ -273,7 +216,7 @@ impl<B: Backend> SlidingStftMeta for SlidingStft<B> {
     }
 
     fn fft_size(&self) -> usize {
-        self.fft_size
+        self.window.dims()[0]
     }
 }
 
@@ -304,45 +247,67 @@ impl<B: Backend> SlidingStft<B> {
         Tensor::zeros([batch_size, self.win_len()], &self.window.device())
     }
 
-    /// Analyzes full analysis frames: windows each frame, zero-pads it to
-    /// `fft_size`, and projects it through the real DFT.
+    /// Analyzes a signal into consecutive ten-vad-aligned STFT frames.
     ///
-    /// Uses [`burn::tensor::signal::rfft`], which does not yet support
-    /// autodiff.
+    /// Frame `f` covers `signal[f * hop_size .. f * hop_size + win_len]`,
+    /// windowed and zero-padded to `fft_size`. Trailing samples that do not
+    /// fill a whole window are ignored.
+    ///
+    /// Uses [`stft`], which does not yet support autodiff.
     ///
     /// # Arguments
-    /// * `frames`: `[batch, steps, win_len]` analysis frames.
+    /// * `signal`: `[batch, samples]`, with `samples >= win_len`.
     ///
     /// # Returns
-    /// `[batch, steps, n_bins, 2]` spectra; the trailing axis is `(re, im)`.
+    /// `[batch, frames, n_bins, 2]` spectra, with
+    /// `frames = 1 + (samples - win_len) / hop_size`; the trailing axis is
+    /// `(re, im)`.
     pub fn analyze(
         &self,
-        frames: Tensor<B, 3>,
+        signal: Tensor<B, 2>,
     ) -> Tensor<B, 4> {
         #[cfg(any(test, debug_assertions))]
-        let [batch, steps] = crate::contracts::unpack_shape_contract!(
-            ["batch", "steps", "win_len"],
-            &frames,
-            &["batch", "steps"],
-            &[("win_len", self.win_len())],
+        let [batch, samples] = crate::contracts::unpack_shape_contract!(
+            ["batch", "samples"],
+            &signal,
+            &["batch", "samples"],
+        );
+        #[cfg(any(test, debug_assertions))]
+        assert!(
+            samples >= self.win_len(),
+            "SlidingStft samples ({samples}) must be >= win_len ({})",
+            self.win_len(),
         );
 
-        // [batch, steps, win_len]
-        let frames = frames * self.window.clone().unsqueeze::<3>();
+        // Right-pad so the final window fills a whole `fft_size` stft
+        // frame; the padding only ever lands under the zeroed window tail.
+        let pad = self.fft_size() - self.win_len();
+        let signal = if pad > 0 {
+            signal.pad([(0, pad)], PadMode::Constant(0.0))
+        } else {
+            signal
+        };
 
-        // [batch, steps, n_bins] each; rfft zero-pads to fft_size.
-        let (re, im) = rfft(frames, 2, Some(self.fft_size()));
-
-        // [batch, steps, n_bins, 2]
-        let x = Tensor::stack(vec![re, im], 3);
+        // [batch, frames, n_bins, 2]
+        let x = stft(
+            signal,
+            Some(self.window.clone()),
+            StftOptions {
+                n_fft: self.fft_size(),
+                hop_length: self.hop_size(),
+                win_length: None,
+                center: false,
+                onesided: true,
+            },
+        );
 
         #[cfg(any(test, debug_assertions))]
         crate::contracts::assert_shape_contract!(
-            ["batch", "steps", "n_bins", 2],
+            ["batch", "frames", "n_bins", 2],
             &x,
             &[
                 ("batch", batch),
-                ("steps", steps),
+                ("frames", 1 + (samples - self.win_len()) / self.hop_size()),
                 ("n_bins", self.n_bins())
             ],
         );
@@ -425,17 +390,15 @@ impl<B: Backend> SlidingStftContext<B> {
             Tensor::cat(vec![keep, hop], 1)
         };
 
-        // [batch, 1, win_len] -> [batch, 1, n_bins, 2] -> [batch, n_bins, 2]
-        self.coef
-            .analyze(self.queue.clone().unsqueeze_dim(1))
-            .squeeze_dim(1)
+        // One full window -> one frame.
+        // [batch, 1, n_bins, 2] -> [batch, n_bins, 2]
+        self.coef.analyze(self.queue.clone()).squeeze_dim(1)
     }
 
     /// Pushes `steps` consecutive hops at once.
     ///
     /// Equivalent to `steps` calls of [`forward`](Self::forward), but the
-    /// frames are assembled with one unfold and analyzed with one batched
-    /// FFT.
+    /// whole extended stream is analyzed with a single [`stft`] call.
     ///
     /// # Arguments
     /// * `hops`: `[steps, batch, hop_size]` consecutive hops.
@@ -456,7 +419,6 @@ impl<B: Backend> SlidingStftContext<B> {
         );
 
         let win_len = self.win_len();
-        let hop_size = self.hop_size();
 
         // [batch, steps * hop_size]
         let stream = hops.swap_dims(0, 1).flatten::<2>(1, 2);
@@ -466,14 +428,11 @@ impl<B: Backend> SlidingStftContext<B> {
 
         self.queue = ext.clone().slice(s![.., -(win_len as isize)..]);
 
-        // Unfolding yields `steps + 1` windows starting at multiples of
-        // `hop_size`; window `s + 1` is the queue state after hop `s`, and
-        // window 0 (the pre-push queue) is dropped.
-        // [batch, steps, win_len]
-        let frames: Tensor<B, 3> = ext.unfold(1, win_len, hop_size).slice(s![.., 1..]);
-
-        // [batch, steps, n_bins, 2] -> [steps, batch, n_bins, 2]
-        let x = self.coef.analyze(frames).swap_dims(0, 1);
+        // `analyze` yields `steps + 1` frames at `hop_size` offsets; frame
+        // `s + 1` is the queue state after hop `s`, and frame 0 (the
+        // pre-push queue) is dropped.
+        // [batch, steps + 1, n_bins, 2] -> [steps, batch, n_bins, 2]
+        let x = self.coef.analyze(ext).slice(s![.., 1..]).swap_dims(0, 1);
 
         #[cfg(any(test, debug_assertions))]
         crate::contracts::assert_shape_contract!(
@@ -509,7 +468,7 @@ mod tests {
         assert_eq!(cfg.win_len, 768);
         assert_eq!(cfg.hop_size, 256);
         assert_eq!(cfg.fft_size, 1024);
-        assert_eq!(cfg.window, SlidingStftWindow::Hann);
+        assert_eq!(cfg.window, StftWindowConfig::Hann);
 
         assert_eq!(cfg.win_len(), 768);
         assert_eq!(cfg.hop_size(), 256);
@@ -544,61 +503,6 @@ mod tests {
     }
 
     #[test]
-    fn test_window_coefficients() {
-        assert_eq!(SlidingStftWindow::Ones.coefficients(4), vec![1.0; 4]);
-
-        let hann = SlidingStftWindow::Hann.coefficients(768);
-
-        // Spot-check against the reference `AUP_AED_STFTWindow_Hann768`
-        // table (`coeff.h`): 0.0, 1.6733041e-05, 6.6931045e-05, 1.5059065e-04.
-        let expected = [0.0000000e+00f32, 1.6733041e-05, 6.693104e-05, 1.5059065e-04];
-        for (n, e) in expected.into_iter().enumerate() {
-            assert!((hann[n] - e).abs() <= 1e-8, "hann[{n}]: {} vs {e}", hann[n]);
-        }
-
-        // The periodic window satisfies w[n] == w[win_len - n].
-        for n in 1..768 {
-            assert!((hann[n] - hann[768 - n]).abs() <= 1e-7);
-        }
-    }
-
-    #[test]
-    fn test_hamming_coefficients() {
-        let hamming = SlidingStftWindow::Hamming.coefficients(768);
-
-        // Periodic Hamming anchors: `0.54 - 0.46` at n = 0, and the peak
-        // `0.54 + 0.46` at the (even) midpoint.
-        assert!((hamming[0] - 0.08).abs() <= 1e-7);
-        assert!((hamming[384] - 1.0).abs() <= 1e-7);
-
-        // The periodic window satisfies w[n] == w[win_len - n].
-        for n in 1..768 {
-            assert!((hamming[n] - hamming[768 - n]).abs() <= 1e-7);
-        }
-
-        // Anchor against the standard table value at win_len = 8, n = 1:
-        // 0.54 - 0.46 * cos(π / 4).
-        let hamming8 = SlidingStftWindow::Hamming.coefficients(8);
-        assert!((hamming8[1] - 0.21473088).abs() <= 1e-7);
-    }
-
-    #[test]
-    fn test_coefficients_tensor_matches_host() {
-        let device = Default::default();
-        for window in [
-            SlidingStftWindow::Ones,
-            SlidingStftWindow::Hann,
-            SlidingStftWindow::Hamming,
-        ] {
-            let host = window.coefficients(48);
-            let tensor: Tensor<B, 1> = window.coefficients_tensor(48, &device);
-            tensor
-                .to_data()
-                .assert_approx_eq::<F>(&TensorData::new(host, [48]), Tolerance::permissive());
-        }
-    }
-
-    #[test]
     fn test_init_meta_matches_config() {
         let device = Default::default();
         let cfg = SlidingStftConfig::new()
@@ -613,7 +517,15 @@ mod tests {
         assert_eq!(coef.fft_size(), cfg.fft_size());
         assert_eq!(coef.n_bins(), cfg.n_bins());
 
-        assert_eq!(coef.window.dims(), [48]);
+        // The stored window is right-padded from win_len to fft_size, with
+        // the coefficients at the frame start and zeros in the tail.
+        assert_eq!(coef.window.dims(), [64]);
+        let window: Vec<f32> = coef.window.to_data().to_vec().unwrap();
+        let host = cfg.window.to_vec_window(48);
+        for (n, (&w, &h)) in window.iter().zip(&host).enumerate() {
+            assert!((w - h).abs() <= 1e-6, "window[{n}]: {w} vs {h}");
+        }
+        assert!(window[48..].iter().all(|&v| v == 0.0));
 
         let stft = coef.init_state(3);
 
@@ -653,7 +565,7 @@ mod tests {
                 win_len: cfg.win_len,
                 hop_size: cfg.hop_size,
                 fft_size: cfg.fft_size,
-                window: cfg.window.coefficients(cfg.win_len),
+                window: cfg.window.to_vec_window(cfg.win_len),
                 queue: vec![0.0; cfg.win_len],
             }
         }
