@@ -61,7 +61,7 @@ pub fn vec_linspace(
 /// * `num`: the number a points in the result tensor.
 /// * `start`: the start value.
 /// * `step`: the step size.
-/// * `device`; the tensor device to allocate on.
+/// * `device`: the tensor device to allocate on.
 ///
 /// # Returns
 /// `[num]` sized tensor.
@@ -91,7 +91,7 @@ pub fn tensor_arange_start_step<B: Backend>(
 /// * `start`: The starting value of the range.
 /// * `end`: The end value of the range (inclusive).
 /// * `num`: The number of points to generate in the range.
-/// * `device`; the tensor device to allocate on.
+/// * `device`: the tensor device to allocate on.
 ///
 /// # Returns
 ///
@@ -128,6 +128,7 @@ mod tests {
         assert_close_to_vec,
     };
     type B = CpuBackend;
+    type F = <B as BackendTypes>::FloatElem;
 
     #[test]
     fn test_arange_start_step() {
@@ -228,9 +229,8 @@ mod tests {
 
     #[test]
     fn test_linspace_int_step() {
-        type F = <B as BackendTypes>::FloatElem;
-
         let device = Default::default();
+
         let start: f64 = 0.0;
         let end: f64 = 1.0;
         let num: usize = 5;
@@ -245,9 +245,8 @@ mod tests {
 
     #[test]
     fn test_float_vec_linspace_neg_float_step() {
-        type F = <B as BackendTypes>::FloatElem;
-
         let device = Default::default();
+
         let start: f64 = 1.0;
         let end: f64 = -0.2;
         let num: usize = 5;
@@ -262,9 +261,8 @@ mod tests {
 
     #[test]
     fn test_float_vec_linspace_n1() {
-        type F = <B as BackendTypes>::FloatElem;
-
         let device = Default::default();
+
         let start: f64 = 0.0;
         let end: f64 = 1.0;
         let num: usize = 1;
