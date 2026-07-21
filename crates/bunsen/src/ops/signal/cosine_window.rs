@@ -167,13 +167,16 @@ impl SamplingWindowBuilder for DualCosineWindow {
         };
 
         let n = if self.is_periodic() { size } else { size - 1 };
-        let step = core::f64::consts::TAU / n as f64;
+        let ang_inc = core::f64::consts::TAU / n as f64;
 
         // n * (2π / win_len)
         (0..size)
             .map(|i| {
                 let i = i as f64;
-                alpha - beta * (i * step).cos() + gamma * (i * 2.0 * step).cos()
+                // alpha - beta * cos(i * ai) + gamma * cos(i * 2 * ai)
+                // => (alpha - gamma) - beta * cos(i * ai) + (2.0 * gamma) * (cos(i * ai)^2)
+                let cos_val = (i * ang_inc).cos();
+                (alpha - gamma) - beta * cos_val + (2.0 * gamma) * cos_val.powi(2)
             })
             .collect()
     }
@@ -195,12 +198,15 @@ impl SamplingWindowBuilder for DualCosineWindow {
         let n = if self.is_periodic() { size } else { size - 1 };
         let step = core::f64::consts::TAU / n as f64;
 
-        // n * (2π / win_len)
-        let theta = tensor_arange_start_step(size, 0.0, Some(step), options);
+        // alpha - beta * cos(i * ai) + gamma * cos(i * 2 * ai)
+        // => (alpha - gamma) - beta * cos(i * ai) + (2.0 * gamma) * (cos(i * ai)^2)
 
-        let b = theta.clone().cos().mul_scalar(-beta);
-        let g = theta.mul_scalar(2.0).cos().mul_scalar(gamma);
-        (b + g).add_scalar(alpha)
+        let cos_val = tensor_arange_start_step(size, 0.0, Some(step), options).cos();
+
+        let b = cos_val.clone().mul_scalar(-beta);
+        let g = cos_val.powi_scalar(2).mul_scalar(2.0 * gamma);
+
+        (b + g).add_scalar(alpha - gamma)
     }
 }
 
