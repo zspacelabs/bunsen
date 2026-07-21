@@ -239,6 +239,17 @@ impl<B: Backend> SlidingStft<B> {
         }
     }
 
+    /// Build the matching [`StftOptions`].
+    pub fn to_options(&self) -> StftOptions {
+        StftOptions {
+            n_fft: self.fft_size(),
+            hop_length: self.hop_size(),
+            win_length: None,
+            center: false,
+            onesided: true,
+        }
+    }
+
     /// Allocate a zeroed window.
     pub fn zero_window(
         &self,
@@ -289,17 +300,7 @@ impl<B: Backend> SlidingStft<B> {
         };
 
         // [batch, frames, n_bins, 2]
-        let x = stft(
-            signal,
-            Some(self.window.clone()),
-            StftOptions {
-                n_fft: self.fft_size(),
-                hop_length: self.hop_size(),
-                win_length: None,
-                center: false,
-                onesided: true,
-            },
-        );
+        let x = stft(signal, Some(self.window.clone()), self.to_options());
 
         #[cfg(any(test, debug_assertions))]
         crate::contracts::assert_shape_contract!(
