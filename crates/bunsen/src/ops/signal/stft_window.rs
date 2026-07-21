@@ -11,7 +11,7 @@ use crate::ops::signal::{
     window_builder::SamplingWindowBuilder,
 };
 
-/// Analysis window function for [`SlidingStft`].
+/// Analysis window function for the STFT family.
 #[derive(Config, Copy, Debug, PartialEq)]
 pub enum StftWindowConfig {
     /// All Ones (rectangular) window.
