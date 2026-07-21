@@ -89,7 +89,7 @@ pub struct SlidingStftConfig {
     pub fft_size: usize,
 
     /// The analysis window config.
-    #[config(default = "StftWindowConfig::Hann")]
+    #[config(default = "StftWindowConfig::Hann { periodic: true }")]
     pub window: StftWindowConfig,
 }
 
@@ -468,7 +468,7 @@ mod tests {
         assert_eq!(cfg.win_len, 768);
         assert_eq!(cfg.hop_size, 256);
         assert_eq!(cfg.fft_size, 1024);
-        assert_eq!(cfg.window, StftWindowConfig::Hann);
+        assert_eq!(cfg.window, StftWindowConfig::Hann { periodic: true });
 
         assert_eq!(cfg.win_len(), 768);
         assert_eq!(cfg.hop_size(), 256);
