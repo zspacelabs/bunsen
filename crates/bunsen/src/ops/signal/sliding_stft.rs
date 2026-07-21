@@ -47,7 +47,10 @@ use crate::{
         BunsenResult,
         WithOkOrPanic,
     },
-    ops::signal::StftWindowConfig,
+    ops::signal::{
+        SamplingWindowBuilder,
+        StftWindowConfig,
+    },
 };
 
 /// Common meta for [`SlidingStftConfig`], [`SlidingStft`], and

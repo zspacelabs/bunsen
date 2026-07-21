@@ -2,9 +2,11 @@ use burn::{
     Tensor,
     config::Config,
     prelude::Backend,
+    tensor::TensorCreationOptions,
 };
 
 use crate::ops::signal::{
+    DualCosineWindow,
     cosine_window::CosineWindowConfig,
     window_builder::SamplingWindowBuilder,
 };
@@ -12,63 +14,79 @@ use crate::ops::signal::{
 /// Analysis window function for [`SlidingStft`].
 #[derive(Config, Copy, Debug, PartialEq)]
 pub enum StftWindowConfig {
-    /// All-ones (rectangular) window.
-    ///
+    /// All Ones (rectangular) window.
     /// The reference analyzer default when no coefficient table is provided.
     Ones,
 
-    /// Periodic Hann window: `CosineWindow { alpha: 0.5, periodic }`
+    /// Cosine Window:
+    /// `[ for i in range(n) | alpha - beta * cos(i * 2π / win_len) ]`
+    CosineWindow(CosineWindowConfig),
+
+    /// Hann window:
+    /// `CosineWindow { alpha: 0.5, periodic }`
     Hann {
         /// Is this a periodic or symmetric window?
         periodic: bool,
     },
 
-    /// Periodic Hamming window: `CosineWindow { alpha: 0.54, periodic }`
+    /// Hamming window:
+    /// `CosineWindow { alpha: 0.54, periodic }`
     Hamming {
         /// Is this a periodic or symmetric window?
         periodic: bool,
     },
 
-    /// Cosine Window:
-    /// `[ for i in range(n) | alpha - (1 - alpha) * cos(i * 2π / win_len) ]`
-    CosineWindow {
-        /// What is the alpha parameter?
-        alpha: f64,
+    /// Dual Cosine Window:
+    /// `[ for i in range(n)
+    ///    | alpha - beta*cos(i * 2π/win_len) + gamma*cos(i * 4π/win_len) ]`
+    DualCosineWindow(DualCosineWindow),
 
+    /// Blackman Window:
+    /// `DualCosineWindow { alpha: 0.42, beta: 0.5, gamma: 0.08, periodic } `
+    Blackman {
         /// Is this a periodic or symmetric window?
         periodic: bool,
     },
 }
 
-impl StftWindowConfig {
-    /// The window coefficient table for a `win_len`-sample window.
-    pub fn to_vec_window(
+impl SamplingWindowBuilder for StftWindowConfig {
+    fn to_vec_window(
         &self,
         size: usize,
     ) -> Vec<f32> {
-        let cfg = match self {
-            Self::Ones => return vec![1.0; size],
-            Self::Hann { periodic } => CosineWindowConfig::hann(*periodic),
-            Self::Hamming { periodic } => CosineWindowConfig::hamming(*periodic),
-            Self::CosineWindow { alpha, periodic } => CosineWindowConfig::new(*alpha, *periodic),
-        };
-        cfg.to_vec_window(size)
+        match self {
+            Self::Ones => vec![1.0; size],
+            Self::CosineWindow(cfg) => cfg.to_vec_window(size),
+            Self::Hann { periodic } => CosineWindowConfig::hann(*periodic).to_vec_window(size),
+            Self::Hamming { periodic } => {
+                CosineWindowConfig::hamming(*periodic).to_vec_window(size)
+            }
+            Self::DualCosineWindow(cfg) => cfg.to_vec_window(size),
+            Self::Blackman { periodic } => {
+                DualCosineWindow::blackman(*periodic).to_vec_window(size)
+            }
+        }
     }
 
-    /// The window coefficient table for a `win_len`-sample window,
-    /// materialized on `device`.
-    pub fn to_tensor_window<B: Backend>(
+    fn to_tensor_window<B: Backend>(
         &self,
         size: usize,
-        device: &B::Device,
+        options: impl Into<TensorCreationOptions<B>>,
     ) -> Tensor<B, 1> {
-        let cfg = match self {
-            Self::Ones => return Tensor::ones([size], device),
-            Self::Hann { periodic } => CosineWindowConfig::hann(*periodic),
-            Self::Hamming { periodic } => CosineWindowConfig::hamming(*periodic),
-            Self::CosineWindow { alpha, periodic } => CosineWindowConfig::new(*alpha, *periodic),
-        };
-        cfg.to_tensor_window(size, device)
+        match self {
+            Self::Ones => return Tensor::ones([size], options),
+            Self::CosineWindow(cfg) => cfg.to_tensor_window(size, options),
+            Self::Hann { periodic } => {
+                CosineWindowConfig::hann(*periodic).to_tensor_window(size, options)
+            }
+            Self::Hamming { periodic } => {
+                CosineWindowConfig::hamming(*periodic).to_tensor_window(size, options)
+            }
+            Self::DualCosineWindow(cfg) => cfg.to_tensor_window(size, options),
+            Self::Blackman { periodic } => {
+                DualCosineWindow::blackman(*periodic).to_tensor_window(size, options)
+            }
+        }
     }
 }
 

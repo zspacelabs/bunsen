@@ -11,11 +11,14 @@ use crate::ops::{
 };
 
 /// Cosine Window:
-/// `[ for i in range(n) | alpha - (1 - alpha) * cos(i * 2π / win_len) ]`
+/// `[ for i in range(n) | alpha - beta * cos(i * 2π / win_len) ]`
 #[derive(Config, Copy, Debug, PartialEq)]
 pub struct CosineWindowConfig {
     /// The alpha param.
     pub alpha: f64,
+
+    /// The beta param.
+    pub beta: f64,
 
     /// Is this periodic?
     /// * `periodic`: `N = size`
@@ -24,24 +27,27 @@ pub struct CosineWindowConfig {
 }
 
 impl CosineWindowConfig {
+    /// Construct a `CosineWindowConfig { alpha, beta: 1.0 - alpha }`.
+    pub fn from_alpha_complement(
+        alpha: f64,
+        periodic: bool,
+    ) -> CosineWindowConfig {
+        let beta = 1.0 - alpha;
+        CosineWindowConfig {
+            alpha,
+            beta,
+            periodic,
+        }
+    }
+
     /// Construct a Hann Window: alpha = 0.5
     pub fn hann(periodic: bool) -> CosineWindowConfig {
-        CosineWindowConfig::new(0.5, periodic)
+        CosineWindowConfig::from_alpha_complement(0.5, periodic)
     }
 
     /// Construct a Hamming Window: alpha = 0.54
     pub fn hamming(periodic: bool) -> CosineWindowConfig {
-        CosineWindowConfig::new(0.54, periodic)
-    }
-
-    /// Get the alpha coeff.
-    pub fn alpha(&self) -> f64 {
-        self.alpha
-    }
-
-    /// Get the beta coeff (1.0 - alpha).
-    pub fn beta(&self) -> f64 {
-        1.0 - self.alpha
+        CosineWindowConfig::from_alpha_complement(0.54, periodic)
     }
 
     /// Is this a periodic window?
@@ -60,8 +66,8 @@ impl SamplingWindowBuilder for CosineWindowConfig {
         &self,
         size: usize,
     ) -> Vec<f32> {
-        let alpha = self.alpha();
-        let beta = self.beta();
+        let alpha = self.alpha;
+        let beta = self.beta;
 
         match size {
             0 | 1 => return vec![1.0; size],
@@ -86,8 +92,8 @@ impl SamplingWindowBuilder for CosineWindowConfig {
         size: usize,
         options: impl Into<TensorCreationOptions<B>>,
     ) -> Tensor<B, 1> {
-        let alpha = self.alpha();
-        let beta = self.beta();
+        let alpha = self.alpha;
+        let beta = self.beta;
 
         match size {
             0 | 1 => return Tensor::ones([size], options),
@@ -101,6 +107,103 @@ impl SamplingWindowBuilder for CosineWindowConfig {
         let theta = tensor_arange_start_step(size, 0.0, Some(step), options);
 
         theta.cos().mul_scalar(-beta).add_scalar(alpha)
+    }
+}
+
+/// Cosine Window:
+/// `[ for i in range(n)
+///    | alpha - beta*cos(i * 2π/size) + gamma*cost(i * 4π/size) ]`
+#[derive(Config, Copy, Debug, PartialEq)]
+pub struct DualCosineWindow {
+    /// The alpha param.
+    pub alpha: f64,
+
+    /// The beta param.
+    pub beta: f64,
+
+    /// The gamma param.
+    pub gamma: f64,
+
+    /// Is this periodic?
+    /// * `periodic`: `N = size`
+    /// * `!periodic`: `N = size - 1`
+    pub periodic: bool,
+}
+
+impl DualCosineWindow {
+    /// Construct a Blackman window.
+    pub fn blackman(periodic: bool) -> DualCosineWindow {
+        DualCosineWindow {
+            alpha: 0.4,
+            beta: 0.5,
+            gamma: 0.08,
+            periodic,
+        }
+    }
+
+    /// Is this a periodic window?
+    pub fn is_periodic(&self) -> bool {
+        self.periodic
+    }
+
+    /// Is this a periodic window?
+    pub fn is_symmetric(&self) -> bool {
+        !self.is_periodic()
+    }
+}
+
+impl SamplingWindowBuilder for DualCosineWindow {
+    fn to_vec_window(
+        &self,
+        size: usize,
+    ) -> Vec<f32> {
+        let alpha = self.alpha;
+        let beta = self.beta;
+        let gamma = self.gamma;
+
+        match size {
+            0 | 1 => return vec![1.0; size],
+            _ => (),
+        };
+
+        let n = if self.is_periodic() { size } else { size - 1 };
+        let step = core::f64::consts::TAU / n as f64;
+
+        // n * (2π / win_len)
+        (0..size)
+            .map(|n| {
+                let theta = (n as f64) * step;
+                let b = beta * theta.cos();
+                let g = gamma * (2.0 * theta).cos();
+
+                (alpha - b + g) as f32
+            })
+            .collect()
+    }
+
+    fn to_tensor_window<B: Backend>(
+        &self,
+        size: usize,
+        options: impl Into<TensorCreationOptions<B>>,
+    ) -> Tensor<B, 1> {
+        let alpha = self.alpha;
+        let beta = self.beta;
+        let gamma = self.gamma;
+
+        match size {
+            0 | 1 => return Tensor::ones([size], options),
+            _ => (),
+        };
+
+        let n = if self.is_periodic() { size } else { size - 1 };
+        let step = core::f64::consts::TAU / n as f64;
+
+        // n * (2π / win_len)
+        let theta = tensor_arange_start_step(size, 0.0, Some(step), options);
+
+        let b = theta.clone().cos().mul_scalar(-beta);
+        let g = theta.mul_scalar(2.0).cos().mul_scalar(gamma);
+        (b + g).add_scalar(alpha)
     }
 }
 
