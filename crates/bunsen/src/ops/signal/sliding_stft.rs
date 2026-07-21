@@ -42,7 +42,7 @@ use burn::{
 };
 
 use crate::{
-    burner::tensor::inplace_res,
+    burner::tensor::TensorReleaseExt,
     errors::{
         BunsenError,
         BunsenResult,
@@ -434,11 +434,10 @@ impl<B: Backend> SlidingStftContext<B> {
 
         // Inplace, so we can drop the reference before the update.
         let win_len = self.win_len();
-        let ext = inplace_res(&mut self.queue, |q| {
-            let ext = Tensor::cat(vec![q, stream], 1);
-            let q = ext.clone().slice_dim(1, -(win_len as isize)..);
-            (q, ext)
-        });
+
+        let queue = self.queue.release();
+        let ext = Tensor::cat(vec![queue, stream], 1);
+        self.queue = ext.clone().slice_dim(1, -(win_len as isize)..);
 
         // `analyze` yields `steps + 1` frames at `hop_size` offsets; frame
         // `s + 1` is the queue state after hop `s`, and frame 0 (the
