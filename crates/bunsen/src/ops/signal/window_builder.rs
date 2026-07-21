@@ -4,6 +4,7 @@ use burn::{
         Backend,
         TensorData,
     },
+    tensor::TensorCreationOptions,
 };
 
 /// Trait defining an interface for building sampling windows.
@@ -18,11 +19,11 @@ pub trait SamplingWindowBuilder {
     fn to_tensor_window<B: Backend>(
         &self,
         size: usize,
-        device: &B::Device,
+        options: impl Into<TensorCreationOptions<B>>,
     ) -> Tensor<B, 1> {
         Tensor::from_data(
             TensorData::from(self.to_vec_window(size).as_slice()),
-            device,
+            options,
         )
     }
 }

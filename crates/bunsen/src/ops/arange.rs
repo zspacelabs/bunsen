@@ -1,8 +1,11 @@
 //! [`Tensor`] ops.
 
-use burn::prelude::{
-    Backend,
-    Tensor,
+use burn::{
+    prelude::{
+        Backend,
+        Tensor,
+    },
+    tensor::TensorCreationOptions,
 };
 
 /// Creates a 1D tensor `[for i in 0..n | start + i * step]`.
@@ -63,7 +66,7 @@ pub fn vec_linspace(
 /// * `num`: the number a points in the result tensor.
 /// * `start`: the start value.
 /// * `step`: the step size.
-/// * `device`: the tensor device to allocate on.
+/// * `options`: the tensor creation options.
 ///
 /// # Returns
 /// `[num]` sized tensor.
@@ -71,9 +74,9 @@ pub fn tensor_arange_start_step<B: Backend>(
     num: usize,
     start: f64,
     step: Option<f64>,
-    device: &B::Device,
+    options: impl Into<TensorCreationOptions<B>>,
 ) -> Tensor<B, 1> {
-    let x = Tensor::arange(0..num as i64, device).float();
+    let x = Tensor::arange(0..num as i64, options).float();
 
     let x = match step {
         None => x,
@@ -93,7 +96,7 @@ pub fn tensor_arange_start_step<B: Backend>(
 /// * `start`: The starting value of the range.
 /// * `end`: The end value of the range (inclusive).
 /// * `num`: The number of points to generate in the range.
-/// * `device`: the tensor device to allocate on.
+/// * `options`: the tensor creation options.
 ///
 /// If `num` == 1; the result will be `[start]`.
 ///
@@ -104,16 +107,16 @@ pub fn tensor_linspace<B: Backend>(
     start: f64,
     end: f64,
     num: usize,
-    device: &B::Device,
+    options: impl Into<TensorCreationOptions<B>>,
 ) -> Tensor<B, 1> {
     assert!(num > 0, "Number of points must be positive");
 
     if num == 1 {
-        return Tensor::full([1], start, device);
+        return Tensor::full([1], start, options);
     }
 
     let step = (end - start) / (num as f64 - 1.0);
-    tensor_arange_start_step(num, start, Some(step), device)
+    tensor_arange_start_step(num, start, Some(step), options)
 }
 
 #[cfg(test)]

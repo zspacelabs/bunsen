@@ -2,6 +2,7 @@ use burn::{
     Tensor,
     config::Config,
     prelude::Backend,
+    tensor::TensorCreationOptions,
 };
 
 use crate::ops::{
@@ -83,13 +84,13 @@ impl SamplingWindowBuilder for CosineWindowConfig {
     fn to_tensor_window<B: Backend>(
         &self,
         size: usize,
-        device: &B::Device,
+        options: impl Into<TensorCreationOptions<B>>,
     ) -> Tensor<B, 1> {
         let alpha = self.alpha();
         let beta = self.beta();
 
         match size {
-            0 | 1 => return Tensor::ones([size], device),
+            0 | 1 => return Tensor::ones([size], options),
             _ => (),
         };
 
@@ -97,7 +98,7 @@ impl SamplingWindowBuilder for CosineWindowConfig {
         let step = core::f64::consts::TAU / n as f64;
 
         // n * (2π / win_len)
-        let theta = tensor_arange_start_step(size, 0.0, Some(step), device);
+        let theta = tensor_arange_start_step(size, 0.0, Some(step), options);
 
         theta.cos().mul_scalar(-beta).add_scalar(alpha)
     }
@@ -126,8 +127,9 @@ mod tests {
     fn check_hann_matches<B: Backend>(
         periodic: &[f32],
         symmetric: &[f32],
-        device: &B::Device,
+        options: impl Into<TensorCreationOptions<B>>,
     ) {
+        let options = options.into();
         assert_eq!(periodic.len(), symmetric.len());
 
         for (periodic, expected) in [(true, periodic), (false, symmetric)] {
@@ -137,13 +139,13 @@ mod tests {
 
             let size = expected.len();
 
-            hann_window::<B>(size, periodic, device)
+            hann_window::<B>(size, periodic, options.clone())
                 .to_data()
                 .assert_approx_eq::<F>(&TensorData::from(expected), Tolerance::default());
 
             assert_close_to_vec(&cfg.to_vec_window(size), expected, 0.001);
 
-            cfg.to_tensor_window::<B>(size, &device)
+            cfg.to_tensor_window::<B>(size, options.clone())
                 .to_data()
                 .assert_approx_eq::<F>(&TensorData::from(expected), Tolerance::default());
         }
