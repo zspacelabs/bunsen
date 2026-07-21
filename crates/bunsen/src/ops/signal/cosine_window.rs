@@ -148,7 +148,16 @@ impl DualCosineWindow {
 
     /// Is this a periodic window?
     pub fn is_symmetric(&self) -> bool {
-        !self.is_periodic()
+        !self.periodic
+    }
+
+    /// Compute the angular increment.
+    pub fn angular_increment(
+        &self,
+        size: usize,
+    ) -> f64 {
+        let n = if self.is_periodic() { size } else { size - 1 };
+        core::f64::consts::TAU / n as f64
     }
 }
 
@@ -157,17 +166,11 @@ impl SamplingWindowBuilder for DualCosineWindow {
         &self,
         size: usize,
     ) -> Vec<f64> {
-        let alpha = self.alpha;
-        let beta = self.beta;
-        let gamma = self.gamma;
-
         match size {
             0 | 1 => return vec![1.0; size],
             _ => (),
         };
-
-        let n = if self.is_periodic() { size } else { size - 1 };
-        let ang_inc = core::f64::consts::TAU / n as f64;
+        let ang_inc = self.angular_increment(size);
 
         // n * (2π / win_len)
         (0..size)
@@ -176,7 +179,8 @@ impl SamplingWindowBuilder for DualCosineWindow {
                 // alpha - beta * cos(i * ai) + gamma * cos(i * 2 * ai)
                 // => (alpha - gamma) - beta * cos(i * ai) + (2.0 * gamma) * (cos(i * ai)^2)
                 let cos_val = (i * ang_inc).cos();
-                (alpha - gamma) - beta * cos_val + (2.0 * gamma) * cos_val.powi(2)
+                (self.alpha - self.gamma) - self.beta * cos_val
+                    + (2.0 * self.gamma) * cos_val.powi(2)
             })
             .collect()
     }
@@ -186,27 +190,21 @@ impl SamplingWindowBuilder for DualCosineWindow {
         size: usize,
         options: impl Into<TensorCreationOptions<B>>,
     ) -> Tensor<B, 1> {
-        let alpha = self.alpha;
-        let beta = self.beta;
-        let gamma = self.gamma;
-
         match size {
             0 | 1 => return Tensor::ones([size], options),
             _ => (),
         };
-
-        let n = if self.is_periodic() { size } else { size - 1 };
-        let step = core::f64::consts::TAU / n as f64;
+        let ang_inc = self.angular_increment(size);
 
         // alpha - beta * cos(i * ai) + gamma * cos(i * 2 * ai)
         // => (alpha - gamma) - beta * cos(i * ai) + (2.0 * gamma) * (cos(i * ai)^2)
 
-        let cos_val = tensor_arange_start_step(size, 0.0, Some(step), options).cos();
+        let cos_val = tensor_arange_start_step(size, 0.0, Some(ang_inc), options).cos();
 
-        let b = cos_val.clone().mul_scalar(-beta);
-        let g = cos_val.powi_scalar(2).mul_scalar(2.0 * gamma);
+        let b = cos_val.clone().mul_scalar(-self.beta);
+        let g = cos_val.powi_scalar(2).mul_scalar(2.0 * self.gamma);
 
-        (b + g).add_scalar(alpha - gamma)
+        (b + g).add_scalar(self.alpha - self.gamma)
     }
 }
 
