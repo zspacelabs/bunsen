@@ -42,6 +42,7 @@ use burn::{
 };
 
 use crate::{
+    burner::tensor::inplace_res,
     errors::{
         BunsenError,
         BunsenResult,
@@ -386,13 +387,15 @@ impl<B: Backend> SlidingStftContext<B> {
         );
 
         let hop_size = self.hop_size();
-
-        self.queue = if self.win_len() == hop_size {
-            hop
+        if self.win_len() == hop_size {
+            self.queue = hop;
         } else {
-            let keep = self.queue.clone().slice(s![.., hop_size as isize..]);
-            Tensor::cat(vec![keep, hop], 1)
-        };
+            // Inplace, so we can drop the reference before the update.
+            self.queue.inplace(|q| {
+                let keep = q.slice_dim(1, hop_size as isize..);
+                Tensor::cat(vec![keep, hop], 1)
+            });
+        }
 
         // One full window -> one frame.
         // [batch, 1, n_bins, 2] -> [batch, n_bins, 2]
@@ -427,16 +430,18 @@ impl<B: Backend> SlidingStftContext<B> {
         // [batch, steps * hop_size]
         let stream = hops.swap_dims(0, 1).flatten::<2>(1, 2);
 
-        // [batch, win_len + steps * hop_size]
-        let ext = Tensor::cat(vec![self.queue.clone(), stream], 1);
-
-        self.queue = ext.clone().slice(s![.., -(win_len as isize)..]);
+        // Inplace, so we can drop the reference before the update.
+        let ext = inplace_res(&mut self.queue, |q| {
+            let ext = Tensor::cat(vec![q, stream], 1);
+            let q = ext.clone().slice_dim(1, -(win_len as isize)..);
+            (q, ext)
+        });
 
         // `analyze` yields `steps + 1` frames at `hop_size` offsets; frame
         // `s + 1` is the queue state after hop `s`, and frame 0 (the
         // pre-push queue) is dropped.
         // [batch, steps + 1, n_bins, 2] -> [steps, batch, n_bins, 2]
-        let x = self.coef.analyze(ext).slice(s![.., 1..]).swap_dims(0, 1);
+        let x = self.coef.analyze(ext).slice_dim(1, 1..).swap_dims(0, 1);
 
         #[cfg(any(test, debug_assertions))]
         crate::contracts::assert_shape_contract!(
