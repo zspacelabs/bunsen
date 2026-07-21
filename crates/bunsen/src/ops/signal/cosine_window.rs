@@ -150,9 +150,32 @@ mod tests {
     }
 
     #[test]
-    fn test_hann() {
+    fn test_hann_0() {
         let device = Default::default();
+        check_hann_matches::<B>(&[], &[], &device);
+    }
 
+    #[test]
+    fn test_hann_1() {
+        let device = Default::default();
+        check_hann_matches::<B>(&[1.0], &[1.0], &device);
+    }
+
+    #[test]
+    fn test_hann_2() {
+        let device = Default::default();
+        check_hann_matches::<B>(&[0.0, 1.0], &[0.0, 0.0], &device);
+    }
+
+    #[test]
+    fn test_hann_3() {
+        let device = Default::default();
+        check_hann_matches::<B>(&[0.0, 0.75, 0.75], &[0.0, 1.0, 0.0], &device);
+    }
+
+    #[test]
+    fn test_hann_8() {
+        let device = Default::default();
         check_hann_matches::<B>(
             &[0.0, 0.146447, 0.5, 0.853553, 1.0, 0.853553, 0.5, 0.146447],
             &[
@@ -160,31 +183,5 @@ mod tests {
             ],
             &device,
         );
-    }
-
-    #[test]
-    fn test_empty() {
-        let device = Default::default();
-        check_hann_matches::<B>(&[], &[], &device);
-    }
-
-    #[test]
-    fn test_size_1() {
-        let device = Default::default();
-        check_hann_matches::<B>(&[1.0], &[1.0], &device);
-    }
-
-    #[test]
-    fn test_size_2() {
-        let device = Default::default();
-
-        check_hann_matches::<B>(&[0.0, 1.0], &[0.0, 0.0], &device);
-    }
-
-    #[test]
-    fn test_size_3() {
-        let device = Default::default();
-
-        check_hann_matches::<B>(&[0.0, 0.75, 0.75], &[0.0, 1.0, 0.0], &device);
     }
 }
