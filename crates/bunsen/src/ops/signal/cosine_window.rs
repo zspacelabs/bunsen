@@ -134,7 +134,7 @@ impl DualCosineWindow {
     /// Construct a Blackman window.
     pub fn blackman(periodic: bool) -> DualCosineWindow {
         DualCosineWindow {
-            alpha: 0.4,
+            alpha: 0.42,
             beta: 0.5,
             gamma: 0.08,
             periodic,
@@ -171,12 +171,9 @@ impl SamplingWindowBuilder for DualCosineWindow {
 
         // n * (2π / win_len)
         (0..size)
-            .map(|n| {
-                let theta = (n as f64) * step;
-                let b = beta * theta.cos();
-                let g = gamma * (2.0 * theta).cos();
-
-                alpha - b + g
+            .map(|i| {
+                let i = i as f64;
+                alpha - beta * (i * step).cos() + gamma * (i * 2.0 * step).cos()
             })
             .collect()
     }
@@ -214,77 +211,136 @@ mod tests {
         tensor::{
             Tolerance,
             backend::BackendTypes,
-            signal::hann_window,
+            signal::{
+                blackman_window,
+                hann_window,
+            },
         },
     };
+    use tracing::{
+        debug,
+        info,
+    };
+    use tracing_test::traced_test;
 
     use super::*;
-    use crate::support::testing::{
-        CpuBackend,
-        assert_close_to_vec,
+    use crate::{
+        ops::signal::testing::assert_builder_impls_match,
+        support::testing::CpuBackend,
     };
 
     type B = CpuBackend;
     type F = <B as BackendTypes>::FloatElem;
 
-    fn check_hann_matches<B: Backend>(
-        periodic: &[f64],
-        symmetric: &[f64],
+    fn check_hann_impl<B: Backend>(
+        periodic: bool,
+        expected: &[f64],
         options: impl Into<TensorCreationOptions<B>>,
     ) {
+        let cfg = CosineWindowConfig::hann(periodic);
+        debug!("cfg: {:?}", cfg);
+        debug!("expected: {:?}", expected);
+
+        let size = expected.len();
         let options = options.into();
-        assert_eq!(periodic.len(), symmetric.len());
 
-        for (periodic, expected) in [(true, periodic), (false, symmetric)] {
-            let cfg = CosineWindowConfig::hann(periodic);
-            // println!("cfg: {cfg:?}");
-            // println!("expected: {expected:?}");
+        info!("checking hann_window reference implementation");
+        hann_window::<B>(size, periodic, options.clone())
+            .to_data()
+            .assert_approx_eq::<F>(&TensorData::from(expected), Tolerance::default());
 
-            let size = expected.len();
-
-            hann_window::<B>(size, periodic, options.clone())
-                .to_data()
-                .assert_approx_eq::<F>(&TensorData::from(expected), Tolerance::default());
-
-            assert_close_to_vec(&cfg.to_vec_window(size), expected, 0.00001);
-
-            cfg.to_tensor_window::<B>(size, options.clone())
-                .to_data()
-                .assert_approx_eq::<F>(&TensorData::from(expected), Tolerance::default());
-        }
+        info!("cross-checking vec/tensor impls");
+        assert_builder_impls_match::<B>(&cfg, expected, options.clone());
     }
 
     #[test]
-    fn test_hann_0() {
+    #[traced_test]
+    fn test_hann() {
         let device = Default::default();
-        check_hann_matches::<B>(&[], &[], &device);
-    }
 
-    #[test]
-    fn test_hann_1() {
-        let device = Default::default();
-        check_hann_matches::<B>(&[1.0], &[1.0], &device);
-    }
+        // size = 0
+        check_hann_impl::<B>(true, &[], &device);
+        check_hann_impl::<B>(false, &[], &device);
 
-    #[test]
-    fn test_hann_2() {
-        let device = Default::default();
-        check_hann_matches::<B>(&[0.0, 1.0], &[0.0, 0.0], &device);
-    }
+        // size = 1
+        check_hann_impl::<B>(true, &[1.0], &device);
+        check_hann_impl::<B>(false, &[1.0], &device);
 
-    #[test]
-    fn test_hann_3() {
-        let device = Default::default();
-        check_hann_matches::<B>(&[0.0, 0.75, 0.75], &[0.0, 1.0, 0.0], &device);
-    }
+        // size = 2
+        check_hann_impl::<B>(true, &[0.0, 1.0], &device);
+        check_hann_impl::<B>(false, &[0.0, 0.0], &device);
 
-    #[test]
-    fn test_hann_8() {
-        let device = Default::default();
-        check_hann_matches::<B>(
+        // size = 3
+        check_hann_impl::<B>(true, &[0.0, 0.75, 0.75], &device);
+        check_hann_impl::<B>(false, &[0.0, 1.0, 0.0], &device);
+
+        // size = 8
+        check_hann_impl::<B>(
+            true,
             &[0.0, 0.146447, 0.5, 0.853553, 1.0, 0.853553, 0.5, 0.146447],
+            &device,
+        );
+        check_hann_impl::<B>(
+            false,
             &[
                 0.0, 0.188255, 0.611260, 0.950484, 0.950484, 0.611260, 0.188255, 0.0,
+            ],
+            &device,
+        );
+    }
+
+    fn check_blackman_impl<B: Backend>(
+        periodic: bool,
+        expected: &[f64],
+        options: impl Into<TensorCreationOptions<B>>,
+    ) {
+        let cfg = DualCosineWindow::blackman(periodic);
+        debug!("cfg: {:?}", cfg);
+        debug!("expected: {:?}", expected);
+
+        let size = expected.len();
+        let options = options.into();
+
+        info!("checking blackman_window reference implementation");
+        blackman_window::<B>(size, periodic, options.clone())
+            .to_data()
+            .assert_approx_eq::<F>(&TensorData::from(expected), Tolerance::default());
+
+        info!("cross-checking vec/tensor impls");
+        assert_builder_impls_match::<B>(&cfg, expected, options.clone());
+    }
+
+    #[test]
+    #[traced_test]
+    fn test_blackman() {
+        let device = Default::default();
+
+        // size = 0
+        check_blackman_impl::<B>(true, &[], &device);
+        check_blackman_impl::<B>(false, &[], &device);
+
+        // size = 1
+        check_blackman_impl::<B>(true, &[1.0], &device);
+        check_blackman_impl::<B>(false, &[1.0], &device);
+
+        // size = 2
+        check_blackman_impl::<B>(true, &[0.0, 1.0], &device);
+        check_blackman_impl::<B>(false, &[0.0, 0.0], &device);
+
+        // size = 3
+        check_blackman_impl::<B>(true, &[0.0, 0.63, 0.63], &device);
+        check_blackman_impl::<B>(false, &[0.0, 1.0, 0.0], &device);
+
+        // size = 8
+        check_blackman_impl::<B>(
+            true,
+            &[0.0, 0.0664466, 0.34, 0.77355, 1.0, 0.77355, 0.34, 0.0664466],
+            &device,
+        );
+        check_blackman_impl::<B>(
+            false,
+            &[
+                0.0, 0.09045343, 0.45918, 0.92036, 0.92036, 0.45918, 0.09045343, 0.0,
             ],
             &device,
         );
