@@ -131,14 +131,25 @@ pub struct DualCosineWindow {
 }
 
 impl DualCosineWindow {
-    /// Construct a Blackman window.
-    pub fn blackman(periodic: bool) -> DualCosineWindow {
+    /// Construct: `DualCosineWindow { alpha, beta, gamma: 1.0 - (alpha + beta),
+    /// periodic }`
+    pub fn from_alpha_beta_complement(
+        alpha: f64,
+        beta: f64,
+        periodic: bool,
+    ) -> DualCosineWindow {
+        let gamma = 1.0 - (alpha + beta);
         DualCosineWindow {
-            alpha: 0.42,
-            beta: 0.5,
-            gamma: 0.08,
+            alpha,
+            beta,
+            gamma,
             periodic,
         }
+    }
+
+    /// Construct a Blackman window.
+    pub fn blackman(periodic: bool) -> DualCosineWindow {
+        Self::from_alpha_beta_complement(0.42, 0.5, periodic)
     }
 
     /// Is this a periodic window?
