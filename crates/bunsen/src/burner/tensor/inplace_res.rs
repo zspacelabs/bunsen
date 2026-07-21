@@ -7,7 +7,7 @@ use burn::{
     },
 };
 
-/// Value-returning variant of Tensor::inplace.
+/// Value-returning variant of `Tensor::inplace`.
 ///
 /// Executes an operation on the tensor and modifies its value.
 ///

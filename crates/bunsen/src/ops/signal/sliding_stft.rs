@@ -398,8 +398,10 @@ impl<B: Backend> SlidingStftContext<B> {
         }
 
         // One full window -> one frame.
-        // [batch, 1, n_bins, 2] -> [batch, n_bins, 2]
-        self.coef.analyze(self.queue.clone()).squeeze_dim(1)
+        // [batch, 1, n_bins, 2]
+        let x = self.coef.analyze(self.queue.clone());
+        // [batch, n_bins, 2]
+        x.squeeze_dim(1)
     }
 
     /// Pushes `steps` consecutive hops at once.
@@ -425,12 +427,13 @@ impl<B: Backend> SlidingStftContext<B> {
             &[("batch", self.batch_size()), ("hop_size", self.hop_size())],
         );
 
-        let win_len = self.win_len();
-
+        // [batch, steps, hop_size]
+        let stream = hops.swap_dims(0, 1);
         // [batch, steps * hop_size]
-        let stream = hops.swap_dims(0, 1).flatten::<2>(1, 2);
+        let stream = stream.flatten::<2>(1, 2);
 
         // Inplace, so we can drop the reference before the update.
+        let win_len = self.win_len();
         let ext = inplace_res(&mut self.queue, |q| {
             let ext = Tensor::cat(vec![q, stream], 1);
             let q = ext.clone().slice_dim(1, -(win_len as isize)..);
@@ -440,8 +443,13 @@ impl<B: Backend> SlidingStftContext<B> {
         // `analyze` yields `steps + 1` frames at `hop_size` offsets; frame
         // `s + 1` is the queue state after hop `s`, and frame 0 (the
         // pre-push queue) is dropped.
-        // [batch, steps + 1, n_bins, 2] -> [steps, batch, n_bins, 2]
-        let x = self.coef.analyze(ext).slice_dim(1, 1..).swap_dims(0, 1);
+        //
+        // [batch, steps + 1, n_bins, 2]
+        let x = self.coef.analyze(ext);
+        // [batch, steps, n_bins, 2]
+        let x = x.slice_dim(1, 1..);
+        // [steps, batch, n_bins, 2]
+        let x = x.swap_dims(0, 1);
 
         #[cfg(any(test, debug_assertions))]
         crate::contracts::assert_shape_contract!(
