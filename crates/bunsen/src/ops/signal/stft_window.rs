@@ -74,7 +74,7 @@ impl SamplingWindowBuilder for StftWindowConfig {
         options: impl Into<TensorCreationOptions<B>>,
     ) -> Tensor<B, 1> {
         match self {
-            Self::Ones => return Tensor::ones([size], options),
+            Self::Ones => Tensor::ones([size], options),
             Self::CosineWindow(cfg) => cfg.to_tensor_window(size, options),
             Self::Hann { periodic } => {
                 CosineWindowConfig::hann(*periodic).to_tensor_window(size, options)
