@@ -23,14 +23,14 @@ pub enum StftWindowConfig {
     CosineWindow(CosineWindowConfig),
 
     /// Hann window:
-    /// `CosineWindow { alpha: 0.5, periodic }`
+    /// `CosineWindow { alpha: 0.5, beta: 0.5, periodic }`
     Hann {
         /// Is this a periodic or symmetric window?
         periodic: bool,
     },
 
     /// Hamming window:
-    /// `CosineWindow { alpha: 0.54, periodic }`
+    /// `CosineWindow { alpha: 0.54, beta: 0.46, periodic }`
     Hamming {
         /// Is this a periodic or symmetric window?
         periodic: bool,
