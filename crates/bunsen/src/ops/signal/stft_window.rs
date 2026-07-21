@@ -53,7 +53,7 @@ impl SamplingWindowBuilder for StftWindowConfig {
     fn to_vec_window(
         &self,
         size: usize,
-    ) -> Vec<f32> {
+    ) -> Vec<f64> {
         match self {
             Self::Ones => vec![1.0; size],
             Self::CosineWindow(cfg) => cfg.to_vec_window(size),

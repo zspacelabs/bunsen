@@ -455,6 +455,7 @@ impl<B: Backend> SlidingStftContext<B> {
 #[cfg(test)]
 mod tests {
     use burn::tensor::{
+        DType,
         Distribution,
         Tolerance,
         backend::BackendTypes,
@@ -524,7 +525,13 @@ mod tests {
         // The stored window is right-padded from win_len to fft_size, with
         // the coefficients at the frame start and zeros in the tail.
         assert_eq!(coef.window.dims(), [64]);
-        let window: Vec<f32> = coef.window.to_data().to_vec().unwrap();
+        let window: Vec<f64> = coef
+            .window
+            .clone()
+            .cast(DType::F64)
+            .to_data()
+            .to_vec()
+            .unwrap();
         let host = cfg.window.to_vec_window(48);
         for (n, (&w, &h)) in window.iter().zip(&host).enumerate() {
             assert!((w - h).abs() <= 1e-6, "window[{n}]: {w} vs {h}");
@@ -559,7 +566,7 @@ mod tests {
         win_len: usize,
         hop_size: usize,
         fft_size: usize,
-        window: Vec<f32>,
+        window: Vec<f64>,
         queue: Vec<f64>,
     }
 
@@ -577,8 +584,8 @@ mod tests {
         /// Pushes one hop; returns interleaved `(re, im)` pairs per bin.
         fn push(
             &mut self,
-            hop: &[f32],
-        ) -> Vec<f32> {
+            hop: &[f64],
+        ) -> Vec<f64> {
             assert_eq!(hop.len(), self.hop_size);
             self.queue.drain(..self.hop_size);
             self.queue.extend(hop.iter().map(|&v| v as f64));
@@ -594,8 +601,8 @@ mod tests {
                     re += x * theta.cos();
                     im -= x * theta.sin();
                 }
-                out.push(re as f32);
-                out.push(im as f32);
+                out.push(re);
+                out.push(im);
             }
             out
         }
@@ -606,8 +613,8 @@ mod tests {
         batch: usize,
         step: usize,
         idx: usize,
-    ) -> f32 {
-        ((batch * 7919 + step * 104729 + idx * 1299709) % 1000) as f32 - 500.0
+    ) -> f64 {
+        ((batch * 7919 + step * 104729 + idx * 1299709) % 1000) as f64 - 500.0
     }
 
     #[test]
@@ -626,7 +633,7 @@ mod tests {
         // The first pushes cover the zero-padded warmup; the later ones a
         // full queue.
         for step in 0..5 {
-            let rows: Vec<Vec<f32>> = (0..batch)
+            let rows: Vec<Vec<f64>> = (0..batch)
                 .map(|b| (0..cfg.hop_size).map(|i| sample(b, step, i)).collect())
                 .collect();
 
@@ -637,13 +644,13 @@ mod tests {
             let out = stft.forward(hop);
             assert_eq!(out.dims(), [batch, n_bins, 2]);
 
-            let expected: Vec<f32> = hosts
+            let expected: Vec<f64> = hosts
                 .iter_mut()
                 .zip(&rows)
                 .flat_map(|(host, row)| host.push(row))
                 .collect();
 
-            out.to_data().assert_approx_eq::<F>(
+            out.cast(DType::F64).to_data().assert_approx_eq::<F>(
                 &TensorData::new(expected, [batch, n_bins, 2]),
                 Tolerance::permissive(),
             );

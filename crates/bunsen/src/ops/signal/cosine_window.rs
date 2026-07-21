@@ -65,7 +65,7 @@ impl SamplingWindowBuilder for CosineWindowConfig {
     fn to_vec_window(
         &self,
         size: usize,
-    ) -> Vec<f32> {
+    ) -> Vec<f64> {
         let alpha = self.alpha;
         let beta = self.beta;
 
@@ -82,7 +82,7 @@ impl SamplingWindowBuilder for CosineWindowConfig {
             .map(|n| {
                 let theta = (n as f64) * step;
 
-                (alpha - beta * theta.cos()) as f32
+                alpha - beta * theta.cos()
             })
             .collect()
     }
@@ -156,7 +156,7 @@ impl SamplingWindowBuilder for DualCosineWindow {
     fn to_vec_window(
         &self,
         size: usize,
-    ) -> Vec<f32> {
+    ) -> Vec<f64> {
         let alpha = self.alpha;
         let beta = self.beta;
         let gamma = self.gamma;
@@ -176,7 +176,7 @@ impl SamplingWindowBuilder for DualCosineWindow {
                 let b = beta * theta.cos();
                 let g = gamma * (2.0 * theta).cos();
 
-                (alpha - b + g) as f32
+                alpha - b + g
             })
             .collect()
     }
@@ -228,8 +228,8 @@ mod tests {
     type F = <B as BackendTypes>::FloatElem;
 
     fn check_hann_matches<B: Backend>(
-        periodic: &[f32],
-        symmetric: &[f32],
+        periodic: &[f64],
+        symmetric: &[f64],
         options: impl Into<TensorCreationOptions<B>>,
     ) {
         let options = options.into();
@@ -246,7 +246,7 @@ mod tests {
                 .to_data()
                 .assert_approx_eq::<F>(&TensorData::from(expected), Tolerance::default());
 
-            assert_close_to_vec(&cfg.to_vec_window(size), expected, 0.001);
+            assert_close_to_vec(&cfg.to_vec_window(size), expected, 0.00001);
 
             cfg.to_tensor_window::<B>(size, options.clone())
                 .to_data()

@@ -13,7 +13,7 @@ pub trait SamplingWindowBuilder {
     fn to_vec_window(
         &self,
         size: usize,
-    ) -> Vec<f32>;
+    ) -> Vec<f64>;
 
     /// Materialize a tensor window of width `win_len`.
     fn to_tensor_window<B: Backend>(
