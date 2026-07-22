@@ -107,39 +107,32 @@ pub fn next_interior_3d<B: Backend>(
     #[cfg(debug_assertions)]
     let [h, w, z] = crate::contracts::unpack_shape_contract!(["h", "w", "z"], &state.dims());
 
-    // [H, W, Z]
+    // [H-2, W-2, Z-2]
     let is_live = state.clone().slice(s![1..-1, 1..-1, 1..-1,]);
 
-    // All int conversions should descend from this.
-    let int_state = state.clone().int();
-
-    // [H, W, Z]
-    let self_count = int_state.clone().slice(s![1..-1, 1..-1, 1..-1,]);
-
-    // [H, W, Z, 3, 3, 3]
-    let windows: Tensor<B, 6, Int> = int_state
+    // [H-2, W-2, Z-2, 3, 3, 3]
+    let windows: Tensor<B, 6, Int> = state
+        .clone()
+        .int()
         .unfold::<4, _>(0, 3, 1)
         .unfold::<5, _>(1, 3, 1)
         .unfold::<6, _>(2, 3, 1);
 
-    // [H, W, Z]
+    // [H-2, W-2, Z-2]
     let window_count = windows.sum_dims(&[3, 4, 5]).squeeze_dims::<3>(&[3, 4, 5]);
 
-    // [H, W, Z]
-    let neighbor_count = window_count - self_count;
-
     let spawns = is_live.clone().bool_not().bool_and(
-        neighbor_count
+        window_count
             .clone()
             .greater_equal_elem(rules.spawn.start as i32)
-            .bool_and(neighbor_count.clone().lower_elem(rules.keep.end as i32)),
+            .bool_and(window_count.clone().lower_elem(rules.spawn.end as i32)),
     );
 
     let keeps = is_live.bool_and(
-        neighbor_count
+        window_count
             .clone()
-            .greater_equal_elem(rules.keep.start as i32)
-            .bool_and(neighbor_count.clone().lower_elem(rules.keep.end as i32)),
+            .greater_equal_elem((rules.keep.start + 1) as i32)
+            .bool_and(window_count.lower_elem((rules.keep.end + 1) as i32)),
     );
 
     let update = spawns.bool_or(keeps);
