@@ -80,7 +80,10 @@ cache = [
 
 ## Enables testing support features.
 testing = [
-    "flex"
+    "flex",
+    "dep:tracing",
+    "dep:tracing-test",
+    "dep:tracing-subscriber",
 ]
 
 ## Enable the cuda backend in the bunsen build.
@@ -112,6 +115,10 @@ flex = ["burn/flex"]
 [dependencies]
 bunsen-contracts-macros = { version = "0.29.1", path = "../bunsen-contracts-macros" }
 bunsen-onnx-gen = { version = "0.29.1", path = "../bunsen-onnx-gen", optional = true }
+
+tracing = { workspace = true, optional = true }
+tracing-test = { workspace = true, optional = true }
+tracing-subscriber = { workspace = true, optional = true }
 
 burn = { workspace = true }
 burn-store = { workspace = true, optional = true }

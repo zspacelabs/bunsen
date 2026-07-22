@@ -72,3 +72,4 @@ pub mod embedding;
 pub mod noise;
 pub mod norm;
 pub mod repeat;
+pub mod signal;

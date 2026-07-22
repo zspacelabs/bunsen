@@ -53,6 +53,10 @@ clap = "4.5.51"
 downloader = { version = "0.2.7", default-features = false }
 directories-next = "2.0.0"
 
+tracing = "0.1.44"
+tracing-test = "0.2.6"
+tracing-subscriber = "0.3.23"
+
 anyhow = "1.0.100"
 indicatif = "^0.18.3"
 

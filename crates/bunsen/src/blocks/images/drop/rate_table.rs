@@ -2,7 +2,7 @@
 
 use alloc::vec::Vec;
 
-use crate::ops::arange::float_vec_linspace;
+use crate::ops::arange::vec_linspace;
 
 /// Computes a progressive incremental path drop rate for stochastic depth.
 ///
@@ -23,7 +23,7 @@ pub fn progressive_dpr(
     drop_path_rate: f64,
     depth: usize,
 ) -> Vec<f64> {
-    float_vec_linspace(
+    vec_linspace(
         0.0,
         drop_path_rate,
         // Total number of images
