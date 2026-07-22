@@ -283,22 +283,13 @@ impl<B: Backend> TenVad<B> {
         x: Tensor<B, 3>,
     ) -> Tensor<B, 3> {
         // TODO: debug the 1, 1 dims; relationship to batch, seq.
-        cfg_select! {
-            any(test, debug_assertions) => {
-                let [a] = crate::contracts::unpack_shape_contract!(
-                    ["a", "d_ctx", "n_freq"],
-                    &x,
-                    &["a"],
-                    &[
-                        ("d_ctx", self.d_ctx()),
-                        ("n_freq", self.n_freq())
-                    ]
-                );
-            }
-            _ => {
-                let a = x.dims()[0];
-            }
-        }
+        #[cfg(any(test, debug_assertions))]
+        let [a] = crate::contracts::unpack_shape_contract!(
+            ["a", "d_ctx", "n_freq"],
+            &x,
+            &["a"],
+            &[("d_ctx", self.d_ctx()), ("n_freq", self.n_freq())]
+        );
 
         // this *appears* batch-able.
         let x = x.reshape([1, -1, 3, self.n_freq() as isize]);

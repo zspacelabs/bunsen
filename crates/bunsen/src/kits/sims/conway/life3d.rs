@@ -242,14 +242,13 @@ impl<B: Backend> ConwayLife3DState<B> {
             &self.device(),
         )
         .equal_elem(1.0);
-
-        self.state = self.state.clone().bool_or(noise);
+        self.state.inplace(|s| s.bool_or(noise));
     }
 
     /// Advances the game state.
     pub fn step(&mut self) {
-        self.state = next_state_wrapped_3d(self.state.clone(), &self.rules);
-
+        self.state
+            .inplace(|s| next_state_wrapped_3d(s, &self.rules));
         B::sync(&self.device()).unwrap();
     }
 }

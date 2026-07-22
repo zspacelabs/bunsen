@@ -82,7 +82,7 @@ where
     let slices: [Slice; 2] = ranges.into_slices(&state.shape()).try_into().unwrap();
     let [h, w] = slices_shape(&slices);
 
-    let block_data = state.clone().slice(slices).int().cast(I32).to_data();
+    let block_data = state.slice(slices).int().cast(I32).to_data();
     let block_data = block_data.to_vec::<i32>().unwrap();
 
     let mut result = Vec::with_capacity(h);
@@ -201,15 +201,14 @@ impl<B: Backend> ConwayLife2DState<B> {
         &mut self,
         density: f64,
     ) {
-        self.state = fuzz_state_2d(self.state.clone(), density);
+        self.state.inplace(|s| fuzz_state_2d(s, density))
     }
 
     /// Advances one step.
     ///
     /// Wraps edges.
     pub fn step(&mut self) {
-        self.state = next_state_wrapped_2d(self.state.clone());
-
+        self.state.inplace(next_state_wrapped_2d);
         B::sync(&self.device()).unwrap();
     }
 

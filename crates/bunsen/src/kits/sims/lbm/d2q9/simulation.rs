@@ -21,6 +21,7 @@ use super::{
     outflow_clipping_stream,
     with_spherical_reflection,
 };
+use crate::burner::tensor::TensorReleaseExt;
 
 /// Introspection trait for [`LBMD2Q9State`]
 pub trait LBMMeta {
@@ -186,7 +187,7 @@ impl<B: Backend> LBMD2Q9State<B> {
 
     /// Advances the world simulation by one step.
     pub fn advance_step(&mut self) {
-        let dist = self.dist.clone();
+        let dist = self.dist.release();
 
         let solid_mask = self
             .solid_mask
@@ -201,7 +202,7 @@ impl<B: Backend> LBMD2Q9State<B> {
         let thermal_phase = with_spherical_reflection(
             stream_phase.clone(),
             bgk_collision(
-                stream_phase.clone(),
+                stream_phase,
                 self.omega.clone(),
                 Some(self.correction_term()),
                 &self.lbm_tables,
