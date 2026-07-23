@@ -2,7 +2,9 @@ use burn::{
     Tensor,
     prelude::Backend,
     tensor::{
+        AsIndex,
         BasicOps,
+        Bool,
         Int,
     },
 };
@@ -65,6 +67,59 @@ where
     }
 }
 
+/// Operation Extensions for `Tensor<B, D, Bool>`.
+pub trait TensorBoolOpExt<B, const D: usize>
+where
+    B: Backend,
+{
+    /// Aggregate a count of all true elements along the given *dimension* or
+    /// *axis* in the tensor.
+    ///
+    /// # Arguments
+    ///
+    /// * `dim` - The dimension or axis along which to aggregate the elements;
+    ///   supports negative indexing.
+    fn count_dim<I: AsIndex>(
+        self,
+        dim: I,
+    ) -> Tensor<B, D, Int>;
+
+    /// Aggregate a count of all true elements along the given *axes* in the
+    /// tensor.
+    ///
+    /// # Arguments
+    ///
+    /// * `dims` - the dimensions to aggregate; supports negative indexing.
+    ///
+    /// # Returns
+    ///
+    /// The returned tensor will have the same rank,
+    /// but the aggregated dimensions will have size 1.
+    fn count_dims<I: AsIndex>(
+        self,
+        dims: &[I],
+    ) -> Tensor<B, D, Int>;
+}
+
+impl<B, const D: usize> TensorBoolOpExt<B, D> for Tensor<B, D, Bool>
+where
+    B: Backend,
+{
+    fn count_dim<I: AsIndex>(
+        self,
+        dim: I,
+    ) -> Tensor<B, D, Int> {
+        self.int().sum_dim(dim)
+    }
+
+    fn count_dims<I: AsIndex>(
+        self,
+        dims: &[I],
+    ) -> Tensor<B, D, Int> {
+        self.int().sum_dims(dims)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use burn::tensor::{
@@ -92,12 +147,41 @@ mod tests {
     }
 
     #[test]
-    fn test_square() {
+    fn test_int_square() {
         let device = Default::default();
         let x: Tensor<B, 1, Int> = Tensor::from_data([0, 1, 2, 3], &device);
 
         x.square()
             .to_data()
             .assert_eq(&TensorData::from([0, 1, 4, 9]), false);
+    }
+
+    #[test]
+    fn test_bool_count_dim() {
+        let device = Default::default();
+        let x: Tensor<B, 2, Bool> =
+            Tensor::from_data([[true, true, false], [true, false, false]], &device);
+
+        x.clone()
+            .count_dim(0)
+            .squeeze_dim::<1>(0)
+            .to_data()
+            .assert_eq(&TensorData::from([2, 1, 0]), false);
+        x.clone()
+            .count_dim(1)
+            .squeeze_dim::<1>(1)
+            .to_data()
+            .assert_eq(&TensorData::from([2, 1]), false);
+
+        x.clone()
+            .count_dims(&[0])
+            .squeeze_dim::<1>(0)
+            .to_data()
+            .assert_eq(&TensorData::from([2, 1, 0]), false);
+        x.clone()
+            .count_dims(&[0, 1])
+            .squeeze_dim::<1>(0)
+            .to_data()
+            .assert_eq(&TensorData::from([3]), false);
     }
 }

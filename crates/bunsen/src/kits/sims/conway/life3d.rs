@@ -18,6 +18,8 @@ use serde::{
     Serialize,
 };
 
+use crate::prelude::TensorBoolOpExt;
+
 /// Fuzzes the state.
 ///
 /// Flips bits with probability `density`.
@@ -110,32 +112,29 @@ pub fn next_interior_3d<B: Backend>(
     // [H-2, W-2, Z-2]
     let is_live = state.clone().slice(s![1..-1, 1..-1, 1..-1,]);
 
-    // [H-2, W-2, Z-2, 3, 3, 3]
-    let windows: Tensor<B, 6, Int> = state
+    // [H-2, W-2, Z-2]
+    let window_count = state
         .clone()
-        .int()
         .unfold::<4, _>(0, 3, 1)
         .unfold::<5, _>(1, 3, 1)
-        .unfold::<6, _>(2, 3, 1);
+        .unfold::<6, _>(2, 3, 1)
+        .count_dims(&[3, 4, 5])
+        .squeeze_dims::<3>(&[3, 4, 5]);
 
-    // [H-2, W-2, Z-2]
-    let window_count = windows.sum_dims(&[3, 4, 5]).squeeze_dims::<3>(&[3, 4, 5]);
+    let spawn_points = window_count
+        .clone()
+        .greater_equal_elem(rules.spawn.start as i32)
+        .bool_and(window_count.clone().lower_elem(rules.spawn.end as i32))
+        .bool_and(is_live.clone().bool_not());
 
-    let spawns = is_live.clone().bool_not().bool_and(
-        window_count
-            .clone()
-            .greater_equal_elem(rules.spawn.start as i32)
-            .bool_and(window_count.clone().lower_elem(rules.spawn.end as i32)),
-    );
+    let keep_points = window_count
+        .clone()
+        .greater_equal_elem((rules.keep.start + 1) as i32)
+        .bool_and(window_count.lower_elem((rules.keep.end + 1) as i32))
+        .bool_and(is_live);
 
-    let keeps = is_live.bool_and(
-        window_count
-            .clone()
-            .greater_equal_elem((rules.keep.start + 1) as i32)
-            .bool_and(window_count.lower_elem((rules.keep.end + 1) as i32)),
-    );
+    let update = spawn_points.bool_or(keep_points);
 
-    let update = spawns.bool_or(keeps);
     #[cfg(debug_assertions)]
     crate::contracts::assert_shape_contract_periodically!(
         ["h" - 2, "w" - 2, "z" - 2],
