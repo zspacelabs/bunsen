@@ -1,6 +1,11 @@
+use std::ops::Range;
+
 use burn::{
     Tensor,
-    prelude::Backend,
+    prelude::{
+        Backend,
+        ElementConversion,
+    },
     tensor::{
         AsIndex,
         BasicOps,
@@ -55,15 +60,30 @@ where
 {
     /// Returns the square of the tensor.
     /// Backport of: <https://github.com/tracel-ai/burn/pull/5224>
-    fn square(self) -> Tensor<B, D, Int>;
+    fn square(self) -> Self;
+
+    /// Elementwise check if the value is in the `[start, end)` range.
+    fn bounded_elem<E: ElementConversion>(
+        self,
+        range: Range<E>,
+    ) -> Tensor<B, D, Bool>;
 }
 
 impl<B, const D: usize> TensorIntOpExt<B, D> for Tensor<B, D, Int>
 where
     B: Backend,
 {
-    fn square(self) -> Tensor<B, D, Int> {
+    fn square(self) -> Self {
         self.powi_scalar(2)
+    }
+
+    fn bounded_elem<E: ElementConversion>(
+        self,
+        range: Range<E>,
+    ) -> Tensor<B, D, Bool> {
+        self.clone()
+            .greater_equal_elem(range.start)
+            .bool_or(self.clone().lower_elem(range.end))
     }
 }
 
