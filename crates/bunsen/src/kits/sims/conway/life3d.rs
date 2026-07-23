@@ -18,9 +18,15 @@ use serde::{
     Serialize,
 };
 
-use crate::prelude::{
-    TensorBoolOpExt,
-    TensorIntOpExt,
+use crate::{
+    kits::sims::conway::range_util::{
+        range_into,
+        shift_range,
+    },
+    prelude::{
+        TensorBoolOpExt,
+        TensorIntOpExt,
+    },
 };
 
 /// Fuzzes the state.
@@ -116,7 +122,7 @@ pub fn next_interior_3d<B: Backend>(
     let is_live = state.clone().slice(s![1..-1, 1..-1, 1..-1]);
 
     // [H-2, W-2, Z-2]
-    let window_count = state
+    let win_counts = state
         .clone()
         .unfold::<4, _>(0, 3, 1)
         .unfold::<5, _>(1, 3, 1)
@@ -124,12 +130,11 @@ pub fn next_interior_3d<B: Backend>(
         .count_dims(&[3, 4, 5])
         .squeeze_dims::<3>(&[3, 4, 5]);
 
-    let spawn_points = window_count
-        .clone()
-        .bounded_elem(rules.spawn.start as i32..rules.spawn.end as i32);
+    let spawn_range = range_into(&rules.spawn);
+    let keep_range = shift_range(range_into(&rules.keep), 1);
 
-    let keep_points =
-        window_count.bounded_elem((rules.keep.start + 1) as i32..(rules.keep.end + 1) as i32);
+    let spawn_points = win_counts.clone().bounded_elem(spawn_range);
+    let keep_points = win_counts.bounded_elem(keep_range);
 
     let update = spawn_points.mask_where(is_live, keep_points);
 
