@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.30.0](https://github.com/zspacelabs/bunsen/compare/bunsen-v0.29.1...bunsen-v0.30.0) - 2026-07-23
+
+### Added
+
+- *(tensor)* add comprehensive tensor operation extensions, including traits for `swap`, `release`, `select_dim`, range masks, counting, and more ([#143](https://github.com/zspacelabs/bunsen/pull/143))
+- *(tensor)* add `select_dim` method to `TensorOpExt` for slicing and squeezing dimensions, and update related implementations ([#142](https://github.com/zspacelabs/bunsen/pull/142))
+- *(tensor)* add `bounded_elem` method to `TensorIntOpExt`, refactor Conway simulations to use it for range checks ([#138](https://github.com/zspacelabs/bunsen/pull/138))
+- *(stft)* initial stft sliding support. ([#134](https://github.com/zspacelabs/bunsen/pull/134))
+
+### Other
+
+- *(signal)* remove redundant intermediate variables in cosine window implementation ([#140](https://github.com/zspacelabs/bunsen/pull/140))
+- *(life3d)* extract range utilities into `range_util` module and simplify range handling with utility methods ([#141](https://github.com/zspacelabs/bunsen/pull/141))
+- Refactor life3d state update logic and range handling ([#139](https://github.com/zspacelabs/bunsen/pull/139))
+- Add boolean and integer tensor operation extensions ([#137](https://github.com/zspacelabs/bunsen/pull/137))
+- crutcher/l3d ([#136](https://github.com/zspacelabs/bunsen/pull/136))
+- *(bunsen)* optimize state updates with inplace operations in simulations ([#135](https://github.com/zspacelabs/bunsen/pull/135))
+
 ## [0.29.1](https://github.com/zspacelabs/bunsen/compare/bunsen-v0.29.0...bunsen-v0.29.1) - 2026-07-19
 
 ### Other
