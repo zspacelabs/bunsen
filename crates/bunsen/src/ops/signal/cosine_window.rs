@@ -66,9 +66,6 @@ impl SamplingWindowBuilder for CosineWindowConfig {
         &self,
         size: usize,
     ) -> Vec<f64> {
-        let alpha = self.alpha;
-        let beta = self.beta;
-
         match size {
             0 | 1 => return vec![1.0; size],
             _ => (),
@@ -82,7 +79,7 @@ impl SamplingWindowBuilder for CosineWindowConfig {
             .map(|n| {
                 let theta = (n as f64) * step;
 
-                alpha - beta * theta.cos()
+                self.alpha - self.beta * theta.cos()
             })
             .collect()
     }
@@ -92,9 +89,6 @@ impl SamplingWindowBuilder for CosineWindowConfig {
         size: usize,
         options: impl Into<TensorCreationOptions<B>>,
     ) -> Tensor<B, 1> {
-        let alpha = self.alpha;
-        let beta = self.beta;
-
         match size {
             0 | 1 => return Tensor::ones([size], options),
             _ => (),
@@ -106,7 +100,7 @@ impl SamplingWindowBuilder for CosineWindowConfig {
         // n * (2π / win_len)
         let theta = tensor_arange_start_step(size, 0.0, Some(step), options);
 
-        theta.cos().mul_scalar(-beta).add_scalar(alpha)
+        theta.cos().mul_scalar(-self.beta).add_scalar(self.alpha)
     }
 }
 
