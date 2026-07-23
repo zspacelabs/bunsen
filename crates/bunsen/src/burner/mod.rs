@@ -42,9 +42,32 @@
 //!   Headlined by the `GroupOptimizerAdaptor{N}` family and the
 //!   `OptimizerGroup` / `LrSelector` building blocks.
 //! - [`record`] &mdash; helpers for working with `burn::record` types.
-//! - [`tensor`] &mdash; tensor helpers that don't fit neatly in [`crate::ops`],
-//!   including a `DataView` abstraction.
+//! - [`tensor`] &mdash; tensor helpers that don't fit neatly in [`crate::ops`]:
+//!   `Tensor` extension traits and `TensorData` index views.
 //! - [`distribution`] &mdash; distribution-related utilities.
+//!
+//! ## Tensor Extensions
+//!
+//! [`tensor`] provides extension traits that add utility methods directly
+//! onto `burn::Tensor` values &mdash; in scope after
+//! `use bunsen::burner::tensor::*;`:
+//!
+//! - [`TensorOpExt`](tensor::TensorOpExt) &mdash; all tensor kinds: `swap`
+//!   (exchange two tensors in place), `release` (move a tensor out of a field,
+//!   leaving an empty tensor behind), and `select_dim` (select one index along
+//!   a dimension and squeeze it, dropping the rank by one).
+//! - [`TensorIntOpExt`](tensor::TensorIntOpExt) &mdash; `Int` tensors:
+//!   `square`, and `bounded_elem` for elementwise `[start, end)` range checks
+//!   producing `Bool` masks.
+//! - [`TensorBoolOpExt`](tensor::TensorBoolOpExt) &mdash; `Bool` tensors:
+//!   `count_dim` / `count_dims` to count `true` elements along one or more
+//!   dimensions (negative indexing supported).
+//!
+//! [`tensor`] also carries the
+//! [`TensorDataIndexView`](tensor::TensorDataIndexView)
+//! / [`TensorDataIndexMutView`](tensor::TensorDataIndexMutView) wrappers,
+//! which give `view[&[i, j]]` multi-dimensional element access to a raw
+//! `TensorData`.
 
 pub mod descriptors;
 pub mod distribution;

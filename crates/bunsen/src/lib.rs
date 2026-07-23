@@ -14,6 +14,9 @@
 //!   * [`module::reflection`](`burner::module::reflection`) has powerful tools
 //!     for dynamic [`burn::module::Module`] reflection.
 //!   * [`optim`](`burner::optim`) has parameter-group optimizer extensions.
+//!   * [`tensor`](`burner::tensor`) has `Tensor` extension traits
+//!     (swap/release, `select_dim`, elementwise range masks, `bool` counting)
+//!     and `TensorData` index views.
 //! * [`contracts`] - this is a library of runtime tensor-shape contracts.
 //!
 //! ### Component Libraries
