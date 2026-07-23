@@ -700,7 +700,7 @@ mod tests {
 
             let mut step_outs = Vec::with_capacity(steps);
             for step in 0..steps {
-                let hop = hops.clone().slice_dim(0, step).squeeze_dim::<2>(0);
+                let hop = hops.clone().select_dim(0, step);
                 step_outs.push(step_stft.forward(hop));
             }
             let step_out: Tensor<B, 4> = Tensor::stack(step_outs, 0);

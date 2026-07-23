@@ -32,6 +32,13 @@ where
     ///
     /// Returns the previous value.
     fn release(&mut self) -> Self;
+
+    /// Select (and Squeeze) a dimension.
+    fn select_dim<const D2: usize, I: AsIndex>(
+        self,
+        dim: usize,
+        index: I,
+    ) -> Tensor<B, D2, K>;
 }
 
 impl<B, const D: usize, K> TensorOpExt<B, D, K> for Tensor<B, D, K>
@@ -50,6 +57,15 @@ where
         let mut z = Tensor::empty([0; D], &self.device());
         self.swap(&mut z);
         z
+    }
+
+    fn select_dim<const D2: usize, I: AsIndex>(
+        self,
+        dim: usize,
+        index: I,
+    ) -> Tensor<B, D2, K> {
+        let index = index.as_index();
+        self.slice_dim(dim, index..index + 1).squeeze_dim::<D2>(dim)
     }
 }
 
@@ -153,8 +169,9 @@ mod tests {
 
     #[test]
     fn test_release_swap() {
+        let device = Default::default();
         let mut tensor: Tensor<B, 1> =
-            Tensor::<B, 1>::from_data(TensorData::from([0.0, 1.0, 2.0, 3.0]), &Default::default());
+            Tensor::<B, 1>::from_data(TensorData::from([0.0, 1.0, 2.0, 3.0]), &device);
         assert_eq!(tensor.dims(), [4]);
 
         let mut old: Tensor<B, 1> = tensor.release();
@@ -164,6 +181,19 @@ mod tests {
         tensor.swap(&mut old);
         assert_eq!(tensor.dims(), [4]);
         assert_eq!(old.dims(), [0]);
+    }
+
+    #[test]
+    fn test_select_dim() {
+        let device = Default::default();
+        let tensor: Tensor<B, 2> =
+            Tensor::from_data(TensorData::from([[0.0, 1.0], [2.0, 3.0]]), &device);
+
+        let r1: Tensor<B, 1> = tensor.clone().select_dim(0, 1);
+        r1.to_data().assert_eq(&TensorData::from([2.0, 3.0]), false);
+
+        let c1: Tensor<B, 1> = tensor.clone().select_dim(1, 1);
+        c1.to_data().assert_eq(&TensorData::from([1.0, 3.0]), false);
     }
 
     #[test]
