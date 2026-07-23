@@ -113,7 +113,7 @@ pub fn next_interior_3d<B: Backend>(
     let [h, w, z] = crate::contracts::unpack_shape_contract!(["h", "w", "z"], &state.dims());
 
     // [H-2, W-2, Z-2]
-    let is_live = state.clone().slice(s![1..-1, 1..-1, 1..-1,]);
+    let is_live = state.clone().slice(s![1..-1, 1..-1, 1..-1]);
 
     // [H-2, W-2, Z-2]
     let window_count = state
