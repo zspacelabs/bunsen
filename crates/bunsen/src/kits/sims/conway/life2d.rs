@@ -17,6 +17,8 @@ use burn::{
     },
 };
 
+use crate::prelude::TensorBoolOpExt;
+
 /// Fuzzes the state.
 ///
 /// Flips bits with probability `density`.
@@ -128,11 +130,12 @@ pub fn next_interior_2d<B: Backend>(state: Tensor<B, 2, Bool>) -> Tensor<B, 2, B
     // [H-2, W-2]
     let is_live = state.clone().slice(s![1..-1, 1..-1]);
 
-    // [H-2, W-2, 3, 3]
-    let windows: Tensor<B, 4, Int> = state.int().unfold::<3, _>(0, 3, 1).unfold::<4, _>(1, 3, 1);
-
     // [H-2, W-2]
-    let window_count = windows.sum_dims(&[2, 3]).squeeze_dims::<2>(&[2, 3]);
+    let window_count = state
+        .unfold::<3, _>(0, 3, 1)
+        .unfold::<4, _>(1, 3, 1)
+        .count_dims(&[2, 3])
+        .squeeze_dims::<2>(&[2, 3]);
 
     let n_is_3 = window_count.clone().equal_elem(3);
     let n_is_4 = window_count.equal_elem(4);

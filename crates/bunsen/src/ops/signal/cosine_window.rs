@@ -212,10 +212,10 @@ impl SamplingWindowBuilder for DualCosineWindow {
 
         let cos_val = tensor_arange_start_step(size, 0.0, Some(ang_inc), options).cos();
 
-        let b = cos_val.clone().mul_scalar(-self.beta);
-        let g = cos_val.powi_scalar(2).mul_scalar(2.0 * self.gamma);
+        let b = cos_val.clone().mul_scalar(self.beta);
+        let g = cos_val.square().mul_scalar(2.0 * self.gamma);
 
-        (b + g).add_scalar(self.alpha - self.gamma)
+        (g - b).add_scalar(self.alpha - self.gamma)
     }
 }
 
