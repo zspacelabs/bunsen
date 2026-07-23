@@ -23,6 +23,9 @@ Read the [bunsen book](https://zspacelabs.ai/bunsen/book)
   components that extend the current functionality of burn.
     * `bunsen::burner::module::reflection` has powerful tools for dynamic `burn::module::Module` reflection.
     * `bunsen::burner::optim` has parameter-group optimizer extensions.
+    * `bunsen::burner::tensor` has `Tensor` extension traits (`swap`/`release`,
+      `select_dim`, elementwise range masks, `bool` counting) and `TensorData`
+      index views.
 * `contracts` - this is a library of runtime tensor-shape contracts.
 
 ### Component Libraries
@@ -92,6 +95,35 @@ assert_shape_contract_periodically!(
     &x.dims(),
     &[("planes", planes), ("height", height), ("width", width)]
 );
+```
+
+## Tensor Op Extensions
+
+`bunsen::burner::tensor` provides extension traits that add utility methods
+directly to `burn::Tensor` — in scope after `use bunsen::burner::tensor::*;`:
+
+* `TensorOpExt` (all tensor kinds) — `swap` exchanges two tensors in place;
+  `release` moves a tensor out of a field, leaving an empty tensor behind;
+  `select_dim` selects one index along a dimension and squeezes it, dropping
+  the rank by one.
+* `TensorIntOpExt` (`Int` tensors) — `square`, and `bounded_elem` for
+  elementwise `[start, end)` range checks producing `Bool` masks.
+* `TensorBoolOpExt` (`Bool` tensors) — `count_dim` / `count_dims` count `true`
+  elements along one or more dimensions, with negative indexing.
+
+```rust
+use bunsen::burner::tensor::*;
+use burn::prelude::*;
+
+// Extract row `i` of a matrix as a vector:
+fn row<B: Backend>(m: Tensor<B, 2>, i: usize) -> Tensor<B, 1> {
+    m.select_dim(0, i)
+}
+
+// Count the `true` cells in each row of a boolean grid:
+fn row_counts<B: Backend>(grid: Tensor<B, 2, Bool>) -> Tensor<B, 2, Int> {
+    grid.count_dim(-1)
+}
 ```
 
 ## TensorData Index Views
