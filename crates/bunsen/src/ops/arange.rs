@@ -57,7 +57,10 @@ pub fn vec_linspace(
     }
 
     let step = (end - start) / (num as f64 - 1.0);
-    vec_arange_start_step(num, start, Some(step))
+    (0..num)
+        .into_iter()
+        .map(|n| start + (n as f64 * step))
+        .collect()
 }
 
 /// Creates a 1D tensor `[for i in 0..n | start + i * step]`.
@@ -82,7 +85,6 @@ pub fn tensor_arange_start_step<B: Backend>(
         None => x,
         Some(step) => x.mul_scalar(step),
     };
-
     x.add_scalar(start)
 }
 
@@ -116,7 +118,9 @@ pub fn tensor_linspace<B: Backend>(
     }
 
     let step = (end - start) / (num as f64 - 1.0);
-    tensor_arange_start_step(num, start, Some(step), options)
+    let x = Tensor::arange(0..num as i64, options).float();
+    let x = x.mul_scalar(step);
+    x.add_scalar(start)
 }
 
 #[cfg(test)]

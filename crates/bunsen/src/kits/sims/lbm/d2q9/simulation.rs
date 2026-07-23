@@ -21,7 +21,7 @@ use super::{
     outflow_clipping_stream,
     with_spherical_reflection,
 };
-use crate::burner::tensor::TensorReleaseExt;
+use crate::burner::tensor::TensorOpExt;
 
 /// Introspection trait for [`LBMD2Q9State`]
 pub trait LBMMeta {

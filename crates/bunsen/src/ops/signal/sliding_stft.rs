@@ -42,7 +42,7 @@ use burn::{
 };
 
 use crate::{
-    burner::tensor::TensorReleaseExt,
+    burner::tensor::TensorOpExt,
     errors::{
         BunsenError,
         BunsenResult,
