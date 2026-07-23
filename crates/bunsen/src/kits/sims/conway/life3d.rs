@@ -126,16 +126,12 @@ pub fn next_interior_3d<B: Backend>(
 
     let spawn_points = window_count
         .clone()
-        .bounded_elem(rules.spawn.start as i32..rules.spawn.end as i32)
-        .bool_and(is_live.clone().bool_not());
+        .bounded_elem(rules.spawn.start as i32..rules.spawn.end as i32);
 
-    let keep_points = window_count
-        .clone()
-        .bounded_elem(rules.keep.start as i32..rules.keep.end as i32)
-        .bool_and(window_count.lower_elem((rules.keep.end + 1) as i32))
-        .bool_and(is_live);
+    let keep_points =
+        window_count.bounded_elem((rules.keep.start + 1) as i32..(rules.keep.end + 1) as i32);
 
-    let update = spawn_points.bool_or(keep_points);
+    let update = spawn_points.mask_where(is_live, keep_points);
 
     #[cfg(debug_assertions)]
     crate::contracts::assert_shape_contract_periodically!(
