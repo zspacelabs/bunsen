@@ -74,6 +74,7 @@ use crate::{
         FusedLstmConfig,
         blocks::context::SileroVadContext,
     },
+    prelude::TensorOpExt,
 };
 
 /// [`SileroVad`] Signal Config.
@@ -647,7 +648,7 @@ impl<B: Backend> SileroVad<B> {
             (mut $acc:ident) => {{
                 for step in 0..steps {
                     // [batch, d_hidden]
-                    let features = seq_features.clone().slice_dim(0, step).squeeze_dim::<2>(0);
+                    let features = seq_features.clone().select_dim::<2, _>(0, step);
 
                     // [batch, d_hidden]
                     (hidden, cell) = self.lstm_step(features, hidden, cell);
@@ -772,11 +773,7 @@ impl<B: Backend> SileroVad<B> {
         let mag = (real_2 + imag_2).sqrt();
 
         // Encode, then take the first (and, for a single chunk, only) frame.
-        let x = self
-            .encoder
-            .forward(mag)
-            .slice_dim(2, 0)
-            .squeeze_dim::<2>(2);
+        let x = self.encoder.forward(mag).select_dim::<2, _>(2, 0);
 
         #[cfg(any(test, debug_assertions))]
         crate::contracts::assert_shape_contract_periodically!(
