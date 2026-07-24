@@ -99,7 +99,7 @@ where
     ) -> Tensor<B, D, Bool> {
         self.clone()
             .greater_equal_elem(range.start)
-            .bool_or(self.clone().lower_elem(range.end))
+            .bool_or(self.lower_elem(range.end))
     }
 }
 
