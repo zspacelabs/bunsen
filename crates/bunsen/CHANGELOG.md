@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.30.1](https://github.com/zspacelabs/bunsen/compare/bunsen-v0.30.0...bunsen-v0.30.1) - 2026-07-24
+
+### Fixed
+
+- *(tensor)* correct range handling in `bounded_elem` by replacing `bool_or` with `bool_and`, add test coverage ([#146](https://github.com/zspacelabs/bunsen/pull/146))
+
+### Other
+
+- *(tensor)* remove redundant clone in `bool_or` operation within `bounded_elem` method ([#145](https://github.com/zspacelabs/bunsen/pull/145))
+
 ## [0.30.0](https://github.com/zspacelabs/bunsen/compare/bunsen-v0.29.1...bunsen-v0.30.0) - 2026-07-23
 
 ### Added
