@@ -18,7 +18,7 @@
 //!
 //! [`TensorIntOpExt`] — `Int` tensors:
 //! * [`square`](TensorIntOpExt::square) — elementwise square.
-//! * [`bounded_elem`](TensorIntOpExt::bounded_elem) — elementwise `[start,
+//! * [`bounded_elem`](TensorIntOpExt::in_range_scalar) — elementwise `[start,
 //!   end)` range check, producing a `Bool` tensor.
 //!
 //! [`TensorBoolOpExt`] — `Bool` tensors:

@@ -10,6 +10,7 @@ use burn::{
         AsIndex,
         BasicOps,
         Bool,
+        Float,
         Int,
     },
 };
@@ -69,6 +70,76 @@ where
     }
 }
 
+/// Tensor Extension trait for ordered operations.
+pub trait TensorOrderedOpExt<B, const D: usize, K>
+where
+    B: Backend,
+    K: BasicOps<B>,
+{
+    /// Elementwise check if the value is in the `[start, end)` range.
+    fn in_range_scalar<E: ElementConversion>(
+        self,
+        range: Range<E>,
+    ) -> Tensor<B, D, Bool>;
+
+    /// Elementwise check if the value is in the `[start, end)` range.
+    fn in_range(
+        self,
+        start: Tensor<B, D, K>,
+        end: Tensor<B, D, K>,
+    ) -> Tensor<B, D, Bool>;
+}
+
+// Impls duplicated because burn doesn't expose Ordered<B>
+impl<B, const D: usize> TensorOrderedOpExt<B, D, Float> for Tensor<B, D>
+where
+    B: Backend,
+{
+    fn in_range_scalar<E: ElementConversion>(
+        self,
+        range: Range<E>,
+    ) -> Tensor<B, D, Bool> {
+        self.clone()
+            .greater_equal_elem(range.start)
+            .bool_and(self.lower_elem(range.end))
+    }
+
+    fn in_range(
+        self,
+        start: Tensor<B, D>,
+        end: Tensor<B, D>,
+    ) -> Tensor<B, D, Bool> {
+        assert_eq!(self.shape(), start.shape());
+        assert_eq!(self.shape(), end.shape());
+        self.clone().greater_equal(start).bool_and(self.lower(end))
+    }
+}
+
+// Impls duplicated because burn doesn't expose Ordered<B>
+impl<B, const D: usize> TensorOrderedOpExt<B, D, Int> for Tensor<B, D, Int>
+where
+    B: Backend,
+{
+    fn in_range_scalar<E: ElementConversion>(
+        self,
+        range: Range<E>,
+    ) -> Tensor<B, D, Bool> {
+        self.clone()
+            .greater_equal_elem(range.start)
+            .bool_and(self.lower_elem(range.end))
+    }
+
+    fn in_range(
+        self,
+        start: Tensor<B, D, Int>,
+        end: Tensor<B, D, Int>,
+    ) -> Tensor<B, D, Bool> {
+        assert_eq!(self.shape(), start.shape());
+        assert_eq!(self.shape(), end.shape());
+        self.clone().greater_equal(start).bool_and(self.lower(end))
+    }
+}
+
 /// Operation Extensions for `Tensor<B, D, Int>`.
 pub trait TensorIntOpExt<B, const D: usize>
 where
@@ -77,12 +148,6 @@ where
     /// Returns the square of the tensor.
     /// Backport of: <https://github.com/tracel-ai/burn/pull/5224>
     fn square(self) -> Self;
-
-    /// Elementwise check if the value is in the `[start, end)` range.
-    fn bounded_elem<E: ElementConversion>(
-        self,
-        range: Range<E>,
-    ) -> Tensor<B, D, Bool>;
 }
 
 impl<B, const D: usize> TensorIntOpExt<B, D> for Tensor<B, D, Int>
@@ -91,15 +156,6 @@ where
 {
     fn square(self) -> Self {
         self.powi_scalar(2)
-    }
-
-    fn bounded_elem<E: ElementConversion>(
-        self,
-        range: Range<E>,
-    ) -> Tensor<B, D, Bool> {
-        self.clone()
-            .greater_equal_elem(range.start)
-            .bool_and(self.lower_elem(range.end))
     }
 }
 
@@ -197,14 +253,28 @@ mod tests {
     }
 
     #[test]
-    fn test_bounded_elem() {
+    fn test_in_range_scalar() {
         let device = Default::default();
         let x: Tensor<B, 1, Int> = Tensor::from_data([0, 1, 2, 3], &device);
 
-        let b = x.bounded_elem(1..3);
+        let b = x.in_range_scalar(1..3);
 
         b.to_data()
             .assert_eq(&TensorData::from([false, true, true, false]), false);
+    }
+
+    #[test]
+    fn test_in_range() {
+        let device = Default::default();
+        let x: Tensor<B, 1, Int> = Tensor::from_data([0, 0, 0, 0], &device);
+
+        let start: Tensor<B, 1, Int> = Tensor::from_data([-1, 0, 0, 3], &device);
+        let end: Tensor<B, 1, Int> = Tensor::from_data([0, 0, 2, 3], &device);
+
+        let b = x.in_range(start, end);
+
+        b.to_data()
+            .assert_eq(&TensorData::from([false, false, true, false]), false);
     }
 
     #[test]

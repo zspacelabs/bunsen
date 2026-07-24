@@ -25,7 +25,7 @@ use crate::{
     },
     prelude::{
         TensorBoolOpExt,
-        TensorIntOpExt,
+        TensorOrderedOpExt,
     },
 };
 
@@ -122,7 +122,7 @@ pub fn next_interior_3d<B: Backend>(
     let is_live = state.clone().slice(s![1..-1, 1..-1, 1..-1]);
 
     // [H-2, W-2, Z-2]
-    let win_counts = state
+    let win_counts: Tensor<B, 3, Int> = state
         .clone()
         .unfold::<4, _>(0, 3, 1)
         .unfold::<5, _>(1, 3, 1)
@@ -133,8 +133,8 @@ pub fn next_interior_3d<B: Backend>(
     let spawn_range = range_into(&rules.spawn);
     let keep_range = shift_range(range_into(&rules.keep), 1);
 
-    let spawn_points = win_counts.clone().bounded_elem(spawn_range);
-    let keep_points = win_counts.bounded_elem(keep_range);
+    let spawn_points = win_counts.clone().in_range_scalar(spawn_range);
+    let keep_points = win_counts.in_range_scalar(keep_range);
 
     let update = spawn_points.mask_where(is_live, keep_points);
 
