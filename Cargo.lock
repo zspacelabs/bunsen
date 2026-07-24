@@ -963,7 +963,7 @@ checksum = "72f5acc6cb2ba439de613abc23857ec3d78374d8ed5ac84e9d11336e87da8649"
 
 [[package]]
 name = "bunsen"
-version = "0.30.0"
+version = "0.30.1"
 dependencies = [
  "bunsen",
  "bunsen-contracts-macros",
@@ -997,7 +997,7 @@ dependencies = [
 
 [[package]]
 name = "bunsen-contracts-macros"
-version = "0.30.0"
+version = "0.30.1"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -1006,7 +1006,7 @@ dependencies = [
 
 [[package]]
 name = "bunsen-firehose"
-version = "0.30.0"
+version = "0.30.1"
 dependencies = [
  "anyhow",
  "burn",
@@ -1022,7 +1022,7 @@ dependencies = [
 
 [[package]]
 name = "bunsen-firehose-image"
-version = "0.30.0"
+version = "0.30.1"
 dependencies = [
  "anyhow",
  "bunsen",
@@ -1040,7 +1040,7 @@ dependencies = [
 
 [[package]]
 name = "bunsen-onnx-gen"
-version = "0.30.0"
+version = "0.30.1"
 dependencies = [
  "burn",
  "burn-onnx",
@@ -1050,7 +1050,7 @@ dependencies = [
 
 [[package]]
 name = "bunsen-preview-chat-dataloader"
-version = "0.30.0"
+version = "0.30.1"
 dependencies = [
  "arrow",
  "burn",
@@ -9100,7 +9100,7 @@ dependencies = [
 
 [[package]]
 name = "silero-bench"
-version = "0.30.0"
+version = "0.30.1"
 dependencies = [
  "bunsen",
  "burn",
@@ -11111,7 +11111,7 @@ dependencies = [
 
 [[package]]
 name = "whisper-dev"
-version = "0.30.0"
+version = "0.30.1"
 dependencies = [
  "bunsen",
  "burn",
@@ -12202,7 +12202,7 @@ dependencies = [
 
 [[package]]
 name = "zsl-data-cache"
-version = "0.30.0"
+version = "0.30.1"
 dependencies = [
  "anyhow",
  "burn",
