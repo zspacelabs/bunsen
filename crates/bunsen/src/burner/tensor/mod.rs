@@ -16,10 +16,13 @@
 //!   dimension and squeeze it, reducing the rank by one (e.g. extract one row
 //!   or column of a matrix as a vector).
 //!
+//! [`TensorOrderedOpExt`] — ordered type (Int, Float) tensors:
+//! - [`in_range`](TensorOrderedOpExt::in_range) - elementwise `Range<E>` test.
+//! - [`in_range_scalar`](TensorOrderedOpExt::in_range_scalar) - elementwise
+//!   `Range<E>` test.
+//!
 //! [`TensorIntOpExt`] — `Int` tensors:
 //! * [`square`](TensorIntOpExt::square) — elementwise square.
-//! * [`bounded_elem`](TensorIntOpExt::in_range_scalar) — elementwise `[start,
-//!   end)` range check, producing a `Bool` tensor.
 //!
 //! [`TensorBoolOpExt`] — `Bool` tensors:
 //! * [`count_dim`](TensorBoolOpExt::count_dim) /

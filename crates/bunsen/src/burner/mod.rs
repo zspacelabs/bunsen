@@ -56,6 +56,9 @@
 //!   (exchange two tensors in place), `release` (move a tensor out of a field,
 //!   leaving an empty tensor behind), and `select_dim` (select one index along
 //!   a dimension and squeeze it, dropping the rank by one).
+//! - [`TensorOrderedOpExt`](tensor::TensorOrderedOpExt) &mdash; ordered
+//!   tensors: `in_range/in_range_scalar` for elementwise `[start, end)` range
+//!   checks producing `Bool` masks.
 //! - [`TensorIntOpExt`](tensor::TensorIntOpExt) &mdash; `Int` tensors:
 //!   `square`, and `bounded_elem` for elementwise `[start, end)` range checks
 //!   producing `Bool` masks.
