@@ -99,7 +99,7 @@ where
     ) -> Tensor<B, D, Bool> {
         self.clone()
             .greater_equal_elem(range.start)
-            .bool_or(self.lower_elem(range.end))
+            .bool_and(self.lower_elem(range.end))
     }
 }
 
@@ -194,6 +194,17 @@ mod tests {
 
         let c1: Tensor<B, 1> = tensor.clone().select_dim(1, 1);
         c1.to_data().assert_eq(&TensorData::from([1.0, 3.0]), false);
+    }
+
+    #[test]
+    fn test_bounded_elem() {
+        let device = Default::default();
+        let x: Tensor<B, 1, Int> = Tensor::from_data([0, 1, 2, 3], &device);
+
+        let b = x.bounded_elem(1..3);
+
+        b.to_data()
+            .assert_eq(&TensorData::from([false, true, true, false]), false);
     }
 
     #[test]
