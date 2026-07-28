@@ -65,7 +65,7 @@ where
         index: I,
     ) -> Tensor<B, D2, K> {
         let index = index.as_index();
-        self.slice_dim(dim, index..index + 1).squeeze_dim::<D2>(dim)
+        self.slice_dim(dim, index).squeeze_dim::<D2>(dim)
     }
 }
 
