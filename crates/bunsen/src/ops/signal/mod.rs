@@ -13,3 +13,5 @@ pub use sliding_stft::*;
 pub use stft_window::*;
 #[doc(inline)]
 pub use window_builder::*;
+
+pub mod audio;
