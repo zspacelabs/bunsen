@@ -22,7 +22,6 @@ where
     K: BasicOps<B>,
 {
     /// Swap this tensor with another.
-    /// Backport of: <https://github.com/tracel-ai/burn/pull/5207>
     fn swap(
         &mut self,
         other: &mut Self,
@@ -32,7 +31,7 @@ where
     /// Backport of: <https://github.com/tracel-ai/burn/pull/5207>
     ///
     /// Returns the previous value.
-    fn release(&mut self) -> Self;
+    fn extract(&mut self) -> Self;
 
     /// Select (and Squeeze) a dimension.
     fn select_dim<const D2: usize, I: AsIndex>(
@@ -54,7 +53,7 @@ where
         core::mem::swap(self, other);
     }
 
-    fn release(&mut self) -> Self {
+    fn extract(&mut self) -> Self {
         let mut z = Tensor::empty([0; D], &self.device());
         self.swap(&mut z);
         z
@@ -230,7 +229,7 @@ mod tests {
             Tensor::<B, 1>::from_data(TensorData::from([0.0, 1.0, 2.0, 3.0]), &device);
         assert_eq!(tensor.dims(), [4]);
 
-        let mut old: Tensor<B, 1> = tensor.release();
+        let mut old: Tensor<B, 1> = tensor.extract();
         assert_eq!(tensor.dims(), [0]);
         assert_eq!(old.dims(), [4]);
 

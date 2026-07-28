@@ -187,7 +187,7 @@ impl<B: Backend> LBMD2Q9State<B> {
 
     /// Advances the world simulation by one step.
     pub fn advance_step(&mut self) {
-        let dist = self.dist.release();
+        let dist = self.dist.extract();
 
         let solid_mask = self
             .solid_mask
