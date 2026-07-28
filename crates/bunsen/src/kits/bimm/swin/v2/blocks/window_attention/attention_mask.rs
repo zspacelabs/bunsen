@@ -20,7 +20,6 @@ use crate::kits::bimm::swin::v2::blocks::window_partition;
 /// # Returns
 ///
 /// - `[b_nw, num_heads, Wh*Ww, Wh*Ww]` output tensor.
-#[inline(always)]
 #[must_use]
 pub fn apply_attention_mask<B: Backend>(
     b_nw: usize,
@@ -35,7 +34,7 @@ pub fn apply_attention_mask<B: Backend>(
 
     let attn = attn.reshape([b, num_windows, num_heads, n, n]);
 
-    let mask = mask.unsqueeze_dim::<4>(1).unsqueeze::<5>();
+    let mask = mask.unsqueeze_dims::<5>(&[0, 2]);
     // 1, num_windows, 1, Wh*Ww, Wh*Ww
 
     let attn: Tensor<B, 5> = attn + mask;
@@ -102,9 +101,11 @@ fn sw_img_mask<B: Backend>(
     let mut cnt = 0;
     for h in h_slices.iter() {
         for w in w_slices.iter() {
-            let slice_shape = img_mask.clone().slice([h.clone(), w.clone()]).dims();
-            let val: Tensor<B, 1, Int> = Tensor::from_data([cnt], device);
-            let val = val.unsqueeze::<2>().expand(slice_shape);
+            // let slice_shape = img_mask.clone().slice([h.clone(), w.clone()]).dims();
+            let slice_shape = [h.len(), w.len()];
+
+            let val: Tensor<B, 1, Int> = Tensor::full([1], cnt, device);
+            let val = val.expand(slice_shape);
 
             img_mask = img_mask.slice_assign([h.clone(), w.clone()], val);
             cnt += 1;
@@ -137,7 +138,7 @@ pub fn sw_attn_mask<B: Backend>(
 ) -> Tensor<B, 3, Bool> {
     let img_mask = sw_img_mask(input_shape, window_size, shift_size, device);
     // ws, ws
-    let img_mask = img_mask.unsqueeze_dim::<3>(2).unsqueeze::<4>();
+    let img_mask = img_mask.unsqueeze_dims::<4>(&[0, 3]);
     // b_nw=1, ws, ws, 1
 
     let mask_windows = window_partition(img_mask, window_size);
@@ -146,8 +147,7 @@ pub fn sw_attn_mask<B: Backend>(
     let mask_windows = mask_windows.reshape([-1, (window_size * window_size) as i32]);
     // b_nw=nW, ws * ws
 
-    let mask =
-        mask_windows.clone().unsqueeze_dim::<3>(1) - mask_windows.clone().unsqueeze_dim::<3>(2);
+    let mask = mask_windows.clone().unsqueeze_dim::<3>(1) - mask_windows.unsqueeze_dim::<3>(2);
 
     mask.not_equal_elem(0)
 }
@@ -229,10 +229,10 @@ mod tests {
                     .squeeze_dim::<4>(0)
                     .squeeze_dim::<3>(0);
 
-                let wmask: Tensor<B, 2> = mask.clone().slice(s![wi, .., ..]).squeeze_dim::<2>(0);
+                let wmask: Tensor<B, 2> = mask.clone().slice_dim(0, wi).squeeze_dim::<2>(0);
 
                 for hi in 0..num_heads {
-                    let h_attn = window.clone().slice(s![hi, .., ..]).squeeze_dim::<2>(0);
+                    let h_attn = window.clone().slice_dim(0, hi).squeeze_dim::<2>(0);
 
                     h_attn.to_data().assert_eq(&wmask.to_data(), true);
                 }
