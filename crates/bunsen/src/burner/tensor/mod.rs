@@ -10,7 +10,7 @@
 //! [`TensorOpExt`] — all tensor kinds (`Float`, `Int`, `Bool`):
 //! * [`swap`](TensorOpExt::swap) — exchange the contents of two tensors in
 //!   place.
-//! * [`release`](TensorOpExt::release) — take the tensor's value out (e.g. from
+//! * [`release`](TensorOpExt::extract) — take the tensor's value out (e.g. from
 //!   a struct field), leaving an empty tensor behind.
 //! * [`select_dim`](TensorOpExt::select_dim) — select a single index along a
 //!   dimension and squeeze it, reducing the rank by one (e.g. extract one row

@@ -435,7 +435,7 @@ impl<B: Backend> SlidingStftContext<B> {
         // Inplace, so we can drop the reference before the update.
         let win_len = self.win_len();
 
-        let queue = self.queue.release();
+        let queue = self.queue.extract();
         let ext = Tensor::cat(vec![queue, stream], 1);
         self.queue = ext.clone().slice_dim(1, -(win_len as isize)..);
 
