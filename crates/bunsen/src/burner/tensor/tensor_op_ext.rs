@@ -34,10 +34,10 @@ where
     fn extract(&mut self) -> Self;
 
     /// Select (and Squeeze) a dimension.
-    fn select_dim<const D2: usize, I: AsIndex>(
+    fn select_dim<const D2: usize>(
         self,
-        dim: usize,
-        index: I,
+        dim: impl AsIndex,
+        index: impl AsIndex,
     ) -> Tensor<B, D2, K>;
 }
 
@@ -59,13 +59,14 @@ where
         z
     }
 
-    fn select_dim<const D2: usize, I: AsIndex>(
+    fn select_dim<const D2: usize>(
         self,
-        dim: usize,
-        index: I,
+        dim: impl AsIndex,
+        index: impl AsIndex,
     ) -> Tensor<B, D2, K> {
+        let dim = dim.expect_dim_index(D);
         let index = index.as_index();
-        self.slice_dim(dim, index..index + 1).squeeze_dim::<D2>(dim)
+        self.slice_dim(dim, index).squeeze_dim::<D2>(dim)
     }
 }
 
