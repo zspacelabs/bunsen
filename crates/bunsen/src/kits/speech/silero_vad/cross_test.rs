@@ -119,6 +119,28 @@ mod tests {
         let (h_a, c_a) = SileroVad::unpack_state(state_a.clone());
         let (h_b, c_b) = SileroVad::unpack_state(state_b.clone());
 
+        println!("unrolled::lstm_step::gates::features.forward");
+        let ff_a = vad_a.lstm.features.forward(f_a.clone());
+        let ff_b = vad_b.lstm.features.forward(f_b.clone());
+        ff_a.clone()
+            .to_data()
+            .assert_approx_eq(&ff_b.clone().to_data(), Tolerance::<f32>::default());
+
+        println!("unrolled::lstm_step::gates::hidden.forward");
+        let hf_a = vad_a.lstm.hidden.forward(h_a.clone());
+        let hf_b = vad_b.lstm.hidden.forward(h_b.clone());
+        hf_a.clone()
+            .to_data()
+            .assert_approx_eq(&hf_b.clone().to_data(), Tolerance::<f32>::default());
+
+        println!("unrolled::lstm_step::gates");
+        let gates_a = ff_a + hf_a;
+        let gates_b = ff_b + hf_b;
+        gates_a
+            .clone()
+            .to_data()
+            .assert_approx_eq(&gates_b.clone().to_data(), Tolerance::<f32>::default());
+
         println!("unrolled::lstm_step");
         let (h_a, c_a) = vad_a.lstm_step(f_a, h_a, c_a);
         let (h_b, c_b) = vad_b.lstm_step(f_b, h_b, c_b);
