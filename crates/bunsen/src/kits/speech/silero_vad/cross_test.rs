@@ -101,6 +101,31 @@ mod tests {
             .try_branch(WAV_SR)?
             .clone();
 
+        println!("approx_eq?(vad_a, vad_b, $mod::lstm.features.weight");
+        vad_a
+            .lstm
+            .features
+            .weight
+            .val()
+            .clone()
+            .to_data()
+            .assert_approx_eq(
+                &vad_b.lstm.features.weight.val().clone().to_data(),
+                Tolerance::<f32>::default(),
+            );
+        println!("approx_eq?(vad_a, vad_b, $mod::lstm.hidden.weight");
+        vad_a
+            .lstm
+            .hidden
+            .weight
+            .val()
+            .clone()
+            .to_data()
+            .assert_approx_eq(
+                &vad_b.lstm.hidden.weight.val().clone().to_data(),
+                Tolerance::<f32>::default(),
+            );
+
         let batch = 1;
         let state_a = vad_a.init_state(batch, &device_a);
         let state_b = vad_b.init_state(batch, &device_b);
