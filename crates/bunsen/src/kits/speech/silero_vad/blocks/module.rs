@@ -477,7 +477,10 @@ impl<B: Backend> SileroVad<B> {
 
         cfg_select! {
             any(test, debug_assertions) => {
-                use crate::contracts::{unpack_shape_contract, assert_shape_contract_periodically};
+                use crate::contracts::{
+                    assert_shape_contract_periodically,
+                    unpack_shape_contract,
+                };
                 let [steps, batch] = unpack_shape_contract!(
                     ["steps", "batch", "samples"],
                     &chunk_seq,
@@ -558,9 +561,12 @@ impl<B: Backend> SileroVad<B> {
 
         cfg_select! {
             any(test, debug_assertions) => {
-                use crate::contracts::{unpack_shape_contract, assert_shape_contract_periodically};
+                use crate::contracts::{
+                    assert_shape_contract_periodically,
+                    unpack_shape_contract,
+                };
                 let [batch] = unpack_shape_contract!(
-                    [ "batch", "samples"],
+                    ["batch", "samples"],
                     &chunk,
                     &["batch"],
                     &[("samples", self.chunk_size())]
