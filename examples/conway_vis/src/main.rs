@@ -18,6 +18,10 @@ use bunsen::{
         ConwayLife2DConfig,
         ConwayLife2DState,
     },
+    prelude::{
+        TensorElemOpExt,
+        TensorOpExt,
+    },
     support::validators::parse_grid_shape,
     zspace::ravel_dims,
 };
@@ -280,7 +284,7 @@ impl Simulation {
                 if t1 - last_export > export_duration {
                     last_export = t1;
 
-                    let frame = conway.state.clone().into_data().convert::<bool>();
+                    let frame = conway.state.clone().into_data_convert::<bool>();
                     *frame_handle_1.lock().unwrap() = frame;
 
                     t1 = std::time::Instant::now();

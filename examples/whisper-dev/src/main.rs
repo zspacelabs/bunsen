@@ -21,18 +21,10 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     println!("{:#?}", args);
 
     cfg_select! {
-        feature = "cuda" => {
-            run::<burn::backend::cuda::Cuda>(args)
-        }
-        feature = "metal" => {
-            run::<burn::backend::Metal>(args)
-        }
-        feature = "wgpu" => {
-            run::<burn::backend::wgpu::Wgpu>(args)
-        }
-        feature = "flex" => {
-            run::<burn::backend::flex::Flex>(args)
-        }
+        feature = "cuda" => run::<burn::backend::cuda::Cuda>(args),
+        feature = "metal" => run::<burn::backend::Metal>(args),
+        feature = "wgpu" => run::<burn::backend::wgpu::Wgpu>(args),
+        feature = "flex" => run::<burn::backend::flex::Flex>(args),
         _ => {
             compile_error!("No Backend enabled");
         }

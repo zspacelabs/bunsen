@@ -5,11 +5,14 @@ use burn::{
     prelude::{
         Backend,
         ElementConversion,
+        TensorData,
     },
     tensor::{
         AsIndex,
         BasicOps,
         Bool,
+        DType,
+        Element,
         Float,
         Int,
     },
@@ -67,6 +70,69 @@ where
         let dim = dim.expect_dim_index(D);
         let index = index.as_index();
         self.slice_dim(dim, index).squeeze_dim::<D2>(dim)
+    }
+}
+
+/// [`Tensor`] element-type aware extension operations.
+pub trait TensorElemOpExt<B, const D: usize, K>
+where
+    B: Backend,
+    K: BasicOps<B>,
+    K::Elem: Element,
+{
+    /// Copies the current `Tensor` into `TensorData`; converts the dtype.
+    ///
+    /// The conversion is a no-op if the dtype is the same as the current dtype.
+    fn to_data_convert<E: Element>(&self) -> TensorData;
+
+    /// Copies the current `Tensor` into `TensorData`; converts the dtype.
+    ///
+    /// The conversion is a no-op if the dtype is the same as the current dtype.
+    fn to_data_cast(
+        &self,
+        dtype: DType,
+    ) -> TensorData;
+
+    /// Converts the current `Tensor` into `TensorData`; converts the dtype.
+    ///
+    /// The conversion is a no-op if the dtype is the same as the current dtype.
+    fn into_data_convert<E: Element>(self) -> TensorData;
+
+    /// Converts the current `Tensor` into `TensorData`; converts the dtype.
+    ///
+    /// The conversion is a no-op if the dtype is the same as the current dtype.
+    fn into_data_cast(
+        self,
+        dtype: DType,
+    ) -> TensorData;
+}
+
+impl<B, const D: usize, K> TensorElemOpExt<B, D, K> for Tensor<B, D, K>
+where
+    B: Backend,
+    K: BasicOps<B>,
+    K::Elem: Element,
+{
+    fn to_data_convert<E: Element>(&self) -> TensorData {
+        self.to_data().convert::<E>()
+    }
+
+    fn to_data_cast(
+        &self,
+        dtype: DType,
+    ) -> TensorData {
+        self.to_data().convert_dtype(dtype)
+    }
+
+    fn into_data_convert<E: Element>(self) -> TensorData {
+        self.into_data().convert::<E>()
+    }
+
+    fn into_data_cast(
+        self,
+        dtype: DType,
+    ) -> TensorData {
+        self.into_data().convert_dtype(dtype)
     }
 }
 

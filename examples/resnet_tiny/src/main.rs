@@ -199,7 +199,7 @@ fn main() -> anyhow::Result<()> {
             type B = burn::backend::Wgpu<burn::tensor::bf16>;
         }
         _ => {
-            type B =burn::backend::Flex;
+            type B = burn::backend::Flex;
         }
     }
     backend_main::<Autodiff<B>>(&args)

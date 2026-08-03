@@ -11,13 +11,15 @@ use burn::{
         s,
     },
     tensor::{
-        DType::I32,
         Distribution,
         Slice,
     },
 };
 
-use crate::prelude::TensorBoolOpExt;
+use crate::prelude::{
+    TensorBoolOpExt,
+    TensorElemOpExt,
+};
 
 /// Fuzzes the state.
 ///
@@ -82,23 +84,16 @@ where
     R: SliceArg,
 {
     let slices: [Slice; 2] = ranges.into_slices(&state.shape()).try_into().unwrap();
-    let [h, w] = slices_shape(&slices);
+    let [_, w] = slices_shape(&slices);
 
-    let block_data = state.slice(slices).int().cast(I32).to_data();
-    let block_data = block_data.to_vec::<i32>().unwrap();
-
-    let mut result = Vec::with_capacity(h);
-    for hidx in 0..h {
-        let start = hidx * w;
-        result.push(
-            block_data[start..start + w]
-                .iter()
-                .map(|&b| b != 0)
-                .collect::<Vec<_>>(),
-        );
-    }
-
-    result
+    state
+        .slice(slices)
+        .to_data_convert::<bool>()
+        .to_vec()
+        .unwrap()
+        .chunks(w)
+        .map(<[_]>::to_vec)
+        .collect()
 }
 
 /// Returns the next board.
