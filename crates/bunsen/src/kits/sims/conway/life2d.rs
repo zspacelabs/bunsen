@@ -84,21 +84,16 @@ where
     R: SliceArg,
 {
     let slices: [Slice; 2] = ranges.into_slices(&state.shape()).try_into().unwrap();
-    let [h, w] = slices_shape(&slices);
+    let [_, w] = slices_shape(&slices);
 
-    let block_data = state
+    state
         .slice(slices)
         .to_data_convert::<bool>()
         .to_vec()
-        .unwrap();
-
-    let mut result = Vec::with_capacity(h);
-    for hidx in 0..h {
-        let start = hidx * w;
-        result.push(block_data[start..start + w].to_vec());
-    }
-
-    result
+        .unwrap()
+        .chunks(w)
+        .map(<[_]>::to_vec)
+        .collect()
 }
 
 /// Returns the next board.
