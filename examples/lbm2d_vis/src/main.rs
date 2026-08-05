@@ -189,7 +189,7 @@ fn run<B: Backend>(
             let cells = ((cells / scale) + 1.0) / 2.0;
             // let cells = cells.mul_scalar(std::f64::consts::PI / 2.0).sin();
 
-            *vis_cells_publish.lock().unwrap() = cells.to_data_convert::<f32>();
+            *vis_cells_publish.lock().unwrap() = cells.to_data_as::<f32>();
 
             last_export = std::time::Instant::now();
         }
@@ -211,7 +211,7 @@ fn run<B: Backend>(
     let mut app = FlowVisApp {
         gl: GlGraphics::new(opengl),
         cell_data: vis_cells,
-        solid_mask: solid_mask.to_data_convert::<bool>(),
+        solid_mask: solid_mask.to_data_as::<bool>(),
         opacity: args.opacity,
     };
 

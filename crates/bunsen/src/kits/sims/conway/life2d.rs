@@ -88,7 +88,7 @@ where
 
     state
         .slice(slices)
-        .to_data_convert::<bool>()
+        .to_data_as::<bool>()
         .to_vec()
         .unwrap()
         .chunks(w)

@@ -284,7 +284,7 @@ impl Simulation {
                 if t1 - last_export > export_duration {
                     last_export = t1;
 
-                    let frame = conway.state.clone().into_data_convert::<bool>();
+                    let frame = conway.state.clone().into_data_as::<bool>();
                     *frame_handle_1.lock().unwrap() = frame;
 
                     t1 = std::time::Instant::now();
