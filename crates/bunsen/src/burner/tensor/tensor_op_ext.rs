@@ -293,6 +293,28 @@ where
 
 /// Extension trait for `TensorData` that provides additional methods.
 pub trait TensorDataToVecAsExt {
+    /// Cast the data to a new dtype.
+    ///
+    /// TODO: Implement proper error handling in TensorData.
+    ///
+    /// # Returns
+    /// Ok(data) on success, (Currently) panics on failure.
+    fn try_cast(
+        self,
+        dtype: DType,
+    ) -> Result<TensorData, DataError>;
+
+    /// Convert the data to a new dtype.
+    ///
+    /// TODO: Implement proper error handling in TensorData.
+    ///
+    /// By contract, this is equivalent to:
+    /// `data.try_cast(E::dtype())`
+    ///
+    /// # Returns
+    /// Ok(data) on success, (Currently) panics on failure.
+    fn try_convert<E: Element>(self) -> Result<TensorData, DataError>;
+
     /// Copy and convert the data to a [`Vec<E>`].
     ///
     /// By contract, this is equivalent to:
@@ -307,7 +329,7 @@ pub trait TensorDataToVecAsExt {
     /// Convert the data to [`Vec<E>`].
     ///
     /// By contract, this is equivalent to:
-    /// `data.convert::<E>().to_vec()`
+    /// `data.try_convert::<E>()?.to_vec::<E>()`
     ///
     /// Particular conversions may provide more efficient implementations.
     ///
@@ -317,12 +339,23 @@ pub trait TensorDataToVecAsExt {
 }
 
 impl TensorDataToVecAsExt for TensorData {
+    fn try_cast(
+        self,
+        dtype: DType,
+    ) -> Result<TensorData, DataError> {
+        Ok(self.convert_dtype(dtype))
+    }
+
+    fn try_convert<E: Element>(self) -> Result<TensorData, DataError> {
+        self.try_cast(E::dtype())
+    }
+
     fn to_vec_as<E: Element>(&self) -> Result<Vec<E>, DataError> {
         self.clone().into_vec_as::<E>()
     }
 
     fn into_vec_as<E: Element>(self) -> Result<Vec<E>, DataError> {
-        self.convert::<E>().to_vec()
+        self.try_convert::<E>()?.to_vec::<E>()
     }
 }
 
