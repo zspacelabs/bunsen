@@ -275,11 +275,12 @@ impl<'a, I: AsIndex, E: Element> Index<&[I]> for TensorDataView<'a, E> {
 /// use burn::prelude::*;
 ///
 /// let mut data = TensorData::from([[1.0, 2.0], [3.0, 4.0]]);
+/// let shape = data.shape.clone();
 /// let mut view: TensorDataViewMut<f64> =
 ///     TensorDataViewMut::try_mut_view(&mut data).unwrap();
 ///
 /// // The view implements [`Deref`].
-/// assert_eq!(&view.shape, &data.shape);
+/// assert_eq!(&view.shape, &shape);
 ///
 /// assert_eq!(view[&[0, 0]], 1.0);
 /// assert_eq!(view[&[0, 1]], 2.0);
@@ -320,11 +321,12 @@ impl<'a, E: Element> TensorDataViewMut<'a, E> {
     /// use burn::prelude::*;
     ///
     /// let mut data = TensorData::from([[1.0, 2.0], [3.0, 4.0]]);
+    /// let shape = data.shape.clone();
     /// let mut view: TensorDataViewMut<f64> =
     ///     TensorDataViewMut::try_mut_view(&mut data).unwrap();
     ///
     /// // Deref
-    /// assert_eq!(&view.shape, &data.shape);
+    /// assert_eq!(&view.shape, &shape);
     ///
     /// assert_eq!(view[&[0, 0]], 1.0);
     /// assert_eq!(view[&[0, 1]], 2.0);
