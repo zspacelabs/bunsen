@@ -26,6 +26,7 @@ mod tests {
             SileroVadMeta,
             reference::ReferenceModel,
         },
+        prelude::*,
         support::testing::PerformanceBackend,
     };
 
@@ -65,12 +66,12 @@ mod tests {
 
             s_out
                 .reshape([batch, 1])
-                .to_data()
-                .assert_approx_eq::<F>(&r_out.to_data(), Tolerance::permissive());
+                .to_data_as::<F>()
+                .assert_approx_eq::<F>(&r_out.to_data_as::<F>(), Tolerance::permissive());
 
             s_state
-                .to_data()
-                .assert_approx_eq::<F>(&r_state.to_data(), Tolerance::permissive());
+                .to_data_as::<F>()
+                .assert_approx_eq::<F>(&r_state.to_data_as::<F>(), Tolerance::permissive());
         }
     }
 

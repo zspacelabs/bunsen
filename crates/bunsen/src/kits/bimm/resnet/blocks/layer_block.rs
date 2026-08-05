@@ -467,6 +467,7 @@ mod tests {
     use crate::{
         contracts::assert_shape_contract,
         kits::bimm::resnet::blocks::BasicBlockConfig,
+        prelude::*,
         support::testing::PerformanceBackend,
     };
 
@@ -556,7 +557,7 @@ mod tests {
             expected = block.forward(expected);
         }
         output
-            .to_data()
-            .assert_approx_eq::<F>(&expected.to_data(), Tolerance::default());
+            .to_data_as::<F>()
+            .assert_approx_eq::<F>(&expected.to_data_as::<F>(), Tolerance::default());
     }
 }
