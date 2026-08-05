@@ -33,7 +33,7 @@ pub trait TensorDataViewExt {
     ///
     /// let data = TensorData::from([[1.0, 2.0], [3.0, 4.0]]);
     /// let shape = data.shape.clone();
-    /// let view: TensorDataView<f64> = data.try_view().unwrap();
+    /// let view: TensorDataView<f64> = data.try_index_view().unwrap();
     ///
     /// // Deref
     /// assert_eq!(&view.shape, &shape);
@@ -47,7 +47,7 @@ pub trait TensorDataViewExt {
     /// # Returns
     /// `Ok(view)` on success; `Err(DataError::TypeError)` on view [`DType`]
     /// missmatch.
-    fn try_view<E: Element>(&self) -> Result<TensorDataView<'_, E>, DataError>;
+    fn try_index_view<E: Element>(&self) -> Result<TensorDataView<'_, E>, DataError>;
 
     /// Returns a [`TensorDataView<'a, E>`] of the [`TensorData`].
     ///
@@ -60,7 +60,7 @@ pub trait TensorDataViewExt {
     ///
     /// let data = TensorData::from([[1.0, 2.0], [3.0, 4.0]]);
     /// let shape = data.shape.clone();
-    /// let view: TensorDataView<f64> = data.expect_view();
+    /// let view: TensorDataView<f64> = data.expect_index_view();
     ///
     /// // Deref
     /// assert_eq!(&view.shape, &shape);
@@ -76,8 +76,8 @@ pub trait TensorDataViewExt {
     ///
     /// # Panics
     /// If the view [`DType`] is not compatible with the [`TensorData`].
-    fn expect_view<E: Element>(&self) -> TensorDataView<'_, E> {
-        self.try_view().unwrap()
+    fn expect_index_view<E: Element>(&self) -> TensorDataView<'_, E> {
+        self.try_index_view().unwrap()
     }
 
     /// Returns a [`TensorDataViewMut<'a, E>`] of the [`TensorData`].
@@ -91,7 +91,7 @@ pub trait TensorDataViewExt {
     ///
     /// let mut data = TensorData::from([[1.0, 2.0], [3.0, 4.0]]);
     /// let shape = data.shape.clone();
-    /// let mut view: TensorDataViewMut<f64> = data.try_mut_view().unwrap();
+    /// let mut view: TensorDataViewMut<f64> = data.try_index_mut_view().unwrap();
     ///
     /// // Deref
     /// assert_eq!(&view.shape, &shape);
@@ -108,7 +108,7 @@ pub trait TensorDataViewExt {
     /// # Returns
     /// `Ok(mut view)` on success; `Err(DataError::TypeError)` on view [`DType`]
     /// missmatch.
-    fn try_mut_view<E: Element>(&mut self) -> Result<TensorDataViewMut<'_, E>, DataError>;
+    fn try_index_mut_view<E: Element>(&mut self) -> Result<TensorDataViewMut<'_, E>, DataError>;
 
     /// Returns a [`TensorDataViewMut<'a, E>`] of the [`TensorData`].
     ///
@@ -121,7 +121,7 @@ pub trait TensorDataViewExt {
     ///
     /// let mut data = TensorData::from([[1.0, 2.0], [3.0, 4.0]]);
     /// let shape = data.shape.clone();
-    /// let mut view: TensorDataViewMut<f64> = data.expect_mut_view();
+    /// let mut view: TensorDataViewMut<f64> = data.expect_index_mut_view();
     ///
     /// // Deref
     /// assert_eq!(&view.shape, &shape);
@@ -140,8 +140,8 @@ pub trait TensorDataViewExt {
     ///
     /// # Panics
     /// If the view [`DType`] is not compatible with the [`TensorData`].
-    fn expect_mut_view<E: Element>(&mut self) -> TensorDataViewMut<'_, E> {
-        self.try_mut_view().unwrap()
+    fn expect_index_mut_view<E: Element>(&mut self) -> TensorDataViewMut<'_, E> {
+        self.try_index_mut_view().unwrap()
     }
 }
 
@@ -161,11 +161,11 @@ fn matches_target_dtype<E: Element>(data: &TensorData) -> bool {
 }
 
 impl TensorDataViewExt for TensorData {
-    fn try_view<E: Element>(&self) -> Result<TensorDataView<'_, E>, DataError> {
+    fn try_index_view<E: Element>(&self) -> Result<TensorDataView<'_, E>, DataError> {
         TensorDataView::try_view(self)
     }
 
-    fn try_mut_view<E: Element>(&mut self) -> Result<TensorDataViewMut<'_, E>, DataError> {
+    fn try_index_mut_view<E: Element>(&mut self) -> Result<TensorDataViewMut<'_, E>, DataError> {
         TensorDataViewMut::try_mut_view(self)
     }
 }
@@ -180,7 +180,7 @@ impl TensorDataViewExt for TensorData {
 /// use burn::prelude::*;
 ///
 /// let data = TensorData::from([[1.0, 2.0], [3.0, 4.0]]);
-/// let view: TensorDataView<f64> = data.expect_view();
+/// let view: TensorDataView<f64> = data.expect_index_view();
 ///
 /// // Deref
 /// assert_eq!(&view.shape, &data.shape);
@@ -215,7 +215,7 @@ impl<'a, E: Element> TensorDataView<'a, E> {
     /// use burn::prelude::*;
     ///
     /// let data = TensorData::from([[1.0, 2.0], [3.0, 4.0]]);
-    /// let view: TensorDataView<f64> = data.try_view().unwrap();
+    /// let view: TensorDataView<f64> = data.try_index_view().unwrap();
     ///
     /// // Deref.
     /// assert_eq!(&view.shape, &data.shape);
@@ -394,7 +394,7 @@ mod tests {
     fn test_tensor_data_try_view_dtype_mismatch() {
         let data = TensorData::from([[1.0, 2.0], [3.0, 4.0]]);
 
-        let result = data.try_view::<i32>();
+        let result = data.try_index_view::<i32>();
         assert!(matches!(result, Err(DataError::TypeMismatch(_))));
     }
 
@@ -402,14 +402,14 @@ mod tests {
     #[should_panic(expected = "Cannot view TensorData DType")]
     fn test_tensor_data_expect_view_dtype_mismatch() {
         let data = TensorData::from([[1.0, 2.0], [3.0, 4.0]]);
-        let _view = data.expect_view::<i32>();
+        let _view = data.expect_index_view::<i32>();
     }
 
     #[test]
     fn test_tensor_data_try_mut_view_dtype_mismatch() {
         let mut data = TensorData::from([[1.0, 2.0], [3.0, 4.0]]);
 
-        let result = data.try_mut_view::<i32>();
+        let result = data.try_index_mut_view::<i32>();
         assert!(matches!(result, Err(DataError::TypeMismatch(_))));
     }
 
@@ -417,13 +417,13 @@ mod tests {
     #[should_panic(expected = "Cannot view TensorData DType")]
     fn test_tensor_data_expect_mut_view_dtype_mismatch() {
         let mut data = TensorData::from([[1.0, 2.0], [3.0, 4.0]]);
-        let _view = data.expect_mut_view::<i32>();
+        let _view = data.expect_index_mut_view::<i32>();
     }
 
     #[test]
     fn test_tensor_data_index_view() {
         let data = TensorData::from([[1.0, 2.0], [3.0, 4.0]]);
-        let view = data.expect_view::<f64>();
+        let view = data.expect_index_view::<f64>();
 
         // Deref
         assert_eq!(&data.shape, &view.shape);
@@ -439,7 +439,7 @@ mod tests {
         let mut data = TensorData::from([[1.0, 2.0], [3.0, 4.0]]);
         let shape = data.shape.clone();
 
-        let mut view = data.expect_mut_view::<f64>();
+        let mut view = data.expect_index_mut_view::<f64>();
 
         // Deref
         assert_eq!(&view.shape, &shape);
