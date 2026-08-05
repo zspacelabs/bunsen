@@ -45,7 +45,7 @@
 //!
 //! ## `TensorData` Views
 //!
-//! [`TensorDataIndexView`] and [`TensorDataIndexMutView`] wrap a
+//! [`TensorDataView`] and [`TensorDataViewMut`] wrap a
 //! [`burn::tensor::TensorData`] to provide multi-dimensional element access
 //! via `view[&[i, j]]` indexing.
 
