@@ -119,7 +119,7 @@ mod tests {
         // Invariant: density(collision(dist, param)) == density(dist)
         density(col_dist.clone())
             .to_data()
-            .assert_approx_eq::<f32>(&rho.clone().to_data(), Tolerance::default());
+            .assert_approx_eq::<f32>(&rho.to_data(), Tolerance::default());
 
         // With Correction
         {

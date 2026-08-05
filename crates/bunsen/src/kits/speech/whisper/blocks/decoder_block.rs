@@ -281,12 +281,12 @@ mod tests {
             .output
             .clone()
             .into_data()
-            .assert_approx_eq::<f64>(&expected.output.clone().into_data(), Default::default());
+            .assert_approx_eq::<f64>(&expected.output.to_data(), Default::default());
         result
             .ca_weights
             .clone()
             .into_data()
-            .assert_approx_eq::<f64>(&expected.ca_weights.clone().into_data(), Default::default());
+            .assert_approx_eq::<f64>(&expected.ca_weights.to_data(), Default::default());
 
         assert_shape_contract!(
             ["batch", "seq_len", "d_model"],

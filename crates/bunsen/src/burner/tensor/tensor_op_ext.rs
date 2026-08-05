@@ -295,7 +295,7 @@ where
 pub trait TensorDataToVecAsExt {
     /// Cast the data to a new dtype.
     ///
-    /// TODO: Implement proper error handling in TensorData.
+    /// TODO: Implement proper error handling in `TensorData`.
     ///
     /// # Returns
     /// Ok(data) on success, (Currently) panics on failure.
@@ -306,7 +306,7 @@ pub trait TensorDataToVecAsExt {
 
     /// Convert the data to a new dtype.
     ///
-    /// TODO: Implement proper error handling in TensorData.
+    /// TODO: Implement proper error handling in `TensorData`.
     ///
     /// By contract, this is equivalent to:
     /// `data.try_cast(E::dtype())`

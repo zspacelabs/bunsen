@@ -260,43 +260,43 @@ mod tests {
 
         assert_eq!(
             convert_to_colortype(source.clone(), ColorType::L8),
-            DynamicImage::from(source.clone().to_luma8())
+            DynamicImage::from(source.to_luma8())
         );
         assert_eq!(
             convert_to_colortype(source.clone(), ColorType::La8),
-            DynamicImage::from(source.clone().to_luma_alpha8())
+            DynamicImage::from(source.to_luma_alpha8())
         );
         assert_eq!(
             convert_to_colortype(source.clone(), ColorType::Rgb8),
-            DynamicImage::from(source.clone().to_rgb8())
+            DynamicImage::from(source.to_rgb8())
         );
         assert_eq!(
             convert_to_colortype(source.clone(), ColorType::Rgba8),
-            DynamicImage::from(source.clone().to_rgba8())
+            DynamicImage::from(source.to_rgba8())
         );
         assert_eq!(
             convert_to_colortype(source.clone(), ColorType::L16),
-            DynamicImage::from(source.clone().to_luma16())
+            DynamicImage::from(source.to_luma16())
         );
         assert_eq!(
             convert_to_colortype(source.clone(), ColorType::La16),
-            DynamicImage::from(source.clone().to_luma_alpha16())
+            DynamicImage::from(source.to_luma_alpha16())
         );
         assert_eq!(
             convert_to_colortype(source.clone(), ColorType::Rgb16),
-            DynamicImage::from(source.clone().to_rgb16())
+            DynamicImage::from(source.to_rgb16())
         );
         assert_eq!(
             convert_to_colortype(source.clone(), ColorType::Rgba16),
-            DynamicImage::from(source.clone().to_rgba16())
+            DynamicImage::from(source.to_rgba16())
         );
         assert_eq!(
             convert_to_colortype(source.clone(), ColorType::Rgb32F),
-            DynamicImage::from(source.clone().to_rgb32f())
+            DynamicImage::from(source.to_rgb32f())
         );
         assert_eq!(
             convert_to_colortype(source.clone(), ColorType::Rgba32F),
-            DynamicImage::from(source.clone().to_rgba32f())
+            DynamicImage::from(source.to_rgba32f())
         );
     }
 }

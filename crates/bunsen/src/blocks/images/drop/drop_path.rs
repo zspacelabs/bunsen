@@ -282,7 +282,7 @@ mod tests {
                 Tensor::<B, 3>::from_data([[[1.0]], [[0.0]], [[1.0]]], device)
             },
         );
-        res.to_data().assert_eq(&x.clone().to_data(), true);
+        res.to_data().assert_eq(&x.to_data(), true);
 
         // No-op case: training, but drop_prob = 0.0
         let training = true;
@@ -299,7 +299,7 @@ mod tests {
                 Tensor::<B, 3>::from_data([[[1.0]], [[0.0]], [[1.0]]], device)
             },
         );
-        res.to_data().assert_eq(&x.clone().to_data(), true);
+        res.to_data().assert_eq(&x.to_data(), true);
 
         // Training, but no scaling
         let training = true;

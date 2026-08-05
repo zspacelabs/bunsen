@@ -246,7 +246,7 @@ impl Simulation {
         export_duration: Duration,
     ) -> Self {
         let shutdown = Arc::new(AtomicBool::new(false));
-        let frame_handle_1 = Arc::new(Mutex::new(conway.state.clone().into_data()));
+        let frame_handle_1 = Arc::new(Mutex::new(conway.state.to_data()));
         let frame_handle_2 = frame_handle_1.clone();
 
         let shutdown_clone = shutdown.clone();
@@ -284,7 +284,7 @@ impl Simulation {
                 if t1 - last_export > export_duration {
                     last_export = t1;
 
-                    let frame = conway.state.clone().into_data_as::<bool>();
+                    let frame = conway.state.to_data_as::<bool>();
                     *frame_handle_1.lock().unwrap() = frame;
 
                     t1 = std::time::Instant::now();

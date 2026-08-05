@@ -267,8 +267,8 @@ mod tests {
         let device = Default::default();
         let state: ExtLstmState<B, 3> = random_state([2, 3, 4], &device);
 
-        let expected_cell = state.cell.clone().to_data();
-        let expected_hidden = state.hidden.clone().to_data();
+        let expected_cell = state.cell.to_data();
+        let expected_hidden = state.hidden.to_data();
 
         let (cell, hidden) = state.unpack();
 
@@ -354,7 +354,7 @@ mod tests {
         let device = Default::default();
         let state: ExtLstmState<B, 2> = random_state([2, 3], &device);
 
-        let expected_cell = state.cell.clone().to_data();
+        let expected_cell = state.cell.to_data();
 
         let roundtrip: ExtLstmState<B, 2> = state.unsqueeze_dim::<3>(1).squeeze_dim(1);
 
@@ -384,8 +384,8 @@ mod tests {
         let device = Default::default();
         let state: ExtLstmState<B, 2> = random_state([2, 3], &device);
 
-        let expected_cell = state.cell.clone().to_data();
-        let expected_hidden = state.hidden.clone().to_data();
+        let expected_cell = state.cell.to_data();
+        let expected_hidden = state.hidden.to_data();
 
         // The shape passed here is intentionally different; it must be ignored.
         let unwrapped = Some(state).unwrap_or_initial([9, 9], &device);

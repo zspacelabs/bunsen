@@ -165,7 +165,7 @@ mod tests {
 
         let parts = ldv_projection(e.clone(), u.clone());
 
-        parts.clone().to_data().assert_approx_eq::<f32>(
+        parts.to_data().assert_approx_eq::<f32>(
             &Tensor::<B, 5>::from_data(
                 [[
                     [
@@ -187,7 +187,7 @@ mod tests {
 
         let e_u = lattice_dot_velocity(u.clone(), e.clone());
 
-        e_u.clone().to_data().assert_approx_eq::<f32>(
+        e_u.to_data().assert_approx_eq::<f32>(
             &parts.sum_dim(4).squeeze_dims::<4>(&[4]).to_data(),
             Tolerance::default(),
         );
