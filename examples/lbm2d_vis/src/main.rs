@@ -14,7 +14,7 @@ use std::{
 };
 
 use bunsen::{
-    burner::tensor::TensorDataIndexView,
+    burner::tensor::TensorDataView,
     kits::sims::lbm::d2q9::{
         LBMD2Q9Config,
         LBMD2Q9State,
@@ -25,6 +25,7 @@ use bunsen::{
         macroscopic_momentum,
     },
     prelude::{
+        TensorDataViewExt,
         TensorElemOpExt,
         TensorOpExt,
     },
@@ -366,10 +367,10 @@ impl FlowVisApp {
     ) {
         use graphics::*;
 
-        let solid_cells: TensorDataIndexView<bool> = TensorDataIndexView::view(&self.solid_mask);
+        let solid_cells: TensorDataView<bool> = self.solid_mask.expect_index_view();
 
         let cell_data = self.get_cell_data();
-        let vis_cells: TensorDataIndexView<f32> = TensorDataIndexView::view(&cell_data);
+        let vis_cells: TensorDataView<f32> = cell_data.expect_index_view();
         let [height, width] = cell_data.shape[0..2].try_into().unwrap();
 
         let [view_width, view_height] = args.viewport().window_size;

@@ -67,8 +67,8 @@
 //!   dimensions (negative indexing supported).
 //!
 //! [`tensor`] also carries the
-//! [`TensorDataIndexView`](tensor::TensorDataIndexView)
-//! / [`TensorDataIndexMutView`](tensor::TensorDataIndexMutView) wrappers,
+//! [`TensorDataIndexView`](tensor::TensorDataView)
+//! / [`TensorDataIndexMutView`](tensor::TensorDataViewMut) wrappers,
 //! which give `view[&[i, j]]` multi-dimensional element access to a raw
 //! `TensorData`.
 
