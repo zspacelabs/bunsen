@@ -8,8 +8,8 @@
 [![Discord](https://img.shields.io/discord/1475229838754316502?label=discord)](https://discord.gg/vBgXHWCeah)
 [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/zspacelabs/bunsen)
 
-`bunsen` aims to be a "batteries included" complementary
-community standard library for extending the [burn](https://burn.dev) tensor library.
+`bunsen` aims to be a "batteries included" complementary community standard library for extending
+the [burn](https://burn.dev) tensor library.
 
 # Book
 
@@ -19,28 +19,24 @@ Read the [bunsen book](https://zspacelabs.ai/bunsen/book)
 
 ## Public / API Crates
 
-* [`bunsen-firehose`](crates/bunsen-firehose) — a columnar dataloader /
-  processing pipeline, with a burn batcher bridge.
+* [`bunsen-firehose`](crates/bunsen-firehose) — a columnar dataloader / processing pipeline, with a burn batcher bridge.
 
 ## Utility Crates
 
 * [`bunsen-contracts-macros`](crates/bunsen-contracts-macros) — the
-  `shape_contract![]` proc-macro backing `bunsen`'s runtime tensor-shape
-  contracts.
+  `shape_contract![]` proc-macro backing `bunsen`'s runtime tensor-shape contracts.
 
 ## Experimental Crates
 
-These represent complex-interface + work-in-progress, unstable interface
-extensions to `bunsen`; particulary those which incur large dependencies
-or are not yet ready for general consumption.
+These represent complex-interface + work-in-progress, unstable interface extensions to `bunsen`; particulary those which
+incur large dependencies or are not yet ready for general consumption.
 
-* [`bunsen-firehose-image`](crates/bunsen-firehose-image) — image loading,
-  augmentation, and tensor-conversion operators for `bunsen-firehose`.
-* [`bunsen`](crates/bunsen) — the main "batteries included" library extending
-  burn: model blocks, kits, ops, contracts, and support tooling.
-* [`bunsen-preview-chat-dataloader`](crates/bunsen-preview-chat-dataloader) —
-  *(preview)* an Arrow-backed chat dataloader with tokenization for LLM
-  training.
+* [`bunsen-firehose-image`](crates/bunsen-firehose-image) — image loading, augmentation, and tensor-conversion operators
+  for `bunsen-firehose`.
+* [`bunsen`](crates/bunsen) — the main "batteries included" library extending burn: model blocks, kits, ops, contracts,
+  and support tooling.
+* [`bunsen-preview-chat-dataloader`](crates/bunsen-preview-chat-dataloader) — *(preview)* an Arrow-backed chat
+  dataloader with tokenization for LLM training.
 
 # API Examples
 
@@ -50,11 +46,10 @@ A "good parts" survey of some of `bunsen`'s features. See the
 
 ## Shape Contracts
 
-`bunsen::contracts` provides allocation-free, always-on runtime tensor-shape
-contracts. A contract pairs paper-style shape notation with runtime checking:
-it asserts that a tensor's shape matches a declared pattern *and* unpacks named
-dimensions for downstream use, catching shape errors at their source. Single
-checks run in ~160 ns; the amortized periodic variants average a few ns.
+`bunsen::contracts` provides allocation-free, always-on runtime tensor-shape contracts. A contract pairs paper-style
+shape notation with runtime checking:
+it asserts that a tensor's shape matches a declared pattern *and* unpacks named dimensions for downstream use, catching
+shape errors at their source. Single checks run in ~160 ns; the amortized periodic variants average a few ns.
 
 ```rust
 use bunsen::contracts::*;
@@ -79,8 +74,8 @@ let [b, h_wins, w_wins, c] = unpack_shape_contract!(
 );
 ```
 
-In hot loops, use `assert_shape_contract_periodically!` to amortize the check
-via exponential backoff while still catching regressions:
+In hot loops, use `assert_shape_contract_periodically!` to amortize the check via exponential backoff while still
+catching regressions:
 
 ```rust
 use bunsen::contracts::*;
@@ -94,10 +89,9 @@ assert_shape_contract_periodically!(
 
 ## TensorData Index Views
 
-`TensorDataIndexView` and `TensorDataIndexMutView` wrap burn's low-level
-`TensorData` to give ergonomic multi-dimensional element access via bracket
-notation — `view[&[i, j]]` — instead of manually flattening indices. The views
-deref to the underlying `TensorData`, so `.shape` and friends are right there.
+`TensorDataView` and `TensorDataViewMut` wrap burn's low-level
+`TensorData` to give ergonomic multi-dimensional element access via bracket notation — `view[&[i, j]]` — instead of
+manually flattening indices. The views deref to the underlying `TensorData`, so `.shape` and friends are right there.
 Handy for inspecting or patching raw tensor data without building full tensors.
 
 ```rust
@@ -130,10 +124,9 @@ assert_eq!(view[&[0, 0]], 10.0);
 ## XML Module Reflection
 
 `bunsen::burner::module::reflection::XmlModuleTree` turns any burn `Module`
-into a queryable XML meta-description of its structure. This enables
-type-erased introspection and XPath-style parameter selection — e.g. "every
-rank-2 weight under the transformer blocks" — which is exactly what you need to
-slice a model into parameter groups for per-group optimizers.
+into a queryable XML meta-description of its structure. This enables type-erased introspection and XPath-style parameter
+selection — e.g. "every rank-2 weight under the transformer blocks" — which is exactly what you need to slice a model
+into parameter groups for per-group optimizers.
 
 Take a small container module:
 
@@ -172,8 +165,8 @@ let matrix_params = mtree
 .to_param_ids() ?;
 ```
 
-The dumped structure mirrors the module's fields, with each `@name` taken from
-the struct field and a stable `param_id` per tensor:
+The dumped structure mirrors the module's fields, with each `@name` taken from the struct field and a stable `param_id`
+per tensor:
 
 ```xml
 
@@ -199,8 +192,8 @@ the struct field and a stable `param_id` per tensor:
 
 ## Blocks & Ops
 
-`bunsen::blocks` is a library of `burn::module::Module` building blocks (stateful
-layers with trainable parameters), and `bunsen::ops` is a library of stateless
+`bunsen::blocks` is a library of `burn::module::Module` building blocks (stateful layers with trainable parameters), and
+`bunsen::ops` is a library of stateless
 `Tensor` operations. A survey of what's available:
 
 ```text
@@ -247,8 +240,7 @@ See [`examples/`](examples/) for the full index. At a glance:
 
 # Motivation
 
-This library is a synthesis of the utility and extension work that
-I've been accumulating in:
+This library is a synthesis of the utility and extension work that I've been accumulating in:
 
 * <https://github.com/zspacelabs/wordchipper>
 * <https://github.com/zspacelabs/bimm>
@@ -256,36 +248,29 @@ I've been accumulating in:
 * <https://github.com/zspacelabs/zsl-chat>
 * <https://github.com/crutcher/clockmill>
 
-This library is a work in progress, and I'm working to fold the various
-utilities and support code from these projects into a single place; where we
-can closely track the burn release cycle, and minimize the dependency-hell
-churn problem for writing extensions.
+This library is a work in progress, and I'm working to fold the various utilities and support code from these projects
+into a single place; where we can closely track the burn release cycle, and minimize the dependency-hell churn problem
+for writing extensions.
 
-I plan on continuing to work on this library, and recruit community
-involvement for landing and publishing new operators and blocks in a place
-we can lock down their testings and documentation.
+I plan on continuing to work on this library, and recruit community involvement for landing and publishing new operators
+and blocks in a place we can lock down their testings and documentation.
 
 ## Future Components
 
-The base libraries have significant features which haven't been polished and stabilized for bunsen
-yet.
+The base libraries have significant features which haven't been polished and stabilized for bunsen yet.
 
-* weight/data download disk cache - there are several implementations of this in my codebase so far,
-  the most robust is probably in the `wordchipper` code.
-* shard fetching - being able to bind a family of shards to URL template + range pattern;
-  with information on the target format; and wire that smoothly into the download and cache layer.
-  this is also currently in some of the LLM/chat codebases.
+* weight/data download disk cache - there are several implementations of this in my codebase so far, the most robust is
+  probably in the `wordchipper` code.
+* shard fetching - being able to bind a family of shards to URL template + range pattern; with information on the target
+  format; and wire that smoothly into the download and cache layer. this is also currently in some of the LLM/chat
+  codebases.
 * LLM `DataLoader` - a high-performance burn data loader for LLM models, built on parquet/arrow; and
-  `wordchipper`.
-  This is currently in the `zsl-chat` codebase.
-* `clap` tooling - I've built a lot of burn-related clap tools, and I'm pretty sure some of the
-  arguments/setup
-  machinery
-  could be shared.
+  `wordchipper`. This is currently in the `zsl-chat` codebase.
+* `clap` tooling - I've built a lot of burn-related clap tools, and I'm pretty sure some of the arguments/setup
+  machinery could be shared.
 
 # License
 
-`bunsen` is distributed under the terms of both the MIT license and the Apache License
-(Version 2.0).
-See [LICENSE-APACHE](LICENSE-APACHE) and [LICENSE-MIT](LICENSE-MIT) for details. Opening a pull
-request is assumed to signal agreement with these licensing terms
+`bunsen` is distributed under the terms of both the MIT license and the Apache License (Version 2.0).
+See [LICENSE-APACHE](LICENSE-APACHE) and [LICENSE-MIT](LICENSE-MIT) for details. Opening a pull request is assumed to
+signal agreement with these licensing terms

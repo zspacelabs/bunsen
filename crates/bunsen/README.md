@@ -8,8 +8,8 @@
 [![Discord](https://img.shields.io/discord/1475229838754316502?label=discord)](https://discord.gg/vBgXHWCeah)
 [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/zspacelabs/bunsen)
 
-`bunsen` aims to be a "batteries included" complementary
-community standard library for extending the [burn](https://burn.dev) tensor library.
+`bunsen` aims to be a "batteries included" complementary community standard library for extending
+the [burn](https://burn.dev) tensor library.
 
 # Book
 
@@ -19,8 +19,8 @@ Read the [bunsen book](https://zspacelabs.ai/bunsen/book)
 
 ### Burn Extensions
 
-* `bunsen::burner` - this is a library of `burn::module::Module` lifecycle
-  components that extend the current functionality of burn.
+* `bunsen::burner` - this is a library of `burn::module::Module` lifecycle components that extend the current
+  functionality of burn.
     * `bunsen::burner::module::reflection` has powerful tools for dynamic `burn::module::Module` reflection.
     * `bunsen::burner::optim` has parameter-group optimizer extensions.
     * `bunsen::burner::tensor` has `Tensor` extension traits (`swap`/`release`,
@@ -30,9 +30,8 @@ Read the [bunsen book](https://zspacelabs.ai/bunsen/book)
 
 ### Component Libraries
 
-* `bunsen::blocks` - this is a library of `burn::module::Module` components.
-  This includes simple inner layers, recurrent utility blocks, and entire
-  model families.
+* `bunsen::blocks` - this is a library of `burn::module::Module` components. This includes simple inner layers,
+  recurrent utility blocks, and entire model families.
 * `bunsen::ops` - this is a library `burn::tensor::Tensor` operations.
 * `bunsen::kits` - this is a library of full models and simulation kits.
     * `bimm` - image models: `resnet`, `swinn`
@@ -43,8 +42,8 @@ Read the [bunsen book](https://zspacelabs.ai/bunsen/book)
 ### App and Testing Support Libs
 
 * `bunsen::errors` - this is a library of error types and tooling.
-* `bunsen::support` - this is a library of support functions for bunsen, including
-  testing tooling which may be useful for clients.
+* `bunsen::support` - this is a library of support functions for bunsen, including testing tooling which may be useful
+  for clients.
 * `bunsen::zspace` - this is a library of z-space / index utilities.
 
 # API Examples
@@ -55,11 +54,10 @@ A "good parts" survey of some of `bunsen`'s features. See the
 
 ## Shape Contracts
 
-`bunsen::contracts` provides allocation-free, always-on runtime tensor-shape
-contracts. A contract pairs paper-style shape notation with runtime checking:
-it asserts that a tensor's shape matches a declared pattern *and* unpacks named
-dimensions for downstream use, catching shape errors at their source. Single
-checks run in ~160 ns; the amortized periodic variants average a few ns.
+`bunsen::contracts` provides allocation-free, always-on runtime tensor-shape contracts. A contract pairs paper-style
+shape notation with runtime checking:
+it asserts that a tensor's shape matches a declared pattern *and* unpacks named dimensions for downstream use, catching
+shape errors at their source. Single checks run in ~160 ns; the amortized periodic variants average a few ns.
 
 ```rust
 use bunsen::contracts::*;
@@ -84,8 +82,8 @@ let [b, h_wins, w_wins, c] = unpack_shape_contract!(
 );
 ```
 
-In hot loops, use `assert_shape_contract_periodically!` to amortize the check
-via exponential backoff while still catching regressions:
+In hot loops, use `assert_shape_contract_periodically!` to amortize the check via exponential backoff while still
+catching regressions:
 
 ```rust
 use bunsen::contracts::*;
@@ -99,15 +97,14 @@ assert_shape_contract_periodically!(
 
 ## Tensor Op Extensions
 
-`bunsen::burner::tensor` provides extension traits that add utility methods
-directly to `burn::Tensor` — in scope after `use bunsen::burner::tensor::*;`:
+`bunsen::burner::tensor` provides extension traits that add utility methods directly to `burn::Tensor` — in scope after
+`use bunsen::burner::tensor::*;`:
 
 * `TensorOpExt` (all tensor kinds) — `swap` exchanges two tensors in place;
   `release` moves a tensor out of a field, leaving an empty tensor behind;
-  `select_dim` selects one index along a dimension and squeezes it, dropping
-  the rank by one.
-* `TensorIntOpExt` (`Int` tensors) — `square`, and `bounded_elem` for
-  elementwise `[start, end)` range checks producing `Bool` masks.
+  `select_dim` selects one index along a dimension and squeezes it, dropping the rank by one.
+* `TensorIntOpExt` (`Int` tensors) — `square`, and `bounded_elem` for elementwise `[start, end)` range checks producing
+  `Bool` masks.
 * `TensorBoolOpExt` (`Bool` tensors) — `count_dim` / `count_dims` count `true`
   elements along one or more dimensions, with negative indexing.
 
@@ -128,10 +125,9 @@ fn row_counts<B: Backend>(grid: Tensor<B, 2, Bool>) -> Tensor<B, 2, Int> {
 
 ## TensorData Index Views
 
-`TensorDataIndexView` and `TensorDataIndexMutView` wrap burn's low-level
-`TensorData` to give ergonomic multi-dimensional element access via bracket
-notation — `view[&[i, j]]` — instead of manually flattening indices. The views
-deref to the underlying `TensorData`, so `.shape` and friends are right there.
+`TensorDataView` and `TensorDataViewMut` wrap burn's low-level
+`TensorData` to give ergonomic multi-dimensional element access via bracket notation — `view[&[i, j]]` — instead of
+manually flattening indices. The views deref to the underlying `TensorData`, so `.shape` and friends are right there.
 Handy for inspecting or patching raw tensor data without building full tensors.
 
 ```rust
@@ -164,10 +160,9 @@ assert_eq!(view[&[0, 0]], 10.0);
 ## XML Module Reflection
 
 `bunsen::burner::module::reflection::XmlModuleTree` turns any burn `Module`
-into a queryable XML meta-description of its structure. This enables
-type-erased introspection and XPath-style parameter selection — e.g. "every
-rank-2 weight under the transformer blocks" — which is exactly what you need to
-slice a model into parameter groups for per-group optimizers.
+into a queryable XML meta-description of its structure. This enables type-erased introspection and XPath-style parameter
+selection — e.g. "every rank-2 weight under the transformer blocks" — which is exactly what you need to slice a model
+into parameter groups for per-group optimizers.
 
 Take a small container module:
 
@@ -206,8 +201,8 @@ let matrix_params = mtree
 .to_param_ids() ?;
 ```
 
-The dumped structure mirrors the module's fields, with each `@name` taken from
-the struct field and a stable `param_id` per tensor:
+The dumped structure mirrors the module's fields, with each `@name` taken from the struct field and a stable `param_id`
+per tensor:
 
 ```xml
 
@@ -233,8 +228,8 @@ the struct field and a stable `param_id` per tensor:
 
 ## Blocks & Ops
 
-`bunsen::blocks` is a library of `burn::module::Module` building blocks (stateful
-layers with trainable parameters), and `bunsen::ops` is a library of stateless
+`bunsen::blocks` is a library of `burn::module::Module` building blocks (stateful layers with trainable parameters), and
+`bunsen::ops` is a library of stateless
 `Tensor` operations. A survey of what's available:
 
 ```text
@@ -271,5 +266,4 @@ See [`examples/`](https://github.com/zspacelabs/bunsen/tree/main/examples/) for 
 
 # License
 
-`bunsen` is distributed under the terms of both the MIT license and the Apache License
-(Version 2.0).
+`bunsen` is distributed under the terms of both the MIT license and the Apache License (Version 2.0).
