@@ -474,7 +474,10 @@ mod tests {
     };
 
     use super::*;
-    use crate::support::testing::CpuBackend;
+    use crate::{
+        prelude::*,
+        support::testing::CpuBackend,
+    };
 
     type B = CpuBackend;
     type F = <B as BackendTypes>::FloatElem;
@@ -662,10 +665,12 @@ mod tests {
                 .flat_map(|(host, row)| host.push(row))
                 .collect();
 
-            out.cast(DType::F64).to_data().assert_approx_eq::<F>(
-                &TensorData::new(expected, [batch, n_bins, 2]),
-                Tolerance::permissive(),
-            );
+            out.cast(DType::F64)
+                .to_data_as::<F>()
+                .assert_approx_eq::<F>(
+                    &TensorData::new(expected, [batch, n_bins, 2]).convert::<F>(),
+                    Tolerance::permissive(),
+                );
         }
     }
 
@@ -707,12 +712,12 @@ mod tests {
 
             let tol = Tolerance::<F>::permissive();
             seq_out
-                .to_data()
-                .assert_approx_eq::<F>(&step_out.to_data(), tol);
+                .to_data_as::<F>()
+                .assert_approx_eq::<F>(&step_out.to_data_as::<F>(), tol);
             seq_stft
                 .queue
-                .to_data()
-                .assert_approx_eq::<F>(&step_stft.queue.to_data(), tol);
+                .to_data_as::<F>()
+                .assert_approx_eq::<F>(&step_stft.queue.to_data_as::<F>(), tol);
         }
     }
 
@@ -729,8 +734,9 @@ mod tests {
         stft.forward(hop);
 
         stft.reset();
-        stft.queue
-            .to_data()
-            .assert_eq(&Tensor::<B, 2>::zeros([1, 48], &device).to_data(), true);
+        stft.queue.to_data_as::<F>().assert_eq(
+            &Tensor::<B, 2>::zeros([1, 48], &device).to_data_as::<F>(),
+            true,
+        );
     }
 }

@@ -235,6 +235,7 @@ mod tests {
     use super::*;
     use crate::{
         ops::signal::testing::assert_builder_impls_match,
+        prelude::*,
         support::testing::CpuBackend,
     };
 
@@ -255,8 +256,11 @@ mod tests {
 
         info!("checking hann_window reference implementation");
         hann_window::<B>(size, periodic, options.clone())
-            .to_data()
-            .assert_approx_eq::<F>(&TensorData::from(expected), Tolerance::default());
+            .to_data_as::<F>()
+            .assert_approx_eq::<F>(
+                &TensorData::from(expected).convert::<F>(),
+                Tolerance::default(),
+            );
 
         info!("cross-checking vec/tensor impls");
         assert_builder_impls_match::<B>(&cfg, expected, options.clone());
@@ -312,8 +316,11 @@ mod tests {
 
         info!("checking blackman_window reference implementation");
         blackman_window::<B>(size, periodic, options.clone())
-            .to_data()
-            .assert_approx_eq::<F>(&TensorData::from(expected), Tolerance::default());
+            .to_data_as::<F>()
+            .assert_approx_eq::<F>(
+                &TensorData::from(expected).convert::<F>(),
+                Tolerance::default(),
+            );
 
         info!("cross-checking vec/tensor impls");
         assert_builder_impls_match::<B>(&cfg, expected, options.clone());

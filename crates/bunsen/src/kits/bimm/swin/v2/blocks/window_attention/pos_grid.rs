@@ -284,7 +284,7 @@ mod tests {
 
         let device = Default::default();
         let rel = window_attention_relative_position_index::<B>(window_shape, &device);
-        rel.clone().to_data().assert_eq(
+        rel.to_data().assert_eq(
             &TensorData::from([
                 [7, 6, 5, 2, 1, 0],
                 [8, 7, 6, 3, 2, 1],

@@ -13,6 +13,7 @@ mod test {
             TenVad,
             reference::ReferenceModel,
         },
+        prelude::*,
         support::testing::PerformanceBackend,
     };
 
@@ -50,31 +51,27 @@ mod test {
 
         mod_prob
             .unsqueeze_dim::<3>(2)
-            .to_data()
-            .assert_approx_eq::<F>(&ref_prob.to_data(), Tolerance::permissive());
+            .to_data_as::<F>()
+            .assert_approx_eq::<F>(&ref_prob.to_data_as::<F>(), Tolerance::permissive());
 
         mod_lstm1_state
             .hidden
-            .clone()
-            .to_data()
-            .assert_approx_eq::<F>(&ref_lstm1_hidden.to_data(), Tolerance::permissive());
+            .to_data_as::<F>()
+            .assert_approx_eq::<F>(&ref_lstm1_hidden.to_data_as::<F>(), Tolerance::permissive());
 
         mod_lstm1_state
             .cell
-            .clone()
-            .to_data()
-            .assert_approx_eq::<F>(&ref_lstm1_cell.to_data(), Tolerance::permissive());
+            .to_data_as::<F>()
+            .assert_approx_eq::<F>(&ref_lstm1_cell.to_data_as::<F>(), Tolerance::permissive());
 
         mod_lstm2_state
             .hidden
-            .clone()
-            .to_data()
-            .assert_approx_eq::<F>(&ref_lstm2_hidden.to_data(), Tolerance::permissive());
+            .to_data_as::<F>()
+            .assert_approx_eq::<F>(&ref_lstm2_hidden.to_data_as::<F>(), Tolerance::permissive());
 
         mod_lstm2_state
             .cell
-            .clone()
-            .to_data()
-            .assert_approx_eq::<F>(&ref_lstm2_cell.to_data(), Tolerance::permissive());
+            .to_data_as::<F>()
+            .assert_approx_eq::<F>(&ref_lstm2_cell.to_data_as::<F>(), Tolerance::permissive());
     }
 }

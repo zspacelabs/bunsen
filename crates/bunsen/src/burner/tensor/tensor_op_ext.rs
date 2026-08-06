@@ -12,6 +12,7 @@ use burn::{
         BasicOps,
         Bool,
         DType,
+        DataError,
         Element,
         Float,
         Int,
@@ -80,12 +81,18 @@ where
     K: BasicOps<B>,
     K::Elem: Element,
 {
-    /// Copies the current `Tensor` into `TensorData`; converts the dtype.
+    /// Copies the current `Tensor` into a `TensorData`; converts the dtype.
+    ///
+    /// By contract, this will yield the same result as
+    /// `tensor.to_data().convert::<E>(dtype)`.
     ///
     /// The conversion is a no-op if the dtype is the same as the current dtype.
-    fn to_data_convert<E: Element>(&self) -> TensorData;
+    fn to_data_as<E: Element>(&self) -> TensorData;
 
     /// Copies the current `Tensor` into `TensorData`; converts the dtype.
+    ///
+    /// By contract, this will yield the same result as
+    /// `tensor.to_data().convert_dtype(dtype)`.
     ///
     /// The conversion is a no-op if the dtype is the same as the current dtype.
     fn to_data_cast(
@@ -95,10 +102,16 @@ where
 
     /// Converts the current `Tensor` into `TensorData`; converts the dtype.
     ///
+    /// By contract, this will yield the same result as
+    /// `tensor.into_data().convert::<E>(dtype)`.
+    ///
     /// The conversion is a no-op if the dtype is the same as the current dtype.
-    fn into_data_convert<E: Element>(self) -> TensorData;
+    fn into_data_as<E: Element>(self) -> TensorData;
 
     /// Converts the current `Tensor` into `TensorData`; converts the dtype.
+    ///
+    /// By contract, this will yield the same result as
+    /// `tensor.into_data().convert_dtype(dtype)`.
     ///
     /// The conversion is a no-op if the dtype is the same as the current dtype.
     fn into_data_cast(
@@ -113,8 +126,8 @@ where
     K: BasicOps<B>,
     K::Elem: Element,
 {
-    fn to_data_convert<E: Element>(&self) -> TensorData {
-        self.to_data().convert::<E>()
+    fn to_data_as<E: Element>(&self) -> TensorData {
+        self.to_data_cast(E::dtype())
     }
 
     fn to_data_cast(
@@ -124,8 +137,8 @@ where
         self.to_data().convert_dtype(dtype)
     }
 
-    fn into_data_convert<E: Element>(self) -> TensorData {
-        self.into_data().convert::<E>()
+    fn into_data_as<E: Element>(self) -> TensorData {
+        self.into_data_cast(E::dtype())
     }
 
     fn into_data_cast(
@@ -278,6 +291,74 @@ where
     }
 }
 
+/// Extension trait for `TensorData` that provides additional methods.
+pub trait TensorDataToVecAsExt {
+    /// Cast the data to a new dtype.
+    ///
+    /// TODO: Implement proper error handling in `TensorData`.
+    ///
+    /// # Returns
+    /// Ok(data) on success, (Currently) panics on failure.
+    fn try_cast(
+        self,
+        dtype: DType,
+    ) -> Result<TensorData, DataError>;
+
+    /// Convert the data to a new dtype.
+    ///
+    /// TODO: Implement proper error handling in `TensorData`.
+    ///
+    /// By contract, this is equivalent to:
+    /// `data.try_cast(E::dtype())`
+    ///
+    /// # Returns
+    /// Ok(data) on success, (Currently) panics on failure.
+    fn try_convert<E: Element>(self) -> Result<TensorData, DataError>;
+
+    /// Copy and convert the data to a [`Vec<E>`].
+    ///
+    /// By contract, this is equivalent to:
+    /// `data.clone().into_vec_as::<E>()`
+    ///
+    /// Particular conversions may provide more efficient implementations.
+    ///
+    /// # Returns
+    /// `Ok(vec)` on success, or an error if the conversion fails.
+    fn to_vec_as<E: Element>(&self) -> Result<Vec<E>, DataError>;
+
+    /// Convert the data to [`Vec<E>`].
+    ///
+    /// By contract, this is equivalent to:
+    /// `data.try_convert::<E>()?.to_vec::<E>()`
+    ///
+    /// Particular conversions may provide more efficient implementations.
+    ///
+    /// # Returns
+    /// `Ok(vec)` on success, or an error if the conversion fails.
+    fn into_vec_as<E: Element>(self) -> Result<Vec<E>, DataError>;
+}
+
+impl TensorDataToVecAsExt for TensorData {
+    fn try_cast(
+        self,
+        dtype: DType,
+    ) -> Result<TensorData, DataError> {
+        Ok(self.convert_dtype(dtype))
+    }
+
+    fn try_convert<E: Element>(self) -> Result<TensorData, DataError> {
+        self.try_cast(E::dtype())
+    }
+
+    fn to_vec_as<E: Element>(&self) -> Result<Vec<E>, DataError> {
+        self.clone().into_vec_as::<E>()
+    }
+
+    fn into_vec_as<E: Element>(self) -> Result<Vec<E>, DataError> {
+        self.try_convert::<E>()?.to_vec::<E>()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use burn::tensor::{
@@ -380,5 +461,42 @@ mod tests {
             .squeeze_dim::<1>(0)
             .to_data()
             .assert_eq(&TensorData::from([3]), false);
+    }
+
+    #[test]
+    fn test_to_vec_as() {
+        let data = TensorData::from([0.0f32, 1.0, 2.5]);
+
+        // Same-dtype copy.
+        assert_eq!(data.to_vec_as::<f32>().unwrap(), vec![0.0f32, 1.0, 2.5]);
+
+        // Widening cast (different element size).
+        assert_eq!(data.to_vec_as::<f64>().unwrap(), vec![0.0f64, 1.0, 2.5]);
+
+        // Float to int cast (same element size) truncates.
+        assert_eq!(data.to_vec_as::<i32>().unwrap(), vec![0i32, 1, 2]);
+
+        // The source data is borrowed, not consumed.
+        data.assert_eq(&TensorData::from([0.0f32, 1.0, 2.5]), true);
+    }
+
+    #[test]
+    fn test_into_vec_as() {
+        let data = TensorData::from([0i32, 1, 2, 3]);
+
+        // Same-dtype conversion.
+        assert_eq!(
+            data.clone().into_vec_as::<i32>().unwrap(),
+            vec![0i32, 1, 2, 3]
+        );
+
+        // Int to float cast.
+        assert_eq!(
+            data.clone().into_vec_as::<f32>().unwrap(),
+            vec![0.0f32, 1.0, 2.0, 3.0]
+        );
+
+        // Narrowing int cast.
+        assert_eq!(data.into_vec_as::<u8>().unwrap(), vec![0u8, 1, 2, 3]);
     }
 }

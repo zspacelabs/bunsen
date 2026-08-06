@@ -858,7 +858,10 @@ mod tests {
     };
 
     use super::*;
-    use crate::support::testing::PerformanceBackend;
+    use crate::{
+        prelude::*,
+        support::testing::PerformanceBackend,
+    };
 
     type B = PerformanceBackend;
 
@@ -1060,11 +1063,11 @@ mod tests {
 
         let tol = Tolerance::<F>::default();
         seq_probs
-            .into_data()
-            .assert_approx_eq::<F>(&step_probs.into_data(), tol);
+            .into_data_as::<F>()
+            .assert_approx_eq::<F>(&step_probs.into_data_as::<F>(), tol);
         seq_state
-            .into_data()
-            .assert_approx_eq::<F>(&state.into_data(), tol);
+            .into_data_as::<F>()
+            .assert_approx_eq::<F>(&state.into_data_as::<F>(), tol);
     }
 
     #[test]

@@ -134,9 +134,12 @@ mod tests {
     };
 
     use super::*;
-    use crate::support::testing::{
-        CpuBackend,
-        assert_close_to_vec,
+    use crate::{
+        prelude::*,
+        support::testing::{
+            CpuBackend,
+            assert_close_to_vec,
+        },
     };
     type B = CpuBackend;
     type F = <B as BackendTypes>::FloatElem;
@@ -248,7 +251,7 @@ mod tests {
 
         let actual = tensor_linspace::<B>(start, end, num, &device);
 
-        actual.to_data().assert_approx_eq::<F>(
+        actual.to_data_as::<F>().assert_approx_eq::<F>(
             &TensorData::from([0.0, 0.25, 0.5, 0.75, 1.0]),
             Tolerance::default(),
         );
@@ -264,7 +267,7 @@ mod tests {
 
         let actual = tensor_linspace::<B>(start, end, num, &device);
 
-        actual.to_data().assert_approx_eq::<F>(
+        actual.to_data_as::<F>().assert_approx_eq::<F>(
             &TensorData::from([1.0, 0.7, 0.4, 0.1, -0.2]),
             Tolerance::default(),
         );
@@ -281,7 +284,7 @@ mod tests {
         let actual = tensor_linspace::<B>(start, end, num, &device);
 
         actual
-            .to_data()
+            .to_data_as::<F>()
             .assert_approx_eq::<F>(&TensorData::from([0.0]), Tolerance::default());
     }
 }

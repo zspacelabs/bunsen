@@ -395,7 +395,7 @@ mod tests {
 
         let momentum = macroscopic_momentum(dist.clone(), lbm_tables.e_vec());
 
-        momentum.clone().to_data().assert_approx_eq::<f32>(
+        momentum.to_data().assert_approx_eq::<f32>(
             &Tensor::<B, 3>::from_data([[[-1., -1.], [15., 5.]]], &device).to_data(),
             Tolerance::default(),
         );
@@ -404,7 +404,7 @@ mod tests {
 
         let rho_data = rho.to_data().to_vec::<f32>().unwrap();
 
-        u.clone().to_data().assert_approx_eq::<f32>(
+        u.to_data().assert_approx_eq::<f32>(
             &Tensor::<B, 3>::from_data(
                 [[
                     [-1. / rho_data[0], -1. / rho_data[0]],
@@ -418,7 +418,7 @@ mod tests {
 
         let v_sq = velocity_squared(u.clone());
 
-        v_sq.clone().to_data().assert_approx_eq::<f32>(
+        v_sq.to_data().assert_approx_eq::<f32>(
             &Tensor::<B, 2>::from_data(
                 [[
                     (1. + 1.) / rho_data[0].powi(2),
