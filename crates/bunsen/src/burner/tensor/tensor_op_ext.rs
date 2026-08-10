@@ -84,7 +84,7 @@ where
     /// Copies the current `Tensor` into a `TensorData`; converts the dtype.
     ///
     /// By contract, this will yield the same result as
-    /// `tensor.to_data().convert::<E>(dtype)`.
+    /// `tensor.to_data().convert::<E>()`.
     ///
     /// The conversion is a no-op if the dtype is the same as the current dtype.
     fn to_data_as<E: Element>(&self) -> TensorData;
@@ -95,7 +95,7 @@ where
     /// `tensor.to_data().convert_dtype(dtype)`.
     ///
     /// The conversion is a no-op if the dtype is the same as the current dtype.
-    fn to_data_cast(
+    fn to_data_dtype(
         &self,
         dtype: DType,
     ) -> TensorData;
@@ -114,7 +114,7 @@ where
     /// `tensor.into_data().convert_dtype(dtype)`.
     ///
     /// The conversion is a no-op if the dtype is the same as the current dtype.
-    fn into_data_cast(
+    fn into_data_dtype(
         self,
         dtype: DType,
     ) -> TensorData;
@@ -127,10 +127,10 @@ where
     K::Elem: Element,
 {
     fn to_data_as<E: Element>(&self) -> TensorData {
-        self.to_data_cast(E::dtype())
+        self.to_data_dtype(E::dtype())
     }
 
-    fn to_data_cast(
+    fn to_data_dtype(
         &self,
         dtype: DType,
     ) -> TensorData {
@@ -138,10 +138,10 @@ where
     }
 
     fn into_data_as<E: Element>(self) -> TensorData {
-        self.into_data_cast(E::dtype())
+        self.into_data_dtype(E::dtype())
     }
 
-    fn into_data_cast(
+    fn into_data_dtype(
         self,
         dtype: DType,
     ) -> TensorData {

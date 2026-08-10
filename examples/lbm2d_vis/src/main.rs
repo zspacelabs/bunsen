@@ -367,10 +367,10 @@ impl FlowVisApp {
     ) {
         use graphics::*;
 
-        let solid_cells: TensorDataView<bool> = self.solid_mask.expect_index_view();
+        let solid_cells: TensorDataView<bool> = self.solid_mask.view();
 
         let cell_data = self.get_cell_data();
-        let vis_cells: TensorDataView<f32> = cell_data.expect_index_view();
+        let vis_cells: TensorDataView<f32> = cell_data.view();
         let [height, width] = cell_data.shape[0..2].try_into().unwrap();
 
         let [view_width, view_height] = args.viewport().window_size;
