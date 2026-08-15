@@ -4,7 +4,10 @@ mod tests {
 
     use burn::{
         Tensor,
-        prelude::TensorData,
+        prelude::{
+            Backend,
+            TensorData,
+        },
         tensor::{
             Distribution,
             Tolerance,
@@ -18,6 +21,7 @@ mod tests {
     };
 
     use crate::{
+        burner::tensor::*,
         errors::*,
         kits::speech::silero_vad::{
             SileroVad,
@@ -75,29 +79,127 @@ mod tests {
         }
     }
 
+    static WAV_PATH: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/testdata/silero/test.wav");
+    static WAV_SR: usize = 16000;
+    static CTX_PROBS_PATH: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/testdata/silero/test.json");
+    static FSEQ_PROBS_PATH: &str =
+        concat!(env!("CARGO_MANIFEST_DIR"), "/testdata/silero/fseq.json");
+
     #[test]
     #[serial_test::serial]
-    fn test_golden_context() -> Result<(), Box<dyn std::error::Error>> {
-        #[cfg(feature = "cuda")]
-        eprintln!("This test is known to fail on the CUDA backend.\n");
+    #[cfg(feature = "cuda")]
+    fn backend_golden_crosstest() -> Result<(), Box<dyn std::error::Error>> {
+        type A = burn::backend::Cuda;
+        type B = burn::backend::Flex;
 
-        let wav_path = concat!(env!("CARGO_MANIFEST_DIR"), "/testdata/silero/test.wav");
-        let expected_path = concat!(env!("CARGO_MANIFEST_DIR"), "/testdata/silero/test.json");
-        let sample_rate = 16000;
+        let device_a = Default::default();
+        let device_b = Default::default();
 
-        type B = PerformanceBackend;
-        let device = Default::default();
-
-        let vad: SileroVad<B> = SileroVadCollection::load_pretrained(&device)?
-            .try_branch(sample_rate)?
+        let vad_a: SileroVad<A> = SileroVadCollection::load_pretrained(&device_a)?
+            .try_branch(WAV_SR)?
+            .clone();
+        let vad_b: SileroVad<B> = SileroVadCollection::load_pretrained(&device_b)?
+            .try_branch(WAV_SR)?
             .clone();
 
-        let (_, mut wav_vec) = load_audio_mono_sr(wav_path, sample_rate)?;
+        println!("approx_eq?(vad_a, vad_b, $mod::lstm.features.weight");
+        vad_a
+            .lstm
+            .features
+            .weight
+            .val()
+            .clone()
+            .to_data()
+            .assert_approx_eq(
+                &vad_b.lstm.features.weight.val().clone().to_data(),
+                Tolerance::<f32>::default(),
+            );
+        println!("approx_eq?(vad_a, vad_b, $mod::lstm.hidden.weight");
+        vad_a
+            .lstm
+            .hidden
+            .weight
+            .val()
+            .clone()
+            .to_data()
+            .assert_approx_eq(
+                &vad_b.lstm.hidden.weight.val().clone().to_data(),
+                Tolerance::<f32>::default(),
+            );
 
+        let batch = 1;
+        let state_a = vad_a.init_state(batch, &device_a);
+        let state_b = vad_b.init_state(batch, &device_b);
+
+        // [1, chunk_size]
+        let chunk_a = load_golden_wav_tensor::<A>(&device_a, vad_a.chunk_size())?.select_dim(0, 0);
+        let chunk_b = load_golden_wav_tensor::<B>(&device_b, vad_b.chunk_size())?.select_dim(0, 0);
+
+        println!("unrolled::frame_features");
+        let f_a = vad_a.frame_features(chunk_a.clone());
+        let f_b = vad_b.frame_features(chunk_b.clone());
+        f_a.clone()
+            .to_data()
+            .assert_approx_eq(&f_b.clone().to_data(), Tolerance::<f32>::default());
+
+        let (h_a, c_a) = SileroVad::unpack_state(state_a.clone());
+        let (h_b, c_b) = SileroVad::unpack_state(state_b.clone());
+
+        println!("unrolled::lstm_step::gates::features.forward");
+        let ff_a = vad_a.lstm.features.forward(f_a.clone());
+        let ff_b = vad_b.lstm.features.forward(f_b.clone());
+        ff_a.clone()
+            .to_data()
+            .assert_approx_eq(&ff_b.clone().to_data(), Tolerance::<f32>::default());
+
+        println!("unrolled::lstm_step::gates::hidden.forward");
+        let hf_a = vad_a.lstm.hidden.forward(h_a.clone());
+        let hf_b = vad_b.lstm.hidden.forward(h_b.clone());
+        hf_a.clone()
+            .to_data()
+            .assert_approx_eq(&hf_b.clone().to_data(), Tolerance::<f32>::default());
+
+        println!("unrolled::lstm_step::gates");
+        let gates_a = ff_a + hf_a;
+        let gates_b = ff_b + hf_b;
+        gates_a
+            .clone()
+            .to_data()
+            .assert_approx_eq(&gates_b.clone().to_data(), Tolerance::<f32>::default());
+
+        println!("unrolled::lstm_step");
+        let (h_a, c_a) = vad_a.lstm_step(f_a, h_a, c_a);
+        let (h_b, c_b) = vad_b.lstm_step(f_b, h_b, c_b);
+        h_a.clone()
+            .to_data()
+            .assert_approx_eq(&h_b.clone().to_data(), Tolerance::<f32>::default());
+        c_a.clone()
+            .to_data()
+            .assert_approx_eq(&c_b.clone().to_data(), Tolerance::<f32>::default());
+
+        println!("unrolled::output_head");
+        let o_a = vad_a.output_head(h_a.clone());
+        let o_b = vad_b.output_head(h_b.clone());
+        o_a.to_data()
+            .assert_approx_eq(&o_b.to_data(), Tolerance::<f32>::default());
+
+        println!("VAD::forward");
+        let (p_a, _) = vad_a.forward(chunk_a, state_a);
+        let (p_b, _) = vad_b.forward(chunk_b, state_b);
+
+        p_a.to_data()
+            .assert_approx_eq(&p_b.to_data(), Tolerance::<f32>::default());
+
+        Ok(())
+    }
+
+    fn load_golden_wav_tensor<B: Backend>(
+        device: &B::Device,
+        chunk_size: usize,
+    ) -> BunsenResult<Tensor<B, 3>> {
+        let (_, mut wav_vec) = load_audio_mono_sr(WAV_PATH, WAV_SR)?;
         // [steps, 1, samples=chunk_size]
         let chunk_seq: Tensor<B, 3> = {
-            let chunk_size = vad.chunk_size();
-
             // Pad the audio to the chunk size.
             let tail_len = wav_vec.len() % chunk_size;
             if tail_len != 0 {
@@ -111,24 +213,64 @@ mod tests {
             // Chunk the audio into chunks of size `chunk_size`.
             samples.reshape([-1, 1, chunk_size as isize])
         };
+        Ok(chunk_seq)
+    }
 
-        // [steps, batch=1]
-        let (chunk_probs, _ctx) = vad.context_forward_sequence(
-            chunk_seq,
-            SileroVadContextConfig::new(sample_rate).init(&vad, &device),
-        );
+    #[test]
+    #[serial_test::serial]
+    fn test_golden_context() -> Result<(), Box<dyn std::error::Error>> {
+        #[cfg(feature = "cuda")]
+        eprintln!("This test is known to fail on the CUDA backend.\n");
 
-        // [steps]
-        let chunk_probs = chunk_probs.squeeze_dim::<1>(1).to_data();
+        type B = PerformanceBackend;
+        let device = Default::default();
 
-        // [steps]
-        let expected: Vec<f32> = serde_json::from_reader(
-            std::fs::File::open(expected_path).map_err(BunsenError::external)?,
-        )
-        .map_err(BunsenError::external)?;
-        let expected: TensorData = TensorData::from(expected.as_slice());
+        let vad: SileroVad<B> = SileroVadCollection::load_pretrained(&device)?
+            .try_branch(WAV_SR)?
+            .clone();
 
-        chunk_probs.assert_approx_eq(&expected, Tolerance::<f32>::default());
+        let chunk_seq = load_golden_wav_tensor::<B>(&device, vad.chunk_size())?;
+
+        {
+            let state = vad.init_state(1, &device);
+            let (chunk_probs, _state) = vad.forward_sequence(chunk_seq.clone(), state);
+            let chunk_probs: Tensor<B, 1> = chunk_probs.squeeze_dim::<1>(1);
+
+            let expected: Vec<f32> = serde_json::from_reader(
+                std::fs::File::open(FSEQ_PROBS_PATH).map_err(BunsenError::external)?,
+            )
+            .map_err(BunsenError::external)?;
+            let expected: TensorData = TensorData::from(expected.as_slice());
+
+            chunk_probs
+                .to_data()
+                .assert_approx_eq(&expected, Tolerance::<f32>::default());
+
+            // let _probs: Vec<f32> =
+            // chunk_probs.cast(DType::F32).to_data().to_vec()?;
+            //  println!("chunk_probs: {:?}", _probs);
+        }
+
+        // Context processing.
+        {
+            // [steps, batch=1]
+            let (chunk_probs, _ctx) = vad.context_forward_sequence(
+                chunk_seq,
+                SileroVadContextConfig::new(WAV_SR).init(&vad, &device),
+            );
+
+            // [steps]
+            let chunk_probs = chunk_probs.squeeze_dim::<1>(1).to_data();
+
+            // [steps]
+            let expected: Vec<f32> = serde_json::from_reader(
+                std::fs::File::open(CTX_PROBS_PATH).map_err(BunsenError::external)?,
+            )
+            .map_err(BunsenError::external)?;
+            let expected: TensorData = TensorData::from(expected.as_slice());
+
+            chunk_probs.assert_approx_eq(&expected, Tolerance::<f32>::default());
+        }
 
         Ok(())
     }
