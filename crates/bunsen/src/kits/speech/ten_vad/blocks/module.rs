@@ -1,3 +1,31 @@
+//! # ten-vad model.
+//!
+//! [ten-vad][t] is a small, streaming voice-activity-detection model: given a
+//! short stack of consecutive feature frames and the previous recurrent
+//! states, it emits a per-frame speech probability and the next states.
+//!
+//! [t]: https://github.com/TEN-framework/ten-vad
+//!
+//! The pipeline is:
+//!
+//! 1. a `[1, 3, 41]` feature stack through a 2D conv stem ([`ConvSeq2d`] +
+//!    [`MaxPool2d`] + a depthwise/pointwise [`ConvSeq2d`]), producing an
+//!    `[f_ctx, d_features]` embedding,
+//! 2. two stacked single-step [`Lstm`] blocks, whose outputs are concatenated,
+//! 3. a two-layer `ReLU` / sigmoid [`Linear`] head producing the speech
+//!    probability.
+//!
+//! [`TenVad::forward`] is the stateless call through the network. It starts at
+//! an already-widened feature stack; everything that turns audio into those
+//! 41 bins — pre-emphasis, the sliding STFT, the mel filterbank, the
+//! normalization, and the rolling frame history — lives in
+//! [`context`](crate::kits::speech::ten_vad::context), and is driven through
+//! [`TenVadContext`] by
+//! [`context_forward`](TenVad::context_forward) /
+//! [`context_forward_sequence`](TenVad::context_forward_sequence).
+//!
+//! [`TenVadContext`]: crate::kits::speech::ten_vad::TenVadContext
+
 use burn::{
     nn::{
         Linear,
@@ -224,19 +252,43 @@ impl<B: Backend> TenVad<B> {
 }
 
 impl<B: Backend> TenVad<B> {
-    /// Forward pass.
+    /// Stateless forward pass over one feature stack.
     ///
-    /// There are messy questions about `a` wrt batching and sequences;
-    /// this seems to currently be bound to 1 per the reference model,
-    /// this needs some R&D.
+    /// This is the model half only: `input` must already be the widened,
+    /// normalized context stack. See
+    /// [`context_forward`](Self::context_forward) to drive raw audio.
     ///
-    /// # Argument
-    /// * `input`: `[a, d_ctx, n_freq]`
-    /// * `state1`: `[a, d_hidden]` LSTM state.
-    /// * `state2`: `[a, d_hidden]` LSTM state.
+    /// # The `a` axis
+    ///
+    /// `a` is **not** a stream-batch axis, and this implementation pins it to
+    /// `1`. In the reference ONNX graph the leading dimension of the feature
+    /// input lands on the LSTM's *sequence* axis, with the LSTM batch fixed at
+    /// 1 by a graph constant (`new_shape__177 = [-1, 1, 80]`); the reference
+    /// `ALGO_TRACE.md` §8 documents this and verifies it empirically.
+    ///
+    /// Two consequences, both deliberate and both currently out of scope:
+    ///
+    /// * **Sequence batching is available in the graph but not here.** Feeding
+    ///   `T` stacked context frames as one call is bit-identical to `T`
+    ///   sequential calls (§8.2), and far faster. Reaching it from bunsen needs
+    ///   [`frame_features`](Self::frame_features) to reshape `[-1, 1, d_ctx,
+    ///   n_freq]`, as the reference graph does, rather than the `[1, -1, d_ctx,
+    ///   n_freq]` it currently uses — the two agree only at `a == 1`, which is
+    ///   why the shape contract pins it there.
+    /// * **Multi-stream batching is structurally impossible** against the stock
+    ///   graph: batched states fail shape validation outright. It requires
+    ///   patching two reshape constants (§8.3), i.e. a different model file.
+    ///
+    /// # Arguments
+    /// * `input`: `[a, d_ctx, n_freq]` the widened feature stack, `a == 1`.
+    /// * `state1`: `[a, d_hidden]` first-LSTM state, or `None` to start zeroed.
+    /// * `state2`: `[a, d_hidden]` second-LSTM state, or `None` to start
+    ///   zeroed.
     ///
     /// # Returns
-    /// `[(a,1)?, (a,1)?]` probs.
+    /// `(probabilities, state1, state2)`, with:
+    /// * `probabilities`: `[a, 1]` speech probabilities in `[0, 1]`
+    /// * `state1` / `state2`: `[a, d_hidden]` next LSTM states
     pub fn forward(
         &self,
         input: Tensor<B, 3>,
@@ -278,7 +330,18 @@ impl<B: Backend> TenVad<B> {
         (x, state1, state2)
     }
 
-    fn frame_features(
+    /// Runs the conv stem over a feature stack.
+    ///
+    /// # Arguments
+    /// * `x`: `[a, d_ctx, n_freq]` the widened feature stack.
+    ///
+    /// # Returns
+    /// `[a, f_ctx, d_features]` embeddings.
+    ///
+    /// Note the `[1, -1, d_ctx, n_freq]` reshape below: the reference graph
+    /// uses `[-1, 1, d_ctx, n_freq]`. The two agree at `a == 1`, which is all
+    /// this model is contracted for; see [`forward`](Self::forward).
+    pub fn frame_features(
         &self,
         x: Tensor<B, 3>,
     ) -> Tensor<B, 3> {
