@@ -342,6 +342,103 @@ mod tests {
         );
     }
 
+    /// Pins the whole driver against the reference implementation.
+    ///
+    /// `testdata/ten/probs.json` holds one speech probability per hop over the
+    /// 60 s fixture, produced by driving the shipped `libten_vad.so` through
+    /// the reference Python binding -- the same `ten_vad_process` path every
+    /// other binding takes. See `testdata/ten/README.md` for the recipe.
+    ///
+    /// Unlike the other tests here, this one is end to end: the reference's own
+    /// front end and its own inference engine, against bunsen's front end and
+    /// its burn port of the graph. Nothing is shared between the two arms
+    /// except the audio.
+    #[test]
+    #[serial_test::serial]
+    fn test_reference_probability_golden() -> Result<(), Box<dyn std::error::Error>> {
+        type B = PerformanceBackend;
+        type F = <B as BackendTypes>::FloatElem;
+
+        let device = Default::default();
+        let vad: TenVad<B> = TenVad::load_pretrained(&device)?;
+        let cfg = TenVadContextConfig::new();
+
+        let wav_path = concat!(env!("CARGO_MANIFEST_DIR"), "/testdata/silero/test.wav");
+        let golden_path = concat!(env!("CARGO_MANIFEST_DIR"), "/testdata/ten/probs.json");
+
+        let (_, wav_vec) = load_audio_mono_sr(wav_path, cfg.sample_rate())?;
+        let expected: Vec<f32> = serde_json::from_reader(
+            std::fs::File::open(golden_path).map_err(BunsenError::external)?,
+        )
+        .map_err(BunsenError::external)?;
+
+        // The golden covers the whole 60 s fixture, but this arm runs the model
+        // once per hop on the device -- `context_forward_sequence` is a
+        // sequential loop, by necessity, since the LSTM state threads through
+        // it. So it is capped like the neighbouring cross test. Raising the cap
+        // costs patience, not correctness: the full 3750 hops runs for over a
+        // quarter of an hour, and the golden file holds all of them.
+        const STEPS: usize = 400;
+
+        let steps = STEPS.min(expected.len());
+        let samples = steps * cfg.hop_size();
+        assert!(
+            wav_vec.len() >= samples,
+            "fixture too short for {steps} hops"
+        );
+
+        let mut ctx = vad.init_context(&cfg, &device)?;
+        let probs = vad.context_forward_audio(&wav_vec[..samples], &mut ctx)?;
+        let got: Vec<f32> = probs.to_data_as::<F>().to_vec_as::<f32>().ok_or_panic();
+
+        let mut worst = 0.0f32;
+        let mut worst_at = 0usize;
+        let mut sum = 0.0f64;
+        let mut decisions = 0usize;
+        for (t, (&g, &e)) in got.iter().zip(expected.iter()).enumerate() {
+            let d = (g - e).abs();
+            sum += d as f64;
+            if d > worst {
+                worst = d;
+                worst_at = t;
+            }
+            if (g >= 0.5) == (e >= 0.5) {
+                decisions += 1;
+            }
+        }
+        let mean = sum / steps as f64;
+        let agreement = decisions as f64 / steps as f64;
+
+        eprintln!(
+            "reference probability golden: mean |diff| = {mean:.3e}, worst = {worst:.3e} \
+             at hop {worst_at} (got {}, want {}), decisions agree {:.3}%",
+            got[worst_at],
+            expected[worst_at],
+            100.0 * agreement,
+        );
+
+        // Measured, not guessed: two independent front ends and two independent
+        // inference engines land within 3e-5 of each other on average, and never
+        // disagree on the decision. The bounds sit an order of magnitude above
+        // that, so ordinary backend drift passes and a real regression does not.
+        assert_eq!(
+            decisions,
+            steps,
+            "speech/no-speech decisions disagree on {} of {steps} hops",
+            steps - decisions,
+        );
+        assert!(
+            worst < 5e-3,
+            "worst probability error {worst:.3e} at hop {worst_at} is too large"
+        );
+        assert!(
+            mean < 1e-3,
+            "mean probability error {mean:.3e} is too large"
+        );
+
+        Ok(())
+    }
+
     /// Pins the ported host pitch estimator against the ten-vad C reference.
     ///
     /// This is the anchor of the whole chain: every device stage is validated

@@ -55,8 +55,10 @@
 
 pub mod antialias;
 pub mod correlate;
+pub mod excitation;
 pub mod prefilter;
 pub mod tables;
+pub mod track;
 
 #[cfg(test)]
 pub(crate) mod hybrid;
@@ -66,6 +68,10 @@ pub use antialias::*;
 #[doc(inline)]
 pub use correlate::*;
 #[doc(inline)]
+pub use excitation::*;
+#[doc(inline)]
 pub use prefilter::*;
 #[doc(inline)]
 pub use tables::*;
+#[doc(inline)]
+pub use track::*;
