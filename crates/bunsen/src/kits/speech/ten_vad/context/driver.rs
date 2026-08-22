@@ -1426,11 +1426,10 @@ mod tests {
     /// The model half barely tunes at all (`zero` cold is warm plus a little),
     /// which is what [`TenVad::forward_sequence`] bought.
     ///
-    /// End to end, [`test_reference_probability_golden_full`] went from 612 s
-    /// to 19.6 s in release, and from over an hour to 126 s in debug.
-    ///
-    /// [`test_reference_probability_golden_full`]:
-    ///     crate::kits::speech::ten_vad::cross_test
+    /// End to end, the 3750-hop reference probability golden went from 612 s
+    /// to 19.6 s in release, and from over an hour to 126 s in debug -- which
+    /// is why it now runs in the suite instead of being capped at 400 hops.
+
     #[test]
     #[ignore = "measurement, not an assertion"]
     #[serial_test::serial]

@@ -354,45 +354,26 @@ mod tests {
     /// its burn port of the graph. Nothing is shared between the two arms
     /// except the audio.
     ///
-    /// This form is capped short of the periodic-reset boundary; see
-    /// [`test_reference_probability_golden_full`] for the whole fixture.
+    /// It runs the **whole** fixture, and the length is the point: 3750 hops is
+    /// exactly two [`RESET_FRAMES`] periods, so this is the only test that can
+    /// show the periodic LSTM reset fires on the same hop as the reference's. A
+    /// reset on the wrong hop -- or a missing one -- diverges immediately after
+    /// hop 1875.
+    ///
+    /// About 20 s in release and 126 s in debug. It was capped at 400 hops
+    /// while `context_forward_sequence` stepped the model per hop and the
+    /// device pitch estimator re-tuned per input length; with
+    /// [`TenVad::forward_sequence`] and [`TensorPitchConfig::chunk_steps`] it
+    /// no longer needs to be.
+    ///
+    /// [`RESET_FRAMES`]: crate::kits::speech::ten_vad::context::coeff::RESET_FRAMES
+    /// [`TenVad::forward_sequence`]:
+    ///     crate::kits::speech::ten_vad::TenVad::forward_sequence
+    /// [`TensorPitchConfig::chunk_steps`]:
+    ///     crate::kits::speech::ten_vad::context::pitch::tensor::TensorPitchConfig
     #[test]
     #[serial_test::serial]
     fn test_reference_probability_golden() -> Result<(), Box<dyn std::error::Error>> {
-        // Capped like the neighbouring cross test: this arm runs the model once
-        // per hop on the device, since the LSTM state threads through the loop.
-        // Raising the cap costs patience, not correctness.
-        run_probability_golden(Some(400))
-    }
-
-    /// The probability golden over the *whole* 60 s fixture.
-    ///
-    /// Ignored by default: about 20 s in release, 126 s in debug, which is
-    /// still more than the suite should spend on one case when the capped form
-    /// above covers the same path. Run it explicitly with:
-    ///
-    /// ```text
-    /// cargo test -p bunsen --lib --features wgpu -- \
-    ///     test_reference_probability_golden_full --ignored --exact
-    /// ```
-    ///
-    /// It is worth the wait for one reason: the fixture is 3750 hops, which is
-    /// **exactly two [`RESET_FRAMES`] periods**, so this is the only test that
-    /// can show the periodic LSTM reset fires on the same hop as the
-    /// reference's. A reset at the wrong hop -- or a missing one -- shows up
-    /// as a divergence immediately after hop 1875. The capped test above
-    /// never reaches the boundary.
-    ///
-    /// [`RESET_FRAMES`]: crate::kits::speech::ten_vad::context::coeff::RESET_FRAMES
-    #[test]
-    #[ignore = "runs the full 3750-hop fixture; see the rustdoc"]
-    #[serial_test::serial]
-    fn test_reference_probability_golden_full() -> Result<(), Box<dyn std::error::Error>> {
-        run_probability_golden(None)
-    }
-
-    /// Drives the probability golden, optionally capped to `steps_cap` hops.
-    fn run_probability_golden(steps_cap: Option<usize>) -> Result<(), Box<dyn std::error::Error>> {
         type B = PerformanceBackend;
         type F = <B as BackendTypes>::FloatElem;
 
@@ -409,7 +390,7 @@ mod tests {
         )
         .map_err(BunsenError::external)?;
 
-        let steps = steps_cap.unwrap_or(usize::MAX).min(expected.len());
+        let steps = expected.len();
         let samples = steps * cfg.hop_size();
         assert!(
             wav_vec.len() >= samples,
