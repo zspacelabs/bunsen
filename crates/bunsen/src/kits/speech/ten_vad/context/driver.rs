@@ -54,8 +54,8 @@ use crate::{
                 TenVadFeatureMeta,
             },
             pitch::{
+                TenVadPitchEstimator,
                 TenVadPitchSource,
-                ZeroPitch,
             },
         },
     },
@@ -171,7 +171,7 @@ impl TenVadContextConfig {
 ///
 /// Built by [`TenVad::init_context`]. Implements [`TenVadContextMeta`].
 #[derive(Debug, Clone)]
-pub struct TenVadContext<B: Backend, P: TenVadPitchSource = ZeroPitch> {
+pub struct TenVadContext<B: Backend, P: TenVadPitchSource = TenVadPitchEstimator> {
     /// The audio front-end streaming state.
     pub features: TenVadFeatureContext<B, P>,
 
@@ -269,7 +269,16 @@ impl<B: Backend, P: TenVadPitchSource> TenVadContext<B, P> {
 }
 
 impl<B: Backend> TenVad<B> {
-    /// Builds a zeroed driving context with the default [`ZeroPitch`] source.
+    /// Builds a zeroed driving context with the reference pitch estimator.
+    ///
+    /// This is the faithful front end: all 41 features match the reference
+    /// implementation. Feature `40` is a host-side recurrence, so every frame
+    /// synchronizes the raw hop and the bin powers back from the device.
+    ///
+    /// To trade that fidelity for an entirely on-device sequence path, pass
+    /// [`ZeroPitch`](super::ZeroPitch) to
+    /// [`init_context_with`](Self::init_context_with); it pins feature `40` to
+    /// a constant and leaves the other 40 exact.
     ///
     /// # Errors
     ///
@@ -279,8 +288,8 @@ impl<B: Backend> TenVad<B> {
         &self,
         cfg: &TenVadContextConfig,
         device: &B::Device,
-    ) -> BunsenResult<TenVadContext<B, ZeroPitch>> {
-        self.init_context_with(cfg, ZeroPitch, device)
+    ) -> BunsenResult<TenVadContext<B, TenVadPitchEstimator>> {
+        self.init_context_with(cfg, TenVadPitchEstimator::new(), device)
     }
 
     /// Builds a zeroed driving context over a specific pitch source.

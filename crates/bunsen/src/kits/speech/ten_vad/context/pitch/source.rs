@@ -1,22 +1,15 @@
-//! # ten-vad pitch feature source.
+//! # The ten-vad pitch feature seam.
 //!
 //! Feature `40` of the ten-vad feature vector is a pitch estimate, in Hz,
 //! with `0.0` meaning "unvoiced" (`ALGO_TRACE.md` §3.5).
 //!
-//! The reference estimator is a large, deeply serial RNNoise-derived tracker:
-//! band energy -> DCT -> celt LPC -> LPC pre-filter -> a five-section IIR
-//! cascade -> 4 kHz decimation -> normalized moving cross-correlation ->
-//! Viterbi DP over candidate periods -> weighted linear regression. None of
-//! it vectorizes, and all of it carries state across frames.
+//! The driver reaches it through [`TenVadPitchSource`], which has two
+//! implementations:
 //!
-//! Rather than block the rest of the front end on that port, the driver takes
-//! its pitch through the [`TenVadPitchSource`] seam, and ships [`ZeroPitch`]
-//! as the default. Everything upstream of feature `40` — pre-emphasis, the
-//! sliding STFT, the mel filterbank, the log, the normalization, and the
-//! frame context stack — is complete and exercised regardless.
-//!
-//! An implementation of the real estimator drops in behind this trait without
-//! touching the driver.
+//! * [`TenVadPitchEstimator`](super::TenVadPitchEstimator) — the port of the
+//!   reference estimator, and what a faithful front end wants.
+//! * [`ZeroPitch`] — a constant stub, for callers that want the 40 mel features
+//!   without paying for the pitch branch's host-side recurrence.
 
 use crate::kits::speech::ten_vad::context::coeff::{
     FEATURE_EPS,
@@ -27,7 +20,8 @@ use crate::kits::speech::ten_vad::context::coeff::{
 
 /// A source for the ten-vad pitch feature.
 ///
-/// Implemented by [`ZeroPitch`].
+/// Implemented by [`TenVadPitchEstimator`](super::TenVadPitchEstimator) and
+/// [`ZeroPitch`].
 ///
 /// The interface is host-side by necessity: the reference algorithm is a
 /// serial recurrence over scalars, not a tensor op. Implementations are
@@ -72,9 +66,10 @@ pub trait TenVadPitchSource {
 /// `(0.0 - FEATURE_MEANS[40]) / (FEATURE_STDS[40] + FEATURE_EPS)`, which
 /// [`ZeroPitch::normalized_feature`] reports.
 ///
-/// This is the driver's default until the reference estimator is ported. The
-/// other 40 features are unaffected: nothing upstream of the pitch branch
-/// reads its output.
+/// The other 40 features are unaffected: nothing upstream of the pitch branch
+/// reads its output. This is a deliberate approximation, not a placeholder —
+/// [`TenVadPitchEstimator`](super::TenVadPitchEstimator) is the faithful
+/// source, and costs a device-to-host readback per hop that this avoids.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct ZeroPitch;
 
