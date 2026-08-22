@@ -34,6 +34,20 @@ pub const HOP_SIZE: usize = 256;
 /// The sample rate, in Hz, the ten-vad front end is defined for.
 pub const SAMPLE_RATE: usize = 16000;
 
+/// The reference driver's periodic LSTM reset period, in model calls.
+///
+/// 1875 hops is 30 s at 16 kHz. The C driver zeroes both LSTM states this
+/// often, leaving the feature stack intact (`ALGO_TRACE.md` §5,
+/// `src/aed.cc:476-481`). The reference marks the value `// TODO`
+/// (`src/aed.cc:640`); it is reproduced here for parity, not because it is
+/// obviously right.
+///
+/// See [`TenVadContextConfig::reset_frames`] to change or disable it.
+///
+/// [`TenVadContextConfig::reset_frames`]:
+///     crate::kits::speech::ten_vad::TenVadContextConfig
+pub const RESET_FRAMES: usize = 1875;
+
 /// The epsilon used both as the log floor and as the normalization guard.
 ///
 /// The reference applies it twice: `log(melPower + EPS)` and

@@ -614,7 +614,8 @@ impl<B: Backend> SileroVad<B> {
     ///   stream.
     ///
     /// # Returns
-    /// `(probabilities, context, state)`, with:
+    ///
+    /// `(probabilities, state)`, with:
     /// * `probabilities` : `[steps, batch]`
     /// * `state`: `[2, batch, d_hidden]`
     pub fn forward_sequence(
@@ -705,7 +706,8 @@ impl<B: Backend> SileroVad<B> {
     ///   [`init_state`](Self::init_state)).
     ///
     /// # Returns
-    /// `(probabilities, context, state)`, with:
+    ///
+    /// `(probabilities, state)`, with:
     /// * `probabilities` : `[batch]`
     /// * `state`: `[2, batch, d_hidden]`
     pub fn forward(

@@ -45,6 +45,7 @@ use crate::{
         context::{
             coeff::{
                 D_CTX,
+                RESET_FRAMES,
                 SAMPLE_RATE,
             },
             features::{
@@ -85,7 +86,7 @@ pub trait TenVadContextMeta {
 /// Config for [`TenVadContext`].
 ///
 /// Defaults match the ten-vad reference driver: one 16 kHz stream, hop 256,
-/// a 3-frame context stack.
+/// a 3-frame context stack, and its 30 s periodic LSTM reset.
 ///
 /// Builds [`TenVadContext`] via [`TenVad::init_context`]. Implements
 /// [`TenVadContextMeta`].
@@ -116,6 +117,14 @@ pub struct TenVadContextConfig {
     /// the literal-transcription tier.
     #[config(default = "TenVadPitchSourceConfig::default()")]
     pub pitch: TenVadPitchSourceConfig,
+
+    /// How often to zero the LSTM states, in model calls; `None` never does.
+    ///
+    /// Defaults to [`RESET_FRAMES`], the reference driver's 30 s period. See
+    /// [`TenVadContext::reset_states`] for exactly what a reset touches, and
+    /// the module docs for why the reference does this at all.
+    #[config(default = "Some(RESET_FRAMES)")]
+    pub reset_frames: Option<usize>,
 }
 
 impl TenVadContextMeta for TenVadContextConfig {
@@ -161,6 +170,13 @@ impl TenVadContextConfig {
                 "TenVadContext d_ctx must be non-zero".to_string(),
             ));
         }
+        if self.reset_frames == Some(0) {
+            return Err(BunsenError::Invalid(
+                "TenVadContext reset_frames must be non-zero; use None to disable the \
+                 periodic reset"
+                    .to_string(),
+            ));
+        }
         if self.sample_rate != self.features.sample_rate() {
             return Err(BunsenError::Invalid(format!(
                 "TenVadContext sample_rate ({}) != feature sample_rate ({})",
@@ -195,6 +211,21 @@ pub struct TenVadContext<B: Backend, P: TenVadPitchSource<B> = TenVadPitchSource
 
     /// The `[batch, d_hidden]` second-LSTM state.
     pub state2: ExtLstmState<B, 2>,
+
+    /// How often to zero the LSTM states, in model calls; `None` never does.
+    ///
+    /// Copied from [`TenVadContextConfig::reset_frames`] at init, and honoured
+    /// identically by [`TenVad::context_forward`] and
+    /// [`TenVad::context_forward_sequence`].
+    pub reset_frames: Option<usize>,
+
+    /// Model calls since the last state reset.
+    ///
+    /// Advanced on every model call -- including while
+    /// [`reset_frames`](Self::reset_frames) is `None`, so the field always
+    /// means what its name says -- and rewound by
+    /// [`reset_states`](Self::reset_states).
+    pub frames_since_reset: usize,
 }
 
 impl<B: Backend, P: TenVadPitchSource<B>> TenVadContextMeta for TenVadContext<B, P> {
@@ -233,12 +264,53 @@ impl<B: Backend, P: TenVadPitchSource<B>> TenVadContext<B, P> {
     /// Resets the whole context to the start-of-stream condition.
     ///
     /// Zeroes the feature stack, both LSTM states, the STFT queue, the
-    /// pre-emphasis carry, and every pitch source.
+    /// pre-emphasis carry, every pitch source, and the reset counter.
+    ///
+    /// Contrast [`reset_states`](Self::reset_states), which zeroes only the
+    /// recurrence and leaves the front end running.
     pub fn reset(&mut self) {
         self.features.reset();
         self.stack = Tensor::zeros_like(&self.stack);
-        self.state1 = ExtLstmState::initial(self.state1.hidden.dims(), &self.stack.device());
-        self.state2 = ExtLstmState::initial(self.state2.hidden.dims(), &self.stack.device());
+        self.reset_states();
+    }
+
+    /// Zeroes both LSTM states, leaving the front end running.
+    ///
+    /// This is the reference's periodic reset (`ALGO_TRACE.md` §5) as a
+    /// callable primitive. The feature stack, the STFT queue and the
+    /// pre-emphasis carry are deliberately untouched, so the next frame still
+    /// sees its predecessors in the context stack -- only the recurrence
+    /// restarts from zero. Also rewinds
+    /// [`frames_since_reset`](Self::frames_since_reset).
+    ///
+    /// Useful on its own for callers segmenting a stream themselves; the
+    /// periodic form is [`reset_frames`](Self::reset_frames).
+    pub fn reset_states(&mut self) {
+        let device = self.stack.device();
+        self.state1 = ExtLstmState::initial(self.state1.hidden.dims(), &device);
+        self.state2 = ExtLstmState::initial(self.state2.hidden.dims(), &device);
+        self.frames_since_reset = 0;
+    }
+
+    /// Advances the reset counter, and fires at a period boundary.
+    ///
+    /// Called by both drivers immediately after a model call, which is where
+    /// the reference increments (`src/aed.cc:476-481`): the counter fires on
+    /// `>=`, so call `n` runs with the states it inherited and call `n + 1`
+    /// runs from zero.
+    ///
+    /// The reference defers the zeroing to the top of its next call, via a
+    /// `clear_hidden` flag. Zeroing here instead is observationally identical
+    /// for any continuation, and keeps the context self-consistent between
+    /// calls.
+    fn tick_state_reset(&mut self) {
+        self.frames_since_reset += 1;
+        if self
+            .reset_frames
+            .is_some_and(|period| self.frames_since_reset >= period)
+        {
+            self.reset_states();
+        }
     }
 
     /// Rolls one feature frame into the context stack.
@@ -339,6 +411,8 @@ impl<B: Backend> TenVad<B> {
             stack: Tensor::zeros([batch, cfg.d_ctx(), cfg.n_freq()], device),
             state1: ExtLstmState::initial(state_shape, device),
             state2: ExtLstmState::initial(state_shape, device),
+            reset_frames: cfg.reset_frames,
+            frames_since_reset: 0,
         })
     }
 
@@ -346,7 +420,8 @@ impl<B: Backend> TenVad<B> {
     ///
     /// Extracts the frame's features, rolls them into the context stack, and
     /// runs one [`forward`](Self::forward) with the carried LSTM states. The
-    /// context is advanced in place.
+    /// context is advanced in place, including its periodic
+    /// [`reset_frames`](TenVadContext::reset_frames) counter.
     ///
     /// # Arguments
     /// * `hop`: `[batch, hop_size]` mono audio in `[-1, 1]`, at this model's
@@ -377,6 +452,7 @@ impl<B: Backend> TenVad<B> {
             self.forward(stack, Some(ctx.state1.clone()), Some(ctx.state2.clone()));
         ctx.state1 = state1;
         ctx.state2 = state2;
+        ctx.tick_state_reset();
 
         // [batch, 1] -> [batch]
         probs.squeeze_dim(1)
@@ -389,7 +465,9 @@ impl<B: Backend> TenVad<B> {
     /// runs batched across the sequence: one pre-emphasis pass, one `stft`
     /// call, one filterbank matmul, and every step's context stack
     /// materialized in a single concatenation. Only the recurrence itself is
-    /// stepped.
+    /// stepped -- and it is stepped identically, so a periodic
+    /// [`reset_frames`](TenVadContext::reset_frames) fires on exactly the same
+    /// hops either way.
     ///
     /// # Arguments
     /// * `hop_seq`: `[steps, batch, hop_size]` consecutive mono audio hops in
@@ -440,6 +518,7 @@ impl<B: Backend> TenVad<B> {
                 self.forward(stack, Some(ctx.state1.clone()), Some(ctx.state2.clone()));
             ctx.state1 = state1;
             ctx.state2 = state2;
+            ctx.tick_state_reset();
 
             probs.push(prob);
         }
@@ -618,6 +697,10 @@ mod tests {
         assert_eq!(cfg.d_ctx(), 3);
         assert_eq!(cfg.n_freq(), N_FREQ);
 
+        // The reference driver's 30 s period, on by default.
+        assert_eq!(cfg.reset_frames, Some(RESET_FRAMES));
+        assert_eq!(RESET_FRAMES * cfg.hop_size() / cfg.sample_rate(), 30);
+
         cfg.validate().unwrap();
     }
 
@@ -628,12 +711,22 @@ mod tests {
             TenVadContextConfig::new().with_d_ctx(0),
             // The declared rate must agree with the front end's.
             TenVadContextConfig::new().with_sample_rate(8000),
+            // `None` disables the reset; `Some(0)` is a mistake, not a way to.
+            TenVadContextConfig::new().with_reset_frames(Some(0)),
         ] {
             assert!(
                 matches!(bad.validate(), Err(BunsenError::Invalid(_))),
                 "expected Invalid: {bad:?}",
             );
         }
+    }
+
+    #[test]
+    fn test_validate_accepts_a_disabled_reset() {
+        TenVadContextConfig::new()
+            .with_reset_frames(None)
+            .validate()
+            .unwrap();
     }
 
     #[test]
@@ -999,6 +1092,243 @@ mod tests {
         again
             .to_data_as::<F>()
             .assert_approx_eq::<F>(&first.to_data_as::<F>(), Tolerance::permissive());
+    }
+
+    /// The largest absolute value in either LSTM state.
+    ///
+    /// Zero exactly when the recurrence has been reset.
+    fn state_peak<P: TenVadPitchSource<B>>(ctx: &TenVadContext<B, P>) -> f32 {
+        [
+            &ctx.state1.hidden,
+            &ctx.state1.cell,
+            &ctx.state2.hidden,
+            &ctx.state2.cell,
+        ]
+        .into_iter()
+        .flat_map(|t| {
+            t.clone()
+                .to_data_as::<F>()
+                .to_vec_as::<f32>()
+                .ok_or_panic()
+                .into_iter()
+        })
+        .fold(0.0f32, |acc, v| acc.max(v.abs()))
+    }
+
+    /// Asserts two contexts are the same continuation: same stack, same
+    /// recurrence, same front end.
+    fn assert_contexts_agree<P: TenVadPitchSource<B>, Q: TenVadPitchSource<B>>(
+        a: &TenVadContext<B, P>,
+        b: &TenVadContext<B, Q>,
+    ) {
+        let tol = Tolerance::<F>::permissive();
+        for (x, y) in [
+            (&a.state1.hidden, &b.state1.hidden),
+            (&a.state1.cell, &b.state1.cell),
+            (&a.state2.hidden, &b.state2.hidden),
+            (&a.state2.cell, &b.state2.cell),
+            (&a.features.stft.queue, &b.features.stft.queue),
+        ] {
+            x.clone()
+                .to_data_as::<F>()
+                .assert_approx_eq::<F>(&y.clone().to_data_as::<F>(), tol);
+        }
+        a.stack
+            .clone()
+            .to_data_as::<F>()
+            .assert_approx_eq::<F>(&b.stack.clone().to_data_as::<F>(), tol);
+    }
+
+    #[test]
+    fn test_state_reset_fires_on_the_period_boundary() {
+        // The reference increments *after* the model call and fires on `>=`,
+        // so call `k` runs with the states it inherited and call `k + 1` runs
+        // from zero. Off by one in either direction fails here.
+        const K: usize = 3;
+
+        let (vad, device) = model();
+        let cfg = TenVadContextConfig::new().with_reset_frames(Some(K));
+        let mut ctx = vad.init_context(&cfg, &device).unwrap();
+
+        for call in 1..=(2 * K) {
+            let hop = Tensor::<B, 2>::random([1, cfg.hop_size()], Distribution::Default, &device);
+            vad.context_forward(hop, &mut ctx);
+
+            let on_boundary = call.is_multiple_of(K);
+            assert_eq!(
+                ctx.frames_since_reset,
+                if on_boundary { 0 } else { call % K },
+                "counter wrong after call {call}",
+            );
+
+            let peak = state_peak(&ctx);
+            if on_boundary {
+                assert_eq!(peak, 0.0, "call {call} should have zeroed the states");
+            } else {
+                assert!(peak > 0.0, "call {call} should not have zeroed the states");
+            }
+        }
+    }
+
+    #[test]
+    fn test_state_reset_splits_the_stream_exactly() {
+        // A periodic reset must be *exactly* a manual one at the same hop --
+        // this is the whole semantic, and it needs no golden to check.
+        const K: usize = 3;
+
+        let (vad, device) = model();
+        let cfg = TenVadContextConfig::new();
+        let hops =
+            Tensor::<B, 3>::random([2 * K, 1, cfg.hop_size()], Distribution::Default, &device);
+
+        let periodic = cfg.clone().with_reset_frames(Some(K));
+        let mut auto_ctx = vad.init_context(&periodic, &device).unwrap();
+        let auto = vad.context_forward_sequence(hops.clone(), &mut auto_ctx);
+
+        // Mirrored block for block, terminal boundary included: a period of
+        // `K` over `2K` hops fires at `K` *and* at `2K`. The second one lands
+        // after the last output, so it shows up in the carried state rather
+        // than in the trace -- which is exactly why the states are compared.
+        let manual = cfg.with_reset_frames(None);
+        let mut manual_ctx = vad.init_context(&manual, &device).unwrap();
+        let mut blocks = Vec::with_capacity(2);
+        for block in 0..2 {
+            let lo = (block * K) as isize;
+            blocks.push(vad.context_forward_sequence(
+                hops.clone().slice_dim(0, lo..lo + K as isize),
+                &mut manual_ctx,
+            ));
+            manual_ctx.reset_states();
+        }
+
+        auto.to_data_as::<F>().assert_approx_eq::<F>(
+            &Tensor::cat(blocks, 0).to_data_as::<F>(),
+            Tolerance::permissive(),
+        );
+        assert_contexts_agree(&auto_ctx, &manual_ctx);
+    }
+
+    #[test]
+    fn test_state_reset_changes_the_output() {
+        // Guard the guard: every assertion above also passes if the reset
+        // silently never fires, so pin that it is observable at all.
+        const K: usize = 3;
+
+        let (vad, device) = model();
+        let cfg = TenVadContextConfig::new();
+        let hops =
+            Tensor::<B, 3>::random([2 * K, 1, cfg.hop_size()], Distribution::Default, &device);
+
+        let mut on = vad
+            .init_context(&cfg.clone().with_reset_frames(Some(K)), &device)
+            .unwrap();
+        let mut off = vad
+            .init_context(&cfg.with_reset_frames(None), &device)
+            .unwrap();
+
+        let with = vad.context_forward_sequence(hops.clone(), &mut on);
+        let without = vad.context_forward_sequence(hops, &mut off);
+
+        let a = with.to_data_as::<F>().to_vec_as::<f32>().ok_or_panic();
+        let b = without.to_data_as::<F>().to_vec_as::<f32>().ok_or_panic();
+        let worst = a
+            .iter()
+            .zip(b.iter())
+            .fold(0.0f32, |acc, (x, y)| acc.max((x - y).abs()));
+
+        // The first `K` hops are identical by construction; the reset only
+        // shows up from hop `K + 1` on.
+        assert!(
+            worst > 1e-6,
+            "a periodic reset must change the trace, but the worst difference \
+             over {} hops was {worst:.3e}",
+            2 * K,
+        );
+    }
+
+    #[test]
+    fn test_reset_states_leaves_the_front_end_alone() {
+        // The reference resets the recurrence only: the frame after a reset
+        // still sees its predecessors in the context stack.
+        let (vad, device) = model();
+        let cfg = TenVadContextConfig::new().with_reset_frames(None);
+        let mut ctx = vad.init_context(&cfg, &device).unwrap();
+
+        let hops = Tensor::<B, 3>::random([4, 1, cfg.hop_size()], Distribution::Default, &device);
+        vad.context_forward_sequence(hops, &mut ctx);
+
+        let stack = ctx.stack.clone();
+        let queue = ctx.features.stft.queue.clone();
+        assert!(state_peak(&ctx) > 0.0, "fixture should leave live states");
+
+        ctx.reset_states();
+
+        assert_eq!(state_peak(&ctx), 0.0);
+        assert_eq!(ctx.frames_since_reset, 0);
+        ctx.stack.to_data().assert_eq(&stack.to_data(), true);
+        ctx.features
+            .stft
+            .queue
+            .to_data()
+            .assert_eq(&queue.to_data(), true);
+    }
+
+    #[test]
+    fn test_sequence_matches_stepwise_with_a_periodic_reset() {
+        // The invariant the whole design rests on: `context_forward_sequence`
+        // stays exactly "iterating `context_forward`", reset included.
+        const K: usize = 3;
+
+        let (vad, device) = model();
+        let cfg = TenVadContextConfig::new().with_reset_frames(Some(K));
+
+        let steps = 3 * K;
+        let hops =
+            Tensor::<B, 3>::random([steps, 1, cfg.hop_size()], Distribution::Default, &device);
+
+        let mut seq_ctx = vad.init_context(&cfg, &device).unwrap();
+        let seq_probs = vad.context_forward_sequence(hops.clone(), &mut seq_ctx);
+
+        let mut step_ctx = vad.init_context(&cfg, &device).unwrap();
+        let mut step_probs = Vec::with_capacity(steps);
+        for step in 0..steps {
+            step_probs
+                .push(vad.context_forward(hops.clone().select_dim::<2>(0, step), &mut step_ctx));
+        }
+        let step_probs: Tensor<B, 2> = Tensor::stack(step_probs, 0);
+
+        seq_probs
+            .to_data_as::<F>()
+            .assert_approx_eq::<F>(&step_probs.to_data_as::<F>(), Tolerance::permissive());
+        assert_contexts_agree(&seq_ctx, &step_ctx);
+        assert_eq!(seq_ctx.frames_since_reset, step_ctx.frames_since_reset);
+    }
+
+    #[test]
+    fn test_sequence_resumes_across_chunks_with_a_periodic_reset() {
+        // The chunk boundary lands *on* the reset boundary, which is where a
+        // counter that ticks in the wrong place gives itself away.
+        const K: usize = 3;
+
+        let (vad, device) = model();
+        let cfg = TenVadContextConfig::new().with_reset_frames(Some(K));
+
+        let hops = Tensor::<B, 3>::random([8, 1, cfg.hop_size()], Distribution::Default, &device);
+
+        let mut whole_ctx = vad.init_context(&cfg, &device).unwrap();
+        let whole = vad.context_forward_sequence(hops.clone(), &mut whole_ctx);
+
+        let mut split_ctx = vad.init_context(&cfg, &device).unwrap();
+        let a =
+            vad.context_forward_sequence(hops.clone().slice_dim(0, ..K as isize), &mut split_ctx);
+        let b = vad.context_forward_sequence(hops.slice_dim(0, K as isize..), &mut split_ctx);
+
+        whole.to_data_as::<F>().assert_approx_eq::<F>(
+            &Tensor::cat(vec![a, b], 0).to_data_as::<F>(),
+            Tolerance::permissive(),
+        );
+        assert_contexts_agree(&whole_ctx, &split_ctx);
+        assert_eq!(whole_ctx.frames_since_reset, split_ctx.frames_since_reset);
     }
 
     #[test]

@@ -91,13 +91,36 @@
 //! Callers stepping hop by hop through the device path should expect that,
 //! and the `Host` variant may well be cheaper for them.
 //!
+//! ## The periodic state reset
+//!
+//! The reference driver zeroes both LSTM states every `resetFrameNum = 1875`
+//! model calls — 30 s of audio — and this driver reproduces that, on
+//! [`TenVadContextConfig::reset_frames`]. `None` disables it.
+//!
+//! Three details matter, and all three are the reference's
+//! (`src/aed.cc:476-481`, `ALGO_TRACE.md` §5):
+//!
+//! * **Only the recurrence is zeroed.** The feature stack, the STFT queue and
+//!   the pre-emphasis carry keep running, so the frame after a reset still sees
+//!   its two predecessors in the context stack. That is what separates
+//!   [`TenVadContext::reset_states`] from [`TenVadContext::reset`].
+//! * **The counter fires after the model call**, on `>=`. Call 1875 runs with
+//!   the states it inherited; call 1876 runs from zero.
+//! * **Both drivers tick identically**, so `context_forward_sequence` stays
+//!   exactly "iterating `context_forward`" — a reset lands on the same hops
+//!   whether or not the caller batches, and whatever chunk boundaries it uses.
+//!
+//! The reference zeroes lazily, at the top of its next call, via a
+//! `clear_hidden` flag; this driver zeroes eagerly at the end of the current
+//! one. Those are observationally identical for any continuation.
+//!
+//! The reference marks the constant `// TODO` (`src/aed.cc:640`), so treat it
+//! as reproduced behavior rather than a recommendation — but it is on by
+//! default, because parity with the pretrained weights is what this kit is
+//! for, and the shipped golden covers 3750 hops, exactly two periods.
+//!
 //! ## Known deviations from the reference driver
 //!
-//! * **No periodic state reset.** The C driver zeroes both LSTM states every
-//!   `resetFrameNum = 1875` model calls — 30 s of audio — while leaving the
-//!   feature stack intact (`ALGO_TRACE.md` §5). This driver does not, so
-//!   `context_forward_sequence` stays exactly "iterating `context_forward`".
-//!   Byte-parity with the C driver on clips longer than 30 s needs it.
 //! * **Batch size 1.** The stock ONNX graph pins its LSTM batch to 1; see
 //!   [`TenVad::forward`] for what the leading axis actually means.
 //!
@@ -114,6 +137,7 @@
 //!   graph over real audio.
 //!
 //! [`TenVadContextConfig::pitch`]: crate::kits::speech::ten_vad::TenVadContextConfig
+//! [`TenVadContextConfig::reset_frames`]: crate::kits::speech::ten_vad::TenVadContextConfig
 //! [`TensorPitchConfig::reference`]: crate::kits::speech::ten_vad::context::pitch::tensor::TensorPitchConfig::reference
 //! [`TenVad::forward`]: crate::kits::speech::ten_vad::TenVad::forward
 //! [`TenVad::context_forward`]: crate::kits::speech::ten_vad::TenVad::context_forward

@@ -353,9 +353,46 @@ mod tests {
     /// front end and its own inference engine, against bunsen's front end and
     /// its burn port of the graph. Nothing is shared between the two arms
     /// except the audio.
+    ///
+    /// This form is capped short of the periodic-reset boundary; see
+    /// [`test_reference_probability_golden_full`] for the whole fixture.
     #[test]
     #[serial_test::serial]
     fn test_reference_probability_golden() -> Result<(), Box<dyn std::error::Error>> {
+        // Capped like the neighbouring cross test: this arm runs the model once
+        // per hop on the device, since the LSTM state threads through the loop.
+        // Raising the cap costs patience, not correctness.
+        run_probability_golden(Some(400))
+    }
+
+    /// The probability golden over the *whole* 60 s fixture.
+    ///
+    /// Ignored by default because it runs for over a quarter of an hour -- the
+    /// per-hop cost of [`TenVad::context_forward_sequence`], not anything this
+    /// test does. Run it explicitly with:
+    ///
+    /// ```text
+    /// cargo test -p bunsen --lib --features wgpu -- \
+    ///     test_reference_probability_golden_full --ignored --exact
+    /// ```
+    ///
+    /// It is worth the wait for one reason: the fixture is 3750 hops, which is
+    /// **exactly two [`RESET_FRAMES`] periods**, so this is the only test that
+    /// can show the periodic LSTM reset fires on the same hop as the
+    /// reference's. A reset at the wrong hop -- or a missing one -- shows up
+    /// as a divergence immediately after hop 1875. The capped test above
+    /// never reaches the boundary.
+    ///
+    /// [`RESET_FRAMES`]: crate::kits::speech::ten_vad::context::coeff::RESET_FRAMES
+    #[test]
+    #[ignore = "runs the full 3750-hop fixture; see the rustdoc"]
+    #[serial_test::serial]
+    fn test_reference_probability_golden_full() -> Result<(), Box<dyn std::error::Error>> {
+        run_probability_golden(None)
+    }
+
+    /// Drives the probability golden, optionally capped to `steps_cap` hops.
+    fn run_probability_golden(steps_cap: Option<usize>) -> Result<(), Box<dyn std::error::Error>> {
         type B = PerformanceBackend;
         type F = <B as BackendTypes>::FloatElem;
 
@@ -372,15 +409,7 @@ mod tests {
         )
         .map_err(BunsenError::external)?;
 
-        // The golden covers the whole 60 s fixture, but this arm runs the model
-        // once per hop on the device -- `context_forward_sequence` is a
-        // sequential loop, by necessity, since the LSTM state threads through
-        // it. So it is capped like the neighbouring cross test. Raising the cap
-        // costs patience, not correctness: the full 3750 hops runs for over a
-        // quarter of an hour, and the golden file holds all of them.
-        const STEPS: usize = 400;
-
-        let steps = STEPS.min(expected.len());
+        let steps = steps_cap.unwrap_or(usize::MAX).min(expected.len());
         let samples = steps * cfg.hop_size();
         assert!(
             wav_vec.len() >= samples,
