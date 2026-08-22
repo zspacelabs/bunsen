@@ -78,7 +78,38 @@ pub struct TensorPitchConfig {
     /// Stage 4: period tracking.
     #[config(default = "PitchTrackConfig::new()")]
     pub track: PitchTrackConfig,
+
+    /// How many hops to process per internal pass; `None` runs the whole
+    /// input in one.
+    ///
+    /// This does not change the result -- the stages already carry their state
+    /// across calls, and chunking only exercises that carry more often. What it
+    /// changes is *cost*, and by a lot.
+    ///
+    /// cubecl selects kernels per shape, so a run of `steps` hops tunes every
+    /// op in this estimator at a shape derived from `steps`. Hand it a
+    /// different `steps` each time and it re-tunes every time; tuning here is
+    /// superlinear in `steps`, so one large pass is far worse than several
+    /// small ones. Pinning the pass size means the tuning happens once and
+    /// every later run reuses it.
+    ///
+    /// Defaults to [`DEFAULT_CHUNK_STEPS`], which is also about where the
+    /// anti-alias GEMM's materialized input stops being cheap.
+    ///
+    /// Measured on wgpu, one stream: a cold 1600-hop run costs 66.6 s
+    /// unchunked and 12.7 s chunked, against a warm cost of 2.1 s either way.
+    /// End to end, the 3750-hop reference golden went from 612 s to 19.6 s.
+    /// See `driver::tests::test_where_the_time_goes`.
+    #[config(default = "Some(DEFAULT_CHUNK_STEPS)")]
+    pub chunk_steps: Option<usize>,
 }
+
+/// The default hops per internal pass; see
+/// [`TensorPitchConfig::chunk_steps`].
+///
+/// 512 hops is 8.2 s of audio, a 4.7 MB transient through the anti-alias GEMM,
+/// and a tuning cost paid once rather than per call.
+pub const DEFAULT_CHUNK_STEPS: usize = 512;
 
 impl TensorPitchConfig {
     /// Selects how the anti-alias filter is realized.
@@ -123,6 +154,12 @@ impl TensorPitchConfig {
         self.correlate.validate()?;
         self.track.validate()?;
 
+        if self.chunk_steps == Some(0) {
+            return Err(crate::errors::BunsenError::Invalid(
+                "TensorPitch chunk_steps must be non-zero; use None to disable chunking"
+                    .to_string(),
+            ));
+        }
         if self.excitation.exc_len() != self.correlate.exc_len() {
             return Err(crate::errors::BunsenError::Invalid(format!(
                 "TensorPitch excitation emits {} samples but the lag search reads {}",
@@ -148,6 +185,7 @@ impl TensorPitchConfig {
             excitation: self.excitation.try_init(device)?,
             correlate: self.correlate.try_init(device)?,
             track: self.track.try_init(device)?,
+            chunk_steps: self.chunk_steps,
         })
     }
 
@@ -174,6 +212,9 @@ pub struct TensorPitch<B: Backend> {
     pub correlate: PitchCorrelate<B>,
     /// Stage 4.
     pub track: PitchTrack<B>,
+
+    /// Hops per internal pass; see [`TensorPitchConfig::chunk_steps`].
+    pub chunk_steps: Option<usize>,
 }
 
 impl<B: Backend> TensorPitch<B> {
@@ -254,6 +295,49 @@ impl<B: Backend> TenVadPitchSource<B> for TensorPitchContext<B> {
         assert_eq!(batch, self.batch_size, "TensorPitch batch mismatch");
         assert_eq!(n_bins, self.coef.n_bins(), "TensorPitch bin count mismatch");
 
+        let chunk = self.coef.chunk_steps.unwrap_or(steps).max(1);
+        if steps <= chunk {
+            return self.forward_chunk(raw, bin_power);
+        }
+
+        // Fixed-size passes, so every op sees the same shapes however long the
+        // input is. The state carry is what makes this free: it is the same
+        // carry that already lets a caller split a stream across calls, so
+        // chunking here cannot change the answer -- only what it costs.
+        let mut out = Vec::with_capacity(steps.div_ceil(chunk));
+        let mut done = 0;
+        while done < steps {
+            let take = chunk.min(steps - done);
+            let lo = done as isize;
+            let hi = (done + take) as isize;
+            out.push(self.forward_chunk(
+                raw.clone().slice_dim(0, lo..hi),
+                bin_power.clone().slice_dim(0, lo..hi),
+            ));
+            done += take;
+        }
+        Tensor::cat(out, 0)
+    }
+
+    fn reset(&mut self) {
+        let device = self.track.path_score.device();
+        self.excitation = self.coef.excitation.init_state(self.batch_size, &device);
+        self.track = self.coef.track.init_state(self.batch_size, &device);
+    }
+}
+
+impl<B: Backend> TensorPitchContext<B> {
+    /// One pass of all four stages over `steps` hops.
+    ///
+    /// The whole estimator, and the unit
+    /// [`forward_sequence`](TenVadPitchSource::forward_sequence) chunks into.
+    fn forward_chunk(
+        &mut self,
+        raw: Tensor<B, 3>,
+        bin_power: Tensor<B, 3>,
+    ) -> Tensor<B, 3> {
+        let [steps, batch, _] = raw.dims();
+        let n_bins = bin_power.dims()[2];
         let rows = steps * batch;
 
         // Stage 1 carries nothing, so the whole sequence designs in one pass.
@@ -283,12 +367,6 @@ impl<B: Backend> TenVadPitchSource<B> for TensorPitchContext<B> {
         self.track = track;
 
         pitch
-    }
-
-    fn reset(&mut self) {
-        let device = self.track.path_score.device();
-        self.excitation = self.coef.excitation.init_state(self.batch_size, &device);
-        self.track = self.coef.track.init_state(self.batch_size, &device);
     }
 }
 
@@ -372,6 +450,7 @@ mod tests {
     #[test]
     fn test_config_meta() {
         let cfg = TensorPitchConfig::new();
+        assert_eq!(cfg.chunk_steps, Some(DEFAULT_CHUNK_STEPS));
         assert_eq!(cfg.n_bins(), N_BINS);
         assert_eq!(cfg.hop_size(), HOP);
         assert!(cfg.validate().is_ok());
@@ -476,6 +555,81 @@ mod tests {
             &TensorData::from(stepwise.as_slice()),
             Tolerance::relative(1e-4),
         );
+    }
+
+    #[test]
+    fn test_chunking_does_not_change_the_answer() {
+        // The whole justification for `chunk_steps`: it is a cost knob, not a
+        // numeric one. Run a stream long enough to span several chunks both
+        // ways and require the same answer.
+        let device = Default::default();
+        let steps = 11;
+        let (raw, power, _) = host_reference(steps);
+
+        let chunked = run(
+            &TensorPitchConfig::new().with_chunk_steps(Some(3)),
+            steps,
+            &raw,
+            &power,
+            &device,
+        );
+        let whole = run(
+            &TensorPitchConfig::new().with_chunk_steps(None),
+            steps,
+            &raw,
+            &power,
+            &device,
+        );
+
+        assert_eq!(chunked.len(), steps);
+        TensorData::from(chunked.as_slice()).assert_approx_eq::<f32>(
+            &TensorData::from(whole.as_slice()),
+            Tolerance::relative(1e-4),
+        );
+    }
+
+    #[test]
+    fn test_chunking_handles_an_exact_multiple() {
+        // The remainder-free case takes a different path through the loop's
+        // bound, so pin it too.
+        let device = Default::default();
+        let steps = 9;
+        let (raw, power, _) = host_reference(steps);
+
+        let chunked = run(
+            &TensorPitchConfig::new().with_chunk_steps(Some(3)),
+            steps,
+            &raw,
+            &power,
+            &device,
+        );
+        let whole = run(
+            &TensorPitchConfig::new().with_chunk_steps(None),
+            steps,
+            &raw,
+            &power,
+            &device,
+        );
+
+        TensorData::from(chunked.as_slice()).assert_approx_eq::<f32>(
+            &TensorData::from(whole.as_slice()),
+            Tolerance::relative(1e-4),
+        );
+    }
+
+    #[test]
+    fn test_validate_rejects_a_zero_chunk() {
+        // `None` disables chunking; `Some(0)` is a mistake, not a way to.
+        assert!(
+            TensorPitchConfig::new()
+                .with_chunk_steps(Some(0))
+                .validate()
+                .is_err(),
+        );
+        TensorPitchConfig::new()
+            .with_chunk_steps(None)
+            .validate()
+            .unwrap();
     }
 
     #[test]

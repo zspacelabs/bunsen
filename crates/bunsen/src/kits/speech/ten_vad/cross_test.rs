@@ -367,12 +367,9 @@ mod tests {
 
     /// The probability golden over the *whole* 60 s fixture.
     ///
-    /// Ignored by default because it runs for about ten minutes in release
-    /// (much longer in debug). That is almost entirely one-time, shape-keyed
-    /// kernel selection in the device pitch estimator rather than the work
-    /// itself -- the same 3750 hops cost roughly five seconds once the shapes
-    /// are tuned. `driver::tests::test_where_the_time_goes` measures the
-    /// split. Run this one explicitly with:
+    /// Ignored by default: about 20 s in release, 126 s in debug, which is
+    /// still more than the suite should spend on one case when the capped form
+    /// above covers the same path. Run it explicitly with:
     ///
     /// ```text
     /// cargo test -p bunsen --lib --features wgpu -- \

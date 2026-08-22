@@ -1402,28 +1402,32 @@ mod tests {
     ///     test_where_the_time_goes --ignored --exact --nocapture
     /// ```
     ///
-    /// **Cold is the first call at a given `steps`; warm is a later one.** The
-    /// gap is kernel selection, which cubecl keys on shape -- so a caller that
-    /// hands in a different `steps` every time pays it every time, and one
-    /// that reuses a fixed chunk size pays it once.
-    ///
-    /// That distinction is the whole point of this test. Measured on wgpu, one
-    /// stream, `Zero` against the default device pitch source:
-    ///
-    /// | pitch | hops | cold | warm |
-    /// |---|---|---|---|
-    /// | zero | 1600 | 1.26 s | 1.19 s |
-    /// | tensor | 400 | 4.75 s | 0.50 s |
-    /// | tensor | 800 | 15.09 s | 1.00 s |
-    /// | tensor | 1600 | 66.61 s | 2.06 s |
+    /// **Cold is the first call at a given `steps`; warm is a later one.**
+    /// The gap is kernel selection, which cubecl keys on shape.
     ///
     /// Warm cost is linear and small -- about 0.75 ms/hop for the model and
-    /// 0.50 ms/hop for the device pitch estimator, flat across the sweep. Cold
-    /// cost is neither: the model half tunes almost for free (`zero` cold is
-    /// warm plus a little), while the pitch estimator's cold cost grows
-    /// roughly quadratically. At 3750 hops that is the difference between
-    /// about five seconds of work and the ten minutes
-    /// [`test_reference_probability_golden_full`] actually takes.
+    /// 0.50 ms/hop for the device pitch estimator, flat across the sweep.
+    /// Cold cost is the interesting half, and it is what
+    /// [`TensorPitchConfig::chunk_steps`] exists to control. Measured on wgpu,
+    /// one stream, before and after fixing the estimator's pass size:
+    ///
+    /// | pitch | hops | cold, unchunked | cold, chunked | warm |
+    /// |---|---|---|---|---|
+    /// | zero | 1600 | 1.26 s | 1.30 s | 1.22 s |
+    /// | tensor | 400 | 4.75 s | 4.77 s | 0.51 s |
+    /// | tensor | 800 | 15.09 s | 15.92 s | 1.03 s |
+    /// | tensor | 1600 | 66.61 s | 12.74 s | 2.09 s |
+    ///
+    /// Unchunked, cold grows roughly quadratically. Chunked, the sweep shows
+    /// the mechanism directly: **1600 hops costs less cold than 800 does**,
+    /// because by then the 512-hop shape is already tuned and only the 64-hop
+    /// remainder is new. 400 is unchanged either way -- it fits in one chunk.
+    ///
+    /// The model half barely tunes at all (`zero` cold is warm plus a little),
+    /// which is what [`TenVad::forward_sequence`] bought.
+    ///
+    /// End to end, [`test_reference_probability_golden_full`] went from 612 s
+    /// to 19.6 s in release, and from over an hour to 126 s in debug.
     ///
     /// [`test_reference_probability_golden_full`]:
     ///     crate::kits::speech::ten_vad::cross_test

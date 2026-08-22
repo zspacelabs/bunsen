@@ -91,6 +91,11 @@
 //! Callers stepping hop by hop through the device path should expect that,
 //! and the `Host` variant may well be cheaper for them.
 //!
+//! Internally it works in fixed-size passes
+//! ([`TensorPitchConfig::chunk_steps`]), which does not change the answer but
+//! matters a great deal for cost: cubecl selects kernels per shape, so a
+//! pinned pass size is tuned once instead of once per distinct input length.
+//!
 //! ## The periodic state reset
 //!
 //! The reference driver zeroes both LSTM states every `resetFrameNum = 1875`
@@ -139,6 +144,7 @@
 //! [`TenVadContextConfig::pitch`]: crate::kits::speech::ten_vad::TenVadContextConfig
 //! [`TenVadContextConfig::reset_frames`]: crate::kits::speech::ten_vad::TenVadContextConfig
 //! [`TensorPitchConfig::reference`]: crate::kits::speech::ten_vad::context::pitch::tensor::TensorPitchConfig::reference
+//! [`TensorPitchConfig::chunk_steps`]: crate::kits::speech::ten_vad::context::pitch::tensor::TensorPitchConfig
 //! [`TenVad::forward`]: crate::kits::speech::ten_vad::TenVad::forward
 //! [`TenVad::context_forward`]: crate::kits::speech::ten_vad::TenVad::context_forward
 //! [`SlidingStftContext`]: crate::ops::signal::SlidingStftContext
