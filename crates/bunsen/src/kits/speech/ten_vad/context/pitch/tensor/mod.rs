@@ -53,6 +53,7 @@
 //! bit-exact equality: a dev may be on a backend that enables fast-math, where
 //! exact equality against a host scalar reference cannot hold.
 
+pub mod antialias;
 pub mod correlate;
 pub mod prefilter;
 pub mod tables;
@@ -60,6 +61,8 @@ pub mod tables;
 #[cfg(test)]
 pub(crate) mod hybrid;
 
+#[doc(inline)]
+pub use antialias::*;
 #[doc(inline)]
 pub use correlate::*;
 #[doc(inline)]
