@@ -97,6 +97,12 @@ pub struct SlidingStftConfig {
     pub window: StftWindowConfig,
 }
 
+impl Default for SlidingStftConfig {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl SlidingStftMeta for SlidingStftConfig {
     fn win_len(&self) -> usize {
         self.win_len
