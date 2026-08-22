@@ -48,6 +48,12 @@ pub struct PreEmphasisConfig {
     pub coeff: f32,
 }
 
+impl Default for PreEmphasisConfig {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl PreEmphasisConfig {
     /// Initializes a zeroed [`PreEmphasisContext`] for `batch_size` streams.
     ///
@@ -192,10 +198,10 @@ mod tests {
     use super::*;
     use crate::{
         prelude::*,
-        support::testing::CpuBackend,
+        support::testing::PerformanceBackend,
     };
 
-    type B = CpuBackend;
+    type B = PerformanceBackend;
     type F = <B as BackendTypes>::FloatElem;
 
     /// Host reference: the scalar filter, over one stream, with carry.

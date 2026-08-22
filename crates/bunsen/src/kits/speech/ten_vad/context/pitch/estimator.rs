@@ -12,9 +12,9 @@
 //! 2. **Excitation.** The raw hop — delayed by
 //!    [`XCORR_TRAINING_OFFSET`](super::coeff::XCORR_TRAINING_OFFSET) samples so
 //!    it lines up with the correlation window — is whitened by that filter,
-//!    smoothed by a one-pole leak, anti-alias filtered, and decimated 16 kHz →
-//!    4 kHz. Whitening is what leaves a clean impulse train at the pitch
-//!    period.
+//!    smoothed by a 2-tap FIR (`y[n] = w[n] + 0.7·w[n-1]`), anti-alias
+//!    filtered, and decimated 16 kHz → 4 kHz. Whitening is what leaves a clean
+//!    impulse train at the pitch period.
 //! 3. **Correlation.** Two half-hop windows per hop are correlated against 64
 //!    candidate lags, each normalized by the energy under the lagged window,
 //!    then sharpened against their own half-lag to suppress octave doubling.
@@ -46,6 +46,8 @@
 //!   `0/0`. That case is reachable only on digital silence, where the frame is
 //!   already unvoiced and the quotient is discarded, so no output changes.
 
+use burn::prelude::Backend;
+
 use super::{
     biquad::BiquadCascade,
     coeff::{
@@ -60,8 +62,13 @@ use super::{
         MIN_PERIOD_16KHZ,
         PITCH_MAX_PATH_W,
         PROC_FS,
+        PROC_RESAMPLE_RATE,
         VOICED_THRESHOLD,
         XCORR_TRAINING_OFFSET,
+    },
+    host::{
+        HostPitch,
+        HostPitchInit,
     },
     lpc::{
         Autocorrelator,
@@ -69,15 +76,18 @@ use super::{
         band_energy,
         lpc_from_cepstrum,
     },
-    source::TenVadPitchSource,
+    source::{
+        TenVadPitchScalarSource,
+        TenVadPitchSourceInit,
+    },
 };
-use crate::kits::speech::ten_vad::context::coeff::{
-    HOP_SIZE,
-    SAMPLE_RATE,
+use crate::{
+    kits::speech::ten_vad::context::coeff::{
+        HOP_SIZE,
+        SAMPLE_RATE,
+    },
+    prelude::BunsenResult,
 };
-
-/// The decimation factor from 16 kHz to the correlation branch's rate.
-pub const PROC_RESAMPLE_RATE: usize = SAMPLE_RATE / PROC_FS;
 
 /// The ten-vad STFT size, which sets the bin count the estimator expects.
 const FFT_SIZE: usize = 1024;
@@ -87,16 +97,23 @@ const WINDOW_SIZE: usize = 768;
 
 /// The reference pitch estimator.
 ///
-/// Implements [`TenVadPitchSource`], so it drops into
-/// [`TenVadFeatureContext`](crate::kits::speech::ten_vad::context::TenVadFeatureContext)
-/// in place of [`ZeroPitch`](super::ZeroPitch):
+/// A [`TenVadPitchScalarSource`]: one instance per stream, stepped one hop at
+/// a time. It reaches the driver's tensor seam through
+/// [`HostPitch`](super::HostPitch), which this type's
+/// [`TenVadPitchSourceInit`] impl wraps it in — so it can be named directly
+/// where a pitch source is expected:
 ///
 /// ```rust,ignore
-/// let ctx = config.init_context(batch_size, TenVadPitchEstimator::new(), &device)?;
+/// let ctx = vad.init_context_with(&cfg, TenVadPitchEstimator::new(), &device)?;
 /// ```
 ///
-/// One instance per stream; the driver clones the prototype per batch row.
-/// Built by [`new`](Self::new), rewound by [`reset`](Self::reset).
+/// This is also the permanent oracle a device-side port is validated against:
+/// it is pinned to the C reference by `testdata/ten/pitch.json`, and
+/// [`frame_pitch_with_lpc`](Self::frame_pitch_with_lpc) exposes the one stage
+/// boundary that carries no state.
+///
+/// Built by [`new`](Self::new), rewound by
+/// [`reset`](TenVadPitchScalarSource::reset).
 #[derive(Debug, Clone)]
 pub struct TenVadPitchEstimator {
     // --- Fixed geometry, all derived from the ten-vad configuration. ---
@@ -138,7 +155,7 @@ pub struct TenVadPitchEstimator {
     /// The whitening filter's sample memory.
     pitch_mem: [f32; LPC_ORDER],
 
-    /// The one-pole leak carried across samples and hops.
+    /// The previous whitened sample, carried across samples and hops.
     pitch_filt: f32,
 
     /// The whitened hop, before anti-aliasing.
@@ -296,6 +313,45 @@ impl TenVadPitchEstimator {
         &self.lpc
     }
 
+    /// Estimates the pitch of one hop against an externally supplied
+    /// pre-filter, skipping the stage that would design one.
+    ///
+    /// [`frame_pitch`](TenVadPitchScalarSource::frame_pitch) is exactly
+    /// "design the pre-filter from `bin_power`, then this". The stage that
+    /// designs it carries no state, so the split is exact: feeding this the
+    /// coefficients that stage would have produced reproduces `frame_pitch`
+    /// bit for bit.
+    ///
+    /// Exposed so a device-side pre-filter can be validated end to end against
+    /// the reference golden with the remaining stages held fixed.
+    ///
+    /// # Arguments
+    /// * `raw_hop`: the hop's samples at the reference's int16 scale.
+    /// * `lpc`: the whitening filter to use for this hop.
+    ///
+    /// # Returns
+    /// The pitch in Hz, or `0.0` when nothing voiced was detected.
+    ///
+    /// # Panics
+    /// If `raw_hop` is not [`hop_size`](Self::hop_size) long.
+    pub fn frame_pitch_with_lpc(
+        &mut self,
+        raw_hop: &[f32],
+        lpc: &[f32; LPC_ORDER],
+    ) -> f32 {
+        assert_eq!(
+            raw_hop.len(),
+            self.hop_size(),
+            "TenVadPitchEstimator expects a {}-sample hop",
+            self.hop_size(),
+        );
+
+        self.lpc = *lpc;
+        self.extract_excitation(raw_hop);
+        self.correlate();
+        self.track()
+    }
+
     /// Stage 1: fits the whitening filter to this hop's spectrum.
     fn design_prefilter(
         &mut self,
@@ -347,8 +403,8 @@ impl TenVadPitchEstimator {
         self.aligned_in
             .copy_from_slice(&self.input_q[offset..offset + hop]);
 
-        // FIR whitening, plus a one-pole leak that keeps the excitation from
-        // going fully impulsive.
+        // FIR whitening, then a 2-tap smoother that keeps the excitation from
+        // going fully impulsive. Both are FIR, so both are convolutions.
         for i in 0..hop {
             let sample = self.aligned_in[i];
             let mut whitened = sample;
@@ -573,7 +629,67 @@ impl TenVadPitchEstimator {
     }
 }
 
-impl TenVadPitchSource for TenVadPitchEstimator {
+/// The oracle surface: read access to the stage boundaries a device-side port
+/// is checked against.
+///
+/// Deliberately test-only and `pub(crate)`. These expose the estimator's
+/// internal layout — `exc_buf`'s length, `path_prev`'s slot shape — which
+/// should not become public API just to let a differential test read them.
+#[cfg(test)]
+impl TenVadPitchEstimator {
+    /// The decimated excitation history.
+    ///
+    /// Part of the oracle surface: this is what a device-side excitation stage
+    /// is checked against.
+    pub(crate) fn exc_buf(&self) -> &[f32] {
+        &self.exc_buf
+    }
+
+    /// The normalized correlations of stream slot `sub`, `[max_period]`.
+    ///
+    /// `sub` is a **stream** index, oldest at `0`. The circular-buffer
+    /// translation is applied here, so callers never see the ring offset —
+    /// which is exactly the bookkeeping a tensor port stores away.
+    pub(crate) fn xcorr_slot(
+        &self,
+        sub: usize,
+    ) -> &[f32] {
+        &self.xcorr[self.slot_of(sub)]
+    }
+
+    /// The per-half-hop energies, in stream order.
+    pub(crate) fn frm_weight(&self) -> &[f32] {
+        &self.frm_weight
+    }
+
+    /// The Viterbi accumulator carried into the next hop, `[dif_period]`.
+    pub(crate) fn path_score(&self) -> &[f32] {
+        &self.path_score[0]
+    }
+
+    /// The backpointers of stream slot `sub`, `[dif_period]`.
+    ///
+    /// `sub` is a stream index, oldest at `0`; unlike the correlation ring
+    /// this buffer is already kept in stream order.
+    pub(crate) fn path_prev_slot(
+        &self,
+        sub: usize,
+    ) -> &[usize] {
+        &self.path_prev[sub]
+    }
+
+    /// The best period index reached so far, carried across hops.
+    pub(crate) fn best_period(&self) -> usize {
+        self.best_period
+    }
+
+    /// The best path score reached so far, carried across hops.
+    pub(crate) fn path_best_all(&self) -> f32 {
+        self.path_best_all
+    }
+}
+
+impl TenVadPitchScalarSource for TenVadPitchEstimator {
     /// Estimates the pitch of one hop.
     ///
     /// # Panics
@@ -635,6 +751,27 @@ impl TenVadPitchSource for TenVadPitchEstimator {
         self.period_local.fill(0);
         self.voiced = false;
         self.pitch_hz = 0.0;
+    }
+}
+
+/// Builds the estimator behind a [`HostPitch`] adapter, one instance per
+/// stream.
+///
+/// This is what lets `init_context_with(cfg, TenVadPitchEstimator::new(), dev)`
+/// read naturally while the driver's seam stays tensor-in, tensor-out.
+impl<B: Backend> TenVadPitchSourceInit<B> for TenVadPitchEstimator {
+    type Source = HostPitch<TenVadPitchEstimator>;
+
+    fn try_init_source(
+        &self,
+        batch_size: usize,
+        device: &B::Device,
+    ) -> BunsenResult<Self::Source> {
+        TenVadPitchSourceInit::<B>::try_init_source(
+            &HostPitchInit(self.clone()),
+            batch_size,
+            device,
+        )
     }
 }
 
@@ -914,13 +1051,6 @@ mod tests {
     }
 
     #[test]
-    fn test_inspects_input_is_true() {
-        // The driver keys its device-to-host readback off this; a real
-        // estimator must opt in.
-        assert!(TenVadPitchEstimator::new().inspects_input());
-    }
-
-    #[test]
     #[should_panic(expected = "expects a 256-sample hop")]
     fn test_wrong_hop_length_panics() {
         TenVadPitchEstimator::new().frame_pitch(&[0.0; 128], &[0.0; N_BINS]);
@@ -933,9 +1063,108 @@ mod tests {
     }
 
     #[test]
-    fn test_usable_as_a_trait_object() {
-        let mut source: Box<dyn TenVadPitchSource> = Box::new(TenVadPitchEstimator::new());
-        assert!(source.inspects_input());
+    fn test_frame_pitch_with_lpc_reproduces_frame_pitch() {
+        // The hybrid decomposition the device-side pre-filter is validated
+        // through: designing the filter carries no state, so replaying a hop
+        // against the filter that hop produced must be exact.
+        let signal = pulse_train(150.0, HOP_SIZE * 24, 0);
+
+        let mut whole = TenVadPitchEstimator::new();
+        let mut split = TenVadPitchEstimator::new();
+        let mut stft = HostStft::new();
+
+        for hop in hops(&signal) {
+            let power = stft.push(hop);
+            let from_whole = whole.frame_pitch(hop, &power);
+            // The filter `whole` designed for this hop; nothing after the
+            // design stage writes it.
+            let lpc = *whole.lpc();
+            let from_split = split.frame_pitch_with_lpc(hop, &lpc);
+            assert_eq!(from_whole, from_split);
+        }
+
+        // The residual state must agree too, not just the per-hop output.
+        assert_eq!(whole.exc_buf(), split.exc_buf());
+        assert_eq!(whole.path_score(), split.path_score());
+        assert_eq!(whole.best_period(), split.best_period());
+    }
+
+    #[test]
+    fn test_oracle_accessors_report_the_documented_shapes() {
+        let signal = pulse_train(140.0, HOP_SIZE * 8, 0);
+        let mut est = TenVadPitchEstimator::new();
+        let mut stft = HostStft::new();
+        for hop in hops(&signal) {
+            est.frame_pitch(hop, &stft.push(hop));
+        }
+
+        assert_eq!(est.exc_buf().len(), est.max_period + 64 + 1);
+        assert_eq!(est.frm_weight().len(), est.slots());
+        assert_eq!(est.path_score().len(), est.dif_period);
+        for sub in 0..est.slots() {
+            assert_eq!(est.xcorr_slot(sub).len(), est.max_period);
+            assert_eq!(est.path_prev_slot(sub).len(), est.dif_period);
+        }
+        assert!(est.best_period() < est.dif_period);
+    }
+
+    #[test]
+    fn test_xcorr_slot_walks_in_stream_order() {
+        // Each hop appends two half-hop slots, so the newest pair lands at
+        // `slots-2` and `slots-1`, and everything older shifts left by two.
+        // This is the translation the ring offset exists to hide.
+        let signal = pulse_train(160.0, HOP_SIZE * 12, 0);
+        let mut est = TenVadPitchEstimator::new();
+        let mut stft = HostStft::new();
+
+        let mut hop_iter = hops(&signal);
+        for hop in hop_iter.by_ref().take(6) {
+            est.frame_pitch(hop, &stft.push(hop));
+        }
+
+        let slots = est.slots();
+        let before: Vec<Vec<f32>> = (0..slots).map(|s| est.xcorr_slot(s).to_vec()).collect();
+
+        let hop = hop_iter.next().unwrap();
+        est.frame_pitch(hop, &stft.push(hop));
+
+        for sub in 0..(slots - 2) {
+            assert_eq!(
+                est.xcorr_slot(sub),
+                before[sub + 2].as_slice(),
+                "slot {sub} should hold what slot {} held before the hop",
+                sub + 2,
+            );
+        }
+    }
+
+    #[test]
+    fn test_path_score_carries_across_hops() {
+        // The Viterbi accumulator is renormalized, never cleared — so after a
+        // voiced run it must be non-trivial, with its peak pinned at zero.
+        let signal = pulse_train(170.0, HOP_SIZE * 20, 0);
+        let mut est = TenVadPitchEstimator::new();
+        let mut stft = HostStft::new();
+        for hop in hops(&signal) {
+            est.frame_pitch(hop, &stft.push(hop));
+        }
+
+        let score = est.path_score();
+        let peak = score.iter().copied().fold(f32::NEG_INFINITY, f32::max);
+        assert!(
+            (peak - 0.0).abs() < 1e-5,
+            "peak should be renormalized to 0, got {peak}"
+        );
+        assert!(
+            score.iter().any(|v| *v < -1e-6),
+            "the accumulator should spread once the tracker has history",
+        );
+        assert!(est.path_best_all().is_finite());
+    }
+
+    #[test]
+    fn test_usable_as_a_scalar_trait_object() {
+        let mut source: Box<dyn TenVadPitchScalarSource> = Box::new(TenVadPitchEstimator::new());
         let p = source.frame_pitch(&[0.0; HOP_SIZE], &[0.0; N_BINS]);
         assert_eq!(p, 0.0);
         source.reset();

@@ -3,16 +3,18 @@
 //! Feature `40` of the ten-vad feature vector: a pitch estimate in Hz, `0.0`
 //! when unvoiced (`ALGO_TRACE.md` §3.5).
 //!
-//! Unlike the rest of the front end this branch does not vectorize. The
-//! reference estimator is a deeply serial recurrence over scalars — an LPC
-//! fit, an IIR cascade, a lag search, and a Viterbi tracker, each carrying
-//! state across hops — so it runs host-side, per stream, behind the
-//! [`TenVadPitchSource`] seam.
+//! The driver reaches this branch through [`TenVadPitchSource`], which is
+//! tensor-in, tensor-out so the rest of the front end can stay
+//! device-resident.
 //!
 //! ## The pieces
 //!
-//! * [`TenVadPitchSource`] — the seam the driver calls through.
-//! * [`TenVadPitchEstimator`] — the port of the reference estimator.
+//! * [`TenVadPitchSource`] — the device seam the driver calls through, built by
+//!   [`TenVadPitchSourceInit`].
+//! * [`TenVadPitchEstimator`] — the port of the reference estimator, and the
+//!   permanent oracle the rest of the branch is validated against.
+//! * [`HostPitch`] — adapts a host-side [`TenVadPitchScalarSource`] to the
+//!   device seam. **The only place in the front end that synchronizes.**
 //! * [`ZeroPitch`] — a constant stub that skips the branch entirely.
 //! * [`BiquadCascade`] — the anti-alias filter before decimation.
 //! * [`coeff`](self) — the reference constants.
@@ -22,19 +24,28 @@
 //!
 //! ## Choosing a source
 //!
-//! [`TenVadPitchEstimator`] is the faithful choice and what
-//! [`TenVadContext`](super::TenVadContext) should carry for reference
-//! parity. It costs a device-to-host readback of the raw hop and the bin
-//! powers on every frame, which pins the sequence path to a host-side walk.
+//! [`TenVadPitchEstimator`] is the faithful choice: all 41 features then match
+//! the reference. Because it is a serial recurrence over scalars, stepping it
+//! means reading the raw hops and the bin powers back from the device — once
+//! per `forward_sequence` call for the whole sequence, or once per hop on the
+//! single-step path, which pays that cost anyway.
 //!
-//! [`ZeroPitch`] pins feature `40` to a constant and reports
-//! [`inspects_input`](TenVadPitchSource::inspects_input) as `false`, letting
-//! the driver keep the whole sequence path on-device. The other 40 features
-//! are exact either way.
+//! [`ZeroPitch`] pins feature `40` to a constant and never inspects its
+//! arguments, so the sequence path stays entirely on-device. The other 40
+//! features are exact either way.
+//!
+//! ## Why the estimator is not a tensor op
+//!
+//! The reference estimator is four stages, and only the first is free of
+//! carried state: an LPC fit (stateless), an excitation branch carrying a FIFO
+//! and an IIR cascade, a lag search carrying a correlation ring, and a Viterbi
+//! tracker carrying its accumulator across hops. The last is a genuine
+//! recurrence over 56 states with two steps per hop.
 
 mod biquad;
 mod coeff;
 mod estimator;
+mod host;
 mod lpc;
 mod source;
 
@@ -44,6 +55,8 @@ pub use biquad::*;
 pub use coeff::*;
 #[doc(inline)]
 pub use estimator::*;
+#[doc(inline)]
+pub use host::*;
 #[doc(inline)]
 pub use lpc::*;
 #[doc(inline)]

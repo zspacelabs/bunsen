@@ -59,6 +59,7 @@ use crate::{
         },
         pitch::{
             TenVadPitchSource,
+            TenVadPitchSourceInit,
             ZeroPitch,
         },
         pre_emphasis::{
@@ -71,10 +72,6 @@ use crate::{
         SlidingStftConfig,
         SlidingStftContext,
         SlidingStftMeta,
-    },
-    prelude::{
-        TensorDataToVecAsExt,
-        TensorElemOpExt,
     },
 };
 
@@ -125,15 +122,15 @@ pub struct TenVadFeatureConfig {
     ///
     /// Its defaults are already the ten-vad analyzer
     /// (`win_len = 768`, `hop_size = 256`, `fft_size = 1024`, periodic Hann).
-    #[config(default = "SlidingStftConfig::new()")]
+    #[config(default = "Default::default()")]
     pub stft: SlidingStftConfig,
 
     /// The mel filterbank geometry.
-    #[config(default = "TenVadMelConfig::new()")]
+    #[config(default = "Default::default()")]
     pub mel: TenVadMelConfig,
 
     /// The pre-emphasis filter applied to the STFT branch.
-    #[config(default = "PreEmphasisConfig::new()")]
+    #[config(default = "Default::default()")]
     pub pre_emphasis: PreEmphasisConfig,
 }
 
@@ -252,18 +249,19 @@ impl TenVadFeatureConfig {
     ///
     /// # Arguments
     /// * `batch_size`: the number of independent streams; must be non-zero.
-    /// * `pitch`: the prototype pitch source, cloned once per stream.
+    /// * `pitch`: builds the pitch source; see [`TenVadPitchSourceInit`].
     ///
     /// # Errors
     ///
-    /// See [`validate`](Self::validate).
-    pub fn try_init_context<B: Backend, P: TenVadPitchSource + Clone>(
+    /// See [`validate`](Self::validate), plus anything the pitch source's
+    /// [`try_init_source`](TenVadPitchSourceInit::try_init_source) reports.
+    pub fn try_init_context<B: Backend, I: TenVadPitchSourceInit<B>>(
         &self,
         batch_size: usize,
-        pitch: P,
+        pitch: I,
         device: &B::Device,
-    ) -> BunsenResult<TenVadFeatureContext<B, P>> {
-        Ok(self.try_init(device)?.init_state(batch_size, pitch))
+    ) -> BunsenResult<TenVadFeatureContext<B, I::Source>> {
+        self.try_init(device)?.try_init_state(batch_size, pitch)
     }
 }
 
@@ -323,20 +321,40 @@ impl<B: Backend> TenVadFeatures<B> {
     ///
     /// # Arguments
     /// * `batch_size`: the number of independent streams; must be non-zero.
-    /// * `pitch`: the prototype pitch source, cloned once per stream.
-    pub fn init_state<P: TenVadPitchSource + Clone>(
+    /// * `pitch`: builds the pitch source; see [`TenVadPitchSourceInit`].
+    ///
+    /// # Errors
+    /// [`BunsenError::Invalid`] if `batch_size` is zero, plus anything the
+    /// pitch source's
+    /// [`try_init_source`](TenVadPitchSourceInit::try_init_source) reports.
+    pub fn try_init_state<I: TenVadPitchSourceInit<B>>(
         &self,
         batch_size: usize,
-        pitch: P,
-    ) -> TenVadFeatureContext<B, P> {
-        assert_ne!(batch_size, 0, "TenVadFeatures batch_size must be non-zero");
+        pitch: I,
+    ) -> BunsenResult<TenVadFeatureContext<B, I::Source>> {
+        if batch_size == 0 {
+            return Err(BunsenError::Invalid(
+                "TenVadFeatures batch_size must be non-zero".to_string(),
+            ));
+        }
         let device = self.means.device();
-        TenVadFeatureContext {
+        Ok(TenVadFeatureContext {
             stft: self.stft.init_state(batch_size),
             pre_emphasis: self.pre_emphasis.init(batch_size, &device),
-            pitch: vec![pitch; batch_size],
+            pitch: pitch.try_init_source(batch_size, &device)?,
             coef: self.clone(),
-        }
+        })
+    }
+
+    /// Builds a [`TenVadFeatureContext`], panicking on error.
+    ///
+    /// See [`try_init_state`](Self::try_init_state).
+    pub fn init_state<I: TenVadPitchSourceInit<B>>(
+        &self,
+        batch_size: usize,
+        pitch: I,
+    ) -> TenVadFeatureContext<B, I::Source> {
+        self.try_init_state(batch_size, pitch).ok_or_panic()
     }
 }
 
@@ -350,7 +368,7 @@ impl<B: Backend> TenVadFeatures<B> {
 ///
 /// Built by [`TenVadFeatures::init_state`]. Implements [`TenVadFeatureMeta`].
 #[derive(Debug, Clone)]
-pub struct TenVadFeatureContext<B: Backend, P: TenVadPitchSource = ZeroPitch> {
+pub struct TenVadFeatureContext<B: Backend, P: TenVadPitchSource<B> = ZeroPitch> {
     /// The fixed analysis coefficients.
     pub coef: TenVadFeatures<B>,
 
@@ -360,11 +378,11 @@ pub struct TenVadFeatureContext<B: Backend, P: TenVadPitchSource = ZeroPitch> {
     /// The pre-emphasis carry.
     pub pre_emphasis: PreEmphasisContext<B>,
 
-    /// The per-stream pitch sources; one entry per batch row.
-    pub pitch: Vec<P>,
+    /// The pitch source, covering every stream in the batch.
+    pub pitch: P,
 }
 
-impl<B: Backend, P: TenVadPitchSource> TenVadFeatureMeta for TenVadFeatureContext<B, P> {
+impl<B: Backend, P: TenVadPitchSource<B>> TenVadFeatureMeta for TenVadFeatureContext<B, P> {
     fn sample_rate(&self) -> usize {
         self.coef.sample_rate()
     }
@@ -386,19 +404,17 @@ impl<B: Backend, P: TenVadPitchSource> TenVadFeatureMeta for TenVadFeatureContex
     }
 }
 
-impl<B: Backend, P: TenVadPitchSource> TenVadFeatureContext<B, P> {
+impl<B: Backend, P: TenVadPitchSource<B>> TenVadFeatureContext<B, P> {
     /// The batch size; each batch row is an independent stream.
     pub fn batch_size(&self) -> usize {
-        self.pitch.len()
+        self.stft.batch_size()
     }
 
     /// Resets every streaming buffer to the start-of-stream condition.
     pub fn reset(&mut self) {
         self.stft.reset();
         self.pre_emphasis.reset();
-        for pitch in &mut self.pitch {
-            pitch.reset();
-        }
+        self.pitch.reset();
     }
 
     /// Extracts the feature frame for one hop.
@@ -430,7 +446,7 @@ impl<B: Backend, P: TenVadPitchSource> TenVadFeatureContext<B, P> {
 
         // Pitch reads the raw hop and the *un-normalized* bin power.
         // [batch, 1]
-        let pitch = self.pitch_column(&raw, &bin_power);
+        let pitch = self.pitch.forward(raw, bin_power.clone());
 
         self.finish_frame(bin_power, pitch)
     }
@@ -476,7 +492,7 @@ impl<B: Backend, P: TenVadPitchSource> TenVadFeatureContext<B, P> {
             .squeeze_dim(3);
 
         // [steps, batch, 1]
-        let pitch = self.pitch_column_sequence(&raw, &bin_power);
+        let pitch = self.pitch.forward_sequence(raw, bin_power.clone());
 
         // Fold the step axis into the row axis for the batched stages.
         let feat = self.finish_frame(
@@ -485,6 +501,70 @@ impl<B: Backend, P: TenVadPitchSource> TenVadFeatureContext<B, P> {
         );
 
         feat.reshape([steps, batch, n_freq])
+    }
+
+    /// Uploads host audio and extracts its feature frames.
+    ///
+    /// The convenience form of [`forward_sequence`](Self::forward_sequence)
+    /// for callers whose audio is already host-side, which is the usual case
+    /// for a file or a capture stream. The device is taken from the context,
+    /// so the caller never names one.
+    ///
+    /// # Arguments
+    /// * `audio`: one row per stream, each a whole number of hops of mono audio
+    ///   in `[-1, 1]`. Every row must be the same length.
+    ///
+    /// # Returns
+    /// `[steps, batch, n_freq]` normalized features.
+    ///
+    /// # Errors
+    /// [`BunsenError::Invalid`] if the row count disagrees with the batch
+    /// size, if the rows differ in length, or if a row is empty or not a whole
+    /// number of hops.
+    pub fn forward_audio_sequence(
+        &mut self,
+        audio: &[&[f32]],
+    ) -> BunsenResult<Tensor<B, 3>> {
+        let batch = self.batch_size();
+        let hop_size = self.hop_size();
+
+        if audio.len() != batch {
+            return Err(BunsenError::Invalid(format!(
+                "TenVadFeatureContext expected {batch} audio rows, got {}",
+                audio.len(),
+            )));
+        }
+
+        let samples = audio[0].len();
+        if let Some(bad) = audio.iter().position(|row| row.len() != samples) {
+            return Err(BunsenError::Invalid(format!(
+                "TenVadFeatureContext audio rows must be equal length; row {bad} has {} \
+                 samples, row 0 has {samples}",
+                audio[bad].len(),
+            )));
+        }
+        if samples == 0 || !samples.is_multiple_of(hop_size) {
+            return Err(BunsenError::Invalid(format!(
+                "TenVadFeatureContext audio length ({samples}) must be a non-zero multiple \
+                 of the hop size ({hop_size})",
+            )));
+        }
+
+        let steps = samples / hop_size;
+
+        // Interleave into the `[steps, batch, hop_size]` the sequence path
+        // wants; the caller's rows are per-stream contiguous.
+        let mut flat = Vec::with_capacity(steps * batch * hop_size);
+        for step in 0..steps {
+            for row in audio {
+                flat.extend_from_slice(&row[step * hop_size..(step + 1) * hop_size]);
+            }
+        }
+
+        let device = self.coef.means.device();
+        let hops = Tensor::from_data(TensorData::new(flat, [steps, batch, hop_size]), &device);
+
+        Ok(self.forward_sequence(hops))
     }
 
     /// The shared tail of the per-frame pipeline: power normalization, mel
@@ -514,89 +594,6 @@ impl<B: Backend, P: TenVadPitchSource> TenVadFeatureContext<B, P> {
         (feat - self.coef.means.clone().unsqueeze::<2>())
             * self.coef.stds_recip.clone().unsqueeze::<2>()
     }
-
-    /// The `[batch, 1]` pitch column for one frame.
-    fn pitch_column(
-        &mut self,
-        raw: &Tensor<B, 2>,
-        bin_power: &Tensor<B, 2>,
-    ) -> Tensor<B, 2> {
-        let batch = self.batch_size();
-        let device = raw.device();
-
-        if !self.inspects_input() {
-            let value = self.pitch[0].frame_pitch(&[], &[]);
-            return Tensor::full([batch, 1], value, &device);
-        }
-
-        let hop_size = self.hop_size();
-        let n_bins = self.n_bins();
-        let raw_host: Vec<f32> = raw.to_data_as::<f32>().to_vec_as::<f32>().ok_or_panic();
-        let power_host: Vec<f32> = bin_power
-            .to_data_as::<f32>()
-            .to_vec_as::<f32>()
-            .ok_or_panic();
-
-        let values: Vec<f32> = (0..batch)
-            .map(|b| {
-                self.pitch[b].frame_pitch(
-                    &raw_host[b * hop_size..(b + 1) * hop_size],
-                    &power_host[b * n_bins..(b + 1) * n_bins],
-                )
-            })
-            .collect();
-
-        Tensor::from_data(TensorData::new(values, [batch, 1]), &device)
-    }
-
-    /// The `[steps, batch, 1]` pitch column for a sequence.
-    ///
-    /// Pitch is a per-stream recurrence, so when the source inspects its input
-    /// the frames are walked in order, one host-side call per stream per step.
-    fn pitch_column_sequence(
-        &mut self,
-        raw: &Tensor<B, 3>,
-        bin_power: &Tensor<B, 3>,
-    ) -> Tensor<B, 3> {
-        let steps = raw.dims()[0];
-        let batch = self.batch_size();
-        let device = raw.device();
-
-        if !self.inspects_input() {
-            let value = self.pitch[0].frame_pitch(&[], &[]);
-            return Tensor::full([steps, batch, 1], value, &device);
-        }
-
-        let hop_size = self.hop_size();
-        let n_bins = self.n_bins();
-        let raw_host: Vec<f32> = raw.to_data_as::<f32>().to_vec_as::<f32>().ok_or_panic();
-        let power_host: Vec<f32> = bin_power
-            .to_data_as::<f32>()
-            .to_vec_as::<f32>()
-            .ok_or_panic();
-
-        let mut values = Vec::with_capacity(steps * batch);
-        for step in 0..steps {
-            for b in 0..batch {
-                let raw_at = (step * batch + b) * hop_size;
-                let pow_at = (step * batch + b) * n_bins;
-                values.push(self.pitch[b].frame_pitch(
-                    &raw_host[raw_at..raw_at + hop_size],
-                    &power_host[pow_at..pow_at + n_bins],
-                ));
-            }
-        }
-
-        Tensor::from_data(TensorData::new(values, [steps, batch, 1]), &device)
-    }
-
-    /// Whether any stream's pitch source inspects its input.
-    ///
-    /// When no source does, the driver skips the device-to-host readback the
-    /// pitch branch would otherwise force.
-    fn inspects_input(&self) -> bool {
-        self.pitch.iter().any(|p| p.inspects_input())
-    }
 }
 
 #[cfg(test)]
@@ -609,16 +606,24 @@ mod tests {
 
     use super::*;
     use crate::{
-        kits::speech::ten_vad::context::coeff::N_MELS,
+        kits::speech::ten_vad::context::{
+            coeff::N_MELS,
+            pitch::{
+                HostPitch,
+                HostPitchInit,
+                TenVadPitchEstimator,
+                TenVadPitchScalarSource,
+            },
+        },
         ops::signal::{
             SamplingWindowBuilder,
             StftWindowConfig,
         },
         prelude::*,
-        support::testing::CpuBackend,
+        support::testing::PerformanceBackend,
     };
 
-    type B = CpuBackend;
+    type B = PerformanceBackend;
     type F = <B as BackendTypes>::FloatElem;
 
     /// A small geometry whose naive-DFT reference is cheap to evaluate.
@@ -729,7 +734,7 @@ mod tests {
         assert_eq!(ctx.n_freq(), 41);
         assert_eq!(ctx.stft.batch_size(), 2);
         assert_eq!(ctx.pre_emphasis.batch_size(), 2);
-        assert_eq!(ctx.pitch.len(), 2);
+        assert_eq!(ctx.pitch, ZeroPitch);
     }
 
     #[test]
@@ -998,6 +1003,167 @@ mod tests {
         }
     }
 
+    /// A 16 kHz pulse train at `f0`, in `[-1, 1]` — structured enough that the
+    /// pitch branch actually tracks something.
+    fn pulse_audio(
+        f0: f32,
+        samples: usize,
+    ) -> Vec<f32> {
+        let period = 16000.0 / f0;
+        (0..samples)
+            .map(|i| {
+                let pos = i as f32 % period;
+                0.25 * (-pos / (period * 0.08)).exp()
+            })
+            .collect()
+    }
+
+    #[test]
+    fn test_forward_sequence_matches_stepwise_with_estimator() {
+        // The ZeroPitch arm of `test_forward_sequence_matches_stepwise` cannot
+        // see the pitch branch at all. This is the arm that does: the source
+        // carries a per-stream recurrence, so the sequence path has to walk it
+        // in exactly the stepwise order and leave identical residual state.
+        let device = Default::default();
+        let cfg = TenVadFeatureConfig::new();
+        let hop_size = cfg.hop_size();
+        let steps = 8;
+        let batch = 2;
+
+        let mut flat = Vec::with_capacity(steps * batch * hop_size);
+        let rows: Vec<Vec<f32>> = (0..batch)
+            .map(|b| pulse_audio(140.0 + 30.0 * b as f32, steps * hop_size))
+            .collect();
+        for step in 0..steps {
+            for row in &rows {
+                flat.extend_from_slice(&row[step * hop_size..(step + 1) * hop_size]);
+            }
+        }
+        let hops =
+            Tensor::<B, 3>::from_data(TensorData::new(flat, [steps, batch, hop_size]), &device);
+
+        let mut seq_ctx: TenVadFeatureContext<B, HostPitch<TenVadPitchEstimator>> = cfg
+            .try_init_context(batch, TenVadPitchEstimator::new(), &device)
+            .unwrap();
+        let mut step_ctx = seq_ctx.clone();
+
+        let seq_out = seq_ctx.forward_sequence(hops.clone());
+        let mut step_outs = Vec::with_capacity(steps);
+        for step in 0..steps {
+            step_outs.push(step_ctx.forward(hops.clone().select_dim::<2>(0, step)));
+        }
+        let step_out: Tensor<B, 3> = Tensor::stack(step_outs, 0);
+
+        seq_out
+            .to_data_as::<F>()
+            .assert_approx_eq::<F>(&step_out.to_data_as::<F>(), Tolerance::permissive());
+
+        // The pitch branch's residual state has to agree, not just its output.
+        for b in 0..batch {
+            let seq = &seq_ctx.pitch.sources[b];
+            let step = &step_ctx.pitch.sources[b];
+            assert_eq!(seq.exc_buf(), step.exc_buf(), "row {b} excitation history");
+            assert_eq!(seq.path_score(), step.path_score(), "row {b} tracker state");
+            assert_eq!(seq.best_period(), step.best_period(), "row {b} best period");
+        }
+
+        // Guard the guard: a tracker that never ran would compare equal too.
+        assert!(
+            seq_ctx.pitch.sources[0]
+                .path_score()
+                .iter()
+                .any(|v| *v < -1e-6),
+            "the tracker should have accumulated over 8 hops",
+        );
+    }
+
+    #[test]
+    fn test_batch_rows_are_independent_with_estimator() {
+        // With `Vec<P>` per-row isolation was structural. With a batch-aware
+        // source it is a property that has to be tested.
+        let device = Default::default();
+        let cfg = TenVadFeatureConfig::new();
+        let hop_size = cfg.hop_size();
+        let steps = 6;
+        let batch = 3;
+
+        let rows: Vec<Vec<f32>> = (0..batch)
+            .map(|b| pulse_audio(120.0 + 40.0 * b as f32, steps * hop_size))
+            .collect();
+        let row_refs: Vec<&[f32]> = rows.iter().map(|r| r.as_slice()).collect();
+
+        let mut batched: TenVadFeatureContext<B, HostPitch<TenVadPitchEstimator>> = cfg
+            .try_init_context(batch, TenVadPitchEstimator::new(), &device)
+            .unwrap();
+        let batched_out = batched.forward_audio_sequence(&row_refs).unwrap();
+
+        for (b, row) in row_refs.iter().enumerate() {
+            let mut solo: TenVadFeatureContext<B, HostPitch<TenVadPitchEstimator>> = cfg
+                .try_init_context(1, TenVadPitchEstimator::new(), &device)
+                .unwrap();
+            let solo_out = solo.forward_audio_sequence(&[row]).unwrap();
+
+            let expected = batched_out
+                .clone()
+                .slice_dim(1, b as isize..(b + 1) as isize);
+            solo_out
+                .to_data_as::<F>()
+                .assert_approx_eq::<F>(&expected.to_data_as::<F>(), Tolerance::permissive());
+        }
+    }
+
+    #[test]
+    fn test_forward_audio_sequence_matches_the_tensor_path() {
+        let device = Default::default();
+        let cfg = TenVadFeatureConfig::new();
+        let hop_size = cfg.hop_size();
+        let steps = 5;
+
+        let audio = pulse_audio(150.0, steps * hop_size);
+
+        let mut via_audio: TenVadFeatureContext<B, HostPitch<TenVadPitchEstimator>> = cfg
+            .try_init_context(1, TenVadPitchEstimator::new(), &device)
+            .unwrap();
+        let from_audio = via_audio.forward_audio_sequence(&[&audio]).unwrap();
+
+        let mut via_tensor: TenVadFeatureContext<B, HostPitch<TenVadPitchEstimator>> = cfg
+            .try_init_context(1, TenVadPitchEstimator::new(), &device)
+            .unwrap();
+        let hops =
+            Tensor::<B, 1>::from_floats(audio.as_slice(), &device).reshape([steps, 1, hop_size]);
+        let from_tensor = via_tensor.forward_sequence(hops);
+
+        from_audio
+            .to_data_as::<F>()
+            .assert_eq(&from_tensor.to_data_as::<F>(), true);
+    }
+
+    #[test]
+    fn test_forward_audio_sequence_rejects_bad_input() {
+        let device = Default::default();
+        let cfg = TenVadFeatureConfig::new();
+        let hop_size = cfg.hop_size();
+
+        let mut ctx: TenVadFeatureContext<B, HostPitch<TenVadPitchEstimator>> = cfg
+            .try_init_context(2, TenVadPitchEstimator::new(), &device)
+            .unwrap();
+
+        let good = vec![0.0f32; hop_size * 2];
+        let short = vec![0.0f32; hop_size];
+        let ragged = vec![0.0f32; hop_size + 7];
+
+        // Wrong row count.
+        assert!(ctx.forward_audio_sequence(&[&good]).is_err());
+        // Rows of differing length.
+        assert!(ctx.forward_audio_sequence(&[&good, &short]).is_err());
+        // Not a whole number of hops.
+        assert!(ctx.forward_audio_sequence(&[&ragged, &ragged]).is_err());
+        // Empty.
+        assert!(ctx.forward_audio_sequence(&[&[], &[]]).is_err());
+        // And the good case still works.
+        assert!(ctx.forward_audio_sequence(&[&good, &good]).is_ok());
+    }
+
     #[test]
     fn test_batch_rows_are_independent() {
         let device = Default::default();
@@ -1061,7 +1227,7 @@ mod tests {
             calls: usize,
         }
 
-        impl TenVadPitchSource for FixedPitch {
+        impl TenVadPitchScalarSource for FixedPitch {
             fn frame_pitch(
                 &mut self,
                 _raw_hop: &[f32],
@@ -1080,8 +1246,8 @@ mod tests {
         let cfg = TenVadFeatureConfig::new();
         let hz = 220.0f32;
 
-        let mut ctx: TenVadFeatureContext<B, FixedPitch> = cfg
-            .try_init_context(1, FixedPitch { hz, calls: 0 }, &device)
+        let mut ctx: TenVadFeatureContext<B, HostPitch<FixedPitch>> = cfg
+            .try_init_context(1, HostPitchInit(FixedPitch { hz, calls: 0 }), &device)
             .unwrap();
 
         let steps = 3;
@@ -1100,6 +1266,6 @@ mod tests {
         }
 
         // One call per frame, in order.
-        assert_eq!(ctx.pitch[0].calls, steps);
+        assert_eq!(ctx.pitch.sources[0].calls, steps);
     }
 }

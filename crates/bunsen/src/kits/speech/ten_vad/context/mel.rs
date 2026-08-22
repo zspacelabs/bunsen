@@ -87,6 +87,12 @@ pub struct TenVadMelConfig {
     pub f_max: f32,
 }
 
+impl Default for TenVadMelConfig {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl TenVadMelMeta for TenVadMelConfig {
     fn n_mels(&self) -> usize {
         self.n_mels
@@ -305,10 +311,10 @@ mod tests {
     use super::*;
     use crate::{
         prelude::*,
-        support::testing::CpuBackend,
+        support::testing::PerformanceBackend,
     };
 
-    type B = CpuBackend;
+    type B = PerformanceBackend;
     type F = <B as BackendTypes>::FloatElem;
 
     /// The reference band edges, in FFT bins, for the stock ten-vad geometry.

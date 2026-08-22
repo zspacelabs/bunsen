@@ -15,10 +15,9 @@
 //! ## Mutable, not moved
 //!
 //! [`SileroVadContext`] is a burn `Module` moved in and out by value. This
-//! context cannot be: it owns a [`SlidingStftContext`] and one
-//! [`TenVadPitchSource`] per stream, neither of which is a tensor. It is a
-//! plain struct driven through `&mut`, matching [`SlidingStftContext`]'s own
-//! style.
+//! context cannot be: it owns a [`SlidingStftContext`] and a
+//! [`TenVadPitchSource`], neither of which is a tensor. It is a plain struct
+//! driven through `&mut`, matching [`SlidingStftContext`]'s own style.
 //!
 //! ## Batch size
 //!
@@ -54,8 +53,10 @@ use crate::{
                 TenVadFeatureMeta,
             },
             pitch::{
+                HostPitch,
                 TenVadPitchEstimator,
                 TenVadPitchSource,
+                TenVadPitchSourceInit,
             },
         },
     },
@@ -171,7 +172,7 @@ impl TenVadContextConfig {
 ///
 /// Built by [`TenVad::init_context`]. Implements [`TenVadContextMeta`].
 #[derive(Debug, Clone)]
-pub struct TenVadContext<B: Backend, P: TenVadPitchSource = TenVadPitchEstimator> {
+pub struct TenVadContext<B: Backend, P: TenVadPitchSource<B> = HostPitch<TenVadPitchEstimator>> {
     /// The audio front-end streaming state.
     pub features: TenVadFeatureContext<B, P>,
 
@@ -188,7 +189,7 @@ pub struct TenVadContext<B: Backend, P: TenVadPitchSource = TenVadPitchEstimator
     pub state2: ExtLstmState<B, 2>,
 }
 
-impl<B: Backend, P: TenVadPitchSource> TenVadContextMeta for TenVadContext<B, P> {
+impl<B: Backend, P: TenVadPitchSource<B>> TenVadContextMeta for TenVadContext<B, P> {
     fn sample_rate(&self) -> usize {
         self.features.sample_rate()
     }
@@ -210,7 +211,7 @@ impl<B: Backend, P: TenVadPitchSource> TenVadContextMeta for TenVadContext<B, P>
     }
 }
 
-impl<B: Backend, P: TenVadPitchSource> TenVadContext<B, P> {
+impl<B: Backend, P: TenVadPitchSource<B>> TenVadContext<B, P> {
     /// The recurrent hidden width.
     pub fn d_hidden(&self) -> usize {
         self.state1.hidden.dims()[1]
@@ -272,8 +273,10 @@ impl<B: Backend> TenVad<B> {
     /// Builds a zeroed driving context with the reference pitch estimator.
     ///
     /// This is the faithful front end: all 41 features match the reference
-    /// implementation. Feature `40` is a host-side recurrence, so every frame
-    /// synchronizes the raw hop and the bin powers back from the device.
+    /// implementation. Feature `40` is a host-side recurrence, so the driver
+    /// reads the raw hops and the bin powers back from the device to step it —
+    /// once per [`context_forward_sequence`](Self::context_forward_sequence)
+    /// call, not once per hop.
     ///
     /// To trade that fidelity for an entirely on-device sequence path, pass
     /// [`ZeroPitch`](super::ZeroPitch) to
@@ -288,7 +291,7 @@ impl<B: Backend> TenVad<B> {
         &self,
         cfg: &TenVadContextConfig,
         device: &B::Device,
-    ) -> BunsenResult<TenVadContext<B, TenVadPitchEstimator>> {
+    ) -> BunsenResult<TenVadContext<B, HostPitch<TenVadPitchEstimator>>> {
         self.init_context_with(cfg, TenVadPitchEstimator::new(), device)
     }
 
@@ -296,18 +299,18 @@ impl<B: Backend> TenVad<B> {
     ///
     /// # Arguments
     /// * `cfg`: the context geometry.
-    /// * `pitch`: the prototype pitch source, cloned once per stream.
+    /// * `pitch`: builds the pitch source; see [`TenVadPitchSourceInit`].
     ///
     /// # Errors
     ///
     /// [`BunsenError::Invalid`] if the config is invalid, or if its context
     /// depth or feature width disagrees with this model.
-    pub fn init_context_with<P: TenVadPitchSource + Clone>(
+    pub fn init_context_with<I: TenVadPitchSourceInit<B>>(
         &self,
         cfg: &TenVadContextConfig,
-        pitch: P,
+        pitch: I,
         device: &B::Device,
-    ) -> BunsenResult<TenVadContext<B, P>> {
+    ) -> BunsenResult<TenVadContext<B, I::Source>> {
         cfg.validate()?;
 
         if cfg.d_ctx() != self.d_ctx() {
@@ -349,7 +352,7 @@ impl<B: Backend> TenVad<B> {
     ///
     /// # Returns
     /// `[batch]` speech probabilities in `[0, 1]`.
-    pub fn context_forward<P: TenVadPitchSource>(
+    pub fn context_forward<P: TenVadPitchSource<B>>(
         &self,
         hop: Tensor<B, 2>,
         ctx: &mut TenVadContext<B, P>,
@@ -392,7 +395,7 @@ impl<B: Backend> TenVad<B> {
     ///
     /// # Returns
     /// `[steps, batch]` speech probabilities in `[0, 1]`.
-    pub fn context_forward_sequence<P: TenVadPitchSource>(
+    pub fn context_forward_sequence<P: TenVadPitchSource<B>>(
         &self,
         hop_seq: Tensor<B, 3>,
         ctx: &mut TenVadContext<B, P>,
@@ -441,6 +444,101 @@ impl<B: Backend> TenVad<B> {
         // [steps, batch, 1] -> [steps, batch]
         Tensor::stack::<3>(probs, 0).squeeze_dim(2)
     }
+
+    /// Uploads host audio and drives it through the model.
+    ///
+    /// The convenience form of
+    /// [`context_forward_sequence`](Self::context_forward_sequence) for
+    /// callers whose audio is already host-side — a decoded file, or a capture
+    /// buffer. Equivalent to framing the audio into hops, uploading it, and
+    /// calling that method; the device comes from `ctx`, so the caller never
+    /// names one.
+    ///
+    /// # Arguments
+    /// * `audio`: one row per stream, each a whole number of hops of mono audio
+    ///   in `[-1, 1]`, at [`sample_rate`](TenVadContextMeta::sample_rate).
+    ///   Every row must be the same length.
+    /// * `ctx`: the driving context, advanced in place.
+    ///
+    /// # Returns
+    /// `[steps, batch]` speech probabilities, one per hop per stream.
+    ///
+    /// # Errors
+    /// [`BunsenError::Invalid`] if the row count disagrees with the context's
+    /// batch size, if the rows differ in length, or if a row is empty or not a
+    /// whole number of hops.
+    pub fn context_forward_audio_sequence<P: TenVadPitchSource<B>>(
+        &self,
+        audio: &[&[f32]],
+        ctx: &mut TenVadContext<B, P>,
+    ) -> BunsenResult<Tensor<B, 2>> {
+        let hop_size = ctx.hop_size();
+        let batch = ctx.batch_size();
+
+        if audio.len() != batch {
+            return Err(BunsenError::Invalid(format!(
+                "TenVad expected {batch} audio rows, got {}",
+                audio.len(),
+            )));
+        }
+        let samples = audio[0].len();
+        if samples == 0 || !samples.is_multiple_of(hop_size) {
+            return Err(BunsenError::Invalid(format!(
+                "TenVad audio length ({samples}) must be a non-zero multiple of the hop \
+                 size ({hop_size})",
+            )));
+        }
+        if let Some(bad) = audio.iter().position(|row| row.len() != samples) {
+            return Err(BunsenError::Invalid(format!(
+                "TenVad audio rows must be equal length; row {bad} has {} samples, row 0 \
+                 has {samples}",
+                audio[bad].len(),
+            )));
+        }
+
+        let steps = samples / hop_size;
+        let mut flat = Vec::with_capacity(steps * batch * hop_size);
+        for step in 0..steps {
+            for row in audio {
+                flat.extend_from_slice(&row[step * hop_size..(step + 1) * hop_size]);
+            }
+        }
+
+        let device = ctx.stack.device();
+        let hop_seq = Tensor::from_data(TensorData::new(flat, [steps, batch, hop_size]), &device);
+
+        Ok(self.context_forward_sequence(hop_seq, ctx))
+    }
+
+    /// Uploads a single stream of host audio and drives it through the model.
+    ///
+    /// The one-stream form of
+    /// [`context_forward_audio_sequence`](Self::context_forward_audio_sequence).
+    ///
+    /// # Arguments
+    /// * `audio`: a whole number of hops of mono audio in `[-1, 1]`.
+    /// * `ctx`: the driving context, which must be over a single stream.
+    ///
+    /// # Returns
+    /// `[steps, 1]` speech probabilities, one per hop.
+    ///
+    /// # Errors
+    /// [`BunsenError::Invalid`] if `ctx` is not single-stream, or if `audio`
+    /// is empty or not a whole number of hops.
+    pub fn context_forward_audio<P: TenVadPitchSource<B>>(
+        &self,
+        audio: &[f32],
+        ctx: &mut TenVadContext<B, P>,
+    ) -> BunsenResult<Tensor<B, 2>> {
+        if ctx.batch_size() != 1 {
+            return Err(BunsenError::Invalid(format!(
+                "context_forward_audio needs a single-stream context, got batch {}; use \
+                 context_forward_audio_sequence",
+                ctx.batch_size(),
+            )));
+        }
+        self.context_forward_audio_sequence(&[audio], ctx)
+    }
 }
 
 #[cfg(test)]
@@ -459,13 +557,13 @@ mod tests {
             context::coeff::N_FREQ,
         },
         prelude::*,
-        support::testing::CpuBackend,
+        support::testing::PerformanceBackend,
     };
 
-    type B = CpuBackend;
+    type B = PerformanceBackend;
     type F = <B as BackendTypes>::FloatElem;
 
-    fn model() -> (TenVad<B>, burn::backend::flex::FlexDevice) {
+    fn model() -> (TenVad<B>, <B as BackendTypes>::Device) {
         let device = Default::default();
         let vad: TenVad<B> = TenVadStructureConfig::default().init(&device);
         (vad, device)
@@ -720,6 +818,92 @@ mod tests {
             .stack
             .to_data_as::<F>()
             .assert_approx_eq::<F>(&step_ctx.stack.to_data_as::<F>(), tol);
+    }
+
+    #[test]
+    fn test_context_forward_audio_matches_the_tensor_path() {
+        // The host-audio entry point is a framing convenience, nothing more:
+        // it must agree exactly with uploading the hops yourself.
+        let (vad, device) = model();
+        let cfg = TenVadContextConfig::new();
+        let hop_size = cfg.hop_size();
+        let steps = 5;
+
+        let audio: Vec<f32> = (0..steps * hop_size)
+            .map(|i| 0.2 * (i as f32 * 0.03).sin())
+            .collect();
+
+        let mut audio_ctx = vad.init_context(&cfg, &device).unwrap();
+        let from_audio = vad.context_forward_audio(&audio, &mut audio_ctx).unwrap();
+
+        let mut tensor_ctx = vad.init_context(&cfg, &device).unwrap();
+        let hops =
+            Tensor::<B, 1>::from_floats(audio.as_slice(), &device).reshape([steps, 1, hop_size]);
+        let from_tensor = vad.context_forward_sequence(hops, &mut tensor_ctx);
+
+        assert_eq!(from_audio.dims(), [steps, 1]);
+        from_audio
+            .to_data_as::<F>()
+            .assert_eq(&from_tensor.to_data_as::<F>(), true);
+    }
+
+    #[test]
+    fn test_context_forward_audio_sequence_takes_row_slices() {
+        // The multi-row form, exercised at the only batch the stock graph
+        // accepts. The feature context handles batch > 1 today; the model does
+        // not -- its LSTM batch is pinned to 1, so a wider driver context
+        // cannot be stepped until that is unblocked.
+        let (vad, device) = model();
+        let cfg = TenVadContextConfig::new();
+        let hop_size = cfg.hop_size();
+        let steps = 4;
+
+        let audio: Vec<f32> = (0..steps * hop_size)
+            .map(|i| 0.2 * (i as f32 * 0.03).sin())
+            .collect();
+
+        let mut ctx = vad.init_context(&cfg, &device).unwrap();
+        let out = vad
+            .context_forward_audio_sequence(&[&audio], &mut ctx)
+            .unwrap();
+        assert_eq!(out.dims(), [steps, 1]);
+    }
+
+    #[test]
+    fn test_context_forward_audio_rejects_bad_input() {
+        let (vad, device) = model();
+        let cfg = TenVadContextConfig::new();
+        let hop_size = cfg.hop_size();
+        let mut ctx = vad.init_context(&cfg, &device).unwrap();
+
+        // Not a whole number of hops.
+        let ragged = vec![0.0f32; hop_size + 3];
+        assert!(vad.context_forward_audio(&ragged, &mut ctx).is_err());
+        // Empty.
+        assert!(vad.context_forward_audio(&[], &mut ctx).is_err());
+        // Wrong row count for the batch.
+        let good = vec![0.0f32; hop_size];
+        assert!(
+            vad.context_forward_audio_sequence(&[&good, &good], &mut ctx)
+                .is_err()
+        );
+        // And the good case works.
+        assert!(vad.context_forward_audio(&good, &mut ctx).is_ok());
+    }
+
+    #[test]
+    fn test_context_forward_audio_rejects_multi_stream_context() {
+        let (vad, device) = model();
+        let cfg = TenVadContextConfig::new().with_batch_size(2);
+        let hop_size = cfg.hop_size();
+        let mut ctx = vad.init_context(&cfg, &device).unwrap();
+
+        let audio = vec![0.0f32; hop_size];
+        let err = vad.context_forward_audio(&audio, &mut ctx).unwrap_err();
+        assert!(
+            format!("{err}").contains("single-stream"),
+            "expected a single-stream diagnostic, got: {err}",
+        );
     }
 
     #[test]

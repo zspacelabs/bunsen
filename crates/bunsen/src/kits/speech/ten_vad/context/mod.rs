@@ -38,14 +38,26 @@
 //! * [`coeff`](self) — the reference constants and normalization tables.
 //! * [`PreEmphasisContext`] — the first-order high-pass, with carry.
 //! * [`TenVadMelBank`] — the 40-band triangular filterbank.
-//! * [`TenVadPitchSource`] — the pitch seam; [`TenVadPitchEstimator`] is the
-//!   reference estimator, [`ZeroPitch`] the constant stub.
+//! * [`TenVadPitchSource`] — the pitch seam, tensor-in and tensor-out;
+//!   [`TenVadPitchEstimator`] behind [`HostPitch`] is the reference estimator,
+//!   [`ZeroPitch`] the constant stub.
 //! * [`TenVadFeatureContext`] — the 41-dim feature extractor and its state.
 //! * [`TenVadContext`] — the driving context: features, frame stack, and both
 //!   LSTM states.
 //!
 //! The sliding STFT itself is [`SlidingStftContext`], which already ports the
 //! reference analyzer.
+//!
+//! ## Feeding it audio
+//!
+//! [`TenVad::context_forward`] and `_sequence` take hops as tensors, for
+//! callers already holding device-resident audio.
+//! [`TenVad::context_forward_audio`] and `_audio_sequence` take host `&[f32]`
+//! rows, frame and upload them, and take the device from the context — the
+//! usual path for a decoded file or a capture buffer.
+//!
+//! [`TenVad::context_forward_audio`]: crate::kits::speech::ten_vad::TenVad::context_forward_audio
+//! [`TenVad::context_forward_audio_sequence`]: crate::kits::speech::ten_vad::TenVad::context_forward_audio_sequence
 //!
 //! ## Choosing a pitch source
 //!
@@ -54,13 +66,19 @@
 //!
 //! * [`TenVadPitchEstimator`] — the reference estimator, and what
 //!   [`TenVad::init_context`](crate::kits::speech::ten_vad::TenVad::init_context)
-//!   builds. Every frame synchronizes the raw hop and the bin powers back from
-//!   the device to step it.
-//! * [`ZeroPitch`] — pins feature `40` to a constant and reports
-//!   [`inspects_input`](TenVadPitchSource::inspects_input) as `false`, which
-//!   lets the sequence path stay entirely on-device. The other 40 features are
-//!   exact either way. Select it via
+//!   builds. It runs on the host, so the driver must read the raw hops and the
+//!   bin powers back from the device to step it: once per
+//!   `context_forward_sequence` call for the whole sequence, or once per hop on
+//!   the single-step path, which pays that cost anyway.
+//! * [`ZeroPitch`] — pins feature `40` to a constant and never inspects its
+//!   arguments, so the sequence path skips the readback and stays entirely
+//!   on-device. The other 40 features are exact either way. Select it via
 //!   [`TenVad::init_context_with`](crate::kits::speech::ten_vad::TenVad::init_context_with).
+//!
+//! Both are reached through the same tensor-in, tensor-out
+//! [`TenVadPitchSource`] seam; [`HostPitch`] is the adapter that carries a
+//! host-side estimator across it, and is the only place the front end
+//! synchronizes.
 //!
 //! ## Known deviations from the reference driver
 //!

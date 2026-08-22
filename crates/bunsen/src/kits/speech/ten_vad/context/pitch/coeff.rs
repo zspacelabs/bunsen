@@ -7,6 +7,8 @@
 //! tunables: the estimator's output feeds feature `40`, whose mean and
 //! standard deviation were fitted against exactly these values.
 
+use crate::kits::speech::ten_vad::context::coeff::SAMPLE_RATE;
+
 /// The number of bands the pitch estimator's LPC front end works in.
 ///
 /// Unrelated to the 40 mel bands of the feature path: these 18 bands exist
@@ -45,6 +47,9 @@ pub const FEAT_MAX_NFRM: usize = 12;
 /// The reference decimates to this rate before correlating, which is what
 /// makes the period search 64 lags wide instead of 256.
 pub const PROC_FS: usize = 4000;
+
+/// The decimation factor from 16 kHz to the correlation branch's rate.
+pub const PROC_RESAMPLE_RATE: usize = SAMPLE_RATE / PROC_FS;
 
 /// The frame-correlation above which a frame is called voiced.
 ///
@@ -148,9 +153,8 @@ mod tests {
 
     #[test]
     fn test_period_bounds_divide_the_resample_rate() {
-        let rate = super::super::estimator::PROC_RESAMPLE_RATE;
-        assert_eq!(MIN_PERIOD_16KHZ % rate, 0);
-        assert_eq!(MAX_PERIOD_16KHZ % rate, 0);
+        assert_eq!(MIN_PERIOD_16KHZ % PROC_RESAMPLE_RATE, 0);
+        assert_eq!(MAX_PERIOD_16KHZ % PROC_RESAMPLE_RATE, 0);
     }
 
     #[test]

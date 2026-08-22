@@ -292,8 +292,13 @@ impl Autocorrelator {
 ///
 /// The reference's `AUP_PE_celt_lpc`, itself CELT's. Returns the coefficients
 /// of the whitening filter, and bails out early once the residual error has
-/// dropped 30 dB below lag 0 — leaving the remaining coefficients at whatever
-/// the recursion had reached.
+/// dropped 30 dB below lag 0.
+///
+/// Coefficients past the bail-out are left at **zero**, not at a partial
+/// value: index `k` is only ever written by `lpc[i] = r` at step `k`, and the
+/// symmetric update at step `i` touches only `0..i-1`. That matters for a
+/// vectorized port, which cannot branch and must instead freeze each row under
+/// a mask — the frozen tail is the zero initializer.
 ///
 /// Scale-invariant: multiplying `ac` through by a constant leaves the result
 /// unchanged, including the bail-out point.
