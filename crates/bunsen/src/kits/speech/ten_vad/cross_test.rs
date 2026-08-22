@@ -367,9 +367,12 @@ mod tests {
 
     /// The probability golden over the *whole* 60 s fixture.
     ///
-    /// Ignored by default because it runs for over a quarter of an hour -- the
-    /// per-hop cost of [`TenVad::context_forward_sequence`], not anything this
-    /// test does. Run it explicitly with:
+    /// Ignored by default because it runs for about ten minutes in release
+    /// (much longer in debug). That is almost entirely one-time, shape-keyed
+    /// kernel selection in the device pitch estimator rather than the work
+    /// itself -- the same 3750 hops cost roughly five seconds once the shapes
+    /// are tuned. `driver::tests::test_where_the_time_goes` measures the
+    /// split. Run this one explicitly with:
     ///
     /// ```text
     /// cargo test -p bunsen --lib --features wgpu -- \

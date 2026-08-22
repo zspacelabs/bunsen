@@ -258,73 +258,105 @@ impl<B: Backend> TenVad<B> {
     /// normalized context stack. See
     /// [`context_forward`](Self::context_forward) to drive raw audio.
     ///
-    /// # The `a` axis
+    /// # The leading axis is time, not stream-batch
     ///
-    /// `a` is **not** a stream-batch axis, and this implementation pins it to
-    /// `1`. In the reference ONNX graph the leading dimension of the feature
-    /// input lands on the LSTM's *sequence* axis, with the LSTM batch fixed at
-    /// 1 by a graph constant (`new_shape__177 = [-1, 1, 80]`); the reference
-    /// `ALGO_TRACE.md` §8 documents this and verifies it empirically.
+    /// In the reference ONNX graph the leading dimension of the feature input
+    /// lands on the LSTM's *sequence* axis, with the LSTM batch fixed at 1 by a
+    /// graph constant (`new_shape__177 = [-1, 1, 80]`); `ALGO_TRACE.md` §8
+    /// documents this and verifies it empirically. This method pins it to `1`
+    /// and is the single-step form;
+    /// [`forward_sequence`](Self::forward_sequence) is the same computation
+    /// over a run of steps.
     ///
-    /// Two consequences, both deliberate and both currently out of scope:
-    ///
-    /// * **Sequence batching is available in the graph but not here.** Feeding
-    ///   `T` stacked context frames as one call is bit-identical to `T`
-    ///   sequential calls (§8.2), and far faster. Reaching it from bunsen needs
-    ///   [`frame_features`](Self::frame_features) to reshape `[-1, 1, d_ctx,
-    ///   n_freq]`, as the reference graph does, rather than the `[1, -1, d_ctx,
-    ///   n_freq]` it currently uses — the two agree only at `a == 1`, which is
-    ///   why the shape contract pins it there.
-    /// * **Multi-stream batching is structurally impossible** against the stock
-    ///   graph: batched states fail shape validation outright. It requires
-    ///   patching two reshape constants (§8.3), i.e. a different model file.
+    /// **Multi-stream batching is structurally impossible** against the stock
+    /// graph: batched states fail shape validation outright. It requires
+    /// patching two reshape constants (§8.3), i.e. a different model file.
     ///
     /// # Arguments
-    /// * `input`: `[a, d_ctx, n_freq]` the widened feature stack, `a == 1`.
-    /// * `state1`: `[a, d_hidden]` first-LSTM state, or `None` to start zeroed.
-    /// * `state2`: `[a, d_hidden]` second-LSTM state, or `None` to start
+    /// * `input`: `[1, d_ctx, n_freq]` the widened feature stack.
+    /// * `state1`: `[1, d_hidden]` first-LSTM state, or `None` to start zeroed.
+    /// * `state2`: `[1, d_hidden]` second-LSTM state, or `None` to start
     ///   zeroed.
     ///
     /// # Returns
     /// `(probabilities, state1, state2)`, with:
-    /// * `probabilities`: `[a, 1]` speech probabilities in `[0, 1]`
-    /// * `state1` / `state2`: `[a, d_hidden]` next LSTM states
+    /// * `probabilities`: `[1, 1]` speech probability in `[0, 1]`
+    /// * `state1` / `state2`: `[1, d_hidden]` next LSTM states
     pub fn forward(
         &self,
         input: Tensor<B, 3>,
         state1: Option<ExtLstmState<B, 2>>,
         state2: Option<ExtLstmState<B, 2>>,
     ) -> (Tensor<B, 2>, ExtLstmState<B, 2>, ExtLstmState<B, 2>) {
-        // TODO: debug the 1, 1 dims; relationship to batch, seq.
-        assert_eq!(state1.is_some(), state2.is_some());
         #[cfg(any(test, debug_assertions))]
-        {
-            use crate::contracts::assert_shape_contract;
-            let [a] = crate::contracts::unpack_shape_contract!(
-                ["a", "d_ctx", "n_freq"],
-                &input,
-                &["a"],
-                &[("a", 1), ("d_ctx", self.d_ctx()), ("n_freq", self.n_freq())]
-            );
-            if let Some(state1) = &state1 {
-                assert_shape_contract!(
-                    ["a", "d_hidden"],
-                    state1.shape(),
-                    &[("a", a), ("d_hidden", self.d_hidden())],
-                );
-            }
-            if let Some(state2) = &state2 {
-                assert_shape_contract!(
-                    ["a", "d_hidden"],
-                    state2.shape(),
-                    &[("a", a), ("d_hidden", self.d_hidden())],
-                );
-            }
-        }
+        crate::contracts::assert_shape_contract!(
+            ["steps", "d_ctx", "n_freq"],
+            &input,
+            &[
+                ("steps", 1),
+                ("d_ctx", self.d_ctx()),
+                ("n_freq", self.n_freq())
+            ]
+        );
+
+        self.forward_sequence(input, state1, state2)
+    }
+
+    /// Stateless forward pass over a run of consecutive feature stacks.
+    ///
+    /// Equivalent to `steps` calls of [`forward`](Self::forward), final states
+    /// included — the reference verified exactly that against its own graph
+    /// (`ALGO_TRACE.md` §8.2) — but it runs as **one** pass instead of `steps`.
+    ///
+    /// Only the recurrence is inherently sequential, and it is the one part
+    /// that does not become a Rust-side loop:
+    ///
+    /// | stage | over a run of `steps` |
+    /// |---|---|
+    /// | [`frame_features`](Self::frame_features) | one conv pass, `steps` images |
+    /// | `lstm_step` | one call; burn walks the recurrence internally |
+    /// | `output_head` | one pass, `steps` rows |
+    ///
+    /// So a `steps`-hop run costs a constant number of dispatches rather than
+    /// a number proportional to `steps`. The reference measured ~46x on CPU at
+    /// `steps = 1875` (1756 ms sequential vs 38 ms batched).
+    ///
+    /// # The periodic reset
+    ///
+    /// This threads one unbroken recurrence through the whole input, so a
+    /// caller reproducing the reference's periodic state reset must chunk at
+    /// reset boundaries and zero the states between chunks — §8.2's own usage
+    /// note. [`context_forward_sequence`](Self::context_forward_sequence) does
+    /// that for you.
+    ///
+    /// # Arguments
+    /// * `input`: `[steps, d_ctx, n_freq]` consecutive widened feature stacks,
+    ///   with `steps` non-zero.
+    /// * `state1`: `[1, d_hidden]` first-LSTM state, or `None` to start zeroed.
+    /// * `state2`: `[1, d_hidden]` second-LSTM state, or `None` to start
+    ///   zeroed.
+    ///
+    /// # Returns
+    /// `(probabilities, state1, state2)`, with:
+    /// * `probabilities`: `[steps, 1]` speech probabilities in `[0, 1]`, in
+    ///   order
+    /// * `state1` / `state2`: `[1, d_hidden]` states after the final step
+    pub fn forward_sequence(
+        &self,
+        input: Tensor<B, 3>,
+        state1: Option<ExtLstmState<B, 2>>,
+        state2: Option<ExtLstmState<B, 2>>,
+    ) -> (Tensor<B, 2>, ExtLstmState<B, 2>, ExtLstmState<B, 2>) {
+        assert_eq!(state1.is_some(), state2.is_some());
+        assert_ne!(input.dims()[0], 0, "TenVad input must be non-empty");
+
+        // [steps, f_ctx, d_features]
         let x = self.frame_features(input);
 
+        // [1, steps, 2 * d_hidden]
         let (x, state1, state2) = self.lstm_step(x, state1, state2);
 
+        // [steps, 1]
         let x = self.output_head(x);
 
         (x, state1, state2)
@@ -332,42 +364,52 @@ impl<B: Backend> TenVad<B> {
 
     /// Runs the conv stem over a feature stack.
     ///
+    /// Purely per-step: each stack is convolved on its own, so this runs once
+    /// over a whole sequence rather than once per step. That is the other half
+    /// of what makes [`forward_sequence`](Self::forward_sequence) worth having.
+    ///
     /// # Arguments
-    /// * `x`: `[a, d_ctx, n_freq]` the widened feature stack.
+    /// * `x`: `[steps, d_ctx, n_freq]` the widened feature stacks.
     ///
     /// # Returns
-    /// `[a, f_ctx, d_features]` embeddings.
+    /// `[steps, f_ctx, d_features]` embeddings.
     ///
-    /// Note the `[1, -1, d_ctx, n_freq]` reshape below: the reference graph
-    /// uses `[-1, 1, d_ctx, n_freq]`. The two agree at `a == 1`, which is all
-    /// this model is contracted for; see [`forward`](Self::forward).
+    /// # The `[-1, 1, d_ctx, n_freq]` reshape
+    ///
+    /// This matches the reference graph, which reshapes `input_1` per item so
+    /// that the leading dimension is a true conv batch (`ALGO_TRACE.md` §8.1).
+    /// An earlier form here used `[1, -1, d_ctx, n_freq]`, which puts the
+    /// leading axis on the *channel* dimension instead — the two agree only at
+    /// `steps == 1`, and above it the stem would not even typecheck against
+    /// `cs1`'s single input channel.
     pub fn frame_features(
         &self,
         x: Tensor<B, 3>,
     ) -> Tensor<B, 3> {
-        // TODO: debug the 1, 1 dims; relationship to batch, seq.
         #[cfg(any(test, debug_assertions))]
-        let [a] = crate::contracts::unpack_shape_contract!(
-            ["a", "d_ctx", "n_freq"],
+        let [steps] = crate::contracts::unpack_shape_contract!(
+            ["steps", "d_ctx", "n_freq"],
             &x,
-            &["a"],
+            &["steps"],
             &[("d_ctx", self.d_ctx()), ("n_freq", self.n_freq())]
         );
 
-        // this *appears* batch-able.
-        let x = x.reshape([1, -1, 3, self.n_freq() as isize]);
+        // [steps, 1, d_ctx, n_freq]: one single-channel image per step.
+        let x = x.reshape([-1, 1, self.d_ctx() as isize, self.n_freq() as isize]);
         let x = self.cs1.forward(x);
         let x = self.pool.forward(x);
         let x = self.cs2.forward(x);
+
+        // The stem collapses the context axis to 1.
         let x = x.squeeze_dim(2);
         let x = x.permute([0, 2, 1]);
 
         #[cfg(any(test, debug_assertions))]
         crate::contracts::assert_shape_contract!(
-            ["a", "f_ctx", "d_features"],
+            ["steps", "f_ctx", "d_features"],
             &x,
             &[
-                ("a", a),
+                ("steps", steps),
                 ("f_ctx", self.f_ctx()),
                 ("d_features", self.d_features())
             ]
@@ -375,52 +417,69 @@ impl<B: Backend> TenVad<B> {
         x
     }
 
+    /// Runs both LSTMs over a whole sequence, threading the states through.
+    ///
+    /// This is the model's only recurrence, and it is the reason the reference
+    /// graph's leading axis behaves the way it does: `new_shape__177 =
+    /// [-1, 1, 80]` lands it on the LSTM's *sequence* axis with the LSTM batch
+    /// pinned to 1 (`ALGO_TRACE.md` §8.1). Both [`Lstm`]s here are configured
+    /// `batch_first(false)`, so `[steps, 1, ..]` is that same layout, and burn
+    /// walks the recurrence inside one call — `steps` sequential steps of the
+    /// cell, not `steps` dispatches from Rust.
+    ///
+    /// The reference verified this equals `steps` separate batch-1 calls,
+    /// final states included (`ALGO_TRACE.md` §8.2).
+    ///
+    /// # Arguments
+    /// * `x`: `[steps, f_ctx, d_features]` per-step embeddings.
+    /// * `state1` / `state2`: `[1, d_hidden]` states, or `None` to start
+    ///   zeroed. These stay batch-1 whatever `steps` is — they are the state of
+    ///   *one* stream, before and after the run.
+    ///
+    /// # Returns
+    /// `([1, steps, 2 * d_hidden]` concatenated outputs, next `state1`, next
+    /// `state2)`.
     fn lstm_step(
         &self,
         x: Tensor<B, 3>,
         state1: Option<ExtLstmState<B, 2>>,
         state2: Option<ExtLstmState<B, 2>>,
     ) -> (Tensor<B, 3>, ExtLstmState<B, 2>, ExtLstmState<B, 2>) {
-        // TODO: debug the 1, 1 dims; relationship to batch, seq.
         assert_eq!(state1.is_some(), state2.is_some());
         #[cfg(any(test, debug_assertions))]
-        let a = {
+        let steps = {
             use crate::contracts::assert_shape_contract;
-            let [a] = crate::contracts::unpack_shape_contract!(
-                ["a", "f_ctx", "d_features"],
+            let [steps] = crate::contracts::unpack_shape_contract!(
+                ["steps", "f_ctx", "d_features"],
                 &x,
-                &["a"],
+                &["steps"],
                 &[("f_ctx", self.f_ctx()), ("d_features", self.d_features())]
             );
-            if let Some(state1) = &state1 {
+            for state in [&state1, &state2].into_iter().flatten() {
                 assert_shape_contract!(
-                    ["a", "d_hidden"],
-                    state1.shape(),
-                    &[("a", a), ("d_hidden", self.d_hidden())],
+                    ["batch", "d_hidden"],
+                    state.shape(),
+                    &[("batch", 1), ("d_hidden", self.d_hidden())],
                 );
             }
-            if let Some(state2) = &state2 {
-                assert_shape_contract!(
-                    ["a", "d_hidden"],
-                    state2.shape(),
-                    &[("a", a), ("d_hidden", self.d_hidden())],
-                );
-            }
-            a
+            steps
         };
 
-        // converting this to batch seems odd.
-        // The existing re-shape seems to feed [batch=-1, seq=1, features=80];
-        // which is a weird way to run this ...?
+        // [steps, 1, f_ctx * d_features]: the reference's `new_shape__177`,
+        // which is `[seq, batch, input]` for a `batch_first(false)` LSTM.
         let x = x.reshape([-1, 1, (self.f_ctx() * self.d_features()) as isize]);
         let (x, state1) = self.lstm1.forward(x, state1.map(Into::into));
+
+        // [1, steps, d_hidden]: `new_shape__176`.
         let y = x.reshape([1, -1, self.d_hidden() as isize]);
 
+        // [steps, 1, d_hidden]: the graph's `[1, 0, 2]` transpose, putting the
+        // second LSTM back on the same sequence-major layout.
         let x = y.clone().swap_dims(0, 1);
-
         let (x, state2) = self.lstm2.forward(x, state2.map(Into::into));
         let x = x.swap_dims(0, 1);
 
+        // [1, steps, 2 * d_hidden]
         let x = Tensor::cat([x, y].into(), 2);
         let state1: ExtLstmState<B, 2> = state1.into();
         let state2: ExtLstmState<B, 2> = state2.into();
@@ -428,63 +487,58 @@ impl<B: Backend> TenVad<B> {
         {
             use crate::contracts::assert_shape_contract;
             assert_shape_contract!(
-                ["a", 1, 2 * "d_hidden"],
+                [1, "steps", 2 * "d_hidden"],
                 &x,
-                &[("a", a), ("d_hidden", self.d_hidden())]
+                &[("steps", steps), ("d_hidden", self.d_hidden())]
             );
-            assert_shape_contract!(
-                ["a", "d_hidden"],
-                &state1.shape(),
-                &[("a", 1), ("d_hidden", self.d_hidden())],
-            );
-            assert_shape_contract!(
-                ["a", "d_hidden"],
-                &state2.shape(),
-                &[("a", 1), ("d_hidden", self.d_hidden())],
-            );
+            for state in [&state1, &state2] {
+                assert_shape_contract!(
+                    ["batch", "d_hidden"],
+                    &state.shape(),
+                    &[("batch", 1), ("d_hidden", self.d_hidden())],
+                );
+            }
         }
         (x, state1, state2)
     }
 
+    /// Projects the recurrent output to a probability per step.
+    ///
+    /// Purely per-step: every row of `x` goes through the same two linears, so
+    /// this runs once over a whole sequence rather than once per step. That is
+    /// half of what makes [`forward_sequence`](Self::forward_sequence) worth
+    /// having.
+    ///
+    /// # Arguments
+    /// * `x`: `[1, steps, 2 * d_hidden]` the concatenated LSTM outputs.
+    ///
+    /// # Returns
+    /// `[steps, 1]` speech probabilities in `[0, 1]`.
     fn output_head(
         &self,
         x: Tensor<B, 3>,
     ) -> Tensor<B, 2> {
-        // TODO: debug the 1, 1 dims; relationship to batch, seq.
         #[cfg(any(test, debug_assertions))]
-        let [a] = crate::contracts::unpack_shape_contract!(
-            ["a", 1, 2 * "d_hidden"],
+        let [steps] = crate::contracts::unpack_shape_contract!(
+            [1, "steps", 2 * "d_hidden"],
             &x,
-            &["a"],
+            &["steps"],
             &[("d_hidden", self.d_hidden())]
         );
 
-        let half_hidden = self.d_hidden() / 2;
-        let twice_hidden = self.d_hidden() * 2;
+        // The leading axis is a pinned batch of 1, so folding it away leaves
+        // one row per step, in order.
+        // [steps, 2 * d_hidden]
+        let x = x.reshape([-1, (self.d_hidden() * 2) as isize]);
 
-        // this *appears* batch-able.
-        let mut shape1: [usize; 3] = x.dims();
-        shape1[2] = self.d_hidden() / 2;
-        // [a * 1, 2 * d_hidden]
-        let x = x.reshape([-1, twice_hidden as isize]);
-        let x = self.linear1.forward(x);
-        let x = relu(x);
-        // [a * 1, d_hidden / 2]
-        let x = x.reshape(shape1);
+        // [steps, d_hidden / 2]
+        let x = relu(self.linear1.forward(x));
 
-        let mut shape2: [usize; 3] = x.dims();
-        shape2[2] = 1;
-        // [a * 1, d_hidden / 2]
-        let x = x.reshape([-1, half_hidden as isize]);
-        let x = self.linear2.forward(x);
-        let x = sigmoid(x);
-        let x = x.reshape(shape2);
-        // [a, 1]
-        let x = x.squeeze_dim(2);
+        // [steps, 1]
+        let x = sigmoid(self.linear2.forward(x));
 
         #[cfg(any(test, debug_assertions))]
-        // TODO: really?
-        crate::contracts::assert_shape_contract!(["a", 1], &x, &[("a", a)]);
+        crate::contracts::assert_shape_contract!(["steps", 1], &x, &[("steps", steps)]);
         x
     }
 }

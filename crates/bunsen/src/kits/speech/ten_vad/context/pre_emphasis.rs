@@ -29,8 +29,9 @@ use burn::{
     prelude::*,
 };
 
+#[cfg(any(test, debug_assertions))]
+use crate::contracts::unpack_shape_contract;
 use crate::{
-    contracts::unpack_shape_contract,
     kits::speech::ten_vad::context::coeff::PRE_EMPHASIS_COEFF,
     prelude::TensorOpExt,
 };

@@ -304,7 +304,41 @@ impl<B: Backend, P: TenVadPitchSource<B>> TenVadContext<B, P> {
     /// for any continuation, and keeps the context self-consistent between
     /// calls.
     fn tick_state_reset(&mut self) {
-        self.frames_since_reset += 1;
+        self.advance_state_reset(1);
+    }
+
+    /// How many model calls may run before the next reset has to fire.
+    ///
+    /// [`usize::MAX`] when the reset is disabled, and never zero: a caller
+    /// that lowered `reset_frames` below the live count still gets to run one
+    /// call, after which [`advance_state_reset`](Self::advance_state_reset)
+    /// fires immediately -- the same thing a per-hop tick would have done.
+    ///
+    /// This is what lets [`TenVad::context_forward_sequence`] hand whole runs
+    /// to [`TenVad::forward_sequence`]: the recurrence may be threaded
+    /// uninterrupted for exactly this many steps.
+    fn calls_until_state_reset(&self) -> usize {
+        match self.reset_frames {
+            None => usize::MAX,
+            Some(period) => period.saturating_sub(self.frames_since_reset).max(1),
+        }
+    }
+
+    /// Advances the reset counter by `calls`, and fires at a period boundary.
+    ///
+    /// `calls` must not exceed
+    /// [`calls_until_state_reset`](Self::calls_until_state_reset), or it would
+    /// step over a boundary the reference stops at.
+    fn advance_state_reset(
+        &mut self,
+        calls: usize,
+    ) {
+        debug_assert!(
+            calls <= self.calls_until_state_reset(),
+            "advancing {calls} calls would skip a reset boundary",
+        );
+
+        self.frames_since_reset += calls;
         if self
             .reset_frames
             .is_some_and(|period| self.frames_since_reset >= period)
@@ -492,6 +526,11 @@ impl<B: Backend> TenVad<B> {
         let steps = hop_seq.dims()[0];
 
         assert_ne!(steps, 0, "TenVad hop_seq must be non-empty");
+        assert_eq!(
+            ctx.batch_size(),
+            1,
+            "TenVad pins its LSTM batch to 1; see `TenVad::forward`",
+        );
 
         let d_ctx = ctx.d_ctx();
 
@@ -506,25 +545,47 @@ impl<B: Backend> TenVad<B> {
         // The carry-out stack is the final `d_ctx` frames.
         ctx.stack = history.clone().slice_dim(1, steps as isize..);
 
-        let mut probs = Vec::with_capacity(steps);
-        for step in 0..steps {
-            // Step `s` sees frames `s + 1 ..= s + d_ctx` of the history.
-            // [batch, d_ctx, n_freq]
-            let stack = history
-                .clone()
-                .slice_dim(1, (step + 1) as isize..(step + 1 + d_ctx) as isize);
+        // Every step's widened context, materialized once: step `s` sees
+        // frames `s + 1 ..= s + d_ctx`, so the windows are the history's own
+        // sliding view with the carried stack dropped. The batch axis goes
+        // away because the model pins it to 1 and reads its leading axis as
+        // time; `assert_batch_one` above is what makes that sound.
+        // [steps, d_ctx, n_freq]
+        // `unfold` appends the window axis last, so this lands as
+        // `[steps + 1, n_freq, d_ctx]` and has to be transposed back.
+        let stacks = history
+            .squeeze_dim::<2>(0)
+            .unfold::<3, _>(0, d_ctx, 1)
+            .slice_dim(0, 1..)
+            .swap_dims(1, 2);
 
-            let (prob, state1, state2) =
-                self.forward(stack, Some(ctx.state1.clone()), Some(ctx.state2.clone()));
+        // One pass per reset period rather than one per hop. `forward_sequence`
+        // walks the recurrence internally, so the only thing that has to
+        // interrupt it is a state reset -- which is exactly the chunking rule
+        // the reference gives for batched calls (`ALGO_TRACE.md` §8.2).
+        let mut probs = Vec::new();
+        let mut done = 0;
+        while done < steps {
+            let take = ctx.calls_until_state_reset().min(steps - done);
+
+            // [take, 1]
+            let (chunk, state1, state2) = self.forward_sequence(
+                stacks
+                    .clone()
+                    .slice_dim(0, done as isize..(done + take) as isize),
+                Some(ctx.state1.clone()),
+                Some(ctx.state2.clone()),
+            );
             ctx.state1 = state1;
             ctx.state2 = state2;
-            ctx.tick_state_reset();
+            ctx.advance_state_reset(take);
 
-            probs.push(prob);
+            probs.push(chunk);
+            done += take;
         }
 
-        // [steps, batch, 1] -> [steps, batch]
-        Tensor::stack::<3>(probs, 0).squeeze_dim(2)
+        // [steps, 1] is [steps, batch], the batch being the pinned 1.
+        Tensor::cat(probs, 0)
     }
 
     /// Uploads host audio and drives it through the model.
@@ -1329,6 +1390,108 @@ mod tests {
         );
         assert_contexts_agree(&whole_ctx, &split_ctx);
         assert_eq!(whole_ctx.frames_since_reset, split_ctx.frames_since_reset);
+    }
+
+    /// Reports cold and warm cost of [`TenVad::context_forward_sequence`].
+    ///
+    /// A measurement, not an assertion -- it prints and asserts nothing, so it
+    /// is ignored by default. Run it against an optimized build:
+    ///
+    /// ```text
+    /// cargo test --release -p bunsen --lib --features wgpu -- \
+    ///     test_where_the_time_goes --ignored --exact --nocapture
+    /// ```
+    ///
+    /// **Cold is the first call at a given `steps`; warm is a later one.** The
+    /// gap is kernel selection, which cubecl keys on shape -- so a caller that
+    /// hands in a different `steps` every time pays it every time, and one
+    /// that reuses a fixed chunk size pays it once.
+    ///
+    /// That distinction is the whole point of this test. Measured on wgpu, one
+    /// stream, `Zero` against the default device pitch source:
+    ///
+    /// | pitch | hops | cold | warm |
+    /// |---|---|---|---|
+    /// | zero | 1600 | 1.26 s | 1.19 s |
+    /// | tensor | 400 | 4.75 s | 0.50 s |
+    /// | tensor | 800 | 15.09 s | 1.00 s |
+    /// | tensor | 1600 | 66.61 s | 2.06 s |
+    ///
+    /// Warm cost is linear and small -- about 0.75 ms/hop for the model and
+    /// 0.50 ms/hop for the device pitch estimator, flat across the sweep. Cold
+    /// cost is neither: the model half tunes almost for free (`zero` cold is
+    /// warm plus a little), while the pitch estimator's cold cost grows
+    /// roughly quadratically. At 3750 hops that is the difference between
+    /// about five seconds of work and the ten minutes
+    /// [`test_reference_probability_golden_full`] actually takes.
+    ///
+    /// [`test_reference_probability_golden_full`]:
+    ///     crate::kits::speech::ten_vad::cross_test
+    #[test]
+    #[ignore = "measurement, not an assertion"]
+    #[serial_test::serial]
+    fn test_where_the_time_goes() {
+        use std::time::{
+            Duration,
+            Instant,
+        };
+
+        /// Runs per measurement; the minimum is reported.
+        const REPS: usize = 3;
+
+        let (vad, device) = model();
+
+        /// Wall time for a single run of `run`, which must synchronize.
+        fn best_of_1(mut run: impl FnMut()) -> Duration {
+            let start = Instant::now();
+            run();
+            start.elapsed()
+        }
+
+        /// Best-of-`REPS` wall time for `run`, which must synchronize.
+        fn best_of(mut run: impl FnMut()) -> Duration {
+            (0..REPS)
+                .map(|_| {
+                    let start = Instant::now();
+                    run();
+                    start.elapsed()
+                })
+                .min()
+                .unwrap()
+        }
+
+        eprintln!("{:>6} {:>6} {:>12} {:>12}", "pitch", "hops", "cold", "warm");
+
+        for (name, pitch) in [
+            ("zero", TenVadPitchSourceConfig::Zero),
+            ("tensor", TenVadPitchSourceConfig::default()),
+        ] {
+            let cfg = TenVadContextConfig::new().with_pitch(pitch);
+
+            for steps in [400usize, 800, 1600] {
+                let hops = Tensor::<B, 3>::random(
+                    [steps, 1, cfg.hop_size()],
+                    Distribution::Default,
+                    &device,
+                );
+
+                // The *first* run at this shape, kernel selection included.
+                let cold = best_of_1(|| {
+                    let mut ctx = vad.init_context(&cfg, &device).unwrap();
+                    vad.context_forward_sequence(hops.clone(), &mut ctx)
+                        .to_data();
+                });
+
+                // And a subsequent one, with the same shapes already tuned.
+                let warm = best_of(|| {
+                    let mut ctx = vad.init_context(&cfg, &device).unwrap();
+                    vad.context_forward_sequence(hops.clone(), &mut ctx)
+                        .to_data();
+                });
+
+                eprintln!("{name:>6} {steps:>6} {cold:>12.2?} {warm:>12.2?}");
+            }
+        }
     }
 
     #[test]
