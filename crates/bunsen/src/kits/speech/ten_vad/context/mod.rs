@@ -61,24 +61,35 @@
 //!
 //! ## Choosing a pitch source
 //!
-//! Feature `40` is a serial host-side recurrence, so the driver reaches it
-//! through the [`TenVadPitchSource`] seam:
+//! Feature `40` is reached through the [`TenVadPitchSource`] seam, selected by
+//! [`TenVadPitchSourceConfig`] on [`TenVadContextConfig::pitch`]:
 //!
-//! * [`TenVadPitchEstimator`] — the reference estimator, and what
-//!   [`TenVad::init_context`](crate::kits::speech::ten_vad::TenVad::init_context)
-//!   builds. It runs on the host, so the driver must read the raw hops and the
-//!   bin powers back from the device to step it: once per
-//!   `context_forward_sequence` call for the whole sequence, or once per hop on
-//!   the single-step path, which pays that cost anyway.
-//! * [`ZeroPitch`] — pins feature `40` to a constant and never inspects its
-//!   arguments, so the sequence path skips the readback and stays entirely
-//!   on-device. The other 40 features are exact either way. Select it via
-//!   [`TenVad::init_context_with`](crate::kits::speech::ten_vad::TenVad::init_context_with).
+//! | variant | what it is |
+//! |---|---|
+//! | `Tensor(..)` | the device estimator. **The default.** Keeps the whole front end resident; nothing synchronizes. |
+//! | `Host` | the host scalar port — the reference oracle. Costs a device-to-host readback per call. |
+//! | `Zero` | pins feature `40` to a constant and skips the branch. Features `0..40` are exact regardless. |
 //!
-//! Both are reached through the same tensor-in, tensor-out
-//! [`TenVadPitchSource`] seam; [`HostPitch`] is the adapter that carries a
-//! host-side estimator across it, and is the only place the front end
-//! synchronizes.
+//! The device variant has two tiers, differing only in how the anti-alias
+//! filter before decimation is realized. The default folds the filter and its
+//! decimation into one GEMM against a truncated impulse response;
+//! [`TensorPitchConfig::reference`] instead selects a literal transcription of
+//! the reference's IIR cascade. That tier is sample-sequential — five sections
+//! stepping one sample at a time — so it is a correctness reference for short
+//! inputs rather than a workload path. It is not a fidelity trade in the usual
+//! direction: the truncated FIR is measurably *more* accurate than the
+//! recurrence, being a better-conditioned realization of the same filter.
+//!
+//! All three implementations are cross-tested against each other, and the host
+//! oracle is pinned to the C reference.
+//!
+//! ### Cost shape
+//!
+//! The device path is built for sequences. `forward_sequence` runs stages 1
+//! and 3 over the whole run in one pass, and threads a carry through 2 and 4;
+//! a single-hop `forward` pays the same setup for one frame's worth of work.
+//! Callers stepping hop by hop through the device path should expect that,
+//! and the `Host` variant may well be cheaper for them.
 //!
 //! ## Known deviations from the reference driver
 //!
@@ -102,6 +113,8 @@
 //! * **The driver as a whole** — the kit's cross test pins it against the ONNX
 //!   graph over real audio.
 //!
+//! [`TenVadContextConfig::pitch`]: crate::kits::speech::ten_vad::TenVadContextConfig
+//! [`TensorPitchConfig::reference`]: crate::kits::speech::ten_vad::context::pitch::tensor::TensorPitchConfig::reference
 //! [`TenVad::forward`]: crate::kits::speech::ten_vad::TenVad::forward
 //! [`TenVad::context_forward`]: crate::kits::speech::ten_vad::TenVad::context_forward
 //! [`SlidingStftContext`]: crate::ops::signal::SlidingStftContext

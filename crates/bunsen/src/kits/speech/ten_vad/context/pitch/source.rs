@@ -24,6 +24,14 @@
 
 use burn::prelude::*;
 
+use super::{
+    estimator::TenVadPitchEstimator,
+    host::HostPitch,
+    tensor::source::{
+        TensorPitchConfig,
+        TensorPitchContext,
+    },
+};
 use crate::{
     errors::WithOkOrPanic,
     kits::speech::ten_vad::context::coeff::{
@@ -321,5 +329,113 @@ mod tests {
 
         pitch.reset();
         assert_eq!(pitch.calls, 0);
+    }
+}
+
+/// How the driver obtains feature `40`.
+///
+/// A `Config` enum whose variants wrap each implementation's own config,
+/// following [`StftWindowConfig`](crate::ops::signal::StftWindowConfig): the
+/// contract is [`TenVadPitchSourceInit`], and this dispatches to it.
+///
+/// [`Self::default`] selects [`Self::Tensor`], which is both the faithful
+/// choice and the one that keeps the front end device-resident.
+#[derive(Config, Debug)]
+pub enum TenVadPitchSourceConfig {
+    /// Pin feature `40` to a constant and skip the branch entirely.
+    ///
+    /// Never inspects its input, so the sequence path stays on-device with no
+    /// synchronization at all. Features `0..40` are exact regardless.
+    Zero,
+
+    /// The host scalar estimator, one instance per stream.
+    ///
+    /// The reference port, and the permanent oracle the device stages are
+    /// validated against. Carries no configuration of its own — the geometry
+    /// is fixed by the reference. Costs a device-to-host readback per call.
+    Host,
+
+    /// The device-side estimator. The default.
+    ///
+    /// Selecting [`PitchAntiAliasConfig::Recurrence`] inside chooses the
+    /// literal-transcription tier instead of the optimized one; see
+    /// [`TensorPitchConfig::reference`].
+    ///
+    /// [`PitchAntiAliasConfig::Recurrence`]: super::tensor::PitchAntiAliasConfig::Recurrence
+    Tensor(TensorPitchConfig),
+}
+
+impl Default for TenVadPitchSourceConfig {
+    fn default() -> Self {
+        Self::Tensor(TensorPitchConfig::new())
+    }
+}
+
+impl<B: Backend> TenVadPitchSourceInit<B> for TenVadPitchSourceConfig {
+    type Source = TenVadPitchSourceKind<B>;
+
+    fn try_init_source(
+        &self,
+        batch_size: usize,
+        device: &B::Device,
+    ) -> BunsenResult<Self::Source> {
+        Ok(match self {
+            Self::Zero => TenVadPitchSourceKind::Zero(ZeroPitch),
+            Self::Host => {
+                TenVadPitchSourceKind::Host(HostPitch::new(TenVadPitchEstimator::new(), batch_size))
+            }
+            Self::Tensor(cfg) => {
+                TenVadPitchSourceKind::Tensor(cfg.try_init(device)?.init_state(batch_size, device))
+            }
+        })
+    }
+}
+
+/// A pitch source selected by [`TenVadPitchSourceConfig`].
+///
+/// An enum rather than a boxed trait object: the contract returns a *stateful*
+/// source, and an associated type must be one type across every variant. This
+/// keeps dispatch static and the state concrete enough to inspect.
+#[derive(Debug, Clone)]
+pub enum TenVadPitchSourceKind<B: Backend> {
+    /// See [`ZeroPitch`].
+    Zero(ZeroPitch),
+    /// See [`HostPitch`].
+    Host(HostPitch<TenVadPitchEstimator>),
+    /// See [`TensorPitchContext`].
+    Tensor(TensorPitchContext<B>),
+}
+
+impl<B: Backend> TenVadPitchSource<B> for TenVadPitchSourceKind<B> {
+    fn forward(
+        &mut self,
+        raw: Tensor<B, 2>,
+        bin_power: Tensor<B, 2>,
+    ) -> Tensor<B, 2> {
+        match self {
+            Self::Zero(s) => s.forward(raw, bin_power),
+            Self::Host(s) => s.forward(raw, bin_power),
+            Self::Tensor(s) => s.forward(raw, bin_power),
+        }
+    }
+
+    fn forward_sequence(
+        &mut self,
+        raw: Tensor<B, 3>,
+        bin_power: Tensor<B, 3>,
+    ) -> Tensor<B, 3> {
+        match self {
+            Self::Zero(s) => s.forward_sequence(raw, bin_power),
+            Self::Host(s) => s.forward_sequence(raw, bin_power),
+            Self::Tensor(s) => s.forward_sequence(raw, bin_power),
+        }
+    }
+
+    fn reset(&mut self) {
+        match self {
+            Self::Zero(s) => TenVadPitchSource::<B>::reset(s),
+            Self::Host(s) => TenVadPitchSource::<B>::reset(s),
+            Self::Tensor(s) => TenVadPitchSource::<B>::reset(s),
+        }
     }
 }

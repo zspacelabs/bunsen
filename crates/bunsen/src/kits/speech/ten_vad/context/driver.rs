@@ -53,10 +53,10 @@ use crate::{
                 TenVadFeatureMeta,
             },
             pitch::{
-                HostPitch,
-                TenVadPitchEstimator,
                 TenVadPitchSource,
+                TenVadPitchSourceConfig,
                 TenVadPitchSourceInit,
+                TenVadPitchSourceKind,
             },
         },
     },
@@ -108,6 +108,14 @@ pub struct TenVadContextConfig {
     /// The feature front-end geometry.
     #[config(default = "TenVadFeatureConfig::new()")]
     pub features: TenVadFeatureConfig,
+
+    /// How feature `40` is obtained.
+    ///
+    /// Defaults to the device-side estimator. See
+    /// [`TenVadPitchSourceConfig`] for the alternatives, and for how to select
+    /// the literal-transcription tier.
+    #[config(default = "TenVadPitchSourceConfig::default()")]
+    pub pitch: TenVadPitchSourceConfig,
 }
 
 impl TenVadContextMeta for TenVadContextConfig {
@@ -172,7 +180,7 @@ impl TenVadContextConfig {
 ///
 /// Built by [`TenVad::init_context`]. Implements [`TenVadContextMeta`].
 #[derive(Debug, Clone)]
-pub struct TenVadContext<B: Backend, P: TenVadPitchSource<B> = HostPitch<TenVadPitchEstimator>> {
+pub struct TenVadContext<B: Backend, P: TenVadPitchSource<B> = TenVadPitchSourceKind<B>> {
     /// The audio front-end streaming state.
     pub features: TenVadFeatureContext<B, P>,
 
@@ -270,18 +278,13 @@ impl<B: Backend, P: TenVadPitchSource<B>> TenVadContext<B, P> {
 }
 
 impl<B: Backend> TenVad<B> {
-    /// Builds a zeroed driving context with the reference pitch estimator.
+    /// Builds a zeroed driving context, with the pitch source `cfg` selects.
     ///
-    /// This is the faithful front end: all 41 features match the reference
-    /// implementation. Feature `40` is a host-side recurrence, so the driver
-    /// reads the raw hops and the bin powers back from the device to step it —
-    /// once per [`context_forward_sequence`](Self::context_forward_sequence)
-    /// call, not once per hop.
-    ///
-    /// To trade that fidelity for an entirely on-device sequence path, pass
-    /// [`ZeroPitch`](super::ZeroPitch) to
-    /// [`init_context_with`](Self::init_context_with); it pins feature `40` to
-    /// a constant and leaves the other 40 exact.
+    /// Defaults to the device-side estimator, so the whole front end stays
+    /// resident and no stage synchronizes. Set
+    /// [`TenVadContextConfig::pitch`] to choose otherwise — the host oracle,
+    /// the constant stub, or the device estimator's literal-transcription
+    /// tier.
     ///
     /// # Errors
     ///
@@ -291,8 +294,8 @@ impl<B: Backend> TenVad<B> {
         &self,
         cfg: &TenVadContextConfig,
         device: &B::Device,
-    ) -> BunsenResult<TenVadContext<B, HostPitch<TenVadPitchEstimator>>> {
-        self.init_context_with(cfg, TenVadPitchEstimator::new(), device)
+    ) -> BunsenResult<TenVadContext<B, TenVadPitchSourceKind<B>>> {
+        self.init_context_with(cfg, cfg.pitch.clone(), device)
     }
 
     /// Builds a zeroed driving context over a specific pitch source.
@@ -567,6 +570,42 @@ mod tests {
         let device = Default::default();
         let vad: TenVad<B> = TenVadStructureConfig::default().init(&device);
         (vad, device)
+    }
+
+    #[test]
+    fn test_default_pitch_source_is_the_device_estimator() {
+        // The driver's default is the device path, so the whole front end
+        // stays resident and no stage synchronizes.
+        let cfg = TenVadContextConfig::new();
+        assert!(
+            matches!(cfg.pitch, TenVadPitchSourceConfig::Tensor(_)),
+            "expected the device estimator by default, got {:?}",
+            cfg.pitch,
+        );
+
+        let (vad, device) = model();
+        let ctx = vad.init_context(&cfg, &device).unwrap();
+        assert!(matches!(
+            ctx.features.pitch,
+            TenVadPitchSourceKind::Tensor(_)
+        ));
+
+        // And the other variants are reachable through the same config.
+        let host = vad
+            .init_context_with(&cfg, TenVadPitchSourceConfig::Host, &device)
+            .unwrap();
+        assert!(matches!(
+            host.features.pitch,
+            TenVadPitchSourceKind::Host(_)
+        ));
+
+        let zero = vad
+            .init_context_with(&cfg, TenVadPitchSourceConfig::Zero, &device)
+            .unwrap();
+        assert!(matches!(
+            zero.features.pitch,
+            TenVadPitchSourceKind::Zero(_)
+        ));
     }
 
     #[test]

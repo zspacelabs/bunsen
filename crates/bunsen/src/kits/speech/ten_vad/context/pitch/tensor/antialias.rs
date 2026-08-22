@@ -64,7 +64,7 @@
 //! The carry is `taps − 1`, **not** `in_len − hop`. Those differ by three, and
 //! using the latter would both drop the three oldest taps and desync the carry
 //! from the kernel offset. Both are derived from one constant here, and
-//! [`tests::test_fir_matches_the_exact_cascade`] would catch a slip.
+//! `test_fir_matches_the_exact_cascade` would catch a slip.
 
 use burn::{
     config::Config,

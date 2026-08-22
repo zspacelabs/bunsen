@@ -499,9 +499,10 @@ mod tests {
 
     #[test]
     fn test_octave_suppression_reads_are_write_safe() {
-        // The whole vectorized form rests on this. Checked as a const, and
-        // re-derived here so a geometry change cannot quietly invalidate it.
-        assert!(SHARPEN_IS_WRITE_SAFE);
+        // The whole vectorized form rests on this. `SHARPEN_IS_WRITE_SAFE`
+        // proves it at compile time for the shipped geometry; re-derived here
+        // against the live config so a geometry change cannot slip past.
+        const _: () = assert!(SHARPEN_IS_WRITE_SAFE);
 
         let cfg = config();
         let (a, b, c) = cfg.to_vec_sharpen_indices();

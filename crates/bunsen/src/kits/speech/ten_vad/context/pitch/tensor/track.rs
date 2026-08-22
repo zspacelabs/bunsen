@@ -139,9 +139,9 @@ impl PitchTrackConfig {
 
     /// The `[dif_period, dif_period]` transition penalty matrix, row-major.
     ///
-    /// Entry `[idx][cand]` is `PITCH_MAX_PATH_W · jdx²` where reachable, and
-    /// [`INVALID_PENALTY`] where not. The arithmetic order matches the
-    /// reference's `(W · |j|) · |j|`.
+    /// Entry `[idx][cand]` is `PITCH_MAX_PATH_W · jdx²` where reachable, and a
+    /// penalty large enough to lose every `max` where not. The order matches
+    /// the reference's `(W · |j|) · |j|`.
     pub fn to_vec_penalty(&self) -> Vec<f32> {
         let dif = self.dif_period();
         let mut out = vec![INVALID_PENALTY; dif * dif];
@@ -225,6 +225,24 @@ pub struct PitchTrackState<B: Backend> {
     pub slot_prev: Tensor<B, 3, Int>,
 }
 
+/// The three fields the Viterbi recursion threads from one half-hop to the
+/// next.
+///
+/// Split out of [`PitchTrackState`] because the forward pass steps these twice
+/// per hop while the ring carries advance once, and because naming the triple
+/// keeps [`PitchTrack::viterbi_step`]'s signature legible.
+#[derive(Debug, Clone)]
+struct ViterbiCarry<B: Backend> {
+    /// `[batch, dif_period]` accumulator, renormalized to peak zero.
+    score: Tensor<B, 2>,
+
+    /// `[batch, 1]` best score reached so far.
+    best: Tensor<B, 2>,
+
+    /// `[batch, 1]` best period index reached so far.
+    period: Tensor<B, 2, Int>,
+}
+
 impl<B: Backend> PitchTrack<B> {
     /// The width of the tracker's state space.
     pub fn dif_period(&self) -> usize {
@@ -303,9 +321,11 @@ impl<B: Backend> PitchTrack<B> {
         let weights = Self::normalize_weights(energy_hist.clone(), slots, steps);
 
         // --- forward pass: two dependent steps per hop ---
-        let mut path_score = state.path_score;
-        let mut path_best = state.path_best;
-        let mut best_period = state.best_period;
+        let mut carry_state = ViterbiCarry {
+            score: state.path_score,
+            best: state.path_best,
+            period: state.best_period,
+        };
         let mut new_prev = Vec::with_capacity(steps * SUBS_PER_HOP);
         let mut hop_best = Vec::with_capacity(steps);
 
@@ -326,14 +346,11 @@ impl<B: Backend> PitchTrack<B> {
                     ])
                     .reshape([batch, 1]);
 
-                let (score, best, arg, prev) =
-                    self.viterbi_step(path_score, path_best, best_period, xc, w);
-                path_score = score;
-                path_best = best;
-                best_period = arg;
+                let (next, prev) = self.viterbi_step(carry_state, xc, w);
+                carry_state = next;
                 new_prev.push(prev.unsqueeze_dim::<3>(1));
             }
-            hop_best.push(best_period.clone());
+            hop_best.push(carry_state.period.clone());
         }
 
         let prev_hist = Tensor::cat(vec![state.slot_prev, Tensor::cat(new_prev, 1)], 1);
@@ -360,9 +377,9 @@ impl<B: Backend> PitchTrack<B> {
         (
             pitch.reshape([steps, batch, 1]),
             PitchTrackState {
-                path_score,
-                path_best,
-                best_period,
+                path_score: carry_state.score,
+                path_best: carry_state.best,
+                best_period: carry_state.period,
                 slot_xcorr: xcorr_hist.slice_dim(1, keep as isize..),
                 slot_energy: energy_hist.slice_dim(1, keep as isize..),
                 slot_prev: prev_hist.slice_dim(1, keep as isize..),
@@ -397,35 +414,38 @@ impl<B: Backend> PitchTrack<B> {
     }
 
     /// One Viterbi step: the dense transition max, then the renormalization.
+    ///
+    /// Returns the advanced carry and the `[batch, dif_period]` backpointer row
+    /// this half-hop emits.
     fn viterbi_step(
         &self,
-        path_score: Tensor<B, 2>,
-        path_best: Tensor<B, 2>,
-        best_period: Tensor<B, 2, Int>,
+        carry: ViterbiCarry<B>,
         xcorr: Tensor<B, 2>,
         weight: Tensor<B, 2>,
-    ) -> (
-        Tensor<B, 2>,
-        Tensor<B, 2>,
-        Tensor<B, 2, Int>,
-        Tensor<B, 2, Int>,
-    ) {
+    ) -> (ViterbiCarry<B>, Tensor<B, 2, Int>) {
         // [batch, dif, dif]: score of arriving at `idx` from `cand`.
         let transitions =
-            path_score.unsqueeze_dim::<3>(1) - self.penalty.clone().unsqueeze_dim::<3>(0);
+            carry.score.unsqueeze_dim::<3>(1) - self.penalty.clone().unsqueeze_dim::<3>(0);
         let (best_in, arg_in) = transitions.max_dim_with_indices(2);
 
         // The reference seeds its search at `path_best - 1e10` and keeps the
         // previous best period when nothing beats it; invalid transitions sit
         // far below that floor, so they never win.
-        let floor = path_best.sub_scalar(1e10f32).unsqueeze_dim::<3>(2);
+        let floor = carry.best.sub_scalar(1e10f32).unsqueeze_dim::<3>(2);
         let stalled = best_in.clone().lower_equal(floor.clone());
-        let prev = arg_in.mask_where(stalled, best_period.clone().unsqueeze_dim::<3>(2));
+        let prev = arg_in.mask_where(stalled, carry.period.unsqueeze_dim::<3>(2));
 
         let scored = best_in.max_pair(floor).squeeze_dim::<2>(2) + xcorr * weight;
         let (top, arg_top) = scored.clone().max_dim_with_indices(1);
 
-        (scored - top.clone(), top, arg_top, prev.squeeze_dim::<2>(2))
+        (
+            ViterbiCarry {
+                score: scored - top.clone(),
+                best: top,
+                period: arg_top,
+            },
+            prev.squeeze_dim::<2>(2),
+        )
     }
 
     /// Walks each hop's path back six slots and fits a period contour.

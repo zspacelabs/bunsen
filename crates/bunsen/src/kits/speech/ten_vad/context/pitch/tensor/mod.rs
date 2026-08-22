@@ -57,6 +57,7 @@ pub mod antialias;
 pub mod correlate;
 pub mod excitation;
 pub mod prefilter;
+pub mod source;
 pub mod tables;
 pub mod track;
 
@@ -71,6 +72,8 @@ pub use correlate::*;
 pub use excitation::*;
 #[doc(inline)]
 pub use prefilter::*;
+#[doc(inline)]
+pub use source::*;
 #[doc(inline)]
 pub use tables::*;
 #[doc(inline)]
