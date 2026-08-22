@@ -58,7 +58,7 @@ use super::coeff::{
 ///
 /// The reference computes `windowSz / 12 / 38.0f` with an **integer** first
 /// division (`src/pitch_est.cc`, `DC0_BIAS`).
-fn dc0_bias(window_size: usize) -> f32 {
+pub(crate) fn dc0_bias(window_size: usize) -> f32 {
     (window_size / 12) as f32 / 38.0
 }
 

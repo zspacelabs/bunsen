@@ -22,6 +22,8 @@ mod tests {
                 TenVadFeatureConfig,
                 TenVadFeatureMeta,
                 TenVadPitchEstimator,
+                TenVadPitchSourceInit,
+                tensor::hybrid::HybridPitchInit,
             },
             reference::ReferenceModel,
         },
@@ -242,31 +244,18 @@ mod tests {
         Ok(())
     }
 
-    /// Pins the ported pitch estimator against the ten-vad C reference.
+    /// Drives the whole golden fixture through a pitch source and recovers the
+    /// per-hop pitch in Hz, alongside the reference values to compare against.
     ///
     /// `testdata/ten/pitch.json` holds one pitch estimate per 256-sample hop
-    /// over the whole 60 s fixture, produced by driving the reference
-    /// `AUP_PE_proc` (`src/pitch_est.cc`) from the reference `AUP_Analyzer`
-    /// STFT — the same wiring `AUP_Aed_runOneFrm` uses, so the estimator sees
-    /// the raw hop and the un-normalized bin powers exactly as it does in the
-    /// C driver.
-    ///
-    /// The two arms reach their bin powers through different FFTs, so they are
-    /// not bit-identical. Two things are asserted instead:
-    ///
-    /// * the **voicing decision** agrees on every frame — the discrete output,
-    ///   and the one a porting error would flip; and
-    /// * where both call a frame voiced, the estimates agree to well inside f32
-    ///   rounding.
-    ///
-    /// This covers feature `40`. The other 40 features are pinned by
-    /// [`TenVadFeatureContext`]'s own tests, against an independent host
-    /// implementation of the mel path.
-    ///
-    /// [`TenVadFeatureContext`]: crate::kits::speech::ten_vad::context::TenVadFeatureContext
-    #[test]
-    #[serial_test::serial]
-    fn test_pitch_estimator_reference_golden() -> Result<(), Box<dyn std::error::Error>> {
+    /// over the 60 s fixture, produced by driving the reference `AUP_PE_proc`
+    /// (`src/pitch_est.cc`) from the reference `AUP_Analyzer` STFT — the same
+    /// wiring `AUP_Aed_runOneFrm` uses, so the estimator sees the raw hop and
+    /// the un-normalized bin powers exactly as it does in the C driver.
+    fn golden_pitch_hz<I>(pitch: I) -> Result<(Vec<f32>, Vec<f32>), Box<dyn std::error::Error>>
+    where
+        I: TenVadPitchSourceInit<PerformanceBackend>,
+    {
         type B = PerformanceBackend;
         type F = <B as BackendTypes>::FloatElem;
 
@@ -296,7 +285,7 @@ mod tests {
             Tensor::<B, 1>::from_floats(&wav_vec[..steps * hop_size], &device)
                 .reshape([steps, 1, hop_size]);
 
-        let mut ctx = cfg.try_init_context::<B, _>(1, TenVadPitchEstimator::new(), &device)?;
+        let mut ctx = cfg.try_init_context::<B, _>(1, pitch, &device)?;
 
         // [steps, batch=1, n_freq]
         let feats = ctx.forward_sequence(hop_seq);
@@ -310,6 +299,24 @@ mod tests {
             .map(|t| flat[t * n_freq + N_MELS] * scale + FEATURE_MEANS[N_MELS])
             .collect();
 
+        Ok((got, expected))
+    }
+
+    /// Asserts a recovered pitch track against the C reference.
+    ///
+    /// The two arms reach their bin powers through different FFTs, so they are
+    /// never bit-identical. Two things are asserted instead:
+    ///
+    /// * the **voicing decision** agrees on every frame — the discrete output,
+    ///   and the one a porting error would flip; and
+    /// * where both call a frame voiced, the estimates agree within
+    ///   `rel_bound`.
+    fn assert_golden_pitch(
+        got: &[f32],
+        expected: &[f32],
+        rel_bound: f32,
+    ) {
+        let steps = expected.len();
         let mut voiced_frames = 0usize;
         for (t, (&g, &e)) in got.iter().zip(expected.iter()).enumerate() {
             assert_eq!(
@@ -321,7 +328,7 @@ mod tests {
                 voiced_frames += 1;
                 let rel = (g - e).abs() / e;
                 assert!(
-                    rel < 1e-4,
+                    rel < rel_bound,
                     "frame {t}: {g} Hz vs reference {e} Hz (rel err {rel})",
                 );
             }
@@ -333,7 +340,45 @@ mod tests {
             voiced_frames * 2 > steps,
             "fixture should be mostly voiced, got {voiced_frames} of {steps}",
         );
+    }
 
+    /// Pins the ported host pitch estimator against the ten-vad C reference.
+    ///
+    /// This is the anchor of the whole chain: every device stage is validated
+    /// differentially against the host estimator, and the host estimator is
+    /// validated here. It covers feature `40`; the other 40 are pinned by
+    /// [`TenVadFeatureContext`]'s own tests against an independent host
+    /// implementation of the mel path.
+    ///
+    /// [`TenVadFeatureContext`]: crate::kits::speech::ten_vad::context::TenVadFeatureContext
+    #[test]
+    #[serial_test::serial]
+    fn test_pitch_estimator_reference_golden() -> Result<(), Box<dyn std::error::Error>> {
+        let (got, expected) = golden_pitch_hz(TenVadPitchEstimator::new())?;
+        assert_golden_pitch(&got, &expected, 1e-4);
+        Ok(())
+    }
+
+    /// The go/no-go gate for the device-side port: stage 1 on the device, the
+    /// remaining three stages on the host, measured against the same C golden.
+    ///
+    /// The stage-level differential tests establish that the device pre-filter
+    /// reproduces the host one to a tolerance. They cannot establish that the
+    /// tolerance survives the tracker's `argmax` and its voicing threshold,
+    /// which are discrete — a single `argmax` step of ±1 moves the reported
+    /// pitch by roughly half a percent, some fifty times the bound above. This
+    /// test answers that, by differing from the pinned pipeline in exactly one
+    /// stage.
+    ///
+    /// The value bound is looser than the host arm's because the device
+    /// contracts the band projections in `f32` where the host accumulates the
+    /// autocorrelation in `f64`. The **voicing** bound is not loosened: that is
+    /// the assertion with teeth.
+    #[test]
+    #[serial_test::serial]
+    fn test_tensor_prefilter_hybrid_reference_golden() -> Result<(), Box<dyn std::error::Error>> {
+        let (got, expected) = golden_pitch_hz(HybridPitchInit::new())?;
+        assert_golden_pitch(&got, &expected, 1e-3);
         Ok(())
     }
 }

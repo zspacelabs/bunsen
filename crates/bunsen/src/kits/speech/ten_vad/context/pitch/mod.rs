@@ -18,6 +18,8 @@
 //! * [`ZeroPitch`] — a constant stub that skips the branch entirely.
 //! * [`BiquadCascade`] — the anti-alias filter before decimation.
 //! * [`coeff`](self) — the reference constants.
+//! * [`tensor`] — the device-side port, built stage by stage against the host
+//!   estimator as its oracle.
 //!
 //! [`lpc`] holds the pre-filter design: band folding, the cepstrum, the
 //! autocorrelation, and the Levinson-Durbin solve.
@@ -48,6 +50,8 @@ mod estimator;
 mod host;
 mod lpc;
 mod source;
+
+pub mod tensor;
 
 #[doc(inline)]
 pub use biquad::*;
