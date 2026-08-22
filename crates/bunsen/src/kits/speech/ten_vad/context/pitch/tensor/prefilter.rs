@@ -193,6 +193,14 @@ impl<B: Backend> PitchPrefilter<B> {
     /// That differs from the host's `f32::log10` by a ULP or so — well inside
     /// this stage's tolerance, and the `10^x` on the way back out is spelled
     /// as its matching inverse, `exp(x·ln(10))`.
+    ///
+    /// The scan writes into a preallocated buffer rather than collecting 18
+    /// slices and concatenating. When autodiff is off it cannibalizes its own
+    /// input, which is the same shape — following
+    /// [`SileroVad::forward_sequence`](crate::kits::speech::silero_vad::SileroVad::forward_sequence),
+    /// where the single live reference lets `slice_assign` lower to an in-place
+    /// update. With autodiff on it accumulates into a fresh tensor instead, so
+    /// the graph stays intact.
     fn log_compress(
         &self,
         bands: Tensor<B, 2>,
@@ -202,7 +210,12 @@ impl<B: Backend> PitchPrefilter<B> {
 
         let mut log_max: Tensor<B, 2> = Tensor::full([rows, 1], -2.0, &device);
         let mut follow: Tensor<B, 2> = Tensor::full([rows, 1], -2.0, &device);
-        let mut out = Vec::with_capacity(NB_BANDS);
+
+        let mut out = if B::ad_enabled(&device) {
+            Tensor::zeros_like(&bands)
+        } else {
+            bands.clone()
+        };
 
         for band in 0..NB_BANDS {
             let raw = bands
@@ -220,10 +233,10 @@ impl<B: Backend> PitchPrefilter<B> {
 
             log_max = log_max.max_pair(ly.clone());
             follow = decayed.max_pair(ly.clone());
-            out.push(ly);
+            out = out.slice_assign(s![.., band..band + 1], ly);
         }
 
-        Tensor::cat(out, 1)
+        out
     }
 
     /// The `-40 dB` noise floor on lag zero, then the lag window.
