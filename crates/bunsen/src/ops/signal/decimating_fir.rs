@@ -270,16 +270,17 @@ impl<B: Backend> DecimatingFir<B> {
         // samples before hop `s`.
         let extended = Tensor::cat(vec![history, input], 1);
 
-        // `unfold` derives its batch-row stride from the span the windows
-        // cover, `(steps - 1) * hop + window`, rather than from the row's real
-        // length. When a row is longer than that span -- which it is here, by
-        // `carry_len - (window - hop)` samples -- every row after the first is
-        // placed that many samples early, silently. Trimming to the covered
-        // span first makes the two agree; the trimmed tail is not lost, since
-        // it is still part of the carry below.
+        // On CubeCL, a vectorized `unfold` truncates its outer stride to a
+        // multiple of the line width, so every row after the first is read
+        // early whenever the unfolded axis is not a whole number of lines --
+        // which it is not here, by `carry_len - (window - hop)` samples.
+        // Trimming to the span the windows actually cover fixes it, because
+        // the line width divides both `window` and `hop` and therefore divides
+        // that span. The trimmed tail is not lost: it is still part of the
+        // carry below.
         //
         // `burner::tensor::burn_behavior` pins the upstream behavior; if a
-        // future burn fixes the stride, that test fails loudly rather than
+        // future burn honours the stride, that test fails loudly rather than
         // leaving dead defensive code here.
         let covered = (steps - 1) * hop + window;
 

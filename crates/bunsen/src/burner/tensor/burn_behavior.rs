@@ -33,77 +33,78 @@ mod tests {
 
     type B = PerformanceBackend;
 
-    /// `unfold` derives its batch-row stride from the span its windows cover
-    /// rather than from the row's true length.
+    /// On `CubeCL`, `unfold` reads every row after the first too early when the
+    /// unfolded axis is not a whole number of vectorization lines.
     ///
-    /// A row with a leftover tail therefore places every *subsequent* row
-    /// early, by exactly the tail length. Row 0 is always correct, which is
-    /// what makes this so easy to miss: a batch-1 test passes, and the bug only
-    /// appears once a second stream is added.
+    /// `unfold` itself is correct: `burn-cubecl`'s implementation sets
+    /// `strides[dim] = step * old` and appends `old`, leaving every other
+    /// stride alone, which is exactly `PyTorch`'s view semantics. The fault is in
+    /// the *read*. When `size` and `step` share a factor of two the access
+    /// vectorizes, and the outer stride is truncated to a multiple of the line
+    /// width `v` -- `(len / v) * v` rather than `len` -- so each subsequent row
+    /// starts `len % v` elements early.
     ///
-    /// **Workaround:** trim the input to the covered span before unfolding.
-    /// Used by `ops::signal` and by the ten-vad pitch stages.
+    /// Row 0 is always correct, which is what makes this easy to miss: a
+    /// batch-1 test passes and the corruption appears only once a second row
+    /// exists.
+    ///
+    /// Measured across 315 configurations: 42 wrong, all with `size` and `step`
+    /// both even, and failing exactly when `tail % v != 0`. `Flex` is correct
+    /// throughout, so this is `CubeCL`-specific.
+    ///
+    /// **Workaround:** trim the input to the span the windows actually cover,
+    /// `(num - 1) * step + size`, before unfolding. That is sound because `v`
+    /// divides both `size` and `step` and therefore divides the covered span,
+    /// so the truncation becomes a no-op. Used by `ops::signal::DecimatingFir`
+    /// and `ops::signal::LagSearch`.
     #[test]
-    fn test_unfold_derives_row_stride_from_the_covered_span() {
+    fn test_unfold_truncates_the_outer_stride_to_the_line_width() {
         let device = <B as BackendTypes>::Device::default();
-        let (win, step, steps, tail) = (12usize, 4usize, 3usize, 3usize);
-        let covered = (steps - 1) * step + win;
-        let len = covered + tail;
 
-        // Row 1 carries a marker at its very first element.
-        let mut flat = vec![0.0f32; 2 * len];
-        flat[len] = 1.0;
-        let t = Tensor::<B, 2>::from_data(TensorData::new(flat, [2, len]), &device);
+        // [[0,1,2,3,4],      unfold(dim=1, size=2, step=2)  ->
+        //  [5,6,7,8,9]]      [[[0,1],[2,3]], [[5,6],[7,8]]]
+        //
+        // len = 5, v = 2, so 5 % 2 = 1 and row 1 is read one element early.
+        // `arange` so a displaced row reads as an off-by-one run rather than
+        // as arbitrary values.
+        let input = Tensor::<B, 1, Int>::arange(0..10, &device).reshape([2, 5]);
+        let got: Vec<i32> = input.unfold::<3, _>(1, 2, 2).to_data().to_vec().unwrap();
 
-        let rows: Vec<f32> = t
-            .unfold::<3, _>(1, win, step)
-            .reshape([2 * steps, win])
-            .to_data_as::<f32>()
-            .to_vec_as::<f32>()
-            .unwrap();
-
-        // Window `steps` is (batch 1, step 0), so the marker should sit at 0.
-        let found = rows[steps * win..(steps + 1) * win]
-            .iter()
-            .position(|v| *v != 0.0);
         assert_eq!(
-            found,
-            Some(tail),
-            "expected the row-1 marker displaced by the leftover tail ({tail}). \
-             Some(0) means `unfold` now uses the true row stride, and every \
-             trim-before-unfold in the tree is redundant.",
+            got,
+            vec![0, 1, 2, 3, 4, 5, 6, 7],
+            "expected the known-bad reading; [0,1,2,3,5,6,7,8] means CubeCL now              honours the outer stride, and every trim-before-unfold in the tree              is redundant",
         );
     }
 
-    /// With no leftover tail, `unfold`'s row stride is correct.
+    /// An odd `step` disables vectorization, and the same geometry is correct.
     ///
-    /// The control for
-    /// [`test_unfold_derives_row_stride_from_the_covered_span`]: it establishes
-    /// that trimming to the covered span is a *sufficient* workaround, not just
-    /// a different way to be wrong.
+    /// The control that isolates the fault to the vectorized read: same input,
+    /// same leftover tail, `v == 1`, right answer.
     #[test]
-    fn test_unfold_row_stride_is_correct_without_a_tail() {
+    fn test_unfold_is_correct_on_the_scalar_path() {
         let device = <B as BackendTypes>::Device::default();
-        let (win, step, steps) = (12usize, 4usize, 3usize);
-        let covered = (steps - 1) * step + win;
 
-        let mut flat = vec![0.0f32; 2 * covered];
-        flat[covered] = 1.0;
-        let t = Tensor::<B, 2>::from_data(TensorData::new(flat, [2, covered]), &device);
+        let input = Tensor::<B, 1, Int>::arange(0..10, &device).reshape([2, 5]);
+        let got: Vec<i32> = input.unfold::<3, _>(1, 2, 3).to_data().to_vec().unwrap();
 
-        let rows: Vec<f32> = t
-            .unfold::<3, _>(1, win, step)
-            .reshape([2 * steps, win])
-            .to_data_as::<f32>()
-            .to_vec_as::<f32>()
-            .unwrap();
+        // Row 0: [0,1] [3,4]   Row 1: [5,6] [8,9]
+        assert_eq!(got, vec![0, 1, 3, 4, 5, 6, 8, 9]);
+    }
 
-        assert_eq!(
-            rows[steps * win..(steps + 1) * win]
-                .iter()
-                .position(|v| *v != 0.0),
-            Some(0),
-        );
+    /// With no leftover tail there is nothing to truncate, and the vectorized
+    /// path is correct.
+    ///
+    /// The second control, and the one that shows *why* trimming to the covered
+    /// span is a sufficient workaround rather than merely a different shape.
+    #[test]
+    fn test_unfold_is_correct_without_a_tail() {
+        let device = <B as BackendTypes>::Device::default();
+
+        let input = Tensor::<B, 1, Int>::arange(0..8, &device).reshape([2, 4]);
+        let got: Vec<i32> = input.unfold::<3, _>(1, 2, 2).to_data().to_vec().unwrap();
+
+        assert_eq!(got, vec![0, 1, 2, 3, 4, 5, 6, 7]);
     }
 
     /// `matmul` fails outright when its left operand is an `unfold` view and

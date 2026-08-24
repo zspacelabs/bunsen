@@ -181,11 +181,11 @@ impl LagSearch {
         let reference = buf.clone().slice_dim(1, max_lag as isize..);
         let ref_energy = reference.clone().powi_scalar(2).sum_dim(1);
 
-        // The lagged windows cover `max_lag - 1 + window` samples, one short of
-        // the buffer. `unfold` derives its row stride from the covered span
-        // rather than the true row length, so the buffer is trimmed to that
-        // span first or every row after the first is displaced by the leftover
-        // sample. Pinned by `burner::tensor::burn_behavior`.
+        // The lagged windows cover `max_lag - 1 + window` samples, one short
+        // of the buffer. On CubeCL a vectorized `unfold` truncates its outer
+        // stride to a multiple of the line width, so that leftover sample
+        // would displace every row after the first; trimming to the covered
+        // span first avoids it. Pinned by `burner::tensor::burn_behavior`.
         let covered = max_lag - 1 + window;
 
         // [rows, max_lag, window]
