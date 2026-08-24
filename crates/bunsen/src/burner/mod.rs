@@ -42,6 +42,8 @@
 //!   Headlined by the `GroupOptimizerAdaptor{N}` family and the
 //!   `OptimizerGroup` / `LrSelector` building blocks.
 //! - [`record`] &mdash; helpers for working with `burn::record` types.
+//! - [`repro`] &mdash; standalone, backend-generic reproductions of bugs in
+//!   `burn` itself, written to be lifted out and taken upstream unchanged.
 //! - [`tensor`] &mdash; tensor helpers that don't fit neatly in [`crate::ops`]:
 //!   `Tensor` extension traits and `TensorData` index views.
 //! - [`distribution`] &mdash; distribution-related utilities.
@@ -76,6 +78,7 @@ pub mod descriptors;
 pub mod distribution;
 pub mod module;
 pub mod record;
+pub mod repro;
 
 #[cfg(feature = "train")]
 pub mod optim;

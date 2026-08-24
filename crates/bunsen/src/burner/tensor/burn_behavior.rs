@@ -38,11 +38,11 @@ mod tests {
     ///
     /// `unfold` itself is correct: `burn-cubecl`'s implementation sets
     /// `strides[dim] = step * old` and appends `old`, leaving every other
-    /// stride alone, which is exactly `PyTorch`'s view semantics. The fault is in
-    /// the *read*. When `size` and `step` share a factor of two the access
-    /// vectorizes, and the outer stride is truncated to a multiple of the line
-    /// width `v` -- `(len / v) * v` rather than `len` -- so each subsequent row
-    /// starts `len % v` elements early.
+    /// stride alone, which is exactly `PyTorch`'s view semantics. The fault is
+    /// in the *read*. When `size` and `step` share a factor of two the
+    /// access vectorizes, and the outer stride is truncated to a multiple
+    /// of the line width `v` -- `(len / v) * v` rather than `len` -- so
+    /// each subsequent row starts `len % v` elements early.
     ///
     /// Row 0 is always correct, which is what makes this easy to miss: a
     /// batch-1 test passes and the corruption appears only once a second row
