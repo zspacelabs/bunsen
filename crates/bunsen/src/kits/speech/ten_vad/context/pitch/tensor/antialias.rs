@@ -87,6 +87,8 @@ use crate::{
     ops::signal::{
         BiquadCascade,
         BiquadSection,
+        DecimatingFir,
+        DecimatingFirConfig,
     },
 };
 
@@ -184,11 +186,7 @@ impl PitchAntiAliasConfig {
         &self,
         taps: usize,
     ) -> Vec<f32> {
-        let mut cascade = exact_cascade();
-        let mut buf = vec![0.0f32; taps];
-        buf[0] = 1.0;
-        cascade.process_in_place(&mut buf);
-        buf
+        exact_cascade().to_vec_impulse_response(taps)
     }
 
     /// The `[window_len, hop_size / 4]` decimating Toeplitz matrix, row-major.
@@ -202,21 +200,9 @@ impl PitchAntiAliasConfig {
         let Self::TruncatedFir { taps } = self else {
             return Vec::new();
         };
-        let response = self.to_vec_impulse_response(*taps);
-        let carry = taps - 1;
-        let rows = self.window_len(hop_size);
-        let cols = hop_size / PROC_RESAMPLE_RATE;
-
-        let mut out = vec![0.0f32; rows * cols];
-        for m in 0..cols {
-            let head = PROC_RESAMPLE_RATE * m + carry;
-            for j in 0..rows {
-                if head >= j && head - j < *taps {
-                    out[j * cols + m] = response[head - j];
-                }
-            }
-        }
-        out
+        DecimatingFirConfig::new(hop_size, *taps)
+            .with_decimation(PROC_RESAMPLE_RATE)
+            .to_vec_toeplitz(&self.to_vec_impulse_response(*taps))
     }
 
     /// Builds the filter.
@@ -232,18 +218,12 @@ impl PitchAntiAliasConfig {
         self.validate(hop_size)?;
         Ok(match self {
             Self::Recurrence => PitchAntiAlias::Recurrence { hop_size },
-            Self::TruncatedFir { taps } => {
-                let rows = self.window_len(hop_size);
-                let cols = hop_size / PROC_RESAMPLE_RATE;
-                PitchAntiAlias::TruncatedFir {
-                    hop_size,
-                    taps: *taps,
-                    toeplitz: Tensor::from_data(
-                        TensorData::new(self.to_vec_toeplitz(hop_size), [rows, cols]),
-                        device,
-                    ),
-                }
-            }
+            Self::TruncatedFir { taps } => PitchAntiAlias::TruncatedFir {
+                hop_size,
+                fir: DecimatingFirConfig::new(hop_size, *taps)
+                    .with_decimation(PROC_RESAMPLE_RATE)
+                    .try_init(&self.to_vec_impulse_response(*taps), device)?,
+            },
         })
     }
 
@@ -271,14 +251,13 @@ pub enum PitchAntiAlias<B: Backend> {
         hop_size: usize,
     },
 
-    /// The truncated-FIR GEMM.
+    /// The truncated-FIR GEMM, as the general decimating filter.
     TruncatedFir {
         /// The hop size, in samples at 16 kHz.
         hop_size: usize,
-        /// The impulse-response length.
-        taps: usize,
-        /// `[window_len, hop_size / 4]` decimating kernel.
-        toeplitz: Tensor<B, 2>,
+        /// The filter itself; the reference cascade's impulse response,
+        /// decimated by four.
+        fir: DecimatingFir<B>,
     },
 }
 
@@ -319,8 +298,8 @@ impl<B: Backend> PitchAntiAlias<B> {
             Self::Recurrence { .. } => PitchAntiAliasState::Recurrence {
                 registers: Tensor::zeros([batch_size, ANTI_ALIAS_SECTIONS, 2], device),
             },
-            Self::TruncatedFir { taps, .. } => PitchAntiAliasState::TruncatedFir {
-                history: Tensor::zeros([batch_size, taps - 1], device),
+            Self::TruncatedFir { fir, .. } => PitchAntiAliasState::TruncatedFir {
+                history: fir.init_history(batch_size, device),
             },
         }
     }
@@ -361,16 +340,8 @@ impl<B: Backend> PitchAntiAlias<B> {
                     PitchAntiAliasState::Recurrence { registers },
                 )
             }
-            (
-                Self::TruncatedFir {
-                    hop_size,
-                    taps,
-                    toeplitz,
-                },
-                PitchAntiAliasState::TruncatedFir { history },
-            ) => {
-                let (out, history) =
-                    Self::run_fir(input, history, toeplitz.clone(), *hop_size, *taps);
+            (Self::TruncatedFir { fir, .. }, PitchAntiAliasState::TruncatedFir { history }) => {
+                let (out, history) = fir.forward(input, history);
                 (out, PitchAntiAliasState::TruncatedFir { history })
             }
             _ => panic!("PitchAntiAlias state does not match its formulation"),
@@ -430,53 +401,6 @@ impl<B: Backend> PitchAntiAlias<B> {
         }
 
         (signal, Tensor::cat(next_registers, 1))
-    }
-
-    /// The truncated response, contracted against windowed input.
-    fn run_fir(
-        input: Tensor<B, 2>,
-        history: Tensor<B, 2>,
-        toeplitz: Tensor<B, 2>,
-        hop_size: usize,
-        taps: usize,
-    ) -> (Tensor<B, 2>, Tensor<B, 2>) {
-        let [batch, len] = input.dims();
-        let steps = len / hop_size;
-        let carry = taps - 1;
-        let window = hop_size + taps - PROC_RESAMPLE_RATE;
-        let per_hop = hop_size / PROC_RESAMPLE_RATE;
-
-        // The carried history in front, so window `s` starts `carry` samples
-        // before hop `s`.
-        let extended = Tensor::cat(vec![history, input], 1);
-
-        // `unfold` derives its batch-row stride from the span the windows
-        // cover, `(steps - 1) * hop + window`, rather than from the row's real
-        // length. When a row is longer than that span — which it is here, by
-        // `carry - (window - hop)` samples — every row after the first is
-        // placed that many samples early, silently. Trimming to the covered
-        // span first makes the two agree. The trimmed tail is not lost: it is
-        // still part of the carry below.
-        //
-        // `burner::tensor::burn_behavior` pins the upstream behaviour; if a
-        // future burn fixes the stride, that test fails loudly rather than
-        // leaving dead defensive code here.
-        let covered = (steps - 1) * hop_size + window;
-
-        // [batch, steps, window]
-        let windows = extended
-            .clone()
-            .slice_dim(1, 0..covered as isize)
-            .unfold::<3, _>(1, window, hop_size);
-
-        let out = windows
-            .reshape([batch * steps, window])
-            .matmul(toeplitz)
-            .reshape([batch, steps * per_hop]);
-
-        let next_history = extended.slice_dim(1, -(carry as isize)..);
-
-        (out, next_history)
     }
 }
 
