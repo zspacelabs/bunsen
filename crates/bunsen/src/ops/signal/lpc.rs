@@ -23,6 +23,16 @@
 //! growing with the term count, while an FFT's grows with its logarithm. The
 //! direct sum in `f32` would be materially *worse* than an FFT; in `f64` it is
 //! at least as good.
+//!
+//! ## Fitting many spectra at once
+//!
+//! [`levinson_durbin_batched`] is the device form, and it is not a
+//! transcription of the host one. A batched implementation cannot branch per
+//! row, so the early exit becomes a masked freeze; see that function for why
+//! the freeze is applied *after* the update and why it needs no sticky
+//! bookkeeping.
+
+use burn::prelude::*;
 
 /// Autocorrelation lags from a real, even power spectrum.
 ///
@@ -213,9 +223,131 @@ pub fn levinson_durbin(
     }
 }
 
+/// [`levinson_durbin`] over many autocorrelation sequences at once.
+///
+/// Same recursion, same convention, same `bail_ratio` semantics -- but a
+/// batched implementation cannot take a different number of iterations per
+/// row, so it always runs the full order and *freezes* rows that would have
+/// stopped.
+///
+/// # How the freeze works, and why it is exact
+///
+/// Three details carry the equivalence, and all three are easy to get wrong:
+///
+/// * **Commit, then freeze.** The scalar form checks its condition *after* an
+///   iteration completes, so iteration `i` always commits and only `i+1..` are
+///   skipped. The mask is therefore applied after the update, and recomputed
+///   after that.
+/// * **No sticky bit is needed.** Once a row's error is frozen below the
+///   threshold it stays below it, so re-deriving the mask from the error each
+///   step is already monotone.
+/// * **The frozen tail is the zero initializer.** Coefficient `k` is only ever
+///   written at step `k`, so a row that stopped early leaves exact zeros behind
+///   rather than partial values -- which is what makes masking sufficient.
+///
+/// Frozen rows divide by `1` rather than by a stale error, so no row ever
+/// produces `inf` or `NaN` to be masked away afterwards. Rows whose `ac[0]` is
+/// not positive are frozen from the start and come back as zeros, matching the
+/// scalar form's guard.
+///
+/// The inner product is accumulated one term at a time in increasing `j`
+/// rather than by a tree reduce. That is deliberate: summation order is
+/// observable in `f32`, and this order is the scalar function's. The cost is
+/// `order` products and `order * (order - 1) / 2` adds on `[rows, 1]` tensors,
+/// which is constant in the row count.
+///
+/// # Arguments
+/// * `ac`: `[rows, order + 1]` autocorrelation lags.
+/// * `bail_ratio`: as [`levinson_durbin`]; `None` runs to full order.
+///
+/// # Returns
+/// `[rows, order]` coefficients.
+///
+/// # Panics
+/// If `ac` has fewer than two lags.
+pub fn levinson_durbin_batched<B: Backend>(
+    ac: Tensor<B, 2>,
+    bail_ratio: Option<f32>,
+) -> Tensor<B, 2> {
+    let [rows, lags] = ac.dims();
+    assert!(
+        lags >= 2,
+        "levinson_durbin_batched needs at least lags 0 and 1",
+    );
+    let order = lags - 1;
+    let device = ac.device();
+
+    let ac0 = ac.clone().slice_dim(1, 0..1);
+
+    // Rows that cannot be solved at all: the scalar form returns zeros for
+    // these, and freezing them from the start does the same.
+    let dead = ac0.clone().lower_equal_elem(0.0f32);
+
+    let threshold = bail_ratio.map(|ratio| ac0.clone().mul_scalar(ratio));
+
+    let mut error = ac0;
+    let mut lpc: Tensor<B, 2> = Tensor::zeros([rows, order], &device);
+    let mut done = dead.clone();
+
+    for i in 0..order {
+        // rr = sum(lpc[j] * ac[i - j] for j < i), then += ac[i + 1].
+        let mut rr: Tensor<B, 2> = Tensor::zeros([rows, 1], &device);
+        if i > 0 {
+            // `ac[i], ac[i-1], ..., ac[1]`, so element `j` pairs with `lpc[j]`.
+            let reversed = ac.clone().slice_dim(1, 1..(i + 1) as isize).flip([1]);
+            let products = lpc.clone().slice_dim(1, 0..i as isize) * reversed;
+            for j in 0..i {
+                rr = rr + products.clone().slice_dim(1, j as isize..(j + 1) as isize);
+            }
+        }
+        rr = rr + ac.clone().slice_dim(1, (i + 1) as isize..(i + 2) as isize);
+
+        let safe = error.clone().mask_fill(done.clone(), 1.0f32);
+        let r = rr.neg() / safe.clone();
+
+        // The symmetric update `lpc[j] += r * lpc[i-1-j]` over the first half
+        // is exactly `head + flip(head) * r` over the whole prefix, including
+        // the middle element when `i` is odd -- which the scalar loop writes
+        // twice with identical operands.
+        let mut parts = Vec::with_capacity(3);
+        if i > 0 {
+            let head = lpc.clone().slice_dim(1, 0..i as isize);
+            parts.push(head.clone() + head.flip([1]) * r.clone());
+        }
+        parts.push(r.clone());
+        if i + 1 < order {
+            parts.push(Tensor::zeros([rows, order - i - 1], &device));
+        }
+        let next_lpc = Tensor::cat(parts, 1);
+
+        let next_error = safe.clone() - (r.clone() * r) * safe;
+
+        // Commit, then freeze.
+        let wide = done.clone().expand([rows, order]);
+        lpc = next_lpc.mask_where(wide, lpc);
+        error = next_error.mask_where(done, error);
+
+        done = match &threshold {
+            Some(t) => dead.clone().bool_or(error.clone().lower(t.clone())),
+            None => dead.clone(),
+        };
+    }
+
+    lpc
+}
+
 #[cfg(test)]
 mod tests {
+    use burn::tensor::Distribution;
+
     use super::*;
+    use crate::{
+        errors::WithOkOrPanic,
+        prelude::*,
+        support::testing::PerformanceBackend,
+    };
+
+    type Dev = PerformanceBackend;
 
     const FFT: usize = 64;
 
@@ -457,6 +589,184 @@ mod tests {
     fn test_mismatched_output_length_is_rejected() {
         let mut lpc = [0.0f32; 3];
         levinson_durbin(&[1.0, 0.5, 0.2, 0.1, 0.05], &mut lpc, None);
+    }
+
+    /// A batch of genuinely positive-definite lag sequences.
+    ///
+    /// Built by autocorrelating random non-negative spectra, which guarantees
+    /// the sequences are ones a real fit could produce -- rather than
+    /// arbitrary numbers that might exercise paths no caller reaches.
+    fn lag_batch(
+        rows: usize,
+        order: usize,
+        device: &<Dev as burn::tensor::backend::BackendTypes>::Device,
+    ) -> Vec<f32> {
+        let auto = Autocorrelator::new(FFT);
+        let spectra: Vec<f32> = Tensor::<Dev, 2>::random(
+            [rows, auto.n_bins()],
+            Distribution::Uniform(0.0, 4.0),
+            device,
+        )
+        .to_data_as::<f32>()
+        .to_vec_as::<f32>()
+        .ok_or_panic();
+
+        let mut out = Vec::with_capacity(rows * (order + 1));
+        for r in 0..rows {
+            let mut lags = vec![0.0f32; order + 1];
+            auto.autocorrelate(
+                &spectra[r * auto.n_bins()..(r + 1) * auto.n_bins()],
+                &mut lags,
+            );
+            out.extend_from_slice(&lags);
+        }
+        out
+    }
+
+    fn host_rows(
+        flat: &[f32],
+        rows: usize,
+        order: usize,
+        bail: Option<f32>,
+    ) -> Vec<f32> {
+        let mut out = vec![0.0f32; rows * order];
+        for r in 0..rows {
+            levinson_durbin(
+                &flat[r * (order + 1)..(r + 1) * (order + 1)],
+                &mut out[r * order..(r + 1) * order],
+                bail,
+            );
+        }
+        out
+    }
+
+    #[test]
+    fn test_batched_matches_the_scalar_solver() {
+        // The differential anchor. The scalar side is itself pinned by the
+        // closed-form AR tests above, so agreement here reaches all the way
+        // back to the recursion rather than to another implementation.
+        let device = Default::default();
+        let (rows, order) = (12usize, 16usize);
+
+        for bail in [None, Some(0.001f32), Some(0.2f32)] {
+            let flat = lag_batch(rows, order, &device);
+            let want = host_rows(&flat, rows, order, bail);
+
+            let ac = Tensor::<Dev, 2>::from_data(TensorData::new(flat, [rows, order + 1]), &device);
+            let got: Vec<f32> = levinson_durbin_batched(ac, bail)
+                .to_data_as::<f32>()
+                .to_vec_as::<f32>()
+                .ok_or_panic();
+
+            let peak = want.iter().fold(0.0f32, |m, v| m.max(v.abs()));
+            for (i, (&g, &w)) in got.iter().zip(want.iter()).enumerate() {
+                assert!(
+                    (g - w).abs() < 1e-4 * peak.max(1e-3),
+                    "bail {bail:?}, row {}, coeff {}: {g} vs {w}",
+                    i / order,
+                    i % order,
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn test_batched_recovers_an_ar1_process() {
+        // Closed form, on the device side too: every row is a different pole.
+        let device = Default::default();
+        let order = 8;
+        let poles = [0.2f32, -0.55, 0.8];
+
+        let mut flat = Vec::new();
+        for a in poles {
+            flat.extend(ar1_lags(a, order));
+        }
+        let ac =
+            Tensor::<Dev, 2>::from_data(TensorData::new(flat, [poles.len(), order + 1]), &device);
+
+        let got: Vec<f32> = levinson_durbin_batched(ac, None)
+            .to_data_as::<f32>()
+            .to_vec_as::<f32>()
+            .ok_or_panic();
+
+        for (r, a) in poles.iter().enumerate() {
+            assert!(
+                (got[r * order] + a).abs() < 1e-4,
+                "row {r}: expected {}, got {}",
+                -a,
+                got[r * order],
+            );
+            for j in 1..order {
+                assert!(
+                    got[r * order + j].abs() < 1e-4,
+                    "row {r}, coeff {j} should vanish, got {}",
+                    got[r * order + j],
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn test_batched_freezes_rows_independently() {
+        // The whole point of the mask: rows that bail at different steps must
+        // not disturb each other. A near-white row runs to full order; a
+        // strongly correlated one stops almost immediately.
+        let device = Default::default();
+        let order = 10;
+
+        let mut flat = ar1_lags(0.95, order);
+        flat.extend(ar1_lags(0.05, order));
+        let want = host_rows(&flat, 2, order, Some(0.001));
+
+        let ac = Tensor::<Dev, 2>::from_data(TensorData::new(flat, [2, order + 1]), &device);
+        let got: Vec<f32> = levinson_durbin_batched(ac, Some(0.001))
+            .to_data_as::<f32>()
+            .to_vec_as::<f32>()
+            .ok_or_panic();
+
+        // They really do stop at different points, or this proves nothing.
+        let live = |row: usize| {
+            want[row * order..(row + 1) * order]
+                .iter()
+                .rposition(|v| *v != 0.0)
+                .map_or(0, |i| i + 1)
+        };
+        assert_ne!(live(0), live(1), "rows should bail at different steps");
+
+        for (i, (&g, &w)) in got.iter().zip(want.iter()).enumerate() {
+            assert!(
+                (g - w).abs() < 1e-4,
+                "row {}, coeff {}: {g} vs {w}",
+                i / order,
+                i % order,
+            );
+        }
+    }
+
+    #[test]
+    fn test_batched_zero_lag_zero_row_is_zero() {
+        // A degenerate row must come back zeroed rather than as NaN, and must
+        // not poison its neighbours.
+        let device = Default::default();
+        let order = 6;
+
+        let mut flat = vec![0.0f32; order + 1];
+        flat.extend(ar1_lags(0.6, order));
+        let ac = Tensor::<Dev, 2>::from_data(TensorData::new(flat, [2, order + 1]), &device);
+
+        let got: Vec<f32> = levinson_durbin_batched(ac, Some(0.001))
+            .to_data_as::<f32>()
+            .to_vec_as::<f32>()
+            .ok_or_panic();
+
+        for (j, &c) in got.iter().take(order).enumerate() {
+            assert_eq!(c, 0.0, "dead row coeff {j} should be exactly zero");
+        }
+        assert!(
+            (got[order] + 0.6).abs() < 1e-4,
+            "the live row should be unaffected, got {}",
+            got[order],
+        );
     }
 
     #[test]

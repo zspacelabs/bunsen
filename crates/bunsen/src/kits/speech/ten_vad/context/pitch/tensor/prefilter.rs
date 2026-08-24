@@ -56,20 +56,23 @@ use burn::{
 
 use super::{
     super::{
-        coeff::{
-            LPC_ORDER,
-            NB_BANDS,
+        coeff::NB_BANDS,
+        lpc::{
+            CELT_LPC_BAIL_RATIO,
+            dc0_bias,
         },
-        lpc::dc0_bias,
     },
     tables::{
         PitchTables,
         PitchTablesConfig,
     },
 };
-use crate::errors::{
-    BunsenResult,
-    WithOkOrPanic,
+use crate::{
+    errors::{
+        BunsenResult,
+        WithOkOrPanic,
+    },
+    ops::signal::levinson_durbin_batched,
 };
 
 /// Config for [`PitchPrefilter`].
@@ -155,7 +158,7 @@ impl<B: Backend> PitchPrefilter<B> {
         &self,
         bin_power: Tensor<B, 2>,
     ) -> Tensor<B, 2> {
-        let [rows, n_bins] = bin_power.dims();
+        let n_bins = bin_power.dims()[1];
         assert_eq!(
             n_bins,
             self.n_bins(),
@@ -180,7 +183,7 @@ impl<B: Backend> PitchPrefilter<B> {
         let ac = gain.matmul(self.tables.ac_from_bands.clone());
         let ac = self.apply_noise_floor(ac);
 
-        levinson_durbin(ac, rows)
+        levinson_durbin_batched(ac, Some(CELT_LPC_BAIL_RATIO))
     }
 
     /// The clamped log compression, as an unrolled 18-step scan.
@@ -271,71 +274,6 @@ impl<B: Backend> PitchPrefilter<B> {
 ///
 /// # Returns
 /// `[rows, lpc_order]` coefficients.
-fn levinson_durbin<B: Backend>(
-    ac: Tensor<B, 2>,
-    rows: usize,
-) -> Tensor<B, 2> {
-    let device = ac.device();
-
-    let ac0 = ac.clone().slice_dim(1, 0..1);
-    let threshold = ac0.clone().mul_scalar(0.001f32);
-
-    let mut error = ac0;
-    let mut lpc: Tensor<B, 2> = Tensor::zeros([rows, LPC_ORDER], &device);
-    // Live at the start: `dc0_bias` guarantees `ac[0] > 0`, so no row can
-    // begin already converged.
-    let mut done = error.clone().lower(threshold.clone());
-
-    for i in 0..LPC_ORDER {
-        // rr = Σ_{j<i} lpc[j]·ac[i-j], then += ac[i+1].
-        //
-        // Accumulated one term at a time, in increasing `j`, rather than by a
-        // `sum_dim` tree reduce: the reference's order is observable, and the
-        // unrolled form costs 16 products and 120 adds on `[rows, 1]` tensors
-        // — constant in the sequence length.
-        let mut rr: Tensor<B, 2> = Tensor::zeros([rows, 1], &device);
-        if i > 0 {
-            // `ac[i], ac[i-1], …, ac[1]`, so element `j` pairs with `lpc[j]`.
-            let reversed = ac.clone().slice_dim(1, 1..(i + 1) as isize).flip([1]);
-            let products = lpc.clone().slice_dim(1, 0..i as isize) * reversed;
-            for j in 0..i {
-                rr = rr + products.clone().slice_dim(1, j as isize..(j + 1) as isize);
-            }
-        }
-        rr = rr + ac.clone().slice_dim(1, (i + 1) as isize..(i + 2) as isize);
-
-        // Frozen rows divide by 1 rather than by a stale error, so no inf or
-        // NaN is ever produced; the result is discarded either way.
-        let safe = error.clone().mask_fill(done.clone(), 1.0f32);
-        let r = rr.neg() / safe.clone();
-
-        // The reference's symmetric update, `lpc[j] += r·lpc[i-1-j]` over the
-        // first half, is exactly `head + flip(head)·r` over the whole prefix —
-        // including the middle element when `i` is odd, which the loop form
-        // writes twice with identical operands.
-        let mut parts = Vec::with_capacity(3);
-        if i > 0 {
-            let head = lpc.clone().slice_dim(1, 0..i as isize);
-            parts.push(head.clone() + head.flip([1]) * r.clone());
-        }
-        parts.push(r.clone());
-        if i + 1 < LPC_ORDER {
-            parts.push(Tensor::zeros([rows, LPC_ORDER - i - 1], &device));
-        }
-        let next_lpc = Tensor::cat(parts, 1);
-
-        let next_error = safe.clone() - (r.clone() * r) * safe;
-
-        // Commit, then freeze: the reference checks after the iteration.
-        let wide = done.clone().expand([rows, LPC_ORDER]);
-        lpc = next_lpc.mask_where(wide, lpc);
-        error = next_error.mask_where(done, error);
-        done = error.clone().lower(threshold.clone());
-    }
-
-    lpc
-}
-
 #[cfg(test)]
 mod tests {
     use burn::tensor::Tolerance;
@@ -344,6 +282,7 @@ mod tests {
         super::super::{
             TenVadPitchEstimator,
             TenVadPitchScalarSource,
+            coeff::LPC_ORDER,
             lpc::celt_lpc,
         },
         *,
@@ -504,7 +443,7 @@ mod tests {
         );
 
         let input = Tensor::<B, 1>::from_floats(ac.as_slice(), &device).reshape([1, LPC_ORDER + 1]);
-        let got: Vec<f32> = levinson_durbin::<B>(input, 1)
+        let got: Vec<f32> = levinson_durbin_batched::<B>(input, Some(CELT_LPC_BAIL_RATIO))
             .to_data_as::<f32>()
             .to_vec_as::<f32>()
             .unwrap();
@@ -536,7 +475,7 @@ mod tests {
         }
         let input = Tensor::<B, 1>::from_floats(flat.as_slice(), &device)
             .reshape([cases.len(), LPC_ORDER + 1]);
-        let got: Vec<f32> = levinson_durbin::<B>(input, cases.len())
+        let got: Vec<f32> = levinson_durbin_batched::<B>(input, Some(CELT_LPC_BAIL_RATIO))
             .to_data_as::<f32>()
             .to_vec_as::<f32>()
             .unwrap();
