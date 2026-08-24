@@ -28,19 +28,26 @@
 //! correlation coefficient rather than a raw correlation; the `1 +` keeps
 //! silence from amplifying noise into a confident-looking peak.
 //!
-//! ## Three details that shape the implementation
+//! ## Two details that shape the implementation
 //!
-//! **The correlation is a shift-and-accumulate, not a matmul.** Written as
-//! `[max_period, half]` windows times a reference vector it would materialize
-//! a `rows × 64 × 32` intermediate — tens of megabytes over a long sequence.
-//! Written as `half` broadcast multiply-adds over `[rows, max_period]` slices
-//! it is ~30x smaller, *and* it accumulates in the reference's order.
+//! **The correlation itself is [`LagSearch`].** The reference's normalization
+//! -- `2·dot / (lagged_energy + reference_energy + 1)` -- is that op's, with
+//! the `1 +` guard as its energy floor, and the slot geometry lines up
+//! exactly: lags run backwards from a reference window at the end of the
+//! buffer.
 //!
-//! **The lagged energy is not a `cumsum`.** The `max(…, 0)` sits inside the
-//! recurrence, which makes it non-associative: a prefix-sum difference gives a
-//! different answer whenever the clamp fires. It stays a `max_period`-step
-//! sequential loop — but batched across every row, so it is ~190 tiny kernels
-//! for a whole sequence rather than per hop.
+//! **Two deliberate departures from the reference come with it.** The
+//! reference maintains the lagged energy as a sliding sum with a `max(…, 0)`
+//! *inside* the recurrence, which serializes the lag range and accumulates
+//! rounding with no way to recover -- the clamp exists precisely because that
+//! error can drive the sum negative. [`LagSearch`] reduces each window
+//! directly instead: parallel, and strictly more accurate. It also sums the
+//! correlation in a different order than the reference's shift-and-accumulate.
+//!
+//! Both are ~1e-6-relative perturbations upstream of an `argmax`, so they are
+//! not free by inspection. They are justified empirically: the 3750-hop
+//! probability golden agrees with the C reference on every frame's voicing
+//! decision with them in place.
 //!
 //! **The octave suppression vectorizes exactly.** The reference walks lags in
 //! order and rescales `xcorr[lag]` in place while reading three neighbours at
@@ -59,10 +66,16 @@ use super::super::coeff::{
     MIN_PERIOD_16KHZ,
     PROC_RESAMPLE_RATE,
 };
-use crate::errors::{
-    BunsenError,
-    BunsenResult,
-    WithOkOrPanic,
+use crate::{
+    errors::{
+        BunsenError,
+        BunsenResult,
+        WithOkOrPanic,
+    },
+    ops::signal::{
+        LagSearch,
+        LagSearchConfig,
+    },
 };
 
 /// The number of half-hop slots each hop contributes.
@@ -166,6 +179,9 @@ impl PitchCorrelateConfig {
             min_period: self.min_period(),
             half_hop: self.half_hop(),
             exc_len: self.exc_len(),
+            lag_search: LagSearchConfig::new(self.half_hop(), self.max_period())
+                .with_energy_floor(1.0)
+                .try_init()?,
             sharpen_a: Tensor::from_ints(a.as_slice(), device),
             sharpen_b: Tensor::from_ints(b.as_slice(), device),
             sharpen_c: Tensor::from_ints(c.as_slice(), device),
@@ -192,6 +208,9 @@ pub struct PitchCorrelate<B: Backend> {
     min_period: usize,
     half_hop: usize,
     exc_len: usize,
+
+    /// The normalized correlation itself; see [`LagSearch`].
+    lag_search: LagSearch,
 
     sharpen_a: Tensor<B, 1, Int>,
     sharpen_b: Tensor<B, 1, Int>,
@@ -235,19 +254,17 @@ impl<B: Backend> PitchCorrelate<B> {
         &self,
         exc: Tensor<B, 2>,
     ) -> (Tensor<B, 3>, Tensor<B, 2>) {
-        let [rows, len] = exc.dims();
+        let len = exc.dims()[1];
         assert_eq!(
             len, self.exc_len,
             "PitchCorrelate expects {} excitation samples",
             self.exc_len,
         );
 
-        let squared = exc.clone() * exc.clone();
-
         let mut slots = Vec::with_capacity(SUBS_PER_HOP);
         let mut energies = Vec::with_capacity(SUBS_PER_HOP);
         for sub in 0..SUBS_PER_HOP {
-            let (xcorr, energy) = self.correlate_sub(&exc, &squared, sub, rows);
+            let (xcorr, energy) = self.correlate_sub(&exc, sub);
             slots.push(xcorr.unsqueeze_dim::<3>(1));
             energies.push(energy);
         }
@@ -256,87 +273,25 @@ impl<B: Backend> PitchCorrelate<B> {
     }
 
     /// One half-hop's correlations and reference energy.
+    ///
+    /// The window this slot reads sits at `sub * half_hop`, and spans every
+    /// lagged window plus the reference behind them -- exactly
+    /// [`LagSearch`]'s layout, with the reference's `1 +` guard as the
+    /// energy floor.
     fn correlate_sub(
         &self,
         exc: &Tensor<B, 2>,
-        squared: &Tensor<B, 2>,
         sub: usize,
-        rows: usize,
     ) -> (Tensor<B, 2>, Tensor<B, 2>) {
         let base = sub * self.half_hop;
-        let max_period = self.max_period;
-        let half = self.half_hop;
-        let device = exc.device();
+        let span = self.max_period + self.half_hop;
 
-        // Shift-and-accumulate, in the reference's `j` order. Each step is one
-        // broadcast multiply-add over `[rows, max_period]`.
-        let mut inst: Tensor<B, 2> = Tensor::zeros([rows, max_period], &device);
-        for j in 0..half {
-            let at = max_period + base + j;
-            let reference = exc.clone().slice_dim(1, at as isize..(at + 1) as isize);
-            let lagged = exc
-                .clone()
-                .slice_dim(1, (base + j) as isize..(base + j + max_period) as isize);
-            inst = inst + lagged * reference;
-        }
-
-        // The reference window's energy, which is also this slot's weight in
-        // the tracker.
-        let reference_energy = squared
+        let buf = exc
             .clone()
-            .slice_dim(
-                1,
-                (max_period + base) as isize..(max_period + base + half) as isize,
-            )
-            .sum_dim(1);
+            .slice_dim(1, base as isize..(base + span) as isize);
 
-        let lagged_energy = self.sliding_energy(squared, base);
-
-        let denominator =
-            (lagged_energy + reference_energy.clone().add_scalar(1.0f32)).clamp_min(1e-12f32);
-        let xcorr = inst.mul_scalar(2.0f32) / denominator;
-
+        let (xcorr, reference_energy) = self.lag_search.forward(buf);
         (self.suppress_octaves(xcorr), reference_energy)
-    }
-
-    /// The energy under each lagged window, as a clamped sliding sum.
-    ///
-    /// Sequential by necessity: the `max(…, 0)` inside the recurrence makes it
-    /// non-associative, so no prefix-sum reformulation reproduces it.
-    ///
-    /// Written into a preallocated `[rows, max_period]` buffer rather than
-    /// collected and concatenated: there is no same-shaped input to
-    /// cannibalize here, but `slice_assign` still beats a 64-way `cat` of
-    /// `[rows, 1]` slices.
-    fn sliding_energy(
-        &self,
-        squared: &Tensor<B, 2>,
-        base: usize,
-    ) -> Tensor<B, 2> {
-        let half = self.half_hop;
-        let rows = squared.dims()[0];
-
-        let mut running = squared
-            .clone()
-            .slice_dim(1, base as isize..(base + half) as isize)
-            .sum_dim(1);
-
-        let mut out: Tensor<B, 2> = Tensor::zeros([rows, self.max_period], &squared.device());
-        out = out.slice_assign(s![.., 0..1], running.clone());
-
-        for lag in 1..self.max_period {
-            let leaving = squared
-                .clone()
-                .slice_dim(1, (base + lag - 1) as isize..(base + lag) as isize);
-            let entering = squared.clone().slice_dim(
-                1,
-                (base + lag + half - 1) as isize..(base + lag + half) as isize,
-            );
-            running = (running - leaving).clamp_min(0.0f32) + entering;
-            out = out.slice_assign(s![.., lag..lag + 1], running.clone());
-        }
-
-        out
     }
 
     /// Discounts lags that fail to clearly beat their own half-lag

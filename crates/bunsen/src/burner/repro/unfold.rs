@@ -40,8 +40,8 @@
 //!
 //! * 42 wrong, **all** with `size` and `step` both even.
 //! * Zero wrong when either is odd — that is `v == 1`, the scalar path.
-//! * Wrong exactly when `tail % v != 0`, for a tail of
-//!   `len - ((num - 1) * step + size)`.
+//! * Wrong exactly when `tail % v != 0`, for a tail of `len - ((num - 1) * step
+//!   + size)`.
 //!
 //! ## Why the two rules needed separating
 //!
