@@ -3,8 +3,10 @@
 //! The 40-band triangular filterbank the ten-vad front end folds its 513 bin
 //! powers through (`ALGO_TRACE.md` §3.6).
 //!
-//! This is **not** a standard mel filterbank, and a librosa / Slaney-style
-//! builder will not reproduce it. Three details are load-bearing.
+//! The triangles are the ordinary construction, shared with
+//! [`TriangularBankConfig`]. What is **not** ordinary is where the band edges
+//! land, and that difference is enough that a librosa- or Slaney-style builder
+//! will not reproduce this bank.
 //!
 //! **Edge mapping.** Band edges are equally spaced on the HTK mel scale, then
 //! mapped to FFT bins by a truncating integer cast:
@@ -14,18 +16,23 @@
 //! bin  = (usize) ((fft_size + 1) * hz / sample_rate)
 //! ```
 //!
-//! Note both the `fft_size + 1` and that the cast truncates, not rounds.
+//! Note both the `fft_size + 1` — the usual factor is `fft_size` — and that the
+//! cast truncates rather than rounding. Together they move edges by up to a
+//! bin, which at 1024 points over 16 kHz is 15.6 Hz: a large fraction of a low
+//! band's width.
 //!
-//! **Integer slopes.** The triangles are built from integer bin differences,
-//! so their slopes follow where the truncation landed rather than the exact
-//! edge frequencies.
-//!
-//! **No area normalization.** Each filter rises from zero to one and falls
-//! back to zero, peaking at exactly `1.0`.
+//! Because the edges are integers, the slopes follow where the truncation
+//! landed rather than the exact edge frequencies. That is a consequence of the
+//! edges, not a separate deviation — handing integer edges to the shared
+//! builder reproduces it exactly.
 //!
 //! The edge arithmetic is deliberately done in `f32`, matching the reference;
 //! computing it in `f64` can round an edge across an integer boundary and
 //! silently produce a different filterbank.
+//!
+//! **No area normalization.** Each filter peaks at exactly `1.0` regardless of
+//! width (`BankNorm::Peak`), so wide bands accumulate more energy than narrow
+//! ones. This is HTK's convention rather than Slaney's.
 //!
 //! The pieces are:
 //! * [`TenVadMelConfig`] — the geometry.
@@ -47,6 +54,7 @@ use crate::{
         N_MELS,
         SAMPLE_RATE,
     },
+    ops::signal::TriangularBankConfig,
 };
 
 /// Common meta for [`TenVadMelConfig`] and [`TenVadMelBank`].
@@ -198,29 +206,12 @@ impl TenVadMelConfig {
     /// Exposed so callers (and tests) can inspect the coefficients without a
     /// device round trip.
     pub fn to_vec_weights(&self) -> Vec<f32> {
-        let n_bins = self.n_bins();
-        let edges = self.bin_edges();
-        let mut weights = vec![0.0f32; self.n_mels * n_bins];
-
-        for i in 0..self.n_mels {
-            let (lo, mid, hi) = (edges[i], edges[i + 1], edges[i + 2]);
-            let row = i * n_bins;
-
-            // Rising slope: 0 -> 1 across [lo, mid).
-            for j in lo..mid {
-                if j < n_bins {
-                    weights[row + j] = (j - lo) as f32 / (mid - lo) as f32;
-                }
-            }
-            // Falling slope: 1 -> 0 across [mid, hi). The peak of exactly 1.0
-            // lands at `mid`, from this loop's first iteration.
-            for j in mid..hi {
-                if j < n_bins {
-                    weights[row + j] = (hi - j) as f32 / (hi - mid) as f32;
-                }
-            }
-        }
-        weights
+        // The triangles themselves are the ordinary construction, so they come
+        // from the shared builder. What is *not* ordinary is where the edges
+        // land -- see [`bin_edges`](Self::bin_edges) and the module docs -- and
+        // that is the only ten-vad-specific part left here.
+        let edges: Vec<f32> = self.bin_edges().iter().map(|e| *e as f32).collect();
+        TriangularBankConfig::new(self.n_bins()).to_vec_weights(&edges)
     }
 
     /// Initializes a [`TenVadMelBank`] on `device`.

@@ -3,6 +3,7 @@
 mod biquad;
 mod cosine_window;
 mod decimating_fir;
+mod filterbank;
 mod lpc;
 mod sliding_stft;
 mod stft_window;
@@ -14,6 +15,8 @@ pub use biquad::*;
 pub use cosine_window::*;
 #[doc(inline)]
 pub use decimating_fir::*;
+#[doc(inline)]
+pub use filterbank::*;
 #[doc(inline)]
 pub use lpc::*;
 #[doc(inline)]
