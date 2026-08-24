@@ -41,15 +41,17 @@ use super::super::{
         NB_BANDS,
     },
     lpc::{
-        Autocorrelator,
         DctTable,
         band_energy,
         interp_band_gain,
     },
 };
-use crate::errors::{
-    BunsenError,
-    BunsenResult,
+use crate::{
+    errors::{
+        BunsenError,
+        BunsenResult,
+    },
+    ops::signal::Autocorrelator,
 };
 
 /// Config for [`PitchTables`].

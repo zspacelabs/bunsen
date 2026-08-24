@@ -53,6 +53,10 @@ use super::coeff::{
     NB_BANDS,
     PITCH_PI,
 };
+use crate::ops::signal::{
+    Autocorrelator,
+    levinson_durbin,
+};
 
 /// The noise floor added to lag 0 before the LPC solve.
 ///
@@ -215,93 +219,12 @@ pub fn interp_band_gain(
     }
 }
 
-/// Autocorrelation lags from a real, even power spectrum.
+/// The reference's `AUP_PE_celt_lpc`: [`levinson_durbin`] with CELT's 30 dB
+/// early bail-out and this port's fixed order.
 ///
-/// Holds the cosine table the sum is evaluated against; see the module docs
-/// for why this replaces the reference's inverse FFT and why the result is
-/// scaled by `0.5` rather than `1/fft_size`.
-#[derive(Debug, Clone, PartialEq)]
-pub struct Autocorrelator {
-    fft_size: usize,
-
-    /// `cos(2πt/fft_size)` for `t` in `0..fft_size`.
-    cos_table: Vec<f64>,
-}
-
-impl Autocorrelator {
-    /// Builds an autocorrelator for a given FFT size.
-    ///
-    /// # Panics
-    /// If `fft_size` is not even.
-    pub fn new(fft_size: usize) -> Self {
-        assert_eq!(fft_size % 2, 0, "fft_size must be even");
-        let cos_table = (0..fft_size)
-            .map(|t| (core::f64::consts::TAU * t as f64 / fft_size as f64).cos())
-            .collect();
-        Self {
-            fft_size,
-            cos_table,
-        }
-    }
-
-    /// The FFT size this autocorrelator was built for.
-    pub fn fft_size(&self) -> usize {
-        self.fft_size
-    }
-
-    /// Lags `0..n_lags` of the spectrum in `spectrum`.
-    ///
-    /// The Nyquist bin is ignored; the reference zeroes it before
-    /// transforming, and this reproduces that by construction.
-    ///
-    /// The sum is accumulated in `f64`. The reference accumulates through FFT
-    /// butterflies, whose error grows with `log(fft_size)` rather than
-    /// `fft_size`; a flat `f32` sum over 511 terms would be materially worse
-    /// than the thing being reproduced, while `f64` is at least as good.
-    ///
-    /// # Arguments
-    /// * `spectrum`: `[fft_size / 2 + 1]` non-negative bin values.
-    /// * `out`: the lags to fill; `out.len()` must not exceed `fft_size`.
-    ///
-    /// # Panics
-    /// If `spectrum` is not `fft_size / 2 + 1` long.
-    pub fn autocorrelate(
-        &self,
-        spectrum: &[f32],
-        out: &mut [f32],
-    ) {
-        let n_bins = self.fft_size / 2 + 1;
-        assert_eq!(
-            spectrum.len(),
-            n_bins,
-            "autocorrelate expects {n_bins} bins for a {}-point FFT",
-            self.fft_size,
-        );
-
-        for (lag, slot) in out.iter_mut().enumerate() {
-            let mut acc = 0.0f64;
-            for (k, &s) in spectrum.iter().enumerate().take(self.fft_size / 2).skip(1) {
-                acc += s as f64 * self.cos_table[(lag * k) % self.fft_size];
-            }
-            *slot = (0.5 * spectrum[0] as f64 + acc) as f32;
-        }
-    }
-}
-
-/// Solves for LPC coefficients by Levinson-Durbin recursion.
-///
-/// The reference's `AUP_PE_celt_lpc`, itself CELT's. Returns the coefficients
-/// of the whitening filter, and bails out early once the residual error has
-/// dropped 30 dB below lag 0.
-///
-/// Coefficients past the bail-out are left at **zero**, not at a partial
-/// value: index `k` is only ever written by `lpc[i] = r` at step `k`, and the
-/// symmetric update at step `i` touches only `0..i-1`. That matters for a
-/// vectorized port, which cannot branch and must instead freeze each row under
-/// a mask — the frozen tail is the zero initializer.
-///
-/// Scale-invariant: multiplying `ac` through by a constant leaves the result
-/// unchanged, including the bail-out point.
+/// Kept as a named wrapper because the bail-out ratio is the reference's
+/// choice, not a general default, and pinning it here keeps every call site
+/// from repeating it.
 ///
 /// # Arguments
 /// * `ac`: autocorrelation lags `0..=LPC_ORDER`.
@@ -310,37 +233,12 @@ impl Autocorrelator {
 /// The `LPC_ORDER` coefficients, all zero if `ac[0]` is zero.
 pub fn celt_lpc(ac: &[f32; LPC_ORDER + 1]) -> [f32; LPC_ORDER] {
     let mut lpc = [0.0f32; LPC_ORDER];
-    if ac[0] == 0.0 {
-        return lpc;
-    }
-
-    let mut error = ac[0];
-    for i in 0..LPC_ORDER {
-        // The reference sums the products first and folds in `ac[i + 1]`
-        // last; the order is preserved because it is observable in f32.
-        let mut rr = 0.0f32;
-        for j in 0..i {
-            rr += lpc[j] * ac[i - j];
-        }
-        rr += ac[i + 1];
-
-        let r = -rr / error;
-        lpc[i] = r;
-        for j in 0..((i + 1) >> 1) {
-            let head = lpc[j];
-            let tail = lpc[i - 1 - j];
-            lpc[j] = head + r * tail;
-            lpc[i - 1 - j] = tail + r * head;
-        }
-
-        error -= r * r * error;
-        if error < 0.001 * ac[0] {
-            break;
-        }
-    }
-
+    levinson_durbin(ac, &mut lpc, Some(CELT_LPC_BAIL_RATIO));
     lpc
 }
+
+/// CELT's early bail-out threshold: 30 dB below lag zero.
+pub const CELT_LPC_BAIL_RATIO: f32 = 0.001;
 
 /// Fits an all-pole filter to a set of band gains.
 ///
@@ -407,14 +305,6 @@ mod tests {
 
     const FFT: usize = 1024;
     const NBINS: usize = FFT / 2 + 1;
-
-    /// A smooth, non-negative, decaying spectrum — the shape a real band
-    /// envelope has.
-    fn envelope() -> Vec<f32> {
-        (0..NBINS)
-            .map(|k| 1e3 * (-(k as f32) / 90.0).exp() * (1.0 + 0.4 * (k as f32 * 0.07).sin()))
-            .collect()
-    }
 
     #[test]
     fn test_dct_round_trips_through_idct() {
@@ -514,90 +404,6 @@ mod tests {
         // set of gains interpolates to itself.
         for (k, &g) in bins.iter().enumerate().take(NBINS - 1) {
             assert!((g - 3.0).abs() < 1e-5, "bin {k} = {g}");
-        }
-    }
-
-    #[test]
-    fn test_autocorrelate_matches_a_direct_dft() {
-        let spectrum = envelope();
-        let ac = Autocorrelator::new(FFT);
-        let mut got = [0.0f32; LPC_ORDER + 1];
-        ac.autocorrelate(&spectrum, &mut got);
-
-        for (lag, &g) in got.iter().enumerate() {
-            // The closed form, evaluated independently in f64.
-            let mut want = 0.5 * spectrum[0] as f64;
-            for (k, &s) in spectrum.iter().enumerate().take(FFT / 2).skip(1) {
-                want +=
-                    s as f64 * (core::f64::consts::TAU * lag as f64 * k as f64 / FFT as f64).cos();
-            }
-            let rel = (g as f64 - want).abs() / want.abs().max(1.0);
-            assert!(rel < 1e-6, "lag {lag}: {g} vs {want}");
-        }
-    }
-
-    #[test]
-    fn test_autocorrelate_ignores_the_nyquist_bin() {
-        let ac = Autocorrelator::new(FFT);
-        let mut spectrum = envelope();
-        let mut with_nyquist = [0.0f32; LPC_ORDER + 1];
-        let mut without = [0.0f32; LPC_ORDER + 1];
-
-        spectrum[NBINS - 1] = 0.0;
-        ac.autocorrelate(&spectrum, &mut without);
-        spectrum[NBINS - 1] = 1e6;
-        ac.autocorrelate(&spectrum, &mut with_nyquist);
-
-        assert_eq!(with_nyquist, without);
-    }
-
-    #[test]
-    fn test_autocorrelate_lag_zero_is_the_mean_power() {
-        // With the reference's 0.5 scale, lag 0 is half the DC bin plus the
-        // sum of every other bin.
-        let spectrum = envelope();
-        let ac = Autocorrelator::new(FFT);
-        let mut got = [0.0f32; 1];
-        ac.autocorrelate(&spectrum, &mut got);
-
-        let want =
-            0.5 * spectrum[0] as f64 + spectrum[1..FFT / 2].iter().map(|&s| s as f64).sum::<f64>();
-        assert!((got[0] as f64 - want).abs() / want < 1e-6);
-    }
-
-    #[test]
-    fn test_celt_lpc_is_scale_invariant() {
-        let mut ac = [0.0f32; LPC_ORDER + 1];
-        for (i, slot) in ac.iter_mut().enumerate() {
-            *slot = 1000.0 * (-(i as f32) / 4.0).exp();
-        }
-        let base = celt_lpc(&ac);
-
-        for scale in [1e-3f32, 7.0, 512.0] {
-            let scaled: [f32; LPC_ORDER + 1] = core::array::from_fn(|i| ac[i] * scale);
-            let got = celt_lpc(&scaled);
-            for (g, b) in got.iter().zip(base.iter()) {
-                assert!((g - b).abs() < 1e-4, "scale {scale}: {g} vs {b}");
-            }
-        }
-    }
-
-    #[test]
-    fn test_celt_lpc_of_a_zero_signal_is_zero() {
-        assert_eq!(celt_lpc(&[0.0; LPC_ORDER + 1]), [0.0; LPC_ORDER]);
-    }
-
-    #[test]
-    fn test_celt_lpc_whitens_a_known_ar_process() {
-        // An AR(1) process x[n] = a*x[n-1] + e has autocorrelation a^|k|, and
-        // the whitening filter should recover -a in the first coefficient.
-        let a = 0.8f32;
-        let ac: [f32; LPC_ORDER + 1] = core::array::from_fn(|i| a.powi(i as i32));
-        let lpc = celt_lpc(&ac);
-
-        assert!((lpc[0] + a).abs() < 1e-3, "lpc[0] = {}", lpc[0]);
-        for (i, c) in lpc.iter().enumerate().skip(1) {
-            assert!(c.abs() < 1e-3, "lpc[{i}] = {c} should be negligible");
         }
     }
 

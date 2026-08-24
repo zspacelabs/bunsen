@@ -70,7 +70,6 @@ use super::{
         HostPitchInit,
     },
     lpc::{
-        Autocorrelator,
         DctTable,
         band_energy,
         lpc_from_cepstrum,
@@ -85,7 +84,10 @@ use crate::{
         HOP_SIZE,
         SAMPLE_RATE,
     },
-    ops::signal::BiquadCascade,
+    ops::signal::{
+        Autocorrelator,
+        BiquadCascade,
+    },
     prelude::BunsenResult,
 };
 
