@@ -38,9 +38,14 @@
 //! so the window is 5 wide at the short-period end and **52 wide** at the long
 //! end, where `jdx` reaches −51 and the penalty reaches 52. That is very likely
 //! a bug in the reference, but it is load-bearing for output parity, so it is
-//! reproduced exactly. It is also why the transition is a dense
-//! `[dif_period, dif_period]` penalty matrix rather than a narrow band: invalid
-//! transitions are simply given a penalty large enough to lose every `max`.
+//! reproduced exactly -- as a dense `[dif_period, dif_period]` table rather
+//! than a narrow band, since the window is ragged.
+//!
+//! The decode itself is [`Viterbi`]. Only the table is ten-vad's: it is
+//! transposed and negated on the way in, because `to_vec_penalty` is a *cost*
+//! indexed `[arrival][source]` and the decoder wants a *score* indexed
+//! `[source][arrival]`. Correcting the window to the symmetric one the
+//! reference presumably intended is therefore a change to that table alone.
 
 use burn::{
     config::Config,
@@ -70,13 +75,28 @@ use crate::{
         HOP_SIZE,
         SAMPLE_RATE,
     },
+    ops::seq::{
+        FORBIDDEN,
+        Viterbi,
+        ViterbiConfig,
+        ViterbiState,
+    },
 };
 
 /// The penalty assigned to a transition the reference would never consider.
 ///
-/// Large enough to lose every `max` against the running floor, which is
-/// `path_best_all - 1e10`, so validity falls out of the reduction instead of
-/// needing a mask.
+/// Mapped onto [`FORBIDDEN`] when the table is handed to [`Viterbi`]; it
+/// survives as a separate constant only because `to_vec_penalty` builds costs
+/// and the sentinel has to be recognizable on the way back out.
+///
+/// The reference also floors its search at `path_best - 1e10` and falls back
+/// to the previous best period when nothing beats it. That fallback is
+/// unreachable: under the window above, `cand = min(idx, 4)` is valid for
+/// every `idx`, so no state is ever without a predecessor, and renormalized
+/// scores never approach `-1e10`. It was reproduced here until the decode
+/// moved to [`Viterbi`], which has no such floor; dropping it left the
+/// 3750-hop golden bit-identical, which is the empirical form of that
+/// argument.
 const INVALID_PENALTY: f32 = 1e30;
 
 /// Config for [`PitchTrack`].
@@ -172,11 +192,27 @@ impl PitchTrackConfig {
         self.validate()?;
         let dif = self.dif_period();
 
+        // `to_vec_penalty` is indexed `[arrival][source]` and is a cost;
+        // `Viterbi` wants `[source][arrival]` and a score. Transpose and
+        // negate, mapping the unreachable sentinel onto `FORBIDDEN`.
+        let penalty = self.to_vec_penalty();
+        let mut transition = vec![0.0f32; dif * dif];
+        for arrival in 0..dif {
+            for source in 0..dif {
+                let cost = penalty[arrival * dif + source];
+                transition[source * dif + arrival] = if cost >= INVALID_PENALTY {
+                    FORBIDDEN
+                } else {
+                    -cost
+                };
+            }
+        }
+
         Ok(PitchTrack {
             max_period: self.max_period(),
             dif_period: dif,
             n_feat: self.n_feat(),
-            penalty: Tensor::from_data(TensorData::new(self.to_vec_penalty(), [dif, dif]), device),
+            viterbi: ViterbiConfig::new(dif).try_init(&transition, device)?,
         })
     }
 
@@ -199,8 +235,9 @@ pub struct PitchTrack<B: Backend> {
     dif_period: usize,
     n_feat: usize,
 
-    /// `[dif_period, dif_period]` transition penalties.
-    pub penalty: Tensor<B, 2>,
+    /// The decoder, over the transition table
+    /// [`PitchTrackConfig::to_vec_penalty`] describes.
+    pub viterbi: Viterbi<B>,
 }
 
 /// The state [`PitchTrack`] carries between calls.
@@ -208,12 +245,6 @@ pub struct PitchTrack<B: Backend> {
 pub struct PitchTrackState<B: Backend> {
     /// `[batch, dif_period]` Viterbi accumulator, renormalized to peak zero.
     pub path_score: Tensor<B, 2>,
-
-    /// `[batch, 1]` best score reached so far.
-    pub path_best: Tensor<B, 2>,
-
-    /// `[batch, 1]` best period index reached so far.
-    pub best_period: Tensor<B, 2, Int>,
 
     /// `[batch, carry_slots, max_period]` correlations not yet aged out.
     pub slot_xcorr: Tensor<B, 3>,
@@ -223,24 +254,6 @@ pub struct PitchTrackState<B: Backend> {
 
     /// `[batch, carry_slots, dif_period]` backpointers.
     pub slot_prev: Tensor<B, 3, Int>,
-}
-
-/// The three fields the Viterbi recursion threads from one half-hop to the
-/// next.
-///
-/// Split out of [`PitchTrackState`] because the forward pass steps these twice
-/// per hop while the ring carries advance once, and because naming the triple
-/// keeps [`PitchTrack::viterbi_step`]'s signature legible.
-#[derive(Debug, Clone)]
-struct ViterbiCarry<B: Backend> {
-    /// `[batch, dif_period]` accumulator, renormalized to peak zero.
-    score: Tensor<B, 2>,
-
-    /// `[batch, 1]` best score reached so far.
-    best: Tensor<B, 2>,
-
-    /// `[batch, 1]` best period index reached so far.
-    period: Tensor<B, 2, Int>,
 }
 
 impl<B: Backend> PitchTrack<B> {
@@ -263,8 +276,6 @@ impl<B: Backend> PitchTrack<B> {
         let carry = self.slots() - SUBS_PER_HOP;
         PitchTrackState {
             path_score: Tensor::zeros([batch_size, self.dif_period], device),
-            path_best: Tensor::zeros([batch_size, 1], device),
-            best_period: Tensor::zeros([batch_size, 1], device),
             slot_xcorr: Tensor::zeros([batch_size, carry, self.max_period], device),
             slot_energy: Tensor::zeros([batch_size, carry], device),
             slot_prev: Tensor::zeros([batch_size, carry, self.dif_period], device),
@@ -321,10 +332,8 @@ impl<B: Backend> PitchTrack<B> {
         let weights = Self::normalize_weights(energy_hist.clone(), slots, steps);
 
         // --- forward pass: two dependent steps per hop ---
-        let mut carry_state = ViterbiCarry {
+        let mut decoded = ViterbiState {
             score: state.path_score,
-            best: state.path_best,
-            period: state.best_period,
         };
         let mut new_prev = Vec::with_capacity(steps * SUBS_PER_HOP);
         let mut hop_best = Vec::with_capacity(steps);
@@ -346,11 +355,11 @@ impl<B: Backend> PitchTrack<B> {
                     ])
                     .reshape([batch, 1]);
 
-                let (next, prev) = self.viterbi_step(carry_state, xc, w);
-                carry_state = next;
+                let (next, prev) = self.viterbi.step(decoded, xc * w);
+                decoded = next;
                 new_prev.push(prev.unsqueeze_dim::<3>(1));
             }
-            hop_best.push(carry_state.period.clone());
+            hop_best.push(self.viterbi.best_state(&decoded));
         }
 
         let prev_hist = Tensor::cat(vec![state.slot_prev, Tensor::cat(new_prev, 1)], 1);
@@ -377,9 +386,7 @@ impl<B: Backend> PitchTrack<B> {
         (
             pitch.reshape([steps, batch, 1]),
             PitchTrackState {
-                path_score: carry_state.score,
-                path_best: carry_state.best,
-                best_period: carry_state.period,
+                path_score: decoded.score,
                 slot_xcorr: xcorr_hist.slice_dim(1, keep as isize..),
                 slot_energy: energy_hist.slice_dim(1, keep as isize..),
                 slot_prev: prev_hist.slice_dim(1, keep as isize..),
@@ -411,41 +418,6 @@ impl<B: Backend> PitchTrack<B> {
         let windows = energy_hist.unfold::<3, _>(1, slots, SUBS_PER_HOP);
         let total = windows.clone().sum_dim(2).add_scalar(1e-15f32);
         windows * (total.recip().mul_scalar(slots as f32))
-    }
-
-    /// One Viterbi step: the dense transition max, then the renormalization.
-    ///
-    /// Returns the advanced carry and the `[batch, dif_period]` backpointer row
-    /// this half-hop emits.
-    fn viterbi_step(
-        &self,
-        carry: ViterbiCarry<B>,
-        xcorr: Tensor<B, 2>,
-        weight: Tensor<B, 2>,
-    ) -> (ViterbiCarry<B>, Tensor<B, 2, Int>) {
-        // [batch, dif, dif]: score of arriving at `idx` from `cand`.
-        let transitions =
-            carry.score.unsqueeze_dim::<3>(1) - self.penalty.clone().unsqueeze_dim::<3>(0);
-        let (best_in, arg_in) = transitions.max_dim_with_indices(2);
-
-        // The reference seeds its search at `path_best - 1e10` and keeps the
-        // previous best period when nothing beats it; invalid transitions sit
-        // far below that floor, so they never win.
-        let floor = carry.best.sub_scalar(1e10f32).unsqueeze_dim::<3>(2);
-        let stalled = best_in.clone().lower_equal(floor.clone());
-        let prev = arg_in.mask_where(stalled, carry.period.unsqueeze_dim::<3>(2));
-
-        let scored = best_in.max_pair(floor).squeeze_dim::<2>(2) + xcorr * weight;
-        let (top, arg_top) = scored.clone().max_dim_with_indices(1);
-
-        (
-            ViterbiCarry {
-                score: scored - top.clone(),
-                best: top,
-                period: arg_top,
-            },
-            prev.squeeze_dim::<2>(2),
-        )
     }
 
     /// Walks each hop's path back six slots and fits a period contour.
