@@ -74,6 +74,7 @@ use crate::{
         WithOkOrPanic,
     },
     kits::speech::ten_vad::context::coeff::HOP_SIZE,
+    ops::signal::lpc_residual_batched,
 };
 
 /// The 2-tap smoother's feedback coefficient.
@@ -314,18 +315,7 @@ impl<B: Backend> PitchExcitation<B> {
             .swap_dims(0, 1)
             .reshape([rows, window]);
 
-        let taps = lpc.reshape([rows, LPC_ORDER]);
-
-        let mut acc = aligned
-            .clone()
-            .slice_dim(1, LPC_ORDER as isize..(LPC_ORDER + hop) as isize);
-        for j in 0..LPC_ORDER {
-            let tap = taps.clone().slice_dim(1, j as isize..(j + 1) as isize);
-            let lo = (LPC_ORDER - 1 - j) as isize;
-            let lagged = aligned.clone().slice_dim(1, lo..lo + hop as isize);
-            acc = acc + lagged * tap;
-        }
-        acc
+        lpc_residual_batched(aligned, lpc.reshape([rows, LPC_ORDER]))
     }
 
     /// The 2-tap smoother, `y[n] = w[n] + 0.7·w[n-1]`, carrying `w[-1]`.

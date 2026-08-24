@@ -336,6 +336,81 @@ pub fn levinson_durbin_batched<B: Backend>(
     lpc
 }
 
+/// Applies the LPC analysis filter, with a different tap set per row.
+///
+/// The filter [`levinson_durbin`] solves for, in the same convention:
+///
+/// ```text
+/// y[n] = x[m] + sum(taps[j] * x[m - 1 - j] for j in 0..order),  m = order + n
+/// ```
+///
+/// so passing coefficients straight from [`levinson_durbin_batched`] whitens
+/// the signal they were fitted to. Zero taps leave the signal unchanged.
+///
+/// Rows are independent and carry **their own taps**, which is the point:
+/// speech coefficients are refitted every frame, so a run of frames is a run of
+/// different filters. That is what rules out `conv1d`, whose kernel is shared
+/// across the batch.
+///
+/// # Why shift-and-accumulate
+///
+/// Written as `[out_len, order + 1]` windows contracted against a per-row tap
+/// vector, this would materialize a `rows * out_len * order` intermediate. As
+/// `order` broadcast multiply-adds over `[rows, out_len]` slices it is far
+/// smaller, and it accumulates in a fixed, documented order: the base sample
+/// first, then lag `0` upward. Summation order is observable in `f32`, and
+/// pinning it is what lets a host implementation and this one agree exactly
+/// rather than approximately.
+///
+/// # Analysis only
+///
+/// This is the feed-forward direction. Synthesis --
+/// `x[n] = y[n] - sum(taps[j] * x[n - 1 - j])` -- is a recurrence in its own
+/// output and cannot be written this way; it needs a sequential scan.
+///
+/// # Arguments
+/// * `windowed`: `[rows, order + out_len]`. The leading `order` samples are the
+///   history the filter reaches back into, and produce no output of their own.
+/// * `taps`: `[rows, order]` coefficients, one set per row.
+///
+/// # Returns
+/// `[rows, out_len]` residual.
+///
+/// # Panics
+/// If the row counts disagree, or if `windowed` is not longer than `order`.
+pub fn lpc_residual_batched<B: Backend>(
+    windowed: Tensor<B, 2>,
+    taps: Tensor<B, 2>,
+) -> Tensor<B, 2> {
+    let [rows, span] = windowed.dims();
+    let [tap_rows, order] = taps.dims();
+
+    assert_eq!(
+        rows, tap_rows,
+        "lpc_residual_batched: {rows} signal rows against {tap_rows} tap rows",
+    );
+    assert!(
+        span > order,
+        "lpc_residual_batched needs more than {order} samples of window, got {span}",
+    );
+
+    let out_len = span - order;
+
+    // The base sample, then each lag in increasing `j`.
+    let mut acc = windowed
+        .clone()
+        .slice_dim(1, order as isize..(order + out_len) as isize);
+
+    for j in 0..order {
+        let tap = taps.clone().slice_dim(1, j as isize..(j + 1) as isize);
+        let lo = (order - 1 - j) as isize;
+        let lagged = windowed.clone().slice_dim(1, lo..lo + out_len as isize);
+        acc = acc + lagged * tap;
+    }
+
+    acc
+}
+
 #[cfg(test)]
 mod tests {
     use burn::tensor::Distribution;
@@ -766,6 +841,128 @@ mod tests {
             (got[order] + 0.6).abs() < 1e-4,
             "the live row should be unaffected, got {}",
             got[order],
+        );
+    }
+
+    #[test]
+    fn test_residual_of_zero_taps_is_the_signal() {
+        let device = Default::default();
+        let (rows, order, out) = (2usize, 4usize, 6usize);
+
+        let flat: Vec<f32> = (0..rows * (order + out)).map(|i| i as f32 * 0.5).collect();
+        let windowed = Tensor::<Dev, 2>::from_data(
+            TensorData::new(flat.clone(), [rows, order + out]),
+            &device,
+        );
+        let taps = Tensor::<Dev, 2>::zeros([rows, order], &device);
+
+        let got: Vec<f32> = lpc_residual_batched(windowed, taps)
+            .to_data_as::<f32>()
+            .to_vec_as::<f32>()
+            .ok_or_panic();
+
+        for r in 0..rows {
+            for n in 0..out {
+                let want = flat[r * (order + out) + order + n];
+                assert!(
+                    (got[r * out + n] - want).abs() < 1e-6,
+                    "row {r}, sample {n}: {} vs {want}",
+                    got[r * out + n],
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn test_residual_recovers_the_excitation_of_an_ar_process() {
+        // Closed form, and the whole reason the filter exists: drive an AR(1)
+        // process with a known excitation, whiten it with the matching tap,
+        // and the excitation comes back out.
+        let device = Default::default();
+        let (a, order, out) = (0.8f32, 1usize, 12usize);
+
+        let excitation: Vec<f32> = (0..out + order).map(|n| ((n as f32) * 1.7).sin()).collect();
+        let mut x = vec![0.0f32; out + order];
+        for n in 0..x.len() {
+            let prev = if n == 0 { 0.0 } else { x[n - 1] };
+            x[n] = a * prev + excitation[n];
+        }
+
+        let windowed = Tensor::<Dev, 2>::from_data(TensorData::new(x, [1, out + order]), &device);
+        // `levinson_durbin`'s convention: the AR(1) whitener is `-a`.
+        let taps = Tensor::<Dev, 2>::from_data(TensorData::new(vec![-a], [1, 1]), &device);
+
+        let got: Vec<f32> = lpc_residual_batched(windowed, taps)
+            .to_data_as::<f32>()
+            .to_vec_as::<f32>()
+            .ok_or_panic();
+
+        for n in 0..out {
+            let want = excitation[order + n];
+            assert!(
+                (got[n] - want).abs() < 1e-5,
+                "sample {n}: {} vs {want}",
+                got[n],
+            );
+        }
+    }
+
+    #[test]
+    fn test_residual_matches_a_scalar_filter() {
+        // Against the difference equation written out, with a different tap
+        // set per row -- which is the case `conv1d` cannot express at all.
+        let device = Default::default();
+        let (rows, order, out) = (3usize, 5usize, 9usize);
+
+        let sig: Vec<f32> = (0..rows * (order + out))
+            .map(|i| ((i as f32) * 0.41).sin() + 0.3 * ((i as f32) * 1.13).cos())
+            .collect();
+        let tap: Vec<f32> = (0..rows * order)
+            .map(|i| 0.4 * ((i as f32) * 0.77).cos())
+            .collect();
+
+        let got: Vec<f32> = lpc_residual_batched(
+            Tensor::<Dev, 2>::from_data(TensorData::new(sig.clone(), [rows, order + out]), &device),
+            Tensor::<Dev, 2>::from_data(TensorData::new(tap.clone(), [rows, order]), &device),
+        )
+        .to_data_as::<f32>()
+        .to_vec_as::<f32>()
+        .ok_or_panic();
+
+        for r in 0..rows {
+            let row = &sig[r * (order + out)..(r + 1) * (order + out)];
+            for n in 0..out {
+                let m = order + n;
+                let mut want = row[m];
+                for j in 0..order {
+                    want += tap[r * order + j] * row[m - 1 - j];
+                }
+                assert!(
+                    (got[r * out + n] - want).abs() < 1e-5,
+                    "row {r}, sample {n}: {} vs {want}",
+                    got[r * out + n],
+                );
+            }
+        }
+    }
+
+    #[test]
+    #[should_panic(expected = "tap rows")]
+    fn test_residual_rejects_mismatched_rows() {
+        let device = Default::default();
+        lpc_residual_batched(
+            Tensor::<Dev, 2>::zeros([2, 8], &device),
+            Tensor::<Dev, 2>::zeros([3, 4], &device),
+        );
+    }
+
+    #[test]
+    #[should_panic(expected = "samples of window")]
+    fn test_residual_rejects_a_short_window() {
+        let device = Default::default();
+        lpc_residual_batched(
+            Tensor::<Dev, 2>::zeros([1, 4], &device),
+            Tensor::<Dev, 2>::zeros([1, 4], &device),
         );
     }
 
