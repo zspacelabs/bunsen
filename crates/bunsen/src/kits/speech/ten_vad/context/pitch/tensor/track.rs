@@ -44,8 +44,21 @@
 //! The decode itself is [`Viterbi`]. Only the table is ten-vad's: it is
 //! transposed and negated on the way in, because `to_vec_penalty` is a *cost*
 //! indexed `[arrival][source]` and the decoder wants a *score* indexed
-//! `[source][arrival]`. Correcting the window to the symmetric one the
-//! reference presumably intended is therefore a change to that table alone.
+//! `[source][arrival]`.
+//!
+//! ## What the correction costs, measured
+//!
+//! Replacing the window with the symmetric `cand ∈ [idx − 4, idx + 4]` the
+//! reference presumably intended is a one-line change to
+//! [`to_vec_penalty`](PitchTrackConfig::to_vec_penalty). Against the 3750-hop
+//! golden it moves the trace materially -- mean |diff| 5.6e-5 → 1.9e-4, worst
+//! 6.4e-4 → 1.8e-2 -- so `argmax` flips really do occur, and the bug is
+//! load-bearing for numeric parity.
+//!
+//! It is **not** load-bearing for behavior: voicing decisions still agree with
+//! the reference on every one of the 3750 frames. A port that needs parity
+//! must keep the window; one that wants the intended algorithm can correct it
+//! and lose nothing that a VAD consumer observes.
 
 use burn::{
     config::Config,
