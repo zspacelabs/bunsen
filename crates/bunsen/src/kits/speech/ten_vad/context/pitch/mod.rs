@@ -16,7 +16,6 @@
 //! * [`HostPitch`] — adapts a host-side [`TenVadPitchScalarSource`] to the
 //!   device seam. **The only place in the front end that synchronizes.**
 //! * [`ZeroPitch`] — a constant stub that skips the branch entirely.
-//! * [`BiquadCascade`] — the anti-alias filter before decimation.
 //! * [`coeff`](self) — the reference constants.
 //! * [`tensor`] — the device-side port, built stage by stage against the host
 //!   estimator as its oracle.
@@ -44,7 +43,6 @@
 //! tracker carrying its accumulator across hops. The last is a genuine
 //! recurrence over 56 states with two steps per hop.
 
-mod biquad;
 mod coeff;
 mod estimator;
 mod host;
@@ -53,8 +51,6 @@ mod source;
 
 pub mod tensor;
 
-#[doc(inline)]
-pub use biquad::*;
 #[doc(inline)]
 pub use coeff::*;
 #[doc(inline)]

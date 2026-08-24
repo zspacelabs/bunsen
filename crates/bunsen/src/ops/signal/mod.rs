@@ -1,10 +1,13 @@
 //! Tensor signal operations.
 
+mod biquad;
 mod cosine_window;
 mod sliding_stft;
 mod stft_window;
 mod window_builder;
 
+#[doc(inline)]
+pub use biquad::*;
 #[doc(inline)]
 pub use cosine_window::*;
 #[doc(inline)]

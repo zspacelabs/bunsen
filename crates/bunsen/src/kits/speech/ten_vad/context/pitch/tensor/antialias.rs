@@ -71,23 +71,23 @@ use burn::{
     prelude::*,
 };
 
-use super::super::{
-    biquad::{
+use super::super::coeff::{
+    ANTI_ALIAS_A_4KHZ,
+    ANTI_ALIAS_B_4KHZ,
+    ANTI_ALIAS_G_4KHZ,
+    ANTI_ALIAS_SECTIONS,
+    PROC_RESAMPLE_RATE,
+};
+use crate::{
+    errors::{
+        BunsenError,
+        BunsenResult,
+        WithOkOrPanic,
+    },
+    ops::signal::{
         BiquadCascade,
         BiquadSection,
     },
-    coeff::{
-        ANTI_ALIAS_A_4KHZ,
-        ANTI_ALIAS_B_4KHZ,
-        ANTI_ALIAS_G_4KHZ,
-        ANTI_ALIAS_SECTIONS,
-        PROC_RESAMPLE_RATE,
-    },
-};
-use crate::errors::{
-    BunsenError,
-    BunsenResult,
-    WithOkOrPanic,
 };
 
 /// The default impulse-response length of
@@ -458,9 +458,9 @@ impl<B: Backend> PitchAntiAlias<B> {
         // span first makes the two agree. The trimmed tail is not lost: it is
         // still part of the carry below.
         //
-        // `tests::test_unfold_row_stride_assumption` pins this; if a future
-        // burn fixes the stride, that test fails loudly rather than leaving
-        // dead defensive code.
+        // `burner::tensor::burn_behavior` pins the upstream behaviour; if a
+        // future burn fixes the stride, that test fails loudly rather than
+        // leaving dead defensive code here.
         let covered = (steps - 1) * hop_size + window;
 
         // [batch, steps, window]
@@ -712,66 +712,10 @@ mod tests {
     }
 
     #[test]
-    fn test_unfold_row_stride_assumption() {
-        // `unfold` derives its batch-row stride from the span the windows cover
-        // rather than from the row's real length, so a row with a leftover tail
-        // places every subsequent row early. `run_fir` trims to the covered
-        // span to avoid it; this pins the behaviour that makes the trim
-        // necessary.
-        //
-        // If this starts failing, `unfold` has been fixed and the trim in
-        // `run_fir` is merely redundant rather than load-bearing.
-        let device = Default::default();
-        let (win, step, steps, tail) = (12usize, 4usize, 3usize, 3usize);
-        let covered = (steps - 1) * step + win;
-        let len = covered + tail;
-
-        // Row 1 carries a marker at its very first element.
-        let mut flat = vec![0.0f32; 2 * len];
-        flat[len] = 1.0;
-        let t = Tensor::<B, 2>::from_data(TensorData::new(flat, [2, len]), &device);
-
-        let rows: Vec<f32> = t
-            .clone()
-            .unfold::<3, _>(1, win, step)
-            .reshape([2 * steps, win])
-            .to_data_as::<f32>()
-            .to_vec_as::<f32>()
-            .unwrap();
-
-        // Window `steps` is (batch 1, step 0); the marker should sit at 0.
-        let found = rows[steps * win..(steps + 1) * win]
-            .iter()
-            .position(|v| *v != 0.0);
-        assert_eq!(
-            found,
-            Some(tail),
-            "expected the row-1 marker displaced by the leftover tail ({tail}); \
-             Some(0) would mean unfold now uses the true row stride",
-        );
-
-        // And with no tail, the stride is correct.
-        let mut exact = vec![0.0f32; 2 * covered];
-        exact[covered] = 1.0;
-        let t = Tensor::<B, 2>::from_data(TensorData::new(exact, [2, covered]), &device);
-        let rows: Vec<f32> = t
-            .unfold::<3, _>(1, win, step)
-            .reshape([2 * steps, win])
-            .to_data_as::<f32>()
-            .to_vec_as::<f32>()
-            .unwrap();
-        assert_eq!(
-            rows[steps * win..(steps + 1) * win]
-                .iter()
-                .position(|v| *v != 0.0),
-            Some(0),
-        );
-    }
-
-    #[test]
     fn test_batch_row_offset_regression() {
         // The bug the trim fixes, at the real geometry: before it, row 1's
-        // output was garbage while row 0 was bit-exact.
+        // output was garbage while row 0 was bit-exact. The upstream behaviour
+        // itself is pinned by `burner::tensor::burn_behavior`.
         let device = Default::default();
         let cfg = PitchAntiAliasConfig::default();
         let filter = cfg.init::<B>(HOP, &device);

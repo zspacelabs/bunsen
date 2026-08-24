@@ -49,7 +49,6 @@
 use burn::prelude::Backend;
 
 use super::{
-    biquad::BiquadCascade,
     coeff::{
         ANTI_ALIAS_A_4KHZ,
         ANTI_ALIAS_B_4KHZ,
@@ -86,6 +85,7 @@ use crate::{
         HOP_SIZE,
         SAMPLE_RATE,
     },
+    ops::signal::BiquadCascade,
     prelude::BunsenResult,
 };
 

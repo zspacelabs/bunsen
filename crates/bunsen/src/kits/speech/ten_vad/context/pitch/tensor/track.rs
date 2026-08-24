@@ -361,7 +361,7 @@ impl<B: Backend> PitchTrack<B> {
         // non-contiguous index tensor -- it reads element 0 of every row
         // instead of the indexed one. `stack` builds `[steps, batch, 1]`
         // contiguously; a transposed view silently corrupts every hop after
-        // the first. See `tests::test_gather_needs_a_contiguous_index`.
+        // the first. Pinned by `burner::tensor::burn_behavior`.
         let cursor: Tensor<B, 2, Int> = Tensor::stack::<3>(hop_best.clone(), 0).squeeze_dim::<2>(2);
         let pitch = self.backtrace_and_fit(
             &xcorr_hist,
@@ -604,57 +604,6 @@ mod tests {
 
     fn config() -> PitchTrackConfig {
         PitchTrackConfig::new()
-    }
-
-    #[test]
-    fn test_gather_needs_a_contiguous_index() {
-        // `gather` ignores strides on a non-contiguous index tensor: given a
-        // transposed view it reads element 0 of each row rather than the
-        // indexed element. The backtrace's cursor is exactly such an index, so
-        // it is built with `stack` rather than `cat` + `swap_dims`.
-        //
-        // If this starts failing, burn has fixed the stride handling and the
-        // comment at the cursor construction is stale -- the `stack` is then
-        // merely tidy rather than load-bearing.
-        let device = Default::default();
-        let (steps, wide) = (3usize, 56usize);
-
-        let mut v = vec![0i32; steps * wide];
-        for t in 0..steps {
-            for j in 0..wide {
-                v[t * wide + j] = (t as i32) * 1000 + j as i32;
-            }
-        }
-        let data = Tensor::<B, 3, Int>::from_data(TensorData::new(v, [steps, 1, wide]), &device);
-
-        let contiguous = Tensor::<B, 3, Int>::full([steps, 1, 1], 37, &device);
-        let rows: Vec<Tensor<B, 2, Int>> = (0..steps)
-            .map(|_| Tensor::full([1, 1], 37, &device))
-            .collect();
-        let transposed = Tensor::cat(rows, 1).swap_dims(0, 1).unsqueeze_dim::<3>(2);
-
-        let good: Vec<i32> = data
-            .clone()
-            .gather(2, contiguous)
-            .to_data_as::<i32>()
-            .to_vec_as::<i32>()
-            .unwrap();
-        let bad: Vec<i32> = data
-            .gather(2, transposed)
-            .to_data_as::<i32>()
-            .to_vec_as::<i32>()
-            .unwrap();
-
-        assert_eq!(
-            good,
-            vec![37, 1037, 2037],
-            "contiguous index should be exact"
-        );
-        assert_ne!(
-            good, bad,
-            "gather now honours strides on the index; the `stack` in \
-             `backtrace_and_fit` is no longer load-bearing",
-        );
     }
 
     #[test]
