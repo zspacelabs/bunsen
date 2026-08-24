@@ -106,6 +106,72 @@ mod tests {
         );
     }
 
+    /// `matmul` fails outright when its left operand is an `unfold` view and
+    /// the right operand is a column.
+    ///
+    /// Every autotune candidate returns `InvalidSamples` and the tuner panics
+    /// rather than falling back, so this is a hard failure and not a slow path.
+    /// The panic happens on a worker thread; the caller sees a `CallError`.
+    ///
+    /// The trigger is the **non-contiguous left operand**, which is worth
+    /// stating because the autotune key claims otherwise -- it reports
+    /// `matrix_layout_lhs: Contiguous` for exactly the view that fails.
+    /// Narrowed by elimination: the same shapes with a contiguous left operand
+    /// succeed on both random and constant data, and only the `unfold`-derived
+    /// operand fails. Same family as the `unfold` row-stride bug above.
+    ///
+    /// **Workaround:** broadcast and reduce --
+    /// `(lhs * rhs.squeeze_dim(2).unsqueeze_dim(1)).sum_dim(2)` -- which is the
+    /// same arithmetic, avoids the mat-vec entirely, and fuses with any
+    /// neighbouring reduction over the same operand. Used by
+    /// `ops::signal::LagSearch`.
+    ///
+    /// Marked `#[should_panic]` because the failure *is* the behavior being
+    /// pinned: when burn fixes this, the test fails by passing, and the
+    /// workaround it names can go.
+    #[test]
+    #[should_panic(expected = "CallError")]
+    fn test_matmul_rejects_an_unfold_view_against_a_column() {
+        let device = <B as BackendTypes>::Device::default();
+        let (rows, m, k) = (2usize, 32usize, 16usize);
+
+        let buf = Tensor::<B, 2>::random(
+            [rows, m + k - 1],
+            burn::tensor::Distribution::Normal(0.0, 1.0),
+            &device,
+        );
+        let lhs = buf.clone().unfold::<3, _>(1, k, 1);
+        let rhs = buf.slice_dim(1, 0..k as isize).reshape([rows, k, 1]);
+
+        // Force execution: the failure happens on the device, not at build.
+        let _ = lhs.matmul(rhs).into_data();
+    }
+
+    /// A contiguous left operand at the same shape is fine.
+    ///
+    /// The control for
+    /// [`test_matmul_rejects_an_unfold_view_against_a_column`]: without it the
+    /// failure above reads as "mat-vec is broken", which would be both wrong
+    /// and much more alarming.
+    #[test]
+    fn test_matmul_accepts_a_contiguous_column() {
+        let device = <B as BackendTypes>::Device::default();
+        let (rows, m, k) = (2usize, 32usize, 16usize);
+
+        let lhs = Tensor::<B, 3>::random(
+            [rows, m, k],
+            burn::tensor::Distribution::Normal(0.0, 1.0),
+            &device,
+        );
+        let rhs = Tensor::<B, 3>::random(
+            [rows, k, 1],
+            burn::tensor::Distribution::Normal(0.0, 1.0),
+            &device,
+        );
+
+        assert_eq!(lhs.matmul(rhs).dims(), [rows, m, 1]);
+    }
+
     /// `gather` ignores strides on a non-contiguous *index* tensor.
     ///
     /// Given a transposed index view it reads element 0 of each row rather than
