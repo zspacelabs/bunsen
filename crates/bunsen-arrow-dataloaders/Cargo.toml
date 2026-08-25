@@ -1,5 +1,5 @@
 [package]
-name = "bunsen-preview-chat-dataloader"
+name = "bunsen-arrow-dataloaders"
 authors.workspace = true
 version.workspace = true
 rust-version.workspace = true
@@ -19,11 +19,9 @@ wordchipper = { workspace = true, features = ["client"] }
 
 burn = { workspace = true, features = ["train"] }
 rand = { workspace = true }
-derive-new = { workspace = true }
 parquet = { workspace = true, features = ["arrow"] }
 arrow = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
-serde_json = { workspace = true }
 log = { workspace = true }
 
 

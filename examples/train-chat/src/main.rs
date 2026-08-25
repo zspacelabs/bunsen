@@ -22,8 +22,8 @@ use bunsen::{
     },
     public::hashbrown::HashSet,
 };
-use bunsen_preview_chat_dataloader::{
-    dataloader::ChatDataLoader,
+use bunsen_arrow_dataloaders::{
+    dataloaders::chat::ChatDataLoader,
     tokens::{
         DenseTokenBlocksOptions,
         TokenBatchIteratorOptions,

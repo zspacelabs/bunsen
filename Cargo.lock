@@ -922,6 +922,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "bunsen-arrow-dataloaders"
+version = "0.30.1"
+dependencies = [
+ "arrow",
+ "burn",
+ "log",
+ "parquet",
+ "rand 0.10.2",
+ "serde",
+ "wordchipper",
+]
+
+[[package]]
 name = "bunsen-contracts-macros"
 version = "0.30.1"
 dependencies = [
@@ -972,21 +985,6 @@ dependencies = [
  "burn-onnx",
  "burn-store",
  "document-features",
-]
-
-[[package]]
-name = "bunsen-preview-chat-dataloader"
-version = "0.30.1"
-dependencies = [
- "arrow",
- "burn",
- "derive-new",
- "log",
- "parquet",
- "rand 0.10.2",
- "serde",
- "serde_json",
- "wordchipper",
 ]
 
 [[package]]
@@ -3011,6 +3009,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "dl-test"
+version = "0.0.0"
+dependencies = [
+ "bunsen-arrow-dataloaders",
+ "burn",
+ "clap",
+ "humansize",
+ "log",
+ "rand 0.10.2",
+ "wordchipper",
+ "wordchipper-cli-util",
+ "zsl-data-cache",
+]
+
+[[package]]
 name = "dlib"
 version = "0.5.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4162,6 +4175,15 @@ name = "httparse"
 version = "1.10.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6dbf3de79e51f3d586ab4cb9d5c3e2c14aa28ed23d180cf89b4df0454a69cc87"
+
+[[package]]
+name = "humansize"
+version = "2.1.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6cb51c9a029ddc91b07a787f1d86b53ccfa49b0e86688c946ebe8d3555685dd7"
+dependencies = [
+ "libm",
+]
 
 [[package]]
 name = "hybrid-array"
@@ -9263,7 +9285,7 @@ version = "0.0.0"
 dependencies = [
  "anyhow",
  "bunsen",
- "bunsen-preview-chat-dataloader",
+ "bunsen-arrow-dataloaders",
  "burn",
  "clap",
  "log",

@@ -5,6 +5,7 @@ resolver = "2"
 
 members = [
     "crates/*",
+    "crates/*/examples/*",
     "dev_crates/*",
     "examples/*"
 ]
@@ -93,6 +94,7 @@ strum = "0.28.0"
 xot = "0.31.2"
 xee-xpath = "0.1.5"
 
+humansize = "2.1.3"
 
 # Examples
 piston = "^1.0.0"

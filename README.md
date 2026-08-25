@@ -35,8 +35,8 @@ incur large dependencies or are not yet ready for general consumption.
   for `bunsen-firehose`.
 * [`bunsen`](crates/bunsen) — the main "batteries included" library extending burn: model blocks, kits, ops, contracts,
   and support tooling.
-* [`bunsen-preview-chat-dataloader`](crates/bunsen-preview-chat-dataloader) — *(preview)* an Arrow-backed chat
-  dataloader with tokenization for LLM training.
+* [`bunsen-arrow-dataloaders`](crates/bunsen-arrow-dataloaders) — *(preview)* an Arrow-backed chat dataloader with
+  tokenization for LLM training.
 
 # API Examples
 
@@ -51,7 +51,7 @@ shape notation with runtime checking:
 it asserts that a tensor's shape matches a declared pattern *and* unpacks named dimensions for downstream use, catching
 shape errors at their source. Single checks run in ~160 ns; the amortized periodic variants average a few ns.
 
-```rust
+```rust,ignore
 use bunsen::contracts::*;
 
 // Assert and unpack named dimensions in one shot:
