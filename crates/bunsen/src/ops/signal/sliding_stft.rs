@@ -1,13 +1,5 @@
 //! # Sliding-window STFT analyzer.
 //!
-//! A burn port of the ten-vad reference STFT analyzer (`AUP_Analyzer`,
-//! `src/stft.cc` in the reference sources; see also `ALGO_TRACE.md` §3.4):
-//! a persistent `win_len`-sample queue is shifted left by `hop_size` and the
-//! new hop appended, so each spectrum covers the current hop plus the
-//! preceding `win_len - hop_size` samples. The queue is multiplied by the
-//! analysis window, zero-padded to `fft_size`, and projected through a real
-//! DFT.
-//!
 //! The analyzer is split into:
 //! * [`SlidingStft`] — the fixed analysis coefficients (window, geometry);
 //!   stateless, shareable across streams.
@@ -21,7 +13,7 @@
 //! (an artifact of its FFTW half-complex packing); bin powers `re² + im²`
 //! agree.
 //!
-//! Note: `stft` center-pads windows shorter than `n_fft`, while the ten-vad
+//! Note: `stft` center-pads windows shorter than `n_fft`, while the
 //! layout puts the window at the frame start with zero-padding at the end;
 //! the analyzer therefore carries its window pre-padded to `fft_size` and
 //! feeds `stft` full-frame windows.
@@ -74,7 +66,7 @@ pub trait SlidingStftMeta {
 
 /// Config for [`SlidingStft`].
 ///
-/// Defaults match the ten-vad analyzer: a 768-sample periodic Hann window,
+/// Defaults ta a 768-sample periodic Hann window,
 /// hop 256, zero-padded to a 1024-point FFT (513 bins).
 ///
 /// Implements [`SlidingStftMeta`].
@@ -162,7 +154,7 @@ impl SlidingStftConfig {
         let window = self.window.to_tensor_window(win_len, device);
 
         // Right-pad the window to `fft_size`: `stft` consumes full-frame
-        // windows, and the ten-vad layout puts the window at the frame
+        // windows, and the layout puts the window at the frame
         // start with zero-padding at the end.
         let pad = self.fft_size - win_len;
         let window = if pad > 0 {
@@ -204,7 +196,7 @@ pub struct SlidingStft<B: Backend> {
     /// The analysis window, right-padded with zeros from `win_len` to
     /// `[fft_size]`.
     ///
-    /// This is the ten-vad frame layout (window at the frame start,
+    /// This is the frame layout (window at the frame start,
     /// zero-padding at the end), and the full-frame window layout consumed
     /// by [`stft`].
     pub window: Tensor<B, 1>,
@@ -262,7 +254,7 @@ impl<B: Backend> SlidingStft<B> {
         Tensor::zeros([batch_size, self.win_len()], &self.window.device())
     }
 
-    /// Analyzes a signal into consecutive ten-vad-aligned STFT frames.
+    /// Analyzes a signal into consecutive aligned STFT frames.
     ///
     /// Frame `f` covers `signal[f * hop_size .. f * hop_size + win_len]`,
     /// windowed and zero-padded to `fft_size`. Trailing samples that do not
