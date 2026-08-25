@@ -21,10 +21,9 @@
 //!     -> Tensor<B, 2, Int>
 //! ```
 //!
-//! Counters layered into the pipeline via [`iterators::IterWatcher`] feed
-//! [`chat::EpochStats`], which drives the
-//! [`burn::data::dataloader::Progress`] reporting expected by the burn
-//! training loop.
+//! Counters layered into the pipeline via [`crate::iterators::IterWatcher`]
+//! feed [`EpochStats`], which drives the [`burn::data::dataloader::Progress`]
+//! reporting expected by the burn training loop.
 //!
 //! ## Example Use
 //!
