@@ -16,9 +16,6 @@
       <sourceFolder url="file://$MODULE_DIR$/demos/sims/benches" isTestSource="true" />
       <sourceFolder url="file://$MODULE_DIR$/demos/sims/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/crates/wc-disk-cache/src" isTestSource="false" />
-      <sourceFolder url="file://$MODULE_DIR$/crates/bunsen-preview-chat-dataloader/examples" isTestSource="false" />
-      <sourceFolder url="file://$MODULE_DIR$/crates/bunsen-preview-chat-dataloader/examples/dl-test/src" isTestSource="false" />
-      <sourceFolder url="file://$MODULE_DIR$/crates/bunsen-preview-chat-dataloader/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/examples/conway_benchmark/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/examples/conway_vis/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/examples/lbm2d_vis/src" isTestSource="false" />
@@ -32,6 +29,9 @@
       <sourceFolder url="file://$MODULE_DIR$/examples/whisper-dev/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/dev_crates/silero-bench/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/crates/bunsen-onnx-gen/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/crates/bunsen-arrow-dataloaders/examples" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/crates/bunsen-arrow-dataloaders/examples/dl-test/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/crates/bunsen-arrow-dataloaders/src" isTestSource="false" />
       <excludeFolder url="file://$MODULE_DIR$/crates/bunsen/target" />
       <excludeFolder url="file://$MODULE_DIR$/target" />
       <excludeFolder url="file://$MODULE_DIR$/demos/bimm/crates/bimm/target" />

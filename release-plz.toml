@@ -63,7 +63,7 @@ release = true
 version_group = "bunsen"
 
 [[package]]
-name = "bunsen-preview-chat-dataloader"
+name = "bunsen-arrow-dataloaders"
 release = true
 version_group = "bunsen"
 

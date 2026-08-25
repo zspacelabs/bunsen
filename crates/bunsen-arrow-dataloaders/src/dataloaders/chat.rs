@@ -1,3 +1,51 @@
+//! Chat Data Loader
+//!
+//! A preview implementation of a streaming chat data loader for training
+//! LLM-style models on top of the [`burn`] tensor library.
+//!
+//! The pipeline reads Parquet shards, selects a text column, tokenizes the
+//! text with a [`wordchipper::Tokenizer`], packs the tokens into dense
+//! fixed-shape blocks, optionally shuffles the blocks through a bounded
+//! reservoir, and finally materializes each block as a 2D integer
+//! [`burn::tensor::Tensor`].
+//!
+//! ## Pipeline overview
+//!
+//! ```text
+//! shard paths
+//!     -> read_parquet_shards          (Iterator<ArrowResult<RecordBatch>>)
+//!     -> select_text_column           (Iterator<ArrowResult<Vec<String>>>)
+//!     -> tokenize_text_batches        (Iterator<ArrowResult<Vec<Vec<u32>>>>)
+//!     -> DenseTokenBlockBatcher       (Iterator<ArrowResult<Vec<Vec<u32>>>>)
+//!     -> ShuffleIter (optional)
+//!     -> Tensor<B, 2, Int>
+//! ```
+//!
+//! Counters layered into the pipeline via [`iterators::IterWatcher`] feed
+//! [`chat::EpochStats`], which drives the
+//! [`burn::data::dataloader::Progress`] reporting expected by the burn
+//! training loop.
+//!
+//! ## Example Use
+//!
+//! The following example builds a data loader for a chat dataset consisting
+//! of a training and validation set of Parquet shards.
+//!
+//! The batch items are `Tensor<B, 2, Int>`, where `B` is the burn backend
+//! type (e.g. `Cuda` or `Cpu`) and `Int` is the integer tensor type
+//! (e.g. `Int32` or `Int64`).
+//!
+//! ```rust,ignore
+//! let training_data_loader: ChatDataLoader<B> = ChatDataLoader::new(
+//!     training_paths,
+//!     Some(Arc::new(Mutex::new(StdRng::seed_from_u64(0)))),
+//!     &device,
+//!     tok.clone(),
+//!     dl_config.clone(),
+//! );
+//! let validation_data_loader: ChatDataLoader<B::InnerBackend> =
+//!     ChatDataLoader::new(validation_paths, None, &device, tok.clone(), dl_config);
+//! ```
 use std::{
     path::PathBuf,
     sync::{
@@ -9,18 +57,18 @@ use std::{
 
 use arrow::error::ArrowError;
 use burn::{
+    Tensor,
     data::dataloader::{
         DataLoader,
         DataLoaderIterator,
         Progress,
     },
-    prelude::Backend,
-    tensor::{
-        Tensor,
+    prelude::{
+        Backend,
         TensorData,
     },
 };
-use rand::seq::SliceRandom;
+use rand::prelude::SliceRandom;
 use wordchipper::Tokenizer;
 
 use crate::{
@@ -37,70 +85,6 @@ use crate::{
         tokenize_text_batches,
     },
 };
-
-/// Live, shared statistics for one iteration over the data loader.
-///
-/// The counters are stored as shared atomics so that
-/// [`IterWatcher`]-style callbacks layered into the streaming pipeline can
-/// update them as data flows through, while the training loop reads them
-/// to drive [`Progress`] reporting.
-#[derive(Debug, Default, Clone)]
-pub struct EpochStats {
-    file_counter: Arc<AtomicUsize>,
-    byte_counter: Arc<AtomicUsize>,
-    token_counter: Arc<AtomicUsize>,
-    items_total: usize,
-}
-
-impl EpochStats {
-    /// Builds an `EpochStats` from pre-existing atomic counters.
-    ///
-    /// Primarily intended for testing; the typical construction path is to
-    /// let [`ChatDataLoaderIterator::new`] allocate fresh counters.
-    pub fn new(
-        file_counter: Arc<AtomicUsize>,
-        byte_counter: Arc<AtomicUsize>,
-        token_counter: Arc<AtomicUsize>,
-        items_total: usize,
-    ) -> Self {
-        Self {
-            file_counter,
-            byte_counter,
-            token_counter,
-            items_total,
-        }
-    }
-
-    /// Number of Parquet shards opened so far this epoch.
-    pub fn file_count(&self) -> usize {
-        self.file_counter.load(std::sync::atomic::Ordering::Relaxed)
-    }
-
-    /// Total number of source text bytes pulled out of Parquet so far.
-    pub fn byte_count(&self) -> usize {
-        self.byte_counter.load(std::sync::atomic::Ordering::Relaxed)
-    }
-
-    /// Total number of tokens emitted by the packer so far.
-    pub fn token_count(&self) -> usize {
-        self.token_counter
-            .load(std::sync::atomic::Ordering::Relaxed)
-    }
-
-    /// Total number of shards in the epoch (the denominator for
-    /// [`progress`](Self::progress)).
-    pub fn items_total(&self) -> usize {
-        self.items_total
-    }
-
-    /// Returns a [`Progress`] snapshot suitable for the burn training loop.
-    pub fn progress(&self) -> Progress {
-        Progress {
-            items_processed: self.file_count(),
-            items_total: self.items_total(),
-        }
-    }
-}
 
 /// A single-epoch iterator over packed 2D integer token tensors.
 ///
@@ -334,5 +318,73 @@ where
             tokenizer: self.tokenizer.clone(),
             block_options: self.block_options.clone(),
         })
+    }
+}
+
+/// Live, shared statistics for one iteration over the data loader.
+///
+/// The counters are stored as shared atomics so that
+/// [`IterWatcher`]-style callbacks layered into the streaming pipeline can
+/// update them as data flows through, while the training loop reads them
+/// to drive [`Progress`] reporting.
+#[derive(Debug, Default, Clone)]
+pub struct EpochStats {
+    /// Count every file opened.
+    pub file_counter: Arc<AtomicUsize>,
+    /// Count every byte read.
+    pub byte_counter: Arc<AtomicUsize>,
+    /// Count every token read.
+    pub token_counter: Arc<AtomicUsize>,
+    /// Lists the number of shards.
+    pub items_total: usize,
+}
+
+impl EpochStats {
+    /// Builds an `EpochStats` from pre-existing atomic counters.
+    ///
+    /// Primarily intended for testing; the typical construction path is to
+    /// let [`ChatDataLoaderIterator::new`] allocate fresh counters.
+    pub fn new(
+        file_counter: Arc<AtomicUsize>,
+        byte_counter: Arc<AtomicUsize>,
+        token_counter: Arc<AtomicUsize>,
+        items_total: usize,
+    ) -> Self {
+        Self {
+            file_counter,
+            byte_counter,
+            token_counter,
+            items_total,
+        }
+    }
+
+    /// Number of Parquet shards opened so far this epoch.
+    pub fn file_count(&self) -> usize {
+        self.file_counter.load(std::sync::atomic::Ordering::Relaxed)
+    }
+
+    /// Total number of source text bytes pulled out of Parquet so far.
+    pub fn byte_count(&self) -> usize {
+        self.byte_counter.load(std::sync::atomic::Ordering::Relaxed)
+    }
+
+    /// Total number of tokens emitted by the packer so far.
+    pub fn token_count(&self) -> usize {
+        self.token_counter
+            .load(std::sync::atomic::Ordering::Relaxed)
+    }
+
+    /// Total number of shards in the epoch (the denominator for
+    /// [`progress`](Self::progress)).
+    pub fn items_total(&self) -> usize {
+        self.items_total
+    }
+
+    /// Returns a [`Progress`] snapshot suitable for the burn training loop.
+    pub fn progress(&self) -> Progress {
+        Progress {
+            items_processed: self.file_count(),
+            items_total: self.items_total(),
+        }
     }
 }

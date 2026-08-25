@@ -6,6 +6,13 @@ use std::{
     },
 };
 
+use bunsen_arrow_dataloaders::{
+    dataloaders::chat::ChatDataLoader,
+    tokens::{
+        DenseTokenBlocksOptions,
+        TokenBatchIteratorOptions,
+    },
+};
 use burn::{
     backend::Cuda,
     tensor::{
@@ -25,14 +32,6 @@ use wordchipper::{
     disk_cache::WordchipperDiskCache,
 };
 use wordchipper_cli_util::logging::LogArgs;
-use zsl_chat_data::{
-    self,
-    dataloader::ChatDataLoader,
-    tokens::{
-        DenseTokenBlocksOptions,
-        TokenBatchIteratorOptions,
-    },
-};
 use zsl_data_cache::dataset::DatasetCacheConfig;
 
 #[derive(Debug, Clone, clap::Args)]
