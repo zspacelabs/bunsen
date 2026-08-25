@@ -34,7 +34,7 @@ wordchipper = { version = "0.9.2" }
 wordchipper-cli-util = { version = "0.9.2" }
 
 rand = "0.10.1"
-burn = "0.21.0"
+burn = { version = "0.21.0", default-features = false }
 burn-onnx = "0.21.0"
 burn-store = "0.21.0"
 
