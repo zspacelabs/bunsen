@@ -20,6 +20,6 @@ burn-onnx = { workspace = true }
 workspace = true
 
 [features]
-default = ["silero", "ten"]
+default = ["silero"]
 silero = []
 ten = []

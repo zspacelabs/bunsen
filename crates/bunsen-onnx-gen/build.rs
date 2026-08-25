@@ -5,8 +5,4 @@ fn main() {
         .input("onnx/silero_vad_op18_ifless.onnx")
         .out_dir("./")
         .run_from_script();
-    ModelGen::new()
-        .input("onnx/ten-vad.onnx")
-        .out_dir("./")
-        .run_from_script();
 }
