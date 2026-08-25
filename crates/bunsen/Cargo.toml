@@ -78,8 +78,15 @@ cache = [
     "downloader/default-tls",
 ]
 
+## Enables audio io support features.
+audio = [
+    "std",
+    "dep:hound",
+]
+
 ## Enables testing support features.
 testing = [
+    "audio",
     "flex",
     "dep:tracing",
     "dep:tracing-test",
@@ -144,11 +151,11 @@ spanned_error_message = { workspace = true, optional = true }
 xot = { workspace = true, optional = true }
 xee-xpath = { workspace = true, optional = true }
 
+hound = { workspace = true, optional = true }
 
 [dev-dependencies]
 bunsen = { path = ".", features = ["testing"] }
 burn = { workspace = true, features = ["autodiff"] }
-hound = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 
