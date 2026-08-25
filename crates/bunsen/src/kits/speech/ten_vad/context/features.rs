@@ -10,7 +10,7 @@
 //! 3. [`SlidingStftContext`] over a 768-sample queue, zero-padded to a
 //!    1024-point FFT,
 //! 4. bin power `re^2 + im^2`,
-//! 5. pitch, from the [`TenVadPitchSource`], reading the raw hop and the
+//! 5. pitch, from the [`PitchSource`], reading the raw hop and the
 //!    **un-normalized** bin power,
 //! 6. `1 / 32768^2` normalization, then the [`TenVadMelBank`], then `ln(x +
 //!    1e-20)`,
@@ -42,29 +42,31 @@ use crate::{
         BunsenResult,
         WithOkOrPanic,
     },
-    kits::speech::ten_vad::context::{
-        coeff::{
-            FEATURE_EPS,
-            FEATURE_MEANS,
-            FEATURE_STDS,
-            INPUT_SCALE,
-            N_FREQ,
-            POWER_NORMAL,
-            SAMPLE_RATE,
-        },
-        mel::{
-            TenVadMelBank,
-            TenVadMelConfig,
-            TenVadMelMeta,
-        },
+    kits::speech::{
         pitch::{
-            TenVadPitchSource,
-            TenVadPitchSourceInit,
+            PitchSource,
+            PitchSourceInit,
             ZeroPitch,
         },
-        pre_emphasis::{
-            PreEmphasisConfig,
-            PreEmphasisContext,
+        ten_vad::context::{
+            coeff::{
+                FEATURE_EPS,
+                FEATURE_MEANS,
+                FEATURE_STDS,
+                INPUT_SCALE,
+                N_FREQ,
+                POWER_NORMAL,
+                SAMPLE_RATE,
+            },
+            mel::{
+                TenVadMelBank,
+                TenVadMelConfig,
+                TenVadMelMeta,
+            },
+            pre_emphasis::{
+                PreEmphasisConfig,
+                PreEmphasisContext,
+            },
         },
     },
     ops::signal::{
@@ -249,13 +251,13 @@ impl TenVadFeatureConfig {
     ///
     /// # Arguments
     /// * `batch_size`: the number of independent streams; must be non-zero.
-    /// * `pitch`: builds the pitch source; see [`TenVadPitchSourceInit`].
+    /// * `pitch`: builds the pitch source; see [`PitchSourceInit`].
     ///
     /// # Errors
     ///
     /// See [`validate`](Self::validate), plus anything the pitch source's
-    /// [`try_init_source`](TenVadPitchSourceInit::try_init_source) reports.
-    pub fn try_init_context<B: Backend, I: TenVadPitchSourceInit<B>>(
+    /// [`try_init_source`](PitchSourceInit::try_init_source) reports.
+    pub fn try_init_context<B: Backend, I: PitchSourceInit<B>>(
         &self,
         batch_size: usize,
         pitch: I,
@@ -321,13 +323,13 @@ impl<B: Backend> TenVadFeatures<B> {
     ///
     /// # Arguments
     /// * `batch_size`: the number of independent streams; must be non-zero.
-    /// * `pitch`: builds the pitch source; see [`TenVadPitchSourceInit`].
+    /// * `pitch`: builds the pitch source; see [`PitchSourceInit`].
     ///
     /// # Errors
     /// [`BunsenError::Invalid`] if `batch_size` is zero, plus anything the
     /// pitch source's
-    /// [`try_init_source`](TenVadPitchSourceInit::try_init_source) reports.
-    pub fn try_init_state<I: TenVadPitchSourceInit<B>>(
+    /// [`try_init_source`](PitchSourceInit::try_init_source) reports.
+    pub fn try_init_state<I: PitchSourceInit<B>>(
         &self,
         batch_size: usize,
         pitch: I,
@@ -349,7 +351,7 @@ impl<B: Backend> TenVadFeatures<B> {
     /// Builds a [`TenVadFeatureContext`], panicking on error.
     ///
     /// See [`try_init_state`](Self::try_init_state).
-    pub fn init_state<I: TenVadPitchSourceInit<B>>(
+    pub fn init_state<I: PitchSourceInit<B>>(
         &self,
         batch_size: usize,
         pitch: I,
@@ -361,14 +363,14 @@ impl<B: Backend> TenVadFeatures<B> {
 /// Streaming ten-vad feature-extraction state.
 ///
 /// Binds the pre-emphasis carry, the sliding STFT queue, and one
-/// [`TenVadPitchSource`] per stream to a [`TenVadFeatures`].
+/// [`PitchSource`] per stream to a [`TenVadFeatures`].
 ///
 /// At stream start every buffer is zero, so — as in the reference — the first
 /// couple of frames see partially zero-padded analysis windows.
 ///
 /// Built by [`TenVadFeatures::init_state`]. Implements [`TenVadFeatureMeta`].
 #[derive(Debug, Clone)]
-pub struct TenVadFeatureContext<B: Backend, P: TenVadPitchSource<B> = ZeroPitch> {
+pub struct TenVadFeatureContext<B: Backend, P: PitchSource<B> = ZeroPitch> {
     /// The fixed analysis coefficients.
     pub coef: TenVadFeatures<B>,
 
@@ -382,7 +384,7 @@ pub struct TenVadFeatureContext<B: Backend, P: TenVadPitchSource<B> = ZeroPitch>
     pub pitch: P,
 }
 
-impl<B: Backend, P: TenVadPitchSource<B>> TenVadFeatureMeta for TenVadFeatureContext<B, P> {
+impl<B: Backend, P: PitchSource<B>> TenVadFeatureMeta for TenVadFeatureContext<B, P> {
     fn sample_rate(&self) -> usize {
         self.coef.sample_rate()
     }
@@ -404,7 +406,7 @@ impl<B: Backend, P: TenVadPitchSource<B>> TenVadFeatureMeta for TenVadFeatureCon
     }
 }
 
-impl<B: Backend, P: TenVadPitchSource<B>> TenVadFeatureContext<B, P> {
+impl<B: Backend, P: PitchSource<B>> TenVadFeatureContext<B, P> {
     /// The batch size; each batch row is an independent stream.
     pub fn batch_size(&self) -> usize {
         self.stft.batch_size()
@@ -606,14 +608,14 @@ mod tests {
 
     use super::*;
     use crate::{
-        kits::speech::ten_vad::context::{
-            coeff::N_MELS,
+        kits::speech::{
             pitch::{
                 HostPitch,
+                HostPitchEstimator,
                 HostPitchInit,
-                TenVadPitchEstimator,
-                TenVadPitchScalarSource,
+                PitchScalarSource,
             },
+            ten_vad::context::coeff::N_MELS,
         },
         ops::signal::{
             SamplingWindowBuilder,
@@ -624,6 +626,14 @@ mod tests {
     };
 
     type B = PerformanceBackend;
+
+    /// Feature `40` under [`ZeroPitch`]: an unvoiced frame, normalized.
+    ///
+    /// The normalization is the feature path's business, not the pitch
+    /// estimator's, so it lives here rather than on `ZeroPitch`.
+    fn zero_pitch_feature() -> f32 {
+        (0.0 - FEATURE_MEANS[N_MELS]) / (FEATURE_STDS[N_MELS] + FEATURE_EPS)
+    }
     type F = <B as BackendTypes>::FloatElem;
 
     /// A small geometry whose naive-DFT reference is cheap to evaluate.
@@ -790,10 +800,10 @@ mod tests {
 
         // Feature 40 is the pitch bin; under ZeroPitch it is the constant.
         assert!(
-            (host[N_MELS] - ZeroPitch::normalized_feature()).abs() < 1e-5,
+            (host[N_MELS] - zero_pitch_feature()).abs() < 1e-5,
             "pitch feature: {} vs {}",
             host[N_MELS],
-            ZeroPitch::normalized_feature(),
+            zero_pitch_feature(),
         );
     }
 
@@ -1042,8 +1052,8 @@ mod tests {
         let hops =
             Tensor::<B, 3>::from_data(TensorData::new(flat, [steps, batch, hop_size]), &device);
 
-        let mut seq_ctx: TenVadFeatureContext<B, HostPitch<TenVadPitchEstimator>> = cfg
-            .try_init_context(batch, TenVadPitchEstimator::new(), &device)
+        let mut seq_ctx: TenVadFeatureContext<B, HostPitch<HostPitchEstimator>> = cfg
+            .try_init_context(batch, HostPitchEstimator::new(), &device)
             .unwrap();
         let mut step_ctx = seq_ctx.clone();
 
@@ -1092,14 +1102,14 @@ mod tests {
             .collect();
         let row_refs: Vec<&[f32]> = rows.iter().map(|r| r.as_slice()).collect();
 
-        let mut batched: TenVadFeatureContext<B, HostPitch<TenVadPitchEstimator>> = cfg
-            .try_init_context(batch, TenVadPitchEstimator::new(), &device)
+        let mut batched: TenVadFeatureContext<B, HostPitch<HostPitchEstimator>> = cfg
+            .try_init_context(batch, HostPitchEstimator::new(), &device)
             .unwrap();
         let batched_out = batched.forward_audio_sequence(&row_refs).unwrap();
 
         for (b, row) in row_refs.iter().enumerate() {
-            let mut solo: TenVadFeatureContext<B, HostPitch<TenVadPitchEstimator>> = cfg
-                .try_init_context(1, TenVadPitchEstimator::new(), &device)
+            let mut solo: TenVadFeatureContext<B, HostPitch<HostPitchEstimator>> = cfg
+                .try_init_context(1, HostPitchEstimator::new(), &device)
                 .unwrap();
             let solo_out = solo.forward_audio_sequence(&[row]).unwrap();
 
@@ -1121,13 +1131,13 @@ mod tests {
 
         let audio = pulse_audio(150.0, steps * hop_size);
 
-        let mut via_audio: TenVadFeatureContext<B, HostPitch<TenVadPitchEstimator>> = cfg
-            .try_init_context(1, TenVadPitchEstimator::new(), &device)
+        let mut via_audio: TenVadFeatureContext<B, HostPitch<HostPitchEstimator>> = cfg
+            .try_init_context(1, HostPitchEstimator::new(), &device)
             .unwrap();
         let from_audio = via_audio.forward_audio_sequence(&[&audio]).unwrap();
 
-        let mut via_tensor: TenVadFeatureContext<B, HostPitch<TenVadPitchEstimator>> = cfg
-            .try_init_context(1, TenVadPitchEstimator::new(), &device)
+        let mut via_tensor: TenVadFeatureContext<B, HostPitch<HostPitchEstimator>> = cfg
+            .try_init_context(1, HostPitchEstimator::new(), &device)
             .unwrap();
         let hops =
             Tensor::<B, 1>::from_floats(audio.as_slice(), &device).reshape([steps, 1, hop_size]);
@@ -1144,8 +1154,8 @@ mod tests {
         let cfg = TenVadFeatureConfig::new();
         let hop_size = cfg.hop_size();
 
-        let mut ctx: TenVadFeatureContext<B, HostPitch<TenVadPitchEstimator>> = cfg
-            .try_init_context(2, TenVadPitchEstimator::new(), &device)
+        let mut ctx: TenVadFeatureContext<B, HostPitch<HostPitchEstimator>> = cfg
+            .try_init_context(2, HostPitchEstimator::new(), &device)
             .unwrap();
 
         let good = vec![0.0f32; hop_size * 2];
@@ -1227,7 +1237,7 @@ mod tests {
             calls: usize,
         }
 
-        impl TenVadPitchScalarSource for FixedPitch {
+        impl PitchScalarSource for FixedPitch {
             fn frame_pitch(
                 &mut self,
                 _raw_hop: &[f32],

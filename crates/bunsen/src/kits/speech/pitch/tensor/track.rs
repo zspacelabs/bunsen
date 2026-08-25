@@ -69,11 +69,13 @@ use super::{
     super::coeff::{
         FEAT_MAX_NFRM,
         FEAT_TIME_WINDOW_MS,
+        HOP_SIZE,
         MAX_PERIOD_16KHZ,
         MIN_PERIOD_16KHZ,
         PITCH_MAX_PATH_W,
         PROC_FS,
         PROC_RESAMPLE_RATE,
+        SAMPLE_RATE,
         VOICED_THRESHOLD,
     },
     correlate::SUBS_PER_HOP,
@@ -83,10 +85,6 @@ use crate::{
         BunsenError,
         BunsenResult,
         WithOkOrPanic,
-    },
-    kits::speech::ten_vad::context::coeff::{
-        HOP_SIZE,
-        SAMPLE_RATE,
     },
     ops::seq::{
         FORBIDDEN,
@@ -532,8 +530,8 @@ mod tests {
 
     use super::{
         super::super::{
-            TenVadPitchEstimator,
-            TenVadPitchScalarSource,
+            HostPitchEstimator,
+            PitchScalarSource,
         },
         *,
     };
@@ -572,7 +570,7 @@ mod tests {
     /// Drives the host and captures, per hop, the two correlation slots it
     /// produced, their energies, and the pitch it reported.
     fn host_reference(steps: usize) -> (Vec<f32>, Vec<f32>, Vec<f32>) {
-        let mut est = TenVadPitchEstimator::new();
+        let mut est = HostPitchEstimator::new();
         let slots = est.slots();
         let (mut xc, mut fw, mut hz) = (Vec::new(), Vec::new(), Vec::new());
 

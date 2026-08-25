@@ -56,6 +56,7 @@ use burn::{
 
 use super::{
     super::coeff::{
+        HOP_SIZE,
         LPC_ORDER,
         MAX_PERIOD_16KHZ,
         PROC_RESAMPLE_RATE,
@@ -73,7 +74,6 @@ use crate::{
         BunsenResult,
         WithOkOrPanic,
     },
-    kits::speech::ten_vad::context::coeff::HOP_SIZE,
     ops::signal::lpc_residual_batched,
 };
 
@@ -365,8 +365,8 @@ mod tests {
 
     use super::{
         super::super::{
-            TenVadPitchEstimator,
-            TenVadPitchScalarSource,
+            HostPitchEstimator,
+            PitchScalarSource,
         },
         *,
     };
@@ -406,7 +406,7 @@ mod tests {
     /// Drives the host and captures, per hop, the raw input, the filter it
     /// designed, and the excitation history it produced.
     fn host_reference(steps: usize) -> (Vec<f32>, Vec<f32>, Vec<f32>) {
-        let mut est = TenVadPitchEstimator::new();
+        let mut est = HostPitchEstimator::new();
         let (mut raw, mut lpc, mut exc) = (Vec::new(), Vec::new(), Vec::new());
 
         for step in 0..steps {

@@ -354,8 +354,8 @@ mod tests {
 
     use super::{
         super::super::{
-            TenVadPitchEstimator,
-            TenVadPitchScalarSource,
+            HostPitchEstimator,
+            PitchScalarSource,
         },
         *,
     };
@@ -401,7 +401,7 @@ mod tests {
     /// Drives the host estimator and captures, per hop, the excitation history
     /// it correlated and the two slots it produced.
     fn host_reference(steps: usize) -> (Vec<f32>, Vec<f32>, Vec<f32>) {
-        let mut est = TenVadPitchEstimator::new();
+        let mut est = HostPitchEstimator::new();
         let slots = est.slots();
 
         let mut exc = Vec::new();

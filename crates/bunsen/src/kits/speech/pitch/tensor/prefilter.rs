@@ -2,7 +2,7 @@
 //!
 //! Maps `[rows, n_bins]` bin powers to `[rows, lpc_order]` whitening filter
 //! coefficients — the tensor form of
-//! [`TenVadPitchEstimator`](super::super::TenVadPitchEstimator)'s pre-filter
+//! [`HostPitchEstimator`](super::super::HostPitchEstimator)'s pre-filter
 //! stage.
 //!
 //! **This stage carries no state.** It reads one hop's spectrum and writes one
@@ -280,8 +280,8 @@ mod tests {
 
     use super::{
         super::super::{
-            TenVadPitchEstimator,
-            TenVadPitchScalarSource,
+            HostPitchEstimator,
+            PitchScalarSource,
             coeff::LPC_ORDER,
             lpc::celt_lpc,
         },
@@ -315,7 +315,7 @@ mod tests {
     /// The host stage, reached through the oracle: `frame_pitch` runs the
     /// pre-filter design first and nothing afterwards rewrites `lpc`.
     fn host_lpc(bin_power: &[f32]) -> [f32; LPC_ORDER] {
-        let mut est = TenVadPitchEstimator::new();
+        let mut est = HostPitchEstimator::new();
         est.frame_pitch(&[0.0; 256], bin_power);
         *est.lpc()
     }

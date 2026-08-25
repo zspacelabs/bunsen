@@ -9,23 +9,27 @@ mod tests {
 
     use crate::{
         blocks::rnn::lstm::ExtLstmState,
-        kits::speech::ten_vad::{
-            TenVad,
-            TenVadContextConfig,
-            TenVadContextMeta,
-            TenVadMeta,
-            context::{
-                FEATURE_EPS,
-                FEATURE_MEANS,
-                FEATURE_STDS,
-                N_MELS,
-                TenVadFeatureConfig,
-                TenVadFeatureMeta,
-                TenVadPitchEstimator,
-                TenVadPitchSourceInit,
+        kits::speech::{
+            pitch::{
+                HostPitchEstimator,
+                PitchSourceInit,
                 tensor::hybrid::HybridPitchInit,
             },
-            reference::ReferenceModel,
+            ten_vad::{
+                TenVad,
+                TenVadContextConfig,
+                TenVadContextMeta,
+                TenVadMeta,
+                context::{
+                    FEATURE_EPS,
+                    FEATURE_MEANS,
+                    FEATURE_STDS,
+                    N_MELS,
+                    TenVadFeatureConfig,
+                    TenVadFeatureMeta,
+                },
+                reference::ReferenceModel,
+            },
         },
         prelude::*,
         support::testing::{
@@ -254,7 +258,7 @@ mod tests {
     /// the un-normalized bin powers exactly as it does in the C driver.
     fn golden_pitch_hz<I>(pitch: I) -> Result<(Vec<f32>, Vec<f32>), Box<dyn std::error::Error>>
     where
-        I: TenVadPitchSourceInit<PerformanceBackend>,
+        I: PitchSourceInit<PerformanceBackend>,
     {
         type B = PerformanceBackend;
         type F = <B as BackendTypes>::FloatElem;
@@ -370,7 +374,7 @@ mod tests {
     /// [`TenVad::forward_sequence`]:
     ///     crate::kits::speech::ten_vad::TenVad::forward_sequence
     /// [`TensorPitchConfig::chunk_steps`]:
-    ///     crate::kits::speech::ten_vad::context::pitch::tensor::TensorPitchConfig
+    ///     crate::kits::speech::pitch::tensor::TensorPitchConfig
     #[test]
     #[serial_test::serial]
     fn test_reference_probability_golden() -> Result<(), Box<dyn std::error::Error>> {
@@ -461,7 +465,7 @@ mod tests {
     #[test]
     #[serial_test::serial]
     fn test_pitch_estimator_reference_golden() -> Result<(), Box<dyn std::error::Error>> {
-        let (got, expected) = golden_pitch_hz(TenVadPitchEstimator::new())?;
+        let (got, expected) = golden_pitch_hz(HostPitchEstimator::new())?;
         assert_golden_pitch(&got, &expected, 1e-4);
         Ok(())
     }

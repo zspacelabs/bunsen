@@ -1,5 +1,7 @@
 //! Speech Models
 
+pub mod pitch;
+
 /// A fully functional Silero VAD model.
 pub mod silero_vad;
 

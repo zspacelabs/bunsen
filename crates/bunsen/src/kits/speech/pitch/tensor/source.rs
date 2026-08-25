@@ -1,6 +1,6 @@
 //! # The device-side pitch source.
 //!
-//! Composes the four stages into a [`TenVadPitchSource`]:
+//! Composes the four stages into a [`PitchSource`]:
 //!
 //! ```text
 //! bin_power ──prefilter──▶ lpc ──┐
@@ -33,7 +33,7 @@ use burn::{
 use super::{
     super::{
         coeff::LPC_ORDER,
-        source::TenVadPitchSource,
+        source::PitchSource,
     },
     antialias::PitchAntiAliasConfig,
     correlate::{
@@ -245,7 +245,7 @@ impl<B: Backend> TensorPitch<B> {
 
 /// The device-side pitch estimator's streaming state.
 ///
-/// Implements [`TenVadPitchSource`]. Built by [`TensorPitch::init_state`].
+/// Implements [`PitchSource`]. Built by [`TensorPitch::init_state`].
 #[derive(Debug, Clone)]
 pub struct TensorPitchContext<B: Backend> {
     /// The fixed coefficients.
@@ -267,7 +267,7 @@ impl<B: Backend> TensorPitchContext<B> {
     }
 }
 
-impl<B: Backend> TenVadPitchSource<B> for TensorPitchContext<B> {
+impl<B: Backend> PitchSource<B> for TensorPitchContext<B> {
     fn forward(
         &mut self,
         raw: Tensor<B, 2>,
@@ -330,7 +330,7 @@ impl<B: Backend> TensorPitchContext<B> {
     /// One pass of all four stages over `steps` hops.
     ///
     /// The whole estimator, and the unit
-    /// [`forward_sequence`](TenVadPitchSource::forward_sequence) chunks into.
+    /// [`forward_sequence`](PitchSource::forward_sequence) chunks into.
     fn forward_chunk(
         &mut self,
         raw: Tensor<B, 3>,
@@ -376,8 +376,8 @@ mod tests {
 
     use super::{
         super::super::{
-            TenVadPitchEstimator,
-            TenVadPitchScalarSource,
+            HostPitchEstimator,
+            PitchScalarSource,
         },
         *,
     };
@@ -416,7 +416,7 @@ mod tests {
     /// Drives the host over `steps` hops, returning the inputs it saw and the
     /// pitch it reported.
     fn host_reference(steps: usize) -> (Vec<f32>, Vec<f32>, Vec<f32>) {
-        let mut est = TenVadPitchEstimator::new();
+        let mut est = HostPitchEstimator::new();
         let (mut raw, mut power, mut hz) = (Vec::new(), Vec::new(), Vec::new());
         for step in 0..steps {
             let hop = pulse_hop(150.0, step * HOP);

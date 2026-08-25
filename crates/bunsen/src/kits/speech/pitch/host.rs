@@ -1,8 +1,8 @@
 //! # Host-side pitch sources, adapted to the device seam.
 //!
-//! [`HostPitch`] wraps a per-stream [`TenVadPitchScalarSource`] — notably
-//! [`TenVadPitchEstimator`](super::TenVadPitchEstimator), the reference port —
-//! and presents it as a [`TenVadPitchSource`].
+//! [`HostPitch`] wraps a per-stream [`PitchScalarSource`] — notably
+//! [`HostPitchEstimator`](super::HostPitchEstimator), the reference port —
+//! and presents it as a [`PitchSource`].
 //!
 //! ## The readback lives here, and only here
 //!
@@ -20,9 +20,9 @@
 use burn::prelude::*;
 
 use super::source::{
-    TenVadPitchScalarSource,
-    TenVadPitchSource,
-    TenVadPitchSourceInit,
+    PitchScalarSource,
+    PitchSource,
+    PitchSourceInit,
 };
 use crate::{
     errors::{
@@ -36,17 +36,17 @@ use crate::{
     },
 };
 
-/// Adapts a per-stream host [`TenVadPitchScalarSource`] to the device seam.
+/// Adapts a per-stream host [`PitchScalarSource`] to the device seam.
 ///
 /// Holds one scalar estimator per batch row, cloned from a prototype. Built by
 /// [`HostPitch::new`] or, through the driver, by [`HostPitchInit`].
 #[derive(Debug, Clone, PartialEq)]
-pub struct HostPitch<P: TenVadPitchScalarSource> {
+pub struct HostPitch<P: PitchScalarSource> {
     /// The per-stream estimators; one entry per batch row.
     pub sources: Vec<P>,
 }
 
-impl<P: TenVadPitchScalarSource + Clone> HostPitch<P> {
+impl<P: PitchScalarSource + Clone> HostPitch<P> {
     /// Builds a host adapter over `batch_size` independent streams.
     ///
     /// # Arguments
@@ -66,14 +66,14 @@ impl<P: TenVadPitchScalarSource + Clone> HostPitch<P> {
     }
 }
 
-impl<P: TenVadPitchScalarSource> HostPitch<P> {
+impl<P: PitchScalarSource> HostPitch<P> {
     /// The batch size; each entry is an independent stream.
     pub fn batch_size(&self) -> usize {
         self.sources.len()
     }
 }
 
-impl<B: Backend, P: TenVadPitchScalarSource> TenVadPitchSource<B> for HostPitch<P> {
+impl<B: Backend, P: PitchScalarSource> PitchSource<B> for HostPitch<P> {
     fn forward(
         &mut self,
         raw: Tensor<B, 2>,
@@ -148,15 +148,15 @@ impl<B: Backend, P: TenVadPitchScalarSource> TenVadPitchSource<B> for HostPitch<
 
 /// Builds a [`HostPitch`] from a scalar prototype.
 ///
-/// Third-party [`TenVadPitchScalarSource`] implementations reach the driver
+/// Third-party [`PitchScalarSource`] implementations reach the driver
 /// through this; the ten-vad reference estimator has its own
-/// [`TenVadPitchSourceInit`] impl so that
-/// `init_context_with(cfg, TenVadPitchEstimator::new(), device)` reads
+/// [`PitchSourceInit`] impl so that
+/// `init_context_with(cfg, HostPitchEstimator::new(), device)` reads
 /// naturally.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct HostPitchInit<P>(pub P);
 
-impl<B: Backend, P: TenVadPitchScalarSource + Clone> TenVadPitchSourceInit<B> for HostPitchInit<P> {
+impl<B: Backend, P: PitchScalarSource + Clone> PitchSourceInit<B> for HostPitchInit<P> {
     type Source = HostPitch<P>;
 
     fn try_init_source(
@@ -188,7 +188,7 @@ mod tests {
         last: f32,
     }
 
-    impl TenVadPitchScalarSource for EchoPitch {
+    impl PitchScalarSource for EchoPitch {
         fn frame_pitch(
             &mut self,
             raw_hop: &[f32],
@@ -213,7 +213,7 @@ mod tests {
         let raw = Tensor::<B, 2>::from_floats([[10.0, 0.0], [20.0, 0.0], [30.0, 0.0]], &device);
         let power = Tensor::<B, 2>::ones([3, 4], &device);
 
-        let out = TenVadPitchSource::<B>::forward(&mut pitch, raw, power);
+        let out = PitchSource::<B>::forward(&mut pitch, raw, power);
         out.into_data()
             .assert_eq(&TensorData::from([[10.0f32], [20.0], [30.0]]), true);
 
@@ -240,8 +240,7 @@ mod tests {
         let power = Tensor::<B, 3>::ones([steps, batch, 5], &device);
 
         let mut seq = HostPitch::new(EchoPitch::default(), batch);
-        let seq_out =
-            TenVadPitchSource::<B>::forward_sequence(&mut seq, raw.clone(), power.clone());
+        let seq_out = PitchSource::<B>::forward_sequence(&mut seq, raw.clone(), power.clone());
 
         let mut step = HostPitch::new(EchoPitch::default(), batch);
         let mut rows = Vec::new();
@@ -254,7 +253,7 @@ mod tests {
                 .clone()
                 .slice_dim(0, s as isize..(s + 1) as isize)
                 .squeeze_dim::<2>(0);
-            rows.push(TenVadPitchSource::<B>::forward(&mut step, r, p));
+            rows.push(PitchSource::<B>::forward(&mut step, r, p));
         }
         let step_out: Tensor<B, 3> = Tensor::stack(rows, 0);
 
@@ -270,10 +269,10 @@ mod tests {
 
         let raw = Tensor::<B, 2>::from_floats([[5.0], [6.0]], &device);
         let power = Tensor::<B, 2>::ones([2, 2], &device);
-        TenVadPitchSource::<B>::forward(&mut pitch, raw, power);
+        PitchSource::<B>::forward(&mut pitch, raw, power);
         assert!(pitch.sources.iter().all(|s| s.calls == 1));
 
-        TenVadPitchSource::<B>::reset(&mut pitch);
+        PitchSource::<B>::reset(&mut pitch);
         assert!(pitch.sources.iter().all(|s| *s == EchoPitch::default()));
     }
 
@@ -281,15 +280,15 @@ mod tests {
     fn test_init_rejects_zero_batch() {
         let device = Default::default();
         let init = HostPitchInit(EchoPitch::default());
-        assert!(TenVadPitchSourceInit::<B>::try_init_source(&init, 0, &device).is_err());
-        assert!(TenVadPitchSourceInit::<B>::try_init_source(&init, 2, &device).is_ok());
+        assert!(PitchSourceInit::<B>::try_init_source(&init, 0, &device).is_err());
+        assert!(PitchSourceInit::<B>::try_init_source(&init, 2, &device).is_ok());
     }
 
     #[test]
     fn test_init_clones_the_prototype_per_row() {
         let device = Default::default();
         let init = HostPitchInit(EchoPitch::default());
-        let built = TenVadPitchSourceInit::<B>::init_source(&init, 3, &device);
+        let built = PitchSourceInit::<B>::init_source(&init, 3, &device);
         assert_eq!(built.batch_size(), 3);
     }
 }

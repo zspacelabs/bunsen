@@ -12,8 +12,8 @@
 //!
 //! The split is exact rather than approximate: the pre-filter design carries
 //! no state, and nothing downstream rewrites the coefficients it produces, so
-//! [`TenVadPitchEstimator::frame_pitch_with_lpc`] resumes from precisely the
-//! point [`frame_pitch`](TenVadPitchScalarSource::frame_pitch) would have
+//! [`HostPitchEstimator::frame_pitch_with_lpc`] resumes from precisely the
+//! point [`frame_pitch`](PitchScalarSource::frame_pitch) would have
 //! reached.
 //!
 //! Test-only, and deliberately so — it is scaffolding for the migration, not
@@ -23,9 +23,9 @@ use burn::prelude::*;
 
 use super::{
     super::{
-        TenVadPitchEstimator,
-        TenVadPitchSource,
-        TenVadPitchSourceInit,
+        HostPitchEstimator,
+        PitchSource,
+        PitchSourceInit,
         coeff::LPC_ORDER,
     },
     prefilter::{
@@ -53,7 +53,7 @@ pub(crate) struct HybridPitch<B: Backend> {
     pub prefilter: PitchPrefilter<B>,
 
     /// The host estimators, one per stream, resumed past their own stage 1.
-    pub sources: Vec<TenVadPitchEstimator>,
+    pub sources: Vec<HostPitchEstimator>,
 }
 
 impl<B: Backend> HybridPitch<B> {
@@ -68,7 +68,7 @@ impl<B: Backend> HybridPitch<B> {
         assert_ne!(batch_size, 0, "HybridPitch batch_size must be non-zero");
         Self {
             prefilter,
-            sources: vec![TenVadPitchEstimator::new(); batch_size],
+            sources: vec![HostPitchEstimator::new(); batch_size],
         }
     }
 
@@ -104,7 +104,7 @@ impl<B: Backend> HybridPitch<B> {
     }
 }
 
-impl<B: Backend> TenVadPitchSource<B> for HybridPitch<B> {
+impl<B: Backend> PitchSource<B> for HybridPitch<B> {
     fn forward(
         &mut self,
         raw: Tensor<B, 2>,
@@ -149,7 +149,7 @@ impl<B: Backend> TenVadPitchSource<B> for HybridPitch<B> {
     }
 
     fn reset(&mut self) {
-        use super::super::TenVadPitchScalarSource;
+        use super::super::PitchScalarSource;
         for source in &mut self.sources {
             source.reset();
         }
@@ -170,7 +170,7 @@ impl HybridPitchInit {
     }
 }
 
-impl<B: Backend> TenVadPitchSourceInit<B> for HybridPitchInit {
+impl<B: Backend> PitchSourceInit<B> for HybridPitchInit {
     type Source = HybridPitch<B>;
 
     fn try_init_source(

@@ -38,8 +38,8 @@
 //! * [`coeff`](self) — the reference constants and normalization tables.
 //! * [`PreEmphasisContext`] — the first-order high-pass, with carry.
 //! * [`TenVadMelBank`] — the 40-band triangular filterbank.
-//! * [`TenVadPitchSource`] — the pitch seam, tensor-in and tensor-out;
-//!   [`TenVadPitchEstimator`] behind [`HostPitch`] is the reference estimator,
+//! * [`PitchSource`] — the pitch seam, tensor-in and tensor-out;
+//!   [`HostPitchEstimator`] behind [`HostPitch`] is the reference estimator,
 //!   [`ZeroPitch`] the constant stub.
 //! * [`TenVadFeatureContext`] — the 41-dim feature extractor and its state.
 //! * [`TenVadContext`] — the driving context: features, frame stack, and both
@@ -61,8 +61,8 @@
 //!
 //! ## Choosing a pitch source
 //!
-//! Feature `40` is reached through the [`TenVadPitchSource`] seam, selected by
-//! [`TenVadPitchSourceConfig`] on [`TenVadContextConfig::pitch`]:
+//! Feature `40` is reached through the [`PitchSource`] seam, selected by
+//! [`PitchSourceConfig`] on [`TenVadContextConfig::pitch`]:
 //!
 //! | variant | what it is |
 //! |---|---|
@@ -141,10 +141,15 @@
 //! * **The driver as a whole** — the kit's cross test pins it against the ONNX
 //!   graph over real audio.
 //!
+//! [`PitchSource`]: crate::kits::speech::pitch::PitchSource
+//! [`PitchSourceConfig`]: crate::kits::speech::pitch::PitchSourceConfig
+//! [`HostPitchEstimator`]: crate::kits::speech::pitch::HostPitchEstimator
+//! [`HostPitch`]: crate::kits::speech::pitch::HostPitch
+//! [`ZeroPitch`]: crate::kits::speech::pitch::ZeroPitch
 //! [`TenVadContextConfig::pitch`]: crate::kits::speech::ten_vad::TenVadContextConfig
 //! [`TenVadContextConfig::reset_frames`]: crate::kits::speech::ten_vad::TenVadContextConfig
-//! [`TensorPitchConfig::reference`]: crate::kits::speech::ten_vad::context::pitch::tensor::TensorPitchConfig::reference
-//! [`TensorPitchConfig::chunk_steps`]: crate::kits::speech::ten_vad::context::pitch::tensor::TensorPitchConfig
+//! [`TensorPitchConfig::reference`]: crate::kits::speech::pitch::tensor::TensorPitchConfig::reference
+//! [`TensorPitchConfig::chunk_steps`]: crate::kits::speech::pitch::tensor::TensorPitchConfig
 //! [`TenVad::forward`]: crate::kits::speech::ten_vad::TenVad::forward
 //! [`TenVad::context_forward`]: crate::kits::speech::ten_vad::TenVad::context_forward
 //! [`SlidingStftContext`]: crate::ops::signal::SlidingStftContext
@@ -154,7 +159,6 @@ pub mod coeff;
 mod driver;
 mod features;
 mod mel;
-mod pitch;
 mod pre_emphasis;
 
 #[doc(inline)]
@@ -165,7 +169,5 @@ pub use driver::*;
 pub use features::*;
 #[doc(inline)]
 pub use mel::*;
-#[doc(inline)]
-pub use pitch::*;
 #[doc(inline)]
 pub use pre_emphasis::*;

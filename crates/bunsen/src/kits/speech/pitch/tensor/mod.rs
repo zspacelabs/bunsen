@@ -2,7 +2,7 @@
 //!
 //! A device-side implementation of the reference pitch estimator, built
 //! stage by stage against
-//! [`TenVadPitchEstimator`](super::TenVadPitchEstimator) as its oracle. The
+//! [`HostPitchEstimator`](super::HostPitchEstimator) as its oracle. The
 //! host implementation stays: it is pinned to the C reference by
 //! `testdata/ten/pitch.json`, and every stage here is validated differentially
 //! against the corresponding stage there.

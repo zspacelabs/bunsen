@@ -1,13 +1,23 @@
 //! # Pitch-estimator coefficients.
 //!
-//! The fixed constants of the reference pitch estimator, transcribed from
-//! `src/pitch_est_st.h` and `src/pitch_est.cc` in the ten-vad reference.
+//! The fixed constants the estimator is defined by: the band layout, the
+//! period bounds, the anti-alias design and the tracker's weights.
 //!
-//! Like [`super::super::coeff`], these are reference data rather than
-//! tunables: the estimator's output feeds feature `40`, whose mean and
-//! standard deviation were fitted against exactly these values.
+//! These are **reference data rather than tunables**. The band edges and
+//! per-band compensation come from `LPCNet`'s feature front end, and a consumer
+//! whose downstream model was fitted against these values cannot change them
+//! without refitting that model. Geometry that a caller may legitimately vary
+//! -- hop size, chunk size, filter length -- lives on the stage configs
+//! instead.
 
-use crate::kits::speech::ten_vad::context::coeff::SAMPLE_RATE;
+/// The sample rate, in Hz, the estimator's constants are defined for.
+///
+/// The period bounds, band layout and anti-alias design below are all tied to
+/// it; changing it alone does not rescale them.
+pub const SAMPLE_RATE: usize = 16000;
+
+/// The hop size, in samples, the estimator advances per call.
+pub const HOP_SIZE: usize = 256;
 
 /// The number of bands the pitch estimator's LPC front end works in.
 ///

@@ -16,7 +16,7 @@
 //!
 //! [`SileroVadContext`] is a burn `Module` moved in and out by value. This
 //! context cannot be: it owns a [`SlidingStftContext`] and a
-//! [`TenVadPitchSource`], neither of which is a tensor. It is a plain struct
+//! [`PitchSource`], neither of which is a tensor. It is a plain struct
 //! driven through `&mut`, matching [`SlidingStftContext`]'s own style.
 //!
 //! ## Batch size
@@ -39,25 +39,27 @@ use crate::{
         BunsenError,
         BunsenResult,
     },
-    kits::speech::ten_vad::{
-        TenVad,
-        TenVadMeta,
-        context::{
-            coeff::{
-                D_CTX,
-                RESET_FRAMES,
-                SAMPLE_RATE,
-            },
-            features::{
-                TenVadFeatureConfig,
-                TenVadFeatureContext,
-                TenVadFeatureMeta,
-            },
-            pitch::{
-                TenVadPitchSource,
-                TenVadPitchSourceConfig,
-                TenVadPitchSourceInit,
-                TenVadPitchSourceKind,
+    kits::speech::{
+        pitch::{
+            PitchSource,
+            PitchSourceConfig,
+            PitchSourceInit,
+            PitchSourceKind,
+        },
+        ten_vad::{
+            TenVad,
+            TenVadMeta,
+            context::{
+                coeff::{
+                    D_CTX,
+                    RESET_FRAMES,
+                    SAMPLE_RATE,
+                },
+                features::{
+                    TenVadFeatureConfig,
+                    TenVadFeatureContext,
+                    TenVadFeatureMeta,
+                },
             },
         },
     },
@@ -113,10 +115,10 @@ pub struct TenVadContextConfig {
     /// How feature `40` is obtained.
     ///
     /// Defaults to the device-side estimator. See
-    /// [`TenVadPitchSourceConfig`] for the alternatives, and for how to select
+    /// [`PitchSourceConfig`] for the alternatives, and for how to select
     /// the literal-transcription tier.
-    #[config(default = "TenVadPitchSourceConfig::default()")]
-    pub pitch: TenVadPitchSourceConfig,
+    #[config(default = "PitchSourceConfig::default()")]
+    pub pitch: PitchSourceConfig,
 
     /// How often to zero the LSTM states, in model calls; `None` never does.
     ///
@@ -196,7 +198,7 @@ impl TenVadContextConfig {
 ///
 /// Built by [`TenVad::init_context`]. Implements [`TenVadContextMeta`].
 #[derive(Debug, Clone)]
-pub struct TenVadContext<B: Backend, P: TenVadPitchSource<B> = TenVadPitchSourceKind<B>> {
+pub struct TenVadContext<B: Backend, P: PitchSource<B> = PitchSourceKind<B>> {
     /// The audio front-end streaming state.
     pub features: TenVadFeatureContext<B, P>,
 
@@ -228,7 +230,7 @@ pub struct TenVadContext<B: Backend, P: TenVadPitchSource<B> = TenVadPitchSource
     pub frames_since_reset: usize,
 }
 
-impl<B: Backend, P: TenVadPitchSource<B>> TenVadContextMeta for TenVadContext<B, P> {
+impl<B: Backend, P: PitchSource<B>> TenVadContextMeta for TenVadContext<B, P> {
     fn sample_rate(&self) -> usize {
         self.features.sample_rate()
     }
@@ -250,7 +252,7 @@ impl<B: Backend, P: TenVadPitchSource<B>> TenVadContextMeta for TenVadContext<B,
     }
 }
 
-impl<B: Backend, P: TenVadPitchSource<B>> TenVadContext<B, P> {
+impl<B: Backend, P: PitchSource<B>> TenVadContext<B, P> {
     /// The recurrent hidden width.
     pub fn d_hidden(&self) -> usize {
         self.state1.hidden.dims()[1]
@@ -400,7 +402,7 @@ impl<B: Backend> TenVad<B> {
         &self,
         cfg: &TenVadContextConfig,
         device: &B::Device,
-    ) -> BunsenResult<TenVadContext<B, TenVadPitchSourceKind<B>>> {
+    ) -> BunsenResult<TenVadContext<B, PitchSourceKind<B>>> {
         self.init_context_with(cfg, cfg.pitch.clone(), device)
     }
 
@@ -408,13 +410,13 @@ impl<B: Backend> TenVad<B> {
     ///
     /// # Arguments
     /// * `cfg`: the context geometry.
-    /// * `pitch`: builds the pitch source; see [`TenVadPitchSourceInit`].
+    /// * `pitch`: builds the pitch source; see [`PitchSourceInit`].
     ///
     /// # Errors
     ///
     /// [`BunsenError::Invalid`] if the config is invalid, or if its context
     /// depth or feature width disagrees with this model.
-    pub fn init_context_with<I: TenVadPitchSourceInit<B>>(
+    pub fn init_context_with<I: PitchSourceInit<B>>(
         &self,
         cfg: &TenVadContextConfig,
         pitch: I,
@@ -464,7 +466,7 @@ impl<B: Backend> TenVad<B> {
     ///
     /// # Returns
     /// `[batch]` speech probabilities in `[0, 1]`.
-    pub fn context_forward<P: TenVadPitchSource<B>>(
+    pub fn context_forward<P: PitchSource<B>>(
         &self,
         hop: Tensor<B, 2>,
         ctx: &mut TenVadContext<B, P>,
@@ -510,7 +512,7 @@ impl<B: Backend> TenVad<B> {
     ///
     /// # Returns
     /// `[steps, batch]` speech probabilities in `[0, 1]`.
-    pub fn context_forward_sequence<P: TenVadPitchSource<B>>(
+    pub fn context_forward_sequence<P: PitchSource<B>>(
         &self,
         hop_seq: Tensor<B, 3>,
         ctx: &mut TenVadContext<B, P>,
@@ -610,7 +612,7 @@ impl<B: Backend> TenVad<B> {
     /// [`BunsenError::Invalid`] if the row count disagrees with the context's
     /// batch size, if the rows differ in length, or if a row is empty or not a
     /// whole number of hops.
-    pub fn context_forward_audio_sequence<P: TenVadPitchSource<B>>(
+    pub fn context_forward_audio_sequence<P: PitchSource<B>>(
         &self,
         audio: &[&[f32]],
         ctx: &mut TenVadContext<B, P>,
@@ -668,7 +670,7 @@ impl<B: Backend> TenVad<B> {
     /// # Errors
     /// [`BunsenError::Invalid`] if `ctx` is not single-stream, or if `audio`
     /// is empty or not a whole number of hops.
-    pub fn context_forward_audio<P: TenVadPitchSource<B>>(
+    pub fn context_forward_audio<P: PitchSource<B>>(
         &self,
         audio: &[f32],
         ctx: &mut TenVadContext<B, P>,
@@ -718,34 +720,25 @@ mod tests {
         // stays resident and no stage synchronizes.
         let cfg = TenVadContextConfig::new();
         assert!(
-            matches!(cfg.pitch, TenVadPitchSourceConfig::Tensor(_)),
+            matches!(cfg.pitch, PitchSourceConfig::Tensor(_)),
             "expected the device estimator by default, got {:?}",
             cfg.pitch,
         );
 
         let (vad, device) = model();
         let ctx = vad.init_context(&cfg, &device).unwrap();
-        assert!(matches!(
-            ctx.features.pitch,
-            TenVadPitchSourceKind::Tensor(_)
-        ));
+        assert!(matches!(ctx.features.pitch, PitchSourceKind::Tensor(_)));
 
         // And the other variants are reachable through the same config.
         let host = vad
-            .init_context_with(&cfg, TenVadPitchSourceConfig::Host, &device)
+            .init_context_with(&cfg, PitchSourceConfig::Host, &device)
             .unwrap();
-        assert!(matches!(
-            host.features.pitch,
-            TenVadPitchSourceKind::Host(_)
-        ));
+        assert!(matches!(host.features.pitch, PitchSourceKind::Host(_)));
 
         let zero = vad
-            .init_context_with(&cfg, TenVadPitchSourceConfig::Zero, &device)
+            .init_context_with(&cfg, PitchSourceConfig::Zero, &device)
             .unwrap();
-        assert!(matches!(
-            zero.features.pitch,
-            TenVadPitchSourceKind::Zero(_)
-        ));
+        assert!(matches!(zero.features.pitch, PitchSourceKind::Zero(_)));
     }
 
     #[test]
@@ -1158,7 +1151,7 @@ mod tests {
     /// The largest absolute value in either LSTM state.
     ///
     /// Zero exactly when the recurrence has been reset.
-    fn state_peak<P: TenVadPitchSource<B>>(ctx: &TenVadContext<B, P>) -> f32 {
+    fn state_peak<P: PitchSource<B>>(ctx: &TenVadContext<B, P>) -> f32 {
         [
             &ctx.state1.hidden,
             &ctx.state1.cell,
@@ -1178,7 +1171,7 @@ mod tests {
 
     /// Asserts two contexts are the same continuation: same stack, same
     /// recurrence, same front end.
-    fn assert_contexts_agree<P: TenVadPitchSource<B>, Q: TenVadPitchSource<B>>(
+    fn assert_contexts_agree<P: PitchSource<B>, Q: PitchSource<B>>(
         a: &TenVadContext<B, P>,
         b: &TenVadContext<B, Q>,
     ) {
@@ -1466,8 +1459,8 @@ mod tests {
         eprintln!("{:>6} {:>6} {:>12} {:>12}", "pitch", "hops", "cold", "warm");
 
         for (name, pitch) in [
-            ("zero", TenVadPitchSourceConfig::Zero),
-            ("tensor", TenVadPitchSourceConfig::default()),
+            ("zero", PitchSourceConfig::Zero),
+            ("tensor", PitchSourceConfig::default()),
         ] {
             let cfg = TenVadContextConfig::new().with_pitch(pitch);
 
