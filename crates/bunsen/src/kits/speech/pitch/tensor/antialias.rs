@@ -474,6 +474,22 @@ mod tests {
     }
 
     #[test]
+    fn test_the_recurrence_tier_has_no_toeplitz_matrix() {
+        // The two tiers are asked the same questions and only one of them has
+        // a kernel to answer with. A caller switching tiers must not get a
+        // silently-wrong empty matrix from the FIR path, nor a panic from the
+        // recurrence path.
+        let recurrence = PitchAntiAliasConfig::Recurrence;
+        assert!(recurrence.to_vec_toeplitz(HOP).is_empty());
+        assert_eq!(recurrence.carry_len(), 0);
+        assert_eq!(recurrence.window_len(HOP), HOP);
+
+        let fir = PitchAntiAliasConfig::default();
+        assert!(!fir.to_vec_toeplitz(HOP).is_empty());
+        assert!(fir.carry_len() > 0);
+    }
+
+    #[test]
     fn test_carry_and_window_derive_from_one_constant() {
         // The carry is `taps - 1`, not `window - hop`; those differ by the
         // decimation factor, and mixing them would drop the oldest taps.

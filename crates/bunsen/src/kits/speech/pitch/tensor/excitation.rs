@@ -95,6 +95,17 @@ pub struct PitchExcitationConfig {
     pub anti_alias: PitchAntiAliasConfig,
 }
 
+/// The excitation history has to outlast one hop's contribution to it.
+///
+/// `exc_len` exceeds `exc_stride` by `MAX_PERIOD_16KHZ / PROC_RESAMPLE_RATE +
+/// 1` for *any* hop size, so this holds by construction rather than by
+/// validation -- the difference does not depend on the one thing a caller can
+/// vary.
+const _: () = assert!(
+    MAX_PERIOD_16KHZ / PROC_RESAMPLE_RATE > 0,
+    "the excitation history must outlast one hop",
+);
+
 impl PitchExcitationConfig {
     /// The raw FIFO length.
     pub fn fifo_len(&self) -> usize {
@@ -128,11 +139,6 @@ impl PitchExcitationConfig {
                 "PitchExcitation hop_size ({}) must be at least the correlation delay ({})",
                 self.hop_size, XCORR_TRAINING_OFFSET,
             )));
-        }
-        if self.exc_len() <= self.exc_stride() {
-            return Err(BunsenError::Invalid(
-                "PitchExcitation excitation history must exceed one hop".to_string(),
-            ));
         }
         self.anti_alias.validate(self.hop_size)
     }

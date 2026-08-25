@@ -189,10 +189,18 @@ impl<B: Backend> PitchSourceInit<B> for ZeroPitch {
 
 #[cfg(test)]
 mod tests {
-    use burn::tensor::Tensor;
+    use burn::tensor::{
+        Tensor,
+        TensorData,
+        Tolerance,
+    };
 
     use super::*;
-    use crate::support::testing::PerformanceBackend;
+    use crate::{
+        errors::WithOkOrPanic,
+        prelude::*,
+        support::testing::PerformanceBackend,
+    };
 
     type B = PerformanceBackend;
 
@@ -289,6 +297,240 @@ mod tests {
 
         fn reset(&mut self) {
             self.calls = 0;
+        }
+    }
+
+    // ---- PitchSourceConfig / PitchSourceKind ----------------------------
+    //
+    // The module's public entry point: a caller picks a variant by config and
+    // drives whatever it produces through the `PitchSource` seam. Every test
+    // below runs the *same* assertion across all three variants, because the
+    // whole point of the seam is that they are interchangeable.
+
+    const HOP: usize = 256;
+    const BINS: usize = 513;
+
+    /// Every variant a caller can select.
+    fn all_configs() -> Vec<(&'static str, PitchSourceConfig)> {
+        vec![
+            ("zero", PitchSourceConfig::Zero),
+            ("host", PitchSourceConfig::Host),
+            (
+                "tensor",
+                PitchSourceConfig::Tensor(TensorPitchConfig::new()),
+            ),
+            (
+                "tensor/recurrence",
+                PitchSourceConfig::Tensor(TensorPitchConfig::reference()),
+            ),
+        ]
+    }
+
+    /// A voiced-ish hop and a plausible spectrum for it.
+    fn frame(
+        batch: usize,
+        seed: f32,
+        device: &<B as burn::tensor::backend::BackendTypes>::Device,
+    ) -> (Tensor<B, 2>, Tensor<B, 2>) {
+        let raw: Vec<f32> = (0..batch * HOP)
+            .map(|i| 4000.0 * (((i % HOP) as f32 + seed) * 0.08).sin())
+            .collect();
+        let power: Vec<f32> = (0..batch * BINS)
+            .map(|i| 1e5 * (-((i % BINS) as f32) / 60.0).exp() + 10.0)
+            .collect();
+        (
+            Tensor::from_data(TensorData::new(raw, [batch, HOP]), device),
+            Tensor::from_data(TensorData::new(power, [batch, BINS]), device),
+        )
+    }
+
+    #[test]
+    fn test_default_config_is_the_device_estimator() {
+        assert!(matches!(
+            PitchSourceConfig::default(),
+            PitchSourceConfig::Tensor(_),
+        ));
+    }
+
+    #[test]
+    fn test_each_config_builds_its_own_kind() {
+        let device = Default::default();
+
+        assert!(matches!(
+            PitchSourceConfig::Zero.init_source(1, &device),
+            PitchSourceKind::<B>::Zero(_),
+        ));
+        assert!(matches!(
+            PitchSourceConfig::Host.init_source(1, &device),
+            PitchSourceKind::<B>::Host(_),
+        ));
+        assert!(matches!(
+            PitchSourceConfig::Tensor(TensorPitchConfig::new()).init_source(1, &device),
+            PitchSourceKind::<B>::Tensor(_),
+        ));
+    }
+
+    #[test]
+    fn test_try_init_reports_an_invalid_tensor_config() {
+        // The only variant with geometry to get wrong, and the only reason
+        // `try_init_source` is fallible at all.
+        let device = Default::default();
+        let bad = PitchSourceConfig::Tensor(TensorPitchConfig::new().with_chunk_steps(Some(0)));
+
+        assert!(matches!(
+            PitchSourceInit::<B>::try_init_source(&bad, 1, &device),
+            Err(BunsenError::Invalid(_)),
+        ));
+    }
+
+    #[test]
+    fn test_every_kind_reports_a_plausible_pitch() {
+        // The seam's actual contract: `[batch, hop] + [batch, bins]` in,
+        // `[batch, 1]` of non-negative hertz out, whichever variant is behind
+        // it.
+        let device = Default::default();
+        let (raw, power) = frame(2, 0.0, &device);
+
+        for (name, cfg) in all_configs() {
+            let mut src: PitchSourceKind<B> = cfg.init_source(2, &device);
+            let out = src.forward(raw.clone(), power.clone());
+
+            assert_eq!(out.dims(), [2, 1], "{name}");
+            for (i, hz) in out
+                .to_data_as::<f32>()
+                .to_vec_as::<f32>()
+                .ok_or_panic()
+                .iter()
+                .enumerate()
+            {
+                assert!(hz.is_finite(), "{name} row {i}: {hz} is not finite");
+                assert!(*hz >= 0.0, "{name} row {i}: {hz} is negative");
+                assert!(*hz < 1000.0, "{name} row {i}: {hz} Hz is implausible");
+            }
+        }
+    }
+
+    #[test]
+    fn test_every_kind_agrees_with_itself_across_the_two_entry_points() {
+        // `forward` must be the one-step case of `forward_sequence`, or a
+        // caller that batches gets a different answer than one that does not.
+        let device = Default::default();
+        let (raw, power) = frame(1, 3.0, &device);
+
+        for (name, cfg) in all_configs() {
+            let mut stepwise: PitchSourceKind<B> = cfg.init_source(1, &device);
+            let single = stepwise.forward(raw.clone(), power.clone());
+
+            let mut batched: PitchSourceKind<B> = cfg.init_source(1, &device);
+            let seq = batched.forward_sequence(
+                raw.clone().reshape([1, 1, HOP]),
+                power.clone().reshape([1, 1, BINS]),
+            );
+
+            assert_eq!(seq.dims(), [1, 1, 1], "{name}");
+            single.clone().to_data_as::<f32>().assert_approx_eq::<f32>(
+                &seq.reshape([1, 1]).to_data_as::<f32>(),
+                Tolerance::permissive(),
+            );
+        }
+    }
+
+    #[test]
+    fn test_every_kind_carries_state_and_resets_it() {
+        // Two hops differ from one hop repeated only if state carried; and
+        // after `reset` the first hop must reproduce exactly.
+        let device = Default::default();
+        let (a, pa) = frame(1, 0.0, &device);
+        let (b, pb) = frame(1, 11.0, &device);
+
+        for (name, cfg) in all_configs() {
+            let mut src: PitchSourceKind<B> = cfg.init_source(1, &device);
+
+            let first = src.forward(a.clone(), pa.clone());
+            src.forward(b.clone(), pb.clone());
+
+            PitchSource::<B>::reset(&mut src);
+            let again = src.forward(a.clone(), pa.clone());
+
+            first
+                .clone()
+                .to_data_as::<f32>()
+                .assert_approx_eq::<f32>(&again.to_data_as::<f32>(), Tolerance::permissive());
+            let _ = name;
+        }
+    }
+
+    #[test]
+    fn test_stateful_kinds_actually_carry_state() {
+        // Guard the guard for the reset test above: it proves nothing unless
+        // the source has state to rewind. `Zero` legitimately has none.
+        let device = Default::default();
+        let (a, pa) = frame(1, 0.0, &device);
+        let (b, pb) = frame(1, 11.0, &device);
+
+        for (name, cfg) in [
+            ("host", PitchSourceConfig::Host),
+            (
+                "tensor",
+                PitchSourceConfig::Tensor(TensorPitchConfig::new()),
+            ),
+        ] {
+            let mut fresh: PitchSourceKind<B> = cfg.init_source(1, &device);
+            let cold = fresh.forward(b.clone(), pb.clone());
+
+            let mut warmed: PitchSourceKind<B> = cfg.init_source(1, &device);
+            warmed.forward(a.clone(), pa.clone());
+            let warm = warmed.forward(b.clone(), pb.clone());
+
+            let cold_v = cold.to_data_as::<f32>().to_vec_as::<f32>().ok_or_panic();
+            let warm_v = warm.to_data_as::<f32>().to_vec_as::<f32>().ok_or_panic();
+            assert_ne!(
+                cold_v, warm_v,
+                "{name}: history should change the estimate, so `reset` has something to undo",
+            );
+        }
+    }
+
+    #[test]
+    fn test_kinds_batch_rows_independently() {
+        // Row 1 must see its own signal, not row 0's.
+        let device = Default::default();
+        let (solo, solo_p) = frame(1, 0.0, &device);
+        let (other, other_p) = frame(1, 17.0, &device);
+
+        let paired = Tensor::cat(vec![solo.clone(), other], 0);
+        let paired_p = Tensor::cat(vec![solo_p.clone(), other_p], 0);
+
+        for (name, cfg) in all_configs() {
+            let mut alone: PitchSourceKind<B> = cfg.init_source(1, &device);
+            let mut together: PitchSourceKind<B> = cfg.init_source(2, &device);
+
+            let a = alone.forward(solo.clone(), solo_p.clone());
+            let t = together.forward(paired.clone(), paired_p.clone());
+
+            let a_v = a.to_data_as::<f32>().to_vec_as::<f32>().ok_or_panic();
+            let t_v = t.to_data_as::<f32>().to_vec_as::<f32>().ok_or_panic();
+            assert!(
+                (a_v[0] - t_v[0]).abs() < 1e-3,
+                "{name}: row 0 alone {} vs batched {}",
+                a_v[0],
+                t_v[0],
+            );
+        }
+    }
+
+    #[test]
+    fn test_config_round_trips_through_serde() {
+        // `PitchSourceConfig` exists so the choice can live in a serialized
+        // config rather than only in code; that is worth checking.
+        for (name, cfg) in all_configs() {
+            let json = serde_json::to_string(&cfg).expect("serialize");
+            let back: PitchSourceConfig = serde_json::from_str(&json).expect("deserialize");
+            assert_eq!(
+                core::mem::discriminant(&cfg),
+                core::mem::discriminant(&back),
+                "{name} changed variant through serde",
+            );
         }
     }
 

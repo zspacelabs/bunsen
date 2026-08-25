@@ -774,6 +774,11 @@ impl<B: Backend> PitchSourceInit<B> for HostPitchEstimator {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::support::testing::CpuBackend;
+
+    /// Constructing a `HostPitch` is setup plumbing with no numerics in it, so
+    /// it does not want a device lock.
+    type B = CpuBackend;
 
     const N_BINS: usize = FFT_SIZE / 2 + 1;
 
@@ -896,6 +901,39 @@ mod tests {
         // ceil(40 ms * 16 kHz / 256 samples) = ceil(2.5) = 3 hops of history.
         assert_eq!(est.n_feat, 3);
         assert_eq!(est.slots(), 6);
+    }
+
+    #[test]
+    fn test_default_matches_new() {
+        // `Default` lets the estimator sit in a struct field without a
+        // builder; it must not diverge from the real constructor.
+        let a = HostPitchEstimator::default();
+        let b = HostPitchEstimator::new();
+        assert_eq!(a.hop_size(), b.hop_size());
+        assert_eq!(a.n_bins(), b.n_bins());
+        assert_eq!(a.max_period, b.max_period);
+        assert_eq!(a.min_period, b.min_period);
+        assert_eq!(a.n_feat, b.n_feat);
+    }
+
+    #[test]
+    fn test_estimator_is_directly_usable_as_a_source_init() {
+        // `HostPitchEstimator` implements `PitchSourceInit` itself, so a
+        // caller with a configured estimator can hand it straight to a
+        // pipeline instead of wrapping it in `HostPitchInit` by hand. The two
+        // routes must agree.
+        let device = Default::default();
+
+        let direct: HostPitch<HostPitchEstimator> =
+            PitchSourceInit::<B>::init_source(&HostPitchEstimator::new(), 2, &device);
+        let wrapped: HostPitch<HostPitchEstimator> = PitchSourceInit::<B>::init_source(
+            &HostPitchInit(HostPitchEstimator::new()),
+            2,
+            &device,
+        );
+
+        assert_eq!(direct.batch_size(), wrapped.batch_size());
+        assert_eq!(direct.batch_size(), 2);
     }
 
     #[test]

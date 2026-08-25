@@ -92,6 +92,19 @@ pub struct PitchCorrelateConfig {
     pub hop_size: usize,
 }
 
+/// The period range has to leave something for the octave suppression to
+/// sharpen over.
+///
+/// Both bounds are constants rather than config, so this is a property of the
+/// coefficients and not of any caller's geometry -- which makes it a
+/// compile-time check rather than a runtime one. A runtime branch here could
+/// never fire, and an unfireable branch is indistinguishable from a bug in
+/// waiting.
+const _: () = assert!(
+    MAX_PERIOD_16KHZ / PROC_RESAMPLE_RATE > SUBS_PER_HOP * (MIN_PERIOD_16KHZ / PROC_RESAMPLE_RATE),
+    "the period range leaves nothing to sharpen",
+);
+
 impl PitchCorrelateConfig {
     /// The longest candidate period, in samples at the correlation rate.
     pub fn max_period(&self) -> usize {
@@ -129,13 +142,6 @@ impl PitchCorrelateConfig {
             return Err(BunsenError::Invalid(format!(
                 "PitchCorrelate hop_size ({}) must be a non-zero multiple of {divisor}",
                 self.hop_size,
-            )));
-        }
-        if self.max_period() <= SUBS_PER_HOP * self.min_period() {
-            return Err(BunsenError::Invalid(format!(
-                "PitchCorrelate period range ({}..{}) leaves nothing to sharpen",
-                self.min_period(),
-                self.max_period(),
             )));
         }
         Ok(())

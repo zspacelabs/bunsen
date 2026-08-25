@@ -307,6 +307,17 @@ mod tests {
     const NBINS: usize = FFT / 2 + 1;
 
     #[test]
+    fn test_dct_default_matches_new() {
+        // `Default` exists so the table can be a struct field without a
+        // builder; it must not diverge from the real constructor.
+        let a = DctTable::default();
+        let b = DctTable::new();
+        let probe: [f32; NB_BANDS] = core::array::from_fn(|i| (i as f32 * 0.7).cos());
+        assert_eq!(a.dct(&probe), b.dct(&probe));
+        assert_eq!(a.idct(&probe), b.idct(&probe));
+    }
+
+    #[test]
     fn test_dct_round_trips_through_idct() {
         let dct = DctTable::new();
         let input: [f32; NB_BANDS] = core::array::from_fn(|i| (i as f32 * 0.4).sin());

@@ -458,6 +458,26 @@ mod tests {
     }
 
     #[test]
+    fn test_meta_accessors_report_the_configured_geometry() {
+        // Accessors that forward to a sub-config are exactly where a field
+        // gets crossed with its neighbour, and nothing else would notice.
+        let device = Default::default();
+        let cfg = TensorPitchConfig::new();
+        let coef: TensorPitch<B> = cfg.init(&device);
+
+        assert_eq!(coef.hop_size(), cfg.hop_size());
+        assert_eq!(coef.n_bins(), cfg.n_bins());
+        assert_ne!(
+            coef.hop_size(),
+            coef.n_bins(),
+            "the two must not be the same field"
+        );
+
+        let ctx = coef.init_state(3, &device);
+        assert_eq!(ctx.batch_size(), 3);
+    }
+
+    #[test]
     fn test_reference_tier_selects_the_recurrence() {
         assert_eq!(
             TensorPitchConfig::reference().excitation.anti_alias,
