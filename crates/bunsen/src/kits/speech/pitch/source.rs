@@ -83,7 +83,6 @@ pub trait PitchSource<B: Backend> {
 /// Builds a [`PitchSource`] bound to a batch size and a device.
 ///
 /// This is the seam
-/// [`TenVadFeatures::init_state`](crate::kits::speech::ten_vad::context::TenVadFeatures::init_state)
 /// threads through. It exists because a tensor-native source allocates its
 /// carried buffers at construction and so cannot be cloned per batch row.
 pub trait PitchSourceInit<B: Backend> {

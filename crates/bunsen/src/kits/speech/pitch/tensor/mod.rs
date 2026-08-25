@@ -61,9 +61,6 @@ pub mod source;
 pub mod tables;
 pub mod track;
 
-#[cfg(test)]
-pub(crate) mod hybrid;
-
 #[doc(inline)]
 pub use antialias::*;
 #[doc(inline)]

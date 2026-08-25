@@ -10,7 +10,7 @@
 //! `steps × batch` sequence flattened into the row axis and the entire stage
 //! runs in one pass. That is what makes it a coefficient-only object with no
 //! `*Context`, structurally like
-//! [`TenVadMelBank`](crate::kits::speech::ten_vad::context::TenVadMelBank).
+//! a filterbank.
 //!
 //! ```text
 //! bands  = bin_power @ BANDS                      # [rows, 18]

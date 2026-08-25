@@ -986,7 +986,11 @@ mod tests {
             })
             .collect();
 
-        let noisy: Vec<f32> = run(&noise)[20..].iter().copied().filter(|p| *p > 0.0).collect();
+        let noisy: Vec<f32> = run(&noise)[20..]
+            .iter()
+            .copied()
+            .filter(|p| *p > 0.0)
+            .collect();
         let tonal: Vec<f32> = run(&pulse_train(150.0, HOP_SIZE * 40, 0))[20..]
             .iter()
             .copied()
