@@ -944,6 +944,76 @@ mod tests {
     }
 
     #[test]
+    fn test_a_harmonic_rich_signal_does_not_report_the_octave() {
+        // What `suppress_octaves` exists for. A pulse train whose alternate
+        // pulses are attenuated correlates strongly at *twice* its period, so
+        // a tracker without octave suppression reports f0/2. This is the
+        // behaviour the reference golden used to cover implicitly.
+        let f0 = 150.0f32;
+        let period = SAMPLE_RATE as f32 / f0;
+
+        let signal: Vec<f32> = (0..HOP_SIZE * 40)
+            .map(|i| {
+                let cycle = (i as f32 / period).floor() as usize;
+                let pos = i as f32 % period;
+                let amp = if cycle % 2 == 0 { 8000.0 } else { 5200.0 };
+                amp * (-pos / (period * 0.08)).exp()
+            })
+            .collect();
+
+        let pitches = run(&signal);
+        let voiced: Vec<f32> = pitches[20..].iter().copied().filter(|p| *p > 0.0).collect();
+        assert!(!voiced.is_empty(), "fixture should be voiced");
+
+        let mean = voiced.iter().sum::<f32>() / voiced.len() as f32;
+        assert!(
+            (mean - f0).abs() / f0 < 0.15,
+            "expected ~{f0} Hz, got {mean} Hz; ~{} Hz would be the octave error",
+            f0 / 2.0,
+        );
+    }
+
+    #[test]
+    fn test_noise_is_not_reported_as_a_stable_pitch() {
+        // Aperiodic input has no period to find. The estimator may call some
+        // frames voiced -- noise does correlate by chance -- but it must not
+        // settle on one period the way it does for a real pulse train.
+        let mut seed = 0x5eed_1234u32;
+        let noise: Vec<f32> = (0..HOP_SIZE * 40)
+            .map(|_| {
+                seed = seed.wrapping_mul(1_664_525).wrapping_add(1_013_904_223);
+                ((seed >> 8) as f32 / (1u32 << 23) as f32 - 1.0) * 6000.0
+            })
+            .collect();
+
+        let noisy: Vec<f32> = run(&noise)[20..].iter().copied().filter(|p| *p > 0.0).collect();
+        let tonal: Vec<f32> = run(&pulse_train(150.0, HOP_SIZE * 40, 0))[20..]
+            .iter()
+            .copied()
+            .filter(|p| *p > 0.0)
+            .collect();
+
+        let spread = |v: &[f32]| -> f32 {
+            if v.len() < 2 {
+                return 0.0;
+            }
+            let mean = v.iter().sum::<f32>() / v.len() as f32;
+            (v.iter().map(|p| (p - mean).powi(2)).sum::<f32>() / v.len() as f32).sqrt() / mean
+        };
+
+        // Either noise is mostly rejected, or what survives is far less
+        // consistent than a real period.
+        assert!(
+            noisy.len() < tonal.len() / 2 || spread(&noisy) > 4.0 * spread(&tonal).max(1e-3),
+            "noise gave {} voiced frames (spread {:.3}) against {} tonal (spread {:.3})",
+            noisy.len(),
+            spread(&noisy),
+            tonal.len(),
+            spread(&tonal),
+        );
+    }
+
+    #[test]
     fn test_pitch_is_bounded_by_the_search_range() {
         // The regression can extrapolate, but never far outside the lags the
         // correlation actually searched.
