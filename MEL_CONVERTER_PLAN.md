@@ -465,6 +465,17 @@ on this branch.) Read that module before writing `t_stage_frame`.
 burn-0.21-only hazard with a known expiry. That changes the cost calculus below — the
 mitigation is cheap enough to adopt anyway, but it is a bridge, not a permanent workaround.
 
+**Confirmed in this repo, Stage 4.** With the covered-span slice removed,
+`test_frame_matches_host_reference` fails on wgpu at `samples = 1000`, batch row 1
+(`len` 1000, `v` 16, `1000 → 992`, so the row starts 8 samples early). With the slice it
+passes. Two details the empirical rule in `burner::repro::unfold` does not capture:
+
+* `samples = 520` (tail 120, the same `tail % 16 == 8`) **passed** — it yields a single
+  window, and the truncated outer stride has nothing to stride over. The rule is a
+  description of observed symptoms, so treat it as necessary-but-not-sufficient.
+* Row 0 was correct in every failing case, exactly as documented. A `batch == 1` suite is
+  blind to all of this.
+
 The defect, in its own words: `unfold` **truncates its outer stride to the vectorization line
 width**. When `size` and `step` share a factor of two the access vectorizes with line width
 `v` = the largest power of two dividing both, and the outer stride becomes `(len/v)·v` instead

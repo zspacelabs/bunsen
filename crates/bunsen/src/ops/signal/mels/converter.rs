@@ -585,6 +585,96 @@ impl<B: Backend> MelConverter<B> {
     pub fn options(&self) -> &MelConverterOptions {
         &self.options
     }
+
+    /// The number of whole frames a `samples`-long signal yields.
+    ///
+    /// `(samples - n_fft) / hop + 1`, or zero when the signal is shorter than
+    /// one window.
+    pub fn frame_count(
+        &self,
+        samples: usize,
+    ) -> usize {
+        let n_fft = self.n_fft();
+        if samples < n_fft {
+            0
+        } else {
+            (samples - n_fft) / self.hop() + 1
+        }
+    }
+
+    /// Frames a signal into consecutive windowed frames.
+    ///
+    /// Frame `f` covers `x[.., f * hop .. f * hop + n_fft]`, multiplied by the
+    /// analysis window. Trailing samples that do not fill a whole frame are
+    /// dropped — in a stream they belong to the carry, not to any frame.
+    ///
+    /// Stateless: the caller owns the padding and the carry.
+    ///
+    /// # Arguments
+    /// * `x`: `[batch, samples]`, with `samples >= n_fft`.
+    ///
+    /// # Returns
+    /// `[batch, frames, n_fft]` windowed frames, with
+    /// `frames = (samples - n_fft) / hop + 1`.
+    pub fn frame(
+        &self,
+        x: Tensor<B, 2>,
+    ) -> Tensor<B, 3> {
+        #[cfg(any(test, debug_assertions))]
+        let [batch, samples] = crate::contracts::unpack_shape_contract!(
+            ["batch", "samples"],
+            &x,
+            &["batch", "samples"],
+        );
+        #[cfg(any(test, debug_assertions))]
+        assert!(
+            samples >= self.n_fft(),
+            "MelConverter samples ({samples}) must be >= n_fft ({})",
+            self.n_fft(),
+        );
+
+        let (n_fft, hop) = (self.n_fft(), self.hop());
+        let frames = self.frame_count(x.dims()[1]);
+
+        // ── burn 0.21 `unfold` hazard ──────────────────────────────────────
+        // Trim to exactly the span the frames cover before unfolding. On
+        // `CubeCL` backends (wgpu / cuda / metal; `Flex` is correct) `unfold`
+        // truncates the unfolded view's outer stride to the vectorization line
+        // width `v` — the largest power of two dividing both `size` and `step`
+        // — using `(len / v) * v` in place of `len`. Every batch row after the
+        // first is then read `len % v` elements early. Row 0 is always right,
+        // so a `batch == 1` test cannot see it.
+        //
+        // It fires when `size` and `step` are both even AND the uncovered tail
+        // `len - ((frames - 1) * hop + n_fft)` is not a multiple of `v`. The
+        // default Whisper geometry trips it at every chunk size: `n_fft` 400
+        // and `hop` 160 give `v` 16, and the steady-state tail is 120.
+        //
+        // Trimming makes that tail zero, so `tail % v == 0` on every geometry
+        // and the bug is unreachable rather than merely absent. It is also the
+        // honest framing — the trailing samples belong to the carry.
+        //
+        // Fixed upstream in burn 0.22.0-dev. Keep the slice on the bump (it
+        // states the contract), but delete this comment.
+        // ──────────────────────────────────────────────────────────────────
+        let covered = (frames - 1) * hop + n_fft;
+        let x = x.slice_dim(1, 0..covered as isize);
+
+        // [batch, frames, n_fft]
+        let framed: Tensor<B, 3> = x.unfold(1, n_fft, hop);
+
+        // Broadcast the window across batch and frame.
+        let framed = framed.mul(self.window.clone().reshape([1, 1, n_fft]));
+
+        #[cfg(any(test, debug_assertions))]
+        crate::contracts::assert_shape_contract!(
+            ["batch", "frames", "n_fft"],
+            &framed,
+            &[("batch", batch), ("frames", frames), ("n_fft", n_fft)],
+        );
+
+        framed
+    }
 }
 
 impl<B: Backend> MelConverterMeta for MelConverter<B> {
@@ -757,6 +847,128 @@ mod tests {
         assert_all_close(&to_f64(&moved.mel_t), &before, 0.0);
         assert_eq!(moved.window.dims(), conv.window.dims());
         assert_eq!(moved.options().n_mels, conv.options().n_mels);
+    }
+
+    /// A deterministic sample in `[-1, 1]`, so f32 keeps ~1e-7.
+    fn sample(
+        row: usize,
+        i: usize,
+    ) -> f64 {
+        (((row * 7919 + i * 104729) % 2003) as f64 / 1001.0) - 1.0
+    }
+
+    /// Host reference: frame `f` is `x[f*hop .. f*hop+n_fft]` times the window.
+    fn host_frames(
+        rows: &[Vec<f64>],
+        n_fft: usize,
+        hop: usize,
+        window: &[f64],
+        frames: usize,
+    ) -> Vec<f64> {
+        let mut out = Vec::with_capacity(rows.len() * frames * n_fft);
+        for row in rows {
+            for f in 0..frames {
+                for n in 0..n_fft {
+                    out.push(row[f * hop + n] * window[n]);
+                }
+            }
+        }
+        out
+    }
+
+    /// Builds `[batch, samples]` from [`sample`], and the matching host rows.
+    fn signal(
+        device: &burn::prelude::Device<B>,
+        batch: usize,
+        samples: usize,
+    ) -> (Tensor<B, 2>, Vec<Vec<f64>>) {
+        let rows: Vec<Vec<f64>> = (0..batch)
+            .map(|r| (0..samples).map(|i| sample(r, i)).collect())
+            .collect();
+        let flat: Vec<f64> = rows.concat();
+        let t = Tensor::from_data(TensorData::new(flat, [batch, samples]), device);
+        (t, rows)
+    }
+
+    #[test]
+    fn test_frame_count() {
+        let device = Default::default();
+        let conv: MelConverter<B> = MelConverterOptions::default()
+            .try_init(&device)
+            .ok_or_panic();
+
+        // Shorter than one window yields nothing.
+        assert_eq!(conv.frame_count(0), 0);
+        assert_eq!(conv.frame_count(399), 0);
+
+        assert_eq!(conv.frame_count(400), 1);
+        assert_eq!(conv.frame_count(559), 1);
+        assert_eq!(conv.frame_count(560), 2);
+        // A ragged tail does not add a frame.
+        assert_eq!(conv.frame_count(520), 1);
+    }
+
+    /// Framing must agree with an explicit host loop, at `batch > 1`, for
+    /// several signal lengths — including ones that leave a ragged tail.
+    ///
+    /// **`batch > 1` is load-bearing.** The burn 0.21 `unfold` defect this
+    /// guards leaves row 0 correct and corrupts only later rows, so a
+    /// `batch == 1` version of this test passes either way.
+    #[test]
+    fn test_frame_matches_host_reference() {
+        let device = Default::default();
+        let opts = MelConverterOptions::default();
+        let conv: MelConverter<B> = opts.try_init(&device).ok_or_panic();
+        let window = opts.window.to_vec_window(opts.n_fft);
+
+        let batch = 3;
+        for samples in [
+            400,  // exactly one window; tail 0
+            560,  // two windows, hop-aligned; tail 0
+            2000, // many windows, hop-aligned; tail 0
+            // Ragged tails. `v` is 16 here, so `tail % v != 0` is what trips
+            // the unfold defect when the covered-span slice is removed.
+            520,  // tail 120 -> 120 % 16 == 8
+            1000, // tail 120
+            1234, // tail 34
+        ] {
+            let frames = conv.frame_count(samples);
+            assert!(frames > 0, "samples {samples} yields no frames");
+
+            let (x, rows) = signal(&device, batch, samples);
+            let framed = conv.frame(x);
+
+            assert_eq!(framed.dims(), [batch, frames, opts.n_fft]);
+            assert_all_close(
+                &to_f64(&framed),
+                &host_frames(&rows, opts.n_fft, opts.hop, &window, frames),
+                1e-5,
+            );
+        }
+    }
+
+    #[test]
+    fn test_frame_rows_are_independent() {
+        let device = Default::default();
+        let opts = MelConverterOptions::default();
+        let conv: MelConverter<B> = opts.try_init(&device).ok_or_panic();
+
+        // A ragged length, so this also exercises the trimmed path.
+        let samples = 1000;
+        let (batched, _) = signal(&device, 3, samples);
+        let together = to_f64(&conv.frame(batched.clone()));
+
+        let frames = conv.frame_count(samples);
+        let per_row = frames * opts.n_fft;
+
+        for row in 0..3 {
+            let single: Tensor<B, 2> = batched
+                .clone()
+                .slice_dim(0, row as isize..(row + 1) as isize);
+            let alone = to_f64(&conv.frame(single));
+
+            assert_all_close(&alone, &together[row * per_row..(row + 1) * per_row], 0.0);
+        }
     }
 
     #[test]
