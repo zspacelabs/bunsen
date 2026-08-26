@@ -956,13 +956,23 @@ impl<B: Backend> MelConverterMeta for MelConverter<B> {
 
 #[cfg(test)]
 mod tests {
+    use burn::tensor::{
+        Tolerance,
+        backend::BackendTypes,
+    };
+
     use super::*;
     use crate::{
+        burner::tensor::TensorElemOpExt,
         errors::WithOkOrPanic,
-        support::testing::PerformanceBackend,
+        support::testing::{
+            PerformanceBackend,
+            assert_close_to_vec,
+        },
     };
 
     type B = PerformanceBackend;
+    type F = <B as BackendTypes>::FloatElem;
 
     /// Reads a rank-1 or rank-2 tensor back as `f64` in row-major order.
     fn to_f64<const D: usize>(t: &Tensor<B, D>) -> Vec<f64> {
@@ -973,19 +983,29 @@ mod tests {
             .unwrap()
     }
 
-    /// Asserts every element matches, to an absolute tolerance.
-    fn assert_all_close(
-        actual: &[f64],
+    /// Compares a tensor against a row-major host buffer through `TensorData`,
+    /// so `burn` reports both relative and absolute error on mismatch rather
+    /// than a bare element index.
+    fn assert_matches_host<const D: usize>(
+        actual: &Tensor<B, D>,
         expected: &[f64],
-        tol: f64,
+        tolerance: Tolerance<F>,
     ) {
-        assert_eq!(actual.len(), expected.len(), "length mismatch");
-        for (i, (&a, &e)) in actual.iter().zip(expected).enumerate() {
-            assert!(
-                (a - e).abs() <= tol,
-                "element {i}: expected {e}, got {a} (tol {tol})",
-            );
-        }
+        let expected = TensorData::new(expected.to_vec(), actual.dims()).convert::<F>();
+        actual
+            .to_data_as::<F>()
+            .assert_approx_eq::<F>(&expected, tolerance);
+    }
+
+    /// Compares two tensors of the same shape.
+    fn assert_tensors_close<const D: usize>(
+        actual: &Tensor<B, D>,
+        expected: &Tensor<B, D>,
+        tolerance: Tolerance<F>,
+    ) {
+        actual
+            .to_data_as::<F>()
+            .assert_approx_eq::<F>(&expected.to_data_as::<F>(), tolerance);
     }
 
     #[test]
@@ -1019,22 +1039,22 @@ mod tests {
         let conv: MelConverter<B> = opts.try_init(&device).ok_or_panic();
 
         // The window is the same one `StftWindowConfig` builds on the host.
-        assert_all_close(
-            &to_f64(&conv.window),
+        assert_matches_host(
+            &conv.window,
             &opts.window.to_vec_window(opts.n_fft),
-            1e-6,
+            Tolerance::absolute(1e-6),
         );
 
         // `mel_t` is the Stage-2 bank, transposed.
-        assert_all_close(
-            &to_f64(&conv.mel_t),
+        assert_matches_host(
+            &conv.mel_t,
             &opts.to_vec_filterbank_t().unwrap(),
-            1e-6,
+            Tolerance::absolute(1e-6),
         );
 
         let (cos_table, sin_table) = opts.to_vec_dft_tables();
-        assert_all_close(&to_f64(&conv.dft_cos), &cos_table, 1e-6);
-        assert_all_close(&to_f64(&conv.dft_sin), &sin_table, 1e-6);
+        assert_matches_host(&conv.dft_cos, &cos_table, Tolerance::absolute(1e-6));
+        assert_matches_host(&conv.dft_sin, &sin_table, Tolerance::absolute(1e-6));
     }
 
     /// The DFT tables carry a sign and a layout convention that is easy to get
@@ -1068,8 +1088,8 @@ mod tests {
         let (re_ref, im_ref) = rfft(frames, 1, Some(n_fft));
 
         let tol = 1e-3;
-        assert_all_close(&to_f64(&re), &to_f64(&re_ref), tol);
-        assert_all_close(&to_f64(&im), &to_f64(&im_ref), tol);
+        assert_tensors_close(&re, &re_ref, Tolerance::absolute(tol));
+        assert_tensors_close(&im, &im_ref, Tolerance::absolute(tol));
     }
 
     #[test]
@@ -1091,7 +1111,7 @@ mod tests {
 
         let moved = conv.clone().to_device(&device);
         assert_eq!(moved.devices(), vec![device]);
-        assert_all_close(&to_f64(&moved.mel_t), &before, 0.0);
+        assert_matches_host(&moved.mel_t, &before, Tolerance::default());
         assert_eq!(moved.window.dims(), conv.window.dims());
         assert_eq!(moved.options().n_mels, conv.options().n_mels);
     }
@@ -1186,10 +1206,10 @@ mod tests {
             let framed = conv.frame(x);
 
             assert_eq!(framed.dims(), [batch, frames, opts.n_fft]);
-            assert_all_close(
-                &to_f64(&framed),
+            assert_matches_host(
+                &framed,
                 &host_frames(&rows, opts.n_fft, opts.hop, &window, frames),
-                1e-5,
+                Tolerance::absolute(1e-5),
             );
         }
     }
@@ -1214,7 +1234,7 @@ mod tests {
                 .slice_dim(0, row as isize..(row + 1) as isize);
             let alone = to_f64(&conv.frame(single));
 
-            assert_all_close(&alone, &together[row * per_row..(row + 1) * per_row], 0.0);
+            assert_close_to_vec(&alone, &together[row * per_row..(row + 1) * per_row], 1e-9);
         }
     }
 
@@ -1267,7 +1287,7 @@ mod tests {
         }
         let _ = &rows;
 
-        assert_all_close(&to_f64(&power), &expected, 1e-3);
+        assert_matches_host(&power, &expected, Tolerance::absolute(1e-3));
     }
 
     /// A windowed sine at a bin centre must concentrate there.
@@ -1338,7 +1358,7 @@ mod tests {
             }
         }
 
-        assert_all_close(&to_f64(&mels), &expected, 1e-3);
+        assert_matches_host(&mels, &expected, Tolerance::absolute(1e-3));
     }
 
     #[test]
@@ -1359,7 +1379,7 @@ mod tests {
         // Everything is equal, so the per-call clamp does nothing and the
         // result is the affine of `log10(log_floor)`.
         let expected = (opts.log_floor.log10() + 4.0) / 4.0;
-        assert_all_close(&out, &vec![expected; out.len()], 1e-5);
+        assert_close_to_vec(&out, &vec![expected; out.len()], 1e-5);
     }
 
     /// The Whisper tail, on values chosen so every step is exact.
@@ -1389,7 +1409,7 @@ mod tests {
             1.0, -1.0, 1.0, 1.0, // (0+4)/4, (-8+4)/4
             0.5, -1.5, 0.5, 0.5, // (-2+4)/4, (-10+4)/4
         ];
-        assert_all_close(&out, &expected, 1e-5);
+        assert_close_to_vec(&out, &expected, 1e-5);
 
         // A reduction across rows would have used row 0's max for row 1,
         // clipping its -10 to -8 and giving -1.0 instead of -1.5.
@@ -1416,7 +1436,7 @@ mod tests {
             TensorData::new(vec![1.0_f64, core::f64::consts::E], [1, 1, n_mels]),
             &device,
         );
-        assert_all_close(&to_f64(&conv.compress(x)), &[0.0, 1.0], 1e-5);
+        assert_matches_host(&conv.compress(x), &[0.0, 1.0], Tolerance::absolute(1e-5));
     }
 
     #[test]
@@ -1433,7 +1453,7 @@ mod tests {
         assert_eq!(out.dims(), [batch, frames, opts.n_mels]);
 
         let staged = conv.compress(conv.mel(conv.spectrum(conv.frame(x))));
-        assert_all_close(&to_f64(&out), &to_f64(&staged), 0.0);
+        assert_tensors_close(&out, &staged, Tolerance::default());
 
         assert!(to_f64(&out).iter().all(|v| v.is_finite()));
     }

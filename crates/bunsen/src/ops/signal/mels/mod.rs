@@ -4,6 +4,9 @@ mod context;
 mod converter;
 mod filterbank;
 
+#[cfg(test)]
+mod cross_test;
+
 #[doc(inline)]
 pub use context::*;
 #[doc(inline)]

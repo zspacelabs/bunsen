@@ -121,6 +121,11 @@ Things the draft assumed that this repo does differently.
   (see [Fixtures](#fixtures)).
 - **Changelog.** Handled by release-plz from Conventional Commit subjects; do not hand-edit
   `CHANGELOG.md`. Use `feat(signal): ...` subjects.
+- **Test comparison helpers — use the existing ones.** For tensors, convert and use
+  `TensorData::assert_approx_eq::<F>(&expected, Tolerance)`: it is dtype-aware and reports both
+  relative and absolute error per mismatch, which is how the true parity margin was measured.
+  For genuinely host-side `Vec` data, `crate::support::testing::assert_close_to_vec` already
+  exists. Do not hand-roll an elementwise comparator.
 
 ---
 
@@ -650,23 +655,32 @@ Note that this configuration is power-of-two, so it is the natural place to also
 
 ## Fixtures
 
-Generation script in `tools/gen_mel_fixtures.py` (the directory does not exist yet), Python
-with pinned versions in a header comment. Run once, commit the outputs to
-`crates/bunsen/testdata/mels/`. Flat little-endian `f32`.
+**Done.** `tools/gen_mel_fixtures.py`, run once against librosa 1.0.0 / numpy 2.5.2 in a
+throwaway venv; outputs committed to `crates/bunsen/testdata/mels/` as flat little-endian
+`f32`. librosa is **not** a build or test dependency — regenerating is a deliberate manual
+step, and CI never sees it.
 
 - `hann_400_periodic.f32`
 - `mel_fb_slaney_16k_400_80.f32` (librosa)
-- `mel_fb_htk_16k_400_80_nonorm.f32` (torchaudio, transposed)
+- `mel_fb_htk_16k_400_80_nonorm.f32` (librosa `htk=True, norm=None`)
 - `signal_2s_16k.f32` — deterministic: seeded noise + two chirps + 200 ms silence
 - `logmel_center_false.f32`, `logmel_center_true.f32` (librosa, power, log10 floor 1e-10)
-- `whisper_logmel.f32` — `whisper.audio.log_mel_spectrogram` on the same signal, padded to
-  30 s then sliced to the signal's frame count
 
-Size check: the two 80×201 filterbanks are 64 KB each; 2 s of audio is 128 KB; each 2 s
-log-mel is ~64 KB. Total well under 500 KB — no LFS needed (the repo has no `.gitattributes`).
+388 KB total — no LFS needed. Loaded by `fixture(name)` in `mels/cross_test.rs`.
 
-Loader: a `fixture(name) -> Vec<f32>` helper reading LE f32 with a length assertion, next to
-the tests.
+⚠️ **The 200 ms silence is load-bearing**, not decoration: it is the only part of the signal
+that reaches the log floor, and so the only part that exercises the dynamic-range clamp. A
+pure-noise fixture spans nowhere near the default 8 log-unit (80 dB) window.
+
+**Measured parity.** Filterbank agrees to `1e-8`, the window to `1e-7`, and log-mels to
+`6.2e-6` absolute worst case (`2.9e-6` relative) — bounded by librosa emitting `f32` and by
+`f32` accumulation over the 400-term DFT and 201-term mel matmul, not by anything this
+implementation could tighten. Tests run at `rel_abs(1e-4, 5e-5)`, roughly 8x headroom.
+
+**Still owed:** `whisper_logmel.f32` from `whisper.audio.log_mel_spectrogram`. torch is not
+installed here; the librosa `center=True` parity covers the same arithmetic, leaving only
+Whisper's own packaging (the `[:-1]` frame drop, the `Fixed` clamp, the affine) unpinned
+against the real thing.
 
 ---
 

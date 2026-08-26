@@ -409,18 +409,33 @@ impl<B: Backend> MelConverter<B> {
 
 #[cfg(test)]
 mod tests {
+    use burn::{
+        prelude::TensorData,
+        tensor::{
+            Tolerance,
+            backend::BackendTypes,
+        },
+    };
+
     use super::*;
     use crate::{
-        burner::module::ModuleInit,
+        burner::{
+            module::ModuleInit,
+            tensor::TensorElemOpExt,
+        },
         errors::WithOkOrPanic,
         ops::signal::mels::{
             MelConverterOptions,
             RangeClamp,
         },
-        support::testing::PerformanceBackend,
+        support::testing::{
+            PerformanceBackend,
+            assert_close_to_vec,
+        },
     };
 
     type B = PerformanceBackend;
+    type F = <B as BackendTypes>::FloatElem;
 
     /// Builds a `[batch, samples]` tensor from a row-major host buffer.
     fn from_rows<B: Backend>(
@@ -442,18 +457,29 @@ mod tests {
             .unwrap()
     }
 
-    fn assert_all_close(
-        actual: &[f64],
+    /// Compares a tensor against a row-major host buffer through `TensorData`,
+    /// so `burn` reports both relative and absolute error on mismatch rather
+    /// than a bare element index.
+    fn assert_matches_host<const D: usize>(
+        actual: &Tensor<B, D>,
         expected: &[f64],
-        tol: f64,
+        tolerance: Tolerance<F>,
     ) {
-        assert_eq!(actual.len(), expected.len(), "length mismatch");
-        for (i, (&a, &e)) in actual.iter().zip(expected).enumerate() {
-            assert!(
-                (a - e).abs() <= tol,
-                "element {i}: expected {e}, got {a} (tol {tol})",
-            );
-        }
+        let expected = TensorData::new(expected.to_vec(), actual.dims()).convert::<F>();
+        actual
+            .to_data_as::<F>()
+            .assert_approx_eq::<F>(&expected, tolerance);
+    }
+
+    /// Compares two tensors of the same shape.
+    fn assert_tensors_close<const D: usize>(
+        actual: &Tensor<B, D>,
+        expected: &Tensor<B, D>,
+        tolerance: Tolerance<F>,
+    ) {
+        actual
+            .to_data_as::<F>()
+            .assert_approx_eq::<F>(&expected.to_data_as::<F>(), tolerance);
     }
 
     /// A deterministic sample in `[-1, 1]`.
@@ -615,10 +641,10 @@ mod tests {
 
             // Same backend, same dtype, same arithmetic — but the chunks are
             // concatenated differently, so allow a small float tolerance.
-            assert_all_close(&to_f64(&joined), &to_f64(&whole_mels), 1e-4);
+            assert_tensors_close(&joined, &whole_mels, Tolerance::absolute(1e-4));
 
             let tail = ctx.finish().unwrap();
-            assert_all_close(&to_f64(&tail), &to_f64(&whole_tail), 1e-4);
+            assert_tensors_close(&tail, &whole_tail, Tolerance::absolute(1e-4));
         }
     }
 
@@ -645,7 +671,7 @@ mod tests {
                 .transform(from_rows::<B>(&host[row..row + 1], &device))
                 .unwrap();
 
-            assert_all_close(
+            assert_close_to_vec(
                 &to_f64(&alone),
                 &together[row * per_row..(row + 1) * per_row],
                 1e-4,
@@ -725,7 +751,7 @@ mod tests {
         let (a, ctx) = ctx.t_stage_mel(a);
         let (staged, _) = ctx.t_stage_compress(a);
 
-        assert_all_close(&to_f64(&staged), &to_f64(&folded), 0.0);
+        assert_tensors_close(&staged, &folded, Tolerance::default());
     }
 
     /// `t_stage_extend` in isolation: the carry contents must be exactly the
@@ -748,15 +774,19 @@ mod tests {
 
         // The first `pad` samples mirror x[1..=pad], reversed.
         let expected_prefix: Vec<f64> = (1..=pad).rev().map(|i| host[0][i]).collect();
-        assert_all_close(&ext_host[..pad], &expected_prefix, 1e-6);
+        assert_close_to_vec(&ext_host[..pad], &expected_prefix, 1e-6);
 
         // ...and the rest is the signal itself.
-        assert_all_close(&ext_host[pad..], &host[0], 1e-6);
+        assert_close_to_vec(&ext_host[pad..], &host[0], 1e-6);
 
         // The carry is everything past the last frame's start.
         let frames = conv.frame_count(ext_host.len());
         let consumed = frames * hop;
-        assert_all_close(&to_f64(ctx.carry().unwrap()), &ext_host[consumed..], 0.0);
+        assert_matches_host(
+            &ctx.carry().unwrap(),
+            &ext_host[consumed..],
+            Tolerance::default(),
+        );
     }
 
     /// `PerCall` is documented as not chunk-invariant; pin that so nobody
