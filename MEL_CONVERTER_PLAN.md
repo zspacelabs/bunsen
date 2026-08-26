@@ -576,7 +576,23 @@ Contract tests — the milestones:
   fall back to `Tolerance::permissive` and **say so in the test name**, because a tolerance
   here is a real (if small) result.
   Run this with `range_clamp = None` — `PerCall` is inherently not a homomorphism.
+
+  *Built.* Bitwise did **not** hold; the tests use `1e-4`. Concatenating chunks changes the
+  matmul shapes, so the reductions reassociate. Worth knowing before trusting an exact
+  comparison anywhere downstream.
+
+  *`PerCall` non-invariance needs a signal that earns it.* `db` is in log-units, so the
+  default 8.0 is an **80 dB** window that ordinary noise never spans — the clamp never fires
+  and both chunkings agree, which made the first version of that test fail. Half loud, half
+  digital silence separates them, and that is the realistic case: Whisper zero-pads to 30 s,
+  and the clamp exists precisely to floor that silence.
 - **Chunk-size invariance.** chunk = `hop`, `10·hop`, `100·hop` give identical output.
+- **Preprocessing is deferred, not silently dropped.** `t_stage_preproc` is the identity, and
+  `validate` **rejects** `pre_emphasis` and `remove_dc` rather than ignoring them. Two reasons
+  they do not belong in this stage as drafted: pre-emphasis needs one extra carried sample,
+  which changes the streaming carry length; and `remove_dc` is *per frame*, so it belongs
+  inside framing, not in a sample-domain stage before it. Both land in Stage 8, against
+  `torchaudio.compliance.kaldi`.
 - **Parity with librosa `center=True`.** Start = Reflect, End = Reflect, whole signal through
   chunks + `finish`, compared to `librosa.feature.melspectrogram(..., center=True)` → `log10`.
   Assert the frame count is **3001** for a 30 s input.

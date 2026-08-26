@@ -287,10 +287,18 @@ pub struct MelConverterOptions {
 
     // ---- preprocessing ----
     /// Pre-emphasis coefficient `a`, applied as `y[n] = x[n] - a·x[n-1]`.
+    ///
+    /// **Not implemented yet** — [`validate`](Self::validate) rejects it
+    /// rather than silently ignoring it. It needs one extra carried sample,
+    /// which changes the streaming carry length.
     #[config(default = "None")]
     pub pre_emphasis: Option<f64>,
 
     /// Subtract each frame's mean before windowing.
+    ///
+    /// **Not implemented yet** — [`validate`](Self::validate) rejects it. It
+    /// is per-frame, so it belongs inside framing rather than in the
+    /// sample-domain preprocessing stage.
     #[config(default = "false")]
     pub remove_dc: bool,
 
@@ -562,6 +570,22 @@ impl MelConverterOptions {
         {
             return Err(BunsenError::Invalid(
                 "MelConverter affine.div must be non-zero".to_string(),
+            ));
+        }
+
+        // Rejected rather than silently ignored. `t_stage_preproc` is the
+        // identity today; these land there with the Kaldi-flavour work, where
+        // they can be checked against `torchaudio.compliance.kaldi`.
+        // Pre-emphasis also needs one extra carried sample, which changes the
+        // streaming carry — not a change to make untested.
+        if self.pre_emphasis.is_some() {
+            return Err(BunsenError::Invalid(
+                "MelConverter pre_emphasis is not implemented yet".to_string(),
+            ));
+        }
+        if self.remove_dc {
+            return Err(BunsenError::Invalid(
+                "MelConverter remove_dc is not implemented yet".to_string(),
             ));
         }
 
