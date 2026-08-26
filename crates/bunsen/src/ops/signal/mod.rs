@@ -1,5 +1,7 @@
 //! Tensor signal operations.
 
+pub mod mels;
+
 mod cosine_window;
 mod sliding_stft;
 mod stft_window;
