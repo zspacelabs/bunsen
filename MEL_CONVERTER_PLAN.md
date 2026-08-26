@@ -81,6 +81,11 @@ Things the draft assumed that this repo does differently.
   on a shared `{Name}Meta` trait — `SlidingStftMeta`, `MelConverterMeta` — so test and reflective
   code can hold either. Keep it narrow: **only** values needed for that uniform access. Everything
   else stays on the options and is reached from the module via an `options()` accessor.
+- **Variant-specific behaviour belongs on the enum.** A `match` over an option enum that computes
+  a value or applies a transform is a method on that enum, not an inline match at the use site:
+  `FilterNorm::gain(f_lo, f_hi)`, `PaddingMode::pad_len(n_fft)`, `SpectrumKind::from_power(t)`,
+  `LogBase::apply(t)`, `RangeClamp::apply(t)`, `AffineCompress::apply(t)`. The pipeline stage then
+  reads as a sequence of named steps, and adding a variant changes one place.
   `SlidingStftConfig` now does the same — being a `Module` is what made it eligible, since
   `ModuleInit<B, M>` requires `M: Module<B>`. One call-site consequence to know before copying
   the pattern: `init`/`try_init` are trait methods with no generics of their own, so the old

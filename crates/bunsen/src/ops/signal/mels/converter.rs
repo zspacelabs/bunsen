@@ -50,6 +50,21 @@ pub enum PaddingMode {
     Reflect,
 }
 
+impl PaddingMode {
+    /// The padding this mode contributes at a stream boundary, in samples.
+    ///
+    /// `n_fft / 2` when it pads at all, matching `librosa`'s `center=True`.
+    pub fn pad_len(
+        &self,
+        n_fft: usize,
+    ) -> usize {
+        match self {
+            Self::None => 0,
+            Self::Zero | Self::Reflect => n_fft / 2,
+        }
+    }
+}
+
 /// What the spectrum stage emits per bin.
 #[derive(Config, Copy, Debug, PartialEq, Eq)]
 pub enum SpectrumKind {
@@ -58,6 +73,22 @@ pub enum SpectrumKind {
 
     /// `sqrt(re² + im²)`.
     Magnitude,
+}
+
+impl SpectrumKind {
+    /// Converts a power spectrum into this kind.
+    ///
+    /// Power is what the DFT stage produces, so [`Power`](Self::Power) is the
+    /// identity and [`Magnitude`](Self::Magnitude) takes the square root.
+    pub fn from_power<B: Backend, const D: usize>(
+        &self,
+        power: Tensor<B, D>,
+    ) -> Tensor<B, D> {
+        match self {
+            Self::Power => power,
+            Self::Magnitude => power.sqrt(),
+        }
+    }
 }
 
 /// Which spectrum implementation to use.
@@ -85,14 +116,16 @@ pub enum LogBase {
 }
 
 impl LogBase {
-    /// Applies the logarithm.
-    pub fn apply(
+    /// Applies the logarithm elementwise.
+    ///
+    /// `burn` exposes only the natural log, so base ten is `ln(x) / ln(10)`.
+    pub fn apply<B: Backend, const D: usize>(
         &self,
-        v: f64,
-    ) -> f64 {
+        x: Tensor<B, D>,
+    ) -> Tensor<B, D> {
         match self {
-            Self::Ten => v.log10(),
-            Self::E => v.ln(),
+            Self::Ten => x.log().div_scalar(core::f64::consts::LN_10),
+            Self::E => x.log(),
         }
     }
 }
@@ -124,6 +157,34 @@ pub enum RangeClamp {
     },
 }
 
+impl RangeClamp {
+    /// Applies the dynamic-range floor to already-logged values.
+    ///
+    /// Everything below `reference - db` is lifted to it, which is Whisper's
+    /// `maximum(log_spec, log_spec.max() - 8.0)`.
+    ///
+    /// # Arguments
+    /// * `x`: `[batch, frames, n_mels]` log-mels.
+    pub fn apply<B: Backend>(
+        &self,
+        x: Tensor<B, 3>,
+    ) -> Tensor<B, 3> {
+        match self {
+            // A caller-supplied reference is a plain scalar floor, and the
+            // only form that survives being chunked differently.
+            Self::Fixed { db, reference } => x.clamp_min(reference - db),
+
+            // Reduce over `[frames, n_mels]` but NOT over batch: each row is
+            // an independent stream and must not see its neighbours' peaks.
+            Self::PerCall { db } => {
+                let dims = x.dims();
+                let floor = x.clone().max_dims(&[1, 2]).sub_scalar(*db).expand(dims);
+                x.max_pair(floor)
+            }
+        }
+    }
+}
+
 /// The affine tail applied after compression: `(v + bias) / div`.
 ///
 /// Whisper uses `(log_spec + 4.0) / 4.0`.
@@ -142,6 +203,16 @@ impl Default for AffineCompress {
             bias: 4.0,
             div: 4.0,
         }
+    }
+}
+
+impl AffineCompress {
+    /// Applies `(x + bias) / div` elementwise.
+    pub fn apply<B: Backend, const D: usize>(
+        &self,
+        x: Tensor<B, D>,
+    ) -> Tensor<B, D> {
+        x.add_scalar(self.bias).div_scalar(self.div)
     }
 }
 
@@ -299,10 +370,7 @@ pub trait MelConverterMeta {
     ///
     /// Zero unless [`start_padding`](Self::start_padding) pads.
     fn start_pad_len(&self) -> usize {
-        match self.start_padding() {
-            PaddingMode::None => 0,
-            PaddingMode::Zero | PaddingMode::Reflect => self.n_fft() / 2,
-        }
+        self.start_padding().pad_len(self.n_fft())
     }
 
     /// The smallest first chunk a `Reflect` start padding can mirror.
@@ -675,6 +743,161 @@ impl<B: Backend> MelConverter<B> {
 
         framed
     }
+
+    /// Transforms windowed frames into a power or magnitude spectrum.
+    ///
+    /// Uses the precomputed DFT tables: `re = frame · dft_cos`,
+    /// `im = frame · dft_sin`, then `re² + im²` — or its square root when
+    /// [`SpectrumKind::Magnitude`] is configured.
+    ///
+    /// # Arguments
+    /// * `frames`: `[batch, frames, n_fft]` windowed frames, from
+    ///   [`frame`](Self::frame).
+    ///
+    /// # Returns
+    /// `[batch, frames, n_bins]`.
+    pub fn spectrum(
+        &self,
+        frames: Tensor<B, 3>,
+    ) -> Tensor<B, 3> {
+        #[cfg(any(test, debug_assertions))]
+        let [batch, n_frames] = crate::contracts::unpack_shape_contract!(
+            ["batch", "frames", "n_fft"],
+            &frames,
+            &["batch", "frames"],
+            &[("n_fft", self.n_fft())],
+        );
+        #[cfg(not(any(test, debug_assertions)))]
+        let [batch, n_frames] = [frames.dims()[0], frames.dims()[1]];
+
+        let (n_fft, n_bins) = (self.n_fft(), self.n_bins());
+
+        // Fold batch and frame together: one `[rows, n_fft] @ [n_fft, n_bins]`
+        // matmul beats broadcasting the tables across a batch axis.
+        let rows = batch * n_frames;
+        let flat: Tensor<B, 2> = frames.reshape([rows, n_fft]);
+
+        let re = flat.clone().matmul(self.dft_cos.clone());
+        let im = flat.matmul(self.dft_sin.clone());
+
+        // Squaring by multiply rather than `powi_scalar(2)`: same result, and
+        // it is the form the fusion pass folds into the matmul epilogue.
+        let power = re.clone().mul(re).add(im.clone().mul(im));
+
+        let out = self.options.spectrum.from_power(power);
+
+        let out: Tensor<B, 3> = out.reshape([batch, n_frames, n_bins]);
+
+        #[cfg(any(test, debug_assertions))]
+        crate::contracts::assert_shape_contract!(
+            ["batch", "frames", "n_bins"],
+            &out,
+            &[("batch", batch), ("frames", n_frames), ("n_bins", n_bins)],
+        );
+
+        out
+    }
+
+    /// Maps a spectrum onto the mel scale.
+    ///
+    /// # Arguments
+    /// * `spectrum`: `[batch, frames, n_bins]`, from
+    ///   [`spectrum`](Self::spectrum).
+    ///
+    /// # Returns
+    /// `[batch, frames, n_mels]` mel energies, before compression.
+    pub fn mel(
+        &self,
+        spectrum: Tensor<B, 3>,
+    ) -> Tensor<B, 3> {
+        #[cfg(any(test, debug_assertions))]
+        let [batch, n_frames] = crate::contracts::unpack_shape_contract!(
+            ["batch", "frames", "n_bins"],
+            &spectrum,
+            &["batch", "frames"],
+            &[("n_bins", self.n_bins())],
+        );
+        #[cfg(not(any(test, debug_assertions)))]
+        let [batch, n_frames] = [spectrum.dims()[0], spectrum.dims()[1]];
+
+        let (n_bins, n_mels) = (self.n_bins(), self.n_mels());
+
+        let rows = batch * n_frames;
+        let flat: Tensor<B, 2> = spectrum.reshape([rows, n_bins]);
+
+        // `mel_t` is stored `[n_bins, n_mels]`, so no transpose here.
+        let out = flat.matmul(self.mel_t.clone());
+        let out: Tensor<B, 3> = out.reshape([batch, n_frames, n_mels]);
+
+        #[cfg(any(test, debug_assertions))]
+        crate::contracts::assert_shape_contract!(
+            ["batch", "frames", "n_mels"],
+            &out,
+            &[("batch", batch), ("frames", n_frames), ("n_mels", n_mels)],
+        );
+
+        out
+    }
+
+    /// Compresses mel energies into log-mels.
+    ///
+    /// Floors, takes the log, applies the optional dynamic-range clamp, then
+    /// the optional affine tail. Shape is unchanged.
+    ///
+    /// The floor is applied *before* the log, so an all-zero frame yields
+    /// `log(log_floor)` rather than `-inf`.
+    ///
+    /// # Arguments
+    /// * `mels`: `[batch, frames, n_mels]` mel energies, from
+    ///   [`mel`](Self::mel).
+    pub fn compress(
+        &self,
+        mels: Tensor<B, 3>,
+    ) -> Tensor<B, 3> {
+        #[cfg(any(test, debug_assertions))]
+        crate::contracts::assert_shape_contract!(
+            ["batch", "frames", "n_mels"],
+            &mels,
+            &[("n_mels", self.n_mels())],
+        );
+
+        let opts = &self.options;
+
+        let x = mels.clamp_min(opts.log_floor);
+        let x = opts.log_base.apply(x);
+
+        let x = match opts.range_clamp {
+            None => x,
+            Some(clamp) => clamp.apply(x),
+        };
+
+        match opts.affine {
+            None => x,
+            Some(affine) => affine.apply(x),
+        }
+    }
+
+    /// Converts a whole signal to log-mels in one call.
+    ///
+    /// Chains [`frame`](Self::frame), [`spectrum`](Self::spectrum),
+    /// [`mel`](Self::mel) and [`compress`](Self::compress). Stateless and
+    /// unpadded: no start or end padding is applied, and trailing samples that
+    /// do not fill a frame are dropped. The streaming form, which owns the
+    /// padding and the carry, arrives with `MelConversionContext`.
+    ///
+    /// Note the result is `[batch, frames, n_mels]`; Whisper's audio encoder
+    /// wants `[batch, n_mels, seq]`, so transpose with `.swap_dims(1, 2)` at
+    /// that boundary. Frames stay on the middle axis here because that is the
+    /// axis streaming chunks concatenate along.
+    ///
+    /// # Arguments
+    /// * `x`: `[batch, samples]`, with `samples >= n_fft`.
+    pub fn forward(
+        &self,
+        x: Tensor<B, 2>,
+    ) -> Tensor<B, 3> {
+        self.compress(self.mel(self.spectrum(self.frame(x))))
+    }
 }
 
 impl<B: Backend> MelConverterMeta for MelConverter<B> {
@@ -969,6 +1192,226 @@ mod tests {
 
             assert_all_close(&alone, &together[row * per_row..(row + 1) * per_row], 0.0);
         }
+    }
+
+    /// Host reference: the one-sided power spectrum of one frame.
+    fn host_power(
+        frame: &[f64],
+        fft_len: usize,
+        n_bins: usize,
+    ) -> Vec<f64> {
+        (0..n_bins)
+            .map(|k| {
+                let (mut re, mut im) = (0.0_f64, 0.0_f64);
+                for (n, &x) in frame.iter().enumerate() {
+                    let theta =
+                        core::f64::consts::TAU * ((n * k) % fft_len) as f64 / fft_len as f64;
+                    re += x * theta.cos();
+                    im -= x * theta.sin();
+                }
+                re * re + im * im
+            })
+            .collect()
+    }
+
+    #[test]
+    fn test_spectrum_matches_host_dft() {
+        let device = Default::default();
+        let (n_fft, hop, n_mels) = (64, 32, 8);
+        let opts = MelConverterOptions::default()
+            .with_n_fft(n_fft)
+            .with_hop(hop)
+            .with_n_mels(n_mels);
+        let conv: MelConverter<B> = opts.try_init(&device).ok_or_panic();
+
+        let (batch, samples) = (3, 256);
+        let (x, rows) = signal(&device, batch, samples);
+
+        let framed = conv.frame(x);
+        let power = conv.spectrum(framed.clone());
+
+        let frames = conv.frame_count(samples);
+        assert_eq!(power.dims(), [batch, frames, opts.n_bins()]);
+
+        // Re-derive from the framed tensor, so this tests the spectrum stage
+        // alone rather than re-testing framing.
+        let framed_host = to_f64(&framed);
+        let mut expected = Vec::with_capacity(batch * frames * opts.n_bins());
+        for f in 0..batch * frames {
+            let frame = &framed_host[f * n_fft..(f + 1) * n_fft];
+            expected.extend(host_power(frame, opts.fft_len(), opts.n_bins()));
+        }
+        let _ = &rows;
+
+        assert_all_close(&to_f64(&power), &expected, 1e-3);
+    }
+
+    /// A windowed sine at a bin centre must concentrate there.
+    #[test]
+    fn test_spectrum_peaks_at_bin_centre() {
+        let device = Default::default();
+        let opts = MelConverterOptions::default();
+        let conv: MelConverter<B> = opts.try_init(&device).ok_or_panic();
+
+        let (n_fft, n_bins) = (opts.n_fft, opts.n_bins());
+        let k = 40; // bin 40 -> 40 * 16000 / 400 = 1600 Hz
+
+        let tone: Vec<f64> = (0..n_fft)
+            .map(|n| (core::f64::consts::TAU * k as f64 * n as f64 / n_fft as f64).sin())
+            .collect();
+        let x = Tensor::from_data(TensorData::new(tone, [1, n_fft]), &device);
+
+        let power = to_f64(&conv.spectrum(conv.frame(x)));
+        assert_eq!(power.len(), n_bins);
+
+        let peak = power[k];
+        assert!(
+            power.iter().enumerate().all(|(j, &v)| j == k || v <= peak),
+            "bin {k} is not the maximum",
+        );
+
+        // Hann leaks into the immediate neighbours, so check two bins out.
+        for j in [k - 2, k + 2] {
+            let ratio_db = 10.0 * (peak / power[j].max(f64::MIN_POSITIVE)).log10();
+            assert!(
+                ratio_db >= 20.0,
+                "bin {j} is only {ratio_db:.1} dB below the peak",
+            );
+        }
+    }
+
+    #[test]
+    fn test_mel_matches_host_matmul() {
+        let device = Default::default();
+        let (n_fft, n_mels) = (64, 8);
+        let opts = MelConverterOptions::default()
+            .with_n_fft(n_fft)
+            .with_hop(32)
+            .with_n_mels(n_mels);
+        let conv: MelConverter<B> = opts.try_init(&device).ok_or_panic();
+        let n_bins = opts.n_bins();
+
+        let (batch, samples) = (2, 192);
+        let (x, _) = signal(&device, batch, samples);
+
+        let spectrum = conv.spectrum(conv.frame(x));
+        let mels = conv.mel(spectrum.clone());
+
+        let frames = conv.frame_count(samples);
+        assert_eq!(mels.dims(), [batch, frames, n_mels]);
+
+        // `[rows, n_bins] @ [n_bins, n_mels]`, on the host.
+        let spec_host = to_f64(&spectrum);
+        let bank_t = opts.to_vec_filterbank_t().unwrap();
+        let mut expected = Vec::with_capacity(batch * frames * n_mels);
+        for r in 0..batch * frames {
+            for m in 0..n_mels {
+                let mut acc = 0.0;
+                for b in 0..n_bins {
+                    acc += spec_host[r * n_bins + b] * bank_t[b * n_mels + m];
+                }
+                expected.push(acc);
+            }
+        }
+
+        assert_all_close(&to_f64(&mels), &expected, 1e-3);
+    }
+
+    #[test]
+    fn test_compress_floors_zero_input() {
+        let device = Default::default();
+        let opts = MelConverterOptions::default();
+        let conv: MelConverter<B> = opts.try_init(&device).ok_or_panic();
+
+        let zeros: Tensor<B, 3> = Tensor::zeros([2, 4, opts.n_mels], &device);
+        let out = to_f64(&conv.compress(zeros));
+
+        // All-zero energy must land on a finite floor, not -inf or NaN.
+        assert!(
+            out.iter().all(|v| v.is_finite()),
+            "compress produced a non-finite value on all-zero input",
+        );
+
+        // Everything is equal, so the per-call clamp does nothing and the
+        // result is the affine of `log10(log_floor)`.
+        let expected = (opts.log_floor.log10() + 4.0) / 4.0;
+        assert_all_close(&out, &vec![expected; out.len()], 1e-5);
+    }
+
+    /// The Whisper tail, on values chosen so every step is exact.
+    ///
+    /// Also pins that `PerCall` reduces per batch row: row 1's floor is set by
+    /// row 1's own maximum, and a reduction across rows would clip it
+    /// differently.
+    #[test]
+    fn test_compress_per_call_clamp_is_per_row() {
+        let device = Default::default();
+        let n_mels = 4;
+        let opts = MelConverterOptions::default().with_n_mels(n_mels);
+        let conv: MelConverter<B> = opts.try_init(&device).ok_or_panic();
+
+        // log10: row 0 -> [0, -10, 0, 0]; row 1 -> [-2, -10, -2, -2].
+        let energies = vec![
+            1.0, 1e-10, 1.0, 1.0, //
+            0.01, 1e-10, 0.01, 0.01,
+        ];
+        let x = Tensor::from_data(TensorData::new(energies, [2, 1, n_mels]), &device);
+
+        let out = to_f64(&conv.compress(x));
+
+        // Row 0: max 0, floor -8, so -10 clips to -8. Affine (v + 4) / 4.
+        // Row 1: max -2, floor -10, so -10 is untouched.
+        let expected = vec![
+            1.0, -1.0, 1.0, 1.0, // (0+4)/4, (-8+4)/4
+            0.5, -1.5, 0.5, 0.5, // (-2+4)/4, (-10+4)/4
+        ];
+        assert_all_close(&out, &expected, 1e-5);
+
+        // A reduction across rows would have used row 0's max for row 1,
+        // clipping its -10 to -8 and giving -1.0 instead of -1.5.
+        assert!(
+            (out[5] - (-1.5)).abs() < 1e-5,
+            "row 1 was clamped against another row's maximum",
+        );
+    }
+
+    #[test]
+    fn test_compress_honours_log_base_and_disabled_stages() {
+        let device = Default::default();
+        let n_mels = 2;
+
+        // Natural log, no clamp, no affine: just `ln(max(v, floor))`.
+        let opts = MelConverterOptions::default()
+            .with_n_mels(n_mels)
+            .with_log_base(LogBase::E)
+            .with_range_clamp(None)
+            .with_affine(None);
+        let conv: MelConverter<B> = opts.try_init(&device).ok_or_panic();
+
+        let x = Tensor::from_data(
+            TensorData::new(vec![1.0_f64, core::f64::consts::E], [1, 1, n_mels]),
+            &device,
+        );
+        assert_all_close(&to_f64(&conv.compress(x)), &[0.0, 1.0], 1e-5);
+    }
+
+    #[test]
+    fn test_forward_chains_the_stages() {
+        let device = Default::default();
+        let opts = MelConverterOptions::default();
+        let conv: MelConverter<B> = opts.try_init(&device).ok_or_panic();
+
+        let (batch, samples) = (2, 4000);
+        let (x, _) = signal(&device, batch, samples);
+
+        let out = conv.forward(x.clone());
+        let frames = conv.frame_count(samples);
+        assert_eq!(out.dims(), [batch, frames, opts.n_mels]);
+
+        let staged = conv.compress(conv.mel(conv.spectrum(conv.frame(x))));
+        assert_all_close(&to_f64(&out), &to_f64(&staged), 0.0);
+
+        assert!(to_f64(&out).iter().all(|v| v.is_finite()));
     }
 
     #[test]

@@ -106,6 +106,23 @@ pub enum FilterNorm {
     None,
 }
 
+impl FilterNorm {
+    /// The scale factor for a triangle spanning `[f_lo, f_hi]` Hz.
+    ///
+    /// Slaney scales by enclosed area, `2 / (f_hi - f_lo)`, so wide
+    /// high-frequency triangles do not outweigh narrow low-frequency ones.
+    pub fn gain(
+        &self,
+        f_lo: f64,
+        f_hi: f64,
+    ) -> f64 {
+        match self {
+            Self::Slaney => 2.0 / (f_hi - f_lo),
+            Self::None => 1.0,
+        }
+    }
+}
+
 /// Builds the `n_points` mel-spaced frequencies spanning `[f_min, f_max]`.
 ///
 /// The points are evenly spaced *in mels* and returned in Hz, so the first is
@@ -209,12 +226,7 @@ pub fn mel_filterbank(
     for i in 0..n_mels {
         let (f_lo, f_ct, f_hi) = (points[i], points[i + 1], points[i + 2]);
 
-        // Slaney scales by enclosed area so wide high-frequency triangles do
-        // not outweigh narrow low-frequency ones.
-        let gain = match norm {
-            FilterNorm::Slaney => 2.0 / (f_hi - f_lo),
-            FilterNorm::None => 1.0,
-        };
+        let gain = norm.gain(f_lo, f_hi);
 
         let row = &mut bank[i * n_bins..(i + 1) * n_bins];
         for (slot, &hz) in row.iter_mut().zip(&bin_hz) {
