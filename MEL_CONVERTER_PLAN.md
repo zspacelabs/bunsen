@@ -401,10 +401,23 @@ pub struct MelConverter<B: Backend> {
     #[module(skip)] options: MelConverterOptions,
     window: Tensor<B, 1>,                    // `[n_fft]`
     mel_t:  Tensor<B, 2>,                    // `[n_bins, n_mels]`, stored transposed
-    dft_cos: Option<Tensor<B, 2>>,           // `[n_fft, n_bins]`, DftMatmul only
-    dft_sin: Option<Tensor<B, 2>>,           // `[n_fft, n_bins]`, DftMatmul only
+    dft_cos: Tensor<B, 2>,                   // `[n_fft, n_bins]`
+    dft_sin: Tensor<B, 2>,                   // `[n_fft, n_bins]`
 }
 ```
+
+**Two refinements from building it.**
+
+*The DFT tables are not `Option`.* The draft made them optional against a future
+`SpectrumImpl::Stft`, but with a one-variant enum they are statically always `Some` — an
+`Option` that cannot be `None` is a lie in the type, and it costs an `unwrap` at every use.
+Wrap them when a second variant actually lands.
+
+*The tables have `n_fft` rows, not `fft_len`.* When `pad_to_pow2` widens the transform the
+frame is conceptually zero-padded out to `fft_len` — and zeros contribute nothing to
+`X[k] = Σ x[n]·e^(-2πikn/fft_len)`. So folding the wider angle into `n_fft` rows gives exactly
+the padded transform with no padding materialized, and `t_stage_frame` never has to widen a
+frame. The tables are `[n_fft, n_bins]` with angle `2πnk/fft_len`; only the bin axis grows.
 
 Bare `Tensor` fields, no `Param` — see [Module policy](#module-policy) for why, and for the
 `visit`/`map` caveat that must go in this type's rustdoc. `Option<T: Module>` is itself a
@@ -423,8 +436,15 @@ the numpy/`rfft` convention the rest of `ops::signal` documents.
 Memory at the default geometry: 400 × 201 × 4 B × 2 ≈ 643 KB. Fine.
 
 Tests: shapes; `window` matches Stage 2; `mel_t` matches Stage 2 transposed; `clone` works;
-`dft_*` are `None` unless `DftMatmul`; **`to_device` actually moves every tensor field** —
-assert on `collect_devices()` rather than eyeballing it, so an added-but-unmoved field fails.
+**`to_device` actually moves every tensor field** — assert on `collect_devices()` rather than
+eyeballing it, so an added-but-unmoved field fails.
+
+**Validate the tables against `burn`'s `rfft`.** The sign and layout conventions are easy to
+get backwards and nothing downstream will tell you. `rfft` only accepts a power-of-two `n_fft`,
+so build a converter at `n_fft = 512` and assert `frames @ dft_cos == re` and
+`frames @ dft_sin == im`; the default 400 geometry inherits the convention. This is Stage 5's
+test #1 pulled forward to where the tables are actually built, and it is the cheapest possible
+check that `dft_sin` carries the forward transform's negative sign.
 
 ---
 

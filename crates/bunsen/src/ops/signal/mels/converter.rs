@@ -10,9 +10,13 @@
 //! affine tail.
 
 use burn::{
+    Tensor,
     config::Config,
     module::Module,
-    prelude::Backend,
+    prelude::{
+        Backend,
+        TensorData,
+    },
 };
 
 use crate::{
@@ -22,6 +26,7 @@ use crate::{
         BunsenResult,
     },
     ops::signal::{
+        SamplingWindowBuilder,
         StftWindowConfig,
         mels::filterbank::{
             FilterNorm,
@@ -369,6 +374,68 @@ impl MelConverterOptions {
         )
     }
 
+    /// Builds the host-side mel filterbank **transposed**, row-major
+    /// `[n_bins, n_mels]`.
+    ///
+    /// This is the orientation [`MelConverter`] stores, so a
+    /// `[.., n_bins]` spectrum maps to `[.., n_mels]` by a plain matmul with
+    /// no transpose in the hot path.
+    ///
+    /// # Errors
+    ///
+    /// See [`to_vec_filterbank`](Self::to_vec_filterbank).
+    pub fn to_vec_filterbank_t(&self) -> BunsenResult<Vec<f64>> {
+        let bank = self.to_vec_filterbank()?;
+        let (n_mels, n_bins) = (self.n_mels, self.n_bins());
+
+        let mut transposed = vec![0.0_f64; bank.len()];
+        for i in 0..n_mels {
+            for j in 0..n_bins {
+                transposed[j * n_mels + i] = bank[i * n_bins + j];
+            }
+        }
+        Ok(transposed)
+    }
+
+    /// Builds the host-side real-DFT tables, each row-major `[n_fft, n_bins]`.
+    ///
+    /// Returns `(cos, sin)` for the standard forward transform
+    /// `X[k] = Σ x[n]·e^(-2πikn/fft_len)`, so the sine table carries the
+    /// negative sign and `frame · cos` / `frame · sin` give `(re, im)`
+    /// directly. This is the `numpy.fft.rfft` convention, matching the rest of
+    /// [`ops::signal`](crate::ops::signal).
+    ///
+    /// Note the tables are `n_fft` rows, not `fft_len`: when `pad_to_pow2`
+    /// widens the transform, the frame is conceptually zero-padded out to
+    /// `fft_len`, and zeros contribute nothing to the sum. Folding the wider
+    /// angle into `n_fft` rows gives the same spectrum without materializing
+    /// the padding.
+    ///
+    /// Built in `f64` regardless of the tensor dtype — see the reduction note
+    /// in the body.
+    pub fn to_vec_dft_tables(&self) -> (Vec<f64>, Vec<f64>) {
+        let (n_fft, n_bins, fft_len) = (self.n_fft, self.n_bins(), self.fft_len());
+        let step = core::f64::consts::TAU / fft_len as f64;
+
+        let mut cos_table = vec![0.0_f64; n_fft * n_bins];
+        let mut sin_table = vec![0.0_f64; n_fft * n_bins];
+
+        for n in 0..n_fft {
+            for k in 0..n_bins {
+                // Reduce `n * k` before scaling. The product reaches ~80_000
+                // at the default geometry, and `(n * k) * step` there has
+                // already lost the low bits that `((n * k) % fft_len) * step`
+                // keeps exact.
+                let theta = ((n * k) % fft_len) as f64 * step;
+
+                cos_table[n * n_bins + k] = theta.cos();
+                sin_table[n * n_bins + k] = -theta.sin();
+            }
+        }
+
+        (cos_table, sin_table)
+    }
+
     /// Validates the scalar geometry.
     ///
     /// Does **not** build the filterbank, so it cannot see an empty mel
@@ -443,18 +510,32 @@ impl<B: Backend> ModuleInit<B, MelConverter<B>> for MelConverterOptions {
     /// [`to_vec_filterbank`](MelConverterOptions::to_vec_filterbank).
     fn try_init(
         &self,
-        _device: &B::Device,
+        device: &B::Device,
     ) -> BunsenResult<MelConverter<B>> {
         self.validate()?;
 
-        // Built for its validation side effect: an empty mel triangle is a
-        // configuration error and must surface here, not as a silently dead
-        // output channel at forward time. Stage 3 keeps the result.
-        let _bank = self.to_vec_filterbank()?;
+        let (n_fft, n_bins, n_mels) = (self.n_fft, self.n_bins(), self.n_mels);
+
+        // An empty mel triangle is a configuration error, and
+        // `to_vec_filterbank_t` is where it surfaces — at init, not as a
+        // silently dead output channel at forward time.
+        let mel_t = Tensor::from_data(
+            TensorData::new(self.to_vec_filterbank_t()?, [n_bins, n_mels]),
+            device,
+        );
+
+        let window = self.window.to_tensor_window(n_fft, device);
+
+        let (cos_table, sin_table) = self.to_vec_dft_tables();
+        let dft_cos = Tensor::from_data(TensorData::new(cos_table, [n_fft, n_bins]), device);
+        let dft_sin = Tensor::from_data(TensorData::new(sin_table, [n_fft, n_bins]), device);
 
         Ok(MelConverter {
             options: self.clone(),
-            _phantom: std::marker::PhantomData,
+            window,
+            mel_t,
+            dft_cos,
+            dft_sin,
         })
     }
 }
@@ -477,7 +558,23 @@ pub struct MelConverter<B: Backend> {
     #[module(skip)]
     options: MelConverterOptions,
 
-    _phantom: std::marker::PhantomData<B>,
+    /// The `[n_fft]` analysis window.
+    ///
+    /// Applied when framing, **not** folded into the DFT tables, so every
+    /// spectrum implementation sees the same windowed frames.
+    pub window: Tensor<B, 1>,
+
+    /// The `[n_bins, n_mels]` mel filterbank, stored transposed.
+    ///
+    /// A `[.., n_bins]` spectrum becomes `[.., n_mels]` by a plain matmul.
+    pub mel_t: Tensor<B, 2>,
+
+    /// The `[n_fft, n_bins]` real-DFT cosine table.
+    pub dft_cos: Tensor<B, 2>,
+
+    /// The `[n_fft, n_bins]` real-DFT sine table, carrying the forward
+    /// transform's negative sign.
+    pub dft_sin: Tensor<B, 2>,
 }
 
 impl<B: Backend> MelConverter<B> {
@@ -527,6 +624,140 @@ mod tests {
         errors::WithOkOrPanic,
         support::testing::PerformanceBackend,
     };
+
+    type B = PerformanceBackend;
+
+    /// Reads a rank-1 or rank-2 tensor back as `f64` in row-major order.
+    fn to_f64<const D: usize>(t: &Tensor<B, D>) -> Vec<f64> {
+        t.clone()
+            .cast(burn::tensor::DType::F64)
+            .to_data()
+            .to_vec()
+            .unwrap()
+    }
+
+    /// Asserts every element matches, to an absolute tolerance.
+    fn assert_all_close(
+        actual: &[f64],
+        expected: &[f64],
+        tol: f64,
+    ) {
+        assert_eq!(actual.len(), expected.len(), "length mismatch");
+        for (i, (&a, &e)) in actual.iter().zip(expected).enumerate() {
+            assert!(
+                (a - e).abs() <= tol,
+                "element {i}: expected {e}, got {a} (tol {tol})",
+            );
+        }
+    }
+
+    #[test]
+    fn test_converter_tensor_shapes() {
+        let device = Default::default();
+        let opts = MelConverterOptions::default();
+        let conv: MelConverter<B> = opts.try_init(&device).ok_or_panic();
+
+        assert_eq!(conv.window.dims(), [400]);
+        assert_eq!(conv.mel_t.dims(), [201, 80]);
+        assert_eq!(conv.dft_cos.dims(), [400, 201]);
+        assert_eq!(conv.dft_sin.dims(), [400, 201]);
+
+        // `pad_to_pow2` widens the transform, so the bin axis grows — but the
+        // DFT tables keep `n_fft` rows, because the padding is zeros that
+        // contribute nothing to the sum.
+        let pow2: MelConverter<B> = MelConverterOptions::default()
+            .with_pad_to_pow2(true)
+            .try_init(&device)
+            .ok_or_panic();
+
+        assert_eq!(pow2.window.dims(), [400]);
+        assert_eq!(pow2.mel_t.dims(), [257, 80]);
+        assert_eq!(pow2.dft_cos.dims(), [400, 257]);
+    }
+
+    #[test]
+    fn test_converter_tensors_match_host_reference() {
+        let device = Default::default();
+        let opts = MelConverterOptions::default();
+        let conv: MelConverter<B> = opts.try_init(&device).ok_or_panic();
+
+        // The window is the same one `StftWindowConfig` builds on the host.
+        assert_all_close(
+            &to_f64(&conv.window),
+            &opts.window.to_vec_window(opts.n_fft),
+            1e-6,
+        );
+
+        // `mel_t` is the Stage-2 bank, transposed.
+        assert_all_close(
+            &to_f64(&conv.mel_t),
+            &opts.to_vec_filterbank_t().unwrap(),
+            1e-6,
+        );
+
+        let (cos_table, sin_table) = opts.to_vec_dft_tables();
+        assert_all_close(&to_f64(&conv.dft_cos), &cos_table, 1e-6);
+        assert_all_close(&to_f64(&conv.dft_sin), &sin_table, 1e-6);
+    }
+
+    /// The DFT tables carry a sign and a layout convention that is easy to get
+    /// backwards. Check them against `burn`'s own `rfft`.
+    ///
+    /// This can only run at a power-of-two `n_fft` — `rfft` rejects anything
+    /// else, which is the whole reason `DftMatmul` exists — so it validates the
+    /// convention at 512 and the default 400 geometry inherits it.
+    #[test]
+    fn test_dft_tables_match_rfft() {
+        use burn::tensor::{
+            Distribution,
+            signal::rfft,
+        };
+
+        let device = Default::default();
+        let (n_fft, n_bins, batch) = (512, 257, 3);
+
+        let opts = MelConverterOptions::default()
+            .with_n_fft(n_fft)
+            .with_hop(128);
+        let conv: MelConverter<B> = opts.try_init(&device).ok_or_panic();
+        assert_eq!(conv.dft_cos.dims(), [n_fft, n_bins]);
+
+        let frames: Tensor<B, 2> = Tensor::random([batch, n_fft], Distribution::Default, &device);
+
+        // `X[k] = Σ x[n]·e^(-2πikn/N)`, so the tables give `(re, im)` directly.
+        let re = frames.clone().matmul(conv.dft_cos.clone());
+        let im = frames.clone().matmul(conv.dft_sin.clone());
+
+        let (re_ref, im_ref) = rfft(frames, 1, Some(n_fft));
+
+        let tol = 1e-3;
+        assert_all_close(&to_f64(&re), &to_f64(&re_ref), tol);
+        assert_all_close(&to_f64(&im), &to_f64(&im_ref), tol);
+    }
+
+    #[test]
+    fn test_to_device_moves_every_tensor() {
+        use burn::module::Module as _;
+
+        let device = Default::default();
+        let conv: MelConverter<B> = MelConverterOptions::default()
+            .try_init(&device)
+            .ok_or_panic();
+
+        let before = to_f64(&conv.mel_t);
+
+        // One device here, so this pins traversal rather than a real move: a
+        // dropped derive or a stray `#[module(skip)]` on a tensor field drops
+        // the entry.
+        assert_eq!(conv.devices(), vec![device.clone()]);
+        assert_eq!(conv.num_params(), 0);
+
+        let moved = conv.clone().to_device(&device);
+        assert_eq!(moved.devices(), vec![device]);
+        assert_all_close(&to_f64(&moved.mel_t), &before, 0.0);
+        assert_eq!(moved.window.dims(), conv.window.dims());
+        assert_eq!(moved.options().n_mels, conv.options().n_mels);
+    }
 
     #[test]
     fn test_defaults_are_whisper() {
