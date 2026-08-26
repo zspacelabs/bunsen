@@ -50,6 +50,33 @@ pub enum StreamPhase {
 ///
 /// Like [`MelConverter`], this is a `Module` over bare tensors — the carry
 /// rides `to_device` but is neither recorded nor visited.
+///
+/// # Producing Whisper input
+///
+/// Whisper's `log_mel_spectrogram` clamps against the maximum of the *whole*
+/// clip. [`RangeClamp::PerCall`](crate::ops::signal::mels::RangeClamp::PerCall)
+/// reduces over one call's frames, so a streamed run would clamp each chunk
+/// against its own maximum and match nothing. Stream with the clamp and the
+/// affine **off**, then apply them once to the joined result:
+///
+/// ```text
+/// let conv = options.with_range_clamp(None).with_affine(None).init(&device);
+///
+/// let (mels, ctx) = conv.new_context(1).transform(waveform)?;
+/// let joined = Tensor::cat(vec![mels, ctx.finish().unwrap()], 1);
+///
+/// // Whisper slices `stft[..., :-1]`.
+/// let cut = joined.slice_dim(1, 0..joined.dims()[1] as isize - 1);
+///
+/// let out = AffineCompress::default()
+///     .apply(RangeClamp::PerCall { db: 8.0 }.apply(cut));
+///
+/// // ...and the encoder wants `[batch, n_mels, seq]`.
+/// let out = out.swap_dims(1, 2);
+/// ```
+///
+/// This is exactly what `cross_test` checks against the real
+/// `whisper.audio.log_mel_spectrogram`.
 #[derive(Module, Debug)]
 pub struct MelConversionContext<B: Backend> {
     /// The analysis constants; shared, never mutated.

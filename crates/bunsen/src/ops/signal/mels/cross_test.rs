@@ -33,12 +33,14 @@ use crate::{
     ops::signal::{
         SamplingWindowBuilder,
         mels::{
+            AffineCompress,
             FilterNorm,
             MelConverter,
             MelConverterMeta,
             MelConverterOptions,
             MelScale,
             PaddingMode,
+            RangeClamp,
         },
     },
     support::testing::{
@@ -185,6 +187,51 @@ fn test_streaming_logmel_matches_librosa_center_true() {
     assert_eq!(joined.dims(), [1, 201, conv.n_mels()]);
 
     assert_matches_fixture(&joined, "logmel_center_true.f32", logmel_tolerance());
+}
+
+/// Parity with `whisper.audio.log_mel_spectrogram`, the packaged form.
+///
+/// Whisper is `librosa`'s `center=True` spectrogram plus a tail of its own:
+/// drop the final frame (`stft[..., :-1]`), floor 8 log-units below the
+/// maximum, then `(x + 4) / 4`.
+///
+/// **The tail must be applied once, after the stream is joined** — not inside
+/// each call. [`RangeClamp::PerCall`] reduces over one call's frames, so a
+/// streamed run would clamp `transform`'s 199 frames and `finish`'s 2 against
+/// separate maxima and match nothing. So the stream runs with the clamp and
+/// affine off, and the packaging is applied to the joined, sliced result.
+/// That is the recipe for Whisper input, and it exercises
+/// [`RangeClamp::apply`] and [`AffineCompress::apply`] against the reference.
+#[test]
+fn test_whisper_logmel_matches_reference() {
+    let device = Default::default();
+    let conv: MelConverter<B> = parity_options().try_init(&device).ok_or_panic();
+
+    let (x, _) = signal_tensor(&device);
+
+    let (mels, ctx) = conv.new_context(1).transform(x).unwrap();
+    let tail = ctx.finish().unwrap();
+    let joined: Tensor<B, 3> = Tensor::cat(vec![mels, tail], 1);
+    assert_eq!(joined.dims(), [1, 201, conv.n_mels()]);
+
+    // Whisper's `stft[..., :-1]`.
+    let cut = joined.clone().slice_dim(1, 0..200);
+
+    // Whisper takes its clamp reference *after* that drop. It only matches a
+    // reduction over all 201 frames while the maximum does not live in the
+    // dropped frame — true here (it is in frame 30), but assert it so the
+    // test cannot quietly start comparing the wrong thing.
+    let max_all = joined.max().into_scalar() as f64;
+    let max_cut = cut.clone().max().into_scalar() as f64;
+    assert!(
+        (max_all - max_cut).abs() < 1e-6,
+        "the dropped frame holds the maximum ({max_all} vs {max_cut}); \
+         Whisper's clamp reference is taken after the drop",
+    );
+
+    let packaged = AffineCompress::default().apply(RangeClamp::PerCall { db: 8.0 }.apply(cut));
+
+    assert_matches_fixture(&packaged, "whisper_logmel.f32", logmel_tolerance());
 }
 
 /// The same parity, reached by feeding the signal in uneven pieces.

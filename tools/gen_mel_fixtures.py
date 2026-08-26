@@ -5,10 +5,15 @@ Run once; commit the outputs. Regenerating is not part of CI.
 
     python3 -m venv /tmp/melvenv
     /tmp/melvenv/bin/pip install librosa
+    /tmp/melvenv/bin/pip install --index-url https://download.pytorch.org/whl/cpu torch
+    /tmp/melvenv/bin/pip install openai-whisper
     /tmp/melvenv/bin/python tools/gen_mel_fixtures.py
 
 Pinned versions used to produce the committed fixtures:
-    librosa 1.0.0, numpy 2.5.2
+    librosa 1.0.0, numpy 2.5.2, torch 2.13.0+cpu, openai-whisper 20250625
+
+CPU torch is deliberate: the fixture only has to be correct, and a CPU run is
+deterministic and a far smaller download than the CUDA wheels.
 
 All outputs are flat little-endian f32, row-major.
 """
@@ -71,6 +76,28 @@ def main():
         )
         # `[n_mels, frames]` -> `[frames, n_mels]`, matching the converter.
         write(name, np.log10(np.maximum(S, 1e-10)).T)
+
+    write_whisper(y)
+
+
+def write_whisper(y):
+    """`whisper.audio.log_mel_spectrogram`, the packaged form.
+
+    This is librosa's `center=True` spectrogram plus Whisper's own tail: drop
+    the final frame, floor 8 log-units below the maximum, then `(x + 4) / 4`.
+    Its filterbank is the same `librosa.filters.mel` call, shipped as an npz.
+    """
+    try:
+        import torch
+        import whisper.audio as wa
+    except ImportError as e:
+        print(f"skipping whisper_logmel.f32: {e}")
+        return
+
+    out = wa.log_mel_spectrogram(torch.from_numpy(y.astype(np.float32)), n_mels=N_MELS)
+
+    # `[n_mels, frames]` -> `[frames, n_mels]`.
+    write("whisper_logmel.f32", out.numpy().T)
 
 
 if __name__ == "__main__":

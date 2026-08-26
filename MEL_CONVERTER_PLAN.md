@@ -677,10 +677,26 @@ pure-noise fixture spans nowhere near the default 8 log-unit (80 dB) window.
 `f32` accumulation over the 400-term DFT and 201-term mel matmul, not by anything this
 implementation could tighten. Tests run at `rel_abs(1e-4, 5e-5)`, roughly 8x headroom.
 
-**Still owed:** `whisper_logmel.f32` from `whisper.audio.log_mel_spectrogram`. torch is not
-installed here; the librosa `center=True` parity covers the same arithmetic, leaving only
-Whisper's own packaging (the `[:-1]` frame drop, the `Fixed` clamp, the affine) unpinned
-against the real thing.
+**Whisper parity: done.** `whisper_logmel.f32` comes from the real
+`whisper.audio.log_mel_spectrogram` (openai-whisper 20250625, CPU torch 2.13.0). Reading the
+source settled the packaging precisely: `torch.hann_window(400)` is periodic, `torch.stft`
+defaults to `center=True` with reflect padding, `stft[..., :-1]` drops the **last** frame, and
+the tail is `max(log, log.max() - 8)` then `(log + 4) / 4`. Its filterbank is the same
+`librosa.filters.mel` call, shipped as an npz.
+
+torch and openai-whisper are used **only** by the manual `tools/` generator, behind a guarded
+import so the script still runs without them. The committed golden is standalone `f32` data —
+neither is a build or test dependency.
+
+⚠️ **The clamp must be applied once, after the stream is joined.** `PerCall` reduces over one
+call's frames, so a streamed run would clamp `transform`'s 199 and `finish`'s 2 against
+separate maxima and match nothing. Stream with `range_clamp` and `affine` off, join, drop the
+last frame, then apply `RangeClamp::apply` and `AffineCompress::apply` once. That recipe is
+documented on `MelConversionContext` and is what the test does.
+
+One invariant the test asserts rather than assumes: Whisper takes its clamp reference *after*
+the `[:-1]` drop, so a reduction over all 201 frames only agrees while the maximum does not
+live in the dropped frame. It is in frame 30 for this fixture.
 
 ---
 
