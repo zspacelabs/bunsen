@@ -34,11 +34,13 @@ use burn::{
 };
 
 use crate::{
-    burner::tensor::TensorOpExt,
+    burner::{
+        module::ModuleInit,
+        tensor::TensorOpExt,
+    },
     errors::{
         BunsenError,
         BunsenResult,
-        WithOkOrPanic,
     },
     ops::signal::{
         SamplingWindowBuilder,
@@ -137,13 +139,15 @@ impl SlidingStftConfig {
         }
         Ok(())
     }
+}
 
+impl<B: Backend> ModuleInit<B, SlidingStft<B>> for SlidingStftConfig {
     /// Initializes a [`SlidingStft`] on `device`.
     ///
     /// # Errors
     ///
-    /// See [`validate`](Self::validate).
-    pub fn try_init<B: Backend>(
+    /// See [`validate`](SlidingStftConfig::validate).
+    fn try_init(
         &self,
         device: &B::Device,
     ) -> BunsenResult<SlidingStft<B>> {
@@ -169,26 +173,35 @@ impl SlidingStftConfig {
             window,
         })
     }
-
-    /// Initializes a [`SlidingStft`] on `device`, panicking on error.
-    pub fn init<B: Backend>(
-        &self,
-        device: &B::Device,
-    ) -> SlidingStft<B> {
-        self.try_init(device).ok_or_panic()
-    }
 }
 
 /// Fixed sliding-window STFT analysis coefficients.
 ///
 /// Holds the analysis window and geometry; stateless, so one instance can be
-/// shared by (or cheaply cloned into) any number of streams. This is
-/// deliberately **not** a burn `Module`: nothing here is a learnable
-/// parameter.
+/// shared by (or cheaply cloned into) any number of streams.
 ///
 /// Built by [`SlidingStftConfig`]. Implements [`SlidingStftMeta`].
 /// Streaming states are built by [`init_state`](Self::init_state).
-#[derive(Debug, Clone)]
+///
+/// # Module semantics
+///
+/// This is a burn `Module` over **bare tensors, never `Param`s**. Nothing here
+/// is learnable; `Module` is the traversal-and-device-mapping trait, not the
+/// learnability marker. Deriving it is what makes `to_device` and `fork` reach
+/// the window, and what lets an enclosing `Module` propagate a device move
+/// without hand-written plumbing.
+///
+/// Two consequences of the bare-tensor choice:
+///
+/// * The window is **not recorded**. `Module::Record` is `EmptyRecord` and
+///   `num_params` is 0; the coefficients are derived from [`SlidingStftConfig`]
+///   and rebuilt by [`try_init`](SlidingStftConfig::try_init), never loaded
+///   from a checkpoint.
+/// * `Module::visit` and `Module::map` **skip the window**. `ModuleVisitor`
+///   only exposes hooks for `Param`-wrapped tensors, so a `ModuleMapper` pass
+///   (dtype casting, quantization) will silently leave the window at its
+///   original dtype, and it does not appear in the reflection module tree.
+#[derive(Module, Debug)]
 pub struct SlidingStft<B: Backend> {
     hop_size: usize,
     win_len: usize,
@@ -262,6 +275,16 @@ impl<B: Backend> SlidingStft<B> {
     ///
     /// Uses [`stft`], which does not yet support autodiff.
     ///
+    /// # Hop alignment on `CubeCL` backends
+    ///
+    /// ⚠️ Prefer `samples ≡ win_len (mod hop_size)` — i.e. a whole number of
+    /// hops past the first window. Both in-crate callers
+    /// ([`SlidingStftContext::forward`] and
+    /// [`forward_sequence`](SlidingStftContext::forward_sequence)) satisfy this
+    /// by construction; a ragged `samples` does not, and on burn 0.21 that is
+    /// not merely wasteful but **wrong** for `batch > 1`. See the comment at
+    /// the padding below.
+    ///
     /// # Arguments
     /// * `signal`: `[batch, samples]`, with `samples >= win_len`.
     ///
@@ -288,6 +311,36 @@ impl<B: Backend> SlidingStft<B> {
 
         // Right-pad so the final window fills a whole `fft_size` stft
         // frame; the padding only ever lands under the zeroed window tail.
+        //
+        // ── burn 0.21 `unfold` hazard ──────────────────────────────────────
+        // `stft` frames this signal with `signal.unfold(1, fft_size,
+        // hop_size)`, and on burn 0.21 that op is broken on `CubeCL` backends
+        // (wgpu / cuda / metal); `Flex` is correct. It truncates the unfolded
+        // view's outer stride to the vectorization line width `v` — the
+        // largest power of two dividing both `fft_size` and `hop_size` —
+        // using `(len / v) * v` in place of `len`. Every batch row after the
+        // first is then read `len % v` elements early. Row 0 is always
+        // correct, so a `batch == 1` test cannot see it.
+        //
+        // It fires when `fft_size` and `hop_size` are both even AND the
+        // uncovered tail is not a multiple of `v`. Here that tail works out to
+        //
+        //     tail = (samples - win_len) % hop_size
+        //
+        // because the `pad` below is exactly `fft_size - win_len`, which
+        // cancels against the `fft_size` window in the frame-coverage
+        // arithmetic. So hop-aligned input gives `tail == 0` and is safe on
+        // every geometry, which is why `forward` / `forward_sequence` are
+        // unaffected. At the default geometry (`fft_size` 1024, `hop_size`
+        // 256, `v` 256) a ragged `samples` is corrupt for `batch > 1`:
+        // `samples = win_len + 8` gives `tail == 8`.
+        //
+        // Fixed upstream: burn 0.22.0-dev is correct. On the next burn bump,
+        // delete this comment and the alignment note in the rustdoc. Until
+        // then, the defense is the caller's hop alignment, not a slice here —
+        // slicing to `(frames - 1) * hop_size + fft_size` would force
+        // `tail == 0` unconditionally if this ever needs to be airtight.
+        // ──────────────────────────────────────────────────────────────────
         let pad = self.fft_size() - self.win_len();
         let signal = if pad > 0 {
             signal.pad([(0, pad)], PadMode::Constant(0.0))
@@ -323,7 +376,11 @@ impl<B: Backend> SlidingStft<B> {
 /// cover partially zero-padded windows.
 ///
 /// Built by [`SlidingStft::init_state`]. Implements [`SlidingStftMeta`].
-#[derive(Debug, Clone)]
+///
+/// Like [`SlidingStft`], this is a `Module` over bare tensors — see that type's
+/// *Module semantics*. The queue moves with `to_device`, and is neither
+/// recorded nor visited.
+#[derive(Module, Debug)]
 pub struct SlidingStftContext<B: Backend> {
     /// The fixed analysis coefficients.
     pub coef: SlidingStft<B>,
@@ -560,6 +617,61 @@ mod tests {
             .assert_eq(&Tensor::<B, 2>::zeros([3, 48], &device).to_data(), true);
     }
 
+    /// The `Module` derive is what carries the tensors across devices; assert
+    /// the traversal reaches every field.
+    ///
+    /// A single-device test environment can't exercise a real cross-device
+    /// move, but `devices()` still catches the regressions that matter: a
+    /// dropped derive, a stray `#[module(skip)]`, or a nested field that stops
+    /// being traversed.
+    #[test]
+    fn test_module_semantics() {
+        let device = Default::default();
+        let cfg = SlidingStftConfig::new()
+            .with_win_len(48)
+            .with_hop_size(16)
+            .with_fft_size(64);
+
+        let coef: SlidingStft<B> = cfg.init(&device);
+        let ctx = coef.clone().init_state(2);
+
+        // Traversal reaches the window, and the queue through the nested
+        // `coef`. `collect_devices` dedupes, so one device means one entry.
+        assert_eq!(coef.devices(), vec![device]);
+        assert_eq!(ctx.devices(), vec![device]);
+
+        // Bare tensors, not `Param`s: nothing here is learnable.
+        assert_eq!(coef.num_params(), 0);
+        assert_eq!(ctx.num_params(), 0);
+
+        let window_before = coef.window.to_data_as::<F>();
+        let queue_before = ctx.queue.to_data_as::<F>();
+
+        // `to_device` moves every field, preserving values and geometry.
+        let moved = coef.clone().to_device(&device);
+        assert_eq!(moved.devices(), vec![device]);
+        moved
+            .window
+            .to_data_as::<F>()
+            .assert_eq(&window_before, true);
+        assert_eq!(moved.win_len(), coef.win_len());
+        assert_eq!(moved.hop_size(), coef.hop_size());
+        assert_eq!(moved.fft_size(), coef.fft_size());
+
+        let moved_ctx = ctx.clone().to_device(&device);
+        assert_eq!(moved_ctx.devices(), vec![device]);
+        moved_ctx
+            .queue
+            .to_data_as::<F>()
+            .assert_eq(&queue_before, true);
+        moved_ctx
+            .coef
+            .window
+            .to_data_as::<F>()
+            .assert_eq(&window_before, true);
+        assert_eq!(moved_ctx.batch_size(), ctx.batch_size());
+    }
+
     #[test]
     #[should_panic(expected = "batch_size must be non-zero")]
     fn test_init_state_rejects_zero_batch() {
@@ -634,7 +746,8 @@ mod tests {
         let batch = 2;
         let n_bins = cfg.n_bins();
 
-        let mut stft = cfg.init::<B>(&device).init_state(batch);
+        let coef: SlidingStft<B> = cfg.init(&device);
+        let mut stft = coef.init_state(batch);
         let mut hosts: Vec<HostStft> = (0..batch).map(|_| HostStft::new(&cfg)).collect();
 
         // The first pushes cover the zero-padded warmup; the later ones a
@@ -689,7 +802,8 @@ mod tests {
                 &device,
             );
 
-            let mut seq_stft = cfg.init::<B>(&device).init_state(batch);
+            let coef: SlidingStft<B> = cfg.init(&device);
+            let mut seq_stft = coef.init_state(batch);
             let mut step_stft = seq_stft.clone();
 
             let seq_out = seq_stft.forward_sequence(hops.clone());
@@ -721,7 +835,8 @@ mod tests {
             .with_hop_size(16)
             .with_fft_size(64);
 
-        let mut stft = cfg.init::<B>(&device).init_state(1);
+        let coef: SlidingStft<B> = cfg.init(&device);
+        let mut stft = coef.init_state(1);
         let hop = Tensor::random([1, 16], Distribution::Default, &device);
         stft.forward(hop);
 
