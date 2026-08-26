@@ -63,6 +63,8 @@ pub fn load_audio_mono_sr(
 
 #[cfg(test)]
 mod tests {
+    use super::*;
+
     #[test]
     fn test_load_audio_mono_sr() {
         let wav_path = concat!(env!("CARGO_MANIFEST_DIR"), "/testdata/silero/test.wav");
