@@ -73,6 +73,14 @@ Things the draft assumed that this repo does differently.
 - **Init lifecycle.** `MelConverterOptions` already implements
   `ModuleInit<B, MelConverter<B>>` (`try_init` + a provided `init` that panics via
   `ok_or_panic`). Keep that; do not hand-roll a second `init`.
+- **File layout.** A `Config` lives in the **same file as the `Module` it builds** —
+  `SlidingStftConfig` beside `SlidingStft`, `MelConverterOptions` beside `MelConverter`. Only
+  genuinely separate concerns get their own file (`filterbank.rs` is the mel scale and triangle
+  construction, which stands alone and has no `Module`).
+- **The `{Name}Meta` trait.** Geometry that both a `Config` and a live `Module` must answer goes
+  on a shared `{Name}Meta` trait — `SlidingStftMeta`, `MelConverterMeta` — so test and reflective
+  code can hold either. Keep it narrow: **only** values needed for that uniform access. Everything
+  else stays on the options and is reached from the module via an `options()` accessor.
   `SlidingStftConfig` now does the same — being a `Module` is what made it eligible, since
   `ModuleInit<B, M>` requires `M: Module<B>`. One call-site consequence to know before copying
   the pattern: `init`/`try_init` are trait methods with no generics of their own, so the old
