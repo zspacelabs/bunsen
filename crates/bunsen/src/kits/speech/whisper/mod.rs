@@ -5,6 +5,7 @@
 //! [w]: https://github.com/openai/whisper
 
 pub mod blocks;
+pub mod decode;
 pub mod pretrained;
 
 #[doc(inline)]
@@ -14,3 +15,5 @@ pub use blocks::{
     WhisperMeta,
     WhisperStructuralConfig,
 };
+#[doc(inline)]
+pub use decode::*;

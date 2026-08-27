@@ -12,7 +12,10 @@ use bunsen::{
         DTypeMapper,
         ModuleInit,
     },
-    kits::speech::whisper::pretrained::PytorchWhisperScanner,
+    kits::speech::whisper::{
+        decode::GreedyDecodeConfig,
+        pretrained::PytorchWhisperScanner,
+    },
     ops::signal::mels::{
         AffineCompress,
         MelConverter,
@@ -75,6 +78,10 @@ pub struct Args {
     /// 10 ms hops.
     #[arg(long, default_value = "1000")]
     pub chunk_ms: usize,
+
+    /// Cap on generated tokens per 30 s window.
+    #[arg(long, default_value = "32")]
+    pub max_tokens: usize,
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -206,8 +213,19 @@ fn run<B: Backend>(
     println!("streamed in {chunk}-sample chunks");
     summarize("log-mels", &mels);
 
-    let encoded = model.forward_encoder(mels);
+    let encoded = model.forward_encoder(mels.clone());
     summarize("encoder ", &encoded);
+
+    // `<|startoftranscript|> <|notimestamps|>` for the English-only models;
+    // stop on `<|endoftext|>`. These ids come from Whisper's tokenizer, which
+    // bunsen does not own, so they are supplied here.
+    let decode =
+        GreedyDecodeConfig::new(vec![50257, 50362], 50256).with_max_tokens(args.max_tokens);
+
+    for (i, tokens) in model.decode_chunked(mels, &decode).into_iter().enumerate() {
+        println!("window {i}: {} tokens", tokens.len());
+        println!("  {tokens:?}");
+    }
 
     Ok(())
 }
