@@ -81,7 +81,7 @@ pub struct MlpConfig {
     ///
     /// Set this when loading a checkpoint whose `Linear` weights are stored as
     /// column-major views — every `OpenAI` Whisper checkpoint is. See
-    /// [`crate::burner::module::repair_pytorch_strided_weight`].
+    /// [`repair_pytorch_strided_weight`].
     #[config(default = "false")]
     pub repair_strided_weights: bool,
 }
