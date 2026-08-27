@@ -23,8 +23,9 @@ use burn::{
 /// See [`repro::pytorch_strided_weights`](crate::burner::repro::pytorch_strided_weights)
 /// for the defect. In short: `PyTorch` may store a `[R, C]` tensor as a
 /// column-major view (strides `(1, R)`), and `PytorchStore` reads the raw
-/// storage as if it were row-major. Every `Linear` weight in an `OpenAI`
-/// Whisper checkpoint is stored that way.
+/// storage as if it were row-major. A checkpoint holds a view like this
+/// wherever the saved tensor was produced by transposing another rather than
+/// by copying it.
 ///
 /// The corruption is invertible. Reading storage that actually holds `Wᵀ` as
 /// `[R, C]` yields `S = reshape(flat(Wᵀ), [R, C])`, and the adapter then

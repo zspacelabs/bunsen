@@ -42,6 +42,8 @@
 //!   Headlined by the `GroupOptimizerAdaptor{N}` family and the
 //!   `OptimizerGroup` / `LrSelector` building blocks.
 //! - [`record`] &mdash; helpers for working with `burn::record` types.
+//! - [`store`] &mdash; helpers for what crosses a store boundary, such as
+//!   parameter load/save mappers.
 //! - [`tensor`] &mdash; tensor helpers that don't fit neatly in [`crate::ops`]:
 //!   `Tensor` extension traits and `TensorData` index views.
 //! - [`distribution`] &mdash; distribution-related utilities.
@@ -77,6 +79,7 @@ pub mod distribution;
 pub mod module;
 pub mod record;
 pub mod repro;
+pub mod store;
 
 #[cfg(feature = "train")]
 pub mod optim;

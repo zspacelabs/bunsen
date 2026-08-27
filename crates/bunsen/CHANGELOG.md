@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- *(burner)* move `repair_pytorch_strided_weight` from `burner::module` to a new
+  `burner::store` module, which collects helpers for what crosses a module-store
+  boundary.
+
 ## [0.30.1](https://github.com/zspacelabs/bunsen/compare/bunsen-v0.30.0...bunsen-v0.30.1) - 2026-07-24
 
 ### Fixed

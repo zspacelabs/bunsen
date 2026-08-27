@@ -67,7 +67,7 @@ use burn_store::{
     PytorchStore,
 };
 
-use crate::burner::module::repair_pytorch_strided_weight;
+use crate::burner::store::repair_pytorch_strided_weight;
 
 /// The fixture's logical weight is `[8, 3]` with `w[o][i] == i.o`, stored as a
 /// column-major view. A row-major `Linear(3, 8)` wants its transpose.

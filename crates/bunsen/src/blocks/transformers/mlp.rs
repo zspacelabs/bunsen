@@ -19,9 +19,9 @@ use burn::{
 };
 
 use crate::{
-    burner::module::{
-        ModuleInit,
-        repair_pytorch_strided_weight,
+    burner::{
+        module::ModuleInit,
+        store::repair_pytorch_strided_weight,
     },
     errors::BunsenResult,
 };
