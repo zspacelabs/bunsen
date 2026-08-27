@@ -558,7 +558,10 @@ impl MelConverterOptions {
                 "MelConverter f_max ({f_max}) must be <= Nyquist ({nyquist})",
             )));
         }
-        if !(self.f_min < f_max) {
+        // Written out rather than `f_min >= f_max` so a NaN edge is rejected
+        // too: `NaN >= x` is false, which would let it through to produce NaN
+        // mel points.
+        if self.f_min.is_nan() || f_max.is_nan() || self.f_min >= f_max {
             return Err(BunsenError::Invalid(format!(
                 "MelConverter f_min ({}) must be < f_max ({f_max})",
                 self.f_min,
