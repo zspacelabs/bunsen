@@ -230,25 +230,24 @@ public API" and can be "lifted out and taken upstream unchanged". Neither is
 true of any module there — this one imports both the crate's workaround and
 its test helpers.
 
-### [L-3] Whisper rationale inside `multihead_utils`
+### [L-3] Whisper rationale inside `multihead_utils` — RESOLVED
 
-`crates/bunsen/src/blocks/transformers/attention/multihead_utils.rs`:
-- `:88` — "Whisper's decoder attends 4 tokens over 1500 audio frames"
-- `:142` — "Whisper's decoder attends a handful of tokens over 1500 audio
-  frames"
+Two sites, treated differently because they were doing different jobs.
 
-The *code* change here is correct and generic (cross-attention must not
-require `q_len == kv_len`). Only the justification is caller-specific, and it
-is duplicated across two doc comments.
+`layer_norm_cross_attn`'s rustdoc lost "Whisper's decoder attends 4 tokens over
+1500 audio frames" outright. It illustrated a sentence that had already made
+the point (`cross_len` is independent of `seq_len`), so there was nothing to
+generalize — the example was pure redundancy plus coupling.
 
-Options:
-1. **State the contract, not the motivation.** "Cross-attention relates a query
-   sequence to a distinct key/value sequence; `q_len` and `kv_len` are
-   independent." One sentence, no model.
-2. **Generalize the example.** "e.g. a short text sequence attending a long
-   encoded audio or image sequence" — keeps the intuition, loses the coupling.
-3. **Keep one instance, drop the duplicate.** If the concrete shape genuinely
-   aids comprehension, it belongs on the module doc once, not on two functions.
+The regression test's doc kept its rationale, restated: "a contract that bound
+both to one `seq_len` would pass every same-length unit test and still be
+wrong, which is why this one uses deliberately mismatched lengths." Same move
+as `[N-4]`'s — keep the constraint, drop the incident. It now explains the
+`seq_len = 3, cross_len = 17` choice to a reader who never saw the bug.
+
+Checked while here: `layer_norm_cross_attn_kv` in `kv_attention.rs` carries no
+such prose, so there was no third copy. `blocks/` is now free of model names
+apart from `[L-6]`.
 
 ### [L-4] `# Producing Whisper input` recipe in `mels/context.rs`
 
@@ -469,7 +468,7 @@ Options:
 
 1. ~~`[U-1]` test-helper consolidation~~ — **done**.
 2. ~~`[L-1]` `repair_strided_weights`~~ — **done**.
-3. ~~`[L-2]`~~ — **done** (with `[N-4]`). `[L-3]`, `[L-4]` doc de-coupling remain.
+3. ~~`[L-2]`~~ — **done** (with `[N-4]`). ~~`[L-3]`~~ — **done**. `[L-4]` remains.
 4. `[N-1]` plan-file disposition — unblocks `[N-2]` and the three citations.
 5. `[N-3]`, `[N-5]` timeless-rewrite passes.
 6. `[U-2]` KV-cache convergence — needs a design call, not a cleanup.
