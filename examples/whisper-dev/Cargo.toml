@@ -15,7 +15,7 @@ workspace = true
 default = ["flex"]
 cuda = ["burn/cuda", "bunsen/cuda"]
 metal = ["burn/metal", "bunsen/metal"]
-wgpu = ["burn/wgpu", "bunsen/metal"]
+wgpu = ["burn/wgpu", "bunsen/wgpu"]
 flex = ["burn/flex", "bunsen/flex"]
 
 
@@ -26,4 +26,3 @@ burn-store = { workspace = true, features = ["pytorch"] }
 bunsen = { path = "../../crates/bunsen" }
 
 clap = { workspace = true, features = ["derive"] }
-

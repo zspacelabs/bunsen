@@ -1,0 +1,47 @@
+[package]
+name = "whisper-onnx-crosscheck"
+description = "Cross-checks bunsen's Whisper against a pretrained ONNX reference. Fetches its own assets; hosts none."
+publish = false
+
+authors.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+version.workspace = true
+repository.workspace = true
+license.workspace = true
+
+[lints]
+workspace = true
+
+[features]
+default = []
+
+## Fetch the reference assets and generate the ONNX model at build time.
+##
+## **Off by default.** Enabling this makes `build.rs` reach the network on a
+## cold cache, which a plain `cargo build --workspace` must never do. Fetched
+## assets are cached under `.cache/` and verified against a pinned SHA-256, so
+## a warm build is offline and reproducible.
+download = []
+
+## Run the cross-check on `wgpu`. The usual choice.
+wgpu = ["burn/wgpu", "bunsen/wgpu"]
+
+## Run the cross-check on CUDA.
+cuda = ["burn/cuda", "bunsen/cuda"]
+
+## Run the cross-check on Metal.
+metal = ["burn/metal", "bunsen/metal"]
+
+[dependencies]
+burn = { workspace = true, features = ["store"] }
+# The generated model refers to `burn_store` by name.
+burn-store = { workspace = true }
+# Supplies `PerformanceBackend`, so the backend selection matches the rest of
+# the workspace rather than being invented here.
+bunsen = { path = "../../crates/bunsen" }
+
+[build-dependencies]
+burn-onnx = { workspace = true }
+sha2 = "0.10"
+ureq = "3"

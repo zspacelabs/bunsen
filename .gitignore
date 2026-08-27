@@ -27,3 +27,5 @@ target
 # Exclude various agents.
 .junie/
 .claude/
+# Assets fetched by dev crates (see dev_crates/whisper-onnx-crosscheck)
+**/.cache/

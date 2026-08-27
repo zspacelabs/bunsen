@@ -32,6 +32,7 @@
       <sourceFolder url="file://$MODULE_DIR$/crates/bunsen-arrow-dataloaders/examples" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/crates/bunsen-arrow-dataloaders/examples/dl-test/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/crates/bunsen-arrow-dataloaders/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/dev_crates/whisper-onnx-crosscheck/src" isTestSource="false" />
       <excludeFolder url="file://$MODULE_DIR$/crates/bunsen/target" />
       <excludeFolder url="file://$MODULE_DIR$/target" />
       <excludeFolder url="file://$MODULE_DIR$/demos/bimm/crates/bimm/target" />
