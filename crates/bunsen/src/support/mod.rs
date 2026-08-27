@@ -5,7 +5,7 @@ pub mod arrays;
 pub mod math;
 pub mod validators;
 
-#[cfg(feature = "testing")]
+#[cfg(any(test, feature = "testing"))]
 pub mod testing;
 
 #[cfg(feature = "audio")]

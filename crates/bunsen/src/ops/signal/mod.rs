@@ -2,6 +2,9 @@
 
 pub mod mels;
 
+#[cfg(any(test, feature = "testing"))]
+pub mod testing;
+
 mod cosine_window;
 mod sliding_stft;
 mod stft_window;

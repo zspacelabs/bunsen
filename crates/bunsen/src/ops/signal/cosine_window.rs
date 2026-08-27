@@ -234,7 +234,7 @@ mod tests {
 
     use super::*;
     use crate::{
-        ops::signal::testing::assert_builder_impls_match,
+        ops::signal::testing::assert_sampling_window_builder_implementation,
         prelude::*,
         support::testing::CpuBackend,
     };
@@ -263,7 +263,7 @@ mod tests {
             );
 
         info!("cross-checking vec/tensor impls");
-        assert_builder_impls_match::<B>(&cfg, expected, options.clone());
+        assert_sampling_window_builder_implementation::<B>(&cfg, expected, options.clone());
     }
 
     #[test]
@@ -323,7 +323,7 @@ mod tests {
             );
 
         info!("cross-checking vec/tensor impls");
-        assert_builder_impls_match::<B>(&cfg, expected, options.clone());
+        assert_sampling_window_builder_implementation::<B>(&cfg, expected, options.clone());
     }
 
     #[test]
