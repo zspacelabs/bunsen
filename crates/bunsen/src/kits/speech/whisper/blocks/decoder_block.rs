@@ -7,7 +7,6 @@ use burn::{
         LayerNormConfig,
         activation::ActivationConfig,
         attention::{
-            MhaCache,
             MultiHeadAttention,
             MultiHeadAttentionConfig,
         },
@@ -22,10 +21,12 @@ use super::WHISPER_DEFAULT_D_MODEL;
 use crate::{
     blocks::transformers::{
         attention::{
+            AttnKv,
             layer_norm_cross_attn,
-            layer_norm_cross_attn_cached,
+            layer_norm_cross_attn_kv,
             layer_norm_self_attn,
-            layer_norm_self_attn_cached,
+            layer_norm_self_attn_kv,
+            project_kv,
         },
         mlp::{
             Mlp,
@@ -235,54 +236,54 @@ impl<B: Backend> ResidualDecoderAttentionBlock<B> {
         }
     }
 
-    /// Forward pass against an incremental decode cache.
+    /// Forward pass against a key/value cache.
     ///
-    /// The cache-aware twin of [`forward`](Self::forward): feeding a sequence
-    /// one step at a time through this yields the same outputs as feeding it
-    /// whole through `forward`.
+    /// Unlike [`forward`](Self::forward), `x` is only the **new** token(s):
+    /// the cache holds the projected keys and values for everything before,
+    /// so this projects and scores only what is new.
     ///
-    /// The cross-attention cache is the interesting half. `xa` is fixed for
-    /// the whole decode, so its keys and values are projected once on the
-    /// first call and reused for every step after.
+    /// Cross-attention does no work beyond the query — `cross_kv` is built
+    /// once per decode from the encoder output, which over 1500 encoder frames
+    /// is the bulk of what caching saves.
     ///
     /// # Arguments
-    /// * `x` : `[batch, seq_new, d_model]` input — the new step(s) only.
-    /// * `xa` : `[batch, cross_len, d_model]` cross-attention input. Must be
-    ///   the same tensor on every call.
-    /// * `mask` : `[batch, seq_new, seq_past + seq_new]` attention mask.
-    /// * `self_cache` : from [`MhaCache::autoregressive`].
-    /// * `cross_cache` : from [`MhaCache::autoregressive_cross_attention`].
+    /// * `x` : `[batch, seq_new, d_model]` — the new step(s) only.
+    /// * `mask` : optional `[batch, seq_new, seq_past + seq_new]`. A single new
+    ///   token needs none: it may attend to all of its history.
+    /// * `self_kv` : grown in place; `None` at the start of a stream.
+    /// * `cross_kv` : from [`build_cross_kv`](Self::build_cross_kv), reused
+    ///   every step.
     ///
     /// # Returns
-    /// `DecodeRecord` covering the new step(s) only.
-    pub fn forward_cached(
+    /// `[batch, seq_new, d_model]`.
+    pub fn forward_kv(
         &self,
         x: Tensor<B, 3>,
-        xa: Tensor<B, 3>,
         mask: Option<Tensor<B, 3, Bool>>,
-        self_cache: &mut MhaCache<B>,
-        cross_cache: &mut MhaCache<B>,
-    ) -> DecodeRecord<B> {
-        let self_attn =
-            layer_norm_self_attn_cached(&self.attn_ln, &self.attn, x.clone(), mask, self_cache);
-        let x = x + self_attn.context;
+        self_kv: &mut Option<AttnKv<B>>,
+        cross_kv: &AttnKv<B>,
+    ) -> Tensor<B, 3> {
+        let x = x.clone() + layer_norm_self_attn_kv(&self.attn_ln, &self.attn, x, mask, self_kv);
 
-        let cross_attn = layer_norm_cross_attn_cached(
-            &self.cross_attn_ln,
-            &self.cross_attn,
-            x.clone(),
-            xa,
-            cross_cache,
-        );
-        let x = x + cross_attn.context;
+        let x = x.clone()
+            + layer_norm_cross_attn_kv(&self.cross_attn_ln, &self.cross_attn, x, cross_kv);
 
         let mlp = layer_norm_mlp(&self.mlp_ln, &self.mlp, x.clone());
-        let x = x + mlp;
+        x + mlp
+    }
 
-        DecodeRecord {
-            output: x,
-            ca_weights: cross_attn.weights,
-        }
+    /// Projects the encoder output into this block's cross-attention cache.
+    ///
+    /// Call once per decode; the result is valid for every step against the
+    /// same `xa`.
+    ///
+    /// # Arguments
+    /// * `xa` : `[batch, cross_len, d_model]` encoder output.
+    pub fn build_cross_kv(
+        &self,
+        xa: Tensor<B, 3>,
+    ) -> AttnKv<B> {
+        project_kv(&self.cross_attn, xa)
     }
 }
 
