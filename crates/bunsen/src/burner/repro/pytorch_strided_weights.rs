@@ -177,8 +177,7 @@ mod tests {
     /// Pins the **current** behaviour, so a `burn-store` fix announces itself
     /// here instead of silently making the workaround a double transpose.
     ///
-    /// If this fails, delete the workaround: see
-    /// [`repair_pytorch_strided_weight`] and its callers in the Whisper kit.
+    /// The failure message says what to remove.
     #[test]
     fn test_strided_source_is_currently_corrupt() {
         let device = Default::default();
@@ -212,7 +211,8 @@ mod tests {
 
     /// The corruption degenerates to a transpose when the weight is square,
     /// which is why a square-only model looks merely mis-oriented rather than
-    /// damaged. Documented here because it is the reason this went unnoticed.
+    /// damaged — and why the repair cannot be applied blindly: on a weight
+    /// that did not need it, it is a silent transpose.
     #[test]
     fn test_square_case_degenerates_to_a_transpose() {
         // `reshape(flat(Wᵀ), [n, n])` is `Wᵀ`, so `T = Sᵀ = W`: a pure

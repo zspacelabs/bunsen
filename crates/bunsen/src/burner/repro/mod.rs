@@ -1,8 +1,11 @@
 //! # Reproductions of defects in `burn` and its ecosystem.
 //!
 //! A home for backend-generic harnesses that pin bugs living outside this
-//! crate. Each is written to be lifted out and taken upstream unchanged, so
-//! they use only public API.
+//! crate. Each is written so that the behaviour under test rests only on
+//! public API, keeping the reproduction portable: taking one upstream should
+//! mean swapping this crate's test helpers, not rewriting the test. A module
+//! may also pin this crate's own workaround for the defect, which is not
+//! portable and does not travel with it.
 //!
 //! Each module documents one defect, and carries two kinds of test:
 //!
