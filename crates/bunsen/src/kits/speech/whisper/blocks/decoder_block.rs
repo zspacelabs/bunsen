@@ -5,6 +5,7 @@ use burn::{
     nn::{
         LayerNorm,
         LayerNormConfig,
+        activation::ActivationConfig,
         attention::{
             MultiHeadAttention,
             MultiHeadAttentionConfig,
@@ -31,7 +32,7 @@ use crate::{
     },
     burner::module::{
         ModuleInit,
-        transpose_on_load,
+        repair_pytorch_strided_weight,
     },
     errors::BunsenResult,
 };
@@ -96,16 +97,14 @@ impl<B: Backend> ModuleInit<B, ResidualDecoderAttentionBlock<B>>
         attn.key.bias = None;
         cross_attn.key.bias = None;
 
-        // Nor does MHA let us configure the weight layout, and the PyTorch
-        // checkpoint stores these projections as `[d_output, d_input]`. They
-        // are square, so a wrong orientation loads silently. Attach the
-        // transpose to the parameters instead, the way `LinearLayout::Col`
-        // would have.
+        // Every `Linear` weight in an OpenAI Whisper checkpoint is stored as
+        // a column-major view, which `burn-store` misreads — see
+        // `repro::pytorch_strided_weights`. Repair it on the parameter.
         for mha in [&mut attn, &mut cross_attn] {
-            mha.query.weight = transpose_on_load(mha.query.weight.clone());
-            mha.key.weight = transpose_on_load(mha.key.weight.clone());
-            mha.value.weight = transpose_on_load(mha.value.weight.clone());
-            mha.output.weight = transpose_on_load(mha.output.weight.clone());
+            mha.query.weight = repair_pytorch_strided_weight(mha.query.weight.clone());
+            mha.key.weight = repair_pytorch_strided_weight(mha.key.weight.clone());
+            mha.value.weight = repair_pytorch_strided_weight(mha.value.weight.clone());
+            mha.output.weight = repair_pytorch_strided_weight(mha.output.weight.clone());
         }
 
         Ok(ResidualDecoderAttentionBlock {
@@ -119,7 +118,11 @@ impl<B: Backend> ModuleInit<B, ResidualDecoderAttentionBlock<B>>
             // transposes the incoming `[d_output, d_input]` weight, so `Col`
             // would transpose a second time.
             mlp: MlpConfig::new(self.d_model)
+                // Whisper's MLP is `Linear -> GELU -> Linear`; the `MlpConfig`
+                // default is ReLU.
+                .with_activation(ActivationConfig::Gelu)
                 .with_bias(true)
+                .with_repair_strided_weights(true)
                 .try_init(device)?,
         })
     }

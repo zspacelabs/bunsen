@@ -5,6 +5,7 @@ use burn::{
     nn::{
         LayerNorm,
         LayerNormConfig,
+        activation::ActivationConfig,
         attention::{
             MultiHeadAttention,
             MultiHeadAttentionConfig,
@@ -25,7 +26,7 @@ use crate::{
     },
     burner::module::{
         ModuleInit,
-        transpose_on_load,
+        repair_pytorch_strided_weight,
     },
 };
 
@@ -87,15 +88,13 @@ impl<B: Backend> ModuleInit<B, ResidualEncoderAttentionBlock<B>>
         let mut attn = mha_cfg.init(device);
         attn.key.bias = None;
 
-        // Nor does MHA let us configure the weight layout, and the PyTorch
-        // checkpoint stores these projections as `[d_output, d_input]`. They
-        // are square, so a wrong orientation loads silently. Attach the
-        // transpose to the parameters instead, the way
-        // `LinearLayout::Col` would have.
-        attn.query.weight = transpose_on_load(attn.query.weight);
-        attn.key.weight = transpose_on_load(attn.key.weight);
-        attn.value.weight = transpose_on_load(attn.value.weight);
-        attn.output.weight = transpose_on_load(attn.output.weight);
+        // Every `Linear` weight in an OpenAI Whisper checkpoint is stored as
+        // a column-major view, which `burn-store` misreads — see
+        // `repro::pytorch_strided_weights`. Repair it on the parameter.
+        attn.query.weight = repair_pytorch_strided_weight(attn.query.weight);
+        attn.key.weight = repair_pytorch_strided_weight(attn.key.weight);
+        attn.value.weight = repair_pytorch_strided_weight(attn.value.weight);
+        attn.output.weight = repair_pytorch_strided_weight(attn.output.weight);
 
         Ok(ResidualEncoderAttentionBlock {
             attn_ln: ln_cfg.init(device),
@@ -106,7 +105,11 @@ impl<B: Backend> ModuleInit<B, ResidualEncoderAttentionBlock<B>>
             // transposes the incoming `[d_output, d_input]` weight, so `Col`
             // would transpose a second time.
             mlp: MlpConfig::new(self.d_model)
+                // Whisper's MLP is `Linear -> GELU -> Linear`; the `MlpConfig`
+                // default is ReLU.
+                .with_activation(ActivationConfig::Gelu)
                 .with_bias(true)
+                .with_repair_strided_weights(true)
                 .try_init(device)?,
         })
     }

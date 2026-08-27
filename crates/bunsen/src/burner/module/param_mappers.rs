@@ -18,44 +18,50 @@ use burn::{
     prelude::Backend,
 };
 
-/// Attaches transposing load and save mappers to a 2-D parameter.
+/// Repairs a 2-D weight mangled by `burn-store`'s stride-blind `PyTorch` read.
 ///
-/// Use this when a checkpoint stores a weight in the opposite orientation to
-/// the one the module computes with, and the module was not built with
-/// [`LinearLayout::Col`](burn::nn::LinearLayout::Col) — typically because the
-/// enclosing module builds its own [`Linear`](burn::nn::Linear) layers and
-/// offers no way to configure them. `burn`'s
-/// [`MultiHeadAttention`](burn::nn::attention::MultiHeadAttention) is the
-/// motivating case.
+/// See [`repro::pytorch_strided_weights`](crate::burner::repro::pytorch_strided_weights)
+/// for the defect. In short: `PyTorch` may store a `[R, C]` tensor as a
+/// column-major view (strides `(1, R)`), and `PytorchStore` reads the raw
+/// storage as if it were row-major. Every `Linear` weight in an `OpenAI`
+/// Whisper checkpoint is stored that way.
 ///
-/// The parameter's own value and shape are untouched, so the module keeps
-/// computing in its native orientation; only the external form is transposed.
+/// The corruption is invertible. Reading storage that actually holds `Wᵀ` as
+/// `[R, C]` yields `S = reshape(flat(Wᵀ), [R, C])`, and the adapter then
+/// transposes it to `T = Sᵀ`. Since `flat(Sᵀᵀ) = flat(S) = flat(Wᵀ)`,
+/// transposing back and reshaping to the parameter's own shape recovers `Wᵀ`,
+/// which is what a row-major [`Linear`](burn::nn::Linear) wants.
 ///
-/// # Shape
+/// For a square weight the reshape is a no-op and this degenerates to a plain
+/// transpose — which is why square projections appear merely "untransposed"
+/// while non-square ones come out scrambled.
 ///
-/// The transpose swaps both axes, so a non-square parameter changes shape when
-/// crossing the store boundary. That is the point — but it means the store's
-/// tensor must be the transpose of the parameter, not merely the same size.
+/// The parameter's value and shape are untouched; only what crosses the store
+/// boundary is repaired.
 ///
 /// # Example
 ///
 /// ```rust,ignore
 /// let mut attn = mha_config.init(device);
-/// attn.query.weight = transpose_on_load(attn.query.weight);
+/// attn.query.weight = repair_pytorch_strided_weight(attn.query.weight);
 /// ```
-pub fn transpose_on_load<B: Backend>(param: Param<Tensor<B, 2>>) -> Param<Tensor<B, 2>> {
+pub fn repair_pytorch_strided_weight<B: Backend>(
+    param: Param<Tensor<B, 2>>
+) -> Param<Tensor<B, 2>> {
     param
-        // Coming from the store: transpose into the compute orientation.
+        // Coming from the store: undo the mangling.
         .load_mapper(|tensor: Tensor<B, 2>| {
             B::sync(&tensor.device()).unwrap();
-            let tensor = tensor.transpose();
+            let dims = tensor.dims();
+            let tensor = tensor.transpose().reshape(dims);
             B::sync(&tensor.device()).unwrap();
             tensor
         })
-        // Going back out: restore the store's orientation.
+        // Going back out: re-apply it, so a round trip is the identity.
         .save_mapper(|tensor: Tensor<B, 2>| {
             B::sync(&tensor.device()).unwrap();
-            let tensor = tensor.transpose();
+            let [rows, cols] = tensor.dims();
+            let tensor = tensor.reshape([cols, rows]).transpose();
             B::sync(&tensor.device()).unwrap();
             tensor
         })
@@ -84,13 +90,13 @@ mod tests {
     /// The mapper must leave the live parameter alone — it only changes what
     /// crosses the store boundary.
     #[test]
-    fn test_transpose_on_load_preserves_the_live_value() {
+    fn test_repair_preserves_the_live_value() {
         let device = Default::default();
 
         let linear = LinearConfig::new(3, 5).with_bias(false).init::<B>(&device);
         let before = linear.weight.val();
 
-        let mapped = transpose_on_load(linear.weight);
+        let mapped = repair_pytorch_strided_weight(linear.weight);
 
         assert_eq!(mapped.val().dims(), [3, 5]);
         mapped
