@@ -196,7 +196,7 @@ pub fn mel_filterbank(
             "MelFilterbank n_mels must be non-zero".to_string(),
         ));
     }
-    if !(f_min < f_max) {
+    if f_min >= f_max {
         return Err(BunsenError::Invalid(format!(
             "MelFilterbank f_min ({f_min}) must be < f_max ({f_max})",
         )));
@@ -211,7 +211,7 @@ pub fn mel_filterbank(
     let points = mel_points(n_mels + 2, f_min, f_max, scale);
 
     for w in points.windows(2) {
-        if !(w[0] < w[1]) {
+        if w[0] >= w[1] {
             return Err(BunsenError::Invalid(format!(
                 "MelFilterbank mel points are not strictly increasing \
                  ({} then {}); n_mels ({n_mels}) is too large for the \
