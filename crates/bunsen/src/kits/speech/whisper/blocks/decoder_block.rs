@@ -29,7 +29,10 @@ use crate::{
             layer_norm_mlp,
         },
     },
-    burner::module::ModuleInit,
+    burner::module::{
+        ModuleInit,
+        transpose_on_load,
+    },
     errors::BunsenResult,
 };
 
@@ -92,6 +95,18 @@ impl<B: Backend> ModuleInit<B, ResidualDecoderAttentionBlock<B>>
         let mut cross_attn = mha_cfg.init(device);
         attn.key.bias = None;
         cross_attn.key.bias = None;
+
+        // Nor does MHA let us configure the weight layout, and the PyTorch
+        // checkpoint stores these projections as `[d_output, d_input]`. They
+        // are square, so a wrong orientation loads silently. Attach the
+        // transpose to the parameters instead, the way `LinearLayout::Col`
+        // would have.
+        for mha in [&mut attn, &mut cross_attn] {
+            mha.query.weight = transpose_on_load(mha.query.weight.clone());
+            mha.key.weight = transpose_on_load(mha.key.weight.clone());
+            mha.value.weight = transpose_on_load(mha.value.weight.clone());
+            mha.output.weight = transpose_on_load(mha.output.weight.clone());
+        }
 
         Ok(ResidualDecoderAttentionBlock {
             attn_ln: ln_cfg.init(device),

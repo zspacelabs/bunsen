@@ -23,7 +23,10 @@ use crate::{
             layer_norm_mlp,
         },
     },
-    burner::module::ModuleInit,
+    burner::module::{
+        ModuleInit,
+        transpose_on_load,
+    },
 };
 
 /// Common meta for [`ResidualEncoderAttentionBlock`] and
@@ -83,6 +86,16 @@ impl<B: Backend> ModuleInit<B, ResidualEncoderAttentionBlock<B>>
         // MHA doesn't let us configure this.
         let mut attn = mha_cfg.init(device);
         attn.key.bias = None;
+
+        // Nor does MHA let us configure the weight layout, and the PyTorch
+        // checkpoint stores these projections as `[d_output, d_input]`. They
+        // are square, so a wrong orientation loads silently. Attach the
+        // transpose to the parameters instead, the way
+        // `LinearLayout::Col` would have.
+        attn.query.weight = transpose_on_load(attn.query.weight);
+        attn.key.weight = transpose_on_load(attn.key.weight);
+        attn.value.weight = transpose_on_load(attn.value.weight);
+        attn.output.weight = transpose_on_load(attn.output.weight);
 
         Ok(ResidualEncoderAttentionBlock {
             attn_ln: ln_cfg.init(device),
