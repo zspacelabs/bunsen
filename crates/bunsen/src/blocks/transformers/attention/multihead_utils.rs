@@ -85,8 +85,7 @@ pub fn layer_norm_self_attn<B: Backend>(
 /// * `xa` - `[batch, cross_len, d_model]` cross-attention input.
 ///
 /// `cross_len` is independent of `seq_len`: cross-attention exists to attend a
-/// query sequence over a *different* one. Whisper's decoder attends 4 tokens
-/// over 1500 audio frames.
+/// query sequence over a *different* one.
 ///
 /// # Returns
 /// `RdabForwardRecord` - forward record.
@@ -139,9 +138,9 @@ mod tests {
     /// Cross-attention must accept a `xa` whose sequence length differs from
     /// the query's — that is the entire point of it.
     ///
-    /// Whisper's decoder attends a handful of tokens over 1500 audio frames,
-    /// and a contract that bound both to one `seq_len` made that impossible
-    /// while every same-length unit test still passed.
+    /// A contract that bound both to one `seq_len` would pass every
+    /// same-length unit test and still be wrong, which is why this one uses
+    /// deliberately mismatched lengths.
     #[test]
     fn test_cross_attn_accepts_a_different_cross_length() {
         let device = Default::default();
