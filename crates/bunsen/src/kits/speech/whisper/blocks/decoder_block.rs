@@ -99,7 +99,13 @@ impl<B: Backend> ModuleInit<B, ResidualDecoderAttentionBlock<B>>
             cross_attn_ln: ln_cfg.init(device),
             cross_attn,
             mlp_ln: ln_cfg.init(device),
-            mlp: MlpConfig::new(self.d_model).try_init(device)?,
+            // Whisper's MLP projections carry a bias. The default `Row`
+            // layout is correct here: `PyTorchToBurnAdapter` already
+            // transposes the incoming `[d_output, d_input]` weight, so `Col`
+            // would transpose a second time.
+            mlp: MlpConfig::new(self.d_model)
+                .with_bias(true)
+                .try_init(device)?,
         })
     }
 }

@@ -66,6 +66,12 @@ pub struct MlpConfig {
     /// Post-Activation Exponent.
     #[config(default = "None")]
     pub act_exponent: Option<f64>,
+
+    /// Do the projections have a bias?
+    ///
+    /// Whisper's MLP projections do; a GPT-style block generally does not.
+    #[config(default = "false")]
+    pub bias: bool,
 }
 
 impl MlpMeta for MlpConfig {
@@ -92,12 +98,12 @@ impl<B: Backend> ModuleInit<B, Mlp<B>> for MlpConfig {
     ) -> BunsenResult<Mlp<B>> {
         Ok(Mlp {
             linear1: LinearConfig::new(self.n_embed(), self.hidden_size())
-                .with_bias(false)
+                .with_bias(self.bias)
                 .init(device),
             act: self.activation.init(device),
             act_exponent: self.act_exponent,
             linear2: LinearConfig::new(self.hidden_size(), self.n_embed())
-                .with_bias(false)
+                .with_bias(self.bias)
                 .init(device),
         })
     }
