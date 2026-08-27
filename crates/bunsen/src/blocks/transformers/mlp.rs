@@ -19,10 +19,7 @@ use burn::{
 };
 
 use crate::{
-    burner::{
-        module::ModuleInit,
-        store::repair_pytorch_strided_weight,
-    },
+    burner::module::ModuleInit,
     errors::BunsenResult,
 };
 
@@ -70,20 +67,9 @@ pub struct MlpConfig {
     #[config(default = "None")]
     pub act_exponent: Option<f64>,
 
-    /// Do the projections have a bias?
-    ///
-    /// Whisper's MLP projections do; a GPT-style block generally does not.
+    /// Whether the projections carry a bias term.
     #[config(default = "false")]
     pub bias: bool,
-
-    /// Repair the projection weights against `burn-store`'s stride-blind
-    /// `PyTorch` read.
-    ///
-    /// Set this when loading a checkpoint whose `Linear` weights are stored as
-    /// column-major views — every `OpenAI` Whisper checkpoint is. See
-    /// [`repair_pytorch_strided_weight`].
-    #[config(default = "false")]
-    pub repair_strided_weights: bool,
 }
 
 impl MlpMeta for MlpConfig {
@@ -108,17 +94,12 @@ impl<B: Backend> ModuleInit<B, Mlp<B>> for MlpConfig {
         &self,
         device: &B::Device,
     ) -> BunsenResult<Mlp<B>> {
-        let mut linear1 = LinearConfig::new(self.n_embed(), self.hidden_size())
+        let linear1 = LinearConfig::new(self.n_embed(), self.hidden_size())
             .with_bias(self.bias)
             .init(device);
-        let mut linear2 = LinearConfig::new(self.hidden_size(), self.n_embed())
+        let linear2 = LinearConfig::new(self.hidden_size(), self.n_embed())
             .with_bias(self.bias)
             .init(device);
-
-        if self.repair_strided_weights {
-            linear1.weight = repair_pytorch_strided_weight(linear1.weight);
-            linear2.weight = repair_pytorch_strided_weight(linear2.weight);
-        }
 
         Ok(Mlp {
             linear1,

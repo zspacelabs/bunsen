@@ -13,6 +13,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `burner::store` module, which collects helpers for what crosses a module-store
   boundary.
 
+### Removed
+
+- *(blocks)* remove `MlpConfig::repair_strided_weights`. Repairing a checkpoint
+  against `burn-store`'s stride-blind `PyTorch` read is a property of the
+  checkpoint being loaded, not of the block's architecture. Callers that need it
+  apply `burner::store::repair_pytorch_strided_weight` to the built module's
+  `linear1`/`linear2` weights, as the Whisper kit already did for its attention
+  projections.
+
 ## [0.30.1](https://github.com/zspacelabs/bunsen/compare/bunsen-v0.30.0...bunsen-v0.30.1) - 2026-07-24
 
 ### Fixed

@@ -88,29 +88,32 @@ impl<B: Backend> ModuleInit<B, ResidualEncoderAttentionBlock<B>>
         let mut attn = mha_cfg.init(device);
         attn.key.bias = None;
 
+        // Whisper's MLP projections carry a bias, and it runs
+        // `Linear -> GELU -> Linear`; the `MlpConfig` default is ReLU.
+        let mut mlp: Mlp<B> = MlpConfig::new(self.d_model)
+            .with_activation(ActivationConfig::Gelu)
+            .with_bias(true)
+            .try_init(device)?;
+
         // Every `Linear` weight in an OpenAI Whisper checkpoint is stored as
         // a column-major view, which `burn-store` misreads — see
         // `repro::pytorch_strided_weights`. Repair it on the parameter.
+        //
+        // The `Row` layout is otherwise correct: `PyTorchToBurnAdapter`
+        // already transposes the incoming `[d_output, d_input]` weight, so
+        // `Col` would transpose a second time.
         attn.query.weight = repair_pytorch_strided_weight(attn.query.weight);
         attn.key.weight = repair_pytorch_strided_weight(attn.key.weight);
         attn.value.weight = repair_pytorch_strided_weight(attn.value.weight);
         attn.output.weight = repair_pytorch_strided_weight(attn.output.weight);
+        mlp.linear1.weight = repair_pytorch_strided_weight(mlp.linear1.weight);
+        mlp.linear2.weight = repair_pytorch_strided_weight(mlp.linear2.weight);
 
         Ok(ResidualEncoderAttentionBlock {
             attn_ln: ln_cfg.init(device),
             attn,
             mlp_ln: ln_cfg.init(device),
-            // Whisper's MLP projections carry a bias. The default `Row`
-            // layout is correct here: `PyTorchToBurnAdapter` already
-            // transposes the incoming `[d_output, d_input]` weight, so `Col`
-            // would transpose a second time.
-            mlp: MlpConfig::new(self.d_model)
-                // Whisper's MLP is `Linear -> GELU -> Linear`; the `MlpConfig`
-                // default is ReLU.
-                .with_activation(ActivationConfig::Gelu)
-                .with_bias(true)
-                .with_repair_strided_weights(true)
-                .try_init(device)?,
+            mlp,
         })
     }
 }
