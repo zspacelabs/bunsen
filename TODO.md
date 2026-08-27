@@ -64,6 +64,16 @@ regexes. Three things block it:
 Revisit if `PytorchStore` gains `with_adapter` upstream, and only with
 something that makes over-matching loud rather than silent.
 
+**C-5. In a repro or cross-check, a named real-world instance is evidence,
+not coupling.** The usual rule — a generic layer must not name a specific
+caller — does not apply to an artifact whose job is to demonstrate a defect.
+"96 of the 245 tensors in `base.en.pt`, exactly these names, strides `(1, N)`"
+is what makes a bug report reproducible, and no code depends on it. What *is*
+a violation in such a file is a pointer back into a caller
+("...and its callers in the Whisper kit"), which is a real reverse dependency
+and stops meaning anything once the file is lifted out. Keep the evidence;
+cut the back-references. Applies to `[N-5]`.
+
 ---
 
 ## 1. Narrative discussion
@@ -133,25 +143,20 @@ Options:
 3. **Move the history to the changelog** and leave only the invariant in the
    source.
 
-### [N-4] Defect-history prose in `burner/repro/`
+### [N-4] Defect-history prose in `burner/repro/` — RESOLVED
 
-`crates/bunsen/src/burner/repro/pytorch_strided_weights.rs`:
-- `:29` — `## Why this is easy to miss` section
-- `:214-215` — "the reason this went unnoticed"
+Handled with `[L-2]`, same file, one commit.
 
-A repro module is *inherently* narrative-adjacent — its whole job is to pin a
-known defect — so the bar here is different from library rustdoc. The question
-is whether the prose documents **the defect** (durable) or **our discovery of
-it** (not durable).
+The square-case note read "Documented here because it is the reason this went
+unnoticed" — a record of how the defect escaped notice. It now states the
+constraint that still applies: the repair is a silent transpose on a weight
+that did not need it, so it cannot be applied blindly. Same length, but it
+earns its place, and it is what `[C-4]` rests on.
 
-Options:
-1. **Split the two voices.** Keep the mechanism ("`burn-store` reads PyTorch
-   tensors without consulting strides; a transposed view therefore loads with
-   its logical shape and its physical order") and cut the discovery framing.
-2. **Anchor the narrative to a ticket.** Once the upstream issue exists, the
-   "why it was missed" story lives there and the module cites it.
-3. **Keep it.** A repro module is a bug report in code form; arguably the
-   history *is* the content. Decide deliberately rather than by default.
+**Deliberately not touched:** the `## Why this is easy to miss` section. It
+reads as narrative but is the square-degeneracy explanation — the most
+load-bearing paragraph in the module, and the technical basis for `[C-4]`.
+Do not "clean it up" in a later pass.
 
 ### [N-5] Discovery narrative in `dev_crates/whisper-onnx-crosscheck/`
 
@@ -204,29 +209,26 @@ the flag does. The field itself is legitimate architecture config.
 The store-wrapper alternative (option 1) was **investigated and deliberately
 deferred** — see `[C-4]`.
 
-### [L-2] `repair_pytorch_strided_weight` names Whisper from inside `burner/`
+### [L-2] Whisper named from inside `burner/` — RESOLVED
 
-`crates/bunsen/src/burner/module/param_mappers.rs:27` — "…Whisper checkpoint
-is stored that way."
+Fixed across two commits.
 
-`burner/` is the generic store/module layer. It should describe the *storage
-pattern* it repairs, not a model that happens to exhibit it.
+`param_mappers.rs` was handled during the `[L-1]` relocation: its rustdoc now
+describes the storage pattern ("a checkpoint holds a view like this wherever
+the saved tensor was produced by transposing another rather than by copying
+it") instead of naming a model.
 
-Options:
-1. **Describe the pattern only.** "Repairs a weight saved as a transposed view
-   — logical shape correct, physical order transposed — as produced by
-   PyTorch checkpoints containing non-contiguous tensors." No model names.
-2. **Keep one example, marked as an example.** "(commonly seen in
-   `torch.save`d checkpoints that store `Linear.weight` as a view)". Names a
-   *format*, not a *model*.
-3. **Invert the reference.** The Whisper kit documents "our checkpoints need
-   `repair_pytorch_strided_weight`"; `burner/` never mentions Whisper.
+In `burner/repro/pytorch_strided_weights.rs`:
+- the behaviour-pin's "and its callers in the Whisper kit" is **gone**. It was
+  a reverse `burner/` -> `kits/` reference, and redundant: the assert message
+  already names what to remove, which is where a developer actually meets the
+  instruction. The doc now defers to it.
+- the `## Scope` measurement **stays**, per `[C-5]`.
 
-Same treatment for `crates/bunsen/src/burner/repro/pytorch_strided_weights.rs:39`
-("Every `Linear` weight in an `OpenAI` Whisper checkpoint is stored this way")
-and `:181` ("its callers in the Whisper kit"). A repro module may legitimately
-cite a real-world instance as evidence — but `:181`'s reverse dependency from
-`burner/` into `kits/` is the one to cut regardless.
+Also corrected `burner/repro/mod.rs`, which claimed each harness "use[s] only
+public API" and can be "lifted out and taken upstream unchanged". Neither is
+true of any module there — this one imports both the crate's workaround and
+its test helpers.
 
 ### [L-3] Whisper rationale inside `multihead_utils`
 
@@ -467,11 +469,11 @@ Options:
 
 1. ~~`[U-1]` test-helper consolidation~~ — **done**.
 2. ~~`[L-1]` `repair_strided_weights`~~ — **done**.
-3. `[L-2]`, `[L-3]`, `[L-4]` doc de-coupling — mechanical once L-1 settles.
+3. ~~`[L-2]`~~ — **done** (with `[N-4]`). `[L-3]`, `[L-4]` doc de-coupling remain.
 4. `[N-1]` plan-file disposition — unblocks `[N-2]` and the three citations.
 5. `[N-3]`, `[N-5]` timeless-rewrite passes.
 6. `[U-2]` KV-cache convergence — needs a design call, not a cleanup.
-7. `[U-3]`–`[U-7]`, `[N-4]`, `[L-5]` — judgment calls, low urgency.
+7. `[U-3]`–`[U-7]`, `[L-5]` — judgment calls, low urgency.
 
 ---
 
