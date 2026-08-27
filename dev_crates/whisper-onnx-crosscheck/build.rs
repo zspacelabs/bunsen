@@ -40,6 +40,17 @@ const ENCODER_SHA256: &str = "a9f3b752833b49e880dec91ee5b6d936112be7c3ea07c22102
 /// name from this, so it is also the name `src/lib.rs` includes.
 const ENCODER_FILE: &str = "whisper_base_encoder.onnx";
 
+/// The decoder graph, without the KV-cache inputs — it takes a whole token
+/// sequence at once, which is the shape `TextDecoder::forward` has.
+const DECODER_URL: &str =
+    "https://huggingface.co/onnx-community/whisper-base/resolve/main/onnx/decoder_model.onnx";
+
+/// SHA-256 of [`DECODER_URL`]'s payload.
+const DECODER_SHA256: &str = "70d26763610c0d6bb407373b7f30d415252ee470e62a0f816c8a46b2caca7326";
+
+/// Local name for the fetched decoder graph.
+const DECODER_FILE: &str = "whisper_base_decoder.onnx";
+
 /// `OpenAI`'s multilingual `base.pt` — the checkpoint the ONNX export above was
 /// converted from. Both are needed, and they must be the same model, or the
 /// comparison is meaningless.
@@ -54,6 +65,7 @@ const CHECKPOINT_FILE: &str = "whisper_base.pt";
 fn main() {
     println!("cargo:rerun-if-changed=build.rs");
     println!("cargo:rerun-if-env-changed=WHISPER_ONNX_ENCODER");
+    println!("cargo:rerun-if-env-changed=WHISPER_ONNX_DECODER");
     println!("cargo:rerun-if-env-changed=WHISPER_BASE_PT");
 
     if env::var_os("CARGO_FEATURE_DOWNLOAD").is_none() {
@@ -77,18 +89,36 @@ fn main() {
         checkpoint.display()
     );
 
-    let onnx = resolve_asset(
-        "WHISPER_ONNX_ENCODER",
-        ENCODER_URL,
-        ENCODER_SHA256,
-        &cache.join(ENCODER_FILE),
+    // The generated weights are loaded from `OUT_DIR` at run time rather than
+    // embedded: together these are ~290 MB, and `include_bytes!` of that would
+    // dominate both compile time and binary size.
+    println!(
+        "cargo:rustc-env=WHISPER_ONNX_OUT_DIR={}",
+        env::var("OUT_DIR").unwrap()
     );
-    println!("cargo:rerun-if-changed={}", onnx.display());
 
-    burn_onnx::ModelGen::new()
-        .input(onnx.to_str().expect("asset path is UTF-8"))
-        .out_dir("./")
-        .run_from_script();
+    for (var, url, sha, file) in [
+        (
+            "WHISPER_ONNX_ENCODER",
+            ENCODER_URL,
+            ENCODER_SHA256,
+            ENCODER_FILE,
+        ),
+        (
+            "WHISPER_ONNX_DECODER",
+            DECODER_URL,
+            DECODER_SHA256,
+            DECODER_FILE,
+        ),
+    ] {
+        let onnx = resolve_asset(var, url, sha, &cache.join(file));
+        println!("cargo:rerun-if-changed={}", onnx.display());
+
+        burn_onnx::ModelGen::new()
+            .input(onnx.to_str().expect("asset path is UTF-8"))
+            .out_dir("./")
+            .run_from_script();
+    }
 }
 
 /// The asset cache, beside the manifest rather than in `OUT_DIR` so a

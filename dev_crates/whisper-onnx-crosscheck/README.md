@@ -36,17 +36,45 @@ local file:
 
 | variable | effect |
 |---|---|
-| `WHISPER_ONNX_ENCODER` | use a local `.onnx` (skips the digest pin) |
+| `WHISPER_ONNX_ENCODER` | use a local encoder `.onnx` (skips the digest pin) |
+| `WHISPER_ONNX_DECODER` | use a local decoder `.onnx` (skips the digest pin) |
 | `WHISPER_BASE_PT` | use a local checkpoint (skips the digest pin) |
 
-Assets, if you'd rather fetch them by hand (~220 MB total, cached):
+Assets, if you'd rather fetch them by hand (~430 MB total, cached):
 
-- encoder — [`onnx-community/whisper-base`](https://huggingface.co/onnx-community/whisper-base/resolve/main/onnx/encoder_model.onnx)
+- encoder — [`encoder_model.onnx`](https://huggingface.co/onnx-community/whisper-base/resolve/main/onnx/encoder_model.onnx)
+- decoder — [`decoder_model.onnx`](https://huggingface.co/onnx-community/whisper-base/resolve/main/onnx/decoder_model.onnx)
 - checkpoint — [`base.pt`](https://openaipublic.azureedge.net/main/whisper/models/ed3a0b6b1c0edf879ad9b11b1af5a0e6ab5db9205f891f668f8b0e6c6326e34e/base.pt)
+
+The decoder export is the KV-cache-free `decoder_model.onnx`, which consumes a
+whole token sequence at once — the shape `TextDecoder::forward` has. Its
+`forward` returns logits followed by 24 present-key/value tensors, which this
+crate ignores. (`decoder_with_past_model.onnx` is the incremental variant, for
+whenever bunsen grows a KV cache.)
+
+Generated weights are loaded from `OUT_DIR` at run time rather than embedded:
+together they are ~290 MB, and `include_bytes!` of that would dominate compile
+time and binary size.
 
 They must be the same model: the ONNX export is a conversion of that
 checkpoint, and the two agree to 1.9e-4 under `onnxruntime`, which is what
 makes the comparison meaningful.
+
+## What is covered
+
+| test | checks |
+|---|---|
+| `test_reference_encoder_runs` | the fetch-and-generate path is healthy; no other assets |
+| `test_bunsen_encoder_matches_reference` | encoder, on identical weights |
+| `test_bunsen_decoder_matches_reference` | decoder logits, on identical weights |
+| `test_bunsen_decoder_argmax_matches_reference` | the predicted token at each position |
+
+The decoder is fed a **synthetic** encoder output rather than either encoder's
+real one, so a decoder disagreement cannot be inherited from upstream.
+
+The argmax test is separate on purpose: logits span a wide range over 51865
+classes, so an elementwise tolerance can pass while the argmax differs — and
+the argmax is the only thing a decoder is actually judged on.
 
 ## Tolerance
 
