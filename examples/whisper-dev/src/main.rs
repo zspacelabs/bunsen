@@ -13,7 +13,11 @@ use bunsen::{
         ModuleInit,
     },
     kits::speech::whisper::{
-        decode::GreedyDecodeConfig,
+        WhisperMeta,
+        decode::{
+            GreedyDecodeConfig,
+            mel_windows,
+        },
         pretrained::PytorchWhisperScanner,
     },
     ops::signal::mels::{
@@ -207,14 +211,21 @@ fn run<B: Backend>(
         .into());
     }
 
-    let wav = pad_or_trim(wav, N_SAMPLES);
+    // Round up to whole 30 s windows instead of trimming, so batching has
+    // more than one window to work with.
+    let windows_needed = wav.len().div_ceil(N_SAMPLES).max(1);
+    let wav = pad_or_trim(wav, windows_needed * N_SAMPLES);
     let mels = to_whisper_mels(&conv, &wav, chunk, &device)?;
 
     println!("streamed in {chunk}-sample chunks");
     summarize("log-mels", &mels);
 
-    let encoded = model.forward_encoder(mels.clone());
-    summarize("encoder ", &encoded);
+    let windows = mel_windows(mels, model.max_audio_ctx());
+    println!(
+        "{} window(s) of {} frames",
+        windows.len(),
+        model.max_audio_ctx()
+    );
 
     // `<|startoftranscript|> <|notimestamps|>` for the English-only models;
     // stop on `<|endoftext|>`. These ids come from Whisper's tokenizer, which
@@ -222,7 +233,16 @@ fn run<B: Backend>(
     let decode =
         GreedyDecodeConfig::new(vec![50257, 50362], 50256).with_max_tokens(args.max_tokens);
 
-    for (i, tokens) in model.decode_chunked(mels, &decode).into_iter().enumerate() {
+    // All windows decoded as one batch. Each window is independent, so this
+    // is the same result as decoding them one at a time.
+    let batch: Tensor<B, 3> = Tensor::cat(windows, 0);
+    println!("batched decode: {:?}", batch.dims());
+
+    for (i, tokens) in model
+        .decode_window_batched(batch, &decode)
+        .into_iter()
+        .enumerate()
+    {
         println!("window {i}: {} tokens", tokens.len());
         println!("  {tokens:?}");
     }

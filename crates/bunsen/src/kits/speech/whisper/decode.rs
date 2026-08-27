@@ -87,29 +87,38 @@ pub struct GreedyDecodeConfig {
 }
 
 impl<B: Backend> Whisper<B> {
-    /// Greedily decodes one already-windowed spectrogram.
+    /// Greedily decodes one already-windowed spectrogram, for a batch.
     ///
-    /// Encodes `mels` once, builds the key/value cache from that encoding, then
-    /// steps one token at a time. The prompt is fed as a single prefill.
+    /// Encodes `mels` once, builds the key/value cache from that encoding,
+    /// prefills the prompt for every row, then steps a token at a time across
+    /// the whole batch.
+    ///
+    /// Rows finish independently. A row that emits `eot_token` stops
+    /// contributing, but the batch keeps stepping until every row has finished
+    /// or `max_tokens` is reached — so a finished row is fed a filler token
+    /// whose output is discarded. That filler is the first prompt token rather
+    /// than `eot_token`, because `eot_token` need not be a valid embedding
+    /// index and would fault the lookup.
     ///
     /// # Arguments
-    /// * `mels`: `[1, n_mels, window]` — one window, batch of one.
-    /// * `config`: prompt, stop token and generation cap.
+    /// * `mels`: `[batch, n_mels, window]` — one window per row.
+    /// * `config`: prompt, stop token and generation cap, shared by all rows.
     ///
     /// # Returns
-    /// The generated ids, prompt excluded, without `eot_token`.
+    /// The generated ids per row, prompt excluded, each truncated at its own
+    /// `eot_token`.
     ///
     /// # Panics
     ///
-    /// If the batch is not 1, if the prompt is empty, or if the window is not
+    /// If the batch is empty, if the prompt is empty, or if the window is not
     /// the model's audio context width.
-    pub fn decode_window(
+    pub fn decode_window_batched(
         &self,
         mels: Tensor<B, 3>,
         config: &GreedyDecodeConfig,
-    ) -> Vec<i64> {
+    ) -> Vec<Vec<i64>> {
         let [batch, _, frames] = mels.dims();
-        assert_eq!(batch, 1, "decode_window handles a batch of one");
+        assert!(batch > 0, "decode needs at least one row");
         assert_eq!(
             frames,
             self.max_audio_ctx(),
@@ -119,36 +128,52 @@ impl<B: Backend> Whisper<B> {
 
         let device = mels.device();
         let xa = self.forward_encoder(mels);
-
         let mut cache = self.decoder.new_cache(xa);
-        let mut generated = Vec::new();
 
-        // Prefill the prompt in one pass, then step.
-        let mut next: Vec<i64> = config.prompt.clone();
+        let mut generated: Vec<Vec<i64>> = vec![Vec::new(); batch];
+        let mut finished = vec![false; batch];
+
+        // Valid for every row, and only ever consumed by finished ones.
+        let filler = config.prompt[0];
+
+        // Row-major `[batch, prompt_len]`: each row gets the same prompt.
+        let mut next: Vec<i64> = config.prompt.repeat(batch);
+        let mut step_len = config.prompt.len();
 
         for _ in 0..config.max_tokens {
-            let len = next.len();
             let tokens: Tensor<B, 2, Int> =
-                Tensor::from_data(TensorData::new(next, [1, len]), &device);
+                Tensor::from_data(TensorData::new(next, [batch, step_len]), &device);
 
             let logits = self.decoder.forward_cached(tokens, &mut cache);
 
             // The prediction for the next token is the last position's.
             let last = logits.dims()[1] - 1;
-            let token = logits
+            let picked: Vec<i64> = logits
                 .slice_dim(1, last as isize..(last + 1) as isize)
                 .argmax(2)
                 .into_data()
                 .convert::<i64>()
-                .to_vec::<i64>()
-                .unwrap()[0];
+                .to_vec()
+                .unwrap();
 
-            if token == config.eot_token {
+            next = Vec::with_capacity(batch);
+            for (row, token) in picked.into_iter().enumerate() {
+                if finished[row] {
+                    next.push(filler);
+                } else if token == config.eot_token {
+                    finished[row] = true;
+                    next.push(filler);
+                } else {
+                    generated[row].push(token);
+                    next.push(token);
+                }
+            }
+
+            if finished.iter().all(|&done| done) {
                 break;
             }
 
-            generated.push(token);
-            next = vec![token];
+            step_len = 1;
 
             // Whisper's decoder cannot see past its text context.
             if cache.pos() >= self.max_text_ctx() {
@@ -159,11 +184,41 @@ impl<B: Backend> Whisper<B> {
         generated
     }
 
+    /// Greedily decodes one already-windowed spectrogram.
+    ///
+    /// The batch-of-one case of
+    /// [`decode_window_batched`](Self::decode_window_batched).
+    ///
+    /// # Arguments
+    /// * `mels`: `[1, n_mels, window]` — one window, batch of one.
+    /// * `config`: prompt, stop token and generation cap.
+    ///
+    /// # Returns
+    /// The generated ids, prompt excluded, without `eot_token`.
+    pub fn decode_window(
+        &self,
+        mels: Tensor<B, 3>,
+        config: &GreedyDecodeConfig,
+    ) -> Vec<i64> {
+        assert_eq!(mels.dims()[0], 1, "decode_window handles a batch of one");
+
+        self.decode_window_batched(mels, config)
+            .pop()
+            .expect("one row in, one row out")
+    }
+
     /// Splits a spectrogram into windows and greedily decodes each.
     ///
     /// Each window is independent: it gets its own encoder pass, its own cache
     /// and its own prompt. Carrying text across windows as a prompt is a
     /// transcription-level concern and is not done here.
+    ///
+    /// Windows are decoded **one at a time**, which bounds memory to a single
+    /// encoder output and cache. Because they are independent, stacking them
+    /// and calling [`decode_window_batched`](Self::decode_window_batched)
+    /// gives the same ids and is faster — at the cost of holding every
+    /// window's encoding at once. Long audio is exactly where that trade bites,
+    /// so the sequential form is the default here.
     ///
     /// # Arguments
     /// * `mels`: `[1, n_mels, frames]` log-mels of any length.
@@ -335,5 +390,84 @@ mod tests {
             3,
             "the ragged tail must get its own window"
         );
+    }
+    /// **The batching contract.** A batched decode must give each row exactly
+    /// what decoding that row alone gives.
+    ///
+    /// This is what a mis-laid-out prompt, a transposed argmax, or leaking one
+    /// row's tokens into another would break — and none of those would change
+    /// a shape.
+    #[test]
+    #[serial]
+    fn test_batched_decode_matches_individual() {
+        let device = Default::default();
+        let model = tiny_model(&device);
+        let (batch, window) = (3, model.max_audio_ctx());
+
+        // Distinct rows, so agreement is not trivially satisfied.
+        let mels: Tensor<B, 3> = Tensor::random(
+            [batch, model.n_mels(), window],
+            Distribution::Default,
+            &device,
+        );
+
+        // Unreachable stop token: every row runs to the cap, which exercises
+        // the stepping rather than the early exit.
+        let config = GreedyDecodeConfig::new(vec![1, 2], -1).with_max_tokens(6);
+
+        let batched = model.decode_window_batched(mels.clone(), &config);
+        assert_eq!(batched.len(), batch);
+
+        for row in 0..batch {
+            let alone = model.decode_window(
+                mels.clone().slice_dim(0, row as isize..(row + 1) as isize),
+                &config,
+            );
+            assert_eq!(
+                batched[row], alone,
+                "row {row} differs from its solo decode"
+            );
+        }
+    }
+
+    /// Rows stop independently: one row's `eot_token` must not truncate the
+    /// others.
+    #[test]
+    #[serial]
+    fn test_batched_rows_finish_independently() {
+        let device = Default::default();
+        let model = tiny_model(&device);
+        let (batch, window) = (3, model.max_audio_ctx());
+
+        let mels: Tensor<B, 3> = Tensor::random(
+            [batch, model.n_mels(), window],
+            Distribution::Default,
+            &device,
+        );
+
+        // Learn what row 0 emits first, then make that its stop token. Row 0
+        // finishes immediately; the others should be unaffected.
+        let probe = GreedyDecodeConfig::new(vec![1, 2], -1).with_max_tokens(1);
+        let first_of_row0 = model.decode_window(mels.clone().slice_dim(0, 0..1), &probe)[0];
+
+        let config = GreedyDecodeConfig::new(vec![1, 2], first_of_row0).with_max_tokens(6);
+        let batched = model.decode_window_batched(mels.clone(), &config);
+
+        assert!(
+            batched[0].is_empty(),
+            "row 0 should stop on its first token"
+        );
+
+        // Every row must still match its solo decode under the same config.
+        for row in 0..batch {
+            let alone = model.decode_window(
+                mels.clone().slice_dim(0, row as isize..(row + 1) as isize),
+                &config,
+            );
+            assert_eq!(
+                batched[row], alone,
+                "row {row} was affected by another row finishing",
+            );
+        }
     }
 }
