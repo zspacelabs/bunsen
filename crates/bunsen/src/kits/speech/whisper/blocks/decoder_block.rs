@@ -7,6 +7,7 @@ use burn::{
         LayerNormConfig,
         activation::ActivationConfig,
         attention::{
+            MhaCache,
             MultiHeadAttention,
             MultiHeadAttentionConfig,
         },
@@ -22,7 +23,9 @@ use crate::{
     blocks::transformers::{
         attention::{
             layer_norm_cross_attn,
+            layer_norm_cross_attn_cached,
             layer_norm_self_attn,
+            layer_norm_self_attn_cached,
         },
         mlp::{
             Mlp,
@@ -221,6 +224,56 @@ impl<B: Backend> ResidualDecoderAttentionBlock<B> {
 
         let cross_attn =
             layer_norm_cross_attn(&self.cross_attn_ln, &self.cross_attn, x.clone(), xa);
+        let x = x + cross_attn.context;
+
+        let mlp = layer_norm_mlp(&self.mlp_ln, &self.mlp, x.clone());
+        let x = x + mlp;
+
+        DecodeRecord {
+            output: x,
+            ca_weights: cross_attn.weights,
+        }
+    }
+
+    /// Forward pass against an incremental decode cache.
+    ///
+    /// The cache-aware twin of [`forward`](Self::forward): feeding a sequence
+    /// one step at a time through this yields the same outputs as feeding it
+    /// whole through `forward`.
+    ///
+    /// The cross-attention cache is the interesting half. `xa` is fixed for
+    /// the whole decode, so its keys and values are projected once on the
+    /// first call and reused for every step after.
+    ///
+    /// # Arguments
+    /// * `x` : `[batch, seq_new, d_model]` input — the new step(s) only.
+    /// * `xa` : `[batch, cross_len, d_model]` cross-attention input. Must be
+    ///   the same tensor on every call.
+    /// * `mask` : `[batch, seq_new, seq_past + seq_new]` attention mask.
+    /// * `self_cache` : from [`MhaCache::autoregressive`].
+    /// * `cross_cache` : from [`MhaCache::autoregressive_cross_attention`].
+    ///
+    /// # Returns
+    /// `DecodeRecord` covering the new step(s) only.
+    pub fn forward_cached(
+        &self,
+        x: Tensor<B, 3>,
+        xa: Tensor<B, 3>,
+        mask: Option<Tensor<B, 3, Bool>>,
+        self_cache: &mut MhaCache<B>,
+        cross_cache: &mut MhaCache<B>,
+    ) -> DecodeRecord<B> {
+        let self_attn =
+            layer_norm_self_attn_cached(&self.attn_ln, &self.attn, x.clone(), mask, self_cache);
+        let x = x + self_attn.context;
+
+        let cross_attn = layer_norm_cross_attn_cached(
+            &self.cross_attn_ln,
+            &self.cross_attn,
+            x.clone(),
+            xa,
+            cross_cache,
+        );
         let x = x + cross_attn.context;
 
         let mlp = layer_norm_mlp(&self.mlp_ln, &self.mlp, x.clone());

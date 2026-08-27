@@ -3,6 +3,7 @@ use burn::{
     nn::{
         LayerNorm,
         attention::{
+            MhaCache,
             MhaInput,
             MhaOutput,
             MultiHeadAttention,
@@ -119,6 +120,92 @@ pub fn layer_norm_cross_attn<B: Backend>(
     };
 
     mh_attn.forward(MhaInput::new(layer_norm.forward(x.clone()), xa.clone(), xa))
+}
+
+/// Computes layer normalized self-attn, against an incremental cache.
+///
+/// The cache-aware twin of [`layer_norm_self_attn`]. Each call appends this
+/// step's keys and values to `cache` and attends over the whole history, so a
+/// sequence fed one step at a time produces the same result as feeding it
+/// whole.
+///
+/// # Arguments
+/// * `layer_norm` - `LayerNorm`.
+/// * `mh_attn` - `MultiHeadAttention`.
+/// * `x` - `[batch, seq_new, d_model]` input, the new step(s) only.
+/// * `mask` - Optional `[batch, seq_new, seq_past + seq_new]` attention mask.
+///   Build it with [`causal_mask(seq_new, seq_past,
+///   device)`](crate::blocks::transformers::attention::causal_mask).
+/// * `cache` - built by [`MhaCache::autoregressive`].
+///
+/// # Returns
+/// `fr.output` : `[batch, seq_new, d_model]`.
+pub fn layer_norm_self_attn_cached<B: Backend>(
+    layer_norm: &LayerNorm<B>,
+    mh_attn: &MultiHeadAttention<B>,
+    x: Tensor<B, 3>,
+    mask: Option<Tensor<B, 3, Bool>>,
+    cache: &mut MhaCache<B>,
+) -> MhaOutput<B> {
+    #[cfg(any(debug_assertions, test))]
+    {
+        use crate::contracts::*;
+        let d_model = mh_attn.d_model;
+        assert_eq!(
+            d_model,
+            layer_norm.gamma.dims()[0],
+            "layer_norm dims ({}) != d_model ({d_model})",
+            layer_norm.gamma.dims()[0],
+        );
+        assert_shape_contract!(["batch", "seq_new", "d_model"], &x, &[("d_model", d_model)]);
+    }
+
+    let input = MhaInput::self_attn(layer_norm.forward(x));
+    let input = match mask {
+        Some(mask) => input.mask_attn(mask),
+        None => input,
+    };
+    mh_attn.forward_cache(input, cache)
+}
+
+/// Computes layer normalized cross-attn, against an incremental cache.
+///
+/// The cache-aware twin of [`layer_norm_cross_attn`]. `xa` does not change
+/// across decoding steps, so a cache built by
+/// [`MhaCache::autoregressive_cross_attention`] projects it once and reuses the
+/// keys and values for every subsequent step — which is the bulk of what
+/// caching buys a cross-attending decoder.
+///
+/// # Arguments
+/// * `layer_norm` - `LayerNorm`.
+/// * `mh_attn` - `MultiHeadAttention`.
+/// * `x` - `[batch, seq_new, d_model]` input, the new step(s) only.
+/// * `xa` - `[batch, cross_len, d_model]` cross-attention input. Must be the
+///   same tensor on every call; the cache does not check this.
+/// * `cache` - built by [`MhaCache::autoregressive_cross_attention`].
+///
+/// # Returns
+/// `fr.output` : `[batch, seq_new, d_model]`.
+pub fn layer_norm_cross_attn_cached<B: Backend>(
+    layer_norm: &LayerNorm<B>,
+    mh_attn: &MultiHeadAttention<B>,
+    x: Tensor<B, 3>,
+    xa: Tensor<B, 3>,
+    cache: &mut MhaCache<B>,
+) -> MhaOutput<B> {
+    #[cfg(any(debug_assertions, test))]
+    {
+        use crate::contracts::*;
+        let d_model = mh_attn.d_model;
+        assert_shape_contract!(["batch", "seq_new", "d_model"], &x, &[("d_model", d_model)]);
+        assert_shape_contract!(
+            ["batch", "cross_len", "d_model"],
+            &xa,
+            &[("d_model", d_model)]
+        );
+    }
+
+    mh_attn.forward_cache(MhaInput::new(layer_norm.forward(x), xa.clone(), xa), cache)
 }
 
 #[cfg(test)]

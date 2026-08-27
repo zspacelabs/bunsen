@@ -10,6 +10,7 @@ use burn::{
         EmbeddingConfig,
         LayerNorm,
         LayerNormConfig,
+        attention::MhaCache,
     },
     prelude::{
         Backend,
@@ -231,6 +232,89 @@ impl<B: Backend> TextDecoder<B> {
         // Needs softmax / beamsearch.
     }
 
+    /// Opens an incremental decode cache over this decoder.
+    pub fn new_cache(&self) -> TextDecoderCache<B> {
+        TextDecoderCache {
+            layers: self
+                .blocks
+                .iter()
+                .map(|_| {
+                    (
+                        MhaCache::autoregressive(),
+                        MhaCache::autoregressive_cross_attention(),
+                    )
+                })
+                .collect(),
+            pos: 0,
+        }
+    }
+
+    /// Forward pass against an incremental decode cache.
+    ///
+    /// # This is burn's cache model, not a KV cache
+    ///
+    /// Pass the **whole token sequence so far**, not just the new token. The
+    /// cache reuses the projections it already computed for the prefix, so the
+    /// per-step cost is the projection of the new tail plus the attention.
+    /// [`MhaCache`] is built that way, and burn's own
+    /// `TransformerDecoder::forward_autoregressive_inference` uses it the same
+    /// way.
+    ///
+    /// What that buys for Whisper is mostly the cross-attention: `xa` is fixed
+    /// for a whole decode, so its keys and values over all 1500 encoder frames
+    /// are projected **once** rather than once per token, in every layer.
+    /// Self-attention still recomputes its scores over the full prefix — a
+    /// true KV cache would not, and that is a separate change.
+    ///
+    /// # Arguments
+    /// * `x`: `[batch, seq]` — every token so far, including the new one.
+    /// * `xa`: `[batch, cross_len, d_model]` encoder output. Must be the same
+    ///   tensor for the whole decode; the cache cannot detect otherwise.
+    /// * `cache`: from [`new_cache`](Self::new_cache).
+    ///
+    /// # Returns
+    /// `[batch, seq, n_vocab]` logits, as [`forward`](Self::forward) would
+    /// give for the same sequence. Autoregressive callers want the last
+    /// position.
+    pub fn forward_cached(
+        &self,
+        x: Tensor<B, 2, Int>,
+        xa: Tensor<B, 3>,
+        cache: &mut TextDecoderCache<B>,
+    ) -> Tensor<B, 3> {
+        assert_eq!(
+            cache.n_layers(),
+            self.blocks.len(),
+            "cache was built for a different decoder",
+        );
+
+        let seq_len = x.dims()[1];
+        assert!(
+            seq_len <= self.max_context(),
+            "Token sequence length {} must not exceed {}.",
+            seq_len,
+            self.max_context(),
+        );
+        assert!(
+            seq_len >= cache.pos,
+            "sequence shrank from {} to {seq_len}; a cache only ever grows.              Call `reset` to start a new stream.",
+            cache.pos,
+        );
+
+        let mut h = self.embed(x);
+        let mask: Option<Tensor<B, 3, Bool>> = causal_mask(seq_len, 0, &h.device()).into();
+
+        for (block, (self_cache, cross_cache)) in self.blocks.iter().zip(cache.layers.iter_mut()) {
+            h = block
+                .forward_cached(h, xa.clone(), mask.clone(), self_cache, cross_cache)
+                .output;
+        }
+
+        cache.pos = seq_len;
+
+        unembed(&self.token_embedding, self.ln.forward(h))
+    }
+
     fn embed(
         &self,
         x: Tensor<B, 2, Int>,
@@ -242,6 +326,42 @@ impl<B: Backend> TextDecoder<B> {
                 .val()
                 .slice(s![0..seq_len])
                 .unsqueeze::<3>()
+    }
+}
+
+/// Per-layer attention caches for incremental decoding.
+///
+/// Built by [`TextDecoder::new_cache`]. Holds a self-attention and a
+/// cross-attention [`MhaCache`] per block.
+///
+/// Deliberately **not** a `Module`: this is per-stream decode state, it holds
+/// no parameters, and `MhaCache` is not a `Module` either.
+pub struct TextDecoderCache<B: Backend> {
+    /// `(self-attention, cross-attention)` per block.
+    layers: Vec<(MhaCache<B>, MhaCache<B>)>,
+
+    /// Length of the longest sequence seen, which a cache may only grow.
+    pos: usize,
+}
+
+impl<B: Backend> TextDecoderCache<B> {
+    /// The length of the longest sequence this cache has seen.
+    pub fn pos(&self) -> usize {
+        self.pos
+    }
+
+    /// The number of blocks this cache covers.
+    pub fn n_layers(&self) -> usize {
+        self.layers.len()
+    }
+
+    /// Drops the cached history and rewinds to the start of a stream.
+    pub fn reset(&mut self) {
+        for (self_cache, cross_cache) in &mut self.layers {
+            *self_cache = MhaCache::autoregressive();
+            *cross_cache = MhaCache::autoregressive_cross_attention();
+        }
+        self.pos = 0;
     }
 }
 
@@ -292,5 +412,107 @@ mod tests {
             &output,
             &[("batch", batch), ("seq", seq_len), ("n_vocab", vocab_size),],
         );
+    }
+    /// **The cache contract.** Decoding with a growing prefix must give the
+    /// same logits as decoding each prefix from scratch.
+    ///
+    /// This is the property the cache exists to preserve, and the one a stale
+    /// projection or a mis-shaped causal mask breaks — neither of which a
+    /// shape check would notice.
+    #[test]
+    #[serial]
+    fn test_forward_cached_matches_forward() {
+        use burn::{
+            prelude::TensorData,
+            tensor::{
+                Distribution,
+                Tolerance,
+                backend::BackendTypes,
+            },
+        };
+
+        use crate::burner::tensor::TensorElemOpExt;
+
+        type B = PerformanceBackend;
+        type F = <B as BackendTypes>::FloatElem;
+
+        let device = Default::default();
+
+        // `n_heads` is `d_model / d_head` with `d_head` defaulting to 64, so
+        // a smaller `d_model` would give the attention zero heads.
+        let (vocab, d_model, max_ctx, layers) = (64, 128, 16, 2);
+        let (batch, cross_len, seq) = (2, 5, 6);
+
+        let decoder: TextDecoder<B> =
+            TextDecoderConfig::new(vocab, d_model, max_ctx, layers).init(&device);
+
+        let tokens: Tensor<B, 2, Int> = Tensor::from_data(
+            TensorData::new(
+                (0..batch * seq)
+                    .map(|k| (k % vocab) as i64)
+                    .collect::<Vec<_>>(),
+                [batch, seq],
+            ),
+            &device,
+        );
+        let xa: Tensor<B, 3> =
+            Tensor::random([batch, cross_len, d_model], Distribution::Default, &device);
+
+        // Grow the prefix a token at a time, as an autoregressive loop would.
+        let mut cache = decoder.new_cache();
+        for t in 1..=seq {
+            let prefix = tokens.clone().slice_dim(1, 0..t as isize);
+
+            let cached = decoder.forward_cached(prefix.clone(), xa.clone(), &mut cache);
+            let fresh = decoder.forward(prefix, xa.clone());
+
+            assert_eq!(cached.dims(), fresh.dims());
+            assert_eq!(cache.pos(), t);
+
+            cached
+                .to_data_as::<F>()
+                .assert_approx_eq::<F>(&fresh.to_data_as::<F>(), Tolerance::permissive());
+        }
+    }
+
+    /// A cache is reusable across streams once reset.
+    #[test]
+    #[serial]
+    fn test_cache_reset_restarts_the_stream() {
+        use burn::{
+            prelude::TensorData,
+            tensor::{
+                Distribution,
+                Tolerance,
+                backend::BackendTypes,
+            },
+        };
+
+        use crate::burner::tensor::TensorElemOpExt;
+
+        type B = PerformanceBackend;
+        type F = <B as BackendTypes>::FloatElem;
+
+        let device = Default::default();
+        let (vocab, d_model, max_ctx, layers) = (32, 128, 8, 1);
+
+        let decoder: TextDecoder<B> =
+            TextDecoderConfig::new(vocab, d_model, max_ctx, layers).init(&device);
+
+        let tokens: Tensor<B, 2, Int> =
+            Tensor::from_data(TensorData::new(vec![3i64, 5], [1, 2]), &device);
+        let xa: Tensor<B, 3> = Tensor::random([1, 4, d_model], Distribution::Default, &device);
+
+        let mut cache = decoder.new_cache();
+        let first = decoder.forward_cached(tokens.clone(), xa.clone(), &mut cache);
+        assert_eq!(cache.pos(), 2);
+
+        cache.reset();
+        assert_eq!(cache.pos(), 0);
+
+        let second = decoder.forward_cached(tokens, xa, &mut cache);
+        first
+            .to_data_as::<F>()
+            .assert_approx_eq::<F>(&second.to_data_as::<F>(), Tolerance::permissive());
     }
 }
