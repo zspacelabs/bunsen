@@ -959,57 +959,21 @@ impl<B: Backend> MelConverterMeta for MelConverter<B> {
 
 #[cfg(test)]
 mod tests {
-    use burn::tensor::{
-        Tolerance,
-        backend::BackendTypes,
-    };
+    use burn::tensor::Tolerance;
 
     use super::*;
     use crate::{
-        burner::tensor::TensorElemOpExt,
+        burner::tensor::TensorDataToVecAsExt,
         errors::WithOkOrPanic,
         support::testing::{
             PerformanceBackend,
             assert_close_to_vec,
+            assert_tensor_close_to_vec,
+            assert_tensors_close,
         },
     };
 
     type B = PerformanceBackend;
-    type F = <B as BackendTypes>::FloatElem;
-
-    /// Reads a rank-1 or rank-2 tensor back as `f64` in row-major order.
-    fn to_f64<const D: usize>(t: &Tensor<B, D>) -> Vec<f64> {
-        t.clone()
-            .cast(burn::tensor::DType::F64)
-            .to_data()
-            .to_vec()
-            .unwrap()
-    }
-
-    /// Compares a tensor against a row-major host buffer through `TensorData`,
-    /// so `burn` reports both relative and absolute error on mismatch rather
-    /// than a bare element index.
-    fn assert_matches_host<const D: usize>(
-        actual: &Tensor<B, D>,
-        expected: &[f64],
-        tolerance: Tolerance<F>,
-    ) {
-        let expected = TensorData::new(expected.to_vec(), actual.dims()).convert::<F>();
-        actual
-            .to_data_as::<F>()
-            .assert_approx_eq::<F>(&expected, tolerance);
-    }
-
-    /// Compares two tensors of the same shape.
-    fn assert_tensors_close<const D: usize>(
-        actual: &Tensor<B, D>,
-        expected: &Tensor<B, D>,
-        tolerance: Tolerance<F>,
-    ) {
-        actual
-            .to_data_as::<F>()
-            .assert_approx_eq::<F>(&expected.to_data_as::<F>(), tolerance);
-    }
 
     #[test]
     fn test_converter_tensor_shapes() {
@@ -1042,22 +1006,22 @@ mod tests {
         let conv: MelConverter<B> = opts.try_init(&device).ok_or_panic();
 
         // The window is the same one `StftWindowConfig` builds on the host.
-        assert_matches_host(
+        assert_tensor_close_to_vec(
             &conv.window,
             &opts.window.to_vec_window(opts.n_fft),
             Tolerance::absolute(1e-6),
         );
 
         // `mel_t` is the Stage-2 bank, transposed.
-        assert_matches_host(
+        assert_tensor_close_to_vec(
             &conv.mel_t,
             &opts.to_vec_filterbank_t().unwrap(),
             Tolerance::absolute(1e-6),
         );
 
         let (cos_table, sin_table) = opts.to_vec_dft_tables();
-        assert_matches_host(&conv.dft_cos, &cos_table, Tolerance::absolute(1e-6));
-        assert_matches_host(&conv.dft_sin, &sin_table, Tolerance::absolute(1e-6));
+        assert_tensor_close_to_vec(&conv.dft_cos, &cos_table, Tolerance::absolute(1e-6));
+        assert_tensor_close_to_vec(&conv.dft_sin, &sin_table, Tolerance::absolute(1e-6));
     }
 
     /// The DFT tables carry a sign and a layout convention that is easy to get
@@ -1104,7 +1068,7 @@ mod tests {
             .try_init(&device)
             .ok_or_panic();
 
-        let before = to_f64(&conv.mel_t);
+        let before = conv.mel_t.to_data().to_vec_as::<f64>().unwrap();
 
         // One device here, so this pins traversal rather than a real move: a
         // dropped derive or a stray `#[module(skip)]` on a tensor field drops
@@ -1114,7 +1078,7 @@ mod tests {
 
         let moved = conv.clone().to_device(&device);
         assert_eq!(moved.devices(), vec![device]);
-        assert_matches_host(&moved.mel_t, &before, Tolerance::default());
+        assert_tensor_close_to_vec(&moved.mel_t, &before, Tolerance::default());
         assert_eq!(moved.window.dims(), conv.window.dims());
         assert_eq!(moved.options().n_mels, conv.options().n_mels);
     }
@@ -1209,7 +1173,7 @@ mod tests {
             let framed = conv.frame(x);
 
             assert_eq!(framed.dims(), [batch, frames, opts.n_fft]);
-            assert_matches_host(
+            assert_tensor_close_to_vec(
                 &framed,
                 &host_frames(&rows, opts.n_fft, opts.hop, &window, frames),
                 Tolerance::absolute(1e-5),
@@ -1226,7 +1190,11 @@ mod tests {
         // A ragged length, so this also exercises the trimmed path.
         let samples = 1000;
         let (batched, _) = signal(&device, 3, samples);
-        let together = to_f64(&conv.frame(batched.clone()));
+        let together = conv
+            .frame(batched.clone())
+            .to_data()
+            .to_vec_as::<f64>()
+            .unwrap();
 
         let frames = conv.frame_count(samples);
         let per_row = frames * opts.n_fft;
@@ -1235,7 +1203,7 @@ mod tests {
             let single: Tensor<B, 2> = batched
                 .clone()
                 .slice_dim(0, row as isize..(row + 1) as isize);
-            let alone = to_f64(&conv.frame(single));
+            let alone = conv.frame(single).to_data().to_vec_as::<f64>().unwrap();
 
             assert_close_to_vec(&alone, &together[row * per_row..(row + 1) * per_row], 1e-9);
         }
@@ -1282,7 +1250,7 @@ mod tests {
 
         // Re-derive from the framed tensor, so this tests the spectrum stage
         // alone rather than re-testing framing.
-        let framed_host = to_f64(&framed);
+        let framed_host = framed.to_data().to_vec_as::<f64>().unwrap();
         let mut expected = Vec::with_capacity(batch * frames * opts.n_bins());
         for f in 0..batch * frames {
             let frame = &framed_host[f * n_fft..(f + 1) * n_fft];
@@ -1290,7 +1258,7 @@ mod tests {
         }
         let _ = &rows;
 
-        assert_matches_host(&power, &expected, Tolerance::absolute(1e-3));
+        assert_tensor_close_to_vec(&power, &expected, Tolerance::absolute(1e-3));
     }
 
     /// A windowed sine at a bin centre must concentrate there.
@@ -1308,7 +1276,11 @@ mod tests {
             .collect();
         let x = Tensor::from_data(TensorData::new(tone, [1, n_fft]), &device);
 
-        let power = to_f64(&conv.spectrum(conv.frame(x)));
+        let power = conv
+            .spectrum(conv.frame(x))
+            .to_data()
+            .to_vec_as::<f64>()
+            .unwrap();
         assert_eq!(power.len(), n_bins);
 
         let peak = power[k];
@@ -1348,7 +1320,7 @@ mod tests {
         assert_eq!(mels.dims(), [batch, frames, n_mels]);
 
         // `[rows, n_bins] @ [n_bins, n_mels]`, on the host.
-        let spec_host = to_f64(&spectrum);
+        let spec_host = spectrum.to_data().to_vec_as::<f64>().unwrap();
         let bank_t = opts.to_vec_filterbank_t().unwrap();
         let mut expected = Vec::with_capacity(batch * frames * n_mels);
         for r in 0..batch * frames {
@@ -1361,7 +1333,7 @@ mod tests {
             }
         }
 
-        assert_matches_host(&mels, &expected, Tolerance::absolute(1e-3));
+        assert_tensor_close_to_vec(&mels, &expected, Tolerance::absolute(1e-3));
     }
 
     #[test]
@@ -1371,7 +1343,7 @@ mod tests {
         let conv: MelConverter<B> = opts.try_init(&device).ok_or_panic();
 
         let zeros: Tensor<B, 3> = Tensor::zeros([2, 4, opts.n_mels], &device);
-        let out = to_f64(&conv.compress(zeros));
+        let out = conv.compress(zeros).to_data().to_vec_as::<f64>().unwrap();
 
         // All-zero energy must land on a finite floor, not -inf or NaN.
         assert!(
@@ -1404,7 +1376,7 @@ mod tests {
         ];
         let x = Tensor::from_data(TensorData::new(energies, [2, 1, n_mels]), &device);
 
-        let out = to_f64(&conv.compress(x));
+        let out = conv.compress(x).to_data().to_vec_as::<f64>().unwrap();
 
         // Row 0: max 0, floor -8, so -10 clips to -8. Affine (v + 4) / 4.
         // Row 1: max -2, floor -10, so -10 is untouched.
@@ -1439,7 +1411,7 @@ mod tests {
             TensorData::new(vec![1.0_f64, core::f64::consts::E], [1, 1, n_mels]),
             &device,
         );
-        assert_matches_host(&conv.compress(x), &[0.0, 1.0], Tolerance::absolute(1e-5));
+        assert_tensor_close_to_vec(&conv.compress(x), &[0.0, 1.0], Tolerance::absolute(1e-5));
     }
 
     #[test]
@@ -1458,7 +1430,13 @@ mod tests {
         let staged = conv.compress(conv.mel(conv.spectrum(conv.frame(x))));
         assert_tensors_close(&out, &staged, Tolerance::default());
 
-        assert!(to_f64(&out).iter().all(|v| v.is_finite()));
+        assert!(
+            out.to_data()
+                .to_vec_as::<f64>()
+                .unwrap()
+                .iter()
+                .all(|v| v.is_finite())
+        );
     }
 
     #[test]

@@ -436,19 +436,13 @@ impl<B: Backend> MelConverter<B> {
 
 #[cfg(test)]
 mod tests {
-    use burn::{
-        prelude::TensorData,
-        tensor::{
-            Tolerance,
-            backend::BackendTypes,
-        },
-    };
+    use burn::tensor::Tolerance;
 
     use super::*;
     use crate::{
         burner::{
             module::ModuleInit,
-            tensor::TensorElemOpExt,
+            tensor::TensorDataToVecAsExt,
         },
         errors::WithOkOrPanic,
         ops::signal::mels::{
@@ -458,11 +452,12 @@ mod tests {
         support::testing::{
             PerformanceBackend,
             assert_close_to_vec,
+            assert_tensor_close_to_vec,
+            assert_tensors_close,
         },
     };
 
     type B = PerformanceBackend;
-    type F = <B as BackendTypes>::FloatElem;
 
     /// Builds a `[batch, samples]` tensor from a row-major host buffer.
     fn from_rows<B: Backend>(
@@ -474,39 +469,6 @@ mod tests {
             burn::prelude::TensorData::new(rows.concat(), [rows.len(), samples]),
             device,
         )
-    }
-
-    fn to_f64<const D: usize>(t: &Tensor<B, D>) -> Vec<f64> {
-        t.clone()
-            .cast(burn::tensor::DType::F64)
-            .to_data()
-            .to_vec()
-            .unwrap()
-    }
-
-    /// Compares a tensor against a row-major host buffer through `TensorData`,
-    /// so `burn` reports both relative and absolute error on mismatch rather
-    /// than a bare element index.
-    fn assert_matches_host<const D: usize>(
-        actual: &Tensor<B, D>,
-        expected: &[f64],
-        tolerance: Tolerance<F>,
-    ) {
-        let expected = TensorData::new(expected.to_vec(), actual.dims()).convert::<F>();
-        actual
-            .to_data_as::<F>()
-            .assert_approx_eq::<F>(&expected, tolerance);
-    }
-
-    /// Compares two tensors of the same shape.
-    fn assert_tensors_close<const D: usize>(
-        actual: &Tensor<B, D>,
-        expected: &Tensor<B, D>,
-        tolerance: Tolerance<F>,
-    ) {
-        actual
-            .to_data_as::<F>()
-            .assert_approx_eq::<F>(&expected.to_data_as::<F>(), tolerance);
     }
 
     /// A deterministic sample in `[-1, 1]`.
@@ -690,7 +652,7 @@ mod tests {
 
         let dims = together.dims();
         let per_row = dims[1] * dims[2];
-        let together = to_f64(&together);
+        let together = together.to_data().to_vec_as::<f64>().unwrap();
 
         for row in 0..batch {
             let (alone, _) = conv
@@ -699,7 +661,7 @@ mod tests {
                 .unwrap();
 
             assert_close_to_vec(
-                &to_f64(&alone),
+                &alone.to_data().to_vec_as::<f64>().unwrap(),
                 &together[row * per_row..(row + 1) * per_row],
                 1e-4,
             );
@@ -795,7 +757,7 @@ mod tests {
         let x = from_rows::<B>(&host, &device);
 
         let (ext, ctx) = conv.new_context(1).t_stage_extend(x).unwrap();
-        let ext_host = to_f64(&ext);
+        let ext_host = ext.to_data().to_vec_as::<f64>().unwrap();
 
         assert_eq!(ext_host.len(), pad + 1600);
 
@@ -809,7 +771,7 @@ mod tests {
         // The carry is everything past the last frame's start.
         let frames = conv.frame_count(ext_host.len());
         let consumed = frames * hop;
-        assert_matches_host(
+        assert_tensor_close_to_vec(
             &ctx.carry().unwrap(),
             &ext_host[consumed..],
             Tolerance::default(),
@@ -860,7 +822,10 @@ mod tests {
 
         assert_eq!(joined.dims(), whole.dims());
 
-        let (a, b) = (to_f64(&joined), to_f64(&whole));
+        let (a, b) = (
+            joined.to_data().to_vec_as::<f64>().unwrap(),
+            whole.to_data().to_vec_as::<f64>().unwrap(),
+        );
         let differs = a.iter().zip(&b).any(|(x, y)| (x - y).abs() > 1e-6);
         assert!(
             differs,
