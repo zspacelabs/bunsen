@@ -124,16 +124,25 @@ branch's to fix; worth a separate cleanup if wanted.
 
 ## 3. New utility methods
 
-### [U-8] `mels::testing` is reserved but does not exist
+### [U-8] `mels::testing` reserved but absent — RESOLVED (note fixed, width kept)
 
-`PLAN.md`'s visibility note justifies `pub(crate)` on the six `t_stage_*`
-methods by a `mels::testing` helper module that would drive them from outside
-`context.rs`. No such module exists; every caller is in-file. `[U-6]` kept the
-width on the strength of that reservation and of planned mel work.
+No consumer exists. Nothing outside `mels/` touches `MelConverter` except the
+`whisper-dev` example; inside it, `cross_test.rs`'s helpers are used only by
+`cross_test.rs`, and the `t_stage_*` methods only by `context.rs`'s own tests.
+So there is nothing to put in such a module, and building one to satisfy a plan
+note would be an empty shell. `ops::signal::testing` earned its existence from a
+helper used across two files — that is the standard to hold this to.
 
-Options: build the module when a second consumer appears (status quo, and the
-reservation stays honest only as long as the plan does); build it now against
-`ops::signal::testing`'s shape; or narrow to private `fn` and widen later.
+The width stays, per `[U-6]`. What was wrong was the note justifying it:
+
+- it cited `ops::signal::window_builder::testing` as the model to follow, and
+  **that module no longer exists** — `[U-1]` moved it to `ops::signal::testing`
+  in `b693ce4` and the plan citing it was never updated. Same class of miss as
+  `[N-6]` and `[L-7]`, and further evidence for `[C-6]`.
+- it read as though `mels::testing` exists, rather than being a reservation.
+
+Both corrected; the note now also says not to add the module until something
+needs it. A sweep found no other references to the moved path.
 
 ### Re-verified as clean
 
