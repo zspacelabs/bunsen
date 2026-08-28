@@ -9,7 +9,7 @@
 //! `num = (shape[dim] - size) / step + 1`, appends a trailing axis of length
 //! `size`, and sets
 //!
-//! ```text
+//! ```rust,ignore
 //! strides[dim]  = step * old_strides[dim]
 //! strides.push(          old_strides[dim])
 //! // every other stride is left ALONE
