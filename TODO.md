@@ -146,28 +146,38 @@ pre-emphasis and DC removal will land") is accurate and honestly flagged, not
 narrative. It is the same dead-option surface as `validate` rejecting
 `pre_emphasis` and `remove_dc`, and belongs to that decision.
 
-### [N-3] Time-bound "delete this on the burn bump" comments
+### [N-3] Time-bound "delete this on the burn bump" comments — CLOSED
 
-- `crates/bunsen/src/ops/signal/sliding_stft.rs:338-339` — "Fixed upstream:
-  burn 0.22.0-dev is correct. On the next burn bump, delete this comment and
-  the alignment note in the rustdoc."
-- `crates/bunsen/src/ops/signal/mels/converter.rs:752-753` — "Fixed upstream in
-  burn 0.22.0-dev. Keep the slice on the bump (it states the contract), but
-  delete this comment."
+Closed by fixing the code rather than the prose. The notes themselves are
+**kept as they are**, by decision.
 
-These are instructions to a future maintainer keyed to a version that does not
-exist yet. They rot silently: nothing fails if the bump happens and the comment
-stays.
+The two sites were not alike. `MelConverter::frame` already defended itself —
+it trims to the covered span, so the hazard is unreachable there. `analyze`
+did **not**: it relied on callers keeping `samples` hop-aligned and carried a
+public rustdoc warning saying a ragged `samples` was wrong for `batch > 1`.
 
-Options:
-1. **Restate as a timeless invariant.** Say what the code guarantees ("the
-   slice pins the output length to `n_fft/2 + 1`") and drop the upstream
-   history entirely.
-2. **Make it enforceable.** Keep a one-line note but attach it to something
-   that breaks on the bump — a `#[cfg]`-gated compile check, or a test named
-   for the behaviour that will change.
-3. **Move the history to the changelog** and leave only the invariant in the
-   source.
+`analyze` now applies the same trim. It is semantically free — trailing
+samples that do not fill a whole window are ignored either way — so no output
+changes, and the caller-facing caveat is gone.
+
+`analyze` also had **no direct tests**; it was reached only through `forward`
+and `forward_sequence`, both hop-aligned by construction, which is precisely
+why the ragged path went unexercised. It now has frame-count/shape coverage,
+agreement with a naive per-frame DFT, and batched-vs-per-row agreement.
+
+**Unresolved, recorded so it is not lost.** The defect these notes describe did
+not reproduce. Disabling the new trim did not make the ragged-batch test fail,
+and a direct `unfold` probe at both documented geometries — `(1024, 256)` with
+tail 8, and the mel `(400, 160)` with tail 40 — showed zero difference between
+batched and single-row results on wgpu, at burn 0.21.0 / cubecl 0.10.0.
+
+That is **not** evidence the defect is gone: the probe unfolds a freshly built
+contiguous tensor, while both real call sites unfold the result of a prior pad
+or slice, so provenance and fusion context differ. The notes' claims are left
+standing. Consequently the ragged-batch test is documented as a
+row-independence test, not as a pin on that defect — there is still no test
+that fails when burn fixes it, which was the original `[N-3]` concern and
+remains open in principle.
 
 ### [N-4] Defect-history prose in `burner/repro/` — RESOLVED
 
@@ -504,7 +514,7 @@ Options:
 2. ~~`[L-1]` `repair_strided_weights`~~ — **done**.
 3. ~~`[L-2]`~~ (with `[N-4]`), ~~`[L-3]`~~, ~~`[L-4]`~~ — **done**.
 4. ~~`[N-1]` plan-file disposition~~ — **done**. `[N-2]` is unblocked.
-5. ~~`[N-2]`~~ — **done**. `[N-3]`, `[N-5]` timeless-rewrite passes remain.
+5. ~~`[N-2]`~~, ~~`[N-3]`~~ — **done**. `[N-5]` remains.
 6. `[U-2]` KV-cache convergence — needs a design call, not a cleanup.
 7. `[U-3]`–`[U-7]`, `[L-5]` — judgment calls, low urgency.
 
