@@ -108,8 +108,8 @@ and hand-writing expected activations — is what this crate exists to replace.
 
 bunsen's Whisper is a by-inspection transliteration. Its unit tests check it
 against itself, which cannot catch a shared misreading of the reference — and
-did not. Stepping it against the real implementation turned up four defects that
-a green suite had hidden:
+did not. Stepping it against the real implementation turned up defects that a
+green suite had hidden:
 
 - `PytorchStore` ignores PyTorch tensor strides, so every `Linear` weight in an
   OpenAI checkpoint loaded mangled (see `bunsen::burner::repro`).

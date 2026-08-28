@@ -30,8 +30,8 @@
 //!
 //! bunsen's Whisper is a by-inspection transliteration. Its unit tests check it
 //! against itself, which cannot catch a shared misreading of the reference —
-//! and did not: the encoder was silently wrong in three separate ways until it
-//! was stepped against the real implementation. A cross-check pins the whole
+//! and did not: the encoder was silently wrong in several separate ways until
+//! it was stepped against the real implementation. A cross-check pins the whole
 //! thing to something with independent provenance.
 //!
 //! ## Tests
@@ -248,7 +248,7 @@ mod tests {
         // matmul rather than a disagreement about the model.
         //
         // Set from measurement with headroom over CUDA. Still far tighter
-        // than any real defect: the three this crate was built to catch were
+        // than any real defect: the ones this crate was built to catch were
         // each wrong by 100% or more.
         ours.to_data_as::<F>()
             .assert_approx_eq::<F>(&reference.to_data_as::<F>(), Tolerance::rel_abs(1e-1, 2e-2));
