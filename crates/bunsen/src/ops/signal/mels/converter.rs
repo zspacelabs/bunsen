@@ -925,10 +925,10 @@ impl<B: Backend> MelConverter<B> {
     /// do not fill a frame are dropped. The streaming form, which owns the
     /// padding and the carry, arrives with `MelConversionContext`.
     ///
-    /// Note the result is `[batch, frames, n_mels]`; Whisper's audio encoder
-    /// wants `[batch, n_mels, seq]`, so transpose with `.swap_dims(1, 2)` at
-    /// that boundary. Frames stay on the middle axis here because that is the
-    /// axis streaming chunks concatenate along.
+    /// Note the result is `[batch, frames, n_mels]`: frames stay on the middle
+    /// axis because that is the axis streaming chunks concatenate along. A
+    /// consumer wanting channels-first `[batch, n_mels, seq]` transposes with
+    /// `.swap_dims(1, 2)` at that boundary.
     ///
     /// # Arguments
     /// * `x`: `[batch, samples]`, with `samples >= n_fft`.
