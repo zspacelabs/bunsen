@@ -191,16 +191,6 @@ regexes. Three things block it:
 Revisit if `PytorchStore` gains `with_adapter` upstream, and only with
 something that makes over-matching loud rather than silent.
 
-**C-6. Re-survey after the pass, not just before it.** Round 1's `[U-2]`
-commit put two caller names into `blocks/` **two commits after** `[L-3]`
-removed the identical pattern from a neighbouring file. Writing new prose is
-exactly when a violation gets reintroduced, and no amount of care during the
-fix prevents it — only a second sweep found it. Treat the re-survey as a step
-of the work, not an optional check: a normalization pass that is not re-run
-against its own output has not been verified. The same sweep also caught a
-stale scope header, a reference to a deleted run config, and a conclusion of
-mine that was simply wrong (`[N-6]`).
-
 **C-5. In a repro or cross-check, a named real-world instance is evidence,
 not coupling.** The usual rule — a generic layer must not name a specific
 caller — does not apply to an artifact whose job is to demonstrate a defect.
@@ -210,6 +200,16 @@ a violation in such a file is a pointer back into a caller
 ("...and its callers in the Whisper kit"), which is a real reverse dependency
 and stops meaning anything once the file is lifted out. Keep the evidence;
 cut the back-references. Applies to `[N-5]`.
+
+**C-6. Re-survey after the pass, not just before it.** Round 1's `[U-2]`
+commit put two caller names into `blocks/` **two commits after** `[L-3]`
+removed the identical pattern from a neighbouring file. Writing new prose is
+exactly when a violation gets reintroduced, and no amount of care during the
+fix prevents it — only a second sweep found it. Treat the re-survey as a step
+of the work, not an optional check: a normalization pass that is not re-run
+against its own output has not been verified. The same sweep also caught a
+stale scope header, a reference to a deleted run config, and a conclusion of
+mine that was simply wrong (`[N-6]`).
 
 ---
 
