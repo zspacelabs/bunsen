@@ -20,17 +20,16 @@
 //!
 //! ## Why not `KVCache`
 //!
-//! [`KVCache`](super::KVCache) is a preallocated *multi-layer* cache: a single
+//! [`KVCache`] is a preallocated *multi-layer* cache: a single
 //! `Tensor<B, 6>` over `[layers, kv, batch, heads, seq, d_k]`, grown in chunks,
 //! and a `Module` in its own right. It wants the geometry — layer count, head
 //! count, head dimension, batch size, and a sequence bound — declared up front,
-//! and it serves bunsen's own attention stack
-//! ([`CausalSelfAttention`](super::CausalSelfAttention)).
+//! and it serves bunsen's own attention stack ([`CausalSelfAttention`]).
 //!
-//! [`AttnKvPair`] is a plain per-layer value over burn's [`MultiHeadAttention`]
-//! weights. It declares no geometry, and it also covers a case `KVCache` does
-//! not model: cross-attention keys and values, projected once from the encoder
-//! output and then reused unchanged rather than grown.
+//! [`AttnKvPair`] is a plain per-layer value over burn's
+//! [`MultiHeadAttention`] weights. It declares no geometry, and it also covers
+//! a case `KVCache` does not model: cross-attention keys and values, projected
+//! once from the encoder output and then reused unchanged rather than grown.
 //!
 //! Reach for `KVCache` when the geometry is known up front and the allocation
 //! matters; reach for these when the attention is burn's own and the cache is
@@ -41,11 +40,15 @@
 //! The arithmetic mirrors `MultiHeadAttention::forward` exactly — the same
 //! `1/sqrt(d_k)` scaling, the same `min_float` mask fill, the same
 //! `quiet_softmax` switch — so a cached decode reproduces an uncached one.
-//! `layer_norm_self_attn_kv`'s contract test is what holds that true.
+//! `layer_norm_self_attn_w_kv_cache`'s contract test is what holds that true.
 //!
 //! Note this path deliberately omits the attention-score dropout that
 //! `MultiHeadAttention::attn_scores` applies: caching is an inference concern,
 //! and burn's `Dropout` is a no-op outside training anyway.
+//!
+//! [`MultiHeadAttention`]: burn::nn::attention::MultiHeadAttention
+//! [`KVCache`]: crate::blocks::transformers::attention::kvcache::KVCache
+//! [`CausalSelfAttention`]: crate::blocks::transformers::attention::csa::CausalSelfAttention
 
 mod attend;
 mod attn_kv_pair;

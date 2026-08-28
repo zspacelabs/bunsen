@@ -5,9 +5,9 @@ use burn::{
 
 /// Projected, head-split keys and values: `[batch, heads, seq, d_k]`.
 ///
-/// Built by [`project_kv_pair`]. Self-attention grows one of
-/// these a step at a time; cross-attention builds one per layer and reuses it
-/// untouched.
+/// Built by [`project_kv_pair`](super::project_kv_pair). Self-attention grows
+/// one of these a step at a time; cross-attention builds one per layer and
+/// reuses it untouched.
 #[derive(Clone, Debug)]
 pub struct AttnKvPair<B: Backend> {
     /// `[batch, heads, seq, d_k]` keys.
@@ -34,7 +34,9 @@ impl<B: Backend> AttnKvPair<B> {
     /// self-attention cache one token at a time costs O(T^2) copying across a
     /// decode of length T. That is not worth avoiding at a few hundred
     /// positions, but a long-context decode wants a preallocated cache
-    /// instead; see [`KVCache`](super::KVCache).
+    /// instead; see [`KVCache`].
+    ///
+    /// [`KVCache`]: crate::blocks::transformers::attention::kvcache::KVCache
     pub fn concat(
         self,
         next: Self,
