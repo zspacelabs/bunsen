@@ -21,6 +21,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Removed
 
+- *(signal)* remove `MelConverterOptions::range_clamp` and `::affine`. Dynamic-range
+  packaging reduces over whatever it is handed, so carrying it inside a streaming
+  converter made a chunked run differ from a whole-signal one. `MelConversionContext`
+  is now unconditionally a homomorphism over chunking. `RangeClamp` and
+  `AffineCompress` remain public; apply them once to a finished spectrogram, as the
+  Whisper front end already did.
 - *(blocks)* remove `MlpConfig::repair_strided_weights`. Repairing a checkpoint
   against `burn-store`'s stride-blind `PyTorch` read is a property of the
   checkpoint being loaded, not of the block's architecture. Callers that need it

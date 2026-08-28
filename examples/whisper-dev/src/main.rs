@@ -194,9 +194,7 @@ fn run<B: Backend>(
     // trained on; `n_mels` comes from the checkpoint rather than a constant.
     let options = MelConverterOptions::default()
         .with_sample_rate(args.sample_rate)
-        .with_n_mels(cfg.n_mels)
-        .with_range_clamp(None)
-        .with_affine(None);
+        .with_n_mels(cfg.n_mels);
 
     let conv: MelConverter<B> = options.try_init(&device)?;
 

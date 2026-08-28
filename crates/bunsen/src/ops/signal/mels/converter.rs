@@ -4,10 +4,14 @@
 //! [`MelConverter`]; the converter holds the precomputed constants and is
 //! what a stream is driven through.
 //!
-//! Defaults reproduce Whisper / `librosa`: 16 kHz, 400-sample periodic Hann,
-//! hop 160, 80 Slaney mels with Slaney area normalization, power spectrum,
-//! `log10` over a `1e-10` floor, an 8 dB range clamp, and the `(log + 4) / 4`
-//! affine tail.
+//! Defaults reproduce `librosa`: 16 kHz, 400-sample periodic Hann, hop 160,
+//! 80 Slaney mels with Slaney area normalization, power spectrum, and `log10`
+//! over a `1e-10` floor.
+//!
+//! Dynamic-range packaging — [`RangeClamp`] and [`AffineCompress`] — is a
+//! caller-side step, applied to a finished spectrogram rather than configured
+//! here. Both reduce over whatever they are handed, so folding them into a
+//! streaming converter would make chunking observable; see their docs.
 
 use burn::{
     Tensor,
@@ -134,10 +138,16 @@ impl LogBase {
     }
 }
 
-/// A floor applied to the log-mels, relative to a reference maximum.
+/// A floor applied to log-mels, relative to a reference maximum.
 ///
 /// Values below `reference - db` are lifted to `reference - db`, which is
 /// Whisper's `maximum(log_spec, log_spec.max() - 8.0)`.
+///
+/// Applied by the caller with [`apply`](Self::apply), to a finished
+/// spectrogram. It is deliberately not a [`MelConverterOptions`] field:
+/// [`PerCall`](Self::PerCall) reduces over whatever it is handed, so folding
+/// it into the pipeline would make a streamed run differ from a whole-signal
+/// one. Clamp once, after joining.
 #[derive(Config, Copy, Debug, PartialEq)]
 pub enum RangeClamp {
     /// Reference is the maximum over the current call, per batch row.
@@ -189,9 +199,13 @@ impl RangeClamp {
     }
 }
 
-/// The affine tail applied after compression: `(v + bias) / div`.
+/// An affine rescaling of compressed mels: `(v + bias) / div`.
 ///
 /// Whisper uses `(log_spec + 4.0) / 4.0`.
+///
+/// Applied by the caller with [`apply`](Self::apply). Like
+/// [`RangeClamp`], it is packaging for a particular model's input rather than
+/// a mel-spectrogram parameter, so it is not a [`MelConverterOptions`] field.
 #[derive(Config, Copy, Debug, PartialEq)]
 pub struct AffineCompress {
     /// Added before the division.
@@ -222,7 +236,7 @@ impl AffineCompress {
 
 /// Options for [`MelConverter`](super::MelConverter).
 ///
-/// Defaults reproduce Whisper's `log_mel_spectrogram`. Validated by
+/// Defaults reproduce `librosa`'s mel spectrogram. Validated by
 /// [`validate`](Self::validate), which
 /// [`try_init`](crate::burner::module::ModuleInit::try_init) runs before
 /// building anything.
@@ -315,14 +329,6 @@ pub struct MelConverterOptions {
     /// frame yields a finite floor rather than `-inf`.
     #[config(default = "1e-10")]
     pub log_floor: f64,
-
-    /// Optional dynamic-range floor applied after the log.
-    #[config(default = "Some(RangeClamp::PerCall { db: 8.0 })")]
-    pub range_clamp: Option<RangeClamp>,
-
-    /// Optional affine tail applied last.
-    #[config(default = "Some(AffineCompress { bias: 4.0, div: 4.0 })")]
-    pub affine: Option<AffineCompress>,
 
     // ---- impl ----
     /// Which spectrum implementation to use.
@@ -570,14 +576,6 @@ impl MelConverterOptions {
                 "MelConverter f_min ({}) must be < f_max ({f_max})",
                 self.f_min,
             )));
-        }
-
-        if let Some(affine) = self.affine
-            && affine.div == 0.0
-        {
-            return Err(BunsenError::Invalid(
-                "MelConverter affine.div must be non-zero".to_string(),
-            ));
         }
 
         // Rejected rather than silently ignored. `t_stage_preproc` is the
@@ -904,17 +902,8 @@ impl<B: Backend> MelConverter<B> {
         let opts = &self.options;
 
         let x = mels.clamp_min(opts.log_floor);
-        let x = opts.log_base.apply(x);
 
-        let x = match opts.range_clamp {
-            None => x,
-            Some(clamp) => clamp.apply(x),
-        };
-
-        match opts.affine {
-            None => x,
-            Some(affine) => affine.apply(x),
-        }
+        opts.log_base.apply(x)
     }
 
     /// Converts a whole signal to log-mels in one call.
@@ -1364,60 +1353,61 @@ mod tests {
             "compress produced a non-finite value on all-zero input",
         );
 
-        // Everything is equal, so the per-call clamp does nothing and the
-        // result is the affine of `log10(log_floor)`.
-        let expected = (opts.log_floor.log10() + 4.0) / 4.0;
+        // `compress` is the floor and the log, so an all-zero input lands on
+        // `log10(log_floor)` exactly.
+        let expected = opts.log_floor.log10();
         assert_close_to_vec(&out, &vec![expected; out.len()], 1e-5);
     }
 
-    /// The Whisper tail, on values chosen so every step is exact.
+    /// `PerCall` reduces per batch row: row 1's floor is set by row 1's own
+    /// maximum, and a reduction across rows would clip it differently.
     ///
-    /// Also pins that `PerCall` reduces per batch row: row 1's floor is set by
-    /// row 1's own maximum, and a reduction across rows would clip it
-    /// differently.
+    /// Applied directly. The converter no longer carries this stage — a
+    /// per-call reduction is not chunk-invariant, so it cannot live inside a
+    /// streaming pipeline.
     #[test]
-    fn test_compress_per_call_clamp_is_per_row() {
+    fn test_per_call_clamp_is_per_row() {
         let device = Default::default();
         let n_mels = 4;
-        let opts = MelConverterOptions::default().with_n_mels(n_mels);
-        let conv: MelConverter<B> = opts.try_init(&device).ok_or_panic();
 
-        // log10: row 0 -> [0, -10, 0, 0]; row 1 -> [-2, -10, -2, -2].
-        let energies = vec![
-            1.0, 1e-10, 1.0, 1.0, //
-            0.01, 1e-10, 0.01, 0.01,
+        // Log-domain input: row 0 -> [0, -10, 0, 0]; row 1 -> [-2, -10, -2, -2].
+        let logs = vec![
+            0.0, -10.0, 0.0, 0.0, //
+            -2.0, -10.0, -2.0, -2.0,
         ];
-        let x = Tensor::from_data(TensorData::new(energies, [2, 1, n_mels]), &device);
+        let x: Tensor<B, 3> = Tensor::from_data(TensorData::new(logs, [2, 1, n_mels]), &device);
 
-        let out = conv.compress(x).to_data().to_vec_as::<f64>().unwrap();
+        let out = RangeClamp::PerCall { db: 8.0 }
+            .apply(x)
+            .to_data()
+            .to_vec_as::<f64>()
+            .unwrap();
 
-        // Row 0: max 0, floor -8, so -10 clips to -8. Affine (v + 4) / 4.
+        // Row 0: max 0, floor -8, so -10 clips to -8.
         // Row 1: max -2, floor -10, so -10 is untouched.
         let expected = vec![
-            1.0, -1.0, 1.0, 1.0, // (0+4)/4, (-8+4)/4
-            0.5, -1.5, 0.5, 0.5, // (-2+4)/4, (-10+4)/4
+            0.0, -8.0, 0.0, 0.0, //
+            -2.0, -10.0, -2.0, -2.0,
         ];
         assert_close_to_vec(&out, &expected, 1e-5);
 
         // A reduction across rows would have used row 0's max for row 1,
-        // clipping its -10 to -8 and giving -1.0 instead of -1.5.
+        // clipping its -10 to -8.
         assert!(
-            (out[5] - (-1.5)).abs() < 1e-5,
+            (out[5] - (-10.0)).abs() < 1e-5,
             "row 1 was clamped against another row's maximum",
         );
     }
 
     #[test]
-    fn test_compress_honours_log_base_and_disabled_stages() {
+    fn test_compress_honours_log_base() {
         let device = Default::default();
         let n_mels = 2;
 
-        // Natural log, no clamp, no affine: just `ln(max(v, floor))`.
+        // `ln(max(v, floor))`.
         let opts = MelConverterOptions::default()
             .with_n_mels(n_mels)
-            .with_log_base(LogBase::E)
-            .with_range_clamp(None)
-            .with_affine(None);
+            .with_log_base(LogBase::E);
         let conv: MelConverter<B> = opts.try_init(&device).ok_or_panic();
 
         let x = Tensor::from_data(
@@ -1453,7 +1443,7 @@ mod tests {
     }
 
     #[test]
-    fn test_defaults_are_whisper() {
+    fn test_defaults_are_librosa() {
         let opts = MelConverterOptions::default();
 
         assert_eq!(opts.sample_rate, 16000);
@@ -1468,14 +1458,6 @@ mod tests {
         assert_eq!(opts.end_padding, PaddingMode::Reflect);
         assert_eq!(opts.log_base, LogBase::Ten);
         assert_eq!(opts.log_floor, 1e-10);
-        assert_eq!(opts.range_clamp, Some(RangeClamp::PerCall { db: 8.0 }));
-        assert_eq!(
-            opts.affine,
-            Some(AffineCompress {
-                bias: 4.0,
-                div: 4.0,
-            }),
-        );
         assert_eq!(opts.spectrum_impl, SpectrumImpl::DftMatmul);
 
         opts.validate().unwrap();
@@ -1526,11 +1508,6 @@ mod tests {
             // f_min >= f_max
             base().with_f_min(8000.0),
             base().with_f_min(9000.0).with_f_max(Some(8000.0)),
-            // a zero divisor would produce inf/NaN mels
-            base().with_affine(Some(AffineCompress {
-                bias: 4.0,
-                div: 0.0,
-            })),
         ] {
             assert!(
                 matches!(bad.validate(), Err(BunsenError::Invalid(_))),
@@ -1567,8 +1544,7 @@ mod tests {
         let opts = MelConverterOptions::default()
             .with_n_mels(40)
             .with_f_max(Some(7600.0))
-            .with_mel_scale(MelScale::Htk)
-            .with_range_clamp(None);
+            .with_mel_scale(MelScale::Htk);
 
         let json = serde_json::to_string(&opts).unwrap();
         let back: MelConverterOptions = serde_json::from_str(&json).unwrap();
@@ -1576,7 +1552,6 @@ mod tests {
         assert_eq!(back.n_mels, 40);
         assert_eq!(back.f_max, Some(7600.0));
         assert_eq!(back.mel_scale, MelScale::Htk);
-        assert_eq!(back.range_clamp, None);
         assert_eq!(back.n_fft, opts.n_fft);
     }
 

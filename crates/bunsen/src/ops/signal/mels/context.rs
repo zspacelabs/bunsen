@@ -51,13 +51,13 @@ pub enum StreamPhase {
 /// Like [`MelConverter`], this is a `Module` over bare tensors — the carry
 /// rides `to_device` but is neither recorded nor visited.
 ///
-/// # Chunking and per-call reductions
+/// # Chunking
 ///
-/// [`RangeClamp::PerCall`](crate::ops::signal::mels::RangeClamp::PerCall)
-/// reduces over one call's frames, so a streamed run clamps each chunk
-/// against its own maximum: chunking is not transparent while it is enabled.
-/// Stream with the clamp and the affine **off**, then apply them once to the
-/// joined result.
+/// Every stage is elementwise or frame-local, so transforming a signal in
+/// chunks and concatenating gives the same result as transforming it whole.
+/// Dynamic-range packaging that reduces over a whole clip — see
+/// [`RangeClamp`](crate::ops::signal::mels::RangeClamp) — is deliberately not
+/// part of this pipeline; apply it once to the joined result.
 #[derive(Module, Debug)]
 pub struct MelConversionContext<B: Backend> {
     /// The analysis constants; shared, never mutated.
@@ -420,10 +420,7 @@ mod tests {
             tensor::TensorDataToVecAsExt,
         },
         errors::WithOkOrPanic,
-        ops::signal::mels::{
-            MelConverterOptions,
-            RangeClamp,
-        },
+        ops::signal::mels::MelConverterOptions,
         support::testing::{
             PerformanceBackend,
             assert_close_to_vec,
@@ -463,16 +460,10 @@ mod tests {
             .collect()
     }
 
-    /// Streaming is only a homomorphism when the clamp does not depend on the
-    /// call, so the chunking tests disable it.
-    fn streaming_options() -> MelConverterOptions {
-        MelConverterOptions::default().with_range_clamp(None)
-    }
-
     #[test]
     fn test_context_meta_and_lifecycle() {
         let device = Default::default();
-        let opts = streaming_options();
+        let opts = MelConverterOptions::default();
         let conv: MelConverter<B> = opts.try_init(&device).ok_or_panic();
 
         let ctx = conv.new_context(2);
@@ -506,7 +497,7 @@ mod tests {
     #[test]
     fn test_frame_accounting_over_a_30s_window() {
         let device = Default::default();
-        let opts = streaming_options();
+        let opts = MelConverterOptions::default();
         let conv: MelConverter<B> = opts.try_init(&device).ok_or_panic();
 
         // 30 s at the default 16 kHz sample rate.
@@ -532,7 +523,9 @@ mod tests {
     #[test]
     fn test_running_frame_count_is_invariant() {
         let device = Default::default();
-        let conv: MelConverter<B> = streaming_options().try_init(&device).ok_or_panic();
+        let conv: MelConverter<B> = MelConverterOptions::default()
+            .try_init(&device)
+            .ok_or_panic();
         let hop = conv.hop();
 
         let mut ctx = conv.new_context(2);
@@ -566,7 +559,9 @@ mod tests {
     #[test]
     fn test_chunked_transform_is_a_homomorphism() {
         let device = Default::default();
-        let conv: MelConverter<B> = streaming_options().try_init(&device).ok_or_panic();
+        let conv: MelConverter<B> = MelConverterOptions::default()
+            .try_init(&device)
+            .ok_or_panic();
 
         let (batch, total) = (3, 32_000);
         let host = rows(batch, total);
@@ -616,7 +611,9 @@ mod tests {
     #[test]
     fn test_batch_rows_are_independent() {
         let device = Default::default();
-        let conv: MelConverter<B> = streaming_options().try_init(&device).ok_or_panic();
+        let conv: MelConverter<B> = MelConverterOptions::default()
+            .try_init(&device)
+            .ok_or_panic();
 
         let (batch, samples) = (3, 8_000);
         let host = rows(batch, samples);
@@ -647,7 +644,9 @@ mod tests {
     #[test]
     fn test_transform_rejects_bad_input() {
         let device = Default::default();
-        let conv: MelConverter<B> = streaming_options().try_init(&device).ok_or_panic();
+        let conv: MelConverter<B> = MelConverterOptions::default()
+            .try_init(&device)
+            .ok_or_panic();
 
         // Not a hop multiple.
         let ctx = conv.new_context(2);
@@ -671,7 +670,7 @@ mod tests {
         let device = Default::default();
 
         // No end padding: nothing to flush.
-        let unpadded: MelConverter<B> = streaming_options()
+        let unpadded: MelConverter<B> = MelConverterOptions::default()
             .with_end_padding(PaddingMode::None)
             .try_init(&device)
             .ok_or_panic();
@@ -686,7 +685,7 @@ mod tests {
 
         // Zero end padding produces the same frame count as reflect; only the
         // values differ.
-        let zero: MelConverter<B> = streaming_options()
+        let zero: MelConverter<B> = MelConverterOptions::default()
             .with_end_padding(PaddingMode::Zero)
             .try_init(&device)
             .ok_or_panic();
@@ -702,7 +701,9 @@ mod tests {
     #[test]
     fn test_stage_stack_matches_transform() {
         let device = Default::default();
-        let conv: MelConverter<B> = streaming_options().try_init(&device).ok_or_panic();
+        let conv: MelConverter<B> = MelConverterOptions::default()
+            .try_init(&device)
+            .ok_or_panic();
 
         let x = from_rows::<B>(&rows(2, 3200), &device);
 
@@ -725,7 +726,9 @@ mod tests {
     #[test]
     fn test_extend_stage_carry_contents() {
         let device = Default::default();
-        let conv: MelConverter<B> = streaming_options().try_init(&device).ok_or_panic();
+        let conv: MelConverter<B> = MelConverterOptions::default()
+            .try_init(&device)
+            .ok_or_panic();
         let (n_fft, hop) = (conv.n_fft(), conv.hop());
         let pad = n_fft / 2;
 
@@ -751,74 +754,6 @@ mod tests {
             &ctx.carry().unwrap(),
             &ext_host[consumed..],
             Tolerance::default(),
-        );
-    }
-
-    /// `PerCall` is documented as not chunk-invariant; pin that so nobody
-    /// "fixes" the homomorphism tests by turning it back on.
-    ///
-    /// The signal has to earn it: `db` is in log-units, so the default 8.0 is
-    /// an 80 dB window that ordinary noise never spans — the clamp simply
-    /// never fires and both chunkings agree. Making the second half silent is
-    /// what separates them, and it is the realistic case: a clip zero-padded
-    /// to a fixed window ends in silence, which is what the clamp exists to
-    /// floor.
-    #[test]
-    fn test_per_call_clamp_is_not_chunk_invariant() {
-        let device = Default::default();
-        let conv: MelConverter<B> = MelConverterOptions::default()
-            .with_range_clamp(Some(RangeClamp::PerCall { db: 8.0 }))
-            .try_init(&device)
-            .ok_or_panic();
-
-        // Loud first half, digital silence second half.
-        let host: Vec<Vec<f64>> = rows(1, 6400)
-            .into_iter()
-            .map(|r| {
-                r.into_iter()
-                    .enumerate()
-                    .map(|(i, v)| if i < 3200 { v } else { 0.0 })
-                    .collect()
-            })
-            .collect();
-
-        let (whole, _) = conv
-            .new_context(1)
-            .transform(from_rows::<B>(&host, &device))
-            .unwrap();
-
-        let mut ctx = conv.new_context(1);
-        let mut pieces = Vec::new();
-        for at in [0, 3200] {
-            let chunk: Vec<Vec<f64>> = host.iter().map(|r| r[at..at + 3200].to_vec()).collect();
-            let (mels, next) = ctx.transform(from_rows::<B>(&chunk, &device)).unwrap();
-            ctx = next;
-            pieces.push(mels);
-        }
-        let joined: Tensor<B, 3> = Tensor::cat(pieces, 1);
-
-        assert_eq!(joined.dims(), whole.dims());
-
-        let (a, b) = (
-            joined.to_data().to_vec_as::<f64>().unwrap(),
-            whole.to_data().to_vec_as::<f64>().unwrap(),
-        );
-        let differs = a.iter().zip(&b).any(|(x, y)| (x - y).abs() > 1e-6);
-        assert!(
-            differs,
-            "PerCall clamp unexpectedly matched across chunkings; if this \
-             became true, the clamp is no longer per-call",
-        );
-
-        // The whole-signal run floors the silence against the loud maximum;
-        // the chunked run floors it against the quiet chunk's own maximum, so
-        // it sits lower. That direction is the whole point.
-        let quietest_whole = b.iter().copied().fold(f64::INFINITY, f64::min);
-        let quietest_joined = a.iter().copied().fold(f64::INFINITY, f64::min);
-        assert!(
-            quietest_joined < quietest_whole,
-            "expected the chunked run to floor lower ({quietest_joined} vs \
-             {quietest_whole})",
         );
     }
 }

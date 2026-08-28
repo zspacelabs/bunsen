@@ -114,8 +114,6 @@ fn logmel_tolerance() -> Tolerance<F> {
 /// than Whisper's packaging of it.
 fn parity_options() -> MelConverterOptions {
     MelConverterOptions::default()
-        .with_range_clamp(None)
-        .with_affine(None)
 }
 
 #[test]
