@@ -220,9 +220,8 @@ impl<B: Backend> AudioEncoder<B> {
     ) -> Tensor<B, 3> {
         let x = self.forward_head(x);
 
-        let x = self.embed(x);
+        let mut x = self.embed(x);
 
-        let mut x = x;
         for b in self.blocks.iter() {
             x = b.forward(x);
         }
