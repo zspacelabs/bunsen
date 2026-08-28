@@ -117,22 +117,34 @@ wrong axis even when its element values are right — and their doc now says so.
 
 No source file cites the plan any more.
 
-### [N-2] "Stage N:" doc headings on the transform pipeline
+### [N-2] "Stage N:" doc headings on the transform pipeline — RESOLVED
 
-`crates/bunsen/src/ops/signal/mels/context.rs`:263, :352, :368, :380, :392, :404
+**Pipeline stages are named, not numbered.** The ordinals carried nothing the
+method name and shape transition did not already say, and the ordering they
+described is expressed by `transform`'s body — the only place it cannot drift.
 
-Every `t_stage_*` method opens with `/// Stage 1:` … `/// Stage 6:`. The
-numbers describe the plan's ordering, not anything a caller can observe — and
-they are a maintenance trap: inserting a stage renumbers five doc comments.
+The finding that settled it was stronger than the maintenance-trap argument
+this entry was opened with: the numbers were already **ambiguous, and in one
+case contradictory**. `PLAN.md` used "Stage N" for two different things — the
+build sequence (`## Stage 4 — t_stage_frame`) and the runtime pipeline (where
+`t_stage_frame` was stage 3). Same function, two live numbers, in files that
+now sit in the same directory. One plan heading mixed both in a single line:
+"Stage 5 — Spectrum -> mel -> compress (stateless stages 4-6)".
 
-Options:
-1. **Drop the ordinals, keep the prose.** `/// Prepends the start padding or
-   the carry…`. The ordering is already expressed by `transform`'s body.
-2. **Keep ordinals but source them from the code** — document the stage list
-   once on `MelConversionContext` (or on `transform`) as the pipeline
-   contract, and have each method document only its own transform.
-3. **Rename to phase names** — `t_stage_extend` already carries the name;
-   let the doc lead with the invariant (`in: [B, S]`, `out: [B, S']`) instead.
+Applied to both files, since unnumbering only the code would have preserved the
+mismatch. In `PLAN.md` the stage table lost its ordinal column, the six prose
+headers lost their numbers, and numbered cross-references became named ones
+("bypasses `t_stage_frame` and `t_stage_spectrum`").
+
+**Build stages keep their numbers.** A work plan is a sequence and its steps
+have no other name; `## Stage 8`, `## Stage 9`, and the "Order of work" list
+are unaffected. All surviving `Stage N` references in `PLAN.md` were checked
+and are build stages.
+
+**Left for `[U-5]`:** `t_stage_preproc`'s doc ("currently the identity ... where
+pre-emphasis and DC removal will land") is accurate and honestly flagged, not
+narrative. It is the same dead-option surface as `validate` rejecting
+`pre_emphasis` and `remove_dc`, and belongs to that decision.
 
 ### [N-3] Time-bound "delete this on the burn bump" comments
 
@@ -492,7 +504,7 @@ Options:
 2. ~~`[L-1]` `repair_strided_weights`~~ — **done**.
 3. ~~`[L-2]`~~ (with `[N-4]`), ~~`[L-3]`~~, ~~`[L-4]`~~ — **done**.
 4. ~~`[N-1]` plan-file disposition~~ — **done**. `[N-2]` is unblocked.
-5. `[N-3]`, `[N-5]` timeless-rewrite passes.
+5. ~~`[N-2]`~~ — **done**. `[N-3]`, `[N-5]` timeless-rewrite passes remain.
 6. `[U-2]` KV-cache convergence — needs a design call, not a cleanup.
 7. `[U-3]`–`[U-7]`, `[L-5]` — judgment calls, low urgency.
 
