@@ -19,7 +19,10 @@ use burn::{
 };
 
 use crate::{
-    burner::module::ModuleInit,
+    burner::{
+        module::ModuleInit,
+        store::FixPytorchLoadMappers,
+    },
     errors::BunsenResult,
 };
 
@@ -132,6 +135,15 @@ pub struct Mlp<B: Backend> {
 
     /// Output Projection.
     pub linear2: Linear<B>,
+}
+
+impl<B: Backend> FixPytorchLoadMappers for Mlp<B> {
+    /// Both projections are `Linear`; the activation holds no parameters.
+    fn fix_pytorch_load_mappers(mut self) -> Self {
+        self.linear1 = self.linear1.fix_pytorch_load_mappers();
+        self.linear2 = self.linear2.fix_pytorch_load_mappers();
+        self
+    }
 }
 
 impl<B: Backend> MlpMeta for Mlp<B> {

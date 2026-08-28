@@ -24,7 +24,10 @@ use burn::{
 
 use super::WHISPER_DEFAULT_D_MODEL;
 use crate::{
-    burner::module::ModuleInit,
+    burner::{
+        module::ModuleInit,
+        store::FixPytorchLoadMappers,
+    },
     errors::BunsenResult,
     kits::speech::whisper::blocks::{
         ResidualDecoderAttentionBlock,
@@ -171,6 +174,15 @@ pub struct TextDecoder<B: Backend> {
     /// The output layer norm.
     pub ln: LayerNorm<B>,
     // mask: Param<Tensor<B, 2>>,
+}
+
+impl<B: Backend> FixPytorchLoadMappers for TextDecoder<B> {
+    /// Only the attention blocks are affected: the token and positional
+    /// embeddings and the final layer norm are stored contiguously.
+    fn fix_pytorch_load_mappers(mut self) -> Self {
+        self.blocks = self.blocks.fix_pytorch_load_mappers();
+        self
+    }
 }
 
 impl<B: Backend> TextDecoderMeta for TextDecoder<B> {

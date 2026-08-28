@@ -2,6 +2,7 @@
 use std::fmt::Debug;
 
 use burn::{
+    module::Param,
     prelude::{
         Backend,
         Tensor,
@@ -102,6 +103,25 @@ pub fn assert_tensors_close<B, const D: usize>(
     actual
         .to_data_as::<B::FloatElem>()
         .assert_approx_eq::<B::FloatElem>(&expected.to_data_as::<B::FloatElem>(), tolerance);
+}
+
+/// Applies a parameter's **load**-path mapping to a tensor.
+///
+/// A [`Param`] can carry transformations that run only as it crosses a store
+/// boundary — see [`repair_pytorch_strided_weight`] — which makes them
+/// invisible from the outside. This exposes the load side, so a test can
+/// assert *which* mappings a module attached, and to which parameters.
+///
+/// [`repair_pytorch_strided_weight`]:
+///     crate::burner::store::repair_pytorch_strided_weight
+pub fn param_load_mapping<B, const D: usize>(
+    param: &Param<Tensor<B, D>>,
+    tensor: Tensor<B, D>,
+) -> Tensor<B, D>
+where
+    B: Backend,
+{
+    param.clone().consume().2.on_load(tensor)
 }
 
 #[cfg(test)]

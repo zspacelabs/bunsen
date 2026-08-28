@@ -10,7 +10,10 @@ use burn::{
 
 use super::WHISPER_DEFAULT_D_MODEL;
 use crate::{
-    burner::module::ModuleInit,
+    burner::{
+        module::ModuleInit,
+        store::FixPytorchLoadMappers,
+    },
     kits::speech::whisper::blocks::{
         AudioEncoder,
         AudioEncoderConfig,
@@ -176,6 +179,14 @@ pub struct Whisper<B: Backend> {
     pub decoder: TextDecoder<B>,
 }
 
+impl<B: Backend> FixPytorchLoadMappers for Whisper<B> {
+    fn fix_pytorch_load_mappers(mut self) -> Self {
+        self.encoder = self.encoder.fix_pytorch_load_mappers();
+        self.decoder = self.decoder.fix_pytorch_load_mappers();
+        self
+    }
+}
+
 impl<B: Backend> WhisperMeta for Whisper<B> {
     fn encoder(&self) -> &impl AudioEncoderMeta {
         &self.encoder
@@ -236,13 +247,97 @@ impl<B: Backend> Whisper<B> {
 
 #[cfg(test)]
 mod tests {
+    use burn::{
+        module::Param,
+        prelude::{
+            Device,
+            TensorData,
+        },
+        tensor::DType,
+    };
     use serial_test::serial;
 
     use super::*;
     use crate::{
         contracts::assert_shape_contract,
-        support::testing::PerformanceBackend,
+        support::testing::{
+            CpuBackend,
+            PerformanceBackend,
+            param_load_mapping,
+        },
     };
+
+    /// Whether `param` carries a load-path mapping, read through a `[2, 3]`
+    /// probe that the repair visibly reorders.
+    fn is_mapped(
+        param: &Param<Tensor<CpuBackend, 2>>,
+        device: &Device<CpuBackend>,
+    ) -> bool {
+        let probe: Tensor<CpuBackend, 2> = Tensor::from_data(
+            TensorData::new((0..6).map(|v| v as f64).collect::<Vec<_>>(), [2, 3]),
+            device,
+        );
+
+        let flat = |t: Tensor<CpuBackend, 2>| -> Vec<f32> {
+            t.cast(DType::F32).to_data().to_vec().unwrap()
+        };
+
+        flat(param_load_mapping(param, probe.clone())) != flat(probe)
+    }
+
+    /// **The walk's coverage.** Every `Linear` weight in the model must carry
+    /// the repair, and nothing else may: a missed projection loads scrambled,
+    /// and an extra one — on a parameter the checkpoint stores contiguously —
+    /// is a silent transpose.
+    #[test]
+    fn test_fix_pytorch_load_mappers_covers_the_projections() {
+        type B = CpuBackend;
+
+        let device: Device<B> = Default::default();
+
+        // `n_heads` is `d_model / d_head`, and `d_head` defaults to 64.
+        let model: Whisper<B> = WhisperApiConfig::new(8, 16, 128, 16, 1, 16, 1)
+            .try_init(&device)
+            .unwrap();
+
+        // Initialization leaves the parameters alone; the repair is attached
+        // only on the way to a PyTorch load.
+        assert!(!is_mapped(
+            &model.encoder.blocks[0].attn.query.weight,
+            &device
+        ));
+
+        let model = model.fix_pytorch_load_mappers();
+
+        let encoder = &model.encoder.blocks[0];
+        let decoder = &model.decoder.blocks[0];
+        for weight in [
+            &encoder.attn.query.weight,
+            &encoder.attn.key.weight,
+            &encoder.attn.value.weight,
+            &encoder.attn.output.weight,
+            &encoder.mlp.linear1.weight,
+            &encoder.mlp.linear2.weight,
+            &decoder.attn.query.weight,
+            &decoder.attn.key.weight,
+            &decoder.attn.value.weight,
+            &decoder.attn.output.weight,
+            &decoder.cross_attn.query.weight,
+            &decoder.cross_attn.key.weight,
+            &decoder.cross_attn.value.weight,
+            &decoder.cross_attn.output.weight,
+            &decoder.mlp.linear1.weight,
+            &decoder.mlp.linear2.weight,
+        ] {
+            assert!(is_mapped(weight, &device));
+        }
+
+        // The embeddings are stored contiguously — the conv head's weights
+        // are rank-3, which the repair cannot reach at all.
+        assert!(!is_mapped(&model.encoder.positional_embedding, &device));
+        assert!(!is_mapped(&model.decoder.positional_embedding, &device));
+        assert!(!is_mapped(&model.decoder.token_embedding.weight, &device));
+    }
 
     #[test]
     #[serial]

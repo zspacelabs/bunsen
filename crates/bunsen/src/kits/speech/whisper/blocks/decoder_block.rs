@@ -26,7 +26,7 @@ use crate::{
     },
     burner::{
         module::ModuleInit,
-        store::repair_pytorch_strided_weight,
+        store::FixPytorchLoadMappers,
     },
     errors::BunsenResult,
     ops::transformers::attention::{
@@ -101,26 +101,10 @@ impl<B: Backend> ModuleInit<B, ResidualDecoderAttentionBlock<B>>
 
         // Whisper's MLP projections carry a bias, and it runs
         // `Linear -> GELU -> Linear`; the `MlpConfig` default is ReLU.
-        let mut mlp: Mlp<B> = MlpConfig::new(self.d_model)
+        let mlp: Mlp<B> = MlpConfig::new(self.d_model)
             .with_activation(ActivationConfig::Gelu)
             .with_bias(true)
             .try_init(device)?;
-
-        // Every `Linear` weight in an OpenAI Whisper checkpoint is stored as
-        // a column-major view, which `burn-store` misreads — see
-        // `repro::pytorch_strided_weights`. Repair it on the parameter.
-        //
-        // The `Row` layout is otherwise correct: `PyTorchToBurnAdapter`
-        // already transposes the incoming `[d_output, d_input]` weight, so
-        // `Col` would transpose a second time.
-        for mha in [&mut attn, &mut cross_attn] {
-            mha.query.weight = repair_pytorch_strided_weight(mha.query.weight.clone());
-            mha.key.weight = repair_pytorch_strided_weight(mha.key.weight.clone());
-            mha.value.weight = repair_pytorch_strided_weight(mha.value.weight.clone());
-            mha.output.weight = repair_pytorch_strided_weight(mha.output.weight.clone());
-        }
-        mlp.linear1.weight = repair_pytorch_strided_weight(mlp.linear1.weight);
-        mlp.linear2.weight = repair_pytorch_strided_weight(mlp.linear2.weight);
 
         Ok(ResidualDecoderAttentionBlock {
             attn_ln: ln_cfg.init(device),
@@ -160,6 +144,17 @@ pub struct ResidualDecoderAttentionBlock<B: Backend> {
 
     /// MLP.
     pub mlp: Mlp<B>,
+}
+
+impl<B: Backend> FixPytorchLoadMappers for ResidualDecoderAttentionBlock<B> {
+    /// The `Linear` weights live in the two attentions and the MLP; the layer
+    /// norms are rank-1 and unaffected.
+    fn fix_pytorch_load_mappers(mut self) -> Self {
+        self.attn = self.attn.fix_pytorch_load_mappers();
+        self.cross_attn = self.cross_attn.fix_pytorch_load_mappers();
+        self.mlp = self.mlp.fix_pytorch_load_mappers();
+        self
+    }
 }
 
 impl<B: Backend> ResidualDecoderAttentionBlockMeta for ResidualDecoderAttentionBlock<B> {

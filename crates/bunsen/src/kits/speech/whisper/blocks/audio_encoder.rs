@@ -27,7 +27,10 @@ use crate::{
         ConvSeq1dConfig,
         ConvSeq1dMeta,
     },
-    burner::module::ModuleInit,
+    burner::{
+        module::ModuleInit,
+        store::FixPytorchLoadMappers,
+    },
     errors::BunsenResult,
     kits::speech::whisper::blocks::{
         ResidualEncoderAttentionBlock,
@@ -166,6 +169,16 @@ pub struct AudioEncoder<B: Backend> {
 
     /// The final `LayerNorm`.
     pub ln_post: LayerNorm<B>,
+}
+
+impl<B: Backend> FixPytorchLoadMappers for AudioEncoder<B> {
+    /// Only the attention blocks are affected: the head's conv weights are
+    /// rank-3, and the positional embedding and the final layer norm are
+    /// stored contiguously.
+    fn fix_pytorch_load_mappers(mut self) -> Self {
+        self.blocks = self.blocks.fix_pytorch_load_mappers();
+        self
+    }
 }
 
 impl<B: Backend> AudioEncoderMeta for AudioEncoder<B> {

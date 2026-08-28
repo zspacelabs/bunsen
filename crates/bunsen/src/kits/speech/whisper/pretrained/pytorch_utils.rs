@@ -14,7 +14,10 @@ use burn_store::{
 };
 
 use crate::{
-    burner::module::ModuleInit,
+    burner::{
+        module::ModuleInit,
+        store::FixPytorchLoadMappers,
+    },
     errors::{
         BunsenError,
         BunsenResult,
@@ -136,7 +139,15 @@ impl PytorchWhisperScanner {
     ) -> BunsenResult<(Whisper<B>, WhisperApiConfig)> {
         let (mut store, cfg) = self.scan_cfg(path)?;
 
-        let mut module = cfg.try_init(device)?;
+        let module: Whisper<B> = cfg.try_init(device)?;
+
+        // `burn-store` reads PyTorch storage without honoring strides, and
+        // every `Linear` weight in an OpenAI Whisper checkpoint is a
+        // column-major view — see `repro::pytorch_strided_weights`. Attach the
+        // repair before the load, and only here: on a weight that did not
+        // need it, the mapper is a silent transpose.
+        let mut module = module.fix_pytorch_load_mappers();
+
         module
             .load_from(&mut store)
             .map_err(BunsenError::external)?;
