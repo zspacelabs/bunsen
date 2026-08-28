@@ -249,30 +249,38 @@ Checked while here: `layer_norm_cross_attn_kv` in `kv_attention.rs` carries no
 such prose, so there was no third copy. `blocks/` is now free of model names
 apart from `[L-6]`.
 
-### [L-4] `# Producing Whisper input` recipe in `mels/context.rs`
+### [L-4] `# Producing Whisper input` recipe in `mels/context.rs` — RESOLVED
 
-`crates/bunsen/src/ops/signal/mels/context.rs:54-79` — a section header plus a
-code block that reproduces `whisper.audio.log_mel_spectrogram`, including
-`// Whisper slices stft[..., :-1].`
+The decisive finding: **the recipe already existed as working code.**
+`to_whisper_mels` in `examples/whisper-dev/src/main.rs` implements it exactly —
+same slice, same `db: 8.0`, same `swap_dims` — and its own doc already pointed
+back to `MelConversionContext` for the caveat. `mels/cross_test.rs` implements
+it a third time as a test. The Whisper *kit* never used it. So the doc block
+was prose duplicating code, not a recipe needing a home, and the fix was to
+delete rather than relocate.
 
-`ops::signal` is the most generic layer in the tree, and this makes a specific
-model's preprocessing recipe part of its public documentation.
+What the section actually contained was two separable halves:
+- the **caveat** — `RangeClamp::PerCall` reduces over one call's frames, so
+  chunking is not transparent while it is on — which is a real property of the
+  type, already pinned by `test_per_call_clamp_is_not_chunk_invariant`. Kept,
+  restated model-free as `# Chunking and per-call reductions`.
+- the **recipe** — code block, `[..., :-1]` slice, `db: 8.0`, encoder axis
+  order. Deleted. 26 lines became 6.
 
-Options:
-1. **Move the recipe to the Whisper kit** as a doc-test or a
-   `whisper::mel_options()` constructor, and leave `context.rs` documenting
-   only the knobs and their meanings. The kit is where "this is what OpenAI
-   does" is a true and local statement.
-2. **Generalize to a worked example.** Keep a configuration example, but frame
-   it as "a typical 16 kHz 80-bin log-mel configuration" with no model named
-   and no upstream-source commentary.
-3. **Promote to a named preset.** If the recipe is genuinely reusable, express
-   it as data (`MelConverterOptions::whisper_v1()` living in the kit, or a
-   generic `::speech_16k_80()` living here) rather than as prose.
+Also in the file: "Whisper's geometry" was just `MelConverterOptions::default()`
+(`n_fft = 400, hop = 160, sr = 16000`), so the worked frame-count example keeps
+its numbers as "the default geometry"; the chunk-invariance test now explains
+its silent tail by what makes silence realistic rather than by naming a model;
+and `test_whisper_frame_accounting` became
+`test_frame_accounting_over_a_30s_window`.
 
-Related, same file: `:168` ("For Whisper's…") and `:825` ("it is also the
-realistic case, since Whisper…"). Both justify generic behaviour by a specific
-caller; both take the same three options.
+`context.rs` now contains no Whisper references at all. Its one remaining
+cross-reference is to `MEL_CONVERTER_PLAN.md`, which belongs to `[N-1]`.
+
+**Noted, not acted on:** the recipe lives only in an example, so any real
+consumer of bunsen's Whisper must re-derive it. Whether `to_whisper_mels`
+should be promoted into `kits::speech::whisper` is a feature question, adjacent
+to `[U-4]`, not a normalization one.
 
 ### [L-5] Whisper-shaped defaults and prose throughout `mels/`
 
@@ -468,7 +476,7 @@ Options:
 
 1. ~~`[U-1]` test-helper consolidation~~ — **done**.
 2. ~~`[L-1]` `repair_strided_weights`~~ — **done**.
-3. ~~`[L-2]`~~ — **done** (with `[N-4]`). ~~`[L-3]`~~ — **done**. `[L-4]` remains.
+3. ~~`[L-2]`~~ (with `[N-4]`), ~~`[L-3]`~~, ~~`[L-4]`~~ — **done**.
 4. `[N-1]` plan-file disposition — unblocks `[N-2]` and the three citations.
 5. `[N-3]`, `[N-5]` timeless-rewrite passes.
 6. `[U-2]` KV-cache convergence — needs a design call, not a cleanup.
