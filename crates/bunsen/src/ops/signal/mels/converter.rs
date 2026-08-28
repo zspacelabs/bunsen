@@ -327,6 +327,11 @@ pub trait MelConverterMeta {
     /// The signal sample rate, in Hz.
     fn sample_rate(&self) -> usize;
 
+    /// The Nyquist frequency, in Hz.
+    fn nyquist(&self) -> f64 {
+        self.sample_rate() as f64 / 2.0
+    }
+
     /// The analysis window length, in samples.
     fn n_fft(&self) -> usize;
 
@@ -417,7 +422,7 @@ impl Default for MelConverterOptions {
 impl MelConverterOptions {
     /// The high edge of the mel span in Hz, resolving `None` to Nyquist.
     pub fn f_max_hz(&self) -> f64 {
-        self.f_max.unwrap_or(self.sample_rate as f64 / 2.0)
+        self.f_max.unwrap_or(self.nyquist())
     }
 
     /// Builds the host-side row-major `[n_mels, n_bins]` mel filterbank.
@@ -539,8 +544,8 @@ impl MelConverterOptions {
             ));
         }
 
-        let nyquist = self.sample_rate as f64 / 2.0;
         let f_max = self.f_max_hz();
+        let nyquist = self.nyquist();
         if f_max > nyquist {
             return Err(BunsenError::Invalid(format!(
                 "MelConverter f_max ({f_max}) must be <= Nyquist ({nyquist})",
