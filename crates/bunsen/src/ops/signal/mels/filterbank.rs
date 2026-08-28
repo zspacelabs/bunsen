@@ -30,6 +30,9 @@ const SLANEY_MIN_LOG_HZ: f64 = 1000.0;
 /// Exactly 15; the Slaney curve is pinned so 1000 Hz lands on a whole mel.
 const SLANEY_MIN_LOG_MEL: f64 = 15.0;
 
+/// Slaney's logarithmic step, `6.4.ln() / 27`.
+const SLANEY_LOGSTEP: f64 = 1.8562979903656263 /* 6.4.ln() */ / 27.0;
+
 /// The frequency-to-mel warping curve.
 ///
 /// Selects the convention used by [`mel_points`] and [`mel_filterbank`].
@@ -47,13 +50,6 @@ pub enum MelScale {
 }
 
 impl MelScale {
-    /// Slaney's logarithmic step, `ln(6.4) / 27`.
-    ///
-    /// Not a `const` because `ln` is not a const fn.
-    fn slaney_logstep() -> f64 {
-        6.4_f64.ln() / 27.0
-    }
-
     /// Converts a frequency in Hz to mels.
     ///
     /// Anchors: HTK 1000 Hz is `999.9855371396244`; Slaney 1000 Hz is exactly
@@ -68,7 +64,7 @@ impl MelScale {
                 if hz < SLANEY_MIN_LOG_HZ {
                     hz / SLANEY_F_SP
                 } else {
-                    SLANEY_MIN_LOG_MEL + (hz / SLANEY_MIN_LOG_HZ).ln() / Self::slaney_logstep()
+                    SLANEY_MIN_LOG_MEL + (hz / SLANEY_MIN_LOG_HZ).ln() / SLANEY_LOGSTEP
                 }
             }
         }
@@ -87,7 +83,7 @@ impl MelScale {
                 if mel < SLANEY_MIN_LOG_MEL {
                     mel * SLANEY_F_SP
                 } else {
-                    SLANEY_MIN_LOG_HZ * (Self::slaney_logstep() * (mel - SLANEY_MIN_LOG_MEL)).exp()
+                    SLANEY_MIN_LOG_HZ * (SLANEY_LOGSTEP * (mel - SLANEY_MIN_LOG_MEL)).exp()
                 }
             }
         }
