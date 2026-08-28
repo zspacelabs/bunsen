@@ -29,13 +29,16 @@ use crate::{
         BunsenError,
         BunsenResult,
     },
-    ops::signal::{
-        SamplingWindowBuilder,
-        StftWindowConfig,
-        mels::filterbank::{
-            FilterNorm,
-            MelScale,
-            mel_filterbank,
+    ops::{
+        math::LogBase,
+        signal::{
+            SamplingWindowBuilder,
+            StftWindowConfig,
+            mels::filterbank::{
+                FilterNorm,
+                MelScale,
+                mel_filterbank,
+            },
         },
     },
 };
@@ -84,7 +87,7 @@ impl SpectrumKind {
     ///
     /// Power is what the DFT stage produces, so [`Power`](Self::Power) is the
     /// identity and [`Magnitude`](Self::Magnitude) takes the square root.
-    pub fn from_power<B: Backend, const D: usize>(
+    pub fn power_to_spectrum<B: Backend, const D: usize>(
         &self,
         power: Tensor<B, D>,
     ) -> Tensor<B, D> {
@@ -111,31 +114,6 @@ pub enum SpectrumImpl {
     ///
     /// Works at any `n_fft`, and unlike `rfft` it is differentiable.
     DftMatmul,
-}
-
-/// The logarithm applied during compression.
-#[derive(Config, Copy, Debug, PartialEq, Eq)]
-pub enum LogBase {
-    /// `log10`. The Whisper / `librosa` default.
-    Ten,
-
-    /// Natural log, as used by Kaldi-flavoured frontends.
-    E,
-}
-
-impl LogBase {
-    /// Applies the logarithm elementwise.
-    ///
-    /// `burn` exposes only the natural log, so base ten is `ln(x) / ln(10)`.
-    pub fn apply<B: Backend, const D: usize>(
-        &self,
-        x: Tensor<B, D>,
-    ) -> Tensor<B, D> {
-        match self {
-            Self::Ten => x.log().div_scalar(core::f64::consts::LN_10),
-            Self::E => x.log(),
-        }
-    }
 }
 
 /// A floor applied to log-mels, relative to a reference maximum.
@@ -822,7 +800,7 @@ impl<B: Backend> MelConverter<B> {
             }
         };
 
-        let out = self.options.spectrum.from_power(power);
+        let out = self.options.spectrum.power_to_spectrum(power);
 
         let out: Tensor<B, 3> = out.reshape([batch, n_frames, n_bins]);
 

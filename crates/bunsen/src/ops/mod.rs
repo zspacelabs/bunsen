@@ -72,6 +72,7 @@ pub mod clamp;
 pub mod conv;
 pub mod drop;
 pub mod embedding;
+pub mod math;
 pub mod noise;
 pub mod norm;
 pub mod repeat;
