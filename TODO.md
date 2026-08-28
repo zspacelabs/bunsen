@@ -30,7 +30,12 @@ nothing. A fixture encodes *what a particular test exercises*, and that does
 drift — sharing one means the next test that needs a different distribution
 either forks it (duplication behind a name that now lies) or edits it and
 silently perturbs unrelated tests. Duplicated fixture code is therefore not a
-defect to fix. Applies to `[U-3]`, `[U-7]`.
+defect to fix.
+
+A related limit: a cross-check or repro should not share *test helpers* with
+the code it validates, even when sharing would be convenient — the point of an
+independent check is that it fails independently. This constrains helpers, not
+dependencies; such a crate may of course depend on what it tests.
 
 **C-3. A shared namespace requires a self-describing name.** A name may rely on
 its file for context while it lives there; moving it to a shared module strips
@@ -535,19 +540,26 @@ Narrowing to plain private `fn` was rejected: every caller is in-file today, so
 it would compile, but it contradicts a documented decision and would need
 reverting the moment `mels::testing` exists.
 
-### [U-7] Cross-check crate helpers
+### [U-7] Cross-check crate helpers — CLOSED (the premise was wrong)
 
-`dev_crates/whisper-onnx-crosscheck/` defines `read_f32`, `read_i64`,
-`summarize`. These duplicate the shape of `[U-1]`'s helpers across a crate
-boundary.
+This entry claimed `dev_crates/whisper-onnx-crosscheck/` defines `read_f32`,
+`read_i64` and `summarize`, duplicating the `[U-1]` helpers. On checking:
 
-Options:
-1. **Leave duplicated.** A dev crate that deliberately does not depend on
-   bunsen's test support keeps the cross-check honest — it should not share
-   code with what it validates. (Probably correct.)
-2. **Share via `support::testing`** if the crate already depends on bunsen
-   anyway, and the helpers are pure data plumbing with no assertion semantics.
-3. **Narrow them** to the two or three call sites and inline.
+- `read_f32` and `read_i64` exist nowhere in the repository.
+- `summarize` is not in that crate. It is a single definition in
+  `examples/whisper-dev/src/main.rs`, a println-based min/mean/max debug
+  printer in a binary, with no duplicate and no bunsen equivalent.
+- The crate's only helpers are `load_bunsen` and `decoder_inputs`, both
+  crate-specific with no counterpart anywhere.
+
+Written from a stale reading during the original survey and carried into this
+document unverified. There is nothing to consolidate; no action.
+
+The reasoning attached to it survives its subject and is folded into `[C-2]`:
+a cross-check should not share *test helpers* with what it validates. That is
+about helpers, not dependencies — the crate necessarily depends on bunsen,
+since comparing bunsen's Whisper to ONNX is its whole job.
+
 
 ---
 
@@ -559,7 +571,7 @@ Options:
 4. ~~`[N-1]` plan-file disposition~~ — **done**. `[N-2]` is unblocked.
 5. ~~`[N-2]`~~, ~~`[N-3]`~~, ~~`[N-5]`~~ — **done**.
 6. ~~`[U-2]` KV-cache convergence~~ — **done** (documented, not converged).
-7. ~~`[U-3]`~~ (no action), ~~`[U-4]`~~, ~~`[U-5]`~~, ~~`[U-6]`~~ — **done**. `[U-7]`, `[L-5]` remain.
+7. ~~`[U-3]`~~ (no action), ~~`[U-4]`~~, ~~`[U-5]`~~, ~~`[U-6]`~~, ~~`[U-7]`~~ (premise wrong) — **done**. `[L-5]` remains.
 
 ---
 
