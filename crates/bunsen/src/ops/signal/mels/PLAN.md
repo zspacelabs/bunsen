@@ -476,11 +476,10 @@ check that `dft_sin` carries the forward transform's negative sign.
 ### ⚠️ `unfold` is broken on CubeCL backends in burn 0.21 (fixed in 0.22.0-dev)
 
 **This is the single largest correctness hazard in the plan, and the default Whisper geometry
-trips it.** There is a documented reproduction of it in this repo — `burner::repro::unfold`,
-added by commit `671b494` — but it lives on branch `crutcher/tv-dev` and is **not** on `main`
-or `crutcher/whisper_wip`. (The stale IDE run config
-`Test burner::repro::unfold::tests::test_repro_on_performance_backend` is the only trace of it
-on this branch.) Read that module before writing `t_stage_frame`.
+trips it.** It is reproduced and characterised in
+[`burner::repro::unfold`](../../../burner/repro/unfold.rs), which sweeps the parameter space
+and pins the rule: the read is wrong exactly when `size` and `step` are both even and the
+uncovered tail is not a multiple of the inferred line width.
 
 **Upstream status: fixed.** The burn 0.22.0 dev branch is verified correct, so this is a
 burn-0.21-only hazard with a known expiry. That changes the cost calculus below — the

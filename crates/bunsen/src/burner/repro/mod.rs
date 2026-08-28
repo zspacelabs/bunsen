@@ -19,3 +19,4 @@
 //! redundant rather than silently turning them into new bugs.
 
 pub mod pytorch_strided_weights;
+pub mod unfold;
