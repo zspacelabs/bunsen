@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- *(ops)* `ops::split::split_padded` — split a (negatively indexable) dimension
+  into equal chunks, zero-padding the last one so every chunk has the same
+  width.
+
 ### Changed
 
 - *(burner)* move `repair_pytorch_strided_weight` from `burner::module` to a new

@@ -457,20 +457,30 @@ the `Module` built by `try_init`. And `to_vec_dft_tables` returns a bare
 `(Vec, Vec)` where the caller must know cos-then-sin; a named struct would be
 safer but is more ceremony than one call site earns.
 
-### [U-4] `mel_windows` in the Whisper kit
+### [U-4] `mel_windows` in the Whisper kit — RESOLVED (extracted)
 
-`kits/speech/whisper/decode.rs:39` — slices a mel tensor into fixed windows.
+Option 2 from this entry landed: there **was** an existing equivalent.
+`mel_windows` hand-rolled a `while seek < frames` loop that reproduced
+`Tensor::split` — burn's implementation is the same loop with `narrow` for
+`slice_dim` — and added zero-padding of the short final chunk. Only the padding
+was new, and the empty-input behaviour matched already.
 
-Windowing a `[B, C, T]` tensor along `T` is not Whisper-specific.
+That padding is now `ops::split::split_padded`. Placement deviates from this
+entry's wording: the operation carries no signal or mel content, and `ops/mod`
+already has a **Shape transforms** section with `repeat_interleave` as a
+single-function module at the `ops` root. Putting a signal-agnostic op under
+`ops::signal` would have been the same kind of misplacement the `[L-*]` items
+were about. It follows `repeat_interleave`'s shape: tensor first, `dim` last
+and negatively indexable via `AsIndex`.
 
-Options:
-1. **Generalize into `ops::signal`** as a chunking helper, leaving the
-   Whisper-specific window length in the kit.
-2. **Check for an existing equivalent** — burn's `chunk`/`narrow` or
-   bunsen's existing framing code in `sliding_stft` may already cover it,
-   in which case delete.
-3. **Keep in the kit.** Defensible if the padding/partial-window policy is
-   genuinely Whisper's; document that policy as the reason it lives there.
+`mel_windows` stays in the kit as a delegation. It still earns its keep — it
+names the frame axis and states the padding policy as Whisper's 30 s context,
+domain knowledge the generic function cannot carry.
+
+The speculative-generality objection that closed `[U-3]` does not apply here:
+`split_padded` is not new capability wrapped around one caller, it is the
+subtraction of a reimplementation, and what remains is five lines over a burn
+primitive.
 
 ### [U-5] `StreamPhase`, `SpectrumImpl` and speculative variants
 
@@ -529,7 +539,7 @@ Options:
 4. ~~`[N-1]` plan-file disposition~~ — **done**. `[N-2]` is unblocked.
 5. ~~`[N-2]`~~, ~~`[N-3]`~~, ~~`[N-5]`~~ — **done**.
 6. ~~`[U-2]` KV-cache convergence~~ — **done** (documented, not converged).
-7. ~~`[U-3]`~~ — **done** (no action). `[U-4]`–`[U-7]`, `[L-5]` remain.
+7. ~~`[U-3]`~~ (no action), ~~`[U-4]`~~ — **done**. `[U-5]`–`[U-7]`, `[L-5]` remain.
 
 ---
 
