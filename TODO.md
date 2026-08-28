@@ -482,25 +482,39 @@ The speculative-generality objection that closed `[U-3]` does not apply here:
 subtraction of a reimplementation, and what remains is five lines over a burn
 primitive.
 
-### [U-5] `StreamPhase`, `SpectrumImpl` and speculative variants
+### [U-5] Speculative / dead config surface — RESOLVED
 
-- `SpectrumImpl` (`converter.rs:101`) has exactly one variant, `DftMatmul`.
-- `MelConverterOptions::validate` rejects `pre_emphasis` (`:586`) and
-  `remove_dc` (`:591`) as "not implemented yet" — config surface that exists
-  only to be refused.
-- No enum variant of `PaddingMode` / `SpectrumKind` / `LogBase` / `RangeClamp`
-  is constructed anywhere outside `converter.rs` and `context.rs` today.
+Three sub-items that this entry wrongly lumped together; they resolve
+differently.
 
-Options:
-1. **Cut the unimplemented options.** Delete `pre_emphasis` and `remove_dc`
-   until there is a caller; a config field that always errors is worse than an
-   absent one. Reclaims the `t_stage_preproc` no-op stage too.
-2. **Keep the enums, cut the single-variant one.** `SpectrumImpl` with one
-   variant is a placeholder for a future `rfft` path; it costs a public type
-   and a match arm. Decide whether that future is close enough to reserve for.
-3. **Keep everything, document intent.** If these are deliberate extension
-   points, say so — but then `[N-2]`'s "Stage 2: sample-domain preprocessing"
-   doc needs to stop describing a stage that does nothing.
+**The "unused" enum variants were a non-issue — the entry measured the wrong
+thing.** `PaddingMode`, `SpectrumKind`, `LogBase` and `RangeClamp` variants are
+dispatched on in real code (`context.rs` `pad_len` and `t_stage_extend`) and
+exercised by tests (`with_end_padding(PaddingMode::Zero)`,
+`with_log_base(LogBase::E)`). Nothing dead. No action.
+
+**`pre_emphasis` / `remove_dc` stay, and the reason is serde.** This entry
+argued "a config field that always errors is worse than an absent one", which
+holds in Rust — you cannot set a field that does not exist. But
+`MelConverterOptions` derives `Config`, which is serde, with a round-trip test;
+burn's derive does **not** emit `deny_unknown_fields`, so unknown keys are
+silently ignored. Delete the fields and a JSON config carrying
+`"pre_emphasis": 0.97` loads clean and does nothing. The field plus the
+`validate` rejection is exactly what turns that silence into an error. They are
+also documented as landing with `PLAN.md`'s Stage 8, which is live work.
+`t_stage_preproc` staying an identity follows from the same decision.
+
+**`spectrum_impl` was the real finding, and worse than recorded.**
+`MelConverter::spectrum` never read it — the DFT-matmul path ran
+unconditionally. So the field was inert *and* unguarded, where the other two
+inert options at least reject loudly. Harmless at one variant; the moment
+`Stft` was added, setting it would have been silently ignored.
+
+Fixed by matching on it exhaustively in `spectrum`. Same body, no runtime cost,
+no API change — but the field is read, and a new variant now fails to compile
+until it has a path. That is stronger than a `validate` check because it fires
+at build time. Verified by adding a probe variant:
+`error[E0004]: non-exhaustive patterns`.
 
 ### [U-6] `t_stage_*` visibility
 
@@ -539,7 +553,7 @@ Options:
 4. ~~`[N-1]` plan-file disposition~~ — **done**. `[N-2]` is unblocked.
 5. ~~`[N-2]`~~, ~~`[N-3]`~~, ~~`[N-5]`~~ — **done**.
 6. ~~`[U-2]` KV-cache convergence~~ — **done** (documented, not converged).
-7. ~~`[U-3]`~~ (no action), ~~`[U-4]`~~ — **done**. `[U-5]`–`[U-7]`, `[L-5]` remain.
+7. ~~`[U-3]`~~ (no action), ~~`[U-4]`~~, ~~`[U-5]`~~ — **done**. `[U-6]`, `[U-7]`, `[L-5]` remain.
 
 ---
 
