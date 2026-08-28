@@ -1,9 +1,17 @@
-# MelConverter build plan (bunsen)
+# MelConverter design plan (bunsen)
 
-Working plan for `bunsen::ops::signal::mels`. Supersedes the draft in
-`~/Downloads/mel_converter_plan.md`; Stage 0 of that draft is **resolved** (see
-[Findings](#findings-stage-0-resolved)) and the `transform` API is restructured into a
-**stage stack** (see [The stage stack](#the-stage-stack)).
+Design and build plan for `bunsen::ops::signal::mels`.
+
+**Status.** Stages 1-7 are implemented and covered by tests, including parity against
+`librosa` with `center=True` and `center=False`, and against Whisper's
+`log_mel_spectrogram`. This document is retained for the work that remains — Stage 8
+(Kaldi-flavour coverage), Stage 9 (performance), and the questions under
+[Still open](#still-open) — and as the record of why the built parts are shaped the way
+they are. Sections covering completed stages describe decisions, not pending tasks.
+
+The `transform` API is structured as a **stage stack**
+(see [The stage stack](#the-stage-stack)); Stage 0's probes are resolved
+(see [Findings](#findings-stage-0-resolved)).
 
 ---
 

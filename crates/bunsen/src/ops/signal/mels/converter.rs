@@ -96,7 +96,7 @@ impl SpectrumKind {
 /// One variant for now. `burn`'s `rfft` / `stft` are power-of-two only, so
 /// they cannot reach the default `n_fft = 400` geometry at all; a `Stft`
 /// variant is only worth adding alongside a power-of-two configuration that
-/// exercises it. See `MEL_CONVERTER_PLAN.md`.
+/// exercises it.
 #[derive(Config, Copy, Debug, PartialEq, Eq)]
 pub enum SpectrumImpl {
     /// Explicit DFT by matrix multiply against precomputed cos/sin tables.

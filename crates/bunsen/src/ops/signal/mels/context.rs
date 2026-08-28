@@ -506,8 +506,9 @@ mod tests {
         assert!(ctx.carry().is_none());
     }
 
-    /// The frame accounting worked out in `MEL_CONVERTER_PLAN.md`, asserted
-    /// against the real thing.
+    /// The frame accounting documented under
+    /// [`transform`](MelConversionContext::transform)'s `# Frame count`,
+    /// asserted against the real thing.
     #[test]
     fn test_frame_accounting_over_a_30s_window() {
         let device = Default::default();
