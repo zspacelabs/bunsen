@@ -322,7 +322,12 @@ impl<B: Backend> TextDecoder<B> {
         };
 
         for (i, block) in self.blocks.iter().enumerate() {
-            h = block.forward_kv(h, mask.clone(), &mut cache.self_kv[i], &cache.cross_kv[i]);
+            h = block.forward_w_kv_cache(
+                h,
+                mask.clone(),
+                &mut cache.self_kv[i],
+                &cache.cross_kv[i],
+            );
         }
 
         cache.pos += seq_new;

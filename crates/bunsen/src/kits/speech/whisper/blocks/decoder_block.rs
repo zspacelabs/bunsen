@@ -252,7 +252,7 @@ impl<B: Backend> ResidualDecoderAttentionBlock<B> {
     ///
     /// # Returns
     /// `[batch, seq_new, d_model]`.
-    pub fn forward_kv(
+    pub fn forward_w_kv_cache(
         &self,
         x: Tensor<B, 3>,
         mask: Option<Tensor<B, 3, Bool>>,
