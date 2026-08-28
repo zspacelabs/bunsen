@@ -79,6 +79,17 @@ two are mathematical notation over `Wᵀ` — `text` is right for all three. The
 `text` fences in `ops/conv` and `blocks/conv` are pre-existing on `main`, as is
 a `rust.notest` typo in `kits/bimm`.
 
+### Round 4: clean — the sweep converged
+
+Round 3's own output was eight added lines across two files. Passes A, B and D
+found nothing, and all three CI configurations pass after the change, so `[C-6]`
+and `[C-7]` are satisfied without a further round.
+
+The surface shrinks fast enough to terminate: **53 files → 4 → 2 → 0**. That is
+the signal to stop. A sweep is worth running while the previous round changed
+real code; it is not worth running against a round that only changed a `cfg`
+line and a doc fence.
+
 ### What this says about the process
 
 Three sweeps of prose and API found nothing here, because **none of them built
