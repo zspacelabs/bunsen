@@ -275,16 +275,6 @@ impl<B: Backend> SlidingStft<B> {
     ///
     /// Uses [`stft`], which does not yet support autodiff.
     ///
-    /// # Hop alignment on `CubeCL` backends
-    ///
-    /// ⚠️ Prefer `samples ≡ win_len (mod hop_size)` — i.e. a whole number of
-    /// hops past the first window. Both in-crate callers
-    /// ([`SlidingStftContext::forward`] and
-    /// [`forward_sequence`](SlidingStftContext::forward_sequence)) satisfy this
-    /// by construction; a ragged `samples` does not, and on burn 0.21 that is
-    /// not merely wasteful but **wrong** for `batch > 1`. See the comment at
-    /// the padding below.
-    ///
     /// # Arguments
     /// * `signal`: `[batch, samples]`, with `samples >= win_len`.
     ///
@@ -309,44 +299,40 @@ impl<B: Backend> SlidingStft<B> {
             self.win_len(),
         );
 
+        let n_samples = signal.dims()[1];
+        let frames = 1 + (n_samples - self.win_len()) / self.hop_size();
+
         // Right-pad so the final window fills a whole `fft_size` stft
         // frame; the padding only ever lands under the zeroed window tail.
-        //
-        // ── burn 0.21 `unfold` hazard ──────────────────────────────────────
-        // `stft` frames this signal with `signal.unfold(1, fft_size,
-        // hop_size)`, and on burn 0.21 that op is broken on `CubeCL` backends
-        // (wgpu / cuda / metal); `Flex` is correct. It truncates the unfolded
-        // view's outer stride to the vectorization line width `v` — the
-        // largest power of two dividing both `fft_size` and `hop_size` —
-        // using `(len / v) * v` in place of `len`. Every batch row after the
-        // first is then read `len % v` elements early. Row 0 is always
-        // correct, so a `batch == 1` test cannot see it.
-        //
-        // It fires when `fft_size` and `hop_size` are both even AND the
-        // uncovered tail is not a multiple of `v`. Here that tail works out to
-        //
-        //     tail = (samples - win_len) % hop_size
-        //
-        // because the `pad` below is exactly `fft_size - win_len`, which
-        // cancels against the `fft_size` window in the frame-coverage
-        // arithmetic. So hop-aligned input gives `tail == 0` and is safe on
-        // every geometry, which is why `forward` / `forward_sequence` are
-        // unaffected. At the default geometry (`fft_size` 1024, `hop_size`
-        // 256, `v` 256) a ragged `samples` is corrupt for `batch > 1`:
-        // `samples = win_len + 8` gives `tail == 8`.
-        //
-        // Fixed upstream: burn 0.22.0-dev is correct. On the next burn bump,
-        // delete this comment and the alignment note in the rustdoc. Until
-        // then, the defense is the caller's hop alignment, not a slice here —
-        // slicing to `(frames - 1) * hop_size + fft_size` would force
-        // `tail == 0` unconditionally if this ever needs to be airtight.
-        // ──────────────────────────────────────────────────────────────────
         let pad = self.fft_size() - self.win_len();
         let signal = if pad > 0 {
             signal.pad([(0, pad)], PadMode::Constant(0.0))
         } else {
             signal
         };
+
+        // Trim to the span the frames actually cover. Trailing samples that do
+        // not fill a whole window are ignored either way, so this changes no
+        // output — it holds `unfold`'s uncovered tail at zero.
+        //
+        // ── `unfold` stride hazard ────────────────────────────────────────
+        // `stft` frames this signal with `signal.unfold(1, fft_size,
+        // hop_size)`. burn 0.21 gets that wrong on `CubeCL` backends
+        // (wgpu / cuda / metal); `Flex` is correct, and so is 0.22.0-dev. It
+        // truncates the unfolded view's outer stride to the vectorization
+        // line width `v` — the largest power of two dividing both `fft_size`
+        // and `hop_size` — using `(len / v) * v` in place of `len`. Every
+        // batch row after the first is then read `len % v` elements early.
+        // Row 0 is always correct, so a `batch == 1` test cannot see it.
+        //
+        // It fires when `fft_size` and `hop_size` are both even AND the
+        // uncovered tail `(samples - win_len) % hop_size` is not a multiple
+        // of `v`. Trimming holds that tail at zero on every geometry, so the
+        // defect is unreachable here rather than merely absent — on any burn
+        // version, which is why the trim stays.
+        // ──────────────────────────────────────────────────────────────────
+        let covered = (frames - 1) * self.hop_size() + self.fft_size();
+        let signal = signal.slice_dim(1, 0..covered as isize);
 
         // [batch, frames, n_bins, 2]
         let x = stft(signal, Some(self.window.clone()), self.to_options());
@@ -525,7 +511,10 @@ mod tests {
     use super::*;
     use crate::{
         prelude::*,
-        support::testing::CpuBackend,
+        support::testing::{
+            CpuBackend,
+            PerformanceBackend,
+        },
     };
 
     type B = CpuBackend;
@@ -734,6 +723,140 @@ mod tests {
         idx: usize,
     ) -> f64 {
         ((batch * 7919 + step * 104729 + idx * 1299709) % 1000) as f64 - 500.0
+    }
+
+    /// Host reference for [`SlidingStft::analyze`]: frame `f` covers
+    /// `row[f * hop_size .. f * hop_size + win_len]`, windowed and
+    /// zero-padded to `fft_size`, as interleaved `(re, im)` per bin.
+    fn host_analyze(
+        row: &[f64],
+        cfg: &SlidingStftConfig,
+    ) -> Vec<f64> {
+        let window = cfg.window.to_vec_window(cfg.win_len);
+        let frames = 1 + (row.len() - cfg.win_len) / cfg.hop_size;
+        let n_bins = cfg.n_bins();
+
+        let mut out = Vec::with_capacity(frames * n_bins * 2);
+        for f in 0..frames {
+            for k in 0..n_bins {
+                let (mut re, mut im) = (0.0f64, 0.0f64);
+                for n in 0..cfg.win_len {
+                    let x = row[f * cfg.hop_size + n] * window[n];
+                    let theta = core::f64::consts::TAU * ((n * k) % cfg.fft_size) as f64
+                        / cfg.fft_size as f64;
+                    re += x * theta.cos();
+                    im -= x * theta.sin();
+                }
+                out.push(re);
+                out.push(im);
+            }
+        }
+        out
+    }
+
+    /// `analyze` yields `1 + (samples - win_len) / hop_size` frames, for
+    /// hop-aligned and ragged `samples` alike: trailing samples that do not
+    /// fill a whole window are ignored.
+    #[test]
+    fn test_analyze_frame_count_and_shape() {
+        let device = Default::default();
+        let cfg = SlidingStftConfig::new()
+            .with_win_len(48)
+            .with_hop_size(16)
+            .with_fft_size(64);
+        let coef: SlidingStft<B> = cfg.init(&device);
+
+        for (samples, frames) in [(48, 1), (64, 2), (80, 3), (88, 3), (95, 3), (96, 4)] {
+            let x = Tensor::<B, 2>::from_data(
+                TensorData::new(vec![0.0f64; 2 * samples], [2, samples]),
+                &device,
+            );
+            assert_eq!(
+                coef.analyze(x).dims(),
+                [2, frames, cfg.n_bins(), 2],
+                "samples = {samples}",
+            );
+        }
+    }
+
+    /// `analyze` matches a naive per-frame DFT of the windowed, zero-padded
+    /// signal. Uses a ragged `samples`, so the ignored tail is covered too.
+    #[test]
+    fn test_analyze_matches_naive_dft() {
+        let device = Default::default();
+        let cfg = SlidingStftConfig::new()
+            .with_win_len(48)
+            .with_hop_size(16)
+            .with_fft_size(64);
+        let coef: SlidingStft<B> = cfg.init(&device);
+
+        let batch = 2;
+        let samples = 88;
+        let rows: Vec<Vec<f64>> = (0..batch)
+            .map(|b| (0..samples).map(|i| sample(b, 0, i)).collect())
+            .collect();
+
+        let got = coef.analyze(Tensor::<B, 2>::from_data(
+            TensorData::new(rows.concat(), [batch, samples]),
+            &device,
+        ));
+
+        let expected: Vec<f64> = rows.iter().flat_map(|r| host_analyze(r, &cfg)).collect();
+        let frames = 1 + (samples - cfg.win_len) / cfg.hop_size;
+
+        got.to_data_as::<F>().assert_approx_eq::<F>(
+            &TensorData::new(expected, [batch, frames, cfg.n_bins(), 2]).convert::<F>(),
+            Tolerance::permissive(),
+        );
+    }
+
+    /// Batched analysis agrees with analyzing each row on its own.
+    ///
+    /// Runs on `PerformanceBackend`, not the module's `CpuBackend`: a
+    /// batching fault in the framing beneath `stft` would live in a `CubeCL`
+    /// kernel and show only for rows after the first. `samples` is ragged,
+    /// the shape that leaves an uncovered tail for the framing to mishandle.
+    #[test]
+    fn test_analyze_ragged_batch_matches_single_rows() {
+        type P = PerformanceBackend;
+        type PF = <P as BackendTypes>::FloatElem;
+
+        let device = Default::default();
+        // The default geometry, with `samples = win_len + 8` leaving an
+        // uncovered tail of 8. Small geometries do not vectorize, so they
+        // cannot exercise the framing's vectorized path at all.
+        let cfg = SlidingStftConfig::new();
+        let coef: SlidingStft<P> = cfg.init(&device);
+
+        let batch = 3;
+        let samples = cfg.win_len + 8;
+        assert_ne!(
+            (samples - cfg.win_len) % cfg.hop_size,
+            0,
+            "geometry must be ragged"
+        );
+
+        let rows: Vec<Vec<f64>> = (0..batch)
+            .map(|b| (0..samples).map(|i| sample(b, 0, i)).collect())
+            .collect();
+
+        let batched = coef.analyze(Tensor::<P, 2>::from_data(
+            TensorData::new(rows.concat(), [batch, samples]),
+            &device,
+        ));
+
+        for (b, row) in rows.iter().enumerate() {
+            let alone = coef.analyze(Tensor::<P, 2>::from_data(
+                TensorData::new(row.clone(), [1, samples]),
+                &device,
+            ));
+
+            let got = batched.clone().slice_dim(0, b as isize..b as isize + 1);
+            assert_eq!(got.dims(), alone.dims());
+
+            got.to_data_as::<PF>()
+                .assert_approx_eq::<PF>(&alone.to_data_as::<PF>(), Tolerance::permissive());
+        }
     }
 
     #[test]
