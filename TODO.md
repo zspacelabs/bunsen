@@ -324,25 +324,36 @@ consumer of bunsen's Whisper must re-derive it. Whether `to_whisper_mels`
 should be promoted into `kits::speech::whisper` is a feature question, adjacent
 to `[U-4]`, not a normalization one.
 
-### [L-5] Whisper-shaped defaults and prose throughout `mels/`
+### [L-5] Whisper-shaped defaults and prose in `mels/` — RESOLVED
 
-`crates/bunsen/src/ops/signal/mels/converter.rs` (:7, :71, :111, :136, :163,
-:190, :221, :745, :915) and `filterbank.rs:39` ("and by Whisper").
+Almost entirely a false positive. One doc rewrite; everything else stands, for
+reasons worth recording so it is not re-opened.
 
-Softer than L-1..L-4: these are mostly *examples* and *default values* that
-happen to match Whisper. The defaults themselves are defensible — 16 kHz /
-400 / 160 / 80 is a common speech configuration, not a Whisper invention.
+**The enum docs are an index of frontends, not coupling.** Every variant names
+the real implementations that use it — `MelScale::Htk`, `MelScale::Slaney`
+("`librosa` (`htk=False`) and ... Whisper"), `LogBase::Natural` ("Kaldi-flavoured
+frontends"), `SpectrumKind::Power`. Whisper appears exactly as Kaldi and HTK do.
+Stripping only the Whisper names would break a consistent pattern that tells a
+caller which convention to pick.
 
-Options:
-1. **Attribute to the convention, not the consumer.** Cite Slaney/HTK, librosa,
-   or torchaudio where the behaviour originates; those are the actual sources
-   of truth and they are stable references.
-2. **Leave the defaults, launder the prose.** No API change; just rewrite the
-   nine doc sites so `mels` documents mel spectrograms rather than Whisper
-   input.
-3. **Audit defaults for neutrality.** Confirm each default is defensible on
-   its own terms; where one is only defensible as "what Whisper does", move it
-   to a kit-side preset (see L-4 option 3).
+**`RangeClamp` and `AffineCompress` cite Whisper as provenance.**
+`maximum(log_spec, log_spec.max() - 8.0)` and `(log_spec + 4.0) / 4.0` are
+Whisper's, not librosa's, and they are why those options exist. Remove the
+attribution and the constants become unexplained. `[C-5]` covers this.
+
+**`cross_test.rs`'s eight mentions are exempt outright** under `[C-5]`: it is a
+parity test against `whisper.audio.log_mel_spectrogram` using a
+`whisper_logmel.f32` fixture. Whisper is its subject.
+
+**The module-level "defaults reproduce Whisper / librosa" is a checkable
+claim**, pinned by `test_defaults_are_whisper` and by `cross_test`.
+
+**Fixed:** `MelConverter::forward`'s rustdoc explained its return shape by
+naming Whisper's audio encoder. Reordered so the real reason leads — frames sit
+on the middle axis because that is the streaming concat axis — and the
+transpose is offered to any channels-first consumer.
+
+Unchanged by earlier decision: the `unfold` hazard note in `converter.rs`.
 
 ### [L-6] Confirmed non-issue (do not "fix")
 
@@ -571,7 +582,47 @@ since comparing bunsen's Whisper to ONNX is its whole job.
 4. ~~`[N-1]` plan-file disposition~~ — **done**. `[N-2]` is unblocked.
 5. ~~`[N-2]`~~, ~~`[N-3]`~~, ~~`[N-5]`~~ — **done**.
 6. ~~`[U-2]` KV-cache convergence~~ — **done** (documented, not converged).
-7. ~~`[U-3]`~~ (no action), ~~`[U-4]`~~, ~~`[U-5]`~~, ~~`[U-6]`~~, ~~`[U-7]`~~ (premise wrong) — **done**. `[L-5]` remains.
+7. ~~`[U-3]`~~ (no action), ~~`[U-4]`~~, ~~`[U-5]`~~, ~~`[U-6]`~~, ~~`[U-7]`~~ (premise wrong), ~~`[L-5]`~~ — **done**.
+
+**All items are closed.** What remains is the Residual list above and the
+last-call removals below.
+
+---
+
+## Residual — deferred, with a home needed before this file goes
+
+Nothing below is a defect found by the burn-down; each is a decision taken to
+defer, recorded here because `[TODO.md]` is meant to be deleted. Give them a
+home — issues, `PLAN.md`, or rustdoc — rather than losing them with the file.
+
+1. **Whisper-shaped defaults on `MelConverterOptions`.** `range_clamp` and
+   `affine` default to `Some(..)`, and **every caller turns them off** — the
+   Whisper pipeline itself included (`whisper-dev` disables both and applies
+   them once after joining, because `PerCall` reduces per call while Whisper
+   clamps against the whole clip). They are Whisper's input packaging, not a
+   mel-spectrogram convention, and they cause the one surprising behaviour in
+   the type: the chunking caveat exists because a non-chunk-invariant reduction
+   is on by default. Proposal: default both to `None`, keep the librosa-shaped
+   geometry defaults, and add a `whisper::mel_options(..)` factory in the kit.
+   **This is free only until `mels/` ships** — the whole module is new on this
+   branch, so `MelConverterOptions` has no compatibility surface yet.
+
+2. **Promoting `to_whisper_mels` into the kit.** The Whisper packaging recipe
+   (slice `[..-1]`, clamp, affine, transpose) exists only in
+   `examples/whisper-dev`, so any real consumer must re-derive it. Pairs
+   naturally with item 1. Raised at `[L-4]` and `[U-4]`.
+
+3. **The store-adapter repair** — see `[C-4]`. Blocked on `PytorchStore`
+   gaining `with_adapter` upstream, and on making an over-matching pattern
+   loud rather than silent.
+
+4. **No test fails when burn fixes the `unfold` defect** — see `[N-3]`. The
+   defect did not reproduce under a direct probe, so the behaviour pin that
+   would announce an upstream fix was never written.
+
+5. **`Tensor -> Vec<E>` ergonomics** — see `[U-1]`. Deliberately not fixed
+   locally; wait for the `burner::tensor` ext traits to be realigned with their
+   upstreamed versions.
 
 ---
 
