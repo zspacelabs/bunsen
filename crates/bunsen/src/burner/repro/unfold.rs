@@ -274,6 +274,35 @@ mod tests {
         assert!(sweep::<CpuBackend>(&device).is_empty());
     }
 
+    /// Pins the **current** behaviour, so a `CubeCL` fix announces itself here
+    /// rather than leaving the covered-span trims as unexplained code.
+    ///
+    /// Gated on an accelerator feature: `PerformanceBackend` falls back to
+    /// `Flex` when none is selected, and `Flex` is correct — so without the
+    /// gate this would fail on a CPU-only run and report a fix that has not
+    /// happened. The stride repro needs no such gate; that defect is in the
+    /// store, this one is in a kernel.
+    ///
+    /// Asserts only that *something* still reads wrong. Pinning the exact
+    /// count would break on a driver or hardware change that alters
+    /// vectorization without meaning the defect is gone.
+    #[test]
+    #[cfg(any(feature = "wgpu", feature = "cuda", feature = "metal"))]
+    fn test_performance_backend_is_currently_wrong() {
+        let device = <PerformanceBackend as BackendTypes>::Device::default();
+
+        assert!(
+            !sweep::<PerformanceBackend>(&device).is_empty(),
+            "`unfold` now reads every swept configuration correctly — CubeCL \
+             appears to honour the outer stride. Un-ignore \
+             `test_repro_on_performance_backend`, and re-check the \
+             covered-span trims in `MelConverter::frame` and \
+             `SlidingStft::analyze`. They are semantically free, so they may \
+             be kept on their own merits — unlike a stride repair, leaving \
+             them after a fix introduces nothing.",
+        );
+    }
+
     /// Prints the failing set for the performance backend.
     ///
     /// Ignored because it is a report, not an assertion.
