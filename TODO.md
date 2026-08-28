@@ -42,39 +42,25 @@ Legend: `[N-n]` narrative, `[L-n]` layer violation, `[U-n]` new utility.
 
 ## 1. Narrative discussion
 
-### [N-6] `PLAN.md` points at a personal branch and a commit SHA
+### [N-6] `PLAN.md` pointed at a personal branch and a commit SHA — RESOLVED
 
-`crates/bunsen/src/ops/signal/mels/PLAN.md:479`
+The reference named branch `crutcher/tv-dev`, commit `671b494`, and an IDE run
+config that no longer exists — none of it resolvable by a reader. Rather than
+delete it, the module it pointed at was **ported**: `burner::repro::unfold`,
+its own file beside the stride repro, one file per defect. `PLAN.md` now cites
+it as an ordinary in-repo reference and states the rule inline.
 
-```
-There is a documented reproduction of it in this repo — `burner::repro::unfold`,
-added by commit `671b494` — but it lives on branch `crutcher/tv-dev` and is **not** on `main`
-or `crutcher/whisper_wip`. (The stale IDE run config
-`Test burner::repro::unfold::tests::test_repro_on_performance_backend` is the only trace of it
-on this branch.) Read that module before writing `t_stage_frame`.
-```
+**It still reproduces.** On wgpu at burn 0.21.0 / cubecl 0.10.0 the sweep finds
+42 of 315 configurations wrong — the count recorded when it was written — and
+row 1 starts at the truncated offset. `Flex` is correct.
 
-Three things a reader cannot resolve: a personal branch, a bare commit SHA, and
-a run config that **no longer exists** (verified: nothing matching in
-`.idea/runConfigurations/`). The instruction "read that module before writing
-`t_stage_frame`" is also spent — `t_stage_frame` is written.
+That corrects an earlier finding of mine recorded under `[N-3]`: a direct probe
+had shown no corruption and I reported being unable to reproduce the defect.
+The probe used float tensors at large geometries; every observed failure has an
+inferred line width of 2 or 4. The defect is real; I generalised a negative
+result past the range it covered.
 
-But the reference is *valuable*, which is why this is not a simple delete.
-`671b494` is present locally and contains a real, thorough reproduction: a
-315-configuration sweep establishing that the defect fires exactly when `size`
-and `step` are both even and `tail % v != 0`. That is precisely the artifact
-`[N-3]` concluded was missing, and it directly bears on Residual 4.
-
-Options:
-1. **Port the repro onto this branch** as `burner::repro::cubecl_unfold`, then
-   cite it normally. Resolves this item *and* Residual 4, and would settle
-   whether the defect is still live — a direct probe at the two documented
-   geometries showed no corruption, so either the probe was wrong or something
-   changed. The sweep would say which.
-2. **Cite it durably without porting** — name the defect and its rule
-   (`size` and `step` both even, `tail % v != 0`), drop the branch, SHA and run
-   config. Cheap; leaves Residual 4 open.
-3. Keep as-is.
+A behaviour pin was added, closing Residual 4 — see that entry.
 
 ### [N-7] `PLAN.md` cites a kit source file by line number
 
@@ -245,18 +231,28 @@ home — issues, `PLAN.md`, or rustdoc — rather than losing them with the file
    gaining `with_adapter` upstream, and on making an over-matching pattern
    loud rather than silent.
 
-4. **No test fails when burn fixes the `unfold` defect** — see `[N-3]`. The
-   defect did not reproduce under a direct probe, so the behaviour pin that
-   would announce an upstream fix was never written.
+4. ~~**No test fails when burn fixes the `unfold` defect.**~~ **Closed.**
+   `burner::repro::unfold::test_performance_backend_is_currently_wrong` asserts
+   the sweep still finds wrong configurations, so a fix breaks it and names the
+   covered-span trims to re-check. Gated on an accelerator feature, because
+   `PerformanceBackend` falls back to the (correct) `Flex` otherwise; verified
+   absent on a CPU-only run and present with `--features wgpu`.
 
 5. **`Tensor -> Vec<E>` ergonomics** — see `[U-1]`. Deliberately not fixed
    locally; wait for the `burner::tensor` ext traits to be realigned with their
    upstreamed versions.
 
-6. **The `unfold` repro on `crutcher/tv-dev`.** `671b494` carries a
-   315-configuration sweep characterising the defect. Porting it would close
-   both `[N-6]` and item 4 above, and would settle whether the defect is still
-   live. See `[N-6]`.
+6. ~~**The `unfold` repro on `crutcher/tv-dev`.**~~ **Closed** — ported; see
+   `[N-6]`.
+
+7. **The two covered-span comments describe geometries that do not trip the
+   defect.** `converter.rs` says the Whisper geometry "trips it at every chunk
+   size" and `sliding_stft` says the default 1024/256 geometry is corrupt for
+   `batch > 1`. Probed directly with `Int` tensors, neither fires — every
+   observed failure has line width 2 or 4, and the sweep covers only
+   `size 2..=8`. The trims stay regardless: they are semantically free and make
+   the hazard unreachable rather than merely unobserved, which is why Whisper
+   no longer breaks. Left by decision; recorded so the wording is a known state.
 
 ---
 
