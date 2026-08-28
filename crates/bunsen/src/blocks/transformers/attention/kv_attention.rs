@@ -16,6 +16,24 @@
 //! keys and values never change, but it leaves self-attention quadratic. These
 //! functions take only the new tokens.
 //!
+//! ## Why not `KVCache`
+//!
+//! [`KVCache`](super::KVCache) is a preallocated *multi-layer* cache: a single
+//! `Tensor<B, 6>` over `[layers, kv, batch, heads, seq, d_k]`, grown in chunks,
+//! and a `Module` in its own right. It wants the geometry — layer count, head
+//! count, head dimension, batch size, and a sequence bound — declared up front,
+//! and it serves bunsen's own attention stack
+//! ([`CausalSelfAttention`](super::CausalSelfAttention) and the nanochat kit).
+//!
+//! [`AttnKv`] is a plain per-layer value over burn's [`MultiHeadAttention`]
+//! weights. It declares no geometry, and it also covers a case `KVCache` does
+//! not model: cross-attention keys and values, projected once from the encoder
+//! output and then reused unchanged rather than grown.
+//!
+//! Reach for `KVCache` when the geometry is known up front and the allocation
+//! matters; reach for these when the attention is burn's own and the cache is
+//! per-layer.
+//!
 //! ## Matching the uncached path
 //!
 //! The arithmetic mirrors `MultiHeadAttention::forward` exactly — the same
@@ -68,6 +86,12 @@ impl<B: Backend> AttnKv<B> {
     }
 
     /// Appends `next` along the sequence axis.
+    ///
+    /// This reallocates: every call copies the whole cache, so growing a
+    /// self-attention cache one token at a time costs O(T^2) copying across a
+    /// decode of length T. That is not worth avoiding at a few hundred
+    /// positions — Whisper's text window is 448 — but a long-context decode
+    /// wants a preallocated cache instead; see [`KVCache`](super::KVCache).
     pub fn concat(
         self,
         next: Self,
