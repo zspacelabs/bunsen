@@ -1,5 +1,8 @@
 //! # `PytorchStore` reads raw storage, ignoring `PyTorch` tensor strides.
 //!
+//! Requires the `store` feature: the reproduction loads a checkpoint through
+//! `burn_store`, an optional dependency.
+//!
 //! Affects every non-contiguous tensor in a `.pt` checkpoint.
 //! Backend-independent — the fault is in the store, not in any kernel.
 //!

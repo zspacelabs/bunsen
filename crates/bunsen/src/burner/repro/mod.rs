@@ -18,8 +18,6 @@
 //! pin is not, so a fix announces itself and names the workarounds it makes
 //! redundant rather than silently turning them into new bugs.
 
-/// Requires the `store` feature: the reproduction loads a checkpoint through
-/// `burn_store`, which is an optional dependency.
 #[cfg(feature = "store")]
 pub mod pytorch_strided_weights;
 
