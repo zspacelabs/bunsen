@@ -90,6 +90,24 @@ the signal to stop. A sweep is worth running while the previous round changed
 real code; it is not worth running against a round that only changed a `cfg`
 line and a doc fence.
 
+### Round 5: one finding, in this pass's own new code
+
+Passes A, B, C and D were clean — no narrative, no model names in generic
+layers, exactly the two intended public functions, every doc link resolving,
+and all three CI configurations green.
+
+The finding came from reading the new code rather than grepping it.
+`package_mels` computes `frames as isize - 1`, which is `0..-1` for zero frames
+and an empty slice for one — and the clamp then reduces over nothing. Both
+panic inside `burn-flex`'s reducer, telling the caller nothing. Now asserted
+with the reason and documented.
+
+Unreachable through the Whisper front end, whose spectrograms are thousands of
+frames, which is exactly why a sweep found it and the tests did not: the
+degenerate input is one no real caller produces. `[C-6]` earns its place a
+fourth time, and adds a rider — **pattern-matching the diff is not enough; the
+new code has to be read.**
+
 ### What this says about the process
 
 Three sweeps of prose and API found nothing here, because **none of them built
