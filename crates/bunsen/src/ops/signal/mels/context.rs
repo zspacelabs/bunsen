@@ -51,32 +51,13 @@ pub enum StreamPhase {
 /// Like [`MelConverter`], this is a `Module` over bare tensors — the carry
 /// rides `to_device` but is neither recorded nor visited.
 ///
-/// # Producing Whisper input
+/// # Chunking and per-call reductions
 ///
-/// Whisper's `log_mel_spectrogram` clamps against the maximum of the *whole*
-/// clip. [`RangeClamp::PerCall`](crate::ops::signal::mels::RangeClamp::PerCall)
-/// reduces over one call's frames, so a streamed run would clamp each chunk
-/// against its own maximum and match nothing. Stream with the clamp and the
-/// affine **off**, then apply them once to the joined result:
-///
-/// ```text
-/// let conv = options.with_range_clamp(None).with_affine(None).init(&device);
-///
-/// let (mels, ctx) = conv.new_context(1).transform(waveform)?;
-/// let joined = Tensor::cat(vec![mels, ctx.finish().unwrap()], 1);
-///
-/// // Whisper slices `stft[..., :-1]`.
-/// let cut = joined.slice_dim(1, 0..joined.dims()[1] as isize - 1);
-///
-/// let out = AffineCompress::default()
-///     .apply(RangeClamp::PerCall { db: 8.0 }.apply(cut));
-///
-/// // ...and the encoder wants `[batch, n_mels, seq]`.
-/// let out = out.swap_dims(1, 2);
-/// ```
-///
-/// This is exactly what `cross_test` checks against the real
-/// `whisper.audio.log_mel_spectrogram`.
+/// [`RangeClamp::PerCall`](crate::ops::signal::mels::RangeClamp::PerCall)
+/// reduces over one call's frames, so a streamed run clamps each chunk
+/// against its own maximum: chunking is not transparent while it is enabled.
+/// Stream with the clamp and the affine **off**, then apply them once to the
+/// joined result.
 #[derive(Module, Debug)]
 pub struct MelConversionContext<B: Backend> {
     /// The analysis constants; shared, never mutated.
@@ -165,7 +146,7 @@ impl<B: Backend> MelConversionContext<B> {
     /// on the padding and the hop, not on how the signal was chunked.
     ///
     /// The first call is the exception: it also absorbs the start padding, so
-    /// it yields `(start_pad + samples - n_fft) / hop + 1`. For Whisper's
+    /// it yields `(start_pad + samples - n_fft) / hop + 1`. For the default
     /// geometry over 30 s that is 2999 frames with a 360-sample carry, and
     /// [`finish`](Self::finish) contributes the remaining 2 — 3001 in total,
     /// matching `librosa` with `center=True`.
@@ -528,12 +509,12 @@ mod tests {
     /// The frame accounting worked out in `MEL_CONVERTER_PLAN.md`, asserted
     /// against the real thing.
     #[test]
-    fn test_whisper_frame_accounting() {
+    fn test_frame_accounting_over_a_30s_window() {
         let device = Default::default();
         let opts = streaming_options();
         let conv: MelConverter<B> = opts.try_init(&device).ok_or_panic();
 
-        // 30 s at 16 kHz, the Whisper window.
+        // 30 s at the default 16 kHz sample rate.
         let samples = 480_000;
         let x = from_rows::<B>(&rows(1, samples), &device);
 
@@ -784,8 +765,9 @@ mod tests {
     /// The signal has to earn it: `db` is in log-units, so the default 8.0 is
     /// an 80 dB window that ordinary noise never spans — the clamp simply
     /// never fires and both chunkings agree. Making the second half silent is
-    /// what separates them, and it is also the realistic case, since Whisper
-    /// zero-pads to 30 s and the clamp exists precisely to floor that silence.
+    /// what separates them, and it is the realistic case: a clip zero-padded
+    /// to a fixed window ends in silence, which is what the clamp exists to
+    /// floor.
     #[test]
     fn test_per_call_clamp_is_not_chunk_invariant() {
         let device = Default::default();
