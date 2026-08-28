@@ -97,6 +97,10 @@ impl SpectrumKind {
 /// they cannot reach the default `n_fft = 400` geometry at all; a `Stft`
 /// variant is only worth adding alongside a power-of-two configuration that
 /// exercises it.
+///
+/// [`MelConverter::spectrum`] matches on this exhaustively, so adding a
+/// variant does not compile until it has a path — it cannot be accepted and
+/// then ignored.
 #[derive(Config, Copy, Debug, PartialEq, Eq)]
 pub enum SpectrumImpl {
     /// Explicit DFT by matrix multiply against precomputed cos/sin tables.
@@ -799,17 +803,26 @@ impl<B: Backend> MelConverter<B> {
 
         let (n_fft, n_bins) = (self.n_fft(), self.n_bins());
 
-        // Fold batch and frame together: one `[rows, n_fft] @ [n_fft, n_bins]`
-        // matmul beats broadcasting the tables across a batch axis.
-        let rows = batch * n_frames;
-        let flat: Tensor<B, 2> = frames.reshape([rows, n_fft]);
+        // Dispatched rather than assumed: this is the only thing that reads
+        // `spectrum_impl`, so a new variant is a compile error here until it
+        // is given a path, instead of being silently ignored.
+        let power = match self.options.spectrum_impl {
+            SpectrumImpl::DftMatmul => {
+                // Fold batch and frame together: one
+                // `[rows, n_fft] @ [n_fft, n_bins]` matmul beats broadcasting
+                // the tables across a batch axis.
+                let rows = batch * n_frames;
+                let flat: Tensor<B, 2> = frames.reshape([rows, n_fft]);
 
-        let re = flat.clone().matmul(self.dft_cos.clone());
-        let im = flat.matmul(self.dft_sin.clone());
+                let re = flat.clone().matmul(self.dft_cos.clone());
+                let im = flat.matmul(self.dft_sin.clone());
 
-        // Squaring by multiply rather than `powi_scalar(2)`: same result, and
-        // it is the form the fusion pass folds into the matmul epilogue.
-        let power = re.clone().mul(re).add(im.clone().mul(im));
+                // Squaring by multiply rather than `powi_scalar(2)`: same
+                // result, and it is the form the fusion pass folds into the
+                // matmul epilogue.
+                re.clone().mul(re).add(im.clone().mul(im))
+            }
+        };
 
         let out = self.options.spectrum.from_power(power);
 
