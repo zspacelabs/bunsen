@@ -18,9 +18,12 @@ use burn::{
     },
 };
 
-use crate::kits::speech::whisper::blocks::{
-    Whisper,
-    WhisperMeta,
+use crate::{
+    kits::speech::whisper::blocks::{
+        Whisper,
+        WhisperMeta,
+    },
+    ops::split::split_padded,
 };
 
 /// Splits `[batch, n_mels, frames]` into fixed-width windows.
@@ -28,6 +31,9 @@ use crate::kits::speech::whisper::blocks::{
 /// The final window is zero-padded out to `window`, matching how Whisper pads
 /// short audio to its full 30 s context. Audio shorter than one window yields
 /// exactly one padded window, and empty audio yields none.
+///
+/// Names the frame axis and the padding policy; the split itself is
+/// [`split_padded`].
 ///
 /// # Arguments
 /// * `mels`: `[batch, n_mels, frames]` log-mels.
@@ -40,29 +46,7 @@ pub fn mel_windows<B: Backend>(
     mels: Tensor<B, 3>,
     window: usize,
 ) -> Vec<Tensor<B, 3>> {
-    assert!(window > 0, "window must be non-zero");
-
-    let [batch, n_mels, frames] = mels.dims();
-    let device = mels.device();
-
-    let mut windows = Vec::new();
-    let mut seek = 0;
-
-    while seek < frames {
-        let end = (seek + window).min(frames);
-        let chunk = mels.clone().slice_dim(2, seek as isize..end as isize);
-
-        windows.push(if end - seek == window {
-            chunk
-        } else {
-            let pad: Tensor<B, 3> = Tensor::zeros([batch, n_mels, window - (end - seek)], &device);
-            Tensor::cat(vec![chunk, pad], 2)
-        });
-
-        seek = end;
-    }
-
-    windows
+    split_padded(mels, window, 2)
 }
 
 /// How to drive a greedy decode.

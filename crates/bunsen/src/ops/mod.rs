@@ -40,6 +40,9 @@
 //! ### Shape transforms
 //! - [`repeat`] &mdash; `repeat_interleave()` along a (negatively indexable)
 //!   dimension, mirroring `NumPy` / `PyTorch` semantics.
+//! - [`split`] &mdash; `split_padded()` cuts a (negatively indexable) dimension
+//!   into equal chunks, zero-padding the last one so every chunk has the same
+//!   width.
 //!
 //! ### Convolution support
 //! - [`conv`] &mdash; everything around convolution that isn't a trainable
@@ -73,3 +76,4 @@ pub mod noise;
 pub mod norm;
 pub mod repeat;
 pub mod signal;
+pub mod split;
