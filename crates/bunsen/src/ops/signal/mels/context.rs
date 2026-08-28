@@ -250,7 +250,6 @@ impl<B: Backend> MelConversionContext<B> {
     /// history.
     ///
     /// `[batch, samples]` -> `[batch, extended]`.
-    #[doc(hidden)]
     pub(crate) fn t_stage_extend(
         mut self,
         waves: Tensor<B, 2>,
@@ -338,7 +337,6 @@ impl<B: Backend> MelConversionContext<B> {
     /// until then, so the stage cannot silently drop a configured filter.
     ///
     /// `[batch, extended]` -> `[batch, extended]`.
-    #[doc(hidden)]
     pub(crate) fn t_stage_preproc(
         self,
         x: Tensor<B, 2>,
@@ -349,7 +347,6 @@ impl<B: Backend> MelConversionContext<B> {
     /// Framing and windowing.
     ///
     /// `[batch, extended]` -> `[batch, frames, n_fft]`.
-    #[doc(hidden)]
     pub(crate) fn t_stage_frame(
         self,
         x: Tensor<B, 2>,
@@ -361,7 +358,6 @@ impl<B: Backend> MelConversionContext<B> {
     /// Frames to a power or magnitude spectrum.
     ///
     /// `[batch, frames, n_fft]` -> `[batch, frames, n_bins]`.
-    #[doc(hidden)]
     pub(crate) fn t_stage_spectrum(
         self,
         x: Tensor<B, 3>,
@@ -373,7 +369,6 @@ impl<B: Backend> MelConversionContext<B> {
     /// Spectrum onto the mel scale.
     ///
     /// `[batch, frames, n_bins]` -> `[batch, frames, n_mels]`.
-    #[doc(hidden)]
     pub(crate) fn t_stage_mel(
         self,
         x: Tensor<B, 3>,
@@ -385,7 +380,6 @@ impl<B: Backend> MelConversionContext<B> {
     /// Mel energies to log-mels.
     ///
     /// `[batch, frames, n_mels]` -> `[batch, frames, n_mels]`.
-    #[doc(hidden)]
     pub(crate) fn t_stage_compress(
         self,
         x: Tensor<B, 3>,

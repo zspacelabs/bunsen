@@ -234,12 +234,14 @@ impl<B: Backend> MelConversionContext<B> {
 
 ### Visibility
 
-`pub(crate)` + `#[doc(hidden)]`. Private-to-the-crate keeps them off the public API surface
+`pub(crate)`. Private-to-the-crate keeps them off the public API surface
 (no semver commitment, no `missing_docs` obligation) while still letting a
 `mels::testing` helper module drive them — the same shape as
 `ops::signal::window_builder::testing`, which is gated `#[cfg(any(test, feature = "testing"))]`
 and `testing` is a **default** feature of `bunsen`. Document each one anyway: the shape
-contract is the whole point.
+contract is the whole point — and do not add `#[doc(hidden)]`, which is a no-op for a
+non-public item except under `--document-private-items`, the one place a maintainer
+wants to read them.
 
 ### The stages
 
