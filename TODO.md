@@ -80,24 +80,23 @@ so it is a known state rather than an oversight. Nothing enforces it.
 
 ## 2. Layer-violating discussion and APIs
 
-### [L-7] Model and kit names introduced into `blocks/` by round 1
+### [L-7] Model and kit names introduced by round 1 — RESOLVED
 
-Both added by `87f70a9`, the `[U-2]` documentation commit — that is, **by this
-normalization pass**, against the standard it had just applied at `[L-3]`.
+Both deleted. Neither loses information, which is the same test `[L-3]`
+applied.
 
-- `crates/bunsen/src/blocks/transformers/attention/kv_attention.rs:26` — "…and
-  the nanochat kit", naming a kit from inside `blocks/`.
-- `crates/bunsen/src/blocks/transformers/attention/kv_attention.rs:93` — "…
-  Whisper's text window is 448", justifying a generic cost note by one model.
+- "and the nanochat kit" was redundant: the sentence says `KVCache` serves
+  bunsen's own attention stack, and the `CausalSelfAttention` link beside it
+  already says exactly that. Considered keeping it as the index-of-consumers
+  pattern `[L-5]` preserved in `mels` — it is not that. That pattern names
+  which convention *each* variant follows, consistently, to help a caller
+  choose; this was one parenthetical naming a downstream consumer.
+- "Whisper's text window is 448" illustrated a sentence that had already made
+  its point — structurally identical to the cross-attention example deleted at
+  `[L-3]`.
 
-Options:
-1. **Generalize both**, as `[L-3]` did: the `KVCache` comparison can say
-   "bunsen's own attention stack" without naming the kit, and the `concat` cost
-   can say "a few hundred positions" without naming the model.
-2. **Keep `:26`, generalize `:93`.** The `KVCache` contrast is arguably an
-   index of consumers, like the `MelScale`/`LogBase` variant docs `[L-5]` kept;
-   the 448 is a bare model constant.
-3. Keep both.
+`blocks/` is again free of model names except `blocks/mod.rs:16` and
+`conv_seq_1d.rs:198`, both of which predate this branch.
 
 ### [L-6] `conv_seq_1d.rs:198` — still excluded
 
@@ -191,6 +190,16 @@ regexes. Three things block it:
 
 Revisit if `PytorchStore` gains `with_adapter` upstream, and only with
 something that makes over-matching loud rather than silent.
+
+**C-6. Re-survey after the pass, not just before it.** Round 1's `[U-2]`
+commit put two caller names into `blocks/` **two commits after** `[L-3]`
+removed the identical pattern from a neighbouring file. Writing new prose is
+exactly when a violation gets reintroduced, and no amount of care during the
+fix prevents it — only a second sweep found it. Treat the re-survey as a step
+of the work, not an optional check: a normalization pass that is not re-run
+against its own output has not been verified. The same sweep also caught a
+stale scope header, a reference to a deleted run config, and a conclusion of
+mine that was simply wrong (`[N-6]`).
 
 **C-5. In a repro or cross-check, a named real-world instance is evidence,
 not coupling.** The usual rule — a generic layer must not name a specific
