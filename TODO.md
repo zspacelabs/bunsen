@@ -429,24 +429,33 @@ with the geometry known up front; `AttnKv` for per-layer k/v over burn's
 O(T^2). Invisible at Whisper's 448-position window, wrong for long context,
 and the doc points at `KVCache` for that case.
 
-### [U-3] `MelConverterOptions::to_vec_*` — three host-side extractors
+### [U-3] `MelConverterOptions::to_vec_*` — RESOLVED (no action)
 
-`to_vec_dft_tables`, `to_vec_filterbank`, `to_vec_filterbank_t` on
-`MelConverterOptions`.
+Closed without changes. This entry was written on the assumption that the
+three extractors were invented surface; they are not — `to_vec_*` /
+`to_tensor_*` is an established convention in this very module tree.
+`SamplingWindowBuilder` defines the pair (`window_builder.rs`), and both
+`stft_window.rs` and `cosine_window.rs` implement it. The mel options apply the
+same idea to the same module's other host-side artifact: materialize on the
+host what the config describes.
 
-These build host `Vec<f64>` from config and exist mainly so tests and `init`
-can share table construction. `to_vec_dft_tables` in particular is a generic
-DFT-table builder wearing a mel-converter method signature.
+`to_vec_filterbank` also has a demonstrated external use — `cross_test` calls
+it exactly as an outside consumer would, and it saves unpacking seven config
+fields to reach `mel_filterbank`.
 
-Options:
-1. **Move `to_vec_dft_tables` to `ops::signal`** as a free function; a
-   cos/sin DFT table has nothing to do with mel scaling and `sliding_stft`
-   may want it too.
-2. **Make them `pub(crate)` / `#[doc(hidden)]`.** If the only callers are
-   `init` and tests, they need not be public API we support forever.
-3. **Keep public, document the contract.** They are genuinely useful for
-   cross-checking against librosa/torch; if we keep them public, document the
-   layout (row-major, `[n_mels, n_freqs]` vs transposed) precisely.
+**Option 1 from this entry does not survive contact.** Moving
+`to_vec_dft_tables` to `ops::signal` as a generic builder fails twice: it is
+not generic (its tables are `n_fft` rows rather than `fft_len`, folding the
+`pad_to_pow2` widening back in — a fact about this converter's geometry, not
+about DFTs), and there is no second caller, since `sliding_stft` goes through
+burn's `stft`/`rfft`. Extracting it would create public generic API with one
+consumer, which is the speculative generality `[U-5]` objects to.
+
+Noted, not acted on: the convention pairs `to_vec_X` with `to_tensor_X` and
+only the `to_vec_` half exists here — correct, since the tensor side belongs to
+the `Module` built by `try_init`. And `to_vec_dft_tables` returns a bare
+`(Vec, Vec)` where the caller must know cos-then-sin; a named struct would be
+safer but is more ceremony than one call site earns.
 
 ### [U-4] `mel_windows` in the Whisper kit
 
@@ -520,7 +529,7 @@ Options:
 4. ~~`[N-1]` plan-file disposition~~ — **done**. `[N-2]` is unblocked.
 5. ~~`[N-2]`~~, ~~`[N-3]`~~, ~~`[N-5]`~~ — **done**.
 6. ~~`[U-2]` KV-cache convergence~~ — **done** (documented, not converged).
-7. `[U-3]`–`[U-7]`, `[L-5]` — judgment calls, low urgency.
+7. ~~`[U-3]`~~ — **done** (no action). `[U-4]`–`[U-7]`, `[L-5]` remain.
 
 ---
 
