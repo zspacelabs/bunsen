@@ -24,10 +24,6 @@ use burn::{
 
 use super::WHISPER_DEFAULT_D_MODEL;
 use crate::{
-    blocks::transformers::attention::{
-        AttnKv,
-        causal_mask,
-    },
     burner::module::ModuleInit,
     errors::BunsenResult,
     kits::speech::whisper::blocks::{
@@ -35,7 +31,13 @@ use crate::{
         ResidualDecoderAttentionBlockConfig,
         ResidualDecoderAttentionBlockMeta,
     },
-    ops::embedding::unembed,
+    ops::{
+        embedding::unembed,
+        transformers::attention::{
+            AttnKvPair,
+            causal_mask,
+        },
+    },
 };
 
 /// Common meta for [`TextDecoder`] and [`TextDecoderConfig`].
@@ -350,12 +352,12 @@ impl<B: Backend> TextDecoder<B> {
 /// no parameters.
 pub struct TextDecoderCache<B: Backend> {
     /// Self-attention keys and values, grown one step at a time.
-    self_kv: Vec<Option<AttnKv<B>>>,
+    self_kv: Vec<Option<AttnKvPair<B>>>,
 
     /// Cross-attention keys and values, projected once from the encoder
     /// output. This is the bulk of what the cache saves: over 1500 encoder
     /// frames, per layer, per token.
-    cross_kv: Vec<AttnKv<B>>,
+    cross_kv: Vec<AttnKvPair<B>>,
 
     /// Tokens consumed so far.
     pos: usize,

@@ -345,12 +345,9 @@ mod tests {
 
     use super::*;
     use crate::{
-        blocks::transformers::{
-            attention::KVCache,
-            embedding::{
-                RotaryEmbedding,
-                RotaryEmbeddingConfig,
-            },
+        blocks::transformers::embedding::{
+            RotaryEmbedding,
+            RotaryEmbeddingConfig,
         },
         burner::module::ModuleInit,
         contracts::assert_shape_contract,

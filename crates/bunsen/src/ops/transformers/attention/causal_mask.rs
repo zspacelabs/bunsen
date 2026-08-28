@@ -1,3 +1,5 @@
+//! Causal mask utilities.
+
 use burn::{
     Tensor,
     prelude::{

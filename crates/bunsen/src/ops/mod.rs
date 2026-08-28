@@ -77,3 +77,4 @@ pub mod norm;
 pub mod repeat;
 pub mod signal;
 pub mod split;
+pub mod transformers;

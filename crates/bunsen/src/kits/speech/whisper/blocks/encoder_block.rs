@@ -16,18 +16,16 @@ use burn::{
 
 use super::WHISPER_DEFAULT_D_MODEL;
 use crate::{
-    blocks::transformers::{
-        attention::layer_norm_self_attn,
-        mlp::{
-            Mlp,
-            MlpConfig,
-            layer_norm_mlp,
-        },
+    blocks::transformers::mlp::{
+        Mlp,
+        MlpConfig,
+        layer_norm_mlp,
     },
     burner::{
         module::ModuleInit,
         store::repair_pytorch_strided_weight,
     },
+    ops::transformers::attention::layer_norm_self_attn,
 };
 
 /// Common meta for [`ResidualEncoderAttentionBlock`] and

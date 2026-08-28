@@ -19,26 +19,24 @@ use burn::{
 
 use super::WHISPER_DEFAULT_D_MODEL;
 use crate::{
-    blocks::transformers::{
-        attention::{
-            AttnKv,
-            layer_norm_cross_attn,
-            layer_norm_cross_attn_kv,
-            layer_norm_self_attn,
-            layer_norm_self_attn_kv,
-            project_kv,
-        },
-        mlp::{
-            Mlp,
-            MlpConfig,
-            layer_norm_mlp,
-        },
+    blocks::transformers::mlp::{
+        Mlp,
+        MlpConfig,
+        layer_norm_mlp,
     },
     burner::{
         module::ModuleInit,
         store::repair_pytorch_strided_weight,
     },
     errors::BunsenResult,
+    ops::transformers::attention::{
+        AttnKvPair,
+        layer_norm_cross_attn,
+        layer_norm_cross_attn_w_kv_cache,
+        layer_norm_self_attn,
+        layer_norm_self_attn_w_kv_cache,
+        project_kv_pair,
+    },
 };
 
 /// Common meta for [`ResidualDecoderAttentionBlock`] and
@@ -263,13 +261,23 @@ impl<B: Backend> ResidualDecoderAttentionBlock<B> {
         &self,
         x: Tensor<B, 3>,
         mask: Option<Tensor<B, 3, Bool>>,
-        self_kv: &mut Option<AttnKv<B>>,
-        cross_kv: &AttnKv<B>,
+        self_kv: &mut Option<AttnKvPair<B>>,
+        cross_kv: &AttnKvPair<B>,
     ) -> Tensor<B, 3> {
-        let x = x.clone() + layer_norm_self_attn_kv(&self.attn_ln, &self.attn, x, mask, self_kv);
+        let x = x.clone().add(layer_norm_self_attn_w_kv_cache(
+            &self.attn_ln,
+            &self.attn,
+            x,
+            mask,
+            self_kv,
+        ));
 
-        let x = x.clone()
-            + layer_norm_cross_attn_kv(&self.cross_attn_ln, &self.cross_attn, x, cross_kv);
+        let x = x.clone().add(layer_norm_cross_attn_w_kv_cache(
+            &self.cross_attn_ln,
+            &self.cross_attn,
+            x,
+            cross_kv,
+        ));
 
         let mlp = layer_norm_mlp(&self.mlp_ln, &self.mlp, x.clone());
         x + mlp
@@ -285,8 +293,8 @@ impl<B: Backend> ResidualDecoderAttentionBlock<B> {
     pub fn build_cross_kv(
         &self,
         xa: Tensor<B, 3>,
-    ) -> AttnKv<B> {
-        project_kv(&self.cross_attn, xa)
+    ) -> AttnKvPair<B> {
+        project_kv_pair(&self.cross_attn, xa)
     }
 }
 

@@ -25,10 +25,14 @@ use burn::{
 use crate::{
     blocks::transformers::{
         attention::{
-            CausalSelfAttentionConfig,
-            CausalSelfAttentionMeta,
-            KVCache,
-            KVCacheConfig,
+            csa::{
+                CausalSelfAttentionConfig,
+                CausalSelfAttentionMeta,
+            },
+            kvcache::{
+                KVCache,
+                KVCacheConfig,
+            },
         },
         embedding::{
             RotaryEmbedding,
