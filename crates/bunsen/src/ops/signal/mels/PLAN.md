@@ -235,10 +235,12 @@ impl<B: Backend> MelConversionContext<B> {
 ### Visibility
 
 `pub(crate)`. Private-to-the-crate keeps them off the public API surface
-(no semver commitment, no `missing_docs` obligation) while still letting a
-`mels::testing` helper module drive them — the same shape as
-`ops::signal::window_builder::testing`, which is gated `#[cfg(any(test, feature = "testing"))]`
-and `testing` is a **default** feature of `bunsen`. Document each one anyway: the shape
+(no semver commitment, no `missing_docs` obligation). Every caller is currently in
+`context.rs`, where plain `fn` would do; the wider visibility is **reserved**, so that a
+`mels::testing` helper module could drive the stages from outside that file if one is ever
+wanted. There is no such module today, and none should be added until something needs it —
+the model to follow is `ops::signal::testing`, gated `#[cfg(any(test, feature = "testing"))]`,
+with `testing` a **default** feature of `bunsen`. Document each stage anyway: the shape
 contract is the whole point — and do not add `#[doc(hidden)]`, which is a no-op for a
 non-public item except under `--document-private-items`, the one place a maintainer
 wants to read them.
