@@ -114,13 +114,55 @@ mod tests {
         assert_eq!(opts.log_base, base.log_base);
     }
 
-    /// Drops the trailing frame and transposes to channels-first.
+    /// Sweeps the shape parameters: for every accepted frame count, and
+    /// across batch and mel widths, the output is `[batch, n_mels, frames -
+    /// 1]`.
     #[test]
-    fn test_package_mels_drops_a_frame_and_transposes() {
+    fn test_package_mels_shape_over_a_range() {
         let device = Default::default();
-        let joined: Tensor<B, 3> = Tensor::zeros([2, 5, 3], &device);
 
-        assert_eq!(package_mels(joined).dims(), [2, 3, 4]);
+        for batch in 1..4 {
+            for n_mels in 1..5 {
+                for frames in 2..12 {
+                    let joined: Tensor<B, 3> = Tensor::zeros([batch, frames, n_mels], &device);
+
+                    assert_eq!(
+                        package_mels(joined).dims(),
+                        [batch, n_mels, frames - 1],
+                        "batch {batch}, n_mels {n_mels}, frames {frames}",
+                    );
+                }
+            }
+        }
+    }
+
+    /// Sweeps the frame count against the invariant that matters: the dropped
+    /// frame never reaches the clamp, so an outlier parked in it cannot move
+    /// the reference for anything that survives.
+    ///
+    /// Every kept value is 0, so the clamp is inert and the affine takes them
+    /// all to `(0 + 4) / 4`. If the trailing frame leaked through, its 99
+    /// would become the maximum and floor everything else at 91.
+    #[test]
+    fn test_package_mels_ignores_the_dropped_frame_over_a_range() {
+        let device = Default::default();
+        let n_mels = 2;
+
+        for frames in 2..10 {
+            let mut data = vec![0.0_f64; frames * n_mels];
+            for slot in data.iter_mut().skip((frames - 1) * n_mels) {
+                *slot = 99.0;
+            }
+
+            let joined: Tensor<B, 3> =
+                Tensor::from_data(TensorData::new(data, [1, frames, n_mels]), &device);
+
+            assert_tensor_close_to_vec(
+                &package_mels(joined),
+                &vec![1.0; n_mels * (frames - 1)],
+                Tolerance::absolute(1e-6),
+            );
+        }
     }
 
     /// Too few frames panics with the reason, rather than deep inside a
@@ -130,6 +172,16 @@ mod tests {
     fn test_package_mels_rejects_a_single_frame() {
         let device = Default::default();
         let joined: Tensor<B, 3> = Tensor::zeros([1, 1, 4], &device);
+
+        let _ = package_mels(joined);
+    }
+
+    /// The other degenerate count: zero frames would slice `0..-1`.
+    #[test]
+    #[should_panic(expected = "at least 2 frames")]
+    fn test_package_mels_rejects_zero_frames() {
+        let device = Default::default();
+        let joined: Tensor<B, 3> = Tensor::zeros([1, 0, 4], &device);
 
         let _ = package_mels(joined);
     }
