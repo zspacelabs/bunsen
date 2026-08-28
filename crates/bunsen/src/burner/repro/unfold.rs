@@ -36,7 +36,7 @@
 //! ## Scope
 //!
 //! From [`sweep`] over 315 configurations (`size` 2..=8, `step` 1..=5,
-//! `num` 2..=4, tails 0..=6):
+//! `num` 2..=4, `tails` 0..=6):
 //!
 //! * 42 wrong, **all** with `size` and `step` both even.
 //! * Zero wrong when either is odd — that is `v == 1`, the scalar path.
