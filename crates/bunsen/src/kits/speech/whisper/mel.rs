@@ -60,8 +60,17 @@ pub fn mel_options(
 ///
 /// # Returns
 /// `[batch, n_mels, frames - 1]`.
+///
+/// # Panics
+/// If `frames` is less than 2. One frame leaves nothing after the trailing
+/// frame is dropped, and the clamp has no maximum to reduce over.
 pub fn package_mels<B: Backend>(joined: Tensor<B, 3>) -> Tensor<B, 3> {
     let frames = joined.dims()[1];
+    assert!(
+        frames >= 2,
+        "package_mels needs at least 2 frames, got {frames}: one is dropped, \
+         and the clamp reduces over what remains",
+    );
 
     // Whisper slices `stft[..., :-1]`; the clamp reference is taken after.
     let cut = joined.slice_dim(1, 0..frames as isize - 1);
@@ -112,6 +121,17 @@ mod tests {
         let joined: Tensor<B, 3> = Tensor::zeros([2, 5, 3], &device);
 
         assert_eq!(package_mels(joined).dims(), [2, 3, 4]);
+    }
+
+    /// Too few frames panics with the reason, rather than deep inside a
+    /// reduction over an empty tensor.
+    #[test]
+    #[should_panic(expected = "at least 2 frames")]
+    fn test_package_mels_rejects_a_single_frame() {
+        let device = Default::default();
+        let joined: Tensor<B, 3> = Tensor::zeros([1, 1, 4], &device);
+
+        let _ = package_mels(joined);
     }
 
     /// The trailing frame is dropped **before** the clamp takes its
