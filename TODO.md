@@ -40,6 +40,52 @@ Legend: `[N-n]` narrative, `[L-n]` layer violation, `[U-n]` new utility.
 
 ---
 
+## Round 3: the sweep that mattered
+
+`[C-6]` said to re-survey after the pass. Round 3 did, and found what three
+earlier passes had missed entirely — **because every one of them built only
+`--features wgpu`.**
+
+### [B-1] `--no-default-features` did not compile — RESOLVED
+
+`burner::repro` was declared unconditionally while
+`pytorch_strided_weights` imports `burn_store`, an optional dependency behind
+the *default* `store` feature. `cargo test -p bunsen --no-default-features`
+failed to compile. **CI runs exactly that** (`ci.yml:68`), and `main` builds it
+cleanly — verified in a detached worktree — so this branch regressed a property
+the project maintains deliberately.
+
+Fixed by gating the one module that needs it; `unfold` depends only on `burn`
+and stays available everywhere.
+
+### [B-2] clippy failed under `-D warnings` — RESOLVED
+
+The ported repro had a backticked expression straddling an 80-column break,
+which `doc_markdown` reports as unbalanced backticks. CI runs clippy with
+`-D warnings` (`ci.yml:27`).
+
+The first fix was undone by `cargo fmt`: `rustfmt.toml` sets
+`wrap_comments = true` with no `comment_width`, so comments reflow at 80 and
+rustfmt breaks *inside* a code span, treating its spaces as ordinary word
+breaks. Any fix relying on a manual line break is temporary. Resolved by moving
+the formula to its own short paragraph, verified by reformatting.
+
+### [B-3] a `text` fence holding Rust — RESOLVED
+
+`unfold.rs`'s stride pseudo-code is Rust-shaped and now uses `rust,ignore` for
+highlighting without compiling. Audited the rest: the module's other fence is a
+two-column ASCII diagram whose alignment is the content, and the stride repro's
+two are mathematical notation over `Wᵀ` — `text` is right for all three. The
+`text` fences in `ops/conv` and `blocks/conv` are pre-existing on `main`, as is
+a `rust.notest` typo in `kits/bimm`.
+
+### What this says about the process
+
+Three sweeps of prose and API found nothing here, because **none of them built
+a configuration CI builds**. Reading is not verification. `[C-7]` records it.
+
+---
+
 ## 1. Narrative discussion
 
 ### [N-6] `PLAN.md` pointed at a personal branch and a commit SHA — RESOLVED
@@ -219,6 +265,15 @@ a violation in such a file is a pointer back into a caller
 ("...and its callers in the Whisper kit"), which is a real reverse dependency
 and stops meaning anything once the file is lifted out. Keep the evidence;
 cut the back-references. Applies to `[N-5]`.
+
+**C-7. Build what CI builds, before calling it done.** Rounds 1 and 2 reviewed
+prose and API across three sweeps and never ran `--no-default-features`, which
+CI does — so a module that failed to compile there survived every pass, on a
+branch whose changelog already records a previous fix for the same class of
+break. Optional dependencies behind default features are the trap: everything
+works locally, and only the configuration nobody runs is broken. A review that
+has not compiled the project the way CI compiles it has checked style, not
+correctness.
 
 **C-6. Re-survey after the pass, not just before it.** Round 1's `[U-2]`
 commit put two caller names into `blocks/` **two commits after** `[L-3]`
