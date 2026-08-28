@@ -1,6 +1,6 @@
-# MelConverter design plan (bunsen)
+# MelConverter design plan
 
-Design and build plan for `bunsen::ops::signal::mels`.
+Design and build plan for the module it sits in, `bunsen::ops::signal::mels`.
 
 **Status.** Stages 1-7 are implemented and covered by tests, including parity against
 `librosa` with `center=True` and `center=False`, and against Whisper's
