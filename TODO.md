@@ -397,34 +397,37 @@ Adding a bunsen-side method now grows divergence that the eventual back-port
 has to unwind. Revisit call-site ergonomics after that alignment lands; it is
 an orthogonal track from this burn-down.
 
-### [U-2] `AttnKv` / `project_kv` vs the existing `KVCache`
+### [U-2] `AttnKv` vs `KVCache` — RESOLVED (documented, not converged)
 
-New: `blocks/transformers/attention/kv_attention.rs` — `AttnKv` (`seq_len`,
-`batch_size`, `concat`), `project_kv`, `layer_norm_self_attn_kv`,
-`layer_norm_cross_attn_kv`.
+Corrections to this entry as first written: the three mechanisms serve
+**disjoint** stacks, and none is unused, so "retire one" was never available.
 
-Existing: `blocks/transformers/attention/kvcache.rs` — `KVCacheConfig`,
-`KVCache` (`prefill`, `insert_kv`, `reset`, `pos`, `allocation_size`), a
-pre-allocated design. Plus burn's own `MhaCache` / `MultiHeadAttention::forward_cache`.
+| mechanism | used by | provenance |
+| --- | --- | --- |
+| `KVCache` | nanochat kit + `CausalSelfAttention` | pre-existing on `main` |
+| `AttnKv` | the Whisper decoder | new in this branch |
+| burn's `MhaCache` | nothing; rejected in the module docs | upstream |
 
-Three K/V caching mechanisms now live in one module. `AttnKv` grows by
-`concat`; `KVCache` writes into a preallocated buffer. Both are reasonable;
-having both undocumented-as-alternatives is not.
+Convergence is *possible* — both trade in head-split `[B, H, T, D]`, so
+`insert_kv` takes exactly what `project_kv` produces — but it was rejected.
+`AttnKv` serves two roles and only one overlaps: self-attention growth
+duplicates `KVCache`, while cross-attention uses it as an immutable per-layer
+pair, which `KVCache` does not model at all. Converging would refactor decode
+code that is currently verified against the ONNX reference, gain no
+capability, and still leave the cross-attention half uncovered.
 
-Options:
-1. **Build `AttnKv` on `KVCache`.** Keep the ergonomic
-   `layer_norm_*_kv` entry points but back them with the existing allocation
-   strategy, so there is one storage mechanism. Requires checking whether
-   `KVCache`'s fixed allocation fits the chunked-decode access pattern.
-2. **Keep both, document the split.** Module-level doc stating: `KVCache` for
-   bounded-length decode with a known cap; `AttnKv` for growing prefixes where
-   the cap is not known ahead. Cheapest, and defensible if both are real.
-3. **Retire one.** If `KVCache` has no other caller on `main`, or if `AttnKv`
-   is strictly more general, delete the loser rather than carry two.
+The real defect was documentary. The module already answered "Why not
+`MhaCache`" but said nothing about `KVCache` — which lives in the same module
+and is re-exported from the same `attention::*`, so it is the question a
+bunsen reader hits first. That section now exists, stating the split:
+`KVCache` for a preallocated multi-layer cache over bunsen's own attention
+with the geometry known up front; `AttnKv` for per-layer k/v over burn's
+`MultiHeadAttention`, cross-attention included.
 
-Sub-question for the same item: `project_kv` and the two `*_kv` helpers
-duplicate structure from `multihead_utils`'s non-`_kv` counterparts. Check
-whether the cached and uncached paths can share a body.
+`AttnKv::concat`'s cost is now recorded where it is paid: growing by
+`Tensor::cat` copies the whole cache each step, so a decode of length T copies
+O(T^2). Invisible at Whisper's 448-position window, wrong for long context,
+and the doc points at `KVCache` for that case.
 
 ### [U-3] `MelConverterOptions::to_vec_*` — three host-side extractors
 
@@ -516,7 +519,7 @@ Options:
 3. ~~`[L-2]`~~ (with `[N-4]`), ~~`[L-3]`~~, ~~`[L-4]`~~ — **done**.
 4. ~~`[N-1]` plan-file disposition~~ — **done**. `[N-2]` is unblocked.
 5. ~~`[N-2]`~~, ~~`[N-3]`~~, ~~`[N-5]`~~ — **done**.
-6. `[U-2]` KV-cache convergence — needs a design call, not a cleanup.
+6. ~~`[U-2]` KV-cache convergence~~ — **done** (documented, not converged).
 7. `[U-3]`–`[U-7]`, `[L-5]` — judgment calls, low urgency.
 
 ---
