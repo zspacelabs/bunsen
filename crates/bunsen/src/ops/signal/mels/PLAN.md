@@ -243,16 +243,16 @@ contract is the whole point.
 
 ### The stages
 
-| # | Stage | In → Out | Touches state |
-|---|---|---|---|
-| 1 | `t_stage_extend` | `[batch, n]` → `[batch, ext]` | `carry`, `phase` |
-| 2 | `t_stage_preproc` | `[batch, ext]` → `[batch, ext']` | — |
-| 3 | `t_stage_frame` | `[batch, ext']` → `[batch, frames, n_fft]` | — |
-| 4 | `t_stage_spectrum` | `[batch, frames, n_fft]` → `[batch, frames, n_bins]` | — |
-| 5 | `t_stage_mel` | `[batch, frames, n_bins]` → `[batch, frames, n_mels]` | — |
-| 6 | `t_stage_compress` | `[batch, frames, n_mels]` → `[batch, frames, n_mels]` | `clamp_ref` (Fixed only) |
+| Stage | In → Out | Touches state |
+|---|---|---|
+| `t_stage_extend` | `[batch, n]` → `[batch, ext]` | `carry`, `phase` |
+| `t_stage_preproc` | `[batch, ext]` → `[batch, ext']` | — |
+| `t_stage_frame` | `[batch, ext']` → `[batch, frames, n_fft]` | — |
+| `t_stage_spectrum` | `[batch, frames, n_fft]` → `[batch, frames, n_bins]` | — |
+| `t_stage_mel` | `[batch, frames, n_bins]` → `[batch, frames, n_mels]` | — |
+| `t_stage_compress` | `[batch, frames, n_mels]` → `[batch, frames, n_mels]` | `clamp_ref` (Fixed only) |
 
-**1. `t_stage_extend`** — the only genuinely stateful stage, and the only fallible one.
+**`t_stage_extend`** — the only genuinely stateful stage, and the only fallible one.
 Validates `waves.dims()[0] == batch` and `n % hop == 0`. On `Phase::Start` it prepends the
 start padding (`Reflect` → `flip(waves[.., 1..=n_fft/2])`, `Zero` → zeros, `None` → nothing),
 erroring if `Reflect` and `n < n_fft/2 + 1`. On `Phase::Running` it prepends `carry`. It then
@@ -261,27 +261,27 @@ computes `frames = (ext - n_fft)/hop + 1`, sets `carry = ext_signal[.., frames*h
 [Frame arithmetic](#frame-arithmetic). The carry holds **raw** samples (pre-emphasis needs the
 unfiltered history).
 
-**2. `t_stage_preproc`** — DC removal then pre-emphasis `y[n] = x[n] - a·x[n-1]`. Both are
+**`t_stage_preproc`** — DC removal then pre-emphasis `y[n] = x[n] - a·x[n-1]`. Both are
 identity when unconfigured, so this is a no-op passthrough by default. Pre-emphasis needs one
 sample of history: extend `carry` by one sample when it is enabled and drop the leading
-filtered sample here. Stage 1 owns that carry adjustment; this stage owns the drop.
+filtered sample here. `t_stage_extend` owns that carry adjustment; this stage owns the drop.
 
-**3. `t_stage_frame`** — `x.unfold::<3>(1, n_fft, hop)` → `[batch, frames, n_fft]`, then
+**`t_stage_frame`** — `x.unfold::<3>(1, n_fft, hop)` → `[batch, frames, n_fft]`, then
 multiply by the `[1, 1, n_fft]`-broadcast window. Fold the window here, *not* into the DFT
 matrices, so `SpectrumImpl::Stft` and `DftMatmul` share one framing path and one windowed
 intermediate — that makes finding #1 in Stage 5's tests an apples-to-apples comparison.
 
-**4. `t_stage_spectrum`** — dispatch on `SpectrumImpl`:
+**`t_stage_spectrum`** — dispatch on `SpectrumImpl`:
 - `DftMatmul`: `[batch·frames, n_fft] @ [n_fft, n_bins]` twice (cos, sin) → `re`, `im`,
   then `re² + im²` (`Power`) or `sqrt` of that (`Magnitude`).
 - `Stft`: reshape to `[batch, ext']`… — actually, call `stft` on the *unframed* signal.
-  This impl therefore **bypasses stages 3–4** and is wired as a fused alternative rather than
+  This impl therefore **bypasses `t_stage_frame` and `t_stage_spectrum`** and is wired as a fused alternative rather than
   a drop-in stage; keep the dispatch at `transform` level with a documented comment. Only
   reachable when `n_fft.is_power_of_two()`.
 
-**5. `t_stage_mel`** — `[batch·frames, n_bins] @ mel_t[n_bins, n_mels]` → reshape back.
+**`t_stage_mel`** — `[batch·frames, n_bins] @ mel_t[n_bins, n_mels]` → reshape back.
 
-**6. `t_stage_compress`** — `log_base(max(x, log_floor))`; then `RangeClamp` (`PerCall`:
+**`t_stage_compress`** — `log_base(max(x, log_floor))`; then `RangeClamp` (`PerCall`:
 `max(v, v.max() - db)` reduced over `[frames, n_mels]` **per batch row**, not across rows;
 `Fixed(m)`: `max(v, m - db)`); then the affine.
 
@@ -292,12 +292,13 @@ intermediate — that makes finding #1 in Stage 5's tests an apples-to-apples co
 - Stage boundaries are exactly the tensor shapes the tests want to assert.
 - Adding a stage (e.g. per-channel energy normalisation) is a one-line insert plus one test,
   not surgery on a 60-line function.
-- The state mutation is confined to stages 1 and 6, which is the thing worth reviewing.
+- The state mutation is confined to `t_stage_extend` and `t_stage_compress`, which is the
+  thing worth reviewing.
 
 ### What `finish` does
 
 `finish(self) -> Option<Tensor<B, 3>>`: `None` when `end_padding == None`. Otherwise
-reflect/zero-pad `carry` on the right by `n_fft/2` and run stages **3 → 6** on it
+reflect/zero-pad `carry` on the right by `n_fft/2` and run **`t_stage_frame` → `t_stage_compress`** on it
 (no `t_stage_extend`, no new carry). Requires `carry_len > n_fft/2` for a valid reflect —
 assert it, it holds for every legal geometry (see below).
 
@@ -550,7 +551,7 @@ Tests:
 
 ---
 
-## Stage 5 — Spectrum → mel → compress (stateless stages 4–6)
+## Stage 5 — Spectrum → mel → compress (the stateless pipeline stages)
 
 Tests, in order:
 

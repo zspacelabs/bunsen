@@ -241,8 +241,8 @@ impl<B: Backend> MelConversionContext<B> {
     // test layer can drive a single stage, or a prefix of the stack, without
     // constructing a whole valid stream — but they are not public API.
 
-    /// Stage 1: prepends the start padding or the carry, and takes the new
-    /// carry off the tail.
+    /// Prepends the start padding or the carry, and takes the new carry off
+    /// the tail.
     ///
     /// The only fallible stage, and with
     /// [`t_stage_compress`](Self::t_stage_compress) one of only two that touch
@@ -330,7 +330,7 @@ impl<B: Backend> MelConversionContext<B> {
         Ok((extended, self))
     }
 
-    /// Stage 2: sample-domain preprocessing.
+    /// Sample-domain preprocessing.
     ///
     /// Currently the identity. This is where pre-emphasis and DC removal will
     /// land; both are rejected by
@@ -346,7 +346,7 @@ impl<B: Backend> MelConversionContext<B> {
         (x, self)
     }
 
-    /// Stage 3: framing and windowing.
+    /// Framing and windowing.
     ///
     /// `[batch, extended]` -> `[batch, frames, n_fft]`.
     #[doc(hidden)]
@@ -358,7 +358,7 @@ impl<B: Backend> MelConversionContext<B> {
         (framed, self)
     }
 
-    /// Stage 4: frames to a power or magnitude spectrum.
+    /// Frames to a power or magnitude spectrum.
     ///
     /// `[batch, frames, n_fft]` -> `[batch, frames, n_bins]`.
     #[doc(hidden)]
@@ -370,7 +370,7 @@ impl<B: Backend> MelConversionContext<B> {
         (spectrum, self)
     }
 
-    /// Stage 5: spectrum onto the mel scale.
+    /// Spectrum onto the mel scale.
     ///
     /// `[batch, frames, n_bins]` -> `[batch, frames, n_mels]`.
     #[doc(hidden)]
@@ -382,7 +382,7 @@ impl<B: Backend> MelConversionContext<B> {
         (mels, self)
     }
 
-    /// Stage 6: mel energies to log-mels.
+    /// Mel energies to log-mels.
     ///
     /// `[batch, frames, n_mels]` -> `[batch, frames, n_mels]`.
     #[doc(hidden)]
