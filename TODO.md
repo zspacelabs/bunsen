@@ -304,22 +304,24 @@ Nothing below is a defect found by the burn-down; each is a decision taken to
 defer, recorded here because `[TODO.md]` is meant to be deleted. Give them a
 home — issues, `PLAN.md`, or rustdoc — rather than losing them with the file.
 
-1. **Whisper-shaped defaults on `MelConverterOptions`.** `range_clamp` and
-   `affine` default to `Some(..)`, and **every caller turns them off** — the
-   Whisper pipeline itself included (`whisper-dev` disables both and applies
-   them once after joining, because `PerCall` reduces per call while Whisper
-   clamps against the whole clip). They are Whisper's input packaging, not a
-   mel-spectrogram convention, and they cause the one surprising behaviour in
-   the type: the chunking caveat exists because a non-chunk-invariant reduction
-   is on by default. Proposal: default both to `None`, keep the librosa-shaped
-   geometry defaults, and add a `whisper::mel_options(..)` factory in the kit.
-   **This is free only until `mels/` ships** — the whole module is new on this
-   branch, so `MelConverterOptions` has no compatibility surface yet.
+1. ~~**Whisper-shaped defaults on `MelConverterOptions`.**~~ **Closed** — the
+   fields were *removed*, not defaulted to `None`. Defaulting would have left a
+   converter configurable into a non-chunk-invariant state, so the caveat would
+   have had to stay documented; removing them makes `MelConversionContext`
+   **unconditionally** a homomorphism over chunking, and the caveat is deleted
+   rather than downgraded. `compress` is now the floor and the log, both
+   elementwise. `RangeClamp` and `AffineCompress` stay public as caller-side
+   ops. Confirming evidence: `streaming_options()` existed only to switch the
+   clamp off so the chunking tests could be written, and it is gone.
 
-2. **Promoting `to_whisper_mels` into the kit.** The Whisper packaging recipe
-   (slice `[..-1]`, clamp, affine, transpose) exists only in
-   `examples/whisper-dev`, so any real consumer must re-derive it. Pairs
-   naturally with item 1. Raised at `[L-4]` and `[U-4]`.
+2. ~~**Promoting `to_whisper_mels` into the kit.**~~ **Closed** — as
+   `kits::speech::whisper::mel`, split rather than moved wholesale.
+   `package_mels` carries the Whisper knowledge (drop the trailing frame, floor
+   8 dB below the maximum, the `(log + 4) / 4` tail, transpose to
+   channels-first) as a pure tensor-to-tensor op; `mel_options` names the
+   geometry pairing. The example keeps its own streaming loop, because chunk
+   size and host `&[f32]` input are caller policy, not kit API — moving the
+   whole function would have baked both into the library.
 
 3. **The store-adapter repair** — see `[C-4]`. Blocked on `PytorchStore`
    gaining `with_adapter` upstream, and on making an over-matching pattern
