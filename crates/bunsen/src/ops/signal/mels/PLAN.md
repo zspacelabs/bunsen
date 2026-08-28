@@ -113,8 +113,8 @@ Things the draft assumed that this repo does differently.
 - **Divergence to call out.** `SlidingStftContext::forward` takes `&mut self`; this plan's
   `transform` takes `self` and returns `(out, Self)`. The by-value form is what makes the
   stage stack compose, so keep it — but say so in the module docs.
-- **Whisper layout mismatch.** `WhisperModel::forward_encoder` wants `[batch, n_mels, seq]`
-  (`kits/speech/whisper/blocks/whisper_model.rs:209`), this returns `[batch, frames, n_mels]`.
+- **Whisper layout mismatch.** `WhisperModel::forward_encoder` wants `[batch, n_mels, seq]`,
+  this returns `[batch, frames, n_mels]`.
   Keep `[batch, frames, n_mels]` — `frames` is the growing axis, so streaming chunks
   concatenate along dim 1 and the homomorphism test is a plain `Tensor::cat`. Transpose at
   the whisper boundary with `.swap_dims(1, 2)` and document it on `transform`.
