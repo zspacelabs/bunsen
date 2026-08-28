@@ -18,14 +18,15 @@ use bunsen::{
             GreedyDecodeConfig,
             mel_windows,
         },
+        mel::{
+            mel_options,
+            package_mels,
+        },
         pretrained::PytorchWhisperScanner,
     },
     ops::signal::mels::{
-        AffineCompress,
         MelConverter,
         MelConverterMeta,
-        MelConverterOptions,
-        RangeClamp,
     },
     support::audio::load_audio_mono_sr,
 };
@@ -128,10 +129,9 @@ fn pad_or_trim(
 
 /// Converts a waveform to Whisper-ready log-mels, `[batch, n_mels, frames]`.
 ///
-/// The clamp and the affine tail are applied **once, after** the stream is
-/// joined. `RangeClamp::PerCall` reduces over a single call's frames, so
-/// leaving them enabled during streaming would clamp each chunk against its
-/// own maximum — see the note on `MelConversionContext`.
+/// Streams the signal in `chunk`-sample blocks, then packages the joined
+/// result once with [`package_mels`] — which must see the whole spectrogram,
+/// since its clamp reduces over what it is given.
 fn to_whisper_mels<B: Backend>(
     conv: &MelConverter<B>,
     wav: &[f32],
@@ -156,16 +156,7 @@ fn to_whisper_mels<B: Backend>(
         pieces.push(tail);
     }
 
-    let joined: Tensor<B, 3> = Tensor::cat(pieces, 1);
-    let frames = joined.dims()[1];
-
-    // Whisper slices `stft[..., :-1]`.
-    let cut = joined.slice_dim(1, 0..frames as isize - 1);
-
-    let packaged = AffineCompress::default().apply(RangeClamp::PerCall { db: 8.0 }.apply(cut));
-
-    // `[batch, frames, n_mels]` -> the `[batch, n_mels, seq]` the encoder wants.
-    Ok(packaged.swap_dims(1, 2))
+    Ok(package_mels(Tensor::cat(pieces, 1)))
 }
 
 #[allow(unused)]
@@ -192,9 +183,7 @@ fn run<B: Backend>(
 
     // The front end must produce exactly the channel count the encoder was
     // trained on; `n_mels` comes from the checkpoint rather than a constant.
-    let options = MelConverterOptions::default()
-        .with_sample_rate(args.sample_rate)
-        .with_n_mels(cfg.n_mels);
+    let options = mel_options(args.sample_rate, cfg.n_mels);
 
     let conv: MelConverter<B> = options.try_init(&device)?;
 

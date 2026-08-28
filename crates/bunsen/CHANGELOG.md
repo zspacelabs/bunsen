@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- *(whisper)* `kits::speech::whisper::mel` — `mel_options` names the encoder's
+  geometry, and `package_mels` applies the packaging its input needs: drop the
+  trailing frame, floor the dynamic range 8 dB below the maximum, apply the
+  `(log + 4) / 4` tail, and transpose to channels-first. Previously these
+  constants existed only inside a dev example.
 - *(ops)* `ops::split::split_padded` — split a (negatively indexable) dimension
   into equal chunks, zero-padding the last one so every chunk has the same
   width.

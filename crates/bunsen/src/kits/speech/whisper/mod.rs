@@ -6,6 +6,7 @@
 
 pub mod blocks;
 pub mod decode;
+pub mod mel;
 pub mod pretrained;
 
 #[doc(inline)]
@@ -17,3 +18,5 @@ pub use blocks::{
 };
 #[doc(inline)]
 pub use decode::*;
+#[doc(inline)]
+pub use mel::*;
