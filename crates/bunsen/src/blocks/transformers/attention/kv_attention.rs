@@ -23,7 +23,7 @@
 //! and a `Module` in its own right. It wants the geometry — layer count, head
 //! count, head dimension, batch size, and a sequence bound — declared up front,
 //! and it serves bunsen's own attention stack
-//! ([`CausalSelfAttention`](super::CausalSelfAttention) and the nanochat kit).
+//! ([`CausalSelfAttention`](super::CausalSelfAttention)).
 //!
 //! [`AttnKv`] is a plain per-layer value over burn's [`MultiHeadAttention`]
 //! weights. It declares no geometry, and it also covers a case `KVCache` does
@@ -90,8 +90,8 @@ impl<B: Backend> AttnKv<B> {
     /// This reallocates: every call copies the whole cache, so growing a
     /// self-attention cache one token at a time costs O(T^2) copying across a
     /// decode of length T. That is not worth avoiding at a few hundred
-    /// positions — Whisper's text window is 448 — but a long-context decode
-    /// wants a preallocated cache instead; see [`KVCache`](super::KVCache).
+    /// positions, but a long-context decode wants a preallocated cache
+    /// instead; see [`KVCache`](super::KVCache).
     pub fn concat(
         self,
         next: Self,
