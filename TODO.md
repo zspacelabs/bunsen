@@ -516,18 +516,24 @@ until it has a path. That is stronger than a `validate` check because it fires
 at build time. Verified by adding a probe variant:
 `error[E0004]: non-exhaustive patterns`.
 
-### [U-6] `t_stage_*` visibility
+### [U-6] `t_stage_*` visibility — RESOLVED (attribute dropped, width kept)
 
-`context.rs`:272/360/371/383/395 — five `#[doc(hidden)] pub(crate)` methods
-exposed for the testing layer, per the original design intent.
+`pub(crate)` is correct and stays. `PLAN.md`'s "Visibility" section records the
+decision deliberately — private-to-the-crate keeps the stages off the public
+API surface while letting a future `mels::testing` module drive them, the same
+shape `ops::signal::testing` now has one level up after `[U-1]`. With more mel
+work planned, that reservation is not idle.
 
-Options:
-1. **Keep as-is.** `pub(crate)` + `doc(hidden)` is the conventional way to
-   expose seams to in-crate tests; it is already correct.
-2. **`#[cfg(test)]`-gate them** if no non-test in-crate caller exists besides
-   `transform`, shrinking the always-compiled surface.
-3. **Promote to a documented pipeline trait** if we want out-of-crate users to
-   compose stages — a larger commitment, listed only to be explicit.
+What was wrong was the attribute beside it. `#[doc(hidden)]` on a `pub(crate)`
+item is a no-op: rustdoc does not document non-public items without
+`--document-private-items`, and under that flag the attribute *hid* them — the
+one context where a maintainer reading the pipeline wants them, and where the
+plan says their shape contracts are the whole point. Six attributes removed;
+no visibility or behaviour change. The plan's note now says not to re-add it.
+
+Narrowing to plain private `fn` was rejected: every caller is in-file today, so
+it would compile, but it contradicts a documented decision and would need
+reverting the moment `mels::testing` exists.
 
 ### [U-7] Cross-check crate helpers
 
@@ -553,7 +559,7 @@ Options:
 4. ~~`[N-1]` plan-file disposition~~ — **done**. `[N-2]` is unblocked.
 5. ~~`[N-2]`~~, ~~`[N-3]`~~, ~~`[N-5]`~~ — **done**.
 6. ~~`[U-2]` KV-cache convergence~~ — **done** (documented, not converged).
-7. ~~`[U-3]`~~ (no action), ~~`[U-4]`~~, ~~`[U-5]`~~ — **done**. `[U-6]`, `[U-7]`, `[L-5]` remain.
+7. ~~`[U-3]`~~ (no action), ~~`[U-4]`~~, ~~`[U-5]`~~, ~~`[U-6]`~~ — **done**. `[U-7]`, `[L-5]` remain.
 
 ---
 
