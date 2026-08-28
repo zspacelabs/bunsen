@@ -62,12 +62,22 @@ result past the range it covered.
 
 A behaviour pin was added, closing Residual 4 — see that entry.
 
-### [N-7] `PLAN.md` cites a kit source file by line number
+### [N-7] `PLAN.md` cites a kit source file by line number — RESOLVED
 
-`crates/bunsen/src/ops/signal/mels/PLAN.md:117` names
-`kits/speech/whisper/blocks/whisper_model.rs:209`. Line numbers rot, and this
-is a document under `ops/signal` reaching into `kits/`. Options: cite the item
-by name rather than line, or drop the citation (the sentence stands without it).
+Dropped. The sentence already names `WhisperModel::forward_encoder`, which is
+the durable locator; the path and line added nothing findable and were the only
+part that could silently go wrong.
+
+Correction to this entry as opened: the citation was **still accurate** — line
+209 is exactly the claim it referenced. The case was prospective, not remedial.
+
+The plan's four other source-line citations are **kept**. Three sit under the
+Findings table, whose header pins them to `burn-tensor-0.21.0`, so they are
+dated evidence of a resolved investigation rather than references that drift
+with local edits; they can only go stale on a burn bump, which already has
+`[N-8]` and Residual 7 attached to it. Two loose ends noted and judged not
+worth the churn: `base.rs:2767` inherits that version anchor but not its path,
+and `burn-core/.../primitive.rs:14` has no anchor at all.
 
 ### [N-8] One "delete this comment" instruction remains
 
