@@ -266,15 +266,6 @@ a violation in such a file is a pointer back into a caller
 and stops meaning anything once the file is lifted out. Keep the evidence;
 cut the back-references. Applies to `[N-5]`.
 
-**C-7. Build what CI builds, before calling it done.** Rounds 1 and 2 reviewed
-prose and API across three sweeps and never ran `--no-default-features`, which
-CI does — so a module that failed to compile there survived every pass, on a
-branch whose changelog already records a previous fix for the same class of
-break. Optional dependencies behind default features are the trap: everything
-works locally, and only the configuration nobody runs is broken. A review that
-has not compiled the project the way CI compiles it has checked style, not
-correctness.
-
 **C-6. Re-survey after the pass, not just before it.** Round 1's `[U-2]`
 commit put two caller names into `blocks/` **two commits after** `[L-3]`
 removed the identical pattern from a neighbouring file. Writing new prose is
@@ -284,6 +275,15 @@ of the work, not an optional check: a normalization pass that is not re-run
 against its own output has not been verified. The same sweep also caught a
 stale scope header, a reference to a deleted run config, and a conclusion of
 mine that was simply wrong (`[N-6]`).
+
+**C-7. Build what CI builds, before calling it done.** Rounds 1 and 2 reviewed
+prose and API across three sweeps and never ran `--no-default-features`, which
+CI does — so a module that failed to compile there survived every pass, on a
+branch whose changelog already records a previous fix for the same class of
+break. Optional dependencies behind default features are the trap: everything
+works locally, and only the configuration nobody runs is broken. A review that
+has not compiled the project the way CI compiles it has checked style, not
+correctness.
 
 ---
 
