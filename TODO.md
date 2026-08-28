@@ -84,9 +84,15 @@ documented*. It reads as stale the moment the arc ends.
 ### [N-1] `MEL_CONVERTER_PLAN.md` — RESOLVED (kept, relocated)
 
 The plan is **not** narrative to be deleted: more mel-filter work is planned,
-and Stage 8, Stage 9, and the questions under "Still open" are live. Kept and
-moved to `docs/MEL_CONVERTER_PLAN.md`, out of the repo root where it sat beside
-README/CONTRIBUTING/STYLE and read as project documentation.
+and Stage 8, Stage 9, and the questions under "Still open" are live. Kept, and
+co-hosted with the module it documents as
+`crates/bunsen/src/ops/signal/mels/PLAN.md` — out of the repo root, where it
+sat beside README/CONTRIBUTING/STYLE and read as project documentation. The
+path supplies the subject, so the filename no longer repeats it.
+
+It is deliberately **not** wired into rustdoc with `include_str!`: publishing a
+working design document as API documentation is the problem this disposition
+was about.
 
 Its header now states what is built and what remains, so a reader can tell
 settled decisions from pending tasks, and no longer points at a draft under a
@@ -505,9 +511,10 @@ becomes exactly the kind of committed development narrative `[N-1]` is about.
       In particular, the **Conventions settled** section is the part most
       likely to deserve a real home; decide where it goes rather than keeping
       this file alive to hold it.
-- [ ] **`MEL_CONVERTER_PLAN.md`** — conditional on `[N-1]`. Listed so the
-      decision is not lost, not because it is settled; `[N-1]` option 2 keeps
-      it as a relocated dev note instead.
+- ~~**`MEL_CONVERTER_PLAN.md`**~~ — resolved by `[N-1]`: **kept**, not
+      removed. It is a live design document for planned mel-filter work, now
+      at `crates/bunsen/src/ops/signal/mels/PLAN.md`. Do not delete it with
+      this file.
 
 Deferred removals with an *external* trigger belong to `[N-3]`, not here —
 they are keyed to a burn version bump rather than to this branch finishing.
