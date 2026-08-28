@@ -194,23 +194,24 @@ reads as narrative but is the square-degeneracy explanation — the most
 load-bearing paragraph in the module, and the technical basis for `[C-4]`.
 Do not "clean it up" in a later pass.
 
-### [N-5] Discovery narrative in `dev_crates/whisper-onnx-crosscheck/`
+### [N-5] Discovery narrative in the cross-check crate — RESOLVED
 
-- `src/lib.rs:31-33` — "by-inspection transliteration", "turned up four defects"
-- `src/lib.rs:251` — "the three this crate was built to catch"
-- `README.md:109-115` — the defect list as a found-during-development story
+`[C-5]` settled most of this before it was opened: this is a cross-check
+crate, so naming Whisper and citing the defects it found is its subject, not
+coupling. The README's four-bullet defect list **stays** — it is what tells a
+reader which class of bug the crate catches, and its concrete provenance is
+what makes it credible.
 
-`:251` is the sharpest case: it hard-codes a count that this branch's own
-history produced, and it is already wrong-ish the moment a fifth defect lands.
+What was actually fragile was narrower: the **counts**. Three deleted.
+- `README` "turned up four defects" merely restated the bullet list beneath it.
+- `lib.rs` "the three this crate was built to catch" pinned a number nothing
+  updates — inside a comment whose real job is defending a deliberately loose
+  tolerance, which is kept intact.
+- `lib.rs` "wrong in three separate ways" likewise.
 
-Options:
-1. **Reframe as coverage, not history.** "This test asserts encoder parity to
-   `1e-3`; it fails on weight-layout, positional-embedding, and
-   normalization-placement regressions." That survives new defects.
-2. **Move the found-defect list to the branch's PR description / changelog**
-   and leave the crate documenting only what it checks today.
-3. **Keep the list but date it** — an explicit "as of <date>, this caught: …"
-   is honest, if less durable than option 1.
+They also read as a discrepancy that was never explained: `lib.rs`'s three
+counted encoder defects, the README's four included the decoder-side
+cross-attention contract. Removing them removes the question.
 
 ### [N-6] Dev-narrative asymmetry to confirm
 
@@ -514,7 +515,7 @@ Options:
 2. ~~`[L-1]` `repair_strided_weights`~~ — **done**.
 3. ~~`[L-2]`~~ (with `[N-4]`), ~~`[L-3]`~~, ~~`[L-4]`~~ — **done**.
 4. ~~`[N-1]` plan-file disposition~~ — **done**. `[N-2]` is unblocked.
-5. ~~`[N-2]`~~, ~~`[N-3]`~~ — **done**. `[N-5]` remains.
+5. ~~`[N-2]`~~, ~~`[N-3]`~~, ~~`[N-5]`~~ — **done**.
 6. `[U-2]` KV-cache convergence — needs a design call, not a cleanup.
 7. `[U-3]`–`[U-7]`, `[L-5]` — judgment calls, low urgency.
 
