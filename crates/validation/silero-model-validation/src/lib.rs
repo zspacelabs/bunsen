@@ -24,11 +24,14 @@
 //! ## A backend, not a checkpoint
 //!
 //! Unlike Whisper, nothing here is fetched: the graph is committed in
-//! `bunsen-bundled-silero` and the weights ship with it. A backend
-//! feature is still required, because `PerformanceBackend` falls back to CPU
-//! silently when none is selected and a validation run that quietly uses the
-//! CPU backend is not worth the wall clock. Without one the cross-checks are
-//! not compiled, and a single ignored test says so.
+//! `bunsen-bundled-silero` and the weights ship with it. So a backend feature
+//! is all this crate takes, and it is worth passing: `PerformanceBackend`
+//! falls through to `Flex` when none reaches `bunsen`, and the cross-checks
+//! are compiled either way. A run without one does not fail — it quietly
+//! measures the CPU and passes, which is not worth the wall clock.
+//!
+//! Nothing here enforces that. These cross-checks predate the `gpu-tests`
+//! convention (see `STYLE.md`) and are not yet gated by it.
 
 /// The reference model, generated from the upstream ONNX graph.
 pub mod reference {

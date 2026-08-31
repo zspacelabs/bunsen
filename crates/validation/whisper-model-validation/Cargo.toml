@@ -34,6 +34,17 @@ download = [
     "bunsen-bundled-whisper/onnx_gen",
 ]
 
+## Compile every test that loads a model.
+##
+## **Off by default**, and orthogonal to the backend features: this selects
+## *whether* those tests are built, a backend feature selects *which*
+## accelerator runs them, and both are passed.
+##
+## Needs `download` too, for the assets they compare. With both, the suite is
+## twelve tests; with either alone it is the three fixture-integrity checks,
+## which load no model.
+gpu-tests = []
+
 ## Run the cross-check on `wgpu`. The usual choice.
 wgpu = ["bunsen/wgpu"]
 

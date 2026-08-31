@@ -15,14 +15,19 @@
 //! reaches the network.
 //!
 //! ```sh
-//! cargo test --release -p whisper-model-validation --features download,wgpu
+//! cargo test --release -p whisper-model-validation \
+//!   --features download,gpu-tests,wgpu
 //! ```
 //!
-//! A backend feature is **required**: cross-checking a live model on a CPU
-//! backend is not worth the wall clock, and `PerformanceBackend` falls back to
-//! CPU silently when none is selected, so this crate refuses to build instead.
-//! `--release` matters for the same reason — the work is inside `burn`'s
-//! kernels, not in this crate.
+//! `gpu-tests` compiles every test that loads a model, `download` fetches
+//! what they compare against, and a backend feature says what they run on.
+//! None is inferred from the others. With `download,gpu-tests` the suite is
+//! twelve tests; with either alone it is the three fixture-integrity checks.
+//!
+//! Pass a backend deliberately. `PerformanceBackend` falls through to `Flex`
+//! when none reaches `bunsen`, so a run without one does not fail — it
+//! quietly measures the CPU and passes. `--release` matters for the same
+//! reason: the work is inside `burn`'s kernels, not in this crate.
 //!
 //! `WHISPER_ONNX_ENCODER`, `WHISPER_ONNX_DECODER` and `WHISPER_BASE_PT` point
 //! the build at local files instead; they are read by
@@ -48,20 +53,6 @@
 //! both right.
 
 #![cfg_attr(not(feature = "download"), allow(unused))]
-
-// `bunsen::support::testing::PerformanceBackend` resolves to `Flex` (CPU) when
-// no accelerator feature is set. That silent fallback is exactly what makes a
-// cross-check useless — it would still pass, just far too slowly to ever be
-// run. Refuse rather than mislead.
-#[cfg(all(
-    feature = "download",
-    not(any(feature = "wgpu", feature = "cuda", feature = "metal")),
-))]
-compile_error!(
-    "whisper-model-validation needs a backend: enable one of `wgpu`, `cuda`, or \
-     `metal` alongside `download`. Cross-checking a live model on the CPU \
-     backend is not worth the wall clock."
-);
 
 /// The reference models, generated from the `onnx-community` export.
 ///
@@ -133,9 +124,35 @@ pub fn synthetic_encoder_output<B: burn::prelude::Backend>(
 }
 
 /// Staged cross-checks on synthetic input.
-#[cfg(all(test, feature = "download"))]
-mod staged;
+#[cfg(all(test, feature = "download", feature = "gpu-tests"))]
+pub mod staged;
 
 /// End-to-end validation over the committed speech fixtures.
 #[cfg(test)]
-mod audio;
+pub mod audio;
+
+/// A fixture, and the accuracy it is held to.
+pub struct Fixture {
+    /// Basename under `testdata/`, without extension.
+    pub name: &'static str,
+
+    /// Expected number of 30 s windows, as a cheap shape check.
+    pub windows: usize,
+
+    /// **The accuracy knob.** Ceiling on word error rate against the
+    /// ground-truth transcript.
+    ///
+    /// Raise it to accept a weaker model or a harder clip; lower it to hold a
+    /// gain. A failure here means the pipeline got worse at transcribing,
+    /// which is the thing worth knowing.
+    pub max_wer: f64,
+
+    /// Ceiling on word error rate against the committed `openai-whisper`
+    /// decode.
+    ///
+    /// Separate from [`Self::max_wer`] because it measures a different thing:
+    /// not "is this accurate" but "does this agree with the implementation
+    /// bunsen was transliterated from". A backend whose arithmetic flips an
+    /// argmax moves this without moving accuracy much, so it has its own knob.
+    pub max_reference_wer: f64,
+}

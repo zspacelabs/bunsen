@@ -19,14 +19,19 @@ deliberate: the path under test is then the one users take.
 
 ```sh
 # ~435 MB of assets on a cold cache, fetched by the bundle's build script.
-cargo test --release -p whisper-model-validation --features download,wgpu
+cargo test --release -p whisper-model-validation \
+  --features download,gpu-tests,wgpu
 ```
 
-**A backend feature is required**, and the crate refuses to build without one
-(`wgpu`, `cuda`, or `metal`). `PerformanceBackend` falls back to CPU silently
-when none is selected, and a cross-check that quietly runs a live model on the
-CPU backend is not worth the wall clock — it would still pass, just too slowly
-to ever be run.
+**`gpu-tests` compiles every test that loads a model**, `download` fetches
+what they compare against, and a backend feature (`wgpu`, `cuda`, or `metal`)
+says what they run on. None is inferred from the others, so all three are
+passed. With `download,gpu-tests` the suite is twelve tests; with either alone
+it is the three fixture-integrity checks, which load no model.
+
+**Pass a backend deliberately.** `PerformanceBackend` falls through to `Flex`
+when none reaches `bunsen`, so a run without one does not fail — it quietly
+measures the CPU and passes, which is not worth the wall clock.
 
 **`--release` matters for the same reason.** The work is inside `burn`'s
 kernels rather than in this crate: about half a minute optimized, minutes not.

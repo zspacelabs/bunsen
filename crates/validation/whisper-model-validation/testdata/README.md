@@ -68,7 +68,8 @@ Running the gated tests needs a checkpoint, which is not in this repository.
 This crate's `build.rs` fetches and caches one under the `download` feature:
 
 ```sh
-cargo test --release -p whisper-model-validation --features download,wgpu
+cargo test --release -p whisper-model-validation \
+  --features download,gpu-tests,wgpu
 ```
 
 The fixture-integrity checks need no model and run in a plain `cargo test`.

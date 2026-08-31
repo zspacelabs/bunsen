@@ -62,7 +62,7 @@ jobs:
         run: cargo doc --no-deps --all-features
 
       - name: Build and Test
-        run: cargo test
+        run: cargo test --features download
 
       - name: No default features build.
         run: cargo test -p bunsen --no-default-features
