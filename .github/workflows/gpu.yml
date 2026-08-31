@@ -18,7 +18,7 @@ concurrency:
 jobs:
   test:
     name: GPU Tests
-    runs-on: 'self-hosted', 'Linux'
+    runs-on: [ self-hosted, Linux ]
     timeout-minutes: 60
 
     steps:
