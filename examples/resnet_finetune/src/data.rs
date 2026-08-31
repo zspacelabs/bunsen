@@ -129,7 +129,8 @@ impl<B: Backend> Batcher<B, ImageDatasetItem, ClassificationBatch<B>> for Classi
         let targets = items
             .iter()
             .map(|item| {
-                // Expect multi-hot encoded class labels as target (e.g., [0, 1, 0, 0, 1])
+                // Expect multi-hot encoded class labels as target (e.g., [0, 1,
+                // 0, 0, 1])
                 if let Annotation::MultiLabel(y) = &item.annotation {
                     multi_hot(y, CLASSES.len(), device)
                 } else {

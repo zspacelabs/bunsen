@@ -44,6 +44,7 @@
       <excludeFolder url="file://$MODULE_DIR$/demos/sims/target" />
       <excludeFolder url="file://$MODULE_DIR$/demos/chat/target" />
       <excludeFolder url="file://$MODULE_DIR$/crates/validation/silero-model-validation/target" />
+      <excludeFolder url="file://$MODULE_DIR$/crates/validation/whisper-model-validation/target" />
     </content>
     <orderEntry type="inheritedJdk" />
     <orderEntry type="sourceFolder" forTests="false" />

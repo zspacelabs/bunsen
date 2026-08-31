@@ -30,8 +30,8 @@ pub fn stream_interior_windows<B: Backend>(dist: Tensor<B, 4>) -> Tensor<B, 4> {
     let windows = space::dist_windows(dist);
 
     // Timing: crutcher, Oct 2025:
-    // cat([cat([tensor,]),]) is ~10% faster than cat([tensor,]).reshape([..., 3,
-    // 3]) Timing: crutcher, Oct 2025:
+    // cat([cat([tensor,]),]) is ~10% faster than cat([tensor,]).reshape([...,
+    // 3, 3]) Timing: crutcher, Oct 2025:
     // This also beats empty() + 0..3 0..3 slice_assign by ~8%
     let result: Tensor<B, 4> = Tensor::cat(
         (0..3)

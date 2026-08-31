@@ -704,7 +704,8 @@ impl<'a> FirehoseBatchTransaction<'a> {
     pub fn commit(mut self) -> anyhow::Result<()> {
         for (original, update) in self.original.iter_mut().zip(self.updates.iter_mut()) {
             for target_column in self.build_plan.outputs.values() {
-                // Transfer the ownership of the value from the update row to the original row.
+                // Transfer the ownership of the value from the update row to
+                // the original row.
                 if let Some(value) = update.take_column(target_column) {
                     original.expect_set(target_column, value);
                 }

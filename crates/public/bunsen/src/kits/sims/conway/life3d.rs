@@ -94,8 +94,8 @@ pub fn next_state_wrapped_3d<B: Backend>(
 ) -> Tensor<B, 3, Bool> {
     let update = next_interior_3d(state.clone(), rules);
 
-    // There's a *significant* performance speedup (+60%) from re-using the state,
-    // rather than building a new state with pad-expansion.
+    // There's a *significant* performance speedup (+60%) from re-using the
+    // state, rather than building a new state with pad-expansion.
     // This appears to mainly be a result of backend optimizations.
     let state = state.slice_assign(s![1..-1, 1..-1, 1..-1], update);
 

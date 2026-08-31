@@ -77,7 +77,8 @@ fn pos_maybe_iroot(
                             // The candidate is too high, reduce the upper bound
                             upper = candidate;
                         } else {
-                            // The candidate is too low, increase the lower bound
+                            // The candidate is too low, increase the lower
+                            // bound
                             lower = candidate;
                         }
                     }

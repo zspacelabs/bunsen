@@ -269,8 +269,8 @@ pub fn backend_main<B: AutodiffBackend>(args: &Args) -> anyhow::Result<()> {
             ColumnSchema::new::<u64>(SEED_COLUMN).with_description("instance rng seed"),
         ]);
 
-        // Load the image from the path, resize it to 32x32 pixels, and convert it to
-        // RGB8.
+        // Load the image from the path, resize it to 32x32 pixels, and convert
+        // it to RGB8.
         ImageLoader::default()
             .with_resize(ResizeSpec::new(ImageShape {
                 width: 32,
@@ -300,7 +300,8 @@ pub fn backend_main<B: AutodiffBackend>(args: &Args) -> anyhow::Result<()> {
             .to_plan(SEED_COLUMN, IMAGE_COLUMN, AUG_COLUMN)
             .apply_to_schema(&mut schema, firehose_env.as_ref())?;
 
-            // Convert the image to a tensor of shape (3, 32, 32) with float32 dtype.
+            // Convert the image to a tensor of shape (3, 32, 32) with float32
+            // dtype.
             ImageToTensorData::new()
                 .to_plan(AUG_COLUMN, DATA_COLUMN)
                 .apply_to_schema(&mut schema, firehose_env.as_ref())?;
@@ -329,7 +330,8 @@ pub fn backend_main<B: AutodiffBackend>(args: &Args) -> anyhow::Result<()> {
         let schema = Arc::new({
             let mut schema = common_schema.clone();
 
-            // Convert the image to a tensor of shape (3, 32, 32) with float32 dtype.
+            // Convert the image to a tensor of shape (3, 32, 32) with float32
+            // dtype.
             ImageToTensorData::new()
                 .to_plan(IMAGE_COLUMN, DATA_COLUMN)
                 .apply_to_schema(&mut schema, firehose_env.as_ref())?;

@@ -78,7 +78,8 @@ pub fn package_mels<B: Backend>(joined: Tensor<B, 3>) -> Tensor<B, 3> {
     let packaged =
         AffineCompress::default().apply(RangeClamp::PerCall { db: RANGE_CLAMP_DB }.apply(cut));
 
-    // `[batch, frames, n_mels]` -> the `[batch, n_mels, seq]` the encoder wants.
+    // `[batch, frames, n_mels]` -> the `[batch, n_mels, seq]` the encoder
+    // wants.
     packaged.swap_dims(1, 2)
 }
 

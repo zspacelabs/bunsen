@@ -214,8 +214,8 @@ impl<B: Backend> ModuleInit<B, BasicBlock<B>> for BasicBlockConfig {
         let stride = self.stride();
 
         // TODO: conditional stride logic for anti-aliasing.
-        // use_aa = aa_layer is not None and (stride == 2 or first_dilation != dilation)
-        // stride = 1 if use_aa else stride
+        // use_aa = aa_layer is not None and (stride == 2 or first_dilation !=
+        // dilation) stride = 1 if use_aa else stride
 
         let downsample = if stride != 1 || in_planes != out_planes {
             Some(

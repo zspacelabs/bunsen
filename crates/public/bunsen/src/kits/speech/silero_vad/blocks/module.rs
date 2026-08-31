@@ -1050,7 +1050,8 @@ mod tests {
 
         let (seq_probs, seq_state) = model.forward_sequence(input.clone(), state.clone());
 
-        // Reference: feed each chunk through the single-step forward, one stream.
+        // Reference: feed each chunk through the single-step forward, one
+        // stream.
         let mut step_probs = Vec::with_capacity(steps);
         for step in 0..steps {
             let chunk = input.clone().slice_dim(0, step).squeeze_dim::<2>(0);

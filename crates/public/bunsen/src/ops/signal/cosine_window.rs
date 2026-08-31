@@ -182,7 +182,8 @@ impl SamplingWindowBuilder for DualCosineWindow {
             .map(|i| {
                 let i = i as f64;
                 // alpha - beta * cos(i * ai) + gamma * cos(i * 2 * ai)
-                // => (alpha - gamma) - beta * cos(i * ai) + (2.0 * gamma) * (cos(i * ai)^2)
+                // => (alpha - gamma) - beta * cos(i * ai) + (2.0 * gamma) *
+                // (cos(i * ai)^2)
                 let cos_val = (i * ang_inc).cos();
                 (self.alpha - self.gamma) - self.beta * cos_val
                     + (2.0 * self.gamma) * cos_val.powi(2)
@@ -202,7 +203,8 @@ impl SamplingWindowBuilder for DualCosineWindow {
         let ang_inc = self.angular_increment(size);
 
         // alpha - beta * cos(i * ai) + gamma * cos(i * 2 * ai)
-        // => (alpha - gamma) - beta * cos(i * ai) + (2.0 * gamma) * (cos(i * ai)^2)
+        // => (alpha - gamma) - beta * cos(i * ai) + (2.0 * gamma) * (cos(i *
+        // ai)^2)
 
         let cos_val = tensor_arange_start_step(size, 0.0, Some(ang_inc), options).cos();
 

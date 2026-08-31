@@ -101,7 +101,8 @@ fn sw_img_mask<B: Backend>(
     let mut cnt = 0;
     for h in h_slices.iter() {
         for w in w_slices.iter() {
-            // let slice_shape = img_mask.clone().slice([h.clone(), w.clone()]).dims();
+            // let slice_shape = img_mask.clone().slice([h.clone(),
+            // w.clone()]).dims();
             let slice_shape = [h.len(), w.len()];
 
             let val: Tensor<B, 1, Int> = Tensor::full([1], cnt, device);

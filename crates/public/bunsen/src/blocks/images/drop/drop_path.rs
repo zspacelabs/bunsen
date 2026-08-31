@@ -365,7 +365,8 @@ mod tests {
         let shape = [2, 3, 4];
         let x = Tensor::<B, 3>::random(shape, Distribution::Uniform(0.0, 1.0), &device);
 
-        // TODO(crutcher): work out how to enable/disable training mode in tests.
+        // TODO(crutcher): work out how to enable/disable training mode in
+        // tests.
         let output = module.forward(x.clone());
         assert_eq!(x.dims(), output.dims());
     }

@@ -463,7 +463,8 @@ mod tests {
     fn test_output_resolution() {
         let block = |conv: Conv2dConfig| ConvBlock2dConfig::new(conv);
 
-        // kernel=3, stride=1, dilation=2, "same" padding -> resolution preserved.
+        // kernel=3, stride=1, dilation=2, "same" padding -> resolution
+        // preserved.
         let same = block(
             Conv2dConfig::new([2, 4], [3, 3])
                 .with_dilation([2, 2])

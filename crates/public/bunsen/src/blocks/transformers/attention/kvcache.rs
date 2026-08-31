@@ -288,7 +288,8 @@ impl<B: Backend> KVCache<B> {
 
         // Increment pos after the last layer.
         if layer_idx == self.num_layers - 1 {
-            // TODO: consider reifying this as a public API, rather than layer magic.
+            // TODO: consider reifying this as a public API, rather than layer
+            // magic.
             self.pos = t1;
         }
 

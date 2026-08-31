@@ -239,9 +239,10 @@ where
     let w2 = w / 2;
     let h2w2 = h2 * w2;
 
-    // TODO(crutcher): re-using `window_partition` requires us to double-reshape.
-    // Is it worth writing a trait to permit windowing on 3D and 4D tensors?
-    // In SWIN Source; window_partition is *always* immediately resized.
+    // TODO(crutcher): re-using `window_partition` requires us to
+    // double-reshape. Is it worth writing a trait to permit windowing on 3D
+    // and 4D tensors? In SWIN Source; window_partition is *always*
+    // immediately resized.
     let x = x.reshape([b, h, w, c]);
     let x = window_partition(x, 2);
 

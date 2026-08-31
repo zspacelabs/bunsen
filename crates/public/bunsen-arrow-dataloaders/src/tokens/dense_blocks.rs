@@ -195,12 +195,14 @@ where
                     let k = ts.len();
                     let this = (i, k);
 
-                    // Option 1: The longest buffer sequence that fits entirely in the row.
+                    // Option 1: The longest buffer sequence that fits entirely
+                    // in the row.
                     if k <= remaining && (best_fit.is_none() || best_fit.unwrap().1 > k) {
                         best_fit = Some((i, k));
                     }
 
-                    // Option 2: The shortest buffer sequence to crop, to minimize waste.
+                    // Option 2: The shortest buffer sequence to crop, to
+                    // minimize waste.
                     if shortest.is_none() || shortest.unwrap().1 > k {
                         shortest = Some(this);
                     }

@@ -115,7 +115,8 @@ mod tests {
             },
         };
 
-        // This should panic because the operator ID does not match the registration ID.
+        // This should panic because the operator ID does not match the
+        // registration ID.
         reg.get_builder();
     }
 

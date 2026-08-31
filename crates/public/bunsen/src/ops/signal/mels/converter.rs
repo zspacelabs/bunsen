@@ -1353,7 +1353,8 @@ mod tests {
         let device = Default::default();
         let n_mels = 4;
 
-        // Log-domain input: row 0 -> [0, -10, 0, 0]; row 1 -> [-2, -10, -2, -2].
+        // Log-domain input: row 0 -> [0, -10, 0, 0]; row 1 -> [-2, -10, -2,
+        // -2].
         let logs = vec![
             0.0, -10.0, 0.0, 0.0, //
             -2.0, -10.0, -2.0, -2.0,

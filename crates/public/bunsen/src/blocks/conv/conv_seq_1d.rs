@@ -529,7 +529,8 @@ mod tests {
         // 12 -> 6 -> 3
         assert_eq!(seq.try_output_length(12).unwrap(), 3);
 
-        // 6 -> 3 -> 2 (true conv arithmetic; no stride-divisibility requirement)
+        // 6 -> 3 -> 2 (true conv arithmetic; no stride-divisibility
+        // requirement)
         assert_eq!(seq.try_output_length(6).unwrap(), 2);
     }
 

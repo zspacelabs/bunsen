@@ -620,8 +620,8 @@ mod tests {
         // Count all 1.0; which are the non-dropped values.
         let numel = drop.shape().num_elements();
 
-        // This should be an exact match; the Distribution::Default is [0.0, 1.0);
-        // and will never generate a 1.0.
+        // This should be an exact match; the Distribution::Default is [0.0,
+        // 1.0); and will never generate a 1.0.
         let keep_count = drop.equal_elem(1.0).int().sum().into_scalar() as usize;
 
         let drop_count = numel - keep_count;
