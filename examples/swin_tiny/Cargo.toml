@@ -19,9 +19,9 @@ metal = ["burn/metal"]
 
 [dependencies]
 burn = { workspace = true, features = ["train", "fusion", "autotune", "vision", "dataset", "flex"] }
-bunsen = { path = "../../crates/bunsen" }
-bunsen-firehose = { path = "../../crates/bunsen-firehose" }
-bunsen-firehose-image = { path = "../../crates/bunsen-firehose-image" }
+bunsen = { path = "../../crates/public/bunsen" }
+bunsen-firehose = { path = "../../crates/public/bunsen-firehose" }
+bunsen-firehose-image = { path = "../../crates/public/bunsen-firehose-image" }
 
 serde = { workspace = true, features = ["derive"] }
 clap = { workspace = true, features = ["derive"] }

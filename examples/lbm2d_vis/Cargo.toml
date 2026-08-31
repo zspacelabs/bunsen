@@ -18,7 +18,7 @@ flex = ["burn/flex"]
 
 [dependencies]
 burn = { workspace = true, features = ["fusion", "autotune"] }
-bunsen = { path = "../../crates/bunsen" }
+bunsen = { path = "../../crates/public/bunsen" }
 
 clap = { workspace = true, features = ["derive"] }
 indicatif = { workspace = true }

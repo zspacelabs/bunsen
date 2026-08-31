@@ -68,6 +68,11 @@ release = true
 version_group = "bunsen"
 
 [[package]]
-name = "bunsen-onnx-gen"
+name = "bunsen-bundled-silero"
+release = true
+version_group = "bunsen"
+
+[[package]]
+name = "bunsen-bundled-whisper"
 release = true
 version_group = "bunsen"

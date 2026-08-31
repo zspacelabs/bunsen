@@ -6,7 +6,7 @@ rust-version.workspace = true
 
 [dependencies]
 burn = { workspace = true, features = ["fusion"] }
-bunsen = { path = "../../crates/bunsen" }
+bunsen = { path = "../../crates/public/bunsen" }
 
 clap = { workspace = true, features = ["derive"] }
 indicatif = { workspace = true }

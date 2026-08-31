@@ -2,17 +2,17 @@
 <module type="EMPTY_MODULE" version="4">
   <component name="NewModuleRootManager">
     <content url="file://$MODULE_DIR$">
-      <sourceFolder url="file://$MODULE_DIR$/crates/bunsen/benches" isTestSource="true" />
-      <sourceFolder url="file://$MODULE_DIR$/crates/bunsen/src" isTestSource="false" />
-      <sourceFolder url="file://$MODULE_DIR$/crates/bunsen-contracts-macros/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/crates/public/bunsen/benches" isTestSource="true" />
+      <sourceFolder url="file://$MODULE_DIR$/crates/public/bunsen/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/crates/public/bunsen-contracts-macros/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/crates/bunsen-contracts/benches" isTestSource="true" />
       <sourceFolder url="file://$MODULE_DIR$/crates/bunsen-contracts/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/crates/bunsen-ng/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/crates/bunsen-cache/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/demos/bimm/crates/bimm/benches" isTestSource="true" />
       <sourceFolder url="file://$MODULE_DIR$/demos/bimm/crates/bimm/src" isTestSource="false" />
-      <sourceFolder url="file://$MODULE_DIR$/crates/bunsen-firehose-image/src" isTestSource="false" />
-      <sourceFolder url="file://$MODULE_DIR$/crates/bunsen-firehose/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/crates/public/bunsen-firehose-image/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/crates/public/bunsen-firehose/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/demos/sims/benches" isTestSource="true" />
       <sourceFolder url="file://$MODULE_DIR$/demos/sims/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/crates/wc-disk-cache/src" isTestSource="false" />
@@ -27,17 +27,24 @@
       <sourceFolder url="file://$MODULE_DIR$/examples/zsl-data-cache/examples/pull_shards/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/examples/zsl-data-cache/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/examples/whisper-dev/src" isTestSource="false" />
-      <sourceFolder url="file://$MODULE_DIR$/dev_crates/silero-bench/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/crates/dev/silero-bench/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/crates/bunsen-onnx-gen/src" isTestSource="false" />
-      <sourceFolder url="file://$MODULE_DIR$/crates/bunsen-arrow-dataloaders/examples" isTestSource="false" />
-      <sourceFolder url="file://$MODULE_DIR$/crates/bunsen-arrow-dataloaders/examples/dl-test/src" isTestSource="false" />
-      <sourceFolder url="file://$MODULE_DIR$/crates/bunsen-arrow-dataloaders/src" isTestSource="false" />
-      <excludeFolder url="file://$MODULE_DIR$/crates/bunsen/target" />
+      <sourceFolder url="file://$MODULE_DIR$/crates/public/bunsen-arrow-dataloaders/examples" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/crates/public/bunsen-arrow-dataloaders/examples/dl-test/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/crates/public/bunsen-arrow-dataloaders/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/crates/public/bunsen-bundled-silero/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/crates/public/bunsen-bundled-whisper/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/crates/validation/silero-model-validation/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/crates/validation/whisper-model-validation/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/crates/dev/burn_bug_repro/src" isTestSource="false" />
+      <excludeFolder url="file://$MODULE_DIR$/crates/public/bunsen/target" />
       <excludeFolder url="file://$MODULE_DIR$/target" />
       <excludeFolder url="file://$MODULE_DIR$/demos/bimm/crates/bimm/target" />
       <excludeFolder url="file://$MODULE_DIR$/demos/bimm/target" />
       <excludeFolder url="file://$MODULE_DIR$/demos/sims/target" />
       <excludeFolder url="file://$MODULE_DIR$/demos/chat/target" />
+      <excludeFolder url="file://$MODULE_DIR$/crates/validation/silero-model-validation/target" />
+      <excludeFolder url="file://$MODULE_DIR$/crates/validation/whisper-model-validation/target" />
     </content>
     <orderEntry type="inheritedJdk" />
     <orderEntry type="sourceFolder" forTests="false" />

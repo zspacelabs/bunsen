@@ -1,0 +1,49 @@
+name: GPU
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+env:
+  CARGO_TERM_COLOR: always
+
+# One GPU, so let a newer commit supersede an in-flight run rather than
+# queueing behind it.
+concurrency:
+  group: gpu-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: GPU Tests
+    runs-on: [ self-hosted, Linux ]
+    timeout-minutes: 60
+
+    steps:
+      # `clean: false` keeps what this runner has already paid for: `target/`,
+      # and the 416 MB of digest-pinned assets under the bundle's `cache/`.
+      # Both are
+      # gitignored, so the default `git clean -ffdx` would delete them and
+      # every run would refetch the checkpoint and both ONNX graphs.
+      #
+      # The trade is that a file deleted from the repo lingers untracked here.
+      # If a stale module ever confuses a build, clear the workspace by hand.
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          clean: false
+
+      - name: Install Toolchain
+        run: rustup toolchain install stable --profile minimal
+
+      # No cache actions. The workspace persists, so `target/` and `~/.cargo`
+      # are already warm; round-tripping them through GitHub's cache service
+      # would be slower than leaving them alone.
+      #
+      # `--release` is not optional: the work is inside burn's kernels, and a
+      # debug GPU run is minutes per test rather than seconds.
+      - name: Build and Test
+        run: cargo test --release --features wgpu,download,gpu-tests
+

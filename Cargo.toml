@@ -4,10 +4,15 @@
 resolver = "2"
 
 members = [
-    "crates/*",
-    "crates/*/examples/*",
-    "dev_crates/*",
-    "examples/*"
+    # Published library crates.
+    "crates/public/*",
+    "crates/public/*/examples/*",
+    # Development tooling: benchmarks, and reproductions of upstream defects.
+    "crates/dev/*",
+    # Reference implementations and the cross-checks that step bunsen against
+    # them. Not part of a normal build.
+    "crates/validation/*",
+    "examples/*",
 ]
 
 [workspace.package]
@@ -63,6 +68,9 @@ indicatif = "^0.18.3"
 
 image = "0.25.10"
 hound = "3.5.1"
+# Compressed-audio decoding (mp3). `default-features = false` drops the
+# codecs bunsen has no fixtures for; enable more as formats are needed.
+symphonia = { version = "0.5.4", default-features = false, features = ["mp3"] }
 
 derive-new = "0.7.0"
 arrow = "58.1.0"
@@ -95,6 +103,8 @@ xot = "0.31.2"
 xee-xpath = "0.1.5"
 
 humansize = "2.1.3"
+sha2 = "0.11.0"
+ureq = "3.4.0"
 
 # Examples
 piston = "^1.0.0"

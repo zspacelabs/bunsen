@@ -1,0 +1,68 @@
+[package]
+name = "whisper-model-validation"
+description = "Validates bunsen's Whisper against pretrained references: an ONNX export, and openai-whisper's own decode. Fetches its model assets; hosts none."
+publish = false
+
+authors.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+version.workspace = true
+repository.workspace = true
+license.workspace = true
+
+[lints]
+workspace = true
+
+[features]
+default = []
+
+## Fetch the reference graphs, generate the models from them, and pull in the
+## checkpoint they are compared against.
+##
+## **Off by default.** Enabling this makes both this crate's `build.rs` and
+## `bunsen-bundled-whisper`' reach the network on a cold cache, which a
+## plain `cargo build --workspace` must never do. Every asset is cached under
+## `cache/` and verified against a pinned SHA-256, so a warm build is offline
+## and reproducible.
+##
+## The checkpoint arrives through `bunsen/whisper-weights` rather than a direct
+## dependency: it is what `Whisper::load_pretrained` reads, so routing it
+## through the library is also what this crate is validating.
+download = [
+    "bunsen/whisper-weights",
+    "dep:bunsen-bundled-whisper",
+    "bunsen-bundled-whisper/onnx_gen",
+]
+
+## Compile every test that loads a model.
+##
+## **Off by default**, and orthogonal to the backend features: this selects
+## *whether* those tests are built, a backend feature selects *which*
+## accelerator runs them, and both are passed.
+##
+## Needs `download` too, for the assets they compare. With both, the suite is
+## twelve tests; with either alone it is the three fixture-integrity checks,
+## which load no model.
+gpu-tests = []
+
+## Run the cross-check on `wgpu`. The usual choice.
+wgpu = ["bunsen/wgpu"]
+
+## Run the cross-check on CUDA.
+cuda = ["bunsen/cuda"]
+
+## Run the cross-check on Metal.
+metal = ["bunsen/metal"]
+
+[dependencies]
+burn = { workspace = true }
+bunsen = { path = "../../public/bunsen", features = ["testing", "whisper-weights"] }
+bunsen-bundled-whisper = {
+    path = "../../public/bunsen-bundled-whisper",
+    optional = true
+}
+
+[dev-dependencies]
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }
+

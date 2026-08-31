@@ -1,0 +1,40 @@
+[package]
+name = "silero-model-validation"
+description = "Validates bunsen's Silero VAD against the ONNX reference it was transliterated from, and against a committed golden trace."
+publish = false
+
+authors.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+version.workspace = true
+repository.workspace = true
+license.workspace = true
+
+[lints]
+workspace = true
+
+[features]
+default = []
+
+## Run the validation on `wgpu`. The usual choice.
+wgpu = ["bunsen/wgpu"]
+
+## Run the validation on CUDA.
+##
+## Known to diverge: see the golden test's note.
+cuda = ["bunsen/cuda"]
+
+## Run the validation on Metal.
+metal = ["bunsen/metal"]
+
+[dependencies]
+burn = { workspace = true }
+bunsen = { path = "../../public/bunsen", features = ["testing", "silero-weights"] }
+bunsen-bundled-silero = {
+    path = "../../public/bunsen-bundled-silero",
+    features = ["onnx_gen"]
+}
+
+[dev-dependencies]
+serde_json = { workspace = true }
+serial_test = { workspace = true }
