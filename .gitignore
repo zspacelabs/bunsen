@@ -29,3 +29,8 @@ target
 .claude/
 # Assets fetched by dev crates (see dev_crates/whisper-onnx-crosscheck)
 **/.cache/
+
+# Digest-pinned model assets fetched by the bundle's build script. Scoped to
+# the one crate on purpose: a bare `**/cache/` would also swallow
+# `crates/public/bunsen/src/data/cache`, which is source.
+/crates/public/bunsen-bundled-whisper/cache/

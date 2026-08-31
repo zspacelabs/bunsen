@@ -22,7 +22,7 @@ default = []
 ## **Off by default.** Enabling this makes both this crate's `build.rs` and
 ## `bunsen-bundled-whisper`' reach the network on a cold cache, which a
 ## plain `cargo build --workspace` must never do. Every asset is cached under
-## `.cache/` and verified against a pinned SHA-256, so a warm build is offline
+## `cache/` and verified against a pinned SHA-256, so a warm build is offline
 ## and reproducible.
 ##
 ## The checkpoint arrives through `bunsen/whisper-weights` rather than a direct

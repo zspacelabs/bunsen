@@ -3,7 +3,7 @@
 //! **This crate hosts nothing.** `OpenAI`'s `base.pt` is 145 MB and the ONNX
 //! export is ~290 MB, all far too large to commit — so unlike the Silero
 //! bundle, whose graph ships in the crate, this one *fetches* its assets, pins
-//! each to a SHA-256, and caches them under `.cache/`.
+//! each to a SHA-256, and caches them under `cache/`.
 //!
 //! That size is also why the weights are a **path** rather than bytes:
 //! `include_bytes!` of 145 MB would dominate compile time and binary size, so

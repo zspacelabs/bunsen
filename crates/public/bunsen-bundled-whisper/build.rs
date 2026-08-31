@@ -9,8 +9,9 @@
 //! breaks air-gapped CI, and makes builds non-reproducible. So:
 //!
 //! * A fetch only happens under the feature that needs the asset.
-//! * Assets land in a `.cache/` directory beside the manifest, not `OUT_DIR`,
-//!   so `cargo clean` does not force a 145 MB re-download.
+//! * Assets land in a `cache/` directory beside the manifest, not `OUT_DIR`, so
+//!   `cargo clean` does not force a 145 MB re-download. It is deliberately not
+//!   hidden: 416 MB is worth being able to see.
 //! * Every asset is pinned to a SHA-256 and re-verified on each build. A cache
 //!   entry that fails is deleted and re-fetched once.
 //! * `WHISPER_BASE_PT`, `WHISPER_ONNX_ENCODER` and `WHISPER_ONNX_DECODER` point
@@ -154,7 +155,7 @@ fn generate_reference() {
 /// The asset cache, beside the manifest rather than in `OUT_DIR` so a
 /// `cargo clean` does not force a re-download.
 fn cache_dir() -> PathBuf {
-    let cache = PathBuf::from(env::var("CARGO_MANIFEST_DIR").unwrap()).join(".cache");
+    let cache = PathBuf::from(env::var("CARGO_MANIFEST_DIR").unwrap()).join("cache");
     fs::create_dir_all(&cache).expect("create the asset cache");
     cache
 }

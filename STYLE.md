@@ -141,6 +141,35 @@ build at a local file instead.
 `checkpoint` is in its `default`, so a workspace build does fetch 145 MB on a
 cold cache. Naming the exception keeps the rule absolute everywhere else.
 
+### The `cache/` directory
+
+A fetched asset lands in `cache/`, beside the manifest of the crate that
+fetched it:
+
+```text
+crates/public/bunsen-bundled-whisper/
+    build.rs                     the URLs and their pinned digests
+    cache/                       what the digests name
+```
+
+Beside the manifest, not under `OUT_DIR` — `cargo clean` would otherwise cost
+a re-download, and these are measured in hundreds of megabytes. Not hidden
+either: a directory that large is easier to reason about when it is visible.
+
+Its `.gitignore` entry is a **full path**, not a `**/` glob. `cache` is an
+ordinary module name — `bunsen::data::cache` is source — and a glob would
+quietly untrack it:
+
+```text
+prefer:  /crates/public/bunsen-bundled-whisper/cache/
+not:     **/cache/                     (also matches src/data/cache)
+```
+
+A build cache does **not** substitute for this. `Swatinem/rust-cache` prunes
+anything it does not recognize as a dependency from `target/`, so assets kept
+there are deleted before the cache is written; CI gives `cache/` its own entry,
+keyed on the `build.rs` that pins the digests.
+
 ### Model assets
 
 `onnx_gen` generates Rust reference models from an ONNX graph and exposes them

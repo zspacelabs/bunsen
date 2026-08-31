@@ -16,6 +16,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: rustup toolchain install nightly --profile minimal --component rustfmt
+      # No cache: `cargo fmt` parses, it does not compile.
       - run: cargo +nightly fmt -- --check
 
   clippy:
@@ -24,6 +25,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: rustup toolchain install stable --profile minimal --component clippy
+      # Clippy compiles the whole dependency graph; without this it starts
+      # cold on every run.
+      - uses: Swatinem/rust-cache@v2
       - run: cargo clippy --no-deps -- -D warnings
 
   test:
@@ -31,32 +35,39 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Cache Cargo binaries and dependencies
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.cargo/bin
-            ~/.cargo/registry
-            ~/.cargo/git
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-cargo-
+      # Checkout comes first: the cache keys below hash files in the tree, and
+      # `hashFiles` over an empty workspace returns the empty string — which
+      # silently degrades a key to a constant that never invalidates and, once
+      # written, is never updated again.
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
       - name: Install Toolchain
         run: rustup toolchain install stable --profile minimal
 
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
+      # Covers `~/.cargo` and `target/`, keyed on the lockfile and the
+      # toolchain. This is the only cargo cache: a hand-rolled `actions/cache`
+      # over the same paths fights it, and caching `~/.cargo/bin` can shadow
+      # the toolchain the previous step just installed.
       - name: Rust Cache
         uses: Swatinem/rust-cache@v2
 
-      # - name: Install Tools
-      #   run: cargo install -q cargo-tarpaulin || true
-
-      # - name: Build and Test
-      #   run: |
-      #     cargo tarpaulin --features=wgpu --coveralls=${{ secrets.COVERALLS_REPO_TOKEN }}
+      # `bunsen-bundled-whisper`'s build script fetches ~435 MB: the
+      # pretrained checkpoint, and the ONNX export it is validated against.
+      # Both land in a gitignored `cache/`, so without this every run
+      # re-downloads them.
+      #
+      # Keyed on that build script, which is where the pinned SHA-256s live,
+      # so the entry invalidates exactly when the pinned assets change. The
+      # restore-key lets a pin change to one asset reuse the others — the
+      # build script re-verifies every digest and refetches only what moved.
+      - name: Cache model assets
+        uses: actions/cache@v4
+        with:
+          path: crates/public/bunsen-bundled-whisper/cache
+          key: whisper-assets-${{ hashFiles('crates/public/bunsen-bundled-whisper/build.rs') }}
+          restore-keys: |
+            whisper-assets-
 
       - name: Docs
         run: cargo doc --no-deps --all-features
