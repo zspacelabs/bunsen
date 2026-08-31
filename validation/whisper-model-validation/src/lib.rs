@@ -74,12 +74,6 @@ pub mod reference {
     pub use bunsen_bundled_whisper::onnx_gen::*;
 }
 
-#[cfg(feature = "download")]
-pub use reference::{
-    decoder,
-    encoder,
-};
-
 /// Whisper's fixed analysis window: 30 s at 16 kHz, 3000 mel frames.
 pub const N_FRAMES: usize = 3000;
 

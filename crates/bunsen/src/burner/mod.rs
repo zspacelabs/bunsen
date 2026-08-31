@@ -78,7 +78,6 @@ pub mod descriptors;
 pub mod distribution;
 pub mod module;
 pub mod record;
-pub mod repro;
 pub mod store;
 
 #[cfg(feature = "train")]

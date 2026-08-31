@@ -13,7 +13,6 @@ use bunsen::{
     support::testing::PerformanceBackend,
 };
 use burn::{
-    module::Module as _,
     prelude::*,
     tensor::{
         Tolerance,
@@ -33,7 +32,7 @@ type F = <B as BackendTypes>::FloatElem;
 #[test]
 fn test_reference_encoder_runs() {
     let device = Default::default();
-    let model = encoder::Model::<B>::load_pretrained(&device);
+    let model = reference::encoder::Model::<B>::load_pretrained(&device);
 
     let out = model.forward(synthetic_mels::<B>(&device));
     assert_eq!(out.dims(), [1, N_FRAMES / 2, D_MODEL]);
@@ -62,7 +61,7 @@ fn test_bunsen_encoder_matches_reference() {
     let device = Default::default();
     let mels = synthetic_mels::<B>(&device);
 
-    let reference = encoder::Model::<B>::load_pretrained(&device).forward(mels.clone());
+    let reference = reference::encoder::Model::<B>::load_pretrained(&device).forward(mels.clone());
 
     let (model, cfg) = Whisper::<B>::load_pretrained(&device).expect("load base.pt");
     assert_eq!(cfg.n_mels, N_MELS, "the checkpoint is not a `base` model");
@@ -119,7 +118,7 @@ fn test_bunsen_decoder_matches_reference() {
     let (tokens, xa) = decoder_inputs(&device);
 
     // `.0` is the logits; the rest of the tuple is the present KV cache.
-    let reference = decoder::Model::<B>::load_pretrained(&device)
+    let reference = reference::decoder::Model::<B>::load_pretrained(&device)
         .forward(tokens.clone(), xa.clone())
         .0;
     assert_eq!(reference.dims(), [1, TOKENS.len(), N_VOCAB]);
@@ -141,7 +140,7 @@ fn test_bunsen_decoder_argmax_matches_reference() {
     let (model, device) = load_bunsen();
     let (tokens, xa) = decoder_inputs(&device);
 
-    let reference = decoder::Model::<B>::load_pretrained(&device)
+    let reference = reference::decoder::Model::<B>::load_pretrained(&device)
         .forward(tokens.clone(), xa.clone())
         .0;
     let ours = model.forward_decoder(tokens, xa);

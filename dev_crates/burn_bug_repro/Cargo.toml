@@ -1,0 +1,34 @@
+[package]
+name = "burn_bug_repro"
+description = "Backend-generic reproductions of defects in burn and its ecosystem, and pins on the current behaviour."
+publish = false
+
+authors.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+version.workspace = true
+repository.workspace = true
+license.workspace = true
+
+[lints]
+workspace = true
+
+[features]
+default = []
+
+## Run the reproductions on `wgpu`. The usual choice.
+wgpu = ["burn/wgpu", "bunsen/wgpu"]
+
+## Run the reproductions on CUDA.
+cuda = ["burn/cuda", "bunsen/cuda"]
+
+## Run the reproductions on Metal.
+metal = ["burn/metal", "bunsen/metal"]
+
+[dependencies]
+burn = { workspace = true, features = ["store"] }
+burn-store = { workspace = true, features = ["pytorch"] }
+# Supplies `PerformanceBackend`/`CpuBackend`, so the backend selection matches
+# the rest of the workspace, and `repair_pytorch_strided_weight`, which is the
+# workaround one of these defects is pinned against.
+bunsen = { path = "../../crates/bunsen", features = ["testing", "store"] }

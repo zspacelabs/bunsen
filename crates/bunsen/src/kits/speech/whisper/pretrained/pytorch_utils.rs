@@ -143,7 +143,8 @@ impl PytorchWhisperScanner {
 
         // `burn-store` reads PyTorch storage without honoring strides, and
         // every `Linear` weight in an OpenAI Whisper checkpoint is a
-        // column-major view — see `repro::pytorch_strided_weights`. Attach the
+        // column-major view — see `burn_bug_repro::pytorch_strided_weights`.
+        // Attach the
         // repair before the load, and only here: on a weight that did not
         // need it, the mapper is a silent transpose.
         let mut module = module.fix_pytorch_load_mappers();

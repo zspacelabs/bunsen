@@ -386,7 +386,7 @@ mod with_weights {
     /// The export is KV-cache-free, so the whole prefix is re-fed every step —
     /// which is slow, and exactly why bunsen has a cache.
     fn greedy_reference(
-        decoder: &decoder::Model<B>,
+        decoder: &reference::decoder::Model<B>,
         xa: Tensor<B, 3>,
         device: &Device<B>,
     ) -> Vec<i64> {
@@ -503,7 +503,7 @@ mod with_weights {
     #[test]
     fn test_onnx_encoder_matches_bunsen_on_real_audio() {
         let device: Device<B> = Default::default();
-        let reference = encoder::Model::<B>::load_pretrained(&device);
+        let reference = reference::encoder::Model::<B>::load_pretrained(&device);
         let ours = bunsen_model(&device);
 
         for fixture in FIXTURES {
@@ -527,8 +527,8 @@ mod with_weights {
     fn test_onnx_reference_transcribes_real_audio() {
         let device: Device<B> = Default::default();
         let table = vocab();
-        let reference_enc = encoder::Model::<B>::load_pretrained(&device);
-        let reference_dec = decoder::Model::<B>::load_pretrained(&device);
+        let reference_enc = reference::encoder::Model::<B>::load_pretrained(&device);
+        let reference_dec = reference::decoder::Model::<B>::load_pretrained(&device);
 
         for fixture in FIXTURES {
             let mels = clip_mels(fixture.name, &device);
@@ -571,8 +571,8 @@ mod with_weights {
     fn test_onnx_reference_and_bunsen_transcribe_alike() {
         let device: Device<B> = Default::default();
         let table = vocab();
-        let reference_enc = encoder::Model::<B>::load_pretrained(&device);
-        let reference_dec = decoder::Model::<B>::load_pretrained(&device);
+        let reference_enc = reference::encoder::Model::<B>::load_pretrained(&device);
+        let reference_dec = reference::decoder::Model::<B>::load_pretrained(&device);
         let ours = bunsen_model(&device);
         let config = GreedyDecodeConfig::new(PROMPT.to_vec(), EOT);
 

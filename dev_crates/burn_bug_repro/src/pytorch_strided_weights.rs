@@ -57,6 +57,7 @@
 //! That is [`repair_pytorch_strided_weight`], applied as a parameter load
 //! mapper.
 
+use bunsen::burner::store::repair_pytorch_strided_weight;
 use burn::{
     module::Module,
     nn::{
@@ -69,8 +70,6 @@ use burn_store::{
     ModuleSnapshot,
     PytorchStore,
 };
-
-use crate::burner::store::repair_pytorch_strided_weight;
 
 /// The fixture's logical weight is `[8, 3]` with `w[o][i] == i.o`, stored as a
 /// column-major view. A row-major `Linear(3, 8)` wants its transpose.
@@ -97,7 +96,7 @@ pub fn load_probe<B: Backend>(
     device: &B::Device,
 ) -> StridedLinearProbe<B> {
     let path = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("testdata/repro/pytorch_strided_linear.pt");
+        .join("testdata/pytorch_strided_linear.pt");
 
     let mut lin = LinearConfig::new(D_INPUT, D_OUTPUT)
         .with_bias(false)
@@ -142,11 +141,12 @@ pub fn weight_of<B: Backend>(probe: &StridedLinearProbe<B>) -> Vec<f64> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use crate::support::testing::{
+    use bunsen::support::testing::{
         CpuBackend,
         assert_close_to_vec,
     };
+
+    use super::*;
 
     type B = CpuBackend;
 

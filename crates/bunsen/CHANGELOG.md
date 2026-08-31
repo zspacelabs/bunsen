@@ -57,6 +57,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Removed
 
+- **breaking** *(burner)* remove `burner::repro`. A reproduction is a statement
+  about somebody else's code: it carries a fixture, it wants a real accelerator
+  to say anything, and its whole purpose is to stop being true — none of which
+  belongs on a published library's public surface. It is now the
+  `burn_bug_repro` dev crate. `burner::store::repair_pytorch_strided_weight`,
+  the workaround one of those defects is pinned against, is unchanged.
+
 - **breaking** *(silero)* remove `kits::speech::silero_vad::reference`. A
   generated transliteration of the upstream ONNX graph is validation machinery
   — it exists to be disagreed with — and shipping it put a second, redundant

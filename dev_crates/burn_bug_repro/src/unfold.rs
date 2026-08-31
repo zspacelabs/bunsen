@@ -240,13 +240,13 @@ pub fn sweep<B: Backend>(device: &B::Device) -> Vec<UnfoldCase> {
 
 #[cfg(test)]
 mod tests {
-    use burn::tensor::backend::BackendTypes;
-
-    use super::*;
-    use crate::support::testing::{
+    use bunsen::support::testing::{
         CpuBackend,
         PerformanceBackend,
     };
+    use burn::tensor::backend::BackendTypes;
+
+    use super::*;
 
     /// The reproduction, against the performance backend.
     ///

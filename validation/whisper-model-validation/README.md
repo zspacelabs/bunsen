@@ -94,7 +94,7 @@ did not. Stepping it against the real implementation turned up defects that a
 green suite had hidden:
 
 - `PytorchStore` ignores PyTorch tensor strides, so every `Linear` weight in an
-  OpenAI checkpoint loaded mangled (see `bunsen::burner::repro`).
+  OpenAI checkpoint loaded mangled (see the `burn_bug_repro` crate).
 - The MLP projection biases were dropped at load.
 - The MLP used ReLU where Whisper uses GELU.
 - Cross-attention's shape contract required both sequences to be the same

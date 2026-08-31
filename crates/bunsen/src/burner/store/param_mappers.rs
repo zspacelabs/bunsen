@@ -20,12 +20,12 @@ use burn::{
 
 /// Repairs a 2-D weight mangled by `burn-store`'s stride-blind `PyTorch` read.
 ///
-/// See [`repro::pytorch_strided_weights`](crate::burner::repro::pytorch_strided_weights)
-/// for the defect. In short: `PyTorch` may store a `[R, C]` tensor as a
-/// column-major view (strides `(1, R)`), and `PytorchStore` reads the raw
-/// storage as if it were row-major. A checkpoint holds a view like this
-/// wherever the saved tensor was produced by transposing another rather than
-/// by copying it.
+/// See `burn_bug_repro::pytorch_strided_weights` for the defect and a
+/// reproduction; it is a dev crate, so this is not a link. In short: `PyTorch`
+/// may store a `[R, C]` tensor as a column-major view (strides `(1, R)`), and
+/// `PytorchStore` reads the raw storage as if it were row-major. A checkpoint
+/// holds a view like this wherever the saved tensor was produced by transposing
+/// another rather than by copying it.
 ///
 /// The corruption is invertible. Reading storage that actually holds `Wᵀ` as
 /// `[R, C]` yields `S = reshape(flat(Wᵀ), [R, C])`, and the adapter then

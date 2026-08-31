@@ -479,7 +479,7 @@ check that `dft_sin` carries the forward transform's negative sign.
 
 **This is the single largest correctness hazard in the plan, and the default Whisper geometry
 trips it.** It is reproduced and characterised in
-[`burner::repro::unfold`](../../../burner/repro/unfold.rs), which sweeps the parameter space
+[`burn_bug_repro::unfold`](../../../../../../dev_crates/burn_bug_repro/src/unfold.rs), which sweeps the parameter space
 and pins the rule: the read is wrong exactly when `size` and `step` are both even and the
 uncovered tail is not a multiple of the inferred line width.
 
@@ -490,7 +490,7 @@ mitigation is cheap enough to adopt anyway, but it is a bridge, not a permanent 
 **Confirmed in this repo, Stage 4.** With the covered-span slice removed,
 `test_frame_matches_host_reference` fails on wgpu at `samples = 1000`, batch row 1
 (`len` 1000, `v` 16, `1000 → 992`, so the row starts 8 samples early). With the slice it
-passes. Two details the empirical rule in `burner::repro::unfold` does not capture:
+passes. Two details the empirical rule in `burn_bug_repro::unfold` does not capture:
 
 * `samples = 520` (tail 120, the same `tail % 16 == 8`) **passed** — it yields a single
   window, and the truncated outer stride has nothing to stride over. The rule is a
