@@ -1,4 +1,6 @@
 //! Testing utilities.
+pub mod asr;
+
 use std::fmt::Debug;
 
 use burn::{

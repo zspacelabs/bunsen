@@ -1,22 +1,37 @@
-//! Fetches the reference assets and generates the ONNX model.
+//! Fetches the pretrained Whisper assets.
+//!
+//! Two independent sets, each behind its own feature: `checkpoint` is the
+//! `base.pt` bunsen loads, and `onnx_gen` is the `onnx-community` export that
+//! `whisper-model-validation` compares it against. Neither implies the other.
 //!
 //! Cargo places no restriction on network access in a build script, but a
 //! build that silently downloads is a bad neighbour: it breaks `--offline`,
 //! breaks air-gapped CI, and makes builds non-reproducible. So:
 //!
-//! * The fetch only happens under the `download` feature, which is off by
-//!   default — `cargo build --workspace` never reaches the network.
+//! * A fetch only happens under the feature that needs the asset.
 //! * Assets land in a `.cache/` directory beside the manifest, not `OUT_DIR`,
-//!   so `cargo clean` does not force an 82 MB re-download.
+//!   so `cargo clean` does not force a 145 MB re-download.
 //! * Every asset is pinned to a SHA-256 and re-verified on each build. A cache
 //!   entry that fails is deleted and re-fetched once.
-//! * `WHISPER_ONNX_ENCODER` points the build at a local file instead, for
-//!   working offline or against a different export.
+//! * `WHISPER_BASE_PT`, `WHISPER_ONNX_ENCODER` and `WHISPER_ONNX_DECODER` point
+//!   the build at local files instead, for working offline or against a
+//!   different export.
+//!
+//! **`checkpoint` is on by default**, so building this crate — including as
+//! part of `cargo build --workspace` — fetches 145 MB on a cold cache. That is
+//! deliberate for a crate whose whole purpose is to bundle weights, but it
+//! does mean a clean CI run pays for it. `--no-default-features` opts out, and
+//! `WHISPER_BASE_PT` points at a local copy.
+
+// Each feature uses its own constants and helpers; the rest are dead in that
+// build. Enumerating `cfg` on every item would be noisier than this.
+#![allow(unused)]
 
 use std::{
     env,
     fs,
     io,
+    io::Read,
     path::{
         Path,
         PathBuf,
@@ -27,6 +42,18 @@ use sha2::{
     Digest,
     Sha256,
 };
+
+/// `OpenAI`'s multilingual `base.pt`.
+///
+/// `onnx-community/whisper-base` is a conversion of this checkpoint, which is
+/// what lets `whisper-model-validation` compare the two.
+const BASE_URL: &str = "https://openaipublic.azureedge.net/main/whisper/models/ed3a0b6b1c0edf879ad9b11b1af5a0e6ab5db9205f891f668f8b0e6c6326e34e/base.pt";
+
+/// SHA-256 of [`BASE_URL`]'s payload. `OpenAI` embeds it in the URL.
+const BASE_SHA256: &str = "ed3a0b6b1c0edf879ad9b11b1af5a0e6ab5db9205f891f668f8b0e6c6326e34e";
+
+/// Local name for the fetched checkpoint.
+const BASE_FILE: &str = "whisper_base.pt";
 
 /// The encoder graph, exported by the `onnx-community` mirror of
 /// `openai/whisper-base`.
@@ -51,47 +78,50 @@ const DECODER_SHA256: &str = "70d26763610c0d6bb407373b7f30d415252ee470e62a0f816c
 /// Local name for the fetched decoder graph.
 const DECODER_FILE: &str = "whisper_base_decoder.onnx";
 
-/// `OpenAI`'s multilingual `base.pt` — the checkpoint the ONNX export above was
-/// converted from. Both are needed, and they must be the same model, or the
-/// comparison is meaningless.
-const CHECKPOINT_URL: &str = "https://openaipublic.azureedge.net/main/whisper/models/ed3a0b6b1c0edf879ad9b11b1af5a0e6ab5db9205f891f668f8b0e6c6326e34e/base.pt";
-
-/// SHA-256 of [`CHECKPOINT_URL`]'s payload. `OpenAI` embeds it in the URL.
-const CHECKPOINT_SHA256: &str = "ed3a0b6b1c0edf879ad9b11b1af5a0e6ab5db9205f891f668f8b0e6c6326e34e";
-
-/// Local name for the fetched checkpoint.
-const CHECKPOINT_FILE: &str = "whisper_base.pt";
-
 fn main() {
     println!("cargo:rerun-if-changed=build.rs");
+    println!("cargo:rerun-if-env-changed=WHISPER_BASE_PT");
     println!("cargo:rerun-if-env-changed=WHISPER_ONNX_ENCODER");
     println!("cargo:rerun-if-env-changed=WHISPER_ONNX_DECODER");
-    println!("cargo:rerun-if-env-changed=WHISPER_BASE_PT");
 
-    if env::var_os("CARGO_FEATURE_DOWNLOAD").is_none() {
-        // Nothing to do: `src/lib.rs` gates the generated module on the same
-        // feature, so the crate still compiles (and is trivially empty).
-        return;
-    }
+    // Each feature gates its own asset. `src/lib.rs` gates the matching item
+    // on the same feature, so with neither the crate is trivially empty.
+    //
+    // These are `cfg` rather than `CARGO_FEATURE_*` lookups because
+    // `burn_onnx` is an optional build-dependency: without the feature it is
+    // not linked, so a runtime check would still fail to compile.
+    #[cfg(feature = "checkpoint")]
+    fetch_checkpoint();
 
-    let cache = cache_dir();
+    #[cfg(feature = "onnx_gen")]
+    generate_reference();
+}
 
-    // Hand the checkpoint's location to the test as a compile-time constant,
-    // so the comparison has no reason to skip itself.
+/// Fetches `base.pt` and names it as a compile-time constant, so a caller
+/// never has to discover the path or thread it through.
+#[cfg(feature = "checkpoint")]
+fn fetch_checkpoint() {
     let checkpoint = resolve_asset(
         "WHISPER_BASE_PT",
-        CHECKPOINT_URL,
-        CHECKPOINT_SHA256,
-        &cache.join(CHECKPOINT_FILE),
+        BASE_URL,
+        BASE_SHA256,
+        &cache_dir().join(BASE_FILE),
     );
     println!(
         "cargo:rustc-env=WHISPER_BASE_PT_PATH={}",
         checkpoint.display()
     );
+}
+
+/// Fetches the ONNX export and generates Rust models from it.
+#[cfg(feature = "onnx_gen")]
+fn generate_reference() {
+    let cache = cache_dir();
 
     // The generated weights are loaded from `OUT_DIR` at run time rather than
     // embedded: together these are ~290 MB, and `include_bytes!` of that would
-    // dominate both compile time and binary size.
+    // dominate both compile time and binary size. That is the one way this
+    // differs from the Silero weights, which are small enough to inline.
     println!(
         "cargo:rustc-env=WHISPER_ONNX_OUT_DIR={}",
         env::var("OUT_DIR").unwrap()
@@ -215,10 +245,22 @@ fn download(
 }
 
 /// The lowercase hex SHA-256 of a file.
+///
+/// Read in chunks rather than with `io::copy`: `sha2` 0.11 dropped the
+/// `io::Write` impl on its hashers, and `digest` 0.11 has no feature to bring
+/// it back. Chunking also keeps a 145 MB asset off the heap.
 fn digest_of(path: &Path) -> io::Result<String> {
     let mut file = fs::File::open(path)?;
     let mut hasher = Sha256::new();
-    io::copy(&mut file, &mut hasher)?;
+    let mut buf = [0u8; 64 * 1024];
+
+    loop {
+        let read = file.read(&mut buf)?;
+        if read == 0 {
+            break;
+        }
+        hasher.update(&buf[..read]);
+    }
 
     Ok(hasher
         .finalize()

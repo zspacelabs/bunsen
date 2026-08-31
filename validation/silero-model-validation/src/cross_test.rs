@@ -1,5 +1,26 @@
+//! Cross-checks against the generated ONNX reference, and a golden trace.
+//!
+//! `test_reference_model_forward_cross_test` steps bunsen against the
+//! reference on identical random input, which is what catches a transliteration
+//! error. `test_golden_context` runs a real recording through the streaming
+//! context and pins the per-chunk probabilities.
+
 #[cfg(test)]
 mod tests {
+    use bunsen::{
+        errors::*,
+        kits::speech::silero_vad::{
+            SileroVad,
+            SileroVadCollection,
+            SileroVadContextConfig,
+            SileroVadMeta,
+        },
+        prelude::*,
+        support::{
+            audio::load_audio_mono_sr,
+            testing::PerformanceBackend,
+        },
+    };
     use burn::{
         Tensor,
         prelude::TensorData,
@@ -10,21 +31,7 @@ mod tests {
         },
     };
 
-    use crate::{
-        errors::*,
-        kits::speech::silero_vad::{
-            SileroVad,
-            SileroVadCollection,
-            SileroVadContextConfig,
-            SileroVadMeta,
-            reference::ReferenceModel,
-        },
-        prelude::*,
-        support::{
-            audio::load_audio_mono_sr,
-            testing::PerformanceBackend,
-        },
-    };
+    use crate::reference::ReferenceModel;
 
     #[test]
     #[serial_test::serial]
@@ -77,8 +84,8 @@ mod tests {
         #[cfg(feature = "cuda")]
         eprintln!("This test is known to fail on the CUDA backend.\n");
 
-        let wav_path = concat!(env!("CARGO_MANIFEST_DIR"), "/testdata/silero/test.wav");
-        let expected_path = concat!(env!("CARGO_MANIFEST_DIR"), "/testdata/silero/test.json");
+        let wav_path = concat!(env!("CARGO_MANIFEST_DIR"), "/testdata/test.wav");
+        let expected_path = concat!(env!("CARGO_MANIFEST_DIR"), "/testdata/test.json");
         let sample_rate = 16000;
 
         type B = PerformanceBackend;
@@ -88,7 +95,7 @@ mod tests {
             .try_branch(sample_rate)?
             .clone();
 
-        let (_, mut wav_vec) = load_audio_mono_sr(wav_path, sample_rate)?;
+        let mut wav_vec = load_audio_mono_sr(wav_path, sample_rate)?;
 
         // [steps, 1, samples=chunk_size]
         let chunk_seq: Tensor<B, 3> = {

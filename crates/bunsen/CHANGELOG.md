@@ -9,6 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- *(whisper)* `Whisper::load_pretrained` — loads OpenAI's multilingual Whisper
+  *base* checkpoint and reports the config scanned from it. Behind the new
+  `whisper-weights` feature, which pulls in `bunsen-bundled-whisper`; that
+  crate fetches the 145 MB checkpoint at build time rather than shipping it, so
+  **enabling the feature makes the build reach the network** on a cold cache.
+  The Silero bundle ships its weights inline, because they are small enough to.
+- *(whisper)* `kits::speech::whisper::pretrained::bundled` re-exports
+  `bunsen-bundled-whisper`, matching
+  `kits::speech::silero_vad::pretrained::bundled`. Behind `whisper-weights`.
+
 - *(whisper)* `kits::speech::whisper::mel` — `mel_options` names the encoder's
   geometry, and `package_mels` applies the packaging its input needs: drop the
   trailing frame, floor the dynamic range 8 dB below the maximum, apply the
@@ -17,14 +27,42 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - *(ops)* `ops::split::split_padded` — split a (negatively indexable) dimension
   into equal chunks, zero-padding the last one so every chunk has the same
   width.
+- *(support)* `support::audio::load_audio_mono_sr` reads compressed audio.
+  `.wav` still goes through `hound`; every other extension is handed to
+  `symphonia` (mp3), with gapless decoding on so an mp3's encoder delay does
+  not shift every frame of a spectrogram computed from it. The `audio` feature
+  gained `symphonia` as a dependency.
+- *(support)* `support::testing::asr` — `BpeDecodeTable` turns Whisper token
+  ids into text (the decode half of a byte-level BPE vocabulary: no merges, no
+  pre-tokenizer, so it cannot encode), plus `word_error_rate` and
+  `normalize_transcript`. Behind the `testing` feature. These are what the
+  `whisper-model-validation` crate judges a transcription with.
+
+### Fixed
+
+- *(silero)* `SileroVadCollection::load_pretrained` was not gated on
+  `silero-weights` although the per-branch loaders it calls are, so any build
+  with `store` but without `silero-weights` failed to compile.
 
 ### Changed
 
 - *(burner)* move `repair_pytorch_strided_weight` from `burner::module` to a new
   `burner::store` module, which collects helpers for what crosses a module-store
   boundary.
+- **breaking** *(support)* `support::audio::load_audio_mono_sr` returns
+  `Vec<f32>` rather than `(hound::WavSpec, Vec<f32>)`. The spec carried nothing
+  a caller did not already assert — the function rejects any file that is not
+  mono at the requested rate — and it named a WAV type from a function that now
+  also reads mp3. Callers that wrote `let (_, wav) = ...` drop the tuple.
 
 ### Removed
+
+- **breaking** *(silero)* remove `kits::speech::silero_vad::reference`. A
+  generated transliteration of the upstream ONNX graph is validation machinery
+  — it exists to be disagreed with — and shipping it put a second, redundant
+  Silero implementation on the public surface. It now lives in the
+  `silero-model-validation` crate. The *weights* did not move:
+  `SileroVadCollection::load_pretrained` is unchanged.
 
 - *(signal)* remove `MelConverterOptions::range_clamp` and `::affine`. Dynamic-range
   packaging reduces over whatever it is handed, so carrying it inside a streaming

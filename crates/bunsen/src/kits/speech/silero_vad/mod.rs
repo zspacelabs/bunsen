@@ -2,18 +2,10 @@
 //!
 //! There is *some* bug in the burn CUDA backend, which we see
 //! by model divergence from the golden tests on that backend alone.
+//!
+//! The ONNX reference this was transliterated from, and the cross-checks
+//! against it, live in the `silero-model-validation` crate.
 
-/// The reference model.
-#[cfg(feature = "store")]
-pub mod reference {
-    pub use bunsen_onnx_gen::silero::*;
-
-    /// Reference ONNX Model.
-    pub type ReferenceModel<B> = Model<B>;
-}
-
-#[cfg(feature = "store")]
-mod cross_test;
 #[cfg(feature = "store")]
 pub mod pretrained;
 

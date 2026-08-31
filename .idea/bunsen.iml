@@ -32,13 +32,17 @@
       <sourceFolder url="file://$MODULE_DIR$/crates/bunsen-arrow-dataloaders/examples" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/crates/bunsen-arrow-dataloaders/examples/dl-test/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/crates/bunsen-arrow-dataloaders/src" isTestSource="false" />
-      <sourceFolder url="file://$MODULE_DIR$/dev_crates/whisper-onnx-crosscheck/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/crates/bunsen-bundled-silero/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/crates/bunsen-bundled-whisper/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/validation/silero-model-validation/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/validation/whisper-model-validation/src" isTestSource="false" />
       <excludeFolder url="file://$MODULE_DIR$/crates/bunsen/target" />
       <excludeFolder url="file://$MODULE_DIR$/target" />
       <excludeFolder url="file://$MODULE_DIR$/demos/bimm/crates/bimm/target" />
       <excludeFolder url="file://$MODULE_DIR$/demos/bimm/target" />
       <excludeFolder url="file://$MODULE_DIR$/demos/sims/target" />
       <excludeFolder url="file://$MODULE_DIR$/demos/chat/target" />
+      <excludeFolder url="file://$MODULE_DIR$/validation/silero-model-validation/target" />
     </content>
     <orderEntry type="inheritedJdk" />
     <orderEntry type="sourceFolder" forTests="false" />

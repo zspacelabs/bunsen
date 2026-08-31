@@ -39,6 +39,7 @@ default = [
     "train",
     "testing",
     "store",
+    "store_pytorch",
 ]
 
 std = [
@@ -59,8 +60,11 @@ store = [
     "std",
     "cache",
     "burn/store",
+]
+
+store_pytorch = [
+    "store",
     "burn-store/pytorch",
-    "bunsen-onnx-gen",
 ]
 
 ## Enable features to use with `burn/train`.
@@ -79,18 +83,31 @@ cache = [
 ]
 
 ## Enables audio io support features.
+##
+## `hound` reads WAV; `symphonia` reads the compressed formats (mp3).
 audio = [
     "std",
     "dep:hound",
+    "dep:symphonia",
 ]
 
-## Enables testing support features.
-testing = [
-    "audio",
-    "flex",
-    "dep:tracing",
-    "dep:tracing-test",
-    "dep:tracing-subscriber",
+## Include the silero-vad pretrained weights in the build.
+silero-weights = [
+    "store",
+    "dep:bunsen-bundled-silero",
+]
+
+## Include the pretrained Whisper checkpoint in the build.
+##
+## **This makes the build reach the network** on a cold cache: unlike Silero's,
+## Whisper's weights are 145 MB and are fetched rather than committed. The
+## asset is digest-pinned and cached, so a warm build is offline; see
+## `bunsen-bundled-whisper`.
+whisper-weights = [
+    "store",
+    "store_pytorch",
+    "dep:bunsen-bundled-whisper",
+    "bunsen-bundled-whisper/checkpoint",
 ]
 
 ## Enable the cuda backend in the bunsen build.
@@ -119,9 +136,29 @@ wgpu = ["burn/wgpu"]
 flex = ["burn/flex"]
 
 
+## Enables testing support features. Included under test builds.
+testing = [
+    "audio",
+    "flex",
+    "dep:tracing",
+    "dep:tracing-test",
+    "dep:tracing-subscriber",
+]
+
 [dependencies]
 bunsen-contracts-macros = { version = "0.30.1", path = "../bunsen-contracts-macros" }
-bunsen-onnx-gen = { version = "0.30.1", path = "../bunsen-onnx-gen", optional = true }
+
+bunsen-bundled-silero = {
+    version = "0.30.1",
+    path = "../bunsen-bundled-silero",
+    optional = true
+}
+
+bunsen-bundled-whisper = {
+    version = "0.30.1",
+    path = "../bunsen-bundled-whisper",
+    optional = true
+}
 
 tracing = { workspace = true, optional = true }
 tracing-test = { workspace = true, optional = true }
@@ -152,6 +189,8 @@ xot = { workspace = true, optional = true }
 xee-xpath = { workspace = true, optional = true }
 
 hound = { workspace = true, optional = true }
+symphonia = { workspace = true, optional = true }
+
 
 [dev-dependencies]
 bunsen = { path = ".", features = ["testing"] }

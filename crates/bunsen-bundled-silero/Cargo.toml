@@ -1,12 +1,14 @@
 [package]
-name = "bunsen-onnx-gen"
+name = "bunsen-bundled-silero"
+description = "Bunsen bundled Silero VAD assets: the pretrained weights, and optionally the ONNX-generated reference model."
+publish = true
+
 authors.workspace = true
 edition.workspace = true
 rust-version.workspace = true
 version.workspace = true
 repository.workspace = true
 license.workspace = true
-description = "Bunsen utility burn (onnx => rust + burnpack) model generation."
 
 [dependencies]
 burn = { workspace = true, features = ["store"] }
@@ -14,12 +16,11 @@ burn-store = { workspace = true }
 document-features = { workspace = true }
 
 [build-dependencies]
-burn-onnx = { workspace = true }
+burn-onnx = { workspace = true, optional = true }
 
 [lints]
 workspace = true
 
 [features]
-default = ["silero"]
-silero = []
-ten = []
+## Generate the ONNX-generated models in `crate::onnx_gen`.
+onnx_gen = ["dep:burn-onnx"]

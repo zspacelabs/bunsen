@@ -1,0 +1,43 @@
+[package]
+name = "bunsen-bundled-whisper"
+description = "Bunsen bundled Whisper assets: fetches, pins and caches OpenAI's checkpoint and the ONNX-generated reference model. Hosts none."
+publish = true
+
+authors.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+version.workspace = true
+repository.workspace = true
+license.workspace = true
+
+[dependencies]
+burn = { workspace = true, features = ["store"] }
+burn-store = { workspace = true }
+document-features = { workspace = true }
+
+[build-dependencies]
+sha2 = { workspace = true }
+ureq = { workspace = true }
+burn-onnx = { workspace = true, optional = true }
+
+[lints]
+workspace = true
+
+[features]
+default = [
+    "checkpoint"
+]
+
+## Fetch `OpenAI`'s multilingual `base.pt` and expose it as [`base_pt`].
+##
+## This is the checkpoint `bunsen`'s Whisper kit loads.
+checkpoint = []
+
+## Fetch the `onnx-community/whisper-base` export and generate Rust models
+## from it, in `crate::onnx_gen`.
+##
+## This is the *reference implementation*, not the weights bunsen ships: it
+## exists so `whisper-model-validation` has something with independent
+## provenance to disagree with. Independent of `checkpoint` — they are
+## different assets and neither implies the other.
+onnx_gen = ["dep:burn-onnx"]

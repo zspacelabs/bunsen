@@ -19,21 +19,39 @@ use crate::{
         SileroVad,
         SileroVadCollection,
         SileroVadSignalConfig,
-        reference,
     },
 };
 
+#[cfg(feature = "silero-weights")]
+mod with_weights {
+    use bunsen_bundled_silero::burnpack_as_burn_bytes;
+
+    use super::*;
+
+    impl<B: Backend> SileroVad<B> {
+        /// Load the pretrained 16khz model.
+        pub fn load_16khz_pretrained(device: &B::Device) -> BunsenResult<Self> {
+            Self::load_16khz_from_burnpack_bytes(burnpack_as_burn_bytes(), device)
+        }
+
+        /// Load the pretrained 8khz model.
+        pub fn load_8khz_pretrained(device: &B::Device) -> BunsenResult<Self> {
+            Self::load_8khz_from_burnpack_bytes(burnpack_as_burn_bytes(), device)
+        }
+    }
+
+    impl<B: Backend> SileroVadCollection<B> {
+        /// Load the standard 16khz/8khz pretrained models.
+        pub fn load_pretrained(device: &B::Device) -> BunsenResult<Self> {
+            Ok(Self::new_common_collection(
+                SileroVad::load_16khz_pretrained(device)?,
+                SileroVad::load_8khz_pretrained(device)?,
+            ))
+        }
+    }
+}
+
 impl<B: Backend> SileroVad<B> {
-    /// Load the pretrained 16khz model.
-    pub fn load_16khz_pretrained(device: &B::Device) -> BunsenResult<Self> {
-        Self::load_16khz_from_burnpack_bytes(reference::burnpack_as_burn_bytes(), device)
-    }
-
-    /// Load the pretrained 8khz model.
-    pub fn load_8khz_pretrained(device: &B::Device) -> BunsenResult<Self> {
-        Self::load_8khz_from_burnpack_bytes(reference::burnpack_as_burn_bytes(), device)
-    }
-
     /// Load the 16khz model from pretrained burnpack bytes.
     /// Uses the upstream `silero_vad` keying.
     pub fn load_16khz_from_burnpack_bytes(
@@ -141,21 +159,13 @@ impl<B: Backend> SileroVad<B> {
 }
 
 impl<B: Backend> SileroVadCollection<B> {
-    fn new_common_collection(
+    pub(super) fn new_common_collection(
         vad_16: SileroVad<B>,
         vad_8: SileroVad<B>,
     ) -> Self {
         Self {
             branches: vec![(16000, vad_16), (8000, vad_8)],
         }
-    }
-
-    /// Load the standard 16khz/8khz pretrained models.
-    pub fn load_pretrained(device: &B::Device) -> BunsenResult<Self> {
-        Ok(Self::new_common_collection(
-            SileroVad::load_16khz_pretrained(device)?,
-            SileroVad::load_8khz_pretrained(device)?,
-        ))
     }
 
     /// Load the standard 16khz/8khz pretrained models from burnpack bytes.

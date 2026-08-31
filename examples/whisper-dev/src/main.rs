@@ -87,13 +87,29 @@ pub struct Args {
     /// Cap on generated tokens per 30 s window.
     #[arg(long, default_value = "32")]
     pub max_tokens: usize,
+
+    /// Decoder prompt token ids.
+    ///
+    /// These come from Whisper's tokenizer, which bunsen does not own, and
+    /// they differ between the English-only and multilingual vocabularies —
+    /// so they are supplied rather than assumed. The default is the
+    /// English-only `<|startoftranscript|> <|notimestamps|>`; the
+    /// multilingual models want
+    /// `<|startoftranscript|> <|en|> <|transcribe|> <|notimestamps|>`,
+    /// i.e. `--prompt 50258 --prompt 50259 --prompt 50359 --prompt 50363`.
+    #[arg(long, default_values_t = [50257i64, 50362])]
+    pub prompt: Vec<i64>,
+
+    /// The end-of-text token id: 50256 English-only, 50257 multilingual.
+    #[arg(long, default_value = "50256")]
+    pub eot: i64,
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args = Args::parse();
     println!("{args:#?}");
 
-    let (_, wav) = load_audio_mono_sr(&args.audio, args.sample_rate)?;
+    let wav = load_audio_mono_sr(&args.audio, args.sample_rate)?;
 
     cfg_select! {
         feature = "cuda" => run::<burn::backend::cuda::Cuda>(args, wav),
@@ -214,11 +230,10 @@ fn run<B: Backend>(
         model.max_audio_ctx()
     );
 
-    // `<|startoftranscript|> <|notimestamps|>` for the English-only models;
-    // stop on `<|endoftext|>`. These ids come from Whisper's tokenizer, which
-    // bunsen does not own, so they are supplied here.
+    // The prompt and stop token come from Whisper's tokenizer, which bunsen
+    // does not own; see `Args::prompt`.
     let decode =
-        GreedyDecodeConfig::new(vec![50257, 50362], 50256).with_max_tokens(args.max_tokens);
+        GreedyDecodeConfig::new(args.prompt.clone(), args.eot).with_max_tokens(args.max_tokens);
 
     // All windows decoded as one batch. Each window is independent, so this
     // is the same result as decoding them one at a time.
