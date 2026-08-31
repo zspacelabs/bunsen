@@ -12,7 +12,7 @@ clap = { workspace = true, features = ["derive"] }
 
 serde_json = { workspace = true }
 burn = { workspace = true, features = ["fusion", "autotune"] }
-bunsen = { path = "../../crates/bunsen", features = ["testing"] }
+bunsen = { path = "../../public/bunsen", features = ["testing"] }
 hound = { workspace = true }
 
 [lints]

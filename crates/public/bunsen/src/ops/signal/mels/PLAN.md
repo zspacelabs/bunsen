@@ -479,7 +479,7 @@ check that `dft_sin` carries the forward transform's negative sign.
 
 **This is the single largest correctness hazard in the plan, and the default Whisper geometry
 trips it.** It is reproduced and characterised in
-[`burn_bug_repro::unfold`](../../../../../../dev_crates/burn_bug_repro/src/unfold.rs), which sweeps the parameter space
+[`burn_bug_repro::unfold`](../../../../../../dev/burn_bug_repro/src/unfold.rs), which sweeps the parameter space
 and pins the rule: the read is wrong exactly when `size` and `step` are both even and the
 uncovered tail is not a multiple of the inferred line width.
 

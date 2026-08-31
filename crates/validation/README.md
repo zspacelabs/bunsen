@@ -14,7 +14,8 @@ with independent provenance.
 ## Weights are not validation
 
 The *weights* each kit loads live beside the library, not here:
-`crates/bunsen-bundled-silero` and `crates/bunsen-bundled-whisper`,
+`crates/public/bunsen-bundled-silero` and
+`crates/public/bunsen-bundled-whisper`,
 behind `bunsen`'s `silero-weights` and `whisper-weights` features. They are
 shipped artefacts — what a user of the kit loads — whereas a reference
 implementation exists only to be disagreed with.

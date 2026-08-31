@@ -45,9 +45,9 @@ metal = ["bunsen/metal"]
 
 [dependencies]
 burn = { workspace = true }
-bunsen = { path = "../../crates/bunsen", features = ["testing", "whisper-weights"] }
+bunsen = { path = "../../public/bunsen", features = ["testing", "whisper-weights"] }
 bunsen-bundled-whisper = {
-    path = "../../crates/bunsen-bundled-whisper",
+    path = "../../public/bunsen-bundled-whisper",
     optional = true
 }
 

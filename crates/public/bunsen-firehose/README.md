@@ -51,7 +51,7 @@ The train schema:
 * Converts the image to a `TesorData` memory structure for `burn`.
 * In the output adapter, the `TensorData` is converted to a stacked `Tensor` for the model; alon with the class labels.
 
-This example is based upon the [swin_tiny example](../../examples/swin_tiny/README.md)
+This example is based upon the [swin_tiny example](../../../examples/swin_tiny/README.md)
 
 ```rust
 #![recursion_limit = "256"]

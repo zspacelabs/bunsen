@@ -4,13 +4,15 @@
 resolver = "2"
 
 members = [
-    "crates/*",
-    "crates/*/examples/*",
-    "dev_crates/*",
+    # Published library crates.
+    "crates/public/*",
+    "crates/public/*/examples/*",
+    # Development tooling: benchmarks, and reproductions of upstream defects.
+    "crates/dev/*",
+    # Reference implementations and the cross-checks that step bunsen against
+    # them. Not part of a normal build.
+    "crates/validation/*",
     "examples/*",
-    # Model-validation crates: reference implementations and the cross-checks
-    # that step bunsen against them. Not part of a normal build.
-    "validation/*"
 ]
 
 [workspace.package]

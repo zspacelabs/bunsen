@@ -2,7 +2,7 @@
 
 *by [ZSpaceLabs](https://zspacelabs.ai)*
 
-[![Crates.io Version](https://img.shields.io/crates/v/bunsen)](https://crates.io/crates/bunsen)
+[![Crates.io Version](https://img.shields.io/crates/v/bunsen)](https://crates.io/crates/public/bunsen)
 [![Documentation](https://img.shields.io/docsrs/bunsen)](https://docs.rs/bunsen/latest/bunsen/)
 [![license](https://shields.io/badge/license-MIT%2FApache--2.0-blue)](#license)
 [![Discord](https://img.shields.io/discord/1475229838754316502?label=discord)](https://discord.gg/vBgXHWCeah)
@@ -19,11 +19,11 @@ Read the [bunsen book](https://zspacelabs.ai/bunsen/book)
 
 ## Public / API Crates
 
-* [`bunsen-firehose`](crates/bunsen-firehose) — a columnar dataloader / processing pipeline, with a burn batcher bridge.
+* [`bunsen-firehose`](crates/public/bunsen-firehose) — a columnar dataloader / processing pipeline, with a burn batcher bridge.
 
 ## Utility Crates
 
-* [`bunsen-contracts-macros`](crates/bunsen-contracts-macros) — the
+* [`bunsen-contracts-macros`](crates/public/bunsen-contracts-macros) — the
   `shape_contract![]` proc-macro backing `bunsen`'s runtime tensor-shape contracts.
 
 ## Experimental Crates
@@ -31,11 +31,11 @@ Read the [bunsen book](https://zspacelabs.ai/bunsen/book)
 These represent complex-interface + work-in-progress, unstable interface extensions to `bunsen`; particulary those which
 incur large dependencies or are not yet ready for general consumption.
 
-* [`bunsen-firehose-image`](crates/bunsen-firehose-image) — image loading, augmentation, and tensor-conversion operators
+* [`bunsen-firehose-image`](crates/public/bunsen-firehose-image) — image loading, augmentation, and tensor-conversion operators
   for `bunsen-firehose`.
-* [`bunsen`](crates/bunsen) — the main "batteries included" library extending burn: model blocks, kits, ops, contracts,
+* [`bunsen`](crates/public/bunsen) — the main "batteries included" library extending burn: model blocks, kits, ops, contracts,
   and support tooling.
-* [`bunsen-arrow-dataloaders`](crates/bunsen-arrow-dataloaders) — *(preview)* an Arrow-backed chat dataloader with
+* [`bunsen-arrow-dataloaders`](crates/public/bunsen-arrow-dataloaders) — *(preview)* an Arrow-backed chat dataloader with
   tokenization for LLM training.
 
 # API Examples

@@ -23,6 +23,6 @@ flex = ["burn/flex", "bunsen/flex"]
 burn = { workspace = true, features = ["store", "fusion"] }
 burn-store = { workspace = true, features = ["pytorch"] }
 
-bunsen = { path = "../../crates/bunsen" }
+bunsen = { path = "../../crates/public/bunsen" }
 
 clap = { workspace = true, features = ["derive"] }

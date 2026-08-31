@@ -22,7 +22,7 @@ import pathlib
 import numpy as np
 import librosa
 
-OUT = pathlib.Path(__file__).resolve().parent.parent / "crates/bunsen/testdata/mels"
+OUT = pathlib.Path(__file__).resolve().parent.parent / "crates/public/bunsen/testdata/mels"
 
 SR, N_FFT, HOP, N_MELS = 16000, 400, 160, 80
 SECONDS = 2

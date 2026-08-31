@@ -6,8 +6,8 @@ publish = false
 
 [dependencies]
 zsl-data-cache = { path = "../zsl-data-cache" }
-bunsen = { path = "../../crates/bunsen" }
-bunsen-arrow-dataloaders = { path = "../../crates/bunsen-arrow-dataloaders" }
+bunsen = { path = "../../crates/public/bunsen" }
+bunsen-arrow-dataloaders = { path = "../../crates/public/bunsen-arrow-dataloaders" }
 
 num-traits = { workspace = true }
 rand = { workspace = true }

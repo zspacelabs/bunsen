@@ -5,7 +5,7 @@ generated from a pretrained ONNX export, and `openai-whisper`'s own decode —
 so a disagreement points at bunsen rather than at a framework difference.
 
 **This crate hosts nothing and generates nothing.** Both sides of the
-comparison come from [`bunsen-bundled-whisper`](../../crates/bunsen-bundled-whisper):
+comparison come from [`bunsen-bundled-whisper`](../../public/bunsen-bundled-whisper):
 
 | what | how it arrives | feature |
 |---|---|---|

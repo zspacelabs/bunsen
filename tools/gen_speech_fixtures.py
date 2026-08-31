@@ -14,7 +14,7 @@ Pinned versions used to produce the committed fixtures:
 CPU torch is deliberate: the fixture only has to be correct, and a CPU run is
 deterministic and a far smaller download than the CUDA wheels.
 
-Two outputs, both under `validation/whisper-model-validation/testdata/`:
+Two outputs, both under `crates/validation/whisper-model-validation/testdata/`:
 
 `whisper_vocab.bin`
     The decode half of Whisper's multilingual tokenizer: id -> raw bytes.
@@ -43,7 +43,7 @@ import whisper
 import whisper.tokenizer as wt
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
-OUT = ROOT / "validation/whisper-model-validation/testdata"
+OUT = ROOT / "crates/validation/whisper-model-validation/testdata"
 
 SR = 16000
 N_SAMPLES = 30 * SR
