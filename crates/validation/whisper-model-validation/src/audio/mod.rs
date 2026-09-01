@@ -33,17 +33,22 @@ use bunsen::{
         DTypeMapper,
         ModuleInit,
     },
-    kits::speech::whisper::{
-        Whisper,
-        mel_options,
-        package_mels,
+    kits::{
+        speech::whisper::{
+            TokenPolicy,
+            Whisper,
+            mel_options,
+            package_mels,
+            pretrained::bundled,
+            text::load_detokenizer,
+        },
+        tokens::{
+            Detokenizer,
+            WordchipperDetokenizer,
+        },
     },
     ops::signal::mels::MelConverter,
-    support::testing::asr::{
-        BpeDecodeTable,
-        WHISPER_FIRST_SPECIAL,
-        text_error_rate,
-    },
+    support::testing::asr::text_error_rate,
 };
 use burn::{
     Tensor,
@@ -135,9 +140,37 @@ fn transcript(name: &str) -> String {
         .replace("...", " ")
 }
 
+/// The multilingual vocabulary, for turning ids into text.
+///
+/// The layout comes from the vocabulary size these fixtures are for, and the
+/// ranks from the bundled `multilingual.tiktoken` — the same assets bunsen
+/// itself would use, so this checks them as well as using them.
+pub struct Vocab {
+    policy: TokenPolicy,
+    detokenizer: WordchipperDetokenizer<u16>,
+}
+
+impl Vocab {
+    /// The text of a window's ids: prompt, timestamps and stop token dropped.
+    fn decode(
+        &self,
+        ids: &[i64],
+    ) -> String {
+        self.detokenizer
+            .detokenize(&self.policy.text_ids(ids))
+            .expect("every id is inside the vocabulary")
+    }
+}
+
 /// The shared vocabulary, for turning ids into text.
-fn vocab() -> BpeDecodeTable {
-    BpeDecodeTable::load(testdata("whisper_vocab.bin")).expect("the vocabulary failed to load")
+fn vocab() -> Vocab {
+    let policy = TokenPolicy::from_vocab_size(N_VOCAB).expect("a Whisper vocabulary size");
+    let detokenizer = load_detokenizer(bundled::multilingual_tiktoken(), policy.ids())
+        .expect("the vocabulary failed to load");
+    Vocab {
+        policy,
+        detokenizer,
+    }
 }
 
 /// A fixture's samples, decoded from mp3.
@@ -221,12 +254,12 @@ pub fn bunsen_model<B: Backend>(device: &Device<B>) -> Whisper<B> {
 
 /// Joins per-window ids into one transcript.
 pub fn to_text(
-    table: &BpeDecodeTable,
+    table: &Vocab,
     windows: &[Vec<i64>],
 ) -> String {
     windows
         .iter()
-        .map(|ids| table.decode(ids, WHISPER_FIRST_SPECIAL).trim().to_string())
+        .map(|ids| table.decode(ids).trim().to_string())
         .collect::<Vec<_>>()
         .join(" ")
 }
@@ -234,13 +267,14 @@ pub fn to_text(
 /// The committed reference must decode to its own committed text.
 ///
 /// Needs no model, so it runs in an ordinary `cargo test` — and it is what
-/// checks the vocabulary table end to end, since a wrong table would move the
-/// decoded text away from what `openai-whisper` printed.
+/// checks the bundled vocabulary and bunsen's rank parser end to end, since
+/// a wrong table would move the decoded text away from what `openai-whisper`
+/// printed.
 #[test]
 fn test_reference_tokens_decode_to_reference_text() {
     let table = vocab();
     assert_eq!(
-        table.len(),
+        table.detokenizer.vocab_size(),
         N_VOCAB,
         "the vocabulary does not cover the multilingual model",
     );
@@ -258,7 +292,7 @@ fn test_reference_tokens_decode_to_reference_text() {
 
         for (w, window) in reference.windows.iter().enumerate() {
             assert_eq!(
-                table.decode(&window.tokens, WHISPER_FIRST_SPECIAL).trim(),
+                table.decode(&window.tokens).trim(),
                 window.text.trim(),
                 "{}: window {w} tokens do not decode to the committed text",
                 fixture.name,

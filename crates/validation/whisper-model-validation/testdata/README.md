@@ -12,7 +12,11 @@ resample or downmix. The source was not in that form; see *Provenance*.
 | `jfk_moon.mp3` | 60.0 s | "We choose to go to the Moon", live, with hall noise and applause |
 | `jfk_moon.txt` | | **ground truth** — what a person hears |
 | `jfk_moon.reference.json` | | what `openai-whisper` decodes, per 30 s window |
-| `whisper_vocab.bin` | 364 KB | id → bytes, enough to decode ids to text |
+
+Ids become text through the vocabulary `bunsen-bundled-whisper` fetches
+(`multilingual.tiktoken`, behind its `vocab` feature) and bunsen's own
+`.tiktoken` parser — the same path a user of the kit takes, so the
+fixture-integrity check exercises it too.
 
 ## What is asserted
 
@@ -59,8 +63,8 @@ The model's real errors, for reference: `fly` → `why`, `in this decade` →
 
 ## Regenerating
 
-`tools/gen_speech_fixtures.py` writes `whisper_vocab.bin` and every
-`*.reference.json`. It needs `openai-whisper`; the recipe and the pinned
+`tools/gen_speech_fixtures.py` writes every `*.reference.json`. It needs
+`openai-whisper`; the recipe and the pinned
 versions are in the script's docstring. Run once, commit the outputs — as with
 `tools/gen_mel_fixtures.py`, regenerating is not part of CI.
 
@@ -96,11 +100,3 @@ The source is the complete 17.7-minute address, ~17 MB. Only the 60 s from
 the end of the famous passage. That offset is also chosen so the 30 s window
 boundary falls on "not because they are easy" — a greedy decode is sensitive
 to where a window lands, and this cut decodes cleanly on both sides of it.
-
-### `whisper_vocab.bin`
-
-- Source: `whisper.tokenizer.get_encoding("multilingual")`, from
-  [openai/whisper](https://github.com/openai/whisper) (MIT)
-- Contents: the decode half only — 51865 ids to raw bytes. No merge table, no
-  pre-tokenizer regex, so it cannot encode. That is all a transcription test
-  needs, and it keeps the asset small.

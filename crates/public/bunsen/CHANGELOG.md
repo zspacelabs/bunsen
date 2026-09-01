@@ -9,6 +9,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- *(whisper)* `kits::speech::whisper::tokens` — the token layer, with no
+  dependency. `WhisperSpecialIds` derives every special id (`eot`, `sot`, the
+  language block, task and control tokens, the 1501 timestamps) from the
+  base rank count and language count, or from a checkpoint's vocabulary size
+  alone via `from_vocab_size` — so a multilingual model can no longer be
+  driven with English-only ids by accident. `TokenPolicy` is the decode
+  loop's view of it: `is_text` / `is_special` / `is_timestamp`, timestamp
+  index and seconds, `text_ids`, and `sot_sequence` for the prompt. Also
+  `LANGUAGES`, `Task`, and the special-token spellings as a generator, all
+  pinned against `whisper.tokenizer` for both vocabularies and both language
+  counts.
+- *(whisper)* `kits::speech::whisper::vocab::TiktokenRanks` parses a
+  `.tiktoken` rank file. Written here rather than borrowed because
+  `multilingual.tiktoken` ends with `= 50256` — base64 of nothing, a
+  genuinely empty token that strict decoders reject and Python accepts.
+- *(kits)* `kits::tokens` — what kits share on the token side.
+  `Detokenizer` is the one-method ids-to-text seam a kit holds as
+  `Option<Arc<dyn _>>`. `WordchipperDetokenizer<T>` implements it behind the
+  new `tokenizer` feature over any `wordchipper` decoder, with `from_spans`
+  as the decode-only path (`TokenDictDecoder`, never the slab decoder, which
+  reads an empty token as absent); `i64 -> T` narrowing and error mapping
+  are confined to that adapter. `tokenizer` pulls `wordchipper` with
+  `default-features = false`, which adds 17 crates to a `std` build (115 to
+  132); `testing` enables it, as it does `audio`.
+- *(whisper)* `kits::speech::whisper::text` — `token_spans` builds Whisper's
+  full `{ id -> bytes }` table from parsed ranks and the special-id layout,
+  and `detokenizer` / `load_detokenizer` hand it to `WordchipperDetokenizer`.
+- *(whisper)* `whisper-weights` now also fetches the two `.tiktoken`
+  vocabularies through `bunsen-bundled-whisper/vocab`, reachable as
+  `pretrained::bundled::{multilingual_tiktoken, gpt2_tiktoken}`.
+
 - *(whisper)* `Whisper::load_pretrained` — loads OpenAI's multilingual Whisper
   *base* checkpoint and reports the config scanned from it. Behind the new
   `whisper-weights` feature, which pulls in `bunsen-bundled-whisper`; that
@@ -32,11 +63,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `symphonia` (mp3), with gapless decoding on so an mp3's encoder delay does
   not shift every frame of a spectrogram computed from it. The `audio` feature
   gained `symphonia` as a dependency.
-- *(support)* `support::testing::asr` — `BpeDecodeTable` turns Whisper token
-  ids into text (the decode half of a byte-level BPE vocabulary: no merges, no
-  pre-tokenizer, so it cannot encode), plus `word_error_rate` and
-  `normalize_transcript`. Behind the `testing` feature. These are what the
-  `whisper-model-validation` crate judges a transcription with.
+- *(support)* `support::testing::asr` — `word_error_rate`,
+  `normalize_transcript` and `text_error_rate`. Behind the `testing`
+  feature. These are what the `whisper-model-validation` crate judges a
+  transcription with; ids become text through `kits::tokens`.
 
 ### Fixed
 
