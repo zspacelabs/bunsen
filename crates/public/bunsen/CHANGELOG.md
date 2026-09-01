@@ -64,6 +64,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - *(whisper)* `ClampPolicy` gained `CloneClampPolicy` as a supertrait
   (implemented for every `ClampPolicy + Clone`), so a boxed policy can live in
   a `Module`.
+- *(whisper)* `kits::speech::whisper::gate` — the speech gate: `SpeechGate`,
+  the hysteresis machine over Silero's per-chunk probabilities as a streaming
+  fold, and `speech_regions`, the whole-clip form, which reproduces
+  `faster-whisper`'s `get_speech_timestamps` exactly (its tests are that
+  function's own answers over synthetic tracks, including both `max_speech`
+  split variants). `SpeechGateConfig` carries `faster_whisper()` and
+  `fast_whisper_burn()` presets.
+- *(whisper)* `kits::speech::whisper::regions` — `SpeechRegion` (a span of
+  samples) with `snap_outward` onto the 320-sample encoder grid and `clock`
+  (the parent stream's clock, sliced), plus `pad_regions` and `merge_gaps`.
+- *(testdata)* `testdata/audio/jfk_moon_4s.mp3`, four seconds of speech
+  around a one-second pause, for the gate's golden test against Silero.
 - *(whisper)* `whisper-weights` now also fetches the two `.tiktoken`
   vocabularies through `bunsen-bundled-whisper/vocab`, reachable as
   `pretrained::bundled::{multilingual_tiktoken, gpt2_tiktoken}`.
