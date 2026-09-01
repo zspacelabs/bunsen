@@ -1,9 +1,11 @@
 //! Loads a pretrained Whisper checkpoint, converts an audio file to log-mels
-//! with [`bunsen::ops::signal::mels`], and runs the audio encoder over them.
+//! with [`bunsen::ops::signal::mels`], and greedily decodes each 30 s window.
 //!
 //! The mel front end is driven in streaming chunks, which is the shape a live
 //! transcription loop wants; feeding the whole clip in one call gives the same
-//! result.
+//! result. The prompt and stop token are derived from the checkpoint's own
+//! vocabulary size, so an English-only and a multilingual model each get the
+//! ids they were trained on without anyone typing them in.
 
 use std::path::PathBuf;
 
@@ -12,17 +14,23 @@ use bunsen::{
         DTypeMapper,
         ModuleInit,
     },
-    kits::speech::whisper::{
-        WhisperMeta,
-        decode::{
-            GreedyDecodeConfig,
-            mel_windows,
+    kits::{
+        speech::whisper::{
+            Task,
+            TokenPolicy,
+            WhisperMeta,
+            decode::{
+                GreedyDecodeConfig,
+                mel_windows,
+            },
+            mel::{
+                mel_options,
+                package_mels,
+            },
+            pretrained::PytorchWhisperScanner,
+            text::load_detokenizer,
         },
-        mel::{
-            mel_options,
-            package_mels,
-        },
-        pretrained::PytorchWhisperScanner,
+        tokens::Detokenizer,
     },
     ops::signal::mels::{
         MelConverter,
@@ -88,21 +96,27 @@ pub struct Args {
     #[arg(long, default_value = "32")]
     pub max_tokens: usize,
 
-    /// Decoder prompt token ids.
+    /// Language of the speech, as a Whisper code (`en`, `ja`, ...).
     ///
-    /// These come from Whisper's tokenizer, which bunsen does not own, and
-    /// they differ between the English-only and multilingual vocabularies —
-    /// so they are supplied rather than assumed. The default is the
-    /// English-only `<|startoftranscript|> <|notimestamps|>`; the
-    /// multilingual models want
-    /// `<|startoftranscript|> <|en|> <|transcribe|> <|notimestamps|>`,
-    /// i.e. `--prompt 50258 --prompt 50259 --prompt 50359 --prompt 50363`.
-    #[arg(long, default_values_t = [50257i64, 50362])]
-    pub prompt: Vec<i64>,
+    /// Used by multilingual checkpoints; an English-only checkpoint takes no
+    /// language token and ignores this.
+    #[arg(long, default_value = "en")]
+    pub language: String,
 
-    /// The end-of-text token id: 50256 English-only, 50257 multilingual.
-    #[arg(long, default_value = "50256")]
-    pub eot: i64,
+    /// `transcribe` or `translate` (to English). Ignored by an English-only
+    /// checkpoint, as `--language` is.
+    #[arg(long, default_value = "transcribe")]
+    pub task: String,
+
+    /// Let the model emit timestamp tokens.
+    #[arg(long)]
+    pub timestamps: bool,
+
+    /// A `.tiktoken` vocabulary matching the checkpoint, to print text as
+    /// well as ids: `multilingual.tiktoken` for a multilingual checkpoint,
+    /// `gpt2.tiktoken` for an English-only one.
+    #[arg(long)]
+    pub vocab: Option<PathBuf>,
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -230,10 +244,34 @@ fn run<B: Backend>(
         model.max_audio_ctx()
     );
 
-    // The prompt and stop token come from Whisper's tokenizer, which bunsen
-    // does not own; see `Args::prompt`.
-    let decode =
-        GreedyDecodeConfig::new(args.prompt.clone(), args.eot).with_max_tokens(args.max_tokens);
+    // The prompt and stop token fall out of the checkpoint's vocabulary size:
+    // a multilingual model and an English-only one number their specials
+    // differently, and getting that wrong is silent garbage, not an error.
+    let policy = TokenPolicy::from_vocab_size(cfg.vocab_size)?;
+    let (language, task) = if policy.ids().is_multilingual() {
+        let task = match args.task.as_str() {
+            "transcribe" => Task::Transcribe,
+            "translate" => Task::Translate,
+            other => {
+                return Err(
+                    format!("--task must be transcribe or translate, got {other:?}").into(),
+                );
+            }
+        };
+        (Some(args.language.as_str()), Some(task))
+    } else {
+        println!("English-only checkpoint: --language and --task do not apply");
+        (None, None)
+    };
+    let prompt = policy.sot_sequence(language, task, args.timestamps)?;
+    println!("prompt: {prompt:?}  eot: {}", policy.ids().eot);
+
+    let decode = GreedyDecodeConfig::new(prompt, policy.ids().eot).with_max_tokens(args.max_tokens);
+
+    let detokenizer = match &args.vocab {
+        Some(path) => Some(load_detokenizer(path, policy.ids())?),
+        None => None,
+    };
 
     // All windows decoded as one batch. Each window is independent, so this
     // is the same result as decoding them one at a time.
@@ -247,6 +285,12 @@ fn run<B: Backend>(
     {
         println!("window {i}: {} tokens", tokens.len());
         println!("  {tokens:?}");
+        if let Some(detokenizer) = &detokenizer {
+            println!("  {:?}", detokenizer.detokenize(&policy.text_ids(&tokens))?);
+            if args.timestamps {
+                println!("  {:?}", detokenizer.detokenize(&tokens)?);
+            }
+        }
     }
 
     Ok(())

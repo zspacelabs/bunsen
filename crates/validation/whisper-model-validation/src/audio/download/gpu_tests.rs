@@ -1,5 +1,8 @@
 use bunsen::{
-    kits::speech::whisper::GreedyDecodeConfig,
+    kits::speech::whisper::{
+        GreedyDecodeConfig,
+        Task,
+    },
     prelude::TensorElemOpExt,
     support::testing::{
         PerformanceBackend,
@@ -26,9 +29,11 @@ use crate::{
     audio::{
         FIXTURES,
         Reference,
+        Vocab,
         bunsen_model,
         clip_mels,
         report,
+        report_id_diff,
         to_text,
         transcript,
         vocab,
@@ -39,10 +44,16 @@ use crate::{
 type B = PerformanceBackend;
 type F = <B as BackendTypes>::FloatElem;
 
-/// `<|startoftranscript|> <|en|> <|transcribe|> <|notimestamps|>`.
-pub const PROMPT: [i64; 4] = [50258, 50259, 50359, 50363];
+/// The prompt and stop token, derived from the layout rather than written
+/// down: `<|startoftranscript|> <|en|> <|transcribe|> <|notimestamps|>`, then
 /// `<|endoftext|>`.
-pub const EOT: i64 = 50257;
+fn decode_config(table: &Vocab) -> GreedyDecodeConfig {
+    let prompt = table
+        .policy
+        .sot_sequence(Some("en"), Some(Task::Transcribe), false)
+        .expect("a multilingual layout");
+    GreedyDecodeConfig::new(prompt, table.policy.ids().eot)
+}
 
 /// Splits log-mels into the encoder's fixed windows, zero-padding the
 /// last.
@@ -78,8 +89,9 @@ fn greedy_reference<B: Backend>(
     decoder: &reference::decoder::Model<B>,
     xa: Tensor<B, 3>,
     device: &Device<B>,
+    config: &GreedyDecodeConfig,
 ) -> Vec<i64> {
-    let mut prefix = PROMPT.to_vec();
+    let mut prefix = config.prompt.clone();
     let mut out = Vec::new();
 
     for _ in 0..224 {
@@ -97,7 +109,7 @@ fn greedy_reference<B: Backend>(
             .to_vec()
             .unwrap();
 
-        if picked[0] == EOT {
+        if picked[0] == config.eot_token {
             break;
         }
         out.push(picked[0]);
@@ -114,12 +126,21 @@ fn test_bunsen_agrees_with_openai_reference() {
     let device: Device<B> = Default::default();
     let table = vocab();
     let model = bunsen_model::<B>(&device);
-    let config = GreedyDecodeConfig::new(PROMPT.to_vec(), EOT);
+    let config = decode_config(&table);
 
     for fixture in FIXTURES {
         let mels = clip_mels(fixture.name, &device);
-        let got = to_text(&table, &model.decode_chunked(mels, &config));
-        let want = Reference::load(fixture.name).text();
+        let reference = Reference::load(fixture.name);
+        let mine = model.decode_chunked(mels, &config);
+        report_id_diff(
+            "openai-reference",
+            fixture.name,
+            &mine,
+            &reference.window_tokens(),
+        );
+
+        let got = to_text(&table, &mine);
+        let want = reference.text();
         let wer = text_error_rate(&got, &want);
 
         eprintln!("{}: bunsen WER vs openai-whisper {wer:.4}", fixture.name);
@@ -171,6 +192,7 @@ fn test_onnx_reference_transcribes_real_audio() {
     let table = vocab();
     let reference_enc = reference::encoder::Model::<B>::load_pretrained(&device);
     let reference_dec = reference::decoder::Model::<B>::load_pretrained(&device);
+    let config = decode_config(&table);
 
     for fixture in FIXTURES {
         let mels = clip_mels(fixture.name, &device);
@@ -178,7 +200,7 @@ fn test_onnx_reference_transcribes_real_audio() {
             .into_iter()
             .map(|window| {
                 let xa = reference_enc.forward(window);
-                greedy_reference(&reference_dec, xa, &device)
+                greedy_reference(&reference_dec, xa, &device, &config)
             })
             .collect();
 
@@ -216,7 +238,7 @@ fn test_onnx_reference_and_bunsen_transcribe_alike() {
     let reference_enc = reference::encoder::Model::<B>::load_pretrained(&device);
     let reference_dec = reference::decoder::Model::<B>::load_pretrained(&device);
     let ours = bunsen_model(&device);
-    let config = GreedyDecodeConfig::new(PROMPT.to_vec(), EOT);
+    let config = decode_config(&table);
 
     for fixture in FIXTURES {
         let mels = clip_mels(fixture.name, &device);
@@ -225,9 +247,10 @@ fn test_onnx_reference_and_bunsen_transcribe_alike() {
         let mut mine = Vec::new();
         for window in windows_of(mels, &device) {
             let xa = reference_enc.forward(window.clone());
-            theirs.push(greedy_reference(&reference_dec, xa, &device));
+            theirs.push(greedy_reference(&reference_dec, xa, &device, &config));
             mine.push(ours.decode_window(window, &config));
         }
+        report_id_diff("onnx-reference", fixture.name, &mine, &theirs);
 
         let (want, got) = (to_text(&table, &theirs), to_text(&table, &mine));
         let wer = text_error_rate(&got, &want);
@@ -255,7 +278,7 @@ fn test_bunsen_accuracy_against_transcript() {
     let device: Device<B> = Default::default();
     let table = vocab();
     let model = bunsen_model::<B>(&device);
-    let config = GreedyDecodeConfig::new(PROMPT.to_vec(), EOT);
+    let config = decode_config(&table);
 
     for fixture in FIXTURES {
         let mels = clip_mels(fixture.name, &device);
