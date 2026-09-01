@@ -34,10 +34,12 @@ use crate::{
         signal::{
             SamplingWindowBuilder,
             StftWindowConfig,
-            mels::filterbank::{
-                FilterNorm,
-                MelScale,
-                mel_filterbank,
+            mels::{
+                MelFilterbankConfig,
+                filterbank::{
+                    FilterNorm,
+                    MelScale,
+                },
             },
         },
     },
@@ -430,17 +432,21 @@ impl MelConverterOptions {
     /// # Errors
     ///
     /// [`BunsenError::Invalid`] if any triangle covers no `rfft` bin — see
-    /// [`mel_filterbank`].
-    pub fn to_vec_filterbank(&self) -> BunsenResult<Vec<f64>> {
-        mel_filterbank(
-            self.sample_rate,
-            self.fft_len(),
-            self.n_mels,
-            self.f_min,
-            self.f_max_hz(),
-            self.mel_scale,
-            self.filter_norm,
-        )
+    /// [`MelFilterbankConfig::try_to_vec`].
+    pub fn try_to_filterbank_vec(&self) -> BunsenResult<Vec<f64>> {
+        self.to_mel_filterbank_config().try_to_vec()
+    }
+
+    /// Build the [`MelFilterbankConfig`] for the mel filterbank.
+    pub fn to_mel_filterbank_config(&self) -> MelFilterbankConfig {
+        MelFilterbankConfig {
+            sample_rate: self.sample_rate,
+            n_fft: self.fft_len(),
+            n_mels: self.n_mels,
+            f_range: self.f_min..self.f_max_hz(),
+            scale: self.mel_scale,
+            norm: self.filter_norm,
+        }
     }
 
     /// Builds the host-side mel filterbank **transposed**, row-major
@@ -452,9 +458,9 @@ impl MelConverterOptions {
     ///
     /// # Errors
     ///
-    /// See [`to_vec_filterbank`](Self::to_vec_filterbank).
+    /// See [`to_vec_filterbank`](Self::try_to_filterbank_vec).
     pub fn to_vec_filterbank_t(&self) -> BunsenResult<Vec<f64>> {
-        let bank = self.to_vec_filterbank()?;
+        let bank = self.try_to_filterbank_vec()?;
         let (n_mels, n_bins) = (self.n_mels, self.n_bins());
 
         let mut transposed = vec![0.0_f64; bank.len()];
@@ -508,8 +514,8 @@ impl MelConverterOptions {
     /// Validates the scalar geometry.
     ///
     /// Does **not** build the filterbank, so it cannot see an empty mel
-    /// triangle; [`to_vec_filterbank`](Self::to_vec_filterbank) reports that.
-    /// `try_init` runs both.
+    /// triangle; [`to_vec_filterbank`](Self::try_to_filterbank_vec) reports
+    /// that. `try_init` runs both.
     ///
     /// # Errors
     ///
@@ -587,7 +593,7 @@ impl<B: Backend> ModuleInit<B, MelConverter<B>> for MelConverterOptions {
     /// # Errors
     ///
     /// See [`validate`](MelConverterOptions::validate) and
-    /// [`to_vec_filterbank`](MelConverterOptions::to_vec_filterbank).
+    /// [`to_vec_filterbank`](MelConverterOptions::try_to_filterbank_vec).
     fn try_init(
         &self,
         device: &B::Device,
@@ -1509,7 +1515,7 @@ mod tests {
 
         opts.validate().unwrap();
 
-        let bank = opts.to_vec_filterbank();
+        let bank = opts.try_to_filterbank_vec();
         assert!(
             matches!(&bank, Err(BunsenError::Invalid(m)) if m.contains("covers no rfft bin")),
             "expected an empty-triangle error, got {bank:?}",
@@ -1519,7 +1525,7 @@ mod tests {
     #[test]
     fn test_filterbank_matches_derived_shape() {
         let opts = MelConverterOptions::default();
-        let bank = opts.to_vec_filterbank().unwrap();
+        let bank = opts.try_to_filterbank_vec().unwrap();
         assert_eq!(bank.len(), opts.n_mels * opts.n_bins());
     }
 
