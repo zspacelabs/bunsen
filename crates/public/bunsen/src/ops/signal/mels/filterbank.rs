@@ -9,6 +9,8 @@
 //! evenly spaced mel points, evaluated against the `rfft` bin centres, and
 //! optionally area-normalized.
 
+use std::ops::Range;
+
 use burn::config::Config;
 
 use crate::{
@@ -33,9 +35,7 @@ const SLANEY_MIN_LOG_MEL: f64 = 15.0;
 /// Slaney's logarithmic step, `6.4.ln() / 27`.
 const SLANEY_LOGSTEP: f64 = 1.8562979903656263 /* 6.4.ln() */ / 27.0;
 
-/// The frequency-to-mel warping curve.
-///
-/// Selects the convention used by [`mel_points`] and [`mel_filterbank`].
+/// Selects the frequency-to-mel warping curve.
 #[derive(Config, Copy, Debug, PartialEq, Eq)]
 pub enum MelScale {
     /// Slaney's Auditory Toolbox curve, as used by `librosa` (`htk=False`)
@@ -150,99 +150,117 @@ pub fn mel_points(
         .collect()
 }
 
-/// Builds a row-major `[n_mels, n_bins]` triangular mel filterbank.
+/// Configures a row-major `[n_mels, n_bins]` triangular mel filterbank.
 ///
 /// `n_bins` is `n_fft / 2 + 1`, matching the `rfft` bin count, and bin `j`
 /// sits at `j * sample_rate / n_fft` Hz. Triangle `i` rises from
 /// `mel_points[i]` to `mel_points[i + 1]` and falls to `mel_points[i + 2]`.
-///
-/// # Arguments
-/// * `sample_rate`: the signal sample rate, in Hz.
-/// * `n_fft`: the FFT length the spectrum was taken at.
-/// * `n_mels`: how many triangles to build.
-/// * `f_min`, `f_max`: the span covered by the bank, in Hz.
-/// * `scale`: the warping curve.
-/// * `norm`: triangle area normalization.
-///
-/// # Errors
-///
-/// [`BunsenError::Invalid`] if `n_fft` or `n_mels` is zero, if
-/// `f_min >= f_max`, if the mel points are not strictly increasing (which
-/// would make a triangle degenerate), or if any triangle ends up **empty** —
-/// covering no `rfft` bin at all. An empty row silently zeroes a whole mel
-/// channel, so it is rejected rather than returned; it means `n_mels` is too
-/// large for this `n_fft` (`n_fft = 256` with `n_mels = 128` at 16 kHz leaves
-/// 13 rows empty).
-pub fn mel_filterbank(
-    sample_rate: usize,
-    n_fft: usize,
-    n_mels: usize,
-    f_min: f64,
-    f_max: f64,
-    scale: MelScale,
-    norm: FilterNorm,
-) -> BunsenResult<Vec<f64>> {
-    if n_fft == 0 {
-        return Err(BunsenError::Invalid(
-            "MelFilterbank n_fft must be non-zero".to_string(),
-        ));
-    }
-    if n_mels == 0 {
-        return Err(BunsenError::Invalid(
-            "MelFilterbank n_mels must be non-zero".to_string(),
-        ));
-    }
-    if f_min >= f_max {
-        return Err(BunsenError::Invalid(format!(
-            "MelFilterbank f_min ({f_min}) must be < f_max ({f_max})",
-        )));
-    }
+#[derive(Config, Debug)]
+pub struct MelFilterbankConfig {
+    /// The sample rate, in Hz.
+    pub sample_rate: usize,
 
-    let n_bins = n_fft / 2 + 1;
+    /// The FFT length the spectrum was taken at.
+    pub n_fft: usize,
 
-    // The `rfft` bin centres: `n_bins` points from DC to Nyquist.
-    let bin_hz = vec_linspace(0.0, sample_rate as f64 / 2.0, n_bins);
+    /// How many triangles to build.
+    pub n_mels: usize,
 
-    // One point either side of each triangle's centre.
-    let points = mel_points(n_mels + 2, f_min, f_max, scale);
+    /// The span covered by the bank, in Hz.
+    pub f_range: Range<f64>,
 
-    for w in points.windows(2) {
-        if w[0] >= w[1] {
+    /// The frequency-to-mel warping curve.
+    #[config(default = "MelScale::Slaney")]
+    pub scale: MelScale,
+
+    /// Triangle area normalization.
+    #[config(default = "FilterNorm::Slaney")]
+    pub norm: FilterNorm,
+}
+
+impl MelFilterbankConfig {
+    /// Builds a row-major `[n_mels, n_bins]` triangular mel filterbank.
+    ///
+    /// `n_bins` is `n_fft / 2 + 1`, matching the `rfft` bin count, and bin `j`
+    /// sits at `j * sample_rate / n_fft` Hz. Triangle `i` rises from
+    /// `mel_points[i]` to `mel_points[i + 1]` and falls to `mel_points[i + 2]`.
+    ///
+    /// # Errors
+    ///
+    /// [`BunsenError::Invalid`] if `n_fft` or `n_mels` is zero, if
+    /// `f_min >= f_max`, if the mel points are not strictly increasing (which
+    /// would make a triangle degenerate), or if any triangle ends up **empty**
+    /// — covering no `rfft` bin at all. An empty row silently zeroes a
+    /// whole mel channel, so it is rejected rather than returned; it means
+    /// `n_mels` is too large for this `n_fft` (`n_fft = 256` with `n_mels =
+    /// 128` at 16 kHz leaves 13 rows empty).
+    pub fn try_to_vec(&self) -> BunsenResult<Vec<f64>> {
+        if self.n_fft == 0 {
+            return Err(BunsenError::Invalid(
+                "MelFilterbank n_fft must be non-zero".to_string(),
+            ));
+        }
+        if self.n_mels == 0 {
+            return Err(BunsenError::Invalid(
+                "MelFilterbank n_mels must be non-zero".to_string(),
+            ));
+        }
+        let f_min = self.f_range.start;
+        let f_max = self.f_range.end;
+        if f_min >= f_max {
             return Err(BunsenError::Invalid(format!(
-                "MelFilterbank mel points are not strictly increasing \
-                 ({} then {}); n_mels ({n_mels}) is too large for the \
+                "MelFilterbank f_min ({f_min}) must be < f_max ({f_max})",
+            )));
+        }
+
+        let n_bins = self.n_fft / 2 + 1;
+
+        // The `rfft` bin centres: `n_bins` points from DC to Nyquist.
+        let bin_hz = vec_linspace(0.0, self.sample_rate as f64 / 2.0, n_bins);
+
+        // One point either side of each triangle's center.
+        let points = mel_points(self.n_mels + 2, f_min, f_max, self.scale);
+
+        for w in points.windows(2) {
+            if w[0] >= w[1] {
+                return Err(BunsenError::Invalid(format!(
+                    "MelFilterbank mel points are not strictly increasing \
+                 ({} then {}); n_mels ({}) is too large for the \
                  [{f_min}, {f_max}] Hz span",
-                w[0], w[1],
-            )));
+                    w[0], w[1], self.n_mels
+                )));
+            }
         }
+
+        let mut bank = vec![0.0_f64; self.n_mels * n_bins];
+
+        for i in 0..self.n_mels {
+            let (f_lo, f_ct, f_hi) = (points[i], points[i + 1], points[i + 2]);
+
+            let gain = self.norm.gain(f_lo, f_hi);
+
+            let row = &mut bank[i * n_bins..(i + 1) * n_bins];
+            for (slot, &hz) in row.iter_mut().zip(&bin_hz) {
+                let rising = (hz - f_lo) / (f_ct - f_lo);
+                let falling = (f_hi - hz) / (f_hi - f_ct);
+
+                *slot = rising.min(falling).max(0.0) * gain;
+            }
+
+            if row.iter().all(|&v| v == 0.0) {
+                return Err(BunsenError::Invalid(format!(
+                    "MelFilterbank triangle {i} spanning [{f_lo}, {f_hi}] Hz \
+                 covers no rfft bin (bin spacing {} Hz); n_mels ({}) is \
+                 too large for n_fft ({})",
+                    self.sample_rate as f64 / self.n_fft as f64,
+                    self.n_mels,
+                    self.n_fft
+                )));
+            }
+        }
+
+        Ok(bank)
     }
-
-    let mut bank = vec![0.0_f64; n_mels * n_bins];
-
-    for i in 0..n_mels {
-        let (f_lo, f_ct, f_hi) = (points[i], points[i + 1], points[i + 2]);
-
-        let gain = norm.gain(f_lo, f_hi);
-
-        let row = &mut bank[i * n_bins..(i + 1) * n_bins];
-        for (slot, &hz) in row.iter_mut().zip(&bin_hz) {
-            let rising = (hz - f_lo) / (f_ct - f_lo);
-            let falling = (f_hi - hz) / (f_hi - f_ct);
-
-            *slot = rising.min(falling).max(0.0) * gain;
-        }
-
-        if row.iter().all(|&v| v == 0.0) {
-            return Err(BunsenError::Invalid(format!(
-                "MelFilterbank triangle {i} spanning [{f_lo}, {f_hi}] Hz \
-                 covers no rfft bin (bin spacing {} Hz); n_mels ({n_mels}) is \
-                 too large for n_fft ({n_fft})",
-                sample_rate as f64 / n_fft as f64,
-            )));
-        }
-    }
-
-    Ok(bank)
 }
 
 #[cfg(test)]
@@ -354,17 +372,17 @@ mod tests {
 
     #[test]
     fn test_filterbank_matches_librosa_algorithm() {
-        let (n_mels, n_bins) = (80, 201);
-        let bank = mel_filterbank(
-            16000,
-            400,
-            n_mels,
-            0.0,
-            8000.0,
-            MelScale::Slaney,
-            FilterNorm::Slaney,
-        )
-        .unwrap();
+        let sample_rate = 16_000;
+        let n_fft = 400;
+        let n_mels = 80;
+        let n_bins = 201;
+        let f_range = 0.0..8000.0;
+
+        let bank = MelFilterbankConfig::new(sample_rate, n_fft, n_mels, f_range)
+            .with_scale(MelScale::Slaney)
+            .with_norm(FilterNorm::Slaney)
+            .try_to_vec()
+            .unwrap();
 
         assert_eq!(bank.len(), n_mels * n_bins);
 
@@ -417,17 +435,17 @@ mod tests {
 
     #[test]
     fn test_filterbank_htk_without_norm() {
-        let (n_mels, n_bins) = (80, 201);
-        let bank = mel_filterbank(
-            16000,
-            400,
-            n_mels,
-            0.0,
-            8000.0,
-            MelScale::Htk,
-            FilterNorm::None,
-        )
-        .unwrap();
+        let sample_rate = 16_000;
+        let n_fft = 400;
+        let n_mels = 80;
+        let n_bins = 201;
+        let f_range = 0.0..8000.0;
+
+        let bank = MelFilterbankConfig::new(sample_rate, n_fft, n_mels, f_range)
+            .with_scale(MelScale::Htk)
+            .with_norm(FilterNorm::None)
+            .try_to_vec()
+            .unwrap();
 
         assert_rel(bank.iter().sum(), 196.151976953471774, 1e-9);
         assert_rel(
@@ -445,16 +463,17 @@ mod tests {
 
     #[test]
     fn test_filterbank_rejects_empty_rows() {
+        let sample_rate = 16_000;
+        let n_fft = 256;
+        let n_mels = 128;
+        let f_range = 0.0..8000.0;
+
         // 128 triangles over 129 bins leaves 13 of them covering no bin.
-        let err = mel_filterbank(
-            16000,
-            256,
-            128,
-            0.0,
-            8000.0,
-            MelScale::Slaney,
-            FilterNorm::Slaney,
-        );
+        let err = MelFilterbankConfig::new(sample_rate, n_fft, n_mels, f_range)
+            .with_scale(MelScale::Slaney)
+            .with_norm(FilterNorm::Slaney)
+            .try_to_vec();
+
         assert!(
             matches!(&err, Err(BunsenError::Invalid(m)) if m.contains("covers no rfft bin")),
             "expected an empty-triangle error, got {err:?}",
@@ -463,24 +482,17 @@ mod tests {
 
     #[test]
     fn test_filterbank_validation() {
-        let ok = |n_fft, n_mels, f_min, f_max| {
-            mel_filterbank(
-                16000,
-                n_fft,
-                n_mels,
-                f_min,
-                f_max,
-                MelScale::Slaney,
-                FilterNorm::Slaney,
-            )
+        let ok = |n_fft, n_mels, f_range| {
+            let sample_rate = 16_000;
+            MelFilterbankConfig::new(sample_rate, n_fft, n_mels, f_range).try_to_vec()
         };
 
         for bad in [
-            ok(0, 80, 0.0, 8000.0),
-            ok(400, 0, 0.0, 8000.0),
+            ok(0, 80, 0.0..8000.0),
+            ok(400, 0, 0.0..8000.0),
             // f_min == f_max, and inverted.
-            ok(400, 80, 8000.0, 8000.0),
-            ok(400, 80, 8000.0, 0.0),
+            ok(400, 80, 8000.0..8000.0),
+            ok(400, 80, 8000.0..0.0),
         ] {
             assert!(
                 matches!(bad, Err(BunsenError::Invalid(_))),
@@ -488,6 +500,6 @@ mod tests {
             );
         }
 
-        assert!(ok(400, 80, 0.0, 8000.0).is_ok());
+        assert!(ok(400, 80, 0.0..8000.0).is_ok());
     }
 }

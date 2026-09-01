@@ -34,10 +34,12 @@ use crate::{
         signal::{
             SamplingWindowBuilder,
             StftWindowConfig,
-            mels::filterbank::{
-                FilterNorm,
-                MelScale,
-                mel_filterbank,
+            mels::{
+                MelFilterbankConfig,
+                filterbank::{
+                    FilterNorm,
+                    MelScale,
+                },
             },
         },
     },
@@ -432,15 +434,19 @@ impl MelConverterOptions {
     /// [`BunsenError::Invalid`] if any triangle covers no `rfft` bin — see
     /// [`mel_filterbank`].
     pub fn to_vec_filterbank(&self) -> BunsenResult<Vec<f64>> {
-        mel_filterbank(
-            self.sample_rate,
-            self.fft_len(),
-            self.n_mels,
-            self.f_min,
-            self.f_max_hz(),
-            self.mel_scale,
-            self.filter_norm,
-        )
+        self.to_mel_filterbank_config().try_to_vec()
+    }
+
+    /// Build the [`MelFilterbankConfig`] for the mel filterbank.
+    pub fn to_mel_filterbank_config(&self) -> MelFilterbankConfig {
+        MelFilterbankConfig {
+            sample_rate: self.sample_rate,
+            n_fft: self.fft_len(),
+            n_mels: self.n_mels,
+            f_range: self.f_min..self.f_max_hz(),
+            scale: self.mel_scale,
+            norm: self.filter_norm,
+        }
     }
 
     /// Builds the host-side mel filterbank **transposed**, row-major
