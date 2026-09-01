@@ -3041,6 +3041,7 @@ dependencies = [
 name = "dl-test"
 version = "0.0.0"
 dependencies = [
+ "bunsen",
  "bunsen-arrow-dataloaders",
  "burn",
  "clap",

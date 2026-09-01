@@ -596,20 +596,8 @@ mod tests {
     #[test]
     #[serial]
     #[cfg(feature = "store")]
-    #[cfg(feature = "cuda")]
     fn test_load_pytorch_prefab_cuda() -> BunsenResult<()> {
-        type B = burn::backend::Cuda;
-        let prefab = "resnet34";
-        let pretrained = "tv_in1k";
-        test_load_pytorch::<B>(&prefab, &pretrained)
-    }
-
-    #[test]
-    #[serial]
-    #[cfg(feature = "store")]
-    #[cfg(feature = "cuda")]
-    fn test_load_pytorch_prefab_cuda_bf16() -> BunsenResult<()> {
-        type B = burn::backend::Cuda<burn::tensor::bf16>;
+        type B = PerformanceBackend;
         let prefab = "resnet34";
         let pretrained = "tv_in1k";
         test_load_pytorch::<B>(&prefab, &pretrained)

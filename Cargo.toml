@@ -33,6 +33,12 @@ exported-private-dependencies = "allow"
 double_must_use = "allow"
 doc_markdown = "warn"
 
+[profile.dev]
+opt-level = 2
+# Keep panics for math overflows active
+overflow-checks = true
+# Keep your `debug_assert!` macros working
+debug-assertions = true
 
 [workspace.dependencies]
 log = { version = "0.4", default-features = false }
