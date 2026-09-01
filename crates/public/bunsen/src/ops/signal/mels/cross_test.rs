@@ -130,7 +130,7 @@ fn test_hann_window_matches_librosa() {
 fn test_filterbank_matches_librosa() {
     let opts = MelConverterOptions::default();
     assert_close_to_vec(
-        &opts.to_vec_filterbank().unwrap(),
+        &opts.try_to_filterbank_vec().unwrap(),
         &fixture("mel_fb_slaney_16k_400_80.f32"),
         1e-8,
     );
@@ -140,7 +140,7 @@ fn test_filterbank_matches_librosa() {
         .with_filter_norm(FilterNorm::None);
 
     assert_close_to_vec(
-        &htk.to_vec_filterbank().unwrap(),
+        &htk.try_to_filterbank_vec().unwrap(),
         &fixture("mel_fb_htk_16k_400_80_nonorm.f32"),
         1e-6,
     );

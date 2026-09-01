@@ -9,17 +9,6 @@
 //! `include_bytes!` of 145 MB would dominate compile time and binary size, so
 //! the checkpoint stays a file and [`base_pt`] names it.
 //!
-//! ## Two halves, two features
-//!
-//! * [`base_pt`] — the checkpoint bunsen's Whisper kit loads. Behind
-//!   `checkpoint`.
-//! * [`onnx_gen`] — the reference *implementation*, generated from the
-//!   `onnx-community` export. Behind `onnx_gen`.
-//!
-//! They are different assets and neither implies the other: a user who wants
-//! pretrained weights has no use for a second implementation, and
-//! `whisper-model-validation` wants both.
-//!
 //! ## Crate Features
 #![doc = document_features::document_features!()]
 
