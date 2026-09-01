@@ -76,6 +76,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (the parent stream's clock, sliced), plus `pad_regions` and `merge_gaps`.
 - *(testdata)* `testdata/audio/jfk_moon_4s.mp3`, four seconds of speech
   around a one-second pause, for the gate's golden test against Silero.
+- *(whisper)* The driver's second deployment, conservative real time.
+  `WhisperDriver::with_vad` attaches a `SileroVad` and a `SpeechGateConfig`;
+  under `EmissionPolicy::conservative()` each speech region the gate closes
+  is decoded as its own unit and committed with times off the parent
+  stream's clock, and a full window of silence is skipped rather than
+  decoded. `feed` / `advance` split `push` in two, and
+  `driver::advance_ready(&driver, &mut [context])` advances many streams
+  with one decode per prompt group — server-batch mode as a function, not a
+  type. `end_input` is the input half of `flush`.
 - *(whisper)* `whisper-weights` now also fetches the two `.tiktoken`
   vocabularies through `bunsen-bundled-whisper/vocab`, reachable as
   `pretrained::bundled::{multilingual_tiktoken, gpt2_tiktoken}`.

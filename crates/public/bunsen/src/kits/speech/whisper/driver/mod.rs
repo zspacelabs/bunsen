@@ -2,15 +2,17 @@
 //!
 //! Two concrete types carry the whole design. [`WhisperDriver`] is shared
 //! and immutable: the model, the mel front end, the token layout, the
-//! emission policy, and an optional detokenizer, built once and cheap to
-//! share. [`WhisperStreamContext`] is one per stream and the only stateful
-//! type: it takes samples in through [`push`](WhisperStreamContext::push)
-//! and hands [`Emission`](super::emission::Emission)s back. Everything that
-//! varies by deployment enters as an injected object behind a trait at a
-//! construction point &mdash; the clock and the clamp policy at
+//! emission policy, an optional voice-activity model, and an optional
+//! detokenizer, built once and cheap to share. [`WhisperStreamContext`] is
+//! one per stream and the only stateful type: it takes samples in through
+//! [`push`](WhisperStreamContext::push) and hands
+//! [`Emission`](super::emission::Emission)s back. Everything that varies by
+//! deployment enters as an injected object behind a trait at a construction
+//! point &mdash; the clock and the clamp policy at
 //! [`new_context`](WhisperDriver::new_context), the detokenizer at
-//! [`with_detokenizer`](WhisperDriver::with_detokenizer) &mdash; and is never
-//! something the driver reasons about.
+//! [`with_detokenizer`](WhisperDriver::with_detokenizer), the VAD at
+//! [`with_vad`](WhisperDriver::with_vad) &mdash; and is never something the
+//! driver reasons about.
 //!
 //! The driver derives its token layout from the model it is given, through
 //! [`TokenPolicy::from_vocab_size`], and builds the prompt with
@@ -18,16 +20,24 @@
 //!
 //! ## What this slice supports
 //!
-//! The offline deployment: the `window_full` trigger and the `Complete`
-//! commit rule, without timestamps. The other presets exist and are refused
-//! at [`init`](WhisperDriverConfig::init) with a reason, rather than being
-//! silently approximated; voice activity, timestamps and drafts arrive in
-//! their own phases and turn them on.
+//! Two of the three deployments. **Offline batch**: the `window_full`
+//! trigger and the `Complete` commit rule, one stream at a time through
+//! [`push`](WhisperStreamContext::push), or many at once through
+//! [`advance_ready`]. **Conservative real time**: the `endpoint` trigger as
+//! well, with a Silero VAD attached by [`with_vad`](WhisperDriver::with_vad);
+//! each speech region is decoded as it closes, in the parent stream's frame
+//! of reference, and full windows of silence are never decoded at all. The
+//! `interval` trigger and timestamps are refused at
+//! [`init`](WhisperDriverConfig::init) with a reason, rather than silently
+//! approximated, until their phases land; without timestamps,
+//! `LastTimestamp` commits whole, as upstream does when a decode emits none.
 
+mod batch;
 mod context;
 
 use std::sync::Arc;
 
+pub use batch::advance_ready;
 use burn::{
     config::Config,
     module::Module,
@@ -42,21 +52,22 @@ use crate::{
         BunsenResult,
     },
     kits::{
-        speech::whisper::{
-            blocks::{
-                Whisper,
-                WhisperMeta,
-            },
-            clamp::ClampPolicy,
-            clock::TimestampHistory,
-            emission::{
-                CommitRule,
-                EmissionPolicy,
-            },
-            mel::mel_options,
-            tokens::{
-                Task,
-                TokenPolicy,
+        speech::{
+            silero_vad::SileroVad,
+            whisper::{
+                blocks::{
+                    Whisper,
+                    WhisperMeta,
+                },
+                clamp::ClampPolicy,
+                clock::TimestampHistory,
+                emission::EmissionPolicy,
+                gate::SpeechGateConfig,
+                mel::mel_options,
+                tokens::{
+                    Task,
+                    TokenPolicy,
+                },
             },
         },
         tokens::Detokenizer,
@@ -98,6 +109,9 @@ pub struct WhisperDriverConfig {
 
     /// Prompt each window with the tail of the transcript so far, after
     /// `<|startofprev|>`, as upstream's `condition_on_previous_text` does.
+    ///
+    /// Off is what makes [`advance_ready`] batch: windows are batched by
+    /// prompt, and a carried prompt is a different prompt per stream.
     #[config(default = "true")]
     pub condition_on_previous_text: bool,
 
@@ -170,20 +184,16 @@ impl WhisperDriverConfig {
         let prompt = policy.sot_sequence(language, task, self.timestamps)?;
 
         let triggers = &self.emission.triggers;
-        if !triggers.window_full {
+        if !triggers.window_full && !triggers.endpoint {
             return Err(BunsenError::Invalid(
-                "without the window_full trigger nothing would ever decode".to_string(),
-            ));
-        }
-        if triggers.endpoint || triggers.interval.is_some() {
-            return Err(BunsenError::Invalid(
-                "the endpoint and interval triggers are not supported yet; use EmissionPolicy::offline()"
+                "with neither the window_full nor the endpoint trigger nothing would ever decode"
                     .to_string(),
             ));
         }
-        if self.emission.commit != CommitRule::Complete {
+        if triggers.interval.is_some() {
             return Err(BunsenError::Invalid(
-                "only CommitRule::Complete is supported yet".to_string(),
+                "the interval trigger is not supported yet; use offline() or conservative()"
+                    .to_string(),
             ));
         }
 
@@ -192,11 +202,13 @@ impl WhisperDriverConfig {
         Ok(WhisperDriver {
             model,
             mel,
+            vad: None,
             policy,
             prompt,
             max_tokens: self.max_tokens,
             carry_prompt: self.condition_on_previous_text,
             emission: self.emission.clone(),
+            gate: None,
             detokenizer: None,
         })
     }
@@ -211,6 +223,9 @@ impl WhisperDriverConfig {
 pub struct WhisperDriver<B: Backend> {
     model: Whisper<B>,
     mel: MelConverter<B>,
+
+    /// The voice-activity model, when one was attached.
+    vad: Option<SileroVad<B>>,
 
     #[module(skip)]
     policy: TokenPolicy,
@@ -228,6 +243,10 @@ pub struct WhisperDriver<B: Backend> {
     #[module(skip)]
     emission: EmissionPolicy,
 
+    /// The gate's constants, when a VAD was attached.
+    #[module(skip)]
+    gate: Option<SpeechGateConfig>,
+
     #[module(skip)]
     detokenizer: Option<Arc<dyn Detokenizer>>,
 }
@@ -242,6 +261,21 @@ impl<B: Backend> WhisperDriver<B> {
         self
     }
 
+    /// Attaches a voice-activity model and the gate that turns its
+    /// probabilities into regions.
+    ///
+    /// Needed by any emission policy with the `endpoint` trigger; ignored by
+    /// one without.
+    pub fn with_vad(
+        mut self,
+        vad: SileroVad<B>,
+        gate: SpeechGateConfig,
+    ) -> Self {
+        self.vad = Some(vad);
+        self.gate = Some(gate);
+        self
+    }
+
     /// The model.
     pub fn model(&self) -> &Whisper<B> {
         &self.model
@@ -250,6 +284,16 @@ impl<B: Backend> WhisperDriver<B> {
     /// The mel front end.
     pub fn mel(&self) -> &MelConverter<B> {
         &self.mel
+    }
+
+    /// The voice-activity model, if one was attached.
+    pub fn vad(&self) -> Option<&SileroVad<B>> {
+        self.vad.as_ref()
+    }
+
+    /// The gate's constants, if a VAD was attached.
+    pub fn gate(&self) -> Option<&SpeechGateConfig> {
+        self.gate.as_ref()
     }
 
     /// The token layout, derived from the model.
@@ -297,7 +341,8 @@ impl<B: Backend> WhisperDriver<B> {
     ///
     /// # Errors
     /// [`BunsenError::Invalid`] if the clock does not run at
-    /// [`SAMPLE_RATE`].
+    /// [`SAMPLE_RATE`], or if the emission policy wants endpoints and no VAD
+    /// was attached.
     pub fn new_context<C: ClampPolicy<B> + 'static>(
         &self,
         clock: TimestampHistory,
@@ -308,6 +353,12 @@ impl<B: Backend> WhisperDriver<B> {
                 "the stream clock runs at {} Hz; Whisper's front end is defined at {SAMPLE_RATE}",
                 clock.rate(),
             )));
+        }
+        if self.emission.triggers.endpoint && self.vad.is_none() {
+            return Err(BunsenError::Invalid(
+                "the endpoint trigger needs a voice-activity model; attach one with with_vad"
+                    .to_string(),
+            ));
         }
 
         Ok(WhisperStreamContext::open(
