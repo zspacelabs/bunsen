@@ -64,6 +64,7 @@ use crate::{
                 WhisperDriver,
             },
             emission::{
+                CommitRule,
                 Emission,
                 Segment,
             },
@@ -73,6 +74,7 @@ use crate::{
                 ENCODER_GRID,
                 SpeechRegion,
             },
+            segments::split_window,
         },
     },
     ops::signal::mels::{
@@ -120,6 +122,10 @@ pub struct WhisperStreamContext<B: Backend> {
 
     /// Every committed id, in order.
     transcript: Vec<i64>,
+
+    /// The language the prompt names: configured, or detected from the
+    /// first window decoded; `None` until then on a detecting driver.
+    language: Option<String>,
 
     clamp: Box<dyn ClampPolicy<B>>,
 
@@ -192,6 +198,7 @@ impl<B: Backend> WhisperStreamContext<B> {
             _ => None,
         };
 
+        let language = driver.language().map(str::to_string);
         Self {
             driver,
             mel: Some(mel),
@@ -202,6 +209,7 @@ impl<B: Backend> WhisperStreamContext<B> {
             seek: 0,
             clock,
             transcript: Vec::new(),
+            language,
             clamp,
             vad,
             finished: false,
@@ -333,10 +341,11 @@ impl<B: Backend> WhisperStreamContext<B> {
                 break;
             };
             let window = self.frames_at(&unit);
+            self.ensure_language(&window);
             #[cfg(test)]
             self.trace.push(window.clone());
             let tokens = self.decode_frames(window);
-            out.push(self.commit_due(unit, tokens)?);
+            out.extend(self.commit_due(unit, tokens)?);
         }
         Ok(out)
     }
@@ -613,9 +622,9 @@ impl<B: Backend> WhisperStreamContext<B> {
     /// The prompt for the next window: the sot sequence, preceded by the
     /// transcript's tail after `<|startofprev|>` when carrying is on.
     pub(super) fn prompt_now(&self) -> Vec<i64> {
-        let prompt = self.driver.prompt();
+        let prompt = self.sot_now();
         if !self.driver.carries_prompt() || self.transcript.is_empty() {
-            return prompt.to_vec();
+            return prompt;
         }
 
         // Upstream keeps `n_text_ctx / 2 - 1` tokens of context.
@@ -625,31 +634,101 @@ impl<B: Backend> WhisperStreamContext<B> {
         let mut carried = Vec::with_capacity(1 + tail.len() + prompt.len());
         carried.push(self.driver.policy().ids().sot_prev);
         carried.extend_from_slice(tail);
-        carried.extend_from_slice(prompt);
+        carried.extend_from_slice(&prompt);
         carried
     }
 
+    /// Detects the stream's language from `frames` when the driver leaves
+    /// it to be detected and no window has been decoded yet: upstream's
+    /// `detect_language`, on the same features the decode will use.
+    pub(super) fn ensure_language(
+        &mut self,
+        frames: &Tensor<B, 3>,
+    ) {
+        if self.language.is_some() || !self.driver.detects_language() {
+            return;
+        }
+        let model = self.driver.model();
+        let xa = model.forward_encoder(self.package_padded(frames.clone()));
+        let token = model.detect_language(xa, self.driver.policy().ids())[0];
+        let code = self
+            .driver
+            .policy()
+            .ids()
+            .language_code(token)
+            .expect("detection picks a language token");
+        self.language = Some(code.to_string());
+    }
+
+    /// The language the stream's prompt names, once known.
+    pub fn language(&self) -> Option<&str> {
+        self.language.as_deref()
+    }
+
+    /// The sot sequence for this stream: the driver's, with the stream's
+    /// language.
+    fn sot_now(&self) -> Vec<i64> {
+        self.driver
+            .sot_sequence(self.language.as_deref())
+            .expect("the language is known before a prompt is built")
+    }
+
     /// Commits a decode of a due unit: records the ids, advances the seek
-    /// pointer past it, drops the consumed frames and regions, and places
-    /// the segment on the clock.
+    /// pointer, drops the consumed frames and regions, and places the
+    /// segments on the clock.
+    ///
+    /// Without timestamps the unit is one segment and the seek advances
+    /// past it. With them the decode is split on its timestamps
+    /// ([`split_window`]); the seek advances to the last closed timestamp,
+    /// and the unfinished tail is either dropped, to be decoded again with
+    /// more audio behind it (`CommitRule::Complete`, which is what
+    /// upstream's seek loop does), or emitted as a draft first
+    /// (`CommitRule::LastTimestamp`).
     pub(super) fn commit_due(
         &mut self,
         unit: Due,
         tokens: Vec<i64>,
-    ) -> BunsenResult<Emission> {
+    ) -> BunsenResult<Vec<Emission>> {
         let hop = self.hop() as u64;
-        let start = self.clock.time_at(unit.start as u64 * hop);
-        let end = self.clock.time_at((unit.start + unit.count) as u64 * hop);
+        let mut out = Vec::new();
 
-        let text = match self.driver.detokenizer() {
-            Some(detokenizer) => {
-                Some(detokenizer.detokenize(&self.driver.policy().text_ids(&tokens))?)
+        if self.driver.timestamps() {
+            let split = split_window(
+                &tokens,
+                self.driver.policy().ids(),
+                unit.count,
+                self.driver.frames_per_timestamp(),
+            );
+            for segment in split.segments {
+                let emission = self.segment_at(
+                    unit.start + segment.start,
+                    unit.start + segment.end,
+                    segment.tokens,
+                )?;
+                self.transcript.extend_from_slice(&emission.tokens);
+                out.push(Emission::Committed(emission));
             }
-            None => None,
-        };
+            if !split.tail.is_empty() && self.driver.emission().commit == CommitRule::LastTimestamp
+            {
+                let opens = (split.tail[0] - self.driver.policy().ids().timestamp_begin) as usize
+                    * self.driver.frames_per_timestamp();
+                // A tail opening past the unit's audio covers nothing yet;
+                // it is decoded again with more audio behind it.
+                if opens < unit.count {
+                    let draft =
+                        self.segment_at(unit.start + opens, unit.start + unit.count, split.tail)?;
+                    out.push(Emission::Draft(draft));
+                }
+            }
+            // Always forward, never past the unit.
+            self.seek = unit.start + split.advance.clamp(1, unit.count);
+        } else {
+            let segment = self.segment_at(unit.start, unit.start + unit.count, tokens)?;
+            self.transcript.extend_from_slice(&segment.tokens);
+            out.push(Emission::Committed(segment));
+            self.seek = unit.start + unit.count;
+        }
 
-        self.transcript.extend_from_slice(&tokens);
-        self.seek = unit.start + unit.count;
         self.drop_before_seek();
 
         if let Some(vad) = &mut self.vad {
@@ -659,12 +738,30 @@ impl<B: Backend> WhisperStreamContext<B> {
             }
         }
 
-        Ok(Emission::Committed(Segment {
-            start,
-            end,
+        Ok(out)
+    }
+
+    /// A segment over stream frames `[start, end)`, timed through the clock
+    /// and detokenized when the driver can.
+    fn segment_at(
+        &self,
+        start: usize,
+        end: usize,
+        tokens: Vec<i64>,
+    ) -> BunsenResult<Segment> {
+        let hop = self.hop() as u64;
+        let text = match self.driver.detokenizer() {
+            Some(detokenizer) => {
+                Some(detokenizer.detokenize(&self.driver.policy().text_ids(&tokens))?)
+            }
+            None => None,
+        };
+        Ok(Segment {
+            start: self.clock.time_at(start as u64 * hop),
+            end: self.clock.time_at(end as u64 * hop),
             tokens,
             text,
-        }))
+        })
     }
 
     /// Retains the ring from the seek pointer onward, nothing before it.
@@ -773,13 +870,19 @@ mod tests {
                     MaxSeen,
                     PerWindow,
                 },
-                decode::GreedyDecodeConfig,
+                decode::{
+                    GreedyDecodeConfig,
+                    LogitFilter,
+                },
                 driver::{
                     SAMPLE_RATE,
                     WhisperDriverConfig,
                     advance_ready,
                 },
-                emission::EmissionPolicy,
+                emission::{
+                    EmissionPolicy,
+                    Triggers,
+                },
                 mel::{
                     package_mels,
                     trim_stream_tail,
@@ -1324,6 +1427,230 @@ mod tests {
         assert_eq!(batched, solo);
     }
 
+    /// Dictates the decode: whatever the untrained model thinks (its
+    /// near-ties flip between runs and backends), the next token is the
+    /// scripted one for its position in the window. The script obeys the
+    /// timestamp grammar, so the rules, applied after it, pass it through.
+    #[derive(Debug)]
+    struct Script(Vec<i64>);
+
+    impl LogitFilter<B> for Script {
+        fn apply(
+            &self,
+            logits: Tensor<B, 2>,
+            tokens: &[Vec<i64>],
+            prompt_len: usize,
+        ) -> Tensor<B, 2> {
+            let [rows, vocab] = logits.dims();
+            let mut data = vec![f32::NEG_INFINITY; rows * vocab];
+            for (row, t) in tokens.iter().enumerate() {
+                let at = (t.len() - prompt_len).min(self.0.len() - 1);
+                data[row * vocab + self.0[at] as usize] = 0.0;
+            }
+            Tensor::from_data(
+                burn::tensor::TensorData::new(data, [rows, vocab]),
+                &logits.device(),
+            )
+        }
+    }
+
+    /// Each window's script: two closed segments and a reopened tail,
+    /// `<|1|> a <|3|><|3|> b <|5|><|5|> c`, at the cap of 8 tokens. The
+    /// first timestamp is within the cap of index 2, so the cap is a real
+    /// constraint that the script satisfies; the seek advances 10 frames
+    /// of 16 per decode, so windows overlap.
+    fn script() -> Vec<i64> {
+        let tb = tiny_layout().timestamp_begin;
+        vec![tb + 1, 1, tb + 3, tb + 3, 2, tb + 5, tb + 5, 3]
+    }
+
+    /// A driver that emits timestamps under the script. No prompt carry:
+    /// the tiny model's text context is 16, and a carried prompt would
+    /// leave the script no room.
+    fn timestamped(
+        device: &Device,
+        commit: CommitRule,
+    ) -> WhisperDriver<B> {
+        let scripted: Arc<dyn LogitFilter<B>> = Arc::new(Script(script()));
+        config(false)
+            .with_max_tokens(8)
+            .with_timestamps(true)
+            .with_max_initial_timestamp(Some(0.04))
+            .with_emission(EmissionPolicy::new(Triggers::new(), commit))
+            .init_with_policy(tiny_model(device), TokenPolicy::new(tiny_layout()), device)
+            .unwrap()
+            .with_logit_filters(vec![scripted])
+    }
+
+    /// Pushes a clip through a fresh context and flushes it.
+    fn run_clip(
+        driver: &WhisperDriver<B>,
+        audio: &[f32],
+        at: Option<f64>,
+    ) -> Vec<Emission> {
+        let mut ctx = driver.new_context(clock(), PerWindow).unwrap();
+        let mut emissions = match at {
+            Some(time) => ctx.push_at(audio, time).unwrap(),
+            None => ctx.push(audio).unwrap(),
+        };
+        emissions.extend(ctx.flush().unwrap());
+        assert_eq!(ctx.pending_frames(), 0, "a flush consumes everything");
+        assert_eq!(ctx.seek(), 105);
+        let committed: Vec<i64> = emissions
+            .iter()
+            .filter(|e| e.is_committed())
+            .flat_map(|e| e.segment().tokens.clone())
+            .collect();
+        assert_eq!(
+            ctx.transcript(),
+            &committed[..],
+            "the transcript is what was committed"
+        );
+        emissions
+    }
+
+    /// With timestamps on, a window's decode is split on its consecutive
+    /// timestamps into segments on the clock, and the seek advances to the
+    /// last closed timestamp rather than a whole window: 105 frames at 10
+    /// per decode is 11 decodes, 22 segments, each 4 frames long.
+    #[test]
+    #[serial]
+    fn test_timestamps_split_windows_into_segments() {
+        let device = Device::default();
+        let driver = timestamped(&device, CommitRule::Complete);
+        let tb = tiny_layout().timestamp_begin;
+        let hop = driver.mel().hop() as f64;
+        let frame = |f: f64| f * hop / SAMPLE_RATE as f64;
+        assert_eq!(driver.frames_per_timestamp(), 2);
+        assert_eq!(
+            driver.filters().len(),
+            2,
+            "the test's filter, then the rules appended by the driver"
+        );
+
+        let emissions = run_clip(&driver, &clip(), None);
+        assert_eq!(emissions.len(), 22);
+
+        for (k, e) in emissions.iter().enumerate() {
+            assert!(e.is_committed(), "Complete never drafts");
+            let s = e.segment();
+            let (window, which) = (k / 2, k % 2);
+            let seek = (window * 10) as f64;
+            let expected = if which == 0 {
+                (vec![tb + 1, 1, tb + 3], seek + 2.0, seek + 6.0)
+            } else {
+                (vec![tb + 3, 2, tb + 5], seek + 6.0, seek + 10.0)
+            };
+            assert_eq!(s.tokens, expected.0, "segment {k}");
+            assert!(
+                (s.start - frame(expected.1)).abs() < 1e-9,
+                "segment {k}: {s:?}"
+            );
+            assert!(
+                (s.end - frame(expected.2)).abs() < 1e-9,
+                "segment {k}: {s:?}"
+            );
+        }
+    }
+
+    /// **I8.** The same clip on a clock anchored at 100 s yields the same
+    /// segments, shifted by 100 s.
+    #[test]
+    #[serial]
+    fn test_segment_times_are_invariant_to_clock_origin() {
+        let device = Device::default();
+        let driver = timestamped(&device, CommitRule::Complete);
+        let audio = clip();
+
+        let base = run_clip(&driver, &audio, None);
+        let shifted = run_clip(&driver, &audio, Some(100.0));
+        assert_eq!(base.len(), shifted.len());
+        for (a, b) in base.iter().zip(&shifted) {
+            assert_eq!(a.segment().tokens, b.segment().tokens);
+            assert!((b.segment().start - a.segment().start - 100.0).abs() < 1e-9);
+            assert!((b.segment().end - a.segment().end - 100.0).abs() < 1e-9);
+        }
+    }
+
+    /// Under `LastTimestamp` the unfinished tail of a window is emitted as
+    /// a draft opening on its timestamp, and what is committed is exactly
+    /// what `Complete` commits.
+    #[test]
+    #[serial]
+    fn test_last_timestamp_drafts_the_tail() {
+        let device = Device::default();
+        let audio = clip();
+        let complete = run_clip(&timestamped(&device, CommitRule::Complete), &audio, None);
+        let last = run_clip(
+            &timestamped(&device, CommitRule::LastTimestamp),
+            &audio,
+            None,
+        );
+
+        let committed: Vec<&Emission> = last.iter().filter(|e| e.is_committed()).collect();
+        assert_eq!(committed.len(), complete.len());
+        for (a, b) in committed.iter().zip(&complete) {
+            assert_eq!(a.segment(), b.segment());
+        }
+
+        let tb = tiny_layout().timestamp_begin;
+        let drafts: Vec<&Emission> = last.iter().filter(|e| !e.is_committed()).collect();
+        // One per decode, except the last: its 5 frames end before the
+        // tail's timestamp at frame 10, so there is nothing to draft yet.
+        assert_eq!(drafts.len(), 10);
+        for draft in drafts {
+            let s = draft.segment();
+            assert_eq!(s.tokens, vec![tb + 5, 3], "the reopened tail");
+            assert!(s.start <= s.end);
+        }
+    }
+
+    /// A multilingual driver given no language detects it from the first
+    /// window: on a layout with one language, that one, and the stream then
+    /// decodes exactly as one configured with it. Solo and batched agree.
+    #[test]
+    #[serial]
+    fn test_language_is_detected_per_stream() {
+        let device = Device::default();
+        let detecting = WhisperDriverConfig::new()
+            .with_max_tokens(4)
+            .init_with_policy(
+                tiny_model(&device),
+                TokenPolicy::new(tiny_layout()),
+                &device,
+            )
+            .unwrap();
+        assert!(detecting.detects_language());
+        assert!(detecting.prompt().is_empty());
+        let only = crate::kits::speech::whisper::tokens::LANGUAGES[0];
+        assert_eq!(only, "en");
+
+        let audio = clip();
+        let mut solo = detecting.new_context(clock(), PerWindow).unwrap();
+        assert_eq!(solo.language(), None);
+        let mut expected = solo.push(&audio).unwrap();
+        expected.extend(solo.flush().unwrap());
+        assert_eq!(solo.language(), Some(only));
+
+        // The same as configuring it.
+        let configured = driver(&device, false);
+        assert_eq!(run_clip(&configured, &audio, None), expected);
+
+        // Batched: fed, then advanced together.
+        let mut batch = vec![
+            detecting.new_context(clock(), PerWindow).unwrap(),
+            detecting.new_context(clock(), PerWindow).unwrap(),
+        ];
+        for ctx in &mut batch {
+            ctx.feed(&audio).unwrap();
+            ctx.end_input().unwrap();
+        }
+        let out = advance_ready(&detecting, &mut batch).unwrap();
+        assert_eq!(out[0], expected);
+        assert_eq!(out[1], expected);
+        assert_eq!(batch[1].language(), Some(only));
+    }
+
     /// The configuration refuses what this slice cannot do, with a reason,
     /// and refuses a mismatched language.
     #[test]
@@ -1336,17 +1663,18 @@ mod tests {
             base.init_with_policy(tiny_model(&device), policy, &device)
                 .is_ok()
         );
+        // Multilingual without a language detects it per stream.
         assert!(
             WhisperDriverConfig::new()
                 .init_with_policy(tiny_model(&device), policy, &device)
-                .is_err(),
-            "multilingual without a language",
+                .unwrap()
+                .detects_language()
         );
         assert!(
             base.clone()
                 .with_timestamps(true)
                 .init_with_policy(tiny_model(&device), policy, &device)
-                .is_err()
+                .is_ok()
         );
         assert!(
             base.clone()

@@ -42,6 +42,7 @@ pub mod gate;
 pub mod mel;
 pub mod pretrained;
 pub mod regions;
+pub mod segments;
 pub mod text;
 pub mod tokens;
 pub mod vocab;
@@ -69,6 +70,7 @@ pub use gate::*;
 pub use mel::*;
 #[doc(inline)]
 pub use regions::*;
+pub use segments::*;
 #[doc(inline)]
 pub use tokens::*;
 #[doc(inline)]

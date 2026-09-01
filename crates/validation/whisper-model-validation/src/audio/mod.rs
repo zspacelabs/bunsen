@@ -193,6 +193,22 @@ impl Reference {
             .map(|w| w.tokens.clone())
             .collect()
     }
+
+    /// The timestamped reference decode as one string, windows joined in
+    /// order.
+    fn timestamped_text(&self) -> String {
+        join_windows(&self.with_timestamps.windows)
+    }
+
+    /// The timestamped reference decode's ids, per window, timestamp tokens
+    /// included.
+    pub(crate) fn timestamped_tokens(&self) -> Vec<Vec<i64>> {
+        self.with_timestamps
+            .windows
+            .iter()
+            .map(|w| w.tokens.clone())
+            .collect()
+    }
 }
 
 /// Windows' text as one string, joined in order.

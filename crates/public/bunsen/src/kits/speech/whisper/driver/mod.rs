@@ -62,6 +62,7 @@ use crate::{
                 clamp::ClampPolicy,
                 clock::TimestampHistory,
                 decode::{
+                    ApplyTimestampRules,
                     DecodeConfig,
                     LogitFilter,
                 },
@@ -69,6 +70,8 @@ use crate::{
                 gate::SpeechGateConfig,
                 mel::mel_options,
                 tokens::{
+                    TIMESTAMP_STEP_SAMPLES,
+                    TIMESTAMP_STEP_SECONDS,
                     Task,
                     TokenPolicy,
                 },
@@ -76,7 +79,10 @@ use crate::{
         },
         tokens::Detokenizer,
     },
-    ops::signal::mels::MelConverter,
+    ops::signal::mels::{
+        MelConverter,
+        MelConverterMeta,
+    },
 };
 
 /// The sample rate Whisper's front end is defined at, in Hz.
@@ -92,9 +98,10 @@ pub struct WhisperDriverConfig {
     /// The language of the speech, as a [`LANGUAGES`](super::tokens::LANGUAGES)
     /// code.
     ///
-    /// Required for a multilingual checkpoint, until language detection
-    /// arrives; must be `None` for an English-only one, which takes no
-    /// language token.
+    /// `None` on a multilingual checkpoint detects the language per stream
+    /// from its first decoded window, as upstream's `transcribe()` does;
+    /// must be `None` for an English-only one, which takes no language
+    /// token.
     #[config(default = "None")]
     pub language: Option<String>,
 
@@ -103,9 +110,16 @@ pub struct WhisperDriverConfig {
     #[config(default = "Task::Transcribe")]
     pub task: Task,
 
-    /// Let the model emit timestamp tokens. Not supported yet; must be off.
+    /// Let the model emit timestamp tokens, under upstream's timestamp
+    /// rules. Emissions are then split on them, and the seek pointer
+    /// advances to the last closed timestamp rather than a whole window.
     #[config(default = "false")]
     pub timestamps: bool,
+
+    /// Under `timestamps`, the latest time the first timestamp of a window
+    /// may name, in seconds; upstream's default is one second.
+    #[config(default = "Some(1.0)")]
+    pub max_initial_timestamp: Option<f64>,
 
     /// Cap on tokens generated per window.
     #[config(default = "224")]
@@ -177,29 +191,29 @@ impl WhisperDriverConfig {
             model.vocab_size(),
         );
 
-        let (language, task) = if ids.is_multilingual() {
-            let language = self.language.as_deref().ok_or_else(|| {
-                BunsenError::Invalid(
-                    "a multilingual checkpoint needs a language; detection is not supported yet"
-                        .to_string(),
-                )
-            })?;
-            (Some(language), Some(self.task))
-        } else {
-            if self.language.is_some() {
-                return Err(BunsenError::Invalid(
-                    "an English-only checkpoint takes no language".to_string(),
-                ));
-            }
-            (None, None)
-        };
-
-        if self.timestamps {
+        if !ids.is_multilingual() && self.language.is_some() {
             return Err(BunsenError::Invalid(
-                "timestamps are not supported yet".to_string(),
+                "an English-only checkpoint takes no language".to_string(),
             ));
         }
-        let prompt = policy.sot_sequence(language, task, self.timestamps)?;
+        let task = ids.is_multilingual().then_some(self.task);
+        // A multilingual checkpoint with no language detects it per
+        // stream; its prompt is built when the language is known.
+        let prompt = match (ids.is_multilingual(), self.language.as_deref()) {
+            (true, None) => Vec::new(),
+            (_, language) => policy.sot_sequence(language, task, self.timestamps)?,
+        };
+        let max_initial_timestamp_index = self
+            .max_initial_timestamp
+            .map(|seconds| (seconds / TIMESTAMP_STEP_SECONDS).round() as usize);
+        let filters: Vec<Arc<dyn LogitFilter<B>>> = if self.timestamps {
+            vec![Arc::new(ApplyTimestampRules::new(
+                ids,
+                max_initial_timestamp_index,
+            ))]
+        } else {
+            Vec::new()
+        };
 
         let triggers = &self.emission.triggers;
         if !triggers.window_full && !triggers.endpoint {
@@ -235,11 +249,15 @@ impl WhisperDriverConfig {
             vad: None,
             policy,
             prompt,
+            language: self.language.clone(),
+            task,
+            timestamps: self.timestamps,
+            max_initial_timestamp_index,
             max_tokens: self.max_tokens,
             beam_size: self.beam_size,
             patience: self.patience,
             length_penalty: self.length_penalty,
-            filters: Vec::new(),
+            filters,
             carry_prompt: self.condition_on_previous_text,
             emission: self.emission.clone(),
             gate: None,
@@ -263,8 +281,18 @@ pub struct WhisperDriver<B: Backend> {
 
     policy: TokenPolicy,
 
-    /// The sot sequence every window's decode opens with.
+    /// The sot sequence every window's decode opens with; empty when the
+    /// language is detected per stream.
     prompt: Vec<i64>,
+
+    language: Option<String>,
+
+    /// The task token's meaning; `None` for an English-only layout.
+    task: Option<Task>,
+
+    timestamps: bool,
+
+    max_initial_timestamp_index: Option<usize>,
 
     max_tokens: usize,
 
@@ -274,7 +302,8 @@ pub struct WhisperDriver<B: Backend> {
 
     length_penalty: Option<f64>,
 
-    /// Applied to the logits every step, in order.
+    /// Applied to the logits every step, in order: the caller's, then the
+    /// timestamp rules when timestamps are on.
     filters: Vec<Arc<dyn LogitFilter<B>>>,
 
     carry_prompt: bool,
@@ -300,12 +329,19 @@ impl<B: Backend> WhisperDriver<B> {
     /// Sets the logit filters every decode applies, in order, replacing
     /// any set before. Upstream's defaults are
     /// [`default_filters`](super::decode::default_filters), which need the
-    /// vocabulary and so are not built here.
+    /// vocabulary and so are not built here. Under `timestamps` the
+    /// timestamp rules are appended, as upstream applies them last.
     pub fn with_logit_filters(
         mut self,
         filters: Vec<Arc<dyn LogitFilter<B>>>,
     ) -> Self {
         self.filters = filters;
+        if self.timestamps {
+            self.filters.push(Arc::new(ApplyTimestampRules::new(
+                self.policy.ids(),
+                self.max_initial_timestamp_index,
+            )));
+        }
         self
     }
 
@@ -377,6 +413,41 @@ impl<B: Backend> WhisperDriver<B> {
     /// The logit filters every decode applies.
     pub fn filters(&self) -> &[Arc<dyn LogitFilter<B>>] {
         &self.filters
+    }
+
+    /// Whether decodes are prompted for timestamps.
+    pub fn timestamps(&self) -> bool {
+        self.timestamps
+    }
+
+    /// The configured language, if any.
+    pub fn language(&self) -> Option<&str> {
+        self.language.as_deref()
+    }
+
+    /// The task; `None` for an English-only layout.
+    pub fn task(&self) -> Option<Task> {
+        self.task
+    }
+
+    /// Whether streams detect their language from their first window.
+    pub fn detects_language(&self) -> bool {
+        self.prompt.is_empty()
+    }
+
+    /// The sot sequence for `language`, under this driver's task and
+    /// timestamp setting.
+    pub fn sot_sequence(
+        &self,
+        language: Option<&str>,
+    ) -> BunsenResult<Vec<i64>> {
+        self.policy
+            .sot_sequence(language, self.task, self.timestamps)
+    }
+
+    /// Mel frames per timestamp index: two.
+    pub fn frames_per_timestamp(&self) -> usize {
+        TIMESTAMP_STEP_SAMPLES / self.mel.hop()
     }
 
     /// The decode of one window under this driver, given its prompt.

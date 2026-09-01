@@ -9,6 +9,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- *(whisper)* Timestamps. `ApplyTimestampRules` is upstream's timestamp
+  grammar as a `LogitFilter`, its history clauses a pure function
+  (`forbidden`) tested clause by clause; `RestrictToLanguages` and
+  `Whisper::detect_language` are upstream's one-step language detection;
+  `Whisper::decode_features` decodes from encoder output already in hand.
+  `kits::speech::whisper::segments::split_window` is the seek loop's
+  splitting as a pure function: consecutive timestamps close segments, a
+  lone final timestamp takes the whole window, otherwise the seek advances
+  to the last closed timestamp and the unfinished tail is decoded again.
+  The driver accepts `timestamps` (with `max_initial_timestamp`, default one
+  second) and, on a multilingual checkpoint, `language: None`, detecting
+  the language per stream from its first window. Under timestamps a decode
+  commits one segment per closed pair on the stream's clock and the seek
+  advances by timestamps; `CommitRule::LastTimestamp` emits the unfinished
+  tail as a draft first. Pinned through the validation crate: fixed windows
+  with timestamps and the whole-clip seek loop against `transcribe()`'s
+  segments and times, and detection saying `en`.
 - *(whisper)* `kits::speech::whisper::decode` is now a directory module with
   the search behind two seams. `TokenDecoder` is the search (`GreedyDecoder`,
   and `BeamSearchDecoder`, upstream's beam search: candidates deduplicated

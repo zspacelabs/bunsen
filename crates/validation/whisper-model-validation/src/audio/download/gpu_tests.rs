@@ -1,8 +1,12 @@
 use bunsen::{
     kits::speech::whisper::{
+        ApplyTimestampRules,
         DecodeConfig,
         GreedyDecodeConfig,
+        MaxSeen,
         Task,
+        TimestampHistory,
+        WhisperDriverConfig,
         default_filters,
         mel_windows,
     },
@@ -32,11 +36,13 @@ use crate::{
     audio::{
         FIXTURES,
         Reference,
+        SAMPLE_RATE,
         Vocab,
         bunsen_model,
         clip_mels,
         report,
         report_id_diff,
+        samples,
         to_text,
         transcript,
         vocab,
@@ -412,6 +418,169 @@ fn test_bunsen_beam_agrees_with_openai_reference() {
                 wer,
                 fixture.max_reference_wer,
             ),
+        );
+    }
+}
+
+/// **The timestamp gate.** Fixed windows prompted for timestamps, under
+/// upstream's default filters and its timestamp rules, decode to the
+/// timestamped reference: the rules' every clause, on real logits.
+#[test]
+fn test_bunsen_timestamps_agree_with_openai_reference() {
+    let device: Device<B> = Default::default();
+    let table = vocab();
+    let model = bunsen_model::<B>(&device);
+    let ids = table.policy.ids();
+    let prompt = table
+        .policy
+        .sot_sequence(Some("en"), Some(Task::Transcribe), true)
+        .expect("a multilingual layout");
+    let config = DecodeConfig::new(prompt, ids.eot);
+    let mut filters = default_filters::<B>(&table.ranks, ids);
+    filters.push(std::sync::Arc::new(ApplyTimestampRules::new(ids, Some(50))));
+
+    for fixture in FIXTURES {
+        let reference = Reference::load(fixture.name);
+        let mine = decode_filtered(&model, clip_mels(fixture.name, &device), &config, &filters);
+        report_id_diff(
+            "openai-timestamps",
+            fixture.name,
+            &mine,
+            &reference.timestamped_tokens(),
+        );
+
+        let got = to_text(&table, &mine);
+        let want = reference.timestamped_text();
+        let wer = text_error_rate(&got, &want);
+
+        eprintln!(
+            "{}: bunsen (timestamps) WER vs openai-whisper {wer:.4}",
+            fixture.name
+        );
+        assert!(
+            wer <= fixture.max_reference_wer,
+            "{}",
+            report(
+                "openai-timestamps",
+                fixture.name,
+                &got,
+                &want,
+                wer,
+                fixture.max_reference_wer,
+            ),
+        );
+    }
+}
+
+/// **The seek-loop gate.** The driver, offline with timestamps and the
+/// prompt carry, over the whole clip in one push: the segments
+/// `transcribe()` produced, with their times, through a stream clock from
+/// zero.
+#[test]
+fn test_bunsen_driver_transcribes_like_openai() {
+    let device: Device<B> = Default::default();
+    let table = vocab();
+    let driver = WhisperDriverConfig::new()
+        .with_language(Some("en".to_string()))
+        .with_timestamps(true)
+        .init_with_policy(bunsen_model::<B>(&device), table.policy, &device)
+        .expect("a multilingual layout with a language")
+        .with_logit_filters(default_filters::<B>(&table.ranks, table.policy.ids()));
+
+    for fixture in FIXTURES {
+        let reference = Reference::load(fixture.name);
+        let mut ctx = driver
+            .new_context(TimestampHistory::uniform(SAMPLE_RATE), MaxSeen::new())
+            .expect("a stream at the model's rate");
+        let mut emissions = ctx.push(&samples(fixture.name)).expect("the push decodes");
+        emissions.extend(ctx.flush().expect("the flush decodes"));
+
+        let mine: Vec<Vec<i64>> = emissions
+            .iter()
+            .map(|e| e.segment().tokens.clone())
+            .collect();
+        let theirs: Vec<Vec<i64>> = reference
+            .transcribe
+            .segments
+            .iter()
+            .map(|s| s.tokens.clone())
+            .collect();
+        report_id_diff("openai-transcribe", fixture.name, &mine, &theirs);
+        for (i, (e, s)) in emissions
+            .iter()
+            .zip(&reference.transcribe.segments)
+            .enumerate()
+        {
+            let (a, b) = (e.segment().start, e.segment().end);
+            eprintln!(
+                "{}: segment {i}: bunsen {a:.2}-{b:.2} vs openai {:.2}-{:.2}",
+                fixture.name, s.start, s.end
+            );
+        }
+
+        let got = to_text(&table, &mine);
+        let want = reference.transcribe.text.clone();
+        let wer = text_error_rate(&got, &want);
+        eprintln!(
+            "{}: bunsen (driver) WER vs openai transcribe() {wer:.4}",
+            fixture.name
+        );
+        assert!(
+            wer <= fixture.max_reference_wer,
+            "{}",
+            report(
+                "openai-transcribe",
+                fixture.name,
+                &got,
+                &want,
+                wer,
+                fixture.max_reference_wer,
+            ),
+        );
+
+        assert_eq!(
+            emissions.len(),
+            reference.transcribe.segments.len(),
+            "{}: segment count",
+            fixture.name
+        );
+        for (i, (e, s)) in emissions
+            .iter()
+            .zip(&reference.transcribe.segments)
+            .enumerate()
+        {
+            assert!(e.is_committed(), "offline commits everything");
+            assert!(
+                (e.segment().start - s.start).abs() < 1e-6
+                    && (e.segment().end - s.end).abs() < 1e-6,
+                "{}: segment {i} times: {:.4}-{:.4} vs {:.4}-{:.4}",
+                fixture.name,
+                e.segment().start,
+                e.segment().end,
+                s.start,
+                s.end,
+            );
+        }
+    }
+}
+
+/// **Language detection.** One step over `<|startoftranscript|>` with only
+/// the language block to choose from says the clip is English.
+#[test]
+fn test_bunsen_detects_the_language() {
+    let device: Device<B> = Default::default();
+    let table = vocab();
+    let model = bunsen_model::<B>(&device);
+
+    for fixture in FIXTURES {
+        let windows = mel_windows(clip_mels(fixture.name, &device), N_FRAMES);
+        let xa = model.forward_encoder(windows[0].clone());
+        let token = model.detect_language(xa, table.policy.ids())[0];
+        assert_eq!(
+            table.policy.ids().language_code(token),
+            Some("en"),
+            "{}",
+            fixture.name
         );
     }
 }

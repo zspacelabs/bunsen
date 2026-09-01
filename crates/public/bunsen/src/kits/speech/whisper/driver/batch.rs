@@ -65,11 +65,13 @@ pub fn advance_ready<B: Backend>(
         for (i, ctx) in contexts.iter_mut().enumerate() {
             ctx.skip_silence();
             if let Some(unit) = ctx.next_due() {
+                let frames = ctx.frames_at(&unit);
+                ctx.ensure_language(&frames);
                 pending.push(Some(Pending {
                     context: i,
                     unit,
                     prompt: ctx.prompt_now(),
-                    window: ctx.package_padded(ctx.frames_at(&unit)),
+                    window: ctx.package_padded(frames),
                 }));
             }
         }
@@ -102,7 +104,7 @@ pub fn advance_ready<B: Backend>(
             for (row, k) in members.into_iter().enumerate() {
                 let item = pending[k].take().expect("taken once");
                 out[item.context]
-                    .push(contexts[item.context].commit_due(item.unit, tokens[row].clone())?);
+                    .extend(contexts[item.context].commit_due(item.unit, tokens[row].clone())?);
             }
         }
     }

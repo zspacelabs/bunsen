@@ -35,9 +35,12 @@ use burn::{
 };
 
 use crate::{
-    kits::speech::whisper::blocks::{
-        Whisper,
-        WhisperMeta,
+    kits::speech::whisper::{
+        blocks::{
+            Whisper,
+            WhisperMeta,
+        },
+        tokens::WhisperSpecialIds,
     },
     ops::{
         repeat::repeat_interleave,
@@ -52,7 +55,9 @@ mod rank;
 
 pub use beam::BeamSearchDecoder;
 pub use filters::{
+    ApplyTimestampRules,
     LogitFilter,
+    RestrictToLanguages,
     SuppressBlank,
     SuppressTokens,
     blank_token,
@@ -254,6 +259,36 @@ impl<B: Backend> Whisper<B> {
             self.max_audio_ctx(),
             "window must be the model's audio context width",
         );
+        let xa = self.forward_encoder(mels);
+        self.decode_features_with(xa, config, decoder, filters)
+    }
+
+    /// [`Self::decode_windows`] from the encoder's output, for a caller
+    /// that has already run [`Whisper::forward_encoder`] and wants to use
+    /// its features twice, as language detection does.
+    ///
+    /// # Arguments
+    /// * `xa` - `[batch, positions, d_model]`, one row per audio.
+    pub fn decode_features(
+        &self,
+        xa: Tensor<B, 3>,
+        config: &DecodeConfig,
+        filters: &[Arc<dyn LogitFilter<B>>],
+    ) -> Vec<Vec<i64>> {
+        let mut decoder = config.decoder::<B>();
+        self.decode_features_with(xa, config, decoder.as_mut(), filters)
+    }
+
+    /// [`Self::decode_features`] with an explicit search.
+    pub fn decode_features_with(
+        &self,
+        xa: Tensor<B, 3>,
+        config: &DecodeConfig,
+        decoder: &mut dyn TokenDecoder<B>,
+        filters: &[Arc<dyn LogitFilter<B>>],
+    ) -> Vec<Vec<i64>> {
+        let n_audio = xa.dims()[0];
+        assert!(n_audio > 0, "decode needs at least one row");
         assert!(!config.prompt.is_empty(), "prompt must not be empty");
 
         decoder.reset();
@@ -261,8 +296,8 @@ impl<B: Backend> Whisper<B> {
         let rows = n_audio * k;
         let prompt_len = config.prompt.len();
 
-        let device = mels.device();
-        let mut xa = self.forward_encoder(mels);
+        let device = xa.device();
+        let mut xa = xa;
         if k > 1 {
             xa = repeat_interleave::<B, 3, 4, _>(xa, k, 0);
         }
@@ -316,6 +351,29 @@ impl<B: Backend> Whisper<B> {
                     .expect("the ranker picked a candidate")
                     .0
             })
+            .collect()
+    }
+
+    /// Detects the language of each audio: upstream's `detect_language`,
+    /// one decoder step over `<|startoftranscript|>` restricted to the
+    /// language block.
+    ///
+    /// # Arguments
+    /// * `xa` - the encoder's output, one row per audio.
+    /// * `ids` - a multilingual layout.
+    ///
+    /// # Returns
+    /// The language token per audio.
+    pub fn detect_language(
+        &self,
+        xa: Tensor<B, 3>,
+        ids: &WhisperSpecialIds,
+    ) -> Vec<i64> {
+        let config = DecodeConfig::new(vec![ids.sot], ids.eot).with_max_tokens(1);
+        let filters: [Arc<dyn LogitFilter<B>>; 1] = [Arc::new(RestrictToLanguages::new(ids))];
+        self.decode_features(xa, &config, &filters)
+            .into_iter()
+            .map(|row| row[0])
             .collect()
     }
 
