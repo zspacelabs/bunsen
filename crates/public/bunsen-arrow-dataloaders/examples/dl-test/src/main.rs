@@ -6,6 +6,7 @@ use std::{
     },
 };
 
+use bunsen::support::testing::PerformanceBackend;
 use bunsen_arrow_dataloaders::{
     dataloaders::chat::ChatDataLoader,
     tokens::{
@@ -13,12 +14,9 @@ use bunsen_arrow_dataloaders::{
         TokenBatchIteratorOptions,
     },
 };
-use burn::{
-    backend::Cuda,
-    tensor::{
-        AsIndex,
-        Slice,
-    },
+use burn::tensor::{
+    AsIndex,
+    Slice,
 };
 use clap::Parser;
 use rand::{
@@ -151,7 +149,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         eos: vec![],
     };
 
-    type B = Cuda;
+    type B = PerformanceBackend;
 
     let device = Default::default();
 
