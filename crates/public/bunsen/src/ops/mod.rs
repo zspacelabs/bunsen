@@ -42,7 +42,8 @@
 //!   dimension, mirroring `NumPy` / `PyTorch` semantics.
 //! - [`split`] &mdash; `split_padded()` cuts a (negatively indexable) dimension
 //!   into equal chunks, zero-padding the last one so every chunk has the same
-//!   width.
+//!   width; `window_padded()` does the same cut but keeps the chunks in one
+//!   tensor, as an extra window axis.
 //!
 //! ### Convolution support
 //! - [`conv`] &mdash; everything around convolution that isn't a trainable
