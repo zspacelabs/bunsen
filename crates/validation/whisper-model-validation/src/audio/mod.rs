@@ -36,12 +36,13 @@ use bunsen::{
     kits::{
         speech::whisper::{
             Task,
+            TiktokenRanks,
             TokenPolicy,
             Whisper,
             mel_options,
             package_mels,
             pretrained::bundled,
-            text::load_detokenizer,
+            text::detokenizer,
         },
         tokens::{
             Detokenizer,
@@ -178,6 +179,20 @@ impl Reference {
     pub(crate) fn window_tokens(&self) -> Vec<Vec<i64>> {
         self.windows.iter().map(|w| w.tokens.clone()).collect()
     }
+
+    /// The beam-5 reference decode as one string, windows joined in order.
+    fn beam5_text(&self) -> String {
+        join_windows(&self.beam5.windows)
+    }
+
+    /// The beam-5 reference decode's ids, per window.
+    pub(crate) fn beam5_tokens(&self) -> Vec<Vec<i64>> {
+        self.beam5
+            .windows
+            .iter()
+            .map(|w| w.tokens.clone())
+            .collect()
+    }
 }
 
 /// Windows' text as one string, joined in order.
@@ -207,6 +222,7 @@ fn transcript(name: &str) -> String {
 pub struct Vocab {
     pub(crate) policy: TokenPolicy,
     pub(crate) detokenizer: WordchipperDetokenizer<u16>,
+    pub(crate) ranks: TiktokenRanks,
 }
 
 impl Vocab {
@@ -224,11 +240,13 @@ impl Vocab {
 /// The shared vocabulary, for turning ids into text.
 fn vocab() -> Vocab {
     let policy = TokenPolicy::from_vocab_size(N_VOCAB).expect("a Whisper vocabulary size");
-    let detokenizer = load_detokenizer(bundled::multilingual_tiktoken(), policy.ids())
+    let ranks = TiktokenRanks::load(bundled::multilingual_tiktoken())
         .expect("the vocabulary failed to load");
+    let decoder = detokenizer(&ranks, policy.ids()).expect("the vocabulary failed to load");
     Vocab {
         policy,
-        detokenizer,
+        detokenizer: decoder,
+        ranks,
     }
 }
 

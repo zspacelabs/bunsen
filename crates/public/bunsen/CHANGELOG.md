@@ -9,6 +9,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- *(whisper)* `kits::speech::whisper::decode` is now a directory module with
+  the search behind two seams. `TokenDecoder` is the search (`GreedyDecoder`,
+  and `BeamSearchDecoder`, upstream's beam search: candidates deduplicated
+  by full sequence, a finished set capped by `patience`, and the
+  self-attention cache permuted through the new `TextDecoderCache::reorder`
+  while the cross-attention cache stays put); `LogitFilter` is what it may
+  not pick (`SuppressTokens`, `SuppressBlank`, and `default_filters`, which
+  derives upstream's default suppress list from the rank file alone, pinned
+  against `whisper.tokenizer` for both vocabularies); `SequenceRanker` and
+  `MaximumLikelihoodRanker` pick the winner. `DecodeConfig` and
+  `Whisper::decode_windows` drive it; `GreedyDecodeConfig` and the
+  `decode_window*` methods are unchanged and decode exactly as before. The
+  driver takes `beam_size`, `patience` and `length_penalty`, and
+  `WhisperDriver::with_logit_filters`; it is no longer a `Module` (it holds
+  backend-typed policy objects, which the derive cannot carry) but stays
+  `Clone`.
 - *(whisper)* `kits::speech::whisper::tokens` — the token layer, with no
   dependency. `WhisperSpecialIds` derives every special id (`eot`, `sot`, the
   language block, task and control tokens, the 1501 timestamps) from the

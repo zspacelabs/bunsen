@@ -59,7 +59,6 @@ use crate::{
             blocks::WhisperMeta,
             clamp::ClampPolicy,
             clock::TimestampHistory,
-            decode::GreedyDecodeConfig,
             driver::{
                 SAMPLE_RATE,
                 WhisperDriver,
@@ -603,11 +602,12 @@ impl<B: Backend> WhisperStreamContext<B> {
         &self,
         window: Tensor<B, 3>,
     ) -> Vec<i64> {
-        let config = GreedyDecodeConfig::new(self.prompt_now(), self.driver.policy().ids().eot)
-            .with_max_tokens(self.driver.max_tokens());
+        let config = self.driver.decode_config(self.prompt_now());
         self.driver
             .model()
-            .decode_window(self.package_padded(window), &config)
+            .decode_windows(self.package_padded(window), &config, self.driver.filters())
+            .pop()
+            .expect("one row in, one row out")
     }
 
     /// The prompt for the next window: the sot sequence, preceded by the
@@ -773,6 +773,7 @@ mod tests {
                     MaxSeen,
                     PerWindow,
                 },
+                decode::GreedyDecodeConfig,
                 driver::{
                     SAMPLE_RATE,
                     WhisperDriverConfig,

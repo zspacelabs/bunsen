@@ -19,7 +19,6 @@ use burn::{
 use crate::{
     errors::BunsenResult,
     kits::speech::whisper::{
-        decode::GreedyDecodeConfig,
         driver::{
             WhisperDriver,
             WhisperStreamContext,
@@ -95,9 +94,10 @@ pub fn advance_ready<B: Backend>(
                 .collect();
             let batch = Tensor::cat(windows, 0);
 
-            let config = GreedyDecodeConfig::new(prompt, driver.policy().ids().eot)
-                .with_max_tokens(driver.max_tokens());
-            let tokens = driver.model().decode_window_batched(batch, &config);
+            let config = driver.decode_config(prompt);
+            let tokens = driver
+                .model()
+                .decode_windows(batch, &config, driver.filters());
 
             for (row, k) in members.into_iter().enumerate() {
                 let item = pending[k].take().expect("taken once");

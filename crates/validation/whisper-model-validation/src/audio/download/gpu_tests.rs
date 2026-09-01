@@ -1,7 +1,10 @@
 use bunsen::{
     kits::speech::whisper::{
+        DecodeConfig,
         GreedyDecodeConfig,
         Task,
+        default_filters,
+        mel_windows,
     },
     prelude::TensorElemOpExt,
     support::testing::{
@@ -300,6 +303,114 @@ fn test_bunsen_accuracy_against_transcript() {
                 &want,
                 wer,
                 fixture.max_wer
+            ),
+        );
+    }
+}
+
+/// One window's decode under `config` and `filters`, per window of the clip.
+fn decode_filtered(
+    model: &bunsen::kits::speech::whisper::Whisper<B>,
+    mels: Tensor<B, 3>,
+    config: &DecodeConfig,
+    filters: &[std::sync::Arc<dyn bunsen::kits::speech::whisper::LogitFilter<B>>],
+) -> Vec<Vec<i64>> {
+    mel_windows(mels, N_FRAMES)
+        .into_iter()
+        .map(|window| {
+            model
+                .decode_windows(window, config, filters)
+                .pop()
+                .expect("one row in, one row out")
+        })
+        .collect()
+}
+
+/// **The filtered gate.** `openai-whisper` decodes under two filters by
+/// default, `suppress_blank` and `suppress_tokens=-1`; bunsen under the
+/// same filters, derived from the rank file alone, must still decode what
+/// the reference decodes.
+#[test]
+fn test_bunsen_agrees_with_openai_reference_under_default_filters() {
+    let device: Device<B> = Default::default();
+    let table = vocab();
+    let model = bunsen_model::<B>(&device);
+    let config = DecodeConfig::from(&decode_config(&table));
+    let filters = default_filters::<B>(&table.ranks, table.policy.ids());
+
+    for fixture in FIXTURES {
+        let reference = Reference::load(fixture.name);
+        let mine = decode_filtered(&model, clip_mels(fixture.name, &device), &config, &filters);
+        report_id_diff(
+            "openai-reference-filtered",
+            fixture.name,
+            &mine,
+            &reference.window_tokens(),
+        );
+
+        let got = to_text(&table, &mine);
+        let want = reference.text();
+        let wer = text_error_rate(&got, &want);
+
+        eprintln!(
+            "{}: bunsen (filtered) WER vs openai-whisper {wer:.4}",
+            fixture.name
+        );
+        assert!(
+            wer <= fixture.max_reference_wer,
+            "{}",
+            report(
+                "openai-reference-filtered",
+                fixture.name,
+                &got,
+                &want,
+                wer,
+                fixture.max_reference_wer,
+            ),
+        );
+    }
+}
+
+/// **The beam gate** (I7 at width five). With upstream's default filters
+/// and five beams, bunsen must decode what `openai-whisper` decodes with
+/// `beam_size=5`: the same candidates, deduplicated, ranked and finished
+/// the same way.
+#[test]
+fn test_bunsen_beam_agrees_with_openai_reference() {
+    let device: Device<B> = Default::default();
+    let table = vocab();
+    let model = bunsen_model::<B>(&device);
+    let config = DecodeConfig::from(&decode_config(&table)).with_beam_size(5);
+    let filters = default_filters::<B>(&table.ranks, table.policy.ids());
+
+    for fixture in FIXTURES {
+        let reference = Reference::load(fixture.name);
+        let mine = decode_filtered(&model, clip_mels(fixture.name, &device), &config, &filters);
+        report_id_diff(
+            "openai-beam5",
+            fixture.name,
+            &mine,
+            &reference.beam5_tokens(),
+        );
+
+        let got = to_text(&table, &mine);
+        let want = reference.beam5_text();
+        let wer = text_error_rate(&got, &want);
+
+        eprintln!(
+            "{}: bunsen beam-5 WER vs openai-whisper beam-5 {wer:.4}",
+            fixture.name
+        );
+        assert!(
+            wer <= fixture.max_reference_wer,
+            "{}",
+            report(
+                "openai-beam5",
+                fixture.name,
+                &got,
+                &want,
+                wer,
+                fixture.max_reference_wer,
             ),
         );
     }

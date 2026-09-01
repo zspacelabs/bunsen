@@ -19,6 +19,7 @@ use burn::{
         Bool,
         Distribution,
         Int,
+        TensorData,
     },
 };
 
@@ -400,6 +401,48 @@ impl<B: Backend> TextDecoderCache<B> {
             *kv = None;
         }
         self.pos = 0;
+    }
+
+    /// Permutes the rows of the self-attention cache: row `r` becomes what
+    /// row `sources[r]` was. A source may appear more than once, which
+    /// duplicates that row; that is how a beam search branches.
+    ///
+    /// The cross-attention cache is left alone. Its rows are identical across
+    /// the beams of one audio, so permuting them within a group would be a
+    /// no-op that copies the bulk of the cache for nothing; a permutation
+    /// that crossed audio groups would be a caller error.
+    ///
+    /// # Panics
+    /// If `sources` is not one entry per cached row.
+    pub fn reorder(
+        &mut self,
+        sources: &[usize],
+    ) {
+        let Some(first) = self.self_kv.iter().flatten().next() else {
+            return;
+        };
+        assert_eq!(
+            sources.len(),
+            first.batch_size(),
+            "one source row per cached row",
+        );
+        if sources.iter().enumerate().all(|(r, &s)| r == s) {
+            return;
+        }
+
+        let device = first.key.device();
+        let indices: Tensor<B, 1, Int> = Tensor::from_data(
+            TensorData::new(
+                sources.iter().map(|&s| s as i64).collect::<Vec<_>>(),
+                [sources.len()],
+            ),
+            &device,
+        );
+
+        for kv in self.self_kv.iter_mut().flatten() {
+            kv.key = kv.key.clone().select(0, indices.clone());
+            kv.value = kv.value.clone().select(0, indices.clone());
+        }
     }
 }
 

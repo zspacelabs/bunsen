@@ -61,6 +61,10 @@ use crate::{
                 },
                 clamp::ClampPolicy,
                 clock::TimestampHistory,
+                decode::{
+                    DecodeConfig,
+                    LogitFilter,
+                },
                 emission::EmissionPolicy,
                 gate::SpeechGateConfig,
                 mel::mel_options,
@@ -106,6 +110,20 @@ pub struct WhisperDriverConfig {
     /// Cap on tokens generated per window.
     #[config(default = "224")]
     pub max_tokens: usize,
+
+    /// Beams per window; one is greedy.
+    #[config(default = "1")]
+    pub beam_size: usize,
+
+    /// Finished candidates a beam search collects before stopping, as a
+    /// multiple of the beam size; `None` is one.
+    #[config(default = "None")]
+    pub patience: Option<f64>,
+
+    /// The exponent of the ranker's length penalty; `None` normalizes by
+    /// length.
+    #[config(default = "None")]
+    pub length_penalty: Option<f64>,
 
     /// Prompt each window with the tail of the transcript so far, after
     /// `<|startofprev|>`, as upstream's `condition_on_previous_text` does.
@@ -197,6 +215,18 @@ impl WhisperDriverConfig {
             ));
         }
 
+        if self.beam_size == 0 {
+            return Err(BunsenError::Invalid(
+                "beam_size must be at least one".to_string(),
+            ));
+        }
+        if (self.beam_size as f64 * self.patience.unwrap_or(1.0)).round() < 1.0 {
+            return Err(BunsenError::Invalid(format!(
+                "a patience of {:?} with {} beams collects no candidates",
+                self.patience, self.beam_size
+            )));
+        }
+
         let mel = mel_options(SAMPLE_RATE, model.n_mels()).try_init(device)?;
 
         Ok(WhisperDriver {
@@ -206,6 +236,10 @@ impl WhisperDriverConfig {
             policy,
             prompt,
             max_tokens: self.max_tokens,
+            beam_size: self.beam_size,
+            patience: self.patience,
+            length_penalty: self.length_penalty,
+            filters: Vec::new(),
             carry_prompt: self.condition_on_previous_text,
             emission: self.emission.clone(),
             gate: None,
@@ -219,7 +253,7 @@ impl WhisperDriverConfig {
 ///
 /// Built by [`WhisperDriverConfig::init`]. Opens streams with
 /// [`new_context`](Self::new_context).
-#[derive(Module, Debug)]
+#[derive(Clone, Debug)]
 pub struct WhisperDriver<B: Backend> {
     model: Whisper<B>,
     mel: MelConverter<B>,
@@ -227,27 +261,29 @@ pub struct WhisperDriver<B: Backend> {
     /// The voice-activity model, when one was attached.
     vad: Option<SileroVad<B>>,
 
-    #[module(skip)]
     policy: TokenPolicy,
 
     /// The sot sequence every window's decode opens with.
-    #[module(skip)]
     prompt: Vec<i64>,
 
-    #[module(skip)]
     max_tokens: usize,
 
-    #[module(skip)]
+    beam_size: usize,
+
+    patience: Option<f64>,
+
+    length_penalty: Option<f64>,
+
+    /// Applied to the logits every step, in order.
+    filters: Vec<Arc<dyn LogitFilter<B>>>,
+
     carry_prompt: bool,
 
-    #[module(skip)]
     emission: EmissionPolicy,
 
     /// The gate's constants, when a VAD was attached.
-    #[module(skip)]
     gate: Option<SpeechGateConfig>,
 
-    #[module(skip)]
     detokenizer: Option<Arc<dyn Detokenizer>>,
 }
 
@@ -258,6 +294,18 @@ impl<B: Backend> WhisperDriver<B> {
         detokenizer: Arc<dyn Detokenizer>,
     ) -> Self {
         self.detokenizer = Some(detokenizer);
+        self
+    }
+
+    /// Sets the logit filters every decode applies, in order, replacing
+    /// any set before. Upstream's defaults are
+    /// [`default_filters`](super::decode::default_filters), which need the
+    /// vocabulary and so are not built here.
+    pub fn with_logit_filters(
+        mut self,
+        filters: Vec<Arc<dyn LogitFilter<B>>>,
+    ) -> Self {
+        self.filters = filters;
         self
     }
 
@@ -321,6 +369,28 @@ impl<B: Backend> WhisperDriver<B> {
         &self.emission
     }
 
+    /// Beams per window; one is greedy.
+    pub fn beam_size(&self) -> usize {
+        self.beam_size
+    }
+
+    /// The logit filters every decode applies.
+    pub fn filters(&self) -> &[Arc<dyn LogitFilter<B>>] {
+        &self.filters
+    }
+
+    /// The decode of one window under this driver, given its prompt.
+    pub fn decode_config(
+        &self,
+        prompt: Vec<i64>,
+    ) -> DecodeConfig {
+        DecodeConfig::new(prompt, self.policy.ids().eot)
+            .with_max_tokens(self.max_tokens)
+            .with_beam_size(self.beam_size)
+            .with_patience(self.patience)
+            .with_length_penalty(self.length_penalty)
+    }
+
     /// The detokenizer, if one was attached.
     pub fn detokenizer(&self) -> Option<&Arc<dyn Detokenizer>> {
         self.detokenizer.as_ref()
@@ -329,6 +399,11 @@ impl<B: Backend> WhisperDriver<B> {
     /// Frames per decode window: the model's audio context.
     pub fn window_frames(&self) -> usize {
         self.model.max_audio_ctx()
+    }
+
+    /// The devices the model lives on.
+    pub fn devices(&self) -> Vec<B::Device> {
+        self.model.devices()
     }
 
     /// Opens a stream.
