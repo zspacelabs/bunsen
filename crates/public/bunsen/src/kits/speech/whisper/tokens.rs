@@ -73,7 +73,7 @@ const CONTROL_TOKENS: [&str; 6] = [
 ];
 
 /// What the model is asked to do with the audio.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
 pub enum Task {
     /// Emit the speech in its own language.
     Transcribe,

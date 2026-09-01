@@ -35,7 +35,11 @@ use burn::{
 /// Decides the reference maximum a window is floored against.
 ///
 /// One reference per batch row, in the post-log domain: `[batch]`.
-pub trait ClampPolicy<B: Backend>: Send + Sync + Debug {
+///
+/// Implementors are `Clone`, through [`CloneClampPolicy`], because the
+/// stream context that holds one boxed is a `Module`, and a `Module` is
+/// `Clone`. Nothing else is asked of them.
+pub trait ClampPolicy<B: Backend>: Send + Sync + Debug + CloneClampPolicy<B> {
     /// Offers arriving frames to the policy. The arrival path, and the only
     /// place a policy may mutate.
     ///
@@ -60,6 +64,48 @@ pub trait ClampPolicy<B: Backend>: Send + Sync + Debug {
         &self,
         window: &Tensor<B, 3>,
     ) -> Tensor<B, 1>;
+}
+
+/// Clones a [`ClampPolicy`] behind its trait object.
+///
+/// Implemented for every `ClampPolicy + Clone`, so an implementor never
+/// writes it; it exists so that `Box<dyn ClampPolicy<B>>` is `Clone`, which a
+/// `Module` field must be.
+pub trait CloneClampPolicy<B: Backend> {
+    /// A boxed clone of `self`.
+    fn clone_box(&self) -> Box<dyn ClampPolicy<B>>;
+}
+
+impl<B: Backend, T: ClampPolicy<B> + Clone + 'static> CloneClampPolicy<B> for T {
+    fn clone_box(&self) -> Box<dyn ClampPolicy<B>> {
+        Box::new(self.clone())
+    }
+}
+
+impl<B: Backend> Clone for Box<dyn ClampPolicy<B>> {
+    fn clone(&self) -> Self {
+        // Through the trait object, not the box: the box itself implements
+        // `ClampPolicy`, and its `clone_box` is this very function.
+        (**self).clone_box()
+    }
+}
+
+/// A boxed policy is a policy, so a context may be generic over a concrete
+/// policy or hold a dynamic one; either way it is one type parameter.
+impl<B: Backend> ClampPolicy<B> for Box<dyn ClampPolicy<B>> {
+    fn observe(
+        &mut self,
+        frames: &Tensor<B, 3>,
+    ) {
+        (**self).observe(frames);
+    }
+
+    fn reference(
+        &self,
+        window: &Tensor<B, 3>,
+    ) -> Tensor<B, 1> {
+        (**self).reference(window)
+    }
 }
 
 /// The maximum over each row: `[batch, frames, n_mels]` to `[batch]`.
@@ -241,6 +287,12 @@ mod tests {
             policy.observe(&window);
             assert_close_to_vec(&to_vec(policy.reference(&window)), &[0.0, 5.0], 1e-12);
             assert!(!format!("{policy:?}").is_empty());
+
+            // A clone carries the observations with it, and diverges after.
+            let mut copy = policy.clone();
+            copy.observe(&frames([50.0; 8]));
+            assert_close_to_vec(&to_vec(policy.reference(&window)), &[0.0, 5.0], 1e-12);
+            assert!(to_vec(copy.reference(&window))[0] >= 0.0);
         }
     }
 }

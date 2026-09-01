@@ -46,6 +46,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (drop the end-padding frame, once per stream) and `package_window` (floor 8
   dB below a per-row reference, affine, transpose), and is unchanged in
   behaviour — pinned by a bit-equality test against the split.
+- *(whisper)* `kits::speech::whisper::driver` — the stream driver, offline
+  slice. `WhisperDriverConfig::init` builds a `WhisperDriver` over a model,
+  deriving the token layout from its vocabulary size; `new_context(clock,
+  clamp)` opens a `WhisperStreamContext` that takes samples of any length
+  through `push` / `push_at` / `flush` and hands back `Emission`s. Windows
+  are decoded as they fill and committed whole; a single push of a clip
+  reproduces `decode_chunked` exactly, and random-sized pushes reproduce a
+  single push exactly. Voice activity, timestamps and drafts are refused at
+  `init` until their phases land.
+- *(whisper)* `kits::speech::whisper::clock::TimestampHistory` — a stream's
+  sample-to-media-time map: anchors plus a rate, with `uniform`, `anchor`,
+  `time_at` and `slice`. A bare stream is `uniform(16_000)`.
+- *(whisper)* `kits::speech::whisper::emission` — `Triggers`, `CommitRule`
+  and `EmissionPolicy` with its `offline` / `conservative` / `responsive`
+  presets, and `Emission::{Committed, Draft}` over a `Segment`.
+- *(whisper)* `ClampPolicy` gained `CloneClampPolicy` as a supertrait
+  (implemented for every `ClampPolicy + Clone`), so a boxed policy can live in
+  a `Module`.
 - *(whisper)* `whisper-weights` now also fetches the two `.tiktoken`
   vocabularies through `bunsen-bundled-whisper/vocab`, reachable as
   `pretrained::bundled::{multilingual_tiktoken, gpt2_tiktoken}`.
