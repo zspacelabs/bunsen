@@ -36,6 +36,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - *(whisper)* `kits::speech::whisper::text` — `token_spans` builds Whisper's
   full `{ id -> bytes }` table from parsed ranks and the special-id layout,
   and `detokenizer` / `load_detokenizer` hand it to `WordchipperDetokenizer`.
+- *(whisper)* `kits::speech::whisper::clamp` — `ClampPolicy`, the injected
+  object that decides the reference maximum a window is floored against:
+  `observe(&mut self)` on the arrival path, `reference(&self)` immediately
+  before packaging, so a provisional decode can package without mutating
+  anything. `PerWindow` is today's behaviour; `MaxSeen` is the running (or,
+  fed everything first, global) maximum, per batch row.
+- *(whisper)* `package_mels` is now the composition of `trim_stream_tail`
+  (drop the end-padding frame, once per stream) and `package_window` (floor 8
+  dB below a per-row reference, affine, transpose), and is unchanged in
+  behaviour — pinned by a bit-equality test against the split.
 - *(whisper)* `whisper-weights` now also fetches the two `.tiktoken`
   vocabularies through `bunsen-bundled-whisper/vocab`, reachable as
   `pretrained::bundled::{multilingual_tiktoken, gpt2_tiktoken}`.
