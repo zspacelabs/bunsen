@@ -12,7 +12,7 @@ license.workspace = true
 workspace = true
 
 [dependencies]
-burn = { workspace = true, features = ["fusion", "autotune"] }
+burn = { workspace = true, features = ["fusion"] }
 # The backend is bunsen's `PerformanceBackend`, chosen by bunsen's own backend
 # feature at build time: `--features bunsen/wgpu` (or `bunsen/cuda`,
 # `bunsen/metal`, `bunsen/flex`). With none, bunsen's default `testing`
