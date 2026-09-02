@@ -10117,12 +10117,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "whisper-cli"
+version = "0.30.1"
+dependencies = [
+ "bunsen",
+ "burn",
+ "clap",
+]
+
+[[package]]
 name = "whisper-dev"
 version = "0.30.1"
 dependencies = [
  "bunsen",
  "burn",
- "burn-store",
  "clap",
 ]
 

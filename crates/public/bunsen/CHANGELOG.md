@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- *(whisper)* `pretrained::bundled_vocabulary(ids)`, under `whisper-weights`:
+  the bundled `.tiktoken` rank file that matches a token layout
+  (`multilingual` or `gpt2`), so the pairing with a checkpoint follows from
+  its vocabulary size rather than the caller's memory. `examples/whisper-cli`
+  transcribes an audio file with the bundled checkpoint and vocabulary
+  through the stream driver, with the presets, timestamps, beams, the
+  fallback ladder, and the bundled Silero VAD behind flags.
 - *(whisper)* The shared cross-attention cache for beams, §5.8's first
   tower level. `TextDecoder::new_cache_grouped(xa, group)` projects the
   cross-attention keys and values once per audio, and a forward over

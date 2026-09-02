@@ -81,11 +81,13 @@ pub fn gpt2_tiktoken() -> &'static std::path::Path {
 /// together they are ~290 MB.
 #[cfg(feature = "onnx_gen")]
 pub mod onnx_gen {
+    use burn::prelude::*;
+
     /// The reference audio encoder.
     // Machine-generated: not held to this crate's lint bar.
     #[allow(warnings, clippy::all)]
-    pub mod encoder {
-        use burn::prelude::*;
+    mod encoder {
+        use super::*;
 
         include!(concat!(env!("OUT_DIR"), "/whisper_base_encoder.rs"));
 
@@ -100,6 +102,7 @@ pub mod onnx_gen {
             }
         }
     }
+    pub use encoder::Model as EncoderModel;
 
     /// The reference text decoder.
     ///
@@ -108,8 +111,8 @@ pub mod onnx_gen {
     /// followed by 24 present-key/value tensors, which callers usually ignore.
     /// (`decoder_with_past_model.onnx` is the incremental variant.)
     #[allow(warnings, clippy::all)]
-    pub mod decoder {
-        use burn::prelude::*;
+    mod decoder {
+        use super::*;
 
         include!(concat!(env!("OUT_DIR"), "/whisper_base_decoder.rs"));
 
@@ -124,6 +127,7 @@ pub mod onnx_gen {
             }
         }
     }
+    pub use decoder::Model as DecoderModel;
 }
 
 #[cfg(test)]

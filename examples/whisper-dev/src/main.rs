@@ -6,6 +6,12 @@
 //! result. The prompt and stop token are derived from the checkpoint's own
 //! vocabulary size, so an English-only and a multilingual model each get the
 //! ids they were trained on without anyone typing them in.
+//!
+//! The backend is [`bunsen::support::testing::PerformanceBackend`]: the one
+//! bunsen's own compute-heavy tests run on, selected by bunsen's backend
+//! feature at build time (`--features bunsen/wgpu`, `bunsen/cuda`,
+//! `bunsen/metal`; `flex` with none). What this example runs on is what the
+//! tests ran on.
 
 use std::path::PathBuf;
 
@@ -36,7 +42,10 @@ use bunsen::{
         MelConverter,
         MelConverterMeta,
     },
-    support::audio::load_audio_mono_sr,
+    support::{
+        audio::load_audio_mono_sr,
+        testing::PerformanceBackend,
+    },
 };
 use burn::{
     module::Module,
@@ -125,15 +134,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let wav = load_audio_mono_sr(&args.audio, args.sample_rate)?;
 
-    cfg_select! {
-        feature = "cuda" => run::<burn::backend::cuda::Cuda>(args, wav),
-        feature = "metal" => run::<burn::backend::Metal>(args, wav),
-        feature = "wgpu" => run::<burn::backend::wgpu::Wgpu>(args, wav),
-        feature = "flex" => run::<burn::backend::flex::Flex>(args, wav),
-        _ => {
-            compile_error!("No Backend enabled");
-        }
-    }
+    run::<PerformanceBackend>(args, wav)
 }
 
 /// Pads with silence or trims to Whisper's fixed 30 s window.

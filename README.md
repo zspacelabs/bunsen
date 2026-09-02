@@ -19,7 +19,8 @@ Read the [bunsen book](https://zspacelabs.ai/bunsen/book)
 
 ## Public / API Crates
 
-* [`bunsen-firehose`](crates/public/bunsen-firehose) — a columnar dataloader / processing pipeline, with a burn batcher bridge.
+* [`bunsen-firehose`](crates/public/bunsen-firehose) — a columnar dataloader / processing pipeline, with a burn batcher
+  bridge.
 
 ## Utility Crates
 
@@ -31,12 +32,12 @@ Read the [bunsen book](https://zspacelabs.ai/bunsen/book)
 These represent complex-interface + work-in-progress, unstable interface extensions to `bunsen`; particulary those which
 incur large dependencies or are not yet ready for general consumption.
 
-* [`bunsen-firehose-image`](crates/public/bunsen-firehose-image) — image loading, augmentation, and tensor-conversion operators
-  for `bunsen-firehose`.
-* [`bunsen`](crates/public/bunsen) — the main "batteries included" library extending burn: model blocks, kits, ops, contracts,
-  and support tooling.
-* [`bunsen-arrow-dataloaders`](crates/public/bunsen-arrow-dataloaders) — *(preview)* an Arrow-backed chat dataloader with
-  tokenization for LLM training.
+* [`bunsen-firehose-image`](crates/public/bunsen-firehose-image) — image loading, augmentation, and tensor-conversion
+  operators for `bunsen-firehose`.
+* [`bunsen`](crates/public/bunsen) — the main "batteries included" library extending burn: model blocks, kits, ops,
+  contracts, and support tooling.
+* [`bunsen-arrow-dataloaders`](crates/public/bunsen-arrow-dataloaders) — *(preview)* an Arrow-backed chat dataloader
+  with tokenization for LLM training.
 
 # API Examples
 
@@ -94,7 +95,7 @@ assert_shape_contract_periodically!(
 manually flattening indices. The views deref to the underlying `TensorData`, so `.shape` and friends are right there.
 Handy for inspecting or patching raw tensor data without building full tensors.
 
-```rust
+```rust,ignore
 use bunsen::burner::tensor::*;
 use burn::prelude::*;
 
@@ -110,7 +111,7 @@ assert_eq!(view[&[1, 1]], 4.0);
 
 The mut view supports in-place writes:
 
-```rust
+```rust,ignore
 use bunsen::burner::tensor::*;
 use burn::prelude::*;
 
@@ -130,7 +131,7 @@ into parameter groups for per-group optimizers.
 
 Take a small container module:
 
-```rust
+```rust,ignore
 use burn::nn::{Linear, LinearConfig, LayerNorm, LayerNormConfig};
 use burn::prelude::*;
 
@@ -148,7 +149,7 @@ norm: LayerNormConfig::new(8).init( & device),
 
 Reflecting it yields a queryable XML description of the structure:
 
-```rust
+```rust,ignore
 use bunsen::burner::module::reflection::XmlModuleTree;
 
 // As XmlModuleTree holds a non-Send active query environment, it must be `mut`
@@ -226,7 +227,7 @@ ops/
 The `bunsen` repo includes a number of complex demos. The goal of the demos is to showcase the capabilities of the
 library; while also collecting a working edge of problems which could and should be improved by further development.
 
-See [`examples/`](examples/) for the full index. At a glance:
+See [`examples`](examples) for the full index. At a glance:
 
 * [`conway_benchmark`](examples/conway_benchmark) — headless Game of Life (2D/3D) throughput benchmark.
 * [`conway_vis`](examples/conway_vis) — real-time OpenGL Game of Life visualization.
@@ -236,6 +237,8 @@ See [`examples/`](examples/) for the full index. At a glance:
 * [`swin_tiny`](examples/swin_tiny) — train a Swin Transformer V2 Tiny on CINIC-10.
 * [`train-chat`](examples/train-chat) — train a NanoChat-style GPT with per-group Muon/AdamW optimizers.
 * [`whisper-dev`](examples/whisper-dev) — import an OpenAI Whisper model from a PyTorch checkpoint.
+* [`whisper-cli`](examples/whisper-cli) — transcribe audio with the bundled Whisper `base` checkpoint through the stream
+  driver.
 * [`zsl-data-cache`](examples/zsl-data-cache) — nanochat dataset shard download/disk cache (+ `pull_shards` CLI).
 
 # Motivation

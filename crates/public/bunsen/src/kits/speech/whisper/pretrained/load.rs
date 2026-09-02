@@ -13,6 +13,8 @@ use crate::{
             PytorchWhisperScanner,
             bundled,
         },
+        tokens::WhisperSpecialIds,
+        vocab::TiktokenRanks,
     },
 };
 
@@ -58,4 +60,25 @@ impl<B: Backend> Whisper<B> {
     pub fn load_pretrained(device: &B::Device) -> BunsenResult<(Self, WhisperApiConfig)> {
         PytorchWhisperScanner::new().load::<B, _>(bundled::base_pt(), device)
     }
+}
+
+/// The bundled vocabulary that matches a token layout: `multilingual.tiktoken`
+/// for a multilingual layout, `gpt2.tiktoken` for an English-only one.
+///
+/// The two files number their tokens differently, and a checkpoint decoded
+/// through the wrong one produces text that is wrong without being
+/// obviously so; taking the layout, which comes from the checkpoint's
+/// vocabulary size, keeps the pairing out of the caller's hands.
+///
+/// # Errors
+/// [`BunsenError`](crate::errors::BunsenError) if the rank file cannot be
+/// read or parsed. A missing file means the cached asset was deleted after
+/// the build.
+pub fn bundled_vocabulary(ids: &WhisperSpecialIds) -> BunsenResult<TiktokenRanks> {
+    let path = if ids.is_multilingual() {
+        bundled::multilingual_tiktoken()
+    } else {
+        bundled::gpt2_tiktoken()
+    };
+    TiktokenRanks::load(path)
 }

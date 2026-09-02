@@ -37,6 +37,7 @@
       <sourceFolder url="file://$MODULE_DIR$/crates/validation/silero-model-validation/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/crates/validation/whisper-model-validation/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/crates/dev/burn_bug_repro/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/examples/whisper-cli/src" isTestSource="false" />
       <excludeFolder url="file://$MODULE_DIR$/crates/public/bunsen/target" />
       <excludeFolder url="file://$MODULE_DIR$/target" />
       <excludeFolder url="file://$MODULE_DIR$/demos/bimm/crates/bimm/target" />

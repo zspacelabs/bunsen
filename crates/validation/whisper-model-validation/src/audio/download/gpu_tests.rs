@@ -95,7 +95,7 @@ fn windows_of<B: Backend>(
 /// The export is KV-cache-free, so the whole prefix is re-fed every
 /// step — which is slow, and exactly why bunsen has a cache.
 fn greedy_reference<B: Backend>(
-    decoder: &reference::decoder::Model<B>,
+    decoder: &reference::DecoderModel<B>,
     xa: Tensor<B, 3>,
     device: &Device<B>,
     config: &GreedyDecodeConfig,
@@ -177,7 +177,7 @@ fn test_bunsen_agrees_with_openai_reference() {
 #[test]
 fn test_onnx_encoder_matches_bunsen_on_real_audio() {
     let device: Device<B> = Default::default();
-    let reference = reference::encoder::Model::<B>::load_pretrained(&device);
+    let reference = reference::EncoderModel::<B>::load_pretrained(&device);
     let ours = bunsen_model(&device);
 
     for fixture in FIXTURES {
@@ -199,8 +199,8 @@ fn test_onnx_encoder_matches_bunsen_on_real_audio() {
 fn test_onnx_reference_transcribes_real_audio() {
     let device: Device<B> = Default::default();
     let table = vocab();
-    let reference_enc = reference::encoder::Model::<B>::load_pretrained(&device);
-    let reference_dec = reference::decoder::Model::<B>::load_pretrained(&device);
+    let reference_enc = reference::EncoderModel::<B>::load_pretrained(&device);
+    let reference_dec = reference::DecoderModel::<B>::load_pretrained(&device);
     let config = decode_config(&table);
 
     for fixture in FIXTURES {
@@ -244,8 +244,8 @@ fn test_onnx_reference_transcribes_real_audio() {
 fn test_onnx_reference_and_bunsen_transcribe_alike() {
     let device: Device<B> = Default::default();
     let table = vocab();
-    let reference_enc = reference::encoder::Model::<B>::load_pretrained(&device);
-    let reference_dec = reference::decoder::Model::<B>::load_pretrained(&device);
+    let reference_enc = reference::EncoderModel::<B>::load_pretrained(&device);
+    let reference_dec = reference::DecoderModel::<B>::load_pretrained(&device);
     let ours = bunsen_model(&device);
     let config = decode_config(&table);
 
