@@ -324,10 +324,19 @@ impl<B: Backend> WhisperDriver<B> {
     pub fn with_vad(
         mut self,
         vad: SileroVad<B>,
-        filter_config: VoiceActivityFilterConfig,
+        filter: VoiceActivityFilterConfig,
     ) -> Self {
         self.vad = Some(vad);
-        self.filter_config = Some(filter_config);
+        self.filter_config = Some(filter);
+        self
+    }
+
+    /// Applies a function to the filter config, if a VAD is attached.
+    pub fn configure_vad_filter(
+        mut self,
+        f: fn(VoiceActivityFilterConfig) -> VoiceActivityFilterConfig,
+    ) -> Self {
+        self.filter_config = Some(f(self.filter_config.expect("No vad filter")));
         self
     }
 

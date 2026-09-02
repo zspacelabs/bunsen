@@ -31,7 +31,6 @@ use bunsen::{
                     Task,
                     TimestampHistory,
                     TokenPolicy,
-                    VoiceActivityFilterConfig,
                     detokenizer,
                 },
             },
@@ -196,8 +195,10 @@ fn run<B: Backend>(
         .with_detokenizer(Arc::new(detokenizer))
         .with_logit_filters(filters);
     if args.preset != Preset::Offline {
-        let vad = SileroVad::<B>::load_16khz_pretrained(&device)?;
-        driver = driver.with_vad(vad, VoiceActivityFilterConfig::faster_whisper());
+        driver = driver.with_vad(
+            SileroVad::<B>::load_16khz_pretrained(&device)?,
+            Default::default(),
+        );
     }
     if driver.detects_language() {
         println!("language: detected from the first window");

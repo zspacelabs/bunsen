@@ -58,6 +58,12 @@ pub struct VoiceActivityFilterConfig {
     pub split_at_longest_silence: bool,
 }
 
+impl Default for VoiceActivityFilterConfig {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl VoiceActivityFilterConfig {
     /// The silence threshold, explicit or derived.
     pub fn neg_threshold_value(&self) -> f64 {
