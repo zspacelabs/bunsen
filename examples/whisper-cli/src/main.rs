@@ -18,20 +18,22 @@ use bunsen::{
         silero_vad::SileroVad,
         whisper::{
             FallbackConfig,
-            SAMPLE_RATE,
             Whisper,
-            WhisperDriver,
-            WhisperDriverConfig,
             decode::default_filters,
-            driver::support::{
-                Emission,
-                EmissionPolicy,
-                MaxSeen,
-                Task,
-                TimestampHistory,
-                TokenPolicy,
-                VoiceActivityFilterConfig,
-                detokenizer,
+            driver::{
+                SAMPLE_RATE,
+                WhisperDriver,
+                WhisperDriverConfig,
+                support::{
+                    Emission,
+                    EmissionPolicy,
+                    MaxSeen,
+                    Task,
+                    TimestampHistory,
+                    TokenPolicy,
+                    VoiceActivityFilterConfig,
+                    detokenizer,
+                },
             },
             pretrained::bundled_vocabulary,
         },
@@ -63,9 +65,11 @@ enum TaskArg {
 enum Preset {
     /// Decode each full window and commit all of it.
     Offline,
+
     /// Decode at the end of each speech region as well; every emission is
     /// final. Needs the bundled VAD.
     Conservative,
+
     /// Conservative, plus a draft every 600 ms of speech. Needs the bundled
     /// VAD.
     Responsive,

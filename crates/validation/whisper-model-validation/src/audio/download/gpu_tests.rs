@@ -3,12 +3,14 @@ use bunsen::{
         ApplyTimestampRules,
         DecodeConfig,
         GreedyDecodeConfig,
-        WhisperDriverConfig,
         default_filters,
-        driver::support::{
-            MaxSeen,
-            Task,
-            TimestampHistory,
+        driver::{
+            WhisperDriverConfig,
+            support::{
+                MaxSeen,
+                Task,
+                TimestampHistory,
+            },
         },
         mel_windows,
     },

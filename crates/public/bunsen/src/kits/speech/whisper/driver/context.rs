@@ -65,7 +65,7 @@ use crate::{
             },
             driver::{
                 SAMPLE_RATE,
-                WhisperDriver,
+                driver_impl::WhisperDriver,
                 support::{
                     ClampPolicy,
                     CommitRule,
@@ -86,6 +86,104 @@ use crate::{
         MelConverterMeta,
     },
 };
+
+/// One context's due unit, packaged and ready to join a batch.
+struct Pending<B: Backend> {
+    /// Index into the contexts being advanced.
+    context: usize,
+    unit: Due,
+    /// A draft rather than a commit.
+    draft: bool,
+    /// The prompt it decodes under; what it is batched by.
+    prompt: Vec<i64>,
+    /// `[1, n_mels, width]`.
+    window: Tensor<B, 3>,
+}
+
+/// Advances every context that has a decode due, batching the decodes.
+///
+/// Repeats until no context has anything due, so a context with several
+/// windows waiting gets them all; a context with nothing due but a draft
+/// due contributes the draft, batched the same way. Returns each context's
+/// emissions, in the order of `contexts`.
+///
+/// # Arguments
+/// * `driver` - the driver the contexts were opened from.
+/// * `contexts` - the streams, fed through [`feed`](WhisperStreamContext::feed)
+///   rather than [`push`](WhisperStreamContext::push), so that nothing has been
+///   decoded yet.
+///
+/// # Errors
+/// As [`WhisperStreamContext::advance`].
+pub fn advance_ready<B: Backend>(
+    driver: &WhisperDriver<B>,
+    contexts: &mut [WhisperStreamContext<B>],
+) -> BunsenResult<Vec<Vec<Emission>>> {
+    let mut out: Vec<Vec<Emission>> = vec![Vec::new(); contexts.len()];
+
+    loop {
+        // One due unit per context, with the prompt it would decode under.
+        let mut pending: Vec<Option<Pending<B>>> = Vec::new();
+        for (i, ctx) in contexts.iter_mut().enumerate() {
+            ctx.skip_silence();
+            let (unit, draft) = match ctx.next_due() {
+                Some(unit) => (unit, false),
+                None => match ctx.draft_unit() {
+                    Some(unit) => (unit, true),
+                    None => continue,
+                },
+            };
+            let frames = ctx.frames_at(&unit);
+            ctx.ensure_language(&frames);
+            pending.push(Some(Pending {
+                context: i,
+                unit,
+                draft,
+                prompt: ctx.prompt_now(),
+                window: ctx.package_padded(frames),
+            }));
+        }
+        if pending.is_empty() {
+            return Ok(out);
+        }
+
+        // Group by prompt, in order of first appearance.
+        let mut groups: Vec<(Vec<i64>, Vec<usize>)> = Vec::new();
+        for (k, item) in pending.iter().enumerate() {
+            let prompt = &item.as_ref().expect("not yet taken").prompt;
+            match groups.iter_mut().find(|(p, _)| p == prompt) {
+                Some((_, members)) => members.push(k),
+                None => groups.push((prompt.clone(), vec![k])),
+            }
+        }
+
+        for (prompt, members) in groups {
+            let windows: Vec<Tensor<B, 3>> = members
+                .iter()
+                .map(|&k| pending[k].as_ref().expect("not yet taken").window.clone())
+                .collect();
+            let batch = Tensor::cat(windows, 0);
+
+            // The first rung of the ladder, batched; any rung above it is
+            // the context's own, which is rare.
+            let config = driver.decode_config(prompt);
+            let first = driver
+                .model()
+                .decode_windows_full(batch, &config, driver.filters());
+
+            for (row, k) in members.into_iter().enumerate() {
+                let item = pending[k].take().expect("taken once");
+                let ctx = &mut contexts[item.context];
+                let decoded = ctx.ladder(&config, item.window, Some(first[row].clone()));
+                if item.draft {
+                    out[item.context].push(ctx.draft_from(item.unit, decoded)?);
+                } else {
+                    out[item.context].extend(ctx.commit_due(item.unit, decoded)?);
+                }
+            }
+        }
+    }
+}
 
 /// One stream: the only stateful type in the driver.
 ///
@@ -982,8 +1080,8 @@ mod tests {
                 },
                 driver::{
                     SAMPLE_RATE,
-                    WhisperDriverConfig,
-                    advance_ready,
+                    context::advance_ready,
+                    driver_impl::WhisperDriverConfig,
                     support::{
                         EmissionPolicy,
                         MaxSeen,

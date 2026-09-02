@@ -14,5 +14,3 @@ pub use blocks::{
 };
 #[doc(inline)]
 pub use decode::*;
-#[doc(inline)]
-pub use driver::*;
