@@ -34,9 +34,9 @@ use burn::{
     tensor::activation::log_softmax,
 };
 
-use crate::kits::speech::whisper::{
-    tokens::WhisperSpecialIds,
-    vocab::TiktokenRanks,
+use crate::kits::speech::whisper::driver::support::{
+    TiktokenRanks,
+    WhisperSpecialIds,
 };
 
 /// Rewrites the logits the search chooses from.
@@ -738,7 +738,7 @@ mod tests {
     #[cfg(feature = "whisper-weights")]
     mod bundled {
         use super::*;
-        use crate::kits::speech::whisper::tokens::TokenPolicy;
+        use crate::kits::speech::whisper::driver::support::TokenPolicy;
 
         #[test]
         fn test_multilingual_matches_upstream() {

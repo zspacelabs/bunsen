@@ -57,8 +57,6 @@ use crate::{
         },
         whisper::{
             blocks::WhisperMeta,
-            clamp::ClampPolicy,
-            clock::TimestampHistory,
             decode::{
                 DecodeConfig,
                 Decoded,
@@ -68,19 +66,19 @@ use crate::{
             driver::{
                 SAMPLE_RATE,
                 WhisperDriver,
+                support::{
+                    ClampPolicy,
+                    CommitRule,
+                    ENCODER_GRID,
+                    Emission,
+                    Segment,
+                    SpeechRegion,
+                    TimestampHistory,
+                    VoiceActivityFilter,
+                    package_window,
+                    split_window,
+                },
             },
-            emission::{
-                CommitRule,
-                Emission,
-                Segment,
-            },
-            mel::package_window,
-            regions::{
-                ENCODER_GRID,
-                SpeechRegion,
-            },
-            segments::split_window,
-            va_filter::VoiceActivityFilter,
         },
     },
     ops::signal::mels::{
@@ -978,10 +976,6 @@ mod tests {
             speech::whisper::{
                 Whisper,
                 blocks::WhisperApiConfig,
-                clamp::{
-                    MaxSeen,
-                    PerWindow,
-                },
                 decode::{
                     GreedyDecodeConfig,
                     LogitFilter,
@@ -990,18 +984,16 @@ mod tests {
                     SAMPLE_RATE,
                     WhisperDriverConfig,
                     advance_ready,
-                },
-                emission::{
-                    EmissionPolicy,
-                    Triggers,
-                },
-                mel::{
-                    package_mels,
-                    trim_stream_tail,
-                },
-                tokens::{
-                    TokenPolicy,
-                    WhisperSpecialIds,
+                    support::{
+                        EmissionPolicy,
+                        MaxSeen,
+                        PerWindow,
+                        TokenPolicy,
+                        Triggers,
+                        WhisperSpecialIds,
+                        package_mels,
+                        trim_stream_tail,
+                    },
                 },
             },
             tokens::Detokenizer,
@@ -1929,7 +1921,7 @@ mod tests {
             .with_logit_filters(decisive());
         assert!(detecting.detects_language());
         assert!(detecting.prompt().is_empty());
-        let only = crate::kits::speech::whisper::tokens::LANGUAGES[0];
+        let only = crate::kits::speech::whisper::driver::support::LANGUAGES[0];
         assert_eq!(only, "en");
 
         let audio = clip();
@@ -2033,12 +2025,10 @@ mod tests {
         use crate::{
             kits::speech::{
                 silero_vad::SileroVad,
-                whisper::{
-                    emission::{
-                        CommitRule,
-                        Triggers,
-                    },
-                    va_filter::VoiceActivityFilterConfig,
+                whisper::driver::support::{
+                    CommitRule,
+                    Triggers,
+                    VoiceActivityFilterConfig,
                 },
             },
             support::{

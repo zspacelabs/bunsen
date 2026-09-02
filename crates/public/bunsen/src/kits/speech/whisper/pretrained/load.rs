@@ -9,12 +9,14 @@ use crate::{
             Whisper,
             WhisperApiConfig,
         },
+        driver::support::{
+            TiktokenRanks,
+            WhisperSpecialIds,
+        },
         pretrained::{
             PytorchWhisperScanner,
             bundled,
         },
-        tokens::WhisperSpecialIds,
-        vocab::TiktokenRanks,
     },
 };
 

@@ -25,7 +25,7 @@ use burn::{
 };
 
 use crate::{
-    kits::speech::whisper::clamp::{
+    kits::speech::whisper::driver::support::clamp::{
         ClampPolicy,
         PerWindow,
     },

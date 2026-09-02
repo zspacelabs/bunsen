@@ -16,7 +16,7 @@
 
 use crate::{
     errors::BunsenError,
-    kits::speech::whisper::{
+    kits::speech::whisper::driver::support::{
         clock::TimestampHistory,
         tokens::TIMESTAMP_STEP_SAMPLES,
     },

@@ -22,7 +22,7 @@ use crate::{
         BunsenError,
         BunsenResult,
     },
-    kits::speech::whisper::{
+    kits::speech::whisper::driver::support::{
         tokens::WhisperSpecialIds,
         vocab::TiktokenRanks,
     },
@@ -151,7 +151,7 @@ mod tests {
         #[cfg(feature = "whisper-weights")]
         mod bundled {
             use super::*;
-            use crate::kits::speech::whisper::tokens::{
+            use crate::kits::speech::whisper::driver::support::tokens::{
                 ENGLISH_BASE_RANKS,
                 MULTILINGUAL_BASE_RANKS,
                 TokenPolicy,

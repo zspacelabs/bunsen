@@ -22,16 +22,18 @@ use bunsen::{
     },
     kits::{
         speech::whisper::{
-            Task,
-            TokenPolicy,
             WhisperMeta,
             decode::{
                 GreedyDecodeConfig,
                 mel_windows,
             },
-            load_detokenizer,
-            mel_options,
-            package_mels,
+            driver::support::{
+                Task,
+                TokenPolicy,
+                load_detokenizer,
+                mel_options,
+                package_mels,
+            },
             pretrained::PytorchWhisperScanner,
         },
         tokens::Detokenizer,

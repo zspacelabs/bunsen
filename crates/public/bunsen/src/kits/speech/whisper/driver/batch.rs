@@ -18,13 +18,11 @@ use burn::{
 
 use crate::{
     errors::BunsenResult,
-    kits::speech::whisper::{
-        driver::{
-            WhisperDriver,
-            WhisperStreamContext,
-            context::Due,
-        },
-        emission::Emission,
+    kits::speech::whisper::driver::{
+        WhisperDriver,
+        WhisperStreamContext,
+        context::Due,
+        support::Emission,
     },
 };
 

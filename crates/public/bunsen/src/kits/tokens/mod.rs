@@ -7,16 +7,16 @@
 //!
 //! A model kit owns its own token *layout* — which ids are special, what they
 //! mean, how a prompt is built — because that is model-specific and needs no
-//! dependency; Whisper's is [`kits::speech::whisper::tokens`]. What it does
-//! not own is the tokenizer. Ids-to-text is the same operation for every
-//! byte-level vocabulary, and the crate that does it well is `wordchipper`,
-//! so that lives here once and a kit hands it a table.
+//! dependency; Whisper's is [`TokenPolicy`]. What it does not own is the
+//! tokenizer. Ids-to-text is the same operation for every byte-level
+//! vocabulary, and the crate that does it well is `wordchipper`, so that
+//! lives here once and a kit hands it a table.
 //!
 //! Only decoding is here. Encoding — the merge table, the pre-tokenizer, the
 //! special-token splitter — is `wordchipper`'s whole job, and a kit that needs
 //! it should use that crate directly.
 //!
-//! [`kits::speech::whisper::tokens`]: crate::kits::speech::whisper::tokens
+//! [`TokenPolicy`]: crate::kits::speech::whisper::driver::support::TokenPolicy
 
 use std::fmt::Debug;
 

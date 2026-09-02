@@ -44,7 +44,7 @@ pub const ENGLISH_BASE_RANKS: usize = 50256;
 /// Base ranks in `multilingual.tiktoken`.
 ///
 /// One more than [`ENGLISH_BASE_RANKS`], and that one — rank 50256 — is a
-/// genuinely empty token. See [`vocab`](super::vocab).
+/// genuinely empty token. See [`TiktokenRanks`](super::TiktokenRanks).
 pub const MULTILINGUAL_BASE_RANKS: usize = 50257;
 
 /// The timestamp tokens: `<|0.00|>` through `<|30.00|>`.

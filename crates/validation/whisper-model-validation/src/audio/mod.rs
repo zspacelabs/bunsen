@@ -35,14 +35,16 @@ use bunsen::{
     },
     kits::{
         speech::whisper::{
-            Task,
-            TiktokenRanks,
-            TokenPolicy,
             Whisper,
-            mel_options,
-            package_mels,
+            driver::support::{
+                Task,
+                TiktokenRanks,
+                TokenPolicy,
+                detokenizer,
+                mel_options,
+                package_mels,
+            },
             pretrained::bundled,
-            text::detokenizer,
         },
         tokens::{
             Detokenizer,

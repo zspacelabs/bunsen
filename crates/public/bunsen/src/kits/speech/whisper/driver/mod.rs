@@ -6,7 +6,7 @@
 //! detokenizer, built once and cheap to share. [`WhisperStreamContext`] is
 //! one per stream and the only stateful type: it takes samples in through
 //! [`push`](WhisperStreamContext::push) and hands
-//! [`Emission`](super::emission::Emission)s back. Everything that varies by
+//! [`Emission`](support::Emission)s back. Everything that varies by
 //! deployment enters as an injected object behind a trait at a construction
 //! point &mdash; the clock and the clamp policy at
 //! [`new_context`](WhisperDriver::new_context), the detokenizer at
@@ -35,6 +35,7 @@
 
 mod batch;
 mod context;
+pub mod support;
 
 use std::sync::Arc;
 
@@ -45,6 +46,17 @@ use burn::{
     prelude::Backend,
 };
 pub use context::WhisperStreamContext;
+use support::{
+    ClampPolicy,
+    EmissionPolicy,
+    TIMESTAMP_STEP_SAMPLES,
+    TIMESTAMP_STEP_SECONDS,
+    Task,
+    TimestampHistory,
+    TokenPolicy,
+    VoiceActivityFilterConfig,
+    mel_options,
+};
 
 use crate::{
     burner::module::ModuleInit,
@@ -60,23 +72,12 @@ use crate::{
                     Whisper,
                     WhisperMeta,
                 },
-                clamp::ClampPolicy,
-                clock::TimestampHistory,
                 decode::{
                     ApplyTimestampRules,
                     DecodeConfig,
                     FallbackConfig,
                     LogitFilter,
                 },
-                emission::EmissionPolicy,
-                mel::mel_options,
-                tokens::{
-                    TIMESTAMP_STEP_SAMPLES,
-                    TIMESTAMP_STEP_SECONDS,
-                    Task,
-                    TokenPolicy,
-                },
-                va_filter::VoiceActivityFilterConfig,
             },
         },
         tokens::Detokenizer,
@@ -97,7 +98,7 @@ pub const SAMPLE_RATE: usize = 16_000;
 /// [`WhisperDriver::new_context`] instead.
 #[derive(Config, Debug)]
 pub struct WhisperDriverConfig {
-    /// The language of the speech, as a [`LANGUAGES`](super::tokens::LANGUAGES)
+    /// The language of the speech, as a [`LANGUAGES`](support::LANGUAGES)
     /// code.
     ///
     /// `None` on a multilingual checkpoint detects the language per stream
