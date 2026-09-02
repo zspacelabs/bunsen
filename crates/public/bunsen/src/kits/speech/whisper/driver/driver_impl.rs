@@ -216,7 +216,7 @@ impl WhisperDriverConfig {
 
         let mel = model
             .front_end()
-            .mel_options(model.n_mels())?
+            .mel_converter_options(model.n_mels())?
             .try_init(device)?;
 
         Ok(WhisperDriver {

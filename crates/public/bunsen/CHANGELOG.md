@@ -152,8 +152,9 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   `bunsen-bundled-whisper`, matching
   `kits::speech::silero_vad::pretrained::bundled`. Behind `whisper-weights`.
 
-- *(whisper)* `kits::speech::whisper::mel` — `mel_options` names the encoder's geometry, and `package_mels` applies the
-  packaging its input needs: drop the trailing frame, floor the dynamic range 8 dB below the maximum, apply the
+- *(whisper)* `kits::speech::whisper::mel` — `mel_converter_options` names the encoder's geometry, and `package_mels`
+  applies the packaging its input needs: drop the trailing frame, floor the dynamic range 8 dB below the maximum, apply
+  the
   `(log + 4) / 4` tail, and transpose to channels-first. Previously these constants existed only inside a dev example.
 - *(ops)* `ops::split::split_padded` — split a (negatively indexable) dimension into equal chunks, zero-padding the last
   one so every chunk has the same width.
@@ -174,23 +175,23 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
-- *(whisper)* Everything a checkpoint takes on convention now lives on the model as two defaulted configs, and
-  nothing is a constant. `WhisperApiConfig::front_end` (`WhisperFrontEndConfig`: sample rate, hop and window in
-  ms, clamp range in dB) and `WhisperApiConfig::tokens` (`WhisperTokenLayoutConfig`: the language table, the two
-  base-vocabulary sizes, the special spellings, the timestamp count and step) ride into `Whisper<B>` and are read
-  through `WhisperMeta::front_end()` / `token_layout()`; `PytorchWhisperScanner` stamps both. The driver derives
-  from them: `front_end.mel_options(n_mels)` (fallible: the grid must fall on whole samples), `package_window` /
+- *(whisper)* Everything a checkpoint takes on convention now lives on the model as two defaulted configs, and nothing
+  is a constant. `WhisperApiConfig::front_end` (`WhisperFrontEndConfig`: sample rate, hop and window in ms, clamp range
+  in dB) and `WhisperApiConfig::tokens` (`WhisperTokenLayoutConfig`: the language table, the two base-vocabulary sizes,
+  the special spellings, the timestamp count and step) ride into `Whisper<B>` and are read through
+  `WhisperMeta::front_end()` / `token_layout()`; `PytorchWhisperScanner` stamps both. The driver derives from them:
+  `front_end.mel_options(n_mels)` (fallible: the grid must fall on whole samples), `package_window` /
   `package_mels` as methods on the front end, and `WhisperDriver::sample_rate()`, `front_end()` and
   `encoder_grid()` in place of the removed `SAMPLE_RATE`, `TIMESTAMP_STEP_SAMPLES`, `ENCODER_GRID` and
-  `RANGE_CLAMP_DB`; `AUDIO_ENCODER_STRIDE` names the conv head's stride. `WhisperSpecialIds` stays a `Copy` value
-  of numbers (gaining `timestamp_tokens` and `multilingual`); `TokenPolicy` carries the layout, is `Clone` rather
-  than `Copy`, and owns the name lookups (`language_token`, `language_code`, `languages`, `special_names`,
+  `RANGE_CLAMP_DB`; `AUDIO_ENCODER_STRIDE` names the conv head's stride. `WhisperSpecialIds` stays a `Copy` value of
+  numbers (gaining `timestamp_tokens` and `multilingual`); `TokenPolicy` carries the layout, is `Clone` rather than
+  `Copy`, and owns the name lookups (`language_token`, `language_code`, `languages`, `special_names`,
   `timestamp_seconds`); `detokenizer`, `load_detokenizer` and `token_spans` take a `&TokenPolicy`.
-  `WhisperDriver::with_vad` and `configure_vad_filter` return a `BunsenResult`, rejecting a VAD or a filter at
-  another rate, or a filter chunk that is not the model's.
+  `WhisperDriver::with_vad` and `configure_vad_filter` return a `BunsenResult`, rejecting a VAD or a filter at another
+  rate, or a filter chunk that is not the model's.
 - *(whisper)* The driver's API surface is `kits::speech::whisper::driver::` — `Emission`, `EmissionPolicy`,
-  `TimestampHistory`, the clamp policies, `VoiceActivityFilterConfig`, `TokenPolicy`, the detokenizer helpers —
-  and `driver::support::` holds only internals (regions, segments). Imports of those items through
+  `TimestampHistory`, the clamp policies, `VoiceActivityFilterConfig`, `TokenPolicy`, the detokenizer helpers — and
+  `driver::support::` holds only internals (regions, segments). Imports of those items through
   `driver::support::` move up one level.
 - *(burner)* move `repair_pytorch_strided_weight` from `burner::module` to a new
   `burner::store` module, which collects helpers for what crosses a module-store boundary.

@@ -4,9 +4,9 @@
 //! packaging, both declared by the model's [`WhisperFrontEndConfig`]. The
 //! geometry is a grid fixed in time &mdash; a `window_ms` periodic Hann
 //! window every `hop_ms`, Slaney mels, `log10` over a `1e-10` floor &mdash;
-//! that [`mel_options`](WhisperFrontEndConfig::mel_options) puts on samples
-//! at the model's rate; at the defaults it is [`MelConverterOptions`]' own
-//! default. The packaging is three things, and a stream needs them apart:
+//! that [`mel_options`](WhisperFrontEndConfig::mel_converter_options) puts on
+//! samples at the model's rate; at the defaults it is [`MelConverterOptions`]'
+//! own default. The packaging is three things, and a stream needs them apart:
 //!
 //! * [`trim_stream_tail`] drops the trailing frame, Whisper's `stft[..., :-1]`.
 //!   It applies once, at the end of a stream, after the converter's `finish`
@@ -59,7 +59,7 @@ impl WhisperFrontEndConfig {
     /// # Errors
     /// As [`validate`](Self::validate): the rate must put the grid on whole
     /// samples.
-    pub fn mel_options(
+    pub fn mel_converter_options(
         &self,
         n_mels: usize,
     ) -> BunsenResult<MelConverterOptions> {
@@ -92,7 +92,7 @@ impl WhisperFrontEndConfig {
         reference: Tensor<B, 1>,
     ) -> Tensor<B, 3> {
         let [batch, _, _] = window.dims();
-        assert_eq!(reference.dims(), [batch], "one reference per batch row",);
+        assert_eq!(reference.dims(), [batch], "one reference per batch row");
 
         // Each row against its own reference: the batch is independent
         // streams, and one row must not see another's peak.
@@ -100,11 +100,14 @@ impl WhisperFrontEndConfig {
             .sub_scalar(self.range_clamp_db)
             .reshape([batch, 1, 1])
             .expand(window.dims());
+
+        // `[batch, frames, n_mels]`
         let floored = window.max_pair(floor);
 
-        // `[batch, frames, n_mels]` -> the `[batch, n_mels, seq]` the encoder
-        // wants.
-        AffineCompress::default().apply(floored).swap_dims(1, 2)
+        AffineCompress::default()
+            .apply(floored)
+            // `[batch, n_mels, frames]`
+            .swap_dims(1, 2)
     }
 
     /// Packages a joined log-mel spectrogram into encoder input, whole.
@@ -212,7 +215,7 @@ mod tests {
     fn test_mel_options_derives_the_grid_from_the_rate() {
         let base = MelConverterOptions::default();
 
-        let opts = front_end().mel_options(80).unwrap();
+        let opts = front_end().mel_converter_options(80).unwrap();
         assert_eq!(opts.sample_rate, base.sample_rate);
         assert_eq!(opts.n_mels, base.n_mels);
         assert_eq!(opts.n_fft, base.n_fft);
@@ -220,7 +223,7 @@ mod tests {
 
         let opts = front_end()
             .with_sample_rate(8_000)
-            .mel_options(128)
+            .mel_converter_options(128)
             .unwrap();
         assert_eq!(opts.sample_rate, 8_000);
         assert_eq!(opts.n_mels, 128);
@@ -233,25 +236,30 @@ mod tests {
 
         let opts = front_end()
             .with_sample_rate(48_000)
-            .mel_options(80)
+            .mel_converter_options(80)
             .unwrap();
         assert_eq!((opts.n_fft, opts.hop), (1_200, 480));
 
         let opts = front_end()
             .with_hop_ms(20)
             .with_window_ms(50)
-            .mel_options(80)
+            .mel_converter_options(80)
             .unwrap();
         assert_eq!((opts.n_fft, opts.hop), (800, 320));
 
         assert!(
             front_end()
                 .with_sample_rate(44_100)
-                .mel_options(80)
+                .mel_converter_options(80)
                 .is_err(),
             "not a whole hop"
         );
-        assert!(front_end().with_sample_rate(0).mel_options(80).is_err());
+        assert!(
+            front_end()
+                .with_sample_rate(0)
+                .mel_converter_options(80)
+                .is_err()
+        );
     }
 
     /// The default hop is one timestamp step per encoder position.

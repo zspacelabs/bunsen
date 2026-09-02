@@ -315,7 +315,7 @@ pub fn clip_mels<B: Backend>(
 
     let front_end = WhisperFrontEndConfig::new().with_sample_rate(SAMPLE_RATE);
     let converter: MelConverter<B> = front_end
-        .mel_options(N_MELS)
+        .mel_converter_options(N_MELS)
         .expect("a Whisper rate")
         .try_init(device)
         .expect("mel converter");

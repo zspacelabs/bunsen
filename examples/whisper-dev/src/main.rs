@@ -214,7 +214,7 @@ fn run<B: Backend>(
     // The front end must produce exactly the channel count the encoder was
     // trained on; `n_mels` comes from the checkpoint, and the rate is what
     // the loader declared on it.
-    let options = cfg.front_end.mel_options(cfg.n_mels)?;
+    let options = cfg.front_end.mel_converter_options(cfg.n_mels)?;
 
     let conv: MelConverter<B> = options.try_init(&device)?;
 
