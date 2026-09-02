@@ -110,7 +110,7 @@ fn testdata(rel: &str) -> std::path::PathBuf {
 /// The token layout the decodes were made with is in the fixture too, so the
 /// vocabulary pairing is checked rather than assumed.
 #[derive(serde::Deserialize)]
-pub(crate) struct Reference {
+pub struct Reference {
     /// The vocabulary size of the checkpoint the decodes came from.
     vocab_size: usize,
     /// The sot sequence: `<|startoftranscript|> <|en|> <|transcribe|>`.
@@ -129,12 +129,12 @@ pub(crate) struct Reference {
 }
 
 #[derive(serde::Deserialize)]
-pub(crate) struct ReferenceWindows {
+pub struct ReferenceWindows {
     windows: Vec<ReferenceWindow>,
 }
 
 #[derive(serde::Deserialize)]
-pub(crate) struct ReferenceWindow {
+pub struct ReferenceWindow {
     /// What the decoder emitted, prompt and stop token excluded.
     tokens: Vec<i64>,
     /// `Tokenizer.decode`: timestamps dropped.
@@ -145,13 +145,13 @@ pub(crate) struct ReferenceWindow {
 }
 
 #[derive(serde::Deserialize)]
-pub(crate) struct ReferenceTranscribe {
+pub struct ReferenceTranscribe {
     text: String,
     segments: Vec<ReferenceSegment>,
 }
 
 #[derive(serde::Deserialize)]
-pub(crate) struct ReferenceSegment {
+pub struct ReferenceSegment {
     /// The mel frame the window this segment came from was cut at.
     seek: usize,
     start: f64,
@@ -163,7 +163,8 @@ pub(crate) struct ReferenceSegment {
 }
 
 impl Reference {
-    fn load(name: &str) -> Self {
+    /// Load a reference from a file.
+    pub fn load(name: &str) -> Self {
         let path = testdata(&format!("{name}.reference.json"));
         let file = std::fs::File::open(&path)
             .unwrap_or_else(|e| panic!("opening {}: {e}", path.display()));
@@ -171,22 +172,22 @@ impl Reference {
     }
 
     /// The reference decode as one string, windows joined in order.
-    fn text(&self) -> String {
+    pub fn text(&self) -> String {
         join_windows(&self.windows)
     }
 
     /// The reference decode's ids, per window.
-    pub(crate) fn window_tokens(&self) -> Vec<Vec<i64>> {
+    pub fn window_tokens(&self) -> Vec<Vec<i64>> {
         self.windows.iter().map(|w| w.tokens.clone()).collect()
     }
 
     /// The beam-5 reference decode as one string, windows joined in order.
-    fn beam5_text(&self) -> String {
+    pub fn beam5_text(&self) -> String {
         join_windows(&self.beam5.windows)
     }
 
     /// The beam-5 reference decode's ids, per window.
-    pub(crate) fn beam5_tokens(&self) -> Vec<Vec<i64>> {
+    pub fn beam5_tokens(&self) -> Vec<Vec<i64>> {
         self.beam5
             .windows
             .iter()
@@ -196,13 +197,13 @@ impl Reference {
 
     /// The timestamped reference decode as one string, windows joined in
     /// order.
-    fn timestamped_text(&self) -> String {
+    pub fn timestamped_text(&self) -> String {
         join_windows(&self.with_timestamps.windows)
     }
 
     /// The timestamped reference decode's ids, per window, timestamp tokens
     /// included.
-    pub(crate) fn timestamped_tokens(&self) -> Vec<Vec<i64>> {
+    pub fn timestamped_tokens(&self) -> Vec<Vec<i64>> {
         self.with_timestamps
             .windows
             .iter()
@@ -236,9 +237,9 @@ fn transcript(name: &str) -> String {
 /// ranks from the bundled `multilingual.tiktoken` — the same assets bunsen
 /// itself would use, so this checks them as well as using them.
 pub struct Vocab {
-    pub(crate) policy: TokenPolicy,
-    pub(crate) detokenizer: WordchipperDetokenizer<u16>,
-    pub(crate) ranks: TiktokenRanks,
+    pub policy: TokenPolicy,
+    pub detokenizer: WordchipperDetokenizer<u16>,
+    pub ranks: TiktokenRanks,
 }
 
 impl Vocab {
