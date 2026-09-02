@@ -9,6 +9,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- *(whisper)* The shared cross-attention cache for beams, §5.8's first
+  tower level. `TextDecoder::new_cache_grouped(xa, group)` projects the
+  cross-attention keys and values once per audio, and a forward over
+  `group` rows per audio (`row = audio * group + member`) folds the group
+  into the query's sequence axis around the cross-attention call
+  (`layer_norm_cross_attn_w_kv_cache_grouped`,
+  `ResidualDecoderAttentionBlock::forward_w_kv_cache_grouped`): two
+  reshapes on a few kilobytes of queries, and the cache — the bulk of what
+  a decode holds, five times over at beam 5 — is never repeated. The
+  search uses it for beams by default; `DecodeConfig::shared_cross_kv`
+  set false keeps the materialized ground as the oracle. Pinned (I10) at
+  the cache on logits, at the search on ids and score, and by the beam-5
+  gate against upstream. Measurement declined the other levels: the
+  per-step cost is flat from 32 to 224 tokens, so §5.7's preallocated
+  self-attention cache and a copy-free reorder have nothing to remove yet.
+- *(whisper)* `benches/whisper_decode.rs`: the decode loop at `base.en`'s
+  shapes with random weights and a stop token never emitted, so every case
+  runs to its cap — the encoder on its own, then greedy at 32 and 224
+  tokens, beam 5, and a batch of four on encoder output already in hand.
+  The first call of each case is timed once and printed as `cold`, since
+  this backend's shape-keyed autotune makes cold and warm differ by more
+  than any copy an optimization could remove; criterion's numbers are warm.
+  The tower levels of §5.7 and §5.8 are gated on these numbers.
 - *(whisper)* The responsive preset. `EmissionPolicy::responsive()` is
   accepted: under the `interval` trigger, while speech is in progress and
   an interval of media time has passed since the last draft or commit, a

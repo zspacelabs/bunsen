@@ -32,6 +32,10 @@ harness = false
 name = "lbm"
 harness = false
 
+[[bench]]
+name = "whisper_decode"
+harness = false
+
 
 [features]
 default = [
@@ -224,4 +228,3 @@ nearly = { workspace = true }
 hamcrest = { workspace = true }
 indoc = { workspace = true }
 criterion = { workspace = true }
-

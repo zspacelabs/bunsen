@@ -279,6 +279,53 @@ pub fn layer_norm_cross_attn_w_kv_cache<B: Backend>(
     attend_q_kv_mask(mha, q, kv, None)
 }
 
+/// [`layer_norm_cross_attn_w_kv_cache`] with the cache shared by groups of
+/// query rows: `x` has `group` rows per cached row, laid out
+/// `row = cached_row * group + member`, as a beam search lays out its beams
+/// per audio.
+///
+/// Cross-attention has no mask and every query row is independent, so the
+/// group's rows are folded into the query's sequence axis, attend against
+/// the one cached row, and are unfolded after: two reshapes on a few
+/// kilobytes of queries, and the cache is never repeated.
+///
+/// # Arguments
+/// * `x` - `[cached_rows * group, seq_new, d_model]`.
+/// * `kv` - `[cached_rows, heads, cross_len, d_k]`.
+/// * `group` - query rows per cached row; one is the plain call.
+pub fn layer_norm_cross_attn_w_kv_cache_grouped<B: Backend>(
+    layer_norm: &LayerNorm<B>,
+    mha: &MultiHeadAttention<B>,
+    x: Tensor<B, 3>,
+    kv: &AttnKvPair<B>,
+    group: usize,
+) -> Tensor<B, 3> {
+    if group == 1 {
+        return layer_norm_cross_attn_w_kv_cache(layer_norm, mha, x, kv);
+    }
+    let [rows, seq_new, d_model] = x.dims();
+    let cached = kv.batch_size();
+    assert_eq!(
+        rows,
+        cached * group,
+        "query rows ({rows}) are not {group} per cached row ({cached})",
+    );
+
+    // [rows, H, T, d_k] -> [cached, group, H, T, d_k] -> [cached, H, group, T,
+    // d_k] -> [cached, H, group * T, d_k]: the group folded into the
+    // sequence.
+    let q = split_heads(mha, mha.query.forward(layer_norm.forward(x)));
+    let [_, heads, _, d_k] = q.dims();
+    let q = q
+        .reshape([cached, group, heads, seq_new, d_k])
+        .swap_dims(1, 2)
+        .reshape([cached, heads, group * seq_new, d_k]);
+
+    // [cached, group * T, d_model] -> [rows, T, d_model]: the fold undone,
+    // rows back in `cached_row * group + member` order.
+    attend_q_kv_mask(mha, q, kv, None).reshape([rows, seq_new, d_model])
+}
+
 #[cfg(test)]
 mod tests {
     use burn::{

@@ -203,6 +203,13 @@ pub struct DecodeConfig {
     /// the first forward.
     #[config(default = "None")]
     pub no_speech_token: Option<i64>,
+
+    /// Whether a beam search's beams share their audio's cross-attention
+    /// cache (the tower's first level) or each carries a copy (the ground,
+    /// kept as the oracle). The decode is the same either way; the copies
+    /// are not.
+    #[config(default = "true")]
+    pub shared_cross_kv: bool,
 }
 
 /// What a decode says about one audio, beyond its ids.
@@ -414,11 +421,13 @@ impl<B: Backend> Whisper<B> {
         let prompt_len = config.prompt.len();
 
         let device = xa.device();
-        let mut xa = xa;
-        if k > 1 {
-            xa = repeat_interleave::<B, 3, 4, _>(xa, k, 0);
-        }
-        let mut cache = self.decoder.new_cache(xa);
+        let mut cache = if k > 1 && !config.shared_cross_kv {
+            // Ground level: cross-KV materialized per beam.
+            self.decoder
+                .new_cache(repeat_interleave::<B, 3, 4, _>(xa, k, 0))
+        } else {
+            self.decoder.new_cache_grouped(xa, k)
+        };
 
         let mut tokens: Vec<Vec<i64>> = vec![config.prompt.clone(); rows];
         let mut sum_logprobs = vec![0f32; rows];
@@ -1022,5 +1031,90 @@ mod search_tests {
                 .iter()
                 .all(|d| d.no_speech_prob.is_none() && d.temperature == 0.0)
         );
+    }
+
+    /// **I10, at the cache.** A cross-attention cache shared by a group of
+    /// rows says what a cache with a copy per row says: the same logits
+    /// over a prompt, a permutation of the self-attention cache, and a step
+    /// after it.
+    #[test]
+    #[serial]
+    fn test_shared_cross_kv_matches_materialized() {
+        let device = Default::default();
+        let model = tiny_model(&device);
+        let xa = model.forward_encoder(windows(2, &device));
+        let group = 3;
+
+        let mut shared = model.decoder.new_cache_grouped(xa.clone(), group);
+        assert_eq!(shared.group(), group);
+        let mut materialized = model
+            .decoder
+            .new_cache(repeat_interleave::<B, 3, 4, _>(xa, group, 0));
+        assert_eq!(materialized.group(), 1);
+
+        // Six rows: audio 0's three beams, audio 1's three, with different
+        // prompts so the rows are told apart.
+        let prompts = feed_tensor::<B>(&[1, 2, 1, 3, 1, 4, 2, 1, 3, 1, 4, 1], 2, &device);
+        let a = model.decoder.forward_cached(prompts.clone(), &mut shared);
+        let b = model.decoder.forward_cached(prompts, &mut materialized);
+        a.to_data_as::<F>()
+            .assert_approx_eq::<F>(&b.to_data_as::<F>(), Tolerance::permissive());
+
+        // Beams branch: the same permutation on both, then a step.
+        let sources = [1, 0, 1, 5, 5, 3];
+        shared.reorder(&sources);
+        materialized.reorder(&sources);
+        let next = feed_tensor::<B>(&[7, 8, 9, 7, 8, 9], 1, &device);
+        let a = model.decoder.forward_cached(next.clone(), &mut shared);
+        let b = model.decoder.forward_cached(next, &mut materialized);
+        a.to_data_as::<F>()
+            .assert_approx_eq::<F>(&b.to_data_as::<F>(), Tolerance::permissive());
+    }
+
+    /// **I10, at the search.** A beam search on the shared cache returns
+    /// what the materialized ground returns: the same ids and the same
+    /// score, within tolerance. Under a ramp that keeps the untrained
+    /// model's candidates apart, so a last-bit difference between the two
+    /// kernel shapes cannot flip a near-tie.
+    #[test]
+    #[serial]
+    fn test_beam_search_on_shared_cross_kv_is_the_ground() {
+        #[derive(Debug)]
+        struct Ramp;
+        impl LogitFilter<B> for Ramp {
+            fn apply(
+                &self,
+                logits: Tensor<B, 2>,
+                _tokens: &[Vec<i64>],
+                _prompt_len: usize,
+            ) -> Tensor<B, 2> {
+                let [rows, vocab] = logits.dims();
+                let ramp: Tensor<B, 1> =
+                    Tensor::arange(0..vocab as i64, &logits.device()).float() * 0.05;
+                logits + ramp.unsqueeze::<2>().expand([rows, vocab])
+            }
+        }
+        let filters: Vec<Arc<dyn LogitFilter<B>>> = vec![Arc::new(Ramp)];
+
+        let device = Default::default();
+        let model = tiny_model(&device);
+        let mels = windows(2, &device);
+        let base = DecodeConfig::new(vec![1, 2], EOT)
+            .with_max_tokens(6)
+            .with_beam_size(3);
+
+        let shared = model.decode_windows_full(mels.clone(), &base, &filters);
+        let ground =
+            model.decode_windows_full(mels, &base.clone().with_shared_cross_kv(false), &filters);
+        assert_eq!(shared.len(), 2);
+        for (s, g) in shared.iter().zip(&ground) {
+            assert_eq!(s.tokens, g.tokens);
+            assert!(
+                (s.sum_logprob - g.sum_logprob).abs() < 1e-3,
+                "{} vs {}",
+                s.sum_logprob,
+                g.sum_logprob
+            );
+        }
     }
 }

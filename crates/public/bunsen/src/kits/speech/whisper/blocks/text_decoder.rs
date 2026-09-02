@@ -260,6 +260,25 @@ impl<B: Backend> TextDecoder<B> {
         &self,
         xa: Tensor<B, 3>,
     ) -> TextDecoderCache<B> {
+        self.new_cache_grouped(xa, 1)
+    }
+
+    /// [`new_cache`](Self::new_cache) shared by `group` decode rows per
+    /// audio: the cross-attention projections are built once per row of
+    /// `xa`, and a forward over `xa.batch * group` token rows, laid out
+    /// `row = audio * group + member`, attends each member to its audio's
+    /// projection. The self-attention cache is at the full row count, and
+    /// [`TextDecoderCache::reorder`] permutes it as ever.
+    ///
+    /// This is what a beam search wants: its beams share their audio's
+    /// cross-attention, which is the bulk of the cache, and the copy per
+    /// beam that repeating `xa` would cost is never made.
+    pub fn new_cache_grouped(
+        &self,
+        xa: Tensor<B, 3>,
+        group: usize,
+    ) -> TextDecoderCache<B> {
+        assert!(group >= 1, "at least one row per audio");
         TextDecoderCache {
             self_kv: self.blocks.iter().map(|_| None).collect(),
             cross_kv: self
@@ -267,6 +286,7 @@ impl<B: Backend> TextDecoder<B> {
                 .iter()
                 .map(|block| block.build_cross_kv(xa.clone()))
                 .collect(),
+            group,
             pos: 0,
         }
     }
@@ -323,11 +343,12 @@ impl<B: Backend> TextDecoder<B> {
         };
 
         for (i, block) in self.blocks.iter().enumerate() {
-            h = block.forward_w_kv_cache(
+            h = block.forward_w_kv_cache_grouped(
                 h,
                 mask.clone(),
                 &mut cache.self_kv[i],
                 &cache.cross_kv[i],
+                cache.group,
             );
         }
 
@@ -377,6 +398,10 @@ pub struct TextDecoderCache<B: Backend> {
     /// frames, per layer, per token.
     cross_kv: Vec<AttnKvPair<B>>,
 
+    /// Decode rows per cross-attention row; one unless the cache is shared
+    /// by a group, as by a beam search's beams.
+    group: usize,
+
     /// Tokens consumed so far.
     pos: usize,
 }
@@ -385,6 +410,11 @@ impl<B: Backend> TextDecoderCache<B> {
     /// The number of tokens consumed so far.
     pub fn pos(&self) -> usize {
         self.pos
+    }
+
+    /// Decode rows per cross-attention row.
+    pub fn group(&self) -> usize {
+        self.group
     }
 
     /// The number of blocks this cache covers.
