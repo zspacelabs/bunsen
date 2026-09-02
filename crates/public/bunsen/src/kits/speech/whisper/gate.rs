@@ -76,21 +76,48 @@ pub struct SpeechGateConfig {
 }
 
 impl SpeechGateConfig {
+    fn ms_to_samples(
+        &self,
+        ms: usize,
+    ) -> usize {
+        (self.sample_rate * ms) / 1000
+    }
+
+    /// [`Self::speech_pad_ms`], in sample count.
+    pub fn speech_pad_samples(&self) -> usize {
+        self.ms_to_samples(self.speech_pad_ms)
+    }
+
+    /// [`Self::min_speech_ms`], in sample count.
+    pub fn min_speech_samples(&self) -> usize {
+        self.ms_to_samples(self.min_speech_ms)
+    }
+
+    /// [`Self::min_silence_ms`], in sample count.
+    pub fn min_silence_samples(&self) -> usize {
+        self.ms_to_samples(self.min_silence_ms)
+    }
+
+    /// [`Self::min_silence_at_max_speech_ms`], in sample count.
+    pub fn min_silence_at_max_samples(&self) -> usize {
+        self.ms_to_samples(self.min_silence_at_max_speech_ms)
+    }
+
+    /// Max speech length before splitting, in sample count.
+    pub fn max_speech_samples(&self) -> Option<usize> {
+        self.max_speech_s.map(|max_speech_s| {
+            (self.sample_rate as f64 * max_speech_s) as usize
+                - self.chunk_samples
+                - 2 * self.speech_pad_samples()
+        })
+    }
+}
+
+impl SpeechGateConfig {
     /// Initializes a [`SpeechGate`] with these constants.
     pub fn init(&self) -> SpeechGate {
-        let ms = |v: usize| (self.sample_rate * v) as f64 / 1000.0;
-        let pad = ms(self.speech_pad_ms);
-        let max_speech = self.max_speech_s.map_or(f64::INFINITY, |s| {
-            self.sample_rate as f64 * s - self.chunk_samples as f64 - 2.0 * pad
-        });
-
         SpeechGate {
             config: self.clone(),
-
-            min_speech: ms(self.min_speech_ms),
-            max_speech,
-            min_silence: ms(self.min_silence_ms),
-            min_silence_at_max: ms(self.min_silence_at_max_speech_ms),
 
             index: 0,
             triggered: false,
@@ -147,11 +174,6 @@ impl SpeechGateConfig {
         self.neg_threshold
             .unwrap_or_else(|| (self.threshold - 0.15).max(0.01))
     }
-
-    /// Padding in samples.
-    pub fn speech_pad_samples(&self) -> usize {
-        self.sample_rate * self.speech_pad_ms / 1000
-    }
 }
 
 /// The hysteresis machine as a streaming fold over one probability per chunk.
@@ -164,11 +186,6 @@ impl SpeechGateConfig {
 #[allow(unused)]
 pub struct SpeechGate {
     config: SpeechGateConfig,
-
-    min_speech: f64,
-    max_speech: f64,
-    min_silence: f64,
-    min_silence_at_max: f64,
 
     /// Chunks seen so far.
     index: usize,
@@ -218,7 +235,7 @@ impl SpeechGate {
 
         if prob >= self.config.threshold && self.temp_end != 0 {
             let silence = cur - self.temp_end;
-            if silence as f64 > self.min_silence_at_max {
+            if silence > self.config.min_silence_at_max_samples() {
                 self.possible_ends.push((self.temp_end, silence));
             }
             self.temp_end = 0;
@@ -234,7 +251,10 @@ impl SpeechGate {
         }
 
         let mut closed = None;
-        if self.triggered && (cur - self.start) as f64 > self.max_speech {
+        if self.triggered
+            && let Some(max_speech_samples) = self.config.max_speech_samples()
+            && (cur - self.start) > max_speech_samples
+        {
             if self.config.split_at_longest_silence && !self.possible_ends.is_empty() {
                 // The longest silence; the first of equals, as upstream's
                 // `max` picks.
@@ -272,18 +292,20 @@ impl SpeechGate {
             if self.temp_end == 0 {
                 self.temp_end = cur;
             }
-            let silence = (cur - self.temp_end) as f64;
+            let silence = cur - self.temp_end;
 
-            if !self.config.split_at_longest_silence && silence > self.min_silence_at_max {
+            if !self.config.split_at_longest_silence
+                && silence > self.config.min_silence_at_max_samples()
+            {
                 self.prev_end = self.temp_end;
             }
 
-            if silence < self.min_silence {
+            if silence < self.config.min_silence_samples() {
                 return closed;
             }
 
             let end = self.temp_end;
-            let region = ((end - self.start) as f64 > self.min_speech)
+            let region = ((end - self.start) > self.config.min_speech_samples())
                 .then(|| SpeechRegion::new(self.start, end));
             self.triggered = false;
             self.reset();
@@ -299,8 +321,9 @@ impl SpeechGate {
         self,
         total_samples: usize,
     ) -> Option<SpeechRegion> {
-        (self.triggered && (total_samples.saturating_sub(self.start)) as f64 > self.min_speech)
-            .then(|| SpeechRegion::new(self.start, total_samples.max(self.start)))
+        (self.triggered
+            && (total_samples.saturating_sub(self.start)) > self.config.min_speech_samples())
+        .then(|| SpeechRegion::new(self.start, total_samples.max(self.start)))
     }
 }
 
