@@ -14,9 +14,13 @@
 //! keeps the padding conservative and makes a region's start exactly
 //! expressible as both a frame index and a timestamp.
 
-use crate::kits::speech::whisper::{
-    clock::TimestampHistory,
-    tokens::TIMESTAMP_STEP_SAMPLES,
+use crate::{
+    errors::BunsenError,
+    kits::speech::whisper::{
+        clock::TimestampHistory,
+        tokens::TIMESTAMP_STEP_SAMPLES,
+    },
+    prelude::BunsenResult,
 };
 
 /// The encoder frame grid, in samples: one timestamp step.
@@ -55,6 +59,28 @@ impl SpeechRegion {
         self.end == self.start
     }
 
+    /// Shift the region forward by `offset`.
+    pub fn offset(
+        self,
+        offset: usize,
+    ) -> Self {
+        Self {
+            start: self.start + offset,
+            end: self.end + offset,
+        }
+    }
+
+    /// Scale the region by `factor`.
+    pub fn scale(
+        self,
+        factor: usize,
+    ) -> Self {
+        Self {
+            start: self.start * factor,
+            end: self.end * factor,
+        }
+    }
+
     /// The region widened onto a grid: start rounded down, end rounded up.
     ///
     /// The end is not clamped to the stream; a region that runs past the
@@ -81,7 +107,21 @@ impl SpeechRegion {
     }
 }
 
-/// Pads regions outward by `pad` samples, the way `faster-whisper` does.
+fn assert_region_sequence(regions: &[SpeechRegion]) -> BunsenResult<()> {
+    for w in regions.windows(2) {
+        let prev = &w[0];
+        let next = &w[1];
+        if prev.end > next.start {
+            return Err(BunsenError::Invalid(format!(
+                "region {:?} ends after region {:?}: {:?}",
+                prev, next, regions
+            )));
+        }
+    }
+    Ok(())
+}
+
+/// Pads regions outward by `pad` samples.
 ///
 /// The first start and the last end are clamped to the stream. Between two
 /// regions, a gap narrower than `2 * pad` is split down the middle rather
@@ -96,6 +136,9 @@ pub fn pad_regions(
     pad: usize,
     total: usize,
 ) {
+    #[cfg(any(test, debug_assertions))]
+    assert_region_sequence(regions).unwrap();
+
     let n = regions.len();
     for i in 0..n {
         if i == 0 {
@@ -116,12 +159,14 @@ pub fn pad_regions(
     }
 }
 
-/// Glues neighbouring regions whose gap is at most `gap` samples, the way
-/// `fast-whisper-burn` does so that each decode gets useful context.
+/// Merges regions where `next.start - prev.end <= gap`.
 pub fn merge_gaps(
     regions: &[SpeechRegion],
     gap: usize,
 ) -> Vec<SpeechRegion> {
+    #[cfg(any(test, debug_assertions))]
+    assert_region_sequence(regions).unwrap();
+
     let mut out: Vec<SpeechRegion> = Vec::with_capacity(regions.len());
     for &region in regions {
         match out.last_mut() {
@@ -151,6 +196,18 @@ mod tests {
         assert_eq!(region.len(), 1600);
         assert!(!region.is_empty());
         assert!(r(5, 5).is_empty());
+    }
+
+    #[test]
+    fn test_offset() {
+        let region = r(1000, 2600);
+        assert_eq!(region.offset(100), r(1100, 2700));
+    }
+
+    #[test]
+    fn test_scale() {
+        let region = r(1000, 2600);
+        assert_eq!(region.scale(2), r(2000, 5200));
     }
 
     #[test]

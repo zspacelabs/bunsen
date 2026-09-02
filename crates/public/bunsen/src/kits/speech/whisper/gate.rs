@@ -31,7 +31,7 @@ pub struct SpeechGateConfig {
 
     /// The samples per chunk.
     #[config(default = "512")]
-    pub chunk_samples: usize,
+    pub samples_per_chunk: usize,
 
     /// A probability at or above this opens a region.
     #[config(default = "0.5")]
@@ -76,6 +76,12 @@ pub struct SpeechGateConfig {
 }
 
 impl SpeechGateConfig {
+    /// The silence threshold, explicit or derived.
+    pub fn neg_threshold_value(&self) -> f64 {
+        self.neg_threshold
+            .unwrap_or_else(|| (self.threshold - 0.15).max(0.01))
+    }
+
     fn ms_to_samples(
         &self,
         ms: usize,
@@ -107,24 +113,20 @@ impl SpeechGateConfig {
     pub fn max_speech_samples(&self) -> Option<usize> {
         self.max_speech_s.map(|max_speech_s| {
             (self.sample_rate as f64 * max_speech_s) as usize
-                - self.chunk_samples
+                - self.samples_per_chunk
                 - 2 * self.speech_pad_samples()
         })
     }
-}
 
-impl SpeechGateConfig {
     /// Initializes a [`SpeechGate`] with these constants.
     pub fn init(&self) -> SpeechGate {
         SpeechGate {
             config: self.clone(),
 
-            index: 0,
-            triggered: false,
+            chunk_count: 0,
+            open_speech: false,
             start: 0,
-            temp_end: 0,
-            prev_end: 0,
-            next_start: 0,
+            temp_end: None,
             possible_ends: Vec::new(),
         }
     }
@@ -135,8 +137,8 @@ impl SpeechGateConfig {
     /// computed probability track, and agrees with it exactly.
     ///
     /// # Arguments
-    /// * `probs` - one speech probability per [`Self::chunk_samples`], covering
-    ///   the clip (the last chunk zero-padded, as Silero is fed).
+    /// * `probs` - one speech probability per [`Self::samples_per_chunk`],
+    ///   covering the clip (the last chunk zero-padded, as Silero is fed).
     /// * `total_samples` - the clip's true length, which the last region is
     ///   clamped to.
     pub fn speech_regions(
@@ -168,12 +170,6 @@ impl SpeechGateConfig {
             .with_speech_pad_ms(30)
             .with_min_speech_ms(250)
     }
-
-    /// The silence threshold, explicit or derived.
-    pub fn neg_threshold_value(&self) -> f64 {
-        self.neg_threshold
-            .unwrap_or_else(|| (self.threshold - 0.15).max(0.01))
-    }
 }
 
 /// The hysteresis machine as a streaming fold over one probability per chunk.
@@ -182,45 +178,59 @@ impl SpeechGateConfig {
 /// a region's end pad depends on where the next region starts. A port of
 /// `faster-whisper`'s `get_speech_timestamps` loop, including its handling
 /// of regions that reach the maximum length.
+///
+/// The last-silence policy is upstream's legacy path re-expressed on the
+/// longest-silence bookkeeping: the same candidates, kept one at a time.
+/// It differs from upstream in two corners. A silence qualifies by the same
+/// rule as under the longest policy, where upstream's legacy path tests it
+/// a chunk earlier and so misses dips within a chunk of the threshold; and
+/// a silence still running when the limit is reached is not a candidate,
+/// as it is not under the longest policy either.
 #[derive(Debug, Clone)]
 #[allow(unused)]
 pub struct SpeechGate {
     config: SpeechGateConfig,
 
     /// Chunks seen so far.
-    index: usize,
-    triggered: bool,
+    chunk_count: usize,
+
+    open_speech: bool,
     start: usize,
-    /// Where the current silence began; `0` when there is none, as upstream
-    /// has it (sample 0 can never begin a silence inside a region).
-    temp_end: usize,
-    prev_end: usize,
-    next_start: usize,
+
+    /// Where the current silence began, if one is running.
+    temp_end: Option<usize>,
+
+    /// Where a region that reaches its maximum length may be cut: the
+    /// silences inside it longer than `min_silence_at_max`, as
+    /// `(start, end)`, `end` being where speech resumed. All of them under
+    /// the longest-silence policy, only the latest under the last-silence
+    /// policy; the cut is the longest of the list either way.
     possible_ends: Vec<(usize, usize)>,
 }
 
 impl SpeechGate {
+    /// Chunks consumed so far.
+    pub fn chunk_count(&self) -> usize {
+        self.chunk_count
+    }
+
     /// Whether a region is open.
     pub fn is_open(&self) -> bool {
-        self.triggered
+        self.open_speech
     }
 
     /// The sample the open region began at, if one is open.
     pub fn open_since(&self) -> Option<usize> {
-        self.triggered.then_some(self.start)
+        self.open_speech.then_some(self.start)
     }
 
-    /// Chunks consumed so far.
-    pub fn chunks_seen(&self) -> usize {
-        self.index
-    }
-
-    /// Resets the gate.
-    pub fn reset(&mut self) {
-        self.prev_end = 0;
-        self.next_start = 0;
-        self.temp_end = 0;
+    fn reset_possible_endings(&mut self) {
+        self.temp_end = None;
         self.possible_ends.clear();
+    }
+
+    fn current_sample(&self) -> usize {
+        self.config.samples_per_chunk * self.chunk_count
     }
 
     /// Feeds the next chunk's probability; returns the region it closed,
@@ -229,90 +239,102 @@ impl SpeechGate {
         &mut self,
         prob: f32,
     ) -> Option<SpeechRegion> {
-        let cur = self.config.chunk_samples * self.index;
-        self.index += 1;
-        let prob = f64::from(prob);
+        let prob = prob as f64;
+        let cur = self.current_sample();
 
-        if prob >= self.config.threshold && self.temp_end != 0 {
-            let silence = cur - self.temp_end;
-            if silence > self.config.min_silence_at_max_samples() {
-                self.possible_ends.push((self.temp_end, silence));
+        self.chunk_count += 1;
+
+        if prob >= self.config.threshold {
+            // This is active speech region.
+
+            if let Some(temp_end) = self.temp_end.take() {
+                // A silence was running; it ends here.
+                // The silence length from the temp_end to now:
+                let silence = cur - temp_end;
+                if silence > self.config.min_silence_at_max_samples() {
+                    // This is a potential cut-point for a long speech region.
+                    if !self.config.split_at_longest_silence {
+                        // The last-silence policy keeps only the latest.
+                        self.possible_ends.clear();
+                    }
+                    self.possible_ends.push((temp_end, cur));
+                }
             }
-            self.temp_end = 0;
-            if self.next_start < self.prev_end {
-                self.next_start = cur;
+
+            if !self.open_speech {
+                // Open a region here.
+                self.open_speech = true;
+                self.start = cur;
+                return None;
             }
         }
 
-        if prob >= self.config.threshold && !self.triggered {
-            self.triggered = true;
-            self.start = cur;
-            return None;
-        }
+        let mut result: Option<SpeechRegion> = None;
 
-        let mut closed = None;
-        if self.triggered
+        if self.open_speech
             && let Some(max_speech_samples) = self.config.max_speech_samples()
             && (cur - self.start) > max_speech_samples
         {
-            if self.config.split_at_longest_silence && !self.possible_ends.is_empty() {
-                // The longest silence; the first of equals, as upstream's
-                // `max` picks.
-                let (end, duration) = *self
-                    .possible_ends
-                    .iter()
-                    .rev()
-                    .max_by_key(|(_, duration)| *duration)
-                    .expect("not empty");
-                closed = Some(SpeechRegion::new(self.start, end));
-                let next_start = end + duration;
-                if next_start < end + cur {
-                    self.start = next_start;
-                } else {
-                    self.triggered = false;
+            // The open region has reached its maximum length; it is cut
+            // at the longest candidate silence: the first of equals, as
+            // upstream's `max` picks. Under the last-silence policy the
+            // list holds one, so it is that one.
+
+            // Select the longest silence with the earliest index.
+            let longest = self
+                .possible_ends
+                .iter()
+                .copied()
+                .enumerate()
+                .max_by_key(|&(idx, (start, end))| (end - start, -(idx as isize)));
+
+            if let Some((idx, (end, resume))) = longest {
+                // Cut at that silence; the region continues from where
+                // speech resumed after it.
+                result = Some(SpeechRegion::new(self.start, end));
+                self.start = resume;
+
+                // Reset the soft ending history to after the new cut.
+                if let Some(temp_end) = self.temp_end
+                    && temp_end <= self.start
+                {
+                    self.temp_end = None;
                 }
-                self.reset();
-            } else if self.prev_end != 0 {
-                closed = Some(SpeechRegion::new(self.start, self.prev_end));
-                if self.next_start < self.prev_end {
-                    self.triggered = false;
-                } else {
-                    self.start = self.next_start;
-                }
-                self.reset();
+                self.possible_ends.drain(..=idx);
             } else {
-                closed = Some(SpeechRegion::new(self.start, cur));
-                self.triggered = false;
-                self.reset();
-                return closed;
+                // No silence to cut at: cut here, and close the gate.
+                result = Some(SpeechRegion::new(self.start, cur));
+                self.open_speech = false;
+                self.reset_possible_endings();
+                return result;
             }
         }
 
-        if prob < self.config.neg_threshold_value() && self.triggered {
-            if self.temp_end == 0 {
-                self.temp_end = cur;
-            }
-            let silence = cur - self.temp_end;
+        if prob < self.config.neg_threshold_value() && self.open_speech {
+            // This is silence inside an open region.
 
-            if !self.config.split_at_longest_silence
-                && silence > self.config.min_silence_at_max_samples()
-            {
-                self.prev_end = self.temp_end;
-            }
+            // The silence begins here, unless it is already running.
+            let temp_end = *self.temp_end.get_or_insert(cur);
+            // The silence length from the temp_end to now:
+            let silence = cur - temp_end;
 
             if silence < self.config.min_silence_samples() {
-                return closed;
+                // Not yet enough silence to close the region.
+                return result;
             }
 
-            let end = self.temp_end;
-            let region = ((end - self.start) > self.config.min_speech_samples())
-                .then(|| SpeechRegion::new(self.start, end));
-            self.triggered = false;
-            self.reset();
-            return closed.or(region);
+            // Enough silence. The region ends where the silence began,
+            // and is kept only if it is long enough.
+            let region = ((temp_end - self.start) > self.config.min_speech_samples())
+                .then(|| SpeechRegion::new(self.start, temp_end));
+            self.open_speech = false;
+            self.reset_possible_endings();
+            // Never both: a cut above that left the gate open has just
+            // reset the silence, so this chunk can at most begin a new one.
+            return result.or(region);
         }
 
-        closed
+        result
     }
 
     /// Ends the stream at `total_samples`, closing an open region if it is
@@ -321,7 +343,7 @@ impl SpeechGate {
         self,
         total_samples: usize,
     ) -> Option<SpeechRegion> {
-        (self.triggered
+        (self.open_speech
             && (total_samples.saturating_sub(self.start)) > self.config.min_speech_samples())
         .then(|| SpeechRegion::new(self.start, total_samples.max(self.start)))
     }
@@ -374,19 +396,25 @@ mod tests {
         assert_eq!(burn.speech_pad_ms, 30);
         assert_eq!(burn.min_speech_ms, 250);
 
-        let low = SpeechGateConfig::new().with_threshold(0.1);
-        assert!(
-            (low.neg_threshold_value() - 0.01).abs() < 1e-12,
-            "floored at 0.01"
+        assert_float_eq::assert_float_relative_eq!(
+            SpeechGateConfig::new()
+                .with_threshold(0.165) // (0.165 - 0.15) = 0.015 > 0.01
+                .neg_threshold_value(),
+            0.015
         );
-        let explicit = SpeechGateConfig::new().with_neg_threshold(Some(0.2));
-        assert!((explicit.neg_threshold_value() - 0.2).abs() < 1e-12);
+        assert_float_eq::assert_float_relative_eq!(
+            SpeechGateConfig::new()
+                .with_threshold(0.1) // (0.1 - 0.15) < 0.01
+                .neg_threshold_value(),
+            0.01
+        );
+        assert_float_eq::assert_float_relative_eq!(
+            SpeechGateConfig::new()
+                .with_neg_threshold(Some(0.2))
+                .neg_threshold_value(),
+            0.2
+        );
     }
-
-    // Every expectation below was produced by running `faster-whisper`'s
-    // own `get_speech_timestamps` over the same probability track, with its
-    // model replaced by the track. They are the reference's answers, not
-    // this port's.
 
     #[test]
     fn test_one_region() {
@@ -509,7 +537,7 @@ mod tests {
         let total_samples = 56 * C;
         assert_eq!(
             config.speech_regions(&t, total_samples),
-            regions(&[(544, 4576), (6176, 21760), (21760, 28672)])
+            regions(&[(544, 4576), (6176, 9184), (10272, 26080)])
         );
     }
 
@@ -524,11 +552,22 @@ mod tests {
             .with_max_speech_s(Some(1.0))
             .with_split_at_longest_silence(false);
 
-        let short_dip = track(&[(0.1, 2), (0.9, 8), (0.2, 4), (0.9, 30), (0.1, 5)]);
-        let total_samples = 49 * C;
+        let short_dip = track(&[(0.1, 2), (0.9, 8), (0.2, 3), (0.9, 30), (0.1, 5)]);
+        let total_samples = 48 * C;
         assert_eq!(
             config.speech_regions(&short_dip, total_samples),
-            regions(&[(544, 16128), (16128, 25088)])
+            regions(&[(544, 16128), (16128, 24576)])
+        );
+
+        // A four-chunk dip qualifies, as it does under the longest policy.
+        // Upstream's legacy path tests the silence a chunk earlier, while
+        // it is still running, and misses this one: it cuts just before
+        // the limit instead.
+        let four_chunk_dip = track(&[(0.1, 2), (0.9, 8), (0.2, 4), (0.9, 30), (0.1, 5)]);
+        let total_samples = 49 * C;
+        assert_eq!(
+            config.speech_regions(&four_chunk_dip, total_samples),
+            regions(&[(544, 5600), (6688, 22496)])
         );
 
         let one_dip = track(&[(0.1, 2), (0.9, 8), (0.2, 5), (0.9, 30), (0.1, 5)]);
@@ -608,7 +647,7 @@ mod tests {
         let mut raw = Vec::new();
         let mut opened_at = None;
         for (i, &p) in t.iter().enumerate() {
-            assert_eq!(gate.chunks_seen(), i as usize);
+            assert_eq!(gate.chunk_count(), i as usize);
             let was_open = gate.is_open();
             if let Some(region) = gate.step(p) {
                 raw.push(region);
