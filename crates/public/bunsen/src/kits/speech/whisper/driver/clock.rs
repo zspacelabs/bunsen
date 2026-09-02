@@ -22,7 +22,7 @@ use crate::errors::{
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Anchor {
     /// The sample index, counted from the start of the stream.
-    pub sample: u64,
+    pub sample: usize,
     /// The media time of that sample, in seconds.
     pub time: f64,
 }
@@ -76,7 +76,7 @@ impl TimestampHistory {
     /// `time` is not finite.
     pub fn anchor(
         &mut self,
-        sample: u64,
+        sample: usize,
         time: f64,
     ) -> BunsenResult<()> {
         if !time.is_finite() {
@@ -106,7 +106,7 @@ impl TimestampHistory {
     /// from the first anchor, backwards, for a sample before it.
     pub fn time_at(
         &self,
-        sample: u64,
+        sample: usize,
     ) -> f64 {
         let at = self.anchors.partition_point(|a| a.sample <= sample);
         let base = self.anchors[at.saturating_sub(1)];
@@ -127,8 +127,8 @@ impl TimestampHistory {
     /// If `to < from`.
     pub fn slice(
         &self,
-        from: u64,
-        to: u64,
+        from: usize,
+        to: usize,
     ) -> Self {
         assert!(to >= from, "slice end {to} is before its start {from}");
 

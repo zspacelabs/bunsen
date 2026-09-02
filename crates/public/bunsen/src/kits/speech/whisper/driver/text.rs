@@ -22,24 +22,26 @@ use crate::{
         BunsenError,
         BunsenResult,
     },
-    kits::speech::whisper::{
-        tokens::WhisperSpecialIds,
+    kits::speech::whisper::driver::{
+        tokens::TokenPolicy,
         vocab::TiktokenRanks,
     },
 };
 
 /// The full `{ id -> bytes }` table of a Whisper vocabulary, indexed by id.
 ///
-/// The base ranks first, then every special in [`WhisperSpecialIds`]'s
-/// order, spelled as `<|name|>` — `n_vocab` entries in all.
+/// The base ranks first, then every special in
+/// [`WhisperSpecialIds`](super::WhisperSpecialIds)'s order, spelled as
+/// `<|name|>` — `n_vocab` entries in all.
 ///
 /// # Errors
-/// [`BunsenError::Invalid`] if the ranks are not the base of `ids`' layout:
+/// [`BunsenError::Invalid`] if the ranks are not the base of `policy`'s layout:
 /// the vocabulary file and the checkpoint disagree.
 pub fn token_spans(
     ranks: &TiktokenRanks,
-    ids: &WhisperSpecialIds,
+    policy: &TokenPolicy,
 ) -> BunsenResult<Vec<Vec<u8>>> {
+    let ids = policy.ids();
     if ranks.len() != ids.n_base {
         return Err(BunsenError::Invalid(format!(
             "the vocabulary has {} base ranks but the layout expects {}",
@@ -50,7 +52,7 @@ pub fn token_spans(
 
     let mut spans = Vec::with_capacity(ids.n_vocab());
     spans.extend(ranks.iter().map(<[u8]>::to_vec));
-    spans.extend(ids.special_names().map(String::into_bytes));
+    spans.extend(policy.special_names().map(String::into_bytes));
     Ok(spans)
 }
 
@@ -64,10 +66,10 @@ pub fn token_spans(
 #[cfg(feature = "tokenizer")]
 pub fn detokenizer(
     ranks: &TiktokenRanks,
-    ids: &WhisperSpecialIds,
+    policy: &TokenPolicy,
 ) -> BunsenResult<crate::kits::tokens::WordchipperDetokenizer<u16>> {
     crate::kits::tokens::WordchipperDetokenizer::from_spans(
-        token_spans(ranks, ids)?.into_iter().enumerate(),
+        token_spans(ranks, policy)?.into_iter().enumerate(),
     )
 }
 
@@ -78,26 +80,28 @@ pub fn detokenizer(
 #[cfg(feature = "tokenizer")]
 pub fn load_detokenizer(
     path: impl AsRef<std::path::Path>,
-    ids: &WhisperSpecialIds,
+    policy: &TokenPolicy,
 ) -> BunsenResult<crate::kits::tokens::WordchipperDetokenizer<u16>> {
-    detokenizer(&TiktokenRanks::load(path)?, ids)
+    detokenizer(&TiktokenRanks::load(path)?, policy)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::kits::speech::whisper::driver::tokens::WhisperSpecialIds;
 
     /// Five base ranks, including an empty one, laid out with two languages.
-    fn tiny() -> (TiktokenRanks, WhisperSpecialIds) {
+    fn tiny() -> (TiktokenRanks, TokenPolicy) {
         let ranks = TiktokenRanks::parse("b2s= 0\nIPCfjg== 1\niQ== 2\nIGRvbmU= 3\n= 4\n").unwrap();
-        let ids = WhisperSpecialIds::new(5, 2).unwrap();
-        (ranks, ids)
+        let policy = TokenPolicy::new(WhisperSpecialIds::new(5, 2).unwrap());
+        (ranks, policy)
     }
 
     #[test]
     fn test_token_spans() {
-        let (ranks, ids) = tiny();
-        let spans = token_spans(&ranks, &ids).unwrap();
+        let (ranks, policy) = tiny();
+        let ids = *policy.ids();
+        let spans = token_spans(&ranks, &policy).unwrap();
 
         assert_eq!(spans.len(), ids.n_vocab());
         assert_eq!(spans[0], b"ok");
@@ -111,7 +115,7 @@ mod tests {
     #[test]
     fn test_token_spans_rejects_a_mismatched_layout() {
         let (ranks, _) = tiny();
-        let wrong = WhisperSpecialIds::new(4, 2).unwrap();
+        let wrong = TokenPolicy::new(WhisperSpecialIds::new(4, 2).unwrap());
 
         let err = token_spans(&ranks, &wrong).unwrap_err();
         assert!(matches!(err, BunsenError::Invalid(_)), "{err:?}");
@@ -125,8 +129,9 @@ mod tests {
         /// Specials render as their spellings, straight from the layout.
         #[test]
         fn test_detokenizer_renders_specials() {
-            let (ranks, ids) = tiny();
-            let detok = detokenizer(&ranks, &ids).unwrap();
+            let (ranks, policy) = tiny();
+            let ids = *policy.ids();
+            let detok = detokenizer(&ranks, &policy).unwrap();
             assert_eq!(detok.vocab_size(), ids.n_vocab());
 
             let window = [
@@ -151,17 +156,16 @@ mod tests {
         #[cfg(feature = "whisper-weights")]
         mod bundled {
             use super::*;
-            use crate::kits::speech::whisper::tokens::{
-                ENGLISH_BASE_RANKS,
-                MULTILINGUAL_BASE_RANKS,
-                TokenPolicy,
-            };
+            use crate::kits::speech::whisper::blocks::WhisperTokenLayoutConfig;
 
             #[test]
             fn test_multilingual_vocabulary() {
                 let ranks =
                     TiktokenRanks::load(bunsen_bundled_whisper::multilingual_tiktoken()).unwrap();
-                assert_eq!(ranks.len(), MULTILINGUAL_BASE_RANKS);
+                assert_eq!(
+                    ranks.len(),
+                    WhisperTokenLayoutConfig::new().multilingual_base_ranks
+                );
                 assert_eq!(ranks.get(50256), Some(&b""[..]), "the empty token");
                 assert_eq!(
                     ranks.get(50255),
@@ -171,7 +175,7 @@ mod tests {
 
                 // The layout the checkpoint implies is the layout the file has.
                 let policy = TokenPolicy::from_vocab_size(51865).unwrap();
-                let detok = detokenizer(&ranks, policy.ids()).unwrap();
+                let detok = detokenizer(&ranks, &policy).unwrap();
                 assert_eq!(detok.vocab_size(), 51865);
 
                 // Plain text, including non-ASCII.
@@ -211,12 +215,15 @@ mod tests {
             #[test]
             fn test_english_vocabulary() {
                 let ranks = TiktokenRanks::load(bunsen_bundled_whisper::gpt2_tiktoken()).unwrap();
-                assert_eq!(ranks.len(), ENGLISH_BASE_RANKS);
+                assert_eq!(
+                    ranks.len(),
+                    WhisperTokenLayoutConfig::new().english_base_ranks
+                );
                 assert_eq!(ranks.get(50255), Some(&b" gazed"[..]));
 
                 let policy = TokenPolicy::from_vocab_size(51864).unwrap();
-                let detok = load_detokenizer(bunsen_bundled_whisper::gpt2_tiktoken(), policy.ids())
-                    .unwrap();
+                let detok =
+                    load_detokenizer(bunsen_bundled_whisper::gpt2_tiktoken(), &policy).unwrap();
                 assert_eq!(detok.vocab_size(), 51864);
 
                 // The same text, tokenized differently: this vocabulary splits
@@ -233,7 +240,7 @@ mod tests {
 
                 // The multilingual layout does not fit this file.
                 let wrong = TokenPolicy::from_vocab_size(51865).unwrap();
-                assert!(detokenizer(&ranks, wrong.ids()).is_err());
+                assert!(detokenizer(&ranks, &wrong).is_err());
             }
         }
     }

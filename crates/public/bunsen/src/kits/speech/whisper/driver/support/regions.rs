@@ -7,29 +7,29 @@
 //! [`SpeechRegion::snap_outward`] onto the encoder grid, which neither does
 //! and both need.
 //!
-//! The snap matters because a voice-activity boundary is a multiple of 512
-//! samples and a timestamp token can only name a multiple of 320. Since
-//! `lcm(160, 320, 512) = 2560`, an unsnapped edge lands on the encoder grid
-//! one time in five. Rounding outward &mdash; start down, end up &mdash;
-//! keeps the padding conservative and makes a region's start exactly
-//! expressible as both a frame index and a timestamp.
+//! The snap matters because, at 16 kHz, a voice-activity boundary is a
+//! multiple of 512 samples and a timestamp token can only name a multiple
+//! of 320. Since `lcm(160, 320, 512) = 2560`, an unsnapped edge lands on
+//! the encoder grid one time in five. Rounding outward &mdash; start down,
+//! end up &mdash; keeps the padding conservative and makes a region's start
+//! exactly expressible as both a frame index and a timestamp. The grid is
+//! the driver's, derived from the model's rate.
 
-use crate::kits::speech::whisper::{
-    clock::TimestampHistory,
-    tokens::TIMESTAMP_STEP_SAMPLES,
+#[cfg(any(test, debug_assertions))]
+use crate::errors::{
+    BunsenError,
+    BunsenResult,
 };
-
-/// The encoder frame grid, in samples: one timestamp step.
-pub const ENCODER_GRID: u64 = TIMESTAMP_STEP_SAMPLES as u64;
+use crate::kits::speech::whisper::driver::clock::TimestampHistory;
 
 /// A half-open span of samples, `start..end`, in the stream's own sample
 /// index.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct SpeechRegion {
     /// First sample of the region.
-    pub start: u64,
+    pub start: usize,
     /// One past the last sample of the region.
-    pub end: u64,
+    pub end: usize,
 }
 
 impl SpeechRegion {
@@ -38,21 +38,43 @@ impl SpeechRegion {
     /// # Panics
     /// If `end < start`.
     pub fn new(
-        start: u64,
-        end: u64,
+        start: usize,
+        end: usize,
     ) -> Self {
         assert!(end >= start, "region end {end} is before its start {start}");
         Self { start, end }
     }
 
     /// Samples in the region.
-    pub fn len(&self) -> u64 {
+    pub fn len(&self) -> usize {
         self.end - self.start
     }
 
     /// Whether the region has no samples.
     pub fn is_empty(&self) -> bool {
         self.end == self.start
+    }
+
+    /// Shift the region forward by `offset`.
+    pub fn offset(
+        self,
+        offset: usize,
+    ) -> Self {
+        Self {
+            start: self.start + offset,
+            end: self.end + offset,
+        }
+    }
+
+    /// Scale the region by `factor`.
+    pub fn scale(
+        self,
+        factor: usize,
+    ) -> Self {
+        Self {
+            start: self.start * factor,
+            end: self.end * factor,
+        }
     }
 
     /// The region widened onto a grid: start rounded down, end rounded up.
@@ -62,7 +84,7 @@ impl SpeechRegion {
     /// for anyway.
     pub fn snap_outward(
         &self,
-        grid: u64,
+        grid: usize,
     ) -> Self {
         assert_ne!(grid, 0, "a grid needs a non-zero step");
         Self {
@@ -81,7 +103,22 @@ impl SpeechRegion {
     }
 }
 
-/// Pads regions outward by `pad` samples, the way `faster-whisper` does.
+#[cfg(any(test, debug_assertions))]
+fn assert_region_sequence(regions: &[SpeechRegion]) -> BunsenResult<()> {
+    for w in regions.windows(2) {
+        let prev = &w[0];
+        let next = &w[1];
+        if prev.end > next.start {
+            return Err(BunsenError::Invalid(format!(
+                "region {:?} ends after region {:?}: {:?}",
+                prev, next, regions
+            )));
+        }
+    }
+    Ok(())
+}
+
+/// Pads regions outward by `pad` samples.
 ///
 /// The first start and the last end are clamped to the stream. Between two
 /// regions, a gap narrower than `2 * pad` is split down the middle rather
@@ -93,9 +130,12 @@ impl SpeechRegion {
 /// * `total` - samples in the stream.
 pub fn pad_regions(
     regions: &mut [SpeechRegion],
-    pad: u64,
-    total: u64,
+    pad: usize,
+    total: usize,
 ) {
+    #[cfg(any(test, debug_assertions))]
+    assert_region_sequence(regions).unwrap();
+
     let n = regions.len();
     for i in 0..n {
         if i == 0 {
@@ -116,12 +156,14 @@ pub fn pad_regions(
     }
 }
 
-/// Glues neighbouring regions whose gap is at most `gap` samples, the way
-/// `fast-whisper-burn` does so that each decode gets useful context.
+/// Merges regions where `next.start - prev.end <= gap`.
 pub fn merge_gaps(
     regions: &[SpeechRegion],
-    gap: u64,
+    gap: usize,
 ) -> Vec<SpeechRegion> {
+    #[cfg(any(test, debug_assertions))]
+    assert_region_sequence(regions).unwrap();
+
     let mut out: Vec<SpeechRegion> = Vec::with_capacity(regions.len());
     for &region in regions {
         match out.last_mut() {
@@ -139,8 +181,8 @@ mod tests {
     use super::*;
 
     fn r(
-        start: u64,
-        end: u64,
+        start: usize,
+        end: usize,
     ) -> SpeechRegion {
         SpeechRegion::new(start, end)
     }
@@ -154,6 +196,18 @@ mod tests {
     }
 
     #[test]
+    fn test_offset() {
+        let region = r(1000, 2600);
+        assert_eq!(region.offset(100), r(1100, 2700));
+    }
+
+    #[test]
+    fn test_scale() {
+        let region = r(1000, 2600);
+        assert_eq!(region.scale(2), r(2000, 5200));
+    }
+
+    #[test]
     #[should_panic(expected = "before its start")]
     fn test_region_rejects_inverted() {
         let _ = r(10, 5);
@@ -163,19 +217,21 @@ mod tests {
     /// multiple of 320, and the region only ever grows.
     #[test]
     fn test_snap_outward() {
+        /// The encoder grid at 16 kHz.
+        const GRID: usize = 320;
         for (start, end) in [(0, 1), (512, 1024), (1536, 2048), (319, 321), (640, 640)] {
             let region = r(start, end);
-            let snapped = region.snap_outward(ENCODER_GRID);
-            assert_eq!(snapped.start % ENCODER_GRID, 0);
-            assert_eq!(snapped.end % ENCODER_GRID, 0);
+            let snapped = region.snap_outward(GRID);
+            assert_eq!(snapped.start % GRID, 0);
+            assert_eq!(snapped.end % GRID, 0);
             assert!(snapped.start <= region.start);
             assert!(snapped.end >= region.end);
-            assert!(region.start - snapped.start < ENCODER_GRID);
-            assert!(snapped.end - region.end < ENCODER_GRID);
+            assert!(region.start - snapped.start < GRID);
+            assert!(snapped.end - region.end < GRID);
         }
-        assert_eq!(r(512, 1024).snap_outward(ENCODER_GRID), r(320, 1280));
+        assert_eq!(r(512, 1024).snap_outward(GRID), r(320, 1280));
         assert_eq!(
-            r(640, 960).snap_outward(ENCODER_GRID),
+            r(640, 960).snap_outward(GRID),
             r(640, 960),
             "already on the grid"
         );

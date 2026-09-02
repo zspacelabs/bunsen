@@ -1,17 +1,19 @@
 <component name="ProjectRunConfigurationManager">
-  <configuration default="false" name="Fix" type="CargoCommandRunConfiguration" factoryName="Cargo Command">
-    <option name="command" value="clippy --fix --allow-no-vcs" />
+  <configuration default="false" name="Test whisper (wgpu)" type="CargoCommandRunConfiguration" factoryName="Cargo Command">
+    <option name="command" value="test --package bunsen --lib --features wgpu -- kits::speech::whisper" />
     <option name="workingDirectory" value="file://$PROJECT_DIR$" />
     <envs />
     <option name="emulateTerminal" value="true" />
     <option name="channel" value="DEFAULT" />
-    <option name="requiredFeatures" value="true" />
+    <option name="requiredFeatures" value="false" />
     <option name="allFeatures" value="false" />
     <option name="withSudo" value="false" />
     <option name="buildTarget" value="REMOTE" />
     <option name="backtrace" value="SHORT" />
     <option name="isRedirectInput" value="false" />
     <option name="redirectInputPath" value="" />
-    <method v="2" />
+    <method v="2">
+      <option name="RunConfigurationTask" enabled="true" run_configuration_name="Format" run_configuration_type="CargoCommandRunConfiguration" />
+    </method>
   </configuration>
 </component>

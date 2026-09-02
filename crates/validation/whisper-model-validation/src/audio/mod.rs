@@ -35,14 +35,15 @@ use bunsen::{
     },
     kits::{
         speech::whisper::{
-            Task,
-            TiktokenRanks,
-            TokenPolicy,
             Whisper,
-            mel_options,
-            package_mels,
+            blocks::WhisperFrontEndConfig,
+            driver::{
+                Task,
+                TiktokenRanks,
+                TokenPolicy,
+                detokenizer,
+            },
             pretrained::bundled,
-            text::detokenizer,
         },
         tokens::{
             Detokenizer,
@@ -259,7 +260,7 @@ fn vocab() -> Vocab {
     let policy = TokenPolicy::from_vocab_size(N_VOCAB).expect("a Whisper vocabulary size");
     let ranks = TiktokenRanks::load(bundled::multilingual_tiktoken())
         .expect("the vocabulary failed to load");
-    let decoder = detokenizer(&ranks, policy.ids()).expect("the vocabulary failed to load");
+    let decoder = detokenizer(&ranks, &policy).expect("the vocabulary failed to load");
     Vocab {
         policy,
         detokenizer: decoder,
@@ -312,7 +313,10 @@ pub fn clip_mels<B: Backend>(
     values.resize(windows * N_SAMPLES, 0.0);
     let n = values.len();
 
-    let converter: MelConverter<B> = mel_options(SAMPLE_RATE, N_MELS)
+    let front_end = WhisperFrontEndConfig::new().with_sample_rate(SAMPLE_RATE);
+    let converter: MelConverter<B> = front_end
+        .mel_options(N_MELS)
+        .expect("a Whisper rate")
         .try_init(device)
         .expect("mel converter");
     let ctx = converter.new_context(1);
@@ -325,7 +329,7 @@ pub fn clip_mels<B: Backend>(
         None => mels,
     };
 
-    package_mels(joined)
+    front_end.package_mels(joined)
 }
 
 /// bunsen's Whisper, from the fetched checkpoint, in f32.
@@ -337,6 +341,10 @@ pub fn bunsen_model<B: Backend>(device: &Device<B>) -> Whisper<B> {
     let (model, cfg) = Whisper::load_pretrained(device).expect("load base.pt");
 
     assert_eq!(cfg.n_mels, N_MELS, "not a `base` model");
+    assert_eq!(
+        cfg.front_end.sample_rate, SAMPLE_RATE,
+        "the fixtures are stored at Whisper's rate"
+    );
     assert_eq!(
         cfg.vocab_size, N_VOCAB,
         "these fixtures are for a multilingual checkpoint; an English-only \

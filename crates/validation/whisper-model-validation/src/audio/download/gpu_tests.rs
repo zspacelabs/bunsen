@@ -3,11 +3,13 @@ use bunsen::{
         ApplyTimestampRules,
         DecodeConfig,
         GreedyDecodeConfig,
-        MaxSeen,
-        Task,
-        TimestampHistory,
-        WhisperDriverConfig,
         default_filters,
+        driver::{
+            MaxSeen,
+            Task,
+            TimestampHistory,
+            WhisperDriverConfig,
+        },
         mel_windows,
     },
     prelude::TensorElemOpExt,
@@ -483,7 +485,7 @@ fn test_bunsen_driver_transcribes_like_openai() {
     let driver = WhisperDriverConfig::new()
         .with_language(Some("en".to_string()))
         .with_timestamps(true)
-        .init_with_policy(bunsen_model::<B>(&device), table.policy, &device)
+        .init_with_policy(bunsen_model::<B>(&device), table.policy.clone(), &device)
         .expect("a multilingual layout with a language")
         .with_logit_filters(default_filters::<B>(&table.ranks, table.policy.ids()));
 
@@ -577,7 +579,7 @@ fn test_bunsen_detects_the_language() {
         let xa = model.forward_encoder(windows[0].clone());
         let token = model.detect_language(xa, table.policy.ids())[0];
         assert_eq!(
-            table.policy.ids().language_code(token),
+            table.policy.language_code(token),
             Some("en"),
             "{}",
             fixture.name

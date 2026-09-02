@@ -19,10 +19,10 @@
 //! reference upstream uses; fed incrementally it is the running one; and
 //! since a speech region is decoded as its own context, it is the per-region
 //! one too. [`PerWindow`] is today's
-//! [`package_mels`](super::mel::package_mels).
+//! [`package_mels`](crate::kits::speech::whisper::blocks::WhisperFrontEndConfig::package_mels).
 //!
-//! Packaging itself, and the 8 dB, live in [`mel`](super::mel); a policy
-//! supplies only the reference.
+//! Packaging itself, and the clamp range, live in [`mel`](super::mel); a
+//! policy supplies only the reference.
 
 use std::fmt::Debug;
 
@@ -117,8 +117,8 @@ fn row_max<B: Backend>(x: &Tensor<B, 3>) -> Tensor<B, 1> {
 /// Each window is floored against its own maximum.
 ///
 /// Ignores [`observe`](ClampPolicy::observe). This is what
-/// [`package_mels`](super::mel::package_mels) does today, and it is the
-/// right policy when a window *is* the whole clip.
+/// [`package_mels`](crate::kits::speech::whisper::blocks::WhisperFrontEndConfig::package_mels)
+/// does today, and it is the right policy when a window *is* the whole clip.
 #[derive(Debug, Default, Clone, Copy)]
 pub struct PerWindow;
 

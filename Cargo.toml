@@ -110,6 +110,7 @@ thiserror = "2.0.18"
 strum = "0.28.0"
 xot = "0.31.2"
 xee-xpath = "0.1.5"
+assert_float_eq = "1.2.0"
 
 humansize = "2.1.3"
 sha2 = "0.11.0"

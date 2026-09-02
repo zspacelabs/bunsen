@@ -41,7 +41,7 @@ use crate::{
             Whisper,
             WhisperMeta,
         },
-        tokens::WhisperSpecialIds,
+        driver::WhisperSpecialIds,
     },
     ops::{
         repeat::repeat_interleave,

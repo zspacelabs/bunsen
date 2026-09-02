@@ -20,7 +20,7 @@
 //! instantaneous or has no text; that is dropped here, since a segment that
 //! carries nothing has nothing to emit and nothing to carry as a prompt.
 
-use crate::kits::speech::whisper::tokens::WhisperSpecialIds;
+use crate::kits::speech::whisper::driver::tokens::WhisperSpecialIds;
 
 /// A segment of a decoded unit, in frames relative to the unit's start.
 #[derive(Debug, Clone, PartialEq, Eq)]

@@ -23,9 +23,12 @@ use crate::{
         BunsenResult,
     },
     kits::speech::whisper::blocks::{
+        AUDIO_ENCODER_STRIDE,
         WHISPER_DEFAULT_D_MODEL,
         Whisper,
         WhisperApiConfig,
+        WhisperFrontEndConfig,
+        WhisperTokenLayoutConfig,
     },
 };
 
@@ -48,8 +51,19 @@ pub struct PytorchWhisperScanner {
     #[config(default_value = "Some(\"model_state_dict\".to_string())")]
     pub top_level_key: Option<String>,
 
+    /// The audio front end to declare on the scanned config.
+    ///
+    /// A checkpoint does not record it; `OpenAI`'s were all trained with
+    /// the default.
+    #[config(default = "WhisperFrontEndConfig::new()")]
+    pub front_end: WhisperFrontEndConfig,
+
+    /// The token layout to declare on the scanned config: upstream's.
+    #[config(default = "WhisperTokenLayoutConfig::new()")]
+    pub tokens: WhisperTokenLayoutConfig,
+
     /// Head Dimensionality.
-    #[config(defaul_value = "WHISPER_DEFAULT_D_MODEL")]
+    #[config(default = "WHISPER_DEFAULT_D_MODEL")]
     pub d_head: usize,
 }
 
@@ -104,7 +118,7 @@ impl PytorchWhisperScanner {
             .unwrap()
             .shape
             .dims();
-        let max_audio_ctx = k * 2;
+        let max_audio_ctx = k * AUDIO_ENCODER_STRIDE;
 
         let [max_text_ctx, _] = store
             .get_snapshot("decoder.positional_embedding")
@@ -127,7 +141,9 @@ impl PytorchWhisperScanner {
                 max_text_ctx,
                 decoder_layers,
             )
-            .with_d_head(self.d_head),
+            .with_d_head(self.d_head)
+            .with_front_end(self.front_end.clone())
+            .with_tokens(self.tokens.clone()),
         ))
     }
 
