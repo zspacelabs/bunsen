@@ -214,6 +214,11 @@ impl SpeechGate {
         self.chunk_count
     }
 
+    /// The sample count so far.
+    pub fn sample_count(&self) -> usize {
+        self.config.samples_per_chunk * self.chunk_count
+    }
+
     /// Whether a region is open.
     pub fn is_open(&self) -> bool {
         self.open_speech
@@ -229,10 +234,6 @@ impl SpeechGate {
         self.possible_ends.clear();
     }
 
-    fn current_sample(&self) -> usize {
-        self.config.samples_per_chunk * self.chunk_count
-    }
-
     /// Feeds the next chunk's probability; returns the region it closed,
     /// if it closed one.
     pub fn step(
@@ -240,7 +241,7 @@ impl SpeechGate {
         prob: f32,
     ) -> Option<SpeechRegion> {
         let prob = prob as f64;
-        let cur = self.current_sample();
+        let cur = self.sample_count();
 
         self.chunk_count += 1;
 

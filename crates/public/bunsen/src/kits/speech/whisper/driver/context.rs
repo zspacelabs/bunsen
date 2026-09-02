@@ -168,9 +168,6 @@ struct VoiceActivity<B: Backend> {
     /// Samples not yet a whole chunk.
     staging: Vec<f32>,
 
-    /// Samples the gate has seen.
-    consumed: usize,
-
     /// Padding on each side of a region, in samples.
     pad: usize,
 
@@ -204,7 +201,6 @@ impl<B: Backend> WhisperStreamContext<B> {
                     context: Some(SileroVadContextConfig::new(SAMPLE_RATE).init(model, &device)),
                     gate: gate.init(),
                     staging: Vec::new(),
-                    consumed: 0,
                     pad: gate.speech_pad_samples(),
                     regions: VecDeque::new(),
                     last_end: 0,
@@ -504,7 +500,6 @@ impl<B: Backend> WhisperStreamContext<B> {
 
             let probs: Vec<f32> = probs.to_data().convert::<f32>().to_vec().unwrap();
             for p in probs {
-                vad.consumed += chunk;
                 if let Some(raw) = vad.gate.step(p) {
                     vad.enqueue(raw, total);
                 }
