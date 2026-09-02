@@ -64,18 +64,15 @@ use crate::{
                 decode_with_fallback,
             },
             driver::{
-                SAMPLE_RATE,
+                ClampPolicy,
+                CommitRule,
+                Emission,
+                Segment,
+                TimestampHistory,
+                VoiceActivityFilter,
                 driver_impl::WhisperDriver,
                 support::{
-                    ClampPolicy,
-                    CommitRule,
-                    ENCODER_GRID,
-                    Emission,
-                    Segment,
                     SpeechRegion,
-                    TimestampHistory,
-                    VoiceActivityFilter,
-                    package_window,
                     split_window,
                 },
             },
@@ -267,6 +264,9 @@ struct VoiceActivity<B: Backend> {
     /// Padding on each side of a region, in samples.
     pad: usize,
 
+    /// The encoder grid closed regions are snapped onto, in samples.
+    grid: usize,
+
     /// Closed regions, padded and snapped, oldest first.
     regions: VecDeque<SpeechRegion>,
 
@@ -294,10 +294,13 @@ impl<B: Backend> WhisperStreamContext<B> {
             (Some(model), Some(gate)) if driver.emission().triggers.endpoint => {
                 let device = model.devices()[0].clone();
                 Some(VoiceActivity {
-                    context: Some(SileroVadContextConfig::new(SAMPLE_RATE).init(model, &device)),
+                    context: Some(
+                        SileroVadContextConfig::new(model.sample_rate()).init(model, &device),
+                    ),
                     filter: gate.init(),
                     staging: Vec::new(),
                     pad: gate.speech_pad_samples(),
+                    grid: driver.encoder_grid(),
                     regions: VecDeque::new(),
                     last_end: 0,
                 })
@@ -706,7 +709,7 @@ impl<B: Backend> WhisperStreamContext<B> {
         window: Tensor<B, 3>,
     ) -> Tensor<B, 3> {
         let reference = self.clamp.reference(&window);
-        let packaged = package_window(window, reference);
+        let packaged = self.driver.front_end().package_window(window, reference);
 
         let width = self.driver.window_frames();
         let [_, n_mels, have] = packaged.dims();
@@ -808,7 +811,6 @@ impl<B: Backend> WhisperStreamContext<B> {
         let code = self
             .driver
             .policy()
-            .ids()
             .language_code(token)
             .expect("detection picks a language token");
         self.language = Some(code.to_string());
@@ -1049,7 +1051,7 @@ impl<B: Backend> VoiceActivity<B> {
     ) {
         let start = raw.start.saturating_sub(self.pad).max(self.last_end);
         let end = (raw.end + self.pad).min(total).max(start);
-        let mut region = SpeechRegion::new(start, end).snap_outward(ENCODER_GRID);
+        let mut region = SpeechRegion::new(start, end).snap_outward(self.grid);
         region.start = region.start.max(self.last_end);
         self.last_end = region.end;
         self.regions.push_back(region);
@@ -1079,19 +1081,15 @@ mod tests {
                     LogitFilter,
                 },
                 driver::{
-                    SAMPLE_RATE,
+                    EmissionPolicy,
+                    MaxSeen,
+                    PerWindow,
+                    TokenPolicy,
+                    Triggers,
+                    WhisperSpecialIds,
                     context::advance_ready,
                     driver_impl::WhisperDriverConfig,
-                    support::{
-                        EmissionPolicy,
-                        MaxSeen,
-                        PerWindow,
-                        TokenPolicy,
-                        Triggers,
-                        WhisperSpecialIds,
-                        package_mels,
-                        trim_stream_tail,
-                    },
+                    trim_stream_tail,
                 },
             },
             tokens::Detokenizer,
@@ -1145,8 +1143,11 @@ mod tests {
             .unwrap()
     }
 
+    /// The rate the tiny model, and every clip here, is at.
+    const RATE: usize = 16_000;
+
     fn clock() -> TimestampHistory {
-        TimestampHistory::uniform(SAMPLE_RATE)
+        TimestampHistory::uniform(RATE)
     }
 
     /// A deterministic 1.05 s clip: a tone under a bell-shaped envelope
@@ -1164,7 +1165,7 @@ mod tests {
         let n = 16_800;
         (0..n)
             .map(|i| {
-                let t = i as f32 / SAMPLE_RATE as f32;
+                let t = i as f32 / RATE as f32;
                 let envelope = (-(t - peak_at).powi(2) * 20.0).exp();
                 let tone = 0.6 * envelope * (2.0 * std::f32::consts::PI * tone_hz * t).sin();
                 let chirp =
@@ -1261,7 +1262,9 @@ mod tests {
         emissions.extend(ctx.flush().unwrap());
 
         let expected = driver.model().decode_chunked(
-            package_mels(joined_mels(&driver, &audio, &device)),
+            driver
+                .front_end()
+                .package_mels(joined_mels(&driver, &audio, &device)),
             &greedy_config(&driver),
         );
 
@@ -1361,7 +1364,9 @@ mod tests {
             let window = trimmed
                 .clone()
                 .slice_dim(1, at as isize..(at + count) as isize);
-            let mut packaged = package_window(window.clone(), PerWindow.reference(&window));
+            let mut packaged = driver
+                .front_end()
+                .package_window(window.clone(), PerWindow.reference(&window));
             if count < width {
                 let pad = Tensor::zeros([1, packaged.dims()[1], width - count], &device);
                 packaged = Tensor::cat(vec![packaged, pad], 2);
@@ -1388,7 +1393,7 @@ mod tests {
         let mut emissions = ctx.push_at(&audio, 100.0).unwrap();
         emissions.extend(ctx.flush().unwrap());
 
-        let window_seconds = width as f64 * hop / SAMPLE_RATE as f64;
+        let window_seconds = width as f64 * hop / driver.sample_rate() as f64;
         for (w, e) in emissions.iter().enumerate() {
             let segment = e.segment();
             assert!((segment.start - (100.0 + w as f64 * window_seconds)).abs() < 1e-9);
@@ -1401,7 +1406,7 @@ mod tests {
         // 105, one per hop, and the remainder ends there.
         let last = emissions.last().unwrap().segment();
         assert_eq!(ctx.seek(), 105);
-        assert!((last.end - (100.0 + 105.0 * hop / SAMPLE_RATE as f64)).abs() < 1e-9);
+        assert!((last.end - (100.0 + 105.0 * hop / driver.sample_rate() as f64)).abs() < 1e-9);
         assert_eq!(ctx.pending_frames(), 0);
     }
 
@@ -1451,7 +1456,9 @@ mod tests {
             let window = trimmed
                 .clone()
                 .slice_dim(1, (w * width) as isize..((w + 1) * width) as isize);
-            package_window(window.clone(), PerWindow.reference(&window))
+            driver
+                .front_end()
+                .package_window(window.clone(), PerWindow.reference(&window))
         };
         let ids = driver.policy().ids();
         let first = driver
@@ -1611,7 +1618,7 @@ mod tests {
         let driver = driver(&device, true).with_logit_filters(decisive());
         let audio = clip();
         // 4000 samples: one 16-frame window and change.
-        let first = SAMPLE_RATE / 4;
+        let first = RATE / 4;
 
         // Solo: A decodes its first window early, then the rest; B all at
         // once.
@@ -1772,7 +1779,7 @@ mod tests {
         let driver = timestamped(&device, CommitRule::Complete);
         let tb = tiny_layout().timestamp_begin;
         let hop = driver.mel().hop() as f64;
-        let frame = |f: f64| f * hop / SAMPLE_RATE as f64;
+        let frame = |f: f64| f * hop / driver.sample_rate() as f64;
         assert_eq!(driver.frames_per_timestamp(), 2);
         assert_eq!(
             driver.filters().len(),
@@ -2019,7 +2026,7 @@ mod tests {
             .with_logit_filters(decisive());
         assert!(detecting.detects_language());
         assert!(detecting.prompt().is_empty());
-        let only = crate::kits::speech::whisper::driver::support::LANGUAGES[0];
+        let only = crate::kits::speech::whisper::blocks::LANGUAGES[0];
         assert_eq!(only, "en");
 
         let audio = clip();
@@ -2048,6 +2055,24 @@ mod tests {
         assert_eq!(batch[1].language(), Some(only));
     }
 
+    /// The driver reports the model's rate, and the grid derived from it.
+    #[test]
+    fn test_driver_reports_the_models_rate() {
+        let device = Device::default();
+        let driver = WhisperDriverConfig::new()
+            .init_with_policy(
+                tiny_model(&device),
+                TokenPolicy::new(tiny_layout()),
+                &device,
+            )
+            .unwrap();
+        assert_eq!(driver.sample_rate(), 16_000);
+        assert_eq!(driver.mel().hop(), 160);
+        assert_eq!(driver.frames_per_timestamp(), 2);
+        assert_eq!(driver.encoder_grid(), 320);
+        assert_eq!(driver.interval_samples(), None);
+    }
+
     /// The configuration refuses what this slice cannot do, with a reason,
     /// and refuses a mismatched language.
     #[test]
@@ -2057,26 +2082,26 @@ mod tests {
         let base = WhisperDriverConfig::new().with_language(Some("en".to_string()));
 
         assert!(
-            base.init_with_policy(tiny_model(&device), policy, &device)
+            base.init_with_policy(tiny_model(&device), policy.clone(), &device)
                 .is_ok()
         );
         // Multilingual without a language detects it per stream.
         assert!(
             WhisperDriverConfig::new()
-                .init_with_policy(tiny_model(&device), policy, &device)
+                .init_with_policy(tiny_model(&device), policy.clone(), &device)
                 .unwrap()
                 .detects_language()
         );
         assert!(
             base.clone()
                 .with_timestamps(true)
-                .init_with_policy(tiny_model(&device), policy, &device)
+                .init_with_policy(tiny_model(&device), policy.clone(), &device)
                 .is_ok()
         );
         assert!(
             base.clone()
                 .with_emission(EmissionPolicy::responsive())
-                .init_with_policy(tiny_model(&device), policy, &device)
+                .init_with_policy(tiny_model(&device), policy.clone(), &device)
                 .is_ok(),
             "responsive is the third deployment target",
         );
@@ -2086,14 +2111,14 @@ mod tests {
                     Triggers::new().with_interval(Some(std::time::Duration::ZERO)),
                     CommitRule::Complete,
                 ))
-                .init_with_policy(tiny_model(&device), policy, &device)
+                .init_with_policy(tiny_model(&device), policy.clone(), &device)
                 .is_err(),
             "an interval of zero",
         );
         assert!(
             base.clone()
                 .with_language(Some("xx".to_string()))
-                .init_with_policy(tiny_model(&device), policy, &device)
+                .init_with_policy(tiny_model(&device), policy.clone(), &device)
                 .is_err()
         );
 
@@ -2123,7 +2148,7 @@ mod tests {
         use crate::{
             kits::speech::{
                 silero_vad::SileroVad,
-                whisper::driver::support::{
+                whisper::driver::{
                     CommitRule,
                     Triggers,
                     VoiceActivityFilterConfig,
@@ -2145,7 +2170,7 @@ mod tests {
                 env!("CARGO_MANIFEST_DIR"),
                 "/testdata/audio/jfk_moon_4s.mp3"
             );
-            load_audio_mono_sr(path, SAMPLE_RATE).unwrap()
+            load_audio_mono_sr(path, RATE).unwrap()
         }
 
         fn conservative_driver(device: &CDevice) -> WhisperDriver<C> {
@@ -2159,6 +2184,53 @@ mod tests {
                 )
                 .unwrap()
                 .with_vad(vad, VoiceActivityFilterConfig::fast_whisper_burn())
+                .unwrap()
+        }
+
+        /// A model or a filter at another rate, or a filter with the wrong
+        /// chunk, is refused at attach time; the matching pair is not.
+        #[test]
+        #[serial]
+        fn test_with_vad_refuses_a_mismatch() {
+            let device = CDevice::default();
+            let driver = || {
+                config(false)
+                    .with_emission(EmissionPolicy::conservative())
+                    .init_with_policy(
+                        tiny_model_on::<C>(&device),
+                        TokenPolicy::new(tiny_layout()),
+                        &device,
+                    )
+                    .unwrap()
+            };
+            let filter = VoiceActivityFilterConfig::fast_whisper_burn;
+
+            let eight = SileroVad::<C>::load_8khz_pretrained(&device).unwrap();
+            assert!(driver().with_vad(eight, filter()).is_err());
+
+            let vad = SileroVad::<C>::load_16khz_pretrained(&device).unwrap();
+            assert!(
+                driver()
+                    .with_vad(vad.clone(), filter().with_sample_rate(8_000))
+                    .is_err()
+            );
+            assert!(
+                driver()
+                    .with_vad(vad.clone(), filter().with_samples_per_chunk(256))
+                    .is_err()
+            );
+            assert!(driver().configure_vad_filter(|f| f).is_err(), "no VAD");
+
+            let attached = driver().with_vad(vad, filter()).unwrap();
+            assert_eq!(
+                attached.filter_config().map(|f| f.samples_per_chunk),
+                Some(512)
+            );
+            assert!(
+                attached
+                    .configure_vad_filter(|f| f.with_samples_per_chunk(256))
+                    .is_err()
+            );
         }
 
         /// The gate's golden regions, padded and snapped outward, are
@@ -2183,13 +2255,12 @@ mod tests {
                     &device,
                 )
                 .unwrap()
-                .with_vad(vad, VoiceActivityFilterConfig::fast_whisper_burn());
+                .with_vad(vad, VoiceActivityFilterConfig::fast_whisper_burn())
+                .unwrap();
             let audio = speech();
             assert_eq!(audio.len(), 64_000);
 
-            let mut ctx = driver
-                .new_context(TimestampHistory::uniform(SAMPLE_RATE), PerWindow)
-                .unwrap();
+            let mut ctx = driver.new_context(clock(), PerWindow).unwrap();
             let sizes = random_sizes(11, audio.len());
             let mut emissions = Vec::new();
             let mut at = 0;
@@ -2207,14 +2278,15 @@ mod tests {
             // (0, 16352) and (29728, 56800) from the gate's golden test,
             // snapped outward onto the 320-sample grid.
             let expected = [(0usize, 16_640usize), (29_440, 56_960)];
-            let window = driver.window_frames() as f64 * 160.0 / 16_000.0;
+            let window = driver.window_frames() as f64 * driver.mel().hop() as f64
+                / driver.sample_rate() as f64;
             let close = |a: f64, b: f64| (a - b).abs() < 1e-9;
 
             let mut segments = emissions.iter().map(Emission::segment).peekable();
             for (start, end) in expected {
                 let (start, end) = (
-                    100.0 + start as f64 / 16_000.0,
-                    100.0 + end as f64 / 16_000.0,
+                    100.0 + start as f64 / RATE as f64,
+                    100.0 + end as f64 / RATE as f64,
                 );
                 let mut at = start;
                 while let Some(segment) = segments.next_if(|s| s.start < end) {
@@ -2250,14 +2322,13 @@ mod tests {
             let driver = conservative_driver(&device);
             let audio = speech();
 
-            let mut ctx = driver
-                .new_context(TimestampHistory::uniform(SAMPLE_RATE), PerWindow)
-                .unwrap();
+            let mut ctx = driver.new_context(clock(), PerWindow).unwrap();
             let mut emissions = ctx.push(&audio).unwrap();
             emissions.extend(ctx.flush().unwrap());
 
-            let window = driver.window_frames() as f64 * 160.0 / 16_000.0;
-            let (gap_start, gap_end) = (16_640.0 / 16_000.0, 29_440.0 / 16_000.0);
+            let window = driver.window_frames() as f64 * driver.mel().hop() as f64
+                / driver.sample_rate() as f64;
+            let (gap_start, gap_end) = (16_640.0 / RATE as f64, 29_440.0 / RATE as f64);
             let mut covered_to = 0.0_f64;
             for e in &emissions {
                 let s = e.segment();
@@ -2275,7 +2346,7 @@ mod tests {
                 covered_to = s.end;
             }
             assert!(
-                (covered_to - 56_960.0 / 16_000.0).abs() < 1e-9,
+                (covered_to - 56_960.0 / RATE as f64).abs() < 1e-9,
                 "covered to {covered_to}\n{emissions:#?}"
             );
             assert_eq!(ctx.regions_pending(), 0);
@@ -2305,6 +2376,7 @@ mod tests {
                 )
                 .unwrap()
                 .with_vad(vad, VoiceActivityFilterConfig::fast_whisper_burn())
+                .unwrap()
                 .with_logit_filters(vec![scripted])
         }
 
@@ -2312,7 +2384,7 @@ mod tests {
         fn in_pieces(ctx: &mut WhisperStreamContext<C>) -> Vec<Emission> {
             let audio = speech();
             let mut out = Vec::new();
-            for piece in audio.chunks(SAMPLE_RATE / 10) {
+            for piece in audio.chunks(RATE / 10) {
                 out.extend(ctx.push(piece).unwrap());
             }
             out.extend(ctx.flush().unwrap());
@@ -2330,7 +2402,6 @@ mod tests {
             let scripted: Arc<dyn LogitFilter<C>> = Arc::new(Script(vec![3, 1, 4, 1]));
             let conservative = conservative_driver(&device).with_logit_filters(vec![scripted]);
             let responsive = responsive_driver(&device);
-            let clock = || TimestampHistory::uniform(SAMPLE_RATE);
 
             let mut ctx = conservative.new_context(clock(), PerWindow).unwrap();
             let quiet = in_pieces(&mut ctx);
@@ -2390,13 +2461,12 @@ mod tests {
         fn test_advance_ready_drafts_like_solo() {
             let device = CDevice::default();
             let driver = responsive_driver(&device);
-            let clock = || TimestampHistory::uniform(SAMPLE_RATE);
             let audio = speech();
 
             let mut solo = driver.new_context(clock(), PerWindow).unwrap();
             let mut batch = vec![driver.new_context(clock(), PerWindow).unwrap()];
             let (mut expected, mut got) = (Vec::new(), Vec::new());
-            for piece in audio.chunks(SAMPLE_RATE / 10) {
+            for piece in audio.chunks(RATE / 10) {
                 expected.extend(solo.push(piece).unwrap());
                 batch[0].feed(piece).unwrap();
                 got.extend(advance_ready(&driver, &mut batch).unwrap().remove(0));
@@ -2425,12 +2495,11 @@ mod tests {
                     &device,
                 )
                 .unwrap()
-                .with_vad(vad, VoiceActivityFilterConfig::fast_whisper_burn());
+                .with_vad(vad, VoiceActivityFilterConfig::fast_whisper_burn())
+                .unwrap();
             let audio = speech();
 
-            let mut ctx = driver
-                .new_context(TimestampHistory::uniform(SAMPLE_RATE), PerWindow)
-                .unwrap();
+            let mut ctx = driver.new_context(clock(), PerWindow).unwrap();
             let mut emissions = ctx.push(&audio).unwrap();
             emissions.extend(ctx.flush().unwrap());
 

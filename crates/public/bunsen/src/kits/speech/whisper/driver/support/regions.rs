@@ -7,24 +7,20 @@
 //! [`SpeechRegion::snap_outward`] onto the encoder grid, which neither does
 //! and both need.
 //!
-//! The snap matters because a voice-activity boundary is a multiple of 512
-//! samples and a timestamp token can only name a multiple of 320. Since
-//! `lcm(160, 320, 512) = 2560`, an unsnapped edge lands on the encoder grid
-//! one time in five. Rounding outward &mdash; start down, end up &mdash;
-//! keeps the padding conservative and makes a region's start exactly
-//! expressible as both a frame index and a timestamp.
+//! The snap matters because, at 16 kHz, a voice-activity boundary is a
+//! multiple of 512 samples and a timestamp token can only name a multiple
+//! of 320. Since `lcm(160, 320, 512) = 2560`, an unsnapped edge lands on
+//! the encoder grid one time in five. Rounding outward &mdash; start down,
+//! end up &mdash; keeps the padding conservative and makes a region's start
+//! exactly expressible as both a frame index and a timestamp. The grid is
+//! the driver's, derived from the model's rate.
 
-use crate::{
-    errors::BunsenError,
-    kits::speech::whisper::driver::support::{
-        clock::TimestampHistory,
-        tokens::TIMESTAMP_STEP_SAMPLES,
-    },
-    prelude::BunsenResult,
+#[cfg(any(test, debug_assertions))]
+use crate::errors::{
+    BunsenError,
+    BunsenResult,
 };
-
-/// The encoder frame grid, in samples: one timestamp step.
-pub const ENCODER_GRID: usize = TIMESTAMP_STEP_SAMPLES;
+use crate::kits::speech::whisper::driver::clock::TimestampHistory;
 
 /// A half-open span of samples, `start..end`, in the stream's own sample
 /// index.
@@ -107,6 +103,7 @@ impl SpeechRegion {
     }
 }
 
+#[cfg(any(test, debug_assertions))]
 fn assert_region_sequence(regions: &[SpeechRegion]) -> BunsenResult<()> {
     for w in regions.windows(2) {
         let prev = &w[0];
@@ -220,19 +217,21 @@ mod tests {
     /// multiple of 320, and the region only ever grows.
     #[test]
     fn test_snap_outward() {
+        /// The encoder grid at 16 kHz.
+        const GRID: usize = 320;
         for (start, end) in [(0, 1), (512, 1024), (1536, 2048), (319, 321), (640, 640)] {
             let region = r(start, end);
-            let snapped = region.snap_outward(ENCODER_GRID);
-            assert_eq!(snapped.start % ENCODER_GRID, 0);
-            assert_eq!(snapped.end % ENCODER_GRID, 0);
+            let snapped = region.snap_outward(GRID);
+            assert_eq!(snapped.start % GRID, 0);
+            assert_eq!(snapped.end % GRID, 0);
             assert!(snapped.start <= region.start);
             assert!(snapped.end >= region.end);
-            assert!(region.start - snapped.start < ENCODER_GRID);
-            assert!(snapped.end - region.end < ENCODER_GRID);
+            assert!(region.start - snapped.start < GRID);
+            assert!(snapped.end - region.end < GRID);
         }
-        assert_eq!(r(512, 1024).snap_outward(ENCODER_GRID), r(320, 1280));
+        assert_eq!(r(512, 1024).snap_outward(GRID), r(320, 1280));
         assert_eq!(
-            r(640, 960).snap_outward(ENCODER_GRID),
+            r(640, 960).snap_outward(GRID),
             r(640, 960),
             "already on the grid"
         );

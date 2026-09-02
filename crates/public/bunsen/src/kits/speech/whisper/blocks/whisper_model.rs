@@ -8,7 +8,11 @@ use burn::{
     },
 };
 
-use super::WHISPER_DEFAULT_D_MODEL;
+use super::{
+    WHISPER_DEFAULT_D_MODEL,
+    WhisperFrontEndConfig,
+    WhisperTokenLayoutConfig,
+};
 use crate::{
     burner::{
         module::ModuleInit,
@@ -37,6 +41,20 @@ pub struct WhisperApiConfig {
     /// The Mel-scale frequency resolution.
     pub n_mels: usize,
 
+    /// The audio front end the checkpoint's log-mels were computed with.
+    ///
+    /// A checkpoint does not record it; it is the convention of the
+    /// pipeline that trained it, and the loader declares it. Every
+    /// sample-domain quantity of the front end is derived from it.
+    #[config(default = "WhisperFrontEndConfig::new()")]
+    pub front_end: WhisperFrontEndConfig,
+
+    /// The token layout the checkpoint's vocabulary follows: what its size
+    /// does not say &mdash; the language codes, the spellings, the timestamp
+    /// grid. Upstream's by default.
+    #[config(default = "WhisperTokenLayoutConfig::new()")]
+    pub tokens: WhisperTokenLayoutConfig,
+
     /// The size of the vocabulary.
     pub vocab_size: usize,
 
@@ -56,7 +74,7 @@ pub struct WhisperApiConfig {
     pub n_decoder_layers: usize,
 
     /// Head Dimensionality.
-    #[config(defaul_value = "WHISPER_DEFAULT_D_MODEL")]
+    #[config(default = "WHISPER_DEFAULT_D_MODEL")]
     pub d_head: usize,
 }
 
@@ -64,6 +82,8 @@ impl WhisperApiConfig {
     /// Converts to a [`WhisperStructuralConfig`].
     pub fn to_structure(&self) -> WhisperStructuralConfig {
         WhisperStructuralConfig {
+            front_end: self.front_end.clone(),
+            tokens: self.tokens.clone(),
             encoder: AudioEncoderConfig::new(
                 self.n_mels,
                 self.d_model,
@@ -93,6 +113,17 @@ impl<B: Backend> ModuleInit<B, Whisper<B>> for WhisperApiConfig {
 
 /// Common meta for [`Whisper`] and [`WhisperApiConfig`].
 pub trait WhisperMeta {
+    /// The audio front end the model's log-mels are computed with.
+    fn front_end(&self) -> &WhisperFrontEndConfig;
+
+    /// The token layout the model's vocabulary follows.
+    fn token_layout(&self) -> &WhisperTokenLayoutConfig;
+
+    /// The sample rate the model's log-mels are computed at, in Hz.
+    fn sample_rate(&self) -> usize {
+        self.front_end().sample_rate
+    }
+
     /// Returns the Mel-scale frequency resolution.
     fn n_mels(&self) -> usize {
         self.encoder().n_mels()
@@ -132,6 +163,12 @@ pub trait WhisperMeta {
 /// [`Whisper`] module via [`ModuleInit`].
 #[derive(Config, Debug)]
 pub struct WhisperStructuralConfig {
+    /// The audio front end the model's log-mels are computed with.
+    pub front_end: WhisperFrontEndConfig,
+
+    /// The token layout the model's vocabulary follows.
+    pub tokens: WhisperTokenLayoutConfig,
+
     /// Encoder config.
     pub encoder: AudioEncoderConfig,
 
@@ -140,6 +177,14 @@ pub struct WhisperStructuralConfig {
 }
 
 impl WhisperMeta for WhisperStructuralConfig {
+    fn front_end(&self) -> &WhisperFrontEndConfig {
+        &self.front_end
+    }
+
+    fn token_layout(&self) -> &WhisperTokenLayoutConfig {
+        &self.tokens
+    }
+
     fn encoder(&self) -> &impl AudioEncoderMeta {
         &self.encoder
     }
@@ -159,7 +204,12 @@ impl<B: Backend> ModuleInit<B, Whisper<B>> for WhisperStructuralConfig {
 
         assert_eq!(encoder.d_model(), decoder.d_model());
 
-        Ok(Whisper { encoder, decoder })
+        Ok(Whisper {
+            front_end: self.front_end.clone(),
+            tokens: self.tokens.clone(),
+            encoder,
+            decoder,
+        })
     }
 }
 
@@ -172,6 +222,18 @@ impl<B: Backend> ModuleInit<B, Whisper<B>> for WhisperStructuralConfig {
 /// Built by [`WhisperApiConfig`].
 #[derive(Module, Debug)]
 pub struct Whisper<B: Backend> {
+    /// The audio front end the log-mels are computed with. A constant of
+    /// the module, not part of its record: set by the config at `init`, it
+    /// survives a checkpoint load, and the config carries it across a
+    /// record round trip.
+    #[module(skip)]
+    front_end: WhisperFrontEndConfig,
+
+    /// The token layout the vocabulary follows. Likewise not part of the
+    /// record.
+    #[module(skip)]
+    tokens: WhisperTokenLayoutConfig,
+
     /// The [`AudioEncoder`].
     pub encoder: AudioEncoder<B>,
 
@@ -188,6 +250,14 @@ impl<B: Backend> FixPytorchLoadMappers for Whisper<B> {
 }
 
 impl<B: Backend> WhisperMeta for Whisper<B> {
+    fn front_end(&self) -> &WhisperFrontEndConfig {
+        &self.front_end
+    }
+
+    fn token_layout(&self) -> &WhisperTokenLayoutConfig {
+        &self.tokens
+    }
+
     fn encoder(&self) -> &impl AudioEncoderMeta {
         &self.encoder
     }
@@ -337,6 +407,31 @@ mod tests {
         assert!(!is_mapped(&model.encoder.positional_embedding, &device));
         assert!(!is_mapped(&model.decoder.positional_embedding, &device));
         assert!(!is_mapped(&model.decoder.token_embedding.weight, &device));
+    }
+
+    /// The front end and the token layout default to upstream's and ride
+    /// config -> structure -> module.
+    #[test]
+    fn test_front_end_and_layout_propagate() {
+        type B = CpuBackend;
+        let device: Device<B> = Default::default();
+
+        let config = WhisperApiConfig::new(8, 16, 128, 16, 1, 16, 1);
+        assert_eq!(config.front_end, WhisperFrontEndConfig::new());
+        assert_eq!(config.tokens, WhisperTokenLayoutConfig::new());
+        assert_eq!(config.to_structure().sample_rate(), 16_000);
+        let model: Whisper<B> = config.try_init(&device).unwrap();
+        assert_eq!(model.sample_rate(), 16_000);
+        assert_eq!(model.token_layout().languages.len(), 100);
+
+        let config = config
+            .with_front_end(WhisperFrontEndConfig::new().with_sample_rate(8_000))
+            .with_tokens(WhisperTokenLayoutConfig::new().with_timestamp_tokens(751));
+        assert_eq!(config.to_structure().sample_rate(), 8_000);
+        let model: Whisper<B> = config.try_init(&device).unwrap();
+        assert_eq!(model.sample_rate(), 8_000);
+        assert_eq!(model.front_end().hop(), 80);
+        assert_eq!(model.token_layout().timestamp_tokens, 751);
     }
 
     #[test]

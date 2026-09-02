@@ -1,76 +1,34 @@
-//! # Whisper's token layout.
+//! # Whisper's token layout, as ids.
 //!
 //! The decode loop runs on ids, and a handful of them are structural: the
 //! prompt that selects language and task, the stop token, the no-speech
-//! marker, and the 1501 timestamp tokens. None of them needs a tokenizer.
+//! marker, and the timestamp tokens. None of them needs a tokenizer.
 //! Whisper appends its special tokens after the base vocabulary in a fixed
 //! order (`whisper/tokenizer.py::get_encoding`), so every one is arithmetic
-//! over two numbers: how many base ranks the vocabulary has, and how many
-//! languages the checkpoint knows.
+//! over two numbers a checkpoint decides &mdash; how many base ranks the
+//! vocabulary has, and how many languages it knows &mdash; and a
+//! [`WhisperTokenLayoutConfig`] for everything it takes on convention.
 //!
-//! Both are recoverable from the checkpoint alone, through
-//! [`WhisperSpecialIds::from_vocab_size`]. That is what keeps a multilingual
-//! model from being driven with English-only ids, or the reverse — a mistake
-//! that produces plausible text rather than an error.
+//! Both numbers are recoverable from the checkpoint alone, through
+//! [`WhisperTokenLayoutConfig::special_ids_for_vocab`]. That is what keeps a
+//! multilingual model from being driven with English-only ids, or the
+//! reverse &mdash; a mistake that produces plausible text rather than an
+//! error.
 //!
-//! [`WhisperSpecialIds`] is the layout; [`TokenPolicy`] is the view of it the
-//! decode loop holds. Text is a separate concern, and an optional one: see
-//! [`text`](super::text).
+//! [`WhisperSpecialIds`] is the layout as numbers, a plain `Copy` value;
+//! [`TokenPolicy`] pairs it with the layout's names and timestamp grid, and
+//! is the view of it the decode loop holds. Text is a separate concern, and
+//! an optional one: see [`text`](super::text).
 
-use crate::errors::{
-    BunsenError,
-    BunsenResult,
+use std::sync::Arc;
+
+use crate::{
+    errors::{
+        BunsenError,
+        BunsenResult,
+    },
+    kits::speech::whisper::blocks::WhisperTokenLayoutConfig,
 };
-
-/// Language codes, in the order Whisper assigns their tokens.
-///
-/// `whisper/tokenizer.py::LANGUAGES`, keys only. The first 99 are the
-/// original set; `yue` (Cantonese) was added for `large-v3`, which is why
-/// that checkpoint's vocabulary is one token larger and every special after
-/// the language block sits one id higher.
-pub const LANGUAGES: &[&str] = &[
-    "en", "zh", "de", "es", "ru", "ko", "fr", "ja", "pt", "tr", "pl", "ca", "nl", "ar", "sv", "it",
-    "id", "hi", "fi", "vi", "he", "uk", "el", "ms", "cs", "ro", "da", "hu", "ta", "no", "th", "ur",
-    "hr", "bg", "lt", "la", "mi", "ml", "cy", "sk", "te", "fa", "lv", "bn", "sr", "az", "sl", "kn",
-    "et", "mk", "br", "eu", "is", "hy", "ne", "mn", "bs", "kk", "sq", "sw", "gl", "mr", "pa", "si",
-    "km", "sn", "yo", "so", "af", "oc", "ka", "be", "tg", "sd", "gu", "am", "yi", "lo", "uz", "fo",
-    "ht", "ps", "tk", "nn", "mt", "sa", "lb", "my", "bo", "tl", "mg", "as", "tt", "haw", "ln",
-    "ha", "ba", "jw", "su", "yue",
-];
-
-/// Base ranks in `gpt2.tiktoken`, the English-only vocabulary.
-pub const ENGLISH_BASE_RANKS: usize = 50256;
-
-/// Base ranks in `multilingual.tiktoken`.
-///
-/// One more than [`ENGLISH_BASE_RANKS`], and that one — rank 50256 — is a
-/// genuinely empty token. See [`TiktokenRanks`](super::TiktokenRanks).
-pub const MULTILINGUAL_BASE_RANKS: usize = 50257;
-
-/// The timestamp tokens: `<|0.00|>` through `<|30.00|>`.
-pub const TIMESTAMP_TOKENS: usize = 1501;
-
-/// Seconds between adjacent timestamp tokens.
-pub const TIMESTAMP_STEP_SECONDS: f64 = 0.02;
-
-/// Samples between adjacent timestamp tokens at Whisper's 16 kHz: two mel
-/// hops, which is one encoder frame.
-pub const TIMESTAMP_STEP_SAMPLES: usize = 320;
-
-/// `<|endoftext|>` and `<|startoftranscript|>`, which precede the language
-/// block.
-const LEADING_SPECIALS: [&str; 2] = ["<|endoftext|>", "<|startoftranscript|>"];
-
-/// The control tokens between the language block and the timestamps, in id
-/// order.
-const CONTROL_TOKENS: [&str; 6] = [
-    "<|translate|>",
-    "<|transcribe|>",
-    "<|startoflm|>",
-    "<|startofprev|>",
-    "<|nospeech|>",
-    "<|notimestamps|>",
-];
 
 /// What the model is asked to do with the audio.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
@@ -83,11 +41,11 @@ pub enum Task {
 
 /// Where Whisper's special tokens sit, for one vocabulary and language count.
 ///
-/// Every id is derived in [`new`](Self::new) from `n_base` and
-/// `num_languages`: this is the layout `whisper/tokenizer.py` builds, as
-/// numbers. The two real vocabularies are [`ENGLISH_BASE_RANKS`] and
-/// [`MULTILINGUAL_BASE_RANKS`]; other sizes are accepted so a test can build
-/// a small one.
+/// Every id is derived by [`WhisperTokenLayoutConfig::special_ids`] from
+/// `n_base` and `num_languages`: this is the layout `whisper/tokenizer.py`
+/// builds, as numbers, with nothing named. The two real base vocabularies
+/// are the layout's `english_base_ranks` and `multilingual_base_ranks`;
+/// other sizes are accepted so a test can build a small one.
 ///
 /// Ids are `i64`, matching the model's token tensors; counts are `usize`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -95,9 +53,21 @@ pub struct WhisperSpecialIds {
     /// Ranks in the base vocabulary, which is also the first special id.
     pub n_base: usize,
 
-    /// Language tokens, taken from the front of [`LANGUAGES`]: 99, or 100
-    /// for `large-v3`.
+    /// Language tokens, taken from the front of the layout's languages: 99,
+    /// or 100 for `large-v3`.
     pub num_languages: usize,
+
+    /// Timestamp tokens, from [`timestamp_begin`](Self::timestamp_begin) up.
+    pub timestamp_tokens: usize,
+
+    /// Whether the prompt takes language and task tokens: the base
+    /// vocabulary is not the English-only one.
+    ///
+    /// English-only is exactly the `gpt2.tiktoken` layout. Its language and
+    /// task tokens exist &mdash; the specials are appended to it in the same
+    /// order &mdash; but its checkpoints were never trained on them, and
+    /// upstream never emits them.
+    pub multilingual: bool,
 
     /// `<|endoftext|>`: ends a decode, and is the first non-text id.
     pub eot: i64,
@@ -105,7 +75,7 @@ pub struct WhisperSpecialIds {
     /// `<|startoftranscript|>`: the first prompt token.
     pub sot: i64,
 
-    /// `<|en|>`. Language `i` of [`LANGUAGES`] is `language_begin + i`.
+    /// `<|en|>`. Language `i` of the layout is `language_begin + i`.
     pub language_begin: i64,
 
     /// `<|translate|>`.
@@ -129,36 +99,96 @@ pub struct WhisperSpecialIds {
     pub no_timestamps: i64,
 
     /// `<|0.00|>`. Timestamp `i` is `timestamp_begin + i`, and means
-    /// `i * 0.02` seconds.
+    /// `i` steps of the layout's grid.
     pub timestamp_begin: i64,
 }
 
 impl WhisperSpecialIds {
     /// Lays out the specials after `n_base` ranks, for `num_languages`
-    /// languages.
+    /// languages, under upstream's layout.
+    ///
+    /// [`WhisperTokenLayoutConfig::special_ids`] on the default config.
     ///
     /// # Errors
-    /// [`BunsenError::Invalid`] if `num_languages` is zero or exceeds
-    /// [`LANGUAGES`].
+    /// As it.
     pub fn new(
         n_base: usize,
         num_languages: usize,
     ) -> BunsenResult<Self> {
-        if num_languages == 0 || num_languages > LANGUAGES.len() {
+        WhisperTokenLayoutConfig::new().special_ids(n_base, num_languages)
+    }
+
+    /// Recovers upstream's layout from a checkpoint's vocabulary size.
+    ///
+    /// [`WhisperTokenLayoutConfig::special_ids_for_vocab`] on the default
+    /// config.
+    ///
+    /// # Errors
+    /// As it.
+    pub fn from_vocab_size(n_vocab: usize) -> BunsenResult<Self> {
+        WhisperTokenLayoutConfig::new().special_ids_for_vocab(n_vocab)
+    }
+
+    /// Total ids: the base ranks and every special.
+    pub fn n_vocab(&self) -> usize {
+        self.timestamp_begin as usize + self.timestamp_tokens
+    }
+
+    /// Whether the prompt takes language and task tokens.
+    pub fn is_multilingual(&self) -> bool {
+        self.multilingual
+    }
+
+    /// The last timestamp token, and the last id: `<|30.00|>` upstream.
+    pub fn timestamp_end(&self) -> i64 {
+        self.timestamp_begin + (self.timestamp_tokens - 1) as i64
+    }
+
+    /// The token for a [`Task`].
+    pub fn task_token(
+        &self,
+        task: Task,
+    ) -> i64 {
+        match task {
+            Task::Transcribe => self.transcribe,
+            Task::Translate => self.translate,
+        }
+    }
+}
+
+impl WhisperTokenLayoutConfig {
+    /// Lays out the specials after `n_base` ranks, for `num_languages` of
+    /// this layout's languages.
+    ///
+    /// # Errors
+    /// [`BunsenError::Invalid`] if the layout does not
+    /// [`validate`](Self::validate), or `num_languages` is zero or exceeds
+    /// the languages it has.
+    pub fn special_ids(
+        &self,
+        n_base: usize,
+        num_languages: usize,
+    ) -> BunsenResult<WhisperSpecialIds> {
+        self.validate()?;
+        if num_languages == 0 || num_languages > self.languages.len() {
             return Err(BunsenError::Invalid(format!(
                 "num_languages must be in 1..={}, got {num_languages}",
-                LANGUAGES.len(),
+                self.languages.len(),
             )));
         }
 
+        // The leading specials, the language block, the control tokens, the
+        // timestamps; `validate` has fixed the first and third at two and six.
         let eot = n_base as i64;
         let sot = eot + 1;
         let language_begin = sot + 1;
         let translate = language_begin + num_languages as i64;
 
-        Ok(Self {
+        Ok(WhisperSpecialIds {
             n_base,
             num_languages,
+            timestamp_tokens: self.timestamp_tokens,
+            multilingual: n_base != self.english_base_ranks,
             eot,
             sot,
             language_begin,
@@ -183,143 +213,118 @@ impl WhisperSpecialIds {
     ///
     /// # Errors
     /// [`BunsenError::Invalid`] if `n_vocab` is not one of those sizes.
-    pub fn from_vocab_size(n_vocab: usize) -> BunsenResult<Self> {
-        let multilingual_threshold = Self::size_without_languages(MULTILINGUAL_BASE_RANKS) + 99;
+    pub fn special_ids_for_vocab(
+        &self,
+        n_vocab: usize,
+    ) -> BunsenResult<WhisperSpecialIds> {
+        // Upstream's threshold is the multilingual layout with the original
+        // 99 languages; `large-v3`'s hundredth came later.
+        let multilingual_threshold = self.size_without_languages(self.multilingual_base_ranks) + 99;
         let n_base = if n_vocab >= multilingual_threshold {
-            MULTILINGUAL_BASE_RANKS
+            self.multilingual_base_ranks
         } else {
-            ENGLISH_BASE_RANKS
+            self.english_base_ranks
         };
 
         let num_languages = n_vocab
-            .checked_sub(Self::size_without_languages(n_base))
-            .filter(|n| (1..=LANGUAGES.len()).contains(n))
+            .checked_sub(self.size_without_languages(n_base))
+            .filter(|n| (1..=self.languages.len()).contains(n))
             .ok_or_else(|| {
                 BunsenError::Invalid(format!(
                     "{n_vocab} is not a Whisper vocabulary size: expected {} (English-only) or \
                      {} (multilingual) plus a language count in 1..={}",
-                    Self::size_without_languages(ENGLISH_BASE_RANKS),
-                    Self::size_without_languages(MULTILINGUAL_BASE_RANKS),
-                    LANGUAGES.len(),
+                    self.size_without_languages(self.english_base_ranks),
+                    self.size_without_languages(self.multilingual_base_ranks),
+                    self.languages.len(),
                 ))
             })?;
 
-        Self::new(n_base, num_languages)
+        self.special_ids(n_base, num_languages)
     }
 
-    /// Every id but the language block.
-    fn size_without_languages(n_base: usize) -> usize {
-        n_base + LEADING_SPECIALS.len() + CONTROL_TOKENS.len() + TIMESTAMP_TOKENS
-    }
-
-    /// Total ids: the base ranks and every special.
-    pub fn n_vocab(&self) -> usize {
-        Self::size_without_languages(self.n_base) + self.num_languages
-    }
-
-    /// Whether the prompt takes language and task tokens.
+    /// A [`TokenPolicy`] over this layout, for `n_base` ranks and
+    /// `num_languages` languages.
     ///
-    /// English-only is exactly the `gpt2.tiktoken` layout. Its language and
-    /// task tokens exist — the specials are appended to it in the same order
-    /// — but its checkpoints were never trained on them, and upstream never
-    /// emits them.
-    pub fn is_multilingual(&self) -> bool {
-        self.n_base != ENGLISH_BASE_RANKS
-    }
-
-    /// `<|30.00|>`: the last timestamp token, and the last id.
-    pub fn timestamp_end(&self) -> i64 {
-        self.timestamp_begin + (TIMESTAMP_TOKENS - 1) as i64
-    }
-
-    /// The token for a [`LANGUAGES`] code, if this layout has it.
-    pub fn language_token(
+    /// # Errors
+    /// As [`special_ids`](Self::special_ids).
+    pub fn policy(
         &self,
-        code: &str,
-    ) -> Option<i64> {
-        LANGUAGES[..self.num_languages]
-            .iter()
-            .position(|&c| c == code)
-            .map(|i| self.language_begin + i as i64)
+        n_base: usize,
+        num_languages: usize,
+    ) -> BunsenResult<TokenPolicy> {
+        Ok(TokenPolicy::with_layout(
+            self.clone(),
+            self.special_ids(n_base, num_languages)?,
+        ))
     }
 
-    /// The [`LANGUAGES`] code of a language token, if `id` is one.
-    pub fn language_code(
-        &self,
-        id: i64,
-    ) -> Option<&'static str> {
-        let i = usize::try_from(id.checked_sub(self.language_begin)?).ok()?;
-        LANGUAGES[..self.num_languages].get(i).copied()
-    }
-
-    /// The token for a [`Task`].
-    pub fn task_token(
-        &self,
-        task: Task,
-    ) -> i64 {
-        match task {
-            Task::Transcribe => self.transcribe,
-            Task::Translate => self.translate,
-        }
-    }
-
-    /// The special tokens' spellings, in id order from [`eot`](Self::eot).
+    /// A [`TokenPolicy`] over this layout, for a checkpoint's vocabulary
+    /// size.
     ///
-    /// This is `whisper/tokenizer.py`'s `specials` list, generated rather
-    /// than stored: item `i` is the spelling of id `eot + i`, and there are
-    /// `n_vocab - n_base` of them — 1608 for the multilingual layout, of
-    /// which 1501 are timestamps.
-    pub fn special_names(&self) -> impl Iterator<Item = String> {
-        LEADING_SPECIALS
-            .into_iter()
-            .map(String::from)
-            .chain(
-                LANGUAGES[..self.num_languages]
-                    .iter()
-                    .map(|code| format!("<|{code}|>")),
-            )
-            .chain(CONTROL_TOKENS.into_iter().map(String::from))
-            .chain((0..TIMESTAMP_TOKENS).map(timestamp_name))
+    /// # Errors
+    /// As [`special_ids_for_vocab`](Self::special_ids_for_vocab).
+    pub fn policy_for_vocab(
+        &self,
+        n_vocab: usize,
+    ) -> BunsenResult<TokenPolicy> {
+        Ok(TokenPolicy::with_layout(
+            self.clone(),
+            self.special_ids_for_vocab(n_vocab)?,
+        ))
     }
-}
-
-/// `<|s.ss|>` for timestamp `index`, spelled as Python's
-/// `f"<|{i * 0.02:.2f}|>"` spells it — in integer arithmetic, so exactly.
-fn timestamp_name(index: usize) -> String {
-    format!("<|{}.{:02}|>", index / 50, (index % 50) * 2)
 }
 
 /// The ids a decode loop consults, and the questions it asks of them.
 ///
-/// A plain value with no dependencies, built from the checkpoint's own
-/// vocabulary size — [`from_vocab_size`](Self::from_vocab_size) — so it
-/// cannot disagree with the model it drives. The layout underneath is
-/// [`ids`](Self::ids).
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+/// The [`ids`](Self::ids) as numbers, with the [`layout`](Self::layout)
+/// that names them and times the timestamps. Built from the checkpoint's own
+/// vocabulary size &mdash; [`WhisperTokenLayoutConfig::policy_for_vocab`]
+/// &mdash; so it cannot disagree with the model it drives. Cheap to clone:
+/// the layout is shared.
+#[derive(Debug, Clone, PartialEq)]
 pub struct TokenPolicy {
+    layout: Arc<WhisperTokenLayoutConfig>,
     ids: WhisperSpecialIds,
 }
 
 impl TokenPolicy {
-    /// A policy over an explicit layout.
+    /// A policy over an explicit layout of ids, with upstream's names and
+    /// timestamp grid.
     pub fn new(ids: WhisperSpecialIds) -> Self {
-        Self { ids }
+        Self::with_layout(WhisperTokenLayoutConfig::new(), ids)
     }
 
-    /// A policy for a checkpoint, from its vocabulary size.
+    /// A policy over `ids`, named and timed by `layout`.
+    pub fn with_layout(
+        layout: WhisperTokenLayoutConfig,
+        ids: WhisperSpecialIds,
+    ) -> Self {
+        Self {
+            layout: Arc::new(layout),
+            ids,
+        }
+    }
+
+    /// A policy for a checkpoint, from its vocabulary size, under upstream's
+    /// layout.
     ///
-    /// See [`WhisperSpecialIds::from_vocab_size`].
+    /// See [`WhisperTokenLayoutConfig::special_ids_for_vocab`].
     ///
     /// # Errors
     /// [`BunsenError::Invalid`] if `n_vocab` is not a Whisper vocabulary
     /// size.
     pub fn from_vocab_size(n_vocab: usize) -> BunsenResult<Self> {
-        WhisperSpecialIds::from_vocab_size(n_vocab).map(Self::new)
+        WhisperTokenLayoutConfig::new().policy_for_vocab(n_vocab)
     }
 
     /// The layout: every special id, by name.
     pub fn ids(&self) -> &WhisperSpecialIds {
         &self.ids
+    }
+
+    /// The layout's names and timestamp grid.
+    pub fn layout(&self) -> &WhisperTokenLayoutConfig {
+        &self.layout
     }
 
     /// Whether `id` is a base-vocabulary token: text, not a special.
@@ -347,21 +352,22 @@ impl TokenPolicy {
         self.timestamp_index(id).is_some()
     }
 
-    /// The step of a timestamp token, `0..1501`, if `id` is one.
+    /// The step of a timestamp token, `0..timestamp_tokens`, if `id` is one.
     pub fn timestamp_index(
         &self,
         id: i64,
     ) -> Option<usize> {
         let i = usize::try_from(id.checked_sub(self.ids.timestamp_begin)?).ok()?;
-        (i < TIMESTAMP_TOKENS).then_some(i)
+        (i < self.ids.timestamp_tokens).then_some(i)
     }
 
-    /// The timestamp token for a step, if `index` is within `0..1501`.
+    /// The timestamp token for a step, if `index` is within
+    /// `0..timestamp_tokens`.
     pub fn timestamp_token(
         &self,
         index: usize,
     ) -> Option<i64> {
-        (index < TIMESTAMP_TOKENS).then(|| self.ids.timestamp_begin + index as i64)
+        (index < self.ids.timestamp_tokens).then(|| self.ids.timestamp_begin + index as i64)
     }
 
     /// The seconds a timestamp token denotes, relative to its window, if
@@ -371,7 +377,49 @@ impl TokenPolicy {
         id: i64,
     ) -> Option<f64> {
         self.timestamp_index(id)
-            .map(|i| i as f64 * TIMESTAMP_STEP_SECONDS)
+            .map(|i| self.layout.timestamp_seconds(i))
+    }
+
+    /// The language codes this layout has, in token order.
+    pub fn languages(&self) -> &[String] {
+        &self.layout.languages[..self.ids.num_languages]
+    }
+
+    /// The token for a language code, if this layout has it.
+    pub fn language_token(
+        &self,
+        code: &str,
+    ) -> Option<i64> {
+        self.languages()
+            .iter()
+            .position(|c| c == code)
+            .map(|i| self.ids.language_begin + i as i64)
+    }
+
+    /// The language code of a language token, if `id` is one.
+    pub fn language_code(
+        &self,
+        id: i64,
+    ) -> Option<&str> {
+        let i = usize::try_from(id.checked_sub(self.ids.language_begin)?).ok()?;
+        self.languages().get(i).map(String::as_str)
+    }
+
+    /// The special tokens' spellings, in id order from
+    /// [`eot`](WhisperSpecialIds::eot).
+    ///
+    /// This is `whisper/tokenizer.py`'s `specials` list, generated rather
+    /// than stored: item `i` is the spelling of id `eot + i`, and there are
+    /// `n_vocab - n_base` of them &mdash; 1608 for the multilingual layout,
+    /// of which 1501 are timestamps.
+    pub fn special_names(&self) -> impl Iterator<Item = String> + '_ {
+        self.layout
+            .leading_specials
+            .iter()
+            .cloned()
+            .chain(self.languages().iter().map(|code| format!("<|{code}|>")))
+            .chain(self.layout.control_tokens.iter().cloned())
+            .chain((0..self.ids.timestamp_tokens).map(|i| self.layout.timestamp_name(i)))
     }
 
     /// Keeps only the text tokens: what a transcript is made of.
@@ -391,12 +439,12 @@ impl TokenPolicy {
     /// The prompt that opens every window's decode.
     ///
     /// `<|startoftranscript|>`, then the language and task tokens when
-    /// given, then `<|notimestamps|>` when `timestamps` is off — which is
-    /// `Tokenizer.sot_sequence_including_notimestamps`.
+    /// given, then `<|notimestamps|>` when `timestamps` is off &mdash; which
+    /// is `Tokenizer.sot_sequence_including_notimestamps`.
     ///
     /// # Arguments
-    /// * `language` - a [`LANGUAGES`] code. `None` leaves the model to choose,
-    ///   which upstream resolves with a language-detection pass.
+    /// * `language` - a language code of the layout. `None` leaves the model to
+    ///   choose, which upstream resolves with a language-detection pass.
     /// * `task` - transcribe or translate. `None` leaves the model to choose.
     /// * `timestamps` - whether the model may emit timestamp tokens.
     ///
@@ -414,11 +462,11 @@ impl TokenPolicy {
 
         if ids.is_multilingual() {
             if let Some(code) = language {
-                seq.push(ids.language_token(code).ok_or_else(|| {
+                seq.push(self.language_token(code).ok_or_else(|| {
                     BunsenError::Invalid(format!(
                         "unknown language `{code}`: this vocabulary has the first {} of {}",
                         ids.num_languages,
-                        LANGUAGES.len(),
+                        self.layout.languages.len(),
                     ))
                 })?);
             }
@@ -442,6 +490,7 @@ impl TokenPolicy {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::kits::speech::whisper::blocks::CONTROL_TOKENS;
 
     /// The layout `whisper.tokenizer` produces, read off the real thing for
     /// both vocabularies and both language counts.
@@ -539,20 +588,13 @@ mod tests {
         },
     ];
 
-    #[test]
-    fn test_languages_table() {
-        assert_eq!(LANGUAGES.len(), 100);
-        assert_eq!(LANGUAGES[0], "en");
-        assert_eq!(LANGUAGES[98], "su");
-        assert_eq!(LANGUAGES[99], "yue");
-    }
-
     /// Derived ids match `whisper.tokenizer` for both vocabularies and both
     /// language counts.
     #[test]
     fn test_layout_matches_upstream() {
         for e in &EXPECTED {
             let ids = WhisperSpecialIds::new(e.n_base, e.num_languages).unwrap();
+            let policy = TokenPolicy::new(ids);
             let label = format!("n_base={} num_languages={}", e.n_base, e.num_languages);
 
             assert_eq!(ids.eot, e.eot, "{label} eot");
@@ -562,7 +604,7 @@ mod tests {
                 "{label} language_begin"
             );
             assert_eq!(
-                ids.language_token(e.last_language),
+                policy.language_token(e.last_language),
                 Some(e.language_end),
                 "{label} last language"
             );
@@ -582,6 +624,7 @@ mod tests {
                 "{label} timestamp_end"
             );
             assert_eq!(ids.n_vocab(), e.n_vocab, "{label} n_vocab");
+            assert_eq!(ids.is_multilingual(), e.n_base == 50257, "{label}");
         }
     }
 
@@ -594,10 +637,11 @@ mod tests {
     /// The checkpoint's vocabulary size alone picks the layout.
     #[test]
     fn test_from_vocab_size() {
+        let layout = WhisperTokenLayoutConfig::new();
         for e in &EXPECTED {
             // English-only with 100 languages is the same size as multilingual
             // with 99; upstream reads that size as multilingual, and so do we.
-            if e.n_base == ENGLISH_BASE_RANKS && e.num_languages == 100 {
+            if e.n_base == layout.english_base_ranks && e.num_languages == 100 {
                 continue;
             }
             let ids = WhisperSpecialIds::from_vocab_size(e.n_vocab).unwrap();
@@ -623,25 +667,27 @@ mod tests {
 
     #[test]
     fn test_language_lookup() {
-        let ids = WhisperSpecialIds::new(MULTILINGUAL_BASE_RANKS, 99).unwrap();
+        let policy = TokenPolicy::from_vocab_size(51865).unwrap();
+        let ids = *policy.ids();
 
-        assert_eq!(ids.language_token("en"), Some(50259));
-        assert_eq!(ids.language_token("zh"), Some(50260));
-        assert_eq!(ids.language_token("su"), Some(50357));
-        assert_eq!(ids.language_token("yue"), None, "beyond num_languages");
-        assert_eq!(ids.language_token("xx"), None);
+        assert_eq!(policy.language_token("en"), Some(50259));
+        assert_eq!(policy.language_token("zh"), Some(50260));
+        assert_eq!(policy.language_token("su"), Some(50357));
+        assert_eq!(policy.language_token("yue"), None, "beyond num_languages");
+        assert_eq!(policy.language_token("xx"), None);
 
-        assert_eq!(ids.language_code(50259), Some("en"));
-        assert_eq!(ids.language_code(50357), Some("su"));
-        assert_eq!(ids.language_code(50358), None, "that is <|translate|>");
+        assert_eq!(policy.language_code(50259), Some("en"));
+        assert_eq!(policy.language_code(50357), Some("su"));
+        assert_eq!(policy.language_code(50358), None, "that is <|translate|>");
         assert_eq!(
-            ids.language_code(50258),
+            policy.language_code(50258),
             None,
             "that is <|startoftranscript|>"
         );
-        assert_eq!(ids.language_code(-1), None);
+        assert_eq!(policy.language_code(-1), None);
+        assert_eq!(policy.languages().len(), 99);
 
-        let large_v3 = WhisperSpecialIds::new(MULTILINGUAL_BASE_RANKS, 100).unwrap();
+        let large_v3 = TokenPolicy::from_vocab_size(51866).unwrap();
         assert_eq!(large_v3.language_token("yue"), Some(50358));
         assert_eq!(large_v3.language_code(50358), Some("yue"));
 
@@ -653,8 +699,10 @@ mod tests {
     #[test]
     fn test_special_names() {
         for e in &EXPECTED {
-            let ids = WhisperSpecialIds::new(e.n_base, e.num_languages).unwrap();
-            let names: Vec<String> = ids.special_names().collect();
+            let policy =
+                TokenPolicy::new(WhisperSpecialIds::new(e.n_base, e.num_languages).unwrap());
+            let ids = *policy.ids();
+            let names: Vec<String> = policy.special_names().collect();
             let at = |id: i64| &names[(id - ids.eot) as usize];
 
             assert_eq!(names.len(), e.n_vocab - e.n_base);
@@ -674,6 +722,45 @@ mod tests {
             assert_eq!(at(ids.timestamp_begin + 103), "<|2.06|>");
             assert_eq!(at(ids.timestamp_end()), "<|30.00|>");
         }
+    }
+
+    /// A layout that is not upstream's: the names and the grid follow it,
+    /// and the ids still fall in the same roles.
+    #[test]
+    fn test_custom_layout() {
+        let layout = WhisperTokenLayoutConfig::new()
+            .with_languages(vec!["xx".to_string(), "yy".to_string()])
+            .with_control_tokens(
+                CONTROL_TOKENS
+                    .iter()
+                    .map(|name| name.replace("<|", "<").replace("|>", ">"))
+                    .collect(),
+            )
+            .with_timestamp_tokens(11)
+            .with_timestamp_step_seconds(0.5);
+        let policy = layout.policy(5, 2).unwrap();
+        let ids = *policy.ids();
+
+        assert_eq!(ids.n_vocab(), 5 + 2 + 2 + 6 + 11);
+        assert!(ids.is_multilingual(), "5 is not the English-only base");
+        assert_eq!(policy.language_token("yy"), Some(ids.language_begin + 1));
+        assert_eq!(policy.language_code(ids.language_begin), Some("xx"));
+        assert_eq!(policy.timestamp_seconds(ids.timestamp_begin + 3), Some(1.5));
+        assert_eq!(policy.timestamp_token(11), None);
+
+        let names: Vec<String> = policy.special_names().collect();
+        assert_eq!(names[(ids.translate - ids.eot) as usize], "<translate>");
+        assert_eq!(names.last().map(String::as_str), Some("<|5.00|>"));
+
+        assert!(layout.special_ids(5, 3).is_err(), "only two languages");
+        assert!(
+            layout
+                .clone()
+                .with_control_tokens(Vec::new())
+                .special_ids(5, 1)
+                .is_err(),
+            "a role is missing"
+        );
     }
 
     #[test]

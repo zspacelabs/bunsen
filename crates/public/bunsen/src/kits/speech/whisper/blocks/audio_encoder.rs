@@ -39,6 +39,11 @@ use crate::{
     },
 };
 
+/// The conv head's stride: it halves the mel sequence, so one encoder
+/// position covers this many mel frames. It is also what makes one
+/// timestamp token one encoder position: the token step is this many hops.
+pub const AUDIO_ENCODER_STRIDE: usize = 2;
+
 /// Common meta for [`AudioEncoder`] and [`AudioEncoderConfig`].
 pub trait AudioEncoderMeta {
     /// Returns the Mel-scale frequency resolution.
@@ -114,7 +119,7 @@ impl<B: Backend> ModuleInit<B, AudioEncoder<B>> for AudioEncoderConfig {
         &self,
         device: &B::Device,
     ) -> BunsenResult<AudioEncoder<B>> {
-        let pos_ctx = self.max_context / 2;
+        let pos_ctx = self.max_context / AUDIO_ENCODER_STRIDE;
 
         Ok(AudioEncoder {
             head: ConvSeq1dConfig::new(vec![
@@ -125,7 +130,7 @@ impl<B: Backend> ModuleInit<B, AudioEncoder<B>> for AudioEncoderConfig {
                 ConvBlock1dConfig::new(
                     Conv1dConfig::new(self.d_model, self.d_model, 3)
                         .with_padding(PaddingConfig1d::Explicit(1, 1))
-                        .with_stride(2),
+                        .with_stride(AUDIO_ENCODER_STRIDE),
                 ),
             ])
             .with_act(self.head_activation.clone())
@@ -194,7 +199,7 @@ impl<B: Backend> AudioEncoderMeta for AudioEncoder<B> {
         let pos_ctx = self.positional_embedding.val().dims()[0];
         // Due to the stride reduction of the conv layers, the max context is
         // twice the internal positional embedding.
-        pos_ctx * 2
+        pos_ctx * AUDIO_ENCODER_STRIDE
     }
 
     fn n_heads(&self) -> usize {

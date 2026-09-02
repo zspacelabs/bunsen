@@ -16,7 +16,7 @@
 //! special-token splitter — is `wordchipper`'s whole job, and a kit that needs
 //! it should use that crate directly.
 //!
-//! [`TokenPolicy`]: crate::kits::speech::whisper::driver::support::TokenPolicy
+//! [`TokenPolicy`]: crate::kits::speech::whisper::driver::TokenPolicy
 
 use std::fmt::Debug;
 

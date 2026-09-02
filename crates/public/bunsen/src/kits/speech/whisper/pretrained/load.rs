@@ -9,7 +9,7 @@ use crate::{
             Whisper,
             WhisperApiConfig,
         },
-        driver::support::{
+        driver::{
             TiktokenRanks,
             WhisperSpecialIds,
         },
@@ -33,7 +33,9 @@ impl<B: Backend> Whisper<B> {
     /// The returned config is **scanned from the checkpoint**, not assumed, so
     /// this also reports the geometry a caller needs — `n_mels` for the mel
     /// front end, `vocab_size` to tell a multilingual model from an
-    /// English-only one.
+    /// English-only one. What a checkpoint cannot report is its audio front
+    /// end and its token layout; the scanner declares those, upstream's for
+    /// `OpenAI`'s.
     ///
     /// # Returns
     /// The loaded model, and the configuration inferred from its weights.

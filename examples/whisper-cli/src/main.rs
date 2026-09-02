@@ -21,18 +21,14 @@ use bunsen::{
             Whisper,
             decode::default_filters,
             driver::{
-                SAMPLE_RATE,
+                Emission,
+                EmissionPolicy,
+                MaxSeen,
+                Task,
+                TimestampHistory,
                 WhisperDriver,
                 WhisperDriverConfig,
-                support::{
-                    Emission,
-                    EmissionPolicy,
-                    MaxSeen,
-                    Task,
-                    TimestampHistory,
-                    TokenPolicy,
-                    detokenizer,
-                },
+                detokenizer,
             },
             pretrained::bundled_vocabulary,
         },
@@ -77,7 +73,7 @@ enum Preset {
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
 struct Args {
-    /// Path to the audio file; decoded to mono at 16 kHz.
+    /// Path to the audio file; decoded to mono at the model's rate.
     #[arg(long)]
     audio: String,
 
@@ -127,19 +123,10 @@ struct Args {
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args = Args::parse();
-    let wav = load_audio_mono_sr(&args.audio, SAMPLE_RATE)?;
-    println!(
-        "audio: {} samples, {:.2} s",
-        wav.len(),
-        wav.len() as f64 / SAMPLE_RATE as f64
-    );
-    run::<PerformanceBackend>(args, wav)
+    run::<PerformanceBackend>(args)
 }
 
-fn run<B: Backend>(
-    args: Args,
-    wav: Vec<f32>,
-) -> Result<(), Box<dyn std::error::Error>> {
+fn run<B: Backend>(args: Args) -> Result<(), Box<dyn std::error::Error>> {
     let device = B::Device::default();
 
     // The checkpoint ships in fp16 while the mel front end works in the
@@ -153,10 +140,10 @@ fn run<B: Backend>(
 
     // The token layout follows from the vocabulary size, and the bundled
     // vocabulary follows from the layout: nothing here is typed in.
-    let policy = TokenPolicy::from_vocab_size(cfg.vocab_size)?;
+    let policy = cfg.tokens.policy_for_vocab(cfg.vocab_size)?;
     let ids = *policy.ids();
     let ranks = bundled_vocabulary(&ids)?;
-    let detokenizer = detokenizer(&ranks, &ids)?;
+    let detokenizer = detokenizer(&ranks, &policy)?;
     let filters = default_filters::<B>(&ranks, &ids);
 
     let language = if ids.is_multilingual() {
@@ -198,7 +185,7 @@ fn run<B: Backend>(
         driver = driver.with_vad(
             SileroVad::<B>::load_16khz_pretrained(&device)?,
             Default::default(),
-        );
+        )?;
     }
     if driver.detects_language() {
         println!("language: detected from the first window");
@@ -206,10 +193,22 @@ fn run<B: Backend>(
         println!("prompt: {:?}", driver.prompt());
     }
 
+    // The audio is decoded at the model's rate: the checkpoint's to
+    // declare, not the caller's.
+    let wav = load_audio_mono_sr(&args.audio, driver.sample_rate())?;
+    println!(
+        "audio: {} samples, {:.2} s",
+        wav.len(),
+        wav.len() as f64 / driver.sample_rate() as f64
+    );
+
     // A bare stream: a clock from zero at the model's rate, and the running
     // maximum as the mel clamp reference.
-    let mut ctx = driver.new_context(TimestampHistory::uniform(SAMPLE_RATE), MaxSeen::new())?;
-    let chunk = (args.chunk_ms * SAMPLE_RATE / 1000).max(1);
+    let mut ctx = driver.new_context(
+        TimestampHistory::uniform(driver.sample_rate()),
+        MaxSeen::new(),
+    )?;
+    let chunk = (args.chunk_ms * driver.sample_rate() / 1000).max(1);
     let mut announced = false;
     for block in wav.chunks(chunk) {
         let emissions = ctx.push(block)?;

@@ -23,16 +23,14 @@ use bunsen::{
     kits::{
         speech::whisper::{
             WhisperMeta,
+            blocks::WhisperFrontEndConfig,
             decode::{
                 GreedyDecodeConfig,
                 mel_windows,
             },
-            driver::support::{
+            driver::{
                 Task,
-                TokenPolicy,
                 load_detokenizer,
-                mel_options,
-                package_mels,
             },
             pretrained::PytorchWhisperScanner,
         },
@@ -57,9 +55,6 @@ use burn::{
     tensor::DType,
 };
 use clap::Parser;
-
-/// Whisper's fixed analysis window: 30 s at 16 kHz.
-const N_SAMPLES: usize = 30 * 16_000;
 
 /// Prints min / mean / max, so the output is checkable against a reference
 /// rather than just shaped correctly.
@@ -92,7 +87,8 @@ pub struct Args {
     #[arg(long)]
     pub audio: String,
 
-    /// Sample rate of the audio file.
+    /// The rate the checkpoint is declared at, and the audio file is decoded
+    /// at; a multiple of 200 Hz.
     #[arg(long, default_value = "16000")]
     pub sample_rate: usize,
 
@@ -137,17 +133,18 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     run::<PerformanceBackend>(args, wav)
 }
 
-/// Pads with silence or trims to Whisper's fixed 30 s window.
+/// Pads with silence or trims to a whole number of windows.
 fn pad_or_trim(
     mut wav: Vec<f32>,
     n_samples: usize,
+    sample_rate: usize,
 ) -> Vec<f32> {
     let had = wav.len();
     wav.resize(n_samples, 0.0);
 
     println!(
         "audio: {had} samples ({:.2} s) -> {n_samples} ({})",
-        had as f64 / 16_000.0,
+        had as f64 / sample_rate as f64,
         if had < n_samples {
             "zero-padded"
         } else {
@@ -161,9 +158,10 @@ fn pad_or_trim(
 /// Converts a waveform to Whisper-ready log-mels, `[batch, n_mels, frames]`.
 ///
 /// Streams the signal in `chunk`-sample blocks, then packages the joined
-/// result once with [`package_mels`] — which must see the whole spectrogram,
-/// since its clamp reduces over what it is given.
+/// result once with the front end's `package_mels` — which must see the
+/// whole spectrogram, since its clamp reduces over what it is given.
 fn to_whisper_mels<B: Backend>(
+    front_end: &WhisperFrontEndConfig,
     conv: &MelConverter<B>,
     wav: &[f32],
     chunk: usize,
@@ -187,7 +185,7 @@ fn to_whisper_mels<B: Backend>(
         pieces.push(tail);
     }
 
-    Ok(package_mels(Tensor::cat(pieces, 1)))
+    Ok(front_end.package_mels(Tensor::cat(pieces, 1)))
 }
 
 #[allow(unused)]
@@ -199,6 +197,7 @@ fn run<B: Backend>(
 
     let (model, cfg) = PytorchWhisperScanner::new()
         .with_top_level_key(args.top_level_key.clone())
+        .with_front_end(WhisperFrontEndConfig::new().with_sample_rate(args.sample_rate))
         .load::<B, _>(PathBuf::from(args.source.clone()), &device)?;
 
     println!("{cfg:#?}");
@@ -213,8 +212,9 @@ fn run<B: Backend>(
     let model = model.map(&mut DTypeMapper::new(DType::F32));
 
     // The front end must produce exactly the channel count the encoder was
-    // trained on; `n_mels` comes from the checkpoint rather than a constant.
-    let options = mel_options(args.sample_rate, cfg.n_mels);
+    // trained on; `n_mels` comes from the checkpoint, and the rate is what
+    // the loader declared on it.
+    let options = cfg.front_end.mel_options(cfg.n_mels)?;
 
     let conv: MelConverter<B> = options.try_init(&device)?;
 
@@ -230,10 +230,12 @@ fn run<B: Backend>(
     }
 
     // Round up to whole 30 s windows instead of trimming, so batching has
-    // more than one window to work with.
-    let windows_needed = wav.len().div_ceil(N_SAMPLES).max(1);
-    let wav = pad_or_trim(wav, windows_needed * N_SAMPLES);
-    let mels = to_whisper_mels(&conv, &wav, chunk, &device)?;
+    // more than one window to work with. A window is the model's audio
+    // context in frames, times the hop.
+    let n_samples = model.max_audio_ctx() * hop;
+    let windows_needed = wav.len().div_ceil(n_samples).max(1);
+    let wav = pad_or_trim(wav, windows_needed * n_samples, cfg.front_end.sample_rate);
+    let mels = to_whisper_mels(&cfg.front_end, &conv, &wav, chunk, &device)?;
 
     println!("streamed in {chunk}-sample chunks");
     summarize("log-mels", &mels);
@@ -248,7 +250,7 @@ fn run<B: Backend>(
     // The prompt and stop token fall out of the checkpoint's vocabulary size:
     // a multilingual model and an English-only one number their specials
     // differently, and getting that wrong is silent garbage, not an error.
-    let policy = TokenPolicy::from_vocab_size(cfg.vocab_size)?;
+    let policy = cfg.tokens.policy_for_vocab(cfg.vocab_size)?;
     let (language, task) = if policy.ids().is_multilingual() {
         let task = match args.task.as_str() {
             "transcribe" => Task::Transcribe,
@@ -270,7 +272,7 @@ fn run<B: Backend>(
     let decode = GreedyDecodeConfig::new(prompt, policy.ids().eot).with_max_tokens(args.max_tokens);
 
     let detokenizer = match &args.vocab {
-        Some(path) => Some(load_detokenizer(path, policy.ids())?),
+        Some(path) => Some(load_detokenizer(path, &policy)?),
         None => None,
     };
 

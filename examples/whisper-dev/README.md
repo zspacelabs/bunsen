@@ -49,7 +49,8 @@ Options:
 
 - `--top-level-key` — the state dict's key in the checkpoint (default
   `model_state_dict`).
-- `--sample-rate` — of the audio file (default `16000`).
+- `--sample-rate` — the rate the checkpoint is declared at, and the audio
+  file is decoded at (default `16000`; must be a multiple of 200 Hz).
 - `--chunk-ms` — milliseconds of audio per streaming chunk, a whole number of 10 ms hops (default `1000`).
 - `--max-tokens` — cap on generated tokens per 30 s window (default `32`).
 - `--language` — a Whisper language code (default `en`) and `--task` —

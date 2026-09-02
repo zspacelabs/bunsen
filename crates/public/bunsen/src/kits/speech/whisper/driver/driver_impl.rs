@@ -14,7 +14,10 @@ use crate::{
     },
     kits::{
         speech::{
-            silero_vad::SileroVad,
+            silero_vad::{
+                SileroVad,
+                SileroVadMeta,
+            },
             whisper::{
                 ApplyTimestampRules,
                 DecodeConfig,
@@ -22,20 +25,18 @@ use crate::{
                 LogitFilter,
                 Whisper,
                 WhisperMeta,
+                blocks::{
+                    AUDIO_ENCODER_STRIDE,
+                    WhisperFrontEndConfig,
+                },
                 driver::{
-                    SAMPLE_RATE,
+                    ClampPolicy,
+                    EmissionPolicy,
+                    Task,
+                    TimestampHistory,
+                    TokenPolicy,
+                    VoiceActivityFilterConfig,
                     WhisperStreamContext,
-                    support::{
-                        ClampPolicy,
-                        EmissionPolicy,
-                        TIMESTAMP_STEP_SAMPLES,
-                        TIMESTAMP_STEP_SECONDS,
-                        Task,
-                        TimestampHistory,
-                        TokenPolicy,
-                        VoiceActivityFilterConfig,
-                        mel_options,
-                    },
                 },
             },
         },
@@ -55,7 +56,7 @@ use crate::{
 #[derive(Config, Debug)]
 pub struct WhisperDriverConfig {
     /// The language of the speech, as a
-    /// [`LANGUAGES`](crate::kits::speech::whisper::driver::support::LANGUAGES)
+    /// [`LANGUAGES`](crate::kits::speech::whisper::blocks::LANGUAGES)
     /// code.
     ///
     /// `None` on a multilingual checkpoint detects the language per stream
@@ -127,7 +128,7 @@ impl WhisperDriverConfig {
         model: Whisper<B>,
         device: &B::Device,
     ) -> BunsenResult<WhisperDriver<B>> {
-        let policy = TokenPolicy::from_vocab_size(model.vocab_size())?;
+        let policy = model.token_layout().policy_for_vocab(model.vocab_size())?;
         self.init_with_policy(model, policy, device)
     }
 
@@ -168,7 +169,7 @@ impl WhisperDriverConfig {
         };
         let max_initial_timestamp_index = self
             .max_initial_timestamp
-            .map(|seconds| (seconds / TIMESTAMP_STEP_SECONDS).round() as usize);
+            .map(|seconds| (seconds / policy.layout().timestamp_step_seconds).round() as usize);
         let filters: Vec<Arc<dyn LogitFilter<B>>> = if self.timestamps {
             vec![Arc::new(ApplyTimestampRules::new(
                 ids,
@@ -213,7 +214,10 @@ impl WhisperDriverConfig {
             )));
         }
 
-        let mel = mel_options(SAMPLE_RATE, model.n_mels()).try_init(device)?;
+        let mel = model
+            .front_end()
+            .mel_options(model.n_mels())?
+            .try_init(device)?;
 
         Ok(WhisperDriver {
             model,
@@ -321,23 +325,70 @@ impl<B: Backend> WhisperDriver<B> {
     ///
     /// Needed by any emission policy with the `endpoint` trigger; ignored by
     /// one without.
+    ///
+    /// # Errors
+    /// [`BunsenError::Invalid`] if the model or the filter runs at a rate
+    /// other than this driver's model, or the filter's chunk is not the
+    /// model's.
     pub fn with_vad(
         mut self,
         vad: SileroVad<B>,
         filter: VoiceActivityFilterConfig,
-    ) -> Self {
+    ) -> BunsenResult<Self> {
+        self.check_vad(&vad, &filter)?;
         self.vad = Some(vad);
         self.filter_config = Some(filter);
-        self
+        Ok(self)
     }
 
     /// Applies a function to the filter config, if a VAD is attached.
+    ///
+    /// # Errors
+    /// [`BunsenError::Invalid`] if no VAD is attached, or the result does
+    /// not fit the one that is.
     pub fn configure_vad_filter(
         mut self,
         f: fn(VoiceActivityFilterConfig) -> VoiceActivityFilterConfig,
-    ) -> Self {
-        self.filter_config = Some(f(self.filter_config.expect("No vad filter")));
-        self
+    ) -> BunsenResult<Self> {
+        let Some(vad) = &self.vad else {
+            return Err(BunsenError::Invalid(
+                "no voice-activity model is attached; attach one with with_vad".to_string(),
+            ));
+        };
+        let filter = f(self.filter_config.take().unwrap_or_default());
+        self.check_vad(vad, &filter)?;
+        self.filter_config = Some(filter);
+        Ok(self)
+    }
+
+    /// The model and the filter must agree with the driver on the rate, and
+    /// with each other on the chunk.
+    fn check_vad(
+        &self,
+        vad: &SileroVad<B>,
+        filter: &VoiceActivityFilterConfig,
+    ) -> BunsenResult<()> {
+        let rate = self.sample_rate();
+        if vad.sample_rate() != rate {
+            return Err(BunsenError::Invalid(format!(
+                "the voice-activity model runs at {} Hz; this driver's model at {rate}",
+                vad.sample_rate(),
+            )));
+        }
+        if filter.sample_rate != rate {
+            return Err(BunsenError::Invalid(format!(
+                "the voice-activity filter is configured at {} Hz; this driver's model at {rate}",
+                filter.sample_rate,
+            )));
+        }
+        if filter.samples_per_chunk != vad.chunk_size() {
+            return Err(BunsenError::Invalid(format!(
+                "the voice-activity filter expects {}-sample chunks; the model emits {}",
+                filter.samples_per_chunk,
+                vad.chunk_size(),
+            )));
+        }
+        Ok(())
     }
 
     /// The model.
@@ -427,7 +478,7 @@ impl<B: Backend> WhisperDriver<B> {
 
     /// Mel frames per timestamp index: two.
     pub fn frames_per_timestamp(&self) -> usize {
-        TIMESTAMP_STEP_SAMPLES / self.mel.hop()
+        AUDIO_ENCODER_STRIDE
     }
 
     /// The decode of one window under this driver, given its prompt.
@@ -456,7 +507,7 @@ impl<B: Backend> WhisperDriver<B> {
         self.emission
             .triggers
             .interval
-            .map(|i| (i.as_secs_f64() * SAMPLE_RATE as f64).round() as usize)
+            .map(|i| (i.as_secs_f64() * self.sample_rate() as f64).round() as usize)
     }
 
     /// The detokenizer, if one was attached.
@@ -469,6 +520,24 @@ impl<B: Backend> WhisperDriver<B> {
         self.model.max_audio_ctx()
     }
 
+    /// The sample rate the model's front end runs at, in Hz. The stream's
+    /// clock must run at it too.
+    pub fn sample_rate(&self) -> usize {
+        self.model.sample_rate()
+    }
+
+    /// The audio front end the model's log-mels are computed with.
+    pub fn front_end(&self) -> &WhisperFrontEndConfig {
+        self.model.front_end()
+    }
+
+    /// The encoder grid in samples: one timestamp step, which is
+    /// [`frames_per_timestamp`](Self::frames_per_timestamp) mel hops. 320 at
+    /// 16 kHz.
+    pub fn encoder_grid(&self) -> usize {
+        self.frames_per_timestamp() * self.mel.hop()
+    }
+
     /// The devices the model lives on.
     pub fn devices(&self) -> Vec<B::Device> {
         self.model.devices()
@@ -478,23 +547,24 @@ impl<B: Backend> WhisperDriver<B> {
     ///
     /// # Arguments
     /// * `clock` - the stream's sample-to-time map. A bare stream gets
-    ///   [`TimestampHistory::uniform`] at [`SAMPLE_RATE`].
+    ///   [`TimestampHistory::uniform`] at [`sample_rate`](Self::sample_rate).
     /// * `clamp` - where each window's dynamic-range reference comes from: a
     ///   concrete policy, or a `Box<dyn ClampPolicy<B>>` chosen at run time.
     ///
     /// # Errors
-    /// [`BunsenError::Invalid`] if the clock does not run at
-    /// [`SAMPLE_RATE`], or if the emission policy wants endpoints and no VAD
-    /// was attached.
+    /// [`BunsenError::Invalid`] if the clock does not run at the model's
+    /// [`sample_rate`](Self::sample_rate), or if the emission policy wants
+    /// endpoints and no VAD was attached.
     pub fn new_context<C: ClampPolicy<B> + 'static>(
         &self,
         clock: TimestampHistory,
         clamp: C,
     ) -> BunsenResult<WhisperStreamContext<B>> {
-        if clock.rate() != SAMPLE_RATE {
+        if clock.rate() != self.sample_rate() {
             return Err(BunsenError::Invalid(format!(
-                "the stream clock runs at {} Hz; Whisper's front end is defined at {SAMPLE_RATE}",
+                "the stream clock runs at {} Hz; the model's front end at {}",
                 clock.rate(),
+                self.sample_rate(),
             )));
         }
         if self.emission.triggers.endpoint && self.vad.is_none() {

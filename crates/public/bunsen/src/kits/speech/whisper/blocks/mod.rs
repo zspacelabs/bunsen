@@ -6,7 +6,9 @@ pub const WHISPER_DEFAULT_D_MODEL: usize = 64;
 mod audio_encoder;
 mod decoder_block;
 mod encoder_block;
+mod front_end;
 mod text_decoder;
+mod token_layout;
 mod whisper_model;
 
 #[doc(inline)]
@@ -16,6 +18,10 @@ pub use decoder_block::*;
 #[doc(inline)]
 pub use encoder_block::*;
 #[doc(inline)]
+pub use front_end::*;
+#[doc(inline)]
 pub use text_decoder::*;
+#[doc(inline)]
+pub use token_layout::*;
 #[doc(inline)]
 pub use whisper_model::*;

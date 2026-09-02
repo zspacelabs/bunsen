@@ -1,6 +1,6 @@
 use burn::config::Config;
 
-use crate::kits::speech::whisper::driver::support::regions::{
+use crate::kits::speech::whisper::driver::support::{
     SpeechRegion,
     pad_regions,
 };
@@ -152,7 +152,7 @@ impl VoiceActivityFilterConfig {
     /// `fast-whisper-burn`'s tuning: 100 ms of silence to close, 30 ms of
     /// padding, regions under 250 ms dropped. Cuts between sentences, so
     /// time-to-first-token is short; neighbours are glued back afterwards
-    /// with [`merge_gaps`](super::regions::merge_gaps).
+    /// with [`merge_gaps`](super::support::merge_gaps).
     pub fn fast_whisper_burn() -> Self {
         Self::new()
             .with_min_silence_ms(100)
