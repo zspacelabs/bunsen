@@ -201,6 +201,7 @@ downloader = { workspace = true, default-features = false, optional = true }
 num-traits = { workspace = true }
 strum = { workspace = true, features = ["derive"] }
 thiserror = { workspace = true }
+dyn-clone = { workspace = true }
 
 document-features = { workspace = true }
 paste = { workspace = true, optional = true }
