@@ -96,15 +96,18 @@ pub fn advance_ready<B: Backend>(
                 .collect();
             let batch = Tensor::cat(windows, 0);
 
+            // The first rung of the ladder, batched; any rung above it is
+            // the context's own, which is rare.
             let config = driver.decode_config(prompt);
-            let tokens = driver
+            let first = driver
                 .model()
-                .decode_windows(batch, &config, driver.filters());
+                .decode_windows_full(batch, &config, driver.filters());
 
             for (row, k) in members.into_iter().enumerate() {
                 let item = pending[k].take().expect("taken once");
-                out[item.context]
-                    .extend(contexts[item.context].commit_due(item.unit, tokens[row].clone())?);
+                let ctx = &mut contexts[item.context];
+                let decoded = ctx.ladder(&config, item.window, Some(first[row].clone()));
+                out[item.context].extend(ctx.commit_due(item.unit, decoded)?);
             }
         }
     }

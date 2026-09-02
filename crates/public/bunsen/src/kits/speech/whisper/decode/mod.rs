@@ -32,6 +32,7 @@ use burn::{
         Int,
         TensorData,
     },
+    tensor::activation::softmax,
 };
 
 use crate::{
@@ -49,11 +50,17 @@ use crate::{
 };
 
 mod beam;
+mod fallback;
 mod filters;
 mod greedy;
 mod rank;
 
 pub use beam::BeamSearchDecoder;
+pub use fallback::{
+    FallbackConfig,
+    compression_ratio,
+    decode_with_fallback,
+};
 pub use filters::{
     ApplyTimestampRules,
     LogitFilter,
@@ -175,12 +182,66 @@ pub struct DecodeConfig {
     /// length.
     #[config(default = "None")]
     pub length_penalty: Option<f64>,
+
+    /// Sampling temperature; zero is the argmax. Above zero the search is
+    /// greedy sampling, `best_of` trajectories per audio, whatever
+    /// `beam_size` says.
+    #[config(default = "0.0")]
+    pub temperature: f64,
+
+    /// Independent sample trajectories per audio when `temperature` is
+    /// above zero; `None` is one.
+    #[config(default = "None")]
+    pub best_of: Option<usize>,
+
+    /// `<|startoftranscript|>`, to find the position the no-speech
+    /// probability is read at; with `no_speech_token`, enables the probe.
+    #[config(default = "None")]
+    pub sot_token: Option<i64>,
+
+    /// `<|nospeech|>`, whose probability at the sot position is read from
+    /// the first forward.
+    #[config(default = "None")]
+    pub no_speech_token: Option<i64>,
+}
+
+/// What a decode says about one audio, beyond its ids.
+#[derive(Debug, Clone, PartialEq)]
+pub struct Decoded {
+    /// The generated ids, after the prompt and without the stop token.
+    pub tokens: Vec<i64>,
+
+    /// The cumulative log probability of `tokens`.
+    pub sum_logprob: f32,
+
+    /// The probability of `<|nospeech|>` at the sot position of the first
+    /// forward, when the config asked for it.
+    pub no_speech_prob: Option<f32>,
+
+    /// The temperature the decode ran at.
+    pub temperature: f64,
+}
+
+impl Decoded {
+    /// Upstream's `avg_logprob`: the cumulative log probability per token,
+    /// counting the stop token.
+    pub fn avg_logprob(&self) -> f64 {
+        f64::from(self.sum_logprob) / (self.tokens.len() as f64 + 1.0)
+    }
 }
 
 impl DecodeConfig {
-    /// The search this config asks for.
+    /// The search this config asks for: sampling above temperature zero,
+    /// else a beam search when `beam_size` is more than one, else the
+    /// argmax.
     pub fn decoder<B: Backend>(&self) -> Box<dyn TokenDecoder<B>> {
-        if self.beam_size == 1 {
+        if self.temperature > 0.0 {
+            Box::new(
+                GreedyDecoder::new(self.eot_token, self.prompt[0])
+                    .with_temperature(self.temperature)
+                    .with_group(self.best_of.unwrap_or(1)),
+            )
+        } else if self.beam_size == 1 {
             Box::new(GreedyDecoder::new(self.eot_token, self.prompt[0]))
         } else {
             Box::new(BeamSearchDecoder::new(
@@ -238,8 +299,30 @@ impl<B: Backend> Whisper<B> {
         config: &DecodeConfig,
         filters: &[Arc<dyn LogitFilter<B>>],
     ) -> Vec<Vec<i64>> {
-        let mut decoder = config.decoder::<B>();
-        self.decode_windows_with(mels, config, decoder.as_mut(), filters)
+        self.decode_windows_full(mels, config, filters)
+            .into_iter()
+            .map(|d| d.tokens)
+            .collect()
+    }
+
+    /// [`Self::decode_windows`] with everything the search knows about
+    /// each audio: the ids, their log probability, and the no-speech
+    /// probability when probed.
+    pub fn decode_windows_full(
+        &self,
+        mels: Tensor<B, 3>,
+        config: &DecodeConfig,
+        filters: &[Arc<dyn LogitFilter<B>>],
+    ) -> Vec<Decoded> {
+        let [n_audio, _, frames] = mels.dims();
+        assert!(n_audio > 0, "decode needs at least one row");
+        assert_eq!(
+            frames,
+            self.max_audio_ctx(),
+            "window must be the model's audio context width",
+        );
+        let xa = self.forward_encoder(mels);
+        self.decode_features_full(xa, config, filters)
     }
 
     /// [`Self::decode_windows`] with an explicit search, whose group size
@@ -275,8 +358,23 @@ impl<B: Backend> Whisper<B> {
         config: &DecodeConfig,
         filters: &[Arc<dyn LogitFilter<B>>],
     ) -> Vec<Vec<i64>> {
+        self.decode_features_full(xa, config, filters)
+            .into_iter()
+            .map(|d| d.tokens)
+            .collect()
+    }
+
+    /// [`Self::decode_features`] with everything the search knows about
+    /// each audio: the ids, their log probability, and the no-speech
+    /// probability when probed.
+    pub fn decode_features_full(
+        &self,
+        xa: Tensor<B, 3>,
+        config: &DecodeConfig,
+        filters: &[Arc<dyn LogitFilter<B>>],
+    ) -> Vec<Decoded> {
         let mut decoder = config.decoder::<B>();
-        self.decode_features_with(xa, config, decoder.as_mut(), filters)
+        self.search(xa, config, decoder.as_mut(), filters)
     }
 
     /// [`Self::decode_features`] with an explicit search.
@@ -287,6 +385,25 @@ impl<B: Backend> Whisper<B> {
         decoder: &mut dyn TokenDecoder<B>,
         filters: &[Arc<dyn LogitFilter<B>>],
     ) -> Vec<Vec<i64>> {
+        self.search(xa, config, decoder, filters)
+            .into_iter()
+            .map(|d| d.tokens)
+            .collect()
+    }
+
+    /// The one loop: feeds the prompt, steps the search against the cache
+    /// until it completes or the cap is hit, and ranks what finished.
+    ///
+    /// # Arguments
+    /// * `xa` - `[batch, positions, d_model]`, one row per audio.
+    /// * `decoder` - the search, whose group size widens the batch.
+    pub fn search(
+        &self,
+        xa: Tensor<B, 3>,
+        config: &DecodeConfig,
+        decoder: &mut dyn TokenDecoder<B>,
+        filters: &[Arc<dyn LogitFilter<B>>],
+    ) -> Vec<Decoded> {
         let n_audio = xa.dims()[0];
         assert!(n_audio > 0, "decode needs at least one row");
         assert!(!config.prompt.is_empty(), "prompt must not be empty");
@@ -305,15 +422,41 @@ impl<B: Backend> Whisper<B> {
 
         let mut tokens: Vec<Vec<i64>> = vec![config.prompt.clone(); rows];
         let mut sum_logprobs = vec![0f32; rows];
+        let mut no_speech: Option<Vec<f32>> = None;
+
+        // Where the no-speech probability is read: the sot position of the
+        // first forward, on the raw logits.
+        let probe = match (config.sot_token, config.no_speech_token) {
+            (Some(sot), Some(no_speech)) => config
+                .prompt
+                .iter()
+                .rposition(|&t| t == sot)
+                .map(|at| (at, no_speech)),
+            _ => None,
+        };
 
         let mut feed: Vec<i64> = config.prompt.repeat(rows);
         let mut step_len = prompt_len;
 
-        for _ in 0..config.max_tokens {
+        for step in 0..config.max_tokens {
             let logits = self
                 .decoder
                 .forward_cached(feed_tensor(&feed, step_len, &device), &mut cache);
             let [_, positions, vocab] = logits.dims();
+
+            if step == 0
+                && let Some((at, no_speech_id)) = probe
+                && let Ok(id) = usize::try_from(no_speech_id)
+                && id < vocab
+            {
+                let at_sot: Tensor<B, 2> = logits
+                    .clone()
+                    .slice_dim(1, at as isize..(at + 1) as isize)
+                    .reshape([rows, vocab]);
+                let probs = softmax(at_sot, 1).slice_dim(1, id as isize..(id + 1) as isize);
+                no_speech = Some(probs.into_data().convert::<f32>().to_vec().unwrap());
+            }
+
             let last = positions - 1;
             let mut logits: Tensor<B, 2> = logits
                 .slice_dim(1, last as isize..(last + 1) as isize)
@@ -343,13 +486,19 @@ impl<B: Backend> Whisper<B> {
         decoder
             .finalize(tokens, sum_logprobs, prompt_len)
             .into_iter()
-            .map(|candidates| {
+            .enumerate()
+            .map(|(audio, candidates)| {
                 let best = ranker.rank(&candidates);
-                candidates
+                let (tokens, sum_logprob) = candidates
                     .into_iter()
                     .nth(best)
-                    .expect("the ranker picked a candidate")
-                    .0
+                    .expect("the ranker picked a candidate");
+                Decoded {
+                    tokens,
+                    sum_logprob,
+                    no_speech_prob: no_speech.as_ref().map(|p| p[audio * k]),
+                    temperature: config.temperature,
+                }
             })
             .collect()
     }
@@ -826,5 +975,52 @@ mod search_tests {
         let out = model.decode_windows(mels, &config, &only(&[7, 9]));
         assert_eq!(out[0].len(), 4);
         assert!(out[0].iter().all(|t| *t == 7 || *t == 9), "{out:?}");
+    }
+
+    /// Sampling with best-of: one answer per audio from three
+    /// trajectories, repeatable under the backend's seed; the no-speech
+    /// probe reads a probability when asked for, and nothing otherwise.
+    #[test]
+    #[serial]
+    fn test_sampling_best_of_and_the_probe() {
+        let device = Default::default();
+        let model = tiny_model(&device);
+        let mels = windows(2, &device);
+
+        // The prompt opens with 1, so that is the "sot" the probe reads at;
+        // 7 stands in for <|nospeech|>.
+        let config = DecodeConfig::new(vec![1, 2], EOT)
+            .with_max_tokens(4)
+            .with_temperature(0.7)
+            .with_best_of(Some(3))
+            .with_sot_token(Some(1))
+            .with_no_speech_token(Some(7));
+
+        B::seed(&device, 3);
+        let first = model.decode_windows_full(mels.clone(), &config, &[]);
+        assert_eq!(first.len(), 2, "one answer per audio, not per trajectory");
+        for d in &first {
+            assert_eq!(d.temperature, 0.7);
+            assert!(d.tokens.len() <= 4);
+            let p = d.no_speech_prob.expect("probed");
+            assert!((0.0..=1.0).contains(&p), "{p}");
+            assert!(d.sum_logprob <= 0.0);
+            assert!(d.avg_logprob() <= 0.0);
+        }
+
+        B::seed(&device, 3);
+        let again = model.decode_windows_full(mels.clone(), &config, &[]);
+        assert_eq!(again, first, "repeatable under the seed");
+
+        let plain = model.decode_windows_full(
+            mels,
+            &DecodeConfig::new(vec![1, 2], EOT).with_max_tokens(4),
+            &[],
+        );
+        assert!(
+            plain
+                .iter()
+                .all(|d| d.no_speech_prob.is_none() && d.temperature == 0.0)
+        );
     }
 }

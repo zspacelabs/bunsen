@@ -59,6 +59,12 @@ use crate::{
             blocks::WhisperMeta,
             clamp::ClampPolicy,
             clock::TimestampHistory,
+            decode::{
+                DecodeConfig,
+                Decoded,
+                FallbackConfig,
+                decode_with_fallback,
+            },
             driver::{
                 SAMPLE_RATE,
                 WhisperDriver,
@@ -122,6 +128,11 @@ pub struct WhisperStreamContext<B: Backend> {
 
     /// Every committed id, in order.
     transcript: Vec<i64>,
+
+    /// Where the prompt carry starts in the transcript: upstream's
+    /// `prompt_reset_since`, moved past a decode that needed a high
+    /// temperature so a failure does not feed the next window.
+    prompt_reset: usize,
 
     /// The language the prompt names: configured, or detected from the
     /// first window decoded; `None` until then on a detecting driver.
@@ -209,6 +220,7 @@ impl<B: Backend> WhisperStreamContext<B> {
             seek: 0,
             clock,
             transcript: Vec::new(),
+            prompt_reset: 0,
             language,
             clamp,
             vad,
@@ -344,8 +356,8 @@ impl<B: Backend> WhisperStreamContext<B> {
             self.ensure_language(&window);
             #[cfg(test)]
             self.trace.push(window.clone());
-            let tokens = self.decode_frames(window);
-            out.extend(self.commit_due(unit, tokens)?);
+            let decoded = self.decode_frames(window);
+            out.extend(self.commit_due(unit, decoded)?);
         }
         Ok(out)
     }
@@ -604,38 +616,78 @@ impl<B: Backend> WhisperStreamContext<B> {
         }
     }
 
-    /// Packages and decodes a window. Takes `&self`: with
-    /// [`frames_at`](Self::frames_at) this is the whole of a provisional
-    /// decode.
+    /// Packages and decodes a window, up the temperature ladder. Takes
+    /// `&self`: with [`frames_at`](Self::frames_at) this is the whole of a
+    /// provisional decode.
     fn decode_frames(
         &self,
         window: Tensor<B, 3>,
-    ) -> Vec<i64> {
-        let config = self.driver.decode_config(self.prompt_now());
-        self.driver
-            .model()
-            .decode_windows(self.package_padded(window), &config, self.driver.filters())
-            .pop()
-            .expect("one row in, one row out")
+    ) -> Decoded {
+        let base = self.driver.decode_config(self.prompt_now());
+        self.ladder(&base, self.package_padded(window), None)
+    }
+
+    /// Decodes a packaged window up the ladder, encoding it only if a rung
+    /// past `first` is needed.
+    ///
+    /// # Arguments
+    /// * `base` - the decode config at temperature zero.
+    /// * `window` - `[1, n_mels, width]`, packaged.
+    /// * `first` - the first rung's result when the caller has it.
+    pub(super) fn ladder(
+        &self,
+        base: &DecodeConfig,
+        window: Tensor<B, 3>,
+        first: Option<Decoded>,
+    ) -> Decoded {
+        let model = self.driver.model();
+        let mut xa: Option<Tensor<B, 3>> = None;
+        decode_with_fallback(
+            self.driver.fallback(),
+            base,
+            first,
+            |config| {
+                let xa = xa
+                    .get_or_insert_with(|| model.forward_encoder(window.clone()))
+                    .clone();
+                model
+                    .decode_features_full(xa, config, self.driver.filters())
+                    .pop()
+                    .expect("one row in, one row out")
+            },
+            |ids| self.text_of(ids),
+        )
+    }
+
+    /// The text of some ids, when the driver can say.
+    fn text_of(
+        &self,
+        ids: &[i64],
+    ) -> Option<String> {
+        let detokenizer = self.driver.detokenizer()?;
+        detokenizer
+            .detokenize(&self.driver.policy().text_ids(ids))
+            .ok()
     }
 
     /// The prompt for the next window: the sot sequence, preceded by the
     /// transcript's tail after `<|startofprev|>` when carrying is on.
     pub(super) fn prompt_now(&self) -> Vec<i64> {
         let prompt = self.sot_now();
-        if !self.driver.carries_prompt() || self.transcript.is_empty() {
+        let carried = &self.transcript[self.prompt_reset.min(self.transcript.len())..];
+        if !self.driver.carries_prompt() || carried.is_empty() {
             return prompt;
         }
 
         // Upstream keeps `n_text_ctx / 2 - 1` tokens of context.
         let keep = self.driver.model().max_text_ctx() / 2 - 1;
-        let tail = &self.transcript[self.transcript.len().saturating_sub(keep)..];
+        let tail = &carried[carried.len().saturating_sub(keep)..];
 
-        let mut carried = Vec::with_capacity(1 + tail.len() + prompt.len());
-        carried.push(self.driver.policy().ids().sot_prev);
-        carried.extend_from_slice(tail);
-        carried.extend_from_slice(&prompt);
-        carried
+        let mut out = Vec::with_capacity(1 + tail.len() + prompt.len());
+        out.push(self.driver.policy().ids().sot_prev);
+        out.extend_from_slice(tail);
+        out.extend_from_slice(&prompt);
+        out
     }
 
     /// Detects the stream's language from `frames` when the driver leaves
@@ -677,6 +729,10 @@ impl<B: Backend> WhisperStreamContext<B> {
     /// pointer, drops the consumed frames and regions, and places the
     /// segments on the clock.
     ///
+    /// A window the fallback policy calls silence (its no-speech
+    /// probability over the threshold, its log probability poor) is
+    /// skipped whole: nothing is emitted and the seek moves past it.
+    ///
     /// Without timestamps the unit is one segment and the seek advances
     /// past it. With them the decode is split on its timestamps
     /// ([`split_window`]); the seek advances to the last closed timestamp,
@@ -684,15 +740,26 @@ impl<B: Backend> WhisperStreamContext<B> {
     /// more audio behind it (`CommitRule::Complete`, which is what
     /// upstream's seek loop does), or emitted as a draft first
     /// (`CommitRule::LastTimestamp`).
+    ///
+    /// A decode that needed a temperature above 0.5 resets the prompt
+    /// carry, as upstream does, so a failure does not feed the next window.
     pub(super) fn commit_due(
         &mut self,
         unit: Due,
-        tokens: Vec<i64>,
+        decoded: Decoded,
     ) -> BunsenResult<Vec<Emission>> {
         let hop = self.hop() as u64;
         let mut out = Vec::new();
 
-        if self.driver.timestamps() {
+        let skip = self
+            .driver
+            .fallback()
+            .should_skip(decoded.no_speech_prob.map(f64::from), decoded.avg_logprob());
+        let tokens = decoded.tokens;
+
+        if skip {
+            self.seek = unit.start + unit.count;
+        } else if self.driver.timestamps() {
             let split = split_window(
                 &tokens,
                 self.driver.policy().ids(),
@@ -727,6 +794,10 @@ impl<B: Backend> WhisperStreamContext<B> {
             self.transcript.extend_from_slice(&segment.tokens);
             out.push(Emission::Committed(segment));
             self.seek = unit.start + unit.count;
+        }
+
+        if !self.driver.carries_prompt() || FallbackConfig::resets_prompt(decoded.temperature) {
+            self.prompt_reset = self.transcript.len();
         }
 
         self.drop_before_seek();
@@ -786,6 +857,7 @@ impl<B: Backend> WhisperStreamContext<B> {
                 start: self.seek,
                 count,
             }))
+            .tokens
         })
     }
 
@@ -1356,7 +1428,7 @@ mod tests {
     #[serial]
     fn test_advance_ready_matches_solo() {
         let device = Device::default();
-        let driver = driver(&device, false);
+        let driver = driver(&device, false).with_logit_filters(decisive());
         let clips = [clip_seeded(0.5, 440.0), clip_seeded(0.3, 660.0)];
 
         let mut solo = Vec::new();
@@ -1397,34 +1469,50 @@ mod tests {
         assert_eq!(contexts[0].seek(), 105);
     }
 
-    /// Batching is by prompt: with the carry on, second windows carry
-    /// different prompts and still decode as they would alone.
+    /// Batching is by prompt: a stream that has already committed a window
+    /// carries a different prompt from one that has not, so the two form
+    /// two groups in one pass, and each decodes as it would alone. The
+    /// decode is dictated from the prompt, so a window batched under the
+    /// wrong prompt would show.
     #[test]
     #[serial]
     fn test_advance_ready_with_prompt_carry() {
         let device = Device::default();
-        let driver = driver(&device, true);
-        let clips = [clip_seeded(0.5, 440.0), clip_seeded(0.3, 660.0)];
+        let driver = driver(&device, true).with_logit_filters(decisive());
+        let audio = clip();
+        // 4000 samples: one 16-frame window and change.
+        let first = SAMPLE_RATE / 4;
 
-        let mut solo = Vec::new();
-        for audio in &clips {
-            let mut ctx = driver.new_context(clock(), PerWindow).unwrap();
-            let mut emissions = ctx.push(audio).unwrap();
-            emissions.extend(ctx.flush().unwrap());
-            solo.push(emissions);
-        }
+        // Solo: A decodes its first window early, then the rest; B all at
+        // once.
+        let mut a = driver.new_context(clock(), PerWindow).unwrap();
+        let mut solo_a = a.push(&audio[..first]).unwrap();
+        assert_eq!(solo_a.len(), 1, "one window committed early");
+        solo_a.extend(a.push(&audio[first..]).unwrap());
+        solo_a.extend(a.flush().unwrap());
+        let mut b = driver.new_context(clock(), PerWindow).unwrap();
+        let mut solo_b = b.push(&audio).unwrap();
+        solo_b.extend(b.flush().unwrap());
+        assert_ne!(
+            solo_a[0].segment().tokens,
+            solo_a[1].segment().tokens,
+            "the carried prompt changes what is decoded"
+        );
 
-        let mut contexts: Vec<WhisperStreamContext<B>> = clips
-            .iter()
-            .map(|audio| {
-                let mut ctx = driver.new_context(clock(), PerWindow).unwrap();
-                ctx.feed(audio).unwrap();
-                ctx.end_input().unwrap();
-                ctx
-            })
-            .collect();
-        let batched = advance_ready(&driver, &mut contexts).unwrap();
-        assert_eq!(batched, solo);
+        // Batched: A has committed its first window, B nothing; fed the
+        // rest, they advance together under two prompts.
+        let mut ctx_a = driver.new_context(clock(), PerWindow).unwrap();
+        let mut batched_a = ctx_a.push(&audio[..first]).unwrap();
+        ctx_a.feed(&audio[first..]).unwrap();
+        ctx_a.end_input().unwrap();
+        let mut ctx_b = driver.new_context(clock(), PerWindow).unwrap();
+        ctx_b.feed(&audio).unwrap();
+        ctx_b.end_input().unwrap();
+        let mut contexts = vec![ctx_a, ctx_b];
+        let out = advance_ready(&driver, &mut contexts).unwrap();
+        batched_a.extend(out[0].clone());
+        assert_eq!(batched_a, solo_a);
+        assert_eq!(out[1], solo_b);
     }
 
     /// Dictates the decode: whatever the untrained model thinks (its
@@ -1452,6 +1540,40 @@ mod tests {
                 &logits.device(),
             )
         }
+    }
+
+    /// Dictates the decode from the prompt: at sampled position `at` the
+    /// token is `(prompt_len + at) % 4 + 1`, so streams under different
+    /// prompts decode differently, and a window batched under the wrong
+    /// prompt would show. Independent of the model, whose forward on this
+    /// backend varies from call to call by more than a near-tie.
+    #[derive(Debug)]
+    struct Echo;
+
+    impl LogitFilter<B> for Echo {
+        fn apply(
+            &self,
+            logits: Tensor<B, 2>,
+            tokens: &[Vec<i64>],
+            prompt_len: usize,
+        ) -> Tensor<B, 2> {
+            let [rows, vocab] = logits.dims();
+            let mut data = vec![f32::NEG_INFINITY; rows * vocab];
+            for (row, t) in tokens.iter().enumerate() {
+                let at = t.len() - prompt_len;
+                data[row * vocab + (prompt_len + at) % 4 + 1] = 0.0;
+            }
+            Tensor::from_data(
+                burn::tensor::TensorData::new(data, [rows, vocab]),
+                &logits.device(),
+            )
+        }
+    }
+
+    /// The filters that make a plumbing test's decode a function of its
+    /// prompt alone.
+    fn decisive() -> Vec<Arc<dyn LogitFilter<B>>> {
+        vec![Arc::new(Echo)]
     }
 
     /// Each window's script: two closed segments and a reopened tail,
@@ -1605,6 +1727,150 @@ mod tests {
         }
     }
 
+    /// Degenerate at temperature zero, sound once sampling has broken the
+    /// loop: while the sampled history is all `1`s (or empty) the logits
+    /// are nearly flat with `1` a hair ahead, so the argmax loops on `1` at
+    /// a log probability near `-log(vocab)`; once any other token appears,
+    /// which only sampling can bring, the logits peak on `2`.
+    #[derive(Debug)]
+    struct Degenerate;
+
+    impl LogitFilter<B> for Degenerate {
+        fn apply(
+            &self,
+            logits: Tensor<B, 2>,
+            tokens: &[Vec<i64>],
+            prompt_len: usize,
+        ) -> Tensor<B, 2> {
+            let [rows, vocab] = logits.dims();
+            let mut data = vec![-0.01f32; rows * vocab];
+            for (row, t) in tokens.iter().enumerate() {
+                let at = row * vocab;
+                if t[prompt_len..].iter().all(|&x| x == 1) {
+                    data[at + 1] = 0.0;
+                } else {
+                    data[at..at + vocab].fill(0.0);
+                    data[at + 2] = 30.0;
+                }
+            }
+            Tensor::from_data(
+                burn::tensor::TensorData::new(data, [rows, vocab]),
+                &logits.device(),
+            )
+        }
+    }
+
+    /// A carrying driver under the degenerate filter and a fallback
+    /// policy.
+    fn degenerate_driver(
+        device: &Device,
+        fallback: FallbackConfig,
+    ) -> WhisperDriver<B> {
+        let filter: Arc<dyn LogitFilter<B>> = Arc::new(Degenerate);
+        config(true)
+            .with_max_tokens(8)
+            .with_fallback(fallback)
+            .init_with_policy(tiny_model(device), TokenPolicy::new(tiny_layout()), device)
+            .unwrap()
+            .with_logit_filters(vec![filter])
+    }
+
+    /// The ladder: at temperature zero the decode loops and fails the log
+    /// probability threshold; without a ladder that is what is emitted.
+    /// With upstream's ladder, sampling at the first rung above zero breaks
+    /// the loop and the decode recovers, below the prompt-reset line, so
+    /// the carry stands. A ladder whose only rung above zero is past that
+    /// line recovers too, and resets the carry.
+    #[test]
+    #[serial]
+    fn test_fallback_ladder_recovers() {
+        let device = Device::default();
+        let audio = clip();
+        let flat = degenerate_driver(&device, FallbackConfig::new());
+        let mut ctx = flat.new_context(clock(), PerWindow).unwrap();
+        let mut looped = ctx.push(&audio).unwrap();
+        looped.extend(ctx.flush().unwrap());
+        assert!(!looped.is_empty());
+        // Eight 1s in the first window; fewer after, once the carried
+        // prompt has taken its share of the tiny model's 16-token context.
+        assert!(
+            looped
+                .iter()
+                .all(|e| !e.segment().tokens.is_empty()
+                    && e.segment().tokens.iter().all(|&t| t == 1)),
+            "no ladder: the loop is what there is: {looped:?}"
+        );
+        let carry_len = ctx.prompt_now().len();
+        assert!(carry_len > flat.prompt().len(), "the carry stands");
+
+        let climbing = degenerate_driver(&device, FallbackConfig::upstream());
+        let mut ctx = climbing.new_context(clock(), PerWindow).unwrap();
+        let mut recovered = ctx.push(&audio).unwrap();
+        recovered.extend(ctx.flush().unwrap());
+        assert_eq!(recovered.len(), looped.len());
+        for e in &recovered {
+            let t = &e.segment().tokens;
+            assert!(t.contains(&2), "sampling broke the loop: {t:?}");
+        }
+        assert!(
+            ctx.prompt_now().len() > climbing.prompt().len(),
+            "recovered below 0.5: the carry stands"
+        );
+
+        let hot = degenerate_driver(
+            &device,
+            FallbackConfig::new().with_temperatures(vec![0.0, 0.8]),
+        );
+        let mut ctx = hot.new_context(clock(), PerWindow).unwrap();
+        let mut reset = ctx.push(&audio).unwrap();
+        reset.extend(ctx.flush().unwrap());
+        assert!(reset.iter().all(|e| e.segment().tokens.contains(&2)));
+        assert_eq!(
+            ctx.prompt_now(),
+            hot.prompt(),
+            "past 0.5: the carry was reset"
+        );
+    }
+
+    /// The silence rule: a window whose no-speech probability is over the
+    /// threshold and whose log probability is poor is skipped whole, the
+    /// seek moving past it with nothing emitted; a good enough log
+    /// probability keeps it.
+    #[test]
+    #[serial]
+    fn test_no_speech_skips_a_window() {
+        let device = Device::default();
+        let audio = clip();
+
+        let skipping = degenerate_driver(
+            &device,
+            FallbackConfig::new().with_no_speech_threshold(Some(0.0)),
+        );
+        let mut ctx = skipping.new_context(clock(), PerWindow).unwrap();
+        let mut emissions = ctx.push(&audio).unwrap();
+        emissions.extend(ctx.flush().unwrap());
+        assert!(
+            emissions.is_empty(),
+            "every window is silence: {emissions:?}"
+        );
+        assert_eq!(ctx.seek(), 105, "the seek still moved past them");
+        assert!(ctx.transcript().is_empty());
+
+        let kept = degenerate_driver(
+            &device,
+            FallbackConfig::new()
+                .with_no_speech_threshold(Some(0.0))
+                .with_logprob_threshold(Some(-1e9)),
+        );
+        let mut ctx = kept.new_context(clock(), PerWindow).unwrap();
+        let mut emissions = ctx.push(&audio).unwrap();
+        emissions.extend(ctx.flush().unwrap());
+        assert!(
+            !emissions.is_empty(),
+            "a good enough log probability keeps a window"
+        );
+    }
+
     /// A multilingual driver given no language detects it from the first
     /// window: on a layout with one language, that one, and the stream then
     /// decodes exactly as one configured with it. Solo and batched agree.
@@ -1619,7 +1885,8 @@ mod tests {
                 TokenPolicy::new(tiny_layout()),
                 &device,
             )
-            .unwrap();
+            .unwrap()
+            .with_logit_filters(decisive());
         assert!(detecting.detects_language());
         assert!(detecting.prompt().is_empty());
         let only = crate::kits::speech::whisper::tokens::LANGUAGES[0];
@@ -1633,7 +1900,7 @@ mod tests {
         assert_eq!(solo.language(), Some(only));
 
         // The same as configuring it.
-        let configured = driver(&device, false);
+        let configured = driver(&device, true).with_logit_filters(decisive());
         assert_eq!(run_clip(&configured, &audio, None), expected);
 
         // Batched: fed, then advanced together.

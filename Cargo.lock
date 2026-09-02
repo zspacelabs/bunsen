@@ -908,6 +908,7 @@ dependencies = [
  "directories-next",
  "document-features",
  "downloader",
+ "flate2",
  "hamcrest",
  "hashbrown 0.17.1",
  "hound",

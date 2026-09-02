@@ -188,6 +188,7 @@ hashbrown = { workspace = true, optional = true }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
 crc = { workspace = true }
+flate2 = { workspace = true }
 
 directories-next = { workspace = true, optional = true }
 # features=["tui"] incompatible with conflicting indicatif versions.

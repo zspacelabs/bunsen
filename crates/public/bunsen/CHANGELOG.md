@@ -9,6 +9,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- *(whisper)* Fallback. `kits::speech::whisper::decode::fallback`:
+  `FallbackConfig` (the temperature ladder, the compression-ratio /
+  log-probability / no-speech thresholds, `best_of`), its clauses as pure
+  functions (`needs_fallback`, `should_skip`, `resets_prompt`),
+  `compression_ratio` (zlib, as upstream), and `decode_with_fallback`, the
+  ladder as an orchestration over a decode closure. `Decoded` is what a
+  decode now says about an audio beyond its ids: the cumulative log
+  probability (`avg_logprob`) and the `<|nospeech|>` probability probed at
+  the sot position of the first forward, through `decode_windows_full` /
+  `decode_features_full`; `DecodeConfig` takes `temperature` and
+  `best_of`, and `GreedyDecoder` samples above zero by Gumbel-max on the
+  backend's own random numbers, `best_of` trajectories per audio. The
+  driver takes `fallback`; a window the policy calls silence is skipped
+  whole; a rung above 0.5 resets the prompt carry; the batched path hands
+  its temperature-zero result in as the first rung. bunsen's default
+  ladder is temperature zero alone (`FallbackConfig::upstream()` is
+  `transcribe()`'s), a deliberate choice for a stream driver.
 - *(whisper)* Timestamps. `ApplyTimestampRules` is upstream's timestamp
   grammar as a `LogitFilter`, its history clauses a pure function
   (`forbidden`) tested clause by clause; `RestrictToLanguages` and

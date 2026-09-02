@@ -64,6 +64,7 @@ use crate::{
                 decode::{
                     ApplyTimestampRules,
                     DecodeConfig,
+                    FallbackConfig,
                     LogitFilter,
                 },
                 emission::EmissionPolicy,
@@ -150,6 +151,12 @@ pub struct WhisperDriverConfig {
     /// When to decode, and when a decode is final.
     #[config(default = "EmissionPolicy::offline()")]
     pub emission: EmissionPolicy,
+
+    /// The temperature ladder and its thresholds. The default ladder is
+    /// temperature zero alone; [`FallbackConfig::upstream`] is
+    /// `transcribe()`'s.
+    #[config(default = "FallbackConfig::new()")]
+    pub fallback: FallbackConfig,
 }
 
 impl WhisperDriverConfig {
@@ -234,6 +241,16 @@ impl WhisperDriverConfig {
                 "beam_size must be at least one".to_string(),
             ));
         }
+        if self.fallback.temperatures.is_empty() {
+            return Err(BunsenError::Invalid(
+                "the fallback ladder needs at least one temperature".to_string(),
+            ));
+        }
+        if self.fallback.best_of == Some(0) {
+            return Err(BunsenError::Invalid(
+                "best_of must be at least one".to_string(),
+            ));
+        }
         if (self.beam_size as f64 * self.patience.unwrap_or(1.0)).round() < 1.0 {
             return Err(BunsenError::Invalid(format!(
                 "a patience of {:?} with {} beams collects no candidates",
@@ -260,6 +277,7 @@ impl WhisperDriverConfig {
             filters,
             carry_prompt: self.condition_on_previous_text,
             emission: self.emission.clone(),
+            fallback: self.fallback.clone(),
             gate: None,
             detokenizer: None,
         })
@@ -309,6 +327,8 @@ pub struct WhisperDriver<B: Backend> {
     carry_prompt: bool,
 
     emission: EmissionPolicy,
+
+    fallback: FallbackConfig,
 
     /// The gate's constants, when a VAD was attached.
     gate: Option<SpeechGateConfig>,
@@ -455,11 +475,19 @@ impl<B: Backend> WhisperDriver<B> {
         &self,
         prompt: Vec<i64>,
     ) -> DecodeConfig {
-        DecodeConfig::new(prompt, self.policy.ids().eot)
+        let ids = self.policy.ids();
+        DecodeConfig::new(prompt, ids.eot)
             .with_max_tokens(self.max_tokens)
             .with_beam_size(self.beam_size)
             .with_patience(self.patience)
             .with_length_penalty(self.length_penalty)
+            .with_sot_token(Some(ids.sot))
+            .with_no_speech_token(Some(ids.no_speech))
+    }
+
+    /// The temperature ladder and its thresholds.
+    pub fn fallback(&self) -> &FallbackConfig {
+        &self.fallback
     }
 
     /// The detokenizer, if one was attached.
