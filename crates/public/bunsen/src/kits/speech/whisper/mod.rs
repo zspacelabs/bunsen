@@ -22,7 +22,7 @@
 //! [`clock`]: crate::kits::speech::whisper::clock
 //! [`driver`]: crate::kits::speech::whisper::driver
 //! [`emission`]: crate::kits::speech::whisper::emission
-//! [`gate`]: crate::kits::speech::whisper::gate
+//! [`gate`]: crate::kits::speech::whisper::va_filter
 //! [`regions`]: crate::kits::speech::whisper::regions
 //! [`mel`]: crate::kits::speech::whisper::mel
 //! [`decode`]: crate::kits::speech::whisper::decode
@@ -33,19 +33,20 @@
 //! [`kits::tokens`]: crate::kits::tokens
 
 pub mod blocks;
-pub mod clamp;
-pub mod clock;
 pub mod decode;
 pub mod driver;
-pub mod emission;
-pub mod gate;
-pub mod mel;
 pub mod pretrained;
-pub mod regions;
-pub mod segments;
-pub mod text;
-pub mod tokens;
-pub mod vocab;
+
+mod clamp;
+mod clock;
+mod emission;
+mod mel;
+mod regions;
+mod segments;
+mod text;
+mod tokens;
+mod va_filter;
+mod vocab;
 
 #[doc(inline)]
 pub use blocks::{
@@ -65,13 +66,16 @@ pub use driver::*;
 #[doc(inline)]
 pub use emission::*;
 #[doc(inline)]
-pub use gate::*;
-#[doc(inline)]
 pub use mel::*;
 #[doc(inline)]
 pub use regions::*;
+#[doc(inline)]
 pub use segments::*;
 #[doc(inline)]
+pub use text::*;
+#[doc(inline)]
 pub use tokens::*;
+#[doc(inline)]
+pub use va_filter::*;
 #[doc(inline)]
 pub use vocab::*;

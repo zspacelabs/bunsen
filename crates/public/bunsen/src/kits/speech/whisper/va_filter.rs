@@ -1,20 +1,3 @@
-//! # The speech gate: probabilities in, regions out.
-//!
-//! Silero emits one speech probability per 512-sample chunk. Turning that
-//! into regions is a hysteresis machine: a region **opens** when a
-//! probability reaches `threshold`, stays open through anything above
-//! `neg_threshold`, and **closes** only after `min_silence` of probabilities
-//! below it. The gap between the two thresholds is what stops a region
-//! flickering on syllable boundaries; the minimum silence is what stops it
-//! splitting between words. Both references implement exactly this machine
-//! with different constants, and both are presets here.
-//!
-//! [`SpeechGate`] is the machine as a streaming fold, one chunk at a time,
-//! emitting a raw region when one closes &mdash; the form the driver needs.
-//! [`SpeechGateConfig::speech_regions`] is the whole-clip form: the fold, then
-//! the padding, and it reproduces `faster-whisper`'s `get_speech_timestamps`
-//! exactly, which is what its tests are checked against.
-
 use burn::config::Config;
 
 use crate::kits::speech::whisper::regions::{
@@ -22,9 +5,9 @@ use crate::kits::speech::whisper::regions::{
     pad_regions,
 };
 
-/// The machine's constants. Names follow `faster-whisper`'s `VadOptions`.
+/// Config for [`VoiceActivityFilter`].
 #[derive(Config, Debug, PartialEq)]
-pub struct SpeechGateConfig {
+pub struct VoiceActivityFilterConfig {
     /// The audio sample rate.
     #[config(default = "16_000")]
     pub sample_rate: usize,
@@ -59,7 +42,7 @@ pub struct SpeechGateConfig {
     pub min_silence_ms: usize,
 
     /// Padding added on each side of a region by
-    /// [`SpeechGateConfig::speech_regions`].
+    /// [`VoiceActivityFilterConfig::speech_regions`].
     #[config(default = "400")]
     pub speech_pad_ms: usize,
 
@@ -75,7 +58,7 @@ pub struct SpeechGateConfig {
     pub split_at_longest_silence: bool,
 }
 
-impl SpeechGateConfig {
+impl VoiceActivityFilterConfig {
     /// The silence threshold, explicit or derived.
     pub fn neg_threshold_value(&self) -> f64 {
         self.neg_threshold
@@ -118,9 +101,9 @@ impl SpeechGateConfig {
         })
     }
 
-    /// Initializes a [`SpeechGate`] with these constants.
-    pub fn init(&self) -> SpeechGate {
-        SpeechGate {
+    /// Initializes a [`VoiceActivityFilter`] with these constants.
+    pub fn init(&self) -> VoiceActivityFilter {
+        VoiceActivityFilter {
             config: self.clone(),
 
             chunk_count: 0,
@@ -172,24 +155,11 @@ impl SpeechGateConfig {
     }
 }
 
-/// The hysteresis machine as a streaming fold over one probability per chunk.
-///
-/// Emits a **raw** region when one closes; padding is a separate step, since
-/// a region's end pad depends on where the next region starts. A port of
-/// `faster-whisper`'s `get_speech_timestamps` loop, including its handling
-/// of regions that reach the maximum length.
-///
-/// The last-silence policy is upstream's legacy path re-expressed on the
-/// longest-silence bookkeeping: the same candidates, kept one at a time.
-/// It differs from upstream in two corners. A silence qualifies by the same
-/// rule as under the longest policy, where upstream's legacy path tests it
-/// a chunk earlier and so misses dips within a chunk of the threshold; and
-/// a silence still running when the limit is reached is not a candidate,
-/// as it is not under the longest policy either.
+/// Hysteresis filter for voice activity.
 #[derive(Debug, Clone)]
 #[allow(unused)]
-pub struct SpeechGate {
-    config: SpeechGateConfig,
+pub struct VoiceActivityFilter {
+    config: VoiceActivityFilterConfig,
 
     /// Chunks seen so far.
     chunk_count: usize,
@@ -208,7 +178,12 @@ pub struct SpeechGate {
     possible_ends: Vec<(usize, usize)>,
 }
 
-impl SpeechGate {
+impl VoiceActivityFilter {
+    /// Get the filter's config.
+    pub fn config(&self) -> &VoiceActivityFilterConfig {
+        &self.config
+    }
+
     /// Chunks consumed so far.
     pub fn chunk_count(&self) -> usize {
         self.chunk_count
@@ -377,40 +352,40 @@ mod tests {
 
     /// 100 ms of silence to close (3.125 chunks), 30 ms of padding (480
     /// samples): short enough that every branch fits in a few dozen chunks.
-    fn quick() -> SpeechGateConfig {
-        SpeechGateConfig::new()
+    fn quick() -> VoiceActivityFilterConfig {
+        VoiceActivityFilterConfig::new()
             .with_min_silence_ms(100)
             .with_speech_pad_ms(30)
     }
 
     #[test]
     fn test_presets_and_derived_threshold() {
-        let fw = SpeechGateConfig::faster_whisper();
-        assert_eq!(fw, SpeechGateConfig::new());
+        let fw = VoiceActivityFilterConfig::faster_whisper();
+        assert_eq!(fw, VoiceActivityFilterConfig::new());
         assert_eq!(fw.min_silence_ms, 2000);
         assert_eq!(fw.speech_pad_ms, 400);
         assert_eq!(fw.speech_pad_samples(), 6400);
         assert!((fw.neg_threshold_value() - 0.35).abs() < 1e-12);
 
-        let burn = SpeechGateConfig::fast_whisper_burn();
+        let burn = VoiceActivityFilterConfig::fast_whisper_burn();
         assert_eq!(burn.min_silence_ms, 100);
         assert_eq!(burn.speech_pad_ms, 30);
         assert_eq!(burn.min_speech_ms, 250);
 
         assert_float_eq::assert_float_relative_eq!(
-            SpeechGateConfig::new()
+            VoiceActivityFilterConfig::new()
                 .with_threshold(0.165) // (0.165 - 0.15) = 0.015 > 0.01
                 .neg_threshold_value(),
             0.015
         );
         assert_float_eq::assert_float_relative_eq!(
-            SpeechGateConfig::new()
+            VoiceActivityFilterConfig::new()
                 .with_threshold(0.1) // (0.1 - 0.15) < 0.01
                 .neg_threshold_value(),
             0.01
         );
         assert_float_eq::assert_float_relative_eq!(
-            SpeechGateConfig::new()
+            VoiceActivityFilterConfig::new()
                 .with_neg_threshold(Some(0.2))
                 .neg_threshold_value(),
             0.2
@@ -515,7 +490,7 @@ mod tests {
     #[test]
     fn test_max_speech_cuts_at_the_longest_silence() {
         let t = track(&[(0.1, 2), (0.9, 8), (0.2, 4), (0.9, 30), (0.1, 5)]);
-        let config = SpeechGateConfig::new()
+        let config = VoiceActivityFilterConfig::new()
             .with_min_silence_ms(300)
             .with_speech_pad_ms(30)
             .with_max_speech_s(Some(1.0));
@@ -547,7 +522,7 @@ mod tests {
     /// used; of two qualifying ones, the later wins.
     #[test]
     fn test_max_speech_cuts_at_the_last_silence_when_asked() {
-        let config = SpeechGateConfig::new()
+        let config = VoiceActivityFilterConfig::new()
             .with_min_silence_ms(300)
             .with_speech_pad_ms(30)
             .with_max_speech_s(Some(1.0))
@@ -607,7 +582,7 @@ mod tests {
             (0.1, 4),
             (0.9, 4),
         ]);
-        let config = SpeechGateConfig::new()
+        let config = VoiceActivityFilterConfig::new()
             .with_min_silence_ms(40)
             .with_speech_pad_ms(60);
         let total_samples = 34 * C;
@@ -622,7 +597,7 @@ mod tests {
     fn test_defaults() {
         let split = track(&[(0.1, 5), (0.9, 40), (0.1, 70), (0.9, 40), (0.1, 30)]);
         let total_samples = 185 * C;
-        let config = &SpeechGateConfig::new();
+        let config = &VoiceActivityFilterConfig::new();
         assert_eq!(
             config.speech_regions(&split, total_samples),
             regions(&[(0, 29440), (52480, 94720)])
@@ -630,7 +605,7 @@ mod tests {
 
         let glued = track(&[(0.1, 5), (0.9, 40), (0.1, 50), (0.9, 40), (0.1, 70)]);
         let total_samples = 205 * C;
-        let config = &SpeechGateConfig::new();
+        let config = &VoiceActivityFilterConfig::new();
         assert_eq!(
             config.speech_regions(&glued, total_samples),
             regions(&[(0, 75520)])
@@ -728,14 +703,14 @@ mod tests {
         fn test_golden_track() {
             let (probs, total) = probabilities();
 
-            let config = &SpeechGateConfig::fast_whisper_burn();
+            let config = &VoiceActivityFilterConfig::fast_whisper_burn();
             let quick = config.speech_regions(&probs, total);
             assert_eq!(total, 64_000, "4.0 s at 16 kHz");
             // "...the highest mountain?" to 1.02 s, the pause, then
             // "Why, thirty-five years ago..." from 1.86 s.
             assert_eq!(quick, regions(&[(0, 16_352), (29_728, 56_800)]));
 
-            let config = &SpeechGateConfig::new();
+            let config = &VoiceActivityFilterConfig::new();
             let patient = config.speech_regions(&probs, total);
             assert_eq!(
                 patient.len(),

@@ -74,13 +74,13 @@ use crate::{
                 Emission,
                 Segment,
             },
-            gate::SpeechGate,
             mel::package_window,
             regions::{
                 ENCODER_GRID,
                 SpeechRegion,
             },
             segments::split_window,
+            va_filter::VoiceActivityFilter,
         },
     },
     ops::signal::mels::{
@@ -156,14 +156,14 @@ pub struct WhisperStreamContext<B: Backend> {
     trace: Vec<Tensor<B, 3>>,
 }
 
-/// The voice-activity half of a stream: Silero's state, the gate, and the
+/// The voice-activity half of a stream: Silero's state, the filter, and the
 /// regions it has closed but the decode has not yet consumed.
 #[derive(Clone, Debug)]
 struct VoiceActivity<B: Backend> {
     /// Silero's recurrent state; `None` only while a step is in flight.
     context: Option<SileroVadContext<B>>,
 
-    gate: SpeechGate,
+    filter: VoiceActivityFilter,
 
     /// Samples not yet a whole chunk.
     staging: Vec<f32>,
@@ -194,12 +194,12 @@ impl<B: Backend> WhisperStreamContext<B> {
     ) -> Self {
         let mel = driver.mel().new_context(1);
 
-        let vad = match (driver.vad(), driver.gate()) {
+        let vad = match (driver.vad(), driver.filter_config()) {
             (Some(model), Some(gate)) if driver.emission().triggers.endpoint => {
                 let device = model.devices()[0].clone();
                 Some(VoiceActivity {
                     context: Some(SileroVadContextConfig::new(SAMPLE_RATE).init(model, &device)),
-                    gate: gate.init(),
+                    filter: gate.init(),
                     staging: Vec::new(),
                     pad: gate.speech_pad_samples(),
                     regions: VecDeque::new(),
@@ -266,7 +266,7 @@ impl<B: Backend> WhisperStreamContext<B> {
     /// Whether the gate currently has a region open: speech in progress.
     /// Always `false` without voice activity.
     pub fn is_speaking(&self) -> bool {
-        self.vad.as_ref().is_some_and(|v| v.gate.is_open())
+        self.vad.as_ref().is_some_and(|v| v.filter.is_open())
     }
 
     /// Closed regions not yet decoded.
@@ -500,13 +500,13 @@ impl<B: Backend> WhisperStreamContext<B> {
 
             let probs: Vec<f32> = probs.to_data().convert::<f32>().to_vec().unwrap();
             for p in probs {
-                if let Some(raw) = vad.gate.step(p) {
+                if let Some(raw) = vad.filter.step(p) {
                     vad.enqueue(raw, total);
                 }
             }
         }
 
-        if flushing && let Some(raw) = vad.gate.clone().finish(total) {
+        if flushing && let Some(raw) = vad.filter.clone().finish(total) {
             vad.enqueue(raw, total);
         }
     }
@@ -527,7 +527,7 @@ impl<B: Backend> WhisperStreamContext<B> {
             }
             let (from, to) = (self.seek * hop, (self.seek + width) * hop);
             let closed_in = vad.regions.iter().any(|r| r.end > from && r.start < to);
-            let open_in = vad.gate.open_since().is_some_and(|s| s < to);
+            let open_in = vad.filter.open_since().is_some_and(|s| s < to);
             if closed_in || open_in {
                 return;
             }
@@ -568,7 +568,7 @@ impl<B: Backend> WhisperStreamContext<B> {
 
             if self.driver.emission().triggers.window_full && self.pending_frames() >= width {
                 let to = (self.seek + width) * hop;
-                if vad.gate.open_since().is_some_and(|s| s < to) {
+                if vad.filter.open_since().is_some_and(|s| s < to) {
                     return Some(Due {
                         start: self.seek,
                         count: width,
@@ -2038,7 +2038,7 @@ mod tests {
                         CommitRule,
                         Triggers,
                     },
-                    gate::SpeechGateConfig,
+                    va_filter::VoiceActivityFilterConfig,
                 },
             },
             support::{
@@ -2070,7 +2070,7 @@ mod tests {
                     device,
                 )
                 .unwrap()
-                .with_vad(vad, SpeechGateConfig::fast_whisper_burn())
+                .with_vad(vad, VoiceActivityFilterConfig::fast_whisper_burn())
         }
 
         /// The gate's golden regions, padded and snapped outward, are
@@ -2095,7 +2095,7 @@ mod tests {
                     &device,
                 )
                 .unwrap()
-                .with_vad(vad, SpeechGateConfig::fast_whisper_burn());
+                .with_vad(vad, VoiceActivityFilterConfig::fast_whisper_burn());
             let audio = speech();
             assert_eq!(audio.len(), 64_000);
 
@@ -2216,7 +2216,7 @@ mod tests {
                     device,
                 )
                 .unwrap()
-                .with_vad(vad, SpeechGateConfig::fast_whisper_burn())
+                .with_vad(vad, VoiceActivityFilterConfig::fast_whisper_burn())
                 .with_logit_filters(vec![scripted])
         }
 
@@ -2337,7 +2337,7 @@ mod tests {
                     &device,
                 )
                 .unwrap()
-                .with_vad(vad, SpeechGateConfig::fast_whisper_burn());
+                .with_vad(vad, VoiceActivityFilterConfig::fast_whisper_burn());
             let audio = speech();
 
             let mut ctx = driver

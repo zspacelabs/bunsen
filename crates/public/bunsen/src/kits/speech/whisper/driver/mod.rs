@@ -69,7 +69,6 @@ use crate::{
                     LogitFilter,
                 },
                 emission::EmissionPolicy,
-                gate::SpeechGateConfig,
                 mel::mel_options,
                 tokens::{
                     TIMESTAMP_STEP_SAMPLES,
@@ -77,6 +76,7 @@ use crate::{
                     Task,
                     TokenPolicy,
                 },
+                va_filter::VoiceActivityFilterConfig,
             },
         },
         tokens::Detokenizer,
@@ -278,7 +278,7 @@ impl WhisperDriverConfig {
             carry_prompt: self.condition_on_previous_text,
             emission: self.emission.clone(),
             fallback: self.fallback.clone(),
-            gate: None,
+            filter_config: None,
             detokenizer: None,
         })
     }
@@ -330,8 +330,7 @@ pub struct WhisperDriver<B: Backend> {
 
     fallback: FallbackConfig,
 
-    /// The gate's constants, when a VAD was attached.
-    gate: Option<SpeechGateConfig>,
+    filter_config: Option<VoiceActivityFilterConfig>,
 
     detokenizer: Option<Arc<dyn Detokenizer>>,
 }
@@ -365,7 +364,7 @@ impl<B: Backend> WhisperDriver<B> {
         self
     }
 
-    /// Attaches a voice-activity model and the gate that turns its
+    /// Attaches a voice-activity model and the filter that turns its
     /// probabilities into regions.
     ///
     /// Needed by any emission policy with the `endpoint` trigger; ignored by
@@ -373,10 +372,10 @@ impl<B: Backend> WhisperDriver<B> {
     pub fn with_vad(
         mut self,
         vad: SileroVad<B>,
-        gate: SpeechGateConfig,
+        filter_config: VoiceActivityFilterConfig,
     ) -> Self {
         self.vad = Some(vad);
-        self.gate = Some(gate);
+        self.filter_config = Some(filter_config);
         self
     }
 
@@ -395,9 +394,9 @@ impl<B: Backend> WhisperDriver<B> {
         self.vad.as_ref()
     }
 
-    /// The gate's constants, if a VAD was attached.
-    pub fn gate(&self) -> Option<&SpeechGateConfig> {
-        self.gate.as_ref()
+    /// The filter config, if a VAD is attached.
+    pub fn filter_config(&self) -> Option<VoiceActivityFilterConfig> {
+        self.filter_config.clone()
     }
 
     /// The token layout, derived from the model.

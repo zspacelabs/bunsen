@@ -22,16 +22,16 @@ use bunsen::{
             FallbackConfig,
             MaxSeen,
             SAMPLE_RATE,
-            SpeechGateConfig,
             Task,
             TimestampHistory,
             TokenPolicy,
+            VoiceActivityFilterConfig,
             Whisper,
             WhisperDriver,
             WhisperDriverConfig,
             decode::default_filters,
+            detokenizer,
             pretrained::bundled_vocabulary,
-            text::detokenizer,
         },
     },
     support::{
@@ -191,7 +191,7 @@ fn run<B: Backend>(
         .with_logit_filters(filters);
     if args.preset != Preset::Offline {
         let vad = SileroVad::<B>::load_16khz_pretrained(&device)?;
-        driver = driver.with_vad(vad, SpeechGateConfig::faster_whisper());
+        driver = driver.with_vad(vad, VoiceActivityFilterConfig::faster_whisper());
     }
     if driver.detects_language() {
         println!("language: detected from the first window");

@@ -120,12 +120,12 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   presets, and `Emission::{Committed, Draft}` over a `Segment`.
 - *(whisper)* `ClampPolicy` gained `CloneClampPolicy` as a supertrait (implemented for every `ClampPolicy + Clone`), so
   a boxed policy can live in a `Module`.
-- *(whisper)* `kits::speech::whisper::gate` — the speech gate: `SpeechGate`, the hysteresis machine over Silero's
-  per-chunk probabilities as a streaming fold, and `SpeechGateConfig::speech_regions`, the whole-clip form, which
-  reproduces
+- *(whisper)* `kits::speech::whisper::gate` — the speech gate: `VoiceActivityFilter`, the hysteresis machine over
+  Silero's per-chunk probabilities as a streaming fold, and `SpeechGateConfig::speech_regions`, the whole-clip form,
+  which reproduces
   `faster-whisper`'s `get_speech_timestamps` exactly (its tests are that function's own answers over synthetic tracks,
   including both `max_speech`
-  split variants). `SpeechGateConfig` carries `faster_whisper()` and
+  split variants). `VoiceActivityFilterConfig` carries `faster_whisper()` and
   `fast_whisper_burn()` presets.
 - *(whisper)* `kits::speech::whisper::regions` — `SpeechRegion` (a span of samples) with `snap_outward` onto the
   320-sample encoder grid and `clock`
@@ -133,9 +133,10 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - *(testdata)* `testdata/audio/jfk_moon_4s.mp3`, four seconds of speech around a one-second pause, for the gate's golden
   test against Silero.
 - *(whisper)* The driver's second deployment, conservative real time.
-  `WhisperDriver::with_vad` attaches a `SileroVad` and a `SpeechGateConfig`; under `EmissionPolicy::conservative()` each
-  speech region the gate closes is decoded as its own unit and committed with times off the parent stream's clock, and a
-  full window of silence is skipped rather than decoded. `feed` / `advance` split `push` in two, and
+  `WhisperDriver::with_vad` attaches a `SileroVad` and a `VoiceActivityFilterConfig`; under
+  `EmissionPolicy::conservative()` each speech region the gate closes is decoded as its own unit and committed with
+  times off the parent stream's clock, and a full window of silence is skipped rather than decoded. `feed` / `advance`
+  split `push` in two, and
   `driver::advance_ready(&driver, &mut [context])` advances many streams with one decode per prompt group — server-batch
   mode as a function, not a type. `end_input` is the input half of `flush`.
 - *(whisper)* `whisper-weights` now also fetches the two `.tiktoken`
