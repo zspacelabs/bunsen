@@ -20,16 +20,16 @@ use crate::kits::speech::whisper::{
 };
 
 /// The encoder frame grid, in samples: one timestamp step.
-pub const ENCODER_GRID: u64 = TIMESTAMP_STEP_SAMPLES as u64;
+pub const ENCODER_GRID: usize = TIMESTAMP_STEP_SAMPLES;
 
 /// A half-open span of samples, `start..end`, in the stream's own sample
 /// index.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct SpeechRegion {
     /// First sample of the region.
-    pub start: u64,
+    pub start: usize,
     /// One past the last sample of the region.
-    pub end: u64,
+    pub end: usize,
 }
 
 impl SpeechRegion {
@@ -38,15 +38,15 @@ impl SpeechRegion {
     /// # Panics
     /// If `end < start`.
     pub fn new(
-        start: u64,
-        end: u64,
+        start: usize,
+        end: usize,
     ) -> Self {
         assert!(end >= start, "region end {end} is before its start {start}");
         Self { start, end }
     }
 
     /// Samples in the region.
-    pub fn len(&self) -> u64 {
+    pub fn len(&self) -> usize {
         self.end - self.start
     }
 
@@ -62,7 +62,7 @@ impl SpeechRegion {
     /// for anyway.
     pub fn snap_outward(
         &self,
-        grid: u64,
+        grid: usize,
     ) -> Self {
         assert_ne!(grid, 0, "a grid needs a non-zero step");
         Self {
@@ -93,8 +93,8 @@ impl SpeechRegion {
 /// * `total` - samples in the stream.
 pub fn pad_regions(
     regions: &mut [SpeechRegion],
-    pad: u64,
-    total: u64,
+    pad: usize,
+    total: usize,
 ) {
     let n = regions.len();
     for i in 0..n {
@@ -120,7 +120,7 @@ pub fn pad_regions(
 /// `fast-whisper-burn` does so that each decode gets useful context.
 pub fn merge_gaps(
     regions: &[SpeechRegion],
-    gap: u64,
+    gap: usize,
 ) -> Vec<SpeechRegion> {
     let mut out: Vec<SpeechRegion> = Vec::with_capacity(regions.len());
     for &region in regions {
@@ -139,8 +139,8 @@ mod tests {
     use super::*;
 
     fn r(
-        start: u64,
-        end: u64,
+        start: usize,
+        end: usize,
     ) -> SpeechRegion {
         SpeechRegion::new(start, end)
     }

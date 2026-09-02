@@ -116,7 +116,7 @@ pub struct WhisperStreamContext<B: Backend> {
     staging: Vec<f32>,
 
     /// Samples pushed so far, staging included.
-    samples_seen: u64,
+    samples_seen: usize,
 
     /// The stream frame index of the ring's first frame.
     origin: usize,
@@ -136,7 +136,7 @@ pub struct WhisperStreamContext<B: Backend> {
 
     /// Media time (samples seen) at the last draft or commit; drafts are
     /// paced from it.
-    last_draft: u64,
+    last_draft: usize,
 
     /// The language the prompt names: configured, or detected from the
     /// first window decoded; `None` until then on a detecting driver.
@@ -169,17 +169,17 @@ struct VoiceActivity<B: Backend> {
     staging: Vec<f32>,
 
     /// Samples the gate has seen.
-    consumed: u64,
+    consumed: usize,
 
     /// Padding on each side of a region, in samples.
-    pad: u64,
+    pad: usize,
 
     /// Closed regions, padded and snapped, oldest first.
     regions: VecDeque<SpeechRegion>,
 
     /// Where the last closed region ended, so the next one's padding cannot
     /// reach back into it.
-    last_end: u64,
+    last_end: usize,
 }
 
 /// One decode unit: `count` frames from stream frame `start`.
@@ -202,7 +202,7 @@ impl<B: Backend> WhisperStreamContext<B> {
                 let device = model.devices()[0].clone();
                 Some(VoiceActivity {
                     context: Some(SileroVadContextConfig::new(SAMPLE_RATE).init(model, &device)),
-                    gate: SpeechGate::new(gate),
+                    gate: gate.init(),
                     staging: Vec::new(),
                     consumed: 0,
                     pad: gate.speech_pad_samples(),
@@ -248,7 +248,7 @@ impl<B: Backend> WhisperStreamContext<B> {
     }
 
     /// Samples pushed so far.
-    pub fn samples_seen(&self) -> u64 {
+    pub fn samples_seen(&self) -> usize {
         self.samples_seen
     }
 
@@ -339,7 +339,7 @@ impl<B: Backend> WhisperStreamContext<B> {
         }
 
         self.staging.extend_from_slice(samples);
-        self.samples_seen += samples.len() as u64;
+        self.samples_seen += samples.len();
         if let Some(vad) = &mut self.vad {
             vad.staging.extend_from_slice(samples);
         }
@@ -504,7 +504,7 @@ impl<B: Backend> WhisperStreamContext<B> {
 
             let probs: Vec<f32> = probs.to_data().convert::<f32>().to_vec().unwrap();
             for p in probs {
-                vad.consumed += chunk as u64;
+                vad.consumed += chunk;
                 if let Some(raw) = vad.gate.step(p) {
                     vad.enqueue(raw, total);
                 }
@@ -522,7 +522,7 @@ impl<B: Backend> WhisperStreamContext<B> {
     /// closed inside them, and nothing open in them.
     pub(super) fn skip_silence(&mut self) {
         let width = self.driver.window_frames();
-        let hop = self.hop() as u64;
+        let hop = self.hop();
         loop {
             let Some(vad) = &self.vad else {
                 return;
@@ -530,7 +530,7 @@ impl<B: Backend> WhisperStreamContext<B> {
             if self.pending_frames() < width {
                 return;
             }
-            let (from, to) = (self.seek as u64 * hop, (self.seek + width) as u64 * hop);
+            let (from, to) = (self.seek * hop, (self.seek + width) * hop);
             let closed_in = vad.regions.iter().any(|r| r.end > from && r.start < to);
             let open_in = vad.gate.open_since().is_some_and(|s| s < to);
             if closed_in || open_in {
@@ -549,12 +549,12 @@ impl<B: Backend> WhisperStreamContext<B> {
     /// input whatever remains.
     pub(super) fn next_due(&self) -> Option<Due> {
         let width = self.driver.window_frames();
-        let hop = self.hop() as u64;
+        let hop = self.hop();
         let available = self.frames_seen();
 
         if let Some(vad) = &self.vad {
             for region in &vad.regions {
-                let (rs, re) = ((region.start / hop) as usize, (region.end / hop) as usize);
+                let (rs, re) = ((region.start / hop), (region.end / hop));
                 if re <= self.seek {
                     continue;
                 }
@@ -572,7 +572,7 @@ impl<B: Backend> WhisperStreamContext<B> {
             }
 
             if self.driver.emission().triggers.window_full && self.pending_frames() >= width {
-                let to = (self.seek + width) as u64 * hop;
+                let to = (self.seek + width) * hop;
                 if vad.gate.open_since().is_some_and(|s| s < to) {
                     return Some(Due {
                         start: self.seek,
@@ -759,7 +759,7 @@ impl<B: Backend> WhisperStreamContext<B> {
         unit: Due,
         decoded: Decoded,
     ) -> BunsenResult<Vec<Emission>> {
-        let hop = self.hop() as u64;
+        let hop = self.hop();
         let mut out = Vec::new();
 
         let skip = self
@@ -815,7 +815,7 @@ impl<B: Backend> WhisperStreamContext<B> {
         self.drop_before_seek();
 
         if let Some(vad) = &mut self.vad {
-            let consumed = self.seek as u64 * hop;
+            let consumed = self.seek * hop;
             while vad.regions.front().is_some_and(|r| r.end <= consumed) {
                 vad.regions.pop_front();
             }
@@ -865,7 +865,7 @@ impl<B: Backend> WhisperStreamContext<B> {
         end: usize,
         tokens: Vec<i64>,
     ) -> BunsenResult<Segment> {
-        let hop = self.hop() as u64;
+        let hop = self.hop();
         let text = match self.driver.detokenizer() {
             Some(detokenizer) => {
                 Some(detokenizer.detokenize(&self.driver.policy().text_ids(&tokens))?)
@@ -873,8 +873,8 @@ impl<B: Backend> WhisperStreamContext<B> {
             None => None,
         };
         Ok(Segment {
-            start: self.clock.time_at(start as u64 * hop),
-            end: self.clock.time_at(end as u64 * hop),
+            start: self.clock.time_at(start * hop),
+            end: self.clock.time_at(end * hop),
             tokens,
             text,
         })
@@ -954,7 +954,7 @@ impl<B: Backend> VoiceActivity<B> {
     fn enqueue(
         &mut self,
         raw: SpeechRegion,
-        total: u64,
+        total: usize,
     ) {
         let start = raw.start.saturating_sub(self.pad).max(self.last_end);
         let end = (raw.end + self.pad).min(total).max(start);
@@ -1093,7 +1093,7 @@ mod tests {
     /// Chunk sizes from a seeded generator: 1 to 1200 samples, so most are
     /// not hop multiples and staging is exercised.
     fn random_sizes(
-        seed: u64,
+        seed: usize,
         total: usize,
     ) -> Vec<usize> {
         let mut state = seed;
@@ -2123,7 +2123,7 @@ mod tests {
 
             // (0, 16352) and (29728, 56800) from the gate's golden test,
             // snapped outward onto the 320-sample grid.
-            let expected = [(0u64, 16_640u64), (29_440, 56_960)];
+            let expected = [(0usize, 16_640usize), (29_440, 56_960)];
             let window = driver.window_frames() as f64 * 160.0 / 16_000.0;
             let close = |a: f64, b: f64| (a - b).abs() < 1e-9;
 

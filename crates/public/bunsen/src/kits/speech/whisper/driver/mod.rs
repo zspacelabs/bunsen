@@ -492,11 +492,11 @@ impl<B: Backend> WhisperDriver<B> {
 
     /// The draft interval in samples of media time, when the policy has
     /// one.
-    pub fn interval_samples(&self) -> Option<u64> {
+    pub fn interval_samples(&self) -> Option<usize> {
         self.emission
             .triggers
             .interval
-            .map(|i| (i.as_secs_f64() * SAMPLE_RATE as f64).round() as u64)
+            .map(|i| (i.as_secs_f64() * SAMPLE_RATE as f64).round() as usize)
     }
 
     /// The detokenizer, if one was attached.

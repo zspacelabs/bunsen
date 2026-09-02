@@ -11,9 +11,9 @@
 //!
 //! [`SpeechGate`] is the machine as a streaming fold, one chunk at a time,
 //! emitting a raw region when one closes &mdash; the form the driver needs.
-//! [`speech_regions`] is the whole-clip form: the fold, then the padding,
-//! and it reproduces `faster-whisper`'s `get_speech_timestamps` exactly,
-//! which is what its tests are checked against.
+//! [`SpeechGateConfig::speech_regions`] is the whole-clip form: the fold, then
+//! the padding, and it reproduces `faster-whisper`'s `get_speech_timestamps`
+//! exactly, which is what its tests are checked against.
 
 use burn::config::Config;
 
@@ -22,15 +22,17 @@ use crate::kits::speech::whisper::regions::{
     pad_regions,
 };
 
-/// The rate Silero's 16 kHz model runs at.
-const SAMPLE_RATE: u64 = 16_000;
-
-/// Samples per Silero chunk at 16 kHz.
-pub const CHUNK_SAMPLES: u64 = 512;
-
 /// The machine's constants. Names follow `faster-whisper`'s `VadOptions`.
 #[derive(Config, Debug, PartialEq)]
 pub struct SpeechGateConfig {
+    /// The audio sample rate.
+    #[config(default = "16_000")]
+    pub sample_rate: usize,
+
+    /// The samples per chunk.
+    #[config(default = "512")]
+    pub chunk_samples: usize,
+
     /// A probability at or above this opens a region.
     #[config(default = "0.5")]
     pub threshold: f64,
@@ -42,7 +44,7 @@ pub struct SpeechGateConfig {
 
     /// Regions shorter than this are dropped.
     #[config(default = "0")]
-    pub min_speech_ms: u64,
+    pub min_speech_ms: usize,
 
     /// Regions longer than this are split: at the longest silence longer
     /// than [`min_silence_at_max_speech_ms`](Self::min_silence_at_max_speech_ms),
@@ -54,16 +56,17 @@ pub struct SpeechGateConfig {
 
     /// Silence that must elapse before an open region closes.
     #[config(default = "2000")]
-    pub min_silence_ms: u64,
+    pub min_silence_ms: usize,
 
-    /// Padding added on each side of a region by [`speech_regions`].
+    /// Padding added on each side of a region by
+    /// [`SpeechGateConfig::speech_regions`].
     #[config(default = "400")]
-    pub speech_pad_ms: u64,
+    pub speech_pad_ms: usize,
 
     /// A silence at least this long is a candidate split point for a
     /// region that reaches its maximum length.
     #[config(default = "98")]
-    pub min_silence_at_max_speech_ms: u64,
+    pub min_silence_at_max_speech_ms: usize,
 
     /// Split an over-long region at the longest candidate silence rather
     /// than the last one. Upstream's default, and the better cut: the
@@ -73,6 +76,54 @@ pub struct SpeechGateConfig {
 }
 
 impl SpeechGateConfig {
+    /// Initializes a [`SpeechGate`] with these constants.
+    pub fn init(&self) -> SpeechGate {
+        let ms = |v: usize| (self.sample_rate * v) as f64 / 1000.0;
+        let pad = ms(self.speech_pad_ms);
+        let max_speech = self.max_speech_s.map_or(f64::INFINITY, |s| {
+            self.sample_rate as f64 * s - self.chunk_samples as f64 - 2.0 * pad
+        });
+
+        SpeechGate {
+            config: self.clone(),
+
+            min_speech: ms(self.min_speech_ms),
+            max_speech,
+            min_silence: ms(self.min_silence_ms),
+            min_silence_at_max: ms(self.min_silence_at_max_speech_ms),
+
+            index: 0,
+            triggered: false,
+            start: 0,
+            temp_end: 0,
+            prev_end: 0,
+            next_start: 0,
+            possible_ends: Vec::new(),
+        }
+    }
+
+    /// The whole-clip form: every region in `probs`, padded.
+    ///
+    /// This is `faster-whisper`'s `get_speech_timestamps` over an already
+    /// computed probability track, and agrees with it exactly.
+    ///
+    /// # Arguments
+    /// * `probs` - one speech probability per [`Self::chunk_samples`], covering
+    ///   the clip (the last chunk zero-padded, as Silero is fed).
+    /// * `total_samples` - the clip's true length, which the last region is
+    ///   clamped to.
+    pub fn speech_regions(
+        &self,
+        probs: &[f32],
+        total_samples: usize,
+    ) -> Vec<SpeechRegion> {
+        let mut gate = self.init();
+        let mut regions: Vec<SpeechRegion> = probs.iter().filter_map(|&p| gate.step(p)).collect();
+        regions.extend(gate.finish(total_samples));
+        pad_regions(&mut regions, self.speech_pad_samples(), total_samples);
+        regions
+    }
+
     /// `faster-whisper`'s defaults: 2 s of silence to close, 400 ms of
     /// padding. Sentences glue together; first words survive. What
     /// [`new`](Self::new) gives.
@@ -98,83 +149,57 @@ impl SpeechGateConfig {
     }
 
     /// Padding in samples.
-    pub fn speech_pad_samples(&self) -> u64 {
-        SAMPLE_RATE * self.speech_pad_ms / 1000
+    pub fn speech_pad_samples(&self) -> usize {
+        self.sample_rate * self.speech_pad_ms / 1000
     }
 }
 
-/// The hysteresis machine as a streaming fold over one probability per
-/// [`CHUNK_SAMPLES`].
+/// The hysteresis machine as a streaming fold over one probability per chunk.
 ///
 /// Emits a **raw** region when one closes; padding is a separate step, since
 /// a region's end pad depends on where the next region starts. A port of
 /// `faster-whisper`'s `get_speech_timestamps` loop, including its handling
 /// of regions that reach the maximum length.
 #[derive(Debug, Clone)]
+#[allow(unused)]
 pub struct SpeechGate {
-    threshold: f64,
-    neg_threshold: f64,
+    config: SpeechGateConfig,
+
     min_speech: f64,
     max_speech: f64,
     min_silence: f64,
     min_silence_at_max: f64,
-    split_at_longest: bool,
 
     /// Chunks seen so far.
-    index: u64,
+    index: usize,
     triggered: bool,
-    start: u64,
+    start: usize,
     /// Where the current silence began; `0` when there is none, as upstream
     /// has it (sample 0 can never begin a silence inside a region).
-    temp_end: u64,
-    prev_end: u64,
-    next_start: u64,
-    possible_ends: Vec<(u64, u64)>,
+    temp_end: usize,
+    prev_end: usize,
+    next_start: usize,
+    possible_ends: Vec<(usize, usize)>,
 }
 
 impl SpeechGate {
-    /// A gate at 16 kHz over 512-sample chunks.
-    pub fn new(config: &SpeechGateConfig) -> Self {
-        let ms = |v: u64| (SAMPLE_RATE * v) as f64 / 1000.0;
-        let pad = ms(config.speech_pad_ms);
-        let max_speech = config.max_speech_s.map_or(f64::INFINITY, |s| {
-            SAMPLE_RATE as f64 * s - CHUNK_SAMPLES as f64 - 2.0 * pad
-        });
-
-        Self {
-            threshold: config.threshold,
-            neg_threshold: config.neg_threshold_value(),
-            min_speech: ms(config.min_speech_ms),
-            max_speech,
-            min_silence: ms(config.min_silence_ms),
-            min_silence_at_max: ms(config.min_silence_at_max_speech_ms),
-            split_at_longest: config.split_at_longest_silence,
-            index: 0,
-            triggered: false,
-            start: 0,
-            temp_end: 0,
-            prev_end: 0,
-            next_start: 0,
-            possible_ends: Vec::new(),
-        }
-    }
-
     /// Whether a region is open.
     pub fn is_open(&self) -> bool {
         self.triggered
     }
 
     /// The sample the open region began at, if one is open.
-    pub fn open_since(&self) -> Option<u64> {
+    pub fn open_since(&self) -> Option<usize> {
         self.triggered.then_some(self.start)
     }
 
     /// Chunks consumed so far.
-    pub fn chunks_seen(&self) -> u64 {
+    pub fn chunks_seen(&self) -> usize {
         self.index
     }
 
-    fn reset(&mut self) {
+    /// Resets the gate.
+    pub fn reset(&mut self) {
         self.prev_end = 0;
         self.next_start = 0;
         self.temp_end = 0;
@@ -187,11 +212,11 @@ impl SpeechGate {
         &mut self,
         prob: f32,
     ) -> Option<SpeechRegion> {
-        let cur = CHUNK_SAMPLES * self.index;
+        let cur = self.config.chunk_samples * self.index;
         self.index += 1;
         let prob = f64::from(prob);
 
-        if prob >= self.threshold && self.temp_end != 0 {
+        if prob >= self.config.threshold && self.temp_end != 0 {
             let silence = cur - self.temp_end;
             if silence as f64 > self.min_silence_at_max {
                 self.possible_ends.push((self.temp_end, silence));
@@ -202,7 +227,7 @@ impl SpeechGate {
             }
         }
 
-        if prob >= self.threshold && !self.triggered {
+        if prob >= self.config.threshold && !self.triggered {
             self.triggered = true;
             self.start = cur;
             return None;
@@ -210,7 +235,7 @@ impl SpeechGate {
 
         let mut closed = None;
         if self.triggered && (cur - self.start) as f64 > self.max_speech {
-            if self.split_at_longest && !self.possible_ends.is_empty() {
+            if self.config.split_at_longest_silence && !self.possible_ends.is_empty() {
                 // The longest silence; the first of equals, as upstream's
                 // `max` picks.
                 let (end, duration) = *self
@@ -243,13 +268,13 @@ impl SpeechGate {
             }
         }
 
-        if prob < self.neg_threshold && self.triggered {
+        if prob < self.config.neg_threshold_value() && self.triggered {
             if self.temp_end == 0 {
                 self.temp_end = cur;
             }
             let silence = (cur - self.temp_end) as f64;
 
-            if !self.split_at_longest && silence > self.min_silence_at_max {
+            if !self.config.split_at_longest_silence && silence > self.min_silence_at_max {
                 self.prev_end = self.temp_end;
             }
 
@@ -272,41 +297,18 @@ impl SpeechGate {
     /// long enough to keep.
     pub fn finish(
         self,
-        total_samples: u64,
+        total_samples: usize,
     ) -> Option<SpeechRegion> {
         (self.triggered && (total_samples.saturating_sub(self.start)) as f64 > self.min_speech)
             .then(|| SpeechRegion::new(self.start, total_samples.max(self.start)))
     }
 }
 
-/// The whole-clip form: every region in `probs`, padded.
-///
-/// This is `faster-whisper`'s `get_speech_timestamps` over an already
-/// computed probability track, and agrees with it exactly.
-///
-/// # Arguments
-/// * `probs` - one speech probability per [`CHUNK_SAMPLES`], covering the clip
-///   (the last chunk zero-padded, as Silero is fed).
-/// * `total_samples` - the clip's true length, which the last region is clamped
-///   to.
-/// * `config` - the machine's constants.
-pub fn speech_regions(
-    probs: &[f32],
-    total_samples: u64,
-    config: &SpeechGateConfig,
-) -> Vec<SpeechRegion> {
-    let mut gate = SpeechGate::new(config);
-    let mut regions: Vec<SpeechRegion> = probs.iter().filter_map(|&p| gate.step(p)).collect();
-    regions.extend(gate.finish(total_samples));
-    pad_regions(&mut regions, config.speech_pad_samples(), total_samples);
-    regions
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    const C: u64 = CHUNK_SAMPLES;
+    const C: usize = 512;
 
     /// `n` chunks at probability `p`.
     fn run(
@@ -320,7 +322,7 @@ mod tests {
         parts.iter().flat_map(|&(p, n)| run(p, n)).collect()
     }
 
-    fn regions(pairs: &[(u64, u64)]) -> Vec<SpeechRegion> {
+    fn regions(pairs: &[(usize, usize)]) -> Vec<SpeechRegion> {
         pairs
             .iter()
             .map(|&(s, e)| SpeechRegion::new(s, e))
@@ -366,8 +368,10 @@ mod tests {
     #[test]
     fn test_one_region() {
         let t = track(&[(0.1, 3), (0.9, 10), (0.1, 10)]);
+        let total_samples = 23 * C;
+        let config = quick();
         assert_eq!(
-            speech_regions(&t, 23 * C, &quick()),
+            config.speech_regions(&t, total_samples),
             regions(&[(1056, 7136)])
         );
     }
@@ -377,14 +381,18 @@ mod tests {
     #[test]
     fn test_min_silence_decides_a_split() {
         let short = track(&[(0.1, 3), (0.9, 10), (0.2, 2), (0.9, 10), (0.1, 10)]);
+        let total_samples = 35 * C;
+        let config = quick();
         assert_eq!(
-            speech_regions(&short, 35 * C, &quick()),
+            config.speech_regions(&short, total_samples),
             regions(&[(1056, 13280)])
         );
 
         let long = track(&[(0.1, 3), (0.9, 10), (0.2, 4), (0.9, 10), (0.1, 10)]);
+        let total_samples = 37 * C;
+        let config = quick();
         assert_eq!(
-            speech_regions(&long, 37 * C, &quick()),
+            config.speech_regions(&long, total_samples),
             regions(&[(1056, 14304)])
         );
     }
@@ -394,21 +402,26 @@ mod tests {
     #[test]
     fn test_hysteresis_band() {
         let keeps = track(&[(0.1, 3), (0.9, 2), (0.4, 8), (0.1, 10)]);
+        let total_samples = 23 * C;
+        let config = quick();
         assert_eq!(
-            speech_regions(&keeps, 23 * C, &quick()),
+            config.speech_regions(&keeps, total_samples),
             regions(&[(1056, 7136)])
         );
 
         let never = run(0.4, 20);
-        assert!(speech_regions(&never, 20 * C, &quick()).is_empty());
+        let total_samples = 20 * C;
+        let config = quick();
+        assert!(config.speech_regions(&never, total_samples).is_empty());
     }
 
     #[test]
     fn test_min_speech_drops_short_regions() {
         let t = track(&[(0.1, 3), (0.9, 3), (0.1, 10), (0.9, 10), (0.1, 10)]);
         let config = quick().with_min_speech_ms(250);
+        let total_samples = 36 * C;
         assert_eq!(
-            speech_regions(&t, 36 * C, &config),
+            config.speech_regions(&t, total_samples),
             regions(&[(7712, 13792)])
         );
     }
@@ -418,12 +431,16 @@ mod tests {
     #[test]
     fn test_end_of_stream_closes() {
         let t = track(&[(0.1, 3), (0.9, 10)]);
+        let total_samples = 13 * C;
+        let config = quick();
         assert_eq!(
-            speech_regions(&t, 13 * C, &quick()),
+            config.speech_regions(&t, total_samples),
             regions(&[(1056, 6656)])
         );
+        let total_samples = 13 * C - 100;
+        let config = quick();
         assert_eq!(
-            speech_regions(&t, 13 * C - 100, &quick()),
+            config.speech_regions(&t, total_samples),
             regions(&[(1056, 6556)])
         );
     }
@@ -434,8 +451,9 @@ mod tests {
     fn test_max_speech_cuts_without_a_silence() {
         let t = track(&[(0.1, 2), (0.9, 30), (0.1, 5)]);
         let config = quick().with_max_speech_s(Some(0.5));
+        let total_samples = 37 * C;
         assert_eq!(
-            speech_regions(&t, 37 * C, &config),
+            config.speech_regions(&t, total_samples),
             regions(&[(544, 7936), (7936, 15104), (15104, 16864)])
         );
     }
@@ -449,8 +467,9 @@ mod tests {
             .with_min_silence_ms(300)
             .with_speech_pad_ms(30)
             .with_max_speech_s(Some(1.0));
+        let total_samples = 49 * C;
         assert_eq!(
-            speech_regions(&t, 49 * C, &config),
+            config.speech_regions(&t, total_samples),
             regions(&[(544, 5600), (6688, 22496)])
         );
 
@@ -464,8 +483,9 @@ mod tests {
             (0.9, 30),
             (0.1, 5),
         ]);
+        let total_samples = 56 * C;
         assert_eq!(
-            speech_regions(&t, 56 * C, &config),
+            config.speech_regions(&t, total_samples),
             regions(&[(544, 4576), (6176, 21760), (21760, 28672)])
         );
     }
@@ -482,14 +502,16 @@ mod tests {
             .with_split_at_longest_silence(false);
 
         let short_dip = track(&[(0.1, 2), (0.9, 8), (0.2, 4), (0.9, 30), (0.1, 5)]);
+        let total_samples = 49 * C;
         assert_eq!(
-            speech_regions(&short_dip, 49 * C, &config),
+            config.speech_regions(&short_dip, total_samples),
             regions(&[(544, 16128), (16128, 25088)])
         );
 
         let one_dip = track(&[(0.1, 2), (0.9, 8), (0.2, 5), (0.9, 30), (0.1, 5)]);
+        let total_samples = 50 * C;
         assert_eq!(
-            speech_regions(&one_dip, 50 * C, &config),
+            config.speech_regions(&one_dip, total_samples),
             regions(&[(544, 5600), (7200, 23008)])
         );
 
@@ -502,8 +524,9 @@ mod tests {
             (0.9, 30),
             (0.1, 5),
         ]);
+        let total_samples = 57 * C;
         assert_eq!(
-            speech_regions(&two_dips, 57 * C, &config),
+            config.speech_regions(&two_dips, total_samples),
             regions(&[(544, 9184), (10784, 26592)])
         );
     }
@@ -524,8 +547,9 @@ mod tests {
         let config = SpeechGateConfig::new()
             .with_min_silence_ms(40)
             .with_speech_pad_ms(60);
+        let total_samples = 34 * C;
         assert_eq!(
-            speech_regions(&t, 34 * C, &config),
+            config.speech_regions(&t, total_samples),
             regions(&[(0, 8128), (9280, 14272), (14400, 17408)])
         );
     }
@@ -534,14 +558,18 @@ mod tests {
     #[test]
     fn test_defaults() {
         let split = track(&[(0.1, 5), (0.9, 40), (0.1, 70), (0.9, 40), (0.1, 30)]);
+        let total_samples = 185 * C;
+        let config = &SpeechGateConfig::new();
         assert_eq!(
-            speech_regions(&split, 185 * C, &SpeechGateConfig::new()),
+            config.speech_regions(&split, total_samples),
             regions(&[(0, 29440), (52480, 94720)])
         );
 
         let glued = track(&[(0.1, 5), (0.9, 40), (0.1, 50), (0.9, 40), (0.1, 70)]);
+        let total_samples = 205 * C;
+        let config = &SpeechGateConfig::new();
         assert_eq!(
-            speech_regions(&glued, 205 * C, &SpeechGateConfig::new()),
+            config.speech_regions(&glued, total_samples),
             regions(&[(0, 75520)])
         );
     }
@@ -553,11 +581,11 @@ mod tests {
         let t = track(&[(0.1, 3), (0.9, 10), (0.2, 4), (0.9, 10), (0.1, 10)]);
         let config = quick();
 
-        let mut gate = SpeechGate::new(&config);
+        let mut gate = config.init();
         let mut raw = Vec::new();
         let mut opened_at = None;
         for (i, &p) in t.iter().enumerate() {
-            assert_eq!(gate.chunks_seen(), i as u64);
+            assert_eq!(gate.chunks_seen(), i as usize);
             let was_open = gate.is_open();
             if let Some(region) = gate.step(p) {
                 raw.push(region);
@@ -571,7 +599,8 @@ mod tests {
 
         let mut padded = raw.clone();
         pad_regions(&mut padded, config.speech_pad_samples(), 37 * C);
-        assert_eq!(padded, speech_regions(&t, 37 * C, &config));
+        let total_samples = 37 * C;
+        assert_eq!(padded, config.speech_regions(&t, total_samples));
         // Four silent chunks are 1536 samples of elapsed silence, under the
         // 1600 that closes a region, so the dip does not split it.
         assert_eq!(raw, regions(&[(1536, 13824)]));
@@ -603,18 +632,20 @@ mod tests {
         type B = CpuBackend;
 
         /// Silero's probabilities for the clip, one per chunk.
-        fn probabilities() -> (Vec<f32>, u64) {
+        fn probabilities() -> (Vec<f32>, usize) {
             let device = Default::default();
             let vad = SileroVad::<B>::load_16khz_pretrained(&device).unwrap();
             let path = concat!(
                 env!("CARGO_MANIFEST_DIR"),
                 "/testdata/audio/jfk_moon_4s.mp3"
             );
-            let mut wav = load_audio_mono_sr(path, SAMPLE_RATE as usize).unwrap();
-            let total = wav.len() as u64;
+            let sample_rate: usize = 16_000;
+
+            let mut wav = load_audio_mono_sr(path, sample_rate).unwrap();
+            let total = wav.len() as usize;
 
             let chunk = vad.chunk_size();
-            assert_eq!(chunk as u64, CHUNK_SAMPLES);
+            assert_eq!(chunk as usize, 512);
             let tail = wav.len() % chunk;
             if tail != 0 {
                 wav.resize(wav.len() + chunk - tail, 0.0);
@@ -623,7 +654,7 @@ mod tests {
             let chunks: Tensor<B, 3> =
                 Tensor::from_data(TensorData::new(wav, [steps, 1, chunk]), &device);
 
-            let context = SileroVadContextConfig::new(SAMPLE_RATE as usize).init(&vad, &device);
+            let context = SileroVadContextConfig::new(sample_rate).init(&vad, &device);
             let (probs, _) = vad.context_forward_sequence(chunks, context);
             let probs: Vec<f32> = probs.to_data().convert::<f32>().to_vec().unwrap();
             assert_eq!(probs.len(), steps);
@@ -634,13 +665,15 @@ mod tests {
         fn test_golden_track() {
             let (probs, total) = probabilities();
 
-            let quick = speech_regions(&probs, total, &SpeechGateConfig::fast_whisper_burn());
+            let config = &SpeechGateConfig::fast_whisper_burn();
+            let quick = config.speech_regions(&probs, total);
             assert_eq!(total, 64_000, "4.0 s at 16 kHz");
             // "...the highest mountain?" to 1.02 s, the pause, then
             // "Why, thirty-five years ago..." from 1.86 s.
             assert_eq!(quick, regions(&[(0, 16_352), (29_728, 56_800)]));
 
-            let patient = speech_regions(&probs, total, &SpeechGateConfig::new());
+            let config = &SpeechGateConfig::new();
+            let patient = config.speech_regions(&probs, total);
             assert_eq!(
                 patient.len(),
                 1,
