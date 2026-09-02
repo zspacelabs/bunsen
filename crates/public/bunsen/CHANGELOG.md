@@ -9,6 +9,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- *(whisper)* The responsive preset. `EmissionPolicy::responsive()` is
+  accepted: under the `interval` trigger, while speech is in progress and
+  an interval of media time has passed since the last draft or commit, a
+  stream decodes everything past its seek pointer and emits it as
+  `Emission::Draft` — covering all audio since the last commit and
+  superseding the previous draft whole, touching nothing but the pacing.
+  `advance_ready` batches drafts with commits. The commits are exactly
+  `conservative()`'s (I9), pinned on the speech clip with a scripted decode.
+  A zero interval is refused.
 - *(whisper)* Fallback. `kits::speech::whisper::decode::fallback`:
   `FallbackConfig` (the temperature ladder, the compression-ratio /
   log-probability / no-speech thresholds, `best_of`), its clauses as pure

@@ -26,11 +26,12 @@
 //! [`advance_ready`]. **Conservative real time**: the `endpoint` trigger as
 //! well, with a Silero VAD attached by [`with_vad`](WhisperDriver::with_vad);
 //! each speech region is decoded as it closes, in the parent stream's frame
-//! of reference, and full windows of silence are never decoded at all. The
-//! `interval` trigger and timestamps are refused at
-//! [`init`](WhisperDriverConfig::init) with a reason, rather than silently
-//! approximated, until their phases land; without timestamps,
-//! `LastTimestamp` commits whole, as upstream does when a decode emits none.
+//! of reference, and full windows of silence are never decoded at all.
+//! **Responsive real time**: the `interval` trigger as well; while speech
+//! is in progress, every interval of media time a draft of everything past
+//! the seek pointer is emitted, superseding the previous draft, and the
+//! commits are exactly conservative's. Without timestamps, `LastTimestamp`
+//! commits whole, as upstream does when a decode emits none.
 
 mod batch;
 mod context;
@@ -229,10 +230,9 @@ impl WhisperDriverConfig {
                     .to_string(),
             ));
         }
-        if triggers.interval.is_some() {
+        if triggers.interval.is_some_and(|i| i.is_zero()) {
             return Err(BunsenError::Invalid(
-                "the interval trigger is not supported yet; use offline() or conservative()"
-                    .to_string(),
+                "an interval of zero would draft on every push".to_string(),
             ));
         }
 
@@ -488,6 +488,15 @@ impl<B: Backend> WhisperDriver<B> {
     /// The temperature ladder and its thresholds.
     pub fn fallback(&self) -> &FallbackConfig {
         &self.fallback
+    }
+
+    /// The draft interval in samples of media time, when the policy has
+    /// one.
+    pub fn interval_samples(&self) -> Option<u64> {
+        self.emission
+            .triggers
+            .interval
+            .map(|i| (i.as_secs_f64() * SAMPLE_RATE as f64).round() as u64)
     }
 
     /// The detokenizer, if one was attached.

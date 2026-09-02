@@ -33,6 +33,8 @@ struct Pending<B: Backend> {
     /// Index into the contexts being advanced.
     context: usize,
     unit: Due,
+    /// A draft rather than a commit.
+    draft: bool,
     /// The prompt it decodes under; what it is batched by.
     prompt: Vec<i64>,
     /// `[1, n_mels, width]`.
@@ -42,8 +44,9 @@ struct Pending<B: Backend> {
 /// Advances every context that has a decode due, batching the decodes.
 ///
 /// Repeats until no context has anything due, so a context with several
-/// windows waiting gets them all. Returns each context's emissions, in the
-/// order of `contexts`.
+/// windows waiting gets them all; a context with nothing due but a draft
+/// due contributes the draft, batched the same way. Returns each context's
+/// emissions, in the order of `contexts`.
 ///
 /// # Arguments
 /// * `driver` - the driver the contexts were opened from.
@@ -64,16 +67,22 @@ pub fn advance_ready<B: Backend>(
         let mut pending: Vec<Option<Pending<B>>> = Vec::new();
         for (i, ctx) in contexts.iter_mut().enumerate() {
             ctx.skip_silence();
-            if let Some(unit) = ctx.next_due() {
-                let frames = ctx.frames_at(&unit);
-                ctx.ensure_language(&frames);
-                pending.push(Some(Pending {
-                    context: i,
-                    unit,
-                    prompt: ctx.prompt_now(),
-                    window: ctx.package_padded(frames),
-                }));
-            }
+            let (unit, draft) = match ctx.next_due() {
+                Some(unit) => (unit, false),
+                None => match ctx.draft_unit() {
+                    Some(unit) => (unit, true),
+                    None => continue,
+                },
+            };
+            let frames = ctx.frames_at(&unit);
+            ctx.ensure_language(&frames);
+            pending.push(Some(Pending {
+                context: i,
+                unit,
+                draft,
+                prompt: ctx.prompt_now(),
+                window: ctx.package_padded(frames),
+            }));
         }
         if pending.is_empty() {
             return Ok(out);
@@ -107,7 +116,11 @@ pub fn advance_ready<B: Backend>(
                 let item = pending[k].take().expect("taken once");
                 let ctx = &mut contexts[item.context];
                 let decoded = ctx.ladder(&config, item.window, Some(first[row].clone()));
-                out[item.context].extend(ctx.commit_due(item.unit, decoded)?);
+                if item.draft {
+                    out[item.context].push(ctx.draft_from(item.unit, decoded)?);
+                } else {
+                    out[item.context].extend(ctx.commit_due(item.unit, decoded)?);
+                }
             }
         }
     }

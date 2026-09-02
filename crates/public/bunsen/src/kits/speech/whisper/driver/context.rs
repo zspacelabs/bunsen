@@ -134,6 +134,10 @@ pub struct WhisperStreamContext<B: Backend> {
     /// temperature so a failure does not feed the next window.
     prompt_reset: usize,
 
+    /// Media time (samples seen) at the last draft or commit; drafts are
+    /// paced from it.
+    last_draft: u64,
+
     /// The language the prompt names: configured, or detected from the
     /// first window decoded; `None` until then on a detecting driver.
     language: Option<String>,
@@ -221,6 +225,7 @@ impl<B: Backend> WhisperStreamContext<B> {
             clock,
             transcript: Vec::new(),
             prompt_reset: 0,
+            last_draft: 0,
             language,
             clamp,
             vad,
@@ -358,6 +363,12 @@ impl<B: Backend> WhisperStreamContext<B> {
             self.trace.push(window.clone());
             let decoded = self.decode_frames(window);
             out.extend(self.commit_due(unit, decoded)?);
+        }
+        if let Some(unit) = self.draft_unit() {
+            let window = self.frames_at(&unit);
+            self.ensure_language(&window);
+            let decoded = self.decode_frames(window);
+            out.push(self.draft_from(unit, decoded)?);
         }
         Ok(out)
     }
@@ -800,6 +811,7 @@ impl<B: Backend> WhisperStreamContext<B> {
             self.prompt_reset = self.transcript.len();
         }
 
+        self.last_draft = self.samples_seen;
         self.drop_before_seek();
 
         if let Some(vad) = &mut self.vad {
@@ -810,6 +822,39 @@ impl<B: Backend> WhisperStreamContext<B> {
         }
 
         Ok(out)
+    }
+
+    /// The draft due, if one is: under the `interval` trigger, while speech
+    /// is in progress, once an interval of media time has passed since the
+    /// last draft or commit, everything past the seek pointer.
+    pub(super) fn draft_unit(&self) -> Option<Due> {
+        let interval = self.driver.interval_samples()?;
+        let count = self.pending_frames();
+        let due = !self.finished
+            && count > 0
+            && self.is_speaking()
+            && self.samples_seen.saturating_sub(self.last_draft) >= interval;
+        due.then_some(Due {
+            start: self.seek,
+            count,
+        })
+    }
+
+    /// Emits a decode of a draft unit as a draft: on the clock, detokenized
+    /// when the driver can, and touching nothing but the draft pacing. It
+    /// covers all audio since the last commit and supersedes the previous
+    /// draft whole.
+    pub(super) fn draft_from(
+        &mut self,
+        unit: Due,
+        decoded: Decoded,
+    ) -> BunsenResult<Emission> {
+        self.last_draft = self.samples_seen;
+        Ok(Emission::Draft(self.segment_at(
+            unit.start,
+            unit.start + unit.count,
+            decoded.tokens,
+        )?))
     }
 
     /// A segment over stream frames `[start, end)`, timed through the clock
@@ -848,7 +893,7 @@ impl<B: Backend> WhisperStreamContext<B> {
     // ---- test probes -------------------------------------------------
 
     /// A provisional decode of everything past the seek pointer, without
-    /// touching the context: what a draft will be, once drafts exist.
+    /// touching the context: what a draft says, on demand.
     #[cfg(test)]
     pub(crate) fn probe_decode(&self) -> Option<Vec<i64>> {
         let count = self.pending_frames();
@@ -1522,13 +1567,13 @@ mod tests {
     #[derive(Debug)]
     struct Script(Vec<i64>);
 
-    impl LogitFilter<B> for Script {
+    impl<Bk: Backend> LogitFilter<Bk> for Script {
         fn apply(
             &self,
-            logits: Tensor<B, 2>,
+            logits: Tensor<Bk, 2>,
             tokens: &[Vec<i64>],
             prompt_len: usize,
-        ) -> Tensor<B, 2> {
+        ) -> Tensor<Bk, 2> {
             let [rows, vocab] = logits.dims();
             let mut data = vec![f32::NEG_INFINITY; rows * vocab];
             for (row, t) in tokens.iter().enumerate() {
@@ -1947,8 +1992,18 @@ mod tests {
             base.clone()
                 .with_emission(EmissionPolicy::responsive())
                 .init_with_policy(tiny_model(&device), policy, &device)
+                .is_ok(),
+            "responsive is the third deployment target",
+        );
+        assert!(
+            base.clone()
+                .with_emission(EmissionPolicy::new(
+                    Triggers::new().with_interval(Some(std::time::Duration::ZERO)),
+                    CommitRule::Complete,
+                ))
+                .init_with_policy(tiny_model(&device), policy, &device)
                 .is_err(),
-            "the interval trigger is not supported yet",
+            "an interval of zero",
         );
         assert!(
             base.clone()
@@ -2141,6 +2196,136 @@ mod tests {
                 "covered to {covered_to}\n{emissions:#?}"
             );
             assert_eq!(ctx.regions_pending(), 0);
+        }
+
+        /// A responsive driver: conservative plus a draft every 50 ms of
+        /// media time while speech is in progress &mdash; shorter than
+        /// `responsive()`'s 600 ms because the tiny model's window is 0.16 s
+        /// of audio, and a full window commits before a longer interval
+        /// could draft. Its decode is scripted so the pin is about
+        /// scheduling, not the untrained model.
+        fn responsive_driver(device: &CDevice) -> WhisperDriver<C> {
+            let vad = SileroVad::<C>::load_16khz_pretrained(device).unwrap();
+            let scripted: Arc<dyn LogitFilter<C>> = Arc::new(Script(vec![3, 1, 4, 1]));
+            let policy = EmissionPolicy::new(
+                Triggers::new()
+                    .with_endpoint(true)
+                    .with_interval(Some(std::time::Duration::from_millis(50))),
+                CommitRule::LastTimestamp,
+            );
+            config(false)
+                .with_emission(policy)
+                .init_with_policy(
+                    tiny_model_on::<C>(device),
+                    TokenPolicy::new(tiny_layout()),
+                    device,
+                )
+                .unwrap()
+                .with_vad(vad, SpeechGateConfig::fast_whisper_burn())
+                .with_logit_filters(vec![scripted])
+        }
+
+        /// The clip pushed 100 ms at a time, then flushed.
+        fn in_pieces(ctx: &mut WhisperStreamContext<C>) -> Vec<Emission> {
+            let audio = speech();
+            let mut out = Vec::new();
+            for piece in audio.chunks(SAMPLE_RATE / 10) {
+                out.extend(ctx.push(piece).unwrap());
+            }
+            out.extend(ctx.flush().unwrap());
+            out
+        }
+
+        /// **I9.** Adding the interval trigger cannot change the transcript:
+        /// `responsive()` commits exactly what `conservative()` commits, and
+        /// drafts besides: each covering the audio since the last commit,
+        /// paced at least an interval apart, none after the last commit.
+        #[test]
+        #[serial]
+        fn test_responsive_commits_what_conservative_commits() {
+            let device = CDevice::default();
+            let scripted: Arc<dyn LogitFilter<C>> = Arc::new(Script(vec![3, 1, 4, 1]));
+            let conservative = conservative_driver(&device).with_logit_filters(vec![scripted]);
+            let responsive = responsive_driver(&device);
+            let clock = || TimestampHistory::uniform(SAMPLE_RATE);
+
+            let mut ctx = conservative.new_context(clock(), PerWindow).unwrap();
+            let quiet = in_pieces(&mut ctx);
+            assert!(
+                quiet.iter().all(|e| e.is_committed()),
+                "conservative never drafts"
+            );
+
+            let mut ctx = responsive.new_context(clock(), PerWindow).unwrap();
+            let chatty = in_pieces(&mut ctx);
+            let committed: Vec<&Emission> = chatty.iter().filter(|e| e.is_committed()).collect();
+            assert_eq!(committed.len(), quiet.len());
+            for (a, b) in committed.iter().zip(&quiet) {
+                assert_eq!(a.segment(), b.segment());
+            }
+
+            let drafts: Vec<&Segment> = chatty
+                .iter()
+                .filter(|e| !e.is_committed())
+                .map(|e| e.segment())
+                .collect();
+            assert!(drafts.len() >= 3, "{} drafts", drafts.len());
+            let interval = 0.05;
+            let mut last_end = f64::NEG_INFINITY;
+            let mut last_commit_end = 0.0;
+            let mut seen_commits = 0;
+            for e in &chatty {
+                let s = e.segment();
+                if e.is_committed() {
+                    last_commit_end = s.end;
+                    seen_commits += 1;
+                    continue;
+                }
+                assert!(
+                    s.start >= last_commit_end - 1e-9,
+                    "a draft starts at the seek: {s:?}"
+                );
+                assert!(s.end > s.start, "{s:?}");
+                assert!(
+                    s.end - last_end >= interval - 1e-9,
+                    "paced: {s:?} after {last_end}"
+                );
+                assert_eq!(s.tokens, vec![3, 1, 4, 1]);
+                last_end = s.end;
+            }
+            assert!(seen_commits > 0);
+            assert!(
+                chatty.last().unwrap().is_committed(),
+                "the flush commits everything; nothing is left to draft"
+            );
+        }
+
+        /// Batched, a responsive stream drafts and commits exactly as it
+        /// does alone: fed a piece at a time and advanced after each.
+        #[test]
+        #[serial]
+        fn test_advance_ready_drafts_like_solo() {
+            let device = CDevice::default();
+            let driver = responsive_driver(&device);
+            let clock = || TimestampHistory::uniform(SAMPLE_RATE);
+            let audio = speech();
+
+            let mut solo = driver.new_context(clock(), PerWindow).unwrap();
+            let mut batch = vec![driver.new_context(clock(), PerWindow).unwrap()];
+            let (mut expected, mut got) = (Vec::new(), Vec::new());
+            for piece in audio.chunks(SAMPLE_RATE / 10) {
+                expected.extend(solo.push(piece).unwrap());
+                batch[0].feed(piece).unwrap();
+                got.extend(advance_ready(&driver, &mut batch).unwrap().remove(0));
+            }
+            expected.extend(solo.flush().unwrap());
+            batch[0].end_input().unwrap();
+            got.extend(advance_ready(&driver, &mut batch).unwrap().remove(0));
+            assert_eq!(got, expected);
+            assert!(
+                expected.iter().any(|e| !e.is_committed()),
+                "there were drafts"
+            );
         }
 
         /// Under the offline policy an attached VAD is simply unused: the
