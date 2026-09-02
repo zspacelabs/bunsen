@@ -241,7 +241,7 @@ impl DecodeConfig {
     /// The search this config asks for: sampling above temperature zero,
     /// else a beam search when `beam_size` is more than one, else the
     /// argmax.
-    pub fn decoder<B: Backend>(&self) -> Box<dyn TokenDecoder<B>> {
+    pub fn init_decoder<B: Backend>(&self) -> Box<dyn TokenDecoder<B>> {
         if self.temperature > 0.0 {
             Box::new(
                 GreedyDecoder::new(self.eot_token, self.prompt[0])
@@ -260,7 +260,7 @@ impl DecodeConfig {
     }
 
     /// The ranker this config asks for.
-    pub fn ranker(&self) -> MaximumLikelihoodRanker {
+    pub fn init_ranker(&self) -> MaximumLikelihoodRanker {
         MaximumLikelihoodRanker {
             length_penalty: self.length_penalty,
         }
@@ -380,8 +380,7 @@ impl<B: Backend> Whisper<B> {
         config: &DecodeConfig,
         filters: &[Arc<dyn LogitFilter<B>>],
     ) -> Vec<Decoded> {
-        let mut decoder = config.decoder::<B>();
-        self.search(xa, config, decoder.as_mut(), filters)
+        self.search(xa, config, config.init_decoder::<B>().as_mut(), filters)
     }
 
     /// [`Self::decode_features`] with an explicit search.
@@ -491,7 +490,7 @@ impl<B: Backend> Whisper<B> {
             }
         }
 
-        let ranker = config.ranker();
+        let ranker = config.init_ranker();
         decoder
             .finalize(tokens, sum_logprobs, prompt_len)
             .into_iter()
