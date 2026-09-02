@@ -7,6 +7,15 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed
+
+- The crate builds without `onnx_gen`. Its build script always generates the
+  burnpack weights from the committed ONNX graph, so `burn-onnx` is now an
+  unconditional build dependency; `onnx_gen` only decides whether the
+  generated Rust reference model is compiled in. Before this,
+  `bunsen/silero-weights` alone did not build — it only worked inside a
+  workspace build where `silero-model-validation` had enabled `onnx_gen`.
+
 ### Changed
 
 - Renamed from `bunsen-onnx-gen` to `bunsen-bundled-silero`. The crate is one

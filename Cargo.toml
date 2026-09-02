@@ -42,7 +42,10 @@ debug-assertions = true
 
 [workspace.dependencies]
 log = { version = "0.4", default-features = false }
-wordchipper = { version = "0.9.2" }
+# `default-features = false` at the root so that a member may opt out: bunsen
+# uses only the decode path and does not want the downloader, TLS or rayon.
+# A member that wants the default set says so with `default-features = true`.
+wordchipper = { version = "0.9.2", default-features = false }
 wordchipper-cli-util = { version = "0.9.2" }
 
 rand = "0.10.1"

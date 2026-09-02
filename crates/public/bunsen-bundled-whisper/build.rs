@@ -1,8 +1,9 @@
 //! Fetches the pretrained Whisper assets.
 //!
-//! Two independent sets, each behind its own feature: `checkpoint` is the
-//! `base.pt` bunsen loads, and `onnx_gen` is the `onnx-community` export that
-//! `whisper-model-validation` compares it against. Neither implies the other.
+//! Three independent sets, each behind its own feature: `checkpoint` is the
+//! `base.pt` bunsen loads, `vocab` is the pair of `.tiktoken` rank files its
+//! tokenizer reads, and `onnx_gen` is the `onnx-community` export that
+//! `whisper-model-validation` compares it against. None implies another.
 //!
 //! Cargo places no restriction on network access in a build script, but a
 //! build that silently downloads is a bad neighbour: it breaks `--offline`,
@@ -14,8 +15,9 @@
 //!   hidden: 416 MB is worth being able to see.
 //! * Every asset is pinned to a SHA-256 and re-verified on each build. A cache
 //!   entry that fails is deleted and re-fetched once.
-//! * `WHISPER_BASE_PT`, `WHISPER_ONNX_ENCODER` and `WHISPER_ONNX_DECODER` point
-//!   the build at local files instead, for working offline or against a
+//! * `WHISPER_BASE_PT`, `WHISPER_MULTILINGUAL_TIKTOKEN`,
+//!   `WHISPER_GPT2_TIKTOKEN`, `WHISPER_ONNX_ENCODER` and `WHISPER_ONNX_DECODER`
+//!   point the build at local files instead, for working offline or against a
 //!   different export.
 //!
 //! **`checkpoint` is on by default**, so building this crate — including as
@@ -56,6 +58,32 @@ const BASE_SHA256: &str = "ed3a0b6b1c0edf879ad9b11b1af5a0e6ab5db9205f891f668f8b0
 /// Local name for the fetched checkpoint.
 const BASE_FILE: &str = "whisper_base.pt";
 
+/// The rank file behind every multilingual checkpoint's tokenizer.
+///
+/// Pinned to the commit that last touched it ("Use tiktoken", openai/whisper
+/// #1044) rather than `main`, so the URL names one file forever. Its last line
+/// is `= 50256` — base64 of nothing — and that empty token is real; bunsen's
+/// parser reads it as such.
+const MULTILINGUAL_TIKTOKEN_URL: &str = "https://raw.githubusercontent.com/openai/whisper/839639a223b92ad61851baae9ad8a695ccb41ce5/whisper/assets/multilingual.tiktoken";
+
+/// SHA-256 of [`MULTILINGUAL_TIKTOKEN_URL`]'s payload.
+const MULTILINGUAL_TIKTOKEN_SHA256: &str =
+    "b34b360dbb493e781e479794586d661700670d65564001f23024971d1f2fa126";
+
+/// Local name for the fetched multilingual rank file.
+const MULTILINGUAL_TIKTOKEN_FILE: &str = "multilingual.tiktoken";
+
+/// The rank file behind the English-only (`*.en`) checkpoints' tokenizer:
+/// GPT-2's, one rank shorter than the multilingual file.
+const GPT2_TIKTOKEN_URL: &str = "https://raw.githubusercontent.com/openai/whisper/839639a223b92ad61851baae9ad8a695ccb41ce5/whisper/assets/gpt2.tiktoken";
+
+/// SHA-256 of [`GPT2_TIKTOKEN_URL`]'s payload.
+const GPT2_TIKTOKEN_SHA256: &str =
+    "306cd27f03c1a714eca7108e03d66b7dc042abe8c258b44c199a7ed9838dd930";
+
+/// Local name for the fetched English-only rank file.
+const GPT2_TIKTOKEN_FILE: &str = "gpt2.tiktoken";
+
 /// The encoder graph, exported by the `onnx-community` mirror of
 /// `openai/whisper-base`.
 const ENCODER_URL: &str =
@@ -82,6 +110,8 @@ const DECODER_FILE: &str = "whisper_base_decoder.onnx";
 fn main() {
     println!("cargo:rerun-if-changed=build.rs");
     println!("cargo:rerun-if-env-changed=WHISPER_BASE_PT");
+    println!("cargo:rerun-if-env-changed=WHISPER_MULTILINGUAL_TIKTOKEN");
+    println!("cargo:rerun-if-env-changed=WHISPER_GPT2_TIKTOKEN");
     println!("cargo:rerun-if-env-changed=WHISPER_ONNX_ENCODER");
     println!("cargo:rerun-if-env-changed=WHISPER_ONNX_DECODER");
 
@@ -93,6 +123,9 @@ fn main() {
     // not linked, so a runtime check would still fail to compile.
     #[cfg(feature = "checkpoint")]
     fetch_checkpoint();
+
+    #[cfg(feature = "vocab")]
+    fetch_vocab();
 
     #[cfg(feature = "onnx_gen")]
     generate_reference();
@@ -112,6 +145,33 @@ fn fetch_checkpoint() {
         "cargo:rustc-env=WHISPER_BASE_PT_PATH={}",
         checkpoint.display()
     );
+}
+
+/// Fetches both `.tiktoken` rank files and names them as compile-time
+/// constants.
+#[cfg(feature = "vocab")]
+fn fetch_vocab() {
+    let cache = cache_dir();
+
+    for (override_var, url, sha, file, path_var) in [
+        (
+            "WHISPER_MULTILINGUAL_TIKTOKEN",
+            MULTILINGUAL_TIKTOKEN_URL,
+            MULTILINGUAL_TIKTOKEN_SHA256,
+            MULTILINGUAL_TIKTOKEN_FILE,
+            "WHISPER_MULTILINGUAL_TIKTOKEN_PATH",
+        ),
+        (
+            "WHISPER_GPT2_TIKTOKEN",
+            GPT2_TIKTOKEN_URL,
+            GPT2_TIKTOKEN_SHA256,
+            GPT2_TIKTOKEN_FILE,
+            "WHISPER_GPT2_TIKTOKEN_PATH",
+        ),
+    ] {
+        let vocab = resolve_asset(override_var, url, sha, &cache.join(file));
+        println!("cargo:rustc-env={path_var}={}", vocab.display());
+    }
 }
 
 /// Fetches the ONNX export and generates Rust models from it.

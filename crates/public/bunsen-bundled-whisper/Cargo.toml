@@ -1,6 +1,6 @@
 [package]
 name = "bunsen-bundled-whisper"
-description = "Bunsen bundled Whisper assets: fetches, pins and caches OpenAI's checkpoint and the ONNX-generated reference model. Hosts none."
+description = "Bunsen bundled Whisper assets: fetches, pins and caches OpenAI's checkpoint, its tokenizer vocabularies, and the ONNX-generated reference model. Hosts none."
 publish = true
 
 authors.workspace = true
@@ -32,6 +32,15 @@ default = [
 ##
 ## This is the checkpoint `bunsen`'s Whisper kit loads.
 checkpoint = []
+
+## Fetch Whisper's two `.tiktoken` rank files and expose them as
+## `multilingual_tiktoken()` and `gpt2_tiktoken()`.
+##
+## The base vocabularies: every multilingual checkpoint uses the first, the
+## `*.en` checkpoints the second. Under 2 MB together, so they are fetched
+## rather than committed only for consistency with the checkpoint — one
+## mechanism, one cache, one pin per asset. Independent of `checkpoint`.
+vocab = []
 
 ## Fetch the `onnx-community/whisper-base` export and generate Rust models
 ## from it, in `crate::onnx_gen`.

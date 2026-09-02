@@ -16,11 +16,16 @@ burn-store = { workspace = true }
 document-features = { workspace = true }
 
 [build-dependencies]
-burn-onnx = { workspace = true, optional = true }
+# Not optional: the build script generates the burnpack weights from the
+# committed ONNX graph whether or not the generated Rust model is wanted.
+burn-onnx = { workspace = true }
 
 [lints]
 workspace = true
 
 [features]
-## Generate the ONNX-generated models in `crate::onnx_gen`.
-onnx_gen = ["dep:burn-onnx"]
+## Expose the ONNX-generated reference model in `crate::onnx_gen`.
+##
+## The weights are generated from the ONNX graph either way; this only
+## decides whether the generated Rust model is compiled in.
+onnx_gen = []

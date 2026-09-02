@@ -32,7 +32,7 @@ use crate::{
     ops::transformers::attention::{
         AttnKvPair,
         layer_norm_cross_attn,
-        layer_norm_cross_attn_w_kv_cache,
+        layer_norm_cross_attn_w_kv_cache_grouped,
         layer_norm_self_attn,
         layer_norm_self_attn_w_kv_cache,
         project_kv_pair,
@@ -259,6 +259,21 @@ impl<B: Backend> ResidualDecoderAttentionBlock<B> {
         self_kv: &mut Option<AttnKvPair<B>>,
         cross_kv: &AttnKvPair<B>,
     ) -> Tensor<B, 3> {
+        self.forward_w_kv_cache_grouped(x, mask, self_kv, cross_kv, 1)
+    }
+
+    /// [`forward_w_kv_cache`](Self::forward_w_kv_cache) with the
+    /// cross-attention cache shared by `group` rows of `x` per cached row
+    /// (`row = cached_row * group + member`): a beam search's beams attend
+    /// to their audio's one projection rather than a copy each.
+    pub fn forward_w_kv_cache_grouped(
+        &self,
+        x: Tensor<B, 3>,
+        mask: Option<Tensor<B, 3, Bool>>,
+        self_kv: &mut Option<AttnKvPair<B>>,
+        cross_kv: &AttnKvPair<B>,
+        group: usize,
+    ) -> Tensor<B, 3> {
         let x = x.clone().add(layer_norm_self_attn_w_kv_cache(
             &self.attn_ln,
             &self.attn,
@@ -267,11 +282,12 @@ impl<B: Backend> ResidualDecoderAttentionBlock<B> {
             self_kv,
         ));
 
-        let x = x.clone().add(layer_norm_cross_attn_w_kv_cache(
+        let x = x.clone().add(layer_norm_cross_attn_w_kv_cache_grouped(
             &self.cross_attn_ln,
             &self.cross_attn,
             x,
             cross_kv,
+            group,
         ));
 
         let mlp = layer_norm_mlp(&self.mlp_ln, &self.mlp, x.clone());

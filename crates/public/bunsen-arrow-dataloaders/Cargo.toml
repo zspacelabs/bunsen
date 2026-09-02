@@ -15,7 +15,7 @@ workspace = true
 
 
 [dependencies]
-wordchipper = { workspace = true, features = ["client"] }
+wordchipper = { workspace = true, default-features = true, features = ["client"] }
 
 burn = { workspace = true, features = ["train"] }
 rand = { workspace = true }

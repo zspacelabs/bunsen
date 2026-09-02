@@ -21,6 +21,8 @@
 //!   Game of Life in 2D and 3D, and a D2Q9 lattice-Boltzmann fluid solver.
 //! - [`speech`] &mdash; Full speech recognition models. Currently includes
 //!   `Whisper` and `Hubert`.
+//! - [`tokens`] &mdash; What kits share on the token side: the ids-to-text
+//!   seam, and its `wordchipper` implementation.
 //!
 //! ## Stability
 //!
@@ -33,3 +35,4 @@ pub mod bimm;
 pub mod gpts;
 pub mod sims;
 pub mod speech;
+pub mod tokens;

@@ -33,17 +33,24 @@ use bunsen::{
         DTypeMapper,
         ModuleInit,
     },
-    kits::speech::whisper::{
-        Whisper,
-        mel_options,
-        package_mels,
+    kits::{
+        speech::whisper::{
+            Task,
+            TiktokenRanks,
+            TokenPolicy,
+            Whisper,
+            mel_options,
+            package_mels,
+            pretrained::bundled,
+            text::detokenizer,
+        },
+        tokens::{
+            Detokenizer,
+            WordchipperDetokenizer,
+        },
     },
     ops::signal::mels::MelConverter,
-    support::testing::asr::{
-        BpeDecodeTable,
-        WHISPER_FIRST_SPECIAL,
-        text_error_rate,
-    },
+    support::testing::asr::text_error_rate,
 };
 use burn::{
     Tensor,
@@ -95,20 +102,69 @@ fn testdata(rel: &str) -> std::path::PathBuf {
     std::path::PathBuf::from(concat!(env!("CARGO_MANIFEST_DIR"), "/testdata")).join(rel)
 }
 
-/// The committed `openai-whisper` decode of a fixture.
+/// The committed `openai-whisper` decodes of a fixture, several ways.
+///
+/// `tools/gen_speech_fixtures.py` says what each is. `windows` is the
+/// agreement gate; the rest are the references later phases of the stream
+/// driver pin against, stocked here so that no phase invents its own oracle.
+/// The token layout the decodes were made with is in the fixture too, so the
+/// vocabulary pairing is checked rather than assumed.
 #[derive(serde::Deserialize)]
-pub(crate) struct Reference {
+pub struct Reference {
+    /// The vocabulary size of the checkpoint the decodes came from.
+    vocab_size: usize,
+    /// The sot sequence: `<|startoftranscript|> <|en|> <|transcribe|>`.
+    prompt: Vec<i64>,
+    no_timestamps: i64,
+    eot: i64,
+    timestamp_begin: i64,
+    /// Greedy, without timestamps, per fixed 30 s window.
+    windows: Vec<ReferenceWindow>,
+    /// The same decode with timestamp tokens on.
+    with_timestamps: ReferenceWindows,
+    /// Beam 5, without timestamps.
+    beam5: ReferenceWindows,
+    /// `transcribe()` at temperature 0: the seek loop and its segments.
+    transcribe: ReferenceTranscribe,
+}
+
+#[derive(serde::Deserialize)]
+pub struct ReferenceWindows {
     windows: Vec<ReferenceWindow>,
 }
 
 #[derive(serde::Deserialize)]
-pub(crate) struct ReferenceWindow {
+pub struct ReferenceWindow {
+    /// What the decoder emitted, prompt and stop token excluded.
     tokens: Vec<i64>,
+    /// `Tokenizer.decode`: timestamps dropped.
     text: String,
+    /// `Tokenizer.decode_with_timestamps`, only where timestamps were on.
+    #[serde(default)]
+    text_with_timestamps: Option<String>,
+}
+
+#[derive(serde::Deserialize)]
+pub struct ReferenceTranscribe {
+    text: String,
+    segments: Vec<ReferenceSegment>,
+}
+
+#[derive(serde::Deserialize)]
+pub struct ReferenceSegment {
+    /// The mel frame the window this segment came from was cut at.
+    seek: usize,
+    start: f64,
+    end: f64,
+    text: String,
+    /// Bounded by its timestamp tokens, where the decode emitted them.
+    tokens: Vec<i64>,
+    temperature: f64,
 }
 
 impl Reference {
-    fn load(name: &str) -> Self {
+    /// Load a reference from a file.
+    pub fn load(name: &str) -> Self {
         let path = testdata(&format!("{name}.reference.json"));
         let file = std::fs::File::open(&path)
             .unwrap_or_else(|e| panic!("opening {}: {e}", path.display()));
@@ -116,13 +172,53 @@ impl Reference {
     }
 
     /// The reference decode as one string, windows joined in order.
-    fn text(&self) -> String {
-        self.windows
-            .iter()
-            .map(|w| w.text.trim())
-            .collect::<Vec<_>>()
-            .join(" ")
+    pub fn text(&self) -> String {
+        join_windows(&self.windows)
     }
+
+    /// The reference decode's ids, per window.
+    pub fn window_tokens(&self) -> Vec<Vec<i64>> {
+        self.windows.iter().map(|w| w.tokens.clone()).collect()
+    }
+
+    /// The beam-5 reference decode as one string, windows joined in order.
+    pub fn beam5_text(&self) -> String {
+        join_windows(&self.beam5.windows)
+    }
+
+    /// The beam-5 reference decode's ids, per window.
+    pub fn beam5_tokens(&self) -> Vec<Vec<i64>> {
+        self.beam5
+            .windows
+            .iter()
+            .map(|w| w.tokens.clone())
+            .collect()
+    }
+
+    /// The timestamped reference decode as one string, windows joined in
+    /// order.
+    pub fn timestamped_text(&self) -> String {
+        join_windows(&self.with_timestamps.windows)
+    }
+
+    /// The timestamped reference decode's ids, per window, timestamp tokens
+    /// included.
+    pub fn timestamped_tokens(&self) -> Vec<Vec<i64>> {
+        self.with_timestamps
+            .windows
+            .iter()
+            .map(|w| w.tokens.clone())
+            .collect()
+    }
+}
+
+/// Windows' text as one string, joined in order.
+fn join_windows(windows: &[ReferenceWindow]) -> String {
+    windows
+        .iter()
+        .map(|w| w.text.trim())
+        .collect::<Vec<_>>()
+        .join(" ")
 }
 
 /// The ground-truth transcript.
@@ -135,9 +231,40 @@ fn transcript(name: &str) -> String {
         .replace("...", " ")
 }
 
+/// The multilingual vocabulary, for turning ids into text.
+///
+/// The layout comes from the vocabulary size these fixtures are for, and the
+/// ranks from the bundled `multilingual.tiktoken` — the same assets bunsen
+/// itself would use, so this checks them as well as using them.
+pub struct Vocab {
+    pub policy: TokenPolicy,
+    pub detokenizer: WordchipperDetokenizer<u16>,
+    pub ranks: TiktokenRanks,
+}
+
+impl Vocab {
+    /// The text of a window's ids: prompt, timestamps and stop token dropped.
+    fn decode(
+        &self,
+        ids: &[i64],
+    ) -> String {
+        self.detokenizer
+            .detokenize(&self.policy.text_ids(ids))
+            .expect("every id is inside the vocabulary")
+    }
+}
+
 /// The shared vocabulary, for turning ids into text.
-fn vocab() -> BpeDecodeTable {
-    BpeDecodeTable::load(testdata("whisper_vocab.bin")).expect("the vocabulary failed to load")
+fn vocab() -> Vocab {
+    let policy = TokenPolicy::from_vocab_size(N_VOCAB).expect("a Whisper vocabulary size");
+    let ranks = TiktokenRanks::load(bundled::multilingual_tiktoken())
+        .expect("the vocabulary failed to load");
+    let decoder = detokenizer(&ranks, policy.ids()).expect("the vocabulary failed to load");
+    Vocab {
+        policy,
+        detokenizer: decoder,
+        ranks,
+    }
 }
 
 /// A fixture's samples, decoded from mp3.
@@ -219,80 +346,234 @@ pub fn bunsen_model<B: Backend>(device: &Device<B>) -> Whisper<B> {
     model.map(&mut DTypeMapper::new(burn::tensor::DType::F32))
 }
 
+/// Prints where two per-window id sequences first diverge.
+///
+/// The gates assert on text, because a backend can flip a near-tied argmax
+/// without moving the words; this is what says whether that happened, and
+/// where, so a failure, or a pass that hides a flipped token, can be read at
+/// token level.
+pub fn report_id_diff(
+    label: &str,
+    name: &str,
+    mine: &[Vec<i64>],
+    theirs: &[Vec<i64>],
+) {
+    for (w, (a, b)) in mine.iter().zip(theirs).enumerate() {
+        match a.iter().zip(b).position(|(x, y)| x != y) {
+            None if a.len() == b.len() => {
+                eprintln!("{name}: {label} window {w}: {} ids, identical", a.len());
+            }
+            None => eprintln!(
+                "{name}: {label} window {w}: identical for {} ids, then lengths differ ({} vs {})",
+                a.len().min(b.len()),
+                a.len(),
+                b.len(),
+            ),
+            Some(i) => eprintln!(
+                "{name}: {label} window {w}: first divergence at {i}: {:?} vs {:?}",
+                &a[i..(i + 5).min(a.len())],
+                &b[i..(i + 5).min(b.len())],
+            ),
+        }
+    }
+    if mine.len() != theirs.len() {
+        eprintln!(
+            "{name}: {label}: {} window(s) vs {}",
+            mine.len(),
+            theirs.len()
+        );
+    }
+}
+
 /// Joins per-window ids into one transcript.
 pub fn to_text(
-    table: &BpeDecodeTable,
+    table: &Vocab,
     windows: &[Vec<i64>],
 ) -> String {
     windows
         .iter()
-        .map(|ids| table.decode(ids, WHISPER_FIRST_SPECIAL).trim().to_string())
+        .map(|ids| table.decode(ids).trim().to_string())
         .collect::<Vec<_>>()
         .join(" ")
 }
 
-/// The committed reference must decode to its own committed text.
+/// The committed references must decode to their own committed text, every
+/// variant.
 ///
-/// Needs no model, so it runs in an ordinary `cargo test` — and it is what
-/// checks the vocabulary table end to end, since a wrong table would move the
-/// decoded text away from what `openai-whisper` printed.
+/// Needs no model, so it runs in an ordinary `cargo test`, and it is what
+/// checks the bundled vocabulary and bunsen's rank parser end to end, since a
+/// wrong table would move the decoded text away from what `openai-whisper`
+/// printed. With timestamps kept, it also pins the spelling of every special
+/// token against `tiktoken`'s, and the segment times against the timestamp
+/// arithmetic the stream driver will use.
 #[test]
 fn test_reference_tokens_decode_to_reference_text() {
     let table = vocab();
     assert_eq!(
-        table.len(),
+        table.detokenizer.vocab_size(),
         N_VOCAB,
         "the vocabulary does not cover the multilingual model",
     );
 
     for fixture in FIXTURES {
-        let reference = Reference::load(fixture.name);
+        let name = fixture.name;
+        let reference = Reference::load(name);
         assert_eq!(
             reference.windows.len(),
             fixture.windows,
-            "{}: reference covers {} window(s), audio is {}",
-            fixture.name,
+            "{name}: reference covers {} window(s), audio is {}",
             reference.windows.len(),
             fixture.windows,
         );
 
+        // The layout the decodes were made with is the layout bunsen derives
+        // from the vocabulary size alone.
+        let ids = table.policy.ids();
+        assert_eq!(reference.vocab_size, N_VOCAB, "{name}: vocabulary size");
+        assert_eq!(
+            reference.prompt,
+            table
+                .policy
+                .sot_sequence(Some("en"), Some(Task::Transcribe), true)
+                .unwrap(),
+            "{name}: prompt",
+        );
+        assert_eq!(reference.no_timestamps, ids.no_timestamps, "{name}");
+        assert_eq!(reference.eot, ids.eot, "{name}");
+        assert_eq!(reference.timestamp_begin, ids.timestamp_begin, "{name}");
+
         for (w, window) in reference.windows.iter().enumerate() {
             assert_eq!(
-                table.decode(&window.tokens, WHISPER_FIRST_SPECIAL).trim(),
+                table.decode(&window.tokens).trim(),
                 window.text.trim(),
-                "{}: window {w} tokens do not decode to the committed text",
-                fixture.name,
+                "{name}: greedy window {w} does not decode to its committed text",
             );
+        }
+
+        for (w, window) in reference.beam5.windows.iter().enumerate() {
+            assert_eq!(
+                table.decode(&window.tokens).trim(),
+                window.text.trim(),
+                "{name}: beam-5 window {w} does not decode to its committed text",
+            );
+        }
+
+        for (w, window) in reference.with_timestamps.windows.iter().enumerate() {
+            assert_eq!(
+                table.decode(&window.tokens).trim(),
+                window.text.trim(),
+                "{name}: timestamped window {w} does not decode to its committed text",
+            );
+            assert!(
+                window
+                    .tokens
+                    .first()
+                    .is_some_and(|&t| table.policy.is_timestamp(t)),
+                "{name}: timestamped window {w} does not open with a timestamp",
+            );
+
+            // Rendered whole, the specials must spell exactly as tiktoken
+            // spells them.
+            let rendered = table
+                .detokenizer
+                .detokenize(&window.tokens)
+                .expect("every id is inside the vocabulary");
+            assert_eq!(
+                Some(rendered),
+                window.text_with_timestamps,
+                "{name}: timestamped window {w} does not render as tiktoken does",
+            );
+        }
+
+        let transcribe = &reference.transcribe;
+        assert!(!transcribe.segments.is_empty(), "{name}: no segments");
+        for seg in &transcribe.segments {
+            assert_eq!(
+                table.decode(&seg.tokens).trim(),
+                seg.text.trim(),
+                "{name}: segment at {} does not decode to its committed text",
+                seg.start,
+            );
+            assert_eq!(
+                seg.temperature, 0.0,
+                "{name}: segment at {} fell back to sampling; the fixture is not deterministic",
+                seg.start,
+            );
+
+            // A segment's times are its bounding timestamp tokens, offset by
+            // where its window was cut: `seek` mel frames, at 100 per second.
+            // This is the arithmetic the driver's clock will do.
+            let offset = seg.seek as f64 / 100.0;
+            let (first, last) = (seg.tokens[0], *seg.tokens.last().unwrap());
+            let expect_start = table
+                .policy
+                .timestamp_seconds(first)
+                .map_or(offset, |t| offset + t);
+            assert!(
+                (seg.start - expect_start).abs() < 1e-6,
+                "{name}: segment start {} is not {expect_start}",
+                seg.start,
+            );
+            if let Some(t) = table.policy.timestamp_seconds(last) {
+                assert!(
+                    (seg.end - (offset + t)).abs() < 1e-6,
+                    "{name}: segment end {} is not {}",
+                    seg.end,
+                    offset + t,
+                );
+            }
         }
     }
 }
 
-/// The reference itself must meet the fixture's accuracy bar.
+/// The references themselves must meet the fixture's accuracy bar.
 ///
-/// Needs no model. If this fails, the threshold is wrong or the transcript is
-/// — either way the fixture is broken before bunsen is involved, and
-/// `max_wer` would be measuring nothing.
+/// Needs no model. If this fails, the threshold is wrong or the transcript
+/// is, and either way the fixture is broken before bunsen is involved, so
+/// `max_wer` would be measuring nothing. The decode variants a later phase
+/// will be judged against are held to it too, so each is known good before
+/// its phase starts.
+///
+/// Two variants are reported rather than gated, and the reasons are worth
+/// keeping. A fixed 30 s window decoded *with* timestamps stops at its last
+/// timestamp and drops whatever followed it, which is the very loss the seek
+/// loop exists to recover. And beam 5 on fixed windows without timestamps is
+/// not a mode upstream ever transcribes with, so its accuracy is beside the
+/// point; what its phase needs from it is agreement. The `transcribe()`
+/// reference, which is a real transcription, is gated like the greedy one.
 #[test]
 fn test_reference_meets_the_accuracy_bar() {
     for fixture in FIXTURES {
-        let got = Reference::load(fixture.name).text();
+        let reference = Reference::load(fixture.name);
         let want = transcript(fixture.name);
 
-        let wer = text_error_rate(&got, &want);
-        eprintln!("{}: reference WER vs transcript {wer:.4}", fixture.name);
-
-        assert!(
-            wer <= fixture.max_wer,
-            "{}",
-            report(
-                "reference-vs-transcript",
-                fixture.name,
-                &got,
-                &want,
-                wer,
-                fixture.max_wer,
+        for (label, got, gated) in [
+            ("reference", reference.text(), true),
+            (
+                "timestamps-reference",
+                join_windows(&reference.with_timestamps.windows),
+                false,
             ),
-        );
+            (
+                "beam5-reference",
+                join_windows(&reference.beam5.windows),
+                false,
+            ),
+            (
+                "transcribe-reference",
+                reference.transcribe.text.clone(),
+                true,
+            ),
+        ] {
+            let wer = text_error_rate(&got, &want);
+            eprintln!("{}: {label} WER vs transcript {wer:.4}", fixture.name);
+
+            assert!(
+                !gated || wer <= fixture.max_wer,
+                "{}",
+                report(label, fixture.name, &got, &want, wer, fixture.max_wer),
+            );
+        }
     }
 }
 

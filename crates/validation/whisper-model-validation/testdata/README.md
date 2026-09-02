@@ -11,8 +11,27 @@ resample or downmix. The source was not in that form; see *Provenance*.
 |---|---|---|
 | `jfk_moon.mp3` | 60.0 s | "We choose to go to the Moon", live, with hall noise and applause |
 | `jfk_moon.txt` | | **ground truth** — what a person hears |
-| `jfk_moon.reference.json` | | what `openai-whisper` decodes, per 30 s window |
-| `whisper_vocab.bin` | 364 KB | id → bytes, enough to decode ids to text |
+| `jfk_moon.reference.json` | | what `openai-whisper` decodes, several ways |
+
+The reference holds four decodes of the clip from the same model, and the
+token layout they were made with (`vocab_size`, the `prompt`, `eot`, ...):
+
+| key | decode | for |
+|---|---|---|
+| `windows` | greedy, no timestamps, fixed 30 s windows | the agreement gate |
+| `with_timestamps` | the same, timestamp tokens kept | the stream driver's timestamp phase |
+| `beam5` | beam 5, no timestamps | its beam-search phase |
+| `transcribe` | `transcribe()` at temperature 0: seek loop, segments with times | its seek and segment phases |
+
+Each is a per-window (or per-segment) `tokens` and `text`; `with_timestamps`
+also carries `text_with_timestamps`, the `<|1.02|>` rendering, which pins the
+special-token spellings. The fixture-integrity check decodes every one of them
+and checks the segment times against the timestamp arithmetic.
+
+Ids become text through the vocabulary `bunsen-bundled-whisper` fetches
+(`multilingual.tiktoken`, behind its `vocab` feature) and bunsen's own
+`.tiktoken` parser — the same path a user of the kit takes, so the
+fixture-integrity check exercises it too.
 
 ## What is asserted
 
@@ -47,6 +66,13 @@ Three independent implementations — bunsen, OpenAI's own, and a graph
 generated from the `onnx-community/whisper-base` export — decode this clip
 token for token identically.
 
+The other reference variants, against the transcript, for orientation: the
+`transcribe()` decode scores 0.0513 (its prompt carry helps), the beam-5
+windows 0.1282, and the timestamped windows 0.2051 — a fixed window decoded
+with timestamps stops at its last timestamp and drops its tail, which is the
+loss the seek loop exists to recover. Only the greedy and `transcribe()`
+references are held to `max_wer`; the other two are reported.
+
 Of the eight word errors against the transcript, three are the model and two
 are the normalizer: `normalize_transcript` lowercases, strips punctuation and
 collapses whitespace, but deliberately does **not** reconcile number words
@@ -59,8 +85,8 @@ The model's real errors, for reference: `fly` → `why`, `in this decade` →
 
 ## Regenerating
 
-`tools/gen_speech_fixtures.py` writes `whisper_vocab.bin` and every
-`*.reference.json`. It needs `openai-whisper`; the recipe and the pinned
+`tools/gen_speech_fixtures.py` writes every `*.reference.json`. It needs
+`openai-whisper`; the recipe and the pinned
 versions are in the script's docstring. Run once, commit the outputs — as with
 `tools/gen_mel_fixtures.py`, regenerating is not part of CI.
 
@@ -96,11 +122,3 @@ The source is the complete 17.7-minute address, ~17 MB. Only the 60 s from
 the end of the famous passage. That offset is also chosen so the 30 s window
 boundary falls on "not because they are easy" — a greedy decode is sensitive
 to where a window lands, and this cut decodes cleanly on both sides of it.
-
-### `whisper_vocab.bin`
-
-- Source: `whisper.tokenizer.get_encoding("multilingual")`, from
-  [openai/whisper](https://github.com/openai/whisper) (MIT)
-- Contents: the decode half only — 51865 ids to raw bytes. No merge table, no
-  pre-tokenizer regex, so it cannot encode. That is all a transcription test
-  needs, and it keeps the asset small.

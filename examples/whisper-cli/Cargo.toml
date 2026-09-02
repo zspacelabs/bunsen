@@ -1,0 +1,31 @@
+[package]
+name = "whisper-cli"
+authors.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+version.workspace = true
+repository.workspace = true
+license.workspace = true
+
+
+[lints]
+workspace = true
+
+[dependencies]
+burn = { workspace = true, features = ["fusion"] }
+# The backend is bunsen's `PerformanceBackend`, chosen by bunsen's own backend
+# feature at build time: `--features bunsen/wgpu` (or `bunsen/cuda`,
+# `bunsen/metal`, `bunsen/flex`). With none, bunsen's default `testing`
+# feature selects `flex`.
+#
+# `whisper-weights` bundles the checkpoint and both vocabularies;
+# `silero-weights` bundles the VAD the real-time presets need.
+bunsen = { path = "../../crates/public/bunsen", features = [
+    "store",
+    "audio",
+    "tokenizer",
+    "whisper-weights",
+    "silero-weights",
+] }
+
+clap = { workspace = true, features = ["derive"] }

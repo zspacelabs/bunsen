@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- `vocab` fetches, digest-pins and caches Whisper's two `.tiktoken` rank
+  files and exposes them as `multilingual_tiktoken()` and `gpt2_tiktoken()`.
+  The URLs are pinned to the `openai/whisper` commit that last changed them,
+  not to `main`. `WHISPER_MULTILINGUAL_TIKTOKEN` and `WHISPER_GPT2_TIKTOKEN`
+  point the build at local copies. Off by default and independent of
+  `checkpoint`, like `onnx_gen`; `bunsen/whisper-weights` turns it on.
 - Initial release, mirroring `bunsen-bundled-silero`. Two independent halves,
   each behind its own off-by-default feature:
   - `checkpoint` fetches, digest-pins and caches OpenAI's multilingual Whisper

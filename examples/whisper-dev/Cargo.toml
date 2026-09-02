@@ -11,18 +11,12 @@ license.workspace = true
 [lints]
 workspace = true
 
-[features]
-default = ["flex"]
-cuda = ["burn/cuda", "bunsen/cuda"]
-metal = ["burn/metal", "bunsen/metal"]
-wgpu = ["burn/wgpu", "bunsen/wgpu"]
-flex = ["burn/flex", "bunsen/flex"]
-
-
 [dependencies]
-burn = { workspace = true, features = ["store", "fusion"] }
-burn-store = { workspace = true, features = ["pytorch"] }
-
-bunsen = { path = "../../crates/public/bunsen" }
+burn = { workspace = true, features = ["fusion"] }
+# The backend is bunsen's `PerformanceBackend`, chosen by bunsen's own backend
+# feature at build time: `--features bunsen/wgpu` (or `bunsen/cuda`,
+# `bunsen/metal`, `bunsen/flex`). With none, bunsen's default `testing`
+# feature selects `flex`.
+bunsen = { path = "../../crates/public/bunsen", features = ["store"] }
 
 clap = { workspace = true, features = ["derive"] }

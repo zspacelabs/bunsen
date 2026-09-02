@@ -32,6 +32,10 @@ harness = false
 name = "lbm"
 harness = false
 
+[[bench]]
+name = "whisper_decode"
+harness = false
+
 
 [features]
 default = [
@@ -91,16 +95,30 @@ audio = [
     "dep:symphonia",
 ]
 
+## Turns token ids into text, through `wordchipper`.
+##
+## Ids never need this: a kit's token layout (`kits::speech::whisper::TokenPolicy`
+## and every special id) is derived arithmetically and always available.
+## Only `kits::tokens::WordchipperDetokenizer` is behind it. `wordchipper` comes in with
+## `default-features = false` — no downloader, no TLS, no thread pool — so
+## the cost to a consumer that has nothing else from it is small; see the
+## feature's entry in `CHANGELOG.md` for the measured number.
+tokenizer = [
+    "std",
+    "dep:wordchipper",
+]
+
 ## Include the silero-vad pretrained weights in the build.
 silero-weights = [
     "store",
     "dep:bunsen-bundled-silero",
 ]
 
-## Include the pretrained Whisper checkpoint in the build.
+## Include the pretrained Whisper assets in the build: the checkpoint, and
+## the two `.tiktoken` vocabularies.
 ##
 ## **This makes the build reach the network** on a cold cache: unlike Silero's,
-## Whisper's weights are 145 MB and are fetched rather than committed. The
+## Whisper's weights are 145 MB and are fetched rather than committed. Every
 ## asset is digest-pinned and cached, so a warm build is offline; see
 ## `bunsen-bundled-whisper`.
 whisper-weights = [
@@ -108,6 +126,7 @@ whisper-weights = [
     "store_pytorch",
     "dep:bunsen-bundled-whisper",
     "bunsen-bundled-whisper/checkpoint",
+    "bunsen-bundled-whisper/vocab",
 ]
 
 ## Enable the cuda backend in the bunsen build.
@@ -139,6 +158,7 @@ flex = ["burn/flex"]
 ## Enables testing support features. Included under test builds.
 testing = [
     "audio",
+    "tokenizer",
     "flex",
     "dep:tracing",
     "dep:tracing-test",
@@ -172,6 +192,7 @@ hashbrown = { workspace = true, optional = true }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
 crc = { workspace = true }
+flate2 = { workspace = true }
 
 directories-next = { workspace = true, optional = true }
 # features=["tui"] incompatible with conflicting indicatif versions.
@@ -191,6 +212,10 @@ xee-xpath = { workspace = true, optional = true }
 hound = { workspace = true, optional = true }
 symphonia = { workspace = true, optional = true }
 
+# Decode-only. `default-features = false` is the point: the default set pulls
+# a downloader, TLS and rayon, none of which turning ids into text needs.
+wordchipper = { workspace = true, default-features = false, optional = true }
+
 
 [dev-dependencies]
 bunsen = { path = ".", features = ["testing"] }
@@ -203,4 +228,3 @@ nearly = { workspace = true }
 hamcrest = { workspace = true }
 indoc = { workspace = true }
 criterion = { workspace = true }
-
