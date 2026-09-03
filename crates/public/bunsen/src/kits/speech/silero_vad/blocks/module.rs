@@ -57,23 +57,25 @@ use burn::{
 };
 
 use crate::{
-    blocks::conv::{
-        ConvBlock1dConfig,
-        ConvBlock1dMeta,
-        ConvSeq1d,
-        ConvSeq1dConfig,
-        ConvSeq1dMeta,
+    blocks::{
+        conv::{
+            ConvBlock1dConfig,
+            ConvBlock1dMeta,
+            ConvSeq1d,
+            ConvSeq1dConfig,
+            ConvSeq1dMeta,
+        },
+        rnn::lstm::{
+            FusedLstm,
+            FusedLstmConfig,
+        },
     },
     burner::module::ModuleInit,
     errors::{
         BunsenError,
         BunsenResult,
     },
-    kits::speech::silero_vad::{
-        FusedLstm,
-        FusedLstmConfig,
-        blocks::context::SileroVadContext,
-    },
+    kits::speech::silero_vad::blocks::context::SileroVadContext,
     prelude::TensorOpExt,
 };
 
