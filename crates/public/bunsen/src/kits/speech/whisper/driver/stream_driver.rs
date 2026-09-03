@@ -496,7 +496,7 @@ impl<B: Backend> WhisperStreamDriver<B> {
             ));
         }
 
-        Ok(WhisperStreamContext::open(
+        Ok(WhisperStreamContext::init(
             self.clone(),
             clock,
             Box::new(clamp),

@@ -243,11 +243,6 @@ pub struct WhisperStreamContext<B: Backend> {
     vad: Option<VoiceActivity<B>>,
 
     finished: bool,
-
-    /// Every window handed to a decode, in order. Test-only: how the
-    /// chunking invariant is stated at frame level.
-    #[cfg(test)]
-    trace: Vec<Tensor<B, 3>>,
 }
 
 /// The voice-activity half of a stream: Silero's state, the filter, and the
@@ -278,13 +273,14 @@ struct VoiceActivity<B: Backend> {
 
 /// One decode unit: `count` frames from stream frame `start`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(super) struct Due {
-    pub(super) start: usize,
-    pub(super) count: usize,
+struct Due {
+    start: usize,
+    count: usize,
 }
 
 impl<B: Backend> WhisperStreamContext<B> {
-    pub(super) fn open(
+    /// Initialize a new context.
+    pub fn init(
         driver: WhisperStreamDriver<B>,
         clock: StreamClock,
         clamp: Box<dyn ClampPolicy<B>>,
@@ -326,8 +322,6 @@ impl<B: Backend> WhisperStreamContext<B> {
             clamp,
             vad,
             finished: false,
-            #[cfg(test)]
-            trace: Vec::new(),
         }
     }
 
@@ -455,8 +449,6 @@ impl<B: Backend> WhisperStreamContext<B> {
             };
             let window = self.frames_at(&unit);
             self.ensure_language(&window);
-            #[cfg(test)]
-            self.trace.push(window.clone());
             let decoded = self.decode_frames(window);
             out.extend(self.commit_due(unit, decoded)?);
         }
@@ -615,7 +607,7 @@ impl<B: Backend> WhisperStreamContext<B> {
 
     /// With endpoints on, drops full windows that hold no speech: nothing
     /// closed inside them, and nothing open in them.
-    pub(super) fn skip_silence(&mut self) {
+    fn skip_silence(&mut self) {
         let width = self.driver.window_frames();
         let hop = self.hop();
         loop {
@@ -642,7 +634,7 @@ impl<B: Backend> WhisperStreamContext<B> {
     /// pointer, a window at a time; else a full window, only while speech
     /// is in progress inside it. Without: a full window, and at the end of
     /// input whatever remains.
-    pub(super) fn next_due(&self) -> Option<Due> {
+    fn next_due(&self) -> Option<Due> {
         let width = self.driver.window_frames();
         let hop = self.hop();
         let available = self.frames_seen();
@@ -692,7 +684,7 @@ impl<B: Backend> WhisperStreamContext<B> {
     }
 
     /// The frames of a due unit: `[1, count, n_mels]`.
-    pub(super) fn frames_at(
+    fn frames_at(
         &self,
         unit: &Due,
     ) -> Tensor<B, 3> {
@@ -706,7 +698,7 @@ impl<B: Backend> WhisperStreamContext<B> {
 
     /// Packages a window against the clamp policy's reference and pads it
     /// out to the model's width: `[1, n_mels, width]`. Takes `&self`.
-    pub(super) fn package_padded(
+    fn package_padded(
         &self,
         window: Tensor<B, 3>,
     ) -> Tensor<B, 3> {
@@ -741,7 +733,7 @@ impl<B: Backend> WhisperStreamContext<B> {
     /// * `base` - the decode config at temperature zero.
     /// * `window` - `[1, n_mels, width]`, packaged.
     /// * `first` - the first rung's result when the caller has it.
-    pub(super) fn ladder(
+    fn ladder(
         &self,
         base: &DecodeConfig,
         window: Tensor<B, 3>,
@@ -779,7 +771,7 @@ impl<B: Backend> WhisperStreamContext<B> {
 
     /// The prompt for the next window: the sot sequence, preceded by the
     /// transcript's tail after `<|startofprev|>` when carrying is on.
-    pub(super) fn prompt_now(&self) -> Vec<i64> {
+    fn prompt_now(&self) -> Vec<i64> {
         let prompt = self.sot_now();
         let carried = &self.transcript[self.prompt_reset.min(self.transcript.len())..];
         if !self.driver.config().condition_on_previous_text || carried.is_empty() {
@@ -800,7 +792,7 @@ impl<B: Backend> WhisperStreamContext<B> {
     /// Detects the stream's language from `frames` when the driver leaves
     /// it to be detected and no window has been decoded yet: upstream's
     /// `detect_language`, on the same features the decode will use.
-    pub(super) fn ensure_language(
+    fn ensure_language(
         &mut self,
         frames: &Tensor<B, 3>,
     ) {
@@ -849,7 +841,7 @@ impl<B: Backend> WhisperStreamContext<B> {
     ///
     /// A decode that needed a temperature above 0.5 resets the prompt
     /// carry, as upstream does, so a failure does not feed the next window.
-    pub(super) fn commit_due(
+    fn commit_due(
         &mut self,
         unit: Due,
         decoded: Decoded,
@@ -927,7 +919,7 @@ impl<B: Backend> WhisperStreamContext<B> {
     /// The draft due, if one is: under the `interval` trigger, while speech
     /// is in progress, once an interval of media time has passed since the
     /// last draft or commit, everything past the seek pointer.
-    pub(super) fn draft_unit(&self) -> Option<Due> {
+    fn draft_unit(&self) -> Option<Due> {
         let interval = self.driver.interval_samples()?;
         let count = self.pending_frames();
         let due = !self.finished
@@ -944,7 +936,7 @@ impl<B: Backend> WhisperStreamContext<B> {
     /// when the driver can, and touching nothing but the draft pacing. It
     /// covers all audio since the last commit and supersedes the previous
     /// draft whole.
-    pub(super) fn draft_from(
+    fn draft_from(
         &mut self,
         unit: Due,
         decoded: Decoded,
@@ -995,7 +987,7 @@ impl<B: Backend> WhisperStreamContext<B> {
     /// A provisional decode of everything past the seek pointer, without
     /// touching the context: what a draft says, on demand.
     #[cfg(test)]
-    pub(crate) fn probe_decode(&self) -> Option<Vec<i64>> {
+    fn probe_decode(&self) -> Option<Vec<i64>> {
         let count = self.pending_frames();
         (count > 0).then(|| {
             self.decode_frames(self.frames_at(&Due {
@@ -1008,7 +1000,7 @@ impl<B: Backend> WhisperStreamContext<B> {
 
     /// Everything the context holds, as one comparable string.
     #[cfg(test)]
-    pub(crate) fn fingerprint(&self) -> String {
+    fn fingerprint(&self) -> String {
         let data = |t: &Tensor<B, 3>| t.to_data().convert::<f32>().to_vec::<f32>().unwrap();
         let ring = self.frames.as_ref().map(data);
         let carry = self
@@ -1069,10 +1061,6 @@ impl<B: Backend> VoiceActivity<B> {
 mod tests {
     use std::sync::Arc;
 
-    use burn::tensor::{
-        Tolerance,
-        backend::BackendTypes,
-    };
     use serial_test::serial;
 
     use super::*;
@@ -1105,7 +1093,6 @@ mod tests {
     };
 
     type B = PerformanceBackend;
-    type F = <B as BackendTypes>::FloatElem;
     type Device = burn::prelude::Device<B>;
 
     /// A layout small enough for a tiny model: 5 base ranks, 1 language.
@@ -1303,39 +1290,16 @@ mod tests {
     /// model turns a last-digit difference into a flipped argmax. A trained
     /// model on speech does not; that is the validation crate's gate.
     fn assert_same_stream(
-        a: (&WhisperStreamContext<B>, &[WhisperEmission]),
-        b: (&WhisperStreamContext<B>, &[WhisperEmission]),
+        a: &[WhisperEmission],
+        b: &[WhisperEmission],
         label: &str,
     ) {
-        let (ctx_a, got) = a;
-        let (ctx_b, expected) = b;
-        assert_eq!(
-            ctx_a.trace.len(),
-            ctx_b.trace.len(),
-            "{label}: window count"
-        );
-        assert_eq!(got.len(), expected.len(), "{label}: emission count");
+        assert_eq!(a.len(), b.len(), "{label}: emission count");
 
-        let mut identical = true;
-        for (w, (x, y)) in ctx_a.trace.iter().zip(&ctx_b.trace).enumerate() {
-            let (x, y) = (x.to_data(), y.to_data());
-            assert_eq!(x.shape, y.shape, "{label}: window {w} shape");
-            x.assert_approx_eq::<F>(&y, Tolerance::rel_abs(1e-5, 1e-6));
-            identical &= x == y;
-        }
-
-        for (g, e) in got.iter().zip(expected) {
-            assert_eq!(g.segment().start, e.segment().start, "{label}: start");
-            assert_eq!(g.segment().end, e.segment().end, "{label}: end");
-        }
-
-        if identical {
-            assert_eq!(
-                got, expected,
-                "{label}: identical windows must decode identically"
-            );
-        } else {
-            eprintln!("{label}: windows differ within tolerance; ids not compared");
+        for (x, y) in a.iter().zip(b) {
+            assert_eq!(x, y);
+            assert_eq!(x.segment().start, y.segment().start, "{label}: start");
+            assert_eq!(x.segment().end, y.segment().end, "{label}: end");
         }
     }
 
@@ -1356,7 +1320,7 @@ mod tests {
         for seed in [1, 2, 3] {
             let mut ctx = driver.new_context(clock(), PerWindow).unwrap();
             let got = push_in_pieces(&mut ctx, &audio, &random_sizes(seed, audio.len()));
-            assert_same_stream((&ctx, &got), (&whole, &expected), &format!("seed {seed}"));
+            assert_same_stream(&got, &expected, &format!("seed {seed}"));
         }
 
         // A dynamic policy is the same policy, and the same chunking is the
