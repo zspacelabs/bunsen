@@ -38,19 +38,18 @@ use bunsen::{
             Whisper,
             blocks::WhisperFrontEndConfig,
             driver::{
-                Task,
-                TiktokenRanks,
-                TokenPolicy,
-                detokenizer,
+                WhisperTask,
+                WhisperTokenLayout,
             },
             pretrained::bundled,
         },
         tokens::{
             Detokenizer,
+            TiktokenRanks,
             WordchipperDetokenizer,
         },
     },
-    ops::signal::mels::MelConverter,
+    ops::signal::perceptive_audio::PerceptiveAudioConverter,
     support::testing::asr::text_error_rate,
 };
 use burn::{
@@ -238,7 +237,7 @@ fn transcript(name: &str) -> String {
 /// ranks from the bundled `multilingual.tiktoken` — the same assets bunsen
 /// itself would use, so this checks them as well as using them.
 pub struct Vocab {
-    pub policy: TokenPolicy,
+    pub policy: WhisperTokenLayout,
     pub detokenizer: WordchipperDetokenizer<u16>,
     pub ranks: TiktokenRanks,
 }
@@ -257,10 +256,12 @@ impl Vocab {
 
 /// The shared vocabulary, for turning ids into text.
 fn vocab() -> Vocab {
-    let policy = TokenPolicy::from_vocab_size(N_VOCAB).expect("a Whisper vocabulary size");
+    let policy = WhisperTokenLayout::from_vocab_size(N_VOCAB).expect("a Whisper vocabulary size");
     let ranks = TiktokenRanks::load(bundled::multilingual_tiktoken())
         .expect("the vocabulary failed to load");
-    let decoder = detokenizer(&ranks, &policy).expect("the vocabulary failed to load");
+    let decoder = policy
+        .detokenizer(&ranks)
+        .expect("the vocabulary failed to load");
     Vocab {
         policy,
         detokenizer: decoder,
@@ -296,7 +297,8 @@ mod download;
 #[cfg(feature = "gpu-tests")]
 mod gpu_tests;
 
-/// A fixture as `[1, N_MELS, frames]` log-mels, through bunsen's front end.
+/// A fixture as `[1, N_MELS, frames]` log-mels, through bunsen's
+/// front end.
 ///
 /// The clip is zero-padded up to whole 30 s windows first, matching how
 /// Whisper pads short audio, and then converted in a single call — the
@@ -314,8 +316,8 @@ pub fn clip_mels<B: Backend>(
     let n = values.len();
 
     let front_end = WhisperFrontEndConfig::new().with_sample_rate(SAMPLE_RATE);
-    let converter: MelConverter<B> = front_end
-        .mel_options(N_MELS)
+    let converter: PerceptiveAudioConverter<B> = front_end
+        .mel_converter_options(N_MELS)
         .expect("a Whisper rate")
         .try_init(device)
         .expect("mel converter");
@@ -442,7 +444,7 @@ fn test_reference_tokens_decode_to_reference_text() {
             reference.prompt,
             table
                 .policy
-                .sot_sequence(Some("en"), Some(Task::Transcribe), true)
+                .sot_sequence(Some("en"), Some(WhisperTask::Transcribe), true)
                 .unwrap(),
             "{name}: prompt",
         );

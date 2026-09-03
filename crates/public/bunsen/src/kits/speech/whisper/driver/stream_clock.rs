@@ -1,6 +1,6 @@
 //! # The stream clock: sample index to media time.
 //!
-//! Every stream carries a [`TimestampHistory`]: sorted `(sample, time)`
+//! Every stream carries a [`StreamClock`]: sorted `(sample, time)`
 //! anchors plus a sample rate. A bare stream gets one anchor at `(0, 0.0)`,
 //! which reproduces exactly the arithmetic upstream does from its seek
 //! pointer. Everything richer &mdash; a capture callback's timestamp, a
@@ -11,7 +11,7 @@
 //!
 //! A timestamp token resolves as `clock.time_at(window_origin + index *
 //! 320)`; a region decoded as its own stream keeps correct absolute times
-//! through [`slice`](TimestampHistory::slice).
+//! through [`slice`](StreamClock::slice).
 
 use crate::errors::{
     BunsenError,
@@ -20,7 +20,7 @@ use crate::errors::{
 
 /// A point where the stream's sample index is known in media time.
 #[derive(Debug, Clone, Copy, PartialEq)]
-pub struct Anchor {
+pub struct ClockAnchor {
     /// The sample index, counted from the start of the stream.
     pub sample: usize,
     /// The media time of that sample, in seconds.
@@ -33,12 +33,12 @@ pub struct Anchor {
 /// after the last it extrapolates at the sample rate too. Anchors are kept
 /// sorted by sample and are never removed.
 #[derive(Debug, Clone, PartialEq)]
-pub struct TimestampHistory {
+pub struct StreamClock {
     rate: usize,
-    anchors: Vec<Anchor>,
+    anchors: Vec<ClockAnchor>,
 }
 
-impl TimestampHistory {
+impl StreamClock {
     /// A clock that starts at time zero and runs at `rate` samples per
     /// second: what a bare stream is given.
     ///
@@ -48,7 +48,7 @@ impl TimestampHistory {
         assert_ne!(rate, 0, "a clock needs a non-zero sample rate");
         Self {
             rate,
-            anchors: vec![Anchor {
+            anchors: vec![ClockAnchor {
                 sample: 0,
                 time: 0.0,
             }],
@@ -61,7 +61,7 @@ impl TimestampHistory {
     }
 
     /// The anchors, sorted by sample; never empty.
-    pub fn anchors(&self) -> &[Anchor] {
+    pub fn anchors(&self) -> &[ClockAnchor] {
         &self.anchors
     }
 
@@ -96,7 +96,7 @@ impl TimestampHistory {
             self.anchors.pop();
         }
 
-        self.anchors.push(Anchor { sample, time });
+        self.anchors.push(ClockAnchor { sample, time });
         Ok(())
     }
 
@@ -132,7 +132,7 @@ impl TimestampHistory {
     ) -> Self {
         assert!(to >= from, "slice end {to} is before its start {from}");
 
-        let mut anchors = vec![Anchor {
+        let mut anchors = vec![ClockAnchor {
             sample: 0,
             time: self.time_at(from),
         }];
@@ -140,7 +140,7 @@ impl TimestampHistory {
             self.anchors
                 .iter()
                 .filter(|a| a.sample > from && a.sample < to)
-                .map(|a| Anchor {
+                .map(|a| ClockAnchor {
                     sample: a.sample - from,
                     time: a.time,
                 }),
@@ -167,7 +167,7 @@ mod tests {
     /// A bare clock is `sample / rate`, everywhere.
     #[test]
     fn test_uniform_is_sample_over_rate() {
-        let clock = TimestampHistory::uniform(16_000);
+        let clock = StreamClock::uniform(16_000);
         assert_eq!(clock.rate(), 16_000);
         assert_eq!(clock.anchors().len(), 1);
 
@@ -179,7 +179,7 @@ mod tests {
     /// An anchor shifts everything after it, and only after it.
     #[test]
     fn test_anchor_shifts_from_there_on() {
-        let mut clock = TimestampHistory::uniform(16_000);
+        let mut clock = StreamClock::uniform(16_000);
 
         // A capture callback says sample 32000 was at 12.5 s: the stream lost
         // half a second somewhere before that.
@@ -198,7 +198,7 @@ mod tests {
 
     #[test]
     fn test_anchor_before_the_first_extrapolates_backwards() {
-        let mut clock = TimestampHistory::uniform(16_000);
+        let mut clock = StreamClock::uniform(16_000);
         clock.anchor(0, 100.0).unwrap();
         assert!(
             close(clock.time_at(0), 100.0),
@@ -206,9 +206,9 @@ mod tests {
         );
         assert_eq!(clock.anchors().len(), 1);
 
-        let mut late = TimestampHistory {
+        let mut late = StreamClock {
             rate: 16_000,
-            anchors: vec![Anchor {
+            anchors: vec![ClockAnchor {
                 sample: 16_000,
                 time: 5.0,
             }],
@@ -220,7 +220,7 @@ mod tests {
 
     #[test]
     fn test_anchors_stay_monotone() {
-        let mut clock = TimestampHistory::uniform(16_000);
+        let mut clock = StreamClock::uniform(16_000);
         clock.anchor(1_000, 1.0).unwrap();
 
         assert!(clock.anchor(999, 2.0).is_err(), "backwards in sample");
@@ -248,7 +248,7 @@ mod tests {
     /// decoded as its own stream does not see the future.
     #[test]
     fn test_slice_round_trips() {
-        let mut clock = TimestampHistory::uniform(16_000);
+        let mut clock = StreamClock::uniform(16_000);
         clock.anchor(10_000, 3.0).unwrap();
         clock.anchor(40_000, 9.0).unwrap();
 
@@ -285,7 +285,7 @@ mod tests {
     /// `i` of a window that began at sample `origin` is at `origin + 320 i`.
     #[test]
     fn test_timestamp_token_resolution() {
-        let mut clock = TimestampHistory::uniform(16_000);
+        let mut clock = StreamClock::uniform(16_000);
         clock.anchor(0, 60.0).unwrap();
 
         let origin = 48_000; // a window cut 3 s into the stream

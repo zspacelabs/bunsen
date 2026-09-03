@@ -34,7 +34,7 @@ double_must_use = "allow"
 doc_markdown = "warn"
 
 [profile.dev]
-opt-level = 2
+opt-level = 1
 # Keep panics for math overflows active
 overflow-checks = true
 # Keep your `debug_assert!` macros working
@@ -108,6 +108,7 @@ serial_test = "3.4.0"
 spanned_error_message = "0.1.0"
 thiserror = "2.0.18"
 strum = "0.28.0"
+dyn-clone = "1.0.20"
 xot = "0.31.2"
 xee-xpath = "0.1.5"
 assert_float_eq = "1.2.0"

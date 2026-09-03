@@ -20,7 +20,7 @@ use crate::errors::{
     BunsenError,
     BunsenResult,
 };
-use crate::kits::speech::whisper::driver::clock::TimestampHistory;
+use crate::kits::speech::whisper::driver::stream_clock::StreamClock;
 
 /// A half-open span of samples, `start..end`, in the stream's own sample
 /// index.
@@ -97,8 +97,8 @@ impl SpeechRegion {
     /// region's sample 0 is its `start`.
     pub fn clock(
         &self,
-        parent: &TimestampHistory,
-    ) -> TimestampHistory {
+        parent: &StreamClock,
+    ) -> StreamClock {
         parent.slice(self.start, self.end)
     }
 }
@@ -241,7 +241,7 @@ mod tests {
     /// own zero.
     #[test]
     fn test_region_clock() {
-        let mut parent = TimestampHistory::uniform(16_000);
+        let mut parent = StreamClock::uniform(16_000);
         parent.anchor(16_000, 10.0).unwrap();
 
         let region = r(8_000, 40_000);

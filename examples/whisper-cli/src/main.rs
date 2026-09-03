@@ -17,18 +17,17 @@ use bunsen::{
     kits::speech::{
         silero_vad::SileroVad,
         whisper::{
-            FallbackConfig,
             Whisper,
+            WhisperFallbackConfig,
             decode::default_filters,
             driver::{
-                Emission,
                 EmissionPolicy,
-                MaxSeen,
-                Task,
-                TimestampHistory,
-                WhisperDriver,
-                WhisperDriverConfig,
-                detokenizer,
+                RunningMaxClamp,
+                StreamClock,
+                WhisperEmission,
+                WhisperStreamDriver,
+                WhisperStreamDriverConfig,
+                WhisperTask,
             },
             pretrained::bundled_vocabulary,
         },
@@ -39,8 +38,10 @@ use bunsen::{
     },
 };
 use burn::{
-    module::Module,
-    prelude::Backend,
+    prelude::{
+        Backend,
+        Module,
+    },
     tensor::DType,
 };
 use clap::{
@@ -134,16 +135,16 @@ fn run<B: Backend>(args: Args) -> Result<(), Box<dyn std::error::Error>> {
     let (model, cfg) = Whisper::<B>::load_pretrained(&device)?;
     let model = model.map(&mut DTypeMapper::new(DType::F32));
     println!(
-        "model: {} mels, vocabulary {}, d_model {}, {} + {} layers",
+        "model: {} n_mels, vocabulary {}, d_model {}, {} + {} layers",
         cfg.n_mels, cfg.vocab_size, cfg.d_model, cfg.n_encoder_layers, cfg.n_decoder_layers,
     );
 
     // The token layout follows from the vocabulary size, and the bundled
     // vocabulary follows from the layout: nothing here is typed in.
-    let policy = cfg.tokens.policy_for_vocab(cfg.vocab_size)?;
+    let policy = cfg.token_layout.policy_for_vocab(cfg.vocab_size)?;
     let ids = *policy.ids();
     let ranks = bundled_vocabulary(&ids)?;
-    let detokenizer = detokenizer(&ranks, &policy)?;
+    let detokenizer = policy.detokenizer(&ranks)?;
     let filters = default_filters::<B>(&ranks, &ids);
 
     let language = if ids.is_multilingual() {
@@ -155,8 +156,8 @@ fn run<B: Backend>(args: Args) -> Result<(), Box<dyn std::error::Error>> {
         None
     };
     let task = match args.task {
-        TaskArg::Transcribe => Task::Transcribe,
-        TaskArg::Translate => Task::Translate,
+        TaskArg::Transcribe => WhisperTask::Transcribe,
+        TaskArg::Translate => WhisperTask::Translate,
     };
     let emission = match args.preset {
         Preset::Offline => EmissionPolicy::offline(),
@@ -164,12 +165,12 @@ fn run<B: Backend>(args: Args) -> Result<(), Box<dyn std::error::Error>> {
         Preset::Responsive => EmissionPolicy::responsive(),
     };
     let fallback = if args.fallback {
-        FallbackConfig::upstream()
+        WhisperFallbackConfig::upstream()
     } else {
-        FallbackConfig::new()
+        WhisperFallbackConfig::new()
     };
 
-    let mut driver: WhisperDriver<B> = WhisperDriverConfig::new()
+    let mut driver: WhisperStreamDriver<B> = WhisperStreamDriverConfig::new()
         .with_language(language)
         .with_task(task)
         .with_timestamps(args.timestamps)
@@ -178,7 +179,7 @@ fn run<B: Backend>(args: Args) -> Result<(), Box<dyn std::error::Error>> {
         .with_condition_on_previous_text(!args.no_prompt_carry)
         .with_emission(emission)
         .with_fallback(fallback)
-        .init_with_policy(model, policy, &device)?
+        .init_with_layout(model, policy, &device)?
         .with_detokenizer(Arc::new(detokenizer))
         .with_logit_filters(filters);
     if args.preset != Preset::Offline {
@@ -205,13 +206,13 @@ fn run<B: Backend>(args: Args) -> Result<(), Box<dyn std::error::Error>> {
     // A bare stream: a clock from zero at the model's rate, and the running
     // maximum as the mel clamp reference.
     let mut ctx = driver.new_context(
-        TimestampHistory::uniform(driver.sample_rate()),
-        MaxSeen::new(),
+        StreamClock::uniform(driver.sample_rate()),
+        RunningMaxClamp::new(),
     )?;
     let chunk = (args.chunk_ms * driver.sample_rate() / 1000).max(1);
     let mut announced = false;
     for block in wav.chunks(chunk) {
-        let emissions = ctx.push(block)?;
+        let emissions = ctx.write_read(block)?;
         // Detection runs on the first window decoded, so the language is
         // known once anything has been emitted; say so before the text.
         if !announced
@@ -225,7 +226,7 @@ fn run<B: Backend>(args: Args) -> Result<(), Box<dyn std::error::Error>> {
             report(&emission, args.ids);
         }
     }
-    for emission in ctx.flush()? {
+    for emission in ctx.end_read()? {
         report(&emission, args.ids);
     }
 
@@ -234,7 +235,7 @@ fn run<B: Backend>(args: Args) -> Result<(), Box<dyn std::error::Error>> {
 
 /// One line per emission: a draft is marked `~`, a commit is not.
 fn report(
-    emission: &Emission,
+    emission: &WhisperEmission,
     ids: bool,
 ) {
     let segment = emission.segment();

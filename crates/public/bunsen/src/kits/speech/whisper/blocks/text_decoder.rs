@@ -108,22 +108,6 @@ impl TextDecoderMeta for TextDecoderConfig {
     }
 }
 
-/// Builds attention mask for decoder.
-pub fn attn_decoder_mask<B: Backend>(
-    seq_length: usize,
-    device: &B::Device,
-) -> Tensor<B, 2> {
-    let mut mask = Tensor::<B, 2>::zeros([seq_length, seq_length], device);
-
-    for i in 0..(seq_length - 1) {
-        let values =
-            Tensor::<B, 2>::zeros([1, seq_length - (i + 1)], device).add_scalar(f64::NEG_INFINITY);
-        mask = mask.slice_assign([i..i + 1, i + 1..seq_length], values);
-    }
-
-    mask
-}
-
 impl<B: Backend> ModuleInit<B, TextDecoder<B>> for TextDecoderConfig {
     fn try_init(
         &self,

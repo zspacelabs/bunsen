@@ -4,19 +4,19 @@ use burn::prelude::Backend;
 
 use crate::{
     errors::BunsenResult,
-    kits::speech::whisper::{
-        blocks::{
-            Whisper,
-            WhisperApiConfig,
+    kits::{
+        speech::whisper::{
+            blocks::{
+                Whisper,
+                WhisperApiConfig,
+            },
+            driver::WhisperSpecialIds,
+            pretrained::{
+                PytorchWhisperScanner,
+                bundled,
+            },
         },
-        driver::{
-            TiktokenRanks,
-            WhisperSpecialIds,
-        },
-        pretrained::{
-            PytorchWhisperScanner,
-            bundled,
-        },
+        tokens::TiktokenRanks,
     },
 };
 

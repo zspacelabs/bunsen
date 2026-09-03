@@ -17,6 +17,6 @@ burn = { workspace = true, features = ["fusion"] }
 # feature at build time: `--features bunsen/wgpu` (or `bunsen/cuda`,
 # `bunsen/metal`, `bunsen/flex`). With none, bunsen's default `testing`
 # feature selects `flex`.
-bunsen = { path = "../../crates/public/bunsen", features = ["store"] }
+bunsen = { path = "../../public/bunsen", features = ["store"] }
 
 clap = { workspace = true, features = ["derive"] }

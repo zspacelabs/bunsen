@@ -22,7 +22,7 @@ import pathlib
 import numpy as np
 import librosa
 
-OUT = pathlib.Path(__file__).resolve().parent.parent / "crates/public/bunsen/testdata/mels"
+OUT = pathlib.Path(__file__).resolve().parent.parent / "crates/public/bunsen/testdata/perceptive_audio"
 
 SR, N_FFT, HOP, N_MELS = 16000, 400, 160, 80
 SECONDS = 2
@@ -45,7 +45,7 @@ def deterministic_signal(n):
     x = 0.05 * rng.standard_normal(n)
     x += 0.4 * np.sin(2 * np.pi * (200 + 600 * t) * t)
     x += 0.2 * np.sin(2 * np.pi * (3000 - 900 * t) * t)
-    x[int(0.9 * SR) : int(1.1 * SR)] = 0.0
+    x[int(0.9 * SR): int(1.1 * SR)] = 0.0
     return np.clip(x, -1.0, 1.0)
 
 

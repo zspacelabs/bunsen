@@ -4,8 +4,11 @@
 
 mod regions;
 mod segments;
+mod util;
 
 #[doc(inline)]
 pub use regions::*;
 #[doc(inline)]
 pub use segments::*;
+#[doc(inline)]
+pub use util::*;

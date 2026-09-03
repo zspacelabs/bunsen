@@ -23,10 +23,6 @@
       <sourceFolder url="file://$MODULE_DIR$/examples/resnet_tiny/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/examples/swin_tiny/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/examples/train-chat/src" isTestSource="false" />
-      <sourceFolder url="file://$MODULE_DIR$/examples/zsl-data-cache/examples" isTestSource="false" />
-      <sourceFolder url="file://$MODULE_DIR$/examples/zsl-data-cache/examples/pull_shards/src" isTestSource="false" />
-      <sourceFolder url="file://$MODULE_DIR$/examples/zsl-data-cache/src" isTestSource="false" />
-      <sourceFolder url="file://$MODULE_DIR$/examples/whisper-dev/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/crates/dev/silero-bench/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/crates/bunsen-onnx-gen/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/crates/public/bunsen-arrow-dataloaders/examples" isTestSource="false" />
@@ -38,6 +34,10 @@
       <sourceFolder url="file://$MODULE_DIR$/crates/validation/whisper-model-validation/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/crates/dev/burn_bug_repro/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/examples/whisper-cli/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/crates/dev/whisper-dev/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/crates/dev/zsl-data-cache/examples" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/crates/dev/zsl-data-cache/examples/pull_shards/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/crates/dev/zsl-data-cache/src" isTestSource="false" />
       <excludeFolder url="file://$MODULE_DIR$/crates/public/bunsen/target" />
       <excludeFolder url="file://$MODULE_DIR$/target" />
       <excludeFolder url="file://$MODULE_DIR$/demos/bimm/crates/bimm/target" />

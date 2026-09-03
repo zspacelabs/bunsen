@@ -3,7 +3,7 @@
 //! One loop, two seams. The loop encodes the windows, feeds the prompt,
 //! then steps the text decoder one token at a time against its KV cache
 //! until the search says it is complete or the cap is hit. The seams are
-//! the search ([`TokenDecoder`]: [`GreedyDecoder`] or
+//! the search ([`TokenDecoder`]: [`WhisperGreedyDecoder`] or
 //! [`BeamSearchDecoder`]) and the filters ([`LogitFilter`]) consulted before
 //! it; the search returns finished candidates and a [`SequenceRanker`] picks
 //! one per audio.
@@ -50,17 +50,12 @@ use crate::{
 };
 
 mod beam;
-mod fallback;
 mod filters;
 mod greedy;
 mod rank;
+mod whisper_fallback_config;
 
 pub use beam::BeamSearchDecoder;
-pub use fallback::{
-    FallbackConfig,
-    compression_ratio,
-    decode_with_fallback,
-};
 pub use filters::{
     ApplyTimestampRules,
     LogitFilter,
@@ -72,10 +67,15 @@ pub use filters::{
     default_suppress_tokens,
     non_speech_tokens,
 };
-pub use greedy::GreedyDecoder;
+pub use greedy::WhisperGreedyDecoder;
 pub use rank::{
     MaximumLikelihoodRanker,
     SequenceRanker,
+};
+pub use whisper_fallback_config::{
+    WhisperFallbackConfig,
+    compression_ratio,
+    decode_with_fallback,
 };
 
 /// Splits a mel spectrogram into fixed-width windows along the frame axis,
@@ -241,15 +241,15 @@ impl DecodeConfig {
     /// The search this config asks for: sampling above temperature zero,
     /// else a beam search when `beam_size` is more than one, else the
     /// argmax.
-    pub fn decoder<B: Backend>(&self) -> Box<dyn TokenDecoder<B>> {
+    pub fn init_decoder<B: Backend>(&self) -> Box<dyn TokenDecoder<B>> {
         if self.temperature > 0.0 {
             Box::new(
-                GreedyDecoder::new(self.eot_token, self.prompt[0])
+                WhisperGreedyDecoder::new(self.eot_token, self.prompt[0])
                     .with_temperature(self.temperature)
                     .with_group(self.best_of.unwrap_or(1)),
             )
         } else if self.beam_size == 1 {
-            Box::new(GreedyDecoder::new(self.eot_token, self.prompt[0]))
+            Box::new(WhisperGreedyDecoder::new(self.eot_token, self.prompt[0]))
         } else {
             Box::new(BeamSearchDecoder::new(
                 self.beam_size,
@@ -260,7 +260,7 @@ impl DecodeConfig {
     }
 
     /// The ranker this config asks for.
-    pub fn ranker(&self) -> MaximumLikelihoodRanker {
+    pub fn init_ranker(&self) -> MaximumLikelihoodRanker {
         MaximumLikelihoodRanker {
             length_penalty: self.length_penalty,
         }
@@ -380,8 +380,7 @@ impl<B: Backend> Whisper<B> {
         config: &DecodeConfig,
         filters: &[Arc<dyn LogitFilter<B>>],
     ) -> Vec<Decoded> {
-        let mut decoder = config.decoder::<B>();
-        self.search(xa, config, decoder.as_mut(), filters)
+        self.search(xa, config, config.init_decoder::<B>().as_mut(), filters)
     }
 
     /// [`Self::decode_features`] with an explicit search.
@@ -491,7 +490,7 @@ impl<B: Backend> Whisper<B> {
             }
         }
 
-        let ranker = config.ranker();
+        let ranker = config.init_ranker();
         decoder
             .finalize(tokens, sum_logprobs, prompt_len)
             .into_iter()

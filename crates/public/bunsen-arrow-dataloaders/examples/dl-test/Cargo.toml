@@ -10,7 +10,7 @@ workspace = true
 [dependencies]
 bunsen = { path = "../../../bunsen" }
 bunsen-arrow-dataloaders = { path = "../.." }
-zsl-data-cache = { path = "../../../../../examples/zsl-data-cache" }
+zsl-data-cache = { path = "../../../../dev/zsl-data-cache" }
 wordchipper = { workspace = true, features = ["client"] }
 wordchipper-cli-util = { workspace = true }
 

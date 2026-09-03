@@ -16,7 +16,7 @@ attention, embeddings, and module initialization.
 - **Whisper speech model** — a complete Whisper implementation under
   `bunsen::kits::speech::whisper`, including the audio encoder, text decoder, encoder/decoder blocks, and a top-level
   `whisper_model`. A `pretrained` module loads real Whisper checkpoints from PyTorch weights (`pytorch_utils`). A new
-  `examples/whisper-dev` harness exercises the model (#43–#61).
+  `crates/dev/whisper-dev` harness exercises the model (#43–#61).
 - **Data cache subsystem** — `bunsen::data::cache` with on-disk caching (`disk_cache`), path resolution
   (`path_resolver`), and path utilities (`path_utils`), plus a new `bunsen::data` module root (#34, #36, #37).
 - **Chat dataloader crate** — `bunsen-arrow-dataloaders`, providing Arrow-backed iteration and tokenization (`arrow`,

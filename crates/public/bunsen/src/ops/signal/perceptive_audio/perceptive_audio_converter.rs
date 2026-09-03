@@ -1,12 +1,12 @@
 //! # Waveform to log-mel conversion.
 //!
-//! [`MelConverterOptions`] configures the pipeline and builds a
-//! [`MelConverter`]; the converter holds the precomputed constants and is
-//! what a stream is driven through.
+//! [`PerceptiveAudioConverterOptions`] configures the pipeline and builds a
+//! [`PerceptiveAudioConverter`]; the converter holds the precomputed constants
+//! and is what a stream is driven through.
 //!
 //! Defaults reproduce `librosa`: 16 kHz, 400-sample periodic Hann, hop 160,
-//! 80 Slaney mels with Slaney area normalization, power spectrum, and `log10`
-//! over a `1e-10` floor.
+//! 80 Slaney `mels` with Slaney area normalization, power spectrum,
+//! and `log10` over a `1e-10` floor.
 //!
 //! Dynamic-range packaging — [`RangeClamp`] and [`AffineCompress`] — is a
 //! caller-side step, applied to a finished spectrogram rather than configured
@@ -34,7 +34,7 @@ use crate::{
         signal::{
             SamplingWindowBuilder,
             StftWindowConfig,
-            mels::{
+            perceptive_audio::{
                 MelFilterbankConfig,
                 filterbank::{
                     FilterNorm,
@@ -107,9 +107,9 @@ impl SpectrumKind {
 /// variant is only worth adding alongside a power-of-two configuration that
 /// exercises it.
 ///
-/// [`MelConverter::spectrum`] matches on this exhaustively, so adding a
-/// variant does not compile until it has a path — it cannot be accepted and
-/// then ignored.
+/// [`PerceptiveAudioConverter::spectrum`] matches on this exhaustively, so
+/// adding a variant does not compile until it has a path — it cannot be
+/// accepted and then ignored.
 #[derive(Config, Copy, Debug, PartialEq, Eq)]
 pub enum SpectrumImpl {
     /// Explicit DFT by matrix multiply against precomputed cos/sin tables.
@@ -124,10 +124,10 @@ pub enum SpectrumImpl {
 /// Whisper's `maximum(log_spec, log_spec.max() - 8.0)`.
 ///
 /// Applied by the caller with [`apply`](Self::apply), to a finished
-/// spectrogram. It is deliberately not a [`MelConverterOptions`] field:
-/// [`PerCall`](Self::PerCall) reduces over whatever it is handed, so folding
-/// it into the pipeline would make a streamed run differ from a whole-signal
-/// one. Clamp once, after joining.
+/// spectrogram. It is deliberately not a [`PerceptiveAudioConverterOptions`]
+/// field: [`PerCall`](Self::PerWindowClamp) reduces over whatever it is handed,
+/// so folding it into the pipeline would make a streamed run differ from a
+/// whole-signal one. Clamp once, after joining.
 #[derive(Config, Copy, Debug, PartialEq)]
 pub enum RangeClamp {
     /// Reference is the maximum over the current call, per batch row.
@@ -136,7 +136,7 @@ pub enum RangeClamp {
     /// how the signal was chunked, so `transform(a ++ b)` and
     /// `transform(a) ++ transform(b)` differ. Use [`Fixed`](Self::Fixed) when
     /// chunk-invariance matters.
-    PerCall {
+    PerWindowClamp {
         /// The dynamic range to keep, in dB.
         db: f64,
     },
@@ -170,7 +170,7 @@ impl RangeClamp {
 
             // Reduce over `[frames, n_mels]` but NOT over batch: each row is
             // an independent stream and must not see its neighbours' peaks.
-            Self::PerCall { db } => {
+            Self::PerWindowClamp { db } => {
                 let dims = x.dims();
                 let floor = x.clone().max_dims(&[1, 2]).sub_scalar(*db).expand(dims);
                 x.max_pair(floor)
@@ -179,13 +179,14 @@ impl RangeClamp {
     }
 }
 
-/// An affine rescaling of compressed mels: `(v + bias) / div`.
+/// An affine rescaling of compressed `mels`: `(v + bias) / div`.
 ///
 /// Whisper uses `(log_spec + 4.0) / 4.0`.
 ///
 /// Applied by the caller with [`apply`](Self::apply). Like
 /// [`RangeClamp`], it is packaging for a particular model's input rather than
-/// a mel-spectrogram parameter, so it is not a [`MelConverterOptions`] field.
+/// a mel-spectrogram parameter, so it is not a
+/// [`PerceptiveAudioConverterOptions`] field.
 #[derive(Config, Copy, Debug, PartialEq)]
 pub struct AffineCompress {
     /// Added before the division.
@@ -214,14 +215,14 @@ impl AffineCompress {
     }
 }
 
-/// Options for [`MelConverter`](super::MelConverter).
+/// Options for [`MelConverter`](super::PerceptiveAudioConverter).
 ///
 /// Defaults reproduce `librosa`'s mel spectrogram. Validated by
 /// [`validate`](Self::validate), which
 /// [`try_init`](crate::burner::module::ModuleInit::try_init) runs before
 /// building anything.
 #[derive(Config, Debug)]
-pub struct MelConverterOptions {
+pub struct PerceptiveAudioConverterOptions {
     // ---- spectral ----
     /// The signal sample rate, in Hz.
     #[config(default = "16000")]
@@ -316,16 +317,17 @@ pub struct MelConverterOptions {
     pub spectrum_impl: SpectrumImpl,
 }
 
-/// Common geometry for [`MelConverterOptions`] and [`MelConverter`].
+/// Common geometry for [`PerceptiveAudioConverterOptions`] and
+/// [`PerceptiveAudioConverter`].
 ///
 /// Lets test and reflective code read the framing geometry uniformly from a
 /// config or from a live module, without caring which it has.
 ///
 /// Deliberately narrow. Only values needed for that uniform access live here;
 /// everything else — the mel span, the compression settings — stays on
-/// [`MelConverterOptions`], reachable from a module via
-/// [`MelConverter::options`].
-pub trait MelConverterMeta {
+/// [`PerceptiveAudioConverterOptions`], reachable from a module via
+/// [`PerceptiveAudioConverter::options`].
+pub trait PerceptiveAudioConverterMeta {
     /// The signal sample rate, in Hz.
     fn sample_rate(&self) -> usize;
 
@@ -385,7 +387,7 @@ pub trait MelConverterMeta {
     }
 }
 
-impl MelConverterMeta for MelConverterOptions {
+impl PerceptiveAudioConverterMeta for PerceptiveAudioConverterOptions {
     fn sample_rate(&self) -> usize {
         self.sample_rate
     }
@@ -415,13 +417,13 @@ impl MelConverterMeta for MelConverterOptions {
     }
 }
 
-impl Default for MelConverterOptions {
+impl Default for PerceptiveAudioConverterOptions {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl MelConverterOptions {
+impl PerceptiveAudioConverterOptions {
     /// The high edge of the mel span in Hz, resolving `None` to Nyquist.
     pub fn f_max_hz(&self) -> f64 {
         self.f_max.unwrap_or(self.nyquist())
@@ -452,7 +454,7 @@ impl MelConverterOptions {
     /// Builds the host-side mel filterbank **transposed**, row-major
     /// `[n_bins, n_mels]`.
     ///
-    /// This is the orientation [`MelConverter`] stores, so a
+    /// This is the orientation [`PerceptiveAudioConverter`] stores, so a
     /// `[.., n_bins]` spectrum maps to `[.., n_mels]` by a plain matmul with
     /// no transpose in the hot path.
     ///
@@ -587,17 +589,17 @@ impl MelConverterOptions {
     }
 }
 
-impl<B: Backend> ModuleInit<B, MelConverter<B>> for MelConverterOptions {
-    /// Initializes a [`MelConverter`] on `device`.
+impl<B: Backend> ModuleInit<B, PerceptiveAudioConverter<B>> for PerceptiveAudioConverterOptions {
+    /// Initializes a [`PerceptiveAudioConverter`] on `device`.
     ///
     /// # Errors
     ///
-    /// See [`validate`](MelConverterOptions::validate) and
-    /// [`to_vec_filterbank`](MelConverterOptions::try_to_filterbank_vec).
+    /// See [`validate`](PerceptiveAudioConverterOptions::validate) and
+    /// [`to_vec_filterbank`](PerceptiveAudioConverterOptions::try_to_filterbank_vec).
     fn try_init(
         &self,
         device: &B::Device,
-    ) -> BunsenResult<MelConverter<B>> {
+    ) -> BunsenResult<PerceptiveAudioConverter<B>> {
         self.validate()?;
 
         let (n_fft, n_bins, n_mels) = (self.n_fft, self.n_bins(), self.n_mels);
@@ -616,7 +618,7 @@ impl<B: Backend> ModuleInit<B, MelConverter<B>> for MelConverterOptions {
         let dft_cos = Tensor::from_data(TensorData::new(cos_table, [n_fft, n_bins]), device);
         let dft_sin = Tensor::from_data(TensorData::new(sin_table, [n_fft, n_bins]), device);
 
-        Ok(MelConverter {
+        Ok(PerceptiveAudioConverter {
             options: self.clone(),
             window,
             mel_t,
@@ -628,21 +630,21 @@ impl<B: Backend> ModuleInit<B, MelConverter<B>> for MelConverterOptions {
 
 /// Waveform to log-mel conversion module.
 ///
-/// Built by [`MelConverterOptions`]. Holds the precomputed analysis constants;
-/// like [`SlidingStft`](crate::ops::signal::SlidingStft) these are bare
-/// tensors rather than `Param`s, so they ride `to_device` but are neither
+/// Built by [`PerceptiveAudioConverterOptions`]. Holds the precomputed analysis
+/// constants; like [`SlidingStft`](crate::ops::signal::SlidingStft) these are
+/// bare tensors rather than `Param`s, so they ride `to_device` but are neither
 /// recorded nor visited.
 ///
-/// Implements [`MelConverterMeta`], so geometry reads the same here as on the
-/// [`MelConverterOptions`] it was built from.
+/// Implements [`PerceptiveAudioConverterMeta`], so geometry reads the same here
+/// as on the [`PerceptiveAudioConverterOptions`] it was built from.
 #[derive(Module, Debug)]
-pub struct MelConverter<B: Backend> {
+pub struct PerceptiveAudioConverter<B: Backend> {
     /// The options this was built from.
     ///
     /// `skip`ped: it is configuration, not module state, and carries no
     /// tensors for the derive to traverse.
     #[module(skip)]
-    options: MelConverterOptions,
+    options: PerceptiveAudioConverterOptions,
 
     /// The `[n_fft]` analysis window.
     ///
@@ -663,12 +665,12 @@ pub struct MelConverter<B: Backend> {
     pub dft_sin: Tensor<B, 2>,
 }
 
-impl<B: Backend> MelConverter<B> {
+impl<B: Backend> PerceptiveAudioConverter<B> {
     /// The options this converter was built from.
     ///
-    /// The escape hatch for everything [`MelConverterMeta`] deliberately
-    /// leaves out — the mel span, the compression settings.
-    pub fn options(&self) -> &MelConverterOptions {
+    /// The escape hatch for everything [`PerceptiveAudioConverterMeta`]
+    /// deliberately leaves out — the mel span, the compression settings.
+    pub fn options(&self) -> &PerceptiveAudioConverterOptions {
         &self.options
     }
 
@@ -918,7 +920,7 @@ impl<B: Backend> MelConverter<B> {
     }
 }
 
-impl<B: Backend> MelConverterMeta for MelConverter<B> {
+impl<B: Backend> PerceptiveAudioConverterMeta for PerceptiveAudioConverter<B> {
     fn sample_rate(&self) -> usize {
         self.options.sample_rate
     }
@@ -969,8 +971,8 @@ mod tests {
     #[test]
     fn test_converter_tensor_shapes() {
         let device = Default::default();
-        let opts = MelConverterOptions::default();
-        let conv: MelConverter<B> = opts.try_init(&device).ok_or_panic();
+        let opts = PerceptiveAudioConverterOptions::default();
+        let conv: PerceptiveAudioConverter<B> = opts.try_init(&device).ok_or_panic();
 
         assert_eq!(conv.window.dims(), [400]);
         assert_eq!(conv.mel_t.dims(), [201, 80]);
@@ -980,7 +982,7 @@ mod tests {
         // `pad_to_pow2` widens the transform, so the bin axis grows — but the
         // DFT tables keep `n_fft` rows, because the padding is zeros that
         // contribute nothing to the sum.
-        let pow2: MelConverter<B> = MelConverterOptions::default()
+        let pow2: PerceptiveAudioConverter<B> = PerceptiveAudioConverterOptions::default()
             .with_pad_to_pow2(true)
             .try_init(&device)
             .ok_or_panic();
@@ -993,8 +995,8 @@ mod tests {
     #[test]
     fn test_converter_tensors_match_host_reference() {
         let device = Default::default();
-        let opts = MelConverterOptions::default();
-        let conv: MelConverter<B> = opts.try_init(&device).ok_or_panic();
+        let opts = PerceptiveAudioConverterOptions::default();
+        let conv: PerceptiveAudioConverter<B> = opts.try_init(&device).ok_or_panic();
 
         // The window is the same one `StftWindowConfig` builds on the host.
         assert_tensor_close_to_vec(
@@ -1031,10 +1033,10 @@ mod tests {
         let device = Default::default();
         let (n_fft, n_bins, batch) = (512, 257, 3);
 
-        let opts = MelConverterOptions::default()
+        let opts = PerceptiveAudioConverterOptions::default()
             .with_n_fft(n_fft)
             .with_hop(128);
-        let conv: MelConverter<B> = opts.try_init(&device).ok_or_panic();
+        let conv: PerceptiveAudioConverter<B> = opts.try_init(&device).ok_or_panic();
         assert_eq!(conv.dft_cos.dims(), [n_fft, n_bins]);
 
         let frames: Tensor<B, 2> = Tensor::random([batch, n_fft], Distribution::Default, &device);
@@ -1055,7 +1057,7 @@ mod tests {
         use burn::module::Module as _;
 
         let device = Default::default();
-        let conv: MelConverter<B> = MelConverterOptions::default()
+        let conv: PerceptiveAudioConverter<B> = PerceptiveAudioConverterOptions::default()
             .try_init(&device)
             .ok_or_panic();
 
@@ -1118,7 +1120,7 @@ mod tests {
     #[test]
     fn test_frame_count() {
         let device = Default::default();
-        let conv: MelConverter<B> = MelConverterOptions::default()
+        let conv: PerceptiveAudioConverter<B> = PerceptiveAudioConverterOptions::default()
             .try_init(&device)
             .ok_or_panic();
 
@@ -1142,8 +1144,8 @@ mod tests {
     #[test]
     fn test_frame_matches_host_reference() {
         let device = Default::default();
-        let opts = MelConverterOptions::default();
-        let conv: MelConverter<B> = opts.try_init(&device).ok_or_panic();
+        let opts = PerceptiveAudioConverterOptions::default();
+        let conv: PerceptiveAudioConverter<B> = opts.try_init(&device).ok_or_panic();
         let window = opts.window.to_vec_window(opts.n_fft);
 
         let batch = 3;
@@ -1175,8 +1177,8 @@ mod tests {
     #[test]
     fn test_frame_rows_are_independent() {
         let device = Default::default();
-        let opts = MelConverterOptions::default();
-        let conv: MelConverter<B> = opts.try_init(&device).ok_or_panic();
+        let opts = PerceptiveAudioConverterOptions::default();
+        let conv: PerceptiveAudioConverter<B> = opts.try_init(&device).ok_or_panic();
 
         // A ragged length, so this also exercises the trimmed path.
         let samples = 1000;
@@ -1224,11 +1226,11 @@ mod tests {
     fn test_spectrum_matches_host_dft() {
         let device = Default::default();
         let (n_fft, hop, n_mels) = (64, 32, 8);
-        let opts = MelConverterOptions::default()
+        let opts = PerceptiveAudioConverterOptions::default()
             .with_n_fft(n_fft)
             .with_hop(hop)
             .with_n_mels(n_mels);
-        let conv: MelConverter<B> = opts.try_init(&device).ok_or_panic();
+        let conv: PerceptiveAudioConverter<B> = opts.try_init(&device).ok_or_panic();
 
         let (batch, samples) = (3, 256);
         let (x, rows) = signal(&device, batch, samples);
@@ -1256,8 +1258,8 @@ mod tests {
     #[test]
     fn test_spectrum_peaks_at_bin_centre() {
         let device = Default::default();
-        let opts = MelConverterOptions::default();
-        let conv: MelConverter<B> = opts.try_init(&device).ok_or_panic();
+        let opts = PerceptiveAudioConverterOptions::default();
+        let conv: PerceptiveAudioConverter<B> = opts.try_init(&device).ok_or_panic();
 
         let (n_fft, n_bins) = (opts.n_fft, opts.n_bins());
         let k = 40; // bin 40 -> 40 * 16000 / 400 = 1600 Hz
@@ -1294,11 +1296,11 @@ mod tests {
     fn test_mel_matches_host_matmul() {
         let device = Default::default();
         let (n_fft, n_mels) = (64, 8);
-        let opts = MelConverterOptions::default()
+        let opts = PerceptiveAudioConverterOptions::default()
             .with_n_fft(n_fft)
             .with_hop(32)
             .with_n_mels(n_mels);
-        let conv: MelConverter<B> = opts.try_init(&device).ok_or_panic();
+        let conv: PerceptiveAudioConverter<B> = opts.try_init(&device).ok_or_panic();
         let n_bins = opts.n_bins();
 
         let (batch, samples) = (2, 192);
@@ -1330,8 +1332,8 @@ mod tests {
     #[test]
     fn test_compress_floors_zero_input() {
         let device = Default::default();
-        let opts = MelConverterOptions::default();
-        let conv: MelConverter<B> = opts.try_init(&device).ok_or_panic();
+        let opts = PerceptiveAudioConverterOptions::default();
+        let conv: PerceptiveAudioConverter<B> = opts.try_init(&device).ok_or_panic();
 
         let zeros: Tensor<B, 3> = Tensor::zeros([2, 4, opts.n_mels], &device);
         let out = conv.compress(zeros).to_data().to_vec_as::<f64>().unwrap();
@@ -1367,7 +1369,7 @@ mod tests {
         ];
         let x: Tensor<B, 3> = Tensor::from_data(TensorData::new(logs, [2, 1, n_mels]), &device);
 
-        let out = RangeClamp::PerCall { db: 8.0 }
+        let out = RangeClamp::PerWindowClamp { db: 8.0 }
             .apply(x)
             .to_data()
             .to_vec_as::<f64>()
@@ -1395,10 +1397,10 @@ mod tests {
         let n_mels = 2;
 
         // `ln(max(v, floor))`.
-        let opts = MelConverterOptions::default()
+        let opts = PerceptiveAudioConverterOptions::default()
             .with_n_mels(n_mels)
             .with_log_base(LogBase::E);
-        let conv: MelConverter<B> = opts.try_init(&device).ok_or_panic();
+        let conv: PerceptiveAudioConverter<B> = opts.try_init(&device).ok_or_panic();
 
         let x = Tensor::from_data(
             TensorData::new(vec![1.0_f64, core::f64::consts::E], [1, 1, n_mels]),
@@ -1410,8 +1412,8 @@ mod tests {
     #[test]
     fn test_forward_chains_the_stages() {
         let device = Default::default();
-        let opts = MelConverterOptions::default();
-        let conv: MelConverter<B> = opts.try_init(&device).ok_or_panic();
+        let opts = PerceptiveAudioConverterOptions::default();
+        let conv: PerceptiveAudioConverter<B> = opts.try_init(&device).ok_or_panic();
 
         let (batch, samples) = (2, 4000);
         let (x, _) = signal(&device, batch, samples);
@@ -1434,7 +1436,7 @@ mod tests {
 
     #[test]
     fn test_defaults_are_librosa() {
-        let opts = MelConverterOptions::default();
+        let opts = PerceptiveAudioConverterOptions::default();
 
         assert_eq!(opts.sample_rate, 16000);
         assert_eq!(opts.n_fft, 400);
@@ -1455,7 +1457,7 @@ mod tests {
 
     #[test]
     fn test_derived_geometry() {
-        let opts = MelConverterOptions::default();
+        let opts = PerceptiveAudioConverterOptions::default();
 
         // No pow2 rounding by default: 400 stays 400, 201 bins.
         assert_eq!(opts.fft_len(), 400);
@@ -1466,25 +1468,26 @@ mod tests {
 
         // Kaldi flavour: 400 rounds to 512, giving 257 bins at different
         // centres. This is a different frontend, not the same one padded.
-        let pow2 = MelConverterOptions::default().with_pad_to_pow2(true);
+        let pow2 = PerceptiveAudioConverterOptions::default().with_pad_to_pow2(true);
         assert_eq!(pow2.fft_len(), 512);
         assert_eq!(pow2.n_bins(), 257);
 
         // `None` start padding contributes nothing.
-        let unpadded = MelConverterOptions::default().with_start_padding(PaddingMode::None);
+        let unpadded =
+            PerceptiveAudioConverterOptions::default().with_start_padding(PaddingMode::None);
         assert_eq!(unpadded.start_pad_len(), 0);
     }
 
     #[test]
     fn test_explicit_f_max_overrides_nyquist_default() {
-        let opts = MelConverterOptions::default().with_f_max(Some(4000.0));
+        let opts = PerceptiveAudioConverterOptions::default().with_f_max(Some(4000.0));
         assert_eq!(opts.f_max_hz(), 4000.0);
         opts.validate().unwrap();
     }
 
     #[test]
     fn test_validation_rejects_bad_geometry() {
-        let base = MelConverterOptions::default;
+        let base = PerceptiveAudioConverterOptions::default;
 
         for bad in [
             base().with_sample_rate(0),
@@ -1509,7 +1512,7 @@ mod tests {
     #[test]
     fn test_filterbank_build_rejects_empty_triangles() {
         // Scalar validation passes; only building the bank catches this.
-        let opts = MelConverterOptions::default()
+        let opts = PerceptiveAudioConverterOptions::default()
             .with_n_fft(256)
             .with_n_mels(128);
 
@@ -1524,20 +1527,20 @@ mod tests {
 
     #[test]
     fn test_filterbank_matches_derived_shape() {
-        let opts = MelConverterOptions::default();
+        let opts = PerceptiveAudioConverterOptions::default();
         let bank = opts.try_to_filterbank_vec().unwrap();
         assert_eq!(bank.len(), opts.n_mels * opts.n_bins());
     }
 
     #[test]
     fn test_config_roundtrips_through_serde() {
-        let opts = MelConverterOptions::default()
+        let opts = PerceptiveAudioConverterOptions::default()
             .with_n_mels(40)
             .with_f_max(Some(7600.0))
             .with_mel_scale(MelScale::Htk);
 
         let json = serde_json::to_string(&opts).unwrap();
-        let back: MelConverterOptions = serde_json::from_str(&json).unwrap();
+        let back: PerceptiveAudioConverterOptions = serde_json::from_str(&json).unwrap();
 
         assert_eq!(back.n_mels, 40);
         assert_eq!(back.f_max, Some(7600.0));
@@ -1550,13 +1553,13 @@ mod tests {
         type B = PerformanceBackend;
         let device = Default::default();
 
-        let options = MelConverterOptions::default();
-        let _conv: MelConverter<B> = options.try_init(&device).ok_or_panic();
+        let options = PerceptiveAudioConverterOptions::default();
+        let _conv: PerceptiveAudioConverter<B> = options.try_init(&device).ok_or_panic();
     }
 
-    /// The point of [`MelConverterMeta`]: a config and the module built from
-    /// it must answer identically, so test and reflective code can hold
-    /// either.
+    /// The point of [`PerceptiveAudioConverterMeta`]: a config and the module
+    /// built from it must answer identically, so test and reflective code
+    /// can hold either.
     #[test]
     fn test_meta_agrees_between_config_and_module() {
         type B = PerformanceBackend;
@@ -1564,7 +1567,7 @@ mod tests {
 
         // Non-default across every meta field, so a delegation that read the
         // wrong one — or a default — shows up.
-        let options = MelConverterOptions::default()
+        let options = PerceptiveAudioConverterOptions::default()
             .with_sample_rate(8000)
             .with_n_fft(300)
             .with_hop(120)
@@ -1574,11 +1577,11 @@ mod tests {
             .with_end_padding(PaddingMode::None)
             .with_f_max(Some(4000.0));
 
-        let conv: MelConverter<B> = options.try_init(&device).ok_or_panic();
+        let conv: PerceptiveAudioConverter<B> = options.try_init(&device).ok_or_panic();
 
         fn assert_same_meta(
-            a: &impl MelConverterMeta,
-            b: &impl MelConverterMeta,
+            a: &impl PerceptiveAudioConverterMeta,
+            b: &impl PerceptiveAudioConverterMeta,
         ) {
             assert_eq!(a.sample_rate(), b.sample_rate());
             assert_eq!(a.n_fft(), b.n_fft());
@@ -1610,25 +1613,25 @@ mod tests {
         let device = Default::default();
 
         // Scalar geometry.
-        let bad = MelConverterOptions::default().with_hop(0);
+        let bad = PerceptiveAudioConverterOptions::default().with_hop(0);
         assert!(matches!(
-            ModuleInit::<B, MelConverter<B>>::try_init(&bad, &device),
+            ModuleInit::<B, PerceptiveAudioConverter<B>>::try_init(&bad, &device),
             Err(BunsenError::Invalid(_)),
         ));
 
         // Only reachable by building the filterbank.
-        let empty_rows = MelConverterOptions::default()
+        let empty_rows = PerceptiveAudioConverterOptions::default()
             .with_n_fft(256)
             .with_n_mels(128);
         assert!(matches!(
-            ModuleInit::<B, MelConverter<B>>::try_init(&empty_rows, &device),
+            ModuleInit::<B, PerceptiveAudioConverter<B>>::try_init(&empty_rows, &device),
             Err(BunsenError::Invalid(_)),
         ));
 
         // A non-default but legal configuration still initializes.
-        let ok = MelConverterOptions::default()
+        let ok = PerceptiveAudioConverterOptions::default()
             .with_n_mels(40)
             .with_start_padding(PaddingMode::None);
-        let _conv: MelConverter<B> = ok.try_init(&device).ok_or_panic();
+        let _conv: PerceptiveAudioConverter<B> = ok.try_init(&device).ok_or_panic();
     }
 }

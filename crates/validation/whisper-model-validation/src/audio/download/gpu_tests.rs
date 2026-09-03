@@ -5,10 +5,10 @@ use bunsen::{
         GreedyDecodeConfig,
         default_filters,
         driver::{
-            MaxSeen,
-            Task,
-            TimestampHistory,
-            WhisperDriverConfig,
+            RunningMaxClamp,
+            StreamClock,
+            WhisperStreamDriverConfig,
+            WhisperTask,
         },
         mel_windows,
     },
@@ -61,13 +61,13 @@ type F = <B as BackendTypes>::FloatElem;
 fn decode_config(table: &Vocab) -> GreedyDecodeConfig {
     let prompt = table
         .policy
-        .sot_sequence(Some("en"), Some(Task::Transcribe), false)
+        .sot_sequence(Some("en"), Some(WhisperTask::Transcribe), false)
         .expect("a multilingual layout");
     GreedyDecodeConfig::new(prompt, table.policy.ids().eot)
 }
 
-/// Splits log-mels into the encoder's fixed windows, zero-padding the
-/// last.
+/// Splits log-mels into the encoder's fixed windows, zero-padding
+/// the last.
 fn windows_of<B: Backend>(
     mels: Tensor<B, 3>,
     device: &Device<B>,
@@ -170,8 +170,8 @@ fn test_bunsen_agrees_with_openai_reference() {
     }
 }
 
-/// The encoder comparison, on **real** log-mels rather than synthetic
-/// ones.
+/// The encoder comparison, on **real** log-mels rather than
+/// synthetic ones.
 ///
 /// Real speech is not the same test: `synthetic_mels` is a bounded
 /// sawtooth, while a log-mel spectrogram has the dynamic range and the
@@ -435,7 +435,7 @@ fn test_bunsen_timestamps_agree_with_openai_reference() {
     let ids = table.policy.ids();
     let prompt = table
         .policy
-        .sot_sequence(Some("en"), Some(Task::Transcribe), true)
+        .sot_sequence(Some("en"), Some(WhisperTask::Transcribe), true)
         .expect("a multilingual layout");
     let config = DecodeConfig::new(prompt, ids.eot);
     let mut filters = default_filters::<B>(&table.ranks, ids);
@@ -482,20 +482,22 @@ fn test_bunsen_timestamps_agree_with_openai_reference() {
 fn test_bunsen_driver_transcribes_like_openai() {
     let device: Device<B> = Default::default();
     let table = vocab();
-    let driver = WhisperDriverConfig::new()
+    let driver = WhisperStreamDriverConfig::new()
         .with_language(Some("en".to_string()))
         .with_timestamps(true)
-        .init_with_policy(bunsen_model::<B>(&device), table.policy.clone(), &device)
+        .init_with_layout(bunsen_model::<B>(&device), table.policy.clone(), &device)
         .expect("a multilingual layout with a language")
         .with_logit_filters(default_filters::<B>(&table.ranks, table.policy.ids()));
 
     for fixture in FIXTURES {
         let reference = Reference::load(fixture.name);
         let mut ctx = driver
-            .new_context(TimestampHistory::uniform(SAMPLE_RATE), MaxSeen::new())
+            .new_context(StreamClock::uniform(SAMPLE_RATE), RunningMaxClamp::new())
             .expect("a stream at the model's rate");
-        let mut emissions = ctx.push(&samples(fixture.name)).expect("the push decodes");
-        emissions.extend(ctx.flush().expect("the flush decodes"));
+        let mut emissions = ctx
+            .write_read(&samples(fixture.name))
+            .expect("the push decodes");
+        emissions.extend(ctx.end_read().expect("the flush decodes"));
 
         let mine: Vec<Vec<i64>> = emissions
             .iter()

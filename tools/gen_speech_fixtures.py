@@ -69,7 +69,7 @@ def windows_of(audio):
     padded[: len(audio)] = audio
 
     mel = whisper.audio.log_mel_spectrogram(torch.from_numpy(padded), n_mels=80)
-    return [mel[:, w * N_FRAMES : (w + 1) * N_FRAMES] for w in range(n_windows)]
+    return [mel[:, w * N_FRAMES: (w + 1) * N_FRAMES] for w in range(n_windows)]
 
 
 def decode_windows(model, tokenizer, windows, label, **options):

@@ -14,7 +14,7 @@
 //! decode closure, so the policy is testable without a model. bunsen's
 //! default ladder is temperature zero alone: a stream driver re-decoding a
 //! window several times is a latency choice its deployment should make,
-//! not a default; [`FallbackConfig::upstream`] is the full ladder.
+//! not a default; [`WhisperFallbackConfig::upstream`] is the full ladder.
 
 use std::io::Write;
 
@@ -31,7 +31,7 @@ use crate::kits::speech::whisper::decode::{
 
 /// The ladder and the thresholds that climb it.
 #[derive(Config, Debug, PartialEq)]
-pub struct FallbackConfig {
+pub struct WhisperFallbackConfig {
     /// The temperatures tried in order; the first is the search proper,
     /// the rest are sampling. Never empty.
     #[config(default = "vec![0.0]")]
@@ -57,7 +57,7 @@ pub struct FallbackConfig {
     pub best_of: Option<usize>,
 }
 
-impl FallbackConfig {
+impl WhisperFallbackConfig {
     /// Upstream's defaults: the ladder `0, 0.2, ..., 1.0`.
     pub fn upstream() -> Self {
         Self::new().with_temperatures(vec![0.0, 0.2, 0.4, 0.6, 0.8, 1.0])
@@ -168,7 +168,7 @@ pub fn compression_ratio(text: &str) -> f64 {
 /// # Returns
 /// The last decode run: the first that passed, or the top rung's.
 pub fn decode_with_fallback(
-    fallback: &FallbackConfig,
+    fallback: &WhisperFallbackConfig,
     base: &DecodeConfig,
     first: Option<Decoded>,
     mut decode: impl FnMut(&DecodeConfig) -> Decoded,
@@ -221,14 +221,14 @@ mod tests {
 
     #[test]
     fn test_defaults_and_upstream() {
-        let ours = FallbackConfig::new();
+        let ours = WhisperFallbackConfig::new();
         assert_eq!(ours.temperatures, vec![0.0]);
         assert_eq!(ours.compression_ratio_threshold, Some(2.4));
         assert_eq!(ours.logprob_threshold, Some(-1.0));
         assert_eq!(ours.no_speech_threshold, Some(0.6));
         assert_eq!(ours.best_of, None);
         assert_eq!(
-            FallbackConfig::upstream().temperatures,
+            WhisperFallbackConfig::upstream().temperatures,
             vec![0.0, 0.2, 0.4, 0.6, 0.8, 1.0]
         );
     }
@@ -236,7 +236,7 @@ mod tests {
     /// Every clause of the failure test, by hand.
     #[test]
     fn test_needs_fallback() {
-        let f = FallbackConfig::new();
+        let f = WhisperFallbackConfig::new();
         assert!(
             !f.needs_fallback(-0.5, Some(1.2), Some(0.1)),
             "a good decode"
@@ -262,7 +262,7 @@ mod tests {
             "silence excuses logprob, not repetition"
         );
 
-        let off = FallbackConfig::new()
+        let off = WhisperFallbackConfig::new()
             .with_compression_ratio_threshold(None)
             .with_logprob_threshold(None);
         assert!(
@@ -273,7 +273,7 @@ mod tests {
 
     #[test]
     fn test_should_skip() {
-        let f = FallbackConfig::new();
+        let f = WhisperFallbackConfig::new();
         assert!(f.should_skip(Some(0.9), -1.5));
         assert!(
             !f.should_skip(Some(0.9), -0.5),
@@ -281,10 +281,10 @@ mod tests {
         );
         assert!(!f.should_skip(Some(0.1), -1.5));
         assert!(!f.should_skip(None, -1.5), "unprobed, never skipped");
-        let no_logprob = FallbackConfig::new().with_logprob_threshold(None);
+        let no_logprob = WhisperFallbackConfig::new().with_logprob_threshold(None);
         assert!(no_logprob.should_skip(Some(0.9), -0.5));
-        assert!(FallbackConfig::resets_prompt(0.6));
-        assert!(!FallbackConfig::resets_prompt(0.5));
+        assert!(WhisperFallbackConfig::resets_prompt(0.6));
+        assert!(!WhisperFallbackConfig::resets_prompt(0.5));
     }
 
     /// Against Python's `zlib.compress`: 38 bytes of `la la ...` to 13, a
@@ -306,7 +306,7 @@ mod tests {
         let base = DecodeConfig::new(vec![1], 0)
             .with_beam_size(5)
             .with_patience(Some(2.0));
-        let f = FallbackConfig::new().with_best_of(Some(3));
+        let f = WhisperFallbackConfig::new().with_best_of(Some(3));
         let zero = f.rung(&base, 0.0);
         assert_eq!(
             (
@@ -334,7 +334,7 @@ mod tests {
     /// returned.
     #[test]
     fn test_ladder() {
-        let f = FallbackConfig::upstream();
+        let f = WhisperFallbackConfig::upstream();
         let base = DecodeConfig::new(vec![1], 0);
 
         // Fails at 0 and 0.2 on logprob, passes at 0.4.
