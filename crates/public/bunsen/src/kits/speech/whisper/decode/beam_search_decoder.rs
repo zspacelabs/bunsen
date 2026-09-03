@@ -35,17 +35,37 @@ impl Finished {
         self.entries.len()
     }
 
-    /// Overwrites the score of a sequence already present, in place;
-    /// appends otherwise.
-    fn upsert(
+    /// Mark `{ sequence => score }`.
+    ///
+    /// If the sequence already had a score, overwrite it.
+    fn score_sequence(
         &mut self,
         sequence: Vec<i64>,
         score: f32,
     ) {
         match self.entries.iter_mut().find(|(s, _)| *s == sequence) {
+            // TODO: should we take the max?
             Some(entry) => entry.1 = score,
             None => self.entries.push((sequence, score)),
         }
+    }
+
+    /// Clip the tails (`[offset..<EOT>]`) of sequences.
+    fn clip_tails(
+        &self,
+        offset: usize,
+        stop_token: i64,
+    ) -> Vec<(Vec<i64>, f32)> {
+        self.entries
+            .iter()
+            .map(|(sequence, score)| {
+                let end = sequence[offset..]
+                    .iter()
+                    .position(|&t| t == stop_token)
+                    .map_or(sequence.len(), |i| offset + i);
+                (sequence[offset..end].to_vec(), *score)
+            })
+            .collect()
     }
 }
 
@@ -53,7 +73,7 @@ impl Finished {
 #[derive(Debug, Clone)]
 pub struct WhisperBeamSearchDecoder {
     k: usize,
-    eot: i64,
+    stop_token: i64,
     max_candidates: usize,
     /// One per audio, once the first update has said how many there are.
     finished: Option<Vec<Finished>>,
@@ -70,7 +90,7 @@ impl WhisperBeamSearchDecoder {
     /// If `round(beam_size * patience)` is zero.
     pub fn new(
         beam_size: usize,
-        eot: i64,
+        stop_token: i64,
         patience: Option<f64>,
     ) -> Self {
         assert!(beam_size >= 1, "a beam search needs at least one beam");
@@ -82,7 +102,7 @@ impl WhisperBeamSearchDecoder {
         );
         Self {
             k: beam_size,
-            eot,
+            stop_token,
             max_candidates,
             finished: None,
         }
@@ -172,8 +192,8 @@ impl<B: Backend> TokenDecoder<B> for WhisperBeamSearchDecoder {
             let mut saved = 0;
             for &c in &order {
                 let (sequence, score, source) = &candidates[c];
-                if sequence.last() == Some(&self.eot) {
-                    done.upsert(sequence.clone(), *score);
+                if sequence.last() == Some(&self.stop_token) {
+                    done.score_sequence(sequence.clone(), *score);
                 } else {
                     next_sums.push(*score);
                     next.push(sequence.clone());
@@ -201,7 +221,7 @@ impl<B: Backend> TokenDecoder<B> for WhisperBeamSearchDecoder {
                 if previously.len() >= self.max_candidates {
                     break;
                 }
-                previously.upsert(sequence, score);
+                previously.score_sequence(sequence, score);
             }
         }
 
@@ -237,8 +257,8 @@ impl<B: Backend> TokenDecoder<B> for WhisperBeamSearchDecoder {
                 for beam in order {
                     let row = audio * k + beam;
                     let mut sequence = tokens[row].clone();
-                    sequence.push(self.eot);
-                    set.upsert(sequence, sum_logprobs[row]);
+                    sequence.push(self.stop_token);
+                    set.score_sequence(sequence, sum_logprobs[row]);
                     if set.len() >= k {
                         break;
                     }
@@ -248,18 +268,7 @@ impl<B: Backend> TokenDecoder<B> for WhisperBeamSearchDecoder {
 
         finished
             .into_iter()
-            .map(|set| {
-                set.entries
-                    .into_iter()
-                    .map(|(sequence, score)| {
-                        let end = sequence[prompt_len..]
-                            .iter()
-                            .position(|&t| t == self.eot)
-                            .map_or(sequence.len(), |i| prompt_len + i);
-                        (sequence[prompt_len..end].to_vec(), score)
-                    })
-                    .collect()
-            })
+            .map(|f| f.clip_tails(prompt_len, self.stop_token))
             .collect()
     }
 }
@@ -269,17 +278,17 @@ mod tests {
     use burn::prelude::TensorData;
 
     use super::*;
-    use crate::support::testing::CpuBackend;
+    use crate::support::testing::PerformanceBackend;
 
-    type B = CpuBackend;
+    type B = PerformanceBackend;
 
-    fn logits(rows: &[&[f32]]) -> Tensor<B, 2> {
+    fn logits<B: Backend>(
+        rows: &[&[f32]],
+        device: &B::Device,
+    ) -> Tensor<B, 2> {
         let vocab = rows[0].len();
         let flat: Vec<f32> = rows.iter().flat_map(|r| r.iter().copied()).collect();
-        Tensor::from_data(
-            TensorData::new(flat, [rows.len(), vocab]),
-            &Default::default(),
-        )
+        Tensor::from_data(TensorData::new(flat, [rows.len(), vocab]), device)
     }
 
     const EOT: i64 = 0;
@@ -290,6 +299,8 @@ mod tests {
     /// told which rows they came from.
     #[test]
     fn test_first_step_deduplicates() {
+        let device = Default::default();
+
         let mut decoder = WhisperBeamSearchDecoder::new(3, EOT, None);
         let mut tokens = vec![vec![7]; 3];
         let mut sums = vec![0.0; 3];
@@ -301,7 +312,7 @@ mod tests {
         let (feed, done) = TokenDecoder::<B>::update(
             &mut decoder,
             &mut tokens,
-            logits(&[row, row, row]),
+            logits::<B>(&[row, row, row], &device),
             &mut sums,
             &mut reorder,
         );
@@ -318,6 +329,7 @@ mod tests {
     /// set holds `round(k * patience)` sequences.
     #[test]
     fn test_finished_set_and_patience() {
+        let device = Default::default();
         let mut decoder = WhisperBeamSearchDecoder::new(2, EOT, None);
         assert_eq!(decoder.beam_size(), 2);
         assert_eq!(decoder.max_candidates(), 2);
@@ -330,7 +342,7 @@ mod tests {
         let (feed, done) = TokenDecoder::<B>::update(
             &mut decoder,
             &mut tokens,
-            logits(&[row, row]),
+            logits::<B>(&[row, row], &device),
             &mut sums,
             &mut reorder,
         );
@@ -342,7 +354,7 @@ mod tests {
         let (_, done) = TokenDecoder::<B>::update(
             &mut decoder,
             &mut tokens,
-            logits(&[row, row]),
+            logits::<B>(&[row, row], &device),
             &mut sums,
             &mut reorder,
         );
@@ -362,6 +374,7 @@ mod tests {
     /// set from the live beams, best first.
     #[test]
     fn test_patience_and_finalize_fill() {
+        let device = Default::default();
         let mut decoder = WhisperBeamSearchDecoder::new(2, EOT, Some(2.0));
         assert_eq!(decoder.max_candidates(), 4);
         let mut tokens = vec![vec![7]; 2];
@@ -373,7 +386,7 @@ mod tests {
         let (_, done) = TokenDecoder::<B>::update(
             &mut decoder,
             &mut tokens,
-            logits(&[row, row]),
+            logits::<B>(&[row, row], &device),
             &mut sums,
             &mut reorder,
         );
@@ -394,6 +407,7 @@ mod tests {
     /// and each group refills from its own candidates.
     #[test]
     fn test_groups_are_independent() {
+        let device = Default::default();
         let mut decoder = WhisperBeamSearchDecoder::new(2, EOT, None);
         let mut tokens = vec![vec![7]; 4];
         let mut sums = vec![0.0; 4];
@@ -405,7 +419,7 @@ mod tests {
         let (feed, _) = TokenDecoder::<B>::update(
             &mut decoder,
             &mut tokens,
-            logits(&[a, a, b, b]),
+            logits::<B>(&[a, a, b, b], &device),
             &mut sums,
             &mut reorder,
         );
