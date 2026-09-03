@@ -70,10 +70,8 @@ use crate::{
                 TranscriptSegment,
                 VoiceActivityFilter,
                 WhisperEmission,
-                support::{
-                    SpeechRegion,
-                    split_window,
-                },
+                support::split_window,
+                voice_activity_filter::SpeechRegion,
                 whisper_stream_driver::WhisperStreamDriver,
             },
         },
