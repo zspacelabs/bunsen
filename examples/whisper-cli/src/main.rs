@@ -210,7 +210,7 @@ fn run<B: Backend>(args: Args) -> Result<(), Box<dyn std::error::Error>> {
     let chunk = (args.chunk_ms * driver.sample_rate() / 1000).max(1);
     let mut announced = false;
     for block in wav.chunks(chunk) {
-        let emissions = ctx.push(block)?;
+        let emissions = ctx.write_read(block)?;
         // Detection runs on the first window decoded, so the language is
         // known once anything has been emitted; say so before the text.
         if !announced
@@ -224,7 +224,7 @@ fn run<B: Backend>(args: Args) -> Result<(), Box<dyn std::error::Error>> {
             report(&emission, args.ids);
         }
     }
-    for emission in ctx.flush()? {
+    for emission in ctx.end_read()? {
         report(&emission, args.ids);
     }
 

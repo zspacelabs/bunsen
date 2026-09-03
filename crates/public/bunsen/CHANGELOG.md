@@ -108,8 +108,9 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   transpose), and is unchanged in behaviour — pinned by a bit-equality test against the split.
 - *(whisper)* `kits::speech::whisper::driver` — the stream driver, offline slice. `WhisperDriverConfig::init` builds a
   `WhisperStreamDriver` over a model, deriving the token layout from its vocabulary size; `new_context(clock,
-  clamp)` opens a `WhisperStreamContext` that takes samples of any length through `push` / `push_at` / `flush` and hands
-  back `WhisperEmission`s. Windows are decoded as they fill and committed whole; a single push of a clip reproduces
+  clamp)` opens a `WhisperStreamContext` that takes samples of any length through `push` / `anchor_write_read` / `flush`
+  and hands back `WhisperEmission`s. Windows are decoded as they fill and committed whole; a single push of a clip
+  reproduces
   `decode_chunked` exactly, and random-sized pushes reproduce a single push exactly. Voice activity, timestamps and
   drafts are refused at
   `init` until their phases land.

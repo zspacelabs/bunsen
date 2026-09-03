@@ -1,14 +1,14 @@
 //! # The stream context: one transcription in progress.
 //!
-//! [`push`](WhisperStreamContext::push) is a fold: append to staging, drain
-//! whole hops into the mel context, append the frames to the ring, offer them
-//! to the clamp policy, offer the samples to the voice-activity gate, then
+//! [`push`](WhisperStreamContext::write_read) is a fold: append to staging,
+//! drain whole hops into the mel context, append the frames to the ring, offer
+//! them to the clamp policy, offer the samples to the voice-activity gate, then
 //! run whatever the emission policy says is due. The hop-alignment
 //! requirement never reaches the caller &mdash; staging makes the API honest
 //! against a sound card that hands over 480- or 1024-sample buffers.
 //!
-//! [`feed`](WhisperStreamContext::feed) is the first half of that fold and
-//! [`advance`](WhisperStreamContext::advance) the second, so that a batch of
+//! [`feed`](WhisperStreamContext::write) is the first half of that fold and
+//! [`advance`](WhisperStreamContext::read) the second, so that a batch of
 //! streams can be fed one at a time and advanced together by
 //! [`advance_ready`](super::advance_ready).
 //!
@@ -106,12 +106,13 @@ struct Pending<B: Backend> {
 ///
 /// # Arguments
 /// * `driver` - the driver the contexts were opened from.
-/// * `contexts` - the streams, fed through [`feed`](WhisperStreamContext::feed)
-///   rather than [`push`](WhisperStreamContext::push), so that nothing has been
+/// * `contexts` - the streams, fed through
+///   [`feed`](WhisperStreamContext::write) rather than
+///   [`push`](WhisperStreamContext::write_read), so that nothing has been
 ///   decoded yet.
 ///
 /// # Errors
-/// As [`WhisperStreamContext::advance`].
+/// As [`WhisperStreamContext::read`].
 pub fn advance_ready<B: Backend>(
     driver: &WhisperStreamDriver<B>,
     contexts: &mut [WhisperStreamContext<B>],
@@ -368,7 +369,7 @@ impl<B: Backend> WhisperStreamContext<B> {
         self.vad.as_ref().map_or(0, |v| v.regions.len())
     }
 
-    /// Whether [`flush`](Self::flush) or [`end_input`](Self::end_input) has
+    /// Whether [`flush`](Self::end_read) or [`end_input`](Self::end_input) has
     /// run.
     pub fn is_finished(&self) -> bool {
         self.finished
@@ -384,41 +385,41 @@ impl<B: Backend> WhisperStreamContext<B> {
 
     // ---- input -------------------------------------------------------
 
-    /// Pushes samples, of any length, and returns what became final.
-    ///
-    /// [`feed`](Self::feed) then [`advance`](Self::advance).
+    /// Anchor the clock, then [`push`](`Self::push`).
     ///
     /// # Errors
-    /// [`BunsenError::Invalid`] after the stream has ended.
-    pub fn push(
+    /// As [`push`](Self::write_read) and [`StreamClock::anchor`].
+    pub fn anchor_write_read(
         &mut self,
-        samples: &[f32],
-    ) -> BunsenResult<Vec<WhisperEmission>> {
-        self.feed(samples)?;
-        self.advance()
-    }
-
-    /// [`push`](Self::push), anchoring the clock: the first sample of
-    /// `samples` was at media time `time`.
-    ///
-    /// # Errors
-    /// As [`push`](Self::push) and [`StreamClock::anchor`].
-    pub fn push_at(
-        &mut self,
-        samples: &[f32],
         time: f64,
+        samples: &[f32],
     ) -> BunsenResult<Vec<WhisperEmission>> {
         self.clock.anchor(self.samples_seen, time)?;
-        self.push(samples)
+        self.write_read(samples)
+    }
+
+    /// Push samples, emit all finalized [`WhisperEmission`]s.
+    ///
+    /// [`feed`](Self::write) then [`advance`](Self::read).
+    ///
+    /// # Errors
+    ///
+    /// [`BunsenError::Invalid`] after the stream has ended.
+    pub fn write_read(
+        &mut self,
+        samples: &[f32],
+    ) -> BunsenResult<Vec<WhisperEmission>> {
+        self.write(samples)?;
+        self.read()
     }
 
     /// Takes samples in without decoding: the front end and the gate run,
-    /// nothing else. Pair with [`advance`](Self::advance), or with
+    /// nothing else. Pair with [`advance`](Self::read), or with
     /// [`advance_ready`](super::advance_ready) across many streams.
     ///
     /// # Errors
     /// [`BunsenError::Invalid`] after the stream has ended.
-    pub fn feed(
+    pub fn write(
         &mut self,
         samples: &[f32],
     ) -> BunsenResult<()> {
@@ -440,7 +441,7 @@ impl<B: Backend> WhisperStreamContext<B> {
     }
 
     /// Runs every decode that is due, and returns what became final.
-    pub fn advance(&mut self) -> BunsenResult<Vec<WhisperEmission>> {
+    pub fn read(&mut self) -> BunsenResult<Vec<WhisperEmission>> {
         let mut out = Vec::new();
         loop {
             self.skip_silence();
@@ -461,9 +462,18 @@ impl<B: Backend> WhisperStreamContext<B> {
         Ok(out)
     }
 
+    /// Ends the stream and decodes whatever is left past the seek pointer:
+    /// [`end_input`](Self::end_input) then [`advance`](Self::read).
+    ///
+    /// Idempotent; a second flush returns nothing.
+    pub fn end_read(&mut self) -> BunsenResult<Vec<WhisperEmission>> {
+        self.end_input()?;
+        self.read()
+    }
+
     /// Ends the stream's input: flushes the front end, drops Whisper's
     /// trailing frame, and closes the gate. What that leaves due is decoded
-    /// by the next [`advance`](Self::advance).
+    /// by the next [`advance`](Self::read).
     ///
     /// Idempotent.
     pub fn end_input(&mut self) -> BunsenResult<()> {
@@ -489,15 +499,6 @@ impl<B: Backend> WhisperStreamContext<B> {
 
         self.run_vad(true);
         Ok(())
-    }
-
-    /// Ends the stream and decodes whatever is left past the seek pointer:
-    /// [`end_input`](Self::end_input) then [`advance`](Self::advance).
-    ///
-    /// Idempotent; a second flush returns nothing.
-    pub fn flush(&mut self) -> BunsenResult<Vec<WhisperEmission>> {
-        self.end_input()?;
-        self.advance()
     }
 
     /// Moves whole hops from staging into the front end.
@@ -981,58 +982,6 @@ impl<B: Backend> WhisperStreamContext<B> {
         });
         self.origin = self.seek;
     }
-
-    // ---- test probes -------------------------------------------------
-
-    /// A provisional decode of everything past the seek pointer, without
-    /// touching the context: what a draft says, on demand.
-    #[cfg(test)]
-    fn probe_decode(&self) -> Option<Vec<i64>> {
-        let count = self.pending_frames();
-        (count > 0).then(|| {
-            self.decode_frames(self.frames_at(&Due {
-                start: self.seek,
-                count,
-            }))
-            .tokens
-        })
-    }
-
-    /// Everything the context holds, as one comparable string.
-    #[cfg(test)]
-    fn fingerprint(&self) -> String {
-        let data = |t: &Tensor<B, 3>| t.to_data().convert::<f32>().to_vec::<f32>().unwrap();
-        let ring = self.frames.as_ref().map(data);
-        let carry = self
-            .mel
-            .as_ref()
-            .and_then(|m| m.carry())
-            .map(|c| c.to_data().convert::<f32>().to_vec::<f32>().unwrap());
-        let reference = self.frames.as_ref().map(|f| {
-            self.clamp
-                .reference(f.clone())
-                .to_data()
-                .convert::<f32>()
-                .to_vec::<f32>()
-                .unwrap()
-        });
-        let regions: Vec<SpeechRegion> = self
-            .vad
-            .as_ref()
-            .map(|v| v.regions.iter().copied().collect())
-            .unwrap_or_default();
-
-        format!(
-            "{:?}|{}|{}|{}|{:?}|{:?}|{}|{ring:?}|{carry:?}|{reference:?}|{regions:?}",
-            self.staging,
-            self.samples_seen,
-            self.origin,
-            self.seek,
-            self.clock,
-            self.transcript,
-            self.finished,
-        )
-    }
 }
 
 impl<B: Backend> VoiceActivity<B> {
@@ -1103,8 +1052,8 @@ mod tests {
     /// A tiny model whose vocabulary fits the tiny layout and whose window
     /// is 16 frames (2560 samples), so a short clip has several windows.
     /// Seeded, so a run is the same run on the same backend.
-    fn tiny_model_on<Bk: Backend>(device: &Bk::Device) -> Whisper<Bk> {
-        Bk::seed(device, 7);
+    fn tiny_model_on<B: Backend>(device: &B::Device) -> Whisper<B> {
+        B::seed(device, 7);
         WhisperApiConfig::new(
             /* n_mels */ 8,
             /* vocab_size */ tiny_layout().n_vocab(),
@@ -1117,10 +1066,6 @@ mod tests {
         .init(device)
     }
 
-    fn tiny_model(device: &Device) -> Whisper<B> {
-        tiny_model_on::<B>(device)
-    }
-
     fn config(carry: bool) -> WhisperStreamDriverConfig {
         WhisperStreamDriverConfig::new()
             .with_language(Some("en".to_string()))
@@ -1128,13 +1073,13 @@ mod tests {
             .with_condition_on_previous_text(carry)
     }
 
-    fn driver(
-        device: &Device,
+    fn driver<B: Backend>(
+        device: &B::Device,
         carry: bool,
     ) -> WhisperStreamDriver<B> {
         config(carry)
             .init_with_layout(
-                tiny_model(device),
+                tiny_model_on::<B>(device),
                 WhisperTokenLayout::new(tiny_layout()),
                 device,
             )
@@ -1202,11 +1147,11 @@ mod tests {
         let mut out = Vec::new();
         let mut at = 0;
         for &size in sizes {
-            out.extend(ctx.push(&audio[at..at + size]).unwrap());
+            out.extend(ctx.write_read(&audio[at..at + size]).unwrap());
             at += size;
         }
         assert_eq!(at, audio.len());
-        out.extend(ctx.flush().unwrap());
+        out.extend(ctx.end_read().unwrap());
         out
     }
 
@@ -1260,8 +1205,8 @@ mod tests {
         let audio = clip();
 
         let mut ctx = driver.new_context(clock(), RunningMaxClamp::new()).unwrap();
-        let mut emissions = ctx.push(&audio).unwrap();
-        emissions.extend(ctx.flush().unwrap());
+        let mut emissions = ctx.write_read(&audio).unwrap();
+        emissions.extend(ctx.end_read().unwrap());
 
         let expected = driver.whisper_model().decode_chunked(
             driver
@@ -1314,8 +1259,8 @@ mod tests {
         let audio = clip();
 
         let mut whole = driver.new_context(clock(), PerWindow).unwrap();
-        let mut expected = whole.push(&audio).unwrap();
-        expected.extend(whole.flush().unwrap());
+        let mut expected = whole.write_read(&audio).unwrap();
+        expected.extend(whole.end_read().unwrap());
 
         for seed in [1, 2, 3] {
             let mut ctx = driver.new_context(clock(), PerWindow).unwrap();
@@ -1327,8 +1272,8 @@ mod tests {
         // same arithmetic, so this one is exact.
         let boxed: Box<dyn ClampPolicy<B>> = Box::new(PerWindow);
         let mut dynamic = driver.new_context(clock(), boxed).unwrap();
-        let mut got = dynamic.push(&audio).unwrap();
-        got.extend(dynamic.flush().unwrap());
+        let mut got = dynamic.write_read(&audio).unwrap();
+        got.extend(dynamic.end_read().unwrap());
         assert_eq!(got, expected);
 
         // The per-window one-shot path, by hand.
@@ -1363,14 +1308,14 @@ mod tests {
     #[serial]
     fn test_segments_sit_on_the_clock() {
         let device = Device::default();
-        let driver = driver(&device, false);
+        let driver: WhisperStreamDriver<B> = driver(&device, false);
         let audio = clip();
         let hop = driver.mel_converter().hop() as f64;
         let width = driver.window_frames();
 
         let mut ctx = driver.new_context(clock(), PerWindow).unwrap();
-        let mut emissions = ctx.push_at(&audio, 100.0).unwrap();
-        emissions.extend(ctx.flush().unwrap());
+        let mut emissions = ctx.anchor_write_read(100.0, &audio).unwrap();
+        emissions.extend(ctx.end_read().unwrap());
 
         let window_seconds = width as f64 * hop / driver.sample_rate() as f64;
         for (w, e) in emissions.iter().enumerate() {
@@ -1389,43 +1334,20 @@ mod tests {
         assert_eq!(ctx.pending_frames(), 0);
     }
 
-    /// **I6.** A provisional decode leaves the context byte-identical, and
-    /// says the same thing twice.
-    #[test]
-    #[serial]
-    fn test_probe_decode_leaves_the_context_untouched() {
-        let device = Device::default();
-        let driver = driver(&device, false);
-        let audio = clip();
-
-        let mut ctx = driver.new_context(clock(), RunningMaxClamp::new()).unwrap();
-        // Enough for one committed window and a partial second one.
-        let committed = ctx.push(&audio[..4_000]).unwrap();
-        assert_eq!(committed.len(), 1);
-        assert!(ctx.pending_frames() > 0);
-
-        let before = ctx.fingerprint();
-        let first = ctx.probe_decode().expect("frames are pending");
-        let second = ctx.probe_decode().expect("frames are pending");
-        assert_eq!(ctx.fingerprint(), before);
-        assert_eq!(first, second);
-        assert_eq!(ctx.transcript(), committed[0].segment().tokens);
-    }
-
     /// With carrying on, a window is prompted with the transcript's tail
     /// after `<|startofprev|>`, exactly as decoding it by hand with that
     /// prompt would.
     #[test]
     #[serial]
     fn test_prompt_carry() {
-        let device = Device::default();
-        let driver = driver(&device, true);
+        let device = Default::default();
+        let driver: WhisperStreamDriver<B> = driver(&device, true);
         let audio = clip();
         let width = driver.window_frames();
 
         let mut ctx = driver.new_context(clock(), PerWindow).unwrap();
-        let mut emissions = ctx.push(&audio).unwrap();
-        emissions.extend(ctx.flush().unwrap());
+        let mut emissions = ctx.write_read(&audio).unwrap();
+        emissions.extend(ctx.end_read().unwrap());
         let got = tokens_of(&emissions);
 
         // By hand: the first window with the bare prompt, the second with
@@ -1480,13 +1402,14 @@ mod tests {
             }
         }
 
-        let device = Device::default();
-        let driver = driver(&device, false).with_detokenizer(Arc::new(Numbers));
+        let device = Default::default();
+        let driver: WhisperStreamDriver<B> =
+            driver(&device, false).with_detokenizer(Arc::new(Numbers));
         let audio = clip();
 
         let mut ctx = driver.new_context(clock(), PerWindow).unwrap();
-        let mut emissions = ctx.push(&audio).unwrap();
-        emissions.extend(ctx.flush().unwrap());
+        let mut emissions = ctx.write_read(&audio).unwrap();
+        emissions.extend(ctx.end_read().unwrap());
 
         for e in &emissions {
             let segment = e.segment();
@@ -1503,37 +1426,40 @@ mod tests {
     #[test]
     #[serial]
     fn test_lifecycle_edges() {
-        let device = Device::default();
-        let driver = driver(&device, false);
+        let device = Default::default();
+        let driver: WhisperStreamDriver<B> = driver(&device, false);
 
         let mut empty = driver.new_context(clock(), PerWindow).unwrap();
-        assert!(empty.flush().unwrap().is_empty());
-        assert!(empty.flush().unwrap().is_empty(), "flush is idempotent");
-        assert!(empty.push(&[0.0; 16]).is_err(), "no pushing after flush");
-        assert!(empty.feed(&[0.0; 16]).is_err(), "nor feeding");
+        assert!(empty.end_read().unwrap().is_empty());
+        assert!(empty.end_read().unwrap().is_empty(), "flush is idempotent");
+        assert!(
+            empty.write_read(&[0.0; 16]).is_err(),
+            "no pushing after flush"
+        );
+        assert!(empty.write(&[0.0; 16]).is_err(), "nor feeding");
         assert!(empty.is_finished());
         assert!(!empty.is_speaking());
         assert_eq!(empty.regions_pending(), 0);
 
         // Shorter than a hop: padded with silence to something decodable.
         let mut short = driver.new_context(clock(), PerWindow).unwrap();
-        assert!(short.push(&[0.1; 50]).unwrap().is_empty());
-        let emissions = short.flush().unwrap();
+        assert!(short.write_read(&[0.1; 50]).unwrap().is_empty());
+        let emissions = short.end_read().unwrap();
         assert_eq!(emissions.len(), 1);
         assert!(short.pending_frames() == 0);
 
         // Feed then advance is push; end_input then advance is flush.
         let audio = clip();
         let mut split = driver.new_context(clock(), PerWindow).unwrap();
-        split.feed(&audio).unwrap();
+        split.write(&audio).unwrap();
         assert_eq!(split.transcript().len(), 0, "feeding decodes nothing");
-        let mut got = split.advance().unwrap();
+        let mut got = split.read().unwrap();
         split.end_input().unwrap();
-        got.extend(split.advance().unwrap());
+        got.extend(split.read().unwrap());
 
         let mut pushed = driver.new_context(clock(), PerWindow).unwrap();
-        let mut expected = pushed.push(&audio).unwrap();
-        expected.extend(pushed.flush().unwrap());
+        let mut expected = pushed.write_read(&audio).unwrap();
+        expected.extend(pushed.end_read().unwrap());
         assert_eq!(got, expected);
     }
 
@@ -1551,8 +1477,8 @@ mod tests {
         let mut solo = Vec::new();
         for audio in &clips {
             let mut ctx = driver.new_context(clock(), PerWindow).unwrap();
-            let mut emissions = ctx.push(audio).unwrap();
-            emissions.extend(ctx.flush().unwrap());
+            let mut emissions = ctx.write_read(audio).unwrap();
+            emissions.extend(ctx.end_read().unwrap());
             solo.push(emissions);
         }
         if tokens_of(&solo[0]) == tokens_of(&solo[1]) {
@@ -1568,7 +1494,7 @@ mod tests {
         // solo run's; what differs is only that six windows per stream are
         // decoded twelve at a time. The third stream never gets audio.
         for (ctx, audio) in contexts.iter_mut().zip(&clips) {
-            ctx.feed(audio).unwrap();
+            ctx.write(audio).unwrap();
         }
         let mut batched = advance_ready(&driver, &mut contexts).unwrap();
         assert_eq!(batched[0].len(), 6, "six full windows before the end");
@@ -1603,13 +1529,13 @@ mod tests {
         // Solo: A decodes its first window early, then the rest; B all at
         // once.
         let mut a = driver.new_context(clock(), PerWindow).unwrap();
-        let mut solo_a = a.push(&audio[..first]).unwrap();
+        let mut solo_a = a.write_read(&audio[..first]).unwrap();
         assert_eq!(solo_a.len(), 1, "one window committed early");
-        solo_a.extend(a.push(&audio[first..]).unwrap());
-        solo_a.extend(a.flush().unwrap());
+        solo_a.extend(a.write_read(&audio[first..]).unwrap());
+        solo_a.extend(a.end_read().unwrap());
         let mut b = driver.new_context(clock(), PerWindow).unwrap();
-        let mut solo_b = b.push(&audio).unwrap();
-        solo_b.extend(b.flush().unwrap());
+        let mut solo_b = b.write_read(&audio).unwrap();
+        solo_b.extend(b.end_read().unwrap());
         assert_ne!(
             solo_a[0].segment().tokens,
             solo_a[1].segment().tokens,
@@ -1619,11 +1545,11 @@ mod tests {
         // Batched: A has committed its first window, B nothing; fed the
         // rest, they advance together under two prompts.
         let mut ctx_a = driver.new_context(clock(), PerWindow).unwrap();
-        let mut batched_a = ctx_a.push(&audio[..first]).unwrap();
-        ctx_a.feed(&audio[first..]).unwrap();
+        let mut batched_a = ctx_a.write_read(&audio[..first]).unwrap();
+        ctx_a.write(&audio[first..]).unwrap();
         ctx_a.end_input().unwrap();
         let mut ctx_b = driver.new_context(clock(), PerWindow).unwrap();
-        ctx_b.feed(&audio).unwrap();
+        ctx_b.write(&audio).unwrap();
         ctx_b.end_input().unwrap();
         let mut contexts = vec![ctx_a, ctx_b];
         let out = advance_ready(&driver, &mut contexts).unwrap();
@@ -1717,7 +1643,7 @@ mod tests {
             .with_max_initial_timestamp(Some(0.04))
             .with_emission(EmissionPolicy::new(DecodeTriggers::new(), commit))
             .init_with_layout(
-                tiny_model(device),
+                tiny_model_on::<B>(device),
                 WhisperTokenLayout::new(tiny_layout()),
                 device,
             )
@@ -1733,10 +1659,10 @@ mod tests {
     ) -> Vec<WhisperEmission> {
         let mut ctx = driver.new_context(clock(), PerWindow).unwrap();
         let mut emissions = match at {
-            Some(time) => ctx.push_at(audio, time).unwrap(),
-            None => ctx.push(audio).unwrap(),
+            Some(time) => ctx.anchor_write_read(time, audio).unwrap(),
+            None => ctx.write_read(audio).unwrap(),
         };
-        emissions.extend(ctx.flush().unwrap());
+        emissions.extend(ctx.end_read().unwrap());
         assert_eq!(ctx.pending_frames(), 0, "a flush consumes everything");
         assert_eq!(ctx.seek(), 105);
         let committed: Vec<i64> = emissions
@@ -1892,7 +1818,7 @@ mod tests {
             .with_max_tokens(8)
             .with_fallback(fallback)
             .init_with_layout(
-                tiny_model(device),
+                tiny_model_on::<B>(device),
                 WhisperTokenLayout::new(tiny_layout()),
                 device,
             )
@@ -1913,8 +1839,8 @@ mod tests {
         let audio = clip();
         let flat = degenerate_driver(&device, WhisperFallbackConfig::new());
         let mut ctx = flat.new_context(clock(), PerWindow).unwrap();
-        let mut looped = ctx.push(&audio).unwrap();
-        looped.extend(ctx.flush().unwrap());
+        let mut looped = ctx.write_read(&audio).unwrap();
+        looped.extend(ctx.end_read().unwrap());
         assert!(!looped.is_empty());
         // Eight 1s in the first window; fewer after, once the carried
         // prompt has taken its share of the tiny model's 16-token context.
@@ -1930,8 +1856,8 @@ mod tests {
 
         let climbing = degenerate_driver(&device, WhisperFallbackConfig::upstream());
         let mut ctx = climbing.new_context(clock(), PerWindow).unwrap();
-        let mut recovered = ctx.push(&audio).unwrap();
-        recovered.extend(ctx.flush().unwrap());
+        let mut recovered = ctx.write_read(&audio).unwrap();
+        recovered.extend(ctx.end_read().unwrap());
         assert_eq!(recovered.len(), looped.len());
         for e in &recovered {
             let t = &e.segment().tokens;
@@ -1947,8 +1873,8 @@ mod tests {
             WhisperFallbackConfig::new().with_temperatures(vec![0.0, 0.8]),
         );
         let mut ctx = hot.new_context(clock(), PerWindow).unwrap();
-        let mut reset = ctx.push(&audio).unwrap();
-        reset.extend(ctx.flush().unwrap());
+        let mut reset = ctx.write_read(&audio).unwrap();
+        reset.extend(ctx.end_read().unwrap());
         assert!(reset.iter().all(|e| e.segment().tokens.contains(&2)));
         assert_eq!(
             ctx.prompt_now(),
@@ -1972,8 +1898,8 @@ mod tests {
             WhisperFallbackConfig::new().with_no_speech_threshold(Some(0.0)),
         );
         let mut ctx = skipping.new_context(clock(), PerWindow).unwrap();
-        let mut emissions = ctx.push(&audio).unwrap();
-        emissions.extend(ctx.flush().unwrap());
+        let mut emissions = ctx.write_read(&audio).unwrap();
+        emissions.extend(ctx.end_read().unwrap());
         assert!(
             emissions.is_empty(),
             "every window is silence: {emissions:?}"
@@ -1988,8 +1914,8 @@ mod tests {
                 .with_logprob_threshold(Some(-1e9)),
         );
         let mut ctx = kept.new_context(clock(), PerWindow).unwrap();
-        let mut emissions = ctx.push(&audio).unwrap();
-        emissions.extend(ctx.flush().unwrap());
+        let mut emissions = ctx.write_read(&audio).unwrap();
+        emissions.extend(ctx.end_read().unwrap());
         assert!(
             !emissions.is_empty(),
             "a good enough log probability keeps a window"
@@ -2006,7 +1932,7 @@ mod tests {
         let detecting = WhisperStreamDriverConfig::new()
             .with_max_tokens(4)
             .init_with_layout(
-                tiny_model(&device),
+                tiny_model_on::<B>(&device),
                 WhisperTokenLayout::new(tiny_layout()),
                 &device,
             )
@@ -2020,8 +1946,8 @@ mod tests {
         let audio = clip();
         let mut solo = detecting.new_context(clock(), PerWindow).unwrap();
         assert_eq!(solo.language(), None);
-        let mut expected = solo.push(&audio).unwrap();
-        expected.extend(solo.flush().unwrap());
+        let mut expected = solo.write_read(&audio).unwrap();
+        expected.extend(solo.end_read().unwrap());
         assert_eq!(solo.language(), Some(only));
 
         // The same as configuring it.
@@ -2034,7 +1960,7 @@ mod tests {
             detecting.new_context(clock(), PerWindow).unwrap(),
         ];
         for ctx in &mut batch {
-            ctx.feed(&audio).unwrap();
+            ctx.write(&audio).unwrap();
             ctx.end_input().unwrap();
         }
         let out = advance_ready(&detecting, &mut batch).unwrap();
@@ -2049,7 +1975,7 @@ mod tests {
         let device = Device::default();
         let driver = WhisperStreamDriverConfig::new()
             .init_with_layout(
-                tiny_model(&device),
+                tiny_model_on::<B>(&device),
                 WhisperTokenLayout::new(tiny_layout()),
                 &device,
             )
@@ -2065,31 +1991,31 @@ mod tests {
     /// and refuses a mismatched language.
     #[test]
     fn test_init_refuses_the_unsupported() {
-        let device = Device::default();
+        let device = Default::default();
         let policy = WhisperTokenLayout::new(tiny_layout());
         let base = WhisperStreamDriverConfig::new().with_language(Some("en".to_string()));
 
         assert!(
-            base.init_with_layout(tiny_model(&device), policy.clone(), &device)
+            base.init_with_layout(tiny_model_on::<B>(&device), policy.clone(), &device)
                 .is_ok()
         );
         // Multilingual without a language detects it per stream.
         assert!(
             WhisperStreamDriverConfig::new()
-                .init_with_layout(tiny_model(&device), policy.clone(), &device)
+                .init_with_layout(tiny_model_on::<B>(&device), policy.clone(), &device)
                 .unwrap()
                 .detects_language()
         );
         assert!(
             base.clone()
                 .with_timestamps(true)
-                .init_with_layout(tiny_model(&device), policy.clone(), &device)
+                .init_with_layout(tiny_model_on::<B>(&device), policy.clone(), &device)
                 .is_ok()
         );
         assert!(
             base.clone()
                 .with_emission(EmissionPolicy::responsive())
-                .init_with_layout(tiny_model(&device), policy.clone(), &device)
+                .init_with_layout(tiny_model_on::<B>(&device), policy.clone(), &device)
                 .is_ok(),
             "responsive is the third deployment target",
         );
@@ -2099,14 +2025,14 @@ mod tests {
                     DecodeTriggers::new().with_interval(Some(std::time::Duration::ZERO)),
                     CommitRule::Complete,
                 ))
-                .init_with_layout(tiny_model(&device), policy.clone(), &device)
+                .init_with_layout(tiny_model_on::<B>(&device), policy.clone(), &device)
                 .is_err(),
             "an interval of zero",
         );
         assert!(
             base.clone()
                 .with_language(Some("xx".to_string()))
-                .init_with_layout(tiny_model(&device), policy.clone(), &device)
+                .init_with_layout(tiny_model_on::<B>(&device), policy.clone(), &device)
                 .is_err()
         );
 
@@ -2114,12 +2040,12 @@ mod tests {
         let conservative = base
             .clone()
             .with_emission(EmissionPolicy::conservative())
-            .init_with_layout(tiny_model(&device), policy, &device)
+            .init_with_layout(tiny_model_on::<B>(&device), policy, &device)
             .unwrap();
         assert!(conservative.new_context(clock(), PerWindow).is_err());
 
         // A clock at the wrong rate is refused at the stream, not later.
-        let driver = driver(&device, false);
+        let driver: WhisperStreamDriver<B> = driver(&device, false);
         assert!(
             driver
                 .new_context(StreamClock::uniform(8_000), PerWindow)
@@ -2251,13 +2177,13 @@ mod tests {
             for (k, &size) in sizes.iter().enumerate() {
                 let piece = &audio[at..at + size];
                 emissions.extend(if k == 0 {
-                    ctx.push_at(piece, 100.0).unwrap()
+                    ctx.anchor_write_read(100.0, piece).unwrap()
                 } else {
-                    ctx.push(piece).unwrap()
+                    ctx.write_read(piece).unwrap()
                 });
                 at += size;
             }
-            emissions.extend(ctx.flush().unwrap());
+            emissions.extend(ctx.end_read().unwrap());
 
             // (0, 16352) and (29728, 56800) from the gate's golden test,
             // snapped outward onto the 320-sample grid.
@@ -2307,8 +2233,8 @@ mod tests {
             let audio = speech();
 
             let mut ctx = driver.new_context(clock(), PerWindow).unwrap();
-            let mut emissions = ctx.push(&audio).unwrap();
-            emissions.extend(ctx.flush().unwrap());
+            let mut emissions = ctx.write_read(&audio).unwrap();
+            emissions.extend(ctx.end_read().unwrap());
 
             let window = driver.window_frames() as f64 * driver.mel_converter().hop() as f64
                 / driver.sample_rate() as f64;
@@ -2369,9 +2295,9 @@ mod tests {
             let audio = speech();
             let mut out = Vec::new();
             for piece in audio.chunks(RATE / 10) {
-                out.extend(ctx.push(piece).unwrap());
+                out.extend(ctx.write_read(piece).unwrap());
             }
-            out.extend(ctx.flush().unwrap());
+            out.extend(ctx.end_read().unwrap());
             out
         }
 
@@ -2452,11 +2378,11 @@ mod tests {
             let mut batch = vec![driver.new_context(clock(), PerWindow).unwrap()];
             let (mut expected, mut got) = (Vec::new(), Vec::new());
             for piece in audio.chunks(RATE / 10) {
-                expected.extend(solo.push(piece).unwrap());
-                batch[0].feed(piece).unwrap();
+                expected.extend(solo.write_read(piece).unwrap());
+                batch[0].write(piece).unwrap();
                 got.extend(advance_ready(&driver, &mut batch).unwrap().remove(0));
             }
-            expected.extend(solo.flush().unwrap());
+            expected.extend(solo.end_read().unwrap());
             batch[0].end_input().unwrap();
             got.extend(advance_ready(&driver, &mut batch).unwrap().remove(0));
             assert_eq!(got, expected);
@@ -2485,8 +2411,8 @@ mod tests {
             let audio = speech();
 
             let mut ctx = driver.new_context(clock(), PerWindow).unwrap();
-            let mut emissions = ctx.push(&audio).unwrap();
-            emissions.extend(ctx.flush().unwrap());
+            let mut emissions = ctx.write_read(&audio).unwrap();
+            emissions.extend(ctx.end_read().unwrap());
 
             // 400 frames of 16 per window: 25 windows, no remainder.
             assert_eq!(emissions.len(), 25);

@@ -494,8 +494,10 @@ fn test_bunsen_driver_transcribes_like_openai() {
         let mut ctx = driver
             .new_context(StreamClock::uniform(SAMPLE_RATE), RunningMaxClamp::new())
             .expect("a stream at the model's rate");
-        let mut emissions = ctx.push(&samples(fixture.name)).expect("the push decodes");
-        emissions.extend(ctx.flush().expect("the flush decodes"));
+        let mut emissions = ctx
+            .write_read(&samples(fixture.name))
+            .expect("the push decodes");
+        emissions.extend(ctx.end_read().expect("the flush decodes"));
 
         let mine: Vec<Vec<i64>> = emissions
             .iter()
