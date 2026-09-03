@@ -18,9 +18,7 @@ use crate::{
                 SileroVadMeta,
             },
             whisper::{
-                ApplyTimestampRules,
                 DecodeConfig,
-                LogitFilter,
                 Whisper,
                 WhisperFallbackConfig,
                 WhisperMeta,
@@ -36,6 +34,10 @@ use crate::{
                     WhisperStreamContext,
                     WhisperTask,
                     WhisperTokenLayout,
+                },
+                logit_filters::{
+                    ApplyTimestampRules,
+                    LogitFilter,
                 },
             },
         },

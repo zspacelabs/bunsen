@@ -27,7 +27,7 @@ use bunsen::{
             blocks::WhisperFrontEndConfig,
             decode::{
                 GreedyDecodeConfig,
-                mel_windows,
+                split_mel_windows,
             },
             driver::WhisperTask,
             pretrained::PytorchWhisperScanner,
@@ -239,7 +239,7 @@ fn run<B: Backend>(
     println!("streamed in {chunk}-sample chunks");
     summarize("log-mels", &mels);
 
-    let windows = mel_windows(mels, model.max_audio_ctx());
+    let windows = split_mel_windows(mels, model.max_audio_ctx());
     println!(
         "{} window(s) of {} frames",
         windows.len(),

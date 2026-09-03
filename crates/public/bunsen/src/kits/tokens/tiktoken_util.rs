@@ -299,7 +299,7 @@ mod tests {
 
     use super::*;
     use crate::{
-        kits::speech::whisper::{
+        kits::speech::whisper::logit_filters::{
             LogitFilter,
             SuppressBlank,
         },

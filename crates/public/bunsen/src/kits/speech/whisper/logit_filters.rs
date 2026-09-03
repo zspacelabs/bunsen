@@ -1,21 +1,4 @@
-//! # Logit filters: what the search may not pick.
-//!
-//! A filter rewrites the last position's logits before the search looks at
-//! them, and it is consulted every step. Upstream applies two by default:
-//! [`SuppressTokens`] over its non-speech list and the control tokens, and
-//! [`SuppressBlank`] at the first sampled position. Both need the
-//! vocabulary to know which ids they mean, so [`default_filters`] derives
-//! them from the rank file and the layout &mdash; decode-only, without an
-//! encoder: the symbols upstream encodes are either single tokens, which is
-//! an exact byte match, or the seven music symbols, whose first byte-level
-//! BPE token is the longest prefix of their bytes that is a token.
-//!
-//! [`ApplyTimestampRules`] is upstream's timestamp grammar, applied when a
-//! decode is prompted for timestamps; its clauses over the token history
-//! are a pure function, tested clause by clause with no model in the loop.
-//! [`RestrictToLanguages`] is language detection: one step over
-//! `<|startoftranscript|>` with nothing but the language block to choose
-//! from.
+//! # Logit filters.
 
 use std::{
     fmt::Debug,

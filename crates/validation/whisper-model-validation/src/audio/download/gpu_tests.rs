@@ -1,16 +1,22 @@
+use std::sync::Arc;
+
 use bunsen::{
     kits::speech::whisper::{
-        ApplyTimestampRules,
         DecodeConfig,
         GreedyDecodeConfig,
-        default_filters,
+        Whisper,
         driver::{
             RunningMaxClamp,
             StreamClock,
             WhisperStreamDriverConfig,
             WhisperTask,
         },
-        mel_windows,
+        logit_filters::{
+            ApplyTimestampRules,
+            LogitFilter,
+            default_filters,
+        },
+        split_mel_windows,
     },
     prelude::TensorElemOpExt,
     support::testing::{
@@ -318,12 +324,12 @@ fn test_bunsen_accuracy_against_transcript() {
 
 /// One window's decode under `config` and `filters`, per window of the clip.
 fn decode_filtered(
-    model: &bunsen::kits::speech::whisper::Whisper<B>,
+    model: &Whisper<B>,
     mels: Tensor<B, 3>,
     config: &DecodeConfig,
-    filters: &[std::sync::Arc<dyn bunsen::kits::speech::whisper::LogitFilter<B>>],
+    filters: &[Arc<dyn LogitFilter<B>>],
 ) -> Vec<Vec<i64>> {
-    mel_windows(mels, N_FRAMES)
+    split_mel_windows(mels, N_FRAMES)
         .into_iter()
         .map(|window| {
             model
@@ -577,7 +583,7 @@ fn test_bunsen_detects_the_language() {
     let model = bunsen_model::<B>(&device);
 
     for fixture in FIXTURES {
-        let windows = mel_windows(clip_mels(fixture.name, &device), N_FRAMES);
+        let windows = split_mel_windows(clip_mels(fixture.name, &device), N_FRAMES);
         let xa = model.forward_encoder(windows[0].clone());
         let token = model.detect_language(xa, table.policy.ids())[0];
         assert_eq!(

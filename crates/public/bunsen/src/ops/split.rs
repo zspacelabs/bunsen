@@ -23,9 +23,11 @@ use burn::{
 /// - the chunks, in order, each of length `size` along `dim`.
 ///
 /// # Panics
+///
 /// Panics if `size` is zero.
 ///
 /// # Examples
+///
 /// ```rust, ignore
 /// // A length-5 axis split into chunks of 2 yields 2 + 2 + (1 padded to 2).
 /// let chunks = split_padded(input, 2, 1);

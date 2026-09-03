@@ -63,8 +63,8 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   first. Pinned through the validation crate: fixed windows with timestamps and the whole-clip seek loop against
   `transcribe()`'s segments and times, and detection saying `en`.
 - *(whisper)* `kits::speech::whisper::decode` is now a directory module with the search behind two seams. `TokenDecoder`
-  is the search (`WhisperGreedyDecoder`, and `BeamSearchDecoder`, upstream's beam search: candidates deduplicated by
-  full sequence, a finished set capped by `patience`, and the self-attention cache permuted through the new
+  is the search (`WhisperGreedyDecoder`, and `WhisperBeamSearchDecoder`, upstream's beam search: candidates deduplicated
+  by full sequence, a finished set capped by `patience`, and the self-attention cache permuted through the new
   `TextDecoderCache::reorder`
   while the cross-attention cache stays put); `LogitFilter` is what it may not pick (`SuppressTokens`, `SuppressBlank`,
   and `default_filters`, which derives upstream's default suppress list from the rank file alone, pinned against
