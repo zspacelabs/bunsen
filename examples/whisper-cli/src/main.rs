@@ -133,7 +133,7 @@ fn run<B: Backend>(args: Args) -> Result<(), Box<dyn std::error::Error>> {
     let (model, cfg) = Whisper::<B>::load_pretrained(&device)?;
     let model = model.map(&mut DTypeMapper::new(DType::F32));
     println!(
-        "model: {} mels, vocabulary {}, d_model {}, {} + {} layers",
+        "model: {} perceptive_audio, vocabulary {}, d_model {}, {} + {} layers",
         cfg.n_mels, cfg.vocab_size, cfg.d_model, cfg.n_encoder_layers, cfg.n_decoder_layers,
     );
 

@@ -34,9 +34,9 @@ use burn::{
     tensor::activation::log_softmax,
 };
 
-use crate::kits::speech::whisper::driver::{
-    TiktokenRanks,
-    WhisperSpecialIds,
+use crate::kits::{
+    speech::whisper::driver::WhisperSpecialIds,
+    tokens::TiktokenRanks,
 };
 
 /// Rewrites the logits the search chooses from.

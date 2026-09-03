@@ -1,9 +1,10 @@
 //! # Parity against `librosa`.
 //!
 //! These compare the converter to fixtures generated once by
-//! `tools/gen_mel_fixtures.py` and committed under `testdata/mels/`. Nothing
-//! here shells out to Python — `librosa` is not a build or test dependency,
-//! and regenerating the fixtures is a deliberate manual step.
+//! `tools/gen_mel_fixtures.py` and committed under
+//! `testdata/perceptive_audio/`. Nothing here shells out to Python — `librosa`
+//! is not a build or test dependency, and regenerating the fixtures is a
+//! deliberate manual step.
 //!
 //! Everything else in this module tests the implementation against itself or
 //! against a transcription of the reference algorithm. This file is the only
@@ -32,14 +33,14 @@ use crate::{
     errors::WithOkOrPanic,
     ops::signal::{
         SamplingWindowBuilder,
-        mels::{
+        perceptive_audio::{
             AffineCompress,
             FilterNorm,
-            MelConverter,
-            MelConverterMeta,
-            MelConverterOptions,
             MelScale,
             PaddingMode,
+            PerceptiveAudioConverter,
+            PerceptiveAudioConverterMeta,
+            PerceptiveAudioConverterOptions,
             RangeClamp,
         },
     },
@@ -55,7 +56,7 @@ type F = <B as BackendTypes>::FloatElem;
 /// Loads a flat little-endian `f32` fixture as `f64`.
 fn fixture(name: &str) -> Vec<f64> {
     let path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("testdata/mels")
+        .join("testdata/perceptive_audio")
         .join(name);
 
     let bytes =
@@ -112,13 +113,13 @@ fn logmel_tolerance() -> Tolerance<F> {
 /// Options matching the fixture generator: raw `log10` with no clamp and no
 /// affine tail, so the comparison is against the spectrogram itself rather
 /// than Whisper's packaging of it.
-fn parity_options() -> MelConverterOptions {
-    MelConverterOptions::default()
+fn parity_options() -> PerceptiveAudioConverterOptions {
+    PerceptiveAudioConverterOptions::default()
 }
 
 #[test]
 fn test_hann_window_matches_librosa() {
-    let opts = MelConverterOptions::default();
+    let opts = PerceptiveAudioConverterOptions::default();
     assert_close_to_vec(
         &opts.window.to_vec_window(opts.n_fft),
         &fixture("hann_400_periodic.f32"),
@@ -128,14 +129,14 @@ fn test_hann_window_matches_librosa() {
 
 #[test]
 fn test_filterbank_matches_librosa() {
-    let opts = MelConverterOptions::default();
+    let opts = PerceptiveAudioConverterOptions::default();
     assert_close_to_vec(
         &opts.try_to_filterbank_vec().unwrap(),
         &fixture("mel_fb_slaney_16k_400_80.f32"),
         1e-8,
     );
 
-    let htk = MelConverterOptions::default()
+    let htk = PerceptiveAudioConverterOptions::default()
         .with_mel_scale(MelScale::Htk)
         .with_filter_norm(FilterNorm::None);
 
@@ -151,7 +152,7 @@ fn test_filterbank_matches_librosa() {
 fn test_batch_logmel_matches_librosa_center_false() {
     let device = Default::default();
     let opts = parity_options().with_start_padding(PaddingMode::None);
-    let conv: MelConverter<B> = opts.try_init(&device).ok_or_panic();
+    let conv: PerceptiveAudioConverter<B> = opts.try_init(&device).ok_or_panic();
 
     let (x, samples) = signal_tensor(&device);
 
@@ -170,7 +171,7 @@ fn test_batch_logmel_matches_librosa_center_false() {
 #[test]
 fn test_streaming_logmel_matches_librosa_center_true() {
     let device = Default::default();
-    let conv: MelConverter<B> = parity_options().try_init(&device).ok_or_panic();
+    let conv: PerceptiveAudioConverter<B> = parity_options().try_init(&device).ok_or_panic();
 
     let (x, _) = signal_tensor(&device);
 
@@ -203,7 +204,7 @@ fn test_streaming_logmel_matches_librosa_center_true() {
 #[test]
 fn test_whisper_logmel_matches_reference() {
     let device = Default::default();
-    let conv: MelConverter<B> = parity_options().try_init(&device).ok_or_panic();
+    let conv: PerceptiveAudioConverter<B> = parity_options().try_init(&device).ok_or_panic();
 
     let (x, _) = signal_tensor(&device);
 
@@ -237,7 +238,7 @@ fn test_whisper_logmel_matches_reference() {
 #[test]
 fn test_chunked_streaming_matches_librosa_center_true() {
     let device = Default::default();
-    let conv: MelConverter<B> = parity_options().try_init(&device).ok_or_panic();
+    let conv: PerceptiveAudioConverter<B> = parity_options().try_init(&device).ok_or_panic();
 
     let samples = fixture("signal_2s_16k.f32");
 

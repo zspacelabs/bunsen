@@ -63,13 +63,13 @@ MODEL = "base"
 
 
 def windows_of(audio):
-    """`[n_windows, 80, 3000]` log-mels, the geometry bunsen decodes over."""
+    """`[n_windows, 80, 3000]` log-perceptive_audio, the geometry bunsen decodes over."""
     n_windows = max(1, -(-len(audio) // N_SAMPLES))
     padded = np.zeros(n_windows * N_SAMPLES, dtype=np.float32)
     padded[: len(audio)] = audio
 
     mel = whisper.audio.log_mel_spectrogram(torch.from_numpy(padded), n_mels=80)
-    return [mel[:, w * N_FRAMES : (w + 1) * N_FRAMES] for w in range(n_windows)]
+    return [mel[:, w * N_FRAMES: (w + 1) * N_FRAMES] for w in range(n_windows)]
 
 
 def decode_windows(model, tokenizer, windows, label, **options):

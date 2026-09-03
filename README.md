@@ -236,10 +236,10 @@ See [`examples`](examples) for the full index. At a glance:
 * [`resnet_tiny`](examples/resnet_tiny) — train a ResNet from scratch on CINIC-10 via a firehose pipeline.
 * [`swin_tiny`](examples/swin_tiny) — train a Swin Transformer V2 Tiny on CINIC-10.
 * [`train-chat`](examples/train-chat) — train a NanoChat-style GPT with per-group Muon/AdamW optimizers.
-* [`whisper-dev`](examples/whisper-dev) — import an OpenAI Whisper model from a PyTorch checkpoint.
+* [`whisper-dev`](crates/dev/whisper-dev) — import an OpenAI Whisper model from a PyTorch checkpoint.
 * [`whisper-cli`](examples/whisper-cli) — transcribe audio with the bundled Whisper `base` checkpoint through the stream
   driver.
-* [`zsl-data-cache`](examples/zsl-data-cache) — nanochat dataset shard download/disk cache (+ `pull_shards` CLI).
+* [`zsl-data-cache`](crates/dev/zsl-data-cache) — nanochat dataset shard download/disk cache (+ `pull_shards` CLI).
 
 # Motivation
 

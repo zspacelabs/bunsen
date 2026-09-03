@@ -1,6 +1,6 @@
 //! Tensor signal operations.
 
-pub mod mels;
+pub mod perceptive_audio;
 
 #[cfg(any(test, feature = "testing"))]
 pub mod testing;

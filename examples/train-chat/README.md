@@ -20,7 +20,7 @@ separately-tuned AdamW groups, with a linear learning-rate warmup.
 - `bunsen-arrow-dataloaders` — the `ChatDataLoader` plus dense token-block batching options (`DenseTokenBlocksOptions`,
   `TokenBatchIteratorOptions`).
 - `zsl-data-cache` — the nanochat shard download/disk cache (see the
-  [`zsl-data-cache`](../zsl-data-cache) example).
+  [`zsl-data-cache`](../../crates/dev/zsl-data-cache) example).
 
 It demonstrates bunsen's reflection-driven optimizer-group machinery, the most advanced training-configuration feature
 in the example set.

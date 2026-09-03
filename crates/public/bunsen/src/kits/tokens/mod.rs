@@ -24,8 +24,13 @@ use crate::errors::BunsenResult;
 
 #[cfg(feature = "tokenizer")]
 mod wordchipper;
+
 #[cfg(feature = "tokenizer")]
 pub use wordchipper::WordchipperDetokenizer;
+
+mod tiktoken_util;
+#[doc(inline)]
+pub use tiktoken_util::*;
 
 /// Turns token ids into text.
 ///

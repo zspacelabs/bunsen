@@ -5,7 +5,7 @@ edition.workspace = true
 publish = false
 
 [dependencies]
-zsl-data-cache = { path = "../zsl-data-cache" }
+zsl-data-cache = { path = "../../crates/dev/zsl-data-cache" }
 bunsen = { path = "../../crates/public/bunsen" }
 bunsen-arrow-dataloaders = { path = "../../crates/public/bunsen-arrow-dataloaders" }
 

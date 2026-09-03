@@ -8,31 +8,25 @@
 
 pub mod support;
 
-mod clamp;
-mod clock;
-mod context;
-mod emission;
-mod mel;
-mod stream_driver;
-mod tokens;
-mod vocab;
+mod stream_clamp_policy;
+mod stream_clock;
 mod voice_activity_filter;
+mod whisper_emission;
+mod whisper_stream_context;
+mod whisper_stream_driver;
+mod whisper_token_layout;
 
 #[doc(inline)]
-pub use clamp::*;
+pub use stream_clamp_policy::*;
 #[doc(inline)]
-pub use clock::*;
-#[doc(inline)]
-pub use context::*;
-#[doc(inline)]
-pub use emission::*;
-#[doc(inline)]
-pub use mel::*;
-#[doc(inline)]
-pub use stream_driver::*;
-#[doc(inline)]
-pub use tokens::*;
-#[doc(inline)]
-pub use vocab::*;
+pub use stream_clock::*;
 #[doc(inline)]
 pub use voice_activity_filter::*;
+#[doc(inline)]
+pub use whisper_emission::*;
+#[doc(inline)]
+pub use whisper_stream_context::*;
+#[doc(inline)]
+pub use whisper_stream_driver::*;
+#[doc(inline)]
+pub use whisper_token_layout::*;

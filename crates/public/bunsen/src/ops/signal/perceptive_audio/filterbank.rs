@@ -2,8 +2,8 @@
 //!
 //! Pure host-side construction in `Vec<f64>`; nothing here touches a
 //! `Backend`. The device-side filterbank is lifted from this by
-//! [`MelConverter`](super::MelConverter), and this module doubles as the
-//! reference the tensor path is checked against.
+//! [`MelConverter`](super::PerceptiveAudioConverter), and this module doubles
+//! as the reference the tensor path is checked against.
 //!
 //! The construction follows `librosa.filters.mel`: triangles are laid out on
 //! evenly spaced mel points, evaluated against the `rfft` bin centres, and
@@ -27,7 +27,8 @@ const SLANEY_F_SP: f64 = 200.0 / 3.0;
 /// Slaney: the linear/logarithmic breakpoint, in Hz.
 const SLANEY_MIN_LOG_HZ: f64 = 1000.0;
 
-/// Slaney: the breakpoint in mels, `SLANEY_MIN_LOG_HZ / SLANEY_F_SP`.
+/// Slaney: the breakpoint in `perceptive_audio`, `SLANEY_MIN_LOG_HZ /
+/// SLANEY_F_SP`.
 ///
 /// Exactly 15; the Slaney curve is pinned so 1000 Hz lands on a whole mel.
 const SLANEY_MIN_LOG_MEL: f64 = 15.0;
@@ -50,7 +51,7 @@ pub enum MelScale {
 }
 
 impl MelScale {
-    /// Converts a frequency in Hz to mels.
+    /// Converts a frequency in Hz to `perceptive_audio`.
     ///
     /// Anchors: HTK 1000 Hz is `999.9855371396244`; Slaney 1000 Hz is exactly
     /// `15.0`, and Slaney 8000 Hz is `45.245640471924965`.
@@ -70,7 +71,7 @@ impl MelScale {
         }
     }
 
-    /// Converts mels to a frequency in Hz.
+    /// Converts `perceptive_audio` to a frequency in Hz.
     ///
     /// The inverse of [`hz_to_mel`](Self::hz_to_mel).
     pub fn mel_to_hz(
@@ -121,10 +122,10 @@ impl FilterNorm {
 
 /// Builds the `n_points` mel-spaced frequencies spanning `[f_min, f_max]`.
 ///
-/// The points are evenly spaced *in mels* and returned in Hz, so the first is
-/// `f_min` and the last is `f_max`. A filterbank of `n_mels` triangles wants
-/// `n_mels + 2` of these: each triangle spans one point either side of its
-/// centre.
+/// The points are evenly spaced *in `perceptive_audio`* and returned in Hz, so
+/// the first is `f_min` and the last is `f_max`. A filterbank of `n_mels`
+/// triangles wants `n_mels + 2` of these: each triangle spans one point either
+/// side of its centre.
 ///
 /// # Arguments
 /// * `n_points`: how many points to place; must be at least 2.

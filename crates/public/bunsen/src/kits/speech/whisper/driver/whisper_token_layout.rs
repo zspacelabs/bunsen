@@ -27,9 +27,9 @@ use crate::{
         BunsenError,
         BunsenResult,
     },
-    kits::speech::whisper::{
-        blocks::WhisperTokenLayoutConfig,
-        driver::TiktokenRanks,
+    kits::{
+        speech::whisper::blocks::WhisperTokenLayoutConfig,
+        tokens::TiktokenRanks,
     },
 };
 
@@ -557,7 +557,7 @@ mod tests {
     use super::*;
     use crate::kits::speech::whisper::{
         blocks::CONTROL_TOKENS,
-        driver::tokens::WhisperSpecialIds,
+        driver::whisper_token_layout::WhisperSpecialIds,
     };
 
     /// The layout `whisper.tokenizer` produces, read off the real thing for

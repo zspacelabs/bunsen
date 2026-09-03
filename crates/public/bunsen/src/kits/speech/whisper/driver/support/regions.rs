@@ -20,7 +20,7 @@ use crate::errors::{
     BunsenError,
     BunsenResult,
 };
-use crate::kits::speech::whisper::driver::clock::StreamClock;
+use crate::kits::speech::whisper::driver::stream_clock::StreamClock;
 
 /// A half-open span of samples, `start..end`, in the stream's own sample
 /// index.

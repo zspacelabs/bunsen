@@ -1,5 +1,6 @@
-//! Loads a pretrained Whisper checkpoint, converts an audio file to log-mels
-//! with [`bunsen::ops::signal::mels`], and greedily decodes each 30 s window.
+//! Loads a pretrained Whisper checkpoint, converts an audio file to
+//! log-perceptive_audio with [`bunsen::ops::signal::perceptive_audio`], and
+//! greedily decodes each 30 s window.
 //!
 //! The mel front end is driven in streaming chunks, which is the shape a live
 //! transcription loop wants; feeding the whole clip in one call gives the same
@@ -33,9 +34,9 @@ use bunsen::{
         },
         tokens::Detokenizer,
     },
-    ops::signal::mels::{
-        MelConverter,
-        MelConverterMeta,
+    ops::signal::perceptive_audio::{
+        PerceptiveAudioConverter,
+        PerceptiveAudioConverterMeta,
     },
     support::{
         audio::load_audio_mono_sr,
@@ -152,14 +153,15 @@ fn pad_or_trim(
     wav
 }
 
-/// Converts a waveform to Whisper-ready log-mels, `[batch, n_mels, frames]`.
+/// Converts a waveform to Whisper-ready log-perceptive_audio, `[batch, n_mels,
+/// frames]`.
 ///
 /// Streams the signal in `chunk`-sample blocks, then packages the joined
 /// result once with the front end's `package_mels` — which must see the
 /// whole spectrogram, since its clamp reduces over what it is given.
 fn to_whisper_mels<B: Backend>(
     front_end: &WhisperFrontEndConfig,
-    conv: &MelConverter<B>,
+    conv: &PerceptiveAudioConverter<B>,
     wav: &[f32],
     chunk: usize,
     device: &B::Device,
@@ -201,8 +203,8 @@ fn run<B: Backend>(
 
     // OpenAI ships these checkpoints in fp16, so the loaded weights are f16
     // while the mel front end produces the backend's default float. Cast the
-    // model up rather than the mels down: the front end is where precision is
-    // cheap, and f16 conv support varies by backend.
+    // model up rather than the perceptive_audio down: the front end is where
+    // precision is cheap, and f16 conv support varies by backend.
     //
     // This works because the model's weights are `Param`s. A `ModuleMapper`
     // does *not* reach bare `Tensor` fields — see the note on `MelConverter`.
@@ -213,7 +215,7 @@ fn run<B: Backend>(
     // the loader declared on it.
     let options = cfg.front_end.mel_converter_options(cfg.n_mels)?;
 
-    let conv: MelConverter<B> = options.try_init(&device)?;
+    let conv: PerceptiveAudioConverter<B> = options.try_init(&device)?;
 
     let hop = conv.hop();
     let chunk = args.chunk_ms * args.sample_rate / 1000;
@@ -235,7 +237,7 @@ fn run<B: Backend>(
     let mels = to_whisper_mels(&cfg.front_end, &conv, &wav, chunk, &device)?;
 
     println!("streamed in {chunk}-sample chunks");
-    summarize("log-mels", &mels);
+    summarize("log-perceptive_audio", &mels);
 
     let windows = mel_windows(mels, model.max_audio_ctx());
     println!(

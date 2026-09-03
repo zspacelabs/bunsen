@@ -83,7 +83,8 @@ pub const N_VOCAB: usize = 51865;
 /// meant to decode to anything.
 pub const TOKENS: [i64; 4] = [50258, 50259, 50359, 1770];
 
-/// A deterministic `[1, N_MELS, N_FRAMES]` stand-in for real log-mels.
+/// A deterministic `[1, N_MELS, N_FRAMES]` stand-in for real
+/// log-perceptive_audio.
 ///
 /// Cheap and seed-free, so both implementations get bit-identical input
 /// without needing an audio fixture.

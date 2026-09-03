@@ -45,7 +45,7 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   (`avg_logprob`) and the `<|nospeech|>` probability probed at the sot position of the first forward, through
   `decode_windows_full` /
   `decode_features_full`; `DecodeConfig` takes `temperature` and
-  `best_of`, and `GreedyDecoder` samples above zero by Gumbel-max on the backend's own random numbers, `best_of`
+  `best_of`, and `WhisperGreedyDecoder` samples above zero by Gumbel-max on the backend's own random numbers, `best_of`
   trajectories per audio. The driver takes `fallback`; a window the policy calls silence is skipped whole; a rung above
   0.5 resets the prompt carry; the batched path hands its temperature-zero result in as the first rung. bunsen's default
   ladder is temperature zero alone (`FallbackConfig::upstream()` is
@@ -63,8 +63,8 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   first. Pinned through the validation crate: fixed windows with timestamps and the whole-clip seek loop against
   `transcribe()`'s segments and times, and detection saying `en`.
 - *(whisper)* `kits::speech::whisper::decode` is now a directory module with the search behind two seams. `TokenDecoder`
-  is the search (`GreedyDecoder`, and `BeamSearchDecoder`, upstream's beam search: candidates deduplicated by full
-  sequence, a finished set capped by `patience`, and the self-attention cache permuted through the new
+  is the search (`WhisperGreedyDecoder`, and `BeamSearchDecoder`, upstream's beam search: candidates deduplicated by
+  full sequence, a finished set capped by `patience`, and the self-attention cache permuted through the new
   `TextDecoderCache::reorder`
   while the cross-attention cache stays put); `LogitFilter` is what it may not pick (`SuppressTokens`, `SuppressBlank`,
   and `default_filters`, which derives upstream's default suppress list from the rank file alone, pinned against
@@ -98,12 +98,12 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   `audio`.
 - *(whisper)* `kits::speech::whisper::text` — `token_spans` builds Whisper's full `{ id -> bytes }` table from parsed
   ranks and the special-id layout, and `detokenizer` / `load_detokenizer` hand it to `WordchipperDetokenizer`.
-- *(whisper)* `kits::speech::whisper::clamp` — `ClampPolicy`, the injected object that decides the reference maximum a
-  window is floored against:
+- *(whisper)* `kits::speech::whisper::clamp` — `StreamClampPolicy`, the injected object that decides the reference
+  maximum a window is floored against:
   `observe(&mut self)` on the arrival path, `reference(&self)` immediately before packaging, so a provisional decode can
   package without mutating anything. `PerWindow` is today's behaviour; `RunningMaxClamp` is the running (or, fed
   everything first, global) maximum, per batch row.
-- *(whisper)* `package_mels` is now the composition of `trim_stream_tail`
+- *(whisper)* `package_mels` is now the composition of `drop_last_frame`
   (drop the end-padding frame, once per stream) and `package_window` (floor 8 dB below a per-row reference, affine,
   transpose), and is unchanged in behaviour — pinned by a bit-equality test against the split.
 - *(whisper)* `kits::speech::whisper::driver` — the stream driver, offline slice. `WhisperDriverConfig::init` builds a
@@ -120,8 +120,8 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - *(whisper)* `kits::speech::whisper::emission` — `DecodeTriggers`, `CommitRule`
   and `EmissionPolicy` with its `offline` / `conservative` / `responsive`
   presets, and `Emission::{Committed, Draft}` over a `TranscriptSegment`.
-- *(whisper)* `ClampPolicy` gained `CloneClampPolicy` as a supertrait (implemented for every `ClampPolicy + Clone`), so
-  a boxed policy can live in a `Module`.
+- *(whisper)* `StreamClampPolicy` gained `CloneClampPolicy` as a supertrait (implemented for every
+  `ClampPolicy + Clone`), so a boxed policy can live in a `Module`.
 - *(whisper)* `kits::speech::whisper::gate` — the speech gate: `VoiceActivityFilter`, the hysteresis machine over
   Silero's per-chunk probabilities as a streaming fold, and `SpeechGateConfig::speech_regions`, the whole-clip form,
   which reproduces
@@ -219,7 +219,7 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 - *(signal)* remove `MelConverterOptions::range_clamp` and `::affine`. Dynamic-range packaging reduces over whatever it
   is handed, so carrying it inside a streaming converter made a chunked run differ from a whole-signal one.
-  `MelConversionContext`
+  `PerceptiveAudioConversionContext`
   is now unconditionally a homomorphism over chunking. `RangeClamp` and
   `AffineCompress` remain public; apply them once to a finished spectrogram, as the Whisper front end already did.
 - *(blocks)* remove `MlpConfig::repair_strided_weights`. Repairing a checkpoint against `burn-store`'s stride-blind

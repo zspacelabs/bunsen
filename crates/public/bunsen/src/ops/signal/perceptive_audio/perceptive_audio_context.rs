@@ -1,13 +1,13 @@
 //! # Streaming waveform to log-mel conversion.
 //!
-//! [`MelConversionContext`] binds a carried sample queue to a
-//! [`MelConverter`], so a signal can be fed in hop-aligned chunks and produce
-//! exactly the frames it would have produced in one call.
+//! [`PerceptiveAudioConversionContext`] binds a carried sample queue to a
+//! [`PerceptiveAudioConverter`], so a signal can be fed in hop-aligned chunks
+//! and produce exactly the frames it would have produced in one call.
 //!
-//! Each [`transform`](MelConversionContext::transform) is a fold over a fixed
-//! stack of `t_stage_*` methods, each shaped `(self, a) -> (b, Self)`. Only
-//! two of them touch state, which is the part worth reviewing; the rest
-//! delegate to the stateless [`MelConverter`] stages.
+//! Each [`transform`](PerceptiveAudioConversionContext::transform) is a fold
+//! over a fixed stack of `t_stage_*` methods, each shaped `(self, a) -> (b,
+//! Self)`. Only two of them touch state, which is the part worth reviewing; the
+//! rest delegate to the stateless [`PerceptiveAudioConverter`] stages.
 
 use burn::{
     Tensor,
@@ -21,10 +21,10 @@ use crate::{
         BunsenError,
         BunsenResult,
     },
-    ops::signal::mels::{
-        MelConverter,
-        MelConverterMeta,
+    ops::signal::perceptive_audio::{
         PaddingMode,
+        PerceptiveAudioConverter,
+        PerceptiveAudioConverterMeta,
     },
 };
 
@@ -40,28 +40,28 @@ pub enum StreamPhase {
 
 /// Streaming state for waveform to log-mel conversion.
 ///
-/// Built by [`MelConverter::new_context`], which fixes the batch size. Each
-/// batch row is an independent stream.
+/// Built by [`PerceptiveAudioConverter::new_context`], which fixes the batch
+/// size. Each batch row is an independent stream.
 ///
 /// [`transform`](Self::transform) takes `self` and hands it back, rather than
 /// borrowing mutably, because that is what lets the pipeline be written as a
 /// fold over the `t_stage_*` stack. [`finish`](Self::finish) consumes the
 /// context, so transforming after finishing is a type error.
 ///
-/// Like [`MelConverter`], this is a `Module` over bare tensors — the carry
-/// rides `to_device` but is neither recorded nor visited.
+/// Like [`PerceptiveAudioConverter`], this is a `Module` over bare tensors —
+/// the carry rides `to_device` but is neither recorded nor visited.
 ///
 /// # Chunking
 ///
 /// Every stage is elementwise or frame-local, so transforming a signal in
 /// chunks and concatenating gives the same result as transforming it whole.
 /// Dynamic-range packaging that reduces over a whole clip — see
-/// [`RangeClamp`](crate::ops::signal::mels::RangeClamp) — is deliberately not
-/// part of this pipeline; apply it once to the joined result.
+/// [`RangeClamp`](crate::ops::signal::perceptive_audio::RangeClamp) — is
+/// deliberately not part of this pipeline; apply it once to the joined result.
 #[derive(Module, Debug)]
-pub struct MelConversionContext<B: Backend> {
+pub struct PerceptiveAudioConversionContext<B: Backend> {
     /// The analysis constants; shared, never mutated.
-    converter: MelConverter<B>,
+    converter: PerceptiveAudioConverter<B>,
 
     /// The samples a future frame still needs: `[batch, carry_len]`.
     ///
@@ -76,7 +76,7 @@ pub struct MelConversionContext<B: Backend> {
     phase: StreamPhase,
 }
 
-impl<B: Backend> MelConverterMeta for MelConversionContext<B> {
+impl<B: Backend> PerceptiveAudioConverterMeta for PerceptiveAudioConversionContext<B> {
     fn sample_rate(&self) -> usize {
         self.converter.sample_rate()
     }
@@ -106,7 +106,7 @@ impl<B: Backend> MelConverterMeta for MelConversionContext<B> {
     }
 }
 
-impl<B: Backend> MelConversionContext<B> {
+impl<B: Backend> PerceptiveAudioConversionContext<B> {
     /// The number of independent streams; fixed at construction.
     pub fn batch_size(&self) -> usize {
         self.batch_size
@@ -118,7 +118,7 @@ impl<B: Backend> MelConversionContext<B> {
     }
 
     /// The converter supplying the analysis constants.
-    pub fn converter(&self) -> &MelConverter<B> {
+    pub fn converter(&self) -> &PerceptiveAudioConverter<B> {
         &self.converter
     }
 
@@ -133,7 +133,7 @@ impl<B: Backend> MelConversionContext<B> {
         self.phase = StreamPhase::Start;
     }
 
-    /// Converts one hop-aligned chunk of waveform into log-mels.
+    /// Converts one hop-aligned chunk of waveform into log-perceptive_audio.
     ///
     /// A fold over the stage stack; see the `t_stage_*` methods for what each
     /// step does.
@@ -156,7 +156,8 @@ impl<B: Backend> MelConversionContext<B> {
     ///   `hop`.
     ///
     /// # Returns
-    /// `[batch, frames, n_mels]` log-mels, and the advanced context.
+    /// `[batch, frames, n_mels]` log-perceptive_audio, and the advanced
+    /// context.
     ///
     /// # Errors
     ///
@@ -179,7 +180,8 @@ impl<B: Backend> MelConversionContext<B> {
 
     /// Flushes the carry through the end padding, if any is configured.
     ///
-    /// Returns `None` when [`end_padding`](MelConverterMeta::end_padding) is
+    /// Returns `None` when
+    /// [`end_padding`](PerceptiveAudioConverterMeta::end_padding) is
     /// [`PaddingMode::None`], or when nothing has been transformed yet.
     ///
     /// Consumes the context: a stream ends once.
@@ -333,7 +335,7 @@ impl<B: Backend> MelConversionContext<B> {
     ///
     /// Currently the identity. This is where pre-emphasis and DC removal will
     /// land; both are rejected by
-    /// [`validate`](crate::ops::signal::mels::MelConverterOptions::validate)
+    /// [`validate`](crate::ops::signal::perceptive_audio::PerceptiveAudioConverterOptions::validate)
     /// until then, so the stage cannot silently drop a configured filter.
     ///
     /// `[batch, extended]` -> `[batch, extended]`.
@@ -377,7 +379,7 @@ impl<B: Backend> MelConversionContext<B> {
         (mels, self)
     }
 
-    /// Mel energies to log-mels.
+    /// Mel energies to log-perceptive_audio.
     ///
     /// `[batch, frames, n_mels]` -> `[batch, frames, n_mels]`.
     pub(crate) fn t_stage_compress(
@@ -389,7 +391,7 @@ impl<B: Backend> MelConversionContext<B> {
     }
 }
 
-impl<B: Backend> MelConverter<B> {
+impl<B: Backend> PerceptiveAudioConverter<B> {
     /// Opens a streaming conversion over these constants.
     ///
     /// # Arguments
@@ -397,10 +399,10 @@ impl<B: Backend> MelConverter<B> {
     pub fn new_context(
         &self,
         batch_size: usize,
-    ) -> MelConversionContext<B> {
+    ) -> PerceptiveAudioConversionContext<B> {
         assert_ne!(batch_size, 0, "MelConverter batch_size must be non-zero",);
 
-        MelConversionContext {
+        PerceptiveAudioConversionContext {
             converter: self.clone(),
             carry: None,
             batch_size,
@@ -420,7 +422,7 @@ mod tests {
             tensor::TensorDataToVecAsExt,
         },
         errors::WithOkOrPanic,
-        ops::signal::mels::MelConverterOptions,
+        ops::signal::perceptive_audio::PerceptiveAudioConverterOptions,
         support::testing::{
             PerformanceBackend,
             assert_close_to_vec,
@@ -463,8 +465,8 @@ mod tests {
     #[test]
     fn test_context_meta_and_lifecycle() {
         let device = Default::default();
-        let opts = MelConverterOptions::default();
-        let conv: MelConverter<B> = opts.try_init(&device).ok_or_panic();
+        let opts = PerceptiveAudioConverterOptions::default();
+        let conv: PerceptiveAudioConverter<B> = opts.try_init(&device).ok_or_panic();
 
         let ctx = conv.new_context(2);
 
@@ -492,13 +494,13 @@ mod tests {
     }
 
     /// The frame accounting documented under
-    /// [`transform`](MelConversionContext::transform)'s `# Frame count`,
-    /// asserted against the real thing.
+    /// [`transform`](PerceptiveAudioConversionContext::transform)'s `# Frame
+    /// count`, asserted against the real thing.
     #[test]
     fn test_frame_accounting_over_a_30s_window() {
         let device = Default::default();
-        let opts = MelConverterOptions::default();
-        let conv: MelConverter<B> = opts.try_init(&device).ok_or_panic();
+        let opts = PerceptiveAudioConverterOptions::default();
+        let conv: PerceptiveAudioConverter<B> = opts.try_init(&device).ok_or_panic();
 
         // 30 s at the default 16 kHz sample rate.
         let samples = 480_000;
@@ -523,7 +525,7 @@ mod tests {
     #[test]
     fn test_running_frame_count_is_invariant() {
         let device = Default::default();
-        let conv: MelConverter<B> = MelConverterOptions::default()
+        let conv: PerceptiveAudioConverter<B> = PerceptiveAudioConverterOptions::default()
             .try_init(&device)
             .ok_or_panic();
         let hop = conv.hop();
@@ -559,7 +561,7 @@ mod tests {
     #[test]
     fn test_chunked_transform_is_a_homomorphism() {
         let device = Default::default();
-        let conv: MelConverter<B> = MelConverterOptions::default()
+        let conv: PerceptiveAudioConverter<B> = PerceptiveAudioConverterOptions::default()
             .try_init(&device)
             .ok_or_panic();
 
@@ -611,7 +613,7 @@ mod tests {
     #[test]
     fn test_batch_rows_are_independent() {
         let device = Default::default();
-        let conv: MelConverter<B> = MelConverterOptions::default()
+        let conv: PerceptiveAudioConverter<B> = PerceptiveAudioConverterOptions::default()
             .try_init(&device)
             .ok_or_panic();
 
@@ -644,7 +646,7 @@ mod tests {
     #[test]
     fn test_transform_rejects_bad_input() {
         let device = Default::default();
-        let conv: MelConverter<B> = MelConverterOptions::default()
+        let conv: PerceptiveAudioConverter<B> = PerceptiveAudioConverterOptions::default()
             .try_init(&device)
             .ok_or_panic();
 
@@ -670,7 +672,7 @@ mod tests {
         let device = Default::default();
 
         // No end padding: nothing to flush.
-        let unpadded: MelConverter<B> = MelConverterOptions::default()
+        let unpadded: PerceptiveAudioConverter<B> = PerceptiveAudioConverterOptions::default()
             .with_end_padding(PaddingMode::None)
             .try_init(&device)
             .ok_or_panic();
@@ -685,7 +687,7 @@ mod tests {
 
         // Zero end padding produces the same frame count as reflect; only the
         // values differ.
-        let zero: MelConverter<B> = MelConverterOptions::default()
+        let zero: PerceptiveAudioConverter<B> = PerceptiveAudioConverterOptions::default()
             .with_end_padding(PaddingMode::Zero)
             .try_init(&device)
             .ok_or_panic();
@@ -701,7 +703,7 @@ mod tests {
     #[test]
     fn test_stage_stack_matches_transform() {
         let device = Default::default();
-        let conv: MelConverter<B> = MelConverterOptions::default()
+        let conv: PerceptiveAudioConverter<B> = PerceptiveAudioConverterOptions::default()
             .try_init(&device)
             .ok_or_panic();
 
@@ -726,7 +728,7 @@ mod tests {
     #[test]
     fn test_extend_stage_carry_contents() {
         let device = Default::default();
-        let conv: MelConverter<B> = MelConverterOptions::default()
+        let conv: PerceptiveAudioConverter<B> = PerceptiveAudioConverterOptions::default()
             .try_init(&device)
             .ok_or_panic();
         let (n_fft, hop) = (conv.n_fft(), conv.hop());

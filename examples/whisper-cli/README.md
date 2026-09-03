@@ -4,8 +4,8 @@ Transcribes an audio file with the bundled OpenAI Whisper `base` checkpoint and 
 stream driver. The audio is pushed in chunks as a live loop would feed it, and segments are printed with their times as
 they become final; under the responsive preset, drafts come first and are marked `~`.
 
-Where [`whisper-dev`](../whisper-dev) takes a checkpoint and a vocabulary by path and drives the mel and decode ops by
-hand, this example takes only the audio: everything else comes from bunsen's features.
+Where [`whisper-dev`](../../crates/dev/whisper-dev) takes a checkpoint and a vocabulary by path and drives the mel and
+decode ops by hand, this example takes only the audio: everything else comes from bunsen's features.
 
 ## Bunsen features exercised
 

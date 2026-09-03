@@ -7,7 +7,6 @@ use burn::{
 };
 
 use crate::{
-    burner::module::ModuleInit,
     errors::{
         BunsenError,
         BunsenResult,
@@ -30,8 +29,8 @@ use crate::{
                     WhisperFrontEndConfig,
                 },
                 driver::{
-                    ClampPolicy,
                     EmissionPolicy,
+                    StreamClampPolicy,
                     StreamClock,
                     VoiceActivityFilterConfig,
                     WhisperStreamContext,
@@ -42,9 +41,9 @@ use crate::{
         },
         tokens::Detokenizer,
     },
-    ops::signal::mels::{
-        MelConverter,
-        MelConverterMeta,
+    ops::signal::perceptive_audio::{
+        PerceptiveAudioConverter,
+        PerceptiveAudioConverterMeta,
     },
 };
 
@@ -210,15 +209,14 @@ impl WhisperStreamDriverConfig {
             )));
         }
 
-        let mel = model
+        let mel_converter = model
             .front_end()
-            .mel_converter_options(model.n_mels())?
-            .try_init(device)?;
+            .try_init_mel_converter(model.n_mels(), device)?;
 
         Ok(WhisperStreamDriver {
             config: self.clone(),
             whisper_model: model,
-            mel_converter: mel,
+            mel_converter,
             vad_model: None,
             policy: token_layout,
             prompt,
@@ -240,7 +238,7 @@ impl WhisperStreamDriverConfig {
 pub struct WhisperStreamDriver<B: Backend> {
     config: WhisperStreamDriverConfig,
 
-    mel_converter: MelConverter<B>,
+    mel_converter: PerceptiveAudioConverter<B>,
     whisper_model: Whisper<B>,
 
     /// The voice-activity model, when one was attached.
@@ -353,7 +351,7 @@ impl<B: Backend> WhisperStreamDriver<B> {
     }
 
     /// The mel front end.
-    pub fn mel_converter(&self) -> &MelConverter<B> {
+    pub fn mel_converter(&self) -> &PerceptiveAudioConverter<B> {
         &self.mel_converter
     }
 
@@ -448,7 +446,7 @@ impl<B: Backend> WhisperStreamDriver<B> {
         self.whisper_model.sample_rate()
     }
 
-    /// The audio front end the model's log-mels are computed with.
+    /// The audio front end the model's log-perceptive_audio are computed with.
     pub fn front_end(&self) -> &WhisperFrontEndConfig {
         self.whisper_model.front_end()
     }
@@ -477,7 +475,7 @@ impl<B: Backend> WhisperStreamDriver<B> {
     /// [`BunsenError::Invalid`] if the clock does not run at the model's
     /// [`sample_rate`](Self::sample_rate), or if the emission policy wants
     /// endpoints and no VAD was attached.
-    pub fn new_context<C: ClampPolicy<B> + 'static>(
+    pub fn new_context<C: StreamClampPolicy<B> + 'static>(
         &self,
         clock: StreamClock,
         clamp: C,

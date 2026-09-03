@@ -1,8 +1,8 @@
 //! # The clamp policy: where a window's dynamic-range floor comes from.
 //!
-//! Whisper floors its log-mels 8 dB below a reference maximum, and upstream
-//! takes that maximum over the **whole clip** before cutting windows. A
-//! stream cannot see the whole clip, so the question of what the reference
+//! Whisper floors its log-perceptive_audio 8 dB below a reference maximum, and
+//! upstream takes that maximum over the **whole clip** before cutting windows.
+//! A stream cannot see the whole clip, so the question of what the reference
 //! is becomes a policy, and the policy is an injected object behind this
 //! trait rather than a variant the driver understands: the driver knows only
 //! that every arriving frame is offered to it once, and that a window's
@@ -44,12 +44,13 @@ fn row_max<B: Backend>(x: Tensor<B, 3>) -> Tensor<B, 1> {
 ///
 /// Implementors are `Clone`, through [`DynClone`], because the stream
 /// context that holds one boxed is `Clone`. Nothing else is asked of them.
-pub trait ClampPolicy<B: Backend>: Send + Sync + Debug + DynClone {
+pub trait StreamClampPolicy<B: Backend>: Send + Sync + Debug + DynClone {
     /// Offers arriving frames to the policy. The arrival path, and the only
     /// place a policy may mutate.
     ///
     /// # Arguments
-    /// * `frames` - `[batch, frames, n_mels]` log-mels, as they arrive.
+    /// * `frames` - `[batch, frames, n_mels]` log-perceptive_audio, as they
+    ///   arrive.
     fn observe(
         &mut self,
         frames: Tensor<B, 3>,
@@ -61,7 +62,8 @@ pub trait ClampPolicy<B: Backend>: Send + Sync + Debug + DynClone {
     /// the context, so this cannot touch the policy either.
     ///
     /// # Arguments
-    /// * `window` - `[batch, frames, n_mels]` log-mels about to be packaged.
+    /// * `window` - `[batch, frames, n_mels]` log-perceptive_audio about to be
+    ///   packaged.
     ///
     /// # Returns
     /// `[batch]`, one reference per row.
@@ -76,11 +78,11 @@ pub trait ClampPolicy<B: Backend>: Send + Sync + Debug + DynClone {
 // say this: a trait naming its own object type among its supertraits is a
 // cycle (E0391), and a supertrait that does not name it cannot re-fatten the
 // pointer without `dyn_clone`'s erasure.
-dyn_clone::clone_trait_object!(<B: Backend> ClampPolicy<B>);
+dyn_clone::clone_trait_object!(<B: Backend> StreamClampPolicy<B>);
 
 /// A boxed policy is a policy, so a context may be generic over a concrete
 /// policy or hold a dynamic one; either way it is one type parameter.
-impl<B: Backend> ClampPolicy<B> for Box<dyn ClampPolicy<B>> {
+impl<B: Backend> StreamClampPolicy<B> for Box<dyn StreamClampPolicy<B>> {
     fn observe(
         &mut self,
         frames: Tensor<B, 3>,
@@ -98,13 +100,13 @@ impl<B: Backend> ClampPolicy<B> for Box<dyn ClampPolicy<B>> {
 
 /// Each window is floored against its own maximum.
 ///
-/// Ignores [`observe`](ClampPolicy::observe). This is what
+/// Ignores [`observe`](StreamClampPolicy::observe). This is what
 /// [`package_mels`](crate::kits::speech::whisper::blocks::WhisperFrontEndConfig::package_mels)
 /// does today, and it is the right policy when a window *is* the whole clip.
 #[derive(Debug, Default, Clone, Copy)]
 pub struct PerWindow;
 
-impl<B: Backend> ClampPolicy<B> for PerWindow {
+impl<B: Backend> StreamClampPolicy<B> for PerWindow {
     fn observe(
         &mut self,
         _frames: Tensor<B, 3>,
@@ -153,7 +155,7 @@ impl<B: Backend> RunningMaxClamp<B> {
     }
 }
 
-impl<B: Backend> ClampPolicy<B> for RunningMaxClamp<B> {
+impl<B: Backend> StreamClampPolicy<B> for RunningMaxClamp<B> {
     fn observe(
         &mut self,
         frames: Tensor<B, 3>,
@@ -189,7 +191,8 @@ mod tests {
 
     type B = CpuBackend;
 
-    /// `[2, 2, 2]`: two rows, two frames, two mels, from a flat list.
+    /// `[2, 2, 2]`: two rows, two frames, two perceptive_audio, from a flat
+    /// list.
     fn frames(values: [f64; 8]) -> Tensor<B, 3> {
         Tensor::from_data(
             TensorData::new(values.to_vec(), [2, 2, 2]),
@@ -207,7 +210,7 @@ mod tests {
         let window = frames([0.0, -3.0, -1.0, -20.0, 5.0, 4.0, -9.0, 1.0]);
 
         // Observing changes nothing, and rows do not see each other's peaks.
-        ClampPolicy::<B>::observe(&mut policy, frames([99.0; 8]));
+        StreamClampPolicy::<B>::observe(&mut policy, frames([99.0; 8]));
         assert_close_to_vec(&to_vec(policy.reference(window)), &[0.0, 5.0], 1e-12);
     }
 
@@ -263,7 +266,7 @@ mod tests {
     fn test_trait_object() {
         let window = frames([0.0, -3.0, -1.0, -20.0, 5.0, 4.0, -9.0, 1.0]);
 
-        let mut policies: Vec<Box<dyn ClampPolicy<B>>> =
+        let mut policies: Vec<Box<dyn StreamClampPolicy<B>>> =
             vec![Box::new(PerWindow), Box::new(RunningMaxClamp::new())];
         for policy in policies.iter_mut() {
             policy.observe(window.clone());

@@ -3,7 +3,7 @@
 //! One loop, two seams. The loop encodes the windows, feeds the prompt,
 //! then steps the text decoder one token at a time against its KV cache
 //! until the search says it is complete or the cap is hit. The seams are
-//! the search ([`TokenDecoder`]: [`GreedyDecoder`] or
+//! the search ([`TokenDecoder`]: [`WhisperGreedyDecoder`] or
 //! [`BeamSearchDecoder`]) and the filters ([`LogitFilter`]) consulted before
 //! it; the search returns finished candidates and a [`SequenceRanker`] picks
 //! one per audio.
@@ -50,17 +50,12 @@ use crate::{
 };
 
 mod beam;
-mod fallback;
 mod filters;
 mod greedy;
 mod rank;
+mod whisper_fallback_config;
 
 pub use beam::BeamSearchDecoder;
-pub use fallback::{
-    WhisperFallbackConfig,
-    compression_ratio,
-    decode_with_fallback,
-};
 pub use filters::{
     ApplyTimestampRules,
     LogitFilter,
@@ -72,17 +67,22 @@ pub use filters::{
     default_suppress_tokens,
     non_speech_tokens,
 };
-pub use greedy::GreedyDecoder;
+pub use greedy::WhisperGreedyDecoder;
 pub use rank::{
     MaximumLikelihoodRanker,
     SequenceRanker,
+};
+pub use whisper_fallback_config::{
+    WhisperFallbackConfig,
+    compression_ratio,
+    decode_with_fallback,
 };
 
 /// Splits a mel spectrogram into fixed-width windows along the frame axis,
 /// zero-padding the last window to full width.
 ///
 /// # Arguments
-/// * `mels` - `[batch, n_mels, frames]`.
+/// * `perceptive_audio` - `[batch, n_mels, frames]`.
 /// * `window` - frames per window; the model's audio context width.
 pub fn mel_windows<B: Backend>(
     mels: Tensor<B, 3>,
@@ -244,12 +244,12 @@ impl DecodeConfig {
     pub fn init_decoder<B: Backend>(&self) -> Box<dyn TokenDecoder<B>> {
         if self.temperature > 0.0 {
             Box::new(
-                GreedyDecoder::new(self.eot_token, self.prompt[0])
+                WhisperGreedyDecoder::new(self.eot_token, self.prompt[0])
                     .with_temperature(self.temperature)
                     .with_group(self.best_of.unwrap_or(1)),
             )
         } else if self.beam_size == 1 {
-            Box::new(GreedyDecoder::new(self.eot_token, self.prompt[0]))
+            Box::new(WhisperGreedyDecoder::new(self.eot_token, self.prompt[0]))
         } else {
             Box::new(BeamSearchDecoder::new(
                 self.beam_size,
@@ -287,8 +287,8 @@ impl<B: Backend> Whisper<B> {
     /// Decodes a batch of mel windows.
     ///
     /// # Arguments
-    /// * `mels` - `[batch, n_mels, frames]`, `frames` the audio context width;
-    ///   every row is decoded against its own audio.
+    /// * `perceptive_audio` - `[batch, n_mels, frames]`, `frames` the audio
+    ///   context width; every row is decoded against its own audio.
     /// * `config` - the prompt, stop token, cap, and search width.
     /// * `filters` - applied to the logits every step, in order, before the
     ///   search sees them.
@@ -541,7 +541,8 @@ impl<B: Backend> Whisper<B> {
     /// has finished or `max_tokens` is reached.
     ///
     /// # Arguments
-    /// * `mels` - `[batch, n_mels, frames]`, `frames` the audio context width.
+    /// * `perceptive_audio` - `[batch, n_mels, frames]`, `frames` the audio
+    ///   context width.
     ///
     /// # Returns
     /// The generated ids per row, without the stop token.
@@ -560,7 +561,8 @@ impl<B: Backend> Whisper<B> {
     /// Greedily decodes one mel window.
     ///
     /// # Arguments
-    /// * `mels` - `[1, n_mels, frames]`, `frames` the audio context width.
+    /// * `perceptive_audio` - `[1, n_mels, frames]`, `frames` the audio context
+    ///   width.
     ///
     /// # Panics
     /// If the batch is not one.
@@ -580,7 +582,7 @@ impl<B: Backend> Whisper<B> {
     /// prompt for every window.
     ///
     /// # Arguments
-    /// * `mels` - `[1, n_mels, frames]`, any length; split with
+    /// * `perceptive_audio` - `[1, n_mels, frames]`, any length; split with
     ///   [`mel_windows`].
     ///
     /// # Returns

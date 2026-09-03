@@ -3,7 +3,7 @@
 //! Whisper's base vocabulary ships as a `tiktoken` rank file: one
 //! `<base64 bytes> <rank>` pair per line, ranks contiguous from zero.
 //! [`TiktokenRanks`] parses one. Nothing here knows about special tokens —
-//! they are not in the file; see [`tokens`](super::tokens).
+//! they are not in the file; see [`tokens`](whisper_token_layout).
 //!
 //! The parser is here, rather than borrowed from a tokenizer crate, for one
 //! reason. `multilingual.tiktoken` ends with the line `= 50256`: base64 of
@@ -60,7 +60,7 @@ impl TiktokenRanks {
                 )));
             };
 
-            let span = decode_base64(b64).ok_or_else(|| {
+            let span = lenient_decode_base64(b64).ok_or_else(|| {
                 BunsenError::ParseError(format!("line {number}: invalid base64 {b64:?}"))
             })?;
             let rank: usize = rank.parse().map_err(|_| {
@@ -147,7 +147,7 @@ impl TiktokenRanks {
 /// Padding is optional, and an all-padding field decodes to nothing — that is
 /// how `multilingual.tiktoken` spells its empty token. A symbol outside the
 /// alphabet, or a length no encoding can produce, is `None`.
-fn decode_base64(field: &str) -> Option<Vec<u8>> {
+fn lenient_decode_base64(field: &str) -> Option<Vec<u8>> {
     let data = field.trim_end_matches('=');
     if data.len() % 4 == 1 {
         return None;
@@ -185,25 +185,36 @@ mod tests {
 
     #[test]
     fn test_decode_base64() {
-        assert_eq!(decode_base64("IQ=="), Some(b"!".to_vec()));
+        assert_eq!(lenient_decode_base64("IQ=="), Some(b"!".to_vec()));
         assert_eq!(
-            decode_base64("IQ"),
+            lenient_decode_base64("IQ"),
             Some(b"!".to_vec()),
             "padding is optional"
         );
-        assert_eq!(decode_base64("SGVsbG8="), Some(b"Hello".to_vec()));
-        assert_eq!(decode_base64("IGdhemVk"), Some(b" gazed".to_vec()));
-        assert_eq!(decode_base64("IPCfjg=="), Some(b" \xf0\x9f\x8e".to_vec()));
-        assert_eq!(decode_base64("+/8="), Some(vec![0xfb, 0xff]));
+        assert_eq!(lenient_decode_base64("SGVsbG8="), Some(b"Hello".to_vec()));
+        assert_eq!(lenient_decode_base64("IGdhemVk"), Some(b" gazed".to_vec()));
+        assert_eq!(
+            lenient_decode_base64("IPCfjg=="),
+            Some(b" \xf0\x9f\x8e".to_vec())
+        );
+        assert_eq!(lenient_decode_base64("+/8="), Some(vec![0xfb, 0xff]));
 
         // The empty token, both as the file spells it and as nothing at all.
-        assert_eq!(decode_base64("="), Some(Vec::new()));
-        assert_eq!(decode_base64("=="), Some(Vec::new()));
-        assert_eq!(decode_base64(""), Some(Vec::new()));
+        assert_eq!(lenient_decode_base64("="), Some(Vec::new()));
+        assert_eq!(lenient_decode_base64("=="), Some(Vec::new()));
+        assert_eq!(lenient_decode_base64(""), Some(Vec::new()));
 
-        assert_eq!(decode_base64("I%=="), None, "outside the alphabet");
-        assert_eq!(decode_base64("I"), None, "no encoding is one symbol long");
-        assert_eq!(decode_base64("IQ =="), None, "whitespace is not skipped");
+        assert_eq!(lenient_decode_base64("I%=="), None, "outside the alphabet");
+        assert_eq!(
+            lenient_decode_base64("I"),
+            None,
+            "no encoding is one symbol long"
+        );
+        assert_eq!(
+            lenient_decode_base64("IQ =="),
+            None,
+            "whitespace is not skipped"
+        );
     }
 
     /// The shape of the real file: base64, a space, a rank; the empty token

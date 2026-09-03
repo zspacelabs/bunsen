@@ -27,7 +27,7 @@ use crate::kits::speech::whisper::decode::TokenDecoder;
 
 /// The argmax, one row per audio; or sampling, `group` rows per audio.
 #[derive(Debug, Clone)]
-pub struct GreedyDecoder {
+pub struct WhisperGreedyDecoder {
     eot: i64,
     filler: i64,
     temperature: f64,
@@ -35,7 +35,7 @@ pub struct GreedyDecoder {
     finished: Vec<bool>,
 }
 
-impl GreedyDecoder {
+impl WhisperGreedyDecoder {
     /// # Arguments
     /// * `eot` - the stop token.
     /// * `filler` - what a finished row is fed; must be a valid id.
@@ -79,7 +79,7 @@ impl GreedyDecoder {
     }
 }
 
-impl<B: Backend> TokenDecoder<B> for GreedyDecoder {
+impl<B: Backend> TokenDecoder<B> for WhisperGreedyDecoder {
     fn group_size(&self) -> usize {
         self.group
     }
@@ -187,7 +187,7 @@ mod tests {
     #[test]
     fn test_rows_finish_independently() {
         let eot = 3;
-        let mut decoder = GreedyDecoder::new(eot, 9);
+        let mut decoder = WhisperGreedyDecoder::new(eot, 9);
         let mut tokens = vec![vec![9, 9], vec![9, 9]];
         let mut sums = vec![0.0, 0.0];
         let mut reorders = 0;
@@ -236,7 +236,7 @@ mod tests {
     /// backend's random numbers, both ways over many draws.
     #[test]
     fn test_sampling() {
-        let mut decoder = GreedyDecoder::new(3, 9).with_temperature(0.5);
+        let mut decoder = WhisperGreedyDecoder::new(3, 9).with_temperature(0.5);
         assert_eq!(decoder.temperature(), 0.5);
         let mut reorder = |_: &[usize]| {};
 
@@ -283,7 +283,9 @@ mod tests {
     /// Trajectories per audio come back grouped, in row order.
     #[test]
     fn test_group_finalize() {
-        let mut decoder = GreedyDecoder::new(3, 9).with_temperature(0.5).with_group(2);
+        let mut decoder = WhisperGreedyDecoder::new(3, 9)
+            .with_temperature(0.5)
+            .with_group(2);
         assert_eq!(TokenDecoder::<B>::group_size(&decoder), 2);
         let out = TokenDecoder::<B>::finalize(
             &mut decoder,

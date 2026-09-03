@@ -66,8 +66,8 @@ fn decode_config(table: &Vocab) -> GreedyDecodeConfig {
     GreedyDecodeConfig::new(prompt, table.policy.ids().eot)
 }
 
-/// Splits log-mels into the encoder's fixed windows, zero-padding the
-/// last.
+/// Splits log-perceptive_audio into the encoder's fixed windows, zero-padding
+/// the last.
 fn windows_of<B: Backend>(
     mels: Tensor<B, 3>,
     device: &Device<B>,
@@ -170,8 +170,8 @@ fn test_bunsen_agrees_with_openai_reference() {
     }
 }
 
-/// The encoder comparison, on **real** log-mels rather than synthetic
-/// ones.
+/// The encoder comparison, on **real** log-perceptive_audio rather than
+/// synthetic ones.
 ///
 /// Real speech is not the same test: `synthetic_mels` is a bounded
 /// sawtooth, while a log-mel spectrogram has the dynamic range and the

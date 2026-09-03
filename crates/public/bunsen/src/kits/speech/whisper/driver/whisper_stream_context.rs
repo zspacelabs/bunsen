@@ -64,23 +64,23 @@ use crate::{
                 decode_with_fallback,
             },
             driver::{
-                ClampPolicy,
                 CommitRule,
+                StreamClampPolicy,
                 StreamClock,
                 TranscriptSegment,
                 VoiceActivityFilter,
                 WhisperEmission,
-                stream_driver::WhisperStreamDriver,
                 support::{
                     SpeechRegion,
                     split_window,
                 },
+                whisper_stream_driver::WhisperStreamDriver,
             },
         },
     },
-    ops::signal::mels::{
-        MelConversionContext,
-        MelConverterMeta,
+    ops::signal::perceptive_audio::{
+        PerceptiveAudioConversionContext,
+        PerceptiveAudioConverterMeta,
     },
 };
 
@@ -201,10 +201,10 @@ pub struct WhisperStreamContext<B: Backend> {
     driver: WhisperStreamDriver<B>,
 
     /// The mel front end's streaming state; `None` once flushed.
-    mel: Option<MelConversionContext<B>>,
+    mel: Option<PerceptiveAudioConversionContext<B>>,
 
-    /// `[1, frames, n_mels]` log-mels from `origin` onward; `None` when
-    /// empty.
+    /// `[1, frames, n_mels]` log-perceptive_audio from `origin` onward; `None`
+    /// when empty.
     frames: Option<Tensor<B, 3>>,
 
     /// Samples not yet a whole hop.
@@ -237,7 +237,7 @@ pub struct WhisperStreamContext<B: Backend> {
     /// first window decoded; `None` until then on a detecting driver.
     language: Option<String>,
 
-    clamp: Box<dyn ClampPolicy<B>>,
+    clamp: Box<dyn StreamClampPolicy<B>>,
 
     /// Voice activity, when the driver has a VAD and the policy wants
     /// endpoints.
@@ -284,7 +284,7 @@ impl<B: Backend> WhisperStreamContext<B> {
     pub fn init(
         driver: WhisperStreamDriver<B>,
         clock: StreamClock,
-        clamp: Box<dyn ClampPolicy<B>>,
+        clamp: Box<dyn StreamClampPolicy<B>>,
     ) -> Self {
         let mel = driver.mel_converter().new_context(1);
 
@@ -385,7 +385,7 @@ impl<B: Backend> WhisperStreamContext<B> {
 
     // ---- input -------------------------------------------------------
 
-    /// Anchor the clock, then [`push`](`Self::push`).
+    /// Anchor the clock, then [`write_read`](`Self::write_read`).
     ///
     /// # Errors
     /// As [`push`](Self::write_read) and [`StreamClock::anchor`].
@@ -1031,9 +1031,9 @@ mod tests {
                     RunningMaxClamp,
                     WhisperSpecialIds,
                     WhisperTokenLayout,
-                    context::advance_ready,
-                    stream_driver::WhisperStreamDriverConfig,
-                    trim_stream_tail,
+                    support::drop_last_frame,
+                    whisper_stream_context::advance_ready,
+                    whisper_stream_driver::WhisperStreamDriverConfig,
                 },
             },
             tokens::Detokenizer,
@@ -1270,7 +1270,7 @@ mod tests {
 
         // A dynamic policy is the same policy, and the same chunking is the
         // same arithmetic, so this one is exact.
-        let boxed: Box<dyn ClampPolicy<B>> = Box::new(PerWindow);
+        let boxed: Box<dyn StreamClampPolicy<B>> = Box::new(PerWindow);
         let mut dynamic = driver.new_context(clock(), boxed).unwrap();
         let mut got = dynamic.write_read(&audio).unwrap();
         got.extend(dynamic.end_read().unwrap());
@@ -1278,7 +1278,7 @@ mod tests {
 
         // The per-window one-shot path, by hand.
         let width = driver.window_frames();
-        let trimmed = trim_stream_tail(joined_mels(&driver, &audio, &device));
+        let trimmed = drop_last_frame(joined_mels(&driver, &audio, &device));
         let frames = trimmed.dims()[1];
         let config = greedy_config(&driver);
         let mut by_hand = Vec::new();
@@ -1352,7 +1352,7 @@ mod tests {
 
         // By hand: the first window with the bare prompt, the second with
         // the carry built from the first's ids.
-        let trimmed = trim_stream_tail(joined_mels(&driver, &audio, &device));
+        let trimmed = drop_last_frame(joined_mels(&driver, &audio, &device));
         let window_at = |w: usize| {
             let window = trimmed
                 .clone()
