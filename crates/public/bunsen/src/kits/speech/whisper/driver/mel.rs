@@ -140,7 +140,7 @@ impl WhisperFrontEndConfig {
         joined: Tensor<B, 3>,
     ) -> Tensor<B, 3> {
         let window = trim_stream_tail(joined);
-        let reference = PerWindow.reference(&window);
+        let reference = PerWindow.reference(window.clone());
         self.package_window(window, reference)
     }
 }
@@ -402,7 +402,7 @@ mod tests {
         let whole = package_mels(joined.clone());
 
         let window = trim_stream_tail(joined);
-        let split = package_window(window.clone(), PerWindow.reference(&window));
+        let split = package_window(window.clone(), PerWindow.reference(window.clone()));
 
         assert_eq!(split.dims(), [batch, n_mels, frames - 1]);
         split.to_data().assert_eq(&whole.to_data(), true);

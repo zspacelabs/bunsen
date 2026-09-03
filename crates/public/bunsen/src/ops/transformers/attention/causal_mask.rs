@@ -15,6 +15,6 @@ pub fn causal_mask<B: Backend>(
     n_past: usize,
     device: &B::Device,
 ) -> Tensor<B, 3, Bool> {
-    let total = n_past + seq_len;
-    Tensor::<B, 2, Bool>::tril_mask([seq_len, total], n_past as i64, device).unsqueeze::<3>()
+    Tensor::<B, 3, Bool>::tril_mask([seq_len, n_past + seq_len], n_past as i64, device)
+        .unsqueeze::<3>()
 }
