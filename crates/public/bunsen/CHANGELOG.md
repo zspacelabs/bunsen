@@ -5,6 +5,25 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and this project adheres
 to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.31.0](https://github.com/zspacelabs/bunsen/compare/bunsen-v0.30.1...bunsen-v0.31.0) - 2026-09-03
+
+### Added
+
+- *(whisper)* the stream driver, all eleven phases, and whisper-cli ([#167](https://github.com/zspacelabs/bunsen/pull/167))
+- [**breaking**] Whisper reference parity, and split bundled assets from model validation ([#163](https://github.com/zspacelabs/bunsen/pull/163))
+
+### Other
+
+- Refactor beam search decoder: rename variables for clarity, consolidate tail clipping, and optimize test structure. Update device handling to `PerformanceBackend`. ([#173](https://github.com/zspacelabs/bunsen/pull/173))
+- Modularize LSTM components by relocating and reorganizing `fused_lstm` implementation. Integrate `fused_lstm` into core RNN module and refactor dependencies in `silero_vad` accordingly. ([#172](https://github.com/zspacelabs/bunsen/pull/172))
+- More whisper refactoring. ([#171](https://github.com/zspacelabs/bunsen/pull/171))
+- More whisper cleanup. ([#170](https://github.com/zspacelabs/bunsen/pull/170))
+- Crutcher/whisper rf ([#169](https://github.com/zspacelabs/bunsen/pull/169))
+- VAD filter cleanup, driver layout, and model-owned front end + token layout ([#168](https://github.com/zspacelabs/bunsen/pull/168))
+- Add `window_padded` operation for zero-padded dimensional windowing with accompanying tests. Extend test coverage for `split_padded` and update module documentation to describe new functionality. ([#166](https://github.com/zspacelabs/bunsen/pull/166))
+- Refactor `MelFilterbank` into `MelFilterbankConfig` for improved configuration and validation. Rewrite tests for API updates and streamline related logic for cleaner organization. ([#165](https://github.com/zspacelabs/bunsen/pull/165))
+- Switch to `PerformanceBackend` and enhance testing configurations ([#164](https://github.com/zspacelabs/bunsen/pull/164))
+
 ## [0.30.1](https://github.com/zspacelabs/bunsen/compare/bunsen-v0.30.0...bunsen-v0.30.1) - 2026-07-24
 
 ### Fixed
