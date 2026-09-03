@@ -51,7 +51,7 @@ impl Finished {
 
 /// Upstream's `BeamSearchDecoder`.
 #[derive(Debug, Clone)]
-pub struct BeamSearchDecoder {
+pub struct WhisperBeamSearchDecoder {
     k: usize,
     eot: i64,
     max_candidates: usize,
@@ -59,7 +59,7 @@ pub struct BeamSearchDecoder {
     finished: Option<Vec<Finished>>,
 }
 
-impl BeamSearchDecoder {
+impl WhisperBeamSearchDecoder {
     /// # Arguments
     /// * `beam_size` - beams per audio; at least 1.
     /// * `eot` - the stop token.
@@ -99,7 +99,7 @@ impl BeamSearchDecoder {
     }
 }
 
-impl<B: Backend> TokenDecoder<B> for BeamSearchDecoder {
+impl<B: Backend> TokenDecoder<B> for WhisperBeamSearchDecoder {
     fn group_size(&self) -> usize {
         self.k
     }
@@ -290,7 +290,7 @@ mod tests {
     /// told which rows they came from.
     #[test]
     fn test_first_step_deduplicates() {
-        let mut decoder = BeamSearchDecoder::new(3, EOT, None);
+        let mut decoder = WhisperBeamSearchDecoder::new(3, EOT, None);
         let mut tokens = vec![vec![7]; 3];
         let mut sums = vec![0.0; 3];
         let mut sources = Vec::new();
@@ -318,7 +318,7 @@ mod tests {
     /// set holds `round(k * patience)` sequences.
     #[test]
     fn test_finished_set_and_patience() {
-        let mut decoder = BeamSearchDecoder::new(2, EOT, None);
+        let mut decoder = WhisperBeamSearchDecoder::new(2, EOT, None);
         assert_eq!(decoder.beam_size(), 2);
         assert_eq!(decoder.max_candidates(), 2);
         let mut tokens = vec![vec![7]; 2];
@@ -362,7 +362,7 @@ mod tests {
     /// set from the live beams, best first.
     #[test]
     fn test_patience_and_finalize_fill() {
-        let mut decoder = BeamSearchDecoder::new(2, EOT, Some(2.0));
+        let mut decoder = WhisperBeamSearchDecoder::new(2, EOT, Some(2.0));
         assert_eq!(decoder.max_candidates(), 4);
         let mut tokens = vec![vec![7]; 2];
         let mut sums = vec![0.0; 2];
@@ -394,7 +394,7 @@ mod tests {
     /// and each group refills from its own candidates.
     #[test]
     fn test_groups_are_independent() {
-        let mut decoder = BeamSearchDecoder::new(2, EOT, None);
+        let mut decoder = WhisperBeamSearchDecoder::new(2, EOT, None);
         let mut tokens = vec![vec![7]; 4];
         let mut sums = vec![0.0; 4];
         let mut sources = Vec::new();
@@ -416,6 +416,6 @@ mod tests {
     #[test]
     #[should_panic(expected = "invalid beam size")]
     fn test_rejects_zero_candidates() {
-        let _ = BeamSearchDecoder::new(1, EOT, Some(0.1));
+        let _ = WhisperBeamSearchDecoder::new(1, EOT, Some(0.1));
     }
 }

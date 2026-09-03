@@ -14,7 +14,10 @@
 //! does. It is also what keeps text decoding free of any `std`-only I/O in
 //! its dependency.
 
-use std::path::Path;
+use std::{
+    collections::HashMap,
+    path::Path,
+};
 
 use crate::errors::{
     BunsenError,
@@ -179,9 +182,129 @@ fn lenient_decode_base64(field: &str) -> Option<Vec<u8>> {
     Some(out)
 }
 
+/// The symbols upstream's `non_speech_tokens` suppresses when they are a
+/// single token, with or without a leading space.
+pub const SYMBOLS: &[&str] = &[
+    "\"",
+    "#",
+    "(",
+    ")",
+    "*",
+    "+",
+    "/",
+    ":",
+    ";",
+    "<",
+    "=",
+    ">",
+    "@",
+    "[",
+    "\\",
+    "]",
+    "^",
+    "_",
+    "`",
+    "{",
+    "|",
+    "}",
+    "~",
+    "\u{300c}",
+    "\u{300d}",
+    "\u{300e}",
+    "\u{300f}",
+    "<<",
+    ">>",
+    "<<<",
+    ">>>",
+    "--",
+    "---",
+    "-(",
+    "-[",
+    "('",
+    "(\"",
+    "((",
+    "))",
+    "(((",
+    ")))",
+    "[[",
+    "]]",
+    "{{",
+    "}}",
+    "\u{266a}\u{266a}",
+    "\u{266a}\u{266a}\u{266a}",
+];
+/// The music symbols, suppressed by their first token whatever it is.
+pub const MISCELLANEOUS: &[&str] = &[
+    "\u{2669}", "\u{266a}", "\u{266b}", "\u{266c}", "\u{266d}", "\u{266e}", "\u{266f}",
+];
+
+/// The rank file as `{ bytes -> id }`.
+pub fn lookup(ranks: &TiktokenRanks) -> HashMap<&[u8], i64> {
+    ranks
+        .iter()
+        .enumerate()
+        .map(|(id, bytes)| (bytes, id as i64))
+        .collect()
+}
+
+/// The id of the longest prefix of `bytes` that is a token: what byte-level
+/// BPE emits first for a string that is not itself a token.
+fn first_token(
+    table: &HashMap<&[u8], i64>,
+    bytes: &[u8],
+) -> Option<i64> {
+    (1..=bytes.len())
+        .rev()
+        .find_map(|n| table.get(&bytes[..n]).copied())
+}
+
+/// Upstream's `Tokenizer.non_speech_tokens`, from the rank file alone:
+/// the ids that would make a transcript say `[APPLAUSE]` or draw a music
+/// note, plus the leading `-` and `'` that would start a word with one.
+pub fn non_speech_tokens(ranks: &TiktokenRanks) -> Vec<i64> {
+    let table = lookup(ranks);
+    let mut ids: Vec<i64> = [" -", " '"]
+        .iter()
+        .filter_map(|s| table.get(s.as_bytes()).copied())
+        .collect();
+
+    for symbol in SYMBOLS {
+        for candidate in [symbol.to_string(), format!(" {symbol}")] {
+            if let Some(&id) = table.get(candidate.as_bytes()) {
+                ids.push(id);
+            }
+        }
+    }
+    for symbol in MISCELLANEOUS {
+        for candidate in [symbol.to_string(), format!(" {symbol}")] {
+            if let Some(id) = first_token(&table, candidate.as_bytes()) {
+                ids.push(id);
+            }
+        }
+    }
+
+    ids.sort_unstable();
+    ids.dedup();
+    ids
+}
+
+/// The id of the single-space token, which opens a blank transcript.
+pub fn blank_token(ranks: &TiktokenRanks) -> Option<i64> {
+    lookup(ranks).get(b" ".as_slice()).copied()
+}
+
 #[cfg(test)]
 mod tests {
+    use burn::prelude::*;
+
     use super::*;
+    use crate::{
+        kits::speech::whisper::logit_filters::{
+            LogitFilter,
+            SuppressBlank,
+        },
+        support::testing::CpuBackend,
+    };
 
     #[test]
     fn test_decode_base64() {
@@ -267,5 +390,48 @@ mod tests {
     fn test_load_reports_a_missing_file() {
         let err = TiktokenRanks::load("/nonexistent/whisper.tiktoken").unwrap_err();
         assert!(matches!(err, BunsenError::External(_)), "{err:?}");
+    }
+
+    fn logits<B: Backend>(
+        rows: &[&[f32]],
+        device: &B::Device,
+    ) -> Tensor<B, 2> {
+        let vocab = rows[0].len();
+        let flat: Vec<f32> = rows.iter().flat_map(|r| r.iter().copied()).collect();
+        Tensor::from_data(TensorData::new(flat, [rows.len(), vocab]), device)
+    }
+
+    fn to_rows<B: Backend>(t: Tensor<B, 2>) -> Vec<Vec<f32>> {
+        let [rows, vocab] = t.dims();
+        let flat = t.to_data().convert::<f32>().to_vec::<f32>().unwrap();
+        flat.chunks(vocab).map(|c| c.to_vec()).collect::<Vec<_>>()[..rows].to_vec()
+    }
+
+    /// Only at the first sampled position: once anything has been sampled,
+    /// the blank and the stop token are allowed again.
+    #[test]
+    fn test_suppress_blank() {
+        type B = CpuBackend;
+        let device = Default::default();
+
+        let filter = SuppressBlank::new(2, 4);
+        let first = to_rows(LogitFilter::<B>::apply(
+            &filter,
+            logits(&[&[0.0, 1.0, 2.0, 3.0, 4.0]], &device),
+            &[vec![9, 9]],
+            2,
+        ));
+        assert_eq!(
+            first[0],
+            vec![0.0, 1.0, f32::NEG_INFINITY, 3.0, f32::NEG_INFINITY]
+        );
+
+        let later = to_rows(LogitFilter::<B>::apply(
+            &filter,
+            logits(&[&[0.0, 1.0, 2.0, 3.0, 4.0]], &device),
+            &[vec![9, 9, 1]],
+            2,
+        ));
+        assert_eq!(later[0], vec![0.0, 1.0, 2.0, 3.0, 4.0]);
     }
 }

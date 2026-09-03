@@ -1020,10 +1020,7 @@ mod tests {
             speech::whisper::{
                 Whisper,
                 blocks::WhisperApiConfig,
-                decode::{
-                    GreedyDecodeConfig,
-                    LogitFilter,
-                },
+                decode::GreedyDecodeConfig,
                 driver::{
                     DecodeTriggers,
                     EmissionPolicy,
@@ -1035,6 +1032,7 @@ mod tests {
                     whisper_stream_context::advance_ready,
                     whisper_stream_driver::WhisperStreamDriverConfig,
                 },
+                logit_filters::LogitFilter,
             },
             tokens::Detokenizer,
         },

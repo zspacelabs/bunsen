@@ -19,7 +19,6 @@ use bunsen::{
         whisper::{
             Whisper,
             WhisperFallbackConfig,
-            decode::default_filters,
             driver::{
                 EmissionPolicy,
                 RunningMaxClamp,
@@ -29,6 +28,7 @@ use bunsen::{
                 WhisperStreamDriverConfig,
                 WhisperTask,
             },
+            logit_filters::default_filters,
             pretrained::bundled_vocabulary,
         },
     },
