@@ -1,26 +1,10 @@
-//! # Speech regions: spans of samples, and what is done to them.
-//!
-//! A [`SpeechRegion`] is a half-open span of the stream's samples. The gate
-//! produces them raw; three pure functions then shape them the way the
-//! references do &mdash; [`pad_regions`] the way `faster-whisper` pads,
-//! [`merge_gaps`] the way `fast-whisper-burn` glues neighbours, and
-//! [`SpeechRegion::snap_outward`] onto the encoder grid, which neither does
-//! and both need.
-//!
-//! The snap matters because, at 16 kHz, a voice-activity boundary is a
-//! multiple of 512 samples and a timestamp token can only name a multiple
-//! of 320. Since `lcm(160, 320, 512) = 2560`, an unsnapped edge lands on
-//! the encoder grid one time in five. Rounding outward &mdash; start down,
-//! end up &mdash; keeps the padding conservative and makes a region's start
-//! exactly expressible as both a frame index and a timestamp. The grid is
-//! the driver's, derived from the model's rate.
-
-#[cfg(any(test, debug_assertions))]
-use crate::errors::{
-    BunsenError,
-    BunsenResult,
+use crate::{
+    errors::{
+        BunsenError,
+        BunsenResult,
+    },
+    kits::speech::whisper::driver::StreamClock,
 };
-use crate::kits::speech::whisper::driver::stream_clock::StreamClock;
 
 /// A half-open span of samples, `start..end`, in the stream's own sample
 /// index.
@@ -28,6 +12,7 @@ use crate::kits::speech::whisper::driver::stream_clock::StreamClock;
 pub struct SpeechRegion {
     /// First sample of the region.
     pub start: usize,
+
     /// One past the last sample of the region.
     pub end: usize,
 }
@@ -156,26 +141,6 @@ pub fn pad_regions(
     }
 }
 
-/// Merges regions where `next.start - prev.end <= gap`.
-pub fn merge_gaps(
-    regions: &[SpeechRegion],
-    gap: usize,
-) -> Vec<SpeechRegion> {
-    #[cfg(any(test, debug_assertions))]
-    assert_region_sequence(regions).unwrap();
-
-    let mut out: Vec<SpeechRegion> = Vec::with_capacity(regions.len());
-    for &region in regions {
-        match out.last_mut() {
-            Some(last) if region.start.saturating_sub(last.end) <= gap => {
-                last.end = last.end.max(region.end);
-            }
-            _ => out.push(region),
-        }
-    }
-    out
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -269,17 +234,5 @@ mod tests {
         let mut none: Vec<SpeechRegion> = vec![];
         pad_regions(&mut none, 300, 5100);
         assert!(none.is_empty());
-    }
-
-    #[test]
-    fn test_merge_gaps() {
-        let regions = [r(0, 1000), r(1100, 2000), r(2500, 3000), r(3000, 3500)];
-        assert_eq!(merge_gaps(&regions, 200), vec![r(0, 2000), r(2500, 3500)]);
-        assert_eq!(
-            merge_gaps(&regions, 0),
-            vec![r(0, 1000), r(1100, 2000), r(2500, 3500)]
-        );
-        assert_eq!(merge_gaps(&regions, 10_000), vec![r(0, 3500)]);
-        assert!(merge_gaps(&[], 200).is_empty());
     }
 }

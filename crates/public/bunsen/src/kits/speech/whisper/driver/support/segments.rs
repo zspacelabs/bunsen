@@ -24,7 +24,7 @@ use crate::kits::speech::whisper::driver::whisper_token_layout::WhisperSpecialId
 
 /// A segment of a decoded unit, in frames relative to the unit's start.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct TimedTokens {
+pub(crate) struct TimedTokens {
     /// The first frame the segment covers.
     pub start: usize,
 
@@ -38,7 +38,7 @@ pub struct TimedTokens {
 
 /// What one decoded unit splits into.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct WindowSplit {
+pub(crate) struct WindowSplit {
     /// The closed segments, in order.
     pub segments: Vec<TimedTokens>,
 
@@ -59,7 +59,7 @@ pub struct WindowSplit {
 /// * `count` - the frames of audio the unit held (a whole window, or the
 ///   remainder at the end of a stream).
 /// * `frames_per_index` - mel frames per timestamp index: two.
-pub fn split_window(
+pub(crate) fn split_window(
     tokens: &[i64],
     ids: &WhisperSpecialIds,
     count: usize,

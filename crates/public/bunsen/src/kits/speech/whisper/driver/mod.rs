@@ -8,6 +8,7 @@
 
 pub mod support;
 
+mod speech_region;
 mod stream_clamp_policy;
 mod stream_clock;
 mod voice_activity_filter;
@@ -16,6 +17,8 @@ mod whisper_stream_context;
 mod whisper_stream_driver;
 mod whisper_token_layout;
 
+#[doc(inline)]
+pub use speech_region::*;
 #[doc(inline)]
 pub use stream_clamp_policy::*;
 #[doc(inline)]

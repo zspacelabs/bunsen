@@ -59,22 +59,20 @@ use crate::{
             blocks::WhisperMeta,
             decode::{
                 DecodeConfig,
-                Decoded,
+                DecodedTokens,
                 WhisperFallbackConfig,
                 decode_with_fallback,
             },
             driver::{
                 CommitRule,
+                SpeechRegion,
                 StreamClampPolicy,
                 StreamClock,
                 TranscriptSegment,
                 VoiceActivityFilter,
                 WhisperEmission,
-                support::{
-                    SpeechRegion,
-                    split_window,
-                },
-                whisper_stream_driver::WhisperStreamDriver,
+                WhisperStreamDriver,
+                support::segments::split_window,
             },
         },
     },
@@ -722,7 +720,7 @@ impl<B: Backend> WhisperStreamContext<B> {
     fn decode_frames(
         &self,
         window: Tensor<B, 3>,
-    ) -> Decoded {
+    ) -> DecodedTokens {
         let base = self.driver.decode_config(self.prompt_now());
         self.ladder(&base, self.package_padded(window), None)
     }
@@ -738,8 +736,8 @@ impl<B: Backend> WhisperStreamContext<B> {
         &self,
         base: &DecodeConfig,
         window: Tensor<B, 3>,
-        first: Option<Decoded>,
-    ) -> Decoded {
+        first: Option<DecodedTokens>,
+    ) -> DecodedTokens {
         let model = self.driver.whisper_model();
         let mut xa: Option<Tensor<B, 3>> = None;
         decode_with_fallback(
@@ -845,7 +843,7 @@ impl<B: Backend> WhisperStreamContext<B> {
     fn commit_due(
         &mut self,
         unit: Due,
-        decoded: Decoded,
+        decoded: DecodedTokens,
     ) -> BunsenResult<Vec<WhisperEmission>> {
         let hop = self.hop();
         let mut out = Vec::new();
@@ -940,7 +938,7 @@ impl<B: Backend> WhisperStreamContext<B> {
     fn draft_from(
         &mut self,
         unit: Due,
-        decoded: Decoded,
+        decoded: DecodedTokens,
     ) -> BunsenResult<WhisperEmission> {
         self.last_draft = self.samples_seen;
         Ok(WhisperEmission::Draft(self.segment_at(

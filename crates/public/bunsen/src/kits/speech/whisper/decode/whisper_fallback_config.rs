@@ -26,7 +26,7 @@ use flate2::{
 
 use crate::kits::speech::whisper::decode::{
     DecodeConfig,
-    Decoded,
+    DecodedTokens,
 };
 
 /// The ladder and the thresholds that climb it.
@@ -170,10 +170,10 @@ pub fn compression_ratio(text: &str) -> f64 {
 pub fn decode_with_fallback(
     fallback: &WhisperFallbackConfig,
     base: &DecodeConfig,
-    first: Option<Decoded>,
-    mut decode: impl FnMut(&DecodeConfig) -> Decoded,
+    first: Option<DecodedTokens>,
+    mut decode: impl FnMut(&DecodeConfig) -> DecodedTokens,
     text_of: impl Fn(&[i64]) -> Option<String>,
-) -> Decoded {
+) -> DecodedTokens {
     assert!(
         !fallback.temperatures.is_empty(),
         "the ladder has at least one rung"
@@ -210,8 +210,8 @@ mod tests {
         sum_logprob: f32,
         no_speech: Option<f32>,
         temperature: f64,
-    ) -> Decoded {
-        Decoded {
+    ) -> DecodedTokens {
+        DecodedTokens {
             tokens: (0..n as i64).collect(),
             sum_logprob,
             no_speech_prob: no_speech,
