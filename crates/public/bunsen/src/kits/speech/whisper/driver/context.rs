@@ -557,7 +557,7 @@ impl<B: Backend> WhisperStreamContext<B> {
         &mut self,
         new: Tensor<B, 3>,
     ) {
-        self.clamp.observe(new.clone());
+        self.clamp.observe(&new);
         self.frames = Some(match self.frames.take() {
             Some(ring) => Tensor::cat(vec![ring, new], 1),
             None => new,
@@ -708,7 +708,7 @@ impl<B: Backend> WhisperStreamContext<B> {
         &self,
         window: Tensor<B, 3>,
     ) -> Tensor<B, 3> {
-        let reference = self.clamp.reference(window.clone());
+        let reference = self.clamp.reference(&window);
         let packaged = self.driver.front_end().package_window(window, reference);
 
         let width = self.driver.window_frames();
@@ -1011,7 +1011,7 @@ impl<B: Backend> WhisperStreamContext<B> {
             .map(|c| c.to_data().convert::<f32>().to_vec::<f32>().unwrap());
         let reference = self.frames.as_ref().map(|f| {
             self.clamp
-                .reference(f.clone())
+                .reference(f)
                 .to_data()
                 .convert::<f32>()
                 .to_vec::<f32>()
@@ -1366,7 +1366,7 @@ mod tests {
                 .slice_dim(1, at as isize..(at + count) as isize);
             let mut packaged = driver
                 .front_end()
-                .package_window(window.clone(), PerWindow.reference(window.clone()));
+                .package_window(window.clone(), PerWindow.reference(&window));
             if count < width {
                 let pad = Tensor::zeros([1, packaged.dims()[1], width - count], &device);
                 packaged = Tensor::cat(vec![packaged, pad], 2);
@@ -1458,7 +1458,7 @@ mod tests {
                 .slice_dim(1, (w * width) as isize..((w + 1) * width) as isize);
             driver
                 .front_end()
-                .package_window(window.clone(), PerWindow.reference(window.clone()))
+                .package_window(window.clone(), PerWindow.reference(&window))
         };
         let ids = driver.policy().ids();
         let first = driver
