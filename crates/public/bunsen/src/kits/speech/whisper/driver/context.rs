@@ -60,17 +60,17 @@ use crate::{
             decode::{
                 DecodeConfig,
                 Decoded,
-                FallbackConfig,
+                WhisperFallbackConfig,
                 decode_with_fallback,
             },
             driver::{
                 ClampPolicy,
                 CommitRule,
-                Emission,
-                Segment,
-                TimestampHistory,
+                StreamClock,
+                TranscriptSegment,
                 VoiceActivityFilter,
-                driver_impl::WhisperDriver,
+                WhisperEmission,
+                stream_driver::WhisperStreamDriver,
                 support::{
                     SpeechRegion,
                     split_window,
@@ -113,10 +113,10 @@ struct Pending<B: Backend> {
 /// # Errors
 /// As [`WhisperStreamContext::advance`].
 pub fn advance_ready<B: Backend>(
-    driver: &WhisperDriver<B>,
+    driver: &WhisperStreamDriver<B>,
     contexts: &mut [WhisperStreamContext<B>],
-) -> BunsenResult<Vec<Vec<Emission>>> {
-    let mut out: Vec<Vec<Emission>> = vec![Vec::new(); contexts.len()];
+) -> BunsenResult<Vec<Vec<WhisperEmission>>> {
+    let mut out: Vec<Vec<WhisperEmission>> = vec![Vec::new(); contexts.len()];
 
     loop {
         // One due unit per context, with the prompt it would decode under.
@@ -164,9 +164,10 @@ pub fn advance_ready<B: Backend>(
             // The first rung of the ladder, batched; any rung above it is
             // the context's own, which is rare.
             let config = driver.decode_config(prompt);
-            let first = driver
-                .model()
-                .decode_windows_full(batch, &config, driver.filters());
+            let first =
+                driver
+                    .whisper_model()
+                    .decode_windows_full(batch, &config, driver.filters());
 
             for (row, k) in members.into_iter().enumerate() {
                 let item = pending[k].take().expect("taken once");
@@ -184,7 +185,7 @@ pub fn advance_ready<B: Backend>(
 
 /// One stream: the only stateful type in the driver.
 ///
-/// Opened by [`WhisperDriver::new_context`]. Its tensor state &mdash; the
+/// Opened by [`WhisperStreamDriver::new_context`]. Its tensor state &mdash; the
 /// driver's handle, the mel carry, the frame ring, the VAD state &mdash; is
 /// `Module` typed; everything else is host-side bookkeeping, small enough to
 /// snapshot.
@@ -196,7 +197,7 @@ pub fn advance_ready<B: Backend>(
 /// policy stays behind its trait, boxed, and the context is `Clone + Debug`.
 #[derive(Clone, Debug)]
 pub struct WhisperStreamContext<B: Backend> {
-    driver: WhisperDriver<B>,
+    driver: WhisperStreamDriver<B>,
 
     /// The mel front end's streaming state; `None` once flushed.
     mel: Option<MelConversionContext<B>>,
@@ -217,7 +218,7 @@ pub struct WhisperStreamContext<B: Backend> {
     /// The stream frame index the next window starts at.
     seek: usize,
 
-    clock: TimestampHistory,
+    clock: StreamClock,
 
     /// Every committed id, in order.
     transcript: Vec<i64>,
@@ -284,14 +285,14 @@ pub(super) struct Due {
 
 impl<B: Backend> WhisperStreamContext<B> {
     pub(super) fn open(
-        driver: WhisperDriver<B>,
-        clock: TimestampHistory,
+        driver: WhisperStreamDriver<B>,
+        clock: StreamClock,
         clamp: Box<dyn ClampPolicy<B>>,
     ) -> Self {
-        let mel = driver.mel().new_context(1);
+        let mel = driver.mel_converter().new_context(1);
 
-        let vad = match (driver.vad(), driver.filter_config()) {
-            (Some(model), Some(gate)) if driver.emission().triggers.endpoint => {
+        let vad = match (driver.silero_vad_model(), driver.va_filter_config()) {
+            (Some(model), Some(gate)) if driver.config().emission.triggers.endpoint => {
                 let device = model.devices()[0].clone();
                 Some(VoiceActivity {
                     context: Some(
@@ -308,7 +309,7 @@ impl<B: Backend> WhisperStreamContext<B> {
             _ => None,
         };
 
-        let language = driver.language().map(str::to_string);
+        let language = driver.config().language.clone();
         Self {
             driver,
             mel: Some(mel),
@@ -333,7 +334,7 @@ impl<B: Backend> WhisperStreamContext<B> {
     // ---- observation -------------------------------------------------
 
     /// The stream's clock.
-    pub fn clock(&self) -> &TimestampHistory {
+    pub fn clock(&self) -> &StreamClock {
         &self.clock
     }
 
@@ -384,7 +385,7 @@ impl<B: Backend> WhisperStreamContext<B> {
     }
 
     fn hop(&self) -> usize {
-        self.driver.mel().hop()
+        self.driver.mel_converter().hop()
     }
 
     // ---- input -------------------------------------------------------
@@ -398,7 +399,7 @@ impl<B: Backend> WhisperStreamContext<B> {
     pub fn push(
         &mut self,
         samples: &[f32],
-    ) -> BunsenResult<Vec<Emission>> {
+    ) -> BunsenResult<Vec<WhisperEmission>> {
         self.feed(samples)?;
         self.advance()
     }
@@ -407,12 +408,12 @@ impl<B: Backend> WhisperStreamContext<B> {
     /// `samples` was at media time `time`.
     ///
     /// # Errors
-    /// As [`push`](Self::push) and [`TimestampHistory::anchor`].
+    /// As [`push`](Self::push) and [`StreamClock::anchor`].
     pub fn push_at(
         &mut self,
         samples: &[f32],
         time: f64,
-    ) -> BunsenResult<Vec<Emission>> {
+    ) -> BunsenResult<Vec<WhisperEmission>> {
         self.clock.anchor(self.samples_seen, time)?;
         self.push(samples)
     }
@@ -445,7 +446,7 @@ impl<B: Backend> WhisperStreamContext<B> {
     }
 
     /// Runs every decode that is due, and returns what became final.
-    pub fn advance(&mut self) -> BunsenResult<Vec<Emission>> {
+    pub fn advance(&mut self) -> BunsenResult<Vec<WhisperEmission>> {
         let mut out = Vec::new();
         loop {
             self.skip_silence();
@@ -502,7 +503,7 @@ impl<B: Backend> WhisperStreamContext<B> {
     /// [`end_input`](Self::end_input) then [`advance`](Self::advance).
     ///
     /// Idempotent; a second flush returns nothing.
-    pub fn flush(&mut self) -> BunsenResult<Vec<Emission>> {
+    pub fn flush(&mut self) -> BunsenResult<Vec<WhisperEmission>> {
         self.end_input()?;
         self.advance()
     }
@@ -518,7 +519,7 @@ impl<B: Backend> WhisperStreamContext<B> {
         &mut self,
         flushing: bool,
     ) -> BunsenResult<()> {
-        let mel = self.driver.mel();
+        let mel = self.driver.mel_converter();
         let (hop, n_fft) = (mel.hop(), mel.n_fft());
         let first = self.mel.as_ref().is_some_and(|ctx| ctx.carry().is_none());
         let minimum = if first {
@@ -577,7 +578,7 @@ impl<B: Backend> WhisperStreamContext<B> {
         };
         let model = self
             .driver
-            .vad()
+            .silero_vad_model()
             .expect("a VAD is attached when voice activity is on");
         let chunk = model.chunk_size();
 
@@ -665,7 +666,8 @@ impl<B: Backend> WhisperStreamContext<B> {
                 });
             }
 
-            if self.driver.emission().triggers.window_full && self.pending_frames() >= width {
+            if self.driver.config().emission.triggers.window_full && self.pending_frames() >= width
+            {
                 let to = (self.seek + width) * hop;
                 if vad.filter.open_since().is_some_and(|s| s < to) {
                     return Some(Due {
@@ -745,10 +747,10 @@ impl<B: Backend> WhisperStreamContext<B> {
         window: Tensor<B, 3>,
         first: Option<Decoded>,
     ) -> Decoded {
-        let model = self.driver.model();
+        let model = self.driver.whisper_model();
         let mut xa: Option<Tensor<B, 3>> = None;
         decode_with_fallback(
-            self.driver.fallback(),
+            &self.driver.config().fallback,
             base,
             first,
             |config| {
@@ -771,7 +773,7 @@ impl<B: Backend> WhisperStreamContext<B> {
     ) -> Option<String> {
         let detokenizer = self.driver.detokenizer()?;
         detokenizer
-            .detokenize(&self.driver.policy().text_ids(ids))
+            .detokenize(&self.driver.token_layout().text_ids(ids))
             .ok()
     }
 
@@ -780,16 +782,16 @@ impl<B: Backend> WhisperStreamContext<B> {
     pub(super) fn prompt_now(&self) -> Vec<i64> {
         let prompt = self.sot_now();
         let carried = &self.transcript[self.prompt_reset.min(self.transcript.len())..];
-        if !self.driver.carries_prompt() || carried.is_empty() {
+        if !self.driver.config().condition_on_previous_text || carried.is_empty() {
             return prompt;
         }
 
         // Upstream keeps `n_text_ctx / 2 - 1` tokens of context.
-        let keep = self.driver.model().max_text_ctx() / 2 - 1;
+        let keep = self.driver.whisper_model().max_text_ctx() / 2 - 1;
         let tail = &carried[carried.len().saturating_sub(keep)..];
 
         let mut out = Vec::with_capacity(1 + tail.len() + prompt.len());
-        out.push(self.driver.policy().ids().sot_prev);
+        out.push(self.driver.token_layout().ids().sot_prev);
         out.extend_from_slice(tail);
         out.extend_from_slice(&prompt);
         out
@@ -805,12 +807,12 @@ impl<B: Backend> WhisperStreamContext<B> {
         if self.language.is_some() || !self.driver.detects_language() {
             return;
         }
-        let model = self.driver.model();
+        let model = self.driver.whisper_model();
         let xa = model.forward_encoder(self.package_padded(frames.clone()));
-        let token = model.detect_language(xa, self.driver.policy().ids())[0];
+        let token = model.detect_language(xa, self.driver.token_layout().ids())[0];
         let code = self
             .driver
-            .policy()
+            .token_layout()
             .language_code(token)
             .expect("detection picks a language token");
         self.language = Some(code.to_string());
@@ -851,22 +853,23 @@ impl<B: Backend> WhisperStreamContext<B> {
         &mut self,
         unit: Due,
         decoded: Decoded,
-    ) -> BunsenResult<Vec<Emission>> {
+    ) -> BunsenResult<Vec<WhisperEmission>> {
         let hop = self.hop();
         let mut out = Vec::new();
 
         let skip = self
             .driver
-            .fallback()
+            .config()
+            .fallback
             .should_skip(decoded.no_speech_prob.map(f64::from), decoded.avg_logprob());
         let tokens = decoded.tokens;
 
         if skip {
             self.seek = unit.start + unit.count;
-        } else if self.driver.timestamps() {
+        } else if self.driver.config().timestamps {
             let split = split_window(
                 &tokens,
-                self.driver.policy().ids(),
+                self.driver.token_layout().ids(),
                 unit.count,
                 self.driver.frames_per_timestamp(),
             );
@@ -877,18 +880,20 @@ impl<B: Backend> WhisperStreamContext<B> {
                     segment.tokens,
                 )?;
                 self.transcript.extend_from_slice(&emission.tokens);
-                out.push(Emission::Committed(emission));
+                out.push(WhisperEmission::Committed(emission));
             }
-            if !split.tail.is_empty() && self.driver.emission().commit == CommitRule::LastTimestamp
+            if !split.tail.is_empty()
+                && self.driver.config().emission.commit == CommitRule::LastTimestamp
             {
-                let opens = (split.tail[0] - self.driver.policy().ids().timestamp_begin) as usize
+                let opens = (split.tail[0] - self.driver.token_layout().ids().timestamp_begin)
+                    as usize
                     * self.driver.frames_per_timestamp();
                 // A tail opening past the unit's audio covers nothing yet;
                 // it is decoded again with more audio behind it.
                 if opens < unit.count {
                     let draft =
                         self.segment_at(unit.start + opens, unit.start + unit.count, split.tail)?;
-                    out.push(Emission::Draft(draft));
+                    out.push(WhisperEmission::Draft(draft));
                 }
             }
             // Always forward, never past the unit.
@@ -896,11 +901,13 @@ impl<B: Backend> WhisperStreamContext<B> {
         } else {
             let segment = self.segment_at(unit.start, unit.start + unit.count, tokens)?;
             self.transcript.extend_from_slice(&segment.tokens);
-            out.push(Emission::Committed(segment));
+            out.push(WhisperEmission::Committed(segment));
             self.seek = unit.start + unit.count;
         }
 
-        if !self.driver.carries_prompt() || FallbackConfig::resets_prompt(decoded.temperature) {
+        if !self.driver.config().condition_on_previous_text
+            || WhisperFallbackConfig::resets_prompt(decoded.temperature)
+        {
             self.prompt_reset = self.transcript.len();
         }
 
@@ -941,9 +948,9 @@ impl<B: Backend> WhisperStreamContext<B> {
         &mut self,
         unit: Due,
         decoded: Decoded,
-    ) -> BunsenResult<Emission> {
+    ) -> BunsenResult<WhisperEmission> {
         self.last_draft = self.samples_seen;
-        Ok(Emission::Draft(self.segment_at(
+        Ok(WhisperEmission::Draft(self.segment_at(
             unit.start,
             unit.start + unit.count,
             decoded.tokens,
@@ -957,15 +964,15 @@ impl<B: Backend> WhisperStreamContext<B> {
         start: usize,
         end: usize,
         tokens: Vec<i64>,
-    ) -> BunsenResult<Segment> {
+    ) -> BunsenResult<TranscriptSegment> {
         let hop = self.hop();
         let text = match self.driver.detokenizer() {
             Some(detokenizer) => {
-                Some(detokenizer.detokenize(&self.driver.policy().text_ids(&tokens))?)
+                Some(detokenizer.detokenize(&self.driver.token_layout().text_ids(&tokens))?)
             }
             None => None,
         };
-        Ok(Segment {
+        Ok(TranscriptSegment {
             start: self.clock.time_at(start * hop),
             end: self.clock.time_at(end * hop),
             tokens,
@@ -1081,14 +1088,14 @@ mod tests {
                     LogitFilter,
                 },
                 driver::{
+                    DecodeTriggers,
                     EmissionPolicy,
-                    MaxSeen,
                     PerWindow,
-                    TokenPolicy,
-                    Triggers,
+                    RunningMaxClamp,
                     WhisperSpecialIds,
+                    WhisperTokenLayout,
                     context::advance_ready,
-                    driver_impl::WhisperDriverConfig,
+                    stream_driver::WhisperStreamDriverConfig,
                     trim_stream_tail,
                 },
             },
@@ -1127,8 +1134,8 @@ mod tests {
         tiny_model_on::<B>(device)
     }
 
-    fn config(carry: bool) -> WhisperDriverConfig {
-        WhisperDriverConfig::new()
+    fn config(carry: bool) -> WhisperStreamDriverConfig {
+        WhisperStreamDriverConfig::new()
             .with_language(Some("en".to_string()))
             .with_max_tokens(4)
             .with_condition_on_previous_text(carry)
@@ -1137,17 +1144,21 @@ mod tests {
     fn driver(
         device: &Device,
         carry: bool,
-    ) -> WhisperDriver<B> {
+    ) -> WhisperStreamDriver<B> {
         config(carry)
-            .init_with_policy(tiny_model(device), TokenPolicy::new(tiny_layout()), device)
+            .init_with_layout(
+                tiny_model(device),
+                WhisperTokenLayout::new(tiny_layout()),
+                device,
+            )
             .unwrap()
     }
 
     /// The rate the tiny model, and every clip here, is at.
     const RATE: usize = 16_000;
 
-    fn clock() -> TimestampHistory {
-        TimestampHistory::uniform(RATE)
+    fn clock() -> StreamClock {
+        StreamClock::uniform(RATE)
     }
 
     /// A deterministic 1.05 s clip: a tone under a bell-shaped envelope
@@ -1200,7 +1211,7 @@ mod tests {
         ctx: &mut WhisperStreamContext<B>,
         audio: &[f32],
         sizes: &[usize],
-    ) -> Vec<Emission> {
+    ) -> Vec<WhisperEmission> {
         let mut out = Vec::new();
         let mut at = 0;
         for &size in sizes {
@@ -1212,7 +1223,7 @@ mod tests {
         out
     }
 
-    fn tokens_of(emissions: &[Emission]) -> Vec<Vec<i64>> {
+    fn tokens_of(emissions: &[WhisperEmission]) -> Vec<Vec<i64>> {
         emissions
             .iter()
             .map(|e| e.segment().tokens.clone())
@@ -1222,7 +1233,7 @@ mod tests {
     /// The whole clip through the front end in one call, joined with its
     /// tail: what `package_mels` and `decode_chunked` start from.
     fn joined_mels(
-        driver: &WhisperDriver<B>,
+        driver: &WhisperStreamDriver<B>,
         audio: &[f32],
         device: &Device,
     ) -> Tensor<B, 3> {
@@ -1234,16 +1245,20 @@ mod tests {
             ),
             device,
         );
-        let (mels, ctx) = driver.mel().new_context(1).transform(waves).unwrap();
+        let (mels, ctx) = driver
+            .mel_converter()
+            .new_context(1)
+            .transform(waves)
+            .unwrap();
         match ctx.finish() {
             Some(tail) => Tensor::cat(vec![mels, tail], 1),
             None => mels,
         }
     }
 
-    fn greedy_config(driver: &WhisperDriver<B>) -> GreedyDecodeConfig {
-        GreedyDecodeConfig::new(driver.prompt().to_vec(), driver.policy().ids().eot)
-            .with_max_tokens(driver.max_tokens())
+    fn greedy_config(driver: &WhisperStreamDriver<B>) -> GreedyDecodeConfig {
+        GreedyDecodeConfig::new(driver.prompt().to_vec(), driver.token_layout().ids().eot)
+            .with_max_tokens(driver.config().max_tokens)
     }
 
     /// **I5, against the one-shot path.** One push of the whole clip, with
@@ -1257,11 +1272,11 @@ mod tests {
         let driver = driver(&device, false);
         let audio = clip();
 
-        let mut ctx = driver.new_context(clock(), MaxSeen::new()).unwrap();
+        let mut ctx = driver.new_context(clock(), RunningMaxClamp::new()).unwrap();
         let mut emissions = ctx.push(&audio).unwrap();
         emissions.extend(ctx.flush().unwrap());
 
-        let expected = driver.model().decode_chunked(
+        let expected = driver.whisper_model().decode_chunked(
             driver
                 .front_end()
                 .package_mels(joined_mels(&driver, &audio, &device)),
@@ -1270,7 +1285,7 @@ mod tests {
 
         assert_eq!(expected.len(), 7, "6 full windows and a remainder");
         assert_eq!(tokens_of(&emissions), expected);
-        assert!(emissions.iter().all(Emission::is_committed));
+        assert!(emissions.iter().all(WhisperEmission::is_committed));
         assert_eq!(
             ctx.transcript(),
             expected.concat(),
@@ -1288,8 +1303,8 @@ mod tests {
     /// model turns a last-digit difference into a flipped argmax. A trained
     /// model on speech does not; that is the validation crate's gate.
     fn assert_same_stream(
-        a: (&WhisperStreamContext<B>, &[Emission]),
-        b: (&WhisperStreamContext<B>, &[Emission]),
+        a: (&WhisperStreamContext<B>, &[WhisperEmission]),
+        b: (&WhisperStreamContext<B>, &[WhisperEmission]),
         label: &str,
     ) {
         let (ctx_a, got) = a;
@@ -1371,7 +1386,7 @@ mod tests {
                 let pad = Tensor::zeros([1, packaged.dims()[1], width - count], &device);
                 packaged = Tensor::cat(vec![packaged, pad], 2);
             }
-            by_hand.push(driver.model().decode_window(packaged, &config));
+            by_hand.push(driver.whisper_model().decode_window(packaged, &config));
             at += count;
         }
         assert_eq!(tokens_of(&expected), by_hand);
@@ -1386,7 +1401,7 @@ mod tests {
         let device = Device::default();
         let driver = driver(&device, false);
         let audio = clip();
-        let hop = driver.mel().hop() as f64;
+        let hop = driver.mel_converter().hop() as f64;
         let width = driver.window_frames();
 
         let mut ctx = driver.new_context(clock(), PerWindow).unwrap();
@@ -1419,7 +1434,7 @@ mod tests {
         let driver = driver(&device, false);
         let audio = clip();
 
-        let mut ctx = driver.new_context(clock(), MaxSeen::new()).unwrap();
+        let mut ctx = driver.new_context(clock(), RunningMaxClamp::new()).unwrap();
         // Enough for one committed window and a partial second one.
         let committed = ctx.push(&audio[..4_000]).unwrap();
         assert_eq!(committed.len(), 1);
@@ -1460,24 +1475,25 @@ mod tests {
                 .front_end()
                 .package_window(window.clone(), PerWindow.reference(window))
         };
-        let ids = driver.policy().ids();
+        let ids = driver.token_layout().ids();
         let first = driver
-            .model()
+            .whisper_model()
             .decode_window(window_at(0), &greedy_config(&driver));
         assert_eq!(got[0], first);
 
-        let keep = driver.model().max_text_ctx() / 2 - 1;
+        let keep = driver.whisper_model().max_text_ctx() / 2 - 1;
         let mut prompt = vec![ids.sot_prev];
         prompt.extend_from_slice(&first[first.len().saturating_sub(keep)..]);
         prompt.extend_from_slice(driver.prompt());
-        let carried = GreedyDecodeConfig::new(prompt, ids.eot).with_max_tokens(driver.max_tokens());
-        let second = driver.model().decode_window(window_at(1), &carried);
+        let carried =
+            GreedyDecodeConfig::new(prompt, ids.eot).with_max_tokens(driver.config().max_tokens);
+        let second = driver.whisper_model().decode_window(window_at(1), &carried);
         assert_eq!(got[1], second);
 
         // Without carrying, the same audio prompts every window the same
         // way, so this is only a real test if the two differ somewhere.
         let bare = driver
-            .model()
+            .whisper_model()
             .decode_window(window_at(1), &greedy_config(&driver));
         assert!(
             !first.is_empty() || second != bare,
@@ -1510,7 +1526,7 @@ mod tests {
 
         for e in &emissions {
             let segment = e.segment();
-            let text_ids = driver.policy().text_ids(&segment.tokens);
+            let text_ids = driver.token_layout().text_ids(&segment.tokens);
             assert_eq!(
                 segment.text.as_deref(),
                 Some(Numbers.detokenize(&text_ids).unwrap().as_str())
@@ -1729,24 +1745,28 @@ mod tests {
     fn timestamped(
         device: &Device,
         commit: CommitRule,
-    ) -> WhisperDriver<B> {
+    ) -> WhisperStreamDriver<B> {
         let scripted: Arc<dyn LogitFilter<B>> = Arc::new(Script(script()));
         config(false)
             .with_max_tokens(8)
             .with_timestamps(true)
             .with_max_initial_timestamp(Some(0.04))
-            .with_emission(EmissionPolicy::new(Triggers::new(), commit))
-            .init_with_policy(tiny_model(device), TokenPolicy::new(tiny_layout()), device)
+            .with_emission(EmissionPolicy::new(DecodeTriggers::new(), commit))
+            .init_with_layout(
+                tiny_model(device),
+                WhisperTokenLayout::new(tiny_layout()),
+                device,
+            )
             .unwrap()
             .with_logit_filters(vec![scripted])
     }
 
     /// Pushes a clip through a fresh context and flushes it.
     fn run_clip(
-        driver: &WhisperDriver<B>,
+        driver: &WhisperStreamDriver<B>,
         audio: &[f32],
         at: Option<f64>,
-    ) -> Vec<Emission> {
+    ) -> Vec<WhisperEmission> {
         let mut ctx = driver.new_context(clock(), PerWindow).unwrap();
         let mut emissions = match at {
             Some(time) => ctx.push_at(audio, time).unwrap(),
@@ -1778,7 +1798,7 @@ mod tests {
         let device = Device::default();
         let driver = timestamped(&device, CommitRule::Complete);
         let tb = tiny_layout().timestamp_begin;
-        let hop = driver.mel().hop() as f64;
+        let hop = driver.mel_converter().hop() as f64;
         let frame = |f: f64| f * hop / driver.sample_rate() as f64;
         assert_eq!(driver.frames_per_timestamp(), 2);
         assert_eq!(
@@ -1846,14 +1866,14 @@ mod tests {
             None,
         );
 
-        let committed: Vec<&Emission> = last.iter().filter(|e| e.is_committed()).collect();
+        let committed: Vec<&WhisperEmission> = last.iter().filter(|e| e.is_committed()).collect();
         assert_eq!(committed.len(), complete.len());
         for (a, b) in committed.iter().zip(&complete) {
             assert_eq!(a.segment(), b.segment());
         }
 
         let tb = tiny_layout().timestamp_begin;
-        let drafts: Vec<&Emission> = last.iter().filter(|e| !e.is_committed()).collect();
+        let drafts: Vec<&WhisperEmission> = last.iter().filter(|e| !e.is_committed()).collect();
         // One per decode, except the last: its 5 frames end before the
         // tail's timestamp at frame 10, so there is nothing to draft yet.
         assert_eq!(drafts.len(), 10);
@@ -1901,13 +1921,17 @@ mod tests {
     /// policy.
     fn degenerate_driver(
         device: &Device,
-        fallback: FallbackConfig,
-    ) -> WhisperDriver<B> {
+        fallback: WhisperFallbackConfig,
+    ) -> WhisperStreamDriver<B> {
         let filter: Arc<dyn LogitFilter<B>> = Arc::new(Degenerate);
         config(true)
             .with_max_tokens(8)
             .with_fallback(fallback)
-            .init_with_policy(tiny_model(device), TokenPolicy::new(tiny_layout()), device)
+            .init_with_layout(
+                tiny_model(device),
+                WhisperTokenLayout::new(tiny_layout()),
+                device,
+            )
             .unwrap()
             .with_logit_filters(vec![filter])
     }
@@ -1923,7 +1947,7 @@ mod tests {
     fn test_fallback_ladder_recovers() {
         let device = Device::default();
         let audio = clip();
-        let flat = degenerate_driver(&device, FallbackConfig::new());
+        let flat = degenerate_driver(&device, WhisperFallbackConfig::new());
         let mut ctx = flat.new_context(clock(), PerWindow).unwrap();
         let mut looped = ctx.push(&audio).unwrap();
         looped.extend(ctx.flush().unwrap());
@@ -1940,7 +1964,7 @@ mod tests {
         let carry_len = ctx.prompt_now().len();
         assert!(carry_len > flat.prompt().len(), "the carry stands");
 
-        let climbing = degenerate_driver(&device, FallbackConfig::upstream());
+        let climbing = degenerate_driver(&device, WhisperFallbackConfig::upstream());
         let mut ctx = climbing.new_context(clock(), PerWindow).unwrap();
         let mut recovered = ctx.push(&audio).unwrap();
         recovered.extend(ctx.flush().unwrap());
@@ -1956,7 +1980,7 @@ mod tests {
 
         let hot = degenerate_driver(
             &device,
-            FallbackConfig::new().with_temperatures(vec![0.0, 0.8]),
+            WhisperFallbackConfig::new().with_temperatures(vec![0.0, 0.8]),
         );
         let mut ctx = hot.new_context(clock(), PerWindow).unwrap();
         let mut reset = ctx.push(&audio).unwrap();
@@ -1981,7 +2005,7 @@ mod tests {
 
         let skipping = degenerate_driver(
             &device,
-            FallbackConfig::new().with_no_speech_threshold(Some(0.0)),
+            WhisperFallbackConfig::new().with_no_speech_threshold(Some(0.0)),
         );
         let mut ctx = skipping.new_context(clock(), PerWindow).unwrap();
         let mut emissions = ctx.push(&audio).unwrap();
@@ -1995,7 +2019,7 @@ mod tests {
 
         let kept = degenerate_driver(
             &device,
-            FallbackConfig::new()
+            WhisperFallbackConfig::new()
                 .with_no_speech_threshold(Some(0.0))
                 .with_logprob_threshold(Some(-1e9)),
         );
@@ -2015,11 +2039,11 @@ mod tests {
     #[serial]
     fn test_language_is_detected_per_stream() {
         let device = Device::default();
-        let detecting = WhisperDriverConfig::new()
+        let detecting = WhisperStreamDriverConfig::new()
             .with_max_tokens(4)
-            .init_with_policy(
+            .init_with_layout(
                 tiny_model(&device),
-                TokenPolicy::new(tiny_layout()),
+                WhisperTokenLayout::new(tiny_layout()),
                 &device,
             )
             .unwrap()
@@ -2059,15 +2083,15 @@ mod tests {
     #[test]
     fn test_driver_reports_the_models_rate() {
         let device = Device::default();
-        let driver = WhisperDriverConfig::new()
-            .init_with_policy(
+        let driver = WhisperStreamDriverConfig::new()
+            .init_with_layout(
                 tiny_model(&device),
-                TokenPolicy::new(tiny_layout()),
+                WhisperTokenLayout::new(tiny_layout()),
                 &device,
             )
             .unwrap();
         assert_eq!(driver.sample_rate(), 16_000);
-        assert_eq!(driver.mel().hop(), 160);
+        assert_eq!(driver.mel_converter().hop(), 160);
         assert_eq!(driver.frames_per_timestamp(), 2);
         assert_eq!(driver.encoder_grid(), 320);
         assert_eq!(driver.interval_samples(), None);
@@ -2078,47 +2102,47 @@ mod tests {
     #[test]
     fn test_init_refuses_the_unsupported() {
         let device = Device::default();
-        let policy = TokenPolicy::new(tiny_layout());
-        let base = WhisperDriverConfig::new().with_language(Some("en".to_string()));
+        let policy = WhisperTokenLayout::new(tiny_layout());
+        let base = WhisperStreamDriverConfig::new().with_language(Some("en".to_string()));
 
         assert!(
-            base.init_with_policy(tiny_model(&device), policy.clone(), &device)
+            base.init_with_layout(tiny_model(&device), policy.clone(), &device)
                 .is_ok()
         );
         // Multilingual without a language detects it per stream.
         assert!(
-            WhisperDriverConfig::new()
-                .init_with_policy(tiny_model(&device), policy.clone(), &device)
+            WhisperStreamDriverConfig::new()
+                .init_with_layout(tiny_model(&device), policy.clone(), &device)
                 .unwrap()
                 .detects_language()
         );
         assert!(
             base.clone()
                 .with_timestamps(true)
-                .init_with_policy(tiny_model(&device), policy.clone(), &device)
+                .init_with_layout(tiny_model(&device), policy.clone(), &device)
                 .is_ok()
         );
         assert!(
             base.clone()
                 .with_emission(EmissionPolicy::responsive())
-                .init_with_policy(tiny_model(&device), policy.clone(), &device)
+                .init_with_layout(tiny_model(&device), policy.clone(), &device)
                 .is_ok(),
             "responsive is the third deployment target",
         );
         assert!(
             base.clone()
                 .with_emission(EmissionPolicy::new(
-                    Triggers::new().with_interval(Some(std::time::Duration::ZERO)),
+                    DecodeTriggers::new().with_interval(Some(std::time::Duration::ZERO)),
                     CommitRule::Complete,
                 ))
-                .init_with_policy(tiny_model(&device), policy.clone(), &device)
+                .init_with_layout(tiny_model(&device), policy.clone(), &device)
                 .is_err(),
             "an interval of zero",
         );
         assert!(
             base.clone()
                 .with_language(Some("xx".to_string()))
-                .init_with_policy(tiny_model(&device), policy.clone(), &device)
+                .init_with_layout(tiny_model(&device), policy.clone(), &device)
                 .is_err()
         );
 
@@ -2126,7 +2150,7 @@ mod tests {
         let conservative = base
             .clone()
             .with_emission(EmissionPolicy::conservative())
-            .init_with_policy(tiny_model(&device), policy, &device)
+            .init_with_layout(tiny_model(&device), policy, &device)
             .unwrap();
         assert!(conservative.new_context(clock(), PerWindow).is_err());
 
@@ -2134,7 +2158,7 @@ mod tests {
         let driver = driver(&device, false);
         assert!(
             driver
-                .new_context(TimestampHistory::uniform(8_000), PerWindow)
+                .new_context(StreamClock::uniform(8_000), PerWindow)
                 .is_err()
         );
     }
@@ -2150,7 +2174,7 @@ mod tests {
                 silero_vad::SileroVad,
                 whisper::driver::{
                     CommitRule,
-                    Triggers,
+                    DecodeTriggers,
                     VoiceActivityFilterConfig,
                 },
             },
@@ -2173,13 +2197,13 @@ mod tests {
             load_audio_mono_sr(path, RATE).unwrap()
         }
 
-        fn conservative_driver(device: &CDevice) -> WhisperDriver<C> {
+        fn conservative_driver(device: &CDevice) -> WhisperStreamDriver<C> {
             let vad = SileroVad::<C>::load_16khz_pretrained(device).unwrap();
             config(false)
                 .with_emission(EmissionPolicy::conservative())
-                .init_with_policy(
+                .init_with_layout(
                     tiny_model_on::<C>(device),
-                    TokenPolicy::new(tiny_layout()),
+                    WhisperTokenLayout::new(tiny_layout()),
                     device,
                 )
                 .unwrap()
@@ -2196,9 +2220,9 @@ mod tests {
             let driver = || {
                 config(false)
                     .with_emission(EmissionPolicy::conservative())
-                    .init_with_policy(
+                    .init_with_layout(
                         tiny_model_on::<C>(&device),
-                        TokenPolicy::new(tiny_layout()),
+                        WhisperTokenLayout::new(tiny_layout()),
                         &device,
                     )
                     .unwrap()
@@ -2219,17 +2243,11 @@ mod tests {
                     .with_vad(vad.clone(), filter().with_samples_per_chunk(256))
                     .is_err()
             );
-            assert!(driver().configure_vad_filter(|f| f).is_err(), "no VAD");
 
             let attached = driver().with_vad(vad, filter()).unwrap();
             assert_eq!(
-                attached.filter_config().map(|f| f.samples_per_chunk),
+                attached.va_filter_config().map(|f| f.samples_per_chunk),
                 Some(512)
-            );
-            assert!(
-                attached
-                    .configure_vad_filter(|f| f.with_samples_per_chunk(256))
-                    .is_err()
             );
         }
 
@@ -2244,14 +2262,16 @@ mod tests {
             let device = CDevice::default();
             let vad = SileroVad::<C>::load_16khz_pretrained(&device).unwrap();
             let regions_only = EmissionPolicy::new(
-                Triggers::new().with_window_full(false).with_endpoint(true),
+                DecodeTriggers::new()
+                    .with_window_full(false)
+                    .with_endpoint(true),
                 CommitRule::LastTimestamp,
             );
             let driver = config(false)
                 .with_emission(regions_only)
-                .init_with_policy(
+                .init_with_layout(
                     tiny_model_on::<C>(&device),
-                    TokenPolicy::new(tiny_layout()),
+                    WhisperTokenLayout::new(tiny_layout()),
                     &device,
                 )
                 .unwrap()
@@ -2278,11 +2298,11 @@ mod tests {
             // (0, 16352) and (29728, 56800) from the gate's golden test,
             // snapped outward onto the 320-sample grid.
             let expected = [(0usize, 16_640usize), (29_440, 56_960)];
-            let window = driver.window_frames() as f64 * driver.mel().hop() as f64
+            let window = driver.window_frames() as f64 * driver.mel_converter().hop() as f64
                 / driver.sample_rate() as f64;
             let close = |a: f64, b: f64| (a - b).abs() < 1e-9;
 
-            let mut segments = emissions.iter().map(Emission::segment).peekable();
+            let mut segments = emissions.iter().map(WhisperEmission::segment).peekable();
             for (start, end) in expected {
                 let (start, end) = (
                     100.0 + start as f64 / RATE as f64,
@@ -2301,7 +2321,7 @@ mod tests {
                 );
             }
             assert!(segments.next().is_none(), "segments outside every region");
-            assert!(emissions.iter().all(Emission::is_committed));
+            assert!(emissions.iter().all(WhisperEmission::is_committed));
             assert_eq!(ctx.regions_pending(), 0);
             assert!(!ctx.is_speaking());
             assert_eq!(
@@ -2326,7 +2346,7 @@ mod tests {
             let mut emissions = ctx.push(&audio).unwrap();
             emissions.extend(ctx.flush().unwrap());
 
-            let window = driver.window_frames() as f64 * driver.mel().hop() as f64
+            let window = driver.window_frames() as f64 * driver.mel_converter().hop() as f64
                 / driver.sample_rate() as f64;
             let (gap_start, gap_end) = (16_640.0 / RATE as f64, 29_440.0 / RATE as f64);
             let mut covered_to = 0.0_f64;
@@ -2358,20 +2378,20 @@ mod tests {
         /// of audio, and a full window commits before a longer interval
         /// could draft. Its decode is scripted so the pin is about
         /// scheduling, not the untrained model.
-        fn responsive_driver(device: &CDevice) -> WhisperDriver<C> {
+        fn responsive_driver(device: &CDevice) -> WhisperStreamDriver<C> {
             let vad = SileroVad::<C>::load_16khz_pretrained(device).unwrap();
             let scripted: Arc<dyn LogitFilter<C>> = Arc::new(Script(vec![3, 1, 4, 1]));
             let policy = EmissionPolicy::new(
-                Triggers::new()
+                DecodeTriggers::new()
                     .with_endpoint(true)
                     .with_interval(Some(std::time::Duration::from_millis(50))),
                 CommitRule::LastTimestamp,
             );
             config(false)
                 .with_emission(policy)
-                .init_with_policy(
+                .init_with_layout(
                     tiny_model_on::<C>(device),
-                    TokenPolicy::new(tiny_layout()),
+                    WhisperTokenLayout::new(tiny_layout()),
                     device,
                 )
                 .unwrap()
@@ -2381,7 +2401,7 @@ mod tests {
         }
 
         /// The clip pushed 100 ms at a time, then flushed.
-        fn in_pieces(ctx: &mut WhisperStreamContext<C>) -> Vec<Emission> {
+        fn in_pieces(ctx: &mut WhisperStreamContext<C>) -> Vec<WhisperEmission> {
             let audio = speech();
             let mut out = Vec::new();
             for piece in audio.chunks(RATE / 10) {
@@ -2412,13 +2432,14 @@ mod tests {
 
             let mut ctx = responsive.new_context(clock(), PerWindow).unwrap();
             let chatty = in_pieces(&mut ctx);
-            let committed: Vec<&Emission> = chatty.iter().filter(|e| e.is_committed()).collect();
+            let committed: Vec<&WhisperEmission> =
+                chatty.iter().filter(|e| e.is_committed()).collect();
             assert_eq!(committed.len(), quiet.len());
             for (a, b) in committed.iter().zip(&quiet) {
                 assert_eq!(a.segment(), b.segment());
             }
 
-            let drafts: Vec<&Segment> = chatty
+            let drafts: Vec<&TranscriptSegment> = chatty
                 .iter()
                 .filter(|e| !e.is_committed())
                 .map(|e| e.segment())
@@ -2489,9 +2510,9 @@ mod tests {
             let device = CDevice::default();
             let vad = SileroVad::<C>::load_16khz_pretrained(&device).unwrap();
             let driver = config(false)
-                .init_with_policy(
+                .init_with_layout(
                     tiny_model_on::<C>(&device),
-                    TokenPolicy::new(tiny_layout()),
+                    WhisperTokenLayout::new(tiny_layout()),
                     &device,
                 )
                 .unwrap()

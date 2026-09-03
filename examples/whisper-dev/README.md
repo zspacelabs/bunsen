@@ -12,9 +12,9 @@ printing the ids and, given a vocabulary, the text.
   `load`), on top of `burn-store`'s PyTorch loader.
 - `bunsen::kits::speech::whisper::mel` and `bunsen::ops::signal::mels` — the streaming mel front end, fed in chunks as a
   live transcription loop would be; feeding the whole clip at once gives the same result.
-- `bunsen::kits::speech::whisper::decode` and `TokenPolicy` — greedy decoding per window, with the prompt and stop token
-  derived from the checkpoint's own vocabulary size, so an English-only and a multilingual model each get the ids they
-  were trained on.
+- `bunsen::kits::speech::whisper::decode` and `WhisperTokenLayout` — greedy decoding per window, with the prompt and
+  stop token derived from the checkpoint's own vocabulary size, so an English-only and a multilingual model each get the
+  ids they were trained on.
 - `bunsen::kits::speech::whisper::text` — a `wordchipper` detokenizer over a
   `.tiktoken` rank file, for text output.
 
@@ -49,8 +49,8 @@ Options:
 
 - `--top-level-key` — the state dict's key in the checkpoint (default
   `model_state_dict`).
-- `--sample-rate` — the rate the checkpoint is declared at, and the audio
-  file is decoded at (default `16000`; must be a multiple of 200 Hz).
+- `--sample-rate` — the rate the checkpoint is declared at, and the audio file is decoded at (default `16000`; must be a
+  multiple of 200 Hz).
 - `--chunk-ms` — milliseconds of audio per streaming chunk, a whole number of 10 ms hops (default `1000`).
 - `--max-tokens` — cap on generated tokens per 30 s window (default `32`).
 - `--language` — a Whisper language code (default `en`) and `--task` —

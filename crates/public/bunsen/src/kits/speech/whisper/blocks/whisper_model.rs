@@ -53,7 +53,7 @@ pub struct WhisperApiConfig {
     /// does not say &mdash; the language codes, the spellings, the timestamp
     /// grid. Upstream's by default.
     #[config(default = "WhisperTokenLayoutConfig::new()")]
-    pub tokens: WhisperTokenLayoutConfig,
+    pub token_layout: WhisperTokenLayoutConfig,
 
     /// The size of the vocabulary.
     pub vocab_size: usize,
@@ -83,7 +83,7 @@ impl WhisperApiConfig {
     pub fn to_structure(&self) -> WhisperStructuralConfig {
         WhisperStructuralConfig {
             front_end: self.front_end.clone(),
-            tokens: self.tokens.clone(),
+            token_layout: self.token_layout.clone(),
             encoder: AudioEncoderConfig::new(
                 self.n_mels,
                 self.d_model,
@@ -167,7 +167,7 @@ pub struct WhisperStructuralConfig {
     pub front_end: WhisperFrontEndConfig,
 
     /// The token layout the model's vocabulary follows.
-    pub tokens: WhisperTokenLayoutConfig,
+    pub token_layout: WhisperTokenLayoutConfig,
 
     /// Encoder config.
     pub encoder: AudioEncoderConfig,
@@ -182,7 +182,7 @@ impl WhisperMeta for WhisperStructuralConfig {
     }
 
     fn token_layout(&self) -> &WhisperTokenLayoutConfig {
-        &self.tokens
+        &self.token_layout
     }
 
     fn encoder(&self) -> &impl AudioEncoderMeta {
@@ -206,7 +206,7 @@ impl<B: Backend> ModuleInit<B, Whisper<B>> for WhisperStructuralConfig {
 
         Ok(Whisper {
             front_end: self.front_end.clone(),
-            tokens: self.tokens.clone(),
+            token_layout: self.token_layout.clone(),
             encoder,
             decoder,
         })
@@ -232,7 +232,7 @@ pub struct Whisper<B: Backend> {
     /// The token layout the vocabulary follows. Likewise not part of the
     /// record.
     #[module(skip)]
-    tokens: WhisperTokenLayoutConfig,
+    token_layout: WhisperTokenLayoutConfig,
 
     /// The [`AudioEncoder`].
     pub encoder: AudioEncoder<B>,
@@ -255,7 +255,7 @@ impl<B: Backend> WhisperMeta for Whisper<B> {
     }
 
     fn token_layout(&self) -> &WhisperTokenLayoutConfig {
-        &self.tokens
+        &self.token_layout
     }
 
     fn encoder(&self) -> &impl AudioEncoderMeta {
@@ -418,7 +418,7 @@ mod tests {
 
         let config = WhisperApiConfig::new(8, 16, 128, 16, 1, 16, 1);
         assert_eq!(config.front_end, WhisperFrontEndConfig::new());
-        assert_eq!(config.tokens, WhisperTokenLayoutConfig::new());
+        assert_eq!(config.token_layout, WhisperTokenLayoutConfig::new());
         assert_eq!(config.to_structure().sample_rate(), 16_000);
         let model: Whisper<B> = config.try_init(&device).unwrap();
         assert_eq!(model.sample_rate(), 16_000);
@@ -426,7 +426,7 @@ mod tests {
 
         let config = config
             .with_front_end(WhisperFrontEndConfig::new().with_sample_rate(8_000))
-            .with_tokens(WhisperTokenLayoutConfig::new().with_timestamp_tokens(751));
+            .with_token_layout(WhisperTokenLayoutConfig::new().with_timestamp_tokens(751));
         assert_eq!(config.to_structure().sample_rate(), 8_000);
         let model: Whisper<B> = config.try_init(&device).unwrap();
         assert_eq!(model.sample_rate(), 8_000);

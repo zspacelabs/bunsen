@@ -21,9 +21,9 @@ use crate::{
             whisper::{
                 ApplyTimestampRules,
                 DecodeConfig,
-                FallbackConfig,
                 LogitFilter,
                 Whisper,
+                WhisperFallbackConfig,
                 WhisperMeta,
                 blocks::{
                     AUDIO_ENCODER_STRIDE,
@@ -32,11 +32,11 @@ use crate::{
                 driver::{
                     ClampPolicy,
                     EmissionPolicy,
-                    Task,
-                    TimestampHistory,
-                    TokenPolicy,
+                    StreamClock,
                     VoiceActivityFilterConfig,
                     WhisperStreamContext,
+                    WhisperTask,
+                    WhisperTokenLayout,
                 },
             },
         },
@@ -48,13 +48,9 @@ use crate::{
     },
 };
 
-/// How to transcribe: the things a caller decides once, for every stream.
-///
-/// Everything here is about the *decode*. What varies per stream &mdash; the
-/// clock, the clamp reference &mdash; is injected at
-/// [`WhisperDriver::new_context`] instead.
+/// Config for [`WhisperStreamDriver`].
 #[derive(Config, Debug)]
-pub struct WhisperDriverConfig {
+pub struct WhisperStreamDriverConfig {
     /// The language of the speech, as a
     /// [`LANGUAGES`](crate::kits::speech::whisper::blocks::LANGUAGES)
     /// code.
@@ -68,8 +64,8 @@ pub struct WhisperDriverConfig {
 
     /// Transcribe, or translate to English. Ignored by an English-only
     /// checkpoint, which takes no task token.
-    #[config(default = "Task::Transcribe")]
-    pub task: Task,
+    #[config(default = "WhisperTask::Transcribe")]
+    pub task: WhisperTask,
 
     /// Let the model emit timestamp tokens, under upstream's timestamp
     /// rules. Emissions are then split on them, and the seek pointer
@@ -110,26 +106,26 @@ pub struct WhisperDriverConfig {
     pub emission: EmissionPolicy,
 
     /// The temperature ladder and its thresholds. The default ladder is
-    /// temperature zero alone; [`FallbackConfig::upstream`] is
+    /// temperature zero alone; [`WhisperFallbackConfig::upstream`] is
     /// `transcribe()`'s.
-    #[config(default = "FallbackConfig::new()")]
-    pub fallback: FallbackConfig,
+    #[config(default = "WhisperFallbackConfig::new()")]
+    pub fallback: WhisperFallbackConfig,
 }
 
-impl WhisperDriverConfig {
+impl WhisperStreamDriverConfig {
     /// Builds the driver over a model, deriving the token layout from the
     /// model's vocabulary size.
     ///
     /// # Errors
     /// [`BunsenError::Invalid`] if the vocabulary size is not a Whisper
-    /// layout, or as [`init_with_policy`](Self::init_with_policy).
+    /// layout, or as [`init_with_policy`](Self::init_with_layout).
     pub fn init<B: Backend>(
         &self,
         model: Whisper<B>,
         device: &B::Device,
-    ) -> BunsenResult<WhisperDriver<B>> {
-        let policy = model.token_layout().policy_for_vocab(model.vocab_size())?;
-        self.init_with_policy(model, policy, device)
+    ) -> BunsenResult<WhisperStreamDriver<B>> {
+        let token_layout = model.token_layout().policy_for_vocab(model.vocab_size())?;
+        self.init_with_layout(model, token_layout, device)
     }
 
     /// Builds the driver over a model with an explicit token layout.
@@ -141,13 +137,13 @@ impl WhisperDriverConfig {
     /// [`BunsenError::Invalid`] if the language and task do not fit the
     /// layout, or if the configuration asks for something this slice of the
     /// driver does not support yet.
-    pub fn init_with_policy<B: Backend>(
+    pub fn init_with_layout<B: Backend>(
         &self,
         model: Whisper<B>,
-        policy: TokenPolicy,
+        token_layout: WhisperTokenLayout,
         device: &B::Device,
-    ) -> BunsenResult<WhisperDriver<B>> {
-        let ids = policy.ids();
+    ) -> BunsenResult<WhisperStreamDriver<B>> {
+        let ids = token_layout.ids();
         assert!(
             ids.n_vocab() <= model.vocab_size(),
             "the token layout has {} ids but the model's vocabulary has {}",
@@ -165,11 +161,11 @@ impl WhisperDriverConfig {
         // stream; its prompt is built when the language is known.
         let prompt = match (ids.is_multilingual(), self.language.as_deref()) {
             (true, None) => Vec::new(),
-            (_, language) => policy.sot_sequence(language, task, self.timestamps)?,
+            (_, language) => token_layout.sot_sequence(language, task, self.timestamps)?,
         };
-        let max_initial_timestamp_index = self
-            .max_initial_timestamp
-            .map(|seconds| (seconds / policy.layout().timestamp_step_seconds).round() as usize);
+        let max_initial_timestamp_index = self.max_initial_timestamp.map(|seconds| {
+            (seconds / token_layout.layout().timestamp_step_seconds).round() as usize
+        });
         let filters: Vec<Arc<dyn LogitFilter<B>>> = if self.timestamps {
             vec![Arc::new(ApplyTimestampRules::new(
                 ids,
@@ -219,25 +215,17 @@ impl WhisperDriverConfig {
             .mel_converter_options(model.n_mels())?
             .try_init(device)?;
 
-        Ok(WhisperDriver {
-            model,
-            mel,
-            vad: None,
-            policy,
+        Ok(WhisperStreamDriver {
+            config: self.clone(),
+            whisper_model: model,
+            mel_converter: mel,
+            vad_model: None,
+            policy: token_layout,
             prompt,
-            language: self.language.clone(),
             task,
-            timestamps: self.timestamps,
             max_initial_timestamp_index,
-            max_tokens: self.max_tokens,
-            beam_size: self.beam_size,
-            patience: self.patience,
-            length_penalty: self.length_penalty,
             filters,
-            carry_prompt: self.condition_on_previous_text,
-            emission: self.emission.clone(),
-            fallback: self.fallback.clone(),
-            filter_config: None,
+            va_filter: None,
             detokenizer: None,
         })
     }
@@ -246,55 +234,38 @@ impl WhisperDriverConfig {
 /// The shared, immutable half of a transcription: what every stream needs
 /// and none of them mutates.
 ///
-/// Built by [`WhisperDriverConfig::init`]. Opens streams with
+/// Built by [`WhisperStreamDriverConfig::init`]. Opens streams with
 /// [`new_context`](Self::new_context).
 #[derive(Clone, Debug)]
-pub struct WhisperDriver<B: Backend> {
-    model: Whisper<B>,
-    mel: MelConverter<B>,
+pub struct WhisperStreamDriver<B: Backend> {
+    config: WhisperStreamDriverConfig,
+
+    mel_converter: MelConverter<B>,
+    whisper_model: Whisper<B>,
 
     /// The voice-activity model, when one was attached.
-    vad: Option<SileroVad<B>>,
+    vad_model: Option<SileroVad<B>>,
+    va_filter: Option<VoiceActivityFilterConfig>,
 
-    policy: TokenPolicy,
+    policy: WhisperTokenLayout,
 
     /// The sot sequence every window's decode opens with; empty when the
     /// language is detected per stream.
     prompt: Vec<i64>,
 
-    language: Option<String>,
-
     /// The task token's meaning; `None` for an English-only layout.
-    task: Option<Task>,
-
-    timestamps: bool,
+    task: Option<WhisperTask>,
 
     max_initial_timestamp_index: Option<usize>,
-
-    max_tokens: usize,
-
-    beam_size: usize,
-
-    patience: Option<f64>,
-
-    length_penalty: Option<f64>,
 
     /// Applied to the logits every step, in order: the caller's, then the
     /// timestamp rules when timestamps are on.
     filters: Vec<Arc<dyn LogitFilter<B>>>,
 
-    carry_prompt: bool,
-
-    emission: EmissionPolicy,
-
-    fallback: FallbackConfig,
-
-    filter_config: Option<VoiceActivityFilterConfig>,
-
     detokenizer: Option<Arc<dyn Detokenizer>>,
 }
 
-impl<B: Backend> WhisperDriver<B> {
+impl<B: Backend> WhisperStreamDriver<B> {
     /// Attaches a detokenizer, so emissions carry text as well as ids.
     pub fn with_detokenizer(
         mut self,
@@ -311,7 +282,7 @@ impl<B: Backend> WhisperDriver<B> {
         filters: Vec<Arc<dyn LogitFilter<B>>>,
     ) -> Self {
         self.filters = filters;
-        if self.timestamps {
+        if self.config.timestamps {
             self.filters.push(Arc::new(ApplyTimestampRules::new(
                 self.policy.ids(),
                 self.max_initial_timestamp_index,
@@ -336,28 +307,8 @@ impl<B: Backend> WhisperDriver<B> {
         filter: VoiceActivityFilterConfig,
     ) -> BunsenResult<Self> {
         self.check_vad(&vad, &filter)?;
-        self.vad = Some(vad);
-        self.filter_config = Some(filter);
-        Ok(self)
-    }
-
-    /// Applies a function to the filter config, if a VAD is attached.
-    ///
-    /// # Errors
-    /// [`BunsenError::Invalid`] if no VAD is attached, or the result does
-    /// not fit the one that is.
-    pub fn configure_vad_filter(
-        mut self,
-        f: fn(VoiceActivityFilterConfig) -> VoiceActivityFilterConfig,
-    ) -> BunsenResult<Self> {
-        let Some(vad) = &self.vad else {
-            return Err(BunsenError::Invalid(
-                "no voice-activity model is attached; attach one with with_vad".to_string(),
-            ));
-        };
-        let filter = f(self.filter_config.take().unwrap_or_default());
-        self.check_vad(vad, &filter)?;
-        self.filter_config = Some(filter);
+        self.vad_model = Some(vad);
+        self.va_filter = Some(filter);
         Ok(self)
     }
 
@@ -391,28 +342,33 @@ impl<B: Backend> WhisperDriver<B> {
         Ok(())
     }
 
+    /// The driver configuration.
+    pub fn config(&self) -> &WhisperStreamDriverConfig {
+        &self.config
+    }
+
     /// The model.
-    pub fn model(&self) -> &Whisper<B> {
-        &self.model
+    pub fn whisper_model(&self) -> &Whisper<B> {
+        &self.whisper_model
     }
 
     /// The mel front end.
-    pub fn mel(&self) -> &MelConverter<B> {
-        &self.mel
+    pub fn mel_converter(&self) -> &MelConverter<B> {
+        &self.mel_converter
     }
 
     /// The voice-activity model, if one was attached.
-    pub fn vad(&self) -> Option<&SileroVad<B>> {
-        self.vad.as_ref()
+    pub fn silero_vad_model(&self) -> Option<&SileroVad<B>> {
+        self.vad_model.as_ref()
     }
 
     /// The filter config, if a VAD is attached.
-    pub fn filter_config(&self) -> Option<VoiceActivityFilterConfig> {
-        self.filter_config.clone()
+    pub fn va_filter_config(&self) -> Option<VoiceActivityFilterConfig> {
+        self.va_filter.clone()
     }
 
     /// The token layout, derived from the model.
-    pub fn policy(&self) -> &TokenPolicy {
+    pub fn token_layout(&self) -> &WhisperTokenLayout {
         &self.policy
     }
 
@@ -421,43 +377,13 @@ impl<B: Backend> WhisperDriver<B> {
         &self.prompt
     }
 
-    /// Cap on tokens generated per window.
-    pub fn max_tokens(&self) -> usize {
-        self.max_tokens
-    }
-
-    /// Whether windows are prompted with the transcript so far.
-    pub fn carries_prompt(&self) -> bool {
-        self.carry_prompt
-    }
-
-    /// When to decode, and when a decode is final.
-    pub fn emission(&self) -> &EmissionPolicy {
-        &self.emission
-    }
-
-    /// Beams per window; one is greedy.
-    pub fn beam_size(&self) -> usize {
-        self.beam_size
-    }
-
     /// The logit filters every decode applies.
     pub fn filters(&self) -> &[Arc<dyn LogitFilter<B>>] {
         &self.filters
     }
 
-    /// Whether decodes are prompted for timestamps.
-    pub fn timestamps(&self) -> bool {
-        self.timestamps
-    }
-
-    /// The configured language, if any.
-    pub fn language(&self) -> Option<&str> {
-        self.language.as_deref()
-    }
-
     /// The task; `None` for an English-only layout.
-    pub fn task(&self) -> Option<Task> {
+    pub fn task(&self) -> Option<WhisperTask> {
         self.task
     }
 
@@ -473,7 +399,7 @@ impl<B: Backend> WhisperDriver<B> {
         language: Option<&str>,
     ) -> BunsenResult<Vec<i64>> {
         self.policy
-            .sot_sequence(language, self.task, self.timestamps)
+            .sot_sequence(language, self.task, self.config.timestamps)
     }
 
     /// Mel frames per timestamp index: two.
@@ -488,23 +414,19 @@ impl<B: Backend> WhisperDriver<B> {
     ) -> DecodeConfig {
         let ids = self.policy.ids();
         DecodeConfig::new(prompt, ids.eot)
-            .with_max_tokens(self.max_tokens)
-            .with_beam_size(self.beam_size)
-            .with_patience(self.patience)
-            .with_length_penalty(self.length_penalty)
+            .with_max_tokens(self.config.max_tokens)
+            .with_beam_size(self.config.beam_size)
+            .with_patience(self.config.patience)
+            .with_length_penalty(self.config.length_penalty)
             .with_sot_token(Some(ids.sot))
             .with_no_speech_token(Some(ids.no_speech))
-    }
-
-    /// The temperature ladder and its thresholds.
-    pub fn fallback(&self) -> &FallbackConfig {
-        &self.fallback
     }
 
     /// The draft interval in samples of media time, when the policy has
     /// one.
     pub fn interval_samples(&self) -> Option<usize> {
-        self.emission
+        self.config
+            .emission
             .triggers
             .interval
             .map(|i| (i.as_secs_f64() * self.sample_rate() as f64).round() as usize)
@@ -517,37 +439,37 @@ impl<B: Backend> WhisperDriver<B> {
 
     /// Frames per decode window: the model's audio context.
     pub fn window_frames(&self) -> usize {
-        self.model.max_audio_ctx()
+        self.whisper_model.max_audio_ctx()
     }
 
     /// The sample rate the model's front end runs at, in Hz. The stream's
     /// clock must run at it too.
     pub fn sample_rate(&self) -> usize {
-        self.model.sample_rate()
+        self.whisper_model.sample_rate()
     }
 
     /// The audio front end the model's log-mels are computed with.
     pub fn front_end(&self) -> &WhisperFrontEndConfig {
-        self.model.front_end()
+        self.whisper_model.front_end()
     }
 
     /// The encoder grid in samples: one timestamp step, which is
     /// [`frames_per_timestamp`](Self::frames_per_timestamp) mel hops. 320 at
     /// 16 kHz.
     pub fn encoder_grid(&self) -> usize {
-        self.frames_per_timestamp() * self.mel.hop()
+        self.frames_per_timestamp() * self.mel_converter.hop()
     }
 
     /// The devices the model lives on.
     pub fn devices(&self) -> Vec<B::Device> {
-        self.model.devices()
+        self.whisper_model.devices()
     }
 
     /// Opens a stream.
     ///
     /// # Arguments
     /// * `clock` - the stream's sample-to-time map. A bare stream gets
-    ///   [`TimestampHistory::uniform`] at [`sample_rate`](Self::sample_rate).
+    ///   [`StreamClock::uniform`] at [`sample_rate`](Self::sample_rate).
     /// * `clamp` - where each window's dynamic-range reference comes from: a
     ///   concrete policy, or a `Box<dyn ClampPolicy<B>>` chosen at run time.
     ///
@@ -557,7 +479,7 @@ impl<B: Backend> WhisperDriver<B> {
     /// endpoints and no VAD was attached.
     pub fn new_context<C: ClampPolicy<B> + 'static>(
         &self,
-        clock: TimestampHistory,
+        clock: StreamClock,
         clamp: C,
     ) -> BunsenResult<WhisperStreamContext<B>> {
         if clock.rate() != self.sample_rate() {
@@ -567,7 +489,7 @@ impl<B: Backend> WhisperDriver<B> {
                 self.sample_rate(),
             )));
         }
-        if self.emission.triggers.endpoint && self.vad.is_none() {
+        if self.config.emission.triggers.endpoint && self.vad_model.is_none() {
             return Err(BunsenError::Invalid(
                 "the endpoint trigger needs a voice-activity model; attach one with with_vad"
                     .to_string(),

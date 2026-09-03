@@ -38,8 +38,8 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   `advance_ready` batches drafts with commits. The commits are exactly
   `conservative()`'s (I9), pinned on the speech clip with a scripted decode. A zero interval is refused.
 - *(whisper)* Fallback. `kits::speech::whisper::decode::fallback`:
-  `FallbackConfig` (the temperature ladder, the compression-ratio / log-probability / no-speech thresholds, `best_of`),
-  its clauses as pure functions (`needs_fallback`, `should_skip`, `resets_prompt`),
+  `WhisperFallbackConfig` (the temperature ladder, the compression-ratio / log-probability / no-speech thresholds,
+  `best_of`), its clauses as pure functions (`needs_fallback`, `should_skip`, `resets_prompt`),
   `compression_ratio` (zlib, as upstream), and `decode_with_fallback`, the ladder as an orchestration over a decode
   closure. `Decoded` is what a decode now says about an audio beyond its ids: the cumulative log probability
   (`avg_logprob`) and the `<|nospeech|>` probability probed at the sot position of the first forward, through
@@ -79,10 +79,11 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - *(whisper)* `kits::speech::whisper::tokens` — the token layer, with no dependency. `WhisperSpecialIds` derives every
   special id (`eot`, `sot`, the language block, task and control tokens, the 1501 timestamps) from the base rank count
   and language count, or from a checkpoint's vocabulary size alone via `from_vocab_size` — so a multilingual model can
-  no longer be driven with English-only ids by accident. `TokenPolicy` is the decode loop's view of it: `is_text` /
+  no longer be driven with English-only ids by accident. `WhisperTokenLayout` is the decode loop's view of it:
+  `is_text` /
   `is_special` / `is_timestamp`, timestamp index and seconds, `text_ids`, and `sot_sequence` for the prompt. Also
-  `LANGUAGES`, `Task`, and the special-token spellings as a generator, all pinned against `whisper.tokenizer` for both
-  vocabularies and both language counts.
+  `LANGUAGES`, `WhisperTask`, and the special-token spellings as a generator, all pinned against `whisper.tokenizer` for
+  both vocabularies and both language counts.
 - *(whisper)* `kits::speech::whisper::vocab::TiktokenRanks` parses a
   `.tiktoken` rank file. Written here rather than borrowed because
   `multilingual.tiktoken` ends with `= 50256` — base64 of nothing, a genuinely empty token that strict decoders reject
@@ -100,24 +101,24 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 - *(whisper)* `kits::speech::whisper::clamp` — `ClampPolicy`, the injected object that decides the reference maximum a
   window is floored against:
   `observe(&mut self)` on the arrival path, `reference(&self)` immediately before packaging, so a provisional decode can
-  package without mutating anything. `PerWindow` is today's behaviour; `MaxSeen` is the running (or, fed everything
-  first, global) maximum, per batch row.
+  package without mutating anything. `PerWindow` is today's behaviour; `RunningMaxClamp` is the running (or, fed
+  everything first, global) maximum, per batch row.
 - *(whisper)* `package_mels` is now the composition of `trim_stream_tail`
   (drop the end-padding frame, once per stream) and `package_window` (floor 8 dB below a per-row reference, affine,
   transpose), and is unchanged in behaviour — pinned by a bit-equality test against the split.
 - *(whisper)* `kits::speech::whisper::driver` — the stream driver, offline slice. `WhisperDriverConfig::init` builds a
-  `WhisperDriver` over a model, deriving the token layout from its vocabulary size; `new_context(clock,
+  `WhisperStreamDriver` over a model, deriving the token layout from its vocabulary size; `new_context(clock,
   clamp)` opens a `WhisperStreamContext` that takes samples of any length through `push` / `push_at` / `flush` and hands
-  back `Emission`s. Windows are decoded as they fill and committed whole; a single push of a clip reproduces
+  back `WhisperEmission`s. Windows are decoded as they fill and committed whole; a single push of a clip reproduces
   `decode_chunked` exactly, and random-sized pushes reproduce a single push exactly. Voice activity, timestamps and
   drafts are refused at
   `init` until their phases land.
 - *(whisper)* `kits::speech::whisper::clock::TimestampHistory` — a stream's sample-to-media-time map: anchors plus a
   rate, with `uniform`, `anchor`,
   `time_at` and `slice`. A bare stream is `uniform(16_000)`.
-- *(whisper)* `kits::speech::whisper::emission` — `Triggers`, `CommitRule`
+- *(whisper)* `kits::speech::whisper::emission` — `DecodeTriggers`, `CommitRule`
   and `EmissionPolicy` with its `offline` / `conservative` / `responsive`
-  presets, and `Emission::{Committed, Draft}` over a `Segment`.
+  presets, and `Emission::{Committed, Draft}` over a `TranscriptSegment`.
 - *(whisper)* `ClampPolicy` gained `CloneClampPolicy` as a supertrait (implemented for every `ClampPolicy + Clone`), so
   a boxed policy can live in a `Module`.
 - *(whisper)* `kits::speech::whisper::gate` — the speech gate: `VoiceActivityFilter`, the hysteresis machine over
@@ -184,13 +185,14 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   `package_mels` as methods on the front end, and `WhisperDriver::sample_rate()`, `front_end()` and
   `encoder_grid()` in place of the removed `SAMPLE_RATE`, `TIMESTAMP_STEP_SAMPLES`, `ENCODER_GRID` and
   `RANGE_CLAMP_DB`; `AUDIO_ENCODER_STRIDE` names the conv head's stride. `WhisperSpecialIds` stays a `Copy` value of
-  numbers (gaining `timestamp_tokens` and `multilingual`); `TokenPolicy` carries the layout, is `Clone` rather than
+  numbers (gaining `timestamp_tokens` and `multilingual`); `WhisperTokenLayout` carries the layout, is `Clone` rather
+  than
   `Copy`, and owns the name lookups (`language_token`, `language_code`, `languages`, `special_names`,
   `timestamp_seconds`); `detokenizer`, `load_detokenizer` and `token_spans` take a `&TokenPolicy`.
   `WhisperDriver::with_vad` and `configure_vad_filter` return a `BunsenResult`, rejecting a VAD or a filter at another
   rate, or a filter chunk that is not the model's.
-- *(whisper)* The driver's API surface is `kits::speech::whisper::driver::` — `Emission`, `EmissionPolicy`,
-  `TimestampHistory`, the clamp policies, `VoiceActivityFilterConfig`, `TokenPolicy`, the detokenizer helpers — and
+- *(whisper)* The driver's API surface is `kits::speech::whisper::driver::` — `WhisperEmission`, `EmissionPolicy`,
+  `StreamClock`, the clamp policies, `VoiceActivityFilterConfig`, `WhisperTokenLayout`, the detokenizer helpers — and
   `driver::support::` holds only internals (regions, segments). Imports of those items through
   `driver::support::` move up one level.
 - *(burner)* move `repair_pytorch_strided_weight` from `burner::module` to a new

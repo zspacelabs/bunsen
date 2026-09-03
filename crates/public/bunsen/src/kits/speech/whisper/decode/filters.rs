@@ -738,7 +738,7 @@ mod tests {
     #[cfg(feature = "whisper-weights")]
     mod bundled {
         use super::*;
-        use crate::kits::speech::whisper::driver::TokenPolicy;
+        use crate::kits::speech::whisper::driver::WhisperTokenLayout;
 
         #[test]
         fn test_multilingual_matches_upstream() {
@@ -757,7 +757,7 @@ mod tests {
                 ]
             );
 
-            let ids = *TokenPolicy::from_vocab_size(51865).unwrap().ids();
+            let ids = *WhisperTokenLayout::from_vocab_size(51865).unwrap().ids();
             let all = default_suppress_tokens(&ranks, &ids);
             assert!(all.windows(2).all(|w| w[0] < w[1]), "sorted and unique");
             for id in [

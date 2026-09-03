@@ -125,9 +125,9 @@ pub enum SpectrumImpl {
 ///
 /// Applied by the caller with [`apply`](Self::apply), to a finished
 /// spectrogram. It is deliberately not a [`MelConverterOptions`] field:
-/// [`PerCall`](Self::PerCall) reduces over whatever it is handed, so folding
-/// it into the pipeline would make a streamed run differ from a whole-signal
-/// one. Clamp once, after joining.
+/// [`PerCall`](Self::PerWindowClamp) reduces over whatever it is handed, so
+/// folding it into the pipeline would make a streamed run differ from a
+/// whole-signal one. Clamp once, after joining.
 #[derive(Config, Copy, Debug, PartialEq)]
 pub enum RangeClamp {
     /// Reference is the maximum over the current call, per batch row.
@@ -136,7 +136,7 @@ pub enum RangeClamp {
     /// how the signal was chunked, so `transform(a ++ b)` and
     /// `transform(a) ++ transform(b)` differ. Use [`Fixed`](Self::Fixed) when
     /// chunk-invariance matters.
-    PerCall {
+    PerWindowClamp {
         /// The dynamic range to keep, in dB.
         db: f64,
     },
@@ -170,7 +170,7 @@ impl RangeClamp {
 
             // Reduce over `[frames, n_mels]` but NOT over batch: each row is
             // an independent stream and must not see its neighbours' peaks.
-            Self::PerCall { db } => {
+            Self::PerWindowClamp { db } => {
                 let dims = x.dims();
                 let floor = x.clone().max_dims(&[1, 2]).sub_scalar(*db).expand(dims);
                 x.max_pair(floor)
@@ -1367,7 +1367,7 @@ mod tests {
         ];
         let x: Tensor<B, 3> = Tensor::from_data(TensorData::new(logs, [2, 1, n_mels]), &device);
 
-        let out = RangeClamp::PerCall { db: 8.0 }
+        let out = RangeClamp::PerWindowClamp { db: 8.0 }
             .apply(x)
             .to_data()
             .to_vec_as::<f64>()

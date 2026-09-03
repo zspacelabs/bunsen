@@ -38,10 +38,9 @@ use bunsen::{
             Whisper,
             blocks::WhisperFrontEndConfig,
             driver::{
-                Task,
                 TiktokenRanks,
-                TokenPolicy,
-                detokenizer,
+                WhisperTask,
+                WhisperTokenLayout,
             },
             pretrained::bundled,
         },
@@ -238,7 +237,7 @@ fn transcript(name: &str) -> String {
 /// ranks from the bundled `multilingual.tiktoken` — the same assets bunsen
 /// itself would use, so this checks them as well as using them.
 pub struct Vocab {
-    pub policy: TokenPolicy,
+    pub policy: WhisperTokenLayout,
     pub detokenizer: WordchipperDetokenizer<u16>,
     pub ranks: TiktokenRanks,
 }
@@ -257,10 +256,12 @@ impl Vocab {
 
 /// The shared vocabulary, for turning ids into text.
 fn vocab() -> Vocab {
-    let policy = TokenPolicy::from_vocab_size(N_VOCAB).expect("a Whisper vocabulary size");
+    let policy = WhisperTokenLayout::from_vocab_size(N_VOCAB).expect("a Whisper vocabulary size");
     let ranks = TiktokenRanks::load(bundled::multilingual_tiktoken())
         .expect("the vocabulary failed to load");
-    let decoder = detokenizer(&ranks, &policy).expect("the vocabulary failed to load");
+    let decoder = policy
+        .detokenizer(&ranks)
+        .expect("the vocabulary failed to load");
     Vocab {
         policy,
         detokenizer: decoder,
@@ -442,7 +443,7 @@ fn test_reference_tokens_decode_to_reference_text() {
             reference.prompt,
             table
                 .policy
-                .sot_sequence(Some("en"), Some(Task::Transcribe), true)
+                .sot_sequence(Some("en"), Some(WhisperTask::Transcribe), true)
                 .unwrap(),
             "{name}: prompt",
         );

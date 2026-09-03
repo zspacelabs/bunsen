@@ -15,7 +15,7 @@
 //! it.
 //!
 //! Two implementations cover the four behaviours that came up in design.
-//! [`MaxSeen`] fed everything before the first packaging is the global
+//! [`RunningMaxClamp`] fed everything before the first packaging is the global
 //! reference upstream uses; fed incrementally it is the running one; and
 //! since a speech region is decoded as its own context, it is the per-region
 //! one too. [`PerWindow`] is today's
@@ -130,18 +130,18 @@ impl<B: Backend> ClampPolicy<B> for PerWindow {
 /// with nothing observed this degrades to [`PerWindow`] rather than to
 /// something wrong.
 #[derive(Module, Debug)]
-pub struct MaxSeen<B: Backend> {
+pub struct RunningMaxClamp<B: Backend> {
     /// `[batch]` running maximum, or `None` before the first observation.
     seen: Option<Tensor<B, 1>>,
 }
 
-impl<B: Backend> Default for MaxSeen<B> {
+impl<B: Backend> Default for RunningMaxClamp<B> {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl<B: Backend> MaxSeen<B> {
+impl<B: Backend> RunningMaxClamp<B> {
     /// A policy that has seen nothing yet.
     pub fn new() -> Self {
         Self { seen: None }
@@ -153,7 +153,7 @@ impl<B: Backend> MaxSeen<B> {
     }
 }
 
-impl<B: Backend> ClampPolicy<B> for MaxSeen<B> {
+impl<B: Backend> ClampPolicy<B> for RunningMaxClamp<B> {
     fn observe(
         &mut self,
         frames: Tensor<B, 3>,
@@ -213,7 +213,7 @@ mod tests {
 
     #[test]
     fn test_max_seen_runs_over_observations() {
-        let mut policy = MaxSeen::<B>::new();
+        let mut policy = RunningMaxClamp::<B>::new();
         assert!(policy.seen().is_none());
 
         policy.observe(frames([0.0, -3.0, -1.0, -20.0, 5.0, 4.0, -9.0, 1.0]));
@@ -234,7 +234,7 @@ mod tests {
     /// With nothing observed, `MaxSeen` is `PerWindow`.
     #[test]
     fn test_max_seen_degrades_to_per_window() {
-        let policy = MaxSeen::<B>::new();
+        let policy = RunningMaxClamp::<B>::new();
         let window = frames([0.0, -3.0, -1.0, -20.0, 5.0, 4.0, -9.0, 1.0]);
 
         assert_close_to_vec(
@@ -247,7 +247,7 @@ mod tests {
     /// `reference` takes `&self`, so asking twice is asking once.
     #[test]
     fn test_reference_does_not_move() {
-        let mut policy = MaxSeen::<B>::new();
+        let mut policy = RunningMaxClamp::<B>::new();
         policy.observe(frames([1.0; 8]));
         let window = frames([0.0, -3.0, -1.0, -20.0, 5.0, 4.0, -9.0, 1.0]);
 
@@ -264,7 +264,7 @@ mod tests {
         let window = frames([0.0, -3.0, -1.0, -20.0, 5.0, 4.0, -9.0, 1.0]);
 
         let mut policies: Vec<Box<dyn ClampPolicy<B>>> =
-            vec![Box::new(PerWindow), Box::new(MaxSeen::new())];
+            vec![Box::new(PerWindow), Box::new(RunningMaxClamp::new())];
         for policy in policies.iter_mut() {
             policy.observe(window.clone());
             assert_close_to_vec(

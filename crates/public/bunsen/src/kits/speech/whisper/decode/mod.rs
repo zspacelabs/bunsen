@@ -57,7 +57,7 @@ mod rank;
 
 pub use beam::BeamSearchDecoder;
 pub use fallback::{
-    FallbackConfig,
+    WhisperFallbackConfig,
     compression_ratio,
     decode_with_fallback,
 };

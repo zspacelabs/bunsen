@@ -60,7 +60,7 @@ pub struct PytorchWhisperScanner {
 
     /// The token layout to declare on the scanned config: upstream's.
     #[config(default = "WhisperTokenLayoutConfig::new()")]
-    pub tokens: WhisperTokenLayoutConfig,
+    pub token_layout: WhisperTokenLayoutConfig,
 
     /// Head Dimensionality.
     #[config(default = "WHISPER_DEFAULT_D_MODEL")]
@@ -143,7 +143,7 @@ impl PytorchWhisperScanner {
             )
             .with_d_head(self.d_head)
             .with_front_end(self.front_end.clone())
-            .with_tokens(self.tokens.clone()),
+            .with_token_layout(self.token_layout.clone()),
         ))
     }
 

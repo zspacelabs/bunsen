@@ -28,10 +28,7 @@ use bunsen::{
                 GreedyDecodeConfig,
                 mel_windows,
             },
-            driver::{
-                Task,
-                load_detokenizer,
-            },
+            driver::WhisperTask,
             pretrained::PytorchWhisperScanner,
         },
         tokens::Detokenizer,
@@ -250,11 +247,11 @@ fn run<B: Backend>(
     // The prompt and stop token fall out of the checkpoint's vocabulary size:
     // a multilingual model and an English-only one number their specials
     // differently, and getting that wrong is silent garbage, not an error.
-    let policy = cfg.tokens.policy_for_vocab(cfg.vocab_size)?;
-    let (language, task) = if policy.ids().is_multilingual() {
+    let token_layout = cfg.token_layout.policy_for_vocab(cfg.vocab_size)?;
+    let (language, task) = if token_layout.ids().is_multilingual() {
         let task = match args.task.as_str() {
-            "transcribe" => Task::Transcribe,
-            "translate" => Task::Translate,
+            "transcribe" => WhisperTask::Transcribe,
+            "translate" => WhisperTask::Translate,
             other => {
                 return Err(
                     format!("--task must be transcribe or translate, got {other:?}").into(),
@@ -266,13 +263,14 @@ fn run<B: Backend>(
         println!("English-only checkpoint: --language and --task do not apply");
         (None, None)
     };
-    let prompt = policy.sot_sequence(language, task, args.timestamps)?;
-    println!("prompt: {prompt:?}  eot: {}", policy.ids().eot);
+    let prompt = token_layout.sot_sequence(language, task, args.timestamps)?;
+    println!("prompt: {prompt:?}  eot: {}", token_layout.ids().eot);
 
-    let decode = GreedyDecodeConfig::new(prompt, policy.ids().eot).with_max_tokens(args.max_tokens);
+    let decode =
+        GreedyDecodeConfig::new(prompt, token_layout.ids().eot).with_max_tokens(args.max_tokens);
 
     let detokenizer = match &args.vocab {
-        Some(path) => Some(load_detokenizer(path, &policy)?),
+        Some(path) => Some(token_layout.load_detokenizer(path)?),
         None => None,
     };
 
@@ -289,7 +287,10 @@ fn run<B: Backend>(
         println!("window {i}: {} tokens", tokens.len());
         println!("  {tokens:?}");
         if let Some(detokenizer) = &detokenizer {
-            println!("  {:?}", detokenizer.detokenize(&policy.text_ids(&tokens))?);
+            println!(
+                "  {:?}",
+                detokenizer.detokenize(&token_layout.text_ids(&tokens))?
+            );
             if args.timestamps {
                 println!("  {:?}", detokenizer.detokenize(&tokens)?);
             }

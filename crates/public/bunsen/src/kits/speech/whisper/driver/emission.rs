@@ -5,7 +5,7 @@
 //! three deployment targets differ by falls out of those two sentences, and
 //! the three presets on [`EmissionPolicy`] are those targets.
 //!
-//! A [`Draft`](Emission::Draft) always covers *all* audio after the last
+//! A [`Draft`](WhisperEmission::Draft) always covers *all* audio after the last
 //! commit and supersedes the previous draft entirely, so there is no
 //! retraction protocol, no sequence numbers, and no way to hold two drafts at
 //! once. Under [`offline`](EmissionPolicy::offline) and
@@ -18,7 +18,7 @@ use burn::config::Config;
 
 /// When a decode is run.
 #[derive(Config, Debug, PartialEq, Eq)]
-pub struct Triggers {
+pub struct DecodeTriggers {
     /// Decode when a full window of audio has accumulated past the seek
     /// pointer. The only trigger that needs no voice activity.
     #[config(default = "true")]
@@ -59,7 +59,7 @@ pub enum CommitRule {
 #[derive(Config, Debug, PartialEq, Eq)]
 pub struct EmissionPolicy {
     /// When to decode.
-    pub triggers: Triggers,
+    pub triggers: DecodeTriggers,
 
     /// When decoded output is final.
     pub commit: CommitRule,
@@ -71,7 +71,7 @@ impl EmissionPolicy {
     /// flushed.
     pub fn offline() -> Self {
         Self {
-            triggers: Triggers::new(),
+            triggers: DecodeTriggers::new(),
             commit: CommitRule::Complete,
         }
     }
@@ -81,7 +81,7 @@ impl EmissionPolicy {
     /// Every emission is final.
     pub fn conservative() -> Self {
         Self {
-            triggers: Triggers::new().with_endpoint(true),
+            triggers: DecodeTriggers::new().with_endpoint(true),
             commit: CommitRule::LastTimestamp,
         }
     }
@@ -90,7 +90,7 @@ impl EmissionPolicy {
     /// as [`conservative`](Self::conservative), plus a draft every 600 ms.
     pub fn responsive() -> Self {
         Self {
-            triggers: Triggers::new()
+            triggers: DecodeTriggers::new()
                 .with_endpoint(true)
                 .with_interval(Some(Duration::from_millis(600))),
             commit: CommitRule::LastTimestamp,
@@ -100,7 +100,7 @@ impl EmissionPolicy {
 
 /// A span of transcript with its place in media time.
 #[derive(Debug, Clone, PartialEq)]
-pub struct Segment {
+pub struct TranscriptSegment {
     /// Media time of the segment's start, in seconds, through the stream's
     /// clock.
     pub start: f64,
@@ -118,18 +118,18 @@ pub struct Segment {
 
 /// What a push hands back.
 #[derive(Debug, Clone, PartialEq)]
-pub enum Emission {
+pub enum WhisperEmission {
     /// Final. Will never be revised.
-    Committed(Segment),
+    Committed(TranscriptSegment),
 
     /// Provisional. Covers all audio since the last commit, and replaces the
     /// previous draft whole.
-    Draft(Segment),
+    Draft(TranscriptSegment),
 }
 
-impl Emission {
+impl WhisperEmission {
     /// The segment, whichever variant carries it.
-    pub fn segment(&self) -> &Segment {
+    pub fn segment(&self) -> &TranscriptSegment {
         match self {
             Self::Committed(s) | Self::Draft(s) => s,
         }
@@ -164,7 +164,7 @@ mod tests {
         let responsive = EmissionPolicy::responsive();
         assert_eq!(
             responsive.triggers,
-            Triggers::new()
+            DecodeTriggers::new()
                 .with_endpoint(true)
                 .with_interval(Some(Duration::from_millis(600)))
         );
@@ -173,14 +173,14 @@ mod tests {
 
     #[test]
     fn test_emission_accessors() {
-        let segment = Segment {
+        let segment = TranscriptSegment {
             start: 1.0,
             end: 2.0,
             tokens: vec![1, 2],
             text: None,
         };
-        let committed = Emission::Committed(segment.clone());
-        let draft = Emission::Draft(segment.clone());
+        let committed = WhisperEmission::Committed(segment.clone());
+        let draft = WhisperEmission::Draft(segment.clone());
 
         assert!(committed.is_committed());
         assert!(!draft.is_committed());

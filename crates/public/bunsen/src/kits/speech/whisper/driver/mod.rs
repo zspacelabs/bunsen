@@ -11,13 +11,12 @@ pub mod support;
 mod clamp;
 mod clock;
 mod context;
-mod driver_impl;
 mod emission;
 mod mel;
-mod text;
+mod stream_driver;
 mod tokens;
-mod va_filter;
 mod vocab;
+mod voice_activity_filter;
 
 #[doc(inline)]
 pub use clamp::*;
@@ -26,16 +25,14 @@ pub use clock::*;
 #[doc(inline)]
 pub use context::*;
 #[doc(inline)]
-pub use driver_impl::*;
-#[doc(inline)]
 pub use emission::*;
 #[doc(inline)]
 pub use mel::*;
 #[doc(inline)]
-pub use text::*;
+pub use stream_driver::*;
 #[doc(inline)]
 pub use tokens::*;
 #[doc(inline)]
-pub use va_filter::*;
-#[doc(inline)]
 pub use vocab::*;
+#[doc(inline)]
+pub use voice_activity_filter::*;

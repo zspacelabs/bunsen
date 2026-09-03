@@ -194,8 +194,8 @@ fn test_streaming_logmel_matches_librosa_center_true() {
 /// maximum, then `(x + 4) / 4`.
 ///
 /// **The tail must be applied once, after the stream is joined** — not inside
-/// each call. [`RangeClamp::PerCall`] reduces over one call's frames, so a
-/// streamed run would clamp `transform`'s 199 frames and `finish`'s 2 against
+/// each call. [`RangeClamp::PerWindowClamp`] reduces over one call's frames, so
+/// a streamed run would clamp `transform`'s 199 frames and `finish`'s 2 against
 /// separate maxima and match nothing. So the stream runs with the clamp and
 /// affine off, and the packaging is applied to the joined, sliced result.
 /// That is the recipe for Whisper input, and it exercises
@@ -227,7 +227,8 @@ fn test_whisper_logmel_matches_reference() {
          Whisper's clamp reference is taken after the drop",
     );
 
-    let packaged = AffineCompress::default().apply(RangeClamp::PerCall { db: 8.0 }.apply(cut));
+    let packaged =
+        AffineCompress::default().apply(RangeClamp::PerWindowClamp { db: 8.0 }.apply(cut));
 
     assert_matches_fixture(&packaged, "whisper_logmel.f32", logmel_tolerance());
 }
