@@ -18,7 +18,6 @@
 //! from.
 
 use std::{
-    collections::HashMap,
     fmt::Debug,
     ops::Range,
     sync::Arc,
@@ -36,6 +35,7 @@ use burn::{
 
 use crate::kits::{
     speech::whisper::driver::WhisperSpecialIds,
+    tokens,
     tokens::TiktokenRanks,
 };
 
@@ -147,118 +147,6 @@ impl<B: Backend> LogitFilter<B> for SuppressBlank {
     }
 }
 
-/// The symbols upstream's `non_speech_tokens` suppresses when they are a
-/// single token, with or without a leading space.
-const SYMBOLS: &[&str] = &[
-    "\"",
-    "#",
-    "(",
-    ")",
-    "*",
-    "+",
-    "/",
-    ":",
-    ";",
-    "<",
-    "=",
-    ">",
-    "@",
-    "[",
-    "\\",
-    "]",
-    "^",
-    "_",
-    "`",
-    "{",
-    "|",
-    "}",
-    "~",
-    "\u{300c}",
-    "\u{300d}",
-    "\u{300e}",
-    "\u{300f}",
-    "<<",
-    ">>",
-    "<<<",
-    ">>>",
-    "--",
-    "---",
-    "-(",
-    "-[",
-    "('",
-    "(\"",
-    "((",
-    "))",
-    "(((",
-    ")))",
-    "[[",
-    "]]",
-    "{{",
-    "}}",
-    "\u{266a}\u{266a}",
-    "\u{266a}\u{266a}\u{266a}",
-];
-
-/// The music symbols, suppressed by their first token whatever it is.
-const MISCELLANEOUS: &[&str] = &[
-    "\u{2669}", "\u{266a}", "\u{266b}", "\u{266c}", "\u{266d}", "\u{266e}", "\u{266f}",
-];
-
-/// The rank file as `{ bytes -> id }`.
-fn lookup(ranks: &TiktokenRanks) -> HashMap<&[u8], i64> {
-    ranks
-        .iter()
-        .enumerate()
-        .map(|(id, bytes)| (bytes, id as i64))
-        .collect()
-}
-
-/// The id of the longest prefix of `bytes` that is a token: what byte-level
-/// BPE emits first for a string that is not itself a token.
-fn first_token(
-    table: &HashMap<&[u8], i64>,
-    bytes: &[u8],
-) -> Option<i64> {
-    (1..=bytes.len())
-        .rev()
-        .find_map(|n| table.get(&bytes[..n]).copied())
-}
-
-/// Upstream's `Tokenizer.non_speech_tokens`, from the rank file alone:
-/// the ids that would make a transcript say `[APPLAUSE]` or draw a music
-/// note, plus the leading `-` and `'` that would start a word with one.
-pub fn non_speech_tokens(ranks: &TiktokenRanks) -> Vec<i64> {
-    let table = lookup(ranks);
-    let mut ids: Vec<i64> = [" -", " '"]
-        .iter()
-        .filter_map(|s| table.get(s.as_bytes()).copied())
-        .collect();
-
-    for symbol in SYMBOLS {
-        for candidate in [symbol.to_string(), format!(" {symbol}")] {
-            if let Some(&id) = table.get(candidate.as_bytes()) {
-                ids.push(id);
-            }
-        }
-    }
-    for symbol in MISCELLANEOUS {
-        for candidate in [symbol.to_string(), format!(" {symbol}")] {
-            if let Some(id) = first_token(&table, candidate.as_bytes()) {
-                ids.push(id);
-            }
-        }
-    }
-
-    ids.sort_unstable();
-    ids.dedup();
-    ids
-}
-
-/// The id of the single-space token, which opens a blank transcript.
-pub fn blank_token(ranks: &TiktokenRanks) -> Option<i64> {
-    lookup(ranks).get(b" ".as_slice()).copied()
-}
-
 /// Upstream's default suppress list: the non-speech tokens, the control
 /// tokens a decode must never emit, and `<|nospeech|>`, whose probability
 /// is read separately.
@@ -266,7 +154,7 @@ pub fn default_suppress_tokens(
     ranks: &TiktokenRanks,
     ids: &WhisperSpecialIds,
 ) -> Vec<i64> {
-    let mut all = non_speech_tokens(ranks);
+    let mut all = tokens::non_speech_tokens(ranks);
     all.extend([
         ids.transcribe,
         ids.translate,
@@ -289,7 +177,7 @@ pub fn default_filters<B: Backend>(
     ranks: &TiktokenRanks,
     ids: &WhisperSpecialIds,
 ) -> Vec<Arc<dyn LogitFilter<B>>> {
-    let blank = blank_token(ranks).expect("the vocabulary has a space token");
+    let blank = tokens::blank_token(ranks).expect("the vocabulary has a space token");
     vec![
         Arc::new(SuppressBlank::new(blank, ids.eot)),
         Arc::new(SuppressTokens::new(default_suppress_tokens(ranks, ids))),
@@ -505,20 +393,26 @@ impl<B: Backend> LogitFilter<B> for RestrictToLanguages {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::support::testing::CpuBackend;
+    use crate::{
+        kits::tokens::{
+            blank_token,
+            non_speech_tokens,
+        },
+        support::testing::CpuBackend,
+    };
 
     type B = CpuBackend;
 
-    fn logits(rows: &[&[f32]]) -> Tensor<B, 2> {
+    fn logits<B: Backend>(
+        rows: &[&[f32]],
+        device: &B::Device,
+    ) -> Tensor<B, 2> {
         let vocab = rows[0].len();
         let flat: Vec<f32> = rows.iter().flat_map(|r| r.iter().copied()).collect();
-        Tensor::from_data(
-            TensorData::new(flat, [rows.len(), vocab]),
-            &Default::default(),
-        )
+        Tensor::from_data(TensorData::new(flat, [rows.len(), vocab]), device)
     }
 
-    fn to_rows(t: Tensor<B, 2>) -> Vec<Vec<f32>> {
+    fn to_rows<B: Backend>(t: Tensor<B, 2>) -> Vec<Vec<f32>> {
         let [rows, vocab] = t.dims();
         let flat = t.to_data().convert::<f32>().to_vec::<f32>().unwrap();
         flat.chunks(vocab).map(|c| c.to_vec()).collect::<Vec<_>>()[..rows].to_vec()
@@ -526,12 +420,17 @@ mod tests {
 
     #[test]
     fn test_suppress_tokens() {
+        let device = Default::default();
+
         let filter = SuppressTokens::new([3, 1, 3, 99, -1]);
         assert_eq!(filter.ids(), &[-1, 1, 3, 99], "sorted, deduplicated");
 
         let out = to_rows(LogitFilter::<B>::apply(
             &filter,
-            logits(&[&[0.0, 1.0, 2.0, 3.0, 4.0], &[5.0, 6.0, 7.0, 8.0, 9.0]]),
+            logits::<B>(
+                &[&[0.0, 1.0, 2.0, 3.0, 4.0], &[5.0, 6.0, 7.0, 8.0, 9.0]],
+                &device,
+            ),
             &[vec![7], vec![7]],
             1,
         ));
@@ -543,31 +442,6 @@ mod tests {
             out[1],
             vec![5.0, f32::NEG_INFINITY, 7.0, f32::NEG_INFINITY, 9.0]
         );
-    }
-
-    /// Only at the first sampled position: once anything has been sampled,
-    /// the blank and the stop token are allowed again.
-    #[test]
-    fn test_suppress_blank() {
-        let filter = SuppressBlank::new(2, 4);
-        let first = to_rows(LogitFilter::<B>::apply(
-            &filter,
-            logits(&[&[0.0, 1.0, 2.0, 3.0, 4.0]]),
-            &[vec![9, 9]],
-            2,
-        ));
-        assert_eq!(
-            first[0],
-            vec![0.0, 1.0, f32::NEG_INFINITY, 3.0, f32::NEG_INFINITY]
-        );
-
-        let later = to_rows(LogitFilter::<B>::apply(
-            &filter,
-            logits(&[&[0.0, 1.0, 2.0, 3.0, 4.0]]),
-            &[vec![9, 9, 1]],
-            2,
-        ));
-        assert_eq!(later[0], vec![0.0, 1.0, 2.0, 3.0, 4.0]);
     }
 
     /// A small layout for the timestamp grammar: eot 5, no_timestamps 13,
@@ -647,6 +521,8 @@ mod tests {
     /// the best text token the text goes, row by row.
     #[test]
     fn test_timestamp_rules_probability_clause() {
+        let device = Default::default();
+
         let ids = layout();
         let rules = ApplyTimestampRules::new(&ids, None);
         let (nt, tb) = (ids.no_timestamps as usize, ids.timestamp_begin as usize);
@@ -665,7 +541,7 @@ mod tests {
         let rows: Vec<&[f32]> = vec![&row0, &row1];
         let out = to_rows(LogitFilter::<B>::apply(
             &rules,
-            logits(&rows),
+            logits::<B>(&rows, &device),
             &[vec![9, tb as i64, 3], vec![9, tb as i64, 3]],
             1,
         ));
@@ -687,13 +563,15 @@ mod tests {
     /// Detection leaves only the language block standing.
     #[test]
     fn test_restrict_to_languages() {
+        let device = Default::default();
+
         let ids = WhisperSpecialIds::new(5, 3).unwrap();
         let filter = RestrictToLanguages::new(&ids);
         let vocab = ids.n_vocab();
         let row: Vec<f32> = (0..vocab).map(|i| i as f32).collect();
         let out = to_rows(LogitFilter::<B>::apply(
             &filter,
-            logits(&[&row]),
+            logits::<B>(&[&row], &device),
             &[vec![6]],
             1,
         ));

@@ -62,10 +62,8 @@ pub use filters::{
     RestrictToLanguages,
     SuppressBlank,
     SuppressTokens,
-    blank_token,
     default_filters,
     default_suppress_tokens,
-    non_speech_tokens,
 };
 pub use greedy::WhisperGreedyDecoder;
 pub use rank::{
@@ -76,6 +74,11 @@ pub use whisper_fallback_config::{
     WhisperFallbackConfig,
     compression_ratio,
     decode_with_fallback,
+};
+
+pub use crate::kits::tokens::{
+    blank_token,
+    non_speech_tokens,
 };
 
 /// Splits a mel spectrogram into fixed-width windows along the frame axis,
