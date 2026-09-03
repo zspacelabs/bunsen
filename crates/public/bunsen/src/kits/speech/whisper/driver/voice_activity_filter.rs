@@ -114,7 +114,7 @@ fn assert_region_sequence(regions: &[SpeechRegion]) -> BunsenResult<()> {
 /// * `regions` - raw regions, in order, non-overlapping.
 /// * `pad` - samples to add on each side.
 /// * `total` - samples in the stream.
-pub fn pad_regions(
+fn pad_regions(
     regions: &mut [SpeechRegion],
     pad: usize,
     total: usize,
@@ -140,26 +140,6 @@ pub fn pad_regions(
             regions[i].end = total.min(regions[i].end + pad);
         }
     }
-}
-
-/// Merges regions where `next.start - prev.end <= gap`.
-pub fn merge_gaps(
-    regions: &[SpeechRegion],
-    gap: usize,
-) -> Vec<SpeechRegion> {
-    #[cfg(any(test, debug_assertions))]
-    assert_region_sequence(regions).unwrap();
-
-    let mut out: Vec<SpeechRegion> = Vec::with_capacity(regions.len());
-    for &region in regions {
-        match out.last_mut() {
-            Some(last) if region.start.saturating_sub(last.end) <= gap => {
-                last.end = last.end.max(region.end);
-            }
-            _ => out.push(region),
-        }
-    }
-    out
 }
 
 /// Config for [`VoiceActivityFilter`].
@@ -308,8 +288,7 @@ impl VoiceActivityFilterConfig {
 
     /// `fast-whisper-burn`'s tuning: 100 ms of silence to close, 30 ms of
     /// padding, regions under 250 ms dropped. Cuts between sentences, so
-    /// time-to-first-token is short; neighbours are glued back afterwards
-    /// with [`merge_gaps`](merge_gaps).
+    /// time-to-first-token is short.
     pub fn fast_whisper_burn() -> Self {
         Self::new()
             .with_min_silence_ms(100)
@@ -585,17 +564,6 @@ mod tests {
         assert!(none.is_empty());
     }
 
-    #[test]
-    fn test_merge_gaps() {
-        let regions = [r(0, 1000), r(1100, 2000), r(2500, 3000), r(3000, 3500)];
-        assert_eq!(merge_gaps(&regions, 200), vec![r(0, 2000), r(2500, 3500)]);
-        assert_eq!(
-            merge_gaps(&regions, 0),
-            vec![r(0, 1000), r(1100, 2000), r(2500, 3500)]
-        );
-        assert_eq!(merge_gaps(&regions, 10_000), vec![r(0, 3500)]);
-        assert!(merge_gaps(&[], 200).is_empty());
-    }
     /// `n` chunks at probability `p`.
     fn run(
         p: f32,
