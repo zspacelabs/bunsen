@@ -171,7 +171,7 @@ pub struct DecodeConfig {
 
 /// What a decode says about one audio, beyond its ids.
 #[derive(Debug, Clone, PartialEq)]
-pub struct Decoded {
+pub struct DecodedTokens {
     /// The generated ids, after the prompt and without the stop token.
     pub tokens: Vec<i64>,
 
@@ -186,7 +186,7 @@ pub struct Decoded {
     pub temperature: f64,
 }
 
-impl Decoded {
+impl DecodedTokens {
     /// Upstream's `avg_logprob`: the cumulative log probability per token,
     /// counting the stop token.
     pub fn avg_logprob(&self) -> f64 {
@@ -277,7 +277,7 @@ impl<B: Backend> Whisper<B> {
         mels: Tensor<B, 3>,
         config: &DecodeConfig,
         filters: &[Arc<dyn LogitFilter<B>>],
-    ) -> Vec<Decoded> {
+    ) -> Vec<DecodedTokens> {
         let [n_audio, _, frames] = mels.dims();
         assert!(n_audio > 0, "decode needs at least one row");
         assert_eq!(
@@ -336,7 +336,7 @@ impl<B: Backend> Whisper<B> {
         xa: Tensor<B, 3>,
         config: &DecodeConfig,
         filters: &[Arc<dyn LogitFilter<B>>],
-    ) -> Vec<Decoded> {
+    ) -> Vec<DecodedTokens> {
         self.search(xa, config, config.init_decoder::<B>().as_mut(), filters)
     }
 
@@ -366,7 +366,7 @@ impl<B: Backend> Whisper<B> {
         config: &DecodeConfig,
         decoder: &mut dyn TokenDecoder<B>,
         filters: &[Arc<dyn LogitFilter<B>>],
-    ) -> Vec<Decoded> {
+    ) -> Vec<DecodedTokens> {
         let n_audio = xa.dims()[0];
         assert!(n_audio > 0, "decode needs at least one row");
         assert!(!config.prompt.is_empty(), "prompt must not be empty");
@@ -458,7 +458,7 @@ impl<B: Backend> Whisper<B> {
                     .into_iter()
                     .nth(best)
                     .expect("the ranker picked a candidate");
-                Decoded {
+                DecodedTokens {
                     tokens,
                     sum_logprob,
                     no_speech_prob: no_speech.as_ref().map(|p| p[audio * k]),
