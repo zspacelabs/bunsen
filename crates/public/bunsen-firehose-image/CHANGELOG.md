@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.31.0](https://github.com/zspacelabs/bunsen/compare/bunsen-firehose-image-v0.30.1...bunsen-firehose-image-v0.31.0) - 2026-09-03
+
+### Added
+
+- [**breaking**] Whisper reference parity, and split bundled assets from model validation ([#163](https://github.com/zspacelabs/bunsen/pull/163))
+
 ## [0.22.0](https://github.com/zspacelabs/bunsen/compare/bunsen-firehose-image-v0.21.3...bunsen-firehose-image-v0.22.0) - 2026-06-05
 
 ### Other

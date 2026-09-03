@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.31.0](https://github.com/zspacelabs/bunsen/compare/bunsen-bundled-whisper-v0.30.1...bunsen-bundled-whisper-v0.31.0) - 2026-09-03
+
+### Added
+
+- *(whisper)* the stream driver, all eleven phases, and whisper-cli ([#167](https://github.com/zspacelabs/bunsen/pull/167))
+- [**breaking**] Whisper reference parity, and split bundled assets from model validation ([#163](https://github.com/zspacelabs/bunsen/pull/163))
+
+### Other
+
+- Refactor `MelFilterbank` into `MelFilterbankConfig` for improved configuration and validation. Rewrite tests for API updates and streamline related logic for cleaner organization. ([#165](https://github.com/zspacelabs/bunsen/pull/165))
+
 ### Added
 
 - `vocab` fetches, digest-pins and caches Whisper's two `.tiktoken` rank
