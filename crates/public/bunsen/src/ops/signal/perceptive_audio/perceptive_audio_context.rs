@@ -133,7 +133,7 @@ impl<B: Backend> PerceptiveAudioConversionContext<B> {
         self.phase = StreamPhase::Start;
     }
 
-    /// Converts one hop-aligned chunk of waveform into log-perceptive_audio.
+    /// Converts one hop-aligned chunk of waveform into log-mels.
     ///
     /// A fold over the stage stack; see the `t_stage_*` methods for what each
     /// step does.
@@ -156,7 +156,7 @@ impl<B: Backend> PerceptiveAudioConversionContext<B> {
     ///   `hop`.
     ///
     /// # Returns
-    /// `[batch, frames, n_mels]` log-perceptive_audio, and the advanced
+    /// `[batch, frames, n_mels]` log-mels, and the advanced
     /// context.
     ///
     /// # Errors
@@ -379,7 +379,7 @@ impl<B: Backend> PerceptiveAudioConversionContext<B> {
         (mels, self)
     }
 
-    /// Mel energies to log-perceptive_audio.
+    /// Mel energies to log-mels.
     ///
     /// `[batch, frames, n_mels]` -> `[batch, frames, n_mels]`.
     pub(crate) fn t_stage_compress(

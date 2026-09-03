@@ -41,7 +41,7 @@ pub struct WhisperApiConfig {
     /// The Mel-scale frequency resolution.
     pub n_mels: usize,
 
-    /// The audio front end the checkpoint's log-perceptive_audio were computed
+    /// The audio front end the checkpoint's log-mels were computed
     /// with.
     ///
     /// A checkpoint does not record it; it is the convention of the
@@ -114,13 +114,13 @@ impl<B: Backend> ModuleInit<B, Whisper<B>> for WhisperApiConfig {
 
 /// Common meta for [`Whisper`] and [`WhisperApiConfig`].
 pub trait WhisperMeta {
-    /// The audio front end the model's log-perceptive_audio are computed with.
+    /// The audio front end the model's log-mels are computed with.
     fn front_end(&self) -> &WhisperFrontEndConfig;
 
     /// The token layout the model's vocabulary follows.
     fn token_layout(&self) -> &WhisperTokenLayoutConfig;
 
-    /// The sample rate the model's log-perceptive_audio are computed at, in Hz.
+    /// The sample rate the model's log-mels are computed at, in Hz.
     fn sample_rate(&self) -> usize {
         self.front_end().sample_rate
     }
@@ -164,7 +164,7 @@ pub trait WhisperMeta {
 /// [`Whisper`] module via [`ModuleInit`].
 #[derive(Config, Debug)]
 pub struct WhisperStructuralConfig {
-    /// The audio front end the model's log-perceptive_audio are computed with.
+    /// The audio front end the model's log-mels are computed with.
     pub front_end: WhisperFrontEndConfig,
 
     /// The token layout the model's vocabulary follows.
@@ -223,7 +223,7 @@ impl<B: Backend> ModuleInit<B, Whisper<B>> for WhisperStructuralConfig {
 /// Built by [`WhisperApiConfig`].
 #[derive(Module, Debug)]
 pub struct Whisper<B: Backend> {
-    /// The audio front end the log-perceptive_audio are computed with. A
+    /// The audio front end the log-mels are computed with. A
     /// constant of the module, not part of its record: set by the config at
     /// `init`, it survives a checkpoint load, and the config carries it
     /// across a record round trip.

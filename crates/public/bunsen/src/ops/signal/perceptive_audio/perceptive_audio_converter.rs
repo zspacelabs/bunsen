@@ -5,7 +5,7 @@
 //! and is what a stream is driven through.
 //!
 //! Defaults reproduce `librosa`: 16 kHz, 400-sample periodic Hann, hop 160,
-//! 80 Slaney `perceptive_audio` with Slaney area normalization, power spectrum,
+//! 80 Slaney `mels` with Slaney area normalization, power spectrum,
 //! and `log10` over a `1e-10` floor.
 //!
 //! Dynamic-range packaging — [`RangeClamp`] and [`AffineCompress`] — is a
@@ -118,7 +118,7 @@ pub enum SpectrumImpl {
     DftMatmul,
 }
 
-/// A floor applied to log-perceptive_audio, relative to a reference maximum.
+/// A floor applied to log-mels, relative to a reference maximum.
 ///
 /// Values below `reference - db` are lifted to `reference - db`, which is
 /// Whisper's `maximum(log_spec, log_spec.max() - 8.0)`.
@@ -158,7 +158,7 @@ impl RangeClamp {
     /// `maximum(log_spec, log_spec.max() - 8.0)`.
     ///
     /// # Arguments
-    /// * `x`: `[batch, frames, n_mels]` log-perceptive_audio.
+    /// * `x`: `[batch, frames, n_mels]` log-mels.
     pub fn apply<B: Backend>(
         &self,
         x: Tensor<B, 3>,
@@ -179,7 +179,7 @@ impl RangeClamp {
     }
 }
 
-/// An affine rescaling of compressed `perceptive_audio`: `(v + bias) / div`.
+/// An affine rescaling of compressed `mels`: `(v + bias) / div`.
 ///
 /// Whisper uses `(log_spec + 4.0) / 4.0`.
 ///
@@ -868,7 +868,7 @@ impl<B: Backend> PerceptiveAudioConverter<B> {
         out
     }
 
-    /// Compresses mel energies into log-perceptive_audio.
+    /// Compresses mel energies into log-mels.
     ///
     /// Floors, takes the log, applies the optional dynamic-range clamp, then
     /// the optional affine tail. Shape is unchanged.
@@ -877,7 +877,7 @@ impl<B: Backend> PerceptiveAudioConverter<B> {
     /// `log(log_floor)` rather than `-inf`.
     ///
     /// # Arguments
-    /// * `perceptive_audio`: `[batch, frames, n_mels]` mel energies, from
+    /// * `mels`: `[batch, frames, n_mels]` mel energies, from
     ///   [`mel`](Self::mel).
     pub fn compress(
         &self,
@@ -897,7 +897,7 @@ impl<B: Backend> PerceptiveAudioConverter<B> {
         opts.log_base.apply(x)
     }
 
-    /// Converts a whole signal to log-perceptive_audio in one call.
+    /// Converts a whole signal to log-mels in one call.
     ///
     /// Chains [`frame`](Self::frame), [`spectrum`](Self::spectrum),
     /// [`mel`](Self::mel) and [`compress`](Self::compress). Stateless and

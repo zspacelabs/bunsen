@@ -203,7 +203,7 @@ pub struct WhisperStreamContext<B: Backend> {
     /// The mel front end's streaming state; `None` once flushed.
     mel: Option<PerceptiveAudioConversionContext<B>>,
 
-    /// `[1, frames, n_mels]` log-perceptive_audio from `origin` onward; `None`
+    /// `[1, frames, n_mels]` log-mels from `origin` onward; `None`
     /// when empty.
     frames: Option<Tensor<B, 3>>,
 

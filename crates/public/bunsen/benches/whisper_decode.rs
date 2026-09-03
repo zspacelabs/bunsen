@@ -36,7 +36,7 @@ use criterion::{
 
 type B = PerformanceBackend;
 
-/// `base.en`: 80 perceptive_audio, a 51 864 vocabulary, `d_model` 512 in eight
+/// `base.en`: 80 mels, a 51 864 vocabulary, `d_model` 512 in eight
 /// heads, six layers each side, a 3000-frame window, a 448-token context.
 fn base_en(device: &Device<B>) -> Whisper<B> {
     WhisperApiConfig::new(80, 51_864, 512, 3000, 6, 448, 6).init(device)

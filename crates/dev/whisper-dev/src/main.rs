@@ -1,5 +1,5 @@
 //! Loads a pretrained Whisper checkpoint, converts an audio file to
-//! log-perceptive_audio with [`bunsen::ops::signal::perceptive_audio`], and
+//! log-mels with [`bunsen::ops::signal::perceptive_audio`], and
 //! greedily decodes each 30 s window.
 //!
 //! The mel front end is driven in streaming chunks, which is the shape a live
@@ -153,7 +153,7 @@ fn pad_or_trim(
     wav
 }
 
-/// Converts a waveform to Whisper-ready log-perceptive_audio, `[batch, n_mels,
+/// Converts a waveform to Whisper-ready log-mels, `[batch, n_mels,
 /// frames]`.
 ///
 /// Streams the signal in `chunk`-sample blocks, then packages the joined
@@ -203,7 +203,7 @@ fn run<B: Backend>(
 
     // OpenAI ships these checkpoints in fp16, so the loaded weights are f16
     // while the mel front end produces the backend's default float. Cast the
-    // model up rather than the perceptive_audio down: the front end is where
+    // model up rather than the mels down: the front end is where
     // precision is cheap, and f16 conv support varies by backend.
     //
     // This works because the model's weights are `Param`s. A `ModuleMapper`
@@ -237,7 +237,7 @@ fn run<B: Backend>(
     let mels = to_whisper_mels(&cfg.front_end, &conv, &wav, chunk, &device)?;
 
     println!("streamed in {chunk}-sample chunks");
-    summarize("log-perceptive_audio", &mels);
+    summarize("log-mels", &mels);
 
     let windows = mel_windows(mels, model.max_audio_ctx());
     println!(

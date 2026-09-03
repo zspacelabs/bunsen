@@ -63,7 +63,7 @@ MODEL = "base"
 
 
 def windows_of(audio):
-    """`[n_windows, 80, 3000]` log-perceptive_audio, the geometry bunsen decodes over."""
+    """`[n_windows, 80, 3000]` log-mels, the geometry bunsen decodes over."""
     n_windows = max(1, -(-len(audio) // N_SAMPLES))
     padded = np.zeros(n_windows * N_SAMPLES, dtype=np.float32)
     padded[: len(audio)] = audio

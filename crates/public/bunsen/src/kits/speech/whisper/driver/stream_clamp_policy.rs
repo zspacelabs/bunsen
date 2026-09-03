@@ -1,6 +1,6 @@
 //! # The clamp policy: where a window's dynamic-range floor comes from.
 //!
-//! Whisper floors its log-perceptive_audio 8 dB below a reference maximum, and
+//! Whisper floors its log-mels 8 dB below a reference maximum, and
 //! upstream takes that maximum over the **whole clip** before cutting windows.
 //! A stream cannot see the whole clip, so the question of what the reference
 //! is becomes a policy, and the policy is an injected object behind this
@@ -49,8 +49,7 @@ pub trait StreamClampPolicy<B: Backend>: Send + Sync + Debug + DynClone {
     /// place a policy may mutate.
     ///
     /// # Arguments
-    /// * `frames` - `[batch, frames, n_mels]` log-perceptive_audio, as they
-    ///   arrive.
+    /// * `frames` - `[batch, frames, n_mels]` log-mels, as they arrive.
     fn observe(
         &mut self,
         frames: Tensor<B, 3>,
@@ -62,8 +61,7 @@ pub trait StreamClampPolicy<B: Backend>: Send + Sync + Debug + DynClone {
     /// the context, so this cannot touch the policy either.
     ///
     /// # Arguments
-    /// * `window` - `[batch, frames, n_mels]` log-perceptive_audio about to be
-    ///   packaged.
+    /// * `window` - `[batch, frames, n_mels]` log-mels about to be packaged.
     ///
     /// # Returns
     /// `[batch]`, one reference per row.
@@ -191,7 +189,7 @@ mod tests {
 
     type B = CpuBackend;
 
-    /// `[2, 2, 2]`: two rows, two frames, two perceptive_audio, from a flat
+    /// `[2, 2, 2]`: two rows, two frames, two mels, from a flat
     /// list.
     fn frames(values: [f64; 8]) -> Tensor<B, 3> {
         Tensor::from_data(

@@ -446,7 +446,7 @@ impl<B: Backend> WhisperStreamDriver<B> {
         self.whisper_model.sample_rate()
     }
 
-    /// The audio front end the model's log-perceptive_audio are computed with.
+    /// The audio front end the model's log-mels are computed with.
     pub fn front_end(&self) -> &WhisperFrontEndConfig {
         self.whisper_model.front_end()
     }

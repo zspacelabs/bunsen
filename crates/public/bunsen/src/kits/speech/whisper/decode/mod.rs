@@ -82,7 +82,7 @@ pub use whisper_fallback_config::{
 /// zero-padding the last window to full width.
 ///
 /// # Arguments
-/// * `perceptive_audio` - `[batch, n_mels, frames]`.
+/// * `mels` - `[batch, n_mels, frames]`.
 /// * `window` - frames per window; the model's audio context width.
 pub fn mel_windows<B: Backend>(
     mels: Tensor<B, 3>,
@@ -287,8 +287,8 @@ impl<B: Backend> Whisper<B> {
     /// Decodes a batch of mel windows.
     ///
     /// # Arguments
-    /// * `perceptive_audio` - `[batch, n_mels, frames]`, `frames` the audio
-    ///   context width; every row is decoded against its own audio.
+    /// * `mels` - `[batch, n_mels, frames]`, `frames` the audio context width;
+    ///   every row is decoded against its own audio.
     /// * `config` - the prompt, stop token, cap, and search width.
     /// * `filters` - applied to the logits every step, in order, before the
     ///   search sees them.
@@ -541,8 +541,7 @@ impl<B: Backend> Whisper<B> {
     /// has finished or `max_tokens` is reached.
     ///
     /// # Arguments
-    /// * `perceptive_audio` - `[batch, n_mels, frames]`, `frames` the audio
-    ///   context width.
+    /// * `mels` - `[batch, n_mels, frames]`, `frames` the audio context width.
     ///
     /// # Returns
     /// The generated ids per row, without the stop token.
@@ -561,8 +560,7 @@ impl<B: Backend> Whisper<B> {
     /// Greedily decodes one mel window.
     ///
     /// # Arguments
-    /// * `perceptive_audio` - `[1, n_mels, frames]`, `frames` the audio context
-    ///   width.
+    /// * `mels` - `[1, n_mels, frames]`, `frames` the audio context width.
     ///
     /// # Panics
     /// If the batch is not one.
@@ -582,7 +580,7 @@ impl<B: Backend> Whisper<B> {
     /// prompt for every window.
     ///
     /// # Arguments
-    /// * `perceptive_audio` - `[1, n_mels, frames]`, any length; split with
+    /// * `mels` - `[1, n_mels, frames]`, any length; split with
     ///   [`mel_windows`].
     ///
     /// # Returns

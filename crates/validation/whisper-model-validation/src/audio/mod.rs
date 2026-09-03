@@ -297,7 +297,7 @@ mod download;
 #[cfg(feature = "gpu-tests")]
 mod gpu_tests;
 
-/// A fixture as `[1, N_MELS, frames]` log-perceptive_audio, through bunsen's
+/// A fixture as `[1, N_MELS, frames]` log-mels, through bunsen's
 /// front end.
 ///
 /// The clip is zero-padded up to whole 30 s windows first, matching how

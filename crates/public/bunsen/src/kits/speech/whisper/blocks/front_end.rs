@@ -1,6 +1,6 @@
 //! # The audio front end a checkpoint was trained with.
 //!
-//! Whisper's log-perceptive_audio are a grid fixed in time &mdash; a 25 ms
+//! Whisper's log-mels are a grid fixed in time &mdash; a 25 ms
 //! window every 10 ms &mdash; computed at 16 kHz and floored 8 dB under each
 //! window's maximum. A checkpoint records none of that; it is the convention of
 //! the pipeline that trained it. [`WhisperFrontEndConfig`] declares it on the
@@ -33,7 +33,7 @@ use crate::{
     },
 };
 
-/// The audio front end a checkpoint's log-perceptive_audio were computed with.
+/// The audio front end a checkpoint's log-mels were computed with.
 ///
 /// The grid is in time; [`hop`](Self::hop) and [`n_fft`](Self::n_fft) put
 /// it on samples at [`sample_rate`](Self::sample_rate).
@@ -55,7 +55,7 @@ pub struct WhisperFrontEndConfig {
     pub window_ms: usize,
 
     /// The dynamic range kept under each window's maximum, in dB:
-    /// log-perceptive_audio further below the maximum are floored to it
+    /// log-mels further below the maximum are floored to it
     /// before packaging.
     #[config(default = "8.0")]
     pub range_clamp_db: f64,
@@ -139,7 +139,7 @@ impl WhisperFrontEndConfig {
             .with_n_mels(n_mels))
     }
 
-    /// Packages one window of log-perceptive_audio into encoder input, against
+    /// Packages one window of log-mels into encoder input, against
     /// a reference.
     ///
     /// Floors every value at `range_clamp_db` below its row's `reference`,
@@ -148,7 +148,7 @@ impl WhisperFrontEndConfig {
     /// [`StreamClampPolicy`]'s decision; this only applies it.
     ///
     /// # Arguments
-    /// * `window` - `[batch, frames, n_mels]` log-perceptive_audio.
+    /// * `window` - `[batch, frames, n_mels]` log-mels.
     /// * `reference` - `[batch]`, the maximum each row is floored against, in
     ///   the post-log domain.
     ///

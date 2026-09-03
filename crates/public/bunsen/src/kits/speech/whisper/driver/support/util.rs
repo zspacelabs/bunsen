@@ -4,7 +4,7 @@ use burn::{
     tensor::BasicOps,
 };
 
-/// Drops the trailing frame of a whole stream's log-perceptive_audio.
+/// Drops the trailing frame of a whole stream's log-mels.
 ///
 /// # Arguments
 /// * `stream` - `[batch, frames, n_mels]`.
