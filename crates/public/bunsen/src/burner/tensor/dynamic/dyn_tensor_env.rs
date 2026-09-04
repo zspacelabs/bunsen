@@ -17,6 +17,11 @@ impl<B: Backend> DynTensorEnv<B> {
         self.map.len()
     }
 
+    /// Check if the environment is empty.
+    pub fn is_empty(&self) -> bool {
+        self.map.is_empty()
+    }
+
     /// Get the keys of the tensors in the environment.
     pub fn keys(&self) -> HashSet<String> {
         self.map.iter().map(|r| r.key().to_string()).collect()
