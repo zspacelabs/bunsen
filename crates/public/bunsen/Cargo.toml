@@ -196,6 +196,8 @@ directories-next = { workspace = true, optional = true }
 # features=["tui"] incompatible with conflicting indicatif versions.
 downloader = { workspace = true, default-features = false, optional = true }
 
+dashmap = { workspace = true }
+
 num-traits = { workspace = true }
 strum = { workspace = true, features = ["derive"] }
 thiserror = { workspace = true }
