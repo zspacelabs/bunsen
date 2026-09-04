@@ -133,42 +133,37 @@ asked for*, and leaves no way to have one without the other. A
 
 `download` marks a build that may reach the network. It is **off by default**
 — a plain `cargo build --workspace` never fetches. Assets are pinned to a
-digest, re-verified on every build, and cached outside `OUT_DIR`, so
-`cargo clean` does not force a re-download. An environment variable points the
-build at a local file instead.
+digest, re-verified on every build, and kept in `OUT_DIR`. An environment
+variable points the build at a local file instead.
 
 `bunsen-bundled-whisper` is the one exception, enumerated rather than implied:
-`checkpoint` is in its `default`, so a workspace build does fetch 145 MB on a
-cold cache. Naming the exception keeps the rule absolute everywhere else.
+`checkpoint` is in its `default`, so a workspace build does fetch 145 MB into
+a fresh `OUT_DIR`. Naming the exception keeps the rule absolute everywhere else.
 
-### The `cache/` directory
+### Fetched assets live in `OUT_DIR`
 
-A fetched asset lands in `cache/`, beside the manifest of the crate that
-fetched it:
+A fetched asset lands in the build script's `OUT_DIR`, never beside the
+manifest:
 
 ```text
 crates/public/bunsen-bundled-whisper/
-    build.rs                     the URLs and their pinned digests
-    cache/                       what the digests name
+    build.rs                                  the URLs and their pinned digests
+target/<profile>/build/bunsen-bundled-whisper-<hash>/out/
+                                              what the digests name
 ```
 
-Beside the manifest, not under `OUT_DIR` — `cargo clean` would otherwise cost
-a re-download, and these are measured in hundreds of megabytes. Not hidden
-either: a directory that large is easier to reason about when it is visible.
+`OUT_DIR` is the one directory a build script may write to. `cargo publish`
+builds the packaged crate and fails if the build touched anything else in the
+package — a `cache/` beside the manifest is exactly that — and a crate unpacked
+from crates.io must not write into `~/.cargo/registry` either. The cost is that
+`cargo clean` discards the assets with everything else, and a cold CI run
+fetches them again. The override variables (`WHISPER_BASE_PT` and friends) are
+the way to supply a local copy instead.
 
-Its `.gitignore` entry is a **full path**, not a `**/` glob. `cache` is an
-ordinary module name — `bunsen::data::cache` is source — and a glob would
-quietly untrack it:
-
-```text
-prefer:  /crates/public/bunsen-bundled-whisper/cache/
-not:     **/cache/                     (also matches src/data/cache)
-```
-
-A build cache does **not** substitute for this. `Swatinem/rust-cache` prunes
-anything it does not recognize as a dependency from `target/`, so assets kept
-there are deleted before the cache is written; CI gives `cache/` its own entry,
-keyed on the `build.rs` that pins the digests.
+Do not add a cache step for them. `Swatinem/rust-cache` prunes workspace crates
+from `target/` before it saves, so the assets do not ride along; a separate
+`actions/cache` over an `OUT_DIR` path goes stale the moment the hash in that
+path changes, which every toolchain or lockfile update does.
 
 ### Model assets
 

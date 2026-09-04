@@ -10,21 +10,23 @@
 //! breaks air-gapped CI, and makes builds non-reproducible. So:
 //!
 //! * A fetch only happens under the feature that needs the asset.
-//! * Assets land in a `cache/` directory beside the manifest, not `OUT_DIR`, so
-//!   `cargo clean` does not force a 145 MB re-download. It is deliberately not
-//!   hidden: 416 MB is worth being able to see.
-//! * Every asset is pinned to a SHA-256 and re-verified on each build. A cache
-//!   entry that fails is deleted and re-fetched once.
+//! * Assets land in `OUT_DIR`, the one directory a build script may write to.
+//!   `cargo publish` verifies that the build left the package source untouched,
+//!   and a crate unpacked from crates.io must not write into the registry — so
+//!   a `cache/` beside the manifest is not an option, and `cargo clean` does
+//!   cost a re-download. The override variables below are the way around that.
+//! * Every asset is pinned to a SHA-256 and re-verified on each build. A cached
+//!   copy that fails is deleted and re-fetched once.
 //! * `WHISPER_BASE_PT`, `WHISPER_MULTILINGUAL_TIKTOKEN`,
 //!   `WHISPER_GPT2_TIKTOKEN`, `WHISPER_ONNX_ENCODER` and `WHISPER_ONNX_DECODER`
 //!   point the build at local files instead, for working offline or against a
 //!   different export.
 //!
 //! **`checkpoint` is on by default**, so building this crate — including as
-//! part of `cargo build --workspace` — fetches 145 MB on a cold cache. That is
-//! deliberate for a crate whose whole purpose is to bundle weights, but it
-//! does mean a clean CI run pays for it. `--no-default-features` opts out, and
-//! `WHISPER_BASE_PT` points at a local copy.
+//! part of `cargo build --workspace` — fetches 145 MB into a fresh `OUT_DIR`.
+//! That is deliberate for a crate whose whole purpose is to bundle weights, but
+//! it does mean a clean CI run pays for it. `--no-default-features` opts out,
+//! and `WHISPER_BASE_PT` points at a local copy.
 
 // Each feature uses its own constants and helpers; the rest are dead in that
 // build. Enumerating `cfg` on every item would be noisier than this.
@@ -212,12 +214,14 @@ fn generate_reference() {
     }
 }
 
-/// The asset cache, beside the manifest rather than in `OUT_DIR` so a
-/// `cargo clean` does not force a re-download.
+/// Where fetched assets land: `OUT_DIR`.
+///
+/// The only directory a build script may write to. `cargo publish` fails
+/// verification if the build touched the package source, and a crate unpacked
+/// from crates.io must not write into `~/.cargo/registry`. The cost is that
+/// `cargo clean` discards the assets along with everything else.
 fn cache_dir() -> PathBuf {
-    let cache = PathBuf::from(env::var("CARGO_MANIFEST_DIR").unwrap()).join("cache");
-    fs::create_dir_all(&cache).expect("create the asset cache");
-    cache
+    PathBuf::from(env::var_os("OUT_DIR").expect("cargo sets OUT_DIR for build scripts"))
 }
 
 /// Returns a path to an asset, honouring an override or fetching it.
