@@ -14,7 +14,7 @@ description = "bunsen dataloader / processing pipeline"
 workspace = true
 
 [dependencies]
-burn = { workspace = true, features = ["dataset", "vision"] }
+burn = { workspace = true, features = ["std", "dataset", "vision"] }
 
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
