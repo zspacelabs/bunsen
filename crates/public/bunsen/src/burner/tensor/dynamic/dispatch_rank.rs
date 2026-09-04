@@ -1,20 +1,34 @@
-use bunsen::errors::BunsenError;
+use crate::errors::{
+    BunsenError,
+    BunsenResult,
+};
 
 /// Dynamic to static rank dispatch handler.
-pub trait RankHandler {
+pub trait RankHandler: Sized {
+    /// The output type of the static-rank handler.
     type Output;
 
     /// Call the static-rank handler.
-    fn call<const R: usize>(self) -> Result<Self::Output, BunsenError>;
+    fn call<const R: usize>(self) -> BunsenResult<Self::Output>;
+
+    /// Dynamic rank dispatch.
+    ///
+    /// Handles up to rank=12.
+    fn dyn_call(
+        self,
+        rank: usize,
+    ) -> BunsenResult<Self::Output> {
+        dispatch_rank::<Self>(rank, self)
+    }
 }
 
 /// Dynamic rank dispatch.
 ///
 /// Handles up to rank=12.
-pub fn dispatch_rank<H: RankHandler>(
+fn dispatch_rank<H: RankHandler>(
     rank: usize,
     handler: H,
-) -> Result<H::Output, BunsenError> {
+) -> BunsenResult<H::Output> {
     match rank {
         1 => handler.call::<1>(),
         2 => handler.call::<2>(),

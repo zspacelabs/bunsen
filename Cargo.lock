@@ -1356,15 +1356,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "burn-rmexp-dyntensor"
-version = "0.31.0"
-dependencies = [
- "bunsen",
- "burn",
- "serde",
-]
-
-[[package]]
 name = "burn-rocm"
 version = "0.21.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"

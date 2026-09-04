@@ -35,17 +35,17 @@ impl Clone for Box<dyn CloneBox> {
 mod tests {
     use burn::{
         Tensor,
-        backend::Wgpu,
         tensor::Distribution,
     };
 
     use super::*;
+    use crate::support::testing::CpuBackend;
 
     fn assert_send<T: Send>() {}
 
     #[test]
     fn test_clone_box_tensor() {
-        type B = Wgpu;
+        type B = CpuBackend;
         let device = Default::default();
 
         let source: Tensor<B, 2> = Tensor::random([2, 3], Distribution::Default, &device);

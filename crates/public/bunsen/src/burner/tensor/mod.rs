@@ -49,6 +49,8 @@
 //! [`burn::tensor::TensorData`] to provide multi-dimensional element access
 //! via `view[&[i, j]]` indexing.
 
+pub mod dynamic;
+
 mod data_view;
 mod tensor_op_ext;
 
