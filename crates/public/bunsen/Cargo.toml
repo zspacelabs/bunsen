@@ -166,14 +166,14 @@ testing = [
 ]
 
 [dependencies]
-bunsen-contracts-macros = { version = "0.31.0", path = "../bunsen-contracts-macros" }
+bunsen-contracts-macros = { version = "0.32.0", path = "../bunsen-contracts-macros" }
 
-bunsen-bundled-silero = { version = "0.31.0",
+bunsen-bundled-silero = { version = "0.32.0",
     path = "../bunsen-bundled-silero",
     optional = true
 }
 
-bunsen-bundled-whisper = { version = "0.31.0",
+bunsen-bundled-whisper = { version = "0.32.0",
     path = "../bunsen-bundled-whisper",
     optional = true
 }
