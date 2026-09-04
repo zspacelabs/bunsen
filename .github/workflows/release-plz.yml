@@ -8,8 +8,16 @@ name: release-plz
 #                  creates the git tags + GitHub releases.
 #
 # Required configuration (one-time):
-#   * Repository secret CARGO_REGISTRY_TOKEN — a crates.io API token with publish
-#     scope for the bunsen* crates.
+#   * Repository secret CARGO_REGISTRY_TOKEN — a crates.io API token
+#     (https://crates.io/settings/tokens/new) with:
+#       - endpoint scopes: `publish-new` AND `publish-update` (`publish-new` is
+#         needed whenever the release adds a crate that isn't on crates.io yet);
+#       - crate scope: `bunsen*`;
+#       - a deliberate expiry. crates.io rejects an expired token with
+#         "403 Forbidden: authentication failed" (the same message as a bogus
+#         token), which is what a release run reports when the token has aged
+#         out. Rotate with `gh secret set CARGO_REGISTRY_TOKEN` and re-run the
+#         failed release job with `gh run rerun <run-id> --failed`.
 #   * Settings -> Actions -> General -> Workflow permissions: allow GitHub Actions
 #     to create and approve pull requests.
 #

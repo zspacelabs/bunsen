@@ -3,7 +3,7 @@
 //! **This crate hosts nothing.** `OpenAI`'s `base.pt` is 145 MB and the ONNX
 //! export is ~290 MB, all far too large to commit — so unlike the Silero
 //! bundle, whose graph ships in the crate, this one *fetches* its assets, pins
-//! each to a SHA-256, and caches them under `cache/`. The two `.tiktoken`
+//! each to a SHA-256, and keeps them in `OUT_DIR`. The two `.tiktoken`
 //! vocabularies are small enough to commit, and are fetched anyway so that
 //! every Whisper asset arrives the same way.
 //!
