@@ -1,0 +1,20 @@
+[package]
+name = "burn-rmexp-dyntensor"
+version.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+edition.workspace = true
+license.workspace = true
+documentation = "https://docs.rs/burn-rmexp-dyntensor/latest/"
+description = "burn remote experiment dyntensor"
+publish = false
+
+[dependencies]
+burn = { workspace = true }
+bunsen = { path = "../../public/bunsen", features = ["testing"] }
+
+serde = { workspace = true, features = ["derive"] }
+
+
+[lints]
+workspace = true
