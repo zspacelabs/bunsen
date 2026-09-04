@@ -38,6 +38,8 @@
       <sourceFolder url="file://$MODULE_DIR$/crates/dev/zsl-data-cache/examples" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/crates/dev/zsl-data-cache/examples/pull_shards/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/crates/dev/zsl-data-cache/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/crates/dev/burn-rmexp-dyntensor/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/crates/dev/burn-rmexp-tensorlib/src" isTestSource="false" />
       <excludeFolder url="file://$MODULE_DIR$/crates/public/bunsen/target" />
       <excludeFolder url="file://$MODULE_DIR$/target" />
       <excludeFolder url="file://$MODULE_DIR$/demos/bimm/crates/bimm/target" />
