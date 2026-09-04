@@ -18,6 +18,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Refactor `MelFilterbank` into `MelFilterbankConfig` for improved configuration and validation. Rewrite tests for API updates and streamline related logic for cleaner organization. ([#165](https://github.com/zspacelabs/bunsen/pull/165))
 
+### Fixed
+
+- The build script kept its fetched assets in a `cache/` beside the manifest,
+  which `cargo publish` verification rejects: a build script may write only to
+  `OUT_DIR`. Assets now land there. This is the crate's first published
+  version, cut from the commit that carries the fix
+  ([#174](https://github.com/zspacelabs/bunsen/pull/174)).
+
 ### Added
 
 - `vocab` fetches, digest-pins and caches Whisper's two `.tiktoken` rank
