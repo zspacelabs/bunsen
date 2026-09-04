@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and this project adheres
 to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.32.0](https://github.com/zspacelabs/bunsen/compare/bunsen-v0.31.0...bunsen-v0.32.0) - 2026-09-04
+
+### Added
+
+- *(bunsen)* enhance `DynTensorEnv` with deep copy support and improved tests ([#180](https://github.com/zspacelabs/bunsen/pull/180))
+- *(bunsen)* introduce `DynTensorEnv` for dynamic tensor binding and management ([#179](https://github.com/zspacelabs/bunsen/pull/179))
+
+### Other
+
+- crutcher/dte iter ([#181](https://github.com/zspacelabs/bunsen/pull/181))
+- crutcher/dyn tensor ([#177](https://github.com/zspacelabs/bunsen/pull/177))
+
 ## [0.31.0](https://github.com/zspacelabs/bunsen/compare/bunsen-v0.30.1...bunsen-v0.31.0) - 2026-09-03
 
 ### Added
