@@ -3,7 +3,11 @@ use std::{
     sync::Arc,
 };
 
-use burn::prelude::Backend;
+use burn::{
+    Tensor,
+    prelude::Backend,
+    tensor::BasicOps,
+};
 use dashmap::DashMap;
 
 use crate::prelude::dynamic::DynTensor;
@@ -36,8 +40,20 @@ impl<B: Backend> DynTensorEnv<B> {
     }
 
     /// Get the keys of the tensors in the environment.
+    ///
+    /// This is a copy of the keys of the tensors in the environment.
     pub fn keys(&self) -> HashSet<String> {
-        self.map.iter().map(|r| r.key().to_string()).collect()
+        self.iter().map(|r| r.key().clone()).collect()
+    }
+
+    /// Map over all tensors in the environment.
+    ///
+    /// # Returns
+    ///
+    /// A ref-guard iterator, the items of the environment.
+    /// Use `r.key()` and `r.value()` to access the key and value of each item.
+    pub fn iter(&self) -> dashmap::iter::Iter<'_, String, DynTensor<B>> {
+        self.map.iter()
     }
 
     /// Bind a [`DynTensor`] to the environment.
@@ -75,6 +91,50 @@ impl<B: Backend> DynTensorEnv<B> {
         name: impl AsRef<str>,
     ) -> Option<dashmap::mapref::one::Ref<'_, String, DynTensor<B>>> {
         self.map.get(name.as_ref())
+    }
+
+    /// Get a clone of a [`DynTensor`] from the environment.
+    pub fn get_dyn(
+        &self,
+        name: impl AsRef<str>,
+    ) -> Option<DynTensor<B>> {
+        self.get_ref(name).map(|r| r.value().clone())
+    }
+
+    /// Get a clone of a [`DynTensor`] from the environment, or panic.
+    pub fn expect_dyn(
+        &self,
+        name: impl AsRef<str>,
+    ) -> DynTensor<B> {
+        self.get_dyn(name).expect("tensor not found: \"{name:?}\"")
+    }
+
+    /// Get a downcast clone of a [`Tensor`] from the environment.
+    ///
+    /// # Returns
+    ///
+    /// The typed [`Some(Tensor<B, D, K>)`]; or `None` if the tensor does not
+    /// exist or cannot be downcasted.
+    pub fn get_tensor<const D: usize, K>(
+        &self,
+        name: impl AsRef<str>,
+    ) -> Option<Tensor<B, D, K>>
+    where
+        K: BasicOps<B> + 'static,
+    {
+        self.get_dyn(name).map(|dt| dt.downcast_clone()).flatten()
+    }
+
+    /// Get a downcast clone of a [`Tensor`] from the environment, or panic.
+    pub fn expect_tensor<const D: usize, K>(
+        &self,
+        name: impl AsRef<str>,
+    ) -> Tensor<B, D, K>
+    where
+        K: BasicOps<B> + 'static,
+    {
+        self.get_tensor(name)
+            .expect("tensor not found: \"{name:?}\"")
     }
 }
 
@@ -124,17 +184,11 @@ mod tests {
         assert_eq!(&env.keys(), &env_keys);
 
         assert_eq!(env.contains_key("foo"), true);
-        env2.get_ref("foo")
-            .unwrap()
-            .downcast_clone::<2, Int>()
-            .unwrap()
+        env2.expect_tensor::<2, Int>("foo")
             .to_data_as::<i32>()
             .assert_eq(&int_tensor.to_data_as::<i32>(), true);
 
-        env.get_ref("bar")
-            .unwrap()
-            .downcast_clone::<3, Float>()
-            .unwrap()
+        env.expect_tensor::<3, Float>("bar")
             .to_data_as::<f32>()
             .assert_eq(&float_tensor.to_data_as::<f32>(), true);
 
