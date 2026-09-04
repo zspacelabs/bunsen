@@ -68,3 +68,16 @@ jobs:
 
       - name: No default features build.
         run: cargo test -p bunsen --no-default-features
+
+      # `cargo publish` verifies each crate outside the workspace, with only
+      # its own dependencies. Every other step here builds several crates at
+      # once, and Cargo unifies their features, so a crate that forgets a
+      # feature still builds as long as a sibling turns it on. That is how
+      # `bunsen-firehose` relied on `bunsen` enabling `burn/std` and failed to
+      # publish at v0.31.0. One `cargo check` per crate reproduces the isolated
+      # resolution; several `-p` flags in one invocation would unify again.
+      - name: Published crates build in isolation
+        run: |
+          for manifest in crates/public/*/Cargo.toml; do
+            cargo check --manifest-path "$manifest" --lib
+          done
