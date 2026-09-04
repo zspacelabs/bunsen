@@ -32,6 +32,16 @@ git_release_enable = true
 # `bunsen-preview-chat-dataloader` (manifest 0.21.3, never published) to attempt
 # a 0.21.3 back-publish. With releases gated on the release PR, a newly-added
 # crate first publishes at the *next* bumped version, alongside the others.
+#
+# The gate is the merged PR's branch name: `release` runs only when the commit
+# at the head of `main` came from a PR whose branch starts with `release-plz-`
+# (the `pr_branch_prefix` default). That also matters for recovery. If a
+# release dies part-way — some crates published, the rest not — `release-pr`
+# sees "local version > registry version", only refreshes changelogs, and opens
+# nothing; an ordinary fix PR does not trigger `release` either. To resume,
+# merge any PR from a branch named `release-plz-*`: `release` then publishes
+# whatever is still missing at the manifest version. Squash merges are fine —
+# release-plz handles them explicitly.
 release_always = false
 
 
