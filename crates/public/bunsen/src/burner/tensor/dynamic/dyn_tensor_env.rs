@@ -161,65 +161,81 @@ mod tests {
         type B = CpuBackend;
         let device = Default::default();
 
-        let mut env = DynTensorEnv::<B>::default();
+        // Two handles to the same environment.
+        let mut env1_a = DynTensorEnv::<B>::default();
+        let mut env1_b = env1_a.clone();
 
         let int_tensor: Tensor<B, 2, Int> = Tensor::arange(0..6, &device).reshape([2, 3]);
         let float_tensor: Tensor<B, 3> = Tensor::arange(0..24, &device).reshape([2, 3, 4]).float();
         let bool_tensor: Tensor<B, 1, Bool> = Tensor::zeros([2], &device);
 
-        env.bind("foo", int_tensor.clone());
+        assert_eq!(env1_a.contains_key("foo"), false);
+        assert_eq!(env1_b.contains_key("foo"), false);
+        env1_a.bind("foo", int_tensor.clone());
+        assert_eq!(env1_a.contains_key("foo"), true);
+        assert_eq!(env1_b.contains_key("foo"), true);
+        env1_a
+            .expect_tensor::<2, Int>("foo")
+            .to_data_as::<i32>()
+            .assert_eq(&int_tensor.to_data_as::<i32>(), true);
+        env1_b
+            .expect_tensor::<2, Int>("foo")
+            .to_data_as::<i32>()
+            .assert_eq(&int_tensor.to_data_as::<i32>(), true);
 
         let float_dyn_tensor: DynTensor<B> = float_tensor.clone().into();
-        env.bind("bar", float_dyn_tensor);
+        env1_a.bind("bar", float_dyn_tensor);
+        assert_eq!(env1_a.contains_key("bar"), true);
+        assert_eq!(env1_b.contains_key("bar"), true);
+        env1_a
+            .expect_tensor::<3, Float>("bar")
+            .to_data_as::<f32>()
+            .assert_eq(&float_tensor.to_data_as::<f32>(), true);
+        env1_b
+            .expect_tensor::<3, Float>("bar")
+            .to_data_as::<f32>()
+            .assert_eq(&float_tensor.to_data_as::<f32>(), true);
 
-        let mut env2 = env.clone();
+        env1_b.bind("baz", bool_tensor.clone());
+        assert_eq!(env1_a.contains_key("baz"), true);
+        assert_eq!(env1_b.contains_key("baz"), true);
+        env1_a
+            .expect_tensor::<1, Bool>("baz")
+            .to_data_as::<bool>()
+            .assert_eq(&bool_tensor.to_data_as::<bool>(), true);
+        env1_b
+            .expect_tensor::<1, Bool>("baz")
+            .to_data_as::<bool>()
+            .assert_eq(&bool_tensor.to_data_as::<bool>(), true);
 
-        env2.bind("baz", bool_tensor.clone());
+        let env1_keys: HashSet<String> = ["foo", "bar", "baz"]
+            .into_iter()
+            .map(String::from)
+            .collect();
+        assert_eq!(&env1_a.keys(), &env1_keys);
+        assert_eq!(&env1_b.keys(), &env1_keys);
 
-        let mut env_keys: HashSet<String> = Default::default();
-        env_keys.insert("foo".to_string());
-        env_keys.insert("bar".to_string());
-        env_keys.insert("baz".to_string());
+        // Make a distinct copy of env1.
+        let mut env2 = env1_a.copy();
+        env2.drop("baz");
+        assert_eq!(env2.contains_key("baz"), false);
+        let evn2_keys: HashSet<String> = ["foo", "bar"].into_iter().map(String::from).collect();
+        assert_eq!(&env2.keys(), &evn2_keys);
 
-        assert_eq!(&env.keys(), &env_keys);
+        // Dropping "baz" should not affect the original environment's keys
+        assert_eq!(&env1_a.keys(), &env1_keys);
+        assert_eq!(env1_a.contains_key("baz"), true);
+        assert_eq!(env1_b.contains_key("baz"), true);
 
-        assert_eq!(env.contains_key("foo"), true);
+        // The tensors should remain the same.
         env2.expect_tensor::<2, Int>("foo")
             .to_data_as::<i32>()
             .assert_eq(&int_tensor.to_data_as::<i32>(), true);
 
-        env.expect_tensor::<3, Float>("bar")
+        env2.expect_tensor::<3, Float>("bar")
             .to_data_as::<f32>()
             .assert_eq(&float_tensor.to_data_as::<f32>(), true);
 
-        env.get_ref("baz")
-            .unwrap()
-            .downcast_clone::<1, Bool>()
-            .unwrap()
-            .to_data_as::<bool>()
-            .assert_eq(&bool_tensor.to_data_as::<bool>(), true);
-
-        let mut dup = env.copy();
-        dup.drop("baz");
-
-        let mut dup_env_keys: HashSet<String> = Default::default();
-        dup_env_keys.insert("foo".to_string());
-        dup_env_keys.insert("bar".to_string());
-        assert_eq!(&dup.keys(), &dup_env_keys);
-        assert_eq!(&env.keys(), &env_keys);
-
-        dup.get_ref("foo")
-            .unwrap()
-            .downcast_clone::<2, Int>()
-            .unwrap()
-            .to_data_as::<i32>()
-            .assert_eq(&int_tensor.to_data_as::<i32>(), true);
-
-        dup.get_ref("bar")
-            .unwrap()
-            .downcast_clone::<3, Float>()
-            .unwrap()
-            .to_data_as::<f32>()
-            .assert_eq(&float_tensor.to_data_as::<f32>(), true);
+        assert!(env2.get_ref("baz").is_none());
     }
 }
