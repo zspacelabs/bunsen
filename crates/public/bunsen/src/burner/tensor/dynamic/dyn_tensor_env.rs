@@ -1,4 +1,7 @@
-use std::collections::HashSet;
+use std::{
+    collections::HashSet,
+    sync::Arc,
+};
 
 use burn::prelude::Backend;
 use dashmap::DashMap;
@@ -6,12 +9,22 @@ use dashmap::DashMap;
 use crate::prelude::dynamic::DynTensor;
 
 /// [`DynTensor`] Binding Environment.
+///
+/// Instances of [`DynTensorEnv`] are shared handles to a common tensor
+/// environment; and new handles can be created by [`Clone::clone`].
 #[derive(Debug, Clone, Default)]
 pub struct DynTensorEnv<B: Backend> {
-    map: DashMap<String, DynTensor<B>>,
+    map: Arc<DashMap<String, DynTensor<B>>>,
 }
 
 impl<B: Backend> DynTensorEnv<B> {
+    /// Create a new environment which is a distinct copy.
+    pub fn copy(&self) -> Self {
+        Self {
+            map: Arc::new(self.map.as_ref().clone()),
+        }
+    }
+
     /// Get the number of tensors in the environment.
     pub fn len(&self) -> usize {
         self.map.len()
@@ -99,17 +112,19 @@ mod tests {
         let float_dyn_tensor: DynTensor<B> = float_tensor.clone().into();
         env.bind("bar", float_dyn_tensor);
 
-        env.bind("baz", bool_tensor.clone());
+        let mut env2 = env.clone();
 
-        let mut expected: HashSet<String> = Default::default();
-        expected.insert("foo".to_string());
-        expected.insert("bar".to_string());
-        expected.insert("baz".to_string());
+        env2.bind("baz", bool_tensor.clone());
 
-        assert_eq!(&env.keys(), &expected);
+        let mut env_keys: HashSet<String> = Default::default();
+        env_keys.insert("foo".to_string());
+        env_keys.insert("bar".to_string());
+        env_keys.insert("baz".to_string());
+
+        assert_eq!(&env.keys(), &env_keys);
 
         assert_eq!(env.contains_key("foo"), true);
-        env.get_ref("foo")
+        env2.get_ref("foo")
             .unwrap()
             .downcast_clone::<2, Int>()
             .unwrap()
@@ -129,5 +144,28 @@ mod tests {
             .unwrap()
             .to_data_as::<bool>()
             .assert_eq(&bool_tensor.to_data_as::<bool>(), true);
+
+        let mut dup = env.copy();
+        dup.drop("baz");
+
+        let mut dup_env_keys: HashSet<String> = Default::default();
+        dup_env_keys.insert("foo".to_string());
+        dup_env_keys.insert("bar".to_string());
+        assert_eq!(&dup.keys(), &dup_env_keys);
+        assert_eq!(&env.keys(), &env_keys);
+
+        dup.get_ref("foo")
+            .unwrap()
+            .downcast_clone::<2, Int>()
+            .unwrap()
+            .to_data_as::<i32>()
+            .assert_eq(&int_tensor.to_data_as::<i32>(), true);
+
+        dup.get_ref("bar")
+            .unwrap()
+            .downcast_clone::<3, Float>()
+            .unwrap()
+            .to_data_as::<f32>()
+            .assert_eq(&float_tensor.to_data_as::<f32>(), true);
     }
 }
