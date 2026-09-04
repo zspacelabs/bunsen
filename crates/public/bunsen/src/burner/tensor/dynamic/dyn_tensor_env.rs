@@ -113,8 +113,9 @@ impl<B: Backend> DynTensorEnv<B> {
     ///
     /// # Returns
     ///
-    /// The typed [`Some(Tensor<B, D, K>)`]; or `None` if the tensor does not
-    /// exist or cannot be downcasted.
+    /// Either the typed [`Some(Tensor<B, D, K>)`](`burn::tensor::Tensor`);
+    /// or `None` if the key isn't bound, or the tensor does not match this
+    /// type.
     pub fn get_tensor<const D: usize, K>(
         &self,
         name: impl AsRef<str>,
@@ -122,7 +123,7 @@ impl<B: Backend> DynTensorEnv<B> {
     where
         K: BasicOps<B> + 'static,
     {
-        self.get_dyn(name).map(|dt| dt.downcast_clone()).flatten()
+        self.get_dyn(name).and_then(|dt| dt.downcast_clone())
     }
 
     /// Get a downcast clone of a [`Tensor`] from the environment, or panic.
