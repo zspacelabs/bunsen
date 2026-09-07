@@ -1,13 +1,14 @@
 use crate::{
     burner::testing::data_stream::{
         StreamEvent,
+        TensorDataTestStream,
         TensorDataTestStreamRecorder,
         TensorDataTestStreamVerifier,
     },
     prelude::*,
 };
 
-/// [`TensorDataTestStream`] writer.
+/// [`TensorDataTestStream`] recorder for [`Vec<StreamEvent>`].
 #[derive(Default, Debug, Clone)]
 pub struct TensorDataVecStreamRecorder {
     vec: Vec<StreamEvent>,
@@ -33,6 +34,15 @@ impl TensorDataTestStreamRecorder for TensorDataVecStreamRecorder {
     ) -> BunsenResult<()> {
         self.vec.push(event);
         Ok(())
+    }
+}
+
+impl TensorDataTestStream for TensorDataVecStreamRecorder {
+    fn handle_event(
+        &mut self,
+        event: StreamEvent,
+    ) -> BunsenResult<()> {
+        self.write(event)
     }
 }
 
@@ -65,6 +75,15 @@ impl TensorDataTestStreamVerifier for TensorDataVecStreamVerifier {
             }
             None => Err(BunsenError::Invalid("No more events in stream".to_string())),
         }
+    }
+}
+
+impl TensorDataTestStream for TensorDataVecStreamVerifier {
+    fn handle_event(
+        &mut self,
+        event: StreamEvent,
+    ) -> BunsenResult<()> {
+        self.read()?.compare(&event.params, &event.data)
     }
 }
 
