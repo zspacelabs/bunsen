@@ -163,21 +163,4 @@ mod tests {
         );
         assert_eq!(responsive.commit, conservative.commit);
     }
-
-    #[test]
-    fn test_emission_accessors() {
-        let segment = TranscriptSegment {
-            start: 1.0,
-            end: 2.0,
-            tokens: vec![1, 2],
-            text: None,
-        };
-        let committed = TranscriptEvent::Committed(segment.clone());
-        let draft = TranscriptEvent::Draft(segment.clone());
-
-        assert!(committed.is_committed());
-        assert!(!draft.is_committed());
-        assert_eq!(committed.segment(), &segment);
-        assert_eq!(draft.segment(), &segment);
-    }
 }

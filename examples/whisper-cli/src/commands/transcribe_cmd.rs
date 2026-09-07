@@ -55,6 +55,15 @@ pub struct TranscribeCmd {
     #[arg(long)]
     print_filename: bool,
 
+    /// Print only the basename of the filename.
+    #[arg(
+      long,
+      action=clap::ArgAction::Set,
+      default_value_t = true,
+      default_missing_value = "true"
+    )]
+    strip_filename: bool,
+
     /// Display the index of the filename.
     #[arg(long)]
     print_index: bool,
@@ -68,7 +77,6 @@ impl TranscribeCmd {
         self.logging.init(Some(LogLevelNum::Info))?;
 
         let device = B::Device::default();
-
         let driver = self.whisper.init_driver::<B>(&device)?;
 
         let num_files = self.files.len();
@@ -78,19 +86,23 @@ impl TranscribeCmd {
             // declare, not the caller's.
             let wav = load_audio_mono_sr(path, driver.sample_rate())?;
 
+            log::debug!("path: {}", path.display(),);
+            log::debug!(
+                "audio: {} samples, {:.2} s",
+                wav.len(),
+                wav.len() as f64 / driver.sample_rate() as f64
+            );
+
             if self.print_index {
                 print!("{:>6}/{:<6} ", idx + 1, num_files);
             }
             if self.print_filename {
-                print!("{}\t", path.display());
+                if self.strip_filename {
+                    print!("{}\t", path.file_name().unwrap().display());
+                } else {
+                    print!("{}\t", path.display());
+                }
             }
-
-            log::info!(
-                "path: {}\naudio: {} samples, {:.2} s",
-                path.display(),
-                wav.len(),
-                wav.len() as f64 / driver.sample_rate() as f64
-            );
 
             let t0 = Instant::now();
 
@@ -111,7 +123,7 @@ impl TranscribeCmd {
                     && driver.detects_language()
                     && let Some(code) = ctx.language()
                 {
-                    log::info!("language: {code}");
+                    log::debug!("language: {code}");
                     announced = true;
                 }
                 for emission in emissions {
@@ -130,11 +142,11 @@ impl TranscribeCmd {
 
             timings.push((sample_time, decode_time));
 
-            log::info!("sample: {:10.1?}", sample_time);
-            log::info!("decode: {:10.1?}", decode_time);
+            log::debug!("sample: {:10.1?}", sample_time);
+            log::debug!("decode: {:10.1?}", decode_time);
 
             let ratio = sample_time.as_secs_f64() / decode_time.as_secs_f64();
-            log::info!("sample/decode: {ratio:.2}");
+            log::debug!("sample/decode: {ratio:.2}");
         }
 
         let mean_sample_time = timings
