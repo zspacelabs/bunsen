@@ -21,7 +21,7 @@ authors = [
 ]
 edition = "2024"
 rust-version = "1.94.1"
-version = "0.31.0"
+version = "0.32.0"
 repository = "https://github.com/zspacelabs/bunsen"
 license = "MIT or Apache-2.0"
 
