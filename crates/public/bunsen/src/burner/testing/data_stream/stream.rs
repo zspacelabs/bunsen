@@ -66,7 +66,11 @@ impl StreamEventFrame {
                 ),
             });
         }
-        if !actual_data.iter().all(|d| d.shape == self.data[0].shape) {
+        if !actual_data
+            .iter()
+            .zip(self.data.iter())
+            .all(|(a, e)| a.shape == e.shape)
+        {
             let actual_shapes = actual_data
                 .iter()
                 .map(|d| d.shape.clone())
