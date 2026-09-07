@@ -1,0 +1,20 @@
+[package]
+name = "clap-common"
+authors.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+version.workspace = true
+repository.workspace = true
+license.workspace = true
+publish = false
+
+[dependencies]
+burn = { workspace = true, features = ["std"] }
+bunsen = { path = "../../public/bunsen", features = ["std", "testing"] }
+
+clap = { workspace = true }
+stderrlog = { workspace = true }
+log = { workspace = true }
+
+[lints]
+workspace = true

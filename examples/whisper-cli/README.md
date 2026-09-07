@@ -44,7 +44,7 @@ The first build fetches the checkpoint (145 MB) and the two vocabularies into th
 
 ```bash
 $ cargo run --release -p whisper-cli --features bunsen/wgpu -- \
-  --audio /path/to/clip.wav --timestamps
+   transcribe --timestamps /path/to/clip.wav
 ```
 
 Options:
@@ -63,3 +63,47 @@ Options:
   (speech regions as well, all final), `responsive` (drafts every 600 ms of speech besides). The last two load the
   bundled VAD.
 - `--ids` — print each segment's ids beside its text.
+
+## Benchmarks
+
+### Setting up the SLR45 Dataset
+
+See the [SLR45](https://www.openslr.org/45/) dataset.
+
+```terminaloutput
+cd $DATA_DIR
+mkdir SLR45
+cd SLR45
+wget https://openslr.trmal.net/resources/45/ST-AEDS-20180100_1-OS.tgz
+tar xzf ST-AEDS-20180100_1-OS.tgz
+rm ST-AEDS-20180100_1-OS.tgz
+```
+
+### Running a small benchmark
+
+```terminaloutput
+$ cargo run --release -p whisper-cli --features bunsen/wgpu -- transcribe  --print-filename $DATA_DIR/SLR45/f0001_us_f0001_0000{1,2,3,4,5}.wav
+...
+INFO model: 80 n_mels, vocabulary 51865, d_model 512, 6 + 6 layers
+INFO language: detected from the first window
+INFO  [    0.00 -->     4.68]
+f0001_us_f0001_00001.wav        The world needs opportunities for new leaders and new ideas.
+INFO  [    0.00 -->     3.08]
+f0001_us_f0001_00002.wav        along with all the other references that I had.
+INFO  [    0.00 -->     2.64]
+f0001_us_f0001_00003.wav        wouldn't have hesitated for a second.
+INFO  [    0.00 -->     2.56]
+f0001_us_f0001_00004.wav        I would always examine the patient.
+INFO  [    0.00 -->     2.52]
+f0001_us_f0001_00005.wav        Will we like to play with stuff?
+INFO mean sample: 3.1s      
+INFO mean decode: 1.5s      
+INFO mean sample/decode: 3.77
+
+$ head -5 $DATA_DIR/SLR45/text.txt 
+f0001_us_f0001_00001.wav        the world needs opportunities for new leaders and new ideas.
+f0001_us_f0001_00002.wav        along with all the other reference that I had
+f0001_us_f0001_00003.wav        I wouldn't have hesitated for a second.
+f0001_us_f0001_00004.wav        I would always examine the patient.
+f0001_us_f0001_00005.wav        Well we like to play with stuff.
+```

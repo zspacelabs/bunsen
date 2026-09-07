@@ -41,7 +41,9 @@ overflow-checks = true
 debug-assertions = true
 
 [workspace.dependencies]
-log = { version = "0.4", default-features = false }
+log = { version = "0.4.34", default-features = false }
+stderrlog = { version = "0.6.0" }
+
 # `default-features = false` at the root so that a member may opt out: bunsen
 # uses only the decode path and does not want the downloader, TLS or rayon.
 # A member that wants the default set says so with `default-features = true`.

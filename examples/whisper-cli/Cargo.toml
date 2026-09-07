@@ -29,3 +29,5 @@ bunsen = { path = "../../crates/public/bunsen", features = [
 ] }
 
 clap = { workspace = true, features = ["derive"] }
+clap-common = { path = "../../crates/dev/clap-common" }
+log = { workspace = true }
