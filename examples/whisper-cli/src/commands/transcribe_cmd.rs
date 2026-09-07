@@ -3,7 +3,7 @@ use bunsen::{
     kits::speech::whisper::driver::{
         RunningMaxClamp,
         StreamClock,
-        WhisperEmission,
+        TranscriptEvent,
     },
     support::audio::load_audio_mono_sr,
 };
@@ -93,7 +93,7 @@ impl TranscribeCmd {
 
 /// One line per emission: a draft is marked `~`, a commit is not.
 fn report(
-    emission: &WhisperEmission,
+    emission: &TranscriptEvent,
     ids: bool,
 ) {
     let segment = emission.segment();

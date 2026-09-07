@@ -5,7 +5,7 @@
 //! three deployment targets differ by falls out of those two sentences, and
 //! the three presets on [`EmissionPolicy`] are those targets.
 //!
-//! A [`Draft`](WhisperEmission::Draft) always covers *all* audio after the last
+//! A [`Draft`](TranscriptEvent::Draft) always covers *all* audio after the last
 //! commit and supersedes the previous draft entirely, so there is no
 //! retraction protocol, no sequence numbers, and no way to hold two drafts at
 //! once. Under [`offline`](EmissionPolicy::offline) and
@@ -15,6 +15,42 @@
 use std::time::Duration;
 
 use burn::config::Config;
+
+/// Enum of common [`EmissionPolicy`] presets.
+#[derive(
+    Debug,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    Hash,
+    serde::Serialize,
+    serde::Deserialize,
+    strum::EnumString,
+    strum::Display,
+)]
+pub enum PresetEmissionPolicy {
+    /// Decode each full window and commit all of it.
+    Offline,
+
+    /// Decode at the end of each speech region as well; every emission is
+    /// final. Needs the bundled VAD.
+    Conservative,
+
+    /// Conservative, plus a draft every 600 ms of speech.
+    /// Needs the bundled VAD.
+    Responsive,
+}
+
+impl From<PresetEmissionPolicy> for EmissionPolicy {
+    fn from(policy: PresetEmissionPolicy) -> Self {
+        match policy {
+            PresetEmissionPolicy::Offline => EmissionPolicy::offline(),
+            PresetEmissionPolicy::Conservative => EmissionPolicy::conservative(),
+            PresetEmissionPolicy::Responsive => EmissionPolicy::responsive(),
+        }
+    }
+}
 
 /// When a decode is run.
 #[derive(Config, Debug, PartialEq, Eq)]
@@ -98,49 +134,6 @@ impl EmissionPolicy {
     }
 }
 
-/// A span of transcript with its place in media time.
-#[derive(Debug, Clone, PartialEq)]
-pub struct TranscriptSegment {
-    /// Media time of the segment's start, in seconds, through the stream's
-    /// clock.
-    pub start: f64,
-
-    /// Media time of the segment's end, in seconds.
-    pub end: f64,
-
-    /// The ids the decode produced for this span, prompt and stop token
-    /// excluded.
-    pub tokens: Vec<i64>,
-
-    /// The text of the text tokens, when the driver has a detokenizer.
-    pub text: Option<String>,
-}
-
-/// What a push hands back.
-#[derive(Debug, Clone, PartialEq)]
-pub enum WhisperEmission {
-    /// Final. Will never be revised.
-    Committed(TranscriptSegment),
-
-    /// Provisional. Covers all audio since the last commit, and replaces the
-    /// previous draft whole.
-    Draft(TranscriptSegment),
-}
-
-impl WhisperEmission {
-    /// The segment, whichever variant carries it.
-    pub fn segment(&self) -> &TranscriptSegment {
-        match self {
-            Self::Committed(s) | Self::Draft(s) => s,
-        }
-    }
-
-    /// Whether this is final.
-    pub fn is_committed(&self) -> bool {
-        matches!(self, Self::Committed(_))
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -179,8 +172,8 @@ mod tests {
             tokens: vec![1, 2],
             text: None,
         };
-        let committed = WhisperEmission::Committed(segment.clone());
-        let draft = WhisperEmission::Draft(segment.clone());
+        let committed = TranscriptEvent::Committed(segment.clone());
+        let draft = TranscriptEvent::Draft(segment.clone());
 
         assert!(committed.is_committed());
         assert!(!draft.is_committed());

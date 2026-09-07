@@ -34,10 +34,22 @@ use crate::{
 };
 
 /// What the model is asked to do with the audio.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Serialize, serde::Deserialize)]
+#[derive(
+    Debug,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    Hash,
+    serde::Serialize,
+    serde::Deserialize,
+    strum::EnumString,
+    strum::Display,
+)]
 pub enum WhisperTask {
     /// Emit the speech in its own language.
     Transcribe,
+
     /// Emit an English translation of it.
     Translate,
 }

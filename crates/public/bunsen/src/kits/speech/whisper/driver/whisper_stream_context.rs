@@ -68,11 +68,13 @@ use crate::{
                 SpeechRegion,
                 StreamClampPolicy,
                 StreamClock,
-                TranscriptSegment,
                 VoiceActivityFilter,
-                WhisperEmission,
                 WhisperStreamDriver,
                 support::segments::split_window,
+                transcript::{
+                    TranscriptEvent,
+                    TranscriptSegment,
+                },
             },
         },
     },
@@ -114,8 +116,8 @@ struct Pending<B: Backend> {
 pub fn advance_ready<B: Backend>(
     driver: &WhisperStreamDriver<B>,
     contexts: &mut [WhisperStreamContext<B>],
-) -> BunsenResult<Vec<Vec<WhisperEmission>>> {
-    let mut out: Vec<Vec<WhisperEmission>> = vec![Vec::new(); contexts.len()];
+) -> BunsenResult<Vec<Vec<TranscriptEvent>>> {
+    let mut out: Vec<Vec<TranscriptEvent>> = vec![Vec::new(); contexts.len()];
 
     loop {
         // One due unit per context, with the prompt it would decode under.
@@ -391,12 +393,12 @@ impl<B: Backend> WhisperStreamContext<B> {
         &mut self,
         time: f64,
         samples: &[f32],
-    ) -> BunsenResult<Vec<WhisperEmission>> {
+    ) -> BunsenResult<Vec<TranscriptEvent>> {
         self.clock.anchor(self.samples_seen, time)?;
         self.write_read(samples)
     }
 
-    /// Push samples, emit all finalized [`WhisperEmission`]s.
+    /// Push samples, emit all finalized [`TranscriptEvent`]s.
     ///
     /// [`feed`](Self::write) then [`advance`](Self::read).
     ///
@@ -406,7 +408,7 @@ impl<B: Backend> WhisperStreamContext<B> {
     pub fn write_read(
         &mut self,
         samples: &[f32],
-    ) -> BunsenResult<Vec<WhisperEmission>> {
+    ) -> BunsenResult<Vec<TranscriptEvent>> {
         self.write(samples)?;
         self.read()
     }
@@ -439,7 +441,7 @@ impl<B: Backend> WhisperStreamContext<B> {
     }
 
     /// Runs every decode that is due, and returns what became final.
-    pub fn read(&mut self) -> BunsenResult<Vec<WhisperEmission>> {
+    pub fn read(&mut self) -> BunsenResult<Vec<TranscriptEvent>> {
         let mut out = Vec::new();
         loop {
             self.skip_silence();
@@ -464,7 +466,7 @@ impl<B: Backend> WhisperStreamContext<B> {
     /// [`end_input`](Self::end_input) then [`advance`](Self::read).
     ///
     /// Idempotent; a second flush returns nothing.
-    pub fn end_read(&mut self) -> BunsenResult<Vec<WhisperEmission>> {
+    pub fn end_read(&mut self) -> BunsenResult<Vec<TranscriptEvent>> {
         self.end_input()?;
         self.read()
     }
@@ -844,7 +846,7 @@ impl<B: Backend> WhisperStreamContext<B> {
         &mut self,
         unit: Due,
         decoded: DecodedTokens,
-    ) -> BunsenResult<Vec<WhisperEmission>> {
+    ) -> BunsenResult<Vec<TranscriptEvent>> {
         let hop = self.hop();
         let mut out = Vec::new();
 
@@ -871,7 +873,7 @@ impl<B: Backend> WhisperStreamContext<B> {
                     segment.tokens,
                 )?;
                 self.transcript.extend_from_slice(&emission.tokens);
-                out.push(WhisperEmission::Committed(emission));
+                out.push(TranscriptEvent::Committed(emission));
             }
             if !split.tail.is_empty()
                 && self.driver.config().emission.commit == CommitRule::LastTimestamp
@@ -884,7 +886,7 @@ impl<B: Backend> WhisperStreamContext<B> {
                 if opens < unit.count {
                     let draft =
                         self.segment_at(unit.start + opens, unit.start + unit.count, split.tail)?;
-                    out.push(WhisperEmission::Draft(draft));
+                    out.push(TranscriptEvent::Draft(draft));
                 }
             }
             // Always forward, never past the unit.
@@ -892,7 +894,7 @@ impl<B: Backend> WhisperStreamContext<B> {
         } else {
             let segment = self.segment_at(unit.start, unit.start + unit.count, tokens)?;
             self.transcript.extend_from_slice(&segment.tokens);
-            out.push(WhisperEmission::Committed(segment));
+            out.push(TranscriptEvent::Committed(segment));
             self.seek = unit.start + unit.count;
         }
 
@@ -939,9 +941,9 @@ impl<B: Backend> WhisperStreamContext<B> {
         &mut self,
         unit: Due,
         decoded: DecodedTokens,
-    ) -> BunsenResult<WhisperEmission> {
+    ) -> BunsenResult<TranscriptEvent> {
         self.last_draft = self.samples_seen;
-        Ok(WhisperEmission::Draft(self.segment_at(
+        Ok(TranscriptEvent::Draft(self.segment_at(
             unit.start,
             unit.start + unit.count,
             decoded.tokens,
@@ -1139,7 +1141,7 @@ mod tests {
         ctx: &mut WhisperStreamContext<B>,
         audio: &[f32],
         sizes: &[usize],
-    ) -> Vec<WhisperEmission> {
+    ) -> Vec<TranscriptEvent> {
         let mut out = Vec::new();
         let mut at = 0;
         for &size in sizes {
@@ -1151,7 +1153,7 @@ mod tests {
         out
     }
 
-    fn tokens_of(emissions: &[WhisperEmission]) -> Vec<Vec<i64>> {
+    fn tokens_of(emissions: &[TranscriptEvent]) -> Vec<Vec<i64>> {
         emissions
             .iter()
             .map(|e| e.segment().tokens.clone())
@@ -1213,7 +1215,7 @@ mod tests {
 
         assert_eq!(expected.len(), 7, "6 full windows and a remainder");
         assert_eq!(tokens_of(&emissions), expected);
-        assert!(emissions.iter().all(WhisperEmission::is_committed));
+        assert!(emissions.iter().all(TranscriptEvent::is_committed));
         assert_eq!(
             ctx.transcript(),
             expected.concat(),
@@ -1231,8 +1233,8 @@ mod tests {
     /// model turns a last-digit difference into a flipped argmax. A trained
     /// model on speech does not; that is the validation crate's gate.
     fn assert_same_stream(
-        a: &[WhisperEmission],
-        b: &[WhisperEmission],
+        a: &[TranscriptEvent],
+        b: &[TranscriptEvent],
         label: &str,
     ) {
         assert_eq!(a.len(), b.len(), "{label}: emission count");
@@ -1652,7 +1654,7 @@ mod tests {
         driver: &WhisperStreamDriver<B>,
         audio: &[f32],
         at: Option<f64>,
-    ) -> Vec<WhisperEmission> {
+    ) -> Vec<TranscriptEvent> {
         let mut ctx = driver.new_context(clock(), PerWindow).unwrap();
         let mut emissions = match at {
             Some(time) => ctx.anchor_write_read(time, audio).unwrap(),
@@ -1752,14 +1754,14 @@ mod tests {
             None,
         );
 
-        let committed: Vec<&WhisperEmission> = last.iter().filter(|e| e.is_committed()).collect();
+        let committed: Vec<&TranscriptEvent> = last.iter().filter(|e| e.is_committed()).collect();
         assert_eq!(committed.len(), complete.len());
         for (a, b) in committed.iter().zip(&complete) {
             assert_eq!(a.segment(), b.segment());
         }
 
         let tb = tiny_layout().timestamp_begin;
-        let drafts: Vec<&WhisperEmission> = last.iter().filter(|e| !e.is_committed()).collect();
+        let drafts: Vec<&TranscriptEvent> = last.iter().filter(|e| !e.is_committed()).collect();
         // One per decode, except the last: its 5 frames end before the
         // tail's timestamp at frame 10, so there is nothing to draft yet.
         assert_eq!(drafts.len(), 10);
@@ -2188,7 +2190,7 @@ mod tests {
                 / driver.sample_rate() as f64;
             let close = |a: f64, b: f64| (a - b).abs() < 1e-9;
 
-            let mut segments = emissions.iter().map(WhisperEmission::segment).peekable();
+            let mut segments = emissions.iter().map(TranscriptEvent::segment).peekable();
             for (start, end) in expected {
                 let (start, end) = (
                     100.0 + start as f64 / RATE as f64,
@@ -2207,7 +2209,7 @@ mod tests {
                 );
             }
             assert!(segments.next().is_none(), "segments outside every region");
-            assert!(emissions.iter().all(WhisperEmission::is_committed));
+            assert!(emissions.iter().all(TranscriptEvent::is_committed));
             assert_eq!(ctx.regions_pending(), 0);
             assert!(!ctx.is_speaking());
             assert_eq!(
@@ -2287,7 +2289,7 @@ mod tests {
         }
 
         /// The clip pushed 100 ms at a time, then flushed.
-        fn in_pieces(ctx: &mut WhisperStreamContext<C>) -> Vec<WhisperEmission> {
+        fn in_pieces(ctx: &mut WhisperStreamContext<C>) -> Vec<TranscriptEvent> {
             let audio = speech();
             let mut out = Vec::new();
             for piece in audio.chunks(RATE / 10) {
@@ -2318,7 +2320,7 @@ mod tests {
 
             let mut ctx = responsive.new_context(clock(), PerWindow).unwrap();
             let chatty = in_pieces(&mut ctx);
-            let committed: Vec<&WhisperEmission> =
+            let committed: Vec<&TranscriptEvent> =
                 chatty.iter().filter(|e| e.is_committed()).collect();
             assert_eq!(committed.len(), quiet.len());
             for (a, b) in committed.iter().zip(&quiet) {

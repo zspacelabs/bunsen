@@ -10,7 +10,7 @@ use bunsen::{
             WhisperApiConfig,
             WhisperFallbackConfig,
             driver::{
-                EmissionPolicy,
+                PresetEmissionPolicy,
                 WhisperStreamDriver,
                 WhisperStreamDriverConfig,
                 WhisperTask,
@@ -25,29 +25,6 @@ use burn::{
     prelude::Backend,
     tensor::DType,
 };
-use clap::ValueEnum;
-
-#[derive(Clone, Copy, Debug, ValueEnum)]
-pub enum TaskArg {
-    Transcribe,
-    Translate,
-}
-
-/// The three deployment targets: when to decode, and when a decode is
-/// final.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, ValueEnum)]
-pub enum Preset {
-    /// Decode each full window and commit all of it.
-    Offline,
-
-    /// Decode at the end of each speech region as well; every emission is
-    /// final. Needs the bundled VAD.
-    Conservative,
-
-    /// Conservative, plus a draft every 600 ms of speech. Needs the bundled
-    /// VAD.
-    Responsive,
-}
 
 #[derive(clap::Args, Debug)]
 pub struct WhisperDriverArgs {
@@ -57,8 +34,8 @@ pub struct WhisperDriverArgs {
     language: Option<String>,
 
     /// Transcribe, or translate to English.
-    #[arg(long, value_enum, default_value_t = TaskArg::Transcribe)]
-    task: TaskArg,
+    #[arg(long, default_value_t = WhisperTask::Transcribe)]
+    task: WhisperTask,
 
     /// Emit timestamp tokens and split segments on them, seeking to the last
     /// closed timestamp, as upstream's `transcribe()` does.
@@ -93,8 +70,8 @@ pub struct WhisperDriverArgs {
     fallback: bool,
 
     /// When to decode, and when a decode is final.
-    #[arg(long, value_enum, default_value_t = Preset::Offline)]
-    preset: Preset,
+    #[arg(long, default_value_t = PresetEmissionPolicy::Offline)]
+    preset: PresetEmissionPolicy,
 }
 
 impl WhisperDriverArgs {
@@ -102,10 +79,10 @@ impl WhisperDriverArgs {
         &self,
         device: &B::Device,
     ) -> BunsenResult<(Whisper<B>, WhisperApiConfig)> {
+        let (model, cfg) = Whisper::<B>::load_pretrained(device)?;
         // The checkpoint ships in fp16 while the mel front end works in the
         // backend's float; cast the model up, where precision is cheap.
-        let (model, cfg) = Whisper::<B>::load_pretrained(&device)?;
-
+        let model = model.map(&mut DTypeMapper::new(DType::F32));
         Ok((model, cfg))
     }
 
@@ -114,7 +91,6 @@ impl WhisperDriverArgs {
         device: &B::Device,
     ) -> BunsenResult<WhisperStreamDriver<B>> {
         let (model, cfg) = self.load_model(device)?;
-        let model = model.map(&mut DTypeMapper::new(DType::F32));
         log::info!(
             "model: {} n_mels, vocabulary {}, d_model {}, {} + {} layers",
             cfg.n_mels,
@@ -140,15 +116,6 @@ impl WhisperDriverArgs {
             }
             None
         };
-        let task = match self.task {
-            TaskArg::Transcribe => WhisperTask::Transcribe,
-            TaskArg::Translate => WhisperTask::Translate,
-        };
-        let emission = match self.preset {
-            Preset::Offline => EmissionPolicy::offline(),
-            Preset::Conservative => EmissionPolicy::conservative(),
-            Preset::Responsive => EmissionPolicy::responsive(),
-        };
         let fallback = if self.fallback {
             WhisperFallbackConfig::upstream()
         } else {
@@ -157,17 +124,17 @@ impl WhisperDriverArgs {
 
         let mut driver: WhisperStreamDriver<B> = WhisperStreamDriverConfig::new()
             .with_language(language)
-            .with_task(task)
+            .with_task(self.task)
             .with_timestamps(self.timestamps)
             .with_beam_size(self.beam_size)
             .with_max_tokens(self.max_tokens)
             .with_condition_on_previous_text(self.prompt_carry)
-            .with_emission(emission)
+            .with_emission(self.preset.into())
             .with_fallback(fallback)
             .init_with_layout(model, policy, device)?
             .with_detokenizer(Arc::new(detokenizer))
             .with_logit_filters(filters);
-        if self.preset != Preset::Offline {
+        if self.preset != PresetEmissionPolicy::Offline {
             driver = driver.with_vad(
                 SileroVad::<B>::load_16khz_pretrained(device)?,
                 Default::default(),
