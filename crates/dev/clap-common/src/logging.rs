@@ -1,3 +1,7 @@
+use bunsen::errors::{
+    BunsenError,
+    BunsenResult,
+};
 pub use stderrlog::LogLevelNum;
 use stderrlog::Timestamp;
 
@@ -36,16 +40,21 @@ pub struct LogArgs {
 }
 
 impl LogArgs {
+    /// Initialize logging.
+    ///
+    /// # Args
+    ///
+    /// * `default` - Default log level; if None, defaults to Warn.
     pub fn init(
         &self,
         default: impl Into<Option<LogLevelNum>>,
-    ) -> Result<(), Box<dyn std::error::Error>> {
+    ) -> BunsenResult<()> {
         let log_level = if let Some(verbose) = self.verbose
             && verbose > 0
         {
             LogLevelNum::from(verbose as usize)
         } else {
-            default.into().unwrap_or(LogLevelNum::Info)
+            default.into().unwrap_or(LogLevelNum::Warn)
         };
 
         stderrlog::new()
@@ -56,7 +65,8 @@ impl LogArgs {
             } else {
                 Timestamp::Off
             })
-            .init()?;
+            .init()
+            .map_err(BunsenError::external)?;
 
         Ok(())
     }

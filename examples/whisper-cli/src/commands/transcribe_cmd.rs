@@ -1,3 +1,11 @@
+use std::{
+    path::PathBuf,
+    time::{
+        Duration,
+        Instant,
+    },
+};
+
 use bunsen::{
     errors::BunsenResult,
     kits::speech::whisper::driver::{
@@ -8,7 +16,10 @@ use bunsen::{
     support::audio::load_audio_mono_sr,
 };
 use burn::prelude::Backend;
-use clap_common::logging::LogArgs;
+use clap_common::logging::{
+    LogArgs,
+    LogLevelNum,
+};
 
 use crate::whisper_clap::WhisperDriverArgs;
 
@@ -32,10 +43,6 @@ pub struct TranscribeCmd {
     #[clap(flatten)]
     pub whisper: WhisperDriverArgs,
 
-    /// Path to the audio file; decoded to mono at the model's rate.
-    #[arg(long)]
-    audio: String,
-
     /// Milliseconds of audio per push, as a live loop would feed it.
     #[arg(long, default_value = "1000")]
     chunk_ms: usize,
@@ -43,49 +50,112 @@ pub struct TranscribeCmd {
     /// Print each segment's ids beside its text.
     #[arg(long)]
     ids: bool,
+
+    /// Display the filename before each transcript.
+    #[arg(long)]
+    print_filename: bool,
+
+    /// Display the index of the filename.
+    #[arg(long)]
+    print_index: bool,
+
+    /// Path to the audio files.
+    files: Vec<PathBuf>,
 }
 
 impl TranscribeCmd {
     pub fn run<B: Backend>(&self) -> BunsenResult<()> {
+        self.logging.init(Some(LogLevelNum::Info))?;
+
         let device = B::Device::default();
 
         let driver = self.whisper.init_driver::<B>(&device)?;
 
-        // The audio is decoded at the model's rate: the checkpoint's to
-        // declare, not the caller's.
-        let wav = load_audio_mono_sr(&self.audio, driver.sample_rate())?;
-        log::info!(
-            "audio: {} samples, {:.2} s",
-            wav.len(),
-            wav.len() as f64 / driver.sample_rate() as f64
-        );
+        let num_files = self.files.len();
+        let mut timings: Vec<(Duration, Duration)> = Vec::with_capacity(num_files);
+        for (idx, path) in self.files.iter().enumerate() {
+            // The audio is decoded at the model's rate: the checkpoint's to
+            // declare, not the caller's.
+            let wav = load_audio_mono_sr(path, driver.sample_rate())?;
 
-        // A bare stream: a clock from zero at the model's rate, and the running
-        // maximum as the mel clamp reference.
-        let mut ctx = driver.new_context(
-            StreamClock::uniform(driver.sample_rate()),
-            RunningMaxClamp::new(),
-        )?;
-        let chunk = (self.chunk_ms * driver.sample_rate() / 1000).max(1);
-        let mut announced = false;
-        for block in wav.chunks(chunk) {
-            let emissions = ctx.write_read(block)?;
-            // Detection runs on the first window decoded, so the language is
-            // known once anything has been emitted; say so before the text.
-            if !announced
-                && driver.detects_language()
-                && let Some(code) = ctx.language()
-            {
-                log::info!("language: {code}");
-                announced = true;
+            if self.print_index {
+                print!("{:>6}/{:<6} ", idx + 1, num_files);
             }
-            for emission in emissions {
+            if self.print_filename {
+                print!("{}\t", path.display());
+            }
+
+            log::info!(
+                "path: {}\naudio: {} samples, {:.2} s",
+                path.display(),
+                wav.len(),
+                wav.len() as f64 / driver.sample_rate() as f64
+            );
+
+            let t0 = Instant::now();
+
+            // A bare stream: a clock from zero at the model's rate, and the
+            // running maximum as the mel clamp reference.
+            let mut ctx = driver.new_context(
+                StreamClock::uniform(driver.sample_rate()),
+                RunningMaxClamp::new(),
+            )?;
+            let chunk = (self.chunk_ms * driver.sample_rate() / 1000).max(1);
+            let mut announced = false;
+            for block in wav.chunks(chunk) {
+                let emissions = ctx.write_read(block)?;
+                // Detection runs on the first window decoded, so the language
+                // is known once anything has been emitted; say
+                // so before the text.
+                if !announced
+                    && driver.detects_language()
+                    && let Some(code) = ctx.language()
+                {
+                    log::info!("language: {code}");
+                    announced = true;
+                }
+                for emission in emissions {
+                    report(&emission, self.ids);
+                }
+            }
+            let mut sample_decode_time = 0.0;
+            for emission in ctx.end_read()? {
+                sample_decode_time = emission.segment().end;
                 report(&emission, self.ids);
             }
+            let t1 = Instant::now();
+            let decode_time = t1.duration_since(t0);
+
+            let sample_time = Duration::from_secs_f64(sample_decode_time);
+
+            timings.push((sample_time, decode_time));
+
+            log::info!("sample: {:10.1?}", sample_time);
+            log::info!("decode: {:10.1?}", decode_time);
+
+            let ratio = sample_time.as_secs_f64() / decode_time.as_secs_f64();
+            log::info!("sample/decode: {ratio:.2}");
         }
-        for emission in ctx.end_read()? {
-            report(&emission, self.ids);
-        }
+
+        let mean_sample_time = timings
+            .iter()
+            .map(|(sample_time, _)| sample_time)
+            .sum::<Duration>()
+            / timings.len() as u32;
+        let mean_decode_time = timings
+            .iter()
+            .map(|(_, decode_time)| decode_time)
+            .sum::<Duration>()
+            / timings.len() as u32;
+        let mean_ratio = timings
+            .iter()
+            .map(|(sample_time, decode_time)| sample_time.as_secs_f64() / decode_time.as_secs_f64())
+            .sum::<f64>()
+            / timings.len() as f64;
+
+        log::info!("mean sample: {:10.1?}", mean_sample_time);
+        log::info!("mean decode: {:10.1?}", mean_decode_time);
+        log::info!("mean sample/decode: {mean_ratio:.2}");
 
         Ok(())
     }
