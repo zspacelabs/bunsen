@@ -34,7 +34,7 @@ pub enum StreamEventParams {
 
 /// Events for [`TensorDataTestStream`].
 #[derive(Debug, Clone)]
-pub struct StreamEvent {
+pub struct StreamEventFrame {
     /// Event Parameters.
     pub params: StreamEventParams,
 
@@ -42,7 +42,7 @@ pub struct StreamEvent {
     pub data: Vec<TensorData>,
 }
 
-impl StreamEvent {
+impl StreamEventFrame {
     /// Compare this event (the expected) with actual parameters and data.
     pub fn compare(
         &self,
@@ -190,7 +190,7 @@ pub trait TensorDataTestStreamRecorder {
     /// Record an event in the stream.
     fn write(
         &mut self,
-        event: StreamEvent,
+        event: StreamEventFrame,
     ) -> BunsenResult<()>;
 }
 
@@ -199,5 +199,5 @@ pub trait TensorDataTestStreamRecorder {
 /// No type may implement both this and [`TensorDataTestStreamRecorder`].
 pub trait TensorDataTestStreamVerifier {
     /// Pop the next expected event from the stream.
-    fn read(&mut self) -> BunsenResult<&StreamEvent>;
+    fn read(&mut self) -> BunsenResult<&StreamEventFrame>;
 }
