@@ -2,21 +2,23 @@ use burn::prelude::TensorData;
 
 use crate::{
     burner::testing::data_stream::{
-        StreamEvent,
+        StreamEventFrame,
+        StreamEventParams,
         TensorDataTestStream,
+        TensorDataTestStreamRecorder,
         TensorDataTestStreamVerifier,
     },
     prelude::*,
 };
 
-/// [`TensorDataTestStream`] writer.
+/// [`TensorDataTestStream`] recorder for [`Vec<StreamEventFrame>`].
 #[derive(Default, Debug, Clone)]
 pub struct TensorDataVecStreamRecorder {
-    vec: Vec<StreamEvent>,
+    vec: Vec<StreamEventFrame>,
 }
 
 impl TensorDataVecStreamRecorder {
-    ///  [`TensorDataTestStream`] verifier for [`Vec<StreamEvent>`].
+    ///  [`TensorDataTestStream`] verifier for [`Vec<StreamEventFrame>`].
     pub fn verifier(&self) -> TensorDataVecStreamVerifier {
         TensorDataVecStreamVerifier::new(self.vec.clone())
     }
@@ -28,41 +30,46 @@ impl From<TensorDataVecStreamRecorder> for TensorDataVecStreamVerifier {
     }
 }
 
-impl TensorDataTestStream for TensorDataVecStreamRecorder {
-    fn assert_eq(
+impl TensorDataTestStreamRecorder for TensorDataVecStreamRecorder {
+    fn write(
         &mut self,
-        label: &str,
-        data: &TensorData,
-        strict: bool,
+        event: StreamEventFrame,
     ) -> BunsenResult<()> {
-        let label = label.to_string();
-        self.vec.push(StreamEvent::AssertEq {
-            label,
-            data: data.clone(),
-            strict,
-        });
-
+        self.vec.push(event);
         Ok(())
     }
 }
 
-///  [`TensorDataTestStream`] verifier for [`Vec<StreamEvent>`].
+impl TensorDataTestStream for TensorDataVecStreamRecorder {
+    fn handle_event(
+        &mut self,
+        params: &StreamEventParams,
+        data: &[TensorData],
+    ) -> BunsenResult<()> {
+        self.write(StreamEventFrame {
+            params: params.clone(),
+            data: data.to_vec(),
+        })
+    }
+}
+
+///  [`TensorDataTestStream`] verifier for [`Vec<StreamEventFrame>`].
 pub struct TensorDataVecStreamVerifier {
-    vec: Vec<StreamEvent>,
+    vec: Vec<StreamEventFrame>,
 
     next: Option<usize>,
 }
 
 impl TensorDataVecStreamVerifier {
     /// Create a new empty verifier.
-    pub fn new(vec: Vec<StreamEvent>) -> Self {
+    pub fn new(vec: Vec<StreamEventFrame>) -> Self {
         Self { vec, next: Some(0) }
     }
 }
 
 impl TensorDataTestStreamVerifier for TensorDataVecStreamVerifier {
     /// Pop the next event from the stream.
-    fn pop(&mut self) -> BunsenResult<&StreamEvent> {
+    fn read(&mut self) -> BunsenResult<&StreamEventFrame> {
         match self.next {
             Some(i) => {
                 let event = &self.vec[i];
@@ -75,6 +82,16 @@ impl TensorDataTestStreamVerifier for TensorDataVecStreamVerifier {
             }
             None => Err(BunsenError::Invalid("No more events in stream".to_string())),
         }
+    }
+}
+
+impl TensorDataTestStream for TensorDataVecStreamVerifier {
+    fn handle_event(
+        &mut self,
+        params: &StreamEventParams,
+        data: &[TensorData],
+    ) -> BunsenResult<()> {
+        self.read()?.compare(params, data)
     }
 }
 

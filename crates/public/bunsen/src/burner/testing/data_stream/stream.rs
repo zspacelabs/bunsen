@@ -12,29 +12,128 @@ use burn::{
 
 use crate::{
     burner::testing::data_stream::tensor_data_assert_eq,
-    errors::BunsenResult,
+    errors::{
+        BunsenError,
+        BunsenResult,
+    },
     prelude::TensorElemOpExt,
 };
 
 /// Events for [`TensorDataTestStream`].
-#[derive(Debug, Clone)]
-pub enum StreamEvent {
-    /// Event for [`TensorDataTestStream::assert_eq`].
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub enum StreamEventParams {
+    /// Event for [`TensorDataTestStreamExt::assert_eq`].
     AssertEq {
         /// Event Label.
         label: String,
-
-        /// Event Data.
-        data: TensorData,
 
         /// Strict dtype comparison.
         strict: bool,
     },
 }
 
-/// `TensorData` Test Stream
+/// Events for [`TensorDataTestStream`].
+#[derive(Debug, Clone)]
+pub struct StreamEventFrame {
+    /// Event Parameters.
+    pub params: StreamEventParams,
+
+    /// Event Data.
+    pub data: Vec<TensorData>,
+}
+
+impl StreamEventFrame {
+    /// Compare this event (the expected) with actual parameters and data.
+    pub fn compare(
+        &self,
+        actual_params: &StreamEventParams,
+        actual_data: &[TensorData],
+    ) -> BunsenResult<()> {
+        if self.params != *actual_params {
+            return Err(BunsenError::InvalidArgument {
+                msg: format!(
+                    "StreamEvent params {:?} != expected {:?}",
+                    self.params, actual_params
+                ),
+            });
+        }
+        if self.data.len() != actual_data.len() {
+            return Err(BunsenError::InvalidArgument {
+                msg: format!(
+                    "StreamEvent data count ({:?}) != expected ({:?})",
+                    self.data.len(),
+                    actual_data.len()
+                ),
+            });
+        }
+
+        let expected_data: &[TensorData] = self.data.as_ref();
+        if !actual_data
+            .iter()
+            .zip(expected_data.iter())
+            .all(|(a, e)| a.shape == e.shape)
+        {
+            return Err(BunsenError::InvalidArgument {
+                msg: format!(
+                    "event data shapes do not match:\nactual: {:?}\nexpect: {:?}",
+                    actual_data
+                        .iter()
+                        .map(|d| d.shape.clone())
+                        .collect::<Vec<_>>(),
+                    expected_data
+                        .iter()
+                        .map(|d| d.shape.clone())
+                        .collect::<Vec<_>>()
+                ),
+            });
+        }
+
+        match &self.params {
+            StreamEventParams::AssertEq { strict, .. } => {
+                assert_eq!(actual_data.len(), 1);
+                let actual = &actual_data[0];
+                let expected = &expected_data[0];
+                tensor_data_assert_eq(expected, actual, *strict)
+            }
+        }
+    }
+}
+
+/// `TensorData` Test Stream.
+///
+/// Implementors take one of two roles:
+/// * a *recorder* appends each event to the stream;
+/// * a *verifier* compares each event against the next expected event.
+///
+/// The role is the implementation of [`handle_event`](`Self::handle_event`);
+/// the event constructors live on [`TensorDataTestStreamExt`], and are shared
+/// by both roles.
+///
+/// A type in a role implements [`TensorDataTestStreamRecorder`] or
+/// [`TensorDataTestStreamVerifier`], and forwards
+/// [`handle_event`](`Self::handle_event`) to it.
 pub trait TensorDataTestStream {
-    /// [`TensorData`] equality.
+    /// Handle a stream event.
+    ///
+    /// # Arguments
+    /// * `params` - the [`StreamEventParams`] to handle.
+    /// * `data` - the [`TensorData`] to compare.
+    ///
+    /// # Panics and/or Err Returns
+    /// If the event does not match the expected event under verification.
+    fn handle_event(
+        &mut self,
+        params: &StreamEventParams,
+        data: &[TensorData],
+    ) -> BunsenResult<()>;
+}
+
+impl<T: ?Sized + TensorDataTestStream> TensorDataTestStreamExt for T {}
+
+/// `TensorData` Test Stream Extension
+pub trait TensorDataTestStreamExt: TensorDataTestStream {
+    /// [`TensorData`] equality; run over
+    /// [`handle_event`](`TensorDataTestStream::handle_event`).
     ///
     /// # Arguments
     /// * `label` - Event Label.
@@ -49,15 +148,18 @@ pub trait TensorDataTestStream {
         label: &str,
         data: &TensorData,
         strict: bool,
-    ) -> BunsenResult<()>;
-}
+    ) -> BunsenResult<()> {
+        self.handle_event(
+            &StreamEventParams::AssertEq {
+                label: label.to_string(),
+                strict,
+            },
+            std::slice::from_ref(data),
+        )
+    }
 
-impl<T: ?Sized + TensorDataTestStream> TensorDataTestStreamExt for T {}
-
-/// `TensorData` Test Stream Extension
-pub trait TensorDataTestStreamExt: TensorDataTestStream {
     /// [`Tensor`] equality; run over
-    /// [`assert_eq`](`TensorDataTestStream::assert_eq`).
+    /// [`assert_eq`](`TensorDataTestStreamExt::assert_eq`).
     ///
     /// Data is used as `tensor.to_data_as::<E>()`.
     ///
@@ -85,30 +187,21 @@ pub trait TensorDataTestStreamExt: TensorDataTestStream {
     }
 }
 
-/// Trait for verifying events in a [`TensorDataTestStream`].
-pub trait TensorDataTestStreamVerifier: TensorDataTestStream {
-    /// Pop the next event from the stream.
-    fn pop(&mut self) -> BunsenResult<&StreamEvent>;
+/// Trait for recording events in a [`TensorDataTestStream`].
+///
+/// No type may implement both this and [`TensorDataTestStreamVerifier`].
+pub trait TensorDataTestStreamRecorder {
+    /// Record an event in the stream.
+    fn write(
+        &mut self,
+        event: StreamEventFrame,
+    ) -> BunsenResult<()>;
 }
 
-impl<T: TensorDataTestStreamVerifier> TensorDataTestStream for T {
-    fn assert_eq(
-        &mut self,
-        label: &str,
-        data: &TensorData,
-        strict: bool,
-    ) -> BunsenResult<()> {
-        let label = label.to_string();
-        match self.pop()? {
-            StreamEvent::AssertEq {
-                label: e_label,
-                data: e_data,
-                strict: e_strict,
-            } => {
-                assert_eq!(&label, e_label);
-                assert_eq!(strict, *e_strict);
-                tensor_data_assert_eq(e_data, data, strict)
-            } // _ => Err(BunsenError::Invalid("Expected assert_eq event".to_string())),
-        }
-    }
+/// Trait for verifying events in a [`TensorDataTestStream`].
+///
+/// No type may implement both this and [`TensorDataTestStreamRecorder`].
+pub trait TensorDataTestStreamVerifier {
+    /// Pop the next expected event from the stream.
+    fn read(&mut self) -> BunsenResult<&StreamEventFrame>;
 }
