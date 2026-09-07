@@ -83,3 +83,4 @@ pub mod store;
 #[cfg(feature = "train")]
 pub mod optim;
 pub mod tensor;
+pub mod testing;
