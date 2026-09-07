@@ -66,24 +66,24 @@ impl StreamEventFrame {
                 ),
             });
         }
+
+        let expected_data: &[TensorData] = self.data.as_ref();
         if !actual_data
             .iter()
-            .zip(self.data.iter())
+            .zip(expected_data.iter())
             .all(|(a, e)| a.shape == e.shape)
         {
-            let actual_shapes = actual_data
-                .iter()
-                .map(|d| d.shape.clone())
-                .collect::<Vec<_>>();
-            let expected_shapes = self
-                .data
-                .iter()
-                .map(|d| d.shape.clone())
-                .collect::<Vec<_>>();
             return Err(BunsenError::InvalidArgument {
                 msg: format!(
                     "event data shapes do not match:\nactual: {:?}\nexpect: {:?}",
-                    actual_shapes, expected_shapes
+                    actual_data
+                        .iter()
+                        .map(|d| d.shape.clone())
+                        .collect::<Vec<_>>(),
+                    expected_data
+                        .iter()
+                        .map(|d| d.shape.clone())
+                        .collect::<Vec<_>>()
                 ),
             });
         }
@@ -92,7 +92,7 @@ impl StreamEventFrame {
             StreamEventParams::AssertEq { strict, .. } => {
                 assert_eq!(actual_data.len(), 1);
                 let actual = &actual_data[0];
-                let expected = &self.data[0];
+                let expected = &expected_data[0];
                 tensor_data_assert_eq(expected, actual, *strict)
             }
         }
