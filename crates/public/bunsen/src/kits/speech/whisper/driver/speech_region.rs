@@ -1,10 +1,4 @@
-use crate::{
-    errors::{
-        BunsenError,
-        BunsenResult,
-    },
-    kits::speech::whisper::driver::StreamClock,
-};
+use crate::kits::speech::whisper::driver::StreamClock;
 
 /// A half-open span of samples, `start..end`, in the stream's own sample
 /// index.
@@ -89,12 +83,12 @@ impl SpeechRegion {
 }
 
 #[cfg(any(test, debug_assertions))]
-fn assert_region_sequence(regions: &[SpeechRegion]) -> BunsenResult<()> {
+fn assert_region_sequence(regions: &[SpeechRegion]) -> crate::errors::BunsenResult<()> {
     for w in regions.windows(2) {
         let prev = &w[0];
         let next = &w[1];
         if prev.end > next.start {
-            return Err(BunsenError::Invalid(format!(
+            return Err(crate::errors::BunsenError::Invalid(format!(
                 "region {:?} ends after region {:?}: {:?}",
                 prev, next, regions
             )));

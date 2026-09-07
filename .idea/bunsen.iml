@@ -40,6 +40,7 @@
       <sourceFolder url="file://$MODULE_DIR$/crates/dev/zsl-data-cache/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/crates/dev/burn-rmexp-dyntensor/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/crates/dev/tensor-library-exp/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/crates/dev/clap-common/src" isTestSource="false" />
       <excludeFolder url="file://$MODULE_DIR$/crates/public/bunsen/target" />
       <excludeFolder url="file://$MODULE_DIR$/target" />
       <excludeFolder url="file://$MODULE_DIR$/demos/bimm/crates/bimm/target" />
