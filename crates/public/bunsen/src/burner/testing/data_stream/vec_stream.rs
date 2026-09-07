@@ -1,6 +1,9 @@
+use burn::prelude::TensorData;
+
 use crate::{
     burner::testing::data_stream::{
         StreamEvent,
+        StreamEventParams,
         TensorDataTestStream,
         TensorDataTestStreamRecorder,
         TensorDataTestStreamVerifier,
@@ -40,9 +43,13 @@ impl TensorDataTestStreamRecorder for TensorDataVecStreamRecorder {
 impl TensorDataTestStream for TensorDataVecStreamRecorder {
     fn handle_event(
         &mut self,
-        event: StreamEvent,
+        params: &StreamEventParams,
+        data: &[TensorData],
     ) -> BunsenResult<()> {
-        self.write(event)
+        self.write(StreamEvent {
+            params: params.clone(),
+            data: data.to_vec(),
+        })
     }
 }
 
@@ -81,9 +88,10 @@ impl TensorDataTestStreamVerifier for TensorDataVecStreamVerifier {
 impl TensorDataTestStream for TensorDataVecStreamVerifier {
     fn handle_event(
         &mut self,
-        event: StreamEvent,
+        params: &StreamEventParams,
+        data: &[TensorData],
     ) -> BunsenResult<()> {
-        self.read()?.compare(&event.params, &event.data)
+        self.read()?.compare(params, data)
     }
 }
 

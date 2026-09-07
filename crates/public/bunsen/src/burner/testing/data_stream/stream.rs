@@ -112,13 +112,15 @@ pub trait TensorDataTestStream {
     /// Handle a stream event.
     ///
     /// # Arguments
-    /// * `event` - the [`StreamEvent`] to handle.
+    /// * `params` - the [`StreamEventParams`] to handle.
+    /// * `data` - the [`TensorData`] to compare.
     ///
     /// # Panics and/or Err Returns
     /// If the event does not match the expected event under verification.
     fn handle_event(
         &mut self,
-        event: StreamEvent,
+        params: &StreamEventParams,
+        data: &[TensorData],
     ) -> BunsenResult<()>;
 }
 
@@ -143,13 +145,13 @@ pub trait TensorDataTestStreamExt: TensorDataTestStream {
         data: &TensorData,
         strict: bool,
     ) -> BunsenResult<()> {
-        self.handle_event(StreamEvent {
-            params: StreamEventParams::AssertEq {
+        self.handle_event(
+            &StreamEventParams::AssertEq {
                 label: label.to_string(),
                 strict,
             },
-            data: vec![data.clone()],
-        })
+            std::slice::from_ref(data),
+        )
     }
 
     /// [`Tensor`] equality; run over
