@@ -32,7 +32,7 @@ pub enum StreamEvent {
     },
 }
 
-/// TensorData Test Stream
+/// `TensorData` Test Stream
 pub trait TensorDataTestStream {
     /// [`TensorData`] equality.
     ///
@@ -54,9 +54,10 @@ pub trait TensorDataTestStream {
 
 impl<T: ?Sized + TensorDataTestStream> TensorDataTestStreamExt for T {}
 
-/// TensorData Test Stream Extension
+/// `TensorData` Test Stream Extension
 pub trait TensorDataTestStreamExt: TensorDataTestStream {
-    /// [`Tensor`] equality; run over [`assert_eq`](`Self::assert_eq`).
+    /// [`Tensor`] equality; run over
+    /// [`assert_eq`](`TensorDataTestStream::assert_eq`).
     ///
     /// Data is used as `tensor.to_data_as::<E>()`.
     ///
@@ -106,7 +107,7 @@ impl<T: TensorDataTestStreamVerifier> TensorDataTestStream for T {
             } => {
                 assert_eq!(&label, e_label);
                 assert_eq!(strict, *e_strict);
-                tensor_data_assert_eq(&e_data, data, strict)
+                tensor_data_assert_eq(e_data, data, strict)
             } // _ => Err(BunsenError::Invalid("Expected assert_eq event".to_string())),
         }
     }

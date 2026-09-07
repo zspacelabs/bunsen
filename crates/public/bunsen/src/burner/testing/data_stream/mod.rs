@@ -1,4 +1,4 @@
-//! TensorData Stream
+//! `TensorData` Stream
 
 mod assertion_utils;
 mod stream;

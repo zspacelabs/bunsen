@@ -12,7 +12,7 @@ pub fn tensor_data_assert_eq(
     // * Expand `burn` api.
     // * Clone `burn` api, generate Results.
     // * `panic::catch_unwind` version of this.
-    actual.assert_eq(&expected, strict);
+    actual.assert_eq(expected, strict);
 
     Ok(())
 }
