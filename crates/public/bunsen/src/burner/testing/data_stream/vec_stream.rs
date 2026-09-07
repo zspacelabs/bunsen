@@ -1,9 +1,7 @@
-use burn::prelude::TensorData;
-
 use crate::{
     burner::testing::data_stream::{
         StreamEvent,
-        TensorDataTestStream,
+        TensorDataTestStreamRecorder,
         TensorDataTestStreamVerifier,
     },
     prelude::*,
@@ -28,20 +26,12 @@ impl From<TensorDataVecStreamRecorder> for TensorDataVecStreamVerifier {
     }
 }
 
-impl TensorDataTestStream for TensorDataVecStreamRecorder {
-    fn assert_eq(
+impl TensorDataTestStreamRecorder for TensorDataVecStreamRecorder {
+    fn write(
         &mut self,
-        label: &str,
-        data: &TensorData,
-        strict: bool,
+        event: StreamEvent,
     ) -> BunsenResult<()> {
-        let label = label.to_string();
-        self.vec.push(StreamEvent::AssertEq {
-            label,
-            data: data.clone(),
-            strict,
-        });
-
+        self.vec.push(event);
         Ok(())
     }
 }
@@ -62,7 +52,7 @@ impl TensorDataVecStreamVerifier {
 
 impl TensorDataTestStreamVerifier for TensorDataVecStreamVerifier {
     /// Pop the next event from the stream.
-    fn pop(&mut self) -> BunsenResult<&StreamEvent> {
+    fn read(&mut self) -> BunsenResult<&StreamEvent> {
         match self.next {
             Some(i) => {
                 let event = &self.vec[i];
