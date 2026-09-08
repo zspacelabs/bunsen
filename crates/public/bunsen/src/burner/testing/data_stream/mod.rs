@@ -1,12 +1,12 @@
 //! `TensorData` Stream
 
-mod assertion_utils;
 mod stream;
+mod stream_assertions;
 mod vec_stream;
 
 #[doc(inline)]
-pub use assertion_utils::*;
-#[doc(inline)]
 pub use stream::*;
+#[doc(inline)]
+pub use stream_assertions::*;
 #[doc(inline)]
 pub use vec_stream::*;
