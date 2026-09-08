@@ -1,3 +1,5 @@
+use std::panic::Location;
+
 use burn::{
     Tensor,
     prelude::{
@@ -104,14 +106,6 @@ where
 impl<T: OnStreamEvent> TensorDataTestStream for T {}
 
 /// `TensorData` Test Stream.
-///
-/// Implementors take one of two roles:
-/// * a *recorder* appends each event to the stream;
-/// * a *verifier* compares each event against the next expected event.
-///
-/// The role is the implementation of [`handle_event`](`Self::handle_event`);
-/// the event constructors live on [`TensorDataTestStreamExt`], and are shared
-/// by both roles.
 pub trait TensorDataTestStream: OnStreamEvent {
     /// Handle a stream event.
     ///
@@ -126,6 +120,7 @@ pub trait TensorDataTestStream: OnStreamEvent {
         meta: &EventMeta,
         params: &StreamEventParams,
         data: &[TensorData],
+        _location: &Location,
     ) -> BunsenResult<()> {
         let event = StreamEventFrameStub { meta, params, data };
         <Self as OnStreamEvent>::on_stream_event(self, &event)
@@ -136,6 +131,22 @@ impl<T: ?Sized + TensorDataTestStream> TensorDataTestStreamExt for T {}
 
 /// `TensorData` Test Stream Extension
 pub trait TensorDataTestStreamExt: TensorDataTestStream {
+    /// Location forwarding impl of [`assert_eq`](`Self::assert_eq`).
+    fn _assert_eq_loc(
+        &mut self,
+        label: &str,
+        data: &TensorData,
+        strict: bool,
+        location: &Location,
+    ) -> BunsenResult<()> {
+        self.handle_event(
+            &EventMeta::new(label.to_string(), None),
+            &StreamEventParams::AssertEq { strict },
+            std::slice::from_ref(data),
+            location,
+        )
+    }
+
     /// [`TensorData`] equality; run over
     /// [`handle_event`](`TensorDataTestStream::handle_event`).
     ///
@@ -154,11 +165,7 @@ pub trait TensorDataTestStreamExt: TensorDataTestStream {
         data: &TensorData,
         strict: bool,
     ) -> BunsenResult<()> {
-        self.handle_event(
-            &EventMeta::new(label.to_string(), None),
-            &StreamEventParams::AssertEq { strict },
-            std::slice::from_ref(data),
-        )
+        self._assert_eq_loc(label, data, strict, Location::caller())
     }
 
     /// [`Tensor`] equality; run over
@@ -187,6 +194,6 @@ pub trait TensorDataTestStreamExt: TensorDataTestStream {
         K: BasicOps<B>,
     {
         let data = tensor.to_data_as::<E>();
-        self.assert_eq(label, &data, strict)
+        self._assert_eq_loc(label, &data, strict, Location::caller())
     }
 }
