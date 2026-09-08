@@ -16,7 +16,10 @@ use burn::{
         Backend,
         s,
     },
-    tensor::Distribution,
+    tensor::{
+        DType,
+        Distribution,
+    },
 };
 
 use super::WHISPER_DEFAULT_D_MODEL;
@@ -28,7 +31,10 @@ use crate::{
         ConvSeq1dMeta,
     },
     burner::{
-        module::ModuleInit,
+        module::{
+            HasDType,
+            ModuleInit,
+        },
         store::FixPytorchLoadMappers,
     },
     errors::BunsenResult,
@@ -211,14 +217,29 @@ impl<B: Backend> AudioEncoderMeta for AudioEncoder<B> {
     }
 }
 
+impl<B: Backend> HasDType for AudioEncoder<B> {
+    fn dtype(&self) -> DType {
+        self.positional_embedding.dtype()
+    }
+}
+
 impl<B: Backend> AudioEncoder<B> {
     /// Forward pass through the audio encoder.
     ///
     /// # Arguments
-    /// * `x`: The input audio spectrogram `[batch, n_mels, seq]`.
+    /// * `x`: The input audio spectrogram `[batch, n_mels, seq]`, in any float
+    ///   dtype. The mel front end works in the backend's default float;
+    ///   [`forward_head`](Self::forward_head) casts to [`dtype`](Self::dtype).
     ///
     /// # Returns
-    /// `[batch, seq, n_audio_states]`.
+    /// `[batch, seq, n_audio_states]`, in the encoder's
+    /// [`dtype`](Self::dtype).
+    ///
+    /// These features are not an interface value: they are the decoder's
+    /// input, and the source of its cross-attention cache. Widening them
+    /// here would only have the decoder narrow them again, and would put
+    /// the bulk of that cache at the wrong precision, so they stay in the
+    /// model's.
     pub fn forward(
         &self,
         x: Tensor<B, 3>,
@@ -236,8 +257,13 @@ impl<B: Backend> AudioEncoder<B> {
 
     /// Forward pass through the audio encoder head.
     ///
+    /// The encoder's one tensor entry point: `x` is cast to
+    /// [`dtype`](Self::dtype) here, and everything downstream of it is in
+    /// the model's precision.
+    ///
     /// # Arguments
-    /// * `x`: The input audio spectrogram `[batch, n_mels, seq]`.
+    /// * `x`: The input audio spectrogram `[batch, n_mels, seq]`, in any float
+    ///   dtype.
     ///
     /// # Returns
     /// `[batch, seq, d_model]`.
@@ -245,6 +271,8 @@ impl<B: Backend> AudioEncoder<B> {
         &self,
         x: Tensor<B, 3>,
     ) -> Tensor<B, 3> {
+        let x = x.cast(self.dtype());
+
         #[cfg(any(debug_assertions, test))]
         let [batch] = crate::contracts::unpack_shape_contract!(
             ["batch", "n_mels", "seq_len"],

@@ -63,7 +63,8 @@ fn test_bunsen_encoder_matches_reference() {
 
     let reference = reference::EncoderModel::<B>::load_pretrained(&device).forward(mels.clone());
 
-    let (model, cfg) = Whisper::<B>::load_pretrained(&device).expect("load base.pt");
+    let (model, cfg) =
+        Whisper::<B>::load_pretrained_16khz_fp16_base(&device).expect("load base.pt");
     assert_eq!(cfg.n_mels, N_MELS, "the checkpoint is not a `base` model");
 
     // OpenAI ships these checkpoints in fp16. The reference graph is f32,
@@ -91,7 +92,7 @@ fn test_bunsen_encoder_matches_reference() {
 /// Loads bunsen's Whisper from the fetched checkpoint, in f32.
 fn load_bunsen() -> (Whisper<B>, burn::prelude::Device<B>) {
     let device: burn::prelude::Device<B> = Default::default();
-    let (model, _) = Whisper::<B>::load_pretrained(&device).expect("load base.pt");
+    let (model, _) = Whisper::<B>::load_pretrained_16khz_fp16_base(&device).expect("load base.pt");
 
     // OpenAI ships these checkpoints in fp16; the reference graph is f32.
     // Feeding f32 input to an f16 model does not error here, it just

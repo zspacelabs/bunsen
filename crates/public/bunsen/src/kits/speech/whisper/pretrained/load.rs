@@ -46,22 +46,30 @@ impl<B: Backend> Whisper<B> {
     /// cached asset was deleted after the build.
     ///
     /// # Note
-    /// `OpenAI` ships these checkpoints in **fp16**. The weights load at that
-    /// precision, while the mel front end produces the backend's default
-    /// float; feeding f32 input to an f16 model does not error, it just
-    /// returns wrong numbers. Cast the model before use:
+    /// `OpenAI` ships these checkpoints in **fp16**, and the weights load at
+    /// that precision, which is what the model then computes in. It is not
+    /// what its interface speaks: the mel front end's log-mels are cast
+    /// down on the way in and the logits are cast back up on the way out
+    /// (see [`HasDType::dtype()`](`crate::burner::module::HasDType`), so a
+    /// caller stays in the backend's float and nothing here needs
+    /// re-typing.
+    ///
+    /// To run the model itself at another precision — comparing against an
+    /// f32 reference graph, or on a device without fp16 — map it:
     ///
     /// ```no_run
     /// # use burn::{module::Module, tensor::DType, backend::Wgpu};
     /// # use bunsen::{burner::module::DTypeMapper, kits::speech::whisper::Whisper};
     /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
     /// let device = Default::default();
-    /// let (model, cfg) = Whisper::<Wgpu>::load_pretrained(&device)?;
+    /// let (model, cfg) = Whisper::<Wgpu>::load_pretrained_16khz_fp16_base(&device)?;
     /// let model = model.map(&mut DTypeMapper::new(DType::F32));
     /// # Ok(())
     /// # }
     /// ```
-    pub fn load_pretrained(device: &B::Device) -> BunsenResult<(Self, WhisperApiConfig)> {
+    pub fn load_pretrained_16khz_fp16_base(
+        device: &B::Device
+    ) -> BunsenResult<(Self, WhisperApiConfig)> {
         PytorchWhisperScanner::new().load::<B, _>(bundled::base_pt(), device)
     }
 }

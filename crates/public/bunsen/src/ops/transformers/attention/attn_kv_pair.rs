@@ -1,7 +1,10 @@
 use burn::{
     Tensor,
     prelude::Backend,
+    tensor::DType,
 };
+
+use crate::burner::module::HasDType;
 
 /// Projected, head-split keys and values: `[batch, heads, seq, d_k]`.
 ///
@@ -15,6 +18,12 @@ pub struct AttnKvPair<B: Backend> {
 
     /// `[batch, heads, seq, d_k]` values.
     pub value: Tensor<B, 4>,
+}
+
+impl<B: Backend> HasDType for AttnKvPair<B> {
+    fn dtype(&self) -> DType {
+        self.key.dtype()
+    }
 }
 
 impl<B: Backend> AttnKvPair<B> {

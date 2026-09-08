@@ -6,6 +6,7 @@ use burn::{
         Backend,
         Int,
     },
+    tensor::DType,
 };
 
 use super::{
@@ -15,7 +16,10 @@ use super::{
 };
 use crate::{
     burner::{
-        module::ModuleInit,
+        module::{
+            HasDType,
+            ModuleInit,
+        },
         store::FixPytorchLoadMappers,
     },
     kits::speech::whisper::blocks::{
@@ -268,15 +272,41 @@ impl<B: Backend> WhisperMeta for Whisper<B> {
     }
 }
 
+impl<B: Backend> HasDType for Whisper<B> {
+    /// The dtype the model's parameters were loaded in, and so the one it
+    /// computes in. `OpenAI`'s checkpoints ship in fp16.
+    ///
+    /// This is **not** the dtype of the model's interface. Log-mels go in at
+    /// whatever float the front end produced and are cast here; logits come
+    /// out in the backend's default float
+    /// ([`backend_float_dtype`](crate::burner::tensor::backend_float_dtype)).
+    /// What stays at this precision is everything between: the encoder
+    /// features, and the cross- and self-attention caches projected from
+    /// them.
+    ///
+    /// # Panics
+    /// If the encoder and the decoder were loaded at different precisions,
+    /// which no checkpoint and no
+    fn dtype(&self) -> DType {
+        let (encoder, decoder) = (self.encoder.dtype(), self.decoder.dtype());
+        assert_eq!(
+            encoder, decoder,
+            "the encoder and the decoder are at different precisions",
+        );
+        encoder
+    }
+}
+
 impl<B: Backend> Whisper<B> {
     /// Forward pass through the Whisper model.
     ///
     /// # Arguments
-    /// * `mel`: The input audio spectrogram `[batch, n_mels, seq]`.
+    /// * `mel`: The input audio spectrogram `[batch, n_mels, seq]`, in any
+    ///   float dtype.
     /// * `tokens`: `[batch, seq]`.
     ///
     /// # Returns
-    /// `[batch, seq, vocab_size]`.
+    /// `[batch, seq, vocab_size]` logits, in the backend's default float.
     pub fn forward(
         &self,
         mel: Tensor<B, 3>,
@@ -288,10 +318,13 @@ impl<B: Backend> Whisper<B> {
     /// Forward pass through the Whisper encoder.
     ///
     /// # Arguments
-    /// * `mel`: The input audio spectrogram `[batch, n_mels, seq]`.
+    /// * `mel`: The input audio spectrogram `[batch, n_mels, seq]`, in any
+    ///   float dtype; the mel front end works in the backend's default.
     ///
     /// # Returns
-    /// `[batch, seq, n_audio_states]`.
+    /// `[batch, seq, n_audio_states]`, in the model's [`dtype`](Self::dtype)
+    /// — these features feed the decoder and its cross-attention cache, and
+    /// are not an interface value. See [`AudioEncoder::forward`].
     pub fn forward_encoder(
         &self,
         mel: Tensor<B, 3>,
@@ -303,10 +336,11 @@ impl<B: Backend> Whisper<B> {
     ///
     /// # Arguments
     /// * `tokens`: `[batch, seq]`.
-    /// * `encoder_output`: `[batch, seq, d_model]`.
+    /// * `encoder_output`: `[batch, seq, d_model]`, in any float dtype.
     ///
     /// # Returns
-    /// `[batch, seq, vocab_size]`.
+    /// `[batch, seq, vocab_size]` logits, in the backend's default float.
+    /// See [`TextDecoder::forward`].
     pub fn forward_decoder(
         &self,
         tokens: Tensor<B, 2, Int>,
@@ -324,12 +358,16 @@ mod tests {
             Device,
             TensorData,
         },
-        tensor::DType,
+        tensor::Distribution,
     };
     use serial_test::serial;
 
     use super::*;
     use crate::{
+        burner::{
+            module::DTypeMapper,
+            tensor::backend_float_dtype,
+        },
         contracts::assert_shape_contract,
         support::testing::{
             CpuBackend,
@@ -433,6 +471,108 @@ mod tests {
         assert_eq!(model.sample_rate(), 8_000);
         assert_eq!(model.front_end().hop(), 80);
         assert_eq!(model.token_layout().timestamp_tokens, 751);
+    }
+
+    /// **The dtype boundary.** A checkpoint at a precision the caller does
+    /// not share must not push that precision onto the caller, and must not
+    /// be widened to meet them: mels go in at the backend's float, logits
+    /// come back at it, and the model computes in its own throughout.
+    ///
+    /// This is what lets a fp16 checkpoint be used straight off
+    /// [`Whisper::load_pretrained_16khz_fp16_base`], with the mel front end
+    /// left in f32.
+    #[test]
+    #[serial]
+    fn test_dtype_is_cast_at_the_interface() {
+        type B = CpuBackend;
+        let device: Device<B> = Default::default();
+
+        let float = backend_float_dtype::<B>();
+        let model: Whisper<B> = WhisperApiConfig::new(8, 32, 64, 16, 1, 12, 1)
+            .try_init(&device)
+            .unwrap();
+        assert_eq!(model.dtype(), float, "init builds at the backend's float");
+
+        let half = model.map(&mut DTypeMapper::new(DType::F16));
+        assert_eq!(half.dtype(), DType::F16);
+
+        // The mel front end's output: the backend's float, not the model's.
+        let mel: Tensor<B, 3> = Tensor::random([1, 8, 16], Distribution::Default, &device);
+        let tokens: Tensor<B, 2, Int> = Tensor::zeros([1, 4], &device);
+        assert_eq!(mel.dtype(), float);
+
+        // In at the backend's float, out at it, with the model's own
+        // precision in between.
+        let xa = half.forward_encoder(mel.clone());
+        assert_eq!(xa.dtype(), DType::F16, "features stay in the model's dtype");
+        assert_eq!(
+            half.forward_decoder(tokens.clone(), xa.clone()).dtype(),
+            float
+        );
+        assert_eq!(half.forward(mel, tokens.clone()).dtype(), float);
+
+        // Both caches are the model's, including from features a caller
+        // widened behind the model's back.
+        let cache = half.decoder.new_cache(xa.clone());
+        assert_eq!(cache.dtype(), DType::F16, "cross-attention cache");
+        let widened = half.decoder.new_cache(xa.cast(float));
+        assert_eq!(widened.dtype(), DType::F16, "and from f32 features");
+
+        let mut cache = cache;
+        assert_eq!(
+            half.decoder.forward_cached(tokens, &mut cache).dtype(),
+            float,
+        );
+    }
+
+    /// The cast is a *conversion*, not a reinterpretation: the same weights
+    /// at two precisions take the same audio to the same logits.
+    ///
+    /// This is the failure the boundary casts exist to prevent, and it is a
+    /// silent one — f32 mels fed to f16 weights do not error, they just
+    /// return numbers that are wrong. Wrong by the width of the signal:
+    /// when this pairing was broken during development it disagreed by ~29
+    /// on logits of magnitude ~48, against the 0.013 it agrees to now.
+    #[test]
+    #[serial]
+    fn test_half_precision_tracks_full() {
+        use burn::tensor::{
+            Tolerance,
+            backend::BackendTypes,
+        };
+
+        use crate::burner::tensor::TensorElemOpExt;
+
+        type B = CpuBackend;
+        type F = <B as BackendTypes>::FloatElem;
+
+        let device: Device<B> = Default::default();
+
+        // `Param::clone` on a *lazily* initialized parameter clones the
+        // initializer rather than the value, and a random initializer then
+        // gives the clone different weights — two models, not one model at
+        // two precisions. Mapping onto the dtype it already has forces
+        // every parameter first, which is what makes the clone a copy.
+        let full: Whisper<B> = WhisperApiConfig::new(8, 32, 64, 16, 1, 12, 1)
+            .try_init(&device)
+            .unwrap()
+            .map(&mut DTypeMapper::new(backend_float_dtype::<B>()));
+        let half = full.clone().map(&mut DTypeMapper::new(DType::F16));
+
+        let mel: Tensor<B, 3> = Tensor::random([1, 8, 16], Distribution::Default, &device);
+        let tokens: Tensor<B, 2, Int> = Tensor::zeros([1, 4], &device);
+
+        // fp16 carries a bit over three decimal digits, and this is a whole
+        // encoder and decoder deep: the agreement is precision-limited.
+        // Measured at 1.3e-2 absolute on a magnitude of 48; set with
+        // headroom over that, and still an order of magnitude tighter than
+        // any real defect.
+        full.forward(mel.clone(), tokens.clone())
+            .to_data_as::<F>()
+            .assert_approx_eq::<F>(
+                &half.forward(mel, tokens).to_data_as::<F>(),
+                Tolerance::rel_abs(1e-2, 5e-2),
+            );
     }
 
     #[test]
