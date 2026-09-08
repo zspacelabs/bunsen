@@ -1,7 +1,6 @@
 use std::sync::Arc;
 
 use bunsen::{
-    burner::module::DTypeMapper,
     errors::BunsenResult,
     kits::speech::{
         silero_vad::SileroVad,
@@ -20,11 +19,7 @@ use bunsen::{
         },
     },
 };
-use burn::{
-    module::Module,
-    prelude::Backend,
-    tensor::DType,
-};
+use burn::prelude::Backend;
 
 #[derive(clap::Args, Debug)]
 pub struct WhisperDriverArgs {
@@ -75,15 +70,16 @@ pub struct WhisperDriverArgs {
 }
 
 impl WhisperDriverArgs {
+    /// Loads the bundled checkpoint at the precision it ships in.
+    ///
+    /// The checkpoint is fp16 while the mel front end works in the backend's
+    /// float, but the model casts at its own edges — mels in, logits out —
+    /// so nothing here has to re-type it.
     pub fn load_model<B: Backend>(
         &self,
         device: &B::Device,
     ) -> BunsenResult<(Whisper<B>, WhisperApiConfig)> {
-        let (model, cfg) = Whisper::<B>::load_pretrained(device)?;
-        // The checkpoint ships in fp16 while the mel front end works in the
-        // backend's float; cast the model up, where precision is cheap.
-        let model = model.map(&mut DTypeMapper::new(DType::F32));
-        Ok((model, cfg))
+        Whisper::<B>::load_pretrained(device)
     }
 
     pub fn init_driver<B: Backend>(

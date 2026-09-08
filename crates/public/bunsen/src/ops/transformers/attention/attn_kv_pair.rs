@@ -1,6 +1,7 @@
 use burn::{
     Tensor,
     prelude::Backend,
+    tensor::DType,
 };
 
 /// Projected, head-split keys and values: `[batch, heads, seq, d_k]`.
@@ -18,6 +19,11 @@ pub struct AttnKvPair<B: Backend> {
 }
 
 impl<B: Backend> AttnKvPair<B> {
+    /// The data type of the keys and values.
+    pub fn dtype(&self) -> DType {
+        self.key.dtype()
+    }
+
     /// The number of cached positions.
     pub fn seq_len(&self) -> usize {
         self.key.dims()[2]

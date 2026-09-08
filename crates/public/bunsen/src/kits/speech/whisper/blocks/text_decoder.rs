@@ -17,6 +17,7 @@ use burn::{
     },
     tensor::{
         Bool,
+        DType,
         Distribution,
         Int,
         TensorData,
@@ -28,6 +29,7 @@ use crate::{
     burner::{
         module::ModuleInit,
         store::FixPytorchLoadMappers,
+        tensor::backend_float_dtype,
     },
     errors::BunsenResult,
     kits::speech::whisper::blocks::{
@@ -193,19 +195,39 @@ impl<B: Backend> TextDecoderMeta for TextDecoder<B> {
 }
 
 impl<B: Backend> TextDecoder<B> {
+    /// The dtype the decoder's parameters were loaded in, and so the one it
+    /// computes in. `OpenAI`'s checkpoints ship in fp16.
+    ///
+    /// The encoder features, the cross-attention cache and the
+    /// self-attention cache are all at this precision; the logits are not
+    /// (see [`forward`](Self::forward)).
+    pub fn dtype(&self) -> DType {
+        self.token_embedding.weight.dtype()
+    }
+
     /// Runs the decoder.
     ///
     /// # Arguments
-    /// * `x`: `[batch, seq]`.
-    /// * `xa`: `[batch, seq, d_model]`.
+    /// * `x`: `[batch, seq]` token ids.
+    /// * `xa`: `[batch, seq, d_model]` encoder features, in any float dtype;
+    ///   cast to [`dtype`](Self::dtype) here.
     ///
     /// # Returns
-    /// `[batch, seq, n_vocab]`.
+    /// `[batch, seq, n_vocab]` logits, in the backend's default float
+    /// ([`backend_float_dtype`]) whatever the decoder's own precision. This
+    /// is the model's outward edge: everything past it — the log-softmax,
+    /// the samplers, the [`LogitFilter`]s, the host reads — works in the
+    /// backend's float, and upstream likewise takes its logits to `float()`
+    /// before the search sees them.
+    ///
+    /// [`LogitFilter`]: crate::kits::speech::whisper::logit_filters::LogitFilter
     pub fn forward(
         &self,
         x: Tensor<B, 2, Int>,
         xa: Tensor<B, 3>,
     ) -> Tensor<B, 3> {
+        let xa = xa.cast(self.dtype());
+
         let [_batch, seq_len] = x.dims();
         assert!(
             seq_len <= self.max_context(),
@@ -227,10 +249,9 @@ impl<B: Backend> TextDecoder<B> {
 
         let x = self.ln.forward(x);
 
-        unembed(&self.token_embedding, x)
-
         // denorm [batch, seq_len, n_vocab]
         // Needs softmax / beamsearch.
+        unembed(&self.token_embedding, x).cast(backend_float_dtype::<B>())
     }
 
     /// Opens an incremental decode cache against a fixed encoder output.
@@ -239,7 +260,8 @@ impl<B: Backend> TextDecoder<B> {
     /// they are reused unchanged for the whole decode.
     ///
     /// # Arguments
-    /// * `xa`: `[batch, cross_len, d_model]` encoder output.
+    /// * `xa`: `[batch, cross_len, d_model]` encoder output, in any float
+    ///   dtype; the cache is built in [`dtype`](Self::dtype).
     pub fn new_cache(
         &self,
         xa: Tensor<B, 3>,
@@ -263,6 +285,12 @@ impl<B: Backend> TextDecoder<B> {
         group: usize,
     ) -> TextDecoderCache<B> {
         assert!(group >= 1, "at least one row per audio");
+
+        // The cross-attention cache is the bulk of the decode's state and is
+        // scored against this decoder's weights on every step, so it is
+        // built in the decoder's precision whatever the caller handed in.
+        let xa = xa.cast(self.dtype());
+
         TextDecoderCache {
             self_kv: self.blocks.iter().map(|_| None).collect(),
             cross_kv: self
@@ -295,7 +323,8 @@ impl<B: Backend> TextDecoder<B> {
     ///   output, so it is not passed again.
     ///
     /// # Returns
-    /// `[batch, seq_new, n_vocab]` — logits for the new token(s) only.
+    /// `[batch, seq_new, n_vocab]` — logits for the new token(s) only, in
+    /// the backend's default float, as [`forward`](Self::forward).
     pub fn forward_cached(
         &self,
         x: Tensor<B, 2, Int>,
@@ -338,7 +367,7 @@ impl<B: Backend> TextDecoder<B> {
 
         cache.pos += seq_new;
 
-        unembed(&self.token_embedding, self.ln.forward(h))
+        unembed(&self.token_embedding, self.ln.forward(h)).cast(backend_float_dtype::<B>())
     }
 
     fn embed(
@@ -391,6 +420,12 @@ pub struct TextDecoderCache<B: Backend> {
 }
 
 impl<B: Backend> TextDecoderCache<B> {
+    /// The dtype of the cached keys and values: the decoder's, which
+    /// [`TextDecoder::new_cache_grouped`] casts to whatever it was handed.
+    pub fn dtype(&self) -> DType {
+        self.cross_kv[0].dtype()
+    }
+
     /// The number of tokens consumed so far.
     pub fn pos(&self) -> usize {
         self.pos
@@ -467,7 +502,10 @@ mod tests {
     use super::*;
     use crate::{
         contracts::assert_shape_contract,
-        support::testing::PerformanceBackend,
+        support::testing::{
+            CpuBackend,
+            PerformanceBackend,
+        },
     };
 
     #[test]
@@ -620,6 +658,57 @@ mod tests {
         mixed
             .to_data_as::<F>()
             .assert_approx_eq::<F>(&whole.to_data_as::<F>(), Tolerance::permissive());
+    }
+
+    /// **Both caches are the decoder's precision**, whatever the encoder
+    /// features were handed over in.
+    ///
+    /// The cross-attention cache is the bulk of a decode's state and the
+    /// self-attention cache is scored against it every step; a cache at the
+    /// caller's precision rather than the model's would be re-cast on every
+    /// use at best, and silently wrong at worst.
+    #[test]
+    #[serial]
+    fn test_caches_take_the_decoders_dtype() {
+        use burn::{
+            module::Module,
+            prelude::Device,
+            tensor::Distribution,
+        };
+
+        use crate::burner::{
+            module::DTypeMapper,
+            tensor::backend_float_dtype,
+        };
+
+        type B = CpuBackend;
+        let device: Device<B> = Default::default();
+
+        let float = backend_float_dtype::<B>();
+        let decoder: TextDecoder<B> = TextDecoderConfig::new(32, 128, 8, 1).init(&device);
+        let decoder = decoder.map(&mut DTypeMapper::new(DType::F16));
+        assert_eq!(decoder.dtype(), DType::F16);
+
+        // Features at the *caller's* precision, as a caller that widened
+        // them, or built them by hand, would have.
+        let xa: Tensor<B, 3> = Tensor::random([1, 4, 128], Distribution::Default, &device);
+        assert_eq!(xa.dtype(), float);
+
+        let mut cache = decoder.new_cache(xa);
+        assert_eq!(cache.dtype(), DType::F16, "cross-attention cache");
+        for kv in &cache.cross_kv {
+            assert_eq!(kv.dtype(), DType::F16);
+        }
+
+        let tokens: Tensor<B, 2, Int> =
+            Tensor::from_data(TensorData::new(vec![3i64, 5], [1, 2]), &device);
+        let logits = decoder.forward_cached(tokens, &mut cache);
+
+        assert_eq!(logits.dtype(), float, "logits are the interface's");
+        assert!(cache.self_kv.iter().any(|kv| kv.is_some()));
+        for kv in cache.self_kv.iter().flatten() {
+            assert_eq!(kv.dtype(), DType::F16, "self-attention cache");
+        }
     }
 
     /// `reset` rewinds the decode while keeping the encoder projections, so a

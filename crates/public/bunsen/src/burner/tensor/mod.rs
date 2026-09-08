@@ -43,6 +43,13 @@
 //! }
 //! ```
 //!
+//! ## Free Functions
+//!
+//! [`backend_float_dtype`] — the backend's default float `DType`
+//! (`B::FloatElem`'s): what an undtyped `Tensor<B, D>` gets, and so the
+//! dtype a module's interface speaks when its parameters were loaded at
+//! some other precision.
+//!
 //! ## `TensorData` Views
 //!
 //! [`TensorDataView`] and [`TensorDataViewMut`] wrap a
@@ -52,9 +59,12 @@
 pub mod dynamic;
 
 mod data_view;
+mod float_dtype;
 mod tensor_op_ext;
 
 #[doc(inline)]
 pub use data_view::*;
+#[doc(inline)]
+pub use float_dtype::*;
 #[doc(inline)]
 pub use tensor_op_ext::*;
