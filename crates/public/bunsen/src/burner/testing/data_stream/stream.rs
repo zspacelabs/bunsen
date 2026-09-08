@@ -1,3 +1,5 @@
+use std::time::Instant;
+
 use burn::{
     Tensor,
     prelude::{
@@ -19,56 +21,101 @@ use crate::{
     prelude::TensorElemOpExt,
 };
 
+/// Common metadata for all events.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct EventMeta {
+    /// Event Label.
+    label: String,
+
+    /// The time the event happened.
+    ts: Instant,
+}
+
+impl EventMeta {
+    /// Create a new event meta.
+    pub fn new(
+        label: String,
+        ts: Option<Instant>,
+    ) -> Self {
+        Self {
+            label,
+            ts: ts.unwrap_or_else(Instant::now),
+        }
+    }
+
+    /// Compare this event (the expected) with actual parameters and data.
+    pub fn compare(
+        &self,
+        other: &EventMeta,
+    ) -> BunsenResult<()> {
+        if self.label != other.label {
+            return Err(BunsenError::InvalidArgument {
+                msg: format!("Event metadata ({self:?}) != {other:?}"),
+            });
+        }
+        Ok(())
+    }
+}
+
 /// Events for [`TensorDataTestStream`].
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum StreamEventParams {
     /// Event for [`TensorDataTestStreamExt::assert_eq`].
     AssertEq {
-        /// Event Label.
-        label: String,
-
         /// Strict dtype comparison.
         strict: bool,
     },
 }
 
-/// Events for [`TensorDataTestStream`].
-#[derive(Debug, Clone)]
-pub struct StreamEventFrame {
+/// Common access trait for [`StreamEventFrame`].
+pub trait StreamEventFrameMeta {
+    /// Common event metadata.
+    fn meta(&self) -> &EventMeta;
+
     /// Event Parameters.
-    pub params: StreamEventParams,
+    fn params(&self) -> &StreamEventParams;
 
     /// Event Data.
-    pub data: Vec<TensorData>,
-}
+    fn data(&self) -> &[TensorData];
 
-impl StreamEventFrame {
+    /// Copy the data into an owned [`StreamEventFrame`].
+    fn to_owned(&self) -> StreamEventFrame {
+        StreamEventFrame {
+            meta: self.meta().clone(),
+            params: self.params().clone(),
+            data: self.data().to_vec(),
+        }
+    }
+
     /// Compare this event (the expected) with actual parameters and data.
-    pub fn compare(
+    fn try_match(
         &self,
-        actual_params: &StreamEventParams,
-        actual_data: &[TensorData],
+        actual: &impl StreamEventFrameMeta,
     ) -> BunsenResult<()> {
-        if self.params != *actual_params {
+        self.meta().compare(actual.meta())?;
+
+        if self.params() != actual.params() {
             return Err(BunsenError::InvalidArgument {
                 msg: format!(
                     "StreamEvent params {:?} != expected {:?}",
-                    self.params, actual_params
+                    self.params(),
+                    actual.params()
                 ),
             });
         }
-        if self.data.len() != actual_data.len() {
+        if self.data().len() != actual.data().len() {
             return Err(BunsenError::InvalidArgument {
                 msg: format!(
                     "StreamEvent data count ({:?}) != expected ({:?})",
-                    self.data.len(),
-                    actual_data.len()
+                    self.data().len(),
+                    actual.data().len()
                 ),
             });
         }
 
-        let expected_data: &[TensorData] = self.data.as_ref();
-        if !actual_data
+        let expected_data: &[TensorData] = self.data().as_ref();
+        if !actual
+            .data()
             .iter()
             .zip(expected_data.iter())
             .all(|(a, e)| a.shape == e.shape)
@@ -76,7 +123,8 @@ impl StreamEventFrame {
             return Err(BunsenError::InvalidArgument {
                 msg: format!(
                     "event data shapes do not match:\nactual: {:?}\nexpect: {:?}",
-                    actual_data
+                    actual
+                        .data()
                         .iter()
                         .map(|d| d.shape.clone())
                         .collect::<Vec<_>>(),
@@ -88,15 +136,77 @@ impl StreamEventFrame {
             });
         }
 
-        match &self.params {
+        match self.params() {
             StreamEventParams::AssertEq { strict, .. } => {
-                assert_eq!(actual_data.len(), 1);
-                let actual = &actual_data[0];
+                assert_eq!(actual.data().len(), 1);
+                let actual = &actual.data()[0];
                 let expected = &expected_data[0];
                 tensor_data_assert_eq(expected, actual, *strict)
             }
         }
     }
+}
+
+/// Events for [`TensorDataTestStream`].
+#[derive(Debug, Clone)]
+pub struct StreamEventFrame {
+    /// Common event metadata.
+    pub meta: EventMeta,
+
+    /// Event Parameters.
+    pub params: StreamEventParams,
+
+    /// Event Data.
+    pub data: Vec<TensorData>,
+}
+
+impl StreamEventFrameMeta for StreamEventFrame {
+    fn meta(&self) -> &EventMeta {
+        &self.meta
+    }
+
+    fn params(&self) -> &StreamEventParams {
+        &self.params
+    }
+
+    fn data(&self) -> &[TensorData] {
+        &self.data
+    }
+}
+
+/// A [`StreamEventFrame`] stub.
+pub struct StreamEventFrameStub<'a> {
+    /// Common event metadata.
+    pub meta: &'a EventMeta,
+
+    /// Event Parameters.
+    pub params: &'a StreamEventParams,
+
+    /// Event Data.
+    pub data: &'a [TensorData],
+}
+
+impl StreamEventFrameMeta for StreamEventFrameStub<'_> {
+    fn meta(&self) -> &EventMeta {
+        self.meta
+    }
+
+    fn params(&self) -> &StreamEventParams {
+        self.params
+    }
+
+    fn data(&self) -> &[TensorData] {
+        self.data
+    }
+}
+
+/// [`StreamEventFrame`] handling trait.
+pub trait OnStreamEvent {
+    /// Handle a stream event.
+    fn on_stream_event(
+        &mut self,
+        event: impl StreamEventFrameMeta,
+    ) -> BunsenResult<()>;
 }
 
 /// `TensorData` Test Stream.
@@ -109,8 +219,8 @@ impl StreamEventFrame {
 /// the event constructors live on [`TensorDataTestStreamExt`], and are shared
 /// by both roles.
 ///
-/// A type in a role implements [`TensorDataTestStreamRecorder`] or
-/// [`TensorDataTestStreamVerifier`], and forwards
+/// A type in a role implements [`StreamEventSink`] or
+/// [`StreamEventSource`], and forwards
 /// [`handle_event`](`Self::handle_event`) to it.
 pub trait TensorDataTestStream {
     /// Handle a stream event.
@@ -123,6 +233,7 @@ pub trait TensorDataTestStream {
     /// If the event does not match the expected event under verification.
     fn handle_event(
         &mut self,
+        meta: &EventMeta,
         params: &StreamEventParams,
         data: &[TensorData],
     ) -> BunsenResult<()>;
@@ -143,6 +254,7 @@ pub trait TensorDataTestStreamExt: TensorDataTestStream {
     ///
     /// # Panics and/or Err Returns
     /// If the data or data types do not match under verification.
+    #[track_caller]
     fn assert_eq(
         &mut self,
         label: &str,
@@ -150,10 +262,8 @@ pub trait TensorDataTestStreamExt: TensorDataTestStream {
         strict: bool,
     ) -> BunsenResult<()> {
         self.handle_event(
-            &StreamEventParams::AssertEq {
-                label: label.to_string(),
-                strict,
-            },
+            &EventMeta::new(label.to_string(), None),
+            &StreamEventParams::AssertEq { strict },
             std::slice::from_ref(data),
         )
     }
@@ -171,6 +281,7 @@ pub trait TensorDataTestStreamExt: TensorDataTestStream {
     ///
     /// # Panics and/or Err Returns
     /// If the data or data types do not match under verification.
+    #[track_caller]
     fn assert_tensor_eq_as<B, const R: usize, K, E>(
         &mut self,
         label: &str,
@@ -189,8 +300,8 @@ pub trait TensorDataTestStreamExt: TensorDataTestStream {
 
 /// Trait for recording events in a [`TensorDataTestStream`].
 ///
-/// No type may implement both this and [`TensorDataTestStreamVerifier`].
-pub trait TensorDataTestStreamRecorder {
+/// No type may implement both this and [`StreamEventSource`].
+pub trait StreamEventSink {
     /// Record an event in the stream.
     fn write(
         &mut self,
@@ -200,8 +311,8 @@ pub trait TensorDataTestStreamRecorder {
 
 /// Trait for verifying events in a [`TensorDataTestStream`].
 ///
-/// No type may implement both this and [`TensorDataTestStreamRecorder`].
-pub trait TensorDataTestStreamVerifier {
+/// No type may implement both this and [`StreamEventSink`].
+pub trait StreamEventSource {
     /// Pop the next expected event from the stream.
     fn read(&mut self) -> BunsenResult<&StreamEventFrame>;
 }
