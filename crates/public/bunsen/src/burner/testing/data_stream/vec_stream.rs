@@ -2,7 +2,7 @@ use crate::{
     burner::testing::data_stream::{
         OnStreamEvent,
         StreamEventFrame,
-        StreamEventFrameMeta,
+        StreamEventMeta,
     },
     prelude::*,
 };
@@ -29,7 +29,7 @@ impl From<TensorDataVecStreamRecorder> for TensorDataVecStreamVerifier {
 impl OnStreamEvent for TensorDataVecStreamRecorder {
     fn on_stream_event(
         &mut self,
-        event: &impl StreamEventFrameMeta,
+        event: &impl StreamEventMeta,
     ) -> BunsenResult<()> {
         self.vec.push(event.to_owned());
         Ok(())
@@ -69,7 +69,7 @@ impl TensorDataVecStreamVerifier {
 impl OnStreamEvent for TensorDataVecStreamVerifier {
     fn on_stream_event(
         &mut self,
-        event: &impl StreamEventFrameMeta,
+        event: &impl StreamEventMeta,
     ) -> BunsenResult<()> {
         event.try_match(self.read()?)
     }
