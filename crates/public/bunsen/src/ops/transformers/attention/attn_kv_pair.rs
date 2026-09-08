@@ -4,6 +4,8 @@ use burn::{
     tensor::DType,
 };
 
+use crate::burner::module::HasDType;
+
 /// Projected, head-split keys and values: `[batch, heads, seq, d_k]`.
 ///
 /// Built by [`project_kv_pair`](super::project_kv_pair). Self-attention grows
@@ -18,12 +20,13 @@ pub struct AttnKvPair<B: Backend> {
     pub value: Tensor<B, 4>,
 }
 
-impl<B: Backend> AttnKvPair<B> {
-    /// The data type of the keys and values.
-    pub fn dtype(&self) -> DType {
+impl<B: Backend> HasDType for AttnKvPair<B> {
+    fn dtype(&self) -> DType {
         self.key.dtype()
     }
+}
 
+impl<B: Backend> AttnKvPair<B> {
     /// The number of cached positions.
     pub fn seq_len(&self) -> usize {
         self.key.dims()[2]

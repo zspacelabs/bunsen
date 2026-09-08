@@ -19,6 +19,7 @@ use burn::{
 use crate::{
     burner::{
         descriptors::TensorKindDesc,
+        module::HasDType,
         tensor::dynamic::RankHandler,
     },
     errors::{
@@ -85,6 +86,12 @@ where
 {
     fn from(val: Tensor<B, R, K>) -> Self {
         DynTensor::new(val)
+    }
+}
+
+impl<B: Backend> HasDType for DynTensor<B> {
+    fn dtype(&self) -> DType {
+        self.dtype
     }
 }
 

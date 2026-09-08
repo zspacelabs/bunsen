@@ -21,7 +21,10 @@ use super::{
     outflow_clipping_stream,
     with_spherical_reflection,
 };
-use crate::burner::tensor::TensorOpExt;
+use crate::burner::{
+    module::HasDType,
+    tensor::TensorOpExt,
+};
 
 /// Introspection trait for [`LBMD2Q9State`]
 pub trait LBMMeta {
@@ -136,6 +139,12 @@ impl<B: Backend> LBMMeta for LBMD2Q9State<B> {
     fn shape(&self) -> [usize; 2] {
         let [h, w, _, _] = self.dist.dims();
         [h, w]
+    }
+}
+
+impl<B: Backend> HasDType for LBMD2Q9State<B> {
+    fn dtype(&self) -> DType {
+        self.dist.dtype()
     }
 }
 

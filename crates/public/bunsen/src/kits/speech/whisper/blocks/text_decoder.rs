@@ -27,7 +27,10 @@ use burn::{
 use super::WHISPER_DEFAULT_D_MODEL;
 use crate::{
     burner::{
-        module::ModuleInit,
+        module::{
+            HasDType,
+            ModuleInit,
+        },
         store::FixPytorchLoadMappers,
         tensor::backend_float_dtype,
     },
@@ -194,17 +197,13 @@ impl<B: Backend> TextDecoderMeta for TextDecoder<B> {
     }
 }
 
-impl<B: Backend> TextDecoder<B> {
-    /// The dtype the decoder's parameters were loaded in, and so the one it
-    /// computes in. `OpenAI`'s checkpoints ship in fp16.
-    ///
-    /// The encoder features, the cross-attention cache and the
-    /// self-attention cache are all at this precision; the logits are not
-    /// (see [`forward`](Self::forward)).
-    pub fn dtype(&self) -> DType {
+impl<B: Backend> HasDType for TextDecoder<B> {
+    fn dtype(&self) -> DType {
         self.token_embedding.weight.dtype()
     }
+}
 
+impl<B: Backend> TextDecoder<B> {
     /// Runs the decoder.
     ///
     /// # Arguments
@@ -419,13 +418,13 @@ pub struct TextDecoderCache<B: Backend> {
     pos: usize,
 }
 
-impl<B: Backend> TextDecoderCache<B> {
-    /// The dtype of the cached keys and values: the decoder's, which
-    /// [`TextDecoder::new_cache_grouped`] casts to whatever it was handed.
-    pub fn dtype(&self) -> DType {
+impl<B: Backend> HasDType for TextDecoderCache<B> {
+    fn dtype(&self) -> DType {
         self.cross_kv[0].dtype()
     }
+}
 
+impl<B: Backend> TextDecoderCache<B> {
     /// The number of tokens consumed so far.
     pub fn pos(&self) -> usize {
         self.pos

@@ -340,7 +340,7 @@ pub fn clip_mels<B: Backend>(
 /// float. Feeding f32 input to an f16 model does not error, it just
 /// returns wrong numbers, so the cast is load-bearing.
 pub fn bunsen_model<B: Backend>(device: &Device<B>) -> Whisper<B> {
-    let (model, cfg) = Whisper::load_pretrained(device).expect("load base.pt");
+    let (model, cfg) = Whisper::load_pretrained_16khz_fp16_base(device).expect("load base.pt");
 
     assert_eq!(cfg.n_mels, N_MELS, "not a `base` model");
     assert_eq!(

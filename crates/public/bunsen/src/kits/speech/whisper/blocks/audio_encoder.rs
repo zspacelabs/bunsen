@@ -31,7 +31,10 @@ use crate::{
         ConvSeq1dMeta,
     },
     burner::{
-        module::ModuleInit,
+        module::{
+            HasDType,
+            ModuleInit,
+        },
         store::FixPytorchLoadMappers,
     },
     errors::BunsenResult,
@@ -214,13 +217,13 @@ impl<B: Backend> AudioEncoderMeta for AudioEncoder<B> {
     }
 }
 
-impl<B: Backend> AudioEncoder<B> {
-    /// The dtype the encoder's parameters were loaded in, and so the one it
-    /// computes in. `OpenAI`'s checkpoints ship in fp16.
-    pub fn dtype(&self) -> DType {
+impl<B: Backend> HasDType for AudioEncoder<B> {
+    fn dtype(&self) -> DType {
         self.positional_embedding.dtype()
     }
+}
 
+impl<B: Backend> AudioEncoder<B> {
     /// Forward pass through the audio encoder.
     ///
     /// # Arguments

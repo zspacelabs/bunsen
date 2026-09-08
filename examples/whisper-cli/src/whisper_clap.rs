@@ -79,7 +79,7 @@ impl WhisperDriverArgs {
         &self,
         device: &B::Device,
     ) -> BunsenResult<(Whisper<B>, WhisperApiConfig)> {
-        Whisper::<B>::load_pretrained(device)
+        Whisper::<B>::load_pretrained_16khz_fp16_base(device)
     }
 
     pub fn init_driver<B: Backend>(

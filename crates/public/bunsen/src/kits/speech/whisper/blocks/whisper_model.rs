@@ -16,7 +16,10 @@ use super::{
 };
 use crate::{
     burner::{
-        module::ModuleInit,
+        module::{
+            HasDType,
+            ModuleInit,
+        },
         store::FixPytorchLoadMappers,
     },
     kits::speech::whisper::blocks::{
@@ -269,7 +272,7 @@ impl<B: Backend> WhisperMeta for Whisper<B> {
     }
 }
 
-impl<B: Backend> Whisper<B> {
+impl<B: Backend> HasDType for Whisper<B> {
     /// The dtype the model's parameters were loaded in, and so the one it
     /// computes in. `OpenAI`'s checkpoints ship in fp16.
     ///
@@ -284,8 +287,7 @@ impl<B: Backend> Whisper<B> {
     /// # Panics
     /// If the encoder and the decoder were loaded at different precisions,
     /// which no checkpoint and no
-    /// [`DTypeMapper`](crate::burner::module::DTypeMapper) produces.
-    pub fn dtype(&self) -> DType {
+    fn dtype(&self) -> DType {
         let (encoder, decoder) = (self.encoder.dtype(), self.decoder.dtype());
         assert_eq!(
             encoder, decoder,
@@ -293,7 +295,9 @@ impl<B: Backend> Whisper<B> {
         );
         encoder
     }
+}
 
+impl<B: Backend> Whisper<B> {
     /// Forward pass through the Whisper model.
     ///
     /// # Arguments
@@ -475,7 +479,8 @@ mod tests {
     /// come back at it, and the model computes in its own throughout.
     ///
     /// This is what lets a fp16 checkpoint be used straight off
-    /// [`Whisper::load_pretrained`], with the mel front end left in f32.
+    /// [`Whisper::load_pretrained_16khz_fp16_base`], with the mel front end
+    /// left in f32.
     #[test]
     #[serial]
     fn test_dtype_is_cast_at_the_interface() {
