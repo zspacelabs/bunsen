@@ -82,6 +82,7 @@ impl WhisperDriverArgs {
         Whisper::<B>::load_pretrained_16khz_fp16_base(device)
     }
 
+    /// Load and setup the [`WhisperStreamDriver`].
     pub fn init_driver<B: Backend>(
         &self,
         device: &B::Device,
