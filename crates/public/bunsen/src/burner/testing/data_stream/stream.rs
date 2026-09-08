@@ -1,24 +1,13 @@
 use std::time::Instant;
 
-use burn::{
-    Tensor,
-    prelude::{
-        Backend,
-        TensorData,
-    },
-    tensor::{
-        BasicOps,
-        Element,
-    },
-};
+use burn::prelude::TensorData;
 
 use crate::{
-    burner::testing::data_stream::tensor_data_assert_eq,
+    burner::testing::data_stream::try_match_stream_events,
     errors::{
         BunsenError,
         BunsenResult,
     },
-    prelude::TensorElemOpExt,
 };
 
 /// Common metadata for all events.
@@ -96,67 +85,6 @@ pub trait StreamEventFrameMeta {
     }
 }
 
-/// Compare two stream events.
-pub fn try_match_stream_events<A, B>(
-    actual: &A,
-    expected: &B,
-) -> BunsenResult<()>
-where
-    A: StreamEventFrameMeta + ?Sized,
-    B: StreamEventFrameMeta + ?Sized,
-{
-    expected.meta().compare(actual.meta())?;
-
-    if expected.params() != actual.params() {
-        return Err(BunsenError::InvalidArgument {
-            msg: format!(
-                "StreamEvent params {:?} != expected {:?}",
-                expected.params(),
-                actual.params()
-            ),
-        });
-    }
-    if expected.data().len() != actual.data().len() {
-        return Err(BunsenError::InvalidArgument {
-            msg: format!(
-                "StreamEvent data count ({:?}) != expected ({:?})",
-                expected.data().len(),
-                actual.data().len()
-            ),
-        });
-    }
-
-    if !actual
-        .data()
-        .iter()
-        .zip(expected.data().iter())
-        .all(|(a, e)| a.shape == e.shape)
-    {
-        return Err(BunsenError::InvalidArgument {
-            msg: format!(
-                "event data shapes do not match:\nactual: {:?}\nexpect: {:?}",
-                actual
-                    .data()
-                    .iter()
-                    .map(|d| d.shape.clone())
-                    .collect::<Vec<_>>(),
-                expected
-                    .data()
-                    .iter()
-                    .map(|d| d.shape.clone())
-                    .collect::<Vec<_>>()
-            ),
-        });
-    }
-
-    match expected.params() {
-        StreamEventParams::AssertEq { strict, .. } => {
-            assert_eq!(actual.data().len(), 1);
-            tensor_data_assert_eq(&actual.data()[0], &expected.data()[0], *strict)
-        }
-    }
-}
-
 /// Events for [`TensorDataTestStream`].
 #[derive(Debug, Clone)]
 pub struct StreamEventFrame {
@@ -217,94 +145,4 @@ pub trait OnStreamEvent {
         &mut self,
         event: &impl StreamEventFrameMeta,
     ) -> BunsenResult<()>;
-}
-
-impl<T: OnStreamEvent> TensorDataTestStream for T {}
-
-/// `TensorData` Test Stream.
-///
-/// Implementors take one of two roles:
-/// * a *recorder* appends each event to the stream;
-/// * a *verifier* compares each event against the next expected event.
-///
-/// The role is the implementation of [`handle_event`](`Self::handle_event`);
-/// the event constructors live on [`TensorDataTestStreamExt`], and are shared
-/// by both roles.
-pub trait TensorDataTestStream: OnStreamEvent {
-    /// Handle a stream event.
-    ///
-    /// # Arguments
-    /// * `params` - the [`StreamEventParams`] to handle.
-    /// * `data` - the [`TensorData`] to compare.
-    ///
-    /// # Panics and/or Err Returns
-    /// If the event does not match the expected event under verification.
-    fn handle_event(
-        &mut self,
-        meta: &EventMeta,
-        params: &StreamEventParams,
-        data: &[TensorData],
-    ) -> BunsenResult<()> {
-        let event = StreamEventFrameStub { meta, params, data };
-        <Self as OnStreamEvent>::on_stream_event(self, &event)
-    }
-}
-
-impl<T: ?Sized + TensorDataTestStream> TensorDataTestStreamExt for T {}
-
-/// `TensorData` Test Stream Extension
-pub trait TensorDataTestStreamExt: TensorDataTestStream {
-    /// [`TensorData`] equality; run over
-    /// [`handle_event`](`TensorDataTestStream::handle_event`).
-    ///
-    /// # Arguments
-    /// * `label` - Event Label.
-    /// * `data` - the [`TensorData`] to compare.
-    /// * `strict` - If true, the data types must the be same. Otherwise, the
-    ///   comparison is done in the current data type.
-    ///
-    /// # Panics and/or Err Returns
-    /// If the data or data types do not match under verification.
-    #[track_caller]
-    fn assert_eq(
-        &mut self,
-        label: &str,
-        data: &TensorData,
-        strict: bool,
-    ) -> BunsenResult<()> {
-        self.handle_event(
-            &EventMeta::new(label.to_string(), None),
-            &StreamEventParams::AssertEq { strict },
-            std::slice::from_ref(data),
-        )
-    }
-
-    /// [`Tensor`] equality; run over
-    /// [`assert_eq`](`TensorDataTestStreamExt::assert_eq`).
-    ///
-    /// Data is used as `tensor.to_data_as::<E>()`.
-    ///
-    /// # Arguments
-    /// * `label` - Event Label.
-    /// * `data` - the [`TensorData`] to compare.
-    /// * `strict` - If true, the data types must the be same. Otherwise, the
-    ///   comparison is done in the current data type.
-    ///
-    /// # Panics and/or Err Returns
-    /// If the data or data types do not match under verification.
-    #[track_caller]
-    fn assert_tensor_eq_as<B, const R: usize, K, E>(
-        &mut self,
-        label: &str,
-        tensor: &Tensor<B, R, K>,
-        strict: bool,
-    ) -> BunsenResult<()>
-    where
-        E: Element,
-        B: Backend,
-        K: BasicOps<B>,
-    {
-        let data = tensor.to_data_as::<E>();
-        self.assert_eq(label, &data, strict)
-    }
 }
