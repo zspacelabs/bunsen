@@ -87,62 +87,72 @@ pub trait StreamEventFrameMeta {
         }
     }
 
-    /// Compare this event (the expected) with actual parameters and data.
-    fn try_match(
+    /// Compare two stream events.
+    fn try_match<T: StreamEventFrameMeta + ?Sized>(
         &self,
-        actual: &impl StreamEventFrameMeta,
+        expected: &T,
     ) -> BunsenResult<()> {
-        self.meta().compare(actual.meta())?;
+        try_match_stream_events(self, expected)
+    }
+}
 
-        if self.params() != actual.params() {
-            return Err(BunsenError::InvalidArgument {
-                msg: format!(
-                    "StreamEvent params {:?} != expected {:?}",
-                    self.params(),
-                    actual.params()
-                ),
-            });
-        }
-        if self.data().len() != actual.data().len() {
-            return Err(BunsenError::InvalidArgument {
-                msg: format!(
-                    "StreamEvent data count ({:?}) != expected ({:?})",
-                    self.data().len(),
-                    actual.data().len()
-                ),
-            });
-        }
+/// Compare two stream events.
+pub fn try_match_stream_events<A, B>(
+    actual: &A,
+    expected: &B,
+) -> BunsenResult<()>
+where
+    A: StreamEventFrameMeta + ?Sized,
+    B: StreamEventFrameMeta + ?Sized,
+{
+    expected.meta().compare(actual.meta())?;
 
-        let expected_data: &[TensorData] = self.data().as_ref();
-        if !actual
-            .data()
-            .iter()
-            .zip(expected_data.iter())
-            .all(|(a, e)| a.shape == e.shape)
-        {
-            return Err(BunsenError::InvalidArgument {
-                msg: format!(
-                    "event data shapes do not match:\nactual: {:?}\nexpect: {:?}",
-                    actual
-                        .data()
-                        .iter()
-                        .map(|d| d.shape.clone())
-                        .collect::<Vec<_>>(),
-                    expected_data
-                        .iter()
-                        .map(|d| d.shape.clone())
-                        .collect::<Vec<_>>()
-                ),
-            });
-        }
+    if expected.params() != actual.params() {
+        return Err(BunsenError::InvalidArgument {
+            msg: format!(
+                "StreamEvent params {:?} != expected {:?}",
+                expected.params(),
+                actual.params()
+            ),
+        });
+    }
+    if expected.data().len() != actual.data().len() {
+        return Err(BunsenError::InvalidArgument {
+            msg: format!(
+                "StreamEvent data count ({:?}) != expected ({:?})",
+                expected.data().len(),
+                actual.data().len()
+            ),
+        });
+    }
 
-        match self.params() {
-            StreamEventParams::AssertEq { strict, .. } => {
-                assert_eq!(actual.data().len(), 1);
-                let actual = &actual.data()[0];
-                let expected = &expected_data[0];
-                tensor_data_assert_eq(expected, actual, *strict)
-            }
+    if !actual
+        .data()
+        .iter()
+        .zip(expected.data().iter())
+        .all(|(a, e)| a.shape == e.shape)
+    {
+        return Err(BunsenError::InvalidArgument {
+            msg: format!(
+                "event data shapes do not match:\nactual: {:?}\nexpect: {:?}",
+                actual
+                    .data()
+                    .iter()
+                    .map(|d| d.shape.clone())
+                    .collect::<Vec<_>>(),
+                expected
+                    .data()
+                    .iter()
+                    .map(|d| d.shape.clone())
+                    .collect::<Vec<_>>()
+            ),
+        });
+    }
+
+    match expected.params() {
+        StreamEventParams::AssertEq { strict, .. } => {
+            assert_eq!(actual.data().len(), 1);
+            tensor_data_assert_eq(&actual.data()[0], &expected.data()[0], *strict)
         }
     }
 }
@@ -205,9 +215,11 @@ pub trait OnStreamEvent {
     /// Handle a stream event.
     fn on_stream_event(
         &mut self,
-        event: impl StreamEventFrameMeta,
+        event: &impl StreamEventFrameMeta,
     ) -> BunsenResult<()>;
 }
+
+impl<T: OnStreamEvent> TensorDataTestStream for T {}
 
 /// `TensorData` Test Stream.
 ///
@@ -218,11 +230,7 @@ pub trait OnStreamEvent {
 /// The role is the implementation of [`handle_event`](`Self::handle_event`);
 /// the event constructors live on [`TensorDataTestStreamExt`], and are shared
 /// by both roles.
-///
-/// A type in a role implements [`StreamEventSink`] or
-/// [`StreamEventSource`], and forwards
-/// [`handle_event`](`Self::handle_event`) to it.
-pub trait TensorDataTestStream {
+pub trait TensorDataTestStream: OnStreamEvent {
     /// Handle a stream event.
     ///
     /// # Arguments
@@ -236,7 +244,10 @@ pub trait TensorDataTestStream {
         meta: &EventMeta,
         params: &StreamEventParams,
         data: &[TensorData],
-    ) -> BunsenResult<()>;
+    ) -> BunsenResult<()> {
+        let event = StreamEventFrameStub { meta, params, data };
+        <Self as OnStreamEvent>::on_stream_event(self, &event)
+    }
 }
 
 impl<T: ?Sized + TensorDataTestStream> TensorDataTestStreamExt for T {}
@@ -296,23 +307,4 @@ pub trait TensorDataTestStreamExt: TensorDataTestStream {
         let data = tensor.to_data_as::<E>();
         self.assert_eq(label, &data, strict)
     }
-}
-
-/// Trait for recording events in a [`TensorDataTestStream`].
-///
-/// No type may implement both this and [`StreamEventSource`].
-pub trait StreamEventSink {
-    /// Record an event in the stream.
-    fn write(
-        &mut self,
-        event: StreamEventFrame,
-    ) -> BunsenResult<()>;
-}
-
-/// Trait for verifying events in a [`TensorDataTestStream`].
-///
-/// No type may implement both this and [`StreamEventSink`].
-pub trait StreamEventSource {
-    /// Pop the next expected event from the stream.
-    fn read(&mut self) -> BunsenResult<&StreamEventFrame>;
 }

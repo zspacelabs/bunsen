@@ -1,15 +1,8 @@
-use burn::prelude::TensorData;
-
 use crate::{
     burner::testing::data_stream::{
-        EventMeta,
+        OnStreamEvent,
         StreamEventFrame,
         StreamEventFrameMeta,
-        StreamEventFrameStub,
-        StreamEventParams,
-        StreamEventSink,
-        StreamEventSource,
-        TensorDataTestStream,
     },
     prelude::*,
 };
@@ -33,28 +26,13 @@ impl From<TensorDataVecStreamRecorder> for TensorDataVecStreamVerifier {
     }
 }
 
-impl StreamEventSink for TensorDataVecStreamRecorder {
-    fn write(
+impl OnStreamEvent for TensorDataVecStreamRecorder {
+    fn on_stream_event(
         &mut self,
-        event: StreamEventFrame,
+        event: &impl StreamEventFrameMeta,
     ) -> BunsenResult<()> {
-        self.vec.push(event);
+        self.vec.push(event.to_owned());
         Ok(())
-    }
-}
-
-impl TensorDataTestStream for TensorDataVecStreamRecorder {
-    fn handle_event(
-        &mut self,
-        meta: &EventMeta,
-        params: &StreamEventParams,
-        data: &[TensorData],
-    ) -> BunsenResult<()> {
-        self.write(StreamEventFrame {
-            meta: meta.clone(),
-            params: params.clone(),
-            data: data.to_vec(),
-        })
     }
 }
 
@@ -70,9 +48,7 @@ impl TensorDataVecStreamVerifier {
     pub fn new(vec: Vec<StreamEventFrame>) -> Self {
         Self { vec, next: Some(0) }
     }
-}
 
-impl StreamEventSource for TensorDataVecStreamVerifier {
     /// Pop the next event from the stream.
     fn read(&mut self) -> BunsenResult<&StreamEventFrame> {
         match self.next {
@@ -90,15 +66,12 @@ impl StreamEventSource for TensorDataVecStreamVerifier {
     }
 }
 
-impl TensorDataTestStream for TensorDataVecStreamVerifier {
-    fn handle_event(
+impl OnStreamEvent for TensorDataVecStreamVerifier {
+    fn on_stream_event(
         &mut self,
-        meta: &EventMeta,
-        params: &StreamEventParams,
-        data: &[TensorData],
+        event: &impl StreamEventFrameMeta,
     ) -> BunsenResult<()> {
-        self.read()?
-            .try_match(&StreamEventFrameStub { meta, params, data })
+        event.try_match(self.read()?)
     }
 }
 
@@ -118,7 +91,7 @@ mod tests {
     #[test]
     #[serial_test::serial]
     fn test_stream() -> BunsenResult<()> {
-        fn example<B: Backend>(stream: &mut dyn TensorDataTestStream) -> BunsenResult<()> {
+        fn example<B: Backend>(stream: &mut impl TensorDataTestStream) -> BunsenResult<()> {
             let device = Default::default();
 
             let a = TensorData::from([1, 2]);
