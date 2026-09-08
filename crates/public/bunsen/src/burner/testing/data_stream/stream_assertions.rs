@@ -14,11 +14,11 @@ use burn::{
 
 use crate::{
     burner::testing::data_stream::{
-        EventMeta,
+        EventCommon,
+        EventParams,
         OnStreamEvent,
-        StreamEventFrameMeta,
-        StreamEventFrameStub,
-        StreamEventParams,
+        StreamEventMeta,
+        StreamEventStub,
     },
     errors::{
         BunsenError,
@@ -48,10 +48,10 @@ pub fn try_match_stream_events<A, B>(
     expected: &B,
 ) -> BunsenResult<()>
 where
-    A: StreamEventFrameMeta + ?Sized,
-    B: StreamEventFrameMeta + ?Sized,
+    A: StreamEventMeta + ?Sized,
+    B: StreamEventMeta + ?Sized,
 {
-    expected.meta().compare(actual.meta())?;
+    expected.common().compare(actual.common())?;
 
     if expected.params() != actual.params() {
         return Err(BunsenError::InvalidArgument {
@@ -96,7 +96,7 @@ where
     }
 
     match expected.params() {
-        StreamEventParams::AssertEq { strict, .. } => {
+        EventParams::AssertEq { strict, .. } => {
             assert_eq!(actual.data().len(), 1);
             tensor_data_assert_eq(&actual.data()[0], &expected.data()[0], *strict)
         }
@@ -110,19 +110,23 @@ pub trait TensorDataTestStream: OnStreamEvent {
     /// Handle a stream event.
     ///
     /// # Arguments
-    /// * `params` - the [`StreamEventParams`] to handle.
+    /// * `params` - the [`EventParams`] to handle.
     /// * `data` - the [`TensorData`] to compare.
     ///
     /// # Panics and/or Err Returns
     /// If the event does not match the expected event under verification.
     fn handle_event(
         &mut self,
-        meta: &EventMeta,
-        params: &StreamEventParams,
+        meta: &EventCommon,
+        params: &EventParams,
         data: &[TensorData],
         _location: &Location,
     ) -> BunsenResult<()> {
-        let event = StreamEventFrameStub { meta, params, data };
+        let event = StreamEventStub {
+            common: meta,
+            params,
+            data,
+        };
         <Self as OnStreamEvent>::on_stream_event(self, &event)
     }
 }
@@ -140,8 +144,8 @@ pub trait TensorDataTestStreamLocExt: TensorDataTestStream {
         location: &Location,
     ) -> BunsenResult<()> {
         self.handle_event(
-            &EventMeta::new(label.to_string(), None),
-            &StreamEventParams::AssertEq { strict },
+            &EventCommon::new(label.to_string(), None),
+            &EventParams::AssertEq { strict },
             std::slice::from_ref(data),
             location,
         )

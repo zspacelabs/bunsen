@@ -12,7 +12,7 @@ use crate::{
 
 /// Common metadata for all events.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct EventMeta {
+pub struct EventCommon {
     /// Event Label.
     label: String,
 
@@ -20,7 +20,7 @@ pub struct EventMeta {
     ts: Instant,
 }
 
-impl EventMeta {
+impl EventCommon {
     /// Create a new event meta.
     pub fn new(
         label: String,
@@ -35,7 +35,7 @@ impl EventMeta {
     /// Compare this event (the expected) with actual parameters and data.
     pub fn compare(
         &self,
-        other: &EventMeta,
+        other: &EventCommon,
     ) -> BunsenResult<()> {
         if self.label != other.label {
             return Err(BunsenError::InvalidArgument {
@@ -46,9 +46,9 @@ impl EventMeta {
     }
 }
 
-/// Events for [`TensorDataTestStream`].
+/// Event specific params for [`StreamEventFrame`].
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub enum StreamEventParams {
+pub enum EventParams {
     /// Event for [`TensorDataTestStreamExt::assert_eq`].
     AssertEq {
         /// Strict dtype comparison.
@@ -57,12 +57,12 @@ pub enum StreamEventParams {
 }
 
 /// Common access trait for [`StreamEventFrame`].
-pub trait StreamEventFrameMeta {
+pub trait StreamEventMeta {
     /// Common event metadata.
-    fn meta(&self) -> &EventMeta;
+    fn common(&self) -> &EventCommon;
 
     /// Event Parameters.
-    fn params(&self) -> &StreamEventParams;
+    fn params(&self) -> &EventParams;
 
     /// Event Data.
     fn data(&self) -> &[TensorData];
@@ -70,14 +70,14 @@ pub trait StreamEventFrameMeta {
     /// Copy the data into an owned [`StreamEventFrame`].
     fn to_owned(&self) -> StreamEventFrame {
         StreamEventFrame {
-            meta: self.meta().clone(),
+            common: self.common().clone(),
             params: self.params().clone(),
             data: self.data().to_vec(),
         }
     }
 
     /// Compare two stream events.
-    fn try_match<T: StreamEventFrameMeta + ?Sized>(
+    fn try_match<T: StreamEventMeta + ?Sized>(
         &self,
         expected: &T,
     ) -> BunsenResult<()> {
@@ -89,21 +89,21 @@ pub trait StreamEventFrameMeta {
 #[derive(Debug, Clone)]
 pub struct StreamEventFrame {
     /// Common event metadata.
-    pub meta: EventMeta,
+    pub common: EventCommon,
 
     /// Event Parameters.
-    pub params: StreamEventParams,
+    pub params: EventParams,
 
     /// Event Data.
     pub data: Vec<TensorData>,
 }
 
-impl StreamEventFrameMeta for StreamEventFrame {
-    fn meta(&self) -> &EventMeta {
-        &self.meta
+impl StreamEventMeta for StreamEventFrame {
+    fn common(&self) -> &EventCommon {
+        &self.common
     }
 
-    fn params(&self) -> &StreamEventParams {
+    fn params(&self) -> &EventParams {
         &self.params
     }
 
@@ -113,23 +113,23 @@ impl StreamEventFrameMeta for StreamEventFrame {
 }
 
 /// A [`StreamEventFrame`] stub.
-pub struct StreamEventFrameStub<'a> {
+pub struct StreamEventStub<'a> {
     /// Common event metadata.
-    pub meta: &'a EventMeta,
+    pub common: &'a EventCommon,
 
     /// Event Parameters.
-    pub params: &'a StreamEventParams,
+    pub params: &'a EventParams,
 
     /// Event Data.
     pub data: &'a [TensorData],
 }
 
-impl StreamEventFrameMeta for StreamEventFrameStub<'_> {
-    fn meta(&self) -> &EventMeta {
-        self.meta
+impl StreamEventMeta for StreamEventStub<'_> {
+    fn common(&self) -> &EventCommon {
+        self.common
     }
 
-    fn params(&self) -> &StreamEventParams {
+    fn params(&self) -> &EventParams {
         self.params
     }
 
@@ -143,6 +143,6 @@ pub trait OnStreamEvent {
     /// Handle a stream event.
     fn on_stream_event(
         &mut self,
-        event: &impl StreamEventFrameMeta,
+        event: &impl StreamEventMeta,
     ) -> BunsenResult<()>;
 }
