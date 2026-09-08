@@ -2,11 +2,14 @@ use burn::prelude::TensorData;
 
 use crate::{
     burner::testing::data_stream::{
+        EventMeta,
         StreamEventFrame,
+        StreamEventFrameMeta,
+        StreamEventFrameStub,
         StreamEventParams,
+        StreamEventSink,
+        StreamEventSource,
         TensorDataTestStream,
-        TensorDataTestStreamRecorder,
-        TensorDataTestStreamVerifier,
     },
     prelude::*,
 };
@@ -30,7 +33,7 @@ impl From<TensorDataVecStreamRecorder> for TensorDataVecStreamVerifier {
     }
 }
 
-impl TensorDataTestStreamRecorder for TensorDataVecStreamRecorder {
+impl StreamEventSink for TensorDataVecStreamRecorder {
     fn write(
         &mut self,
         event: StreamEventFrame,
@@ -43,10 +46,12 @@ impl TensorDataTestStreamRecorder for TensorDataVecStreamRecorder {
 impl TensorDataTestStream for TensorDataVecStreamRecorder {
     fn handle_event(
         &mut self,
+        meta: &EventMeta,
         params: &StreamEventParams,
         data: &[TensorData],
     ) -> BunsenResult<()> {
         self.write(StreamEventFrame {
+            meta: meta.clone(),
             params: params.clone(),
             data: data.to_vec(),
         })
@@ -67,7 +72,7 @@ impl TensorDataVecStreamVerifier {
     }
 }
 
-impl TensorDataTestStreamVerifier for TensorDataVecStreamVerifier {
+impl StreamEventSource for TensorDataVecStreamVerifier {
     /// Pop the next event from the stream.
     fn read(&mut self) -> BunsenResult<&StreamEventFrame> {
         match self.next {
@@ -88,10 +93,12 @@ impl TensorDataTestStreamVerifier for TensorDataVecStreamVerifier {
 impl TensorDataTestStream for TensorDataVecStreamVerifier {
     fn handle_event(
         &mut self,
+        meta: &EventMeta,
         params: &StreamEventParams,
         data: &[TensorData],
     ) -> BunsenResult<()> {
-        self.read()?.compare(params, data)
+        self.read()?
+            .try_match(&StreamEventFrameStub { meta, params, data })
     }
 }
 
