@@ -127,12 +127,12 @@ pub trait TensorDataTestStream: OnStreamEvent {
     }
 }
 
-impl<T: ?Sized + TensorDataTestStream> TensorDataTestStreamExt for T {}
+impl<T: ?Sized + TensorDataTestStream> TensorDataTestStreamLocExt for T {}
 
-/// `TensorData` Test Stream Extension
-pub trait TensorDataTestStreamExt: TensorDataTestStream {
+/// [`Location`]-aware base extension.
+pub trait TensorDataTestStreamLocExt: TensorDataTestStream {
     /// Location forwarding impl of [`assert_eq`](`Self::assert_eq`).
-    fn _assert_eq_loc(
+    fn loc_assert_eq(
         &mut self,
         label: &str,
         data: &TensorData,
@@ -146,7 +146,12 @@ pub trait TensorDataTestStreamExt: TensorDataTestStream {
             location,
         )
     }
+}
 
+impl<T: ?Sized + TensorDataTestStream> TensorDataTestStreamExt for T {}
+
+/// `TensorData` Test Stream Extension
+pub trait TensorDataTestStreamExt: TensorDataTestStream + TensorDataTestStreamLocExt {
     /// [`TensorData`] equality; run over
     /// [`handle_event`](`TensorDataTestStream::handle_event`).
     ///
@@ -165,7 +170,7 @@ pub trait TensorDataTestStreamExt: TensorDataTestStream {
         data: &TensorData,
         strict: bool,
     ) -> BunsenResult<()> {
-        self._assert_eq_loc(label, data, strict, Location::caller())
+        self.loc_assert_eq(label, data, strict, Location::caller())
     }
 
     /// [`Tensor`] equality; run over
@@ -194,6 +199,6 @@ pub trait TensorDataTestStreamExt: TensorDataTestStream {
         K: BasicOps<B>,
     {
         let data = tensor.to_data_as::<E>();
-        self._assert_eq_loc(label, &data, strict, Location::caller())
+        self.loc_assert_eq(label, &data, strict, Location::caller())
     }
 }
