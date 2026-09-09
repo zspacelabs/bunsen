@@ -25,6 +25,10 @@ cfg_select! {
         /// Selected burn backend for compute-heavy tests.
         pub type PerformanceBackend = ::burn::backend::Metal;
     }
+    feature = "vulkan" => {
+        /// Selected burn backend for compute-heavy tests.
+        pub type PerformanceBackend = ::burn::backend::Vulkan;
+    }
     feature = "wgpu" => {
         /// Selected burn backend for compute-heavy tests.
         pub type PerformanceBackend = ::burn::backend::Wgpu;

@@ -141,7 +141,13 @@ cuda = ["burn/cuda"]
 ## can still use those backends with bunsen; only bunse specific features will
 ## be disabled.
 metal = ["burn/metal"]
-## Enable the cuda backend in the bunsen build.
+## Enable the vulkan backend in the bunsen build.
+## This will impact the bunsen::support::testing::PerformanceBackend choice.
+## Dependents which enable backends for burn without enabling them for bunsen
+## can still use those backends with bunsen; only bunse specific features will
+## be disabled.
+vulkan = ["burn/vulkan"]
+## Enable the wgpu backend in the bunsen build.
 ## This will impact the bunsen::support::testing::PerformanceBackend choice.
 ## Dependents which enable backends for burn without enabling them for bunsen
 ## can still use those backends with bunsen; only bunse specific features will
