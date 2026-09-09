@@ -98,6 +98,10 @@ fn main() {
             println!("Metal enabled");
             run::<burn::backend::Metal<burn::tensor::f16, i8>>(&args);
         }
+        feature = "vulkan" => {
+            println!("Vulkan enabled");
+            run::<burn::backend::Vulkan<burn::tensor::f16>>(&args);
+        }
         feature = "wgpu" => {
             println!("WGPU enabled");
             run::<burn::backend::Wgpu<burn::tensor::f16>>(&args);

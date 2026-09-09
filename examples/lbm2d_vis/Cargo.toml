@@ -12,12 +12,13 @@ workspace = true
 default = ["flex"]
 cuda = ["burn/cuda"]
 metal = ["burn/metal"]
+vulkan = ["burn/vulkan"]
 wgpu = ["burn/wgpu"]
 flex = ["burn/flex"]
 
 
 [dependencies]
-burn = { workspace = true, features = ["fusion", "autotune"] }
+burn = { workspace = true, features = ["fusion"] }
 bunsen = { path = "../../crates/public/bunsen" }
 
 clap = { workspace = true, features = ["derive"] }

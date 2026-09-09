@@ -108,6 +108,10 @@ fn main() {
             println!("Metal enabled");
             run::<burn::backend::Metal<f32, i32>>(&args, DType::F32);
         }
+        feature = "vulkan" => {
+            println!("Vulkan enabled");
+            run::<burn::backend::Vulkan>(&args, DType::F32);
+        }
         feature = "wgpu" => {
             println!("WGPU enabled");
             run::<burn::backend::Wgpu<f32, i32>>(&args, DType::F32);
