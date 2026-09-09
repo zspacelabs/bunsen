@@ -5,6 +5,18 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and this project adheres
 to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.33.0](https://github.com/zspacelabs/bunsen/compare/bunsen-v0.32.0...bunsen-v0.33.0) - 2026-09-09
+
+### Added
+
+- *(vulkan, update)* vulkan + cargo update ([#188](https://github.com/zspacelabs/bunsen/pull/188))
+- *(bunsen)* introduce dtype inspection and boundary casting for Whi… ([#186](https://github.com/zspacelabs/bunsen/pull/186))
+- *(TensorDataTestStream)* initial work on TensorData record/verifier stream. ([#184](https://github.com/zspacelabs/bunsen/pull/184))
+
+### Other
+
+- crutcher/ts ([#185](https://github.com/zspacelabs/bunsen/pull/185))
+
 ## [0.32.0](https://github.com/zspacelabs/bunsen/compare/bunsen-v0.31.0...bunsen-v0.32.0) - 2026-09-07
 
 ### Added
