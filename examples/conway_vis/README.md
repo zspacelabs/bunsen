@@ -24,11 +24,18 @@ and streaming its `TensorData` out for display.
 
 Select `BACKEND` from:
 
-* `wgpu` - web-gpu backend.
 * `cuda` - nvidia backend.
 * `metal` - apple backend.
+* `vulkan` - vulkan backend.
+* `wgpu` - wgpu backend.
 * `flex` - cpu backend.
 
 ```bash
 $ cargo run --release -p conway_vis --features BACKEND
+```
+
+## Running the Example w/Autotune
+
+```bash
+$ cargo run --release -p conway_vis --features BACKEND,burn/autotune
 ```

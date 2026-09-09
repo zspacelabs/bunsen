@@ -4,6 +4,20 @@ publish = false
 edition.workspace = true
 rust-version.workspace = true
 
+
+[lints]
+workspace = true
+
+
+[features]
+default = ["flex"]
+cuda = ["burn/cuda"]
+metal = ["burn/metal"]
+vulkan = ["burn/vulkan"]
+wgpu = ["burn/wgpu"]
+flex = ["burn/flex"]
+
+
 [dependencies]
 burn = { workspace = true, features = ["fusion"] }
 bunsen = { path = "../../crates/public/bunsen" }
@@ -17,12 +31,3 @@ pistoncore-glutin_window = { workspace = true }
 piston2d-opengl_graphics = { workspace = true }
 gl = { workspace = true }
 
-[lints]
-workspace = true
-
-[features]
-default = ["flex"]
-cuda = ["burn/cuda"]
-metal = ["burn/metal"]
-wgpu = ["burn/wgpu"]
-flex = ["burn/flex"]
