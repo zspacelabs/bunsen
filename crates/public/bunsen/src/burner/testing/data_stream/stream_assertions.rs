@@ -135,7 +135,7 @@ impl<T: ?Sized + TensorDataTestStream> TensorDataTestStreamLocExt for T {}
 
 /// [`Location`]-aware base extension.
 pub trait TensorDataTestStreamLocExt: TensorDataTestStream {
-    /// Location forwarding impl of [`assert_eq`](`Self::assert_eq`).
+    /// Location forwarding impl of `assert_eq`.
     fn loc_assert_eq(
         &mut self,
         label: &str,

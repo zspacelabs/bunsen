@@ -49,7 +49,7 @@ impl EventCommon {
 /// Event specific params for [`StreamEventFrame`].
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum EventParams {
-    /// Event for [`TensorDataTestStreamExt::assert_eq`].
+    /// `assert_eq` event.
     AssertEq {
         /// Strict dtype comparison.
         strict: bool,
@@ -85,7 +85,7 @@ pub trait StreamEventMeta {
     }
 }
 
-/// Events for [`TensorDataTestStream`].
+/// Tensor stream events.
 #[derive(Debug, Clone)]
 pub struct StreamEventFrame {
     /// Common event metadata.

@@ -7,14 +7,14 @@ use crate::{
     prelude::*,
 };
 
-/// [`TensorDataTestStream`] recorder for [`Vec<StreamEventFrame>`].
+/// Tensor stream event recorder.
 #[derive(Default, Debug, Clone)]
 pub struct TensorDataVecStreamRecorder {
     vec: Vec<StreamEventFrame>,
 }
 
 impl TensorDataVecStreamRecorder {
-    ///  [`TensorDataTestStream`] verifier for [`Vec<StreamEventFrame>`].
+    /// Build a new verifier from the recorded events.
     pub fn verifier(&self) -> TensorDataVecStreamVerifier {
         TensorDataVecStreamVerifier::new(self.vec.clone())
     }
@@ -36,7 +36,7 @@ impl OnStreamEvent for TensorDataVecStreamRecorder {
     }
 }
 
-///  [`TensorDataTestStream`] verifier for [`Vec<StreamEventFrame>`].
+/// Tensor stream event verifier.
 pub struct TensorDataVecStreamVerifier {
     vec: Vec<StreamEventFrame>,
 
