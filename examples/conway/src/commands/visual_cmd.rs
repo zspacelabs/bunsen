@@ -109,14 +109,12 @@ impl VisualCmd {
         // Change this to OpenGL::V2_1 if not working.
         let opengl = OpenGL::V3_2;
 
-        let self1 = &self.sim.grid;
-        let height = self1.grid_shape.height;
-        let self2 = &self.sim.grid;
-        let width = self2.grid_shape.width;
+        let height = self.sim.grid.grid_shape.height;
+        let width = self.sim.grid.grid_shape.width;
 
         // Create a Glutin window.
         let mut window: GlutinWindow = WindowSettings::new(
-            format!("conway's game of life {width}x{height}"),
+            format!("Conway's Game of Life: {width}x{height}"),
             [width as f64 / self.zoom, height as f64 / self.zoom],
         )
         .graphics_api(opengl)
