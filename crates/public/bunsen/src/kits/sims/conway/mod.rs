@@ -2,4 +2,5 @@
 
 pub mod life2d;
 pub mod life3d;
-pub(crate) mod range_util;
+pub mod ops;
+pub mod util;

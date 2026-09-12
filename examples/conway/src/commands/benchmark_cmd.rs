@@ -1,33 +1,27 @@
-use std::{
-    env::args,
-    time::{
-        Duration,
-        Instant,
-    },
+use std::time::{
+    Duration,
+    Instant,
 };
 
 use bunsen::{
     errors::BunsenResult,
-    kits::sims::{
-        conway,
-        conway::{
-            life2d::{
-                ConwayLife2DConfig,
-                ConwayLife2DState,
-            },
-            life3d::{
-                ConwayLife3DConfig,
-                ConwayLife3DState,
-                LifeRules,
-            },
+    kits::sims::conway::{
+        life2d::{
+            ConwayLife2DConfig,
+            ConwayLife2DState,
+        },
+        life3d::{
+            ConwayLife3DConfig,
+            ConwayLife3DState,
+        },
+        util::{
+            ConwayRules,
+            ConwaySim,
         },
     },
     support::geometry::GridShape2D,
 };
-use burn::prelude::{
-    Backend,
-    s,
-};
+use burn::prelude::Backend;
 use clap::Parser;
 use clap_common::logging::LogArgs;
 use indicatif::ProgressBar;
@@ -50,7 +44,7 @@ pub struct BenchmarkCmd {
     pub dims: usize,
 
     /// The number of steps to run.
-    #[arg(long, default_value_t = 10_000)]
+    #[arg(long, default_value_t = 1000)]
     pub steps: usize,
 
     /// Initial fuzz factor for randomizing state.
@@ -106,7 +100,7 @@ impl BenchmarkCmd {
 
         let mut sim: ConwayLife3DState<B> = ConwayLife3DConfig {
             shape: shape3d,
-            rules: LifeRules::default(),
+            rules: ConwayRules::default(),
         }
         .init(device);
         sim.fuzz(self.initial_fuzz);

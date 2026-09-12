@@ -14,9 +14,12 @@ use std::{
 
 use bunsen::{
     errors::BunsenResult,
-    kits::sims::conway::life2d::{
-        ConwayLife2DConfig,
-        ConwayLife2DState,
+    kits::sims::conway::{
+        life2d::{
+            ConwayLife2DConfig,
+            ConwayLife2DState,
+        },
+        util::ConwaySim,
     },
     prelude::TensorElemOpExt,
     zspace::ravel_dims,

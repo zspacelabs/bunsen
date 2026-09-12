@@ -18,7 +18,7 @@ boolean state tensor:
   $\text{H} \times \text{W}$ board.
 - `life3d` &mdash; a 3D generalization over an
   $\text{H} \times \text{W} \times \text{Z}$ board, with a configurable
-  spawn/survive ruleset (`LifeRules`).
+  spawn/survive ruleset (`ConwayRules`).
 
 Both expose an `next_interior_*` step kernel that takes the current
 state and produces the next interior state, plus padding-aware wrappers

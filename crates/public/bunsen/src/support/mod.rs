@@ -13,5 +13,7 @@ pub mod testing;
 pub mod audio;
 
 mod clone_box;
+pub mod range_util;
+
 #[doc(inline)]
 pub use clone_box::*;
