@@ -229,8 +229,7 @@ library; while also collecting a working edge of problems which could and should
 
 See [`examples`](examples) for the full index. At a glance:
 
-* [`conway_benchmark`](examples/conway_benchmark) — headless Game of Life (2D/3D) throughput benchmark.
-* [`conway_vis`](examples/conway_vis) — real-time OpenGL Game of Life visualization.
+* [`conway`](examples/conway) — Conway's Game of Life : visual and benchmark.
 * [`lbm2d_vis`](examples/lbm2d_vis) — real-time 2D Lattice Boltzmann fluid-flow visualization.
 * [`resnet_finetune`](examples/resnet_finetune) — fine-tune a pretrained ResNet with model surgery.
 * [`resnet_tiny`](examples/resnet_tiny) — train a ResNet from scratch on CINIC-10 via a firehose pipeline.

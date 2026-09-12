@@ -1,5 +1,5 @@
 [package]
-name = "conway_vis"
+name = "conway"
 publish = false
 edition.workspace = true
 rust-version.workspace = true
@@ -19,10 +19,13 @@ flex = ["burn/flex"]
 
 
 [dependencies]
-burn = { workspace = true, features = ["fusion"] }
+burn = { workspace = true, features = ["fusion", "autotune"] }
 bunsen = { path = "../../crates/public/bunsen" }
 
+log = { workspace = true }
+clap-common = { path = "../../crates/dev/clap-common" }
 clap = { workspace = true, features = ["derive"] }
+
 indicatif = { workspace = true }
 
 piston = { workspace = true }

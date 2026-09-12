@@ -16,9 +16,12 @@ use burn::{
     },
 };
 
-use crate::prelude::{
-    TensorBoolOpExt,
-    TensorElemOpExt,
+use crate::{
+    prelude::{
+        TensorBoolOpExt,
+        TensorElemOpExt,
+    },
+    support::geometry::GridShape2D,
 };
 
 /// Fuzzes the state.
@@ -155,7 +158,7 @@ pub fn next_interior_2d<B: Backend>(state: Tensor<B, 2, Bool>) -> Tensor<B, 2, B
 #[derive(Config, Debug)]
 pub struct ConwayLife2DConfig {
     /// The shape of the board.
-    pub shape: [usize; 2],
+    pub shape: GridShape2D,
 }
 
 impl ConwayLife2DConfig {
@@ -165,7 +168,8 @@ impl ConwayLife2DConfig {
         device: &B::Device,
     ) -> ConwayLife2DState<B> {
         ConwayLife2DState {
-            state: Tensor::<B, 2, Int>::zeros(self.shape, device).bool(),
+            shape: self.shape,
+            state: Tensor::<B, 2, Int>::zeros(self.shape.as_height_width(), device).bool(),
         }
     }
 }
@@ -179,6 +183,9 @@ impl ConwayLife2DConfig {
 ///
 /// Built by [`ConwayLife2DConfig`].
 pub struct ConwayLife2DState<B: Backend> {
+    /// The shape of the board.
+    pub shape: GridShape2D,
+
     /// The current state of the board.
     pub state: Tensor<B, 2, Bool>,
 }
@@ -187,11 +194,6 @@ impl<B: Backend> ConwayLife2DState<B> {
     /// Returns the device the module is on.
     pub fn device(&self) -> B::Device {
         self.state.device()
-    }
-
-    /// Returns the board shape.
-    pub fn shape(&self) -> [usize; 2] {
-        self.state.shape().dims()
     }
 
     /// Adds uniform positive noise to the board.
@@ -273,7 +275,7 @@ mod tests {
         let grid_size = 20;
 
         let config = ConwayLife2DConfig {
-            shape: [grid_size, grid_size],
+            shape: GridShape2D::square(grid_size),
         };
         let mut game: ConwayLife2DState<B> = config.init(&device);
         game.fuzz(0.05);
@@ -288,7 +290,9 @@ mod tests {
     fn test_logic() {
         type B = PerformanceBackend;
         let device = Default::default();
-        let config = ConwayLife2DConfig { shape: [5, 5] };
+        let config = ConwayLife2DConfig {
+            shape: GridShape2D::square(5),
+        };
         let mut conway: ConwayLife2DState<B> = config.init(&device);
 
         assert_eq!(

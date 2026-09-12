@@ -2,6 +2,7 @@
 //! # Bunsen / Client Support Utilities
 
 pub mod arrays;
+pub mod geometry;
 pub mod math;
 pub mod validators;
 

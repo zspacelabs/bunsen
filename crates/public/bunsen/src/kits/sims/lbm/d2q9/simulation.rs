@@ -21,25 +21,18 @@ use super::{
     outflow_clipping_stream,
     with_spherical_reflection,
 };
-use crate::burner::{
-    module::HasDType,
-    tensor::TensorOpExt,
+use crate::{
+    burner::{
+        module::HasDType,
+        tensor::TensorOpExt,
+    },
+    support::geometry::GridShape2D,
 };
 
 /// Introspection trait for [`LBMD2Q9State`]
 pub trait LBMMeta {
     /// Returns the shape of the simulation: `[HEIGHT, WIDTH]`.
-    fn shape(&self) -> [usize; 2];
-
-    /// Returns the height of the simulation.
-    fn height(&self) -> usize {
-        self.shape()[0]
-    }
-
-    /// Returns the width of the simulation.
-    fn width(&self) -> usize {
-        self.shape()[1]
-    }
+    fn shape(&self) -> GridShape2D;
 }
 
 /// Config for [`LBMD2Q9State`]
@@ -49,8 +42,8 @@ pub trait LBMMeta {
 /// advanced step by step. Implements [`LBMMeta`].
 #[derive(Config, Debug)]
 pub struct LBMD2Q9Config {
-    /// The shape of the simulation: `[HEIGHT, WIDTH]`
-    pub shape: [usize; 2],
+    /// The shape of the simulation.
+    pub shape: GridShape2D,
 
     /// Relaxation Param
     #[config(default = "RelaxationParam::Tau(0.5)")]
@@ -58,7 +51,7 @@ pub struct LBMD2Q9Config {
 }
 
 impl LBMMeta for LBMD2Q9Config {
-    fn shape(&self) -> [usize; 2] {
+    fn shape(&self) -> GridShape2D {
         self.shape
     }
 }
@@ -70,7 +63,8 @@ impl LBMD2Q9Config {
         device: &B::Device,
         rho: f64,
     ) -> LBMD2Q9State<B> {
-        let [height, width] = self.shape;
+        let height = self.shape.height;
+        let width = self.shape.width;
 
         let solid_mask = Tensor::<B, 2>::zeros([height, width], device).bool();
 
@@ -93,6 +87,7 @@ impl LBMD2Q9Config {
             Tensor::<B, 2>::ones([height, width], device) * self.relaxation.as_omega_value();
 
         LBMD2Q9State {
+            shape: self.shape,
             step_count: 0,
             dist: state,
             correct_total_mass: total_mass,
@@ -114,6 +109,9 @@ impl LBMD2Q9Config {
 /// Built by [`LBMD2Q9Config`].
 #[derive(Module, Debug)]
 pub struct LBMD2Q9State<B: Backend> {
+    /// The grid shape.
+    pub shape: GridShape2D,
+
     /// The current simulation step.
     pub step_count: u64,
 
@@ -136,9 +134,8 @@ pub struct LBMD2Q9State<B: Backend> {
 }
 
 impl<B: Backend> LBMMeta for LBMD2Q9State<B> {
-    fn shape(&self) -> [usize; 2] {
-        let [h, w, _, _] = self.dist.dims();
-        [h, w]
+    fn shape(&self) -> GridShape2D {
+        self.shape
     }
 }
 

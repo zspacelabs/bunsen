@@ -1,4 +1,3 @@
-#![allow(unused)]
 use std::{
     sync::{
         Arc,
@@ -14,59 +13,48 @@ use std::{
 };
 
 use bunsen::{
+    errors::BunsenResult,
     kits::sims::conway::life2d::{
         ConwayLife2DConfig,
         ConwayLife2DState,
     },
-    prelude::{
-        TensorElemOpExt,
-        TensorOpExt,
-    },
-    support::validators::parse_grid_shape,
+    prelude::TensorElemOpExt,
     zspace::ravel_dims,
 };
-use burn::prelude::{
-    Backend,
-    TensorData,
+use burn::{
+    backend::flex::ops::unary::log,
+    prelude::{
+        Backend,
+        TensorData,
+    },
 };
-use clap::Parser;
-use glutin_window::GlutinWindow as Window;
-use indicatif::ProgressBar;
-use opengl_graphics::{
-    GlGraphics,
+use clap_common::logging::LogArgs;
+use glutin_window::{
+    GlutinWindow,
     OpenGL,
 };
+use indicatif::ProgressBar;
+use opengl_graphics::GlGraphics;
 use piston::{
     EventLoop,
+    EventSettings,
+    Events,
     OpenGLWindow,
     RenderArgs,
-    event_loop::{
-        EventSettings,
-        Events,
-    },
-    input::RenderEvent,
-    window::WindowSettings,
+    RenderEvent,
+    WindowSettings,
 };
 
-/// Conway's Game of Life demo for Burn.
-#[derive(Parser, Debug)]
-#[command(long_about = None)]
-pub struct Args {
-    /// The grid shape as `HEIGHT,WIDTH`, or `SIZE`.
-    #[arg(long, value_parser=parse_grid_shape, default_value="1200")]
-    pub grid_shape: [usize; 2],
+use crate::sim::SimArgs;
 
-    /// The number of steps to skip on init.
-    #[arg(long, default_value_t = 10)]
-    pub init_skip_steps: usize,
+/// Visualize Conway's Game of Life.
+#[derive(clap::Args, Debug)]
+pub struct VisualCmd {
+    #[clap(flatten)]
+    pub logging: LogArgs,
 
-    /// The initial density of the grid.
-    #[arg(long, default_value_t = 0.1)]
-    pub initial_density: f64,
-
-    /// The noise to apply to the grid on each step.
-    #[arg(long, default_value_t = 0.0001)]
-    pub update_noise: f64,
+    #[clap(flatten)]
+    pub sim: SimArgs,
 
     /// The frames per second.
     #[arg(long, default_value_t = 60)]
@@ -85,102 +73,80 @@ pub struct Args {
     pub opacity: f32,
 }
 
-fn main() {
-    let args = Args::parse();
-    println!("{:#?}", args);
+impl VisualCmd {
+    pub fn run<B: Backend>(&self) -> BunsenResult<()> {
+        let device = Default::default();
 
-    cfg_select! {
-        feature = "cuda" => {
-            println!("CUDA enabled");
-            run::<burn::backend::Cuda<burn::tensor::f16, i8>>(&args);
-        }
-        feature = "metal" => {
-            println!("Metal enabled");
-            run::<burn::backend::Metal<burn::tensor::f16, i8>>(&args);
-        }
-        feature = "vulkan" => {
-            println!("Vulkan enabled");
-            run::<burn::backend::Vulkan<burn::tensor::f16>>(&args);
-        }
-        feature = "wgpu" => {
-            println!("WGPU enabled");
-            run::<burn::backend::Wgpu<burn::tensor::f16>>(&args);
-        }
-        feature = "flex" => {
-            println!("Flex enabled");
-            run::<burn::backend::Flex>(&args);
-        }
-        _ => {
-            complie_error!("No backend selected");
-        }
-    }
-}
+        self.logging.init(None);
+        log::info!("Running Conway's Game of Life simulation...");
+        log::info!("{self:#?}");
 
-fn run<B: Backend>(args: &Args) {
-    let device = Default::default();
-
-    let mut conway: ConwayLife2DState<B> = ConwayLife2DConfig::new(args.grid_shape).init(&device);
-    conway.fuzz(args.initial_density);
-    conway.step();
-
-    for _ in 0..args.init_skip_steps {
-        conway.fuzz(args.update_noise);
+        let mut conway: ConwayLife2DState<B> =
+            ConwayLife2DConfig::new(self.sim.grid.grid_shape).init(&device);
+        conway.fuzz(self.sim.initial_density);
         conway.step();
-    }
 
-    let tic_duration = if args.tps == 0.0 {
-        None
-    } else {
-        Some(std::time::Duration::from_secs_f32(1.0 / args.tps))
-    };
-    let export_duration = std::time::Duration::from_secs_f32(1.0 / args.fps as f32);
-
-    let export_duration = if let Some(tic_duration) = tic_duration {
-        std::cmp::max(export_duration, tic_duration)
-    } else {
-        export_duration
-    };
-
-    let sim = Simulation::new(conway, args.update_noise, tic_duration, export_duration);
-
-    // Change this to OpenGL::V2_1 if not working.
-    let opengl = OpenGL::V3_2;
-
-    let [height, width] = args.grid_shape;
-
-    // Create a Glutin window.
-    let mut window: Window = WindowSettings::new(
-        format!("conway's game of life {height}x{width}"),
-        [
-            args.grid_shape[1] as f64 * args.zoom,
-            args.grid_shape[0] as f64 * args.zoom,
-        ],
-    )
-    .graphics_api(opengl)
-    .exit_on_esc(true)
-    .build()
-    .unwrap();
-
-    // Load the OpenGL function pointers
-    gl::load_with(|s| window.get_proc_address(s) as *const _);
-
-    // Create a new game and run it.
-    let mut app = FishbowlApp {
-        gl: GlGraphics::new(opengl),
-        last_frame: sim.last_frame.clone(),
-        opacity: args.opacity,
-    };
-
-    let mut events = Events::new(EventSettings::new());
-    events.set_ups(args.fps);
-
-    while let Some(e) = events.next(&mut window) {
-        if let Some(args) = e.render_args() {
-            app.render(&args);
+        for _ in 0..self.sim.init_skip_steps {
+            conway.fuzz(self.sim.update_noise);
+            conway.step();
         }
-    }
 
-    sim.shutdown();
+        let tic_duration = if self.tps == 0.0 {
+            None
+        } else {
+            Some(Duration::from_secs_f32(1.0 / self.tps))
+        };
+        let export_duration = Duration::from_secs_f32(1.0 / self.fps as f32);
+
+        let export_duration = if let Some(tic_duration) = tic_duration {
+            std::cmp::max(export_duration, tic_duration)
+        } else {
+            export_duration
+        };
+
+        let sim = Simulation::new(conway, self.sim.update_noise, tic_duration, export_duration);
+
+        // Change this to OpenGL::V2_1 if not working.
+        let opengl = OpenGL::V3_2;
+
+        let self1 = &self.sim.grid;
+        let height = self1.grid_shape.height;
+        let self2 = &self.sim.grid;
+        let width = self2.grid_shape.width;
+
+        // Create a Glutin window.
+        let mut window: GlutinWindow = WindowSettings::new(
+            format!("conway's game of life {width}x{height}"),
+            [width as f64 / self.zoom, height as f64 / self.zoom],
+        )
+        .graphics_api(opengl)
+        .exit_on_esc(true)
+        .build()
+        .unwrap();
+
+        // Load the OpenGL function pointers
+        gl::load_with(|s| window.get_proc_address(s) as *const _);
+
+        // Create a new game and run it.
+        let mut app = FishbowlApp {
+            gl: GlGraphics::new(opengl),
+            last_frame: sim.last_frame.clone(),
+            opacity: self.opacity,
+        };
+
+        let mut events = Events::new(EventSettings::new());
+        events.set_ups(self.fps);
+
+        while let Some(e) = events.next(&mut window) {
+            if let Some(args) = e.render_args() {
+                app.render(&args);
+            }
+        }
+
+        sim.shutdown();
+
+        Ok(())
+    }
 }
 
 pub struct FishbowlApp {

@@ -33,7 +33,7 @@ attention, embeddings, and module initialization.
 - **Single unified workspace** — removed the nested per-demo sub-workspaces (`demos/bimm`, `demos/chat`, `demos/sims`),
   each of which carried its own
   `Cargo.toml` / `Cargo.lock` / `Makefile.toml`. All runnable binaries now live under a single top-level `examples/`
-  directory: `conway_vis`, `conway_benchmark`, `lbm2d_vis`,
+  directory: `conway`, `conway_benchmark`, `lbm2d_vis`,
   `resnet_tiny`, `resnet_finetune`, `swin_tiny`, `train-chat`, `zsl-data-cache`, and
   `whisper-dev` (#33, #41).
 - **Dropout / DropBlock modularized** — `ops::drop` became a module with a dedicated

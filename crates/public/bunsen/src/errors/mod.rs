@@ -10,7 +10,7 @@ use burn::{
 pub use result_ext::*;
 
 /// Common bunsen error type.
-#[derive(Debug, Clone, thiserror::Error)]
+#[derive(Debug, Clone, thiserror::Error, PartialEq)]
 pub enum BunsenError {
     /// Resource not found.
     #[error("{0}")]
@@ -64,7 +64,7 @@ impl BunsenError {
 pub type BunsenResult<T> = core::result::Result<T, BunsenError>;
 
 /// Errors that can occur when checking tensor slices.
-#[derive(Debug, Clone, thiserror::Error)]
+#[derive(Debug, Clone, thiserror::Error, PartialEq)]
 pub enum SlicingError {
     /// Out of bounds.
     #[error("out of bounds: {msg}\nshape: {shape}\nslices: {slices:?}")]

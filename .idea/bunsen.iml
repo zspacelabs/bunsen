@@ -17,7 +17,6 @@
       <sourceFolder url="file://$MODULE_DIR$/demos/sims/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/crates/wc-disk-cache/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/examples/conway_benchmark/src" isTestSource="false" />
-      <sourceFolder url="file://$MODULE_DIR$/examples/conway_vis/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/examples/lbm2d_vis/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/examples/resnet_finetune/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/examples/resnet_tiny/src" isTestSource="false" />
@@ -41,6 +40,7 @@
       <sourceFolder url="file://$MODULE_DIR$/crates/dev/burn-rmexp-dyntensor/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/crates/dev/tensor-library-exp/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/crates/dev/clap-common/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/examples/conway/src" isTestSource="false" />
       <excludeFolder url="file://$MODULE_DIR$/crates/public/bunsen/target" />
       <excludeFolder url="file://$MODULE_DIR$/target" />
       <excludeFolder url="file://$MODULE_DIR$/demos/bimm/crates/bimm/target" />

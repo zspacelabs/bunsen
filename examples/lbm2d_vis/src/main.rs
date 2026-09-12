@@ -29,7 +29,7 @@ use bunsen::{
         TensorElemOpExt,
         TensorOpExt,
     },
-    support::validators::parse_grid_shape,
+    support::geometry::GridShape2D,
 };
 use burn::{
     Tensor,
@@ -66,9 +66,9 @@ use rand::RngExt;
 #[derive(Parser, Debug)]
 #[command(long_about = None)]
 pub struct Args {
-    /// The grid shape as `HEIGHT,WIDTH`, or `SIZE`.
-    #[arg(long, value_parser=parse_grid_shape, default_value="400")]
-    pub grid_shape: [usize; 2],
+    /// The grid shape as `[ WIDTH, HEIGHT ]`, or `X` => `[X, X]`.
+    #[arg(long, default_value = "400")]
+    pub grid_shape: GridShape2D,
 
     /// The max frames per second.
     #[arg(long, default_value_t = 60)]
@@ -135,7 +135,8 @@ fn run<B: Backend>(
     // Change this to OpenGL::V2_1 if not working.
     let opengl = OpenGL::V3_2;
 
-    let [height, width] = args.grid_shape;
+    let height = args.grid_shape.height;
+    let width = args.grid_shape.width;
 
     let background_density = SPEED_OF_SOUND / 100.0;
 
@@ -247,7 +248,10 @@ impl Simulation {
         F: FnMut(usize, Tensor<B, 4>) + Send + 'static,
     {
         let shutdown = Arc::new(AtomicBool::new(false));
-        let [height, width] = world.shape();
+
+        let shape = world.shape;
+        let height = shape.height;
+        let width = shape.width;
 
         let shutdown_clone = shutdown.clone();
 
