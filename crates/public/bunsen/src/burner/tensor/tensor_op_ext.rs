@@ -5,6 +5,7 @@ use burn::{
     prelude::{
         Backend,
         ElementConversion,
+        SliceArg,
         TensorData,
     },
     tensor::{
@@ -43,6 +44,13 @@ where
         dim: impl AsIndex,
         index: impl AsIndex,
     ) -> Tensor<B, D2, K>;
+
+    /// Copy an internal slice from `from` to `to`.
+    fn copy_slice<S1: SliceArg, S2: SliceArg>(
+        self,
+        to: S1,
+        from: S2,
+    ) -> Tensor<B, D, K>;
 }
 
 impl<B, const D: usize, K> TensorOpExt<B, D, K> for Tensor<B, D, K>
@@ -71,6 +79,15 @@ where
         let dim = dim.expect_dim_index(D);
         let index = index.as_index();
         self.slice_dim(dim, index).squeeze_dim::<D2>(dim)
+    }
+
+    fn copy_slice<S1: SliceArg, S2: SliceArg>(
+        self,
+        to: S1,
+        from: S2,
+    ) -> Tensor<B, D, K> {
+        let tmp = self.clone().slice(from);
+        self.slice_assign(to, tmp)
     }
 }
 

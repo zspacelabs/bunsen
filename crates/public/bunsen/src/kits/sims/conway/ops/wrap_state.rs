@@ -9,6 +9,8 @@ use burn::{
     tensor::BasicOps,
 };
 
+use crate::prelude::TensorOpExt;
+
 /// Wraps the board state.
 ///
 /// This simulates a toroidal space by copying the penultimate rows and columns
@@ -18,19 +20,11 @@ where
     B: Backend,
     K: BasicOps<B>,
 {
-    let tmp = state.clone().slice(s![1, ..]);
-    let state = state.slice_assign(s![-1, ..], tmp);
-
-    let tmp = state.clone().slice(s![-2, ..]);
-    let state = state.slice_assign(s![0, ..], tmp);
-
-    let tmp = state.clone().slice(s![.., 1]);
-    let state = state.slice_assign(s![.., -1], tmp);
-
-    let tmp = state.clone().slice(s![.., -2]);
-    let state: Tensor<B, 2, K> = state.slice_assign(s![.., 0], tmp);
-
     state
+        .copy_slice(s![-1, ..], s![1, ..])
+        .copy_slice(s![0, ..], s![-2, ..])
+        .copy_slice(s![.., -1], s![.., 1])
+        .copy_slice(s![.., 0], s![.., -2])
 }
 
 /// Wraps the board state.
@@ -42,25 +36,13 @@ where
     B: Backend,
     K: BasicOps<B>,
 {
-    let tmp = state.clone().slice(s![1, .., ..]);
-    let state = state.slice_assign(s![-1, .., ..], tmp);
-
-    let tmp = state.clone().slice(s![-2, .., ..]);
-    let state = state.slice_assign(s![0, .., ..], tmp);
-
-    let tmp = state.clone().slice(s![.., 1, ..]);
-    let state = state.slice_assign(s![.., -1, ..], tmp);
-
-    let tmp = state.clone().slice(s![.., -2, ..]);
-    let state = state.slice_assign(s![.., 0, ..], tmp);
-
-    let tmp = state.clone().slice(s![.., .., 1]);
-    let state = state.slice_assign(s![.., .., -1], tmp);
-
-    let tmp = state.clone().slice(s![.., .., -2]);
-    let state: Tensor<B, 3, K> = state.slice_assign(s![.., .., 0], tmp);
-
     state
+        .copy_slice(s![-1, .., ..], s![1, .., ..])
+        .copy_slice(s![0, .., ..], s![-2, .., ..])
+        .copy_slice(s![.., -1, ..], s![.., 1, ..])
+        .copy_slice(s![.., 0, ..], s![.., -2, ..])
+        .copy_slice(s![.., .., -1], s![.., .., 1])
+        .copy_slice(s![.., .., 0], s![.., .., -2])
 }
 
 #[cfg(test)]
