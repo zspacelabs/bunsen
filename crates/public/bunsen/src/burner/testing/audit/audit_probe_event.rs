@@ -1,10 +1,14 @@
+use alloc::vec::Vec;
 use core::fmt::Debug;
 use std::{
     collections::HashMap,
     time::SystemTime,
 };
 
-use burn::prelude::TensorData;
+use burn::prelude::{
+    Shape,
+    TensorData,
+};
 
 /// Common prefix for [`AuditProbeEvent`].
 #[derive(Debug, Clone, PartialEq)]
@@ -58,6 +62,18 @@ pub trait AuditProbeEventView: Debug {
     /// Map view over the data in the audit log event.
     fn data_map_view(&self) -> HashMap<&str, Vec<&TensorData>> {
         self.data_map_iter().collect()
+    }
+
+    /// Map signature over the data in the audit log event.
+    fn data_map_shape_signature(&self) -> HashMap<String, Vec<Shape>> {
+        self.data_map_iter()
+            .map(|(k, v)| {
+                (
+                    k.to_owned(),
+                    v.iter().map(|&d| d.shape.clone()).collect::<Vec<Shape>>(),
+                )
+            })
+            .collect()
     }
 
     /// Clone the data in the audit log event.
