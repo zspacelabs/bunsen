@@ -87,6 +87,18 @@ pub struct AuditProbeEvent {
 }
 
 impl AuditProbeEventView for AuditProbeEvent {
+    fn to_stub(&self) -> AuditProbeEventStub<'_> {
+        AuditProbeEventStub {
+            prefix: self.prefix.clone(),
+            params: self.params.clone(),
+            data: self
+                .data
+                .iter()
+                .map(|(k, v)| (k.clone(), v.iter().collect::<Vec<_>>()))
+                .collect(),
+        }
+    }
+
     fn prefix(&self) -> &AuditProbeEventPrefix {
         &self.prefix
     }
@@ -104,18 +116,6 @@ impl AuditProbeEventView for AuditProbeEvent {
     fn to_owned_data_map(&self) -> HashMap<String, Vec<TensorData>> {
         self.data.clone()
     }
-
-    fn to_stub(&self) -> AuditProbeEventStub<'_> {
-        AuditProbeEventStub {
-            prefix: self.prefix.clone(),
-            params: self.params.clone(),
-            data: self
-                .data
-                .iter()
-                .map(|(k, v)| (k.clone(), v.iter().collect::<Vec<_>>()))
-                .collect(),
-        }
-    }
 }
 
 /// [`AuditProbeEvent`]-like stub, doesn't own the [`TensorData`].
@@ -132,6 +132,10 @@ pub struct AuditProbeEventStub<'a> {
 }
 
 impl<'a> AuditProbeEventView for AuditProbeEventStub<'a> {
+    fn to_stub(&self) -> AuditProbeEventStub<'a> {
+        self.clone()
+    }
+
     fn prefix(&self) -> &AuditProbeEventPrefix {
         &self.prefix
     }
@@ -142,10 +146,6 @@ impl<'a> AuditProbeEventView for AuditProbeEventStub<'a> {
 
     fn data_map_iter(&self) -> impl Iterator<Item = (&str, Vec<&TensorData>)> {
         self.data.iter().map(|(k, v)| (k.as_ref(), v.clone()))
-    }
-
-    fn to_stub(&self) -> AuditProbeEventStub<'a> {
-        self.clone()
     }
 }
 
