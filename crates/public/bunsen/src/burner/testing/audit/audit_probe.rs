@@ -18,39 +18,24 @@ use burn::{
 
 use crate::{
     burner::testing::audit::{
-        AuditLogEvent,
-        AuditLogEventParams,
-        AuditLogEventPrefix,
-        AuditLogEventStub,
-        AuditLogEventView,
+        AuditProbeEventParams,
+        AuditProbeEventPrefix,
+        AuditProbeEventStub,
+        handlers::AuditProbeEventHandler,
     },
     errors::BunsenResult,
     prelude::TensorElemOpExt,
 };
 
-/// Audit log event handler.
-pub trait AuditLogEventHandler: Debug {
-    /// Handler name.
-    fn name(&self) -> &str {
-        std::any::type_name::<Self>()
-    }
-
-    /// Handle an audit log event.
-    fn on_event(
-        &mut self,
-        stub: &AuditLogEventStub<'_>,
-    ) -> BunsenResult<()>;
-}
-
 /// Probe for auditing purposes.
 #[derive(Debug)]
 pub struct AuditProbe {
-    handlers: Vec<Box<dyn AuditLogEventHandler>>,
+    handlers: Vec<Box<dyn AuditProbeEventHandler>>,
 }
 
 impl AuditProbe {
     /// Construct a new audit probe.
-    pub fn new(handlers: Vec<Box<dyn AuditLogEventHandler>>) -> Self {
+    pub fn new(handlers: Vec<Box<dyn AuditProbeEventHandler>>) -> Self {
         Self { handlers }
     }
 
@@ -63,7 +48,7 @@ impl AuditProbe {
     /// If the event does not match the expected event under verification.
     fn on_event(
         &mut self,
-        stub: &AuditLogEventStub<'_>,
+        stub: &AuditProbeEventStub<'_>,
     ) -> BunsenResult<()> {
         for handler in &mut self.handlers {
             handler.on_event(stub)?;
@@ -82,9 +67,9 @@ impl AuditProbe {
         let data: HashMap<String, Vec<&TensorData>> =
             HashMap::from([("data".to_string(), vec![data])]);
 
-        self.on_event(&AuditLogEventStub {
-            prefix: AuditLogEventPrefix::new(None),
-            params: AuditLogEventParams::AssertEq { strict },
+        self.on_event(&AuditProbeEventStub {
+            prefix: AuditProbeEventPrefix::new(None),
+            params: AuditProbeEventParams::AssertEq { strict },
             data,
         })
     }
@@ -135,21 +120,5 @@ impl AuditProbe {
     {
         let data = tensor.to_data_as::<E>();
         self.loc_assert_eq(label, Location::caller(), &data, strict)
-    }
-}
-
-/// A recorder for [`AuditProbe`] events.
-#[derive(Debug, Clone, Default)]
-pub struct AuditProbeVecRecorder {
-    log: Vec<AuditLogEvent>,
-}
-
-impl AuditLogEventHandler for AuditProbeVecRecorder {
-    fn on_event(
-        &mut self,
-        stub: &AuditLogEventStub<'_>,
-    ) -> BunsenResult<()> {
-        self.log.push(stub.to_event());
-        Ok(())
     }
 }

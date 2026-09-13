@@ -6,15 +6,15 @@ use std::{
 
 use burn::prelude::TensorData;
 
-/// Common prefix for [`AuditLogEvent`].
+/// Common prefix for [`AuditProbeEvent`].
 #[derive(Debug, Clone, PartialEq)]
-pub struct AuditLogEventPrefix {
+pub struct AuditProbeEventPrefix {
     /// The timestamp of the event.
     ts: SystemTime,
 }
 
-impl AuditLogEventPrefix {
-    /// Create a new [`AuditLogEventPrefix`].
+impl AuditProbeEventPrefix {
+    /// Create a new [`AuditProbeEventPrefix`].
     pub fn new(ts: Option<SystemTime>) -> Self {
         Self {
             ts: ts.unwrap_or_else(SystemTime::now),
@@ -22,9 +22,9 @@ impl AuditLogEventPrefix {
     }
 }
 
-/// Type-params for [`AuditLogEvent`].
+/// Type-params for [`AuditProbeEvent`].
 #[derive(Debug, Clone, PartialEq)]
-pub enum AuditLogEventParams {
+pub enum AuditProbeEventParams {
     /// `assert_eq` event.
     AssertEq {
         /// Strict dtype comparison.
@@ -32,11 +32,11 @@ pub enum AuditLogEventParams {
     },
 }
 
-/// [`AuditLogEvent`]-like View trait.
-pub trait AuditLogEventView: Debug {
-    /// Return an owned [`AuditLogEvent`].
-    fn to_event(&self) -> AuditLogEvent {
-        AuditLogEvent {
+/// [`AuditProbeEvent`]-like View trait.
+pub trait AuditProbeEventView: Debug {
+    /// Return an owned [`AuditProbeEvent`].
+    fn to_event(&self) -> AuditProbeEvent {
+        AuditProbeEvent {
             prefix: self.prefix().clone(),
             params: self.params().clone(),
             data: self.to_owned_data_map(),
@@ -44,13 +44,13 @@ pub trait AuditLogEventView: Debug {
     }
 
     /// Get a stub-view of this event.
-    fn to_stub(&self) -> AuditLogEventStub<'_>;
+    fn to_stub(&self) -> AuditProbeEventStub<'_>;
 
     /// Common event prefix.
-    fn prefix(&self) -> &AuditLogEventPrefix;
+    fn prefix(&self) -> &AuditProbeEventPrefix;
 
-    /// Type-params for [`AuditLogEvent`].
-    fn params(&self) -> &AuditLogEventParams;
+    /// Type-params for [`AuditProbeEvent`].
+    fn params(&self) -> &AuditProbeEventParams;
 
     /// Iterate over the data in the audit log event.
     fn data_map_iter(&self) -> impl Iterator<Item = (&str, Vec<&TensorData>)>;
@@ -75,23 +75,23 @@ pub trait AuditLogEventView: Debug {
 
 /// (TODO) Serializable [`AuditProbe`] event.
 #[derive(Debug, Clone)]
-pub struct AuditLogEvent {
+pub struct AuditProbeEvent {
     /// Common event prefix.
-    pub prefix: AuditLogEventPrefix,
+    pub prefix: AuditProbeEventPrefix,
 
-    /// Type-params for [`AuditLogEvent`].
-    pub params: AuditLogEventParams,
+    /// Type-params for [`AuditProbeEvent`].
+    pub params: AuditProbeEventParams,
 
     /// Attached event data.
     pub data: HashMap<String, Vec<TensorData>>,
 }
 
-impl AuditLogEventView for AuditLogEvent {
-    fn prefix(&self) -> &AuditLogEventPrefix {
+impl AuditProbeEventView for AuditProbeEvent {
+    fn prefix(&self) -> &AuditProbeEventPrefix {
         &self.prefix
     }
 
-    fn params(&self) -> &AuditLogEventParams {
+    fn params(&self) -> &AuditProbeEventParams {
         &self.params
     }
 
@@ -105,8 +105,8 @@ impl AuditLogEventView for AuditLogEvent {
         self.data.clone()
     }
 
-    fn to_stub(&self) -> AuditLogEventStub<'_> {
-        AuditLogEventStub {
+    fn to_stub(&self) -> AuditProbeEventStub<'_> {
+        AuditProbeEventStub {
             prefix: self.prefix.clone(),
             params: self.params.clone(),
             data: self
@@ -118,25 +118,25 @@ impl AuditLogEventView for AuditLogEvent {
     }
 }
 
-/// [`AuditLogEvent`]-like stub, doesn't own the [`TensorData`].
+/// [`AuditProbeEvent`]-like stub, doesn't own the [`TensorData`].
 #[derive(Debug, Clone)]
-pub struct AuditLogEventStub<'a> {
+pub struct AuditProbeEventStub<'a> {
     /// Common event prefix.
-    pub prefix: AuditLogEventPrefix,
+    pub prefix: AuditProbeEventPrefix,
 
-    /// Type-params for [`AuditLogEvent`].
-    pub params: AuditLogEventParams,
+    /// Type-params for [`AuditProbeEvent`].
+    pub params: AuditProbeEventParams,
 
-    /// Stub-data for [`AuditLogEvent`].
+    /// Stub-data for [`AuditProbeEvent`].
     pub data: HashMap<String, Vec<&'a TensorData>>,
 }
 
-impl<'a> AuditLogEventView for AuditLogEventStub<'a> {
-    fn prefix(&self) -> &AuditLogEventPrefix {
+impl<'a> AuditProbeEventView for AuditProbeEventStub<'a> {
+    fn prefix(&self) -> &AuditProbeEventPrefix {
         &self.prefix
     }
 
-    fn params(&self) -> &AuditLogEventParams {
+    fn params(&self) -> &AuditProbeEventParams {
         &self.params
     }
 
@@ -144,7 +144,7 @@ impl<'a> AuditLogEventView for AuditLogEventStub<'a> {
         self.data.iter().map(|(k, v)| (k.as_ref(), v.clone()))
     }
 
-    fn to_stub(&self) -> AuditLogEventStub<'a> {
+    fn to_stub(&self) -> AuditProbeEventStub<'a> {
         self.clone()
     }
 }
@@ -155,13 +155,13 @@ mod test {
 
     #[test]
     fn test_event_stub() {
-        let prefix = AuditLogEventPrefix::new(None);
-        let params = AuditLogEventParams::AssertEq { strict: true };
+        let prefix = AuditProbeEventPrefix::new(None);
+        let params = AuditProbeEventParams::AssertEq { strict: true };
 
         let a = TensorData::from([1, 2, 3]);
         let b = TensorData::from([[2.0, 3.0], [4.0, 5.0]]);
 
-        let event = AuditLogEvent {
+        let event = AuditProbeEvent {
             prefix: prefix.clone(),
             params: params.clone(),
             data: HashMap::from([
@@ -170,7 +170,7 @@ mod test {
             ]),
         };
 
-        let stub = AuditLogEventStub {
+        let stub = AuditProbeEventStub {
             prefix: prefix.clone(),
             params: params.clone(),
             data: HashMap::from([("x".to_string(), vec![&a]), ("y".to_string(), vec![&a, &b])]),
