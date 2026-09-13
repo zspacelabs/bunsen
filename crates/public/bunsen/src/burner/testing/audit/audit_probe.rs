@@ -128,7 +128,7 @@ impl AuditProbe {
     }
 }
 
-/// Type-params for [`AuditProbeEvent`].
+/// Type-specific event params.
 #[derive(Debug, Clone, PartialEq)]
 pub enum AuditProbeEventParams {
     /// `assert_eq` event.
