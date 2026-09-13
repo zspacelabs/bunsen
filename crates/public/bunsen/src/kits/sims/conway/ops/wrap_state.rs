@@ -2,47 +2,48 @@
 
 use burn::{
     Tensor,
-    prelude::{
-        Backend,
-        s,
+    prelude::Backend,
+    tensor::{
+        BasicOps,
+        Slice,
     },
-    tensor::BasicOps,
 };
 
 use crate::prelude::TensorOpExt;
 
-/// Wraps the board state.
+/// Project wrapped toroidal boarders.
 ///
-/// This simulates a toroidal space by copying the penultimate rows and columns
-/// to the edges of the opposite sides.
-pub fn wrap_state_2d<B, K>(state: Tensor<B, 2, K>) -> Tensor<B, 2, K>
+/// This is a utility mechanism for simulation updates in toroidal space.
+/// This assumes that the current valid board state is 1-unit in from
+/// the edges of the board; as produced by a 3x3 neighborhood window update
+/// function.
+///
+/// Given the 1D space: "ZABCDEZ", this will produce "EABCDEA".
+pub fn project_wrapped_toroidal_boarders<B, const R: usize, K>(
+    state: Tensor<B, R, K>
+) -> Tensor<B, R, K>
 where
     B: Backend,
     K: BasicOps<B>,
 {
-    state
-        .copy_slice(s![-1, ..], s![1, ..])
-        .copy_slice(s![0, ..], s![-2, ..])
-        .copy_slice(s![.., -1], s![.., 1])
-        .copy_slice(s![.., 0], s![.., -2])
-}
+    fn mk_slices<const R: usize>(
+        dim: usize,
+        idx: isize,
+    ) -> [Slice; R] {
+        let mut slices = [Slice::full(); R];
+        slices[dim] = Slice::index(idx);
+        slices
+    }
 
-/// Wraps the board state.
-///
-/// This simulates a toroidal space by copying the penultimate rows and columns
-/// to the edges of the opposite sides.
-pub fn wrap_state_3d<B, K>(state: Tensor<B, 3, K>) -> Tensor<B, 3, K>
-where
-    B: Backend,
-    K: BasicOps<B>,
-{
+    let mut state = state;
+
+    for d in 0..R {
+        state = state
+            .copy_slice(mk_slices::<R>(d, -1), mk_slices::<R>(d, 1))
+            .copy_slice(mk_slices::<R>(d, 0), mk_slices::<R>(d, -2));
+    }
+
     state
-        .copy_slice(s![-1, .., ..], s![1, .., ..])
-        .copy_slice(s![0, .., ..], s![-2, .., ..])
-        .copy_slice(s![.., -1, ..], s![.., 1, ..])
-        .copy_slice(s![.., 0, ..], s![.., -2, ..])
-        .copy_slice(s![.., .., -1], s![.., .., 1])
-        .copy_slice(s![.., .., 0], s![.., .., -2])
 }
 
 #[cfg(test)]
@@ -52,6 +53,7 @@ mod test {
             Int,
             Shape,
             Tensor,
+            s,
         },
         tensor::TensorData,
     };
@@ -90,7 +92,7 @@ mod test {
             false,
         );
 
-        let wrapped = wrap_state_2d(state);
+        let wrapped = project_wrapped_toroidal_boarders(state);
 
         wrapped.to_data_as::<i32>().assert_eq(
             &TensorData::from([
@@ -157,7 +159,7 @@ mod test {
             false,
         );
 
-        let wrapped = wrap_state_3d(state);
+        let wrapped = project_wrapped_toroidal_boarders(state);
 
         wrapped.to_data_as::<i32>().assert_eq(
             &TensorData::from([

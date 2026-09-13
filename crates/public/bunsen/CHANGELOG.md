@@ -9,9 +9,12 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
-- *(cli)* modularize `whisper-cli`, add `clap-common` crate, and introduce `transcribe` command ([#182](https://github.com/zspacelabs/bunsen/pull/182))
-- *(bunsen)* enhance `DynTensorEnv` with deep copy support and improved tests ([#180](https://github.com/zspacelabs/bunsen/pull/180))
-- *(bunsen)* introduce `DynTensorEnv` for dynamic tensor binding and management ([#179](https://github.com/zspacelabs/bunsen/pull/179))
+- *(cli)* modularize `whisper-cli`, add `clap-common` crate, and introduce `transcribe` command
+  ([#182](https://github.com/zspacelabs/bunsen/pull/182))
+- *(bunsen)* enhance `DynTensorEnv` with deep copy support and improved tests
+  ([#180](https://github.com/zspacelabs/bunsen/pull/180))
+- *(bunsen)* introduce `DynTensorEnv` for dynamic tensor binding and management
+  ([#179](https://github.com/zspacelabs/bunsen/pull/179))
 
 ### Other
 
@@ -22,20 +25,30 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
-- *(whisper)* the stream driver, all eleven phases, and whisper-cli ([#167](https://github.com/zspacelabs/bunsen/pull/167))
-- [**breaking**] Whisper reference parity, and split bundled assets from model validation ([#163](https://github.com/zspacelabs/bunsen/pull/163))
+- *(whisper)* the stream driver, all eleven phases, and whisper-cli
+  ([#167](https://github.com/zspacelabs/bunsen/pull/167))
+- [**breaking**] Whisper reference parity, and split bundled assets from model validation
+  ([#163](https://github.com/zspacelabs/bunsen/pull/163))
 
 ### Other
 
-- Refactor beam search decoder: rename variables for clarity, consolidate tail clipping, and optimize test structure. Update device handling to `PerformanceBackend`. ([#173](https://github.com/zspacelabs/bunsen/pull/173))
-- Modularize LSTM components by relocating and reorganizing `fused_lstm` implementation. Integrate `fused_lstm` into core RNN module and refactor dependencies in `silero_vad` accordingly. ([#172](https://github.com/zspacelabs/bunsen/pull/172))
+- Refactor beam search decoder: rename variables for clarity, consolidate tail clipping, and optimize test structure.
+  Update device handling to `PerformanceBackend`. ([#173](https://github.com/zspacelabs/bunsen/pull/173))
+- Modularize LSTM components by relocating and reorganizing `fused_lstm` implementation. Integrate `fused_lstm` into
+  core RNN module and refactor dependencies in `silero_vad` accordingly.
+  ([#172](https://github.com/zspacelabs/bunsen/pull/172))
 - More whisper refactoring. ([#171](https://github.com/zspacelabs/bunsen/pull/171))
 - More whisper cleanup. ([#170](https://github.com/zspacelabs/bunsen/pull/170))
 - Crutcher/whisper rf ([#169](https://github.com/zspacelabs/bunsen/pull/169))
-- VAD filter cleanup, driver layout, and model-owned front end + token layout ([#168](https://github.com/zspacelabs/bunsen/pull/168))
-- Add `window_padded` operation for zero-padded dimensional windowing with accompanying tests. Extend test coverage for `split_padded` and update module documentation to describe new functionality. ([#166](https://github.com/zspacelabs/bunsen/pull/166))
-- Refactor `MelFilterbank` into `MelFilterbankConfig` for improved configuration and validation. Rewrite tests for API updates and streamline related logic for cleaner organization. ([#165](https://github.com/zspacelabs/bunsen/pull/165))
-- Switch to `PerformanceBackend` and enhance testing configurations ([#164](https://github.com/zspacelabs/bunsen/pull/164))
+- VAD filter cleanup, driver layout, and model-owned front end + token layout
+  ([#168](https://github.com/zspacelabs/bunsen/pull/168))
+- Add `window_padded` operation for zero-padded dimensional windowing with accompanying tests. Extend test coverage for
+  `split_padded` and update module documentation to describe new functionality.
+  ([#166](https://github.com/zspacelabs/bunsen/pull/166))
+- Refactor `MelFilterbank` into `MelFilterbankConfig` for improved configuration and validation. Rewrite tests for API
+  updates and streamline related logic for cleaner organization. ([#165](https://github.com/zspacelabs/bunsen/pull/165))
+- Switch to `PerformanceBackend` and enhance testing configurations
+  ([#164](https://github.com/zspacelabs/bunsen/pull/164))
 
 ## [0.30.1](https://github.com/zspacelabs/bunsen/compare/bunsen-v0.30.0...bunsen-v0.30.1) - 2026-07-24
 
@@ -131,7 +144,7 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
   ([#115](https://github.com/zspacelabs/bunsen/pull/115))
 - *(bunsen)* update README component library names and document `silero_vad` and `whisper` modules in speech kits
   ([#111](https://github.com/zspacelabs/bunsen/pull/111))
-- *(life2d)* optimize tensor updates, improve backend feature handling, and simplify `wrap_state_2d` logic
+- *(life2d)* optimize tensor updates, improve backend feature handling, and simplify wrap_state_2d logic
   ([#109](https://github.com/zspacelabs/bunsen/pull/109))
 - *(life2d)* update data casting to `i32`, simplify slice handling, and enhance boolean conversion logic
   ([#108](https://github.com/zspacelabs/bunsen/pull/108))

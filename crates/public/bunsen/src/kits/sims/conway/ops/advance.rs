@@ -8,11 +8,12 @@ use burn::{
         Int,
         s,
     },
+    tensor::Slice,
 };
 
 use crate::{
     kits::sims::conway::{
-        ops::wrap_state,
+        ops::project_wrapped_toroidal_boarders,
         util::ConwayRules,
     },
     prelude::{
@@ -25,6 +26,27 @@ use crate::{
     },
 };
 
+static INNER_SLICE: Slice = Slice {
+    start: 1,
+    end: Some(-1),
+    step: 1,
+};
+
+fn update_and_wrap<B, const R: usize, F>(
+    state: Tensor<B, R, Bool>,
+    f: F,
+) -> Tensor<B, R, Bool>
+where
+    B: Backend,
+    F: Fn(Tensor<B, R, Bool>) -> Tensor<B, R, Bool>,
+{
+    let inner_update = f(state.clone());
+
+    let dirty_boarders = state.slice_assign([INNER_SLICE; R], inner_update);
+
+    project_wrapped_toroidal_boarders(dirty_boarders)
+}
+
 /// Returns the next board.
 ///
 /// # Arguments
@@ -34,14 +56,7 @@ use crate::{
 /// # Returns
 /// - the `[H, W]` evolved interior state, with wrapped edges.
 pub fn next_state_wrapped_2d<B: Backend>(state: Tensor<B, 2, Bool>) -> Tensor<B, 2, Bool> {
-    let update = next_interior_2d(state.clone());
-
-    // There's a *significant* performance speedup (+60%) from re-using the
-    // state, rather than building a new state with pad-expansion.
-    // This appears to mainly be a result of backend optimizations.
-    let state = state.slice_assign(s![1..-1, 1..-1], update);
-
-    wrap_state::wrap_state_2d(state)
+    update_and_wrap(state, next_interior_2d)
 }
 
 /// Returns the interior board next-state.
@@ -94,14 +109,7 @@ pub fn next_state_wrapped_3d<B: Backend>(
     state: Tensor<B, 3, Bool>,
     rules: &ConwayRules,
 ) -> Tensor<B, 3, Bool> {
-    let update = next_interior_3d(state.clone(), rules);
-
-    // There's a *significant* performance speedup (+60%) from re-using the
-    // state, rather than building a new state with pad-expansion.
-    // This appears to mainly be a result of backend optimizations.
-    let state = state.slice_assign(s![1..-1, 1..-1, 1..-1], update);
-
-    wrap_state::wrap_state_3d(state)
+    update_and_wrap(state, |state| next_interior_3d(state, rules))
 }
 
 /// Returns the interior board next-state.
