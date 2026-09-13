@@ -280,7 +280,7 @@ mod tests {
 
         assert_eq!(vb.parse_as::<Vec<String>>()?, vec!["foo", "bar"]);
 
-        assert_eq!(format!("{vb:?}"), format!("{{[\"foo\",\"bar\"]}}"));
+        assert_eq!(format!("{vb:?}"), "{[\"foo\",\"bar\"]}");
 
         Ok(())
     }
