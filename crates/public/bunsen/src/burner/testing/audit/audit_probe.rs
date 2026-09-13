@@ -18,12 +18,17 @@ use burn::{
 
 use crate::{
     burner::testing::audit::{
-        AuditProbeEventParams,
-        AuditProbeEventPrefix,
+        AuditProbeEventHeader,
+        AuditProbeEventParams::AssertEq,
         AuditProbeEventStub,
-        handlers::AuditProbeEventHandler,
+        AuditProbeEventView,
+        audit_probe_event::AuditProbeEventHandler,
+        unpack_event_data,
     },
-    errors::BunsenResult,
+    errors::{
+        BunsenError,
+        BunsenResult,
+    },
     prelude::TensorElemOpExt,
 };
 
@@ -68,7 +73,7 @@ impl AuditProbe {
             HashMap::from([("data".to_string(), vec![data])]);
 
         self.on_event(&AuditProbeEventStub {
-            prefix: AuditProbeEventPrefix::new(None),
+            header: AuditProbeEventHeader::new(None),
             params: AuditProbeEventParams::AssertEq { strict },
             data,
         })
@@ -121,4 +126,55 @@ impl AuditProbe {
         let data = tensor.to_data_as::<E>();
         self.loc_assert_eq(label, Location::caller(), &data, strict)
     }
+}
+
+/// Type-params for [`AuditProbeEvent`].
+#[derive(Debug, Clone, PartialEq)]
+pub enum AuditProbeEventParams {
+    /// `assert_eq` event.
+    AssertEq {
+        /// Strict dtype comparison.
+        strict: bool,
+    },
+}
+
+/// TODO: try match events
+pub fn try_match_events(
+    actual: &impl AuditProbeEventView,
+    expected: &impl AuditProbeEventView,
+) -> BunsenResult<()> {
+    if expected.params() != actual.params() {
+        return Err(BunsenError::InvalidArgument {
+            msg: format!(
+                "StreamEvent params {:?} != expected {:?}",
+                expected.params(),
+                actual.params()
+            ),
+        });
+    }
+
+    actual.assert_shape_signatures_eq(expected)?;
+
+    match actual.params() {
+        AssertEq { strict } => {
+            let [actual_data, expected_data] = unpack_event_data!([actual, expected], { data })?;
+
+            tensor_data_assert_eq(actual_data.data, expected_data.data, *strict)
+        }
+    }
+}
+
+/// [`TensorData::assert_eq`] api, returning a [`BunsenResult`].
+pub fn tensor_data_assert_eq(
+    actual: &TensorData,
+    expected: &TensorData,
+    strict: bool,
+) -> BunsenResult<()> {
+    // TODO: Result-generating version of this.
+    // * Expand `burn` api.
+    // * Clone `burn` api, generate Results.
+    // * `panic::catch_unwind` version of this.
+    actual.assert_eq(expected, strict);
+
+    Ok(())
 }

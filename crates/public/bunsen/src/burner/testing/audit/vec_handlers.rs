@@ -3,10 +3,10 @@ use core::fmt::Debug;
 use crate::{
     burner::testing::audit::{
         AuditProbeEvent,
-        AuditProbeEventHandler,
         AuditProbeEventStub,
         AuditProbeEventView,
-        try_match_events,
+        audit_probe::try_match_events,
+        audit_probe_event::AuditProbeEventHandler,
     },
     errors::BunsenResult,
 };

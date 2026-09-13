@@ -10,15 +10,37 @@ use burn::prelude::{
     TensorData,
 };
 
+use crate::{
+    burner::testing::audit::audit_probe::AuditProbeEventParams,
+    errors::{
+        BunsenError,
+        BunsenResult,
+    },
+};
+
+/// Audit log event handler.
+pub trait AuditProbeEventHandler: Debug {
+    /// Handler name.
+    fn name(&self) -> &str {
+        std::any::type_name::<Self>()
+    }
+
+    /// Handle an audit log event.
+    fn on_event(
+        &mut self,
+        stub: &AuditProbeEventStub<'_>,
+    ) -> BunsenResult<()>;
+}
+
 /// Common prefix for [`AuditProbeEvent`].
 #[derive(Debug, Clone, PartialEq)]
-pub struct AuditProbeEventPrefix {
+pub struct AuditProbeEventHeader {
     /// The timestamp of the event.
     ts: SystemTime,
 }
 
-impl AuditProbeEventPrefix {
-    /// Create a new [`AuditProbeEventPrefix`].
+impl AuditProbeEventHeader {
+    /// Create a new [`AuditProbeEventHeader`].
     pub fn new(ts: Option<SystemTime>) -> Self {
         Self {
             ts: ts.unwrap_or_else(SystemTime::now),
@@ -26,22 +48,12 @@ impl AuditProbeEventPrefix {
     }
 }
 
-/// Type-params for [`AuditProbeEvent`].
-#[derive(Debug, Clone, PartialEq)]
-pub enum AuditProbeEventParams {
-    /// `assert_eq` event.
-    AssertEq {
-        /// Strict dtype comparison.
-        strict: bool,
-    },
-}
-
 /// [`AuditProbeEvent`]-like View trait.
 pub trait AuditProbeEventView: Debug {
     /// Return an owned [`AuditProbeEvent`].
     fn to_event(&self) -> AuditProbeEvent {
         AuditProbeEvent {
-            prefix: self.prefix().clone(),
+            header: self.header().clone(),
             params: self.params().clone(),
             data: self.to_owned_data_map(),
         }
@@ -50,8 +62,8 @@ pub trait AuditProbeEventView: Debug {
     /// Get a stub-view of this event.
     fn to_stub(&self) -> AuditProbeEventStub<'_>;
 
-    /// Common event prefix.
-    fn prefix(&self) -> &AuditProbeEventPrefix;
+    /// Common event header.
+    fn header(&self) -> &AuditProbeEventHeader;
 
     /// Type-params for [`AuditProbeEvent`].
     fn params(&self) -> &AuditProbeEventParams;
@@ -87,13 +99,35 @@ pub trait AuditProbeEventView: Debug {
             })
             .collect()
     }
+
+    /// Assert that the shape signatures of the data map match the expected
+    /// event.
+    fn assert_shape_signatures_eq(
+        &self,
+        expected: &impl AuditProbeEventView,
+    ) -> BunsenResult<()> {
+        let actual_shape_sig = self.data_map_shape_signature();
+        let expected_shape_sig = expected.data_map_shape_signature();
+        if actual_shape_sig != expected_shape_sig {
+            // TODO: Better error message.
+            Err(BunsenError::InvalidArgument {
+                msg: format!(
+                    "data map signatures don't match:\nactual: {:#?}\nexpect: {:#?}",
+                    actual_shape_sig, expected_shape_sig,
+                ),
+            })
+        } else {
+            Ok(())
+        }
+    }
 }
 
-/// (TODO) Serializable [`AuditProbe`] event.
+/// (TODO) Serializable
+/// [`AuditProbe`](`crate::burner::testing::audit::AuditProbe`) event.
 #[derive(Debug, Clone)]
 pub struct AuditProbeEvent {
-    /// Common event prefix.
-    pub prefix: AuditProbeEventPrefix,
+    /// Common event header.
+    pub header: AuditProbeEventHeader,
 
     /// Type-params for [`AuditProbeEvent`].
     pub params: AuditProbeEventParams,
@@ -105,7 +139,7 @@ pub struct AuditProbeEvent {
 impl AuditProbeEventView for AuditProbeEvent {
     fn to_stub(&self) -> AuditProbeEventStub<'_> {
         AuditProbeEventStub {
-            prefix: self.prefix.clone(),
+            header: self.header.clone(),
             params: self.params.clone(),
             data: self
                 .data
@@ -115,8 +149,8 @@ impl AuditProbeEventView for AuditProbeEvent {
         }
     }
 
-    fn prefix(&self) -> &AuditProbeEventPrefix {
-        &self.prefix
+    fn header(&self) -> &AuditProbeEventHeader {
+        &self.header
     }
 
     fn params(&self) -> &AuditProbeEventParams {
@@ -137,8 +171,8 @@ impl AuditProbeEventView for AuditProbeEvent {
 /// [`AuditProbeEvent`]-like stub, doesn't own the [`TensorData`].
 #[derive(Debug, Clone)]
 pub struct AuditProbeEventStub<'a> {
-    /// Common event prefix.
-    pub prefix: AuditProbeEventPrefix,
+    /// Common event header.
+    pub header: AuditProbeEventHeader,
 
     /// Type-params for [`AuditProbeEvent`].
     pub params: AuditProbeEventParams,
@@ -152,8 +186,8 @@ impl<'a> AuditProbeEventView for AuditProbeEventStub<'a> {
         self.clone()
     }
 
-    fn prefix(&self) -> &AuditProbeEventPrefix {
-        &self.prefix
+    fn header(&self) -> &AuditProbeEventHeader {
+        &self.header
     }
 
     fn params(&self) -> &AuditProbeEventParams {
@@ -171,14 +205,14 @@ mod test {
 
     #[test]
     fn test_event_stub() {
-        let prefix = AuditProbeEventPrefix::new(None);
+        let header = AuditProbeEventHeader::new(None);
         let params = AuditProbeEventParams::AssertEq { strict: true };
 
         let a = TensorData::from([1, 2, 3]);
         let b = TensorData::from([[2.0, 3.0], [4.0, 5.0]]);
 
         let event = AuditProbeEvent {
-            prefix: prefix.clone(),
+            header: header.clone(),
             params: params.clone(),
             data: HashMap::from([
                 ("x".to_string(), vec![a.clone()]),
@@ -187,7 +221,7 @@ mod test {
         };
 
         let stub = AuditProbeEventStub {
-            prefix: prefix.clone(),
+            header: header.clone(),
             params: params.clone(),
             data: HashMap::from([("x".to_string(), vec![&a]), ("y".to_string(), vec![&a, &b])]),
         };

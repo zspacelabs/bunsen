@@ -2,7 +2,7 @@
 
 mod audit_probe;
 mod audit_probe_event;
-mod handlers;
+mod event_data_unpack;
 mod vec_handlers;
 
 #[doc(inline)]
@@ -10,6 +10,6 @@ pub use audit_probe::*;
 #[doc(inline)]
 pub use audit_probe_event::*;
 #[doc(inline)]
-pub use handlers::*;
+pub use event_data_unpack::*;
 #[doc(inline)]
 pub use vec_handlers::*;
