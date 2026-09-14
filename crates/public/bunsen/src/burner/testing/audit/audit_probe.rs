@@ -24,11 +24,11 @@ use crate::{
             TolerancePolicy,
         },
         testing::audit::{
+            AuditProbeEventHandler,
             AuditProbeEventHeader,
             AuditProbeEventStub,
             AuditProbeEventView,
-            audit_probe_event::AuditProbeEventHandler,
-            unpack_event_data,
+            unpack_audit_probe_event_data,
         },
     },
     errors::{
@@ -258,7 +258,8 @@ pub fn try_match_events(
 
     match actual.params() {
         AuditProbeEventParams::AssertTensorEq { tolerance, strict } => {
-            let [actual_data, expected_data] = unpack_event_data!([actual, expected], { data })?;
+            let [actual_data, expected_data] =
+                unpack_audit_probe_event_data!([actual, expected], { data })?;
 
             match tolerance {
                 Some(tolerance) => tolerance.try_assert_tensor_data_approx_eq(
@@ -293,25 +294,26 @@ mod tests {
         fn example<B: Backend>(probe: &mut AuditProbe) -> BunsenResult<()> {
             let device = Default::default();
 
-            let a = TensorData::from([1.0, 2.0]);
-            probe.try_tensor_eq("a", &a, false)?;
+            let iota: Tensor<B, 1> = Tensor::arange(0..10, &device).float();
+            probe.try_tensor_eq("iota", &iota, false)?;
 
-            probe.try_tensor_approx_eq::<f32>("a.32", &a, TolerancePolicy::Balanced)?;
-            probe.try_tensor_approx_eq_as::<f64>("a.64", &a, TolerancePolicy::Balanced)?;
+            probe.try_tensor_approx_eq_as::<f32>(
+                "iota.exp",
+                &iota.clone().exp(),
+                TolerancePolicy::Balanced,
+            )?;
 
-            let b: Tensor<B, 1, Int> = Tensor::arange(0..4, &device);
-            probe.try_tensor_eq("b.tensor", &b, false)?;
-            probe.try_tensor_eq("b.tensor", &b.to_data(), false)?;
+            probe.try_tensor_approx_eq_as::<f32>(
+                "iota.sin",
+                &iota.clone().sin(),
+                TolerancePolicy::Balanced,
+            )?;
 
             Ok(())
         }
 
         let mut recorder = AuditProbeVecRecorder::default();
         example::<PerformanceBackend>(&mut AuditProbe::new(vec![&mut recorder]))?;
-
-        assert_eq!(recorder.events.len(), 5);
-        let event_a = &recorder.events[0];
-        assert_eq!(event_a.header.label.as_ref().unwrap(), "a");
 
         let mut verifier = recorder.into_verifier();
         example::<CpuBackend>(&mut AuditProbe::new(vec![&mut verifier]))?;

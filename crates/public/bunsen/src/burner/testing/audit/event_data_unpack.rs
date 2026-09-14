@@ -180,16 +180,16 @@ pub fn take_any<'x>(
 /// # Errors
 /// [`BunsenError::InvalidArgument`] if any target's data map does not match
 /// the pattern exactly. The error names the target expression.
-pub use crate::__unpack_event_data as unpack_event_data;
+pub use crate::__unpack_audit_probe_event_data as unpack_audit_probe_event_data;
 
 #[doc(hidden)]
 #[macro_export]
-macro_rules! __unpack_event_data {
+macro_rules! __unpack_audit_probe_event_data {
     ([$($target:expr),+ $(,)?], { $($name:ident $(: $arity:tt)?),+ $(,)? } $(,)?) => {{
         #[allow(dead_code)]
         #[derive(Debug)]
         struct Unpacked<'x> {
-            $($name: $crate::__unpack_event_data!(@ty 'x, $($arity)?),)+
+            $($name: $crate:__unpack_event_dataa!(@ty 'x, $($arity)?),)+
         }
 
         fn unpack_one<'x, V>(
@@ -206,7 +206,7 @@ macro_rules! __unpack_event_data {
                 &[$(::core::stringify!($name)),+],
             )?;
             Ok(Unpacked {
-                $($name: $crate::__unpack_event_data!(
+                $($name: $crate:__unpack_event_dataa!(
                     @take target, &view, ::core::stringify!($name), $($arity)?
                 )?,)+
             })
