@@ -208,6 +208,7 @@ impl<'a> AuditProbe<'a> {
     ///
     /// # Panics and/or Err Returns
     /// If the data or data types do not match under verification.
+    #[track_caller]
     pub fn try_tensor_approx_eq_as<'b, F: Float + Element>(
         &mut self,
         label: &str,
