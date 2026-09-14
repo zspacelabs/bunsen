@@ -17,6 +17,13 @@ pub struct AuditProbeVecRecorder {
     events: Vec<AuditProbeEvent>,
 }
 
+impl AuditProbeVecRecorder {
+    /// Build a verifier.
+    pub fn verifier(self) -> AuditProbeVecVerifier {
+        AuditProbeVecVerifier::new(self.events)
+    }
+}
+
 impl AuditProbeEventHandler for AuditProbeVecRecorder {
     fn on_event(
         &mut self,

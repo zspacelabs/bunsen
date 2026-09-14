@@ -13,13 +13,14 @@ use burn::{
     tensor::{
         BasicOps,
         Element,
+        Tolerance,
     },
 };
+use num_traits::Float;
 
 use crate::{
     burner::testing::audit::{
         AuditProbeEventHeader,
-        AuditProbeEventParams::AssertEq,
         AuditProbeEventStub,
         AuditProbeEventView,
         audit_probe_event::AuditProbeEventHandler,
@@ -34,13 +35,13 @@ use crate::{
 
 /// Probe for auditing purposes.
 #[derive(Debug)]
-pub struct AuditProbe {
-    handlers: Vec<Box<dyn AuditProbeEventHandler>>,
+pub struct AuditProbe<'a> {
+    handlers: Vec<&'a mut dyn AuditProbeEventHandler>,
 }
 
-impl AuditProbe {
+impl<'a> AuditProbe<'a> {
     /// Construct a new audit probe.
-    pub fn new(handlers: Vec<Box<dyn AuditProbeEventHandler>>) -> Self {
+    pub fn new(handlers: Vec<&'a mut dyn AuditProbeEventHandler>) -> Self {
         Self { handlers }
     }
 
@@ -79,6 +80,23 @@ impl AuditProbe {
         })
     }
 
+    fn loc_assert_approx_eq<F: Float + Element>(
+        &mut self,
+        _label: &str,
+        _location: &Location,
+        data: &TensorData,
+        tolerance: ToleranceDesc,
+    ) -> BunsenResult<()> {
+        let data: HashMap<String, Vec<&TensorData>> =
+            HashMap::from([("data".to_string(), vec![data])]);
+
+        self.on_event(&AuditProbeEventStub {
+            header: AuditProbeEventHeader::new(None),
+            params: AuditProbeEventParams::AssertApproxEq { tolerance },
+            data,
+        })
+    }
+
     /// [`TensorData`] equality.
     ///
     /// # Arguments
@@ -97,6 +115,17 @@ impl AuditProbe {
         strict: bool,
     ) -> BunsenResult<()> {
         self.loc_assert_eq(label, Location::caller(), data, strict)
+    }
+
+    /// Assert approximately equal.
+    #[track_caller]
+    pub fn assert_approx_eq<F: Float + Element>(
+        &mut self,
+        label: &str,
+        data: &TensorData,
+        tolerance: ToleranceDesc,
+    ) -> BunsenResult<()> {
+        self.loc_assert_approx_eq::<F>(label, Location::caller(), data, tolerance)
     }
 
     /// [`Tensor`] equality.
@@ -128,6 +157,22 @@ impl AuditProbe {
     }
 }
 
+/// Description of a tolerance.
+#[derive(Debug, Clone, PartialEq)]
+pub enum ToleranceDesc {
+    /// Default tolerance, see [`Tolerance::default`].
+    Default,
+}
+
+impl ToleranceDesc {
+    /// get the burn tolerance.
+    pub fn tolerance<F: Float + Element>(&self) -> Tolerance<F> {
+        match self {
+            ToleranceDesc::Default => Tolerance::default(),
+        }
+    }
+}
+
 /// Type-specific event params.
 #[derive(Debug, Clone, PartialEq)]
 pub enum AuditProbeEventParams {
@@ -135,6 +180,12 @@ pub enum AuditProbeEventParams {
     AssertEq {
         /// Strict dtype comparison.
         strict: bool,
+    },
+
+    /// `assert_approx_eq` event.
+    AssertApproxEq {
+        /// Tolerance.
+        tolerance: ToleranceDesc,
     },
 }
 
@@ -156,10 +207,18 @@ pub fn try_match_events(
     actual.assert_shape_signatures_eq(expected)?;
 
     match actual.params() {
-        AssertEq { strict } => {
+        AuditProbeEventParams::AssertEq { strict } => {
             let [actual_data, expected_data] = unpack_event_data!([actual, expected], { data })?;
 
             tensor_data_assert_eq(actual_data.data, expected_data.data, *strict)
+        }
+        AuditProbeEventParams::AssertApproxEq { tolerance } => {
+            let [actual_data, expected_data] = unpack_event_data!([actual, expected], { data })?;
+
+            actual_data
+                .data
+                .assert_approx_eq::<f64>(expected_data.data, tolerance.tolerance::<f64>());
+            Ok(())
         }
     }
 }
@@ -177,4 +236,46 @@ pub fn tensor_data_assert_eq(
     actual.assert_eq(expected, strict);
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    #![allow(unused_imports)]
+
+    use burn::prelude::Int;
+
+    use super::*;
+    use crate::{
+        burner::testing::audit::AuditProbeVecRecorder,
+        support::testing::{
+            CpuBackend,
+            PerformanceBackend,
+        },
+    };
+
+    #[test]
+    #[serial_test::serial]
+    fn test_stream() -> BunsenResult<()> {
+        fn example<B: Backend>(stream: &mut AuditProbe) -> BunsenResult<()> {
+            let device = Default::default();
+
+            let a = TensorData::from([1.0, 2.0]);
+            stream.assert_eq("a", &a, false)?;
+
+            stream.assert_approx_eq::<f32>("a.2", &a, ToleranceDesc::Default)?;
+
+            let b: Tensor<B, 1, Int> = Tensor::arange(0..4, &device);
+            stream.assert_tensor_eq_as::<B, _, _, f32>("b", &b, false)?;
+
+            Ok(())
+        }
+
+        let mut recorder = AuditProbeVecRecorder::default();
+        example::<PerformanceBackend>(&mut AuditProbe::new(vec![&mut recorder]))?;
+
+        let mut verifier = recorder.verifier();
+        example::<CpuBackend>(&mut AuditProbe::new(vec![&mut verifier]))?;
+
+        Ok(())
+    }
 }
