@@ -238,7 +238,10 @@ mod tests {
     use crate::{
         ops::signal::testing::assert_sampling_window_builder_implementation,
         prelude::*,
-        support::testing::CpuBackend,
+        support::testing::{
+            CpuBackend,
+            default_device,
+        },
     };
 
     type B = CpuBackend;
@@ -271,7 +274,7 @@ mod tests {
     #[test]
     #[traced_test]
     fn test_hann() {
-        let device = Default::default();
+        let device = default_device();
 
         // size = 0
         check_hann_impl::<B>(true, &[], &device);
@@ -331,7 +334,7 @@ mod tests {
     #[test]
     #[traced_test]
     fn test_blackman() {
-        let device = Default::default();
+        let device = default_device();
 
         // size = 0
         check_blackman_impl::<B>(true, &[], &device);

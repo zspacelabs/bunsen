@@ -311,6 +311,7 @@ mod tests {
         support::testing::{
             CpuBackend,
             PerformanceBackend,
+            default_device,
         },
     };
 
@@ -323,7 +324,7 @@ mod tests {
         let w = 6;
         let c = 5;
 
-        let device = Default::default();
+        let device = default_device();
 
         let distribution = Distribution::Normal(0., 1.);
         let x = Tensor::<B, 3>::random([b, h * w, c], distribution, &device);
@@ -351,7 +352,7 @@ mod tests {
         assert_eq!(config.output_height(), 6);
         assert_eq!(config.output_width(), 4);
 
-        let device = Default::default();
+        let device = default_device();
         let patch_merging: PatchMerging<B> = config.try_init(&device).ok_or_panic();
 
         assert_eq!(patch_merging.input_resolution(), [12, 8]);
@@ -370,7 +371,7 @@ mod tests {
             input_resolution: [13, 8], // Invalid height
             d_input: 3,
         };
-        let device = Default::default();
+        let device = default_device();
         let _d: PatchMerging<B> = config.try_init(&device).ok_or_panic();
     }
 
@@ -378,7 +379,7 @@ mod tests {
     #[serial]
     fn test_patch_merging() {
         type B = PerformanceBackend;
-        let device = Default::default();
+        let device = default_device();
 
         let b = 2;
         let h = 12;
@@ -412,7 +413,7 @@ mod tests {
         assert_eq!(config.patches_height(), 3);
         assert_eq!(config.patches_width(), 2);
 
-        let device = Default::default();
+        let device = default_device();
         let patch_embed: PatchEmbed<B> = config.try_init(&device).ok_or_panic();
 
         assert_eq!(patch_embed.input_resolution(), [12, 8]);
@@ -429,7 +430,7 @@ mod tests {
     #[serial]
     fn test_patch_embed() {
         type B = PerformanceBackend;
-        let device = Default::default();
+        let device = default_device();
 
         let b = 2;
         let h = 12;

@@ -688,7 +688,10 @@ mod tests {
     use serial_test::serial;
 
     use super::*;
-    use crate::support::testing::PerformanceBackend;
+    use crate::support::testing::{
+        PerformanceBackend,
+        default_device,
+    };
 
     #[test]
     fn test_block_mlp_meta() {
@@ -724,7 +727,7 @@ mod tests {
     #[serial]
     fn test_mlp() {
         type B = PerformanceBackend;
-        let device = Default::default();
+        let device = default_device();
 
         let a = 2;
         let b = 3;
@@ -757,7 +760,7 @@ mod tests {
     #[serial]
     fn test_with_shift() {
         type B = PerformanceBackend;
-        let device = Default::default();
+        let device = default_device();
         let b = 1;
         let h = 4;
         let w = 4;
@@ -793,7 +796,7 @@ mod tests {
     #[serial]
     fn test_shifted_window_transformer_block_meta() {
         type B = PerformanceBackend;
-        let device = Default::default();
+        let device = default_device();
 
         let d_input = 128;
         let num_heads = 4;
@@ -935,7 +938,7 @@ mod tests {
         let config = ShiftedWindowTransformerBlockConfig::new(d_input, input_resolution, num_heads)
             .with_window_size(window_size);
 
-        let device = Default::default();
+        let device = default_device();
         let block: ShiftedWindowTransformerBlock<B> = config.init(&device);
 
         let distribution = Distribution::Uniform(0.0, 1.0);

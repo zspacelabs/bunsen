@@ -334,14 +334,17 @@ mod tests {
     use super::*;
     use crate::{
         contracts::assert_shape_contract,
-        support::testing::PerformanceBackend,
+        support::testing::{
+            PerformanceBackend,
+            default_device,
+        },
     };
 
     #[test]
     #[serial]
     fn test_audio_encoder_forward() {
         type B = PerformanceBackend;
-        let device = Default::default();
+        let device = default_device();
 
         let d_model = 128;
         let n_mels = 256;

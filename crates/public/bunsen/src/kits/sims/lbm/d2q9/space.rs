@@ -303,13 +303,16 @@ mod tests {
         super::velocity_squared,
         *,
     };
-    use crate::support::testing::PerformanceBackend;
+    use crate::support::testing::{
+        PerformanceBackend,
+        default_device,
+    };
 
     #[test]
     #[serial]
     fn test_population_density() {
         type B = PerformanceBackend;
-        let device = Default::default();
+        let device = default_device();
 
         let dist: Tensor<B, 4> = Tensor::from_data(
             [
@@ -337,7 +340,7 @@ mod tests {
     #[serial]
     fn test_direction_vectors() {
         type B = PerformanceBackend;
-        let device = Default::default();
+        let device = default_device();
 
         let e: Tensor<B, 3> = direction_vectors(&device);
 
@@ -359,7 +362,7 @@ mod tests {
     #[serial]
     fn test_weight_matrix() {
         type B = PerformanceBackend;
-        let device = Default::default();
+        let device = default_device();
 
         let w: Tensor<B, 2> = weight_matrix(&device);
 
@@ -381,7 +384,7 @@ mod tests {
     #[serial]
     fn test_momentum_and_velocity() {
         type B = PerformanceBackend;
-        let device = Default::default();
+        let device = default_device();
 
         let dist: Tensor<B, 4> = Tensor::from_data(
             [[

@@ -39,12 +39,15 @@ mod test {
     use super::*;
     use crate::{
         burner::tensor::*,
-        support::testing::CpuBackend,
+        support::testing::{
+            CpuBackend,
+            default_device,
+        },
     };
 
     #[test]
     fn test_drop_last_frame() {
-        let device = Default::default();
+        let device = default_device();
         type B = CpuBackend;
         let stream: Tensor<B, 3, Int> =
             Tensor::<B, 1, Int>::arange(0..24, &device).reshape([2, 3, 4]);

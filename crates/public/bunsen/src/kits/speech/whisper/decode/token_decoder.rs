@@ -563,7 +563,10 @@ mod tests {
     use crate::{
         burner::module::ModuleInit,
         kits::speech::whisper::blocks::WhisperApiConfig,
-        support::testing::PerformanceBackend,
+        support::testing::{
+            PerformanceBackend,
+            default_device,
+        },
     };
 
     type B = PerformanceBackend;
@@ -580,7 +583,7 @@ mod tests {
 
     #[test]
     fn test_mel_windows_splits_and_pads() {
-        let device = Default::default();
+        let device = default_device();
         let (batch, n_mels, window) = (1, 4, 10);
 
         // Exactly two windows.
@@ -606,7 +609,7 @@ mod tests {
     /// The padded tail must be zeros, and the kept part must be untouched.
     #[test]
     fn test_mel_windows_preserves_content() {
-        let device = Default::default();
+        let device = default_device();
         let frames = 7;
 
         let mels: Tensor<B, 3> = Tensor::from_data(
@@ -633,7 +636,7 @@ mod tests {
     #[test]
     #[serial]
     fn test_decode_window_respects_the_token_cap() {
-        let device = Default::default();
+        let device = default_device();
         let model = tiny_model(&device);
 
         let mels: Tensor<B, 3> = Tensor::random(
@@ -662,7 +665,7 @@ mod tests {
     #[test]
     #[serial]
     fn test_decode_window_stops_on_eot() {
-        let device = Default::default();
+        let device = default_device();
         let model = tiny_model(&device);
 
         let mels: Tensor<B, 3> = Tensor::random(
@@ -687,7 +690,7 @@ mod tests {
     #[test]
     #[serial]
     fn test_decode_chunked_covers_every_window() {
-        let device = Default::default();
+        let device = default_device();
         let model = tiny_model(&device);
         let window = model.max_audio_ctx();
 
@@ -716,7 +719,7 @@ mod tests {
     #[test]
     #[serial]
     fn test_batched_decode_matches_individual() {
-        let device = Default::default();
+        let device = default_device();
         let model = tiny_model(&device);
         let (batch, window) = (3, model.max_audio_ctx());
 
@@ -751,7 +754,7 @@ mod tests {
     #[test]
     #[serial]
     fn test_batched_rows_finish_independently() {
-        let device = Default::default();
+        let device = default_device();
         let model = tiny_model(&device);
         let (batch, window) = (3, model.max_audio_ctx());
 
@@ -807,7 +810,10 @@ mod search_tests {
             logit_filters::SuppressTokens,
         },
         prelude::TensorElemOpExt,
-        support::testing::PerformanceBackend,
+        support::testing::{
+            PerformanceBackend,
+            default_device,
+        },
     };
 
     type B = PerformanceBackend;
@@ -839,7 +845,7 @@ mod search_tests {
     #[test]
     #[serial]
     fn test_beam_of_one_is_greedy() {
-        let device = Default::default();
+        let device = default_device();
         let model = tiny_model(&device);
         let mels = windows(3, &device);
 
@@ -859,7 +865,7 @@ mod search_tests {
     #[test]
     #[serial]
     fn test_beam_search_runs_wider() {
-        let device = Default::default();
+        let device = default_device();
         let model = tiny_model(&device);
         let mels = windows(2, &device);
 
@@ -882,7 +888,7 @@ mod search_tests {
     #[test]
     #[serial]
     fn test_reorder_permutes_the_self_attention_cache() {
-        let device = Default::default();
+        let device = default_device();
         let model = tiny_model(&device);
         let mels = windows(1, &device).repeat_dim(0, 2);
 
@@ -926,7 +932,7 @@ mod search_tests {
     #[test]
     #[serial]
     fn test_filters_reach_the_search() {
-        let device = Default::default();
+        let device = default_device();
         let model = tiny_model(&device);
         let mels = windows(1, &device);
 
@@ -951,7 +957,7 @@ mod search_tests {
     #[test]
     #[serial]
     fn test_sampling_best_of_and_the_probe() {
-        let device = Default::default();
+        let device = default_device();
         let model = tiny_model(&device);
         let mels = windows(2, &device);
 
@@ -999,7 +1005,7 @@ mod search_tests {
     #[test]
     #[serial]
     fn test_shared_cross_kv_matches_materialized() {
-        let device = Default::default();
+        let device = default_device();
         let model = tiny_model(&device);
         let xa = model.forward_encoder(windows(2, &device));
         let group = 3;
@@ -1055,7 +1061,7 @@ mod search_tests {
         }
         let filters: Vec<Arc<dyn LogitFilter<B>>> = vec![Arc::new(Ramp)];
 
-        let device = Default::default();
+        let device = default_device();
         let model = tiny_model(&device);
         let mels = windows(2, &device);
         let base = DecodeConfig::new(vec![1, 2], EOT)

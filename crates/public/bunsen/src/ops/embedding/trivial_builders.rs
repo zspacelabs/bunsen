@@ -40,11 +40,14 @@ pub fn identity_embedding<B: Backend>(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::support::testing::PerformanceBackend;
+    use crate::support::testing::{
+        PerformanceBackend,
+        default_device,
+    };
 
     #[test]
     fn test_iota_embedding() {
-        let device = Default::default();
+        let device = default_device();
         let n = 3;
         let d = 4;
         let emb = iota_embedding::<PerformanceBackend>(n, d, &device);
@@ -67,7 +70,7 @@ mod tests {
 
     #[test]
     fn test_identity_embedding() {
-        let device = Default::default();
+        let device = default_device();
         let n = 5;
         let emb = identity_embedding::<PerformanceBackend>(n, &device);
 

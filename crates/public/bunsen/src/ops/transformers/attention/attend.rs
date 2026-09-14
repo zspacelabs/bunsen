@@ -349,7 +349,10 @@ mod tests {
     };
     use crate::{
         burner::tensor::TensorElemOpExt,
-        support::testing::CpuBackend,
+        support::testing::{
+            CpuBackend,
+            default_device,
+        },
     };
 
     type B = CpuBackend;
@@ -363,7 +366,7 @@ mod tests {
     /// deliberately mismatched lengths.
     #[test]
     fn test_cross_attn_accepts_a_different_cross_length() {
-        let device = Default::default();
+        let device = default_device();
         let (batch, d_model, n_heads) = (2, 32, 4);
         let (seq_len, cross_len) = (3, 17);
 
@@ -385,7 +388,7 @@ mod tests {
     /// simply stop checking.
     #[test]
     fn test_cross_attn_accepts_equal_lengths() {
-        let device = Default::default();
+        let device = default_device();
         let (batch, d_model, n_heads, seq_len) = (1, 16, 2, 5);
 
         let attn = MultiHeadAttentionConfig::new(d_model, n_heads).init::<B>(&device);
@@ -401,7 +404,7 @@ mod tests {
     #[test]
     #[should_panic(expected = "Shape Error")]
     fn test_cross_attn_rejects_a_d_model_mismatch() {
-        let device = Default::default();
+        let device = default_device();
         let (batch, d_model, n_heads) = (1, 16, 2);
 
         let attn = MultiHeadAttentionConfig::new(d_model, n_heads).init::<B>(&device);
@@ -421,7 +424,7 @@ mod tests {
     /// all break it, and none would show up in a shape check.
     #[test]
     fn test_cached_self_attn_matches_uncached() {
-        let device = Default::default();
+        let device = default_device();
         let (batch, d_model, n_heads, seq) = (2, 32, 4, 5);
 
         let mha = MultiHeadAttentionConfig::new(d_model, n_heads).init::<B>(&device);
@@ -457,7 +460,7 @@ mod tests {
     /// which is what a prompt prefill does.
     #[test]
     fn test_cached_self_attn_prefill_matches_stepping() {
-        let device = Default::default();
+        let device = default_device();
         let (batch, d_model, n_heads, seq) = (1, 32, 4, 6);
 
         let mha = MultiHeadAttentionConfig::new(d_model, n_heads).init::<B>(&device);
@@ -502,7 +505,7 @@ mod tests {
     /// path, and must accept a cross length unrelated to the query length.
     #[test]
     fn test_cached_cross_attn_matches_uncached() {
-        let device = Default::default();
+        let device = default_device();
         let (batch, d_model, n_heads) = (2, 32, 4);
         let (seq, cross_len) = (3, 17);
 

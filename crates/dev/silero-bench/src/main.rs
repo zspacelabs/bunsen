@@ -11,7 +11,10 @@ use bunsen::{
         SileroVadContextConfig,
         SileroVadMeta,
     },
-    support::testing::PerformanceBackend,
+    support::testing::{
+        PerformanceBackend,
+        backend_device,
+    },
 };
 use burn::{
     Tensor,
@@ -48,7 +51,7 @@ fn main() -> BunsenResult<()> {
     println!("* {:#?}", args);
 
     println!("\n> Loading models");
-    let device = Default::default();
+    let device = backend_device::<B>();
     println!("* device: {:?}", device);
 
     println!("* SileroVad");

@@ -154,13 +154,16 @@ mod tests {
     use super::*;
     use crate::{
         prelude::*,
-        support::testing::CpuBackend,
+        support::testing::{
+            CpuBackend,
+            default_device,
+        },
     };
 
     #[test]
     fn test_dyn_tensor_env() {
         type B = CpuBackend;
-        let device = Default::default();
+        let device = default_device();
 
         // Two handles to the same environment.
         let mut env1_a = DynTensorEnv::<B>::default();

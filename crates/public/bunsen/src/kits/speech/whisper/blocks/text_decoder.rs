@@ -504,6 +504,7 @@ mod tests {
         support::testing::{
             CpuBackend,
             PerformanceBackend,
+            default_device,
         },
     };
 
@@ -511,7 +512,7 @@ mod tests {
     #[serial]
     fn test_text_decoder_forward() {
         type B = PerformanceBackend;
-        let device = Default::default();
+        let device = default_device();
 
         let d_model = 128;
         let vocab_size = 64;
@@ -568,7 +569,7 @@ mod tests {
         type B = PerformanceBackend;
         type F = <B as BackendTypes>::FloatElem;
 
-        let device = Default::default();
+        let device = default_device();
 
         // `n_heads` is `d_model / d_head` with `d_head` defaulting to 64, so
         // a smaller `d_model` would give the attention zero heads.
@@ -628,7 +629,7 @@ mod tests {
         type B = PerformanceBackend;
         type F = <B as BackendTypes>::FloatElem;
 
-        let device = Default::default();
+        let device = default_device();
         let (vocab, d_model, max_ctx, layers) = (64, 128, 16, 1);
         let (cross_len, seq, prompt) = (4, 5, 3);
 
@@ -729,7 +730,7 @@ mod tests {
         type B = PerformanceBackend;
         type F = <B as BackendTypes>::FloatElem;
 
-        let device = Default::default();
+        let device = default_device();
         let (vocab, d_model, max_ctx, layers) = (32, 128, 8, 1);
 
         let decoder: TextDecoder<B> =

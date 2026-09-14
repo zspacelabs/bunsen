@@ -351,7 +351,10 @@ mod tests {
         },
         burner::module::ModuleInit,
         contracts::assert_shape_contract,
-        support::testing::CpuBackend,
+        support::testing::{
+            CpuBackend,
+            default_device,
+        },
     };
 
     #[test]
@@ -370,7 +373,7 @@ mod tests {
     #[allow(unused)]
     fn test_csa_forward() {
         type B = CpuBackend;
-        let device = Default::default();
+        let device = default_device();
 
         let batch = 1;
         let seq_len = 10;

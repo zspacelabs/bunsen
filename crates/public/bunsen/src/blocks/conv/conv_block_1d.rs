@@ -429,7 +429,10 @@ mod tests {
     };
 
     use super::*;
-    use crate::support::testing::CpuBackend;
+    use crate::support::testing::{
+        CpuBackend,
+        backend_device,
+    };
 
     #[test]
     fn test_conv_norm_config() {
@@ -494,7 +497,7 @@ mod tests {
     fn test_dilated_forward_shape() {
         type I = CpuBackend;
         type B = Autodiff<I>;
-        let device = Default::default();
+        let device = backend_device::<B>();
 
         // Dilated, valid-padded block: previously incompatible with the
         // stride-division contract; now modeled by true conv arithmetic.
@@ -520,7 +523,7 @@ mod tests {
     fn test_cb() {
         type I = CpuBackend;
         type B = Autodiff<I>;
-        let device = Default::default();
+        let device = backend_device::<B>();
 
         let config = ConvBlock1dConfig::new(
             Conv1dConfig::new(2, 4, 3)

@@ -262,14 +262,17 @@ mod tests {
     use super::*;
     use crate::{
         contracts::assert_shape_contract,
-        support::testing::PerformanceBackend,
+        support::testing::{
+            PerformanceBackend,
+            default_device,
+        },
     };
 
     #[test]
     #[serial]
     fn test_inverse_frequency_table() {
         type B = PerformanceBackend;
-        let device = Default::default();
+        let device = default_device();
 
         let base = 10000;
         let head_dim = 4;
@@ -296,7 +299,7 @@ mod tests {
     #[serial]
     fn test_frequency_matrix() {
         type B = PerformanceBackend;
-        let device = Default::default();
+        let device = default_device();
 
         let base = 10000;
         let head_dim = 4;
@@ -330,7 +333,7 @@ mod tests {
     #[serial]
     fn test_clip_range() {
         type B = PerformanceBackend;
-        let device = Default::default();
+        let device = default_device();
 
         let config = RotaryEmbeddingConfig::new(1024, 64);
         let re: RotaryEmbedding<B> = config.init(&device);
@@ -355,7 +358,7 @@ mod tests {
     #[serial]
     fn test_rotary_embedding() {
         type B = PerformanceBackend;
-        let device = Default::default();
+        let device = default_device();
 
         let batch = 1;
         let heads = 2;

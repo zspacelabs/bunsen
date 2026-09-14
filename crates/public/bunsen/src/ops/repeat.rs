@@ -20,8 +20,9 @@ use burn::{
 ///
 /// # Examples
 /// ```rust, ignore
+/// use bunsen::support::testing::default_device;
 /// type B = Wgpu;
-/// let device = Default::default();
+/// let device = default_device();
 ///
 /// let input = Tensor::<B, 2>::from_data(
 ///     [
@@ -62,12 +63,15 @@ pub fn repeat_interleave<B: Backend, const R: usize, const R2: usize, D: AsIndex
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::support::testing::CpuBackend;
+    use crate::support::testing::{
+        CpuBackend,
+        default_device,
+    };
 
     #[test]
     fn test_repeat_interleave() {
         type B = CpuBackend;
-        let device = Default::default();
+        let device = default_device();
 
         let input = Tensor::<B, 2>::from_data([[0., 1., 2.], [3., 4., 5.]], &device);
 

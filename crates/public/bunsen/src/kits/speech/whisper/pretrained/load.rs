@@ -60,8 +60,9 @@ impl<B: Backend> Whisper<B> {
     /// ```no_run
     /// # use burn::{module::Module, tensor::DType, backend::Wgpu};
     /// # use bunsen::{burner::module::DTypeMapper, kits::speech::whisper::Whisper};
+    /// # use bunsen::support::testing::default_device;
     /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
-    /// let device = Default::default();
+    /// let device = default_device();
     /// let (model, cfg) = Whisper::<Wgpu>::load_pretrained_16khz_fp16_base(&device)?;
     /// let model = model.map(&mut DTypeMapper::new(DType::F32));
     /// # Ok(())

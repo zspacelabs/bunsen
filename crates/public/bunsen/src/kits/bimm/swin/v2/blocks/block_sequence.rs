@@ -334,7 +334,10 @@ mod tests {
     use super::*;
     use crate::{
         errors::WithOkOrPanic,
-        support::testing::PerformanceBackend,
+        support::testing::{
+            PerformanceBackend,
+            default_device,
+        },
     };
 
     #[test]
@@ -422,7 +425,7 @@ mod tests {
             window_size,
         );
 
-        let device = Default::default();
+        let device = default_device();
         let module: StochasticDepthTransformerBlockSequence<B> =
             config.try_init(&device).ok_or_panic();
 

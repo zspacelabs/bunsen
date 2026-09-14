@@ -15,8 +15,7 @@ API: <https://docs.rs/bunsen/latest/bunsen/kits/bimm/>
 
 ### `ResNet`
 
-The classic `ResNet` family
-([arXiv:1512.03385](https://arxiv.org/abs/1512.03385)), with prefab
+The classic `ResNet` family ([arXiv:1512.03385](https://arxiv.org/abs/1512.03385)), with prefab
 configurations and a pretrained-weight loader that pulls from the
 `torchvision` checkpoints.
 
@@ -29,7 +28,7 @@ use bunsen::{
 };
 use burn::backend::Flex;
 
-let device = Default::default();
+let device = default_device();
 
 let prefab = PREFAB_RESNET_MAP.expect_lookup_prefab("resnet18");
 

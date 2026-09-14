@@ -612,7 +612,10 @@ mod tests {
             descriptors::TensorKindDesc,
             tensor::dynamic::*,
         },
-        support::testing::PerformanceBackend,
+        support::testing::{
+            PerformanceBackend,
+            default_device,
+        },
     };
 
     type B = PerformanceBackend;
@@ -626,7 +629,7 @@ mod tests {
 
     #[test]
     fn test_stub_float() {
-        let device = Default::default();
+        let device = default_device();
 
         let source: Tensor<B, 2> = Tensor::random([2, 3], Distribution::Default, &device);
 
@@ -669,7 +672,7 @@ mod tests {
 
     #[test]
     fn test_stub_int() {
-        let device = Default::default();
+        let device = default_device();
 
         let source: Tensor<B, 2> = Tensor::random([2, 3], Distribution::Default, &device);
         let source = source.int();
@@ -713,7 +716,7 @@ mod tests {
 
     #[test]
     fn test_stub_bool() {
-        let device = Default::default();
+        let device = default_device();
 
         let source: Tensor<B, 2> = Tensor::random([2, 3], Distribution::Bernoulli(0.5), &device);
         let source = source.bool();
@@ -757,7 +760,7 @@ mod tests {
 
     #[test]
     fn test_clone() {
-        let device = Default::default();
+        let device = default_device();
 
         let source: Tensor<B, 2> = Tensor::random([2, 3], Distribution::Default, &device);
 
@@ -773,7 +776,7 @@ mod tests {
 
     #[test]
     fn test_slice() {
-        let device = Default::default();
+        let device = default_device();
 
         let source: Tensor<B, 2> = Tensor::random([2, 3], Distribution::Default, &device);
 
@@ -790,7 +793,7 @@ mod tests {
 
     #[test]
     fn test_slice_dyn() {
-        let device = Default::default();
+        let device = default_device();
 
         let source: Tensor<B, 2> = Tensor::random([2, 3], Distribution::Default, &device);
 

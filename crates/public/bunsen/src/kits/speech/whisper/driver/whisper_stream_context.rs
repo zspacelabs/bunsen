@@ -1036,7 +1036,10 @@ mod tests {
             },
             tokens::Detokenizer,
         },
-        support::testing::PerformanceBackend,
+        support::testing::{
+            PerformanceBackend,
+            default_device,
+        },
     };
 
     type B = PerformanceBackend;
@@ -1338,7 +1341,7 @@ mod tests {
     #[test]
     #[serial]
     fn test_prompt_carry() {
-        let device = Default::default();
+        let device = default_device();
         let driver: WhisperStreamDriver<B> = driver(&device, true);
         let audio = clip();
         let width = driver.window_frames();
@@ -1400,7 +1403,7 @@ mod tests {
             }
         }
 
-        let device = Default::default();
+        let device = default_device();
         let driver: WhisperStreamDriver<B> =
             driver(&device, false).with_detokenizer(Arc::new(Numbers));
         let audio = clip();
@@ -1424,7 +1427,7 @@ mod tests {
     #[test]
     #[serial]
     fn test_lifecycle_edges() {
-        let device = Default::default();
+        let device = default_device();
         let driver: WhisperStreamDriver<B> = driver(&device, false);
 
         let mut empty = driver.new_context(clock(), PerWindow).unwrap();
@@ -1989,7 +1992,7 @@ mod tests {
     /// and refuses a mismatched language.
     #[test]
     fn test_init_refuses_the_unsupported() {
-        let device = Default::default();
+        let device = default_device();
         let policy = WhisperTokenLayout::new(tiny_layout());
         let base = WhisperStreamDriverConfig::new().with_language(Some("en".to_string()));
 

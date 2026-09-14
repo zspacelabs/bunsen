@@ -18,7 +18,10 @@ mod tests {
         prelude::*,
         support::{
             audio::load_audio_mono_sr,
-            testing::PerformanceBackend,
+            testing::{
+                PerformanceBackend,
+                default_device,
+            },
         },
     };
     use burn::{
@@ -39,7 +42,7 @@ mod tests {
         type B = PerformanceBackend;
         type F = <B as BackendTypes>::FloatElem;
 
-        let device = Default::default();
+        let device = default_device();
 
         let sc: SileroVadCollection<B> =
             SileroVadCollection::load_pretrained(&device).ok_or_panic();
@@ -89,7 +92,7 @@ mod tests {
         let sample_rate = 16000;
 
         type B = PerformanceBackend;
-        let device = Default::default();
+        let device = default_device();
 
         let vad: SileroVad<B> = SileroVadCollection::load_pretrained(&device)?
             .try_branch(sample_rate)?

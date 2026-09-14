@@ -61,14 +61,17 @@ mod test {
     use super::*;
     use crate::{
         burner::tensor::*,
-        support::testing::PerformanceBackend,
+        support::testing::{
+            PerformanceBackend,
+            default_device,
+        },
     };
 
     #[test]
     #[serial_test::serial]
     fn test_wrap_state_2d() {
         type B = PerformanceBackend;
-        let device = Default::default();
+        let device = default_device();
 
         let shape: Shape = [5, 6].into();
 
@@ -110,7 +113,7 @@ mod test {
     #[serial_test::serial]
     fn test_wrap_state_3d() {
         type B = PerformanceBackend;
-        let device = Default::default();
+        let device = default_device();
 
         let shape: Shape = [4, 5, 6].into();
 

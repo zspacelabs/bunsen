@@ -21,7 +21,10 @@ use bunsen::{
         Whisper,
         WhisperApiConfig,
     },
-    support::testing::PerformanceBackend,
+    support::testing::{
+        PerformanceBackend,
+        default_device,
+    },
 };
 use burn::{
     Tensor,
@@ -46,7 +49,7 @@ fn base_en(device: &Device<B>) -> Whisper<B> {
 const NEVER: i64 = -1;
 
 fn bench_whisper_decode(c: &mut Criterion) {
-    let device = Default::default();
+    let device = default_device();
     let model = base_en(&device);
     let mels: Tensor<B, 3> = Tensor::random([1, 80, 3000], Distribution::Default, &device);
 

@@ -209,6 +209,7 @@ pub trait ConvSeq1dMeta {
 ///         ConvSeq1dMeta,
 ///     },
 ///     burner::module::ModuleInit,
+///     support::testing::default_device,
 /// };
 /// use burn::{
 ///     backend::Flex,
@@ -219,7 +220,7 @@ pub trait ConvSeq1dMeta {
 ///     },
 /// };
 ///
-/// let device = Default::default();
+/// let device = default_device();
 ///
 /// let config = ConvSeq1dConfig::new(vec![
 ///     ConvBlock1dConfig::new(
@@ -329,6 +330,7 @@ impl<B: Backend> ModuleInit<B, ConvSeq1d<B>> for ConvSeq1dConfig {
 ///         ConvSeq1dMeta,
 ///     },
 ///     burner::module::ModuleInit,
+///     support::testing::default_device,
 /// };
 /// use burn::{
 ///     Tensor,
@@ -340,7 +342,7 @@ impl<B: Backend> ModuleInit<B, ConvSeq1d<B>> for ConvSeq1dConfig {
 ///     tensor::Distribution,
 /// };
 ///
-/// let device = Default::default();
+/// let device = default_device();
 ///
 /// // Two stride-2 down-sampling blocks (kernel 3, "same" padding), each
 /// // halving the length. `try_init` builds and validates the sequence.
@@ -433,7 +435,10 @@ mod tests {
     };
 
     use super::*;
-    use crate::support::testing::CpuBackend;
+    use crate::support::testing::{
+        CpuBackend,
+        backend_device,
+    };
 
     type I = CpuBackend;
     type B = Autodiff<I>;
@@ -536,7 +541,7 @@ mod tests {
 
     #[test]
     fn test_output_length_dilated() {
-        let device = Default::default();
+        let device = backend_device::<B>();
         // Valid-padded, dilated block: out = in - dilation * (kernel - 1).
         let dilated = ConvBlock1dConfig::new(
             Conv1dConfig::new(2, 4, 3)
@@ -560,7 +565,7 @@ mod tests {
 
     #[test]
     fn test_output_shape_matches_forward() {
-        let device = Default::default();
+        let device = backend_device::<B>();
         let seq = ConvSeq1d::try_new(vec![block(2, 4, 2), block(4, 8, 2)]).unwrap();
 
         let batch_size = 3;
@@ -583,7 +588,7 @@ mod tests {
 
     #[test]
     fn test_forward_matches_sequential() {
-        let device = Default::default();
+        let device = backend_device::<B>();
         let blocks = vec![block(2, 4, 2), block(4, 8, 1)];
         let seq = ConvSeq1d::try_new(blocks).unwrap();
 

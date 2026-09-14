@@ -427,7 +427,10 @@ mod tests {
     use super::*;
     use crate::{
         contracts::assert_shape_contract,
-        support::testing::PerformanceBackend,
+        support::testing::{
+            PerformanceBackend,
+            default_device,
+        },
     };
 
     #[test]
@@ -448,7 +451,7 @@ mod tests {
     #[serial]
     fn test_gpt_forward() {
         type B = PerformanceBackend;
-        let device = Default::default();
+        let device = default_device();
 
         let batch_size = 1;
         let seq_len = 100;

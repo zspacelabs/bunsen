@@ -81,6 +81,7 @@ mod tests {
     use super::*;
     use crate::support::testing::{
         CpuBackend,
+        default_device,
         param_load_mapping,
     };
 
@@ -115,7 +116,7 @@ mod tests {
     /// A `Linear` gets the repair on its weight, and its value is untouched.
     #[test]
     fn test_linear_weight_is_repaired() {
-        let device = Default::default();
+        let device = default_device();
 
         let linear = LinearConfig::new(3, 5).init::<B>(&device);
         let before = linear.weight.val().to_data();

@@ -181,8 +181,9 @@ mod tests {
     #[test]
     #[serial_test::serial]
     fn test_residual_decoder_forward() {
+        use crate::support::testing::default_device;
         type B = crate::support::testing::PerformanceBackend;
-        let device = Default::default();
+        let device = default_device();
 
         let d_model = 128;
 

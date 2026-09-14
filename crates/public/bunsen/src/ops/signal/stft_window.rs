@@ -102,7 +102,10 @@ mod tests {
     };
 
     use super::*;
-    use crate::support::testing::CpuBackend;
+    use crate::support::testing::{
+        CpuBackend,
+        default_device,
+    };
 
     type B = CpuBackend;
     type F = <B as BackendTypes>::FloatElem;
@@ -132,7 +135,7 @@ mod tests {
 
     #[test]
     fn test_coefficients_tensor_matches_host() {
-        let device = Default::default();
+        let device = default_device();
         for periodic in [true, false] {
             for window in [
                 StftWindowConfig::Ones,

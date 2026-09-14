@@ -285,6 +285,7 @@ mod tests {
         support::testing::{
             CpuBackend,
             PerformanceBackend,
+            default_device,
         },
     };
 
@@ -292,7 +293,7 @@ mod tests {
     #[serial_test::serial]
     fn test_stream() -> BunsenResult<()> {
         fn example<B: Backend>(probe: &mut AuditProbe) -> BunsenResult<()> {
-            let device = Default::default();
+            let device = default_device();
 
             let iota: Tensor<B, 1> = Tensor::arange(0..10, &device).float();
             probe.try_tensor_eq("iota", &iota, false)?;

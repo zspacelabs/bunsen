@@ -65,13 +65,16 @@ mod tests {
     use serial_test::serial;
 
     use super::*;
-    use crate::support::testing::PerformanceBackend;
+    use crate::support::testing::{
+        PerformanceBackend,
+        default_device,
+    };
 
     #[test]
     #[serial]
     fn test_rms_norm() {
         type B = PerformanceBackend;
-        let device = Default::default();
+        let device = default_device();
 
         let x: Tensor<B, 3> = Tensor::random([2, 3, 4], Distribution::Default, &device);
         let options = RmsNormOptions::default();

@@ -142,14 +142,17 @@ mod tests {
             ops::next_interior_2d,
             util::ConwaySim,
         },
-        support::testing::PerformanceBackend,
+        support::testing::{
+            PerformanceBackend,
+            default_device,
+        },
     };
 
     #[test]
     #[serial]
     fn test_smoke() {
         type B = PerformanceBackend;
-        let device = Default::default();
+        let device = default_device();
 
         let steps = 100;
         let grid_size = 20;
@@ -169,7 +172,7 @@ mod tests {
     #[serial]
     fn test_logic() {
         type B = PerformanceBackend;
-        let device = Default::default();
+        let device = default_device();
         let config = ConwayLife2DConfig {
             shape: GridShape2D::square(5),
         };

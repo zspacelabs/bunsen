@@ -22,6 +22,7 @@ use bunsen::{
         util::ConwaySim,
     },
     prelude::TensorElemOpExt,
+    support::testing::backend_device,
     zspace::ravel_dims,
 };
 use burn::{
@@ -78,7 +79,7 @@ pub struct VisualCmd {
 
 impl VisualCmd {
     pub fn run<B: Backend>(&self) -> BunsenResult<()> {
-        let device = Default::default();
+        let device = backend_device::<B>();
 
         self.logging.init(None);
         log::info!("Running Conway's Game of Life simulation...");

@@ -278,7 +278,10 @@ mod tests {
     use burn::prelude::TensorData;
 
     use super::*;
-    use crate::support::testing::PerformanceBackend;
+    use crate::support::testing::{
+        PerformanceBackend,
+        default_device,
+    };
 
     type B = PerformanceBackend;
 
@@ -299,7 +302,7 @@ mod tests {
     /// told which rows they came from.
     #[test]
     fn test_first_step_deduplicates() {
-        let device = Default::default();
+        let device = default_device();
 
         let mut decoder = WhisperBeamSearchDecoder::new(3, EOT, None);
         let mut tokens = vec![vec![7]; 3];
@@ -329,7 +332,7 @@ mod tests {
     /// set holds `round(k * patience)` sequences.
     #[test]
     fn test_finished_set_and_patience() {
-        let device = Default::default();
+        let device = default_device();
         let mut decoder = WhisperBeamSearchDecoder::new(2, EOT, None);
         assert_eq!(decoder.beam_size(), 2);
         assert_eq!(decoder.max_candidates(), 2);
@@ -374,7 +377,7 @@ mod tests {
     /// set from the live beams, best first.
     #[test]
     fn test_patience_and_finalize_fill() {
-        let device = Default::default();
+        let device = default_device();
         let mut decoder = WhisperBeamSearchDecoder::new(2, EOT, Some(2.0));
         assert_eq!(decoder.max_candidates(), 4);
         let mut tokens = vec![vec![7]; 2];
@@ -407,7 +410,7 @@ mod tests {
     /// and each group refills from its own candidates.
     #[test]
     fn test_groups_are_independent() {
-        let device = Default::default();
+        let device = default_device();
         let mut decoder = WhisperBeamSearchDecoder::new(2, EOT, None);
         let mut tokens = vec![vec![7]; 4];
         let mut sums = vec![0.0; 4];

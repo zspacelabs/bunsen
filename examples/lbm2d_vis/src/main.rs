@@ -29,7 +29,10 @@ use bunsen::{
         TensorElemOpExt,
         TensorOpExt,
     },
-    support::geometry::GridShape2D,
+    support::{
+        geometry::GridShape2D,
+        testing::backend_device,
+    },
 };
 use burn::{
     Tensor,
@@ -130,7 +133,7 @@ fn run<B: Backend>(
     args: &Args,
     dtype: DType,
 ) {
-    let device = Default::default();
+    let device = backend_device::<B>();
 
     // Change this to OpenGL::V2_1 if not working.
     let opengl = OpenGL::V3_2;

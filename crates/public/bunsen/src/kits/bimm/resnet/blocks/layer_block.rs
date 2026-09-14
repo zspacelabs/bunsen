@@ -468,7 +468,10 @@ mod tests {
         contracts::assert_shape_contract,
         kits::bimm::resnet::blocks::BasicBlockConfig,
         prelude::*,
-        support::testing::PerformanceBackend,
+        support::testing::{
+            PerformanceBackend,
+            default_device,
+        },
     };
 
     #[test]
@@ -505,7 +508,7 @@ mod tests {
     pub fn test_layer_block() {
         type B = PerformanceBackend;
         type F = <B as BackendTypes>::FloatElem;
-        let device = Default::default();
+        let device = default_device();
 
         let a_planes = 16;
         let b_planes = 32;

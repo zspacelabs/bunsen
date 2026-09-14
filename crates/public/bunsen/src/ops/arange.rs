@@ -139,6 +139,7 @@ mod tests {
         support::testing::{
             CpuBackend,
             assert_close_to_vec,
+            default_device,
         },
     };
     type B = CpuBackend;
@@ -146,7 +147,7 @@ mod tests {
 
     #[test]
     fn test_arange_start_step() {
-        let device = Default::default();
+        let device = default_device();
 
         let num = 5;
 
@@ -186,7 +187,7 @@ mod tests {
 
     #[test]
     fn test_arange_linspace() {
-        let device = Default::default();
+        let device = default_device();
 
         let num = 5;
 
@@ -243,7 +244,7 @@ mod tests {
 
     #[test]
     fn test_linspace_int_step() {
-        let device = Default::default();
+        let device = default_device();
 
         let start: f64 = 0.0;
         let end: f64 = 1.0;
@@ -259,7 +260,7 @@ mod tests {
 
     #[test]
     fn test_float_vec_linspace_neg_float_step() {
-        let device = Default::default();
+        let device = default_device();
 
         let start: f64 = 1.0;
         let end: f64 = -0.2;
@@ -275,7 +276,7 @@ mod tests {
 
     #[test]
     fn test_float_vec_linspace_n1() {
-        let device = Default::default();
+        let device = default_device();
 
         let start: f64 = 0.0;
         let end: f64 = 1.0;

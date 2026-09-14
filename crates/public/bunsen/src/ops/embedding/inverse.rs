@@ -48,14 +48,17 @@ mod tests {
     use super::*;
     use crate::{
         ops::embedding::identity_embedding,
-        support::testing::PerformanceBackend,
+        support::testing::{
+            PerformanceBackend,
+            default_device,
+        },
     };
 
     #[test]
     #[serial]
     fn test_embedding_inverse_to_logits() {
         type B = PerformanceBackend;
-        let device = Default::default();
+        let device = default_device();
 
         let n_embedding = 10;
 

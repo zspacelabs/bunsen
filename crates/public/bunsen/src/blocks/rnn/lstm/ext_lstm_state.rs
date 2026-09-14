@@ -202,7 +202,10 @@ mod tests {
     };
 
     use super::*;
-    use crate::support::testing::CpuBackend;
+    use crate::support::testing::{
+        CpuBackend,
+        default_device,
+    };
 
     type B = CpuBackend;
 
@@ -222,7 +225,7 @@ mod tests {
     #[test]
     fn test_new() {
         let shape = [2, 3, 4];
-        let device = Default::default();
+        let device = default_device();
 
         let cell = Tensor::random(shape, Distribution::Default, &device);
         let hidden = Tensor::random(shape, Distribution::Default, &device);
@@ -239,7 +242,7 @@ mod tests {
     #[test]
     #[should_panic(expected = "assertion `left == right` failed")]
     fn test_new_shape_mismatch() {
-        let device = Default::default();
+        let device = default_device();
 
         let cell = Tensor::<B, 2>::zeros([2, 3], &device);
         let hidden = Tensor::<B, 2>::zeros([2, 4], &device);
@@ -250,7 +253,7 @@ mod tests {
     #[test]
     fn test_initial() {
         let shape = [2, 3];
-        let device = Default::default();
+        let device = default_device();
 
         let state: ExtLstmState<B, 2> = ExtLstmState::initial(shape, &device);
 
@@ -264,7 +267,7 @@ mod tests {
 
     #[test]
     fn test_unpack() {
-        let device = Default::default();
+        let device = default_device();
         let state: ExtLstmState<B, 3> = random_state([2, 3, 4], &device);
 
         let expected_cell = state.cell.to_data();
@@ -278,7 +281,7 @@ mod tests {
 
     #[test]
     fn test_map_state() {
-        let device = Default::default();
+        let device = default_device();
         let state: ExtLstmState<B, 2> = random_state([2, 3], &device);
 
         let expected_cell = state.cell.clone().reshape([3, 2]).to_data();
@@ -293,7 +296,7 @@ mod tests {
 
     #[test]
     fn test_map_state_changes_rank() {
-        let device = Default::default();
+        let device = default_device();
         let state: ExtLstmState<B, 2> = random_state([2, 3], &device);
 
         let mapped: ExtLstmState<B, 3> = state.map_state(|t| t.reshape([1, 2, 3]));
@@ -303,7 +306,7 @@ mod tests {
 
     #[test]
     fn test_slice() {
-        let device = Default::default();
+        let device = default_device();
         let state: ExtLstmState<B, 2> = random_state([4, 3], &device);
 
         let expected_cell = state.cell.clone().slice(s![1..3, ..]).to_data();
@@ -318,7 +321,7 @@ mod tests {
 
     #[test]
     fn test_squeeze_dim() {
-        let device = Default::default();
+        let device = default_device();
         let state: ExtLstmState<B, 3> = random_state([2, 1, 3], &device);
 
         let expected_cell = state.cell.clone().squeeze_dim::<2>(1).to_data();
@@ -333,7 +336,7 @@ mod tests {
 
     #[test]
     fn test_unsqueeze_dim() {
-        let device = Default::default();
+        let device = default_device();
         let state: ExtLstmState<B, 2> = random_state([2, 3], &device);
 
         let expected_cell = state.cell.clone().unsqueeze_dim::<3>(1).to_data();
@@ -351,7 +354,7 @@ mod tests {
 
     #[test]
     fn test_squeeze_unsqueeze_roundtrip() {
-        let device = Default::default();
+        let device = default_device();
         let state: ExtLstmState<B, 2> = random_state([2, 3], &device);
 
         let expected_cell = state.cell.to_data();
@@ -364,7 +367,7 @@ mod tests {
 
     #[test]
     fn test_stack() {
-        let device = Default::default();
+        let device = default_device();
         let a: ExtLstmState<B, 2> = random_state([2, 3], &device);
         let b: ExtLstmState<B, 2> = random_state([2, 3], &device);
 
@@ -381,7 +384,7 @@ mod tests {
 
     #[test]
     fn test_unwrap_or_initial_some() {
-        let device = Default::default();
+        let device = default_device();
         let state: ExtLstmState<B, 2> = random_state([2, 3], &device);
 
         let expected_cell = state.cell.to_data();
@@ -398,7 +401,7 @@ mod tests {
     #[test]
     fn test_unwrap_or_initial_none() {
         let shape = [2, 3];
-        let device = Default::default();
+        let device = default_device();
 
         let unwrapped: ExtLstmState<B, 2> = None.unwrap_or_initial(shape, &device);
 

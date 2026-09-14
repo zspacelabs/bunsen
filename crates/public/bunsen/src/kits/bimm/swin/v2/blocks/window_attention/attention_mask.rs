@@ -163,14 +163,17 @@ mod tests {
     use serial_test::serial;
 
     use super::*;
-    use crate::support::testing::PerformanceBackend;
+    use crate::support::testing::{
+        PerformanceBackend,
+        default_device,
+    };
 
     #[test]
     #[should_panic(expected = "Height 5 is not divisible by window size 2")]
     #[serial]
     fn test_sw_img_mask_height_not_divisible() {
         type B = PerformanceBackend;
-        let device = Default::default();
+        let device = default_device();
         let _d = sw_img_mask::<B>([5, 4], 2, 1, &device);
     }
 
@@ -179,7 +182,7 @@ mod tests {
     #[serial]
     fn test_sw_img_mask_width_not_divisible() {
         type B = PerformanceBackend;
-        let device = Default::default();
+        let device = default_device();
         let _d = sw_img_mask::<B>([4, 5], 2, 1, &device);
     }
 
@@ -194,7 +197,7 @@ mod tests {
         let n = ws * ws;
         let num_heads = 5;
 
-        let device = Default::default();
+        let device = default_device();
         let attn = Tensor::<B, 4>::zeros([b_nw, num_heads, n, n], &device);
         // (b*nw, num_heads, ws*ws, ws*ws)
 
@@ -246,7 +249,7 @@ mod tests {
     fn test_attn_mask() {
         type B = PerformanceBackend;
         // let b_nw = 1;
-        let device = Default::default();
+        let device = default_device();
 
         sw_attn_mask::<B>([4, 4], 2, 1, &device)
             .to_data()

@@ -131,7 +131,10 @@ mod tests {
     use serial_test::serial;
 
     use super::*;
-    use crate::support::testing::PerformanceBackend;
+    use crate::support::testing::{
+        PerformanceBackend,
+        default_device,
+    };
 
     #[test]
     fn test_relaxation_param() {
@@ -164,7 +167,7 @@ mod tests {
     #[serial]
     fn test_omega_source_from_relaxation() {
         type B = PerformanceBackend;
-        let device = Default::default();
+        let device = default_device();
 
         let relaxation = RelaxationParam::Omega(1.0);
         let omega_source: OmegaSource<B> = relaxation.into();

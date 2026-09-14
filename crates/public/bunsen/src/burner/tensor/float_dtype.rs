@@ -26,14 +26,17 @@ mod tests {
     use burn::tensor::DType;
 
     use super::*;
-    use crate::support::testing::CpuBackend;
+    use crate::support::testing::{
+        CpuBackend,
+        default_device,
+    };
 
     /// The helper agrees with what an undtyped tensor actually gets: that
     /// equality is the whole point of it.
     #[test]
     fn test_matches_a_default_tensor() {
         type B = CpuBackend;
-        let device = Default::default();
+        let device = default_device();
 
         let t: burn::Tensor<B, 1> = burn::Tensor::zeros([2], &device);
         assert_eq!(backend_float_dtype::<B>(), t.dtype());

@@ -205,7 +205,10 @@ mod tests {
     use super::*;
     use crate::{
         contracts::assert_shape_contract,
-        support::testing::PerformanceBackend,
+        support::testing::{
+            PerformanceBackend,
+            default_device,
+        },
     };
 
     #[test]
@@ -223,7 +226,7 @@ mod tests {
     #[serial]
     fn test_mlp() {
         type B = PerformanceBackend;
-        let device = Default::default();
+        let device = default_device();
 
         for activation in [ActivationConfig::Relu, ActivationConfig::Gelu] {
             for ef in [4, 3] {

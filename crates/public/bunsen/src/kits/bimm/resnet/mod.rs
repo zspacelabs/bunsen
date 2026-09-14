@@ -15,10 +15,11 @@
 //!         PREFAB_RESNET_MAP,
 //!         ResNet,
 //!     },
+//!     support::testing::default_device,
 //! };
 //! use burn::backend::Flex;
 //!
-//! let device = Default::default();
+//! let device = default_device();
 //!
 //! let prefab = PREFAB_RESNET_MAP.expect_lookup_prefab("resnet18");
 //!

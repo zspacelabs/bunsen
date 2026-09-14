@@ -428,6 +428,7 @@ mod tests {
             assert_close_to_vec,
             assert_tensor_close_to_vec,
             assert_tensors_close,
+            default_device,
         },
     };
 
@@ -464,7 +465,7 @@ mod tests {
 
     #[test]
     fn test_context_meta_and_lifecycle() {
-        let device = Default::default();
+        let device = default_device();
         let opts = PerceptiveAudioConverterOptions::default();
         let conv: PerceptiveAudioConverter<B> = opts.try_init(&device).ok_or_panic();
 
@@ -498,7 +499,7 @@ mod tests {
     /// count`, asserted against the real thing.
     #[test]
     fn test_frame_accounting_over_a_30s_window() {
-        let device = Default::default();
+        let device = default_device();
         let opts = PerceptiveAudioConverterOptions::default();
         let conv: PerceptiveAudioConverter<B> = opts.try_init(&device).ok_or_panic();
 
@@ -524,7 +525,7 @@ mod tests {
     /// the carry length does not drift.
     #[test]
     fn test_running_frame_count_is_invariant() {
-        let device = Default::default();
+        let device = default_device();
         let conv: PerceptiveAudioConverter<B> = PerceptiveAudioConverterOptions::default()
             .try_init(&device)
             .ok_or_panic();
@@ -560,7 +561,7 @@ mod tests {
     /// output to running it whole.
     #[test]
     fn test_chunked_transform_is_a_homomorphism() {
-        let device = Default::default();
+        let device = default_device();
         let conv: PerceptiveAudioConverter<B> = PerceptiveAudioConverterOptions::default()
             .try_init(&device)
             .ok_or_panic();
@@ -612,7 +613,7 @@ mod tests {
 
     #[test]
     fn test_batch_rows_are_independent() {
-        let device = Default::default();
+        let device = default_device();
         let conv: PerceptiveAudioConverter<B> = PerceptiveAudioConverterOptions::default()
             .try_init(&device)
             .ok_or_panic();
@@ -645,7 +646,7 @@ mod tests {
 
     #[test]
     fn test_transform_rejects_bad_input() {
-        let device = Default::default();
+        let device = default_device();
         let conv: PerceptiveAudioConverter<B> = PerceptiveAudioConverterOptions::default()
             .try_init(&device)
             .ok_or_panic();
@@ -669,7 +670,7 @@ mod tests {
 
     #[test]
     fn test_finish_respects_end_padding() {
-        let device = Default::default();
+        let device = default_device();
 
         // No end padding: nothing to flush.
         let unpadded: PerceptiveAudioConverter<B> = PerceptiveAudioConverterOptions::default()
@@ -702,7 +703,7 @@ mod tests {
     /// payoff for the stack being decomposed.
     #[test]
     fn test_stage_stack_matches_transform() {
-        let device = Default::default();
+        let device = default_device();
         let conv: PerceptiveAudioConverter<B> = PerceptiveAudioConverterOptions::default()
             .try_init(&device)
             .ok_or_panic();
@@ -727,7 +728,7 @@ mod tests {
     /// mirrored prefix.
     #[test]
     fn test_extend_stage_carry_contents() {
-        let device = Default::default();
+        let device = default_device();
         let conv: PerceptiveAudioConverter<B> = PerceptiveAudioConverterOptions::default()
             .try_init(&device)
             .ok_or_panic();

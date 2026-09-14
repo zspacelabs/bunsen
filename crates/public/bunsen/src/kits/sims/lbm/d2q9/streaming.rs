@@ -164,14 +164,17 @@ mod tests {
     use serial_test::serial;
 
     use super::*;
-    use crate::support::testing::PerformanceBackend;
+    use crate::support::testing::{
+        PerformanceBackend,
+        default_device,
+    };
 
     #[test]
     #[serial]
     #[rustfmt::skip]
     fn test_stream_interior_windows() {
         type B = PerformanceBackend;
-        let device = Default::default();
+        let device = default_device();
 
         let state: Tensor<B, 4> = Tensor::from_data([
             [

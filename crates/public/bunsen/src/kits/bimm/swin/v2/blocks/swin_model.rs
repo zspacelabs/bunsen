@@ -668,7 +668,10 @@ mod tests {
     use serial_test::serial;
 
     use super::*;
-    use crate::support::testing::PerformanceBackend;
+    use crate::support::testing::{
+        PerformanceBackend,
+        default_device,
+    };
 
     type B = PerformanceBackend;
 
@@ -738,7 +741,7 @@ mod tests {
             ]
         );
 
-        let device = Default::default();
+        let device = default_device();
         let model: SwinTransformerV2<B> = config.try_init(&device).ok_or_panic();
 
         assert_eq!(model.input_resolution(), [224, 224]);
@@ -779,7 +782,7 @@ mod tests {
     #[serial]
     fn test_smoke_test_ape() {
         type B = PerformanceBackend;
-        let device = Default::default();
+        let device = default_device();
 
         let b = 2;
         let d_input = 3;
@@ -860,7 +863,7 @@ mod tests {
     #[serial]
     fn test_smoke_test_no_ape() {
         type B = PerformanceBackend;
-        let device = Default::default();
+        let device = default_device();
 
         let b = 2;
         let d_input = 3;

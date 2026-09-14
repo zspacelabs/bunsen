@@ -144,6 +144,7 @@ mod tests {
     use bunsen::support::testing::{
         CpuBackend,
         assert_close_to_vec,
+        default_device,
     };
 
     use super::*;
@@ -157,7 +158,7 @@ mod tests {
     /// strides, and this pins that the fixture and the destination agree.
     #[test]
     fn test_contiguous_source_is_correct() {
-        let device = Default::default();
+        let device = default_device();
         let probe = load_probe::<B>("contiguous", false, &device);
 
         assert_close_to_vec(&weight_of(&probe), &expected_weight(), TOLERANCE);
@@ -171,7 +172,7 @@ mod tests {
     #[test]
     #[ignore = "reproduces the burn-store stride defect; fails until it is fixed"]
     fn test_strided_source_should_match_contiguous() {
-        let device = Default::default();
+        let device = default_device();
         let probe = load_probe::<B>("strided", false, &device);
 
         assert_close_to_vec(&weight_of(&probe), &expected_weight(), TOLERANCE);
@@ -183,7 +184,7 @@ mod tests {
     /// The failure message says what to remove.
     #[test]
     fn test_strided_source_is_currently_corrupt() {
-        let device = Default::default();
+        let device = default_device();
         let probe = load_probe::<B>("strided", false, &device);
 
         let got = weight_of(&probe);
@@ -206,7 +207,7 @@ mod tests {
     /// The workaround recovers the correct weight from the corrupted read.
     #[test]
     fn test_repair_recovers_the_weight() {
-        let device = Default::default();
+        let device = default_device();
         let probe = load_probe::<B>("strided", true, &device);
 
         assert_close_to_vec(&weight_of(&probe), &expected_weight(), TOLERANCE);

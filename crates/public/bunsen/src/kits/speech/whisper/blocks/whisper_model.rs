@@ -372,6 +372,7 @@ mod tests {
         support::testing::{
             CpuBackend,
             PerformanceBackend,
+            default_device,
             param_load_mapping,
         },
     };
@@ -579,7 +580,7 @@ mod tests {
     #[serial]
     fn test_whisper_forward() {
         type B = PerformanceBackend;
-        let device = Default::default();
+        let device = default_device();
 
         let d_model = 128;
         let n_mels = 80;

@@ -97,14 +97,17 @@ mod tests {
             RelaxationParam,
             density,
         },
-        support::testing::PerformanceBackend,
+        support::testing::{
+            PerformanceBackend,
+            default_device,
+        },
     };
 
     #[test]
     #[serial]
     fn test_collision_invariants() {
         type B = PerformanceBackend;
-        let device = Default::default();
+        let device = default_device();
 
         let dtype = F32;
 

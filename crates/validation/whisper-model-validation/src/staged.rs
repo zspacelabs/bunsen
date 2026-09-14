@@ -10,7 +10,10 @@ use bunsen::{
         tensor::TensorElemOpExt,
     },
     kits::speech::whisper::blocks::Whisper,
-    support::testing::PerformanceBackend,
+    support::testing::{
+        PerformanceBackend,
+        default_device,
+    },
 };
 use burn::{
     prelude::*,
@@ -31,7 +34,7 @@ type F = <B as BackendTypes>::FloatElem;
 /// tells you the fetch-and-generate path itself is healthy.
 #[test]
 fn test_reference_encoder_runs() {
-    let device = Default::default();
+    let device = default_device();
     let model = reference::EncoderModel::<B>::load_pretrained(&device);
 
     let out = model.forward(synthetic_mels::<B>(&device));
@@ -58,7 +61,7 @@ fn test_reference_encoder_runs() {
 /// in, so this never skips.
 #[test]
 fn test_bunsen_encoder_matches_reference() {
-    let device = Default::default();
+    let device = default_device();
     let mels = synthetic_mels::<B>(&device);
 
     let reference = reference::EncoderModel::<B>::load_pretrained(&device).forward(mels.clone());

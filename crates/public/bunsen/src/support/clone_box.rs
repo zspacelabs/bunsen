@@ -39,14 +39,17 @@ mod tests {
     };
 
     use super::*;
-    use crate::support::testing::CpuBackend;
+    use crate::support::testing::{
+        CpuBackend,
+        default_device,
+    };
 
     fn assert_send<T: Send>() {}
 
     #[test]
     fn test_clone_box_tensor() {
         type B = CpuBackend;
-        let device = Default::default();
+        let device = default_device();
 
         let source: Tensor<B, 2> = Tensor::random([2, 3], Distribution::Default, &device);
 

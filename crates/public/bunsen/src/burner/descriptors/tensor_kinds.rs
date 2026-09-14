@@ -94,14 +94,17 @@ mod tests {
 
     use crate::{
         burner::descriptors::TensorKindDesc,
-        support::testing::CpuBackend,
+        support::testing::{
+            CpuBackend,
+            default_device,
+        },
     };
 
     type B = CpuBackend;
 
     #[test]
     fn test_tensor_kinds() {
-        let device = Default::default();
+        let device = default_device();
         assert_eq!(TensorKindDesc::for_kind::<Bool>(), TensorKindDesc::Bool);
         assert_eq!(
             TensorKindDesc::kind(&Tensor::<B, 1, Bool>::zeros(&[1], &device)),

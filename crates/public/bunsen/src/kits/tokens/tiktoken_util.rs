@@ -303,7 +303,10 @@ mod tests {
             LogitFilter,
             SuppressBlank,
         },
-        support::testing::CpuBackend,
+        support::testing::{
+            CpuBackend,
+            default_device,
+        },
     };
 
     #[test]
@@ -412,7 +415,7 @@ mod tests {
     #[test]
     fn test_suppress_blank() {
         type B = CpuBackend;
-        let device = Default::default();
+        let device = default_device();
 
         let filter = SuppressBlank::new(2, 4);
         let first = to_rows(LogitFilter::<B>::apply(

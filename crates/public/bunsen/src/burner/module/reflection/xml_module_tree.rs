@@ -664,13 +664,16 @@ mod tests {
     use super::*;
     use crate::{
         burner::descriptors::TensorParamDesc,
-        support::testing::CpuBackend,
+        support::testing::{
+            CpuBackend,
+            default_device,
+        },
     };
 
     #[test]
     fn test_debug() {
         type B = CpuBackend;
-        let device = Default::default();
+        let device = default_device();
         let module: Linear<B> = LinearConfig::new(2, 3).init(&device);
 
         let weight_desc: TensorParamDesc = TensorParamDesc::from(&module.weight);
@@ -714,7 +717,7 @@ mod tests {
     #[test]
     fn test_to_xml() {
         type B = CpuBackend;
-        let device = Default::default();
+        let device = default_device();
         let module: Linear<B> = LinearConfig::new(2, 3).init(&device);
 
         let weight_desc: TensorParamDesc = TensorParamDesc::from(&module.weight);

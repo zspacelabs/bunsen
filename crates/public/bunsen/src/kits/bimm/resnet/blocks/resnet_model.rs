@@ -555,7 +555,10 @@ mod tests {
             RESNET34_BLOCKS,
             RESNET50_BLOCKS,
         },
-        support::testing::PerformanceBackend,
+        support::testing::{
+            PerformanceBackend,
+            default_device,
+        },
     };
 
     #[cfg(feature = "store")]
@@ -565,7 +568,7 @@ mod tests {
     ) -> BunsenResult<()> {
         use crate::kits::bimm::resnet::PREFAB_RESNET_MAP;
 
-        let device = Default::default();
+        let device = default_device();
 
         let prefab = PREFAB_RESNET_MAP.expect_lookup_prefab(&prefab);
 
@@ -618,7 +621,7 @@ mod tests {
     #[serial]
     fn test_to_layers_50_bottleneck() {
         type B = PerformanceBackend;
-        let device = Default::default();
+        let device = default_device();
 
         let cfg = ResNetContractConfig::new(RESNET50_BLOCKS.to_vec(), 1000).with_bottleneck(true);
         let layers = cfg.to_layer_contracts();

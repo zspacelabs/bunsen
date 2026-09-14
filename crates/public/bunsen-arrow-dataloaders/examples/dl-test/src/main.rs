@@ -6,7 +6,10 @@ use std::{
     },
 };
 
-use bunsen::support::testing::PerformanceBackend;
+use bunsen::support::testing::{
+    PerformanceBackend,
+    backend_device,
+};
 use bunsen_arrow_dataloaders::{
     dataloaders::chat::ChatDataLoader,
     tokens::{
@@ -151,7 +154,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     type B = PerformanceBackend;
 
-    let device = Default::default();
+    let device = backend_device::<B>();
 
     let data_loader: ChatDataLoader<B> = ChatDataLoader::new(
         shard_paths,

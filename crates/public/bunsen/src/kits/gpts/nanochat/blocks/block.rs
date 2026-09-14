@@ -165,14 +165,17 @@ mod tests {
     use crate::{
         blocks::transformers::embedding::RotaryEmbeddingConfig,
         contracts::assert_shape_contract,
-        support::testing::PerformanceBackend,
+        support::testing::{
+            PerformanceBackend,
+            default_device,
+        },
     };
 
     #[test]
     #[serial]
     fn test_gpt_block_config() {
         type B = PerformanceBackend;
-        let device = Default::default();
+        let device = default_device();
 
         let n_embed = 1024;
         let n_head = 128;
@@ -199,7 +202,7 @@ mod tests {
     #[serial]
     fn test_gpt_block_forward() {
         type B = PerformanceBackend;
-        let device = Default::default();
+        let device = default_device();
 
         let batch = 2;
         let seq_len = 10;

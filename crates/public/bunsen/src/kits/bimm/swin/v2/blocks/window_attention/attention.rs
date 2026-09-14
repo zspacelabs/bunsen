@@ -423,7 +423,10 @@ mod tests {
     use super::*;
     use crate::{
         contracts::assert_shape_contract,
-        support::testing::PerformanceBackend,
+        support::testing::{
+            PerformanceBackend,
+            default_device,
+        },
     };
 
     #[test]
@@ -446,7 +449,7 @@ mod tests {
         assert_eq!(config.window_height(), 4);
         assert_eq!(config.window_width(), 4);
 
-        let device = Default::default();
+        let device = default_device();
         let attn_mod: WindowAttention<B> = config.try_init(&device).ok_or_panic();
 
         assert_eq!(attn_mod.d_input(), channels);
@@ -473,7 +476,7 @@ mod tests {
 
         let config = WindowAttentionConfig::new(channels, [window_size, window_size], num_heads);
 
-        let device = Default::default();
+        let device = default_device();
         let attn_mod: WindowAttention<B> = config.try_init(&device).ok_or_panic();
 
         assert_eq!(attn_mod.d_input(), channels);

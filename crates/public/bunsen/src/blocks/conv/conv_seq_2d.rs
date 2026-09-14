@@ -209,6 +209,7 @@ pub trait ConvSeq2dMeta {
 ///         ConvSeq2dMeta,
 ///     },
 ///     burner::module::ModuleInit,
+///     support::testing::default_device,
 /// };
 /// use burn::{
 ///     backend::Flex,
@@ -219,7 +220,7 @@ pub trait ConvSeq2dMeta {
 ///     },
 /// };
 ///
-/// let device = Default::default();
+/// let device = default_device();
 ///
 /// let config = ConvSeq2dConfig::new(vec![
 ///     ConvBlock2dConfig::new(
@@ -321,6 +322,7 @@ impl<B: Backend> ModuleInit<B, ConvSeq2d<B>> for ConvSeq2dConfig {
 /// [`try_init`](ModuleInit::try_init), then running a forward pass:
 ///
 /// ```rust,no_run
+/// use bunsen::support::testing::default_device;
 /// use bunsen::{
 ///     blocks::conv::{
 ///         ConvBlock2dConfig,
@@ -340,7 +342,7 @@ impl<B: Backend> ModuleInit<B, ConvSeq2d<B>> for ConvSeq2dConfig {
 ///     tensor::Distribution,
 /// };
 ///
-/// let device = Default::default();
+/// let device = default_device();
 ///
 /// // Two stride-2 down-sampling blocks (3x3 kernel, "same" padding), each
 /// // halving the resolution. `try_init` builds and validates the sequence.
@@ -430,7 +432,10 @@ mod tests {
     };
 
     use super::*;
-    use crate::support::testing::CpuBackend;
+    use crate::support::testing::{
+        CpuBackend,
+        default_device,
+    };
 
     type I = CpuBackend;
     type B = Autodiff<I>;
@@ -534,7 +539,7 @@ mod tests {
 
     #[test]
     fn test_output_resolution_dilated() {
-        let device = Default::default();
+        let device = default_device();
         // Valid-padded, dilated block: out = in - dilation * (kernel - 1).
         let dilated = ConvBlock2dConfig::new(
             Conv2dConfig::new([2, 4], [3, 3])
@@ -558,7 +563,7 @@ mod tests {
 
     #[test]
     fn test_output_shape_matches_forward() {
-        let device = Default::default();
+        let device = default_device();
         let seq = ConvSeq2d::try_new(vec![block(2, 4, 2), block(4, 8, 2)]).unwrap();
 
         let batch_size = 3;
@@ -579,7 +584,7 @@ mod tests {
 
     #[test]
     fn test_forward_matches_sequential() {
-        let device = Default::default();
+        let device = default_device();
         let blocks = vec![block(2, 4, 2), block(4, 8, 1)];
         let seq = ConvSeq2d::try_new(blocks).unwrap();
 

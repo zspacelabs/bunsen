@@ -11,6 +11,7 @@
 //!         SwinTransformerV2,
 //!         SwinTransformerV2Config,
 //!     },
+//!     support::testing::default_device,
 //! };
 //! use burn::backend::Flex;
 //!
@@ -21,7 +22,7 @@
 //! let embed_dim = 96;
 //! let window_size = 8;
 //!
-//! let device = Default::default();
+//! let device = default_device();
 //!
 //! let swin_model: SwinTransformerV2<Flex> = SwinTransformerV2Config::new(
 //!     image_dimensions,

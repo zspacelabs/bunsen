@@ -668,7 +668,10 @@ mod tests {
             },
             support::{
                 audio::load_audio_mono_sr,
-                testing::CpuBackend,
+                testing::{
+                    CpuBackend,
+                    default_device,
+                },
             },
         };
 
@@ -676,7 +679,7 @@ mod tests {
 
         /// Silero's probabilities for the clip, one per chunk.
         fn probabilities() -> (Vec<f32>, usize) {
-            let device = Default::default();
+            let device = default_device();
             let vad = SileroVad::<B>::load_16khz_pretrained(&device).unwrap();
             let path = concat!(
                 env!("CARGO_MANIFEST_DIR"),

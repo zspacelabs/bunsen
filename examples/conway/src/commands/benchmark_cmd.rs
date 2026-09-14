@@ -19,7 +19,10 @@ use bunsen::{
             ConwaySim,
         },
     },
-    support::geometry::GridShape2D,
+    support::{
+        geometry::GridShape2D,
+        testing::backend_device,
+    },
 };
 use burn::prelude::Backend;
 use clap::Parser;
@@ -62,7 +65,7 @@ pub struct BenchmarkCmd {
 
 impl BenchmarkCmd {
     pub fn run<B: Backend>(&self) -> BunsenResult<()> {
-        let device = Default::default();
+        let device = backend_device::<B>();
         self.logging.init(None);
 
         match self.dims {

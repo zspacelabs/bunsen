@@ -152,7 +152,10 @@ pub use image::ColorType;
 mod tests {
     use std::sync::Arc;
 
-    use bunsen::support::testing::PerformanceBackend;
+    use bunsen::support::testing::{
+        PerformanceBackend,
+        default_device,
+    };
     use bunsen_firehose::{
         core::{
             FirehoseRowBatch,
@@ -198,7 +201,7 @@ mod tests {
 
         type B = PerformanceBackend;
 
-        let device = Default::default();
+        let device = default_device();
 
         let env = Arc::new(init_default_operator_environment());
 

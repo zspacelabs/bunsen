@@ -76,14 +76,17 @@ mod tests {
             space::dbg_dist,
             streaming::outflow_clipping_stream,
         },
-        support::testing::PerformanceBackend,
+        support::testing::{
+            PerformanceBackend,
+            default_device,
+        },
     };
 
     #[test]
     #[serial]
     fn test_debug_flow_loss() {
         type B = PerformanceBackend;
-        let device = Default::default();
+        let device = default_device();
 
         let k = 5;
         let height = 6;

@@ -116,12 +116,13 @@ pub type TensorParamDesc = ParamDesc<TensorDesc>;
 #[allow(unused)]
 mod tests {
     use super::*;
+    use crate::support::testing::default_device;
 
     #[test]
     #[cfg(feature = "cuda")]
     fn test_tensor_desc() {
         type B = burn::backend::Cuda;
-        let device = Default::default();
+        let device = default_device();
 
         {
             // Float

@@ -190,13 +190,16 @@ mod tests {
     use serial_test::serial;
 
     use super::*;
-    use crate::support::testing::PerformanceBackend;
+    use crate::support::testing::{
+        PerformanceBackend,
+        default_device,
+    };
 
     #[test]
     #[serial]
     fn test_scaled_dot_product_attention_bias() {
         type B = PerformanceBackend;
-        let device = Default::default();
+        let device = default_device();
         let dtype = DType::F32;
 
         let l = 3;

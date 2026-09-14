@@ -97,14 +97,17 @@ mod tests {
             },
             thermal::lattice_dot_velocity,
         },
-        support::testing::PerformanceBackend,
+        support::testing::{
+            PerformanceBackend,
+            default_device,
+        },
     };
 
     #[test]
     #[serial]
     fn test_equilibrium() {
         type B = PerformanceBackend;
-        let device = Default::default();
+        let device = default_device();
 
         let dist = Tensor::<B, 4>::random([20, 20, 3, 3], Distribution::Default, &device);
 
@@ -135,7 +138,7 @@ mod tests {
     #[serial]
     fn test_equilibrium_invariants() {
         type B = PerformanceBackend;
-        let device = Default::default();
+        let device = default_device();
 
         let dtype = F32;
 
@@ -157,7 +160,7 @@ mod tests {
     #[serial]
     fn test_lattice_dot_velocity() {
         type B = PerformanceBackend;
-        let device = Default::default();
+        let device = default_device();
 
         let e: Tensor<B, 3> = direction_vectors(&device);
 

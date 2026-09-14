@@ -390,7 +390,10 @@ mod tests {
     use super::*;
     use crate::{
         contracts::assert_shape_contract,
-        support::testing::PerformanceBackend,
+        support::testing::{
+            PerformanceBackend,
+            default_device,
+        },
     };
 
     #[test]
@@ -425,7 +428,7 @@ mod tests {
     #[serial]
     fn test_residual_block_basic_block() {
         type B = PerformanceBackend;
-        let device = Default::default();
+        let device = default_device();
 
         let batch_size = 2;
         let in_planes = 16;
@@ -465,7 +468,7 @@ mod tests {
     #[serial]
     fn test_residual_block_bottleneck_block() {
         type B = PerformanceBackend;
-        let device = Default::default();
+        let device = default_device();
 
         let batch_size = 2;
         let in_planes = 16;

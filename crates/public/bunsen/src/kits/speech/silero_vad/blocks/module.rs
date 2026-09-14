@@ -862,7 +862,10 @@ mod tests {
     use super::*;
     use crate::{
         prelude::*,
-        support::testing::PerformanceBackend,
+        support::testing::{
+            PerformanceBackend,
+            default_device,
+        },
     };
 
     type B = PerformanceBackend;
@@ -938,7 +941,7 @@ mod tests {
 
     #[test]
     fn test_config_meta_matches_module() {
-        let device = Default::default();
+        let device = default_device();
 
         for (cfg, n_freq, chunk_size) in [
             (
@@ -970,7 +973,7 @@ mod tests {
     #[test]
     #[serial_test::serial]
     fn test_forward_shapes_and_range() {
-        let device = Default::default();
+        let device = default_device();
 
         for cfg in [
             SileroVadSignalConfig::standard_16khz().to_structure(),
@@ -1002,7 +1005,7 @@ mod tests {
     #[test]
     #[serial_test::serial]
     fn test_forward_sequence_shapes() {
-        let device = Default::default();
+        let device = default_device();
 
         let batch = 8;
         let steps = 5;
@@ -1033,7 +1036,7 @@ mod tests {
     {
         // Streaming a single stream must match looping the single-step forward
         // while carrying state.
-        let device = Default::default();
+        let device = default_device();
         let model: SileroVad<B> = SileroVadSignalConfig::standard_16khz()
             .to_structure()
             .init(&device);
