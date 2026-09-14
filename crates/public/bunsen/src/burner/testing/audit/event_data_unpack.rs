@@ -244,8 +244,11 @@ mod test {
 
     fn event(data: HashMap<String, Vec<TensorData>>) -> AuditProbeEvent {
         AuditProbeEvent {
-            header: AuditProbeEventHeader::new(None),
-            params: AuditProbeEventParams::AssertEq { strict: true },
+            header: AuditProbeEventHeader::new(None, None, None),
+            params: AuditProbeEventParams::AssertTensorEq {
+                strict: true,
+                tolerance: None,
+            },
             data,
         }
     }
@@ -297,8 +300,11 @@ mod test {
 
         let owned = event(HashMap::from([("data".to_string(), vec![a.clone()])]));
         let stub = AuditProbeEventStub {
-            header: AuditProbeEventHeader::new(None),
-            params: AuditProbeEventParams::AssertEq { strict: true },
+            header: AuditProbeEventHeader::new(None, None, None),
+            params: AuditProbeEventParams::AssertTensorEq {
+                strict: true,
+                tolerance: None,
+            },
             data: HashMap::from([("data".to_string(), vec![&a])]),
         };
 

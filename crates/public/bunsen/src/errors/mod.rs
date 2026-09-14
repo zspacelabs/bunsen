@@ -12,6 +12,10 @@ pub use result_ext::*;
 /// Common bunsen error type.
 #[derive(Debug, Clone, thiserror::Error, PartialEq)]
 pub enum BunsenError {
+    /// Assertion Error.
+    #[error("{0}")]
+    AssertionError(String),
+
     /// Resource not found.
     #[error("{0}")]
     ResourceNotFound(String),

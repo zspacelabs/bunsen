@@ -14,12 +14,13 @@ use crate::{
 /// An [`AuditProbeEvent`] recorder.
 #[derive(Debug, Clone, Default)]
 pub struct AuditProbeVecRecorder {
-    events: Vec<AuditProbeEvent>,
+    /// Recorded events.
+    pub events: Vec<AuditProbeEvent>,
 }
 
 impl AuditProbeVecRecorder {
     /// Build a verifier.
-    pub fn verifier(self) -> AuditProbeVecVerifier {
+    pub fn into_verifier(self) -> AuditProbeVecVerifier {
         AuditProbeVecVerifier::new(self.events)
     }
 }

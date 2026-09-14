@@ -16,6 +16,7 @@ use crate::{
         BunsenError,
         BunsenResult,
     },
+    support::reflection::LocationDesc,
 };
 
 /// Audit log event handler.
@@ -35,14 +36,26 @@ pub trait AuditProbeEventHandler: Debug {
 /// Common prefix for [`AuditProbeEvent`].
 #[derive(Debug, Clone, PartialEq)]
 pub struct AuditProbeEventHeader {
+    /// Label of the event.
+    pub label: Option<String>,
+
+    /// Location of the event.
+    pub loc: Option<LocationDesc>,
+
     /// The timestamp of the event.
-    ts: SystemTime,
+    pub ts: SystemTime,
 }
 
 impl AuditProbeEventHeader {
     /// Create a new [`AuditProbeEventHeader`].
-    pub fn new(ts: Option<SystemTime>) -> Self {
+    pub fn new(
+        label: Option<String>,
+        loc: Option<LocationDesc>,
+        ts: Option<SystemTime>,
+    ) -> Self {
         Self {
+            label,
+            loc,
             ts: ts.unwrap_or_else(SystemTime::now),
         }
     }
@@ -201,12 +214,21 @@ impl<'a> AuditProbeEventView for AuditProbeEventStub<'a> {
 
 #[cfg(test)]
 mod test {
+    use std::panic::Location;
+
     use super::*;
 
     #[test]
     fn test_event_stub() {
-        let header = AuditProbeEventHeader::new(None);
-        let params = AuditProbeEventParams::AssertEq { strict: true };
+        let header = AuditProbeEventHeader::new(
+            Some("example header".to_string()),
+            Some(Location::caller().into()),
+            None,
+        );
+        let params = AuditProbeEventParams::AssertTensorEq {
+            strict: true,
+            tolerance: None,
+        };
 
         let a = TensorData::from([1, 2, 3]);
         let b = TensorData::from([[2.0, 3.0], [4.0, 5.0]]);
