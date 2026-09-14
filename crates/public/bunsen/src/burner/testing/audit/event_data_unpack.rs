@@ -1,6 +1,6 @@
 //! Exact-unpack machinery for [`AuditProbeEventView`] data maps.
 //!
-//! See [`unpack_event_data`] for the one-shot pattern syntax.
+//! See [`unpack_audit_probe_event_data`] for the one-shot pattern syntax.
 //!
 //! [`AuditProbeEventView`]: crate::burner::testing::audit::AuditProbeEventView
 
@@ -189,7 +189,7 @@ macro_rules! __unpack_audit_probe_event_data {
         #[allow(dead_code)]
         #[derive(Debug)]
         struct Unpacked<'x> {
-            $($name: $crate:__unpack_event_dataa!(@ty 'x, $($arity)?),)+
+            $($name: $crate::__unpack_audit_probe_event_data!(@ty 'x, $($arity)?),)+
         }
 
         fn unpack_one<'x, V>(
@@ -206,7 +206,7 @@ macro_rules! __unpack_audit_probe_event_data {
                 &[$(::core::stringify!($name)),+],
             )?;
             Ok(Unpacked {
-                $($name: $crate:__unpack_event_dataa!(
+                $($name: $crate::__unpack_audit_probe_event_data!(
                     @take target, &view, ::core::stringify!($name), $($arity)?
                 )?,)+
             })
@@ -264,7 +264,7 @@ mod test {
             ("rest".to_string(), vec![b.clone(), a.clone(), b.clone()]),
         ]));
 
-        let [unpacked] = unpack_event_data!([&e], {
+        let [unpacked] = unpack_audit_probe_event_data!([&e], {
             solo,
             pair: [2],
             rest: [..],
@@ -285,7 +285,7 @@ mod test {
         let lhs = event(HashMap::from([("data".to_string(), vec![a.clone()])]));
         let rhs = event(HashMap::from([("data".to_string(), vec![b.clone()])]));
 
-        let [l, r] = unpack_event_data!([&lhs, &rhs], { data })?;
+        let [l, r] = unpack_audit_probe_event_data!([&lhs, &rhs], { data })?;
 
         assert_eq!(l.data, &a);
         assert_eq!(r.data, &b);
@@ -308,7 +308,7 @@ mod test {
             data: HashMap::from([("data".to_string(), vec![&a])]),
         };
 
-        let [from_owned, from_stub] = unpack_event_data!([&owned, &stub], { data })?;
+        let [from_owned, from_stub] = unpack_audit_probe_event_data!([&owned, &stub], { data })?;
 
         assert_eq!(from_owned.data, from_stub.data);
 
@@ -323,7 +323,7 @@ mod test {
             ("grad".to_string(), vec![a.clone()]),
         ]));
 
-        let err = unpack_event_data!([&e], { data }).unwrap_err();
+        let err = unpack_audit_probe_event_data!([&e], { data }).unwrap_err();
 
         let msg = err.to_string();
         assert!(msg.contains("in `&e`"), "{msg}");
@@ -339,7 +339,7 @@ mod test {
         let a = TensorData::from([1, 2, 3]);
         let e = event(HashMap::from([("data".to_string(), vec![a.clone()])]));
 
-        let err = unpack_event_data!([&e], { data, grad }).unwrap_err();
+        let err = unpack_audit_probe_event_data!([&e], { data, grad }).unwrap_err();
 
         let msg = err.to_string();
         assert!(msg.contains("missing event data key `grad`"), "{msg}");
@@ -354,14 +354,14 @@ mod test {
             vec![a.clone(), a.clone()],
         )]));
 
-        let solo = unpack_event_data!([&e], { data }).unwrap_err();
+        let solo = unpack_audit_probe_event_data!([&e], { data }).unwrap_err();
         assert!(
             solo.to_string()
                 .contains("key `data` has 2 values, expected 1"),
             "{solo}"
         );
 
-        let fixed = unpack_event_data!([&e], { data: [3] }).unwrap_err();
+        let fixed = unpack_audit_probe_event_data!([&e], { data: [3] }).unwrap_err();
         assert!(
             fixed
                 .to_string()
@@ -377,7 +377,7 @@ mod test {
         let good = event(HashMap::from([("data".to_string(), vec![a.clone()])]));
         let bad = event(HashMap::from([("other".to_string(), vec![a.clone()])]));
 
-        let err = unpack_event_data!([&good, &bad], { data }).unwrap_err();
+        let err = unpack_audit_probe_event_data!([&good, &bad], { data }).unwrap_err();
 
         assert!(err.to_string().contains("in `&bad`"), "{err}");
     }
