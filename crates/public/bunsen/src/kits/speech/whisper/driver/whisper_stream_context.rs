@@ -201,7 +201,7 @@ pub struct WhisperStreamContext<B: Backend> {
     driver: WhisperStreamDriver<B>,
 
     /// The mel front end's streaming state; `None` once flushed.
-    mel: Option<PerceptiveAudioConversionContext<B>>,
+    audio_conversion_ctx: Option<PerceptiveAudioConversionContext<B>>,
 
     /// `[1, frames, n_mels]` log-mels from `origin` onward; `None`
     /// when empty.
@@ -286,7 +286,7 @@ impl<B: Backend> WhisperStreamContext<B> {
         clock: StreamClock,
         clamp: Box<dyn StreamClampPolicy<B>>,
     ) -> Self {
-        let mel = driver.mel_converter().new_context(1);
+        let audio_conversion_ctx = driver.audio_converter().new_context(1);
 
         let vad = match (driver.silero_vad_model(), driver.va_filter_config()) {
             (Some(model), Some(gate)) if driver.config().emission.triggers.endpoint => {
@@ -309,7 +309,7 @@ impl<B: Backend> WhisperStreamContext<B> {
         let language = driver.config().language.clone();
         Self {
             driver,
-            mel: Some(mel),
+            audio_conversion_ctx: Some(audio_conversion_ctx),
             frames: None,
             staging: Vec::new(),
             samples_seen: 0,
@@ -380,7 +380,7 @@ impl<B: Backend> WhisperStreamContext<B> {
     }
 
     fn hop(&self) -> usize {
-        self.driver.mel_converter().hop()
+        self.driver.audio_converter().hop()
     }
 
     // ---- input -------------------------------------------------------
@@ -484,7 +484,7 @@ impl<B: Backend> WhisperStreamContext<B> {
 
         self.drain_staging(true)?;
 
-        if let Some(mel) = self.mel.take()
+        if let Some(mel) = self.audio_conversion_ctx.take()
             && let Some(tail) = mel.finish()
         {
             self.ingest(tail);
@@ -512,9 +512,12 @@ impl<B: Backend> WhisperStreamContext<B> {
         &mut self,
         flushing: bool,
     ) -> BunsenResult<()> {
-        let mel = self.driver.mel_converter();
+        let mel = self.driver.audio_converter();
         let (hop, n_fft) = (mel.hop(), mel.n_fft());
-        let first = self.mel.as_ref().is_some_and(|ctx| ctx.carry().is_none());
+        let first = self
+            .audio_conversion_ctx
+            .as_ref()
+            .is_some_and(|ctx| ctx.carry().is_none());
         let minimum = if first {
             n_fft.div_ceil(hop) * hop
         } else {
@@ -537,11 +540,11 @@ impl<B: Backend> WhisperStreamContext<B> {
         let waves: Tensor<B, 2> = Tensor::from_data(TensorData::new(chunk, [1, whole]), &device);
 
         let ctx = self
-            .mel
+            .audio_conversion_ctx
             .take()
             .expect("the front end is open until the input ends");
         let (frames, ctx) = ctx.transform(waves)?;
-        self.mel = Some(ctx);
+        self.audio_conversion_ctx = Some(ctx);
         self.ingest(frames);
         Ok(())
     }
@@ -611,6 +614,7 @@ impl<B: Backend> WhisperStreamContext<B> {
     fn skip_silence(&mut self) {
         let width = self.driver.window_frames();
         let hop = self.hop();
+
         loop {
             let Some(vad) = &self.vad else {
                 return;
@@ -1179,7 +1183,7 @@ mod tests {
             device,
         );
         let (mels, ctx) = driver
-            .mel_converter()
+            .audio_converter()
             .new_context(1)
             .transform(waves)
             .unwrap();
@@ -1311,7 +1315,7 @@ mod tests {
         let device = Device::default();
         let driver: WhisperStreamDriver<B> = driver(&device, false);
         let audio = clip();
-        let hop = driver.mel_converter().hop() as f64;
+        let hop = driver.audio_converter().hop() as f64;
         let width = driver.window_frames();
 
         let mut ctx = driver.new_context(clock(), PerWindow).unwrap();
@@ -1689,7 +1693,7 @@ mod tests {
         let device = Device::default();
         let driver = timestamped(&device, CommitRule::Complete);
         let tb = tiny_layout().timestamp_begin;
-        let hop = driver.mel_converter().hop() as f64;
+        let hop = driver.audio_converter().hop() as f64;
         let frame = |f: f64| f * hop / driver.sample_rate() as f64;
         assert_eq!(driver.frames_per_timestamp(), 2);
         assert_eq!(
@@ -1982,7 +1986,7 @@ mod tests {
             )
             .unwrap();
         assert_eq!(driver.sample_rate(), 16_000);
-        assert_eq!(driver.mel_converter().hop(), 160);
+        assert_eq!(driver.audio_converter().hop(), 160);
         assert_eq!(driver.frames_per_timestamp(), 2);
         assert_eq!(driver.encoder_grid(), 320);
         assert_eq!(driver.interval_samples(), None);
@@ -2189,7 +2193,7 @@ mod tests {
             // (0, 16352) and (29728, 56800) from the gate's golden test,
             // snapped outward onto the 320-sample grid.
             let expected = [(0usize, 16_640usize), (29_440, 56_960)];
-            let window = driver.window_frames() as f64 * driver.mel_converter().hop() as f64
+            let window = driver.window_frames() as f64 * driver.audio_converter().hop() as f64
                 / driver.sample_rate() as f64;
             let close = |a: f64, b: f64| (a - b).abs() < 1e-9;
 
@@ -2237,7 +2241,7 @@ mod tests {
             let mut emissions = ctx.write_read(&audio).unwrap();
             emissions.extend(ctx.end_read().unwrap());
 
-            let window = driver.window_frames() as f64 * driver.mel_converter().hop() as f64
+            let window = driver.window_frames() as f64 * driver.audio_converter().hop() as f64
                 / driver.sample_rate() as f64;
             let (gap_start, gap_end) = (16_640.0 / RATE as f64, 29_440.0 / RATE as f64);
             let mut covered_to = 0.0_f64;

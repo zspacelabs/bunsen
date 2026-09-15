@@ -105,7 +105,7 @@ impl WhisperFrontEndConfig {
     /// # Errors
     /// See [`validate`](PerceptiveAudioConverterOptions::validate) and
     /// [`to_vec_filterbank`](PerceptiveAudioConverterOptions::try_to_filterbank_vec).
-    pub fn try_init_mel_converter<B: Backend>(
+    pub fn try_init_audio_converter<B: Backend>(
         &self,
         n_mels: usize,
         device: &B::Device,
