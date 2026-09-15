@@ -5,6 +5,27 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and this project adheres
 to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.33.0](https://github.com/zspacelabs/bunsen/compare/bunsen-v0.32.0...bunsen-v0.33.0) - 2026-09-15
+
+### Added
+
+- *(tensor)* add `copy_slice` method to `TensorOpExt` and refactor Conway's wrapping logic to use it ([#191](https://github.com/zspacelabs/bunsen/pull/191))
+- *(vulkan, update)* vulkan + cargo update ([#188](https://github.com/zspacelabs/bunsen/pull/188))
+- *(bunsen)* introduce dtype inspection and boundary casting for Whi… ([#186](https://github.com/zspacelabs/bunsen/pull/186))
+- *(TensorDataTestStream)* initial work on TensorData record/verifier stream. ([#184](https://github.com/zspacelabs/bunsen/pull/184))
+
+### Other
+
+- *(cargo)* update dependencies and align with the latest versions of the `arrow`, `parquet`, `symphonia`, `clap`, and other related crates ([#200](https://github.com/zspacelabs/bunsen/pull/200))
+- Refactor testing utilities into modular components ([#197](https://github.com/zspacelabs/bunsen/pull/197))
+- Refactor tests: replace `Default::default()` with `default_device()` or `backend_device()` across multiple modules for device initialization consistency. ([#196](https://github.com/zspacelabs/bunsen/pull/196))
+- Refactor audit stream handling and modularize event logic ([#195](https://github.com/zspacelabs/bunsen/pull/195))
+- *(conway)* unify 2D and 3D wrapping logic for toroidal simulations by introducing `project_wrapped_toroidal_boarders` utility ([#193](https://github.com/zspacelabs/bunsen/pull/193))
+- *(cargo)* update dependencies in `Cargo.lock` to latest versions. ([#190](https://github.com/zspacelabs/bunsen/pull/190))
+- iterate on stream design. ([#187](https://github.com/zspacelabs/bunsen/pull/187))
+- Refactor and unify Conway examples ([#189](https://github.com/zspacelabs/bunsen/pull/189))
+- crutcher/ts ([#185](https://github.com/zspacelabs/bunsen/pull/185))
+
 ## [0.32.0](https://github.com/zspacelabs/bunsen/compare/bunsen-v0.31.0...bunsen-v0.32.0) - 2026-09-07
 
 ### Added

@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.33.0](https://github.com/zspacelabs/bunsen/compare/bunsen-firehose-image-v0.32.0...bunsen-firehose-image-v0.33.0) - 2026-09-15
+
+### Other
+
+- Refactor tests: replace `Default::default()` with `default_device()` or `backend_device()` across multiple modules for device initialization consistency. ([#196](https://github.com/zspacelabs/bunsen/pull/196))
+
 ## [0.31.0](https://github.com/zspacelabs/bunsen/compare/bunsen-firehose-image-v0.30.1...bunsen-firehose-image-v0.31.0) - 2026-09-03
 
 ### Added
