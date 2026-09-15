@@ -33,6 +33,8 @@ jobs:
   test:
     name: CI
     runs-on: ubuntu-latest
+    env:
+      RUST_TEST_THREADS: $(nproc)
 
     steps:
       # Checkout comes first: the cache keys below hash files in the tree, and
