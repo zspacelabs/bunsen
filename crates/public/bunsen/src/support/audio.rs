@@ -7,16 +7,14 @@ use hound::{
     WavReader,
 };
 use symphonia::core::{
-    audio::SampleBuffer,
-    codecs::{
-        CODEC_TYPE_NULL,
-        DecoderOptions,
+    codecs::audio::AudioDecoderOptions,
+    formats::{
+        FormatOptions,
+        TrackType,
+        probe::Hint,
     },
-    errors::Error as SymphoniaError,
-    formats::FormatOptions,
     io::MediaSourceStream,
     meta::MetadataOptions,
-    probe::Hint,
 };
 
 use crate::errors::{
@@ -111,9 +109,10 @@ fn load_wav_mono_sr(
 
 /// Decodes a compressed file through `symphonia`.
 ///
-/// Gapless playback is enabled, so an mp3's encoder delay and padding are
-/// trimmed rather than returned as leading and trailing silence — which would
-/// otherwise shift every frame of a spectrogram computed from it.
+/// Gapless playback is the `AudioDecoderOptions` default, so an mp3's encoder
+/// delay and padding are trimmed rather than returned as leading and trailing
+/// silence — which would otherwise shift every frame of a spectrogram computed
+/// from it.
 fn load_compressed_mono_sr(
     filename: &Path,
     ext: &str,
@@ -127,62 +126,52 @@ fn load_compressed_mono_sr(
         hint.with_extension(ext);
     }
 
-    let format_opts = FormatOptions {
-        enable_gapless: true,
-        ..Default::default()
-    };
-
-    let probed = symphonia::default::get_probe()
-        .format(&hint, stream, &format_opts, &MetadataOptions::default())
+    let mut format = symphonia::default::get_probe()
+        .probe(
+            &hint,
+            stream,
+            FormatOptions::default(),
+            MetadataOptions::default(),
+        )
         .map_err(BunsenError::external)?;
 
-    let mut format = probed.format;
-
     let track = format
-        .tracks()
-        .iter()
-        .find(|t| t.codec_params.codec != CODEC_TYPE_NULL)
+        .default_track(TrackType::Audio)
         .ok_or_else(|| BunsenError::Invalid("The file has no decodable audio track".to_string()))?;
 
     let track_id = track.id;
+
+    let codec_params = track
+        .codec_params
+        .as_ref()
+        .and_then(|params| params.audio())
+        .ok_or_else(|| {
+            BunsenError::Invalid("The audio track has no codec parameters".to_string())
+        })?;
+
     let mut decoder = symphonia::default::get_codecs()
-        .make(&track.codec_params, &DecoderOptions::default())
+        .make_audio_decoder(codec_params, &AudioDecoderOptions::default())
         .map_err(BunsenError::external)?;
 
     let mut samples: Vec<f32> = Vec::new();
-    let mut buffer: Option<SampleBuffer<f32>> = None;
 
-    loop {
-        let packet = match format.next_packet() {
-            Ok(packet) => packet,
-            // Symphonia signals a clean end of stream as an EOF io error.
-            Err(SymphoniaError::IoError(e)) if e.kind() == std::io::ErrorKind::UnexpectedEof => {
-                break;
-            }
-            Err(e) => return Err(BunsenError::external(e)),
-        };
+    // Reused across packets: `copy_to_vec_interleaved` resizes to the exact
+    // sample count and keeps whatever capacity the widest packet so far needed.
+    let mut packet_samples: Vec<f32> = Vec::new();
 
-        if packet.track_id() != track_id {
+    // A clean end of stream is `Ok(None)`.
+    while let Some(packet) = format.next_packet().map_err(BunsenError::external)? {
+        if packet.track_id != track_id {
             continue;
         }
 
         let decoded = decoder.decode(&packet).map_err(BunsenError::external)?;
-        let spec = *decoded.spec();
+        let spec = decoded.spec();
 
-        check_mono_sr(spec.channels.count(), spec.rate as usize, sample_rate)?;
+        check_mono_sr(spec.channels().count(), spec.rate() as usize, sample_rate)?;
 
-        // The buffer is reused across packets, but `copy_interleaved_ref`
-        // panics rather than growing, so a packet wider than the one that
-        // sized it must force a reallocation.
-        let needed = decoded.capacity() as u64;
-        let buf = match buffer.take() {
-            Some(buf) if buf.capacity() as u64 >= needed => buf,
-            _ => SampleBuffer::new(needed, spec),
-        };
-        let buf = buffer.insert(buf);
-
-        buf.copy_interleaved_ref(decoded);
-        samples.extend_from_slice(buf.samples());
+        decoded.copy_to_vec_interleaved(&mut packet_samples);
+        samples.extend_from_slice(&packet_samples);
     }
 
     Ok(samples)
