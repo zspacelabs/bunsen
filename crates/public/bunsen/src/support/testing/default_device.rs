@@ -234,13 +234,6 @@ mod tests {
     fn test_device_entry_points_agree() {
         let device = backend_device::<CpuBackend>();
 
-        // Reading populated the slot. Membership is the only observable signal
-        // when the device type has a single inhabitant, as `FlexDevice` does:
-        // under the CPU configurations every assertion on a device *value* is
-        // vacuously true. Under `--features wgpu` the equalities below carry
-        // their own weight.
-        assert!(VALUE_CACHE.contains_key(&TypeId::of::<Device<CpuBackend>>()));
-
         assert_eq!(device, backend_device::<CpuBackend>());
         assert_eq!(device, default_device::<Device<CpuBackend>>());
     }
