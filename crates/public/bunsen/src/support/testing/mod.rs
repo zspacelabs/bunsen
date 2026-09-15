@@ -3,8 +3,11 @@ pub mod asr;
 
 mod common_assertions;
 mod common_devices;
+mod default_device;
 
 #[doc(inline)]
 pub use common_assertions::*;
 #[doc(inline)]
 pub use common_devices::*;
+#[doc(inline)]
+pub use default_device::*;

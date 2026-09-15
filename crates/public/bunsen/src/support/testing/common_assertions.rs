@@ -128,8 +128,9 @@ mod tests {
     use serial_test::serial;
 
     use super::*;
+    use crate::support::testing::default_device;
 
-    type B = PerformanceBackend;
+    type B = crate::support::testing::PerformanceBackend;
 
     /// A `[2, 2]` tensor holding `values` in row-major order.
     fn square(
