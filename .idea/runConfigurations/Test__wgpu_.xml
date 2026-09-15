@@ -3,7 +3,9 @@
     <option name="buildProfileId" value="test" />
     <option name="command" value="test --workspace --features wgpu,download,gpu-tests" />
     <option name="workingDirectory" value="file://$PROJECT_DIR$" />
-    <envs />
+    <envs>
+      <env name="RUST_TEST_THREADS" value="4" />
+    </envs>
     <option name="emulateTerminal" value="true" />
     <option name="channel" value="DEFAULT" />
     <option name="requiredFeatures" value="false" />
