@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.33.0](https://github.com/zspacelabs/bunsen/compare/bunsen-bundled-whisper-v0.32.0...bunsen-bundled-whisper-v0.33.0) - 2026-09-15
+
+### Other
+
+- update Cargo.toml dependencies
+
 ## [0.31.0](https://github.com/zspacelabs/bunsen/compare/bunsen-bundled-whisper-v0.30.1...bunsen-bundled-whisper-v0.31.0) - 2026-09-03
 
 ### Added
