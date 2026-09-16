@@ -12,7 +12,10 @@ use burn::{
     },
     tensor::{
         BasicOps,
+        DType,
         Element,
+        FloatDType,
+        f16,
     },
 };
 use num_traits::Float;
@@ -43,12 +46,36 @@ use crate::{
 };
 
 /// Argument conversion trait for [`Tensor`] and [`TensorData`].
-pub trait DataArg<'a> {
+pub trait DataArg<'a>: Sized {
     /// Build a default [`CloneRef`] to [`TensorData`].
     fn into_data_ref(self) -> CloneRef<'a, TensorData>;
 
     /// Build a [`CloneRef`] to [`TensorData`] with a specific element type.
     fn into_data_ref_as<E: Element>(self) -> CloneRef<'a, TensorData>;
+
+    /// Build a [`CloneRef`] to [`TensorData`] with a specific element type.
+    fn into_data_ref_cast(
+        self,
+        dtype: DType,
+    ) -> CloneRef<'a, TensorData> {
+        match dtype {
+            DType::QFloat(_) => self.into_data_ref_as::<f32>(),
+            DType::F64 => self.into_data_ref_as::<f64>(),
+            DType::F16 => self.into_data_ref_as::<f16>(),
+            DType::F32 => self.into_data_ref_as::<f32>(),
+            DType::Flex32 => self.into_data_ref_as::<f32>(),
+            DType::BF16 => self.into_data_ref_as::<f16>(),
+            DType::I8 => self.into_data_ref_as::<i8>(),
+            DType::I16 => self.into_data_ref_as::<i16>(),
+            DType::I32 => self.into_data_ref_as::<i32>(),
+            DType::I64 => self.into_data_ref_as::<i64>(),
+            DType::U8 => self.into_data_ref_as::<u8>(),
+            DType::U16 => self.into_data_ref_as::<u16>(),
+            DType::U32 => self.into_data_ref_as::<u32>(),
+            DType::U64 => self.into_data_ref_as::<u64>(),
+            DType::Bool(_) => self.into_data_ref_as::<bool>(),
+        }
+    }
 }
 
 impl<'a> DataArg<'a> for &'a TensorData {
@@ -77,19 +104,7 @@ pub struct AuditProbe<'a> {
     handlers: Vec<&'a mut dyn AuditProbeEventHandler>,
 }
 
-impl<'a> AuditProbe<'a> {
-    /// Construct a new audit probe.
-    pub fn new(handlers: Vec<&'a mut dyn AuditProbeEventHandler>) -> Self {
-        Self { handlers }
-    }
-
-    /// Dispatch event to handlers.
-    ///
-    /// # Arguments
-    /// * `event` - an event stub to handle.
-    ///
-    /// # Panics and/or Err Returns
-    /// If the event does not match the expected event under verification.
+impl<'a> AuditProbeEventHandler for AuditProbe<'a> {
     fn on_event(
         &mut self,
         stub: &AuditProbeEventStub<'_>,
@@ -98,6 +113,37 @@ impl<'a> AuditProbe<'a> {
             handler.on_event(stub)?;
         }
         Ok(())
+    }
+}
+
+impl<'a> AuditProbe<'a> {
+    /// Construct a new audit probe.
+    pub fn new(handlers: Vec<&'a mut dyn AuditProbeEventHandler>) -> Self {
+        Self { handlers }
+    }
+
+    /// [`Tensor`] / [`TensorData`] equality.
+    ///
+    /// # Arguments
+    /// * `header` - Event header.
+    /// * `data` - the [`TensorData`] to compare.
+    ///
+    /// # Panics and/or Err Returns
+    /// If `policy` is out of range, or if the data do not match under
+    /// verification.
+    fn dispatch_assert_eq(
+        &mut self,
+        header: AuditProbeEventHeader,
+        data: &TensorData,
+    ) -> BunsenResult<()> {
+        let data: HashMap<String, Vec<&TensorData>> =
+            HashMap::from([("data".to_string(), vec![data])]);
+
+        self.on_event(&AuditProbeEventStub {
+            header,
+            params: AuditProbeEventParams::AssertTensorEq,
+            data,
+        })
     }
 
     /// [`Tensor`] / [`TensorData`] approximate equality.
@@ -111,57 +157,79 @@ impl<'a> AuditProbe<'a> {
     /// # Arguments
     /// * `header` - Event header.
     /// * `data` - the [`TensorData`] to compare.
-    /// * `strict` - whether to use strict dtype equality.
     /// * `tolerance` - the [`TolerancePolicy`] to compare under.
     ///
     /// # Panics and/or Err Returns
     /// If `policy` is out of range, or if the data do not match under
     /// verification.
-    fn try_header_tensor_approx_eq<F: Float + Element>(
+    fn dispatch_assert_approx_eq(
         &mut self,
         header: AuditProbeEventHeader,
         data: &TensorData,
-        strict: bool,
-        policy: Option<TolerancePolicy>,
+        tolerance: ToleranceDesc,
     ) -> BunsenResult<()> {
         let data: HashMap<String, Vec<&TensorData>> =
             HashMap::from([("data".to_string(), vec![data])]);
 
-        let tolerance = policy.map(|p| ToleranceDesc::of::<F>(p)).transpose()?;
-
         self.on_event(&AuditProbeEventStub {
             header,
-            params: AuditProbeEventParams::AssertTensorEq { strict, tolerance },
+            params: AuditProbeEventParams::AssertTensorApproxEx { tolerance },
             data,
         })
     }
 
     /// [`Tensor`] / [`TensorData`] equality.
     ///
+    /// Converts to `E` before storage/comparison.
+    ///
     /// # Arguments
     /// * `label` - Event Label.
     /// * `data` - the data to compare.
-    /// * `strict` - If true, the data types must the be same. Otherwise, the
-    ///   comparison is done in the current data type.
     ///
     /// # Result
     /// This *may* return an error if the data or data types do not match under
     /// verification.
     #[track_caller]
-    pub fn try_tensor_eq<'b>(
+    pub fn assert_eq_as<'b, E: Element>(
         &mut self,
         label: &str,
         data: impl DataArg<'b>,
-        strict: bool,
     ) -> BunsenResult<()> {
         let header = AuditProbeEventHeader::new(
             Some(label.to_string()),
             Some(Location::caller().into()),
             None,
         );
-        let data_cr = data.into_data_ref();
+        let data_cr = data.into_data_ref_as::<E>();
 
-        self.try_header_tensor_approx_eq::<f32>(header, data_cr.as_ref(), strict, None)
+        self.dispatch_assert_eq(header, data_cr.as_ref())
+    }
+
+    /// [`Tensor`] / [`TensorData`] equality.
+    ///
+    /// # Arguments
+    /// * `label` - Event Label.
+    /// * `dtype` - the data type to convert to / compare as.
+    /// * `data` - the data to compare.
+    ///
+    /// # Result
+    /// This *may* return an error if the data or data types do not match under
+    /// verification.
+    #[track_caller]
+    pub fn assert_eq_cast<'b>(
+        &mut self,
+        label: &str,
+        data: impl DataArg<'b>,
+        dtype: DType,
+    ) -> BunsenResult<()> {
+        let header = AuditProbeEventHeader::new(
+            Some(label.to_string()),
+            Some(Location::caller().into()),
+            None,
+        );
+        let data_cr = data.into_data_ref_cast(dtype);
+
+        self.dispatch_assert_eq(header, data_cr.as_ref())
     }
 
     /// [`Tensor`] / [`TensorData`] approximate equality.
@@ -181,7 +249,7 @@ impl<'a> AuditProbe<'a> {
     /// If `policy` is out of range, or if the data do not match under
     /// verification.
     #[track_caller]
-    pub fn try_tensor_approx_eq<'b, F: Float + Element>(
+    pub fn assert_approx_eq_as<'b, F: Float + Element>(
         &mut self,
         label: &str,
         data: impl DataArg<'b>,
@@ -192,9 +260,11 @@ impl<'a> AuditProbe<'a> {
             Some(Location::caller().into()),
             None,
         );
-        let data_cr = data.into_data_ref();
+        let data_cr = data.into_data_ref_as::<F>();
 
-        self.try_header_tensor_approx_eq::<F>(header, data_cr.as_ref(), false, Some(tolerance))
+        let tolerance = ToleranceDesc::of::<F>(tolerance)?;
+
+        self.dispatch_assert_approx_eq(header, data_cr.as_ref(), tolerance)
     }
 
     /// [`Tensor`] / [`TensorData`] approximate equality.
@@ -209,33 +279,55 @@ impl<'a> AuditProbe<'a> {
     /// # Panics and/or Err Returns
     /// If the data or data types do not match under verification.
     #[track_caller]
-    pub fn try_tensor_approx_eq_as<'b, F: Float + Element>(
+    pub fn assert_approx_eq_cast<'b>(
         &mut self,
         label: &str,
         data: impl DataArg<'b>,
         tolerance: TolerancePolicy,
+        dtype: FloatDType,
     ) -> BunsenResult<()> {
         let header = AuditProbeEventHeader::new(
             Some(label.to_string()),
             Some(Location::caller().into()),
             None,
         );
-        let data_cr = data.into_data_ref_as::<F>();
+        let (data_cr, tolerance) = match dtype {
+            FloatDType::F64 => (
+                data.into_data_ref_as::<f64>(),
+                ToleranceDesc::of::<f64>(tolerance)?,
+            ),
+            FloatDType::F32 => (
+                data.into_data_ref_as::<f32>(),
+                ToleranceDesc::of::<f32>(tolerance)?,
+            ),
+            FloatDType::Flex32 => (
+                data.into_data_ref_as::<f32>(),
+                ToleranceDesc::of::<f32>(tolerance)?,
+            ),
+            FloatDType::F16 => (
+                data.into_data_ref_as::<f16>(),
+                ToleranceDesc::of::<f16>(tolerance)?,
+            ),
+            FloatDType::BF16 => (
+                data.into_data_ref_as::<f16>(),
+                ToleranceDesc::of::<f16>(tolerance)?,
+            ),
+        };
 
-        self.try_header_tensor_approx_eq::<F>(header, data_cr.as_ref(), true, Some(tolerance))
+        self.dispatch_assert_approx_eq(header, data_cr.as_ref(), tolerance)
     }
 }
 
 /// Type-specific event params.
 #[derive(Debug, Clone, PartialEq)]
 pub enum AuditProbeEventParams {
-    /// `assert_approx_eq` event.
-    AssertTensorEq {
-        /// Strict dtype comparison.
-        strict: bool,
+    /// `assert_eq` event.
+    AssertTensorEq,
 
+    /// `assert_approx_eq` event.
+    AssertTensorApproxEx {
         /// Tolerance.
-        tolerance: Option<ToleranceDesc>,
+        tolerance: ToleranceDesc,
     },
 }
 
@@ -257,28 +349,22 @@ pub fn try_match_events(
     actual.assert_shape_signatures_eq(expected)?;
 
     match actual.params() {
-        AuditProbeEventParams::AssertTensorEq { tolerance, strict } => {
+        AuditProbeEventParams::AssertTensorEq => {
+            let [actual_data, expected_data] =
+                unpack_audit_probe_event_data!([actual, expected], { data })?;
+            actual_data.data.try_assert_eq(expected_data.data, true)
+        }
+        AuditProbeEventParams::AssertTensorApproxEx { tolerance } => {
             let [actual_data, expected_data] =
                 unpack_audit_probe_event_data!([actual, expected], { data })?;
 
-            match tolerance {
-                Some(tolerance) => tolerance.try_assert_tensor_data_approx_eq(
-                    actual_data.data,
-                    expected_data.data,
-                    *strict,
-                ),
-                None => actual_data.data.try_assert_eq(expected_data.data, *strict),
-            }
+            tolerance.try_assert_tensor_data_approx_eq(actual_data.data, expected_data.data, true)
         }
     }
 }
 
 #[cfg(test)]
 mod tests {
-    #![allow(unused_imports)]
-
-    use burn::prelude::Int;
-
     use super::*;
     use crate::{
         burner::testing::audit::AuditProbeVecRecorder,
@@ -296,18 +382,20 @@ mod tests {
             let device = default_device();
 
             let iota: Tensor<B, 1> = Tensor::arange(0..10, &device).float();
-            probe.try_tensor_eq("iota", &iota, false)?;
+            probe.assert_eq_as::<f64>("iota", &iota)?;
+            probe.assert_eq_cast("iota", &iota, DType::F16)?;
 
-            probe.try_tensor_approx_eq_as::<f32>(
+            probe.assert_approx_eq_as::<f32>(
                 "iota.exp",
                 &iota.clone().exp(),
                 TolerancePolicy::Balanced,
             )?;
 
-            probe.try_tensor_approx_eq_as::<f32>(
+            probe.assert_approx_eq_cast(
                 "iota.sin",
                 &iota.clone().sin(),
                 TolerancePolicy::Balanced,
+                FloatDType::F16,
             )?;
 
             Ok(())

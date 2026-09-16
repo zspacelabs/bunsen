@@ -235,19 +235,21 @@ macro_rules! __unpack_audit_probe_event_data {
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::burner::testing::audit::{
-        AuditProbeEvent,
-        AuditProbeEventHeader,
-        AuditProbeEventStub,
-        audit_probe::AuditProbeEventParams,
+    use crate::burner::{
+        descriptors::ToleranceDesc,
+        testing::audit::{
+            AuditProbeEvent,
+            AuditProbeEventHeader,
+            AuditProbeEventStub,
+            audit_probe::AuditProbeEventParams,
+        },
     };
 
     fn event(data: HashMap<String, Vec<TensorData>>) -> AuditProbeEvent {
         AuditProbeEvent {
             header: AuditProbeEventHeader::new(None, None, None),
-            params: AuditProbeEventParams::AssertTensorEq {
-                strict: true,
-                tolerance: None,
+            params: AuditProbeEventParams::AssertTensorApproxEx {
+                tolerance: ToleranceDesc::of::<f32>(Default::default()).unwrap(),
             },
             data,
         }
@@ -301,9 +303,8 @@ mod test {
         let owned = event(HashMap::from([("data".to_string(), vec![a.clone()])]));
         let stub = AuditProbeEventStub {
             header: AuditProbeEventHeader::new(None, None, None),
-            params: AuditProbeEventParams::AssertTensorEq {
-                strict: true,
-                tolerance: None,
+            params: AuditProbeEventParams::AssertTensorApproxEx {
+                tolerance: ToleranceDesc::of::<f32>(Default::default())?,
             },
             data: HashMap::from([("data".to_string(), vec![&a])]),
         };

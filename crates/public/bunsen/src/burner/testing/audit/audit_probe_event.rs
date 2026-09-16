@@ -217,17 +217,20 @@ mod test {
     use std::panic::Location;
 
     use super::*;
+    use crate::burner::descriptors::{
+        ToleranceDesc,
+        TolerancePolicy,
+    };
 
     #[test]
-    fn test_event_stub() {
+    fn test_event_stub() -> BunsenResult<()> {
         let header = AuditProbeEventHeader::new(
             Some("example header".to_string()),
             Some(Location::caller().into()),
             None,
         );
-        let params = AuditProbeEventParams::AssertTensorEq {
-            strict: true,
-            tolerance: None,
+        let params = AuditProbeEventParams::AssertTensorApproxEx {
+            tolerance: ToleranceDesc::of::<f32>(TolerancePolicy::default())?,
         };
 
         let a = TensorData::from([1, 2, 3]);
@@ -248,6 +251,8 @@ mod test {
             data: HashMap::from([("x".to_string(), vec![&a]), ("y".to_string(), vec![&a, &b])]),
         };
 
-        assert_eq!(event.data_map_view(), stub.data_map_view(),);
+        assert_eq!(event.data_map_view(), stub.data_map_view());
+
+        Ok(())
     }
 }
