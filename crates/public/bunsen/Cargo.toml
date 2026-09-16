@@ -204,6 +204,8 @@ downloader = { workspace = true, default-features = false, optional = true }
 
 dashmap = { workspace = true }
 
+time = { workspace = true, features = ["formatting", "macros", "local-offset"] }
+
 num-traits = { workspace = true }
 strum = { workspace = true, features = ["derive"] }
 thiserror = { workspace = true }

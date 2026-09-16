@@ -1,3 +1,4 @@
+use core::fmt::Display;
 use std::panic::Location;
 
 use serde::{
@@ -20,6 +21,15 @@ impl From<&Location<'_>> for LocationDesc {
             line: loc.line(),
             col: loc.column(),
         }
+    }
+}
+
+impl Display for LocationDesc {
+    fn fmt(
+        &self,
+        f: &mut std::fmt::Formatter<'_>,
+    ) -> std::fmt::Result {
+        write!(f, "{}:{}:{}", self.filename, self.line, self.col)
     }
 }
 

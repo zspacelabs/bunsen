@@ -19,6 +19,10 @@ use burn::{
     },
 };
 use num_traits::Float;
+use time::{
+    OffsetDateTime,
+    macros::format_description,
+};
 
 use crate::{
     burner::{
@@ -319,7 +323,8 @@ impl<'a> AuditProbe<'a> {
 }
 
 /// Type-specific event params.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, strum::Display, strum::EnumDiscriminants)]
+#[strum_discriminants(derive(strum::AsRefStr))]
 pub enum AuditProbeEventParams {
     /// `assert_eq` event.
     AssertTensorEq,
@@ -331,36 +336,78 @@ pub enum AuditProbeEventParams {
     },
 }
 
+impl AuditProbeEventParams {
+    /// Get the variant name.
+    pub fn variant_name(&self) -> String {
+        let d = AuditProbeEventParamsDiscriminants::from(self);
+
+        let name: &str = d.as_ref();
+
+        name.to_string()
+    }
+}
+
 /// Applies per-type event equality.
 pub fn try_match_events(
     actual: &impl AuditProbeEventView,
     expected: &impl AuditProbeEventView,
 ) -> BunsenResult<()> {
-    if expected.params() != actual.params() {
-        return Err(BunsenError::InvalidArgument {
-            msg: format!(
-                "StreamEvent params {:?} != expected {:?}",
-                expected.params(),
-                actual.params()
-            ),
-        });
-    }
-
-    actual.assert_shape_signatures_eq(expected)?;
-
-    match actual.params() {
-        AuditProbeEventParams::AssertTensorEq => {
-            let [actual_data, expected_data] =
-                unpack_audit_probe_event_data!([actual, expected], { data })?;
-            actual_data.data.try_assert_eq(expected_data.data, true)
+    fn cmp(
+        actual: &impl AuditProbeEventView,
+        expected: &impl AuditProbeEventView,
+    ) -> BunsenResult<()> {
+        if expected.params() != actual.params() {
+            return Err(BunsenError::InvalidArgument {
+                msg: format!(
+                    "StreamEvent params {:?} != expected {:?}",
+                    expected.params(),
+                    actual.params()
+                ),
+            });
         }
-        AuditProbeEventParams::AssertTensorApproxEx { tolerance } => {
-            let [actual_data, expected_data] =
-                unpack_audit_probe_event_data!([actual, expected], { data })?;
 
-            tolerance.try_assert_tensor_data_approx_eq(actual_data.data, expected_data.data, true)
+        actual.assert_shape_signatures_eq(expected)?;
+        match actual.params() {
+            AuditProbeEventParams::AssertTensorEq => {
+                let [actual_data, expected_data] =
+                    unpack_audit_probe_event_data!([actual, expected], { data })?;
+                actual_data.data.try_assert_eq(expected_data.data, true)
+            }
+            AuditProbeEventParams::AssertTensorApproxEx { tolerance } => {
+                let [actual_data, expected_data] =
+                    unpack_audit_probe_event_data!([actual, expected], { data })?;
+
+                tolerance.try_assert_tensor_data_approx_eq(
+                    actual_data.data,
+                    expected_data.data,
+                    true,
+                )
+            }
         }
     }
+    cmp(actual, expected).map_err(|err| {
+        let header = actual.header();
+        let params = actual.params();
+
+        let mut msg = format!("AuditEvent::{name}:", name = params.variant_name());
+        if let Some(label) = &header.label {
+            msg.push_str(&format!(" \"{label}\""));
+        }
+
+        let ts_utc: OffsetDateTime = header.ts.into();
+        // 2. Format using a macro-compiled description
+        let format = format_description!("[year]-[month]-[day] [hour]:[minute]:[second]");
+        let formatted = ts_utc.format(&format).unwrap();
+        msg.push_str(&format!(" @{formatted}\n"));
+
+        if let Some(loc) = &header.loc {
+            msg.push_str(&format!(" at {loc}\n"));
+        }
+        msg.push_str(&format!("{params:#?}"));
+        msg.push_str(&format!("{err}"));
+
+        BunsenError::AssertionError(msg)
+    })
 }
 
 #[cfg(test)]
@@ -368,12 +415,38 @@ mod tests {
     use super::*;
     use crate::{
         burner::testing::audit::AuditProbeVecRecorder,
+        errors::WithOkOrPanic,
         support::testing::{
             CpuBackend,
             PerformanceBackend,
             default_device,
         },
     };
+
+    #[test]
+    #[serial_test::serial]
+    #[should_panic = "iota"]
+    fn test_missmatch() {
+        let mut recorder = AuditProbeVecRecorder::default();
+        let probe = &mut AuditProbe::new(vec![&mut recorder]);
+        {
+            type B = PerformanceBackend;
+            let device = default_device();
+
+            let iota: Tensor<B, 1> = Tensor::arange(0..10, &device).float();
+            probe.assert_eq_as::<f64>("iota", &iota).ok_or_panic();
+        }
+
+        let mut verifier = recorder.into_verifier();
+        let probe = &mut AuditProbe::new(vec![&mut verifier]);
+        {
+            type B = CpuBackend;
+            let device = default_device();
+
+            let iota: Tensor<B, 1> = Tensor::arange(5..15, &device).float();
+            probe.assert_eq_as::<f64>("iota", &iota).ok_or_panic();
+        }
+    }
 
     #[test]
     #[serial_test::serial]

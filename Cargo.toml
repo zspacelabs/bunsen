@@ -89,6 +89,8 @@ derive-new = "0.7.0"
 arrow = "60.0.0"
 parquet = "60.0.0"
 
+time = "0.3.55"
+
 # Build, Test and/or Examples dependencies
 hamcrest = "0.1.5"
 indoc = "2.0.7"
