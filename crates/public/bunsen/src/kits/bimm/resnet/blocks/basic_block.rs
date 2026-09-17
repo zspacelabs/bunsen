@@ -494,6 +494,7 @@ mod tests {
         contracts::assert_shape_contract,
         support::testing::{
             CpuBackend,
+            DeviceMemoryGuard,
             PerformanceBackend,
             default_device,
         },
@@ -547,6 +548,7 @@ mod tests {
     fn test_basic_block_forward_same_channels_no_downsample_autodiff() {
         type B = Autodiff<PerformanceBackend>;
         let device = default_device();
+        let _memory = DeviceMemoryGuard::<B>::new(&device);
 
         let batch_size = 2;
         let in_planes = 2;
@@ -577,6 +579,7 @@ mod tests {
     fn test_basic_block_forward_downsample_drop_block_drop_path_autodiff() {
         type B = Autodiff<PerformanceBackend>;
         let device = default_device();
+        let _memory = DeviceMemoryGuard::<B>::new(&device);
 
         let batch_size = 2;
         let in_planes = 2;

@@ -132,6 +132,7 @@ mod tests {
 
     use super::*;
     use crate::support::testing::{
+        DeviceMemoryGuard,
         PerformanceBackend,
         default_device,
     };
@@ -168,6 +169,7 @@ mod tests {
     fn test_omega_source_from_relaxation() {
         type B = PerformanceBackend;
         let device = default_device();
+        let _memory = DeviceMemoryGuard::<B>::new(&device);
 
         let relaxation = RelaxationParam::Omega(1.0);
         let omega_source: OmegaSource<B> = relaxation.into();

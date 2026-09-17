@@ -263,6 +263,7 @@ mod tests {
     use crate::{
         contracts::assert_shape_contract,
         support::testing::{
+            DeviceMemoryGuard,
             PerformanceBackend,
             default_device,
         },
@@ -273,6 +274,7 @@ mod tests {
     fn test_inverse_frequency_table() {
         type B = PerformanceBackend;
         let device = default_device();
+        let _memory = DeviceMemoryGuard::<B>::new(&device);
 
         let base = 10000;
         let head_dim = 4;
@@ -300,6 +302,7 @@ mod tests {
     fn test_frequency_matrix() {
         type B = PerformanceBackend;
         let device = default_device();
+        let _memory = DeviceMemoryGuard::<B>::new(&device);
 
         let base = 10000;
         let head_dim = 4;
@@ -334,6 +337,7 @@ mod tests {
     fn test_clip_range() {
         type B = PerformanceBackend;
         let device = default_device();
+        let _memory = DeviceMemoryGuard::<B>::new(&device);
 
         let config = RotaryEmbeddingConfig::new(1024, 64);
         let re: RotaryEmbedding<B> = config.init(&device);
@@ -359,6 +363,7 @@ mod tests {
     fn test_rotary_embedding() {
         type B = PerformanceBackend;
         let device = default_device();
+        let _memory = DeviceMemoryGuard::<B>::new(&device);
 
         let batch = 1;
         let heads = 2;

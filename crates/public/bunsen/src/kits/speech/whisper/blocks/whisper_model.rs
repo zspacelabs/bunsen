@@ -371,6 +371,7 @@ mod tests {
         contracts::assert_shape_contract,
         support::testing::{
             CpuBackend,
+            DeviceMemoryGuard,
             PerformanceBackend,
             default_device,
             param_load_mapping,
@@ -581,6 +582,7 @@ mod tests {
     fn test_whisper_forward() {
         type B = PerformanceBackend;
         let device = default_device();
+        let _memory = DeviceMemoryGuard::<B>::new(&device);
 
         let d_model = 128;
         let n_mels = 80;

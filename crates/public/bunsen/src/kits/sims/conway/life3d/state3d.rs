@@ -105,6 +105,7 @@ mod tests {
 
     use super::*;
     use crate::support::testing::{
+        DeviceMemoryGuard,
         PerformanceBackend,
         default_device,
     };
@@ -114,6 +115,7 @@ mod tests {
     fn test_smoke() {
         type B = PerformanceBackend;
         let device = default_device();
+        let _memory = DeviceMemoryGuard::<B>::new(&device);
 
         let steps = 100;
         let grid_size = 20;

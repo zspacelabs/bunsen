@@ -165,6 +165,7 @@ mod tests {
 
     use super::*;
     use crate::support::testing::{
+        DeviceMemoryGuard,
         PerformanceBackend,
         default_device,
     };
@@ -175,6 +176,7 @@ mod tests {
     fn test_stream_interior_windows() {
         type B = PerformanceBackend;
         let device = default_device();
+        let _memory = DeviceMemoryGuard::<B>::new(&device);
 
         let state: Tensor<B, 4> = Tensor::from_data([
             [

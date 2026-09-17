@@ -513,6 +513,7 @@ mod tests {
         prelude::*,
         support::testing::{
             CpuBackend,
+            DeviceMemoryGuard,
             PerformanceBackend,
             default_device,
         },
@@ -818,11 +819,13 @@ mod tests {
     /// kernel and show only for rows after the first. `samples` is ragged,
     /// the shape that leaves an uncovered tail for the framing to mishandle.
     #[test]
+    #[serial_test::serial]
     fn test_analyze_ragged_batch_matches_single_rows() {
         type P = PerformanceBackend;
         type PF = <P as BackendTypes>::FloatElem;
 
         let device = default_device();
+        let _memory = DeviceMemoryGuard::<P>::new(&device);
         // The default geometry, with `samples = win_len + 8` leaving an
         // uncovered tail of 8. Small geometries do not vectorize, so they
         // cannot exercise the framing's vectorized path at all.

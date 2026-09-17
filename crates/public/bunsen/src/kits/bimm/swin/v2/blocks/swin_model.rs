@@ -669,15 +669,15 @@ mod tests {
 
     use super::*;
     use crate::support::testing::{
+        DeviceMemoryGuard,
         PerformanceBackend,
         default_device,
     };
 
-    type B = PerformanceBackend;
-
     #[test]
     #[serial]
     fn test_swin_transformer_v2_meta() {
+        type B = PerformanceBackend;
         let config = SwinTransformerV2Config {
             input_resolution: [224, 224],
             patch_size: 4,
@@ -742,6 +742,7 @@ mod tests {
         );
 
         let device = default_device();
+        let _memory = DeviceMemoryGuard::<B>::new(&device);
         let model: SwinTransformerV2<B> = config.try_init(&device).ok_or_panic();
 
         assert_eq!(model.input_resolution(), [224, 224]);
@@ -783,6 +784,7 @@ mod tests {
     fn test_smoke_test_ape() {
         type B = PerformanceBackend;
         let device = default_device();
+        let _memory = DeviceMemoryGuard::<B>::new(&device);
 
         let b = 2;
         let d_input = 3;
@@ -864,6 +866,7 @@ mod tests {
     fn test_smoke_test_no_ape() {
         type B = PerformanceBackend;
         let device = default_device();
+        let _memory = DeviceMemoryGuard::<B>::new(&device);
 
         let b = 2;
         let d_input = 3;

@@ -424,6 +424,7 @@ mod tests {
     use crate::{
         contracts::assert_shape_contract,
         support::testing::{
+            DeviceMemoryGuard,
             PerformanceBackend,
             default_device,
         },
@@ -450,6 +451,7 @@ mod tests {
         assert_eq!(config.window_width(), 4);
 
         let device = default_device();
+        let _memory = DeviceMemoryGuard::<B>::new(&device);
         let attn_mod: WindowAttention<B> = config.try_init(&device).ok_or_panic();
 
         assert_eq!(attn_mod.d_input(), channels);
@@ -477,6 +479,7 @@ mod tests {
         let config = WindowAttentionConfig::new(channels, [window_size, window_size], num_heads);
 
         let device = default_device();
+        let _memory = DeviceMemoryGuard::<B>::new(&device);
         let attn_mod: WindowAttention<B> = config.try_init(&device).ok_or_panic();
 
         assert_eq!(attn_mod.d_input(), channels);

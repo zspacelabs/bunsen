@@ -62,6 +62,7 @@ mod test {
     use crate::{
         burner::tensor::*,
         support::testing::{
+            DeviceMemoryGuard,
             PerformanceBackend,
             default_device,
         },
@@ -72,6 +73,7 @@ mod test {
     fn test_wrap_state_2d() {
         type B = PerformanceBackend;
         let device = default_device();
+        let _memory = DeviceMemoryGuard::<B>::new(&device);
 
         let shape: Shape = [5, 6].into();
 
@@ -114,6 +116,7 @@ mod test {
     fn test_wrap_state_3d() {
         type B = PerformanceBackend;
         let device = default_device();
+        let _memory = DeviceMemoryGuard::<B>::new(&device);
 
         let shape: Shape = [4, 5, 6].into();
 

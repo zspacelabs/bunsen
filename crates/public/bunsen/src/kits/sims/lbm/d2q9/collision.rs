@@ -98,6 +98,7 @@ mod tests {
             density,
         },
         support::testing::{
+            DeviceMemoryGuard,
             PerformanceBackend,
             default_device,
         },
@@ -108,6 +109,7 @@ mod tests {
     fn test_collision_invariants() {
         type B = PerformanceBackend;
         let device = default_device();
+        let _memory = DeviceMemoryGuard::<B>::new(&device);
 
         let dtype = F32;
 

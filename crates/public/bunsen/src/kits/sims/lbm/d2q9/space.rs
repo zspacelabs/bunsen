@@ -304,6 +304,7 @@ mod tests {
         *,
     };
     use crate::support::testing::{
+        DeviceMemoryGuard,
         PerformanceBackend,
         default_device,
     };
@@ -313,6 +314,7 @@ mod tests {
     fn test_population_density() {
         type B = PerformanceBackend;
         let device = default_device();
+        let _memory = DeviceMemoryGuard::<B>::new(&device);
 
         let dist: Tensor<B, 4> = Tensor::from_data(
             [
@@ -341,6 +343,7 @@ mod tests {
     fn test_direction_vectors() {
         type B = PerformanceBackend;
         let device = default_device();
+        let _memory = DeviceMemoryGuard::<B>::new(&device);
 
         let e: Tensor<B, 3> = direction_vectors(&device);
 
@@ -363,6 +366,7 @@ mod tests {
     fn test_weight_matrix() {
         type B = PerformanceBackend;
         let device = default_device();
+        let _memory = DeviceMemoryGuard::<B>::new(&device);
 
         let w: Tensor<B, 2> = weight_matrix(&device);
 
@@ -385,6 +389,7 @@ mod tests {
     fn test_momentum_and_velocity() {
         type B = PerformanceBackend;
         let device = default_device();
+        let _memory = DeviceMemoryGuard::<B>::new(&device);
 
         let dist: Tensor<B, 4> = Tensor::from_data(
             [[

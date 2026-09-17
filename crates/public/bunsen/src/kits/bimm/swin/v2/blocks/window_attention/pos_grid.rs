@@ -198,6 +198,7 @@ mod tests {
     use super::*;
     use crate::support::testing::{
         CpuBackend,
+        DeviceMemoryGuard,
         PerformanceBackend,
         default_device,
     };
@@ -246,6 +247,7 @@ mod tests {
     fn test_window_log_offset_grid() {
         type B = PerformanceBackend;
         let device = default_device();
+        let _memory = DeviceMemoryGuard::<B>::new(&device);
         let base = 8.0;
 
         let actual = window_log1p_relative_offset_grid::<B>([3, 2], base, &device);

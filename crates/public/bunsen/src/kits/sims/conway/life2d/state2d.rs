@@ -143,6 +143,7 @@ mod tests {
             util::ConwaySim,
         },
         support::testing::{
+            DeviceMemoryGuard,
             PerformanceBackend,
             default_device,
         },
@@ -153,6 +154,7 @@ mod tests {
     fn test_smoke() {
         type B = PerformanceBackend;
         let device = default_device();
+        let _memory = DeviceMemoryGuard::<B>::new(&device);
 
         let steps = 100;
         let grid_size = 20;
@@ -173,6 +175,7 @@ mod tests {
     fn test_logic() {
         type B = PerformanceBackend;
         let device = default_device();
+        let _memory = DeviceMemoryGuard::<B>::new(&device);
         let config = ConwayLife2DConfig {
             shape: GridShape2D::square(5),
         };

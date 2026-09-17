@@ -49,6 +49,7 @@ mod tests {
     use crate::{
         ops::embedding::identity_embedding,
         support::testing::{
+            DeviceMemoryGuard,
             PerformanceBackend,
             default_device,
         },
@@ -59,6 +60,7 @@ mod tests {
     fn test_embedding_inverse_to_logits() {
         type B = PerformanceBackend;
         let device = default_device();
+        let _memory = DeviceMemoryGuard::<B>::new(&device);
 
         let n_embedding = 10;
 

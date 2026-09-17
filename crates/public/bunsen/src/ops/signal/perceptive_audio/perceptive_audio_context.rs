@@ -424,6 +424,7 @@ mod tests {
         errors::WithOkOrPanic,
         ops::signal::perceptive_audio::PerceptiveAudioConverterOptions,
         support::testing::{
+            DeviceMemoryGuard,
             PerformanceBackend,
             assert_close_to_vec,
             assert_tensor_close_to_vec,
@@ -431,8 +432,6 @@ mod tests {
             default_device,
         },
     };
-
-    type B = PerformanceBackend;
 
     /// Builds a `[batch, samples]` tensor from a row-major host buffer.
     fn from_rows<B: Backend>(
@@ -464,8 +463,11 @@ mod tests {
     }
 
     #[test]
+    #[serial_test::serial]
     fn test_context_meta_and_lifecycle() {
+        type B = PerformanceBackend;
         let device = default_device();
+        let _memory = DeviceMemoryGuard::<B>::new(&device);
         let opts = PerceptiveAudioConverterOptions::default();
         let conv: PerceptiveAudioConverter<B> = opts.try_init(&device).ok_or_panic();
 
@@ -498,8 +500,11 @@ mod tests {
     /// [`transform`](PerceptiveAudioConversionContext::transform)'s `# Frame
     /// count`, asserted against the real thing.
     #[test]
+    #[serial_test::serial]
     fn test_frame_accounting_over_a_30s_window() {
+        type B = PerformanceBackend;
         let device = default_device();
+        let _memory = DeviceMemoryGuard::<B>::new(&device);
         let opts = PerceptiveAudioConverterOptions::default();
         let conv: PerceptiveAudioConverter<B> = opts.try_init(&device).ok_or_panic();
 
@@ -524,8 +529,11 @@ mod tests {
     /// In steady state each chunk yields exactly `samples / hop` frames and
     /// the carry length does not drift.
     #[test]
+    #[serial_test::serial]
     fn test_running_frame_count_is_invariant() {
+        type B = PerformanceBackend;
         let device = default_device();
+        let _memory = DeviceMemoryGuard::<B>::new(&device);
         let conv: PerceptiveAudioConverter<B> = PerceptiveAudioConverterOptions::default()
             .try_init(&device)
             .ok_or_panic();
@@ -560,8 +568,11 @@ mod tests {
     /// **The milestone.** Splitting a signal into chunks must give bit-equal
     /// output to running it whole.
     #[test]
+    #[serial_test::serial]
     fn test_chunked_transform_is_a_homomorphism() {
+        type B = PerformanceBackend;
         let device = default_device();
+        let _memory = DeviceMemoryGuard::<B>::new(&device);
         let conv: PerceptiveAudioConverter<B> = PerceptiveAudioConverterOptions::default()
             .try_init(&device)
             .ok_or_panic();
@@ -612,8 +623,11 @@ mod tests {
     }
 
     #[test]
+    #[serial_test::serial]
     fn test_batch_rows_are_independent() {
+        type B = PerformanceBackend;
         let device = default_device();
+        let _memory = DeviceMemoryGuard::<B>::new(&device);
         let conv: PerceptiveAudioConverter<B> = PerceptiveAudioConverterOptions::default()
             .try_init(&device)
             .ok_or_panic();
@@ -645,8 +659,11 @@ mod tests {
     }
 
     #[test]
+    #[serial_test::serial]
     fn test_transform_rejects_bad_input() {
+        type B = PerformanceBackend;
         let device = default_device();
+        let _memory = DeviceMemoryGuard::<B>::new(&device);
         let conv: PerceptiveAudioConverter<B> = PerceptiveAudioConverterOptions::default()
             .try_init(&device)
             .ok_or_panic();
@@ -669,8 +686,11 @@ mod tests {
     }
 
     #[test]
+    #[serial_test::serial]
     fn test_finish_respects_end_padding() {
+        type B = PerformanceBackend;
         let device = default_device();
+        let _memory = DeviceMemoryGuard::<B>::new(&device);
 
         // No end padding: nothing to flush.
         let unpadded: PerceptiveAudioConverter<B> = PerceptiveAudioConverterOptions::default()
@@ -702,8 +722,11 @@ mod tests {
     /// Driving one stage at a time must match driving the whole fold — the
     /// payoff for the stack being decomposed.
     #[test]
+    #[serial_test::serial]
     fn test_stage_stack_matches_transform() {
+        type B = PerformanceBackend;
         let device = default_device();
+        let _memory = DeviceMemoryGuard::<B>::new(&device);
         let conv: PerceptiveAudioConverter<B> = PerceptiveAudioConverterOptions::default()
             .try_init(&device)
             .ok_or_panic();
@@ -727,8 +750,11 @@ mod tests {
     /// tail of the extended signal, and the extension must start with the
     /// mirrored prefix.
     #[test]
+    #[serial_test::serial]
     fn test_extend_stage_carry_contents() {
+        type B = PerformanceBackend;
         let device = default_device();
+        let _memory = DeviceMemoryGuard::<B>::new(&device);
         let conv: PerceptiveAudioConverter<B> = PerceptiveAudioConverterOptions::default()
             .try_init(&device)
             .ok_or_panic();

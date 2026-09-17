@@ -391,6 +391,7 @@ mod tests {
     use crate::{
         contracts::assert_shape_contract,
         support::testing::{
+            DeviceMemoryGuard,
             PerformanceBackend,
             default_device,
         },
@@ -429,6 +430,7 @@ mod tests {
     fn test_residual_block_basic_block() {
         type B = PerformanceBackend;
         let device = default_device();
+        let _memory = DeviceMemoryGuard::<B>::new(&device);
 
         let batch_size = 2;
         let in_planes = 16;
@@ -469,6 +471,7 @@ mod tests {
     fn test_residual_block_bottleneck_block() {
         type B = PerformanceBackend;
         let device = default_device();
+        let _memory = DeviceMemoryGuard::<B>::new(&device);
 
         let batch_size = 2;
         let in_planes = 16;

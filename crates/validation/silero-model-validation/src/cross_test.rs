@@ -19,6 +19,7 @@ mod tests {
         support::{
             audio::load_audio_mono_sr,
             testing::{
+                DeviceMemoryGuard,
                 PerformanceBackend,
                 default_device,
             },
@@ -43,6 +44,7 @@ mod tests {
         type F = <B as BackendTypes>::FloatElem;
 
         let device = default_device();
+        let _memory = DeviceMemoryGuard::<B>::new(&device);
 
         let sc: SileroVadCollection<B> =
             SileroVadCollection::load_pretrained(&device).ok_or_panic();
@@ -93,6 +95,7 @@ mod tests {
 
         type B = PerformanceBackend;
         let device = default_device();
+        let _memory = DeviceMemoryGuard::<B>::new(&device);
 
         let vad: SileroVad<B> = SileroVadCollection::load_pretrained(&device)?
             .try_branch(sample_rate)?

@@ -44,6 +44,7 @@ mod tests {
     use crate::{
         ops::drop::dropout,
         support::testing::{
+            DeviceMemoryGuard,
             PerformanceBackend,
             default_device,
         },
@@ -54,6 +55,7 @@ mod tests {
     fn dropout_prob_0_should_return_input() {
         type B = PerformanceBackend;
         let device = default_device();
+        let _memory = DeviceMemoryGuard::<B>::new(&device);
         let input = Tensor::<B, 2>::random([10, 3], Distribution::Default, &device);
 
         let output = dropout(0., input.clone());
@@ -66,6 +68,7 @@ mod tests {
     fn dropout_rates_stochastic_test() {
         type B = PerformanceBackend;
         let device = default_device();
+        let _memory = DeviceMemoryGuard::<B>::new(&device);
         B::seed(&device, 0);
 
         let input = Tensor::<B, 2>::ones([10, 10], &device);
@@ -104,6 +107,7 @@ mod tests {
     fn dropout_prob_invalid() {
         type B = PerformanceBackend;
         let device = default_device();
+        let _memory = DeviceMemoryGuard::<B>::new(&device);
 
         let input = Tensor::<B, 1>::ones([10], &device);
         let _ = dropout(-10., input);

@@ -128,7 +128,10 @@ mod tests {
     use serial_test::serial;
 
     use super::*;
-    use crate::support::testing::default_device;
+    use crate::support::testing::{
+        DeviceMemoryGuard,
+        default_device,
+    };
 
     type B = crate::support::testing::PerformanceBackend;
 
@@ -168,32 +171,40 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_assert_tensor_close_to_vec() {
         let device = default_device();
+        let _memory = DeviceMemoryGuard::<B>::new(&device);
         let t = square([1.0, 2.0, 3.0, 4.0], &device);
         assert_tensor_close_to_vec(&t, &[1.0, 2.0, 3.0, 4.0], Tolerance::default());
     }
 
     #[test]
+    #[serial]
     #[should_panic]
     fn test_assert_tensor_close_to_vec_bad_values() {
         let device = default_device();
+        let _memory = DeviceMemoryGuard::<B>::new(&device);
         let t = square([1.0, 2.0, 3.0, 4.0], &device);
         assert_tensor_close_to_vec(&t, &[1.0, 2.0, 3.0, 9.0], Tolerance::default());
     }
 
     #[test]
+    #[serial]
     fn test_assert_tensors_close() {
         let device = default_device();
+        let _memory = DeviceMemoryGuard::<B>::new(&device);
         let a = square([1.0, 2.0, 3.0, 4.0], &device);
         let b = square([1.0, 2.0, 3.0, 4.0], &device);
         assert_tensors_close(&a, &b, Tolerance::default());
     }
 
     #[test]
+    #[serial]
     #[should_panic]
     fn test_assert_tensors_close_bad_values() {
         let device = default_device();
+        let _memory = DeviceMemoryGuard::<B>::new(&device);
         let a = square([1.0, 2.0, 3.0, 4.0], &device);
         let b = square([1.0, 2.0, 3.0, 9.0], &device);
         assert_tensors_close(&a, &b, Tolerance::default());

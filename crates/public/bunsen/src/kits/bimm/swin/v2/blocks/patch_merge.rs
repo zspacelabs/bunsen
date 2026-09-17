@@ -310,6 +310,7 @@ mod tests {
         errors::WithOkOrPanic,
         support::testing::{
             CpuBackend,
+            DeviceMemoryGuard,
             PerformanceBackend,
             default_device,
         },
@@ -325,6 +326,7 @@ mod tests {
         let c = 5;
 
         let device = default_device();
+        let _memory = DeviceMemoryGuard::<B>::new(&device);
 
         let distribution = Distribution::Normal(0., 1.);
         let x = Tensor::<B, 3>::random([b, h * w, c], distribution, &device);
@@ -338,6 +340,7 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn test_patch_merging_meta() {
         type B = PerformanceBackend;
         let config = PatchMergingConfig {
@@ -353,6 +356,7 @@ mod tests {
         assert_eq!(config.output_width(), 4);
 
         let device = default_device();
+        let _memory = DeviceMemoryGuard::<B>::new(&device);
         let patch_merging: PatchMerging<B> = config.try_init(&device).ok_or_panic();
 
         assert_eq!(patch_merging.input_resolution(), [12, 8]);
@@ -365,6 +369,7 @@ mod tests {
 
     #[should_panic(expected = "Input resolution must be divisible by 2")]
     #[test]
+    #[serial]
     fn test_patch_merging_invalid_resolution() {
         type B = PerformanceBackend;
         let config = PatchMergingConfig {
@@ -372,6 +377,7 @@ mod tests {
             d_input: 3,
         };
         let device = default_device();
+        let _memory = DeviceMemoryGuard::<B>::new(&device);
         let _d: PatchMerging<B> = config.try_init(&device).ok_or_panic();
     }
 
@@ -380,6 +386,7 @@ mod tests {
     fn test_patch_merging() {
         type B = PerformanceBackend;
         let device = default_device();
+        let _memory = DeviceMemoryGuard::<B>::new(&device);
 
         let b = 2;
         let h = 12;
@@ -431,6 +438,7 @@ mod tests {
     fn test_patch_embed() {
         type B = PerformanceBackend;
         let device = default_device();
+        let _memory = DeviceMemoryGuard::<B>::new(&device);
 
         let b = 2;
         let h = 12;

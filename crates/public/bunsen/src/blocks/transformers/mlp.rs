@@ -206,6 +206,7 @@ mod tests {
     use crate::{
         contracts::assert_shape_contract,
         support::testing::{
+            DeviceMemoryGuard,
             PerformanceBackend,
             default_device,
         },
@@ -227,6 +228,7 @@ mod tests {
     fn test_mlp() {
         type B = PerformanceBackend;
         let device = default_device();
+        let _memory = DeviceMemoryGuard::<B>::new(&device);
 
         for activation in [ActivationConfig::Relu, ActivationConfig::Gelu] {
             for ef in [4, 3] {

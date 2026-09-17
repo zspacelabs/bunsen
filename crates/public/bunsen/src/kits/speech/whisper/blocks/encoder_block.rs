@@ -176,7 +176,10 @@ mod tests {
     };
 
     use super::*;
-    use crate::contracts::assert_shape_contract;
+    use crate::{
+        contracts::assert_shape_contract,
+        support::testing::DeviceMemoryGuard,
+    };
 
     #[test]
     #[serial_test::serial]
@@ -184,6 +187,7 @@ mod tests {
         use crate::support::testing::default_device;
         type B = crate::support::testing::PerformanceBackend;
         let device = default_device();
+        let _memory = DeviceMemoryGuard::<B>::new(&device);
 
         let d_model = 128;
 
