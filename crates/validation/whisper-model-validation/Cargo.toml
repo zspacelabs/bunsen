@@ -13,6 +13,10 @@ license.workspace = true
 [lints]
 workspace = true
 
+[profile.dev]
+opt-level = 2
+
+
 [features]
 default = []
 
@@ -48,6 +52,9 @@ gpu-tests = []
 ## Run the cross-check on `wgpu`. The usual choice.
 wgpu = ["bunsen/wgpu"]
 
+## Run the cross-check on `wgpu`. The usual choice.
+vulkan = ["bunsen/vulkan"]
+
 ## Run the cross-check on CUDA.
 cuda = ["bunsen/cuda"]
 
@@ -65,4 +72,6 @@ bunsen-bundled-whisper = {
 [dev-dependencies]
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
+
+serial_test = { workspace = true }
 

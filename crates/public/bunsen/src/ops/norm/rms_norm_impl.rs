@@ -66,6 +66,7 @@ mod tests {
 
     use super::*;
     use crate::support::testing::{
+        DeviceMemoryGuard,
         PerformanceBackend,
         default_device,
     };
@@ -75,6 +76,7 @@ mod tests {
     fn test_rms_norm() {
         type B = PerformanceBackend;
         let device = default_device();
+        let _memory = DeviceMemoryGuard::<B>::new(&device);
 
         let x: Tensor<B, 3> = Tensor::random([2, 3, 4], Distribution::Default, &device);
         let options = RmsNormOptions::default();

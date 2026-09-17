@@ -45,6 +45,7 @@ use crate::{
         },
     },
     support::testing::{
+        DeviceMemoryGuard,
         PerformanceBackend,
         assert_close_to_vec,
         default_device,
@@ -150,8 +151,10 @@ fn test_filterbank_matches_librosa() {
 
 /// The unpadded batch path, against `center=False`.
 #[test]
+#[serial_test::serial]
 fn test_batch_logmel_matches_librosa_center_false() {
     let device = default_device();
+    let _memory = DeviceMemoryGuard::<B>::new(&device);
     let opts = parity_options().with_start_padding(PaddingMode::None);
     let conv: PerceptiveAudioConverter<B> = opts.try_init(&device).ok_or_panic();
 
@@ -170,8 +173,10 @@ fn test_batch_logmel_matches_librosa_center_false() {
 /// carry across the chunk boundary, and a reflect-padded `finish` — must
 /// reproduce `librosa` with `center=True`, frame for frame.
 #[test]
+#[serial_test::serial]
 fn test_streaming_logmel_matches_librosa_center_true() {
     let device = default_device();
+    let _memory = DeviceMemoryGuard::<B>::new(&device);
     let conv: PerceptiveAudioConverter<B> = parity_options().try_init(&device).ok_or_panic();
 
     let (x, _) = signal_tensor(&device);
@@ -203,8 +208,10 @@ fn test_streaming_logmel_matches_librosa_center_true() {
 /// That is the recipe for Whisper input, and it exercises
 /// [`RangeClamp::apply`] and [`AffineCompress::apply`] against the reference.
 #[test]
+#[serial_test::serial]
 fn test_whisper_logmel_matches_reference() {
     let device = default_device();
+    let _memory = DeviceMemoryGuard::<B>::new(&device);
     let conv: PerceptiveAudioConverter<B> = parity_options().try_init(&device).ok_or_panic();
 
     let (x, _) = signal_tensor(&device);
@@ -237,8 +244,10 @@ fn test_whisper_logmel_matches_reference() {
 
 /// The same parity, reached by feeding the signal in uneven pieces.
 #[test]
+#[serial_test::serial]
 fn test_chunked_streaming_matches_librosa_center_true() {
     let device = default_device();
+    let _memory = DeviceMemoryGuard::<B>::new(&device);
     let conv: PerceptiveAudioConverter<B> = parity_options().try_init(&device).ok_or_panic();
 
     let samples = fixture("signal_2s_16k.f32");

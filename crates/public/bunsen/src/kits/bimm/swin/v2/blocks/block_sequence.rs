@@ -335,6 +335,7 @@ mod tests {
     use crate::{
         errors::WithOkOrPanic,
         support::testing::{
+            DeviceMemoryGuard,
             PerformanceBackend,
             default_device,
         },
@@ -426,6 +427,7 @@ mod tests {
         );
 
         let device = default_device();
+        let _memory = DeviceMemoryGuard::<B>::new(&device);
         let module: StochasticDepthTransformerBlockSequence<B> =
             config.try_init(&device).ok_or_panic();
 

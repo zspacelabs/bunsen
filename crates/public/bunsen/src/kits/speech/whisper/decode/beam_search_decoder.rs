@@ -279,11 +279,10 @@ mod tests {
 
     use super::*;
     use crate::support::testing::{
+        DeviceMemoryGuard,
         PerformanceBackend,
         default_device,
     };
-
-    type B = PerformanceBackend;
 
     fn logits<B: Backend>(
         rows: &[&[f32]],
@@ -301,8 +300,11 @@ mod tests {
     /// distinct tokens, not three copies of the best one, and the cache is
     /// told which rows they came from.
     #[test]
+    #[serial_test::serial]
     fn test_first_step_deduplicates() {
+        type B = PerformanceBackend;
         let device = default_device();
+        let _memory = DeviceMemoryGuard::<B>::new(&device);
 
         let mut decoder = WhisperBeamSearchDecoder::new(3, EOT, None);
         let mut tokens = vec![vec![7]; 3];
@@ -331,8 +333,11 @@ mod tests {
     /// the beam refills from the runner-up; the search completes when the
     /// set holds `round(k * patience)` sequences.
     #[test]
+    #[serial_test::serial]
     fn test_finished_set_and_patience() {
+        type B = PerformanceBackend;
         let device = default_device();
+        let _memory = DeviceMemoryGuard::<B>::new(&device);
         let mut decoder = WhisperBeamSearchDecoder::new(2, EOT, None);
         assert_eq!(decoder.beam_size(), 2);
         assert_eq!(decoder.max_candidates(), 2);
@@ -376,8 +381,11 @@ mod tests {
     /// With more patience the set is larger, and finalize fills a short
     /// set from the live beams, best first.
     #[test]
+    #[serial_test::serial]
     fn test_patience_and_finalize_fill() {
+        type B = PerformanceBackend;
         let device = default_device();
+        let _memory = DeviceMemoryGuard::<B>::new(&device);
         let mut decoder = WhisperBeamSearchDecoder::new(2, EOT, Some(2.0));
         assert_eq!(decoder.max_candidates(), 4);
         let mut tokens = vec![vec![7]; 2];
@@ -409,8 +417,11 @@ mod tests {
     /// Two audios are independent groups: sources index the whole batch,
     /// and each group refills from its own candidates.
     #[test]
+    #[serial_test::serial]
     fn test_groups_are_independent() {
+        type B = PerformanceBackend;
         let device = default_device();
+        let _memory = DeviceMemoryGuard::<B>::new(&device);
         let mut decoder = WhisperBeamSearchDecoder::new(2, EOT, None);
         let mut tokens = vec![vec![7]; 4];
         let mut sums = vec![0.0; 4];

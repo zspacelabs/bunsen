@@ -46,8 +46,9 @@ pub fn release_cached_device_memory<B: Backend>(device: &B::Device) {
 ///     default_device,
 /// };
 ///
+/// type B = CpuBackend;
 /// let device = default_device();
-/// let _memory = DeviceMemoryGuard::<CpuBackend>::new(&device);
+/// let _memory = DeviceMemoryGuard::<B>::new(&device);
 ///
 /// // ... load a model, run it, assert on it ...
 /// ```
@@ -65,6 +66,11 @@ pub fn release_cached_device_memory<B: Backend>(device: &B::Device) {
 ///
 /// [`release_cached_device_memory`] says why a shared pool needs this at all,
 /// and what "release" does and does not reclaim.
+///
+/// Pair it with `#[serial]`. The guard bounds what a suite accumulates *over*
+/// time; it does nothing about what it holds *at once*, and tests running
+/// concurrently each hold their own working set. A dozen of those is enough to
+/// exhaust a 24 GiB card even though no single one comes close.
 pub struct DeviceMemoryGuard<B: Backend> {
     /// The device whose pool is released on drop.
     device: B::Device,

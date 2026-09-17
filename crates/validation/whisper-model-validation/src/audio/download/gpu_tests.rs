@@ -23,6 +23,7 @@ use bunsen::{
         DeviceMemoryGuard,
         PerformanceBackend,
         asr::text_error_rate,
+        default_device,
     },
 };
 use burn::{
@@ -140,9 +141,11 @@ fn greedy_reference<B: Backend>(
 /// **The agreement gate.** bunsen must decode what `openai-whisper`
 /// decodes, on the same audio and the same windowing.
 #[test]
+#[serial_test::serial]
 fn test_bunsen_agrees_with_openai_reference() {
-    let device: Device<B> = Default::default();
+    let device = default_device();
     let _memory = DeviceMemoryGuard::<B>::new(&device);
+
     let table = vocab();
     let model = bunsen_model::<B>(&device);
     let config = decode_config(&table);
@@ -185,9 +188,11 @@ fn test_bunsen_agrees_with_openai_reference() {
 /// sawtooth, while a log-mel spectrogram has the dynamic range and the
 /// near-silent bins a mis-scaled layer norm would show up in.
 #[test]
+#[serial_test::serial]
 fn test_onnx_encoder_matches_bunsen_on_real_audio() {
-    let device: Device<B> = Default::default();
+    let device = default_device();
     let _memory = DeviceMemoryGuard::<B>::new(&device);
+
     let reference = reference::EncoderModel::<B>::load_pretrained(&device);
     let ours = bunsen_model(&device);
 
@@ -207,9 +212,11 @@ fn test_onnx_encoder_matches_bunsen_on_real_audio() {
 /// **The ONNX reference transcribes the clip**, independent of bunsen:
 /// the ONNX encoder feeds the ONNX decoder.
 #[test]
+#[serial_test::serial]
 fn test_onnx_reference_transcribes_real_audio() {
-    let device: Device<B> = Default::default();
+    let device = default_device();
     let _memory = DeviceMemoryGuard::<B>::new(&device);
+
     let table = vocab();
     let reference_enc = reference::EncoderModel::<B>::load_pretrained(&device);
     let reference_dec = reference::DecoderModel::<B>::load_pretrained(&device);
@@ -253,9 +260,11 @@ fn test_onnx_reference_transcribes_real_audio() {
 /// composition diverges, because a greedy argmax turns a small
 /// numerical difference into a different word.
 #[test]
+#[serial_test::serial]
 fn test_onnx_reference_and_bunsen_transcribe_alike() {
-    let device: Device<B> = Default::default();
+    let device = default_device();
     let _memory = DeviceMemoryGuard::<B>::new(&device);
+
     let table = vocab();
     let reference_enc = reference::EncoderModel::<B>::load_pretrained(&device);
     let reference_dec = reference::DecoderModel::<B>::load_pretrained(&device);
@@ -296,9 +305,11 @@ fn test_onnx_reference_and_bunsen_transcribe_alike() {
 /// **The accuracy gate.** Real audio, real weights, judged against the
 /// ground-truth transcript.
 #[test]
+#[serial_test::serial]
 fn test_bunsen_accuracy_against_transcript() {
-    let device: Device<B> = Default::default();
+    let device = default_device();
     let _memory = DeviceMemoryGuard::<B>::new(&device);
+
     let table = vocab();
     let model = bunsen_model::<B>(&device);
     let config = decode_config(&table);
@@ -351,9 +362,11 @@ fn decode_filtered(
 /// same filters, derived from the rank file alone, must still decode what
 /// the reference decodes.
 #[test]
+#[serial_test::serial]
 fn test_bunsen_agrees_with_openai_reference_under_default_filters() {
-    let device: Device<B> = Default::default();
+    let device = default_device();
     let _memory = DeviceMemoryGuard::<B>::new(&device);
+
     let table = vocab();
     let model = bunsen_model::<B>(&device);
     let config = DecodeConfig::from(&decode_config(&table));
@@ -397,9 +410,11 @@ fn test_bunsen_agrees_with_openai_reference_under_default_filters() {
 /// `beam_size=5`: the same candidates, deduplicated, ranked and finished
 /// the same way.
 #[test]
+#[serial_test::serial]
 fn test_bunsen_beam_agrees_with_openai_reference() {
-    let device: Device<B> = Default::default();
+    let device = default_device();
     let _memory = DeviceMemoryGuard::<B>::new(&device);
+
     let table = vocab();
     let model = bunsen_model::<B>(&device);
     let config = DecodeConfig::from(&decode_config(&table)).with_beam_size(5);
@@ -442,9 +457,11 @@ fn test_bunsen_beam_agrees_with_openai_reference() {
 /// upstream's default filters and its timestamp rules, decode to the
 /// timestamped reference: the rules' every clause, on real logits.
 #[test]
+#[serial_test::serial]
 fn test_bunsen_timestamps_agree_with_openai_reference() {
-    let device: Device<B> = Default::default();
+    let device = default_device();
     let _memory = DeviceMemoryGuard::<B>::new(&device);
+
     let table = vocab();
     let model = bunsen_model::<B>(&device);
     let ids = table.policy.ids();
@@ -494,9 +511,11 @@ fn test_bunsen_timestamps_agree_with_openai_reference() {
 /// `transcribe()` produced, with their times, through a stream clock from
 /// zero.
 #[test]
+#[serial_test::serial]
 fn test_bunsen_driver_transcribes_like_openai() {
-    let device: Device<B> = Default::default();
+    let device = default_device();
     let _memory = DeviceMemoryGuard::<B>::new(&device);
+
     let table = vocab();
     let driver = WhisperStreamDriverConfig::new()
         .with_language(Some("en".to_string()))
@@ -587,9 +606,11 @@ fn test_bunsen_driver_transcribes_like_openai() {
 /// **Language detection.** One step over `<|startoftranscript|>` with only
 /// the language block to choose from says the clip is English.
 #[test]
+#[serial_test::serial]
 fn test_bunsen_detects_the_language() {
-    let device: Device<B> = Default::default();
+    let device = default_device();
     let _memory = DeviceMemoryGuard::<B>::new(&device);
+
     let table = vocab();
     let model = bunsen_model::<B>(&device);
 

@@ -863,6 +863,7 @@ mod tests {
     use crate::{
         prelude::*,
         support::testing::{
+            DeviceMemoryGuard,
             PerformanceBackend,
             default_device,
         },
@@ -940,8 +941,10 @@ mod tests {
     }
 
     #[test]
+    #[serial_test::serial]
     fn test_config_meta_matches_module() {
         let device = default_device();
+        let _memory = DeviceMemoryGuard::<B>::new(&device);
 
         for (cfg, n_freq, chunk_size) in [
             (
@@ -974,6 +977,7 @@ mod tests {
     #[serial_test::serial]
     fn test_forward_shapes_and_range() {
         let device = default_device();
+        let _memory = DeviceMemoryGuard::<B>::new(&device);
 
         for cfg in [
             SileroVadSignalConfig::standard_16khz().to_structure(),
@@ -1006,6 +1010,7 @@ mod tests {
     #[serial_test::serial]
     fn test_forward_sequence_shapes() {
         let device = default_device();
+        let _memory = DeviceMemoryGuard::<B>::new(&device);
 
         let batch = 8;
         let steps = 5;

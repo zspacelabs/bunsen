@@ -321,6 +321,7 @@ mod tests {
         errors::WithOkOrPanic,
         support::testing::{
             CpuBackend,
+            DeviceMemoryGuard,
             PerformanceBackend,
             default_device,
         },
@@ -353,6 +354,7 @@ mod tests {
     fn test_og_rpb() {
         type B = PerformanceBackend;
         let device = default_device();
+        let _memory = DeviceMemoryGuard::<B>::new(&device);
 
         let window_shape = [3, 2];
         let num_heads = 8;

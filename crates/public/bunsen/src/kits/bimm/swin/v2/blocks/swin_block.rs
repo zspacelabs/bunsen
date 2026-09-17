@@ -689,6 +689,7 @@ mod tests {
 
     use super::*;
     use crate::support::testing::{
+        DeviceMemoryGuard,
         PerformanceBackend,
         default_device,
     };
@@ -728,6 +729,7 @@ mod tests {
     fn test_mlp() {
         type B = PerformanceBackend;
         let device = default_device();
+        let _memory = DeviceMemoryGuard::<B>::new(&device);
 
         let a = 2;
         let b = 3;
@@ -761,6 +763,7 @@ mod tests {
     fn test_with_shift() {
         type B = PerformanceBackend;
         let device = default_device();
+        let _memory = DeviceMemoryGuard::<B>::new(&device);
         let b = 1;
         let h = 4;
         let w = 4;
@@ -797,6 +800,7 @@ mod tests {
     fn test_shifted_window_transformer_block_meta() {
         type B = PerformanceBackend;
         let device = default_device();
+        let _memory = DeviceMemoryGuard::<B>::new(&device);
 
         let d_input = 128;
         let num_heads = 4;
@@ -939,6 +943,7 @@ mod tests {
             .with_window_size(window_size);
 
         let device = default_device();
+        let _memory = DeviceMemoryGuard::<B>::new(&device);
         let block: ShiftedWindowTransformerBlock<B> = config.init(&device);
 
         let distribution = Distribution::Uniform(0.0, 1.0);

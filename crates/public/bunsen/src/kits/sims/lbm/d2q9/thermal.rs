@@ -98,6 +98,7 @@ mod tests {
             thermal::lattice_dot_velocity,
         },
         support::testing::{
+            DeviceMemoryGuard,
             PerformanceBackend,
             default_device,
         },
@@ -108,6 +109,7 @@ mod tests {
     fn test_equilibrium() {
         type B = PerformanceBackend;
         let device = default_device();
+        let _memory = DeviceMemoryGuard::<B>::new(&device);
 
         let dist = Tensor::<B, 4>::random([20, 20, 3, 3], Distribution::Default, &device);
 
@@ -139,6 +141,7 @@ mod tests {
     fn test_equilibrium_invariants() {
         type B = PerformanceBackend;
         let device = default_device();
+        let _memory = DeviceMemoryGuard::<B>::new(&device);
 
         let dtype = F32;
 
@@ -161,6 +164,7 @@ mod tests {
     fn test_lattice_dot_velocity() {
         type B = PerformanceBackend;
         let device = default_device();
+        let _memory = DeviceMemoryGuard::<B>::new(&device);
 
         let e: Tensor<B, 3> = direction_vectors(&device);
 

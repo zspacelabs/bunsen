@@ -1041,6 +1041,7 @@ mod tests {
             tokens::Detokenizer,
         },
         support::testing::{
+            DeviceMemoryGuard,
             PerformanceBackend,
             default_device,
         },
@@ -1346,6 +1347,7 @@ mod tests {
     #[serial]
     fn test_prompt_carry() {
         let device = default_device();
+        let _memory = DeviceMemoryGuard::<B>::new(&device);
         let driver: WhisperStreamDriver<B> = driver(&device, true);
         let audio = clip();
         let width = driver.window_frames();
@@ -1408,6 +1410,7 @@ mod tests {
         }
 
         let device = default_device();
+        let _memory = DeviceMemoryGuard::<B>::new(&device);
         let driver: WhisperStreamDriver<B> =
             driver(&device, false).with_detokenizer(Arc::new(Numbers));
         let audio = clip();
@@ -1432,6 +1435,7 @@ mod tests {
     #[serial]
     fn test_lifecycle_edges() {
         let device = default_device();
+        let _memory = DeviceMemoryGuard::<B>::new(&device);
         let driver: WhisperStreamDriver<B> = driver(&device, false);
 
         let mut empty = driver.new_context(clock(), PerWindow).unwrap();
@@ -1995,8 +1999,10 @@ mod tests {
     /// The configuration refuses what this slice cannot do, with a reason,
     /// and refuses a mismatched language.
     #[test]
+    #[serial]
     fn test_init_refuses_the_unsupported() {
         let device = default_device();
+        let _memory = DeviceMemoryGuard::<B>::new(&device);
         let policy = WhisperTokenLayout::new(tiny_layout());
         let base = WhisperStreamDriverConfig::new().with_language(Some("en".to_string()));
 

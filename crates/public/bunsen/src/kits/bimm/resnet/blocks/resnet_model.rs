@@ -556,6 +556,7 @@ mod tests {
             RESNET50_BLOCKS,
         },
         support::testing::{
+            DeviceMemoryGuard,
             PerformanceBackend,
             default_device,
         },
@@ -622,6 +623,7 @@ mod tests {
     fn test_to_layers_50_bottleneck() {
         type B = PerformanceBackend;
         let device = default_device();
+        let _memory = DeviceMemoryGuard::<B>::new(&device);
 
         let cfg = ResNetContractConfig::new(RESNET50_BLOCKS.to_vec(), 1000).with_bottleneck(true);
         let layers = cfg.to_layer_contracts();

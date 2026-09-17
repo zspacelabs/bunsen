@@ -77,6 +77,7 @@ mod tests {
             streaming::outflow_clipping_stream,
         },
         support::testing::{
+            DeviceMemoryGuard,
             PerformanceBackend,
             default_device,
         },
@@ -87,6 +88,7 @@ mod tests {
     fn test_debug_flow_loss() {
         type B = PerformanceBackend;
         let device = default_device();
+        let _memory = DeviceMemoryGuard::<B>::new(&device);
 
         let k = 5;
         let height = 6;

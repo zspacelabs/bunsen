@@ -153,6 +153,7 @@ mod tests {
     use std::sync::Arc;
 
     use bunsen::support::testing::{
+        DeviceMemoryGuard,
         PerformanceBackend,
         default_device,
     };
@@ -196,12 +197,14 @@ mod tests {
     };
 
     #[test]
+    #[serial_test::serial]
     fn test_example() -> anyhow::Result<()> {
         let temp_dir = tempfile::tempdir().unwrap();
 
         type B = PerformanceBackend;
 
         let device = default_device();
+        let _memory = DeviceMemoryGuard::<B>::new(&device);
 
         let env = Arc::new(init_default_operator_environment());
 

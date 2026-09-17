@@ -469,6 +469,7 @@ mod tests {
         kits::bimm::resnet::blocks::BasicBlockConfig,
         prelude::*,
         support::testing::{
+            DeviceMemoryGuard,
             PerformanceBackend,
             default_device,
         },
@@ -509,6 +510,7 @@ mod tests {
         type B = PerformanceBackend;
         type F = <B as BackendTypes>::FloatElem;
         let device = default_device();
+        let _memory = DeviceMemoryGuard::<B>::new(&device);
 
         let a_planes = 16;
         let b_planes = 32;

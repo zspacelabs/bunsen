@@ -34,6 +34,7 @@ type F = <B as BackendTypes>::FloatElem;
 /// Needs no assets beyond the fetched graph, so it is the smoke test that
 /// tells you the fetch-and-generate path itself is healthy.
 #[test]
+#[serial_test::serial]
 fn test_reference_encoder_runs() {
     let device = default_device();
     let _memory = DeviceMemoryGuard::<B>::new(&device);
@@ -62,10 +63,11 @@ fn test_reference_encoder_runs() {
 /// `bunsen-bundled-whisper`, which this crate's `download` feature pulls
 /// in, so this never skips.
 #[test]
+#[serial_test::serial]
 fn test_bunsen_encoder_matches_reference() {
     let device = default_device();
     let _memory = DeviceMemoryGuard::<B>::new(&device);
-    let mels = synthetic_mels::<B>(&device);
+    let mels: Tensor<B, 3> = synthetic_mels::<B>(&device);
 
     let reference = reference::EncoderModel::<B>::load_pretrained(&device).forward(mels.clone());
 
@@ -120,6 +122,7 @@ fn decoder_inputs(
 /// **The decoder cross-check.** bunsen's text decoder must match the
 /// reference on identical weights, tokens and encoder output.
 #[test]
+#[serial_test::serial]
 fn test_bunsen_decoder_matches_reference() {
     let device = default_device();
     let _memory = DeviceMemoryGuard::<B>::new(&device);
@@ -145,6 +148,7 @@ fn test_bunsen_decoder_matches_reference() {
 /// tolerance can pass while the argmax differs — which is the only thing a
 /// decoder is actually judged on.
 #[test]
+#[serial_test::serial]
 fn test_bunsen_decoder_argmax_matches_reference() {
     let device = default_device();
     let _memory = DeviceMemoryGuard::<B>::new(&device);

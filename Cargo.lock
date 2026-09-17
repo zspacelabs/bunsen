@@ -1265,6 +1265,7 @@ dependencies = [
  "rand 0.10.2",
  "serde",
  "serde_json",
+ "serial_test",
  "tempfile",
 ]
 
@@ -10553,6 +10554,7 @@ dependencies = [
  "burn",
  "serde",
  "serde_json",
+ "serial_test",
 ]
 
 [[package]]

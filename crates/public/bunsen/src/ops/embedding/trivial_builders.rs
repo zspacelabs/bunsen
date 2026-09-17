@@ -41,13 +41,17 @@ pub fn identity_embedding<B: Backend>(
 mod tests {
     use super::*;
     use crate::support::testing::{
+        DeviceMemoryGuard,
         PerformanceBackend,
         default_device,
     };
 
     #[test]
+    #[serial_test::serial]
     fn test_iota_embedding() {
+        type B = PerformanceBackend;
         let device = default_device();
+        let _memory = DeviceMemoryGuard::<B>::new(&device);
         let n = 3;
         let d = 4;
         let emb = iota_embedding::<PerformanceBackend>(n, d, &device);
@@ -69,8 +73,11 @@ mod tests {
     }
 
     #[test]
+    #[serial_test::serial]
     fn test_identity_embedding() {
+        type B = PerformanceBackend;
         let device = default_device();
+        let _memory = DeviceMemoryGuard::<B>::new(&device);
         let n = 5;
         let emb = identity_embedding::<PerformanceBackend>(n, &device);
 

@@ -335,6 +335,7 @@ mod tests {
     use crate::{
         contracts::assert_shape_contract,
         support::testing::{
+            DeviceMemoryGuard,
             PerformanceBackend,
             default_device,
         },
@@ -345,6 +346,7 @@ mod tests {
     fn test_audio_encoder_forward() {
         type B = PerformanceBackend;
         let device = default_device();
+        let _memory = DeviceMemoryGuard::<B>::new(&device);
 
         let d_model = 128;
         let n_mels = 256;

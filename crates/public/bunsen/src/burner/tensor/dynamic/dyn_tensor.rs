@@ -613,23 +613,26 @@ mod tests {
             tensor::dynamic::*,
         },
         support::testing::{
+            DeviceMemoryGuard,
             PerformanceBackend,
             default_device,
         },
     };
 
-    type B = PerformanceBackend;
-
     fn assert_send<T: Send>() {}
 
     #[test]
     fn test_send() {
+        type B = PerformanceBackend;
         assert_send::<DynTensor<B>>();
     }
 
     #[test]
+    #[serial_test::serial]
     fn test_stub_float() {
+        type B = PerformanceBackend;
         let device = default_device();
+        let _memory = DeviceMemoryGuard::<B>::new(&device);
 
         let source: Tensor<B, 2> = Tensor::random([2, 3], Distribution::Default, &device);
 
@@ -671,8 +674,11 @@ mod tests {
     }
 
     #[test]
+    #[serial_test::serial]
     fn test_stub_int() {
+        type B = PerformanceBackend;
         let device = default_device();
+        let _memory = DeviceMemoryGuard::<B>::new(&device);
 
         let source: Tensor<B, 2> = Tensor::random([2, 3], Distribution::Default, &device);
         let source = source.int();
@@ -715,8 +721,11 @@ mod tests {
     }
 
     #[test]
+    #[serial_test::serial]
     fn test_stub_bool() {
+        type B = PerformanceBackend;
         let device = default_device();
+        let _memory = DeviceMemoryGuard::<B>::new(&device);
 
         let source: Tensor<B, 2> = Tensor::random([2, 3], Distribution::Bernoulli(0.5), &device);
         let source = source.bool();
@@ -759,8 +768,11 @@ mod tests {
     }
 
     #[test]
+    #[serial_test::serial]
     fn test_clone() {
+        type B = PerformanceBackend;
         let device = default_device();
+        let _memory = DeviceMemoryGuard::<B>::new(&device);
 
         let source: Tensor<B, 2> = Tensor::random([2, 3], Distribution::Default, &device);
 
@@ -775,8 +787,11 @@ mod tests {
     }
 
     #[test]
+    #[serial_test::serial]
     fn test_slice() {
+        type B = PerformanceBackend;
         let device = default_device();
+        let _memory = DeviceMemoryGuard::<B>::new(&device);
 
         let source: Tensor<B, 2> = Tensor::random([2, 3], Distribution::Default, &device);
 
@@ -792,8 +807,11 @@ mod tests {
     }
 
     #[test]
+    #[serial_test::serial]
     fn test_slice_dyn() {
+        type B = PerformanceBackend;
         let device = default_device();
+        let _memory = DeviceMemoryGuard::<B>::new(&device);
 
         let source: Tensor<B, 2> = Tensor::random([2, 3], Distribution::Default, &device);
 

@@ -35,4 +35,4 @@ image-compare = { workspace = true }
 [dev-dependencies]
 tempfile = { workspace = true }
 bunsen = { features = ["testing"], path = "../bunsen" }
-
+serial_test = { workspace = true }

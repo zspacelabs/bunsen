@@ -191,6 +191,7 @@ mod tests {
 
     use super::*;
     use crate::support::testing::{
+        DeviceMemoryGuard,
         PerformanceBackend,
         default_device,
     };
@@ -200,6 +201,7 @@ mod tests {
     fn test_scaled_dot_product_attention_bias() {
         type B = PerformanceBackend;
         let device = default_device();
+        let _memory = DeviceMemoryGuard::<B>::new(&device);
         let dtype = DType::F32;
 
         let l = 3;

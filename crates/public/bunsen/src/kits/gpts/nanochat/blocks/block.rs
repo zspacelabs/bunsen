@@ -166,6 +166,7 @@ mod tests {
         blocks::transformers::embedding::RotaryEmbeddingConfig,
         contracts::assert_shape_contract,
         support::testing::{
+            DeviceMemoryGuard,
             PerformanceBackend,
             default_device,
         },
@@ -176,6 +177,7 @@ mod tests {
     fn test_gpt_block_config() {
         type B = PerformanceBackend;
         let device = default_device();
+        let _memory = DeviceMemoryGuard::<B>::new(&device);
 
         let n_embed = 1024;
         let n_head = 128;
@@ -203,6 +205,7 @@ mod tests {
     fn test_gpt_block_forward() {
         type B = PerformanceBackend;
         let device = default_device();
+        let _memory = DeviceMemoryGuard::<B>::new(&device);
 
         let batch = 2;
         let seq_len = 10;

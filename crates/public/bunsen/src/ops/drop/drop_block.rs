@@ -419,6 +419,7 @@ mod tests {
 
     use super::*;
     use crate::support::testing::{
+        DeviceMemoryGuard,
         PerformanceBackend,
         default_device,
     };
@@ -500,6 +501,7 @@ mod tests {
     fn test_drop_block_2d_drop_filter() {
         type B = PerformanceBackend;
         let device = default_device();
+        let _memory = DeviceMemoryGuard::<B>::new(&device);
 
         let selected_blocks: Tensor<B, 4> = Tensor::<B, 2>::from_data(
             [
@@ -551,6 +553,7 @@ mod tests {
     fn test_drop_block_2d_no_op() {
         type B = PerformanceBackend;
         let device = default_device();
+        let _memory = DeviceMemoryGuard::<B>::new(&device);
 
         let shape = [2, 3, 7, 9];
         let tensor: Tensor<B, 4> = Tensor::ones(shape, &device);
@@ -572,6 +575,7 @@ mod tests {
     fn test_drop_block_2d_with_norm() {
         type B = PerformanceBackend;
         let device = default_device();
+        let _memory = DeviceMemoryGuard::<B>::new(&device);
 
         let shape = [2, 3, 100, 100];
         let tensor: Tensor<B, 4> = Tensor::ones(shape, &device);
@@ -605,6 +609,7 @@ mod tests {
     fn test_drop_block_2d_with_noise() {
         type B = PerformanceBackend;
         let device = default_device();
+        let _memory = DeviceMemoryGuard::<B>::new(&device);
 
         let shape = [2, 3, 100, 100];
         let tensor: Tensor<B, 4> = Tensor::ones(shape, &device);
