@@ -11,6 +11,7 @@ use bunsen::{
     },
     kits::speech::whisper::blocks::Whisper,
     support::testing::{
+        DeviceMemoryGuard,
         PerformanceBackend,
         default_device,
     },
@@ -35,6 +36,7 @@ type F = <B as BackendTypes>::FloatElem;
 #[test]
 fn test_reference_encoder_runs() {
     let device = default_device();
+    let _memory = DeviceMemoryGuard::<B>::new(&device);
     let model = reference::EncoderModel::<B>::load_pretrained(&device);
 
     let out = model.forward(synthetic_mels::<B>(&device));
@@ -62,6 +64,7 @@ fn test_reference_encoder_runs() {
 #[test]
 fn test_bunsen_encoder_matches_reference() {
     let device = default_device();
+    let _memory = DeviceMemoryGuard::<B>::new(&device);
     let mels = synthetic_mels::<B>(&device);
 
     let reference = reference::EncoderModel::<B>::load_pretrained(&device).forward(mels.clone());
@@ -93,17 +96,17 @@ fn test_bunsen_encoder_matches_reference() {
 }
 
 /// Loads bunsen's Whisper from the fetched checkpoint, in f32.
-fn load_bunsen() -> (Whisper<B>, burn::prelude::Device<B>) {
-    let device: burn::prelude::Device<B> = Default::default();
-    let (model, _) = Whisper::<B>::load_pretrained_16khz_fp16_base(&device).expect("load base.pt");
+///
+/// Takes the device rather than making one, so that the caller can bind a
+/// [`DeviceMemoryGuard`] over it *before* the weights land — the guard has to
+/// outlive the model to reclaim the pages the model sat in.
+fn load_bunsen(device: &burn::prelude::Device<B>) -> Whisper<B> {
+    let (model, _) = Whisper::<B>::load_pretrained_16khz_fp16_base(device).expect("load base.pt");
 
     // OpenAI ships these checkpoints in fp16; the reference graph is f32.
     // Feeding f32 input to an f16 model does not error here, it just
     // returns wrong numbers, so this cast is load-bearing.
-    (
-        model.map(&mut DTypeMapper::new(burn::tensor::DType::F32)),
-        device,
-    )
+    model.map(&mut DTypeMapper::new(burn::tensor::DType::F32))
 }
 
 /// The decoder inputs both implementations see.
@@ -118,7 +121,9 @@ fn decoder_inputs(
 /// reference on identical weights, tokens and encoder output.
 #[test]
 fn test_bunsen_decoder_matches_reference() {
-    let (model, device) = load_bunsen();
+    let device = default_device();
+    let _memory = DeviceMemoryGuard::<B>::new(&device);
+    let model = load_bunsen(&device);
     let (tokens, xa) = decoder_inputs(&device);
 
     // `.0` is the logits; the rest of the tuple is the present KV cache.
@@ -141,7 +146,9 @@ fn test_bunsen_decoder_matches_reference() {
 /// decoder is actually judged on.
 #[test]
 fn test_bunsen_decoder_argmax_matches_reference() {
-    let (model, device) = load_bunsen();
+    let device = default_device();
+    let _memory = DeviceMemoryGuard::<B>::new(&device);
+    let model = load_bunsen(&device);
     let (tokens, xa) = decoder_inputs(&device);
 
     let reference = reference::DecoderModel::<B>::load_pretrained(&device)

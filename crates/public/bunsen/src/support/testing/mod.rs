@@ -4,6 +4,7 @@ pub mod asr;
 mod common_assertions;
 mod common_devices;
 mod default_device;
+mod device_memory;
 
 #[doc(inline)]
 pub use common_assertions::*;
@@ -11,3 +12,5 @@ pub use common_assertions::*;
 pub use common_devices::*;
 #[doc(inline)]
 pub use default_device::*;
+#[doc(inline)]
+pub use device_memory::*;

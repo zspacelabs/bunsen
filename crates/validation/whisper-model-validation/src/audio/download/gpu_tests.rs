@@ -20,6 +20,7 @@ use bunsen::{
     },
     prelude::TensorElemOpExt,
     support::testing::{
+        DeviceMemoryGuard,
         PerformanceBackend,
         asr::text_error_rate,
     },
@@ -141,6 +142,7 @@ fn greedy_reference<B: Backend>(
 #[test]
 fn test_bunsen_agrees_with_openai_reference() {
     let device: Device<B> = Default::default();
+    let _memory = DeviceMemoryGuard::<B>::new(&device);
     let table = vocab();
     let model = bunsen_model::<B>(&device);
     let config = decode_config(&table);
@@ -185,6 +187,7 @@ fn test_bunsen_agrees_with_openai_reference() {
 #[test]
 fn test_onnx_encoder_matches_bunsen_on_real_audio() {
     let device: Device<B> = Default::default();
+    let _memory = DeviceMemoryGuard::<B>::new(&device);
     let reference = reference::EncoderModel::<B>::load_pretrained(&device);
     let ours = bunsen_model(&device);
 
@@ -206,6 +209,7 @@ fn test_onnx_encoder_matches_bunsen_on_real_audio() {
 #[test]
 fn test_onnx_reference_transcribes_real_audio() {
     let device: Device<B> = Default::default();
+    let _memory = DeviceMemoryGuard::<B>::new(&device);
     let table = vocab();
     let reference_enc = reference::EncoderModel::<B>::load_pretrained(&device);
     let reference_dec = reference::DecoderModel::<B>::load_pretrained(&device);
@@ -251,6 +255,7 @@ fn test_onnx_reference_transcribes_real_audio() {
 #[test]
 fn test_onnx_reference_and_bunsen_transcribe_alike() {
     let device: Device<B> = Default::default();
+    let _memory = DeviceMemoryGuard::<B>::new(&device);
     let table = vocab();
     let reference_enc = reference::EncoderModel::<B>::load_pretrained(&device);
     let reference_dec = reference::DecoderModel::<B>::load_pretrained(&device);
@@ -293,6 +298,7 @@ fn test_onnx_reference_and_bunsen_transcribe_alike() {
 #[test]
 fn test_bunsen_accuracy_against_transcript() {
     let device: Device<B> = Default::default();
+    let _memory = DeviceMemoryGuard::<B>::new(&device);
     let table = vocab();
     let model = bunsen_model::<B>(&device);
     let config = decode_config(&table);
@@ -347,6 +353,7 @@ fn decode_filtered(
 #[test]
 fn test_bunsen_agrees_with_openai_reference_under_default_filters() {
     let device: Device<B> = Default::default();
+    let _memory = DeviceMemoryGuard::<B>::new(&device);
     let table = vocab();
     let model = bunsen_model::<B>(&device);
     let config = DecodeConfig::from(&decode_config(&table));
@@ -392,6 +399,7 @@ fn test_bunsen_agrees_with_openai_reference_under_default_filters() {
 #[test]
 fn test_bunsen_beam_agrees_with_openai_reference() {
     let device: Device<B> = Default::default();
+    let _memory = DeviceMemoryGuard::<B>::new(&device);
     let table = vocab();
     let model = bunsen_model::<B>(&device);
     let config = DecodeConfig::from(&decode_config(&table)).with_beam_size(5);
@@ -436,6 +444,7 @@ fn test_bunsen_beam_agrees_with_openai_reference() {
 #[test]
 fn test_bunsen_timestamps_agree_with_openai_reference() {
     let device: Device<B> = Default::default();
+    let _memory = DeviceMemoryGuard::<B>::new(&device);
     let table = vocab();
     let model = bunsen_model::<B>(&device);
     let ids = table.policy.ids();
@@ -487,6 +496,7 @@ fn test_bunsen_timestamps_agree_with_openai_reference() {
 #[test]
 fn test_bunsen_driver_transcribes_like_openai() {
     let device: Device<B> = Default::default();
+    let _memory = DeviceMemoryGuard::<B>::new(&device);
     let table = vocab();
     let driver = WhisperStreamDriverConfig::new()
         .with_language(Some("en".to_string()))
@@ -579,6 +589,7 @@ fn test_bunsen_driver_transcribes_like_openai() {
 #[test]
 fn test_bunsen_detects_the_language() {
     let device: Device<B> = Default::default();
+    let _memory = DeviceMemoryGuard::<B>::new(&device);
     let table = vocab();
     let model = bunsen_model::<B>(&device);
 
