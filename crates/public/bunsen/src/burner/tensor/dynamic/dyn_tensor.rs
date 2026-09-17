@@ -284,7 +284,11 @@ impl<B: Backend> DynTensor<B> {
         V: ValuesArg<B>,
     {
         let rank = self.rank();
-        let slices: [Slice; R2] = slices.into_slices(&self.shape).try_into().unwrap();
+        let slices: [Slice; R2] = slices.into_slices(&self.shape).try_into().map_err(|_| {
+            BunsenError::InvalidArgument {
+                msg: format!("slice_assign rank ({R2}) does not match tensor rank ({rank})"),
+            }
+        })?;
         let values: DynTensor<B> = values.into_values(&self.device())?;
 
         check_slices_bounds(&self.shape(), &slices).map_err(BunsenError::SliceError)?;
@@ -342,7 +346,8 @@ impl<B: Backend> DynTensor<B> {
     /// Dynamic slice rank version of [`DynTensor::slice_assign`].
     ///
     /// # Arguments
-    /// - `slices`: a dynamic slice of `Slice`.
+    /// - `slices`: a dynamic slice of `Slice`; missing trailing dimensions are
+    ///   taken in full, as in [`DynTensor::slice_dyn`].
     /// - `values`: a coercible value; see [`ValuesArg`].
     ///
     /// # Result
@@ -356,22 +361,26 @@ impl<B: Backend> DynTensor<B> {
     where
         V: ValuesArg<B>,
     {
-        struct SliceAssignDynHandler<'a, B: Backend> {
+        struct SliceAssignDynHandler<B: Backend> {
             this: DynTensor<B>,
-            slices: &'a [Slice],
+            slices: Vec<Slice>,
             values: DynTensor<B>,
         }
-        impl<'a, B: Backend> RankHandler for SliceAssignDynHandler<'a, B> {
+        impl<B: Backend> RankHandler for SliceAssignDynHandler<B> {
             type Output = DynTensor<B>;
 
             fn call<const R: usize>(self) -> BunsenResult<Self::Output> {
-                let slices: [Slice; R] = self.slices.try_into().unwrap();
-                self.this.slice_assign::<R, _, _>(slices, self.values)
+                self.this
+                    .slice_assign::<R, _, _>(self.slices.as_slice(), self.values)
             }
         }
-        let values = values.into_values(&self.device())?;
-
         let rank = self.rank();
+
+        check_slices_bounds(&self.shape(), slices).map_err(BunsenError::SliceError)?;
+        let mut slices = slices.to_vec();
+        slices.resize(rank, Slice::full());
+
+        let values = values.into_values(&self.device())?;
         SliceAssignDynHandler {
             this: self,
             slices,
@@ -604,6 +613,7 @@ mod tests {
             Int,
             Slice,
             Tensor,
+            TensorData,
         },
     };
 
@@ -611,6 +621,10 @@ mod tests {
         burner::{
             descriptors::TensorKindDesc,
             tensor::dynamic::*,
+        },
+        errors::{
+            BunsenError,
+            SlicingError,
         },
         support::testing::{
             PerformanceBackend,
@@ -808,5 +822,139 @@ mod tests {
             .unwrap()
             .to_data()
             .assert_eq(&source.clone().slice(s![.., 1..]).to_data(), true);
+    }
+
+    /// `[[0, 1, 2], [3, 4, 5]]` as a float [`DynTensor`].
+    fn arange_2x3() -> DynTensor<B> {
+        let source: Tensor<B, 2, Int> = Tensor::arange(0..6, &default_device()).reshape([2, 3]);
+        DynTensor::new(source.float())
+    }
+
+    #[test]
+    fn test_slice_assign() {
+        let device = default_device();
+
+        let values: Tensor<B, 2> = Tensor::zeros([2, 1], &device);
+        let result = arange_2x3()
+            .slice_assign::<2, _, _>(s![.., 1..2], values)
+            .unwrap();
+        assert_eq!(result.shape(), [2, 3].into());
+        result.into_data().unwrap().assert_eq(
+            &TensorData::from([[0.0f32, 0.0, 2.0], [3.0, 0.0, 5.0]]),
+            true,
+        );
+    }
+
+    #[test]
+    fn test_slice_assign_casts_values() {
+        let device = default_device();
+
+        let values: Tensor<B, 2, Int> = Tensor::from_data([[9], [9]], &device);
+        let result = arange_2x3()
+            .slice_assign::<2, _, _>(s![.., 0..1], values)
+            .unwrap();
+        assert_eq!(result.kind(), TensorKindDesc::Float);
+        result.into_data().unwrap().assert_eq(
+            &TensorData::from([[9.0f32, 1.0, 2.0], [9.0, 4.0, 5.0]]),
+            true,
+        );
+    }
+
+    #[test]
+    fn test_slice_assign_tensor_data() {
+        let result = arange_2x3()
+            .slice_assign::<2, _, _>(s![0..1, ..], TensorData::from([[7.0f32, 7.0, 7.0]]))
+            .unwrap();
+        result.into_data().unwrap().assert_eq(
+            &TensorData::from([[7.0f32, 7.0, 7.0], [3.0, 4.0, 5.0]]),
+            true,
+        );
+    }
+
+    #[test]
+    fn test_slice_assign_int_and_bool() {
+        let device = default_device();
+
+        let source: Tensor<B, 1, Int> = Tensor::arange(0..4, &device);
+        let values: Tensor<B, 1, Int> = Tensor::from_data([8, 9], &device);
+        DynTensor::new(source)
+            .slice_assign::<1, _, _>(s![1..3], values)
+            .unwrap()
+            .into_data()
+            .unwrap()
+            .convert::<i64>()
+            .assert_eq(&TensorData::from([0i64, 8, 9, 3]), true);
+
+        let source: Tensor<B, 1, Bool> = Tensor::from_data([false, false, false], &device);
+        let values: Tensor<B, 1, Bool> = Tensor::from_data([true], &device);
+        DynTensor::new(source)
+            .slice_assign::<1, _, _>(s![2..3], values)
+            .unwrap()
+            .into_data()
+            .unwrap()
+            .assert_eq(&TensorData::from([false, false, true]), true);
+    }
+
+    #[test]
+    fn test_slice_assign_rank_errors() {
+        let device = default_device();
+
+        let values: Tensor<B, 1> = Tensor::zeros([3], &device);
+        assert!(matches!(
+            arange_2x3().slice_assign::<2, _, _>(s![0..1, ..], values),
+            Err(BunsenError::InvalidArgument { .. })
+        ));
+
+        let values: Tensor<B, 2> = Tensor::zeros([1, 3], &device);
+        assert!(matches!(
+            arange_2x3().slice_assign::<1, _, _>(s![0..1], values),
+            Err(BunsenError::InvalidArgument { .. })
+        ));
+    }
+
+    #[test]
+    fn test_slice_assign_out_of_bounds() {
+        let values: Tensor<B, 2> = Tensor::zeros([1, 3], &default_device());
+        assert!(matches!(
+            arange_2x3().slice_assign::<2, _, _>(s![5..6, ..], values),
+            Err(BunsenError::SliceError(SlicingError::OutOfBounds { .. }))
+        ));
+    }
+
+    #[test]
+    fn test_slice_assign_dyn() {
+        let values: Tensor<B, 2> = Tensor::ones([1, 3], &default_device());
+        arange_2x3()
+            .slice_assign_dyn(&[Slice::new(1, None, 1), Slice::full()], values)
+            .unwrap()
+            .into_data()
+            .unwrap()
+            .assert_eq(
+                &TensorData::from([[0.0f32, 1.0, 2.0], [1.0, 1.0, 1.0]]),
+                true,
+            );
+    }
+
+    #[test]
+    fn test_slice_assign_dyn_partial_slices() {
+        let values: Tensor<B, 2> = Tensor::ones([1, 3], &default_device());
+        arange_2x3()
+            .slice_assign_dyn(&[Slice::new(0, Some(1), 1)], values)
+            .unwrap()
+            .into_data()
+            .unwrap()
+            .assert_eq(
+                &TensorData::from([[1.0f32, 1.0, 1.0], [3.0, 4.0, 5.0]]),
+                true,
+            );
+    }
+
+    #[test]
+    fn test_slice_assign_dyn_too_many_slices() {
+        let values: Tensor<B, 2> = Tensor::ones([2, 3], &default_device());
+        assert!(matches!(
+            arange_2x3().slice_assign_dyn(&[Slice::full(), Slice::full(), Slice::full()], values),
+            Err(BunsenError::SliceError(SlicingError::InvalidRank { .. }))
+        ));
     }
 }
