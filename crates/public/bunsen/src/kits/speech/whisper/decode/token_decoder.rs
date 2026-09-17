@@ -563,6 +563,7 @@ mod tests {
     use crate::{
         burner::module::ModuleInit,
         kits::speech::whisper::blocks::WhisperApiConfig,
+        prelude::TensorElemOpExt,
         support::testing::{
             DeviceMemoryGuard,
             PerformanceBackend,
@@ -628,12 +629,8 @@ mod tests {
         let windows = split_mel_windows(mels, 10);
         assert_eq!(windows.len(), 1);
 
-        let got: Vec<f64> = windows[0]
-            .clone()
-            .cast(burn::tensor::DType::F64)
-            .to_data()
-            .to_vec()
-            .unwrap();
+        // Converted on the host: not every backend can cast to f64 on device.
+        let got: Vec<f64> = windows[0].to_data_as::<f64>().to_vec().unwrap();
 
         assert_eq!(got, vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 0.0, 0.0, 0.0]);
     }

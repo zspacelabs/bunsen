@@ -502,7 +502,6 @@ impl<B: Backend> SlidingStftContext<B> {
 #[cfg(test)]
 mod tests {
     use burn::tensor::{
-        DType,
         Distribution,
         Tolerance,
         backend::BackendTypes,
@@ -580,13 +579,7 @@ mod tests {
         // The stored window is right-padded from win_len to fft_size, with
         // the coefficients at the frame start and zeros in the tail.
         assert_eq!(coef.window.dims(), [64]);
-        let window: Vec<f64> = coef
-            .window
-            .clone()
-            .cast(DType::F64)
-            .to_data()
-            .to_vec()
-            .unwrap();
+        let window: Vec<f64> = coef.window.to_data_as::<f64>().to_vec().unwrap();
         let host = cfg.window.to_vec_window(48);
         for (n, (&w, &h)) in window.iter().zip(&host).enumerate() {
             assert!((w - h).abs() <= 1e-6, "window[{n}]: {w} vs {h}");
@@ -897,12 +890,10 @@ mod tests {
                 .flat_map(|(host, row)| host.push(row))
                 .collect();
 
-            out.cast(DType::F64)
-                .to_data_as::<F>()
-                .assert_approx_eq::<F>(
-                    &TensorData::new(expected, [batch, n_bins, 2]).convert::<F>(),
-                    Tolerance::permissive(),
-                );
+            out.to_data_as::<F>().assert_approx_eq::<F>(
+                &TensorData::new(expected, [batch, n_bins, 2]).convert::<F>(),
+                Tolerance::permissive(),
+            );
         }
     }
 

@@ -6,7 +6,6 @@ use burn::{
         TensorData,
     },
     tensor::{
-        DType,
         TensorCreationOptions,
         Tolerance,
     },
@@ -15,6 +14,7 @@ use tracing::debug;
 
 use crate::{
     ops::signal::SamplingWindowBuilder,
+    prelude::TensorElemOpExt,
     support::testing::assert_close_to_vec,
 };
 
@@ -46,7 +46,6 @@ pub fn assert_sampling_window_builder_implementation<B: Backend>(
     debug!("checking to_tensor_window");
     let ten_win = builder.to_tensor_window(size, options);
     ten_win
-        .cast(DType::F64)
-        .to_data()
+        .to_data_as::<f64>()
         .assert_approx_eq::<f64>(&TensorData::from(expected), Tolerance::default());
 }

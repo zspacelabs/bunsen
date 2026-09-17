@@ -182,9 +182,12 @@ mod tests {
     use burn::prelude::TensorData;
 
     use super::*;
-    use crate::support::testing::{
-        CpuBackend,
-        assert_close_to_vec,
+    use crate::{
+        prelude::TensorElemOpExt,
+        support::testing::{
+            CpuBackend,
+            assert_close_to_vec,
+        },
     };
 
     type B = CpuBackend;
@@ -199,7 +202,7 @@ mod tests {
     }
 
     fn to_vec(t: Tensor<B, 1>) -> Vec<f64> {
-        t.cast(burn::tensor::DType::F64).to_data().to_vec().unwrap()
+        t.into_data_as::<f64>().to_vec().unwrap()
     }
 
     #[test]
