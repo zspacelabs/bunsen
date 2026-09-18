@@ -149,14 +149,13 @@ where
     O: SimpleOptimizer<B::InnerBackend>,
 {
     type Item<S2: burn::record::PrecisionSettings> =
-        (Vec<(String, <AdaptorRecord<O, B> as Record<B>>::Item<S2>)>,);
+        Vec<(String, <AdaptorRecord<O, B> as Record<B>>::Item<S2>)>;
 
     fn into_item<S2: burn::record::PrecisionSettings>(self) -> Self::Item<S2> {
-        (self
-            .param_map
+        self.param_map
             .into_iter()
             .map(|(k, v)| (k.to_string(), v.into_item::<S2>()))
-            .collect(),)
+            .collect()
     }
 
     fn from_item<S2: burn::record::PrecisionSettings>(
@@ -165,7 +164,6 @@ where
     ) -> Self {
         Self {
             param_map: item
-                .0
                 .into_iter()
                 .map(|(k, v)| {
                     (

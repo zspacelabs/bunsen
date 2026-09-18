@@ -86,7 +86,7 @@ impl TranscribeCmd {
             // declare, not the caller's.
             let wav = load_audio_mono_sr(path, driver.sample_rate())?;
 
-            log::debug!("path: {}", path.display(),);
+            log::debug!("path: {}", path.display());
             log::debug!(
                 "audio: {} samples, {:.2} s",
                 wav.len(),
@@ -181,8 +181,8 @@ fn report(
     let segment = emission.segment();
     let mark = if emission.is_committed() { ' ' } else { '~' };
 
-    log::info!("{mark}[{:>8.2} --> {:>8.2}]", segment.start, segment.end,);
-    println!("{}", segment.text.as_deref().unwrap_or("").trim(),);
+    log::info!("{mark}[{:>8.2} --> {:>8.2}]", segment.start, segment.end);
+    println!("{}", segment.text.as_deref().unwrap_or("").trim());
 
     if ids {
         log::info!("ids: {:?}", segment.tokens);

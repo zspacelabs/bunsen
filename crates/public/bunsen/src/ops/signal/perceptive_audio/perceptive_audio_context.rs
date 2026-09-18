@@ -400,7 +400,7 @@ impl<B: Backend> PerceptiveAudioConverter<B> {
         &self,
         batch_size: usize,
     ) -> PerceptiveAudioConversionContext<B> {
-        assert_ne!(batch_size, 0, "MelConverter batch_size must be non-zero",);
+        assert_ne!(batch_size, 0, "MelConverter batch_size must be non-zero");
 
         PerceptiveAudioConversionContext {
             converter: self.clone(),

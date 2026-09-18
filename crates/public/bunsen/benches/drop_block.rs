@@ -61,5 +61,5 @@ fn bench_drop_block_10x32x32x3_7_normalise(c: &mut Criterion) {
     }
 }
 
-criterion_group!(benches, bench_drop_block_10x32x32x3_7_normalise,);
+criterion_group!(benches, bench_drop_block_10x32x32x3_7_normalise);
 criterion_main!(benches);

@@ -34,5 +34,5 @@ fn bench_maybe_iroot(c: &mut Criterion) {
     });
 }
 
-criterion_group!(math, bench_maybe_iroot,);
+criterion_group!(math, bench_maybe_iroot);
 criterion_main!(math);

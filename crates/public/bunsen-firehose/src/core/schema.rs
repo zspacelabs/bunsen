@@ -736,7 +736,7 @@ mod tests {
     #[test]
     fn test_data_type_description() {
         let schema = DataTypeDescription::new::<Option<i32>>();
-        assert_eq!(schema.type_name, std::any::type_name::<Option<i32>>(),);
+        assert_eq!(schema.type_name, std::any::type_name::<Option<i32>>());
     }
 
     #[test]

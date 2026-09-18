@@ -45,7 +45,7 @@ where
 
     #[cfg(debug_assertions)]
     let [batch, c_in, height, width] =
-        unpack_shape_contract!(["batch", "c_in", "height", "width"], &input,);
+        unpack_shape_contract!(["batch", "c_in", "height", "width"], &input);
     #[cfg(debug_assertions)]
     let h_wins = calculate_unfold_windows(height, kernel[0], stride[0]);
     #[cfg(debug_assertions)]
