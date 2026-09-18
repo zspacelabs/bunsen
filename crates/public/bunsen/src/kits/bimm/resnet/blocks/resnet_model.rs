@@ -579,7 +579,7 @@ mod tests {
 
         let path = prefab
             .expect_lookup_pretrained_weights(pretrained)
-            .fetch_weights(&mut BunsenDiskCache::default())
+            .fetch_weights(&BunsenDiskCache::default())
             .map_err(|e| BunsenError::External(e.to_string()))?;
 
         let _model: ResNet<B> = model.load_pytorch_weights(path.clone())?;

@@ -317,13 +317,13 @@ pub fn train<B: AutodiffBackend>(args: &Args) -> anyhow::Result<()> {
 
     B::seed(&device, args.seed);
 
-    let mut disk_cache = BunsenDiskCache::default();
+    let disk_cache = BunsenDiskCache::default();
 
     let prefab = PREFAB_RESNET_MAP.expect_lookup_prefab(&resnet_prefab);
 
     let weights = prefab
         .expect_lookup_pretrained_weights(&resnet_pretrained)
-        .fetch_weights(&mut disk_cache)
+        .fetch_weights(&disk_cache)
         .expect("Failed to fetch pretrained weights");
 
     let mut resnet_config = prefab.to_config();

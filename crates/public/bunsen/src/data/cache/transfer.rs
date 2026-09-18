@@ -45,9 +45,9 @@ pub enum TransferOutcome<'a> {
 
 /// One transfer's sink.
 ///
-/// Every method takes `&self`: the sinks this wraps (an `indicatif` bar, a
-/// `downloader` reporter) are interior-mutable, and a handle may be shared
-/// across threads. An implementation that needs `&mut` owns its own lock.
+/// Every method takes `&self`: the sink this wraps (an `indicatif` bar) is
+/// interior-mutable, and a handle may be shared across threads. An
+/// implementation that needs `&mut` owns its own lock.
 pub trait TransferProgress: Send + Sync {
     /// Bytes landed so far, as an absolute count.
     fn position(
@@ -174,6 +174,24 @@ pub(crate) mod testing {
         name: &str,
         body: &'static [u8],
     ) -> String {
+        serve_once_declaring(name, body, body.len())
+    }
+
+    /// A URL for `name` on a loopback port nothing listens on.
+    pub(crate) fn refused_url(name: &str) -> String {
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let addr = listener.local_addr().unwrap();
+        drop(listener);
+        format!("http://{addr}/{name}")
+    }
+
+    /// [`serve_once`], declaring `declared` bytes in `Content-Length`
+    /// however long `body` is: a short body models a transfer cut off early.
+    pub(crate) fn serve_once_declaring(
+        name: &str,
+        body: &'static [u8],
+        declared: usize,
+    ) -> String {
         let listener = TcpListener::bind("127.0.0.1:0").unwrap();
         let url = format!("http://{}/{name}", listener.local_addr().unwrap());
         thread::spawn(move || {
@@ -193,7 +211,7 @@ pub(crate) mod testing {
             }
             let response = format!(
                 "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
-                body.len()
+                declared
             );
             stream.write_all(response.as_bytes()).unwrap();
             stream.write_all(body).unwrap();

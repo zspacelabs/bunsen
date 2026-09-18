@@ -1,12 +1,12 @@
 //! # Local disk cache
 //!
 //! Where files land ([`BunsenDiskCache`], resolved from options and the
-//! environment), the digest-verified fetch that puts them there
-//! ([`fetch_verified`], [`sha256_of`], [`link_or_copy`]), and the
-//! [`TransferObserver`] stack every transfer is reported to.
+//! environment), the fetch that puts them there ([`fetch_file`] and its
+//! pinned form [`fetch_verified`], with [`sha256_of`] and
+//! [`link_or_copy`]), and the [`TransferObserver`] stack every transfer is
+//! reported to.
 mod digest;
 mod disk_cache;
-mod downloader_progress;
 mod fetch;
 #[cfg(feature = "indicatif")]
 mod indicatif_observer;

@@ -239,7 +239,7 @@ pub fn backend_main<B: AutodiffBackend>(args: &Args) -> anyhow::Result<()> {
 
             let weights = prefab
                 .expect_lookup_pretrained_weights(pretrained)
-                .fetch_weights(&mut BunsenDiskCache::default())?;
+                .fetch_weights(&BunsenDiskCache::default())?;
 
             resnet
                 .load_pytorch_weights(weights)?

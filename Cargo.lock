@@ -1164,7 +1164,6 @@ dependencies = [
  "dashmap",
  "directories-next",
  "document-features",
- "downloader",
  "dyn-clone",
  "flate2",
  "hamcrest",

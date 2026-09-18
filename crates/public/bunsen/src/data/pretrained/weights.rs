@@ -120,19 +120,21 @@ impl PretrainedWeightsDescriptor {
 
     /// Read-Through Cache the Model Weights
     ///
+    /// The URLs are tried in order. The descriptor carries no digest, so a
+    /// fetched file is checked against its `Content-Length` alone.
+    ///
     /// # Returns
     ///
     /// The disk location of the cached weights.
     #[cfg(feature = "cache")]
     pub fn fetch_weights(
         &self,
-        disk_cache: &mut BunsenDiskCache,
+        disk_cache: &BunsenDiskCache,
     ) -> BunsenResult<PathBuf> {
-        let url = self.urls.first().unwrap();
         let cache_key = &self.cache_key();
         let resource = pretrained_weights_resource_key(cache_key);
 
-        disk_cache.load_cached_path(&resource, &[url], true)
+        disk_cache.load_cached_path(&resource, &self.urls, true, None)
     }
 }
 

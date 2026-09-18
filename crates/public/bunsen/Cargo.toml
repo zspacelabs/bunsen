@@ -77,13 +77,11 @@ train = [
     "dep:hashbrown",
 ]
 
-## Enable the disk cache: where files land, and the digest-verified fetch
-## (`ureq` + `sha2`) that puts them there.
+## Enable the disk cache: where files land, and the fetch (`ureq` + `sha2`)
+## that streams them in, digest-checked when pinned.
 cache = [
     "std",
-    "dep:downloader",
     "dep:directories-next",
-    "downloader/default-tls",
     "dep:sha2",
     "dep:ureq",
 ]
@@ -209,9 +207,6 @@ crc = { workspace = true }
 flate2 = { workspace = true }
 
 directories-next = { workspace = true, optional = true }
-# `tui` would pull indicatif 0.17 against the workspace's 0.18; the observer
-# stack (`data::cache::TransferObserver`) draws its own bars instead.
-downloader = { workspace = true, default-features = false, optional = true }
 indicatif = { workspace = true, optional = true }
 sha2 = { workspace = true, optional = true }
 ureq = { workspace = true, optional = true }

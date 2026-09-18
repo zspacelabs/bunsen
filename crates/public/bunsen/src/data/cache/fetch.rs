@@ -1,9 +1,10 @@
-//! # Verified fetch
+//! # Fetch
 //!
 //! Streams a URL into the cache, hashed as it lands. The bytes go to
-//! `<dest>.partial` and are renamed into place only on a digest match, so an
-//! interrupted or corrupt transfer never leaves a trusted-looking file at
-//! `dest`.
+//! `<dest>.partial` and are renamed into place only once they check out: the
+//! digest matches when the caller pinned one, and the byte count matches the
+//! `Content-Length` when the server sent one. An interrupted or corrupt
+//! transfer never leaves a trusted-looking file at `dest`.
 //!
 //! Every transfer is reported to the [`TransferObserver`] stack it is given:
 //! `begin` once the response headers are in (that is when the length is
@@ -37,17 +38,22 @@ use crate::errors::{
     BunsenResult,
 };
 
-/// Streams `url` to `dest`, verified against `sha256`, reporting to
-/// `observers`.
+/// Streams `url` to `dest`, checked against `sha256` when one is given,
+/// reporting to `observers`.
+///
+/// A pinned file (`Some`) must match its digest; every file must match the
+/// `Content-Length` when the server sent one. Nothing is left at `dest` or
+/// beside it when either check fails.
 ///
 /// # Errors
 /// [`BunsenError::Invalid`] if the digest does not match (nothing is left at
 /// `dest`), or if `dest` is not a file path; [`BunsenError::External`] for a
-/// transport or file-system failure, an HTTP error status included.
-pub fn fetch_verified(
+/// transport or file-system failure, an HTTP error status or a short
+/// transfer included.
+pub fn fetch_file(
     url: &str,
     dest: &Path,
-    sha256: &str,
+    sha256: Option<&str>,
     observers: &[Arc<dyn TransferObserver>],
 ) -> BunsenResult<()> {
     let (Some(parent), Some(_)) = (dest.parent(), dest.file_name()) else {
@@ -74,21 +80,34 @@ pub fn fetch_verified(
         response.body_mut().as_reader(),
         &progress,
     ));
-    let copied = (|| -> io::Result<()> {
+    let copied = (|| -> io::Result<u64> {
         let mut file = fs::File::create(&partial)?;
-        io::copy(&mut reader, &mut file)?;
-        file.sync_all()
+        let received = io::copy(&mut reader, &mut file)?;
+        file.sync_all()?;
+        Ok(received)
     })();
-    if let Err(e) = copied {
+    let received = match copied {
+        Ok(received) => received,
+        Err(e) => {
+            let _ = fs::remove_file(&partial);
+            return Err(fail(&progress, format!("{url}: {e}")));
+        }
+    };
+    if total.is_some_and(|expected| expected != received) {
         let _ = fs::remove_file(&partial);
-        return Err(fail(&progress, format!("{url}: {e}")));
+        let expected = total.unwrap_or_default();
+        return Err(fail(
+            &progress,
+            format!("{url}: short transfer, {received} of {expected} bytes"),
+        ));
     }
 
     let found = reader.hex_digest();
-    if found != sha256 {
+    if sha256.is_some_and(|expected| expected != found) {
         let _ = fs::remove_file(&partial);
+        let expected = sha256.unwrap_or_default();
         let message = format!(
-            "{url}: sha256 is {found}, expected {sha256}; the transfer was corrupt or the asset changed"
+            "{url}: sha256 is {found}, expected {expected}; the transfer was corrupt or the asset changed"
         );
         progress.finish(TransferOutcome::Failed(&message));
         return Err(BunsenError::Invalid(message));
@@ -100,6 +119,28 @@ pub fn fetch_verified(
     }
     progress.finish(TransferOutcome::Complete);
     Ok(())
+}
+
+/// [`fetch_file`] with a required digest.
+///
+/// # Errors
+/// As [`fetch_file`].
+pub fn fetch_verified(
+    url: &str,
+    dest: &Path,
+    sha256: &str,
+    observers: &[Arc<dyn TransferObserver>],
+) -> BunsenResult<()> {
+    fetch_file(url, dest, Some(sha256), observers)
+}
+
+/// The file a URL names: its last path segment, before any query or
+/// fragment. `None` when the URL has no path or its path ends in `/`.
+pub fn file_name_from_url(url: &str) -> Option<&str> {
+    let path = url.split(['?', '#']).next().unwrap_or(url);
+    let path = path.split_once("://").map_or(path, |(_, rest)| rest);
+    let (_, name) = path.rsplit_once('/')?;
+    (!name.is_empty()).then_some(name)
 }
 
 /// Finishes `progress` as failed with `message`, and makes the error.
@@ -190,7 +231,6 @@ impl<R: Read> Read for ProgressReader<'_, R> {
 mod tests {
     use std::{
         fs,
-        net::TcpListener,
         path::{
             Path,
             PathBuf,
@@ -206,7 +246,9 @@ mod tests {
                 ABC_SHA256,
                 CacheProgressEvent,
                 RecordingObserver,
+                refused_url,
                 serve_once,
+                serve_once_declaring,
             },
         },
         errors::BunsenError,
@@ -272,10 +314,7 @@ mod tests {
     fn test_fetch_verified_without_a_response_reports_no_transfer() {
         let dir = tempfile::tempdir().unwrap();
         let dest = dir.path().join("gone.bin");
-        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
-        let addr = listener.local_addr().unwrap();
-        drop(listener);
-        let url = format!("http://{addr}/gone.bin");
+        let url = refused_url("gone.bin");
         let observer = Arc::new(RecordingObserver::default());
 
         let result = fetch_verified(&url, &dest, ABC_SHA256, &observers(&observer));
@@ -307,6 +346,61 @@ mod tests {
             partial_path(Path::new("/c/tiny.en.pt")),
             PathBuf::from("/c/tiny.en.pt.partial")
         );
+    }
+
+    /// An unpinned file lands on the strength of its length alone, and the
+    /// observer sees the same transfer a pinned one gets.
+    #[test]
+    fn test_fetch_file_unpinned_lands_the_file() {
+        let dir = tempfile::tempdir().unwrap();
+        let dest = dir.path().join("abc.bin");
+        let url = serve_once("abc.bin", b"abc");
+        let observer = Arc::new(RecordingObserver::default());
+
+        fetch_file(&url, &dest, None, &observers(&observer)).unwrap();
+
+        assert_eq!(fs::read(&dest).unwrap(), b"abc");
+        assert!(!partial_path(&dest).exists());
+        assert_eq!(
+            observer.events().last(),
+            Some(&CacheProgressEvent::Finish(Ok(())))
+        );
+    }
+
+    /// A transfer cut off short of its `Content-Length` is `External`,
+    /// leaves nothing behind, pinned or not, and the observer sees it fail.
+    #[test]
+    fn test_fetch_file_rejects_a_short_transfer() {
+        let dir = tempfile::tempdir().unwrap();
+        let dest = dir.path().join("abc.bin");
+        let url = serve_once_declaring("abc.bin", b"abc", 10);
+        let observer = Arc::new(RecordingObserver::default());
+
+        let result = fetch_file(&url, &dest, None, &observers(&observer));
+
+        assert!(
+            matches!(result, Err(BunsenError::External(_))),
+            "{result:?}"
+        );
+        assert!(!dest.exists());
+        assert!(!partial_path(&dest).exists());
+        assert!(matches!(
+            observer.events().last(),
+            Some(CacheProgressEvent::Finish(Err(_)))
+        ));
+    }
+
+    #[test]
+    fn test_file_name_from_url() {
+        assert_eq!(
+            file_name_from_url("https://h.example/a/b/tiny.en.pt?x=1#frag"),
+            Some("tiny.en.pt")
+        );
+        assert_eq!(file_name_from_url("https://h.example/f"), Some("f"));
+        assert_eq!(file_name_from_url("https://h.example/dir/"), None);
+        assert_eq!(file_name_from_url("https://h.example/"), None);
+        assert_eq!(file_name_from_url("https://h.example"), None);
+        assert_eq!(file_name_from_url("relative/path/f.bin"), Some("f.bin"));
     }
 
     /// The file is reachable at `dest`, in a directory made on the way; on

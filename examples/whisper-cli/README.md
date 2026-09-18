@@ -157,9 +157,9 @@ could take. Two things it needed are not in bunsen yet:
 - `data::pretrained::StaticPretrainedWeightsDescriptor` has a name and URLs but no digest, no format and no local
   sources, so the prefab table uses bunsen's `StaticPreFabMap` with `weights: None` and the pretrained side is this
   crate's `WhisperPretrained`.
-- `data::cache::BunsenDiskCache::load_cached_path` has no digest (`// TODO: hash`) and drops the per-file result of a
-  download, so a 404 returns `Ok` with nothing on disk. The transfer here is this crate's; the disk cache decides only
-  where files go.
+- `data::cache::BunsenDiskCache::load_cached_path` names a file by its first URL and knows nothing of bundled files or
+  another tool's cache, so the resolution order here (bundled, upstream's cache, then URLs) is this crate's. The
+  transfer itself is bunsen's `fetch_verified`: streamed to a `.partial`, hashed as it lands, renamed on a match.
 
 ## Benchmarks
 
