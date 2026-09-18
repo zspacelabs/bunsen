@@ -1,7 +1,7 @@
 <component name="ProjectRunConfigurationManager">
   <configuration default="false" name="Test `bunsen` (wgpu)" type="CargoCommandRunConfiguration" factoryName="Cargo Command" folderName="bunsen">
     <option name="buildProfileId" value="test" />
-    <option name="command" value="test -p bunsen --features wgpu" />
+    <option name="command" value="test -p bunsen --features wgpu,indicatif" />
     <option name="workingDirectory" value="file://$PROJECT_DIR$" />
     <envs />
     <option name="emulateTerminal" value="true" />

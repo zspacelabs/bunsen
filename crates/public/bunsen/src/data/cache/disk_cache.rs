@@ -6,6 +6,7 @@ use std::{
         Path,
         PathBuf,
     },
+    sync::Arc,
 };
 
 use downloader::{
@@ -16,6 +17,9 @@ use downloader::{
 use crate::{
     data::cache::{
         BUNSEN_CACHE_CONFIG,
+        TransferObserver,
+        TransferObservers,
+        downloader_progress::DownloaderReporter,
         path_utils,
     },
     errors::{
@@ -30,7 +34,7 @@ pub const BUNSEN_CACHE_DIR: &str = "BUNSEN_CACHE_DIR";
 pub const BUNSEN_DATA_DIR: &str = "BUNSEN_DATA_DIR";
 
 /// Options for [`BunsenDiskCache`].
-#[derive(Clone, Default, Debug)]
+#[derive(Clone, Debug)]
 pub struct BunsenDiskCacheOptions {
     /// Optional path to the cache directory.
     pub cache_dir: Option<PathBuf>,
@@ -40,6 +44,38 @@ pub struct BunsenDiskCacheOptions {
 
     /// Optional [`Downloader`] builder.
     pub downloader: Option<fn() -> Downloader>,
+
+    /// Told about every transfer, in this order; see [`TransferObserver`].
+    ///
+    /// [`Default`] seeds it from [`default_transfer_observers`]: one
+    /// `IndicatifObserver` with the `indicatif` feature, none without.
+    pub transfer_observers: TransferObservers,
+}
+
+impl Default for BunsenDiskCacheOptions {
+    fn default() -> Self {
+        Self {
+            cache_dir: None,
+            data_dir: None,
+            downloader: None,
+            transfer_observers: default_transfer_observers(),
+        }
+    }
+}
+
+/// The observers [`BunsenDiskCacheOptions::default()`] carries: one
+/// `IndicatifObserver` drawing on stderr, because the `indicatif` feature
+/// is on.
+#[cfg(feature = "indicatif")]
+pub fn default_transfer_observers() -> TransferObservers {
+    vec![Arc::new(super::IndicatifObserver::default())]
+}
+
+/// The observers [`BunsenDiskCacheOptions::default()`] carries: none,
+/// because the `indicatif` feature is off.
+#[cfg(not(feature = "indicatif"))]
+pub fn default_transfer_observers() -> TransferObservers {
+    Vec::new()
 }
 
 impl BunsenDiskCacheOptions {
@@ -69,6 +105,30 @@ impl BunsenDiskCacheOptions {
         self.downloader = downloader;
         self
     }
+
+    /// Adds an observer after the ones already there.
+    pub fn with_transfer_observer(
+        mut self,
+        observer: Arc<dyn TransferObserver>,
+    ) -> Self {
+        self.transfer_observers.push(observer);
+        self
+    }
+
+    /// Replaces the observers.
+    pub fn with_transfer_observers(
+        mut self,
+        observers: TransferObservers,
+    ) -> Self {
+        self.transfer_observers = observers;
+        self
+    }
+
+    /// Drops every observer, the default `indicatif` one included.
+    pub fn without_transfer_observers(mut self) -> Self {
+        self.transfer_observers.clear();
+        self
+    }
 }
 
 /// Disk cache for downloaded files.
@@ -76,6 +136,8 @@ impl BunsenDiskCacheOptions {
 /// Leverages [`Downloader`] for downloading files,
 /// and [`PathResolver`](`super::PathResolver`) for resolving cache and data
 /// paths appropriate for a user/system combo, and any environment overrides.
+/// Every transfer is reported to the [`TransferObserver`] stack the options
+/// carried.
 pub struct BunsenDiskCache {
     /// Cache directory.
     cache_dir: PathBuf,
@@ -85,6 +147,9 @@ pub struct BunsenDiskCache {
 
     /// Connection pool for downloading files.
     downloader: Downloader,
+
+    /// Told about every transfer, in this order.
+    transfer_observers: TransferObservers,
 }
 
 impl Default for BunsenDiskCache {
@@ -119,6 +184,7 @@ impl BunsenDiskCache {
             cache_dir,
             data_dir,
             downloader,
+            transfer_observers: options.transfer_observers,
         })
     }
 
@@ -135,6 +201,11 @@ impl BunsenDiskCache {
     /// Returns the downloader.
     pub fn downloader(&self) -> &Downloader {
         &self.downloader
+    }
+
+    /// The transfer observers, in the order each transfer reaches them.
+    pub fn transfer_observers(&self) -> &[Arc<dyn TransferObserver>] {
+        &self.transfer_observers
     }
 
     /// Loads a file from a specified path or downloads it if it does not exist.
@@ -191,9 +262,18 @@ impl BunsenDiskCache {
 
         fs::create_dir_all(path.parent().unwrap()).map_err(BunsenError::external)?;
 
-        self.downloader
-            .download(&[dl])
-            .map_err(BunsenError::external)?;
+        // One transfer on the observer stack per attempt. `downloader`
+        // reports `done` only on success, so an attempt it gave up on is
+        // failed here, once `download` returns.
+        let reporter = Arc::new(DownloaderReporter::new(
+            &self.transfer_observers,
+            urls.join(", "),
+            path.clone(),
+        ));
+        let dl = dl.progress(reporter.clone());
+        let result = self.downloader.download(&[dl]);
+        reporter.fail_open("the download did not complete");
+        result.map_err(BunsenError::external)?;
 
         Ok(path)
     }
@@ -320,7 +400,14 @@ mod tests {
     use std::{
         env,
         fs,
+        io::{
+            Read,
+            Write,
+        },
+        net::TcpListener,
         path::PathBuf,
+        sync::Arc,
+        thread,
     };
 
     use serial_test::serial;
@@ -332,6 +419,12 @@ mod tests {
             BUNSEN_DATA_DIR,
             BunsenDiskCache,
             BunsenDiskCacheOptions,
+            TransferObserver,
+            default_transfer_observers,
+            transfer::testing::{
+                Event,
+                RecordingObserver,
+            },
         },
         errors::BunsenError,
     };
@@ -413,6 +506,120 @@ mod tests {
         let cache = BunsenDiskCache::new(BunsenDiskCacheOptions::default()).unwrap();
         let path = cache.cache_path(&["prefix"], "file.txt");
         assert_eq!(path, cache.cache_dir.join("prefix").join("file.txt"));
+    }
+
+    /// `Default` seeds the stack from the `indicatif` feature: one observer
+    /// with it, none without.
+    #[test]
+    fn test_default_transfer_observers_follow_the_feature() {
+        let expected = if cfg!(feature = "indicatif") { 1 } else { 0 };
+        assert_eq!(default_transfer_observers().len(), expected);
+        assert_eq!(
+            BunsenDiskCacheOptions::default().transfer_observers.len(),
+            expected
+        );
+    }
+
+    /// The builders: one appends after the defaults, one replaces, one
+    /// clears; and the cache carries the result through, in order.
+    #[test]
+    fn test_transfer_observer_builders() {
+        let a: Arc<dyn TransferObserver> = Arc::new(RecordingObserver::default());
+        let b: Arc<dyn TransferObserver> = Arc::new(RecordingObserver::default());
+
+        let options = BunsenDiskCacheOptions::default().with_transfer_observer(a.clone());
+        assert_eq!(
+            options.transfer_observers.len(),
+            default_transfer_observers().len() + 1
+        );
+        assert!(Arc::ptr_eq(options.transfer_observers.last().unwrap(), &a));
+
+        let options = options.without_transfer_observers();
+        assert!(options.transfer_observers.is_empty());
+
+        let options =
+            BunsenDiskCacheOptions::default().with_transfer_observers(vec![a.clone(), b.clone()]);
+        assert_eq!(options.transfer_observers.len(), 2);
+        assert!(Arc::ptr_eq(&options.transfer_observers[0], &a));
+        assert!(Arc::ptr_eq(&options.transfer_observers[1], &b));
+
+        let cache = BunsenDiskCache::new(options).unwrap();
+        assert_eq!(cache.transfer_observers().len(), 2);
+        assert!(Arc::ptr_eq(&cache.transfer_observers()[0], &a));
+        assert!(Arc::ptr_eq(&cache.transfer_observers()[1], &b));
+    }
+
+    /// Serves one HTTP/1.1 `200` with `body` on a loopback port, once, and
+    /// returns the URL for `name`.
+    fn serve_once(
+        name: &str,
+        body: &'static [u8],
+    ) -> String {
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let url = format!("http://{}/{name}", listener.local_addr().unwrap());
+        thread::spawn(move || {
+            let (mut stream, _) = listener.accept().unwrap();
+            // Read the request head; a GET carries no body.
+            let mut head = Vec::new();
+            let mut buf = [0u8; 4096];
+            loop {
+                let n = stream.read(&mut buf).unwrap();
+                if n == 0 {
+                    break;
+                }
+                head.extend_from_slice(&buf[..n]);
+                if head.windows(4).any(|w| w == b"\r\n\r\n") {
+                    break;
+                }
+            }
+            let response = format!(
+                "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
+                body.len()
+            );
+            stream.write_all(response.as_bytes()).unwrap();
+            stream.write_all(body).unwrap();
+            stream.flush().unwrap();
+        });
+        url
+    }
+
+    /// A download opens one transfer on every observer: the URL and the
+    /// cache path in `begin`, the byte count as it lands, `Complete` at the
+    /// end.
+    #[test]
+    fn test_load_cached_path_reports_the_transfer() {
+        let dir = tempfile::tempdir().unwrap();
+        let observer = Arc::new(RecordingObserver::default());
+        let mut cache = BunsenDiskCache::new(
+            BunsenDiskCacheOptions::default()
+                .with_cache_dir(Some(dir.path().join("cache")))
+                .without_transfer_observers()
+                .with_transfer_observer(observer.clone()),
+        )
+        .unwrap();
+
+        let body: &'static [u8] = b"hello, observers";
+        let url = serve_once("hello.txt", body);
+        let path = cache
+            .load_cached_path(&["t"], &[url.as_str()], true)
+            .unwrap();
+        assert_eq!(fs::read(&path).unwrap(), body);
+
+        let events = observer.events();
+        assert_eq!(
+            events.first(),
+            Some(&Event::Begin {
+                source: url.clone(),
+                dest: path.clone(),
+                total: Some(body.len() as u64),
+            })
+        );
+        assert_eq!(events.last(), Some(&Event::Finish(Ok(()))));
+        let last_position = events.iter().rev().find_map(|e| match e {
+            Event::Position(n) => Some(*n),
+            _ => None,
+        });
+        assert_eq!(last_position, Some(body.len() as u64));
     }
 
     /// `load_data_path` looks under the data directory, `load_cached_path`

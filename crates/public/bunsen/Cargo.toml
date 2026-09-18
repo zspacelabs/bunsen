@@ -42,7 +42,6 @@ default = [
     "reflection",
     "train",
     "testing",
-    "store",
     "store_pytorch",
 ]
 
@@ -84,6 +83,14 @@ cache = [
     "dep:downloader",
     "dep:directories-next",
     "downloader/default-tls",
+]
+
+## Draws a byte progress bar on stderr for each cache transfer, through
+## `indicatif`. When on, `BunsenDiskCacheOptions::default()` carries an
+## `IndicatifObserver`; `without_transfer_observers()` drops it.
+indicatif = [
+    "cache",
+    "dep:indicatif",
 ]
 
 ## Enables audio io support features.
@@ -199,8 +206,10 @@ crc = { workspace = true }
 flate2 = { workspace = true }
 
 directories-next = { workspace = true, optional = true }
-# features=["tui"] incompatible with conflicting indicatif versions.
+# `tui` would pull indicatif 0.17 against the workspace's 0.18; the observer
+# stack (`data::cache::TransferObserver`) draws its own bars instead.
 downloader = { workspace = true, default-features = false, optional = true }
+indicatif = { workspace = true, optional = true }
 
 dashmap = { workspace = true }
 
