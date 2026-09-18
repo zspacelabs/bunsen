@@ -1,5 +1,5 @@
 <component name="ProjectRunConfigurationManager">
-  <configuration default="false" name="Format" type="CargoCommandRunConfiguration" factoryName="Cargo Command">
+  <configuration default="false" name="Format (single-step)" type="CargoCommandRunConfiguration" factoryName="Cargo Command" folderName="Steps">
     <option name="command" value="fmt" />
     <option name="workingDirectory" value="file://$PROJECT_DIR$" />
     <envs />
@@ -12,8 +12,6 @@
     <option name="backtrace" value="SHORT" />
     <option name="isRedirectInput" value="false" />
     <option name="redirectInputPath" value="" />
-    <method v="2">
-      <option name="RunConfigurationTask" enabled="false" run_configuration_name="Fix &gt; Clippy" run_configuration_type="CargoCommandRunConfiguration" />
-    </method>
+    <method v="2" />
   </configuration>
 </component>

@@ -1,7 +1,6 @@
 <component name="ProjectRunConfigurationManager">
-  <configuration default="false" name="Doc Test" type="CargoCommandRunConfiguration" factoryName="Cargo Command">
-    <option name="buildProfileId" value="test" />
-    <option name="command" value="doc --no-deps" />
+  <configuration default="true" type="CargoCommandRunConfiguration" factoryName="Cargo Command">
+    <option name="command" value="run" />
     <option name="workingDirectory" value="file://$PROJECT_DIR$" />
     <envs />
     <option name="emulateTerminal" value="true" />
@@ -14,7 +13,7 @@
     <option name="isRedirectInput" value="false" />
     <option name="redirectInputPath" value="" />
     <method v="2">
-      <option name="CARGO.BUILD_TASK_PROVIDER" enabled="true" />
+      <option name="RunConfigurationTask" enabled="true" run_configuration_name="Pre-Test Group" run_configuration_type="ShConfigurationType" />
     </method>
   </configuration>
 </component>

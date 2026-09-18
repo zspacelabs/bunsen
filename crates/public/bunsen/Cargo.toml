@@ -238,3 +238,4 @@ nearly = { workspace = true }
 hamcrest = { workspace = true }
 indoc = { workspace = true }
 criterion = { workspace = true }
+tempfile = { workspace = true }

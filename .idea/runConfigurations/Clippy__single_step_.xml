@@ -1,6 +1,6 @@
 <component name="ProjectRunConfigurationManager">
-  <configuration default="false" name="Fix" type="CargoCommandRunConfiguration" factoryName="Cargo Command">
-    <option name="command" value="clippy --fix --allow-no-vcs" />
+  <configuration default="false" name="Clippy (single-step)" type="CargoCommandRunConfiguration" factoryName="Cargo Command" folderName="Steps">
+    <option name="command" value="clippy" />
     <option name="workingDirectory" value="file://$PROJECT_DIR$" />
     <envs />
     <option name="emulateTerminal" value="true" />

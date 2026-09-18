@@ -194,4 +194,75 @@ crate docs:
 The comment is required either way — the manifest is the first place a reader
 looks.
 
+## IDE run configurations
+
+`.idea/runConfigurations/` is tracked. The configs are shared, and they are
+the local form of the merge bar: what CI runs, runnable by name from the IDE
+or through its MCP gateway.
+
+### Three tiers
+
+**Steps** (folder `Steps`) do one thing each and have no before-launch tasks:
+
+| config | command | note |
+|---|---|---|
+| `Clippy Fix (single-step)` | `cargo clippy --fix --allow-no-vcs` | rewrites in place |
+| `Clippy (single-step)` | `cargo clippy` | the read-only form, for a look without edits |
+| `Format (single-step)` | `cargo fmt` on the **nightly** channel | `rustfmt.toml` uses unstable options; stable `fmt` silently ignores them and reformats the tree |
+| `Doc Lint (single-step)` | `cargo doc --no-deps` | the workspace lints table applies to rustdoc, so a broken intra-doc link fails here |
+
+**`Pre-Test Group`** is a shell configuration with an empty script. Its whole
+job is its before-launch chain, which runs in this order:
+
+```text
+Pre-Test Group
+  ├─ 1. Clippy Fix (single-step)    fix first: its rewrites need formatting
+  ├─ 2. Format (single-step)        then format what clippy wrote
+  └─ 3. Doc Lint (single-step)      last: slowest, and the one failure the
+                                    other two cannot cause
+```
+
+**Tests** (folders `Workspace` and `bunsen`) run `cargo test`. Every one
+carries `Pre-Test Group` as a before-launch task; whether it is *enabled*
+is what separates the two folders:
+
+| config | command | Pre-Test Group |
+|---|---|---|
+| `Test Workspace` | `cargo test --workspace` | enabled |
+| `Test Workspace (wgpu\|vulkan\|cuda\|metal)` | `cargo test --workspace --features <backend>,download,gpu-tests` | enabled |
+| `` Test `bunsen` `` | `cargo test -p bunsen` | attached, **disabled** |
+| `` Test `bunsen` (wgpu) `` | `cargo test -p bunsen --features wgpu` | attached, **disabled** |
+
+The `Workspace` configs are the merge bar; the `bunsen` configs are the fast
+loop, and skip the chain so an edit-test cycle is one build. Flip the
+checkbox on the config, not the chain, to change that for a run.
+
+The Cargo template (`_template__of_Cargo.xml`) carries `Pre-Test Group`
+enabled, so a configuration created in the IDE — a gutter run-point
+included — inherits the chain. A new fast-loop config disables it on the
+config.
+
+### Rules
+
+* **One chain, one place.** A new step goes into `Pre-Test Group`'s
+  before-launch list. Never attach a step directly to a test configuration;
+  the test configs reference the group and nothing else.
+* **Names say the tier.** Steps are `<Verb> (single-step)`; tests are
+  `Test <scope>` with the backend in parentheses; the group is the group.
+  `folderName` groups them in the IDE (`Steps`, `Workspace`, `bunsen`).
+* **Features live on the command line**, not the config: `requiredFeatures`
+  is `false` on every test config. Backend and switch names follow the
+  [cargo features](#cargo-features) chapter — `download` for the network,
+  `gpu-tests` for the slow tests, a backend never implied.
+* **A test that "fails to start" is a step that failed.** The IDE reports a
+  before-launch failure as `Process not started... Probably build process
+  failed`, with no diagnostic. Run the steps singly, in chain order, to get
+  the real one; do not fall back to a bare `cargo test`, which would test a
+  different configuration than the one that failed.
+* **Through the MCP gateway, the chain runs too.** `execute_run_configuration`
+  on a `Workspace` config runs the group first; on a `bunsen` config it does
+  not. Anything that compiles is launched with `waitForExit: false` and its
+  log polled: the gateway's transport caps a call well under any `timeout`
+  passed, and a timed-out run keeps going with its output lost.
+
 <!-- Assertions go here. -->

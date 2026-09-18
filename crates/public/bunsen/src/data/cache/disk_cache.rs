@@ -310,7 +310,7 @@ impl BunsenDiskCache {
         C: AsRef<Path>,
         S: AsRef<str>,
     {
-        let root = self.cache_dir.clone();
+        let root = self.data_dir.clone();
         self._load_resource(&root, context, urls, download)
     }
 }
@@ -319,24 +319,28 @@ impl BunsenDiskCache {
 mod tests {
     use std::{
         env,
+        fs,
         path::PathBuf,
     };
 
     use serial_test::serial;
 
-    use crate::data::cache::{
-        BUNSEN_CACHE_CONFIG,
-        BUNSEN_CACHE_DIR,
-        BUNSEN_DATA_DIR,
-        BunsenDiskCache,
-        BunsenDiskCacheOptions,
+    use crate::{
+        data::cache::{
+            BUNSEN_CACHE_CONFIG,
+            BUNSEN_CACHE_DIR,
+            BUNSEN_DATA_DIR,
+            BunsenDiskCache,
+            BunsenDiskCacheOptions,
+        },
+        errors::BunsenError,
     };
 
     #[test]
     #[serial]
     fn test_resolve_dirs() {
         let orig_cache_dir = env::var(BUNSEN_CACHE_DIR);
-        let orig_data_dir = env::var(BUNSEN_CACHE_DIR);
+        let orig_data_dir = env::var(BUNSEN_DATA_DIR);
 
         let pds = BUNSEN_CACHE_CONFIG
             .project_dirs()
@@ -409,5 +413,61 @@ mod tests {
         let cache = BunsenDiskCache::new(BunsenDiskCacheOptions::default()).unwrap();
         let path = cache.cache_path(&["prefix"], "file.txt");
         assert_eq!(path, cache.cache_dir.join("prefix").join("file.txt"));
+    }
+
+    /// `load_data_path` looks under the data directory, `load_cached_path`
+    /// under the cache directory, and neither sees the other's files.
+    #[test]
+    fn test_load_paths_root_at_their_own_dirs() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut cache = BunsenDiskCache::new(
+            BunsenDiskCacheOptions::default()
+                .with_cache_dir(Some(dir.path().join("cache")))
+                .with_data_dir(Some(dir.path().join("data"))),
+        )
+        .unwrap();
+
+        // `download = false` throughout: the file is found, or it is not.
+        let context = ["prefix"];
+        let urls = ["https://example.invalid/mirror/file.txt"];
+
+        let data_file = cache.data_path(&context, "file.txt");
+        let cache_file = cache.cache_path(&context, "file.txt");
+        assert_ne!(data_file, cache_file);
+
+        // Nothing on disk: neither finds anything.
+        assert!(matches!(
+            cache.load_data_path(&context, &urls, false),
+            Err(BunsenError::ResourceNotFound(_))
+        ));
+        assert!(matches!(
+            cache.load_cached_path(&context, &urls, false),
+            Err(BunsenError::ResourceNotFound(_))
+        ));
+
+        // A data file is found by `load_data_path` only.
+        fs::create_dir_all(data_file.parent().unwrap()).unwrap();
+        fs::write(&data_file, b"data").unwrap();
+        assert_eq!(
+            cache.load_data_path(&context, &urls, false).unwrap(),
+            data_file
+        );
+        assert!(matches!(
+            cache.load_cached_path(&context, &urls, false),
+            Err(BunsenError::ResourceNotFound(_))
+        ));
+
+        // A cache file is found by `load_cached_path` only.
+        fs::remove_file(&data_file).unwrap();
+        fs::create_dir_all(cache_file.parent().unwrap()).unwrap();
+        fs::write(&cache_file, b"cache").unwrap();
+        assert_eq!(
+            cache.load_cached_path(&context, &urls, false).unwrap(),
+            cache_file
+        );
+        assert!(matches!(
+            cache.load_data_path(&context, &urls, false),
+            Err(BunsenError::ResourceNotFound(_))
+        ));
     }
 }

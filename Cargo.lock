@@ -1180,6 +1180,7 @@ dependencies = [
  "spanned_error_message",
  "strum 0.28.0",
  "symphonia",
+ "tempfile",
  "thiserror 2.0.20",
  "time",
  "tracing",
