@@ -1,4 +1,7 @@
-use std::sync::Arc;
+use std::{
+    path::PathBuf,
+    sync::Arc,
+};
 
 use bunsen::{
     errors::BunsenResult,
@@ -21,8 +24,57 @@ use bunsen::{
 };
 use burn::prelude::Backend;
 
+use crate::models::{
+    loader::{
+        ModelRef,
+        load_model,
+    },
+    weights_cache::{
+        WeightsCache,
+        WeightsCacheOptions,
+    },
+};
+
+/// Where fetched weights live, and whether fetching is allowed.
+#[derive(clap::Args, Debug)]
+pub struct WeightsCacheArgs {
+    /// Directory for fetched weights; `$BUNSEN_CACHE_DIR`, then the
+    /// platform's cache directory, when omitted.
+    #[arg(long)]
+    cache_dir: Option<PathBuf>,
+
+    /// Never reach the network: a model not already local is an error.
+    #[arg(long)]
+    offline: bool,
+
+    /// `openai-whisper`'s download cache, read as a local source;
+    /// `~/.cache/whisper` when omitted.
+    #[arg(long)]
+    upstream_cache_dir: Option<PathBuf>,
+}
+
+impl WeightsCacheArgs {
+    /// Opens the cache.
+    pub fn init(&self) -> BunsenResult<WeightsCache> {
+        WeightsCache::new(WeightsCacheOptions {
+            cache_dir: self.cache_dir.clone(),
+            offline: self.offline,
+            upstream_cache_dir: self.upstream_cache_dir.clone(),
+        })
+    }
+}
+
 #[derive(clap::Args, Debug)]
 pub struct WhisperDriverArgs {
+    /// The model: `provider/name` or a bare name from `models list`
+    /// (`openai/tiny.en`, `large`), or a path to a checkpoint. The default
+    /// is the checkpoint bunsen bundles, so it needs no network.
+    #[arg(long, default_value = "openai/base")]
+    model: String,
+
+    #[clap(flatten)]
+    cache: WeightsCacheArgs,
+
     /// Language of the speech, as a Whisper code (`en`, `ja`, ...); detected
     /// from the first window when omitted.
     #[arg(long)]
@@ -70,16 +122,23 @@ pub struct WhisperDriverArgs {
 }
 
 impl WhisperDriverArgs {
-    /// Loads the bundled checkpoint at the precision it ships in.
+    /// Loads `--model` at the precision it ships in.
     ///
-    /// The checkpoint is fp16 while the mel front end works in the backend's
-    /// float, but the model casts at its own edges — mels in, logits out —
-    /// so nothing here has to re-type it.
+    /// The name is resolved against the pretrained index, or taken as a
+    /// path; the weights come from the cache, a local source, or a
+    /// digest-checked download; and the checkpoint is checked against the
+    /// prefab its name promised before it is materialized.
+    ///
+    /// `OpenAI`'s checkpoints are fp16 while the mel front end works in the
+    /// backend's float, but the model casts at its own edges — mels in,
+    /// logits out — so nothing here has to re-type it.
     pub fn load_model<B: Backend>(
         &self,
         device: &B::Device,
     ) -> BunsenResult<(Whisper<B>, WhisperApiConfig)> {
-        Whisper::<B>::load_pretrained_16khz_fp16_base(device)
+        let model = ModelRef::resolve(&self.model)?;
+        let mut cache = self.cache.init()?;
+        load_model(&model, &mut cache, device)
     }
 
     /// Load and setup the [`WhisperStreamDriver`].

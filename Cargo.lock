@@ -10533,7 +10533,11 @@ dependencies = [
  "burn",
  "clap",
  "clap-common",
+ "indicatif 0.18.6",
  "log",
+ "sha2 0.11.0",
+ "tempfile",
+ "ureq 3.4.2",
 ]
 
 [[package]]

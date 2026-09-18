@@ -67,6 +67,16 @@ embeddings/head/scalars) selected via module-tree reflection.
   (`GroupOptimizerAdaptor2`, `OptimizerGroup`),
   `bunsen-arrow-dataloaders`, `zsl-data-cache`.
 
+### Example: whisper-cli
+
+Transcribes audio through bunsen's Whisper stream driver, with the model named as `openai-whisper` names it
+(`--model openai/tiny.en`, `large`, or a checkpoint path). A `models` subcommand lists, fetches and inspects them.
+Its `src/models/` is a rough-in of a prefab / pretrained / source index over a digest-pinned local cache.
+
+- **Bunsen coverage:** `kits::speech::whisper::driver`, `kits::speech::whisper::pretrained::PytorchWhisperScanner`,
+  `data::pretrained::StaticPreFabMap`, `data::cache::BunsenDiskCache`, the `whisper-weights` and `silero-weights`
+  features.
+
 ### Example: whisper-dev
 
 Development utility that imports an OpenAI Whisper model from a PyTorch checkpoint and prints the inferred config.
