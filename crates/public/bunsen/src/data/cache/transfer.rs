@@ -138,16 +138,23 @@ impl TransferProgress for TransferProgressStack {
     }
 }
 
-/// Test support: an observer that records what it sees.
+/// Test support: an observer that records what it sees, a one-shot HTTP
+/// server, and a known digest.
 #[cfg(test)]
 pub(crate) mod testing {
     use std::{
+        io::{
+            Read,
+            Write,
+        },
+        net::TcpListener,
         path::PathBuf,
         sync::{
             Arc,
             Mutex,
             PoisonError,
         },
+        thread,
     };
 
     use super::{
@@ -157,9 +164,47 @@ pub(crate) mod testing {
         TransferProgress,
     };
 
+    /// SHA-256 of the three bytes `abc`, from FIPS 180-4's examples.
+    pub(crate) const ABC_SHA256: &str =
+        "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad";
+
+    /// Serves one HTTP/1.1 `200` with `body` on a loopback port, once, and
+    /// returns the URL for `name`.
+    pub(crate) fn serve_once(
+        name: &str,
+        body: &'static [u8],
+    ) -> String {
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let url = format!("http://{}/{name}", listener.local_addr().unwrap());
+        thread::spawn(move || {
+            let (mut stream, _) = listener.accept().unwrap();
+            // Read the request head; a GET carries no body.
+            let mut head = Vec::new();
+            let mut buf = [0u8; 4096];
+            loop {
+                let n = stream.read(&mut buf).unwrap();
+                if n == 0 {
+                    break;
+                }
+                head.extend_from_slice(&buf[..n]);
+                if head.windows(4).any(|w| w == b"\r\n\r\n") {
+                    break;
+                }
+            }
+            let response = format!(
+                "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
+                body.len()
+            );
+            stream.write_all(response.as_bytes()).unwrap();
+            stream.write_all(body).unwrap();
+            stream.flush().unwrap();
+        });
+        url
+    }
+
     /// One thing a [`RecordingObserver`] saw.
     #[derive(Clone, Debug, PartialEq, Eq)]
-    pub(crate) enum Event {
+    pub(crate) enum CacheProgressEvent {
         /// A transfer began.
         Begin {
             source: String,
@@ -172,7 +217,7 @@ pub(crate) mod testing {
         Finish(Result<(), String>),
     }
 
-    type Log = Arc<Mutex<Vec<Event>>>;
+    type Log = Arc<Mutex<Vec<CacheProgressEvent>>>;
 
     /// Records every event, across every transfer it is told about.
     #[derive(Debug, Default)]
@@ -182,7 +227,7 @@ pub(crate) mod testing {
 
     impl RecordingObserver {
         /// Everything seen so far, in order.
-        pub(crate) fn events(&self) -> Vec<Event> {
+        pub(crate) fn events(&self) -> Vec<CacheProgressEvent> {
             self.log
                 .lock()
                 .unwrap_or_else(PoisonError::into_inner)
@@ -197,7 +242,7 @@ pub(crate) mod testing {
         ) -> Box<dyn TransferProgress> {
             push(
                 &self.log,
-                Event::Begin {
+                CacheProgressEvent::Begin {
                     source: desc.source.to_string(),
                     dest: desc.dest.to_path_buf(),
                     total: desc.total,
@@ -214,7 +259,7 @@ pub(crate) mod testing {
             &self,
             bytes: u64,
         ) {
-            push(&self.0, Event::Position(bytes));
+            push(&self.0, CacheProgressEvent::Position(bytes));
         }
 
         fn finish(
@@ -225,13 +270,13 @@ pub(crate) mod testing {
                 TransferOutcome::Complete => Ok(()),
                 TransferOutcome::Failed(message) => Err(message.to_string()),
             };
-            push(&self.0, Event::Finish(outcome));
+            push(&self.0, CacheProgressEvent::Finish(outcome));
         }
     }
 
     fn push(
         log: &Log,
-        event: Event,
+        event: CacheProgressEvent,
     ) {
         log.lock()
             .unwrap_or_else(PoisonError::into_inner)
@@ -249,16 +294,10 @@ mod tests {
         },
     };
 
-    use super::{
-        TransferDesc,
-        TransferObserver,
-        TransferOutcome,
-        TransferProgress,
-        TransferProgressStack,
-        testing::{
-            Event,
-            RecordingObserver,
-        },
+    use super::*;
+    use crate::data::cache::testing::{
+        CacheProgressEvent,
+        RecordingObserver,
     };
 
     /// Every observer gets its own handle, and every handle sees every
@@ -284,14 +323,14 @@ mod tests {
         stack.finish(TransferOutcome::Complete);
 
         let expected = vec![
-            Event::Begin {
+            CacheProgressEvent::Begin {
                 source: "https://example.invalid/file.bin".to_string(),
                 dest: Path::new("/cache/file.bin").to_path_buf(),
                 total: Some(10),
             },
-            Event::Position(3),
-            Event::Position(10),
-            Event::Finish(Ok(())),
+            CacheProgressEvent::Position(3),
+            CacheProgressEvent::Position(10),
+            CacheProgressEvent::Finish(Ok(())),
         ];
         assert_eq!(a.events(), expected);
         assert_eq!(b.events(), expected);

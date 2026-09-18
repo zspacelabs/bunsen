@@ -117,13 +117,7 @@ impl TransferProgress for ProgressBar {
 mod tests {
     use std::path::Path;
 
-    use super::IndicatifObserver;
-    use crate::data::cache::{
-        TransferDesc,
-        TransferObserver,
-        TransferOutcome,
-        TransferProgress,
-    };
+    use super::*;
 
     /// A known length gets a bar of that length, named for the file; the
     /// handle moves it and clears it on completion.

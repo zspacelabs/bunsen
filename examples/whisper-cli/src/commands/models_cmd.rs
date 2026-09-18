@@ -1,6 +1,9 @@
-use bunsen::errors::{
-    BunsenError,
-    BunsenResult,
+use bunsen::{
+    data::cache::verify_sha256,
+    errors::{
+        BunsenError,
+        BunsenResult,
+    },
 };
 use clap_common::logging::{
     LogArgs,
@@ -159,7 +162,7 @@ fn fetch(
         if verify {
             match &model {
                 ModelRef::Pretrained { pretrained, .. } => {
-                    WeightsCache::verify(&located.path, pretrained.sha256)?;
+                    verify_sha256(&located.path, pretrained.sha256)?;
                     println!("  sha256 {} ok", pretrained.sha256);
                 }
                 ModelRef::Path(_) => {

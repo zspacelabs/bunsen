@@ -142,14 +142,10 @@ mod tests {
 
     use downloader::progress::Reporter;
 
-    use super::DownloaderReporter;
-    use crate::data::cache::{
-        TransferObserver,
-        TransferOutcome,
-        transfer::testing::{
-            Event,
-            RecordingObserver,
-        },
+    use super::*;
+    use crate::data::cache::testing::{
+        CacheProgressEvent,
+        RecordingObserver,
     };
 
     fn reporter(observer: &Arc<RecordingObserver>) -> DownloaderReporter {
@@ -161,8 +157,8 @@ mod tests {
         )
     }
 
-    fn begin(total: Option<u64>) -> Event {
-        Event::Begin {
+    fn begin(total: Option<u64>) -> CacheProgressEvent {
+        CacheProgressEvent::Begin {
             source: "https://example.invalid/file.bin".to_string(),
             dest: PathBuf::from("/cache/file.bin"),
             total,
@@ -187,9 +183,9 @@ mod tests {
             observer.events(),
             vec![
                 begin(Some(10)),
-                Event::Position(4),
-                Event::Position(10),
-                Event::Finish(Ok(())),
+                CacheProgressEvent::Position(4),
+                CacheProgressEvent::Position(10),
+                CacheProgressEvent::Finish(Ok(())),
             ]
         );
     }
@@ -212,11 +208,11 @@ mod tests {
             observer.events(),
             vec![
                 begin(None),
-                Event::Position(1),
-                Event::Finish(Err("file.bin 1/3 - 404".to_string())),
+                CacheProgressEvent::Position(1),
+                CacheProgressEvent::Finish(Err("file.bin 1/3 - 404".to_string())),
                 begin(Some(5)),
-                Event::Position(5),
-                Event::Finish(Ok(())),
+                CacheProgressEvent::Position(5),
+                CacheProgressEvent::Finish(Ok(())),
             ]
         );
     }
@@ -239,7 +235,10 @@ mod tests {
 
         assert_eq!(
             observer.events(),
-            vec![begin(Some(3)), Event::Finish(Err("gave up".to_string())),]
+            vec![
+                begin(Some(3)),
+                CacheProgressEvent::Finish(Err("gave up".to_string())),
+            ]
         );
     }
 }

@@ -20,6 +20,7 @@ use crate::{
         TransferObserver,
         TransferObservers,
         downloader_progress::DownloaderReporter,
+        fetch_verified,
         path_utils,
     },
     errors::{
@@ -64,18 +65,21 @@ impl Default for BunsenDiskCacheOptions {
 }
 
 /// The observers [`BunsenDiskCacheOptions::default()`] carries: one
-/// `IndicatifObserver` drawing on stderr, because the `indicatif` feature
-/// is on.
-#[cfg(feature = "indicatif")]
+/// `IndicatifObserver` drawing on stderr with the `indicatif` feature, none
+/// without.
 pub fn default_transfer_observers() -> TransferObservers {
-    vec![Arc::new(super::IndicatifObserver::default())]
-}
+    // Only the feature-on build mutates it, and the workspace denies
+    // `unused_mut`; the other build is told the `mut` is expected.
+    #[cfg_attr(not(feature = "indicatif"), allow(unused_mut))]
+    let mut observers: TransferObservers = Vec::new();
 
-/// The observers [`BunsenDiskCacheOptions::default()`] carries: none,
-/// because the `indicatif` feature is off.
-#[cfg(not(feature = "indicatif"))]
-pub fn default_transfer_observers() -> TransferObservers {
-    Vec::new()
+    #[cfg(feature = "indicatif")]
+    {
+        use crate::data::cache::IndicatifObserver;
+        observers.push(Arc::new(IndicatifObserver::default()));
+    }
+
+    observers
 }
 
 impl BunsenDiskCacheOptions {
@@ -206,6 +210,20 @@ impl BunsenDiskCache {
     /// The transfer observers, in the order each transfer reaches them.
     pub fn transfer_observers(&self) -> &[Arc<dyn TransferObserver>] {
         &self.transfer_observers
+    }
+
+    /// Streams `url` to `dest`, verified against `sha256`, reporting to the
+    /// observer stack; see [`fetch_verified`](super::fetch_verified).
+    ///
+    /// # Errors
+    /// As [`fetch_verified`](super::fetch_verified).
+    pub fn fetch_verified(
+        &self,
+        url: &str,
+        dest: &Path,
+        sha256: &str,
+    ) -> BunsenResult<()> {
+        fetch_verified(url, dest, sha256, &self.transfer_observers)
     }
 
     /// Loads a file from a specified path or downloads it if it does not exist.
@@ -397,36 +415,16 @@ impl BunsenDiskCache {
 
 #[cfg(test)]
 mod tests {
-    use std::{
-        env,
-        fs,
-        io::{
-            Read,
-            Write,
-        },
-        net::TcpListener,
-        path::PathBuf,
-        sync::Arc,
-        thread,
-    };
+    use std::env;
 
     use serial_test::serial;
 
-    use crate::{
-        data::cache::{
-            BUNSEN_CACHE_CONFIG,
-            BUNSEN_CACHE_DIR,
-            BUNSEN_DATA_DIR,
-            BunsenDiskCache,
-            BunsenDiskCacheOptions,
-            TransferObserver,
-            default_transfer_observers,
-            transfer::testing::{
-                Event,
-                RecordingObserver,
-            },
-        },
-        errors::BunsenError,
+    use super::*;
+    use crate::data::cache::transfer::testing::{
+        ABC_SHA256,
+        CacheProgressEvent,
+        RecordingObserver,
+        serve_once,
     };
 
     #[test]
@@ -549,40 +547,6 @@ mod tests {
         assert!(Arc::ptr_eq(&cache.transfer_observers()[1], &b));
     }
 
-    /// Serves one HTTP/1.1 `200` with `body` on a loopback port, once, and
-    /// returns the URL for `name`.
-    fn serve_once(
-        name: &str,
-        body: &'static [u8],
-    ) -> String {
-        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
-        let url = format!("http://{}/{name}", listener.local_addr().unwrap());
-        thread::spawn(move || {
-            let (mut stream, _) = listener.accept().unwrap();
-            // Read the request head; a GET carries no body.
-            let mut head = Vec::new();
-            let mut buf = [0u8; 4096];
-            loop {
-                let n = stream.read(&mut buf).unwrap();
-                if n == 0 {
-                    break;
-                }
-                head.extend_from_slice(&buf[..n]);
-                if head.windows(4).any(|w| w == b"\r\n\r\n") {
-                    break;
-                }
-            }
-            let response = format!(
-                "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
-                body.len()
-            );
-            stream.write_all(response.as_bytes()).unwrap();
-            stream.write_all(body).unwrap();
-            stream.flush().unwrap();
-        });
-        url
-    }
-
     /// A download opens one transfer on every observer: the URL and the
     /// cache path in `begin`, the byte count as it lands, `Complete` at the
     /// end.
@@ -608,18 +572,45 @@ mod tests {
         let events = observer.events();
         assert_eq!(
             events.first(),
-            Some(&Event::Begin {
+            Some(&CacheProgressEvent::Begin {
                 source: url.clone(),
                 dest: path.clone(),
                 total: Some(body.len() as u64),
             })
         );
-        assert_eq!(events.last(), Some(&Event::Finish(Ok(()))));
+        assert_eq!(events.last(), Some(&CacheProgressEvent::Finish(Ok(()))));
         let last_position = events.iter().rev().find_map(|e| match e {
-            Event::Position(n) => Some(*n),
+            CacheProgressEvent::Position(n) => Some(*n),
             _ => None,
         });
         assert_eq!(last_position, Some(body.len() as u64));
+    }
+
+    /// The cache's `fetch_verified` reports through the observers it
+    /// carries.
+    #[test]
+    fn test_fetch_verified_reports_through_the_cache_observers() {
+        let dir = tempfile::tempdir().unwrap();
+        let observer = Arc::new(RecordingObserver::default());
+        let cache = BunsenDiskCache::new(
+            BunsenDiskCacheOptions::default()
+                .with_cache_dir(Some(dir.path().join("cache")))
+                .without_transfer_observers()
+                .with_transfer_observer(observer.clone()),
+        )
+        .unwrap();
+
+        let url = serve_once("abc.bin", b"abc");
+        let dest = cache.cache_path(&["t"], "abc.bin");
+        cache.fetch_verified(&url, &dest, ABC_SHA256).unwrap();
+
+        assert_eq!(fs::read(&dest).unwrap(), b"abc");
+        let events = observer.events();
+        assert!(matches!(
+            events.first(),
+            Some(CacheProgressEvent::Begin { .. })
+        ));
+        assert_eq!(events.last(), Some(&CacheProgressEvent::Finish(Ok(()))));
     }
 
     /// `load_data_path` looks under the data directory, `load_cached_path`

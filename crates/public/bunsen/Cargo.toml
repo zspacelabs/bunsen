@@ -77,12 +77,15 @@ train = [
     "dep:hashbrown",
 ]
 
-## Enable the disk cache.
+## Enable the disk cache: where files land, and the digest-verified fetch
+## (`ureq` + `sha2`) that puts them there.
 cache = [
     "std",
     "dep:downloader",
     "dep:directories-next",
     "downloader/default-tls",
+    "dep:sha2",
+    "dep:ureq",
 ]
 
 ## Draws a byte progress bar on stderr for each cache transfer, through
@@ -210,6 +213,8 @@ directories-next = { workspace = true, optional = true }
 # stack (`data::cache::TransferObserver`) draws its own bars instead.
 downloader = { workspace = true, default-features = false, optional = true }
 indicatif = { workspace = true, optional = true }
+sha2 = { workspace = true, optional = true }
+ureq = { workspace = true, optional = true }
 
 dashmap = { workspace = true }
 

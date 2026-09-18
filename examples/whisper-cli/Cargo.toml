@@ -20,24 +20,19 @@ burn = { workspace = true, features = ["fusion"] }
 #
 # `whisper-weights` bundles the checkpoint and both vocabularies;
 # `silero-weights` bundles the VAD the real-time presets need.
+# `indicatif` puts bunsen's progress bar on every weights transfer.
 bunsen = { path = "../../crates/public/bunsen", features = [
     "store",
     "audio",
     "tokenizer",
     "whisper-weights",
     "silero-weights",
+    "indicatif",
 ] }
 
 clap = { workspace = true, features = ["derive"] }
 clap-common = { path = "../../crates/dev/clap-common" }
 log = { workspace = true }
-
-# The weights cache: `ureq` streams a checkpoint down, `sha2` pins it, and
-# `indicatif` shows the 3 GB going by. bunsen's own disk cache decides where
-# it lands; see `src/models/weights_cache.rs` for why it does not also fetch.
-indicatif = { workspace = true }
-sha2 = { workspace = true }
-ureq = { workspace = true }
 
 [dev-dependencies]
 tempfile = { workspace = true }

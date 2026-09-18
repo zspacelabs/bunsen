@@ -14,19 +14,16 @@
 //! runs without re-hashing 3 GB, and a re-pinned model cannot collide with
 //! a stale one.
 //!
-//! [`BunsenDiskCache::load_cached_path`] is not used for the transfer. It has
+//! [`BunsenDiskCache::load_cached_path`] is not used for the transfer: it has
 //! no digest (`// TODO: hash`), and it drops the per-file result of the
-//! download, so a 404 comes back `Ok` with nothing on disk. The transfer here
-//! streams to a `.partial` beside the destination, hashes as it goes, and
-//! renames only on a match, as `bunsen-bundled-whisper`'s build script does.
+//! download, so a 404 comes back `Ok` with nothing on disk. The transfer is
+//! [`BunsenDiskCache::fetch_verified`], which streams to a `.partial` beside
+//! the destination, hashes as it goes, and renames only on a match; the
+//! progress bar is bunsen's, through its `indicatif` feature.
 
 use std::{
     fmt,
     fs,
-    io::{
-        self,
-        Read,
-    },
     path::{
         Path,
         PathBuf,
@@ -37,19 +34,13 @@ use bunsen::{
     data::cache::{
         BunsenDiskCache,
         BunsenDiskCacheOptions,
+        link_or_copy,
+        verify_sha256,
     },
     errors::{
         BunsenError,
         BunsenResult,
     },
-};
-use indicatif::{
-    ProgressBar,
-    ProgressStyle,
-};
-use sha2::{
-    Digest,
-    Sha256,
 };
 
 use crate::models::pretrained::{
@@ -268,7 +259,7 @@ impl WeightsCache {
                         continue;
                     }
                     log::info!("{id}: verifying {}", path.display());
-                    match Self::verify(&path, pretrained.sha256) {
+                    match verify_sha256(&path, pretrained.sha256) {
                         Ok(()) => {
                             link_or_copy(&path, &dest)?;
                             return Ok(ResolvedWeights {
@@ -298,7 +289,7 @@ impl WeightsCache {
         let mut last = None;
         for url in urls {
             log::info!("{id}: fetching {url}");
-            match fetch_verified(url, &dest, pretrained.sha256) {
+            match self.disk.fetch_verified(url, &dest, pretrained.sha256) {
                 Ok(()) => {
                     return Ok(ResolvedWeights {
                         path: dest,
@@ -312,26 +303,6 @@ impl WeightsCache {
             }
         }
         Err(last.expect("at least one URL was tried"))
-    }
-
-    /// Checks a file against a digest.
-    ///
-    /// # Errors
-    /// [`BunsenError::Invalid`] on a mismatch, [`BunsenError::External`] if
-    /// the file cannot be read.
-    pub fn verify(
-        path: &Path,
-        sha256: &str,
-    ) -> BunsenResult<()> {
-        let found = sha256_of(path).map_err(BunsenError::external)?;
-        if found == sha256 {
-            Ok(())
-        } else {
-            Err(BunsenError::Invalid(format!(
-                "{}: sha256 is {found}, expected {sha256}",
-                path.display()
-            )))
-        }
     }
 
     /// Where upstream's cache would keep this file.
@@ -353,150 +324,10 @@ fn default_upstream_cache_dir() -> Option<PathBuf> {
     Some(cache_home.join("whisper"))
 }
 
-/// The lowercase hex SHA-256 of a file.
-pub fn sha256_of(path: &Path) -> io::Result<String> {
-    let file = fs::File::open(path)?;
-    let mut reader = HashingReader::new(file);
-    io::copy(&mut reader, &mut io::sink())?;
-    Ok(reader.hex_digest())
-}
-
-/// A reader that digests what passes through it, so a download is hashed
-/// as it lands rather than read back afterwards.
-struct HashingReader<R> {
-    inner: R,
-    hasher: Sha256,
-}
-
-impl<R: Read> HashingReader<R> {
-    fn new(inner: R) -> Self {
-        Self {
-            inner,
-            hasher: Sha256::new(),
-        }
-    }
-
-    fn hex_digest(self) -> String {
-        self.hasher
-            .finalize()
-            .iter()
-            .map(|b| format!("{b:02x}"))
-            .collect()
-    }
-}
-
-impl<R: Read> Read for HashingReader<R> {
-    fn read(
-        &mut self,
-        buf: &mut [u8],
-    ) -> io::Result<usize> {
-        let n = self.inner.read(buf)?;
-        self.hasher.update(&buf[..n]);
-        Ok(n)
-    }
-}
-
-/// Streams `url` to `dest`, verified.
-///
-/// The bytes land in `<dest>.partial` and are hashed on the way; only a
-/// matching file is renamed into place, so an interrupted or corrupt
-/// transfer never leaves a trusted-looking file at `dest`.
-fn fetch_verified(
-    url: &str,
-    dest: &Path,
-    sha256: &str,
-) -> BunsenResult<()> {
-    let parent = dest.parent().expect("a cache path has a parent");
-    fs::create_dir_all(parent).map_err(BunsenError::external)?;
-    let partial = partial_path(dest);
-
-    let mut response = ureq::get(url).call().map_err(BunsenError::external)?;
-    let len = response.body().content_length();
-    let bar = progress_bar(len, dest);
-
-    let mut reader = HashingReader::new(bar.wrap_read(response.body_mut().as_reader()));
-    let copied = (|| -> io::Result<()> {
-        let mut file = fs::File::create(&partial)?;
-        io::copy(&mut reader, &mut file)?;
-        file.sync_all()
-    })();
-    bar.finish_and_clear();
-    if let Err(e) = copied {
-        let _ = fs::remove_file(&partial);
-        return Err(BunsenError::external(e));
-    }
-
-    let found = reader.hex_digest();
-    if found != sha256 {
-        let _ = fs::remove_file(&partial);
-        return Err(BunsenError::Invalid(format!(
-            "{url}: sha256 is {found}, expected {sha256}; the transfer was corrupt or the asset changed"
-        )));
-    }
-
-    fs::rename(&partial, dest).map_err(BunsenError::external)
-}
-
-/// `<dest>.partial`, keeping every dot of the name (`tiny.en.pt.partial`).
-fn partial_path(dest: &Path) -> PathBuf {
-    let mut name = dest
-        .file_name()
-        .expect("a cache path has a file name")
-        .to_os_string();
-    name.push(".partial");
-    dest.with_file_name(name)
-}
-
-/// A byte progress bar for a transfer, hidden when stderr is not a terminal.
-fn progress_bar(
-    len: Option<u64>,
-    dest: &Path,
-) -> ProgressBar {
-    let name = dest.file_name().unwrap_or_default().display().to_string();
-    let bar = match len {
-        Some(len) => ProgressBar::new(len).with_style(
-            ProgressStyle::with_template(
-                "{msg} {bar:32} {bytes}/{total_bytes} {bytes_per_sec} eta {eta}",
-            )
-            .expect("a literal template"),
-        ),
-        None => ProgressBar::new_spinner().with_style(
-            ProgressStyle::with_template("{msg} {spinner} {bytes} {bytes_per_sec}")
-                .expect("a literal template"),
-        ),
-    };
-    bar.set_message(name);
-    bar
-}
-
-/// Puts a verified file at `dest` without copying 3 GB where a link will
-/// do: a symlink where the platform has them, then a hard link, then a copy.
-fn link_or_copy(
-    src: &Path,
-    dest: &Path,
-) -> BunsenResult<()> {
-    let parent = dest.parent().expect("a cache path has a parent");
-    fs::create_dir_all(parent).map_err(BunsenError::external)?;
-
-    #[cfg(unix)]
-    if std::os::unix::fs::symlink(src, dest).is_ok() {
-        return Ok(());
-    }
-    if fs::hard_link(src, dest).is_ok() {
-        return Ok(());
-    }
-    fs::copy(src, dest)
-        .map(|_| ())
-        .map_err(BunsenError::external)
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::models::pretrained::OPENAI;
-
-    /// SHA-256 of the three bytes `abc`, from FIPS 180-4's examples.
-    const ABC_SHA256: &str = "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad";
 
     fn cache_in(dir: &Path) -> WeightsCache {
         WeightsCache::new(WeightsCacheOptions {
@@ -505,20 +336,6 @@ mod tests {
             upstream_cache_dir: Some(dir.join("upstream")),
         })
         .unwrap()
-    }
-
-    #[test]
-    fn test_sha256_of_and_verify() {
-        let dir = tempfile::tempdir().unwrap();
-        let path = dir.path().join("abc");
-        fs::write(&path, b"abc").unwrap();
-
-        assert_eq!(sha256_of(&path).unwrap(), ABC_SHA256);
-        WeightsCache::verify(&path, ABC_SHA256).unwrap();
-        assert!(matches!(
-            WeightsCache::verify(&path, &"0".repeat(64)),
-            Err(BunsenError::Invalid(_))
-        ));
     }
 
     #[test]
@@ -534,10 +351,6 @@ mod tests {
                 .join("openai")
                 .join(tiny.sha256)
                 .join("tiny.en.pt"),
-        );
-        assert_eq!(
-            partial_path(Path::new("/c/tiny.en.pt")),
-            PathBuf::from("/c/tiny.en.pt.partial")
         );
     }
 
