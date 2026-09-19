@@ -633,18 +633,18 @@ mod tests {
         },
     };
 
+    type B = PerformanceBackend;
+
     fn assert_send<T: Send>() {}
 
     #[test]
     fn test_send() {
-        type B = PerformanceBackend;
         assert_send::<DynTensor<B>>();
     }
 
     #[test]
     #[serial_test::serial]
     fn test_stub_float() {
-        type B = PerformanceBackend;
         let device = default_device();
         let _memory = DeviceMemoryGuard::<B>::new(&device);
 
@@ -690,7 +690,6 @@ mod tests {
     #[test]
     #[serial_test::serial]
     fn test_stub_int() {
-        type B = PerformanceBackend;
         let device = default_device();
         let _memory = DeviceMemoryGuard::<B>::new(&device);
 
@@ -737,7 +736,6 @@ mod tests {
     #[test]
     #[serial_test::serial]
     fn test_stub_bool() {
-        type B = PerformanceBackend;
         let device = default_device();
         let _memory = DeviceMemoryGuard::<B>::new(&device);
 
@@ -784,7 +782,6 @@ mod tests {
     #[test]
     #[serial_test::serial]
     fn test_clone() {
-        type B = PerformanceBackend;
         let device = default_device();
         let _memory = DeviceMemoryGuard::<B>::new(&device);
 
@@ -803,7 +800,6 @@ mod tests {
     #[test]
     #[serial_test::serial]
     fn test_slice() {
-        type B = PerformanceBackend;
         let device = default_device();
         let _memory = DeviceMemoryGuard::<B>::new(&device);
 
@@ -823,7 +819,6 @@ mod tests {
     #[test]
     #[serial_test::serial]
     fn test_slice_dyn() {
-        type B = PerformanceBackend;
         let device = default_device();
         let _memory = DeviceMemoryGuard::<B>::new(&device);
 
