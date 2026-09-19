@@ -30,8 +30,9 @@ default = []
 ## and reproducible.
 ##
 ## The checkpoint arrives through `bunsen/whisper-weights` rather than a direct
-## dependency: it is what `Whisper::load_pretrained` reads, so routing it
-## through the library is also what this crate is validating.
+## dependency: it is then the first source of `openai/base`, which is what
+## `load_named` reads, so routing it through the library is also what this
+## crate is validating.
 download = [
     "bunsen/whisper-weights",
     "dep:bunsen-bundled-whisper",
@@ -63,7 +64,7 @@ metal = ["bunsen/metal"]
 
 [dependencies]
 burn = { workspace = true }
-bunsen = { path = "../../public/bunsen", features = ["testing", "tokenizer", "whisper-weights"] }
+bunsen = { path = "../../public/bunsen", features = ["testing", "tokenizer"] }
 bunsen-bundled-whisper = {
     path = "../../public/bunsen-bundled-whisper",
     optional = true

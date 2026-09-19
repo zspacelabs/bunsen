@@ -213,12 +213,9 @@ mod tests {
     #[cfg(feature = "whisper-weights")]
     #[test]
     fn test_the_bundled_base_scans_as_the_base_prefab() {
-        use crate::kits::speech::whisper::pretrained::{
-            bundled,
-            prefab_for_geometry,
-        };
+        use crate::kits::speech::whisper::pretrained::prefab_for_geometry;
         let model = resolve_model("openai/base").unwrap();
-        let cfg = scan_model(&model, bundled::base_pt()).unwrap();
+        let cfg = scan_model(&model, bunsen_bundled_whisper::base_pt()).unwrap();
 
         let geometry = cfg.geometry();
         assert_eq!(prefab_for_geometry(&geometry).map(|p| p.name), Some("base"));
@@ -231,15 +228,15 @@ mod tests {
     #[cfg(feature = "whisper-weights")]
     #[test]
     fn test_scan_model_with_honors_the_scanner() {
-        use crate::kits::speech::whisper::pretrained::bundled;
+        let base = bunsen_bundled_whisper::base_pt();
         let scanner = PytorchWhisperScanner::new().with_d_head(32);
 
         let named = resolve_model("openai/base").unwrap();
-        let err = scan_model_with(&named, bundled::base_pt(), &scanner).unwrap_err();
+        let err = scan_model_with(&named, base, &scanner).unwrap_err();
         assert!(matches!(err, BunsenError::Invalid(_)), "{err}");
 
-        let path = ModelRef::Path(bundled::base_pt().to_path_buf());
-        let cfg = scan_model_with(&path, bundled::base_pt(), &scanner).unwrap();
+        let path = ModelRef::Path(base.to_path_buf());
+        let cfg = scan_model_with(&path, base, &scanner).unwrap();
         assert_eq!(cfg.geometry().d_head, 32);
         assert_eq!(cfg.geometry().n_heads(), 16);
     }
@@ -249,9 +246,8 @@ mod tests {
     #[cfg(feature = "whisper-weights")]
     #[test]
     fn test_a_checkpoint_under_the_wrong_name_is_rejected() {
-        use crate::kits::speech::whisper::pretrained::bundled;
         let model = resolve_model("openai/tiny").unwrap();
-        let err = scan_model(&model, bundled::base_pt()).unwrap_err();
+        let err = scan_model(&model, bunsen_bundled_whisper::base_pt()).unwrap_err();
         assert!(matches!(err, BunsenError::Invalid(_)), "{err}");
         assert!(err.to_string().contains("openai/tiny"), "{err}");
     }

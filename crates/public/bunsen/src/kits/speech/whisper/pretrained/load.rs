@@ -1,72 +1,55 @@
-//! Load the pretrained checkpoint that `bunsen-bundled-whisper` fetched.
+//! The bundled checkpoint's old entry point, kept one release as a
+//! deprecated alias of [`load_named`].
 
 use burn::prelude::Backend;
 
 use crate::{
+    data::pretrained::{
+        WeightsCache,
+        WeightsCacheOptions,
+    },
     errors::BunsenResult,
     kits::speech::whisper::{
         blocks::{
             Whisper,
             WhisperApiConfig,
         },
-        pretrained::{
-            PytorchWhisperScanner,
-            bundled,
-        },
+        pretrained::load_named,
     },
 };
 
 impl<B: Backend> Whisper<B> {
-    /// Loads `OpenAI`'s multilingual Whisper *base* checkpoint.
+    /// Loads `OpenAI`'s multilingual Whisper *base* checkpoint: `openai/base`
+    /// through [`load_named`], with a default [`WeightsCache`].
     ///
-    /// The checkpoint is not in this crate: `bunsen-bundled-whisper`
-    /// fetches it at build time, pins it to a SHA-256 and caches it. It is
-    /// 145 MB, so it stays a file on disk rather than bytes in the binary —
-    /// which is the one way this differs from
-    /// [`SileroVad::load_16khz_pretrained`](crate::kits::speech::silero_vad::SileroVad::load_16khz_pretrained),
-    /// whose weights are small enough to ship inline.
-    ///
-    /// The returned config is **scanned from the checkpoint**, not assumed, so
-    /// this also reports the geometry a caller needs — `n_mels` for the mel
-    /// front end, `vocab_size` to tell a multilingual model from an
-    /// English-only one. What a checkpoint cannot report is its audio front
-    /// end and its token layout; the scanner declares those, upstream's for
-    /// `OpenAI`'s.
-    ///
-    /// # Returns
-    /// The loaded model, and the configuration inferred from its weights.
-    ///
-    /// # Errors
-    /// [`BunsenError`](crate::errors::BunsenError) if the checkpoint cannot be
-    /// read or does not scan as a Whisper model. A missing file means the
-    /// cached asset was deleted after the build.
-    ///
-    /// # Note
-    /// `OpenAI` ships these checkpoints in **fp16**, and the weights load at
-    /// that precision, which is what the model then computes in. It is not
-    /// what its interface speaks: the mel front end's log-mels are cast
-    /// down on the way in and the logits are cast back up on the way out
-    /// (see [`HasDType::dtype()`](`crate::burner::module::HasDType`), so a
-    /// caller stays in the backend's float and nothing here needs
-    /// re-typing.
-    ///
-    /// To run the model itself at another precision — comparing against an
-    /// f32 reference graph, or on a device without fp16 — map it:
+    /// Under the `whisper-weights` feature the file `bunsen-bundled-whisper`
+    /// fetched at build time is the first source of `openai/base`, so this
+    /// reads it in place and reaches no network. It is what this function
+    /// always did; the difference is that the name-to-model pathway now does
+    /// it for every model, which is why this is deprecated in its favor:
     ///
     /// ```no_run
-    /// # use burn::{module::Module, tensor::DType, backend::Wgpu};
-    /// # use bunsen::{burner::module::DTypeMapper, kits::speech::whisper::Whisper};
+    /// # use burn::backend::Wgpu;
+    /// # use bunsen::data::pretrained::{WeightsCache, WeightsCacheOptions};
+    /// # use bunsen::kits::speech::whisper::{Whisper, pretrained::load_named};
     /// # use bunsen::support::testing::default_device;
     /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
     /// let device = default_device();
-    /// let (model, cfg) = Whisper::<Wgpu>::load_pretrained_16khz_fp16_base(&device)?;
-    /// let model = model.map(&mut DTypeMapper::new(DType::F32));
+    /// let cache = WeightsCache::new(WeightsCacheOptions::default())?;
+    /// let (model, cfg) = load_named::<Wgpu>("openai/base", &cache, &device)?;
     /// # Ok(())
     /// # }
     /// ```
+    ///
+    /// # Errors
+    /// As [`load_named`].
+    #[deprecated(
+        note = "use `pretrained::load_named(\"openai/base\", &cache, device)`; under `whisper-weights` the bundled file is its first source"
+    )]
     pub fn load_pretrained_16khz_fp16_base(
         device: &B::Device
     ) -> BunsenResult<(Self, WhisperApiConfig)> {
-        PytorchWhisperScanner::new().load::<B, _>(bundled::base_pt(), device)
+        let cache = WeightsCache::new(WeightsCacheOptions::default())?;
+        load_named::<B>("openai/base", &cache, device)
     }
 }
