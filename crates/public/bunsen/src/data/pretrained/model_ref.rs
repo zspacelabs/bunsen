@@ -76,7 +76,7 @@ impl ModelRef {
         }
 
         Err(BunsenError::ResourceNotFound(format!(
-            "no model {spec:?}: not a pretrained name and not a file; the names are {}",
+            "no model {spec:?}: not a pretrained name and not a file; there are: {}",
             available_ids(providers).join(", ")
         )))
     }

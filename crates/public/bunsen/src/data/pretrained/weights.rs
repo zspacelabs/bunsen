@@ -26,6 +26,7 @@ use serde::{
     Serialize,
 };
 
+use super::not_found;
 #[cfg(feature = "fetch")]
 use crate::data::cache::BunsenDiskCache;
 use crate::errors::{
@@ -400,6 +401,13 @@ impl PretrainedWeightsDescriptor {
     /// checked against its digest as it lands, an unpinned one against its
     /// `Content-Length` alone. Local sources are not consulted here.
     ///
+    /// This is the URL-keyed path for a descriptor that lives in a prefab's
+    /// weights map and belongs to no provider. A descriptor in a
+    /// [`StaticPretrainedProvider`](super::StaticPretrainedProvider) goes
+    /// through [`WeightsCache::resolve`](super::WeightsCache::resolve)
+    /// instead, which is pinned and provider-keyed and consults every
+    /// source.
+    ///
     /// # Returns
     ///
     /// The disk location of the cached weights.
@@ -463,6 +471,11 @@ pub struct PretrainedWeightsMap {
 }
 
 impl PretrainedWeightsMap {
+    /// Every descriptor name, in name order.
+    pub fn names(&self) -> Vec<&str> {
+        self.items.keys().map(String::as_str).collect()
+    }
+
     /// Looks up a descriptor by name, or by one of its aliases.
     pub fn lookup_by_name(
         &self,
@@ -475,28 +488,27 @@ impl PretrainedWeightsMap {
     }
 
     /// Looks up a descriptor.
+    ///
+    /// # Errors
+    /// [`BunsenError::ResourceNotFound`], naming the descriptors there are.
     pub fn try_lookup_by_name(
         &self,
         name: &str,
     ) -> BunsenResult<PretrainedWeightsDescriptor> {
-        match self.lookup_by_name(name) {
-            Some(d) => Ok(d),
-            None => Err(BunsenError::ResourceNotFound(format!(
-                "Descriptor not found: {}",
-                name
-            ))),
-        }
+        self.lookup_by_name(name)
+            .ok_or_else(|| not_found(None, "pretrained weights", name, &self.names()))
     }
 
     /// Looks up a descriptor.
+    ///
+    /// # Panics
+    /// If there is no such descriptor.
     pub fn expect_lookup_by_name(
         &self,
         name: &str,
     ) -> PretrainedWeightsDescriptor {
-        match self.try_lookup_by_name(name) {
-            Ok(p) => p,
-            Err(e) => panic!("{}", e),
-        }
+        self.try_lookup_by_name(name)
+            .unwrap_or_else(|e| panic!("{e}"))
     }
 }
 
@@ -679,9 +691,10 @@ mod tests {
         assert_eq!(map.lookup_by_name("my_model").unwrap().name, "my_model");
         assert_eq!(map.lookup_by_name("latest").unwrap().name, "my_model");
         assert!(map.lookup_by_name("other").is_none());
+        assert_eq!(map.names(), ["my_model"]);
         assert!(matches!(
             map.try_lookup_by_name("other"),
-            Err(BunsenError::ResourceNotFound(_))
+            Err(BunsenError::ResourceNotFound(m)) if m == "no pretrained weights \"other\"; there are: my_model"
         ));
     }
 }

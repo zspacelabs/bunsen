@@ -19,12 +19,15 @@ The classic `ResNet` family ([arXiv:1512.03385](https://arxiv.org/abs/1512.03385
 configurations and a pretrained-weight loader that pulls from the
 `torchvision` checkpoints.
 
-A representative usage:
+A representative usage (the fetch needs bunsen's `fetch` feature; the URL
+sources go through the disk cache, digest-checked):
 
 ```rust,no_run
 use bunsen::{
-    cache::DiskCacheConfig,
+    burner::module::ModuleInit,
+    data::cache::BunsenDiskCache,
     kits::bimm::resnet::{PREFAB_RESNET_MAP, ResNet},
+    support::testing::default_device,
 };
 use burn::backend::Flex;
 
@@ -34,12 +37,11 @@ let prefab = PREFAB_RESNET_MAP.expect_lookup_prefab("resnet18");
 
 let weights = prefab
     .expect_lookup_pretrained_weights("tv_in1k")
-    .fetch_weights(&DiskCacheConfig::default())
+    .fetch_weights(&BunsenDiskCache::default())
     .expect("Failed to fetch weights");
 
 let model: ResNet<Flex> = prefab
     .to_config()
-    .to_structure()
     .init(&device)
     .load_pytorch_weights(weights)
     .expect("Failed to load weights")

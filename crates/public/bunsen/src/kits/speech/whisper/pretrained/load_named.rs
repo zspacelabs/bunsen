@@ -201,7 +201,7 @@ mod tests {
 
     #[test]
     fn test_check_geometry_accepts_its_own_prefab() {
-        for prefab in WHISPER_PREFABS.items {
+        for prefab in WHISPER_PREFABS.iter() {
             let prefab = prefab.to_prefab();
             check_geometry("x", &prefab, &prefab.to_config()).unwrap();
         }

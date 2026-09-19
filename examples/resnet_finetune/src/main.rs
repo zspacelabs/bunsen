@@ -283,7 +283,7 @@ pub fn train<B: AutodiffBackend>(args: &Args) -> anyhow::Result<()> {
     // TODO: lift to clap parser.
     if args.pretrained == "list" {
         println!("Available pretrained models:");
-        for prefab in PREFAB_RESNET_MAP.items {
+        for prefab in PREFAB_RESNET_MAP.iter() {
             if let Some(weights) = prefab.weights {
                 if weights.items.is_empty() {
                     continue;
