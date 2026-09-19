@@ -105,6 +105,10 @@ pub enum WeightsFormat {
 
     /// A `burn` `burnpack` store.
     Burnpack,
+
+    /// A `tiktoken` rank file: a vocabulary, not weights, but named, pinned,
+    /// sourced and cached the same way.
+    Tiktoken,
 }
 
 impl WeightsFormat {
@@ -127,6 +131,7 @@ impl fmt::Display for WeightsFormat {
             Self::Pytorch { dtype } => write!(f, "pytorch {dtype}"),
             Self::Safetensors { dtype } => write!(f, "safetensors {dtype}"),
             Self::Burnpack => f.write_str("burnpack"),
+            Self::Tiktoken => f.write_str("tiktoken"),
         }
     }
 }
@@ -634,6 +639,7 @@ mod tests {
             "safetensors bf16"
         );
         assert_eq!(WeightsFormat::Burnpack.to_string(), "burnpack");
+        assert_eq!(WeightsFormat::Tiktoken.to_string(), "tiktoken");
         let sources: Vec<String> = MY_MODEL.sources.iter().map(|s| s.to_string()).collect();
         assert_eq!(
             sources,

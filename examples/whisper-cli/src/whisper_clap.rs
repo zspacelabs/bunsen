@@ -12,25 +12,29 @@ use bunsen::{
         },
     },
     errors::BunsenResult,
-    kits::speech::{
-        silero_vad::SileroVad,
-        whisper::{
-            Whisper,
-            WhisperApiConfig,
-            WhisperFallbackConfig,
-            driver::{
-                PresetEmissionPolicy,
-                WhisperStreamDriver,
-                WhisperStreamDriverConfig,
-                WhisperTask,
-            },
-            logit_filters::default_filters,
-            pretrained::{
-                OPENAI_LOCAL_DIR,
-                bundled_vocabulary,
-                load_named,
+    kits::{
+        speech::{
+            silero_vad::SileroVad,
+            whisper::{
+                Whisper,
+                WhisperApiConfig,
+                WhisperFallbackConfig,
+                driver::{
+                    PresetEmissionPolicy,
+                    WhisperStreamDriver,
+                    WhisperStreamDriverConfig,
+                    WhisperTask,
+                },
+                logit_filters::default_filters,
+                pretrained::{
+                    OPENAI_LOCAL_DIR,
+                    PytorchWhisperScanner,
+                    load_named_with,
+                    vocabulary_for,
+                },
             },
         },
+        tokens::TiktokenRanks,
     },
 };
 use burn::prelude::Backend;
@@ -66,6 +70,28 @@ impl WeightsCacheArgs {
     }
 }
 
+/// How a checkpoint is read.
+#[derive(clap::Args, Debug)]
+pub struct ScannerArgs {
+    /// The key the checkpoint keeps its tensors under; `model_state_dict`,
+    /// as `OpenAI`'s do, when omitted. An empty string for a checkpoint whose
+    /// tensors are at the top level.
+    #[arg(long)]
+    state_dict_key: Option<String>,
+}
+
+impl ScannerArgs {
+    /// The scanner these flags describe.
+    pub fn scanner(&self) -> PytorchWhisperScanner {
+        let scanner = PytorchWhisperScanner::new();
+        match self.state_dict_key.as_deref() {
+            None => scanner,
+            Some("") => scanner.with_top_level_key(None),
+            Some(key) => scanner.with_top_level_key(Some(key.to_string())),
+        }
+    }
+}
+
 #[derive(clap::Args, Debug)]
 pub struct WhisperDriverArgs {
     /// The model: `provider/name` or a bare name from `models list`
@@ -76,6 +102,16 @@ pub struct WhisperDriverArgs {
 
     #[clap(flatten)]
     cache: WeightsCacheArgs,
+
+    #[clap(flatten)]
+    scanner: ScannerArgs,
+
+    /// A `.tiktoken` vocabulary by path, in place of the one the
+    /// checkpoint's token layout selects (`multilingual.tiktoken` for a
+    /// multilingual checkpoint, `gpt2.tiktoken` for an English-only one),
+    /// which comes from the bundle, the cache, or one fetch.
+    #[arg(long)]
+    vocab: Option<PathBuf>,
 
     /// Language of the speech, as a Whisper code (`en`, `ja`, ...); detected
     /// from the first window when omitted.
@@ -136,10 +172,10 @@ impl WhisperDriverArgs {
     /// logits out — so nothing here has to re-type it.
     pub fn load_model<B: Backend>(
         &self,
+        cache: &WeightsCache,
         device: &B::Device,
     ) -> BunsenResult<(Whisper<B>, WhisperApiConfig)> {
-        let cache = self.cache.init()?;
-        load_named::<B>(&self.model, &cache, device)
+        load_named_with::<B>(&self.model, cache, device, &self.scanner.scanner())
     }
 
     /// Load and setup the [`WhisperStreamDriver`].
@@ -147,7 +183,8 @@ impl WhisperDriverArgs {
         &self,
         device: &B::Device,
     ) -> BunsenResult<WhisperStreamDriver<B>> {
-        let (model, cfg) = self.load_model(device)?;
+        let cache = self.cache.init()?;
+        let (model, cfg) = self.load_model(&cache, device)?;
         log::info!(
             "model: {} n_mels, vocabulary {}, d_model {}, {} + {} layers",
             cfg.n_mels,
@@ -157,11 +194,15 @@ impl WhisperDriverArgs {
             cfg.n_decoder_layers,
         );
 
-        // The token layout follows from the vocabulary size, and the bundled
-        // vocabulary follows from the layout: nothing here is typed in.
+        // The token layout follows from the vocabulary size, and the
+        // vocabulary follows from the layout, through the same cache as the
+        // weights: nothing here is typed in unless `--vocab` names a file.
         let policy = cfg.token_layout.policy_for_vocab(cfg.vocab_size)?;
         let ids = *policy.ids();
-        let ranks = bundled_vocabulary(&ids)?;
+        let ranks = match &self.vocab {
+            Some(path) => TiktokenRanks::load(path)?,
+            None => vocabulary_for(&ids, &cache)?,
+        };
         let detokenizer = policy.detokenizer(&ranks)?;
         let filters = default_filters::<B>(&ranks, &ids);
 

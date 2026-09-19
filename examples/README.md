@@ -77,9 +77,3 @@ The prefab / pretrained / source index it was worked out against, and the name-t
   `data::pretrained::StaticPreFabMap`, `data::cache::BunsenDiskCache`, the `whisper-weights` and `silero-weights`
   features.
 
-### Example: whisper-dev
-
-Development utility that imports an OpenAI Whisper model from a PyTorch checkpoint and prints the inferred config.
-
-- **Bunsen coverage:** `kits::speech::whisper::pretrained::PytorchWhisperScanner`.
-

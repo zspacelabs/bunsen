@@ -75,7 +75,21 @@ pub fn scan_model(
     model: &ModelRef,
     path: &Path,
 ) -> BunsenResult<WhisperApiConfig> {
-    let (_, cfg) = PytorchWhisperScanner::new().scan_cfg(path)?;
+    scan_model_with(model, path, &PytorchWhisperScanner::new())
+}
+
+/// [`scan_model`] through a configured scanner: for a checkpoint whose
+/// tensors are not under `model_state_dict`, or a front end or token layout
+/// that is not upstream's.
+///
+/// # Errors
+/// As [`scan_model`].
+pub fn scan_model_with(
+    model: &ModelRef,
+    path: &Path,
+    scanner: &PytorchWhisperScanner,
+) -> BunsenResult<WhisperApiConfig> {
+    let (_, cfg) = scanner.scan_cfg(path)?;
     if let Some(prefab) = model.prefab(&WHISPER_PREFABS) {
         check_geometry(&model.id(), &prefab, &cfg)?;
     }
@@ -97,9 +111,22 @@ pub fn load_model<B: Backend>(
     cache: &WeightsCache,
     device: &B::Device,
 ) -> BunsenResult<(Whisper<B>, WhisperApiConfig)> {
+    load_model_with(model, cache, device, &PytorchWhisperScanner::new())
+}
+
+/// [`load_model`] through a configured scanner; see [`scan_model_with`].
+///
+/// # Errors
+/// As [`load_model`].
+pub fn load_model_with<B: Backend>(
+    model: &ModelRef,
+    cache: &WeightsCache,
+    device: &B::Device,
+    scanner: &PytorchWhisperScanner,
+) -> BunsenResult<(Whisper<B>, WhisperApiConfig)> {
     let located = model.locate(WHISPER_KIT, cache)?;
-    scan_model(model, &located.path)?;
-    PytorchWhisperScanner::new().load::<B, _>(&located.path, device)
+    scan_model_with(model, &located.path, scanner)?;
+    scanner.load::<B, _>(&located.path, device)
 }
 
 /// [`resolve_model`] then [`load_model`]: a name or a path to a loaded
@@ -112,8 +139,21 @@ pub fn load_named<B: Backend>(
     cache: &WeightsCache,
     device: &B::Device,
 ) -> BunsenResult<(Whisper<B>, WhisperApiConfig)> {
+    load_named_with(spec, cache, device, &PytorchWhisperScanner::new())
+}
+
+/// [`load_named`] through a configured scanner; see [`scan_model_with`].
+///
+/// # Errors
+/// As [`load_named`].
+pub fn load_named_with<B: Backend>(
+    spec: &str,
+    cache: &WeightsCache,
+    device: &B::Device,
+    scanner: &PytorchWhisperScanner,
+) -> BunsenResult<(Whisper<B>, WhisperApiConfig)> {
     let model = resolve_model(spec)?;
-    load_model(&model, cache, device)
+    load_model_with(&model, cache, device, scanner)
 }
 
 #[cfg(test)]
@@ -183,6 +223,25 @@ mod tests {
         let geometry = cfg.geometry();
         assert_eq!(prefab_for_geometry(&geometry).map(|p| p.name), Some("base"));
         assert_eq!(geometry.n_heads(), 8);
+    }
+
+    /// The scanner is honored: one that declares another head size scans
+    /// the bundled file to another geometry, which a named model rejects
+    /// and a path reports.
+    #[cfg(feature = "whisper-weights")]
+    #[test]
+    fn test_scan_model_with_honors_the_scanner() {
+        use crate::kits::speech::whisper::pretrained::bundled;
+        let scanner = PytorchWhisperScanner::new().with_d_head(32);
+
+        let named = resolve_model("openai/base").unwrap();
+        let err = scan_model_with(&named, bundled::base_pt(), &scanner).unwrap_err();
+        assert!(matches!(err, BunsenError::Invalid(_)), "{err}");
+
+        let path = ModelRef::Path(bundled::base_pt().to_path_buf());
+        let cfg = scan_model_with(&path, bundled::base_pt(), &scanner).unwrap();
+        assert_eq!(cfg.geometry().d_head, 32);
+        assert_eq!(cfg.geometry().n_heads(), 16);
     }
 
     /// `base.pt` scanned as if it were `openai/tiny`: same file, wrong

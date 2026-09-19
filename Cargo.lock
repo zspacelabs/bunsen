@@ -10513,15 +10513,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "whisper-dev"
-version = "0.32.0"
-dependencies = [
- "bunsen",
- "burn",
- "clap",
-]
-
-[[package]]
 name = "whisper-model-validation"
 version = "0.32.0"
 dependencies = [
