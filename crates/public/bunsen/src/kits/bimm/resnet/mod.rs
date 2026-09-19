@@ -5,9 +5,11 @@
 //!
 //! # Examples
 //!
-//! Examples of loading pretrained model:
+//! Examples of loading pretrained model (`fetch_weights` needs the `fetch`
+//! feature):
 //!
 //! ```rust,no_run
+//! # #[cfg(feature = "fetch")] {
 //! use bunsen::{
 //!     burner::module::ModuleInit,
 //!     data::cache::BunsenDiskCache,
@@ -39,6 +41,7 @@
 //!     .with_stochastic_drop_block(0.2)
 //!     // Enable (drop_path_prob) stochastic depth for training:
 //!     .with_stochastic_path_depth(0.1);
+//! # }
 //! ```
 //!
 //! ## Configuration
