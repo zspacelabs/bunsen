@@ -4,6 +4,13 @@ use std::{
 };
 
 use bunsen::{
+    data::{
+        cache::BunsenDiskCacheOptions,
+        pretrained::{
+            WeightsCache,
+            WeightsCacheOptions,
+        },
+    },
     errors::BunsenResult,
     kits::speech::{
         silero_vad::SileroVad,
@@ -18,21 +25,18 @@ use bunsen::{
                 WhisperTask,
             },
             logit_filters::default_filters,
-            pretrained::bundled_vocabulary,
+            pretrained::{
+                OPENAI_LOCAL_DIR,
+                bundled_vocabulary,
+            },
         },
     },
 };
 use burn::prelude::Backend;
 
-use crate::models::{
-    loader::{
-        ModelRef,
-        load_model,
-    },
-    weights_cache::{
-        WeightsCache,
-        WeightsCacheOptions,
-    },
+use crate::models::loader::{
+    ModelRef,
+    load_model,
 };
 
 /// Where fetched weights live, and whether fetching is allowed.
@@ -56,11 +60,13 @@ pub struct WeightsCacheArgs {
 impl WeightsCacheArgs {
     /// Opens the cache.
     pub fn init(&self) -> BunsenResult<WeightsCache> {
-        WeightsCache::new(WeightsCacheOptions {
-            cache_dir: self.cache_dir.clone(),
-            offline: self.offline,
-            upstream_cache_dir: self.upstream_cache_dir.clone(),
-        })
+        let mut options = WeightsCacheOptions::default()
+            .with_disk(BunsenDiskCacheOptions::default().with_cache_dir(self.cache_dir.clone()))
+            .with_offline(self.offline);
+        if let Some(dir) = &self.upstream_cache_dir {
+            options = options.with_local_dir(OPENAI_LOCAL_DIR, dir.clone());
+        }
+        WeightsCache::new(options)
     }
 }
 
@@ -137,8 +143,8 @@ impl WhisperDriverArgs {
         device: &B::Device,
     ) -> BunsenResult<(Whisper<B>, WhisperApiConfig)> {
         let model = ModelRef::resolve(&self.model)?;
-        let mut cache = self.cache.init()?;
-        load_model(&model, &mut cache, device)
+        let cache = self.cache.init()?;
+        load_model(&model, &cache, device)
     }
 
     /// Load and setup the [`WhisperStreamDriver`].

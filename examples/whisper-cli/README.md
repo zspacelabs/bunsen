@@ -85,7 +85,7 @@ Decode options:
 
 ## Models
 
-`src/models/` keeps three things apart, because they vary independently:
+The index keeps three things apart, because they vary independently:
 
 - A **prefab** is a public *configuration*: a geometry with no weights (`n_mels`, vocabulary size, `d_model`, layer
   counts). The table is upstream's `ModelDimensions`, typed in, so a name means a shape before anything is fetched.
@@ -99,7 +99,7 @@ Decode options:
   cache is hashed and, on a match, linked into the cache; a URL is streamed to a `.partial`, hashed as it lands, and
   renamed into place only on a match.
 
-Fetched weights live at `<cache>/whisper/<provider>/<sha256>/<file>`. The digest in the path is the pin, as it is in
+Fetched weights live at `<cache>/weights/whisper/<provider>/<sha256>/<file>`. The digest in the path is the pin, as it is in
 upstream's URLs: a file there was verified when written, so later runs trust it without re-hashing 3 GB, and a
 re-pinned model cannot collide with a stale one.
 
@@ -149,18 +149,13 @@ scanned: WhisperGeometry { n_mels: 128, vocab_size: 51866, d_model: 1280, max_au
 scan as its prefab, it reports the mismatch instead of loading. `transcribe` makes the same check before reading any
 tensors.
 
-### What is exploratory here
+### What is bunsen's, and what is the CLI's
 
-The index is worked out in this crate, against real files, as the shape a `kits::speech::whisper::pretrained` index
-could take. Two things it needed are not in bunsen yet:
-
-- The prefab table is bunsen's now (`kits::speech::whisper::pretrained::WHISPER_PREFABS`, with `WhisperGeometry`
-  beside `WhisperApiConfig`), and `data::pretrained::StaticPretrainedWeightsDescriptor` carries a digest, a format,
-  aliases and local sources. The provider index over it (`openai/tiny.en`) is still this crate's
-  `WhisperPretrained`; it moves next.
-- `data::cache::BunsenDiskCache::load_cached_path` names a file by its first URL and knows nothing of bundled files or
-  another tool's cache, so the resolution order here (bundled, upstream's cache, then URLs) is this crate's. The
-  transfer itself is bunsen's `fetch_verified`: streamed to a `.partial`, hashed as it lands, renamed on a match.
+The index is bunsen's: `kits::speech::whisper::pretrained::{WHISPER_PREFABS, OPENAI, WHISPER_PROVIDERS}` over
+`data::pretrained::{StaticPretrainedWeightsDescriptor, StaticPretrainedProvider, WeightsCache}`, with
+`WhisperGeometry` beside `WhisperApiConfig`. The CLI keeps `src/models/loader.rs`: `ModelRef` (a name, an alias, or
+a path), the geometry check against the prefab a name promised, and the load through bunsen's scanner. That is the
+name-to-model pathway, and it moves into the kit next.
 
 ## Benchmarks
 

@@ -1,15 +1,19 @@
 use bunsen::{
-    data::cache::verify_sha256,
+    data::{
+        cache::verify_sha256,
+        pretrained::WeightsCache,
+    },
     errors::{
         BunsenError,
         BunsenResult,
     },
-    kits::speech::whisper::{
-        WhisperGeometry,
-        pretrained::{
-            WHISPER_PREFABS,
-            prefab_for_geometry,
-        },
+    kits::speech::whisper::pretrained::{
+        OPENAI_LOCAL_DIR,
+        WHISPER_KIT,
+        WHISPER_PREFABS,
+        WHISPER_PROVIDERS,
+        openai_download_root,
+        prefab_for_geometry,
     },
 };
 use clap_common::logging::{
@@ -18,13 +22,9 @@ use clap_common::logging::{
 };
 
 use crate::{
-    models::{
-        loader::{
-            ModelRef,
-            scan_model,
-        },
-        pretrained::PROVIDERS,
-        weights_cache::WeightsCache,
+    models::loader::{
+        ModelRef,
+        scan_model,
     },
     whisper_clap::WeightsCacheArgs,
 };
@@ -76,29 +76,37 @@ enum ModelsAction {
 impl ModelsCmd {
     pub fn run(&self) -> BunsenResult<()> {
         self.logging.init(Some(LogLevelNum::Info))?;
-        let mut cache = self.cache.init()?;
+        let cache = self.cache.init()?;
 
         match &self.action {
             ModelsAction::List => list(&cache),
             ModelsAction::Prefabs => prefabs(),
-            ModelsAction::Fetch { verify, names } => fetch(&mut cache, names, *verify),
-            ModelsAction::Inspect { name } => inspect(&mut cache, name),
+            ModelsAction::Fetch { verify, names } => fetch(&cache, names, *verify),
+            ModelsAction::Inspect { name } => inspect(&cache, name),
         }
     }
 }
 
 fn list(cache: &WeightsCache) -> BunsenResult<()> {
     println!("cache: {}", cache.cache_dir().display());
-    match cache.upstream_cache_dir() {
+    let upstream = cache
+        .local_dirs()
+        .get(OPENAI_LOCAL_DIR)
+        .cloned()
+        .or_else(openai_download_root);
+    match upstream {
         Some(dir) => println!("upstream cache: {}", dir.display()),
         None => println!("upstream cache: (no home directory)"),
     }
 
-    for provider in PROVIDERS {
+    for provider in WHISPER_PROVIDERS {
         println!();
         println!(
             "{}: {} ({}; {})",
-            provider.name, provider.description, provider.license, provider.origin
+            provider.name,
+            provider.description,
+            provider.license.unwrap_or("license unknown"),
+            provider.origin.unwrap_or("origin unknown"),
         );
         println!(
             "  NAME                   PREFAB           FORMAT         STATUS          DESCRIPTION"
@@ -114,7 +122,9 @@ fn list(cache: &WeightsCache) -> BunsenResult<()> {
                 provider.id(pretrained),
                 pretrained.prefab,
                 pretrained.format.to_string(),
-                cache.status(provider.name, pretrained).to_string(),
+                cache
+                    .status(WHISPER_KIT, provider.name, &pretrained.to_descriptor())
+                    .to_string(),
                 pretrained.description,
             );
         }
@@ -128,7 +138,7 @@ fn prefabs() -> BunsenResult<()> {
         "  NAME             MELS  VOCAB D_MODEL HEADS  ENC  DEC AUDIO_CTX TEXT_CTX  DESCRIPTION"
     );
     for prefab in WHISPER_PREFABS.items {
-        let g = WhisperGeometry::from(&prefab.to_config());
+        let g = prefab.to_config().geometry();
         println!(
             "  {:<16} {:>4} {:>6} {:>7} {:>5} {:>4} {:>4} {:>9} {:>8}  {}",
             prefab.name,
@@ -147,7 +157,7 @@ fn prefabs() -> BunsenResult<()> {
 }
 
 fn fetch(
-    cache: &mut WeightsCache,
+    cache: &WeightsCache,
     names: &[String],
     verify: bool,
 ) -> BunsenResult<()> {
@@ -163,10 +173,13 @@ fn fetch(
 
         if verify {
             match &model {
-                ModelRef::Pretrained { pretrained, .. } => {
-                    verify_sha256(&located.path, pretrained.sha256)?;
-                    println!("  sha256 {} ok", pretrained.sha256);
-                }
+                ModelRef::Pretrained { pretrained, .. } => match pretrained.sha256 {
+                    Some(sha256) => {
+                        verify_sha256(&located.path, sha256)?;
+                        println!("  sha256 {sha256} ok");
+                    }
+                    None => println!("  (unpinned; no digest to verify against)"),
+                },
                 ModelRef::Path(_) => {
                     println!("  (a path has no digest to verify against)");
                 }
@@ -177,7 +190,7 @@ fn fetch(
 }
 
 fn inspect(
-    cache: &mut WeightsCache,
+    cache: &WeightsCache,
     name: &str,
 ) -> BunsenResult<()> {
     let model = ModelRef::resolve(name)?;
@@ -190,8 +203,11 @@ fn inspect(
     {
         println!("  provider: {} ({})", provider.name, provider.description);
         println!("  format: {}", pretrained.format);
-        println!("  sha256: {}", pretrained.sha256);
-        println!("  status: {}", cache.status(provider.name, pretrained));
+        println!("  sha256: {}", pretrained.sha256.unwrap_or("unpinned"));
+        println!(
+            "  status: {}",
+            cache.status(WHISPER_KIT, provider.name, &pretrained.to_descriptor())
+        );
         println!("  sources:");
         for source in pretrained.sources {
             println!("    {source}");
@@ -201,7 +217,7 @@ fn inspect(
     let promised = model.prefab();
     if let Some(prefab) = &promised {
         println!("prefab: {} ({})", prefab.name, prefab.description);
-        println!("  {:?}", WhisperGeometry::from(&prefab.to_config()));
+        println!("  {:?}", prefab.to_config().geometry());
     }
 
     let located = model.locate(cache)?;
@@ -221,7 +237,7 @@ fn inspect(
         }
         Err(e) => return Err(e),
     };
-    let geometry = WhisperGeometry::from(&cfg);
+    let geometry = cfg.geometry();
     println!("scanned: {geometry:?}");
     println!("  heads: {}", geometry.n_heads());
     println!("  front end: {:?}", cfg.front_end);

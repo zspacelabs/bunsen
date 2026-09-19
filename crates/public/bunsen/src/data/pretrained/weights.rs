@@ -236,6 +236,9 @@ pub struct StaticPretrainedWeightsDescriptor<'a> {
     /// Where the weights are published.
     pub origin: Option<&'a str>,
 
+    /// The prefab these weights instantiate, by name in the kit's prefab map.
+    pub prefab: &'a str,
+
     /// Other names the same bytes answer to.
     pub aliases: &'a [&'a str],
 
@@ -254,6 +257,14 @@ pub struct StaticPretrainedWeightsDescriptor<'a> {
 }
 
 impl StaticPretrainedWeightsDescriptor<'_> {
+    /// Does `name` name these weights, by their name or an alias?
+    pub fn matches(
+        &self,
+        name: &str,
+    ) -> bool {
+        self.name == name || self.aliases.contains(&name)
+    }
+
     /// Converts to a [`PretrainedWeightsDescriptor`].
     pub fn to_descriptor(&self) -> PretrainedWeightsDescriptor {
         PretrainedWeightsDescriptor {
@@ -261,6 +272,7 @@ impl StaticPretrainedWeightsDescriptor<'_> {
             description: self.description.to_string(),
             license: self.license.map(|s| s.to_string()),
             origin: self.origin.map(|s| s.to_string()),
+            prefab: self.prefab.to_string(),
             aliases: self.aliases.iter().map(|s| s.to_string()).collect(),
             file: self.file.to_string(),
             sha256: self.sha256.map(|s| s.to_string()),
@@ -294,6 +306,9 @@ pub struct PretrainedWeightsDescriptor {
 
     /// Where the weights are published.
     pub origin: Option<String>,
+
+    /// The prefab these weights instantiate, by name in the kit's prefab map.
+    pub prefab: String,
 
     /// Other names the same bytes answer to.
     pub aliases: Vec<String>,
@@ -502,6 +517,7 @@ mod tests {
             description: "some description of my model.",
             license: Some("MIT"),
             origin: Some("https://github.com/my_org/my_model"),
+            prefab: "my_prefab",
             aliases: &["my-model", "latest"],
             file: "my_model.pt",
             sha256: Some(ABC_SHA256),
@@ -523,6 +539,7 @@ mod tests {
         assert_eq!(d.name, "my_model");
         assert_eq!(d.description, MY_MODEL.description);
         assert_eq!(d.license.as_deref(), Some("MIT"));
+        assert_eq!(d.prefab, "my_prefab");
         assert_eq!(
             d.aliases,
             vec!["my-model".to_string(), "latest".to_string()]

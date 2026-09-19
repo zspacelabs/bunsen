@@ -4,6 +4,10 @@
 //! `large`, or a path &mdash; and [`load_model`] takes it the rest of the
 //! way: into the cache, through bunsen's scanner, and past a check that the
 //! checkpoint has the geometry its prefab promised.
+//!
+//! The index it resolves against is bunsen's:
+//! [`WHISPER_PROVIDERS`] over [`WHISPER_PREFABS`], through a
+//! [`WeightsCache`].
 
 use std::path::{
     Path,
@@ -11,7 +15,16 @@ use std::path::{
 };
 
 use bunsen::{
-    data::pretrained::PreFabConfig,
+    data::pretrained::{
+        PreFabConfig,
+        Provenance,
+        ResolvedWeights,
+        StaticPretrainedProvider,
+        StaticPretrainedWeightsDescriptor,
+        WeightsCache,
+        available_ids,
+        lookup_pretrained,
+    },
     errors::{
         BunsenError,
         BunsenResult,
@@ -19,25 +32,15 @@ use bunsen::{
     kits::speech::whisper::{
         Whisper,
         WhisperApiConfig,
-        WhisperGeometry,
-        pretrained::PytorchWhisperScanner,
+        pretrained::{
+            PytorchWhisperScanner,
+            WHISPER_KIT,
+            WHISPER_PREFABS,
+            WHISPER_PROVIDERS,
+        },
     },
 };
 use burn::prelude::Backend;
-
-use crate::models::{
-    pretrained::{
-        WeightsProvider,
-        WhisperPretrained,
-        available_ids,
-        lookup_pretrained,
-    },
-    weights_cache::{
-        Provenance,
-        ResolvedWeights,
-        WeightsCache,
-    },
-};
 
 /// What a model name resolved to.
 #[derive(Debug, Clone)]
@@ -45,9 +48,9 @@ pub enum ModelRef {
     /// An entry in the pretrained index.
     Pretrained {
         /// Its provider.
-        provider: &'static WeightsProvider,
+        provider: &'static StaticPretrainedProvider<'static>,
         /// The entry.
-        pretrained: &'static WhisperPretrained,
+        pretrained: &'static StaticPretrainedWeightsDescriptor<'static>,
     },
 
     /// A checkpoint on disk, as upstream's `load_model` also accepts. No
@@ -70,7 +73,7 @@ impl ModelRef {
             Some((provider, name)) => (Some(provider), name),
             None => (None, spec),
         };
-        if let Some((provider, pretrained)) = lookup_pretrained(provider, name) {
+        if let Some((provider, pretrained)) = lookup_pretrained(WHISPER_PROVIDERS, provider, name) {
             return Ok(Self::Pretrained {
                 provider,
                 pretrained,
@@ -84,7 +87,7 @@ impl ModelRef {
 
         Err(BunsenError::ResourceNotFound(format!(
             "no model {spec:?}: not a pretrained name and not a file; the names are {}",
-            available_ids().join(", ")
+            available_ids(WHISPER_PROVIDERS).join(", ")
         )))
     }
 
@@ -100,9 +103,15 @@ impl ModelRef {
     }
 
     /// The prefab the name promised, if it was a name.
+    ///
+    /// # Panics
+    /// If the table names a prefab that does not exist; bunsen's tests pin
+    /// that every entry's does.
     pub fn prefab(&self) -> Option<PreFabConfig<WhisperApiConfig>> {
         match self {
-            Self::Pretrained { pretrained, .. } => Some(pretrained.prefab()),
+            Self::Pretrained { pretrained, .. } => {
+                Some(WHISPER_PREFABS.expect_lookup_prefab(pretrained.prefab))
+            }
             Self::Path(_) => None,
         }
     }
@@ -113,13 +122,13 @@ impl ModelRef {
     /// As [`WeightsCache::resolve`]. A path is local already.
     pub fn locate(
         &self,
-        cache: &mut WeightsCache,
+        cache: &WeightsCache,
     ) -> BunsenResult<ResolvedWeights> {
         match self {
             Self::Pretrained {
                 provider,
                 pretrained,
-            } => cache.resolve(provider.name, pretrained),
+            } => cache.resolve(WHISPER_KIT, provider.name, &pretrained.to_descriptor()),
             Self::Path(path) => Ok(ResolvedWeights {
                 path: path.clone(),
                 provenance: Provenance::Given,
@@ -138,8 +147,8 @@ pub fn check_geometry(
     prefab: &PreFabConfig<WhisperApiConfig>,
     scanned: &WhisperApiConfig,
 ) -> BunsenResult<()> {
-    let expected = WhisperGeometry::from(&prefab.to_config());
-    let found = WhisperGeometry::from(scanned);
+    let expected = prefab.to_config().geometry();
+    let found = scanned.geometry();
     if expected == found {
         Ok(())
     } else {
@@ -177,7 +186,7 @@ pub fn scan_model(
 /// [`PytorchWhisperScanner::load`].
 pub fn load_model<B: Backend>(
     model: &ModelRef,
-    cache: &mut WeightsCache,
+    cache: &WeightsCache,
     device: &B::Device,
 ) -> BunsenResult<(Whisper<B>, WhisperApiConfig)> {
     let located = model.locate(cache)?;
@@ -194,7 +203,6 @@ pub fn load_model<B: Backend>(
 #[cfg(test)]
 mod tests {
     use bunsen::kits::speech::whisper::pretrained::{
-        WHISPER_PREFABS,
         bundled,
         prefab_for_geometry,
     };
@@ -244,7 +252,7 @@ mod tests {
         let model = ModelRef::resolve("openai/base").unwrap();
         let cfg = scan_model(&model, bundled::base_pt()).unwrap();
 
-        let geometry = WhisperGeometry::from(&cfg);
+        let geometry = cfg.geometry();
         assert_eq!(prefab_for_geometry(&geometry).map(|p| p.name), Some("base"));
         assert_eq!(geometry.n_heads(), 8);
     }
