@@ -7,10 +7,6 @@
 //! vocabularies are small enough to commit, and are fetched anyway so that
 //! every Whisper asset arrives the same way.
 //!
-//! That size is also why the weights are a **path** rather than bytes:
-//! `include_bytes!` of 145 MB would dominate compile time and binary size, so
-//! the checkpoint stays a file and [`base_pt`] names it.
-//!
 //! ## Crate Features
 #![doc = document_features::document_features!()]
 
