@@ -174,7 +174,26 @@ pub(crate) mod testing {
         name: &str,
         body: &'static [u8],
     ) -> String {
-        serve_once_declaring(name, body, body.len())
+        serve(name, body, body.len(), 0, 1)
+    }
+
+    /// [`serve_once`] for `n` connections, each given the same `body`.
+    pub(crate) fn serve_n(
+        name: &str,
+        body: &'static [u8],
+        n: usize,
+    ) -> String {
+        serve(name, body, body.len(), 0, n)
+    }
+
+    /// Drops the first `failures` connections without a byte, then serves
+    /// one: a mirror that comes good on a retry.
+    pub(crate) fn serve_flaky(
+        name: &str,
+        body: &'static [u8],
+        failures: usize,
+    ) -> String {
+        serve(name, body, body.len(), failures, 1)
     }
 
     /// A URL for `name` on a loopback port nothing listens on.
@@ -192,30 +211,48 @@ pub(crate) mod testing {
         body: &'static [u8],
         declared: usize,
     ) -> String {
+        serve(name, body, declared, 0, 1)
+    }
+
+    /// The server behind the helpers above: drops `failures` connections,
+    /// then answers `n` with a `200` declaring `declared` bytes and sending
+    /// `body`.
+    fn serve(
+        name: &str,
+        body: &'static [u8],
+        declared: usize,
+        failures: usize,
+        n: usize,
+    ) -> String {
         let listener = TcpListener::bind("127.0.0.1:0").unwrap();
         let url = format!("http://{}/{name}", listener.local_addr().unwrap());
         thread::spawn(move || {
-            let (mut stream, _) = listener.accept().unwrap();
-            // Read the request head; a GET carries no body.
-            let mut head = Vec::new();
-            let mut buf = [0u8; 4096];
-            loop {
-                let n = stream.read(&mut buf).unwrap();
-                if n == 0 {
-                    break;
-                }
-                head.extend_from_slice(&buf[..n]);
-                if head.windows(4).any(|w| w == b"\r\n\r\n") {
-                    break;
-                }
+            for _ in 0..failures {
+                let (stream, _) = listener.accept().unwrap();
+                drop(stream);
             }
-            let response = format!(
-                "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
-                declared
-            );
-            stream.write_all(response.as_bytes()).unwrap();
-            stream.write_all(body).unwrap();
-            stream.flush().unwrap();
+            for _ in 0..n {
+                let (mut stream, _) = listener.accept().unwrap();
+                // Read the request head; a GET carries no body.
+                let mut head = Vec::new();
+                let mut buf = [0u8; 4096];
+                loop {
+                    let read = stream.read(&mut buf).unwrap();
+                    if read == 0 {
+                        break;
+                    }
+                    head.extend_from_slice(&buf[..read]);
+                    if head.windows(4).any(|w| w == b"\r\n\r\n") {
+                        break;
+                    }
+                }
+                let response = format!(
+                    "HTTP/1.1 200 OK\r\nContent-Length: {declared}\r\nConnection: close\r\n\r\n"
+                );
+                stream.write_all(response.as_bytes()).unwrap();
+                stream.write_all(body).unwrap();
+                stream.flush().unwrap();
+            }
         });
         url
     }

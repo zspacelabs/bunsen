@@ -207,13 +207,52 @@ impl BunsenDiskCache {
         fetch_file(url, dest, sha256, &self.transfer_observers)
     }
 
+    /// Brings `dest` in from `urls`, tried in order, checked against
+    /// `sha256` when one is given; the first URL whose file checks out wins.
+    /// Every attempt reports to the observer stack.
+    ///
+    /// # Errors
+    /// With one URL its error comes back as is; with several,
+    /// [`BunsenError::External`] naming every failure.
+    /// [`BunsenError::Invalid`] with no URL at all.
+    pub fn fetch_from_urls(
+        &self,
+        urls: &[&str],
+        dest: &Path,
+        sha256: Option<&str>,
+    ) -> BunsenResult<()> {
+        if urls.is_empty() {
+            return Err(BunsenError::Invalid(format!(
+                "{}: no URL to fetch from",
+                dest.display()
+            )));
+        }
+        let mut failures = Vec::with_capacity(urls.len());
+        for url in urls {
+            match fetch_file(url, dest, sha256, &self.transfer_observers) {
+                Ok(()) => return Ok(()),
+                Err(e) => failures.push((*url, e)),
+            }
+        }
+        if failures.len() == 1 {
+            return Err(failures.pop().expect("one failure").1);
+        }
+        let failures: Vec<String> = failures
+            .iter()
+            .map(|(url, e)| format!("{url}: {e}"))
+            .collect();
+        Err(BunsenError::External(format!(
+            "{}: no URL could be fetched: {}",
+            dest.display(),
+            failures.join("; ")
+        )))
+    }
+
     /// Finds `context/<file>` under `root`, fetching it from `urls` when it
     /// is not there. The file is named by the last path segment of the first
     /// URL.
     ///
-    /// URLs are tried in order; the first whose file checks out wins. With
-    /// one URL its error comes back as is; with several, an
-    /// [`BunsenError::External`] naming every failure.
+    /// The fetch is [`fetch_from_urls`](Self::fetch_from_urls).
     fn _load_resource<P, C, S>(
         &self,
         root: &P,
@@ -248,25 +287,8 @@ impl BunsenDiskCache {
             )));
         }
 
-        let mut failures = Vec::with_capacity(urls.len());
-        for url in &urls {
-            match fetch_file(url, &path, sha256, &self.transfer_observers) {
-                Ok(()) => return Ok(path),
-                Err(e) => failures.push((*url, e)),
-            }
-        }
-        if failures.len() == 1 {
-            return Err(failures.pop().expect("one failure").1);
-        }
-        let failures: Vec<String> = failures
-            .iter()
-            .map(|(url, e)| format!("{url}: {e}"))
-            .collect();
-        Err(BunsenError::External(format!(
-            "{}: no URL could be fetched: {}",
-            path.display(),
-            failures.join("; ")
-        )))
+        self.fetch_from_urls(&urls, &path, sha256)?;
+        Ok(path)
     }
 
     /// Returns the cache path for the given key.

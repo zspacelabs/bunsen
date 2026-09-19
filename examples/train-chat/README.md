@@ -19,15 +19,16 @@ separately-tuned AdamW groups, with a linear learning-rate warmup.
 - `bunsen::public::hashbrown` — re-exported `HashSet` / `HashMap`.
 - `bunsen-arrow-dataloaders` — the `ChatDataLoader` plus dense token-block batching options (`DenseTokenBlocksOptions`,
   `TokenBatchIteratorOptions`).
-- `zsl-data-cache` — the nanochat shard download/disk cache (see the
-  [`zsl-data-cache`](../../crates/dev/zsl-data-cache) example).
+- `bunsen::data::shards` with `kits::gpts::nanochat::datasets::NANOCHAT_SHARD_SETS` — the fineweb-edu shard set,
+  fetched into the cache's data directory or a `--dataset-dir` of existing shards, under a `--parallel`/`--retries`/
+  `--keep-going` policy with a summary report.
 
 It demonstrates bunsen's reflection-driven optimizer-group machinery, the most advanced training-configuration feature
 in the example set.
 
 ## Running the Example
 
-First fetch some dataset shards (see the `zsl-data-cache` example), then train:
+Train; the shards named by `--shards` are fetched first if they are not there (each is ~90 MB):
 
 ```bash
 $ cargo run --release -p train-chat -- \

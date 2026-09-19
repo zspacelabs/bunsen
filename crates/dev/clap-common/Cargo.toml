@@ -12,7 +12,7 @@ publish = false
 burn = { workspace = true, features = ["std"] }
 bunsen = { path = "../../public/bunsen", features = ["std", "testing"] }
 
-clap = { workspace = true }
+clap = { workspace = true, features = ["derive"] }
 stderrlog = { workspace = true }
 log = { workspace = true }
 

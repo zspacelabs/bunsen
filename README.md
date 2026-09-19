@@ -238,7 +238,6 @@ See [`examples`](examples) for the full index. At a glance:
 * [`whisper-dev`](crates/dev/whisper-dev) — import an OpenAI Whisper model from a PyTorch checkpoint.
 * [`whisper-cli`](examples/whisper-cli) — transcribe audio with the bundled Whisper `base` checkpoint through the stream
   driver.
-* [`zsl-data-cache`](crates/dev/zsl-data-cache) — nanochat dataset shard download/disk cache (+ `pull_shards` CLI).
 
 # Motivation
 
@@ -263,9 +262,6 @@ The base libraries have significant features which haven't been polished and sta
 
 * weight/data download disk cache - there are several implementations of this in my codebase so far, the most robust is
   probably in the `wordchipper` code.
-* shard fetching - being able to bind a family of shards to URL template + range pattern; with information on the target
-  format; and wire that smoothly into the download and cache layer. this is also currently in some of the LLM/chat
-  codebases.
 * LLM `DataLoader` - a high-performance burn data loader for LLM models, built on parquet/arrow; and
   `wordchipper`. This is currently in the `zsl-chat` codebase.
 * `clap` tooling - I've built a lot of burn-related clap tools, and I'm pretty sure some of the arguments/setup

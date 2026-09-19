@@ -15,10 +15,12 @@ use bunsen::{
             OptimizerGroup,
         },
     },
+    data::cache::BunsenDiskCache,
     kits::gpts::nanochat::{
         NanoChatGpt,
         NanoChatGptConfig,
         NanoChatGptMeta,
+        datasets::NANOCHAT_SHARD_SETS,
     },
     public::hashbrown::HashSet,
 };
@@ -45,8 +47,6 @@ use burn::{
     prelude::Backend,
     record::CompactRecorder,
     tensor::{
-        AsIndex,
-        Slice,
         Tensor,
         backend::AutodiffBackend,
         s,
@@ -65,6 +65,7 @@ use burn::{
     },
 };
 use clap::Parser;
+use clap_common::shards::ShardArgs;
 use num_traits::Pow;
 use rand::{
     SeedableRng,
@@ -76,7 +77,6 @@ use wordchipper::{
     disk_cache::WordchipperDiskCache,
 };
 use wordchipper_cli_util::logging::LogArgs;
-use zsl_data_cache::dataset::DatasetCacheConfig;
 
 #[derive(Debug, Clone, clap::Args)]
 pub struct TokenBatchOptionsArgs {
@@ -125,13 +125,9 @@ pub struct Args {
     #[arg(long, default_value = "<|bos|>")]
     pub bos_token: String,
 
-    /// Shards to load.
-    #[arg(short, long, value_delimiter = ',', default_value = "0")]
-    pub shards: Vec<Slice>,
-
-    /// Path to the dataset directory.
-    #[arg(long)]
-    pub dataset_dir: String,
+    /// The shards to train on, and how to fetch them.
+    #[clap(flatten)]
+    pub shards: ShardArgs,
 
     #[arg(long, default_value_t = 0.008)]
     pub unembedding_lr: f64,
@@ -216,28 +212,13 @@ fn run<B: AutodiffBackend>(args: &Args) -> anyhow::Result<()> {
 
     let device: B::Device = Default::default();
 
-    let data_cache_config = DatasetCacheConfig::new().with_cache_dir(args.dataset_dir.clone());
-    log::info!("DATASET CACHE: {:#?}", data_cache_config);
-    let mut data_cache = data_cache_config.clone().init()?;
+    let shard_cache = BunsenDiskCache::default();
+    let shard_paths = args.shards.fetch_paths(
+        &shard_cache,
+        NANOCHAT_SHARD_SETS.expect_lookup("fineweb-edu-100b-shuffle"),
+    )?;
 
     let mut disk_cache = WordchipperDiskCache::default();
-
-    let shards: Vec<usize> = {
-        let max_shard = data_cache_config.source.max_shard;
-        let mut collected: HashSet<usize> = HashSet::new();
-        for slice in &args.shards {
-            for idx in slice.into_iter() {
-                let shard = idx.expect_elem_index(max_shard);
-                collected.insert(shard);
-            }
-        }
-        let mut shards: Vec<usize> = collected.into_iter().collect();
-        shards.sort();
-        shards
-    };
-
-    log::info!("Loading Shards: {shards:?}");
-    let shard_paths = data_cache.load_shards(&shards)?;
 
     let validation_ratio = 0.10;
     let num_validation_shards: usize = max(

@@ -65,7 +65,7 @@ embeddings/head/scalars) selected via module-tree reflection.
 - **Bunsen coverage:** `kits::gpts::nanochat`,
   `burner::module::reflection::XmlModuleTree`, `burner::optim`
   (`GroupOptimizerAdaptor2`, `OptimizerGroup`),
-  `bunsen-arrow-dataloaders`, `zsl-data-cache`.
+  `bunsen-arrow-dataloaders`, `data::shards` with `kits::gpts::nanochat::datasets`.
 
 ### Example: whisper-cli
 
@@ -83,11 +83,3 @@ Development utility that imports an OpenAI Whisper model from a PyTorch checkpoi
 
 - **Bunsen coverage:** `kits::speech::whisper::pretrained::PytorchWhisperScanner`.
 
-### Example: zsl-data-cache
-
-Reusable on-disk shard download/cache for the nanochat (fineweb) dataset, consumed by `train-chat`; includes a
-`pull_shards` CLI.
-
-- **Bunsen coverage:** support library for bunsen training examples (`DatasetCacheConfig`, `DatasetSource`), built on
-  Burn `Config` and
-  `parquet`/`arrow`.

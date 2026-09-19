@@ -4,3 +4,5 @@
 pub mod cache;
 
 pub mod pretrained;
+
+pub mod shards;
