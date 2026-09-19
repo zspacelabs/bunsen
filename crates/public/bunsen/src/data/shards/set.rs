@@ -235,7 +235,7 @@ mod tests {
             },
         },
         shards::{
-            ShardDigests,
+            StaticShardDigests,
             StaticShardSetDescriptor,
         },
     };
@@ -250,10 +250,11 @@ mod tests {
         .unwrap()
     }
 
-    /// A set whose three shards all resolve to the same `serve_n` body.
+    /// A set whose shards all resolve to the same `serve_n` body.
     fn served(
         base_urls: &'static [&'static str],
         count: usize,
+        digests: StaticShardDigests<'static>,
     ) -> ShardSetDescriptor {
         StaticShardSetDescriptor {
             name: "served",
@@ -265,7 +266,7 @@ mod tests {
             index_width: 2,
             count,
             format: "bin",
-            digests: ShardDigests::Unpinned,
+            digests,
         }
         .to_descriptor()
     }
@@ -274,7 +275,7 @@ mod tests {
     fn test_roots_and_paths() {
         let dir = tempfile::tempdir().unwrap();
         let cache = cache_in(dir.path());
-        let desc = served(&["https://a.example"], 3);
+        let desc = served(&["https://a.example"], 3, StaticShardDigests::Unpinned);
 
         let set = ShardSet::in_cache(&cache, desc.clone());
         assert_eq!(
@@ -308,7 +309,11 @@ mod tests {
     fn test_cached_ids_reads_the_root() {
         let dir = tempfile::tempdir().unwrap();
         let cache = cache_in(dir.path());
-        let set = ShardSet::at_dir(&cache, served(&["https://a.example"], 10), dir.path());
+        let set = ShardSet::at_dir(
+            &cache,
+            served(&["https://a.example"], 10, StaticShardDigests::Unpinned),
+            dir.path(),
+        );
 
         for name in [
             "shard_07.bin",
@@ -345,7 +350,7 @@ mod tests {
             ]
             .into_boxed_slice(),
         );
-        let set = ShardSet::in_cache(&cache, served(bases, 3));
+        let set = ShardSet::in_cache(&cache, served(bases, 3, StaticShardDigests::Unpinned));
 
         let path = set.fetch(ShardId(1)).unwrap();
         assert_eq!(path, set.path(ShardId(1)));
@@ -375,6 +380,45 @@ mod tests {
             ids.iter().map(|&id| set.path(id)).collect::<Vec<_>>()
         );
         assert_eq!(set.cached_ids().unwrap(), ids);
-        let _ = ABC_SHA256;
+    }
+
+    /// A pinned set checks every shard as it lands: the one whose bytes match
+    /// its digest is kept, the one whose do not is refused and leaves nothing,
+    /// and the batch reports the same.
+    #[test]
+    fn test_pinned_set_verifies_each_shard() {
+        static PINNED: [&str; 2] = [
+            ABC_SHA256,
+            "0000000000000000000000000000000000000000000000000000000000000000",
+        ];
+        let dir = tempfile::tempdir().unwrap();
+        let cache = cache_in(dir.path());
+        let live = serve_n("", b"abc", 3);
+        let bases: &'static [&'static str] =
+            Box::leak(vec![Box::leak(live.into_boxed_str()) as &str].into_boxed_slice());
+        let set = ShardSet::in_cache(&cache, served(bases, 2, StaticShardDigests::Table(&PINNED)));
+        assert!(set.descriptor().is_pinned());
+
+        let good = set.fetch(ShardId(0)).unwrap();
+        assert_eq!(fs::read(&good).unwrap(), b"abc");
+
+        let bad = set.fetch(ShardId(1));
+        assert!(matches!(bad, Err(BunsenError::Invalid(_))), "{bad:?}");
+        assert!(!set.path(ShardId(1)).exists());
+
+        let jobs = set.jobs(&[ShardId(0), ShardId(1)]).unwrap();
+        assert_eq!(jobs[0].sha256.as_deref(), Some(ABC_SHA256));
+        assert_eq!(jobs[1].sha256.as_deref(), Some(PINNED[1]));
+        let policy = FetchPolicy::default().with_on_failure(OnFailure::Continue);
+        let report = set.fetch_many(&[ShardId(0), ShardId(1)], &policy).unwrap();
+        assert!(
+            matches!(report.outcomes[0], FetchOutcome::Cached(_)),
+            "{report}"
+        );
+        assert!(
+            matches!(report.outcomes[1], FetchOutcome::Failed { .. }),
+            "{report}"
+        );
+        assert_eq!(set.cached_ids().unwrap(), vec![ShardId(0)]);
     }
 }

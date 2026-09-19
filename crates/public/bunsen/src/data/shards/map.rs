@@ -151,7 +151,7 @@ fn not_found(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::data::shards::ShardDigests;
+    use crate::data::shards::StaticShardDigests;
 
     static TINY: StaticShardSetDescriptor<'static> = StaticShardSetDescriptor {
         name: "tiny",
@@ -163,7 +163,7 @@ mod tests {
         index_width: 3,
         count: 12,
         format: "bin",
-        digests: ShardDigests::Unpinned,
+        digests: StaticShardDigests::Unpinned,
     };
 
     static SMALL: StaticShardSetDescriptor<'static> = StaticShardSetDescriptor {
@@ -176,7 +176,7 @@ mod tests {
         index_width: 2,
         count: 3,
         format: "bin",
-        digests: ShardDigests::Unpinned,
+        digests: StaticShardDigests::Unpinned,
     };
 
     static SETS: StaticShardSetMap = StaticShardSetMap {

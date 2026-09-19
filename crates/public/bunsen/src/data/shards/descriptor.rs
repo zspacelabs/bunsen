@@ -41,17 +41,44 @@ impl fmt::Display for ShardId {
     }
 }
 
+/// How a set's shards are pinned, as a compiled-in table spells it.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum StaticShardDigests<'a> {
+    /// No digests: a shard is trusted on its length.
+    #[default]
+    Unpinned,
+
+    /// One lowercase hex SHA-256 per shard, index-ordered.
+    Table(&'a [&'a str]),
+}
+
+impl StaticShardDigests<'_> {
+    /// The owned twin.
+    pub fn to_digests(&self) -> ShardDigests {
+        match self {
+            Self::Unpinned => ShardDigests::Unpinned,
+            Self::Table(table) => {
+                ShardDigests::Table(table.iter().map(|s| s.to_string()).collect())
+            }
+        }
+    }
+}
+
 /// How a set's shards are pinned.
 ///
-/// Only [`Unpinned`](Self::Unpinned) exists today: a fetched shard is checked
-/// against its `Content-Length` alone. A fetched manifest of digests is the
-/// planned addition, which is why this is an enum.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+/// [`Unpinned`](Self::Unpinned): a fetched shard is checked against its
+/// `Content-Length` alone. [`Table`](Self::Table): one SHA-256 per shard,
+/// which the fetch verifies as the bytes land. A listing fetched from the
+/// source is the planned addition, which is why this is `#[non_exhaustive]`.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[non_exhaustive]
 pub enum ShardDigests {
     /// No digests: a shard is trusted on its length.
     #[default]
     Unpinned,
+
+    /// One lowercase hex SHA-256 per shard, index-ordered.
+    Table(Vec<String>),
 }
 
 /// A shard set, as a compiled-in table spells it.
@@ -88,7 +115,7 @@ pub struct StaticShardSetDescriptor<'a> {
     pub format: &'a str,
 
     /// How the shards are pinned.
-    pub digests: ShardDigests,
+    pub digests: StaticShardDigests<'a>,
 }
 
 impl StaticShardSetDescriptor<'_> {
@@ -104,7 +131,7 @@ impl StaticShardSetDescriptor<'_> {
             index_width: self.index_width,
             count: self.count,
             format: self.format.to_string(),
-            digests: self.digests,
+            digests: self.digests.to_digests(),
         }
     }
 }
@@ -172,7 +199,31 @@ impl ShardSetDescriptor {
         if self.count == 0 {
             return Err(BunsenError::Invalid(format!("{}: no shards", self.name)));
         }
+        if let ShardDigests::Table(table) = &self.digests {
+            if table.len() != self.count {
+                return Err(BunsenError::Invalid(format!(
+                    "{}: {} digests for {} shards",
+                    self.name,
+                    table.len(),
+                    self.count
+                )));
+            }
+            let is_hex = |d: &str| {
+                d.len() == 64 && d.bytes().all(|b| matches!(b, b'0'..=b'9' | b'a'..=b'f'))
+            };
+            if let Some((i, bad)) = table.iter().enumerate().find(|(_, d)| !is_hex(d)) {
+                return Err(BunsenError::Invalid(format!(
+                    "{}: shard {i}'s digest {bad:?} is not 64 lowercase hex digits",
+                    self.name
+                )));
+            }
+        }
         Ok(())
+    }
+
+    /// `true` when fetched shards are checked against a digest.
+    pub fn is_pinned(&self) -> bool {
+        !matches!(self.digests, ShardDigests::Unpinned)
     }
 
     /// Every id, in order.
@@ -226,10 +277,11 @@ impl ShardSetDescriptor {
     /// The lowercase hex SHA-256 shard `id` must have, when the set is pinned.
     pub fn digest(
         &self,
-        _id: ShardId,
+        id: ShardId,
     ) -> Option<&str> {
-        match self.digests {
+        match &self.digests {
             ShardDigests::Unpinned => None,
+            ShardDigests::Table(table) => table.get(id.0).map(String::as_str),
         }
     }
 
@@ -298,8 +350,57 @@ mod tests {
             index_width: 3,
             count: 12,
             format: "bin",
-            digests: ShardDigests::Unpinned,
+            digests: StaticShardDigests::Unpinned,
         }
+    }
+
+    /// Twelve digests for `tiny`, all the same and all well formed.
+    static TINY_SHA256: [&str; 12] =
+        ["ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"; 12];
+
+    fn tiny_pinned() -> StaticShardSetDescriptor<'static> {
+        StaticShardSetDescriptor {
+            digests: StaticShardDigests::Table(&TINY_SHA256),
+            ..tiny()
+        }
+    }
+
+    /// A table pins every shard: it converts, validates, serializes, and
+    /// answers `digest` by index; a short or malformed table is refused.
+    #[test]
+    fn test_table_digests() {
+        let d = tiny_pinned().to_descriptor();
+        assert!(d.is_pinned());
+        assert!(!tiny().to_descriptor().is_pinned());
+        assert_eq!(
+            d.digests,
+            ShardDigests::Table(vec![TINY_SHA256[0].to_string(); 12])
+        );
+        assert_eq!(d.digest(ShardId(0)), Some(TINY_SHA256[0]));
+        assert_eq!(d.digest(ShardId(11)), Some(TINY_SHA256[11]));
+        assert_eq!(d.digest(ShardId(12)), None);
+        d.validate().unwrap();
+        let json = serde_json::to_string(&d).unwrap();
+        assert_eq!(
+            serde_json::from_str::<ShardSetDescriptor>(&json).unwrap(),
+            d
+        );
+
+        let mut short = d.clone();
+        short.digests = ShardDigests::Table(vec![TINY_SHA256[0].to_string(); 11]);
+        assert!(matches!(
+            short.validate(),
+            Err(BunsenError::Invalid(m)) if m.contains("11 digests for 12 shards")
+        ));
+
+        let mut bad = d.clone();
+        let mut table = vec![TINY_SHA256[0].to_string(); 12];
+        table[3] = TINY_SHA256[0].to_uppercase();
+        bad.digests = ShardDigests::Table(table);
+        assert!(matches!(
+            bad.validate(),
+            Err(BunsenError::Invalid(m)) if m.contains("shard 3's digest")
+        ));
     }
 
     #[test]
