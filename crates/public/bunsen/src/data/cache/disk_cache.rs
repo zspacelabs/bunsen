@@ -8,14 +8,17 @@ use std::{
     sync::Arc,
 };
 
+#[cfg(feature = "fetch")]
+use crate::data::cache::{
+    fetch_file,
+    fetch_verified,
+    file_name_from_url,
+};
 use crate::{
     data::cache::{
         BUNSEN_CACHE_CONFIG,
         TransferObserver,
         TransferObservers,
-        fetch_file,
-        fetch_verified,
-        file_name_from_url,
         path_utils,
     },
     errors::{
@@ -179,6 +182,50 @@ impl BunsenDiskCache {
         &self.transfer_observers
     }
 
+    /// Returns the cache path for the given key.
+    ///
+    /// * Does not check that the path exists.
+    /// * Does not initialize the containing directories.
+    ///
+    /// # Arguments
+    /// * `context` - prefix dirs, inserted between `self.cache_dir` and `file`.
+    /// * `file` - the final file name.
+    pub fn cache_path<C, F>(
+        &self,
+        context: &[C],
+        file: F,
+    ) -> PathBuf
+    where
+        C: AsRef<Path>,
+        F: AsRef<Path>,
+    {
+        path_utils::extend_path(&self.cache_dir, context, file)
+    }
+
+    /// Returns the data path for the given key.
+    ///
+    /// * Does not check that the path exists.
+    /// * Does not initialize the containing directories.
+    ///
+    /// # Arguments
+    /// * `context` - prefix dirs, inserted between `self.cache_dir` and `file`.
+    /// * `file` - the final file name.
+    pub fn data_path<C, F>(
+        &self,
+        context: &[C],
+        file: F,
+    ) -> PathBuf
+    where
+        C: AsRef<Path>,
+        F: AsRef<Path>,
+    {
+        path_utils::extend_path(&self.data_dir, context, file)
+    }
+}
+
+/// The network side: every method here needs the `fetch` feature.
+#[cfg(feature = "fetch")]
+impl BunsenDiskCache {
     /// Streams `url` to `dest`, verified against `sha256`, reporting to the
     /// observer stack; see [`fetch_verified`](super::fetch_verified).
     ///
@@ -291,46 +338,6 @@ impl BunsenDiskCache {
         Ok(path)
     }
 
-    /// Returns the cache path for the given key.
-    ///
-    /// * Does not check that the path exists.
-    /// * Does not initialize the containing directories.
-    ///
-    /// # Arguments
-    /// * `context` - prefix dirs, inserted between `self.cache_dir` and `file`.
-    /// * `file` - the final file name.
-    pub fn cache_path<C, F>(
-        &self,
-        context: &[C],
-        file: F,
-    ) -> PathBuf
-    where
-        C: AsRef<Path>,
-        F: AsRef<Path>,
-    {
-        path_utils::extend_path(&self.cache_dir, context, file)
-    }
-
-    /// Returns the data path for the given key.
-    ///
-    /// * Does not check that the path exists.
-    /// * Does not initialize the containing directories.
-    ///
-    /// # Arguments
-    /// * `context` - prefix dirs, inserted between `self.cache_dir` and `file`.
-    /// * `file` - the final file name.
-    pub fn data_path<C, F>(
-        &self,
-        context: &[C],
-        file: F,
-    ) -> PathBuf
-    where
-        C: AsRef<Path>,
-        F: AsRef<Path>,
-    {
-        path_utils::extend_path(&self.data_dir, context, file)
-    }
-
     /// Loads a file under the cache directory, fetching it if it is not
     /// there.
     ///
@@ -409,24 +416,12 @@ impl BunsenDiskCache {
 
 #[cfg(test)]
 mod tests {
-    use std::{
-        env,
-        fs,
-    };
+    use std::env;
 
     use serial_test::serial;
 
     use super::*;
-    use crate::data::cache::{
-        partial_path,
-        transfer::testing::{
-            ABC_SHA256,
-            CacheProgressEvent,
-            RecordingObserver,
-            refused_url,
-            serve_once,
-        },
-    };
+    use crate::data::cache::testing::RecordingObserver;
 
     #[test]
     #[serial]
@@ -547,6 +542,23 @@ mod tests {
         assert!(Arc::ptr_eq(&cache.transfer_observers()[0], &a));
         assert!(Arc::ptr_eq(&cache.transfer_observers()[1], &b));
     }
+}
+
+#[cfg(all(test, feature = "fetch"))]
+mod fetch_tests {
+    use std::fs;
+
+    use super::*;
+    use crate::data::cache::{
+        partial_path,
+        testing::{
+            ABC_SHA256,
+            CacheProgressEvent,
+            RecordingObserver,
+            refused_url,
+            serve_once,
+        },
+    };
 
     /// A download opens one transfer on every observer: the URL and the
     /// cache path in `begin`, the byte count as it lands, `Complete` at the

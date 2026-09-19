@@ -549,8 +549,9 @@ mod tests {
     use serial_test::serial;
 
     use super::*;
+    #[cfg(all(feature = "store", feature = "fetch"))]
+    use crate::data::cache::BunsenDiskCache;
     use crate::{
-        data::cache::BunsenDiskCache,
         kits::bimm::resnet::{
             RESNET34_BLOCKS,
             RESNET50_BLOCKS,
@@ -562,7 +563,7 @@ mod tests {
         },
     };
 
-    #[cfg(feature = "store")]
+    #[cfg(all(feature = "store", feature = "fetch"))]
     fn test_load_pytorch<B: Backend>(
         prefab: &str,
         pretrained: &str,
@@ -589,7 +590,7 @@ mod tests {
 
     #[test]
     #[serial]
-    #[cfg(feature = "store")]
+    #[cfg(all(feature = "store", feature = "fetch"))]
     fn test_load_pytorch_prefab() -> BunsenResult<()> {
         type B = PerformanceBackend;
         let prefab = "resnet18";
@@ -599,7 +600,7 @@ mod tests {
 
     #[test]
     #[serial]
-    #[cfg(feature = "store")]
+    #[cfg(all(feature = "store", feature = "fetch"))]
     fn test_load_pytorch_prefab_cuda() -> BunsenResult<()> {
         type B = PerformanceBackend;
         let prefab = "resnet34";

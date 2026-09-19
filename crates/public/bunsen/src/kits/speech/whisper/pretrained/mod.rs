@@ -1,8 +1,13 @@
 //! Pretrained Whisper Models.
 
+#[cfg(all(feature = "store_pytorch", feature = "cache"))]
+mod load_named;
 mod prefabs;
 mod providers;
 
+#[cfg(all(feature = "store_pytorch", feature = "cache"))]
+#[doc(inline)]
+pub use load_named::*;
 #[doc(inline)]
 pub use prefabs::*;
 #[doc(inline)]

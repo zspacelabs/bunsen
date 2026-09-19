@@ -143,18 +143,12 @@ impl TransferProgress for TransferProgressStack {
 #[cfg(test)]
 pub(crate) mod testing {
     use std::{
-        io::{
-            Read,
-            Write,
-        },
-        net::TcpListener,
         path::PathBuf,
         sync::{
             Arc,
             Mutex,
             PoisonError,
         },
-        thread,
     };
 
     use super::{
@@ -168,94 +162,110 @@ pub(crate) mod testing {
     pub(crate) const ABC_SHA256: &str =
         "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad";
 
-    /// Serves one HTTP/1.1 `200` with `body` on a loopback port, once, and
-    /// returns the URL for `name`.
-    pub(crate) fn serve_once(
-        name: &str,
-        body: &'static [u8],
-    ) -> String {
-        serve(name, body, body.len(), 0, 1)
-    }
+    /// Loopback HTTP servers for the fetch tests.
+    #[cfg(feature = "fetch")]
+    mod server {
+        use std::{
+            io::{
+                Read,
+                Write,
+            },
+            net::TcpListener,
+            thread,
+        };
 
-    /// [`serve_once`] for `n` connections, each given the same `body`.
-    pub(crate) fn serve_n(
-        name: &str,
-        body: &'static [u8],
-        n: usize,
-    ) -> String {
-        serve(name, body, body.len(), 0, n)
-    }
+        /// Serves one HTTP/1.1 `200` with `body` on a loopback port, once, and
+        /// returns the URL for `name`.
+        pub(crate) fn serve_once(
+            name: &str,
+            body: &'static [u8],
+        ) -> String {
+            serve(name, body, body.len(), 0, 1)
+        }
 
-    /// Drops the first `failures` connections without a byte, then serves
-    /// one: a mirror that comes good on a retry.
-    pub(crate) fn serve_flaky(
-        name: &str,
-        body: &'static [u8],
-        failures: usize,
-    ) -> String {
-        serve(name, body, body.len(), failures, 1)
-    }
+        /// [`serve_once`] for `n` connections, each given the same `body`.
+        pub(crate) fn serve_n(
+            name: &str,
+            body: &'static [u8],
+            n: usize,
+        ) -> String {
+            serve(name, body, body.len(), 0, n)
+        }
 
-    /// A URL for `name` on a loopback port nothing listens on.
-    pub(crate) fn refused_url(name: &str) -> String {
-        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
-        let addr = listener.local_addr().unwrap();
-        drop(listener);
-        format!("http://{addr}/{name}")
-    }
+        /// Drops the first `failures` connections without a byte, then serves
+        /// one: a mirror that comes good on a retry.
+        pub(crate) fn serve_flaky(
+            name: &str,
+            body: &'static [u8],
+            failures: usize,
+        ) -> String {
+            serve(name, body, body.len(), failures, 1)
+        }
 
-    /// [`serve_once`], declaring `declared` bytes in `Content-Length`
-    /// however long `body` is: a short body models a transfer cut off early.
-    pub(crate) fn serve_once_declaring(
-        name: &str,
-        body: &'static [u8],
-        declared: usize,
-    ) -> String {
-        serve(name, body, declared, 0, 1)
-    }
+        /// A URL for `name` on a loopback port nothing listens on.
+        pub(crate) fn refused_url(name: &str) -> String {
+            let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+            let addr = listener.local_addr().unwrap();
+            drop(listener);
+            format!("http://{addr}/{name}")
+        }
 
-    /// The server behind the helpers above: drops `failures` connections,
-    /// then answers `n` with a `200` declaring `declared` bytes and sending
-    /// `body`.
-    fn serve(
-        name: &str,
-        body: &'static [u8],
-        declared: usize,
-        failures: usize,
-        n: usize,
-    ) -> String {
-        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
-        let url = format!("http://{}/{name}", listener.local_addr().unwrap());
-        thread::spawn(move || {
-            for _ in 0..failures {
-                let (stream, _) = listener.accept().unwrap();
-                drop(stream);
-            }
-            for _ in 0..n {
-                let (mut stream, _) = listener.accept().unwrap();
-                // Read the request head; a GET carries no body.
-                let mut head = Vec::new();
-                let mut buf = [0u8; 4096];
-                loop {
-                    let read = stream.read(&mut buf).unwrap();
-                    if read == 0 {
-                        break;
-                    }
-                    head.extend_from_slice(&buf[..read]);
-                    if head.windows(4).any(|w| w == b"\r\n\r\n") {
-                        break;
-                    }
+        /// [`serve_once`], declaring `declared` bytes in `Content-Length`
+        /// however long `body` is: a short body models a transfer cut off
+        /// early.
+        pub(crate) fn serve_once_declaring(
+            name: &str,
+            body: &'static [u8],
+            declared: usize,
+        ) -> String {
+            serve(name, body, declared, 0, 1)
+        }
+
+        /// The server behind the helpers above: drops `failures` connections,
+        /// then answers `n` with a `200` declaring `declared` bytes and sending
+        /// `body`.
+        fn serve(
+            name: &str,
+            body: &'static [u8],
+            declared: usize,
+            failures: usize,
+            n: usize,
+        ) -> String {
+            let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+            let url = format!("http://{}/{name}", listener.local_addr().unwrap());
+            thread::spawn(move || {
+                for _ in 0..failures {
+                    let (stream, _) = listener.accept().unwrap();
+                    drop(stream);
                 }
-                let response = format!(
-                    "HTTP/1.1 200 OK\r\nContent-Length: {declared}\r\nConnection: close\r\n\r\n"
-                );
-                stream.write_all(response.as_bytes()).unwrap();
-                stream.write_all(body).unwrap();
-                stream.flush().unwrap();
-            }
-        });
-        url
+                for _ in 0..n {
+                    let (mut stream, _) = listener.accept().unwrap();
+                    // Read the request head; a GET carries no body.
+                    let mut head = Vec::new();
+                    let mut buf = [0u8; 4096];
+                    loop {
+                        let read = stream.read(&mut buf).unwrap();
+                        if read == 0 {
+                            break;
+                        }
+                        head.extend_from_slice(&buf[..read]);
+                        if head.windows(4).any(|w| w == b"\r\n\r\n") {
+                            break;
+                        }
+                    }
+                    let response = format!(
+                        "HTTP/1.1 200 OK\r\nContent-Length: {declared}\r\nConnection: close\r\n\r\n"
+                    );
+                    stream.write_all(response.as_bytes()).unwrap();
+                    stream.write_all(body).unwrap();
+                    stream.flush().unwrap();
+                }
+            });
+            url
+        }
     }
+    #[cfg(feature = "fetch")]
+    pub(crate) use server::*;
 
     /// One thing a [`RecordingObserver`] saw.
     #[derive(Clone, Debug, PartialEq, Eq)]

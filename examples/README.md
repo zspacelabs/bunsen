@@ -71,8 +71,7 @@ embeddings/head/scalars) selected via module-tree reflection.
 
 Transcribes audio through bunsen's Whisper stream driver, with the model named as `openai-whisper` names it
 (`--model openai/tiny.en`, `large`, or a checkpoint path). A `models` subcommand lists, fetches and inspects them.
-The prefab / pretrained / source index it was worked out against is bunsen's now; `src/models/` keeps the
-name-to-model loader.
+The prefab / pretrained / source index it was worked out against, and the name-to-model loader, are bunsen's now.
 
 - **Bunsen coverage:** `kits::speech::whisper::driver`, `kits::speech::whisper::pretrained::PytorchWhisperScanner`,
   `data::pretrained::StaticPreFabMap`, `data::cache::BunsenDiskCache`, the `whisper-weights` and `silero-weights`

@@ -1,7 +1,10 @@
 use bunsen::{
     data::{
         cache::verify_sha256,
-        pretrained::WeightsCache,
+        pretrained::{
+            ModelRef,
+            WeightsCache,
+        },
     },
     errors::{
         BunsenError,
@@ -14,6 +17,7 @@ use bunsen::{
         WHISPER_PROVIDERS,
         openai_download_root,
         prefab_for_geometry,
+        scan_model,
     },
 };
 use clap_common::logging::{
@@ -21,13 +25,7 @@ use clap_common::logging::{
     LogLevelNum,
 };
 
-use crate::{
-    models::loader::{
-        ModelRef,
-        scan_model,
-    },
-    whisper_clap::WeightsCacheArgs,
-};
+use crate::whisper_clap::WeightsCacheArgs;
 
 /// Lists, fetches and inspects the models `--model` can name.
 ///
@@ -162,8 +160,8 @@ fn fetch(
     verify: bool,
 ) -> BunsenResult<()> {
     for name in names {
-        let model = ModelRef::resolve(name)?;
-        let located = model.locate(cache)?;
+        let model = ModelRef::resolve(WHISPER_PROVIDERS, name)?;
+        let located = model.locate(WHISPER_KIT, cache)?;
         println!(
             "{}: {} ({})",
             model.id(),
@@ -193,7 +191,7 @@ fn inspect(
     cache: &WeightsCache,
     name: &str,
 ) -> BunsenResult<()> {
-    let model = ModelRef::resolve(name)?;
+    let model = ModelRef::resolve(WHISPER_PROVIDERS, name)?;
     println!("model: {}", model.id());
 
     if let ModelRef::Pretrained {
@@ -214,13 +212,13 @@ fn inspect(
         }
     }
 
-    let promised = model.prefab();
+    let promised = model.prefab(&WHISPER_PREFABS);
     if let Some(prefab) = &promised {
         println!("prefab: {} ({})", prefab.name, prefab.description);
         println!("  {:?}", prefab.to_config().geometry());
     }
 
-    let located = model.locate(cache)?;
+    let located = model.locate(WHISPER_KIT, cache)?;
     println!(
         "checkpoint: {} ({})",
         located.path.display(),

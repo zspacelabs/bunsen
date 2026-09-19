@@ -26,7 +26,7 @@ use serde::{
     Serialize,
 };
 
-#[cfg(feature = "cache")]
+#[cfg(feature = "fetch")]
 use crate::data::cache::BunsenDiskCache;
 use crate::errors::{
     BunsenError,
@@ -402,7 +402,7 @@ impl PretrainedWeightsDescriptor {
     /// # Errors
     /// [`BunsenError::Invalid`] with no URL source; otherwise as
     /// [`BunsenDiskCache::load_cached_path`].
-    #[cfg(feature = "cache")]
+    #[cfg(feature = "fetch")]
     pub fn fetch_weights(
         &self,
         disk_cache: &BunsenDiskCache,

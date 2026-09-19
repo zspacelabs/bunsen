@@ -6,7 +6,6 @@ use burn::prelude::Backend;
 use clap::Parser;
 
 pub mod commands;
-pub mod models;
 mod whisper_clap;
 
 #[derive(Parser, Debug)]

@@ -28,16 +28,12 @@ use bunsen::{
             pretrained::{
                 OPENAI_LOCAL_DIR,
                 bundled_vocabulary,
+                load_named,
             },
         },
     },
 };
 use burn::prelude::Backend;
-
-use crate::models::loader::{
-    ModelRef,
-    load_model,
-};
 
 /// Where fetched weights live, and whether fetching is allowed.
 #[derive(clap::Args, Debug)]
@@ -142,9 +138,8 @@ impl WhisperDriverArgs {
         &self,
         device: &B::Device,
     ) -> BunsenResult<(Whisper<B>, WhisperApiConfig)> {
-        let model = ModelRef::resolve(&self.model)?;
         let cache = self.cache.init()?;
-        load_model(&model, &cache, device)
+        load_named::<B>(&self.model, &cache, device)
     }
 
     /// Load and setup the [`WhisperStreamDriver`].

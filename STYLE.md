@@ -73,6 +73,7 @@ These are **not** tensor shapes — leave them as written:
 * `wgpu`, `cuda`, `metal` — select an accelerator backend.
 * `gpu-tests` — compile the tests that need one.
 * `download` — the build may reach the network.
+* `fetch` — the program may reach the network at run time (`cache` alone is local).
 * `onnx_gen` — generate reference models from an ONNX graph.
 * `checkpoint` — fetch pretrained weights.
 

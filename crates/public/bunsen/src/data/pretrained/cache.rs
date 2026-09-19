@@ -344,23 +344,47 @@ impl WeightsCache {
                 dest.display()
             )));
         }
-        self.disk
-            .fetch_from_urls(&urls, &dest, desc.sha256.as_deref())?;
+        self.download(dest, &urls, desc.sha256.as_deref())
+    }
+
+    /// The URLs, in order, through the disk cache's fetch.
+    #[cfg(feature = "fetch")]
+    fn download(
+        &self,
+        dest: PathBuf,
+        urls: &[&str],
+        sha256: Option<&str>,
+    ) -> BunsenResult<ResolvedWeights> {
+        self.disk.fetch_from_urls(urls, &dest, sha256)?;
         Ok(ResolvedWeights {
             path: dest,
             provenance: Provenance::Downloaded,
         })
+    }
+
+    /// Without the `fetch` feature there is no network: not local is not
+    /// found.
+    #[cfg(not(feature = "fetch"))]
+    fn download(
+        &self,
+        dest: PathBuf,
+        _urls: &[&str],
+        _sha256: Option<&str>,
+    ) -> BunsenResult<ResolvedWeights> {
+        Err(BunsenError::ResourceNotFound(format!(
+            "{}: not local, and fetching needs the `fetch` feature",
+            dest.display()
+        )))
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[cfg(feature = "fetch")]
+    use crate::data::cache::testing::serve_once;
     use crate::data::{
-        cache::testing::{
-            ABC_SHA256,
-            serve_once,
-        },
+        cache::testing::ABC_SHA256,
         pretrained::WeightsFormat,
     };
 
@@ -555,6 +579,7 @@ mod tests {
     }
 
     /// A URL is fetched, checked and written in; the next resolve is cached.
+    #[cfg(feature = "fetch")]
     #[test]
     fn test_a_url_is_fetched_then_cached() {
         let dir = tempfile::tempdir().unwrap();

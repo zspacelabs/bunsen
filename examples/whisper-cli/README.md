@@ -149,13 +149,13 @@ scanned: WhisperGeometry { n_mels: 128, vocab_size: 51866, d_model: 1280, max_au
 scan as its prefab, it reports the mismatch instead of loading. `transcribe` makes the same check before reading any
 tensors.
 
-### What is bunsen's, and what is the CLI's
+### Where the index lives
 
-The index is bunsen's: `kits::speech::whisper::pretrained::{WHISPER_PREFABS, OPENAI, WHISPER_PROVIDERS}` over
-`data::pretrained::{StaticPretrainedWeightsDescriptor, StaticPretrainedProvider, WeightsCache}`, with
-`WhisperGeometry` beside `WhisperApiConfig`. The CLI keeps `src/models/loader.rs`: `ModelRef` (a name, an alias, or
-a path), the geometry check against the prefab a name promised, and the load through bunsen's scanner. That is the
-name-to-model pathway, and it moves into the kit next.
+All of it is bunsen's: `kits::speech::whisper::pretrained::{WHISPER_PREFABS, OPENAI, WHISPER_PROVIDERS}` over
+`data::pretrained::{StaticPretrainedWeightsDescriptor, StaticPretrainedProvider, WeightsCache, ModelRef}`, with
+`WhisperGeometry` beside `WhisperApiConfig`, and `pretrained::{resolve_model, scan_model, load_model, load_named}`
+as the name-to-model pathway. This crate resolves `--model` with `load_named` and reports through the `models`
+subcommand; it keeps no index of its own.
 
 ## Benchmarks
 

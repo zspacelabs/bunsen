@@ -77,12 +77,22 @@ train = [
     "dep:hashbrown",
 ]
 
-## Enable the disk cache: where files land, and the fetch (`ureq` + `sha2`)
-## that streams them in, digest-checked when pinned.
+## Enable the disk cache: where files land (`BunsenDiskCache` and its paths),
+## digests (`sha256_of`, `verify_sha256`), links (`link_or_copy`), the shard
+## and weights indexes over local files. Nothing here reaches the network;
+## that is `fetch`.
 cache = [
     "std",
     "dep:directories-next",
     "dep:sha2",
+]
+
+## Reach the network at run time, through `ureq`: `fetch_file`,
+## `load_cached_path` / `load_data_path`, `fetch_many`, and the URL sources of
+## `WeightsCache::resolve` and `ShardSet::fetch`. Never at build time; that
+## switch is `download`.
+fetch = [
+    "cache",
     "dep:ureq",
 ]
 
@@ -90,7 +100,7 @@ cache = [
 ## `indicatif`. When on, `BunsenDiskCacheOptions::default()` carries an
 ## `IndicatifObserver`; `without_transfer_observers()` drops it.
 indicatif = [
-    "cache",
+    "fetch",
     "dep:indicatif",
 ]
 

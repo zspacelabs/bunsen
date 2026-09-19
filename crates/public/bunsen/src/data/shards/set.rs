@@ -15,13 +15,14 @@ use super::{
     ShardId,
     ShardSetDescriptor,
 };
+#[cfg(feature = "fetch")]
+use crate::data::cache::{
+    FetchJob,
+    FetchPolicy,
+    FetchReport,
+};
 use crate::{
-    data::cache::{
-        BunsenDiskCache,
-        FetchJob,
-        FetchPolicy,
-        FetchReport,
-    },
+    data::cache::BunsenDiskCache,
     errors::{
         BunsenError,
         BunsenResult,
@@ -70,6 +71,11 @@ impl<'c> ShardSet<'c> {
     /// The set.
     pub fn descriptor(&self) -> &ShardSetDescriptor {
         &self.desc
+    }
+
+    /// The disk cache the shards come in through.
+    pub fn cache(&self) -> &BunsenDiskCache {
+        self.cache
     }
 
     /// The directory the shard files sit in.
@@ -146,6 +152,8 @@ impl<'c> ShardSet<'c> {
     }
 
     /// Brings shard `id` in if it is not on disk, and returns its path.
+    /// Needs the `fetch` feature; without it a shard not on disk is
+    /// [`BunsenError::ResourceNotFound`].
     ///
     /// Mirrors are tried in order, the shard is checked against its digest
     /// when the set is pinned, and the transfer reports to the cache's
@@ -154,6 +162,7 @@ impl<'c> ShardSet<'c> {
     /// # Errors
     /// [`BunsenError::InvalidArgument`] for an id outside the set; otherwise
     /// as [`BunsenDiskCache::fetch_from_urls`].
+    #[cfg(feature = "fetch")]
     pub fn fetch(
         &self,
         id: ShardId,
@@ -170,6 +179,25 @@ impl<'c> ShardSet<'c> {
         Ok(path)
     }
 
+    /// Without the `fetch` feature there is no network.
+    #[cfg(not(feature = "fetch"))]
+    pub fn fetch(
+        &self,
+        id: ShardId,
+    ) -> BunsenResult<PathBuf> {
+        self.check(id)?;
+        let path = self.path(id);
+        if path.is_file() {
+            return Ok(path);
+        }
+        Err(BunsenError::ResourceNotFound(format!(
+            "{}: shard {id} is not at {}, and fetching needs the `fetch` feature",
+            self.desc.name,
+            path.display()
+        )))
+    }
+
+    #[cfg(feature = "fetch")]
     /// The fetch jobs for `ids`, in the order given.
     ///
     /// # Errors
@@ -188,6 +216,7 @@ impl<'c> ShardSet<'c> {
             .collect()
     }
 
+    #[cfg(feature = "fetch")]
     /// Brings shards `ids` in under `policy`, and reports on each. Shards
     /// already on disk are reported as cached.
     ///
@@ -223,17 +252,18 @@ impl<'c> ShardSet<'c> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::data::{
-        cache::{
-            BunsenDiskCacheOptions,
-            FetchOutcome,
-            OnFailure,
-            testing::{
-                ABC_SHA256,
-                refused_url,
-                serve_n,
-            },
+    #[cfg(feature = "fetch")]
+    use crate::data::cache::{
+        FetchOutcome,
+        OnFailure,
+        testing::{
+            ABC_SHA256,
+            refused_url,
+            serve_n,
         },
+    };
+    use crate::data::{
+        cache::BunsenDiskCacheOptions,
         shards::{
             StaticShardDigests,
             StaticShardSetDescriptor,
@@ -298,7 +328,7 @@ mod tests {
             Err(BunsenError::InvalidArgument { .. })
         ));
         assert!(matches!(
-            set.fetch_many(&[ShardId(3)], &FetchPolicy::default()),
+            set.fetch(ShardId(3)),
             Err(BunsenError::InvalidArgument { .. })
         ));
     }
@@ -337,6 +367,7 @@ mod tests {
     /// `fetch` brings one shard in off the first live mirror; `fetch_many`
     /// brings the rest in under the policy and reports the one on disk as
     /// cached.
+    #[cfg(feature = "fetch")]
     #[test]
     fn test_fetch_and_fetch_many() {
         let dir = tempfile::tempdir().unwrap();
@@ -385,6 +416,7 @@ mod tests {
     /// A pinned set checks every shard as it lands: the one whose bytes match
     /// its digest is kept, the one whose do not is refused and leaves nothing,
     /// and the batch reports the same.
+    #[cfg(feature = "fetch")]
     #[test]
     fn test_pinned_set_verifies_each_shard() {
         static PINNED: [&str; 2] = [
