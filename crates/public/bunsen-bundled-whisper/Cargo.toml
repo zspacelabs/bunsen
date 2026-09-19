@@ -24,13 +24,15 @@ burn-onnx = { workspace = true, optional = true }
 workspace = true
 
 [features]
-default = [
-    "checkpoint"
-]
+## Nothing by default: building this crate as a workspace member fetches
+## nothing. `bunsen/whisper-weights` turns on `checkpoint` and `vocab`;
+## `whisper-model-validation/download` turns on `onnx_gen`.
+default = []
 
 ## Fetch `OpenAI`'s multilingual `base.pt` and expose it as [`base_pt`].
 ##
-## This is the checkpoint `bunsen`'s Whisper kit loads.
+## Under `bunsen/whisper-weights` this is the first source of `openai/base`
+## in the Whisper kit's pretrained table.
 checkpoint = []
 
 ## Fetch Whisper's two `.tiktoken` rank files and expose them as

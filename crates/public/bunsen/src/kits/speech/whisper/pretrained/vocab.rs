@@ -129,6 +129,56 @@ pub fn vocabulary_for(
     TiktokenRanks::load(&resolved.path)
 }
 
+/// Test support: the bundled rank files, through the cache, offline.
+///
+/// With `whisper-weights` on, both files are `File` sources, so an offline
+/// cache in a scratch directory resolves them in place: nothing is written,
+/// nothing is fetched, and the path handed back is the bundle's. Reachable
+/// as `crate::kits::speech::whisper::pretrained::testing::*`.
+#[cfg(all(test, feature = "whisper-weights"))]
+pub(crate) mod testing {
+    use std::path::PathBuf;
+
+    use super::*;
+    use crate::data::{
+        cache::BunsenDiskCacheOptions,
+        pretrained::WeightsCacheOptions,
+    };
+
+    /// An offline cache in a scratch directory, which lives as long as the
+    /// returned guard.
+    pub fn offline_cache() -> (tempfile::TempDir, WeightsCache) {
+        let dir = tempfile::tempdir().unwrap();
+        let cache = WeightsCache::new(
+            WeightsCacheOptions::default()
+                .with_disk(
+                    BunsenDiskCacheOptions::default()
+                        .with_cache_dir(Some(dir.path().join("cache")))
+                        .without_transfer_observers(),
+                )
+                .with_offline(true),
+        )
+        .unwrap();
+        (dir, cache)
+    }
+
+    /// The bundled rank file a layout selects.
+    pub fn bundled_vocabulary_path(ids: &WhisperSpecialIds) -> PathBuf {
+        let (_dir, cache) = offline_cache();
+        let desc = vocabulary_descriptor(ids).to_descriptor();
+        cache
+            .resolve(WHISPER_KIT, OPENAI_VOCABULARIES.name, &desc)
+            .unwrap()
+            .path
+    }
+
+    /// The bundled rank file a layout selects, parsed.
+    pub fn bundled_vocabulary(ids: &WhisperSpecialIds) -> TiktokenRanks {
+        let (_dir, cache) = offline_cache();
+        vocabulary_for(ids, &cache).unwrap()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -187,24 +237,17 @@ mod tests {
     #[cfg(feature = "whisper-weights")]
     #[test]
     fn test_bundled_vocabularies_resolve_offline() {
-        use crate::data::{
-            cache::BunsenDiskCacheOptions,
-            pretrained::{
+        use crate::{
+            data::pretrained::{
                 CacheStatus,
-                WeightsCacheOptions,
+                Provenance,
+            },
+            kits::speech::whisper::pretrained::testing::{
+                bundled_vocabulary_path,
+                offline_cache,
             },
         };
-        let dir = tempfile::tempdir().unwrap();
-        let cache = WeightsCache::new(
-            WeightsCacheOptions::default()
-                .with_disk(
-                    BunsenDiskCacheOptions::default()
-                        .with_cache_dir(Some(dir.path().join("cache")))
-                        .without_transfer_observers(),
-                )
-                .with_offline(true),
-        )
-        .unwrap();
+        let (dir, cache) = offline_cache();
         for prefab in ["tiny", "tiny.en"] {
             let ids = ids_of(prefab);
             let desc = vocabulary_descriptor(&ids).to_descriptor();
@@ -212,6 +255,9 @@ mod tests {
                 cache.status(WHISPER_KIT, "openai", &desc),
                 CacheStatus::File
             );
+            let resolved = cache.resolve(WHISPER_KIT, "openai", &desc).unwrap();
+            assert_eq!(resolved.provenance, Provenance::File);
+            assert_eq!(resolved.path, bundled_vocabulary_path(&ids));
             let ranks = vocabulary_for(&ids, &cache).unwrap();
             // The layout's first special id is the rank count: 50257 for
             // `multilingual.tiktoken`, 50256 for `gpt2.tiktoken`.

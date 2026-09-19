@@ -5,9 +5,10 @@ driver. The audio is pushed in chunks as a live loop would feed it, and segments
 become final; under the responsive preset, drafts come first and are marked `~`.
 
 The model is named, as `openai-whisper`'s `load_model` names it: `--model openai/tiny.en`, `--model large`, or a path
-to a checkpoint. Weights are fetched on demand into bunsen's cache, pinned to their SHA-256, and read from the bundled
-checkpoint or from `openai-whisper`'s own `~/.cache/whisper` when either already has them. The default, `openai/base`,
-is the checkpoint bunsen bundles, so it needs no network.
+to a checkpoint. Weights are fetched on demand into bunsen's cache, pinned to their SHA-256, and read from
+`openai-whisper`'s own `~/.cache/whisper` when it already has them. The default is `openai/base`; built with this
+crate's `bundled` feature, that checkpoint and both vocabularies are fetched at build time instead and read in place,
+so a run needs no network.
 
 The vocabulary follows the checkpoint: the token layout its vocabulary size implies selects `multilingual.tiktoken` or
 `gpt2.tiktoken`, and that rank file comes through the same cache as the weights, from the bundle, the cache, or one
@@ -16,9 +17,9 @@ name-to-model pathway are bunsen's.
 
 ## Bunsen features exercised
 
-- `whisper-weights` — `bunsen-bundled-whisper` fetches the multilingual `base` checkpoint and the two `.tiktoken`
-  vocabularies at build time (pinned to a SHA-256, cached); bunsen's index lists them as the bundled source of
-  `openai/base` and of the `openai` vocabularies, so the default model needs no network.
+- `whisper-weights`, behind this crate's `bundled` feature — `bunsen-bundled-whisper` fetches the multilingual `base`
+  checkpoint and the two `.tiktoken` vocabularies at build time (pinned to a SHA-256, cached); bunsen's index lists
+  them as the first source of `openai/base` and of the `openai` vocabularies, so the default model needs no network.
 - `kits::speech::whisper::pretrained::vocabulary_for` — the rank file that matches a checkpoint's token layout, for
   every model. From the vocabulary come the text, via a `wordchipper` detokenizer, and upstream's default suppress
   list. `--vocab` names one by path instead.
@@ -56,7 +57,9 @@ from the root and `cargo run --features bunsen/wgpu` from this directory are the
 
 ## Running the example
 
-The first build fetches the bundled checkpoint (145 MB) and the two vocabularies into the build cache.
+The first run fetches the model it names (145 MB for `openai/base`) and its vocabulary into bunsen's cache. Build
+with `--features bundled` to have `openai/base` and both vocabularies fetched at build time instead, pinned and read
+in place.
 
 ```bash
 $ cargo run --release -p whisper-cli --features bunsen/wgpu -- \
@@ -66,7 +69,7 @@ $ cargo run --release -p whisper-cli --features bunsen/wgpu -- \
 Model options:
 
 - `--model` — `provider/name` or a bare name from `models list` (`openai/tiny.en`, `large`, `turbo`), or a path to a
-  checkpoint (default `openai/base`, the bundled checkpoint).
+  checkpoint (default `openai/base`).
 - `--cache-dir` — where fetched weights live; `$BUNSEN_CACHE_DIR`, then the platform's cache directory, when omitted.
 - `--offline` — never reach the network; a model that is not already local is an error.
 - `--upstream-cache-dir` — `openai-whisper`'s download root, read as a local source (default `~/.cache/whisper`).
@@ -102,8 +105,8 @@ The index keeps three things apart, because they vary independently:
 - A **pretrained** is a trained set of weights for a prefab, with a format (the quantization axis; OpenAI ships one,
   fp16 PyTorch), a SHA-256, and a list of **sources**. One prefab may have several pretrained; one pretrained may have
   several names (`large` is `large-v3`, `turbo` is `large-v3-turbo`) and several sources, all the same bytes.
-- A **source** is a URL, `openai-whisper`'s `~/.cache/whisper`, or the file `bunsen-bundled-whisper` fetched at build
-  time. Sources are tried in order: the bundled file is used in place (the build verified it); a file in upstream's
+- A **source** is a URL, `openai-whisper`'s `~/.cache/whisper`, or, under `bundled`, the file `bunsen-bundled-whisper`
+  fetched at build time. Sources are tried in order: the bundled file is used in place (the build verified it); a file in upstream's
   cache is hashed and, on a match, linked into the cache; a URL is streamed to a `.partial`, hashed as it lands, and
   renamed into place only on a match.
 
@@ -127,15 +130,15 @@ openai: OpenAI's Whisper checkpoints, as `openai-whisper` names and pins them (M
   openai/tiny.en         tiny.en          pytorch fp16   remote          39 M parameters, English-only
   openai/tiny            tiny             pytorch fp16   remote          39 M parameters, multilingual
   openai/base.en         base.en          pytorch fp16   remote          74 M parameters, English-only
-  openai/base            base             pytorch fp16   bundled         74 M parameters, multilingual; the checkpoint bunsen bundles
+  openai/base            base             pytorch fp16   cached          74 M parameters, multilingual; the checkpoint bunsen bundles
   ...
   openai/large-v3        large-v3         pytorch fp16   upstream cache  1550 M parameters, multilingual, 128 mels (also: large)
   openai/large-v3-turbo  large-v3-turbo   pytorch fp16   remote          809 M parameters, multilingual, 128 mels, four-layer decoder (also: turbo)
 
 openai: OpenAI's Whisper vocabularies: the tiktoken rank files behind the tokenizer (MIT; https://github.com/openai/whisper/tree/839639a2.../whisper/assets)
   NAME                   LAYOUT           FORMAT         STATUS          DESCRIPTION
-  openai/multilingual    multilingual     tiktoken       bundled file    the multilingual vocabulary: GPT-2's ranks plus one, as every multilingual checkpoint numbers them
-  openai/gpt2            english-only     tiktoken       bundled file    the English-only vocabulary: GPT-2's ranks, as the `*.en` checkpoints number them
+  openai/multilingual    multilingual     tiktoken       cached          the multilingual vocabulary: GPT-2's ranks plus one, as every multilingual checkpoint numbers them
+  openai/gpt2            english-only     tiktoken       remote          the English-only vocabulary: GPT-2's ranks, as the `*.en` checkpoints number them
 
 $ cargo run -q -p whisper-cli -- models prefabs
 whisper: OpenAI Whisper geometries, as `whisper.model.ModelDimensions` has them
@@ -162,7 +165,7 @@ scanned: WhisperGeometry { n_mels: 128, vocab_size: 51866, d_model: 1280, max_au
   heads: 20
   front end: WhisperFrontEndConfig { sample_rate: 16000, hop_ms: 10, window_ms: 25, range_clamp_db: 8.0 }
   matches prefab large-v3
-vocabulary: openai/multilingual (bundled file)
+vocabulary: openai/multilingual (cached)
 ```
 
 `inspect` on a path reports which prefab, if any, the checkpoint's geometry is; on a name whose checkpoint does not

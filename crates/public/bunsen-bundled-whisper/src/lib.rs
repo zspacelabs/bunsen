@@ -7,10 +7,6 @@
 //! vocabularies are small enough to commit, and are fetched anyway so that
 //! every Whisper asset arrives the same way.
 //!
-//! That size is also why the weights are a **path** rather than bytes:
-//! `include_bytes!` of 145 MB would dominate compile time and binary size, so
-//! the checkpoint stays a file and [`base_pt`] names it.
-//!
 //! ## Crate Features
 #![doc = document_features::document_features!()]
 
@@ -21,8 +17,9 @@
 ///
 /// Nothing here loads a model; that needs bunsen's Whisper kit, which depends
 /// on this crate rather than the other way round. Reach for
-/// `bunsen::kits::speech::whisper::Whisper::load_pretrained`, which is this
-/// path fed through `PytorchWhisperScanner`.
+/// `bunsen::kits::speech::whisper::pretrained::load_named("openai/base", …)`:
+/// under bunsen's `whisper-weights` feature this path is that model's first
+/// source, and it is read in place.
 ///
 /// # Panics
 /// Never at run time. If the asset could not be obtained the build itself

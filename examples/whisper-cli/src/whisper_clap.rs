@@ -96,7 +96,8 @@ impl ScannerArgs {
 pub struct WhisperDriverArgs {
     /// The model: `provider/name` or a bare name from `models list`
     /// (`openai/tiny.en`, `large`), or a path to a checkpoint. The default
-    /// is the checkpoint bunsen bundles, so it needs no network.
+    /// is fetched into the cache on first use (145 MB, digest-checked), or
+    /// read in place when this crate is built with its `bundled` feature.
     #[arg(long, default_value = "openai/base")]
     model: String,
 

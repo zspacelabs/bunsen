@@ -602,12 +602,15 @@ mod tests {
     #[cfg(feature = "whisper-weights")]
     mod bundled {
         use super::*;
-        use crate::kits::speech::whisper::driver::WhisperTokenLayout;
+        use crate::kits::speech::whisper::{
+            driver::WhisperTokenLayout,
+            pretrained::testing::bundled_vocabulary,
+        };
 
         #[test]
         fn test_multilingual_matches_upstream() {
-            let ranks =
-                TiktokenRanks::load(bunsen_bundled_whisper::multilingual_tiktoken()).unwrap();
+            let ids = *WhisperTokenLayout::from_vocab_size(51865).unwrap().ids();
+            let ranks = bundled_vocabulary(&ids);
             assert_eq!(blank_token(&ranks), Some(220));
             assert_eq!(
                 non_speech_tokens(&ranks),
@@ -621,7 +624,6 @@ mod tests {
                 ]
             );
 
-            let ids = *WhisperTokenLayout::from_vocab_size(51865).unwrap().ids();
             let all = default_suppress_tokens(&ranks, &ids);
             assert!(all.windows(2).all(|w| w[0] < w[1]), "sorted and unique");
             for id in [
@@ -640,7 +642,8 @@ mod tests {
 
         #[test]
         fn test_english_matches_upstream() {
-            let ranks = TiktokenRanks::load(bunsen_bundled_whisper::gpt2_tiktoken()).unwrap();
+            let ids = *WhisperTokenLayout::from_vocab_size(51864).unwrap().ids();
+            let ranks = bundled_vocabulary(&ids);
             assert_eq!(blank_token(&ranks), Some(220));
             assert_eq!(
                 non_speech_tokens(&ranks),
