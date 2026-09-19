@@ -7,6 +7,7 @@ mod audio_encoder;
 mod decoder_block;
 mod encoder_block;
 mod front_end;
+mod geometry;
 mod text_decoder;
 mod token_layout;
 mod whisper_model;
@@ -19,6 +20,8 @@ pub use decoder_block::*;
 pub use encoder_block::*;
 #[doc(inline)]
 pub use front_end::*;
+#[doc(inline)]
+pub use geometry::*;
 #[doc(inline)]
 pub use text_decoder::*;
 #[doc(inline)]

@@ -2,8 +2,9 @@
 //!
 //! A [`WeightsProvider`] is a namespace &mdash; the `openai` in
 //! `openai/tiny.en` &mdash; over [`WhisperPretrained`] entries. Each entry
-//! names its [prefab](super::prefab), its [`WeightsFormat`], and the
-//! [`WeightsSource`]s its bytes can be had from, all pinned to one SHA-256.
+//! names its prefab (in bunsen's [`WHISPER_PREFABS`]), its [`WeightsFormat`],
+//! and the [`WeightsSource`]s its bytes can be had from, all pinned to one
+//! SHA-256.
 //!
 //! The `openai` table is `whisper/__init__.py`'s `_MODELS`, with upstream's
 //! two aliases (`large`, `turbo`) folded onto the entries they name rather
@@ -19,11 +20,12 @@ use bunsen::{
     data::pretrained::PreFabConfig,
     kits::speech::whisper::{
         WhisperApiConfig,
-        pretrained::bundled,
+        pretrained::{
+            WHISPER_PREFABS,
+            bundled,
+        },
     },
 };
-
-use crate::models::prefab::WHISPER_PREFABS;
 
 /// How a pretrained's weights are stored: the quantization axis.
 ///

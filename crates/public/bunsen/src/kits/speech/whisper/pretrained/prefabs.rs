@@ -1,10 +1,9 @@
-//! Built-in Whisper prefabs: the public geometries, without weights.
+//! # Whisper prefabs
 //!
-//! Upstream's `ModelDimensions` for every checkpoint `openai-whisper` ships,
-//! typed in rather than scanned, so that a name means a shape before any
-//! bytes are fetched &mdash; and so that a checkpoint can be checked against
-//! the shape its name promised
-//! ([`loader::check_geometry`](super::loader::check_geometry)).
+//! The public geometries, without weights: upstream's `ModelDimensions` for
+//! every checkpoint `openai-whisper` ships, typed in rather than scanned, so
+//! that a name means a shape before any bytes are fetched, and so that a
+//! checkpoint can be checked against the shape its name promised.
 //!
 //! The vocabulary size is part of the geometry: an English-only `tiny.en`
 //! (51864) and a multilingual `tiny` (51865) are different prefabs, as they
@@ -17,109 +16,16 @@
 //! the audio front end and the token layout. Those are upstream's for every
 //! entry here, and [`WhisperApiConfig`]'s defaults say so.
 
-use bunsen::{
+use crate::{
     data::pretrained::{
         StaticPreFabConfig,
         StaticPreFabMap,
     },
     kits::speech::whisper::{
         WhisperApiConfig,
-        blocks::{
-            AUDIO_ENCODER_STRIDE,
-            WHISPER_DEFAULT_D_MODEL,
-        },
+        WhisperGeometry,
     },
 };
-
-/// The geometry a prefab fixes: the numbers
-/// [`PytorchWhisperScanner`](bunsen::kits::speech::whisper::pretrained::PytorchWhisperScanner)
-/// reads back from a checkpoint, and nothing a checkpoint cannot report.
-///
-/// A [`WhisperApiConfig`] carries more (the front end, the token layout)
-/// and is not `PartialEq`; this is the comparable core of one.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct WhisperGeometry {
-    /// Mel bands in.
-    pub n_mels: usize,
-    /// Vocabulary size, specials included.
-    pub vocab_size: usize,
-    /// Embedding width.
-    pub d_model: usize,
-    /// Audio context, in mel frames.
-    pub max_audio_ctx: usize,
-    /// Encoder layers.
-    pub n_encoder_layers: usize,
-    /// Text context, in tokens.
-    pub max_text_ctx: usize,
-    /// Decoder layers.
-    pub n_decoder_layers: usize,
-    /// Head width.
-    pub d_head: usize,
-}
-
-/// Upstream's audio context: 1500 encoder positions over the encoder's
-/// stride, which is what the scanner reads from the positional embedding.
-const OPENAI_MAX_AUDIO_CTX: usize = 1500 * AUDIO_ENCODER_STRIDE;
-
-/// Upstream's text context.
-const OPENAI_MAX_TEXT_CTX: usize = 448;
-
-impl WhisperGeometry {
-    /// An `OpenAI` geometry: the family's fixed contexts and 64-wide heads.
-    pub const fn openai(
-        n_mels: usize,
-        vocab_size: usize,
-        d_model: usize,
-        n_encoder_layers: usize,
-        n_decoder_layers: usize,
-    ) -> Self {
-        Self {
-            n_mels,
-            vocab_size,
-            d_model,
-            max_audio_ctx: OPENAI_MAX_AUDIO_CTX,
-            n_encoder_layers,
-            max_text_ctx: OPENAI_MAX_TEXT_CTX,
-            n_decoder_layers,
-            d_head: WHISPER_DEFAULT_D_MODEL,
-        }
-    }
-
-    /// Attention heads per layer.
-    pub fn n_heads(&self) -> usize {
-        self.d_model / self.d_head
-    }
-
-    /// The config this geometry builds, with upstream's front end and token
-    /// layout.
-    pub fn to_api_config(&self) -> WhisperApiConfig {
-        WhisperApiConfig::new(
-            self.n_mels,
-            self.vocab_size,
-            self.d_model,
-            self.max_audio_ctx,
-            self.n_encoder_layers,
-            self.max_text_ctx,
-            self.n_decoder_layers,
-        )
-        .with_d_head(self.d_head)
-    }
-}
-
-impl From<&WhisperApiConfig> for WhisperGeometry {
-    fn from(cfg: &WhisperApiConfig) -> Self {
-        Self {
-            n_mels: cfg.n_mels,
-            vocab_size: cfg.vocab_size,
-            d_model: cfg.d_model,
-            max_audio_ctx: cfg.max_audio_ctx,
-            n_encoder_layers: cfg.n_encoder_layers,
-            max_text_ctx: cfg.max_text_ctx,
-            n_decoder_layers: cfg.n_decoder_layers,
-            d_head: cfg.d_head,
-        }
-    }
-}
 
 // `whisper/model.py`'s `ModelDimensions`, per checkpoint. The multilingual
 // vocabulary is 51865 (99 languages); `large-v3` is 51866 (a hundredth,
@@ -138,11 +44,8 @@ const LARGE_V3_TURBO: WhisperGeometry = WhisperGeometry::openai(128, 51866, 1280
 
 /// The Whisper prefabs: every geometry `openai-whisper` ships, by name.
 ///
-/// `weights` is `None` throughout. bunsen's
-/// [`StaticPretrainedWeightsDescriptor`](bunsen::data::pretrained::StaticPretrainedWeightsDescriptor)
-/// has a name and URLs but no digest, no format and no notion of a local
-/// source, which a 3 GB checkpoint needs; the pretrained side lives in
-/// [`pretrained`](super::pretrained) until that descriptor grows them.
+/// `weights` is `None` throughout: the pretrained side is indexed by
+/// provider, pretrained → prefab, and arrives with its own table.
 pub static WHISPER_PREFABS: StaticPreFabMap<WhisperApiConfig> = StaticPreFabMap {
     name: "whisper",
     description: "OpenAI Whisper geometries, as `whisper.model.ModelDimensions` has them",
@@ -225,7 +128,7 @@ pub fn prefab_for_geometry(
         .items
         .iter()
         .copied()
-        .find(|p| WhisperGeometry::from(&p.to_config()) == *geometry)
+        .find(|p| p.to_config().geometry() == *geometry)
 }
 
 #[cfg(test)]
@@ -236,9 +139,9 @@ mod tests {
     fn test_geometry_round_trips_through_api_config() {
         for prefab in WHISPER_PREFABS.items {
             let cfg = prefab.to_config();
-            let geometry = WhisperGeometry::from(&cfg);
+            let geometry = cfg.geometry();
             assert_eq!(
-                WhisperGeometry::from(&geometry.to_api_config()),
+                geometry.to_api_config().geometry(),
                 geometry,
                 "{}",
                 prefab.name
@@ -255,6 +158,7 @@ mod tests {
         names.sort_unstable();
         names.dedup();
         assert_eq!(names.len(), WHISPER_PREFABS.items.len());
+        assert_eq!(WHISPER_PREFABS.items.len(), 11);
     }
 
     #[test]

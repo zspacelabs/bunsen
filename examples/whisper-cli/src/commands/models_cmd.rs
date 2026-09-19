@@ -4,6 +4,13 @@ use bunsen::{
         BunsenError,
         BunsenResult,
     },
+    kits::speech::whisper::{
+        WhisperGeometry,
+        pretrained::{
+            WHISPER_PREFABS,
+            prefab_for_geometry,
+        },
+    },
 };
 use clap_common::logging::{
     LogArgs,
@@ -15,11 +22,6 @@ use crate::{
         loader::{
             ModelRef,
             scan_model,
-        },
-        prefab::{
-            WHISPER_PREFABS,
-            WhisperGeometry,
-            prefab_for_geometry,
         },
         pretrained::PROVIDERS,
         weights_cache::WeightsCache,

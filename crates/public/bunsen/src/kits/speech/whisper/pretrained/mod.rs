@@ -1,5 +1,10 @@
 //! Pretrained Whisper Models.
 
+mod prefabs;
+
+#[doc(inline)]
+pub use prefabs::*;
+
 #[cfg(feature = "store_pytorch")]
 mod pytorch_utils;
 

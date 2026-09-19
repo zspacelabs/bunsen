@@ -6,7 +6,8 @@
 //!   weights &mdash; `n_mels`, the vocabulary size, `d_model`, the layer
 //!   counts. bunsen's
 //!   [`StaticPreFabMap`](bunsen::data::pretrained::StaticPreFabMap) carries
-//!   them; see [`prefab`].
+//!   them, in the kit's
+//!   [`WHISPER_PREFABS`](bunsen::kits::speech::whisper::pretrained::WHISPER_PREFABS).
 //! * A **pretrained** is a trained set of weights *for* a prefab. One prefab
 //!   commonly has several (`large-v1` and `large-v2` share `large`); one
 //!   pretrained may have several names (`large` is `large-v3`) and several
@@ -30,6 +31,5 @@
 //! can be run against real files.
 
 pub mod loader;
-pub mod prefab;
 pub mod pretrained;
 pub mod weights_cache;

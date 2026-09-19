@@ -19,13 +19,13 @@ use bunsen::{
     kits::speech::whisper::{
         Whisper,
         WhisperApiConfig,
+        WhisperGeometry,
         pretrained::PytorchWhisperScanner,
     },
 };
 use burn::prelude::Backend;
 
 use crate::models::{
-    prefab::WhisperGeometry,
     pretrained::{
         WeightsProvider,
         WhisperPretrained,
@@ -193,13 +193,13 @@ pub fn load_model<B: Backend>(
 
 #[cfg(test)]
 mod tests {
-    use bunsen::kits::speech::whisper::pretrained::bundled;
-
-    use super::*;
-    use crate::models::prefab::{
+    use bunsen::kits::speech::whisper::pretrained::{
         WHISPER_PREFABS,
+        bundled,
         prefab_for_geometry,
     };
+
+    use super::*;
 
     #[test]
     fn test_resolve_names_aliases_and_paths() {
