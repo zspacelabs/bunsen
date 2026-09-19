@@ -29,7 +29,7 @@ workspace = true
 ## `whisper-model-validation/download` turns on `onnx_gen`.
 default = []
 
-## Fetch `OpenAI`'s multilingual `base.pt` and expose it as [`base_pt`].
+## Fetch `OpenAI`'s multilingual "base.pt".
 ##
 ## Under `bunsen/whisper-weights` this is the first source of `openai/base`
 ## in the Whisper kit's pretrained table.
