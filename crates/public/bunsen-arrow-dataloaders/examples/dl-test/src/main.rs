@@ -1,14 +1,15 @@
-use std::{
-    collections::HashSet,
-    sync::{
-        Arc,
-        Mutex,
-    },
+use std::sync::{
+    Arc,
+    Mutex,
 };
 
-use bunsen::support::testing::{
-    PerformanceBackend,
-    backend_device,
+use bunsen::{
+    data::cache::BunsenDiskCache,
+    kits::gpts::nanochat::datasets::NANOCHAT_SHARD_SETS,
+    support::testing::{
+        PerformanceBackend,
+        backend_device,
+    },
 };
 use bunsen_arrow_dataloaders::{
     dataloaders::chat::ChatDataLoader,
@@ -17,11 +18,8 @@ use bunsen_arrow_dataloaders::{
         TokenBatchIteratorOptions,
     },
 };
-use burn::tensor::{
-    AsIndex,
-    Slice,
-};
 use clap::Parser;
+use clap_common::shards::ShardArgs;
 use rand::{
     SeedableRng,
     rngs::StdRng,
@@ -33,7 +31,6 @@ use wordchipper::{
     disk_cache::WordchipperDiskCache,
 };
 use wordchipper_cli_util::logging::LogArgs;
-use zsl_data_cache::dataset::DatasetCacheConfig;
 
 #[derive(Debug, Clone, clap::Args)]
 pub struct TokenBatchOptionsArgs {
@@ -65,13 +62,9 @@ impl TokenBatchOptionsArgs {
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
 pub struct Args {
-    /// Shards to load.
-    #[arg(short, long, value_delimiter = ',', default_value = "0")]
-    pub shards: Vec<Slice>,
-
-    /// Path to dataset directory.
-    #[arg(long)]
-    pub dataset_dir: String,
+    /// The shards to load, and how to fetch them.
+    #[clap(flatten)]
+    pub shards: ShardArgs,
 
     /// The vocab model to use.
     #[arg(long, default_value = "openai:p50k_base")]
@@ -94,29 +87,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     log::info!("ARGS: {:#?}", args);
 
-    let cache_config = DatasetCacheConfig::new().with_cache_dir(args.dataset_dir);
-    log::info!("DATASET CACHE: {:#?}", cache_config);
-
     type T = u32;
 
-    let shards: Vec<usize> = {
-        let max_shard = cache_config.source.max_shard;
-        let mut collected: HashSet<usize> = HashSet::new();
-        for slice in &args.shards {
-            for idx in slice.into_iter() {
-                let shard = idx.expect_elem_index(max_shard);
-                collected.insert(shard);
-            }
-        }
-        let mut shards: Vec<usize> = collected.into_iter().collect();
-        shards.sort();
-        shards
-    };
-
-    let mut cache = cache_config.init()?;
-
-    log::info!("Loading Shards: {shards:?}");
-    let shard_paths = cache.load_shards(&shards)?;
+    let shard_cache = BunsenDiskCache::default();
+    let shard_paths = args.shards.fetch_paths(
+        &shard_cache,
+        NANOCHAT_SHARD_SETS.expect_lookup("fineweb-edu-100b-shuffle"),
+    )?;
 
     let mut wc_disk_cache: WordchipperDiskCache = Default::default();
 

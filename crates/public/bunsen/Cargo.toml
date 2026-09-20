@@ -42,7 +42,6 @@ default = [
     "reflection",
     "train",
     "testing",
-    "store",
     "store_pytorch",
 ]
 
@@ -78,12 +77,31 @@ train = [
     "dep:hashbrown",
 ]
 
-## Enable the disk cache.
+## Enable the disk cache: where files land (`BunsenDiskCache` and its paths),
+## digests (`sha256_of`, `verify_sha256`), links (`link_or_copy`), the shard
+## and weights indexes over local files. Nothing here reaches the network;
+## that is `fetch`.
 cache = [
     "std",
-    "dep:downloader",
     "dep:directories-next",
-    "downloader/default-tls",
+    "dep:sha2",
+]
+
+## Reach the network at run time, through `ureq`: `fetch_file`,
+## `load_cached_path` / `load_data_path`, `fetch_many`, and the URL sources of
+## `WeightsCache::resolve` and `ShardSet::fetch`. Never at build time; that
+## switch is `download`.
+fetch = [
+    "cache",
+    "dep:ureq",
+]
+
+## Draws a byte progress bar on stderr for each cache transfer, through
+## `indicatif`. When on, `BunsenDiskCacheOptions::default()` carries an
+## `IndicatifObserver`; `without_transfer_observers()` drops it.
+indicatif = [
+    "fetch",
+    "dep:indicatif",
 ]
 
 ## Enables audio io support features.
@@ -114,8 +132,12 @@ silero-weights = [
     "dep:bunsen-bundled-silero",
 ]
 
-## Include the pretrained Whisper assets in the build: the checkpoint, and
-## the two `.tiktoken` vocabularies.
+## Bundle the pretrained Whisper assets into the build: `OpenAI`'s `base`
+## checkpoint and the two `.tiktoken` vocabularies. They become the first
+## source of `openai/base` and of the two `openai` vocabularies in the
+## Whisper kit's tables, so those resolve in place, with no network at run
+## time. Without this, the same models are fetched into the cache on first
+## use (`fetch`).
 ##
 ## **This makes the build reach the network** on a cold cache: unlike Silero's,
 ## Whisper's weights are 145 MB and are fetched rather than committed. Every
@@ -199,8 +221,9 @@ crc = { workspace = true }
 flate2 = { workspace = true }
 
 directories-next = { workspace = true, optional = true }
-# features=["tui"] incompatible with conflicting indicatif versions.
-downloader = { workspace = true, default-features = false, optional = true }
+indicatif = { workspace = true, optional = true }
+sha2 = { workspace = true, optional = true }
+ureq = { workspace = true, optional = true }
 
 dashmap = { workspace = true }
 
@@ -238,3 +261,4 @@ nearly = { workspace = true }
 hamcrest = { workspace = true }
 indoc = { workspace = true }
 criterion = { workspace = true }
+tempfile = { workspace = true }

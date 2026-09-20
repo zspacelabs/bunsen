@@ -10,6 +10,7 @@ pub mod pretrained;
 pub use blocks::{
     Whisper,
     WhisperApiConfig,
+    WhisperGeometry,
     WhisperMeta,
     WhisperStructuralConfig,
 };

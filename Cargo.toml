@@ -69,7 +69,6 @@ dashmap = "6.2.1"
 
 dirs = "7.0.0"
 clap = "4.6.7"
-downloader = { version = "0.2.8", default-features = false }
 directories-next = "2.0.0"
 
 tracing = "0.1.44"
@@ -135,8 +134,6 @@ pistoncore-glutin_window = "0.72.0"
 piston2d-opengl_graphics = "0.89.0"
 gl = "0.14.0"
 
-tempdir = "0.3"
-shellexpand = "3.1"
 
 # Dataset files
 csv = "1.4.0"

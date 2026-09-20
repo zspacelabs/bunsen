@@ -218,8 +218,8 @@ impl Simulation {
         export_duration: Duration,
     ) -> Self {
         let shutdown = Arc::new(AtomicBool::new(false));
-        let frame_handle_1 = Arc::new(Mutex::new(conway.state.to_data()));
-        let frame_handle_2 = frame_handle_1.clone();
+        let frame_handle_1 = Arc::new(Mutex::new(conway.state.to_data_as::<bool>()));
+        let last_frame = frame_handle_1.clone();
 
         let shutdown_clone = shutdown.clone();
 
@@ -276,7 +276,7 @@ impl Simulation {
         Simulation {
             handle: Some(handle),
             shutdown,
-            last_frame: frame_handle_2,
+            last_frame,
         }
     }
 

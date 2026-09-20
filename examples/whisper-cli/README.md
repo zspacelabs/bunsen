@@ -5,26 +5,32 @@ driver. The audio is pushed in chunks as a live loop would feed it, and segments
 become final; under the responsive preset, drafts come first and are marked `~`.
 
 The model is named, as `openai-whisper`'s `load_model` names it: `--model openai/tiny.en`, `--model large`, or a path
-to a checkpoint. Weights are fetched on demand into bunsen's cache, pinned to their SHA-256, and read from the bundled
-checkpoint or from `openai-whisper`'s own `~/.cache/whisper` when either already has them. The default, `openai/base`,
-is the checkpoint bunsen bundles, so it needs no network.
+to a checkpoint. Weights are fetched on demand into bunsen's cache, pinned to their SHA-256, and read from
+`openai-whisper`'s own `~/.cache/whisper` when it already has them. The default is `openai/base`; built with this
+crate's `bundled` feature, that checkpoint and both vocabularies are fetched at build time instead and read in place,
+so a run needs no network.
 
-Where [`whisper-dev`](../../crates/dev/whisper-dev) takes a checkpoint and a vocabulary by path and drives the mel and
-decode ops by hand, this example takes a model name and the audio: everything else comes from bunsen's features and
-the [model index](#models) in `src/models/`.
+The vocabulary follows the checkpoint: the token layout its vocabulary size implies selects `multilingual.tiktoken` or
+`gpt2.tiktoken`, and that rank file comes through the same cache as the weights, from the bundle, the cache, or one
+800 KB fetch. This example is flags, the driver and a `models` subcommand; the [model index](#models) and the
+name-to-model pathway are bunsen's.
 
 ## Bunsen features exercised
 
-- `whisper-weights` — `bunsen-bundled-whisper` fetches the multilingual `base` checkpoint at build time (pinned to a
-  SHA-256, cached), which the index lists as the bundled source of `openai/base`; and `pretrained::bundled_vocabulary`
-  picks the `.tiktoken` rank file that matches a checkpoint's token layout, for every model. From the vocabulary come
-  the text, via a `wordchipper` detokenizer, and upstream's default suppress list.
+- `whisper-weights`, behind this crate's `bundled` feature — `bunsen-bundled-whisper` fetches the multilingual `base`
+  checkpoint and the two `.tiktoken` vocabularies at build time (pinned to a SHA-256, cached); bunsen's index lists
+  them as the first source of `openai/base` and of the `openai` vocabularies, so the default model needs no network.
+- `kits::speech::whisper::pretrained::vocabulary_for` — the rank file that matches a checkpoint's token layout, for
+  every model. From the vocabulary come the text, via a `wordchipper` detokenizer, and upstream's default suppress
+  list. `--vocab` names one by path instead.
 - `kits::speech::whisper::pretrained::PytorchWhisperScanner` — scans a checkpoint's geometry and loads its weights;
-  the index checks the scan against the prefab the name promised before the weights are read.
-- `data::pretrained::StaticPreFabMap` — the prefab table (`src/models/prefab.rs`) is bunsen's prefab type over
+  `load_named` checks the scan against the prefab the name promised before the weights are read. `--state-dict-key`
+  configures it.
+- `data::pretrained::StaticPreFabMap` — the prefab table, `WHISPER_PREFABS`, is bunsen's prefab type over
   `WhisperApiConfig`, as `PREFAB_RESNET_MAP` is over the ResNet config.
-- `data::cache::BunsenDiskCache` — resolves the cache directory (`--cache-dir`, `$BUNSEN_CACHE_DIR`, the platform's
-  cache dir); the digest-pinned transfer is this crate's (`src/models/weights_cache.rs`).
+- `data::pretrained::WeightsCache` over `data::cache::BunsenDiskCache` — the cache directory (`--cache-dir`,
+  `$BUNSEN_CACHE_DIR`, the platform's cache dir), and the digest-pinned resolve of every weights and vocabulary file
+  through it (`--offline`, `--upstream-cache-dir`).
 - `silero-weights` — `SileroVad::load_16khz_pretrained`, the voice-activity model the `conservative` and `responsive`
   presets gate on.
 - `kits::speech::whisper::driver` — `WhisperStreamDriverConfig`, `WhisperStreamContext`: the stream driver, with its
@@ -51,7 +57,9 @@ from the root and `cargo run --features bunsen/wgpu` from this directory are the
 
 ## Running the example
 
-The first build fetches the bundled checkpoint (145 MB) and the two vocabularies into the build cache.
+The first run fetches the model it names (145 MB for `openai/base`) and its vocabulary into bunsen's cache. Build
+with `--features bundled` to have `openai/base` and both vocabularies fetched at build time instead, pinned and read
+in place.
 
 ```bash
 $ cargo run --release -p whisper-cli --features bunsen/wgpu -- \
@@ -61,10 +69,13 @@ $ cargo run --release -p whisper-cli --features bunsen/wgpu -- \
 Model options:
 
 - `--model` — `provider/name` or a bare name from `models list` (`openai/tiny.en`, `large`, `turbo`), or a path to a
-  checkpoint (default `openai/base`, the bundled checkpoint).
+  checkpoint (default `openai/base`).
 - `--cache-dir` — where fetched weights live; `$BUNSEN_CACHE_DIR`, then the platform's cache directory, when omitted.
 - `--offline` — never reach the network; a model that is not already local is an error.
 - `--upstream-cache-dir` — `openai-whisper`'s download root, read as a local source (default `~/.cache/whisper`).
+- `--vocab` — a `.tiktoken` vocabulary by path, in place of the one the checkpoint's token layout selects.
+- `--state-dict-key` — the key the checkpoint keeps its tensors under (default `model_state_dict`, as OpenAI's do);
+  an empty string for a checkpoint whose tensors are at the top level.
 
 Decode options:
 
@@ -85,7 +96,7 @@ Decode options:
 
 ## Models
 
-`src/models/` keeps three things apart, because they vary independently:
+The index keeps three things apart, because they vary independently:
 
 - A **prefab** is a public *configuration*: a geometry with no weights (`n_mels`, vocabulary size, `d_model`, layer
   counts). The table is upstream's `ModelDimensions`, typed in, so a name means a shape before anything is fetched.
@@ -94,12 +105,16 @@ Decode options:
 - A **pretrained** is a trained set of weights for a prefab, with a format (the quantization axis; OpenAI ships one,
   fp16 PyTorch), a SHA-256, and a list of **sources**. One prefab may have several pretrained; one pretrained may have
   several names (`large` is `large-v3`, `turbo` is `large-v3-turbo`) and several sources, all the same bytes.
-- A **source** is a URL, `openai-whisper`'s `~/.cache/whisper`, or the file `bunsen-bundled-whisper` fetched at build
-  time. Sources are tried in order: the bundled file is used in place (the build verified it); a file in upstream's
+- A **source** is a URL, `openai-whisper`'s `~/.cache/whisper`, or, under `bundled`, the file `bunsen-bundled-whisper`
+  fetched at build time. Sources are tried in order: the bundled file is used in place (the build verified it); a file in upstream's
   cache is hashed and, on a match, linked into the cache; a URL is streamed to a `.partial`, hashed as it lands, and
   renamed into place only on a match.
 
-Fetched weights live at `<cache>/whisper/<provider>/<sha256>/<file>`. The digest in the path is the pin, as it is in
+The two `.tiktoken` vocabularies are entries of the same kind, in an `openai` vocabulary table that names the token
+layout each one instantiates where a checkpoint names its prefab. `transcribe` resolves the one the checkpoint's
+layout selects, and `models fetch` brings a named model's along with its checkpoint.
+
+Fetched weights live at `<cache>/weights/whisper/<provider>/<sha256>/<file>`. The digest in the path is the pin, as it is in
 upstream's URLs: a file there was verified when written, so later runs trust it without re-hashing 3 GB, and a
 re-pinned model cannot collide with a stale one.
 
@@ -115,10 +130,15 @@ openai: OpenAI's Whisper checkpoints, as `openai-whisper` names and pins them (M
   openai/tiny.en         tiny.en          pytorch fp16   remote          39 M parameters, English-only
   openai/tiny            tiny             pytorch fp16   remote          39 M parameters, multilingual
   openai/base.en         base.en          pytorch fp16   remote          74 M parameters, English-only
-  openai/base            base             pytorch fp16   bundled         74 M parameters, multilingual; the checkpoint bunsen bundles
+  openai/base            base             pytorch fp16   cached          74 M parameters, multilingual; the checkpoint bunsen bundles
   ...
   openai/large-v3        large-v3         pytorch fp16   upstream cache  1550 M parameters, multilingual, 128 mels (also: large)
   openai/large-v3-turbo  large-v3-turbo   pytorch fp16   remote          809 M parameters, multilingual, 128 mels, four-layer decoder (also: turbo)
+
+openai: OpenAI's Whisper vocabularies: the tiktoken rank files behind the tokenizer (MIT; https://github.com/openai/whisper/tree/839639a2.../whisper/assets)
+  NAME                   LAYOUT           FORMAT         STATUS          DESCRIPTION
+  openai/multilingual    multilingual     tiktoken       cached          the multilingual vocabulary: GPT-2's ranks plus one, as every multilingual checkpoint numbers them
+  openai/gpt2            english-only     tiktoken       remote          the English-only vocabulary: GPT-2's ranks, as the `*.en` checkpoints number them
 
 $ cargo run -q -p whisper-cli -- models prefabs
 whisper: OpenAI Whisper geometries, as `whisper.model.ModelDimensions` has them
@@ -129,8 +149,10 @@ whisper: OpenAI Whisper geometries, as `whisper.model.ModelDimensions` has them
 
 $ cargo run -q -p whisper-cli -- models fetch --verify openai/tiny.en
 INFO openai/tiny.en: fetching https://openaipublic.azureedge.net/main/whisper/models/d3dd.../tiny.en.pt
-openai/tiny.en: /home/alice/.cache/bunsen/whisper/openai/d3dd.../tiny.en.pt (downloaded)
+openai/tiny.en: /home/alice/.cache/bunsen/weights/whisper/openai/d3dd.../tiny.en.pt (downloaded)
   sha256 d3dd57d32accea0b295c96e26691aa14d8822fac7d9d27d5dc00b4ca2826dd03 ok
+  vocabulary openai/gpt2: /home/alice/.cache/bunsen/weights/whisper/openai/306c.../gpt2.tiktoken (downloaded)
+    sha256 306cd27f03c1a714eca7108e03d66b7dc042abe8c258b44c199a7ed9838dd930 ok
 
 $ cargo run -q -p whisper-cli -- models inspect large
 model: openai/large-v3
@@ -143,23 +165,21 @@ scanned: WhisperGeometry { n_mels: 128, vocab_size: 51866, d_model: 1280, max_au
   heads: 20
   front end: WhisperFrontEndConfig { sample_rate: 16000, hop_ms: 10, window_ms: 25, range_clamp_db: 8.0 }
   matches prefab large-v3
+vocabulary: openai/multilingual (cached)
 ```
 
 `inspect` on a path reports which prefab, if any, the checkpoint's geometry is; on a name whose checkpoint does not
 scan as its prefab, it reports the mismatch instead of loading. `transcribe` makes the same check before reading any
 tensors.
 
-### What is exploratory here
+### Where the index lives
 
-The index is worked out in this crate, against real files, as the shape a `kits::speech::whisper::pretrained` index
-could take. Two things it needed are not in bunsen yet:
-
-- `data::pretrained::StaticPretrainedWeightsDescriptor` has a name and URLs but no digest, no format and no local
-  sources, so the prefab table uses bunsen's `StaticPreFabMap` with `weights: None` and the pretrained side is this
-  crate's `WhisperPretrained`.
-- `data::cache::BunsenDiskCache::load_cached_path` has no digest (`// TODO: hash`) and drops the per-file result of a
-  download, so a 404 returns `Ok` with nothing on disk. The transfer here is this crate's; the disk cache decides only
-  where files go.
+All of it is bunsen's: `kits::speech::whisper::pretrained::{WHISPER_PREFABS, OPENAI, WHISPER_PROVIDERS,
+OPENAI_VOCABULARIES}` over `data::pretrained::{StaticPretrainedWeightsDescriptor, StaticPretrainedProvider,
+WeightsCache, ModelRef}`, with `WhisperGeometry` beside `WhisperApiConfig`, `pretrained::{resolve_model, scan_model,
+load_model, load_named}` (and their `_with` forms, which take a configured scanner) as the name-to-model pathway, and
+`pretrained::vocabulary_for` as the layout-to-vocabulary one. This crate resolves `--model` with `load_named_with` and
+reports through the `models` subcommand; it keeps no index of its own.
 
 ## Benchmarks
 

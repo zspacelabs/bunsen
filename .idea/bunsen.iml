@@ -33,10 +33,6 @@
       <sourceFolder url="file://$MODULE_DIR$/crates/validation/whisper-model-validation/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/crates/dev/burn_bug_repro/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/examples/whisper-cli/src" isTestSource="false" />
-      <sourceFolder url="file://$MODULE_DIR$/crates/dev/whisper-dev/src" isTestSource="false" />
-      <sourceFolder url="file://$MODULE_DIR$/crates/dev/zsl-data-cache/examples" isTestSource="false" />
-      <sourceFolder url="file://$MODULE_DIR$/crates/dev/zsl-data-cache/examples/pull_shards/src" isTestSource="false" />
-      <sourceFolder url="file://$MODULE_DIR$/crates/dev/zsl-data-cache/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/crates/dev/burn-rmexp-dyntensor/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/crates/dev/tensor-library-exp/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/crates/dev/clap-common/src" isTestSource="false" />

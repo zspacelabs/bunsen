@@ -11,6 +11,14 @@ license.workspace = true
 [lints]
 workspace = true
 
+[features]
+default = []
+
+## Fetch `openai/base` and both vocabularies at build time, digest-pinned,
+## and read them in place: the default model then needs no network at run
+## time. Without this they are fetched into bunsen's cache on first use.
+bundled = ["bunsen/whisper-weights"]
+
 [dependencies]
 burn = { workspace = true, features = ["fusion"] }
 # The backend is bunsen's `PerformanceBackend`, chosen by bunsen's own backend
@@ -18,26 +26,19 @@ burn = { workspace = true, features = ["fusion"] }
 # `bunsen/metal`, `bunsen/flex`). With none, bunsen's default `testing`
 # feature selects `flex`.
 #
-# `whisper-weights` bundles the checkpoint and both vocabularies;
 # `silero-weights` bundles the VAD the real-time presets need.
+# `indicatif` puts bunsen's progress bar on every weights transfer.
 bunsen = { path = "../../crates/public/bunsen", features = [
     "store",
     "audio",
     "tokenizer",
-    "whisper-weights",
     "silero-weights",
+    "indicatif",
 ] }
 
 clap = { workspace = true, features = ["derive"] }
 clap-common = { path = "../../crates/dev/clap-common" }
 log = { workspace = true }
-
-# The weights cache: `ureq` streams a checkpoint down, `sha2` pins it, and
-# `indicatif` shows the 3 GB going by. bunsen's own disk cache decides where
-# it lands; see `src/models/weights_cache.rs` for why it does not also fetch.
-indicatif = { workspace = true }
-sha2 = { workspace = true }
-ureq = { workspace = true }
 
 [dev-dependencies]
 tempfile = { workspace = true }

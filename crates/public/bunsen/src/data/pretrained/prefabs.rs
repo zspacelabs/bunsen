@@ -8,6 +8,7 @@ use alloc::{
         ToString,
     },
     sync::Arc,
+    vec::Vec,
 };
 use core::fmt::Debug;
 
@@ -17,11 +18,9 @@ use super::{
     PretrainedWeightsDescriptor,
     PretrainedWeightsMap,
     StaticPretrainedWeightsMap,
+    not_found,
 };
-use crate::errors::{
-    BunsenError,
-    BunsenResult,
-};
+use crate::errors::BunsenResult;
 
 /// Static builder for a [`PreFabConfig`]
 pub struct StaticPreFabConfig<C>
@@ -148,17 +147,18 @@ where
     }
 
     /// Looks up a descriptor.
+    ///
+    /// # Errors
+    /// [`ResourceNotFound`](crate::errors::BunsenError::ResourceNotFound),
+    /// naming the weights there are.
     pub fn try_lookup_pretrained_weights(
         &self,
         name: &str,
     ) -> BunsenResult<PretrainedWeightsDescriptor> {
-        match self.lookup_pretrained_weights(name) {
-            Some(d) => Ok(d),
-            None => Err(BunsenError::ResourceNotFound(format!(
-                "Descriptor not found: {}",
-                name
-            ))),
-        }
+        self.lookup_pretrained_weights(name).ok_or_else(|| {
+            let names = self.weights.as_ref().map(|w| w.names()).unwrap_or_default();
+            not_found(Some(&self.name), "pretrained weights", name, &names)
+        })
     }
 
     /// Looks up a descriptor.
@@ -206,40 +206,56 @@ where
         }
     }
 
+    /// The prefabs, in listing order.
+    pub fn iter(&self) -> impl Iterator<Item = &'static StaticPreFabConfig<C>> + '_ {
+        self.items.iter().copied()
+    }
+
+    /// The first prefab whose built config satisfies `pred`: the reverse
+    /// lookup, for a config that arrived without a name.
+    pub fn find(
+        &self,
+        mut pred: impl FnMut(&C) -> bool,
+    ) -> Option<&'static StaticPreFabConfig<C>> {
+        self.iter().find(|p| pred(&p.to_config()))
+    }
+
+    /// Every prefab name, in listing order.
+    pub fn names(&self) -> Vec<&'static str> {
+        self.iter().map(|p| p.name).collect()
+    }
+
     /// Looks up a prefab.
     pub fn lookup_prefab(
         &self,
         name: &str,
     ) -> Option<PreFabConfig<C>> {
-        self.items
-            .iter()
-            .find(|c| c.name == name)
-            .map(|c| c.to_prefab())
+        self.iter().find(|c| c.name == name).map(|c| c.to_prefab())
     }
 
     /// Looks up a prefab.
+    ///
+    /// # Errors
+    /// [`ResourceNotFound`](crate::errors::BunsenError::ResourceNotFound),
+    /// naming the prefabs there are.
     pub fn try_lookup_prefab(
         &self,
         name: &str,
     ) -> BunsenResult<PreFabConfig<C>> {
-        match self.lookup_prefab(name) {
-            Some(d) => Ok(d),
-            None => Err(BunsenError::ResourceNotFound(format!(
-                "PreFab not found: {}",
-                name
-            ))),
-        }
+        self.lookup_prefab(name)
+            .ok_or_else(|| not_found(Some(self.name), "prefab", name, &self.names()))
     }
 
     /// Looks up a prefab.
+    ///
+    /// # Panics
+    /// If there is no such prefab.
     pub fn expect_lookup_prefab(
         &self,
         name: &str,
     ) -> PreFabConfig<C> {
-        match self.try_lookup_prefab(name) {
-            Ok(p) => p,
-            Err(e) => panic!("{}", e),
-        }
+        self.try_lookup_prefab(name)
+            .unwrap_or_else(|e| panic!("{e}"))
     }
 }
 
@@ -263,6 +279,11 @@ impl<C> PreFabMap<C>
 where
     C: 'static + Config + Debug + Clone,
 {
+    /// Every prefab name, in name order.
+    pub fn names(&self) -> Vec<&str> {
+        self.items.keys().map(String::as_str).collect()
+    }
+
     /// Looks up a prefab.
     pub fn lookup_prefab(
         &self,
@@ -272,27 +293,95 @@ where
     }
 
     /// Looks up a prefab.
+    ///
+    /// # Errors
+    /// [`ResourceNotFound`](crate::errors::BunsenError::ResourceNotFound),
+    /// naming the prefabs there are.
     pub fn try_lookup_prefab(
         &self,
         name: &str,
     ) -> BunsenResult<PreFabConfig<C>> {
-        match self.lookup_prefab(name) {
-            Some(d) => Ok(d),
-            None => Err(BunsenError::ResourceNotFound(format!(
-                "PreFab not found: {}",
-                name
-            ))),
-        }
+        self.lookup_prefab(name)
+            .ok_or_else(|| not_found(Some(&self.name), "prefab", name, &self.names()))
     }
 
     /// Looks up a prefab.
+    ///
+    /// # Panics
+    /// If there is no such prefab.
     pub fn expect_lookup_prefab(
         &self,
         name: &str,
     ) -> PreFabConfig<C> {
-        match self.try_lookup_prefab(name) {
-            Ok(p) => p,
-            Err(e) => panic!("{}", e),
-        }
+        self.try_lookup_prefab(name)
+            .unwrap_or_else(|e| panic!("{e}"))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::errors::BunsenError;
+
+    #[derive(Config, Debug)]
+    struct Toy {
+        width: usize,
+    }
+
+    static NARROW: StaticPreFabConfig<Toy> = StaticPreFabConfig {
+        name: "narrow",
+        description: "width 1",
+        builder: || Toy::new(1),
+        weights: None,
+    };
+    static WIDE: StaticPreFabConfig<Toy> = StaticPreFabConfig {
+        name: "wide",
+        description: "width 2",
+        builder: || Toy::new(2),
+        weights: None,
+    };
+    static TOYS: StaticPreFabMap<Toy> = StaticPreFabMap {
+        name: "toys",
+        description: "two toys",
+        items: &[&NARROW, &WIDE],
+    };
+
+    #[test]
+    fn test_iter_find_and_names() {
+        assert_eq!(TOYS.names(), ["narrow", "wide"]);
+        assert_eq!(TOYS.iter().count(), 2);
+        assert_eq!(TOYS.find(|c| c.width == 2).map(|p| p.name), Some("wide"));
+        assert!(TOYS.find(|c| c.width == 3).is_none());
+        assert_eq!(TOYS.lookup_prefab("wide").unwrap().to_config().width, 2);
+
+        let owned = TOYS.to_prefab_map();
+        assert_eq!(owned.names(), ["narrow", "wide"]);
+        assert_eq!(owned.lookup_prefab("narrow").unwrap().to_config().width, 1);
+    }
+
+    /// A miss names the table and what it holds, in the static and the
+    /// owned map alike, and in a prefab's weights.
+    #[test]
+    fn test_a_miss_names_what_there_is() {
+        let m = match TOYS.try_lookup_prefab("huge") {
+            Err(BunsenError::ResourceNotFound(m)) => m,
+            other => panic!("{other:?}"),
+        };
+        assert_eq!(m, "toys: no prefab \"huge\"; there are: narrow, wide");
+
+        let m = match TOYS.to_prefab_map().try_lookup_prefab("huge") {
+            Err(BunsenError::ResourceNotFound(m)) => m,
+            other => panic!("{other:?}"),
+        };
+        assert_eq!(m, "toys: no prefab \"huge\"; there are: narrow, wide");
+
+        let m = match TOYS
+            .expect_lookup_prefab("wide")
+            .try_lookup_pretrained_weights("in1k")
+        {
+            Err(BunsenError::ResourceNotFound(m)) => m,
+            other => panic!("{other:?}"),
+        };
+        assert_eq!(m, "wide: no pretrained weights \"in1k\"; there are: (none)");
     }
 }

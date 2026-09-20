@@ -4,36 +4,40 @@ use std::{
 };
 
 use bunsen::{
-    errors::BunsenResult,
-    kits::speech::{
-        silero_vad::SileroVad,
-        whisper::{
-            Whisper,
-            WhisperApiConfig,
-            WhisperFallbackConfig,
-            driver::{
-                PresetEmissionPolicy,
-                WhisperStreamDriver,
-                WhisperStreamDriverConfig,
-                WhisperTask,
-            },
-            logit_filters::default_filters,
-            pretrained::bundled_vocabulary,
+    data::{
+        cache::BunsenDiskCacheOptions,
+        pretrained::{
+            WeightsCache,
+            WeightsCacheOptions,
         },
+    },
+    errors::BunsenResult,
+    kits::{
+        speech::{
+            silero_vad::SileroVad,
+            whisper::{
+                Whisper,
+                WhisperApiConfig,
+                WhisperFallbackConfig,
+                driver::{
+                    PresetEmissionPolicy,
+                    WhisperStreamDriver,
+                    WhisperStreamDriverConfig,
+                    WhisperTask,
+                },
+                logit_filters::default_filters,
+                pretrained::{
+                    OPENAI_LOCAL_DIR,
+                    PytorchWhisperScanner,
+                    load_named_with,
+                    vocabulary_for,
+                },
+            },
+        },
+        tokens::TiktokenRanks,
     },
 };
 use burn::prelude::Backend;
-
-use crate::models::{
-    loader::{
-        ModelRef,
-        load_model,
-    },
-    weights_cache::{
-        WeightsCache,
-        WeightsCacheOptions,
-    },
-};
 
 /// Where fetched weights live, and whether fetching is allowed.
 #[derive(clap::Args, Debug)]
@@ -56,11 +60,35 @@ pub struct WeightsCacheArgs {
 impl WeightsCacheArgs {
     /// Opens the cache.
     pub fn init(&self) -> BunsenResult<WeightsCache> {
-        WeightsCache::new(WeightsCacheOptions {
-            cache_dir: self.cache_dir.clone(),
-            offline: self.offline,
-            upstream_cache_dir: self.upstream_cache_dir.clone(),
-        })
+        let mut options = WeightsCacheOptions::default()
+            .with_disk(BunsenDiskCacheOptions::default().with_cache_dir(self.cache_dir.clone()))
+            .with_offline(self.offline);
+        if let Some(dir) = &self.upstream_cache_dir {
+            options = options.with_local_dir(OPENAI_LOCAL_DIR, dir.clone());
+        }
+        WeightsCache::new(options)
+    }
+}
+
+/// How a checkpoint is read.
+#[derive(clap::Args, Debug)]
+pub struct ScannerArgs {
+    /// The key the checkpoint keeps its tensors under; `model_state_dict`,
+    /// as `OpenAI`'s do, when omitted. An empty string for a checkpoint whose
+    /// tensors are at the top level.
+    #[arg(long)]
+    state_dict_key: Option<String>,
+}
+
+impl ScannerArgs {
+    /// The scanner these flags describe.
+    pub fn scanner(&self) -> PytorchWhisperScanner {
+        let scanner = PytorchWhisperScanner::new();
+        match self.state_dict_key.as_deref() {
+            None => scanner,
+            Some("") => scanner.with_top_level_key(None),
+            Some(key) => scanner.with_top_level_key(Some(key.to_string())),
+        }
     }
 }
 
@@ -68,12 +96,23 @@ impl WeightsCacheArgs {
 pub struct WhisperDriverArgs {
     /// The model: `provider/name` or a bare name from `models list`
     /// (`openai/tiny.en`, `large`), or a path to a checkpoint. The default
-    /// is the checkpoint bunsen bundles, so it needs no network.
+    /// is fetched into the cache on first use (145 MB, digest-checked), or
+    /// read in place when this crate is built with its `bundled` feature.
     #[arg(long, default_value = "openai/base")]
     model: String,
 
     #[clap(flatten)]
     cache: WeightsCacheArgs,
+
+    #[clap(flatten)]
+    scanner: ScannerArgs,
+
+    /// A `.tiktoken` vocabulary by path, in place of the one the
+    /// checkpoint's token layout selects (`multilingual.tiktoken` for a
+    /// multilingual checkpoint, `gpt2.tiktoken` for an English-only one),
+    /// which comes from the bundle, the cache, or one fetch.
+    #[arg(long)]
+    vocab: Option<PathBuf>,
 
     /// Language of the speech, as a Whisper code (`en`, `ja`, ...); detected
     /// from the first window when omitted.
@@ -134,11 +173,10 @@ impl WhisperDriverArgs {
     /// logits out — so nothing here has to re-type it.
     pub fn load_model<B: Backend>(
         &self,
+        cache: &WeightsCache,
         device: &B::Device,
     ) -> BunsenResult<(Whisper<B>, WhisperApiConfig)> {
-        let model = ModelRef::resolve(&self.model)?;
-        let mut cache = self.cache.init()?;
-        load_model(&model, &mut cache, device)
+        load_named_with::<B>(&self.model, cache, device, &self.scanner.scanner())
     }
 
     /// Load and setup the [`WhisperStreamDriver`].
@@ -146,7 +184,8 @@ impl WhisperDriverArgs {
         &self,
         device: &B::Device,
     ) -> BunsenResult<WhisperStreamDriver<B>> {
-        let (model, cfg) = self.load_model(device)?;
+        let cache = self.cache.init()?;
+        let (model, cfg) = self.load_model(&cache, device)?;
         log::info!(
             "model: {} n_mels, vocabulary {}, d_model {}, {} + {} layers",
             cfg.n_mels,
@@ -156,11 +195,15 @@ impl WhisperDriverArgs {
             cfg.n_decoder_layers,
         );
 
-        // The token layout follows from the vocabulary size, and the bundled
-        // vocabulary follows from the layout: nothing here is typed in.
+        // The token layout follows from the vocabulary size, and the
+        // vocabulary follows from the layout, through the same cache as the
+        // weights: nothing here is typed in unless `--vocab` names a file.
         let policy = cfg.token_layout.policy_for_vocab(cfg.vocab_size)?;
         let ids = *policy.ids();
-        let ranks = bundled_vocabulary(&ids)?;
+        let ranks = match &self.vocab {
+            Some(path) => TiktokenRanks::load(path)?,
+            None => vocabulary_for(&ids, &cache)?,
+        };
         let detokenizer = policy.detokenizer(&ranks)?;
         let filters = default_filters::<B>(&ranks, &ids);
 

@@ -64,10 +64,13 @@ jobs:
         run: cargo doc --no-deps --all-features
 
       - name: Build and Test
-        run: cargo test --features download
+        run: cargo test --features download,indicatif
 
       - name: No default features build.
         run: cargo test -p bunsen --no-default-features
+
+      - name: Cache without fetch.
+        run: cargo check -p bunsen --no-default-features --features cache
 
       # `cargo publish` verifies each crate outside the workspace, with only
       # its own dependencies. Every other step here builds several crates at

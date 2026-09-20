@@ -10,9 +10,9 @@ publish = false
 
 [dependencies]
 burn = { workspace = true, features = ["std"] }
-bunsen = { path = "../../public/bunsen", features = ["std", "testing"] }
+bunsen = { path = "../../public/bunsen", features = ["std", "testing", "fetch"] }
 
-clap = { workspace = true }
+clap = { workspace = true, features = ["derive"] }
 stderrlog = { workspace = true }
 log = { workspace = true }
 

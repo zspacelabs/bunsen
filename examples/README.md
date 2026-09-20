@@ -65,29 +65,15 @@ embeddings/head/scalars) selected via module-tree reflection.
 - **Bunsen coverage:** `kits::gpts::nanochat`,
   `burner::module::reflection::XmlModuleTree`, `burner::optim`
   (`GroupOptimizerAdaptor2`, `OptimizerGroup`),
-  `bunsen-arrow-dataloaders`, `zsl-data-cache`.
+  `bunsen-arrow-dataloaders`, `data::shards` with `kits::gpts::nanochat::datasets`.
 
 ### Example: whisper-cli
 
 Transcribes audio through bunsen's Whisper stream driver, with the model named as `openai-whisper` names it
 (`--model openai/tiny.en`, `large`, or a checkpoint path). A `models` subcommand lists, fetches and inspects them.
-Its `src/models/` is a rough-in of a prefab / pretrained / source index over a digest-pinned local cache.
+The prefab / pretrained / source index it was worked out against, and the name-to-model loader, are bunsen's now.
 
 - **Bunsen coverage:** `kits::speech::whisper::driver`, `kits::speech::whisper::pretrained::PytorchWhisperScanner`,
   `data::pretrained::StaticPreFabMap`, `data::cache::BunsenDiskCache`, the `whisper-weights` and `silero-weights`
   features.
 
-### Example: whisper-dev
-
-Development utility that imports an OpenAI Whisper model from a PyTorch checkpoint and prints the inferred config.
-
-- **Bunsen coverage:** `kits::speech::whisper::pretrained::PytorchWhisperScanner`.
-
-### Example: zsl-data-cache
-
-Reusable on-disk shard download/cache for the nanochat (fineweb) dataset, consumed by `train-chat`; includes a
-`pull_shards` CLI.
-
-- **Bunsen coverage:** support library for bunsen training examples (`DatasetCacheConfig`, `DatasetSource`), built on
-  Burn `Config` and
-  `parquet`/`arrow`.
