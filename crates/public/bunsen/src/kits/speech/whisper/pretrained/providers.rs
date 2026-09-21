@@ -351,20 +351,22 @@ mod tests {
         use crate::{
             data::pretrained::{
                 CacheStatus,
-                PretrainedRef,
                 Provenance,
             },
-            kits::speech::whisper::pretrained::testing::offline_cache,
+            kits::speech::whisper::pretrained::{
+                resolve_model,
+                testing::offline_cache,
+            },
         };
         let cache = offline_cache();
-        let model = PretrainedRef::resolve(WHISPER_PROVIDERS, "openai/base", CHECKPOINT).unwrap();
-        assert_eq!(model.id(), "openai/base");
+        let model = resolve_model("openai/base").unwrap();
+        assert_eq!(model.id(), "well-known:openai/base");
         let status = model.status(WHISPER_KIT, &cache);
         assert_eq!(status[CHECKPOINT], CacheStatus::Cached);
         assert_eq!(status[VOCABULARY], CacheStatus::Cached);
 
         let loaded = cache.load(WHISPER_KIT, &model.to_map()).unwrap();
-        assert_eq!(loaded.map.name, "openai/base");
+        assert_eq!(loaded.map.name, "well-known:openai/base");
         for (key, part) in loaded.iter() {
             assert_eq!(part.provenance, Provenance::Cached, "{key}");
             assert!(part.path.starts_with(bunsen_bundled_whisper::cache_dir()));

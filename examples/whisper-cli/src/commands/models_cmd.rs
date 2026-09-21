@@ -31,6 +31,7 @@ use bunsen::{
             WhisperConstruct,
             openai_download_root,
             prefab_for_geometry,
+            resolve_model,
             scan_model_with,
             vocabulary_map,
         },
@@ -118,7 +119,7 @@ impl ModelsCmd {
 }
 
 fn resolve(name: &str) -> BunsenResult<PretrainedRef> {
-    PretrainedRef::resolve(WHISPER_PROVIDERS, name, CHECKPOINT)
+    resolve_model(name)
 }
 
 fn list(cache: &PretrainedCache) -> BunsenResult<()> {
@@ -285,7 +286,7 @@ fn inspect(
     let model = resolve(name)?;
     println!("model: {}", model.id());
     if let Some((provider, row)) = model.named() {
-        println!("  provider: {} ({})", provider.name, provider.description);
+        println!("  provider: {provider}");
         println!("  description: {}", row.description);
     }
 

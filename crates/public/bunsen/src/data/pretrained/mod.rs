@@ -8,7 +8,6 @@ mod factory;
 #[cfg(feature = "cache")]
 mod loaded;
 mod prefabs;
-#[cfg(feature = "cache")]
 mod pretrained_ref;
 mod providers;
 mod resource;
@@ -29,7 +28,6 @@ pub use factory::*;
 pub use loaded::*;
 #[doc(inline)]
 pub use prefabs::*;
-#[cfg(feature = "cache")]
 #[doc(inline)]
 pub use pretrained_ref::*;
 #[doc(inline)]

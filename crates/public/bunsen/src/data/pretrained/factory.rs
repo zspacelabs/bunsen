@@ -32,10 +32,13 @@ use alloc::{
     sync::Arc,
     vec::Vec,
 };
+use std::path::Path;
 
 use super::{
     Pretrained,
     PretrainedProvider,
+    PretrainedRef,
+    ResourceMap,
     not_found,
 };
 use crate::errors::{
@@ -191,6 +194,41 @@ impl PretrainedFactory {
             Some(found) => Ok(found),
             None => Err(self.not_found(spec)),
         }
+    }
+
+    /// What `spec` refers to: the row it names, as [`lookup`](Self::lookup)
+    /// finds it, or else, when `given_key` is `Some` and `spec` is a path to
+    /// an existing file, a one-resource map under that key, the key the
+    /// kit reads a bare checkpoint by. The index wins over the file
+    /// system; `None` refuses a path.
+    ///
+    /// # Errors
+    /// As [`lookup`](Self::lookup), the message noting that `spec` is not
+    /// a file either when a path would have been taken.
+    pub fn resolve(
+        &self,
+        spec: &str,
+        given_key: Option<&str>,
+    ) -> BunsenResult<PretrainedRef> {
+        if let Some((provider, pretrained)) = self.find(spec)? {
+            return Ok(PretrainedRef::Named {
+                provider,
+                pretrained,
+            });
+        }
+        let Some(key) = given_key else {
+            return Err(self.not_found(spec));
+        };
+        let path = Path::new(spec);
+        if path.is_file() {
+            return Ok(PretrainedRef::Given(ResourceMap::given(spec, key, path)));
+        }
+        Err(match self.not_found(spec) {
+            BunsenError::ResourceNotFound(m) => {
+                BunsenError::ResourceNotFound(alloc::format!("{m}; and {spec:?} is not a file"))
+            }
+            other => other,
+        })
     }
 
     /// The dispatch behind [`lookup`](Self::lookup): `Ok(None)` when no
@@ -616,6 +654,64 @@ mod tests {
             factory.lookup("well-known:small").unwrap().1.name,
             "a/small"
         );
+    }
+
+    /// A spec resolves to the row it names, qualified, bare or by alias;
+    /// failing that, to a file under the given key; and the index is tried
+    /// before the file system.
+    #[test]
+    fn test_resolve_names_aliases_and_paths() {
+        let factory = factory();
+
+        let model = factory
+            .resolve("well-known:a/small", Some("checkpoint"))
+            .unwrap();
+        assert_eq!(model.id(), "well-known:a/small");
+        let model = factory.resolve("s", Some("checkpoint")).unwrap();
+        assert_eq!(model.id(), "well-known:a/small");
+        assert_eq!(
+            model.named().map(|(p, row)| (p, row.name.as_str())),
+            Some(("well-known", "a/small"))
+        );
+        assert_eq!(model.to_map().name, "well-known:a/small");
+        let model = factory.resolve("hub:x/y", None).unwrap();
+        assert_eq!(model.id(), "hub:x/y");
+
+        let dir = tempfile::tempdir().unwrap();
+        let file = dir.path().join("ckpt.pt");
+        std::fs::write(&file, b"x").unwrap();
+        let spec = file.to_str().unwrap();
+        let model = factory.resolve(spec, Some("checkpoint")).unwrap();
+        assert_eq!(model.id(), spec);
+        assert!(model.named().is_none());
+        let map = model.to_map();
+        assert_eq!(map.keys(), ["checkpoint"]);
+        assert_eq!(map.get("checkpoint").unwrap().file, "ckpt.pt");
+
+        match factory.resolve(spec, None) {
+            Err(BunsenError::ResourceNotFound(m)) => {
+                assert!(!m.contains("not a file"), "a path was never an option: {m}");
+            }
+            other => panic!("{other:?}"),
+        }
+        match factory.resolve("/no/such/file.pt", Some("checkpoint")) {
+            Err(BunsenError::ResourceNotFound(m)) => {
+                assert!(m.contains("well-known:a/small"), "{m}");
+                assert!(m.ends_with("\"/no/such/file.pt\" is not a file"), "{m}");
+            }
+            other => panic!("{other:?}"),
+        }
+        assert!(matches!(
+            factory.resolve("well-known:a/gigantic", Some("checkpoint")),
+            Err(BunsenError::ResourceNotFound(_))
+        ));
+
+        // A row named like an existing file is the row: the index first.
+        let shadow = table("shadow", vec![group("g", vec![row(spec, &[], "x")])]);
+        let factory = PretrainedFactory::new("kit").with_provider(shadow).unwrap();
+        let model = factory.resolve(spec, Some("checkpoint")).unwrap();
+        assert!(model.named().is_some());
+        assert_eq!(model.id(), format!("shadow:g/{spec}"));
     }
 
     #[test]

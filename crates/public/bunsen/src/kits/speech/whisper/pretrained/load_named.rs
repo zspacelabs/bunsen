@@ -12,7 +12,10 @@
 //! [`scan_model`] is the read-only half, for a listing that wants the
 //! geometry without the weights.
 
-use std::path::Path;
+use std::{
+    path::Path,
+    sync::Arc,
+};
 
 use burn::prelude::Backend;
 
@@ -21,6 +24,7 @@ use crate::{
         Loaded,
         PreFabConfig,
         PretrainedCache,
+        PretrainedFactory,
         PretrainedRef,
         ResourceMap,
         load_map,
@@ -35,21 +39,30 @@ use crate::{
         pretrained::{
             CHECKPOINT,
             PytorchWhisperScanner,
+            WELL_KNOWN_TABLE,
+            WHISPER_KIT,
             WHISPER_PREFABS,
-            WHISPER_PROVIDERS,
             WhisperConstruct,
         },
     },
 };
 
-/// Resolves a model spec against [`WHISPER_PROVIDERS`]: `provider/name`, a
-/// bare name or alias, or a path to a checkpoint, which becomes a
-/// one-resource map under [`CHECKPOINT`].
+/// The factory over the well-known table.
+fn factory() -> PretrainedFactory {
+    PretrainedFactory::new(WHISPER_KIT)
+        .with_provider(Arc::new(WELL_KNOWN_TABLE.to_table()))
+        .unwrap_or_else(|e| panic!("{e}"))
+}
+
+/// Resolves a model spec against the well-known table:
+/// `well-known:openai/base`, `openai/base`, a bare name or alias, or a
+/// path to a checkpoint, which becomes a one-resource map under
+/// [`CHECKPOINT`].
 ///
 /// # Errors
-/// As [`PretrainedRef::resolve`].
+/// As [`PretrainedFactory::resolve`].
 pub fn resolve_model(spec: &str) -> BunsenResult<PretrainedRef> {
-    PretrainedRef::resolve(WHISPER_PROVIDERS, spec, CHECKPOINT)
+    factory().resolve(spec, Some(CHECKPOINT))
 }
 
 /// Checks a scanned config against the prefab a name promised.
@@ -152,14 +165,18 @@ mod tests {
                 provider,
                 pretrained,
             } => {
-                assert_eq!(provider.name, "openai");
-                assert_eq!(pretrained.name, "tiny.en");
+                assert_eq!(provider, "well-known");
+                assert_eq!(pretrained.name, "openai/tiny.en");
             }
             other => panic!("{other:?}"),
         }
+        assert_eq!(
+            resolve_model("well-known:openai/tiny.en").unwrap().id(),
+            "well-known:openai/tiny.en"
+        );
         match resolve_model("turbo").unwrap() {
             PretrainedRef::Named { pretrained, .. } => {
-                assert_eq!(pretrained.name, "large-v3-turbo");
+                assert_eq!(pretrained.name, "openai/large-v3-turbo");
             }
             other => panic!("{other:?}"),
         }

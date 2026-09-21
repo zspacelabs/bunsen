@@ -1,49 +1,37 @@
 //! # Pretrained references
 //!
-//! What a spec resolved to: a row in a provider, or a map from somewhere
-//! else, such as a path. The name-to-model pathway's first step, shared by
-//! every kit; the kit supplies the providers, the key a bare path fills,
-//! the hook that builds, and any prefab check.
+//! What a spec resolved to: a row copied out of a provider, or a map from
+//! somewhere else, such as a path. The name-to-model pathway's first step,
+//! shared by every kit; a [`PretrainedFactory`](super::PretrainedFactory)
+//! makes one from a spec, the kit's hook plans and builds from it.
+//!
+//! A ref is plain data: both halves are serde types, and the provider is
+//! held by name, so a ref outlives the factory that made it. The caller's
+//! resources ride on it through [`with_overlay`](PretrainedRef::with_overlay),
+//! so a hook sees one thing.
 
-use std::{
-    collections::BTreeMap,
-    fmt::Debug,
-    path::Path,
-};
+use core::fmt::Debug;
 
-use burn::{
-    config::Config,
-    prelude::Backend,
-};
+use burn::config::Config;
 
 use super::{
-    CacheStatus,
-    Construct,
-    Loaded,
+    Fuse,
     PreFabConfig,
-    PretrainedCache,
+    Pretrained,
     ResourceMap,
     StaticPreFabMap,
-    StaticPretrained,
-    StaticPretrainedGroup,
-    available_ids,
-    load_map,
-    lookup_pretrained,
 };
-use crate::errors::{
-    BunsenError,
-    BunsenResult,
-};
+use crate::errors::BunsenResult;
 
 /// What a spec resolved to.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PretrainedRef {
-    /// A row in a provider.
+    /// A row in a provider, copied out of it.
     Named {
-        /// Its provider.
-        provider: &'static StaticPretrainedGroup<'static>,
-        /// The row.
-        pretrained: &'static StaticPretrained<'static>,
+        /// The provider's name: the `provider` of `provider:ref`.
+        provider: String,
+        /// The row; its `name` is the ref.
+        pretrained: Pretrained,
     },
 
     /// A map from somewhere else: a path, a manifest. No prefab is
@@ -51,61 +39,26 @@ pub enum PretrainedRef {
     Given(ResourceMap),
 }
 
-impl PretrainedRef {
-    /// Resolves a spec against `providers`.
-    ///
-    /// `provider/name` looks up that provider; a bare name looks across all
-    /// of them; an alias is honoured. Failing those, a path to an existing
-    /// file is taken as a one-resource map under `path_key`, the key the
-    /// kit reads a bare checkpoint by. The index wins over the file system.
-    ///
-    /// # Errors
-    /// [`BunsenError::ResourceNotFound`], naming what is available.
-    pub fn resolve(
-        providers: &[&'static StaticPretrainedGroup<'static>],
-        spec: &str,
-        path_key: &str,
-    ) -> BunsenResult<Self> {
-        let (provider, name) = match spec.rsplit_once('/') {
-            Some((provider, name)) => (Some(provider), name),
-            None => (None, spec),
-        };
-        if let Some((provider, pretrained)) = lookup_pretrained(providers, provider, name) {
-            return Ok(Self::Named {
-                provider,
-                pretrained,
-            });
-        }
-
-        let path = Path::new(spec);
-        if path.is_file() {
-            return Ok(Self::Given(ResourceMap::given(spec, path_key, path)));
-        }
-
-        Err(BunsenError::ResourceNotFound(format!(
-            "no model {spec:?}: not a pretrained name and not a file; there are: {}",
-            available_ids(providers).join(", ")
-        )))
+impl From<ResourceMap> for PretrainedRef {
+    fn from(map: ResourceMap) -> Self {
+        Self::Given(map)
     }
+}
 
-    /// The qualified id, or the given map's name.
+impl PretrainedRef {
+    /// The qualified id, `provider:ref`, or the given map's name.
     pub fn id(&self) -> String {
         match self {
             Self::Named {
                 provider,
                 pretrained,
-            } => provider.id(pretrained),
+            } => alloc::format!("{provider}:{}", pretrained.name),
             Self::Given(map) => map.name.clone(),
         }
     }
 
-    /// The provider and row, if the spec was a name.
-    pub fn named(
-        &self
-    ) -> Option<(
-        &'static StaticPretrainedGroup<'static>,
-        &'static StaticPretrained<'static>,
-    )> {
+    /// The provider's name and the row, if the spec was a name.
+    pub fn named(&self) -> Option<(&str, &Pretrained)> {
         match self {
             Self::Named {
                 provider,
@@ -129,16 +82,16 @@ impl PretrainedRef {
         C: 'static + Config + Debug + Clone,
     {
         self.named()
-            .and_then(|(_, pretrained)| pretrained.prefab)
+            .and_then(|(_, pretrained)| pretrained.prefab.as_deref())
             .map(|prefab| prefabs.expect_lookup_prefab(prefab))
     }
 
-    /// The resource map: a row's maps fused, named by the qualified id, or
-    /// the given map.
+    /// The resource map: the row's, named by the qualified id, or the
+    /// given map.
     pub fn to_map(&self) -> ResourceMap {
         match self {
             Self::Named { pretrained, .. } => {
-                let mut map = pretrained.to_map();
+                let mut map = pretrained.resources.clone();
                 map.name = self.id();
                 map
             }
@@ -146,55 +99,85 @@ impl PretrainedRef {
         }
     }
 
-    /// Where every resource stands, by key, without touching bytes.
-    pub fn status(
-        &self,
-        kit: &str,
-        cache: &PretrainedCache,
-    ) -> BTreeMap<String, CacheStatus> {
-        cache.map_status(kit, &self.to_map())
-    }
-
-    /// Loads through `hook`: plan, load, construct.
+    /// The caller's resources over the model's, by key
+    /// ([`Fuse::Overlay`]): a `--vocab` over a row. The id is unchanged;
+    /// only the copy of the row is.
     ///
     /// # Errors
-    /// As [`load_map`].
-    pub fn load<B: Backend, H: Construct>(
-        &self,
-        cache: &PretrainedCache,
-        hook: &H,
-        device: &B::Device,
-    ) -> BunsenResult<Loaded<H::Built<B>>> {
-        load_map::<B, H>(self.to_map(), cache, hook, device)
+    /// As [`ResourceMap::fuse`], which does not fail under an overlay.
+    pub fn with_overlay(
+        self,
+        map: ResourceMap,
+    ) -> BunsenResult<Self> {
+        Ok(match self {
+            Self::Named {
+                provider,
+                mut pretrained,
+            } => {
+                pretrained.resources = pretrained.resources.fuse(map, Fuse::Overlay)?;
+                Self::Named {
+                    provider,
+                    pretrained,
+                }
+            }
+            Self::Given(mine) => Self::Given(mine.fuse(map, Fuse::Overlay)?),
+        })
+    }
+}
+
+#[cfg(feature = "cache")]
+mod with_cache {
+    use std::collections::BTreeMap;
+
+    use burn::prelude::Backend;
+
+    use super::PretrainedRef;
+    use crate::{
+        data::pretrained::{
+            CacheStatus,
+            Construct,
+            Loaded,
+            PretrainedCache,
+            load_map,
+        },
+        errors::BunsenResult,
+    };
+
+    impl PretrainedRef {
+        /// Where every resource stands, by key, without touching bytes.
+        pub fn status(
+            &self,
+            kit: &str,
+            cache: &PretrainedCache,
+        ) -> BTreeMap<String, CacheStatus> {
+            cache.map_status(kit, &self.to_map())
+        }
+
+        /// Loads through `hook`: plan, load, construct.
+        ///
+        /// # Errors
+        /// As [`load_map`].
+        pub fn load<B: Backend, H: Construct>(
+            &self,
+            cache: &PretrainedCache,
+            hook: &H,
+            device: &B::Device,
+        ) -> BunsenResult<Loaded<H::Built<B>>> {
+            load_map::<B, H>(self.to_map(), cache, hook, device)
+        }
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use std::{
-        fs,
-        path::PathBuf,
-        sync::Arc,
-    };
+    use alloc::vec;
 
     use super::*;
-    use crate::{
-        data::{
-            cache::BunsenDiskCacheOptions,
-            pretrained::{
-                LoadedResources,
-                PretrainedCacheOptions,
-                Provenance,
-                StaticBase,
-                StaticPreFabConfig,
-                StaticResource,
-                StaticResourceMap,
-            },
-        },
-        support::testing::{
-            CpuBackend,
-            default_device,
-        },
+    use crate::data::pretrained::{
+        GIVEN_NAMESPACE,
+        Resource,
+        Source,
+        StaticPreFabConfig,
     };
 
     #[derive(Config, Debug)]
@@ -202,38 +185,6 @@ mod tests {
         width: usize,
     }
 
-    static SMALL_MAP: StaticResourceMap<'static> = StaticResourceMap {
-        name: "a/small.pt",
-        description: "small weights",
-        license: None,
-        origin: None,
-        namespace: "a",
-        bases: &[StaticBase::Url("https://a.example")],
-        resources: &[StaticResource {
-            key: "checkpoint",
-            file: "small.pt",
-            sha256: None,
-            kind: Some("pytorch"),
-            sources: &[],
-        }],
-    };
-    static SMALL: StaticPretrained<'static> = StaticPretrained {
-        name: "small",
-        aliases: &["s"],
-        description: "small weights",
-        license: None,
-        origin: None,
-        prefab: Some("small"),
-        maps: &[&SMALL_MAP],
-    };
-    static A: StaticPretrainedGroup<'static> = StaticPretrainedGroup {
-        name: "a",
-        description: "provider a",
-        license: None,
-        origin: None,
-        items: &[&SMALL],
-    };
-    static PROVIDERS: &[&StaticPretrainedGroup<'static>] = &[&A];
     static PREFABS: StaticPreFabMap<Shape> = StaticPreFabMap {
         name: "shapes",
         description: "test shapes",
@@ -245,94 +196,172 @@ mod tests {
         }],
     };
 
-    /// A hook that builds the checkpoint's path.
-    struct CheckpointPath;
-
-    impl Construct for CheckpointPath {
-        type Built<B: Backend> = PathBuf;
-
-        const KIT: &'static str = "kit";
-
-        fn construct<B: Backend>(
-            &self,
-            loaded: &LoadedResources,
-            _device: &B::Device,
-        ) -> BunsenResult<Arc<PathBuf>> {
-            Ok(Arc::new(loaded.expect("checkpoint")?.to_path_buf()))
+    fn resource(
+        key: &str,
+        file: &str,
+    ) -> Resource {
+        Resource {
+            key: key.to_string(),
+            file: file.to_string(),
+            sha256: None,
+            kind: Some("pytorch".to_string()),
+            namespace: "a".to_string(),
+            sources: vec![Source::Url(alloc::format!("https://a.example/{file}"))],
         }
     }
 
-    fn offline_cache(dir: &Path) -> PretrainedCache {
-        PretrainedCache::new(
-            PretrainedCacheOptions::default()
-                .with_disk(
-                    BunsenDiskCacheOptions::default()
-                        .with_cache_dir(Some(dir.join("cache")))
-                        .without_transfer_observers(),
-                )
-                .with_offline(true),
-        )
-        .unwrap()
+    /// `well-known:a/small`, as a factory copies it out of a table.
+    fn named() -> PretrainedRef {
+        PretrainedRef::Named {
+            provider: "well-known".to_string(),
+            pretrained: Pretrained {
+                name: "a/small".to_string(),
+                aliases: vec!["s".to_string()],
+                description: "small weights".to_string(),
+                license: None,
+                origin: None,
+                prefab: Some("small".to_string()),
+                resources: ResourceMap::new("small")
+                    .with_resource(resource("checkpoint", "small.pt"))
+                    .with_resource(resource("vocabulary", "vocab.txt")),
+            },
+        }
     }
 
+    /// A named ref is its provider's row: the id is `provider:ref`, the
+    /// map is the row's under that id, and the prefab is the row's.
     #[test]
-    fn test_resolve_names_aliases_and_paths() {
-        match PretrainedRef::resolve(PROVIDERS, "a/small", "checkpoint").unwrap() {
-            PretrainedRef::Named {
-                provider,
-                pretrained,
-            } => {
-                assert_eq!((provider.name, pretrained.name), ("a", "small"));
-            }
-            other => panic!("{other:?}"),
-        }
-        let by_alias = PretrainedRef::resolve(PROVIDERS, "s", "checkpoint").unwrap();
-        assert_eq!(by_alias.id(), "a/small");
-        assert_eq!(
-            by_alias.named().map(|(p, d)| (p.name, d.name)),
-            Some(("a", "small"))
-        );
-        assert_eq!(
-            by_alias.prefab(&PREFABS).map(|p| p.to_config().width),
-            Some(4)
-        );
-        let map = by_alias.to_map();
-        assert_eq!(map.name, "a/small", "a row's map is named by its id");
-        assert_eq!(map.keys(), ["checkpoint"]);
+    fn test_a_named_ref_is_its_row() {
+        let model = named();
+        assert_eq!(model.id(), "well-known:a/small");
+        let (provider, row) = model.named().unwrap();
+        assert_eq!(provider, "well-known");
+        assert_eq!(row.name, "a/small");
+        assert_eq!(model.prefab(&PREFABS).map(|p| p.to_config().width), Some(4));
 
-        let dir = tempfile::tempdir().unwrap();
-        let file = dir.path().join("ckpt.pt");
-        fs::write(&file, b"x").unwrap();
-        let spec = file.to_str().unwrap();
-        let by_path = PretrainedRef::resolve(PROVIDERS, spec, "checkpoint").unwrap();
-        assert_eq!(by_path.id(), spec);
-        assert!(by_path.named().is_none());
-        assert!(by_path.prefab(&PREFABS).is_none());
-        let map = by_path.to_map();
-        assert_eq!(map.keys(), ["checkpoint"]);
-        assert_eq!(map.get("checkpoint").unwrap().file, "ckpt.pt");
+        let map = model.to_map();
+        assert_eq!(
+            map.name, "well-known:a/small",
+            "a row's map is named by its id"
+        );
+        assert_eq!(map.keys(), ["checkpoint", "vocabulary"]);
+        assert_eq!(map.get("checkpoint").unwrap().file, "small.pt");
+        assert_eq!(model.clone(), model);
+    }
 
-        match PretrainedRef::resolve(PROVIDERS, "a/gigantic", "checkpoint") {
-            Err(BunsenError::ResourceNotFound(m)) => assert!(m.contains("a/small"), "{m}"),
-            other => panic!("{other:?}"),
-        }
-        assert!(matches!(
-            PretrainedRef::resolve(PROVIDERS, "/no/such/file.pt", "checkpoint"),
-            Err(BunsenError::ResourceNotFound(_))
-        ));
+    /// A given ref is the map it was given: no provider, no prefab.
+    #[test]
+    fn test_a_given_ref_is_its_map() {
+        let map = ResourceMap::given("/models/ckpt.pt", "checkpoint", "/models/ckpt.pt");
+        let model = PretrainedRef::from(map.clone());
+        assert_eq!(model, PretrainedRef::Given(map.clone()));
+        assert_eq!(model.id(), "/models/ckpt.pt");
+        assert!(model.named().is_none());
+        assert!(model.prefab(&PREFABS).is_none());
+        assert_eq!(model.to_map(), map);
+        assert_eq!(model.to_map().get("checkpoint").unwrap().file, "ckpt.pt");
+    }
+
+    /// An overlay replaces by key on either variant and leaves the id
+    /// alone; the overlaid resource keeps its own namespace, `given`.
+    #[test]
+    fn test_with_overlay_replaces_by_key_on_both_variants() {
+        let vocab = ResourceMap::given("--vocab", "vocabulary", "/mine/gpt2.tiktoken");
+
+        let model = named().with_overlay(vocab.clone()).unwrap();
+        assert_eq!(model.id(), "well-known:a/small");
+        let map = model.to_map();
+        assert_eq!(map.name, "well-known:a/small");
+        assert_eq!(map.keys(), ["checkpoint", "vocabulary"]);
+        let overlaid = map.get("vocabulary").unwrap();
+        assert_eq!(overlaid.file, "gpt2.tiktoken");
+        assert_eq!(overlaid.namespace, GIVEN_NAMESPACE);
+        assert_eq!(map.get("checkpoint").unwrap().file, "small.pt", "untouched");
+        assert_eq!(
+            model
+                .named()
+                .unwrap()
+                .1
+                .resources
+                .get("vocabulary")
+                .unwrap()
+                .file,
+            "gpt2.tiktoken",
+            "the row copy is what changed"
+        );
+
+        let given = PretrainedRef::from(ResourceMap::given("mine", "checkpoint", "/m/ckpt.pt"))
+            .with_overlay(vocab)
+            .unwrap();
+        assert_eq!(given.id(), "mine");
+        assert_eq!(given.to_map().keys(), ["checkpoint", "vocabulary"]);
     }
 
     /// A given path is local already and loads in place; a name goes
     /// through the cache, which is offline here and has nothing local.
+    #[cfg(feature = "cache")]
     #[test]
     fn test_status_and_load() {
+        use std::{
+            fs,
+            path::PathBuf,
+            sync::Arc,
+        };
+
+        use burn::prelude::Backend;
+
+        use crate::{
+            data::{
+                cache::BunsenDiskCacheOptions,
+                pretrained::{
+                    CacheStatus,
+                    Construct,
+                    LoadedResources,
+                    PretrainedCache,
+                    PretrainedCacheOptions,
+                    Provenance,
+                },
+            },
+            errors::BunsenError,
+            support::testing::{
+                CpuBackend,
+                default_device,
+            },
+        };
+
+        /// A hook that builds the checkpoint's path.
+        struct CheckpointPath;
+
+        impl Construct for CheckpointPath {
+            type Built<B: Backend> = PathBuf;
+
+            const KIT: &'static str = "kit";
+
+            fn construct<B: Backend>(
+                &self,
+                loaded: &LoadedResources,
+                _device: &B::Device,
+            ) -> BunsenResult<Arc<PathBuf>> {
+                Ok(Arc::new(loaded.expect("checkpoint")?.to_path_buf()))
+            }
+        }
+
         let dir = tempfile::tempdir().unwrap();
-        let cache = offline_cache(dir.path());
+        let cache = PretrainedCache::new(
+            PretrainedCacheOptions::default()
+                .with_disk(
+                    BunsenDiskCacheOptions::default()
+                        .with_cache_dir(Some(dir.path().join("cache")))
+                        .without_transfer_observers(),
+                )
+                .with_offline(true),
+        )
+        .unwrap();
         let file = dir.path().join("ckpt.pt");
         fs::write(&file, b"x").unwrap();
+        let spec = file.to_str().unwrap();
 
-        let given =
-            PretrainedRef::resolve(PROVIDERS, file.to_str().unwrap(), "checkpoint").unwrap();
+        let given = PretrainedRef::from(ResourceMap::given(spec, "checkpoint", &file));
         assert_eq!(
             given.status("kit", &cache)["checkpoint"],
             CacheStatus::LocalDir
@@ -341,13 +370,13 @@ mod tests {
             .load::<CpuBackend, _>(&cache, &CheckpointPath, &default_device())
             .unwrap();
         assert_eq!(*loaded.handle, file);
-        assert_eq!(loaded.name, file.to_str().unwrap());
+        assert_eq!(loaded.name, spec);
         assert_eq!(
             loaded.resources.get("checkpoint").unwrap().provenance,
             Provenance::LocalDir
         );
 
-        let named = PretrainedRef::resolve(PROVIDERS, "a/small", "checkpoint").unwrap();
+        let named = named();
         assert_eq!(
             named.status("kit", &cache)["checkpoint"],
             CacheStatus::Remote

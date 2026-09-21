@@ -204,7 +204,7 @@ mod tests {
         )
         .unwrap();
 
-        assert_eq!(loaded.name, "openai/base");
+        assert_eq!(loaded.name, "well-known:openai/base");
         assert_eq!(loaded.resources.keys(), [CHECKPOINT, VOCABULARY]);
         for (key, part) in loaded.resources.iter() {
             assert_eq!(part.provenance, Provenance::Cached, "{key}");
@@ -279,12 +279,7 @@ mod tests {
             "{err}"
         );
 
-        let base = PretrainedRef::resolve(
-            crate::kits::speech::whisper::pretrained::WHISPER_PROVIDERS,
-            "openai/base",
-            CHECKPOINT,
-        )
-        .unwrap();
+        let base = crate::kits::speech::whisper::pretrained::resolve_model("openai/base").unwrap();
         let hook = WhisperConstruct::new().expecting(&base);
         assert!(hook.expected.is_some());
         hook.plan(base.to_map(), &cache).unwrap();
