@@ -5,36 +5,43 @@
 //!
 //! # Examples
 //!
-//! Examples of loading pretrained model (`fetch_weights` needs the `fetch`
-//! feature):
+//! Loading a pretrained model through the kit's factory (fetching needs
+//! the `fetch` feature):
 //!
 //! ```rust,no_run
 //! # #[cfg(feature = "fetch")] {
+//! use std::sync::Arc;
+//!
 //! use bunsen::{
-//!     burner::module::ModuleInit,
-//!     data::cache::BunsenDiskCache,
+//!     data::pretrained::{
+//!         PretrainedCache,
+//!         PretrainedCacheOptions,
+//!     },
 //!     kits::bimm::resnet::{
-//!         PREFAB_RESNET_MAP,
 //!         ResNet,
+//!         ResNetConstruct,
+//!         default_resnet_factory,
 //!     },
 //!     support::testing::default_device,
 //! };
 //! use burn::backend::Flex;
 //!
 //! let device = default_device();
+//! let cache = PretrainedCache::new(PretrainedCacheOptions::default())
+//!     .expect("the cache");
 //!
-//! let prefab = PREFAB_RESNET_MAP.expect_lookup_prefab("resnet18");
+//! // `torchvision/resnet18` names its prefab, which the hook builds from.
+//! let loaded = default_resnet_factory()
+//!     .expect("the resnet factory")
+//!     .load::<Flex, _>(
+//!         "torchvision/resnet18",
+//!         &cache,
+//!         &ResNetConstruct::new(),
+//!         &device,
+//!     )
+//!     .expect("Failed to load weights");
 //!
-//! let weights = prefab
-//!     .expect_lookup_pretrained_weights("tv_in1k")
-//!     .fetch_weights(&BunsenDiskCache::default())
-//!     .expect("Failed to fetch weights");
-//!
-//! let model: ResNet<Flex> = prefab
-//!     .to_config()
-//!     .init(&device)
-//!     .load_pytorch_weights(weights)
-//!     .expect("Failed to load weights")
+//! let model: ResNet<Flex> = Arc::unwrap_or_clone(loaded.handle)
 //!     // re-head the model to 10 classes:
 //!     .with_classes(10)
 //!     // Enable (drop_block_prob) stochastic block drops for training:

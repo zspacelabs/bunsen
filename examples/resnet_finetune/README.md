@@ -37,36 +37,38 @@ cargo run --release -p resnet_finetune --features cuda
 
 ## List Available Models
 
-This will list all available pretrained models:
+This will list all available pretrained models, by prefab, with each row's
+`provider:ref` as `--pretrained` takes it (`torchvision/resnet50` and bare
+`resnet50` also resolve):
 
 ```terminaloutput
 Available pretrained models:
 * "resnet18"
 ResNetContractConfig { layers: [2, 2, 2, 2], num_classes: 1000, stem_width: 64, output_stride: 32, bottleneck_policy: None, normalization: Batch(BatchNormConfig { num_features: 0, epsilon: 1e-5, momentum: 0.1 }), activation: Relu }
-  - "resnet18.tv_in1k": TorchVision ResNet-18
-  - "resnet18.a1_in1k": RSB Paper ResNet-18 a1
-  - "resnet18.a2_in1k": RSB Paper ResNet-18 a2
-  - "resnet18.a3_in1k": RSB Paper ResNet-18 a3
+  - "well-known:torchvision/resnet18": TorchVision ResNet-18
+  - "well-known:timm/resnet18_a1": RSB Paper ResNet-18 a1
+  - "well-known:timm/resnet18_a2": RSB Paper ResNet-18 a2
+  - "well-known:timm/resnet18_a3": RSB Paper ResNet-18 a3
 * "resnet26"
 ResNetContractConfig { layers: [2, 2, 2, 2], num_classes: 1000, stem_width: 64, output_stride: 32, bottleneck_policy: Some(BottleneckPolicyConfig { pinch_factor: 4 }), normalization: Batch(BatchNormConfig { num_features: 0, epsilon: 1e-5, momentum: 0.1 }), activation: Relu }
-  - "resnet26.bt_in1k": ResNet-26 pretrained on ImageNet
+  - "well-known:timm/resnet26": ResNet-26 pretrained on ImageNet
 * "resnet34"
 ResNetContractConfig { layers: [3, 4, 6, 3], num_classes: 1000, stem_width: 64, output_stride: 32, bottleneck_policy: None, normalization: Batch(BatchNormConfig { num_features: 0, epsilon: 1e-5, momentum: 0.1 }), activation: Relu }
-  - "resnet34.tv_in1k": TorchVision ResNet-34
-  - "resnet34.a1_in1k": RSB Paper ResNet-32 a1
-  - "resnet34.a2_in1k": RSB Paper ResNet-32 a2
-  - "resnet34.a3_in1k": RSB Paper ResNet-32 a3
-  - "resnet34.bt_in1k": ResNet-34 pretrained on ImageNet
+  - "well-known:torchvision/resnet34": TorchVision ResNet-34
+  - "well-known:timm/resnet34_a1": RSB Paper ResNet-34 a1
+  - "well-known:timm/resnet34_a2": RSB Paper ResNet-34 a2
+  - "well-known:timm/resnet34_a3": RSB Paper ResNet-34 a3
+  - "well-known:timm/resnet34": ResNet-34 pretrained on ImageNet
 * "resnet50"
 ResNetContractConfig { layers: [3, 4, 6, 3], num_classes: 1000, stem_width: 64, output_stride: 32, bottleneck_policy: Some(BottleneckPolicyConfig { pinch_factor: 4 }), normalization: Batch(BatchNormConfig { num_features: 0, epsilon: 1e-5, momentum: 0.1 }), activation: Relu }
-  - "resnet50.tv_in1k": TorchVision ResNet-50
+  - "well-known:torchvision/resnet50": TorchVision ResNet-50
 * "resnet101"
 ResNetContractConfig { layers: [3, 4, 23, 3], num_classes: 1000, stem_width: 64, output_stride: 32, bottleneck_policy: Some(BottleneckPolicyConfig { pinch_factor: 4 }), normalization: Batch(BatchNormConfig { num_features: 0, epsilon: 1e-5, momentum: 0.1 }), activation: Relu }
-  - "resnet101.tv_in1k": TorchVision ResNet-101
-  - "resnet101.a1_in1k": ResNet-101 pretrained on ImageNet
+  - "well-known:torchvision/resnet101": TorchVision ResNet-101
+  - "well-known:timm/resnet101_a1": ResNet-101 pretrained on ImageNet
 * "resnet152"
 ResNetContractConfig { layers: [3, 8, 36, 3], num_classes: 1000, stem_width: 64, output_stride: 32, bottleneck_policy: Some(BottleneckPolicyConfig { pinch_factor: 4 }), normalization: Batch(BatchNormConfig { num_features: 0, epsilon: 1e-5, momentum: 0.1 }), activation: Relu }
-  - "resnet152.tv_in1k": TorchVision ResNet-152
+  - "well-known:torchvision/resnet152": TorchVision ResNet-152
 ```
 
 ## Various Options to Rewrite Models
@@ -97,7 +99,7 @@ Args {
     num_workers: 4,
     num_epochs: 60,
     patience: 20,
-    pretrained: "resnet50.tv_in1k",
+    pretrained: "torchvision/resnet50",
     replace_activation: None,
     freeze_layers: false,
     drop_block_prob: 0.2,
@@ -131,7 +133,7 @@ Args {
     num_workers: 4,
     num_epochs: 60,
     patience: 20,
-    pretrained: "resnet50.tv_in1k",
+    pretrained: "torchvision/resnet50",
     replace_activation: None,
     freeze_layers: false,
     drop_block_prob: 0.2,
@@ -167,7 +169,7 @@ Args {
     num_workers: 4,
     num_epochs: 60,
     patience: 20,
-    pretrained: "resnet50.tv_in1k",
+    pretrained: "torchvision/resnet50",
     replace_activation: Some(
         LeakyRelu,
     ),
@@ -205,7 +207,7 @@ Args {
     num_workers: 4,
     num_epochs: 60,
     patience: 20,
-    pretrained: "resnet50.tv_in1k",
+    pretrained: "torchvision/resnet50",
     replace_activation: Some(
         Gelu,
     ),
