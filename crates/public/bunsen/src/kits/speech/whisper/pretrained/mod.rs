@@ -1,6 +1,8 @@
 //! Pretrained Whisper Models.
 
 #[cfg(all(feature = "store_pytorch", feature = "cache"))]
+mod construct;
+#[cfg(all(feature = "store_pytorch", feature = "cache"))]
 mod load_named;
 mod maps;
 mod prefabs;
@@ -8,6 +10,9 @@ mod providers;
 #[cfg(feature = "cache")]
 mod vocab;
 
+#[cfg(all(feature = "store_pytorch", feature = "cache"))]
+#[doc(inline)]
+pub use construct::*;
 #[cfg(all(feature = "store_pytorch", feature = "cache"))]
 #[doc(inline)]
 pub use load_named::*;
@@ -27,6 +32,3 @@ mod pytorch_utils;
 #[cfg(feature = "store_pytorch")]
 #[doc(inline)]
 pub use pytorch_utils::*;
-
-#[cfg(all(feature = "store_pytorch", feature = "cache"))]
-mod load;

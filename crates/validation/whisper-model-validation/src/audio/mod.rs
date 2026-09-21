@@ -36,6 +36,7 @@ use bunsen::{
     kits::{
         speech::whisper::{
             Whisper,
+            WhisperMeta,
             blocks::WhisperFrontEndConfig,
             driver::{
                 WhisperTask,
@@ -340,20 +341,25 @@ pub fn clip_mels<B: Backend>(
 /// float. Feeding f32 input to an f16 model does not error, it just
 /// returns wrong numbers, so the cast is load-bearing.
 pub fn bunsen_model<B: Backend>(device: &Device<B>) -> Whisper<B> {
-    let (model, cfg) = crate::load_base::<B>(device);
+    let bundle = crate::load_base::<B>(device);
+    let model = &bundle.model;
 
-    assert_eq!(cfg.n_mels, N_MELS, "not a `base` model");
+    assert_eq!(model.n_mels(), N_MELS, "not a `base` model");
     assert_eq!(
-        cfg.front_end.sample_rate, SAMPLE_RATE,
+        model.front_end().sample_rate,
+        SAMPLE_RATE,
         "the fixtures are stored at Whisper's rate"
     );
     assert_eq!(
-        cfg.vocab_size, N_VOCAB,
+        model.vocab_size(),
+        N_VOCAB,
         "these fixtures are for a multilingual checkpoint; an English-only \
              one numbers its special tokens differently",
     );
 
-    model.map(&mut DTypeMapper::new(burn::tensor::DType::F32))
+    model
+        .clone()
+        .map(&mut DTypeMapper::new(burn::tensor::DType::F32))
 }
 
 /// Prints where two per-window id sequences first diverge.

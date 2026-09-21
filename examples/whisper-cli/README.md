@@ -21,9 +21,11 @@ driver and a `models` subcommand; the [model index](#models) and the name-to-mod
   map with the vocabulary map its token layout selects, so a model is two keyed resources, `checkpoint` and
   `vocabulary`, and `PretrainedCache::load` brings both local, together, under
   `<cache>/pretrained/whisper/openai/<sha256>/<file>`.
-- `kits::speech::whisper::pretrained::vocabulary_for` — the rank file that matches a checkpoint's token layout, for
-  every model. From the vocabulary come the text, via a `wordchipper` detokenizer, and upstream's default suppress
-  list. `--vocab` names one by path instead.
+- `kits::speech::whisper::pretrained::WhisperConstruct` — the hook that builds a `WhisperBundle` from a model's
+  resources: it settles the vocabulary by the checkpoint's token layout (derived for a path, checked for a name),
+  checks the geometry a name promised, and reads both files. From the vocabulary come the text, via a `wordchipper`
+  detokenizer, and upstream's default suppress list; the driver takes both from the bundle (`init_from_bundle`).
+  `--vocab` overlays a file by path, trusted as given.
 - `kits::speech::whisper::pretrained::PytorchWhisperScanner` — scans a checkpoint's geometry and loads its weights;
   `load_named` checks the scan against the prefab the name promised before the weights are read. `--state-dict-key`
   configures it.

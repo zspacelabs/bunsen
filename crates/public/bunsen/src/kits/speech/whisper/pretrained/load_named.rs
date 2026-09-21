@@ -2,13 +2,15 @@
 //!
 //! [`resolve_model`] takes what a `--model` flag was given &mdash;
 //! `openai/base`, `large`, or a path &mdash; and [`load_named`] takes it the
-//! rest of the way: every resource of its map into the cache, the checkpoint
-//! through the scanner, and past a check that it has the geometry its
-//! prefab promised.
+//! rest of the way through [`WhisperConstruct`](super::WhisperConstruct):
+//! every resource of its map into the cache, the checkpoint through the
+//! scanner and past a check that it has the geometry its prefab promised,
+//! the vocabulary through the rank parser, and out as a
+//! [`WhisperBundle`](crate::kits::speech::whisper::driver::WhisperBundle)
+//! behind an `Arc`.
 //!
-//! The pieces are free functions on purpose: one kit is not enough evidence
-//! for a trait, and these are written so that lifting them into one later
-//! is an extraction.
+//! [`scan_model`] is the read-only half, for a listing that wants the
+//! geometry without the weights.
 
 use std::path::Path;
 
@@ -16,23 +18,26 @@ use burn::prelude::Backend;
 
 use crate::{
     data::pretrained::{
+        Loaded,
         PreFabConfig,
         PretrainedCache,
         PretrainedRef,
+        ResourceMap,
+        load_map,
     },
     errors::{
         BunsenError,
         BunsenResult,
     },
     kits::speech::whisper::{
-        Whisper,
         WhisperApiConfig,
+        driver::WhisperBundle,
         pretrained::{
             CHECKPOINT,
             PytorchWhisperScanner,
-            WHISPER_KIT,
             WHISPER_PREFABS,
             WHISPER_PROVIDERS,
+            WhisperConstruct,
         },
     },
 };
@@ -99,65 +104,39 @@ pub fn scan_model_with(
     Ok(cfg)
 }
 
-/// Loads a resolved model: brings every resource of its map local under
-/// the whisper kit, scans the checkpoint, checks the prefab, and
-/// materializes the module at the precision the checkpoint ships in.
+/// Loads a resolved model through `hook` from `map`.
 ///
-/// The scan runs before the load so a mismatch is caught before 3 GB of
-/// tensors are read for nothing.
+/// The map is the model's, possibly overlaid by the caller (a `--vocab`);
+/// the hook is the caller's, and is told the geometry the model's prefab
+/// promises, so a checkpoint under the wrong name is refused before its
+/// tensors are read.
 ///
 /// # Errors
-/// As [`PretrainedCache::load`], [`scan_model`] and
-/// [`PytorchWhisperScanner::load`].
+/// As [`load_map`].
 pub fn load_model<B: Backend>(
     model: &PretrainedRef,
+    map: ResourceMap,
     cache: &PretrainedCache,
+    hook: &WhisperConstruct,
     device: &B::Device,
-) -> BunsenResult<(Whisper<B>, WhisperApiConfig)> {
-    load_model_with(model, cache, device, &PytorchWhisperScanner::new())
-}
-
-/// [`load_model`] through a configured scanner; see [`scan_model_with`].
-///
-/// # Errors
-/// As [`load_model`].
-pub fn load_model_with<B: Backend>(
-    model: &PretrainedRef,
-    cache: &PretrainedCache,
-    device: &B::Device,
-    scanner: &PytorchWhisperScanner,
-) -> BunsenResult<(Whisper<B>, WhisperApiConfig)> {
-    let loaded = cache.load(WHISPER_KIT, &model.to_map())?;
-    let path = loaded.expect(CHECKPOINT)?;
-    scan_model_with(model, path, scanner)?;
-    scanner.load::<B, _>(path, device)
+) -> BunsenResult<Loaded<WhisperBundle<B>>> {
+    let hook = hook.clone().expecting(model);
+    load_map::<B, _>(map, cache, &hook, device)
 }
 
 /// [`resolve_model`] then [`load_model`]: a name or a path to a loaded
-/// model and the config scanned from its checkpoint.
+/// bundle, with every resource that went into it.
 ///
 /// # Errors
 /// As [`resolve_model`] and [`load_model`].
 pub fn load_named<B: Backend>(
     spec: &str,
     cache: &PretrainedCache,
+    hook: &WhisperConstruct,
     device: &B::Device,
-) -> BunsenResult<(Whisper<B>, WhisperApiConfig)> {
-    load_named_with(spec, cache, device, &PytorchWhisperScanner::new())
-}
-
-/// [`load_named`] through a configured scanner; see [`scan_model_with`].
-///
-/// # Errors
-/// As [`load_named`].
-pub fn load_named_with<B: Backend>(
-    spec: &str,
-    cache: &PretrainedCache,
-    device: &B::Device,
-    scanner: &PytorchWhisperScanner,
-) -> BunsenResult<(Whisper<B>, WhisperApiConfig)> {
+) -> BunsenResult<Loaded<WhisperBundle<B>>> {
     let model = resolve_model(spec)?;
-    load_model_with(&model, cache, device, scanner)
+    load_model::<B>(&model, model.to_map(), cache, hook, device)
 }
 
 #[cfg(test)]
@@ -235,7 +214,6 @@ mod tests {
     #[cfg(feature = "whisper-weights")]
     #[test]
     fn test_scan_model_with_honors_the_scanner() {
-        use crate::data::pretrained::ResourceMap;
         let base = bunsen_bundled_whisper::base_pt();
         let scanner = PytorchWhisperScanner::new().with_d_head(32);
 

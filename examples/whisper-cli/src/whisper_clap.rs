@@ -7,34 +7,38 @@ use bunsen::{
     data::{
         cache::BunsenDiskCacheOptions,
         pretrained::{
+            Fuse,
             PretrainedCache,
             PretrainedCacheOptions,
+            ResourceMap,
         },
     },
     errors::BunsenResult,
-    kits::{
-        speech::{
-            silero_vad::SileroVad,
-            whisper::{
-                Whisper,
-                WhisperApiConfig,
-                WhisperFallbackConfig,
-                driver::{
-                    PresetEmissionPolicy,
-                    WhisperStreamDriver,
-                    WhisperStreamDriverConfig,
-                    WhisperTask,
-                },
-                logit_filters::default_filters,
-                pretrained::{
-                    OPENAI_LOCAL_DIR,
-                    PytorchWhisperScanner,
-                    load_named_with,
-                    vocabulary_for,
-                },
+    kits::speech::{
+        silero_vad::SileroVad,
+        whisper::{
+            WhisperFallbackConfig,
+            WhisperMeta,
+            blocks::{
+                AudioEncoderMeta,
+                TextDecoderMeta,
+            },
+            driver::{
+                PresetEmissionPolicy,
+                WhisperBundle,
+                WhisperStreamDriver,
+                WhisperStreamDriverConfig,
+                WhisperTask,
+            },
+            pretrained::{
+                OPENAI_LOCAL_DIR,
+                PytorchWhisperScanner,
+                VOCABULARY,
+                WhisperConstruct,
+                load_model,
+                resolve_model,
             },
         },
-        tokens::TiktokenRanks,
     },
 };
 use burn::prelude::Backend;
@@ -161,22 +165,33 @@ pub struct WhisperDriverArgs {
 }
 
 impl WhisperDriverArgs {
-    /// Loads `--model` at the precision it ships in.
+    /// Loads `--model` at the precision it ships in, with its vocabulary.
     ///
     /// The name is resolved against the pretrained index, or taken as a
-    /// path; the weights come from the cache, a local source, or a
-    /// digest-checked download; and the checkpoint is checked against the
-    /// prefab its name promised before it is materialized.
+    /// path; every resource of its map comes from the cache, a local
+    /// source, or a digest-checked download; the checkpoint is checked
+    /// against the prefab its name promised before it is materialized; and
+    /// the vocabulary is the one the checkpoint's layout selects, or the
+    /// file `--vocab` names, which is trusted as given.
     ///
     /// `OpenAI`'s checkpoints are fp16 while the mel front end works in the
     /// backend's float, but the model casts at its own edges — mels in,
     /// logits out — so nothing here has to re-type it.
-    pub fn load_model<B: Backend>(
+    pub fn load_bundle<B: Backend>(
         &self,
         cache: &PretrainedCache,
         device: &B::Device,
-    ) -> BunsenResult<(Whisper<B>, WhisperApiConfig)> {
-        load_named_with::<B>(&self.model, cache, device, &self.scanner.scanner())
+    ) -> BunsenResult<Arc<WhisperBundle<B>>> {
+        let model = resolve_model(&self.model)?;
+        let mut map = model.to_map();
+        if let Some(path) = &self.vocab {
+            map = map.fuse(
+                ResourceMap::given("--vocab", VOCABULARY, path),
+                Fuse::Overlay,
+            )?;
+        }
+        let hook = WhisperConstruct::new().with_scanner(self.scanner.scanner());
+        Ok(load_model::<B>(&model, map, cache, &hook, device)?.handle)
     }
 
     /// Load and setup the [`WhisperStreamDriver`].
@@ -185,28 +200,21 @@ impl WhisperDriverArgs {
         device: &B::Device,
     ) -> BunsenResult<WhisperStreamDriver<B>> {
         let cache = self.cache.init()?;
-        let (model, cfg) = self.load_model(&cache, device)?;
+        let bundle = self.load_bundle::<B>(&cache, device)?;
         log::info!(
             "model: {} n_mels, vocabulary {}, d_model {}, {} + {} layers",
-            cfg.n_mels,
-            cfg.vocab_size,
-            cfg.d_model,
-            cfg.n_encoder_layers,
-            cfg.n_decoder_layers,
+            bundle.model.n_mels(),
+            bundle.model.vocab_size(),
+            bundle.model.d_model(),
+            bundle.model.encoder().n_layers(),
+            bundle.model.decoder().n_layers(),
         );
 
         // The token layout follows from the vocabulary size, and the
-        // vocabulary follows from the layout, through the same cache as the
-        // weights: nothing here is typed in unless `--vocab` names a file.
-        let policy = cfg.token_layout.policy_for_vocab(cfg.vocab_size)?;
-        let ids = *policy.ids();
-        let ranks = match &self.vocab {
-            Some(path) => TiktokenRanks::load(path)?,
-            None => vocabulary_for(&ids, &cache)?,
-        };
-        let detokenizer = policy.detokenizer(&ranks)?;
-        let filters = default_filters::<B>(&ranks, &ids);
-
+        // vocabulary from the layout, through the same cache as the
+        // weights; the driver takes its detokenizer and upstream's default
+        // suppress list from the bundle.
+        let ids = *bundle.layout.ids();
         let language = if ids.is_multilingual() {
             self.language.clone()
         } else {
@@ -230,9 +238,7 @@ impl WhisperDriverArgs {
             .with_condition_on_previous_text(self.prompt_carry)
             .with_emission(self.preset.into())
             .with_fallback(fallback)
-            .init_with_layout(model, policy, device)?
-            .with_detokenizer(Arc::new(detokenizer))
-            .with_logit_filters(filters);
+            .init_from_bundle(bundle, device)?;
         if self.preset != PresetEmissionPolicy::Offline {
             driver = driver.with_vad(
                 SileroVad::<B>::load_16khz_pretrained(device)?,

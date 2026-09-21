@@ -93,19 +93,18 @@ pub fn weights_cache() -> bunsen::data::pretrained::PretrainedCache {
 }
 
 /// bunsen's Whisper `openai/base`, at the precision it ships in (fp16), with
-/// the config scanned from the checkpoint.
+/// its token layout and vocabulary, shared.
 pub fn load_base<B: burn::prelude::Backend>(
     device: &B::Device
-) -> (
-    bunsen::kits::speech::whisper::Whisper<B>,
-    bunsen::kits::speech::whisper::WhisperApiConfig,
-) {
+) -> std::sync::Arc<bunsen::kits::speech::whisper::driver::WhisperBundle<B>> {
     bunsen::kits::speech::whisper::pretrained::load_named::<B>(
         "openai/base",
         &weights_cache(),
+        &bunsen::kits::speech::whisper::pretrained::WhisperConstruct::new(),
         device,
     )
     .expect("load openai/base")
+    .handle
 }
 
 /// The mel channel count for `base`.

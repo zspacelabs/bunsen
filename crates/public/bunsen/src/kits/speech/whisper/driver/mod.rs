@@ -14,6 +14,7 @@ mod stream_clamp_policy;
 mod stream_clock;
 mod transcript;
 mod voice_activity_filter;
+mod whisper_bundle;
 mod whisper_stream_context;
 mod whisper_stream_driver;
 mod whisper_token_layout;
@@ -30,6 +31,8 @@ pub use stream_clock::*;
 pub use transcript::*;
 #[doc(inline)]
 pub use voice_activity_filter::*;
+#[doc(inline)]
+pub use whisper_bundle::*;
 #[doc(inline)]
 pub use whisper_stream_context::*;
 #[doc(inline)]
