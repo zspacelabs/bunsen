@@ -152,8 +152,8 @@ impl Construct for WhisperConstruct {
     /// Scans the checkpoint, which comes local for it, checks its geometry
     /// against the promised one, and settles the vocabulary: a map without
     /// one gets the one the checkpoint's layout selects; a map that
-    /// declares one must declare that, unless the caller gave it, which is
-    /// trusted.
+    /// declares one must declare that file, by name and digest, from
+    /// wherever it serves it, unless the caller gave it, which is trusted.
     fn plan(
         &self,
         model: &PretrainedRef,
@@ -169,8 +169,10 @@ impl Construct for WhisperConstruct {
             None => map.fuse(rule, Fuse::Strict),
             Some(given) if given.namespace == GIVEN_NAMESPACE => Ok(map),
             Some(declared) => {
+                // The same file, by name and digest: where a row's copy is
+                // served from (a bundle, a mirror) is its own business.
                 let selected = rule.try_get(VOCABULARY)?;
-                if &declared != selected {
+                if declared.file != selected.file || declared.sha256 != selected.sha256 {
                     return Err(BunsenError::Invalid(format!(
                         "{}: declares the vocabulary {} but the checkpoint's layout selects {}",
                         map.name, declared.file, selected.file
@@ -312,6 +314,42 @@ mod tests {
             .unwrap();
         let planned = WhisperConstruct::new().plan(&overridden, &cache).unwrap();
         assert_eq!(planned.get(VOCABULARY).unwrap().file, "gpt2.tiktoken");
+    }
+
+    /// The bundled row declares the same vocabulary file as the rule, served
+    /// from the bundle rather than upstream: the plan accepts it as it
+    /// stands, and nothing is written to a cache that has nothing.
+    #[test]
+    fn test_plan_accepts_a_bundled_rows_vocabulary() {
+        use crate::data::{
+            cache::BunsenDiskCacheOptions,
+            pretrained::{
+                PretrainedCacheOptions,
+                Source,
+            },
+        };
+        let dir = tempfile::tempdir().unwrap();
+        let cache = PretrainedCache::new(
+            PretrainedCacheOptions::default()
+                .with_disk(
+                    BunsenDiskCacheOptions::default()
+                        .with_cache_dir(Some(dir.path().join("cache")))
+                        .without_transfer_observers(),
+                )
+                .with_offline(true),
+        )
+        .unwrap();
+        let model = resolve_model("bundled:openai/base").unwrap();
+        let planned = WhisperConstruct::new().plan(&model, &cache).unwrap();
+        assert_eq!(planned.keys(), [CHECKPOINT, VOCABULARY]);
+        let vocabulary = planned.get(VOCABULARY).unwrap();
+        assert_eq!(vocabulary.file, "multilingual.tiktoken");
+        assert!(
+            matches!(vocabulary.sources.as_slice(), [Source::LocalDir { name, .. }] if name == "bundled"),
+            "the row's own sources stand: {:?}",
+            vocabulary.sources
+        );
+        assert!(!dir.path().join("cache").exists(), "nothing was written");
     }
 
     /// The geometry a name promises is checked against the scan before
