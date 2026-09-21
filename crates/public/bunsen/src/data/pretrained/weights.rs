@@ -387,7 +387,7 @@ impl PretrainedWeightsDescriptor {
     ///
     /// This is the URL-keyed path for a descriptor that lives in a prefab's
     /// weights map and belongs to no provider. A descriptor in a
-    /// [`StaticPretrainedProvider`](super::StaticPretrainedProvider) goes
+    /// [`StaticPretrainedGroup`](super::StaticPretrainedGroup) goes
     /// through [`WeightsCache::resolve`](super::PretrainedCache::resolve)
     /// instead, which is pinned and provider-keyed and consults every
     /// source.

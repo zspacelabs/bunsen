@@ -8,7 +8,7 @@ use bunsen::{
             Construct,
             PretrainedCache,
             PretrainedRef,
-            StaticPretrainedProvider,
+            StaticPretrainedGroup,
             StaticResourceMap,
         },
     },
@@ -146,7 +146,7 @@ fn list(cache: &PretrainedCache) -> BunsenResult<()> {
 /// taken together, and their keys.
 fn list_provider(
     cache: &PretrainedCache,
-    provider: &StaticPretrainedProvider<'_>,
+    provider: &StaticPretrainedGroup<'_>,
 ) {
     println!(
         "{}: {} ({}; {})",

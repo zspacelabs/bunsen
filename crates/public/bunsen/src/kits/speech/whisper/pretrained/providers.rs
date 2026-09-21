@@ -1,7 +1,7 @@
 //! # Whisper pretrained providers
 //!
 //! Which models exist, under which names, made of which resource maps. A
-//! provider is a namespace, the `openai` in `openai/tiny.en`, over rows
+//! group is a label, the `openai` in `openai/tiny.en`, over rows
 //! that each name their prefab in [`WHISPER_PREFABS`](super::WHISPER_PREFABS)
 //! and fuse a checkpoint map with the vocabulary map its token layout
 //! selects: [`OPENAI_CHECKPOINTS`](super::OPENAI_CHECKPOINTS) and
@@ -19,8 +19,10 @@ use std::path::PathBuf;
 use crate::{
     data::pretrained::{
         StaticPretrained,
-        StaticPretrainedProvider,
+        StaticPretrainedGroup,
+        StaticPretrainedTable,
         StaticResourceMap,
+        WELL_KNOWN,
     },
     kits::speech::whisper::pretrained::{
         BASE_CHECKPOINT,
@@ -177,7 +179,7 @@ static LARGE_V3_TURBO: StaticPretrained<'static> = openai(
 
 /// `OpenAI`'s checkpoints, as `openai-whisper` names and pins them, each
 /// with the vocabulary it decodes through.
-pub static OPENAI: StaticPretrainedProvider<'static> = StaticPretrainedProvider {
+pub static OPENAI: StaticPretrainedGroup<'static> = StaticPretrainedGroup {
     name: "openai",
     description: "OpenAI's Whisper checkpoints, as `openai-whisper` names and pins them",
     license: Some("MIT"),
@@ -198,8 +200,16 @@ pub static OPENAI: StaticPretrainedProvider<'static> = StaticPretrainedProvider 
     ],
 };
 
-/// Every Whisper provider, in lookup order.
-pub static WHISPER_PROVIDERS: &[&StaticPretrainedProvider<'static>] = &[&OPENAI];
+/// The checkpoints bunsen knows by name, behind the [`WELL_KNOWN`]
+/// provider: `well-known:openai/tiny`, or `openai/tiny`, or `tiny`.
+pub static WELL_KNOWN_TABLE: StaticPretrainedTable<'static> = StaticPretrainedTable {
+    name: WELL_KNOWN,
+    description: "the Whisper checkpoints bunsen knows by name",
+    groups: &[&OPENAI],
+};
+
+/// Every Whisper group, in lookup order.
+pub static WHISPER_PROVIDERS: &[&StaticPretrainedGroup<'static>] = &[&OPENAI];
 
 #[cfg(test)]
 mod tests {
@@ -264,6 +274,33 @@ mod tests {
             let rule = rule.get(VOCABULARY).unwrap();
             assert_eq!(declared, rule, "{}", OPENAI.id(row));
         }
+    }
+
+    /// The well-known table lists the twelve `openai` rows by ref and
+    /// answers the refs, the bare names and upstream's aliases.
+    #[test]
+    fn test_the_well_known_table_lists_the_openai_rows() {
+        use crate::data::pretrained::PretrainedProvider;
+        let table = WELL_KNOWN_TABLE.to_table();
+        assert_eq!(table.name(), "well-known");
+        let ids = table.ids();
+        assert_eq!(ids.len(), 12);
+        assert_eq!(ids[0], "well-known:openai/tiny.en");
+        assert_eq!(ids[11], "well-known:openai/large-v3-turbo");
+        let name = |spec: &str| table.lookup(spec).unwrap().map(|p| p.name);
+        assert_eq!(name("openai/tiny.en").as_deref(), Some("openai/tiny.en"));
+        assert_eq!(
+            name("openai/turbo").as_deref(),
+            Some("openai/large-v3-turbo")
+        );
+        assert_eq!(name("turbo").as_deref(), Some("openai/large-v3-turbo"));
+        assert_eq!(name("large").as_deref(), Some("openai/large-v3"));
+        assert_eq!(
+            name("large-v3-turbo").as_deref(),
+            Some("openai/large-v3-turbo")
+        );
+        assert_eq!(name("openai/gigantic"), None);
+        assert_eq!(name("gigantic"), None);
     }
 
     #[test]

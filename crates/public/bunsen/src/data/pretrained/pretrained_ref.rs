@@ -25,7 +25,7 @@ use super::{
     ResourceMap,
     StaticPreFabMap,
     StaticPretrained,
-    StaticPretrainedProvider,
+    StaticPretrainedGroup,
     available_ids,
     load_map,
     lookup_pretrained,
@@ -41,7 +41,7 @@ pub enum PretrainedRef {
     /// A row in a provider.
     Named {
         /// Its provider.
-        provider: &'static StaticPretrainedProvider<'static>,
+        provider: &'static StaticPretrainedGroup<'static>,
         /// The row.
         pretrained: &'static StaticPretrained<'static>,
     },
@@ -62,7 +62,7 @@ impl PretrainedRef {
     /// # Errors
     /// [`BunsenError::ResourceNotFound`], naming what is available.
     pub fn resolve(
-        providers: &[&'static StaticPretrainedProvider<'static>],
+        providers: &[&'static StaticPretrainedGroup<'static>],
         spec: &str,
         path_key: &str,
     ) -> BunsenResult<Self> {
@@ -103,7 +103,7 @@ impl PretrainedRef {
     pub fn named(
         &self
     ) -> Option<(
-        &'static StaticPretrainedProvider<'static>,
+        &'static StaticPretrainedGroup<'static>,
         &'static StaticPretrained<'static>,
     )> {
         match self {
@@ -226,14 +226,14 @@ mod tests {
         prefab: Some("small"),
         maps: &[&SMALL_MAP],
     };
-    static A: StaticPretrainedProvider<'static> = StaticPretrainedProvider {
+    static A: StaticPretrainedGroup<'static> = StaticPretrainedGroup {
         name: "a",
         description: "provider a",
         license: None,
         origin: None,
         items: &[&SMALL],
     };
-    static PROVIDERS: &[&StaticPretrainedProvider<'static>] = &[&A];
+    static PROVIDERS: &[&StaticPretrainedGroup<'static>] = &[&A];
     static PREFABS: StaticPreFabMap<Shape> = StaticPreFabMap {
         name: "shapes",
         description: "test shapes",
