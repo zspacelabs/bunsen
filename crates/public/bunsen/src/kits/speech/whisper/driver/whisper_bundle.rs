@@ -9,7 +9,10 @@
 //! result: the layout needs no file, and a driver over it emits ids and
 //! applies no suppress list.
 
-use std::sync::Arc;
+use std::{
+    fmt,
+    sync::Arc,
+};
 
 use burn::prelude::Backend;
 
@@ -22,6 +25,10 @@ use crate::{
         speech::whisper::{
             Whisper,
             WhisperMeta,
+            blocks::{
+                AudioEncoderMeta,
+                TextDecoderMeta,
+            },
             driver::WhisperTokenLayout,
             logit_filters::{
                 LogitFilter,
@@ -126,6 +133,30 @@ impl<B: Backend> WhisperBundle<B> {
     }
 }
 
+impl<B: Backend> fmt::Display for WhisperBundle<B> {
+    /// One line of what was loaded: `80 mels, vocabulary 51865, d_model
+    /// 512, 6 + 6 layers, 50257 ranks`, or `ids only` in place of the
+    /// ranks for a bundle without a vocabulary.
+    fn fmt(
+        &self,
+        f: &mut fmt::Formatter<'_>,
+    ) -> fmt::Result {
+        write!(
+            f,
+            "{} mels, vocabulary {}, d_model {}, {} + {} layers",
+            self.model.n_mels(),
+            self.model.vocab_size(),
+            self.model.d_model(),
+            self.model.encoder().n_layers(),
+            self.model.decoder().n_layers(),
+        )?;
+        match &self.ranks {
+            Some(ranks) => write!(f, ", {} ranks", ranks.len()),
+            None => f.write_str(", ids only"),
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -163,6 +194,9 @@ mod tests {
     #[test]
     fn test_ids_only() {
         let bundle = WhisperBundle::new(tiny_model(), tiny_layout());
+        let shown = bundle.to_string();
+        assert!(shown.contains(" mels, vocabulary "), "{shown}");
+        assert!(shown.ends_with(" layers, ids only"), "{shown}");
         bundle.validate().unwrap();
         assert!(bundle.ranks.is_none());
         assert!(bundle.default_filters().is_empty());
@@ -176,6 +210,7 @@ mod tests {
     fn test_with_a_vocabulary() {
         let ranks = TiktokenRanks::parse("IA== 0\nb2s= 1\n").unwrap();
         let bundle = WhisperBundle::new(tiny_model(), tiny_layout()).with_ranks(ranks);
+        assert!(bundle.to_string().ends_with(" ranks"), "{bundle}");
         bundle.validate().unwrap();
         assert!(!bundle.default_filters().is_empty());
         #[cfg(feature = "tokenizer")]

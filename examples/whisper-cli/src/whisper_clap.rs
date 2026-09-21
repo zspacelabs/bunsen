@@ -22,11 +22,6 @@ use bunsen::{
         silero_vad::pretrained::default_silero_factory,
         whisper::{
             WhisperFallbackConfig,
-            WhisperMeta,
-            blocks::{
-                AudioEncoderMeta,
-                TextDecoderMeta,
-            },
             driver::{
                 PresetEmissionPolicy,
                 WhisperBundle,
@@ -185,21 +180,19 @@ impl WhisperDriverArgs {
         model.load_bundle::<B>(cache, device)
     }
 
+    /// Initialize the cache.
+    pub fn init_cache(&self) -> BunsenResult<PretrainedCache> {
+        self.cache.init()
+    }
+
     /// Load and setup the [`WhisperStreamDriver`].
     pub fn init_driver<B: Backend>(
         &self,
         device: &B::Device,
     ) -> BunsenResult<WhisperStreamDriver<B>> {
-        let cache = self.cache.init()?;
+        let cache = self.init_cache()?;
         let bundle = self.load_bundle::<B>(&cache, device)?;
-        log::info!(
-            "model: {} n_mels, vocabulary {}, d_model {}, {} + {} layers",
-            bundle.model.n_mels(),
-            bundle.model.vocab_size(),
-            bundle.model.d_model(),
-            bundle.model.encoder().n_layers(),
-            bundle.model.decoder().n_layers(),
-        );
+        log::info!("model: {bundle}");
 
         // The token layout follows from the vocabulary size, and the
         // vocabulary from the layout, through the same cache as the
