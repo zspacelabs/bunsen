@@ -316,22 +316,29 @@ impl<B: Backend> DynTensor<B> {
             type Output = DynTensor<B>;
 
             fn call<const R: usize>(self) -> BunsenResult<Self::Output> {
-                Ok(match self.this.kind {
-                    TensorKindDesc::Float => self
-                        .this
-                        .unwrap_clone::<R, Float>()
-                        .slice_assign(self.slices, self.values.unwrap_clone())
-                        .into(),
-                    TensorKindDesc::Int => self
-                        .this
-                        .unwrap_clone::<R, Int>()
-                        .slice_assign(self.slices, self.values.unwrap_clone())
-                        .into(),
-                    TensorKindDesc::Bool => self
-                        .this
-                        .unwrap_clone::<R, Bool>()
-                        .slice_assign(self.slices, self.values.unwrap_clone())
-                        .into(),
+                Ok(match (self.this.kind, self.values.kind) {
+                    (TensorKindDesc::Float, TensorKindDesc::Float) => {
+                        let target = self.this.unwrap_clone::<R, Float>();
+                        let source = self.values.unwrap_clone::<R, Float>();
+                        let source = source.cast(target.dtype());
+                        target.slice_assign(self.slices, source).into()
+                    }
+                    (TensorKindDesc::Int, TensorKindDesc::Int) => {
+                        let target = self.this.unwrap_clone::<R, Int>();
+                        let source = self.values.unwrap_clone::<R, Int>();
+                        let source = source.cast(target.dtype());
+                        target.slice_assign(self.slices, source).into()
+                    }
+                    (TensorKindDesc::Bool, TensorKindDesc::Bool) => {
+                        let target = self.this.unwrap_clone::<R, Bool>();
+                        let source = self.values.unwrap_clone::<R, Bool>();
+                        // let source = source.cast(target.dtype());
+                        target.slice_assign(self.slices, source).into()
+                    }
+                    _ => Err(BunsenError::Invalid(format!(
+                        "target kind ({:?}) != value kind ({:?})",
+                        self.this.kind, self.values.kind
+                    )))?,
                 })
             }
         }
@@ -918,16 +925,17 @@ mod tests {
             .into_data()
             .unwrap()
             .convert::<i64>()
-            .assert_eq(&TensorData::from([0i64, 8, 9, 3]), true);
+            .assert_eq(&TensorData::from([0i64, 8, 9, 3]), false);
 
         let source: Tensor<B, 1, Bool> = Tensor::from_data([false, false, false], &device);
         let values: Tensor<B, 1, Bool> = Tensor::from_data([true], &device);
+
         DynTensor::new(source)
             .slice_assign::<1, _, _>(s![2..3], values)
             .unwrap()
             .into_data()
             .unwrap()
-            .assert_eq(&TensorData::from([false, false, true]), true);
+            .assert_eq(&TensorData::from([false, false, true]), false);
     }
 
     #[test]
