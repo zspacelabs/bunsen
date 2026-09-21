@@ -192,7 +192,7 @@ impl WhisperDriverArgs {
     ) -> BunsenResult<WhisperStreamDriver<B>> {
         let cache = self.init_cache()?;
         let bundle = self.load_bundle::<B>(&cache, device)?;
-        log::info!("model: {bundle}");
+        log::info!("Loaded Whisper: {bundle}");
 
         // The token layout follows from the vocabulary size, and the
         // vocabulary from the layout, through the same cache as the
@@ -223,6 +223,7 @@ impl WhisperDriverArgs {
             .with_emission(self.preset.into())
             .with_fallback(fallback)
             .init_from_bundle(bundle, device)?;
+
         if self.preset != PresetEmissionPolicy::Offline {
             // The bundled burnpack, through the same cache as the weights:
             // written in from the binary on first use, cached after.
@@ -231,6 +232,7 @@ impl WhisperDriverArgs {
                 .handle;
             driver = driver.with_vad(vad.expect_branch(16000).clone(), Default::default())?;
         }
+
         if driver.detects_language() {
             log::info!("language: detected from the first window");
         } else {
