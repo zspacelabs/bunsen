@@ -63,11 +63,14 @@ pub fn fetch_file(
             dest.display()
         )));
     };
+    // The request first, the slot second: a URL that answers with an error
+    // status (a repo that is not there) leaves no directory behind.
+    let mut response = ureq::get(url)
+        .call()
+        .map_err(|e| BunsenError::External(format!("{url}: {e}")))?;
+    let total = response.body().content_length();
     fs::create_dir_all(parent).map_err(BunsenError::external)?;
     let partial = partial_path(dest);
-
-    let mut response = ureq::get(url).call().map_err(BunsenError::external)?;
-    let total = response.body().content_length();
     let progress = TransferProgressStack::begin(
         observers,
         &TransferDesc {
@@ -188,6 +191,7 @@ mod tests {
         refused_url,
         serve_once,
         serve_once_declaring,
+        serve_status,
     };
 
     fn observers(observer: &Arc<RecordingObserver>) -> Vec<Arc<dyn TransferObserver>> {
@@ -297,6 +301,23 @@ mod tests {
 
     /// A transfer cut off short of its `Content-Length` is `External`,
     /// leaves nothing behind, pinned or not, and the observer sees it fail.
+    /// An error status names the URL, and the slot the file would have
+    /// landed in is not created for it.
+    #[test]
+    fn test_fetch_file_names_the_url_on_an_error_status() {
+        let dir = tempfile::tempdir().unwrap();
+        let dest = dir.path().join("slot").join("missing.bin");
+        let url = serve_status("missing.bin", 404);
+
+        let err = fetch_file(&url, &dest, None, &[]).unwrap_err();
+
+        assert!(
+            matches!(&err, BunsenError::External(m) if m.starts_with(&url) && m.contains("404")),
+            "{err}"
+        );
+        assert!(!dest.parent().unwrap().exists(), "no empty slot is left");
+    }
+
     #[test]
     fn test_fetch_file_rejects_a_short_transfer() {
         let dir = tempfile::tempdir().unwrap();
