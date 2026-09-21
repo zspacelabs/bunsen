@@ -17,8 +17,10 @@ document-features = { workspace = true }
 
 [build-dependencies]
 # Not optional: the build script generates the burnpack weights from the
-# committed ONNX graph whether or not the generated Rust model is wanted.
+# committed ONNX graph whether or not the generated Rust model is wanted,
+# and hashes what it generated.
 burn-onnx = { workspace = true }
+sha2 = { workspace = true }
 
 [lints]
 workspace = true

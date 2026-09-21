@@ -35,8 +35,9 @@ driver and a `models` subcommand; the [model index](#models) and the name-to-mod
 - `data::pretrained::PretrainedCache` over `data::cache::BunsenDiskCache` — the cache directory (`--cache-dir`,
   `$BUNSEN_CACHE_DIR`, the platform's cache dir), and the digest-pinned resolve of every resource through it
   (`--offline`, `--upstream-cache-dir`).
-- `silero-weights` — `SileroVad::load_16khz_pretrained`, the voice-activity model the `conservative` and `responsive`
-  presets gate on.
+- `silero-weights` — `bundled:silero/vad`, the voice-activity model the `conservative` and `responsive` presets
+  gate on, loaded through `kits::speech::silero_vad::pretrained::default_silero_factory()` into the same cache as
+  the weights.
 - `kits::speech::whisper::driver` — `WhisperStreamDriverConfig`, `WhisperStreamContext`: the stream driver, with its
   emission presets, the timestamp seek loop, beams, per-stream language detection, and the fallback ladder behind
   flags.

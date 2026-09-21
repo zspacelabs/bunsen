@@ -15,7 +15,10 @@ use bunsen::{
     },
     errors::BunsenResult,
     kits::speech::{
-        silero_vad::SileroVad,
+        silero_vad::pretrained::{
+            SileroConstruct,
+            default_silero_factory,
+        },
         whisper::{
             WhisperFallbackConfig,
             WhisperMeta,
@@ -238,10 +241,17 @@ impl WhisperDriverArgs {
             .with_fallback(fallback)
             .init_from_bundle(bundle, device)?;
         if self.preset != PresetEmissionPolicy::Offline {
-            driver = driver.with_vad(
-                SileroVad::<B>::load_16khz_pretrained(device)?,
-                Default::default(),
-            )?;
+            // The bundled burnpack, through the same cache as the weights:
+            // written in from the binary on first use, cached after.
+            let vad = default_silero_factory()?
+                .load::<B, _>(
+                    "bundled:silero/vad",
+                    &cache,
+                    &SileroConstruct::new(),
+                    device,
+                )?
+                .handle;
+            driver = driver.with_vad(vad.expect_branch(16000).clone(), Default::default())?;
         }
         if driver.detects_language() {
             log::info!("language: detected from the first window");
