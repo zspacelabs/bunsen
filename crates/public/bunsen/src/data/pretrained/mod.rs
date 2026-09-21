@@ -20,6 +20,7 @@ mod construct;
 mod deferred;
 #[cfg(feature = "cache")]
 mod factory;
+mod hf;
 #[cfg(feature = "cache")]
 mod loaded;
 mod prefabs;
@@ -28,6 +29,8 @@ mod providers;
 mod resource;
 mod resource_map;
 mod rows;
+#[cfg(feature = "store_safetensors")]
+mod safetensors;
 
 #[cfg(feature = "cache")]
 #[doc(inline)]
@@ -41,6 +44,8 @@ pub use deferred::*;
 #[cfg(feature = "cache")]
 #[doc(inline)]
 pub use factory::*;
+#[doc(inline)]
+pub use hf::*;
 #[cfg(feature = "cache")]
 #[doc(inline)]
 pub use loaded::*;
@@ -56,6 +61,9 @@ pub use resource::*;
 pub use resource_map::*;
 #[doc(inline)]
 pub use rows::*;
+#[cfg(feature = "store_safetensors")]
+#[doc(inline)]
+pub use safetensors::*;
 
 /// [`ResourceNotFound`](crate::errors::BunsenError::ResourceNotFound) for a
 /// name a table does not have, naming what it has: `"<table>: no <kind>

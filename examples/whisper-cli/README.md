@@ -6,10 +6,10 @@ become final; under the responsive preset, drafts come first and are marked `~`.
 
 The model is named, as `openai-whisper`'s `load_model` names it: `--model openai/tiny.en`, `--model large`, in full
 `--model well-known:openai/tiny.en`; or a Hugging Face repo in `transformers`' layout, `--model hf:openai/whisper-tiny`;
-or a path to a checkpoint. Weights are fetched on demand into bunsen's cache, pinned to their SHA-256 when the index
-pins them, and used in place from `openai-whisper`'s own `~/.cache/whisper` when it already has them. The default is
-`openai/base`. A deployment that must not reach the network populates the cache ahead of time: `models fetch
-openai/base` in a Dockerfile, or `--cache-dir` pointed at a directory laid out as the cache.
+or a path to a checkpoint. Weights are fetched on demand into bunsen's cache, pinned to their SHA-256, and used in place
+from `openai-whisper`'s own `~/.cache/whisper` when it already has them. The default is `openai/base`. A deployment that
+must not reach the network populates the cache ahead of time: `models fetch openai/base` in a Dockerfile, or
+`--cache-dir` pointed at a directory laid out as the cache.
 
 The vocabulary follows the checkpoint: the token layout its vocabulary size implies selects `multilingual.tiktoken` or
 `gpt2.tiktoken`, and that rank file is a resource of the same model. A named model declares it, a path derives it, and
@@ -74,8 +74,8 @@ $ cargo run --release -p whisper-cli --features bunsen/wgpu -- \
 Model options:
 
 - `--model` — `provider:ref` or a bare ref from `models list` (`well-known:openai/tiny.en`, `openai/tiny.en`,
-  `large`, `turbo`), a Hugging Face repo (`hf:openai/whisper-tiny`, `hf:openai/whisper-large-v3`), or a path to a
-  checkpoint (default `openai/base`).
+  `large`, `turbo`), a Hugging Face repo (`hf:openai/whisper-tiny`, `hf:openai/whisper-large-v3`, a sharded fine-tune),
+  or a path to a checkpoint (default `openai/base`).
 - `--cache-dir` — where fetched weights live; `$BUNSEN_CACHE_DIR`, then the platform's cache directory, when omitted.
 - `--offline` — never reach the network; a model that is not already local is an error.
 - `--upstream-cache-dir` — `openai-whisper`'s download root, whose files are used in place (default `~/.cache/whisper`).
@@ -125,13 +125,17 @@ pin, as it is in upstream's URLs: a file there was verified when written, so lat
 3 GB, and a re-pinned model cannot collide with a stale one. A directory laid out this way *is* the cache: a
 deployment that wants to run offline populates one ahead of time, and `--cache-dir` points at it.
 
-A Hugging Face repo is the `hf` provider's: `hf:openai/whisper-large-v3` is
-[huggingface.co/openai/whisper-large-v3](https://huggingface.co/openai/whisper-large-v3), its `model.safetensors` at
-`main`, read through bunsen's safetensors reader (`transformers`' parameter names mapped onto upstream's). The row is
-unpinned, since resolving a name touches no network: the file is cached under its URL, at
-`<cache>/pretrained/whisper/hf/<url key>/model.safetensors`, and a repo whose `main` moves is fetched again only when
-the cache is cleared. The vocabulary is `OpenAI`'s rank file the checkpoint's layout selects, as for a path. The
-provider lists nothing (`models list` shows it with no rows), and a bare `openai/whisper-tiny` never reaches it.
+A Hugging Face repo is the `hf` provider's (bunsen's generic `HfProvider`): `hf:openai/whisper-large-v3` is
+[huggingface.co/openai/whisper-large-v3](https://huggingface.co/openai/whisper-large-v3). Resolving the ref asks the
+hub what the repo holds (its file listing, one small request, kept in the cache so the same ref resolves offline
+after), and the row is the repo's safetensors checkpoint at `main`: `model.safetensors`, or for a repo past
+`transformers`' shard-size limit the index and every `model-0000N-of-0000M.safetensors` shard, each pinned by the
+digest the listing carries, so they land under `<cache>/pretrained/whisper/hf/<sha256>/<file>` like any other row's.
+The checkpoint is read through bunsen's safetensors reader (`transformers`' parameter names mapped onto upstream's,
+across shards). The vocabulary is `OpenAI`'s rank file the checkpoint's layout selects, as for a path. A repo whose
+`main` moves is seen again only when the cache is cleared. The provider lists nothing (`models list` shows it with no
+rows), a bare `openai/whisper-tiny` never reaches it, and a repo that is not there is reported with the URL the hub
+answered 401 to.
 
 The `models` subcommand takes the same cache options as `transcribe`:
 

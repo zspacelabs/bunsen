@@ -662,8 +662,19 @@ mod tests {
             },
         };
 
+        let dir = tempfile::tempdir().unwrap();
+        let cache = PretrainedCache::new(
+            PretrainedCacheOptions::default()
+                .with_disk(
+                    crate::data::cache::BunsenDiskCacheOptions::default()
+                        .with_cache_dir(Some(dir.path().join("cache")))
+                        .without_transfer_observers(),
+                )
+                .with_offline(true),
+        )
+        .unwrap();
         let factory = default_resnet_factory().unwrap();
-        let named = factory.resolve("resnet50").unwrap();
+        let named = factory.resolve("resnet50", &cache).unwrap();
         let hook = named.hook.clone();
         let named = named.model;
         let resnet50 = PREFAB_RESNET_MAP
@@ -684,11 +695,10 @@ mod tests {
             "an explicit config wins over the prefab"
         );
 
-        let dir = tempfile::tempdir().unwrap();
         let file = dir.path().join("ckpt.pth");
         fs::write(&file, b"not a state dict").unwrap();
         assert!(
-            factory.resolve(file.to_str().unwrap()).is_err(),
+            factory.resolve(file.to_str().unwrap(), &cache).is_err(),
             "a path is not a name the factory knows"
         );
         let given = PretrainedRef::from(ResourceMap::given("mine", CHECKPOINT, &file));

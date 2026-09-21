@@ -107,9 +107,10 @@ impl ModelsCmd {
 
 fn resolve(
     factory: &PretrainedFactory<WhisperConstruct>,
+    cache: &PretrainedCache,
     name: &str,
 ) -> BunsenResult<Deferred<WhisperConstruct>> {
-    resolve_model(factory, name)
+    resolve_model(factory, name, cache)
 }
 
 fn list(
@@ -245,7 +246,7 @@ fn fetch(
     verify: bool,
 ) -> BunsenResult<()> {
     for name in names {
-        let model = resolve(factory, name)?;
+        let model = resolve(factory, cache, name)?;
         // The model's plan, before anything but the checkpoint is fetched:
         // a path gets the vocabulary its checkpoint's layout selects, and a
         // name is checked against the geometry it promised.
@@ -273,7 +274,7 @@ fn inspect(
     cache: &PretrainedCache,
     name: &str,
 ) -> BunsenResult<()> {
-    let model = resolve(factory, name)?;
+    let model = resolve(factory, cache, name)?;
     println!("model: {}", model.id());
     if let Some((provider, row)) = model.model.named() {
         let description = factory
@@ -309,18 +310,20 @@ fn inspect(
     }
 
     let loaded = cache.load(WHISPER_KIT, &map)?;
-    let checkpoint = loaded.get(CHECKPOINT).ok_or_else(|| {
-        BunsenError::ResourceNotFound(format!("{}: no {CHECKPOINT} resource", model.id()))
-    })?;
-    println!(
-        "checkpoint: {} ({})",
-        checkpoint.path.display(),
-        checkpoint.provenance
-    );
+    let checkpoint = loaded.family(CHECKPOINT);
+    if checkpoint.is_empty() {
+        return Err(BunsenError::ResourceNotFound(format!(
+            "{}: no {CHECKPOINT} resource",
+            model.id()
+        )));
+    }
+    for (key, part) in checkpoint {
+        println!("{key}: {} ({})", part.path.display(), part.provenance);
+    }
 
     // A named model that does not scan as its prefab is an error from
     // `scan`; report it as the finding it is rather than a failure.
-    let cfg = match model.scan(&checkpoint.path) {
+    let cfg = match model.scan(&loaded) {
         Ok(cfg) => cfg,
         Err(BunsenError::Invalid(msg)) if promised.is_some() => {
             println!("MISMATCH: {msg}");

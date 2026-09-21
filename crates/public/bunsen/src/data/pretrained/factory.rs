@@ -14,7 +14,11 @@
 //! names](PretrainedProvider::answers_bare_names), in registration order,
 //! and the first row wins. A provider's "not here" is `Ok(None)`; any error
 //! a provider returns aborts the lookup, since a hub that cannot be reached
-//! is not the same as a hub that has no such row.
+//! is not the same as a hub that has no such row. `resolve` goes through
+//! the cache, [`PretrainedProvider::resolve`], so a hub can ask what a repo
+//! holds once and answer from the cache after;
+//! [`lookup`](PretrainedFactory::lookup) is the index alone, which a table
+//! answers and a hub does not.
 //!
 //! There is no process-wide registry. A kit ships a `default_{kit}_factory()`
 //! over its compiled-in providers, and a caller that wants more builds on
@@ -202,8 +206,10 @@ impl<H: Construct> PretrainedFactory<H> {
 
     /// The row `spec` names, with its provider's name.
     ///
-    /// `provider:ref` asks that provider alone. Anything else is offered to
-    /// the providers that answer bare names, in order; the first row wins.
+    /// The index only: `provider:ref` asks that provider alone. Anything
+    /// else is offered to the providers that answer bare names, in order;
+    /// the first row wins. A provider that answers only through a cache, a
+    /// hub, answers this with its own error.
     ///
     /// # Errors
     /// [`BunsenError::ResourceNotFound`] naming what there is: the
@@ -214,24 +220,32 @@ impl<H: Construct> PretrainedFactory<H> {
         &self,
         spec: &str,
     ) -> BunsenResult<(String, Pretrained)> {
-        match self.find(spec)? {
+        match self.find(spec, |provider, name| provider.lookup(name))? {
             Some(found) => Ok(found),
             None => Err(self.not_found(spec)),
         }
     }
 
-    /// The row `spec` names, as [`lookup`](Self::lookup) finds it, as a
-    /// [`Deferred`] model with the hook its map calls for: the index half
-    /// of [`load`](Self::load), for a caller that overlays the row before
-    /// loading it.
+    /// The row `spec` names, dispatched as [`lookup`](Self::lookup) is but
+    /// through each provider's [`resolve`](PretrainedProvider::resolve)
+    /// with `cache` to hand, as a [`Deferred`] model with the hook its map
+    /// calls for: the index half of [`load`](Self::load), for a caller
+    /// that overlays the row before loading it. A table answers from its
+    /// rows; a hub asks what the repo holds, once, and keeps the answer in
+    /// the cache.
     ///
     /// # Errors
     /// As [`lookup`](Self::lookup) and [`Deferred::new`].
     pub fn resolve(
         &self,
         spec: &str,
+        cache: &PretrainedCache,
     ) -> BunsenResult<Deferred<H>> {
-        let (provider, pretrained) = self.lookup(spec)?;
+        let found = self.find(spec, |provider, name| provider.resolve(name, H::KIT, cache))?;
+        let (provider, pretrained) = match found {
+            Some(found) => found,
+            None => return Err(self.not_found(spec)),
+        };
         Deferred::new(PretrainedRef::Named {
             provider,
             pretrained,
@@ -249,27 +263,28 @@ impl<H: Construct> PretrainedFactory<H> {
         cache: &PretrainedCache,
         device: &B::Device,
     ) -> BunsenResult<Loaded<H::Built<B>>> {
-        self.resolve(spec)?.load::<B>(cache, device)
+        self.resolve(spec, cache)?.load::<B>(cache, device)
     }
 
-    /// The dispatch behind [`lookup`](Self::lookup): `Ok(None)` when no
-    /// provider has the row.
+    /// The dispatch behind [`lookup`](Self::lookup) and
+    /// [`resolve`](Self::resolve): `ask` is what each provider is asked,
+    /// its `lookup` or its `resolve`; `Ok(None)` when no provider has the
+    /// row.
     pub(crate) fn find(
         &self,
         spec: &str,
+        ask: impl Fn(&dyn PretrainedProvider, &str) -> BunsenResult<Option<Pretrained>>,
     ) -> BunsenResult<Option<(String, Pretrained)>> {
         if let Some((head, rest)) = spec.split_once(':')
             && let Some(provider) = self.provider(head)
         {
-            return Ok(provider
-                .lookup(rest)?
-                .map(|row| (provider.name().to_string(), row)));
+            return Ok(ask(provider.as_ref(), rest)?.map(|row| (provider.name().to_string(), row)));
         }
         for provider in &self.providers {
             if !provider.answers_bare_names() {
                 continue;
             }
-            if let Some(row) = provider.lookup(spec)? {
+            if let Some(row) = ask(provider.as_ref(), spec)? {
                 return Ok(Some((provider.name().to_string(), row)));
             }
         }
@@ -546,6 +561,25 @@ mod tests {
         )
     }
 
+    /// An offline cache rooted under `dir`: nothing is fetched, nothing
+    /// reports.
+    fn offline_cache(dir: &std::path::Path) -> PretrainedCache {
+        use crate::data::{
+            cache::BunsenDiskCacheOptions,
+            pretrained::PretrainedCacheOptions,
+        };
+        PretrainedCache::new(
+            PretrainedCacheOptions::default()
+                .with_disk(
+                    BunsenDiskCacheOptions::default()
+                        .with_cache_dir(Some(dir.join("cache")))
+                        .without_transfer_observers(),
+                )
+                .with_offline(true),
+        )
+        .unwrap()
+    }
+
     fn factory() -> PretrainedFactory<CheckpointPath> {
         PretrainedFactory::new()
             .with_providers([well_known(), Arc::new(ListsNothing::default()) as _])
@@ -734,10 +768,12 @@ mod tests {
     #[test]
     fn test_resolve_names_and_aliases_only() {
         let factory = factory();
+        let dir = tempfile::tempdir().unwrap();
+        let cache = offline_cache(dir.path());
 
-        let model = factory.resolve("well-known:a/small").unwrap();
+        let model = factory.resolve("well-known:a/small", &cache).unwrap();
         assert_eq!(model.id(), "well-known:a/small");
-        let model = factory.resolve("s").unwrap();
+        let model = factory.resolve("s", &cache).unwrap();
         assert_eq!(model.id(), "well-known:a/small");
         assert_eq!(
             model.model.named().map(|(p, row)| (p, row.name.as_str())),
@@ -745,20 +781,19 @@ mod tests {
         );
         assert_eq!(model.to_map().name, "well-known:a/small");
         assert!(format!("{:?}", model.hook).contains("CheckpointPath"));
-        let model = factory.resolve("hub:x/y").unwrap();
+        let model = factory.resolve("hub:x/y", &cache).unwrap();
         assert_eq!(model.id(), "hub:x/y");
 
-        let dir = tempfile::tempdir().unwrap();
         let file = dir.path().join("ckpt.pt");
         std::fs::write(&file, b"x").unwrap();
-        match factory.resolve(file.to_str().unwrap()) {
+        match factory.resolve(file.to_str().unwrap(), &cache) {
             Err(BunsenError::ResourceNotFound(m)) => {
                 assert!(m.contains("well-known:a/small"), "{m}");
             }
             other => panic!("{other:?}"),
         }
         assert!(matches!(
-            factory.resolve("well-known:a/gigantic"),
+            factory.resolve("well-known:a/gigantic", &cache),
             Err(BunsenError::ResourceNotFound(_))
         ));
     }
@@ -768,13 +803,7 @@ mod tests {
     #[test]
     fn test_load_goes_through_the_hook() {
         use crate::{
-            data::{
-                cache::BunsenDiskCacheOptions,
-                pretrained::{
-                    PretrainedCacheOptions,
-                    Provenance,
-                },
-            },
+            data::pretrained::Provenance,
             support::testing::{
                 CpuBackend,
                 default_device,
@@ -782,16 +811,7 @@ mod tests {
         };
 
         let dir = tempfile::tempdir().unwrap();
-        let cache = PretrainedCache::new(
-            PretrainedCacheOptions::default()
-                .with_disk(
-                    BunsenDiskCacheOptions::default()
-                        .with_cache_dir(Some(dir.path().join("cache")))
-                        .without_transfer_observers(),
-                )
-                .with_offline(true),
-        )
-        .unwrap();
+        let cache = offline_cache(dir.path());
         let file = dir.path().join("ckpt.pt");
         std::fs::write(&file, b"x").unwrap();
         let on_disk = table("disk", vec![group("l", vec![local_row("ckpt", &file)])]);
@@ -812,7 +832,7 @@ mod tests {
         let other = dir.path().join("other.pt");
         std::fs::write(&other, b"y").unwrap();
         let loaded = factory
-            .resolve("ckpt")
+            .resolve("ckpt", &cache)
             .unwrap()
             .with_overlay(ResourceMap::given("mine", "checkpoint", &other))
             .unwrap()

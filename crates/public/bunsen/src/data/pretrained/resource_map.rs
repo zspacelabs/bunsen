@@ -181,6 +181,26 @@ impl ResourceMap {
         self.resources.keys().map(String::as_str).collect()
     }
 
+    /// The resources keyed `key` or `key.<part>`, as a map of their own
+    /// under this map's name: a checkpoint that is one file, or one split
+    /// across several (`checkpoint.index`, `checkpoint.00001`, ...).
+    pub fn family(
+        &self,
+        key: &str,
+    ) -> ResourceMap {
+        let prefix = format!("{key}.");
+        let mut family = Self::new(self.name.clone());
+        family.description.clone_from(&self.description);
+        family.license.clone_from(&self.license);
+        family.origin.clone_from(&self.origin);
+        for (k, resource) in &self.resources {
+            if k == key || k.starts_with(&prefix) {
+                family.insert(resource.clone());
+            }
+        }
+        family
+    }
+
     /// The number of resources.
     pub fn len(&self) -> usize {
         self.resources.len()

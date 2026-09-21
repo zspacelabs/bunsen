@@ -19,16 +19,14 @@
 //! let hf = factory.load_bundle::<B>("hf:openai/whisper-tiny", &cache, &device)?;
 //! ```
 
-use std::{
-    path::Path,
-    sync::Arc,
-};
+use std::sync::Arc;
 
 use burn::prelude::Backend;
 
 use crate::{
     data::pretrained::{
         Deferred,
+        LoadedResources,
         PretrainedCache,
         PretrainedFactory,
     },
@@ -69,7 +67,7 @@ impl PretrainedFactory<WhisperConstruct> {
 }
 
 impl Deferred<WhisperConstruct> {
-    /// Scans the checkpoint at `path` for its config without loading its
+    /// Scans the checkpoint in `loaded` for its config without loading its
     /// weights, and checks it against the geometry this model promises:
     /// the read-only half, for a listing.
     ///
@@ -77,9 +75,9 @@ impl Deferred<WhisperConstruct> {
     /// As [`WhisperConstruct::scan`].
     pub fn scan(
         &self,
-        path: &Path,
+        loaded: &LoadedResources,
     ) -> BunsenResult<WhisperApiConfig> {
-        self.hook.scan(&self.model, path)
+        self.hook.scan(&self.model, loaded)
     }
 
     /// This model to a bundle: [`load`](Self::load), keeping the handle.
@@ -99,11 +97,15 @@ impl Deferred<WhisperConstruct> {
 mod tests {
     use super::*;
     use crate::{
-        data::pretrained::{
-            PretrainedRef,
-            ResourceMap,
-            WELL_KNOWN,
-            testing::ListsNothing,
+        data::{
+            cache::BunsenDiskCacheOptions,
+            pretrained::{
+                PretrainedCacheOptions,
+                PretrainedRef,
+                ResourceMap,
+                WELL_KNOWN,
+                testing::ListsNothing,
+            },
         },
         errors::BunsenError,
         kits::speech::whisper::pretrained::{
@@ -114,6 +116,20 @@ mod tests {
             openai_download_root,
         },
     };
+
+    /// An offline cache under `dir`: nothing fetched, nothing reported.
+    fn offline_cache_in(dir: &std::path::Path) -> PretrainedCache {
+        PretrainedCache::new(
+            PretrainedCacheOptions::default()
+                .with_disk(
+                    BunsenDiskCacheOptions::default()
+                        .with_cache_dir(Some(dir.join("cache")))
+                        .without_transfer_observers(),
+                )
+                .with_offline(true),
+        )
+        .unwrap()
+    }
 
     /// The default factory is the well-known table, serving the kit, with
     /// every id qualified and upstream's aliases honoured; the bundled
@@ -163,8 +179,10 @@ mod tests {
     #[test]
     fn test_resolve_names_and_aliases() {
         let factory = default_whisper_factory().unwrap();
+        let dir = tempfile::tempdir().unwrap();
+        let cache = offline_cache_in(dir.path());
 
-        let model = factory.resolve("openai/tiny.en").unwrap();
+        let model = factory.resolve("openai/tiny.en", &cache).unwrap();
         match &model.model {
             PretrainedRef::Named {
                 provider,
@@ -178,20 +196,22 @@ mod tests {
         }
         assert!(format!("{:?}", model.hook).contains("WhisperConstruct"));
         assert_eq!(
-            factory.resolve("well-known:openai/tiny.en").unwrap().id(),
+            factory
+                .resolve("well-known:openai/tiny.en", &cache)
+                .unwrap()
+                .id(),
             "well-known:openai/tiny.en"
         );
         assert_eq!(
-            factory.resolve("turbo").unwrap().id(),
+            factory.resolve("turbo", &cache).unwrap().id(),
             "well-known:openai/large-v3-turbo"
         );
 
-        let dir = tempfile::tempdir().unwrap();
         let file = dir.path().join("ckpt.pt");
         std::fs::write(&file, b"x").unwrap();
         let spec = file.to_str().unwrap();
         assert!(matches!(
-            factory.resolve(spec),
+            factory.resolve(spec, &cache),
             Err(BunsenError::ResourceNotFound(_))
         ));
         let given =
@@ -201,8 +221,31 @@ mod tests {
         assert!(given.model.named().is_none());
 
         assert!(matches!(
-            factory.resolve("openai/gigantic"),
+            factory.resolve("openai/gigantic", &cache),
             Err(BunsenError::ResourceNotFound(_))
+        ));
+
+        // A Hugging Face ref is resolved through the cache: offline, with
+        // no listing cached, it is refused naming the ref; the index alone
+        // does not answer it; a bare `org/repo` never reaches the hub.
+        let err = factory
+            .resolve("hf:openai/whisper-tiny", &cache)
+            .unwrap_err();
+        assert!(
+            matches!(&err, BunsenError::ResourceNotFound(m) if m.starts_with("hf:openai/whisper-tiny")),
+            "{err}"
+        );
+        assert!(matches!(
+            factory.lookup("hf:openai/whisper-tiny"),
+            Err(BunsenError::Invalid(_))
+        ));
+        assert!(matches!(
+            factory.lookup("openai/whisper-tiny"),
+            Err(BunsenError::ResourceNotFound(_))
+        ));
+        assert!(matches!(
+            factory.lookup("hf:whisper-tiny"),
+            Err(BunsenError::Invalid(_))
         ));
     }
 
@@ -253,7 +296,8 @@ mod tests {
         // The hub's rows are safetensors: resolving one chooses the
         // safetensors reader, with its feature, before anything is read;
         // without the feature it is refused naming the feature.
-        let resolved = factory.resolve("hub:openai/whisper-base");
+        let dir = tempfile::tempdir().unwrap();
+        let resolved = factory.resolve("hub:openai/whisper-base", &offline_cache_in(dir.path()));
         #[cfg(feature = "store_safetensors")]
         assert!(matches!(
             resolved.unwrap().hook.reader,
@@ -283,14 +327,10 @@ mod tests {
     #[test]
     fn test_the_bundled_provider_serves_openai_base_in_place() {
         use crate::{
-            data::{
-                cache::BunsenDiskCacheOptions,
-                pretrained::{
-                    BUNDLED,
-                    CacheStatus,
-                    PretrainedCacheOptions,
-                    Provenance,
-                },
+            data::pretrained::{
+                BUNDLED,
+                CacheStatus,
+                Provenance,
             },
             kits::speech::whisper::pretrained::{
                 BASE_CHECKPOINT,
@@ -298,22 +338,13 @@ mod tests {
             },
         };
         let dir = tempfile::tempdir().unwrap();
-        let cache = PretrainedCache::new(
-            PretrainedCacheOptions::default()
-                .with_disk(
-                    BunsenDiskCacheOptions::default()
-                        .with_cache_dir(Some(dir.path().join("cache")))
-                        .without_transfer_observers(),
-                )
-                .with_offline(true),
-        )
-        .unwrap();
+        let cache = offline_cache_in(dir.path());
         let factory = default_whisper_factory().unwrap();
         let bundled = factory.provider(BUNDLED).unwrap();
         assert_eq!(bundled.ids(), ["bundled:openai/base"]);
         assert_eq!(bundled.license(), None);
 
-        let model = factory.resolve("bundled:openai/base").unwrap();
+        let model = factory.resolve("bundled:openai/base", &cache).unwrap();
         assert_eq!(model.id(), "bundled:openai/base");
         let status = model.status(&cache);
         assert_eq!(status[CHECKPOINT], CacheStatus::LocalDir);
@@ -340,7 +371,7 @@ mod tests {
         assert!(!dir.path().join("cache").exists(), "nothing was written");
 
         assert_eq!(
-            factory.resolve("openai/base").unwrap().id(),
+            factory.resolve("openai/base", &cache).unwrap().id(),
             "well-known:openai/base"
         );
     }
@@ -362,7 +393,7 @@ mod tests {
         };
         let cache = offline_cache();
         let factory = default_whisper_factory().unwrap();
-        let model = factory.resolve("openai/base").unwrap();
+        let model = factory.resolve("openai/base", &cache).unwrap();
         assert_eq!(model.id(), "well-known:openai/base");
         let status = model.status(&cache);
         assert_eq!(status[CHECKPOINT], CacheStatus::Cached);
@@ -377,6 +408,111 @@ mod tests {
         assert_eq!(
             loaded.expect(CHECKPOINT).unwrap(),
             bunsen_bundled_whisper::base_pt()
+        );
+    }
+}
+
+/// Against the hub: the smallest repo, fetched once into the default
+/// cache, read whole, and checked against `OpenAI`'s own `tiny.pt`, which
+/// it was converted from.
+#[cfg(all(test, feature = "store_safetensors", feature = "fetch"))]
+mod hub_tests {
+    use burn::tensor::{
+        Tensor,
+        Tolerance,
+    };
+
+    use crate::{
+        data::pretrained::{
+            PretrainedCache,
+            PretrainedCacheOptions,
+            Provenance,
+        },
+        kits::speech::whisper::{
+            WhisperMeta,
+            pretrained::{
+                CHECKPOINT,
+                WHISPER_PREFABS,
+                default_whisper_factory,
+            },
+        },
+        support::testing::{
+            CpuBackend,
+            assert_tensors_close,
+            default_device,
+        },
+    };
+
+    /// `hf:openai/whisper-tiny` resolves through the hub's listing to a
+    /// pinned checkpoint, loads to the `tiny` geometry with the
+    /// multilingual layout and vocabulary, and its weights are
+    /// `openai/tiny`'s: the same numbers through two files, two layouts and
+    /// two readers.
+    #[test]
+    fn test_hf_whisper_tiny_is_openai_tiny() {
+        let device = default_device();
+        let cache = PretrainedCache::new(PretrainedCacheOptions::default()).unwrap();
+        let factory = default_whisper_factory().unwrap();
+
+        let model = factory.resolve("hf:openai/whisper-tiny", &cache).unwrap();
+        let checkpoint = model.to_map();
+        let checkpoint = checkpoint.get(CHECKPOINT).unwrap();
+        assert_eq!(checkpoint.file, "model.safetensors");
+        assert!(checkpoint.is_pinned(), "pinned by the hub's listing");
+
+        let loaded = model.load::<CpuBackend>(&cache, &device).unwrap();
+        assert!(matches!(
+            loaded.resources.get(CHECKPOINT).unwrap().provenance,
+            Provenance::Cached | Provenance::Downloaded
+        ));
+        let hf = loaded.handle;
+        let tiny = WHISPER_PREFABS
+            .expect_lookup_prefab("tiny")
+            .to_config()
+            .geometry();
+        assert_eq!(hf.model.n_mels(), tiny.n_mels);
+        assert_eq!(hf.model.vocab_size(), tiny.vocab_size);
+        assert_eq!(hf.model.d_model(), tiny.d_model);
+        assert_eq!(hf.model.max_audio_ctx(), tiny.max_audio_ctx);
+        assert_eq!(hf.model.max_text_ctx(), tiny.max_text_ctx);
+        assert_eq!(hf.model.encoder.blocks.len(), tiny.n_encoder_layers);
+        assert_eq!(hf.model.decoder.blocks.len(), tiny.n_decoder_layers);
+        assert!(hf.layout.ids().is_multilingual());
+        assert_eq!(hf.ranks.as_ref().map(|r| r.len()), Some(50257));
+
+        let openai = factory
+            .load_bundle::<CpuBackend>("openai/tiny", &cache, &device)
+            .unwrap();
+        let close = |a: Tensor<CpuBackend, 2>, b: Tensor<CpuBackend, 2>| {
+            assert_tensors_close(&a, &b, Tolerance::<f32>::default());
+        };
+        close(
+            hf.model.encoder.blocks[0].attn.query.weight.val(),
+            openai.model.encoder.blocks[0].attn.query.weight.val(),
+        );
+        close(
+            hf.model.decoder.blocks[3].cross_attn.output.weight.val(),
+            openai.model.decoder.blocks[3]
+                .cross_attn
+                .output
+                .weight
+                .val(),
+        );
+        close(
+            hf.model.decoder.blocks[1].mlp.linear2.weight.val(),
+            openai.model.decoder.blocks[1].mlp.linear2.weight.val(),
+        );
+        close(
+            hf.model.encoder.positional_embedding.val(),
+            openai.model.encoder.positional_embedding.val(),
+        );
+        close(
+            hf.model.decoder.token_embedding.weight.val(),
+            openai.model.decoder.token_embedding.weight.val(),
+        );
+        close(
+            hf.model.decoder.ln.gamma.val().unsqueeze(),
+            openai.model.decoder.ln.gamma.val().unsqueeze(),
         );
     }
 }

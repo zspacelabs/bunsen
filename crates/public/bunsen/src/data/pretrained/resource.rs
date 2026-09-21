@@ -60,6 +60,14 @@ pub fn url_to_cache_key(
     }
 }
 
+/// The label on a safetensors weights file: a whole checkpoint, or one
+/// shard of a checkpoint split across several.
+pub const SAFETENSORS: &str = "safetensors";
+
+/// The label on the index of a sharded safetensors checkpoint
+/// (`model.safetensors.index.json`): the shard each tensor is in.
+pub const SAFETENSORS_INDEX: &str = "safetensors-index";
+
 /// One place a file can be had from, as a compiled-in table spells it.
 ///
 /// Sources are tried in the order listed: a directory another tool keeps

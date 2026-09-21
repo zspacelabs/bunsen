@@ -243,7 +243,7 @@ pub fn backend_main<B: AutodiffBackend>(args: &Args) -> anyhow::Result<()> {
             // deferred model's hook builds from this config rather than
             // the prefab's, and the checkpoint is read into that model.
             let cache = PretrainedCache::new(PretrainedCacheOptions::default())?;
-            let mut model = default_resnet_factory()?.resolve(pretrained)?;
+            let mut model = default_resnet_factory()?.resolve(pretrained, &cache)?;
             model.hook = model.hook.with_config(contract.clone());
             let loaded = model.load::<B>(&cache, &device)?;
 

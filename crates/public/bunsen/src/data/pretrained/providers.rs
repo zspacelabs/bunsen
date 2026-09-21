@@ -33,6 +33,8 @@ use serde::{
     Serialize,
 };
 
+#[cfg(feature = "cache")]
+use super::PretrainedCache;
 use super::{
     Pretrained,
     StaticPretrained,
@@ -94,6 +96,25 @@ pub trait PretrainedProvider: Send + Sync + fmt::Debug {
         name: &str,
     ) -> BunsenResult<Option<Pretrained>> {
         Ok(self.list().into_iter().find(|p| p.matches(name)))
+    }
+
+    /// The row `name` refers to, with a cache to hand: what a factory
+    /// asks when it resolves a spec to load. The default is
+    /// [`lookup`](Self::lookup). A hub answers here instead, asking the
+    /// hub what the repo holds once and keeping the answer in the cache
+    /// under `kit`, so the same ref is answered offline after.
+    ///
+    /// # Errors
+    /// The provider's own, as [`lookup`](Self::lookup).
+    #[cfg(feature = "cache")]
+    fn resolve(
+        &self,
+        name: &str,
+        kit: &str,
+        cache: &PretrainedCache,
+    ) -> BunsenResult<Option<Pretrained>> {
+        let _ = (kit, cache);
+        self.lookup(name)
     }
 
     /// Whether a spec with no `provider:` is offered to this provider.

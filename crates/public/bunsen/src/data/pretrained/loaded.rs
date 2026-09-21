@@ -79,6 +79,20 @@ impl LoadedResources {
         self.map.get(key).and_then(|r| r.kind.as_deref())
     }
 
+    /// The parts keyed `key` or `key.<part>`, in key order: a checkpoint
+    /// that is one file, or one split across several.
+    pub fn family(
+        &self,
+        key: &str,
+    ) -> Vec<(&str, &ResolvedResource)> {
+        let prefix = format!("{key}.");
+        self.parts
+            .iter()
+            .filter(|(k, _)| *k == key || k.starts_with(&prefix))
+            .map(|(k, r)| (k.as_str(), r))
+            .collect()
+    }
+
     /// Every key, in key order.
     pub fn keys(&self) -> Vec<&str> {
         self.parts.keys().map(String::as_str).collect()

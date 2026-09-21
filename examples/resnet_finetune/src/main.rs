@@ -304,7 +304,8 @@ pub fn train<B: AutodiffBackend>(args: &Args) -> anyhow::Result<()> {
         }
         return Ok(());
     }
-    let mut model_ref = factory.resolve(&args.pretrained)?;
+    let cache = PretrainedCache::new(PretrainedCacheOptions::default())?;
+    let mut model_ref = factory.resolve(&args.pretrained, &cache)?;
     let prefab = model_ref
         .model
         .prefab(&PREFAB_RESNET_MAP)
@@ -317,8 +318,6 @@ pub fn train<B: AutodiffBackend>(args: &Args) -> anyhow::Result<()> {
     ensure_artifact_dir(artifact_dir)?;
 
     B::seed(&device, args.seed);
-
-    let cache = PretrainedCache::new(PretrainedCacheOptions::default())?;
 
     let mut resnet_config = prefab.to_config();
 

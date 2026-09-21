@@ -225,7 +225,7 @@ mod tests {
         .unwrap();
         let factory = default_silero_factory().unwrap();
 
-        let model = factory.resolve("bundled:silero/vad").unwrap();
+        let model = factory.resolve("bundled:silero/vad", &cache).unwrap();
         assert_eq!(model.id(), "bundled:silero/vad");
         assert_eq!(model.status(&cache)[BURNPACK], CacheStatus::Bundled);
 

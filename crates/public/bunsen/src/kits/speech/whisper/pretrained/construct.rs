@@ -11,17 +11,19 @@
 //!
 //! The reader is a [`WhisperReader`], chosen by the checkpoint resource's
 //! `kind` when the hook is made for a map: `OpenAI`'s `.pt` through the
-//! `PyTorch` scanner, `transformers`' `model.safetensors` through the
-//! safetensors one. Both scan to the same [`WhisperApiConfig`] and load
-//! the same [`Whisper`] model; only the file's names and layout differ.
+//! `PyTorch` scanner, `transformers`' `model.safetensors`, one file or
+//! shards, through the safetensors one. Both scan to the same
+//! [`WhisperApiConfig`] and load the same [`Whisper`] model; only the
+//! files' names and layout differ. The checkpoint is the map's
+//! [family](ResourceMap::family) under [`CHECKPOINT`]: one resource, or
+//! an index and its shards.
 
-use std::{
-    path::Path,
-    sync::Arc,
-};
+use std::sync::Arc;
 
 use burn::prelude::Backend;
 
+#[cfg(feature = "store_safetensors")]
+use crate::data::pretrained::SafetensorsCheckpoint;
 #[cfg(not(feature = "store_safetensors"))]
 use crate::kits::speech::whisper::Whisper;
 #[cfg(feature = "store_safetensors")]
@@ -38,6 +40,7 @@ use crate::{
         PretrainedCache,
         PretrainedRef,
         ResourceMap,
+        SAFETENSORS,
     },
     errors::{
         BunsenError,
@@ -51,7 +54,6 @@ use crate::{
             pretrained::{
                 CHECKPOINT,
                 PytorchWhisperScanner,
-                SAFETENSORS,
                 VOCABULARY,
                 WHISPER_KIT,
                 WHISPER_PREFABS,
@@ -71,8 +73,9 @@ pub enum WhisperReader {
     /// kind, and of any kind starting `pytorch`.
     Pytorch(PytorchWhisperScanner),
 
-    /// `transformers`' `model.safetensors`, with its names: what a Hugging
-    /// Face repo serves. The reader for any kind starting `safetensors`.
+    /// `transformers`' `model.safetensors`, one file or shards with an
+    /// index, with its names: what a Hugging Face repo serves. The reader
+    /// for any kind starting `safetensors`.
     #[cfg(feature = "store_safetensors")]
     Safetensors(SafetensorsWhisperScanner),
 }
@@ -110,34 +113,42 @@ impl WhisperReader {
         }
     }
 
-    /// Scans a checkpoint for its config without loading its weights.
+    /// Scans the checkpoint in `loaded`, under [`CHECKPOINT`], for its
+    /// config without loading its weights.
     ///
     /// # Errors
-    /// The scanner's: a file that is not a checkpoint of this layout.
+    /// [`BunsenError::ResourceNotFound`] when `loaded` has no checkpoint;
+    /// the scanner's for files that are not a checkpoint of its layout.
     pub fn scan_cfg(
         &self,
-        path: &Path,
+        loaded: &LoadedResources,
     ) -> BunsenResult<WhisperApiConfig> {
         match self {
-            Self::Pytorch(scanner) => Ok(scanner.scan_cfg(path)?.1),
+            Self::Pytorch(scanner) => Ok(scanner.scan_cfg(loaded.expect(CHECKPOINT)?)?.1),
             #[cfg(feature = "store_safetensors")]
-            Self::Safetensors(scanner) => scanner.scan_cfg(path),
+            Self::Safetensors(scanner) => {
+                scanner.scan_cfg(&SafetensorsCheckpoint::from_loaded(loaded, CHECKPOINT)?)
+            }
         }
     }
 
-    /// Loads a checkpoint into a model at the precision it ships in.
+    /// Loads the checkpoint in `loaded` into a model at the precision it
+    /// ships in.
     ///
     /// # Errors
-    /// The scanner's.
+    /// As [`scan_cfg`](Self::scan_cfg); the scanner's.
     pub fn load<B: Backend>(
         &self,
-        path: &Path,
+        loaded: &LoadedResources,
         device: &B::Device,
     ) -> BunsenResult<(Whisper<B>, WhisperApiConfig)> {
         match self {
-            Self::Pytorch(scanner) => scanner.load::<B, _>(path, device),
+            Self::Pytorch(scanner) => scanner.load::<B, _>(loaded.expect(CHECKPOINT)?, device),
             #[cfg(feature = "store_safetensors")]
-            Self::Safetensors(scanner) => scanner.load::<B, _>(path, device),
+            Self::Safetensors(scanner) => scanner.load::<B>(
+                &SafetensorsCheckpoint::from_loaded(loaded, CHECKPOINT)?,
+                device,
+            ),
         }
     }
 }
@@ -220,19 +231,19 @@ impl WhisperConstruct {
         })
     }
 
-    /// Scans a checkpoint for its config without loading its weights, and
-    /// checks it against the geometry `model` promises.
+    /// Scans the checkpoint in `loaded` for its config without loading its
+    /// weights, and checks it against the geometry `model` promises.
     ///
     /// # Errors
     /// As [`WhisperReader::scan_cfg`]; [`BunsenError::Invalid`]
-    /// naming both geometries when the file at that name is not the model
-    /// it claims to be.
+    /// naming both geometries when the files at that name are not the
+    /// model it claims to be.
     pub fn scan(
         &self,
         model: &PretrainedRef,
-        path: &Path,
+        loaded: &LoadedResources,
     ) -> BunsenResult<WhisperApiConfig> {
-        let cfg = self.reader.scan_cfg(path)?;
+        let cfg = self.reader.scan_cfg(loaded)?;
         self.check(model, &cfg.geometry())?;
         Ok(cfg)
     }
@@ -259,30 +270,41 @@ impl Construct for WhisperConstruct {
     const KIT: &'static str = WHISPER_KIT;
 
     /// The reader the checkpoint's `kind` names, through
-    /// [`WhisperReader::for_kind`], expecting what the model promises. A
-    /// checkpoint of a kind with no reader is refused by name.
+    /// [`WhisperReader::for_kind`], expecting what the model promises. The
+    /// checkpoint is the map's family under [`CHECKPOINT`]: one resource,
+    /// or an index and shards, whose first resource's kind speaks for
+    /// them. A checkpoint of a kind with no reader is refused by name.
     fn for_map(map: &ResourceMap) -> BunsenResult<Self> {
-        let checkpoint = map.try_get(CHECKPOINT)?;
-        let reader = WhisperReader::for_kind(checkpoint.kind.as_deref()).map_err(|e| match e {
-            BunsenError::Invalid(m) => BunsenError::Invalid(format!("{}: {m}", checkpoint.key)),
+        let family = map.family(CHECKPOINT);
+        let Some(first) = family.resources.values().next() else {
+            map.try_get(CHECKPOINT)?;
+            unreachable!("an empty family is a missing key");
+        };
+        let reader = WhisperReader::for_kind(first.kind.as_deref()).map_err(|e| match e {
+            BunsenError::Invalid(m) => BunsenError::Invalid(format!("{}: {m}", first.key)),
             e => e,
         })?;
         Ok(Self::new().with_reader(reader))
     }
 
-    /// Scans the checkpoint, which comes local for it, checks its geometry
-    /// against the promised one, and settles the vocabulary: a map without
-    /// one gets the one the checkpoint's layout selects; a map that
-    /// declares one must declare that file, by name and digest, from
-    /// wherever it serves it, unless the caller gave it, which is trusted.
+    /// Scans the checkpoint, which comes local for it (every shard, when
+    /// it is sharded), checks its geometry against the promised one, and
+    /// settles the vocabulary: a map without one gets the one the
+    /// checkpoint's layout selects; a map that declares one must declare
+    /// that file, by name and digest, from wherever it serves it, unless
+    /// the caller gave it, which is trusted.
     fn plan(
         &self,
         model: &PretrainedRef,
         cache: &PretrainedCache,
     ) -> BunsenResult<ResourceMap> {
         let map = model.to_map();
-        let checkpoint = cache.resolve(WHISPER_KIT, map.try_get(CHECKPOINT)?)?;
-        let cfg = self.scan(model, &checkpoint.path)?;
+        let checkpoint = map.family(CHECKPOINT);
+        if checkpoint.is_empty() {
+            map.try_get(CHECKPOINT)?;
+        }
+        let loaded = cache.load(WHISPER_KIT, &checkpoint)?;
+        let cfg = self.scan(model, &loaded)?;
 
         let ids = *cfg.token_layout.policy_for_vocab(cfg.vocab_size)?.ids();
         let rule = WhisperVocabulary::for_layout(&ids).map().to_map();
@@ -313,7 +335,7 @@ impl Construct for WhisperConstruct {
         loaded: &LoadedResources,
         device: &B::Device,
     ) -> BunsenResult<Arc<WhisperBundle<B>>> {
-        let (model, cfg) = self.reader.load::<B>(loaded.expect(CHECKPOINT)?, device)?;
+        let (model, cfg) = self.reader.load::<B>(loaded, device)?;
         let layout = cfg.token_layout.policy_for_vocab(cfg.vocab_size)?;
         let mut bundle = WhisperBundle::new(model, layout);
         if let Some(part) = loaded.get(VOCABULARY) {
@@ -360,6 +382,25 @@ mod reader_tests {
             );
         }
 
+        // A sharded family under the key: its first resource speaks.
+        let mut sharded = ResourceMap::new("sharded");
+        for key in ["checkpoint.00001", "checkpoint.00002", "checkpoint.index"] {
+            let mut r = crate::data::pretrained::Resource::given(key, format!("/no/such/{key}"));
+            r.kind = Some(if key.ends_with("index") {
+                crate::data::pretrained::SAFETENSORS_INDEX.to_string()
+            } else {
+                SAFETENSORS.to_string()
+            });
+            sharded.insert(r);
+        }
+        #[cfg(feature = "store_safetensors")]
+        assert!(matches!(
+            WhisperConstruct::for_map(&sharded).unwrap().reader,
+            WhisperReader::Safetensors(_)
+        ));
+        #[cfg(not(feature = "store_safetensors"))]
+        assert!(WhisperConstruct::for_map(&sharded).is_err());
+
         map.resources.get_mut(CHECKPOINT).unwrap().kind = Some("burnpack".to_string());
         let err = WhisperConstruct::for_map(&map).unwrap_err();
         assert!(
@@ -400,7 +441,16 @@ mod tests {
     };
 
     fn resolve_model(spec: &str) -> BunsenResult<PretrainedRef> {
-        Ok(default_whisper_factory()?.resolve(spec)?.model)
+        Ok(default_whisper_factory()?
+            .resolve(spec, &offline_cache())?
+            .model)
+    }
+
+    /// A checkpoint on disk, as loaded resources: used in place.
+    fn loaded(path: &std::path::Path) -> LoadedResources {
+        offline_cache()
+            .load(WHISPER_KIT, &ResourceMap::given("given", CHECKPOINT, path))
+            .unwrap()
     }
 
     fn geometry_of(prefab: &str) -> WhisperGeometry {
@@ -505,7 +555,11 @@ mod tests {
                 .with_offline(true),
         )
         .unwrap();
-        let model = resolve_model("bundled:openai/base").unwrap();
+        let model = default_whisper_factory()
+            .unwrap()
+            .resolve("bundled:openai/base", &cache)
+            .unwrap()
+            .model;
         let planned = WhisperConstruct::new().plan(&model, &cache).unwrap();
         assert_eq!(planned.keys(), [CHECKPOINT, VOCABULARY]);
         let vocabulary = planned.get(VOCABULARY).unwrap();
@@ -545,13 +599,14 @@ mod tests {
         // An explicit expectation overrides a wrong promise: `base.pt`
         // under `openai/tiny`, told to expect base, scans.
         let wrong_name = resolve_model("openai/tiny").unwrap();
-        assert!(hook.scan(&wrong_name, base_pt).is_err());
+        let base = loaded(base_pt);
+        assert!(hook.scan(&wrong_name, &base).is_err());
         let explicit = hook.clone().with_expected(Some(geometry_of("base")));
         assert_eq!(
             explicit.expected_for(&wrong_name),
             Some(geometry_of("base"))
         );
-        explicit.scan(&wrong_name, base_pt).unwrap();
+        explicit.scan(&wrong_name, &base).unwrap();
     }
 
     /// The bundled checkpoint is `openai/base`; scanning it must agree with
@@ -561,7 +616,7 @@ mod tests {
     fn test_the_bundled_base_scans_as_the_base_prefab() {
         let model = resolve_model("openai/base").unwrap();
         let cfg = WhisperConstruct::new()
-            .scan(&model, bunsen_bundled_whisper::base_pt())
+            .scan(&model, &loaded(bunsen_bundled_whisper::base_pt()))
             .unwrap();
 
         let geometry = cfg.geometry();
@@ -579,11 +634,11 @@ mod tests {
             WhisperConstruct::new().with_scanner(PytorchWhisperScanner::new().with_d_head(32));
 
         let named = resolve_model("openai/base").unwrap();
-        let err = hook.scan(&named, base).unwrap_err();
+        let err = hook.scan(&named, &loaded(base)).unwrap_err();
         assert!(matches!(err, BunsenError::Invalid(_)), "{err}");
 
         let given = PretrainedRef::from(ResourceMap::given("base", CHECKPOINT, base));
-        let cfg = hook.scan(&given, base).unwrap();
+        let cfg = hook.scan(&given, &loaded(base)).unwrap();
         assert_eq!(cfg.geometry().d_head, 32);
         assert_eq!(cfg.geometry().n_heads(), 16);
     }
@@ -594,7 +649,7 @@ mod tests {
     fn test_a_checkpoint_under_the_wrong_name_is_rejected() {
         let model = resolve_model("openai/tiny").unwrap();
         let err = WhisperConstruct::new()
-            .scan(&model, bunsen_bundled_whisper::base_pt())
+            .scan(&model, &loaded(bunsen_bundled_whisper::base_pt()))
             .unwrap_err();
         assert!(matches!(err, BunsenError::Invalid(_)), "{err}");
         assert!(err.to_string().contains("openai/tiny"), "{err}");

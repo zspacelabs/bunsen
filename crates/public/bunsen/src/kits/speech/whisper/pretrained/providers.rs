@@ -4,9 +4,10 @@
 //! `default_whisper_factory()` is the index a caller holds; its
 //! compiled-in providers are [`WELL_KNOWN_TABLE`], whose refs are
 //! `{group}/{name}`, with the `whisper-weights` feature the bundled
-//! one, and [`HfWhisperProvider`], which answers `hf:org/repo` for a
-//! Hugging Face repo and lists nothing. A group is a label, the `openai`
-//! in `openai/tiny.en`,
+//! one, and the data layer's [`HfProvider`], which answers `hf:org/repo`
+//! for a Hugging Face repo, its safetensors checkpoint under
+//! [`CHECKPOINT`](super::CHECKPOINT), and lists nothing. A group is a
+//! label, the `openai` in `openai/tiny.en`,
 //! over rows that each name their prefab in
 //! [`WHISPER_PREFABS`](super::WHISPER_PREFABS) and fuse a checkpoint map
 //! with the vocabulary map its token layout selects:
@@ -35,6 +36,7 @@ use std::{
 
 use crate::{
     data::pretrained::{
+        HfProvider,
         PretrainedProvider,
         StaticPretrained,
         StaticPretrainedGroup,
@@ -45,8 +47,8 @@ use crate::{
     kits::speech::whisper::pretrained::{
         BASE_CHECKPOINT,
         BASE_EN_CHECKPOINT,
+        CHECKPOINT,
         GPT2_VOCABULARY,
-        HfWhisperProvider,
         LARGE_V1_CHECKPOINT,
         LARGE_V2_CHECKPOINT,
         LARGE_V3_CHECKPOINT,
@@ -243,10 +245,7 @@ pub fn bundled_whisper_table() -> crate::data::pretrained::PretrainedTable {
             PretrainedGroup,
             PretrainedTable,
         },
-        kits::speech::whisper::pretrained::{
-            CHECKPOINT,
-            VOCABULARY,
-        },
+        kits::speech::whisper::pretrained::VOCABULARY,
     };
 
     let mut base = BASE.to_pretrained();
@@ -275,13 +274,14 @@ pub fn bundled_whisper_table() -> crate::data::pretrained::PretrainedTable {
 
 /// Whisper's compiled-in providers, in search order: the well-known table,
 /// then, with the `whisper-weights` feature, the bundled one, then Hugging
-/// Face, which answers only `hf:org/repo` and lists nothing.
+/// Face, which answers only `hf:org/repo`, through the cache, and lists
+/// nothing.
 pub fn default_whisper_providers() -> Vec<Arc<dyn PretrainedProvider>> {
     let mut providers: Vec<Arc<dyn PretrainedProvider>> =
         vec![Arc::new(WELL_KNOWN_TABLE.to_table())];
     #[cfg(feature = "whisper-weights")]
     providers.push(Arc::new(bundled_whisper_table()));
-    providers.push(Arc::new(HfWhisperProvider::new()));
+    providers.push(Arc::new(HfProvider::new().with_checkpoint_key(CHECKPOINT)));
     providers
 }
 

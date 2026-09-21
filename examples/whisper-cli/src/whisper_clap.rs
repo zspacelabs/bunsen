@@ -72,27 +72,31 @@ impl WeightsCacheArgs {
     }
 }
 
-/// What `--model` names: a row of the factory, or a checkpoint on disk as
-/// a one-resource map under [`CHECKPOINT`]. Either way a deferred model
-/// with the kit's hook for it; nothing here builds one.
+/// What `--model` names: a row of the factory, resolved through the
+/// cache (a Hugging Face ref asks the hub what the repo holds, once), or
+/// a checkpoint on disk as a one-resource map under [`CHECKPOINT`].
+/// Either way a deferred model with the kit's hook for it; nothing here
+/// builds one.
 pub fn resolve_model(
     factory: &PretrainedFactory<WhisperConstruct>,
     spec: &str,
+    cache: &PretrainedCache,
 ) -> BunsenResult<Deferred<WhisperConstruct>> {
     let path = Path::new(spec);
     if path.is_file() {
         return Deferred::from_map(ResourceMap::given(spec, CHECKPOINT, path));
     }
-    factory.resolve(spec)
+    factory.resolve(spec, cache)
 }
 
 #[derive(clap::Args, Debug)]
 pub struct WhisperDriverArgs {
     /// The model: `provider:ref` or a bare ref from `models list`
     /// (`well-known:openai/tiny.en`, `openai/tiny.en`, `large`), a Hugging
-    /// Face repo (`hf:openai/whisper-tiny`), or a path to a checkpoint.
-    /// The default is fetched into the cache on first use (145 MB,
-    /// digest-checked), or found where a deployment put it ahead of time.
+    /// Face repo in `transformers`' layout (`hf:openai/whisper-tiny`, one
+    /// file or shards), or a path to a checkpoint. The default is fetched
+    /// into the cache on first use (145 MB, digest-checked), or found
+    /// where a deployment put it ahead of time.
     #[arg(long, default_value = "openai/base")]
     model: String,
 
@@ -173,7 +177,7 @@ impl WhisperDriverArgs {
         device: &B::Device,
     ) -> BunsenResult<Arc<WhisperBundle<B>>> {
         let factory = default_whisper_factory()?;
-        let mut model = resolve_model(&factory, &self.model)?;
+        let mut model = resolve_model(&factory, &self.model, cache)?;
         if let Some(path) = &self.vocab {
             model = model.with_overlay(ResourceMap::given("--vocab", VOCABULARY, path))?;
         }
