@@ -3,6 +3,8 @@
 #[cfg(feature = "cache")]
 mod cache;
 #[cfg(feature = "cache")]
+mod loaded;
+#[cfg(feature = "cache")]
 mod model_ref;
 mod prefabs;
 mod providers;
@@ -13,6 +15,9 @@ mod weights;
 #[cfg(feature = "cache")]
 #[doc(inline)]
 pub use cache::*;
+#[cfg(feature = "cache")]
+#[doc(inline)]
+pub use loaded::*;
 #[cfg(feature = "cache")]
 #[doc(inline)]
 pub use model_ref::*;

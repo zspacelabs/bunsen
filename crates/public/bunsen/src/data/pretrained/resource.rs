@@ -6,10 +6,10 @@
 //! compiled-in tables, an owned twin for everything else.
 //!
 //! A resource's sources are its own first, then its map's bases with its file
-//! name appended, each in the order listed: a file a crate bundled is used
-//! before a directory another tool keeps, which is tried before a URL. The
-//! owned twin carries them all, so it stands alone, and a fused map needs no
-//! memory of which map a resource came from.
+//! name appended, each in the order listed. A directory another tool keeps
+//! the file in is a "trust me" source, used in place; a URL is fetched into
+//! the cache. The owned twin carries them all, so it stands alone, and a
+//! fused map needs no memory of which map a resource came from.
 
 use alloc::{
     format,
@@ -114,7 +114,7 @@ pub struct StaticResource<'a> {
     pub kind: Option<&'a str>,
 
     /// Sources of this resource alone, tried before the map's bases: a file
-    /// a crate bundled, or a whole URL.
+    /// a whole URL, or a directory of its own.
     pub sources: &'a [StaticWeightsSource<'a>],
 }
 
@@ -171,9 +171,9 @@ pub struct Resource {
 }
 
 impl Resource {
-    /// A resource for a file on disk already, used in place: what a path on
-    /// a command line becomes. Unpinned, unlabeled, under
-    /// [`GIVEN_NAMESPACE`].
+    /// A resource for a file on disk already: its directory, as a local-dir
+    /// source named [`GIVEN_NAMESPACE`], and its file name. What a path on a
+    /// command line becomes: used in place, unpinned, unlabeled.
     pub fn given(
         key: impl Into<String>,
         path: impl Into<PathBuf>,
@@ -183,13 +183,17 @@ impl Resource {
             .file_name()
             .map(|n| n.to_string_lossy().into_owned())
             .unwrap_or_else(|| path.display().to_string());
+        let dir = path.parent().map(Path::to_path_buf);
         Self {
             key: key.into(),
             file,
             sha256: None,
             kind: None,
             namespace: GIVEN_NAMESPACE.to_string(),
-            sources: vec![WeightsSource::File(path)],
+            sources: vec![WeightsSource::LocalDir {
+                name: GIVEN_NAMESPACE.to_string(),
+                dir,
+            }],
         }
     }
 
@@ -207,15 +211,6 @@ impl Resource {
                 _ => None,
             })
             .collect()
-    }
-
-    /// The bundled or given file, if a source is one: the path this
-    /// resolves to in place when it exists.
-    pub fn file_source(&self) -> Option<&Path> {
-        self.sources.iter().find_map(|s| match s {
-            WeightsSource::File(path) => Some(path.as_path()),
-            _ => None,
-        })
     }
 
     /// Checks the resource hangs together: a key, a file name, a namespace,
@@ -292,10 +287,6 @@ mod tests {
 
     const ABC_SHA256: &str = "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad";
 
-    fn bundled_path() -> &'static Path {
-        Path::new("/bundled/tiny.en.pt")
-    }
-
     fn upstream_dir() -> Option<PathBuf> {
         Some(PathBuf::from("/home/someone/.cache/whisper"))
     }
@@ -317,7 +308,9 @@ mod tests {
         file: "tiny.en.pt",
         sha256: Some(ABC_SHA256),
         kind: Some("pytorch fp16"),
-        sources: &[StaticWeightsSource::File(bundled_path)],
+        sources: &[StaticWeightsSource::Url(
+            "https://mirror.example/tiny.en.pt",
+        )],
     };
 
     /// A URL base loses its trailing slash before the file is appended; a
@@ -367,7 +360,7 @@ mod tests {
         assert_eq!(
             r.sources,
             vec![
-                WeightsSource::File(PathBuf::from("/bundled/tiny.en.pt")),
+                WeightsSource::Url("https://mirror.example/tiny.en.pt".to_string()),
                 WeightsSource::LocalDir {
                     name: "upstream".to_string(),
                     dir: upstream_dir(),
@@ -376,11 +369,16 @@ mod tests {
             ]
         );
         assert!(r.is_pinned());
-        assert_eq!(r.urls(), vec!["https://a.example/models/tiny.en.pt"]);
-        assert_eq!(r.file_source(), Some(Path::new("/bundled/tiny.en.pt")));
+        assert_eq!(
+            r.urls(),
+            vec![
+                "https://mirror.example/tiny.en.pt",
+                "https://a.example/models/tiny.en.pt"
+            ]
+        );
         assert_eq!(
             r.cache_key(),
-            url_to_cache_key(None, "https://a.example/models/tiny.en.pt")
+            url_to_cache_key(None, "https://mirror.example/tiny.en.pt")
         );
         assert_eq!(
             r.to_string(),
@@ -392,8 +390,8 @@ mod tests {
         assert_eq!(serde_json::from_str::<Resource>(&json).unwrap(), r);
     }
 
-    /// A given path is one `File` source, unpinned and unlabeled, named by
-    /// its file name, under the `given` namespace.
+    /// A given path is one local-dir source, its parent, with its file
+    /// name; unpinned and unlabeled, under the `given` namespace.
     #[test]
     fn test_given() {
         let r = Resource::given("checkpoint", "/models/my.pt");
@@ -404,12 +402,25 @@ mod tests {
         assert_eq!(r.kind, None);
         assert_eq!(
             r.sources,
-            vec![WeightsSource::File(PathBuf::from("/models/my.pt"))]
+            vec![WeightsSource::LocalDir {
+                name: GIVEN_NAMESPACE.to_string(),
+                dir: Some(PathBuf::from("/models")),
+            }]
         );
         assert!(r.urls().is_empty());
         assert_eq!(r.cache_key(), "my.pt");
         assert_eq!(r.to_string(), "checkpoint: my.pt (unpinned)");
         r.validate().unwrap();
+
+        let bare = Resource::given("checkpoint", "my.pt");
+        assert_eq!(bare.file, "my.pt");
+        assert_eq!(
+            bare.sources,
+            vec![WeightsSource::LocalDir {
+                name: GIVEN_NAMESPACE.to_string(),
+                dir: Some(PathBuf::from("")),
+            }]
+        );
     }
 
     #[test]

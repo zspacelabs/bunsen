@@ -265,8 +265,6 @@ impl ResourceMap {
 
 #[cfg(test)]
 mod tests {
-    use std::path::Path;
-
     use super::*;
     use crate::data::pretrained::{
         GIVEN_NAMESPACE,
@@ -275,10 +273,6 @@ mod tests {
     };
 
     const ABC_SHA256: &str = "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad";
-
-    fn bundled_vocab() -> &'static Path {
-        Path::new("/bundled/gpt2.tiktoken")
-    }
 
     fn upstream_dir() -> Option<PathBuf> {
         Some(PathBuf::from("/home/someone/.cache/whisper"))
@@ -308,7 +302,8 @@ mod tests {
         }],
     };
 
-    /// A one-file map with a bundled source and a URL base: a vocabulary.
+    /// A one-file map with a mirror of its own and a URL base: a
+    /// vocabulary.
     static VOCABULARY: StaticResourceMap<'static> = StaticResourceMap {
         name: "a/gpt2.tiktoken",
         description: "a vocabulary",
@@ -321,7 +316,9 @@ mod tests {
             file: "gpt2.tiktoken",
             sha256: None,
             kind: Some("tiktoken"),
-            sources: &[StaticWeightsSource::File(bundled_vocab)],
+            sources: &[StaticWeightsSource::Url(
+                "https://mirror.example/gpt2.tiktoken",
+            )],
         }],
     };
 
@@ -372,7 +369,7 @@ mod tests {
         assert_eq!(
             fused.get("vocabulary").unwrap().sources,
             vec![
-                WeightsSource::File(PathBuf::from("/bundled/gpt2.tiktoken")),
+                WeightsSource::Url("https://mirror.example/gpt2.tiktoken".to_string()),
                 WeightsSource::Url("https://raw.example/assets/gpt2.tiktoken".to_string()),
             ]
         );
@@ -409,7 +406,10 @@ mod tests {
         assert_eq!(vocab.kind, None);
         assert_eq!(
             vocab.sources,
-            vec![WeightsSource::File(PathBuf::from("/mine/vocab.tiktoken"))]
+            vec![WeightsSource::LocalDir {
+                name: GIVEN_NAMESPACE.to_string(),
+                dir: Some(PathBuf::from("/mine")),
+            }]
         );
         overlaid.validate().unwrap();
     }
