@@ -481,8 +481,7 @@ mod tests {
     /// come back at it, and the model computes in its own throughout.
     ///
     /// This is what lets a fp16 checkpoint be used straight off
-    /// [`Whisper::load_pretrained_16khz_fp16_base`], with the mel front end
-    /// left in f32.
+    /// `pretrained::load_named`, with the mel front end left in f32.
     #[test]
     #[serial]
     fn test_dtype_is_cast_at_the_interface() {

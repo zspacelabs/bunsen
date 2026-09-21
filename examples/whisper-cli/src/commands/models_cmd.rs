@@ -168,7 +168,7 @@ fn prefabs() -> BunsenResult<()> {
     println!(
         "  NAME             MELS  VOCAB D_MODEL HEADS  ENC  DEC AUDIO_CTX TEXT_CTX  DESCRIPTION"
     );
-    for prefab in WHISPER_PREFABS.items {
+    for prefab in WHISPER_PREFABS.iter() {
         let g = prefab.to_config().geometry();
         println!(
             "  {:<16} {:>4} {:>6} {:>7} {:>5} {:>4} {:>4} {:>9} {:>8}  {}",

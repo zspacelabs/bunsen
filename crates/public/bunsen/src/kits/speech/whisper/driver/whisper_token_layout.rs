@@ -1003,14 +1003,19 @@ mod tests {
         }
 
         /// Against the real assets, with ids produced by `whisper.tokenizer`.
+        /// The files come through the pretrained resolver, as a caller's
+        /// would; under `whisper-weights` that is the bundle, in place.
         #[cfg(feature = "whisper-weights")]
         mod bundled {
             use super::*;
+            use crate::kits::speech::whisper::pretrained::testing::{
+                bundled_vocabulary,
+                bundled_vocabulary_path,
+            };
 
             #[test]
             fn test_multilingual_vocabulary() {
-                let ranks =
-                    TiktokenRanks::load(bunsen_bundled_whisper::multilingual_tiktoken()).unwrap();
+                let ranks = bundled_vocabulary(&WhisperSpecialIds::from_vocab_size(51865).unwrap());
                 assert_eq!(
                     ranks.len(),
                     WhisperTokenLayoutConfig::new().multilingual_base_ranks
@@ -1063,7 +1068,8 @@ mod tests {
 
             #[test]
             fn test_english_vocabulary() {
-                let ranks = TiktokenRanks::load(bunsen_bundled_whisper::gpt2_tiktoken()).unwrap();
+                let ids = WhisperSpecialIds::from_vocab_size(51864).unwrap();
+                let ranks = bundled_vocabulary(&ids);
                 assert_eq!(
                     ranks.len(),
                     WhisperTokenLayoutConfig::new().english_base_ranks
@@ -1072,7 +1078,7 @@ mod tests {
 
                 let policy = WhisperTokenLayout::from_vocab_size(51864).unwrap();
                 let detok = policy
-                    .load_detokenizer(bunsen_bundled_whisper::gpt2_tiktoken())
+                    .load_detokenizer(bundled_vocabulary_path(&ids))
                     .unwrap();
                 assert_eq!(detok.vocab_size(), 51864);
 

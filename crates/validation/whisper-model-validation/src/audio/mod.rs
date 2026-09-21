@@ -41,7 +41,7 @@ use bunsen::{
                 WhisperTask,
                 WhisperTokenLayout,
             },
-            pretrained::bundled,
+            pretrained::vocabulary_for,
         },
         tokens::{
             Detokenizer,
@@ -257,7 +257,7 @@ impl Vocab {
 /// The shared vocabulary, for turning ids into text.
 fn vocab() -> Vocab {
     let policy = WhisperTokenLayout::from_vocab_size(N_VOCAB).expect("a Whisper vocabulary size");
-    let ranks = TiktokenRanks::load(bundled::multilingual_tiktoken())
+    let ranks = vocabulary_for(policy.ids(), &crate::weights_cache())
         .expect("the vocabulary failed to load");
     let decoder = policy
         .detokenizer(&ranks)
@@ -340,7 +340,7 @@ pub fn clip_mels<B: Backend>(
 /// float. Feeding f32 input to an f16 model does not error, it just
 /// returns wrong numbers, so the cast is load-bearing.
 pub fn bunsen_model<B: Backend>(device: &Device<B>) -> Whisper<B> {
-    let (model, cfg) = Whisper::load_pretrained_16khz_fp16_base(device).expect("load base.pt");
+    let (model, cfg) = crate::load_base::<B>(device);
 
     assert_eq!(cfg.n_mels, N_MELS, "not a `base` model");
     assert_eq!(

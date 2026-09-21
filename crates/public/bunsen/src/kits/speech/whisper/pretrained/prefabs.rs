@@ -124,11 +124,7 @@ pub static WHISPER_PREFABS: StaticPreFabMap<WhisperApiConfig> = StaticPreFabMap 
 pub fn prefab_for_geometry(
     geometry: &WhisperGeometry
 ) -> Option<&'static StaticPreFabConfig<WhisperApiConfig>> {
-    WHISPER_PREFABS
-        .items
-        .iter()
-        .copied()
-        .find(|p| p.to_config().geometry() == *geometry)
+    WHISPER_PREFABS.find(|cfg| cfg.geometry() == *geometry)
 }
 
 #[cfg(test)]
@@ -137,7 +133,7 @@ mod tests {
 
     #[test]
     fn test_geometry_round_trips_through_api_config() {
-        for prefab in WHISPER_PREFABS.items {
+        for prefab in WHISPER_PREFABS.iter() {
             let cfg = prefab.to_config();
             let geometry = cfg.geometry();
             assert_eq!(
@@ -154,7 +150,7 @@ mod tests {
 
     #[test]
     fn test_prefab_names_are_unique() {
-        let mut names: Vec<&str> = WHISPER_PREFABS.items.iter().map(|p| p.name).collect();
+        let mut names = WHISPER_PREFABS.names();
         names.sort_unstable();
         names.dedup();
         assert_eq!(names.len(), WHISPER_PREFABS.items.len());
@@ -180,7 +176,7 @@ mod tests {
 
     #[test]
     fn test_vocab_sizes_follow_the_language_variant() {
-        for prefab in WHISPER_PREFABS.items {
+        for prefab in WHISPER_PREFABS.iter() {
             let vocab = prefab.to_config().vocab_size;
             if prefab.name.ends_with(".en") {
                 assert_eq!(vocab, 51864, "{}", prefab.name);

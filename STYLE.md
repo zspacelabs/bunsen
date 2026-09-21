@@ -135,11 +135,9 @@ asked for*, and leaves no way to have one without the other. A
 `download` marks a build that may reach the network. It is **off by default**
 — a plain `cargo build --workspace` never fetches. Assets are pinned to a
 digest, re-verified on every build, and kept in `OUT_DIR`. An environment
-variable points the build at a local file instead.
-
-`bunsen-bundled-whisper` is the one exception, enumerated rather than implied:
-`checkpoint` is in its `default`, so a workspace build does fetch 145 MB into
-a fresh `OUT_DIR`. Naming the exception keeps the rule absolute everywhere else.
+variable points the build at a local file instead. A crate that exists to
+bundle an asset (`bunsen-bundled-whisper`) still fetches only under the
+feature that names the asset, never by default.
 
 ### Fetched assets live in `OUT_DIR`
 

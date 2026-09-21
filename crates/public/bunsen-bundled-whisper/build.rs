@@ -22,11 +22,10 @@
 //!   point the build at local files instead, for working offline or against a
 //!   different export.
 //!
-//! **`checkpoint` is on by default**, so building this crate — including as
-//! part of `cargo build --workspace` — fetches 145 MB into a fresh `OUT_DIR`.
-//! That is deliberate for a crate whose whole purpose is to bundle weights, but
-//! it does mean a clean CI run pays for it. `--no-default-features` opts out,
-//! and `WHISPER_BASE_PT` points at a local copy.
+//! **No feature is on by default**, so building this crate as a workspace
+//! member fetches nothing. `bunsen/whisper-weights` turns on `checkpoint` and
+//! `vocab` (145 MB into a fresh `OUT_DIR`); `whisper-model-validation/download`
+//! turns on `onnx_gen`. `WHISPER_BASE_PT` points at a local copy.
 
 // Each feature uses its own constants and helpers; the rest are dead in that
 // build. Enumerating `cfg` on every item would be noisier than this.
