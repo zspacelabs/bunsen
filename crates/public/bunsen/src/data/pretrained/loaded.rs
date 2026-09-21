@@ -2,19 +2,31 @@
 //!
 //! A [`ResourceMap`] with every resource local: key to path and provenance.
 //! What a construction hook is handed, and all it is handed.
+//!
+//! [`LoadedResources::materialize`] is a directory view over it, for a
+//! loader that reads a directory rather than paths: every part linked or
+//! copied into one place under its resource's file name. An operation, not
+//! the storage truth, which stays per file under its digest.
 
 use std::{
     collections::BTreeMap,
-    path::Path,
+    fs,
+    path::{
+        Path,
+        PathBuf,
+    },
 };
 
 use super::{
     ResolvedResource,
     ResourceMap,
 };
-use crate::errors::{
-    BunsenError,
-    BunsenResult,
+use crate::{
+    data::cache::link_or_copy,
+    errors::{
+        BunsenError,
+        BunsenResult,
+    },
 };
 
 /// A resource map with every resource local.
@@ -75,6 +87,45 @@ impl LoadedResources {
     /// Every resource with its key, in key order.
     pub fn iter(&self) -> impl Iterator<Item = (&str, &ResolvedResource)> {
         self.parts.iter().map(|(k, r)| (k.as_str(), r))
+    }
+
+    /// Lays every part out under `dir`, each under its resource's file
+    /// name, by link where the platform has them and by copy otherwise:
+    /// the directory a loader that reads directories is handed.
+    ///
+    /// The parts stay where they are; `dir` is a view of them. A file
+    /// already at a part's place is replaced.
+    ///
+    /// # Errors
+    /// [`BunsenError::Invalid`] if two parts would land under one file
+    /// name; [`BunsenError::External`] if the directory or a link cannot
+    /// be made.
+    pub fn materialize(
+        &self,
+        dir: impl Into<PathBuf>,
+    ) -> BunsenResult<PathBuf> {
+        let dir = dir.into();
+        fs::create_dir_all(&dir).map_err(BunsenError::external)?;
+        let mut placed: BTreeMap<&str, &str> = BTreeMap::new();
+        for (key, part) in self.iter() {
+            let file = self
+                .map
+                .get(key)
+                .map(|r| r.file.as_str())
+                .unwrap_or_else(|| key);
+            if let Some(other) = placed.insert(file, key) {
+                return Err(BunsenError::Invalid(format!(
+                    "{}: {key} and {other} would both land as {file:?}",
+                    self.map.name
+                )));
+            }
+            let dest = dir.join(file);
+            if dest.symlink_metadata().is_ok() {
+                fs::remove_file(&dest).map_err(BunsenError::external)?;
+            }
+            link_or_copy(&part.path, &dest)?;
+        }
+        Ok(dir)
     }
 }
 
@@ -153,6 +204,71 @@ mod tests {
         assert!(matches!(
             empty.expect("x"),
             Err(BunsenError::ResourceNotFound(m)) if m.ends_with("there are: (none)")
+        ));
+    }
+
+    /// The view holds every part under its resource's file name, reads as
+    /// the part does, and can be laid out again over itself; two parts
+    /// with one file name are refused.
+    #[test]
+    fn test_materialize_lays_the_parts_out() {
+        let dir = tempfile::tempdir().unwrap();
+        let checkpoint = dir.path().join("src").join("tiny.pt");
+        let vocabulary = dir.path().join("src").join("gpt2.tiktoken");
+        fs::create_dir_all(checkpoint.parent().unwrap()).unwrap();
+        fs::write(&checkpoint, b"weights").unwrap();
+        fs::write(&vocabulary, b"ranks").unwrap();
+        let map = ResourceMap::new("m")
+            .with_resource(Resource::given("checkpoint", &checkpoint))
+            .with_resource(Resource::given("vocabulary", &vocabulary));
+        let parts = [("checkpoint", &checkpoint), ("vocabulary", &vocabulary)]
+            .into_iter()
+            .map(|(key, path)| {
+                (
+                    key.to_string(),
+                    ResolvedResource {
+                        path: path.clone(),
+                        provenance: Provenance::LocalDir,
+                    },
+                )
+            })
+            .collect();
+        let loaded = LoadedResources { map, parts };
+
+        let view = loaded.materialize(dir.path().join("view")).unwrap();
+        assert_eq!(view, dir.path().join("view"));
+        assert_eq!(fs::read(view.join("tiny.pt")).unwrap(), b"weights");
+        assert_eq!(fs::read(view.join("gpt2.tiktoken")).unwrap(), b"ranks");
+        assert!(checkpoint.is_file(), "the part stays where it is");
+        let again = loaded.materialize(&view).unwrap();
+        assert_eq!(fs::read(again.join("tiny.pt")).unwrap(), b"weights");
+
+        let clash = LoadedResources {
+            map: ResourceMap::new("clash")
+                .with_resource(Resource::given(
+                    "a",
+                    dir.path().join("one").join("same.bin"),
+                ))
+                .with_resource(Resource::given(
+                    "b",
+                    dir.path().join("two").join("same.bin"),
+                )),
+            parts: [("a", &checkpoint), ("b", &vocabulary)]
+                .into_iter()
+                .map(|(key, path)| {
+                    (
+                        key.to_string(),
+                        ResolvedResource {
+                            path: path.clone(),
+                            provenance: Provenance::LocalDir,
+                        },
+                    )
+                })
+                .collect(),
+        };
+        assert!(matches!(
+            clash.materialize(dir.path().join("clash")),
+            Err(BunsenError::Invalid(m)) if m.contains("same.bin")
         ));
     }
 }
