@@ -1,30 +1,51 @@
 //! # Whisper pretrained providers
 //!
-//! Which weights exist, for which prefab, and where. A provider is a
-//! namespace, the `openai` in `openai/tiny.en`, over entries that each name
-//! their prefab in [`WHISPER_PREFABS`](super::WHISPER_PREFABS), their format,
-//! and the sources their bytes can be had from, all pinned to one SHA-256.
+//! Which models exist, under which names, made of which resource maps. A
+//! provider is a namespace, the `openai` in `openai/tiny.en`, over rows
+//! that each name their prefab in [`WHISPER_PREFABS`](super::WHISPER_PREFABS)
+//! and fuse a checkpoint map with the vocabulary map its token layout
+//! selects: [`OPENAI_CHECKPOINTS`](super::OPENAI_CHECKPOINTS) and
+//! [`vocabulary_map`](super::vocabulary_map).
 //!
 //! The `openai` table is `whisper/__init__.py`'s `_MODELS`, with upstream's
-//! two aliases (`large`, `turbo`) folded onto the entries they name rather
-//! than repeated, and the digest, which upstream embeds in the URL and
-//! checks on every load, lifted out where every source can share it.
+//! two aliases (`large`, `turbo`) folded onto the rows they name rather
+//! than repeated. Every row declares the vocabulary the rule would select
+//! for its prefab's layout; the tests pin that the declaration and the
+//! rule agree, so a path model, which has only the rule, gets the same
+//! file a name does.
 
 use std::path::PathBuf;
 
-use crate::data::pretrained::{
-    StaticPretrainedProvider,
-    StaticPretrainedWeightsDescriptor,
-    StaticWeightsSource,
-    WeightsFormat,
+use crate::{
+    data::pretrained::{
+        StaticPretrained,
+        StaticPretrainedProvider,
+        StaticResourceMap,
+    },
+    kits::speech::whisper::pretrained::{
+        BASE_CHECKPOINT,
+        BASE_EN_CHECKPOINT,
+        GPT2_VOCABULARY,
+        LARGE_V1_CHECKPOINT,
+        LARGE_V2_CHECKPOINT,
+        LARGE_V3_CHECKPOINT,
+        LARGE_V3_TURBO_CHECKPOINT,
+        MEDIUM_CHECKPOINT,
+        MEDIUM_EN_CHECKPOINT,
+        MULTILINGUAL_VOCABULARY,
+        SMALL_CHECKPOINT,
+        SMALL_EN_CHECKPOINT,
+        TINY_CHECKPOINT,
+        TINY_EN_CHECKPOINT,
+    },
 };
 
-/// The kit segment of a Whisper weights path in the cache:
-/// `<cache>/weights/whisper/<provider>/<sha256>/<file>`.
+/// The kit segment of a Whisper resource's path in the cache:
+/// `<cache>/pretrained/whisper/<namespace>/<sha256>/<file>`.
 pub const WHISPER_KIT: &str = "whisper";
 
-/// The name of the local-dir source that is `openai-whisper`'s download
-/// root; a [`WeightsCacheOptions`](crate::data::pretrained::WeightsCacheOptions)
+/// The name of the local-dir base that is `openai-whisper`'s download
+/// root; a [`PretrainedCacheOptions`](crate::data::pretrained::PretrainedCacheOptions)
 /// override by this name points it elsewhere.
 pub const OPENAI_LOCAL_DIR: &str = "openai-whisper";
 
@@ -38,224 +59,124 @@ pub fn openai_download_root() -> Option<PathBuf> {
     Some(cache_home.join("whisper"))
 }
 
-/// Upstream's download cache, read as a local source. Upstream keeps the
-/// file under its bare name and re-hashes it on every load; here it is
-/// hashed once and linked into the cache.
-const UPSTREAM: StaticWeightsSource<'static> = StaticWeightsSource::LocalDir {
-    name: OPENAI_LOCAL_DIR,
-    default: openai_download_root,
-};
-
-/// One `openai` entry: fp16 `PyTorch`, pinned to the digest upstream embeds in
-/// the URL, from upstream's cache, then upstream's URL.
+/// One `openai` row: a checkpoint map and the vocabulary map its layout
+/// selects, naming its prefab.
 const fn openai(
     name: &'static str,
     aliases: &'static [&'static str],
     prefab: &'static str,
     description: &'static str,
-    file: &'static str,
-    sha256: &'static str,
-    sources: &'static [StaticWeightsSource<'static>],
-) -> StaticPretrainedWeightsDescriptor<'static> {
-    StaticPretrainedWeightsDescriptor {
+    maps: &'static [&'static StaticResourceMap<'static>],
+) -> StaticPretrained<'static> {
+    StaticPretrained {
         name,
+        aliases,
         description,
         license: Some("MIT"),
         origin: Some("https://github.com/openai/whisper/blob/main/whisper/__init__.py"),
-        prefab,
-        aliases,
-        file,
-        sha256: Some(sha256),
-        format: WeightsFormat::PYTORCH_F16,
-        sources,
+        prefab: Some(prefab),
+        maps,
     }
 }
 
-static TINY_EN: StaticPretrainedWeightsDescriptor<'static> = openai(
+static TINY_EN: StaticPretrained<'static> = openai(
     "tiny.en",
     &[],
     "tiny.en",
     "39 M parameters, English-only",
-    "tiny.en.pt",
-    "d3dd57d32accea0b295c96e26691aa14d8822fac7d9d27d5dc00b4ca2826dd03",
-    &[
-        UPSTREAM,
-        StaticWeightsSource::Url(
-            "https://openaipublic.azureedge.net/main/whisper/models/d3dd57d32accea0b295c96e26691aa14d8822fac7d9d27d5dc00b4ca2826dd03/tiny.en.pt",
-        ),
-    ],
+    &[&TINY_EN_CHECKPOINT, &GPT2_VOCABULARY],
 );
 
-static TINY: StaticPretrainedWeightsDescriptor<'static> = openai(
+static TINY: StaticPretrained<'static> = openai(
     "tiny",
     &[],
     "tiny",
     "39 M parameters, multilingual",
-    "tiny.pt",
-    "65147644a518d12f04e32d6f3b26facc3f8dd46e5390956a9424a650c0ce22b9",
-    &[
-        UPSTREAM,
-        StaticWeightsSource::Url(
-            "https://openaipublic.azureedge.net/main/whisper/models/65147644a518d12f04e32d6f3b26facc3f8dd46e5390956a9424a650c0ce22b9/tiny.pt",
-        ),
-    ],
+    &[&TINY_CHECKPOINT, &MULTILINGUAL_VOCABULARY],
 );
 
-static BASE_EN: StaticPretrainedWeightsDescriptor<'static> = openai(
+static BASE_EN: StaticPretrained<'static> = openai(
     "base.en",
     &[],
     "base.en",
     "74 M parameters, English-only",
-    "base.en.pt",
-    "25a8566e1d0c1e2231d1c762132cd20e0f96a85d16145c3a00adf5d1ac670ead",
-    &[
-        UPSTREAM,
-        StaticWeightsSource::Url(
-            "https://openaipublic.azureedge.net/main/whisper/models/25a8566e1d0c1e2231d1c762132cd20e0f96a85d16145c3a00adf5d1ac670ead/base.en.pt",
-        ),
-    ],
+    &[&BASE_EN_CHECKPOINT, &GPT2_VOCABULARY],
 );
 
-/// `openai/base`: the checkpoint bunsen bundles, when the `whisper-weights`
-/// feature is on, which is then the first source.
-static BASE: StaticPretrainedWeightsDescriptor<'static> = openai(
+static BASE: StaticPretrained<'static> = openai(
     "base",
     &[],
     "base",
-    "74 M parameters, multilingual; the checkpoint bunsen bundles",
-    "base.pt",
-    "ed3a0b6b1c0edf879ad9b11b1af5a0e6ab5db9205f891f668f8b0e6c6326e34e",
-    &[
-        #[cfg(feature = "whisper-weights")]
-        StaticWeightsSource::File(bunsen_bundled_whisper::base_pt),
-        UPSTREAM,
-        StaticWeightsSource::Url(
-            "https://openaipublic.azureedge.net/main/whisper/models/ed3a0b6b1c0edf879ad9b11b1af5a0e6ab5db9205f891f668f8b0e6c6326e34e/base.pt",
-        ),
-    ],
+    "74 M parameters, multilingual",
+    &[&BASE_CHECKPOINT, &MULTILINGUAL_VOCABULARY],
 );
 
-static SMALL_EN: StaticPretrainedWeightsDescriptor<'static> = openai(
+static SMALL_EN: StaticPretrained<'static> = openai(
     "small.en",
     &[],
     "small.en",
     "244 M parameters, English-only",
-    "small.en.pt",
-    "f953ad0fd29cacd07d5a9eda5624af0f6bcf2258be67c92b79389873d91e0872",
-    &[
-        UPSTREAM,
-        StaticWeightsSource::Url(
-            "https://openaipublic.azureedge.net/main/whisper/models/f953ad0fd29cacd07d5a9eda5624af0f6bcf2258be67c92b79389873d91e0872/small.en.pt",
-        ),
-    ],
+    &[&SMALL_EN_CHECKPOINT, &GPT2_VOCABULARY],
 );
 
-static SMALL: StaticPretrainedWeightsDescriptor<'static> = openai(
+static SMALL: StaticPretrained<'static> = openai(
     "small",
     &[],
     "small",
     "244 M parameters, multilingual",
-    "small.pt",
-    "9ecf779972d90ba49c06d968637d720dd632c55bbf19d441fb42bf17a411e794",
-    &[
-        UPSTREAM,
-        StaticWeightsSource::Url(
-            "https://openaipublic.azureedge.net/main/whisper/models/9ecf779972d90ba49c06d968637d720dd632c55bbf19d441fb42bf17a411e794/small.pt",
-        ),
-    ],
+    &[&SMALL_CHECKPOINT, &MULTILINGUAL_VOCABULARY],
 );
 
-static MEDIUM_EN: StaticPretrainedWeightsDescriptor<'static> = openai(
+static MEDIUM_EN: StaticPretrained<'static> = openai(
     "medium.en",
     &[],
     "medium.en",
     "769 M parameters, English-only",
-    "medium.en.pt",
-    "d7440d1dc186f76616474e0ff0b3b6b879abc9d1a4926b7adfa41db2d497ab4f",
-    &[
-        UPSTREAM,
-        StaticWeightsSource::Url(
-            "https://openaipublic.azureedge.net/main/whisper/models/d7440d1dc186f76616474e0ff0b3b6b879abc9d1a4926b7adfa41db2d497ab4f/medium.en.pt",
-        ),
-    ],
+    &[&MEDIUM_EN_CHECKPOINT, &GPT2_VOCABULARY],
 );
 
-static MEDIUM: StaticPretrainedWeightsDescriptor<'static> = openai(
+static MEDIUM: StaticPretrained<'static> = openai(
     "medium",
     &[],
     "medium",
     "769 M parameters, multilingual",
-    "medium.pt",
-    "345ae4da62f9b3d59415adc60127b97c714f32e89e936602e85993674d08dcb1",
-    &[
-        UPSTREAM,
-        StaticWeightsSource::Url(
-            "https://openaipublic.azureedge.net/main/whisper/models/345ae4da62f9b3d59415adc60127b97c714f32e89e936602e85993674d08dcb1/medium.pt",
-        ),
-    ],
+    &[&MEDIUM_CHECKPOINT, &MULTILINGUAL_VOCABULARY],
 );
 
-static LARGE_V1: StaticPretrainedWeightsDescriptor<'static> = openai(
+static LARGE_V1: StaticPretrained<'static> = openai(
     "large-v1",
     &[],
     "large",
     "1550 M parameters, multilingual",
-    "large-v1.pt",
-    "e4b87e7e0bf463eb8e6956e646f1e277e901512310def2c24bf0e11bd3c28e9a",
-    &[
-        UPSTREAM,
-        StaticWeightsSource::Url(
-            "https://openaipublic.azureedge.net/main/whisper/models/e4b87e7e0bf463eb8e6956e646f1e277e901512310def2c24bf0e11bd3c28e9a/large-v1.pt",
-        ),
-    ],
+    &[&LARGE_V1_CHECKPOINT, &MULTILINGUAL_VOCABULARY],
 );
 
-static LARGE_V2: StaticPretrainedWeightsDescriptor<'static> = openai(
+static LARGE_V2: StaticPretrained<'static> = openai(
     "large-v2",
     &[],
     "large",
     "1550 M parameters, multilingual",
-    "large-v2.pt",
-    "81f7c96c852ee8fc832187b0132e569d6c3065a3252ed18e56effd0b6a73e524",
-    &[
-        UPSTREAM,
-        StaticWeightsSource::Url(
-            "https://openaipublic.azureedge.net/main/whisper/models/81f7c96c852ee8fc832187b0132e569d6c3065a3252ed18e56effd0b6a73e524/large-v2.pt",
-        ),
-    ],
+    &[&LARGE_V2_CHECKPOINT, &MULTILINGUAL_VOCABULARY],
 );
 
-static LARGE_V3: StaticPretrainedWeightsDescriptor<'static> = openai(
+static LARGE_V3: StaticPretrained<'static> = openai(
     "large-v3",
     &["large"],
     "large-v3",
     "1550 M parameters, multilingual, 128 mels",
-    "large-v3.pt",
-    "e5b1a55b89c1367dacf97e3e19bfd829a01529dbfdeefa8caeb59b3f1b81dadb",
-    &[
-        UPSTREAM,
-        StaticWeightsSource::Url(
-            "https://openaipublic.azureedge.net/main/whisper/models/e5b1a55b89c1367dacf97e3e19bfd829a01529dbfdeefa8caeb59b3f1b81dadb/large-v3.pt",
-        ),
-    ],
+    &[&LARGE_V3_CHECKPOINT, &MULTILINGUAL_VOCABULARY],
 );
 
-static LARGE_V3_TURBO: StaticPretrainedWeightsDescriptor<'static> = openai(
+static LARGE_V3_TURBO: StaticPretrained<'static> = openai(
     "large-v3-turbo",
     &["turbo"],
     "large-v3-turbo",
     "809 M parameters, multilingual, 128 mels, four-layer decoder",
-    "large-v3-turbo.pt",
-    "aff26ae408abcba5fbf8813c21e62b0941638c5f6eebfb145be0c9839262a19a",
-    &[
-        UPSTREAM,
-        StaticWeightsSource::Url(
-            "https://openaipublic.azureedge.net/main/whisper/models/aff26ae408abcba5fbf8813c21e62b0941638c5f6eebfb145be0c9839262a19a/large-v3-turbo.pt",
-        ),
-    ],
+    &[&LARGE_V3_TURBO_CHECKPOINT, &MULTILINGUAL_VOCABULARY],
 );
 
-/// `OpenAI`'s checkpoints, as `openai-whisper` names and pins them.
+/// `OpenAI`'s checkpoints, as `openai-whisper` names and pins them, each
+/// with the vocabulary it decodes through.
 pub static OPENAI: StaticPretrainedProvider<'static> = StaticPretrainedProvider {
     name: "openai",
     description: "OpenAI's Whisper checkpoints, as `openai-whisper` names and pins them",
@@ -288,23 +209,61 @@ mod tests {
             lookup_pretrained,
             pretrained_for_prefab,
         },
-        kits::speech::whisper::pretrained::WHISPER_PREFABS,
+        kits::speech::whisper::{
+            driver::WhisperSpecialIds,
+            pretrained::{
+                CHECKPOINT,
+                VOCABULARY,
+                WHISPER_PREFABS,
+                vocabulary_map,
+            },
+        },
     };
 
+    fn layout_of(prefab: &str) -> WhisperSpecialIds {
+        let cfg = WHISPER_PREFABS.expect_lookup_prefab(prefab).to_config();
+        *cfg.token_layout
+            .policy_for_vocab(cfg.vocab_size)
+            .unwrap()
+            .ids()
+    }
+
+    /// Every row names a prefab the map has and fuses into a checkpoint
+    /// and a vocabulary, the checkpoint file named after the row and
+    /// pinned.
     #[test]
-    fn test_every_pretrained_names_a_prefab_and_validates() {
+    fn test_every_row_names_a_prefab_and_fuses() {
         for provider in WHISPER_PROVIDERS {
-            for p in provider.items {
+            for row in provider.items {
+                let prefab = row.prefab.expect("every whisper row names a prefab");
                 assert!(
-                    WHISPER_PREFABS.lookup_prefab(p.prefab).is_some(),
-                    "{}: prefab {:?} is not in WHISPER_PREFABS",
-                    provider.id(p),
-                    p.prefab,
+                    WHISPER_PREFABS.lookup_prefab(prefab).is_some(),
+                    "{}: prefab {prefab:?} is not in WHISPER_PREFABS",
+                    provider.id(row),
                 );
-                p.to_descriptor().validate().unwrap();
+                let map = row.try_to_map().unwrap();
+                map.validate().unwrap();
+                assert_eq!(map.keys(), [CHECKPOINT, VOCABULARY], "{}", provider.id(row));
+                let checkpoint = map.get(CHECKPOINT).unwrap();
+                assert_eq!(checkpoint.file, format!("{}.pt", row.name));
+                assert!(checkpoint.is_pinned());
+                assert!(map.get(VOCABULARY).unwrap().is_pinned());
             }
         }
         assert_eq!(OPENAI.items.len(), 12);
+    }
+
+    /// The vocabulary a row declares is the one the rule selects for its
+    /// prefab's layout, so a name and a path agree on it.
+    #[test]
+    fn test_the_declared_vocabulary_is_the_rules() {
+        for row in OPENAI.items {
+            let declared = row.to_map();
+            let declared = declared.get(VOCABULARY).unwrap();
+            let rule = vocabulary_map(&layout_of(row.prefab.unwrap())).to_map();
+            let rule = rule.get(VOCABULARY).unwrap();
+            assert_eq!(declared, rule, "{}", OPENAI.id(row));
+        }
     }
 
     #[test]
@@ -319,26 +278,6 @@ mod tests {
             names.sort_unstable();
             names.dedup();
             assert_eq!(names.len(), n, "{}: a name is repeated", provider.name);
-        }
-    }
-
-    /// `OpenAI`'s URLs are digest-addressed; the pin and the path must agree.
-    #[test]
-    fn test_digests_pin_the_urls() {
-        for provider in WHISPER_PROVIDERS {
-            for p in provider.items {
-                let d = p.to_descriptor();
-                let sha256 = d.sha256.as_deref().expect("every openai entry is pinned");
-                assert!(!d.urls().is_empty(), "{}: no URL", provider.id(p));
-                for url in d.urls() {
-                    assert!(
-                        url.ends_with(&format!("/{sha256}/{}", d.file)),
-                        "{}: {url} does not end in the digest and file",
-                        provider.id(p),
-                    );
-                }
-                assert_eq!(d.format, WeightsFormat::PYTORCH_F16);
-            }
         }
     }
 
@@ -364,80 +303,38 @@ mod tests {
             .map(|(p, d)| p.id(d))
             .collect();
         assert_eq!(derived, ["openai/large-v1", "openai/large-v2"]);
-    }
-
-    /// Every entry lists upstream's download root before its URL, so a file
-    /// `openai-whisper` already fetched is found before the network is.
-    #[test]
-    fn test_sources_prefer_upstreams_cache() {
-        for p in OPENAI.items {
-            let d = p.to_descriptor();
-            let local = d
-                .sources
-                .iter()
-                .position(|s| matches!(s, crate::data::pretrained::WeightsSource::LocalDir { name, .. } if name == OPENAI_LOCAL_DIR))
-                .expect("a local dir source");
-            let url = d
-                .sources
-                .iter()
-                .position(|s| matches!(s, crate::data::pretrained::WeightsSource::Url(_)))
-                .expect("a url source");
-            assert!(local < url, "{}", OPENAI.id(p));
-        }
         assert!(openai_download_root().is_some_and(|d| d.ends_with("whisper")));
     }
 
+    /// A cache rooted at the bundle's directory, offline, has `openai/base`
+    /// whole: both resources cached, nothing fetched, nothing written.
     #[cfg(feature = "whisper-weights")]
     #[test]
-    fn test_the_bundled_checkpoint_is_the_openai_base() {
-        let base = OPENAI.lookup("base").unwrap();
-        assert!(
-            matches!(base.sources[0], StaticWeightsSource::File(_)),
-            "openai/base lists the bundled file first",
-        );
-        let d = base.to_descriptor();
-        match &d.sources[0] {
-            crate::data::pretrained::WeightsSource::File(path) => {
-                assert_eq!(path.as_path(), bunsen_bundled_whisper::base_pt());
-            }
-            other => panic!("{other:?}"),
-        }
-    }
-
-    /// The bundled checkpoint resolves offline, in place, through the cache.
-    #[cfg(feature = "whisper-weights")]
-    #[test]
-    fn test_the_bundled_base_resolves_offline() {
-        use crate::data::{
-            cache::BunsenDiskCacheOptions,
-            pretrained::{
+    fn test_the_bundle_serves_openai_base() {
+        use crate::{
+            data::pretrained::{
                 CacheStatus,
+                PretrainedRef,
                 Provenance,
-                WeightsCache,
-                WeightsCacheOptions,
             },
+            kits::speech::whisper::pretrained::testing::offline_cache,
         };
-        let dir = tempfile::tempdir().unwrap();
-        let cache = WeightsCache::new(
-            WeightsCacheOptions::default()
-                .with_disk(
-                    BunsenDiskCacheOptions::default()
-                        .with_cache_dir(Some(dir.path().join("cache")))
-                        .without_transfer_observers(),
-                )
-                .with_offline(true)
-                .with_local_dir(OPENAI_LOCAL_DIR, dir.path().join("upstream")),
-        )
-        .unwrap();
-        let base = OPENAI.lookup("base").unwrap().to_descriptor();
+        let cache = offline_cache();
+        let model = PretrainedRef::resolve(WHISPER_PROVIDERS, "openai/base", CHECKPOINT).unwrap();
+        assert_eq!(model.id(), "openai/base");
+        let status = model.status(WHISPER_KIT, &cache);
+        assert_eq!(status[CHECKPOINT], CacheStatus::Cached);
+        assert_eq!(status[VOCABULARY], CacheStatus::Cached);
 
+        let loaded = cache.load(WHISPER_KIT, &model.to_map()).unwrap();
+        assert_eq!(loaded.map.name, "openai/base");
+        for (key, part) in loaded.iter() {
+            assert_eq!(part.provenance, Provenance::Cached, "{key}");
+            assert!(part.path.starts_with(bunsen_bundled_whisper::cache_dir()));
+        }
         assert_eq!(
-            cache.status(WHISPER_KIT, "openai", &base),
-            CacheStatus::File
+            loaded.expect(CHECKPOINT).unwrap(),
+            bunsen_bundled_whisper::base_pt()
         );
-        let resolved = cache.resolve(WHISPER_KIT, "openai", &base).unwrap();
-        assert_eq!(resolved.provenance, Provenance::File);
-        assert!(resolved.path.is_file());
-        assert!(!dir.path().join("cache").join("weights").exists());
     }
 }

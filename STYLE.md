@@ -153,7 +153,7 @@ target/<profile>/build/bunsen-bundled-whisper-<hash>/out/
 
 A crate that bundles *pretrained* files lays `OUT_DIR` out as a pretrained
 cache, `pretrained/<kit>/<namespace>/<sha256>/<file>`, and exposes the root
-(`cache_dir()`). A `WeightsCache` pointed at it hits the files without
+(`cache_dir()`). A `PretrainedCache` pointed at it hits the files without
 knowing they were bundled: bundling is a populated cache directory, not a
 kind of source, and a deployment does the same by populating the runtime
 cache ahead of time.

@@ -9,7 +9,7 @@ use std::{
 };
 
 use super::{
-    ResolvedWeights,
+    ResolvedResource,
     ResourceMap,
 };
 use crate::errors::{
@@ -24,7 +24,7 @@ pub struct LoadedResources {
     pub map: ResourceMap,
 
     /// Where each resource is, and where it came from, by key.
-    pub parts: BTreeMap<String, ResolvedWeights>,
+    pub parts: BTreeMap<String, ResolvedResource>,
 }
 
 impl LoadedResources {
@@ -32,7 +32,7 @@ impl LoadedResources {
     pub fn get(
         &self,
         key: &str,
-    ) -> Option<&ResolvedWeights> {
+    ) -> Option<&ResolvedResource> {
         self.parts.get(key)
     }
 
@@ -73,7 +73,7 @@ impl LoadedResources {
     }
 
     /// Every resource with its key, in key order.
-    pub fn iter(&self) -> impl Iterator<Item = (&str, &ResolvedWeights)> {
+    pub fn iter(&self) -> impl Iterator<Item = (&str, &ResolvedResource)> {
         self.parts.iter().map(|(k, r)| (k.as_str(), r))
     }
 }
@@ -102,7 +102,7 @@ mod tests {
         .map(|(key, path, provenance)| {
             (
                 key.to_string(),
-                ResolvedWeights {
+                ResolvedResource {
                     path: PathBuf::from(path),
                     provenance,
                 },

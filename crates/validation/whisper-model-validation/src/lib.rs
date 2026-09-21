@@ -68,11 +68,28 @@ pub mod reference {
 /// Whisper's fixed analysis window: 30 s at 16 kHz, 3000 mel frames.
 pub const N_FRAMES: usize = 3000;
 
-/// The weights cache the checkpoint and its vocabulary come through: the
-/// default one. Under `download` the bundle is their first source, so nothing
-/// is fetched at run time.
-pub fn weights_cache() -> bunsen::data::pretrained::WeightsCache {
-    bunsen::data::pretrained::WeightsCache::new(Default::default()).expect("open the weights cache")
+/// The pretrained cache the checkpoint and its vocabulary come through.
+///
+/// Under `download`, it is rooted at `bunsen-bundled-whisper`'s directory,
+/// which its build laid out as one, and offline: nothing is fetched at run
+/// time and nothing is written there. Routing the assets through the
+/// library's own cache is also what this crate is validating. Without
+/// `download` it is the default cache, which fetches on first use.
+pub fn weights_cache() -> bunsen::data::pretrained::PretrainedCache {
+    use bunsen::data::pretrained::{
+        PretrainedCache,
+        PretrainedCacheOptions,
+    };
+    #[cfg(feature = "download")]
+    let options = PretrainedCacheOptions::default()
+        .with_disk(
+            bunsen::data::cache::BunsenDiskCacheOptions::default()
+                .with_cache_dir(Some(bunsen_bundled_whisper::cache_dir().to_path_buf())),
+        )
+        .with_offline(true);
+    #[cfg(not(feature = "download"))]
+    let options = PretrainedCacheOptions::default();
+    PretrainedCache::new(options).expect("open the pretrained cache")
 }
 
 /// bunsen's Whisper `openai/base`, at the precision it ships in (fp16), with

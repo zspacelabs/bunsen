@@ -51,8 +51,8 @@ const OPENAI_ASSETS_ORIGIN: &str = "https://github.com/openai/whisper/tree/83963
 
 /// Upstream's download root, as a base: `openai-whisper` keeps its
 /// checkpoints there under their bare names, and a file found there is used
-/// in place. A `WeightsCacheOptions` override by [`OPENAI_LOCAL_DIR`] points
-/// it elsewhere.
+/// in place. A `PretrainedCacheOptions` override by [`OPENAI_LOCAL_DIR`]
+/// points it elsewhere.
 pub const UPSTREAM_BASE: StaticBase<'static> = StaticBase::LocalDir {
     name: OPENAI_LOCAL_DIR,
     default: openai_download_root,
@@ -238,11 +238,8 @@ pub fn vocabulary_map(ids: &WhisperSpecialIds) -> &'static StaticResourceMap<'st
 mod tests {
     use super::*;
     use crate::{
-        data::pretrained::WeightsSource,
-        kits::speech::whisper::pretrained::{
-            OPENAI,
-            WHISPER_PREFABS,
-        },
+        data::pretrained::Source,
+        kits::speech::whisper::pretrained::WHISPER_PREFABS,
     };
 
     fn ids_of(prefab: &str) -> WhisperSpecialIds {
@@ -275,7 +272,7 @@ mod tests {
             assert_eq!(map.name, format!("openai/{}", r.file));
             assert_eq!(r.sources.len(), 2, "{}", map.name);
             assert!(
-                matches!(&r.sources[0], WeightsSource::LocalDir { name, .. } if name == OPENAI_LOCAL_DIR),
+                matches!(&r.sources[0], Source::LocalDir { name, .. } if name == OPENAI_LOCAL_DIR),
                 "{}: upstream's root comes first",
                 map.name
             );
@@ -290,24 +287,6 @@ mod tests {
             );
         }
         assert!(openai_download_root().is_some_and(|d| d.ends_with("whisper")));
-    }
-
-    /// Until the descriptors retire, each map says what its descriptor says:
-    /// the same file, the same digest, the same URL.
-    #[test]
-    fn test_checkpoint_maps_agree_with_the_descriptors() {
-        for map in OPENAI_CHECKPOINTS {
-            let r = map.to_map();
-            let r = r.get(CHECKPOINT).unwrap();
-            let name = r.file.strip_suffix(".pt").unwrap();
-            let desc = OPENAI
-                .lookup(name)
-                .unwrap_or_else(|| panic!("{}: no descriptor {name:?}", map.name))
-                .to_descriptor();
-            assert_eq!(desc.file, r.file, "{}", map.name);
-            assert_eq!(desc.sha256, r.sha256, "{}", map.name);
-            assert_eq!(desc.urls(), r.urls(), "{}", map.name);
-        }
     }
 
     /// The vocabulary maps validate, are pinned to the commit, and the
@@ -347,30 +326,6 @@ mod tests {
         );
     }
 
-    /// Until the descriptors retire, each vocabulary map says what its
-    /// descriptor says.
-    #[cfg(feature = "cache")]
-    #[test]
-    fn test_vocabulary_maps_agree_with_the_descriptors() {
-        use crate::kits::speech::whisper::pretrained::{
-            GPT2_TIKTOKEN,
-            MULTILINGUAL_TIKTOKEN,
-            OPENAI_VOCAB_REVISION,
-        };
-        for (map, desc) in [
-            (&MULTILINGUAL_VOCABULARY, &MULTILINGUAL_TIKTOKEN),
-            (&GPT2_VOCABULARY, &GPT2_TIKTOKEN),
-        ] {
-            let r = map.to_map();
-            let r = r.get(VOCABULARY).unwrap();
-            let desc = desc.to_descriptor();
-            assert_eq!(desc.file, r.file, "{}", map.name);
-            assert_eq!(desc.sha256, r.sha256, "{}", map.name);
-            assert_eq!(desc.urls(), r.urls(), "{}", map.name);
-            assert!(r.urls()[0].contains(OPENAI_VOCAB_REVISION));
-        }
-    }
-
     /// The bundle's directory is a cache of exactly these maps: pointed at
     /// it, offline, the cache finds `openai/base` and both vocabularies
     /// cached, at paths under it, and writes nothing.
@@ -378,39 +333,24 @@ mod tests {
     #[test]
     fn test_the_bundle_is_a_cache_of_these_maps() {
         use crate::{
-            data::{
-                cache::BunsenDiskCacheOptions,
-                pretrained::{
-                    CacheStatus,
-                    Fuse,
-                    Provenance,
-                    WeightsCache,
-                    WeightsCacheOptions,
-                },
+            data::pretrained::{
+                CacheStatus,
+                Fuse,
+                Provenance,
             },
-            kits::speech::whisper::pretrained::WHISPER_KIT,
+            kits::speech::whisper::pretrained::{
+                WHISPER_KIT,
+                testing::offline_cache,
+            },
         };
         let root = bunsen_bundled_whisper::cache_dir();
-        let cache = WeightsCache::new(
-            WeightsCacheOptions::default()
-                .with_disk(
-                    BunsenDiskCacheOptions::default()
-                        .with_cache_dir(Some(root.to_path_buf()))
-                        .without_transfer_observers(),
-                )
-                .with_offline(true),
-        )
-        .unwrap();
+        let cache = offline_cache();
 
         for map in [&BASE_CHECKPOINT, &MULTILINGUAL_VOCABULARY, &GPT2_VOCABULARY] {
             let owned = map.to_map();
             for (key, r) in &owned.resources {
-                assert_eq!(
-                    cache.resource_status(WHISPER_KIT, r),
-                    CacheStatus::Cached,
-                    "{key}"
-                );
-                let resolved = cache.resolve_resource(WHISPER_KIT, r).unwrap();
+                assert_eq!(cache.status(WHISPER_KIT, r), CacheStatus::Cached, "{key}");
+                let resolved = cache.resolve(WHISPER_KIT, r).unwrap();
                 assert_eq!(resolved.provenance, Provenance::Cached, "{key}");
                 assert!(
                     resolved.path.starts_with(root),

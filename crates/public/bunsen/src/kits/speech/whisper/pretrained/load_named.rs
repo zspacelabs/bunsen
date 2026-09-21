@@ -2,8 +2,9 @@
 //!
 //! [`resolve_model`] takes what a `--model` flag was given &mdash;
 //! `openai/base`, `large`, or a path &mdash; and [`load_named`] takes it the
-//! rest of the way: into the cache, through the scanner, and past a check
-//! that the checkpoint has the geometry its prefab promised.
+//! rest of the way: every resource of its map into the cache, the checkpoint
+//! through the scanner, and past a check that it has the geometry its
+//! prefab promised.
 //!
 //! The pieces are free functions on purpose: one kit is not enough evidence
 //! for a trait, and these are written so that lifting them into one later
@@ -15,9 +16,9 @@ use burn::prelude::Backend;
 
 use crate::{
     data::pretrained::{
-        ModelRef,
         PreFabConfig,
-        WeightsCache,
+        PretrainedCache,
+        PretrainedRef,
     },
     errors::{
         BunsenError,
@@ -27,6 +28,7 @@ use crate::{
         Whisper,
         WhisperApiConfig,
         pretrained::{
+            CHECKPOINT,
             PytorchWhisperScanner,
             WHISPER_KIT,
             WHISPER_PREFABS,
@@ -36,12 +38,13 @@ use crate::{
 };
 
 /// Resolves a model spec against [`WHISPER_PROVIDERS`]: `provider/name`, a
-/// bare name or alias, or a path to a checkpoint.
+/// bare name or alias, or a path to a checkpoint, which becomes a
+/// one-resource map under [`CHECKPOINT`].
 ///
 /// # Errors
-/// As [`ModelRef::resolve`].
-pub fn resolve_model(spec: &str) -> BunsenResult<ModelRef> {
-    ModelRef::resolve(WHISPER_PROVIDERS, spec)
+/// As [`PretrainedRef::resolve`].
+pub fn resolve_model(spec: &str) -> BunsenResult<PretrainedRef> {
+    PretrainedRef::resolve(WHISPER_PROVIDERS, spec, CHECKPOINT)
 }
 
 /// Checks a scanned config against the prefab a name promised.
@@ -72,7 +75,7 @@ pub fn check_geometry(
 /// # Errors
 /// As [`PytorchWhisperScanner::scan_cfg`] and [`check_geometry`].
 pub fn scan_model(
-    model: &ModelRef,
+    model: &PretrainedRef,
     path: &Path,
 ) -> BunsenResult<WhisperApiConfig> {
     scan_model_with(model, path, &PytorchWhisperScanner::new())
@@ -85,7 +88,7 @@ pub fn scan_model(
 /// # Errors
 /// As [`scan_model`].
 pub fn scan_model_with(
-    model: &ModelRef,
+    model: &PretrainedRef,
     path: &Path,
     scanner: &PytorchWhisperScanner,
 ) -> BunsenResult<WhisperApiConfig> {
@@ -96,19 +99,19 @@ pub fn scan_model_with(
     Ok(cfg)
 }
 
-/// Loads a resolved model: locates the weights under the whisper kit,
-/// scans them, checks the prefab, and materializes the module at the
-/// precision the checkpoint ships in.
+/// Loads a resolved model: brings every resource of its map local under
+/// the whisper kit, scans the checkpoint, checks the prefab, and
+/// materializes the module at the precision the checkpoint ships in.
 ///
 /// The scan runs before the load so a mismatch is caught before 3 GB of
 /// tensors are read for nothing.
 ///
 /// # Errors
-/// As [`ModelRef::locate`], [`scan_model`] and
+/// As [`PretrainedCache::load`], [`scan_model`] and
 /// [`PytorchWhisperScanner::load`].
 pub fn load_model<B: Backend>(
-    model: &ModelRef,
-    cache: &WeightsCache,
+    model: &PretrainedRef,
+    cache: &PretrainedCache,
     device: &B::Device,
 ) -> BunsenResult<(Whisper<B>, WhisperApiConfig)> {
     load_model_with(model, cache, device, &PytorchWhisperScanner::new())
@@ -119,14 +122,15 @@ pub fn load_model<B: Backend>(
 /// # Errors
 /// As [`load_model`].
 pub fn load_model_with<B: Backend>(
-    model: &ModelRef,
-    cache: &WeightsCache,
+    model: &PretrainedRef,
+    cache: &PretrainedCache,
     device: &B::Device,
     scanner: &PytorchWhisperScanner,
 ) -> BunsenResult<(Whisper<B>, WhisperApiConfig)> {
-    let located = model.locate(WHISPER_KIT, cache)?;
-    scan_model_with(model, &located.path, scanner)?;
-    scanner.load::<B, _>(&located.path, device)
+    let loaded = cache.load(WHISPER_KIT, &model.to_map())?;
+    let path = loaded.expect(CHECKPOINT)?;
+    scan_model_with(model, path, scanner)?;
+    scanner.load::<B, _>(path, device)
 }
 
 /// [`resolve_model`] then [`load_model`]: a name or a path to a loaded
@@ -136,7 +140,7 @@ pub fn load_model_with<B: Backend>(
 /// As [`resolve_model`] and [`load_model`].
 pub fn load_named<B: Backend>(
     spec: &str,
-    cache: &WeightsCache,
+    cache: &PretrainedCache,
     device: &B::Device,
 ) -> BunsenResult<(Whisper<B>, WhisperApiConfig)> {
     load_named_with(spec, cache, device, &PytorchWhisperScanner::new())
@@ -148,7 +152,7 @@ pub fn load_named<B: Backend>(
 /// As [`load_named`].
 pub fn load_named_with<B: Backend>(
     spec: &str,
-    cache: &WeightsCache,
+    cache: &PretrainedCache,
     device: &B::Device,
     scanner: &PytorchWhisperScanner,
 ) -> BunsenResult<(Whisper<B>, WhisperApiConfig)> {
@@ -165,7 +169,7 @@ mod tests {
     #[test]
     fn test_resolve_names_aliases_and_paths() {
         match resolve_model("openai/tiny.en").unwrap() {
-            ModelRef::Pretrained {
+            PretrainedRef::Named {
                 provider,
                 pretrained,
             } => {
@@ -175,7 +179,7 @@ mod tests {
             other => panic!("{other:?}"),
         }
         match resolve_model("turbo").unwrap() {
-            ModelRef::Pretrained { pretrained, .. } => {
+            PretrainedRef::Named { pretrained, .. } => {
                 assert_eq!(pretrained.name, "large-v3-turbo");
             }
             other => panic!("{other:?}"),
@@ -185,7 +189,10 @@ mod tests {
         let file = dir.path().join("ckpt.pt");
         fs::write(&file, b"x").unwrap();
         match resolve_model(file.to_str().unwrap()).unwrap() {
-            ModelRef::Path(path) => assert_eq!(path, file),
+            PretrainedRef::Given(map) => {
+                assert_eq!(map.keys(), [CHECKPOINT]);
+                assert_eq!(map.get(CHECKPOINT).unwrap().file, "ckpt.pt");
+            }
             other => panic!("{other:?}"),
         }
 
@@ -224,10 +231,11 @@ mod tests {
 
     /// The scanner is honored: one that declares another head size scans
     /// the bundled file to another geometry, which a named model rejects
-    /// and a path reports.
+    /// and a given one reports.
     #[cfg(feature = "whisper-weights")]
     #[test]
     fn test_scan_model_with_honors_the_scanner() {
+        use crate::data::pretrained::ResourceMap;
         let base = bunsen_bundled_whisper::base_pt();
         let scanner = PytorchWhisperScanner::new().with_d_head(32);
 
@@ -235,8 +243,8 @@ mod tests {
         let err = scan_model_with(&named, base, &scanner).unwrap_err();
         assert!(matches!(err, BunsenError::Invalid(_)), "{err}");
 
-        let path = ModelRef::Path(base.to_path_buf());
-        let cfg = scan_model_with(&path, base, &scanner).unwrap();
+        let given = PretrainedRef::Given(ResourceMap::given("base", CHECKPOINT, base));
+        let cfg = scan_model_with(&given, base, &scanner).unwrap();
         assert_eq!(cfg.geometry().d_head, 32);
         assert_eq!(cfg.geometry().n_heads(), 16);
     }

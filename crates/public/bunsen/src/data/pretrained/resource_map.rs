@@ -268,8 +268,8 @@ mod tests {
     use super::*;
     use crate::data::pretrained::{
         GIVEN_NAMESPACE,
-        StaticWeightsSource,
-        WeightsSource,
+        Source,
+        StaticSource,
     };
 
     const ABC_SHA256: &str = "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad";
@@ -316,9 +316,7 @@ mod tests {
             file: "gpt2.tiktoken",
             sha256: None,
             kind: Some("tiktoken"),
-            sources: &[StaticWeightsSource::Url(
-                "https://mirror.example/gpt2.tiktoken",
-            )],
+            sources: &[StaticSource::Url("https://mirror.example/gpt2.tiktoken")],
         }],
     };
 
@@ -343,11 +341,11 @@ mod tests {
         assert_eq!(
             r.sources,
             vec![
-                WeightsSource::LocalDir {
+                Source::LocalDir {
                     name: "upstream".to_string(),
                     dir: upstream_dir(),
                 },
-                WeightsSource::Url("https://a.example/models/tiny.en.pt".to_string()),
+                Source::Url("https://a.example/models/tiny.en.pt".to_string()),
             ]
         );
         map.validate().unwrap();
@@ -369,8 +367,8 @@ mod tests {
         assert_eq!(
             fused.get("vocabulary").unwrap().sources,
             vec![
-                WeightsSource::Url("https://mirror.example/gpt2.tiktoken".to_string()),
-                WeightsSource::Url("https://raw.example/assets/gpt2.tiktoken".to_string()),
+                Source::Url("https://mirror.example/gpt2.tiktoken".to_string()),
+                Source::Url("https://raw.example/assets/gpt2.tiktoken".to_string()),
             ]
         );
         fused.validate().unwrap();
@@ -406,7 +404,7 @@ mod tests {
         assert_eq!(vocab.kind, None);
         assert_eq!(
             vocab.sources,
-            vec![WeightsSource::LocalDir {
+            vec![Source::LocalDir {
                 name: GIVEN_NAMESPACE.to_string(),
                 dir: Some(PathBuf::from("/mine")),
             }]

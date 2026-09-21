@@ -12,8 +12,8 @@ use burn::prelude::Backend;
 
 use super::{
     LoadedResources,
+    PretrainedCache,
     ResourceMap,
-    WeightsCache,
 };
 use crate::errors::BunsenResult;
 
@@ -43,7 +43,7 @@ pub trait Construct {
     fn plan(
         &self,
         map: ResourceMap,
-        _cache: &WeightsCache,
+        _cache: &PretrainedCache,
     ) -> BunsenResult<ResourceMap> {
         Ok(map)
     }
@@ -92,11 +92,11 @@ impl<T> Clone for Loaded<T> {
 /// row, a path, or a manifest.
 ///
 /// # Errors
-/// As [`Construct::plan`], [`WeightsCache::load`] and
+/// As [`Construct::plan`], [`PretrainedCache::load`] and
 /// [`Construct::construct`].
 pub fn load_map<B: Backend, H: Construct>(
     map: ResourceMap,
-    cache: &WeightsCache,
+    cache: &PretrainedCache,
     hook: &H,
     device: &B::Device,
 ) -> BunsenResult<Loaded<H::Built<B>>> {
@@ -123,8 +123,8 @@ mod tests {
             cache::BunsenDiskCacheOptions,
             pretrained::{
                 Fuse,
+                PretrainedCacheOptions,
                 Provenance,
-                WeightsCacheOptions,
             },
         },
         errors::BunsenError,
@@ -148,7 +148,7 @@ mod tests {
         fn plan(
             &self,
             map: ResourceMap,
-            _cache: &WeightsCache,
+            _cache: &PretrainedCache,
         ) -> BunsenResult<ResourceMap> {
             match &self.vocabulary {
                 Some(path) if map.get("vocabulary").is_none() => map.fuse(
@@ -189,9 +189,9 @@ mod tests {
         }
     }
 
-    fn cache_in(dir: &std::path::Path) -> WeightsCache {
-        WeightsCache::new(
-            WeightsCacheOptions::default()
+    fn cache_in(dir: &std::path::Path) -> PretrainedCache {
+        PretrainedCache::new(
+            PretrainedCacheOptions::default()
                 .with_disk(
                     BunsenDiskCacheOptions::default()
                         .with_cache_dir(Some(dir.join("cache")))

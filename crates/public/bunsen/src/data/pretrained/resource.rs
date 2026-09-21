@@ -32,8 +32,8 @@ use serde::{
 };
 
 use super::{
-    StaticWeightsSource,
-    WeightsSource,
+    Source,
+    StaticSource,
     url_to_cache_key,
 };
 use crate::errors::{
@@ -48,7 +48,7 @@ pub const GIVEN_NAMESPACE: &str = "given";
 /// it.
 ///
 /// A map lists its bases in preference order, as mirrors. Each becomes one
-/// [`WeightsSource`] per resource once the file name is appended:
+/// [`Source`] per resource once the file name is appended:
 /// [`Url`](Self::Url) a whole URL, [`LocalDir`](Self::LocalDir) the
 /// directory, which the cache joins the file name to when it looks.
 #[derive(Clone, Copy, Debug)]
@@ -72,10 +72,10 @@ impl StaticBase<'_> {
     pub fn source_for(
         &self,
         file: &str,
-    ) -> WeightsSource {
+    ) -> Source {
         match self {
-            Self::Url(url) => WeightsSource::Url(format!("{}/{file}", url.trim_end_matches('/'))),
-            Self::LocalDir { name, default } => WeightsSource::LocalDir {
+            Self::Url(url) => Source::Url(format!("{}/{file}", url.trim_end_matches('/'))),
+            Self::LocalDir { name, default } => Source::LocalDir {
                 name: name.to_string(),
                 dir: default(),
             },
@@ -115,7 +115,7 @@ pub struct StaticResource<'a> {
 
     /// Sources of this resource alone, tried before the map's bases: a file
     /// a whole URL, or a directory of its own.
-    pub sources: &'a [StaticWeightsSource<'a>],
+    pub sources: &'a [StaticSource<'a>],
 }
 
 impl StaticResource<'_> {
@@ -135,7 +135,7 @@ impl StaticResource<'_> {
             sources: self
                 .sources
                 .iter()
-                .map(StaticWeightsSource::to_source)
+                .map(StaticSource::to_source)
                 .chain(bases.iter().map(|b| b.source_for(self.file)))
                 .collect(),
         }
@@ -167,7 +167,7 @@ pub struct Resource {
 
     /// Where the file can be had from, in preference order, its map's bases
     /// already appended.
-    pub sources: Vec<WeightsSource>,
+    pub sources: Vec<Source>,
 }
 
 impl Resource {
@@ -190,7 +190,7 @@ impl Resource {
             sha256: None,
             kind: None,
             namespace: GIVEN_NAMESPACE.to_string(),
-            sources: vec![WeightsSource::LocalDir {
+            sources: vec![Source::LocalDir {
                 name: GIVEN_NAMESPACE.to_string(),
                 dir,
             }],
@@ -207,7 +207,7 @@ impl Resource {
         self.sources
             .iter()
             .filter_map(|s| match s {
-                WeightsSource::Url(url) => Some(url.as_str()),
+                Source::Url(url) => Some(url.as_str()),
                 _ => None,
             })
             .collect()
@@ -308,9 +308,7 @@ mod tests {
         file: "tiny.en.pt",
         sha256: Some(ABC_SHA256),
         kind: Some("pytorch fp16"),
-        sources: &[StaticWeightsSource::Url(
-            "https://mirror.example/tiny.en.pt",
-        )],
+        sources: &[StaticSource::Url("https://mirror.example/tiny.en.pt")],
     };
 
     /// A URL base loses its trailing slash before the file is appended; a
@@ -319,15 +317,15 @@ mod tests {
     fn test_base_source_for() {
         assert_eq!(
             BASES[1].source_for("tiny.en.pt"),
-            WeightsSource::Url("https://a.example/models/tiny.en.pt".to_string())
+            Source::Url("https://a.example/models/tiny.en.pt".to_string())
         );
         assert_eq!(
             StaticBase::Url("https://a.example/models").source_for("tiny.en.pt"),
-            WeightsSource::Url("https://a.example/models/tiny.en.pt".to_string())
+            Source::Url("https://a.example/models/tiny.en.pt".to_string())
         );
         assert_eq!(
             BASES[0].source_for("tiny.en.pt"),
-            WeightsSource::LocalDir {
+            Source::LocalDir {
                 name: "upstream".to_string(),
                 dir: upstream_dir(),
             }
@@ -338,7 +336,7 @@ mod tests {
                 default: nowhere,
             }
             .source_for("x"),
-            WeightsSource::LocalDir {
+            Source::LocalDir {
                 name: "gone".to_string(),
                 dir: None,
             }
@@ -360,12 +358,12 @@ mod tests {
         assert_eq!(
             r.sources,
             vec![
-                WeightsSource::Url("https://mirror.example/tiny.en.pt".to_string()),
-                WeightsSource::LocalDir {
+                Source::Url("https://mirror.example/tiny.en.pt".to_string()),
+                Source::LocalDir {
                     name: "upstream".to_string(),
                     dir: upstream_dir(),
                 },
-                WeightsSource::Url("https://a.example/models/tiny.en.pt".to_string()),
+                Source::Url("https://a.example/models/tiny.en.pt".to_string()),
             ]
         );
         assert!(r.is_pinned());
@@ -402,7 +400,7 @@ mod tests {
         assert_eq!(r.kind, None);
         assert_eq!(
             r.sources,
-            vec![WeightsSource::LocalDir {
+            vec![Source::LocalDir {
                 name: GIVEN_NAMESPACE.to_string(),
                 dir: Some(PathBuf::from("/models")),
             }]
@@ -416,7 +414,7 @@ mod tests {
         assert_eq!(bare.file, "my.pt");
         assert_eq!(
             bare.sources,
-            vec![WeightsSource::LocalDir {
+            vec![Source::LocalDir {
                 name: GIVEN_NAMESPACE.to_string(),
                 dir: Some(PathBuf::from("")),
             }]

@@ -1004,7 +1004,7 @@ mod tests {
 
         /// Against the real assets, with ids produced by `whisper.tokenizer`.
         /// The files come through the pretrained resolver, as a caller's
-        /// would; under `whisper-weights` that is the bundle, in place.
+        /// would, from a cache rooted at the bundle's directory.
         #[cfg(feature = "whisper-weights")]
         mod bundled {
             use super::*;

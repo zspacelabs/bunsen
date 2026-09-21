@@ -6,12 +6,13 @@ mod cache;
 mod construct;
 #[cfg(feature = "cache")]
 mod loaded;
-#[cfg(feature = "cache")]
-mod model_ref;
 mod prefabs;
+#[cfg(feature = "cache")]
+mod pretrained_ref;
 mod providers;
 mod resource;
 mod resource_map;
+mod rows;
 mod weights;
 
 #[cfg(feature = "cache")]
@@ -23,17 +24,19 @@ pub use construct::*;
 #[cfg(feature = "cache")]
 #[doc(inline)]
 pub use loaded::*;
-#[cfg(feature = "cache")]
-#[doc(inline)]
-pub use model_ref::*;
 #[doc(inline)]
 pub use prefabs::*;
+#[cfg(feature = "cache")]
+#[doc(inline)]
+pub use pretrained_ref::*;
 #[doc(inline)]
 pub use providers::*;
 #[doc(inline)]
 pub use resource::*;
 #[doc(inline)]
 pub use resource_map::*;
+#[doc(inline)]
+pub use rows::*;
 #[doc(inline)]
 pub use weights::*;
 

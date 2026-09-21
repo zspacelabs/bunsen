@@ -7,8 +7,8 @@ use bunsen::{
     data::{
         cache::BunsenDiskCacheOptions,
         pretrained::{
-            WeightsCache,
-            WeightsCacheOptions,
+            PretrainedCache,
+            PretrainedCacheOptions,
         },
     },
     errors::BunsenResult,
@@ -51,7 +51,7 @@ pub struct WeightsCacheArgs {
     #[arg(long)]
     offline: bool,
 
-    /// `openai-whisper`'s download cache, read as a local source;
+    /// `openai-whisper`'s download cache, whose files are used in place;
     /// `~/.cache/whisper` when omitted.
     #[arg(long)]
     upstream_cache_dir: Option<PathBuf>,
@@ -59,14 +59,14 @@ pub struct WeightsCacheArgs {
 
 impl WeightsCacheArgs {
     /// Opens the cache.
-    pub fn init(&self) -> BunsenResult<WeightsCache> {
-        let mut options = WeightsCacheOptions::default()
+    pub fn init(&self) -> BunsenResult<PretrainedCache> {
+        let mut options = PretrainedCacheOptions::default()
             .with_disk(BunsenDiskCacheOptions::default().with_cache_dir(self.cache_dir.clone()))
             .with_offline(self.offline);
         if let Some(dir) = &self.upstream_cache_dir {
             options = options.with_local_dir(OPENAI_LOCAL_DIR, dir.clone());
         }
-        WeightsCache::new(options)
+        PretrainedCache::new(options)
     }
 }
 
@@ -97,7 +97,7 @@ pub struct WhisperDriverArgs {
     /// The model: `provider/name` or a bare name from `models list`
     /// (`openai/tiny.en`, `large`), or a path to a checkpoint. The default
     /// is fetched into the cache on first use (145 MB, digest-checked), or
-    /// read in place when this crate is built with its `bundled` feature.
+    /// found where a deployment put it ahead of time.
     #[arg(long, default_value = "openai/base")]
     model: String,
 
@@ -110,7 +110,7 @@ pub struct WhisperDriverArgs {
     /// A `.tiktoken` vocabulary by path, in place of the one the
     /// checkpoint's token layout selects (`multilingual.tiktoken` for a
     /// multilingual checkpoint, `gpt2.tiktoken` for an English-only one),
-    /// which comes from the bundle, the cache, or one fetch.
+    /// which comes from the cache or one fetch.
     #[arg(long)]
     vocab: Option<PathBuf>,
 
@@ -173,7 +173,7 @@ impl WhisperDriverArgs {
     /// logits out — so nothing here has to re-type it.
     pub fn load_model<B: Backend>(
         &self,
-        cache: &WeightsCache,
+        cache: &PretrainedCache,
         device: &B::Device,
     ) -> BunsenResult<(Whisper<B>, WhisperApiConfig)> {
         load_named_with::<B>(&self.model, cache, device, &self.scanner.scanner())

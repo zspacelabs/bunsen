@@ -1,10 +1,13 @@
 //! # Pretrained providers
 //!
-//! A provider is a namespace over pretrained weights: the `openai` in
-//! `openai/tiny.en`. Each entry names the prefab it instantiates, so "what
-//! shape are these weights" is answered by the entry, and "what weights exist
-//! for this shape" is derived by scanning the providers
-//! ([`pretrained_for_prefab`]). One prefab, many pretrained, many providers.
+//! A provider is a namespace over pretrained rows: the `openai` in
+//! `openai/tiny.en`. It names and lists. It knows no hook, since the
+//! function that loads a kit's models is the kit's and supplies one, and it
+//! does not know which resource of a row is the model. A row may name the
+//! prefab it instantiates, so "what shape is this" is answered by the row,
+//! and "what rows exist for this shape" is derived by scanning the
+//! providers ([`pretrained_for_prefab`]). One prefab, many rows, many
+//! providers.
 
 use alloc::{
     format,
@@ -21,11 +24,11 @@ use serde::{
 };
 
 use super::{
-    PretrainedWeightsDescriptor,
-    StaticPretrainedWeightsDescriptor,
+    Pretrained,
+    StaticPretrained,
 };
 
-/// A namespace of pretrained weights, as a compiled-in table spells it.
+/// A namespace of pretrained rows, as a compiled-in table spells it.
 #[derive(Debug)]
 pub struct StaticPretrainedProvider<'a> {
     /// The namespace: the `provider` in `provider/name`.
@@ -34,58 +37,61 @@ pub struct StaticPretrainedProvider<'a> {
     /// A line for a listing.
     pub description: &'a str,
 
-    /// The license the weights are distributed under.
+    /// The license the rows are distributed under.
     pub license: Option<&'a str>,
 
     /// Where the table came from.
     pub origin: Option<&'a str>,
 
-    /// The entries, in listing order.
-    pub items: &'a [&'a StaticPretrainedWeightsDescriptor<'a>],
+    /// The rows, in listing order.
+    pub items: &'a [&'a StaticPretrained<'a>],
 }
 
 impl<'a> StaticPretrainedProvider<'a> {
-    /// The entry `name` names, by its name or an alias.
+    /// The row `name` names, by its name or an alias.
     pub fn lookup(
         &self,
         name: &str,
-    ) -> Option<&'a StaticPretrainedWeightsDescriptor<'a>> {
-        self.items.iter().copied().find(|d| d.matches(name))
+    ) -> Option<&'a StaticPretrained<'a>> {
+        self.items.iter().copied().find(|p| p.matches(name))
     }
 
-    /// The qualified id of an entry: `provider/name`.
+    /// The qualified id of a row: `provider/name`.
     pub fn id(
         &self,
-        pretrained: &StaticPretrainedWeightsDescriptor<'_>,
+        pretrained: &StaticPretrained<'_>,
     ) -> String {
         format!("{}/{}", self.name, pretrained.name)
     }
 
     /// Every qualified id, in listing order.
     pub fn ids(&self) -> Vec<String> {
-        self.items.iter().map(|d| self.id(d)).collect()
+        self.items.iter().map(|p| self.id(p)).collect()
     }
 
-    /// The entries that instantiate `prefab`, in listing order.
+    /// The rows that instantiate `prefab`, in listing order.
     pub fn for_prefab(
         &self,
         prefab: &str,
-    ) -> Vec<&'a StaticPretrainedWeightsDescriptor<'a>> {
+    ) -> Vec<&'a StaticPretrained<'a>> {
         self.items
             .iter()
             .copied()
-            .filter(|d| d.prefab == prefab)
+            .filter(|p| p.prefab == Some(prefab))
             .collect()
     }
 
     /// The owned twin.
+    ///
+    /// # Panics
+    /// If a row's maps share a key; a kit's tests pin that none do.
     pub fn to_provider(&self) -> PretrainedProvider {
         PretrainedProvider {
             name: self.name.to_string(),
             description: self.description.to_string(),
             license: self.license.map(str::to_string),
             origin: self.origin.map(str::to_string),
-            items: self.items.iter().map(|d| d.to_descriptor()).collect(),
+            items: self.items.iter().map(|p| p.to_pretrained()).collect(),
         }
     }
 }
@@ -96,7 +102,7 @@ impl From<&StaticPretrainedProvider<'_>> for PretrainedProvider {
     }
 }
 
-/// A namespace of pretrained weights.
+/// A namespace of pretrained rows.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct PretrainedProvider {
     /// The namespace: the `provider` in `provider/name`.
@@ -105,44 +111,47 @@ pub struct PretrainedProvider {
     /// A line for a listing.
     pub description: String,
 
-    /// The license the weights are distributed under.
+    /// The license the rows are distributed under.
     pub license: Option<String>,
 
     /// Where the table came from.
     pub origin: Option<String>,
 
-    /// The entries, in listing order.
-    pub items: Vec<PretrainedWeightsDescriptor>,
+    /// The rows, in listing order.
+    pub items: Vec<Pretrained>,
 }
 
 impl PretrainedProvider {
-    /// The entry `name` names, by its name or an alias.
+    /// The row `name` names, by its name or an alias.
     pub fn lookup(
         &self,
         name: &str,
-    ) -> Option<&PretrainedWeightsDescriptor> {
-        self.items.iter().find(|d| d.matches(name))
+    ) -> Option<&Pretrained> {
+        self.items.iter().find(|p| p.matches(name))
     }
 
-    /// The qualified id of an entry: `provider/name`.
+    /// The qualified id of a row: `provider/name`.
     pub fn id(
         &self,
-        pretrained: &PretrainedWeightsDescriptor,
+        pretrained: &Pretrained,
     ) -> String {
         format!("{}/{}", self.name, pretrained.name)
     }
 
     /// Every qualified id, in listing order.
     pub fn ids(&self) -> Vec<String> {
-        self.items.iter().map(|d| self.id(d)).collect()
+        self.items.iter().map(|p| self.id(p)).collect()
     }
 
-    /// The entries that instantiate `prefab`, in listing order.
+    /// The rows that instantiate `prefab`, in listing order.
     pub fn for_prefab(
         &self,
         prefab: &str,
-    ) -> Vec<&PretrainedWeightsDescriptor> {
-        self.items.iter().filter(|d| d.prefab == prefab).collect()
+    ) -> Vec<&Pretrained> {
+        self.items
+            .iter()
+            .filter(|p| p.prefab.as_deref() == Some(prefab))
+            .collect()
     }
 }
 
@@ -154,7 +163,7 @@ pub fn provider<'a>(
     providers.iter().copied().find(|p| p.name == name)
 }
 
-/// The entry `name` names under `provider`, or under any provider when none
+/// The row `name` names under `provider`, or under any provider when none
 /// is given and exactly one has it.
 ///
 /// A bare name two providers both answer to is ambiguous, and `None`: the
@@ -163,20 +172,17 @@ pub fn lookup_pretrained<'a>(
     providers: &[&'a StaticPretrainedProvider<'a>],
     provider: Option<&str>,
     name: &str,
-) -> Option<(
-    &'a StaticPretrainedProvider<'a>,
-    &'a StaticPretrainedWeightsDescriptor<'a>,
-)> {
+) -> Option<(&'a StaticPretrainedProvider<'a>, &'a StaticPretrained<'a>)> {
     match provider {
         Some(provider) => {
             let provider = self::provider(providers, provider)?;
-            provider.lookup(name).map(|d| (provider, d))
+            provider.lookup(name).map(|p| (provider, p))
         }
         None => {
             let mut hits = providers
                 .iter()
                 .copied()
-                .filter_map(|provider| provider.lookup(name).map(|d| (provider, d)));
+                .filter_map(|provider| provider.lookup(name).map(|p| (provider, p)));
             let first = hits.next()?;
             match hits.next() {
                 Some(_) => None,
@@ -191,15 +197,12 @@ pub fn available_ids(providers: &[&StaticPretrainedProvider<'_>]) -> Vec<String>
     providers.iter().flat_map(|p| p.ids()).collect()
 }
 
-/// Every entry across `providers` that instantiates `prefab`, with its
-/// provider: the derived "what weights exist for this shape".
+/// Every row across `providers` that instantiates `prefab`, with its
+/// provider: the derived "what rows exist for this shape".
 pub fn pretrained_for_prefab<'a>(
     providers: &[&'a StaticPretrainedProvider<'a>],
     prefab: &str,
-) -> Vec<(
-    &'a StaticPretrainedProvider<'a>,
-    &'a StaticPretrainedWeightsDescriptor<'a>,
-)> {
+) -> Vec<(&'a StaticPretrainedProvider<'a>, &'a StaticPretrained<'a>)> {
     providers
         .iter()
         .copied()
@@ -211,60 +214,71 @@ pub fn pretrained_for_prefab<'a>(
 mod tests {
     use super::*;
     use crate::data::pretrained::{
-        StaticWeightsSource,
-        WeightsFormat,
+        StaticBase,
+        StaticResource,
+        StaticResourceMap,
     };
+
+    macro_rules! one_file {
+        ($name:ident, $map:literal, $file:literal, $base:literal) => {
+            static $name: StaticResourceMap<'static> = StaticResourceMap {
+                name: $map,
+                description: "one file",
+                license: None,
+                origin: None,
+                namespace: "t",
+                bases: &[StaticBase::Url($base)],
+                resources: &[StaticResource {
+                    key: "weights",
+                    file: $file,
+                    sha256: None,
+                    kind: None,
+                    sources: &[],
+                }],
+            };
+        };
+    }
+
+    one_file!(A_SMALL_MAP, "a/small.pt", "small.pt", "https://a.example");
+    one_file!(
+        A_LARGE_V1_MAP,
+        "a/large-v1.pt",
+        "large-v1.pt",
+        "https://a.example"
+    );
+    one_file!(
+        A_LARGE_V2_MAP,
+        "a/large-v2.pt",
+        "large-v2.pt",
+        "https://a.example"
+    );
+    one_file!(B_SMALL_MAP, "b/small.pt", "small.pt", "https://b.example");
+    one_file!(B_TINY_MAP, "b/tiny.pt", "tiny.pt", "https://b.example");
 
     const fn entry(
         name: &'static str,
         aliases: &'static [&'static str],
         prefab: &'static str,
-        sources: &'static [StaticWeightsSource<'static>],
-    ) -> StaticPretrainedWeightsDescriptor<'static> {
-        StaticPretrainedWeightsDescriptor {
+        maps: &'static [&'static StaticResourceMap<'static>],
+    ) -> StaticPretrained<'static> {
+        StaticPretrained {
             name,
+            aliases,
             description: "an entry",
             license: None,
             origin: None,
-            prefab,
-            aliases,
-            file: "w.pt",
-            sha256: None,
-            format: WeightsFormat::PYTORCH_F32,
-            sources,
+            prefab: Some(prefab),
+            maps,
         }
     }
 
-    static A_SMALL: StaticPretrainedWeightsDescriptor<'static> = entry(
-        "small",
-        &["s"],
-        "small",
-        &[StaticWeightsSource::Url("https://a.example/small.pt")],
-    );
-    static A_LARGE_V1: StaticPretrainedWeightsDescriptor<'static> = entry(
-        "large-v1",
-        &[],
-        "large",
-        &[StaticWeightsSource::Url("https://a.example/large-v1.pt")],
-    );
-    static A_LARGE_V2: StaticPretrainedWeightsDescriptor<'static> = entry(
-        "large-v2",
-        &["large"],
-        "large",
-        &[StaticWeightsSource::Url("https://a.example/large-v2.pt")],
-    );
-    static B_SMALL: StaticPretrainedWeightsDescriptor<'static> = entry(
-        "small",
-        &[],
-        "small",
-        &[StaticWeightsSource::Url("https://b.example/small.pt")],
-    );
-    static B_TINY: StaticPretrainedWeightsDescriptor<'static> = entry(
-        "tiny",
-        &[],
-        "tiny",
-        &[StaticWeightsSource::Url("https://b.example/tiny.pt")],
-    );
+    static A_SMALL: StaticPretrained<'static> = entry("small", &["s"], "small", &[&A_SMALL_MAP]);
+    static A_LARGE_V1: StaticPretrained<'static> =
+        entry("large-v1", &[], "large", &[&A_LARGE_V1_MAP]);
+    static A_LARGE_V2: StaticPretrained<'static> =
+        entry("large-v2", &["large"], "large", &[&A_LARGE_V2_MAP]);
+    static B_SMALL: StaticPretrained<'static> = entry("small", &[], "small", &[&B_SMALL_MAP]);
+    static B_TINY: StaticPretrained<'static> = entry("tiny", &[], "tiny", &[&B_TINY_MAP]);
 
     static A: StaticPretrainedProvider<'static> = StaticPretrainedProvider {
         name: "a",
@@ -284,15 +298,15 @@ mod tests {
 
     #[test]
     fn test_provider_lookups_and_ids() {
-        assert_eq!(A.lookup("s").map(|d| d.name), Some("small"));
-        assert_eq!(A.lookup("large").map(|d| d.name), Some("large-v2"));
+        assert_eq!(A.lookup("s").map(|p| p.name), Some("small"));
+        assert_eq!(A.lookup("large").map(|p| p.name), Some("large-v2"));
         assert!(A.lookup("tiny").is_none());
         assert_eq!(A.id(&A_SMALL), "a/small");
         assert_eq!(A.ids(), vec!["a/small", "a/large-v1", "a/large-v2"]);
         assert_eq!(
             A.for_prefab("large")
                 .iter()
-                .map(|d| d.name)
+                .map(|p| p.name)
                 .collect::<Vec<_>>(),
             vec!["large-v1", "large-v2"]
         );
@@ -340,12 +354,13 @@ mod tests {
         assert_eq!(owned.license.as_deref(), Some("MIT"));
         assert_eq!(owned.items.len(), 3);
         assert_eq!(
-            owned.lookup("large").map(|d| d.name.as_str()),
+            owned.lookup("large").map(|p| p.name.as_str()),
             Some("large-v2")
         );
         assert_eq!(owned.ids(), A.ids());
         assert_eq!(owned.for_prefab("large").len(), 2);
         assert_eq!(owned.id(&owned.items[0]), "a/small");
+        assert_eq!(owned.items[0].resources.keys(), ["weights"]);
         let json = serde_json::to_string(&owned).unwrap();
         assert_eq!(
             serde_json::from_str::<PretrainedProvider>(&json).unwrap(),

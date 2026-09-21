@@ -16,10 +16,7 @@ use alloc::{
     vec::Vec,
 };
 use core::fmt;
-use std::path::{
-    Path,
-    PathBuf,
-};
+use std::path::PathBuf;
 
 use serde::{
     Deserialize,
@@ -137,14 +134,14 @@ impl fmt::Display for WeightsFormat {
     }
 }
 
-/// One place a weights file can be had from, as a compiled-in table spells
-/// it.
+/// One place a file can be had from, as a compiled-in table spells it.
 ///
-/// Sources are tried in the order listed. A digest-pinned descriptor checks
-/// every source but a [`File`](Self::File) against its digest, since a file
-/// a crate bundled was checked when it was built.
+/// Sources are tried in the order listed: a directory another tool keeps
+/// the file in is used in place, a URL is fetched into the cache. A
+/// bundled file is neither; it is a cache directory populated ahead of
+/// time.
 #[derive(Clone, Copy, Debug)]
-pub enum StaticWeightsSource<'a> {
+pub enum StaticSource<'a> {
     /// A URL, fetched into the cache.
     Url(&'a str),
 
@@ -157,26 +154,22 @@ pub enum StaticWeightsSource<'a> {
         /// Where the directory is by default, when it can be resolved.
         default: fn() -> Option<PathBuf>,
     },
-
-    /// A file a crate fetched and checked at build time, used in place.
-    File(fn() -> &'static Path),
 }
 
-impl StaticWeightsSource<'_> {
-    /// The owned twin, with the default directory and the file resolved now.
-    pub fn to_source(&self) -> WeightsSource {
+impl StaticSource<'_> {
+    /// The owned twin, with the default directory resolved now.
+    pub fn to_source(&self) -> Source {
         match self {
-            Self::Url(url) => WeightsSource::Url(url.to_string()),
-            Self::LocalDir { name, default } => WeightsSource::LocalDir {
+            Self::Url(url) => Source::Url(url.to_string()),
+            Self::LocalDir { name, default } => Source::LocalDir {
                 name: name.to_string(),
                 dir: default(),
             },
-            Self::File(path) => WeightsSource::File(path().to_path_buf()),
         }
     }
 }
 
-impl fmt::Display for StaticWeightsSource<'_> {
+impl fmt::Display for StaticSource<'_> {
     fn fmt(
         &self,
         f: &mut fmt::Formatter<'_>,
@@ -184,17 +177,16 @@ impl fmt::Display for StaticWeightsSource<'_> {
         match self {
             Self::Url(url) => write!(f, "url {url}"),
             Self::LocalDir { name, .. } => write!(f, "local dir {name}"),
-            Self::File(path) => write!(f, "file {}", path().display()),
         }
     }
 }
 
-/// One place a weights file can be had from.
+/// One place a file can be had from.
 ///
-/// The owned twin of [`StaticWeightsSource`]: a local directory carries the
-/// directory it resolved to, a bundled file its path.
+/// The owned twin of [`StaticSource`]: a local directory carries the
+/// directory it resolved to.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub enum WeightsSource {
+pub enum Source {
     /// A URL, fetched into the cache.
     Url(String),
 
@@ -205,12 +197,9 @@ pub enum WeightsSource {
         /// The directory, when it could be resolved.
         dir: Option<PathBuf>,
     },
-
-    /// A file on disk already, used in place.
-    File(PathBuf),
 }
 
-impl fmt::Display for WeightsSource {
+impl fmt::Display for Source {
     fn fmt(
         &self,
         f: &mut fmt::Formatter<'_>,
@@ -222,7 +211,6 @@ impl fmt::Display for WeightsSource {
                 dir: Some(dir),
             } => write!(f, "local dir {name} ({})", dir.display()),
             Self::LocalDir { name, dir: None } => write!(f, "local dir {name} (unresolved)"),
-            Self::File(path) => write!(f, "file {}", path.display()),
         }
     }
 }
@@ -259,7 +247,7 @@ pub struct StaticPretrainedWeightsDescriptor<'a> {
     pub format: WeightsFormat,
 
     /// Where the file can be had from, in preference order.
-    pub sources: &'a [StaticWeightsSource<'a>],
+    pub sources: &'a [StaticSource<'a>],
 }
 
 impl StaticPretrainedWeightsDescriptor<'_> {
@@ -283,11 +271,7 @@ impl StaticPretrainedWeightsDescriptor<'_> {
             file: self.file.to_string(),
             sha256: self.sha256.map(|s| s.to_string()),
             format: self.format,
-            sources: self
-                .sources
-                .iter()
-                .map(StaticWeightsSource::to_source)
-                .collect(),
+            sources: self.sources.iter().map(StaticSource::to_source).collect(),
         }
     }
 }
@@ -330,7 +314,7 @@ pub struct PretrainedWeightsDescriptor {
     pub format: WeightsFormat,
 
     /// Where the file can be had from, in preference order.
-    pub sources: Vec<WeightsSource>,
+    pub sources: Vec<Source>,
 }
 
 impl PretrainedWeightsDescriptor {
@@ -352,7 +336,7 @@ impl PretrainedWeightsDescriptor {
         self.sources
             .iter()
             .filter_map(|s| match s {
-                WeightsSource::Url(url) => Some(url.as_str()),
+                Source::Url(url) => Some(url.as_str()),
                 _ => None,
             })
             .collect()
@@ -404,7 +388,7 @@ impl PretrainedWeightsDescriptor {
     /// This is the URL-keyed path for a descriptor that lives in a prefab's
     /// weights map and belongs to no provider. A descriptor in a
     /// [`StaticPretrainedProvider`](super::StaticPretrainedProvider) goes
-    /// through [`WeightsCache::resolve`](super::WeightsCache::resolve)
+    /// through [`WeightsCache::resolve`](super::PretrainedCache::resolve)
     /// instead, which is pinned and provider-keyed and consults every
     /// source.
     ///
@@ -520,10 +504,6 @@ mod tests {
 
     const ABC_SHA256: &str = "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad";
 
-    fn bundled_path() -> &'static Path {
-        Path::new("/bundled/my_model.pt")
-    }
-
     fn upstream_dir() -> Option<PathBuf> {
         Some(PathBuf::from("/home/someone/.cache/upstream"))
     }
@@ -540,13 +520,12 @@ mod tests {
             sha256: Some(ABC_SHA256),
             format: WeightsFormat::PYTORCH_F16,
             sources: &[
-                StaticWeightsSource::File(bundled_path),
-                StaticWeightsSource::LocalDir {
+                StaticSource::LocalDir {
                     name: "upstream",
                     default: upstream_dir,
                 },
-                StaticWeightsSource::Url("https://a.example/my_model.pt"),
-                StaticWeightsSource::Url("https://b.example/my_model.pt"),
+                StaticSource::Url("https://a.example/my_model.pt"),
+                StaticSource::Url("https://b.example/my_model.pt"),
             ],
         };
 
@@ -567,13 +546,12 @@ mod tests {
         assert_eq!(
             d.sources,
             vec![
-                WeightsSource::File(PathBuf::from("/bundled/my_model.pt")),
-                WeightsSource::LocalDir {
+                Source::LocalDir {
                     name: "upstream".to_string(),
                     dir: upstream_dir(),
                 },
-                WeightsSource::Url("https://a.example/my_model.pt".to_string()),
-                WeightsSource::Url("https://b.example/my_model.pt".to_string()),
+                Source::Url("https://a.example/my_model.pt".to_string()),
+                Source::Url("https://b.example/my_model.pt".to_string()),
             ]
         );
         assert_eq!(PretrainedWeightsDescriptor::from(&MY_MODEL), d);
@@ -606,7 +584,7 @@ mod tests {
         );
 
         let mut local_only = d.clone();
-        local_only.sources.truncate(2);
+        local_only.sources.truncate(1);
         assert!(local_only.urls().is_empty());
         assert_eq!(local_only.cache_key(), "my_model-my_model.pt");
     }
@@ -656,7 +634,6 @@ mod tests {
         assert_eq!(
             sources,
             vec![
-                "file /bundled/my_model.pt",
                 "local dir upstream",
                 "url https://a.example/my_model.pt",
                 "url https://b.example/my_model.pt",
@@ -669,11 +646,11 @@ mod tests {
             .map(|s| s.to_string())
             .collect();
         assert_eq!(
-            owned[1],
+            owned[0],
             "local dir upstream (/home/someone/.cache/upstream)"
         );
         assert_eq!(
-            WeightsSource::LocalDir {
+            Source::LocalDir {
                 name: "x".to_string(),
                 dir: None
             }

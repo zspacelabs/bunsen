@@ -28,5 +28,5 @@ mod pytorch_utils;
 #[doc(inline)]
 pub use pytorch_utils::*;
 
-#[cfg(all(feature = "whisper-weights", feature = "store_pytorch"))]
+#[cfg(all(feature = "store_pytorch", feature = "cache"))]
 mod load;

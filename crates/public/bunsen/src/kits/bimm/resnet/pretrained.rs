@@ -8,7 +8,7 @@ use crate::{
         StaticPreFabMap,
         StaticPretrainedWeightsDescriptor,
         StaticPretrainedWeightsMap,
-        StaticWeightsSource,
+        StaticSource,
         WeightsFormat,
     },
     kits::bimm::resnet::ResNetContractConfig,
@@ -37,7 +37,7 @@ pub static PREFAB_RESNET_MAP: StaticPreFabMap<ResNetContractConfig> = StaticPreF
                         file: "resnet18-f37072fd.pth",
                         sha256: None,
                         format: WeightsFormat::PYTORCH_F32,
-                        sources: &[StaticWeightsSource::Url(
+                        sources: &[StaticSource::Url(
                             "https://download.pytorch.org/models/resnet18-f37072fd.pth",
                         )],
                     },
@@ -51,7 +51,7 @@ pub static PREFAB_RESNET_MAP: StaticPreFabMap<ResNetContractConfig> = StaticPreF
                         file: "resnet18_a1_0-d63eafa0.pth",
                         sha256: None,
                         format: WeightsFormat::PYTORCH_F32,
-                        sources: &[StaticWeightsSource::Url(
+                        sources: &[StaticSource::Url(
                             "https://github.com/huggingface/pytorch-image-models/releases/download/v0.1-rsb-weights/resnet18_a1_0-d63eafa0.pth",
                         )],
                     },
@@ -65,7 +65,7 @@ pub static PREFAB_RESNET_MAP: StaticPreFabMap<ResNetContractConfig> = StaticPreF
                         file: "resnet18_a2_0-b61bd467.pth",
                         sha256: None,
                         format: WeightsFormat::PYTORCH_F32,
-                        sources: &[StaticWeightsSource::Url(
+                        sources: &[StaticSource::Url(
                             "https://github.com/huggingface/pytorch-image-models/releases/download/v0.1-rsb-weights/resnet18_a2_0-b61bd467.pth",
                         )],
                     },
@@ -79,7 +79,7 @@ pub static PREFAB_RESNET_MAP: StaticPreFabMap<ResNetContractConfig> = StaticPreF
                         file: "resnet18_a3_0-40c531c8.pth",
                         sha256: None,
                         format: WeightsFormat::PYTORCH_F32,
-                        sources: &[StaticWeightsSource::Url(
+                        sources: &[StaticSource::Url(
                             "https://github.com/huggingface/pytorch-image-models/releases/download/v0.1-rsb-weights/resnet18_a3_0-40c531c8.pth",
                         )],
                     },
@@ -102,7 +102,7 @@ pub static PREFAB_RESNET_MAP: StaticPreFabMap<ResNetContractConfig> = StaticPreF
                     file: "resnet26-9aa10e23.pth",
                     sha256: None,
                     format: WeightsFormat::PYTORCH_F32,
-                    sources: &[StaticWeightsSource::Url(
+                    sources: &[StaticSource::Url(
                         "https://github.com/rwightman/pytorch-image-models/releases/download/v0.1-weights/resnet26-9aa10e23.pth",
                     )],
                 }],
@@ -125,7 +125,7 @@ pub static PREFAB_RESNET_MAP: StaticPreFabMap<ResNetContractConfig> = StaticPreF
                         file: "resnet34-b627a593.pth",
                         sha256: None,
                         format: WeightsFormat::PYTORCH_F32,
-                        sources: &[StaticWeightsSource::Url(
+                        sources: &[StaticSource::Url(
                             "https://download.pytorch.org/models/resnet34-b627a593.pth",
                         )],
                     },
@@ -141,7 +141,7 @@ pub static PREFAB_RESNET_MAP: StaticPreFabMap<ResNetContractConfig> = StaticPreF
                         file: "resnet34_a1_0-46f8f793.pth",
                         sha256: None,
                         format: WeightsFormat::PYTORCH_F32,
-                        sources: &[StaticWeightsSource::Url(
+                        sources: &[StaticSource::Url(
                             "https://github.com/huggingface/pytorch-image-models/releases/download/v0.1-rsb-weights/resnet34_a1_0-46f8f793.pth",
                         )],
                     },
@@ -157,7 +157,7 @@ pub static PREFAB_RESNET_MAP: StaticPreFabMap<ResNetContractConfig> = StaticPreF
                         file: "resnet34_a2_0-82d47d71.pth",
                         sha256: None,
                         format: WeightsFormat::PYTORCH_F32,
-                        sources: &[StaticWeightsSource::Url(
+                        sources: &[StaticSource::Url(
                             "https://github.com/huggingface/pytorch-image-models/releases/download/v0.1-rsb-weights/resnet34_a2_0-82d47d71.pth",
                         )],
                     },
@@ -173,7 +173,7 @@ pub static PREFAB_RESNET_MAP: StaticPreFabMap<ResNetContractConfig> = StaticPreF
                         file: "resnet34_a3_0-a20cabb6.pth",
                         sha256: None,
                         format: WeightsFormat::PYTORCH_F32,
-                        sources: &[StaticWeightsSource::Url(
+                        sources: &[StaticSource::Url(
                             "https://github.com/huggingface/pytorch-image-models/releases/download/v0.1-rsb-weights/resnet34_a3_0-a20cabb6.pth",
                         )],
                     },
@@ -189,7 +189,7 @@ pub static PREFAB_RESNET_MAP: StaticPreFabMap<ResNetContractConfig> = StaticPreF
                         file: "resnet34-43635321.pth",
                         sha256: None,
                         format: WeightsFormat::PYTORCH_F32,
-                        sources: &[StaticWeightsSource::Url(
+                        sources: &[StaticSource::Url(
                             "https://github.com/rwightman/pytorch-image-models/releases/download/v0.1-weights/resnet34-43635321.pth",
                         )],
                     },
@@ -212,7 +212,7 @@ pub static PREFAB_RESNET_MAP: StaticPreFabMap<ResNetContractConfig> = StaticPreF
                     file: "resnet50-0676ba61.pth",
                     sha256: None,
                     format: WeightsFormat::PYTORCH_F32,
-                    sources: &[StaticWeightsSource::Url(
+                    sources: &[StaticSource::Url(
                         "https://download.pytorch.org/models/resnet50-0676ba61.pth",
                     )],
                 }],
@@ -260,7 +260,7 @@ pub static PREFAB_RESNET_MAP: StaticPreFabMap<ResNetContractConfig> = StaticPreF
                         file: "resnet101-63fe2227.pth",
                         sha256: None,
                         format: WeightsFormat::PYTORCH_F32,
-                        sources: &[StaticWeightsSource::Url(
+                        sources: &[StaticSource::Url(
                             "https://download.pytorch.org/models/resnet101-63fe2227.pth",
                         )],
                     },
@@ -276,7 +276,7 @@ pub static PREFAB_RESNET_MAP: StaticPreFabMap<ResNetContractConfig> = StaticPreF
                         file: "resnet101_a1_0-cdcb52a9.pth",
                         sha256: None,
                         format: WeightsFormat::PYTORCH_F32,
-                        sources: &[StaticWeightsSource::Url(
+                        sources: &[StaticSource::Url(
                             "https://github.com/huggingface/pytorch-image-models/releases/download/v0.1-rsb-weights/resnet101_a1_0-cdcb52a9.pth",
                         )],
                     },
@@ -298,7 +298,7 @@ pub static PREFAB_RESNET_MAP: StaticPreFabMap<ResNetContractConfig> = StaticPreF
                     file: "resnet152-394f9c45.pth",
                     sha256: None,
                     format: WeightsFormat::PYTORCH_F32,
-                    sources: &[StaticWeightsSource::Url(
+                    sources: &[StaticSource::Url(
                         "https://download.pytorch.org/models/resnet152-394f9c45.pth",
                     )],
                 }],

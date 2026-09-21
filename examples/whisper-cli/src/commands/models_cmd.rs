@@ -1,10 +1,14 @@
+use std::collections::BTreeMap;
+
 use bunsen::{
     data::{
         cache::verify_sha256,
         pretrained::{
-            ModelRef,
+            CacheStatus,
+            PretrainedCache,
+            PretrainedRef,
             StaticPretrainedProvider,
-            WeightsCache,
+            StaticResourceMap,
         },
     },
     errors::{
@@ -15,16 +19,18 @@ use bunsen::{
         WhisperApiConfig,
         driver::WhisperSpecialIds,
         pretrained::{
+            CHECKPOINT,
             OPENAI_LOCAL_DIR,
-            OPENAI_VOCABULARIES,
+            OPENAI_VOCABULARIES_MAPS,
             PytorchWhisperScanner,
+            VOCABULARY,
             WHISPER_KIT,
             WHISPER_PREFABS,
             WHISPER_PROVIDERS,
             openai_download_root,
             prefab_for_geometry,
             scan_model_with,
-            vocabulary_descriptor,
+            vocabulary_map,
         },
     },
 };
@@ -57,18 +63,18 @@ pub struct ModelsCmd {
 
 #[derive(clap::Subcommand, Debug)]
 enum ModelsAction {
-    /// List the pretrained models and the vocabularies, and where each one
+    /// List the pretrained models and their resources, and where each one
     /// stands.
     List,
 
     /// List the prefabs: the geometries, without weights.
     Prefabs,
 
-    /// Bring models, and the vocabulary each one decodes through, into the
-    /// cache, fetching what is not local.
+    /// Bring every resource of the named models into the cache, fetching
+    /// what is not local.
     Fetch {
-        /// Re-hash each file after it is resolved, the bundled and cached
-        /// ones included.
+        /// Re-hash each pinned file after it is resolved, the cached ones
+        /// included.
         #[arg(long)]
         verify: bool,
 
@@ -101,7 +107,11 @@ impl ModelsCmd {
     }
 }
 
-fn list(cache: &WeightsCache) -> BunsenResult<()> {
+fn resolve(name: &str) -> BunsenResult<PretrainedRef> {
+    PretrainedRef::resolve(WHISPER_PROVIDERS, name, CHECKPOINT)
+}
+
+fn list(cache: &PretrainedCache) -> BunsenResult<()> {
     println!("cache: {}", cache.cache_dir().display());
     let upstream = cache
         .local_dirs()
@@ -115,20 +125,18 @@ fn list(cache: &WeightsCache) -> BunsenResult<()> {
 
     for provider in WHISPER_PROVIDERS {
         println!();
-        list_provider(cache, provider, "PREFAB");
+        list_provider(cache, provider);
     }
     println!();
-    list_provider(cache, &OPENAI_VOCABULARIES, "LAYOUT");
+    list_maps(cache, "vocabularies", OPENAI_VOCABULARIES_MAPS);
     Ok(())
 }
 
-/// One provider's table. `shape` heads the column that names what each
-/// entry instantiates: a prefab for weights, a token layout for a
-/// vocabulary.
+/// One provider's rows: each with its prefab, where its resources stand
+/// taken together, and their keys.
 fn list_provider(
-    cache: &WeightsCache,
+    cache: &PretrainedCache,
     provider: &StaticPretrainedProvider<'_>,
-    shape: &str,
 ) {
     println!(
         "{}: {} ({}; {})",
@@ -137,23 +145,62 @@ fn list_provider(
         provider.license.unwrap_or("license unknown"),
         provider.origin.unwrap_or("origin unknown"),
     );
-    println!("  NAME                   {shape:<16} FORMAT         STATUS          DESCRIPTION");
-    for pretrained in provider.items {
-        let aliases = if pretrained.aliases.is_empty() {
+    println!(
+        "  NAME                   PREFAB           STATUS     RESOURCES              DESCRIPTION"
+    );
+    for row in provider.items {
+        let aliases = if row.aliases.is_empty() {
             String::new()
         } else {
-            format!(" (also: {})", pretrained.aliases.join(", "))
+            format!(" (also: {})", row.aliases.join(", "))
         };
+        let map = row.to_map();
         println!(
-            "  {:<22} {:<16} {:<14} {:<15} {}{aliases}",
-            provider.id(pretrained),
-            pretrained.prefab,
-            pretrained.format.to_string(),
-            cache
-                .status(WHISPER_KIT, provider.name, &pretrained.to_descriptor())
-                .to_string(),
-            pretrained.description,
+            "  {:<22} {:<16} {:<10} {:<22} {}{aliases}",
+            provider.id(row),
+            row.prefab.unwrap_or("-"),
+            summarize(&cache.map_status(WHISPER_KIT, &map)).to_string(),
+            map.keys().join("+"),
+            row.description,
         );
+    }
+}
+
+/// Where a whole map stands: the worst of its resources', since one remote
+/// resource means a fetch.
+fn summarize(status: &BTreeMap<String, CacheStatus>) -> CacheStatus {
+    let rank = |s: &CacheStatus| match s {
+        CacheStatus::Cached => 0,
+        CacheStatus::LocalDir => 1,
+        CacheStatus::Remote => 2,
+    };
+    status
+        .values()
+        .copied()
+        .max_by_key(rank)
+        .unwrap_or(CacheStatus::Cached)
+}
+
+/// Standalone maps, one line per resource.
+fn list_maps(
+    cache: &PretrainedCache,
+    what: &str,
+    maps: &[&StaticResourceMap<'_>],
+) {
+    println!("{what}:");
+    println!("  NAME                          KEY          KIND           STATUS     DESCRIPTION");
+    for map in maps {
+        let owned = map.to_map();
+        for (key, r) in &owned.resources {
+            println!(
+                "  {:<29} {:<12} {:<14} {:<10} {}",
+                map.name,
+                key,
+                r.kind.as_deref().unwrap_or("-"),
+                cache.status(WHISPER_KIT, r).to_string(),
+                map.description,
+            );
+        }
     }
 }
 
@@ -188,51 +235,25 @@ fn prefabs() -> BunsenResult<()> {
 }
 
 fn fetch(
-    cache: &WeightsCache,
+    cache: &PretrainedCache,
     names: &[String],
     verify: bool,
 ) -> BunsenResult<()> {
     for name in names {
-        let model = ModelRef::resolve(WHISPER_PROVIDERS, name)?;
-        let located = model.locate(WHISPER_KIT, cache)?;
-        println!(
-            "{}: {} ({})",
-            model.id(),
-            located.path.display(),
-            located.provenance
-        );
-
-        if verify {
-            match &model {
-                ModelRef::Pretrained { pretrained, .. } => match pretrained.sha256 {
+        let model = resolve(name)?;
+        let map = model.to_map();
+        let loaded = cache.load(WHISPER_KIT, &map)?;
+        println!("{}:", model.id());
+        for (key, part) in loaded.iter() {
+            println!("  {key}: {} ({})", part.path.display(), part.provenance);
+            if verify {
+                match map.get(key).and_then(|r| r.sha256.as_deref()) {
                     Some(sha256) => {
-                        verify_sha256(&located.path, sha256)?;
-                        println!("  sha256 {sha256} ok");
+                        verify_sha256(&part.path, sha256)?;
+                        println!("    sha256 {sha256} ok");
                     }
-                    None => println!("  (unpinned; no digest to verify against)"),
-                },
-                ModelRef::Path(_) => {
-                    println!("  (a path has no digest to verify against)");
+                    None => println!("    (unpinned; no digest to verify against)"),
                 }
-            }
-        }
-
-        // A named model's layout is known from its prefab, so its vocabulary
-        // can come along without scanning; a path's is known only once it
-        // is scanned, and `transcribe` resolves it then.
-        if let Some(prefab) = model.prefab(&WHISPER_PREFABS) {
-            let vocab = vocabulary_descriptor(&layout_of(&prefab.to_config())?);
-            let desc = vocab.to_descriptor();
-            let located = cache.resolve(WHISPER_KIT, OPENAI_VOCABULARIES.name, &desc)?;
-            println!(
-                "  vocabulary {}: {} ({})",
-                OPENAI_VOCABULARIES.id(vocab),
-                located.path.display(),
-                located.provenance
-            );
-            if verify && let Some(sha256) = vocab.sha256 {
-                verify_sha256(&located.path, sha256)?;
-                println!("    sha256 {sha256} ok");
             }
         }
     }
@@ -240,27 +261,31 @@ fn fetch(
 }
 
 fn inspect(
-    cache: &WeightsCache,
+    cache: &PretrainedCache,
     name: &str,
     scanner: &PytorchWhisperScanner,
 ) -> BunsenResult<()> {
-    let model = ModelRef::resolve(WHISPER_PROVIDERS, name)?;
+    let model = resolve(name)?;
     println!("model: {}", model.id());
-
-    if let ModelRef::Pretrained {
-        provider,
-        pretrained,
-    } = &model
-    {
+    if let Some((provider, row)) = model.named() {
         println!("  provider: {} ({})", provider.name, provider.description);
-        println!("  format: {}", pretrained.format);
-        println!("  sha256: {}", pretrained.sha256.unwrap_or("unpinned"));
+        println!("  description: {}", row.description);
+    }
+
+    let map = model.to_map();
+    println!("resources:");
+    for (key, r) in &map.resources {
+        let pin = match &r.sha256 {
+            Some(sha256) => format!("sha256 {sha256}"),
+            None => "unpinned".to_string(),
+        };
         println!(
-            "  status: {}",
-            cache.status(WHISPER_KIT, provider.name, &pretrained.to_descriptor())
+            "  {key}: {} ({}, {pin}) [{}]",
+            r.file,
+            r.kind.as_deref().unwrap_or("unlabeled"),
+            cache.status(WHISPER_KIT, r),
         );
-        println!("  sources:");
-        for source in pretrained.sources {
+        for source in &r.sources {
             println!("    {source}");
         }
     }
@@ -271,16 +296,19 @@ fn inspect(
         println!("  {:?}", prefab.to_config().geometry());
     }
 
-    let located = model.locate(WHISPER_KIT, cache)?;
+    let loaded = cache.load(WHISPER_KIT, &map)?;
+    let checkpoint = loaded.get(CHECKPOINT).ok_or_else(|| {
+        BunsenError::ResourceNotFound(format!("{}: no {CHECKPOINT} resource", model.id()))
+    })?;
     println!(
         "checkpoint: {} ({})",
-        located.path.display(),
-        located.provenance
+        checkpoint.path.display(),
+        checkpoint.provenance
     );
 
     // A named model that does not scan as its prefab is an error from
     // `scan_model`; report it as the finding it is rather than a failure.
-    let cfg = match scan_model_with(&model, &located.path, scanner) {
+    let cfg = match scan_model_with(&model, &checkpoint.path, scanner) {
         Ok(cfg) => cfg,
         Err(BunsenError::Invalid(msg)) if promised.is_some() => {
             println!("MISMATCH: {msg}");
@@ -299,15 +327,16 @@ fn inspect(
         (None, None) => println!("  geometry matches no built-in prefab"),
     }
 
-    let vocab = vocabulary_descriptor(&layout_of(&cfg)?);
-    println!(
-        "vocabulary: {} ({})",
-        OPENAI_VOCABULARIES.id(vocab),
-        cache.status(
-            WHISPER_KIT,
-            OPENAI_VOCABULARIES.name,
-            &vocab.to_descriptor()
-        )
-    );
+    // A row declares its vocabulary, listed above; a path has only the
+    // rule, applied to what the scan found.
+    if map.get(VOCABULARY).is_none() {
+        let vocab = vocabulary_map(&layout_of(&cfg)?).to_map();
+        let r = vocab.try_get(VOCABULARY)?;
+        println!(
+            "vocabulary (by the checkpoint's layout): {} ({})",
+            vocab.name,
+            cache.status(WHISPER_KIT, r)
+        );
+    }
     Ok(())
 }
