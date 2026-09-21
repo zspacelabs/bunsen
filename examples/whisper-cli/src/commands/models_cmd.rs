@@ -29,10 +29,9 @@ use bunsen::{
             WHISPER_KIT,
             WHISPER_PREFABS,
             WhisperConstruct,
+            WhisperVocabulary,
             default_whisper_factory,
             openai_download_root,
-            prefab_for_geometry,
-            vocabulary_map,
         },
     },
 };
@@ -351,7 +350,7 @@ fn inspect(
     println!("  heads: {}", geometry.n_heads());
     println!("  front end: {:?}", cfg.front_end);
 
-    match (&promised, prefab_for_geometry(&geometry)) {
+    match (&promised, geometry.prefab()) {
         (Some(prefab), _) => println!("  matches prefab {}", prefab.name),
         (None, Some(prefab)) => println!("  geometry is prefab {}", prefab.name),
         (None, None) => println!("  geometry matches no built-in prefab"),
@@ -360,7 +359,9 @@ fn inspect(
     // A row declares its vocabulary, listed above; a path has only the
     // rule, applied to what the scan found.
     if map.get(VOCABULARY).is_none() {
-        let vocab = vocabulary_map(&layout_of(&cfg)?).to_map();
+        let vocab = WhisperVocabulary::for_layout(&layout_of(&cfg)?)
+            .map()
+            .to_map();
         let r = vocab.try_get(VOCABULARY)?;
         println!(
             "vocabulary (by the checkpoint's layout): {} ({})",

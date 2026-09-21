@@ -192,7 +192,7 @@ StaticPretrainedGroup, StaticPretrainedTable, StaticResourceMap, PretrainedCache
 `WhisperGeometry` beside `WhisperApiConfig`. `pretrained::default_whisper_factory()` is the index: a
 `PretrainedFactory` over `dyn PretrainedProvider`s in search order, whose `resolve_for::<WhisperConstruct>` and
 `load` are the name-to-model pathway, `WhisperConstruct::scan` its read-only half, and
-`pretrained::{vocabulary_map, vocabulary_for}` the layout-to-vocabulary rule and its resolve. A caller with a
+`WhisperVocabulary::{for_layout, map, load}` the layout-to-vocabulary rule, its file and its resolve. A caller with a
 provider of its own builds a factory over `default_whisper_providers()` and adds it. This crate resolves `--model`
 through the default factory and reports through the `models` subcommand; it keeps no index of its own.
 

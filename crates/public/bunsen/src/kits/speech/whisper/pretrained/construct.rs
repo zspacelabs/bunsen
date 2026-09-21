@@ -41,7 +41,7 @@ use crate::{
                 VOCABULARY,
                 WHISPER_KIT,
                 WHISPER_PREFABS,
-                vocabulary_map,
+                WhisperVocabulary,
             },
         },
         tokens::TiktokenRanks,
@@ -164,7 +164,7 @@ impl Construct for WhisperConstruct {
         let cfg = self.scan(model, &checkpoint.path)?;
 
         let ids = *cfg.token_layout.policy_for_vocab(cfg.vocab_size)?.ids();
-        let rule = vocabulary_map(&ids).to_map();
+        let rule = WhisperVocabulary::for_layout(&ids).map().to_map();
         match map.get(VOCABULARY).cloned() {
             None => map.fuse(rule, Fuse::Strict),
             Some(given) if given.namespace == GIVEN_NAMESPACE => Ok(map),
@@ -217,7 +217,6 @@ mod tests {
                 BASE_CHECKPOINT,
                 GPT2_VOCABULARY,
                 default_whisper_factory,
-                prefab_for_geometry,
                 testing::offline_cache,
             },
         },
@@ -362,7 +361,7 @@ mod tests {
             .unwrap();
 
         let geometry = cfg.geometry();
-        assert_eq!(prefab_for_geometry(&geometry).map(|p| p.name), Some("base"));
+        assert_eq!(geometry.prefab().map(|p| p.name), Some("base"));
         assert_eq!(geometry.n_heads(), 8);
     }
 

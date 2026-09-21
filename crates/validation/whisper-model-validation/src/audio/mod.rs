@@ -42,7 +42,7 @@ use bunsen::{
                 WhisperTask,
                 WhisperTokenLayout,
             },
-            pretrained::vocabulary_for,
+            pretrained::WhisperVocabulary,
         },
         tokens::{
             Detokenizer,
@@ -258,7 +258,8 @@ impl Vocab {
 /// The shared vocabulary, for turning ids into text.
 fn vocab() -> Vocab {
     let policy = WhisperTokenLayout::from_vocab_size(N_VOCAB).expect("a Whisper vocabulary size");
-    let ranks = vocabulary_for(policy.ids(), &crate::weights_cache())
+    let ranks = WhisperVocabulary::for_layout(policy.ids())
+        .load(&crate::weights_cache())
         .expect("the vocabulary failed to load");
     let decoder = policy
         .detokenizer(&ranks)

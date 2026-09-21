@@ -4,7 +4,7 @@
 //! checkpoint, one per vocabulary, each a single file under the `openai`
 //! namespace. A pretrained row fuses a checkpoint map with the vocabulary
 //! map its token layout selects; a path arrives as a one-resource map, and
-//! the rule that selects its vocabulary is [`vocabulary_map`].
+//! the rule that selects its vocabulary is [`WhisperVocabulary::for_layout`].
 //!
 //! The checkpoints are `whisper/__init__.py`'s `_MODELS`: each file under
 //! upstream's download root, a "trust me" base used in place, and then
@@ -221,16 +221,46 @@ pub static GPT2_VOCABULARY: StaticResourceMap<'static> = StaticResourceMap {
 pub static OPENAI_VOCABULARIES_MAPS: &[&StaticResourceMap<'static>] =
     &[&MULTILINGUAL_VOCABULARY, &GPT2_VOCABULARY];
 
-/// The vocabulary map a token layout selects: `multilingual.tiktoken` for
-/// a multilingual layout, `gpt2.tiktoken` for an English-only one.
+/// Which of the two rank files a checkpoint decodes through:
+/// `multilingual.tiktoken` for a multilingual layout, `gpt2.tiktoken` for
+/// an English-only one.
 ///
-/// The rule a path model's vocabulary is derived by, and a named row's is
-/// checked against.
-pub fn vocabulary_map(ids: &WhisperSpecialIds) -> &'static StaticResourceMap<'static> {
-    if ids.is_multilingual() {
-        &MULTILINGUAL_VOCABULARY
-    } else {
-        &GPT2_VOCABULARY
+/// [`for_layout`](Self::for_layout) is the rule a path model's vocabulary
+/// is derived by, and a named row's is checked against; [`map`](Self::map)
+/// is the file, as a resource map. The two files number their tokens
+/// differently, and a checkpoint decoded through the wrong one produces
+/// text that is wrong without being obviously so, so the rule takes the
+/// token layout, which comes from the checkpoint's vocabulary size, and
+/// the pairing stays out of the caller's hands.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum WhisperVocabulary {
+    /// `multilingual.tiktoken`: every multilingual checkpoint's.
+    Multilingual,
+
+    /// `gpt2.tiktoken`: the English-only (`*.en`) checkpoints'.
+    Gpt2,
+}
+
+impl WhisperVocabulary {
+    /// Both, multilingual first.
+    pub const ALL: [Self; 2] = [Self::Multilingual, Self::Gpt2];
+
+    /// The vocabulary a token layout selects.
+    pub fn for_layout(ids: &WhisperSpecialIds) -> Self {
+        if ids.is_multilingual() {
+            Self::Multilingual
+        } else {
+            Self::Gpt2
+        }
+    }
+
+    /// The rank file, as a resource map: [`MULTILINGUAL_VOCABULARY`] or
+    /// [`GPT2_VOCABULARY`].
+    pub fn map(self) -> &'static StaticResourceMap<'static> {
+        match self {
+            Self::Multilingual => &MULTILINGUAL_VOCABULARY,
+            Self::Gpt2 => &GPT2_VOCABULARY,
+        }
     }
 }
 
@@ -312,17 +342,19 @@ mod tests {
             assert!(urls[0].ends_with(&format!("/{}", r.file)), "{}", urls[0]);
         }
 
+        let rule = |prefab: &str| WhisperVocabulary::for_layout(&ids_of(prefab));
+        assert_eq!(rule("tiny"), WhisperVocabulary::Multilingual);
+        assert_eq!(rule("tiny.en"), WhisperVocabulary::Gpt2);
+        assert_eq!(rule("large-v3"), WhisperVocabulary::Multilingual);
+        assert_eq!(rule("tiny").map().name, MULTILINGUAL_VOCABULARY.name);
+        assert_eq!(rule("tiny.en").map().name, GPT2_VOCABULARY.name);
         assert_eq!(
-            vocabulary_map(&ids_of("tiny")).name,
-            MULTILINGUAL_VOCABULARY.name
-        );
-        assert_eq!(
-            vocabulary_map(&ids_of("tiny.en")).name,
-            GPT2_VOCABULARY.name
-        );
-        assert_eq!(
-            vocabulary_map(&ids_of("large-v3")).name,
-            MULTILINGUAL_VOCABULARY.name
+            WhisperVocabulary::ALL.map(|v| v.map().name),
+            OPENAI_VOCABULARIES_MAPS
+                .iter()
+                .map(|m| m.name)
+                .collect::<Vec<_>>()
+                .as_slice()
         );
     }
 

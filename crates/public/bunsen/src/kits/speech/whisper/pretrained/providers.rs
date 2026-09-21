@@ -8,7 +8,7 @@
 //! [`WHISPER_PREFABS`](super::WHISPER_PREFABS) and fuse a checkpoint map
 //! with the vocabulary map its token layout selects:
 //! [`OPENAI_CHECKPOINTS`](super::OPENAI_CHECKPOINTS) and
-//! [`vocabulary_map`](super::vocabulary_map).
+//! [`WhisperVocabulary`](super::WhisperVocabulary).
 //!
 //! A caller with a provider of its own, a hub say, builds its own factory:
 //!
@@ -256,7 +256,7 @@ mod tests {
                 CHECKPOINT,
                 VOCABULARY,
                 WHISPER_PREFABS,
-                vocabulary_map,
+                WhisperVocabulary,
             },
         },
     };
@@ -301,7 +301,9 @@ mod tests {
         for row in OPENAI.items {
             let declared = row.to_map();
             let declared = declared.get(VOCABULARY).unwrap();
-            let rule = vocabulary_map(&layout_of(row.prefab.unwrap())).to_map();
+            let rule = WhisperVocabulary::for_layout(&layout_of(row.prefab.unwrap()))
+                .map()
+                .to_map();
             let rule = rule.get(VOCABULARY).unwrap();
             assert_eq!(declared, rule, "{}", OPENAI.id(row));
         }
