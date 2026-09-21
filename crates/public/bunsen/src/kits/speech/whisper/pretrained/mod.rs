@@ -2,6 +2,7 @@
 
 #[cfg(all(feature = "store_pytorch", feature = "cache"))]
 mod load_named;
+mod maps;
 mod prefabs;
 mod providers;
 #[cfg(feature = "cache")]
@@ -10,6 +11,8 @@ mod vocab;
 #[cfg(all(feature = "store_pytorch", feature = "cache"))]
 #[doc(inline)]
 pub use load_named::*;
+#[doc(inline)]
+pub use maps::*;
 #[doc(inline)]
 pub use prefabs::*;
 #[doc(inline)]
