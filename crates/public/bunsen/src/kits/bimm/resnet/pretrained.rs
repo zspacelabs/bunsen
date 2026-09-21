@@ -4,9 +4,9 @@
 //! two groups of the [`WELL_KNOWN_TABLE`]: `torchvision`, the reference
 //! `ImageNet` weights, and `timm`, the `ResNet` Strikes Back (`a1`, `a2`,
 //! `a3`) and earlier `pytorch-image-models` releases. Each row names the
-//! prefab it instantiates and is one unpinned `.pth` under its group's
-//! base URL: `torchvision/resnet50`, `timm/resnet18_a1`, or bare
-//! `resnet50`, which the torchvision group answers first.
+//! prefab it instantiates and is one `.pth` under its group's base URL,
+//! pinned to its digest: `torchvision/resnet50`, `timm/resnet18_a1`, or
+//! bare `resnet50`, which the torchvision group answers first.
 //!
 //! [`default_resnet_factory`] is the index; [`ResNetConstruct`] builds the
 //! prefab's model and reads the checkpoint into it.
@@ -31,7 +31,7 @@ use crate::{
 };
 
 /// The kit segment of a `ResNet` resource's path in the cache:
-/// `<cache>/pretrained/resnet/<namespace>/<cache key>/<file>`.
+/// `<cache>/pretrained/resnet/<namespace>/<sha256>/<file>`.
 pub const RESNET_KIT: &str = "resnet";
 
 /// The key of the checkpoint in a `ResNet` resource map.
@@ -58,9 +58,10 @@ const TIMM_V01_BASE: StaticBase<'static> = StaticBase::Url(
     "https://github.com/rwightman/pytorch-image-models/releases/download/v0.1-weights",
 );
 
-/// One checkpoint map: a single unpinned `.pth` under a base URL.
+/// One checkpoint map: a single `.pth` under a base URL, pinned to its
+/// digest, whose first eight hex digits are the tag in the file's name.
 macro_rules! checkpoint {
-    ($name:ident, $map:literal, $file:literal, $namespace:expr, $base:expr) => {
+    ($name:ident, $map:literal, $file:literal, $sha256:literal, $namespace:expr, $base:expr) => {
         static $name: StaticResourceMap<'static> = StaticResourceMap {
             name: $map,
             description: "an ImageNet checkpoint",
@@ -71,7 +72,7 @@ macro_rules! checkpoint {
             resources: &[StaticResource {
                 key: CHECKPOINT,
                 file: $file,
-                sha256: None,
+                sha256: Some($sha256),
                 kind: Some(PYTORCH_FP32),
                 sources: &[],
             }],
@@ -83,6 +84,7 @@ checkpoint!(
     TV_RESNET18,
     "torchvision/resnet18-f37072fd.pth",
     "resnet18-f37072fd.pth",
+    "f37072fd47e89c5e827621c5baffa7500819f7896bbacec160b1a16c560e07ec",
     TORCHVISION_NAMESPACE,
     TORCHVISION_BASE
 );
@@ -90,6 +92,7 @@ checkpoint!(
     TV_RESNET34,
     "torchvision/resnet34-b627a593.pth",
     "resnet34-b627a593.pth",
+    "b627a593bcbe140c234610266fe4f8ae95ea42fc881d091c9b6052e6b1d0590f",
     TORCHVISION_NAMESPACE,
     TORCHVISION_BASE
 );
@@ -97,6 +100,7 @@ checkpoint!(
     TV_RESNET50,
     "torchvision/resnet50-0676ba61.pth",
     "resnet50-0676ba61.pth",
+    "0676ba61b6795bbe1773cffd859882e5e297624d384b6993f7c9e683e722fb8a",
     TORCHVISION_NAMESPACE,
     TORCHVISION_BASE
 );
@@ -104,6 +108,7 @@ checkpoint!(
     TV_RESNET101,
     "torchvision/resnet101-63fe2227.pth",
     "resnet101-63fe2227.pth",
+    "63fe2227b86e8f1f2063f43a75c84d195911b6a0eace650907dd3dc62dd49a0a",
     TORCHVISION_NAMESPACE,
     TORCHVISION_BASE
 );
@@ -111,6 +116,7 @@ checkpoint!(
     TV_RESNET152,
     "torchvision/resnet152-394f9c45.pth",
     "resnet152-394f9c45.pth",
+    "394f9c45966e3651a89bbb78a48410a6755854ce4a5ab64927cf1c7247f85e58",
     TORCHVISION_NAMESPACE,
     TORCHVISION_BASE
 );
@@ -118,6 +124,7 @@ checkpoint!(
     TIMM_RESNET18_A1,
     "timm/resnet18_a1_0-d63eafa0.pth",
     "resnet18_a1_0-d63eafa0.pth",
+    "d63eafa07a6e32a39d328e364f8c9f89d671444ecc7f02aa0f7eb8882af3dd29",
     TIMM_NAMESPACE,
     TIMM_RSB_BASE
 );
@@ -125,6 +132,7 @@ checkpoint!(
     TIMM_RESNET18_A2,
     "timm/resnet18_a2_0-b61bd467.pth",
     "resnet18_a2_0-b61bd467.pth",
+    "b61bd467647a03d3f7db590a1158552d2e66bf5ba62c2158ca9594c03de49923",
     TIMM_NAMESPACE,
     TIMM_RSB_BASE
 );
@@ -132,6 +140,7 @@ checkpoint!(
     TIMM_RESNET18_A3,
     "timm/resnet18_a3_0-40c531c8.pth",
     "resnet18_a3_0-40c531c8.pth",
+    "40c531c8324d963735b0c7ab9a9b2d7715c573a04d0b95776d29cc816a2ef93e",
     TIMM_NAMESPACE,
     TIMM_RSB_BASE
 );
@@ -139,6 +148,7 @@ checkpoint!(
     TIMM_RESNET26,
     "timm/resnet26-9aa10e23.pth",
     "resnet26-9aa10e23.pth",
+    "9aa10e237cec57dcaa067ee38d19ffc38a6323d185ef8a9903434291fd4187cb",
     TIMM_NAMESPACE,
     TIMM_V01_BASE
 );
@@ -146,6 +156,7 @@ checkpoint!(
     TIMM_RESNET34_A1,
     "timm/resnet34_a1_0-46f8f793.pth",
     "resnet34_a1_0-46f8f793.pth",
+    "46f8f7930534e471b9a139b278896db5d11d17b8ea3fcc90ad43deed9e5e27d7",
     TIMM_NAMESPACE,
     TIMM_RSB_BASE
 );
@@ -153,6 +164,7 @@ checkpoint!(
     TIMM_RESNET34_A2,
     "timm/resnet34_a2_0-82d47d71.pth",
     "resnet34_a2_0-82d47d71.pth",
+    "82d47d71dafac5343b070e5883c41321b45e4759bfe6aa25d375300c38b386a0",
     TIMM_NAMESPACE,
     TIMM_RSB_BASE
 );
@@ -160,6 +172,7 @@ checkpoint!(
     TIMM_RESNET34_A3,
     "timm/resnet34_a3_0-a20cabb6.pth",
     "resnet34_a3_0-a20cabb6.pth",
+    "a20cabb63e1baf7963ede853c5a38046aede79a7e675d3576714b59cb4ab7519",
     TIMM_NAMESPACE,
     TIMM_RSB_BASE
 );
@@ -167,6 +180,7 @@ checkpoint!(
     TIMM_RESNET34,
     "timm/resnet34-43635321.pth",
     "resnet34-43635321.pth",
+    "436353219a11d07c7c74cf1a686ed3b02f6c954d4c7863e2046822e047c6f246",
     TIMM_NAMESPACE,
     TIMM_V01_BASE
 );
@@ -174,6 +188,7 @@ checkpoint!(
     TIMM_RESNET101_A1,
     "timm/resnet101_a1_0-cdcb52a9.pth",
     "resnet101_a1_0-cdcb52a9.pth",
+    "cdcb52a9df09a641606696e5520e4fbbe8256ee4983d8b4dd1a1ef87a9b8846f",
     TIMM_NAMESPACE,
     TIMM_RSB_BASE
 );
@@ -504,8 +519,9 @@ pub use construct::*;
 mod tests {
     use super::*;
 
-    /// Every row names a prefab the map has and is one unpinned checkpoint
-    /// under its group's namespace, fetched from the group's base.
+    /// Every row names a prefab the map has and is one pinned checkpoint
+    /// under its group's namespace, fetched from the group's base; the
+    /// digest's first eight hex digits are the tag in the file's name.
     #[test]
     fn test_every_row_names_a_prefab_and_one_checkpoint() {
         let mut n = 0;
@@ -524,7 +540,14 @@ mod tests {
                 let checkpoint = map.get(CHECKPOINT).unwrap();
                 assert_eq!(checkpoint.namespace, group.name, "{}", group.id(row));
                 assert_eq!(checkpoint.kind.as_deref(), Some(PYTORCH_FP32));
-                assert!(!checkpoint.is_pinned(), "{}", group.id(row));
+                let sha256 = checkpoint.sha256.as_deref().expect("every row is pinned");
+                let tag = checkpoint
+                    .file
+                    .rsplit_once('-')
+                    .map(|(_, tail)| tail.split('.').next().unwrap_or(""))
+                    .unwrap_or("");
+                assert_eq!(tag.len(), 8, "{}", checkpoint.file);
+                assert!(sha256.starts_with(tag), "{}: {sha256}", checkpoint.file);
                 let urls = checkpoint.urls();
                 assert_eq!(urls.len(), 1, "{}", group.id(row));
                 assert!(
