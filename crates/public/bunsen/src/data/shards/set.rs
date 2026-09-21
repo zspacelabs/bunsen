@@ -453,4 +453,45 @@ mod tests {
         );
         assert_eq!(set.cached_ids().unwrap(), vec![ShardId(0)]);
     }
+
+    /// A set's shards, as a resource map, come in through the pretrained
+    /// cache together, and are cached there on the next load.
+    #[cfg(feature = "fetch")]
+    #[test]
+    fn test_a_set_loads_as_a_map_through_the_pretrained_cache() {
+        use crate::data::pretrained::{
+            PretrainedCache,
+            PretrainedCacheOptions,
+            Provenance,
+        };
+        let dir = tempfile::tempdir().unwrap();
+        let live = serve_n("", b"abc", 2);
+        let bases: &'static [&'static str] =
+            Box::leak(vec![Box::leak(live.into_boxed_str()) as &str].into_boxed_slice());
+        let desc = served(bases, 2, StaticShardDigests::Unpinned);
+        let map = desc.to_resource_map(&[ShardId(0), ShardId(1)]).unwrap();
+        assert_eq!(map.keys(), ["shard_00.bin", "shard_01.bin"]);
+
+        let cache = PretrainedCache::new(
+            PretrainedCacheOptions::default().with_disk(
+                BunsenDiskCacheOptions::default()
+                    .with_cache_dir(Some(dir.path().join("cache")))
+                    .without_transfer_observers(),
+            ),
+        )
+        .unwrap();
+        let loaded = cache.load("shards", &map).unwrap();
+        for (key, part) in loaded.iter() {
+            assert_eq!(part.provenance, Provenance::Downloaded, "{key}");
+            assert_eq!(fs::read(&part.path).unwrap(), b"abc", "{key}");
+            assert!(
+                part.path
+                    .starts_with(dir.path().join("cache").join("pretrained"))
+            );
+        }
+        let again = cache.load("shards", &map).unwrap();
+        for (_, part) in again.iter() {
+            assert_eq!(part.provenance, Provenance::Cached);
+        }
+    }
 }
