@@ -43,6 +43,7 @@ default = [
     "train",
     "testing",
     "store_pytorch",
+    "store_safetensors",
 ]
 
 std = [
@@ -68,6 +69,13 @@ store = [
 store_pytorch = [
     "store",
     "burn-store/pytorch",
+]
+
+## Read `transformers`' `model.safetensors` through the burn-store: what a
+## Hugging Face repo serves.
+store_safetensors = [
+    "store",
+    "burn-store/safetensors",
 ]
 
 ## Enable features to use with `burn/train`.

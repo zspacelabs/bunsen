@@ -10,12 +10,13 @@
 //! the factory's: it is a given map through [`Deferred::from_map`], which
 //! gets its hook the same way.
 //!
-//! A caller with a provider of its own, a hub say, builds on the default:
+//! A caller with a provider of its own, a mirror say, builds on the default:
 //!
 //! ```rust,ignore
 //! let factory = default_whisper_factory()?
-//!     .with_provider(Arc::new(my_hub))?; // answers `hub:org/repo`, lists nothing
+//!     .with_provider(Arc::new(my_mirror))?; // answers `mirror:name`
 //! let bundle = factory.load_bundle::<B>("openai/base", &cache, &device)?;
+//! let hf = factory.load_bundle::<B>("hf:openai/whisper-tiny", &cache, &device)?;
 //! ```
 
 use std::{
@@ -109,13 +110,15 @@ mod tests {
             CHECKPOINT,
             OPENAI,
             WHISPER_KIT,
+            WhisperReader,
             openai_download_root,
         },
     };
 
     /// The default factory is the well-known table, serving the kit, with
     /// every id qualified and upstream's aliases honoured; the bundled
-    /// table joins it with the feature, after it.
+    /// table joins it with the feature, after it; Hugging Face is last,
+    /// and lists nothing.
     #[test]
     fn test_the_defaults_register() {
         let factory = default_whisper_factory().unwrap();
@@ -123,12 +126,14 @@ mod tests {
         assert_eq!(factory.providers()[0].name(), "well-known");
         assert_eq!(factory.provider(WELL_KNOWN).unwrap().name(), "well-known");
         assert_eq!(factory.provider(WELL_KNOWN).unwrap().ids().len(), 12);
+        assert_eq!(factory.providers().last().unwrap().name(), "hf");
+        assert!(factory.provider("hf").unwrap().ids().is_empty());
         if cfg!(feature = "whisper-weights") {
-            assert_eq!(factory.providers().len(), 2);
+            assert_eq!(factory.providers().len(), 3);
             assert_eq!(factory.providers()[1].name(), "bundled");
             assert_eq!(factory.ids().len(), 13);
         } else {
-            assert_eq!(factory.providers().len(), 1);
+            assert_eq!(factory.providers().len(), 2);
             assert_eq!(factory.ids().len(), 12);
         }
 
@@ -245,12 +250,19 @@ mod tests {
         assert_eq!(factory.lookup("base").unwrap().0, "well-known");
         assert_eq!(hub.lookups(), 1, "a bare name never reached the hub");
 
-        // The hub's rows are safetensors, which this kit has no reader
-        // for: resolving one is refused by name, before anything is read.
-        let err = factory.resolve("hub:openai/whisper-base").unwrap_err();
+        // The hub's rows are safetensors: resolving one chooses the
+        // safetensors reader, with its feature, before anything is read;
+        // without the feature it is refused naming the feature.
+        let resolved = factory.resolve("hub:openai/whisper-base");
+        #[cfg(feature = "store_safetensors")]
+        assert!(matches!(
+            resolved.unwrap().hook.reader,
+            WhisperReader::Safetensors(_)
+        ));
+        #[cfg(not(feature = "store_safetensors"))]
         assert!(
-            matches!(&err, BunsenError::Invalid(m) if m.contains("no reader for a \"safetensors\"")),
-            "{err}"
+            matches!(&resolved, Err(BunsenError::Invalid(m)) if m.contains("store_safetensors")),
+            "{resolved:?}"
         );
     }
 

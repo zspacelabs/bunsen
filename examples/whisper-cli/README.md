@@ -5,11 +5,11 @@ driver. The audio is pushed in chunks as a live loop would feed it, and segments
 become final; under the responsive preset, drafts come first and are marked `~`.
 
 The model is named, as `openai-whisper`'s `load_model` names it: `--model openai/tiny.en`, `--model large`, in full
-`--model well-known:openai/tiny.en`, or a path
-to a checkpoint. Weights are fetched on demand into bunsen's cache, pinned to their SHA-256, and used in place from
-`openai-whisper`'s own `~/.cache/whisper` when it already has them. The default is `openai/base`. A deployment that
-must not reach the network populates the cache ahead of time: `models fetch openai/base` in a Dockerfile, or
-`--cache-dir` pointed at a directory laid out as the cache.
+`--model well-known:openai/tiny.en`; or a Hugging Face repo in `transformers`' layout, `--model hf:openai/whisper-tiny`;
+or a path to a checkpoint. Weights are fetched on demand into bunsen's cache, pinned to their SHA-256 when the index
+pins them, and used in place from `openai-whisper`'s own `~/.cache/whisper` when it already has them. The default is
+`openai/base`. A deployment that must not reach the network populates the cache ahead of time: `models fetch
+openai/base` in a Dockerfile, or `--cache-dir` pointed at a directory laid out as the cache.
 
 The vocabulary follows the checkpoint: the token layout its vocabulary size implies selects `multilingual.tiktoken` or
 `gpt2.tiktoken`, and that rank file is a resource of the same model. A named model declares it, a path derives it, and
@@ -74,7 +74,8 @@ $ cargo run --release -p whisper-cli --features bunsen/wgpu -- \
 Model options:
 
 - `--model` — `provider:ref` or a bare ref from `models list` (`well-known:openai/tiny.en`, `openai/tiny.en`,
-  `large`, `turbo`), or a path to a checkpoint (default `openai/base`).
+  `large`, `turbo`), a Hugging Face repo (`hf:openai/whisper-tiny`, `hf:openai/whisper-large-v3`), or a path to a
+  checkpoint (default `openai/base`).
 - `--cache-dir` — where fetched weights live; `$BUNSEN_CACHE_DIR`, then the platform's cache directory, when omitted.
 - `--offline` — never reach the network; a model that is not already local is an error.
 - `--upstream-cache-dir` — `openai-whisper`'s download root, whose files are used in place (default `~/.cache/whisper`).
@@ -109,8 +110,8 @@ The index keeps three things apart, because they vary independently:
   it instantiates, and the **resource maps** it is made of. An `openai` row fuses a checkpoint map with the
   vocabulary map its token layout selects, so a model is two keyed **resources**, `checkpoint` and `vocabulary`, and
   the two vocabularies are shared by the twelve checkpoints. One prefab may have several rows.
-- A **resource** is one file: pinned to a SHA-256, labeled for a listing (`pytorch fp16`, `tiktoken`), and reachable
-  from its map's **bases** in order. For a checkpoint those are `openai-whisper`'s `~/.cache/whisper`, a "trust me"
+- A **resource** is one file: pinned to a SHA-256, labeled for a listing (`pytorch fp16`, `safetensors`,
+  `tiktoken`), and reachable from its map's **bases** in order. For a checkpoint those are `openai-whisper`'s `~/.cache/whisper`, a "trust me"
   directory whose file is used in place (hashed only under `--verify`), and then upstream's digest-addressed URL,
   which is streamed to a `.partial`, hashed as it lands, and renamed into place only on a match. Nothing is ever
   linked or copied into the cache.
@@ -123,6 +124,14 @@ Fetched resources live at `<cache>/pretrained/whisper/<namespace>/<sha256>/<file
 pin, as it is in upstream's URLs: a file there was verified when written, so later runs trust it without re-hashing
 3 GB, and a re-pinned model cannot collide with a stale one. A directory laid out this way *is* the cache: a
 deployment that wants to run offline populates one ahead of time, and `--cache-dir` points at it.
+
+A Hugging Face repo is the `hf` provider's: `hf:openai/whisper-large-v3` is
+[huggingface.co/openai/whisper-large-v3](https://huggingface.co/openai/whisper-large-v3), its `model.safetensors` at
+`main`, read through bunsen's safetensors reader (`transformers`' parameter names mapped onto upstream's). The row is
+unpinned, since resolving a name touches no network: the file is cached under its URL, at
+`<cache>/pretrained/whisper/hf/<url key>/model.safetensors`, and a repo whose `main` moves is fetched again only when
+the cache is cleared. The vocabulary is `OpenAI`'s rank file the checkpoint's layout selects, as for a path. The
+provider lists nothing (`models list` shows it with no rows), and a bare `openai/whisper-tiny` never reaches it.
 
 The `models` subcommand takes the same cache options as `transcribe`:
 
@@ -189,7 +198,8 @@ All of it is bunsen's: `kits::speech::whisper::pretrained::{WHISPER_PREFABS, OPE
 OPENAI_CHECKPOINTS, MULTILINGUAL_VOCABULARY, GPT2_VOCABULARY}` over `data::pretrained::{StaticPretrained,
 StaticPretrainedGroup, StaticPretrainedTable, StaticResourceMap, PretrainedCache, PretrainedRef}`, with
 `WhisperGeometry` beside `WhisperApiConfig`. `pretrained::default_whisper_factory()` is the index: a
-`PretrainedFactory<WhisperConstruct>` over `dyn PretrainedProvider`s in search order: names and a listing,
+`PretrainedFactory<WhisperConstruct>` over `dyn PretrainedProvider`s in search order (the well-known table, the
+bundled one when built in, then `HfWhisperProvider`): names and a listing,
 `load_bundle` the whole name-to-model pathway, `resolve` its index half, a `Deferred` model carrying the kit's hook
 chosen by the row's resources, for a `--vocab` overlay. A checkpoint path is not the factory's: it is a given map
 through `Deferred::from_map`, which gets its hook the same way (`Deferred::scan` is the read-only half

@@ -1,10 +1,12 @@
 //! # Pretrained Whisper models
 //!
 //! From a model's name to a loaded model. `default_whisper_factory()` is
-//! the index: `well-known:openai/base`, `openai/base`, `large`.
+//! the index: `well-known:openai/base`, `openai/base`, `large`, and
+//! `hf:openai/whisper-large-v3` for a Hugging Face repo.
 //! `factory.load_bundle::<B>(name, &cache, device)` is the whole pathway
 //! through the kit's hook: every resource of the row's map into the cache,
-//! the checkpoint through the reader its `kind` names and past a check
+//! the checkpoint through the reader its `kind` names (`OpenAI`'s `.pt`,
+//! or `transformers`' `model.safetensors`) and past a check
 //! that it has the geometry its prefab promised, the vocabulary through
 //! the rank parser, and out as a
 //! [`WhisperBundle`](crate::kits::speech::whisper::driver::WhisperBundle)
@@ -19,6 +21,7 @@
 mod construct;
 #[cfg(all(feature = "store_pytorch", feature = "cache"))]
 mod factory;
+mod hf;
 mod maps;
 mod prefabs;
 mod providers;
@@ -31,6 +34,8 @@ pub use construct::*;
 #[cfg(all(feature = "store_pytorch", feature = "cache"))]
 #[doc(inline)]
 pub use factory::*;
+#[doc(inline)]
+pub use hf::*;
 #[doc(inline)]
 pub use maps::*;
 #[doc(inline)]
@@ -47,3 +52,10 @@ mod pytorch_utils;
 #[cfg(feature = "store_pytorch")]
 #[doc(inline)]
 pub use pytorch_utils::*;
+
+#[cfg(feature = "store_safetensors")]
+mod safetensors_utils;
+
+#[cfg(feature = "store_safetensors")]
+#[doc(inline)]
+pub use safetensors_utils::*;

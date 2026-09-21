@@ -2,21 +2,23 @@
 //!
 //! Which models exist, under which names, made of which resource maps.
 //! `default_whisper_factory()` is the index a caller holds; its
-//! compiled-in provider is [`WELL_KNOWN_TABLE`], whose refs are
-//! `{group}/{name}`, and, with the `whisper-weights` feature, the bundled
-//! one. A group is a label, the `openai` in `openai/tiny.en`,
+//! compiled-in providers are [`WELL_KNOWN_TABLE`], whose refs are
+//! `{group}/{name}`, with the `whisper-weights` feature the bundled
+//! one, and [`HfWhisperProvider`], which answers `hf:org/repo` for a
+//! Hugging Face repo and lists nothing. A group is a label, the `openai`
+//! in `openai/tiny.en`,
 //! over rows that each name their prefab in
 //! [`WHISPER_PREFABS`](super::WHISPER_PREFABS) and fuse a checkpoint map
 //! with the vocabulary map its token layout selects:
 //! [`OPENAI_CHECKPOINTS`](super::OPENAI_CHECKPOINTS) and
 //! [`WhisperVocabulary`](super::WhisperVocabulary).
 //!
-//! A caller with a provider of its own, a hub say, adds it to the default
-//! factory:
+//! A caller with a provider of its own, a mirror say, adds it to the
+//! default factory:
 //!
 //! ```rust,ignore
 //! let factory = default_whisper_factory()?
-//!     .with_provider(Arc::new(my_hub))?; // answers `hub:org/repo`, lists nothing
+//!     .with_provider(Arc::new(my_mirror))?; // answers `mirror:name`
 //! ```
 //!
 //! The `openai` table is `whisper/__init__.py`'s `_MODELS`, with upstream's
@@ -44,6 +46,7 @@ use crate::{
         BASE_CHECKPOINT,
         BASE_EN_CHECKPOINT,
         GPT2_VOCABULARY,
+        HfWhisperProvider,
         LARGE_V1_CHECKPOINT,
         LARGE_V2_CHECKPOINT,
         LARGE_V3_CHECKPOINT,
@@ -271,17 +274,15 @@ pub fn bundled_whisper_table() -> crate::data::pretrained::PretrainedTable {
 }
 
 /// Whisper's compiled-in providers, in search order: the well-known table,
-/// then, with the `whisper-weights` feature, the bundled one.
+/// then, with the `whisper-weights` feature, the bundled one, then Hugging
+/// Face, which answers only `hf:org/repo` and lists nothing.
 pub fn default_whisper_providers() -> Vec<Arc<dyn PretrainedProvider>> {
-    let well_known: Arc<dyn PretrainedProvider> = Arc::new(WELL_KNOWN_TABLE.to_table());
+    let mut providers: Vec<Arc<dyn PretrainedProvider>> =
+        vec![Arc::new(WELL_KNOWN_TABLE.to_table())];
     #[cfg(feature = "whisper-weights")]
-    {
-        vec![well_known, Arc::new(bundled_whisper_table())]
-    }
-    #[cfg(not(feature = "whisper-weights"))]
-    {
-        vec![well_known]
-    }
+    providers.push(Arc::new(bundled_whisper_table()));
+    providers.push(Arc::new(HfWhisperProvider::new()));
+    providers
 }
 
 #[cfg(test)]

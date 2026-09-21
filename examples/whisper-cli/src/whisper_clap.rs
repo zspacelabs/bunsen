@@ -89,10 +89,10 @@ pub fn resolve_model(
 #[derive(clap::Args, Debug)]
 pub struct WhisperDriverArgs {
     /// The model: `provider:ref` or a bare ref from `models list`
-    /// (`well-known:openai/tiny.en`, `openai/tiny.en`, `large`), or a path
-    /// to a checkpoint. The default is fetched into the cache on first use
-    /// (145 MB, digest-checked), or found where a deployment put it ahead
-    /// of time.
+    /// (`well-known:openai/tiny.en`, `openai/tiny.en`, `large`), a Hugging
+    /// Face repo (`hf:openai/whisper-tiny`), or a path to a checkpoint.
+    /// The default is fetched into the cache on first use (145 MB,
+    /// digest-checked), or found where a deployment put it ahead of time.
     #[arg(long, default_value = "openai/base")]
     model: String,
 

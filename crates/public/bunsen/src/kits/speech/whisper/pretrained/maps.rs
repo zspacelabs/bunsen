@@ -41,6 +41,10 @@ pub const OPENAI_NAMESPACE: &str = "openai";
 /// The label on every `openai` checkpoint.
 pub const PYTORCH_FP16: &str = "pytorch fp16";
 
+/// The label on a `transformers` checkpoint, `model.safetensors`: what a
+/// Hugging Face repo serves, at whatever precision it was saved.
+pub const SAFETENSORS: &str = "safetensors";
+
 /// The label on the vocabularies.
 pub const TIKTOKEN: &str = "tiktoken";
 
