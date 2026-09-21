@@ -106,7 +106,9 @@ impl<B: Backend> DynTensorEnv<B> {
         &self,
         name: impl AsRef<str>,
     ) -> DynTensor<B> {
-        self.get_dyn(name).expect("tensor not found: \"{name:?}\"")
+        let name = name.as_ref();
+        self.get_dyn(name)
+            .unwrap_or_else(|| panic!("tensor not found: {name:?}"))
     }
 
     /// Get a downcast clone of a [`Tensor`] from the environment.
@@ -127,6 +129,10 @@ impl<B: Backend> DynTensorEnv<B> {
     }
 
     /// Get a downcast clone of a [`Tensor`] from the environment, or panic.
+    ///
+    /// # Panics
+    ///
+    /// If the key isn't bound, or the tensor does not match this type.
     pub fn expect_tensor<const D: usize, K>(
         &self,
         name: impl AsRef<str>,
@@ -134,8 +140,16 @@ impl<B: Backend> DynTensorEnv<B> {
     where
         K: BasicOps<B> + 'static,
     {
-        self.get_tensor(name)
-            .expect("tensor not found: \"{name:?}\"")
+        let name = name.as_ref();
+        let dt = self.expect_dyn(name);
+        dt.downcast_clone().unwrap_or_else(|| {
+            panic!(
+                "tensor {name:?} (rank={}, kind={:?}) is not a Tensor<_, {D}, {}>",
+                dt.rank(),
+                dt.kind(),
+                std::any::type_name::<K>(),
+            )
+        })
     }
 }
 
@@ -241,5 +255,30 @@ mod tests {
             .assert_eq(&float_tensor.to_data_as::<f32>(), true);
 
         assert!(env2.get_ref("baz").is_none());
+    }
+
+    #[test]
+    #[should_panic(expected = "tensor not found: \"missing\"")]
+    fn test_expect_dyn_missing() {
+        DynTensorEnv::<CpuBackend>::default().expect_dyn("missing");
+    }
+
+    #[test]
+    #[should_panic(expected = "tensor not found: \"missing\"")]
+    fn test_expect_tensor_missing() {
+        DynTensorEnv::<CpuBackend>::default().expect_tensor::<2, Float>("missing");
+    }
+
+    #[test]
+    #[should_panic(expected = "tensor \"foo\" (rank=2, kind=Int) is not a Tensor<_, 2, ")]
+    fn test_expect_tensor_type_mismatch() {
+        type B = CpuBackend;
+        let device = default_device();
+
+        let mut env = DynTensorEnv::<B>::default();
+        let int_tensor: Tensor<B, 2, Int> = Tensor::arange(0..6, &device).reshape([2, 3]);
+        env.bind("foo", int_tensor);
+
+        env.expect_tensor::<2, Float>("foo");
     }
 }
