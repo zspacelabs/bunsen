@@ -238,34 +238,6 @@ See [`examples`](examples) for the full index. At a glance:
 * [`whisper-cli`](examples/whisper-cli) — transcribe audio with the bundled Whisper `base` checkpoint through the stream
   driver.
 
-# Motivation
-
-This library is a synthesis of the utility and extension work that I've been accumulating in:
-
-* <https://github.com/zspacelabs/wordchipper>
-* <https://github.com/zspacelabs/bimm>
-* <https://github.com/zspacelabs/bimm-contracts>
-* <https://github.com/zspacelabs/zsl-chat>
-* <https://github.com/crutcher/clockmill>
-
-This library is a work in progress, and I'm working to fold the various utilities and support code from these projects
-into a single place; where we can closely track the burn release cycle, and minimize the dependency-hell churn problem
-for writing extensions.
-
-I plan on continuing to work on this library, and recruit community involvement for landing and publishing new operators
-and blocks in a place we can lock down their testings and documentation.
-
-## Future Components
-
-The base libraries have significant features which haven't been polished and stabilized for bunsen yet.
-
-* weight/data download disk cache - there are several implementations of this in my codebase so far, the most robust is
-  probably in the `wordchipper` code.
-* LLM `DataLoader` - a high-performance burn data loader for LLM models, built on parquet/arrow; and
-  `wordchipper`. This is currently in the `zsl-chat` codebase.
-* `clap` tooling - I've built a lot of burn-related clap tools, and I'm pretty sure some of the arguments/setup
-  machinery could be shared.
-
 # License
 
 `bunsen` is distributed under the terms of both the MIT license and the Apache License (Version 2.0).
