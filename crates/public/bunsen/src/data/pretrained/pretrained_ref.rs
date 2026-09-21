@@ -138,7 +138,6 @@ mod with_cache {
             Construct,
             Loaded,
             PretrainedCache,
-            load_map,
         },
         errors::BunsenResult,
     };
@@ -153,17 +152,28 @@ mod with_cache {
             cache.map_status(kit, &self.to_map())
         }
 
-        /// Loads through `hook`: plan, load, construct.
+        /// Loads through `hook`: [`Construct::plan`],
+        /// [`PretrainedCache::load`], [`Construct::construct`]. The whole
+        /// pathway once a ref is in hand, whether it came from a factory, a
+        /// path, or a manifest.
         ///
         /// # Errors
-        /// As [`load_map`].
+        /// As [`Construct::plan`], [`PretrainedCache::load`] and
+        /// [`Construct::construct`].
         pub fn load<B: Backend, H: Construct>(
             &self,
             cache: &PretrainedCache,
             hook: &H,
             device: &B::Device,
         ) -> BunsenResult<Loaded<H::Built<B>>> {
-            load_map::<B, H>(self.to_map(), cache, hook, device)
+            let planned = hook.plan(self, cache)?;
+            let resources = cache.load(H::KIT, &planned)?;
+            let handle = hook.construct::<B>(self, &resources, device)?;
+            Ok(Loaded {
+                name: resources.map.name.clone(),
+                handle,
+                resources,
+            })
         }
     }
 }
@@ -339,6 +349,7 @@ mod tests {
 
             fn construct<B: Backend>(
                 &self,
+                _model: &PretrainedRef,
                 loaded: &LoadedResources,
                 _device: &B::Device,
             ) -> BunsenResult<Arc<PathBuf>> {

@@ -7,7 +7,6 @@ use bunsen::{
     data::{
         cache::BunsenDiskCacheOptions,
         pretrained::{
-            Fuse,
             PretrainedCache,
             PretrainedCacheOptions,
             ResourceMap,
@@ -35,7 +34,6 @@ use bunsen::{
                 PytorchWhisperScanner,
                 VOCABULARY,
                 WhisperConstruct,
-                load_model,
                 resolve_model,
             },
         },
@@ -182,16 +180,12 @@ impl WhisperDriverArgs {
         cache: &PretrainedCache,
         device: &B::Device,
     ) -> BunsenResult<Arc<WhisperBundle<B>>> {
-        let model = resolve_model(&self.model)?;
-        let mut map = model.to_map();
+        let mut model = resolve_model(&self.model)?;
         if let Some(path) = &self.vocab {
-            map = map.fuse(
-                ResourceMap::given("--vocab", VOCABULARY, path),
-                Fuse::Overlay,
-            )?;
+            model = model.with_overlay(ResourceMap::given("--vocab", VOCABULARY, path))?;
         }
         let hook = WhisperConstruct::new().with_scanner(self.scanner.scanner());
-        Ok(load_model::<B>(&model, map, cache, &hook, device)?.handle)
+        Ok(model.load::<B, _>(cache, &hook, device)?.handle)
     }
 
     /// Load and setup the [`WhisperStreamDriver`].

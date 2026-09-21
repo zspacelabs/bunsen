@@ -1,13 +1,18 @@
 //! # Constructing a Whisper pretrained
 //!
-//! The [`Construct`] hook for the Whisper kit: from a loaded resource map
-//! to a [`WhisperBundle`]. [`plan`](Construct::plan) applies the vocabulary
-//! rule and the geometry check before anything but the checkpoint is
-//! brought local; [`construct`](Construct::construct) reads the checkpoint
-//! through the scanner and the vocabulary through the rank parser, and
-//! checks that they agree.
+//! The [`Construct`] hook for the Whisper kit: from a resolved model to a
+//! [`WhisperBundle`]. [`plan`](Construct::plan) scans the checkpoint,
+//! checks it against the geometry the model promises, and applies the
+//! vocabulary rule, all before anything but the checkpoint is brought
+//! local; [`construct`](Construct::construct) reads the checkpoint through
+//! the scanner and the vocabulary through the rank parser, and checks that
+//! they agree. [`scan`](WhisperConstruct::scan) is the read-only half, for
+//! a listing that wants the geometry without the weights.
 
-use std::sync::Arc;
+use std::{
+    path::Path,
+    sync::Arc,
+};
 
 use burn::prelude::Backend;
 
@@ -27,6 +32,7 @@ use crate::{
     },
     kits::{
         speech::whisper::{
+            WhisperApiConfig,
             WhisperGeometry,
             driver::WhisperBundle,
             pretrained::{
@@ -50,8 +56,10 @@ pub struct WhisperConstruct {
     /// size, and the front end and token layout to declare.
     pub scanner: PytorchWhisperScanner,
 
-    /// The geometry the checkpoint must scan to: what a row's prefab
-    /// promised. `None` accepts whatever is found.
+    /// The geometry the checkpoint must scan to, overriding what a row's
+    /// prefab promises. `None`, the default, expects the prefab's geometry
+    /// when the model was named, and accepts whatever is found when it was
+    /// given.
     pub expected: Option<WhisperGeometry>,
 }
 
@@ -62,7 +70,7 @@ impl Default for WhisperConstruct {
 }
 
 impl WhisperConstruct {
-    /// Upstream's scanner, expecting nothing in particular.
+    /// Upstream's scanner, expecting what the model promises.
     pub fn new() -> Self {
         Self {
             scanner: PytorchWhisperScanner::new(),
@@ -79,7 +87,8 @@ impl WhisperConstruct {
         self
     }
 
-    /// Sets the geometry the checkpoint must scan to.
+    /// Sets the geometry the checkpoint must scan to, which wins over the
+    /// one a row's prefab promises.
     pub fn with_expected(
         mut self,
         expected: Option<WhisperGeometry>,
@@ -88,45 +97,71 @@ impl WhisperConstruct {
         self
     }
 
-    /// Expects the geometry `model`'s prefab promises, if it was named and
-    /// names one; a given model promises nothing.
-    pub fn expecting(
-        self,
+    /// The geometry `model` must scan to: the explicit one, else its
+    /// prefab's when it was named and names one, else none.
+    pub fn expected_for(
+        &self,
         model: &PretrainedRef,
-    ) -> Self {
-        let expected = model
-            .prefab(&WHISPER_PREFABS)
-            .map(|prefab| prefab.to_config().geometry());
-        self.with_expected(expected)
+    ) -> Option<WhisperGeometry> {
+        self.expected.or_else(|| {
+            model
+                .prefab(&WHISPER_PREFABS)
+                .map(|prefab| prefab.to_config().geometry())
+        })
+    }
+
+    /// Scans a checkpoint for its config without loading its weights, and
+    /// checks it against the geometry `model` promises.
+    ///
+    /// # Errors
+    /// As [`PytorchWhisperScanner::scan_cfg`];
+    /// [`BunsenError::Invalid`] naming both geometries when the file at
+    /// that name is not the model it claims to be.
+    pub fn scan(
+        &self,
+        model: &PretrainedRef,
+        path: &Path,
+    ) -> BunsenResult<WhisperApiConfig> {
+        let (_, cfg) = self.scanner.scan_cfg(path)?;
+        self.check(model, &cfg.geometry())?;
+        Ok(cfg)
+    }
+
+    /// Checks a scanned geometry against the one `model` promises.
+    fn check(
+        &self,
+        model: &PretrainedRef,
+        found: &WhisperGeometry,
+    ) -> BunsenResult<()> {
+        match self.expected_for(model) {
+            Some(expected) if expected != *found => Err(BunsenError::Invalid(format!(
+                "{}: the checkpoint's geometry is {found:?}, not the promised {expected:?}",
+                model.id()
+            ))),
+            _ => Ok(()),
+        }
     }
 }
 
 impl Construct for WhisperConstruct {
     type Built<B: Backend> = WhisperBundle<B>;
 
+    const GIVEN_KEY: Option<&'static str> = Some(CHECKPOINT);
     const KIT: &'static str = WHISPER_KIT;
 
     /// Scans the checkpoint, which comes local for it, checks its geometry
-    /// against the expected one, and settles the vocabulary: a map without
+    /// against the promised one, and settles the vocabulary: a map without
     /// one gets the one the checkpoint's layout selects; a map that
     /// declares one must declare that, unless the caller gave it, which is
     /// trusted.
     fn plan(
         &self,
-        map: ResourceMap,
+        model: &PretrainedRef,
         cache: &PretrainedCache,
     ) -> BunsenResult<ResourceMap> {
+        let map = model.to_map();
         let checkpoint = cache.resolve(WHISPER_KIT, map.try_get(CHECKPOINT)?)?;
-        let (_, cfg) = self.scanner.scan_cfg(&checkpoint.path)?;
-        if let Some(expected) = &self.expected {
-            let found = cfg.geometry();
-            if found != *expected {
-                return Err(BunsenError::Invalid(format!(
-                    "{}: the checkpoint's geometry is {found:?}, not the promised {expected:?}",
-                    map.name
-                )));
-            }
-        }
+        let cfg = self.scan(model, &checkpoint.path)?;
 
         let ids = *cfg.token_layout.policy_for_vocab(cfg.vocab_size)?.ids();
         let rule = vocabulary_map(&ids).to_map();
@@ -151,6 +186,7 @@ impl Construct for WhisperConstruct {
     /// with.
     fn construct<B: Backend>(
         &self,
+        _model: &PretrainedRef,
         loaded: &LoadedResources,
         device: &B::Device,
     ) -> BunsenResult<Arc<WhisperBundle<B>>> {
@@ -181,6 +217,8 @@ mod tests {
                 BASE_CHECKPOINT,
                 GPT2_VOCABULARY,
                 load_named,
+                prefab_for_geometry,
+                resolve_model,
                 testing::offline_cache,
             },
         },
@@ -189,6 +227,13 @@ mod tests {
             default_device,
         },
     };
+
+    fn geometry_of(prefab: &str) -> WhisperGeometry {
+        WHISPER_PREFABS
+            .expect_lookup_prefab(prefab)
+            .to_config()
+            .geometry()
+    }
 
     /// `openai/base` loads whole from the bundle's directory: the model, a
     /// multilingual layout, the multilingual vocabulary, both parts cached.
@@ -223,8 +268,12 @@ mod tests {
     #[test]
     fn test_plan_derives_a_paths_vocabulary() {
         let cache = offline_cache();
-        let given = ResourceMap::given("base", CHECKPOINT, bunsen_bundled_whisper::base_pt());
-        let planned = WhisperConstruct::new().plan(given, &cache).unwrap();
+        let given = PretrainedRef::from(ResourceMap::given(
+            "base",
+            CHECKPOINT,
+            bunsen_bundled_whisper::base_pt(),
+        ));
+        let planned = WhisperConstruct::new().plan(&given, &cache).unwrap();
         assert_eq!(planned.name, "base");
         assert_eq!(planned.keys(), [CHECKPOINT, VOCABULARY]);
         assert_eq!(
@@ -242,46 +291,104 @@ mod tests {
             .to_map()
             .fuse(GPT2_VOCABULARY.to_map(), Fuse::Strict)
             .unwrap();
-        let err = WhisperConstruct::new().plan(wrong, &cache).unwrap_err();
+        let err = WhisperConstruct::new()
+            .plan(&PretrainedRef::from(wrong), &cache)
+            .unwrap_err();
         assert!(
             matches!(&err, BunsenError::Invalid(m) if m.contains("gpt2.tiktoken") && m.contains("multilingual.tiktoken")),
             "{err}"
         );
 
-        let overridden = BASE_CHECKPOINT
-            .to_map()
-            .fuse(
-                ResourceMap::given(
-                    "--vocab",
-                    VOCABULARY,
-                    bunsen_bundled_whisper::gpt2_tiktoken(),
-                ),
-                Fuse::Overlay,
-            )
+        let overridden = PretrainedRef::from(BASE_CHECKPOINT.to_map())
+            .with_overlay(ResourceMap::given(
+                "--vocab",
+                VOCABULARY,
+                bunsen_bundled_whisper::gpt2_tiktoken(),
+            ))
             .unwrap();
-        let planned = WhisperConstruct::new().plan(overridden, &cache).unwrap();
+        let planned = WhisperConstruct::new().plan(&overridden, &cache).unwrap();
         assert_eq!(planned.get(VOCABULARY).unwrap().file, "gpt2.tiktoken");
     }
 
     /// The geometry a name promises is checked against the scan before
-    /// anything is loaded.
+    /// anything is loaded: a named model plans against its prefab, a
+    /// given one promises nothing, and an explicit expectation wins over
+    /// both.
     #[test]
-    fn test_plan_checks_the_expected_geometry() {
+    fn test_plan_checks_the_prefab_a_name_promises() {
         let cache = offline_cache();
-        let tiny = WHISPER_PREFABS
-            .expect_lookup_prefab("tiny")
-            .to_config()
-            .geometry();
-        let hook = WhisperConstruct::new().with_expected(Some(tiny));
-        let err = hook.plan(BASE_CHECKPOINT.to_map(), &cache).unwrap_err();
+        let base_pt = bunsen_bundled_whisper::base_pt();
+        let given = PretrainedRef::from(BASE_CHECKPOINT.to_map());
+        let named = resolve_model("openai/base").unwrap();
+        let hook = WhisperConstruct::new();
+
+        assert_eq!(hook.expected_for(&given), None);
+        assert_eq!(hook.expected_for(&named), Some(geometry_of("base")));
+        hook.plan(&named, &cache).unwrap();
+        hook.plan(&given, &cache).unwrap();
+
+        let tiny = hook.clone().with_expected(Some(geometry_of("tiny")));
+        let err = tiny.plan(&given, &cache).unwrap_err();
         assert!(
             matches!(&err, BunsenError::Invalid(m) if m.contains("promised")),
             "{err}"
         );
 
-        let base = crate::kits::speech::whisper::pretrained::resolve_model("openai/base").unwrap();
-        let hook = WhisperConstruct::new().expecting(&base);
-        assert!(hook.expected.is_some());
-        hook.plan(base.to_map(), &cache).unwrap();
+        // An explicit expectation overrides a wrong promise: `base.pt`
+        // under `openai/tiny`, told to expect base, scans.
+        let wrong_name = resolve_model("openai/tiny").unwrap();
+        assert!(hook.scan(&wrong_name, base_pt).is_err());
+        let explicit = hook.clone().with_expected(Some(geometry_of("base")));
+        assert_eq!(
+            explicit.expected_for(&wrong_name),
+            Some(geometry_of("base"))
+        );
+        explicit.scan(&wrong_name, base_pt).unwrap();
+    }
+
+    /// The bundled checkpoint is `openai/base`; scanning it must agree with
+    /// the `base` prefab, which is what pins the prefab table to a real
+    /// file.
+    #[test]
+    fn test_the_bundled_base_scans_as_the_base_prefab() {
+        let model = resolve_model("openai/base").unwrap();
+        let cfg = WhisperConstruct::new()
+            .scan(&model, bunsen_bundled_whisper::base_pt())
+            .unwrap();
+
+        let geometry = cfg.geometry();
+        assert_eq!(prefab_for_geometry(&geometry).map(|p| p.name), Some("base"));
+        assert_eq!(geometry.n_heads(), 8);
+    }
+
+    /// The scanner is honored: one that declares another head size scans
+    /// the bundled file to another geometry, which a named model rejects
+    /// and a given one reports.
+    #[test]
+    fn test_scan_honors_the_scanner() {
+        let base = bunsen_bundled_whisper::base_pt();
+        let hook =
+            WhisperConstruct::new().with_scanner(PytorchWhisperScanner::new().with_d_head(32));
+
+        let named = resolve_model("openai/base").unwrap();
+        let err = hook.scan(&named, base).unwrap_err();
+        assert!(matches!(err, BunsenError::Invalid(_)), "{err}");
+
+        let given = PretrainedRef::from(ResourceMap::given("base", CHECKPOINT, base));
+        let cfg = hook.scan(&given, base).unwrap();
+        assert_eq!(cfg.geometry().d_head, 32);
+        assert_eq!(cfg.geometry().n_heads(), 16);
+    }
+
+    /// `base.pt` scanned as if it were `openai/tiny`: same file, wrong
+    /// promise.
+    #[test]
+    fn test_a_checkpoint_under_the_wrong_name_is_rejected() {
+        let model = resolve_model("openai/tiny").unwrap();
+        let err = WhisperConstruct::new()
+            .scan(&model, bunsen_bundled_whisper::base_pt())
+            .unwrap_err();
+        assert!(matches!(err, BunsenError::Invalid(_)), "{err}");
+        assert!(err.to_string().contains("openai/tiny"), "{err}");
     }
 }

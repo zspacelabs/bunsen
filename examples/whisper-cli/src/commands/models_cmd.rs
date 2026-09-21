@@ -32,7 +32,6 @@ use bunsen::{
             openai_download_root,
             prefab_for_geometry,
             resolve_model,
-            scan_model_with,
             vocabulary_map,
         },
     },
@@ -256,10 +255,8 @@ fn fetch(
         // The hook's plan, before anything but the checkpoint is fetched: a
         // path gets the vocabulary its checkpoint's layout selects, and a
         // name is checked against the geometry it promised.
-        let hook = WhisperConstruct::new()
-            .with_scanner(scanner.clone())
-            .expecting(&model);
-        let map = hook.plan(model.to_map(), cache)?;
+        let hook = WhisperConstruct::new().with_scanner(scanner.clone());
+        let map = hook.plan(&model, cache)?;
         let loaded = cache.load(WHISPER_KIT, &map)?;
         println!("{}:", model.id());
         for (key, part) in loaded.iter() {
@@ -325,8 +322,9 @@ fn inspect(
     );
 
     // A named model that does not scan as its prefab is an error from
-    // `scan_model`; report it as the finding it is rather than a failure.
-    let cfg = match scan_model_with(&model, &checkpoint.path, scanner) {
+    // `scan`; report it as the finding it is rather than a failure.
+    let hook = WhisperConstruct::new().with_scanner(scanner.clone());
+    let cfg = match hook.scan(&model, &checkpoint.path) {
         Ok(cfg) => cfg,
         Err(BunsenError::Invalid(msg)) if promised.is_some() => {
             println!("MISMATCH: {msg}");
