@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.33.0](https://github.com/zspacelabs/bunsen/compare/bunsen-bundled-whisper-v0.32.0...bunsen-bundled-whisper-v0.33.0) - 2026-09-21
+
+### Fixed
+
+- fix docs. ([#214](https://github.com/zspacelabs/bunsen/pull/214))
+
+### Other
+
+- Bundled Whisper loading retired, the bundle crate fetches nothing by default, and the prefab-map small adds ([#213](https://github.com/zspacelabs/bunsen/pull/213))
+
 ## [0.31.0](https://github.com/zspacelabs/bunsen/compare/bunsen-bundled-whisper-v0.30.1...bunsen-bundled-whisper-v0.31.0) - 2026-09-03
 
 ### Added

@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.33.0](https://github.com/zspacelabs/bunsen/compare/bunsen-firehose-v0.32.0...bunsen-firehose-v0.33.0) - 2026-09-21
+
+### Fixed
+
+- *(bunsen)* simplify debug formatting assertion in `values.rs` test ([#194](https://github.com/zspacelabs/bunsen/pull/194))
+
+### Other
+
+- *(trailing_comma)* clean up some trailing commas. ([#210](https://github.com/zspacelabs/bunsen/pull/210))
+
 ## [0.31.0](https://github.com/zspacelabs/bunsen/compare/bunsen-firehose-v0.30.1...bunsen-firehose-v0.31.0) - 2026-09-03
 
 ### Added
