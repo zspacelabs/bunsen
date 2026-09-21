@@ -1,4 +1,14 @@
-//! # Module / Pretrained Weights
+//! # Pretrained models
+//!
+//! A pretrained is a row over a [`ResourceMap`]: keyed files, each with
+//! its digest and the places it can be had from. Rows sit in
+//! [`PretrainedGroup`]s behind a [`PretrainedTable`], the compiled-in
+//! [`PretrainedProvider`]; a [`PretrainedFactory`] holds a kit's providers
+//! in search order and resolves a spec, `provider:ref` or a bare name or a
+//! path, to a [`PretrainedRef`]. With the `cache` feature, the
+//! [`PretrainedCache`] brings a map's files local and a kit's
+//! [`Construct`] hook builds from them, behind an `Arc`. [`StaticPreFabMap`]
+//! is the other half: the geometries a kit knows by name.
 
 #[cfg(feature = "cache")]
 mod cache;
@@ -13,7 +23,6 @@ mod providers;
 mod resource;
 mod resource_map;
 mod rows;
-mod weights;
 
 #[cfg(feature = "cache")]
 #[doc(inline)]
@@ -38,8 +47,6 @@ pub use resource::*;
 pub use resource_map::*;
 #[doc(inline)]
 pub use rows::*;
-#[doc(inline)]
-pub use weights::*;
 
 /// [`ResourceNotFound`](crate::errors::BunsenError::ResourceNotFound) for a
 /// name a table does not have, naming what it has: `"<table>: no <kind>

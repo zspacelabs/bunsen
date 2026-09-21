@@ -202,7 +202,6 @@ mod tests {
             name: "small",
             description: "a small shape",
             builder: || Shape { width: 4 },
-            weights: None,
         }],
     };
 

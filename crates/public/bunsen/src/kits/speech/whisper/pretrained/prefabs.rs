@@ -43,9 +43,6 @@ const LARGE_V3: WhisperGeometry = WhisperGeometry::openai(128, 51866, 1280, 32, 
 const LARGE_V3_TURBO: WhisperGeometry = WhisperGeometry::openai(128, 51866, 1280, 32, 4);
 
 /// The Whisper prefabs: every geometry `openai-whisper` ships, by name.
-///
-/// `weights` is `None` throughout: the pretrained side is indexed by
-/// provider, pretrained → prefab, and arrives with its own table.
 pub static WHISPER_PREFABS: StaticPreFabMap<WhisperApiConfig> = StaticPreFabMap {
     name: "whisper",
     description: "OpenAI Whisper geometries, as `whisper.model.ModelDimensions` has them",
@@ -54,67 +51,56 @@ pub static WHISPER_PREFABS: StaticPreFabMap<WhisperApiConfig> = StaticPreFabMap 
             name: "tiny",
             description: "d_model 384, 4 + 4 layers, multilingual",
             builder: || TINY.to_api_config(),
-            weights: None,
         },
         &StaticPreFabConfig {
             name: "tiny.en",
             description: "d_model 384, 4 + 4 layers, English-only",
             builder: || TINY_EN.to_api_config(),
-            weights: None,
         },
         &StaticPreFabConfig {
             name: "base",
             description: "d_model 512, 6 + 6 layers, multilingual",
             builder: || BASE.to_api_config(),
-            weights: None,
         },
         &StaticPreFabConfig {
             name: "base.en",
             description: "d_model 512, 6 + 6 layers, English-only",
             builder: || BASE_EN.to_api_config(),
-            weights: None,
         },
         &StaticPreFabConfig {
             name: "small",
             description: "d_model 768, 12 + 12 layers, multilingual",
             builder: || SMALL.to_api_config(),
-            weights: None,
         },
         &StaticPreFabConfig {
             name: "small.en",
             description: "d_model 768, 12 + 12 layers, English-only",
             builder: || SMALL_EN.to_api_config(),
-            weights: None,
         },
         &StaticPreFabConfig {
             name: "medium",
             description: "d_model 1024, 24 + 24 layers, multilingual",
             builder: || MEDIUM.to_api_config(),
-            weights: None,
         },
         &StaticPreFabConfig {
             name: "medium.en",
             description: "d_model 1024, 24 + 24 layers, English-only",
             builder: || MEDIUM_EN.to_api_config(),
-            weights: None,
         },
         &StaticPreFabConfig {
             name: "large",
             description: "d_model 1280, 32 + 32 layers, 80 mels, 99 languages (large-v1, large-v2)",
             builder: || LARGE.to_api_config(),
-            weights: None,
         },
         &StaticPreFabConfig {
             name: "large-v3",
             description: "d_model 1280, 32 + 32 layers, 128 mels, 100 languages",
             builder: || LARGE_V3.to_api_config(),
-            weights: None,
         },
         &StaticPreFabConfig {
             name: "large-v3-turbo",
             description: "d_model 1280, 32 + 4 layers, 128 mels, 100 languages",
             builder: || LARGE_V3_TURBO.to_api_config(),
-            weights: None,
         },
     ],
 };

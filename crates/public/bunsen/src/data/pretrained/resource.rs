@@ -10,6 +10,9 @@
 //! the file in is a "trust me" source, used in place; a URL is fetched into
 //! the cache. The owned twin carries them all, so it stands alone, and a
 //! fused map needs no memory of which map a resource came from.
+//!
+//! [`StaticSource`] and [`Source`] are one place a file can be had from;
+//! [`StaticBase`] is a place a map's file names are appended to.
 
 use alloc::{
     format,
@@ -31,11 +34,6 @@ use serde::{
     Serialize,
 };
 
-use super::{
-    Source,
-    StaticSource,
-    url_to_cache_key,
-};
 use crate::errors::{
     BunsenError,
     BunsenResult,
@@ -43,6 +41,104 @@ use crate::errors::{
 
 /// The namespace of a resource that arrived as a path rather than a row.
 pub const GIVEN_NAMESPACE: &str = "given";
+
+const X25: crc::Crc<u16> = crc::Crc::<u16>::new(&crc::CRC_16_IBM_SDLC);
+
+/// A cache key (a bare directory name) from a name and a URL: the URL's
+/// checksum and its base name, so that two unpinned files with one name
+/// from two places do not share a slot.
+pub fn url_to_cache_key(
+    name: Option<&str>,
+    url: &str,
+) -> String {
+    let hash = X25.checksum(url.as_bytes()).to_string();
+    let base_name = url.rsplit_once('/').map_or(url, |(_, name)| name);
+    match name {
+        Some(n) => format!("{}-{}-{}", n, hash, base_name),
+        None => format!("{}-{}", hash, base_name),
+    }
+}
+
+/// One place a file can be had from, as a compiled-in table spells it.
+///
+/// Sources are tried in the order listed: a directory another tool keeps
+/// the file in is used in place, a URL is fetched into the cache. A
+/// bundled file is neither; it is a cache directory populated ahead of
+/// time.
+#[derive(Clone, Copy, Debug)]
+pub enum StaticSource<'a> {
+    /// A URL, fetched into the cache.
+    Url(&'a str),
+
+    /// A directory another tool keeps this file in, under its bare name:
+    /// `openai-whisper`'s download root, a hub cache. `name` is what a caller
+    /// overrides the directory by; `default` is where it is when nobody does.
+    LocalDir {
+        /// The source's name, for overrides and messages.
+        name: &'a str,
+        /// Where the directory is by default, when it can be resolved.
+        default: fn() -> Option<PathBuf>,
+    },
+}
+
+impl StaticSource<'_> {
+    /// The owned twin, with the default directory resolved now.
+    pub fn to_source(&self) -> Source {
+        match self {
+            Self::Url(url) => Source::Url(url.to_string()),
+            Self::LocalDir { name, default } => Source::LocalDir {
+                name: name.to_string(),
+                dir: default(),
+            },
+        }
+    }
+}
+
+impl fmt::Display for StaticSource<'_> {
+    fn fmt(
+        &self,
+        f: &mut fmt::Formatter<'_>,
+    ) -> fmt::Result {
+        match self {
+            Self::Url(url) => write!(f, "url {url}"),
+            Self::LocalDir { name, .. } => write!(f, "local dir {name}"),
+        }
+    }
+}
+
+/// One place a file can be had from.
+///
+/// The owned twin of [`StaticSource`]: a local directory carries the
+/// directory it resolved to.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum Source {
+    /// A URL, fetched into the cache.
+    Url(String),
+
+    /// A directory another tool keeps this file in, under its bare name.
+    LocalDir {
+        /// The source's name, for overrides and messages.
+        name: String,
+        /// The directory, when it could be resolved.
+        dir: Option<PathBuf>,
+    },
+}
+
+impl fmt::Display for Source {
+    fn fmt(
+        &self,
+        f: &mut fmt::Formatter<'_>,
+    ) -> fmt::Result {
+        match self {
+            Self::Url(url) => write!(f, "url {url}"),
+            Self::LocalDir {
+                name,
+                dir: Some(dir),
+            } => write!(f, "local dir {name} ({})", dir.display()),
+            Self::LocalDir { name, dir: None } => write!(f, "local dir {name} (unresolved)"),
+        }
+    }
+}
 
 /// A place a map's file names are appended to, as a compiled-in table spells
 /// it.
@@ -284,6 +380,48 @@ pub(crate) fn is_sha256_hex(s: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn upstream_dir_for_display() -> Option<PathBuf> {
+        Some(PathBuf::from("/home/someone/.cache/upstream"))
+    }
+
+    /// Sources print as a listing shows them, the owned local dir with the
+    /// directory it resolved to.
+    #[test]
+    fn test_source_display() {
+        let sources = [
+            StaticSource::LocalDir {
+                name: "upstream",
+                default: upstream_dir_for_display,
+            },
+            StaticSource::Url("https://a.example/my_model.pt"),
+        ];
+        let shown: Vec<String> = sources.iter().map(|s| s.to_string()).collect();
+        assert_eq!(
+            shown,
+            ["local dir upstream", "url https://a.example/my_model.pt"]
+        );
+        assert_eq!(
+            sources[0].to_source().to_string(),
+            "local dir upstream (/home/someone/.cache/upstream)"
+        );
+        assert_eq!(
+            sources[1].to_source(),
+            Source::Url("https://a.example/my_model.pt".to_string())
+        );
+        assert_eq!(
+            Source::LocalDir {
+                name: "x".to_string(),
+                dir: None
+            }
+            .to_string(),
+            "local dir x (unresolved)"
+        );
+        assert_eq!(
+            url_to_cache_key(Some("m"), "https://a.example/m.pt"),
+            format!("m-{}-m.pt", X25.checksum(b"https://a.example/m.pt"))
+        );
+    }
 
     const ABC_SHA256: &str = "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad";
 

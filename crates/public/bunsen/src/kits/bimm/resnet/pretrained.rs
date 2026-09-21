@@ -352,37 +352,31 @@ pub static PREFAB_RESNET_MAP: StaticPreFabMap<ResNetContractConfig> = StaticPreF
             name: "resnet18",
             description: "ResNet-18 [2, 2, 2, 2] BasicBlocks",
             builder: || ResNetContractConfig::new(vec![2, 2, 2, 2], 1000),
-            weights: None,
         },
         &StaticPreFabConfig {
             name: "resnet26",
             description: "ResNet-26 [2, 2, 2, 2] Bottleneck",
             builder: || ResNetContractConfig::new(vec![2, 2, 2, 2], 1000).with_bottleneck(true),
-            weights: None,
         },
         &StaticPreFabConfig {
             name: "resnet34",
             description: "ResNet-34 [3, 4, 6, 3] BasicBlocks",
             builder: || ResNetContractConfig::new(vec![3, 4, 6, 3], 1000),
-            weights: None,
         },
         &StaticPreFabConfig {
             name: "resnet50",
             description: "ResNet-50 [3, 4, 6, 3] Bottleneck",
             builder: || ResNetContractConfig::new(vec![3, 4, 6, 3], 1000).with_bottleneck(true),
-            weights: None,
         },
         &StaticPreFabConfig {
             name: "resnet101",
             description: "ResNet-101 [3, 4, 23, 3] Bottleneck",
             builder: || ResNetContractConfig::new(vec![3, 4, 23, 3], 1000).with_bottleneck(true),
-            weights: None,
         },
         &StaticPreFabConfig {
             name: "resnet152",
             description: "ResNet-152 [3, 8, 36, 3] Bottleneck",
             builder: || ResNetContractConfig::new(vec![3, 8, 36, 3], 1000).with_bottleneck(true),
-            weights: None,
         },
     ],
 };
