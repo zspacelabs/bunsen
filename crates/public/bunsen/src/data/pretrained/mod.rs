@@ -6,6 +6,8 @@ mod cache;
 mod model_ref;
 mod prefabs;
 mod providers;
+mod resource;
+mod resource_map;
 mod weights;
 
 #[cfg(feature = "cache")]
@@ -18,6 +20,10 @@ pub use model_ref::*;
 pub use prefabs::*;
 #[doc(inline)]
 pub use providers::*;
+#[doc(inline)]
+pub use resource::*;
+#[doc(inline)]
+pub use resource_map::*;
 #[doc(inline)]
 pub use weights::*;
 

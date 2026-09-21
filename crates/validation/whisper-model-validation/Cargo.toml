@@ -13,9 +13,6 @@ license.workspace = true
 [lints]
 workspace = true
 
-[profile.dev]
-opt-level = 2
-
 
 [features]
 default = []
