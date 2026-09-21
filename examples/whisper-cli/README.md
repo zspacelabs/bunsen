@@ -28,8 +28,8 @@ driver and a `models` subcommand; the [model index](#models) and the name-to-mod
   detokenizer, and upstream's default suppress list; the driver takes both from the bundle (`init_from_bundle`).
   `--vocab` overlays a file by path, trusted as given.
 - `kits::speech::whisper::pretrained::PytorchWhisperScanner` — scans a checkpoint's geometry and loads its weights;
-  the factory's `load` checks the scan against the prefab the name promised before the weights are read. `--state-dict-key`
-  configures it.
+  the kit's hook checks the scan against the prefab the name promised before the weights are read, and picks the
+  reader by the row's resource `kind`.
 - `data::pretrained::StaticPreFabMap` — the prefab table, `WHISPER_PREFABS`, is bunsen's prefab type over
   `WhisperApiConfig`, as `PREFAB_RESNET_MAP` is over the ResNet config.
 - `data::pretrained::PretrainedCache` over `data::cache::BunsenDiskCache` — the cache directory (`--cache-dir`,
@@ -79,8 +79,6 @@ Model options:
 - `--offline` — never reach the network; a model that is not already local is an error.
 - `--upstream-cache-dir` — `openai-whisper`'s download root, whose files are used in place (default `~/.cache/whisper`).
 - `--vocab` — a `.tiktoken` vocabulary by path, in place of the one the checkpoint's token layout selects.
-- `--state-dict-key` — the key the checkpoint keeps its tensors under (default `model_state_dict`, as OpenAI's do);
-  an empty string for a checkpoint whose tensors are at the top level.
 
 Decode options:
 
@@ -191,8 +189,10 @@ All of it is bunsen's: `kits::speech::whisper::pretrained::{WHISPER_PREFABS, OPE
 OPENAI_CHECKPOINTS, MULTILINGUAL_VOCABULARY, GPT2_VOCABULARY}` over `data::pretrained::{StaticPretrained,
 StaticPretrainedGroup, StaticPretrainedTable, StaticResourceMap, PretrainedCache, PretrainedRef}`, with
 `WhisperGeometry` beside `WhisperApiConfig`. `pretrained::default_whisper_factory()` is the index: a
-`PretrainedFactory<WhisperConstruct>` over `dyn PretrainedProvider`s in search order, owning the kit's hook, whose
-`resolve`, `load_bundle` and `load_ref` are the name-to-model pathway, `scan` its read-only half, and
+`PretrainedFactory<WhisperConstruct>` over `dyn PretrainedProvider`s in search order, owning the kit's hook: names
+and a listing, `load_bundle` the whole name-to-model pathway, `resolve` its index half for a `--vocab` overlay. A
+checkpoint path is not the factory's: it is a given map, read through the same hook (`hook().scan` is the read-only
+half `models inspect` uses), and
 `WhisperVocabulary::{for_layout, map, load}` the layout-to-vocabulary rule, its file and its resolve. A caller with a
 provider of its own builds a factory over `default_whisper_providers()` and adds it. This crate resolves `--model`
 through the default factory and reports through the `models` subcommand; it keeps no index of its own.

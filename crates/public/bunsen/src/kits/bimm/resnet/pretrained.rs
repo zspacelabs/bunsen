@@ -477,23 +477,9 @@ mod construct {
         PretrainedFactory::new(ResNetConstruct::new()).with_providers(default_resnet_providers())
     }
 
-    impl PretrainedFactory<ResNetConstruct> {
-        /// Builds from `config` rather than the prefab a row names: a
-        /// caller that rewrites the model before the weights land, or a
-        /// given checkpoint, which names no prefab.
-        pub fn with_config(
-            self,
-            config: ResNetContractConfig,
-        ) -> Self {
-            let hook = self.hook().clone().with_config(config);
-            self.with_hook(hook)
-        }
-    }
-
     impl Construct for ResNetConstruct {
         type Built<B: Backend> = ResNet<B>;
 
-        const GIVEN_KEY: Option<&'static str> = Some(CHECKPOINT);
         const KIT: &'static str = RESNET_KIT;
 
         /// Initialises the config's model and reads the checkpoint into it.
@@ -640,17 +626,6 @@ mod tests {
                 .with_providers(default_resnet_providers())
                 .is_err()
         );
-        assert!(
-            factory
-                .with_config(
-                    PREFAB_RESNET_MAP
-                        .expect_lookup_prefab("resnet18")
-                        .to_config()
-                )
-                .hook()
-                .config
-                .is_some()
-        );
     }
 
     /// The hook builds from the prefab a row names, or from an explicit
@@ -703,8 +678,11 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let file = dir.path().join("ckpt.pth");
         fs::write(&file, b"not a state dict").unwrap();
-        let given = factory.resolve(file.to_str().unwrap()).unwrap();
-        assert!(matches!(given, PretrainedRef::Given(_)));
+        assert!(
+            factory.resolve(file.to_str().unwrap()).is_err(),
+            "a path is not a name the factory knows"
+        );
+        let given = PretrainedRef::from(ResourceMap::given("mine", CHECKPOINT, &file));
         let err = hook.config_for(&given).unwrap_err();
         assert!(
             matches!(&err, BunsenError::InvalidArgument { msg } if msg.contains("with_config")),
@@ -730,6 +708,6 @@ mod tests {
             .load::<CpuBackend, _>(&cache, &hook, &default_device())
             .unwrap_err();
         assert!(matches!(err, BunsenError::InvalidArgument { .. }), "{err}");
-        assert_eq!(<ResNetConstruct as Construct>::GIVEN_KEY, Some(CHECKPOINT));
+        assert_eq!(<ResNetConstruct as Construct>::KIT, RESNET_KIT);
     }
 }

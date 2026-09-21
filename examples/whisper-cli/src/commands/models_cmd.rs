@@ -5,6 +5,7 @@ use bunsen::{
         cache::verify_sha256,
         pretrained::{
             CacheStatus,
+            Construct,
             PretrainedCache,
             PretrainedFactory,
             PretrainedProvider,
@@ -39,8 +40,8 @@ use clap_common::logging::{
 };
 
 use crate::whisper_clap::{
-    ScannerArgs,
     WeightsCacheArgs,
+    resolve_model,
 };
 
 /// Lists, fetches and inspects the models `--model` can name.
@@ -78,9 +79,6 @@ enum ModelsAction {
         #[arg(long)]
         verify: bool,
 
-        #[clap(flatten)]
-        scanner: ScannerArgs,
-
         /// Model names, as `--model` takes them.
         #[arg(required = true)]
         names: Vec<String>,
@@ -90,9 +88,6 @@ enum ModelsAction {
     Inspect {
         /// A model name, as `--model` takes it, or a checkpoint path.
         name: String,
-
-        #[clap(flatten)]
-        scanner: ScannerArgs,
     },
 }
 
@@ -105,19 +100,8 @@ impl ModelsCmd {
         match &self.action {
             ModelsAction::List => list(&factory, &cache),
             ModelsAction::Prefabs => prefabs(),
-            ModelsAction::Fetch {
-                verify,
-                scanner,
-                names,
-            } => fetch(
-                &factory.with_scanner(scanner.scanner()),
-                &cache,
-                names,
-                *verify,
-            ),
-            ModelsAction::Inspect { name, scanner } => {
-                inspect(&factory.with_scanner(scanner.scanner()), &cache, name)
-            }
+            ModelsAction::Fetch { verify, names } => fetch(&factory, &cache, names, *verify),
+            ModelsAction::Inspect { name } => inspect(&factory, &cache, name),
         }
     }
 }
@@ -126,7 +110,7 @@ fn resolve(
     factory: &PretrainedFactory<WhisperConstruct>,
     name: &str,
 ) -> BunsenResult<PretrainedRef> {
-    factory.resolve(name)
+    resolve_model(factory, name)
 }
 
 fn list(
@@ -263,10 +247,10 @@ fn fetch(
 ) -> BunsenResult<()> {
     for name in names {
         let model = resolve(factory, name)?;
-        // The factory's plan, before anything but the checkpoint is
-        // fetched: a path gets the vocabulary its checkpoint's layout
-        // selects, and a name is checked against the geometry it promised.
-        let map = factory.plan(&model, cache)?;
+        // The hook's plan, before anything but the checkpoint is fetched: a
+        // path gets the vocabulary its checkpoint's layout selects, and a
+        // name is checked against the geometry it promised.
+        let map = factory.hook().plan(&model, cache)?;
         let loaded = cache.load(WHISPER_KIT, &map)?;
         println!("{}:", model.id());
         for (key, part) in loaded.iter() {
@@ -337,7 +321,7 @@ fn inspect(
 
     // A named model that does not scan as its prefab is an error from
     // `scan`; report it as the finding it is rather than a failure.
-    let cfg = match factory.scan(&model, &checkpoint.path) {
+    let cfg = match factory.hook().scan(&model, &checkpoint.path) {
         Ok(cfg) => cfg,
         Err(BunsenError::Invalid(msg)) if promised.is_some() => {
             println!("MISMATCH: {msg}");

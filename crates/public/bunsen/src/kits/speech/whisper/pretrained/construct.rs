@@ -174,7 +174,6 @@ impl WhisperConstruct {
 impl Construct for WhisperConstruct {
     type Built<B: Backend> = WhisperBundle<B>;
 
-    const GIVEN_KEY: Option<&'static str> = Some(CHECKPOINT);
     const KIT: &'static str = WHISPER_KIT;
 
     /// Scans the checkpoint, which comes local for it, checks its geometry

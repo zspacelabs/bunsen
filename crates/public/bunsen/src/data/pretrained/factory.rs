@@ -2,8 +2,11 @@
 //!
 //! The one object a caller holds for a kit: its providers, in search
 //! order, and its [`Construct`] hook, which is how the kit reads what a
-//! provider's rows point at. `factory.load::<B>(spec, &cache, device)` is
-//! the whole pathway; the caller never builds a hook.
+//! provider's rows point at. The interface is names and a listing:
+//! `factory.load::<B>("[provider:]name", &cache, device)` is the whole
+//! pathway, and the caller never builds a hook. A file on disk is not the
+//! factory's business; that is a given [`ResourceMap`] and the kit's hook,
+//! through [`PretrainedRef::load`].
 //!
 //! Dispatch: `provider:ref` goes to that provider and nowhere else; a spec
 //! with no `provider:` is offered to each provider that [answers bare
@@ -30,10 +33,11 @@ use alloc::{
     sync::Arc,
     vec::Vec,
 };
-use std::path::Path;
 
 use burn::prelude::Backend;
 
+#[cfg(doc)]
+use super::ResourceMap;
 use super::{
     Construct,
     Loaded,
@@ -41,7 +45,6 @@ use super::{
     PretrainedCache,
     PretrainedProvider,
     PretrainedRef,
-    ResourceMap,
     not_found,
 };
 use crate::errors::{
@@ -71,19 +74,11 @@ impl<H: Construct> PretrainedFactory<H> {
         H::KIT
     }
 
-    /// The hook: how the kit reads what a row points at.
+    /// The hook: how the kit reads what a row points at. For a ref the
+    /// caller changed first, with [`PretrainedRef::with_overlay`], this is
+    /// what [`PretrainedRef::load`] takes.
     pub fn hook(&self) -> &H {
         &self.hook
-    }
-
-    /// Replaces the hook: a kit's typed factory exposes what a caller may
-    /// want to change on it, so that a caller need not build one.
-    pub fn with_hook(
-        mut self,
-        hook: H,
-    ) -> Self {
-        self.hook = hook;
-        self
     }
 
     /// Adds a provider at the end of the search order.
@@ -213,70 +208,25 @@ impl<H: Construct> PretrainedFactory<H> {
         }
     }
 
-    /// What `spec` refers to: the row it names, as [`lookup`](Self::lookup)
-    /// finds it, or else, when the hook names a key for a bare path
-    /// ([`Construct::GIVEN_KEY`]) and `spec` is a path to an existing file,
-    /// a one-resource map under that key. The index wins over the file
-    /// system; a hook with no key refuses a path.
+    /// The row `spec` names, as [`lookup`](Self::lookup) finds it, as a
+    /// [`PretrainedRef`]: the index half of [`load`](Self::load), for a
+    /// caller that overlays the row before loading it.
     ///
     /// # Errors
-    /// As [`lookup`](Self::lookup), the message noting that `spec` is not
-    /// a file either when a path would have been taken.
+    /// As [`lookup`](Self::lookup).
     pub fn resolve(
         &self,
         spec: &str,
     ) -> BunsenResult<PretrainedRef> {
-        if let Some((provider, pretrained)) = self.find(spec)? {
-            return Ok(PretrainedRef::Named {
-                provider,
-                pretrained,
-            });
-        }
-        let Some(key) = H::GIVEN_KEY else {
-            return Err(self.not_found(spec));
-        };
-        let path = Path::new(spec);
-        if path.is_file() {
-            return Ok(PretrainedRef::Given(ResourceMap::given(spec, key, path)));
-        }
-        Err(match self.not_found(spec) {
-            BunsenError::ResourceNotFound(m) => {
-                BunsenError::ResourceNotFound(alloc::format!("{m}; and {spec:?} is not a file"))
-            }
-            other => other,
+        let (provider, pretrained) = self.lookup(spec)?;
+        Ok(PretrainedRef::Named {
+            provider,
+            pretrained,
         })
     }
 
-    /// The hook's plan for a resolved model: its map completed, before
-    /// anything but what the plan itself looks at is fetched.
-    ///
-    /// # Errors
-    /// As [`Construct::plan`].
-    pub fn plan(
-        &self,
-        model: &PretrainedRef,
-        cache: &PretrainedCache,
-    ) -> BunsenResult<ResourceMap> {
-        self.hook.plan(model, cache)
-    }
-
-    /// A resolved model to what the kit builds: [`PretrainedRef::load`]
-    /// through the hook. For a ref the caller changed first, with
-    /// [`PretrainedRef::with_overlay`].
-    ///
-    /// # Errors
-    /// As [`PretrainedRef::load`].
-    pub fn load_ref<B: Backend>(
-        &self,
-        model: &PretrainedRef,
-        cache: &PretrainedCache,
-        device: &B::Device,
-    ) -> BunsenResult<Loaded<H::Built<B>>> {
-        model.load::<B, H>(cache, &self.hook, device)
-    }
-
-    /// A spec to what the kit builds: [`resolve`](Self::resolve), then
-    /// [`load_ref`](Self::load_ref). The whole pathway.
+    /// A name to what the kit builds: [`resolve`](Self::resolve), then
+    /// [`PretrainedRef::load`] through the hook. The whole pathway.
     ///
     /// # Errors
     /// As [`resolve`](Self::resolve) and [`PretrainedRef::load`].
@@ -286,7 +236,7 @@ impl<H: Construct> PretrainedFactory<H> {
         cache: &PretrainedCache,
         device: &B::Device,
     ) -> BunsenResult<Loaded<H::Built<B>>> {
-        self.load_ref::<B>(&self.resolve(spec)?, cache, device)
+        self.resolve(spec)?.load::<B, H>(cache, &self.hook, device)
     }
 
     /// The dispatch behind [`lookup`](Self::lookup): `Ok(None)` when no
@@ -333,9 +283,9 @@ impl<H: Construct> PretrainedFactory<H> {
     }
 }
 
-/// Providers and hooks with the shape of things the compiled-in tables are
-/// not: a hub that answers a ref but lists nothing, one that fails, and
-/// hooks that build a path or nothing.
+/// Providers and a hook with the shape of things the compiled-in tables are
+/// not: a hub that answers a ref but lists nothing, one that fails, and a
+/// hook that builds a path.
 #[cfg(test)]
 pub(crate) mod testing {
     use alloc::{
@@ -451,15 +401,13 @@ pub(crate) mod testing {
         }
     }
 
-    /// A hook for kit `kit` that builds the checkpoint's path, and takes a
-    /// bare path under `checkpoint`.
+    /// A hook for kit `kit` that builds the checkpoint's path.
     #[derive(Clone, Debug, Default)]
     pub struct CheckpointPath;
 
     impl Construct for CheckpointPath {
         type Built<B: Backend> = PathBuf;
 
-        const GIVEN_KEY: Option<&'static str> = Some("checkpoint");
         const KIT: &'static str = "kit";
 
         fn construct<B: Backend>(
@@ -471,37 +419,18 @@ pub(crate) mod testing {
             Ok(Arc::new(loaded.expect("checkpoint")?.to_path_buf()))
         }
     }
-
-    /// A hook for kit `kit` that builds nothing and takes no bare path.
-    #[derive(Clone, Debug, Default)]
-    pub struct NoPath;
-
-    impl Construct for NoPath {
-        type Built<B: Backend> = ();
-
-        const KIT: &'static str = "kit";
-
-        fn construct<B: Backend>(
-            &self,
-            _model: &PretrainedRef,
-            _loaded: &LoadedResources,
-            _device: &B::Device,
-        ) -> BunsenResult<Arc<()>> {
-            Ok(Arc::new(()))
-        }
-    }
 }
 
 #[cfg(test)]
 mod tests {
     use alloc::vec;
+    use std::path::Path;
 
     use super::{
         testing::{
             CheckpointPath,
             Failing,
             ListsNothing,
-            NoPath,
         },
         *,
     };
@@ -534,6 +463,22 @@ mod tests {
                 namespace: "t".to_string(),
                 sources: vec![Source::Url(format!("https://t.example/{name}.pt"))],
             }),
+        }
+    }
+
+    /// A row whose one resource is a file on disk already.
+    fn local_row(
+        name: &str,
+        path: &Path,
+    ) -> Pretrained {
+        Pretrained {
+            name: name.to_string(),
+            aliases: Vec::new(),
+            description: format!("row {name}, on disk"),
+            license: None,
+            origin: None,
+            prefab: None,
+            resources: ResourceMap::given(name, "checkpoint", path),
         }
     }
 
@@ -612,8 +557,7 @@ mod tests {
         factory.register(well_known()).unwrap();
         assert!(format!("{factory:?}").contains("PretrainedTable"));
         assert!(format!("{:?}", factory.hook()).contains("CheckpointPath"));
-        let again = factory.clone().with_hook(CheckpointPath);
-        assert_eq!(again.providers().len(), 1);
+        assert_eq!(factory.clone().providers().len(), 1);
 
         // The builder form surfaces the same error through `?`.
         assert!(
@@ -762,11 +706,10 @@ mod tests {
         );
     }
 
-    /// A spec resolves to the row it names, qualified, bare or by alias;
-    /// failing that, to a file under the hook's key; a hook with no key
-    /// refuses a path; and the index is tried before the file system.
+    /// A spec resolves to the row it names, qualified, bare or by alias,
+    /// and to nothing else: a file on disk is not the factory's business.
     #[test]
-    fn test_resolve_names_aliases_and_paths() {
+    fn test_resolve_names_and_aliases_only() {
         let factory = factory();
 
         let model = factory.resolve("well-known:a/small").unwrap();
@@ -784,29 +727,9 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let file = dir.path().join("ckpt.pt");
         std::fs::write(&file, b"x").unwrap();
-        let spec = file.to_str().unwrap();
-        let model = factory.resolve(spec).unwrap();
-        assert_eq!(model.id(), spec);
-        assert!(model.named().is_none());
-        let map = model.to_map();
-        assert_eq!(map.keys(), ["checkpoint"]);
-        assert_eq!(map.get("checkpoint").unwrap().file, "ckpt.pt");
-
-        let no_path = PretrainedFactory::new(NoPath)
-            .with_provider(well_known())
-            .unwrap();
-        match no_path.resolve(spec) {
-            Err(BunsenError::ResourceNotFound(m)) => {
-                assert!(!m.contains("not a file"), "a path was never an option: {m}");
-            }
-            other => panic!("{other:?}"),
-        }
-        assert_eq!(no_path.resolve("tiny").unwrap().id(), "well-known:b/tiny");
-
-        match factory.resolve("/no/such/file.pt") {
+        match factory.resolve(file.to_str().unwrap()) {
             Err(BunsenError::ResourceNotFound(m)) => {
                 assert!(m.contains("well-known:a/small"), "{m}");
-                assert!(m.ends_with("\"/no/such/file.pt\" is not a file"), "{m}");
             }
             other => panic!("{other:?}"),
         }
@@ -814,19 +737,10 @@ mod tests {
             factory.resolve("well-known:a/gigantic"),
             Err(BunsenError::ResourceNotFound(_))
         ));
-
-        // A row named like an existing file is the row: the index first.
-        let shadow = table("shadow", vec![group("g", vec![row(spec, &[], "x")])]);
-        let factory = PretrainedFactory::new(CheckpointPath)
-            .with_provider(shadow)
-            .unwrap();
-        let model = factory.resolve(spec).unwrap();
-        assert!(model.named().is_some());
-        assert_eq!(model.id(), format!("shadow:g/{spec}"));
     }
 
-    /// `load` runs the whole pathway through the factory's hook; `plan`
-    /// and `load_ref` are its halves, for a ref the caller changed.
+    /// `load` runs the whole pathway through the factory's hook; a ref the
+    /// caller overlays first goes through the same hook by hand.
     #[test]
     fn test_load_goes_through_the_hook() {
         use crate::{
@@ -856,28 +770,30 @@ mod tests {
         .unwrap();
         let file = dir.path().join("ckpt.pt");
         std::fs::write(&file, b"x").unwrap();
-        let spec = file.to_str().unwrap();
-        let factory = factory();
+        let on_disk = table("disk", vec![group("l", vec![local_row("ckpt", &file)])]);
+        let factory = PretrainedFactory::new(CheckpointPath)
+            .with_providers([well_known(), on_disk])
+            .unwrap();
 
         let loaded = factory
-            .load::<CpuBackend>(spec, &cache, &default_device())
+            .load::<CpuBackend>("disk:l/ckpt", &cache, &default_device())
             .unwrap();
         assert_eq!(*loaded.handle, file);
-        assert_eq!(loaded.name, spec);
+        assert_eq!(loaded.name, "disk:l/ckpt");
         assert_eq!(
             loaded.resources.get("checkpoint").unwrap().provenance,
             Provenance::LocalDir
         );
 
-        let model = factory.resolve(spec).unwrap();
-        assert_eq!(factory.plan(&model, &cache).unwrap(), model.to_map());
         let other = dir.path().join("other.pt");
         std::fs::write(&other, b"y").unwrap();
-        let overlaid = model
+        let overlaid = factory
+            .resolve("ckpt")
+            .unwrap()
             .with_overlay(ResourceMap::given("mine", "checkpoint", &other))
             .unwrap();
-        let loaded = factory
-            .load_ref::<CpuBackend>(&overlaid, &cache, &default_device())
+        let loaded = overlaid
+            .load::<CpuBackend, _>(&cache, factory.hook(), &default_device())
             .unwrap();
         assert_eq!(*loaded.handle, other);
 

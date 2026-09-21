@@ -39,7 +39,6 @@ impl SileroConstruct {
 impl Construct for SileroConstruct {
     type Built<B: Backend> = SileroVadCollection<B>;
 
-    const GIVEN_KEY: Option<&'static str> = Some(BURNPACK);
     const KIT: &'static str = SILERO_KIT;
 
     /// Reads the burnpack into the standard 16 kHz and 8 kHz models.
@@ -60,11 +59,10 @@ impl Construct for SileroConstruct {
 mod tests {
     use super::*;
 
-    /// The hook names its kit and the key a bare burnpack path fills.
+    /// The hook names its kit.
     #[test]
-    fn test_the_hook_names_its_kit_and_key() {
+    fn test_the_hook_names_its_kit() {
         assert_eq!(<SileroConstruct as Construct>::KIT, "silero_vad");
-        assert_eq!(<SileroConstruct as Construct>::GIVEN_KEY, Some("burnpack"));
         assert!(format!("{:?}", SileroConstruct::new()).contains("SileroConstruct"));
     }
 }

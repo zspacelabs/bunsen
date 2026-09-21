@@ -1,13 +1,14 @@
 //! # The Whisper pretrained factory
 //!
 //! [`default_whisper_factory`] is the index a caller holds: Whisper's
-//! providers, and the [`WhisperConstruct`] hook that reads what their rows
-//! point at. `factory.load_bundle::<B>(spec, &cache, device)` is the whole
-//! pathway from `--model` to a
+//! providers behind the kit's [`WhisperConstruct`] hook.
+//! `factory.load_bundle::<B>("[provider:]name", &cache, device)` is the
+//! whole pathway from a name to a
 //! [`WhisperBundle`](crate::kits::speech::whisper::driver::WhisperBundle);
-//! the caller never builds a hook. What a caller may want to change on the
-//! hook, the scanner for a checkpoint that is not laid out as upstream's,
-//! the factory exposes as [`with_scanner`](PretrainedFactory::with_scanner).
+//! how a row's checkpoint is read is the row's, through its resource
+//! `kind`, and the caller never builds a hook. A checkpoint on disk is not
+//! the factory's: it is a given map, read through the same hook with
+//! [`PretrainedRef::load`](crate::data::pretrained::PretrainedRef::load).
 //!
 //! A caller with a provider of its own, a hub say, builds on the default:
 //!
@@ -17,10 +18,7 @@
 //! let bundle = factory.load_bundle::<B>("openai/base", &cache, &device)?;
 //! ```
 
-use std::{
-    path::Path,
-    sync::Arc,
-};
+use std::sync::Arc;
 
 use burn::prelude::Backend;
 
@@ -28,14 +26,11 @@ use crate::{
     data::pretrained::{
         PretrainedCache,
         PretrainedFactory,
-        PretrainedRef,
     },
     errors::BunsenResult,
     kits::speech::whisper::{
-        WhisperApiConfig,
         driver::WhisperBundle,
         pretrained::{
-            PytorchWhisperScanner,
             WhisperConstruct,
             default_whisper_providers,
         },
@@ -43,7 +38,7 @@ use crate::{
 };
 
 /// Whisper's factory: [`default_whisper_providers`] behind
-/// [`WhisperConstruct`], upstream's scanner.
+/// [`WhisperConstruct`].
 ///
 /// # Errors
 /// [`BunsenError::Invalid`](crate::errors::BunsenError::Invalid) if two of
@@ -53,32 +48,7 @@ pub fn default_whisper_factory() -> BunsenResult<PretrainedFactory<WhisperConstr
 }
 
 impl PretrainedFactory<WhisperConstruct> {
-    /// Reads checkpoints through `scanner`: for one whose tensors are not
-    /// under `model_state_dict`, or a front end or token layout that is
-    /// not upstream's.
-    pub fn with_scanner(
-        self,
-        scanner: PytorchWhisperScanner,
-    ) -> Self {
-        let hook = self.hook().clone().with_scanner(scanner);
-        self.with_hook(hook)
-    }
-
-    /// Scans a checkpoint for its config without loading its weights, and
-    /// checks it against the geometry `model` promises: the read-only
-    /// half, for a listing.
-    ///
-    /// # Errors
-    /// As [`WhisperConstruct::scan`].
-    pub fn scan(
-        &self,
-        model: &PretrainedRef,
-        path: &Path,
-    ) -> BunsenResult<WhisperApiConfig> {
-        self.hook().scan(model, path)
-    }
-
-    /// `--model` to a bundle: [`load`](Self::load), keeping the handle.
+    /// A name to a bundle: [`load`](Self::load), keeping the handle.
     ///
     /// # Errors
     /// As [`load`](Self::load).
@@ -97,6 +67,7 @@ mod tests {
     use super::*;
     use crate::{
         data::pretrained::{
+            PretrainedRef,
             WELL_KNOWN,
             testing::ListsNothing,
         },
@@ -149,14 +120,11 @@ mod tests {
         assert!(format!("{:?}", factory.hook()).contains("WhisperConstruct"));
     }
 
-    /// A spec resolves to a row, by ref, bare name or alias, or to a path
-    /// under the checkpoint key; the scanner rides on the factory.
+    /// A spec resolves to a row, by ref, bare name or alias; a path on
+    /// disk is not a name the factory knows.
     #[test]
-    fn test_resolve_names_aliases_and_paths() {
-        let factory = default_whisper_factory()
-            .unwrap()
-            .with_scanner(PytorchWhisperScanner::new().with_d_head(32));
-        assert_eq!(factory.hook().scanner.d_head, 32);
+    fn test_resolve_names_and_aliases() {
+        let factory = default_whisper_factory().unwrap();
 
         match factory.resolve("openai/tiny.en").unwrap() {
             PretrainedRef::Named {
@@ -165,6 +133,7 @@ mod tests {
             } => {
                 assert_eq!(provider, "well-known");
                 assert_eq!(pretrained.name, "openai/tiny.en");
+                assert_eq!(pretrained.resources.keys(), [CHECKPOINT, "vocabulary"]);
             }
             other => panic!("{other:?}"),
         }
@@ -180,20 +149,12 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let file = dir.path().join("ckpt.pt");
         std::fs::write(&file, b"x").unwrap();
-        match factory.resolve(file.to_str().unwrap()).unwrap() {
-            PretrainedRef::Given(map) => {
-                assert_eq!(map.keys(), [CHECKPOINT]);
-                assert_eq!(map.get(CHECKPOINT).unwrap().file, "ckpt.pt");
-            }
-            other => panic!("{other:?}"),
-        }
-
         assert!(matches!(
-            factory.resolve("openai/gigantic"),
+            factory.resolve(file.to_str().unwrap()),
             Err(BunsenError::ResourceNotFound(_))
         ));
         assert!(matches!(
-            factory.resolve("/no/such/file.pt"),
+            factory.resolve("openai/gigantic"),
             Err(BunsenError::ResourceNotFound(_))
         ));
     }

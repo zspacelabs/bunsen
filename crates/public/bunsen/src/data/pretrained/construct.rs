@@ -35,11 +35,6 @@ pub trait Construct {
     /// `pretrained/<kit>/<namespace>/<sha256>/<file>`.
     const KIT: &'static str;
 
-    /// The key a bare path fills when a spec is a path to a file: the key
-    /// the kit reads a lone checkpoint by. `None`, the default, refuses a
-    /// path.
-    const GIVEN_KEY: Option<&'static str> = None;
-
     /// What construction yields, for a backend.
     type Built<B: Backend>;
 
@@ -135,7 +130,6 @@ mod tests {
     impl Construct for Paths {
         type Built<B: Backend> = Vec<PathBuf>;
 
-        const GIVEN_KEY: Option<&'static str> = Some("checkpoint");
         const KIT: &'static str = "paths";
 
         fn plan(
@@ -167,7 +161,7 @@ mod tests {
     }
 
     /// A hook that asks for a key no map of these tests has, and takes
-    /// the defaults: no plan of its own, and no key for a bare path.
+    /// the default plan.
     struct NeedsConfig;
 
     impl Construct for NeedsConfig {
@@ -265,8 +259,6 @@ mod tests {
         assert_eq!(*loaded.handle, vec![checkpoint, vocabulary]);
 
         assert_eq!(NeedsConfig.plan(&model, &cache).unwrap(), model.to_map());
-        assert_eq!(<NeedsConfig as Construct>::GIVEN_KEY, None);
-        assert_eq!(<Paths as Construct>::GIVEN_KEY, Some("checkpoint"));
     }
 
     /// A hook that asks for a part the map lacks gets `ResourceNotFound`

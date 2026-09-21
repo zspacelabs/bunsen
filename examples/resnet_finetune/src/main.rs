@@ -24,6 +24,7 @@ use bunsen::{
     kits::bimm::resnet::{
         PREFAB_RESNET_MAP,
         ResNet,
+        ResNetConstruct,
         default_resnet_factory,
     },
 };
@@ -344,11 +345,12 @@ pub fn train<B: AutodiffBackend>(args: &Args) -> anyhow::Result<()> {
 
     let old_float_type = model.output_fc.weight.dtype();
 
-    // The factory builds the model from the (possibly rewritten) config,
-    // then reads the checkpoint into it.
-    let loaded = factory
-        .with_config(resnet_config.clone())
-        .load_ref::<B>(&model_ref, &cache, &device)
+    // The activation rewrite is this example's own surgery, so the row
+    // goes through the kit's hook with this config rather than the
+    // prefab's; the checkpoint is read into that model.
+    let hook = ResNetConstruct::new().with_config(resnet_config.clone());
+    let loaded = model_ref
+        .load::<B, _>(&cache, &hook, &device)
         .context("Failed to load pretrained weights")?;
 
     let mut model: ResNet<B> = Arc::unwrap_or_clone(loaded.handle)

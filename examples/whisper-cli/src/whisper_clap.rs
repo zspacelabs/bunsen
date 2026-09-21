@@ -1,5 +1,8 @@
 use std::{
-    path::PathBuf,
+    path::{
+        Path,
+        PathBuf,
+    },
     sync::Arc,
 };
 
@@ -9,6 +12,8 @@ use bunsen::{
         pretrained::{
             PretrainedCache,
             PretrainedCacheOptions,
+            PretrainedFactory,
+            PretrainedRef,
             ResourceMap,
         },
     },
@@ -30,9 +35,10 @@ use bunsen::{
                 WhisperTask,
             },
             pretrained::{
+                CHECKPOINT,
                 OPENAI_LOCAL_DIR,
-                PytorchWhisperScanner,
                 VOCABULARY,
+                WhisperConstruct,
                 default_whisper_factory,
             },
         },
@@ -71,26 +77,20 @@ impl WeightsCacheArgs {
     }
 }
 
-/// How a checkpoint is read.
-#[derive(clap::Args, Debug)]
-pub struct ScannerArgs {
-    /// The key the checkpoint keeps its tensors under; `model_state_dict`,
-    /// as `OpenAI`'s do, when omitted. An empty string for a checkpoint whose
-    /// tensors are at the top level.
-    #[arg(long)]
-    state_dict_key: Option<String>,
-}
-
-impl ScannerArgs {
-    /// The scanner these flags describe.
-    pub fn scanner(&self) -> PytorchWhisperScanner {
-        let scanner = PytorchWhisperScanner::new();
-        match self.state_dict_key.as_deref() {
-            None => scanner,
-            Some("") => scanner.with_top_level_key(None),
-            Some(key) => scanner.with_top_level_key(Some(key.to_string())),
-        }
+/// What `--model` names: a row of the factory, or a checkpoint on disk as
+/// a one-resource map under [`CHECKPOINT`], which the factory's hook reads
+/// as it reads any row's.
+pub fn resolve_model(
+    factory: &PretrainedFactory<WhisperConstruct>,
+    spec: &str,
+) -> BunsenResult<PretrainedRef> {
+    let path = Path::new(spec);
+    if path.is_file() {
+        return Ok(PretrainedRef::from(ResourceMap::given(
+            spec, CHECKPOINT, path,
+        )));
     }
+    factory.resolve(spec)
 }
 
 #[derive(clap::Args, Debug)]
@@ -105,9 +105,6 @@ pub struct WhisperDriverArgs {
 
     #[clap(flatten)]
     cache: WeightsCacheArgs,
-
-    #[clap(flatten)]
-    scanner: ScannerArgs,
 
     /// A `.tiktoken` vocabulary by path, in place of the one the
     /// checkpoint's token layout selects (`multilingual.tiktoken` for a
@@ -165,13 +162,13 @@ pub struct WhisperDriverArgs {
 impl WhisperDriverArgs {
     /// Loads `--model` at the precision it ships in, with its vocabulary.
     ///
-    /// The name is resolved against the default whisper factory, or taken
-    /// as a path; every
-    /// resource of its map comes from the cache, a local source, or a
-    /// digest-checked download; the checkpoint is checked against the
-    /// prefab its name promised before it is materialized; and
-    /// the vocabulary is the one the checkpoint's layout selects, or the
-    /// file `--vocab` names, which is trusted as given.
+    /// A name is resolved against the default whisper factory; a path to a
+    /// checkpoint is a given map, read through the same hook. Every
+    /// resource of the map comes from the cache, a local source, or a
+    /// digest-checked download; a name's checkpoint is checked against the
+    /// prefab it promised before it is materialized; and the vocabulary is
+    /// the one the checkpoint's layout selects, or the file `--vocab`
+    /// names, which is trusted as given.
     ///
     /// `OpenAI`'s checkpoints are fp16 while the mel front end works in the
     /// backend's float, but the model casts at its own edges — mels in,
@@ -181,12 +178,12 @@ impl WhisperDriverArgs {
         cache: &PretrainedCache,
         device: &B::Device,
     ) -> BunsenResult<Arc<WhisperBundle<B>>> {
-        let factory = default_whisper_factory()?.with_scanner(self.scanner.scanner());
-        let mut model = factory.resolve(&self.model)?;
+        let factory = default_whisper_factory()?;
+        let mut model = resolve_model(&factory, &self.model)?;
         if let Some(path) = &self.vocab {
             model = model.with_overlay(ResourceMap::given("--vocab", VOCABULARY, path))?;
         }
-        Ok(factory.load_ref::<B>(&model, cache, device)?.handle)
+        Ok(model.load::<B, _>(cache, factory.hook(), device)?.handle)
     }
 
     /// Load and setup the [`WhisperStreamDriver`].
