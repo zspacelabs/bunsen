@@ -367,61 +367,6 @@ impl PretrainedProvider for PretrainedTable {
     }
 }
 
-/// The group called `name`.
-pub fn provider<'a>(
-    providers: &[&'a StaticPretrainedGroup<'a>],
-    name: &str,
-) -> Option<&'a StaticPretrainedGroup<'a>> {
-    providers.iter().copied().find(|p| p.name == name)
-}
-
-/// The row `name` names under `provider`, or under any group when none
-/// is given and exactly one has it.
-///
-/// A bare name two groups both answer to is ambiguous, and `None`: the
-/// caller has to qualify it.
-pub fn lookup_pretrained<'a>(
-    providers: &[&'a StaticPretrainedGroup<'a>],
-    provider: Option<&str>,
-    name: &str,
-) -> Option<(&'a StaticPretrainedGroup<'a>, &'a StaticPretrained<'a>)> {
-    match provider {
-        Some(provider) => {
-            let provider = self::provider(providers, provider)?;
-            provider.lookup(name).map(|p| (provider, p))
-        }
-        None => {
-            let mut hits = providers
-                .iter()
-                .copied()
-                .filter_map(|provider| provider.lookup(name).map(|p| (provider, p)));
-            let first = hits.next()?;
-            match hits.next() {
-                Some(_) => None,
-                None => Some(first),
-            }
-        }
-    }
-}
-
-/// Every ref across `providers`, for a "did you mean" listing.
-pub fn available_ids(providers: &[&StaticPretrainedGroup<'_>]) -> Vec<String> {
-    providers.iter().flat_map(|p| p.ids()).collect()
-}
-
-/// Every row across `providers` that instantiates `prefab`, with its
-/// group: the derived "what rows exist for this shape".
-pub fn pretrained_for_prefab<'a>(
-    providers: &[&'a StaticPretrainedGroup<'a>],
-    prefab: &str,
-) -> Vec<(&'a StaticPretrainedGroup<'a>, &'a StaticPretrained<'a>)> {
-    providers
-        .iter()
-        .copied()
-        .flat_map(|p| p.for_prefab(prefab).into_iter().map(move |d| (p, d)))
-        .collect()
-}
-
 #[cfg(test)]
 mod tests {
     use alloc::sync::Arc;
@@ -508,8 +453,6 @@ mod tests {
         origin: None,
         items: &[&B_SMALL, &B_TINY],
     };
-    static PROVIDERS: &[&StaticPretrainedGroup<'static>] = &[&A, &B];
-
     /// The two groups as the well-known table.
     pub(crate) static TABLE: StaticPretrainedTable<'static> = StaticPretrainedTable {
         name: WELL_KNOWN,
@@ -532,39 +475,6 @@ mod tests {
             vec!["large-v1", "large-v2"]
         );
         assert!(A.for_prefab("tiny").is_empty());
-    }
-
-    /// A qualified name looks in one group; a bare name looks across all
-    /// and is `None` when two answer.
-    #[test]
-    fn test_lookup_pretrained_across_groups() {
-        assert!(provider(PROVIDERS, "b").is_some());
-        assert!(provider(PROVIDERS, "c").is_none());
-
-        let (p, d) = lookup_pretrained(PROVIDERS, Some("b"), "small").unwrap();
-        assert_eq!((p.name, d.name), ("b", "small"));
-        let (p, d) = lookup_pretrained(PROVIDERS, None, "tiny").unwrap();
-        assert_eq!((p.name, d.name), ("b", "tiny"));
-        let (p, d) = lookup_pretrained(PROVIDERS, None, "large").unwrap();
-        assert_eq!((p.name, d.name), ("a", "large-v2"));
-        assert!(
-            lookup_pretrained(PROVIDERS, None, "small").is_none(),
-            "both groups have a `small`"
-        );
-        assert!(lookup_pretrained(PROVIDERS, Some("c"), "small").is_none());
-        assert!(lookup_pretrained(PROVIDERS, None, "gigantic").is_none());
-
-        assert_eq!(
-            available_ids(PROVIDERS),
-            vec!["a/small", "a/large-v1", "a/large-v2", "b/small", "b/tiny"]
-        );
-        assert_eq!(
-            pretrained_for_prefab(PROVIDERS, "small")
-                .iter()
-                .map(|(p, d)| format!("{}/{}", p.name, d.name))
-                .collect::<Vec<_>>(),
-            vec!["a/small", "b/small"]
-        );
     }
 
     #[test]

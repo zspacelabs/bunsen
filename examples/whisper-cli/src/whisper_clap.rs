@@ -9,6 +9,7 @@ use bunsen::{
         pretrained::{
             PretrainedCache,
             PretrainedCacheOptions,
+            PretrainedFactory,
             ResourceMap,
         },
     },
@@ -34,7 +35,7 @@ use bunsen::{
                 PytorchWhisperScanner,
                 VOCABULARY,
                 WhisperConstruct,
-                resolve_model,
+                default_whisper_factory,
             },
         },
     },
@@ -96,10 +97,11 @@ impl ScannerArgs {
 
 #[derive(clap::Args, Debug)]
 pub struct WhisperDriverArgs {
-    /// The model: `provider/name` or a bare name from `models list`
-    /// (`openai/tiny.en`, `large`), or a path to a checkpoint. The default
-    /// is fetched into the cache on first use (145 MB, digest-checked), or
-    /// found where a deployment put it ahead of time.
+    /// The model: `provider:ref` or a bare ref from `models list`
+    /// (`well-known:openai/tiny.en`, `openai/tiny.en`, `large`), or a path
+    /// to a checkpoint. The default is fetched into the cache on first use
+    /// (145 MB, digest-checked), or found where a deployment put it ahead
+    /// of time.
     #[arg(long, default_value = "openai/base")]
     model: String,
 
@@ -165,10 +167,10 @@ pub struct WhisperDriverArgs {
 impl WhisperDriverArgs {
     /// Loads `--model` at the precision it ships in, with its vocabulary.
     ///
-    /// The name is resolved against the pretrained index, or taken as a
-    /// path; every resource of its map comes from the cache, a local
-    /// source, or a digest-checked download; the checkpoint is checked
-    /// against the prefab its name promised before it is materialized; and
+    /// The name is resolved against `factory`, or taken as a path; every
+    /// resource of its map comes from the cache, a local source, or a
+    /// digest-checked download; the checkpoint is checked against the
+    /// prefab its name promised before it is materialized; and
     /// the vocabulary is the one the checkpoint's layout selects, or the
     /// file `--vocab` names, which is trusted as given.
     ///
@@ -177,10 +179,11 @@ impl WhisperDriverArgs {
     /// logits out — so nothing here has to re-type it.
     pub fn load_bundle<B: Backend>(
         &self,
+        factory: &PretrainedFactory,
         cache: &PretrainedCache,
         device: &B::Device,
     ) -> BunsenResult<Arc<WhisperBundle<B>>> {
-        let mut model = resolve_model(&self.model)?;
+        let mut model = factory.resolve_for::<WhisperConstruct>(&self.model)?;
         if let Some(path) = &self.vocab {
             model = model.with_overlay(ResourceMap::given("--vocab", VOCABULARY, path))?;
         }
@@ -194,7 +197,8 @@ impl WhisperDriverArgs {
         device: &B::Device,
     ) -> BunsenResult<WhisperStreamDriver<B>> {
         let cache = self.cache.init()?;
-        let bundle = self.load_bundle::<B>(&cache, device)?;
+        let factory = default_whisper_factory()?;
+        let bundle = self.load_bundle::<B>(&factory, &cache, device)?;
         log::info!(
             "model: {} n_mels, vocabulary {}, d_model {}, {} + {} layers",
             bundle.model.n_mels(),

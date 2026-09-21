@@ -216,9 +216,8 @@ mod tests {
             pretrained::{
                 BASE_CHECKPOINT,
                 GPT2_VOCABULARY,
-                load_named,
+                default_whisper_factory,
                 prefab_for_geometry,
-                resolve_model,
                 testing::offline_cache,
             },
         },
@@ -227,6 +226,10 @@ mod tests {
             default_device,
         },
     };
+
+    fn resolve_model(spec: &str) -> BunsenResult<PretrainedRef> {
+        default_whisper_factory()?.resolve_for::<WhisperConstruct>(spec)
+    }
 
     fn geometry_of(prefab: &str) -> WhisperGeometry {
         WHISPER_PREFABS
@@ -239,15 +242,17 @@ mod tests {
     /// multilingual layout, the multilingual vocabulary, both parts cached.
     #[test]
     #[serial]
-    fn test_load_named_builds_the_bundle() {
+    fn test_the_factory_builds_the_bundle() {
         let cache = offline_cache();
-        let loaded = load_named::<PerformanceBackend>(
-            "openai/base",
-            &cache,
-            &WhisperConstruct::new(),
-            &default_device(),
-        )
-        .unwrap();
+        let loaded = default_whisper_factory()
+            .unwrap()
+            .load::<PerformanceBackend, _>(
+                "openai/base",
+                &cache,
+                &WhisperConstruct::new(),
+                &default_device(),
+            )
+            .unwrap();
 
         assert_eq!(loaded.name, "well-known:openai/base");
         assert_eq!(loaded.resources.keys(), [CHECKPOINT, VOCABULARY]);

@@ -4,7 +4,8 @@ Transcribes an audio file with an OpenAI Whisper checkpoint and its vocabulary, 
 driver. The audio is pushed in chunks as a live loop would feed it, and segments are printed with their times as they
 become final; under the responsive preset, drafts come first and are marked `~`.
 
-The model is named, as `openai-whisper`'s `load_model` names it: `--model openai/tiny.en`, `--model large`, or a path
+The model is named, as `openai-whisper`'s `load_model` names it: `--model openai/tiny.en`, `--model large`, in full
+`--model well-known:openai/tiny.en`, or a path
 to a checkpoint. Weights are fetched on demand into bunsen's cache, pinned to their SHA-256, and used in place from
 `openai-whisper`'s own `~/.cache/whisper` when it already has them. The default is `openai/base`. A deployment that
 must not reach the network populates the cache ahead of time: `models fetch openai/base` in a Dockerfile, or
@@ -27,7 +28,7 @@ driver and a `models` subcommand; the [model index](#models) and the name-to-mod
   detokenizer, and upstream's default suppress list; the driver takes both from the bundle (`init_from_bundle`).
   `--vocab` overlays a file by path, trusted as given.
 - `kits::speech::whisper::pretrained::PytorchWhisperScanner` — scans a checkpoint's geometry and loads its weights;
-  `load_named` checks the scan against the prefab the name promised before the weights are read. `--state-dict-key`
+  the factory's `load` checks the scan against the prefab the name promised before the weights are read. `--state-dict-key`
   configures it.
 - `data::pretrained::StaticPreFabMap` — the prefab table, `WHISPER_PREFABS`, is bunsen's prefab type over
   `WhisperApiConfig`, as `PREFAB_RESNET_MAP` is over the ResNet config.
@@ -71,8 +72,8 @@ $ cargo run --release -p whisper-cli --features bunsen/wgpu -- \
 
 Model options:
 
-- `--model` — `provider/name` or a bare name from `models list` (`openai/tiny.en`, `large`, `turbo`), or a path to a
-  checkpoint (default `openai/base`).
+- `--model` — `provider:ref` or a bare ref from `models list` (`well-known:openai/tiny.en`, `openai/tiny.en`,
+  `large`, `turbo`), or a path to a checkpoint (default `openai/base`).
 - `--cache-dir` — where fetched weights live; `$BUNSEN_CACHE_DIR`, then the platform's cache directory, when omitted.
 - `--offline` — never reach the network; a model that is not already local is an error.
 - `--upstream-cache-dir` — `openai-whisper`'s download root, whose files are used in place (default `~/.cache/whisper`).
@@ -185,13 +186,15 @@ layout selects; on a name whose checkpoint does not scan as its prefab, it repor
 
 ### Where the index lives
 
-All of it is bunsen's: `kits::speech::whisper::pretrained::{WHISPER_PREFABS, OPENAI, WHISPER_PROVIDERS,
+All of it is bunsen's: `kits::speech::whisper::pretrained::{WHISPER_PREFABS, OPENAI, WELL_KNOWN_TABLE,
 OPENAI_CHECKPOINTS, MULTILINGUAL_VOCABULARY, GPT2_VOCABULARY}` over `data::pretrained::{StaticPretrained,
-StaticPretrainedProvider, StaticResourceMap, PretrainedCache, PretrainedRef}`, with `WhisperGeometry` beside
-`WhisperApiConfig`, `pretrained::{resolve_model, scan_model, load_model, load_named}` (and their `_with` forms, which
-take a configured scanner) as the name-to-model pathway, and `pretrained::{vocabulary_map, vocabulary_for}` as the
-layout-to-vocabulary rule and its resolve. This crate resolves `--model` with `load_named_with` and reports through
-the `models` subcommand; it keeps no index of its own.
+StaticPretrainedGroup, StaticPretrainedTable, StaticResourceMap, PretrainedCache, PretrainedRef}`, with
+`WhisperGeometry` beside `WhisperApiConfig`. `pretrained::default_whisper_factory()` is the index: a
+`PretrainedFactory` over `dyn PretrainedProvider`s in search order, whose `resolve_for::<WhisperConstruct>` and
+`load` are the name-to-model pathway, `WhisperConstruct::scan` its read-only half, and
+`pretrained::{vocabulary_map, vocabulary_for}` the layout-to-vocabulary rule and its resolve. A caller with a
+provider of its own builds a factory over `default_whisper_providers()` and adds it. This crate resolves `--model`
+through the default factory and reports through the `models` subcommand; it keeps no index of its own.
 
 ## Benchmarks
 

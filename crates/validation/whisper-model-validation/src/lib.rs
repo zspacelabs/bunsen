@@ -97,14 +97,16 @@ pub fn weights_cache() -> bunsen::data::pretrained::PretrainedCache {
 pub fn load_base<B: burn::prelude::Backend>(
     device: &B::Device
 ) -> std::sync::Arc<bunsen::kits::speech::whisper::driver::WhisperBundle<B>> {
-    bunsen::kits::speech::whisper::pretrained::load_named::<B>(
-        "openai/base",
-        &weights_cache(),
-        &bunsen::kits::speech::whisper::pretrained::WhisperConstruct::new(),
-        device,
-    )
-    .expect("load openai/base")
-    .handle
+    bunsen::kits::speech::whisper::pretrained::default_whisper_factory()
+        .expect("the whisper factory")
+        .load::<B, _>(
+            "openai/base",
+            &weights_cache(),
+            &bunsen::kits::speech::whisper::pretrained::WhisperConstruct::new(),
+            device,
+        )
+        .expect("load openai/base")
+        .handle
 }
 
 /// The mel channel count for `base`.

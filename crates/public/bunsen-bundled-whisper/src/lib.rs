@@ -39,8 +39,8 @@ pub fn cache_dir() -> &'static std::path::Path {
 ///
 /// Nothing here loads a model; that needs bunsen's Whisper kit, which depends
 /// on this crate rather than the other way round. Reach for
-/// `bunsen::kits::speech::whisper::pretrained::load_named("openai/base", …)`
-/// with a cache rooted at [`cache_dir`].
+/// `bunsen::kits::speech::whisper::pretrained::default_whisper_factory()`
+/// and its `load("openai/base", …)`, with a cache rooted at [`cache_dir`].
 ///
 /// # Panics
 /// Never at run time. If the asset could not be obtained the build itself

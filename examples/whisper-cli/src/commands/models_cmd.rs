@@ -7,8 +7,9 @@ use bunsen::{
             CacheStatus,
             Construct,
             PretrainedCache,
+            PretrainedFactory,
+            PretrainedProvider,
             PretrainedRef,
-            StaticPretrainedGroup,
             StaticResourceMap,
         },
     },
@@ -27,11 +28,10 @@ use bunsen::{
             VOCABULARY,
             WHISPER_KIT,
             WHISPER_PREFABS,
-            WHISPER_PROVIDERS,
             WhisperConstruct,
+            default_whisper_factory,
             openai_download_root,
             prefab_for_geometry,
-            resolve_model,
             vocabulary_map,
         },
     },
@@ -103,25 +103,34 @@ impl ModelsCmd {
     pub fn run(&self) -> BunsenResult<()> {
         self.logging.init(Some(LogLevelNum::Info))?;
         let cache = self.cache.init()?;
+        let factory = default_whisper_factory()?;
 
         match &self.action {
-            ModelsAction::List => list(&cache),
+            ModelsAction::List => list(&factory, &cache),
             ModelsAction::Prefabs => prefabs(),
             ModelsAction::Fetch {
                 verify,
                 scanner,
                 names,
-            } => fetch(&cache, names, *verify, &scanner.scanner()),
-            ModelsAction::Inspect { name, scanner } => inspect(&cache, name, &scanner.scanner()),
+            } => fetch(&factory, &cache, names, *verify, &scanner.scanner()),
+            ModelsAction::Inspect { name, scanner } => {
+                inspect(&factory, &cache, name, &scanner.scanner())
+            }
         }
     }
 }
 
-fn resolve(name: &str) -> BunsenResult<PretrainedRef> {
-    resolve_model(name)
+fn resolve(
+    factory: &PretrainedFactory,
+    name: &str,
+) -> BunsenResult<PretrainedRef> {
+    factory.resolve_for::<WhisperConstruct>(name)
 }
 
-fn list(cache: &PretrainedCache) -> BunsenResult<()> {
+fn list(
+    factory: &PretrainedFactory,
+    cache: &PretrainedCache,
+) -> BunsenResult<()> {
     println!("cache: {}", cache.cache_dir().display());
     let upstream = cache
         .local_dirs()
@@ -133,9 +142,9 @@ fn list(cache: &PretrainedCache) -> BunsenResult<()> {
         None => println!("upstream cache: (no home directory)"),
     }
 
-    for provider in WHISPER_PROVIDERS {
+    for provider in factory.providers() {
         println!();
-        list_provider(cache, provider);
+        list_provider(cache, provider.as_ref());
     }
     println!();
     list_maps(cache, "vocabularies", OPENAI_VOCABULARIES_MAPS);
@@ -146,31 +155,30 @@ fn list(cache: &PretrainedCache) -> BunsenResult<()> {
 /// taken together, and their keys.
 fn list_provider(
     cache: &PretrainedCache,
-    provider: &StaticPretrainedGroup<'_>,
+    provider: &dyn PretrainedProvider,
 ) {
     println!(
         "{}: {} ({}; {})",
-        provider.name,
-        provider.description,
-        provider.license.unwrap_or("license unknown"),
-        provider.origin.unwrap_or("origin unknown"),
+        provider.name(),
+        provider.description(),
+        provider.license().unwrap_or("license per row"),
+        provider.origin().unwrap_or("origin per row"),
     );
     println!(
-        "  NAME                   PREFAB           STATUS     RESOURCES              DESCRIPTION"
+        "  NAME                             PREFAB           STATUS     RESOURCES              DESCRIPTION"
     );
-    for row in provider.items {
+    for row in provider.list() {
         let aliases = if row.aliases.is_empty() {
             String::new()
         } else {
             format!(" (also: {})", row.aliases.join(", "))
         };
-        let map = row.to_map();
         println!(
-            "  {:<22} {:<16} {:<10} {:<22} {}{aliases}",
-            provider.id(row),
-            row.prefab.unwrap_or("-"),
-            summarize(&cache.map_status(WHISPER_KIT, &map)).to_string(),
-            map.keys().join("+"),
+            "  {:<32} {:<16} {:<10} {:<22} {}{aliases}",
+            provider.id(&row),
+            row.prefab.as_deref().unwrap_or("-"),
+            summarize(&cache.map_status(WHISPER_KIT, &row.resources)).to_string(),
+            row.resources.keys().join("+"),
             row.description,
         );
     }
@@ -245,13 +253,14 @@ fn prefabs() -> BunsenResult<()> {
 }
 
 fn fetch(
+    factory: &PretrainedFactory,
     cache: &PretrainedCache,
     names: &[String],
     verify: bool,
     scanner: &PytorchWhisperScanner,
 ) -> BunsenResult<()> {
     for name in names {
-        let model = resolve(name)?;
+        let model = resolve(factory, name)?;
         // The hook's plan, before anything but the checkpoint is fetched: a
         // path gets the vocabulary its checkpoint's layout selects, and a
         // name is checked against the geometry it promised.
@@ -276,14 +285,19 @@ fn fetch(
 }
 
 fn inspect(
+    factory: &PretrainedFactory,
     cache: &PretrainedCache,
     name: &str,
     scanner: &PytorchWhisperScanner,
 ) -> BunsenResult<()> {
-    let model = resolve(name)?;
+    let model = resolve(factory, name)?;
     println!("model: {}", model.id());
     if let Some((provider, row)) = model.named() {
-        println!("  provider: {provider}");
+        let description = factory
+            .provider(provider)
+            .map(|p| p.description().to_string())
+            .unwrap_or_default();
+        println!("  provider: {provider} ({description})");
         println!("  description: {}", row.description);
     }
 

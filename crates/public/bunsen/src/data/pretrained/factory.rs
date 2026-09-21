@@ -46,6 +46,67 @@ use crate::errors::{
     BunsenResult,
 };
 
+#[cfg(feature = "cache")]
+mod with_cache {
+    use burn::prelude::Backend;
+
+    use super::PretrainedFactory;
+    use crate::{
+        data::pretrained::{
+            Construct,
+            Loaded,
+            PretrainedCache,
+            PretrainedRef,
+        },
+        errors::{
+            BunsenError,
+            BunsenResult,
+        },
+    };
+
+    impl PretrainedFactory {
+        /// [`resolve`](Self::resolve) with the key `H` reads a bare
+        /// checkpoint by: `H::GIVEN_KEY`.
+        ///
+        /// # Errors
+        /// As [`resolve`](Self::resolve).
+        pub fn resolve_for<H: Construct>(
+            &self,
+            spec: &str,
+        ) -> BunsenResult<PretrainedRef> {
+            self.resolve(spec, H::GIVEN_KEY)
+        }
+
+        /// A spec to a loaded model: [`resolve_for`](Self::resolve_for),
+        /// then [`PretrainedRef::load`] through `hook`.
+        ///
+        /// # Errors
+        /// [`BunsenError::InvalidArgument`] when `H::KIT` is not this
+        /// factory's kit; otherwise as [`resolve_for`](Self::resolve_for)
+        /// and [`PretrainedRef::load`].
+        pub fn load<B: Backend, H: Construct>(
+            &self,
+            spec: &str,
+            cache: &PretrainedCache,
+            hook: &H,
+            device: &B::Device,
+        ) -> BunsenResult<Loaded<H::Built<B>>> {
+            if H::KIT != self.kit() {
+                return Err(BunsenError::InvalidArgument {
+                    msg: alloc::format!(
+                        "{}: a factory for kit {:?} cannot load through a hook for kit {:?}",
+                        spec,
+                        self.kit(),
+                        H::KIT
+                    ),
+                });
+            }
+            self.resolve_for::<H>(spec)?
+                .load::<B, H>(cache, hook, device)
+        }
+    }
+}
+
 /// A kit's providers, in search order, and the dispatch of a spec across
 /// them.
 #[derive(Debug)]
@@ -712,6 +773,128 @@ mod tests {
         let model = factory.resolve(spec, Some("checkpoint")).unwrap();
         assert!(model.named().is_some());
         assert_eq!(model.id(), format!("shadow:g/{spec}"));
+    }
+
+    /// `resolve_for` takes the hook's key for a bare path, and `load` runs
+    /// the whole pathway, refusing a hook for another kit.
+    #[cfg(feature = "cache")]
+    #[test]
+    fn test_resolve_for_and_load_go_through_the_hook() {
+        use std::path::PathBuf;
+
+        use burn::prelude::Backend;
+
+        use crate::{
+            data::{
+                cache::BunsenDiskCacheOptions,
+                pretrained::{
+                    Construct,
+                    LoadedResources,
+                    PretrainedCache,
+                    PretrainedCacheOptions,
+                    Provenance,
+                },
+            },
+            support::testing::{
+                CpuBackend,
+                default_device,
+            },
+        };
+
+        /// A hook for `kit` that builds the checkpoint's path.
+        struct CheckpointPath;
+
+        impl Construct for CheckpointPath {
+            type Built<B: Backend> = PathBuf;
+
+            const GIVEN_KEY: Option<&'static str> = Some("checkpoint");
+            const KIT: &'static str = "kit";
+
+            fn construct<B: Backend>(
+                &self,
+                _model: &PretrainedRef,
+                loaded: &LoadedResources,
+                _device: &B::Device,
+            ) -> BunsenResult<Arc<PathBuf>> {
+                Ok(Arc::new(loaded.expect("checkpoint")?.to_path_buf()))
+            }
+        }
+
+        /// A hook for some other kit.
+        struct OtherKit;
+
+        impl Construct for OtherKit {
+            type Built<B: Backend> = ();
+
+            const KIT: &'static str = "other";
+
+            fn construct<B: Backend>(
+                &self,
+                _model: &PretrainedRef,
+                _loaded: &LoadedResources,
+                _device: &B::Device,
+            ) -> BunsenResult<Arc<()>> {
+                Ok(Arc::new(()))
+            }
+        }
+
+        let dir = tempfile::tempdir().unwrap();
+        let cache = PretrainedCache::new(
+            PretrainedCacheOptions::default()
+                .with_disk(
+                    BunsenDiskCacheOptions::default()
+                        .with_cache_dir(Some(dir.path().join("cache")))
+                        .without_transfer_observers(),
+                )
+                .with_offline(true),
+        )
+        .unwrap();
+        let file = dir.path().join("ckpt.pt");
+        std::fs::write(&file, b"x").unwrap();
+        let spec = file.to_str().unwrap();
+        let factory = factory();
+
+        assert!(
+            factory
+                .resolve_for::<CheckpointPath>(spec)
+                .unwrap()
+                .named()
+                .is_none()
+        );
+        assert!(matches!(
+            factory.resolve_for::<OtherKit>(spec),
+            Err(BunsenError::ResourceNotFound(_))
+        ));
+
+        let loaded = factory
+            .load::<CpuBackend, _>(spec, &cache, &CheckpointPath, &default_device())
+            .unwrap();
+        assert_eq!(*loaded.handle, file);
+        assert_eq!(loaded.name, spec);
+        assert_eq!(
+            loaded.resources.get("checkpoint").unwrap().provenance,
+            Provenance::LocalDir
+        );
+
+        let err = factory
+            .load::<CpuBackend, _>("well-known:a/small", &cache, &OtherKit, &default_device())
+            .unwrap_err();
+        assert!(
+            matches!(&err, BunsenError::InvalidArgument { msg } if msg.contains("\"kit\"") && msg.contains("\"other\"")),
+            "{err}"
+        );
+        assert!(
+            matches!(
+                factory.load::<CpuBackend, _>(
+                    "well-known:a/small",
+                    &cache,
+                    &CheckpointPath,
+                    &default_device()
+                ),
+                Err(BunsenError::ResourceNotFound(_))
+            ),
+            "offline, and nothing local"
+        );
     }
 
     #[test]
