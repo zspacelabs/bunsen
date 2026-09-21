@@ -120,7 +120,7 @@ pub fn default_silero_providers() -> Vec<Arc<dyn PretrainedProvider>> {
 /// [`BunsenError::Invalid`](crate::errors::BunsenError::Invalid) if two of
 /// the defaults share a name, which the tests pin they do not.
 pub fn default_silero_factory() -> BunsenResult<PretrainedFactory<SileroConstruct>> {
-    PretrainedFactory::new(SileroConstruct::new()).with_providers(default_silero_providers())
+    PretrainedFactory::new().with_providers(default_silero_providers())
 }
 
 #[cfg(test)]
@@ -227,10 +227,7 @@ mod tests {
 
         let model = factory.resolve("bundled:silero/vad").unwrap();
         assert_eq!(model.id(), "bundled:silero/vad");
-        assert_eq!(
-            model.status(SILERO_KIT, &cache)[BURNPACK],
-            CacheStatus::Bundled
-        );
+        assert_eq!(model.status(&cache)[BURNPACK], CacheStatus::Bundled);
 
         let loaded = factory
             .load::<B>("bundled:silero/vad", &cache, &device)
@@ -242,10 +239,7 @@ mod tests {
             std::fs::read(&part.path).unwrap(),
             bunsen_bundled_silero::BURNPACK_WEIGHTS
         );
-        assert_eq!(
-            model.status(SILERO_KIT, &cache)[BURNPACK],
-            CacheStatus::Cached
-        );
+        assert_eq!(model.status(&cache)[BURNPACK], CacheStatus::Cached);
 
         let again = factory.load::<B>("vad", &cache, &device).unwrap();
         assert_eq!(

@@ -189,10 +189,11 @@ All of it is bunsen's: `kits::speech::whisper::pretrained::{WHISPER_PREFABS, OPE
 OPENAI_CHECKPOINTS, MULTILINGUAL_VOCABULARY, GPT2_VOCABULARY}` over `data::pretrained::{StaticPretrained,
 StaticPretrainedGroup, StaticPretrainedTable, StaticResourceMap, PretrainedCache, PretrainedRef}`, with
 `WhisperGeometry` beside `WhisperApiConfig`. `pretrained::default_whisper_factory()` is the index: a
-`PretrainedFactory<WhisperConstruct>` over `dyn PretrainedProvider`s in search order, owning the kit's hook: names
-and a listing, `load_bundle` the whole name-to-model pathway, `resolve` its index half for a `--vocab` overlay. A
-checkpoint path is not the factory's: it is a given map, read through the same hook (`hook().scan` is the read-only
-half `models inspect` uses), and
+`PretrainedFactory<WhisperConstruct>` over `dyn PretrainedProvider`s in search order: names and a listing,
+`load_bundle` the whole name-to-model pathway, `resolve` its index half, a `Deferred` model carrying the kit's hook
+chosen by the row's resources, for a `--vocab` overlay. A checkpoint path is not the factory's: it is a given map
+through `Deferred::from_map`, which gets its hook the same way (`Deferred::scan` is the read-only half
+`models inspect` uses), and
 `WhisperVocabulary::{for_layout, map, load}` the layout-to-vocabulary rule, its file and its resolve. A caller with a
 provider of its own builds a factory over `default_whisper_providers()` and adds it. This crate resolves `--model`
 through the default factory and reports through the `models` subcommand; it keeps no index of its own.

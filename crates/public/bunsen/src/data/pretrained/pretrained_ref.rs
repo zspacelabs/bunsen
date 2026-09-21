@@ -2,13 +2,16 @@
 //!
 //! What a spec resolved to: a row copied out of a provider, or a map from
 //! somewhere else, such as a path. The name-to-model pathway's first step,
-//! shared by every kit; a [`PretrainedFactory`](super::PretrainedFactory)
-//! makes one from a spec, the kit's hook plans and builds from it.
+//! shared by every kit; a factory makes one from a spec, the kit's hook
+//! plans and builds from it.
 //!
 //! A ref is plain data: both halves are serde types, and the provider is
 //! held by name, so a ref outlives the factory that made it. The caller's
 //! resources ride on it through [`with_overlay`](PretrainedRef::with_overlay),
-//! so a hook sees one thing.
+//! so a hook sees one thing. With the `cache` feature, a
+//! `Deferred` pairs a ref with the kit's hook for it and loads it. With the
+//! `cache` feature, a `Deferred` pairs a ref with the kit's hook for it and
+//! loads it.
 
 use core::fmt::Debug;
 
@@ -122,59 +125,6 @@ impl PretrainedRef {
             }
             Self::Given(mine) => Self::Given(mine.fuse(map, Fuse::Overlay)?),
         })
-    }
-}
-
-#[cfg(feature = "cache")]
-mod with_cache {
-    use std::collections::BTreeMap;
-
-    use burn::prelude::Backend;
-
-    use super::PretrainedRef;
-    use crate::{
-        data::pretrained::{
-            CacheStatus,
-            Construct,
-            Loaded,
-            PretrainedCache,
-        },
-        errors::BunsenResult,
-    };
-
-    impl PretrainedRef {
-        /// Where every resource stands, by key, without touching bytes.
-        pub fn status(
-            &self,
-            kit: &str,
-            cache: &PretrainedCache,
-        ) -> BTreeMap<String, CacheStatus> {
-            cache.map_status(kit, &self.to_map())
-        }
-
-        /// Loads through `hook`: [`Construct::plan`],
-        /// [`PretrainedCache::load`], [`Construct::construct`]. The whole
-        /// pathway once a ref is in hand, whether it came from a factory, a
-        /// path, or a manifest.
-        ///
-        /// # Errors
-        /// As [`Construct::plan`], [`PretrainedCache::load`] and
-        /// [`Construct::construct`].
-        pub fn load<B: Backend, H: Construct>(
-            &self,
-            cache: &PretrainedCache,
-            hook: &H,
-            device: &B::Device,
-        ) -> BunsenResult<Loaded<H::Built<B>>> {
-            let planned = hook.plan(self, cache)?;
-            let resources = cache.load(H::KIT, &planned)?;
-            let handle = hook.construct::<B>(self, &resources, device)?;
-            Ok(Loaded {
-                name: resources.map.name.clone(),
-                handle,
-                resources,
-            })
-        }
     }
 }
 
@@ -304,96 +254,5 @@ mod tests {
             .unwrap();
         assert_eq!(given.id(), "mine");
         assert_eq!(given.to_map().keys(), ["checkpoint", "vocabulary"]);
-    }
-
-    /// A given path is local already and loads in place; a name goes
-    /// through the cache, which is offline here and has nothing local.
-    #[cfg(feature = "cache")]
-    #[test]
-    fn test_status_and_load() {
-        use std::{
-            fs,
-            path::PathBuf,
-            sync::Arc,
-        };
-
-        use burn::prelude::Backend;
-
-        use crate::{
-            data::{
-                cache::BunsenDiskCacheOptions,
-                pretrained::{
-                    CacheStatus,
-                    Construct,
-                    LoadedResources,
-                    PretrainedCache,
-                    PretrainedCacheOptions,
-                    Provenance,
-                },
-            },
-            errors::BunsenError,
-            support::testing::{
-                CpuBackend,
-                default_device,
-            },
-        };
-
-        /// A hook that builds the checkpoint's path.
-        struct CheckpointPath;
-
-        impl Construct for CheckpointPath {
-            type Built<B: Backend> = PathBuf;
-
-            const KIT: &'static str = "kit";
-
-            fn construct<B: Backend>(
-                &self,
-                _model: &PretrainedRef,
-                loaded: &LoadedResources,
-                _device: &B::Device,
-            ) -> BunsenResult<Arc<PathBuf>> {
-                Ok(Arc::new(loaded.expect("checkpoint")?.to_path_buf()))
-            }
-        }
-
-        let dir = tempfile::tempdir().unwrap();
-        let cache = PretrainedCache::new(
-            PretrainedCacheOptions::default()
-                .with_disk(
-                    BunsenDiskCacheOptions::default()
-                        .with_cache_dir(Some(dir.path().join("cache")))
-                        .without_transfer_observers(),
-                )
-                .with_offline(true),
-        )
-        .unwrap();
-        let file = dir.path().join("ckpt.pt");
-        fs::write(&file, b"x").unwrap();
-        let spec = file.to_str().unwrap();
-
-        let given = PretrainedRef::from(ResourceMap::given(spec, "checkpoint", &file));
-        assert_eq!(
-            given.status("kit", &cache)["checkpoint"],
-            CacheStatus::LocalDir
-        );
-        let loaded = given
-            .load::<CpuBackend, _>(&cache, &CheckpointPath, &default_device())
-            .unwrap();
-        assert_eq!(*loaded.handle, file);
-        assert_eq!(loaded.name, spec);
-        assert_eq!(
-            loaded.resources.get("checkpoint").unwrap().provenance,
-            Provenance::LocalDir
-        );
-
-        let named = named();
-        assert_eq!(
-            named.status("kit", &cache)["checkpoint"],
-            CacheStatus::Remote
-        );
-        assert!(matches!(
-            named.load::<CpuBackend, _>(&cache, &CheckpointPath, &default_device()),
-            Err(BunsenError::ResourceNotFound(_))
-        ));
     }
 }

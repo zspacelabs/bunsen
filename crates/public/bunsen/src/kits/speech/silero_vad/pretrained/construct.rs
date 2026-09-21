@@ -13,6 +13,7 @@ use crate::{
         Construct,
         LoadedResources,
         PretrainedRef,
+        ResourceMap,
     },
     errors::BunsenResult,
     kits::speech::silero_vad::{
@@ -40,6 +41,11 @@ impl Construct for SileroConstruct {
     type Built<B: Backend> = SileroVadCollection<B>;
 
     const KIT: &'static str = SILERO_KIT;
+
+    /// The one hook: every row is a burnpack.
+    fn for_map(_map: &ResourceMap) -> BunsenResult<Self> {
+        Ok(Self)
+    }
 
     /// Reads the burnpack into the standard 16 kHz and 8 kHz models.
     fn construct<B: Backend>(

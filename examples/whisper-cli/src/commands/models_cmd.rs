@@ -5,11 +5,10 @@ use bunsen::{
         cache::verify_sha256,
         pretrained::{
             CacheStatus,
-            Construct,
+            Deferred,
             PretrainedCache,
             PretrainedFactory,
             PretrainedProvider,
-            PretrainedRef,
             StaticResourceMap,
         },
     },
@@ -109,7 +108,7 @@ impl ModelsCmd {
 fn resolve(
     factory: &PretrainedFactory<WhisperConstruct>,
     name: &str,
-) -> BunsenResult<PretrainedRef> {
+) -> BunsenResult<Deferred<WhisperConstruct>> {
     resolve_model(factory, name)
 }
 
@@ -247,10 +246,10 @@ fn fetch(
 ) -> BunsenResult<()> {
     for name in names {
         let model = resolve(factory, name)?;
-        // The hook's plan, before anything but the checkpoint is fetched: a
-        // path gets the vocabulary its checkpoint's layout selects, and a
+        // The model's plan, before anything but the checkpoint is fetched:
+        // a path gets the vocabulary its checkpoint's layout selects, and a
         // name is checked against the geometry it promised.
-        let map = factory.hook().plan(&model, cache)?;
+        let map = model.plan(cache)?;
         let loaded = cache.load(WHISPER_KIT, &map)?;
         println!("{}:", model.id());
         for (key, part) in loaded.iter() {
@@ -276,7 +275,7 @@ fn inspect(
 ) -> BunsenResult<()> {
     let model = resolve(factory, name)?;
     println!("model: {}", model.id());
-    if let Some((provider, row)) = model.named() {
+    if let Some((provider, row)) = model.model.named() {
         let description = factory
             .provider(provider)
             .map(|p| p.description().to_string())
@@ -303,7 +302,7 @@ fn inspect(
         }
     }
 
-    let promised = model.prefab(&WHISPER_PREFABS);
+    let promised = model.model.prefab(&WHISPER_PREFABS);
     if let Some(prefab) = &promised {
         println!("prefab: {} ({})", prefab.name, prefab.description);
         println!("  {:?}", prefab.to_config().geometry());
@@ -321,7 +320,7 @@ fn inspect(
 
     // A named model that does not scan as its prefab is an error from
     // `scan`; report it as the finding it is rather than a failure.
-    let cfg = match factory.hook().scan(&model, &checkpoint.path) {
+    let cfg = match model.scan(&checkpoint.path) {
         Ok(cfg) => cfg,
         Err(BunsenError::Invalid(msg)) if promised.is_some() => {
             println!("MISMATCH: {msg}");

@@ -2,10 +2,12 @@
 //!
 //! From a resolved ref to what a kit builds. A [`Construct`] hook is the
 //! kit's: it says which cache segment its files live under, what it builds
-//! for a backend, the key a bare path fills, how a ref's map is completed
-//! before it is loaded, and how the loaded parts become the built thing,
-//! behind an `Arc`. [`PretrainedRef::load`] runs the whole way: plan, load,
-//! construct. Nothing here opens a file.
+//! for a backend, which hook a map calls for (by what the map says about
+//! its resources, their `kind`s), how a ref's map is completed before it is
+//! loaded, and how the loaded parts become the built thing, behind an
+//! `Arc`. A [`Deferred`](super::Deferred) model pairs a ref with its hook
+//! and runs the whole way: plan, load, construct. Nothing here opens a
+//! file.
 
 use std::sync::Arc;
 
@@ -22,21 +24,30 @@ use crate::errors::BunsenResult;
 /// What a kit builds from a resolved ref, and how.
 ///
 /// Not object-safe: [`construct`](Self::construct) is generic over the
-/// backend so that [`Built`](Self::Built) is a real type. A kit's loading
-/// function supplies its hook as a value, which carries the hook's options:
-/// a scanner, a key remapping, a geometry to expect.
+/// backend so that [`Built`](Self::Built) is a real type. A hook is a
+/// value, chosen for a map by [`for_map`](Self::for_map) and carried by the
+/// deferred model it builds: different providers' rows may be read by
+/// different mechanisms, and the map's resources, their `kind`s, say which.
+/// A caller never builds one; it may adjust the one it was given.
 ///
 /// Both steps see the ref, not just its map: what a row promises (its
 /// prefab) is checked in [`plan`](Self::plan) before bytes are fetched,
 /// and a kit whose checkpoint does not describe itself takes its config
 /// from the row in [`construct`](Self::construct).
-pub trait Construct {
+pub trait Construct: Sized {
     /// The cache segment the kit's files live under: the `<kit>` of
     /// `pretrained/<kit>/<namespace>/<sha256>/<file>`.
     const KIT: &'static str;
 
     /// What construction yields, for a backend.
     type Built<B: Backend>;
+
+    /// The hook for `map`: the reader its resources' `kind`s call for.
+    ///
+    /// # Errors
+    /// The kit's: a resource of a kind it has no reader for, refused by
+    /// name rather than misread.
+    fn for_map(map: &ResourceMap) -> BunsenResult<Self>;
 
     /// Completes the ref's map before it is loaded: a kit rule that names
     /// a resource from another, or checks a declared one against the rule,
@@ -109,6 +120,7 @@ mod tests {
         data::{
             cache::BunsenDiskCacheOptions,
             pretrained::{
+                Deferred,
                 Fuse,
                 PretrainedCacheOptions,
                 Provenance,
@@ -131,6 +143,10 @@ mod tests {
         type Built<B: Backend> = Vec<PathBuf>;
 
         const KIT: &'static str = "paths";
+
+        fn for_map(_map: &ResourceMap) -> BunsenResult<Self> {
+            Ok(Paths { vocabulary: None })
+        }
 
         fn plan(
             &self,
@@ -168,6 +184,10 @@ mod tests {
         type Built<B: Backend> = ();
 
         const KIT: &'static str = "paths";
+
+        fn for_map(_map: &ResourceMap) -> BunsenResult<Self> {
+            Ok(NeedsConfig)
+        }
 
         fn construct<B: Backend>(
             &self,
@@ -208,9 +228,12 @@ mod tests {
             vocabulary: Some(vocabulary.clone()),
         };
 
-        let loaded = PretrainedRef::from(ResourceMap::given("mine", "checkpoint", &checkpoint))
-            .load::<CpuBackend, _>(&cache, &hook, &default_device())
-            .unwrap();
+        let loaded = Deferred {
+            model: PretrainedRef::from(ResourceMap::given("mine", "checkpoint", &checkpoint)),
+            hook,
+        }
+        .load::<CpuBackend>(&cache, &default_device())
+        .unwrap();
 
         assert_eq!(loaded.name, "mine");
         assert_eq!(*loaded.handle, vec![checkpoint, vocabulary]);
@@ -247,14 +270,19 @@ mod tests {
         let hook = Paths {
             vocabulary: Some(dir.path().join("never-read.tiktoken")),
         };
-        let loaded = model
-            .load::<CpuBackend, _>(&cache, &hook, &default_device())
-            .unwrap();
+        let loaded = Deferred {
+            model: model.clone(),
+            hook,
+        }
+        .load::<CpuBackend>(&cache, &default_device())
+        .unwrap();
         assert_eq!(*loaded.handle, vec![checkpoint.clone(), vocabulary.clone()]);
 
-        let no_rule = Paths { vocabulary: None };
-        let loaded = model
-            .load::<CpuBackend, _>(&cache, &no_rule, &default_device())
+        // The hook a map calls for, with no rule of its own.
+        let no_rule = Deferred::<Paths>::new(model.clone()).unwrap();
+        assert!(no_rule.hook.vocabulary.is_none());
+        let loaded = no_rule
+            .load::<CpuBackend>(&cache, &default_device())
             .unwrap();
         assert_eq!(*loaded.handle, vec![checkpoint, vocabulary]);
 
@@ -271,20 +299,26 @@ mod tests {
         fs::write(&checkpoint, b"x").unwrap();
         let cache = cache_in(dir.path());
 
-        let err = PretrainedRef::from(ResourceMap::given("mine", "checkpoint", &checkpoint))
-            .load::<CpuBackend, _>(&cache, &NeedsConfig, &default_device())
-            .unwrap_err();
+        let err = Deferred::<NeedsConfig>::from_map(ResourceMap::given(
+            "mine",
+            "checkpoint",
+            &checkpoint,
+        ))
+        .unwrap()
+        .load::<CpuBackend>(&cache, &default_device())
+        .unwrap_err();
         assert!(
             matches!(&err, BunsenError::ResourceNotFound(m) if m.contains("\"config\"") && m.contains("checkpoint")),
             "{err}"
         );
 
-        let err = PretrainedRef::from(ResourceMap::given(
+        let err = Deferred::<Paths>::from_map(ResourceMap::given(
             "mine",
             "checkpoint",
             dir.path().join("absent.pt"),
         ))
-        .load::<CpuBackend, _>(&cache, &Paths { vocabulary: None }, &default_device())
+        .unwrap()
+        .load::<CpuBackend>(&cache, &default_device())
         .unwrap_err();
         assert!(matches!(&err, BunsenError::ResourceNotFound(_)), "{err}");
     }

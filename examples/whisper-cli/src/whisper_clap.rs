@@ -10,10 +10,10 @@ use bunsen::{
     data::{
         cache::BunsenDiskCacheOptions,
         pretrained::{
+            Deferred,
             PretrainedCache,
             PretrainedCacheOptions,
             PretrainedFactory,
-            PretrainedRef,
             ResourceMap,
         },
     },
@@ -78,17 +78,15 @@ impl WeightsCacheArgs {
 }
 
 /// What `--model` names: a row of the factory, or a checkpoint on disk as
-/// a one-resource map under [`CHECKPOINT`], which the factory's hook reads
-/// as it reads any row's.
+/// a one-resource map under [`CHECKPOINT`]. Either way a deferred model
+/// with the kit's hook for it; nothing here builds one.
 pub fn resolve_model(
     factory: &PretrainedFactory<WhisperConstruct>,
     spec: &str,
-) -> BunsenResult<PretrainedRef> {
+) -> BunsenResult<Deferred<WhisperConstruct>> {
     let path = Path::new(spec);
     if path.is_file() {
-        return Ok(PretrainedRef::from(ResourceMap::given(
-            spec, CHECKPOINT, path,
-        )));
+        return Deferred::from_map(ResourceMap::given(spec, CHECKPOINT, path));
     }
     factory.resolve(spec)
 }
@@ -163,7 +161,8 @@ impl WhisperDriverArgs {
     /// Loads `--model` at the precision it ships in, with its vocabulary.
     ///
     /// A name is resolved against the default whisper factory; a path to a
-    /// checkpoint is a given map, read through the same hook. Every
+    /// checkpoint is a given map; either way the model carries the kit's
+    /// hook for it. Every
     /// resource of the map comes from the cache, a local source, or a
     /// digest-checked download; a name's checkpoint is checked against the
     /// prefab it promised before it is materialized; and the vocabulary is
@@ -183,7 +182,7 @@ impl WhisperDriverArgs {
         if let Some(path) = &self.vocab {
             model = model.with_overlay(ResourceMap::given("--vocab", VOCABULARY, path))?;
         }
-        Ok(model.load::<B, _>(cache, factory.hook(), device)?.handle)
+        model.load_bundle::<B>(cache, device)
     }
 
     /// Load and setup the [`WhisperStreamDriver`].

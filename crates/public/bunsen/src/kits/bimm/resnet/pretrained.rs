@@ -402,6 +402,7 @@ mod construct {
             LoadedResources,
             PretrainedFactory,
             PretrainedRef,
+            ResourceMap,
         },
         errors::{
             BunsenError,
@@ -474,13 +475,19 @@ mod construct {
     /// [`BunsenError::Invalid`] if two of the defaults share a name, which
     /// the tests pin they do not.
     pub fn default_resnet_factory() -> BunsenResult<PretrainedFactory<ResNetConstruct>> {
-        PretrainedFactory::new(ResNetConstruct::new()).with_providers(default_resnet_providers())
+        PretrainedFactory::new().with_providers(default_resnet_providers())
     }
 
     impl Construct for ResNetConstruct {
         type Built<B: Backend> = ResNet<B>;
 
         const KIT: &'static str = RESNET_KIT;
+
+        /// Every row is a `PyTorch` state dict; the config comes at
+        /// construction, from the row's prefab or the caller's.
+        fn for_map(_map: &ResourceMap) -> BunsenResult<Self> {
+            Ok(Self::new())
+        }
 
         /// Initialises the config's model and reads the checkpoint into it.
         fn construct<B: Backend>(
@@ -620,7 +627,7 @@ mod tests {
             ]
         );
         assert!(
-            PretrainedFactory::new(ResNetConstruct::new())
+            PretrainedFactory::<ResNetConstruct>::new()
                 .with_providers(default_resnet_providers())
                 .unwrap()
                 .with_providers(default_resnet_providers())
@@ -641,6 +648,7 @@ mod tests {
                 cache::BunsenDiskCacheOptions,
                 pretrained::{
                     Construct,
+                    Deferred,
                     PretrainedCache,
                     PretrainedCacheOptions,
                     PretrainedRef,
@@ -656,7 +664,8 @@ mod tests {
 
         let factory = default_resnet_factory().unwrap();
         let named = factory.resolve("resnet50").unwrap();
-        let hook = ResNetConstruct::new();
+        let hook = named.hook.clone();
+        let named = named.model;
         let resnet50 = PREFAB_RESNET_MAP
             .expect_lookup_prefab("resnet50")
             .to_config();
@@ -704,9 +713,11 @@ mod tests {
                 .with_offline(true),
         )
         .unwrap();
-        let err = PretrainedRef::from(ResourceMap::given("mine", CHECKPOINT, &file))
-            .load::<CpuBackend, _>(&cache, &hook, &default_device())
-            .unwrap_err();
+        let err =
+            Deferred::<ResNetConstruct>::from_map(ResourceMap::given("mine", CHECKPOINT, &file))
+                .unwrap()
+                .load::<CpuBackend>(&cache, &default_device())
+                .unwrap_err();
         assert!(matches!(err, BunsenError::InvalidArgument { .. }), "{err}");
         assert_eq!(<ResNetConstruct as Construct>::KIT, RESNET_KIT);
     }

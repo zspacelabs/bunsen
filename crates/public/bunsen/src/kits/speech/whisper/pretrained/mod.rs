@@ -8,11 +8,12 @@
 //! that it has the geometry its prefab promised, the vocabulary through
 //! the rank parser, and out as a
 //! [`WhisperBundle`](crate::kits::speech::whisper::driver::WhisperBundle)
-//! behind an `Arc`. A checkpoint on disk is not the factory's: it is a
-//! given map, read through the same hook with
-//! [`PretrainedRef::load`](crate::data::pretrained::PretrainedRef::load).
-//! A caller with a provider of its own adds it to the default factory; the
-//! hook is the kit's, never the caller's.
+//! behind an `Arc`. What the factory resolves is a
+//! [`Deferred`](crate::data::pretrained::Deferred) model carrying the hook
+//! its map calls for; a checkpoint on disk is not the factory's, but
+//! becomes one the same way through `Deferred::from_map`. A caller with a
+//! provider of its own adds it to the default factory; the hook is the
+//! kit's, chosen by the row, never the caller's.
 
 #[cfg(all(feature = "store_pytorch", feature = "cache"))]
 mod construct;

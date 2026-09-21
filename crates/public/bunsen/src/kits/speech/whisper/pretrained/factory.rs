@@ -1,14 +1,14 @@
 //! # The Whisper pretrained factory
 //!
 //! [`default_whisper_factory`] is the index a caller holds: Whisper's
-//! providers behind the kit's [`WhisperConstruct`] hook.
-//! `factory.load_bundle::<B>("[provider:]name", &cache, device)` is the
-//! whole pathway from a name to a
+//! providers, resolving names to [`Deferred`] models that carry the kit's
+//! [`WhisperConstruct`] hook, chosen by what each row's map says about its
+//! checkpoint. `factory.load_bundle::<B>("[provider:]name", &cache, device)`
+//! is the whole pathway from a name to a
 //! [`WhisperBundle`](crate::kits::speech::whisper::driver::WhisperBundle);
-//! how a row's checkpoint is read is the row's, through its resource
-//! `kind`, and the caller never builds a hook. A checkpoint on disk is not
-//! the factory's: it is a given map, read through the same hook with
-//! [`PretrainedRef::load`](crate::data::pretrained::PretrainedRef::load).
+//! the caller never builds or passes a hook. A checkpoint on disk is not
+//! the factory's: it is a given map through [`Deferred::from_map`], which
+//! gets its hook the same way.
 //!
 //! A caller with a provider of its own, a hub say, builds on the default:
 //!
@@ -18,17 +18,22 @@
 //! let bundle = factory.load_bundle::<B>("openai/base", &cache, &device)?;
 //! ```
 
-use std::sync::Arc;
+use std::{
+    path::Path,
+    sync::Arc,
+};
 
 use burn::prelude::Backend;
 
 use crate::{
     data::pretrained::{
+        Deferred,
         PretrainedCache,
         PretrainedFactory,
     },
     errors::BunsenResult,
     kits::speech::whisper::{
+        WhisperApiConfig,
         driver::WhisperBundle,
         pretrained::{
             WhisperConstruct,
@@ -37,14 +42,14 @@ use crate::{
     },
 };
 
-/// Whisper's factory: [`default_whisper_providers`] behind
+/// Whisper's factory over [`default_whisper_providers`], building through
 /// [`WhisperConstruct`].
 ///
 /// # Errors
 /// [`BunsenError::Invalid`](crate::errors::BunsenError::Invalid) if two of
 /// the defaults share a name, which the tests pin they do not.
 pub fn default_whisper_factory() -> BunsenResult<PretrainedFactory<WhisperConstruct>> {
-    PretrainedFactory::new(WhisperConstruct::new()).with_providers(default_whisper_providers())
+    PretrainedFactory::new().with_providers(default_whisper_providers())
 }
 
 impl PretrainedFactory<WhisperConstruct> {
@@ -62,12 +67,40 @@ impl PretrainedFactory<WhisperConstruct> {
     }
 }
 
+impl Deferred<WhisperConstruct> {
+    /// Scans the checkpoint at `path` for its config without loading its
+    /// weights, and checks it against the geometry this model promises:
+    /// the read-only half, for a listing.
+    ///
+    /// # Errors
+    /// As [`WhisperConstruct::scan`].
+    pub fn scan(
+        &self,
+        path: &Path,
+    ) -> BunsenResult<WhisperApiConfig> {
+        self.hook.scan(&self.model, path)
+    }
+
+    /// This model to a bundle: [`load`](Self::load), keeping the handle.
+    ///
+    /// # Errors
+    /// As [`load`](Self::load).
+    pub fn load_bundle<B: Backend>(
+        &self,
+        cache: &PretrainedCache,
+        device: &B::Device,
+    ) -> BunsenResult<Arc<WhisperBundle<B>>> {
+        Ok(self.load::<B>(cache, device)?.handle)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::{
         data::pretrained::{
             PretrainedRef,
+            ResourceMap,
             WELL_KNOWN,
             testing::ListsNothing,
         },
@@ -117,16 +150,17 @@ mod tests {
             Err(BunsenError::ResourceNotFound(_))
         ));
         assert!(openai_download_root().is_some_and(|d| d.ends_with("whisper")));
-        assert!(format!("{:?}", factory.hook()).contains("WhisperConstruct"));
     }
 
-    /// A spec resolves to a row, by ref, bare name or alias; a path on
-    /// disk is not a name the factory knows.
+    /// A spec resolves to a deferred row, by ref, bare name or alias, with
+    /// the hook its map calls for; a path on disk is not a name the
+    /// factory knows, and becomes a deferred model on its own.
     #[test]
     fn test_resolve_names_and_aliases() {
         let factory = default_whisper_factory().unwrap();
 
-        match factory.resolve("openai/tiny.en").unwrap() {
+        let model = factory.resolve("openai/tiny.en").unwrap();
+        match &model.model {
             PretrainedRef::Named {
                 provider,
                 pretrained,
@@ -137,6 +171,7 @@ mod tests {
             }
             other => panic!("{other:?}"),
         }
+        assert!(format!("{:?}", model.hook).contains("WhisperConstruct"));
         assert_eq!(
             factory.resolve("well-known:openai/tiny.en").unwrap().id(),
             "well-known:openai/tiny.en"
@@ -149,10 +184,17 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let file = dir.path().join("ckpt.pt");
         std::fs::write(&file, b"x").unwrap();
+        let spec = file.to_str().unwrap();
         assert!(matches!(
-            factory.resolve(file.to_str().unwrap()),
+            factory.resolve(spec),
             Err(BunsenError::ResourceNotFound(_))
         ));
+        let given =
+            Deferred::<WhisperConstruct>::from_map(ResourceMap::given(spec, CHECKPOINT, &file))
+                .unwrap();
+        assert_eq!(given.id(), spec);
+        assert!(given.model.named().is_none());
+
         assert!(matches!(
             factory.resolve("openai/gigantic"),
             Err(BunsenError::ResourceNotFound(_))
@@ -202,6 +244,14 @@ mod tests {
         assert_eq!(row.name, "openai/whisper-base");
         assert_eq!(factory.lookup("base").unwrap().0, "well-known");
         assert_eq!(hub.lookups(), 1, "a bare name never reached the hub");
+
+        // The hub's rows are safetensors, which this kit has no reader
+        // for: resolving one is refused by name, before anything is read.
+        let err = factory.resolve("hub:openai/whisper-base").unwrap_err();
+        assert!(
+            matches!(&err, BunsenError::Invalid(m) if m.contains("no reader for a \"safetensors\"")),
+            "{err}"
+        );
     }
 
     /// Registering the defaults twice is the error a duplicate name is.
@@ -253,7 +303,7 @@ mod tests {
 
         let model = factory.resolve("bundled:openai/base").unwrap();
         assert_eq!(model.id(), "bundled:openai/base");
-        let status = model.status(WHISPER_KIT, &cache);
+        let status = model.status(&cache);
         assert_eq!(status[CHECKPOINT], CacheStatus::LocalDir);
         assert_eq!(status[VOCABULARY], CacheStatus::LocalDir);
         let map = model.to_map();
@@ -302,7 +352,7 @@ mod tests {
         let factory = default_whisper_factory().unwrap();
         let model = factory.resolve("openai/base").unwrap();
         assert_eq!(model.id(), "well-known:openai/base");
-        let status = model.status(WHISPER_KIT, &cache);
+        let status = model.status(&cache);
         assert_eq!(status[CHECKPOINT], CacheStatus::Cached);
         assert_eq!(status[VOCABULARY], CacheStatus::Cached);
 

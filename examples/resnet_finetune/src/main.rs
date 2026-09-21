@@ -24,7 +24,6 @@ use bunsen::{
     kits::bimm::resnet::{
         PREFAB_RESNET_MAP,
         ResNet,
-        ResNetConstruct,
         default_resnet_factory,
     },
 };
@@ -305,8 +304,9 @@ pub fn train<B: AutodiffBackend>(args: &Args) -> anyhow::Result<()> {
         }
         return Ok(());
     }
-    let model_ref = factory.resolve(&args.pretrained)?;
+    let mut model_ref = factory.resolve(&args.pretrained)?;
     let prefab = model_ref
+        .model
         .prefab(&PREFAB_RESNET_MAP)
         .with_context(|| format!("{}: names no prefab", model_ref.id()))?;
     let resnet_prefab = prefab.name.clone();
@@ -345,12 +345,12 @@ pub fn train<B: AutodiffBackend>(args: &Args) -> anyhow::Result<()> {
 
     let old_float_type = model.output_fc.weight.dtype();
 
-    // The activation rewrite is this example's own surgery, so the row
-    // goes through the kit's hook with this config rather than the
-    // prefab's; the checkpoint is read into that model.
-    let hook = ResNetConstruct::new().with_config(resnet_config.clone());
+    // The activation rewrite is this example's own surgery: the deferred
+    // model's hook builds from this config rather than the prefab's, and
+    // the checkpoint is read into that model.
+    model_ref.hook = model_ref.hook.with_config(resnet_config.clone());
     let loaded = model_ref
-        .load::<B, _>(&cache, &hook, &device)
+        .load::<B>(&cache, &device)
         .context("Failed to load pretrained weights")?;
 
     let mut model: ResNet<B> = Arc::unwrap_or_clone(loaded.handle)
