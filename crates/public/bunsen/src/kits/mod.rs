@@ -19,8 +19,9 @@
 //!   compact GPT suitable for experimentation and fine-tuning.
 //! - [`sims`] &mdash; Iterative tensor simulations. Currently includes Conway's
 //!   Game of Life in 2D and 3D, and a D2Q9 lattice-Boltzmann fluid solver.
-//! - [`speech`] &mdash; Full speech recognition models. Currently includes
-//!   `Whisper` and `Hubert`.
+//! - [`speech`] &mdash; Full speech models. Currently includes `Whisper`, with
+//!   its pretrained index and stream driver, and the Silero voice-activity
+//!   detector.
 //! - [`tokens`] &mdash; What kits share on the token side: the ids-to-text
 //!   seam, and its `wordchipper` implementation.
 //!

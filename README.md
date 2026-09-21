@@ -15,6 +15,157 @@ the [burn](https://burn.dev) tensor library.
 
 Read the [bunsen book](https://zspacelabs.ai/bunsen/book)
 
+# Builtin Kits
+
+`bunsen::kits` collects complete, runnable domain implementations over the crate's blocks and ops: whole models with
+their pretrained loaders, and simulations. Every kit's module docs carry a worked example, generic over the backend;
+the stubs below show the default way in, and link to the example that uses each kit. Pretrained weights come through
+one mechanism everywhere: a `PretrainedCache`, the kit's `default_{kit}_factory()`, and a name (`openai/base`,
+`torchvision/resnet18`, `hf:org/repo` for a Hugging Face repo, `bundled:...` for weights built into the binary).
+
+## Speech
+
+### Whisper
+
+[docs](https://docs.rs/bunsen/latest/bunsen/kits/speech/whisper/index.html) &middot;
+example: [`whisper-cli`](examples/whisper-cli)
+
+OpenAI's Whisper, with an index of pretrained checkpoints and a stream driver that turns audio pushed in chunks into
+timed transcript segments.
+
+```rust,ignore
+use bunsen::{
+    data::pretrained::{PretrainedCache, PretrainedCacheOptions},
+    kits::speech::whisper::{
+        driver::{RunningMaxClamp, StreamClock, WhisperStreamDriver, WhisperStreamDriverConfig},
+        pretrained::default_whisper_factory,
+    },
+};
+
+let cache = PretrainedCache::new(PretrainedCacheOptions::default())?;
+let bundle = default_whisper_factory()?.load_bundle::<B>("openai/base", &cache, &device)?;
+let driver: WhisperStreamDriver<B> = WhisperStreamDriverConfig::new().init_from_bundle(bundle, &device)?;
+
+let mut ctx = driver.new_context(StreamClock::uniform(driver.sample_rate()), RunningMaxClamp::new())?;
+for block in samples.chunks(driver.sample_rate() / 10) {
+    for event in ctx.write_read(block)? {
+        println!("{:?}", event.segment().text);
+    }
+}
+```
+
+### Silero VAD
+
+[docs](https://docs.rs/bunsen/latest/bunsen/kits/speech/silero_vad/index.html) &middot;
+example: [`whisper-cli`](examples/whisper-cli)'s real-time presets
+
+Voice-activity detection: the probability that each chunk of audio holds speech, with the weights built into the
+binary under the `silero-weights` feature.
+
+```rust,ignore
+use bunsen::kits::speech::silero_vad::{SileroVadContextConfig, SileroVadMeta, pretrained::default_silero_factory};
+
+let vad = default_silero_factory()?.load::<B>("bundled:silero/vad", &cache, &device)?.handle;
+let vad = vad.expect_branch(16000);
+
+let mut ctx = SileroVadContextConfig::new(vad.sample_rate()).init(vad, &device);
+for chunk in samples.chunks_exact(vad.chunk_size()) {
+    let chunk: Tensor<B, 2> = Tensor::<B, 1>::from_floats(chunk, &device).unsqueeze();
+    let (probability, next) = vad.context_forward(chunk, ctx);
+    ctx = next;
+}
+```
+
+## Vision (`bimm`)
+
+### ResNet
+
+[docs](https://docs.rs/bunsen/latest/bunsen/kits/bimm/resnet/index.html) &middot;
+examples: [`resnet_finetune`](examples/resnet_finetune), [`resnet_tiny`](examples/resnet_tiny)
+
+The ResNet family, with torchvision's and timm's pretrained rows (`torchvision/resnet50`, `timm/resnet18_a1`) and the
+model surgery a fine-tune wants.
+
+```rust,ignore
+use bunsen::kits::bimm::resnet::{ResNet, default_resnet_factory};
+
+let loaded = default_resnet_factory()?.load::<B>("torchvision/resnet18", &cache, &device)?;
+let model: ResNet<B> = Arc::unwrap_or_clone(loaded.handle)
+    .with_classes(10)
+    .with_stochastic_drop_block(0.2);
+```
+
+### Swin Transformer V2
+
+[docs](https://docs.rs/bunsen/latest/bunsen/kits/bimm/swin/v2/index.html) &middot;
+example: [`swin_tiny`](examples/swin_tiny)
+
+```rust,ignore
+use bunsen::kits::bimm::swin::v2::{LayerConfig, SwinTransformerV2, SwinTransformerV2Config};
+
+let swin: SwinTransformerV2<B> = SwinTransformerV2Config::new(
+    image_dimensions, patch_size, image_channels, num_classes, embed_dim,
+    vec![LayerConfig::new(8, 6), LayerConfig::new(8, 12)],
+)
+.with_window_size(window_size)
+.try_init(&device)?;
+```
+
+## Language (`gpts`)
+
+### NanoChat
+
+[docs](https://docs.rs/bunsen/latest/bunsen/kits/gpts/nanochat/index.html) &middot;
+example: [`train-chat`](examples/train-chat)
+
+A compact GPT for experimentation and fine-tuning, with its datasets.
+
+```rust,ignore
+use bunsen::kits::gpts::nanochat::{NanoChatGpt, NanoChatGptConfig};
+
+let gpt: NanoChatGpt<B> = NanoChatGptConfig::new()
+    .with_n_embed(768)
+    .with_n_layer(12)
+    .with_vocab_size(vocab_size)
+    .init::<B>(&device);
+```
+
+## Simulations (`sims`)
+
+### Conway's Game of Life
+
+[docs](https://docs.rs/bunsen/latest/bunsen/kits/sims/conway/index.html) &middot;
+example: [`conway`](examples/conway)
+
+```rust,ignore
+use bunsen::kits::sims::conway::{life2d::{ConwayLife2DConfig, ConwayLife2DState}, util::ConwaySim};
+
+let mut sim: ConwayLife2DState<B> = ConwayLife2DConfig { shape }.init(&device);
+sim.fuzz(0.3);
+sim.step();
+```
+
+### Lattice Boltzmann (D2Q9)
+
+[docs](https://docs.rs/bunsen/latest/bunsen/kits/sims/lbm/index.html) &middot;
+example: [`lbm2d_vis`](examples/lbm2d_vis)
+
+```rust,ignore
+use bunsen::kits::sims::lbm::d2q9::{LBMD2Q9Config, LBMD2Q9State, RelaxationParam};
+
+let mut world: LBMD2Q9State<B> = LBMD2Q9Config::new(grid_shape)
+    .with_relaxation(RelaxationParam::Tau(0.6))
+    .init(&device, background_density);
+world.advance_step();
+```
+
+## Tokens
+
+[docs](https://docs.rs/bunsen/latest/bunsen/kits/tokens/index.html)
+
+What the kits share on the token side: the `Detokenizer` seam from ids to text, and its `wordchipper` implementation
+behind the `tokenizer` feature, which the Whisper bundle carries for its vocabulary.
+
 # Crates
 
 ## Public / API Crates
@@ -235,8 +386,9 @@ See [`examples`](examples) for the full index. At a glance:
 * [`resnet_tiny`](examples/resnet_tiny) — train a ResNet from scratch on CINIC-10 via a firehose pipeline.
 * [`swin_tiny`](examples/swin_tiny) — train a Swin Transformer V2 Tiny on CINIC-10.
 * [`train-chat`](examples/train-chat) — train a NanoChat-style GPT with per-group Muon/AdamW optimizers.
-* [`whisper-cli`](examples/whisper-cli) — transcribe audio with the bundled Whisper `base` checkpoint through the stream
-  driver.
+* [`whisper-cli`](examples/whisper-cli) — transcribe audio through the Whisper stream driver, with the model by name
+  (`openai/base`, `large`, `hf:openai/whisper-large-v3`, or a checkpoint path) and a `models` subcommand that lists,
+  fetches and inspects them.
 
 # License
 
