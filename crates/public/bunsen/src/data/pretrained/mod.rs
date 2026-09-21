@@ -4,6 +4,7 @@
 mod cache;
 #[cfg(feature = "cache")]
 mod construct;
+mod factory;
 #[cfg(feature = "cache")]
 mod loaded;
 mod prefabs;
@@ -21,6 +22,8 @@ pub use cache::*;
 #[cfg(feature = "cache")]
 #[doc(inline)]
 pub use construct::*;
+#[doc(inline)]
+pub use factory::*;
 #[cfg(feature = "cache")]
 #[doc(inline)]
 pub use loaded::*;

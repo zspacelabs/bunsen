@@ -8,7 +8,8 @@
 //! answered by the row, and "what rows exist for this shape" is derived by
 //! scanning the listing. One prefab, many rows, many providers.
 //!
-//! [`PretrainedProvider`] is the trait; a factory holds providers behind it
+//! [`PretrainedProvider`] is the trait; a
+//! [`PretrainedFactory`](super::PretrainedFactory) holds providers behind it
 //! and dispatches a spec. The compiled-in rows sit behind one provider named
 //! [`WELL_KNOWN`], a [`PretrainedTable`] of [`PretrainedGroup`]s: the `openai`
 //! of `well-known:openai/tiny`. A group is a labelled set of rows with one
