@@ -570,20 +570,12 @@ mod tests {
                 PretrainedCache,
                 PretrainedCacheOptions,
             },
-            kits::bimm::resnet::{
-                ResNetConstruct,
-                default_resnet_factory,
-            },
+            kits::bimm::resnet::default_resnet_factory,
         };
 
         let device = default_device();
         let cache = PretrainedCache::new(PretrainedCacheOptions::default())?;
-        let loaded = default_resnet_factory()?.load::<B, _>(
-            spec,
-            &cache,
-            &ResNetConstruct::new(),
-            &device,
-        )?;
+        let loaded = default_resnet_factory()?.load::<B>(spec, &cache, &device)?;
         let _model: &ResNet<B> = &loaded.handle;
         Ok(())
     }

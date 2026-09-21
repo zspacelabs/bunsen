@@ -1,28 +1,26 @@
 //! # The pretrained factory
 //!
 //! The one object a caller holds for a kit: its providers, in search
-//! order, and the dispatch of a spec across them. `provider:ref` goes to
-//! that provider and nowhere else; a spec with no `provider:` is offered to
-//! each provider that [answers bare
-//! names](PretrainedProvider::answers_bare_names), in registration order, and
-//! the first row wins. A provider's "not here" is `Ok(None)`; any error a
-//! provider returns aborts the lookup, since a hub that cannot be reached is
-//! not the same as a hub that has no such row.
+//! order, and its [`Construct`] hook, which is how the kit reads what a
+//! provider's rows point at. `factory.load::<B>(spec, &cache, device)` is
+//! the whole pathway; the caller never builds a hook.
+//!
+//! Dispatch: `provider:ref` goes to that provider and nowhere else; a spec
+//! with no `provider:` is offered to each provider that [answers bare
+//! names](PretrainedProvider::answers_bare_names), in registration order,
+//! and the first row wins. A provider's "not here" is `Ok(None)`; any error
+//! a provider returns aborts the lookup, since a hub that cannot be reached
+//! is not the same as a hub that has no such row.
 //!
 //! There is no process-wide registry. A kit ships a `default_{kit}_factory()`
-//! over its compiled-in providers, and a caller that wants more builds its
-//! own:
+//! over its compiled-in providers and its hook, and a caller that wants
+//! more builds on it:
 //!
 //! ```rust,ignore
-//! let factory = Arc::new(
-//!     PretrainedFactory::new(WHISPER_KIT)
-//!         .with_providers(default_whisper_providers())?
-//!         .with_provider(Arc::new(my_hub))?, // answers `hub:org/repo`, lists nothing
-//! );
+//! let factory = default_whisper_factory()?
+//!     .with_provider(Arc::new(my_hub))?; // answers `hub:org/repo`, lists nothing
+//! let bundle = factory.load_bundle::<B>("openai/base", &cache, &device)?;
 //! ```
-//!
-//! A factory is built for one kit, the `<kit>` segment of the cache path;
-//! a hook whose `KIT` differs is refused at load.
 
 use alloc::{
     string::{
@@ -34,8 +32,13 @@ use alloc::{
 };
 use std::path::Path;
 
+use burn::prelude::Backend;
+
 use super::{
+    Construct,
+    Loaded,
     Pretrained,
+    PretrainedCache,
     PretrainedProvider,
     PretrainedRef,
     ResourceMap,
@@ -46,88 +49,41 @@ use crate::errors::{
     BunsenResult,
 };
 
-#[cfg(feature = "cache")]
-mod with_cache {
-    use burn::prelude::Backend;
-
-    use super::PretrainedFactory;
-    use crate::{
-        data::pretrained::{
-            Construct,
-            Loaded,
-            PretrainedCache,
-            PretrainedRef,
-        },
-        errors::{
-            BunsenError,
-            BunsenResult,
-        },
-    };
-
-    impl PretrainedFactory {
-        /// [`resolve`](Self::resolve) with the key `H` reads a bare
-        /// checkpoint by: `H::GIVEN_KEY`.
-        ///
-        /// # Errors
-        /// As [`resolve`](Self::resolve).
-        pub fn resolve_for<H: Construct>(
-            &self,
-            spec: &str,
-        ) -> BunsenResult<PretrainedRef> {
-            self.resolve(spec, H::GIVEN_KEY)
-        }
-
-        /// A spec to a loaded model: [`resolve_for`](Self::resolve_for),
-        /// then [`PretrainedRef::load`] through `hook`.
-        ///
-        /// # Errors
-        /// [`BunsenError::InvalidArgument`] when `H::KIT` is not this
-        /// factory's kit; otherwise as [`resolve_for`](Self::resolve_for)
-        /// and [`PretrainedRef::load`].
-        pub fn load<B: Backend, H: Construct>(
-            &self,
-            spec: &str,
-            cache: &PretrainedCache,
-            hook: &H,
-            device: &B::Device,
-        ) -> BunsenResult<Loaded<H::Built<B>>> {
-            if H::KIT != self.kit() {
-                return Err(BunsenError::InvalidArgument {
-                    msg: alloc::format!(
-                        "{}: a factory for kit {:?} cannot load through a hook for kit {:?}",
-                        spec,
-                        self.kit(),
-                        H::KIT
-                    ),
-                });
-            }
-            self.resolve_for::<H>(spec)?
-                .load::<B, H>(cache, hook, device)
-        }
-    }
-}
-
-/// A kit's providers, in search order, and the dispatch of a spec across
-/// them.
-#[derive(Debug)]
-pub struct PretrainedFactory {
-    kit: String,
+/// A kit's providers, in search order, and its hook.
+#[derive(Clone, Debug)]
+pub struct PretrainedFactory<H: Construct> {
+    hook: H,
     providers: Vec<Arc<dyn PretrainedProvider>>,
 }
 
-impl PretrainedFactory {
-    /// An empty factory for `kit`: the `<kit>` segment of the cache path,
-    /// and what a hook's `KIT` must match.
-    pub fn new(kit: impl Into<String>) -> Self {
+impl<H: Construct> PretrainedFactory<H> {
+    /// A factory with no providers yet, building through `hook`.
+    pub fn new(hook: H) -> Self {
         Self {
-            kit: kit.into(),
+            hook,
             providers: Vec::new(),
         }
     }
 
-    /// The kit this factory serves.
-    pub fn kit(&self) -> &str {
-        &self.kit
+    /// The kit this factory serves: the hook's, the `<kit>` segment of the
+    /// cache path.
+    pub fn kit(&self) -> &'static str {
+        H::KIT
+    }
+
+    /// The hook: how the kit reads what a row points at.
+    pub fn hook(&self) -> &H {
+        &self.hook
+    }
+
+    /// Replaces the hook: a kit's typed factory exposes what a caller may
+    /// want to change on it, so that a caller need not build one.
+    pub fn with_hook(
+        mut self,
+        hook: H,
+    ) -> Self {
+        self.hook = hook;
+        self
     }
 
     /// Adds a provider at the end of the search order.
@@ -143,7 +99,7 @@ impl PretrainedFactory {
         if self.provider(provider.name()).is_some() {
             return Err(BunsenError::Invalid(alloc::format!(
                 "{}: a provider named {:?} is registered already",
-                self.kit,
+                H::KIT,
                 provider.name()
             )));
         }
@@ -258,10 +214,10 @@ impl PretrainedFactory {
     }
 
     /// What `spec` refers to: the row it names, as [`lookup`](Self::lookup)
-    /// finds it, or else, when `given_key` is `Some` and `spec` is a path to
-    /// an existing file, a one-resource map under that key, the key the
-    /// kit reads a bare checkpoint by. The index wins over the file
-    /// system; `None` refuses a path.
+    /// finds it, or else, when the hook names a key for a bare path
+    /// ([`Construct::GIVEN_KEY`]) and `spec` is a path to an existing file,
+    /// a one-resource map under that key. The index wins over the file
+    /// system; a hook with no key refuses a path.
     ///
     /// # Errors
     /// As [`lookup`](Self::lookup), the message noting that `spec` is not
@@ -269,7 +225,6 @@ impl PretrainedFactory {
     pub fn resolve(
         &self,
         spec: &str,
-        given_key: Option<&str>,
     ) -> BunsenResult<PretrainedRef> {
         if let Some((provider, pretrained)) = self.find(spec)? {
             return Ok(PretrainedRef::Named {
@@ -277,7 +232,7 @@ impl PretrainedFactory {
                 pretrained,
             });
         }
-        let Some(key) = given_key else {
+        let Some(key) = H::GIVEN_KEY else {
             return Err(self.not_found(spec));
         };
         let path = Path::new(spec);
@@ -290,6 +245,48 @@ impl PretrainedFactory {
             }
             other => other,
         })
+    }
+
+    /// The hook's plan for a resolved model: its map completed, before
+    /// anything but what the plan itself looks at is fetched.
+    ///
+    /// # Errors
+    /// As [`Construct::plan`].
+    pub fn plan(
+        &self,
+        model: &PretrainedRef,
+        cache: &PretrainedCache,
+    ) -> BunsenResult<ResourceMap> {
+        self.hook.plan(model, cache)
+    }
+
+    /// A resolved model to what the kit builds: [`PretrainedRef::load`]
+    /// through the hook. For a ref the caller changed first, with
+    /// [`PretrainedRef::with_overlay`].
+    ///
+    /// # Errors
+    /// As [`PretrainedRef::load`].
+    pub fn load_ref<B: Backend>(
+        &self,
+        model: &PretrainedRef,
+        cache: &PretrainedCache,
+        device: &B::Device,
+    ) -> BunsenResult<Loaded<H::Built<B>>> {
+        model.load::<B, H>(cache, &self.hook, device)
+    }
+
+    /// A spec to what the kit builds: [`resolve`](Self::resolve), then
+    /// [`load_ref`](Self::load_ref). The whole pathway.
+    ///
+    /// # Errors
+    /// As [`resolve`](Self::resolve) and [`PretrainedRef::load`].
+    pub fn load<B: Backend>(
+        &self,
+        spec: &str,
+        cache: &PretrainedCache,
+        device: &B::Device,
+    ) -> BunsenResult<Loaded<H::Built<B>>> {
+        self.load_ref::<B>(&self.resolve(spec)?, cache, device)
     }
 
     /// The dispatch behind [`lookup`](Self::lookup): `Ok(None)` when no
@@ -328,16 +325,17 @@ impl PretrainedFactory {
                 return not_found(Some(provider.name()), "pretrained", rest, &ids);
             }
             let names: Vec<&str> = self.providers.iter().map(|p| p.name()).collect();
-            return not_found(Some(&self.kit), "provider", head, &names);
+            return not_found(Some(H::KIT), "provider", head, &names);
         }
         let ids = self.ids();
         let ids: Vec<&str> = ids.iter().map(String::as_str).collect();
-        not_found(Some(&self.kit), "pretrained", spec, &ids)
+        not_found(Some(H::KIT), "pretrained", spec, &ids)
     }
 }
 
-/// Providers with the shape of things the compiled-in tables are not: a
-/// hub that answers a ref but lists nothing, and one that fails.
+/// Providers and hooks with the shape of things the compiled-in tables are
+/// not: a hub that answers a ref but lists nothing, one that fails, and
+/// hooks that build a path or nothing.
 #[cfg(test)]
 pub(crate) mod testing {
     use alloc::{
@@ -348,9 +346,11 @@ pub(crate) mod testing {
         AtomicUsize,
         Ordering,
     };
+    use std::path::PathBuf;
 
     use super::*;
     use crate::data::pretrained::{
+        LoadedResources,
         Resource,
         ResourceMap,
         Source,
@@ -450,6 +450,46 @@ pub(crate) mod testing {
             Err(BunsenError::External("failing: unreachable".to_string()))
         }
     }
+
+    /// A hook for kit `kit` that builds the checkpoint's path, and takes a
+    /// bare path under `checkpoint`.
+    #[derive(Clone, Debug, Default)]
+    pub struct CheckpointPath;
+
+    impl Construct for CheckpointPath {
+        type Built<B: Backend> = PathBuf;
+
+        const GIVEN_KEY: Option<&'static str> = Some("checkpoint");
+        const KIT: &'static str = "kit";
+
+        fn construct<B: Backend>(
+            &self,
+            _model: &PretrainedRef,
+            loaded: &LoadedResources,
+            _device: &B::Device,
+        ) -> BunsenResult<Arc<PathBuf>> {
+            Ok(Arc::new(loaded.expect("checkpoint")?.to_path_buf()))
+        }
+    }
+
+    /// A hook for kit `kit` that builds nothing and takes no bare path.
+    #[derive(Clone, Debug, Default)]
+    pub struct NoPath;
+
+    impl Construct for NoPath {
+        type Built<B: Backend> = ();
+
+        const KIT: &'static str = "kit";
+
+        fn construct<B: Backend>(
+            &self,
+            _model: &PretrainedRef,
+            _loaded: &LoadedResources,
+            _device: &B::Device,
+        ) -> BunsenResult<Arc<()>> {
+            Ok(Arc::new(()))
+        }
+    }
 }
 
 #[cfg(test)]
@@ -458,8 +498,10 @@ mod tests {
 
     use super::{
         testing::{
+            CheckpointPath,
             Failing,
             ListsNothing,
+            NoPath,
         },
         *,
     };
@@ -541,15 +583,15 @@ mod tests {
         )
     }
 
-    fn factory() -> PretrainedFactory {
-        PretrainedFactory::new("kit")
+    fn factory() -> PretrainedFactory<CheckpointPath> {
+        PretrainedFactory::new(CheckpointPath)
             .with_providers([well_known(), Arc::new(ListsNothing::default()) as _])
             .unwrap()
     }
 
     #[test]
     fn test_register_refuses_a_duplicate_name_and_remove_frees_it() {
-        let mut factory = PretrainedFactory::new("kit")
+        let mut factory = PretrainedFactory::new(CheckpointPath)
             .with_provider(well_known())
             .unwrap();
         assert_eq!(factory.kit(), "kit");
@@ -569,10 +611,13 @@ mod tests {
         assert!(factory.providers().is_empty());
         factory.register(well_known()).unwrap();
         assert!(format!("{factory:?}").contains("PretrainedTable"));
+        assert!(format!("{:?}", factory.hook()).contains("CheckpointPath"));
+        let again = factory.clone().with_hook(CheckpointPath);
+        assert_eq!(again.providers().len(), 1);
 
         // The builder form surfaces the same error through `?`.
         assert!(
-            PretrainedFactory::new("kit")
+            PretrainedFactory::new(CheckpointPath)
                 .with_providers([well_known(), well_known()])
                 .is_err()
         );
@@ -622,7 +667,7 @@ mod tests {
                 vec![row("small", &[], "small"), row("only-here", &[], "x")],
             )],
         );
-        let factory = PretrainedFactory::new("kit")
+        let factory = PretrainedFactory::new(CheckpointPath)
             .with_providers([Arc::new(ListsNothing::default()) as _, well_known(), second])
             .unwrap();
 
@@ -663,7 +708,7 @@ mod tests {
     #[test]
     fn test_a_lookup_only_provider_answers_qualified_names_only() {
         let hub = Arc::new(ListsNothing::default());
-        let factory = PretrainedFactory::new("kit")
+        let factory = PretrainedFactory::new(CheckpointPath)
             .with_providers([well_known(), hub.clone() as _])
             .unwrap();
 
@@ -700,7 +745,7 @@ mod tests {
     /// is not "not here".
     #[test]
     fn test_a_providers_error_aborts_the_lookup() {
-        let factory = PretrainedFactory::new("kit")
+        let factory = PretrainedFactory::new(CheckpointPath)
             .with_providers([Arc::new(Failing) as _, well_known()])
             .unwrap();
         assert!(matches!(
@@ -718,44 +763,47 @@ mod tests {
     }
 
     /// A spec resolves to the row it names, qualified, bare or by alias;
-    /// failing that, to a file under the given key; and the index is tried
-    /// before the file system.
+    /// failing that, to a file under the hook's key; a hook with no key
+    /// refuses a path; and the index is tried before the file system.
     #[test]
     fn test_resolve_names_aliases_and_paths() {
         let factory = factory();
 
-        let model = factory
-            .resolve("well-known:a/small", Some("checkpoint"))
-            .unwrap();
+        let model = factory.resolve("well-known:a/small").unwrap();
         assert_eq!(model.id(), "well-known:a/small");
-        let model = factory.resolve("s", Some("checkpoint")).unwrap();
+        let model = factory.resolve("s").unwrap();
         assert_eq!(model.id(), "well-known:a/small");
         assert_eq!(
             model.named().map(|(p, row)| (p, row.name.as_str())),
             Some(("well-known", "a/small"))
         );
         assert_eq!(model.to_map().name, "well-known:a/small");
-        let model = factory.resolve("hub:x/y", None).unwrap();
+        let model = factory.resolve("hub:x/y").unwrap();
         assert_eq!(model.id(), "hub:x/y");
 
         let dir = tempfile::tempdir().unwrap();
         let file = dir.path().join("ckpt.pt");
         std::fs::write(&file, b"x").unwrap();
         let spec = file.to_str().unwrap();
-        let model = factory.resolve(spec, Some("checkpoint")).unwrap();
+        let model = factory.resolve(spec).unwrap();
         assert_eq!(model.id(), spec);
         assert!(model.named().is_none());
         let map = model.to_map();
         assert_eq!(map.keys(), ["checkpoint"]);
         assert_eq!(map.get("checkpoint").unwrap().file, "ckpt.pt");
 
-        match factory.resolve(spec, None) {
+        let no_path = PretrainedFactory::new(NoPath)
+            .with_provider(well_known())
+            .unwrap();
+        match no_path.resolve(spec) {
             Err(BunsenError::ResourceNotFound(m)) => {
                 assert!(!m.contains("not a file"), "a path was never an option: {m}");
             }
             other => panic!("{other:?}"),
         }
-        match factory.resolve("/no/such/file.pt", Some("checkpoint")) {
+        assert_eq!(no_path.resolve("tiny").unwrap().id(), "well-known:b/tiny");
+
+        match factory.resolve("/no/such/file.pt") {
             Err(BunsenError::ResourceNotFound(m)) => {
                 assert!(m.contains("well-known:a/small"), "{m}");
                 assert!(m.ends_with("\"/no/such/file.pt\" is not a file"), "{m}");
@@ -763,34 +811,28 @@ mod tests {
             other => panic!("{other:?}"),
         }
         assert!(matches!(
-            factory.resolve("well-known:a/gigantic", Some("checkpoint")),
+            factory.resolve("well-known:a/gigantic"),
             Err(BunsenError::ResourceNotFound(_))
         ));
 
         // A row named like an existing file is the row: the index first.
         let shadow = table("shadow", vec![group("g", vec![row(spec, &[], "x")])]);
-        let factory = PretrainedFactory::new("kit").with_provider(shadow).unwrap();
-        let model = factory.resolve(spec, Some("checkpoint")).unwrap();
+        let factory = PretrainedFactory::new(CheckpointPath)
+            .with_provider(shadow)
+            .unwrap();
+        let model = factory.resolve(spec).unwrap();
         assert!(model.named().is_some());
         assert_eq!(model.id(), format!("shadow:g/{spec}"));
     }
 
-    /// `resolve_for` takes the hook's key for a bare path, and `load` runs
-    /// the whole pathway, refusing a hook for another kit.
-    #[cfg(feature = "cache")]
+    /// `load` runs the whole pathway through the factory's hook; `plan`
+    /// and `load_ref` are its halves, for a ref the caller changed.
     #[test]
-    fn test_resolve_for_and_load_go_through_the_hook() {
-        use std::path::PathBuf;
-
-        use burn::prelude::Backend;
-
+    fn test_load_goes_through_the_hook() {
         use crate::{
             data::{
                 cache::BunsenDiskCacheOptions,
                 pretrained::{
-                    Construct,
-                    LoadedResources,
-                    PretrainedCache,
                     PretrainedCacheOptions,
                     Provenance,
                 },
@@ -800,43 +842,6 @@ mod tests {
                 default_device,
             },
         };
-
-        /// A hook for `kit` that builds the checkpoint's path.
-        struct CheckpointPath;
-
-        impl Construct for CheckpointPath {
-            type Built<B: Backend> = PathBuf;
-
-            const GIVEN_KEY: Option<&'static str> = Some("checkpoint");
-            const KIT: &'static str = "kit";
-
-            fn construct<B: Backend>(
-                &self,
-                _model: &PretrainedRef,
-                loaded: &LoadedResources,
-                _device: &B::Device,
-            ) -> BunsenResult<Arc<PathBuf>> {
-                Ok(Arc::new(loaded.expect("checkpoint")?.to_path_buf()))
-            }
-        }
-
-        /// A hook for some other kit.
-        struct OtherKit;
-
-        impl Construct for OtherKit {
-            type Built<B: Backend> = ();
-
-            const KIT: &'static str = "other";
-
-            fn construct<B: Backend>(
-                &self,
-                _model: &PretrainedRef,
-                _loaded: &LoadedResources,
-                _device: &B::Device,
-            ) -> BunsenResult<Arc<()>> {
-                Ok(Arc::new(()))
-            }
-        }
 
         let dir = tempfile::tempdir().unwrap();
         let cache = PretrainedCache::new(
@@ -854,20 +859,8 @@ mod tests {
         let spec = file.to_str().unwrap();
         let factory = factory();
 
-        assert!(
-            factory
-                .resolve_for::<CheckpointPath>(spec)
-                .unwrap()
-                .named()
-                .is_none()
-        );
-        assert!(matches!(
-            factory.resolve_for::<OtherKit>(spec),
-            Err(BunsenError::ResourceNotFound(_))
-        ));
-
         let loaded = factory
-            .load::<CpuBackend, _>(spec, &cache, &CheckpointPath, &default_device())
+            .load::<CpuBackend>(spec, &cache, &default_device())
             .unwrap();
         assert_eq!(*loaded.handle, file);
         assert_eq!(loaded.name, spec);
@@ -876,21 +869,21 @@ mod tests {
             Provenance::LocalDir
         );
 
-        let err = factory
-            .load::<CpuBackend, _>("well-known:a/small", &cache, &OtherKit, &default_device())
-            .unwrap_err();
-        assert!(
-            matches!(&err, BunsenError::InvalidArgument { msg } if msg.contains("\"kit\"") && msg.contains("\"other\"")),
-            "{err}"
-        );
+        let model = factory.resolve(spec).unwrap();
+        assert_eq!(factory.plan(&model, &cache).unwrap(), model.to_map());
+        let other = dir.path().join("other.pt");
+        std::fs::write(&other, b"y").unwrap();
+        let overlaid = model
+            .with_overlay(ResourceMap::given("mine", "checkpoint", &other))
+            .unwrap();
+        let loaded = factory
+            .load_ref::<CpuBackend>(&overlaid, &cache, &default_device())
+            .unwrap();
+        assert_eq!(*loaded.handle, other);
+
         assert!(
             matches!(
-                factory.load::<CpuBackend, _>(
-                    "well-known:a/small",
-                    &cache,
-                    &CheckpointPath,
-                    &default_device()
-                ),
+                factory.load::<CpuBackend>("well-known:a/small", &cache, &default_device()),
                 Err(BunsenError::ResourceNotFound(_))
             ),
             "offline, and nothing local"

@@ -19,7 +19,6 @@
 //!     },
 //!     kits::bimm::resnet::{
 //!         ResNet,
-//!         ResNetConstruct,
 //!         default_resnet_factory,
 //!     },
 //!     support::testing::default_device,
@@ -30,15 +29,11 @@
 //! let cache = PretrainedCache::new(PretrainedCacheOptions::default())
 //!     .expect("the cache");
 //!
-//! // `torchvision/resnet18` names its prefab, which the hook builds from.
+//! // `torchvision/resnet18` names its prefab, which the factory's hook
+//! // builds from.
 //! let loaded = default_resnet_factory()
 //!     .expect("the resnet factory")
-//!     .load::<Flex, _>(
-//!         "torchvision/resnet18",
-//!         &cache,
-//!         &ResNetConstruct::new(),
-//!         &device,
-//!     )
+//!     .load::<Flex>("torchvision/resnet18", &cache, &device)
 //!     .expect("Failed to load weights");
 //!
 //! let model: ResNet<Flex> = Arc::unwrap_or_clone(loaded.handle)

@@ -1,23 +1,22 @@
 //! # Whisper pretrained providers
 //!
 //! Which models exist, under which names, made of which resource maps.
-//! [`default_whisper_factory`] is the index a caller holds; its one
+//! `default_whisper_factory()` is the index a caller holds; its
 //! compiled-in provider is [`WELL_KNOWN_TABLE`], whose refs are
-//! `{group}/{name}`. A group is a label, the `openai` in `openai/tiny.en`,
+//! `{group}/{name}`, and, with the `whisper-weights` feature, the bundled
+//! one. A group is a label, the `openai` in `openai/tiny.en`,
 //! over rows that each name their prefab in
 //! [`WHISPER_PREFABS`](super::WHISPER_PREFABS) and fuse a checkpoint map
 //! with the vocabulary map its token layout selects:
 //! [`OPENAI_CHECKPOINTS`](super::OPENAI_CHECKPOINTS) and
 //! [`WhisperVocabulary`](super::WhisperVocabulary).
 //!
-//! A caller with a provider of its own, a hub say, builds its own factory:
+//! A caller with a provider of its own, a hub say, adds it to the default
+//! factory:
 //!
 //! ```rust,ignore
-//! let factory = Arc::new(
-//!     PretrainedFactory::new(WHISPER_KIT)
-//!         .with_providers(default_whisper_providers())?
-//!         .with_provider(Arc::new(my_hub))?, // answers `hub:org/repo`, lists nothing
-//! );
+//! let factory = default_whisper_factory()?
+//!     .with_provider(Arc::new(my_hub))?; // answers `hub:org/repo`, lists nothing
 //! ```
 //!
 //! The `openai` table is `whisper/__init__.py`'s `_MODELS`, with upstream's
@@ -34,7 +33,6 @@ use std::{
 
 use crate::{
     data::pretrained::{
-        PretrainedFactory,
         PretrainedProvider,
         StaticPretrained,
         StaticPretrainedGroup,
@@ -42,7 +40,6 @@ use crate::{
         StaticResourceMap,
         WELL_KNOWN,
     },
-    errors::BunsenResult,
     kits::speech::whisper::pretrained::{
         BASE_CHECKPOINT,
         BASE_EN_CHECKPOINT,
@@ -287,32 +284,16 @@ pub fn default_whisper_providers() -> Vec<Arc<dyn PretrainedProvider>> {
     }
 }
 
-/// Whisper's factory over [`default_whisper_providers`]: the index
-/// `--model` is resolved against.
-///
-/// # Errors
-/// [`BunsenError::Invalid`](crate::errors::BunsenError::Invalid) if two of
-/// the defaults share a name, which the tests pin they do not.
-pub fn default_whisper_factory() -> BunsenResult<Arc<PretrainedFactory>> {
-    Ok(Arc::new(
-        PretrainedFactory::new(WHISPER_KIT).with_providers(default_whisper_providers())?,
-    ))
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{
-        data::pretrained::testing::ListsNothing,
-        errors::BunsenError,
-        kits::speech::whisper::{
-            driver::WhisperSpecialIds,
-            pretrained::{
-                CHECKPOINT,
-                VOCABULARY,
-                WHISPER_PREFABS,
-                WhisperVocabulary,
-            },
+    use crate::kits::speech::whisper::{
+        driver::WhisperSpecialIds,
+        pretrained::{
+            CHECKPOINT,
+            VOCABULARY,
+            WHISPER_PREFABS,
+            WhisperVocabulary,
         },
     };
 
@@ -403,255 +384,5 @@ mod tests {
             names.dedup();
             assert_eq!(names.len(), n, "{}: a name is repeated", group.name);
         }
-    }
-
-    /// The default factory is the well-known table, serving the kit, with
-    /// every id qualified and upstream's aliases honoured; the bundled
-    /// table joins it with the feature, after it.
-    #[test]
-    fn test_the_defaults_register() {
-        let factory = default_whisper_factory().unwrap();
-        assert_eq!(factory.kit(), WHISPER_KIT);
-        assert_eq!(factory.providers()[0].name(), "well-known");
-        assert_eq!(factory.provider(WELL_KNOWN).unwrap().name(), "well-known");
-        assert_eq!(factory.provider(WELL_KNOWN).unwrap().ids().len(), 12);
-        if cfg!(feature = "whisper-weights") {
-            assert_eq!(factory.providers().len(), 2);
-            assert_eq!(factory.providers()[1].name(), "bundled");
-            assert_eq!(factory.ids().len(), 13);
-        } else {
-            assert_eq!(factory.providers().len(), 1);
-            assert_eq!(factory.ids().len(), 12);
-        }
-
-        let (provider, large) = factory.lookup("large").unwrap();
-        assert_eq!(provider, "well-known");
-        assert_eq!(large.name, "openai/large-v3");
-        let (_, turbo) = factory.lookup("openai/turbo").unwrap();
-        assert_eq!(turbo.name, "openai/large-v3-turbo");
-        assert_eq!(
-            factory.lookup("well-known:openai/tiny").unwrap().1.name,
-            "openai/tiny"
-        );
-        assert!(matches!(
-            factory.lookup("nobody:base"),
-            Err(BunsenError::ResourceNotFound(_))
-        ));
-        assert!(matches!(
-            factory.lookup("gigantic"),
-            Err(BunsenError::ResourceNotFound(_))
-        ));
-        assert!(openai_download_root().is_some_and(|d| d.ends_with("whisper")));
-    }
-
-    /// A spec resolves to a row, by ref, bare name or alias, or to a path
-    /// under the checkpoint key.
-    #[test]
-    fn test_resolve_names_aliases_and_paths() {
-        use crate::data::pretrained::PretrainedRef;
-        let factory = default_whisper_factory().unwrap();
-        let resolve = |spec: &str| factory.resolve(spec, Some(CHECKPOINT));
-
-        match resolve("openai/tiny.en").unwrap() {
-            PretrainedRef::Named {
-                provider,
-                pretrained,
-            } => {
-                assert_eq!(provider, "well-known");
-                assert_eq!(pretrained.name, "openai/tiny.en");
-            }
-            other => panic!("{other:?}"),
-        }
-        assert_eq!(
-            resolve("well-known:openai/tiny.en").unwrap().id(),
-            "well-known:openai/tiny.en"
-        );
-        assert_eq!(
-            resolve("turbo").unwrap().id(),
-            "well-known:openai/large-v3-turbo"
-        );
-
-        let dir = tempfile::tempdir().unwrap();
-        let file = dir.path().join("ckpt.pt");
-        std::fs::write(&file, b"x").unwrap();
-        match resolve(file.to_str().unwrap()).unwrap() {
-            PretrainedRef::Given(map) => {
-                assert_eq!(map.keys(), [CHECKPOINT]);
-                assert_eq!(map.get(CHECKPOINT).unwrap().file, "ckpt.pt");
-            }
-            other => panic!("{other:?}"),
-        }
-
-        assert!(matches!(
-            resolve("openai/gigantic"),
-            Err(BunsenError::ResourceNotFound(_))
-        ));
-        assert!(matches!(
-            resolve("/no/such/file.pt"),
-            Err(BunsenError::ResourceNotFound(_))
-        ));
-    }
-
-    /// One prefab, many rows: derived from the listing, per group and
-    /// through the factory.
-    #[test]
-    fn test_one_prefab_many_pretrained() {
-        let large: Vec<&str> = OPENAI.for_prefab("large").iter().map(|p| p.name).collect();
-        assert_eq!(large, ["large-v1", "large-v2"]);
-        let derived: Vec<String> = default_whisper_factory()
-            .unwrap()
-            .for_prefab("large")
-            .iter()
-            .map(|(p, row)| format!("{p}:{}", row.name))
-            .collect();
-        assert_eq!(
-            derived,
-            ["well-known:openai/large-v1", "well-known:openai/large-v2"]
-        );
-    }
-
-    /// A provider that lists nothing joins the defaults: its refs answer
-    /// qualified, the bare names still only reach the table, and the
-    /// listing is unchanged.
-    #[test]
-    fn test_a_plugin_joins_the_defaults() {
-        let hub = Arc::new(ListsNothing::default());
-        let factory = PretrainedFactory::new(WHISPER_KIT)
-            .with_providers(default_whisper_providers())
-            .unwrap()
-            .with_provider(hub.clone())
-            .unwrap();
-        let defaults = default_whisper_providers().len();
-        assert_eq!(factory.providers().len(), defaults + 1);
-        assert_eq!(
-            factory.ids().len(),
-            factory.providers()[..defaults]
-                .iter()
-                .map(|p| p.ids().len())
-                .sum::<usize>()
-        );
-
-        let (provider, row) = factory.lookup("hub:openai/whisper-base").unwrap();
-        assert_eq!(provider, "hub");
-        assert_eq!(row.name, "openai/whisper-base");
-        assert_eq!(factory.lookup("base").unwrap().0, "well-known");
-        assert_eq!(hub.lookups(), 1, "a bare name never reached the hub");
-    }
-
-    /// Registering the defaults twice is the error a duplicate name is.
-    #[test]
-    fn test_the_defaults_have_no_duplicate() {
-        let err = PretrainedFactory::new(WHISPER_KIT)
-            .with_providers(default_whisper_providers())
-            .unwrap()
-            .with_providers(default_whisper_providers())
-            .unwrap_err();
-        assert!(matches!(err, BunsenError::Invalid(_)), "{err}");
-    }
-
-    /// `bundled:openai/base` is the bundle's files, used in place from a
-    /// cache that has nothing: both parts local dir, nothing written; and
-    /// a bare `openai/base` still means the well-known row.
-    #[cfg(feature = "whisper-weights")]
-    #[test]
-    fn test_the_bundled_provider_serves_openai_base_in_place() {
-        use crate::data::{
-            cache::BunsenDiskCacheOptions,
-            pretrained::{
-                BUNDLED,
-                CacheStatus,
-                PretrainedCache,
-                PretrainedCacheOptions,
-                Provenance,
-            },
-        };
-        let dir = tempfile::tempdir().unwrap();
-        let cache = PretrainedCache::new(
-            PretrainedCacheOptions::default()
-                .with_disk(
-                    BunsenDiskCacheOptions::default()
-                        .with_cache_dir(Some(dir.path().join("cache")))
-                        .without_transfer_observers(),
-                )
-                .with_offline(true),
-        )
-        .unwrap();
-        let factory = default_whisper_factory().unwrap();
-        let bundled = factory.provider(BUNDLED).unwrap();
-        assert_eq!(bundled.ids(), ["bundled:openai/base"]);
-        assert_eq!(bundled.license(), None);
-
-        let model = factory
-            .resolve("bundled:openai/base", Some(CHECKPOINT))
-            .unwrap();
-        assert_eq!(model.id(), "bundled:openai/base");
-        let status = model.status(WHISPER_KIT, &cache);
-        assert_eq!(status[CHECKPOINT], CacheStatus::LocalDir);
-        assert_eq!(status[VOCABULARY], CacheStatus::LocalDir);
-        let map = model.to_map();
-        assert_eq!(
-            map.get(CHECKPOINT).unwrap().sha256,
-            BASE.to_map().get(CHECKPOINT).unwrap().sha256,
-            "the same file, pinned the same"
-        );
-
-        let loaded = cache.load(WHISPER_KIT, &map).unwrap();
-        for (key, part) in loaded.iter() {
-            assert_eq!(part.provenance, Provenance::LocalDir, "{key}");
-        }
-        assert_eq!(
-            loaded.expect(CHECKPOINT).unwrap(),
-            bunsen_bundled_whisper::base_pt()
-        );
-        assert_eq!(
-            loaded.expect(VOCABULARY).unwrap(),
-            bunsen_bundled_whisper::multilingual_tiktoken()
-        );
-        assert!(!dir.path().join("cache").exists(), "nothing was written");
-
-        assert_eq!(
-            factory
-                .resolve("openai/base", Some(CHECKPOINT))
-                .unwrap()
-                .id(),
-            "well-known:openai/base"
-        );
-    }
-
-    /// A cache rooted at the bundle's directory, offline, has `openai/base`
-    /// whole: both resources cached, nothing fetched, nothing written.
-    #[cfg(feature = "whisper-weights")]
-    #[test]
-    fn test_the_bundle_serves_openai_base() {
-        use crate::{
-            data::pretrained::{
-                CacheStatus,
-                Provenance,
-            },
-            kits::speech::whisper::pretrained::{
-                WhisperConstruct,
-                testing::offline_cache,
-            },
-        };
-        let cache = offline_cache();
-        let factory = default_whisper_factory().unwrap();
-        let model = factory
-            .resolve_for::<WhisperConstruct>("openai/base")
-            .unwrap();
-        assert_eq!(model.id(), "well-known:openai/base");
-        let status = model.status(WHISPER_KIT, &cache);
-        assert_eq!(status[CHECKPOINT], CacheStatus::Cached);
-        assert_eq!(status[VOCABULARY], CacheStatus::Cached);
-
-        let loaded = cache.load(WHISPER_KIT, &model.to_map()).unwrap();
-        assert_eq!(loaded.map.name, "well-known:openai/base");
-        for (key, part) in loaded.iter() {
-            assert_eq!(part.provenance, Provenance::Cached, "{key}");
-            assert!(part.path.starts_with(bunsen_bundled_whisper::cache_dir()));
-        }
-        assert_eq!(
-            loaded.expect(CHECKPOINT).unwrap(),
-            bunsen_bundled_whisper::base_pt()
-        );
     }
 }

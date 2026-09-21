@@ -5,7 +5,6 @@ use bunsen::{
         cache::verify_sha256,
         pretrained::{
             CacheStatus,
-            Construct,
             PretrainedCache,
             PretrainedFactory,
             PretrainedProvider,
@@ -24,7 +23,6 @@ use bunsen::{
             CHECKPOINT,
             OPENAI_LOCAL_DIR,
             OPENAI_VOCABULARIES_MAPS,
-            PytorchWhisperScanner,
             VOCABULARY,
             WHISPER_KIT,
             WHISPER_PREFABS,
@@ -111,23 +109,28 @@ impl ModelsCmd {
                 verify,
                 scanner,
                 names,
-            } => fetch(&factory, &cache, names, *verify, &scanner.scanner()),
+            } => fetch(
+                &factory.with_scanner(scanner.scanner()),
+                &cache,
+                names,
+                *verify,
+            ),
             ModelsAction::Inspect { name, scanner } => {
-                inspect(&factory, &cache, name, &scanner.scanner())
+                inspect(&factory.with_scanner(scanner.scanner()), &cache, name)
             }
         }
     }
 }
 
 fn resolve(
-    factory: &PretrainedFactory,
+    factory: &PretrainedFactory<WhisperConstruct>,
     name: &str,
 ) -> BunsenResult<PretrainedRef> {
-    factory.resolve_for::<WhisperConstruct>(name)
+    factory.resolve(name)
 }
 
 fn list(
-    factory: &PretrainedFactory,
+    factory: &PretrainedFactory<WhisperConstruct>,
     cache: &PretrainedCache,
 ) -> BunsenResult<()> {
     println!("cache: {}", cache.cache_dir().display());
@@ -253,19 +256,17 @@ fn prefabs() -> BunsenResult<()> {
 }
 
 fn fetch(
-    factory: &PretrainedFactory,
+    factory: &PretrainedFactory<WhisperConstruct>,
     cache: &PretrainedCache,
     names: &[String],
     verify: bool,
-    scanner: &PytorchWhisperScanner,
 ) -> BunsenResult<()> {
     for name in names {
         let model = resolve(factory, name)?;
-        // The hook's plan, before anything but the checkpoint is fetched: a
-        // path gets the vocabulary its checkpoint's layout selects, and a
-        // name is checked against the geometry it promised.
-        let hook = WhisperConstruct::new().with_scanner(scanner.clone());
-        let map = hook.plan(&model, cache)?;
+        // The factory's plan, before anything but the checkpoint is
+        // fetched: a path gets the vocabulary its checkpoint's layout
+        // selects, and a name is checked against the geometry it promised.
+        let map = factory.plan(&model, cache)?;
         let loaded = cache.load(WHISPER_KIT, &map)?;
         println!("{}:", model.id());
         for (key, part) in loaded.iter() {
@@ -285,10 +286,9 @@ fn fetch(
 }
 
 fn inspect(
-    factory: &PretrainedFactory,
+    factory: &PretrainedFactory<WhisperConstruct>,
     cache: &PretrainedCache,
     name: &str,
-    scanner: &PytorchWhisperScanner,
 ) -> BunsenResult<()> {
     let model = resolve(factory, name)?;
     println!("model: {}", model.id());
@@ -337,8 +337,7 @@ fn inspect(
 
     // A named model that does not scan as its prefab is an error from
     // `scan`; report it as the finding it is rather than a failure.
-    let hook = WhisperConstruct::new().with_scanner(scanner.clone());
-    let cfg = match hook.scan(&model, &checkpoint.path) {
+    let cfg = match factory.scan(&model, &checkpoint.path) {
         Ok(cfg) => cfg,
         Err(BunsenError::Invalid(msg)) if promised.is_some() => {
             println!("MISMATCH: {msg}");

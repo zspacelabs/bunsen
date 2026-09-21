@@ -191,8 +191,8 @@ All of it is bunsen's: `kits::speech::whisper::pretrained::{WHISPER_PREFABS, OPE
 OPENAI_CHECKPOINTS, MULTILINGUAL_VOCABULARY, GPT2_VOCABULARY}` over `data::pretrained::{StaticPretrained,
 StaticPretrainedGroup, StaticPretrainedTable, StaticResourceMap, PretrainedCache, PretrainedRef}`, with
 `WhisperGeometry` beside `WhisperApiConfig`. `pretrained::default_whisper_factory()` is the index: a
-`PretrainedFactory` over `dyn PretrainedProvider`s in search order, whose `resolve_for::<WhisperConstruct>` and
-`load` are the name-to-model pathway, `WhisperConstruct::scan` its read-only half, and
+`PretrainedFactory<WhisperConstruct>` over `dyn PretrainedProvider`s in search order, owning the kit's hook, whose
+`resolve`, `load_bundle` and `load_ref` are the name-to-model pathway, `scan` its read-only half, and
 `WhisperVocabulary::{for_layout, map, load}` the layout-to-vocabulary rule, its file and its resolve. A caller with a
 provider of its own builds a factory over `default_whisper_providers()` and adds it. This crate resolves `--model`
 through the default factory and reports through the `models` subcommand; it keeps no index of its own.

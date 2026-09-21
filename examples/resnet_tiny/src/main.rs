@@ -21,7 +21,6 @@ use bunsen::{
     kits::bimm::resnet::{
         PREFAB_RESNET_MAP,
         ResNet,
-        ResNetConstruct,
         default_resnet_factory,
     },
 };
@@ -240,12 +239,12 @@ pub fn backend_main<B: AutodiffBackend>(args: &Args) -> anyhow::Result<()> {
         Some(pretrained) => {
             let old_float_type = resnet.output_fc.weight.dtype();
 
-            // The hook builds the model from this config, activation and
+            // The factory builds the model from this config, activation and
             // all, then reads the checkpoint into it.
             let cache = PretrainedCache::new(PretrainedCacheOptions::default())?;
-            let hook = ResNetConstruct::new().with_config(contract.clone());
-            let loaded =
-                default_resnet_factory()?.load::<B, _>(pretrained, &cache, &hook, &device)?;
+            let loaded = default_resnet_factory()?
+                .with_config(contract.clone())
+                .load::<B>(pretrained, &cache, &device)?;
 
             Arc::unwrap_or_clone(loaded.handle).map(&mut DTypeMapper::new(old_float_type))
         }

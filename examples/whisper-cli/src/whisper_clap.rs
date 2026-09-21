@@ -9,16 +9,12 @@ use bunsen::{
         pretrained::{
             PretrainedCache,
             PretrainedCacheOptions,
-            PretrainedFactory,
             ResourceMap,
         },
     },
     errors::BunsenResult,
     kits::speech::{
-        silero_vad::pretrained::{
-            SileroConstruct,
-            default_silero_factory,
-        },
+        silero_vad::pretrained::default_silero_factory,
         whisper::{
             WhisperFallbackConfig,
             WhisperMeta,
@@ -37,7 +33,6 @@ use bunsen::{
                 OPENAI_LOCAL_DIR,
                 PytorchWhisperScanner,
                 VOCABULARY,
-                WhisperConstruct,
                 default_whisper_factory,
             },
         },
@@ -170,7 +165,8 @@ pub struct WhisperDriverArgs {
 impl WhisperDriverArgs {
     /// Loads `--model` at the precision it ships in, with its vocabulary.
     ///
-    /// The name is resolved against `factory`, or taken as a path; every
+    /// The name is resolved against the default whisper factory, or taken
+    /// as a path; every
     /// resource of its map comes from the cache, a local source, or a
     /// digest-checked download; the checkpoint is checked against the
     /// prefab its name promised before it is materialized; and
@@ -182,16 +178,15 @@ impl WhisperDriverArgs {
     /// logits out — so nothing here has to re-type it.
     pub fn load_bundle<B: Backend>(
         &self,
-        factory: &PretrainedFactory,
         cache: &PretrainedCache,
         device: &B::Device,
     ) -> BunsenResult<Arc<WhisperBundle<B>>> {
-        let mut model = factory.resolve_for::<WhisperConstruct>(&self.model)?;
+        let factory = default_whisper_factory()?.with_scanner(self.scanner.scanner());
+        let mut model = factory.resolve(&self.model)?;
         if let Some(path) = &self.vocab {
             model = model.with_overlay(ResourceMap::given("--vocab", VOCABULARY, path))?;
         }
-        let hook = WhisperConstruct::new().with_scanner(self.scanner.scanner());
-        Ok(model.load::<B, _>(cache, &hook, device)?.handle)
+        Ok(factory.load_ref::<B>(&model, cache, device)?.handle)
     }
 
     /// Load and setup the [`WhisperStreamDriver`].
@@ -200,8 +195,7 @@ impl WhisperDriverArgs {
         device: &B::Device,
     ) -> BunsenResult<WhisperStreamDriver<B>> {
         let cache = self.cache.init()?;
-        let factory = default_whisper_factory()?;
-        let bundle = self.load_bundle::<B>(&factory, &cache, device)?;
+        let bundle = self.load_bundle::<B>(&cache, device)?;
         log::info!(
             "model: {} n_mels, vocabulary {}, d_model {}, {} + {} layers",
             bundle.model.n_mels(),
@@ -244,12 +238,7 @@ impl WhisperDriverArgs {
             // The bundled burnpack, through the same cache as the weights:
             // written in from the binary on first use, cached after.
             let vad = default_silero_factory()?
-                .load::<B, _>(
-                    "bundled:silero/vad",
-                    &cache,
-                    &SileroConstruct::new(),
-                    device,
-                )?
+                .load::<B>("bundled:silero/vad", &cache, device)?
                 .handle;
             driver = driver.with_vad(vad.expect_branch(16000).clone(), Default::default())?;
         }

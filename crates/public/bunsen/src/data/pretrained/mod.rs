@@ -3,17 +3,18 @@
 //! A pretrained is a row over a [`ResourceMap`]: keyed files, each with
 //! its digest and the places it can be had from. Rows sit in
 //! [`PretrainedGroup`]s behind a [`PretrainedTable`], the compiled-in
-//! [`PretrainedProvider`]; a [`PretrainedFactory`] holds a kit's providers
-//! in search order and resolves a spec, `provider:ref` or a bare name or a
-//! path, to a [`PretrainedRef`]. With the `cache` feature, the
-//! [`PretrainedCache`] brings a map's files local and a kit's
-//! [`Construct`] hook builds from them, behind an `Arc`. [`StaticPreFabMap`]
-//! is the other half: the geometries a kit knows by name.
+//! [`PretrainedProvider`]. With the `cache` feature, a [`PretrainedFactory`]
+//! holds a kit's providers in search order and its [`Construct`] hook,
+//! resolves a spec, `provider:ref` or a bare name or a path, to a
+//! [`PretrainedRef`], and loads it: the [`PretrainedCache`] brings the
+//! map's files local and the hook builds from them, behind an `Arc`.
+//! [`StaticPreFabMap`] is the other half: the geometries a kit knows by name.
 
 #[cfg(feature = "cache")]
 mod cache;
 #[cfg(feature = "cache")]
 mod construct;
+#[cfg(feature = "cache")]
 mod factory;
 #[cfg(feature = "cache")]
 mod loaded;
@@ -30,6 +31,8 @@ pub use cache::*;
 #[cfg(feature = "cache")]
 #[doc(inline)]
 pub use construct::*;
+#[cfg(feature = "cache")]
+#[cfg(feature = "cache")]
 #[doc(inline)]
 pub use factory::*;
 #[cfg(feature = "cache")]

@@ -15,6 +15,7 @@ use crate::{
         PretrainedProvider,
     },
     errors::BunsenResult,
+    kits::speech::silero_vad::pretrained::SileroConstruct,
 };
 
 /// The kit segment of a Silero resource's path in the cache:
@@ -112,15 +113,14 @@ pub fn default_silero_providers() -> Vec<Arc<dyn PretrainedProvider>> {
     }
 }
 
-/// Silero's factory over [`default_silero_providers`].
+/// Silero's factory: [`default_silero_providers`] behind
+/// [`SileroConstruct`].
 ///
 /// # Errors
 /// [`BunsenError::Invalid`](crate::errors::BunsenError::Invalid) if two of
 /// the defaults share a name, which the tests pin they do not.
-pub fn default_silero_factory() -> BunsenResult<Arc<PretrainedFactory>> {
-    Ok(Arc::new(
-        PretrainedFactory::new(SILERO_KIT).with_providers(default_silero_providers())?,
-    ))
+pub fn default_silero_factory() -> BunsenResult<PretrainedFactory<SileroConstruct>> {
+    PretrainedFactory::new(SileroConstruct::new()).with_providers(default_silero_providers())
 }
 
 #[cfg(test)]
@@ -201,7 +201,6 @@ mod tests {
             kits::speech::silero_vad::{
                 SileroVadCollection,
                 SileroVadMeta,
-                pretrained::SileroConstruct,
             },
             support::testing::{
                 DeviceMemoryGuard,
@@ -226,9 +225,7 @@ mod tests {
         .unwrap();
         let factory = default_silero_factory().unwrap();
 
-        let model = factory
-            .resolve_for::<SileroConstruct>("bundled:silero/vad")
-            .unwrap();
+        let model = factory.resolve("bundled:silero/vad").unwrap();
         assert_eq!(model.id(), "bundled:silero/vad");
         assert_eq!(
             model.status(SILERO_KIT, &cache)[BURNPACK],
@@ -236,12 +233,7 @@ mod tests {
         );
 
         let loaded = factory
-            .load::<B, _>(
-                "bundled:silero/vad",
-                &cache,
-                &SileroConstruct::new(),
-                &device,
-            )
+            .load::<B>("bundled:silero/vad", &cache, &device)
             .unwrap();
         let part = loaded.resources.get(BURNPACK).unwrap();
         assert_eq!(part.provenance, Provenance::Bundled);
@@ -255,9 +247,7 @@ mod tests {
             CacheStatus::Cached
         );
 
-        let again = factory
-            .load::<B, _>("vad", &cache, &SileroConstruct::new(), &device)
-            .unwrap();
+        let again = factory.load::<B>("vad", &cache, &device).unwrap();
         assert_eq!(
             again.resources.get(BURNPACK).unwrap().provenance,
             Provenance::Cached

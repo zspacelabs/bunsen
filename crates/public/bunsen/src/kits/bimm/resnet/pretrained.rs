@@ -16,7 +16,6 @@ use std::sync::Arc;
 
 use crate::{
     data::pretrained::{
-        PretrainedFactory,
         PretrainedProvider,
         StaticBase,
         StaticPreFabConfig,
@@ -28,7 +27,6 @@ use crate::{
         StaticResourceMap,
         WELL_KNOWN,
     },
-    errors::BunsenResult,
     kits::bimm::resnet::ResNetContractConfig,
 };
 
@@ -331,17 +329,6 @@ pub fn default_resnet_providers() -> Vec<Arc<dyn PretrainedProvider>> {
     vec![Arc::new(WELL_KNOWN_TABLE.to_table())]
 }
 
-/// `ResNet`'s factory over [`default_resnet_providers`].
-///
-/// # Errors
-/// [`BunsenError::Invalid`](crate::errors::BunsenError::Invalid) if two of
-/// the defaults share a name, which the tests pin they do not.
-pub fn default_resnet_factory() -> BunsenResult<Arc<PretrainedFactory>> {
-    Ok(Arc::new(
-        PretrainedFactory::new(RESNET_KIT).with_providers(default_resnet_providers())?,
-    ))
-}
-
 /// The public geometries: [`ResNet`](super::`ResNet`) configs by name.
 pub static PREFAB_RESNET_MAP: StaticPreFabMap<ResNetContractConfig> = StaticPreFabMap {
     name: "resnet",
@@ -391,12 +378,14 @@ mod construct {
         CHECKPOINT,
         PREFAB_RESNET_MAP,
         RESNET_KIT,
+        default_resnet_providers,
     };
     use crate::{
         burner::module::ModuleInit,
         data::pretrained::{
             Construct,
             LoadedResources,
+            PretrainedFactory,
             PretrainedRef,
         },
         errors::{
@@ -460,6 +449,29 @@ mod construct {
                         model.id()
                     ),
                 })
+        }
+    }
+
+    /// `ResNet`'s factory: [`default_resnet_providers`] behind
+    /// [`ResNetConstruct`].
+    ///
+    /// # Errors
+    /// [`BunsenError::Invalid`] if two of the defaults share a name, which
+    /// the tests pin they do not.
+    pub fn default_resnet_factory() -> BunsenResult<PretrainedFactory<ResNetConstruct>> {
+        PretrainedFactory::new(ResNetConstruct::new()).with_providers(default_resnet_providers())
+    }
+
+    impl PretrainedFactory<ResNetConstruct> {
+        /// Builds from `config` rather than the prefab a row names: a
+        /// caller that rewrites the model before the weights land, or a
+        /// given checkpoint, which names no prefab.
+        pub fn with_config(
+            self,
+            config: ResNetContractConfig,
+        ) -> Self {
+            let hook = self.hook().clone().with_config(config);
+            self.with_hook(hook)
         }
     }
 
@@ -572,8 +584,10 @@ mod tests {
 
     /// The default factory is the well-known table alone, serving the
     /// kit; one prefab has many rows across both groups.
+    #[cfg(feature = "store")]
     #[test]
     fn test_the_defaults_register() {
+        use crate::data::pretrained::PretrainedFactory;
         let factory = default_resnet_factory().unwrap();
         assert_eq!(factory.kit(), RESNET_KIT);
         assert_eq!(factory.providers().len(), 1);
@@ -597,11 +611,22 @@ mod tests {
             ]
         );
         assert!(
-            PretrainedFactory::new(RESNET_KIT)
+            PretrainedFactory::new(ResNetConstruct::new())
                 .with_providers(default_resnet_providers())
                 .unwrap()
                 .with_providers(default_resnet_providers())
                 .is_err()
+        );
+        assert!(
+            factory
+                .with_config(
+                    PREFAB_RESNET_MAP
+                        .expect_lookup_prefab("resnet18")
+                        .to_config()
+                )
+                .hook()
+                .config
+                .is_some()
         );
     }
 
@@ -632,7 +657,7 @@ mod tests {
         };
 
         let factory = default_resnet_factory().unwrap();
-        let named = factory.resolve_for::<ResNetConstruct>("resnet50").unwrap();
+        let named = factory.resolve("resnet50").unwrap();
         let hook = ResNetConstruct::new();
         let resnet50 = PREFAB_RESNET_MAP
             .expect_lookup_prefab("resnet50")
@@ -655,9 +680,7 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let file = dir.path().join("ckpt.pth");
         fs::write(&file, b"not a state dict").unwrap();
-        let given = factory
-            .resolve_for::<ResNetConstruct>(file.to_str().unwrap())
-            .unwrap();
+        let given = factory.resolve(file.to_str().unwrap()).unwrap();
         assert!(matches!(given, PretrainedRef::Given(_)));
         let err = hook.config_for(&given).unwrap_err();
         assert!(
