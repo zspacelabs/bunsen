@@ -10,17 +10,21 @@
 //! breaks air-gapped CI, and makes builds non-reproducible. So:
 //!
 //! * A fetch only happens under the feature that needs the asset.
-//! * Assets land in `OUT_DIR`, the one directory a build script may write to.
-//!   `cargo publish` verifies that the build left the package source untouched,
-//!   and a crate unpacked from crates.io must not write into the registry — so
-//!   a `cache/` beside the manifest is not an option, and `cargo clean` does
-//!   cost a re-download. The override variables below are the way around that.
+//! * Assets land in `OUT_DIR`, the one directory a build script may write to,
+//!   laid out as a pretrained cache (see [`cache_path`]) so that a cache
+//!   pointed at `OUT_DIR` hits them without knowing they were bundled. `cargo
+//!   publish` verifies that the build left the package source untouched, and a
+//!   crate unpacked from crates.io must not write into the registry — so a
+//!   `cache/` beside the manifest is not an option, and `cargo clean` does cost
+//!   a re-download. The override variables below are the way around that.
 //! * Every asset is pinned to a SHA-256 and re-verified on each build. A cached
 //!   copy that fails is deleted and re-fetched once.
 //! * `WHISPER_BASE_PT`, `WHISPER_MULTILINGUAL_TIKTOKEN`,
 //!   `WHISPER_GPT2_TIKTOKEN`, `WHISPER_ONNX_ENCODER` and `WHISPER_ONNX_DECODER`
 //!   point the build at local files instead, for working offline or against a
-//!   different export.
+//!   different export. A pretrained override that is the pinned file is laid
+//!   out in the cache too; one that is not is used where it is, and only its
+//!   accessor knows it.
 //!
 //! **No feature is on by default**, so building this crate as a workspace
 //! member fetches nothing. `bunsen/whisper-weights` turns on `checkpoint` and
@@ -57,7 +61,10 @@ const BASE_URL: &str = "https://openaipublic.azureedge.net/main/whisper/models/e
 const BASE_SHA256: &str = "ed3a0b6b1c0edf879ad9b11b1af5a0e6ab5db9205f891f668f8b0e6c6326e34e";
 
 /// Local name for the fetched checkpoint.
-const BASE_FILE: &str = "whisper_base.pt";
+///
+/// The name the Whisper kit's resource for `openai/base` uses, so the cache
+/// layout below names the same file.
+const BASE_FILE: &str = "base.pt";
 
 /// The rank file behind every multilingual checkpoint's tokenizer.
 ///
@@ -108,6 +115,17 @@ const DECODER_SHA256: &str = "70d26763610c0d6bb407373b7f30d415252ee470e62a0f816c
 /// Local name for the fetched decoder graph.
 const DECODER_FILE: &str = "whisper_base_decoder.onnx";
 
+/// The root segment of the pretrained cache layout,
+/// `pretrained/<kit>/<namespace>/<sha256>/<file>`, as
+/// `bunsen::data::pretrained::WeightsCache` roots a resource.
+const PRETRAINED_DIR: &str = "pretrained";
+
+/// The Whisper kit's segment of the layout: `WHISPER_KIT` in bunsen.
+const WHISPER_KIT: &str = "whisper";
+
+/// The namespace every `openai` resource is cached under.
+const OPENAI_NAMESPACE: &str = "openai";
+
 fn main() {
     println!("cargo:rerun-if-changed=build.rs");
     println!("cargo:rerun-if-env-changed=WHISPER_BASE_PT");
@@ -115,6 +133,13 @@ fn main() {
     println!("cargo:rerun-if-env-changed=WHISPER_GPT2_TIKTOKEN");
     println!("cargo:rerun-if-env-changed=WHISPER_ONNX_ENCODER");
     println!("cargo:rerun-if-env-changed=WHISPER_ONNX_DECODER");
+
+    // The pretrained assets are laid out under this as a cache; the
+    // accessor for it is gated on the features that fill it.
+    println!(
+        "cargo:rustc-env=WHISPER_CACHE_DIR={}",
+        cache_dir().display()
+    );
 
     // Each feature gates its own asset. `src/lib.rs` gates the matching item
     // on the same feature, so with neither the crate is trivially empty.
@@ -140,7 +165,7 @@ fn fetch_checkpoint() {
         "WHISPER_BASE_PT",
         BASE_URL,
         BASE_SHA256,
-        &cache_dir().join(BASE_FILE),
+        &cache_path(BASE_SHA256, BASE_FILE),
     );
     println!(
         "cargo:rustc-env=WHISPER_BASE_PT_PATH={}",
@@ -152,8 +177,6 @@ fn fetch_checkpoint() {
 /// constants.
 #[cfg(feature = "vocab")]
 fn fetch_vocab() {
-    let cache = cache_dir();
-
     for (override_var, url, sha, file, path_var) in [
         (
             "WHISPER_MULTILINGUAL_TIKTOKEN",
@@ -170,7 +193,7 @@ fn fetch_vocab() {
             "WHISPER_GPT2_TIKTOKEN_PATH",
         ),
     ] {
-        let vocab = resolve_asset(override_var, url, sha, &cache.join(file));
+        let vocab = resolve_asset(override_var, url, sha, &cache_path(sha, file));
         println!("cargo:rustc-env={path_var}={}", vocab.display());
     }
 }
@@ -223,12 +246,30 @@ fn cache_dir() -> PathBuf {
     PathBuf::from(env::var_os("OUT_DIR").expect("cargo sets OUT_DIR for build scripts"))
 }
 
+/// Where a pretrained asset lands: `OUT_DIR` laid out as a pretrained cache,
+/// `pretrained/whisper/openai/<sha256>/<file>`. The digest in the path is
+/// the pin, as it is in bunsen's cache, so a cache rooted at `OUT_DIR`
+/// trusts what it finds there.
+fn cache_path(
+    sha256: &str,
+    file: &str,
+) -> PathBuf {
+    cache_dir()
+        .join(PRETRAINED_DIR)
+        .join(WHISPER_KIT)
+        .join(OPENAI_NAMESPACE)
+        .join(sha256)
+        .join(file)
+}
+
 /// Returns a path to an asset, honouring an override or fetching it.
 ///
 /// # Arguments
 /// * `override_var`: env var naming a local file to use instead. A
 ///   caller-supplied file is deliberately **not** digest-pinned — the point of
-///   the override is to try something else.
+///   the override is to try something else. One that happens to be the pinned
+///   asset is laid out at `dest` as well, so a cache rooted at `OUT_DIR` hits
+///   it; one that is not stays where it is.
 fn resolve_asset(
     override_var: &str,
     url: &str,
@@ -242,10 +283,49 @@ fn resolve_asset(
             "{override_var} is set but not a file: {}",
             path.display(),
         );
-        return path;
+        return match digest_of(&path) {
+            Ok(found) if found == sha256 => {
+                place(&path, dest);
+                dest.to_path_buf()
+            }
+            Ok(found) => {
+                println!(
+                    "cargo:warning={override_var}: {} has digest {found}, not {sha256}; used in \
+                     place, and not laid out in the cache dir",
+                    path.display()
+                );
+                path
+            }
+            Err(e) => {
+                println!(
+                    "cargo:warning={override_var}: cannot read {}: {e}; used in place",
+                    path.display()
+                );
+                path
+            }
+        };
     }
 
     fetch_verified(url, sha256, dest)
+}
+
+/// Puts `src` at `dest`: a symlink where the platform has them, else a copy.
+fn place(
+    src: &Path,
+    dest: &Path,
+) {
+    if let Some(parent) = dest.parent() {
+        fs::create_dir_all(parent).expect("create the cache layout");
+    }
+    if dest.exists() || dest.symlink_metadata().is_ok() {
+        fs::remove_file(dest).expect("replace the laid-out asset");
+    }
+    #[cfg(unix)]
+    if std::os::unix::fs::symlink(src, dest).is_ok() {
+        return;
+    }
+    fs::copy(src, dest)
+        .unwrap_or_else(|e| panic!("placing {} at {}: {e}", src.display(), dest.display()));
 }
 
 /// Ensures `dest` holds the asset at `url` with the given digest.
@@ -296,6 +376,9 @@ fn download(
     url: &str,
     dest: &Path,
 ) -> Result<(), Box<dyn std::error::Error>> {
+    if let Some(parent) = dest.parent() {
+        fs::create_dir_all(parent)?;
+    }
     let tmp = dest.with_extension("partial");
 
     let mut response = ureq::get(url).call()?;
