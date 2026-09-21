@@ -22,9 +22,13 @@
 //! whole [`ResourceMap`], fetching what is remote together under the
 //! options' policy.
 //!
-//! Bundling is not modeled. A deployment that wants to hit populates this
-//! directory ahead of time, and the cache hits with no knowledge of it;
-//! `bunsen-bundled-whisper` lays its build output out this way.
+//! A bundle is one of two things. Bytes linked into the binary are a
+//! [`Source::Bundled`], written into the cache under their digest on first
+//! use; `bunsen-bundled-silero` ships its burnpack so. Files laid out at
+//! build time are a local-dir source, used in place; `bunsen-bundled-whisper`
+//! lays its build output out as this very directory, so a cache pointed at
+//! it hits with no knowledge of it, which is also what a deployment does
+//! when it populates the directory ahead of time.
 
 use std::{
     collections::BTreeMap,
@@ -33,6 +37,11 @@ use std::{
         Path,
         PathBuf,
     },
+};
+
+use sha2::{
+    Digest,
+    Sha256,
 };
 
 use super::{
@@ -147,6 +156,8 @@ pub enum Provenance {
     LocalDir,
     /// Fetched from a URL, checked, and written to the cache.
     Downloaded,
+    /// Linked into the binary, checked, and written to the cache.
+    Bundled,
 }
 
 impl fmt::Display for Provenance {
@@ -158,6 +169,7 @@ impl fmt::Display for Provenance {
             Self::Cached => "cached",
             Self::LocalDir => "local dir",
             Self::Downloaded => "downloaded",
+            Self::Bundled => "bundled",
         })
     }
 }
@@ -180,6 +192,8 @@ pub enum CacheStatus {
     /// Not in the cache, but another tool's directory has a file of that
     /// name, unchecked.
     LocalDir,
+    /// Not in the cache, but linked into the binary.
+    Bundled,
     /// Only a URL.
     Remote,
 }
@@ -192,6 +206,7 @@ impl fmt::Display for CacheStatus {
         f.write_str(match self {
             Self::Cached => "cached",
             Self::LocalDir => "local dir",
+            Self::Bundled => "bundled",
             Self::Remote => "remote",
         })
     }
@@ -284,7 +299,7 @@ impl PretrainedCache {
             Source::LocalDir { name, dir } => {
                 self.local_dirs.get(name).cloned().or_else(|| dir.clone())
             }
-            Source::Url(_) => None,
+            Source::Url(_) | Source::Bundled(_) => None,
         }
     }
 
@@ -316,11 +331,16 @@ impl PretrainedCache {
             return CacheStatus::Cached;
         }
         for source in &res.sources {
-            if let Source::LocalDir { .. } = source
-                && let Some(dir) = self.local_dir(source)
-                && dir.join(&res.file).is_file()
-            {
-                return CacheStatus::LocalDir;
+            match source {
+                Source::LocalDir { .. } => {
+                    if let Some(dir) = self.local_dir(source)
+                        && dir.join(&res.file).is_file()
+                    {
+                        return CacheStatus::LocalDir;
+                    }
+                }
+                Source::Bundled(_) => return CacheStatus::Bundled,
+                Source::Url(_) => {}
             }
         }
         CacheStatus::Remote
@@ -342,7 +362,8 @@ impl PretrainedCache {
     ///
     /// The cache is consulted first; then each source in the resource's
     /// order: a file in another tool's directory is used in place, hashed
-    /// first only when the options ask; the URLs are fetched in order,
+    /// first only when the options ask; bytes linked into the binary are
+    /// checked and written into the cache; the URLs are fetched in order,
     /// checked, and written into the cache. Nothing is linked or copied
     /// in.
     ///
@@ -457,6 +478,9 @@ impl PretrainedCache {
                         provenance: Provenance::LocalDir,
                     }));
                 }
+                Source::Bundled(bytes) => {
+                    return Ok(Local::Found(self.write_bundled(res, &dest, bytes.0)?));
+                }
                 Source::Url(url) => urls.push(url.clone()),
             }
         }
@@ -468,6 +492,40 @@ impl PretrainedCache {
             )));
         }
         Ok(Local::Remote { dest, urls })
+    }
+
+    /// Bytes linked into the binary, checked against the resource's digest
+    /// and written to `dest`, the resource's cache path.
+    fn write_bundled(
+        &self,
+        res: &Resource,
+        dest: &Path,
+        bytes: &[u8],
+    ) -> BunsenResult<ResolvedResource> {
+        let Some(sha256) = res.sha256.as_deref() else {
+            return Err(BunsenError::Invalid(format!(
+                "{}: a bundled source needs a digest to be cached under",
+                res.key
+            )));
+        };
+        let found = Sha256::digest(bytes)
+            .iter()
+            .map(|b| format!("{b:02x}"))
+            .collect::<String>();
+        if found != sha256 {
+            return Err(BunsenError::Invalid(format!(
+                "{}: the bundled bytes hash to {found}, not the pinned {sha256}",
+                res.key
+            )));
+        }
+        if let Some(parent) = dest.parent() {
+            std::fs::create_dir_all(parent).map_err(BunsenError::external)?;
+        }
+        std::fs::write(dest, bytes).map_err(BunsenError::external)?;
+        Ok(ResolvedResource {
+            path: dest.to_path_buf(),
+            provenance: Provenance::Bundled,
+        })
     }
 
     /// The URLs, in order, through the disk cache's fetch.
@@ -599,6 +657,8 @@ mod tests {
         .unwrap()
     }
 
+    use crate::data::pretrained::BundledBytes;
+
     fn url(u: &str) -> Source {
         Source::Url(u.to_string())
     }
@@ -624,6 +684,74 @@ mod tests {
             name: "up".to_string(),
             dir: Some(dir.to_path_buf()),
         }
+    }
+
+    /// Bundled bytes land in the cache under the resource's digest on
+    /// first use and are `Cached` after; wrong bytes are refused and
+    /// nothing is written.
+    #[test]
+    fn test_a_bundled_source_lands_under_its_digest() {
+        let dir = tempfile::tempdir().unwrap();
+        let cache = cache_in(dir.path(), true);
+
+        let bundled = res(
+            "abc",
+            Some(ABC_SHA256),
+            vec![Source::Bundled(BundledBytes(b"abc"))],
+        );
+        bundled.validate().unwrap();
+        assert_eq!(cache.status("kit", &bundled), CacheStatus::Bundled);
+        let resolved = cache.resolve("kit", &bundled).unwrap();
+        assert_eq!(resolved.provenance, Provenance::Bundled);
+        assert_eq!(resolved.path, cache.resource_path("kit", &bundled));
+        assert_eq!(std::fs::read(&resolved.path).unwrap(), b"abc");
+        assert_eq!(cache.status("kit", &bundled), CacheStatus::Cached);
+        assert_eq!(
+            cache.resolve("kit", &bundled).unwrap().provenance,
+            Provenance::Cached
+        );
+
+        let wrong = res(
+            "abd",
+            Some(ABC_SHA256),
+            vec![Source::Bundled(BundledBytes(b"abd"))],
+        );
+        let err = cache.resolve("kit", &wrong).unwrap_err();
+        assert!(
+            matches!(&err, BunsenError::Invalid(m) if m.contains("not the pinned")),
+            "{err}"
+        );
+        assert!(!cache.resource_path("kit", &wrong).exists());
+
+        let unpinned = res("abe", None, vec![Source::Bundled(BundledBytes(b"abe"))]);
+        assert!(unpinned.validate().is_err());
+        assert!(matches!(
+            cache.resolve("kit", &unpinned),
+            Err(BunsenError::Invalid(_))
+        ));
+
+        // The local dir comes first when it has the file; the bundle is
+        // next; a URL after a bundle is never needed.
+        let up = dir.path().join("up");
+        std::fs::create_dir_all(&up).unwrap();
+        std::fs::write(up.join("abf.bin"), b"abc").unwrap();
+        let ordered = res(
+            "abf",
+            Some(ABC_SHA256),
+            vec![
+                local_dir(&up),
+                Source::Bundled(BundledBytes(b"abc")),
+                url("https://a.example/abf.bin"),
+            ],
+        );
+        assert_eq!(cache.status("kit", &ordered), CacheStatus::LocalDir);
+        assert_eq!(
+            cache.resolve("kit", &ordered).unwrap().provenance,
+            Provenance::LocalDir
+        );
+        let map = ResourceMap::new("m").with_resource(bundled.clone());
+        let loaded = cache.load("kit", &map).unwrap();
+        assert_eq!(loaded.get("abc").unwrap().provenance, Provenance::Cached);
     }
 
     #[test]

@@ -227,9 +227,64 @@ pub static WELL_KNOWN_TABLE: StaticPretrainedTable<'static> = StaticPretrainedTa
     groups: &[&OPENAI],
 };
 
-/// Whisper's compiled-in providers, in search order: the well-known table.
+/// The rows `bunsen-bundled-whisper` ships, behind the
+/// [`BUNDLED`](crate::data::pretrained::BUNDLED) provider:
+/// `bundled:openai/base`, the same files as `well-known:openai/base`,
+/// served in place from the bundle's build directory rather than fetched.
+///
+/// # Panics
+/// If the `base` row no longer has the resources the bundle ships; the
+/// tests pin that it does.
+#[cfg(feature = "whisper-weights")]
+pub fn bundled_whisper_table() -> crate::data::pretrained::PretrainedTable {
+    use crate::{
+        data::pretrained::{
+            BUNDLED,
+            PretrainedGroup,
+            PretrainedTable,
+        },
+        kits::speech::whisper::pretrained::{
+            CHECKPOINT,
+            VOCABULARY,
+        },
+    };
+
+    let mut base = BASE.to_pretrained();
+    base.resources = base
+        .resources
+        .with_local_files(
+            BUNDLED,
+            &[
+                (CHECKPOINT, bunsen_bundled_whisper::base_pt()),
+                (VOCABULARY, bunsen_bundled_whisper::multilingual_tiktoken()),
+            ],
+        )
+        .unwrap_or_else(|e| panic!("{e}"));
+    PretrainedTable {
+        name: BUNDLED.to_string(),
+        description: "the Whisper assets bunsen-bundled-whisper ships, used in place".to_string(),
+        groups: vec![PretrainedGroup {
+            name: OPENAI.name.to_string(),
+            description: OPENAI.description.to_string(),
+            license: OPENAI.license.map(str::to_string),
+            origin: OPENAI.origin.map(str::to_string),
+            items: vec![base],
+        }],
+    }
+}
+
+/// Whisper's compiled-in providers, in search order: the well-known table,
+/// then, with the `whisper-weights` feature, the bundled one.
 pub fn default_whisper_providers() -> Vec<Arc<dyn PretrainedProvider>> {
-    vec![Arc::new(WELL_KNOWN_TABLE.to_table())]
+    let well_known: Arc<dyn PretrainedProvider> = Arc::new(WELL_KNOWN_TABLE.to_table());
+    #[cfg(feature = "whisper-weights")]
+    {
+        vec![well_known, Arc::new(bundled_whisper_table())]
+    }
+    #[cfg(not(feature = "whisper-weights"))]
+    {
+        vec![well_known]
+    }
 }
 
 /// Whisper's factory over [`default_whisper_providers`]: the index
@@ -350,15 +405,24 @@ mod tests {
         }
     }
 
-    /// The default factory is the well-known table alone, serving the
-    /// kit, with every id qualified and upstream's aliases honoured.
+    /// The default factory is the well-known table, serving the kit, with
+    /// every id qualified and upstream's aliases honoured; the bundled
+    /// table joins it with the feature, after it.
     #[test]
     fn test_the_defaults_register() {
         let factory = default_whisper_factory().unwrap();
         assert_eq!(factory.kit(), WHISPER_KIT);
-        assert_eq!(factory.providers().len(), 1);
+        assert_eq!(factory.providers()[0].name(), "well-known");
         assert_eq!(factory.provider(WELL_KNOWN).unwrap().name(), "well-known");
-        assert_eq!(factory.ids().len(), 12);
+        assert_eq!(factory.provider(WELL_KNOWN).unwrap().ids().len(), 12);
+        if cfg!(feature = "whisper-weights") {
+            assert_eq!(factory.providers().len(), 2);
+            assert_eq!(factory.providers()[1].name(), "bundled");
+            assert_eq!(factory.ids().len(), 13);
+        } else {
+            assert_eq!(factory.providers().len(), 1);
+            assert_eq!(factory.ids().len(), 12);
+        }
 
         let (provider, large) = factory.lookup("large").unwrap();
         assert_eq!(provider, "well-known");
@@ -457,8 +521,15 @@ mod tests {
             .unwrap()
             .with_provider(hub.clone())
             .unwrap();
-        assert_eq!(factory.providers().len(), 2);
-        assert_eq!(factory.ids().len(), 12);
+        let defaults = default_whisper_providers().len();
+        assert_eq!(factory.providers().len(), defaults + 1);
+        assert_eq!(
+            factory.ids().len(),
+            factory.providers()[..defaults]
+                .iter()
+                .map(|p| p.ids().len())
+                .sum::<usize>()
+        );
 
         let (provider, row) = factory.lookup("hub:openai/whisper-base").unwrap();
         assert_eq!(provider, "hub");
@@ -476,6 +547,75 @@ mod tests {
             .with_providers(default_whisper_providers())
             .unwrap_err();
         assert!(matches!(err, BunsenError::Invalid(_)), "{err}");
+    }
+
+    /// `bundled:openai/base` is the bundle's files, used in place from a
+    /// cache that has nothing: both parts local dir, nothing written; and
+    /// a bare `openai/base` still means the well-known row.
+    #[cfg(feature = "whisper-weights")]
+    #[test]
+    fn test_the_bundled_provider_serves_openai_base_in_place() {
+        use crate::data::{
+            cache::BunsenDiskCacheOptions,
+            pretrained::{
+                BUNDLED,
+                CacheStatus,
+                PretrainedCache,
+                PretrainedCacheOptions,
+                Provenance,
+            },
+        };
+        let dir = tempfile::tempdir().unwrap();
+        let cache = PretrainedCache::new(
+            PretrainedCacheOptions::default()
+                .with_disk(
+                    BunsenDiskCacheOptions::default()
+                        .with_cache_dir(Some(dir.path().join("cache")))
+                        .without_transfer_observers(),
+                )
+                .with_offline(true),
+        )
+        .unwrap();
+        let factory = default_whisper_factory().unwrap();
+        let bundled = factory.provider(BUNDLED).unwrap();
+        assert_eq!(bundled.ids(), ["bundled:openai/base"]);
+        assert_eq!(bundled.license(), None);
+
+        let model = factory
+            .resolve("bundled:openai/base", Some(CHECKPOINT))
+            .unwrap();
+        assert_eq!(model.id(), "bundled:openai/base");
+        let status = model.status(WHISPER_KIT, &cache);
+        assert_eq!(status[CHECKPOINT], CacheStatus::LocalDir);
+        assert_eq!(status[VOCABULARY], CacheStatus::LocalDir);
+        let map = model.to_map();
+        assert_eq!(
+            map.get(CHECKPOINT).unwrap().sha256,
+            BASE.to_map().get(CHECKPOINT).unwrap().sha256,
+            "the same file, pinned the same"
+        );
+
+        let loaded = cache.load(WHISPER_KIT, &map).unwrap();
+        for (key, part) in loaded.iter() {
+            assert_eq!(part.provenance, Provenance::LocalDir, "{key}");
+        }
+        assert_eq!(
+            loaded.expect(CHECKPOINT).unwrap(),
+            bunsen_bundled_whisper::base_pt()
+        );
+        assert_eq!(
+            loaded.expect(VOCABULARY).unwrap(),
+            bunsen_bundled_whisper::multilingual_tiktoken()
+        );
+        assert!(!dir.path().join("cache").exists(), "nothing was written");
+
+        assert_eq!(
+            factory
+                .resolve("openai/base", Some(CHECKPOINT))
+                .unwrap()
+                .id(),
+            "well-known:openai/base"
+        );
     }
 
     /// A cache rooted at the bundle's directory, offline, has `openai/base`

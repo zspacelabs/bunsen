@@ -8,7 +8,8 @@
 //! A resource's sources are its own first, then its map's bases with its file
 //! name appended, each in the order listed. A directory another tool keeps
 //! the file in is a "trust me" source, used in place; a URL is fetched into
-//! the cache. The owned twin carries them all, so it stands alone, and a
+//! the cache; bytes linked into the binary are written into the cache on
+//! first use. The owned twin carries them all, so it stands alone, and a
 //! fused map needs no memory of which map a resource came from.
 //!
 //! [`StaticSource`] and [`Source`] are one place a file can be had from;
@@ -62,10 +63,11 @@ pub fn url_to_cache_key(
 /// One place a file can be had from, as a compiled-in table spells it.
 ///
 /// Sources are tried in the order listed: a directory another tool keeps
-/// the file in is used in place, a URL is fetched into the cache. A
-/// bundled file is neither; it is a cache directory populated ahead of
-/// time.
-#[derive(Clone, Copy, Debug)]
+/// the file in is used in place, a URL is fetched into the cache, and
+/// bytes linked into the binary are written into the cache on first use.
+/// A bundle laid out on disk is a local directory; one compiled in is
+/// [`Bundled`](Self::Bundled).
+#[derive(Clone, Copy)]
 pub enum StaticSource<'a> {
     /// A URL, fetched into the cache.
     Url(&'a str),
@@ -79,6 +81,11 @@ pub enum StaticSource<'a> {
         /// Where the directory is by default, when it can be resolved.
         default: fn() -> Option<PathBuf>,
     },
+
+    /// The file's bytes, linked into the binary: `include_bytes!` in a
+    /// bundle crate. Written into the cache under the resource's digest on
+    /// first use, so the resource must be pinned.
+    Bundled(&'static [u8]),
 }
 
 impl StaticSource<'_> {
@@ -90,6 +97,20 @@ impl StaticSource<'_> {
                 name: name.to_string(),
                 dir: default(),
             },
+            Self::Bundled(bytes) => Source::Bundled(BundledBytes(bytes)),
+        }
+    }
+}
+
+impl fmt::Debug for StaticSource<'_> {
+    fn fmt(
+        &self,
+        f: &mut fmt::Formatter<'_>,
+    ) -> fmt::Result {
+        match self {
+            Self::Url(url) => f.debug_tuple("Url").field(url).finish(),
+            Self::LocalDir { name, .. } => f.debug_struct("LocalDir").field("name", name).finish(),
+            Self::Bundled(bytes) => write!(f, "Bundled({} bytes)", bytes.len()),
         }
     }
 }
@@ -102,15 +123,64 @@ impl fmt::Display for StaticSource<'_> {
         match self {
             Self::Url(url) => write!(f, "url {url}"),
             Self::LocalDir { name, .. } => write!(f, "local dir {name}"),
+            Self::Bundled(bytes) => write!(f, "bundled ({} bytes)", bytes.len()),
         }
+    }
+}
+
+/// Bytes linked into the binary: the payload of a bundled source.
+///
+/// No manifest form: serializing one is an error, and none can be read
+/// back, since the bytes are the build's.
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub struct BundledBytes(pub &'static [u8]);
+
+impl BundledBytes {
+    /// How many bytes.
+    pub fn len(&self) -> usize {
+        self.0.len()
+    }
+
+    /// `true` for no bytes at all.
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+}
+
+impl fmt::Debug for BundledBytes {
+    fn fmt(
+        &self,
+        f: &mut fmt::Formatter<'_>,
+    ) -> fmt::Result {
+        write!(f, "BundledBytes({} bytes)", self.len())
+    }
+}
+
+impl Serialize for BundledBytes {
+    fn serialize<S: serde::Serializer>(
+        &self,
+        _serializer: S,
+    ) -> Result<S::Ok, S::Error> {
+        Err(serde::ser::Error::custom(
+            "bundled bytes have no manifest form",
+        ))
+    }
+}
+
+impl<'de> Deserialize<'de> for BundledBytes {
+    fn deserialize<D: serde::Deserializer<'de>>(_deserializer: D) -> Result<Self, D::Error> {
+        Err(serde::de::Error::custom(
+            "bundled bytes have no manifest form",
+        ))
     }
 }
 
 /// One place a file can be had from.
 ///
 /// The owned twin of [`StaticSource`]: a local directory carries the
-/// directory it resolved to.
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+/// directory it resolved to. A [`Bundled`](Self::Bundled) source has no
+/// manifest form: serializing one is an error, and none can be read back.
+#[derive(Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Source {
     /// A URL, fetched into the cache.
     Url(String),
@@ -122,6 +192,27 @@ pub enum Source {
         /// The directory, when it could be resolved.
         dir: Option<PathBuf>,
     },
+
+    /// The file's bytes, linked into the binary; written into the cache
+    /// under the resource's digest on first use.
+    Bundled(BundledBytes),
+}
+
+impl fmt::Debug for Source {
+    fn fmt(
+        &self,
+        f: &mut fmt::Formatter<'_>,
+    ) -> fmt::Result {
+        match self {
+            Self::Url(url) => f.debug_tuple("Url").field(url).finish(),
+            Self::LocalDir { name, dir } => f
+                .debug_struct("LocalDir")
+                .field("name", name)
+                .field("dir", dir)
+                .finish(),
+            Self::Bundled(bytes) => write!(f, "Bundled({} bytes)", bytes.len()),
+        }
+    }
 }
 
 impl fmt::Display for Source {
@@ -136,6 +227,7 @@ impl fmt::Display for Source {
                 dir: Some(dir),
             } => write!(f, "local dir {name} ({})", dir.display()),
             Self::LocalDir { name, dir: None } => write!(f, "local dir {name} (unresolved)"),
+            Self::Bundled(bytes) => write!(f, "bundled ({} bytes)", bytes.len()),
         }
     }
 }
@@ -309,9 +401,19 @@ impl Resource {
             .collect()
     }
 
+    /// The bytes linked into the binary, when a source is bundled.
+    pub fn bundled(&self) -> Option<&'static [u8]> {
+        self.sources.iter().find_map(|s| match s {
+            Source::Bundled(bytes) => Some(bytes.0),
+            _ => None,
+        })
+    }
+
     /// Checks the resource hangs together: a key, a file name, a namespace,
-    /// at least one source, and a digest, if any, of 64 lowercase hex
-    /// digits.
+    /// at least one source, a digest, if any, of 64 lowercase hex digits,
+    /// and a digest for certain when a source is bundled, since an
+    /// unpinned file is cached under a name key and a rebuilt bundle would
+    /// be shadowed by a stale cached one.
     ///
     /// # Errors
     /// [`BunsenError::Invalid`] naming the first problem.
@@ -336,6 +438,12 @@ impl Resource {
         {
             return Err(BunsenError::Invalid(format!(
                 "{}: sha256 {sha256:?} is not 64 lowercase hex digits",
+                self.key
+            )));
+        }
+        if self.bundled().is_some() && self.sha256.is_none() {
+            return Err(BunsenError::Invalid(format!(
+                "{}: a bundled source needs a digest to be cached under",
                 self.key
             )));
         }
@@ -417,10 +525,52 @@ mod tests {
             .to_string(),
             "local dir x (unresolved)"
         );
+        let bundled = StaticSource::Bundled(b"abc");
+        assert_eq!(bundled.to_string(), "bundled (3 bytes)");
+        assert_eq!(format!("{bundled:?}"), "Bundled(3 bytes)");
+        assert_eq!(bundled.to_source(), Source::Bundled(BundledBytes(b"abc")));
+        assert_eq!(format!("{:?}", bundled.to_source()), "Bundled(3 bytes)");
+        assert!(
+            serde_json::to_string(&Source::Bundled(BundledBytes(b"abc"))).is_err(),
+            "in-binary bytes have no manifest form"
+        );
+        let bundled = StaticSource::Bundled(b"abc");
+        assert_eq!(bundled.to_string(), "bundled (3 bytes)");
+        assert_eq!(format!("{bundled:?}"), "Bundled(3 bytes)");
+        assert_eq!(bundled.to_source(), Source::Bundled(BundledBytes(b"abc")));
+        assert_eq!(format!("{:?}", bundled.to_source()), "Bundled(3 bytes)");
+        assert!(
+            serde_json::to_string(&Source::Bundled(BundledBytes(b"abc"))).is_err(),
+            "in-binary bytes have no manifest form"
+        );
         assert_eq!(
             url_to_cache_key(Some("m"), "https://a.example/m.pt"),
             format!("m-{}-m.pt", X25.checksum(b"https://a.example/m.pt"))
         );
+    }
+
+    /// A bundled source is cached under the digest, so it needs one.
+    #[test]
+    fn test_a_bundled_source_needs_a_digest() {
+        let mut r = Resource {
+            key: "burnpack".to_string(),
+            file: "model.bpk".to_string(),
+            sha256: None,
+            kind: None,
+            namespace: "bunsen".to_string(),
+            sources: vec![Source::Bundled(BundledBytes(b"abc"))],
+        };
+        assert_eq!(r.bundled(), Some(&b"abc"[..]));
+        assert!(r.urls().is_empty());
+        let err = r.validate().unwrap_err();
+        assert!(
+            matches!(&err, BunsenError::Invalid(m) if m.contains("bundled source needs a digest")),
+            "{err}"
+        );
+        r.sha256 =
+            Some("ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad".to_string());
+        r.validate().unwrap();
+        assert!(r.is_pinned());
     }
 
     const ABC_SHA256: &str = "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad";

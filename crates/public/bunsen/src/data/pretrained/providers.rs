@@ -43,6 +43,13 @@ use crate::errors::BunsenResult;
 /// `well-known:openai/tiny`.
 pub const WELL_KNOWN: &str = "well-known";
 
+/// The name of the provider whose rows a build ships with:
+/// `bundled:openai/base`, `bundled:silero/vad`. A kit registers one under
+/// its `*-weights` feature, after [`WELL_KNOWN`], so a bare name's identity
+/// does not change with the feature; the rows are the same files, served
+/// from the bundle rather than fetched.
+pub const BUNDLED: &str = "bundled";
+
 /// A namespace of pretrained rows: the `provider` of `provider:ref`.
 ///
 /// Object-safe by construction, so a factory holds any mix of these behind

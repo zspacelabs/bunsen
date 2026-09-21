@@ -18,9 +18,13 @@ use alloc::{
         String,
         ToString,
     },
+    vec,
     vec::Vec,
 };
-use std::path::PathBuf;
+use std::path::{
+    Path,
+    PathBuf,
+};
 
 use serde::{
     Deserialize,
@@ -29,6 +33,7 @@ use serde::{
 
 use super::{
     Resource,
+    Source,
     StaticBase,
     StaticResource,
 };
@@ -254,6 +259,41 @@ impl ResourceMap {
         Ok(self)
     }
 
+    /// This map with the named resources served from files on disk, in
+    /// place: each resource's sources become one local-dir source called
+    /// `name` at its file's directory. What a bundle laid out at build time
+    /// becomes a provider through.
+    ///
+    /// # Errors
+    /// [`BunsenError::ResourceNotFound`] for a key the map lacks;
+    /// [`BunsenError::Invalid`] when a path's file name is not the
+    /// resource's.
+    pub fn with_local_files(
+        mut self,
+        name: &str,
+        files: &[(&str, &Path)],
+    ) -> BunsenResult<Self> {
+        for (key, path) in files {
+            let resource = self.try_get(key)?;
+            let file_name = path.file_name().map(|n| n.to_string_lossy().into_owned());
+            if file_name.as_deref() != Some(resource.file.as_str()) {
+                return Err(BunsenError::Invalid(format!(
+                    "{}: {key} is {}, and {} is not it",
+                    self.name,
+                    resource.file,
+                    path.display()
+                )));
+            }
+            let dir = path.parent().map(Path::to_path_buf);
+            let resource = self.resources.get_mut(*key).expect("try_get found it");
+            resource.sources = vec![Source::LocalDir {
+                name: name.to_string(),
+                dir,
+            }];
+        }
+        Ok(self)
+    }
+
     fn keys_for_message(&self) -> String {
         if self.resources.is_empty() {
             "(none)".to_string()
@@ -266,6 +306,51 @@ impl ResourceMap {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// `with_local_files` serves the named resources in place, keeping
+    /// their digests and namespaces, and checks each file name.
+    #[test]
+    fn test_with_local_files_replaces_sources_and_checks_names() {
+        let map = CHECKPOINT
+            .to_map()
+            .fuse(VOCABULARY.to_map(), Fuse::Strict)
+            .unwrap();
+        let bundled = map
+            .clone()
+            .with_local_files(
+                "bundled",
+                &[("checkpoint", Path::new("/build/out/tiny.en.pt"))],
+            )
+            .unwrap();
+        let r = bundled.get("checkpoint").unwrap();
+        assert_eq!(
+            r.sources,
+            vec![Source::LocalDir {
+                name: "bundled".to_string(),
+                dir: Some(PathBuf::from("/build/out")),
+            }]
+        );
+        assert_eq!(r.sha256, map.get("checkpoint").unwrap().sha256);
+        assert_eq!(r.namespace, "a");
+        assert_eq!(
+            bundled.get("vocabulary").unwrap().sources,
+            map.get("vocabulary").unwrap().sources,
+            "an unnamed resource is untouched"
+        );
+
+        let err = map
+            .clone()
+            .with_local_files("bundled", &[("checkpoint", Path::new("/x/other.pt"))])
+            .unwrap_err();
+        assert!(
+            matches!(&err, BunsenError::Invalid(m) if m.contains("tiny.en.pt") && m.contains("other.pt")),
+            "{err}"
+        );
+        assert!(matches!(
+            map.with_local_files("bundled", &[("config", Path::new("/x/config.json"))]),
+            Err(BunsenError::ResourceNotFound(_))
+        ));
+    }
     use crate::data::pretrained::{
         GIVEN_NAMESPACE,
         Source,

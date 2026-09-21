@@ -188,8 +188,9 @@ fn list_provider(
 fn summarize(status: &BTreeMap<String, CacheStatus>) -> CacheStatus {
     let rank = |s: &CacheStatus| match s {
         CacheStatus::Cached => 0,
-        CacheStatus::LocalDir => 1,
-        CacheStatus::Remote => 2,
+        CacheStatus::Bundled => 1,
+        CacheStatus::LocalDir => 2,
+        CacheStatus::Remote => 3,
     };
     status
         .values()
