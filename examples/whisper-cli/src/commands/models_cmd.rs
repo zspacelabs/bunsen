@@ -5,6 +5,7 @@ use bunsen::{
         cache::verify_sha256,
         pretrained::{
             CacheStatus,
+            Construct,
             PretrainedCache,
             PretrainedRef,
             StaticPretrainedProvider,
@@ -27,6 +28,7 @@ use bunsen::{
             WHISPER_KIT,
             WHISPER_PREFABS,
             WHISPER_PROVIDERS,
+            WhisperConstruct,
             openai_download_root,
             prefab_for_geometry,
             scan_model_with,
@@ -71,12 +73,16 @@ enum ModelsAction {
     Prefabs,
 
     /// Bring every resource of the named models into the cache, fetching
-    /// what is not local.
+    /// what is not local: a path's vocabulary is the one its checkpoint's
+    /// layout selects, and a name's checkpoint must scan as its prefab.
     Fetch {
         /// Re-hash each pinned file after it is resolved, the cached ones
         /// included.
         #[arg(long)]
         verify: bool,
+
+        #[clap(flatten)]
+        scanner: ScannerArgs,
 
         /// Model names, as `--model` takes them.
         #[arg(required = true)]
@@ -101,7 +107,11 @@ impl ModelsCmd {
         match &self.action {
             ModelsAction::List => list(&cache),
             ModelsAction::Prefabs => prefabs(),
-            ModelsAction::Fetch { verify, names } => fetch(&cache, names, *verify),
+            ModelsAction::Fetch {
+                verify,
+                scanner,
+                names,
+            } => fetch(&cache, names, *verify, &scanner.scanner()),
             ModelsAction::Inspect { name, scanner } => inspect(&cache, name, &scanner.scanner()),
         }
     }
@@ -238,10 +248,17 @@ fn fetch(
     cache: &PretrainedCache,
     names: &[String],
     verify: bool,
+    scanner: &PytorchWhisperScanner,
 ) -> BunsenResult<()> {
     for name in names {
         let model = resolve(name)?;
-        let map = model.to_map();
+        // The hook's plan, before anything but the checkpoint is fetched: a
+        // path gets the vocabulary its checkpoint's layout selects, and a
+        // name is checked against the geometry it promised.
+        let hook = WhisperConstruct::new()
+            .with_scanner(scanner.clone())
+            .expecting(&model);
+        let map = hook.plan(model.to_map(), cache)?;
         let loaded = cache.load(WHISPER_KIT, &map)?;
         println!("{}:", model.id());
         for (key, part) in loaded.iter() {
