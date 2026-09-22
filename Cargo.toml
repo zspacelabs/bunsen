@@ -83,6 +83,11 @@ hound = "3.5.1"
 # Compressed-audio decoding (mp3). `default-features = false` drops the
 # codecs bunsen has no fixtures for; enable more as formats are needed.
 symphonia = { version = "0.6.1", default-features = false, features = ["mp3"] }
+# Audio capture (`whisper-cli live`). The Linux backend links ALSA, so a
+# Linux build needs `libasound2-dev` (or the distribution's equivalent).
+cpal = "0.17.3"
+# Ctrl-C as a clean stop, so a live stream decodes its tail before exiting.
+ctrlc = "3.5.2"
 
 derive-new = "0.7.0"
 arrow = "60.0.0"

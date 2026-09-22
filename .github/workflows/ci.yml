@@ -25,6 +25,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: rustup toolchain install stable --profile minimal --component clippy
+      # `whisper-cli live` captures through `cpal`, whose Linux backend
+      # links ALSA.
+      - run: sudo apt-get update && sudo apt-get install -y libasound2-dev
       # Clippy compiles the whole dependency graph; without this it starts
       # cold on every run.
       - uses: Swatinem/rust-cache@v2
@@ -44,6 +47,11 @@ jobs:
 
       - name: Install Toolchain
         run: rustup toolchain install stable --profile minimal
+
+      # `whisper-cli live` captures through `cpal`, whose Linux backend
+      # links ALSA.
+      - name: Install ALSA headers
+        run: sudo apt-get update && sudo apt-get install -y libasound2-dev
 
       # Covers `~/.cargo` and `target/`, keyed on the lockfile and the
       # toolchain. This is the only cargo cache: a hand-rolled `actions/cache`

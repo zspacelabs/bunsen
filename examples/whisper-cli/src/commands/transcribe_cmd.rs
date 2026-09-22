@@ -8,11 +8,7 @@ use std::{
 
 use bunsen::{
     errors::BunsenResult,
-    kits::speech::whisper::driver::{
-        RunningMaxClamp,
-        StreamClock,
-        TranscriptEvent,
-    },
+    kits::speech::whisper::driver::PresetEmissionPolicy,
     support::audio::load_audio_mono_sr,
 };
 use burn::prelude::Backend;
@@ -22,6 +18,13 @@ use clap_common::logging::{
 };
 
 use crate::whisper_clap::WhisperDriverArgs;
+
+/// Milliseconds of audio per push when `--chunk-ms` is omitted.
+const CHUNK_MS: usize = 1000;
+
+/// The emission preset when `--preset` is omitted: a file is read whole,
+/// so nothing is gained by decoding before a window fills.
+const PRESET: PresetEmissionPolicy = PresetEmissionPolicy::Offline;
 
 /// Transcribes an audio file with a Whisper checkpoint and its vocabulary,
 /// through the stream driver: the audio is pushed in chunks as a live loop
@@ -43,14 +46,6 @@ pub struct TranscribeCmd {
 
     #[clap(flatten)]
     pub whisper: WhisperDriverArgs,
-
-    /// Milliseconds of audio per push, as a live loop would feed it.
-    #[arg(long, default_value = "1000")]
-    chunk_ms: usize,
-
-    /// Print each segment's ids beside its text.
-    #[arg(long)]
-    ids: bool,
 
     /// Display the filename before each transcript.
     #[arg(long)]
@@ -78,7 +73,8 @@ impl TranscribeCmd {
         self.logging.init(Some(LogLevelNum::Warn))?;
 
         let device = B::Device::default();
-        let driver = self.whisper.init_driver::<B>(&device)?;
+        let driver = self.whisper.init_driver::<B>(&device, PRESET)?;
+        let chunk = self.whisper.chunk_samples(&driver, CHUNK_MS);
 
         let num_files = self.files.len();
         let mut timings: Vec<(Duration, Duration)> = Vec::with_capacity(num_files);
@@ -107,39 +103,16 @@ impl TranscribeCmd {
 
             let t0 = Instant::now();
 
-            // A bare stream: a clock from zero at the model's rate, and the
-            // running maximum as the mel clamp reference.
-            let mut ctx = driver.new_context(
-                StreamClock::uniform(driver.sample_rate()),
-                RunningMaxClamp::new(),
-            )?;
-            let chunk = (self.chunk_ms * driver.sample_rate() / 1000).max(1);
-            let mut announced = false;
+            let mut stream = self.whisper.open_stream(&driver)?;
             for block in wav.chunks(chunk) {
-                let emissions = ctx.write_read(block)?;
-                // Detection runs on the first window decoded, so the language
-                // is known once anything has been emitted; say
-                // so before the text.
-                if !announced
-                    && driver.detects_language()
-                    && let Some(code) = ctx.language()
-                {
-                    log::debug!("language: {code}");
-                    announced = true;
-                }
-                for emission in emissions {
-                    report(&emission, self.ids);
-                }
+                stream.write_read(block)?;
             }
-            let mut sample_decode_time = 0.0;
-            for emission in ctx.end_read()? {
-                sample_decode_time = emission.segment().end;
-                report(&emission, self.ids);
-            }
+            stream.end_read()?;
+
             let t1 = Instant::now();
             let decode_time = t1.duration_since(t0);
 
-            let sample_time = Duration::from_secs_f64(sample_decode_time);
+            let sample_time = Duration::from_secs_f64(stream.last_end());
 
             timings.push((sample_time, decode_time));
 
@@ -171,21 +144,5 @@ impl TranscribeCmd {
         log::info!("mean sample/decode: {mean_ratio:.2}");
 
         Ok(())
-    }
-}
-
-/// One line per emission: a draft is marked `~`, a commit is not.
-fn report(
-    emission: &TranscriptEvent,
-    ids: bool,
-) {
-    let segment = emission.segment();
-    let mark = if emission.is_committed() { ' ' } else { '~' };
-
-    log::info!("{mark}[{:>8.2} --> {:>8.2}]", segment.start, segment.end);
-    println!("{}", segment.text.as_deref().unwrap_or("").trim());
-
-    if ids {
-        log::info!("ids: {:?}", segment.tokens);
     }
 }
