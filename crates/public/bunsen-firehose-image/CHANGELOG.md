@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.35.1](https://github.com/zspacelabs/bunsen/compare/bunsen-firehose-image-v0.35.0...bunsen-firehose-image-v0.35.1) - 2026-09-22
+
+### Other
+
+- release v0.35.0 ([#226](https://github.com/zspacelabs/bunsen/pull/226))
+
 ## [0.35.0](https://github.com/zspacelabs/bunsen/compare/bunsen-firehose-image-v0.34.2...bunsen-firehose-image-v0.35.0) - 2026-09-22
 
 ### Other
