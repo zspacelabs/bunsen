@@ -52,6 +52,102 @@ A "good parts" survey of some of `bunsen`'s features. See the
 [docs](https://docs.rs/bunsen/latest/bunsen/) and the
 [book](https://zspacelabs.ai/bunsen/book) for the full API.
 
+# Builtin Kits
+
+`bunsen::kits` collects complete, runnable domain implementations over the crate's blocks and ops: whole models with
+their pretrained loaders, and simulations. Every kit's module docs carry a worked example, generic over the backend;
+the stubs below show the default way in, and link to the example that uses each kit. Pretrained weights come through
+one mechanism everywhere: a `PretrainedCache`, the kit's `default_{kit}_factory()`, and a name (`openai/base`,
+`torchvision/resnet18`, `hf:org/repo` for a Hugging Face repo, `bundled:...` for weights built into the binary).
+
+## Speech
+
+### Whisper
+
+[docs](https://docs.rs/bunsen/latest/bunsen/kits/speech/whisper/index.html) &middot;
+example: [`whisper-cli`](https://github.com/zspacelabs/bunsen/tree/main/examples/whisper-cli)
+
+OpenAI's Whisper, with an index of pretrained checkpoints and a stream driver that turns audio pushed in chunks into
+timed transcript segments.
+
+```rust,ignore
+use bunsen::{
+    data::pretrained::{PretrainedCache, PretrainedCacheOptions},
+    kits::speech::whisper::{
+        driver::{RunningMaxClamp, StreamClock, WhisperStreamDriver, WhisperStreamDriverConfig},
+        pretrained::default_whisper_factory,
+    },
+};
+
+let cache = PretrainedCache::new(PretrainedCacheOptions::default())?;
+let bundle = default_whisper_factory()?.load_bundle::<B>("openai/base", &cache, &device)?;
+let driver: WhisperStreamDriver<B> = WhisperStreamDriverConfig::new().init_from_bundle(bundle, &device)?;
+
+let mut ctx = driver.new_context(StreamClock::uniform(driver.sample_rate()), RunningMaxClamp::new())?;
+for block in samples.chunks(driver.sample_rate() / 10) {
+    for event in ctx.write_read(block)? {
+        println!("{:?}", event.segment().text);
+    }
+}
+```
+
+### Silero VAD
+
+[docs](https://docs.rs/bunsen/latest/bunsen/kits/speech/silero_vad/index.html) &middot;
+example: [`whisper-cli`](https://github.com/zspacelabs/bunsen/tree/main/examples/whisper-cli)'s real-time presets
+
+Voice-activity detection: the probability that each chunk of audio holds speech, with the weights built into the
+binary under the `silero-weights` feature.
+
+```rust,ignore
+use bunsen::kits::speech::silero_vad::{SileroVadContextConfig, SileroVadMeta, pretrained::default_silero_factory};
+
+let vad = default_silero_factory()?.load::<B>("bundled:silero/vad", &cache, &device)?.handle;
+let vad = vad.expect_branch(16000);
+
+let mut ctx = SileroVadContextConfig::new(vad.sample_rate()).init(vad, &device);
+for chunk in samples.chunks_exact(vad.chunk_size()) {
+    let chunk: Tensor<B, 2> = Tensor::<B, 1>::from_floats(chunk, &device).unsqueeze();
+    let (probability, next) = vad.context_forward(chunk, ctx);
+    ctx = next;
+}
+```
+
+## Vision (`bimm`)
+
+### ResNet
+
+[docs](https://docs.rs/bunsen/latest/bunsen/kits/bimm/resnet/index.html) &middot;
+examples: [`resnet_finetune`](https://github.com/zspacelabs/bunsen/tree/main/examples/resnet_finetune), [
+`resnet_tiny`](https://github.com/zspacelabs/bunsen/tree/main/examples/resnet_tiny)
+
+The ResNet family, with torchvision's and timm's pretrained rows (`torchvision/resnet50`, `timm/resnet18_a1`) and the
+model surgery a fine-tune wants.
+
+```rust,ignore
+use bunsen::kits::bimm::resnet::{ResNet, default_resnet_factory};
+
+let loaded = default_resnet_factory()?.load::<B>("torchvision/resnet18", &cache, &device)?;
+let model: ResNet<B> = Arc::unwrap_or_clone(loaded.handle)
+    .with_classes(10)
+    .with_stochastic_drop_block(0.2);
+```
+
+## Simulations (`sims`)
+
+### Conway's Game of Life
+
+[docs](https://docs.rs/bunsen/latest/bunsen/kits/sims/conway/index.html) &middot;
+example: [`conway`](https://github.com/zspacelabs/bunsen/tree/main/examples/conway)
+
+```rust,ignore
+use bunsen::kits::sims::conway::{life2d::{ConwayLife2DConfig, ConwayLife2DState}, util::ConwaySim};
+
+let mut sim: ConwayLife2DState<B> = ConwayLife2DConfig { shape }.init(&device);
+sim.fuzz(0.3);
+sim.step();
+```
+
 ## Shape Contracts
 
 `bunsen::contracts` provides allocation-free, always-on runtime tensor-shape contracts. A contract pairs paper-style
