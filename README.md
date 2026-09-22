@@ -95,41 +95,6 @@ let model: ResNet<B> = Arc::unwrap_or_clone(loaded.handle)
     .with_stochastic_drop_block(0.2);
 ```
 
-### Swin Transformer V2
-
-[docs](https://docs.rs/bunsen/latest/bunsen/kits/bimm/swin/v2/index.html) &middot;
-example: [`swin_tiny`](examples/swin_tiny)
-
-```rust,ignore
-use bunsen::kits::bimm::swin::v2::{LayerConfig, SwinTransformerV2, SwinTransformerV2Config};
-
-let swin: SwinTransformerV2<B> = SwinTransformerV2Config::new(
-    image_dimensions, patch_size, image_channels, num_classes, embed_dim,
-    vec![LayerConfig::new(8, 6), LayerConfig::new(8, 12)],
-)
-.with_window_size(window_size)
-.try_init(&device)?;
-```
-
-## Language (`gpts`)
-
-### NanoChat
-
-[docs](https://docs.rs/bunsen/latest/bunsen/kits/gpts/nanochat/index.html) &middot;
-example: [`train-chat`](examples/train-chat)
-
-A compact GPT for experimentation and fine-tuning, with its datasets.
-
-```rust,ignore
-use bunsen::kits::gpts::nanochat::{NanoChatGpt, NanoChatGptConfig};
-
-let gpt: NanoChatGpt<B> = NanoChatGptConfig::new()
-    .with_n_embed(768)
-    .with_n_layer(12)
-    .with_vocab_size(vocab_size)
-    .init::<B>(&device);
-```
-
 ## Simulations (`sims`)
 
 ### Conway's Game of Life
@@ -143,20 +108,6 @@ use bunsen::kits::sims::conway::{life2d::{ConwayLife2DConfig, ConwayLife2DState}
 let mut sim: ConwayLife2DState<B> = ConwayLife2DConfig { shape }.init(&device);
 sim.fuzz(0.3);
 sim.step();
-```
-
-### Lattice Boltzmann (D2Q9)
-
-[docs](https://docs.rs/bunsen/latest/bunsen/kits/sims/lbm/index.html) &middot;
-example: [`lbm2d_vis`](examples/lbm2d_vis)
-
-```rust,ignore
-use bunsen::kits::sims::lbm::d2q9::{LBMD2Q9Config, LBMD2Q9State, RelaxationParam};
-
-let mut world: LBMD2Q9State<B> = LBMD2Q9Config::new(grid_shape)
-    .with_relaxation(RelaxationParam::Tau(0.6))
-    .init(&device, background_density);
-world.advance_step();
 ```
 
 ## Tokens
