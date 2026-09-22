@@ -1,4 +1,3 @@
-#![allow(unused)]
 use std::{
     sync::{
         Arc,
@@ -18,7 +17,6 @@ use bunsen::{
     kits::sims::lbm::d2q9::{
         LBMD2Q9Config,
         LBMD2Q9State,
-        LBMMeta,
         LbmTables,
         RelaxationParam,
         SPEED_OF_SOUND,
@@ -27,7 +25,6 @@ use bunsen::{
     prelude::{
         TensorDataViewExt,
         TensorElemOpExt,
-        TensorOpExt,
     },
     support::{
         geometry::GridShape2D,
@@ -65,13 +62,36 @@ use piston::{
 };
 use rand::RngExt;
 
+/// Simulation `DType` enum.
+#[derive(Debug, Clone, Copy, clap::ValueEnum, strum::Display)]
+pub enum SimDType {
+    /// Use `F16`.
+    F16,
+
+    /// Use `F32`.
+    F32,
+}
+
+impl From<SimDType> for DType {
+    fn from(value: SimDType) -> Self {
+        match value {
+            SimDType::F16 => DType::F16,
+            SimDType::F32 => DType::F32,
+        }
+    }
+}
+
 /// Fluid Flow demo for Burn.
 #[derive(Parser, Debug)]
 #[command(long_about = None)]
 pub struct Args {
     /// The grid shape as `[ WIDTH, HEIGHT ]`, or `X` => `[X, X]`.
-    #[arg(long, default_value = "400")]
+    #[arg(long, default_value = "300")]
     pub grid_shape: GridShape2D,
+
+    /// Simulation dtype.
+    #[arg(long, default_value = "f16")]
+    pub dtype: SimDType,
 
     /// The max frames per second.
     #[arg(long, default_value_t = 60)]
@@ -82,7 +102,7 @@ pub struct Args {
     pub tps: f32,
 
     /// The initial window zoom.
-    #[arg(long, default_value_t = 1.5)]
+    #[arg(long, default_value_t = 4.0)]
     pub zoom: f64,
 
     /// The display opacity of updates.
@@ -105,23 +125,23 @@ fn main() {
     cfg_select! {
         feature = "cuda" => {
             println!("CUDA enabled");
-            run::<burn::backend::Cuda<f32, i32>>(&args, DType::F32);
+            run::<burn::backend::Cuda<f32, i32>>(&args);
         }
         feature = "metal" => {
             println!("Metal enabled");
-            run::<burn::backend::Metal<f32, i32>>(&args, DType::F32);
+            run::<burn::backend::Metal<f32, i32>>(&args);
         }
         feature = "vulkan" => {
             println!("Vulkan enabled");
-            run::<burn::backend::Vulkan>(&args, DType::F32);
+            run::<burn::backend::Vulkan>(&args);
         }
         feature = "wgpu" => {
             println!("WGPU enabled");
-            run::<burn::backend::Wgpu<f32, i32>>(&args, DType::F32);
+            run::<burn::backend::Wgpu<f32, i32>>(&args);
         }
         feature = "flex" => {
             println!("Flex enabled");
-            run::<burn::backend::Flex>(&args, DType::F32);
+            run::<burn::backend::Flex>(&args);
         }
         _ => {
             compile_error!("No backend selected");
@@ -129,11 +149,9 @@ fn main() {
     }
 }
 
-fn run<B: Backend>(
-    args: &Args,
-    dtype: DType,
-) {
+fn run<B: Backend>(args: &Args) {
     let device = backend_device::<B>();
+    let dtype: DType = args.dtype.into();
 
     // Change this to OpenGL::V2_1 if not working.
     let opengl = OpenGL::V3_2;
@@ -206,7 +224,7 @@ fn run<B: Backend>(
 
     // Create a Glutin window.
     let mut window: Window = WindowSettings::new(
-        format!("lattice-boltzmann-2q9-flow {height}x{width}"),
+        format!("lattice-boltzmann-2q9-flow {width}x{height}"),
         [width as f64 * args.zoom, height as f64 * args.zoom],
     )
     .graphics_api(opengl)
