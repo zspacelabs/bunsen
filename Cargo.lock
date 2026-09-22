@@ -5550,6 +5550,7 @@ dependencies = [
  "piston2d-opengl_graphics",
  "pistoncore-glutin_window",
  "rand 0.10.2",
+ "strum 0.28.0",
 ]
 
 [[package]]
