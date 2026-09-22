@@ -6,7 +6,10 @@ mod data;
 mod dataset;
 
 use core::clone::Clone;
-use std::time::Instant;
+use std::{
+    sync::Arc,
+    time::Instant,
+};
 
 use anyhow::Context;
 use bunsen::{
@@ -14,10 +17,14 @@ use bunsen::{
         DTypeMapper,
         ModuleInit,
     },
-    data::cache::BunsenDiskCache,
+    data::pretrained::{
+        PretrainedCache,
+        PretrainedCacheOptions,
+    },
     kits::bimm::resnet::{
         PREFAB_RESNET_MAP,
         ResNet,
+        default_resnet_factory,
     },
 };
 use burn::{
@@ -166,9 +173,10 @@ pub struct Args {
     #[arg(long, default_value_t = 10)]
     pub patience: usize,
 
-    /// Pretrained Resnet Model.
+    /// Pretrained `ResNet` weights, as the resnet factory names them:
+    /// `torchvision/resnet50`, `timm/resnet50_a1`, or a bare name.
     /// Use "list" to list all available pretrained models.
-    #[arg(long, default_value = "resnet50.tv_in1k")]
+    #[arg(long, default_value = "torchvision/resnet50")]
     pub pretrained: String,
 
     /// Replace activation function?
@@ -280,51 +288,36 @@ fn ensure_artifact_dir(artifact_dir: &str) -> anyhow::Result<()> {
 pub fn train<B: AutodiffBackend>(args: &Args) -> anyhow::Result<()> {
     let device: B::Device = Default::default();
 
+    let factory = default_resnet_factory()?;
+
     // TODO: lift to clap parser.
     if args.pretrained == "list" {
         println!("Available pretrained models:");
         for prefab in PREFAB_RESNET_MAP.iter() {
-            if let Some(weights) = prefab.weights {
-                if weights.items.is_empty() {
-                    continue;
-                }
+            let cfg = (prefab.builder)();
+            println!("* \"{}\"", prefab.name);
+            println!("{cfg:?}");
 
-                let cfg = (prefab.builder)();
-                println!("* \"{}\"", prefab.name);
-                println!("{cfg:?}");
-
-                for item in weights.items {
-                    println!(
-                        "  - \"{}.{}\": {}",
-                        prefab.name, item.name, item.description
-                    );
-                }
+            for (provider, row) in factory.for_prefab(prefab.name) {
+                println!("  - \"{provider}:{}\": {}", row.name, row.description);
             }
         }
         return Ok(());
     }
-    let [resnet_prefab, resnet_pretrained] = args
-        .pretrained
-        .splitn(2, ".")
-        .map(|s| s.to_string())
-        .collect::<Vec<String>>()
-        .try_into()
-        .unwrap();
+    let cache = PretrainedCache::new(PretrainedCacheOptions::default())?;
+    let mut model_ref = factory.resolve(&args.pretrained, &cache)?;
+    let prefab = model_ref
+        .model
+        .prefab(&PREFAB_RESNET_MAP)
+        .with_context(|| format!("{}: names no prefab", model_ref.id()))?;
+    let resnet_prefab = prefab.name.clone();
+    let resnet_pretrained = model_ref.id();
 
     // Remove existing artifacts before to get an accurate learner summary
     let artifact_dir: &str = args.artifact_dir.as_ref();
     ensure_artifact_dir(artifact_dir)?;
 
     B::seed(&device, args.seed);
-
-    let disk_cache = BunsenDiskCache::default();
-
-    let prefab = PREFAB_RESNET_MAP.expect_lookup_prefab(&resnet_prefab);
-
-    let weights = prefab
-        .expect_lookup_pretrained_weights(&resnet_pretrained)
-        .fetch_weights(&disk_cache)
-        .expect("Failed to fetch pretrained weights");
 
     let mut resnet_config = prefab.to_config();
 
@@ -351,9 +344,15 @@ pub fn train<B: AutodiffBackend>(args: &Args) -> anyhow::Result<()> {
 
     let old_float_type = model.output_fc.weight.dtype();
 
-    let mut model: ResNet<B> = model
-        .load_pytorch_weights(weights)
-        .context("Failed to load pretrained weights")?
+    // The activation rewrite is this example's own surgery: the deferred
+    // model's hook builds from this config rather than the prefab's, and
+    // the checkpoint is read into that model.
+    model_ref.hook = model_ref.hook.with_config(resnet_config.clone());
+    let loaded = model_ref
+        .load::<B>(&cache, &device)
+        .context("Failed to load pretrained weights")?;
+
+    let mut model: ResNet<B> = Arc::unwrap_or_clone(loaded.handle)
         .map(&mut DTypeMapper::new(old_float_type))
         .with_classes(CLASSES.len())
         .with_stochastic_drop_block(args.drop_block_prob)

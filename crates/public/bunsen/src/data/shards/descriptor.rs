@@ -1,7 +1,8 @@
 //! # Shard-set descriptors
 //!
 //! What a shard set is: its name, where its shards come from, how they are
-//! named and numbered, and whether they are pinned.
+//! named and numbered, and whether they are pinned. A selection of shards
+//! is also a [`ResourceMap`], for a pretrained that fuses a shard set in.
 
 use std::{
     collections::BTreeSet,
@@ -14,9 +15,16 @@ use serde::{
     Serialize,
 };
 
-use crate::errors::{
-    BunsenError,
-    BunsenResult,
+use crate::{
+    data::pretrained::{
+        Resource,
+        ResourceMap,
+        Source,
+    },
+    errors::{
+        BunsenError,
+        BunsenResult,
+    },
 };
 
 /// The placeholder a shard template carries for the zero-padded index.
@@ -285,6 +293,43 @@ impl ShardSetDescriptor {
         }
     }
 
+    /// The shards `ids` name as a resource map: one resource per shard,
+    /// keyed by its file name, pinned by the table when the set is, labeled
+    /// by the set's format, under the set's name as its namespace, and
+    /// reachable from every base URL in order. What a pretrained row fuses a
+    /// shard set in as, and what the pretrained cache's `load` brings in
+    /// together.
+    ///
+    /// # Errors
+    /// [`BunsenError::Invalid`] for an id outside the set.
+    pub fn to_resource_map(
+        &self,
+        ids: &[ShardId],
+    ) -> BunsenResult<ResourceMap> {
+        let mut map = ResourceMap::new(&self.name);
+        map.description = self.description.clone();
+        map.license = self.license.clone();
+        map.origin = self.origin.clone();
+        for &id in ids {
+            if !self.contains(id) {
+                return Err(BunsenError::Invalid(format!(
+                    "{}: shard {id} is out of range; the set has {} shards",
+                    self.name, self.count
+                )));
+            }
+            let file = self.file_name(id);
+            map.insert(Resource {
+                key: file.clone(),
+                file,
+                sha256: self.digest(id).map(str::to_string),
+                kind: Some(self.format.clone()),
+                namespace: self.name.clone(),
+                sources: self.urls(id).into_iter().map(Source::Url).collect(),
+            });
+        }
+        Ok(map)
+    }
+
     /// The ids `slices` name, sorted and without repeats.
     ///
     /// Each slice is resolved against [`count`](Self::count): a negative
@@ -292,7 +337,7 @@ impl ShardSetDescriptor {
     /// positive.
     ///
     /// # Errors
-    /// [`BunsenError::InvalidArgument`] for a bound outside `0..=count` or a
+    /// [`BunsenError::Invalid`] for a bound outside `0..=count` or a
     /// reversed slice.
     pub fn select(
         &self,
@@ -306,12 +351,10 @@ impl ShardSetDescriptor {
                 bound
             };
             if resolved < 0 || resolved > count as isize {
-                return Err(BunsenError::InvalidArgument {
-                    msg: format!(
-                        "shard index {bound} is out of range for {}, which has {count} shards",
-                        self.name
-                    ),
-                });
+                return Err(BunsenError::Invalid(format!(
+                    "shard index {bound} is out of range for {}, which has {count} shards",
+                    self.name
+                )));
             }
             Ok(resolved as usize)
         };
@@ -319,9 +362,9 @@ impl ShardSetDescriptor {
         let mut ids = BTreeSet::new();
         for slice in slices {
             if slice.is_reversed() {
-                return Err(BunsenError::InvalidArgument {
-                    msg: format!("shard slice {slice} is reversed; shards are selected in order"),
-                });
+                return Err(BunsenError::Invalid(format!(
+                    "shard slice {slice} is reversed; shards are selected in order"
+                )));
             }
             let start = resolve(slice.start)?;
             let end = match slice.end {
@@ -496,15 +539,63 @@ mod tests {
 
         assert!(matches!(
             d.select(&[Slice::from(..13)]),
-            Err(BunsenError::InvalidArgument { .. })
+            Err(BunsenError::Invalid(_))
         ));
         assert!(matches!(
             d.select(&[Slice::from(-13..)]),
-            Err(BunsenError::InvalidArgument { .. })
+            Err(BunsenError::Invalid(_))
         ));
         assert!(matches!(
             d.select(&[Slice::with_step(5, Some(0), -1)]),
-            Err(BunsenError::InvalidArgument { .. })
+            Err(BunsenError::Invalid(_))
         ));
+    }
+
+    /// The shards a slice names, as a map: keyed by file name, pinned when
+    /// the set is, labeled by the format, one URL per base in order.
+    #[test]
+    fn test_to_resource_map() {
+        let d = tiny_pinned().to_descriptor();
+        let ids = d.select(&[Slice::from(..2)]).unwrap();
+        let map = d.to_resource_map(&ids).unwrap();
+        assert_eq!(map.name, "tiny");
+        assert_eq!(map.description, "a tiny set");
+        assert_eq!(map.license.as_deref(), Some("CC0"));
+        assert_eq!(map.keys(), ["shard_000.bin", "shard_001.bin"]);
+        let r = map.get("shard_001.bin").unwrap();
+        assert_eq!(r.file, "shard_001.bin");
+        assert_eq!(r.sha256.as_deref(), Some(TINY_SHA256[1]));
+        assert_eq!(r.kind.as_deref(), Some("bin"));
+        assert_eq!(r.namespace, "tiny");
+        assert_eq!(
+            r.urls(),
+            [
+                "https://a.example/tiny/shard_001.bin",
+                "https://b.example/mirror/shard_001.bin",
+            ]
+        );
+        map.validate().unwrap();
+
+        let unpinned = tiny()
+            .to_descriptor()
+            .to_resource_map(&[ShardId(3)])
+            .unwrap();
+        assert!(unpinned.get("shard_003.bin").unwrap().sha256.is_none());
+        assert_eq!(unpinned.len(), 1);
+
+        assert!(matches!(
+            d.to_resource_map(&[ShardId(12)]),
+            Err(BunsenError::Invalid(_))
+        ));
+    }
+
+    #[test]
+    fn test_select_is_ordered_without_repeats_twice_over() {
+        let d = tiny().to_descriptor();
+        let ids = |v: &[usize]| v.iter().copied().map(ShardId).collect::<Vec<_>>();
+        assert_eq!(
+            d.select(&[Slice::index(1), Slice::index(1)]).unwrap(),
+            ids(&[1])
+        );
     }
 }

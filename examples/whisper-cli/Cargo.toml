@@ -11,14 +11,6 @@ license.workspace = true
 [lints]
 workspace = true
 
-[features]
-default = []
-
-## Fetch `openai/base` and both vocabularies at build time, digest-pinned,
-## and read them in place: the default model then needs no network at run
-## time. Without this they are fetched into bunsen's cache on first use.
-bundled = ["bunsen/whisper-weights"]
-
 [dependencies]
 burn = { workspace = true, features = ["fusion"] }
 # The backend is bunsen's `PerformanceBackend`, chosen by bunsen's own backend

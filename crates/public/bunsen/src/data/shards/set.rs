@@ -128,7 +128,7 @@ impl<'c> ShardSet<'c> {
     /// Shard `id`'s path: on disk already, or fetched when `download` is on.
     ///
     /// # Errors
-    /// [`BunsenError::InvalidArgument`] for an id outside the set;
+    /// [`BunsenError::Invalid`] for an id outside the set;
     /// [`BunsenError::ResourceNotFound`] if it is not on disk and `download`
     /// is off; otherwise as [`fetch`](Self::fetch).
     pub fn locate(
@@ -160,7 +160,7 @@ impl<'c> ShardSet<'c> {
     /// observers.
     ///
     /// # Errors
-    /// [`BunsenError::InvalidArgument`] for an id outside the set; otherwise
+    /// [`BunsenError::Invalid`] for an id outside the set; otherwise
     /// as [`BunsenDiskCache::fetch_from_urls`].
     #[cfg(feature = "fetch")]
     pub fn fetch(
@@ -201,7 +201,7 @@ impl<'c> ShardSet<'c> {
     /// The fetch jobs for `ids`, in the order given.
     ///
     /// # Errors
-    /// [`BunsenError::InvalidArgument`] for an id outside the set.
+    /// [`BunsenError::Invalid`] for an id outside the set.
     pub fn jobs(
         &self,
         ids: &[ShardId],
@@ -221,7 +221,7 @@ impl<'c> ShardSet<'c> {
     /// already on disk are reported as cached.
     ///
     /// # Errors
-    /// [`BunsenError::InvalidArgument`] for an id outside the set. A shard
+    /// [`BunsenError::Invalid`] for an id outside the set. A shard
     /// that fails to land is in the report, not an error here.
     pub fn fetch_many(
         &self,
@@ -239,12 +239,10 @@ impl<'c> ShardSet<'c> {
         if self.desc.contains(id) {
             Ok(())
         } else {
-            Err(BunsenError::InvalidArgument {
-                msg: format!(
-                    "{}: shard {id} is out of range; the set has {} shards",
-                    self.desc.name, self.desc.count
-                ),
-            })
+            Err(BunsenError::Invalid(format!(
+                "{}: shard {id} is out of range; the set has {} shards",
+                self.desc.name, self.desc.count
+            )))
         }
     }
 }
@@ -325,11 +323,11 @@ mod tests {
         ));
         assert!(matches!(
             set.locate(ShardId(3), true),
-            Err(BunsenError::InvalidArgument { .. })
+            Err(BunsenError::Invalid(_))
         ));
         assert!(matches!(
             set.fetch(ShardId(3)),
-            Err(BunsenError::InvalidArgument { .. })
+            Err(BunsenError::Invalid(_))
         ));
     }
 
@@ -452,5 +450,46 @@ mod tests {
             "{report}"
         );
         assert_eq!(set.cached_ids().unwrap(), vec![ShardId(0)]);
+    }
+
+    /// A set's shards, as a resource map, come in through the pretrained
+    /// cache together, and are cached there on the next load.
+    #[cfg(feature = "fetch")]
+    #[test]
+    fn test_a_set_loads_as_a_map_through_the_pretrained_cache() {
+        use crate::data::pretrained::{
+            PretrainedCache,
+            PretrainedCacheOptions,
+            Provenance,
+        };
+        let dir = tempfile::tempdir().unwrap();
+        let live = serve_n("", b"abc", 2);
+        let bases: &'static [&'static str] =
+            Box::leak(vec![Box::leak(live.into_boxed_str()) as &str].into_boxed_slice());
+        let desc = served(bases, 2, StaticShardDigests::Unpinned);
+        let map = desc.to_resource_map(&[ShardId(0), ShardId(1)]).unwrap();
+        assert_eq!(map.keys(), ["shard_00.bin", "shard_01.bin"]);
+
+        let cache = PretrainedCache::new(
+            PretrainedCacheOptions::default().with_disk(
+                BunsenDiskCacheOptions::default()
+                    .with_cache_dir(Some(dir.path().join("cache")))
+                    .without_transfer_observers(),
+            ),
+        )
+        .unwrap();
+        let loaded = cache.load("shards", &map).unwrap();
+        for (key, part) in loaded.iter() {
+            assert_eq!(part.provenance, Provenance::Downloaded, "{key}");
+            assert_eq!(fs::read(&part.path).unwrap(), b"abc", "{key}");
+            assert!(
+                part.path
+                    .starts_with(dir.path().join("cache").join("pretrained"))
+            );
+        }
+        let again = cache.load("shards", &map).unwrap();
+        for (_, part) in again.iter() {
+            assert_eq!(part.provenance, Provenance::Cached);
+        }
     }
 }

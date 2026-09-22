@@ -31,7 +31,7 @@ pub type EventDataView<'a> = HashMap<&'a str, Vec<&'a TensorData>>;
 /// * `keys` - the complete set of keys declared by the pattern.
 ///
 /// # Errors
-/// [`BunsenError::InvalidArgument`] if `view` holds any undeclared key.
+/// [`BunsenError::Invalid`] if `view` holds any undeclared key.
 pub fn assert_exact_data_keys(
     target: &str,
     view: &EventDataView<'_>,
@@ -48,12 +48,10 @@ pub fn assert_exact_data_keys(
     }
     unexpected.sort_unstable();
 
-    Err(BunsenError::InvalidArgument {
-        msg: format!(
-            "in `{target}`: unexpected event data keys {unexpected:?}; \
+    Err(BunsenError::Invalid(format!(
+        "in `{target}`: unexpected event data keys {unexpected:?}; \
              pattern declares {keys:?}"
-        ),
-    })
+    )))
 }
 
 /// Build the "wrong arity" error for a key.
@@ -63,11 +61,9 @@ fn arity_error(
     expected: &str,
     actual: usize,
 ) -> BunsenError {
-    BunsenError::InvalidArgument {
-        msg: format!(
-            "in `{target}`: event data key `{key}` has {actual} values, expected {expected}"
-        ),
-    }
+    BunsenError::Invalid(format!(
+        "in `{target}`: event data key `{key}` has {actual} values, expected {expected}"
+    ))
 }
 
 /// Look up `key`, or report it missing.
@@ -81,11 +77,9 @@ fn get_values<'v, 'x>(
         None => {
             let mut present: Vec<&str> = view.keys().copied().collect();
             present.sort_unstable();
-            Err(BunsenError::InvalidArgument {
-                msg: format!(
-                    "in `{target}`: missing event data key `{key}`; present keys {present:?}"
-                ),
-            })
+            Err(BunsenError::Invalid(format!(
+                "in `{target}`: missing event data key `{key}`; present keys {present:?}"
+            )))
         }
     }
 }
@@ -98,7 +92,7 @@ fn get_values<'v, 'x>(
 /// * `key` - the key to take.
 ///
 /// # Errors
-/// [`BunsenError::InvalidArgument`] if `key` is absent, or is not bound to
+/// [`BunsenError::Invalid`] if `key` is absent, or is not bound to
 /// exactly one value.
 pub fn take_one<'x>(
     target: &str,
@@ -120,7 +114,7 @@ pub fn take_one<'x>(
 /// * `key` - the key to take.
 ///
 /// # Errors
-/// [`BunsenError::InvalidArgument`] if `key` is absent, or is not bound to
+/// [`BunsenError::Invalid`] if `key` is absent, or is not bound to
 /// exactly `K` values.
 pub fn take_fixed<'x, const K: usize>(
     target: &str,
@@ -142,7 +136,7 @@ pub fn take_fixed<'x, const K: usize>(
 /// * `key` - the key to take.
 ///
 /// # Errors
-/// [`BunsenError::InvalidArgument`] if `key` is absent.
+/// [`BunsenError::Invalid`] if `key` is absent.
 pub fn take_any<'x>(
     target: &str,
     view: &EventDataView<'x>,
@@ -178,7 +172,7 @@ pub fn take_any<'x>(
 /// [`BunsenResult`] of an array of unpacked structs, one per target.
 ///
 /// # Errors
-/// [`BunsenError::InvalidArgument`] if any target's data map does not match
+/// [`BunsenError::Invalid`] if any target's data map does not match
 /// the pattern exactly. The error names the target expression.
 pub use crate::__unpack_audit_probe_event_data as unpack_audit_probe_event_data;
 

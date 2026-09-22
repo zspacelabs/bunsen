@@ -123,12 +123,10 @@ pub trait AuditProbeEventView: Debug {
         let expected_shape_sig = expected.data_map_shape_signature();
         if actual_shape_sig != expected_shape_sig {
             // TODO: Better error message.
-            Err(BunsenError::InvalidArgument {
-                msg: format!(
-                    "data map signatures don't match:\nactual: {:#?}\nexpect: {:#?}",
-                    actual_shape_sig, expected_shape_sig,
-                ),
-            })
+            Err(BunsenError::Invalid(format!(
+                "data map signatures don't match:\nactual: {:#?}\nexpect: {:#?}",
+                actual_shape_sig, expected_shape_sig,
+            )))
         } else {
             Ok(())
         }

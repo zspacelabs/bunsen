@@ -357,13 +357,11 @@ pub fn try_match_events(
         expected: &impl AuditProbeEventView,
     ) -> BunsenResult<()> {
         if expected.params() != actual.params() {
-            return Err(BunsenError::InvalidArgument {
-                msg: format!(
-                    "StreamEvent params {:?} != expected {:?}",
-                    expected.params(),
-                    actual.params()
-                ),
-            });
+            return Err(BunsenError::Invalid(format!(
+                "StreamEvent params {:?} != expected {:?}",
+                expected.params(),
+                actual.params()
+            )));
         }
 
         actual.assert_shape_signatures_eq(expected)?;

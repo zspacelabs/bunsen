@@ -549,8 +549,6 @@ mod tests {
     use serial_test::serial;
 
     use super::*;
-    #[cfg(all(feature = "store", feature = "fetch"))]
-    use crate::data::cache::BunsenDiskCache;
     use crate::{
         kits::bimm::resnet::{
             RESNET34_BLOCKS,
@@ -563,28 +561,22 @@ mod tests {
         },
     };
 
+    /// Fetches a checkpoint through the kit's factory and reads it into
+    /// its prefab's model.
     #[cfg(all(feature = "store", feature = "fetch"))]
-    fn test_load_pytorch<B: Backend>(
-        prefab: &str,
-        pretrained: &str,
-    ) -> BunsenResult<()> {
-        use crate::kits::bimm::resnet::PREFAB_RESNET_MAP;
+    fn test_load_pytorch<B: Backend>(spec: &str) -> BunsenResult<()> {
+        use crate::{
+            data::pretrained::{
+                PretrainedCache,
+                PretrainedCacheOptions,
+            },
+            kits::bimm::resnet::default_resnet_factory,
+        };
 
         let device = default_device();
-
-        let prefab = PREFAB_RESNET_MAP.expect_lookup_prefab(&prefab);
-
-        let resnet_config = prefab.to_config().to_structure();
-        println!("{:#?}", resnet_config);
-        let model: ResNet<B> = resnet_config.init(&device);
-
-        let path = prefab
-            .expect_lookup_pretrained_weights(pretrained)
-            .fetch_weights(&BunsenDiskCache::default())
-            .map_err(|e| BunsenError::External(e.to_string()))?;
-
-        let _model: ResNet<B> = model.load_pytorch_weights(path.clone())?;
-
+        let cache = PretrainedCache::new(PretrainedCacheOptions::default())?;
+        let loaded = default_resnet_factory()?.load::<B>(spec, &cache, &device)?;
+        let _model: &ResNet<B> = &loaded.handle;
         Ok(())
     }
 
@@ -592,20 +584,14 @@ mod tests {
     #[serial]
     #[cfg(all(feature = "store", feature = "fetch"))]
     fn test_load_pytorch_prefab() -> BunsenResult<()> {
-        type B = PerformanceBackend;
-        let prefab = "resnet18";
-        let pretrained = "tv_in1k";
-        test_load_pytorch::<B>(&prefab, &pretrained)
+        test_load_pytorch::<PerformanceBackend>("torchvision/resnet18")
     }
 
     #[test]
     #[serial]
     #[cfg(all(feature = "store", feature = "fetch"))]
     fn test_load_pytorch_prefab_cuda() -> BunsenResult<()> {
-        type B = PerformanceBackend;
-        let prefab = "resnet34";
-        let pretrained = "tv_in1k";
-        test_load_pytorch::<B>(&prefab, &pretrained)
+        test_load_pytorch::<PerformanceBackend>("torchvision/resnet34")
     }
 
     #[test]

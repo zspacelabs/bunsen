@@ -14,10 +14,14 @@ use bunsen::{
         DTypeMapper,
         ModuleInit,
     },
-    data::cache::BunsenDiskCache,
+    data::pretrained::{
+        PretrainedCache,
+        PretrainedCacheOptions,
+    },
     kits::bimm::resnet::{
         PREFAB_RESNET_MAP,
         ResNet,
+        default_resnet_factory,
     },
 };
 use bunsen_firehose::{
@@ -167,8 +171,10 @@ pub struct Args {
     #[arg(long, default_value = "resnet34")]
     resnet_prefab: String,
 
-    /// Resnet Pretrained
-    // #[arg(long, default_value = "tv_in1k")]
+    /// Pretrained weights for the prefab, as the resnet factory names them:
+    /// `torchvision/resnet34`, `timm/resnet34_a1`, or a path to a
+    /// checkpoint.
+    // #[arg(long, default_value = "torchvision/resnet34")]
     #[arg(long, default_value = None)]
     resnet_pretrained: Option<String>,
 
@@ -226,24 +232,22 @@ pub fn backend_main<B: AutodiffBackend>(args: &Args) -> anyhow::Result<()> {
 
     let prefab = PREFAB_RESNET_MAP.expect_lookup_prefab(&args.resnet_prefab);
 
-    let resnet_config = prefab
-        .to_config()
-        .with_activation(ActivationConfig::Gelu)
-        .to_structure();
-
-    let resnet: ResNet<B> = resnet_config.try_init(&device)?;
+    let contract = prefab.to_config().with_activation(ActivationConfig::Gelu);
+    let resnet: ResNet<B> = contract.to_structure().try_init(&device)?;
 
     let resnet: ResNet<B> = match &args.resnet_pretrained {
         Some(pretrained) => {
             let old_float_type = resnet.output_fc.weight.dtype();
 
-            let weights = prefab
-                .expect_lookup_pretrained_weights(pretrained)
-                .fetch_weights(&BunsenDiskCache::default())?;
+            // The activation swap is this example's own surgery: the
+            // deferred model's hook builds from this config rather than
+            // the prefab's, and the checkpoint is read into that model.
+            let cache = PretrainedCache::new(PretrainedCacheOptions::default())?;
+            let mut model = default_resnet_factory()?.resolve(pretrained, &cache)?;
+            model.hook = model.hook.with_config(contract.clone());
+            let loaded = model.load::<B>(&cache, &device)?;
 
-            resnet
-                .load_pytorch_weights(weights)?
-                .map(&mut DTypeMapper::new(old_float_type))
+            Arc::unwrap_or_clone(loaded.handle).map(&mut DTypeMapper::new(old_float_type))
         }
         None => resnet,
     }

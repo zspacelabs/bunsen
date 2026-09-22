@@ -7,6 +7,10 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- `BURNPACK_FILE` and `BURNPACK_SHA256`: the burnpack's name and its digest, computed when the crate is built, so bunsen's Silero kit can list it as the pinned `bundled:silero/vad`.
+
 ## [0.31.0](https://github.com/zspacelabs/bunsen/compare/bunsen-bundled-silero-v0.30.1...bunsen-bundled-silero-v0.31.0) - 2026-09-03
 
 ### Added

@@ -7,19 +7,41 @@
 //! vocabularies are small enough to commit, and are fetched anyway so that
 //! every Whisper asset arrives the same way.
 //!
+//! The pretrained assets are laid out in `OUT_DIR` as a **pretrained cache**,
+//! `pretrained/whisper/openai/<sha256>/<file>`, which is how bunsen's
+//! `data::pretrained::WeightsCache` roots a resource. A cache pointed at
+//! `cache_dir()`, offline, hits `openai/base` and both vocabularies without
+//! knowing they were bundled: bundling is a populated cache directory, not a
+//! kind of source. bunsen's own tests and `whisper-model-validation` do
+//! exactly that. bunsen's Whisper kit also lists the same files as
+//! `bundled:openai/base`, a row served in place from here.
+//!
 //! ## Crate Features
 #![doc = document_features::document_features!()]
+
+/// `OUT_DIR` laid out as a pretrained cache: the root a
+/// `bunsen::data::pretrained::WeightsCache` is pointed at to read the
+/// bundled assets. Nothing under it changes after the build; a cache that
+/// fetches other models into it will, so a test wants it offline.
+///
+/// # Panics
+/// Never at run time; the directory was written when the crate was
+/// compiled.
+#[cfg(any(feature = "checkpoint", feature = "vocab"))]
+pub fn cache_dir() -> &'static std::path::Path {
+    std::path::Path::new(env!("WHISPER_CACHE_DIR"))
+}
 
 /// The fetched `base.pt`: `OpenAI`'s multilingual Whisper *base* checkpoint.
 ///
 /// Resolved at build time — either the digest-pinned download, or whatever
-/// `WHISPER_BASE_PT` pointed at.
+/// `WHISPER_BASE_PT` pointed at; laid out under [`cache_dir`] unless the
+/// override was a different file.
 ///
 /// Nothing here loads a model; that needs bunsen's Whisper kit, which depends
 /// on this crate rather than the other way round. Reach for
-/// `bunsen::kits::speech::whisper::pretrained::load_named("openai/base", …)`:
-/// under bunsen's `whisper-weights` feature this path is that model's first
-/// source, and it is read in place.
+/// `bunsen::kits::speech::whisper::pretrained::default_whisper_factory()`
+/// and its `load("openai/base", …)`, with a cache rooted at [`cache_dir`].
 ///
 /// # Panics
 /// Never at run time. If the asset could not be obtained the build itself
@@ -40,7 +62,8 @@ pub fn base_pt() -> &'static std::path::Path {
 /// reader rejects, which is why that parser exists.
 ///
 /// Resolved at build time — the digest-pinned download, or whatever
-/// `WHISPER_MULTILINGUAL_TIKTOKEN` pointed at.
+/// `WHISPER_MULTILINGUAL_TIKTOKEN` pointed at; laid out under [`cache_dir`]
+/// unless the override was a different file.
 ///
 /// # Panics
 /// Never at run time: a missing asset fails the build, as for `base_pt()`.
@@ -58,7 +81,8 @@ pub fn multilingual_tiktoken() -> &'static std::path::Path {
 /// `whisper.tokenizer`.
 ///
 /// Resolved at build time — the digest-pinned download, or whatever
-/// `WHISPER_GPT2_TIKTOKEN` pointed at.
+/// `WHISPER_GPT2_TIKTOKEN` pointed at; laid out under [`cache_dir`] unless
+/// the override was a different file.
 ///
 /// # Panics
 /// Never at run time: a missing asset fails the build, as for `base_pt()`.
@@ -129,6 +153,49 @@ pub mod onnx_gen {
 
 #[cfg(test)]
 mod tests {
+    /// Every pretrained asset sits in the cache layout under the root the
+    /// crate exposes: `pretrained/whisper/openai/<sha256>/<file>`, under the
+    /// file name the Whisper kit's resource uses. (An override that is not
+    /// the pinned file lands elsewhere; this test assumes none is set.)
+    #[cfg(any(feature = "checkpoint", feature = "vocab"))]
+    #[test]
+    fn test_assets_are_laid_out_as_a_pretrained_cache() {
+        let root = super::cache_dir()
+            .join("pretrained")
+            .join("whisper")
+            .join("openai");
+        assert!(root.is_dir(), "{} is missing", root.display());
+
+        let mut assets: Vec<&'static std::path::Path> = Vec::new();
+        #[cfg(feature = "checkpoint")]
+        assets.push(super::base_pt());
+        #[cfg(feature = "vocab")]
+        assets.extend([super::multilingual_tiktoken(), super::gpt2_tiktoken()]);
+
+        for path in assets {
+            let rel = path
+                .strip_prefix(&root)
+                .unwrap_or_else(|_| panic!("{} is not under {}", path.display(), root.display()));
+            let mut parts = rel.components();
+            let digest = parts.next().unwrap().as_os_str().to_str().unwrap();
+            assert_eq!(digest.len(), 64, "{}", path.display());
+            assert!(
+                digest
+                    .bytes()
+                    .all(|b| matches!(b, b'0'..=b'9' | b'a'..=b'f')),
+                "{}",
+                path.display()
+            );
+            let file = parts.next().unwrap().as_os_str().to_str().unwrap();
+            assert!(
+                ["base.pt", "multilingual.tiktoken", "gpt2.tiktoken"].contains(&file),
+                "{}",
+                path.display()
+            );
+            assert!(parts.next().is_none(), "{}", path.display());
+        }
+    }
+
     /// The checkpoint the build resolved must still be on disk, and must be
     /// the size of a `base` checkpoint rather than an error page.
     #[cfg(feature = "checkpoint")]

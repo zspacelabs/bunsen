@@ -29,14 +29,16 @@ workspace = true
 ## `whisper-model-validation/download` turns on `onnx_gen`.
 default = []
 
-## Fetch `OpenAI`'s multilingual "base.pt".
+## Fetch `OpenAI`'s multilingual "base.pt", laid out under `cache_dir()`.
 ##
-## Under `bunsen/whisper-weights` this is the first source of `openai/base`
-## in the Whisper kit's pretrained table.
+## A bunsen pretrained cache rooted at that directory resolves `openai/base`
+## from it, offline; `bunsen/whisper-weights` makes it available to bunsen's
+## tests.
 checkpoint = []
 
 ## Fetch Whisper's two `.tiktoken` rank files and expose them as
-## `multilingual_tiktoken()` and `gpt2_tiktoken()`.
+## `multilingual_tiktoken()` and `gpt2_tiktoken()`, laid out under
+## `cache_dir()`.
 ##
 ## The base vocabularies: every multilingual checkpoint uses the first, the
 ## `*.en` checkpoints the second. Under 2 MB together, so they are fetched

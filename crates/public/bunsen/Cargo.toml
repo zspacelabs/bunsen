@@ -43,6 +43,7 @@ default = [
     "train",
     "testing",
     "store_pytorch",
+    "store_safetensors",
 ]
 
 std = [
@@ -68,6 +69,13 @@ store = [
 store_pytorch = [
     "store",
     "burn-store/pytorch",
+]
+
+## Read `transformers`' `model.safetensors` through the burn-store: what a
+## Hugging Face repo serves.
+store_safetensors = [
+    "store",
+    "burn-store/safetensors",
 ]
 
 ## Enable features to use with `burn/train`.
@@ -132,12 +140,13 @@ silero-weights = [
     "dep:bunsen-bundled-silero",
 ]
 
-## Bundle the pretrained Whisper assets into the build: `OpenAI`'s `base`
-## checkpoint and the two `.tiktoken` vocabularies. They become the first
-## source of `openai/base` and of the two `openai` vocabularies in the
-## Whisper kit's tables, so those resolve in place, with no network at run
-## time. Without this, the same models are fetched into the cache on first
-## use (`fetch`).
+## Make `bunsen-bundled-whisper`'s pretrained cache directory available: it
+## fetches `OpenAI`'s `base` checkpoint and the two `.tiktoken` vocabularies
+## at build time, digest-pinned, and lays them out as a `PretrainedCache`
+## root. bunsen's own tests point a cache at it, offline. Nothing in the
+## Whisper kit's tables depends on this: bundling is a populated cache
+## directory, not a kind of source, and a deployment populates the runtime
+## cache the same way (`models fetch` in `whisper-cli`).
 ##
 ## **This makes the build reach the network** on a cold cache: unlike Silero's,
 ## Whisper's weights are 145 MB and are fetched rather than committed. Every

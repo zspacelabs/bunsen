@@ -13,9 +13,6 @@ license.workspace = true
 [lints]
 workspace = true
 
-[profile.dev]
-opt-level = 2
-
 
 [features]
 default = []
@@ -29,13 +26,16 @@ default = []
 ## `cache/` and verified against a pinned SHA-256, so a warm build is offline
 ## and reproducible.
 ##
-## The checkpoint arrives through `bunsen/whisper-weights` rather than a direct
-## dependency: it is then the first source of `openai/base`, which is what
-## `load_named` reads, so routing it through the library is also what this
-## crate is validating.
+## The checkpoint and the vocabularies arrive as `bunsen-bundled-whisper`'s
+## directory, laid out as bunsen's pretrained cache; `weights_cache()` roots
+## the cache there, offline, so routing them through the library's own cache
+## is also what this crate is validating. `bunsen/whisper-weights` comes
+## along so bunsen's bundle-dependent tests are built in the same run.
 download = [
     "bunsen/whisper-weights",
     "dep:bunsen-bundled-whisper",
+    "bunsen-bundled-whisper/checkpoint",
+    "bunsen-bundled-whisper/vocab",
     "bunsen-bundled-whisper/onnx_gen",
 ]
 
@@ -75,4 +75,3 @@ serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
 
 serial_test = { workspace = true }
-

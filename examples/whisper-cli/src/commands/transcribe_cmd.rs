@@ -23,15 +23,16 @@ use clap_common::logging::{
 
 use crate::whisper_clap::WhisperDriverArgs;
 
-/// Transcribes an audio file with the bundled Whisper `base` checkpoint and
-/// its vocabulary, through the stream driver: the audio is pushed in chunks
-/// as a live loop would feed it, and segments are printed as they become
-/// final — or, under the responsive preset, as drafts first.
+/// Transcribes an audio file with a Whisper checkpoint and its vocabulary,
+/// through the stream driver: the audio is pushed in chunks as a live loop
+/// would feed it, and segments are printed as they become final — or,
+/// under the responsive preset, as drafts first.
 ///
-/// Everything comes from bunsen's own features. `whisper-weights` bundles
-/// the checkpoint and the `.tiktoken` vocabulary that matches it, which
-/// is what gives text rather than ids and upstream's default suppress
-/// list; `silero-weights` bundles the VAD the real-time presets need.
+/// The checkpoint and the `.tiktoken` vocabulary that matches it come
+/// through bunsen's pretrained cache, fetched on first use or found where
+/// a deployment put them; the vocabulary is what gives text rather than
+/// ids and upstream's default suppress list. `silero-weights` bundles the
+/// VAD the real-time presets need.
 /// The backend is [`bunsen::support::testing::PerformanceBackend`],
 /// chosen by bunsen's backend feature at build time (`--features
 /// bunsen/wgpu`; see the README).

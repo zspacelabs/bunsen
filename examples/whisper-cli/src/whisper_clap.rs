@@ -1,5 +1,8 @@
 use std::{
-    path::PathBuf,
+    path::{
+        Path,
+        PathBuf,
+    },
     sync::Arc,
 };
 
@@ -7,34 +10,33 @@ use bunsen::{
     data::{
         cache::BunsenDiskCacheOptions,
         pretrained::{
-            WeightsCache,
-            WeightsCacheOptions,
+            Deferred,
+            PretrainedCache,
+            PretrainedCacheOptions,
+            PretrainedFactory,
+            ResourceMap,
         },
     },
     errors::BunsenResult,
-    kits::{
-        speech::{
-            silero_vad::SileroVad,
-            whisper::{
-                Whisper,
-                WhisperApiConfig,
-                WhisperFallbackConfig,
-                driver::{
-                    PresetEmissionPolicy,
-                    WhisperStreamDriver,
-                    WhisperStreamDriverConfig,
-                    WhisperTask,
-                },
-                logit_filters::default_filters,
-                pretrained::{
-                    OPENAI_LOCAL_DIR,
-                    PytorchWhisperScanner,
-                    load_named_with,
-                    vocabulary_for,
-                },
+    kits::speech::{
+        silero_vad::pretrained::default_silero_factory,
+        whisper::{
+            WhisperFallbackConfig,
+            driver::{
+                PresetEmissionPolicy,
+                WhisperBundle,
+                WhisperStreamDriver,
+                WhisperStreamDriverConfig,
+                WhisperTask,
+            },
+            pretrained::{
+                CHECKPOINT,
+                OPENAI_LOCAL_DIR,
+                VOCABULARY,
+                WhisperConstruct,
+                default_whisper_factory,
             },
         },
-        tokens::TiktokenRanks,
     },
 };
 use burn::prelude::Backend;
@@ -51,7 +53,7 @@ pub struct WeightsCacheArgs {
     #[arg(long)]
     offline: bool,
 
-    /// `openai-whisper`'s download cache, read as a local source;
+    /// `openai-whisper`'s download cache, whose files are used in place;
     /// `~/.cache/whisper` when omitted.
     #[arg(long)]
     upstream_cache_dir: Option<PathBuf>,
@@ -59,58 +61,52 @@ pub struct WeightsCacheArgs {
 
 impl WeightsCacheArgs {
     /// Opens the cache.
-    pub fn init(&self) -> BunsenResult<WeightsCache> {
-        let mut options = WeightsCacheOptions::default()
+    pub fn init(&self) -> BunsenResult<PretrainedCache> {
+        let mut options = PretrainedCacheOptions::default()
             .with_disk(BunsenDiskCacheOptions::default().with_cache_dir(self.cache_dir.clone()))
             .with_offline(self.offline);
         if let Some(dir) = &self.upstream_cache_dir {
             options = options.with_local_dir(OPENAI_LOCAL_DIR, dir.clone());
         }
-        WeightsCache::new(options)
+        PretrainedCache::new(options)
     }
 }
 
-/// How a checkpoint is read.
-#[derive(clap::Args, Debug)]
-pub struct ScannerArgs {
-    /// The key the checkpoint keeps its tensors under; `model_state_dict`,
-    /// as `OpenAI`'s do, when omitted. An empty string for a checkpoint whose
-    /// tensors are at the top level.
-    #[arg(long)]
-    state_dict_key: Option<String>,
-}
-
-impl ScannerArgs {
-    /// The scanner these flags describe.
-    pub fn scanner(&self) -> PytorchWhisperScanner {
-        let scanner = PytorchWhisperScanner::new();
-        match self.state_dict_key.as_deref() {
-            None => scanner,
-            Some("") => scanner.with_top_level_key(None),
-            Some(key) => scanner.with_top_level_key(Some(key.to_string())),
-        }
+/// What `--model` names: a row of the factory, resolved through the
+/// cache (a Hugging Face ref asks the hub what the repo holds, once), or
+/// a checkpoint on disk as a one-resource map under [`CHECKPOINT`].
+/// Either way a deferred model with the kit's hook for it; nothing here
+/// builds one.
+pub fn resolve_model(
+    factory: &PretrainedFactory<WhisperConstruct>,
+    spec: &str,
+    cache: &PretrainedCache,
+) -> BunsenResult<Deferred<WhisperConstruct>> {
+    let path = Path::new(spec);
+    if path.is_file() {
+        return Deferred::from_map(ResourceMap::given(spec, CHECKPOINT, path));
     }
+    factory.resolve(spec, cache)
 }
 
 #[derive(clap::Args, Debug)]
 pub struct WhisperDriverArgs {
-    /// The model: `provider/name` or a bare name from `models list`
-    /// (`openai/tiny.en`, `large`), or a path to a checkpoint. The default
-    /// is fetched into the cache on first use (145 MB, digest-checked), or
-    /// read in place when this crate is built with its `bundled` feature.
+    /// The model: `provider:ref` or a bare ref from `models list`
+    /// (`well-known:openai/tiny.en`, `openai/tiny.en`, `large`), a Hugging
+    /// Face repo in `transformers`' layout (`hf:openai/whisper-tiny`, one
+    /// file or shards), or a path to a checkpoint. The default is fetched
+    /// into the cache on first use (145 MB, digest-checked), or found
+    /// where a deployment put it ahead of time.
     #[arg(long, default_value = "openai/base")]
     model: String,
 
     #[clap(flatten)]
     cache: WeightsCacheArgs,
 
-    #[clap(flatten)]
-    scanner: ScannerArgs,
-
     /// A `.tiktoken` vocabulary by path, in place of the one the
     /// checkpoint's token layout selects (`multilingual.tiktoken` for a
     /// multilingual checkpoint, `gpt2.tiktoken` for an English-only one),
-    /// which comes from the bundle, the cache, or one fetch.
+    /// which comes from the cache or one fetch.
     #[arg(long)]
     vocab: Option<PathBuf>,
 
@@ -161,22 +157,36 @@ pub struct WhisperDriverArgs {
 }
 
 impl WhisperDriverArgs {
-    /// Loads `--model` at the precision it ships in.
+    /// Loads `--model` at the precision it ships in, with its vocabulary.
     ///
-    /// The name is resolved against the pretrained index, or taken as a
-    /// path; the weights come from the cache, a local source, or a
-    /// digest-checked download; and the checkpoint is checked against the
-    /// prefab its name promised before it is materialized.
+    /// A name is resolved against the default whisper factory; a path to a
+    /// checkpoint is a given map; either way the model carries the kit's
+    /// hook for it. Every
+    /// resource of the map comes from the cache, a local source, or a
+    /// digest-checked download; a name's checkpoint is checked against the
+    /// prefab it promised before it is materialized; and the vocabulary is
+    /// the one the checkpoint's layout selects, or the file `--vocab`
+    /// names, which is trusted as given.
     ///
     /// `OpenAI`'s checkpoints are fp16 while the mel front end works in the
     /// backend's float, but the model casts at its own edges — mels in,
     /// logits out — so nothing here has to re-type it.
-    pub fn load_model<B: Backend>(
+    pub fn load_bundle<B: Backend>(
         &self,
-        cache: &WeightsCache,
+        cache: &PretrainedCache,
         device: &B::Device,
-    ) -> BunsenResult<(Whisper<B>, WhisperApiConfig)> {
-        load_named_with::<B>(&self.model, cache, device, &self.scanner.scanner())
+    ) -> BunsenResult<Arc<WhisperBundle<B>>> {
+        let factory = default_whisper_factory()?;
+        let mut model = resolve_model(&factory, &self.model, cache)?;
+        if let Some(path) = &self.vocab {
+            model = model.with_overlay(ResourceMap::given("--vocab", VOCABULARY, path))?;
+        }
+        model.load_bundle::<B>(cache, device)
+    }
+
+    /// Initialize the cache.
+    pub fn init_cache(&self) -> BunsenResult<PretrainedCache> {
+        self.cache.init()
     }
 
     /// Load and setup the [`WhisperStreamDriver`].
@@ -184,29 +194,15 @@ impl WhisperDriverArgs {
         &self,
         device: &B::Device,
     ) -> BunsenResult<WhisperStreamDriver<B>> {
-        let cache = self.cache.init()?;
-        let (model, cfg) = self.load_model(&cache, device)?;
-        log::info!(
-            "model: {} n_mels, vocabulary {}, d_model {}, {} + {} layers",
-            cfg.n_mels,
-            cfg.vocab_size,
-            cfg.d_model,
-            cfg.n_encoder_layers,
-            cfg.n_decoder_layers,
-        );
+        let cache = self.init_cache()?;
+        let bundle = self.load_bundle::<B>(&cache, device)?;
+        log::info!("Loaded Whisper: {bundle}");
 
         // The token layout follows from the vocabulary size, and the
-        // vocabulary follows from the layout, through the same cache as the
-        // weights: nothing here is typed in unless `--vocab` names a file.
-        let policy = cfg.token_layout.policy_for_vocab(cfg.vocab_size)?;
-        let ids = *policy.ids();
-        let ranks = match &self.vocab {
-            Some(path) => TiktokenRanks::load(path)?,
-            None => vocabulary_for(&ids, &cache)?,
-        };
-        let detokenizer = policy.detokenizer(&ranks)?;
-        let filters = default_filters::<B>(&ranks, &ids);
-
+        // vocabulary from the layout, through the same cache as the
+        // weights; the driver takes its detokenizer and upstream's default
+        // suppress list from the bundle.
+        let ids = *bundle.layout.ids();
         let language = if ids.is_multilingual() {
             self.language.clone()
         } else {
@@ -230,15 +226,17 @@ impl WhisperDriverArgs {
             .with_condition_on_previous_text(self.prompt_carry)
             .with_emission(self.preset.into())
             .with_fallback(fallback)
-            .init_with_layout(model, policy, device)?
-            .with_detokenizer(Arc::new(detokenizer))
-            .with_logit_filters(filters);
+            .init_from_bundle(bundle, device)?;
+
         if self.preset != PresetEmissionPolicy::Offline {
-            driver = driver.with_vad(
-                SileroVad::<B>::load_16khz_pretrained(device)?,
-                Default::default(),
-            )?;
+            // The bundled burnpack, through the same cache as the weights:
+            // written in from the binary on first use, cached after.
+            let vad = default_silero_factory()?
+                .load::<B>("bundled:silero/vad", &cache, device)?
+                .handle;
+            driver = driver.with_vad(vad.expect_branch(16000).clone(), Default::default())?;
         }
+
         if driver.detects_language() {
             log::info!("language: detected from the first window");
         } else {

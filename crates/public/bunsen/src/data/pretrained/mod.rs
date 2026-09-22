@@ -1,25 +1,69 @@
-//! # Module / Pretrained Weights
+//! # Pretrained models
+//!
+//! A pretrained is a row over a [`ResourceMap`]: keyed files, each with
+//! its digest and the places it can be had from. Rows sit in
+//! [`PretrainedGroup`]s behind a [`PretrainedTable`], the compiled-in
+//! [`PretrainedProvider`]. With the `cache` feature, a [`PretrainedFactory`]
+//! holds a kit's providers in search order and resolves a name,
+//! `provider:ref` or bare, to a [`Deferred`] model: the row's map
+//! ([`PretrainedRef`]) with the kit's [`Construct`] hook chosen for it by
+//! what the map says about its resources. Loading it, the
+//! [`PretrainedCache`] brings the map's files local and the hook builds
+//! from them, behind an `Arc`.
+//! [`StaticPreFabMap`] is the other half: the geometries a kit knows by name.
 
 #[cfg(feature = "cache")]
 mod cache;
 #[cfg(feature = "cache")]
-mod model_ref;
+mod construct;
+#[cfg(feature = "cache")]
+mod deferred;
+#[cfg(feature = "cache")]
+mod factory;
+mod hf;
+#[cfg(feature = "cache")]
+mod loaded;
 mod prefabs;
+mod pretrained_ref;
 mod providers;
-mod weights;
+mod resource;
+mod resource_map;
+mod rows;
+#[cfg(feature = "store_safetensors")]
+mod safetensors;
 
 #[cfg(feature = "cache")]
 #[doc(inline)]
 pub use cache::*;
 #[cfg(feature = "cache")]
 #[doc(inline)]
-pub use model_ref::*;
+pub use construct::*;
+#[cfg(feature = "cache")]
+#[doc(inline)]
+pub use deferred::*;
+#[cfg(feature = "cache")]
+#[doc(inline)]
+pub use factory::*;
+#[doc(inline)]
+pub use hf::*;
+#[cfg(feature = "cache")]
+#[doc(inline)]
+pub use loaded::*;
 #[doc(inline)]
 pub use prefabs::*;
 #[doc(inline)]
+pub use pretrained_ref::*;
+#[doc(inline)]
 pub use providers::*;
 #[doc(inline)]
-pub use weights::*;
+pub use resource::*;
+#[doc(inline)]
+pub use resource_map::*;
+#[doc(inline)]
+pub use rows::*;
+#[cfg(feature = "store_safetensors")]
+#[doc(inline)]
+pub use safetensors::*;
 
 /// [`ResourceNotFound`](crate::errors::BunsenError::ResourceNotFound) for a
 /// name a table does not have, naming what it has: `"<table>: no <kind>

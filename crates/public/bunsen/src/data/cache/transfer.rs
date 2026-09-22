@@ -180,7 +180,17 @@ pub(crate) mod testing {
             name: &str,
             body: &'static [u8],
         ) -> String {
-            serve(name, body, body.len(), 0, 1)
+            serve(name, body, body.len(), 0, 1, 200)
+        }
+
+        /// Answers one connection with `status` and no body: a repo that is
+        /// not there (`404`), or one the hub will not show an anonymous
+        /// caller (`401`).
+        pub(crate) fn serve_status(
+            name: &str,
+            status: u16,
+        ) -> String {
+            serve(name, b"", 0, 0, 1, status)
         }
 
         /// [`serve_once`] for `n` connections, each given the same `body`.
@@ -189,7 +199,7 @@ pub(crate) mod testing {
             body: &'static [u8],
             n: usize,
         ) -> String {
-            serve(name, body, body.len(), 0, n)
+            serve(name, body, body.len(), 0, n, 200)
         }
 
         /// Drops the first `failures` connections without a byte, then serves
@@ -199,7 +209,7 @@ pub(crate) mod testing {
             body: &'static [u8],
             failures: usize,
         ) -> String {
-            serve(name, body, body.len(), failures, 1)
+            serve(name, body, body.len(), failures, 1, 200)
         }
 
         /// A URL for `name` on a loopback port nothing listens on.
@@ -218,18 +228,19 @@ pub(crate) mod testing {
             body: &'static [u8],
             declared: usize,
         ) -> String {
-            serve(name, body, declared, 0, 1)
+            serve(name, body, declared, 0, 1, 200)
         }
 
         /// The server behind the helpers above: drops `failures` connections,
-        /// then answers `n` with a `200` declaring `declared` bytes and sending
-        /// `body`.
+        /// then answers `n` with `status`, declaring `declared` bytes and
+        /// sending `body`.
         fn serve(
             name: &str,
             body: &'static [u8],
             declared: usize,
             failures: usize,
             n: usize,
+            status: u16,
         ) -> String {
             let listener = TcpListener::bind("127.0.0.1:0").unwrap();
             let url = format!("http://{}/{name}", listener.local_addr().unwrap());
@@ -253,8 +264,14 @@ pub(crate) mod testing {
                             break;
                         }
                     }
+                    let reason = match status {
+                        200 => "OK",
+                        401 => "Unauthorized",
+                        404 => "Not Found",
+                        _ => "Status",
+                    };
                     let response = format!(
-                        "HTTP/1.1 200 OK\r\nContent-Length: {declared}\r\nConnection: close\r\n\r\n"
+                        "HTTP/1.1 {status} {reason}\r\nContent-Length: {declared}\r\nConnection: close\r\n\r\n"
                     );
                     stream.write_all(response.as_bytes()).unwrap();
                     stream.write_all(body).unwrap();

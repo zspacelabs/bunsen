@@ -9,7 +9,7 @@ comparison come from [`bunsen-bundled-whisper`](../../public/bunsen-bundled-whis
 
 | what | how it arrives | feature |
 |---|---|---|
-| `base.pt`, the checkpoint bunsen loads | `bunsen/whisper-weights` → the first source of `openai/base` → `load_named` | `checkpoint` |
+| `base.pt`, the checkpoint bunsen loads | the bundle's directory, laid out as a pretrained cache → `weights_cache()` rooted there, offline → `default_whisper_factory().load("openai/base", …)` | `checkpoint` |
 | the ONNX-generated encoder/decoder | `bunsen-bundled-whisper/onnx_gen` | `onnx_gen` |
 
 Routing the checkpoint through `bunsen` rather than reading it directly is

@@ -120,22 +120,22 @@ impl TolerancePolicy {
     /// not been checked will panic inside burn rather than returning an error.
     ///
     /// # Errors
-    /// [`BunsenError::InvalidArgument`] if a relative tolerance is outside
+    /// [`BunsenError::Invalid`] if a relative tolerance is outside
     /// `0.0..=1.0`, or an absolute tolerance is negative.
     pub fn validate(&self) -> BunsenResult<()> {
         let check_relative = |relative: f64| -> BunsenResult<()> {
             if !(0.0..=1.0).contains(&relative) {
-                return Err(BunsenError::InvalidArgument {
-                    msg: format!("relative tolerance ({relative}) is not in 0.0..=1.0"),
-                });
+                return Err(BunsenError::Invalid(format!(
+                    "relative tolerance ({relative}) is not in 0.0..=1.0"
+                )));
             }
             Ok(())
         };
         let check_absolute = |absolute: f64| -> BunsenResult<()> {
             if absolute < 0.0 {
-                return Err(BunsenError::InvalidArgument {
-                    msg: format!("absolute tolerance ({absolute}) is negative"),
-                });
+                return Err(BunsenError::Invalid(format!(
+                    "absolute tolerance ({absolute}) is negative"
+                )));
             }
             Ok(())
         };
@@ -198,7 +198,7 @@ impl ToleranceDesc {
     /// * `policy` - the tolerance rule.
     ///
     /// # Errors
-    /// [`BunsenError::InvalidArgument`] if `policy` fails
+    /// [`BunsenError::Invalid`] if `policy` fails
     /// [`validate`](`TolerancePolicy::validate`).
     pub fn new(
         dtype: FloatDType,
@@ -218,16 +218,16 @@ impl ToleranceDesc {
     /// * `policy` - the tolerance rule.
     ///
     /// # Errors
-    /// [`BunsenError::InvalidArgument`] if `dtype` is not a float type, or if
+    /// [`BunsenError::Invalid`] if `dtype` is not a float type, or if
     /// `policy` fails [`validate`](`TolerancePolicy::validate`).
     pub fn try_from_dtype(
         dtype: DType,
         policy: TolerancePolicy,
     ) -> BunsenResult<Self> {
         if !dtype.is_float() {
-            return Err(BunsenError::InvalidArgument {
-                msg: format!("dtype ({dtype:?}) is not a float type"),
-            });
+            return Err(BunsenError::Invalid(format!(
+                "dtype ({dtype:?}) is not a float type"
+            )));
         }
         Self::new(FloatDType::from(dtype), policy)
     }
@@ -238,7 +238,7 @@ impl ToleranceDesc {
     /// * `policy` - the tolerance rule.
     ///
     /// # Errors
-    /// [`BunsenError::InvalidArgument`] if `policy` fails
+    /// [`BunsenError::Invalid`] if `policy` fails
     /// [`validate`](`TolerancePolicy::validate`).
     pub fn of<F: Float + Element>(policy: TolerancePolicy) -> BunsenResult<Self> {
         Self::new(FloatDType::from(F::dtype()), policy)

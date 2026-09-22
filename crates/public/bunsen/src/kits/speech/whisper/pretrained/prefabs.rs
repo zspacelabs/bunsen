@@ -43,9 +43,6 @@ const LARGE_V3: WhisperGeometry = WhisperGeometry::openai(128, 51866, 1280, 32, 
 const LARGE_V3_TURBO: WhisperGeometry = WhisperGeometry::openai(128, 51866, 1280, 32, 4);
 
 /// The Whisper prefabs: every geometry `openai-whisper` ships, by name.
-///
-/// `weights` is `None` throughout: the pretrained side is indexed by
-/// provider, pretrained → prefab, and arrives with its own table.
 pub static WHISPER_PREFABS: StaticPreFabMap<WhisperApiConfig> = StaticPreFabMap {
     name: "whisper",
     description: "OpenAI Whisper geometries, as `whisper.model.ModelDimensions` has them",
@@ -54,77 +51,67 @@ pub static WHISPER_PREFABS: StaticPreFabMap<WhisperApiConfig> = StaticPreFabMap 
             name: "tiny",
             description: "d_model 384, 4 + 4 layers, multilingual",
             builder: || TINY.to_api_config(),
-            weights: None,
         },
         &StaticPreFabConfig {
             name: "tiny.en",
             description: "d_model 384, 4 + 4 layers, English-only",
             builder: || TINY_EN.to_api_config(),
-            weights: None,
         },
         &StaticPreFabConfig {
             name: "base",
             description: "d_model 512, 6 + 6 layers, multilingual",
             builder: || BASE.to_api_config(),
-            weights: None,
         },
         &StaticPreFabConfig {
             name: "base.en",
             description: "d_model 512, 6 + 6 layers, English-only",
             builder: || BASE_EN.to_api_config(),
-            weights: None,
         },
         &StaticPreFabConfig {
             name: "small",
             description: "d_model 768, 12 + 12 layers, multilingual",
             builder: || SMALL.to_api_config(),
-            weights: None,
         },
         &StaticPreFabConfig {
             name: "small.en",
             description: "d_model 768, 12 + 12 layers, English-only",
             builder: || SMALL_EN.to_api_config(),
-            weights: None,
         },
         &StaticPreFabConfig {
             name: "medium",
             description: "d_model 1024, 24 + 24 layers, multilingual",
             builder: || MEDIUM.to_api_config(),
-            weights: None,
         },
         &StaticPreFabConfig {
             name: "medium.en",
             description: "d_model 1024, 24 + 24 layers, English-only",
             builder: || MEDIUM_EN.to_api_config(),
-            weights: None,
         },
         &StaticPreFabConfig {
             name: "large",
             description: "d_model 1280, 32 + 32 layers, 80 mels, 99 languages (large-v1, large-v2)",
             builder: || LARGE.to_api_config(),
-            weights: None,
         },
         &StaticPreFabConfig {
             name: "large-v3",
             description: "d_model 1280, 32 + 32 layers, 128 mels, 100 languages",
             builder: || LARGE_V3.to_api_config(),
-            weights: None,
         },
         &StaticPreFabConfig {
             name: "large-v3-turbo",
             description: "d_model 1280, 32 + 4 layers, 128 mels, 100 languages",
             builder: || LARGE_V3_TURBO.to_api_config(),
-            weights: None,
         },
     ],
 };
 
-/// The prefab a geometry belongs to, if any: the reverse lookup, for a
-/// checkpoint that arrived as a path rather than a name.
-pub fn prefab_for_geometry(
-    geometry: &WhisperGeometry
-) -> Option<&'static StaticPreFabConfig<WhisperApiConfig>> {
-    WHISPER_PREFABS.find(|cfg| cfg.geometry() == *geometry)
+impl WhisperGeometry {
+    /// The prefab this geometry belongs to, if any: the reverse lookup in
+    /// [`WHISPER_PREFABS`], for a checkpoint that arrived as a path rather
+    /// than a name.
+    pub fn prefab(&self) -> Option<&'static StaticPreFabConfig<WhisperApiConfig>> {
+        WHISPER_PREFABS.find(|cfg| cfg.geometry() == *self)
+    }
 }
 
 #[cfg(test)]
@@ -158,18 +145,20 @@ mod tests {
     }
 
     #[test]
-    fn test_prefab_for_geometry() {
+    fn test_a_geometry_names_its_prefab() {
         assert_eq!(
-            prefab_for_geometry(&BASE).map(|p| p.name),
+            BASE.prefab().map(|p| p.name),
             Some("base"),
             "the base geometry names the base prefab",
         );
         assert_eq!(
-            prefab_for_geometry(&LARGE_V3_TURBO).map(|p| p.name),
+            LARGE_V3_TURBO.prefab().map(|p| p.name),
             Some("large-v3-turbo")
         );
         assert!(
-            prefab_for_geometry(&WhisperGeometry::openai(80, 51865, 1000, 1, 1)).is_none(),
+            WhisperGeometry::openai(80, 51865, 1000, 1, 1)
+                .prefab()
+                .is_none(),
             "an unknown geometry names nothing",
         );
     }

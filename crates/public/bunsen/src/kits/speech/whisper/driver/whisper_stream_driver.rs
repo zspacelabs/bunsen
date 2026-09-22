@@ -31,6 +31,7 @@ use crate::{
                     StreamClampPolicy,
                     StreamClock,
                     VoiceActivityFilterConfig,
+                    WhisperBundle,
                     WhisperStreamContext,
                     WhisperTask,
                     WhisperTokenLayout,
@@ -114,43 +115,63 @@ pub struct WhisperStreamDriverConfig {
 }
 
 impl WhisperStreamDriverConfig {
-    /// Builds the driver over a model, deriving the token layout from the
-    /// model's vocabulary size.
+    /// Builds the driver over a model alone, deriving the token layout from
+    /// the model's vocabulary size: ids only, with no vocabulary, no text
+    /// and no default suppress list. See
+    /// [`init_from_bundle`](Self::init_from_bundle).
     ///
     /// # Errors
     /// [`BunsenError::Invalid`] if the vocabulary size is not a Whisper
-    /// layout, or as [`init_with_policy`](Self::init_with_layout).
+    /// layout, or as [`init_from_bundle`](Self::init_from_bundle).
     pub fn init<B: Backend>(
         &self,
         model: Whisper<B>,
         device: &B::Device,
     ) -> BunsenResult<WhisperStreamDriver<B>> {
-        let token_layout = model.token_layout().policy_for_vocab(model.vocab_size())?;
-        self.init_with_layout(model, token_layout, device)
+        self.init_from_bundle(Arc::new(WhisperBundle::from_model(model)?), device)
     }
 
-    /// Builds the driver over a model with an explicit token layout.
+    /// Builds the driver over a model with an explicit token layout, and no
+    /// vocabulary.
     ///
     /// For a model whose vocabulary is not one of Whisper's &mdash; a test
     /// model &mdash; or to override what [`init`](Self::init) would derive.
     ///
     /// # Errors
-    /// [`BunsenError::Invalid`] if the language and task do not fit the
-    /// layout, or if the configuration asks for something this slice of the
-    /// driver does not support yet.
+    /// As [`init_from_bundle`](Self::init_from_bundle).
     pub fn init_with_layout<B: Backend>(
         &self,
         whisper_model: Whisper<B>,
         token_layout: WhisperTokenLayout,
         device: &B::Device,
     ) -> BunsenResult<WhisperStreamDriver<B>> {
-        let special_ids = token_layout.ids();
-        assert!(
-            special_ids.n_vocab() <= whisper_model.vocab_size(),
-            "the token layout has {} ids but the model's vocabulary has {}",
-            special_ids.n_vocab(),
-            whisper_model.vocab_size(),
-        );
+        self.init_from_bundle(
+            Arc::new(WhisperBundle::new(whisper_model, token_layout)),
+            device,
+        )
+    }
+
+    /// Builds the driver over a loaded bundle, sharing it.
+    ///
+    /// The model and its layout come from the bundle. So do, when the
+    /// bundle has a vocabulary, upstream's default logit filters and, under
+    /// the `tokenizer` feature, a detokenizer, so emissions carry text;
+    /// [`with_logit_filters`](WhisperStreamDriver::with_logit_filters) and
+    /// [`with_detokenizer`](WhisperStreamDriver::with_detokenizer) replace
+    /// either. Several drivers over one bundle are `Arc::clone`s of it.
+    ///
+    /// # Errors
+    /// [`BunsenError::Invalid`] if the layout does not fit the model or its
+    /// vocabulary, if the language and task do not fit the layout, or if
+    /// the configuration asks for something this slice of the driver does
+    /// not support yet.
+    pub fn init_from_bundle<B: Backend>(
+        &self,
+        bundle: Arc<WhisperBundle<B>>,
+        device: &B::Device,
+    ) -> BunsenResult<WhisperStreamDriver<B>> {
+        bundle.validate()?;
+        let special_ids = *bundle.layout.ids();
 
         if !special_ids.is_multilingual() && self.language.is_some() {
             return Err(BunsenError::Invalid(
@@ -162,19 +183,20 @@ impl WhisperStreamDriverConfig {
         // stream; its prompt is built when the language is known.
         let prompt = match (special_ids.is_multilingual(), self.language.as_deref()) {
             (true, None) => Vec::new(),
-            (_, language) => token_layout.sot_sequence(language, task, self.timestamps)?,
+            (_, language) => bundle
+                .layout
+                .sot_sequence(language, task, self.timestamps)?,
         };
         let max_initial_timestamp_index = self.max_initial_timestamp.map(|seconds| {
-            (seconds / token_layout.layout().timestamp_step_seconds).round() as usize
+            (seconds / bundle.layout.layout().timestamp_step_seconds).round() as usize
         });
-        let filters: Vec<Arc<dyn LogitFilter<B>>> = if self.timestamps {
-            vec![Arc::new(ApplyTimestampRules::new(
-                special_ids,
+        let mut filters: Vec<Arc<dyn LogitFilter<B>>> = bundle.default_filters();
+        if self.timestamps {
+            filters.push(Arc::new(ApplyTimestampRules::new(
+                &special_ids,
                 max_initial_timestamp_index,
-            ))]
-        } else {
-            Vec::new()
-        };
+            )));
+        }
 
         let triggers = &self.emission.triggers;
         if !triggers.window_full && !triggers.endpoint {
@@ -211,22 +233,29 @@ impl WhisperStreamDriverConfig {
             )));
         }
 
-        let audio_converter = whisper_model
+        let audio_converter = bundle
+            .model
             .front_end()
-            .try_init_audio_converter(whisper_model.n_mels(), device)?;
+            .try_init_audio_converter(bundle.model.n_mels(), device)?;
+
+        #[cfg(feature = "tokenizer")]
+        let detokenizer: Option<Arc<dyn Detokenizer>> = bundle
+            .detokenizer()?
+            .map(|detokenizer| Arc::new(detokenizer) as Arc<dyn Detokenizer>);
+        #[cfg(not(feature = "tokenizer"))]
+        let detokenizer: Option<Arc<dyn Detokenizer>> = None;
 
         Ok(WhisperStreamDriver {
             config: self.clone(),
-            whisper_model,
+            bundle,
             audio_converter,
             vad_model: None,
-            token_layout,
             prompt,
             task,
             max_initial_timestamp_index,
             filters,
             va_filter: None,
-            detokenizer: None,
+            detokenizer,
         })
     }
 }
@@ -241,13 +270,13 @@ pub struct WhisperStreamDriver<B: Backend> {
     config: WhisperStreamDriverConfig,
 
     audio_converter: PerceptiveAudioConverter<B>,
-    whisper_model: Whisper<B>,
+
+    /// The model, its layout and its vocabulary, shared.
+    bundle: Arc<WhisperBundle<B>>,
 
     /// The voice-activity model, when one was attached.
     vad_model: Option<SileroVad<B>>,
     va_filter: Option<VoiceActivityFilterConfig>,
-
-    token_layout: WhisperTokenLayout,
 
     /// The sot sequence every window's decode opens with; empty when the
     /// language is detected per stream.
@@ -284,7 +313,7 @@ impl<B: Backend> WhisperStreamDriver<B> {
         self.filters = filters;
         if self.config.timestamps {
             self.filters.push(Arc::new(ApplyTimestampRules::new(
-                self.token_layout.ids(),
+                self.bundle.layout.ids(),
                 self.max_initial_timestamp_index,
             )));
         }
@@ -347,9 +376,14 @@ impl<B: Backend> WhisperStreamDriver<B> {
         &self.config
     }
 
+    /// The bundle: the model, its layout and its vocabulary.
+    pub fn bundle(&self) -> &Arc<WhisperBundle<B>> {
+        &self.bundle
+    }
+
     /// The model.
     pub fn whisper_model(&self) -> &Whisper<B> {
-        &self.whisper_model
+        &self.bundle.model
     }
 
     /// The mel front end.
@@ -369,7 +403,7 @@ impl<B: Backend> WhisperStreamDriver<B> {
 
     /// The token layout, derived from the model.
     pub fn token_layout(&self) -> &WhisperTokenLayout {
-        &self.token_layout
+        &self.bundle.layout
     }
 
     /// The sot sequence every window's decode opens with.
@@ -398,7 +432,8 @@ impl<B: Backend> WhisperStreamDriver<B> {
         &self,
         language: Option<&str>,
     ) -> BunsenResult<Vec<i64>> {
-        self.token_layout
+        self.bundle
+            .layout
             .sot_sequence(language, self.task, self.config.timestamps)
     }
 
@@ -412,7 +447,7 @@ impl<B: Backend> WhisperStreamDriver<B> {
         &self,
         prompt: Vec<i64>,
     ) -> DecodeConfig {
-        let ids = self.token_layout.ids();
+        let ids = self.bundle.layout.ids();
         DecodeConfig::new(prompt, ids.eot)
             .with_max_tokens(self.config.max_tokens)
             .with_beam_size(self.config.beam_size)
@@ -439,18 +474,18 @@ impl<B: Backend> WhisperStreamDriver<B> {
 
     /// Frames per decode window: the model's audio context.
     pub fn window_frames(&self) -> usize {
-        self.whisper_model.max_audio_ctx()
+        self.bundle.model.max_audio_ctx()
     }
 
     /// The sample rate the model's front end runs at, in Hz. The stream's
     /// clock must run at it too.
     pub fn sample_rate(&self) -> usize {
-        self.whisper_model.sample_rate()
+        self.bundle.model.sample_rate()
     }
 
     /// The audio front end the model's log-mels are computed with.
     pub fn front_end(&self) -> &WhisperFrontEndConfig {
-        self.whisper_model.front_end()
+        self.bundle.model.front_end()
     }
 
     /// The encoder grid in samples: one timestamp step, which is
@@ -462,7 +497,7 @@ impl<B: Backend> WhisperStreamDriver<B> {
 
     /// The devices the model lives on.
     pub fn devices(&self) -> Vec<B::Device> {
-        self.whisper_model.devices()
+        self.bundle.model.devices()
     }
 
     /// Opens a stream.

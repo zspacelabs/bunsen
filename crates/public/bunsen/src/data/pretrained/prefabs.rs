@@ -1,4 +1,8 @@
-//! # Config Prefabs for Well-Known Model Configurations
+//! # Config prefabs for well-known model configurations
+//!
+//! A prefab is a named builder of a config: a geometry a name means before
+//! any bytes are fetched. Which pretrained rows instantiate a prefab is the
+//! rows' side, through `Pretrained::prefab` and a factory's `for_prefab`.
 
 use alloc::{
     collections::BTreeMap,
@@ -14,12 +18,7 @@ use core::fmt::Debug;
 
 use burn::config::Config;
 
-use super::{
-    PretrainedWeightsDescriptor,
-    PretrainedWeightsMap,
-    StaticPretrainedWeightsMap,
-    not_found,
-};
+use super::not_found;
 use crate::errors::BunsenResult;
 
 /// Static builder for a [`PreFabConfig`]
@@ -35,9 +34,6 @@ where
 
     /// Builder function for the config.
     pub builder: fn() -> C,
-
-    /// Pretrained weights map.
-    pub weights: Option<&'static StaticPretrainedWeightsMap<'static>>,
 }
 
 impl<C> StaticPreFabConfig<C>
@@ -51,7 +47,6 @@ where
             name: self.name.to_string(),
             description: self.description.to_string(),
             builder: Arc::new(builder),
-            weights: self.weights.map(|w| w.to_directory()),
         }
     }
 
@@ -96,9 +91,6 @@ where
 
     /// Builder function for the config.
     pub builder: Arc<dyn Fn() -> C + Send + Sync>,
-
-    /// Pretrained weights map.
-    pub weights: Option<PretrainedWeightsMap>,
 }
 
 impl<C> Debug for PreFabConfig<C>
@@ -133,43 +125,6 @@ where
     /// Builds a new config.
     pub fn to_config(&self) -> C {
         (self.builder)()
-    }
-
-    /// Looks up a descriptor.
-    pub fn lookup_pretrained_weights(
-        &self,
-        name: &str,
-    ) -> Option<PretrainedWeightsDescriptor> {
-        match &self.weights {
-            None => None,
-            Some(m) => m.lookup_by_name(name),
-        }
-    }
-
-    /// Looks up a descriptor.
-    ///
-    /// # Errors
-    /// [`ResourceNotFound`](crate::errors::BunsenError::ResourceNotFound),
-    /// naming the weights there are.
-    pub fn try_lookup_pretrained_weights(
-        &self,
-        name: &str,
-    ) -> BunsenResult<PretrainedWeightsDescriptor> {
-        self.lookup_pretrained_weights(name).ok_or_else(|| {
-            let names = self.weights.as_ref().map(|w| w.names()).unwrap_or_default();
-            not_found(Some(&self.name), "pretrained weights", name, &names)
-        })
-    }
-
-    /// Looks up a descriptor.
-    pub fn expect_lookup_pretrained_weights(
-        &self,
-        name: &str,
-    ) -> PretrainedWeightsDescriptor {
-        match self.try_lookup_pretrained_weights(name) {
-            Ok(p) => p,
-            Err(e) => panic!("{}", e),
-        }
     }
 }
 
@@ -332,13 +287,11 @@ mod tests {
         name: "narrow",
         description: "width 1",
         builder: || Toy::new(1),
-        weights: None,
     };
     static WIDE: StaticPreFabConfig<Toy> = StaticPreFabConfig {
         name: "wide",
         description: "width 2",
         builder: || Toy::new(2),
-        weights: None,
     };
     static TOYS: StaticPreFabMap<Toy> = StaticPreFabMap {
         name: "toys",
@@ -360,7 +313,7 @@ mod tests {
     }
 
     /// A miss names the table and what it holds, in the static and the
-    /// owned map alike, and in a prefab's weights.
+    /// owned map alike.
     #[test]
     fn test_a_miss_names_what_there_is() {
         let m = match TOYS.try_lookup_prefab("huge") {
@@ -374,14 +327,5 @@ mod tests {
             other => panic!("{other:?}"),
         };
         assert_eq!(m, "toys: no prefab \"huge\"; there are: narrow, wide");
-
-        let m = match TOYS
-            .expect_lookup_prefab("wide")
-            .try_lookup_pretrained_weights("in1k")
-        {
-            Err(BunsenError::ResourceNotFound(m)) => m,
-            other => panic!("{other:?}"),
-        };
-        assert_eq!(m, "wide: no pretrained weights \"in1k\"; there are: (none)");
     }
 }
