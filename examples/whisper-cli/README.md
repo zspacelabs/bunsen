@@ -1,8 +1,10 @@
 # whisper-cli example
 
-Transcribes an audio file with an OpenAI Whisper checkpoint and its vocabulary, through bunsen's Whisper stream
-driver. The audio is pushed in chunks as a live loop would feed it, and segments are printed with their times as they
-become final; under the responsive preset, drafts come first and are marked `~`.
+Transcribes audio with an OpenAI Whisper checkpoint and its vocabulary, through bunsen's Whisper stream driver: a file
+(`transcribe`), pushed in chunks as a live loop would feed it, or the microphone (`live`), as it speaks. Segments are
+printed with their times as they become final; under the responsive preset, drafts come first and are marked `~`.
+The two commands share one flag set for the model, the decode and the output (`WhisperDriverArgs` in
+`src/whisper_clap.rs`); each adds its source's own.
 
 The model is named, as `openai-whisper`'s `load_model` names it: `--model openai/tiny.en`, `--model large`, in full
 `--model well-known:openai/tiny.en`; or a Hugging Face repo in `transformers`' layout, `--model hf:openai/whisper-tiny`;
@@ -40,7 +42,10 @@ driver and a `models` subcommand; the [model index](#models) and the name-to-mod
   the weights.
 - `kits::speech::whisper::driver` — `WhisperStreamDriverConfig`, `WhisperStreamContext`: the stream driver, with its
   emission presets, the timestamp seek loop, beams, per-stream language detection, and the fallback ladder behind
-  flags.
+  flags. `live` anchors the context's `StreamClock` at each push's capture time (`anchor_write_read`), so segment
+  times are the host's clock rather than a count of samples, and a dropped buffer moves an anchor instead of shifting
+  every later time. Pushes are sized to the driver's grain — `audio_converter().hop()`, `encoder_grid()`, and the
+  attached VAD's `chunk_size()` — so each one has the same shape.
 
 ## The backend
 
@@ -71,6 +76,44 @@ $ cargo run --release -p whisper-cli --features bunsen/wgpu -- \
    transcribe --model openai/tiny.en --timestamps /path/to/clip.wav
 ```
 
+### Live
+
+`live` opens an input device through [`cpal`](https://crates.io/crates/cpal) and transcribes it until Ctrl-C (or
+`--seconds`). On Linux `cpal` links ALSA, so the build needs `libasound2-dev` (Debian and Ubuntu; other
+distributions name it `alsa-lib-devel` or `alsa-lib`).
+
+```bash
+$ cargo run --release -p whisper-cli --features bunsen/wgpu -- live --list-devices
+default: default  Default Audio Device
+  pipewire  PipeWire Sound Server: 2 ch, 44100 Hz, f32
+  default  Default ALSA Output (currently PipeWire Media Server): 2 ch, 44100 Hz, f32
+  hw:CARD=Audio,DEV=0  Aorus Master Main Audio, USB Audio: 2 ch, 192000 Hz, i32
+  ...
+
+$ cargo run --release -p whisper-cli --features bunsen/wgpu -- live --model openai/tiny.en
+listening on Default Audio Device; Ctrl-C to stop
+The world needs opportunities for new leaders and new ideas.
+```
+
+The device is opened mono at the model's rate when it offers that (a PipeWire or PulseAudio `default` does), and at
+its own default rate otherwise, resampled here (`src/resample.rs`, a windowed sinc; bunsen decodes at the model's rate
+and leaves resampling to the caller). The capture callback downmixes each buffer and hands it to the main thread,
+which batches whole chunks, anchors the stream clock at each chunk's capture time, and decodes on the backend; nothing
+touches the GPU from the audio thread. Ctrl-C ends the stream cleanly, so the tail past the last endpoint is decoded
+before the process exits.
+
+`live`'s defaults differ from `transcribe`'s where the source demands it: `--preset conservative` (a line per speech
+region as it closes, all final; a microphone has no end for `offline` to wait for) and `--chunk-ms 250`
+(the callbacks, a few milliseconds each, batched before the front end sees them). `--preset responsive` adds a draft of
+the region so far every 600 ms of speech, marked `~` in the log.
+
+Live options:
+
+- `--device` — the input device, by a case-insensitive substring of its id or name as `--list-devices` prints them
+  (`--device pipewire`, `--device hw:CARD=Audio`); the host's default input device when omitted.
+- `--list-devices` — print the input devices that open, with their default configuration, and exit. Loads nothing.
+- `--seconds` — stop after this much audio; on Ctrl-C when omitted.
+
 Model options:
 
 - `--model` — `provider:ref` or a bare ref from `models list` (`well-known:openai/tiny.en`, `openai/tiny.en`,
@@ -81,9 +124,11 @@ Model options:
 - `--upstream-cache-dir` — `openai-whisper`'s download root, whose files are used in place (default `~/.cache/whisper`).
 - `--vocab` — a `.tiktoken` vocabulary by path, in place of the one the checkpoint's token layout selects.
 
-Decode options:
+Decode options (shared by `transcribe` and `live`):
 
-- `--chunk-ms` — milliseconds of audio per push (default `1000`).
+- `--chunk-ms` — milliseconds of audio per push: how `transcribe` feeds a file, and how `live` batches the capture
+  callbacks (default `1000` for `transcribe`, `250` for `live`). Rounded up to the driver's grain: whole mel hops,
+  encoder grid steps and VAD chunks, 2560 samples at 16 kHz with the bundled VAD, 320 without.
 - `--language` — a Whisper language code; detected from the first window when omitted. `--task` — `transcribe` (default)
   or `translate`, to English.
 - `--timestamps` — emit timestamp tokens and split segments on them, seeking to the last closed timestamp as upstream's
@@ -93,10 +138,12 @@ Decode options:
 - `--prompt-carry` — prompt each window with the transcript so far (default `true`).
 - `--fallback` — climb upstream's temperature ladder when a window's decode fails its thresholds (default `true`);
   `--fallback false` for temperature zero alone.
-- `--preset` — `offline` (default: whole windows, all final), `conservative`
-  (speech regions as well, all final), `responsive` (drafts every 600 ms of speech besides). The last two load the
-  bundled VAD.
+- `--preset` — `offline` (whole windows, all final), `conservative` (speech regions as well, all final),
+  `responsive` (drafts every 600 ms of speech besides). The last two load the bundled VAD. The default is `offline`
+  for `transcribe` and `conservative` for `live`.
 - `--ids` — print each segment's ids beside its text.
+
+`transcribe` adds `--print-filename`, `--strip-filename` and `--print-index`, for a run over many files.
 
 ## Models
 
@@ -137,7 +184,7 @@ across shards). The vocabulary is `OpenAI`'s rank file the checkpoint's layout s
 rows), a bare `openai/whisper-tiny` never reaches it, and a repo that is not there is reported with the URL the hub
 answered 401 to.
 
-The `models` subcommand takes the same cache options as `transcribe`:
+The `models` subcommand takes the same cache options as `transcribe` and `live`:
 
 ```terminaloutput
 $ cargo run -q -p whisper-cli -- models list

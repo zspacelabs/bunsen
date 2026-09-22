@@ -1,8 +1,10 @@
 use std::{
+    fmt::Display,
     path::{
         Path,
         PathBuf,
     },
+    str::FromStr,
     sync::Arc,
 };
 
@@ -19,12 +21,19 @@ use bunsen::{
     },
     errors::BunsenResult,
     kits::speech::{
-        silero_vad::pretrained::default_silero_factory,
+        silero_vad::{
+            SileroVadMeta,
+            pretrained::default_silero_factory,
+        },
         whisper::{
             WhisperFallbackConfig,
             driver::{
                 PresetEmissionPolicy,
+                RunningMaxClamp,
+                StreamClock,
+                TranscriptEvent,
                 WhisperBundle,
+                WhisperStreamContext,
                 WhisperStreamDriver,
                 WhisperStreamDriverConfig,
                 WhisperTask,
@@ -38,6 +47,7 @@ use bunsen::{
             },
         },
     },
+    ops::signal::perceptive_audio::PerceptiveAudioConverterMeta,
 };
 use burn::prelude::Backend;
 
@@ -89,6 +99,45 @@ pub fn resolve_model(
     factory.resolve(spec, cache)
 }
 
+fn gcd(
+    a: usize,
+    b: usize,
+) -> usize {
+    if b == 0 { a } else { gcd(b, a % b) }
+}
+
+fn lcm(
+    a: usize,
+    b: usize,
+) -> usize {
+    a / gcd(a, b) * b
+}
+
+/// Parses one of the kit's enums by variant name, in any case: `offline`,
+/// `Offline` and `OFFLINE` are the same preset. The kit's enums parse their
+/// exact variant names only; the flags are documented in lower case.
+fn parse_variant<T>(s: &str) -> Result<T, String>
+where
+    T: FromStr,
+    T::Err: Display,
+{
+    if let Ok(value) = s.parse::<T>() {
+        return Ok(value);
+    }
+    let mut chars = s.chars();
+    let capitalized = match chars.next() {
+        Some(first) => first.to_uppercase().collect::<String>() + &chars.as_str().to_lowercase(),
+        None => String::new(),
+    };
+    capitalized.parse::<T>().map_err(|err| err.to_string())
+}
+
+/// The mechanics `transcribe` and `live` share: which model, how it decodes,
+/// how audio is pushed, and how emissions are printed.
+///
+/// A command flattens this beside its own flags, and supplies its own
+/// default for the two settings that depend on the source (`--preset`,
+/// `--chunk-ms`): a file is read whole, a microphone is read as it speaks.
 #[derive(clap::Args, Debug)]
 pub struct WhisperDriverArgs {
     /// The model: `provider:ref` or a bare ref from `models list`
@@ -116,7 +165,12 @@ pub struct WhisperDriverArgs {
     language: Option<String>,
 
     /// Transcribe, or translate to English.
-    #[arg(long, default_value_t = WhisperTask::Transcribe)]
+    #[arg(
+        long,
+        value_name = "transcribe|translate",
+        value_parser = parse_variant::<WhisperTask>,
+        default_value = "transcribe",
+    )]
     task: WhisperTask,
 
     /// Emit timestamp tokens and split segments on them, seeking to the last
@@ -151,9 +205,27 @@ pub struct WhisperDriverArgs {
     )]
     fallback: bool,
 
-    /// When to decode, and when a decode is final.
-    #[arg(long, default_value_t = PresetEmissionPolicy::Offline)]
-    preset: PresetEmissionPolicy,
+    /// When to decode, and when a decode is final: `offline` (whole windows,
+    /// all final), `conservative` (speech regions as well, all final), or
+    /// `responsive` (drafts every 600 ms of speech besides). The last two
+    /// load the bundled VAD. Each command has its own default: `offline`
+    /// for `transcribe`, `conservative` for `live`.
+    #[arg(
+        long,
+        value_name = "offline|conservative|responsive",
+        value_parser = parse_variant::<PresetEmissionPolicy>,
+    )]
+    preset: Option<PresetEmissionPolicy>,
+
+    /// Milliseconds of audio per push: how `transcribe` feeds a file, as a
+    /// live loop would, and how `live` batches the capture callbacks. Each
+    /// command has its own default: 1000 for `transcribe`, 250 for `live`.
+    #[arg(long)]
+    chunk_ms: Option<usize>,
+
+    /// Print each segment's ids beside its text.
+    #[arg(long)]
+    ids: bool,
 }
 
 impl WhisperDriverArgs {
@@ -189,11 +261,46 @@ impl WhisperDriverArgs {
         self.cache.init()
     }
 
+    /// The emission preset: `--preset`, or the command's `default`.
+    pub fn preset(
+        &self,
+        default: PresetEmissionPolicy,
+    ) -> PresetEmissionPolicy {
+        self.preset.unwrap_or(default)
+    }
+
+    /// Samples per push: `--chunk-ms`, or the command's `default_ms`, at
+    /// the driver's rate, rounded up to the driver's grain.
+    ///
+    /// The grain is a whole number of mel hops, encoder grid steps and, when
+    /// a VAD is attached, its chunks (2560 samples at 16 kHz with the
+    /// bundled VAD; 320 without), so a push leaves nothing staged behind
+    /// it and every push has the same shape: the front end, the gate and
+    /// the autotuned kernels behind them see one size, not a drift of
+    /// remainders.
+    pub fn chunk_samples<B: Backend>(
+        &self,
+        driver: &WhisperStreamDriver<B>,
+        default_ms: usize,
+    ) -> usize {
+        let want = (self.chunk_ms.unwrap_or(default_ms) * driver.sample_rate() / 1000).max(1);
+        let mut grain = lcm(driver.audio_converter().hop(), driver.encoder_grid());
+        if let Some(vad) = driver.silero_vad_model() {
+            grain = lcm(grain, vad.chunk_size());
+        }
+        want.div_ceil(grain) * grain
+    }
+
     /// Load and setup the [`WhisperStreamDriver`].
+    ///
+    /// `default_preset` is the command's emission preset, for when
+    /// `--preset` is omitted.
     pub fn init_driver<B: Backend>(
         &self,
         device: &B::Device,
+        default_preset: PresetEmissionPolicy,
     ) -> BunsenResult<WhisperStreamDriver<B>> {
+        let preset = self.preset(default_preset);
         let cache = self.init_cache()?;
         let bundle = self.load_bundle::<B>(&cache, device)?;
         log::info!("Loaded Whisper: {bundle}");
@@ -224,11 +331,11 @@ impl WhisperDriverArgs {
             .with_beam_size(self.beam_size)
             .with_max_tokens(self.max_tokens)
             .with_condition_on_previous_text(self.prompt_carry)
-            .with_emission(self.preset.into())
+            .with_emission(preset.into())
             .with_fallback(fallback)
             .init_from_bundle(bundle, device)?;
 
-        if self.preset != PresetEmissionPolicy::Offline {
+        if preset != PresetEmissionPolicy::Offline {
             // The bundled burnpack, through the same cache as the weights:
             // written in from the binary on first use, cached after.
             let vad = default_silero_factory()?
@@ -244,5 +351,158 @@ impl WhisperDriverArgs {
         }
 
         Ok(driver)
+    }
+
+    /// Opens one stream through `driver`, printing as it goes.
+    ///
+    /// A bare stream: a clock from zero at the model's rate, and the running
+    /// maximum as the mel clamp reference. A source that knows its capture
+    /// times anchors them through
+    /// [`anchor_write_read`](TranscriptStream::anchor_write_read).
+    pub fn open_stream<B: Backend>(
+        &self,
+        driver: &WhisperStreamDriver<B>,
+    ) -> BunsenResult<TranscriptStream<B>> {
+        let ctx = driver.new_context(
+            StreamClock::uniform(driver.sample_rate()),
+            RunningMaxClamp::new(),
+        )?;
+        Ok(TranscriptStream {
+            ctx,
+            detects_language: driver.detects_language(),
+            announced: false,
+            ids: self.ids,
+            last_end: 0.0,
+        })
+    }
+}
+
+/// One stream through the driver, and the printing `transcribe` and `live`
+/// share: every emission is reported as it arrives, and the language once
+/// it is known.
+///
+/// Opened by [`WhisperDriverArgs::open_stream`]; pushed with
+/// [`write_read`](Self::write_read) or
+/// [`anchor_write_read`](Self::anchor_write_read); ended with
+/// [`end_read`](Self::end_read).
+pub struct TranscriptStream<B: Backend> {
+    ctx: WhisperStreamContext<B>,
+    detects_language: bool,
+    announced: bool,
+    ids: bool,
+    last_end: f64,
+}
+
+impl<B: Backend> TranscriptStream<B> {
+    /// Pushes samples at the model's rate, and reports what came out.
+    pub fn write_read(
+        &mut self,
+        samples: &[f32],
+    ) -> BunsenResult<()> {
+        let events = self.ctx.write_read(samples)?;
+        self.report(&events);
+        Ok(())
+    }
+
+    /// Anchors the clock: the first of `samples` was captured at media time
+    /// `time`, in seconds. Then as [`write_read`](Self::write_read).
+    pub fn anchor_write_read(
+        &mut self,
+        time: f64,
+        samples: &[f32],
+    ) -> BunsenResult<()> {
+        let events = self.ctx.anchor_write_read(time, samples)?;
+        self.report(&events);
+        Ok(())
+    }
+
+    /// Ends the stream, and reports whatever was left past the seek pointer.
+    pub fn end_read(&mut self) -> BunsenResult<()> {
+        let events = self.ctx.end_read()?;
+        self.report(&events);
+        Ok(())
+    }
+
+    /// Samples pushed so far.
+    pub fn samples_seen(&self) -> usize {
+        self.ctx.samples_seen()
+    }
+
+    /// Media time of the end of the last emission, in seconds; zero before
+    /// any.
+    pub fn last_end(&self) -> f64 {
+        self.last_end
+    }
+
+    fn report(
+        &mut self,
+        events: &[TranscriptEvent],
+    ) {
+        // Detection runs on the first window decoded, so the language is
+        // known once anything has been emitted; say so before the text.
+        if !self.announced
+            && self.detects_language
+            && let Some(code) = self.ctx.language()
+        {
+            log::debug!("language: {code}");
+            self.announced = true;
+        }
+        for event in events {
+            self.last_end = event.segment().end;
+            report(event, self.ids);
+        }
+        log::trace!(
+            "stream: {} samples seen, seek {}, {} frames pending, speaking {}, {} regions pending",
+            self.ctx.samples_seen(),
+            self.ctx.seek(),
+            self.ctx.pending_frames(),
+            self.ctx.is_speaking(),
+            self.ctx.regions_pending(),
+        );
+    }
+}
+
+/// One line per emission: a draft is marked `~`, a commit is not.
+fn report(
+    emission: &TranscriptEvent,
+    ids: bool,
+) {
+    let segment = emission.segment();
+    let mark = if emission.is_committed() { ' ' } else { '~' };
+
+    log::info!("{mark}[{:>8.2} --> {:>8.2}]", segment.start, segment.end);
+    println!("{}", segment.text.as_deref().unwrap_or("").trim());
+
+    if ids {
+        log::info!("ids: {:?}", segment.tokens);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_lcm() {
+        assert_eq!(lcm(160, 320), 320);
+        assert_eq!(lcm(320, 512), 2560);
+        assert_eq!(lcm(7, 1), 7);
+    }
+
+    #[test]
+    fn test_parse_variant_any_case() {
+        for (given, want) in [
+            ("offline", PresetEmissionPolicy::Offline),
+            ("Conservative", PresetEmissionPolicy::Conservative),
+            ("RESPONSIVE", PresetEmissionPolicy::Responsive),
+        ] {
+            assert_eq!(parse_variant::<PresetEmissionPolicy>(given).unwrap(), want);
+        }
+        assert_eq!(
+            parse_variant::<WhisperTask>("translate").unwrap(),
+            WhisperTask::Translate
+        );
+        assert!(parse_variant::<PresetEmissionPolicy>("bogus").is_err());
+        assert!(parse_variant::<PresetEmissionPolicy>("").is_err());
     }
 }

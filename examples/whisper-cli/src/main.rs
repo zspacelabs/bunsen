@@ -6,6 +6,7 @@ use burn::prelude::Backend;
 use clap::Parser;
 
 pub mod commands;
+mod resample;
 mod whisper_clap;
 
 #[derive(Parser, Debug)]
@@ -22,8 +23,11 @@ fn main() -> BunsenResult<()> {
 
 #[derive(clap::Subcommand, Debug)]
 pub enum Commands {
-    /// Transcribe audio.
+    /// Transcribe audio files.
     Transcribe(commands::transcribe_cmd::TranscribeCmd),
+
+    /// Transcribe the microphone, live.
+    Live(commands::live_cmd::LiveCmd),
 
     /// List, fetch and inspect the models `--model` can name.
     Models(commands::models_cmd::ModelsCmd),
@@ -33,6 +37,7 @@ impl Commands {
     pub fn run<B: Backend>(&self) -> BunsenResult<()> {
         match self {
             Commands::Transcribe(cmd) => cmd.run::<B>(),
+            Commands::Live(cmd) => cmd.run::<B>(),
             Commands::Models(cmd) => cmd.run(),
         }
     }

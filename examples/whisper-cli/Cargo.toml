@@ -12,7 +12,7 @@ license.workspace = true
 workspace = true
 
 [dependencies]
-burn = { workspace = true, features = ["fusion"] }
+burn = { workspace = true }
 # The backend is bunsen's `PerformanceBackend`, chosen by bunsen's own backend
 # feature at build time: `--features bunsen/wgpu` (or `bunsen/cuda`,
 # `bunsen/metal`, `bunsen/flex`). With none, bunsen's default `testing`
@@ -32,5 +32,8 @@ clap = { workspace = true, features = ["derive"] }
 clap-common = { path = "../../crates/dev/clap-common" }
 log = { workspace = true }
 
-[dev-dependencies]
-tempfile = { workspace = true }
+# `live`: the microphone through the host's audio API, and Ctrl-C as a
+# clean stop. On Linux `cpal` links ALSA: `libasound2-dev`.
+cpal = { workspace = true }
+ctrlc = { workspace = true }
+
