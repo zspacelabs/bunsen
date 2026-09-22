@@ -36,7 +36,27 @@ where
     /// Backport of: <https://github.com/tracel-ai/burn/pull/5207>
     ///
     /// Returns the previous value.
+    ///
+    /// Until the caller stores a new value, the receiver is an empty tensor;
+    /// anything that reads it in that window (a total, a shape, a device)
+    /// sees the placeholder, not the data. Read what you need before
+    /// extracting, or use [`TensorOpExt::replace_with`], which keeps the
+    /// window inside a single call.
     fn extract(&mut self) -> Self;
+
+    /// Replace the current value with `f(current)`.
+    ///
+    /// `f` receives the tensor by value as its sole owner, so operations
+    /// inside it may run in place. The receiver holds `Tensor::empty([0; D])`
+    /// while `f` runs, and it stays mutably borrowed for the whole call, so a
+    /// closure that calls a method on the struct owning the receiver does not
+    /// compile: the placeholder cannot be read back that way.
+    fn replace_with<F>(
+        &mut self,
+        f: F,
+    ) where
+        Self: Sized,
+        F: FnOnce(Self) -> Self;
 
     /// Select (and Squeeze) a dimension.
     fn select_dim<const D2: usize>(
@@ -69,6 +89,17 @@ where
         let mut z = Tensor::empty([0; D], &self.device());
         self.swap(&mut z);
         z
+    }
+
+    fn replace_with<F>(
+        &mut self,
+        f: F,
+    ) where
+        Self: Sized,
+        F: FnOnce(Self) -> Self,
+    {
+        let current = self.extract();
+        *self = f(current);
     }
 
     fn select_dim<const D2: usize>(
@@ -404,6 +435,23 @@ mod tests {
         tensor.swap(&mut old);
         assert_eq!(tensor.dims(), [4]);
         assert_eq!(old.dims(), [0]);
+    }
+
+    #[test]
+    fn test_replace_with() {
+        let device = default_device();
+        let mut tensor: Tensor<B, 1> =
+            Tensor::<B, 1>::from_data(TensorData::from([0.0, 1.0, 2.0, 3.0]), &device);
+
+        tensor.replace_with(|current| {
+            // `current` is the sole owner of the handle.
+            assert_eq!(current.dims(), [4]);
+            current.mul_scalar(2.0)
+        });
+
+        tensor
+            .to_data()
+            .assert_eq(&TensorData::from([0.0, 2.0, 4.0, 6.0]), false);
     }
 
     #[test]

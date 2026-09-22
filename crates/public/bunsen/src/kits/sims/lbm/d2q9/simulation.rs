@@ -70,8 +70,10 @@ impl LBMD2Q9Config {
 
         let lbm_tables = LbmTables::init(device);
 
-        // Start off in a relaxed state.
-        let state = Tensor::<B, 4>::empty([height, width, 3, 3], device).slice_assign(
+        // Start off in a relaxed state. The border ring is zero, and it must
+        // be: nothing later writes it from outside, and the mass total covers
+        // the whole grid.
+        let state = Tensor::<B, 4>::zeros([height, width, 3, 3], device).slice_assign(
             s![1..-1, 1..-1],
             lbm_tables
                 .w()
@@ -187,14 +189,27 @@ impl<B: Backend> LBMD2Q9State<B> {
     }
 
     /// Returns the mass correction term.
+    ///
+    /// # Panics
+    ///
+    /// If the current total mass is not finite and positive: the distribution
+    /// is empty, or it has gone non-finite.
     pub fn correction_term(&self) -> f64 {
-        self.correct_total_mass / self.current_total_mass()
+        let current = self.current_total_mass();
+        assert!(
+            current.is_finite() && current > 0.0,
+            "degenerate total mass {current}: the distribution is empty or non-finite"
+        );
+        self.correct_total_mass / current
     }
 
     /// Advances the world simulation by one step.
     pub fn advance_step(&mut self) {
-        let dist = self.dist.extract();
-
+        // Everything the step reads from `self` is read here, before the
+        // distribution is taken out of `self.dist` for the in-place update.
+        let correction = self.correction_term();
+        let omega = self.omega.clone();
+        let lbm_tables = &self.lbm_tables;
         let solid_mask = self
             .solid_mask
             .clone()
@@ -203,23 +218,19 @@ impl<B: Backend> LBMD2Q9State<B> {
             .slice_fill(s![.., 0], true)
             .slice_fill(s![.., -1], true);
 
-        let stream_phase = outflow_clipping_stream(dist);
+        self.dist.replace_with(|dist| {
+            let stream_phase = outflow_clipping_stream(dist);
 
-        let thermal_phase = with_spherical_reflection(
-            stream_phase.clone(),
-            bgk_collision(
-                stream_phase,
-                self.omega.clone(),
-                Some(self.correction_term()),
-                &self.lbm_tables,
-            ),
-            solid_mask,
-        );
+            with_spherical_reflection(
+                stream_phase.clone(),
+                bgk_collision(stream_phase, omega, Some(correction), lbm_tables),
+                solid_mask,
+            )
+        });
 
         // TODO: better handle of numerical instability.
         // let dist = dist.clone().mask_fill(dist.is_finite().bool_not(), 0.0);
 
-        self.dist = thermal_phase;
         self.step_count += 1;
 
         B::sync(&self.device()).unwrap();
@@ -233,5 +244,125 @@ impl<B: Backend> LBMD2Q9State<B> {
     /// Saves the total energy of the system.
     pub fn save_correct_total_mass(&mut self) {
         self.correct_total_mass = self.current_total_mass();
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use serial_test::serial;
+
+    use super::*;
+    use crate::{
+        kits::sims::lbm::d2q9::{
+            SPEED_OF_SOUND,
+            macroscopic_momentum,
+        },
+        support::testing::{
+            DeviceMemoryGuard,
+            PerformanceBackend,
+            default_device,
+        },
+    };
+
+    const RHO: f64 = SPEED_OF_SOUND / 100.0;
+
+    /// A 16 x 24 world at rest density `RHO`.
+    fn small_world<B: Backend>(device: &B::Device) -> LBMD2Q9State<B> {
+        LBMD2Q9Config::new(GridShape2D {
+            width: 24,
+            height: 16,
+        })
+        .with_relaxation(RelaxationParam::Tau(0.9))
+        .init(device, RHO)
+    }
+
+    #[test]
+    #[serial]
+    fn test_init_fills_the_interior_only() {
+        type B = PerformanceBackend;
+        let device = default_device();
+        let _memory = DeviceMemoryGuard::<B>::new(&device);
+
+        let world = small_world::<B>(&device);
+
+        assert_eq!(world.dist.dims(), [16, 24, 3, 3]);
+        assert_eq!(world.step_count(), 0);
+
+        // The border ring is zero, not whatever the allocator held.
+        for ring in [
+            world.dist.clone().slice(s![0]),
+            world.dist.clone().slice(s![-1]),
+            world.dist.clone().slice(s![.., 0]),
+            world.dist.clone().slice(s![.., -1]),
+        ] {
+            let total: f64 = ring.abs().sum().into_scalar().elem();
+            assert_eq!(total, 0.0);
+        }
+
+        // The interior carries `RHO` per cell, and the saved mass is that sum.
+        let expected_mass = 14.0 * 22.0 * RHO;
+        let mass = world.current_total_mass();
+        assert!(
+            (mass - expected_mass).abs() <= 1e-4 * expected_mass,
+            "mass {mass} != {expected_mass}"
+        );
+        assert!((world.correct_total_mass - mass).abs() <= 1e-4 * expected_mass);
+        assert!((world.correction_term() - 1.0).abs() <= 1e-6);
+    }
+
+    #[test]
+    #[serial]
+    fn test_advance_step_conserves_mass_and_stays_finite() {
+        type B = PerformanceBackend;
+        let device = default_device();
+        let _memory = DeviceMemoryGuard::<B>::new(&device);
+
+        let mut world = small_world::<B>(&device);
+
+        // A rest-population bump and a wall give the fluid something to do.
+        world.dist = world.dist.slice_fill(s![5, 7, 1, 1], 5.0 * RHO);
+        world.solid_mask = world.solid_mask.slice_fill(s![10, 4..12], true);
+        world.save_correct_total_mass();
+        let initial_mass = world.correct_total_mass;
+
+        for _ in 0..20 {
+            world.advance_step();
+        }
+        assert_eq!(world.step_count(), 20);
+
+        // Every population is finite.
+        let all_finite: bool = world.dist.clone().is_finite().all().into_scalar().elem();
+        assert!(all_finite, "the distribution went non-finite");
+
+        // Mass is conserved to float precision, so the correction stays ~1.
+        let mass = world.current_total_mass();
+        assert!(
+            (mass - initial_mass).abs() <= 1e-4 * initial_mass,
+            "mass drifted: {mass} vs {initial_mass}"
+        );
+        assert!((world.correction_term() - 1.0).abs() <= 1e-4);
+
+        // The bump has spread: momentum is nonzero somewhere.
+        let max_momentum: f64 = macroscopic_momentum(world.dist.clone(), world.lbm_tables.e_vec())
+            .abs()
+            .max()
+            .into_scalar()
+            .elem();
+        assert!(max_momentum > 0.0);
+    }
+
+    #[test]
+    #[serial]
+    #[should_panic(expected = "degenerate total mass")]
+    fn test_correction_term_rejects_a_degenerate_mass() {
+        type B = PerformanceBackend;
+        let device = default_device();
+        let _memory = DeviceMemoryGuard::<B>::new(&device);
+
+        let mut world = small_world::<B>(&device);
+
+        // What `extract()` leaves behind: an empty distribution.
+        let _taken = world.dist.extract();
+        let _ = world.correction_term();
     }
 }

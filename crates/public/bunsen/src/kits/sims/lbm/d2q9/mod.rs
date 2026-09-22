@@ -65,7 +65,6 @@ mod tests {
             s,
         },
     };
-    use nearly::nearly;
     use serial_test::serial;
 
     use crate::{
@@ -85,7 +84,7 @@ mod tests {
 
     #[test]
     #[serial]
-    fn test_debug_flow_loss() {
+    fn test_closed_box_steps_conserve_mass() {
         type B = PerformanceBackend;
         let device = default_device();
         let _memory = DeviceMemoryGuard::<B>::new(&device);
@@ -111,7 +110,7 @@ mod tests {
             dbg_dist("dist_t0", dist_t0.clone());
         }
 
-        let initial_energy: f64 = dist_t0.clone().sum().into_scalar().elem();
+        let initial_mass: f64 = dist_t0.clone().sum().into_scalar().elem();
 
         let lbm_tables = space::LbmTables::init(&device);
 
@@ -120,17 +119,7 @@ mod tests {
         for t_idx in 1..=k {
             let stream_phase = outflow_clipping_stream(current.clone());
             if debug {
-                dbg_dist(
-                    format!("stream {t_idx}").to_string().as_str(),
-                    stream_phase.clone(),
-                );
-            }
-
-            if debug {
-                dbg_dist(
-                    format!("stream {t_idx}").to_string().as_str(),
-                    stream_phase.clone(),
-                );
+                dbg_dist(format!("stream {t_idx}").as_str(), stream_phase.clone());
             }
 
             let thermal_phase = bgk_collision_with_spherical_reflection(
@@ -141,16 +130,16 @@ mod tests {
                 &lbm_tables,
             );
             if debug {
-                dbg_dist(
-                    format!("thermal {t_idx}").to_string().as_str(),
-                    thermal_phase.clone(),
-                );
+                dbg_dist(format!("thermal {t_idx}").as_str(), thermal_phase.clone());
             }
 
             current = thermal_phase;
-            let current_energy: f64 = dist_t0.clone().sum().into_scalar().elem();
+            let current_mass: f64 = current.clone().sum().into_scalar().elem();
 
-            assert!(nearly!(initial_energy == current_energy));
+            assert!(
+                (current_mass - initial_mass).abs() <= 1e-4 * initial_mass,
+                "step {t_idx}: mass {current_mass} drifted from {initial_mass}"
+            );
         }
     }
 }

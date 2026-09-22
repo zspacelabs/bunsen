@@ -148,6 +148,36 @@ sim.fuzz(0.3);
 sim.step();
 ```
 
+### Lattice Boltzmann Fluid Flow
+
+[docs](https://docs.rs/bunsen/latest/bunsen/kits/sims/lbm/d2q9/index.html) &middot;
+example: [`lbm2d_vis`](https://github.com/zspacelabs/bunsen/tree/main/examples/lbm2d_vis)
+
+A D2Q9 lattice Boltzmann fluid. The population lives on a `[H, W, 3, 3]` grid, one 3x3 velocity stencil per cell, and
+each step streams it, relaxes it toward thermal equilibrium (BGK, with a mass-conserving correction), and bounces it
+back off a solid mask.
+
+```rust,ignore
+use bunsen::{
+    kits::sims::lbm::d2q9::{LBMD2Q9Config, LBMD2Q9State, RelaxationParam, SPEED_OF_SOUND, macroscopic_momentum},
+    support::geometry::GridShape2D,
+};
+
+let rho = SPEED_OF_SOUND / 100.0;
+let mut sim: LBMD2Q9State<B> = LBMD2Q9Config::new(GridShape2D::square(400))
+    .with_relaxation(RelaxationParam::Tau(0.9))
+    .init(&device, rho);
+
+// A dense spot in the rest population, a wall, and the mass to hold.
+sim.dist = sim.dist.slice_fill(s![50, 20, 1, 1], 5.0 * rho);
+sim.solid_mask = sim.solid_mask.slice_fill(s![130..150, 60..200], true);
+sim.save_correct_total_mass();
+
+sim.advance_step();
+// [H, W, (y, x)] momentum: the field the example draws.
+let momentum = macroscopic_momentum(sim.dist.clone(), sim.lbm_tables.e_vec());
+```
+
 ## Shape Contracts
 
 `bunsen::contracts` provides allocation-free, always-on runtime tensor-shape contracts. A contract pairs paper-style
