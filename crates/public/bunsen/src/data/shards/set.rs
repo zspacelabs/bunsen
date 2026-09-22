@@ -128,7 +128,7 @@ impl<'c> ShardSet<'c> {
     /// Shard `id`'s path: on disk already, or fetched when `download` is on.
     ///
     /// # Errors
-    /// [`BunsenError::InvalidArgument`] for an id outside the set;
+    /// [`BunsenError::Invalid`] for an id outside the set;
     /// [`BunsenError::ResourceNotFound`] if it is not on disk and `download`
     /// is off; otherwise as [`fetch`](Self::fetch).
     pub fn locate(
@@ -160,7 +160,7 @@ impl<'c> ShardSet<'c> {
     /// observers.
     ///
     /// # Errors
-    /// [`BunsenError::InvalidArgument`] for an id outside the set; otherwise
+    /// [`BunsenError::Invalid`] for an id outside the set; otherwise
     /// as [`BunsenDiskCache::fetch_from_urls`].
     #[cfg(feature = "fetch")]
     pub fn fetch(
@@ -201,7 +201,7 @@ impl<'c> ShardSet<'c> {
     /// The fetch jobs for `ids`, in the order given.
     ///
     /// # Errors
-    /// [`BunsenError::InvalidArgument`] for an id outside the set.
+    /// [`BunsenError::Invalid`] for an id outside the set.
     pub fn jobs(
         &self,
         ids: &[ShardId],
@@ -221,7 +221,7 @@ impl<'c> ShardSet<'c> {
     /// already on disk are reported as cached.
     ///
     /// # Errors
-    /// [`BunsenError::InvalidArgument`] for an id outside the set. A shard
+    /// [`BunsenError::Invalid`] for an id outside the set. A shard
     /// that fails to land is in the report, not an error here.
     pub fn fetch_many(
         &self,
@@ -239,12 +239,10 @@ impl<'c> ShardSet<'c> {
         if self.desc.contains(id) {
             Ok(())
         } else {
-            Err(BunsenError::InvalidArgument {
-                msg: format!(
-                    "{}: shard {id} is out of range; the set has {} shards",
-                    self.desc.name, self.desc.count
-                ),
-            })
+            Err(BunsenError::Invalid(format!(
+                "{}: shard {id} is out of range; the set has {} shards",
+                self.desc.name, self.desc.count
+            )))
         }
     }
 }
@@ -325,11 +323,11 @@ mod tests {
         ));
         assert!(matches!(
             set.locate(ShardId(3), true),
-            Err(BunsenError::InvalidArgument { .. })
+            Err(BunsenError::Invalid(_))
         ));
         assert!(matches!(
             set.fetch(ShardId(3)),
-            Err(BunsenError::InvalidArgument { .. })
+            Err(BunsenError::Invalid(_))
         ));
     }
 

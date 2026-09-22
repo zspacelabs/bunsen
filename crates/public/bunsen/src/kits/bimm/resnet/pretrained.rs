@@ -447,7 +447,7 @@ mod construct {
         /// prefab the row names.
         ///
         /// # Errors
-        /// [`BunsenError::InvalidArgument`] when there is neither: a given
+        /// [`BunsenError::Invalid`] when there is neither: a given
         /// checkpoint needs [`with_config`](Self::with_config).
         pub fn config_for(
             &self,
@@ -459,11 +459,11 @@ mod construct {
             model
                 .prefab(&PREFAB_RESNET_MAP)
                 .map(|prefab| prefab.to_config())
-                .ok_or_else(|| BunsenError::InvalidArgument {
-                    msg: format!(
+                .ok_or_else(|| {
+                    BunsenError::Invalid(format!(
                         "{}: names no prefab to build from; a given checkpoint needs `with_config`",
                         model.id()
-                    ),
+                    ))
                 })
         }
     }
@@ -704,7 +704,7 @@ mod tests {
         let given = PretrainedRef::from(ResourceMap::given("mine", CHECKPOINT, &file));
         let err = hook.config_for(&given).unwrap_err();
         assert!(
-            matches!(&err, BunsenError::InvalidArgument { msg } if msg.contains("with_config")),
+            matches!(&err, BunsenError::Invalid(msg) if msg.contains("with_config")),
             "{err}"
         );
         assert_eq!(
@@ -728,7 +728,7 @@ mod tests {
                 .unwrap()
                 .load::<CpuBackend>(&cache, &default_device())
                 .unwrap_err();
-        assert!(matches!(err, BunsenError::InvalidArgument { .. }), "{err}");
+        assert!(matches!(err, BunsenError::Invalid(_)), "{err}");
         assert_eq!(<ResNetConstruct as Construct>::KIT, RESNET_KIT);
     }
 }

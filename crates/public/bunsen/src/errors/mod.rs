@@ -36,13 +36,6 @@ pub enum BunsenError {
     #[error("{0}")]
     SliceError(SlicingError),
 
-    /// Invalid Arguments.
-    #[error("{msg}")]
-    InvalidArgument {
-        /// Message.
-        msg: String,
-    },
-
     /// The tensor rank is not supported for the requested operation.
     #[error("rank: {rank}:: {msg}")]
     UnsupportedRank {

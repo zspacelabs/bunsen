@@ -285,22 +285,20 @@ impl<B: Backend> DynTensor<B> {
     {
         let rank = self.rank();
         let slices: [Slice; R2] = slices.into_slices(&self.shape).try_into().map_err(|_| {
-            BunsenError::InvalidArgument {
-                msg: format!("slice_assign rank ({R2}) does not match tensor rank ({rank})"),
-            }
+            BunsenError::Invalid(format!(
+                "slice_assign rank ({R2}) does not match tensor rank ({rank})"
+            ))
         })?;
         let values: DynTensor<B> = values.into_values(&self.device())?;
 
         check_slices_bounds(&self.shape(), &slices).map_err(BunsenError::SliceError)?;
 
         if rank != values.rank() {
-            return Err(BunsenError::InvalidArgument {
-                msg: format!(
-                    "slice of rank ({}) cannot be assigned to tensor of rank ({})",
-                    values.rank(),
-                    rank
-                ),
-            });
+            return Err(BunsenError::Invalid(format!(
+                "slice of rank ({}) cannot be assigned to tensor of rank ({})",
+                values.rank(),
+                rank
+            )));
         }
 
         let values = values.cast(self.dtype())?;
@@ -948,13 +946,13 @@ mod tests {
         let values: Tensor<B, 1> = Tensor::zeros([3], &device);
         assert!(matches!(
             arange_2x3(&device).slice_assign::<2, _, _>(s![0..1, ..], values),
-            Err(BunsenError::InvalidArgument { .. })
+            Err(BunsenError::Invalid(_))
         ));
 
         let values: Tensor<B, 2> = Tensor::zeros([1, 3], &device);
         assert!(matches!(
             arange_2x3(&device).slice_assign::<1, _, _>(s![0..1], values),
-            Err(BunsenError::InvalidArgument { .. })
+            Err(BunsenError::Invalid(_))
         ));
     }
 

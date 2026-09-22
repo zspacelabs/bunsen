@@ -301,7 +301,7 @@ impl ShardSetDescriptor {
     /// together.
     ///
     /// # Errors
-    /// [`BunsenError::InvalidArgument`] for an id outside the set.
+    /// [`BunsenError::Invalid`] for an id outside the set.
     pub fn to_resource_map(
         &self,
         ids: &[ShardId],
@@ -312,12 +312,10 @@ impl ShardSetDescriptor {
         map.origin = self.origin.clone();
         for &id in ids {
             if !self.contains(id) {
-                return Err(BunsenError::InvalidArgument {
-                    msg: format!(
-                        "{}: shard {id} is out of range; the set has {} shards",
-                        self.name, self.count
-                    ),
-                });
+                return Err(BunsenError::Invalid(format!(
+                    "{}: shard {id} is out of range; the set has {} shards",
+                    self.name, self.count
+                )));
             }
             let file = self.file_name(id);
             map.insert(Resource {
@@ -339,7 +337,7 @@ impl ShardSetDescriptor {
     /// positive.
     ///
     /// # Errors
-    /// [`BunsenError::InvalidArgument`] for a bound outside `0..=count` or a
+    /// [`BunsenError::Invalid`] for a bound outside `0..=count` or a
     /// reversed slice.
     pub fn select(
         &self,
@@ -353,12 +351,10 @@ impl ShardSetDescriptor {
                 bound
             };
             if resolved < 0 || resolved > count as isize {
-                return Err(BunsenError::InvalidArgument {
-                    msg: format!(
-                        "shard index {bound} is out of range for {}, which has {count} shards",
-                        self.name
-                    ),
-                });
+                return Err(BunsenError::Invalid(format!(
+                    "shard index {bound} is out of range for {}, which has {count} shards",
+                    self.name
+                )));
             }
             Ok(resolved as usize)
         };
@@ -366,9 +362,9 @@ impl ShardSetDescriptor {
         let mut ids = BTreeSet::new();
         for slice in slices {
             if slice.is_reversed() {
-                return Err(BunsenError::InvalidArgument {
-                    msg: format!("shard slice {slice} is reversed; shards are selected in order"),
-                });
+                return Err(BunsenError::Invalid(format!(
+                    "shard slice {slice} is reversed; shards are selected in order"
+                )));
             }
             let start = resolve(slice.start)?;
             let end = match slice.end {
@@ -543,15 +539,15 @@ mod tests {
 
         assert!(matches!(
             d.select(&[Slice::from(..13)]),
-            Err(BunsenError::InvalidArgument { .. })
+            Err(BunsenError::Invalid(_))
         ));
         assert!(matches!(
             d.select(&[Slice::from(-13..)]),
-            Err(BunsenError::InvalidArgument { .. })
+            Err(BunsenError::Invalid(_))
         ));
         assert!(matches!(
             d.select(&[Slice::with_step(5, Some(0), -1)]),
-            Err(BunsenError::InvalidArgument { .. })
+            Err(BunsenError::Invalid(_))
         ));
     }
 
@@ -589,7 +585,7 @@ mod tests {
 
         assert!(matches!(
             d.to_resource_map(&[ShardId(12)]),
-            Err(BunsenError::InvalidArgument { .. })
+            Err(BunsenError::Invalid(_))
         ));
     }
 
