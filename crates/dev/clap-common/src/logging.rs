@@ -39,6 +39,17 @@ pub struct LogArgs {
     pub ts: bool,
 }
 
+fn log_level_num(level: LogLevelNum) -> Option<usize> {
+    match level {
+        LogLevelNum::Off => None,
+        LogLevelNum::Error => Some(0),
+        LogLevelNum::Warn => Some(1),
+        LogLevelNum::Info => Some(2),
+        LogLevelNum::Debug => Some(3),
+        LogLevelNum::Trace => Some(4),
+    }
+}
+
 impl LogArgs {
     /// Initialize logging.
     ///
@@ -49,24 +60,31 @@ impl LogArgs {
         &self,
         default: impl Into<Option<LogLevelNum>>,
     ) -> BunsenResult<()> {
-        let log_level = if let Some(verbose) = self.verbose
-            && verbose > 0
-        {
-            LogLevelNum::from(verbose as usize)
+        let log_level = log_level_num(default.into().unwrap_or(LogLevelNum::Warn));
+
+        let log_level = if let Some(verbose) = self.verbose {
+            let verbose = verbose as usize;
+            Some(
+                log_level
+                    .map(|level| level + verbose)
+                    .unwrap_or_else(|| verbose),
+            )
         } else {
-            default.into().unwrap_or(LogLevelNum::Warn)
+            log_level
         };
 
-        stderrlog::new()
-            .quiet(self.quiet)
-            .verbosity(log_level)
-            .timestamp(if self.ts {
-                Timestamp::Second
-            } else {
-                Timestamp::Off
-            })
-            .init()
-            .map_err(BunsenError::external)?;
+        if let Some(log_level) = log_level {
+            stderrlog::new()
+                .quiet(self.quiet)
+                .verbosity(log_level)
+                .timestamp(if self.ts {
+                    Timestamp::Second
+                } else {
+                    Timestamp::Off
+                })
+                .init()
+                .map_err(BunsenError::external)?;
+        }
 
         Ok(())
     }

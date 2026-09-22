@@ -75,7 +75,7 @@ pub struct TranscribeCmd {
 
 impl TranscribeCmd {
     pub fn run<B: Backend>(&self) -> BunsenResult<()> {
-        self.logging.init(Some(LogLevelNum::Info))?;
+        self.logging.init(Some(LogLevelNum::Warn))?;
 
         let device = B::Device::default();
         let driver = self.whisper.init_driver::<B>(&device)?;
