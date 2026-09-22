@@ -23,6 +23,7 @@ bunsen = { path = "../../crates/public/bunsen" }
 
 clap = { workspace = true, features = ["derive"] }
 indicatif = { workspace = true }
+strum = { workspace = true, features = ["derive"] }
 
 piston = { workspace = true }
 piston2d-graphics = { workspace = true }
