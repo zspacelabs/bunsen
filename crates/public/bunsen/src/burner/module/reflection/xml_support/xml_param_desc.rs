@@ -17,7 +17,7 @@ use crate::{
             TensorDesc,
             TensorKindDesc,
             TensorParamDesc,
-            dtype_from_str,
+            shims::dtype_from_str,
         },
         module::reflection::xml_support::{
             names,

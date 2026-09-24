@@ -11,7 +11,18 @@ use strum;
 
 /// A meta-descriptor for [`burn::tensor::TensorKind`].
 #[derive(
-    Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, strum::EnumString, strum::Display,
+    Debug,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    Hash,
+    PartialOrd,
+    Ord,
+    strum::EnumString,
+    strum::Display,
+    serde::Serialize,
+    serde::Deserialize,
 )]
 #[non_exhaustive]
 pub enum TensorKindDesc {
