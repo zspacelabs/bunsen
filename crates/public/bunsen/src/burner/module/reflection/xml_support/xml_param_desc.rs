@@ -17,7 +17,7 @@ use crate::{
             TensorDesc,
             TensorKindDesc,
             TensorParamDesc,
-            shims::dtype_from_str,
+            dtype_from_str,
         },
         module::reflection::xml_support::{
             names,
@@ -77,12 +77,11 @@ pub fn node_to_tensor_param_desc(
         ParamId::deserialize(&get_attr(&attrs, param_id_nid, names::PARAM_ID_ATTR)?);
     let kind = TensorKindDesc::from_str(&get_attr(&attrs, kind_nid, names::KIND_ATTR)?).unwrap();
     let dtype = dtype_from_str(&get_attr(&attrs, dtype_nid, names::DTYPE_ATTR)?)?;
+    assert_eq!(kind, dtype.into());
+
     let shape: Shape = shape_from_xml_attr(&get_attr(&attrs, shape_nid, names::SHAPE_ATTR)?)?;
 
-    Ok(ParamDesc::new(
-        param_id,
-        TensorDesc::new(kind, dtype, shape),
-    ))
+    Ok(ParamDesc::new(param_id, TensorDesc::new(dtype, shape)))
 }
 
 /// Builds an xml `<Param/>` node from a [`TensorParamDesc`].

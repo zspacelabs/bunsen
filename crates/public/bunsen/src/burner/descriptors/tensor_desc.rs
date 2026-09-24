@@ -8,6 +8,7 @@ use burn::{
     prelude::{
         Backend,
         Shape,
+        TensorData,
     },
     tensor::{
         BasicOps,
@@ -35,10 +36,10 @@ pub struct TensorRankType {
 }
 
 impl TensorRankType {
-    /// Creates a new [`TensorRankType`].
+    /// Construct from `&Tensor`.
     ///
     /// Exists to force better error messages for `Self::from(tensor)`.
-    pub fn of<B, const R: usize, K>(tensor: &Tensor<B, R, K>) -> Self
+    pub fn from_tensor<B, const R: usize, K>(tensor: &Tensor<B, R, K>) -> Self
     where
         B: Backend,
         K: BasicOps<B> + ParamKindBinding,
@@ -49,6 +50,13 @@ impl TensorRankType {
             rank: tensor.rank(),
         }
     }
+
+    /// Construct from `&TensorData`.
+    ///
+    /// Exists to force better error messages for `Self::from(data)`.
+    pub fn from_tensor_data(data: &TensorData) -> Self {
+        Self::new(data.dtype, data.shape.rank())
+    }
 }
 
 impl<B, const R: usize, K> From<&Tensor<B, R, K>> for TensorRankType
@@ -57,18 +65,24 @@ where
     K: BasicOps<B>,
     K: ParamKindBinding,
 {
-    fn from(param: &Tensor<B, R, K>) -> Self {
-        Self::of(param)
+    fn from(tensor: &Tensor<B, R, K>) -> Self {
+        Self::from_tensor(tensor)
+    }
+}
+
+impl From<&TensorData> for TensorRankType {
+    fn from(data: &TensorData) -> Self {
+        Self::from_tensor_data(data)
     }
 }
 
 impl TensorRankType {
     /// Creates a new `TensorDesc`.
     pub fn new(
-        kind: TensorKindDesc,
         dtype: DType,
         rank: usize,
     ) -> Self {
+        let kind = dtype.into();
         Self { kind, dtype, rank }
     }
 
@@ -127,10 +141,10 @@ pub struct TensorDesc {
 }
 
 impl TensorDesc {
-    /// Creates a new [`TensorDesc`].
+    /// Construct from `&Tensor`.
     ///
     /// Exists to force better error messages for `Self::from(tensor)`.
-    pub fn of<B, const R: usize, K>(tensor: &Tensor<B, R, K>) -> Self
+    pub fn from_tensor<B, const R: usize, K>(tensor: &Tensor<B, R, K>) -> Self
     where
         B: Backend,
         K: BasicOps<B> + ParamKindBinding,
@@ -141,6 +155,13 @@ impl TensorDesc {
             shape: tensor.shape(),
         }
     }
+
+    /// Construct from `&TensorData`.
+    ///
+    /// Exists to force better error messages for `Self::from(data)`.
+    pub fn from_tensor_data(data: &TensorData) -> Self {
+        Self::new(data.dtype, data.shape.clone())
+    }
 }
 
 impl<B, const R: usize, K> From<&Tensor<B, R, K>> for TensorDesc
@@ -150,7 +171,13 @@ where
     K: ParamKindBinding,
 {
     fn from(param: &Tensor<B, R, K>) -> Self {
-        Self::of(param)
+        Self::from_tensor(param)
+    }
+}
+
+impl From<&TensorData> for TensorDesc {
+    fn from(data: &TensorData) -> Self {
+        Self::from_tensor_data(data)
     }
 }
 
@@ -177,10 +204,10 @@ impl From<&TensorDesc> for TensorRankType {
 impl TensorDesc {
     /// Creates a new `TensorDesc`.
     pub fn new(
-        kind: TensorKindDesc,
         dtype: DType,
         shape: Shape,
     ) -> Self {
+        let kind = dtype.into();
         Self { kind, dtype, shape }
     }
 
@@ -261,64 +288,133 @@ mod tests {
         let device = backend_device::<B>();
         let _memory = DeviceMemoryGuard::<B>::new(&device);
 
+        // Float
         {
-            // Float
+            // Tensor
             let tensor: Tensor<B, 2> = Tensor::ones([2, 3], &device);
-            let dtype = tensor.dtype();
+            {
+                let dtype = tensor.dtype();
 
-            let rank_desc: TensorRankType = TensorRankType::from(&tensor);
-            assert_eq!(rank_desc.kind(), TensorKindDesc::Float);
-            assert_eq!(rank_desc.dtype(), dtype);
-            assert_eq!(rank_desc.rank(), 2);
-            assert_eq!(rank_desc.size_estimate(6), dtype.size() * 2 * 3);
+                let rank_desc: TensorRankType = TensorRankType::from(&tensor);
+                assert_eq!(rank_desc.kind(), TensorKindDesc::Float);
+                assert_eq!(rank_desc.dtype(), dtype);
+                assert_eq!(rank_desc.rank(), 2);
+                assert_eq!(rank_desc.size_estimate(6), dtype.size() * 2 * 3);
 
-            let desc = rank_desc.to_desc(Shape::new([2, 3]));
-            assert_eq!(desc.to_rank_type(), rank_desc);
-            assert_eq!(desc.kind(), TensorKindDesc::Float);
-            assert_eq!(desc.dtype(), dtype);
-            assert_eq!(desc.shape(), &Shape::new([2, 3]));
-            assert_eq!(desc.rank(), 2);
-            assert_eq!(desc.size_estimate(), dtype.size() * 2 * 3);
+                let desc = rank_desc.to_desc(Shape::new([2, 3]));
+                assert_eq!(desc.to_rank_type(), rank_desc);
+                assert_eq!(desc.kind(), TensorKindDesc::Float);
+                assert_eq!(desc.dtype(), dtype);
+                assert_eq!(desc.shape(), &Shape::new([2, 3]));
+                assert_eq!(desc.rank(), 2);
+                assert_eq!(desc.size_estimate(), dtype.size() * 2 * 3);
+            }
+
+            // TensorData
+            let data: TensorData = tensor.to_data();
+            {
+                let dtype = data.dtype;
+
+                let rank_desc: TensorRankType = TensorRankType::from(&data);
+                assert_eq!(rank_desc.kind(), TensorKindDesc::Float);
+                assert_eq!(rank_desc.dtype(), dtype);
+                assert_eq!(rank_desc.rank(), 2);
+                assert_eq!(rank_desc.size_estimate(6), dtype.size() * 2 * 3);
+
+                let desc = rank_desc.to_desc(Shape::new([2, 3]));
+                assert_eq!(desc.to_rank_type(), rank_desc);
+                assert_eq!(desc.kind(), TensorKindDesc::Float);
+                assert_eq!(desc.dtype(), dtype);
+                assert_eq!(desc.shape(), &Shape::new([2, 3]));
+                assert_eq!(desc.rank(), 2);
+                assert_eq!(desc.size_estimate(), dtype.size() * 2 * 3);
+            }
         }
 
+        // Int
         {
-            // Int
+            // Tensor
             let tensor: Tensor<B, 2, Int> = Tensor::ones([2, 3], &device);
-            let dtype = tensor.dtype();
+            {
+                let dtype = tensor.dtype();
 
-            let rank_desc: TensorRankType = TensorRankType::from(&tensor);
-            assert_eq!(rank_desc.kind(), TensorKindDesc::Int);
-            assert_eq!(rank_desc.dtype(), dtype);
-            assert_eq!(rank_desc.rank(), 2);
-            assert_eq!(rank_desc.size_estimate(6), dtype.size() * 2 * 3);
+                let rank_desc: TensorRankType = TensorRankType::from(&tensor);
+                assert_eq!(rank_desc.kind(), TensorKindDesc::Int);
+                assert_eq!(rank_desc.dtype(), dtype);
+                assert_eq!(rank_desc.rank(), 2);
+                assert_eq!(rank_desc.size_estimate(6), dtype.size() * 2 * 3);
 
-            let desc = rank_desc.to_desc(Shape::new([2, 3]));
-            assert_eq!(desc.to_rank_type(), rank_desc);
-            assert_eq!(desc.kind(), TensorKindDesc::Int);
-            assert_eq!(desc.dtype(), dtype);
-            assert_eq!(desc.shape(), &Shape::new([2, 3]));
-            assert_eq!(desc.rank(), 2);
-            assert_eq!(desc.size_estimate(), dtype.size() * 2 * 3);
+                let desc = rank_desc.to_desc(Shape::new([2, 3]));
+                assert_eq!(desc.to_rank_type(), rank_desc);
+                assert_eq!(desc.kind(), TensorKindDesc::Int);
+                assert_eq!(desc.dtype(), dtype);
+                assert_eq!(desc.shape(), &Shape::new([2, 3]));
+                assert_eq!(desc.rank(), 2);
+                assert_eq!(desc.size_estimate(), dtype.size() * 2 * 3);
+            }
+
+            // TensorData
+            let data = tensor.to_data();
+            {
+                let dtype = data.dtype;
+
+                let rank_desc: TensorRankType = TensorRankType::from(&data);
+                assert_eq!(rank_desc.kind(), TensorKindDesc::Int);
+                assert_eq!(rank_desc.dtype(), dtype);
+                assert_eq!(rank_desc.rank(), 2);
+                assert_eq!(rank_desc.size_estimate(6), dtype.size() * 2 * 3);
+
+                let desc = rank_desc.to_desc(Shape::new([2, 3]));
+                assert_eq!(desc.to_rank_type(), rank_desc);
+                assert_eq!(desc.kind(), TensorKindDesc::Int);
+                assert_eq!(desc.dtype(), dtype);
+                assert_eq!(desc.shape(), &Shape::new([2, 3]));
+                assert_eq!(desc.rank(), 2);
+                assert_eq!(desc.size_estimate(), dtype.size() * 2 * 3);
+            }
         }
 
+        // Bool
         {
-            // Bool
+            // Tensor
             let tensor: Tensor<B, 2, Bool> = Tensor::zeros([2, 3], &device);
-            let dtype = tensor.dtype();
+            {
+                let dtype = tensor.dtype();
 
-            let rank_desc: TensorRankType = TensorRankType::from(&tensor);
-            assert_eq!(rank_desc.kind, TensorKindDesc::Bool);
-            assert_eq!(rank_desc.dtype, dtype);
-            assert_eq!(rank_desc.rank(), 2);
-            assert_eq!(rank_desc.size_estimate(6), dtype.size() * 2 * 3);
+                let rank_desc: TensorRankType = TensorRankType::from(&tensor);
+                assert_eq!(rank_desc.kind, TensorKindDesc::Bool);
+                assert_eq!(rank_desc.dtype, dtype);
+                assert_eq!(rank_desc.rank(), 2);
+                assert_eq!(rank_desc.size_estimate(6), dtype.size() * 2 * 3);
 
-            let desc = rank_desc.to_desc(Shape::new([2, 3]));
-            assert_eq!(desc.to_rank_type(), rank_desc);
-            assert_eq!(desc.kind, TensorKindDesc::Bool);
-            assert_eq!(desc.dtype, dtype);
-            assert_eq!(desc.shape, Shape::new([2, 3]));
-            assert_eq!(desc.rank(), 2);
-            assert_eq!(desc.size_estimate(), dtype.size() * 2 * 3);
+                let desc = rank_desc.to_desc(Shape::new([2, 3]));
+                assert_eq!(desc.to_rank_type(), rank_desc);
+                assert_eq!(desc.kind, TensorKindDesc::Bool);
+                assert_eq!(desc.dtype, dtype);
+                assert_eq!(desc.shape, Shape::new([2, 3]));
+                assert_eq!(desc.rank(), 2);
+                assert_eq!(desc.size_estimate(), dtype.size() * 2 * 3);
+            }
+
+            // TensorData
+            let data = tensor.to_data();
+            {
+                let dtype = data.dtype;
+
+                let rank_desc: TensorRankType = TensorRankType::from(&data);
+                assert_eq!(rank_desc.kind, TensorKindDesc::Bool);
+                assert_eq!(rank_desc.dtype, dtype);
+                assert_eq!(rank_desc.rank(), 2);
+                assert_eq!(rank_desc.size_estimate(6), dtype.size() * 2 * 3);
+
+                let desc = rank_desc.to_desc(Shape::new([2, 3]));
+                assert_eq!(desc.to_rank_type(), rank_desc);
+                assert_eq!(desc.kind, TensorKindDesc::Bool);
+                assert_eq!(desc.dtype, dtype);
+                assert_eq!(desc.shape, Shape::new([2, 3]));
+                assert_eq!(desc.rank(), 2);
+                assert_eq!(desc.size_estimate(), dtype.size() * 2 * 3);
+            }
         }
     }
 }
