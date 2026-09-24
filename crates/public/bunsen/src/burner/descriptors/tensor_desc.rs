@@ -219,7 +219,7 @@ mod tests {
             let tensor: Tensor<B, 2> = Tensor::ones([2, 3], &device);
             let dtype = tensor.dtype();
 
-            let rank_desc: TensorRankDesc = TensorRankDesc::from(tensor);
+            let rank_desc: TensorRankDesc = TensorRankDesc::from(&tensor);
             assert_eq!(rank_desc.kind(), TensorKindDesc::Float);
             assert_eq!(rank_desc.dtype(), dtype);
             assert_eq!(rank_desc.rank(), 2);
@@ -238,7 +238,7 @@ mod tests {
             let tensor: Tensor<B, 2, Int> = Tensor::ones([2, 3], &device);
             let dtype = tensor.dtype();
 
-            let rank_desc: TensorRankDesc = TensorRankDesc::from(tensor);
+            let rank_desc: TensorRankDesc = TensorRankDesc::from(&tensor);
             assert_eq!(rank_desc.kind(), TensorKindDesc::Int);
             assert_eq!(rank_desc.dtype(), dtype);
             assert_eq!(rank_desc.rank(), 2);
@@ -257,14 +257,14 @@ mod tests {
             let tensor: Tensor<B, 2, Bool> = Tensor::zeros([2, 3], &device);
             let dtype = tensor.dtype();
 
-            let rank_desc: TensorRankDesc = TensorRankDesc::from(tensor);
+            let rank_desc: TensorRankDesc = TensorRankDesc::from(&tensor);
             assert_eq!(rank_desc.kind, TensorKindDesc::Bool);
             assert_eq!(rank_desc.dtype, dtype);
             assert_eq!(rank_desc.rank(), 2);
             assert_eq!(rank_desc.size_estimate(6), dtype.size() * 2 * 3);
 
             let desc = rank_desc.to_desc(Shape::new([2, 3]));
-            assert_eq!(desc.kind, TensorKindDesc::Float);
+            assert_eq!(desc.kind, TensorKindDesc::Bool);
             assert_eq!(desc.dtype, dtype);
             assert_eq!(desc.shape, Shape::new([2, 3]));
             assert_eq!(desc.rank(), 2);
