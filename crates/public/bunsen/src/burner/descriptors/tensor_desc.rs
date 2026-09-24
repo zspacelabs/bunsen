@@ -382,16 +382,16 @@ mod tests {
                 let dtype = tensor.dtype();
 
                 let rank_desc: TensorRankType = TensorRankType::from(&tensor);
-                assert_eq!(rank_desc.kind, TensorKindDesc::Bool);
-                assert_eq!(rank_desc.dtype, dtype);
+                assert_eq!(rank_desc.kind(), TensorKindDesc::Bool);
+                assert_eq!(rank_desc.dtype(), dtype);
                 assert_eq!(rank_desc.rank(), 2);
                 assert_eq!(rank_desc.size_estimate(6), dtype.size() * 2 * 3);
 
                 let desc = rank_desc.to_desc(Shape::new([2, 3]));
                 assert_eq!(desc.to_rank_type(), rank_desc);
-                assert_eq!(desc.kind, TensorKindDesc::Bool);
-                assert_eq!(desc.dtype, dtype);
-                assert_eq!(desc.shape, Shape::new([2, 3]));
+                assert_eq!(desc.kind(), TensorKindDesc::Bool);
+                assert_eq!(desc.dtype(), dtype);
+                assert_eq!(desc.shape(), &Shape::new([2, 3]));
                 assert_eq!(desc.rank(), 2);
                 assert_eq!(desc.size_estimate(), dtype.size() * 2 * 3);
             }
@@ -402,16 +402,16 @@ mod tests {
                 let dtype = data.dtype;
 
                 let rank_desc: TensorRankType = TensorRankType::from(&data);
-                assert_eq!(rank_desc.kind, TensorKindDesc::Bool);
-                assert_eq!(rank_desc.dtype, dtype);
+                assert_eq!(rank_desc.kind(), TensorKindDesc::Bool);
+                assert_eq!(rank_desc.dtype(), dtype);
                 assert_eq!(rank_desc.rank(), 2);
                 assert_eq!(rank_desc.size_estimate(6), dtype.size() * 2 * 3);
 
                 let desc = rank_desc.to_desc(Shape::new([2, 3]));
                 assert_eq!(desc.to_rank_type(), rank_desc);
-                assert_eq!(desc.kind, TensorKindDesc::Bool);
-                assert_eq!(desc.dtype, dtype);
-                assert_eq!(desc.shape, Shape::new([2, 3]));
+                assert_eq!(desc.kind(), TensorKindDesc::Bool);
+                assert_eq!(desc.dtype(), dtype);
+                assert_eq!(desc.shape(), &Shape::new([2, 3]));
                 assert_eq!(desc.rank(), 2);
                 assert_eq!(desc.size_estimate(), dtype.size() * 2 * 3);
             }

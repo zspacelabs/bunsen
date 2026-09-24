@@ -50,7 +50,7 @@ pub fn dtype_from_str(dtype: &str) -> BunsenResult<DType> {
         && let Some(_buf) = buf.strip_suffix(")")
     {
         return Err(BunsenError::External(format!(
-            "bunsen can't parse QFloat QuantScheme yet: \"{dtype:?}\"",
+            "bunsen can't parse QFloat QuantScheme yet: {dtype:?}",
         )));
     }
 
@@ -103,7 +103,7 @@ mod tests {
         assert_eq!(
             dtype_from_str(format!("{:?}", DType::QFloat(QuantScheme::default())).as_str()),
             Err(BunsenError::External(format!(
-                "bunsen can't parse QFloat QuantScheme yet: {:?}",
+                "bunsen can't parse QFloat QuantScheme yet: \"{:?}\"",
                 DType::QFloat(QuantScheme::default())
             )))
         );
