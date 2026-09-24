@@ -618,7 +618,7 @@ impl<B: Backend> DynTensor<B> {
     /// # Result
     /// - `Ok(TensorData)`: the converted data.
     /// - `Err(DynTensorError)`: an error.
-    pub fn to_data(self) -> BunsenResult<TensorData> {
+    pub fn to_data(&self) -> BunsenResult<TensorData> {
         self.clone().into_data()
     }
 }
