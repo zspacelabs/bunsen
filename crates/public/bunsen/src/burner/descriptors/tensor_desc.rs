@@ -34,6 +34,23 @@ pub struct TensorRankDesc {
     rank: usize,
 }
 
+impl TensorRankDesc {
+    /// Creates a new [`TensorRankDesc`].
+    ///
+    /// Exists to force better error messages for `Self::from(tensor)`.
+    pub fn of<B, const R: usize, K>(tensor: &Tensor<B, R, K>) -> Self
+    where
+        B: Backend,
+        K: BasicOps<B> + ParamKindBinding,
+    {
+        Self {
+            kind: TensorKindDesc::for_kind::<K>(),
+            dtype: tensor.dtype(),
+            rank: tensor.rank(),
+        }
+    }
+}
+
 impl<B, const R: usize, K> From<&Tensor<B, R, K>> for TensorRankDesc
 where
     B: Backend,
@@ -41,11 +58,7 @@ where
     K: ParamKindBinding,
 {
     fn from(param: &Tensor<B, R, K>) -> Self {
-        Self {
-            kind: TensorKindDesc::for_kind::<K>(),
-            dtype: param.dtype(),
-            rank: param.rank(),
-        }
+        Self::of(param)
     }
 }
 
@@ -113,6 +126,23 @@ pub struct TensorDesc {
     shape: Shape,
 }
 
+impl TensorDesc {
+    /// Creates a new [`TensorDesc`].
+    ///
+    /// Exists to force better error messages for `Self::from(tensor)`.
+    pub fn of<B, const R: usize, K>(tensor: &Tensor<B, R, K>) -> Self
+    where
+        B: Backend,
+        K: BasicOps<B> + ParamKindBinding,
+    {
+        Self {
+            kind: TensorKindDesc::for_kind::<K>(),
+            dtype: tensor.dtype(),
+            shape: tensor.shape(),
+        }
+    }
+}
+
 impl<B, const R: usize, K> From<&Tensor<B, R, K>> for TensorDesc
 where
     B: Backend,
@@ -120,11 +150,7 @@ where
     K: ParamKindBinding,
 {
     fn from(param: &Tensor<B, R, K>) -> Self {
-        Self {
-            kind: TensorKindDesc::for_kind::<K>(),
-            dtype: param.dtype(),
-            shape: param.shape(),
-        }
+        Self::of(param)
     }
 }
 
