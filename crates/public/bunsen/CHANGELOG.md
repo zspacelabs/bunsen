@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and this project adheres
 to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.36.0](https://github.com/zspacelabs/bunsen/compare/bunsen-v0.35.1...bunsen-v0.36.0) - 2026-09-24
+
+### Other
+
+- Refactor and enhance tensor descriptor functionality ([#231](https://github.com/zspacelabs/bunsen/pull/231))
+
 ## [0.35.0](https://github.com/zspacelabs/bunsen/compare/bunsen-v0.34.2...bunsen-v0.35.0) - 2026-09-22
 
 ### Other
