@@ -167,13 +167,39 @@ impl<B: Backend> DynTensor<B> {
     /// Downcasts the tensor to a specific rank and kind.
     ///
     /// # Result
+    /// - `Some(&Tensor<B, R, K>)`: if the params are correct,
+    /// - `None`: otherwise.
+    pub fn downcast_ref<const R: usize, K>(&self) -> Option<&Tensor<B, R, K>>
+    where
+        K: 'static + BasicOps<B>,
+    {
+        self.tensor.downcast_ref::<Tensor<B, R, K>>()
+    }
+
+    /// Downcasts the tensor to a specific rank and kind.
+    ///
+    /// # Result
     /// - `Some(Tensor<B, R, K>)`: if the params are correct,
     /// - `None`: otherwise.
     pub fn downcast_clone<const R: usize, K>(&self) -> Option<Tensor<B, R, K>>
     where
         K: 'static + BasicOps<B>,
     {
-        self.tensor.downcast_ref::<Tensor<B, R, K>>().cloned()
+        self.downcast_ref::<R, K>().cloned()
+    }
+
+    /// Downcasts to a static tensor.
+    ///
+    /// # Result
+    /// - the static tensor: if the params are correct,
+    ///
+    /// # Panics
+    /// If the types are incorrect.
+    pub fn unwrap<const R: usize, K>(self) -> Tensor<B, R, K>
+    where
+        K: 'static + BasicOps<B>,
+    {
+        self.unwrap_clone()
     }
 
     /// Downcasts to a static tensor.
