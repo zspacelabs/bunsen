@@ -1172,7 +1172,7 @@ checksum = "72f5acc6cb2ba439de613abc23857ec3d78374d8ed5ac84e9d11336e87da8649"
 
 [[package]]
 name = "bunsen"
-version = "0.36.0"
+version = "0.36.1"
 dependencies = [
  "assert_float_eq",
  "bunsen",
@@ -1217,7 +1217,7 @@ dependencies = [
 
 [[package]]
 name = "bunsen-arrow-dataloaders"
-version = "0.36.0"
+version = "0.36.1"
 dependencies = [
  "arrow 60.0.0",
  "burn",
@@ -1230,7 +1230,7 @@ dependencies = [
 
 [[package]]
 name = "bunsen-bundled-silero"
-version = "0.36.0"
+version = "0.36.1"
 dependencies = [
  "burn",
  "burn-onnx",
@@ -1241,7 +1241,7 @@ dependencies = [
 
 [[package]]
 name = "bunsen-bundled-whisper"
-version = "0.36.0"
+version = "0.36.1"
 dependencies = [
  "burn",
  "burn-onnx",
@@ -1253,7 +1253,7 @@ dependencies = [
 
 [[package]]
 name = "bunsen-contracts-macros"
-version = "0.36.0"
+version = "0.36.1"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -1262,7 +1262,7 @@ dependencies = [
 
 [[package]]
 name = "bunsen-firehose"
-version = "0.36.0"
+version = "0.36.1"
 dependencies = [
  "anyhow",
  "burn",
@@ -1278,7 +1278,7 @@ dependencies = [
 
 [[package]]
 name = "bunsen-firehose-image"
-version = "0.36.0"
+version = "0.36.1"
 dependencies = [
  "anyhow",
  "bunsen",
@@ -1790,7 +1790,7 @@ dependencies = [
 
 [[package]]
 name = "burn_bug_repro"
-version = "0.36.0"
+version = "0.36.1"
 dependencies = [
  "bunsen",
  "burn",
@@ -2121,7 +2121,7 @@ dependencies = [
 
 [[package]]
 name = "clap-common"
-version = "0.36.0"
+version = "0.36.1"
 dependencies = [
  "bunsen",
  "burn",
@@ -8862,7 +8862,7 @@ checksum = "f8fadd59c855ef2080decdef8ff161eb6661b86933c9d82e5ba29dc602a55aba"
 
 [[package]]
 name = "silero-bench"
-version = "0.36.0"
+version = "0.36.1"
 dependencies = [
  "bunsen",
  "burn",
@@ -8873,7 +8873,7 @@ dependencies = [
 
 [[package]]
 name = "silero-model-validation"
-version = "0.36.0"
+version = "0.36.1"
 dependencies = [
  "bunsen",
  "bunsen-bundled-silero",
@@ -10730,7 +10730,7 @@ dependencies = [
 
 [[package]]
 name = "whisper-cli"
-version = "0.36.0"
+version = "0.36.1"
 dependencies = [
  "bunsen",
  "burn",
@@ -10743,7 +10743,7 @@ dependencies = [
 
 [[package]]
 name = "whisper-model-validation"
-version = "0.36.0"
+version = "0.36.1"
 dependencies = [
  "bunsen",
  "bunsen-bundled-whisper",
