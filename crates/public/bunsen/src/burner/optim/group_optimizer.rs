@@ -382,7 +382,7 @@ macro_rules! define_group_optimizer_adaptor {
                 }
             }
 
-            #[doc=concat!("Mapper for [`GroupOptimizer", $N, "'].")]
+            #[doc=concat!("Mapper for [`GroupOptimizer", $N, "`].")]
             struct [<GroupOptimizerMapper $N>]<'a, B, $($O,)+>
             where
                 B: AutodiffBackend,
