@@ -33,6 +33,25 @@ jobs:
       - uses: Swatinem/rust-cache@v2
       - run: cargo clippy --no-deps -- -D warnings
 
+  book:
+    name: Book
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: rustup toolchain install stable --profile minimal
+      # mdbook-rustdoc-links runs `cargo doc` and `cargo check` on the crates
+      # the book links into (`book/book.toml`).
+      - uses: Swatinem/rust-cache@v2
+      # Keep these versions in step with `Makefile.toml`'s `ensure-mdbook-*`.
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: mdbook@0.5.4,mdbook-katex@0.10.0,mdbook-mermaid@0.17.1,mdbook-linkcheck2@0.13.0,mdbook-rustdoc-links@3.0.2
+      # GitHub sets `CI`, so every API link must resolve (a renamed or moved
+      # item fails here, in the PR that renamed it), and links are emitted
+      # against docs.rs. linkcheck2 then checks links between book files.
+      - name: Build the book
+        run: mdbook build book
+
   test:
     name: CI
     runs-on: ubuntu-latest

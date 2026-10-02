@@ -82,11 +82,21 @@ dependencies = [
 # ── mdBook ────────────────────────────────────────────────────────────────────
 
 [tasks.book]
-description = "Build the mdBook in ./book"
+description = "Build the mdBook in ./book, linking into local API docs (book/src/api)"
 dependencies = ["ensure-mdbook-suite"]
 cwd = "book"
 command = "mdbook"
 args = ["build"]
+
+[tasks.book-check]
+description = "Build the book as CI does: every unresolved API link is an error"
+extend = "book"
+env = { MDBOOK_PREPROCESSOR__RUSTDOC_LINKS__FAIL_ON_WARNINGS = "always" }
+
+[tasks.book-release]
+description = "Build the book for publishing: API links pinned to this version on docs.rs"
+extend = "book"
+env = { CI = "1", MDBOOK_OUTPUT__HTML__SITE_URL = "/bunsen/book/" }
 
 [tasks.book-serve]
 description = "Serve the mdBook locally with live reload"
@@ -108,6 +118,7 @@ dependencies = [
     "ensure-mdbook-katex",
     "ensure-mdbook-linkcheck2",
     "ensure-mdbook-mermaid",
+    "ensure-mdbook-rustdoc-links",
 ]
 
 # `cargo install` without `--force` is a no-op when the pinned version is
@@ -132,3 +143,8 @@ args = ["install", "mdbook-linkcheck2", "--version", "0.13.0", "--locked"]
 toolchain = "stable"
 command = "cargo"
 args = ["install", "mdbook-mermaid", "--version", "0.17.1", "--locked"]
+
+[tasks.ensure-mdbook-rustdoc-links]
+toolchain = "stable"
+command = "cargo"
+args = ["install", "mdbook-rustdoc-links", "--version", "3.0.2", "--locked"]

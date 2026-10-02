@@ -6,7 +6,7 @@ tensor operations, shape contracts, and lifecycle utilities that fall outside
 `burn`'s core scope but are needed by anyone building real models on top of it.
 
 This book is the long-form companion to the
-[API docs](https://docs.rs/bunsen). The API docs answer *what is this type?*;
+[API docs](bunsen). The API docs answer *what is this type?*;
 this book answers *why does it exist, when do I reach for it, and how do the
 pieces fit together?*
 

@@ -21,6 +21,44 @@ command = "mdbook-mermaid"
 after = ["links"]
 macros = "./katex-macros.txt"
 
+# ── API links ─────────────────────────────────────────────────────────────────
+# Link to the API with rustdoc intra-doc paths, not URLs:
+#
+#     [`ShapeContract`](bunsen::contracts::ShapeContract)
+#
+# mdbook-rustdoc-links builds the listed packages with `cargo doc` and lets
+# rustdoc resolve every such link, so a renamed or moved item is an error
+# (under `CI`, or with `cargo make book-check`), not a dead link.
+#
+# The base URL is chosen per build:
+# - `dev` (default): `/api`, a symlink `book/src/api -> target/doc`; the book
+#   links into the local API docs from HEAD (`cargo make book`).
+# - `release` (when `CI` is set): docs.rs, pinned to each crate's version
+#   (`cargo make book-release`).
+# `MDBOOK_PREPROCESSOR__RUSTDOC_LINKS__BASE_URL` overrides both.
+#
+# The first build stage takes bunsen's features from its
+# `[package.metadata.docs.rs]` (`docs-rs = true`), so the book resolves links
+# against exactly what docs.rs serves. `docs-rs` accepts one package per
+# stage, hence a second stage for the other crates. A link resolved by any
+# stage counts.
+[preprocessor.rustdoc-links]
+after = ["links"]
+unstable-features = true
+base-url.dev = "/api"
+base-url.release = "https://docs.rs/{pkg_name}/{version}"
+
+[[preprocessor.rustdoc-links.build]]
+packages = ["bunsen"]
+docs-rs = true
+
+[[preprocessor.rustdoc-links.build]]
+packages = [
+    "bunsen-firehose",
+    "bunsen-firehose-image",
+    "bunsen-arrow-dataloaders",
+]
+
 # ── HTML output ───────────────────────────────────────────────────────────────
 
 [output.html]
@@ -66,5 +104,10 @@ heading-split-level = 3
 command = "mdbook-linkcheck2"
 follow-web-links = false
 traverse-parent-directories = false
+exclude = [
+    # API links; mdbook-rustdoc-links has already resolved them. The `api`
+    # symlink points outside the book root, which linkcheck2 rejects.
+    '^(\.\./)*api/',
+]
 warning-policy = "warn"
 cache-timeout = 86400
