@@ -24,15 +24,9 @@ use burn::{
 
 use crate::{
     blocks::transformers::{
-        attention::{
-            csa::{
-                CausalSelfAttentionConfig,
-                CausalSelfAttentionMeta,
-            },
-            kvcache::{
-                KVCache,
-                KVCacheConfig,
-            },
+        attention::csa::{
+            CausalSelfAttentionConfig,
+            CausalSelfAttentionMeta,
         },
         embedding::{
             RotaryEmbedding,
@@ -53,6 +47,10 @@ use crate::{
     kits::gpts::nanochat::blocks::{
         NanoChatGptBlock,
         NanoChatGptBlockConfig,
+    },
+    ops::transformers::attention::{
+        KVCache,
+        KVCacheConfig,
     },
 };
 

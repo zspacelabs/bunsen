@@ -14,13 +14,10 @@ use burn::{
 
 use crate::{
     blocks::transformers::{
-        attention::{
-            csa::{
-                CausalSelfAttention,
-                CausalSelfAttentionConfig,
-                CausalSelfAttentionMeta,
-            },
-            kvcache::KVCache,
+        attention::csa::{
+            CausalSelfAttention,
+            CausalSelfAttentionConfig,
+            CausalSelfAttentionMeta,
         },
         embedding::RotaryEmbedding,
         mlp::{
@@ -35,6 +32,7 @@ use crate::{
         BunsenResult,
         WithOkOrPanic,
     },
+    ops::transformers::attention::KVCache,
 };
 
 /// Common meta for [`NanoChatGptBlock`] and [`NanoChatGptBlockConfig`].

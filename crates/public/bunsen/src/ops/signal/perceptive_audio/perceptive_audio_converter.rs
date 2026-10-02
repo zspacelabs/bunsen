@@ -1,17 +1,4 @@
-//! # Waveform to log-mel conversion.
-//!
-//! [`PerceptiveAudioConverterOptions`] configures the pipeline and builds a
-//! [`PerceptiveAudioConverter`]; the converter holds the precomputed constants
-//! and is what a stream is driven through.
-//!
-//! Defaults reproduce `librosa`: 16 kHz, 400-sample periodic Hann, hop 160,
-//! 80 Slaney `mels` with Slaney area normalization, power spectrum,
-//! and `log10` over a `1e-10` floor.
-//!
-//! Dynamic-range packaging — [`RangeClamp`] and [`AffineCompress`] — is a
-//! caller-side step, applied to a finished spectrogram rather than configured
-//! here. Both reduce over whatever they are handed, so folding them into a
-//! streaming converter would make chunking observable; see their docs.
+//! Waveform to log-mel conversion.
 
 use burn::{
     Tensor,
@@ -125,7 +112,8 @@ pub enum SpectrumImpl {
 ///
 /// Applied by the caller with [`apply`](Self::apply), to a finished
 /// spectrogram. It is deliberately not a [`PerceptiveAudioConverterOptions`]
-/// field: [`PerCall`](Self::PerWindowClamp) reduces over whatever it is handed,
+/// field: [`PerWindowClamp`](Self::PerWindowClamp) reduces over whatever it is
+/// handed,
 /// so folding it into the pipeline would make a streamed run differ from a
 /// whole-signal one. Clamp once, after joining.
 #[derive(Config, Copy, Debug, PartialEq)]
@@ -215,9 +203,12 @@ impl AffineCompress {
     }
 }
 
-/// Options for [`MelConverter`](super::PerceptiveAudioConverter).
+/// Options for [`PerceptiveAudioConverter`].
 ///
-/// Defaults reproduce `librosa`'s mel spectrogram. Validated by
+/// Defaults reproduce `librosa`'s mel spectrogram: 16 kHz, a 400-sample
+/// periodic Hann window, hop 160, 80 Slaney `mels` with Slaney area
+/// normalization, a power spectrum, and `log10` over a `1e-10` floor.
+/// Validated by
 /// [`validate`](Self::validate), which
 /// [`try_init`](crate::burner::module::ModuleInit::try_init) runs before
 /// building anything.
@@ -527,28 +518,28 @@ impl PerceptiveAudioConverterOptions {
     pub fn validate(&self) -> BunsenResult<()> {
         if self.sample_rate == 0 {
             return Err(BunsenError::Invalid(
-                "MelConverter sample_rate must be non-zero".to_string(),
+                "PerceptiveAudioConverter sample_rate must be non-zero".to_string(),
             ));
         }
         if self.n_fft == 0 {
             return Err(BunsenError::Invalid(
-                "MelConverter n_fft must be non-zero".to_string(),
+                "PerceptiveAudioConverter n_fft must be non-zero".to_string(),
             ));
         }
         if self.hop == 0 {
             return Err(BunsenError::Invalid(
-                "MelConverter hop must be non-zero".to_string(),
+                "PerceptiveAudioConverter hop must be non-zero".to_string(),
             ));
         }
         if self.hop > self.n_fft {
             return Err(BunsenError::Invalid(format!(
-                "MelConverter hop ({}) must be <= n_fft ({})",
+                "PerceptiveAudioConverter hop ({}) must be <= n_fft ({})",
                 self.hop, self.n_fft,
             )));
         }
         if self.n_mels == 0 {
             return Err(BunsenError::Invalid(
-                "MelConverter n_mels must be non-zero".to_string(),
+                "PerceptiveAudioConverter n_mels must be non-zero".to_string(),
             ));
         }
 
@@ -556,7 +547,7 @@ impl PerceptiveAudioConverterOptions {
         let nyquist = self.nyquist();
         if f_max > nyquist {
             return Err(BunsenError::Invalid(format!(
-                "MelConverter f_max ({f_max}) must be <= Nyquist ({nyquist})",
+                "PerceptiveAudioConverter f_max ({f_max}) must be <= Nyquist ({nyquist})",
             )));
         }
         // Written out rather than `f_min >= f_max` so a NaN edge is rejected
@@ -564,7 +555,7 @@ impl PerceptiveAudioConverterOptions {
         // mel points.
         if self.f_min.is_nan() || f_max.is_nan() || self.f_min >= f_max {
             return Err(BunsenError::Invalid(format!(
-                "MelConverter f_min ({}) must be < f_max ({f_max})",
+                "PerceptiveAudioConverter f_min ({}) must be < f_max ({f_max})",
                 self.f_min,
             )));
         }
@@ -576,12 +567,12 @@ impl PerceptiveAudioConverterOptions {
         // streaming carry — not a change to make untested.
         if self.pre_emphasis.is_some() {
             return Err(BunsenError::Invalid(
-                "MelConverter pre_emphasis is not implemented yet".to_string(),
+                "PerceptiveAudioConverter pre_emphasis is not implemented yet".to_string(),
             ));
         }
         if self.remove_dc {
             return Err(BunsenError::Invalid(
-                "MelConverter remove_dc is not implemented yet".to_string(),
+                "PerceptiveAudioConverter remove_dc is not implemented yet".to_string(),
             ));
         }
 
@@ -717,7 +708,7 @@ impl<B: Backend> PerceptiveAudioConverter<B> {
         #[cfg(any(test, debug_assertions))]
         assert!(
             samples >= self.n_fft(),
-            "MelConverter samples ({samples}) must be >= n_fft ({})",
+            "PerceptiveAudioConverter samples ({samples}) must be >= n_fft ({})",
             self.n_fft(),
         );
 

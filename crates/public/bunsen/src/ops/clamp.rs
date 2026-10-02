@@ -1,4 +1,9 @@
-//! # Tensor Clamping Support
+//! # Clamping as a value
+//!
+//! [`ClampOp`] is an optional minimum and an optional maximum, held as one
+//! value object, with [`ClampOp::clamp`] to apply it. It is for clamping as a
+//! *setting* (a config field, a noise generator's range) rather than a
+//! one-shot call, where burn's `Tensor::clamp` is enough.
 
 use burn::{
     module::{
@@ -16,7 +21,7 @@ use serde::{
     Serialize,
 };
 
-/// Claming operation.
+/// Clamping operation: an optional min and an optional max.
 #[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ClampOp {
     /// The minimum value.
@@ -39,7 +44,7 @@ impl ModuleDisplayDefault for ClampOp {
 }
 
 impl ClampOp {
-    /// Creates a new `ClampConfig`.
+    /// Creates a new `ClampOp`.
     pub fn new<A, B>(
         min: A,
         max: B,

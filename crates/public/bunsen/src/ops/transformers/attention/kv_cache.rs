@@ -1,4 +1,4 @@
-//! # KV Cache
+//! A preallocated multi-layer key/value cache.
 
 use burn::{
     Tensor,
@@ -30,11 +30,13 @@ pub trait KVCacheMeta {
     /// Dimension of each head.
     fn head_dim(&self) -> usize;
 
-    /// Number of images.
+    /// Number of layers.
     fn num_layers(&self) -> usize;
 }
 
 /// Config for [`KVCache`].
+///
+/// Declares the cache geometry up front. Implements [`KVCacheMeta`].
 #[derive(Config, Debug)]
 pub struct KVCacheConfig {
     /// Configured batch size.
@@ -49,7 +51,7 @@ pub struct KVCacheConfig {
     /// Dimension of each head.
     pub head_dim: usize,
 
-    /// Number of images.
+    /// Number of layers.
     pub num_layers: usize,
 }
 
@@ -102,20 +104,30 @@ impl KVCacheConfig {
     }
 }
 
-/// KV Cache
+/// A preallocated, multi-layer key/value cache for autoregressive decoding.
 ///
-/// A growable key/value cache for incremental (autoregressive) attention
-/// decoding. It stores per-layer key and value tensors across decoding steps
-/// so each new token only attends over freshly computed keys/values plus the
-/// cached history. Use [`insert_kv`](KVCache::insert_kv) to append a step's
-/// `(k, v)` and obtain the full cached slices, [`pos`](KVCache::pos) /
-/// [`reset`](KVCache::reset) to query or rewind the position, and
-/// [`prefill`](KVCache::prefill) to seed it from another cache. The backing
-/// storage grows in chunks as the sequence length increases.
+/// One `[layers, 2, batch, heads, seq, head_dim]` tensor holds the keys and
+/// values of every layer. It is allocated on first use, on the device of the
+/// first keys, and grows in 1024-position chunks when a step runs past its
+/// end.
 ///
-/// Constructs via [`KVCacheConfig`] and `.init()`.
+/// Each layer writes its step with [`insert_kv`](KVCache::insert_kv), which
+/// returns that layer's whole `(k, v)` history. The shared position
+/// ([`pos`](KVCache::pos)) advances once the last layer has written, so one
+/// cache serves a whole stack of layers. [`reset`](KVCache::reset) rewinds the
+/// position without freeing the storage, and [`prefill`](KVCache::prefill)
+/// seeds an empty cache from another one, broadcasting a batch of 1.
 ///
-/// Built by [`KVCacheConfig`].
+/// The cache is injected state: the caller builds one per decode and passes
+/// it to the model's forward, so one model can run several decodes at once.
+/// It is a `Module` over a bare tensor, not parameters.
+/// [`CausalSelfAttention`] is its consumer;
+/// [`ops::transformers::attention`](crate::ops::transformers::attention)
+/// compares it with the per-layer [`AttnKvPair`](super::AttnKvPair).
+///
+/// Built by [`KVCacheConfig`], whose `init` takes no device.
+///
+/// [`CausalSelfAttention`]: crate::blocks::transformers::attention::csa::CausalSelfAttention
 #[derive(Module, Debug)]
 pub struct KVCache<B: Backend> {
     batch_size: usize,

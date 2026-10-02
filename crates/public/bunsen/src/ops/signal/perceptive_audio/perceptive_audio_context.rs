@@ -1,13 +1,4 @@
-//! # Streaming waveform to log-mel conversion.
-//!
-//! [`PerceptiveAudioConversionContext`] binds a carried sample queue to a
-//! [`PerceptiveAudioConverter`], so a signal can be fed in hop-aligned chunks
-//! and produce exactly the frames it would have produced in one call.
-//!
-//! Each [`transform`](PerceptiveAudioConversionContext::transform) is a fold
-//! over a fixed stack of `t_stage_*` methods, each shaped `(self, a) -> (b,
-//! Self)`. Only two of them touch state, which is the part worth reviewing; the
-//! rest delegate to the stateless [`PerceptiveAudioConverter`] stages.
+//! Streaming waveform to log-mel conversion.
 
 use burn::{
     Tensor,
@@ -40,12 +31,19 @@ pub enum StreamPhase {
 
 /// Streaming state for waveform to log-mel conversion.
 ///
+/// Binds a carried sample queue to a [`PerceptiveAudioConverter`], so a
+/// signal can be fed in hop-aligned chunks and produce exactly the frames it
+/// would have produced in one call.
+///
 /// Built by [`PerceptiveAudioConverter::new_context`], which fixes the batch
 /// size. Each batch row is an independent stream.
 ///
 /// [`transform`](Self::transform) takes `self` and hands it back, rather than
 /// borrowing mutably, because that is what lets the pipeline be written as a
-/// fold over the `t_stage_*` stack. [`finish`](Self::finish) consumes the
+/// fold over a fixed stack of stages, each shaped `(self, a) -> (b, Self)`.
+/// Only the first stage, which prepends the carry and takes off the next one,
+/// touches state; the rest delegate to the stateless
+/// [`PerceptiveAudioConverter`] stages. [`finish`](Self::finish) consumes the
 /// context, so transforming after finishing is a type error.
 ///
 /// Like [`PerceptiveAudioConverter`], this is a `Module` over bare tensors —
@@ -246,10 +244,8 @@ impl<B: Backend> PerceptiveAudioConversionContext<B> {
     /// Prepends the start padding or the carry, and takes the new carry off
     /// the tail.
     ///
-    /// The only fallible stage, and with
-    /// [`t_stage_compress`](Self::t_stage_compress) one of only two that touch
-    /// state. The carry holds **raw** samples: pre-emphasis needs unfiltered
-    /// history.
+    /// The only fallible stage, and the only one that touches state. The
+    /// carry holds **raw** samples: pre-emphasis needs unfiltered history.
     ///
     /// `[batch, samples]` -> `[batch, extended]`.
     pub(crate) fn t_stage_extend(
@@ -400,7 +396,10 @@ impl<B: Backend> PerceptiveAudioConverter<B> {
         &self,
         batch_size: usize,
     ) -> PerceptiveAudioConversionContext<B> {
-        assert_ne!(batch_size, 0, "MelConverter batch_size must be non-zero");
+        assert_ne!(
+            batch_size, 0,
+            "PerceptiveAudioConverter batch_size must be non-zero"
+        );
 
         PerceptiveAudioConversionContext {
             converter: self.clone(),

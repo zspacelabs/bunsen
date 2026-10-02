@@ -1,44 +1,56 @@
-//! Helper option to describe the size of a wrapper.
+//! A size relative to a reference size.
 
 use serde::{
     Deserialize,
     Serialize,
 };
 
-/// Helper option to describe the size of a wrapper, relative to a wrapped
-/// object.
+/// A size, given relative to a reference size that is only known later.
 ///
-/// TODO: point this at `burner::...::SizeConfig` in "0.19.0"
+/// [`resolve`](Self::resolve) turns it into a count once the reference is
+/// known. Today the one consumer is [`DropBlockOptions`]: each side of its
+/// `kernel` is a `SizeConfig`, resolved against the input's height or width,
+/// so a block can be "7 pixels" or "a quarter of the image".
+///
+/// `From<usize>` builds [`Fixed`](Self::Fixed) and `From<f64>` builds
+/// [`Ratio`](Self::Ratio), so `with_block_size(7)` and
+/// `with_block_size(0.25)` both work.
+///
+/// [`DropBlockOptions`]: super::DropBlockOptions
 #[derive(Debug, Clone, Copy, Default, PartialEq, Serialize, Deserialize)]
 pub enum SizeConfig {
-    /// Use the size of the source dataset.
+    /// The reference size itself.
     #[default]
     Default,
 
-    /// Use the size as a ratio of the source dataset size.
+    /// A ratio of the reference size, truncated toward zero.
     ///
     /// Must be >= 0.
     Ratio(f64),
 
-    /// Use a fixed size.
+    /// A fixed size; the reference is ignored.
     Fixed(usize),
 }
 
 impl SizeConfig {
-    /// Constructs a source which will have the same size as the source dataset.
+    /// The reference size itself; the same as [`SizeConfig::Default`].
     pub fn source() -> Self {
         Self::Default
     }
 
-    /// Resolve the effective size.
+    /// Resolves the size against a reference size.
     ///
     /// # Arguments
     ///
-    /// - `source_size`: the size of the source dataset.
+    /// - `source_size`: the reference size.
     ///
     /// # Returns
     ///
-    /// The resolved size of the wrapper dataset.
+    /// The resolved size.
+    ///
+    /// # Panics
+    ///
+    /// If the size is a negative [`Ratio`](Self::Ratio).
     pub fn resolve(
         self,
         source_size: usize,

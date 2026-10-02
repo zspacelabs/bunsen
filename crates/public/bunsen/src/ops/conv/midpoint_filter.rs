@@ -1,4 +1,4 @@
-//! # Support for Convolution Kernels
+//! Kernel-midpoint masks.
 
 use burn::{
     prelude::{

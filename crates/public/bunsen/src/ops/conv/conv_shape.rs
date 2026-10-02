@@ -1,6 +1,4 @@
-//! # Convolution Shape Utilities
-//!
-//! Utilities for computing the output shape of convolution operations.
+//! Convolution shape arithmetic.
 
 use alloc::vec::Vec;
 
@@ -121,7 +119,7 @@ pub fn expect_conv1d_output_size(
 ///
 /// # Returns
 ///
-/// An `Option<[usize; D]>` representing the output shape; or `None` for <= 0.
+/// An `Option<Vec<usize>>` representing the output shape; or `None` for <= 0.
 pub fn maybe_conv_output_shape_dyn(
     input_shape: &[usize],
     kernel_shape: &[usize],
@@ -164,7 +162,11 @@ pub fn maybe_conv_output_shape_dyn(
 ///
 /// # Returns
 ///
-/// An `Option<Vec<usize>>` representing the output shape; or `None` for <= 0.
+/// The output shape, as a `Vec<usize>`.
+///
+/// # Panics
+///
+/// If any output dimension would be <= 0.
 pub fn expect_conv_output_shape_dyn(
     input_shape: &[usize],
     kernel_shape: &[usize],
@@ -232,7 +234,11 @@ pub fn maybe_conv_output_shape<const D: usize>(
 ///
 /// # Returns
 ///
-/// An `Option<[usize; D]>` representing the output shape; or `None` for <= 0.
+/// The output shape, as a `[usize; D]`.
+///
+/// # Panics
+///
+/// If any output dimension would be <= 0.
 pub fn expect_conv_output_shape<const D: usize>(
     input_shape: [usize; D],
     kernel_shape: [usize; D],

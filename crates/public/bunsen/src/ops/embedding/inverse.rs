@@ -39,20 +39,20 @@ pub fn unembed<B: Backend, A: EmbeddingArg<B>>(
 
 #[cfg(test)]
 mod tests {
-    use burn::tensor::{
-        Distribution,
-        Int,
+    use burn::{
+        module::Param,
+        tensor::{
+            Distribution,
+            Int,
+        },
     };
     use serial_test::serial;
 
     use super::*;
-    use crate::{
-        ops::embedding::identity_embedding,
-        support::testing::{
-            DeviceMemoryGuard,
-            PerformanceBackend,
-            default_device,
-        },
+    use crate::support::testing::{
+        DeviceMemoryGuard,
+        PerformanceBackend,
+        default_device,
     };
 
     #[test]
@@ -64,7 +64,10 @@ mod tests {
 
         let n_embedding = 10;
 
-        let embedding = identity_embedding(n_embedding, &device);
+        // A one-hot passthrough, so each logit row peaks at its own token.
+        let embedding = Embedding {
+            weight: Param::from_tensor(Tensor::<B, 2>::eye(n_embedding, &device)),
+        };
 
         let batch = 2;
         let seq_len = 20;

@@ -22,16 +22,7 @@ use burn::{
 };
 
 use crate::{
-    blocks::transformers::{
-        attention::{
-            kvcache::KVCache,
-            sdpa::{
-                ScaledDotProductAttentionConfig,
-                scaled_dot_product_attention,
-            },
-        },
-        embedding::RotaryEmbedding,
-    },
+    blocks::transformers::embedding::RotaryEmbedding,
     contracts::{
         assert_shape_contract_periodically,
         unpack_shape_contract,
@@ -39,6 +30,11 @@ use crate::{
     errors::{
         BunsenResult,
         WithOkOrPanic,
+    },
+    ops::transformers::attention::{
+        KVCache,
+        ScaledDotProductAttentionConfig,
+        scaled_dot_product_attention,
     },
 };
 

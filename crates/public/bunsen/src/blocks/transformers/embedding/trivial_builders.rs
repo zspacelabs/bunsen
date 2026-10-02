@@ -1,3 +1,5 @@
+//! Fixture embeddings for tests.
+
 use burn::{
     module::Param,
     nn::Embedding,
@@ -8,9 +10,22 @@ use burn::{
     },
 };
 
-/// Builds an iota embedding.
+/// Builds an iota embedding: a fixture whose lookups can be read by hand.
 ///
-/// `weight[i, j] = i * d + j` - every row distinct, lookups hand-verifiable.
+/// `weight[i, j] = i * d + j`, so every row is distinct and the value at any
+/// position names the token and column it came from. This is for tests and
+/// debugging (checking a gather, a slice, or an embedding-weight mapping), not
+/// for training: the weights are a plain counting pattern.
+///
+/// # Arguments
+///
+/// - `n`: the number of embeddings (the vocabulary size).
+/// - `d`: the embedding width.
+/// - `device`: the target device.
+///
+/// # Returns
+///
+/// An [`Embedding`] with a `[n, d]` weight.
 pub fn iota_embedding<B: Backend>(
     n: usize,
     d: usize,
@@ -24,10 +39,23 @@ pub fn iota_embedding<B: Backend>(
     }
 }
 
-/// Builds a one-hot passthrough embedding.
+/// Builds a one-hot passthrough embedding: a fixture for round trips.
 ///
-/// Square identity (`num_embeddings == dim == n`): embedding acts as a one-hot
-/// passthrough.
+/// The weight is the `[n, n]` identity, so token `i` embeds as the one-hot
+/// vector `e_i`, and [`unembed`] through the same weight gives logits whose
+/// `argmax` is the original token. Like [`iota_embedding`], this is for tests
+/// and debugging, not training.
+///
+/// # Arguments
+///
+/// - `n`: the number of embeddings, which is also the embedding width.
+/// - `device`: the target device.
+///
+/// # Returns
+///
+/// An [`Embedding`] with a `[n, n]` identity weight.
+///
+/// [`unembed`]: crate::ops::embedding::unembed
 pub fn identity_embedding<B: Backend>(
     n: usize,
     device: &B::Device,

@@ -1,4 +1,9 @@
-//! # Tensor Extensions
+//! # Repeat-interleave
+//!
+//! [`repeat_interleave`] repeats each element in place, so `[a, b]` becomes
+//! `[a, a, b, b]`, as `NumPy`'s `repeat` and `PyTorch`'s `repeat_interleave`
+//! do. burn's `Tensor::repeat_dim` tiles the whole axis instead, giving
+//! `[a, b, a, b]`.
 
 use burn::{
     Tensor,
@@ -19,17 +24,21 @@ use burn::{
 /// - the interleaved tensor.
 ///
 /// # Examples
-/// ```rust, ignore
-/// use bunsen::support::testing::default_device;
-/// type B = Wgpu;
+/// ```rust
+/// use bunsen::{
+///     ops::repeat::repeat_interleave,
+///     support::testing::default_device,
+/// };
+/// use burn::{
+///     Tensor,
+///     backend::Flex,
+/// };
+///
+/// type B = Flex;
 /// let device = default_device();
 ///
-/// let input = Tensor::<B, 2>::from_data(
-///     [
-///         [0., 1., 2.],
-///         [3., 4., 5.],
-///     ],
-///     &device);
+/// let input =
+///     Tensor::<B, 2>::from_data([[0., 1., 2.], [3., 4., 5.]], &device);
 ///
 /// let result: Tensor<B, 2> = repeat_interleave::<_, 2, 3, _>(input, 3, 1);
 ///
@@ -39,9 +48,11 @@ use burn::{
 ///             [0., 0., 0., 1., 1., 1., 2., 2., 2.],
 ///             [3., 3., 3., 4., 4., 4., 5., 5., 5.],
 ///         ],
-///         &device)
+///         &device,
+///     )
 ///     .to_data(),
-///     true);
+///     true,
+/// );
 /// ```
 pub fn repeat_interleave<B: Backend, const R: usize, const R2: usize, D: AsIndex>(
     input: Tensor<B, R>,

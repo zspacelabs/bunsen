@@ -45,7 +45,7 @@ impl<B: Backend> AttnKvPair<B> {
     /// positions, but a long-context decode wants a preallocated cache
     /// instead; see [`KVCache`].
     ///
-    /// [`KVCache`]: crate::blocks::transformers::attention::kvcache::KVCache
+    /// [`KVCache`]: super::KVCache
     pub fn concat(
         self,
         next: Self,

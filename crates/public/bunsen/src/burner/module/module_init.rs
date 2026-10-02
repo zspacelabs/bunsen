@@ -314,7 +314,7 @@ use crate::errors::{
 ///
 /// [`CausalSelfAttentionConfig::init`]: crate::blocks::transformers::attention::csa::CausalSelfAttentionConfig::init
 /// [`NanoChatGptBlockConfig::init`]: crate::kits::gpts::nanochat::blocks::NanoChatGptBlockConfig::init
-/// [`KVCacheConfig::init`]: crate::blocks::transformers::attention::kvcache::KVCacheConfig::init
+/// [`KVCacheConfig::init`]: crate::ops::transformers::attention::KVCacheConfig::init
 /// [`SileroVadContextConfig::init`]: crate::kits::speech::silero_vad::blocks::SileroVadContextConfig::init
 /// [`LBMD2Q9Config::init`]: crate::kits::sims::lbm::d2q9::LBMD2Q9Config::init
 /// [`ResNetContractConfig`]: crate::kits::bimm::resnet::ResNetContractConfig

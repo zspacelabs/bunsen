@@ -1,4 +1,4 @@
-//! # Attention Extensions
+//! Scaled dot-product attention, as functions.
 
 use burn::{
     Tensor,
@@ -26,17 +26,23 @@ use crate::{
 };
 
 /// Config options for [`scaled_dot_product_attention`].
+///
+/// A value object: [`CausalSelfAttention`] builds one per call, setting
+/// `is_causal` from its KV-cache mode and `enable_gqa` from its head counts.
+///
+/// [`CausalSelfAttention`]: crate::blocks::transformers::attention::csa::CausalSelfAttention
 #[derive(Config, Debug, Copy)]
 pub struct ScaledDotProductAttentionConfig {
     /// Causal or not.
     #[config(default = "false")]
     pub is_causal: bool,
 
-    /// Enable Group Query Attention.
+    /// Enable Group Query Attention: repeat each key/value head
+    /// `H_q / H_kv` times to match the query heads.
     #[config(default = "false")]
     pub enable_gqa: bool,
 
-    /// Manual Scale factor.
+    /// Manual Scale factor; `None` means `1 / sqrt(D)`.
     #[config(default = "None")]
     pub scale: Option<f64>,
 
@@ -59,11 +65,11 @@ pub struct ScaledDotProductAttentionConfig {
 /// - `k`: the key tensor, as `[B, H_k, T_kv, D]`.
 /// - `v`: the value tensor, as `[B, H_v, T_kv, D]`.
 /// - `bias`: optional additive bias, as `[T_q, T_kv]`.
-/// - `mask`: optional bias mask, as `[T_q, T_kv]`.
+/// - `mask`: optional boolean mask, as `[T_q, T_kv]`; `true` means attend.
 /// - `config`: attention config.
 ///
 /// # Returns
-/// - the attention result.
+/// - the `[B, H_q, T_q, D]` attention result.
 pub fn scaled_dot_product_attention<B: Backend>(
     q: Tensor<B, 4>,
     k: Tensor<B, 4>,

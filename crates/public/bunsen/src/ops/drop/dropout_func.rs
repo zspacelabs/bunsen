@@ -22,7 +22,7 @@ pub fn dropout<B: Backend, const D: usize>(
         return input;
     }
     if !(0.0..=1.0).contains(&prob) {
-        panic!("Dropout validators should be between 0 and 1, but got {prob}");
+        panic!("Dropout probability should be between 0 and 1, but got {prob}");
     }
 
     let prob_keep = 1.0 - prob;
@@ -103,7 +103,7 @@ mod tests {
 
     #[test]
     #[serial]
-    #[should_panic = "Dropout validators should be between 0 and 1,"]
+    #[should_panic = "Dropout probability should be between 0 and 1,"]
     fn dropout_prob_invalid() {
         type B = PerformanceBackend;
         let device = default_device();

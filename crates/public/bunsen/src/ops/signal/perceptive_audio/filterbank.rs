@@ -1,13 +1,4 @@
-//! # Mel scale and triangular filterbank.
-//!
-//! Pure host-side construction in `Vec<f64>`; nothing here touches a
-//! `Backend`. The device-side filterbank is lifted from this by
-//! [`MelConverter`](super::PerceptiveAudioConverter), and this module doubles
-//! as the reference the tensor path is checked against.
-//!
-//! The construction follows `librosa.filters.mel`: triangles are laid out on
-//! evenly spaced mel points, evaluated against the `rfft` bin centres, and
-//! optionally area-normalized.
+//! Mel scale and triangular filterbank.
 
 use std::ops::Range;
 
@@ -153,9 +144,19 @@ pub fn mel_points(
 
 /// Configures a row-major `[n_mels, n_bins]` triangular mel filterbank.
 ///
+/// Construction is host-side, in `Vec<f64>`, and touches no `Backend`;
+/// [`PerceptiveAudioConverter`] builds its device-side filterbank from it
+/// (through [`to_mel_filterbank_config`]).
+/// It follows `librosa.filters.mel`: triangles are laid out on evenly spaced
+/// mel points, evaluated against the `rfft` bin centres, and optionally
+/// area-normalized.
+///
 /// `n_bins` is `n_fft / 2 + 1`, matching the `rfft` bin count, and bin `j`
 /// sits at `j * sample_rate / n_fft` Hz. Triangle `i` rises from
 /// `mel_points[i]` to `mel_points[i + 1]` and falls to `mel_points[i + 2]`.
+///
+/// [`PerceptiveAudioConverter`]: super::PerceptiveAudioConverter
+/// [`to_mel_filterbank_config`]: super::PerceptiveAudioConverterOptions::to_mel_filterbank_config
 #[derive(Config, Debug)]
 pub struct MelFilterbankConfig {
     /// The sample rate, in Hz.
