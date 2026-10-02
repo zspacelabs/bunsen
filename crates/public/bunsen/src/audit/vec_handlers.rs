@@ -1,7 +1,7 @@
 use core::fmt::Debug;
 
 use crate::{
-    burner::testing::audit::{
+    audit::{
         AuditProbeEvent,
         AuditProbeEventStub,
         AuditProbeEventView,
@@ -11,7 +11,13 @@ use crate::{
     errors::BunsenResult,
 };
 
-/// An [`AuditProbeEvent`] recorder.
+/// An [`AuditProbeEventHandler`] that records events in a public `Vec`.
+///
+/// The older in-memory recorder; [`into_verifier`](Self::into_verifier) gives
+/// an [`AuditProbeVecVerifier`]. Prefer [`AuditStreamRecorder`], whose verifier
+/// detects a short run, and which can save to disk.
+///
+/// [`AuditStreamRecorder`]: crate::audit::AuditStreamRecorder
 #[derive(Debug, Clone, Default)]
 pub struct AuditProbeVecRecorder {
     /// Recorded events.
@@ -35,7 +41,14 @@ impl AuditProbeEventHandler for AuditProbeVecRecorder {
     }
 }
 
-/// An [`AuditProbeEvent`] verifier.
+/// An [`AuditProbeEventHandler`] that verifies events against an expected
+/// `Vec`, in order.
+///
+/// Each event is matched against the next expected one with
+/// [`try_match_events`]. It panics on an event past the end, and cannot report
+/// expected events that never arrived; prefer [`AuditStreamVerifier`].
+///
+/// [`AuditStreamVerifier`]: crate::audit::AuditStreamVerifier
 #[derive(Debug, Clone, Default)]
 pub struct AuditProbeVecVerifier {
     events: Vec<AuditProbeEvent>,
