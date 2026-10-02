@@ -30,8 +30,9 @@ warnings = "deny"
 exported_private_dependencies = "allow"
 
 [workspace.lints.clippy]
-double_must_use = "allow"
 doc_markdown = "warn"
+double_must_use = "allow"
+redundant_field_names = "allow"
 
 [profile.dev]
 opt-level = 1
