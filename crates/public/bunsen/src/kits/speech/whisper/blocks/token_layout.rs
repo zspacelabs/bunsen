@@ -1,14 +1,4 @@
 //! # The token layout a checkpoint's vocabulary follows.
-//!
-//! `whisper/tokenizer.py` appends its specials after the base vocabulary in
-//! a fixed order: `<|endoftext|>` and `<|startoftranscript|>`, one token per
-//! language, six control tokens, then the timestamps. What a checkpoint
-//! decides is the base vocabulary and the language count, and those are
-//! read off it. What it takes on convention is everything else: the
-//! language codes and their order, the two base sizes, the spellings, and
-//! the timestamp grid. [`WhisperTokenLayoutConfig`] declares those on the
-//! model, defaulting to upstream's. The ids derived from it, and the policy
-//! over them, live with the driver.
 
 use burn::config::Config;
 
@@ -49,6 +39,20 @@ pub const CONTROL_TOKENS: [&str; 6] = [
 ];
 
 /// The token layout a checkpoint's vocabulary follows.
+///
+/// `whisper/tokenizer.py` appends its specials after the base vocabulary
+/// in a fixed order: `<|endoftext|>` and `<|startoftranscript|>`, one token
+/// per language, six control tokens, then the timestamps. What a
+/// checkpoint decides is the base vocabulary and the language count, and
+/// those are read off it. What it takes on convention is everything else:
+/// the language codes and their order, the two base sizes, the spellings,
+/// and the timestamp grid. This declares those on the model
+/// ([`WhisperApiConfig::token_layout`](super::WhisperApiConfig::token_layout)),
+/// defaulting to upstream's. The ids derived from it
+/// ([`WhisperSpecialIds`](crate::kits::speech::whisper::driver::WhisperSpecialIds))
+/// and the view of them a decode holds
+/// ([`WhisperTokenLayout`](crate::kits::speech::whisper::driver::WhisperTokenLayout),
+/// from [`policy_for_vocab`](Self::policy_for_vocab)) live in the driver.
 ///
 /// The roles are positional and fixed &mdash; two leading specials, the
 /// language block, six control tokens, the timestamps &mdash; and this

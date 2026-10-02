@@ -1,34 +1,4 @@
 //! # Silero VAD model.
-//!
-//! [Silero VAD][s] is a small, streaming voice-activity-detection model: given
-//! a short chunk of mono audio and the previous recurrent state, it emits a
-//! per-chunk speech probability and the next state.
-//!
-//! [s]: https://github.com/snakers4/silero-vad
-//!
-//! A [`SileroVad`] model is
-//! built for a single sample rate &mdash; the rate is a property of the model
-//! (and its loaded weights), not a forward-time argument. Multi-rate routing,
-//! if needed, belongs at a higher level.
-//!
-//! The pipeline is:
-//!
-//! 1. an STFT-style analysis [`Conv1d`] (`1 -> 2 * n_freq` channels), whose
-//!    output halves are combined as `sqrt(real^2 + imag^2)` into `n_freq`
-//!    magnitude bins,
-//! 2. a 4-block `ReLU` [`ConvSeq1d`] encoder producing a `hidden`-wide feature
-//!    frame,
-//! 3. a single-step LSTM cell (two gate projections: one over the recurrent
-//!    hidden state, one over the encoder feature),
-//! 4. a `1x1` [`Conv1d`] + sigmoid output head producing the speech
-//!    probability.
-//!
-//! The recurrent state is packed as `[2, batch, d_hidden]`, stacking the LSTM
-//! hidden and cell states along dim 0.
-//!
-//! [`SileroVad::forward`] runs one chunk per call (matching the ONNX
-//! graph), while [`SileroVad::forward_sequence`] streams a whole
-//! chunk-sequence through a single stream, carrying state across chunks.
 
 use burn::{
     config::Config,
@@ -221,7 +191,7 @@ pub trait SileroVadMeta {
     /// The reflect-padding applied to the right of the input before the STFT
     /// conv.
     ///
-    /// This is generally 2x the STFT stride.
+    /// This is generally half the STFT stride.
     fn input_pad(&self) -> usize;
 
     /// The kernel size of the STFT conv.
@@ -384,8 +354,57 @@ impl<B: Backend> ModuleInit<B, SileroVad<B>> for SileroVadStructureConfig {
 
 /// Silero VAD model for a single sample rate.
 ///
-/// Implements [`SileroVadMeta`]; built by
-/// [`SileroVadStructureConfig`].
+/// [Silero VAD][s] is a small, streaming voice-activity-detection model:
+/// given a short chunk of mono audio and the previous recurrent state, it
+/// emits a per-chunk speech probability and the next state.
+///
+/// [s]: https://github.com/snakers4/silero-vad
+///
+/// A model is built for a single sample rate: the rate is a property of
+/// the model (and its loaded weights), not a forward-time argument. A
+/// checkpoint carries both rates as a
+/// [`SileroVadCollection`](super::SileroVadCollection), which routes by rate.
+///
+/// # Pipeline
+///
+/// The chunk is reflect-padded on the right by
+/// [`input_pad`](SileroVadMeta::input_pad) samples, then:
+///
+/// 1. an STFT-style analysis [`Conv1d`] (`1 -> 2 * n_freq` channels), whose
+///    output halves are combined as `sqrt(real^2 + imag^2)` into `n_freq`
+///    magnitude bins;
+/// 2. a 4-block `ReLU` [`ConvSeq1d`] encoder producing a `d_hidden`-wide
+///    feature frame;
+/// 3. a single-step LSTM cell (two gate projections: one over the recurrent
+///    hidden state, one over the encoder feature);
+/// 4. an output head, a `ReLU`, a `1x1` [`Conv1d`] and a sigmoid, producing the
+///    speech probability.
+///
+/// The recurrent state is `[2, batch, d_hidden]`, the LSTM hidden and cell
+/// states stacked along dim 0. Each batch row is an independent stream.
+///
+/// # Streams
+///
+/// The model holds no stream state; the caller passes it in and gets the
+/// next back. [`forward`](Self::forward) runs one chunk per call against a
+/// bare recurrent state (matching the ONNX graph), and
+/// [`forward_sequence`](Self::forward_sequence) runs a sequence of chunks,
+/// `[steps, batch, samples]`, carrying the state across them. The context
+/// forms, [`context_forward`](Self::context_forward) and
+/// [`context_forward_sequence`](Self::context_forward_sequence), carry a
+/// [`SileroVadContext`] instead: the recurrent state and the tail of the
+/// last chunk, which each chunk is prefixed with, as upstream's streaming
+/// wrapper does. [`SileroVadContextConfig`](super::SileroVadContextConfig)
+/// opens one per stream.
+///
+/// Implements [`SileroVadMeta`]; built by [`SileroVadStructureConfig`]
+/// (directly, or through [`SileroVadSignalConfig`] and
+/// [`SileroVadStftConfig`]), or loaded with its weights through
+/// [`default_silero_factory`](crate::kits::speech::silero_vad::pretrained::default_silero_factory).
+///
+/// The cross-checks against the ONNX reference live in the
+/// `silero-model-validation` crate. On the burn CUDA backend alone the model
+/// diverges from those golden tests, which points at a backend bug.
 #[derive(Module, Debug)]
 pub struct SileroVad<B: Backend> {
     sample_rate: usize,

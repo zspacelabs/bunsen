@@ -1,7 +1,4 @@
 //! # Whisper geometry
-//!
-//! The comparable core of a [`WhisperApiConfig`]: the numbers a checkpoint
-//! reports, and nothing it cannot.
 
 use super::{
     AUDIO_ENCODER_STRIDE,
@@ -9,13 +6,17 @@ use super::{
     WhisperApiConfig,
 };
 
-/// The geometry a prefab fixes: the numbers
-/// [`PytorchWhisperScanner`](crate::kits::speech::whisper::pretrained::PytorchWhisperScanner)
-/// reads back from a checkpoint, and nothing a checkpoint cannot report.
+/// The geometry a prefab fixes: the numbers a checkpoint scanner reads
+/// back from a checkpoint, plus the head width it declares, and nothing
+/// else a checkpoint cannot report.
 ///
 /// A [`WhisperApiConfig`] carries more (the front end, the token layout)
 /// and is not `PartialEq`; this is the comparable core of one, which is
 /// what lets a checkpoint be checked against the shape its name promised.
+/// [`WHISPER_PREFABS`](crate::kits::speech::whisper::pretrained::WHISPER_PREFABS)
+/// holds the geometry of every checkpoint `openai-whisper` ships, and
+/// [`WhisperConstruct`](crate::kits::speech::whisper::pretrained::WhisperConstruct)
+/// checks each checkpoint it loads against its name's.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct WhisperGeometry {
     /// Mel bands in.

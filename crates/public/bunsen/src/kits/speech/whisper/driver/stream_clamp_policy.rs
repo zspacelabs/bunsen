@@ -1,28 +1,4 @@
 //! # The clamp policy: where a window's dynamic-range floor comes from.
-//!
-//! Whisper floors its log-mels 8 dB below a reference maximum, and
-//! upstream takes that maximum over the **whole clip** before cutting windows.
-//! A stream cannot see the whole clip, so the question of what the reference
-//! is becomes a policy, and the policy is an injected object behind this
-//! trait rather than a variant the driver understands: the driver knows only
-//! that every arriving frame is offered to it once, and that a window's
-//! reference is asked for immediately before packaging.
-//!
-//! The `&mut observe` / `&self reference` split is forced, not chosen. A
-//! provisional decode packages a window without mutating the context, so the
-//! call it makes on the way cannot mutate either; anything a draft reaches
-//! must take `&self`. That is what keeps packaging a window twice from moving
-//! it.
-//!
-//! Two implementations cover the four behaviours that came up in design.
-//! [`RunningMaxClamp`] fed everything before the first packaging is the global
-//! reference upstream uses; fed incrementally it is the running one; and
-//! since a speech region is decoded as its own context, it is the per-region
-//! one too. [`PerWindow`] is today's
-//! [`package_mels`](crate::kits::speech::whisper::blocks::WhisperFrontEndConfig::package_mels).
-//!
-//! Packaging itself, and the clamp range, live in [`mel`](super::mel); a
-//! policy supplies only the reference.
 
 use std::fmt::Debug;
 
@@ -40,7 +16,21 @@ fn row_max<B: Backend>(x: Tensor<B, 3>) -> Tensor<B, 1> {
 
 /// Decides the reference maximum a window is floored against.
 ///
-/// One reference per batch row, in the post-log domain: `[batch]`.
+/// One reference per batch row, in the post-log domain: `[batch]`. Each
+/// stream's context holds its own, injected at
+/// [`new_context`](super::WhisperStreamDriver::new_context); the context
+/// offers it every arriving frame through [`observe`](Self::observe), and
+/// asks it for a window's reference through [`reference`](Self::reference)
+/// just before
+/// [`package_window`](crate::kits::speech::whisper::blocks::WhisperFrontEndConfig::package_window)
+/// floors the window. The driver knows nothing else about it, so a new
+/// behaviour is a new implementor, not a driver change. The
+/// [`driver`](super) module docs explain why the reference is a policy.
+///
+/// `observe` takes `&mut self` and `reference` takes `&self`, and the split
+/// is forced: a decode reads the context through `&self`, so the call it
+/// makes on the way cannot mutate either, and packaging a window for a
+/// draft leaves the policy as the commit will find it.
 ///
 /// Implementors are `Clone`, through [`DynClone`], because the stream
 /// context that holds one boxed is `Clone`. Nothing else is asked of them.
@@ -71,11 +61,11 @@ pub trait StreamClampPolicy<B: Backend>: Send + Sync + Debug + DynClone {
     ) -> Tensor<B, 1>;
 }
 
-// `Box<dyn ClampPolicy<B>>: Clone`, through the concrete policy's `Clone`
-// behind the vtable. A local `CloneBox<dyn ClampPolicy<B>>` supertrait cannot
-// say this: a trait naming its own object type among its supertraits is a
-// cycle (E0391), and a supertrait that does not name it cannot re-fatten the
-// pointer without `dyn_clone`'s erasure.
+// `Box<dyn StreamClampPolicy<B>>: Clone`, through the concrete policy's
+// `Clone` behind the vtable. A local `CloneBox<dyn StreamClampPolicy<B>>`
+// supertrait cannot say this: a trait naming its own object type among its
+// supertraits is a cycle (E0391), and a supertrait that does not name it
+// cannot re-fatten the pointer without `dyn_clone`'s erasure.
 dyn_clone::clone_trait_object!(<B: Backend> StreamClampPolicy<B>);
 
 /// A boxed policy is a policy, so a context may be generic over a concrete
@@ -100,7 +90,7 @@ impl<B: Backend> StreamClampPolicy<B> for Box<dyn StreamClampPolicy<B>> {
 ///
 /// Ignores [`observe`](StreamClampPolicy::observe). This is what
 /// [`package_mels`](crate::kits::speech::whisper::blocks::WhisperFrontEndConfig::package_mels)
-/// does today, and it is the right policy when a window *is* the whole clip.
+/// does, and it is the right policy when a window *is* the whole clip.
 #[derive(Debug, Default, Clone, Copy)]
 pub struct PerWindow;
 
@@ -121,10 +111,12 @@ impl<B: Backend> StreamClampPolicy<B> for PerWindow {
 
 /// The running maximum over everything observed so far, per row.
 ///
-/// Fed the whole clip before the first packaging, this is exactly upstream's
-/// global reference. Fed as audio arrives, it is the running one: a window is
+/// Fed the whole clip before the first packaging (a context written the
+/// whole clip before its first read), this is exactly upstream's global
+/// reference. Fed as audio arrives, it is the running one: a window is
 /// floored against the loudest thing heard *so far*, which is the closest a
-/// live stream can come.
+/// live stream can come. In a context opened per speech region, it is the
+/// per-region one.
 ///
 /// The reference for a window is never below that window's own maximum, so
 /// with nothing observed this degrades to [`PerWindow`] rather than to

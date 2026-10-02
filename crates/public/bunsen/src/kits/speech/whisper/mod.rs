@@ -8,7 +8,8 @@
 //! - [`blocks`]: the model, [`Whisper`], and its configs ([`WhisperApiConfig`]
 //!   describes it as upstream's `ModelDimensions` does; [`WhisperGeometry`] is
 //!   the part a checkpoint fixes).
-//! - [`pretrained`]: names to loaded models. `default_whisper_factory()` is the
+//! - [`pretrained`]: names to loaded models.
+//!   [`default_whisper_factory`](pretrained::default_whisper_factory) is the
 //!   index: `openai/base`, `large`, `well-known:openai/tiny.en`,
 //!   `hf:openai/whisper-large-v3` for a Hugging Face repo, and
 //!   `bundled:openai/base` when the weights are built in. It resolves a name to
@@ -20,6 +21,35 @@
 //! - [`driver`]: [`WhisperStreamDriver`](driver::WhisperStreamDriver) over a
 //!   bundle, and the [context](driver::WhisperStreamContext) it opens on a
 //!   stream: samples in, [`TranscriptEvent`](driver::TranscriptEvent)s out.
+//!
+//! # Lifecycle
+//!
+//! 1. A [`PretrainedCache`](crate::data::pretrained::PretrainedCache): where
+//!    checkpoints and vocabularies land, pinned by digest.
+//! 2. The factory,
+//!    [`default_whisper_factory`](pretrained::default_whisper_factory): a name
+//!    to a row of the index, and the kit's hook to build it.
+//! 3. A [`WhisperBundle`](driver::WhisperBundle) behind an `Arc`, from the
+//!    factory's [`load_bundle`](crate::data::pretrained::PretrainedFactory::load_bundle):
+//!    the model, its token layout and its vocabulary.
+//! 4. A [`WhisperStreamDriverConfig`](driver::WhisperStreamDriverConfig):
+//!    language, task, timestamps, search, and the
+//!    [`EmissionPolicy`](driver::EmissionPolicy).
+//! 5. A [`WhisperStreamDriver`](driver::WhisperStreamDriver) over the bundle,
+//!    from [`init_from_bundle`](driver::WhisperStreamDriverConfig::init_from_bundle):
+//!    shared, and never mutated.
+//! 6. A [`WhisperStreamContext`](driver::WhisperStreamContext) per stream, from
+//!    [`new_context`](driver::WhisperStreamDriver::new_context): all of that
+//!    stream's state.
+//! 7. [`TranscriptEvent`](driver::TranscriptEvent)s, from
+//!    [`write_read`](driver::WhisperStreamContext::write_read) as samples
+//!    arrive and [`end_read`](driver::WhisperStreamContext::end_read) at the
+//!    end.
+//!
+//! Stream state is injected, never owned by the model, so one driver over
+//! one loaded model serves several streams in one process; the [`driver`]
+//! docs explain the split, the emission rules, the stream clock, the clamp
+//! policy and the voice-activity regions.
 //!
 //! # Example
 //!
@@ -115,36 +145,114 @@
 //! # }
 //! ```
 //!
-//! The same driver serves the other ways in. A checkpoint on disk is a
-//! given map, with the same hook the factory would attach:
+//! # Other ways in
 //!
-//! ```rust,ignore
-//! use bunsen::{data::pretrained::{Deferred, ResourceMap}, kits::speech::whisper::pretrained::{CHECKPOINT, WhisperConstruct}};
+//! The same driver serves every other way to a bundle. A checkpoint on disk
+//! is a given map, with the same hook the factory would attach. A Hugging
+//! Face repo is a ref of the `hf` provider, resolved through the cache (the
+//! hub's file listing is fetched once and kept). A vocabulary of one's own
+//! is an overlay on the resolved model. And the real-time emission presets
+//! decode on speech endpoints, so they want a voice-activity model, which
+//! the Silero kit's factory provides the same way; `examples/whisper-cli`
+//! attaches it with [`with_vad`](driver::WhisperStreamDriver::with_vad) as
+//! here.
 //!
-//! fn load_from_path<B: Backend>(path: &Path, cache: &PretrainedCache, device: &B::Device) -> BunsenResult<Arc<WhisperBundle<B>>> {
-//!     Deferred::<WhisperConstruct>::from_map(ResourceMap::given("mine", CHECKPOINT, path))?
+//! ```rust,no_run
+//! # #[cfg(all(feature = "store_pytorch", feature = "cache"))] {
+//! use std::{
+//!     path::Path,
+//!     sync::Arc,
+//! };
+//!
+//! use bunsen::{
+//!     data::pretrained::{
+//!         Deferred,
+//!         PretrainedCache,
+//!         ResourceMap,
+//!     },
+//!     errors::BunsenResult,
+//!     kits::speech::{
+//!         silero_vad::pretrained::default_silero_factory,
+//!         whisper::{
+//!             driver::{
+//!                 EmissionPolicy,
+//!                 VoiceActivityFilterConfig,
+//!                 WhisperBundle,
+//!                 WhisperStreamDriver,
+//!                 WhisperStreamDriverConfig,
+//!             },
+//!             pretrained::{
+//!                 CHECKPOINT,
+//!                 VOCABULARY,
+//!                 WhisperConstruct,
+//!                 default_whisper_factory,
+//!             },
+//!         },
+//!     },
+//! };
+//! use burn::prelude::Backend;
+//!
+//! /// A checkpoint on disk: a given map, read by the reader its file
+//! /// calls for, with the vocabulary its layout selects.
+//! fn load_from_path<B: Backend>(
+//!     path: &Path,
+//!     cache: &PretrainedCache,
+//!     device: &B::Device,
+//! ) -> BunsenResult<Arc<WhisperBundle<B>>> {
+//!     Deferred::<WhisperConstruct>::from_map(ResourceMap::given(
+//!         "mine", CHECKPOINT, path,
+//!     ))?
+//!     .load_bundle::<B>(cache, device)
+//! }
+//!
+//! /// A Hugging Face repo: `transformers`' safetensors, one file or shards.
+//! fn load_from_hub<B: Backend>(
+//!     cache: &PretrainedCache,
+//!     device: &B::Device,
+//! ) -> BunsenResult<Arc<WhisperBundle<B>>> {
+//!     default_whisper_factory()?.load_bundle::<B>(
+//!         "hf:openai/whisper-large-v3",
+//!         cache,
+//!         device,
+//!     )
+//! }
+//!
+//! /// A named model with a vocabulary file of one's own over its row's.
+//! fn load_with_vocabulary<B: Backend>(
+//!     vocabulary: &Path,
+//!     cache: &PretrainedCache,
+//!     device: &B::Device,
+//! ) -> BunsenResult<Arc<WhisperBundle<B>>> {
+//!     default_whisper_factory()?
+//!         .resolve("openai/tiny.en", cache)?
+//!         .with_overlay(ResourceMap::given(
+//!             "--vocab", VOCABULARY, vocabulary,
+//!         ))?
 //!         .load_bundle::<B>(cache, device)
 //! }
+//!
+//! /// Conservative real time: decodes on speech endpoints as well as full
+//! /// windows, with the bundled Silero model as the voice-activity gate.
+//! fn conservative_driver<B: Backend>(
+//!     bundle: Arc<WhisperBundle<B>>,
+//!     cache: &PretrainedCache,
+//!     device: &B::Device,
+//! ) -> BunsenResult<WhisperStreamDriver<B>> {
+//!     let vad = default_silero_factory()?
+//!         .load::<B>("bundled:silero/vad", cache, device)?
+//!         .handle;
+//!     // The 16 kHz branch, and the filter's 16 kHz defaults: the model's
+//!     // rate.
+//!     WhisperStreamDriverConfig::new()
+//!         .with_emission(EmissionPolicy::conservative())
+//!         .init_from_bundle(bundle, device)?
+//!         .with_vad(
+//!             vad.expect_branch(16_000).clone(),
+//!             VoiceActivityFilterConfig::default(),
+//!         )
+//! }
+//! # }
 //! ```
-//!
-//! A Hugging Face repo is a ref of the `hf` provider, resolved through the
-//! cache (the hub's file listing is fetched once and kept), and a
-//! vocabulary of one's own is an overlay on the resolved model:
-//!
-//! ```rust,ignore
-//! let factory = default_whisper_factory()?;
-//! let bundle = factory.load_bundle::<B>("hf:openai/whisper-large-v3", &cache, device)?;
-//!
-//! let model = factory
-//!     .resolve("openai/tiny.en", &cache)?
-//!     .with_overlay(ResourceMap::given("--vocab", VOCABULARY, "/vocab/gpt2.tiktoken"))?;
-//! let bundle = model.load_bundle::<B>(&cache, device)?;
-//! ```
-//!
-//! The real-time emission presets decode on speech endpoints and want a
-//! voice-activity model, which the Silero kit's factory provides the same
-//! way; `examples/whisper-cli` attaches it with
-//! [`with_vad`](driver::WhisperStreamDriver::with_vad).
 
 pub mod blocks;
 pub mod decode;

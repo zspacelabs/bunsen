@@ -1,8 +1,4 @@
 //! # Constructing a Silero VAD pretrained
-//!
-//! The [`Construct`] hook for the Silero kit: from a resolved model to a
-//! [`SileroVadCollection`], both sample-rate branches read from the one
-//! burnpack with upstream's keying.
 
 use std::sync::Arc;
 
@@ -27,6 +23,12 @@ use crate::{
 
 /// How a Silero pretrained is built: the burnpack, read into both
 /// branches.
+///
+/// The [`Construct`] hook for the Silero kit: from a resolved model to a
+/// [`SileroVadCollection`], both sample-rate branches read from the one
+/// burnpack with upstream's keying.
+/// [`default_silero_factory`](super::default_silero_factory) attaches it;
+/// a caller never builds one.
 #[derive(Clone, Debug, Default)]
 pub struct SileroConstruct;
 

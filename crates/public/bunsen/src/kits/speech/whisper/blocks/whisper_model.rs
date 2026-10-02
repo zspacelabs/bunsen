@@ -110,7 +110,13 @@ impl ToStructureConfig for WhisperApiConfig {
     }
 }
 
-/// Common meta for [`Whisper`] and [`WhisperStructureConfig`].
+/// [`Whisper`] Meta: the dimensions a built model and its structure config
+/// both answer, so a caller reads them the same way before and after
+/// [`ModuleInit`].
+///
+/// Implemented by:
+/// * [`WhisperStructureConfig`]
+/// * [`Whisper`]
 pub trait WhisperMeta {
     /// The audio front end the model's log-mels are computed with.
     fn front_end(&self) -> &WhisperFrontEndConfig;

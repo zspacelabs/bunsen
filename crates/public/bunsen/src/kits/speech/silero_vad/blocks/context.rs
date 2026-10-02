@@ -7,7 +7,11 @@ use burn::{
 
 use crate::kits::speech::silero_vad::SileroVad;
 
-/// Common methods for [`SileroVad`] and [`SileroVadContext`].
+/// Common methods for [`SileroVadContextConfig`] and [`SileroVadContext`].
+///
+/// Implemented by:
+/// * [`SileroVadContextConfig`]
+/// * [`SileroVadContext`]
 pub trait SileroVadContextMeta {
     /// The sample rate (in Hz) this context expects, e.g. `16000`.
     fn sample_rate(&self) -> usize;
@@ -19,7 +23,12 @@ pub trait SileroVadContextMeta {
     fn context_size(&self) -> usize;
 }
 
-/// Config for [`SileroVadContext`].
+/// Config for [`SileroVadContext`]: one stream's continuation state.
+///
+/// [`init`](Self::init) opens a context against a [`SileroVad`] at this
+/// config's rate; the model's
+/// [`context_forward`](SileroVad::context_forward) consumes it and returns
+/// the next one.
 #[derive(Config, Debug)]
 pub struct SileroVadContextConfig {
     /// The sample rate (in Hz) this context expects, e.g. `16000`.
@@ -50,8 +59,17 @@ impl SileroVadContextMeta for SileroVadContextConfig {
 
 /// Context and state for sequential mode for [`SileroVad`].
 ///
-/// Built by [`SileroVadContextConfig`].
-/// Implements [`SileroVadContextMeta`].
+/// What a stream carries between chunks, held by the caller rather than
+/// the model: the tail of the last chunk, which the next is prefixed with,
+/// and the recurrent state. So one loaded model serves any number of
+/// streams, each with a context of its own; the Whisper stream driver
+/// keeps one per stream it gates.
+///
+/// Built by [`SileroVadContextConfig`], or by
+/// [`SileroVad::init_context`]; threaded through
+/// [`SileroVad::context_forward`] and
+/// [`SileroVad::context_forward_sequence`], each of which takes one and
+/// returns the next. Implements [`SileroVadContextMeta`].
 #[derive(Module, Debug)]
 pub struct SileroVadContext<B: Backend> {
     /// The sample rate of the context.

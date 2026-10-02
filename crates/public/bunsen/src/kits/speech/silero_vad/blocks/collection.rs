@@ -13,6 +13,12 @@ use crate::{
 };
 
 /// Collection of sample-rate Silero VAD models.
+///
+/// What a Silero checkpoint holds, and what
+/// [`SileroConstruct`](crate::kits::speech::silero_vad::pretrained::SileroConstruct)
+/// builds: one [`SileroVad`] per sample rate (16 kHz and 8 kHz for the
+/// upstream graph). A stream picks its branch by rate with
+/// [`try_branch`](Self::try_branch) or [`expect_branch`](Self::expect_branch).
 #[derive(Module, Debug)]
 pub struct SileroVadCollection<B: Backend> {
     /// Per-sample-rate models.
@@ -20,10 +26,13 @@ pub struct SileroVadCollection<B: Backend> {
 }
 
 impl<B: Backend> SileroVadCollection<B> {
-    /// Look up the metadata for the given sample rate.
+    /// The model for the given sample rate.
     ///
     /// # Arguments
     /// * `sample_rate`: Sample rate in Hz.
+    ///
+    /// # Errors
+    /// [`BunsenError::ResourceNotFound`] naming the rates there are.
     pub fn try_branch(
         &self,
         sample_rate: usize,

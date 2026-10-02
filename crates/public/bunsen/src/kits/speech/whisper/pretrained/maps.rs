@@ -1,17 +1,4 @@
 //! # Whisper resource maps
-//!
-//! What each `openai` pretrained is made of, as resource maps: one map per
-//! checkpoint, one per vocabulary, each a single file under the `openai`
-//! namespace. A pretrained row fuses a checkpoint map with the vocabulary
-//! map its token layout selects; a path arrives as a one-resource map, and
-//! the rule that selects its vocabulary is [`WhisperVocabulary::for_layout`].
-//!
-//! The checkpoints are `whisper/__init__.py`'s `_MODELS`: each file under
-//! upstream's download root, a "trust me" base used in place, and then
-//! upstream's digest-addressed URL. The vocabularies are the two `.tiktoken`
-//! rank files at the commit that last touched them. Nothing here names a
-//! bundle: a bundled copy is a cache directory populated ahead of time, and
-//! the cache hits it without knowing.
 
 use crate::{
     data::pretrained::{
@@ -161,6 +148,19 @@ openai_checkpoint!(
 );
 
 /// Every `openai` checkpoint map, in upstream's order.
+///
+/// What each `openai` pretrained is made of, as resource maps: one map per
+/// checkpoint, one per vocabulary ([`OPENAI_VOCABULARIES_MAPS`]), each a
+/// single file under the `openai` namespace. A pretrained row fuses a
+/// checkpoint map with the vocabulary map its token layout selects; a path
+/// arrives as a one-resource map, and the rule that selects its vocabulary
+/// is [`WhisperVocabulary::for_layout`].
+///
+/// The checkpoints are `whisper/__init__.py`'s `_MODELS`: each file under
+/// upstream's download root ([`UPSTREAM_BASE`], a "trust me" base used in
+/// place), and then upstream's digest-addressed URL. Nothing here names a
+/// bundle: a bundled copy is a cache directory populated ahead of time, and
+/// the cache hits it without knowing.
 pub static OPENAI_CHECKPOINTS: &[&StaticResourceMap<'static>] = &[
     &TINY_EN_CHECKPOINT,
     &TINY_CHECKPOINT,
@@ -218,6 +218,10 @@ pub static GPT2_VOCABULARY: StaticResourceMap<'static> = StaticResourceMap {
 };
 
 /// Both vocabulary maps: multilingual first.
+///
+/// The two `.tiktoken` rank files, fetched from the commit of
+/// `openai/whisper` that last touched them, so each URL names one file
+/// forever.
 pub static OPENAI_VOCABULARIES_MAPS: &[&StaticResourceMap<'static>] =
     &[&MULTILINGUAL_VOCABULARY, &GPT2_VOCABULARY];
 

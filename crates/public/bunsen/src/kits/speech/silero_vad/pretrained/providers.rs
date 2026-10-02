@@ -1,11 +1,4 @@
 //! # Silero VAD pretrained providers
-//!
-//! One row, `bundled:silero/vad`: the Silero VAD graph, both sample-rate
-//! branches, as the burnpack `bunsen-bundled-silero` generates from the
-//! ONNX export and links into the binary. It has no URL: the burnpack is
-//! bunsen's build artifact, pinned to the digest that build computed, and
-//! written into the cache from the binary on first use. Without the
-//! `silero-weights` feature the factory has no providers.
 
 use std::sync::Arc;
 
@@ -102,6 +95,12 @@ pub use bundled::*;
 
 /// Silero's compiled-in providers, in search order: the bundled table with
 /// the `silero-weights` feature, nothing without.
+///
+/// One row, `bundled:silero/vad`: the Silero VAD graph, both sample-rate
+/// branches, as the burnpack `bunsen-bundled-silero` generates from the
+/// ONNX export and links into the binary. It has no URL: the burnpack is
+/// bunsen's build artifact, pinned to the digest that build computed, and
+/// written into the cache from the binary on first use.
 pub fn default_silero_providers() -> Vec<Arc<dyn PretrainedProvider>> {
     #[cfg(feature = "silero-weights")]
     {
@@ -115,6 +114,11 @@ pub fn default_silero_providers() -> Vec<Arc<dyn PretrainedProvider>> {
 
 /// Silero's factory: [`default_silero_providers`] behind
 /// [`SileroConstruct`].
+///
+/// The index a caller holds: `load("bundled:silero/vad", ..)` gives the
+/// [`SileroVadCollection`](crate::kits::speech::silero_vad::SileroVadCollection).
+/// Without the `silero-weights` feature it has no providers, and every
+/// name is not found.
 ///
 /// # Errors
 /// [`BunsenError::Invalid`](crate::errors::BunsenError::Invalid) if two of

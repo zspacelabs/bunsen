@@ -1,15 +1,4 @@
 //! # Greedy search, expressed through the search seam.
-//!
-//! One row per audio, the argmax every step; or, above temperature zero,
-//! a sample from the softmax of the logits over the temperature, drawn by
-//! the Gumbel-max trick on the backend's own random numbers (so `B::seed`
-//! makes it repeatable), with `group` independent trajectories per audio
-//! for the ranker to choose among &mdash; upstream's `best_of`. Rows finish
-//! independently: a row that emits `<|endoftext|>` stops contributing, but the
-//! batch keeps stepping until every row has finished or the cap is reached, so
-//! a finished row is fed a filler token whose output is discarded. The filler
-//! is the first prompt token rather than the stop token, because the stop
-//! token need not be a valid embedding index.
 
 use burn::{
     Tensor,
@@ -26,6 +15,21 @@ use burn::{
 use crate::kits::speech::whisper::decode::TokenDecoder;
 
 /// The argmax, one row per audio; or sampling, `group` rows per audio.
+///
+/// Greedy search through the [`TokenDecoder`] seam: one row per audio, the
+/// argmax every step; or, above temperature zero, a sample from the softmax
+/// of the logits over the temperature, drawn by the Gumbel-max trick on the
+/// backend's own random numbers (so `B::seed` makes it repeatable), with
+/// `group` independent trajectories per audio for the ranker to choose
+/// among: upstream's `best_of`.
+///
+/// Rows finish independently: a row that emits `<|endoftext|>` stops
+/// contributing, but the batch keeps stepping until every row has finished
+/// or the cap is reached, so a finished row is fed a filler token whose
+/// output is discarded.
+/// [`DecodeConfig::init_decoder`](super::DecodeConfig::init_decoder) makes
+/// the filler the first prompt token rather than the stop token, because
+/// the stop token need not be a valid embedding index.
 #[derive(Debug, Clone)]
 pub struct WhisperGreedyDecoder {
     eot: i64,

@@ -1,10 +1,4 @@
 //! # Whisper vocabularies
-//!
-//! The rank file a token layout selects, brought local through the cache
-//! and parsed: [`WhisperVocabulary::load`]. The files themselves are the
-//! two maps [`MULTILINGUAL_VOCABULARY`](super::MULTILINGUAL_VOCABULARY) and
-//! [`GPT2_VOCABULARY`](super::GPT2_VOCABULARY), pinned to the commit that
-//! last touched them.
 
 use crate::{
     data::pretrained::PretrainedCache,
@@ -27,6 +21,12 @@ pub const OPENAI_VOCAB_REVISION: &str = "839639a223b92ad61851baae9ad8a695ccb41ce
 impl WhisperVocabulary {
     /// The rank file, brought local through the cache and parsed: the
     /// cache, or one 800 KB fetch from the pinned commit.
+    ///
+    /// The files are the two maps
+    /// [`MULTILINGUAL_VOCABULARY`](super::MULTILINGUAL_VOCABULARY) and
+    /// [`GPT2_VOCABULARY`](super::GPT2_VOCABULARY), pinned to
+    /// [`OPENAI_VOCAB_REVISION`]. A loaded bundle already carries its
+    /// vocabulary; this is for a caller that wants the ranks alone.
     ///
     /// # Errors
     /// As [`PretrainedCache::resolve`], and [`TiktokenRanks::load`] if the

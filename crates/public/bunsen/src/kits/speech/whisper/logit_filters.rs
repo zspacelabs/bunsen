@@ -1,4 +1,16 @@
 //! # Logit filters.
+//!
+//! What a decode may and may not emit. A [`LogitFilter`] rewrites the last
+//! position's logits before the search sees them; a decode applies its
+//! filters every step, in order. [`default_filters`] is upstream's default
+//! pair over a vocabulary ([`SuppressBlank`], then [`SuppressTokens`] over
+//! [`default_suppress_tokens`]), which a
+//! [`WhisperBundle`](crate::kits::speech::whisper::driver::WhisperBundle)
+//! with a vocabulary supplies; [`ApplyTimestampRules`] is the timestamp
+//! grammar the stream driver appends when timestamps are on; and
+//! [`RestrictToLanguages`] is language detection. A filter is an injected
+//! object, so a caller's own rule is one more implementor, set with
+//! [`with_logit_filters`](crate::kits::speech::whisper::driver::WhisperStreamDriver::with_logit_filters).
 
 use std::{
     fmt::Debug,

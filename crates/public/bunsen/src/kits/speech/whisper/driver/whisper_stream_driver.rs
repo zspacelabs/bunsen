@@ -50,7 +50,17 @@ use crate::{
     },
 };
 
-/// Config for [`WhisperStreamDriver`].
+/// Config for [`WhisperStreamDriver`]: what each window is decoded as, and
+/// when a stream emits.
+///
+/// Set the language, task, timestamps, search, [`EmissionPolicy`] and
+/// fallback ladder here, then build the driver over a loaded
+/// [`WhisperBundle`] with [`init_from_bundle`](Self::init_from_bundle),
+/// over a bare model with [`init`](Self::init), or over a model and an
+/// explicit token layout with [`init_with_layout`](Self::init_with_layout).
+/// The driver keeps a copy of this config, and opens a
+/// [`WhisperStreamContext`] per stream with
+/// [`new_context`](WhisperStreamDriver::new_context).
 #[derive(Config, Debug)]
 pub struct WhisperStreamDriverConfig {
     /// The language of the speech, as a
@@ -104,6 +114,9 @@ pub struct WhisperStreamDriverConfig {
     pub condition_on_previous_text: bool,
 
     /// When to decode, and when a decode is final.
+    ///
+    /// A policy with the `endpoint` trigger needs a voice-activity model,
+    /// attached with [`with_vad`](WhisperStreamDriver::with_vad).
     #[config(default = "EmissionPolicy::offline()")]
     pub emission: EmissionPolicy,
 
@@ -263,8 +276,15 @@ impl WhisperStreamDriverConfig {
 /// The shared, immutable half of a transcription: what every stream needs
 /// and none of them mutates.
 ///
-/// Built by [`WhisperStreamDriverConfig::init`]. Opens streams with
-/// [`new_context`](Self::new_context).
+/// Built by [`WhisperStreamDriverConfig`]
+/// ([`init_from_bundle`](WhisperStreamDriverConfig::init_from_bundle) and
+/// its siblings), then optionally given a voice-activity model with
+/// [`with_vad`](Self::with_vad). Opens streams with
+/// [`new_context`](Self::new_context): each [`WhisperStreamContext`] holds
+/// a clone of the driver, which is cheap (the bundle is an `Arc`, and
+/// tensors are shared), and all the state of its stream. So one driver
+/// serves any number of streams in one process, and
+/// [`advance_ready`](super::advance_ready) batches their decodes.
 #[derive(Clone, Debug)]
 pub struct WhisperStreamDriver<B: Backend> {
     config: WhisperStreamDriverConfig,
@@ -506,7 +526,8 @@ impl<B: Backend> WhisperStreamDriver<B> {
     /// * `clock` - the stream's sample-to-time map. A bare stream gets
     ///   [`StreamClock::uniform`] at [`sample_rate`](Self::sample_rate).
     /// * `clamp` - where each window's dynamic-range reference comes from: a
-    ///   concrete policy, or a `Box<dyn ClampPolicy<B>>` chosen at run time.
+    ///   concrete policy, or a `Box<dyn StreamClampPolicy<B>>` chosen at run
+    ///   time.
     ///
     /// # Errors
     /// [`BunsenError::Invalid`] if the clock does not run at the model's

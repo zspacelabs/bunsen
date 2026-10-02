@@ -1,37 +1,4 @@
 //! # The stream context: one transcription in progress.
-//!
-//! [`push`](WhisperStreamContext::write_read) is a fold: append to staging,
-//! drain whole hops into the mel context, append the frames to the ring, offer
-//! them to the clamp policy, offer the samples to the voice-activity gate, then
-//! run whatever the emission policy says is due. The hop-alignment
-//! requirement never reaches the caller &mdash; staging makes the API honest
-//! against a sound card that hands over 480- or 1024-sample buffers.
-//!
-//! [`feed`](WhisperStreamContext::write) is the first half of that fold and
-//! [`advance`](WhisperStreamContext::read) the second, so that a batch of
-//! streams can be fed one at a time and advanced together by
-//! [`advance_ready`](super::advance_ready).
-//!
-//! Nothing tensor-shaped crosses a window boundary. Continuity is three
-//! host-side values: the seek pointer, the prompt carry, and the clock. The
-//! ring holds every frame from `seek` onward and nothing before it.
-//!
-//! ## Regions
-//!
-//! With the `endpoint` trigger, a speech region closed by the gate is a
-//! decode unit of its own: its frames are cut from the ring, decoded, and
-//! committed with times off the parent stream's clock &mdash; region-as-
-//! stream, without a second stream object. A full window is then decoded
-//! only if speech is in progress inside it; a full window of silence is
-//! skipped, not decoded, which is the gating half of voice activity.
-//!
-//! ## What a decode may touch
-//!
-//! Anything a provisional decode reaches takes `&self`: packaging asks the
-//! clamp policy for a reference through `&self`, the model is pure, and the
-//! prompt is read. That is what keeps drafts, when they arrive, from becoming
-//! a second code path &mdash; and it is checkable today, through the
-//! test-only probe.
 
 use std::collections::VecDeque;
 
@@ -102,13 +69,17 @@ struct Pending<B: Backend> {
 /// Repeats until no context has anything due, so a context with several
 /// windows waiting gets them all; a context with nothing due but a draft
 /// due contributes the draft, batched the same way. Returns each context's
-/// emissions, in the order of `contexts`.
+/// emissions, in the order of `contexts`. Windows that decode under the same
+/// prompt share one batched first rung; a context that needs a rung above
+/// it climbs the rest of the fallback ladder alone. Each context's events
+/// are what its own [`read`](WhisperStreamContext::read) would have
+/// returned.
 ///
 /// # Arguments
 /// * `driver` - the driver the contexts were opened from.
 /// * `contexts` - the streams, fed through
-///   [`feed`](WhisperStreamContext::write) rather than
-///   [`push`](WhisperStreamContext::write_read), so that nothing has been
+///   [`write`](WhisperStreamContext::write) rather than
+///   [`write_read`](WhisperStreamContext::write_read), so that nothing has been
 ///   decoded yet.
 ///
 /// # Errors
@@ -186,10 +157,19 @@ pub fn advance_ready<B: Backend>(
 
 /// One stream: the only stateful type in the driver.
 ///
-/// Opened by [`WhisperStreamDriver::new_context`]. Its tensor state &mdash; the
-/// driver's handle, the mel carry, the frame ring, the VAD state &mdash; is
-/// `Module` typed; everything else is host-side bookkeeping, small enough to
-/// snapshot.
+/// Opened by [`WhisperStreamDriver::new_context`], with the stream's
+/// [`StreamClock`] and its [`StreamClampPolicy`]; it holds a clone of the
+/// driver, whose model and bundle are shared, so a driver opens as many as
+/// it has streams. Samples go in through
+/// [`write_read`](Self::write_read), or [`write`](Self::write) and
+/// [`read`](Self::read) apart, and come out as [`TranscriptEvent`]s;
+/// [`end_read`](Self::end_read) ends the stream and decodes what is left.
+/// The [`driver`](super) module docs walk through the fold, the emission
+/// rules, the clock and the voice-activity regions.
+///
+/// Its tensor state (the mel front end's carry, the frame ring, the clamp
+/// policy's, the voice-activity model's) lives on the device; everything
+/// else is host-side bookkeeping, small enough to snapshot.
 ///
 /// Not itself a `Module`, deliberately: `burn`'s derive treats every field
 /// whose type mentions `B` as a module, `#[module(skip)]` or not, and
@@ -281,6 +261,10 @@ struct Due {
 
 impl<B: Backend> WhisperStreamContext<B> {
     /// Initialize a new context.
+    ///
+    /// [`WhisperStreamDriver::new_context`] is the way in: it checks that
+    /// the clock runs at the model's rate and that a policy wanting
+    /// endpoints has a voice-activity model, which this does not.
     pub fn init(
         driver: WhisperStreamDriver<B>,
         clock: StreamClock,
@@ -369,8 +353,8 @@ impl<B: Backend> WhisperStreamContext<B> {
         self.vad.as_ref().map_or(0, |v| v.regions.len())
     }
 
-    /// Whether [`flush`](Self::end_read) or [`end_input`](Self::end_input) has
-    /// run.
+    /// Whether [`end_read`](Self::end_read) or [`end_input`](Self::end_input)
+    /// has run.
     pub fn is_finished(&self) -> bool {
         self.finished
     }
@@ -385,10 +369,12 @@ impl<B: Backend> WhisperStreamContext<B> {
 
     // ---- input -------------------------------------------------------
 
-    /// Anchor the clock, then [`write_read`](`Self::write_read`).
+    /// Anchors the clock, then [`write_read`](Self::write_read): the first
+    /// of `samples` is placed at media time `time`, and later times follow
+    /// from there.
     ///
     /// # Errors
-    /// As [`push`](Self::write_read) and [`StreamClock::anchor`].
+    /// As [`write_read`](Self::write_read) and [`StreamClock::anchor`].
     pub fn anchor_write_read(
         &mut self,
         time: f64,
@@ -398,9 +384,8 @@ impl<B: Backend> WhisperStreamContext<B> {
         self.write_read(samples)
     }
 
-    /// Push samples, emit all finalized [`TranscriptEvent`]s.
-    ///
-    /// [`feed`](Self::write) then [`advance`](Self::read).
+    /// Writes samples and returns the [`TranscriptEvent`]s they made due:
+    /// [`write`](Self::write) then [`read`](Self::read).
     ///
     /// # Errors
     ///
@@ -414,7 +399,7 @@ impl<B: Backend> WhisperStreamContext<B> {
     }
 
     /// Takes samples in without decoding: the front end and the gate run,
-    /// nothing else. Pair with [`advance`](Self::read), or with
+    /// nothing else. Pair with [`read`](Self::read), or with
     /// [`advance_ready`](super::advance_ready) across many streams.
     ///
     /// # Errors
@@ -440,7 +425,8 @@ impl<B: Backend> WhisperStreamContext<B> {
         Ok(())
     }
 
-    /// Runs every decode that is due, and returns what became final.
+    /// Runs every decode that is due, and returns what it emitted: each
+    /// decode's events in order, then an `interval` draft if one is due.
     pub fn read(&mut self) -> BunsenResult<Vec<TranscriptEvent>> {
         let mut out = Vec::new();
         loop {
@@ -463,7 +449,7 @@ impl<B: Backend> WhisperStreamContext<B> {
     }
 
     /// Ends the stream and decodes whatever is left past the seek pointer:
-    /// [`end_input`](Self::end_input) then [`advance`](Self::read).
+    /// [`end_input`](Self::end_input) then [`read`](Self::read).
     ///
     /// Idempotent; a second flush returns nothing.
     pub fn end_read(&mut self) -> BunsenResult<Vec<TranscriptEvent>> {
@@ -473,7 +459,7 @@ impl<B: Backend> WhisperStreamContext<B> {
 
     /// Ends the stream's input: flushes the front end, drops Whisper's
     /// trailing frame, and closes the gate. What that leaves due is decoded
-    /// by the next [`advance`](Self::read).
+    /// by the next [`read`](Self::read).
     ///
     /// Idempotent.
     pub fn end_input(&mut self) -> BunsenResult<()> {

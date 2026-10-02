@@ -1,24 +1,4 @@
 //! # Whisper's token layout, as ids.
-//!
-//! The decode loop runs on ids, and a handful of them are structural: the
-//! prompt that selects language and task, the stop token, the no-speech
-//! marker, and the timestamp tokens. None of them needs a tokenizer.
-//! Whisper appends its special tokens after the base vocabulary in a fixed
-//! order (`whisper/tokenizer.py::get_encoding`), so every one is arithmetic
-//! over two numbers a checkpoint decides &mdash; how many base ranks the
-//! vocabulary has, and how many languages it knows &mdash; and a
-//! [`WhisperTokenLayoutConfig`] for everything it takes on convention.
-//!
-//! Both numbers are recoverable from the checkpoint alone, through
-//! [`WhisperTokenLayoutConfig::special_ids_for_vocab`]. That is what keeps a
-//! multilingual model from being driven with English-only ids, or the
-//! reverse &mdash; a mistake that produces plausible text rather than an
-//! error.
-//!
-//! [`WhisperSpecialIds`] is the layout as numbers, a plain `Copy` value;
-//! [`WhisperTokenLayout`] pairs it with the layout's names and timestamp grid,
-//! and is the view of it the decode loop holds. Text is a separate concern, and
-//! an optional one: see [`text`](super::text).
 
 use std::sync::Arc;
 
@@ -291,11 +271,34 @@ impl WhisperTokenLayoutConfig {
 
 /// The ids a decode loop consults, and the questions it asks of them.
 ///
+/// The decode loop runs on ids, and a handful of them are structural: the
+/// prompt that selects language and task, the stop token, the no-speech
+/// marker, and the timestamp tokens. None of them needs a tokenizer.
+/// Whisper appends its special tokens after the base vocabulary in a fixed
+/// order (`whisper/tokenizer.py::get_encoding`), so every one is arithmetic
+/// over two numbers a checkpoint decides (how many base ranks the
+/// vocabulary has, and how many languages it knows) and a
+/// [`WhisperTokenLayoutConfig`] for everything it takes on convention.
+/// Both numbers are recoverable from the checkpoint alone, through
+/// [`WhisperTokenLayoutConfig::special_ids_for_vocab`]. That is what keeps
+/// a multilingual model from being driven with English-only ids, or the
+/// reverse: a mistake that produces plausible text rather than an error.
+///
+/// [`WhisperSpecialIds`] is the layout as numbers, a plain `Copy` value;
+/// this pairs it with the layout's names and timestamp grid, and is the
+/// view of it the decode loop holds. A [`WhisperBundle`](super::WhisperBundle)
+/// carries one beside its model, and the driver reads it from there.
+///
 /// The [`ids`](Self::ids) as numbers, with the [`layout`](Self::layout)
 /// that names them and times the timestamps. Built from the checkpoint's own
 /// vocabulary size &mdash; [`WhisperTokenLayoutConfig::policy_for_vocab`]
 /// &mdash; so it cannot disagree with the model it drives. Cheap to clone:
 /// the layout is shared.
+///
+/// Text is a separate concern, and an optional one: the base vocabulary's
+/// ranks ([`TiktokenRanks`]) and, under the `tokenizer` feature,
+/// `detokenizer`, which renders ids through the shared
+/// [`Detokenizer`](crate::kits::tokens::Detokenizer) seam.
 #[derive(Debug, Clone, PartialEq)]
 pub struct WhisperTokenLayout {
     layout: Arc<WhisperTokenLayoutConfig>,
@@ -303,13 +306,13 @@ pub struct WhisperTokenLayout {
 }
 
 impl WhisperTokenLayout {
-    /// A policy over an explicit layout of ids, with upstream's names and
+    /// A token layout over explicit ids, with upstream's names and
     /// timestamp grid.
     pub fn new(ids: WhisperSpecialIds) -> Self {
         Self::with_layout(WhisperTokenLayoutConfig::new(), ids)
     }
 
-    /// A policy over `ids`, named and timed by `layout`.
+    /// A token layout over `ids`, named and timed by `layout`.
     pub fn with_layout(
         layout: WhisperTokenLayoutConfig,
         ids: WhisperSpecialIds,
@@ -320,8 +323,8 @@ impl WhisperTokenLayout {
         }
     }
 
-    /// A policy for a checkpoint, from its vocabulary size, under upstream's
-    /// layout.
+    /// The token layout of a checkpoint, from its vocabulary size, under
+    /// upstream's layout.
     ///
     /// See [`WhisperTokenLayoutConfig::special_ids_for_vocab`].
     ///
@@ -509,7 +512,7 @@ impl WhisperTokenLayout {
     ///
     /// # Errors
     /// [`BunsenError::Invalid`] if the ranks are not the base of
-    /// `WhisperTokenlayout`'s layout: the vocabulary file and the
+    /// `WhisperTokenLayout`'s layout: the vocabulary file and the
     /// checkpoint disagree.
     pub fn token_spans(
         &self,
@@ -537,7 +540,7 @@ impl WhisperTokenLayout {
     ///
     /// # Errors
     /// [`BunsenError::Invalid`] if the ranks are not the base of
-    /// `WhisperTokenlayout`'s layout: the vocabulary file and the
+    /// `WhisperTokenLayout`'s layout: the vocabulary file and the
     /// checkpoint disagree.
     #[cfg(feature = "tokenizer")]
     pub fn detokenizer(
@@ -553,7 +556,7 @@ impl WhisperTokenLayout {
     ///
     /// # Errors
     /// [`BunsenError::Invalid`] if the ranks are not the base of
-    /// `WhisperTokenlayout`'s layout: the vocabulary file and the
+    /// `WhisperTokenLayout`'s layout: the vocabulary file and the
     /// checkpoint disagree.
     #[cfg(feature = "tokenizer")]
     pub fn load_detokenizer(

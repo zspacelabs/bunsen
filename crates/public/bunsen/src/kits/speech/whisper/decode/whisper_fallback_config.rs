@@ -1,20 +1,4 @@
 //! # Fallback: the temperature ladder and its thresholds.
-//!
-//! Upstream's `transcribe()` decodes each window at temperature zero and,
-//! when the result looks bad &mdash; too repetitive by its gzip compression
-//! ratio, or too improbable by its average log probability &mdash; decodes
-//! it again at the next temperature of a ladder, sampling instead of
-//! searching, until one passes or the ladder ends. Silence is the
-//! exception: a window whose `<|nospeech|>` probability is high *and* whose
-//! log probability is low is accepted as it is, and the seek loop then
-//! skips it. A decode that needed a temperature above 0.5 also resets the
-//! prompt carry, so a failure does not feed the next window.
-//!
-//! The ladder is [`decode_with_fallback`], a pure orchestration over a
-//! decode closure, so the policy is testable without a model. bunsen's
-//! default ladder is temperature zero alone: a stream driver re-decoding a
-//! window several times is a latency choice its deployment should make,
-//! not a default; [`WhisperFallbackConfig::upstream`] is the full ladder.
 
 use std::io::Write;
 
@@ -30,6 +14,24 @@ use crate::kits::speech::whisper::decode::{
 };
 
 /// The ladder and the thresholds that climb it.
+///
+/// Upstream's `transcribe()` decodes each window at temperature zero and,
+/// when the result looks bad (too repetitive by its zlib compression
+/// ratio, or too improbable by its average log probability), decodes it
+/// again at the next temperature of a ladder, sampling instead of
+/// searching, until one passes or the ladder ends. Silence is the
+/// exception: a window whose `<|nospeech|>` probability is high *and*
+/// whose log probability is low is accepted as it is, and the seek loop
+/// then [skips](Self::should_skip) it. A decode that needed a temperature
+/// above 0.5 also [resets the prompt carry](Self::resets_prompt), so a
+/// failure does not feed the next window.
+///
+/// The ladder is [`decode_with_fallback`], a pure orchestration over a
+/// decode closure, so the policy is testable without a model. bunsen's
+/// default ladder is temperature zero alone: a stream driver re-decoding a
+/// window several times is a latency choice its deployment should make,
+/// not a default; [`upstream`](Self::upstream) is the full ladder. The
+/// Whisper stream driver takes one as its config's `fallback`.
 #[derive(Config, Debug, PartialEq)]
 pub struct WhisperFallbackConfig {
     /// The temperatures tried in order; the first is the search proper,

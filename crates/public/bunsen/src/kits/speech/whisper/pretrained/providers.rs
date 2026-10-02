@@ -1,33 +1,4 @@
 //! # Whisper pretrained providers
-//!
-//! Which models exist, under which names, made of which resource maps.
-//! `default_whisper_factory()` is the index a caller holds; its
-//! compiled-in providers are [`WELL_KNOWN_TABLE`], whose refs are
-//! `{group}/{name}`, with the `whisper-weights` feature the bundled
-//! one, and the data layer's [`HfProvider`], which answers `hf:org/repo`
-//! for a Hugging Face repo, its safetensors checkpoint under
-//! [`CHECKPOINT`](super::CHECKPOINT), and lists nothing. A group is a
-//! label, the `openai` in `openai/tiny.en`,
-//! over rows that each name their prefab in
-//! [`WHISPER_PREFABS`](super::WHISPER_PREFABS) and fuse a checkpoint map
-//! with the vocabulary map its token layout selects:
-//! [`OPENAI_CHECKPOINTS`](super::OPENAI_CHECKPOINTS) and
-//! [`WhisperVocabulary`](super::WhisperVocabulary).
-//!
-//! A caller with a provider of its own, a mirror say, adds it to the
-//! default factory:
-//!
-//! ```rust,ignore
-//! let factory = default_whisper_factory()?
-//!     .with_provider(Arc::new(my_mirror))?; // answers `mirror:name`
-//! ```
-//!
-//! The `openai` table is `whisper/__init__.py`'s `_MODELS`, with upstream's
-//! two aliases (`large`, `turbo`) folded onto the rows they name rather
-//! than repeated. Every row declares the vocabulary the rule would select
-//! for its prefab's layout; the tests pin that the declaration and the
-//! rule agree, so a path model, which has only the rule, gets the same
-//! file a name does.
 
 use std::{
     path::PathBuf,
@@ -200,6 +171,18 @@ static LARGE_V3_TURBO: StaticPretrained<'static> = openai(
 
 /// `OpenAI`'s checkpoints, as `openai-whisper` names and pins them, each
 /// with the vocabulary it decodes through.
+///
+/// `whisper/__init__.py`'s `_MODELS`, with upstream's two aliases
+/// (`large`, `turbo`) folded onto the rows they name rather than repeated.
+/// A group is a label, the `openai` in `openai/tiny.en`, over rows that
+/// each name their prefab in [`WHISPER_PREFABS`](super::WHISPER_PREFABS)
+/// and fuse a checkpoint map from
+/// [`OPENAI_CHECKPOINTS`](super::OPENAI_CHECKPOINTS) with the vocabulary
+/// map its token layout selects
+/// ([`WhisperVocabulary`](super::WhisperVocabulary)). Every row declares the
+/// vocabulary the rule would select for its prefab's layout; the tests pin that
+/// the declaration and the rule agree, so a path model, which has only the
+/// rule, gets the same file a name does.
 pub static OPENAI: StaticPretrainedGroup<'static> = StaticPretrainedGroup {
     name: "openai",
     description: "OpenAI's Whisper checkpoints, as `openai-whisper` names and pins them",
@@ -276,6 +259,12 @@ pub fn bundled_whisper_table() -> crate::data::pretrained::PretrainedTable {
 /// then, with the `whisper-weights` feature, the bundled one, then Hugging
 /// Face, which answers only `hf:org/repo`, through the cache, and lists
 /// nothing.
+///
+/// The data layer's [`HfProvider`] serves the last: a repo's
+/// `transformers` safetensors checkpoint, one file or shards, under
+/// [`CHECKPOINT`]. The factory over these is
+/// [`default_whisper_factory`](super::default_whisper_factory), with the
+/// `store_pytorch` and `cache` features.
 pub fn default_whisper_providers() -> Vec<Arc<dyn PretrainedProvider>> {
     let mut providers: Vec<Arc<dyn PretrainedProvider>> =
         vec![Arc::new(WELL_KNOWN_TABLE.to_table())];

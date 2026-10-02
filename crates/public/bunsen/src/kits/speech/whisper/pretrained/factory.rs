@@ -1,23 +1,4 @@
 //! # The Whisper pretrained factory
-//!
-//! [`default_whisper_factory`] is the index a caller holds: Whisper's
-//! providers, resolving names to [`Deferred`] models that carry the kit's
-//! [`WhisperConstruct`] hook, chosen by what each row's map says about its
-//! checkpoint. `factory.load_bundle::<B>("[provider:]name", &cache, device)`
-//! is the whole pathway from a name to a
-//! [`WhisperBundle`](crate::kits::speech::whisper::driver::WhisperBundle);
-//! the caller never builds or passes a hook. A checkpoint on disk is not
-//! the factory's: it is a given map through [`Deferred::from_map`], which
-//! gets its hook the same way.
-//!
-//! A caller with a provider of its own, a mirror say, builds on the default:
-//!
-//! ```rust,ignore
-//! let factory = default_whisper_factory()?
-//!     .with_provider(Arc::new(my_mirror))?; // answers `mirror:name`
-//! let bundle = factory.load_bundle::<B>("openai/base", &cache, &device)?;
-//! let hf = factory.load_bundle::<B>("hf:openai/whisper-tiny", &cache, &device)?;
-//! ```
 
 use std::sync::Arc;
 
@@ -43,6 +24,17 @@ use crate::{
 
 /// Whisper's factory over [`default_whisper_providers`], building through
 /// [`WhisperConstruct`].
+///
+/// The index a caller holds: Whisper's providers, resolving names to
+/// [`Deferred`] models that carry the kit's [`WhisperConstruct`] hook,
+/// chosen by what each row's map says about its checkpoint.
+/// [`load_bundle`](PretrainedFactory::load_bundle) with
+/// `"[provider:]name"` is the whole pathway from a name to a
+/// [`WhisperBundle`]; the caller never builds or passes a hook. A
+/// checkpoint on disk is not the factory's: it is a given map through
+/// [`Deferred::from_map`], which gets its hook the same way. A caller with
+/// a provider of its own, a mirror say, adds it with
+/// [`with_provider`](PretrainedFactory::with_provider).
 ///
 /// # Errors
 /// [`BunsenError::Invalid`](crate::errors::BunsenError::Invalid) if two of
