@@ -1,6 +1,4 @@
-//! # App Path Resolver
-//!
-//! Static library defaults for cache/data directory resolution.
+//! App path resolution: where the cache and data directories are.
 
 use std::{
     env,
@@ -26,7 +24,13 @@ pub const BUNSEN_CACHE_CONFIG: PathResolver = PathResolver {
     data_env_vars: &[BUNSEN_DATA_DIR],
 };
 
-/// Static configuration for application path resolution.
+/// Static configuration for application path resolution: where an
+/// application's cache and data directories are, by override, environment
+/// variable, or platform default.
+///
+/// [`BUNSEN_CACHE_CONFIG`] is bunsen's, and
+/// [`BunsenDiskCache::new`](super::BunsenDiskCache::new) resolves through
+/// it.
 pub struct PathResolver {
     /// The qualifier for [`ProjectDirs`].
     pub qualifier: &'static str,

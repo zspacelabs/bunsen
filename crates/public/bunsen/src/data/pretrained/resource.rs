@@ -1,19 +1,4 @@
-//! # Resources
-//!
-//! One file of a [`ResourceMap`](super::ResourceMap): what its map calls it,
-//! the file it lands as, the digest that pins it (when one does), a label for
-//! a listing, and where its bytes can be had from. A static twin for
-//! compiled-in tables, an owned twin for everything else.
-//!
-//! A resource's sources are its own first, then its map's bases with its file
-//! name appended, each in the order listed. A directory another tool keeps
-//! the file in is a "trust me" source, used in place; a URL is fetched into
-//! the cache; bytes linked into the binary are written into the cache on
-//! first use. The owned twin carries them all, so it stands alone, and a
-//! fused map needs no memory of which map a resource came from.
-//!
-//! [`StaticSource`] and [`Source`] are one place a file can be had from;
-//! [`StaticBase`] is a place a map's file names are appended to.
+//! Resources: one file of a map, and the places it can be had from.
 
 use alloc::{
     format,
@@ -70,11 +55,13 @@ pub const SAFETENSORS_INDEX: &str = "safetensors-index";
 
 /// One place a file can be had from, as a compiled-in table spells it.
 ///
-/// Sources are tried in the order listed: a directory another tool keeps
-/// the file in is used in place, a URL is fetched into the cache, and
-/// bytes linked into the binary are written into the cache on first use.
-/// A bundle laid out on disk is a local directory; one compiled in is
-/// [`Bundled`](Self::Bundled).
+/// A resource's local sources are tried first, in the order listed: a
+/// directory another tool keeps the file in is used in place, and bytes
+/// linked into the binary are written into the cache on first use. Its
+/// URLs come after, in the order listed, each fetched into the cache. A
+/// bundle laid out on disk is a local directory; one compiled in is
+/// [`Bundled`](Self::Bundled). [`to_source`](Self::to_source) gives the
+/// owned twin, a [`Source`].
 #[derive(Clone, Copy)]
 pub enum StaticSource<'a> {
     /// A URL, fetched into the cache.
@@ -301,8 +288,10 @@ pub struct StaticResource<'a> {
     /// The file name, under every base.
     pub file: &'a str,
 
-    /// Lowercase hex SHA-256 of the file, which pins every source but a
-    /// bundled one; `None` leaves the file unpinned.
+    /// Lowercase hex SHA-256 of the file: the pin in its cache path. A
+    /// download and bundled bytes are checked against it, and a local-dir
+    /// file only when the cache's options ask. `None` leaves the file
+    /// unpinned, which a bundled source may not be.
     pub sha256: Option<&'a str>,
 
     /// A label for a listing: `"pytorch fp16"`, `"tiktoken"`. Nothing in
@@ -341,7 +330,15 @@ impl StaticResource<'_> {
 /// One file of a map.
 ///
 /// The owned twin of [`StaticResource`], with its map's bases already
-/// appended to its sources, so it stands alone.
+/// appended to its sources, so it stands alone. A resource's sources are
+/// its own first, then its map's bases with its file name appended, each
+/// in the order listed; a fused map needs no memory of which map a
+/// resource came from.
+///
+/// It is what a map is keyed by, and what
+/// [`PretrainedCache::resolve`](super::PretrainedCache::resolve) brings
+/// local, in its [source order](super::PretrainedCache#source-order). A
+/// path on a command line becomes one through [`given`](Self::given).
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Resource {
     /// The map's name for it. Opaque here; a kit's constant.
@@ -350,8 +347,10 @@ pub struct Resource {
     /// The file name, under every base.
     pub file: String,
 
-    /// Lowercase hex SHA-256 of the file, which pins every source but a
-    /// bundled one; `None` leaves the file unpinned.
+    /// Lowercase hex SHA-256 of the file: the pin in its cache path. A
+    /// download and bundled bytes are checked against it, and a local-dir
+    /// file only when the cache's options ask. `None` leaves the file
+    /// unpinned, which a bundled source may not be.
     pub sha256: Option<String>,
 
     /// A label for a listing. Nothing in this layer reads it; a kit's hook

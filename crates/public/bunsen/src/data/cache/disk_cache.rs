@@ -120,12 +120,19 @@ impl BunsenDiskCacheOptions {
     }
 }
 
-/// Disk cache for downloaded files.
+/// Disk cache for downloaded files: a cache directory, a data directory,
+/// and the observers every transfer reports to.
 ///
-/// [`PathResolver`](`super::PathResolver`) decides where the cache and data
-/// directories are for a user/system combo, with environment overrides.
-/// Every transfer is reported to the [`TransferObserver`] stack the options
-/// carried.
+/// [`new`](Self::new) resolves both directories from the
+/// [`BunsenDiskCacheOptions`], then the environment, then the platform,
+/// through [`BUNSEN_CACHE_CONFIG`](super::BUNSEN_CACHE_CONFIG), a
+/// [`PathResolver`](super::PathResolver). Every transfer is reported to
+/// the [`TransferObserver`] stack the options carried.
+///
+/// The layers above keep their files here. A
+/// [`PretrainedCache`](crate::data::pretrained::PretrainedCache) wraps one,
+/// opened from its options' `disk`, and a
+/// [`ShardSet`](crate::data::shards::ShardSet) borrows one.
 #[cfg_attr(
     feature = "fetch",
     doc = "",
@@ -151,6 +158,11 @@ impl Default for BunsenDiskCache {
 
 impl BunsenDiskCache {
     /// Constructs a new [`BunsenDiskCache`].
+    ///
+    /// # Errors
+    /// [`BunsenError::ResourceNotFound`] when a directory cannot be
+    /// resolved: no option, no environment variable, and no platform
+    /// default.
     pub fn new(options: BunsenDiskCacheOptions) -> BunsenResult<Self> {
         let cache_dir = BUNSEN_CACHE_CONFIG
             .resolve_cache_dir(options.cache_dir)

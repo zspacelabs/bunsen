@@ -1,15 +1,4 @@
-//! # Parallel fetch
-//!
-//! Many files at once, under a policy: how many transfers run together, how
-//! many times a file is retried, and whether one failure stops the rest. The
-//! result is a [`FetchReport`] with one [`FetchOutcome`] per job, in job
-//! order; the batch itself never fails. [`FetchReport::paths`] is the
-//! all-or-nothing view a caller takes when every file has to be there, and
-//! the report's `Display` is the one-line summary a CLI prints.
-//!
-//! A stop cannot cut a transfer in flight: the jobs already running finish,
-//! nothing new starts, and the rest are [`FetchOutcome::Skipped`]. Files that
-//! landed stay on disk under either policy.
+//! Parallel fetch: many files at once, under a policy.
 
 use std::{
     fmt,
@@ -87,7 +76,21 @@ pub enum OnFailure {
     Continue,
 }
 
-/// How a batch runs.
+/// How a batch of fetches runs: how many transfers run together, how many
+/// times a file is retried, and whether one failure stops the rest.
+///
+/// A [`PretrainedCache`](crate::data::pretrained::PretrainedCache) fetches
+/// the remote resources of a map under the one its options carry
+/// ([`PretrainedCacheOptions::with_fetch_policy`](crate::data::pretrained::PretrainedCacheOptions::with_fetch_policy)),
+/// and a caller hands one to [`BunsenDiskCache::fetch_many`] or
+/// [`ShardSet::fetch_many`](crate::data::shards::ShardSet::fetch_many).
+/// The batch itself never fails: each job ends as a [`FetchOutcome`] in
+/// the [`FetchReport`].
+///
+/// A stop ([`OnFailure::Stop`]) cannot cut a transfer in flight: the jobs
+/// already running finish, nothing new starts, and the rest are
+/// [`FetchOutcome::Skipped`]. Files that landed stay on disk under either
+/// policy.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct FetchPolicy {
     /// Transfers in flight at once. `0` runs one.
@@ -190,6 +193,10 @@ impl FetchOutcome {
 }
 
 /// A batch, job by job, in job order.
+///
+/// What [`BunsenDiskCache::fetch_many`] returns. [`paths`](Self::paths) is
+/// the all-or-nothing view a caller takes when every file has to be there,
+/// and the report's `Display` is the one-line summary a CLI prints.
 #[derive(Debug, Default)]
 pub struct FetchReport {
     /// One outcome per job, in the order the jobs were given.

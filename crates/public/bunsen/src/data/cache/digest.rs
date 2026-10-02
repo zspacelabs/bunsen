@@ -1,8 +1,4 @@
-//! # Digests
-//!
-//! SHA-256 over files and streams, for digest-pinned cache entries: a file
-//! whose path carries its digest was verified when it was written, and is
-//! trusted on later runs without re-hashing it.
+//! Digests: SHA-256 over files and streams.
 
 use std::{
     fs,

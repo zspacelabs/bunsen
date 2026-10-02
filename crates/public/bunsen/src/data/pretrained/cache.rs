@@ -1,34 +1,4 @@
-//! # Pretrained cache
-//!
-//! Digest-pinned resources under the disk cache's cache directory.
-//! [`BunsenDiskCache`] decides *where*; this decides *what is trusted
-//! there*. A pinned resource's file lives at
-//!
-//! ```text
-//! <cache>/pretrained/<kit>/<namespace>/<sha256>/<file>
-//! ```
-//!
-//! The digest in the path is the pin: a file at that path was verified when
-//! it was written, so it is trusted on later runs without re-hashing 3 GB,
-//! and a re-pinned model cannot collide with a stale one. An unpinned
-//! resource lives under its URL-derived cache key instead.
-//!
-//! [`PretrainedCache::resolve`] consults the cache first, then each source
-//! in the resource's order: a file in a directory another tool keeps is
-//! used in place, a "trust me" source hashed only when the options ask, and
-//! a URL is fetched, checked and written in. Nothing is linked or copied
-//! into the cache; only a download writes, and every transfer reports to
-//! the disk cache's observer stack. [`PretrainedCache::load`] does it for a
-//! whole [`ResourceMap`], fetching what is remote together under the
-//! options' policy.
-//!
-//! A bundle is one of two things. Bytes linked into the binary are a
-//! [`Source::Bundled`], written into the cache under their digest on first
-//! use; `bunsen-bundled-silero` ships its burnpack so. Files laid out at
-//! build time are a local-dir source, used in place; `bunsen-bundled-whisper`
-//! lays its build output out as this very directory, so a cache pointed at
-//! it hits with no knowledge of it, which is also what a deployment does
-//! when it populates the directory ahead of time.
+//! The pretrained cache: digest-pinned resources under the disk cache.
 
 use std::{
     collections::BTreeMap,
@@ -72,7 +42,12 @@ use crate::{
 /// `<cache>/pretrained/<kit>/<namespace>/<sha256>/<file>`.
 pub const PRETRAINED_DIR: &str = "pretrained";
 
-/// Options for [`PretrainedCache`].
+/// Options for [`PretrainedCache`], which [`PretrainedCache::new`] opens a
+/// cache with.
+///
+/// The default is online, with the disk cache's default directories and
+/// observers, no local-dir overrides, local dirs trusted unhashed, and the
+/// default fetch policy.
 #[derive(Clone, Debug, Default)]
 pub struct PretrainedCacheOptions {
     /// The disk cache underneath: where the cache directory is, and who
@@ -238,7 +213,70 @@ fn remote_keys(remote: &[RemotePart]) -> String {
         .join(", ")
 }
 
-/// Digest-pinned resources under the disk cache's cache directory.
+/// Digest-pinned resources under the disk cache's cache directory: where a
+/// [`ResourceMap`]'s files are brought local.
+///
+/// [`BunsenDiskCache`] decides *where* the cache directory is; this decides
+/// *what is trusted there*. A caller opens one from
+/// [`PretrainedCacheOptions`] (offline or not, local-dir overrides and
+/// verification, and with `fetch` the batch policy) and passes it to every
+/// load. [`Deferred::load`](super::Deferred::load) calls
+/// [`load`](Self::load) between the kit hook's
+/// [`plan`](super::Construct::plan) and
+/// [`construct`](super::Construct::construct), and the
+/// [`LoadedResources`] it returns are what the hook builds from. A
+/// [`PretrainedFactory`](super::PretrainedFactory) hands the cache to its
+/// providers too, so that a hub ([`HfProvider`](super::HfProvider)) can
+/// keep what it asked for. [`status`](Self::status) and
+/// [`map_status`](Self::map_status) answer a listing without touching any
+/// bytes.
+///
+/// # Cache layout
+///
+/// ```text
+/// <cache>/pretrained/<kit>/<namespace>/<sha256>/<file>
+/// ```
+///
+/// `<kit>` is the hook's [`KIT`](super::Construct::KIT), `<namespace>` the
+/// resource's (who published it), and `<file>` its file name. An unpinned
+/// resource sits under a cache key in place of `<sha256>`: one derived from
+/// its first URL ([`url_to_cache_key`](super::url_to_cache_key)), or its
+/// file name when it has no URL. [`resource_path`](Self::resource_path)
+/// names the path, present or not.
+///
+/// # Trust model
+///
+/// The digest in the path is the pin. A file at that path was verified when
+/// it was written, so it is trusted on later runs without re-hashing 3 GB,
+/// and a re-pinned model cannot collide with a stale one. The cache trusts
+/// the path whoever wrote it: a download, bundled bytes, or a build script
+/// or a deployment that laid the directory out ahead of time. That is what
+/// makes a populated cache directory a bundle.
+///
+/// A local-dir source is a "trust me" source: its file is used in place,
+/// and hashed first only when
+/// [`verify_local_dirs`](PretrainedCacheOptions::verify_local_dirs) asks.
+/// An unpinned file is trusted by its name alone.
+///
+/// # Source order
+///
+/// [`resolve`](Self::resolve), for one resource, and [`load`](Self::load),
+/// for a map, look in the same order:
+///
+/// 1. the cache path: a file there is [`Provenance::Cached`];
+/// 2. the resource's local sources, in the order listed: a [`Source::LocalDir`]
+///    that has the file is used in place, and [`Source::Bundled`] bytes are
+///    checked against the digest and written to the cache path;
+/// 3. only then its [`Source::Url`]s, in the order listed: streamed to a
+///    `.partial`, checked against the digest when pinned and against the length
+///    the server sent, and renamed into place. [`load`](Self::load) fetches
+///    every remote resource of a map together, under the options' fetch policy.
+///
+/// Nothing is linked or copied into the cache: only a download, or bundled
+/// bytes, write there. Every transfer reports to the disk cache's observer
+/// stack. Step 3 needs the `fetch` feature; without it, or on an offline
+/// cache, a resource that only a URL can supply is
+/// [`BunsenError::ResourceNotFound`].
 pub struct PretrainedCache {
     disk: BunsenDiskCache,
     offline: bool,
@@ -369,9 +407,10 @@ impl PretrainedCache {
     ///
     /// # Errors
     /// [`BunsenError::ResourceNotFound`] if nothing local matches and the
-    /// cache is offline or the resource has no URL;
-    /// [`BunsenError::Invalid`] if a download's digest does not match, or a
-    /// local-dir file's when the options verify them;
+    /// cache is offline, the resource has no URL, or the `fetch` feature is
+    /// off;
+    /// [`BunsenError::Invalid`] if a download's or bundled bytes' digest
+    /// does not match, or a local-dir file's when the options verify them;
     /// [`BunsenError::External`] for a transfer or file-system failure.
     pub fn resolve(
         &self,
@@ -404,9 +443,9 @@ impl PretrainedCache {
     ///
     /// # Errors
     /// [`BunsenError::ResourceNotFound`] naming the remote keys when the
-    /// cache is offline, or a key with no URL; [`BunsenError::External`]
-    /// naming each key that did not land; [`BunsenError::Invalid`] as
-    /// [`resolve`](Self::resolve).
+    /// cache is offline or the `fetch` feature is off, or a key with no
+    /// URL; [`BunsenError::External`] naming each key that did not land;
+    /// [`BunsenError::Invalid`] as [`resolve`](Self::resolve).
     pub fn load(
         &self,
         kit: &str,

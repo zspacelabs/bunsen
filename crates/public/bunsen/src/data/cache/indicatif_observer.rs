@@ -1,9 +1,4 @@
-//! # `indicatif` transfer observer
-//!
-//! One byte bar per transfer, on a shared [`MultiProgress`] so concurrent
-//! transfers do not tear each other's lines. Drawn on stderr, and hidden when
-//! stderr is not a terminal: that is `indicatif`'s own rule for its stderr
-//! target, and it is what keeps CI logs, pipes and captured output clean.
+//! The `indicatif` transfer observer.
 
 use indicatif::{
     MultiProgress,
@@ -26,6 +21,12 @@ const BYTES_TEMPLATE: &str = "{msg} {bar:32} {bytes}/{total_bytes} {bytes_per_se
 const SPINNER_TEMPLATE: &str = "{msg} {spinner} {bytes} {bytes_per_sec}";
 
 /// Draws a byte progress bar on stderr for each transfer.
+///
+/// One bar per transfer, on a shared [`MultiProgress`] so that concurrent
+/// transfers do not tear each other's lines. The default draws on stderr,
+/// and is hidden when stderr is not a terminal: that is `indicatif`'s own
+/// rule for its stderr target, and it is what keeps CI logs, pipes and
+/// captured output clean.
 ///
 /// `BunsenDiskCacheOptions::default()` carries one of these when the
 /// `indicatif` feature is on; `without_transfer_observers()` drops it.

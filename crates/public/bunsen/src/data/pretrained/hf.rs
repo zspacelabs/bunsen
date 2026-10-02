@@ -1,31 +1,4 @@
-//! # Hugging Face as a provider
-//!
-//! `hf:{org}/{repo}` is a Hugging Face repo: `hf:openai/whisper-large-v3`
-//! is <https://huggingface.co/openai/whisper-large-v3>. [`HfProvider`]
-//! answers such a ref with the repo's safetensors checkpoint as a resource
-//! map, and lists nothing: the hub is not enumerable, and a bare name
-//! never reaches it.
-//!
-//! What a repo holds comes from the hub's file listing (its tree API),
-//! fetched once through the cache and kept there, so a ref resolved once
-//! is resolved again offline. The listing says which files there are and
-//! pins each LFS file by its SHA-256, so the checkpoint is digest-addressed
-//! in the cache like a well-known row's. `transformers` saves a model as
-//! one `model.safetensors` until it passes a shard-size limit, then as
-//! `model-00001-of-0000N.safetensors` and so on with
-//! `model.safetensors.index.json` naming the shard each tensor is in; the
-//! row is one resource or the index and every shard, under the kit's
-//! checkpoint key (`checkpoint`, or `checkpoint.index` and
-//! `checkpoint.00001`, ...), each labeled [`SAFETENSORS`] or
-//! [`SAFETENSORS_INDEX`] for the kit's reader. `config.json` rides along
-//! as `config` when the repo has one. Anything else in the repo (other
-//! frameworks' weights, tokenizer files) is not a resource: a kit reads
-//! what it knows.
-//!
-//! The listing is at a revision, `main` unless another is named; a repo
-//! whose `main` moves is seen again only when the cache is cleared or the
-//! revision is named. Resolving a ref without a cache is an error: the
-//! provider guesses nothing about a repo.
+//! Hugging Face as a pretrained provider: `hf:org/repo`.
 
 use alloc::{
     format,
@@ -125,7 +98,58 @@ fn shard_numbers(file: &str) -> Option<(usize, usize)> {
     Some((n.parse().ok()?, of.parse().ok()?))
 }
 
-/// Hugging Face repos, by ref, as safetensors checkpoints.
+/// Hugging Face repos, by ref, as safetensors checkpoints: the `hf:`
+/// provider.
+///
+/// `hf:{org}/{repo}` is a Hugging Face repo: `hf:openai/whisper-large-v3`
+/// is <https://huggingface.co/openai/whisper-large-v3>. The provider
+/// answers such a ref with a row whose map is the repo's safetensors
+/// checkpoint, and it lists nothing: the hub is not enumerable, and a bare
+/// name never reaches it
+/// ([`answers_bare_names`](PretrainedProvider::answers_bare_names) is
+/// `false`). A kit registers one in its default factory, after its own
+/// tables and under its own checkpoint key
+/// ([`with_checkpoint_key`](Self::with_checkpoint_key)); Whisper's does.
+/// The kit's hook then reads the row with
+/// [`SafetensorsCheckpoint`](super::SafetensorsCheckpoint).
+///
+/// # Resolving a ref
+///
+/// What a repo holds comes from the hub's file listing (its tree API, at
+/// [`tree_url`](Self::tree_url)). The listing is fetched once through the
+/// [`PretrainedCache`](super::PretrainedCache) and kept there, so a ref
+/// resolved once resolves again offline. The listing names the files and
+/// pins each LFS file by its SHA-256, so the checkpoint is
+/// digest-addressed in the cache like a well-known row's:
+/// `<cache>/pretrained/<kit>/hf/<sha256>/<file>`. Fetching the listing
+/// needs the `fetch` feature, unless the cache has it already.
+///
+/// Resolving a ref without a cache is an error, and
+/// [`lookup`](PretrainedProvider::lookup) always refuses: the provider
+/// guesses nothing about a repo. A repo that is not there, or a gated one,
+/// answers 401, and the error says so.
+///
+/// # Sharding
+///
+/// `transformers` saves a model as one `model.safetensors` until it passes
+/// a shard-size limit, then as `model-00001-of-0000N.safetensors` and so
+/// on, with `model.safetensors.index.json` naming the shard each tensor is
+/// in. The row ([`row_from_listing`](Self::row_from_listing)) is one
+/// resource, or the index and every shard, under the kit's checkpoint key:
+/// `checkpoint`, or `checkpoint.index` and `checkpoint.00001`, and so on.
+/// Each is labelled [`SAFETENSORS`] or [`SAFETENSORS_INDEX`] for the kit's
+/// reader. `config.json` rides along as `config` when the repo has one.
+/// Anything else in the repo (other frameworks' weights, tokenizer files)
+/// is not a resource: a kit reads what it knows.
+///
+/// # Revisions
+///
+/// The listing is at a revision: [`HF_MAIN`] unless another is named
+/// ([`with_revision`](Self::with_revision)). A repo whose `main` moves is
+/// seen again only when the cache is cleared or the revision is named.
+/// [`with_origin`](Self::with_origin) points the provider at a mirror, and
+/// [`with_name`](Self::with_name) lets two providers, at two revisions,
+/// share a factory.
 #[derive(Clone, Debug)]
 pub struct HfProvider {
     /// The provider's name, and the namespace its files are cached under.

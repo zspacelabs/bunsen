@@ -1,7 +1,4 @@
-//! # Shard sets on disk
-//!
-//! A [`ShardSetDescriptor`] bound to a directory, with the disk cache to
-//! bring shards in.
+//! Shard sets on disk: a descriptor bound to a directory.
 
 use std::{
     fs,
@@ -32,13 +29,20 @@ use crate::{
 /// The directory under the data dir that holds shard sets, one per name.
 pub const SHARDS_DIR: &str = "shards";
 
-/// A shard set bound to a directory.
+/// A shard set bound to a directory: a [`ShardSetDescriptor`], with the
+/// disk cache to bring its shards in.
 ///
 /// Two ways to bind: [`in_cache`](Self::in_cache) puts the set under the
 /// cache's data directory, at `<data_dir>/shards/<name>/`;
 /// [`at_dir`](Self::at_dir) uses a directory the caller names, where the
 /// shard files sit directly. The second is what a `--dataset-dir` flag maps
 /// to, and it keeps a tree downloaded before this type existed valid.
+///
+/// Then [`locate`](Self::locate), [`fetch`](Self::fetch) and, with the
+/// `fetch` feature, `fetch_many` give the shards' paths for a data loader.
+/// `examples/train-chat` binds its set from command-line flags, brings the
+/// shards in with `fetch_many`, and hands the paths to
+/// `bunsen-arrow-dataloaders`' `ChatDataLoader`.
 pub struct ShardSet<'c> {
     cache: &'c BunsenDiskCache,
     desc: ShardSetDescriptor,
@@ -179,7 +183,17 @@ impl<'c> ShardSet<'c> {
         Ok(path)
     }
 
-    /// Without the `fetch` feature there is no network.
+    /// Shard `id`'s path, when it is on disk.
+    ///
+    /// Without the `fetch` feature there is no network, so a shard that is
+    /// not on disk is not found. With `fetch`, this method brings it in:
+    /// the set's mirrors are tried in order, the shard is checked against
+    /// its digest when the set is pinned, and the transfer reports to the
+    /// cache's observers.
+    ///
+    /// # Errors
+    /// [`BunsenError::Invalid`] for an id outside the set;
+    /// [`BunsenError::ResourceNotFound`] for a shard that is not on disk.
     #[cfg(not(feature = "fetch"))]
     pub fn fetch(
         &self,

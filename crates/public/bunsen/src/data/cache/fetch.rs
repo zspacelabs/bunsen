@@ -1,19 +1,4 @@
-//! # Fetch
-//!
-//! Streams a URL into the cache, hashed as it lands. The bytes go to
-//! `<dest>.partial` and are renamed into place only once they check out: the
-//! digest matches when the caller pinned one, and the byte count matches the
-//! `Content-Length` when the server sent one. An interrupted or corrupt
-//! transfer never leaves a trusted-looking file at `dest`.
-//!
-//! Every transfer is reported to the [`TransferObserver`] stack it is given:
-//! `begin` once the response headers are in (that is when the length is
-//! known), `position` as bytes land, and `finish` with the outcome. A
-//! request that never gets a response is an error with no transfer
-//! reported.
-//!
-//! This is the one place bunsen reaches the network at run time, and it is
-//! behind the `fetch` feature.
+//! Fetch: a URL streamed into the cache, hashed as it lands.
 
 use std::{
     fs,
@@ -42,9 +27,23 @@ use crate::errors::{
 /// Streams `url` to `dest`, checked against `sha256` when one is given,
 /// reporting to `observers`.
 ///
-/// A pinned file (`Some`) must match its digest; every file must match the
+/// The bytes are hashed as they land, in `<dest>.partial`
+/// ([`partial_path`]), and renamed into place only once they check out. A
+/// pinned file (`Some`) must match its digest; every file must match the
 /// `Content-Length` when the server sent one. Nothing is left at `dest` or
-/// beside it when either check fails.
+/// beside it when either check fails, so an interrupted or corrupt
+/// transfer never leaves a trusted-looking file at `dest`.
+///
+/// The transfer is reported to every observer: `begin` once the response
+/// headers are in (which is when the length is known), `position` as bytes
+/// land, and `finish` with the outcome. A request that fails before a
+/// response body, unanswered or with an error status, is an error with no
+/// transfer reported.
+///
+/// This is the one place bunsen reaches the network at run time; it is
+/// behind the `fetch` feature. Most callers reach it through
+/// [`BunsenDiskCache`](super::BunsenDiskCache), which brings its own
+/// observers.
 ///
 /// # Errors
 /// [`BunsenError::Invalid`] if the digest does not match (nothing is left at

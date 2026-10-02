@@ -1,23 +1,4 @@
-//! # Safetensors checkpoints
-//!
-//! A checkpoint in safetensors is one file, or several: `transformers`
-//! saves a model as `model.safetensors` until it passes a shard-size
-//! limit, then as `model-00001-of-0000N.safetensors` and so on with
-//! `model.safetensors.index.json`, whose `weight_map` names the shard each
-//! tensor is in. [`SafetensorsCheckpoint`] is either, from a map's
-//! [family](super::LoadedResources::family) of resources under the kit's
-//! checkpoint key: the one file, or the index and the shards it names.
-//!
-//! [`safetensors_header`] reads a file's header alone: every tensor's
-//! name, element type and shape, without touching the data, which is how
-//! a kit learns a checkpoint's geometry before loading it.
-//! [`SafetensorsCheckpoint::load_into`] loads every shard into a module
-//! through `burn-store`'s [`SafetensorsStore`], configured by the kit (its
-//! name remaps, its adapter), and checks that every parameter of the
-//! module was found in some shard. A safetensors file is contiguous and
-//! row-major, so the `PyTorch` adapter's `Linear` transposition is right as
-//! it stands; the strided-view repair `OpenAI`'s `.pt` files need does not
-//! apply.
+//! Safetensors checkpoints: one file, or the shards of one.
 
 use std::{
     collections::{
@@ -59,6 +40,9 @@ pub struct SafetensorsEntry {
 
 /// The header of a safetensors file: every tensor's name, element type
 /// and shape, read without touching the data.
+///
+/// This is how a kit learns a checkpoint's geometry before loading it;
+/// [`SafetensorsCheckpoint::headers`] merges it across shards.
 ///
 /// # Errors
 /// [`BunsenError::External`] for a file that cannot be read;
@@ -149,6 +133,27 @@ impl SafetensorsIndex {
 }
 
 /// A checkpoint in safetensors: one file, or the shards of one.
+///
+/// `transformers` saves a model as `model.safetensors` until it passes a
+/// shard-size limit, then as `model-00001-of-0000N.safetensors` and so on,
+/// with `model.safetensors.index.json`, whose `weight_map`
+/// ([`SafetensorsIndex`]) names the shard each tensor is in. A
+/// `SafetensorsCheckpoint` is either: [`from_loaded`](Self::from_loaded)
+/// gathers it from a [family](super::LoadedResources::family) of
+/// resources under the kit's checkpoint key, the one file or the index and
+/// the shards it names. That is the layout an
+/// [`HfProvider`](super::HfProvider) row has.
+///
+/// A kit's [`Construct`](super::Construct) hook makes one from the
+/// [`LoadedResources`] the cache brought local. [`headers`](Self::headers)
+/// reads every tensor's name, element type and shape without touching the
+/// data. [`load_into`](Self::load_into) loads every shard into a module
+/// through `burn-store`'s [`SafetensorsStore`], configured by the kit (its
+/// name remaps, its adapter), and checks that every parameter of the
+/// module was found in some shard. A safetensors file is contiguous and
+/// row-major, so the `PyTorch` adapter's `Linear` transposition is right
+/// as it stands; the strided-view repair `OpenAI`'s `.pt` files need does
+/// not apply. Whisper's hook reads `hf:` rows this way.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct SafetensorsCheckpoint {
     /// The files, in shard order; one for a checkpoint that is one file.

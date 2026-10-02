@@ -117,7 +117,7 @@ const DECODER_FILE: &str = "whisper_base_decoder.onnx";
 
 /// The root segment of the pretrained cache layout,
 /// `pretrained/<kit>/<namespace>/<sha256>/<file>`, as
-/// `bunsen::data::pretrained::WeightsCache` roots a resource.
+/// `bunsen::data::pretrained::PretrainedCache` roots a resource.
 const PRETRAINED_DIR: &str = "pretrained";
 
 /// The Whisper kit's segment of the layout: `WHISPER_KIT` in bunsen.
