@@ -4,11 +4,14 @@
 //!
 //! [`ResNetContractConfig`] implements [`Config`], and provides
 //! a high-level configuration interface.
-//! It provides [`ResNetContractConfig::to_structure`] to convert
-//! to a [`ResNetStructureConfig`].
+//! It implements [`ToStructureConfig`] to lower to a
+//! [`ResNetStructureConfig`].
 //!
-//! [`ResNetStructureConfig`] implements [`Config`], and provides
-//! [`ResNetStructureConfig::init`] to initialize a [`ResNet`].
+//! [`ResNetStructureConfig`] implements [`Config`], and [`ModuleInit`] to
+//! initialize a [`ResNet`].
+//!
+//! [`ResNetMeta`] is the narrow view shared by [`ResNetStructureConfig`] and
+//! [`ResNet`].
 //!
 //! [`ResNet`] implements [`Module`], and provides
 //! [`ResNet::forward`].
@@ -49,7 +52,10 @@ use crate::{
         ConvBlock2d,
         ConvBlock2dConfig,
     },
-    burner::module::ModuleInit,
+    burner::module::{
+        ModuleInit,
+        ToStructureConfig,
+    },
     errors::BunsenResult,
     kits::bimm::resnet::{
         RESNET18_BLOCKS,
@@ -70,13 +76,15 @@ use crate::{
     support::validators::expect_probability,
 };
 
-/// High-level [`ResNet`] model configuration.
+/// High-level [`ResNet`] model configuration: the policy of `ResNet`'s
+/// Stacked Config.
 ///
 /// The user-facing entry point for building a [`ResNet`]: stage depths, class
-/// count, stem width, output stride, and bottleneck policy. Lowers to a
-/// [`ResNetStructureConfig`] via [`ResNetContractConfig::to_structure`]; call
-/// `.init(device)` to build the [`ResNet`] module, then drive it with
-/// [`ResNet::forward`].
+/// count, stem width, output stride, and bottleneck policy. It implements
+/// [`ToStructureConfig`], lowering to the unrolled [`ResNetStructureConfig`],
+/// and gets [`ModuleInit`] from that trait's blanket impl: call
+/// `.init(device)` to lower and build the [`ResNet`] in one step, then drive
+/// it with [`ResNet::forward`].
 #[derive(Config, Debug)]
 pub struct ResNetContractConfig {
     /// Layer block depths.
@@ -174,9 +182,17 @@ impl ResNetContractConfig {
         layers
     }
 
-    /// Converts to a [`ResNetStructureConfig`].
-    pub fn to_structure(&self) -> ResNetStructureConfig {
-        ResNetStructureConfig::new(
+    /// Creates a ResNet-18 model.
+    pub fn resnet18(num_classes: usize) -> Self {
+        Self::new(RESNET18_BLOCKS.to_vec(), num_classes) // .with_bottleneck(true)
+    }
+}
+
+impl ToStructureConfig for ResNetContractConfig {
+    type Structure = ResNetStructureConfig;
+
+    fn try_to_structure(&self) -> BunsenResult<ResNetStructureConfig> {
+        Ok(ResNetStructureConfig::new(
             ConvBlock2dConfig::new(
                 Conv2dConfig::new([3, self.stem_width], [7, 7])
                     .with_stride([2, 2])
@@ -190,33 +206,28 @@ impl ResNetContractConfig {
             .with_norm(Some(BatchNormConfig::new(self.stem_width).into()))
             .with_act(Some(self.activation.clone())),
             self.to_layer_contracts()
-                .into_iter()
-                .map(|c| c.into())
-                .collect::<Vec<_>>(),
+                .iter()
+                .map(|c| c.try_to_structure())
+                .collect::<BunsenResult<Vec<_>>>()?,
             self.num_classes,
-        )
-    }
-
-    /// Creates a ResNet-18 model.
-    pub fn resnet18(num_classes: usize) -> Self {
-        Self::new(RESNET18_BLOCKS.to_vec(), num_classes) // .with_bottleneck(true)
+        ))
     }
 }
 
-impl<B: Backend> ModuleInit<B, ResNet<B>> for ResNetContractConfig {
-    fn try_init(
-        &self,
-        device: &B::Device,
-    ) -> BunsenResult<ResNet<B>> {
-        self.to_structure().try_init(device)
-    }
-}
+/// [`ResNet`] Meta API.
+///
+/// The narrow view shared by [`ResNetStructureConfig`] and [`ResNet`]: what a
+/// caller or a test reads back without walking the stages.
+pub trait ResNetMeta {
+    /// The number of [`LayerBlock`] stages.
+    fn num_stages(&self) -> usize;
 
-impl From<ResNetContractConfig> for ResNetStructureConfig {
-    #[allow(unused)]
-    fn from(config: ResNetContractConfig) -> Self {
-        config.to_structure()
-    }
+    /// The feature planes the classifier head reads: the last stage's output
+    /// planes.
+    fn head_planes(&self) -> usize;
+
+    /// The number of classification classes.
+    fn num_classes(&self) -> usize;
 }
 
 /// [`ResNet`] Structure Config.
@@ -226,8 +237,10 @@ impl From<ResNetContractConfig> for ResNetStructureConfig {
 /// of the internal sizes before or during construction.
 ///
 /// Holds the explicit stem, per-stage [`LayerBlockStructureConfig`]s, and head.
-/// Call `.init(device)` to build the [`ResNet`] module, then drive it with
-/// [`ResNet::forward`].
+/// [`ResNetContractConfig`] lowers to it. Call `.init(device)` to build the
+/// [`ResNet`] module, then drive it with [`ResNet::forward`].
+///
+/// Implements [`ResNetMeta`].
 #[derive(Config, Debug)]
 pub struct ResNetStructureConfig {
     /// The input Conv/Norm block configuration.
@@ -238,6 +251,20 @@ pub struct ResNetStructureConfig {
 
     /// The number of classes.
     pub num_classes: usize,
+}
+
+impl ResNetMeta for ResNetStructureConfig {
+    fn num_stages(&self) -> usize {
+        self.layers.len()
+    }
+
+    fn head_planes(&self) -> usize {
+        self.layers.last().unwrap().out_planes()
+    }
+
+    fn num_classes(&self) -> usize {
+        self.num_classes
+    }
 }
 
 impl ResNetStructureConfig {
@@ -321,7 +348,7 @@ impl<B: Backend> ModuleInit<B, ResNet<B>> for ResNetStructureConfig {
         &self,
         device: &B::Device,
     ) -> BunsenResult<ResNet<B>> {
-        let head_planes = self.layers.last().unwrap().out_planes();
+        let head_planes = self.head_planes();
 
         let module = ResNet {
             input_cb: self.input_cb.init(device),
@@ -355,6 +382,8 @@ impl<B: Backend> ModuleInit<B, ResNet<B>> for ResNetStructureConfig {
 /// `.init(device)` to build, then [`ResNet::forward`] to map a `[batch, 3, h,
 /// w]` image batch to `[batch, num_classes]` logits.
 ///
+/// Implements [`ResNetMeta`].
+///
 /// Built by [`ResNetContractConfig`] (high-level) or [`ResNetStructureConfig`].
 #[derive(Module, Debug)]
 pub struct ResNet<B: Backend> {
@@ -370,6 +399,20 @@ pub struct ResNet<B: Backend> {
     pub output_pool: AdaptiveAvgPool2d,
     /// Head classifier.
     pub output_fc: Linear<B>,
+}
+
+impl<B: Backend> ResNetMeta for ResNet<B> {
+    fn num_stages(&self) -> usize {
+        self.layers.len()
+    }
+
+    fn head_planes(&self) -> usize {
+        self.output_fc.weight.dims()[0]
+    }
+
+    fn num_classes(&self) -> usize {
+        self.output_fc.weight.dims()[1]
+    }
 }
 
 impl<B: Backend> ResNet<B> {
@@ -633,5 +676,41 @@ mod tests {
         model.debug_print();
 
         // assert!(false);
+    }
+
+    /// Asserts that `a` and `b` answer every [`ResNetMeta`] method alike.
+    fn assert_meta_agrees(
+        a: &impl ResNetMeta,
+        b: &impl ResNetMeta,
+    ) {
+        assert_eq!(a.num_stages(), b.num_stages());
+        assert_eq!(a.head_planes(), b.head_planes());
+        assert_eq!(a.num_classes(), b.num_classes());
+    }
+
+    /// A policy builds the same `ResNet` through its structure as through the
+    /// blanket `init`.
+    #[test]
+    #[serial]
+    fn test_policy_pathways_agree() {
+        type B = PerformanceBackend;
+        let device = default_device();
+        let _memory = DeviceMemoryGuard::<B>::new(&device);
+
+        let policy = ResNetContractConfig::new(vec![1, 1], 7)
+            .with_stem_width(8)
+            .with_bottleneck(true);
+
+        let structure = policy.to_structure();
+        assert_eq!(structure.num_stages(), 2);
+        // A pinch factor of 4 on an 8-plane stem, doubled by the second stage.
+        assert_eq!(structure.head_planes(), 64);
+        assert_eq!(structure.num_classes(), 7);
+
+        let lowered: ResNet<B> = structure.init(&device);
+        let direct: ResNet<B> = policy.init(&device);
+
+        assert_meta_agrees(&direct, &lowered);
+        assert_meta_agrees(&direct, &structure);
     }
 }

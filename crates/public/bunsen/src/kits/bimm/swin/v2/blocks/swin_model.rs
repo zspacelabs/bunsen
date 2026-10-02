@@ -1,10 +1,7 @@
 //! # Top-Level Swin Transformer v2 model components.
 
 use alloc::{
-    string::{
-        String,
-        ToString,
-    },
+    string::ToString,
     vec::Vec,
 };
 
@@ -42,14 +39,17 @@ use crate::{
             PatchEmbedMeta,
         },
     },
-    burner::module::ModuleInit,
+    burner::module::{
+        ModuleInit,
+        ToStructureConfig,
+    },
     contracts::{
         assert_shape_contract_periodically,
         unpack_shape_contract,
     },
     errors::{
+        BunsenError,
         BunsenResult,
-        WithOkOrPanic,
     },
     kits::bimm::swin::v2::blocks::{
         PatchMerging,
@@ -62,10 +62,10 @@ use crate::{
 
 /// Configuration for a single layer in the Swin Transformer V2 model.
 ///
-/// One entry per stage in a [`SwinTransformerV2Config`]'s `layer_configs`
-/// vector. Records the per-stage block `depth` and attention head count;
-/// stage-level resolution, channels and drop-path rates are derived by the
-/// parent config during [`SwinTransformerV2Config::validate`].
+/// One entry per stage in a [`SwinTransformerV2ContractConfig`]'s
+/// `layer_configs` vector. Records the per-stage block `depth` and attention
+/// head count; stage-level resolution, channels and drop-path rates are derived
+/// when the parent config lowers to a [`SwinTransformerV2StructureConfig`].
 #[derive(Config, Debug, PartialEq, Eq)]
 pub struct LayerConfig {
     /// The depth of the layer, i.e., the number of transformer blocks in this
@@ -76,7 +76,10 @@ pub struct LayerConfig {
     pub num_heads: usize,
 }
 
-/// Meta trait for `SwinTransformerV2` configs.
+/// Meta trait for [`SwinTransformerV2`].
+///
+/// Implemented by [`SwinTransformerV2StructureConfig`], [`SwinTransformerV2`],
+/// and the policy, [`SwinTransformerV2ContractConfig`].
 pub trait SwinTransformerV2Meta {
     /// The input image resolution as [height, width].
     fn input_resolution(&self) -> [usize; 2];
@@ -131,15 +134,20 @@ pub trait SwinTransformerV2Meta {
     fn enable_patch_norm(&self) -> bool;
 }
 
-/// Configuration for the [`SwinTransformerV2`] model.
+/// Configuration for the [`SwinTransformerV2`] model: the policy of Swin's
+/// Stacked Config.
 ///
 /// Top-level config describing the patch embedding, per-stage
-/// [`LayerConfig`]s, window size and training options. Build the model with
-/// `.init(device)` (or validate first via
-/// [`SwinTransformerV2Config::validate`]), then `forward` a `[batch,
-/// channels, height, width]` image tensor to get classification logits.
+/// [`LayerConfig`]s, window size and training options. It implements
+/// [`ToStructureConfig`], and its lowering is fallible:
+/// [`try_to_structure`](ToStructureConfig::try_to_structure) checks that the
+/// stages fit the input and the window, and returns the
+/// [`SwinTransformerV2StructureConfig`] or a [`BunsenError::Invalid`] that
+/// says what does not fit. `.init(device)`, from the trait's blanket
+/// [`ModuleInit`] impl, lowers and builds in one step; then `forward` an image
+/// tensor to get classification logits.
 #[derive(Config, Debug)]
-pub struct SwinTransformerV2Config {
+pub struct SwinTransformerV2ContractConfig {
     /// The input image resolution as [height, width].
     pub input_resolution: [usize; 2],
 
@@ -191,7 +199,7 @@ pub struct SwinTransformerV2Config {
     pub enable_patch_norm: bool,
 }
 
-impl SwinTransformerV2Meta for SwinTransformerV2Config {
+impl SwinTransformerV2Meta for SwinTransformerV2ContractConfig {
     fn input_resolution(&self) -> [usize; 2] {
         self.input_resolution
     }
@@ -249,33 +257,19 @@ impl SwinTransformerV2Meta for SwinTransformerV2Config {
     }
 }
 
-/// Partially validated plan for the SWIN Transformer V2 model.
-#[derive(Debug)]
-pub struct SwinTransformerV2Plan {
-    /// The patch embedding configuration for the model.
-    pub patch_config: PatchEmbedConfig,
+impl ToStructureConfig for SwinTransformerV2ContractConfig {
+    type Structure = SwinTransformerV2StructureConfig;
 
-    /// The resolutions of the grid for each layer.
-    pub layer_resolutions: Vec<[usize; 2]>,
-
-    /// The embedding dimension size of the output for each layer.
-    pub layer_dims: Vec<usize>,
-
-    /// The block configurations for each layer, including stochastic depth.
-    pub block_configs: Vec<StochasticDepthTransformerBlockSequenceConfig>,
-}
-
-impl SwinTransformerV2Config {
-    /// Checks config validity and returns a plan for the Swin Transformer V2
-    /// model.
+    /// Checks that the stages fit the input and the window, and resolves each
+    /// stage's resolution, width, and drop-path rates.
     ///
-    /// Performs model constraint validation tests without initializing a model.
+    /// # Errors
     ///
-    /// # Returns
-    ///
-    /// A [`SwinTransformerV2Plan`] containing the patch embedding
-    /// configuration.
-    pub fn validate(&self) -> Result<SwinTransformerV2Plan, String> {
+    /// [`BunsenError::Invalid`] when there are no stages, when the last
+    /// stage's patch grid is empty or not a multiple of `window_size`, or when
+    /// `input_resolution` is not that grid scaled back up by the merges and the
+    /// patch size.
+    fn try_to_structure(&self) -> BunsenResult<SwinTransformerV2StructureConfig> {
         let patch_config = PatchEmbedConfig::new(
             self.input_resolution,
             self.patch_size,
@@ -285,7 +279,9 @@ impl SwinTransformerV2Config {
         .with_enable_patch_norm(self.enable_patch_norm);
 
         if self.layer_configs.is_empty() {
-            return Err("At least one layer configuration is required".to_string());
+            return Err(BunsenError::Invalid(
+                "At least one layer configuration is required".to_string(),
+            ));
         }
 
         let mut layer_resolutions: Vec<[usize; 2]> = Vec::with_capacity(self.layer_configs.len());
@@ -303,26 +299,29 @@ impl SwinTransformerV2Config {
 
         let output_resolution = *layer_resolutions.last().unwrap();
         let [last_h, last_w] = output_resolution;
-        assert!(
-            last_h > 0 && last_w > 0,
-            "Output resolution must be non-zero: {output_resolution:?}"
-        );
-        assert!(
-            last_h % self.window_size == 0 && last_w % self.window_size == 0,
-            "Output resolution must be divisible by window size: {:?} / {:?}",
-            output_resolution,
-            self.window_size
-        );
+        if last_h == 0 || last_w == 0 {
+            return Err(BunsenError::Invalid(format!(
+                "Output resolution must be non-zero: {output_resolution:?}"
+            )));
+        }
+        if !last_h.is_multiple_of(self.window_size) || !last_w.is_multiple_of(self.window_size) {
+            return Err(BunsenError::Invalid(format!(
+                "Output resolution must be divisible by window size: {:?} / {:?}",
+                output_resolution, self.window_size
+            )));
+        }
         let expansion_scale = 2_usize.pow((self.layer_configs.len() - 1) as u32) * self.patch_size;
-        assert_eq!(
-            patch_config.input_resolution(),
-            [last_h * expansion_scale, last_w * expansion_scale],
-            "Input resolution must match [<c> * <window_size:{:?}> * 2^(<layers:{:?}>-1) * <patch_size:{:?}, ...]:\n{:?}",
-            self.window_size,
-            self.layer_configs.len(),
-            self.patch_size,
-            patch_config.input_resolution(),
-        );
+        let expected_resolution = [last_h * expansion_scale, last_w * expansion_scale];
+        if patch_config.input_resolution() != expected_resolution {
+            return Err(BunsenError::Invalid(format!(
+                "Input resolution must match [<c> * <window_size:{:?}> * 2^(<layers:{:?}>-1) * <patch_size:{:?}>, ...]: {:?} != {:?}",
+                self.window_size,
+                self.layer_configs.len(),
+                self.patch_size,
+                patch_config.input_resolution(),
+                expected_resolution,
+            )));
+        }
 
         // Stochastic depth delay rule
         let dpr_layer_rates = DropPathRateDepthTable::dpr_layer_rates(
@@ -357,25 +356,150 @@ impl SwinTransformerV2Config {
                 })
                 .collect();
 
-        Ok(SwinTransformerV2Plan {
+        Ok(SwinTransformerV2StructureConfig {
             patch_config,
-            layer_resolutions,
-            layer_dims,
+            enable_ape: self.enable_ape,
+            drop_rate: self.drop_rate,
             block_configs,
+            num_classes: self.num_classes,
+            attn_drop_rate: self.attn_drop_rate,
+            drop_path_rate: self.drop_path_rate,
         })
     }
 }
 
-impl<B: Backend> ModuleInit<B, SwinTransformerV2<B>> for SwinTransformerV2Config {
+/// The unrolled structure of a [`SwinTransformerV2`].
+///
+/// [`SwinTransformerV2ContractConfig`] lowers to it through
+/// [`try_to_structure`](ToStructureConfig::try_to_structure), which is where
+/// the policy is checked. It holds the patch embedding, one block sequence per
+/// stage (each with its resolution, width, heads, and per-block drop-path rates
+/// resolved), and what the head needs; the patch merges between stages follow
+/// from the block sequences. Call `.init(device)` to build the
+/// [`SwinTransformerV2`].
+///
+/// Implements [`SwinTransformerV2Meta`].
+#[derive(Config, Debug)]
+pub struct SwinTransformerV2StructureConfig {
+    /// The patch embedding configuration for the model.
+    pub patch_config: PatchEmbedConfig,
+
+    /// Whether to add an absolute positional encoding (APE) to the patches.
+    pub enable_ape: bool,
+
+    /// Dropout rate on the patch embeddings.
+    pub drop_rate: f64,
+
+    /// The block configurations for each layer, including stochastic depth.
+    ///
+    /// Between layers, a patch merge halves the resolution and doubles the
+    /// width, so each layer's input is the one before it, merged.
+    pub block_configs: Vec<StochasticDepthTransformerBlockSequenceConfig>,
+
+    /// Number of classes.
+    pub num_classes: usize,
+
+    /// Dropout rate for attention, as the policy set it. Each block sequence
+    /// carries the rate it applies.
+    pub attn_drop_rate: f64,
+
+    /// Drop path rate for stochastic depth, as the policy set it. Each block
+    /// sequence carries its per-block rates.
+    pub drop_path_rate: f64,
+}
+
+impl SwinTransformerV2StructureConfig {
+    /// The `[height, width]` patch grid of each layer.
+    pub fn layer_resolutions(&self) -> Vec<[usize; 2]> {
+        self.block_configs
+            .iter()
+            .map(|c| c.input_resolution())
+            .collect()
+    }
+
+    /// The embedding width of each layer.
+    pub fn layer_dims(&self) -> Vec<usize> {
+        self.block_configs.iter().map(|c| c.d_input()).collect()
+    }
+}
+
+impl SwinTransformerV2Meta for SwinTransformerV2StructureConfig {
+    fn input_resolution(&self) -> [usize; 2] {
+        self.patch_config.input_resolution()
+    }
+
+    fn d_input(&self) -> usize {
+        self.patch_config.d_input()
+    }
+
+    fn patch_size(&self) -> usize {
+        self.patch_config.patch_size()
+    }
+
+    fn num_classes(&self) -> usize {
+        self.num_classes
+    }
+
+    fn d_embed(&self) -> usize {
+        self.patch_config.d_output()
+    }
+
+    fn window_size(&self) -> usize {
+        self.block_configs[0].window_size()
+    }
+
+    fn layer_configs(&self) -> Vec<LayerConfig> {
+        self.block_configs
+            .iter()
+            .map(|b| LayerConfig {
+                depth: b.depth(),
+                num_heads: b.num_heads(),
+            })
+            .collect()
+    }
+
+    fn mlp_ratio(&self) -> f64 {
+        self.block_configs[0].mlp_ratio()
+    }
+
+    fn enable_qkv_bias(&self) -> bool {
+        self.block_configs[0].enable_qkv_bias()
+    }
+
+    fn drop_rate(&self) -> f64 {
+        self.drop_rate
+    }
+
+    fn attn_drop_rate(&self) -> f64 {
+        self.attn_drop_rate
+    }
+
+    fn drop_path_rate(&self) -> f64 {
+        self.drop_path_rate
+    }
+
+    fn enable_ape(&self) -> bool {
+        self.enable_ape
+    }
+
+    fn enable_patch_norm(&self) -> bool {
+        self.patch_config.enable_patch_norm()
+    }
+}
+
+impl<B: Backend> ModuleInit<B, SwinTransformerV2<B>> for SwinTransformerV2StructureConfig {
     fn try_init(
         &self,
         device: &B::Device,
     ) -> BunsenResult<SwinTransformerV2<B>> {
-        let plan = self.validate().unwrap();
-        // println!("plan: {:#?}", plan);
+        let Some(last_block) = self.block_configs.last() else {
+            return Err(BunsenError::Invalid(
+                "At least one layer configuration is required".to_string(),
+            ));
+        };
+        let grid_output_features = last_block.d_input();
 
-        let self1 = &plan.patch_config;
-        let patch_embed: PatchEmbed<B> = self1.try_init(device).ok_or_panic();
+        let patch_embed: PatchEmbed<B> = self.patch_config.try_init(device)?;
 
         // ape: trunc_normal: ([1, num_patches, d_embed], std=0.02)
         // defaults: (mean=0.0, a=-2.0, b=2.0)
@@ -385,28 +509,28 @@ impl<B: Backend> ModuleInit<B, SwinTransformerV2<B>> for SwinTransformerV2Config
                     mean: 0.0,
                     std: 0.02,
                 }
-                .init([1_usize, patch_embed.num_patches(), self.d_embed], device),
+                .init(
+                    [1_usize, patch_embed.num_patches(), patch_embed.d_output()],
+                    device,
+                ),
             )
         } else {
             None
         };
 
-        let grid_transformer_block_sequences: Vec<StochasticDepthTransformerBlockSequence<B>> =
-            plan.block_configs
-                .iter()
-                .map(|config| config.try_init(device).ok_or_panic())
-                .collect();
+        let grid_transformer_block_sequences = self
+            .block_configs
+            .iter()
+            .map(|config| config.try_init(device))
+            .collect::<BunsenResult<Vec<StochasticDepthTransformerBlockSequence<B>>>>()?;
 
-        let grid_merge_layers: Vec<PatchMerging<B>> = (0..grid_transformer_block_sequences.len()
-            - 1)
-            .map(|layer_i| {
-                let block = &grid_transformer_block_sequences[layer_i];
-                let self1 = &PatchMergingConfig::new(block.input_resolution(), block.d_input());
-                self1.try_init(device).ok_or_panic()
+        let grid_merge_layers = self.block_configs[..self.block_configs.len() - 1]
+            .iter()
+            .map(|config| {
+                PatchMergingConfig::new(config.input_resolution(), config.d_input())
+                    .try_init(device)
             })
-            .collect();
-
-        let grid_output_features = *plan.layer_dims.last().unwrap();
+            .collect::<BunsenResult<Vec<PatchMerging<B>>>>()?;
 
         let module = SwinTransformerV2 {
             patch_embed,
@@ -429,7 +553,10 @@ impl<B: Backend> ModuleInit<B, SwinTransformerV2<B>> for SwinTransformerV2Config
 
 /// High-level SWIN Transformer V2 model.
 ///
-/// Built by [`SwinTransformerV2Config`].
+/// Implements [`SwinTransformerV2Meta`].
+///
+/// Built by [`SwinTransformerV2ContractConfig`] (high-level) or
+/// [`SwinTransformerV2StructureConfig`].
 #[derive(Module, Debug)]
 pub struct SwinTransformerV2<B: Backend> {
     /// The patch embedding layer that converts the input image into patches.
@@ -668,17 +795,21 @@ mod tests {
     use serial_test::serial;
 
     use super::*;
-    use crate::support::testing::{
-        DeviceMemoryGuard,
-        PerformanceBackend,
-        default_device,
+    use crate::{
+        errors::WithOkOrPanic,
+        support::testing::{
+            CpuBackend,
+            DeviceMemoryGuard,
+            PerformanceBackend,
+            default_device,
+        },
     };
 
     #[test]
     #[serial]
     fn test_swin_transformer_v2_meta() {
         type B = PerformanceBackend;
-        let config = SwinTransformerV2Config {
+        let config = SwinTransformerV2ContractConfig {
             input_resolution: [224, 224],
             patch_size: 4,
             d_input: 3,
@@ -817,7 +948,7 @@ mod tests {
 
         let d_embed = (d_input * patch_size * patch_size) / 2;
 
-        let self1 = SwinTransformerV2Config::new(
+        let self1 = SwinTransformerV2ContractConfig::new(
             [h, w],
             patch_size,
             d_input,
@@ -899,7 +1030,7 @@ mod tests {
 
         let d_embed = (d_input * patch_size * patch_size) / 2;
 
-        let self1 = SwinTransformerV2Config::new(
+        let self1 = SwinTransformerV2ContractConfig::new(
             [h, w],
             patch_size,
             d_input,
@@ -942,5 +1073,103 @@ mod tests {
         output
             .to_data()
             .assert_approx_eq::<f32>(&expected.to_data(), Tolerance::default());
+    }
+
+    /// A two-layer policy over `[48, 48]` images: a `[12, 12]` patch grid,
+    /// merged once to `[6, 6]`, two windows of 3 a side.
+    fn tiny_policy() -> SwinTransformerV2ContractConfig {
+        SwinTransformerV2ContractConfig::new(
+            [48, 48],
+            4,
+            3,
+            12,
+            24,
+            vec![LayerConfig::new(1, 3), LayerConfig::new(1, 6)],
+        )
+        .with_window_size(3)
+    }
+
+    /// Asserts that `a` and `b` answer every [`SwinTransformerV2Meta`] method
+    /// alike.
+    fn assert_meta_agrees(
+        a: &impl SwinTransformerV2Meta,
+        b: &impl SwinTransformerV2Meta,
+    ) {
+        assert_eq!(a.input_resolution(), b.input_resolution());
+        assert_eq!(a.input_height(), b.input_height());
+        assert_eq!(a.input_width(), b.input_width());
+        assert_eq!(a.d_input(), b.d_input());
+        assert_eq!(a.patch_size(), b.patch_size());
+        assert_eq!(a.num_classes(), b.num_classes());
+        assert_eq!(a.d_embed(), b.d_embed());
+        assert_eq!(a.window_size(), b.window_size());
+        assert_eq!(a.layer_configs(), b.layer_configs());
+        assert_eq!(a.mlp_ratio(), b.mlp_ratio());
+        assert_eq!(a.enable_qkv_bias(), b.enable_qkv_bias());
+        assert_eq!(a.drop_rate(), b.drop_rate());
+        assert_eq!(a.attn_drop_rate(), b.attn_drop_rate());
+        assert_eq!(a.drop_path_rate(), b.drop_path_rate());
+        assert_eq!(a.enable_ape(), b.enable_ape());
+        assert_eq!(a.enable_patch_norm(), b.enable_patch_norm());
+    }
+
+    /// The policy builds the same `SwinTransformerV2` through its structure
+    /// as through the blanket `init`.
+    #[test]
+    #[serial]
+    fn test_policy_pathways_agree() {
+        type B = PerformanceBackend;
+        let device = default_device();
+        let _memory = DeviceMemoryGuard::<B>::new(&device);
+
+        let policy = tiny_policy()
+            .with_mlp_ratio(2.0)
+            .with_enable_qkv_bias(false)
+            .with_drop_rate(0.1)
+            .with_attn_drop_rate(0.1)
+            .with_drop_path_rate(0.2)
+            .with_enable_ape(false)
+            .with_enable_patch_norm(false);
+
+        let structure = policy.to_structure();
+        assert_eq!(structure.layer_resolutions(), vec![[12, 12], [6, 6]]);
+        assert_eq!(structure.layer_dims(), vec![24, 48]);
+        assert_meta_agrees(&policy, &structure);
+
+        let lowered: SwinTransformerV2<B> = structure.init(&device);
+        let direct: SwinTransformerV2<B> = policy.init(&device);
+
+        assert_meta_agrees(&direct, &lowered);
+        assert_meta_agrees(&direct, &structure);
+    }
+
+    /// A policy whose stages do not fit is an error from `try_to_structure`,
+    /// and so from `try_init`, rather than a panic.
+    #[test]
+    fn test_try_to_structure_rejects_bad_policy() {
+        assert!(tiny_policy().try_to_structure().is_ok());
+
+        let is_invalid = |policy: SwinTransformerV2ContractConfig| {
+            matches!(policy.try_to_structure(), Err(BunsenError::Invalid(_)))
+        };
+
+        // No stages.
+        assert!(is_invalid(SwinTransformerV2ContractConfig {
+            layer_configs: vec![],
+            ..tiny_policy()
+        }));
+        // The last stage's `[6, 6]` grid is not a multiple of the window.
+        assert!(is_invalid(tiny_policy().with_window_size(4)));
+        // `[50, 50]` still patches to a `[12, 12]` grid, but is not that grid
+        // scaled back up.
+        assert!(is_invalid(SwinTransformerV2ContractConfig {
+            input_resolution: [50, 50],
+            ..tiny_policy()
+        }));
+
+        let device: burn::prelude::Device<CpuBackend> = Default::default();
+        let bad: BunsenResult<SwinTransformerV2<CpuBackend>> =
+            tiny_policy().with_window_size(4).try_init(&device);
+        assert!(matches!(bad, Err(BunsenError::Invalid(_))));
     }
 }

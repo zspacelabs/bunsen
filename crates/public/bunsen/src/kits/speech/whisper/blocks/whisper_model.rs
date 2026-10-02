@@ -19,9 +19,11 @@ use crate::{
         module::{
             HasDType,
             ModuleInit,
+            ToStructureConfig,
         },
         store::FixPytorchLoadMappers,
     },
+    errors::BunsenResult,
     kits::speech::whisper::blocks::{
         AudioEncoder,
         AudioEncoderConfig,
@@ -36,10 +38,10 @@ use crate::{
 ///
 /// User-facing configuration for the [`Whisper`] model, exposing the flat
 /// hyperparameters (Mel resolution, vocabulary, model/head sizes, context
-/// limits, and encoder/decoder layer counts). Expands via
-/// [`to_structure`](WhisperApiConfig::to_structure) into a
-/// [`WhisperStructuralConfig`], and builds the [`Whisper`] module directly via
-/// [`ModuleInit`].
+/// limits, and encoder/decoder layer counts): the policy of `Whisper`'s
+/// Stacked Config. It implements [`ToStructureConfig`], expanding into a
+/// [`WhisperStructureConfig`], and gets [`ModuleInit`] from that trait's
+/// blanket impl, so `.init(device)` builds the [`Whisper`] module directly.
 #[derive(Config, Debug)]
 pub struct WhisperApiConfig {
     /// The Mel-scale frequency resolution.
@@ -83,10 +85,11 @@ pub struct WhisperApiConfig {
     pub d_head: usize,
 }
 
-impl WhisperApiConfig {
-    /// Converts to a [`WhisperStructuralConfig`].
-    pub fn to_structure(&self) -> WhisperStructuralConfig {
-        WhisperStructuralConfig {
+impl ToStructureConfig for WhisperApiConfig {
+    type Structure = WhisperStructureConfig;
+
+    fn try_to_structure(&self) -> BunsenResult<WhisperStructureConfig> {
+        Ok(WhisperStructureConfig {
             front_end: self.front_end.clone(),
             token_layout: self.token_layout.clone(),
             encoder: AudioEncoderConfig::new(
@@ -103,20 +106,11 @@ impl WhisperApiConfig {
                 self.n_decoder_layers,
             )
             .with_d_head(self.d_head),
-        }
+        })
     }
 }
 
-impl<B: Backend> ModuleInit<B, Whisper<B>> for WhisperApiConfig {
-    fn try_init(
-        &self,
-        device: &B::Device,
-    ) -> crate::errors::BunsenResult<Whisper<B>> {
-        self.to_structure().try_init(device)
-    }
-}
-
-/// Common meta for [`Whisper`] and [`WhisperApiConfig`].
+/// Common meta for [`Whisper`] and [`WhisperStructureConfig`].
 pub trait WhisperMeta {
     /// The audio front end the model's log-mels are computed with.
     fn front_end(&self) -> &WhisperFrontEndConfig;
@@ -161,13 +155,16 @@ pub trait WhisperMeta {
     fn decoder(&self) -> &impl TextDecoderMeta;
 }
 
-/// [`Whisper`] structural config.
+/// [`Whisper`] structure config.
 ///
 /// The fully-expanded structural configuration for the [`Whisper`] model,
-/// pairing an [`AudioEncoderConfig`] with a [`TextDecoderConfig`]. Builds the
-/// [`Whisper`] module via [`ModuleInit`].
+/// pairing an [`AudioEncoderConfig`] with a [`TextDecoderConfig`].
+/// [`WhisperApiConfig`] lowers to it. Builds the [`Whisper`] module via
+/// [`ModuleInit`].
+///
+/// Implements [`WhisperMeta`].
 #[derive(Config, Debug)]
-pub struct WhisperStructuralConfig {
+pub struct WhisperStructureConfig {
     /// The audio front end the model's log-mels are computed with.
     pub front_end: WhisperFrontEndConfig,
 
@@ -181,7 +178,7 @@ pub struct WhisperStructuralConfig {
     pub decoder: TextDecoderConfig,
 }
 
-impl WhisperMeta for WhisperStructuralConfig {
+impl WhisperMeta for WhisperStructureConfig {
     fn front_end(&self) -> &WhisperFrontEndConfig {
         &self.front_end
     }
@@ -199,11 +196,11 @@ impl WhisperMeta for WhisperStructuralConfig {
     }
 }
 
-impl<B: Backend> ModuleInit<B, Whisper<B>> for WhisperStructuralConfig {
+impl<B: Backend> ModuleInit<B, Whisper<B>> for WhisperStructureConfig {
     fn try_init(
         &self,
         device: &B::Device,
-    ) -> crate::errors::BunsenResult<Whisper<B>> {
+    ) -> BunsenResult<Whisper<B>> {
         let encoder = self.encoder.init(device);
         let decoder = self.decoder.init(device);
 
@@ -224,7 +221,9 @@ impl<B: Backend> ModuleInit<B, Whisper<B>> for WhisperStructuralConfig {
 /// over the input log-Mel spectrogram with a [`TextDecoder`] that
 /// cross-attends to the encoder output to produce vocabulary logits.
 ///
-/// Built by [`WhisperApiConfig`].
+/// Implements [`WhisperMeta`].
+///
+/// Built by [`WhisperApiConfig`] (high-level) or [`WhisperStructureConfig`].
 #[derive(Module, Debug)]
 pub struct Whisper<B: Backend> {
     /// The audio front end the log-mels are computed with. A
@@ -473,6 +472,59 @@ mod tests {
         assert_eq!(model.sample_rate(), 8_000);
         assert_eq!(model.front_end().hop(), 80);
         assert_eq!(model.token_layout().timestamp_tokens, 751);
+    }
+
+    /// Asserts that `a` and `b` answer every [`WhisperMeta`] method alike,
+    /// down through the encoder's and the decoder's meta.
+    fn assert_meta_agrees(
+        a: &impl WhisperMeta,
+        b: &impl WhisperMeta,
+    ) {
+        assert_eq!(a.front_end(), b.front_end());
+        assert_eq!(a.token_layout(), b.token_layout());
+        assert_eq!(a.sample_rate(), b.sample_rate());
+        assert_eq!(a.n_mels(), b.n_mels());
+        assert_eq!(a.vocab_size(), b.vocab_size());
+        assert_eq!(a.d_model(), b.d_model());
+        assert_eq!(a.max_audio_ctx(), b.max_audio_ctx());
+        assert_eq!(a.max_text_ctx(), b.max_text_ctx());
+
+        let (a_enc, b_enc) = (a.encoder(), b.encoder());
+        assert_eq!(a_enc.n_mels(), b_enc.n_mels());
+        assert_eq!(a_enc.max_context(), b_enc.max_context());
+        assert_eq!(a_enc.d_model(), b_enc.d_model());
+        assert_eq!(a_enc.n_heads(), b_enc.n_heads());
+        assert_eq!(a_enc.n_layers(), b_enc.n_layers());
+
+        let (a_dec, b_dec) = (a.decoder(), b.decoder());
+        assert_eq!(a_dec.vocab_size(), b_dec.vocab_size());
+        assert_eq!(a_dec.d_model(), b_dec.d_model());
+        assert_eq!(a_dec.max_context(), b_dec.max_context());
+        assert_eq!(a_dec.n_heads(), b_dec.n_heads());
+        assert_eq!(a_dec.n_layers(), b_dec.n_layers());
+    }
+
+    /// The policy builds the same `Whisper` through its structure as through
+    /// the blanket `init`.
+    #[test]
+    fn test_policy_pathways_agree() {
+        type B = CpuBackend;
+        let device: Device<B> = Default::default();
+
+        let policy = WhisperApiConfig::new(8, 16, 64, 16, 1, 12, 2)
+            .with_d_head(16)
+            .with_front_end(WhisperFrontEndConfig::new().with_sample_rate(8_000))
+            .with_token_layout(WhisperTokenLayoutConfig::new().with_timestamp_tokens(751));
+
+        let structure = policy.to_structure();
+        assert_eq!(structure.encoder().n_heads(), 4);
+        assert_eq!(structure.decoder().n_layers(), 2);
+
+        let lowered: Whisper<B> = structure.init(&device);
+        let direct: Whisper<B> = policy.init(&device);
+
+        assert_meta_agrees(&direct, &lowered);
+        assert_meta_agrees(&direct, &structure);
     }
 
     /// **The dtype boundary.** A checkpoint at a precision the caller does

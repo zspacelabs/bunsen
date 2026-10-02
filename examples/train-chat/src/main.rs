@@ -9,7 +9,10 @@ use std::{
 
 use bunsen::{
     burner::{
-        module::reflection::XmlModuleTree,
+        module::{
+            ModuleInit,
+            reflection::XmlModuleTree,
+        },
         optim::{
             GroupOptimizerAdaptor2,
             OptimizerGroup,
@@ -18,7 +21,7 @@ use bunsen::{
     data::cache::BunsenDiskCache,
     kits::gpts::nanochat::{
         NanoChatGpt,
-        NanoChatGptConfig,
+        NanoChatGptContractConfig,
         NanoChatGptMeta,
         datasets::NANOCHAT_SHARD_SETS,
     },
@@ -257,12 +260,12 @@ fn run<B: AutodiffBackend>(args: &Args) -> anyhow::Result<()> {
         .with_parallel(true)
         .build(vocab);
 
-    let gpt_config = NanoChatGptConfig::new()
+    let gpt_config = NanoChatGptContractConfig::new()
         .with_n_embed(args.n_embed)
         .with_n_layer(args.n_layer)
         .with_vocab_size(vocab_size);
 
-    let gpt: NanoChatGpt<B> = gpt_config.clone().init::<B>(&device);
+    let gpt: NanoChatGpt<B> = gpt_config.init(&device);
 
     let host = GptHost { gpt };
 
@@ -520,14 +523,14 @@ mod tests {
 
     /// A `GptHost` small enough to build in milliseconds.
     fn tiny_host() -> GptHost<CpuBackend> {
-        let gpt = NanoChatGptConfig::new()
+        let gpt: NanoChatGpt<CpuBackend> = NanoChatGptContractConfig::new()
             .with_vocab_size(32)
             .with_n_layer(2)
             .with_n_head(2)
             .with_n_kv_head(2)
             .with_n_embed(8)
             .with_init_seq_len(16)
-            .init::<CpuBackend>(&default_device());
+            .init(&default_device());
         GptHost { gpt }
     }
 

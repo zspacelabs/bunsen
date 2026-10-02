@@ -13,6 +13,7 @@ use bunsen::{
     burner::module::{
         DTypeMapper,
         ModuleInit,
+        ToStructureConfig,
     },
     data::pretrained::{
         PretrainedCache,
@@ -420,7 +421,7 @@ pub fn backend_main<B: AutodiffBackend>(args: &Args) -> anyhow::Result<()> {
 #[derive(Config, Debug)]
 pub struct ModelConfig {
     pub drop_block: DropBlock2dConfig,
-    pub swin: SwinTransformerV2Config,
+    pub swin: SwinTransformerV2ContractConfig,
 }
 
 impl ModelConfig {

@@ -17,7 +17,7 @@ use bunsen::{
     kits::bimm::swin::v2::{
         LayerConfig,
         SwinTransformerV2,
-        SwinTransformerV2Config,
+        SwinTransformerV2ContractConfig,
     },
 };
 use bunsen_firehose::{
@@ -223,7 +223,7 @@ pub fn backend_main<B: AutodiffBackend>(args: &Args) -> anyhow::Result<()> {
     let window_size: usize = 4;
     let embed_dim = ((image_channels * patch_size.pow(2)) as f64 * args.embed_ratio) as usize;
 
-    let swin_config = SwinTransformerV2Config::new(
+    let swin_config = SwinTransformerV2ContractConfig::new(
         image_dimensions,
         patch_size,
         image_channels,
@@ -412,7 +412,7 @@ pub fn backend_main<B: AutodiffBackend>(args: &Args) -> anyhow::Result<()> {
 #[derive(Config, Debug)]
 pub struct ModelConfig {
     pub drop_block: DropBlock2dConfig,
-    pub swin: SwinTransformerV2Config,
+    pub swin: SwinTransformerV2ContractConfig,
 }
 
 impl<B: Backend> ModuleInit<B, Model<B>> for ModelConfig {

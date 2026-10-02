@@ -41,7 +41,10 @@ use crate::{
         },
         mlp::MlpConfig,
     },
-    burner::module::ModuleInit,
+    burner::module::{
+        ModuleInit,
+        ToStructureConfig,
+    },
     contracts::{
         assert_shape_contract_periodically,
         unpack_shape_contract,
@@ -53,7 +56,8 @@ use crate::{
     },
 };
 
-/// Common meta for [`NanoChatGpt`] and [`NanoChatGptConfig`].
+/// Common meta for [`NanoChatGpt`], [`NanoChatGptStructureConfig`], and
+/// [`NanoChatGptContractConfig`].
 pub trait NanoChatGptMeta {
     /// Returns the size of the input and output.
     fn n_embed(&self) -> usize;
@@ -82,11 +86,13 @@ pub trait NanoChatGptMeta {
 /// High-level GPT Config.
 ///
 /// User-facing configuration for the nanoChat GPT model, exposing the common
-/// hyperparameters (sizes, layer/head counts, vocabulary, softcap). Expands via
-/// [`into_structure`](NanoChatGptConfig::into_structure) into a
-/// [`NanoChatGptStructureConfig`], which builds the [`NanoChatGpt`] module.
+/// hyperparameters (sizes, layer/head counts, vocabulary, softcap): the
+/// policy of `NanoChatGpt`'s Stacked Config. It implements
+/// [`ToStructureConfig`], expanding into a [`NanoChatGptStructureConfig`], and
+/// gets [`ModuleInit`] from that trait's blanket impl, so `.init(&device)`
+/// builds the [`NanoChatGpt`] module directly.
 #[derive(Config, Debug)]
-pub struct NanoChatGptConfig {
+pub struct NanoChatGptContractConfig {
     /// Initial sequence Length.
     #[config(default = "1024")]
     pub init_seq_len: usize,
@@ -133,7 +139,7 @@ pub struct NanoChatGptConfig {
     pub norm: NormalizationConfig,
 }
 
-impl NanoChatGptMeta for NanoChatGptConfig {
+impl NanoChatGptMeta for NanoChatGptContractConfig {
     fn n_embed(&self) -> usize {
         self.n_embed
     }
@@ -159,29 +165,7 @@ impl NanoChatGptMeta for NanoChatGptConfig {
     }
 }
 
-impl NanoChatGptConfig {
-    /// Initializes a [`NanoChatGpt`].
-    pub fn init<B: Backend>(
-        self,
-        device: &B::Device,
-    ) -> NanoChatGpt<B> {
-        self.into_structure().init(device)
-    }
-
-    /// Converts this config into a [`NanoChatGptStructureConfig`].
-    pub fn into_structure(self) -> NanoChatGptStructureConfig {
-        let block_config = self.block_config();
-        NanoChatGptStructureConfig {
-            wte: EmbeddingConfig::new(self.vocab_size, self.n_embed),
-            h: (0..self.n_layer).map(|_| block_config.clone()).collect(),
-            lm_head: LinearConfig::new(self.n_embed, self.vocab_size),
-            r_emb: RotaryEmbeddingConfig::new(self.max_seq_len(), self.head_dim()),
-            norm: self.norm,
-            init_seq_len: self.init_seq_len,
-            softcap: self.softcap,
-        }
-    }
-
+impl NanoChatGptContractConfig {
     /// Builds the [`NanoChatGptBlockConfig`] for this config.
     pub fn block_config(&self) -> NanoChatGptBlockConfig {
         NanoChatGptBlockConfig::new(
@@ -196,11 +180,29 @@ impl NanoChatGptConfig {
     }
 }
 
+impl ToStructureConfig for NanoChatGptContractConfig {
+    type Structure = NanoChatGptStructureConfig;
+
+    fn try_to_structure(&self) -> BunsenResult<NanoChatGptStructureConfig> {
+        let block_config = self.block_config();
+        Ok(NanoChatGptStructureConfig {
+            wte: EmbeddingConfig::new(self.vocab_size, self.n_embed),
+            h: (0..self.n_layer).map(|_| block_config.clone()).collect(),
+            lm_head: LinearConfig::new(self.n_embed, self.vocab_size),
+            r_emb: RotaryEmbeddingConfig::new(self.max_seq_len(), self.head_dim()),
+            norm: self.norm.clone(),
+            init_seq_len: self.init_seq_len,
+            softcap: self.softcap,
+        })
+    }
+}
+
 /// Low-level GPT Structure Config.
 ///
 /// The fully-expanded structural configuration for the [`NanoChatGpt`] module,
 /// holding the explicit sub-configs (embedding, per-layer blocks, head, rotary
-/// embedding). Directly builds the [`NanoChatGpt`] module via [`ModuleInit`].
+/// embedding). [`NanoChatGptContractConfig`] lowers to it. Directly builds the
+/// [`NanoChatGpt`] module via [`ModuleInit`].
 ///
 /// This config has a lot of duplicate information.
 #[derive(Config, Debug)]
@@ -291,7 +293,8 @@ impl<B: Backend> ModuleInit<B, NanoChatGpt<B>> for NanoChatGptStructureConfig {
 /// producing softcapped vocabulary logits. Supports incremental decoding via a
 /// [`KVCache`].
 ///
-/// Built by [`NanoChatGptConfig`].
+/// Built by [`NanoChatGptContractConfig`] (high-level) or
+/// [`NanoChatGptStructureConfig`].
 #[derive(Module, Debug)]
 pub struct NanoChatGpt<B: Backend> {
     wte: Embedding<B>,
@@ -436,7 +439,7 @@ mod tests {
 
     #[test]
     fn test_gpt_config() {
-        let cfg = NanoChatGptConfig::new();
+        let cfg = NanoChatGptContractConfig::new();
         assert_eq!(cfg.init_seq_len, 1024);
         assert_eq!(cfg.vocab_size, 50304);
         assert_eq!(cfg.n_layer, 12);
@@ -462,7 +465,7 @@ mod tests {
 
         let vocab_size = 1000;
 
-        let cfg = NanoChatGptConfig::new()
+        let cfg = NanoChatGptContractConfig::new()
             .with_vocab_size(vocab_size)
             .with_n_embed(n_embed)
             .with_n_layer(n_layer);
@@ -483,5 +486,50 @@ mod tests {
             &logits.dims(),
             &[("B", batch_size), ("T", seq_len), ("D", gpt.n_embed())]
         );
+    }
+
+    /// Asserts that `a` and `b` answer every [`NanoChatGptMeta`] method alike.
+    fn assert_meta_agrees(
+        a: &impl NanoChatGptMeta,
+        b: &impl NanoChatGptMeta,
+    ) {
+        assert_eq!(a.n_embed(), b.n_embed());
+        assert_eq!(a.n_head(), b.n_head());
+        assert_eq!(a.n_kv_head(), b.n_kv_head());
+        assert_eq!(a.head_dim(), b.head_dim());
+        assert_eq!(a.init_seq_len(), b.init_seq_len());
+        assert_eq!(a.max_seq_len(), b.max_seq_len());
+        assert_eq!(a.n_layer(), b.n_layer());
+    }
+
+    /// The policy builds the same `NanoChatGpt` through its structure as
+    /// through the blanket `init`.
+    #[test]
+    #[serial]
+    fn test_policy_pathways_agree() {
+        type B = PerformanceBackend;
+        let device = default_device();
+        let _memory = DeviceMemoryGuard::<B>::new(&device);
+
+        let policy = NanoChatGptContractConfig::new()
+            .with_init_seq_len(16)
+            .with_max_seq_len_factor(2)
+            .with_vocab_size(64)
+            .with_n_layer(2)
+            .with_n_head(4)
+            .with_n_kv_head(2)
+            .with_n_embed(32);
+
+        let structure = policy.to_structure();
+        assert_meta_agrees(&policy, &structure);
+        assert_eq!(structure.max_seq_len(), 32);
+        assert_eq!(structure.head_dim(), 8);
+
+        let lowered: NanoChatGpt<B> = structure.init(&device);
+        let direct: NanoChatGpt<B> = policy.init(&device);
+
+        // Module against module only: `NanoChatGpt::n_embed` reads the
+        // embedding's vocabulary axis, so it disagrees with the configs.
+        assert_meta_agrees(&direct, &lowered);
     }
 }

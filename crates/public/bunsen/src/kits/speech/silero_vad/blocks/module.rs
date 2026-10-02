@@ -70,7 +70,10 @@ use crate::{
             FusedLstmConfig,
         },
     },
-    burner::module::ModuleInit,
+    burner::module::{
+        ModuleInit,
+        ToStructureConfig,
+    },
     errors::{
         BunsenError,
         BunsenResult,
@@ -79,7 +82,14 @@ use crate::{
     prelude::TensorOpExt,
 };
 
-/// [`SileroVad`] Signal Config.
+/// [`SileroVad`] Signal Config: the top policy of `SileroVad`'s Stacked
+/// Config.
+///
+/// Describes the model by its signal: sample rate, frequency bins, and widths.
+/// [`to_stft`](Self::to_stft) refines it into the [`SileroVadStftConfig`]
+/// policy, which spells out the STFT geometry. It implements
+/// [`ToStructureConfig`], lowering straight to [`SileroVadStructureConfig`]
+/// through that step, and gets [`ModuleInit`] from the trait's blanket impl.
 #[derive(Config, Debug)]
 pub struct SileroVadSignalConfig {
     /// The sample rate (in Hz) this model expects, e.g. `16000`.
@@ -108,7 +118,7 @@ impl SileroVadSignalConfig {
         Self::new(8000, 65)
     }
 
-    /// Converts to [`SileroVadStftConfig`].
+    /// Refines this policy to a [`SileroVadStftConfig`].
     pub fn to_stft(&self) -> SileroVadStftConfig {
         let stft_stride = self.n_freq - 1;
         let stft_kernel = stft_stride * 2;
@@ -124,23 +134,23 @@ impl SileroVadSignalConfig {
         .with_d_hidden(self.d_hidden)
         .with_d_bottleneck(self.d_bottleneck)
     }
+}
 
-    /// Converts to [`SileroVadStructureConfig`].
-    pub fn to_structure(&self) -> SileroVadStructureConfig {
-        self.to_stft().to_structure()
+impl ToStructureConfig for SileroVadSignalConfig {
+    type Structure = SileroVadStructureConfig;
+
+    fn try_to_structure(&self) -> BunsenResult<SileroVadStructureConfig> {
+        self.to_stft().try_to_structure()
     }
 }
 
-impl<B: Backend> ModuleInit<B, SileroVad<B>> for SileroVadSignalConfig {
-    fn try_init(
-        &self,
-        device: &B::Device,
-    ) -> BunsenResult<SileroVad<B>> {
-        self.to_stft().try_init(device)
-    }
-}
-
-/// [`SileroVad`] Stft Config.
+/// [`SileroVad`] Stft Config: the policy of `SileroVad`'s Stacked Config
+/// that spells out the STFT geometry.
+///
+/// [`SileroVadSignalConfig::to_stft`] derives one from the signal; set it
+/// directly for a non-standard STFT. It implements [`ToStructureConfig`],
+/// lowering to [`SileroVadStructureConfig`], and gets [`ModuleInit`] from the
+/// trait's blanket impl.
 #[derive(Config, Debug)]
 pub struct SileroVadStftConfig {
     /// The sample rate (in Hz) this model expects, e.g. `16000`.
@@ -167,10 +177,11 @@ pub struct SileroVadStftConfig {
     pub d_bottleneck: usize,
 }
 
-impl SileroVadStftConfig {
-    /// Convert this config into a [`SileroVadStructureConfig`].
-    pub fn to_structure(&self) -> SileroVadStructureConfig {
-        SileroVadStructureConfig {
+impl ToStructureConfig for SileroVadStftConfig {
+    type Structure = SileroVadStructureConfig;
+
+    fn try_to_structure(&self) -> BunsenResult<SileroVadStructureConfig> {
+        Ok(SileroVadStructureConfig {
             sample_rate: self.sample_rate,
             input_pad: self.input_pad,
             stft: Conv1dConfig::new(1, 2 * self.n_freq, self.stft_kernel)
@@ -182,16 +193,7 @@ impl SileroVadStftConfig {
             decoder: Conv1dConfig::new(self.d_hidden, 1, 1)
                 .with_padding(PaddingConfig1d::Valid)
                 .with_bias(true),
-        }
-    }
-}
-
-impl<B: Backend> ModuleInit<B, SileroVad<B>> for SileroVadStftConfig {
-    fn try_init(
-        &self,
-        device: &B::Device,
-    ) -> BunsenResult<SileroVad<B>> {
-        self.to_structure().try_init(device)
+        })
     }
 }
 
@@ -278,6 +280,8 @@ pub fn encoder_config(
 /// [`SileroVad`] Structure Config.
 ///
 /// The fully explicit structural config for a single-rate Silero VAD model.
+/// Both policies, [`SileroVadSignalConfig`] and [`SileroVadStftConfig`], lower
+/// to it.
 ///
 /// Implements [`SileroVadMeta`]; built into a [`SileroVad`] via
 /// [`ModuleInit`].
@@ -971,6 +975,57 @@ mod tests {
             assert_eq!(model.gate_size(), cfg.gate_size());
             assert_eq!(model.d_bottleneck(), cfg.d_bottleneck());
         }
+    }
+
+    /// Asserts that `a` and `b` answer every [`SileroVadMeta`] method alike.
+    fn assert_meta_agrees(
+        a: &impl SileroVadMeta,
+        b: &impl SileroVadMeta,
+    ) {
+        assert_eq!(a.sample_rate(), b.sample_rate());
+        assert_eq!(a.n_freq(), b.n_freq());
+        assert_eq!(a.chunk_size(), b.chunk_size());
+        assert_eq!(a.input_pad(), b.input_pad());
+        assert_eq!(a.stft_kernel(), b.stft_kernel());
+        assert_eq!(a.stft_stride(), b.stft_stride());
+        assert_eq!(a.d_hidden(), b.d_hidden());
+        assert_eq!(a.d_bottleneck(), b.d_bottleneck());
+        assert_eq!(a.gate_size(), b.gate_size());
+    }
+
+    /// Each policy builds the same `SileroVad` through its structure as
+    /// through the blanket `init`.
+    #[test]
+    #[serial_test::serial]
+    fn test_policy_pathways_agree() {
+        let device = default_device();
+        let _memory = DeviceMemoryGuard::<B>::new(&device);
+
+        // The signal policy, at a non-standard rate and widths.
+        let signal = SileroVadSignalConfig::new(4000, 33)
+            .with_d_hidden(32)
+            .with_d_bottleneck(16);
+        let structure = signal.to_structure();
+        assert_eq!(structure.stft_stride(), 32);
+        assert_eq!(structure.chunk_size(), 128);
+
+        let lowered: SileroVad<B> = structure.init(&device);
+        let direct: SileroVad<B> = signal.init(&device);
+        assert_meta_agrees(&direct, &lowered);
+        assert_meta_agrees(&direct, &structure);
+
+        // The STFT policy, with a geometry `to_stft` would not choose.
+        let stft = SileroVadStftConfig::new(4000, 33, 8, 48, 24)
+            .with_d_hidden(32)
+            .with_d_bottleneck(16);
+        let structure = stft.to_structure();
+        assert_eq!(structure.stft_stride(), 24);
+        assert_eq!(structure.chunk_size(), 96);
+
+        let lowered: SileroVad<B> = structure.init(&device);
+        let direct: SileroVad<B> = stft.init(&device);
+        assert_meta_agrees(&direct, &lowered);
+        assert_meta_agrees(&direct, &structure);
     }
 
     #[test]

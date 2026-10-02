@@ -158,7 +158,7 @@ pub use blocks::{
     WhisperApiConfig,
     WhisperGeometry,
     WhisperMeta,
-    WhisperStructuralConfig,
+    WhisperStructureConfig,
 };
 #[doc(inline)]
 pub use decode::*;

@@ -8,9 +8,11 @@
 //! * [`ResidualBlock`], and
 //! * [`ResidualBlockStructureConfig`]
 //!
-//! [`ResidualBlockStructureConfig`] implements [`Config`], and provides an
-//! [`ResidualBlockStructureConfig::init`] constructor pathway to
-//! [`ResidualBlock`].
+//! [`ResidualBlockContractConfig`] implements [`ToStructureConfig`] to lower to
+//! a [`ResidualBlockStructureConfig`].
+//!
+//! [`ResidualBlockStructureConfig`] implements [`Config`], and [`ModuleInit`]
+//! to initialize a [`ResidualBlock`].
 //!
 //! [`ResidualBlock`] implements [`Module`],
 //! and provides [`ResidualBlock::forward`].
@@ -34,7 +36,10 @@ use burn::{
 };
 
 use crate::{
-    burner::module::ModuleInit,
+    burner::module::{
+        ModuleInit,
+        ToStructureConfig,
+    },
     errors::BunsenResult,
     kits::bimm::resnet::blocks::{
         BasicBlock,
@@ -56,9 +61,10 @@ use crate::{
 ///
 /// High-level description of a single residual unit: channel sizes, dilation,
 /// downsampling, and whether to select a [`BasicBlock`] or [`BottleneckBlock`].
-/// Lowers to a [`ResidualBlockStructureConfig`] via
-/// [`ResidualBlockContractConfig::to_structure`]; call `.init(device)` to build
-/// the [`ResidualBlock`] module, then drive it with [`ResidualBlock::forward`].
+/// It implements [`ToStructureConfig`], lowering to a
+/// [`ResidualBlockStructureConfig`], and gets [`ModuleInit`] from that trait's
+/// blanket impl: call `.init(device)` to build the [`ResidualBlock`] module,
+/// then drive it with [`ResidualBlock::forward`].
 #[derive(Config, Debug)]
 pub struct ResidualBlockContractConfig {
     /// The number of input feature planes.
@@ -95,12 +101,13 @@ pub struct ResidualBlockContractConfig {
     pub activation: ActivationConfig,
 }
 
-impl ResidualBlockContractConfig {
-    /// Converts to [`ResidualBlockStructureConfig`].
-    pub fn to_structure(&self) -> ResidualBlockStructureConfig {
+impl ToStructureConfig for ResidualBlockContractConfig {
+    type Structure = ResidualBlockStructureConfig;
+
+    fn try_to_structure(&self) -> BunsenResult<ResidualBlockStructureConfig> {
         let stride = if self.downsample_input { 2 } else { 1 };
 
-        match &self.bottleneck_policy {
+        Ok(match &self.bottleneck_policy {
             None => BasicBlockConfig::new(self.in_planes, self.out_planes)
                 .with_stride(stride)
                 .with_dilation(self.dilation)
@@ -116,22 +123,7 @@ impl ResidualBlockContractConfig {
                 .with_activation(self.activation.clone())
                 .with_policy(policy.clone())
                 .into(),
-        }
-    }
-}
-
-impl<B: Backend> ModuleInit<B, ResidualBlock<B>> for ResidualBlockContractConfig {
-    fn try_init(
-        &self,
-        device: &B::Device,
-    ) -> BunsenResult<ResidualBlock<B>> {
-        self.to_structure().try_init(device)
-    }
-}
-
-impl From<ResidualBlockContractConfig> for ResidualBlockStructureConfig {
-    fn from(config: ResidualBlockContractConfig) -> Self {
-        config.to_structure()
+        })
     }
 }
 
@@ -178,9 +170,10 @@ pub trait ResidualBlockMeta {
 /// [`ResidualBlock`] Config.
 ///
 /// The concrete, resolved choice of inner block ([`BasicBlockConfig`] or
-/// [`BottleneckBlockConfig`]) for one residual unit. Call `.init(device)` to
-/// build the [`ResidualBlock`] module, then drive it with
-/// [`ResidualBlock::forward`].
+/// [`BottleneckBlockConfig`]) for one residual unit.
+/// [`ResidualBlockContractConfig`] lowers to it, and each variant converts
+/// from its inner config with `From`. Call `.init(device)` to build the
+/// [`ResidualBlock`] module, then drive it with [`ResidualBlock::forward`].
 ///
 /// Implements [`ResidualBlockMeta`].
 #[derive(Config, Debug)]
@@ -505,5 +498,45 @@ mod tests {
                 ("out_width", out_width)
             ],
         );
+    }
+
+    /// Asserts that `a` and `b` answer every [`ResidualBlockMeta`] method
+    /// alike.
+    fn assert_meta_agrees(
+        a: &impl ResidualBlockMeta,
+        b: &impl ResidualBlockMeta,
+    ) {
+        assert_eq!(a.in_planes(), b.in_planes());
+        assert_eq!(a.out_planes(), b.out_planes());
+        assert_eq!(a.stride(), b.stride());
+        assert_eq!(a.output_resolution([8, 12]), b.output_resolution([8, 12]));
+    }
+
+    /// A policy builds the same `ResidualBlock` through its structure as
+    /// through the blanket `init`.
+    #[test]
+    #[serial]
+    fn test_policy_pathways_agree() {
+        type B = PerformanceBackend;
+        let device = default_device();
+        let _memory = DeviceMemoryGuard::<B>::new(&device);
+
+        let policy = ResidualBlockContractConfig::new(8, 32)
+            .with_downsample_input(true)
+            .with_bottleneck_policy(Some(BottleneckPolicyConfig::default()));
+
+        let structure = policy.to_structure();
+        assert!(matches!(
+            structure,
+            ResidualBlockStructureConfig::Bottleneck(_)
+        ));
+        assert_eq!(structure.stride(), 2);
+
+        let lowered: ResidualBlock<B> = structure.init(&device);
+        let direct: ResidualBlock<B> = policy.init(&device);
+        assert!(matches!(direct, ResidualBlock::Bottleneck(_)));
+
+        assert_meta_agrees(&direct, &lowered);
+        assert_meta_agrees(&direct, &structure);
     }
 }

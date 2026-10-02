@@ -10,7 +10,7 @@ separately-tuned AdamW groups, with a linear learning-rate warmup.
 ## Bunsen features exercised
 
 - `bunsen::kits::gpts::nanochat` — the `NanoChatGpt` model with
-  `NanoChatGptConfig` / `NanoChatGptMeta`.
+  `NanoChatGptContractConfig` / `NanoChatGptMeta`.
 - `bunsen::burner::module::reflection::XmlModuleTree` — reflect over the module tree and select parameters by XPath-like
   queries (`select_params`,
   `to_param_ids`) to build optimizer groups.

@@ -10,7 +10,7 @@ additionally applies DropBlock regularization to the model.
 ## Bunsen features exercised
 
 - `bunsen::kits::bimm::swin::v2` — the bimm `SwinTransformerV2` model with
-  `SwinTransformerV2Config` / `LayerConfig`.
+  `SwinTransformerV2ContractConfig` / `LayerConfig`.
 - `bunsen::blocks::images::drop::drop_block` — the `DropBlock2d` /
   `DropBlock2dConfig` structured-dropout regularizer.
 - `bunsen::burner::module::ModuleInit` — module initialization.

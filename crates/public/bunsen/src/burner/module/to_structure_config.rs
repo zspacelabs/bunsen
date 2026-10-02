@@ -26,6 +26,18 @@ use crate::{
 /// names that structure config directly; the step from one policy to the next
 /// stays an inherent method.
 ///
+/// In the crate:
+///
+/// - [`ResNetContractConfig`] is the single-policy case, lowering to
+///   [`ResNetStructureConfig`].
+/// - [`SileroVadSignalConfig`] and [`SileroVadStftConfig`] are two chained
+///   policies. The inherent [`to_stft`] refines the first into the second, and
+///   both name [`SileroVadStructureConfig`] as their `Structure`.
+/// - [`SwinTransformerV2ContractConfig`] has a fallible lowering: its
+///   `try_to_structure` is where the policy is validated, and it returns
+///   [`BunsenError::Invalid`](crate::errors::BunsenError::Invalid) for stages
+///   that do not fit the input or the window.
+///
 /// The trait is in [`crate::prelude`], next to `ModuleInit`.
 ///
 /// # `init` for free
@@ -100,6 +112,14 @@ use crate::{
 ///     }
 /// }
 /// ```
+///
+/// [`ResNetContractConfig`]: crate::kits::bimm::resnet::ResNetContractConfig
+/// [`ResNetStructureConfig`]: crate::kits::bimm::resnet::ResNetStructureConfig
+/// [`SileroVadSignalConfig`]: crate::kits::speech::silero_vad::blocks::SileroVadSignalConfig
+/// [`SileroVadStftConfig`]: crate::kits::speech::silero_vad::blocks::SileroVadStftConfig
+/// [`SileroVadStructureConfig`]: crate::kits::speech::silero_vad::blocks::SileroVadStructureConfig
+/// [`to_stft`]: crate::kits::speech::silero_vad::blocks::SileroVadSignalConfig::to_stft
+/// [`SwinTransformerV2ContractConfig`]: crate::kits::bimm::swin::v2::SwinTransformerV2ContractConfig
 pub trait ToStructureConfig {
     /// The structure config this policy lowers to.
     type Structure;

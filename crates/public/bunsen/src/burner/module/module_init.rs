@@ -173,6 +173,19 @@ use crate::errors::{
 /// 2. `policy.init(&device)`: the blanket impl's short circuit, which is
 ///    `policy.try_to_structure()?.try_init(device)`.
 ///
+/// The crate's Stacked families show the variations:
+///
+/// - [`ResNetContractConfig`] is a single policy over [`ResNetStructureConfig`]
+///   and [`ResNet`].
+/// - [`SileroVadSignalConfig`] and [`SileroVadStftConfig`] are two chained
+///   policies: [`to_stft`] refines the signal policy into the STFT one, and
+///   both lower straight to [`SileroVadStructureConfig`].
+/// - [`SwinTransformerV2ContractConfig`] has a fallible lowering: its
+///   `try_to_structure` checks that the stages fit the input and the window, so
+///   `try_init` on the policy returns
+///   [`BunsenError::Invalid`](crate::errors::BunsenError::Invalid) for one that
+///   does not.
+///
 /// ```
 /// use bunsen::{
 ///     prelude::*,
@@ -304,6 +317,14 @@ use crate::errors::{
 /// [`KVCacheConfig::init`]: crate::blocks::transformers::attention::kvcache::KVCacheConfig::init
 /// [`SileroVadContextConfig::init`]: crate::kits::speech::silero_vad::blocks::SileroVadContextConfig::init
 /// [`LBMD2Q9Config::init`]: crate::kits::sims::lbm::d2q9::LBMD2Q9Config::init
+/// [`ResNetContractConfig`]: crate::kits::bimm::resnet::ResNetContractConfig
+/// [`ResNetStructureConfig`]: crate::kits::bimm::resnet::ResNetStructureConfig
+/// [`ResNet`]: crate::kits::bimm::resnet::ResNet
+/// [`SileroVadSignalConfig`]: crate::kits::speech::silero_vad::blocks::SileroVadSignalConfig
+/// [`SileroVadStftConfig`]: crate::kits::speech::silero_vad::blocks::SileroVadStftConfig
+/// [`SileroVadStructureConfig`]: crate::kits::speech::silero_vad::blocks::SileroVadStructureConfig
+/// [`to_stft`]: crate::kits::speech::silero_vad::blocks::SileroVadSignalConfig::to_stft
+/// [`SwinTransformerV2ContractConfig`]: crate::kits::bimm::swin::v2::SwinTransformerV2ContractConfig
 pub trait ModuleInit<B: Backend, M: Module<B>> {
     /// Builds the module on `device`, or reports why the config cannot build
     /// it.

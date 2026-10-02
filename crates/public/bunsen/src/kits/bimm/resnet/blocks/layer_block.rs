@@ -5,8 +5,11 @@
 //! [`LayerBlockMeta`] defines a common introspection API for [`LayerBlock`]
 //! and [`LayerBlockStructureConfig`].
 //!
-//! [`LayerBlockStructureConfig`] implements [`Config`], and provides
-//! [`LayerBlockStructureConfig::init`] to initialize a [`LayerBlock`].
+//! [`LayerBlockContractConfig`] implements [`ToStructureConfig`] to lower to a
+//! [`LayerBlockStructureConfig`].
+//!
+//! [`LayerBlockStructureConfig`] implements [`Config`], and [`ModuleInit`] to
+//! initialize a [`LayerBlock`].
 //!
 //! [`LayerBlock`] implements [`Module`], and provides
 //! [`LayerBlock::forward`].
@@ -32,7 +35,10 @@ use burn::{
 };
 
 use crate::{
-    burner::module::ModuleInit,
+    burner::module::{
+        ModuleInit,
+        ToStructureConfig,
+    },
     errors::{
         BunsenError,
         BunsenResult,
@@ -54,10 +60,11 @@ use crate::{
 /// Abstract [`LayerBlock`] Config.
 ///
 /// High-level description of one `ResNet` stage: how many blocks, the channel
-/// sizes, dilation, downsampling, and whether to use bottleneck blocks. Lowers
-/// to a [`LayerBlockStructureConfig`] via
-/// [`LayerBlockContractConfig::to_structure`]; call `.init(device)` to build
-/// the [`LayerBlock`] module, then drive it with [`LayerBlock::forward`].
+/// sizes, dilation, downsampling, and whether to use bottleneck blocks. It
+/// implements [`ToStructureConfig`], lowering to a
+/// [`LayerBlockStructureConfig`], and gets [`ModuleInit`] from that trait's
+/// blanket impl: call `.init(device)` to build the [`LayerBlock`] module, then
+/// drive it with [`LayerBlock::forward`].
 #[derive(Config, Debug)]
 pub struct LayerBlockContractConfig {
     /// The number of internal blocks.
@@ -128,31 +135,19 @@ impl LayerBlockContractConfig {
 
         blocks
     }
+}
 
-    /// Converts to [`LayerBlockStructureConfig`].
-    pub fn to_structure(&self) -> LayerBlockStructureConfig {
-        LayerBlockStructureConfig {
+impl ToStructureConfig for LayerBlockContractConfig {
+    type Structure = LayerBlockStructureConfig;
+
+    fn try_to_structure(&self) -> BunsenResult<LayerBlockStructureConfig> {
+        Ok(LayerBlockStructureConfig {
             blocks: self
                 .to_block_contracts()
-                .into_iter()
-                .map(|cfg| cfg.into())
-                .collect(),
-        }
-    }
-}
-
-impl<B: Backend> ModuleInit<B, LayerBlock<B>> for LayerBlockContractConfig {
-    fn try_init(
-        &self,
-        device: &B::Device,
-    ) -> BunsenResult<LayerBlock<B>> {
-        self.to_structure().try_init(device)
-    }
-}
-
-impl From<LayerBlockContractConfig> for LayerBlockStructureConfig {
-    fn from(config: LayerBlockContractConfig) -> Self {
-        config.to_structure()
+                .iter()
+                .map(|cfg| cfg.try_to_structure())
+                .collect::<BunsenResult<_>>()?,
+        })
     }
 }
 
@@ -202,8 +197,9 @@ pub trait LayerBlockMeta {
 /// [`LayerBlock`] Configuration.
 ///
 /// The concrete, per-block structure of a `ResNet` stage: an explicit list of
-/// [`ResidualBlockStructureConfig`]s. Call `.init(device)` to build the
-/// [`LayerBlock`] module, then drive it with [`LayerBlock::forward`].
+/// [`ResidualBlockStructureConfig`]s. [`LayerBlockContractConfig`] lowers to
+/// it. Call `.init(device)` to build the [`LayerBlock`] module, then drive it
+/// with [`LayerBlock::forward`].
 ///
 /// Implements [`LayerBlockMeta`].
 #[derive(Config, Debug)]
@@ -483,7 +479,7 @@ mod tests {
         let config: LayerBlockStructureConfig =
             LayerBlockContractConfig::new(num_blocks, in_planes, planes)
                 .with_downsample_input(true)
-                .into();
+                .to_structure();
         config.expect_valid();
         assert_eq!(config.len(), 2);
         assert_eq!(config.in_planes(), in_planes);
@@ -564,5 +560,44 @@ mod tests {
         output
             .to_data_as::<F>()
             .assert_approx_eq::<F>(&expected.to_data_as::<F>(), Tolerance::default());
+    }
+
+    /// Asserts that `a` and `b` answer every [`LayerBlockMeta`] method alike.
+    fn assert_meta_agrees(
+        a: &impl LayerBlockMeta,
+        b: &impl LayerBlockMeta,
+    ) {
+        assert_eq!(a.len(), b.len());
+        assert_eq!(a.is_empty(), b.is_empty());
+        assert_eq!(a.in_planes(), b.in_planes());
+        assert_eq!(a.out_planes(), b.out_planes());
+        assert_eq!(a.stride(), b.stride());
+        assert_eq!(a.output_resolution([8, 12]), b.output_resolution([8, 12]));
+    }
+
+    /// A policy builds the same `LayerBlock` through its structure as through
+    /// the blanket `init`.
+    #[test]
+    #[serial]
+    fn test_policy_pathways_agree() {
+        type B = PerformanceBackend;
+        let device = default_device();
+        let _memory = DeviceMemoryGuard::<B>::new(&device);
+
+        let policy = LayerBlockContractConfig::new(2, 8, 32)
+            .with_downsample_input(true)
+            .with_bottleneck_policy(Some(BottleneckPolicyConfig::default()));
+
+        let structure = policy.to_structure();
+        assert_eq!(structure.len(), 2);
+        assert_eq!(structure.in_planes(), 8);
+        assert_eq!(structure.out_planes(), 32);
+        assert_eq!(structure.stride(), 2);
+
+        let lowered: LayerBlock<B> = structure.init(&device);
+        let direct: LayerBlock<B> = policy.init(&device);
+
+        assert_meta_agrees(&direct, &lowered);
+        assert_meta_agrees(&direct, &structure);
     }
 }
