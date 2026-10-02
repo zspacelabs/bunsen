@@ -96,32 +96,29 @@ args = ["clean"]
 dependencies = [
     "ensure-mdbook",
     "ensure-mdbook-katex",
-    "ensure-mdbook-linkcheck",
     "ensure-mdbook-linkcheck2",
     "ensure-mdbook-mermaid",
 ]
 
+# `cargo install` without `--force` is a no-op when the pinned version is
+# already installed, and replaces any other installed version.
+
 [tasks.ensure-mdbook]
 toolchain = "stable"
 command = "cargo"
-args = ["install", "mdbook", "--version", "0.5.1", "--locked", "--force"]
+args = ["install", "mdbook", "--version", "0.5.4", "--locked"]
 
 [tasks.ensure-mdbook-katex]
 toolchain = "stable"
 command = "cargo"
-args = ["install", "mdbook-katex", "--version", "0.10.0-alpha", "--locked", "--force"]
-
-[tasks.ensure-mdbook-linkcheck]
-toolchain = "stable"
-command = "cargo"
-args = ["install", "mdbook-linkcheck", "--version", "0.7.7", "--locked", "--force"]
+args = ["install", "mdbook-katex", "--version", "0.10.0", "--locked"]
 
 [tasks.ensure-mdbook-linkcheck2]
 toolchain = "stable"
 command = "cargo"
-args = ["install", "mdbook-linkcheck2", "--version", "0.12.0", "--locked", "--force"]
+args = ["install", "mdbook-linkcheck2", "--version", "0.13.0", "--locked"]
 
 [tasks.ensure-mdbook-mermaid]
 toolchain = "stable"
 command = "cargo"
-args = ["install", "mdbook-mermaid", "--version", "0.17.0", "--locked", "--force"]
+args = ["install", "mdbook-mermaid", "--version", "0.17.1", "--locked"]
