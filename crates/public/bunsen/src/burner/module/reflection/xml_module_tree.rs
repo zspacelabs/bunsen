@@ -54,7 +54,21 @@ use crate::{
 /// The version of the `XmlModuleTree` format.
 pub const XML_MODULE_TREE_VERSION: &str = env!("CARGO_PKG_VERSION");
 
-/// XML/XPath reflection layer for `burner` [`Module`]s.
+/// An XML document that mirrors a [`Module`]'s structure, for selecting its
+/// parameters with `XPath`.
+///
+/// Build one with [`XmlModuleTree::build`], then:
+/// - read everything with [`param_ids`](Self::param_ids) or
+///   [`param_descs`](Self::param_descs);
+/// - select with [`select_param_ids`](Self::select_param_ids), or build a query
+///   with [`query`](Self::query) / [`select`](Self::select) and finish it with
+///   an [`XPathModuleQuery`] terminal call;
+/// - print it with [`to_xml`](Self::to_xml) to see what to select.
+///
+/// The tree is a snapshot of structure and parameter ids; it holds no
+/// tensors. The element layout, the naming rule (element = type name,
+/// `@name` = field name) and an `XPath` crib are in the
+/// [module docs](crate::burner::module::reflection).
 pub struct XmlModuleTree {
     docs: Documents,
     root: Node,
@@ -79,7 +93,11 @@ impl Debug for XmlModuleTree {
 }
 
 impl XmlModuleTree {
-    /// Builds a [`XmlModuleTree`] for a [`Module`].
+    /// Builds an [`XmlModuleTree`] for a [`Module`].
+    ///
+    /// Walks the module once with an [`XmlModuleTreeBuilder`]. The tree
+    /// records structure and parameter ids; it does not follow later changes
+    /// to the module.
     pub fn build<B: Backend, M: Module<B>>(module: &M) -> Self {
         XmlModuleTreeBuilder::build(module)
     }
@@ -146,7 +164,7 @@ impl XmlModuleTree {
         names.map(|name| self.bind_local_name(name))
     }
 
-    /// The root [`Node`] document node of the module tree.
+    /// The root [`Node`] of the module tree: the `<XmlModuleTree>` element.
     ///
     /// This is only useful with the XML apis.
     pub fn root(&self) -> Node {
@@ -163,61 +181,74 @@ impl XmlModuleTree {
         &mut self.docs
     }
 
-    /// Internal. Shorthand access to the [`xot`] arena.
+    /// The [`xot`] arena that backs the document; shorthand for
+    /// `self.docs().xot()`.
+    ///
+    /// For raw XML work the query API does not cover, such as walking
+    /// nodes from [`Self::root`].
     pub fn xot(&self) -> &Xot {
         self.docs.xot()
     }
 
-    /// Internal. Shorthand access to the mutable [`xot`] arena.
+    /// The mutable [`xot`] arena that backs the document; shorthand for
+    /// `self.docs_mut().xot_mut()`.
+    ///
+    /// [`XmlModuleTreeBuilder`] writes the document through this. Nothing
+    /// checks edits made through it: a `<Param>` that loses an attribute
+    /// makes [`XPathModuleQuery::to_param_descs`] fail.
     pub fn xot_mut(&mut self) -> &mut Xot {
         self.docs.xot_mut()
     }
 
-    /// Iterates over [`ParamId`]s for each parameter in the subtree.
+    /// Returns the [`ParamId`] of every parameter in the module.
     ///
-    /// Implicitly calls [`XPathModuleQuery::params`].
+    /// The order is field declaration order; collect into a set when the
+    /// order is not the point.
     ///
     /// # Returns
     /// `Ok(Vec<ParamId>)` on success, `Err(e)` on errors.
     ///
     /// # Examples
-    /// ```rust,ignore
-    /// let param_ids: HashSet<ParamId> = mtree
-    ///     .param_ids()?
-    ///     .collect();
+    /// ```rust
+    /// # use burn::nn::{Linear, LinearConfig};
+    /// # use bunsen::burner::module::reflection::XmlModuleTree;
+    /// # type B = bunsen::support::testing::CpuBackend;
+    /// # let device = bunsen::support::testing::default_device();
+    /// let module: Linear<B> = LinearConfig::new(2, 3).init(&device);
+    /// let mut mtree = XmlModuleTree::build(&module);
     ///
-    /// // Is equivalent to:
-    /// let param_ids: HashSet<ParamId> = mtree
-    ///     .query()
-    ///     // .params() is implicit to [`ModuleTreeQuery::to_param_ids`],
-    ///     // equivalent to: .select("descendant-or-self::Param")
-    ///     .to_param_ids()?
-    ///     .collect();
+    /// let ids = mtree.param_ids()?;
+    /// assert_eq!(ids, [module.weight.id, module.bias.as_ref().unwrap().id]);
+    ///
+    /// // Is equivalent to (`to_param_ids` applies `.params()` itself):
+    /// assert_eq!(mtree.query().to_param_ids()?, ids);
+    /// # Ok::<(), bunsen::errors::BunsenError>(())
     /// ```
     pub fn param_ids(&mut self) -> BunsenResult<Vec<ParamId>> {
         self.query().to_param_ids()
     }
 
-    /// Iterates over [`TensorParamDesc`]s for each parameter in the subtree.
-    ///
-    /// Implicitly calls [`XPathModuleQuery::params`].
+    /// Returns a [`TensorParamDesc`] for every parameter in the module.
     ///
     /// # Returns
     /// `Ok(Vec<TensorParamDesc>)` on success, `Err(e)` on errors.
     ///
     /// # Examples
-    /// ```rust,ignore
-    /// let descs: Vec<TensorParamDesc> = mtree
-    ///     .param_descs()?
-    ///     .collect();
+    /// ```rust
+    /// # use burn::nn::{Linear, LinearConfig};
+    /// # use bunsen::burner::module::reflection::XmlModuleTree;
+    /// # type B = bunsen::support::testing::CpuBackend;
+    /// # let device = bunsen::support::testing::default_device();
+    /// let module: Linear<B> = LinearConfig::new(2, 3).init(&device);
+    /// let mut mtree = XmlModuleTree::build(&module);
     ///
-    /// // Is equivalent to:
-    /// let descs: Vec<TensorParamDesc> = mtree
-    ///     .query()
-    ///     // .params() is implicit to [`ModuleTreeQuery::to_param_descs`],
-    ///     // equivalent to: .select("descendant-or-self::Param")
-    ///     .to_param_descs()?
-    ///     .collect();
+    /// let descs = mtree.param_descs()?;
+    /// let ranks: Vec<usize> = descs.iter().map(|d| d.rank()).collect();
+    /// assert_eq!(ranks, [2, 1]);
+    ///
+    /// // Is equivalent to (`to_param_descs` applies `.params()` itself):
+    /// assert_eq!(mtree.query().to_param_descs()?, descs);
+    /// # Ok::<(), bunsen::errors::BunsenError>(())
     /// ```
     pub fn param_descs(&mut self) -> BunsenResult<Vec<TensorParamDesc>> {
         self.query().to_param_descs()
@@ -234,20 +265,29 @@ impl XmlModuleTree {
         )
     }
 
-    /// Query a sub-tree.
+    /// Starts a query at `/XmlModuleTree/Structure` and selects `expr` from
+    /// there.
     ///
     /// # Panics
     /// On invalid `XPath` expressions.
     ///
     /// # Examples
-    /// ```rust,ignore
-    /// let q: QueryBuilder<_> = mtree
-    ///     .select("GPT/Linear");
+    /// ```rust
+    /// # use burn::nn::{Linear, LinearConfig};
+    /// # use bunsen::burner::module::reflection::XmlModuleTree;
+    /// # type B = bunsen::support::testing::CpuBackend;
+    /// # let device = bunsen::support::testing::default_device();
+    /// let module: Linear<B> = LinearConfig::new(2, 3).init(&device);
+    /// let mut mtree = XmlModuleTree::build(&module);
+    ///
+    /// let expected = "/XmlModuleTree/Structure/Linear/*[@name='weight']";
+    /// assert_eq!(mtree.select("Linear/*[@name='weight']").expr(), expected);
     ///
     /// // Is equivalent to:
-    /// let q: QueryBuilder<_> = mtree
-    ///     .query()
-    ///     .select("GPT/Linear");
+    /// assert_eq!(
+    ///     mtree.query().select("Linear/*[@name='weight']").expr(),
+    ///     expected
+    /// );
     /// ```
     pub fn select<'a>(
         &'a mut self,
@@ -256,20 +296,34 @@ impl XmlModuleTree {
         self.query().select(expr)
     }
 
-    /// Query a sub-tree.
+    /// Starts a query at `/XmlModuleTree/Structure` and selects `expr` from
+    /// there.
+    ///
+    /// This checks that the expression parses. Errors that only show up
+    /// when it is evaluated, such as a type error in a predicate, come from
+    /// the terminal call ([`XPathModuleQuery::to_param_ids`] etc.).
     ///
     /// # Returns
     /// `Ok(query)` on success, `Err(e)` on `XPath` errors.
     ///
     /// # Examples
-    /// ```rust,ignore
-    /// let q: QueryBuilder<_> = mtree
-    ///     .select("GPT/Linear");
+    /// ```rust
+    /// # use burn::nn::{Linear, LinearConfig};
+    /// # use bunsen::burner::module::reflection::XmlModuleTree;
+    /// # type B = bunsen::support::testing::CpuBackend;
+    /// # let device = bunsen::support::testing::default_device();
+    /// let module: Linear<B> = LinearConfig::new(2, 3).init(&device);
+    /// let mut mtree = XmlModuleTree::build(&module);
     ///
-    /// // Is equivalent to:
-    /// let q: QueryBuilder<_> = mtree
-    ///     .query()
-    ///     .select("GPT/Linear");
+    /// let query = mtree.try_select("Linear/*[@name='weight']")?;
+    /// assert_eq!(
+    ///     query.expr(),
+    ///     "/XmlModuleTree/Structure/Linear/*[@name='weight']"
+    /// );
+    ///
+    /// // A syntax error is returned, where `select` would panic:
+    /// assert!(mtree.try_select("Linear[").is_err());
+    /// # Ok::<(), bunsen::errors::BunsenError>(())
     /// ```
     pub fn try_select<'a>(
         &'a mut self,
@@ -278,26 +332,34 @@ impl XmlModuleTree {
         self.query().try_select(expr)
     }
 
-    /// Query all parameters of a subtree.
+    /// Selects `expr`, then every parameter at or below it.
     ///
     /// # Panics
     /// On invalid `XPath` expressions.
     ///
     /// # Examples
-    /// ```rust,ignore
-    /// let q: QueryBuilder<_> = mtree
-    ///     .select_params("GPT/Linear");
+    /// ```rust
+    /// # use burn::nn::{Linear, LinearConfig};
+    /// # use bunsen::burner::module::reflection::XmlModuleTree;
+    /// # type B = bunsen::support::testing::CpuBackend;
+    /// # let device = bunsen::support::testing::default_device();
+    /// let module: Linear<B> = LinearConfig::new(2, 3).init(&device);
+    /// let mut mtree = XmlModuleTree::build(&module);
+    ///
+    /// let expected = "/XmlModuleTree/Structure/Linear/descendant-or-self::Param";
+    /// assert_eq!(mtree.select_params("Linear").expr(), expected);
     ///
     /// // Is equivalent to:
-    /// let q: QueryBuilder<_> = mtree
-    ///     .query()
-    ///     .select("GPT/Linear")
-    ///     .params();
+    /// assert_eq!(mtree.query().select("Linear").params().expr(), expected);
     ///
     /// // Is equivalent to:
-    /// let q: QueryBuilder<_> = mtree
-    ///     .query()
-    ///     .select("GPT/Linear/descedant-or-self::Param");
+    /// assert_eq!(
+    ///     mtree
+    ///         .query()
+    ///         .select("Linear/descendant-or-self::Param")
+    ///         .expr(),
+    ///     expected
+    /// );
     /// ```
     pub fn select_params<'a>(
         &'a mut self,
@@ -306,27 +368,13 @@ impl XmlModuleTree {
         self.select(expr).params()
     }
 
-    /// Query all parameters of a subtree.
+    /// Selects `expr`, then every parameter at or below it.
+    ///
+    /// The fallible form of [`Self::select_params`]; see
+    /// [`Self::try_select`] for which errors it catches.
     ///
     /// # Returns
     /// `Ok(query)` on success, `Err(e)` on `XPath` errors.
-    ///
-    /// # Examples
-    /// ```rust,ignore
-    /// let q: QueryBuilder<_> = mtree
-    ///     .select_params("GPT/Linear");
-    ///
-    /// // Is equivalent to:
-    /// let q: QueryBuilder<_> = mtree
-    ///     .query()
-    ///     .select("GPT/Linear")
-    ///     .params();
-    ///
-    /// // Is equivalent to:
-    /// let q: QueryBuilder<_> = mtree
-    ///     .query()
-    ///     .select("GPT/Linear/descedant-or-self::Param");
-    /// ```
     pub fn try_select_params<'a>(
         &'a mut self,
         expr: &str,
@@ -334,46 +382,58 @@ impl XmlModuleTree {
         Ok(self.try_select(expr)?.params())
     }
 
-    /// Returns an iterator over the parameter [`ParamId`]s of a subtree.
+    /// Returns the [`ParamId`]s of every parameter at or below `expr`.
+    ///
+    /// The usual way to build an optimizer group's parameter set.
     ///
     /// # Returns
-    /// `Ok(impl Iterator<Item = ParamId>)` on success, `Err(e)` on `XPath`
-    /// errors.
+    /// `Ok(Vec<ParamId>)` on success, `Err(e)` on `XPath` errors, including
+    /// errors raised while evaluating `expr`.
     ///
     /// # Examples
-    /// ```rust,ignore
-    /// let param_ids : HashSet<ParamId> = mtree
-    ///     .select_param_ids("GPT/Linear")?
-    ///     .collect();
+    /// ```rust
+    /// # use burn::nn::{Linear, LinearConfig};
+    /// # use bunsen::burner::module::reflection::XmlModuleTree;
+    /// # type B = bunsen::support::testing::CpuBackend;
+    /// # let device = bunsen::support::testing::default_device();
+    /// use std::collections::HashSet;
     ///
-    /// # Is equivalent to:
-    /// let param_ids : HashSet<ParamId> = mtree
-    ///     .select_params("GPT/Linear")
-    ///     .to_param_ids()?
-    ///     .collect();
+    /// use burn::module::ParamId;
     ///
-    /// # Is equivalent to:
-    /// let param_ids : HashSet<ParamId> = mtree
-    ///     .query()
-    ///     .select("GPT/Linear")
-    ///     .params()
-    ///     .to_param_ids()?
-    ///     .collect();
+    /// let module: Linear<B> = LinearConfig::new(2, 3).init(&device);
+    /// let mut mtree = XmlModuleTree::build(&module);
     ///
-    /// # Is equivalent to:
-    /// let param_ids : HashSet<ParamId> = mtree
-    ///     .query()
-    ///     .select("GPT/Linear/descendant-or-self::Param")
-    ///     .to_param_ids()?
-    ///     .collect();
+    /// let ids: Vec<ParamId> = mtree.select_param_ids("Linear/*[@rank=2]")?;
+    /// assert_eq!(ids, [module.weight.id]);
     ///
-    /// # Is equivalent to:
-    /// let param_ids : HashSet<ParamId> = mtree
-    ///     .query()
-    ///     .select("GPT/Linear/descendant-or-self::Param")
+    /// // Is equivalent to:
+    /// assert_eq!(
+    ///     mtree.select_params("Linear/*[@rank=2]").to_param_ids()?,
+    ///     ids
+    /// );
+    ///
+    /// // Is equivalent to:
+    /// assert_eq!(
+    ///     mtree
+    ///         .query()
+    ///         .select("Linear/*[@rank=2]")
+    ///         .params()
+    ///         .to_param_ids()?,
+    ///     ids
+    /// );
+    ///
+    /// // Is equivalent to:
+    /// let via_descs: Vec<ParamId> = mtree
+    ///     .select_params("Linear/*[@rank=2]")
     ///     .to_param_descs()?
+    ///     .iter()
     ///     .map(|d| d.param_id())
     ///     .collect();
+    /// assert_eq!(via_descs, ids);
+    ///
+    /// // Groups are sets; collect into one:
+    /// let group: HashSet<ParamId> = ids.into_iter().collect();
+    /// # Ok::<(), bunsen::errors::BunsenError>(())
     /// ```
     pub fn select_param_ids(
         &mut self,
@@ -383,11 +443,25 @@ impl XmlModuleTree {
     }
 }
 
-/// A query builder for a [`XmlModuleTree`].
+/// A query builder for an [`XmlModuleTree`].
 ///
 /// This works in two phases:
 /// 1. A fluent api to incrementally refine an `XPath` expression.
 /// 2. Various execution/output runners to run that expression.
+///
+/// The builders ([`select`](Self::select), [`filter`](Self::filter), ...)
+/// only append text to [`expr`](Self::expr), checking that it parses; the
+/// panicking forms panic on a syntax error and the `try_` forms return it.
+/// Nothing is evaluated until a terminal call:
+/// [`to_param_ids`](Self::to_param_ids),
+/// [`to_param_descs`](Self::to_param_descs),
+/// [`to_fragments`](Self::to_fragments) or
+/// [`xee_execute_many`](Self::xee_execute_many). Evaluation errors come
+/// from there.
+///
+/// A query mutably borrows its tree; finish one query before starting the
+/// next. Start one with [`XmlModuleTree::query`] or
+/// [`XmlModuleTree::select`].
 #[derive(Debug)]
 pub struct XPathModuleQuery<'a> {
     tree: &'a mut XmlModuleTree,
@@ -460,6 +534,9 @@ impl<'a> XPathModuleQuery<'a> {
     ///
     /// This is: `{EXPR}` => `{EXPR}/{expr}`
     ///
+    /// The fallible form of [`Self::select`]. It catches syntax errors only;
+    /// evaluation errors come from the terminal call.
+    ///
     /// # Returns
     /// `Ok(query)` on success, `Err(e)` on `XPath` errors.
     pub fn try_select<S: AsRef<str>>(
@@ -472,15 +549,19 @@ impl<'a> XPathModuleQuery<'a> {
     /// Refines the current selection by appending an `XPath` predicate
     /// expression.
     ///
-    /// Predicate expressions filter the current node-set, keeping only those
-    /// nodes for which each branch of the predicate expression evaluates to
-    /// true.
+    /// A predicate keeps the nodes of the current selection for which it is
+    /// true. To require several conditions, call `filter` once per condition
+    /// (`[a][b]`) or join them with `and`. A comma is not a conjunction:
+    /// `filter("a, b")` fails when evaluated (see the
+    /// [crib](crate::burner::module::reflection#xpath-crib)).
     ///
     /// This is: `{EXPR}` => `{EXPR}[{expr}]`
     ///
     /// # Examples
     /// * `filter("@name='foo'")` - select only nodes with a "name" attribute
     ///   equal to "foo".
+    /// * `filter("@name='weight'").filter("@rank=2")` - rank-2 nodes named
+    ///   "weight".
     ///
     /// # Panics
     /// On invalid `XPath` expressions.
@@ -494,15 +575,10 @@ impl<'a> XPathModuleQuery<'a> {
     /// Refines the current selection by appending an `XPath` predicate
     /// expression.
     ///
-    /// Predicate expressions filter the current node-set, keeping only those
-    /// nodes for which each branch of the predicate expression evaluates to
-    /// true.
+    /// The fallible form of [`Self::filter`]. It catches syntax errors only;
+    /// evaluation errors come from the terminal call.
     ///
     /// This is: `{EXPR}` => `{EXPR}[{expr}]`
-    ///
-    /// # Examples
-    /// * `filter("@name='foo'")` - select only nodes with a "name" attribute
-    ///   equal to "foo".
     ///
     /// # Returns
     /// `Ok(query)` on success, `Err(e)` on `XPath` errors.
@@ -520,7 +596,8 @@ impl<'a> XPathModuleQuery<'a> {
         self.select("*")
     }
 
-    /// Selects children withh the given `name` attribute.
+    /// Selects children with the given `name` attribute: the struct field
+    /// (or enum variant) name, not the type name.
     ///
     /// This is: `{EXPR}` => `{EXPR}/*[@name='{name}']`
     pub fn named_children(
@@ -542,7 +619,8 @@ impl<'a> XPathModuleQuery<'a> {
         self.select(format!("*[{}]", index + 1))
     }
 
-    /// Recursively selects all descedant or self elements with `name`.
+    /// Selects every element named `name` (a type name, or `Param`) at or
+    /// below the current selection.
     ///
     /// This is: `{EXPR}` => `{EXPR}/descendant-or-self::{name}`
     pub fn subtree_elements(
@@ -552,9 +630,12 @@ impl<'a> XPathModuleQuery<'a> {
         self.select(format!("descendant-or-self::{}", name))
     }
 
-    /// Recursively selects all parameter elements in the current context.
+    /// Selects every `<Param>` element at or below the current selection.
     ///
-    /// Equivalent to `.desdendant_or_self_elem(names::PARAM_ELEM)`
+    /// Equivalent to `.subtree_elements("Param")`. The terminal calls
+    /// [`Self::to_param_ids`] and [`Self::to_param_descs`] apply it
+    /// themselves; call it explicitly to [`filter`](Self::filter) the
+    /// parameters, as in `.params().filter("@rank=2")`.
     pub fn params(self) -> Self {
         self.subtree_elements(names::PARAM_ELEM)
     }
@@ -570,13 +651,14 @@ impl<'a> XPathModuleQuery<'a> {
         self.filter(format!("@rank={}", rank))
     }
 
-    /// Iterates over [`TensorParamDesc`]s for each parameter in the subtree.
+    /// Returns a [`TensorParamDesc`] for every parameter at or below the
+    /// current selection, in document order.
     ///
     /// Implicitly calls [`Self::params`].
     ///
     /// # Returns
-    /// `Ok(Vec<TensorParamDesc>)` on success, `Err(e)` on
-    /// errors.
+    /// `Ok(Vec<TensorParamDesc>)` on success, `Err(e)` on errors, including
+    /// errors raised while evaluating the expression.
     pub fn to_param_descs(self) -> BunsenResult<Vec<TensorParamDesc>> {
         let mut query = self.params();
 
@@ -589,24 +671,38 @@ impl<'a> XPathModuleQuery<'a> {
             .collect::<BunsenResult<Vec<TensorParamDesc>>>()
     }
 
-    /// Iterates over [`ParamId`]s for each parameter in the subtree.
+    /// Returns the [`ParamId`] of every parameter at or below the current
+    /// selection, in document order.
     ///
     /// Implicitly calls [`Self::params`].
     ///
     /// # Returns
-    /// `Ok(Vec<ParamId>)` on success, `Err(e)` on errors.
+    /// `Ok(Vec<ParamId>)` on success, `Err(e)` on errors, including errors
+    /// raised while evaluating the expression.
     ///
     /// # Examples
-    /// ```rust,ignore
-    /// let param_ids : HashSet<ParamId> = query
-    ///     .to_param_ids()?
-    ///     .collect();
+    /// ```rust
+    /// # use burn::nn::{Linear, LinearConfig};
+    /// # use bunsen::burner::module::reflection::XmlModuleTree;
+    /// # type B = bunsen::support::testing::CpuBackend;
+    /// # let device = bunsen::support::testing::default_device();
+    /// use burn::module::ParamId;
     ///
-    /// # Is equivalent to:
-    /// let param_ids : HashSet<ParamId> = query
+    /// let module: Linear<B> = LinearConfig::new(2, 3).init(&device);
+    /// let mut mtree = XmlModuleTree::build(&module);
+    ///
+    /// let ids = mtree.select("Linear").to_param_ids()?;
+    /// assert_eq!(ids, [module.weight.id, module.bias.as_ref().unwrap().id]);
+    ///
+    /// // Is equivalent to:
+    /// let via_descs: Vec<ParamId> = mtree
+    ///     .select("Linear")
     ///     .to_param_descs()?
+    ///     .iter()
     ///     .map(|d| d.param_id())
     ///     .collect();
+    /// assert_eq!(via_descs, ids);
+    /// # Ok::<(), bunsen::errors::BunsenError>(())
     /// ```
     pub fn to_param_ids(self) -> BunsenResult<Vec<ParamId>> {
         Ok(self
@@ -616,7 +712,10 @@ impl<'a> XPathModuleQuery<'a> {
             .collect())
     }
 
-    /// Iterates over string fragments for the current expression matches.
+    /// Returns the current matches serialized as XML strings; an atomic
+    /// result (a string or number) gives its string value.
+    ///
+    /// For debugging a query: print what it selects.
     ///
     /// # Arguments
     /// * `pretty` - pretty-print/indent the xml fragments.
@@ -669,6 +768,49 @@ mod tests {
             default_device,
         },
     };
+
+    #[test]
+    fn test_predicate_conjunction() {
+        type B = CpuBackend;
+        let device = default_device();
+        let module: Linear<B> = LinearConfig::new(2, 3).init(&device);
+        let mut mtree = XmlModuleTree::build(&module);
+
+        // Stacked predicates and `and` both mean "all of these".
+        for expr in [
+            "Linear/*[@name='weight'][@rank=2]",
+            "Linear/*[@name='weight' and @rank=2]",
+        ] {
+            assert_eq!(mtree.select_param_ids(expr).unwrap(), [module.weight.id]);
+        }
+        assert!(
+            mtree
+                .select_param_ids("Linear/*[@name='bias'][@rank=2]")
+                .unwrap()
+                .is_empty()
+        );
+
+        // A comma builds a two-item sequence, which has no boolean value.
+        // The expression parses, so `try_select` accepts it; evaluating it
+        // on any node is an XPath type error.
+        for expr in [
+            "Linear/*[@name='weight',@rank=2]",
+            "Linear/*[@name='bias',@rank=2]",
+        ] {
+            assert!(mtree.try_select(expr).is_ok());
+            let err = mtree.select_param_ids(expr).unwrap_err();
+            assert!(err.to_string().contains("XPTY0004"), "{err}");
+        }
+
+        // Over an empty selection the predicate never runs, so the same
+        // mistake hides behind a path that matches nothing.
+        assert!(
+            mtree
+                .select_param_ids("NoSuchType/*[@name='weight',@rank=2]")
+                .unwrap()
+                .is_empty()
+        );
+    }
 
     #[test]
     fn test_debug() {

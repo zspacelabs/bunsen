@@ -45,7 +45,15 @@ use crate::burner::optim::{
     lr_selectors::LrSelector,
 };
 
-/// A group of [`ParamId`] assigned to a single optimizer instance.
+/// One parameter group: a set of [`ParamId`]s, the optimizer instance that
+/// steps them, and an optional [`LrSelector`].
+///
+/// Build one with [`OptimizerGroup::from_adaptor`] (or
+/// [`OptimizerGroup::new`]), usually from a `ParamId` set selected with
+/// [`XmlModuleTree`](crate::burner::module::reflection::XmlModuleTree). Pass
+/// the groups to a `GroupOptimizerAdaptorN::new` (e.g.
+/// [`GroupOptimizerAdaptor2::new`]), one `Vec` per optimizer type. See the
+/// [module docs](crate::burner::optim) for the lifecycle.
 #[derive(Clone)]
 pub struct OptimizerGroup<B, O>
 where
@@ -69,7 +77,8 @@ where
     B: AutodiffBackend,
     O: SimpleOptimizer<B::InnerBackend>,
 {
-    /// Creates a new `GroupOptimizer` with the given parameters and optimizer.
+    /// Creates a group of `params`, stepped by `optim`, at the global
+    /// learning rate.
     pub fn new(
         params: HashSet<ParamId>,
         optim: O,
@@ -82,7 +91,12 @@ where
         }
     }
 
-    /// Builds a [`OptimizerGroup`] from an [`OptimizerAdaptor`].
+    /// Creates a group of `params`, stepped by a clone of the optimizer
+    /// inside `adaptor`, at the global learning rate.
+    ///
+    /// `adaptor` is what a `burn` optimizer config's `init()` returns, e.g.
+    /// `AdamWConfig::new().init::<B, M>()`. Only its optimizer is used; its
+    /// gradient clipping and state are not.
     pub fn from_adaptor<M, I>(
         params: I,
         adaptor: &OptimizerAdaptor<O, M, B>,
@@ -94,7 +108,8 @@ where
         Self::new(params.into_iter().collect(), adaptor.optim().clone())
     }
 
-    /// Returns the learning rate for this group.
+    /// Returns this group's learning rate: `global` mapped through the
+    /// [`LrSelector`], or `global` itself when there is none.
     pub fn lr(
         &self,
         global: LearningRate,
@@ -112,6 +127,10 @@ where
     }
 
     /// Sets the learning rate mapping function.
+    ///
+    /// A closure works when its argument types are annotated:
+    /// `|lr: LearningRate, _: &HashMap<String, LearningRate>| lr * 0.5`,
+    /// with `hashbrown`'s `HashMap`.
     pub fn with_lr_selector<F>(
         mut self,
         selector: F,
@@ -123,7 +142,8 @@ where
         self
     }
 
-    /// Sets a fixed learning rate for this group.
+    /// Sets a fixed learning rate for this group, ignoring the global rate
+    /// and its schedule.
     pub fn with_fixed_lr(
         self,
         lr: LearningRate,
@@ -176,16 +196,26 @@ where
     }
 }
 
-/// Error during `GroupOptimizerAdaptor2` construction.
-#[derive(Debug)]
+/// Error from `GroupOptimizerAdaptorN::new`, for every `N`
+/// ([`GroupOptimizerAdaptor1::new`] through
+/// [`GroupOptimizerAdaptor7::new`]).
+#[derive(Debug, thiserror::Error)]
 pub enum GroupOptimizerError {
     /// A `ParamId` was assigned to more than one optimizer group.
+    ///
+    /// Positions are `(optimizer type, group index)`: the position of the
+    /// group's `Vec` among the arguments to `new`, and of the group in that
+    /// `Vec`, both from 0.
+    #[error(
+        "parameter {param_id} is in more than one optimizer group: \
+         {first:?} and {second:?}, as (optimizer type, group index)"
+    )]
     DuplicateParamId {
         /// The `ParamId` of the conflicting assignment.
         param_id: ParamId,
-        /// (`type_tag`, index) of the first assignment
+        /// (optimizer type, group index) of the first group that claims it.
         first: (usize, usize),
-        /// (`type_tag`, index) of the conflicting assignment
+        /// (optimizer type, group index) of the second group that claims it.
         second: (usize, usize),
     },
 }
@@ -236,12 +266,19 @@ where
 ///
 /// Each invocation generates:
 /// - `GroupOptimizerAdaptorN<O1, ..., ON, M, B>` — the adaptor struct
-/// - `Optimizer<M, B>` impl with `Record` as a tuple of `Vec<HashMap<ParamId,
-///   AdaptorRecord<Oi, B>>>`
+/// - the `Optimizer<M, B>` impl; its `Record` is a tuple with one
+///   `Vec<OptimizerGroupRecord<Oi, B>>` per optimizer type
 macro_rules! define_group_optimizer_adaptor {
     ($N:tt, [$(($O:ident, $idx:tt)),+ $(,)?]) => {
         paste::paste! {
-            #[doc=concat!("[`OptimizerGroup`] adapter for ", $N, "types")]
+            #[doc = concat!(
+                "An [`Optimizer`] over [`OptimizerGroup`]s of ",
+                $N,
+                " optimizer type(s): `new` takes one `Vec` of groups per type.\n\n",
+                "Each parameter is stepped by the group that claims it; a parameter ",
+                "in no group is not stepped. See the ",
+                "[module docs](crate::burner::optim) for the lifecycle and an example.",
+            )]
             #[derive(Clone)]
             pub struct [<GroupOptimizerAdaptor $N>]<$($O,)+ M, B>
             where
@@ -266,10 +303,15 @@ macro_rules! define_group_optimizer_adaptor {
                 M: AutodiffModule<B>,
                 B: AutodiffBackend,
             {
-                /// Constructs and validates.
+                /// Builds the adaptor from one `Vec` of groups per optimizer
+                /// type, in type-parameter order.
                 ///
-                /// Returns an error if any `ParamId` appears in more than one
-                /// group.
+                /// # Errors
+                /// [`GroupOptimizerError::DuplicateParamId`] if a `ParamId`
+                /// appears in more than one group, of the same type or not.
+                ///
+                /// Coverage is not checked: a parameter in no group is never
+                /// stepped.
                 pub fn new(
                     $( [<groups_ $idx>]: Vec<OptimizerGroup<B, $O>>, )+
                 ) -> Result<Self, GroupOptimizerError> {
@@ -310,7 +352,8 @@ macro_rules! define_group_optimizer_adaptor {
                     })
                 }
 
-                /// Sets the gradient clipping.
+                /// Sets the gradient clipping, applied to each parameter's
+                /// gradient on its own before its group's step.
                 pub fn with_grad_clipping(
                     mut self,
                     grad_clipping: GradientClipping,
@@ -382,7 +425,11 @@ macro_rules! define_group_optimizer_adaptor {
                 }
             }
 
-            #[doc=concat!("Mapper for [`GroupOptimizer", $N, "`].")]
+            #[doc = concat!(
+                "[`ModuleMapper`] that steps parameters for [`GroupOptimizerAdaptor",
+                $N,
+                "`].",
+            )]
             struct [<GroupOptimizerMapper $N>]<'a, B, $($O,)+>
             where
                 B: AutodiffBackend,
@@ -502,6 +549,185 @@ define_group_optimizer_adaptor!(
 
 #[cfg(test)]
 mod tests {
+    use burn::{
+        backend::Autodiff,
+        nn::{
+            Linear,
+            LinearConfig,
+        },
+        optim::{
+            AdamW,
+            AdamWConfig,
+            Sgd,
+            SgdConfig,
+        },
+        tensor::TensorData,
+    };
+
+    use super::*;
+    use crate::{
+        burner::optim::NamedLrSelector,
+        support::testing::{
+            CpuBackend,
+            default_device,
+        },
+    };
+
+    type B = Autodiff<CpuBackend>;
+    type Net = (Linear<B>, Linear<B>);
+    type SgdO = Sgd<CpuBackend>;
+
+    fn net() -> Net {
+        let device = default_device();
+        (
+            LinearConfig::new(3, 3).init(&device),
+            LinearConfig::new(3, 2).init(&device),
+        )
+    }
+
+    fn sgd() -> OptimizerAdaptor<SgdO, Net, B> {
+        SgdConfig::new().init()
+    }
+
+    fn adamw() -> OptimizerAdaptor<AdamW, Net, B> {
+        AdamWConfig::new().init()
+    }
+
+    /// `[weight_0, bias_0, weight_1, bias_1]`.
+    fn ids(net: &Net) -> [ParamId; 4] {
+        [
+            net.0.weight.id,
+            net.0.bias.as_ref().unwrap().id,
+            net.1.weight.id,
+            net.1.bias.as_ref().unwrap().id,
+        ]
+    }
+
+    /// `[weight_0, bias_0, weight_1, bias_1]`.
+    fn values(net: &Net) -> [TensorData; 4] {
+        [
+            net.0.weight.val().into_data(),
+            net.0.bias.as_ref().unwrap().val().into_data(),
+            net.1.weight.val().into_data(),
+            net.1.bias.as_ref().unwrap().val().into_data(),
+        ]
+    }
+
+    /// Gradients of one backward pass; every parameter gets one.
+    fn grads(net: &Net) -> GradientsParams {
+        let x = Tensor::<B, 2>::ones([2, 3], &default_device());
+        let loss = net.1.forward(net.0.forward(x)).sum();
+        GradientsParams::from_grads(loss.backward(), net)
+    }
+
     #[test]
-    fn test_nothing() {}
+    fn test_new_rejects_duplicate_param_ids() {
+        let net = net();
+        let [w0, b0, w1, b1] = ids(&net);
+
+        // Disjoint groups are accepted.
+        assert!(
+            GroupOptimizerAdaptor2::<SgdO, AdamW, Net, B>::new(
+                vec![OptimizerGroup::from_adaptor([w0, w1], &sgd())],
+                vec![OptimizerGroup::from_adaptor([b0, b1], &adamw())],
+            )
+            .is_ok()
+        );
+
+        // Across optimizer types.
+        let err = GroupOptimizerAdaptor2::<SgdO, AdamW, Net, B>::new(
+            vec![OptimizerGroup::from_adaptor([w0, w1], &sgd())],
+            vec![OptimizerGroup::from_adaptor([b0, w1], &adamw())],
+        )
+        .err()
+        .unwrap();
+        let GroupOptimizerError::DuplicateParamId {
+            param_id,
+            first,
+            second,
+        } = &err;
+        assert_eq!((*param_id, *first, *second), (w1, (0, 0), (1, 0)));
+        assert!(err.to_string().contains(&w1.to_string()), "{err}");
+
+        // Within one optimizer type.
+        let err = GroupOptimizerAdaptor1::<SgdO, Net, B>::new(vec![
+            OptimizerGroup::from_adaptor([w0], &sgd()),
+            OptimizerGroup::from_adaptor([w0], &sgd()),
+        ])
+        .err()
+        .unwrap();
+        assert!(matches!(
+            err,
+            GroupOptimizerError::DuplicateParamId {
+                first: (0, 0),
+                second: (0, 1),
+                ..
+            }
+        ));
+    }
+
+    #[test]
+    fn test_step_updates_grouped_params_only() {
+        let net = net();
+        let [w0, _b0, w1, b1] = ids(&net);
+        let [w0_before, b0_before, w1_before, b1_before] = values(&net);
+
+        // `b0` is in no group.
+        let mut optim = GroupOptimizerAdaptor2::<SgdO, AdamW, Net, B>::new(
+            vec![OptimizerGroup::from_adaptor([w0, w1], &sgd())],
+            vec![OptimizerGroup::from_adaptor([b1], &adamw())],
+        )
+        .unwrap();
+
+        let grads = grads(&net);
+        let net = optim.step(0.1, net, grads);
+        let [w0_after, b0_after, w1_after, b1_after] = values(&net);
+
+        assert_ne!(w0_after, w0_before);
+        assert_ne!(w1_after, w1_before);
+        assert_ne!(b1_after, b1_before);
+
+        // Unclaimed: it had a gradient, and was silently not stepped.
+        assert_eq!(b0_after, b0_before);
+    }
+
+    #[test]
+    fn test_step_uses_each_groups_lr() {
+        let net = net();
+        let [w0, b0, w1, b1] = ids(&net);
+        let [w0_before, b0_before, w1_before, _] = values(&net);
+
+        // Plain SGD at a fixed rate of 0 does not move, whatever the global
+        // rate.
+        let mut optim = GroupOptimizerAdaptor1::<SgdO, Net, B>::new(vec![
+            OptimizerGroup::from_adaptor([w0, b0], &sgd()).with_fixed_lr(0.0),
+            OptimizerGroup::from_adaptor([w1, b1], &sgd()),
+        ])
+        .unwrap();
+
+        let grads = grads(&net);
+        let net = optim.step(0.1, net, grads);
+        let [w0_after, b0_after, w1_after, _] = values(&net);
+
+        assert_eq!(w0_after, w0_before);
+        assert_eq!(b0_after, b0_before);
+        assert_ne!(w1_after, w1_before);
+    }
+
+    /// The adaptors never populate `named_lrs`, so a [`NamedLrSelector`] has
+    /// nothing to find. This pins today's behaviour; when it changes, update
+    /// the module docs.
+    #[test]
+    #[should_panic(expected = "No learning rate for matrix")]
+    fn test_named_lr_selector_panics_on_step() {
+        let net = net();
+        let mut optim = GroupOptimizerAdaptor1::<SgdO, Net, B>::new(vec![
+            OptimizerGroup::from_adaptor(ids(&net), &sgd())
+                .with_lr_selector(NamedLrSelector::new("matrix".to_string())),
+        ])
+        .unwrap();
+
+        let grads = grads(&net);
+        let _ = optim.step(0.1, net, grads);
+    }
 }
