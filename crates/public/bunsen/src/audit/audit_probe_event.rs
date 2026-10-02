@@ -19,7 +19,21 @@ use crate::{
     support::reflection::LocationDesc,
 };
 
-/// Audit log event handler.
+/// Receives the events an [`AuditProbe`] emits.
+///
+/// A probe calls [`on_event`](Self::on_event) on each of its handlers, in
+/// order, for every checkpoint; an `Err` stops the event and is returned from
+/// the checkpoint. Recorders ([`AuditStreamRecorder`],
+/// [`AuditProbeVecRecorder`]) keep [`to_event`](AuditProbeEventView::to_event)
+/// copies; verifiers ([`AuditStreamVerifier`], [`AuditProbeVecVerifier`])
+/// compare each stub with an expected event using [`try_match_events`].
+///
+/// [`AuditProbe`]: crate::audit::AuditProbe
+/// [`AuditStreamRecorder`]: crate::audit::AuditStreamRecorder
+/// [`AuditProbeVecRecorder`]: crate::audit::AuditProbeVecRecorder
+/// [`AuditStreamVerifier`]: crate::audit::AuditStreamVerifier
+/// [`AuditProbeVecVerifier`]: crate::audit::AuditProbeVecVerifier
+/// [`try_match_events`]: crate::audit::try_match_events
 pub trait AuditProbeEventHandler: Debug {
     /// Handler name.
     fn name(&self) -> &str {
@@ -33,7 +47,16 @@ pub trait AuditProbeEventHandler: Debug {
     ) -> BunsenResult<()>;
 }
 
-/// Common prefix for [`AuditProbeEvent`].
+/// The identity of an audit event: label, source location and time.
+///
+/// Shared by [`AuditProbeEvent`] and [`AuditProbeEventStub`]. The
+/// [`AuditProbe`] checkpoint methods fill it from their label and their
+/// `#[track_caller]` location. The header is diagnostic only:
+/// [`try_match_events`] does not compare it, but puts it in the error message,
+/// so a mismatch names the checkpoint that failed.
+///
+/// [`AuditProbe`]: crate::audit::AuditProbe
+/// [`try_match_events`]: crate::audit::try_match_events
 #[derive(Debug, Clone, PartialEq)]
 pub struct AuditProbeEventHeader {
     /// Label of the event.
@@ -61,7 +84,17 @@ impl AuditProbeEventHeader {
     }
 }
 
-/// [`AuditProbeEvent`]-like View trait.
+/// Read access common to owned and borrowed audit events.
+///
+/// Implemented by [`AuditProbeEvent`] (owned, as recorded) and
+/// [`AuditProbeEventStub`] (borrowed, as emitted), so [`try_match_events`] and
+/// [`unpack_audit_probe_event_data!`] can compare an incoming stub with a
+/// stored event without copying either. An event is an
+/// [`AuditProbeEventHeader`], [`AuditProbeEventParams`], and a data map from
+/// names to one or more [`TensorData`].
+///
+/// [`try_match_events`]: crate::audit::try_match_events
+/// [`unpack_audit_probe_event_data!`]: crate::audit::unpack_audit_probe_event_data
 pub trait AuditProbeEventView: Debug {
     /// Return an owned [`AuditProbeEvent`].
     fn to_event(&self) -> AuditProbeEvent {
@@ -133,8 +166,16 @@ pub trait AuditProbeEventView: Debug {
     }
 }
 
-/// (TODO) Serializable
-/// [`AuditProbe`](`crate::audit::AuditProbe`) event.
+/// An owned audit event: what recorders keep, and verifiers expect.
+///
+/// Made from an emitted [`AuditProbeEventStub`] with
+/// [`to_event`](AuditProbeEventView::to_event). An in-memory stream is a
+/// `Vec<AuditProbeEvent>` ([`AuditStreamRecorder::events`]); on disk, each
+/// event is an [`AuditEventRecord`] in an [`AuditStreamFile`].
+///
+/// [`AuditStreamRecorder::events`]: crate::audit::AuditStreamRecorder::events
+/// [`AuditEventRecord`]: crate::audit::AuditEventRecord
+/// [`AuditStreamFile`]: crate::audit::AuditStreamFile
 #[derive(Debug, Clone)]
 pub struct AuditProbeEvent {
     /// Common event header.
@@ -179,7 +220,14 @@ impl AuditProbeEventView for AuditProbeEvent {
     }
 }
 
-/// [`AuditProbeEvent`]-like stub, doesn't own the [`TensorData`].
+/// A borrowed audit event, as an [`AuditProbe`] emits it.
+///
+/// Handlers receive a stub in [`AuditProbeEventHandler::on_event`]. It borrows
+/// the checkpoint's [`TensorData`], so a handler that only compares (a
+/// verifier) never copies the data; one that keeps it (a recorder) calls
+/// [`to_event`](AuditProbeEventView::to_event) for an [`AuditProbeEvent`].
+///
+/// [`AuditProbe`]: crate::audit::AuditProbe
 #[derive(Debug, Clone)]
 pub struct AuditProbeEventStub<'a> {
     /// Common event header.

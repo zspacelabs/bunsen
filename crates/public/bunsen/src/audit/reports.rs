@@ -80,9 +80,16 @@ fn path_label(name: &str) -> String {
         .join("_")
 }
 
-/// Where reports go, and how stored baselines are treated.
+/// Where reports and baselines are stored, and how stored baselines are
+/// treated.
 ///
+/// The call site always names the root: [`audit_baseline`] and
+/// [`SeriesReport::write_report`] take these options, and place each file at
+/// [`report_path`](Self::report_path), `{root}/{backend}/{name}`.
+/// [`mode`](Self::mode) is the [`BaselineMode`] that `audit_baseline` applies.
 /// See the module docs for a repository-default constructor.
+///
+/// [`audit_baseline`]: crate::audit::audit_baseline
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ReportsOptions {
     root: PathBuf,
@@ -138,8 +145,15 @@ impl ReportsOptions {
     }
 }
 
-/// How [`audit_baseline`](crate::audit::audit_baseline)
-/// treats a stored baseline.
+/// How [`audit_baseline`] treats a stored baseline.
+///
+/// Carried by [`ReportsOptions::mode`], or passed directly to
+/// [`audit_baseline_at`]; the [`BaselineOutcome`] says which happened. Read
+/// from an environment variable with [`from_env`](Self::from_env).
+///
+/// [`audit_baseline`]: crate::audit::audit_baseline
+/// [`audit_baseline_at`]: crate::audit::audit_baseline_at
+/// [`BaselineOutcome`]: crate::audit::BaselineOutcome
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum BaselineMode {
     /// Record when no baseline exists; verify when one does.
@@ -187,7 +201,10 @@ impl BaselineMode {
 /// Named `f64` columns over a step index, written as CSV (`step,<names>`).
 ///
 /// For logs a reviewer reads or plots: energy drift, reversal error, fit
-/// inputs. Values are written in Rust's shortest round-trip form.
+/// inputs. Values are written in Rust's shortest round-trip form. This is not
+/// an audit stream, and nothing verifies it. Write it with
+/// [`write`](Self::write), or under a [`ReportsOptions`] root with
+/// [`write_report`](Self::write_report), beside the backend's baselines.
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct SeriesReport {
     columns: Vec<(String, Vec<f64>)>,

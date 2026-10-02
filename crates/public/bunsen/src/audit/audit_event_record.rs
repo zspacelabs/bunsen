@@ -20,6 +20,13 @@ use crate::{
 };
 
 /// Serializable mirror of [`AuditProbeEventParams`].
+///
+/// The `params` of an [`AuditEventRecord`]; converts both ways with
+/// [`AuditProbeEventParams`]. A separate type pins the on-disk form of an
+/// [`AuditStreamFile`] to serde's `kind` tag, independent of the in-memory
+/// enum.
+///
+/// [`AuditStreamFile`]: crate::audit::AuditStreamFile
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(tag = "kind")]
 pub enum AuditParamsRecord {
@@ -59,7 +66,14 @@ impl From<AuditParamsRecord> for AuditProbeEventParams {
 
 /// Serializable mirror of [`AuditProbeEvent`].
 ///
-/// The data map is ordered, so a stream serializes the same way every time.
+/// One entry of an [`AuditStreamFile`]'s `events`; converts both ways with
+/// [`AuditProbeEvent`]. [`save_audit_stream`] and [`load_audit_stream`] do the
+/// conversion, so handlers and verifiers only see [`AuditProbeEvent`]s. The
+/// data map is ordered, so a stream serializes the same way every time.
+///
+/// [`AuditStreamFile`]: crate::audit::AuditStreamFile
+/// [`save_audit_stream`]: crate::audit::save_audit_stream
+/// [`load_audit_stream`]: crate::audit::load_audit_stream
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct AuditEventRecord {
     /// Event label.

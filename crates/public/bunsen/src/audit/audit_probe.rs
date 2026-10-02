@@ -47,7 +47,12 @@ use crate::{
     support::CloneRef,
 };
 
-/// Argument conversion trait for [`Tensor`] and [`TensorData`].
+/// The data argument of the [`AuditProbe`] checkpoint methods: a `&Tensor` or a
+/// `&TensorData`.
+///
+/// A `&Tensor` is read back to the host. Either way, the checkpoint converts
+/// the data to its comparison type before it builds the [`AuditProbeEventStub`]
+/// handed to the handlers.
 pub trait DataArg<'a>: Sized {
     /// Build a default [`CloneRef`] to [`TensorData`].
     fn into_data_ref(self) -> CloneRef<'a, TensorData>;
@@ -100,7 +105,26 @@ impl<'a, B: Backend, const R: usize, K: BasicOps<B>> DataArg<'a> for &'a Tensor<
     }
 }
 
-/// Probe for auditing purposes.
+/// The checkpoint API: emits an audit event at each checkpoint, and fans it out
+/// to its handlers.
+///
+/// Code under test (an [`AuditBody`], or any function) takes a
+/// `&mut AuditProbe` and calls checkpoint methods such as
+/// [`assert_eq_as`](Self::assert_eq_as) and
+/// [`assert_approx_eq_as`](Self::assert_approx_eq_as). Each builds an
+/// [`AuditProbeEventStub`] and passes it to every [`AuditProbeEventHandler`] in
+/// order, stopping at the first error: typically a recorder
+/// ([`AuditStreamRecorder`]) on the reference run, and a verifier
+/// ([`AuditStreamVerifier`]) on the checked run.
+///
+/// The probe borrows its handlers for `'a`; drop it to use them again (e.g. to
+/// call [`AuditStreamVerifier::finish`]). A probe is itself a handler, so
+/// probes nest.
+///
+/// [`AuditBody`]: crate::audit::AuditBody
+/// [`AuditStreamRecorder`]: crate::audit::AuditStreamRecorder
+/// [`AuditStreamVerifier`]: crate::audit::AuditStreamVerifier
+/// [`AuditStreamVerifier::finish`]: crate::audit::AuditStreamVerifier::finish
 #[derive(Debug)]
 pub struct AuditProbe<'a> {
     handlers: Vec<&'a mut dyn AuditProbeEventHandler>,
@@ -320,7 +344,15 @@ impl<'a> AuditProbe<'a> {
     }
 }
 
-/// Type-specific event params.
+/// The kind of an audit event, and how its data is compared.
+///
+/// Set by the [`AuditProbe`] checkpoint method that emitted the event, and read
+/// through [`AuditProbeEventView::params`]. [`try_match_events`] requires equal
+/// params before it compares data, so an approximate check's [`ToleranceDesc`]
+/// (float type and policy) is the recorded intent, not a verify-time choice.
+/// Persisted as [`AuditParamsRecord`].
+///
+/// [`AuditParamsRecord`]: crate::audit::AuditParamsRecord
 #[derive(Debug, Clone, PartialEq, strum::Display, strum::EnumDiscriminants)]
 #[strum_discriminants(derive(strum::AsRefStr))]
 pub enum AuditProbeEventParams {

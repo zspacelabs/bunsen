@@ -33,7 +33,15 @@ pub const AUDIT_STREAM_FORMAT: &str = "bunsen-audit-stream";
 /// The on-disk format version of an audit stream file.
 pub const AUDIT_STREAM_VERSION: u32 = 1;
 
-/// An audit stream file: a CBOR document holding the events in order.
+/// The on-disk form of an audit stream: a CBOR document holding the events, in
+/// order.
+///
+/// Written by [`save_audit_stream`] (through [`AuditStreamRecorder::save`]) and
+/// read by [`load_audit_stream`] (through [`AuditStreamVerifier::load`]), which
+/// rejects another `format` or `version`. A stored baseline
+/// ([`audit_baseline`]) is a file of this form.
+///
+/// [`audit_baseline`]: crate::audit::audit_baseline
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct AuditStreamFile {
     /// Always [`AUDIT_STREAM_FORMAT`].
@@ -103,7 +111,16 @@ fn io_error(
     BunsenError::External(format!("{}: {err}", path.display()))
 }
 
-/// Records audit events in memory, to save or verify against.
+/// An [`AuditProbeEventHandler`] that records each event in memory.
+///
+/// Use it on the reference run. Afterwards,
+/// [`into_verifier`](Self::into_verifier) turns the recording into an
+/// [`AuditStreamVerifier`] for an in-memory comparison ([`audit_across`]), and
+/// [`save`](Self::save) writes it as an [`AuditStreamFile`]
+/// ([`audit_baseline`]). Recording never fails.
+///
+/// [`audit_across`]: crate::audit::audit_across
+/// [`audit_baseline`]: crate::audit::audit_baseline
 #[derive(Debug, Clone, Default)]
 pub struct AuditStreamRecorder {
     events: Vec<AuditProbeEvent>,
@@ -142,13 +159,17 @@ impl AuditStreamRecorder {
     }
 }
 
-/// Verifies audit events against an expected stream, in order.
+/// An [`AuditProbeEventHandler`] that verifies events against an expected
+/// stream, in order.
 ///
-/// Unlike bunsen's `AuditProbeVecVerifier`, an event past the end of the
-/// stream is an error rather than a panic, and [`finish`] reports expected
-/// events that never arrived.
+/// Built from a recording ([`AuditStreamRecorder::into_verifier`]) or a saved
+/// [`AuditStreamFile`] ([`load`](Self::load)). Each event is matched against
+/// the next expected one with [`try_match_events`]. Unlike
+/// [`AuditProbeVecVerifier`], an event past the end of the stream is an error
+/// rather than a panic, and [`finish`](Self::finish) reports expected events
+/// that never arrived; call it when the run ends.
 ///
-/// [`finish`]: AuditStreamVerifier::finish
+/// [`AuditProbeVecVerifier`]: crate::audit::AuditProbeVecVerifier
 #[derive(Debug, Clone)]
 pub struct AuditStreamVerifier {
     events: Vec<AuditProbeEvent>,

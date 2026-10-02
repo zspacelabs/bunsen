@@ -23,7 +23,11 @@ use crate::{
 /// A test body that runs on any backend, emitting audit checkpoints.
 ///
 /// A closure cannot be generic over the backend, so a body is a type with a
-/// generic `run`.
+/// generic `run`. The harness functions [`audit_across`] and [`audit_baseline`]
+/// call `run` once per run, each time with an [`AuditProbe`] wired to a
+/// recorder ([`AuditStreamRecorder`]) or a verifier ([`AuditStreamVerifier`]).
+/// A body must make the same sequence of checkpoints on every backend, since
+/// events are matched by position.
 pub trait AuditBody {
     /// Run the body on backend `B`, sending checkpoints to `probe`.
     ///
@@ -58,7 +62,12 @@ pub fn audit_across<R: Backend, T: Backend>(body: &impl AuditBody) -> BunsenResu
     verifier.finish()
 }
 
-/// What [`audit_baseline`] did.
+/// What [`audit_baseline`] or [`audit_baseline_at`] did with a stored baseline.
+///
+/// Which arm is taken depends on the [`BaselineMode`] and on whether the
+/// baseline file exists; both arms carry the path of that [`AuditStreamFile`].
+///
+/// [`AuditStreamFile`]: crate::audit::AuditStreamFile
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum BaselineOutcome {
     /// No baseline existed (or recording was forced); one was written here.
