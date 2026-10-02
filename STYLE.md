@@ -24,6 +24,46 @@ The base style for rustdoc is [rfc1574].
 Every public item needs rustdoc. This chapter defines the structure we expect,
 the cross-links between paired types, and how tensor shapes are written.
 
+### rustdoc is the reference
+
+rustdoc is the primary documentation for every interface and lifecycle. The
+book (`book/`) explains how bunsen is organized and why, and links into the
+API; it never restates signatures, method or field lists, feature tables, or
+module maps. A fact that lives only in the book is a rustdoc gap: move it
+here, then link to it.
+
+* The module map lives once: the crate root (`lib.rs`) for top-level
+  modules, and each area's `mod.rs` for its submodules.
+* The book links to items by intra-doc path,
+  ``[`ShapeContract`](bunsen::contracts::ShapeContract)``, and the book build
+  resolves every such link with rustdoc. A rename that breaks a book link
+  fails CI in the PR that made it.
+
+### Module docs must render
+
+A private module's `//!` is never rendered: `mod x; pub use x::*;` shows the
+items, not the file. Prose written there is invisible, and it rots unchecked.
+
+* What a type is and how it relates to its neighbours goes on the type's
+  `///`.
+* Why an area exists, and the lifecycle across its files, goes in the
+  public parent's `//!`.
+* A private file keeps at most a one-line `//!` title.
+
+`#[doc(inline)]` on a re-export of a private module is a no-op (rustdoc
+inlines items that are not publicly reachable anyway); don't write it. Use
+it only on a re-export from a *public* module, where it changes the output.
+
+### Errors: `try_x` and `x`
+
+A fallible operation is `try_x`, returning `BunsenResult`; its panicking twin
+is `x` (or `expect_x`), built on `WithOkOrPanic::ok_or_panic`:
+`ModuleInit::{try_init, init}`, `ToStructureConfig::{try_to_structure,
+to_structure}`, `XmlModuleTree::{try_select, select}`,
+`{try,expect}_probability`. Input that can be wrong (a config, a file, a
+user's spec) is reported from `try_x` as `BunsenError::Invalid`, not as a
+panic.
+
 ### Tensor shape notation
 
 A tensor shape is written as a **single** backtick code span wrapping the whole
@@ -65,6 +105,102 @@ These are **not** tensor shapes — leave them as written:
 - Rust type code spans: `&[usize; D]`, `Param<Tensor<B, R, K>>`.
 - Half-open ranges and indexing: `[start, end)`, `env[$VAR]`.
 - Intra-doc link syntax: `[text](url)`.
+
+## Module design
+
+How a bunsen module, its config, and its metadata fit together. The
+reference, with compiled examples of each shape, is the rustdoc of
+`bunsen::burner::module::ModuleInit` and `ToStructureConfig`.
+
+### Config shapes: Simple and Stacked
+
+A module family picks one of two shapes. The config lives in the same file
+as the module it builds.
+
+* **Simple Config.** `FooConfig` builds `Foo` and implements
+  `ModuleInit<B, Foo<B>>` directly.
+* **Stacked Config.** `FooStructureConfig` is the unrolled tree, with one
+  field per sub-module config, and implements `ModuleInit`. It has *at
+  least one* upper **policy** config, named for its policy
+  (`FooContractConfig`, `FooApiConfig`, `FooSignalConfig`, ...) and never
+  bare `FooConfig`. Several policies may coexist or chain.
+  * A policy implements `ToStructureConfig`, whose `Structure` is the
+    *lowest* structure config, and never `ModuleInit` directly. The
+    blanket impl gives it `init`; implementing both is a compile error
+    (E0119), so the two pathways cannot drift apart.
+  * Per-policy logic and validation live in `try_to_structure`.
+  * Every Stacked family has a test that `policy.init(&d)` and
+    `policy.to_structure().init(&d)` build modules that agree.
+
+A bare `FooConfig` never coexists with a `FooStructureConfig`. Promote a
+Simple family to Stacked when its user-facing knobs diverge from the
+implementation's parameters, when a second default policy appears, or when
+loaders and tooling need the unrolled tree.
+
+### Meta traits
+
+A family exposes a narrow `FooMeta` trait: only the values a caller or a test
+needs to read back from either form. Raw fields are required methods; derived
+values are provided methods. Everything else stays on the config, reached
+from the module through an accessor (`options()`, `config()`).
+
+* Simple: `FooMeta` is implemented by `FooConfig` and `Foo` (and a context,
+  if there is one).
+* Stacked: required on `FooStructureConfig` and `Foo`; optional on policies.
+* A test asserts that a config and the module built from it answer every
+  `FooMeta` method alike, using a config that is non-default in every field.
+
+### Modules over bare tensors
+
+A type that owns a `Tensor` derives `Module`, even when nothing in it is
+learnable: `Module` is the traversal and device-mapping trait, and deriving it
+is what lets `to_device` reach the tensors. Hold non-learnable tensors bare,
+not as `Param`.
+
+* `#[derive(Module, Debug)]`, without `Clone`: the derive provides `Clone`.
+* A held config is `#[module(skip)]`. Only fields whose type does not mention
+  `B` can be skipped; a type that must hold a backend-generic non-`Module`
+  (a boxed policy) is a plain struct with `Module`-typed tensor state inside.
+* Bare tensors are not written to records, are skipped by `ModuleMapper`
+  passes (dtype casts), and do not appear in reflection. Say so on the type.
+
+### Injected state
+
+Cache and stream state is injected, never owned by the model: an immutable
+module, plus a per-stream context or cache the caller creates and passes in
+(`KVCache`, `SlidingStftContext`, `WhisperStreamContext`, ...). One model can
+then serve more than one cache or stream in the same process.
+
+### `ops` and `blocks`
+
+* **blocks** are `torch.nn`-like components, meant to be used as `Module`
+  roots or as parts of a module tree.
+* **ops** are operation-focused. They may use the `Module` / `Config`
+  machinery, but only to hold cached tables or state.
+* `ops` never imports `blocks`.
+
+The `bunsen::ops` and `bunsen::blocks` module docs hold the authoritative
+wording.
+
+### Variant behaviour lives on the enum
+
+A value or transform that differs per enum variant is a method on the enum,
+not a `match` at the use site. The calling pipeline then reads as a sequence
+of named steps, and a new variant changes one place.
+
+### Value objects as configuration
+
+When an op has parameters worth naming, they form a value object that
+serializes and embeds in other configs, and that value object is the unit of
+configuration: `ClampOp` inside `NoiseConfig` inside `DropBlockOptions`
+inside `DropBlock2dConfig`. A config embeds the value object; it does not
+copy its fields.
+
+### Test modules
+
+Every `#[cfg(test)] mod tests` opens with `use super::*;`, so the preamble
+tracks the parent's imports. After it, import only what the parent does
+not: dev-dependencies and crate-private test helpers.
 
 ## cargo features
 
