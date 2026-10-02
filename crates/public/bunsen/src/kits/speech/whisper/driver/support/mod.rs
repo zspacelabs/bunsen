@@ -5,5 +5,4 @@
 pub(crate) mod segments;
 mod util;
 
-#[doc(inline)]
 pub use util::*;

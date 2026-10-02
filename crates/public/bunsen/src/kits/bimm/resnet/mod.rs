@@ -88,7 +88,6 @@ pub use pretrained::*;
 
 pub mod blocks;
 
-#[doc(inline)]
 pub use blocks::resnet_model::*;
 
 /// ResNet-18 block depths.

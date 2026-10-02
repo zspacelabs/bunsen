@@ -13,7 +13,5 @@ mod providers;
 
 #[cfg(feature = "silero-weights")]
 pub use bunsen_bundled_silero as bundled;
-#[doc(inline)]
 pub use construct::*;
-#[doc(inline)]
 pub use providers::*;

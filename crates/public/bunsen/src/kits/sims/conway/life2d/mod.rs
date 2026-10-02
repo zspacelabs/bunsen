@@ -2,5 +2,4 @@
 
 mod state2d;
 
-#[doc(inline)]
 pub use state2d::*;

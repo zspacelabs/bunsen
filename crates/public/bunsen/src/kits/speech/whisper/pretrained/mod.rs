@@ -29,31 +29,23 @@ mod providers;
 mod vocab;
 
 #[cfg(all(feature = "store_pytorch", feature = "cache"))]
-#[doc(inline)]
 pub use construct::*;
 #[cfg(all(feature = "store_pytorch", feature = "cache"))]
-#[doc(inline)]
 pub use factory::*;
-#[doc(inline)]
 pub use maps::*;
-#[doc(inline)]
 pub use prefabs::*;
-#[doc(inline)]
 pub use providers::*;
 #[cfg(feature = "cache")]
-#[doc(inline)]
 pub use vocab::*;
 
 #[cfg(feature = "store_pytorch")]
 mod pytorch_utils;
 
 #[cfg(feature = "store_pytorch")]
-#[doc(inline)]
 pub use pytorch_utils::*;
 
 #[cfg(feature = "store_safetensors")]
 mod safetensors_utils;
 
 #[cfg(feature = "store_safetensors")]
-#[doc(inline)]
 pub use safetensors_utils::*;

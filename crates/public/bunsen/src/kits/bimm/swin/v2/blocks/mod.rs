@@ -8,13 +8,8 @@ mod patch_merge;
 mod swin_block;
 mod windowing;
 
-#[doc(inline)]
 pub use block_sequence::*;
-#[doc(inline)]
 pub use patch_merge::*;
-#[doc(inline)]
 pub use swin_block::*;
-#[doc(inline)]
 pub use swin_model::*;
-#[doc(inline)]
 pub use windowing::*;

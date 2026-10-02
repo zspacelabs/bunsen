@@ -2,5 +2,4 @@
 
 mod log;
 
-#[doc(inline)]
 pub use log::*;

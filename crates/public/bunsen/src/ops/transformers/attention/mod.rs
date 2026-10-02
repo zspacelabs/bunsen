@@ -54,9 +54,6 @@ mod attend;
 mod attn_kv_pair;
 mod causal_mask;
 
-#[doc(inline)]
 pub use attend::*;
-#[doc(inline)]
 pub use attn_kv_pair::*;
-#[doc(inline)]
 pub use causal_mask::*;

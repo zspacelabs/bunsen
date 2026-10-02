@@ -97,11 +97,7 @@ mod float_dtype;
 mod tensor_data_checks;
 mod tensor_op_ext;
 
-#[doc(inline)]
 pub use data_view::*;
-#[doc(inline)]
 pub use float_dtype::*;
-#[doc(inline)]
 pub use tensor_data_checks::*;
-#[doc(inline)]
 pub use tensor_op_ext::*;

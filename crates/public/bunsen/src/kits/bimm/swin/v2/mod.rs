@@ -40,5 +40,4 @@
 
 pub mod blocks;
 
-#[doc(inline)]
 pub use blocks::swin_model::*;

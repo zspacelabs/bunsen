@@ -16,7 +16,5 @@ mod clone_box;
 mod clone_ref;
 pub mod reflection;
 
-#[doc(inline)]
 pub use clone_box::*;
-#[doc(inline)]
 pub use clone_ref::*;

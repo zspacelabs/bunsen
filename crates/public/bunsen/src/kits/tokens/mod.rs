@@ -29,7 +29,6 @@ mod wordchipper;
 pub use wordchipper::WordchipperDetokenizer;
 
 mod tiktoken_util;
-#[doc(inline)]
 pub use tiktoken_util::*;
 
 /// Turns token ids into text.

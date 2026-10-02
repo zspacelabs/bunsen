@@ -23,7 +23,5 @@
 mod fix_pytorch_load_mappers;
 mod param_mappers;
 
-#[doc(inline)]
 pub use fix_pytorch_load_mappers::*;
-#[doc(inline)]
 pub use param_mappers::*;

@@ -33,36 +33,23 @@ mod rows;
 mod safetensors;
 
 #[cfg(feature = "cache")]
-#[doc(inline)]
 pub use cache::*;
 #[cfg(feature = "cache")]
-#[doc(inline)]
 pub use construct::*;
 #[cfg(feature = "cache")]
-#[doc(inline)]
 pub use deferred::*;
 #[cfg(feature = "cache")]
-#[doc(inline)]
 pub use factory::*;
-#[doc(inline)]
 pub use hf::*;
 #[cfg(feature = "cache")]
-#[doc(inline)]
 pub use loaded::*;
-#[doc(inline)]
 pub use prefabs::*;
-#[doc(inline)]
 pub use pretrained_ref::*;
-#[doc(inline)]
 pub use providers::*;
-#[doc(inline)]
 pub use resource::*;
-#[doc(inline)]
 pub use resource_map::*;
-#[doc(inline)]
 pub use rows::*;
 #[cfg(feature = "store_safetensors")]
-#[doc(inline)]
 pub use safetensors::*;
 
 /// [`ResourceNotFound`](crate::errors::BunsenError::ResourceNotFound) for a

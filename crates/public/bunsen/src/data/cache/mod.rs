@@ -24,24 +24,15 @@ mod path_resolver;
 mod path_utils;
 mod transfer;
 
-#[doc(inline)]
 pub use digest::*;
-#[doc(inline)]
 pub use disk_cache::*;
 #[cfg(feature = "fetch")]
-#[doc(inline)]
 pub use fetch::*;
 #[cfg(feature = "fetch")]
-#[doc(inline)]
 pub use fetch_many::*;
-#[doc(inline)]
 pub use files::*;
 #[cfg(feature = "indicatif")]
-#[doc(inline)]
 pub use indicatif_observer::*;
-#[doc(inline)]
 pub use path_resolver::*;
-#[doc(inline)]
 pub use path_utils::*;
-#[doc(inline)]
 pub use transfer::*;

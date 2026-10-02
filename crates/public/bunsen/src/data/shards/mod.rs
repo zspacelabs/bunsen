@@ -18,10 +18,7 @@ mod map;
 #[cfg(feature = "cache")]
 mod set;
 
-#[doc(inline)]
 pub use descriptor::*;
-#[doc(inline)]
 pub use map::*;
 #[cfg(feature = "cache")]
-#[doc(inline)]
 pub use set::*;

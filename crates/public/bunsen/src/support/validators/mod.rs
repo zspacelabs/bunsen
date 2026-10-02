@@ -2,5 +2,4 @@
 
 mod prob;
 
-#[doc(inline)]
 pub use prob::*;

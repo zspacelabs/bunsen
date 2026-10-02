@@ -30,11 +30,7 @@ mod module_init;
 mod to_structure_config;
 mod type_mapper;
 
-#[doc(inline)]
 pub use has_dtype::*;
-#[doc(inline)]
 pub use module_init::*;
-#[doc(inline)]
 pub use to_structure_config::*;
-#[doc(inline)]
 pub use type_mapper::*;

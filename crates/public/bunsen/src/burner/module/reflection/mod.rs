@@ -630,5 +630,4 @@ pub mod module_visitors;
 pub mod xml_support;
 
 mod xml_module_tree;
-#[doc(inline)]
 pub use xml_module_tree::*;

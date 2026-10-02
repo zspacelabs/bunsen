@@ -19,23 +19,13 @@ mod whisper_stream_context;
 mod whisper_stream_driver;
 mod whisper_token_layout;
 
-#[doc(inline)]
 pub use emission_policy::*;
-#[doc(inline)]
 pub use speech_region::*;
-#[doc(inline)]
 pub use stream_clamp_policy::*;
-#[doc(inline)]
 pub use stream_clock::*;
-#[doc(inline)]
 pub use transcript::*;
-#[doc(inline)]
 pub use voice_activity_filter::*;
-#[doc(inline)]
 pub use whisper_bundle::*;
-#[doc(inline)]
 pub use whisper_stream_context::*;
-#[doc(inline)]
 pub use whisper_stream_driver::*;
-#[doc(inline)]
 pub use whisper_token_layout::*;

@@ -3,9 +3,7 @@
 mod iroot;
 mod nan_utils;
 
-#[doc(inline)]
 pub use iroot::*;
-#[doc(inline)]
 pub use nan_utils::*;
 
 /// `1.0 / (3.0).sqrt()`

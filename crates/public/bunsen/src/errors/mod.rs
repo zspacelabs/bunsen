@@ -6,7 +6,6 @@ use burn::{
     prelude::Shape,
     tensor::Slice,
 };
-#[doc(inline)]
 pub use result_ext::*;
 
 /// Common bunsen error type.

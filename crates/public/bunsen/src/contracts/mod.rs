@@ -280,17 +280,13 @@ pub use macros::{
 };
 
 mod shape_view;
-#[doc(inline)]
 pub use shape_view::*;
 
 mod expressions;
-#[doc(inline)]
 pub use expressions::*;
 
 mod bindings;
-#[doc(inline)]
 pub use bindings::*;
 
 mod shape_contracts;
-#[doc(inline)]
 pub use shape_contracts::*;

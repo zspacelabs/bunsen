@@ -7,13 +7,8 @@ mod default_device;
 mod device_memory;
 mod seeded;
 
-#[doc(inline)]
 pub use common_assertions::*;
-#[doc(inline)]
 pub use common_devices::*;
-#[doc(inline)]
 pub use default_device::*;
-#[doc(inline)]
 pub use device_memory::*;
-#[doc(inline)]
 pub use seeded::*;

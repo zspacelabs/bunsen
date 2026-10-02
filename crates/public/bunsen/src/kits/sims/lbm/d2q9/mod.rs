@@ -31,19 +31,12 @@ mod space;
 mod streaming;
 mod thermal;
 
-#[doc(inline)]
 pub use collision::*;
-#[doc(inline)]
 pub use reflection::*;
-#[doc(inline)]
 pub use relaxation::*;
-#[doc(inline)]
 pub use simulation::*;
-#[doc(inline)]
 pub use space::*;
-#[doc(inline)]
 pub use streaming::*;
-#[doc(inline)]
 pub use thermal::*;
 
 pub use crate::support::math::FRAC_1_SQRT_3;
