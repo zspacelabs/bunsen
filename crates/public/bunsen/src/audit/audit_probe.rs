@@ -25,18 +25,16 @@ use time::{
 };
 
 use crate::{
-    burner::{
-        descriptors::{
-            ToleranceDesc,
-            TolerancePolicy,
-        },
-        testing::audit::{
-            AuditProbeEventHandler,
-            AuditProbeEventHeader,
-            AuditProbeEventStub,
-            AuditProbeEventView,
-            unpack_audit_probe_event_data,
-        },
+    audit::{
+        AuditProbeEventHandler,
+        AuditProbeEventHeader,
+        AuditProbeEventStub,
+        AuditProbeEventView,
+        unpack_audit_probe_event_data,
+    },
+    burner::descriptors::{
+        ToleranceDesc,
+        TolerancePolicy,
     },
     errors::{
         BunsenError,
@@ -412,7 +410,7 @@ pub fn try_match_events(
 mod tests {
     use super::*;
     use crate::{
-        burner::testing::audit::AuditProbeVecRecorder,
+        audit::AuditProbeVecRecorder,
         errors::WithOkOrPanic,
         support::testing::{
             CpuBackend,

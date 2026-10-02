@@ -29,6 +29,9 @@
 //!
 //! ### App and Testing Support Libs
 //!
+//! * [`audit`] - this is a library of audit probes: record a stream of tensor
+//!   checkpoints from one run, and verify another run (on another backend, or
+//!   against a stored baseline) against it.
 //! * [`errors`] - this is a library of error types and tooling.
 //! * [`support`] - this is a library of support functions for bunsen, including
 //!   testing tooling which may be useful for clients.
@@ -54,6 +57,8 @@ pub mod public {
     pub use hashbrown;
 }
 
+#[cfg(feature = "audit")]
+pub mod audit;
 pub mod blocks;
 pub mod burner;
 pub mod contracts;

@@ -1,7 +1,7 @@
 use core::fmt::Debug;
 
 use crate::{
-    burner::testing::audit::{
+    audit::{
         AuditProbeEvent,
         AuditProbeEventStub,
         AuditProbeEventView,

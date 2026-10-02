@@ -27,7 +27,7 @@ license = "MIT or Apache-2.0"
 
 [workspace.lints.rust]
 warnings = "deny"
-exported-private-dependencies = "allow"
+exported_private_dependencies = "allow"
 
 [workspace.lints.clippy]
 double_must_use = "allow"
@@ -64,6 +64,7 @@ regex = "1.12.2"
 regex-macro = "0.3.0"
 serde = "1.0.228"
 serde_json = "1.0.145"
+ciborium = "0.2.2"
 
 dashmap = "6.2.1"
 

@@ -11,7 +11,7 @@ use burn::prelude::{
 };
 
 use crate::{
-    burner::testing::audit::audit_probe::AuditProbeEventParams,
+    audit::audit_probe::AuditProbeEventParams,
     errors::{
         BunsenError,
         BunsenResult,
@@ -134,7 +134,7 @@ pub trait AuditProbeEventView: Debug {
 }
 
 /// (TODO) Serializable
-/// [`AuditProbe`](`crate::burner::testing::audit::AuditProbe`) event.
+/// [`AuditProbe`](`crate::audit::AuditProbe`) event.
 #[derive(Debug, Clone)]
 pub struct AuditProbeEvent {
     /// Common event header.

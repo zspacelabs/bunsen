@@ -2,7 +2,7 @@
 //!
 //! See [`unpack_audit_probe_event_data`] for the one-shot pattern syntax.
 //!
-//! [`AuditProbeEventView`]: crate::burner::testing::audit::AuditProbeEventView
+//! [`AuditProbeEventView`]: crate::audit::AuditProbeEventView
 
 use std::collections::HashMap;
 
@@ -16,7 +16,7 @@ use crate::errors::{
 /// Borrowed view over an event's data map.
 ///
 /// This is the shape returned by
-/// [`AuditProbeEventView::data_map_view`](`crate::burner::testing::audit::AuditProbeEventView::data_map_view`).
+/// [`AuditProbeEventView::data_map_view`](`crate::audit::AuditProbeEventView::data_map_view`).
 pub type EventDataView<'a> = HashMap<&'a str, Vec<&'a TensorData>>;
 
 /// Assert that `view` contains every key in `keys`, and no others.
@@ -191,10 +191,10 @@ macro_rules! __unpack_audit_probe_event_data {
             event: &'x V,
         ) -> $crate::errors::BunsenResult<Unpacked<'x>>
         where
-            V: $crate::burner::testing::audit::AuditProbeEventView,
+            V: $crate::audit::AuditProbeEventView,
         {
-            let view = $crate::burner::testing::audit::AuditProbeEventView::data_map_view(event);
-            $crate::burner::testing::audit::assert_exact_data_keys(
+            let view = $crate::audit::AuditProbeEventView::data_map_view(event);
+            $crate::audit::assert_exact_data_keys(
                 target,
                 &view,
                 &[$(::core::stringify!($name)),+],
@@ -216,27 +216,27 @@ macro_rules! __unpack_audit_probe_event_data {
     (@ty $lt:lifetime, [$n:literal]) => { [&$lt ::burn::prelude::TensorData; $n] };
 
     (@take $target:expr, $view:expr, $key:expr,) => {
-        $crate::burner::testing::audit::take_one($target, $view, $key)
+        $crate::audit::take_one($target, $view, $key)
     };
     (@take $target:expr, $view:expr, $key:expr, [..]) => {
-        $crate::burner::testing::audit::take_any($target, $view, $key)
+        $crate::audit::take_any($target, $view, $key)
     };
     (@take $target:expr, $view:expr, $key:expr, [$n:literal]) => {
-        $crate::burner::testing::audit::take_fixed::<$n>($target, $view, $key)
+        $crate::audit::take_fixed::<$n>($target, $view, $key)
     };
 }
 
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::burner::{
-        descriptors::ToleranceDesc,
-        testing::audit::{
+    use crate::{
+        audit::{
             AuditProbeEvent,
             AuditProbeEventHeader,
             AuditProbeEventStub,
             audit_probe::AuditProbeEventParams,
         },
+        burner::descriptors::ToleranceDesc,
     };
 
     fn event(data: HashMap<String, Vec<TensorData>>) -> AuditProbeEvent {

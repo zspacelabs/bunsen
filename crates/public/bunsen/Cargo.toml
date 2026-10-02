@@ -42,6 +42,7 @@ default = [
     "reflection",
     "train",
     "testing",
+    "audit",
     "store_pytorch",
     "store_safetensors",
 ]
@@ -166,7 +167,7 @@ whisper-weights = [
 ## can still use those backends with bunsen; only bunse specific features will
 ## be disabled.
 cuda = ["burn/cuda"]
-## Enable the cuda backend in the bunsen build.
+## Enable the metal backend in the bunsen build.
 ## This will impact the bunsen::support::testing::PerformanceBackend choice.
 ## Dependents which enable backends for burn without enabling them for bunsen
 ## can still use those backends with bunsen; only bunse specific features will
@@ -184,7 +185,7 @@ vulkan = ["burn/vulkan"]
 ## can still use those backends with bunsen; only bunse specific features will
 ## be disabled.
 wgpu = ["burn/wgpu"]
-## Enable the cuda backend in the bunsen build.
+## Enable the flex backend in the bunsen build.
 ## This will impact the bunsen::support::testing::PerformanceBackend choice.
 ## Dependents which enable backends for burn without enabling them for bunsen
 ## can still use those backends with bunsen; only bunse specific features will
@@ -197,9 +198,17 @@ testing = [
     "audio",
     "tokenizer",
     "flex",
+    "dep:rand",
     "dep:tracing",
     "dep:tracing-test",
     "dep:tracing-subscriber",
+]
+
+## Enables the `audit` module: audit probes, stream recording and
+## verification, and stored baselines.
+audit = [
+    "testing",
+    "dep:ciborium",
 ]
 
 [dependencies]
@@ -226,6 +235,8 @@ burn-store = { workspace = true, optional = true }
 hashbrown = { workspace = true, optional = true }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
+ciborium = { workspace = true, optional = true }
+rand = { workspace = true, optional = true }
 crc = { workspace = true }
 flate2 = { workspace = true }
 
