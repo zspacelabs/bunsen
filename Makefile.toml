@@ -9,8 +9,18 @@ dependencies = [
 ]
 
 [tasks.doc]
+description = "Build the workspace API docs, then bunsen's docs.rs configuration"
 command = "cargo"
 args = ["doc", "--no-deps"]
+dependencies = ["doc-docsrs"]
+
+[tasks.doc-docsrs]
+description = "Build bunsen's API docs alone, with the feature list docs.rs uses"
+script = '''
+features=$(cargo metadata --no-deps --format-version 1 \
+  | jq -r '.packages[] | select(.name == "bunsen") | .metadata.docs.rs.features | join(",")')
+cargo doc -p bunsen --no-deps --features "$features"
+'''
 
 [tasks.setup]
 dependencies = ["ensure-mdbook-suite"]

@@ -71,6 +71,20 @@ jobs:
       - name: Docs
         run: cargo doc --no-deps --all-features
 
+      # The step above documents the whole workspace, so Cargo unifies features
+      # across members and a link can resolve there that breaks for `bunsen`
+      # alone. docs.rs builds `bunsen` alone, with the feature list in its
+      # `[package.metadata.docs.rs]`; these two steps reproduce that, and the
+      # plain default-features build a user gets.
+      - name: Docs (docs.rs configuration)
+        run: |
+          features=$(cargo metadata --no-deps --format-version 1 \
+            | jq -r '.packages[] | select(.name == "bunsen") | .metadata.docs.rs.features | join(",")')
+          cargo doc -p bunsen --no-deps --features "$features"
+
+      - name: Docs (default features)
+        run: cargo doc -p bunsen --no-deps
+
       - name: Build and Test
         run: cargo test --features download,indicatif
 

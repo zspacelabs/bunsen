@@ -1,12 +1,16 @@
 //! # Local disk cache
 //!
 //! Where files land ([`BunsenDiskCache`], resolved from options and the
-//! environment), the fetch that puts them there ([`fetch_file`] and its
-//! pinned form [`fetch_verified`], with [`sha256_of`] and
-//! [`link_or_copy`]), a policy-driven batch of them
-//! ([`BunsenDiskCache::fetch_many`], reported as a [`FetchReport`]), and the
-//! [`TransferObserver`] stack every transfer is reported to. The fetch and the
-//! batch need the `fetch` feature; the rest is local.
+//! environment), digests and links ([`sha256_of`], [`link_or_copy`]), and the
+//! [`TransferObserver`] stack every transfer is reported to. All of that is
+//! local; reaching the network is the `fetch` feature.
+#![cfg_attr(
+    feature = "fetch",
+    doc = "",
+    doc = "With `fetch`: the fetch that puts a file in place ([`fetch_file`], and its",
+    doc = "pinned form [`fetch_verified`]) and a policy-driven batch of them",
+    doc = "([`BunsenDiskCache::fetch_many`], reported as a [`FetchReport`])."
+)]
 mod digest;
 mod disk_cache;
 #[cfg(feature = "fetch")]

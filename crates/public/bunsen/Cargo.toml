@@ -8,9 +8,19 @@ repository.workspace = true
 license.workspace = true
 
 rust-version.workspace = true
-homepage = "https://zspacelabs.ai/bunsen/book"
+homepage = "https://zspacelabs.ai/bunsen/book/"
 documentation = "https://docs.rs/bunsen/latest/"
 description = "bunsen is a batteries included common library for burn"
+
+# docs.rs builds this feature list, not `all-features`: `whisper-weights`
+# makes `bunsen-bundled-whisper`'s build script download ~145 MB, and docs.rs
+# builds have no network. The backends only change which backend
+# `support::testing::PerformanceBackend` names. The book's API links resolve
+# against this same list (`book/book.toml`, `build.docs-rs`), and so do CI's
+# isolated doc build and `cargo make doc`. docs.rs sets `--cfg docsrs`
+# itself, so there are no `rustdoc-args` here.
+[package.metadata.docs.rs]
+features = ["fetch", "indicatif", "silero-weights", "testing", "audit"]
 
 [lints]
 workspace = true
@@ -47,6 +57,8 @@ default = [
     "store_safetensors",
 ]
 
+## Use the standard library (`burn/std`). Every other feature except the
+## backends turns this on.
 std = [
     "burn/std",
 ]
@@ -67,6 +79,7 @@ store = [
     "burn/store",
 ]
 
+## Read PyTorch `.pt` checkpoints through the burn-store.
 store_pytorch = [
     "store",
     "burn-store/pytorch",
@@ -98,7 +111,7 @@ cache = [
 
 ## Reach the network at run time, through `ureq`: `fetch_file`,
 ## `load_cached_path` / `load_data_path`, `fetch_many`, and the URL sources of
-## `WeightsCache::resolve` and `ShardSet::fetch`. Never at build time; that
+## `PretrainedCache::resolve` and `ShardSet::fetch`. Never at build time; that
 ## switch is `download`.
 fetch = [
     "cache",
@@ -124,7 +137,7 @@ audio = [
 
 ## Turns token ids into text, through `wordchipper`.
 ##
-## Ids never need this: a kit's token layout (`kits::speech::whisper::TokenPolicy`
+## Ids never need this: a kit's token layout (`kits::speech::whisper::WhisperTokenLayout`
 ## and every special id) is derived arithmetically and always available.
 ## Only `kits::tokens::WordchipperDetokenizer` is behind it. `wordchipper` comes in with
 ## `default-features = false` — no downloader, no TLS, no thread pool — so
@@ -164,31 +177,31 @@ whisper-weights = [
 ## Enable the cuda backend in the bunsen build.
 ## This will impact the bunsen::support::testing::PerformanceBackend choice.
 ## Dependents which enable backends for burn without enabling them for bunsen
-## can still use those backends with bunsen; only bunse specific features will
+## can still use those backends with bunsen; only bunsen-specific features will
 ## be disabled.
 cuda = ["burn/cuda"]
 ## Enable the metal backend in the bunsen build.
 ## This will impact the bunsen::support::testing::PerformanceBackend choice.
 ## Dependents which enable backends for burn without enabling them for bunsen
-## can still use those backends with bunsen; only bunse specific features will
+## can still use those backends with bunsen; only bunsen-specific features will
 ## be disabled.
 metal = ["burn/metal"]
 ## Enable the vulkan backend in the bunsen build.
 ## This will impact the bunsen::support::testing::PerformanceBackend choice.
 ## Dependents which enable backends for burn without enabling them for bunsen
-## can still use those backends with bunsen; only bunse specific features will
+## can still use those backends with bunsen; only bunsen-specific features will
 ## be disabled.
 vulkan = ["burn/vulkan"]
 ## Enable the wgpu backend in the bunsen build.
 ## This will impact the bunsen::support::testing::PerformanceBackend choice.
 ## Dependents which enable backends for burn without enabling them for bunsen
-## can still use those backends with bunsen; only bunse specific features will
+## can still use those backends with bunsen; only bunsen-specific features will
 ## be disabled.
 wgpu = ["burn/wgpu"]
 ## Enable the flex backend in the bunsen build.
 ## This will impact the bunsen::support::testing::PerformanceBackend choice.
 ## Dependents which enable backends for burn without enabling them for bunsen
-## can still use those backends with bunsen; only bunse specific features will
+## can still use those backends with bunsen; only bunsen-specific features will
 ## be disabled.
 flex = ["burn/flex"]
 

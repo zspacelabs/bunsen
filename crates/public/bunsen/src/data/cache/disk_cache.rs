@@ -124,10 +124,14 @@ impl BunsenDiskCacheOptions {
 ///
 /// [`PathResolver`](`super::PathResolver`) decides where the cache and data
 /// directories are for a user/system combo, with environment overrides.
-/// [`fetch_file`] brings a missing file in: streamed to a `.partial`,
-/// digest-checked when a digest is given, and renamed into place. Every
-/// transfer is reported to the [`TransferObserver`] stack the options
+/// Every transfer is reported to the [`TransferObserver`] stack the options
 /// carried.
+#[cfg_attr(
+    feature = "fetch",
+    doc = "",
+    doc = "With the `fetch` feature, [`fetch_file`] brings a missing file in: streamed to",
+    doc = "a `.partial`, digest-checked when a digest is given, and renamed into place."
+)]
 pub struct BunsenDiskCache {
     /// Cache directory.
     cache_dir: PathBuf,

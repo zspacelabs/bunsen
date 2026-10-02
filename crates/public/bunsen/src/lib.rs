@@ -1,4 +1,5 @@
 #![cfg_attr(feature = "wgpu", recursion_limit = "512")]
+#![cfg_attr(docsrs, feature(doc_cfg))]
 #![warn(missing_docs)]
 //!# bunsen
 //!
