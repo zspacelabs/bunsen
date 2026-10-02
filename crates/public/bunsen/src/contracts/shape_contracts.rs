@@ -1,40 +1,4 @@
-//! # Shape Contracts.
-//!
-//! `bunsen-contracts` is built around the [`ShapeContract`] interface.
-//! - A [`ShapeContract`] is a sequence of [`DimMatcher`]s.
-//! - A [`DimMatcher`] matches one or more dimensions of a shape:
-//!   - [`DimMatcher::Any`] matches any dimension size.
-//!   - [`DimMatcher::Ellipsis`] matches a variable number of dimensions
-//!     (ellipsis).
-//!   - [`DimMatcher::Expr`] matches a dimension expression that must match a
-//!     specific value.
-//!
-//! A [`ShapeContract`] should usually be constructed using the
-//! [`crate::shape_contract`] macro.
-//!
-//! # Examples
-//!
-//! ```rust
-//! use bunsen::contracts::{
-//!     ShapeContract,
-//!     shape_contract,
-//! };
-//!
-//! static CONTRACT: ShapeContract = shape_contract![
-//!    ...,
-//!    "height" = "h_wins" * "window",
-//!    "width" = "w_wins" * "window",
-//!    "channels",
-//! ];
-//!
-//! let shape = [1, 2, 3, 2 * 8, 3 * 8, 4];
-//!
-//! // Assert the shape, given the bindings.
-//! let [h_wins, w_wins] =
-//!     CONTRACT.unpack_shape(&shape, &["h_wins", "w_wins"], &[("window", 8)]);
-//! assert_eq!(h_wins, 2);
-//! assert_eq!(w_wins, 3);
-//! ```
+//! Shape contracts: dimension matchers, matching, and failure messages.
 
 use alloc::{
     format,
@@ -63,26 +27,30 @@ use crate::contracts::{
     shape_view::ShapeView,
 };
 
-/// A term in a shape pattern.
+/// One term of a shape pattern: `_`, `...`, or an expression, each with an
+/// optional label.
 ///
-/// Users should generally use
-/// [`shape_contract`](`crate::contracts::shape_contract`) to construct
-/// patterns.
+/// A [`ShapeContract`] holds one per pattern term, and
+/// [`shape_contract!`](crate::contracts::shape_contract!) builds them. A
+/// `label_id` is a position in the contract's
+/// [`index`](ShapeContract::index). [Matching](ShapeContract#matching)
+/// describes how each variant matches.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum DimMatcher<'a> {
-    /// Matches any dimension size.
+    /// Matches one dimension of any size (`_`).
     Any {
         /// An optional label for the matcher.
         label_id: Option<usize>,
     },
 
-    /// Matches a variable number of dimensions (ellipsis).
+    /// Matches zero or more dimensions (`...`). A label on it is accepted but
+    /// never bound.
     Ellipsis {
         /// An optional label for the matcher.
         label_id: Option<usize>,
     },
 
-    /// A dimension size expression that must match a specific value.
+    /// Matches one dimension whose size equals `expr`.
     Expr {
         /// An optional label for the matcher.
         label_id: Option<usize>,
@@ -150,7 +118,8 @@ impl<'a> DimMatcher<'a> {
     }
 }
 
-/// Display Adapter to format `DimMatchers` with a `Index`.
+/// Formats a [`DimMatcher`] with the names in a contract's index, as failure
+/// messages print it: `height=(h_wins*window)`.
 pub struct MatcherDisplayAdapter<'a> {
     index: &'a [&'a str],
     matcher: &'a DimMatcher<'a>,
@@ -179,16 +148,182 @@ impl<'a> Display for MatcherDisplayAdapter<'a> {
     }
 }
 
-/// A shape pattern, which is a sequence of terms that can match a shape.
+/// A compiled shape pattern: checks a shape, and solves for the names it
+/// doesn't know yet.
+///
+/// Build one with [`shape_contract!`](crate::contracts::shape_contract!),
+/// usually as a `static`: directly, through
+/// [`define_shape_contract!`](crate::contracts::define_shape_contract!), or
+/// implicitly inside the check macros. A contract holds one [`DimMatcher`]
+/// per pattern term, and an [`index`](Self::index) of every name in the
+/// pattern; labels, and the params inside each [`DimExpr`], refer to names by
+/// their position in it.
+///
+/// Every check takes the shape as anything that converts to a [`ShapeView`],
+/// and the values the caller already knows as a [`StackEnvironment`]:
+///
+/// - [`assert_shape`](Self::assert_shape) and
+///   [`try_assert_shape`](Self::try_assert_shape) check the shape;
+/// - [`unpack_shape`](Self::unpack_shape) and
+///   [`try_unpack_shape`](Self::try_unpack_shape) check it, then return the
+///   values of chosen names.
+///
+/// The `try_` forms return the failure message as `Err`; the others panic
+/// with it.
+///
+/// ```rust
+/// use bunsen::contracts::{
+///     ShapeContract,
+///     shape_contract,
+/// };
+///
+/// static CONTRACT: ShapeContract = shape_contract![
+///     ...,
+///     "height" = "h_wins" * "window",
+///     "width" = "w_wins" * "window",
+///     "channels",
+/// ];
+///
+/// let shape = [1, 2, 3, 2 * 8, 3 * 8, 4];
+///
+/// let [h_wins, w_wins] =
+///     CONTRACT.unpack_shape(&shape, &["h_wins", "w_wins"], &[("window", 8)]);
+/// assert_eq!([h_wins, w_wins], [2, 3]);
+/// ```
+///
+/// # Matching
+///
+/// A check walks the shape once, left to right. If the pattern has a `...`,
+/// it takes however many dimensions the other terms leave over, and the
+/// shape's rank must be at least the number of other terms. Without one, the
+/// rank must equal the number of terms.
+///
+/// Each other dimension is matched against its term, starting from the
+/// caller's bindings:
+///
+/// 1. A label is handled first. An unbound label is bound to the dimension's
+///    size; a bound one must equal it.
+/// 2. `_` matches any size. Unless labelled, it binds nothing.
+/// 3. An expression is evaluated with the names bound so far. If they are all
+///    bound, its value must equal the size. If exactly one occurrence of a
+///    param is unbound, the expression is solved for it, and the solution is
+///    bound; it must be an integer. More than one unbound occurrence fails:
+///    `"a" * "a"` counts as two, while `"a" ^ 2` is one.
+///
+/// A name bound at one dimension is bound for every dimension after it, so
+/// order matters:
+///
+/// ```rust
+/// use bunsen::contracts::{
+///     ShapeContract,
+///     shape_contract,
+/// };
+///
+/// // Dim 0 binds `a`, so dim 1 has one unknown.
+/// static FORWARD: ShapeContract = shape_contract!["a", "a" * "b"];
+/// assert_eq!(FORWARD.unpack_shape(&[4, 12], &["a", "b"], &[]), [4, 3]);
+///
+/// // Dim 0 has two unknowns, unless the caller binds one of them.
+/// static BACKWARD: ShapeContract = shape_contract!["a" * "b", "a"];
+/// let err = BACKWARD
+///     .try_unpack_shape(&[12, 4], &["a", "b"], &[])
+///     .unwrap_err();
+/// assert!(err.contains("Too many unbound params."));
+/// assert_eq!(
+///     BACKWARD.unpack_shape(&[12, 4], &["a", "b"], &[("b", 3)]),
+///     [4, 3],
+/// );
+/// ```
+///
+/// Labels bind before their expression is checked, and only integer solutions
+/// match:
+///
+/// ```rust
+/// use bunsen::contracts::{
+///     ShapeContract,
+///     shape_contract,
+/// };
+///
+/// // The label binds `n` at dim 0; dim 1 checks it.
+/// static PAIRS: ShapeContract = shape_contract!["n" = 2 * "k", "n"];
+/// assert_eq!(PAIRS.unpack_shape(&[6, 6], &["n", "k"], &[]), [6, 3]);
+/// assert!(PAIRS.try_assert_shape(&[6, 5], &[]).is_err());
+///
+/// // 7 is odd, so `2 * "k"` has no integer solution.
+/// let err = PAIRS.try_assert_shape(&[7, 7], &[]).unwrap_err();
+/// assert!(err.contains("No integer solution."));
+///
+/// // A labelled `_` binds its size.
+/// static SQUARE: ShapeContract = shape_contract!["n" = _, "n"];
+/// assert_eq!(SQUARE.unpack_shape(&[5, 5], &["n"], &[]), [5]);
+/// ```
+///
+/// The solver has known gaps:
+///
+/// - a label on `...` is accepted but never bound, so unpacking it panics, even
+///   from [`try_unpack_shape`](Self::try_unpack_shape);
+/// - solutions are not required to be non-negative: `["a", "a" + "b"]` matches
+///   `[5, 3]` with `b = -2`, which unpacks as `-2 as usize`;
+/// - a bound factor of 0 in a product with an unknown, as in `["b", "b" * "t"]`
+///   against `[0, 0]`, panics with a division by zero instead of failing.
+///
+/// # Error messages
+///
+/// A failed match produces this message. The `try_` methods return it as
+/// `Err`; the other methods and the macros panic with it:
+///
+/// ```text
+/// at src/model.rs:42: Shape Error
+///   8 !~ height=(h_wins*window) :: No integer solution.
+/// Actual:
+///   [1, 2, 3, 8, 12, 3]
+/// Contract:
+///   [..., height=(h_wins*window), width=(w_wins*window), color]
+/// Bindings:
+///   {"color": 3, "height": 8, "window": 5}
+/// ```
+///
+/// - `at file:line` is the code that called the check (the methods are
+///   `#[track_caller]`); for the macros, it is the macro call.
+/// - The second line is `size !~ term :: reason` for the first dimension that
+///   failed. The term prints with its label, and with every compound expression
+///   in parentheses.
+/// - `Actual:` is the shape, and `Contract:` is the whole pattern.
+/// - `Bindings:` lists every name bound when the match stopped, in
+///   [`index`](Self::index) order, which is alphabetical. It includes the
+///   caller's bindings and every value bound during the match, up to and
+///   including the failing term's label (`"height": 8` above).
+///
+/// The reason is one of:
+///
+/// - `Value MissMatch.` (sic): a bound label, or an expression with every name
+///   bound, doesn't equal the size;
+/// - `No integer solution.`: the unknown has no integer solution (for example,
+///   `2*"k"` against 7), or a `^` term's size has no integer root, even when
+///   its base is bound;
+/// - `Too many unbound params.`: the term still has more than one unknown.
+///
+/// A rank mismatch replaces the second line with
+/// `Shape rank R != pattern dim count N` (no `...`) or
+/// `Shape rank R < non-ellipsis pattern term count N`.
+///
+/// Two failures don't use this format. A binding whose name is not in the
+/// pattern fails with `The key "k" is not indexed in the contract:`, then the
+/// pattern, and no location; the `try_` methods return it as `Err`. An unpack
+/// key that is not in the pattern panics with the same message, even from
+/// [`try_unpack_shape`](Self::try_unpack_shape).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ShapeContract<'a> {
-    /// The slot index of the contract.
+    /// Every name in the pattern, params and labels, sorted.
+    ///
+    /// Labels and [`DimExpr::Param`] ids are positions in this slice, and
+    /// failure messages list bindings in its order.
     pub index: &'a [&'a str],
 
-    /// The terms in the pattern.
+    /// One matcher per pattern term, in pattern order.
     pub terms: &'a [DimMatcher<'a>],
 
-    /// The position of the ellipsis in the pattern, if any.
+    /// The position of the `...` term in `terms`, if any.
     pub ellipsis_pos: Option<usize>,
 }
 
@@ -216,20 +351,23 @@ impl Display for ShapeContract<'_> {
 }
 
 impl<'a> ShapeContract<'a> {
-    /// Creates a new shape pattern from a slice of terms.
+    /// Creates a contract from its name index and terms.
+    ///
+    /// Prefer [`shape_contract!`](crate::contracts::shape_contract!), which
+    /// builds both arguments from a pattern.
     ///
     /// # Arguments
     ///
-    /// - `terms`: a slice of `ShapePatternTerm` that defines the pattern.
+    /// - `index`: every name in the pattern; labels and params refer to names
+    ///   by position.
+    /// - `terms`: one [`DimMatcher`] per pattern term.
     ///
-    /// # Returns
+    /// # Panics
     ///
-    /// A new `ShapePattern` instance.
+    /// If `terms` holds more than one [`DimMatcher::Ellipsis`]. When the
+    /// contract is a `static`, this is a compile error.
     ///
-    /// ## Macro Support
-    ///
-    /// Consider using the
-    /// [`shape_contract`](`crate::contracts::shape_contract`) macro instead.
+    /// # Examples
     ///
     /// ```
     /// use bunsen::contracts::{
@@ -268,7 +406,8 @@ impl<'a> ShapeContract<'a> {
         }
     }
 
-    /// Converts a key to an index.
+    /// Returns the position of `key` in [`index`](Self::index), or `None` if
+    /// the pattern doesn't use it.
     pub fn maybe_key_to_index(
         &self,
         key: &str,
@@ -276,17 +415,18 @@ impl<'a> ShapeContract<'a> {
         self.index.iter().position(|&s| s == key)
     }
 
-    /// Asserts that the shape matches the pattern.
+    /// Checks that the shape matches the pattern, and panics if it doesn't.
     ///
     /// # Arguments
     ///
-    /// - `shape`: the shape to match.
-    /// - `env`: the params which are already bound.
+    /// - `shape`: the shape to match; see [`ShapeView`] for the accepted forms.
+    /// - `env`: the names the caller already knows, as `(name, value)` pairs.
     ///
     /// # Panics
     ///
-    /// If the shape does not match the pattern, or if there is a conflict in
-    /// the bindings.
+    /// If the shape doesn't match, with the message described under
+    /// [Error messages](Self#error-messages), located at the caller. Also if
+    /// `env` binds a name that is not in the pattern.
     ///
     /// # Examples
     ///
@@ -331,18 +471,19 @@ impl<'a> ShapeContract<'a> {
         }
     }
 
-    /// Asserts that the shape matches the pattern.
+    /// Checks that the shape matches the pattern.
     ///
     /// # Arguments
     ///
-    /// - `shape`: the shape to match.
-    /// - `env`: the params which are already bound.
+    /// - `shape`: the shape to match; see [`ShapeView`] for the accepted forms.
+    /// - `env`: the names the caller already knows, as `(name, value)` pairs.
     ///
-    /// # Returns
+    /// # Errors
     ///
-    /// - `Ok(())`: if the shape matches the pattern.
-    /// - `Err(String)`: if the shape does not match the pattern, with an error
-    ///   message.
+    /// Returns `Err` with the message described under
+    /// [Error messages](Self#error-messages) if the shape doesn't match, and
+    /// with the unknown-key message if `env` binds a name that is not in the
+    /// pattern.
     ///
     /// # Examples
     ///
@@ -414,9 +555,8 @@ impl<'a> ShapeContract<'a> {
         self.format_resolve(shape, key_index.as_mut_slice(), loc)
     }
 
-    /// Matches and unpacks `K` keys from a shape pattern.
-    ///
-    /// Wraps `try_unpack_shape` and panics if the shape does not match.
+    /// Checks that the shape matches the pattern, then returns the values of
+    /// `K` names; panics if it doesn't match.
     ///
     /// ## Generics
     ///
@@ -424,18 +564,20 @@ impl<'a> ShapeContract<'a> {
     ///
     /// # Arguments
     ///
-    /// - `shape`: the shape to match.
-    /// - `keys`: the bound keys to export.
-    /// - `env`: the params which are already bound.
+    /// - `shape`: the shape to match; see [`ShapeView`] for the accepted forms.
+    /// - `keys`: the names to return. Each must be in the pattern; its value
+    ///   may come from `env`, a label, or the solver.
+    /// - `env`: the names the caller already knows, as `(name, value)` pairs.
     ///
     /// # Returns
     ///
-    /// An `[usize; K]` of the unpacked `keys` values.
+    /// The values of `keys`, in key order.
     ///
     /// # Panics
     ///
-    /// If the shape does not match the pattern, or if there is a conflict in
-    /// the bindings.
+    /// If the shape doesn't match, with the message described under
+    /// [Error messages](Self#error-messages), located at the caller. Also if
+    /// a key or a binding names something that is not in the pattern.
     ///
     /// # Examples
     ///
@@ -494,7 +636,8 @@ impl<'a> ShapeContract<'a> {
         }
     }
 
-    /// Tries to match and unpack `K` keys from a shape pattern.
+    /// Checks that the shape matches the pattern, then returns the values of
+    /// `K` names.
     ///
     /// ## Generics
     ///
@@ -502,13 +645,26 @@ impl<'a> ShapeContract<'a> {
     ///
     /// # Arguments
     ///
-    /// - `shape`: the shape to match.
-    /// - `keys`: the bound keys to export.
-    /// - `env`: the params which are already bound.
+    /// - `shape`: the shape to match; see [`ShapeView`] for the accepted forms.
+    /// - `keys`: the names to return. Each must be in the pattern; its value
+    ///   may come from `env`, a label, or the solver.
+    /// - `env`: the names the caller already knows, as `(name, value)` pairs.
     ///
     /// # Returns
     ///
-    /// A `Result<[usize; K], String>` of the unpacked `keys` values.
+    /// The values of `keys`, in key order.
+    ///
+    /// # Errors
+    ///
+    /// As [`try_assert_shape`](Self::try_assert_shape): `Err` with the message
+    /// described under [Error messages](Self#error-messages) if the shape
+    /// doesn't match, and with the unknown-key message if `env` binds a name
+    /// that is not in the pattern.
+    ///
+    /// # Panics
+    ///
+    /// Even though this is the `try_` form: if a key is not in the pattern,
+    /// and if a key is the label of `...`, which is never bound.
     ///
     /// # Examples
     ///
@@ -579,7 +735,11 @@ impl<'a> ShapeContract<'a> {
         Ok(result)
     }
 
-    /// Converts a list of keys to a selection.
+    /// Converts unpack keys to their positions in [`index`](Self::index).
+    ///
+    /// # Panics
+    ///
+    /// If a key is not in the index.
     pub fn expect_keys_to_selection<const D: usize>(
         &'a self,
         keys: &[&'a str; D],
@@ -624,8 +784,8 @@ impl<'a> ShapeContract<'a> {
     /// # Returns
     ///
     /// - `Ok(())`: if the shape matches the pattern; will update the `env`.
-    /// - `Err(&str)`: if the shape does not match the pattern, with an error
-    ///   message.
+    /// - `Err(String)`: if the shape does not match the pattern, with the
+    ///   message described under [Error messages](Self#error-messages).
     pub(crate) fn format_resolve(
         &'a self,
         shape: &ShapeView,
@@ -651,6 +811,7 @@ impl<'a> ShapeContract<'a> {
     }
 
     /// Low-level resolver.
+    #[doc(hidden)]
     pub fn _resolve(
         &'a self,
         shape: &[usize],
@@ -762,8 +923,125 @@ impl<'a> ShapeContract<'a> {
 
 #[cfg(test)]
 mod tests {
+    use indoc::indoc;
+
     use super::*;
-    use crate::contracts::DimExpr;
+    use crate::contracts::{
+        DimExpr,
+        assert_shape_contract,
+        shape_contract,
+    };
+
+    static WINDOWS: ShapeContract = shape_contract![
+        ...,
+        "height" = "h_wins" * "window",
+        "width" = "w_wins" * "window",
+        "color",
+    ];
+
+    /// The second line of a failure message: `size !~ term :: reason`.
+    fn reason(msg: String) -> String {
+        msg.lines().nth(1).unwrap().trim().to_string()
+    }
+
+    #[test]
+    fn test_error_message_format() {
+        let err = WINDOWS
+            .try_unpack_shape(
+                &[1usize, 2, 3, 8, 12, 3],
+                &["h_wins", "w_wins"],
+                &[("window", 5), ("color", 3)],
+            )
+            .unwrap_err();
+
+        let (location, body) = err.split_once('\n').unwrap();
+        assert!(
+            location.starts_with(&format!("at {}:", file!())),
+            "{location}"
+        );
+        assert!(location.ends_with(": Shape Error"), "{location}");
+        assert_eq!(
+            body,
+            indoc! {r#"
+                  8 !~ height=(h_wins*window) :: No integer solution.
+                Actual:
+                  [1, 2, 3, 8, 12, 3]
+                Contract:
+                  [..., height=(h_wins*window), width=(w_wins*window), color]
+                Bindings:
+                  {"color": 3, "height": 8, "window": 5}"#
+            },
+        );
+    }
+
+    #[test]
+    fn test_error_reasons() {
+        static PAIRS: ShapeContract = shape_contract!["n" = 2 * "k", "n"];
+        static BACKWARD: ShapeContract = shape_contract!["a" * "b", "a"];
+
+        fn fail(
+            contract: &ShapeContract,
+            shape: &[usize],
+            env: StackEnvironment,
+        ) -> String {
+            reason(contract.try_assert_shape(shape, env).unwrap_err())
+        }
+
+        assert_eq!(fail(&PAIRS, &[6, 5], &[]), "5 !~ n :: Value MissMatch.");
+        assert_eq!(
+            fail(&PAIRS, &[6, 6], &[("n", 4)]),
+            "6 !~ n=(2*k) :: Value MissMatch."
+        );
+        assert_eq!(
+            fail(&PAIRS, &[7, 7], &[]),
+            "7 !~ n=(2*k) :: No integer solution."
+        );
+        assert_eq!(
+            fail(&BACKWARD, &[12, 4], &[]),
+            "12 !~ (a*b) :: Too many unbound params."
+        );
+        assert_eq!(
+            fail(&PAIRS, &[6], &[]),
+            "Shape rank 1 != pattern dim count 2"
+        );
+        assert_eq!(
+            fail(&WINDOWS, &[8, 12], &[]),
+            "Shape rank 2 < non-ellipsis pattern term count 3"
+        );
+    }
+
+    #[test]
+    fn test_unknown_binding_key() {
+        let err = WINDOWS
+            .try_assert_shape(&[8usize, 12, 3], &[("nope", 1)])
+            .unwrap_err();
+        assert_eq!(
+            err,
+            "The key \"nope\" is not indexed in the contract:\n\
+             [..., height=(h_wins*window), width=(w_wins*window), color]"
+        );
+    }
+
+    #[test]
+    #[should_panic(expected = "The key \"nope\" is not indexed in the contract:")]
+    fn test_unknown_unpack_key_panics_in_try() {
+        let _ = WINDOWS.try_unpack_shape(&[8usize, 12, 3], &["nope"], &[]);
+    }
+
+    #[test]
+    fn test_macro_failure_location_is_the_call() {
+        use std::panic::catch_unwind;
+
+        let line = line!() + 1;
+        let r = catch_unwind(|| assert_shape_contract!(["a"], &[2usize], &[("a", 3)]));
+
+        let payload = r.unwrap_err();
+        let msg = payload.downcast_ref::<String>().unwrap();
+        assert!(
+            msg.starts_with(&format!("at {}:{line}: Shape Error", file!())),
+            "{msg}"
+        );
+    }
 
     #[test]
     fn test_unpack_shape() {

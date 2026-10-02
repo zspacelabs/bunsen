@@ -1,4 +1,9 @@
-//! `proc_macro` support for BIMM Contracts.
+//! The `shape_contract!` proc-macro behind `bunsen::contracts`.
+//!
+//! Use it through
+//! [`bunsen::contracts::shape_contract!`](https://docs.rs/bunsen/latest/bunsen/contracts/macro.shape_contract.html),
+//! which documents the pattern language and brings the names the expansion
+//! uses into scope. This crate has no other public API.
 #![no_std]
 #![warn(missing_docs)]
 
@@ -418,35 +423,27 @@ impl ShapeContractAST {
     }
 }
 
-/// Parse a shape contract at compile time and return the `ShapePattern` struct.
+/// Parse a shape contract pattern at compile time, and expand to a
+/// `ShapeContract::new(index, terms)` expression.
 ///
-/// This macro generates `no_std` compatible code.
+/// The pattern language is documented on
+/// [`bunsen::contracts::shape_contract!`](https://docs.rs/bunsen/latest/bunsen/contracts/macro.shape_contract.html),
+/// which wraps this macro. The expansion is `const`-evaluable, so it can
+/// initialise a `static`. It collects every param and label into a sorted
+/// name index, and refers to names by their position in it.
 ///
-/// A shape pattern is made of one or more dimension matcher terms:
-/// - `_`: for any shape; ignores the size, but requires the dimension to
-///   exist.,
-/// - `...`: for ellipsis; matches any number of dimensions, only one ellipsis
-///   is allowed,
-/// - a dim expression.
-///
-/// ```bnf
-/// ShapeContract => <LabeledExpr> { ',' <LabeledExpr> }* ','?
-/// LabeledExpr => {Param "="}? <Expr>
-/// Expr => <Term> { <AddOp> <Term> }
-/// Term => <Power> { <MulOp> <Power> }
-/// Power => <Factor> [ ^ <usize> ]
-/// Factor => <Param> | <Const> | ( '(' <Expression> ')' ) | NegOp <Factor>
-/// Param => '"' <identifier> '"'
-/// Const => <integer literal>
-/// identifier => { <alpha> | "_" } { <alphanumeric> | "_" }*
-/// NegOp =>      '+' | '-'
-/// AddOp =>      '+' | '-'
-/// MulOp =>      '*'
-/// ```
+/// The expansion names `ShapeContract`, `DimMatcher` and `DimExpr`
+/// unqualified; the bunsen wrapper imports them. Call it through that
+/// wrapper.
 ///
 /// # Example
-/// ```rust.norun
-/// use bunsen_contracts::{ShapeContract, shape_contract};
+///
+/// ```rust,ignore
+/// use bunsen::contracts::{
+///     ShapeContract,
+///     shape_contract,
+/// };
+///
 /// static CONTRACT: ShapeContract = shape_contract![_, "x" + "y", ..., "z" ^ 2];
 /// ```
 #[proc_macro]

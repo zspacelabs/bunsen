@@ -7,7 +7,7 @@ authors.workspace = true
 version.workspace = true
 repository.workspace = true
 license.workspace = true
-description = "shape_contract![] proc-macro for bunsen-contracts"
+description = "The shape_contract![] proc-macro behind bunsen's shape contracts (bunsen::contracts)"
 
 [lints]
 workspace = true

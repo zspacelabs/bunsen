@@ -7,7 +7,15 @@ use core::fmt::{
 
 use crate::support::math::maybe_iroot;
 
-/// A stack/static expression algebra for dimension sizes.
+/// An integer expression over a contract's params: the compiled form of one
+/// expression term in a
+/// [`shape_contract!`](crate::contracts::shape_contract!) pattern.
+///
+/// A param is a position in the contract's
+/// [`index`](crate::contracts::ShapeContract::index). The macro builds these
+/// trees from `const` data; users normally don't construct them.
+/// [Matching](crate::contracts::ShapeContract#matching) describes how an
+/// expression is checked or solved against a dimension size.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum DimExpr<'a> {
     /// A constant value.
@@ -50,9 +58,11 @@ pub enum DimExpr<'a> {
     },
 }
 
-/// Display Adapter to format `DimExprs` with a `Index`.
+/// Formats a [`DimExpr`] with the names in a contract's index.
+///
+/// Every compound expression prints in parentheses: `(a*b*(c+(d^2)+(-e)))`.
 pub struct ExprDisplayAdapter<'a> {
-    ///  index.
+    /// The contract's name index.
     pub index: &'a [&'a str],
 
     /// Expression to format.
@@ -134,14 +144,10 @@ enum EvalResult {
     },
 }
 
-/// Result of `SizeExpr::try_match()`.
+/// The result of [`DimExpr::try_match`].
 ///
-/// All values are borrowed from the original expression,
-/// so they are valid as long as the expression is valid.
-///
-/// Runtime errors (malformed expressions, too-many unbound parameters, etc.)
-/// are not represented here; and are returned as `Err(String)` from
-/// `try_match`.
+/// Failures (too many unbound params, no integer solution) are not
+/// represented here; `try_match` returns them as `Err`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum MatchResult {
     /// All params bound and expression equals target.
@@ -169,7 +175,7 @@ impl<'a> DimExpr<'a> {
     ///
     /// # Returns
     ///
-    /// A `TryEvalResult`:
+    /// An `EvalResult`:
     /// * `Value(value)` - the evaluated value of the expression.
     /// * `UnboundParams(count)` - the count of unbound parameters.
     #[must_use]
@@ -233,13 +239,16 @@ impl<'a> DimExpr<'a> {
     ///
     /// # Returns
     ///
-    /// * `Ok(MatchResult::Match)` if the expression matches the target.
-    /// * `Ok(MatchResult::MissMatch)` if the expression does not match the
-    ///   target.
-    /// * `Ok(MatchResult::Constraint(name, value))` if the expression can be
-    ///   solved for a single unbound parameter.
-    /// * `Ok(MatchResult::UnderConstrained)` if the expression cannot be solved
-    ///   with the current bindings.
+    /// * `Ok(MatchResult::Match)` if every param is bound and the expression
+    ///   equals the target.
+    /// * `Ok(MatchResult::Conflict)` if every param is bound and the expression
+    ///   does not equal the target.
+    /// * `Ok(MatchResult::ParamConstraint { id, value })` if the expression has
+    ///   one unbound param occurrence, and `value` solves it.
+    /// * `Err("Too many unbound params.")` if more than one param occurrence is
+    ///   unbound.
+    /// * `Err("No integer solution.")` if the unbound param has no integer
+    ///   solution, or a `Pow` target has no integer root.
     #[must_use]
     pub fn try_match(
         &self,

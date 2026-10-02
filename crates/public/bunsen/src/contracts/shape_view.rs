@@ -1,4 +1,4 @@
-//! # Utility crate for [`ShapeArgument`] for passing shapes in a type-safe manner.
+//! The shape argument of contract checks.
 
 use alloc::vec::Vec;
 
@@ -11,7 +11,27 @@ use burn::{
     tensor::BasicOps,
 };
 
-/// Adaptor to view sources as a `&[usize]`.
+/// A shape as a `[usize]` slice: the `shape` argument of every
+/// [`ShapeContract`](crate::contracts::ShapeContract) check.
+///
+/// `ShapeView` is a struct, not a trait. The checks take
+/// `S: Into<ShapeView>`, so a caller passes a shape in whatever form it has;
+/// the `From` impls below list every accepted form. A view either borrows the
+/// caller's `usize`s or owns a converted copy:
+///
+/// - borrowed, no allocation: `&[usize]`, `&[usize; D]`, `&Vec<usize>`, and
+///   `&Shape`;
+/// - moved, no allocation: `Vec<usize>`;
+/// - converted into a new `Vec<usize>` on every call: `&[u32]`, `&[u32; D]`,
+///   `&[i32]`, `&[i32; D]`, `Vec<u32>`, `Vec<i32>`, an owned `Shape`, and
+///   `&Tensor`.
+///
+/// For a tensor, pass `&x.dims()`, a borrowed `[usize; D]`, rather than `&x`,
+/// which goes through [`Shape`] and copies it into a `Vec`.
+///
+/// `u32` and `i32` sizes are cast with `as usize`. A negative `i32` wraps to a
+/// huge size instead of being rejected, and the check then runs against that
+/// size.
 pub struct ShapeView<'a> {
     slice: Option<&'a [usize]>,
     vec: Option<Vec<usize>>,
