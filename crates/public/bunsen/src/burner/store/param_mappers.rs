@@ -1,16 +1,4 @@
 //! Parameter load/save mappers.
-//!
-//! `burn` attaches transformations to a [`Param`] itself, so they run whenever
-//! the parameter is loaded from or saved to a store. [`LinearConfig`] uses this
-//! for [`LinearLayout::Col`](burn::nn::LinearLayout::Col): the weight is held
-//! in `PyTorch`'s `[d_output, d_input]` orientation and transposed on the way
-//! through.
-//!
-//! These helpers apply the same trick to a parameter that has already been
-//! built, for the case where the enclosing module does not expose a layout
-//! knob.
-//!
-//! [`LinearConfig`]: burn::nn::LinearConfig
 
 use burn::{
     Tensor,

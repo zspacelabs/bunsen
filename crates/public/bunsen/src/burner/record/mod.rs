@@ -1,4 +1,9 @@
 //! # Burn Record Utilities
+//!
+//! Debugging aids for `burn` [`Record`]s. [`display_record`] prints a record's
+//! layout (its fields, nesting, and tensor shapes) without the tensor data,
+//! for checking what a module or checkpoint holds against what a loader
+//! expects.
 
 use alloc::{
     string::{
@@ -22,7 +27,16 @@ use serde_json::{
     Value,
 };
 
-/// Hacky function to display a record.
+/// Prints `record` to stdout as pretty JSON, with its tensor data elided.
+///
+/// The record is serialized at half precision, then rewritten for reading:
+/// every array of numbers becomes `{"_shape": [..]}`, and raw byte payloads
+/// and null fields are dropped, so what remains is the record's field
+/// structure and each tensor's shape. It is a debugging aid; the output format
+/// is not stable.
+///
+/// # Panics
+/// If the record cannot be serialized to JSON.
 pub fn display_record<B: Backend, R: Record<B>>(record: R) {
     fn shape_of_numeric_array(arr: &[Value]) -> Option<Vec<usize>> {
         if arr.is_empty() {

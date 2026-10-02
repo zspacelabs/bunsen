@@ -1,4 +1,9 @@
 //! # [`Distribution`] Utility Module
+//!
+//! `burn`'s [`Distribution`] does not implement [`ModuleDisplay`], so a config
+//! or module that holds one cannot pass it to [`Content::add`] in its display.
+//! [`DistributionDisplayAdapter`] wraps one so it can, rendering it as
+//! `Distribution::Normal { mean, std }` and the like.
 
 use burn::{
     module::{
@@ -11,8 +16,10 @@ use burn::{
 
 /// Adapter to display a [`Distribution`] in a module.
 ///
-/// This exists to allow [`Distribution`] to be included in formated
-/// [`ModuleDisplay`] implementations.
+/// This exists to allow [`Distribution`] to be included in formatted
+/// [`ModuleDisplay`] implementations. In the crate,
+/// [`NoiseConfig`](crate::ops::noise::NoiseConfig)'s display uses it for its
+/// `distribution` field.
 ///
 /// # Example
 /// ```rust,ignore
