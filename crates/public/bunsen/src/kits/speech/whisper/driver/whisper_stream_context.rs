@@ -103,12 +103,17 @@ pub fn advance_ready<B: Backend>(
                 },
             };
             let frames = ctx.frames_at(&unit);
-            ctx.ensure_language(&frames);
+            let prompt = if draft {
+                ctx.draft_prompt(&frames)
+            } else {
+                ctx.ensure_language(&frames);
+                ctx.prompt_now()
+            };
             pending.push(Some(Pending {
                 context: i,
                 unit,
                 draft,
-                prompt: ctx.prompt_now(),
+                prompt,
                 window: ctx.package_padded(frames),
             }));
         }
@@ -214,7 +219,7 @@ pub struct WhisperStreamContext<B: Backend> {
     last_draft: usize,
 
     /// The language the prompt names: configured, or detected from the
-    /// first window decoded; `None` until then on a detecting driver.
+    /// first window committed; `None` until then on a detecting driver.
     language: Option<String>,
 
     clamp: Box<dyn StreamClampPolicy<B>>,
@@ -436,13 +441,13 @@ impl<B: Backend> WhisperStreamContext<B> {
             };
             let window = self.frames_at(&unit);
             self.ensure_language(&window);
-            let decoded = self.decode_frames(window);
+            let decoded = self.decode_frames(self.prompt_now(), window);
             out.extend(self.commit_due(unit, decoded)?);
         }
         if let Some(unit) = self.draft_unit() {
             let window = self.frames_at(&unit);
-            self.ensure_language(&window);
-            let decoded = self.decode_frames(window);
+            let prompt = self.draft_prompt(&window);
+            let decoded = self.decode_frames(prompt, window);
             out.push(self.draft_from(unit, decoded)?);
         }
         Ok(out)
@@ -706,14 +711,16 @@ impl<B: Backend> WhisperStreamContext<B> {
         }
     }
 
-    /// Packages and decodes a window, up the temperature ladder. Takes
-    /// `&self`: with [`frames_at`](Self::frames_at) this is the whole of a
+    /// Packages and decodes a window under `prompt`, up the temperature
+    /// ladder. Takes `&self`: with [`frames_at`](Self::frames_at) and
+    /// [`draft_prompt`](Self::draft_prompt) this is the whole of a
     /// provisional decode.
     fn decode_frames(
         &self,
+        prompt: Vec<i64>,
         window: Tensor<B, 3>,
     ) -> DecodedTokens {
-        let base = self.driver.decode_config(self.prompt_now());
+        let base = self.driver.decode_config(prompt);
         self.ladder(&base, self.package_padded(window), None)
     }
 
@@ -763,7 +770,18 @@ impl<B: Backend> WhisperStreamContext<B> {
     /// The prompt for the next window: the sot sequence, preceded by the
     /// transcript's tail after `<|startofprev|>` when carrying is on.
     fn prompt_now(&self) -> Vec<i64> {
-        let prompt = self.sot_now();
+        self.prompt_under(self.language.as_deref())
+    }
+
+    /// [`prompt_now`](Self::prompt_now), naming `language`.
+    fn prompt_under(
+        &self,
+        language: Option<&str>,
+    ) -> Vec<i64> {
+        let prompt = self
+            .driver
+            .sot_sequence(language)
+            .expect("the language is known before a prompt is built");
         let carried = &self.transcript[self.prompt_reset.min(self.transcript.len())..];
         if !self.driver.config().condition_on_previous_text || carried.is_empty() {
             return prompt;
@@ -780,15 +798,15 @@ impl<B: Backend> WhisperStreamContext<B> {
         out
     }
 
-    /// Detects the stream's language from `frames` when the driver leaves
-    /// it to be detected and no window has been decoded yet: upstream's
+    /// The language `frames` detect, when the driver leaves it to be
+    /// detected and no commit has detected it yet: upstream's
     /// `detect_language`, on the same features the decode will use.
-    fn ensure_language(
-        &mut self,
+    fn undetected_language(
+        &self,
         frames: &Tensor<B, 3>,
-    ) {
+    ) -> Option<String> {
         if self.language.is_some() || !self.driver.detects_language() {
-            return;
+            return None;
         }
         let model = self.driver.whisper_model();
         let xa = model.forward_encoder(self.package_padded(frames.clone()));
@@ -798,20 +816,40 @@ impl<B: Backend> WhisperStreamContext<B> {
             .token_layout()
             .language_code(token)
             .expect("detection picks a language token");
-        self.language = Some(code.to_string());
+        Some(code.to_string())
     }
 
-    /// The language the stream's prompt names, once known.
+    /// Fixes the stream's language from the frames of a commit about to be
+    /// decoded, when it is still to be detected. Only a commit calls this.
+    fn ensure_language(
+        &mut self,
+        frames: &Tensor<B, 3>,
+    ) {
+        if let Some(language) = self.undetected_language(frames) {
+            self.language = Some(language);
+        }
+    }
+
+    /// The prompt a draft of `frames` decodes under.
+    ///
+    /// A draft never fixes the stream's language: before a commit has
+    /// detected it, the draft detects one from its own frames, decodes
+    /// under it, and keeps nothing. So adding drafts cannot change the
+    /// language the stream commits under.
+    fn draft_prompt(
+        &self,
+        frames: &Tensor<B, 3>,
+    ) -> Vec<i64> {
+        match self.undetected_language(frames) {
+            Some(language) => self.prompt_under(Some(&language)),
+            None => self.prompt_now(),
+        }
+    }
+
+    /// The language the stream's prompt names, once known: configured, or
+    /// detected by the stream's first commit. A draft never sets it.
     pub fn language(&self) -> Option<&str> {
         self.language.as_deref()
-    }
-
-    /// The sot sequence for this stream: the driver's, with the stream's
-    /// language.
-    fn sot_now(&self) -> Vec<i64> {
-        self.driver
-            .sot_sequence(self.language.as_deref())
-            .expect("the language is known before a prompt is built")
     }
 
     /// Commits a decode of a due unit: records the ids, advances the seek
@@ -2107,6 +2145,10 @@ mod tests {
     mod voice_activity {
         use super::*;
         use crate::{
+            burner::{
+                module::DTypeMapper,
+                tensor::backend_float_dtype,
+            },
             kits::speech::{
                 silero_vad::SileroVad,
                 whisper::driver::{
@@ -2437,6 +2479,139 @@ mod tests {
                 expected.iter().any(|e| !e.is_committed()),
                 "there were drafts"
             );
+        }
+
+        /// Dictates `1 + i` at every step, `i` the index of the language the
+        /// prompt names (`0` without one), so each decode shows the language
+        /// it ran under.
+        #[derive(Debug)]
+        struct ByLanguage(WhisperSpecialIds);
+
+        impl LogitFilter<C> for ByLanguage {
+            fn apply(
+                &self,
+                logits: Tensor<C, 2>,
+                tokens: &[Vec<i64>],
+                prompt_len: usize,
+            ) -> Tensor<C, 2> {
+                let [rows, vocab] = logits.dims();
+                let mut data = vec![f32::NEG_INFINITY; rows * vocab];
+                let languages =
+                    self.0.language_begin..self.0.language_begin + self.0.num_languages as i64;
+                for (row, t) in tokens.iter().enumerate() {
+                    let id = t[..prompt_len]
+                        .iter()
+                        .find(|id| languages.contains(id))
+                        .map_or(0, |id| id - languages.start + 1);
+                    data[row * vocab + id as usize] = 0.0;
+                }
+                Tensor::from_data(TensorData::new(data, [rows, vocab]), &logits.device())
+            }
+        }
+
+        /// A driver that detects the language, on a two-language layout,
+        /// whose detection turns on the audio. The untrained model's barely
+        /// does: its encoder output is mostly positional embedding, and its
+        /// first decoder step mostly the token's own. So the encoder's
+        /// positional embedding is zeroed and the decoder's cross-attention
+        /// output scaled up 300 times. Seeded so that the first draft's
+        /// frames and the first committed window's detect different
+        /// languages.
+        fn detecting_driver(
+            device: &CDevice,
+            policy: EmissionPolicy,
+        ) -> WhisperStreamDriver<C> {
+            let ids = WhisperSpecialIds::new(5, 2).unwrap();
+            C::seed(device, 1);
+            // Materialized now, so that every call builds the same weights.
+            let mut model: Whisper<C> = WhisperApiConfig::new(8, ids.n_vocab(), 64, 16, 1, 16, 1)
+                .init(device)
+                .map(&mut DTypeMapper::new(backend_float_dtype::<C>()));
+            let positions = &mut model.encoder.positional_embedding;
+            *positions = positions.clone().map(|p| p.zeros_like());
+            let cross = &mut model.decoder.blocks[0].cross_attn.output;
+            cross.weight = cross.weight.clone().map(|w| w * 300.0);
+
+            let vad = SileroVad::<C>::load_16khz_pretrained(device).unwrap();
+            let scripted: Arc<dyn LogitFilter<C>> = Arc::new(ByLanguage(ids));
+            WhisperStreamDriverConfig::new()
+                .with_max_tokens(4)
+                .with_condition_on_previous_text(false)
+                .with_emission(policy)
+                .init_with_layout(model, WhisperTokenLayout::new(ids), device)
+                .unwrap()
+                .with_vad(vad, VoiceActivityFilterConfig::fast_whisper_burn())
+                .unwrap()
+                .with_logit_filters(vec![scripted])
+        }
+
+        /// **I9, detecting the language.** Adding drafts cannot change the
+        /// language a stream commits under, so it cannot change what is
+        /// committed: until a commit has detected the language, a draft
+        /// detects one for its own decode and keeps nothing. Here the first
+        /// draft's frames detect another language than the first committed
+        /// window's, so a draft that fixed the stream's language would show.
+        /// Batched, the same.
+        #[test]
+        #[serial]
+        fn test_drafts_never_fix_the_language() {
+            let device = CDevice::default();
+
+            let conservative = detecting_driver(&device, EmissionPolicy::conservative());
+            assert!(conservative.detects_language());
+            let mut ctx = conservative.new_context(clock(), PerWindow).unwrap();
+            let quiet = in_pieces(&mut ctx);
+            let language = ctx.language().map(str::to_string);
+            assert!(language.is_some());
+
+            let responsive = EmissionPolicy::new(
+                DecodeTriggers::new()
+                    .with_endpoint(true)
+                    .with_interval(Some(std::time::Duration::from_millis(50))),
+                CommitRule::LastTimestamp,
+            );
+            let driver = detecting_driver(&device, responsive);
+            let mut ctx = driver.new_context(clock(), PerWindow).unwrap();
+            let mut chatty = Vec::new();
+            let mut fixed_by_a_draft = false;
+            for piece in speech().chunks(RATE / 10) {
+                chatty.extend(ctx.write_read(piece).unwrap());
+                if !chatty.iter().any(TranscriptEvent::is_committed) {
+                    fixed_by_a_draft |= ctx.language().is_some();
+                }
+            }
+            chatty.extend(ctx.end_read().unwrap());
+
+            let committed: Vec<TranscriptEvent> = chatty
+                .iter()
+                .filter(|e| e.is_committed())
+                .cloned()
+                .collect();
+            assert_eq!(
+                committed, quiet,
+                "responsive commits what conservative commits"
+            );
+            assert_eq!(ctx.language(), language.as_deref());
+            assert!(!fixed_by_a_draft, "only a commit fixes the language");
+
+            // What makes this a test: a draft comes first, under another
+            // language than the first commit's.
+            assert!(!chatty[0].is_committed(), "a draft comes first");
+            assert_ne!(
+                chatty[0].segment().tokens,
+                quiet[0].segment().tokens,
+                "the first draft's frames detect another language"
+            );
+
+            let mut batch = vec![driver.new_context(clock(), PerWindow).unwrap()];
+            let mut batched = Vec::new();
+            for piece in speech().chunks(RATE / 10) {
+                batch[0].write(piece).unwrap();
+                batched.extend(advance_ready(&driver, &mut batch).unwrap().remove(0));
+            }
+            batch[0].end_input().unwrap();
+            batched.extend(advance_ready(&driver, &mut batch).unwrap().remove(0));
+            assert_eq!(batched, chatty);
         }
 
         /// Under the offline policy an attached VAD is simply unused: the

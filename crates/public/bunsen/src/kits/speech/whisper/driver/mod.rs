@@ -106,9 +106,10 @@
 //! pacing. So a draft is the same decode as a commit, not a second code
 //! path, and adding the `interval` trigger cannot change what is
 //! committed: `responsive` commits exactly what `conservative` commits on
-//! the same audio, which the context's tests pin. One exception today: on
-//! a driver that detects the language, a draft that is a stream's first
-//! decode also fixes the stream's language, from the draft's frames.
+//! the same audio, which the context's tests pin. That holds on a driver
+//! that detects the language too: only a commit fixes a stream's language,
+//! and a draft before the first commit detects one for its own decode and
+//! keeps nothing.
 //!
 //! # The stream clock
 //!

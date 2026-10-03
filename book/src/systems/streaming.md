@@ -156,7 +156,8 @@ previous draft whole, so there is no retraction protocol.
 A draft is the same decode as a commit, not a second code path. A decode
 reads the context through `&self`, and only a commit moves the stream, so
 `responsive` commits exactly what `conservative` commits on the same audio.
-There is one exception today, involving language detection
+That holds with language detection too: only a commit fixes a stream's
+language
 ([what a decode may touch](bunsen::kits::speech::whisper::driver#what-a-decode-may-touch)).
 The [preset table](bunsen::kits::speech::whisper::driver#emission-commit-and-draft)
 lists each preset's triggers, commit rule and drafts.

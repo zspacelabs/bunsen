@@ -69,9 +69,10 @@ pub struct WhisperStreamDriverConfig {
     /// code.
     ///
     /// `None` on a multilingual checkpoint detects the language per stream
-    /// from its first decoded window, as upstream's `transcribe()` does;
-    /// must be `None` for an English-only one, which takes no language
-    /// token.
+    /// from its first committed window, as upstream's `transcribe()` does
+    /// from its first; a draft before that detects one for its own decode
+    /// and keeps nothing. Must be `None` for an English-only checkpoint,
+    /// which takes no language token.
     #[config(default = "None")]
     pub language: Option<String>,
 
@@ -457,7 +458,8 @@ impl<B: Backend> WhisperStreamDriver<B> {
         self.task
     }
 
-    /// Whether streams detect their language from their first window.
+    /// Whether streams detect their language, from their first committed
+    /// window.
     pub fn detects_language(&self) -> bool {
         self.prompt.is_empty()
     }

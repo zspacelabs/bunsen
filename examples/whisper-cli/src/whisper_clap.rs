@@ -440,8 +440,9 @@ impl<B: Backend> TranscriptStream<B> {
         &mut self,
         events: &[TranscriptEvent],
     ) {
-        // Detection runs on the first window decoded, so the language is
-        // known once anything has been emitted; say so before the text.
+        // Detection runs on the first window committed (a draft keeps no
+        // language), so the language is known once anything has been
+        // committed; say so before the text.
         if !self.announced
             && self.detects_language
             && let Some(code) = self.ctx.language()
