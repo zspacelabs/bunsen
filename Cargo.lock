@@ -1083,6 +1083,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "book-snippets"
+version = "0.36.1"
+dependencies = [
+ "bunsen",
+ "burn",
+]
+
+[[package]]
 name = "borsh"
 version = "1.8.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"

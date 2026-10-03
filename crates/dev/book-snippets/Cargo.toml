@@ -1,0 +1,19 @@
+[package]
+name = "book-snippets"
+description = "Code the bunsen book includes. Compiled and run by `cargo test`, so the book's examples cannot drift from the API."
+publish = false
+
+authors.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+version.workspace = true
+repository.workspace = true
+license.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+# `testing` supplies `default_device`, which the snippets use for a device.
+bunsen = { path = "../../public/bunsen", features = ["testing"] }
+burn = { workspace = true, features = ["flex"] }
