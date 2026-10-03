@@ -207,8 +207,10 @@ impl<'a> Display for MatcherDisplayAdapter<'a> {
 /// 3. An expression is evaluated with the names bound so far. If they are all
 ///    bound, its value must equal the size. If exactly one occurrence of a
 ///    param is unbound, the expression is solved for it, and the solution is
-///    bound; it must be an integer. More than one unbound occurrence fails:
-///    `"a" * "a"` counts as two, while `"a" ^ 2` is one.
+///    bound; it must be an integer, and the only one. More than one unbound
+///    occurrence fails: `"a" * "a"` counts as two, while `"a" ^ 2` is one. A
+///    product whose bound factors are 0 can't be solved: if `b` is 0, every `t`
+///    makes `"b" * "t"` equal 0, so the caller must bind `t`.
 ///
 /// A name bound at one dimension is bound for every dimension after it, so
 /// order matters:
@@ -263,9 +265,7 @@ impl<'a> Display for MatcherDisplayAdapter<'a> {
 /// - a label on `...` is accepted but never bound, so unpacking it panics, even
 ///   from [`try_unpack_shape`](Self::try_unpack_shape);
 /// - solutions are not required to be non-negative: `["a", "a" + "b"]` matches
-///   `[5, 3]` with `b = -2`, which unpacks as `-2 as usize`;
-/// - a bound factor of 0 in a product with an unknown, as in `["b", "b" * "t"]`
-///   against `[0, 0]`, panics with a division by zero instead of failing.
+///   `[5, 3]` with `b = -2`, which unpacks as `-2 as usize`.
 ///
 /// # Error messages
 ///
@@ -301,6 +301,8 @@ impl<'a> Display for MatcherDisplayAdapter<'a> {
 /// - `No integer solution.`: the unknown has no integer solution (for example,
 ///   `2*"k"` against 7), or a `^` term's size has no integer root, even when
 ///   its base is bound;
+/// - `No unique solution.`: every value of the unknown solves the term, as in
+///   `"b"*"t"` with `b = 0` against 0;
 /// - `Too many unbound params.`: the term still has more than one unknown.
 ///
 /// A rank mismatch replaces the second line with
@@ -1026,6 +1028,26 @@ mod tests {
     #[should_panic(expected = "The key \"nope\" is not indexed in the contract:")]
     fn test_unknown_unpack_key_panics_in_try() {
         let _ = WINDOWS.try_unpack_shape(&[8usize, 12, 3], &["nope"], &[]);
+    }
+
+    #[test]
+    fn test_zero_factor_fails_without_panicking() {
+        static CONTRACT: ShapeContract = shape_contract!["b", "b" * "t"];
+
+        fn fail(shape: &[usize]) -> String {
+            reason(CONTRACT.try_assert_shape(shape, &[]).unwrap_err())
+        }
+
+        // `b = 0`, so every `t` gives 0.
+        assert_eq!(fail(&[0, 0]), "0 !~ (b*t) :: No unique solution.");
+        // `b = 0`, so no `t` gives 3.
+        assert_eq!(fail(&[0, 3]), "3 !~ (b*t) :: No integer solution.");
+
+        // With `t` bound, there is nothing to solve.
+        assert_eq!(
+            CONTRACT.unpack_shape(&[0usize, 0], &["b", "t"], &[("t", 4)]),
+            [0, 4]
+        );
     }
 
     #[test]

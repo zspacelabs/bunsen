@@ -146,8 +146,8 @@ enum EvalResult {
 
 /// The result of [`DimExpr::try_match`].
 ///
-/// Failures (too many unbound params, no integer solution) are not
-/// represented here; `try_match` returns them as `Err`.
+/// Failures (too many unbound params, no integer solution, no unique
+/// solution) are not represented here; `try_match` returns them as `Err`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum MatchResult {
     /// All params bound and expression equals target.
@@ -248,7 +248,10 @@ impl<'a> DimExpr<'a> {
     /// * `Err("Too many unbound params.")` if more than one param occurrence is
     ///   unbound.
     /// * `Err("No integer solution.")` if the unbound param has no integer
-    ///   solution, or a `Pow` target has no integer root.
+    ///   solution, or a `Pow` target has no integer root. This includes a
+    ///   product whose bound factors multiply to 0, against a nonzero target.
+    /// * `Err("No unique solution.")` if a product's bound factors multiply to
+    ///   0 and the target is 0: every value of the unbound param solves it.
     #[must_use]
     pub fn try_match(
         &self,
@@ -320,6 +323,14 @@ impl<'a> DimExpr<'a> {
             DimExpr::Prod { children } => {
                 let (value, rem) = reduce_children(children, env, 1, |tmp, value| *tmp *= value)?;
                 if let Some(expr) = rem {
+                    if value == 0 {
+                        // `0 * x` is 0 for every `x`: it can't solve `x`.
+                        return Err(if target == 0 {
+                            "No unique solution."
+                        } else {
+                            "No integer solution."
+                        });
+                    }
                     if target % value != 0 {
                         // Non-integer solution
                         return Err("No integer solution.");
@@ -547,5 +558,19 @@ mod tests {
         let env = [Some(5), Some(3), None, None];
         assert_eq!(expr.try_eval(&env), EvalResult::UnboundParams { count: 2 });
         assert_eq!(expr.try_match(120, &env), Err("Too many unbound params."));
+    }
+
+    #[test]
+    fn test_match_prod_with_zero_factor() {
+        // b * t, with b bound to 0.
+        let expr = DimExpr::Prod {
+            children: &[DimExpr::Param { id: 0 }, DimExpr::Param { id: 1 }],
+        };
+        let env = [Some(0), None];
+
+        // Every `t` gives 0, so 0 doesn't determine it.
+        assert_eq!(expr.try_match(0, &env), Err("No unique solution."));
+        // No `t` gives 6.
+        assert_eq!(expr.try_match(6, &env), Err("No integer solution."));
     }
 }
