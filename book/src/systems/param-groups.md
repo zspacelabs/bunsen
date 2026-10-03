@@ -62,8 +62,11 @@ that two groups claim
 ([`DuplicateParamId`](bunsen::burner::optim::GroupOptimizerError::DuplicateParamId)),
 so nothing is stepped twice, and a float parameter that no group claims
 ([`UnassignedParamIds`](bunsen::burner::optim::GroupOptimizerError::UnassignedParamIds)),
-so nothing is silently left out. A group's learning rate is a function of the
-scheduled rate, so one scheduler drives every group and each group shapes
+so nothing is silently left out. To keep parameters fixed on purpose, put
+them in a frozen group
+([`OptimizerGroup::frozen`](bunsen::burner::optim::OptimizerGroup::frozen)),
+whose optimizer never moves them. A group's learning rate is a function of
+the scheduled rate, so one scheduler drives every group and each group shapes
 its own rate.
 
 The module docs have a compiled example
@@ -101,3 +104,18 @@ succeeds. It fails with a type error only when it is evaluated, and over an
 empty selection it is never evaluated at all, so a wrong path in front of it
 hides the mistake. Stack the predicates, `[@name='weight'][@rank=2]`, or use
 `and` ([XPath crib](bunsen::burner::module::reflection#xpath-crib)).
+
+**The model must keep the ids the groups hold.** A group is a set of
+`ParamId`s, and the adaptor never steps a parameter whose id it doesn't know.
+That happens when the model changes after the adaptor is built (a new head,
+other surgery), when a record is loaded into it (`load_record` gives each
+parameter the record's id, so loading a checkpoint changes every id), or when
+`step` is handed a different model. By default `step` then panics, naming the
+ids, rather than train part of the model in silence. Select the groups after
+surgery and after loading a record. A `Learner` that resumes from a checkpoint
+loads the model record after you built the adaptor, so load that record into
+the model yourself before selecting. An
+[`UnknownParamPolicy`](bunsen::burner::optim::UnknownParamPolicy) relaxes the
+check, at `new` and at `step`, to a warning logged once per id (`Warn`) or to
+silence (`Freeze`). To keep parameters fixed on purpose, use a frozen group
+instead.

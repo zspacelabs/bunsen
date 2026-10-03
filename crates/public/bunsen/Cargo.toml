@@ -97,6 +97,7 @@ train = [
     "std",
     "burn/train",
     "dep:hashbrown",
+    "dep:log",
     "dep:paste",
 ]
 
@@ -240,6 +241,9 @@ bunsen-bundled-whisper = { version = "0.36.1",
     path = "../bunsen-bundled-whisper",
     optional = true
 }
+
+# `log`, as `burn`'s optimizers and `Learner` use it.
+log = { workspace = true, optional = true }
 
 tracing = { workspace = true, optional = true }
 tracing-test = { workspace = true, optional = true }

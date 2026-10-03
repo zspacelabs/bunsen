@@ -28,15 +28,20 @@
 //! 2. **Build [`OptimizerGroup`]s.** A group is a set of `ParamId`s, the
 //!    optimizer that steps them, and an optional [`LrSelector`].
 //!    [`OptimizerGroup::from_adaptor`] takes the optimizer from what a `burn`
-//!    optimizer config's `init()` returns.
+//!    optimizer config's `init()` returns. [`OptimizerGroup::frozen`] builds a
+//!    group whose parameters are never moved ([`FrozenOptimizer`]).
 //! 3. **Compose with `GroupOptimizerAdaptorN::new`.** Pass the module, then one
 //!    `Vec<OptimizerGroup<B, Oi>>` per optimizer type; e.g.
 //!    [`GroupOptimizerAdaptor2::new`] takes two. It checks that the groups
 //!    partition the module's float parameters: none in two groups, none in no
-//!    group.
+//!    group. `new_with_policy` (e.g.
+//!    [`GroupOptimizerAdaptor2::new_with_policy`]) takes an
+//!    [`UnknownParamPolicy`] after the module; `new` uses the default, `Panic`.
 //! 4. **Train.** The adaptor implements [`Optimizer`](burn::optim::Optimizer),
 //!    so it goes wherever a single optimizer would: a
-//!    [`Learner`](burn::train::Learner), or your own loop calling `step`.
+//!    [`Learner`](burn::train::Learner), or your own loop calling `step`. Step
+//!    the module whose `ParamId`s the groups hold: `step` applies the policy to
+//!    any float parameter it doesn't know.
 //!
 //! [`GroupOptimizerAdaptor1`] through [`GroupOptimizerAdaptor7`] exist. Pick
 //! the smallest `N` that covers your optimizer *types*: more groups of one
@@ -51,10 +56,27 @@
 //!   [`GroupOptimizerError::DuplicateParamId`].
 //! - **Every float parameter needs a group.** A float parameter of the module
 //!   in no group makes `new` return
-//!   [`GroupOptimizerError::UnassignedParamIds`], listing them. This includes a
-//!   frozen parameter, which gets no gradient and so is not stepped whatever
-//!   its group. Build a remnant group from the parameters no other group
-//!   claims.
+//!   [`GroupOptimizerError::UnassignedParamIds`], listing them, under the
+//!   default policy (below). This includes a parameter with `require_grad` off,
+//!   which gets no gradient and so is not stepped whatever its group. Put
+//!   parameters you mean to keep fixed in a frozen group
+//!   ([`OptimizerGroup::frozen`]); a frozen group is an optimizer type of its
+//!   own, so it takes one of the `N`. Build a remnant group from the parameters
+//!   no other group claims.
+//! - **`step` checks the module it is given.** The groups hold `ParamId`s, and
+//!   a float parameter whose `ParamId` the adaptor doesn't know is never
+//!   stepped: its gradient is dropped. That happens when the module changed
+//!   after `new` (surgery, a fresh head), when `Module::load_record` gave its
+//!   parameters the record's ids, or when `step` gets another module. Select
+//!   the groups after surgery and after loading a record. A `Learner` that
+//!   resumes from a checkpoint loads the model record after you built the
+//!   adaptor, so load that record into the module yourself before selecting.
+//! - **The [`UnknownParamPolicy`] decides what a parameter in no group does**,
+//!   at `new` and at `step`. `Panic`, the default, fails: `new` returns
+//!   `UnassignedParamIds`, and `step` panics before it steps anything, naming
+//!   the ids. `Warn` logs each such `ParamId` once, through the `log` crate,
+//!   and leaves the parameter unchanged; `Freeze` leaves it unchanged silently.
+//!   Under both, `new` accepts the module.
 //! - **Empty groups are not errors.** An `XPath` selection that matches nothing
 //!   gives an empty group, and the remnant group then claims the parameters it
 //!   meant to, with the remnant's settings. Assert that each group is
@@ -92,6 +114,7 @@
 //!     burner::{
 //!         module::reflection::XmlModuleTree,
 //!         optim::{
+//!             FrozenOptimizer,
 //!             GroupOptimizerAdaptor1,
 //!             GroupOptimizerAdaptor2,
 //!             GroupOptimizerError,
@@ -150,7 +173,7 @@
 //! let muon = MuonConfig::new().init::<B, Net<B>>();
 //! let adamw = AdamWConfig::new().init::<B, Net<B>>();
 //! let matrix_group = OptimizerGroup::from_adaptor(matrices.clone(), &muon);
-//! let rest_group = OptimizerGroup::from_adaptor(rest, &adamw)
+//! let rest_group = OptimizerGroup::from_adaptor(rest.clone(), &adamw)
 //!     .with_lr_selector(|lr| lr * 0.5);
 //!
 //! // 3. Compose: the module, then one `Vec` of groups per optimizer type.
@@ -181,16 +204,32 @@
 //! let partial: Result<GroupOptimizerAdaptor1<_, Net<B>, B>, _> =
 //!     GroupOptimizerAdaptor1::new(
 //!         &net,
-//!         vec![OptimizerGroup::from_adaptor(matrices, &muon)],
+//!         vec![OptimizerGroup::from_adaptor(matrices.clone(), &muon)],
 //!     );
 //! assert!(matches!(
 //!     partial,
 //!     Err(GroupOptimizerError::UnassignedParamIds { param_ids }) if param_ids.len() == 2
 //! ));
+//!
+//! // To keep the biases fixed, freeze them in a group of their own.
+//! let mut frozen: GroupOptimizerAdaptor2<_, FrozenOptimizer, Net<B>, B> =
+//!     GroupOptimizerAdaptor2::new(
+//!         &net,
+//!         vec![OptimizerGroup::from_adaptor(matrices, &muon)],
+//!         vec![OptimizerGroup::frozen(rest)],
+//!     )?;
+//! let bias = net.body.bias.as_ref().unwrap().val().into_data();
+//! let x = Tensor::<B, 2>::ones([3, 4], &device);
+//! let loss = net.head.forward(net.body.forward(x)).sum();
+//! let grads = GradientsParams::from_grads(loss.backward(), &net);
+//! let net = frozen.step(1e-2, net, grads);
+//! assert_eq!(net.body.bias.as_ref().unwrap().val().into_data(), bias);
 //! # Ok::<(), Box<dyn std::error::Error>>(())
 //! ```
+mod frozen_optimizer;
 mod group_optimizer;
 mod lr_selectors;
 
+pub use frozen_optimizer::*;
 pub use group_optimizer::*;
 pub use lr_selectors::*;
