@@ -42,7 +42,9 @@
 //!   - for one new token, the query attends to every cached position, with no
 //!     mask;
 //!   - for several new tokens after a cached prefix, an explicit `[T_q, T_kv]`
-//!     mask covers the prefix and the new chunk.
+//!     mask lets each new token attend to the whole prefix, to itself, and to
+//!     the new tokens before it, so the chunk's outputs match a pass over the
+//!     whole sequence.
 //!
 //! The cache advances its position after the last layer, so one `KVCache`
 //! whose `num_layers` is the model depth serves the whole stack.

@@ -306,8 +306,10 @@ impl<B: Backend> CausalSelfAttention<B> {
             if prefix_len > 0 {
                 mask = mask.slice_fill(s![.., ..prefix_len], true);
             }
+            // Causal within the chunk: each new token sees itself and the
+            // new tokens before it.
             let fill = Tensor::<B, 2, Int>::ones([t_q, t_q], &device)
-                .tril(-1)
+                .tril(0)
                 .bool();
             mask = mask.slice_assign(s![.., prefix_len..], fill);
 
@@ -337,7 +339,11 @@ impl<B: Backend> CausalSelfAttention<B> {
 
 #[cfg(test)]
 mod tests {
-    use burn::tensor::Distribution;
+    use burn::tensor::{
+        Distribution,
+        Tolerance,
+    };
+    use serial_test::serial;
 
     use super::*;
     use crate::{
@@ -347,9 +353,14 @@ mod tests {
         },
         burner::module::ModuleInit,
         contracts::assert_shape_contract,
+        ops::transformers::attention::KVCacheConfig,
         support::testing::{
             CpuBackend,
+            DeviceMemoryGuard,
+            PerformanceBackend,
+            assert_tensors_close,
             default_device,
+            seeded_tensor,
         },
     };
 
@@ -398,5 +409,48 @@ mod tests {
             &output.dims(),
             &[("B", batch), ("T", seq_len), ("D", n_embed)]
         );
+    }
+
+    /// A chunk of several new tokens after a cached prefix attends as the
+    /// uncached pass does: each new token sees the prefix, the earlier new
+    /// tokens, and itself.
+    #[test]
+    #[serial]
+    fn test_csa_cached_chunk_matches_full_pass() {
+        type B = PerformanceBackend;
+        let device = default_device();
+        let _memory = DeviceMemoryGuard::<B>::new(&device);
+
+        let [batch, seq_len, n_embed] = [2, 6, 16];
+        let prefix = 3;
+
+        let csa: CausalSelfAttention<B> =
+            CausalSelfAttentionConfig::new(4, 2, n_embed).init(0, &device);
+        let r_emb: RotaryEmbedding<B> =
+            RotaryEmbeddingConfig::new(seq_len, csa.head_dim()).init(&device);
+        let input =
+            seeded_tensor::<B, 3>(1, [batch, seq_len, n_embed], Distribution::Default, &device);
+
+        let full = csa.forward(input.clone(), &r_emb, &mut None);
+
+        let mut cache: KVCache<B> =
+            KVCacheConfig::new(batch, csa.n_kv_head(), seq_len, csa.head_dim(), 1).init();
+        let head = csa.forward(
+            input.clone().slice(s![.., ..prefix]),
+            &r_emb.clip_range(0..prefix),
+            &mut Some(&mut cache),
+        );
+        let chunk = csa.forward(
+            input.slice(s![.., prefix..]),
+            &r_emb.clip_range(prefix..seq_len),
+            &mut Some(&mut cache),
+        );
+
+        assert_tensors_close(
+            &head,
+            &full.clone().slice(s![.., ..prefix]),
+            Tolerance::default(),
+        );
+        assert_tensors_close(&chunk, &full.slice(s![.., prefix..]), Tolerance::default());
     }
 }
