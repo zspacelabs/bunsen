@@ -50,6 +50,9 @@ items, not the file. Prose written there is invisible, and it rots unchecked.
   public parent's `//!`.
 * A private file keeps at most a one-line `//!` title.
 
+CI enforces this with `tools/check_hidden_module_docs.py`, which fails when a
+non-public, non-test module has more than one `//!` line.
+
 `#[doc(inline)]` on a re-export of a private module is a no-op (rustdoc
 inlines items that are not publicly reachable anyway); don't write it. Use
 it only on a re-export from a *public* module, where it changes the output.

@@ -24,6 +24,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      # A private module's `//!` never renders in rustdoc; prose there is
+      # invisible and rots unchecked (STYLE.md, "Module docs must render").
+      - name: Module docs must render
+        run: python3 tools/check_hidden_module_docs.py crates
       - run: rustup toolchain install stable --profile minimal --component clippy
       # `whisper-cli live` captures through `cpal`, whose Linux backend
       # links ALSA.
