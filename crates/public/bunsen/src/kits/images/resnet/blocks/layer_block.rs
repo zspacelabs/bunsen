@@ -272,7 +272,8 @@ impl LayerBlockStructureConfig {
         }
     }
 
-    /// Updates the drop block options.
+    /// Sets the drop block options of every block, the first included, as
+    /// [`LayerBlock::with_drop_block`] does to a built stage.
     pub fn with_drop_block<O>(
         self,
         options: O,
@@ -281,13 +282,7 @@ impl LayerBlockStructureConfig {
         O: Into<Option<DropBlockOptions>>,
     {
         let options = options.into();
-        self.map_blocks(&mut |idx, block| {
-            if idx == 0 {
-                block.with_drop_block(None)
-            } else {
-                block.with_drop_block(options.clone())
-            }
-        })
+        self.map_blocks(&mut |_, block| block.with_drop_block(options.clone()))
     }
 }
 
@@ -424,7 +419,7 @@ impl<B: Backend> LayerBlock<B> {
         self.map_blocks(&mut |_, block| block.with_drop_path_prob(prob))
     }
 
-    /// Updates the drop block options.
+    /// Sets the drop block options of every block.
     pub fn with_drop_block<O>(
         self,
         options: O,
@@ -587,5 +582,27 @@ mod tests {
 
         assert_meta_agrees(&direct, &lowered);
         assert_meta_agrees(&direct, &structure);
+    }
+
+    /// The structure's `with_drop_block` gives the options to every block of
+    /// the stage, the first included, as [`LayerBlock::with_drop_block`] and
+    /// timm's `make_blocks` do.
+    #[test]
+    fn test_structure_with_drop_block_reaches_every_block() {
+        let options = DropBlockOptions::default().with_drop_prob(0.1);
+        let structure = LayerBlockContractConfig::new(3, 8, 16)
+            .with_downsample_input(true)
+            .to_structure()
+            .with_drop_block(options.clone());
+
+        let drop_blocks: Vec<Option<DropBlockOptions>> = structure
+            .blocks
+            .iter()
+            .map(|block| match block {
+                ResidualBlockStructureConfig::Basic(config) => config.drop_block.clone(),
+                ResidualBlockStructureConfig::Bottleneck(config) => config.drop_block.clone(),
+            })
+            .collect();
+        assert_eq!(drop_blocks, vec![Some(options); 3]);
     }
 }

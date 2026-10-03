@@ -259,7 +259,21 @@ impl ResNetMeta for ResNetStructureConfig {
 }
 
 impl ResNetStructureConfig {
-    /// Applies the given standard drop block probability scheme.
+    /// Applies timm's `DropBlock` schedule to every block of the last two
+    /// stages.
+    ///
+    /// Every block of the second-to-last stage gets a [`DropBlockOptions`]
+    /// with `drop_prob`, a block size of 5 and a gamma scale of 0.25. Every
+    /// block of the last stage gets one with a block size of 3 and a gamma
+    /// scale of 1.0. The other stages get none, and a `drop_prob` of 0
+    /// clears every block. On the standard 4-stage net these are stages 3
+    /// and 4, the rule of `drop_blocks` and `make_blocks` in timm's
+    /// `resnet.py`, and the one [`ResNet::with_stochastic_drop_block`]
+    /// applies to a built model.
+    ///
+    /// # Panics
+    ///
+    /// If `drop_prob` is not a probability.
     pub fn with_standard_drop_block_prob(
         self,
         drop_prob: f64,
@@ -586,7 +600,22 @@ impl<B: Backend> ResNet<B> {
         }
     }
 
-    /// Applies the given standard drop block probability scheme.
+    /// Applies timm's `DropBlock` schedule to every block of the last two
+    /// stages.
+    ///
+    /// Every block of the second-to-last stage gets a [`DropBlockOptions`]
+    /// with `drop_prob`, a block size of 5 and a gamma scale of 0.25. Every
+    /// block of the last stage gets one with a block size of 3 and a gamma
+    /// scale of 1.0. The other stages get none, and a `drop_prob` of 0
+    /// clears every block. On the standard 4-stage net these are stages 3
+    /// and 4, the rule of `drop_blocks` and `make_blocks` in timm's
+    /// `resnet.py`, and the one
+    /// [`ResNetStructureConfig::with_standard_drop_block_prob`] applies to a
+    /// structure.
+    ///
+    /// # Panics
+    ///
+    /// If `drop_prob` is not a probability.
     pub fn with_stochastic_drop_block(
         self,
         drop_prob: f64,
@@ -886,5 +915,90 @@ mod tests {
 
         let structure = structure.with_stochastic_depth_drop_path_rate(0.1);
         assert_rates_eq(&structure_drop_path_probs(&structure), &[0.0, 0.1]);
+    }
+
+    /// timm's DropBlock schedule (`drop_blocks` and `make_blocks` in
+    /// `resnet.py`) for a `[2, 2, 2, 2]` net at a rate of 0.1: none in the
+    /// first two stages; every block of stage 3 gets a block size of 5 and a
+    /// gamma scale of 0.25, and every block of stage 4 a block size of 3 and
+    /// a gamma scale of 1.0.
+    fn timm_drop_blocks_2222_at_0_1() -> Vec<Option<DropBlockOptions>> {
+        let stage3 = DropBlockOptions::default()
+            .with_drop_prob(0.1)
+            .with_block_size(5)
+            .with_gamma_scale(0.25);
+        let stage4 = DropBlockOptions::default()
+            .with_drop_prob(0.1)
+            .with_block_size(3)
+            .with_gamma_scale(1.0);
+        vec![
+            None,
+            None,
+            None,
+            None,
+            Some(stage3.clone()),
+            Some(stage3),
+            Some(stage4.clone()),
+            Some(stage4),
+        ]
+    }
+
+    /// Each block's DropBlock options in a structure, in net order.
+    fn structure_drop_blocks(structure: &ResNetStructureConfig) -> Vec<Option<DropBlockOptions>> {
+        structure
+            .layers
+            .iter()
+            .flat_map(|layer| layer.blocks.iter())
+            .map(|block| match block {
+                ResidualBlockStructureConfig::Basic(config) => config.drop_block.clone(),
+                ResidualBlockStructureConfig::Bottleneck(config) => config.drop_block.clone(),
+            })
+            .collect()
+    }
+
+    /// Each block's DropBlock options in a module, in net order.
+    fn module_drop_blocks<B: Backend>(model: &ResNet<B>) -> Vec<Option<DropBlockOptions>> {
+        model
+            .layers
+            .iter()
+            .flat_map(|layer| layer.blocks.iter())
+            .map(|block| {
+                let drop_block = match block {
+                    ResidualBlock::Basic(block) => &block.drop_block,
+                    ResidualBlock::Bottleneck(block) => &block.drop_block,
+                };
+                drop_block.as_ref().map(|d| d.options.clone())
+            })
+            .collect()
+    }
+
+    /// The structure's DropBlock schedule is timm's, and a module built from
+    /// the structure keeps it.
+    #[test]
+    fn test_structure_drop_block_schedule_matches_timm() {
+        let structure = ResNetContractConfig::new(vec![2, 2, 2, 2], 10)
+            .with_stem_width(8)
+            .to_structure()
+            .with_standard_drop_block_prob(0.1);
+        assert_eq!(
+            structure_drop_blocks(&structure),
+            timm_drop_blocks_2222_at_0_1()
+        );
+
+        let device: burn::prelude::Device<CpuBackend> = Default::default();
+        let model: ResNet<CpuBackend> = structure.init(&device);
+        assert_eq!(module_drop_blocks(&model), timm_drop_blocks_2222_at_0_1());
+    }
+
+    /// The module's DropBlock schedule is timm's.
+    #[test]
+    fn test_module_drop_block_schedule_matches_timm() {
+        let device: burn::prelude::Device<CpuBackend> = Default::default();
+        let model: ResNet<CpuBackend> = ResNetContractConfig::new(vec![2, 2, 2, 2], 10)
+            .with_stem_width(8)
+            .init(&device);
+        let model = model.with_stochastic_drop_block(0.1);
+
+        assert_eq!(module_drop_blocks(&model), timm_drop_blocks_2222_at_0_1());
     }
 }
