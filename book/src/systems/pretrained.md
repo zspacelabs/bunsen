@@ -8,7 +8,7 @@ land, and why bunsen trusts them once they are there. The reference is
 [`bunsen::data::pretrained`].
 
 The kits show three sizes of the same machinery.
-[`default_resnet_factory`](bunsen::kits::images::resnet::default_resnet_factory)
+[`default_resnet_factory`](bunsen::kits::images::resnet::pretrained::default_resnet_factory)
 is the simple case: one compiled-in table of `torchvision` and `timm`
 checkpoints.
 [`default_whisper_factory`](bunsen::kits::speech::whisper::pretrained::default_whisper_factory)

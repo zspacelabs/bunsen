@@ -20,9 +20,11 @@ use bunsen::{
         PretrainedCacheOptions,
     },
     kits::images::resnet::{
-        RESNET_PREFABS,
         ResNet,
-        default_resnet_factory,
+        pretrained::{
+            RESNET_PREFABS,
+            default_resnet_factory,
+        },
     },
 };
 use bunsen_firehose::{

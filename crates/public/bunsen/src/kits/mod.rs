@@ -79,11 +79,11 @@
 //! | Piece | `ResNet` | Whisper | Silero VAD |
 //! |---|---|---|---|
 //! | Configs | [`ResNetContractConfig`](images::resnet::ResNetContractConfig) -> [`ResNetStructureConfig`](images::resnet::ResNetStructureConfig) | [`WhisperApiConfig`](speech::whisper::WhisperApiConfig) -> [`WhisperStructureConfig`](speech::whisper::WhisperStructureConfig) | [`SileroVadSignalConfig`](speech::silero_vad::SileroVadSignalConfig) -> [`SileroVadStftConfig`](speech::silero_vad::SileroVadStftConfig) -> [`SileroVadStructureConfig`](speech::silero_vad::SileroVadStructureConfig) |
-//! | Prefab map | [`RESNET_PREFABS`](images::resnet::RESNET_PREFABS) | [`WHISPER_PREFABS`](speech::whisper::pretrained::WHISPER_PREFABS) | none |
-//! | Table | [`WELL_KNOWN_TABLE`](images::resnet::WELL_KNOWN_TABLE) | [`WELL_KNOWN_TABLE`](speech::whisper::pretrained::WELL_KNOWN_TABLE), a bundled table, and `hf:` | a bundled table |
-//! | Providers | [`default_resnet_providers`](images::resnet::default_resnet_providers) | [`default_whisper_providers`](speech::whisper::pretrained::default_whisper_providers) | [`default_silero_providers`](speech::silero_vad::pretrained::default_silero_providers) |
-//! | Hook | [`ResNetConstruct`](images::resnet::ResNetConstruct) | [`WhisperConstruct`](speech::whisper::pretrained::WhisperConstruct) | [`SileroConstruct`](speech::silero_vad::pretrained::SileroConstruct) |
-//! | Factory | [`default_resnet_factory`](images::resnet::default_resnet_factory) | [`default_whisper_factory`](speech::whisper::pretrained::default_whisper_factory) | [`default_silero_factory`](speech::silero_vad::pretrained::default_silero_factory) |
+//! | Prefab map | [`RESNET_PREFABS`](images::resnet::pretrained::RESNET_PREFABS) | [`WHISPER_PREFABS`](speech::whisper::pretrained::WHISPER_PREFABS) | none |
+//! | Table | [`WELL_KNOWN_TABLE`](images::resnet::pretrained::WELL_KNOWN_TABLE) | [`WELL_KNOWN_TABLE`](speech::whisper::pretrained::WELL_KNOWN_TABLE), a bundled table, and `hf:` | a bundled table |
+//! | Providers | [`default_resnet_providers`](images::resnet::pretrained::default_resnet_providers) | [`default_whisper_providers`](speech::whisper::pretrained::default_whisper_providers) | [`default_silero_providers`](speech::silero_vad::pretrained::default_silero_providers) |
+//! | Hook | [`ResNetConstruct`](images::resnet::pretrained::ResNetConstruct) | [`WhisperConstruct`](speech::whisper::pretrained::WhisperConstruct) | [`SileroConstruct`](speech::silero_vad::pretrained::SileroConstruct) |
+//! | Factory | [`default_resnet_factory`](images::resnet::pretrained::default_resnet_factory) | [`default_whisper_factory`](speech::whisper::pretrained::default_whisper_factory) | [`default_silero_factory`](speech::silero_vad::pretrained::default_silero_factory) |
 //! | Built | [`ResNet`](images::resnet::ResNet) | [`WhisperBundle`](speech::whisper::driver::WhisperBundle): model, token layout, vocabulary | [`SileroVadCollection`](speech::silero_vad::SileroVadCollection): one model per sample rate |
 //! | Driver, context | none | [`WhisperStreamDriver`](speech::whisper::driver::WhisperStreamDriver), [`WhisperStreamContext`](speech::whisper::driver::WhisperStreamContext) | [`SileroVadContext`](speech::silero_vad::SileroVadContext) |
 //! | Bundled crate | none | `bunsen-bundled-whisper` (`whisper-weights`) | `bunsen-bundled-silero` (`silero-weights`) |

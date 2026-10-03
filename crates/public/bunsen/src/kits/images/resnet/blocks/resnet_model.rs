@@ -736,7 +736,7 @@ mod tests {
                 PretrainedCache,
                 PretrainedCacheOptions,
             },
-            kits::images::resnet::default_resnet_factory,
+            kits::images::resnet::pretrained::default_resnet_factory,
         };
 
         let device = default_device();

@@ -15,9 +15,10 @@ https://github.com/tracel-ai/models/blob/main/resnet-burn/examples/finetune/exam
 
 ## Bunsen features exercised
 
-- `bunsen::kits::images::resnet` — the `ResNet` model, the `RESNET_PREFABS`
-  table of geometries, `default_resnet_factory` for the pretrained checkpoints
-  by name, and the `ResNetContractConfig` policy config.
+- `bunsen::kits::images::resnet` — the `ResNet` model and the
+  `ResNetContractConfig` policy config; its `pretrained` module has the
+  `RESNET_PREFABS` table of geometries and `default_resnet_factory` for the
+  pretrained checkpoints by name.
 - `bunsen::burner::module` — `ModuleInit` for building/initializing the module
   and `DTypeMapper` for dtype remapping during load.
 - `bunsen::data::pretrained::PretrainedCache` — the digest-pinned cache the

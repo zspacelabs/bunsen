@@ -1,22 +1,17 @@
-//! # Pretrained `ResNet` models and configs
+//! # `ResNet` pretrained providers
 
 use alloc::vec;
 use std::sync::Arc;
 
-use crate::{
-    data::pretrained::{
-        PretrainedProvider,
-        StaticBase,
-        StaticPreFabConfig,
-        StaticPreFabMap,
-        StaticPretrained,
-        StaticPretrainedGroup,
-        StaticPretrainedTable,
-        StaticResource,
-        StaticResourceMap,
-        WELL_KNOWN,
-    },
-    kits::images::resnet::ResNetContractConfig,
+use crate::data::pretrained::{
+    PretrainedProvider,
+    StaticBase,
+    StaticPretrained,
+    StaticPretrainedGroup,
+    StaticPretrainedTable,
+    StaticResource,
+    StaticResourceMap,
+    WELL_KNOWN,
 };
 
 /// The kit segment of a `ResNet` resource's path in the cache:
@@ -324,9 +319,10 @@ pub static TIMM: StaticPretrainedGroup<'static> = StaticPretrainedGroup {
 /// or `resnet50`.
 ///
 /// Two groups, [`TORCHVISION`] and [`TIMM`], 14 rows in all. Each row
-/// names the [`RESNET_PREFABS`] prefab it instantiates, and is one
-/// `.pth` file under its group's base URL, pinned to its digest. A bare
-/// name is answered by the first group that has it, torchvision.
+/// names the [`RESNET_PREFABS`](super::RESNET_PREFABS) prefab it
+/// instantiates, and is one `.pth` file under its group's base URL, pinned
+/// to its digest. A bare name is answered by the first group that has it,
+/// torchvision.
 pub static WELL_KNOWN_TABLE: StaticPretrainedTable<'static> = StaticPretrainedTable {
     name: WELL_KNOWN,
     description: "the ResNet checkpoints bunsen knows by name",
@@ -338,183 +334,10 @@ pub fn default_resnet_providers() -> Vec<Arc<dyn PretrainedProvider>> {
     vec![Arc::new(WELL_KNOWN_TABLE.to_table())]
 }
 
-/// The `ResNet` geometries by name: six [`ResNetContractConfig`]s,
-/// `resnet18` to `resnet152`, each with 1000 classes.
-///
-/// A prefab has no weights. The rows of [`WELL_KNOWN_TABLE`] name the
-/// prefab they instantiate, and [`ResNetConstruct`] builds from it.
-pub static RESNET_PREFABS: StaticPreFabMap<ResNetContractConfig> = StaticPreFabMap {
-    name: "resnet",
-    description: "Well-Know ResNet configs",
-
-    items: &[
-        &StaticPreFabConfig {
-            name: "resnet18",
-            description: "ResNet-18 [2, 2, 2, 2] BasicBlocks",
-            builder: || ResNetContractConfig::new(vec![2, 2, 2, 2], 1000),
-        },
-        &StaticPreFabConfig {
-            name: "resnet26",
-            description: "ResNet-26 [2, 2, 2, 2] Bottleneck",
-            builder: || ResNetContractConfig::new(vec![2, 2, 2, 2], 1000).with_bottleneck(true),
-        },
-        &StaticPreFabConfig {
-            name: "resnet34",
-            description: "ResNet-34 [3, 4, 6, 3] BasicBlocks",
-            builder: || ResNetContractConfig::new(vec![3, 4, 6, 3], 1000),
-        },
-        &StaticPreFabConfig {
-            name: "resnet50",
-            description: "ResNet-50 [3, 4, 6, 3] Bottleneck",
-            builder: || ResNetContractConfig::new(vec![3, 4, 6, 3], 1000).with_bottleneck(true),
-        },
-        &StaticPreFabConfig {
-            name: "resnet101",
-            description: "ResNet-101 [3, 4, 23, 3] Bottleneck",
-            builder: || ResNetContractConfig::new(vec![3, 4, 23, 3], 1000).with_bottleneck(true),
-        },
-        &StaticPreFabConfig {
-            name: "resnet152",
-            description: "ResNet-152 [3, 8, 36, 3] Bottleneck",
-            builder: || ResNetContractConfig::new(vec![3, 8, 36, 3], 1000).with_bottleneck(true),
-        },
-    ],
-};
-
-#[cfg(feature = "store")]
-mod construct {
-    use std::sync::Arc;
-
-    use burn::prelude::Backend;
-
-    use super::{
-        CHECKPOINT,
-        RESNET_KIT,
-        RESNET_PREFABS,
-        default_resnet_providers,
-    };
-    use crate::{
-        burner::module::ModuleInit,
-        data::pretrained::{
-            Construct,
-            LoadedResources,
-            PretrainedFactory,
-            PretrainedRef,
-            ResourceMap,
-        },
-        errors::{
-            BunsenError,
-            BunsenResult,
-        },
-        kits::images::resnet::{
-            ResNet,
-            ResNetContractConfig,
-        },
-    };
-
-    /// How a `ResNet` pretrained is built: the config the model is
-    /// initialised from before the checkpoint is read into it.
-    ///
-    /// `ResNet`'s [`Construct`] hook, behind [`default_resnet_factory`]. It
-    /// builds a [`ResNet`] from the config, then reads the checkpoint into
-    /// it with [`ResNet::load_pytorch_weights`].
-    ///
-    /// A checkpoint does not describe its own geometry, so the config comes
-    /// from the prefab the row names, or from
-    /// [`with_config`](Self::with_config), which wins and is what a given
-    /// path needs. To build a modified model, resolve the name, set the
-    /// config on the deferred model's `hook`, then load it;
-    /// `examples/resnet_tiny` swaps the activation this way before the
-    /// weights land.
-    #[derive(Clone, Debug, Default)]
-    pub struct ResNetConstruct {
-        /// The config to build from, overriding the prefab's.
-        pub config: Option<ResNetContractConfig>,
-    }
-
-    impl ResNetConstruct {
-        /// Builds from the prefab the row names.
-        pub fn new() -> Self {
-            Self::default()
-        }
-
-        /// Sets the config to build from, which wins over the prefab's.
-        pub fn with_config(
-            mut self,
-            config: ResNetContractConfig,
-        ) -> Self {
-            self.config = Some(config);
-            self
-        }
-
-        /// The config `model` is built from: the explicit one, else the
-        /// prefab the row names.
-        ///
-        /// # Errors
-        /// [`BunsenError::Invalid`] when there is neither: a given
-        /// checkpoint needs [`with_config`](Self::with_config).
-        pub fn config_for(
-            &self,
-            model: &PretrainedRef,
-        ) -> BunsenResult<ResNetContractConfig> {
-            if let Some(config) = &self.config {
-                return Ok(config.clone());
-            }
-            model
-                .prefab(&RESNET_PREFABS)
-                .map(|prefab| prefab.to_config())
-                .ok_or_else(|| {
-                    BunsenError::Invalid(format!(
-                        "{}: names no prefab to build from; a given checkpoint needs `with_config`",
-                        model.id()
-                    ))
-                })
-        }
-    }
-
-    /// `ResNet`'s factory: [`default_resnet_providers`] behind
-    /// [`ResNetConstruct`].
-    ///
-    /// # Errors
-    /// [`BunsenError::Invalid`] if two of the defaults share a name, which
-    /// the tests pin they do not.
-    pub fn default_resnet_factory() -> BunsenResult<PretrainedFactory<ResNetConstruct>> {
-        PretrainedFactory::new().with_providers(default_resnet_providers())
-    }
-
-    impl Construct for ResNetConstruct {
-        type Built<B: Backend> = ResNet<B>;
-
-        const KIT: &'static str = RESNET_KIT;
-
-        /// Every row is a `PyTorch` state dict; the config comes at
-        /// construction, from the row's prefab or the caller's.
-        fn for_map(_map: &ResourceMap) -> BunsenResult<Self> {
-            Ok(Self::new())
-        }
-
-        /// Initialises the config's model and reads the checkpoint into it.
-        fn construct<B: Backend>(
-            &self,
-            model: &PretrainedRef,
-            loaded: &LoadedResources,
-            device: &B::Device,
-        ) -> BunsenResult<Arc<ResNet<B>>> {
-            let config = self.config_for(model)?;
-            let resnet: ResNet<B> = config.try_init(device)?;
-            Ok(Arc::new(
-                resnet.load_pytorch_weights(loaded.expect(CHECKPOINT)?)?,
-            ))
-        }
-    }
-}
-
-#[cfg(feature = "store")]
-pub use construct::*;
-
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::kits::images::resnet::pretrained::RESNET_PREFABS;
 
     /// Every row names a prefab the map has and is one pinned checkpoint
     /// under its group's namespace, fetched from the group's base; the
@@ -600,135 +423,5 @@ mod tests {
                 .as_deref(),
             Some("resnet34")
         );
-    }
-
-    /// The default factory is the well-known table alone, serving the
-    /// kit; one prefab has many rows across both groups.
-    #[cfg(feature = "store")]
-    #[test]
-    fn test_the_defaults_register() {
-        use crate::data::pretrained::PretrainedFactory;
-        let factory = default_resnet_factory().unwrap();
-        assert_eq!(factory.kit(), RESNET_KIT);
-        assert_eq!(factory.providers().len(), 1);
-        assert_eq!(factory.ids().len(), 14);
-        let (provider, row) = factory.lookup("resnet18_a1").unwrap();
-        assert_eq!(provider, "well-known");
-        assert_eq!(row.name, "timm/resnet18_a1");
-        let for_34: Vec<String> = factory
-            .for_prefab("resnet34")
-            .iter()
-            .map(|(p, row)| format!("{p}:{}", row.name))
-            .collect();
-        assert_eq!(
-            for_34,
-            [
-                "well-known:torchvision/resnet34",
-                "well-known:timm/resnet34_a1",
-                "well-known:timm/resnet34_a2",
-                "well-known:timm/resnet34_a3",
-                "well-known:timm/resnet34",
-            ]
-        );
-        assert!(
-            PretrainedFactory::<ResNetConstruct>::new()
-                .with_providers(default_resnet_providers())
-                .unwrap()
-                .with_providers(default_resnet_providers())
-                .is_err()
-        );
-    }
-
-    /// The hook builds from the prefab a row names, or from an explicit
-    /// config, which wins; a given checkpoint with neither is refused
-    /// before its bytes are read.
-    #[cfg(feature = "store")]
-    #[test]
-    fn test_the_hook_takes_the_prefab_or_an_explicit_config() {
-        use std::fs;
-
-        use crate::{
-            data::{
-                cache::BunsenDiskCacheOptions,
-                pretrained::{
-                    Construct,
-                    Deferred,
-                    PretrainedCache,
-                    PretrainedCacheOptions,
-                    PretrainedRef,
-                    ResourceMap,
-                },
-            },
-            errors::BunsenError,
-            support::testing::{
-                CpuBackend,
-                default_device,
-            },
-        };
-
-        let dir = tempfile::tempdir().unwrap();
-        let cache = PretrainedCache::new(
-            PretrainedCacheOptions::default()
-                .with_disk(
-                    crate::data::cache::BunsenDiskCacheOptions::default()
-                        .with_cache_dir(Some(dir.path().join("cache")))
-                        .without_transfer_observers(),
-                )
-                .with_offline(true),
-        )
-        .unwrap();
-        let factory = default_resnet_factory().unwrap();
-        let named = factory.resolve("resnet50", &cache).unwrap();
-        let hook = named.hook.clone();
-        let named = named.model;
-        let resnet50 = RESNET_PREFABS.expect_lookup_prefab("resnet50").to_config();
-        assert_eq!(
-            format!("{:?}", hook.config_for(&named).unwrap()),
-            format!("{resnet50:?}")
-        );
-
-        let resnet18 = RESNET_PREFABS.expect_lookup_prefab("resnet18").to_config();
-        let explicit = hook.clone().with_config(resnet18.clone());
-        assert_eq!(
-            format!("{:?}", explicit.config_for(&named).unwrap()),
-            format!("{resnet18:?}"),
-            "an explicit config wins over the prefab"
-        );
-
-        let file = dir.path().join("ckpt.pth");
-        fs::write(&file, b"not a state dict").unwrap();
-        assert!(
-            factory.resolve(file.to_str().unwrap(), &cache).is_err(),
-            "a path is not a name the factory knows"
-        );
-        let given = PretrainedRef::from(ResourceMap::given("mine", CHECKPOINT, &file));
-        let err = hook.config_for(&given).unwrap_err();
-        assert!(
-            matches!(&err, BunsenError::Invalid(msg) if msg.contains("with_config")),
-            "{err}"
-        );
-        assert_eq!(
-            format!("{:?}", explicit.config_for(&given).unwrap()),
-            format!("{resnet18:?}")
-        );
-
-        // Through the pathway: the refusal comes before the file is read.
-        let cache = PretrainedCache::new(
-            PretrainedCacheOptions::default()
-                .with_disk(
-                    BunsenDiskCacheOptions::default()
-                        .with_cache_dir(Some(dir.path().join("cache")))
-                        .without_transfer_observers(),
-                )
-                .with_offline(true),
-        )
-        .unwrap();
-        let err =
-            Deferred::<ResNetConstruct>::from_map(ResourceMap::given("mine", CHECKPOINT, &file))
-                .unwrap()
-                .load::<CpuBackend>(&cache, &default_device())
-                .unwrap_err();
-        assert!(matches!(err, BunsenError::Invalid(_)), "{err}");
-        assert_eq!(<ResNetConstruct as Construct>::KIT, RESNET_KIT);
     }
 }
