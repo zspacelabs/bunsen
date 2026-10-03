@@ -27,6 +27,7 @@ use crate::{
                     WhisperFrontEndConfig,
                 },
                 driver::{
+                    CommitRule,
                     EmissionPolicy,
                     StreamClampPolicy,
                     StreamClock,
@@ -177,7 +178,8 @@ impl WhisperStreamDriverConfig {
     /// [`BunsenError::Invalid`] if the layout does not fit the model or its
     /// vocabulary, if the language and task do not fit the layout, or if
     /// the configuration asks for something this slice of the driver does
-    /// not support yet.
+    /// not support yet: among them [`CommitRule::Agreement`], which is not
+    /// implemented.
     pub fn init_from_bundle<B: Backend>(
         &self,
         bundle: Arc<WhisperBundle<B>>,
@@ -221,6 +223,12 @@ impl WhisperStreamDriverConfig {
         if triggers.interval.is_some_and(|i| i.is_zero()) {
             return Err(BunsenError::Invalid(
                 "an interval of zero would draft on every push".to_string(),
+            ));
+        }
+        if let CommitRule::Agreement { .. } = self.emission.commit {
+            return Err(BunsenError::Invalid(
+                "the Agreement commit rule is not implemented yet; use Complete or LastTimestamp"
+                    .to_string(),
             ));
         }
 

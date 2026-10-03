@@ -206,8 +206,8 @@ stream object
 ### Known gaps
 
 - [`CommitRule::Agreement`](bunsen::kits::speech::whisper::driver::CommitRule::Agreement)
-  is accepted but not implemented yet: a driver under it commits as under
-  `Complete`.
+  is not implemented yet: building a driver under it fails with
+  `BunsenError::Invalid`.
 - The `interval` trigger drafts only while the voice-activity gate says
   speech is in progress, and that gate runs only under `endpoint`
   ([`DecodeTriggers`](bunsen::kits::speech::whisper::driver::DecodeTriggers)).

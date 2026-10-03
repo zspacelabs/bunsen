@@ -94,8 +94,10 @@ pub enum CommitRule {
     /// Commit a prefix once `runs` consecutive decodes agree on it. The one
     /// rule under which a provisional decode becomes load-bearing.
     ///
-    /// Not implemented yet: the config accepts it, and a driver under it
-    /// commits as under [`Complete`](Self::Complete).
+    /// Not implemented yet: building a driver under it
+    /// ([`init_from_bundle`](super::WhisperStreamDriverConfig::init_from_bundle))
+    /// fails with
+    /// [`BunsenError::Invalid`](crate::errors::BunsenError::Invalid).
     Agreement {
         /// Consecutive decodes that must agree.
         runs: usize,

@@ -1982,6 +1982,29 @@ mod tests {
         assert_eq!(driver.interval_samples(), None);
     }
 
+    /// `CommitRule::Agreement` is not implemented, so the driver refuses it
+    /// at construction rather than committing as under `Complete`.
+    #[test]
+    fn test_init_refuses_agreement() {
+        let device = Device::default();
+        let refused = config(false)
+            .with_emission(EmissionPolicy::new(
+                DecodeTriggers::new(),
+                CommitRule::Agreement { runs: 2 },
+            ))
+            .init_with_layout(
+                tiny_model_on::<B>(&device),
+                WhisperTokenLayout::new(tiny_layout()),
+                &device,
+            );
+        match refused {
+            Err(BunsenError::Invalid(message)) => {
+                assert!(message.contains("not implemented"), "{message}")
+            }
+            other => panic!("expected Invalid, got {:?}", other.map(|_| ())),
+        }
+    }
+
     /// The configuration refuses what this slice cannot do, with a reason,
     /// and refuses a mismatched language.
     #[test]
