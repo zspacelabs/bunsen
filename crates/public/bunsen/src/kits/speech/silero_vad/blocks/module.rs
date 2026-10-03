@@ -167,7 +167,7 @@ pub struct SileroVadStftConfig {
     /// STFT kernel size.
     pub stft_kernel: usize,
 
-    /// STFT stride.
+    /// STFT stride; above 0.
     pub stft_stride: usize,
 
     /// The recurrent hidden / cell width of the LSTM.
@@ -182,7 +182,19 @@ pub struct SileroVadStftConfig {
 impl ToStructureConfig for SileroVadStftConfig {
     type Structure = SileroVadStructureConfig;
 
+    /// Lowers the STFT policy.
+    ///
+    /// # Errors
+    ///
+    /// [`BunsenError::Invalid`] when `stft_stride` is 0, which would build a
+    /// model whose STFT conv panics on its first `forward`.
     fn try_to_structure(&self) -> BunsenResult<SileroVadStructureConfig> {
+        if self.stft_stride == 0 {
+            return Err(BunsenError::Invalid(
+                "SileroVad needs an STFT stride above 0; got stft_stride = 0".to_string(),
+            ));
+        }
+
         Ok(SileroVadStructureConfig {
             sample_rate: self.sample_rate,
             input_pad: self.input_pad,
@@ -1016,6 +1028,21 @@ mod tests {
         assert!(matches!(signal.try_to_stft(), Err(BunsenError::Invalid(_))));
         assert!(matches!(
             signal.try_to_structure(),
+            Err(BunsenError::Invalid(_))
+        ));
+    }
+
+    /// An STFT policy set directly with a stride of 0 is an error from
+    /// `try_to_structure`, not a model whose STFT conv panics on its first
+    /// `forward`.
+    #[test]
+    fn test_stft_try_to_structure_rejects_zero_stride() {
+        let stft = SileroVadStftConfig {
+            stft_stride: 0,
+            ..SileroVadSignalConfig::standard_16khz().to_stft()
+        };
+        assert!(matches!(
+            stft.try_to_structure(),
             Err(BunsenError::Invalid(_))
         ));
     }
