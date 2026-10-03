@@ -48,11 +48,12 @@ harness = false
 
 
 [features]
+# The defaults are what most consumers want; test support (`testing`) and
+# audit probes (`audit`) are opt-in, because they pull in a CPU backend,
+# audio decoding, a tokenizer and the tracing-test stack.
 default = [
     "reflection",
     "train",
-    "testing",
-    "audit",
     "store_pytorch",
     "store_safetensors",
 ]
@@ -206,7 +207,10 @@ wgpu = ["burn/wgpu"]
 flex = ["burn/flex"]
 
 
-## Enables testing support features. Included under test builds.
+## Test support: `support::testing` (test backends and devices, seeded
+## tensors, device memory, assertion helpers), with the `audio`, `tokenizer`
+## and `flex` features it needs. Not a default; bunsen's own tests turn it on
+## through a dev-dependency on bunsen itself.
 testing = [
     "audio",
     "tokenizer",
@@ -283,7 +287,9 @@ wordchipper = { workspace = true, default-features = false, optional = true }
 
 
 [dev-dependencies]
-bunsen = { path = ".", features = ["testing"] }
+# bunsen's own tests and doctests use its test support and audit probes,
+# neither of which is a default feature.
+bunsen = { path = ".", features = ["testing", "audit"] }
 burn = { workspace = true, features = ["autodiff"] }
 serde = { workspace = true }
 serde_json = { workspace = true }

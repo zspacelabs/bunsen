@@ -19,7 +19,8 @@ flex = ["burn/flex"]
 
 [dependencies]
 burn = { workspace = true, features = ["fusion"] }
-bunsen = { path = "../../crates/public/bunsen" }
+# `testing` supplies `support::testing::backend_device`.
+bunsen = { path = "../../crates/public/bunsen", features = ["testing"] }
 
 clap = { workspace = true, features = ["derive"] }
 indicatif = { workspace = true }
