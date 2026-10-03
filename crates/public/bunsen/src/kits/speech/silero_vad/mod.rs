@@ -73,8 +73,8 @@
 //!     samples: &[f32],
 //!     device: &B::Device,
 //! ) -> Vec<f32> {
-//!     // One stream at the branch's rate, and the 64-sample tail the model
-//!     // looks back over.
+//!     // One stream at the branch's rate, and the tail the model looks back
+//!     // over: 64 samples at 16 kHz, 32 at 8 kHz.
 //!     let mut ctx =
 //!         SileroVadContextConfig::new(vad.sample_rate()).init(vad, device);
 //!     let mut probabilities = Vec::new();

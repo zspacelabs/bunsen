@@ -38,8 +38,12 @@ pub struct SileroVadContextConfig {
     #[config(default = "1")]
     pub batch_size: usize,
 
-    /// The size of the previous sequence window to preserve.
-    #[config(default = "64")]
+    /// The size of the previous sequence window to preserve: the tail of
+    /// each chunk that the next is prefixed with, in samples.
+    ///
+    /// Defaults to [`default_context_size`](Self::default_context_size) of
+    /// the rate: upstream's 64 samples at 16 kHz and 32 at 8 kHz.
+    #[config(default = "Self::default_context_size(sample_rate)")]
     pub context_size: usize,
 }
 
@@ -97,6 +101,13 @@ impl<B: Backend> SileroVadContextMeta for SileroVadContext<B> {
 }
 
 impl SileroVadContextConfig {
+    /// Upstream's context size for a rate: 4 ms of audio, which is 64
+    /// samples at 16 kHz and 32 at 8 kHz, as silero-vad's `OnnxWrapper`
+    /// prefixes each chunk (`context_size = 64 if sr == 16000 else 32`).
+    pub fn default_context_size(sample_rate: usize) -> usize {
+        sample_rate / 250
+    }
+
     /// Initializes a new context.
     pub fn init<B: Backend>(
         &self,
@@ -104,5 +115,19 @@ impl SileroVadContextConfig {
         device: &B::Device,
     ) -> SileroVadContext<B> {
         vad.init_context(self.batch_size, self.context_size, device)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// The tail each chunk is prefixed with is upstream's: 64 samples at
+    /// 16 kHz and 32 at 8 kHz (`OnnxWrapper` in silero-vad's
+    /// `utils_vad.py`: `context_size = 64 if sr == 16000 else 32`).
+    #[test]
+    fn test_default_context_size_is_upstreams() {
+        assert_eq!(SileroVadContextConfig::new(16000).context_size(), 64);
+        assert_eq!(SileroVadContextConfig::new(8000).context_size(), 32);
     }
 }
