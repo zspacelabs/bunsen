@@ -1,6 +1,7 @@
 //! Hugging Face as a pretrained provider: `hf:org/repo`.
 
 use alloc::{
+    collections::BTreeSet,
     format,
     string::{
         String,
@@ -98,6 +99,35 @@ fn shard_numbers(file: &str) -> Option<(usize, usize)> {
     Some((n.parse().ok()?, of.parse().ok()?))
 }
 
+/// `; missing model-00003-of-00003.safetensors`: the shards of `1..=of`
+/// that `shards` lacks, at most eight of them by name, or nothing when it
+/// lacks none.
+fn missing_shards(
+    of: usize,
+    shards: &[(usize, usize, &HfTreeEntry)],
+) -> String {
+    let present: BTreeSet<usize> = shards
+        .iter()
+        .map(|(n, _, _)| *n)
+        .filter(|n| (1..=of).contains(n))
+        .collect();
+    let count = of - present.len();
+    if count == 0 {
+        return String::new();
+    }
+    let named: Vec<String> = (1..=of)
+        .filter(|i| !present.contains(i))
+        .take(8)
+        .map(|i| format!("model-{i:05}-of-{of:05}.safetensors"))
+        .collect();
+    let more = if count > named.len() {
+        format!(", and {} more", count - named.len())
+    } else {
+        String::new()
+    };
+    format!("; missing {}{more}", named.join(", "))
+}
+
 /// Hugging Face repos, by ref, as safetensors checkpoints: the `hf:`
 /// provider.
 ///
@@ -141,6 +171,13 @@ fn shard_numbers(file: &str) -> Option<(usize, usize)> {
 /// reader. `config.json` rides along as `config` when the repo has one.
 /// Anything else in the repo (other frameworks' weights, tokenizer files)
 /// is not a resource: a kit reads what it knows.
+///
+/// The shards must be the whole set their names count: every one of
+/// `model-00001-of-0000N` to `model-0000N-of-0000N`, with the one `N`. A
+/// listing that lacks any is refused, naming them, before anything is
+/// fetched. The listing says nothing of what the index holds; that the
+/// index names exactly these shards is checked when the checkpoint is read
+/// ([`SafetensorsCheckpoint::from_loaded`](super::SafetensorsCheckpoint::from_loaded)).
 ///
 /// # Revisions
 ///
@@ -307,7 +344,8 @@ impl HfProvider {
     /// # Errors
     /// [`BunsenError::Invalid`] when the listing has neither
     /// [`HF_SINGLE_FILE`] nor [`HF_INDEX_FILE`] with a complete set of
-    /// shards, naming what it has instead.
+    /// shards, naming what it has instead, and the shards a set of one `N`
+    /// lacks.
     pub fn row_from_listing(
         &self,
         name: &str,
@@ -332,21 +370,26 @@ impl HfProvider {
                 .collect();
             shards.sort_by_key(|(n, _, _)| *n);
             let of = shards.first().map(|(_, of, _)| *of).unwrap_or(0);
+            let one_set = shards.iter().all(|(_, o, _)| *o == of);
             let complete = !shards.is_empty()
-                && shards
-                    .iter()
-                    .enumerate()
-                    .all(|(i, (n, o, _))| *n == i + 1 && *o == of);
+                && one_set
+                && shards.len() == of
+                && shards.iter().enumerate().all(|(i, (n, _, _))| *n == i + 1);
             if !complete {
-                return Err(BunsenError::Invalid(format!(
+                let has: Vec<&str> = shards.iter().map(|(_, _, e)| e.path.as_str()).collect();
+                let mut message = format!(
                     "{}:{name}: {HF_INDEX_FILE} with an incomplete set of shards: {}",
                     self.name,
-                    shards
-                        .iter()
-                        .map(|(_, _, e)| e.path.as_str())
-                        .collect::<Vec<_>>()
-                        .join(", ")
-                )));
+                    if has.is_empty() {
+                        "none".to_string()
+                    } else {
+                        has.join(", ")
+                    }
+                );
+                if one_set {
+                    message.push_str(&missing_shards(of, &shards));
+                }
+                return Err(BunsenError::Invalid(message));
             }
             resources.insert(self.resource(
                 org,
@@ -634,6 +677,35 @@ mod tests {
             .unwrap_err();
         assert!(
             matches!(&err, BunsenError::Invalid(m) if m.contains("incomplete set of shards")),
+            "{err}"
+        );
+    }
+
+    /// A set numbered from 1 with no gap is still incomplete when its last
+    /// shards are missing: the `-of-N` total says how many there are, and
+    /// the error names the ones the listing lacks.
+    #[test]
+    fn test_a_sharded_repo_missing_its_last_shards_is_refused() {
+        let hf = HfProvider::new();
+        let listing = vec![
+            entry("model.safetensors.index.json", 71_000, None),
+            entry("model-00001-of-00003.safetensors", 1, Some(SHARD_1)),
+            entry("model-00002-of-00003.safetensors", 1, Some(SHARD_2)),
+        ];
+        let err = hf.row_from_listing("org/repo", &listing).unwrap_err();
+        assert!(
+            matches!(&err, BunsenError::Invalid(m) if m.contains("incomplete set of shards") && m.contains("missing model-00003-of-00003.safetensors")),
+            "{err}"
+        );
+
+        // A long tail is named eight shards at most, then counted.
+        let listing = vec![
+            entry("model.safetensors.index.json", 71_000, None),
+            entry("model-00001-of-00012.safetensors", 1, Some(SHARD_1)),
+        ];
+        let err = hf.row_from_listing("org/repo", &listing).unwrap_err();
+        assert!(
+            matches!(&err, BunsenError::Invalid(m) if m.contains("missing model-00002-of-00012.safetensors, ") && m.ends_with("model-00009-of-00012.safetensors, and 3 more")),
             "{err}"
         );
     }
