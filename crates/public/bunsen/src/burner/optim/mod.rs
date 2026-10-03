@@ -41,13 +41,123 @@
 //!    so it goes wherever a single optimizer would: a
 //!    [`Learner`](burn::train::Learner), or your own loop calling `step`. Step
 //!    the module whose `ParamId`s the groups hold: `step` applies the policy to
-//!    any float parameter it doesn't know.
+//!    any float parameter it doesn't know. To resume from a checkpoint, build
+//!    the same way and load the records: see [Resuming from a
+//!    checkpoint](#resuming-from-a-checkpoint).
 //!
 //! [`GroupOptimizerAdaptor1`] through [`GroupOptimizerAdaptor7`] exist. Pick
 //! the smallest `N` that covers your optimizer *types*: more groups of one
 //! type go in that type's `Vec`, and don't raise `N`.
 //! `GroupOptimizerAdaptor1` is "one optimizer type, several learning-rate
 //! groups".
+//!
+//! # Resuming from a checkpoint
+//!
+//! `ParamId`s persist across a checkpoint. A module record saves each
+//! parameter's id, and `Module::load_record` gives the parameter that id
+//! back, so a restored model has the saved run's ids, not the ones it was
+//! built with. The adaptor's record, a [`GroupOptimizerAdaptorRecord`], saves
+//! which group steps each id next to the groups' state, and the adaptor's
+//! `load_record` restores both. Load the model record and the optimizer record
+//! saved with it, in either order, and the adaptor knows the restored model's
+//! ids.
+//!
+//! So a resumed run is built like a first run:
+//!
+//! 1. Build a fresh model, select its groups, and build the adaptor, with the
+//!    same groups in the same order as the run that saved the checkpoint. The
+//!    fresh ids don't matter once the records are loaded.
+//! 2. Load the checkpoint into both. A [`Learner`](burn::train::Learner)
+//!    resuming from a checkpoint does this: it loads the model record, then the
+//!    optimizer record. In your own loop, call `Module::load_record` and
+//!    `Optimizer::load_record`.
+//!
+//! What the adaptor's `load_record` restores, and what it keeps:
+//!
+//! - **The record's groups replace the ones `new` built.** Groups are matched
+//!   by position, `(optimizer type, group index)`, and each keeps the optimizer
+//!   and learning rate it was given at `new`. `load_record` panics when the
+//!   record doesn't fit: another number of groups of some optimizer type, a
+//!   group the adaptor doesn't have, or a `ParamId` the adaptor knows in
+//!   another group. The last happens when the groups were selected from an
+//!   already restored model, and the selection changed since the save.
+//! - **The [`UnknownParamPolicy`] still applies.** A float parameter the record
+//!   doesn't name, such as a head added since the save, is unknown at `step`.
+//!
+//! ```rust
+//! use bunsen::{
+//!     burner::optim::{
+//!         GroupOptimizerAdaptor1,
+//!         GroupOptimizerError,
+//!         OptimizerGroup,
+//!     },
+//!     support::testing::{
+//!         CpuBackend,
+//!         default_device,
+//!     },
+//! };
+//! use burn::{
+//!     backend::Autodiff,
+//!     module::Module,
+//!     nn::{
+//!         Linear,
+//!         LinearConfig,
+//!     },
+//!     optim::{
+//!         GradientsParams,
+//!         Optimizer,
+//!         Sgd,
+//!         SgdConfig,
+//!     },
+//!     prelude::Device,
+//!     tensor::Tensor,
+//! };
+//!
+//! type B = Autodiff<CpuBackend>;
+//! type Optim = GroupOptimizerAdaptor1<Sgd<CpuBackend>, Linear<B>, B>;
+//!
+//! /// Builds the model and its adaptor: the same code starts a run and resumes
+//! /// one.
+//! fn build(
+//!     device: &Device<B>
+//! ) -> Result<(Linear<B>, Optim), GroupOptimizerError> {
+//!     let net: Linear<B> = LinearConfig::new(4, 2).init(device);
+//!     let params = [net.weight.id, net.bias.as_ref().unwrap().id];
+//!     let sgd = SgdConfig::new().init::<B, Linear<B>>();
+//!     let optim =
+//!         Optim::new(&net, vec![OptimizerGroup::from_adaptor(params, &sgd)])?;
+//!     Ok((net, optim))
+//! }
+//!
+//! fn train_step(
+//!     net: Linear<B>,
+//!     optim: &mut Optim,
+//!     device: &Device<B>,
+//! ) -> Linear<B> {
+//!     let loss = net.forward(Tensor::<B, 2>::ones([3, 4], device)).sum();
+//!     let grads = GradientsParams::from_grads(loss.backward(), &net);
+//!     optim.step(1e-2, net, grads)
+//! }
+//!
+//! let device = default_device();
+//!
+//! // The first run trains, and saves a checkpoint.
+//! let (net, mut optim) = build(&device)?;
+//! let net = train_step(net, &mut optim, &device);
+//! let (model_record, optim_record) = (net.into_record(), optim.to_record());
+//!
+//! // The resumed run builds a fresh model, with fresh `ParamId`s, and an
+//! // adaptor over it, then loads both records.
+//! let (net, optim) = build(&device)?;
+//! let net = net.load_record(model_record);
+//! let mut optim = optim.load_record(optim_record);
+//!
+//! // The adaptor knows the restored ids, so `step` steps them.
+//! let before = net.weight.val().into_data();
+//! let net = train_step(net, &mut optim, &device);
+//! assert_ne!(net.weight.val().into_data(), before);
+//! # Ok::<(), Box<dyn std::error::Error>>(())
+//! ```
 //!
 //! # Behaviour to know
 //!
@@ -66,11 +176,11 @@
 //! - **`step` checks the module it is given.** The groups hold `ParamId`s, and
 //!   a float parameter whose `ParamId` the adaptor doesn't know is never
 //!   stepped: its gradient is dropped. That happens when the module changed
-//!   after `new` (surgery, a fresh head), when `Module::load_record` gave its
-//!   parameters the record's ids, or when `step` gets another module. Select
-//!   the groups after surgery and after loading a record. A `Learner` that
-//!   resumes from a checkpoint loads the model record after you built the
-//!   adaptor, so load that record into the module yourself before selecting.
+//!   after `new` (surgery, a fresh head), when `step` gets another module, or
+//!   when a module record was loaded without the optimizer record saved with
+//!   it: `Module::load_record` gives the parameters the record's ids. Select
+//!   the groups after surgery. To load a checkpoint, load both records; see
+//!   [Resuming from a checkpoint](#resuming-from-a-checkpoint).
 //! - **The [`UnknownParamPolicy`] decides what a parameter in no group does**,
 //!   at `new` and at `step`. `Panic`, the default, fails: `new` returns
 //!   `UnassignedParamIds`, and `step` panics before it steps anything, naming
@@ -87,10 +197,12 @@
 //!   [`GroupOptimizerAdaptor2::with_grad_clipping`]), applies to each
 //!   parameter's gradient on its own, before its group's step: a norm clip
 //!   bounds each tensor's norm, not a global norm.
-//! - **State is per parameter, per group.** The record is a tuple with one
-//!   `Vec<OptimizerGroupRecord>` per optimizer type, one entry per group, each
-//!   keyed by `ParamId`. Load a record into an adaptor built with the same
-//!   groups, in the same order.
+//! - **The record holds the groups and their state.** A
+//!   [`GroupOptimizerAdaptorRecord`] holds which group steps each `ParamId`
+//!   (`dispatch`), and the state: one `Vec<OptimizerGroupRecord>` per optimizer
+//!   type, one entry per group, each keyed by `ParamId`. Load it into an
+//!   adaptor built with the same groups, in the same order; `load_record`
+//!   panics if they don't fit.
 //!
 //! # Learning rates
 //!

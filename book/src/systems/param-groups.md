@@ -108,14 +108,23 @@ hides the mistake. Stack the predicates, `[@name='weight'][@rank=2]`, or use
 **The model must keep the ids the groups hold.** A group is a set of
 `ParamId`s, and the adaptor never steps a parameter whose id it doesn't know.
 That happens when the model changes after the adaptor is built (a new head,
-other surgery), when a record is loaded into it (`load_record` gives each
-parameter the record's id, so loading a checkpoint changes every id), or when
-`step` is handed a different model. By default `step` then panics, naming the
-ids, rather than train part of the model in silence. Select the groups after
-surgery and after loading a record. A `Learner` that resumes from a checkpoint
-loads the model record after you built the adaptor, so load that record into
-the model yourself before selecting. An
+other surgery), or when `step` is handed a different model. By default `step`
+then panics, naming the ids, rather than train part of the model in silence.
+Select the groups after surgery. An
 [`UnknownParamPolicy`](bunsen::burner::optim::UnknownParamPolicy) relaxes the
 check, at `new` and at `step`, to a warning logged once per id (`Warn`) or to
 silence (`Freeze`). To keep parameters fixed on purpose, use a frozen group
 instead.
+
+**Load a checkpoint into the model and the optimizer together.** Ids persist
+across a checkpoint: `load_record` gives each parameter the id saved in the
+record, so a restored model has the saved run's ids, not the ones it was built
+with. The adaptor's record saves which group steps each id, and loading it
+restores that. So a resumed run builds a fresh model and adaptor, the same way
+the first run did, and loads both records; a `Learner` resuming from a
+checkpoint does the loading for you. A model record loaded without its
+optimizer record leaves the adaptor holding the fresh ids, and `step` panics.
+The record's groups are matched to the adaptor's by position, so build the
+resumed adaptor with the same groups, in the same order: `load_record` panics
+when they don't fit
+([resuming](bunsen::burner::optim#resuming-from-a-checkpoint)).
