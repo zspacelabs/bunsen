@@ -29,8 +29,6 @@ use burn::{
     },
 };
 
-#[allow(unused_imports)]
-use crate::errors::BunsenError;
 use crate::{
     blocks::conv::{
         ConvBlock2d,
@@ -40,7 +38,10 @@ use crate::{
         ModuleInit,
         ToStructureConfig,
     },
-    errors::BunsenResult,
+    errors::{
+        BunsenError,
+        BunsenResult,
+    },
     kits::images::resnet::{
         RESNET18_BLOCKS,
         blocks::{
@@ -208,6 +209,11 @@ pub trait ResNetMeta {
 
     /// The feature planes the classifier head reads: the last stage's output
     /// planes.
+    ///
+    /// # Panics
+    ///
+    /// On a [`ResNetStructureConfig`] with no stages, or whose last stage has
+    /// no blocks.
     fn head_planes(&self) -> usize;
 
     /// The number of classification classes.
@@ -217,8 +223,9 @@ pub trait ResNetMeta {
 /// [`ResNet`] Structure Config.
 ///
 /// This config defines the structure of a converted [`ResNet`] model.
-/// It is not a semantic configuration and does not check the validity
-/// of the internal sizes before or during construction.
+/// It is not a semantic configuration: `try_init` rejects a structure with no
+/// stages, or with a stage that is empty or whose blocks' planes do not chain,
+/// but does not check that one stage's planes chain into the next.
 ///
 /// Holds the explicit stem, per-stage [`LayerBlockStructureConfig`]s, and head.
 /// [`ResNetContractConfig`] lowers to it. Call `.init(device)` to build the
@@ -328,10 +335,26 @@ impl ResNetStructureConfig {
 }
 
 impl<B: Backend> ModuleInit<B, ResNet<B>> for ResNetStructureConfig {
+    /// Builds the [`ResNet`] module.
+    ///
+    /// # Errors
+    ///
+    /// [`BunsenError::Invalid`] when there are no stages, or when a stage
+    /// fails [`LayerBlockStructureConfig::try_validate`] (it has no blocks, or
+    /// its blocks' planes do not chain).
     fn try_init(
         &self,
         device: &B::Device,
     ) -> BunsenResult<ResNet<B>> {
+        if self.layers.is_empty() {
+            return Err(BunsenError::Invalid(
+                "a ResNet needs at least one stage".to_string(),
+            ));
+        }
+        for layer in &self.layers {
+            layer.try_validate()?;
+        }
+
         let head_planes = self.head_planes();
 
         let module = ResNet {
@@ -347,8 +370,8 @@ impl<B: Backend> ModuleInit<B, ResNet<B>> for ResNetStructureConfig {
             layers: self
                 .layers
                 .iter()
-                .map(|c| c.init(device))
-                .collect::<Vec<_>>(),
+                .map(|c| c.try_init(device))
+                .collect::<BunsenResult<Vec<_>>>()?,
 
             output_pool: AdaptiveAvgPool2dConfig::new([1, 1]).init(),
             output_fc: LinearConfig::new(head_planes, self.num_classes).init(device),
@@ -582,6 +605,7 @@ mod tests {
             RESNET50_BLOCKS,
         },
         support::testing::{
+            CpuBackend,
             DeviceMemoryGuard,
             PerformanceBackend,
             default_device,
@@ -696,5 +720,38 @@ mod tests {
 
         assert_meta_agrees(&direct, &lowered);
         assert_meta_agrees(&direct, &structure);
+    }
+
+    /// A structure with no stages is an error from `try_init`, not a panic:
+    /// the head has no stage to take its width from.
+    #[test]
+    fn test_try_init_rejects_no_stages() {
+        let device: burn::prelude::Device<CpuBackend> = Default::default();
+
+        let structure = ResNetStructureConfig {
+            layers: vec![],
+            ..ResNetContractConfig::new(vec![1], 7)
+                .with_stem_width(8)
+                .to_structure()
+        };
+        let bad: BunsenResult<ResNet<CpuBackend>> = structure.try_init(&device);
+        assert!(matches!(bad, Err(BunsenError::Invalid(_))));
+
+        // The policy reaches the same check through the blanket `try_init`.
+        let bad: BunsenResult<ResNet<CpuBackend>> = ResNetContractConfig::new(vec![], 7)
+            .with_stem_width(8)
+            .try_init(&device);
+        assert!(matches!(bad, Err(BunsenError::Invalid(_))));
+    }
+
+    /// A stage with no blocks is an error from `try_init`, not a panic.
+    #[test]
+    fn test_try_init_rejects_an_empty_stage() {
+        let device: burn::prelude::Device<CpuBackend> = Default::default();
+
+        let bad: BunsenResult<ResNet<CpuBackend>> = ResNetContractConfig::new(vec![1, 0], 7)
+            .with_stem_width(8)
+            .try_init(&device);
+        assert!(matches!(bad, Err(BunsenError::Invalid(_))));
     }
 }
