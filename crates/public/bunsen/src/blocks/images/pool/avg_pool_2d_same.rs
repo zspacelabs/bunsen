@@ -127,3 +127,30 @@ impl AvgPool2dSame {
         self.pool.forward(x)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use serial_test::serial;
+
+    use super::*;
+    use crate::support::testing::{
+        DeviceMemoryGuard,
+        PerformanceBackend,
+        default_device,
+    };
+
+    #[test]
+    #[serial]
+    fn test_avg_pool_2d_same_output_is_ceil_of_size_over_stride() {
+        type B = PerformanceBackend;
+        let device = default_device();
+        let _memory = DeviceMemoryGuard::<B>::new(&device);
+
+        // Kernel 3, stride 3 (burn's default stride is the kernel size).
+        let pool = AvgPool2dSameConfig::new(AvgPool2dConfig::new([3, 3])).init();
+
+        // `[ceil(10 / 3), ceil(8 / 3)] == [4, 3]`.
+        let input = Tensor::<B, 4>::ones([1, 1, 10, 8], &device);
+        assert_eq!(pool.forward(input).dims(), [1, 1, 4, 3]);
+    }
+}

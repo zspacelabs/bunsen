@@ -1,7 +1,5 @@
 //! TensorFlow-style "SAME" padding.
 
-use core::cmp::max;
-
 use burn::prelude::{
     Backend,
     Tensor,
@@ -37,6 +35,14 @@ use burn::prelude::{
 /// Ported from `timm`'s `get_same_padding` (the Python reference is in this
 /// file's source). Used by [`pad_same`].
 ///
+/// It is the padding that lets `ceil(size / stride)` windows cover the axis,
+/// TensorFlow's "SAME" output length:
+///
+/// ```text
+/// span = (ceil(size / stride) - 1) * stride + (kernel_size - 1) * dilation + 1
+/// padding = max(span - size, 0)
+/// ```
+///
 /// # Arguments
 ///
 /// - `size`: the input length along one axis.
@@ -48,16 +54,20 @@ use burn::prelude::{
 ///
 /// The total padding for the axis; [`pad_same`] splits it between the two
 /// sides.
+///
+/// # Panics
+///
+/// If `stride` is 0.
 pub fn get_same_padding(
     size: usize,
     kernel_size: usize,
     stride: usize,
     dilation: usize,
 ) -> usize {
-    max(
-        (((size + (stride / 2)) / stride) - 1) * stride + (kernel_size - 1) * dilation + 1 - size,
-        0,
-    )
+    // `span - size`, with the two `- 1` terms moved to the subtracted side so
+    // that no `usize` step goes below zero; saturating is the `max(.., 0)`.
+    let reach = size.div_ceil(stride) * stride + kernel_size * dilation + 1;
+    reach.saturating_sub(size + stride + dilation)
 }
 
 /// Dynamically pad input x with 'SAME' padding for conv with specified args.
@@ -95,14 +105,91 @@ pub fn pad_same<B: Backend>(
 
 #[cfg(test)]
 mod tests {
+    use serial_test::serial;
+
     use super::*;
+    use crate::support::testing::{
+        DeviceMemoryGuard,
+        PerformanceBackend,
+        default_device,
+    };
+
+    /// `(kernel_size, stride, dilation, [padding for size 1..=12])`, from the
+    /// Python reference in this file (computed with python3, not by hand).
+    const TIMM_REFERENCE: &[(usize, usize, usize, [usize; 12])] = &[
+        (1, 1, 1, [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]),
+        (1, 2, 1, [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]),
+        (1, 3, 1, [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]),
+        (1, 4, 1, [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]),
+        (2, 1, 1, [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]),
+        (2, 2, 1, [1, 0, 1, 0, 1, 0, 1, 0, 1, 0, 1, 0]),
+        (2, 3, 1, [1, 0, 0, 1, 0, 0, 1, 0, 0, 1, 0, 0]),
+        (2, 4, 1, [1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0]),
+        (3, 1, 1, [2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2]),
+        (3, 2, 1, [2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1]),
+        (3, 3, 1, [2, 1, 0, 2, 1, 0, 2, 1, 0, 2, 1, 0]),
+        (3, 4, 1, [2, 1, 0, 0, 2, 1, 0, 0, 2, 1, 0, 0]),
+        (7, 1, 1, [6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6, 6]),
+        (7, 2, 1, [6, 5, 6, 5, 6, 5, 6, 5, 6, 5, 6, 5]),
+        (7, 3, 1, [6, 5, 4, 6, 5, 4, 6, 5, 4, 6, 5, 4]),
+        (7, 4, 1, [6, 5, 4, 3, 6, 5, 4, 3, 6, 5, 4, 3]),
+        (3, 1, 2, [4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4]),
+        (3, 2, 2, [4, 3, 4, 3, 4, 3, 4, 3, 4, 3, 4, 3]),
+        (3, 3, 2, [4, 3, 2, 4, 3, 2, 4, 3, 2, 4, 3, 2]),
+        (3, 4, 2, [4, 3, 2, 1, 4, 3, 2, 1, 4, 3, 2, 1]),
+    ];
 
     #[test]
-    fn test_get_same_padding() {
-        assert_eq!(get_same_padding(10, 1, 1, 1), 0);
+    fn test_get_same_padding_matches_timm_reference() {
+        for &(kernel_size, stride, dilation, pads) in TIMM_REFERENCE {
+            for (size, expected) in (1..=12).zip(pads) {
+                assert_eq!(
+                    get_same_padding(size, kernel_size, stride, dilation),
+                    expected,
+                    "size={size} kernel_size={kernel_size} stride={stride} dilation={dilation}"
+                );
+            }
+        }
+    }
 
-        assert_eq!(get_same_padding(10, 3, 2, 1), 1);
+    #[test]
+    fn test_get_same_padding_counts_a_partial_last_window() {
+        // A partial last window counts as an output position:
+        // `ceil(size / stride)` positions, not `size / stride` rounded.
+        // `(size, kernel_size, stride, dilation, expected)`, from python3.
+        for (size, kernel_size, stride, dilation, expected) in [
+            (4, 7, 3, 1, 6),
+            (10, 7, 3, 1, 6),
+            (5, 7, 4, 1, 6),
+            (9, 7, 4, 1, 6),
+            (4, 3, 3, 2, 4),
+            (5, 3, 4, 2, 4),
+        ] {
+            assert_eq!(
+                get_same_padding(size, kernel_size, stride, dilation),
+                expected,
+                "size={size} kernel_size={kernel_size} stride={stride} dilation={dilation}"
+            );
+        }
+    }
 
-        assert_eq!(get_same_padding(10, 3, 2, 2), 3);
+    #[test]
+    #[serial]
+    fn test_pad_same_puts_the_odd_pixel_bottom_right() {
+        type B = PerformanceBackend;
+        let device = default_device();
+        let _memory = DeviceMemoryGuard::<B>::new(&device);
+
+        // Height 10 pads by 2 (1 + 1); width 8 pads by 1 (0 + 1).
+        let input = Tensor::<B, 4>::ones([1, 1, 10, 8], &device);
+        let output = pad_same(input.clone(), [3, 3], [3, 3], [1, 1], 0.0);
+
+        assert_eq!(output.dims(), [1, 1, 12, 9]);
+        output
+            .clone()
+            .slice([0..1, 0..1, 1..11, 0..8])
+            .to_data()
+            .assert_eq(&input.to_data(), true);
+        assert_eq!(output.sum().into_scalar(), 80.0);
     }
 }
