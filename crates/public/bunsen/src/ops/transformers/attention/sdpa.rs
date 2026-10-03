@@ -104,6 +104,10 @@ pub fn scaled_dot_product_attention<B: Backend>(
 
 /// Builds the Attention Weight for [`scaled_dot_product_attention`].
 ///
+/// The weight is `softmax(q k^T * scale + bias)` over the keys, then
+/// dropout on those probabilities when the config sets a rate, as in
+/// `PyTorch`'s reference.
+///
 /// # Arguments
 /// - `q`: the query tensor, as `[B, H_q, T_q, D]`.
 /// - `k`: the key tensor, as `[B, H_k, T_k, D]`.
@@ -139,7 +143,7 @@ pub fn sdpa_attn_weight<B: Backend>(
     let attn_weight = q.matmul(k.swap_dims(2, 3)) * scale_factor;
 
     let attn_bias = sdpa_bias(t_q, t_k, config.is_causal, bias, mask, dtype, &device);
-    let mut attn_weight = attn_weight + attn_bias.unsqueeze();
+    let mut attn_weight = softmax(attn_weight + attn_bias.unsqueeze(), 3);
 
     if let Some(prob) = config.dropout
         && (config.enable_dropout_during_inference || B::ad_enabled(&attn_weight.device()))
@@ -147,7 +151,7 @@ pub fn sdpa_attn_weight<B: Backend>(
         attn_weight = dropout(prob, attn_weight);
     }
 
-    softmax(attn_weight, 3)
+    attn_weight
 }
 
 /// Builds the Attention Bias for [`scaled_dot_product_attention`].
@@ -193,6 +197,7 @@ pub fn sdpa_bias<B: Backend>(
 
 #[cfg(test)]
 mod tests {
+    use burn::tensor::Distribution;
     use serial_test::serial;
 
     use super::*;
@@ -200,7 +205,51 @@ mod tests {
         DeviceMemoryGuard,
         PerformanceBackend,
         default_device,
+        seeded_tensor,
     };
+
+    /// Dropout acts on the attention probabilities, after the softmax, as in
+    /// PyTorch's reference: each weight is either dropped (zero) or the
+    /// undropped weight scaled by `1 / (1 - p)`.
+    #[test]
+    #[serial]
+    fn test_sdpa_attn_weight_drops_out_after_softmax() {
+        type B = PerformanceBackend;
+        let device = default_device();
+        let _memory = DeviceMemoryGuard::<B>::new(&device);
+
+        let shape = [2, 2, 4, 8];
+        let q = seeded_tensor::<B, 4>(1, shape, Distribution::Default, &device);
+        let k = seeded_tensor::<B, 4>(2, shape, Distribution::Default, &device);
+
+        let p = 0.5;
+        let config = ScaledDotProductAttentionConfig::new();
+        let read = |t: Tensor<B, 4>| t.into_data().convert::<f32>().to_vec::<f32>().unwrap();
+        let kept = read(sdpa_attn_weight(q.clone(), k.clone(), None, None, config));
+        let dropped = read(sdpa_attn_weight(
+            q,
+            k,
+            None,
+            None,
+            config.with_dropout(Some(p)),
+        ));
+
+        let scale = (1.0 / (1.0 - p)) as f32;
+        let mut n_dropped = 0;
+        for (&w, &d) in kept.iter().zip(&dropped) {
+            if d == 0.0 {
+                n_dropped += 1;
+            } else {
+                let expected = w * scale;
+                assert!(
+                    (d - expected).abs() <= 1e-4 * expected.abs() + 1e-6,
+                    "expected 0 or {expected} (= {w} / (1 - p)), got {d}"
+                );
+            }
+        }
+        // 128 weights, each dropped with p = 0.5.
+        assert!(n_dropped > 0 && n_dropped < kept.len(), "{n_dropped}");
+    }
 
     #[test]
     #[serial]
