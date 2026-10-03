@@ -1,20 +1,4 @@
 //! # `ResNet` Core Model
-//!
-//! [`ResNet`] is the core `ResNet` module.
-//!
-//! [`ResNetContractConfig`] implements [`Config`], and provides
-//! a high-level configuration interface.
-//! It implements [`ToStructureConfig`] to lower to a
-//! [`ResNetStructureConfig`].
-//!
-//! [`ResNetStructureConfig`] implements [`Config`], and [`ModuleInit`] to
-//! initialize a [`ResNet`].
-//!
-//! [`ResNetMeta`] is the narrow view shared by [`ResNetStructureConfig`] and
-//! [`ResNet`].
-//!
-//! [`ResNet`] implements [`Module`], and provides
-//! [`ResNet::forward`].
 
 use alloc::{
     vec,

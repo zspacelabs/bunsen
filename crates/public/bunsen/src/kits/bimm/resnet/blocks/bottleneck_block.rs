@@ -1,16 +1,4 @@
-//! # [`BottleneckBlock`] Block for `ResNet`
-//!
-//! [`BottleneckBlock`] is the bottleneck form of the core `ResNet` convolution
-//! unit.
-//!
-//! [`BottleneckBlockMeta`] defines a common meta-API for [`BottleneckBlock`]
-//! and [`BottleneckBlockConfig`].
-//!
-//! [`BottleneckBlockConfig`] implements [`Config`] and provides
-//! [`BottleneckBlockConfig::init`] to initialize a [`BottleneckBlock`].
-//!
-//! [`BottleneckBlock`] implements [`Module`] and provides
-//! [`BottleneckBlock::forward`].
+//! # Bottleneck Block for `ResNet`
 
 use burn::{
     nn::{
@@ -81,6 +69,8 @@ impl Default for BottleneckPolicyConfig {
 }
 
 /// [`BottleneckBlock`] Meta trait.
+///
+/// The view shared by [`BottleneckBlockConfig`] and [`BottleneckBlock`].
 pub trait BottleneckBlockMeta {
     /// The number of input feature planes.
     fn in_planes(&self) -> usize;

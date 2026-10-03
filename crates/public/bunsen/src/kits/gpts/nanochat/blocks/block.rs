@@ -100,12 +100,16 @@ impl NanoChatGptBlockConfig {
 
 /// A single nanoChat GPT transformer block.
 ///
-/// Applies input normalization, causal self-attention, post-attention
-/// normalization, and an MLP, with residual connections handled by the
-/// surrounding model. Used as the repeated unit inside
-/// [`NanoChatGpt`](super::NanoChatGpt).
+/// Applies, in order, input normalization, causal self-attention, a second
+/// normalization, and the MLP: `mlp(norm(attn(norm(x))))`. Used as the
+/// repeated unit inside [`NanoChatGpt`](super::NanoChatGpt).
 ///
-/// Built by [`NanoChatGptBlockConfig`].
+/// There is no residual connection, here or in the model, which chains the
+/// blocks directly. Upstream nanochat adds each sub-layer's output to its
+/// input. This is a known issue, tracked for repair.
+///
+/// Built by [`NanoChatGptBlockConfig`], whose `init` also takes the block's
+/// layer index: its slot in a shared [`KVCache`].
 #[derive(Module, Debug)]
 pub struct NanoChatGptBlock<B: Backend> {
     /// Input Normalization.

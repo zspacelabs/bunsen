@@ -19,8 +19,9 @@ use crate::kits::sims::conway::{
 
 /// Config for [`ConwayLife3DState`]
 ///
-/// Specifies the `[H, W, Z]` board shape and the [`ConwayRules`] ruleset. Call
-/// `.init(device)` to build a zeroed [`ConwayLife3DState`] module, which can
+/// Specifies the `[H, W, Z]` board shape, halo included (the torus is the
+/// `[H-2, W-2, Z-2]` interior), and the [`ConwayRules`] ruleset. Call
+/// `.init(device)` to build an all-dead [`ConwayLife3DState`], which can
 /// then be seeded and stepped.
 #[derive(Config, Debug)]
 pub struct ConwayLife3DConfig {
@@ -33,7 +34,7 @@ pub struct ConwayLife3DConfig {
 }
 
 impl ConwayLife3DConfig {
-    /// Initializes a [`ConwayLife3DState`] module.
+    /// Initializes an all-dead [`ConwayLife3DState`] on `device`.
     pub fn init<B: Backend>(
         &self,
         device: &B::Device,
@@ -45,13 +46,17 @@ impl ConwayLife3DConfig {
     }
 }
 
-/// State module for Conway's Game of Life.
+/// The board of a 3D Game of Life.
 ///
-/// Holds the toroidal `[H, W, Z]` boolean board together with its
-/// [`ConwayRules`]. Construct it from a [`ConwayLife3DConfig`] via
-/// `.init(device)`, optionally seed it with [`ConwayLife3DState::fuzz`], then
-/// call [`ConwayLife3DState::step`] to advance the simulation one wrapped
-/// generation at a time.
+/// Holds the `[H, W, Z]` boolean board, a `[H-2, W-2, Z-2]` torus inside a
+/// one-cell halo that each step rewrites from the opposite faces, together
+/// with its [`ConwayRules`]. Construct it from a [`ConwayLife3DConfig`] via
+/// `.init(device)`, optionally seed it with [`ConwayLife3DState::fuzz`],
+/// then call [`ConwayLife3DState::step`] to advance the simulation one
+/// wrapped generation at a time.
+///
+/// A plain struct, not a burn `Module`: move it to another device by
+/// moving its `state` tensor.
 ///
 /// Built by [`ConwayLife3DConfig`].
 pub struct ConwayLife3DState<B: Backend> {

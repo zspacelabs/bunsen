@@ -39,7 +39,8 @@ pub trait LBMMeta {
 ///
 /// Specifies the `[HEIGHT, WIDTH]` grid shape and the [`RelaxationParam`]. Call
 /// `.init(device, rho)` to build a relaxed [`LBMD2Q9State`] module ready to be
-/// advanced step by step. Implements [`LBMMeta`].
+/// advanced step by step, one step per
+/// [`advance_step`](LBMD2Q9State::advance_step). Implements [`LBMMeta`].
 #[derive(Config, Debug)]
 pub struct LBMD2Q9Config {
     /// The shape of the simulation.
@@ -58,6 +59,14 @@ impl LBMMeta for LBMD2Q9Config {
 
 impl LBMD2Q9Config {
     /// Initializes a [`LBMD2Q9State`] module.
+    ///
+    /// The interior is fluid at rest at density `rho`, the outer ring is
+    /// empty, and the total mass is recorded as the target the mass
+    /// correction holds.
+    ///
+    /// # Panics
+    ///
+    /// If the relaxation is out of range ([`RelaxationParam::validate`]).
     pub fn init<B: Backend>(
         self,
         device: &B::Device,
@@ -108,6 +117,10 @@ impl LBMD2Q9Config {
 /// [`LBMD2Q9State::advance_step`] to stream, collide, and reflect the fluid one
 /// step at a time. Implements [`LBMMeta`].
 ///
+/// The tensors are public, for the caller to edit between steps, and are
+/// held bare, not as parameters. The step and the mass correction are
+/// described in the [`d2q9`](super) docs.
+///
 /// Built by [`LBMD2Q9Config`].
 #[derive(Module, Debug)]
 pub struct LBMD2Q9State<B: Backend> {
@@ -117,7 +130,9 @@ pub struct LBMD2Q9State<B: Backend> {
     /// The current simulation step.
     pub step_count: u64,
 
-    /// Total Mass.
+    /// The total mass the mass correction steers toward: the mass `init`
+    /// built, until [`save_correct_total_mass`](Self::save_correct_total_mass)
+    /// replaces it.
     pub correct_total_mass: f64,
 
     /// The grid velocity: `[H, W, UY=3, UX=3]`
@@ -188,7 +203,9 @@ impl<B: Backend> LBMD2Q9State<B> {
         self.set_step_count(0)
     }
 
-    /// Returns the mass correction term.
+    /// Returns the mass correction term: the target mass,
+    /// `correct_total_mass`, over the current total. The next step scales
+    /// the fluid cells' collision result by it.
     ///
     /// # Panics
     ///
@@ -203,7 +220,14 @@ impl<B: Backend> LBMD2Q9State<B> {
         self.correct_total_mass / current
     }
 
-    /// Advances the world simulation by one step.
+    /// Advances the world simulation by one step: stream, collide (scaled by
+    /// [`correction_term`](Self::correction_term)), and reflect off the
+    /// solid mask, with the grid's outer ring counted as solid.
+    ///
+    /// # Panics
+    ///
+    /// As [`correction_term`](Self::correction_term), or if the backend
+    /// fails to sync.
     pub fn advance_step(&mut self) {
         // Everything the step reads from `self` is read here, before the
         // distribution is taken out of `self.dist` for the in-place update.
@@ -241,7 +265,9 @@ impl<B: Backend> LBMD2Q9State<B> {
         self.dist.clone().sum().into_scalar().elem()
     }
 
-    /// Saves the total energy of the system.
+    /// Makes the current total mass the target the mass correction steers
+    /// toward. Call it after changing the mass on purpose; otherwise the
+    /// following steps scale the change away.
     pub fn save_correct_total_mass(&mut self) {
         self.correct_total_mass = self.current_total_mass();
     }

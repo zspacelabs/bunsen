@@ -1,15 +1,4 @@
 //! # Basic Block for `ResNet`
-//!
-//! [`BasicBlock`] is the core `ResNet` convolution unit.
-//!
-//! [`BasicBlockMeta`] defines a common meta-API for [`BasicBlock`]
-//! and [`BasicBlockConfig`].
-//!
-//! [`BasicBlockConfig`] implements [`Config`] and provides
-//! [`BasicBlockConfig::init`] to initialize a [`BasicBlock`].
-//!
-//! [`BasicBlock`] implements [`Module`] and provides
-//! [`BasicBlock::forward`].
 
 use burn::{
     nn::{
@@ -60,6 +49,8 @@ use crate::{
 };
 
 /// [`BasicBlock`] Meta trait.
+///
+/// The view shared by [`BasicBlockConfig`] and [`BasicBlock`].
 pub trait BasicBlockMeta {
     /// The size of the in channels dimension.
     fn in_planes(&self) -> usize;

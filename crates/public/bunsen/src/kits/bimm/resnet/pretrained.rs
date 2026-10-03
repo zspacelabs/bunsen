@@ -1,15 +1,4 @@
 //! # Pretrained `ResNet` models and configs
-//!
-//! The geometries, as [`PREFAB_RESNET_MAP`]; the checkpoints, as rows in
-//! two groups of the [`WELL_KNOWN_TABLE`]: `torchvision`, the reference
-//! `ImageNet` weights, and `timm`, the `ResNet` Strikes Back (`a1`, `a2`,
-//! `a3`) and earlier `pytorch-image-models` releases. Each row names the
-//! prefab it instantiates and is one `.pth` under its group's base URL,
-//! pinned to its digest: `torchvision/resnet50`, `timm/resnet18_a1`, or
-//! bare `resnet50`, which the torchvision group answers first.
-//!
-//! [`default_resnet_factory`] is the index; [`ResNetConstruct`] builds the
-//! prefab's model and reads the checkpoint into it.
 
 use alloc::vec;
 use std::sync::Arc;
@@ -333,6 +322,11 @@ pub static TIMM: StaticPretrainedGroup<'static> = StaticPretrainedGroup {
 /// The checkpoints bunsen knows by name, behind the [`WELL_KNOWN`]
 /// provider: `well-known:torchvision/resnet50`, `torchvision/resnet50`,
 /// or `resnet50`.
+///
+/// Two groups, [`TORCHVISION`] and [`TIMM`], 14 rows in all. Each row
+/// names the [`PREFAB_RESNET_MAP`] prefab it instantiates, and is one
+/// `.pth` file under its group's base URL, pinned to its digest. A bare
+/// name is answered by the first group that has it, torchvision.
 pub static WELL_KNOWN_TABLE: StaticPretrainedTable<'static> = StaticPretrainedTable {
     name: WELL_KNOWN,
     description: "the ResNet checkpoints bunsen knows by name",
@@ -344,7 +338,11 @@ pub fn default_resnet_providers() -> Vec<Arc<dyn PretrainedProvider>> {
     vec![Arc::new(WELL_KNOWN_TABLE.to_table())]
 }
 
-/// The public geometries: [`ResNet`](super::`ResNet`) configs by name.
+/// The `ResNet` geometries by name: six [`ResNetContractConfig`]s,
+/// `resnet18` to `resnet152`, each with 1000 classes.
+///
+/// A prefab has no weights. The rows of [`WELL_KNOWN_TABLE`] name the
+/// prefab they instantiate, and [`ResNetConstruct`] builds from it.
 pub static PREFAB_RESNET_MAP: StaticPreFabMap<ResNetContractConfig> = StaticPreFabMap {
     name: "resnet",
     description: "Well-Know ResNet configs",
@@ -417,11 +415,17 @@ mod construct {
     /// How a `ResNet` pretrained is built: the config the model is
     /// initialised from before the checkpoint is read into it.
     ///
+    /// `ResNet`'s [`Construct`] hook, behind [`default_resnet_factory`]. It
+    /// builds a [`ResNet`] from the config, then reads the checkpoint into
+    /// it with [`ResNet::load_pytorch_weights`].
+    ///
     /// A checkpoint does not describe its own geometry, so the config comes
     /// from the prefab the row names, or from
     /// [`with_config`](Self::with_config), which wins and is what a given
-    /// path needs. An example that swaps the activation before the weights
-    /// land passes the prefab's config, modified, here.
+    /// path needs. To build a modified model, resolve the name, set the
+    /// config on the deferred model's `hook`, then load it;
+    /// `examples/resnet_tiny` swaps the activation this way before the
+    /// weights land.
     #[derive(Clone, Debug, Default)]
     pub struct ResNetConstruct {
         /// The config to build from, overriding the prefab's.

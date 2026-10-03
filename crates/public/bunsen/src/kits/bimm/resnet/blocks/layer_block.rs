@@ -1,18 +1,4 @@
 //! # `ResNet` Layer Block
-//!
-//! A [`LayerBlock`] is a sequence of [`ResidualBlock`]s.
-//!
-//! [`LayerBlockMeta`] defines a common introspection API for [`LayerBlock`]
-//! and [`LayerBlockStructureConfig`].
-//!
-//! [`LayerBlockContractConfig`] implements [`ToStructureConfig`] to lower to a
-//! [`LayerBlockStructureConfig`].
-//!
-//! [`LayerBlockStructureConfig`] implements [`Config`], and [`ModuleInit`] to
-//! initialize a [`LayerBlock`].
-//!
-//! [`LayerBlock`] implements [`Module`], and provides
-//! [`LayerBlock::forward`].
 
 use alloc::{
     format,
@@ -152,6 +138,8 @@ impl ToStructureConfig for LayerBlockContractConfig {
 }
 
 /// [`LayerBlock`] Meta API.
+///
+/// The view shared by [`LayerBlockStructureConfig`] and [`LayerBlock`].
 pub trait LayerBlockMeta {
     /// The number of blocks.
     fn len(&self) -> usize;

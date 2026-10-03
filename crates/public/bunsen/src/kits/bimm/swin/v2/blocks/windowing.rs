@@ -12,19 +12,24 @@ use crate::contracts::unpack_shape_contract;
 
 /// Window Partition
 ///
+/// Cuts a grid into `window_size x window_size` windows, stacked on the
+/// batch axis in row-major window order. [`window_reverse`] undoes it.
+///
 /// # Arguments
 ///
-/// - `tensor`: Input tensor of `[batch, height, width, channels]`.
+/// - `tensor`: a `[batch, h_wins*window_size, w_wins*window_size, channels]`
+///   input tensor.
 /// - `window_size`: Window size.
 ///
 /// # Returns
 ///
-/// Output tensor of `[batch * h_windows * w_windows, window_size, window_size,
-/// channels]`.
+/// A `[batch*h_wins*w_wins, window_size, window_size, channels]` tensor of
+/// windows.
 ///
 /// # Panics
 ///
-/// On shape contract failure.
+/// On shape contract failure: when the height or the width is not a
+/// multiple of `window_size`.
 #[inline]
 #[must_use]
 pub fn window_partition<B: Backend, K>(
@@ -54,17 +59,20 @@ where
 
 /// Window Reverse
 ///
+/// Reassembles the windows [`window_partition`] cut, where `h_wins` is
+/// `height / window_size` and `w_wins` is `width / window_size`.
+///
 /// # Arguments
 ///
-/// - `windows`: Input tensor of `[batch * h_windows * w_windows, window_size,
-///   window_size, channels]`.
+/// - `windows`: a `[batch*h_wins*w_wins, window_size, window_size, channels]`
+///   input tensor.
 /// - `window_size`: Window size.
 /// - `height`: Height of the original image.
 /// - `width`: Width of the original image.
 ///
 /// # Returns
 ///
-/// `[batch, height, width, channels]` output tensor.
+/// A `[batch, height, width, channels]` output tensor.
 ///
 /// # Panics
 ///

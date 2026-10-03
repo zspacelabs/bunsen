@@ -58,6 +58,9 @@ use crate::{
 /// [`NanoChatGptContractConfig`].
 pub trait NanoChatGptMeta {
     /// Returns the size of the input and output.
+    ///
+    /// On [`NanoChatGpt`] this returns the vocabulary size today, not the
+    /// embedding width: a known issue, tracked for repair.
     fn n_embed(&self) -> usize;
 
     /// Returns the number of heads.
@@ -287,9 +290,12 @@ impl<B: Backend> ModuleInit<B, NanoChatGpt<B>> for NanoChatGptStructureConfig {
 /// nanoChat GPT language model.
 ///
 /// A decoder-only transformer: token embedding, a stack of
-/// [`NanoChatGptBlock`] layers, a final normalization, and a tied/linear head
-/// producing softcapped vocabulary logits. Supports incremental decoding via a
-/// [`KVCache`].
+/// [`NanoChatGptBlock`] layers, a final normalization, and a linear head,
+/// not tied to the embedding, producing softcapped vocabulary logits.
+/// Incremental decoding takes a [`KVCache`] the caller holds, from
+/// [`new_kv_cache`](Self::new_kv_cache). The blocks are chained with no
+/// residual connection, a known issue the
+/// [`nanochat`](crate::kits::gpts::nanochat#known-issues) docs describe.
 ///
 /// Built by [`NanoChatGptContractConfig`] (high-level) or
 /// [`NanoChatGptStructureConfig`].
@@ -339,8 +345,17 @@ impl<B: Backend> NanoChatGpt<B> {
     /// Forward Pass.
     ///
     /// # Arguments
-    /// - `idx`: a `[B, T]` input.
-    /// - `kv_cache`: a `KVCache`.
+    /// - `idx`: a `[B, T]` tensor of token ids.
+    /// - `kv_cache`: the decode's cache, or `None` to run the sequence on its
+    ///   own. With a cache, the step's positions start at the cache's position,
+    ///   and every layer appends its keys and values.
+    ///
+    /// # Returns
+    /// The `[B, T, vocab_size]` logits, softcapped:
+    /// `softcap * tanh(logits / softcap)`.
+    ///
+    /// # Panics
+    /// When `T` is longer than the rotary table, `max_seq_len`.
     pub fn forward(
         &self,
         idx: Tensor<B, 2, Int>,
@@ -385,7 +400,13 @@ impl<B: Backend> NanoChatGpt<B> {
         logits
     }
 
-    /// Allocate a new [`KVCache`]
+    /// Allocates a new, empty [`KVCache`] for one decode.
+    ///
+    /// The cache is sized for this model: its KV heads, head width and layer
+    /// count, with room for `init_seq_len` positions before it grows. It is
+    /// injected state: the caller holds it and passes it to each
+    /// [`forward`](Self::forward) of the decode, and the model never owns
+    /// one.
     ///
     /// # Arguments
     /// - `batch_size`: the batch size.

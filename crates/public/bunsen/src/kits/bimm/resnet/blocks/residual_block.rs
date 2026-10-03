@@ -1,25 +1,4 @@
 //! # Residual Block Wrapper
-//!
-//! [`ResidualBlock`] is a abstraction wrapper around either:
-//! * [`BasicBlock`] - the basic `ResNet` conv block, or
-//! * [`BottleneckBlock`] - the bottleneck variant `ResNet` conv block.
-//!
-//! [`ResidualBlockMeta`] defines a common meta api shared by:
-//! * [`ResidualBlock`], and
-//! * [`ResidualBlockStructureConfig`]
-//!
-//! [`ResidualBlockContractConfig`] implements [`ToStructureConfig`] to lower to
-//! a [`ResidualBlockStructureConfig`].
-//!
-//! [`ResidualBlockStructureConfig`] implements [`Config`], and [`ModuleInit`]
-//! to initialize a [`ResidualBlock`].
-//!
-//! [`ResidualBlock`] implements [`Module`],
-//! and provides [`ResidualBlock::forward`].
-//!
-//! [`ResidualBlock`] can also be constructed via:
-//! * [`From<BasicBlock<B>>`](`BasicBlock`),
-//! * [`From<BottleneckBlock<B>>`](`BottleneckBlock`).
 
 use burn::{
     nn::{
@@ -273,6 +252,9 @@ impl<B: Backend> ModuleInit<B, ResidualBlock<B>> for ResidualBlockStructureConfi
 /// a [`BottleneckBlock`], letting a stage hold a homogeneous list of blocks.
 /// Configure via [`ResidualBlockContractConfig`], call `.init(device)` to
 /// build, then [`ResidualBlock::forward`] to apply.
+///
+/// A block built on its own converts with `From`: from a [`BasicBlock`] or
+/// a [`BottleneckBlock`].
 ///
 /// Implements [`ResidualBlockMeta`].
 ///

@@ -29,8 +29,9 @@ use crate::{
 
 /// Config for [`ConwayLife2DState`]
 ///
-/// Specifies the `[H, W]` board shape. Call `.init(device)` to build a
-/// zeroed [`ConwayLife2DState`] module, which can then be seeded and stepped.
+/// Specifies the `[H, W]` board shape, halo included: the torus is the
+/// `[H-2, W-2]` interior. Call `.init(device)` to build an all-dead
+/// [`ConwayLife2DState`], which can then be seeded and stepped.
 #[derive(Config, Debug)]
 pub struct ConwayLife2DConfig {
     /// The shape of the board.
@@ -38,7 +39,7 @@ pub struct ConwayLife2DConfig {
 }
 
 impl ConwayLife2DConfig {
-    /// Initializes a [`ConwayLife2DState`] module.
+    /// Initializes an all-dead [`ConwayLife2DState`] on `device`.
     pub fn init<B: Backend>(
         self,
         device: &B::Device,
@@ -50,12 +51,18 @@ impl ConwayLife2DConfig {
     }
 }
 
-/// State module for Conway's Game of Life.
+/// The board of a 2D Game of Life.
 ///
-/// Holds the toroidal `[H, W]` boolean board. Construct it from a
-/// [`ConwayLife2DConfig`] via `.init(device)`, optionally seed it with
-/// [`ConwayLife2DState::fuzz`], then call [`ConwayLife2DState::step`] to
-/// advance the simulation one wrapped generation at a time.
+/// Holds the `[H, W]` boolean board: a `[H-2, W-2]` torus inside a
+/// one-cell halo, which each step rewrites from the opposite edges.
+/// Construct it from a [`ConwayLife2DConfig`] via `.init(device)`,
+/// optionally seed it with [`ConwayLife2DState::fuzz`] or
+/// [`write_slice`](Self::write_slice), then call
+/// [`ConwayLife2DState::step`] to advance the simulation one wrapped
+/// generation at a time, by the fixed B3/S23 rule.
+///
+/// A plain struct, not a burn `Module`: move it to another device by
+/// moving its `state` tensor.
 ///
 /// Built by [`ConwayLife2DConfig`].
 pub struct ConwayLife2DState<B: Backend> {
