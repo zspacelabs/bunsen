@@ -19,12 +19,14 @@ use crate::errors::{
 ///
 /// # Errors
 ///
-/// [`BunsenError::Invalid`] if `prob` is below `0.0` or above `1.0`.
+/// [`BunsenError::Invalid`] if `prob` is below `0.0`, above `1.0`, or NaN.
 ///
 /// [errors convention]: crate::errors#convention-try_x-and-x
 #[inline]
 pub fn try_probability<F: Float + Debug>(prob: F) -> BunsenResult<F> {
-    if prob < F::zero() || prob > F::one() {
+    // Not `prob < 0 || prob > 1`: both are false for NaN.
+    let in_range = prob >= F::zero() && prob <= F::one();
+    if !in_range {
         Err(BunsenError::Invalid(format!(
             "probability must be in [0.0, 1.0]: {prob:?}"
         )))
@@ -39,7 +41,8 @@ pub fn try_probability<F: Float + Debug>(prob: F) -> BunsenResult<F> {
 ///
 /// # Panics
 ///
-/// With the [`try_probability`] error's message, if `prob` is out of range.
+/// With the [`try_probability`] error's message, if `prob` is out of range
+/// or NaN.
 #[inline]
 pub fn expect_probability<F: Float + Debug>(prob: F) -> F {
     try_probability(prob).ok_or_panic()
@@ -70,5 +73,23 @@ mod tests {
     #[test]
     fn test_probability_panic() {
         expect_probability(-1.0);
+    }
+
+    #[test]
+    fn test_probability_rejects_nan() {
+        assert!(matches!(
+            try_probability(f32::NAN),
+            Err(BunsenError::Invalid(_))
+        ));
+        assert!(matches!(
+            try_probability(f64::NAN),
+            Err(BunsenError::Invalid(_))
+        ));
+    }
+
+    #[should_panic(expected = "probability must be in [0.0, 1.0]: NaN")]
+    #[test]
+    fn test_expect_probability_panics_on_nan() {
+        expect_probability(f64::NAN);
     }
 }
