@@ -9,6 +9,12 @@ use serde::{
     Serialize,
 };
 
+use crate::errors::{
+    BunsenError,
+    BunsenResult,
+    WithOkOrPanic,
+};
+
 /// The relaxation operator for
 /// [`bgk_collision`](`super::collision::bgk_collision`).
 ///
@@ -94,19 +100,36 @@ pub enum RelaxationParam {
 }
 
 impl RelaxationParam {
-    /// Validates the relaxation; or panic.
-    pub fn validate(&self) {
-        match self {
-            RelaxationParam::Omega(omega) => {
-                assert!(
-                    (0.0..=2.0).contains(omega),
-                    "omega ({omega}) must be in [0, 2.0] range"
-                );
+    /// Checks that the relaxation is in range: `omega` in `[0, 2]`, or `tau`
+    /// at least `0.5`.
+    ///
+    /// The fallible half of a `try_x` / `x` pair; the panicking half is
+    /// [`validate`](Self::validate).
+    ///
+    /// # Errors
+    ///
+    /// [`BunsenError::Invalid`] if the value is out of range, or NaN.
+    pub fn try_validate(&self) -> BunsenResult<()> {
+        match *self {
+            RelaxationParam::Omega(omega) if !(0.0..=2.0).contains(&omega) => Err(
+                BunsenError::Invalid(format!("omega ({omega}) must be in [0, 2.0] range")),
+            ),
+            RelaxationParam::Tau(tau) if !(0.5..).contains(&tau) => {
+                Err(BunsenError::Invalid(format!("tau ({tau}) must be >= 0.5")))
             }
-            RelaxationParam::Tau(tau) => {
-                assert!(*tau >= 0.5, "tau ({tau}) must be >= 0.5");
-            }
+            _ => Ok(()),
         }
+    }
+
+    /// Checks that the relaxation is in range, or panics; the panicking twin
+    /// of [`try_validate`](Self::try_validate).
+    ///
+    /// # Panics
+    ///
+    /// With the [`try_validate`](Self::try_validate) error's message, if the
+    /// value is out of range.
+    pub fn validate(&self) {
+        self.try_validate().ok_or_panic()
     }
 
     /// Returns the relaxation frequency (1/tau), typically in (0, 2).
@@ -148,6 +171,26 @@ mod tests {
         relaxation.validate();
         assert_eq!(relaxation.as_omega_value(), 2.0);
         assert_eq!(relaxation.as_tau_value(), 0.5);
+    }
+
+    /// An out-of-range value is an `Err` from `try_validate`, not a panic.
+    #[test]
+    fn test_try_validate_rejects_out_of_range() {
+        assert_eq!(RelaxationParam::Omega(2.0).try_validate(), Ok(()));
+        assert_eq!(RelaxationParam::Tau(0.5).try_validate(), Ok(()));
+
+        for bad in [
+            RelaxationParam::Omega(2.01),
+            RelaxationParam::Omega(-0.1),
+            RelaxationParam::Omega(f64::NAN),
+            RelaxationParam::Tau(0.49),
+            RelaxationParam::Tau(f64::NAN),
+        ] {
+            assert!(
+                matches!(bad.try_validate(), Err(BunsenError::Invalid(_))),
+                "{bad:?}"
+            );
+        }
     }
 
     #[test]
