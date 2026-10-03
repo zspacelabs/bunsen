@@ -310,11 +310,14 @@ impl<'a> Display for MatcherDisplayAdapter<'a> {
 /// `Shape rank R != pattern dim count N` (no `...`) or
 /// `Shape rank R < non-ellipsis pattern term count N`.
 ///
-/// Two failures don't use this format. A binding whose name is not in the
+/// Three failures don't use this format. A binding whose name is not in the
 /// pattern fails with `The key "k" is not indexed in the contract:`, then the
 /// pattern, and no location; the `try_` methods return it as `Err`. An unpack
 /// key that is not in the pattern panics with the same message, even from
-/// [`try_unpack_shape`](Self::try_unpack_shape).
+/// [`try_unpack_shape`](Self::try_unpack_shape). A shape of `i32`s with a
+/// negative size panics with `Shape [-1, 3] has a negative size` (for that
+/// shape) while it converts to a [`ShapeView`], before any matching, even
+/// from a `try_` method.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ShapeContract<'a> {
     /// Every name in the pattern, params and labels, sorted.
@@ -432,7 +435,8 @@ impl<'a> ShapeContract<'a> {
     ///
     /// If the shape doesn't match, with the message described under
     /// [Error messages](Self#error-messages), located at the caller. Also if
-    /// `env` binds a name that is not in the pattern.
+    /// `env` binds a name that is not in the pattern, or if an `i32` shape has
+    /// a negative size ([`ShapeView`]).
     ///
     /// # Examples
     ///
@@ -490,6 +494,11 @@ impl<'a> ShapeContract<'a> {
     /// [Error messages](Self#error-messages) if the shape doesn't match, and
     /// with the unknown-key message if `env` binds a name that is not in the
     /// pattern.
+    ///
+    /// # Panics
+    ///
+    /// Even though this is the `try_` form: if an `i32` shape has a negative
+    /// size ([`ShapeView`]).
     ///
     /// # Examples
     ///
@@ -583,7 +592,8 @@ impl<'a> ShapeContract<'a> {
     ///
     /// If the shape doesn't match, with the message described under
     /// [Error messages](Self#error-messages), located at the caller. Also if
-    /// a key or a binding names something that is not in the pattern.
+    /// a key or a binding names something that is not in the pattern, or if
+    /// an `i32` shape has a negative size ([`ShapeView`]).
     ///
     /// # Examples
     ///
@@ -669,7 +679,8 @@ impl<'a> ShapeContract<'a> {
     ///
     /// # Panics
     ///
-    /// Even though this is the `try_` form: if a key is not in the pattern.
+    /// Even though this is the `try_` form: if a key is not in the pattern, and
+    /// if an `i32` shape has a negative size ([`ShapeView`]).
     ///
     /// # Examples
     ///

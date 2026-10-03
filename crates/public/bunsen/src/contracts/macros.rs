@@ -251,7 +251,8 @@ macro_rules! __define_shape_contract {
 /// If the shape doesn't match, with the message described on
 /// [`ShapeContract`](crate::contracts::ShapeContract#error-messages), located
 /// at the macro call. Also if a binding names something the pattern doesn't
-/// use.
+/// use, or if an `i32` shape has a negative size
+/// ([`ShapeView`](crate::contracts::ShapeView)).
 ///
 /// There is no non-panicking macro form. For a `Result`, define the contract
 /// and call
@@ -388,7 +389,8 @@ macro_rules! __assert_shape_contract_periodically {
 /// If the shape doesn't match, with the message described on
 /// [`ShapeContract`](crate::contracts::ShapeContract#error-messages), located
 /// at the macro call. Also if a key or a binding names something the pattern
-/// doesn't use.
+/// doesn't use, or if an `i32` shape has a negative size
+/// ([`ShapeView`](crate::contracts::ShapeView)).
 ///
 /// There is no non-panicking macro form. For a `Result`, define the contract
 /// and call
