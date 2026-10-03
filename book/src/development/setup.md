@@ -56,6 +56,8 @@ consumer:
   `default-features = false` and adds back only what they use.
 - **`bunsen` with `cache` but not `fetch`.** The disk cache must compile
   without the network code.
+- **`bunsen` with `train` but not `reflection`.** The group optimizers must
+  compile without the reflection API they are usually paired with.
 - **Each published crate on its own.** One `cargo check` per manifest, which
   is what `cargo publish` does. Several `-p` flags in one command would
   unify again.

@@ -117,6 +117,9 @@ jobs:
       - name: Cache without fetch.
         run: cargo check -p bunsen --no-default-features --features cache
 
+      - name: Train without reflection.
+        run: cargo check -p bunsen --no-default-features --features train
+
       # `cargo publish` verifies each crate outside the workspace, with only
       # its own dependencies. Every other step here builds several crates at
       # once, and Cargo unifies their features, so a crate that forgets a

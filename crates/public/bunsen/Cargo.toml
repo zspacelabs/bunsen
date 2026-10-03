@@ -68,7 +68,6 @@ std = [
 reflection = [
     "std",
     "dep:xot",
-    "dep:paste",
     "dep:xee-xpath",
     "dep:spanned_error_message",
 ]
@@ -98,6 +97,7 @@ train = [
     "std",
     "burn/train",
     "dep:hashbrown",
+    "dep:paste",
 ]
 
 ## Enable the disk cache: where files land (`BunsenDiskCache` and its paths),
