@@ -263,8 +263,7 @@ pub fn bundled_whisper_table() -> crate::data::pretrained::PretrainedTable {
 /// The data layer's [`HfProvider`] serves the last: a repo's
 /// `transformers` safetensors checkpoint, one file or shards, under
 /// [`CHECKPOINT`]. The factory over these is
-/// [`default_whisper_factory`](super::default_whisper_factory), with the
-/// `store_pytorch` and `cache` features.
+/// [`default_whisper_factory`](super::default_whisper_factory).
 pub fn default_whisper_providers() -> Vec<Arc<dyn PretrainedProvider>> {
     let mut providers: Vec<Arc<dyn PretrainedProvider>> =
         vec![Arc::new(WELL_KNOWN_TABLE.to_table())];

@@ -7,7 +7,7 @@
 //! depth of each stage, and whether its blocks are basic or bottleneck,
 //! name the variant, `resnet18` to `resnet152`.
 //!
-//! [`pretrained`] (feature `cache`) turns names into loaded models.
+//! [`pretrained`] turns names into loaded models.
 //! [`RESNET_PREFABS`](pretrained::RESNET_PREFABS) names the six
 //! geometries, `resnet18` to `resnet152`, and
 //! [`default_resnet_factory`](pretrained::default_resnet_factory) is the
@@ -20,7 +20,7 @@
 //! (fetching needs the `fetch` feature):
 //!
 //! ```rust,no_run
-//! # #[cfg(feature = "fetch")] {
+//! # #[cfg(all(feature = "store_pytorch", feature = "cache", feature = "fetch"))] {
 //! use std::sync::Arc;
 //!
 //! use bunsen::{
@@ -101,7 +101,6 @@
 //! * anti-aliasing
 //! * block attention
 
-#[cfg(feature = "cache")]
 pub mod pretrained;
 
 pub mod blocks;

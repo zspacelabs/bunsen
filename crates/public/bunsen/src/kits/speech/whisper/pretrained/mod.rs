@@ -2,8 +2,9 @@
 //!
 //! From a model's name to a loaded model, through the data layer's
 //! pretrained machinery ([`data::pretrained`](crate::data::pretrained)).
-//! The tables and maps are always here; the factory and the hook need the
-//! `store_pytorch` and `cache` features.
+//! The prefab map is always here: a geometry needs no features. The tables,
+//! the maps, the hook and the factory need the `store_pytorch` and `cache`
+//! features.
 //!
 //! # The index
 //!
@@ -96,20 +97,24 @@
 mod construct;
 #[cfg(all(feature = "store_pytorch", feature = "cache"))]
 mod factory;
+#[cfg(all(feature = "store_pytorch", feature = "cache"))]
 mod maps;
 mod prefabs;
+#[cfg(all(feature = "store_pytorch", feature = "cache"))]
 mod providers;
-#[cfg(feature = "cache")]
+#[cfg(all(feature = "store_pytorch", feature = "cache"))]
 mod vocab;
 
 #[cfg(all(feature = "store_pytorch", feature = "cache"))]
 pub use construct::*;
 #[cfg(all(feature = "store_pytorch", feature = "cache"))]
 pub use factory::*;
+#[cfg(all(feature = "store_pytorch", feature = "cache"))]
 pub use maps::*;
 pub use prefabs::*;
+#[cfg(all(feature = "store_pytorch", feature = "cache"))]
 pub use providers::*;
-#[cfg(feature = "cache")]
+#[cfg(all(feature = "store_pytorch", feature = "cache"))]
 pub use vocab::*;
 
 #[cfg(feature = "store_pytorch")]

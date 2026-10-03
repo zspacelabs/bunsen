@@ -547,7 +547,7 @@ impl<B: Backend> ResNet<B> {
     }
 
     /// Loads weights from a `PyTorch` weights path.
-    #[cfg(feature = "store")]
+    #[cfg(feature = "store_pytorch")]
     pub fn load_pytorch_weights(
         mut self,
         path: impl Into<std::path::PathBuf>,
@@ -729,7 +729,7 @@ mod tests {
 
     /// Fetches a checkpoint through the kit's factory and reads it into
     /// its prefab's model.
-    #[cfg(all(feature = "store", feature = "fetch"))]
+    #[cfg(all(feature = "store_pytorch", feature = "cache", feature = "fetch"))]
     fn test_load_pytorch<B: Backend>(spec: &str) -> BunsenResult<()> {
         use crate::{
             data::pretrained::{
@@ -748,14 +748,14 @@ mod tests {
 
     #[test]
     #[serial]
-    #[cfg(all(feature = "store", feature = "fetch"))]
+    #[cfg(all(feature = "store_pytorch", feature = "cache", feature = "fetch"))]
     fn test_load_pytorch_prefab() -> BunsenResult<()> {
         test_load_pytorch::<PerformanceBackend>("torchvision/resnet18")
     }
 
     #[test]
     #[serial]
-    #[cfg(all(feature = "store", feature = "fetch"))]
+    #[cfg(all(feature = "store_pytorch", feature = "cache", feature = "fetch"))]
     fn test_load_pytorch_prefab_cuda() -> BunsenResult<()> {
         test_load_pytorch::<PerformanceBackend>("torchvision/resnet34")
     }
