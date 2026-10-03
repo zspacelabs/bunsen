@@ -352,23 +352,24 @@ impl<B: Backend> NanoChatGpt<B> {
     /// `softcap * tanh(logits / softcap)`.
     ///
     /// # Panics
-    /// When `T` is longer than the rotary table, `max_seq_len`.
+    /// When the step runs past the rotary table: when the cache's position
+    /// (0 without a cache) plus `T` exceeds `max_seq_len`.
     pub fn forward(
         &self,
         idx: Tensor<B, 2, Int>,
         kv_cache: &mut Option<&mut KVCache<B>>,
     ) -> Tensor<B, 3> {
         let [b, t] = unpack_shape_contract!(["B", "T"], &idx.dims());
-        assert!(
-            t <= self.r_emb.seq_len(),
-            "Sequence length grew beyond the rotary embeddings cache: {t} > {}",
-            self.r_emb.seq_len()
-        );
 
         let t0 = match kv_cache {
             Some(kv_cache) => kv_cache.pos(),
             None => 0,
         };
+        assert!(
+            t0 + t <= self.r_emb.seq_len(),
+            "Sequence position grew beyond the rotary embeddings table: {t0} + {t} > {}",
+            self.r_emb.seq_len()
+        );
         let r_emb = self.r_emb.clip_range(t0..t0 + t);
 
         let mut x = self.wte.forward(idx);
@@ -549,5 +550,52 @@ mod tests {
         assert_meta_agrees(&direct, &lowered);
         assert_meta_agrees(&structure, &lowered);
         assert_eq!(lowered.n_embed(), 32);
+    }
+
+    /// A tiny model whose rotary table, `max_seq_len`, is 8 positions.
+    fn tiny_gpt<B: Backend>(device: &B::Device) -> NanoChatGpt<B> {
+        let gpt: NanoChatGpt<B> = NanoChatGptContractConfig::new()
+            .with_init_seq_len(4)
+            .with_max_seq_len_factor(2)
+            .with_vocab_size(16)
+            .with_n_layer(2)
+            .with_n_head(2)
+            .with_n_kv_head(2)
+            .with_n_embed(16)
+            .init(device);
+        assert_eq!(gpt.max_seq_len(), 8);
+        gpt
+    }
+
+    /// A cached decode may fill the rotary table exactly.
+    #[test]
+    #[serial]
+    fn test_cached_decode_fills_rotary_table() {
+        type B = PerformanceBackend;
+        let device = default_device();
+        let _memory = DeviceMemoryGuard::<B>::new(&device);
+
+        let gpt = tiny_gpt::<B>(&device);
+        let mut cache = gpt.new_kv_cache(1);
+        gpt.forward(Tensor::zeros([1, 7], &device), &mut Some(&mut cache));
+        let logits = gpt.forward(Tensor::zeros([1, 1], &device), &mut Some(&mut cache));
+        assert_eq!(logits.dims(), [1, 1, 16]);
+        assert_eq!(cache.pos(), 8);
+    }
+
+    /// A cached decode that runs past the rotary table fails at the guard,
+    /// which counts the cache's position, not only the step's length.
+    #[test]
+    #[serial]
+    #[should_panic(expected = "beyond the rotary embeddings table: 8 + 1 > 8")]
+    fn test_cached_decode_past_rotary_table_panics() {
+        type B = PerformanceBackend;
+        let device = default_device();
+        let _memory = DeviceMemoryGuard::<B>::new(&device);
+
+        let gpt = tiny_gpt::<B>(&device);
+        let mut cache = gpt.new_kv_cache(1);
+        gpt.forward(Tensor::zeros([1, 8], &device), &mut Some(&mut cache));
+        gpt.forward(Tensor::zeros([1, 1], &device), &mut Some(&mut cache));
     }
 }
