@@ -7,9 +7,8 @@
 //! corpus nanochat trains on, as a shard-set table.
 //!
 //! This is a work in progress. The model trains from scratch
-//! (`examples/train-chat`); there are no pretrained weights, nothing reads
-//! upstream's checkpoints, and the model departs from upstream in ways
-//! listed under [known issues](#known-issues).
+//! (`examples/train-chat`); there are no pretrained weights, and nothing reads
+//! upstream's checkpoints.
 //!
 //! # Lifecycle
 //!
@@ -49,13 +48,6 @@
 //! parquet shards pinned to one revision of their Hugging Face repository.
 //! `data::shards` fetches and verifies the shards; `examples/train-chat`
 //! binds the set to its data loader.
-//!
-//! # Known issues
-//!
-//! - **No embedding norm.** Upstream normalizes the token embeddings before the
-//!   first block, so its residual stream starts normalized. [`NanoChatGpt`]
-//!   passes the raw embeddings to the first block, which normalizes only its
-//!   sub-layers' inputs.
 //!
 //! # Example
 //!

@@ -48,9 +48,15 @@ use crate::{
         NanoChatGptBlock,
         NanoChatGptBlockConfig,
     },
-    ops::transformers::attention::{
-        KVCache,
-        KVCacheConfig,
+    ops::{
+        norm::{
+            RmsNormOptions,
+            rms_norm,
+        },
+        transformers::attention::{
+            KVCache,
+            KVCacheConfig,
+        },
     },
 };
 
@@ -286,10 +292,12 @@ impl<B: Backend> ModuleInit<B, NanoChatGpt<B>> for NanoChatGptStructureConfig {
 
 /// nanoChat GPT language model.
 ///
-/// A decoder-only transformer: token embedding, a stack of
+/// A decoder-only transformer: token embedding, normalized by a
+/// parameter-free [`rms_norm`] as upstream's is, a stack of
 /// [`NanoChatGptBlock`] layers, a final normalization, and a linear head,
 /// not tied to the embedding, producing softcapped vocabulary logits.
-/// Each block adds its attention and MLP updates to the residual stream.
+/// The normalized embedding starts the residual stream, and each block adds
+/// its attention and MLP updates to it.
 /// Incremental decoding takes a [`KVCache`] the caller holds, from
 /// [`new_kv_cache`](Self::new_kv_cache).
 ///
@@ -372,11 +380,9 @@ impl<B: Backend> NanoChatGpt<B> {
         );
         let r_emb = self.r_emb.clip_range(t0..t0 + t);
 
-        let mut x = self.wte.forward(idx);
-
-        // Note: upstream norms the embedding here, so its residual stream
-        // starts normalized. This port does not; see the kit's known issues.
-        // x = rms_norm(x);
+        // As upstream (`x = norm(wte(idx))`): a parameter-free norm, so the
+        // residual stream starts normalized.
+        let mut x = rms_norm(self.wte.forward(idx), &RmsNormOptions::default());
 
         for block in &self.h {
             x = block.forward(x, &r_emb, kv_cache);
@@ -441,7 +447,13 @@ impl<B: Backend> NanoChatGpt<B> {
 
 #[cfg(test)]
 mod tests {
-    use burn::tensor::Distribution;
+    use burn::{
+        module::Param,
+        tensor::{
+            Distribution,
+            Tolerance,
+        },
+    };
     use serial_test::serial;
 
     use super::*;
@@ -597,5 +609,31 @@ mod tests {
         let mut cache = gpt.new_kv_cache(1);
         gpt.forward(Tensor::zeros([1, 8], &device), &mut Some(&mut cache));
         gpt.forward(Tensor::zeros([1, 1], &device), &mut Some(&mut cache));
+    }
+
+    /// Upstream normalizes the embedding before the first block
+    /// (`x = norm(wte(idx))`), so the first block sees the same input, and the
+    /// logits are the same, whatever the embedding table's scale. Fed a known
+    /// embedding table and the same table times 8, the model must agree.
+    #[test]
+    #[serial]
+    fn test_forward_normalizes_the_embedding() {
+        type B = PerformanceBackend;
+        let device = default_device();
+        let _memory = DeviceMemoryGuard::<B>::new(&device);
+
+        let mut gpt = tiny_gpt::<B>(&device);
+        let table: Tensor<B, 2> = Tensor::random([16, 16], Distribution::Normal(0.0, 1.0), &device);
+        let tokens: Tensor<B, 2, Int> = Tensor::from_data([[3, 1, 4, 1, 5, 9]], &device);
+
+        gpt.wte.weight = Param::from_tensor(table.clone());
+        let logits = gpt.forward(tokens.clone(), &mut None);
+
+        gpt.wte.weight = Param::from_tensor(table.mul_scalar(8.0));
+        let scaled = gpt.forward(tokens, &mut None);
+
+        scaled
+            .into_data()
+            .assert_approx_eq::<f32>(&logits.into_data(), Tolerance::rel_abs(1e-3, 1e-4));
     }
 }
