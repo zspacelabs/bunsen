@@ -47,6 +47,7 @@ use crate::{
     errors::{
         BunsenError,
         BunsenResult,
+        WithOkOrPanic,
     },
     kits::speech::silero_vad::blocks::context::SileroVadContext,
     prelude::TensorOpExt,
@@ -56,7 +57,8 @@ use crate::{
 /// Config.
 ///
 /// Describes the model by its signal: sample rate, frequency bins, and widths.
-/// [`to_stft`](Self::to_stft) refines it into the [`SileroVadStftConfig`]
+/// [`try_to_stft`](Self::try_to_stft) (or its panicking twin,
+/// [`to_stft`](Self::to_stft)) refines it into the [`SileroVadStftConfig`]
 /// policy, which spells out the STFT geometry. It implements
 /// [`ToStructureConfig`], lowering straight to [`SileroVadStructureConfig`]
 /// through that step, and gets [`ModuleInit`] from the trait's blanket impl.
@@ -88,13 +90,27 @@ impl SileroVadSignalConfig {
         Self::new(8000, 65)
     }
 
-    /// Refines this policy to a [`SileroVadStftConfig`].
-    pub fn to_stft(&self) -> SileroVadStftConfig {
+    /// Refines this policy to a [`SileroVadStftConfig`]: an STFT stride of
+    /// `n_freq - 1`, a kernel twice the stride, and input padding of half the
+    /// stride.
+    ///
+    /// # Errors
+    ///
+    /// [`BunsenError::Invalid`] when `n_freq` is below 2, which leaves no
+    /// stride.
+    pub fn try_to_stft(&self) -> BunsenResult<SileroVadStftConfig> {
+        if self.n_freq < 2 {
+            return Err(BunsenError::Invalid(format!(
+                "SileroVad needs at least 2 frequency bins, for an STFT stride (n_freq - 1) above 0; got n_freq = {}",
+                self.n_freq,
+            )));
+        }
+
         let stft_stride = self.n_freq - 1;
         let stft_kernel = stft_stride * 2;
         let input_pad = stft_stride / 2;
 
-        SileroVadStftConfig::new(
+        Ok(SileroVadStftConfig::new(
             self.sample_rate,
             self.n_freq,
             input_pad,
@@ -102,15 +118,31 @@ impl SileroVadSignalConfig {
             stft_stride,
         )
         .with_d_hidden(self.d_hidden)
-        .with_d_bottleneck(self.d_bottleneck)
+        .with_d_bottleneck(self.d_bottleneck))
+    }
+
+    /// Refines this policy to a [`SileroVadStftConfig`]; the panicking twin of
+    /// [`try_to_stft`](Self::try_to_stft).
+    ///
+    /// # Panics
+    ///
+    /// When `n_freq` is below 2.
+    pub fn to_stft(&self) -> SileroVadStftConfig {
+        self.try_to_stft().ok_or_panic()
     }
 }
 
 impl ToStructureConfig for SileroVadSignalConfig {
     type Structure = SileroVadStructureConfig;
 
+    /// Refines through [`try_to_stft`](SileroVadSignalConfig::try_to_stft),
+    /// then lowers the STFT policy.
+    ///
+    /// # Errors
+    ///
+    /// [`BunsenError::Invalid`] when `n_freq` is below 2.
     fn try_to_structure(&self) -> BunsenResult<SileroVadStructureConfig> {
-        self.to_stft().try_to_structure()
+        self.try_to_stft()?.try_to_structure()
     }
 }
 
@@ -961,6 +993,31 @@ mod tests {
             ..SileroVadSignalConfig::standard_16khz().to_structure()
         };
         assert!(matches!(bad.validate(), Err(BunsenError::Invalid(_))));
+    }
+
+    /// With no frequency bins, the STFT stride (`n_freq - 1`) underflows:
+    /// an error from `try_to_stft` and `try_to_structure`, not a panic.
+    #[test]
+    fn test_try_to_structure_rejects_zero_freq_bins() {
+        let signal = SileroVadSignalConfig::new(16000, 0);
+        assert!(matches!(signal.try_to_stft(), Err(BunsenError::Invalid(_))));
+        assert!(matches!(
+            signal.try_to_structure(),
+            Err(BunsenError::Invalid(_))
+        ));
+    }
+
+    /// With one frequency bin, the STFT stride (`n_freq - 1`) is 0: an error
+    /// from `try_to_stft` and `try_to_structure`, not a model whose STFT conv
+    /// panics on its first `forward`.
+    #[test]
+    fn test_try_to_structure_rejects_one_freq_bin() {
+        let signal = SileroVadSignalConfig::new(16000, 1);
+        assert!(matches!(signal.try_to_stft(), Err(BunsenError::Invalid(_))));
+        assert!(matches!(
+            signal.try_to_structure(),
+            Err(BunsenError::Invalid(_))
+        ));
     }
 
     #[test]
