@@ -41,6 +41,7 @@ use crate::{
     errors::{
         BunsenError,
         BunsenResult,
+        WithOkOrPanic,
     },
     kits::images::resnet::{
         RESNET18_BLOCKS,
@@ -58,7 +59,10 @@ use crate::{
         conv::CONV_INTO_RELU_INITIALIZER,
         drop::DropBlockOptions,
     },
-    support::validators::expect_probability,
+    support::validators::{
+        expect_probability,
+        try_probability,
+    },
 };
 
 /// High-level [`ResNet`] model configuration: the policy of `ResNet`'s
@@ -268,32 +272,40 @@ impl ResNetStructureConfig {
     /// scale of 1.0. The other stages get none, and a `drop_prob` of 0
     /// clears every block. On the standard 4-stage net these are stages 3
     /// and 4, the rule of `drop_blocks` and `make_blocks` in timm's
-    /// `resnet.py`, and the one [`ResNet::with_stochastic_drop_block`]
+    /// `resnet.py`, and the one [`ResNet::try_with_stochastic_drop_block`]
     /// applies to a built model.
+    ///
+    /// timm picks stages 3 and 4 by position, so a net without them gets no
+    /// `DropBlock` there. This method takes the last two stages instead,
+    /// which are the same stages on a 4-stage net, and rejects a nonzero
+    /// `drop_prob` on a net with fewer than 2 stages rather than ignore it.
+    ///
+    /// # Errors
+    ///
+    /// [`BunsenError::Invalid`] if `drop_prob` is not a probability, or if
+    /// it is above 0 and the structure has fewer than 2 stages.
+    pub fn try_with_standard_drop_block_prob(
+        self,
+        drop_prob: f64,
+    ) -> BunsenResult<Self> {
+        let options = standard_drop_block_options(drop_prob, self.layers.len())?;
+        Ok(self.with_drop_block_options(options))
+    }
+
+    /// Applies timm's `DropBlock` schedule to every block of the last two
+    /// stages; the panicking twin of
+    /// [`try_with_standard_drop_block_prob`](Self::try_with_standard_drop_block_prob).
     ///
     /// # Panics
     ///
-    /// If `drop_prob` is not a probability.
+    /// If `drop_prob` is not a probability, or if it is above 0 and the
+    /// structure has fewer than 2 stages.
     pub fn with_standard_drop_block_prob(
         self,
         drop_prob: f64,
     ) -> Self {
-        let drop_prob = expect_probability(drop_prob);
-        let k = self.layers.len();
-        let mut blocks = vec![None; k];
-        if drop_prob > 0.0 {
-            blocks[k - 2] = DropBlockOptions::default()
-                .with_drop_prob(drop_prob)
-                .with_block_size(5)
-                .with_gamma_scale(0.25)
-                .into();
-            blocks[k - 1] = DropBlockOptions::default()
-                .with_drop_prob(drop_prob)
-                .with_block_size(3)
-                .with_gamma_scale(1.0)
-                .into();
-        }
-        self.with_drop_block_options(blocks)
+        self.try_with_standard_drop_block_prob(drop_prob)
+            .ok_or_panic()
     }
 
     /// Applies timm's stochastic-depth schedule to every block.
@@ -371,6 +383,42 @@ fn stochastic_depth_rate(
         return 0.0;
     }
     drop_path_rate * (net_block_idx as f64) / ((net_num_blocks - 1) as f64)
+}
+
+/// The `DropBlock` schedule of timm's `drop_blocks` (`resnet.py`), one entry
+/// per stage of a net of `num_stages`: the second-to-last stage gets a block
+/// size of 5 and a gamma scale of 0.25, the last a block size of 3 and a
+/// gamma scale of 1.0, and the others none. A `drop_prob` of 0 gives none
+/// anywhere.
+///
+/// # Errors
+///
+/// [`BunsenError::Invalid`] if `drop_prob` is not a probability, or if it is
+/// above 0 and `num_stages` is below 2.
+fn standard_drop_block_options(
+    drop_prob: f64,
+    num_stages: usize,
+) -> BunsenResult<Vec<Option<DropBlockOptions>>> {
+    let drop_prob = try_probability(drop_prob)?;
+    let mut options = vec![None; num_stages];
+    if drop_prob > 0.0 {
+        if num_stages < 2 {
+            return Err(BunsenError::Invalid(format!(
+                "the standard DropBlock schedule needs at least 2 stages, for its last two; got {num_stages}"
+            )));
+        }
+        options[num_stages - 2] = DropBlockOptions::default()
+            .with_drop_prob(drop_prob)
+            .with_block_size(5)
+            .with_gamma_scale(0.25)
+            .into();
+        options[num_stages - 1] = DropBlockOptions::default()
+            .with_drop_prob(drop_prob)
+            .with_block_size(3)
+            .with_gamma_scale(1.0)
+            .into();
+    }
+    Ok(options)
 }
 
 impl<B: Backend> ModuleInit<B, ResNet<B>> for ResNetStructureConfig {
@@ -610,32 +658,35 @@ impl<B: Backend> ResNet<B> {
     /// clears every block. On the standard 4-stage net these are stages 3
     /// and 4, the rule of `drop_blocks` and `make_blocks` in timm's
     /// `resnet.py`, and the one
-    /// [`ResNetStructureConfig::with_standard_drop_block_prob`] applies to a
-    /// structure.
+    /// [`ResNetStructureConfig::try_with_standard_drop_block_prob`] applies
+    /// to a structure, which also says why a net with fewer than 2 stages is
+    /// an error.
+    ///
+    /// # Errors
+    ///
+    /// [`BunsenError::Invalid`] if `drop_prob` is not a probability, or if
+    /// it is above 0 and the model has fewer than 2 stages.
+    pub fn try_with_stochastic_drop_block(
+        self,
+        drop_prob: f64,
+    ) -> BunsenResult<Self> {
+        let options = standard_drop_block_options(drop_prob, self.layers.len())?;
+        Ok(self.with_drop_block_options(options))
+    }
+
+    /// Applies timm's `DropBlock` schedule to every block of the last two
+    /// stages; the panicking twin of
+    /// [`try_with_stochastic_drop_block`](Self::try_with_stochastic_drop_block).
     ///
     /// # Panics
     ///
-    /// If `drop_prob` is not a probability.
+    /// If `drop_prob` is not a probability, or if it is above 0 and the model
+    /// has fewer than 2 stages.
     pub fn with_stochastic_drop_block(
         self,
         drop_prob: f64,
     ) -> Self {
-        let drop_prob = expect_probability(drop_prob);
-        let k = self.layers.len();
-        let mut blocks = vec![None; k];
-        if drop_prob > 0.0 {
-            blocks[k - 2] = DropBlockOptions::default()
-                .with_drop_prob(drop_prob)
-                .with_block_size(5)
-                .with_gamma_scale(0.25)
-                .into();
-            blocks[k - 1] = DropBlockOptions::default()
-                .with_drop_prob(drop_prob)
-                .with_block_size(3)
-                .with_gamma_scale(1.0)
-                .into();
-        }
-        self.with_drop_block_options(blocks)
+        self.try_with_stochastic_drop_block(drop_prob).ok_or_panic()
     }
 
     /// Applies a mapping over layers.
@@ -1000,5 +1051,41 @@ mod tests {
         let model = model.with_stochastic_drop_block(0.1);
 
         assert_eq!(module_drop_blocks(&model), timm_drop_blocks_2222_at_0_1());
+    }
+
+    /// With fewer than 2 stages there is no second-to-last stage for the
+    /// `DropBlock` schedule: a nonzero rate is an error from both `try_`
+    /// forms, not an underflow. A rate of 0 places nothing, and is fine.
+    #[test]
+    fn test_try_drop_block_schedules_reject_one_stage() {
+        let structure = ResNetContractConfig::new(vec![2], 10)
+            .with_stem_width(8)
+            .to_structure();
+        let device: burn::prelude::Device<CpuBackend> = Default::default();
+        let model: ResNet<CpuBackend> = structure.init(&device);
+
+        assert!(matches!(
+            structure.clone().try_with_standard_drop_block_prob(0.1),
+            Err(BunsenError::Invalid(_))
+        ));
+        assert!(matches!(
+            model.clone().try_with_stochastic_drop_block(0.1),
+            Err(BunsenError::Invalid(_))
+        ));
+
+        let structure = structure.try_with_standard_drop_block_prob(0.0).unwrap();
+        assert_eq!(structure_drop_blocks(&structure), vec![None, None]);
+        let model = model.try_with_stochastic_drop_block(0.0).unwrap();
+        assert_eq!(module_drop_blocks(&model), vec![None, None]);
+    }
+
+    /// The panicking twin names the problem; it does not underflow.
+    #[test]
+    #[should_panic(expected = "at least 2 stages")]
+    fn test_drop_block_schedule_panics_on_one_stage() {
+        let _ = ResNetContractConfig::new(vec![2], 10)
+            .with_stem_width(8)
+            .to_structure()
+            .with_standard_drop_block_prob(0.1);
     }
 }
