@@ -518,13 +518,21 @@ impl<B: Backend> SileroVad<B> {
         Tensor::zeros([2, batch, self.d_hidden()], device)
     }
 
-    /// Construct an initial continuation context.
+    /// Construct an initial continuation context: a zero tail of
+    /// `context_size` samples per row, and a zeroed state.
+    ///
+    /// # Panics
+    ///
+    /// When `context_size` is 0;
+    /// [`SileroVadContextConfig::try_init`](super::SileroVadContextConfig::try_init)
+    /// reports that as an error instead.
     pub fn init_context(
         &self,
         batch: usize,
         context_size: usize,
         device: &B::Device,
     ) -> SileroVadContext<B> {
+        assert_context_size(context_size);
         SileroVadContext {
             sample_rate: self.sample_rate(),
             context: Tensor::zeros([batch, context_size], device),
@@ -543,6 +551,11 @@ impl<B: Backend> SileroVad<B> {
     /// `(probabilities, context)`, with:
     /// * `probabilities` : `[steps, batch]`
     /// * `context`: continuation context
+    ///
+    /// # Panics
+    ///
+    /// When the context's rate is not the model's, or the context is 0
+    /// samples wide (built by hand: its constructors refuse one).
     pub fn context_forward_sequence(
         &self,
         chunk_seq: Tensor<B, 3>,
@@ -584,6 +597,7 @@ impl<B: Backend> SileroVad<B> {
                 let context_size = context.dims()[1];
             }
         }
+        assert_context_size(context_size);
 
         // [1, batch, context_size]
         let context: Tensor<B, 3> = context.unsqueeze_dim(0);
@@ -627,6 +641,11 @@ impl<B: Backend> SileroVad<B> {
     /// `(probabilities, context)`, with:
     /// * `probabilities` : `[batch]`
     /// * `context`: the continuation context.
+    ///
+    /// # Panics
+    ///
+    /// When the context's rate is not the model's, or the context is 0
+    /// samples wide (built by hand: its constructors refuse one).
     pub fn context_forward(
         &self,
         chunk: Tensor<B, 2>,
@@ -667,6 +686,7 @@ impl<B: Backend> SileroVad<B> {
                 let context_size = context.dims()[1];
             }
         }
+        assert_context_size(context_size);
 
         let ext_input = Tensor::cat(vec![context, chunk], 1);
         let context = ext_input.clone().slice(s![.., -(context_size as isize)..]);
@@ -927,6 +947,16 @@ impl<B: Backend> SileroVad<B> {
         let x = x.mean_dim(1);
         x.squeeze_dim::<1>(1)
     }
+}
+
+/// Refuses a zero-width context. Its tail slice, `-(0)..`, would take the
+/// whole input, so each chunk after the first would be prefixed with all of
+/// the one before.
+fn assert_context_size(context_size: usize) {
+    assert!(
+        context_size > 0,
+        "a SileroVadContext needs a context_size above 0; got 0"
+    );
 }
 
 #[cfg(test)]
@@ -1302,5 +1332,59 @@ mod tests {
     fn test_sequence_matches_stepwise_autodiff() {
         type F = <B as BackendTypes>::FloatElem;
         check_sequence_matches_stepwise::<burn::backend::Autodiff<B>, F>();
+    }
+
+    /// A context of width 0, built by hand: `init_context` refuses one.
+    fn zero_width_context(
+        model: &SileroVad<B>,
+        device: &<B as BackendTypes>::Device,
+    ) -> SileroVadContext<B> {
+        SileroVadContext {
+            sample_rate: model.sample_rate(),
+            context: Tensor::zeros([1, 0], device),
+            state: model.init_state(1, device),
+        }
+    }
+
+    /// A zero `context_size` is refused when the context is built. Its tail
+    /// slice, `-(0)..`, is the whole input: each chunk after the first would
+    /// get the entire previous chunk as context.
+    #[test]
+    #[serial_test::serial]
+    #[should_panic(expected = "context_size above 0")]
+    fn test_init_context_refuses_zero_width() {
+        let device = default_device();
+        let model: SileroVad<B> = SileroVadSignalConfig::standard_16khz()
+            .to_structure()
+            .init(&device);
+        let _context = model.init_context(1, 0, &device);
+    }
+
+    /// `context_forward` refuses a zero-width context built by hand, rather
+    /// than prefixing the next chunk with the whole of this one.
+    #[test]
+    #[serial_test::serial]
+    #[should_panic(expected = "context_size above 0")]
+    fn test_context_forward_refuses_a_zero_width_context() {
+        let device = default_device();
+        let model: SileroVad<B> = SileroVadSignalConfig::standard_16khz()
+            .to_structure()
+            .init(&device);
+        let chunk = Tensor::random([1, model.chunk_size()], Distribution::Default, &device);
+        let _ = model.context_forward(chunk, zero_width_context(&model, &device));
+    }
+
+    /// `context_forward_sequence` refuses a zero-width context built by
+    /// hand, saying why; it used to panic inside burn's `unsqueeze_dim`.
+    #[test]
+    #[serial_test::serial]
+    #[should_panic(expected = "context_size above 0")]
+    fn test_context_forward_sequence_refuses_a_zero_width_context() {
+        let device = default_device();
+        let model: SileroVad<B> = SileroVadSignalConfig::standard_16khz()
+            .to_structure()
+            .init(&device);
+        let chunks = Tensor::random([2, 1, model.chunk_size()], Distribution::Default, &device);
+        let _ = model.context_forward_sequence(chunks, zero_width_context(&model, &device));
     }
 }
