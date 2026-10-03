@@ -22,6 +22,7 @@ use super::{
     SAFETENSORS,
     SAFETENSORS_INDEX,
     Source,
+    is_sha256_hex,
 };
 use crate::errors::{
     BunsenError,
@@ -76,7 +77,8 @@ pub struct HfTreeEntry {
 /// The LFS part of a listing entry.
 #[derive(Clone, Debug, Deserialize, PartialEq, Eq)]
 pub struct HfLfs {
-    /// The file's SHA-256, lowercase hex.
+    /// The file's SHA-256 in hex, as the listing spells it (the hub's is
+    /// lowercase); [`HfTreeEntry::sha256`] is the pin made from it.
     pub oid: String,
 
     /// The size in bytes.
@@ -85,10 +87,12 @@ pub struct HfLfs {
 }
 
 impl HfTreeEntry {
-    /// The digest that pins this file, when LFS holds it.
-    pub fn sha256(&self) -> Option<&str> {
-        let oid = self.lfs.as_ref()?.oid.as_str();
-        (oid.len() == 64 && oid.bytes().all(|b| b.is_ascii_hexdigit())).then_some(oid)
+    /// The digest that pins this file, when LFS holds it: its oid, in
+    /// lowercase hex, the one spelling of a digest the cache's pins, paths
+    /// and checks use. An oid that is not 64 hex digits pins nothing.
+    pub fn sha256(&self) -> Option<String> {
+        let oid = self.lfs.as_ref()?.oid.to_ascii_lowercase();
+        is_sha256_hex(&oid).then_some(oid)
     }
 }
 
@@ -330,7 +334,7 @@ impl HfProvider {
         Resource {
             key: key.to_string(),
             file: entry.path.clone(),
-            sha256: entry.sha256().map(str::to_string),
+            sha256: entry.sha256(),
             kind: Some(kind.to_string()),
             namespace: self.name.clone(),
             sources: vec![Source::Url(self.url(org, repo, &entry.path))],
@@ -789,12 +793,33 @@ mod tests {
         let listing: Vec<HfTreeEntry> = serde_json::from_str(json).unwrap();
         assert_eq!(listing.len(), 3);
         assert_eq!(listing[0].sha256(), None);
-        assert_eq!(listing[1].sha256(), Some(TINY_SHA));
+        assert_eq!(listing[1].sha256().as_deref(), Some(TINY_SHA));
         assert_eq!(listing[2].kind, "directory");
         let row = HfProvider::new()
             .row_from_listing("openai/whisper-tiny", &listing)
             .unwrap();
         assert_eq!(row.resources.keys(), ["checkpoint", "config"]);
+    }
+
+    /// A digest's hex case carries nothing, and the cache's pins, paths and
+    /// checks are all lowercase: a listing that spells a digest in
+    /// uppercase pins the file by the same digest, in lowercase.
+    #[test]
+    fn test_an_uppercase_digest_pins_in_lowercase() {
+        let json = format!(
+            r#"[{{"type":"file","size":3,"path":"model.safetensors","lfs":{{"oid":"{}","size":3}}}}]"#,
+            TINY_SHA.to_uppercase()
+        );
+        let listing: Vec<HfTreeEntry> = serde_json::from_str(&json).unwrap();
+        assert_eq!(listing[0].sha256().as_deref(), Some(TINY_SHA));
+        let row = HfProvider::new()
+            .row_from_listing("org/repo", &listing)
+            .unwrap();
+        row.resources.validate().unwrap();
+        assert_eq!(
+            row.resources.get("checkpoint").unwrap().sha256.as_deref(),
+            Some(TINY_SHA)
+        );
     }
 
     /// Through a cache, against a loopback hub: the listing is fetched
