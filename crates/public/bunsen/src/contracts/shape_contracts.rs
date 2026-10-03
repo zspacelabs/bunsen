@@ -43,10 +43,14 @@ pub enum DimMatcher<'a> {
         label_id: Option<usize>,
     },
 
-    /// Matches zero or more dimensions (`...`). A label on it is accepted but
-    /// never bound.
+    /// Matches zero or more dimensions (`...`).
+    ///
+    /// It can't be labelled, because it has no single size to bind:
+    /// `label_id` must be `None`, or [`ShapeContract::new`] panics.
+    /// [`shape_contract!`](crate::contracts::shape_contract!) rejects the label
+    /// at compile time.
     Ellipsis {
-        /// An optional label for the matcher.
+        /// Must be `None`.
         label_id: Option<usize>,
     },
 
@@ -98,6 +102,8 @@ impl<'a> DimMatcher<'a> {
     }
 
     /// Attach a label to the matcher.
+    ///
+    /// [`ShapeContract::new`] rejects a labelled [`DimMatcher::Ellipsis`].
     ///
     /// # Arguments
     ///
@@ -260,12 +266,9 @@ impl<'a> Display for MatcherDisplayAdapter<'a> {
 /// assert_eq!(SQUARE.unpack_shape(&[5, 5], &["n"], &[]), [5]);
 /// ```
 ///
-/// The solver has known gaps:
-///
-/// - a label on `...` is accepted but never bound, so unpacking it panics, even
-///   from [`try_unpack_shape`](Self::try_unpack_shape);
-/// - solutions are not required to be non-negative: `["a", "a" + "b"]` matches
-///   `[5, 3]` with `b = -2`, which unpacks as `-2 as usize`.
+/// The solver has a known gap: solutions are not required to be non-negative.
+/// `["a", "a" + "b"]` matches `[5, 3]` with `b = -2`, which unpacks as
+/// `-2 as usize`.
 ///
 /// # Error messages
 ///
@@ -366,8 +369,8 @@ impl<'a> ShapeContract<'a> {
     ///
     /// # Panics
     ///
-    /// If `terms` holds more than one [`DimMatcher::Ellipsis`]. When the
-    /// contract is a `static`, this is a compile error.
+    /// If `terms` holds more than one [`DimMatcher::Ellipsis`], or a labelled
+    /// one. When the contract is a `static`, this is a compile error.
     ///
     /// # Examples
     ///
@@ -392,7 +395,10 @@ impl<'a> ShapeContract<'a> {
         let mut ellipsis_pos: Option<usize> = None;
 
         while i < terms.len() {
-            if matches!(terms[i], DimMatcher::Ellipsis { .. }) {
+            if let DimMatcher::Ellipsis { label_id } = &terms[i] {
+                if label_id.is_some() {
+                    panic!("Labelled ellipsis in pattern");
+                }
                 match ellipsis_pos {
                     Some(_) => panic!("Multiple ellipses in pattern"),
                     None => ellipsis_pos = Some(i),
@@ -665,8 +671,7 @@ impl<'a> ShapeContract<'a> {
     ///
     /// # Panics
     ///
-    /// Even though this is the `try_` form: if a key is not in the pattern,
-    /// and if a key is the label of `...`, which is never bound.
+    /// Even though this is the `try_` form: if a key is not in the pattern.
     ///
     /// # Examples
     ///
@@ -1028,6 +1033,20 @@ mod tests {
     #[should_panic(expected = "The key \"nope\" is not indexed in the contract:")]
     fn test_unknown_unpack_key_panics_in_try() {
         let _ = WINDOWS.try_unpack_shape(&[8usize, 12, 3], &["nope"], &[]);
+    }
+
+    #[test]
+    #[should_panic(expected = "Labelled ellipsis in pattern")]
+    fn test_new_rejects_labelled_ellipsis() {
+        let terms = [
+            DimMatcher::ellipsis().with_label_id(Some(0)),
+            DimMatcher::expr(DimExpr::Param { id: 1 }),
+        ];
+        let contract = ShapeContract::new(&["rest", "x"], &terms);
+
+        // Without the check in `new`, `rest` is never bound, and unpacking it
+        // panics, even from the `try_` form.
+        let _ = contract.try_unpack_shape(&[2usize, 3, 4], &["rest"], &[]);
     }
 
     #[test]

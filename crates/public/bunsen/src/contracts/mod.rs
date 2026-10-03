@@ -47,8 +47,8 @@
 //!   index of every name the pattern uses.
 //! - A [`DimMatcher`] matches one dimension of any size ([`DimMatcher::Any`],
 //!   `_`), a run of dimensions ([`DimMatcher::Ellipsis`], `...`), or one
-//!   dimension against an expression ([`DimMatcher::Expr`]). Any of them can
-//!   carry a label.
+//!   dimension against an expression ([`DimMatcher::Expr`]). `_` and
+//!   expressions can carry a label.
 //! - A [`DimExpr`] is an integer expression over named params and constants.
 //!   Matching it against a dimension size checks it, or solves it for one
 //!   unknown param.

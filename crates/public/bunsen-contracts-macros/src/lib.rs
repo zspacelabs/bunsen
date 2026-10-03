@@ -65,11 +65,13 @@ fn parse_shape_contract_terms(input: ParseStream) -> SynResult<ShapeContractAST>
 /// Parse a single contract dim term from tokens.
 fn parse_dim_matcher_tokens(input: ParseStream) -> SynResult<DimMatcherAST> {
     let mut label = None;
+    let mut label_span = None;
 
     // peek 2: ["name" =]
     if input.peek(LitStr) && input.peek2(Token![=]) {
         let lit: LitStr = input.parse()?;
         label = Some(lit.value());
+        label_span = Some(lit.span());
         input.parse::<Token![=]>()?;
     }
 
@@ -82,6 +84,13 @@ fn parse_dim_matcher_tokens(input: ParseStream) -> SynResult<DimMatcherAST> {
     // Check for ellipsis "..."
     if input.peek(Token![...]) {
         input.parse::<Token![...]>()?;
+        if let Some(span) = label_span {
+            // A label names one size; `...` has none to bind.
+            return Err(syn::Error::new(
+                span,
+                "`...` can't be labelled: it matches a run of dimensions, not one size",
+            ));
+        }
         return Ok(DimMatcherAST::Ellipsis { label });
     }
 
@@ -681,6 +690,18 @@ mod tests {
                     DimMatcher::expr(DimExpr::Const { value: 3isize })
                 ],
             )},
+        );
+    }
+
+    #[test]
+    fn test_label_on_ellipsis_is_rejected() {
+        let tokens: proc_macro2::TokenStream = r#""x", "rest" = ..."#.parse().unwrap();
+        let err = syn::parse2::<ContractSyntax>(tokens)
+            .err()
+            .expect("a labelled `...` must not parse");
+        assert_eq!(
+            err.to_string(),
+            "`...` can't be labelled: it matches a run of dimensions, not one size"
         );
     }
 

@@ -35,10 +35,11 @@
 ///   compile error when the contract is a `static`;
 /// - an expression matches one dimension whose size equals its value.
 ///
-/// Any term can carry a label, `"name" = term`. The label is a param, bound
-/// to the size of the dimension the term matched, so `"h" = _` names a
-/// dimension without constraining it. A label on `...` is accepted but never
-/// bound; see [Matching](crate::contracts::ShapeContract#matching).
+/// A `_` or expression term can carry a label, `"name" = term`. The label is a
+/// param, bound to the size of the dimension the term matched, so `"h" = _`
+/// names a dimension without constraining it. `...` can't be labelled: it
+/// matches a run of dimensions, not one size, so `"rest" = ...` is a compile
+/// error.
 ///
 /// An expression is built from:
 ///
@@ -56,7 +57,7 @@
 ///
 /// ```bnf
 /// ShapeContract => DimMatcher { ',' DimMatcher }* ','?
-/// DimMatcher    => { Param '=' }? ( '_' | '...' | Expr )
+/// DimMatcher    => '...' | { Param '=' }? ( '_' | Expr )
 /// Expr          => Term { AddOp Term }*
 /// Term          => Power { MulOp Power }*
 /// Power         => Factor { '^' <integer literal> }?
