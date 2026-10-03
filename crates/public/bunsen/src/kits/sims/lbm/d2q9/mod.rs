@@ -13,7 +13,9 @@
 //! 2. [`init`](LBMD2Q9Config::init) takes a device and a rest density `rho`,
 //!    and builds an [`LBMD2Q9State`] whose interior is fluid at rest at that
 //!    density. The outer ring of the grid starts empty, and the total mass is
-//!    recorded as the target the correction holds.
+//!    recorded as the target the correction holds. Its fallible twin,
+//!    [`try_init`](LBMD2Q9Config::try_init), returns an `Err` for a grid under
+//!    3 cells on a side or a relaxation out of range.
 //! 3. Between steps, the caller may edit the state's public tensors: the
 //!    distribution, `dist`, to add density or flow; the `[H, W]` `solid_mask`,
 //!    to place walls; the per-cell relaxation, `omega`. After an edit that

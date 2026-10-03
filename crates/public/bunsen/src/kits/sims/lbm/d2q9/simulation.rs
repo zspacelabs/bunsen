@@ -26,6 +26,11 @@ use crate::{
         module::HasDType,
         tensor::TensorOpExt,
     },
+    errors::{
+        BunsenError,
+        BunsenResult,
+        WithOkOrPanic,
+    },
     support::geometry::GridShape2D,
 };
 
@@ -37,9 +42,10 @@ pub trait LBMMeta {
 
 /// Config for [`LBMD2Q9State`]
 ///
-/// Specifies the `[HEIGHT, WIDTH]` grid shape and the [`RelaxationParam`]. Call
-/// `.init(device, rho)` to build a relaxed [`LBMD2Q9State`] module ready to be
-/// advanced step by step, one step per
+/// Specifies the `[HEIGHT, WIDTH]` grid shape, at least 3 cells on a side,
+/// and the [`RelaxationParam`]. Call `.init(device, rho)` (or
+/// [`try_init`](Self::try_init)) to build a relaxed [`LBMD2Q9State`] module
+/// ready to be advanced step by step, one step per
 /// [`advance_step`](LBMD2Q9State::advance_step). Implements [`LBMMeta`].
 #[derive(Config, Debug)]
 pub struct LBMD2Q9Config {
@@ -64,16 +70,28 @@ impl LBMD2Q9Config {
     /// empty, and the total mass is recorded as the target the mass
     /// correction holds.
     ///
-    /// # Panics
+    /// The fallible half of a `try_x` / `x` pair; the panicking half is
+    /// [`init`](Self::init).
     ///
-    /// If the relaxation is out of range ([`RelaxationParam::validate`]).
-    pub fn init<B: Backend>(
+    /// # Errors
+    ///
+    /// [`BunsenError::Invalid`] if the grid is under 3 cells on a side, which
+    /// leaves no fluid inside the outer ring, or if the relaxation is out of
+    /// range ([`RelaxationParam::try_validate`]).
+    pub fn try_init<B: Backend>(
         self,
         device: &B::Device,
         rho: f64,
-    ) -> LBMD2Q9State<B> {
+    ) -> BunsenResult<LBMD2Q9State<B>> {
         let height = self.shape.height;
         let width = self.shape.width;
+
+        if height < 3 || width < 3 {
+            return Err(BunsenError::Invalid(format!(
+                "an LBM grid needs at least 3 cells on a side, for a fluid interior inside its outer ring; got height {height}, width {width}"
+            )));
+        }
+        self.relaxation.try_validate()?;
 
         let solid_mask = Tensor::<B, 2>::zeros([height, width], device).bool();
 
@@ -92,12 +110,10 @@ impl LBMD2Q9Config {
         );
         let total_mass = state.clone().sum().into_scalar().elem();
 
-        self.relaxation.validate();
-
         let omega =
             Tensor::<B, 2>::ones([height, width], device) * self.relaxation.as_omega_value();
 
-        LBMD2Q9State {
+        Ok(LBMD2Q9State {
             shape: self.shape,
             step_count: 0,
             dist: state,
@@ -105,7 +121,22 @@ impl LBMD2Q9Config {
             solid_mask,
             lbm_tables,
             omega,
-        }
+        })
+    }
+
+    /// Initializes a [`LBMD2Q9State`] module, or panics; the panicking twin
+    /// of [`try_init`](Self::try_init).
+    ///
+    /// # Panics
+    ///
+    /// With the [`try_init`](Self::try_init) error's message: if the grid is
+    /// under 3 cells on a side, or the relaxation is out of range.
+    pub fn init<B: Backend>(
+        self,
+        device: &B::Device,
+        rho: f64,
+    ) -> LBMD2Q9State<B> {
+        self.try_init(device, rho).ok_or_panic()
     }
 }
 
@@ -390,5 +421,54 @@ mod tests {
         // What `extract()` leaves behind: an empty distribution.
         let _taken = world.dist.extract();
         let _ = world.correction_term();
+    }
+
+    /// A grid under 3 cells on a side has no fluid interior: `init` panics
+    /// with the `try_init` error, rather than underflowing `height - 2`.
+    #[test]
+    #[serial]
+    #[should_panic(expected = "at least 3 cells on a side")]
+    fn test_init_rejects_a_grid_under_3() {
+        type B = PerformanceBackend;
+        let device = default_device();
+        let _memory = DeviceMemoryGuard::<B>::new(&device);
+
+        let _ = LBMD2Q9Config::new(GridShape2D {
+            width: 8,
+            height: 1,
+        })
+        .init::<B>(&device, RHO);
+    }
+
+    /// `try_init` rejects a grid under 3 cells on a side, or an out-of-range
+    /// relaxation, with an `Err`; a 3x3 grid, one fluid cell inside the
+    /// outer ring, builds and steps.
+    #[test]
+    #[serial]
+    fn test_try_init_rejects_bad_configs() {
+        type B = PerformanceBackend;
+        let device = default_device();
+        let _memory = DeviceMemoryGuard::<B>::new(&device);
+
+        for (height, width) in [(0, 8), (1, 8), (2, 8), (8, 2), (2, 2)] {
+            let result =
+                LBMD2Q9Config::new(GridShape2D { width, height }).try_init::<B>(&device, RHO);
+            assert!(
+                matches!(result, Err(BunsenError::Invalid(_))),
+                "{height}x{width}"
+            );
+        }
+
+        let result = LBMD2Q9Config::new(GridShape2D::square(8))
+            .with_relaxation(RelaxationParam::Tau(0.49))
+            .try_init::<B>(&device, RHO);
+        assert!(matches!(result, Err(BunsenError::Invalid(_))));
+
+        let mut world = LBMD2Q9Config::new(GridShape2D::square(3))
+            .with_relaxation(RelaxationParam::Tau(0.9))
+            .try_init::<B>(&device, RHO)
+            .unwrap();
+        world.advance_step();
+        assert_eq!(world.step_count(), 1);
     }
 }
