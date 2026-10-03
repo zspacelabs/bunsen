@@ -3,6 +3,8 @@
 use std::{
     collections::BTreeMap,
     fmt,
+    fs,
+    io::Write,
     path::{
         Path,
         PathBuf,
@@ -30,6 +32,7 @@ use crate::{
     data::cache::{
         BunsenDiskCache,
         BunsenDiskCacheOptions,
+        partial_path,
         verify_sha256,
     },
     errors::{
@@ -248,10 +251,12 @@ fn remote_keys(remote: &[RemotePart]) -> String {
 ///
 /// The digest in the path is the pin. A file at that path was verified when
 /// it was written, so it is trusted on later runs without re-hashing 3 GB,
-/// and a re-pinned model cannot collide with a stale one. The cache trusts
-/// the path whoever wrote it: a download, bundled bytes, or a build script
-/// or a deployment that laid the directory out ahead of time. That is what
-/// makes a populated cache directory a bundle.
+/// and a re-pinned model cannot collide with a stale one. The cache's own
+/// writes go to a `.partial` beside the path and are renamed into place
+/// once checked, so a write cut short leaves nothing there to trust. The
+/// cache trusts the path whoever wrote it: a download, bundled bytes, or a
+/// build script or a deployment that laid the directory out ahead of time.
+/// That is what makes a populated cache directory a bundle.
 ///
 /// A local-dir source is a "trust me" source: its file is used in place,
 /// and hashed first only when
@@ -266,7 +271,8 @@ fn remote_keys(remote: &[RemotePart]) -> String {
 /// 1. the cache path: a file there is [`Provenance::Cached`];
 /// 2. the resource's local sources, in the order listed: a [`Source::LocalDir`]
 ///    that has the file is used in place, and [`Source::Bundled`] bytes are
-///    checked against the digest and written to the cache path;
+///    checked against the digest, written to a `.partial`, and renamed into
+///    place;
 /// 3. only then its [`Source::Url`]s, in the order listed: streamed to a
 ///    `.partial`, checked against the digest when pinned and against the length
 ///    the server sent, and renamed into place. [`load`](Self::load) fetches
@@ -533,8 +539,10 @@ impl PretrainedCache {
         Ok(Local::Remote { dest, urls })
     }
 
-    /// Bytes linked into the binary, checked against the resource's digest
-    /// and written to `dest`, the resource's cache path.
+    /// Bytes linked into the binary, checked against the resource's digest,
+    /// written beside `dest`, the resource's cache path, and renamed into
+    /// place: `dest` holds the whole checked file or nothing, as after a
+    /// download.
     fn write_bundled(
         &self,
         res: &Resource,
@@ -558,9 +566,19 @@ impl PretrainedCache {
             )));
         }
         if let Some(parent) = dest.parent() {
-            std::fs::create_dir_all(parent).map_err(BunsenError::external)?;
+            fs::create_dir_all(parent).map_err(BunsenError::external)?;
         }
-        std::fs::write(dest, bytes).map_err(BunsenError::external)?;
+        let partial = partial_path(dest);
+        let written = (|| -> std::io::Result<()> {
+            let mut file = fs::File::create(&partial)?;
+            file.write_all(bytes)?;
+            file.sync_all()?;
+            fs::rename(&partial, dest)
+        })();
+        if let Err(e) = written {
+            let _ = fs::remove_file(&partial);
+            return Err(BunsenError::External(format!("{}: {e}", dest.display())));
+        }
         Ok(ResolvedResource {
             path: dest.to_path_buf(),
             provenance: Provenance::Bundled,
@@ -791,6 +809,47 @@ mod tests {
         let map = ResourceMap::new("m").with_resource(bundled.clone());
         let loaded = cache.load("kit", &map).unwrap();
         assert_eq!(loaded.get("abc").unwrap().provenance, Provenance::Cached);
+    }
+
+    /// Bundled bytes are written beside the cache path and renamed into
+    /// place, as a download is, so the path holds the whole checked file or
+    /// nothing. What a write cut short at the path would leave is trusted
+    /// on the next run; a link at the path, which a write in place follows
+    /// out of the cache, shows where the bytes go.
+    #[cfg(unix)]
+    #[test]
+    fn test_a_bundled_write_is_renamed_into_place() {
+        let dir = tempfile::tempdir().unwrap();
+        let cache = cache_in(dir.path(), true);
+        let bundled = res(
+            "abc",
+            Some(ABC_SHA256),
+            vec![Source::Bundled(BundledBytes(b"abc"))],
+        );
+        let dest = cache.resource_path("kit", &bundled);
+        fs::create_dir_all(dest.parent().unwrap()).unwrap();
+
+        // A truncated file at the path is the pin's: trusted, not re-hashed.
+        fs::write(&dest, b"ab").unwrap();
+        assert_eq!(
+            cache.resolve("kit", &bundled).unwrap().provenance,
+            Provenance::Cached
+        );
+        fs::remove_file(&dest).unwrap();
+
+        let outside = dir.path().join("outside.bin");
+        std::os::unix::fs::symlink(&outside, &dest).unwrap();
+        assert_eq!(
+            cache.resolve("kit", &bundled).unwrap().provenance,
+            Provenance::Bundled
+        );
+        assert!(
+            !outside.exists(),
+            "the bytes were written through the cache path"
+        );
+        assert!(fs::symlink_metadata(&dest).unwrap().file_type().is_file());
+        assert_eq!(fs::read(&dest).unwrap(), b"abc");
+        assert!(!partial_path(&dest).exists());
     }
 
     #[test]

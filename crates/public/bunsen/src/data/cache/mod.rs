@@ -31,9 +31,10 @@
 //! [trust model](crate::data::pretrained::PretrainedCache#trust-model).
 //!
 //! The file helpers name and place files in the cache: the `.partial`
-//! beside a destination that a download streams to ([`partial_path`]), a
-//! link where a copy would do ([`link_or_copy`]), and the file a URL names
-//! ([`file_name_from_url`]). None of them reaches the network.
+//! beside a destination that a write goes to before it is renamed into
+//! place ([`partial_path`]), a link where a copy would do
+//! ([`link_or_copy`]), and the file a URL names ([`file_name_from_url`]).
+//! None of them reaches the network.
 //!
 //! ## Transfers
 //!
