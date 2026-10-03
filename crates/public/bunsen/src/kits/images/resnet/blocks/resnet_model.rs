@@ -282,20 +282,29 @@ impl ResNetStructureConfig {
         self.with_drop_block_options(blocks)
     }
 
-    /// Updates the config with stochastic depth.
+    /// Applies timm's stochastic-depth schedule to every block.
+    ///
+    /// Block `i` of the net's `n` gets a drop-path probability of
+    /// `drop_path_rate * i / (n - 1)`, counting every block of every stage:
+    /// 0 at the first block, `drop_path_rate` at the last. This is the rule
+    /// of `make_blocks` in timm's `resnet.py`, and the one
+    /// [`ResNet::with_stochastic_path_depth`] applies to a built model.
+    ///
+    /// # Panics
+    ///
+    /// If `drop_path_rate` is not a probability.
     pub fn with_stochastic_depth_drop_path_rate(
         self,
         drop_path_rate: f64,
     ) -> Self {
         let drop_path_rate = expect_probability(drop_path_rate);
 
-        let net_num_blocks = self.layers.iter().map(|b| b.len()).sum::<usize>() - self.layers.len();
+        let net_num_blocks = self.layers.iter().map(|b| b.len()).sum::<usize>();
         let mut net_block_idx = 0;
-        let mut update_drop_path = |idx: usize, block: ResidualBlockStructureConfig| {
-            // stochastic depth linear decay rule
-            let block_dpr = drop_path_rate * (net_block_idx as f64) / ((net_num_blocks - 1) as f64);
+        let mut update_drop_path = |_idx: usize, block: ResidualBlockStructureConfig| {
+            let block_dpr = stochastic_depth_rate(drop_path_rate, net_block_idx, net_num_blocks);
             net_block_idx += 1;
-            if idx != 0 && block_dpr > 0.0 {
+            if block_dpr > 0.0 {
                 block.with_drop_path_prob(block_dpr)
             } else {
                 block
@@ -332,6 +341,22 @@ impl ResNetStructureConfig {
             ..self
         }
     }
+}
+
+/// The stochastic-depth linear decay rule of timm's `make_blocks`
+/// (`resnet.py`): block `i` (`net_block_idx`) of a net of `n`
+/// (`net_num_blocks`) gets a drop-path probability of
+/// `drop_path_rate * i / (n - 1)`. A net of one block gets 0, where timm
+/// divides by zero.
+fn stochastic_depth_rate(
+    drop_path_rate: f64,
+    net_block_idx: usize,
+    net_num_blocks: usize,
+) -> f64 {
+    if net_num_blocks < 2 {
+        return 0.0;
+    }
+    drop_path_rate * (net_block_idx as f64) / ((net_num_blocks - 1) as f64)
 }
 
 impl<B: Backend> ModuleInit<B, ResNet<B>> for ResNetStructureConfig {
@@ -500,7 +525,18 @@ impl<B: Backend> ResNet<B> {
         self
     }
 
-    /// Updates the config with stochastic depth.
+    /// Applies timm's stochastic-depth schedule to every block.
+    ///
+    /// Block `i` of the net's `n` gets a drop-path probability of
+    /// `drop_path_rate * i / (n - 1)`, counting every block of every stage:
+    /// 0 at the first block, `drop_path_rate` at the last. This is the rule
+    /// of `make_blocks` in timm's `resnet.py`, and the one
+    /// [`ResNetStructureConfig::with_stochastic_depth_drop_path_rate`]
+    /// applies to a structure.
+    ///
+    /// # Panics
+    ///
+    /// If `drop_path_rate` is not a probability.
     pub fn with_stochastic_path_depth(
         self,
         drop_path_rate: f64,
@@ -510,8 +546,7 @@ impl<B: Backend> ResNet<B> {
         let net_num_blocks = self.layers.iter().map(|b| b.len()).sum::<usize>();
         let mut net_block_idx = 0;
         let mut update_drop_path = |_idx: usize, block: ResidualBlock<B>| {
-            // stochastic depth linear decay rule
-            let block_dpr = drop_path_rate * (net_block_idx as f64) / ((net_num_blocks - 1) as f64);
+            let block_dpr = stochastic_depth_rate(drop_path_rate, net_block_idx, net_num_blocks);
             net_block_idx += 1;
             if block_dpr > 0.0 {
                 block.with_drop_path_prob(block_dpr)
@@ -753,5 +788,103 @@ mod tests {
             .with_stem_width(8)
             .try_init(&device);
         assert!(matches!(bad, Err(BunsenError::Invalid(_))));
+    }
+
+    /// timm's stochastic-depth schedule (`make_blocks` in `resnet.py`) for a
+    /// `[2, 2, 2, 2]` net at a rate of 0.1: block `i` of the net's `n` gets
+    /// `0.1 * i / (n - 1)`, counting every block, each stage's first
+    /// included. The values are python3's.
+    const TIMM_DROP_PATH_2222_AT_0_1: [f64; 8] = [
+        0.0,
+        0.014285714285714287,
+        0.028571428571428574,
+        0.042857142857142864,
+        0.05714285714285715,
+        0.07142857142857142,
+        0.08571428571428573,
+        0.1,
+    ];
+
+    /// Each block's drop-path probability in a structure, in net order.
+    fn structure_drop_path_probs(structure: &ResNetStructureConfig) -> Vec<f64> {
+        structure
+            .layers
+            .iter()
+            .flat_map(|layer| layer.blocks.iter())
+            .map(|block| match block {
+                ResidualBlockStructureConfig::Basic(config) => config.drop_path_prob,
+                ResidualBlockStructureConfig::Bottleneck(config) => config.drop_path_prob,
+            })
+            .collect()
+    }
+
+    /// Each block's drop-path probability in a module, in net order; 0 for a
+    /// block without a `DropPath`.
+    fn module_drop_path_probs<B: Backend>(model: &ResNet<B>) -> Vec<f64> {
+        model
+            .layers
+            .iter()
+            .flat_map(|layer| layer.blocks.iter())
+            .map(|block| {
+                let drop_path = match block {
+                    ResidualBlock::Basic(block) => &block.drop_path,
+                    ResidualBlock::Bottleneck(block) => &block.drop_path,
+                };
+                drop_path.as_ref().map_or(0.0, |d| d.drop_prob)
+            })
+            .collect()
+    }
+
+    fn assert_rates_eq(
+        actual: &[f64],
+        expected: &[f64],
+    ) {
+        assert_eq!(actual.len(), expected.len(), "{actual:?} != {expected:?}");
+        for (a, e) in actual.iter().zip(expected) {
+            assert!((a - e).abs() < 1e-12, "{actual:?} != {expected:?}");
+        }
+    }
+
+    /// The structure's stochastic-depth schedule is timm's.
+    #[test]
+    fn test_structure_drop_path_schedule_matches_timm() {
+        let structure = ResNetContractConfig::new(vec![2, 2, 2, 2], 10)
+            .with_stem_width(8)
+            .to_structure()
+            .with_stochastic_depth_drop_path_rate(0.1);
+
+        assert_rates_eq(
+            &structure_drop_path_probs(&structure),
+            &TIMM_DROP_PATH_2222_AT_0_1,
+        );
+    }
+
+    /// The module's stochastic-depth schedule is timm's.
+    #[test]
+    fn test_module_drop_path_schedule_matches_timm() {
+        let device: burn::prelude::Device<CpuBackend> = Default::default();
+        let model: ResNet<CpuBackend> = ResNetContractConfig::new(vec![2, 2, 2, 2], 10)
+            .with_stem_width(8)
+            .init(&device);
+        let model = model.with_stochastic_path_depth(0.1);
+
+        assert_rates_eq(&module_drop_path_probs(&model), &TIMM_DROP_PATH_2222_AT_0_1);
+    }
+
+    /// One block per stage: timm gives `[0.0, 0.1]` for two blocks, and both
+    /// schedules agree with it.
+    #[test]
+    fn test_drop_path_schedules_agree_with_one_block_per_stage() {
+        let structure = ResNetContractConfig::new(vec![1, 1], 10)
+            .with_stem_width(8)
+            .to_structure();
+
+        let device: burn::prelude::Device<CpuBackend> = Default::default();
+        let model: ResNet<CpuBackend> = structure.init(&device);
+        let model = model.with_stochastic_path_depth(0.1);
+        assert_rates_eq(&module_drop_path_probs(&model), &[0.0, 0.1]);
+
+        let structure = structure.with_stochastic_depth_drop_path_rate(0.1);
+        assert_rates_eq(&structure_drop_path_probs(&structure), &[0.0, 0.1]);
     }
 }
