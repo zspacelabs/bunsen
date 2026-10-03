@@ -24,8 +24,9 @@ pub trait ConwaySim<B: Backend> {
     /// Returns the device the board is on.
     fn device(&self) -> B::Device;
 
-    /// Adds noise to the board: each cell is hit with probability
-    /// `density`, halo included.
+    /// Adds noise to the board: each interior cell is hit with probability
+    /// `density`. The halo is then rewritten from the interior, so the next
+    /// step wraps.
     ///
     /// The two sims differ in what a hit does: [`ConwayLife2DState`] flips
     /// the cell, and [`ConwayLife3DState`] sets it live.
@@ -41,7 +42,9 @@ pub trait ConwaySim<B: Backend> {
     ///
     /// Computes the next interior from each cell's neighbourhood, then
     /// rewrites the halo from the opposite edges, so the board wraps as a
-    /// torus.
+    /// torus. It reads the halo as it stands, which the sims' own edits keep
+    /// fresh; the [`conway`](super) docs say how to keep it fresh after
+    /// writing `state` directly.
     fn step(&mut self);
 }
 

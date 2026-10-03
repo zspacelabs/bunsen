@@ -38,9 +38,11 @@
 //! [`next_state_wrapped_2d`](ops::next_state_wrapped_2d) and
 //! [`next_state_wrapped_3d`](ops::next_state_wrapped_3d) are the whole
 //! step: the next interior, then a fresh halo. A step reads the halo as it
-//! stands: after a seed or an edit, the first step sees the halo as it was
-//! written rather than as the wrap has it, so a seed that touches an edge
-//! wraps from the second generation on.
+//! stands, so the sims keep it fresh between steps: `fuzz` and
+//! `write_slice` rewrite it after they change the board. A caller who
+//! writes a board's `state` tensor directly must do the same, with
+//! `state.inplace(project_wrapped_toroidal_boarders)`. The rewrite replaces
+//! whatever was written in the halo, so write the interior.
 //!
 //! # Example
 //!
