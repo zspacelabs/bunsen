@@ -58,9 +58,6 @@ use crate::{
 /// [`NanoChatGptContractConfig`].
 pub trait NanoChatGptMeta {
     /// Returns the size of the input and output.
-    ///
-    /// On [`NanoChatGpt`] this returns the vocabulary size today, not the
-    /// embedding width: a known issue, tracked for repair.
     fn n_embed(&self) -> usize;
 
     /// Returns the number of heads.
@@ -312,7 +309,8 @@ pub struct NanoChatGpt<B: Backend> {
 
 impl<B: Backend> NanoChatGptMeta for NanoChatGpt<B> {
     fn n_embed(&self) -> usize {
-        self.wte.weight.dims()[0]
+        // burn's `Embedding` weight is `[n_embedding, d_model]`.
+        self.wte.weight.dims()[1]
     }
 
     fn n_head(&self) -> usize {
@@ -392,9 +390,9 @@ impl<B: Backend> NanoChatGpt<B> {
             .mul_scalar(self.softcap);
 
         assert_shape_contract_periodically!(
-            ["B", "T", "D"],
+            ["B", "T", "V"],
             &logits.dims(),
-            &[("B", b), ("T", t), ("D", self.n_embed())]
+            &[("B", b), ("T", t), ("V", self.wte.weight.dims()[0])]
         );
         logits
     }
@@ -500,10 +498,11 @@ mod tests {
 
         let logits = gpt.forward(input_tokens, &mut Some(&mut kv_cache));
         assert_shape_contract!(
-            ["B", "T", "D"],
+            ["B", "T", "V"],
             &logits.dims(),
-            &[("B", batch_size), ("T", seq_len), ("D", gpt.n_embed())]
+            &[("B", batch_size), ("T", seq_len), ("V", vocab_size)]
         );
+        assert_eq!(gpt.n_embed(), n_embed);
     }
 
     /// Asserts that `a` and `b` answer every [`NanoChatGptMeta`] method alike.
@@ -521,7 +520,8 @@ mod tests {
     }
 
     /// The policy builds the same `NanoChatGpt` through its structure as
-    /// through the blanket `init`.
+    /// through the blanket `init`, and the module reads back the geometry
+    /// its configs declare.
     #[test]
     #[serial]
     fn test_policy_pathways_agree() {
@@ -546,8 +546,8 @@ mod tests {
         let lowered: NanoChatGpt<B> = structure.init(&device);
         let direct: NanoChatGpt<B> = policy.init(&device);
 
-        // Module against module only: `NanoChatGpt::n_embed` reads the
-        // embedding's vocabulary axis, so it disagrees with the configs.
         assert_meta_agrees(&direct, &lowered);
+        assert_meta_agrees(&structure, &lowered);
+        assert_eq!(lowered.n_embed(), 32);
     }
 }

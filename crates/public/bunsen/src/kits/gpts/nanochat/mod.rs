@@ -56,9 +56,6 @@
 //!   first block, so its residual stream starts normalized. [`NanoChatGpt`]
 //!   passes the raw embeddings to the first block, which normalizes only its
 //!   sub-layers' inputs.
-//! - **[`NanoChatGpt`]'s `n_embed()` returns the vocabulary size.** It reads
-//!   the token embedding's first axis, so it disagrees with the configs'
-//!   [`n_embed`](NanoChatGptMeta::n_embed).
 //!
 //! # Example
 //!
