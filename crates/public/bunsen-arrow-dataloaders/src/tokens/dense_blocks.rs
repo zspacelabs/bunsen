@@ -113,9 +113,9 @@ where
 /// staging buffer, then greedily fills rows of length
 /// [`batch_seq_len`](TokenBatchIteratorOptions::batch_seq_len) with the
 /// longest buffered sequence that fits, falling back to the shortest
-/// buffered sequence (truncated) when no buffered sequence fits exactly.
-/// Each placed sequence is bracketed by the configured BOS and EOS marker
-/// tokens.
+/// buffered sequence (truncated) when none fits entirely. This is the
+/// best-fit packing of nanochat's BOS-aligned data loader. Each placed
+/// sequence is bracketed by the configured BOS and EOS marker tokens.
 ///
 /// Output batches are exactly
 /// [`batch_size`](TokenBatchIteratorOptions::batch_size) rows of
@@ -197,7 +197,7 @@ where
 
                     // Option 1: The longest buffer sequence that fits entirely
                     // in the row.
-                    if k <= remaining && (best_fit.is_none() || best_fit.unwrap().1 > k) {
+                    if k <= remaining && (best_fit.is_none() || best_fit.unwrap().1 < k) {
                         best_fit = Some((i, k));
                     }
 
@@ -263,5 +263,47 @@ where
             Ok(Some(batch)) => Some(Ok(batch)),
             Err(err) => Some(Err(err)),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Packs `source`, offered as one source batch, and collects the batches.
+    fn pack(
+        options: TokenBatchIteratorOptions,
+        bos: &[u32],
+        eos: &[u32],
+        source: Vec<Vec<u32>>,
+    ) -> Vec<Vec<Vec<u32>>> {
+        DenseTokenBlockBatcher::new(
+            std::iter::once(Ok(source)),
+            options,
+            bos.to_vec(),
+            eos.to_vec(),
+        )
+        .collect::<ArrowResult<Vec<_>>>()
+        .unwrap()
+    }
+
+    #[test]
+    fn test_packs_longest_fitting_sequence_first() {
+        let options = TokenBatchIteratorOptions {
+            batch_size: 1,
+            batch_seq_len: 6,
+            min_buffer: 3,
+        };
+
+        // Longest fit first: [3; 4] (2 left), then [2; 2]; [1] is left over.
+        // Shortest fit first would give [1], [2, 2], then [3, 3, 3] cut from
+        // [3; 4].
+        let batches = pack(
+            options,
+            &[],
+            &[],
+            vec![vec![1], vec![2, 2], vec![3, 3, 3, 3]],
+        );
+        assert_eq!(batches, vec![vec![vec![3, 3, 3, 3, 2, 2]]]);
     }
 }
