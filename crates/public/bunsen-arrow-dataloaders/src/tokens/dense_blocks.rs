@@ -116,6 +116,8 @@ where
 /// buffered sequence (truncated) when none fits entirely. This is the
 /// best-fit packing of nanochat's BOS-aligned data loader. Each placed
 /// sequence is bracketed by the configured BOS and EOS marker tokens.
+/// The BOS counts toward a sequence's fit; at the end of a row, a BOS or EOS
+/// that does not fit is cut like a sequence.
 ///
 /// Output batches are exactly
 /// [`batch_size`](TokenBatchIteratorOptions::batch_size) rows of
@@ -183,7 +185,10 @@ where
                     break;
                 }
 
-                row.extend(&self.bos_seq);
+                // The BOS is counted at its full length: one that does not fit
+                // the rest of the row is cut, like a sequence or an EOS.
+                let remaining = row_capacity - row.len();
+                row.extend(&self.bos_seq[..min(remaining, self.bos_seq.len())]);
 
                 let remaining = row_capacity - row.len();
 
@@ -305,5 +310,19 @@ mod tests {
             vec![vec![1], vec![2, 2], vec![3, 3, 3, 3]],
         );
         assert_eq!(batches, vec![vec![vec![3, 3, 3, 3, 2, 2]]]);
+    }
+
+    #[test]
+    fn test_multi_token_bos_never_overflows_a_row() {
+        let options = TokenBatchIteratorOptions {
+            batch_size: 1,
+            batch_seq_len: 4,
+            min_buffer: 1,
+        };
+
+        // `[9, 9, 1]` leaves one slot, too few for the two-token BOS: the
+        // next sequence's BOS is cut to fit, and the row is full.
+        let batches = pack(options, &[9, 9], &[], vec![vec![1], vec![1], vec![1]]);
+        assert_eq!(batches, vec![vec![vec![9, 9, 1, 9]]]);
     }
 }
