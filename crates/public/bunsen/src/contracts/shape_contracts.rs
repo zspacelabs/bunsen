@@ -213,10 +213,10 @@ impl<'a> Display for MatcherDisplayAdapter<'a> {
 /// 3. An expression is evaluated with the names bound so far. If they are all
 ///    bound, its value must equal the size. If exactly one occurrence of a
 ///    param is unbound, the expression is solved for it, and the solution is
-///    bound; it must be an integer, and the only one. More than one unbound
-///    occurrence fails: `"a" * "a"` counts as two, while `"a" ^ 2` is one. A
-///    product whose bound factors are 0 can't be solved: if `b` is 0, every `t`
-///    makes `"b" * "t"` equal 0, so the caller must bind `t`.
+///    bound; it must be a non-negative integer, and the only one. More than one
+///    unbound occurrence fails: `"a" * "a"` counts as two, while `"a" ^ 2` is
+///    one. A product whose bound factors are 0 can't be solved: if `b` is 0,
+///    every `t` makes `"b" * "t"` equal 0, so the caller must bind `t`.
 ///
 /// A name bound at one dimension is bound for every dimension after it, so
 /// order matters:
@@ -266,10 +266,6 @@ impl<'a> Display for MatcherDisplayAdapter<'a> {
 /// assert_eq!(SQUARE.unpack_shape(&[5, 5], &["n"], &[]), [5]);
 /// ```
 ///
-/// The solver has a known gap: solutions are not required to be non-negative.
-/// `["a", "a" + "b"]` matches `[5, 3]` with `b = -2`, which unpacks as
-/// `-2 as usize`.
-///
 /// # Error messages
 ///
 /// A failed match produces this message. The `try_` methods return it as
@@ -306,6 +302,8 @@ impl<'a> Display for MatcherDisplayAdapter<'a> {
 ///   its base is bound;
 /// - `No unique solution.`: every value of the unknown solves the term, as in
 ///   `"b"*"t"` with `b = 0` against 0;
+/// - `Negative solution.`: the unknown solves to a negative value, which is no
+///   size, as `"b"` does in `["a", "a"+"b"]` against `[5, 3]`;
 /// - `Too many unbound params.`: the term still has more than one unknown.
 ///
 /// A rank mismatch replaces the second line with
@@ -881,6 +879,10 @@ impl<'a> ShapeContract<'a> {
                     return Err(fail_at(shape_idx, term_idx, "Value MissMatch."));
                 }
                 Ok(MatchResult::ParamConstraint { id, value }) => {
+                    if value < 0 {
+                        // Every name is a size.
+                        return Err(fail_at(shape_idx, term_idx, "Negative solution."));
+                    }
                     env[id] = Some(value);
                 }
                 Err(msg) => return Err(fail_at(shape_idx, term_idx, msg)),
@@ -1067,6 +1069,25 @@ mod tests {
             CONTRACT.unpack_shape(&[0usize, 0], &["b", "t"], &[("t", 4)]),
             [0, 4]
         );
+    }
+
+    #[test]
+    fn test_negative_solution_is_an_error() {
+        static SUM: ShapeContract = shape_contract!["a", "a" + "b"];
+
+        // `b = 3 - 5` is no size.
+        let err = SUM
+            .try_unpack_shape(&[5usize, 3], &["a", "b"], &[])
+            .unwrap_err();
+        assert_eq!(reason(err), "3 !~ (a+b) :: Negative solution.");
+        assert_eq!(SUM.unpack_shape(&[5usize, 8], &["a", "b"], &[]), [5, 3]);
+
+        // `(-x)^2 = 9` takes the root 3, so `x = -3`.
+        static NEG_SQUARE: ShapeContract = shape_contract![-"x" ^ 2];
+        let err = NEG_SQUARE
+            .try_unpack_shape(&[9usize], &["x"], &[])
+            .unwrap_err();
+        assert_eq!(reason(err), "9 !~ ((-x)^2) :: Negative solution.");
     }
 
     #[test]

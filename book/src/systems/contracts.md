@@ -129,7 +129,6 @@ Their `# Errors` sections say what they report, and `try_unpack_shape`'s
   overview.
 - [The pattern language](bunsen::contracts#macros-and-methods):
   terms, labels, params, constants and the grammar.
-- [Matching](bunsen::contracts::ShapeContract#matching): the solver's rules
-  and its known gaps.
+- [Matching](bunsen::contracts::ShapeContract#matching): the solver's rules.
 - [`ShapeView`](bunsen::contracts::ShapeView): every accepted shape form and
   what each one costs.

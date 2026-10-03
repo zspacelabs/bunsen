@@ -53,7 +53,10 @@
 ///
 /// `^` binds tightest, then `*`, then `+` and `-`. A unary sign belongs to
 /// its factor, so it applies before `^`: `-"x" ^ 2` parses as `(-"x") ^ 2`,
-/// which equals `"x" ^ 2`. Write `-("x" ^ 2)` for the negated square.
+/// which equals `"x" ^ 2` but doesn't solve like it. The solver takes the
+/// non-negative root, 3 for a size of 9, so it solves `-"x"` to 3, and the
+/// solution `x = -3` fails as negative. Write `"x" ^ 2`, or `-("x" ^ 2)` for
+/// the negated square.
 ///
 /// ```bnf
 /// ShapeContract => DimMatcher { ',' DimMatcher }* ','?
