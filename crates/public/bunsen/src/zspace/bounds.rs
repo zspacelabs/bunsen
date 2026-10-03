@@ -72,22 +72,20 @@ pub fn zspace_partial_cmp<T: PartialOrd>(
 
 /// Checks that `point` is in the half-open box `[start, end)`.
 ///
+/// The test is per axis: `start[i] <= point[i] < end[i]` on every axis `i`.
 /// The lower bound is `start <= point` in the
-/// [partial order](zspace_partial_cmp): every coordinate at least `start`'s.
-/// The upper bound is `point < end` in the same order.
-///
-/// # Known issue
-///
-/// `point < end` in the partial order holds when *some* coordinate of `point`
-/// is below `end`'s and none is above, not when *every* coordinate is below.
-/// So a point on a far face of the box passes: `[1, 3]` is accepted in
-/// `[[0, 0], [2, 3])`, though `3` is not below `3`. Of the far faces, only
-/// the corner `end` itself is rejected. This is tracked for repair.
+/// [partial order](zspace_partial_cmp). The upper bound is stricter than
+/// `point < end` in that order, which would admit a point on a far face of
+/// the box: `[1, 3]` is not in `[[0, 0], [2, 3])`, since `3` is not below `3`.
 ///
 /// # Returns
 ///
 /// `Ok(())` if the point passes, else [`BunsenError::Invalid`] naming the
-/// point and the box.
+/// point and the box. An incomparable coordinate (a NaN) fails.
+///
+/// # Panics
+///
+/// If `point`, `start` and `end` differ in length.
 pub fn try_point_bounds_check<T>(
     point: &[T],
     start: &[T],
@@ -96,11 +94,20 @@ pub fn try_point_bounds_check<T>(
 where
     T: PartialOrd + Debug,
 {
-    if !matches!(
-        zspace_partial_cmp(start, point),
-        Some(Ordering::Less) | Some(Ordering::Equal)
-    ) || zspace_partial_cmp(point, end) != Some(Ordering::Less)
-    {
+    for (a, b) in [(start, point), (point, end)] {
+        assert_eq!(
+            a.len(),
+            b.len(),
+            "length mismatch: {} != {}",
+            a.len(),
+            b.len()
+        );
+    }
+    let inside = point
+        .iter()
+        .zip(start.iter().zip(end.iter()))
+        .all(|(p, (s, e))| s <= p && p < e);
+    if !inside {
         Err(BunsenError::Invalid(format!(
             "{point:?} is not in [ {start:?}, {end:?} )"
         )))
@@ -111,12 +118,12 @@ where
 
 /// Expects that `point` is in the half-open box `[start, end)`.
 ///
-/// The panicking half of [`try_point_bounds_check`], and it shares that
-/// function's known issue.
+/// The panicking half of [`try_point_bounds_check`]: the same per-axis test.
 ///
 /// # Panics
 ///
-/// With the [`try_point_bounds_check`] error's message, if the check fails.
+/// With the [`try_point_bounds_check`] error's message, if the check fails;
+/// and if `point`, `start` and `end` differ in length.
 #[allow(dead_code)]
 pub fn expect_point_bounds_check<T>(
     point: &[T],
@@ -176,5 +183,38 @@ mod tests {
                 .to_string()
                 .contains("[-1, 2] is not in [ [0, 0], [2, 3] )")
         );
+    }
+
+    #[test]
+    fn test_point_bounds_check_rejects_far_faces() {
+        let (start, end) = ([0, 0], [2, 3]);
+
+        // The far face of axis 1 (`p[1] == 3`), off the corner.
+        assert!(try_point_bounds_check(&[1, 3], &start, &end).is_err());
+        assert!(try_point_bounds_check(&[0, 3], &start, &end).is_err());
+        // The far face of axis 0 (`p[0] == 2`), off the corner.
+        assert!(try_point_bounds_check(&[2, 0], &start, &end).is_err());
+        assert!(try_point_bounds_check(&[2, 2], &start, &end).is_err());
+        // The corner `end` itself.
+        assert!(try_point_bounds_check(&[2, 3], &start, &end).is_err());
+
+        // Three axes: each far face, with the other coordinates inside.
+        let (start, end) = ([0, 0, 0], [2, 3, 4]);
+        assert!(try_point_bounds_check(&[1, 2, 3], &start, &end).is_ok());
+        assert!(try_point_bounds_check(&[2, 2, 3], &start, &end).is_err());
+        assert!(try_point_bounds_check(&[1, 3, 3], &start, &end).is_err());
+        assert!(try_point_bounds_check(&[1, 2, 4], &start, &end).is_err());
+    }
+
+    #[test]
+    #[should_panic(expected = "[1, 3] is not in [ [0, 0], [2, 3] )")]
+    fn test_expect_point_bounds_check_panics_on_far_face() {
+        expect_point_bounds_check(&[1, 3], &[0, 0], &[2, 3]);
+    }
+
+    #[test]
+    #[should_panic(expected = "length mismatch: 2 != 3")]
+    fn test_point_bounds_check_length_mismatch_panics() {
+        let _ = try_point_bounds_check(&[0, 0], &[0, 0], &[2, 3, 4]);
     }
 }

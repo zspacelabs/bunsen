@@ -24,8 +24,8 @@
 //!
 //! - **Points and boxes.** [`zspace_partial_cmp`] is the partial order.
 //!   [`try_point_bounds_check`] / [`expect_point_bounds_check`] test a point
-//!   against a box, with a known issue at the upper bound; they are a `try_x` /
-//!   `x` pair of the [errors convention](crate::errors#convention-try_x-and-x).
+//!   against a half-open box, axis by axis; they are a `try_x` / `x` pair of
+//!   the [errors convention](crate::errors#convention-try_x-and-x).
 //! - **Slices.** [`check_slices_bounds`] checks a list of burn
 //!   [`Slice`](burn::tensor::Slice)s against a shape before slicing, and says
 //!   what is wrong with a [`SlicingError`](crate::errors::SlicingError).
