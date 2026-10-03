@@ -213,8 +213,8 @@ impl<B: Backend> DataLoaderIterator<Tensor<B, 2, burn::prelude::Int>>
 ///
 /// When constructed with an `rng`, [`start_epoch`](Self::start_epoch)
 /// shuffles the shard order and applies a reservoir shuffle to the packed
-/// blocks; without an `rng` the loader is deterministic and returns shards
-/// (and packed blocks) in their input order.
+/// blocks, both drawn from that `rng`; without an `rng` the loader returns
+/// shards (and packed blocks) in their input order.
 #[derive(Clone)]
 pub struct ChatDataLoader<B: Backend> {
     shard_paths: Vec<PathBuf>,
@@ -230,7 +230,8 @@ impl<B: Backend> ChatDataLoader<B> {
     /// ## Arguments
     /// * `files` - Parquet shard paths consumed each epoch.
     /// * `rng` - Optional shared rng; presence enables both shard-order
-    ///   shuffling and the reservoir block shuffle.
+    ///   shuffling and the reservoir block shuffle, and each epoch draws both
+    ///   from it.
     /// * `device` - Target burn device for emitted tensors.
     /// * `tokenizer` - Shared tokenizer used to encode the text column.
     /// * `block_options` - Packing configuration (batch shape, BOS / EOS
@@ -252,22 +253,21 @@ impl<B: Backend> ChatDataLoader<B> {
     }
 
     /// Starts a new epoch.
+    ///
+    /// With an rng, the epoch draws its shard order and its block-shuffle
+    /// seed from it, so successive epochs shuffle differently, and a loader
+    /// built with the same seeded rng repeats them.
     pub fn start_epoch(&self) -> ChatDataLoaderIterator<B> {
         let mut shard_paths = self.shard_paths.clone();
-        if let Some(mutex) = &self.rng {
+        let shuffle_options = self.rng.as_ref().map(|mutex| {
             let mut rng = mutex.lock().unwrap();
             shard_paths.shuffle(&mut *rng);
-        }
 
-        let shuffle_options = if self.rng.is_none() {
-            None
-        } else {
-            Some(
-                ShuffleIterOptions::default()
-                    .with_fill_rate(2)
-                    .with_buffer_size(128),
-            )
-        };
+            ShuffleIterOptions::default()
+                .with_fill_rate(2)
+                .with_buffer_size(128)
+                .with_seed(rng.next_u64())
+        });
 
         ChatDataLoaderIterator::new(
             self.device.clone(),
@@ -385,5 +385,113 @@ impl EpochStats {
             items_processed: self.file_count(),
             items_total: self.items_total(),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::{
+        fs::File,
+        path::Path,
+    };
+
+    use arrow::{
+        array::{
+            RecordBatch,
+            StringArray,
+        },
+        datatypes::{
+            DataType,
+            Field,
+            Schema,
+        },
+    };
+    use parquet::arrow::ArrowWriter;
+    use rand::{
+        SeedableRng,
+        rngs::StdRng,
+    };
+    use wordchipper::{
+        UnifiedTokenVocab,
+        vocab::utility::testing::build_test_vocab,
+    };
+
+    use super::*;
+
+    type B = burn::backend::Flex;
+
+    /// Writes `texts` as the `text` column of a one-shard Parquet file.
+    fn write_shard(
+        path: &Path,
+        texts: &[String],
+    ) {
+        let schema = Arc::new(Schema::new(vec![Field::new("text", DataType::Utf8, false)]));
+        let batch = RecordBatch::try_new(
+            schema.clone(),
+            vec![Arc::new(StringArray::from(texts.to_vec()))],
+        )
+        .unwrap();
+
+        let mut writer = ArrowWriter::try_new(File::create(path).unwrap(), schema, None).unwrap();
+        writer.write(&batch).unwrap();
+        writer.close().unwrap();
+    }
+
+    /// One epoch's blocks, in order, from a loader with an rng seeded `seed`.
+    fn epoch_blocks(
+        shard: &Path,
+        seed: u64,
+    ) -> Vec<Vec<i64>> {
+        let vocab: UnifiedTokenVocab<u32> = build_test_vocab(
+            Default::default(),
+            wordchipper::pretrained::openai::oa_p50k_edit_spanning_config(),
+        );
+        let tokenizer = wordchipper::TokenizerOptions::default().build(vocab.into());
+
+        let loader: ChatDataLoader<B> = ChatDataLoader::new(
+            vec![shard.to_path_buf()],
+            Some(Arc::new(Mutex::new(StdRng::seed_from_u64(seed)))),
+            &Default::default(),
+            tokenizer,
+            DenseTokenBlocksOptions {
+                batch_size: 1,
+                batch_seq_len: 8,
+                min_buffer: 1,
+                bos: vec![],
+                eos: vec![],
+            },
+        );
+
+        loader
+            .start_epoch()
+            .map(|tensor| tensor.into_data().iter::<i64>().collect())
+            .collect()
+    }
+
+    #[test]
+    fn test_block_shuffle_draws_from_the_loader_rng() {
+        let dir = tempfile::tempdir().unwrap();
+        let shard = dir.path().join("shard.parquet");
+        // Each text is longer than a row, so each block is one text's first
+        // 8 tokens (bytes, with the test vocab), which differ.
+        let texts = (0..64)
+            .map(|i| format!("{i:04} says hello"))
+            .collect::<Vec<_>>();
+        write_shard(&shard, &texts);
+
+        // One shard, so the shard-order shuffle cannot change anything; the
+        // block order comes from the block shuffle alone.
+        let first = epoch_blocks(&shard, 1);
+        assert!(first.len() > 16, "{} blocks", first.len());
+        assert_eq!(epoch_blocks(&shard, 1), first);
+
+        let second = epoch_blocks(&shard, 2);
+        assert_ne!(second, first);
+
+        let mut first_sorted = first.clone();
+        first_sorted.sort();
+        let mut second_sorted = second.clone();
+        second_sorted.sort();
+        assert_eq!(second_sorted, first_sorted);
     }
 }

@@ -38,7 +38,8 @@
 //!    is dropped.
 //! 5. With an rng, each epoch shuffles the shard order with it, and a
 //!    [`ShuffleIter`](iterators::ShuffleIter) mixes the blocks through a
-//!    128-block reservoir. Without one, shards and blocks keep their order.
+//!    128-block reservoir, seeded from it. Without one, shards and blocks keep
+//!    their order.
 //! 6. Each block becomes a tensor on the loader's device.
 //!
 //! [`IterWatcher`](iterators::IterWatcher)s between the stages count

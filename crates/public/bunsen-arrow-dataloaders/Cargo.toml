@@ -27,3 +27,6 @@ log = { workspace = true }
 
 [dev-dependencies]
 wordchipper = { workspace = true, features = ["testing"] }
+# `flex` is the CPU backend `ChatDataLoader`'s tests build tensors on.
+burn = { workspace = true, features = ["flex"] }
+tempfile = { workspace = true }
