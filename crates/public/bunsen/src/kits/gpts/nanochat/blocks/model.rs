@@ -292,10 +292,9 @@ impl<B: Backend> ModuleInit<B, NanoChatGpt<B>> for NanoChatGptStructureConfig {
 /// A decoder-only transformer: token embedding, a stack of
 /// [`NanoChatGptBlock`] layers, a final normalization, and a linear head,
 /// not tied to the embedding, producing softcapped vocabulary logits.
+/// Each block adds its attention and MLP updates to the residual stream.
 /// Incremental decoding takes a [`KVCache`] the caller holds, from
-/// [`new_kv_cache`](Self::new_kv_cache). The blocks are chained with no
-/// residual connection, a known issue the
-/// [`nanochat`](crate::kits::gpts::nanochat#known-issues) docs describe.
+/// [`new_kv_cache`](Self::new_kv_cache).
 ///
 /// Built by [`NanoChatGptContractConfig`] (high-level) or
 /// [`NanoChatGptStructureConfig`].
@@ -376,8 +375,8 @@ impl<B: Backend> NanoChatGpt<B> {
 
         let mut x = self.wte.forward(idx);
 
-        // Note: The reference chat has a norm here,
-        // but the block has the same norm as the first operation.
+        // Note: upstream norms the embedding here, so its residual stream
+        // starts normalized. This port does not; see the kit's known issues.
         // x = rms_norm(x);
 
         for block in &self.h {

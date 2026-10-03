@@ -52,13 +52,10 @@
 //!
 //! # Known issues
 //!
-//! Both are tracked for repair.
-//!
-//! - **No residual connections.**
-//!   [`NanoChatGptBlock`](blocks::NanoChatGptBlock) computes
-//!   `mlp(norm(attn(norm(x))))`, and [`NanoChatGpt`] chains the blocks with
-//!   nothing added back. Upstream adds the attention's output, and then the
-//!   MLP's, back to the residual stream.
+//! - **No embedding norm.** Upstream normalizes the token embeddings before the
+//!   first block, so its residual stream starts normalized. [`NanoChatGpt`]
+//!   passes the raw embeddings to the first block, which normalizes only its
+//!   sub-layers' inputs.
 //! - **[`NanoChatGpt`]'s `n_embed()` returns the vocabulary size.** It reads
 //!   the token embedding's first axis, so it disagrees with the configs'
 //!   [`n_embed`](NanoChatGptMeta::n_embed).
