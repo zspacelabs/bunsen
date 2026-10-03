@@ -220,9 +220,9 @@ predate the list, so this is an interim expectation — new features are named
 
 ### Backend selection
 
-`cuda`, `metal` and `wgpu` each select one accelerator, and are **never** in
-`default`. Precedence, when more than one is set, is `cuda` > `metal` >
-`wgpu` > `flex`.
+`cuda`, `metal`, `vulkan` and `wgpu` each select one accelerator, and are
+**never** in `default`. Precedence, when more than one is set, is `cuda` >
+`metal` > `vulkan` > `wgpu` > `flex`.
 
 A backend feature enables the backend in **`bunsen`**, not only in `burn`:
 
