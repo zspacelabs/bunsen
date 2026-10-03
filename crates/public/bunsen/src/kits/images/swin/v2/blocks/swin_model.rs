@@ -118,7 +118,8 @@ pub trait SwinTransformerV2Meta {
     /// Whether to enable QKV bias.
     fn enable_qkv_bias(&self) -> bool;
 
-    /// Dropout rate for MLP.
+    /// Dropout rate on the patch embeddings, and in each block's MLP and
+    /// attention projection.
     fn drop_rate(&self) -> f64;
 
     /// Dropout rate for attention.
@@ -178,7 +179,8 @@ pub struct SwinTransformerV2ContractConfig {
     #[config(default = true)]
     pub enable_qkv_bias: bool,
 
-    /// Dropout rate for MLP.
+    /// Dropout rate on the patch embeddings, and in each block's MLP and
+    /// attention projection.
     #[config(default = 0.0)]
     pub drop_rate: f64,
 
@@ -352,6 +354,7 @@ impl ToStructureConfig for SwinTransformerV2ContractConfig {
                     .with_mlp_ratio(self.mlp_ratio())
                     .with_enable_qkv_bias(self.enable_qkv_bias())
                     .with_drop_path_rates(Some(dpr_layer_rates[layer_i].clone()))
+                    .with_drop_rate(self.drop_rate())
                     .with_attn_drop_rate(self.attn_drop_rate())
                 })
                 .collect();
@@ -387,7 +390,9 @@ pub struct SwinTransformerV2StructureConfig {
     /// Whether to add an absolute positional encoding (APE) to the patches.
     pub enable_ape: bool,
 
-    /// Dropout rate on the patch embeddings.
+    /// Dropout rate on the patch embeddings. Each block sequence carries the
+    /// rate its MLP and attention projection apply, which the policy sets to
+    /// the same value.
     pub drop_rate: f64,
 
     /// The block configurations for each layer, including stochastic depth.
@@ -587,7 +592,8 @@ pub struct SwinTransformerV2<B: Backend> {
     /// The final classification head.
     pub head: Linear<B>,
 
-    /// Dropout rate for MLP.
+    /// Dropout rate on the patch embeddings, and in each block's MLP and
+    /// attention projection.
     pub drop_rate: f64,
 
     /// Dropout rate for attention.
@@ -797,6 +803,7 @@ mod tests {
     use super::*;
     use crate::{
         errors::WithOkOrPanic,
+        kits::images::swin::v2::blocks::ShiftedWindowTransformerBlockMeta,
         support::testing::{
             CpuBackend,
             DeviceMemoryGuard,
@@ -1171,5 +1178,29 @@ mod tests {
         let bad: BunsenResult<SwinTransformerV2<CpuBackend>> =
             tiny_policy().with_window_size(4).try_init(&device);
         assert!(matches!(bad, Err(BunsenError::Invalid(_))));
+    }
+
+    /// The policy's `drop_rate` reaches every block's MLP and attention
+    /// projection dropout, as upstream's `BasicLayer(drop=drop_rate)` does,
+    /// and not only the input dropout.
+    #[test]
+    fn test_drop_rate_reaches_the_blocks() {
+        let policy = tiny_policy().with_drop_rate(0.25);
+
+        let structure = policy.to_structure();
+        assert_eq!(structure.drop_rate, 0.25);
+        for sequence in &structure.block_configs {
+            assert_eq!(sequence.drop_rate(), 0.25);
+            for block in sequence.block_configs() {
+                assert_eq!(block.drop_rate(), 0.25);
+            }
+        }
+
+        let device: burn::prelude::Device<CpuBackend> = Default::default();
+        let model: SwinTransformerV2<CpuBackend> = policy.init(&device);
+        assert_eq!(model.grid_input_dropout.prob, 0.25);
+        for sequence in &model.grid_transformer_block_sequences {
+            assert_eq!(sequence.drop_rate(), 0.25);
+        }
     }
 }
