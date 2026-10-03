@@ -21,7 +21,7 @@ use bunsen::{
         PretrainedCache,
         PretrainedCacheOptions,
     },
-    kits::bimm::resnet::{
+    kits::images::resnet::{
         PREFAB_RESNET_MAP,
         ResNet,
         default_resnet_factory,
@@ -214,7 +214,7 @@ pub struct Args {
 
 #[allow(clippy::too_many_arguments)]
 mod local {
-    use bunsen::kits::bimm::resnet::ResNetContractConfig;
+    use bunsen::kits::images::resnet::ResNetContractConfig;
     use burn::config::Config;
 
     /// Log config.

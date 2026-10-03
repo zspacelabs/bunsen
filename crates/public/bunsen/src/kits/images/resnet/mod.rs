@@ -21,7 +21,7 @@
 //!         PretrainedCache,
 //!         PretrainedCacheOptions,
 //!     },
-//!     kits::bimm::resnet::{
+//!     kits::images::resnet::{
 //!         ResNet,
 //!         default_resnet_factory,
 //!     },
@@ -111,7 +111,7 @@
 //!         PretrainedCache,
 //!         PretrainedCacheOptions,
 //!     },
-//!     kits::bimm::resnet::{
+//!     kits::images::resnet::{
 //!         PREFAB_RESNET_MAP,
 //!         ResNet,
 //!         default_resnet_factory,

@@ -41,7 +41,7 @@ use crate::{
         ToStructureConfig,
     },
     errors::BunsenResult,
-    kits::bimm::resnet::{
+    kits::images::resnet::{
         RESNET18_BLOCKS,
         blocks::{
             BottleneckPolicyConfig,
@@ -577,7 +577,7 @@ mod tests {
 
     use super::*;
     use crate::{
-        kits::bimm::resnet::{
+        kits::images::resnet::{
             RESNET34_BLOCKS,
             RESNET50_BLOCKS,
         },
@@ -597,7 +597,7 @@ mod tests {
                 PretrainedCache,
                 PretrainedCacheOptions,
             },
-            kits::bimm::resnet::default_resnet_factory,
+            kits::images::resnet::default_resnet_factory,
         };
 
         let device = default_device();

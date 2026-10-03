@@ -18,7 +18,7 @@ use crate::{
     burner::module::ModuleInit,
     contracts::assert_shape_contract_periodically,
     errors::BunsenResult,
-    kits::bimm::swin::v2::blocks::window_attention::{
+    kits::images::swin::v2::blocks::window_attention::{
         window_attention_relative_position_index,
         window_log1p_relative_offset_grid,
     },

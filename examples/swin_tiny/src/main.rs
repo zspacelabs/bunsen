@@ -14,7 +14,7 @@ use bunsen::{
         BunsenResult,
         WithOkOrPanic,
     },
-    kits::bimm::swin::v2::{
+    kits::images::swin::v2::{
         LayerConfig,
         SwinTransformerV2,
         SwinTransformerV2ContractConfig,

@@ -117,7 +117,7 @@ for chunk in samples.chunks_exact(vad.chunk_size()) {
 
 ### ResNet
 
-[docs](https://docs.rs/bunsen/latest/bunsen/kits/bimm/resnet/index.html) &middot;
+[docs](https://docs.rs/bunsen/latest/bunsen/kits/images/resnet/index.html) &middot;
 examples: [`resnet_finetune`](https://github.com/zspacelabs/bunsen/tree/main/examples/resnet_finetune), [
 `resnet_tiny`](https://github.com/zspacelabs/bunsen/tree/main/examples/resnet_tiny)
 
@@ -125,7 +125,7 @@ The ResNet family, with torchvision's and timm's pretrained rows (`torchvision/r
 model surgery a fine-tune wants.
 
 ```rust,ignore
-use bunsen::kits::bimm::resnet::{ResNet, default_resnet_factory};
+use bunsen::kits::images::resnet::{ResNet, default_resnet_factory};
 
 let loaded = default_resnet_factory()?.load::<B>("torchvision/resnet18", &cache, &device)?;
 let model: ResNet<B> = Arc::unwrap_or_clone(loaded.handle)

@@ -1,4 +1,4 @@
-# `bunsen::kits::bimm`
+# `bunsen::kits::images`
 
 *Bunsen/Burn Image Models* &mdash; an incremental port of the
 [`timm`](https://github.com/huggingface/pytorch-image-models) (Torch
@@ -9,7 +9,7 @@ Image Models) ecosystem to `burn`.
 pretrained-weight loaders, so picking one up is closer to "pick a
 prefab, fetch weights, init" than "wire together a stack of blocks."
 
-API: <https://docs.rs/bunsen/latest/bunsen/kits/bimm/>
+API: <https://docs.rs/bunsen/latest/bunsen/kits/images/>
 
 ## Current models
 
@@ -26,7 +26,7 @@ sources go through the disk cache, digest-checked):
 use bunsen::{
     burner::module::ModuleInit,
     data::cache::BunsenDiskCache,
-    kits::bimm::resnet::{PREFAB_RESNET_MAP, ResNet},
+    kits::images::resnet::{PREFAB_RESNET_MAP, ResNet},
     support::testing::default_device,
 };
 use burn::backend::Flex;
@@ -60,5 +60,5 @@ implementation](https://github.com/microsoft/Swin-Transformer/blob/main/models/s
 implemented in terms of windowed self-attention blocks, patch merging,
 and relative-position biases.
 
-See the [`bunsen::kits::bimm::swin::v2`](https://docs.rs/bunsen/latest/bunsen/kits/bimm/swin/v2/index.html)
+See the [`bunsen::kits::images::swin::v2`](https://docs.rs/bunsen/latest/bunsen/kits/images/swin/v2/index.html)
 module for the full configuration API.

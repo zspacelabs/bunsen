@@ -68,7 +68,7 @@ use crate::errors::{
 ///
 /// There is no process-wide registry. A kit ships a
 /// `default_{kit}_factory()` over its compiled-in providers
-/// ([`default_resnet_factory`](crate::kits::bimm::resnet::default_resnet_factory),
+/// ([`default_resnet_factory`](crate::kits::images::resnet::default_resnet_factory),
 /// [`default_whisper_factory`](crate::kits::speech::whisper::pretrained::default_whisper_factory),
 /// [`default_silero_factory`](crate::kits::speech::silero_vad::pretrained::default_silero_factory)),
 /// and a caller that wants more builds on it with

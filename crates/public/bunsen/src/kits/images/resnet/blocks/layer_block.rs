@@ -29,7 +29,7 @@ use crate::{
         BunsenError,
         BunsenResult,
     },
-    kits::bimm::resnet::blocks::{
+    kits::images::resnet::blocks::{
         BottleneckPolicyConfig,
         ResidualBlock,
         ResidualBlockContractConfig,
@@ -450,7 +450,7 @@ mod tests {
     use super::*;
     use crate::{
         contracts::assert_shape_contract,
-        kits::bimm::resnet::blocks::BasicBlockConfig,
+        kits::images::resnet::blocks::BasicBlockConfig,
         prelude::*,
         support::testing::{
             DeviceMemoryGuard,

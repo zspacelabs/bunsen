@@ -121,7 +121,7 @@
 //!
 //! For a complete training pipeline that wires these operators into a [`burn`]
 //! `DataLoaderBuilder` — including per-row augmentation seeds — see the
-//! `resnet_tiny` example under `demos/bimm/examples`.
+//! `resnet_tiny` example (`examples/resnet_tiny`).
 //!
 //! [`init_default_operator_environment`]: bunsen_firehose::ops::init_default_operator_environment
 

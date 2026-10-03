@@ -317,14 +317,14 @@ use crate::errors::{
 /// [`KVCacheConfig::init`]: crate::ops::transformers::attention::KVCacheConfig::init
 /// [`SileroVadContextConfig::init`]: crate::kits::speech::silero_vad::blocks::SileroVadContextConfig::init
 /// [`LBMD2Q9Config::init`]: crate::kits::sims::lbm::d2q9::LBMD2Q9Config::init
-/// [`ResNetContractConfig`]: crate::kits::bimm::resnet::ResNetContractConfig
-/// [`ResNetStructureConfig`]: crate::kits::bimm::resnet::ResNetStructureConfig
-/// [`ResNet`]: crate::kits::bimm::resnet::ResNet
+/// [`ResNetContractConfig`]: crate::kits::images::resnet::ResNetContractConfig
+/// [`ResNetStructureConfig`]: crate::kits::images::resnet::ResNetStructureConfig
+/// [`ResNet`]: crate::kits::images::resnet::ResNet
 /// [`SileroVadSignalConfig`]: crate::kits::speech::silero_vad::blocks::SileroVadSignalConfig
 /// [`SileroVadStftConfig`]: crate::kits::speech::silero_vad::blocks::SileroVadStftConfig
 /// [`SileroVadStructureConfig`]: crate::kits::speech::silero_vad::blocks::SileroVadStructureConfig
 /// [`to_stft`]: crate::kits::speech::silero_vad::blocks::SileroVadSignalConfig::to_stft
-/// [`SwinTransformerV2ContractConfig`]: crate::kits::bimm::swin::v2::SwinTransformerV2ContractConfig
+/// [`SwinTransformerV2ContractConfig`]: crate::kits::images::swin::v2::SwinTransformerV2ContractConfig
 pub trait ModuleInit<B: Backend, M: Module<B>> {
     /// Builds the module on `device`, or reports why the config cannot build
     /// it.

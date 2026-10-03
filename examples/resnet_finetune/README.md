@@ -15,7 +15,7 @@ https://github.com/tracel-ai/models/blob/main/resnet-burn/examples/finetune/exam
 
 ## Bunsen features exercised
 
-- `bunsen::kits::bimm::resnet` — the bimm `ResNet` model, the
+- `bunsen::kits::images::resnet` — the bimm `ResNet` model, the
   `PREFAB_RESNET_MAP` registry of pretrained variants, and `ResNetContractConfig`
   shape contracts.
 - `bunsen::burner::module` — `ModuleInit` for building/initializing the module

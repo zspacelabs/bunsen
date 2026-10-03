@@ -34,7 +34,7 @@
 //!     .build(dataset);
 //! ```
 //!
-//! See the `resnet_tiny` example under `demos/bimm/examples` for a complete,
+//! See the `resnet_tiny` example (`examples/resnet_tiny`) for a complete,
 //! compiling training pipeline built on these pieces.
 
 /// Provides a `burn_support` Batcher for processing `FirehoseRowBatches`.

@@ -19,7 +19,7 @@ use bunsen::{
         PretrainedCache,
         PretrainedCacheOptions,
     },
-    kits::bimm::resnet::{
+    kits::images::resnet::{
         PREFAB_RESNET_MAP,
         ResNet,
         default_resnet_factory,

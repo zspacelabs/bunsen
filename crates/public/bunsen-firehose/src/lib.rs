@@ -116,7 +116,7 @@
 //! For a full training pipeline — image loading, augmentation, and a [`burn`]
 //! `DataLoaderBuilder` driven by a
 //! [`FirehoseExecutorBatcher`](burn::batcher::FirehoseExecutorBatcher) — see
-//! the `resnet_tiny` example under `demos/bimm/examples`.
+//! the `resnet_tiny` example (`examples/resnet_tiny`).
 //!
 //! [`FirehoseTableSchema`]: core::schema::FirehoseTableSchema
 //! [`ColumnSchema`]: core::schema::ColumnSchema

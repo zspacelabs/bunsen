@@ -51,7 +51,7 @@ use crate::{
         BunsenError,
         BunsenResult,
     },
-    kits::bimm::swin::v2::blocks::{
+    kits::images::swin::v2::blocks::{
         PatchMerging,
         PatchMergingConfig,
         StochasticDepthTransformerBlockSequence,

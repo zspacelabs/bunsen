@@ -113,13 +113,13 @@ use crate::{
 /// }
 /// ```
 ///
-/// [`ResNetContractConfig`]: crate::kits::bimm::resnet::ResNetContractConfig
-/// [`ResNetStructureConfig`]: crate::kits::bimm::resnet::ResNetStructureConfig
+/// [`ResNetContractConfig`]: crate::kits::images::resnet::ResNetContractConfig
+/// [`ResNetStructureConfig`]: crate::kits::images::resnet::ResNetStructureConfig
 /// [`SileroVadSignalConfig`]: crate::kits::speech::silero_vad::blocks::SileroVadSignalConfig
 /// [`SileroVadStftConfig`]: crate::kits::speech::silero_vad::blocks::SileroVadStftConfig
 /// [`SileroVadStructureConfig`]: crate::kits::speech::silero_vad::blocks::SileroVadStructureConfig
 /// [`to_stft`]: crate::kits::speech::silero_vad::blocks::SileroVadSignalConfig::to_stft
-/// [`SwinTransformerV2ContractConfig`]: crate::kits::bimm::swin::v2::SwinTransformerV2ContractConfig
+/// [`SwinTransformerV2ContractConfig`]: crate::kits::images::swin::v2::SwinTransformerV2ContractConfig
 pub trait ToStructureConfig {
     /// The structure config this policy lowers to.
     type Structure;

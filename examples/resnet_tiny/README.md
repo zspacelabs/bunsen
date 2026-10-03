@@ -9,7 +9,7 @@ the `swin_tiny` example, sharing the same data-loading machinery.
 
 ## Bunsen features exercised
 
-- `bunsen::kits::bimm::resnet` — the bimm `ResNet` model and `PREFAB_RESNET_MAP`
+- `bunsen::kits::images::resnet` — the bimm `ResNet` model and `PREFAB_RESNET_MAP`
   registry.
 - `bunsen::burner::module` — `ModuleInit` / `DTypeMapper` for module init and
   dtype mapping.

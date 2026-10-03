@@ -16,7 +16,7 @@ use crate::{
         StaticResourceMap,
         WELL_KNOWN,
     },
-    kits::bimm::resnet::ResNetContractConfig,
+    kits::images::resnet::ResNetContractConfig,
 };
 
 /// The kit segment of a `ResNet` resource's path in the cache:
@@ -406,7 +406,7 @@ mod construct {
             BunsenError,
             BunsenResult,
         },
-        kits::bimm::resnet::{
+        kits::images::resnet::{
             ResNet,
             ResNetContractConfig,
         },

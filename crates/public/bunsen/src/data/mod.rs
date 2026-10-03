@@ -135,7 +135,7 @@
 //! [`ShardSetDescriptor`]: shards::ShardSetDescriptor
 //! [`StaticPreFabMap`]: pretrained::StaticPreFabMap
 //! [`StaticShardSetMap`]: shards::StaticShardSetMap
-//! [`default_resnet_factory`]: crate::kits::bimm::resnet::default_resnet_factory
+//! [`default_resnet_factory`]: crate::kits::images::resnet::default_resnet_factory
 //! [`default_silero_factory`]: crate::kits::speech::silero_vad::pretrained::default_silero_factory
 //! [`default_whisper_factory`]: crate::kits::speech::whisper::pretrained::default_whisper_factory
 //! [dispatch rules]: pretrained::PretrainedFactory#dispatch

@@ -13,8 +13,8 @@
 //!
 //! | Kit | What it is |
 //! |---|---|
-//! | [`bimm::resnet`] | `ResNet` image classifiers, with 14 torchvision and `timm` checkpoints by name. |
-//! | [`bimm::swin::v2`] | Swin Transformer V2 image classifiers: configs and model, no pretrained weights. |
+//! | [`images::resnet`] | `ResNet` image classifiers, with 14 torchvision and `timm` checkpoints by name. |
+//! | [`images::swin::v2`] | Swin Transformer V2 image classifiers: configs and model, no pretrained weights. |
 //! | [`gpts::nanochat`] | A port of karpathy's nanochat GPT, and the corpus it trains on. Work in progress. |
 //! | [`sims::conway`] | Conway's Game of Life on toroidal 2D and 3D boards. |
 //! | [`sims::lbm`] | A D2Q9 lattice-Boltzmann fluid, with a mass correction. |
@@ -22,7 +22,7 @@
 //! | [`speech::silero_vad`] | The Silero voice-activity detector, with weights a build can bundle. |
 //! | [`tokens`] | Not a model: the ids-to-text seam the model kits share. |
 //!
-//! The area modules, [`bimm`], [`gpts`], [`sims`] and [`speech`], group the
+//! The area modules, [`images`], [`gpts`], [`sims`] and [`speech`], group the
 //! kits by domain and say what the kits in each have in common.
 //!
 //! # Anatomy of a kit
@@ -78,13 +78,13 @@
 //!
 //! | Piece | `ResNet` | Whisper | Silero VAD |
 //! |---|---|---|---|
-//! | Configs | [`ResNetContractConfig`](bimm::resnet::ResNetContractConfig) -> [`ResNetStructureConfig`](bimm::resnet::ResNetStructureConfig) | [`WhisperApiConfig`](speech::whisper::WhisperApiConfig) -> [`WhisperStructureConfig`](speech::whisper::WhisperStructureConfig) | [`SileroVadSignalConfig`](speech::silero_vad::SileroVadSignalConfig) -> [`SileroVadStftConfig`](speech::silero_vad::SileroVadStftConfig) -> [`SileroVadStructureConfig`](speech::silero_vad::SileroVadStructureConfig) |
-//! | Prefab map | [`PREFAB_RESNET_MAP`](bimm::resnet::PREFAB_RESNET_MAP) | [`WHISPER_PREFABS`](speech::whisper::pretrained::WHISPER_PREFABS) | none |
-//! | Table | [`WELL_KNOWN_TABLE`](bimm::resnet::WELL_KNOWN_TABLE) | [`WELL_KNOWN_TABLE`](speech::whisper::pretrained::WELL_KNOWN_TABLE), a bundled table, and `hf:` | a bundled table |
-//! | Providers | [`default_resnet_providers`](bimm::resnet::default_resnet_providers) | [`default_whisper_providers`](speech::whisper::pretrained::default_whisper_providers) | [`default_silero_providers`](speech::silero_vad::pretrained::default_silero_providers) |
-//! | Hook | [`ResNetConstruct`](bimm::resnet::ResNetConstruct) | [`WhisperConstruct`](speech::whisper::pretrained::WhisperConstruct) | [`SileroConstruct`](speech::silero_vad::pretrained::SileroConstruct) |
-//! | Factory | [`default_resnet_factory`](bimm::resnet::default_resnet_factory) | [`default_whisper_factory`](speech::whisper::pretrained::default_whisper_factory) | [`default_silero_factory`](speech::silero_vad::pretrained::default_silero_factory) |
-//! | Built | [`ResNet`](bimm::resnet::ResNet) | [`WhisperBundle`](speech::whisper::driver::WhisperBundle): model, token layout, vocabulary | [`SileroVadCollection`](speech::silero_vad::SileroVadCollection): one model per sample rate |
+//! | Configs | [`ResNetContractConfig`](images::resnet::ResNetContractConfig) -> [`ResNetStructureConfig`](images::resnet::ResNetStructureConfig) | [`WhisperApiConfig`](speech::whisper::WhisperApiConfig) -> [`WhisperStructureConfig`](speech::whisper::WhisperStructureConfig) | [`SileroVadSignalConfig`](speech::silero_vad::SileroVadSignalConfig) -> [`SileroVadStftConfig`](speech::silero_vad::SileroVadStftConfig) -> [`SileroVadStructureConfig`](speech::silero_vad::SileroVadStructureConfig) |
+//! | Prefab map | [`PREFAB_RESNET_MAP`](images::resnet::PREFAB_RESNET_MAP) | [`WHISPER_PREFABS`](speech::whisper::pretrained::WHISPER_PREFABS) | none |
+//! | Table | [`WELL_KNOWN_TABLE`](images::resnet::WELL_KNOWN_TABLE) | [`WELL_KNOWN_TABLE`](speech::whisper::pretrained::WELL_KNOWN_TABLE), a bundled table, and `hf:` | a bundled table |
+//! | Providers | [`default_resnet_providers`](images::resnet::default_resnet_providers) | [`default_whisper_providers`](speech::whisper::pretrained::default_whisper_providers) | [`default_silero_providers`](speech::silero_vad::pretrained::default_silero_providers) |
+//! | Hook | [`ResNetConstruct`](images::resnet::ResNetConstruct) | [`WhisperConstruct`](speech::whisper::pretrained::WhisperConstruct) | [`SileroConstruct`](speech::silero_vad::pretrained::SileroConstruct) |
+//! | Factory | [`default_resnet_factory`](images::resnet::default_resnet_factory) | [`default_whisper_factory`](speech::whisper::pretrained::default_whisper_factory) | [`default_silero_factory`](speech::silero_vad::pretrained::default_silero_factory) |
+//! | Built | [`ResNet`](images::resnet::ResNet) | [`WhisperBundle`](speech::whisper::driver::WhisperBundle): model, token layout, vocabulary | [`SileroVadCollection`](speech::silero_vad::SileroVadCollection): one model per sample rate |
 //! | Driver, context | none | [`WhisperStreamDriver`](speech::whisper::driver::WhisperStreamDriver), [`WhisperStreamContext`](speech::whisper::driver::WhisperStreamContext) | [`SileroVadContext`](speech::silero_vad::SileroVadContext) |
 //! | Bundled crate | none | `bunsen-bundled-whisper` (`whisper-weights`) | `bunsen-bundled-silero` (`silero-weights`) |
 //! | Validation crate | none | `whisper-model-validation` | `silero-model-validation` |
@@ -110,8 +110,8 @@
 //! filled in. Pin a specific `bunsen` version when you need a stable
 //! API.
 
-pub mod bimm;
 pub mod gpts;
+pub mod images;
 pub mod sims;
 pub mod speech;
 pub mod tokens;

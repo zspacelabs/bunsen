@@ -104,7 +104,7 @@ form, and the forms agree by construction.
   and `NanoChatGpt<B>` (the built module reading dims from its actual
   layers). All three answer the same questions about `n_embed`,
   `n_head`, `head_dim`, `n_layer`, and so on.
-- **[`ResidualBlockMeta`](https://docs.rs/bunsen/latest/bunsen/kits/bimm/resnet/trait.ResidualBlockMeta.html)**
+- **[`ResidualBlockMeta`](https://docs.rs/bunsen/latest/bunsen/kits/images/resnet/trait.ResidualBlockMeta.html)**
   is implemented on the structure config *and* the built block. A
   `ResNet` model that holds a `Vec<ResidualBlock<B>>` can call
   `block.output_resolution([h, w])` to walk the resolution through the
@@ -231,13 +231,13 @@ per-layer details can drop down to `MlpStructureConfig` directly.
 
 ### Where this shows up
 
-- **[`ResNetContractConfig`](https://docs.rs/bunsen/latest/bunsen/kits/bimm/resnet/struct.ResNetContractConfig.html)
+- **[`ResNetContractConfig`](https://docs.rs/bunsen/latest/bunsen/kits/images/resnet/struct.ResNetContractConfig.html)
   / `ResNetStructureConfig`**. The contract says "a ResNet with these
   block counts, optionally bottlenecked"; the structure spells out the
   stem, layer blocks, and head. `PREFAB_RESNET_MAP` ships
   `ContractConfig` builders for the standard variants ("resnet18",
   "resnet50", &hellip;).
-- **[`ResidualBlockContractConfig`](https://docs.rs/bunsen/latest/bunsen/kits/bimm/resnet/struct.ResidualBlockContractConfig.html)
+- **[`ResidualBlockContractConfig`](https://docs.rs/bunsen/latest/bunsen/kits/images/resnet/struct.ResidualBlockContractConfig.html)
   / `ResidualBlockStructureConfig`**. The contract describes
   "downsample input, use a bottleneck policy"; the structure is an
   *enum* that dispatches to either a `BasicBlock` or a

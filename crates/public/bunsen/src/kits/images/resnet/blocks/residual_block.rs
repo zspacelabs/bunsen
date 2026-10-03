@@ -20,7 +20,7 @@ use crate::{
         ToStructureConfig,
     },
     errors::BunsenResult,
-    kits::bimm::resnet::blocks::{
+    kits::images::resnet::blocks::{
         BasicBlock,
         BasicBlockConfig,
         BasicBlockMeta,

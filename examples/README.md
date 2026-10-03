@@ -36,7 +36,7 @@ source/outflow forcing.
 Fine-tunes a pretrained ImageNet ResNet for multi-label classification, with model surgery (activation swap,
 DropBlock/stochastic depth, layer freezing, cautious weight decay).
 
-- **Bunsen coverage:** `kits::bimm::resnet` (model, `PREFAB_RESNET_MAP`,
+- **Bunsen coverage:** `kits::images::resnet` (model, `PREFAB_RESNET_MAP`,
   `ResNetContractConfig`), `burner::module` (`ModuleInit`, `DTypeMapper`),
   `data::cache::BunsenDiskCache`.
 
@@ -44,7 +44,7 @@ DropBlock/stochastic depth, layer freezing, cautious weight decay).
 
 Trains a ResNet from scratch on CINIC-10 using a bunsen-firehose image pipeline.
 
-- **Bunsen coverage:** `kits::bimm::resnet`, `burner::module`,
+- **Bunsen coverage:** `kits::images::resnet`, `burner::module`,
   `data::cache::BunsenDiskCache`, plus `bunsen-firehose` /
   `bunsen-firehose-image` data loading and augmentation.
 
@@ -53,7 +53,7 @@ Trains a ResNet from scratch on CINIC-10 using a bunsen-firehose image pipeline.
 Trains a Swin Transformer V2 Tiny on CINIC-10 with DropBlock regularization, sharing the firehose image pipeline with
 `resnet_tiny`.
 
-- **Bunsen coverage:** `kits::bimm::swin::v2`,
+- **Bunsen coverage:** `kits::images::swin::v2`,
   `blocks::images::drop::drop_block::DropBlock2d`, `burner::module::ModuleInit`,
   `errors`, plus `bunsen-firehose` / `bunsen-firehose-image`.
 
