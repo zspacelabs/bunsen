@@ -51,15 +51,18 @@ XPath forms you need.
 4. Wrap each set in an [`OptimizerGroup`](bunsen::burner::optim::OptimizerGroup)
    with its optimizer and, if it needs one, a learning-rate rule
    ([`LrSelector`](bunsen::burner::optim::LrSelector)).
-5. Compose the groups with a `GroupOptimizerAdaptorN`, such as
-   [`GroupOptimizerAdaptor2`](bunsen::burner::optim::GroupOptimizerAdaptor2),
+5. Compose the module and the groups with a `GroupOptimizerAdaptorN`, such
+   as [`GroupOptimizerAdaptor2`](bunsen::burner::optim::GroupOptimizerAdaptor2),
    and use it wherever a single burn optimizer would go.
 
 The adaptor's `N` counts optimizer *types*, not groups: three AdamW groups
-and one Muon group need `GroupOptimizerAdaptor2`. The adaptor rejects a
-parameter that two groups claim
+and one Muon group need `GroupOptimizerAdaptor2`. The adaptor checks that
+the groups partition the module's float parameters. It rejects a parameter
+that two groups claim
 ([`DuplicateParamId`](bunsen::burner::optim::GroupOptimizerError::DuplicateParamId)),
-so nothing is stepped twice. A group's learning rate is a function of the
+so nothing is stepped twice, and a float parameter that no group claims
+([`UnassignedParamIds`](bunsen::burner::optim::GroupOptimizerError::UnassignedParamIds)),
+so nothing is silently left out. A group's learning rate is a function of the
 scheduled rate, so one scheduler drives every group and each group shapes
 its own rate.
 
@@ -98,15 +101,3 @@ succeeds. It fails with a type error only when it is evaluated, and over an
 empty selection it is never evaluated at all, so a wrong path in front of it
 hides the mistake. Stack the predicates, `[@name='weight'][@rank=2]`, or use
 `and` ([XPath crib](bunsen::burner::module::reflection#xpath-crib)).
-
-**Unassigned parameters are not stepped.** The adaptor checks that no
-parameter is in two groups, but not that every parameter is in one. A
-parameter in no group keeps its value, with no error and no warning. The
-remnant group in step 3 is how you cover the model
-([behaviour to know](bunsen::burner::optim#behaviour-to-know)).
-
-**`NamedLrSelector` panics today.** The adaptors never fill the named
-learning-rate map that it reads, so
-[`NamedLrSelector`](bunsen::burner::optim::NamedLrSelector) panics on the
-first step. Use a fixed rate or a closure over the scheduled rate instead
-([learning rates](bunsen::burner::optim#learning-rates)).

@@ -29,10 +29,11 @@
 //!    optimizer that steps them, and an optional [`LrSelector`].
 //!    [`OptimizerGroup::from_adaptor`] takes the optimizer from what a `burn`
 //!    optimizer config's `init()` returns.
-//! 3. **Compose with `GroupOptimizerAdaptorN::new`.** Pass one
+//! 3. **Compose with `GroupOptimizerAdaptorN::new`.** Pass the module, then one
 //!    `Vec<OptimizerGroup<B, Oi>>` per optimizer type; e.g.
-//!    [`GroupOptimizerAdaptor2::new`] takes two. It rejects a `ParamId` claimed
-//!    by two groups.
+//!    [`GroupOptimizerAdaptor2::new`] takes two. It checks that the groups
+//!    partition the module's float parameters: none in two groups, none in no
+//!    group.
 //! 4. **Train.** The adaptor implements [`Optimizer`](burn::optim::Optimizer),
 //!    so it goes wherever a single optimizer would: a
 //!    [`Learner`](burn::train::Learner), or your own loop calling `step`.
@@ -48,15 +49,18 @@
 //! - **Duplicates are rejected.** A `ParamId` in two groups, of the same
 //!   optimizer type or not, makes `new` return
 //!   [`GroupOptimizerError::DuplicateParamId`].
-//! - **Parameters in no group are silently not stepped.** Nothing checks
-//!   coverage: an unclaimed parameter keeps its value, with no error or
-//!   warning. An `XPath` selection that matches nothing gives an empty group,
-//!   so the parameters it meant to claim are either unclaimed or caught by a
-//!   catch-all group with the wrong settings. Check coverage yourself: build a
-//!   remnant group from the parameters no other group claims, and assert that
-//!   each group is non-empty.
+//! - **Every float parameter needs a group.** A float parameter of the module
+//!   in no group makes `new` return
+//!   [`GroupOptimizerError::UnassignedParamIds`], listing them. This includes a
+//!   frozen parameter, which gets no gradient and so is not stepped whatever
+//!   its group. Build a remnant group from the parameters no other group
+//!   claims.
+//! - **Empty groups are not errors.** An `XPath` selection that matches nothing
+//!   gives an empty group, and the remnant group then claims the parameters it
+//!   meant to, with the remnant's settings. Assert that each group is
+//!   non-empty.
 //! - **Only float parameters are stepped.** Int and bool parameters keep their
-//!   values, whatever group they are in.
+//!   values, whatever group they are in, and need no group.
 //! - **Gradient clipping**, set with `with_grad_clipping` (e.g.
 //!   [`GroupOptimizerAdaptor2::with_grad_clipping`]), applies to each
 //!   parameter's gradient on its own, before its group's step: a norm clip
@@ -75,15 +79,9 @@
 //! - no selector, or [`GlobalLrSelector`]: the global rate;
 //! - [`OptimizerGroup::with_fixed_lr`] ([`FixedLrSelector`]): a constant that
 //!   ignores the schedule;
-//! - a closure, e.g. a per-group factor on the scheduled rate. A `Send + Sync`
-//!   closure with the [`LrSelector::select`] signature is an `LrSelector`.
-//!   Annotate its argument types, as in the example below; `HashMap` is
-//!   `hashbrown`'s, re-exported as `bunsen::public::hashbrown`.
-//!
-//! The second argument, the named learning rates, is **always empty
-//! today**: the adaptors never populate it. So [`NamedLrSelector`] panics on
-//! the first step ("No learning rate for ..."); don't use it until the map
-//! is filled.
+//! - a closure, e.g. a per-group factor on the scheduled rate, as in the
+//!   example below. A `Send + Sync` closure from the global rate to the group's
+//!   rate is an `LrSelector`.
 //!
 //! # Example
 //!
@@ -94,15 +92,13 @@
 //!     burner::{
 //!         module::reflection::XmlModuleTree,
 //!         optim::{
+//!             GroupOptimizerAdaptor1,
 //!             GroupOptimizerAdaptor2,
 //!             GroupOptimizerError,
 //!             OptimizerGroup,
 //!         },
 //!     },
-//!     public::hashbrown::{
-//!         HashMap,
-//!         HashSet,
-//!     },
+//!     public::hashbrown::HashSet,
 //! };
 //! use burn::{
 //!     backend::Autodiff,
@@ -117,7 +113,6 @@
 //!     optim::{
 //!         AdamWConfig,
 //!         GradientsParams,
-//!         LearningRate,
 //!         MuonConfig,
 //!         Optimizer,
 //!     },
@@ -156,13 +151,11 @@
 //! let adamw = AdamWConfig::new().init::<B, Net<B>>();
 //! let matrix_group = OptimizerGroup::from_adaptor(matrices.clone(), &muon);
 //! let rest_group = OptimizerGroup::from_adaptor(rest, &adamw)
-//!     .with_lr_selector(
-//!         |lr: LearningRate, _: &HashMap<String, LearningRate>| lr * 0.5,
-//!     );
+//!     .with_lr_selector(|lr| lr * 0.5);
 //!
-//! // 3. Compose: one `Vec` of groups per optimizer type.
+//! // 3. Compose: the module, then one `Vec` of groups per optimizer type.
 //! let mut optim: GroupOptimizerAdaptor2<_, _, Net<B>, B> =
-//!     GroupOptimizerAdaptor2::new(vec![matrix_group], vec![rest_group])?;
+//!     GroupOptimizerAdaptor2::new(&net, vec![matrix_group], vec![rest_group])?;
 //!
 //! // 4. Step it like any `burn` optimizer, or hand it to a `Learner`.
 //! let before = net.body.weight.val().into_data();
@@ -175,12 +168,24 @@
 //! // A parameter claimed by two groups is rejected.
 //! let twice: Result<GroupOptimizerAdaptor2<_, _, Net<B>, B>, _> =
 //!     GroupOptimizerAdaptor2::new(
+//!         &net,
 //!         vec![OptimizerGroup::from_adaptor(matrices.clone(), &muon)],
-//!         vec![OptimizerGroup::from_adaptor(matrices, &adamw)],
+//!         vec![OptimizerGroup::from_adaptor(mtree.param_ids()?, &adamw)],
 //!     );
 //! assert!(matches!(
 //!     twice,
 //!     Err(GroupOptimizerError::DuplicateParamId { .. })
+//! ));
+//!
+//! // So is a parameter claimed by none: here, the biases.
+//! let partial: Result<GroupOptimizerAdaptor1<_, Net<B>, B>, _> =
+//!     GroupOptimizerAdaptor1::new(
+//!         &net,
+//!         vec![OptimizerGroup::from_adaptor(matrices, &muon)],
+//!     );
+//! assert!(matches!(
+//!     partial,
+//!     Err(GroupOptimizerError::UnassignedParamIds { param_ids }) if param_ids.len() == 2
 //! ));
 //! # Ok::<(), Box<dyn std::error::Error>>(())
 //! ```

@@ -9,7 +9,9 @@ use burn::{
     grad_clipping::GradientClipping,
     module::{
         AutodiffModule,
+        Module,
         ModuleMapper,
+        ModuleVisitor,
         Param,
         ParamId,
     },
@@ -51,9 +53,9 @@ use crate::burner::optim::{
 /// Build one with [`OptimizerGroup::from_adaptor`] (or
 /// [`OptimizerGroup::new`]), usually from a `ParamId` set selected with
 /// [`XmlModuleTree`](crate::burner::module::reflection::XmlModuleTree). Pass
-/// the groups to a `GroupOptimizerAdaptorN::new` (e.g.
-/// [`GroupOptimizerAdaptor2::new`]), one `Vec` per optimizer type. See the
-/// [module docs](crate::burner::optim) for the lifecycle.
+/// the module and the groups to a `GroupOptimizerAdaptorN::new` (e.g.
+/// [`GroupOptimizerAdaptor2::new`]), one `Vec` of groups per optimizer type.
+/// See the [module docs](crate::burner::optim) for the lifecycle.
 #[derive(Clone)]
 pub struct OptimizerGroup<B, O>
 where
@@ -113,11 +115,10 @@ where
     pub fn lr(
         &self,
         global: LearningRate,
-        named_lrs: &HashMap<String, LearningRate>,
     ) -> LearningRate {
         self.lr_selector
             .as_ref()
-            .map(|lr_fn| lr_fn.select(global, named_lrs))
+            .map(|lr_fn| lr_fn.select(global))
             .unwrap_or(global)
     }
 
@@ -128,9 +129,8 @@ where
 
     /// Sets the learning rate mapping function.
     ///
-    /// A closure works when its argument types are annotated:
-    /// `|lr: LearningRate, _: &HashMap<String, LearningRate>| lr * 0.5`,
-    /// with `hashbrown`'s `HashMap`.
+    /// A `Send + Sync` closure from the global rate to this group's rate is
+    /// an [`LrSelector`]: `|lr| lr * 0.5`.
     pub fn with_lr_selector<F>(
         mut self,
         selector: F,
@@ -198,7 +198,8 @@ where
 
 /// Error from `GroupOptimizerAdaptorN::new`, for every `N`
 /// ([`GroupOptimizerAdaptor1::new`] through
-/// [`GroupOptimizerAdaptor7::new`]).
+/// [`GroupOptimizerAdaptor7::new`]): the groups are not a partition of the
+/// module's float parameters.
 #[derive(Debug, thiserror::Error)]
 pub enum GroupOptimizerError {
     /// A `ParamId` was assigned to more than one optimizer group.
@@ -218,6 +219,72 @@ pub enum GroupOptimizerError {
         /// (optimizer type, group index) of the second group that claims it.
         second: (usize, usize),
     },
+
+    /// Float parameters of the module are in no optimizer group, so they
+    /// would never be stepped.
+    ///
+    /// Every float parameter must be in a group, including one that gets no
+    /// gradient today (such a parameter is not stepped, whatever its group).
+    /// Collect the parameters no other group claims into a remnant group to
+    /// cover the rest of the module.
+    #[error(
+        "{} float parameter(s) of the module are in no optimizer group, \
+         and would never be stepped: {}",
+        .param_ids.len(),
+        join_param_ids(.param_ids)
+    )]
+    UnassignedParamIds {
+        /// The unassigned `ParamId`s, in the order the module visits them.
+        param_ids: Vec<ParamId>,
+    },
+}
+
+fn join_param_ids(param_ids: &[ParamId]) -> String {
+    param_ids
+        .iter()
+        .map(ToString::to_string)
+        .collect::<Vec<_>>()
+        .join(", ")
+}
+
+/// Collects the `ParamId`s of a module's float parameters, in visiting
+/// order.
+struct FloatParamIds(Vec<ParamId>);
+
+impl<B: Backend> ModuleVisitor<B> for FloatParamIds {
+    fn visit_float<const D: usize>(
+        &mut self,
+        param: &Param<Tensor<B, D>>,
+    ) {
+        self.0.push(param.id);
+    }
+}
+
+/// Checks that every float parameter of `module` is in `dispatch`.
+fn check_float_params_assigned<B, M>(
+    module: &M,
+    dispatch: &HashMap<ParamId, (usize, usize)>,
+) -> Result<(), GroupOptimizerError>
+where
+    B: Backend,
+    M: Module<B>,
+{
+    let mut float_params = FloatParamIds(Vec::new());
+    module.visit(&mut float_params);
+
+    let unassigned: Vec<ParamId> = float_params
+        .0
+        .into_iter()
+        .filter(|id| !dispatch.contains_key(id))
+        .collect();
+
+    if unassigned.is_empty() {
+        Ok(())
+    } else {
+        Err(GroupOptimizerError::UnassignedParamIds {
+            param_ids: unassigned,
+        })
+    }
 }
 
 /// Execute a single optimizer step for one parameter, managing record
@@ -275,8 +342,9 @@ macro_rules! define_group_optimizer_adaptor {
                 "An [`Optimizer`] over [`OptimizerGroup`]s of ",
                 $N,
                 " optimizer type(s): `new` takes one `Vec` of groups per type.\n\n",
-                "Each parameter is stepped by the group that claims it; a parameter ",
-                "in no group is not stepped. See the ",
+                "Each parameter is stepped by the group that claims it. `new` ",
+                "checks that every float parameter of the module is in exactly ",
+                "one group. See the ",
                 "[module docs](crate::burner::optim) for the lifecycle and an example.",
             )]
             #[derive(Clone)]
@@ -303,16 +371,20 @@ macro_rules! define_group_optimizer_adaptor {
                 M: AutodiffModule<B>,
                 B: AutodiffBackend,
             {
-                /// Builds the adaptor from one `Vec` of groups per optimizer
-                /// type, in type-parameter order.
+                /// Builds the adaptor for `module` from one `Vec` of groups
+                /// per optimizer type, in type-parameter order.
+                ///
+                /// `module` is only read, to list its float parameters; pass
+                /// the module you will step.
                 ///
                 /// # Errors
-                /// [`GroupOptimizerError::DuplicateParamId`] if a `ParamId`
-                /// appears in more than one group, of the same type or not.
-                ///
-                /// Coverage is not checked: a parameter in no group is never
-                /// stepped.
+                /// - [`GroupOptimizerError::DuplicateParamId`] if a `ParamId`
+                ///   appears in more than one group, of the same type or not.
+                /// - [`GroupOptimizerError::UnassignedParamIds`] if a float
+                ///   parameter of `module` is in no group.
+                #[allow(clippy::too_many_arguments)]
                 pub fn new(
+                    module: &M,
                     $( [<groups_ $idx>]: Vec<OptimizerGroup<B, $O>>, )+
                 ) -> Result<Self, GroupOptimizerError> {
                     let mut dispatch = HashMap::new();
@@ -331,6 +403,8 @@ macro_rules! define_group_optimizer_adaptor {
                             }
                         }
                     )+
+
+                    check_float_params_assigned(module, &dispatch)?;
 
                     let records = (
                         $(
@@ -368,15 +442,12 @@ macro_rules! define_group_optimizer_adaptor {
                     module: M,
                     mut grads: GradAdaptor,
                 ) -> M {
-                    let named_lrs: HashMap<String, LearningRate> = Default::default();
-
                     module.map(&mut [<GroupOptimizerMapper $N>] {
                         $( [<groups_ $idx>]: &self.[<groups_ $idx>], )+
                         dispatch: &self.dispatch,
                         $( [<records_ $idx>]: &mut self.records.$idx, )+
                         grads: &mut grads,
                         global_lr: lr,
-                        named_lrs: &named_lrs,
                         grad_clipping: self.grad_clipping.as_ref(),
                     })
                 }
@@ -444,7 +515,6 @@ macro_rules! define_group_optimizer_adaptor {
                 grads: &'a mut GradAdaptor,
 
                 global_lr: LearningRate,
-                named_lrs: &'a HashMap<String, LearningRate>,
 
                 grad_clipping: Option<&'a GradientClipping>,
             }
@@ -489,7 +559,7 @@ macro_rules! define_group_optimizer_adaptor {
                         $(
                             $idx => {
                                 let group = &self.[<groups_ $idx>][idx];
-                                let lr = group.lr(self.global_lr, self.named_lrs);
+                                let lr = group.lr(self.global_lr);
 
                                 step_group::<B, $O, D>(
                                     &group.optim,
@@ -565,12 +635,9 @@ mod tests {
     };
 
     use super::*;
-    use crate::{
-        burner::optim::NamedLrSelector,
-        support::testing::{
-            CpuBackend,
-            default_device,
-        },
+    use crate::support::testing::{
+        CpuBackend,
+        default_device,
     };
 
     type B = Autodiff<CpuBackend>;
@@ -628,6 +695,7 @@ mod tests {
         // Disjoint groups are accepted.
         assert!(
             GroupOptimizerAdaptor2::<SgdO, AdamW, Net, B>::new(
+                &net,
                 vec![OptimizerGroup::from_adaptor([w0, w1], &sgd())],
                 vec![OptimizerGroup::from_adaptor([b0, b1], &adamw())],
             )
@@ -636,8 +704,9 @@ mod tests {
 
         // Across optimizer types.
         let err = GroupOptimizerAdaptor2::<SgdO, AdamW, Net, B>::new(
+            &net,
             vec![OptimizerGroup::from_adaptor([w0, w1], &sgd())],
-            vec![OptimizerGroup::from_adaptor([b0, w1], &adamw())],
+            vec![OptimizerGroup::from_adaptor([b0, b1, w1], &adamw())],
         )
         .err()
         .unwrap();
@@ -645,15 +714,21 @@ mod tests {
             param_id,
             first,
             second,
-        } = &err;
+        } = &err
+        else {
+            panic!("expected DuplicateParamId, got {err:?}");
+        };
         assert_eq!((*param_id, *first, *second), (w1, (0, 0), (1, 0)));
         assert!(err.to_string().contains(&w1.to_string()), "{err}");
 
         // Within one optimizer type.
-        let err = GroupOptimizerAdaptor1::<SgdO, Net, B>::new(vec![
-            OptimizerGroup::from_adaptor([w0], &sgd()),
-            OptimizerGroup::from_adaptor([w0], &sgd()),
-        ])
+        let err = GroupOptimizerAdaptor1::<SgdO, Net, B>::new(
+            &net,
+            vec![
+                OptimizerGroup::from_adaptor([w0, b0, w1, b1], &sgd()),
+                OptimizerGroup::from_adaptor([w0], &sgd()),
+            ],
+        )
         .err()
         .unwrap();
         assert!(matches!(
@@ -667,28 +742,60 @@ mod tests {
     }
 
     #[test]
-    fn test_step_updates_grouped_params_only() {
+    fn test_new_rejects_unassigned_params() {
         let net = net();
-        let [w0, _b0, w1, b1] = ids(&net);
-        let [w0_before, b0_before, w1_before, b1_before] = values(&net);
+        let [w0, b0, w1, b1] = ids(&net);
 
-        // `b0` is in no group.
-        let mut optim = GroupOptimizerAdaptor2::<SgdO, AdamW, Net, B>::new(
+        // `b0` and `b1` are in no group.
+        let err = GroupOptimizerAdaptor2::<SgdO, AdamW, Net, B>::new(
+            &net,
             vec![OptimizerGroup::from_adaptor([w0, w1], &sgd())],
-            vec![OptimizerGroup::from_adaptor([b1], &adamw())],
+            vec![],
+        )
+        .err()
+        .unwrap();
+        let GroupOptimizerError::UnassignedParamIds { param_ids } = &err else {
+            panic!("expected UnassignedParamIds, got {err:?}");
+        };
+        // In the order the module visits them.
+        assert_eq!(param_ids, &[b0, b1]);
+        let msg = err.to_string();
+        assert!(msg.contains(&format!("{b0}, {b1}")), "{msg}");
+
+        // Empty groups are allowed, as long as every parameter has a group.
+        assert!(
+            GroupOptimizerAdaptor2::<SgdO, AdamW, Net, B>::new(
+                &net,
+                vec![
+                    OptimizerGroup::from_adaptor([w0, w1, b0, b1], &sgd()),
+                    OptimizerGroup::from_adaptor([], &sgd()),
+                ],
+                vec![],
+            )
+            .is_ok()
+        );
+    }
+
+    #[test]
+    fn test_step_updates_every_group() {
+        let net = net();
+        let [w0, b0, w1, b1] = ids(&net);
+        let before = values(&net);
+
+        let mut optim = GroupOptimizerAdaptor2::<SgdO, AdamW, Net, B>::new(
+            &net,
+            vec![OptimizerGroup::from_adaptor([w0, w1], &sgd())],
+            vec![OptimizerGroup::from_adaptor([b0, b1], &adamw())],
         )
         .unwrap();
 
         let grads = grads(&net);
         let net = optim.step(0.1, net, grads);
-        let [w0_after, b0_after, w1_after, b1_after] = values(&net);
+        let after = values(&net);
 
-        assert_ne!(w0_after, w0_before);
-        assert_ne!(w1_after, w1_before);
-        assert_ne!(b1_after, b1_before);
-
-        // Unclaimed: it had a gradient, and was silently not stepped.
-        assert_eq!(b0_after, b0_before);
+        for (i, (a, b)) in after.iter().zip(&before).enumerate() {
+            assert_ne!(a, b, "parameter {i} was not stepped");
+        }
     }
 
     #[test]
@@ -699,10 +806,13 @@ mod tests {
 
         // Plain SGD at a fixed rate of 0 does not move, whatever the global
         // rate.
-        let mut optim = GroupOptimizerAdaptor1::<SgdO, Net, B>::new(vec![
-            OptimizerGroup::from_adaptor([w0, b0], &sgd()).with_fixed_lr(0.0),
-            OptimizerGroup::from_adaptor([w1, b1], &sgd()),
-        ])
+        let mut optim = GroupOptimizerAdaptor1::<SgdO, Net, B>::new(
+            &net,
+            vec![
+                OptimizerGroup::from_adaptor([w0, b0], &sgd()).with_fixed_lr(0.0),
+                OptimizerGroup::from_adaptor([w1, b1], &sgd()),
+            ],
+        )
         .unwrap();
 
         let grads = grads(&net);
@@ -712,22 +822,5 @@ mod tests {
         assert_eq!(w0_after, w0_before);
         assert_eq!(b0_after, b0_before);
         assert_ne!(w1_after, w1_before);
-    }
-
-    /// The adaptors never populate `named_lrs`, so a [`NamedLrSelector`] has
-    /// nothing to find. This pins today's behaviour; when it changes, update
-    /// the module docs.
-    #[test]
-    #[should_panic(expected = "No learning rate for matrix")]
-    fn test_named_lr_selector_panics_on_step() {
-        let net = net();
-        let mut optim = GroupOptimizerAdaptor1::<SgdO, Net, B>::new(vec![
-            OptimizerGroup::from_adaptor(ids(&net), &sgd())
-                .with_lr_selector(NamedLrSelector::new("matrix".to_string())),
-        ])
-        .unwrap();
-
-        let grads = grads(&net);
-        let _ = optim.step(0.1, net, grads);
     }
 }

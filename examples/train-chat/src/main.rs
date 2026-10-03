@@ -43,7 +43,6 @@ use burn::{
     nn::loss::CrossEntropyLossConfig,
     optim::{
         AdamWConfig,
-        LearningRate,
         MuonConfig,
         decay::WeightDecayConfig,
     },
@@ -321,7 +320,10 @@ fn run<B: AutodiffBackend>(args: &Args) -> anyhow::Result<()> {
 
     // TODO: per-group GradientClipping.
 
+    // `new` checks that the groups partition the model's float parameters;
+    // `ParamGroups::select`'s remnant group covers whatever the others don't.
     let optimizer = GroupOptimizerAdaptor2::new(
+        &host,
         vec![
             OptimizerGroup::from_adaptor(
                 lm_head_params,
@@ -332,11 +334,7 @@ fn run<B: AutodiffBackend>(args: &Args) -> anyhow::Result<()> {
                     .with_weight_decay(0.01)
                     .init::<B, GptHost<B>>(),
             )
-            .with_lr_selector(
-                move |lr: f64,
-                      _: &bunsen::public::hashbrown::HashMap<String, LearningRate>|
-                      -> LearningRate { lr * lm_head_lr },
-            ),
+            .with_lr_selector(move |lr| lr * lm_head_lr),
             OptimizerGroup::from_adaptor(
                 embedding_params,
                 &AdamWConfig::new()
@@ -346,11 +344,7 @@ fn run<B: AutodiffBackend>(args: &Args) -> anyhow::Result<()> {
                     .with_weight_decay(0.001)
                     .init::<B, GptHost<B>>(),
             )
-            .with_lr_selector(
-                move |lr: LearningRate,
-                      _: &bunsen::public::hashbrown::HashMap<String, LearningRate>|
-                      -> LearningRate { lr * embedding_lr },
-            ),
+            .with_lr_selector(move |lr| lr * embedding_lr),
             OptimizerGroup::from_adaptor(
                 remnant_params,
                 &AdamWConfig::new()
@@ -360,11 +354,7 @@ fn run<B: AutodiffBackend>(args: &Args) -> anyhow::Result<()> {
                     .with_weight_decay(0.01)
                     .init::<B, GptHost<B>>(),
             )
-            .with_lr_selector(
-                move |lr: LearningRate,
-                      _: &bunsen::public::hashbrown::HashMap<String, LearningRate>|
-                      -> LearningRate { lr * scalar_lr },
-            ),
+            .with_lr_selector(move |lr| lr * scalar_lr),
         ],
         vec![
             OptimizerGroup::from_adaptor(
@@ -376,14 +366,9 @@ fn run<B: AutodiffBackend>(args: &Args) -> anyhow::Result<()> {
                     }))
                     .init::<B, GptHost<B>>(),
             )
-            .with_lr_selector(
-                move |lr: LearningRate,
-                      _: &bunsen::public::hashbrown::HashMap<String, LearningRate>|
-                      -> LearningRate { lr * matrix_lr },
-            ),
+            .with_lr_selector(move |lr| lr * matrix_lr),
         ],
-    )
-    .unwrap();
+    )?;
 
     let result = training.launch(Learner::new(host, optimizer, warmup_scheduler));
 
