@@ -37,6 +37,10 @@ pub enum DimExpr<'a> {
     },
 
     /// Exponentiation of an expression.
+    ///
+    /// [`shape_contract!`](crate::contracts::shape_contract!) rejects an
+    /// exponent of 0. Built by hand, `x ^ 0` is 1 for every `x`, so it checks
+    /// a size against 1 and never solves `x`.
     Pow {
         /// The child expression.
         base: &'a DimExpr<'a>,
@@ -250,8 +254,11 @@ impl<'a> DimExpr<'a> {
     /// * `Err("No integer solution.")` if the unbound param has no integer
     ///   solution, or a `Pow` target has no integer root. This includes a
     ///   product whose bound factors multiply to 0, against a nonzero target.
+    ///   It also includes a `Pow` with exponent 0 and an unbound base, against
+    ///   a target other than 1.
     /// * `Err("No unique solution.")` if a product's bound factors multiply to
-    ///   0 and the target is 0: every value of the unbound param solves it.
+    ///   0 and the target is 0, or a `Pow` with exponent 0 has an unbound base
+    ///   and the target is 1: every value of the unbound param solves it.
     #[must_use]
     pub fn try_match(
         &self,
@@ -306,6 +313,13 @@ impl<'a> DimExpr<'a> {
                 }
             }
             DimExpr::Negate { child } => child.try_match(-target, env),
+            DimExpr::Pow { exp: 0, .. } => match self.try_eval(env) {
+                // `x ^ 0` is 1 for every `x`: it can't solve `x`.
+                EvalResult::Value { value } if value == target => Ok(MatchResult::Match),
+                EvalResult::Value { .. } => Ok(MatchResult::Conflict),
+                EvalResult::UnboundParams { .. } if target == 1 => Err("No unique solution."),
+                EvalResult::UnboundParams { .. } => Err("No integer solution."),
+            },
             DimExpr::Pow { base: child, exp } => match maybe_iroot(target, *exp) {
                 Some(root) => child.try_match(root, env),
                 None => Err("No integer solution."),
@@ -572,5 +586,22 @@ mod tests {
         assert_eq!(expr.try_match(0, &env), Err("No unique solution."));
         // No `t` gives 6.
         assert_eq!(expr.try_match(6, &env), Err("No integer solution."));
+    }
+
+    #[test]
+    fn test_match_pow_zero_exponent() {
+        // x ^ 0 is 1 for every x.
+        let expr = DimExpr::Pow {
+            base: &DimExpr::Param { id: 0 },
+            exp: 0,
+        };
+
+        let env = [None];
+        assert_eq!(expr.try_match(5, &env), Err("No integer solution."));
+        assert_eq!(expr.try_match(1, &env), Err("No unique solution."));
+
+        let env = [Some(5)];
+        assert_eq!(expr.try_match(1, &env), Ok(MatchResult::Match));
+        assert_eq!(expr.try_match(5, &env), Ok(MatchResult::Conflict));
     }
 }

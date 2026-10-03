@@ -46,7 +46,8 @@
 /// - params: any string literal, such as `"batch"`. The text isn't checked, so
 ///   `"window size"` is a valid name;
 /// - integer constants, such as the `3` in `3 * "c"` or the `2` in `"h" - 2`;
-/// - binary `+`, `-` and `*`, and `^` with an integer literal exponent;
+/// - binary `+`, `-` and `*`, and `^` with a positive integer literal exponent.
+///   `^ 0` is a compile error: the term would be 1 for any base;
 /// - unary `-` and `+`, and parentheses.
 ///
 /// There is no division: write `"h" = 2 * "half"` and unpack `"half"`.
@@ -63,7 +64,7 @@
 /// DimMatcher    => '...' | { Param '=' }? ( '_' | Expr )
 /// Expr          => Term { AddOp Term }*
 /// Term          => Power { MulOp Power }*
-/// Power         => Factor { '^' <integer literal> }?
+/// Power         => Factor { '^' <positive integer literal> }?
 /// Factor        => Param | Const | '(' Expr ')' | NegOp Factor
 /// Param         => <string literal>
 /// Const         => <integer literal>

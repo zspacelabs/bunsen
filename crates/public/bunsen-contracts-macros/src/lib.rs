@@ -284,6 +284,12 @@ fn parse_power_expr(input: ParseStream) -> SynResult<ExprAST> {
         input.parse::<Token![^]>()?;
         let exp: syn::LitInt = input.parse()?;
         let exp_value: usize = exp.base10_parse()?;
+        if exp_value == 0 {
+            return Err(syn::Error::new(
+                exp.span(),
+                "`^ 0` is 1 for any base, so it can't match or solve one; write `1`",
+            ));
+        }
         Ok(ExprAST::Pow(Box::new(base), exp_value))
     } else {
         Ok(base)
@@ -702,6 +708,18 @@ mod tests {
         assert_eq!(
             err.to_string(),
             "`...` can't be labelled: it matches a run of dimensions, not one size"
+        );
+    }
+
+    #[test]
+    fn test_zero_exponent_is_rejected() {
+        let tokens: proc_macro2::TokenStream = r#""x" ^ 0"#.parse().unwrap();
+        let err = syn::parse2::<ExprSyntax>(tokens)
+            .err()
+            .expect("`^ 0` must not parse");
+        assert_eq!(
+            err.to_string(),
+            "`^ 0` is 1 for any base, so it can't match or solve one; write `1`"
         );
     }
 
