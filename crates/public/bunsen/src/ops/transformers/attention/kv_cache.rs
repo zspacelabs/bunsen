@@ -180,6 +180,11 @@ impl<B: Backend> KVCache<B> {
 
     /// Prefill given another `KVCache`.
     ///
+    /// Copies the other cache's history (its first [`pos`](Self::pos)
+    /// positions, whatever the length of its storage) into fresh storage,
+    /// and takes its position. The storage is this cache's `seq_len`, grown
+    /// in chunks if the history is longer.
+    ///
     /// - This cache must be `None`.
     /// - The other cache must be `Some`.
     /// - The `num_layers`, `num_heads`, and `head_dim` must match.
@@ -208,9 +213,17 @@ impl<B: Backend> KVCache<B> {
 
         let other_cache = other.cache.as_ref().unwrap();
 
-        let cache = self.allocate(other.seq_len, other_cache.dtype(), &other_cache.device());
+        let seq_len = if other.pos > self.seq_len {
+            self.allocation_size(other.pos)
+        } else {
+            self.seq_len
+        };
+        let cache = self.allocate(seq_len, other_cache.dtype(), &other_cache.device());
 
-        let source = other_cache.clone();
+        // The source's storage can be longer than its history.
+        let source = other_cache
+            .clone()
+            .slice(s![.., .., .., .., ..other.pos, ..]);
         let mut source_shape = source.dims();
         source_shape[2] = self.batch_size;
         let other_cache = source.expand(source_shape);
@@ -334,5 +347,109 @@ impl<B: Backend> KVCache<B> {
         required_size: usize,
     ) -> usize {
         (required_size.div_ceil(self.chunk_size) + self.extra_chunks) * self.chunk_size
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use burn::tensor::Distribution;
+    use serial_test::serial;
+
+    use super::*;
+    use crate::support::testing::{
+        DeviceMemoryGuard,
+        PerformanceBackend,
+        default_device,
+        seeded_tensor,
+    };
+
+    /// Writes `t_add` seeded positions to every layer of `cache`, and returns
+    /// each layer's `(k, v)` step.
+    fn fill<B: Backend>(
+        cache: &mut KVCache<B>,
+        t_add: usize,
+        device: &B::Device,
+    ) -> Vec<(Tensor<B, 4>, Tensor<B, 4>)> {
+        let shape = [
+            cache.batch_size(),
+            cache.num_heads(),
+            t_add,
+            cache.head_dim(),
+        ];
+        (0..cache.num_layers())
+            .map(|layer| {
+                let seed = 2 * layer as u64;
+                let k = seeded_tensor::<B, 4>(seed, shape, Distribution::Default, device);
+                let v = seeded_tensor::<B, 4>(seed + 1, shape, Distribution::Default, device);
+                cache.insert_kv(layer, k.clone(), v.clone());
+                (k, v)
+            })
+            .collect()
+    }
+
+    /// Prefills a batch-3 cache from a batch-1 source holding `filled`
+    /// positions, and checks that every layer reads the source's history
+    /// back, broadcast over the batch.
+    fn check_prefill(
+        source_seq_len: usize,
+        filled: usize,
+    ) {
+        type B = PerformanceBackend;
+        let device = default_device();
+        let _memory = DeviceMemoryGuard::<B>::new(&device);
+
+        let [num_heads, head_dim, num_layers] = [2, 4, 2];
+        let mut source: KVCache<B> =
+            KVCacheConfig::new(1, num_heads, source_seq_len, head_dim, num_layers).init();
+        let steps = fill(&mut source, filled, &device);
+        assert_eq!(source.pos(), filled);
+
+        let batch = 3;
+        let mut cache: KVCache<B> =
+            KVCacheConfig::new(batch, num_heads, source_seq_len, head_dim, num_layers).init();
+        cache.prefill(&source);
+        assert_eq!(cache.pos(), filled);
+
+        // One more position on every layer returns the prefilled history.
+        let step = [batch, num_heads, 1, head_dim];
+        let history = [batch, num_heads, filled, head_dim];
+        for (layer, (k, v)) in steps.into_iter().enumerate() {
+            let (k_all, v_all) = cache.insert_kv(
+                layer,
+                Tensor::zeros(step, &device),
+                Tensor::zeros(step, &device),
+            );
+            assert_eq!(k_all.dims(), [batch, num_heads, filled + 1, head_dim]);
+            k_all
+                .slice(s![.., .., ..filled])
+                .into_data()
+                .assert_eq(&k.expand(history).into_data(), true);
+            v_all
+                .slice(s![.., .., ..filled])
+                .into_data()
+                .assert_eq(&v.expand(history).into_data(), true);
+        }
+    }
+
+    /// The source's storage is longer than its position: 3 of 8 filled.
+    #[test]
+    #[serial]
+    fn test_prefill_from_partly_filled_cache() {
+        check_prefill(8, 3);
+    }
+
+    /// The source grew past its configured length: 6 positions in a cache
+    /// configured for 4, so its storage was reallocated in chunks.
+    #[test]
+    #[serial]
+    fn test_prefill_from_grown_cache() {
+        check_prefill(4, 6);
+    }
+
+    /// The source's storage is exactly its position.
+    #[test]
+    #[serial]
+    fn test_prefill_from_full_cache() {
+        check_prefill(5, 5);
     }
 }
