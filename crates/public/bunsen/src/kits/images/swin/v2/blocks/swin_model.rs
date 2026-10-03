@@ -267,11 +267,17 @@ impl ToStructureConfig for SwinTransformerV2ContractConfig {
     ///
     /// # Errors
     ///
-    /// [`BunsenError::Invalid`] when there are no stages, when the last
-    /// stage's patch grid is empty or not a multiple of `window_size`, or when
-    /// `input_resolution` is not that grid scaled back up by the merges and the
-    /// patch size.
+    /// [`BunsenError::Invalid`] when `patch_size` is 0, when there are no
+    /// stages, when the last stage's patch grid is empty or not a multiple of
+    /// `window_size`, or when `input_resolution` is not that grid scaled back
+    /// up by the merges and the patch size.
     fn try_to_structure(&self) -> BunsenResult<SwinTransformerV2StructureConfig> {
+        if self.patch_size == 0 {
+            return Err(BunsenError::Invalid(
+                "patch_size must be non-zero".to_string(),
+            ));
+        }
+
         let patch_config = PatchEmbedConfig::new(
             self.input_resolution,
             self.patch_size,
@@ -1202,5 +1208,23 @@ mod tests {
         for sequence in &model.grid_transformer_block_sequences {
             assert_eq!(sequence.drop_rate(), 0.25);
         }
+    }
+
+    /// A zero patch size is an error from `try_to_structure`, and so from
+    /// `try_init`, rather than a divide-by-zero panic.
+    #[test]
+    fn test_try_to_structure_rejects_zero_patch_size() {
+        let policy = SwinTransformerV2ContractConfig {
+            patch_size: 0,
+            ..tiny_policy()
+        };
+        assert!(matches!(
+            policy.try_to_structure(),
+            Err(BunsenError::Invalid(_))
+        ));
+
+        let device: burn::prelude::Device<CpuBackend> = Default::default();
+        let bad: BunsenResult<SwinTransformerV2<CpuBackend>> = policy.try_init(&device);
+        assert!(matches!(bad, Err(BunsenError::Invalid(_))));
     }
 }
