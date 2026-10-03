@@ -140,7 +140,8 @@ impl ToStructureConfig for SileroVadSignalConfig {
     ///
     /// # Errors
     ///
-    /// [`BunsenError::Invalid`] when `n_freq` is below 2.
+    /// [`BunsenError::Invalid`] when `n_freq` is below 2, or when `d_hidden`
+    /// or `d_bottleneck` is 0.
     fn try_to_structure(&self) -> BunsenResult<SileroVadStructureConfig> {
         self.try_to_stft()?.try_to_structure()
     }
@@ -158,23 +159,23 @@ pub struct SileroVadStftConfig {
     /// The sample rate (in Hz) this model expects, e.g. `16000`.
     pub sample_rate: usize,
 
-    /// Number of frequency bins.
+    /// Number of frequency bins; above 0.
     pub n_freq: usize,
 
     /// The reflect-padding applied to the right of the input before the STFT.
     pub input_pad: usize,
 
-    /// STFT kernel size.
+    /// STFT kernel size; above 0.
     pub stft_kernel: usize,
 
     /// STFT stride; above 0.
     pub stft_stride: usize,
 
-    /// The recurrent hidden / cell width of the LSTM.
+    /// The recurrent hidden / cell width of the LSTM; above 0.
     #[config(default = "128")]
     pub d_hidden: usize,
 
-    /// The encoder bottleneck dimension.
+    /// The encoder bottleneck dimension; above 0.
     #[config(default = "64")]
     pub d_bottleneck: usize,
 }
@@ -186,13 +187,23 @@ impl ToStructureConfig for SileroVadStftConfig {
     ///
     /// # Errors
     ///
-    /// [`BunsenError::Invalid`] when `stft_stride` is 0, which would build a
-    /// model whose STFT conv panics on its first `forward`.
+    /// [`BunsenError::Invalid`] when `n_freq`, `stft_kernel`, `stft_stride`,
+    /// `d_hidden` or `d_bottleneck` is 0. Each would build a model that
+    /// panics in its first `forward` (or, with a zero `d_bottleneck` on
+    /// wgpu, returns NaN).
     fn try_to_structure(&self) -> BunsenResult<SileroVadStructureConfig> {
-        if self.stft_stride == 0 {
-            return Err(BunsenError::Invalid(
-                "SileroVad needs an STFT stride above 0; got stft_stride = 0".to_string(),
-            ));
+        for (name, value) in [
+            ("n_freq", self.n_freq),
+            ("stft_kernel", self.stft_kernel),
+            ("stft_stride", self.stft_stride),
+            ("d_hidden", self.d_hidden),
+            ("d_bottleneck", self.d_bottleneck),
+        ] {
+            if value == 0 {
+                return Err(BunsenError::Invalid(format!(
+                    "SileroVad needs {name} above 0; got {name} = 0"
+                )));
+            }
         }
 
         Ok(SileroVadStructureConfig {
@@ -1043,6 +1054,46 @@ mod tests {
         };
         assert!(matches!(
             stft.try_to_structure(),
+            Err(BunsenError::Invalid(_))
+        ));
+    }
+
+    /// An STFT policy set directly with a zero kernel, bin count or width is
+    /// an error from `try_to_structure`. Each lowered and built: a zero
+    /// `n_freq` or `stft_kernel` then panicked in the first `forward`, and a
+    /// zero `d_hidden` or `d_bottleneck` panicked there or, on wgpu with a
+    /// zero `d_bottleneck`, gave NaN probabilities.
+    #[test]
+    fn test_stft_try_to_structure_rejects_zero_sizes() {
+        let standard = SileroVadSignalConfig::standard_16khz().to_stft();
+        for (field, stft) in [
+            (
+                "n_freq",
+                SileroVadStftConfig {
+                    n_freq: 0,
+                    ..standard.clone()
+                },
+            ),
+            (
+                "stft_kernel",
+                SileroVadStftConfig {
+                    stft_kernel: 0,
+                    ..standard.clone()
+                },
+            ),
+            ("d_hidden", standard.clone().with_d_hidden(0)),
+            ("d_bottleneck", standard.clone().with_d_bottleneck(0)),
+        ] {
+            assert!(
+                matches!(stft.try_to_structure(), Err(BunsenError::Invalid(_))),
+                "{field} = 0 lowered"
+            );
+        }
+
+        // The signal policy reaches the same check through its refinement.
+        let signal = SileroVadSignalConfig::standard_16khz().with_d_hidden(0);
+        assert!(matches!(
+            signal.try_to_structure(),
             Err(BunsenError::Invalid(_))
         ));
     }
