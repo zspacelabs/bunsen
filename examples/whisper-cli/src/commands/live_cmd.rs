@@ -61,8 +61,9 @@ use crate::{
 const CHUNK_MS: usize = 250;
 
 /// The emission preset when `--preset` is omitted: a microphone has no
-/// end, so each speech region is decoded as it closes, and every line is
-/// final.
+/// end, so each speech region is decoded as it closes. Committed lines are
+/// final; with timestamps on, the unfinished tail of a decode also appears
+/// as a draft.
 const PRESET: PresetEmissionPolicy = PresetEmissionPolicy::Conservative;
 
 /// How long the main loop waits for a capture callback before checking

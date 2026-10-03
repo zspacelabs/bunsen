@@ -15,10 +15,11 @@ tracking and re-injecting drift.
   helpers), `RelaxationParam`, the `LbmTables` lattice constants, the
   `SPEED_OF_SOUND` constant, and `macroscopic_momentum` for deriving velocity
   from the distribution tensor.
-- `bunsen::burner::tensor::TensorDataIndexView` — ergonomic multi-dimensional
-  indexing into `TensorData` (`view`, `[&[y, x, c]]`) used by the renderer.
-- `bunsen::support::validators::parse_grid_shape` — `clap` value-parser for
-  `HEIGHT,WIDTH` or a single `SIZE`.
+- `bunsen::burner::tensor::TensorDataView` — ergonomic multi-dimensional
+  indexing into `TensorData` (`expect_index_view`, `[&[y, x, c]]`) used by the
+  renderer.
+- `bunsen::support::geometry::GridShape2D` — the `--grid-shape` argument,
+  parsed from `WIDTH,HEIGHT` or a single `SIZE`.
 
 It demonstrates a more involved physics kit driven through Burn tensor slicing
 (`slice_fill`, `slice_assign`) and dtype casting.

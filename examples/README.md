@@ -1,78 +1,26 @@
-# Bunsen Examples
+# Bunsen examples
 
-This directory collects complex, runnable demos for `bunsen`. The goal is to showcase the capabilities of the library —
-across simulators, vision models, language-model training, data loading, and weight import — while also surfacing a
-working edge of problems that further development should improve.
+Runnable programs, one or more per kit or system. They are not published, and CI builds all of them. The book's
+[Examples](https://zspacelabs.ai/bunsen/book/organization/examples.html) page says what each one shows and how to
+choose a backend; each example's own README says how to run it.
 
-Each example has its own `README.md` with a full description and run instructions. The overview below summarizes what
-each one does and which bunsen features it exercises.
-
-### Example: conway_benchmark
-
-Headless throughput benchmark for Conway's Game of Life (2D and 3D), reporting
-`steps/sec` for a chosen backend and grid size.
-
-- **Bunsen coverage:** `kits::sims::conway::life2d` / `life3d` simulators on backend-generic Burn tensors.
-
-### Example: conway_vis
-
-Real-time OpenGL visualization of Conway's Game of Life, with the automaton running on a worker thread and frames
-streamed to a `piston` window.
-
-- **Bunsen coverage:** `kits::sims::conway::life2d`,
-  `support::validators::parse_grid_shape`, `zspace::ravel_dims`.
-
-### Example: lbm2d_vis
-
-Real-time 2D Lattice Boltzmann (D2Q9) fluid simulation with an OpenGL flow-field visualization and mass-conserving
-source/outflow forcing.
-
-- **Bunsen coverage:** `kits::sims::lbm::d2q9` (solver, `LbmTables`,
-  `macroscopic_momentum`), `burner::tensor::TensorDataIndexView`,
-  `support::validators::parse_grid_shape`.
-
-### Example: resnet_finetune
-
-Fine-tunes a pretrained ImageNet ResNet for multi-label classification, with model surgery (activation swap,
-DropBlock/stochastic depth, layer freezing, cautious weight decay).
-
-- **Bunsen coverage:** `kits::images::resnet` (model, `PREFAB_RESNET_MAP`,
-  `ResNetContractConfig`), `burner::module` (`ModuleInit`, `DTypeMapper`),
-  `data::cache::BunsenDiskCache`.
-
-### Example: resnet_tiny
-
-Trains a ResNet from scratch on CINIC-10 using a bunsen-firehose image pipeline.
-
-- **Bunsen coverage:** `kits::images::resnet`, `burner::module`,
-  `data::cache::BunsenDiskCache`, plus `bunsen-firehose` /
-  `bunsen-firehose-image` data loading and augmentation.
-
-### Example: swin_tiny
-
-Trains a Swin Transformer V2 Tiny on CINIC-10 with DropBlock regularization, sharing the firehose image pipeline with
-`resnet_tiny`.
-
-- **Bunsen coverage:** `kits::images::swin::v2`,
-  `blocks::images::drop::drop_block::DropBlock2d`, `burner::module::ModuleInit`,
-  `errors`, plus `bunsen-firehose` / `bunsen-firehose-image`.
-
-### Example: train-chat
-
-Trains a NanoChat-style GPT on the fineweb-edu corpus, using per-group optimizers (Muon for matrices, AdamW for
-embeddings/head/scalars) selected via module-tree reflection.
-
-- **Bunsen coverage:** `kits::gpts::nanochat`,
-  `burner::module::reflection::XmlModuleTree`, `burner::optim`
-  (`GroupOptimizerAdaptor2`, `OptimizerGroup`),
-  `bunsen-arrow-dataloaders`, `data::shards` with `kits::gpts::nanochat::datasets`.
-
-### Example: whisper-cli
-
-Transcribes audio through bunsen's Whisper stream driver, with the model named as `openai-whisper` names it
-(`--model openai/tiny.en`, `large`, or a checkpoint path). A `models` subcommand lists, fetches and inspects them.
-The prefab / pretrained / source index it was worked out against, and the name-to-model loader, are bunsen's now.
-
-- **Bunsen coverage:** `kits::speech::whisper::driver`, `kits::speech::whisper::pretrained::PytorchWhisperScanner`,
-  `data::pretrained::StaticPreFabMap`, `data::cache::BunsenDiskCache`, the `silero-weights` feature.
-
+- [`conway`](conway): Conway's Game of Life in 2D and 3D, with `visual` and `benchmark` subcommands.
+  Uses `kits::sims::conway`, `support::geometry::GridShape2D` and `zspace::ravel_dims`.
+- [`lbm2d_vis`](lbm2d_vis): a D2Q9 lattice-Boltzmann fluid simulation, rendered live.
+  Uses `kits::sims::lbm::d2q9`, `burner::tensor::TensorDataView` and `support::geometry::GridShape2D`.
+- [`resnet_finetune`](resnet_finetune): fine-tunes a pretrained ResNet for multi-label classification, with model
+  surgery. Uses `kits::images::resnet` (`default_resnet_factory`, `PREFAB_RESNET_MAP`),
+  `data::pretrained::PretrainedCache` and `burner::module` (`ModuleInit`, `DTypeMapper`).
+- [`resnet_tiny`](resnet_tiny): trains a ResNet on CINIC-10 through a firehose image pipeline, optionally from a
+  pretrained checkpoint. Uses `kits::images::resnet`, `data::pretrained::PretrainedCache`, `burner::module`
+  (`ToStructureConfig`, `ModuleInit`, `DTypeMapper`), `bunsen-firehose` and `bunsen-firehose-image`.
+- [`swin_tiny`](swin_tiny): trains a Swin Transformer V2 on CINIC-10 with DropBlock, sharing `resnet_tiny`'s
+  pipeline. Uses `kits::images::swin::v2`, `blocks::images::drop::drop_block`, `bunsen-firehose` and
+  `bunsen-firehose-image`.
+- [`train-chat`](train-chat): trains a NanoChat GPT on fineweb-edu shards, with Muon and AdamW parameter groups
+  selected by module-tree reflection. Uses `kits::gpts::nanochat` and its `datasets`, `data::shards`,
+  `data::cache::BunsenDiskCache`, `burner::module::reflection::XmlModuleTree`, `burner::optim` and
+  `bunsen-arrow-dataloaders`.
+- [`whisper-cli`](whisper-cli): transcribes a file or the microphone through the Whisper stream driver, with the
+  model named as `openai-whisper` names it, and a `models` subcommand that lists, fetches and inspects models.
+  Uses `kits::speech::whisper` (`pretrained`, `driver`), `kits::speech::silero_vad` and `data::pretrained`.

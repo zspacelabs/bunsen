@@ -205,11 +205,13 @@ pub struct WhisperDriverArgs {
     )]
     fallback: bool,
 
-    /// When to decode, and when a decode is final: `offline` (whole windows,
-    /// all final), `conservative` (speech regions as well, all final), or
-    /// `responsive` (drafts every 600 ms of speech besides). The last two
-    /// load the bundled VAD. Each command has its own default: `offline`
-    /// for `transcribe`, `conservative` for `live`.
+    /// When to decode, and what is drafted: `offline` (whole windows, never
+    /// a draft), `conservative` (speech regions as well; every commit is
+    /// final, and with `--timestamps` a decode's unfinished tail is also
+    /// printed as a draft), or `responsive` (conservative, plus a draft
+    /// every 600 ms of speech). The last two load the bundled VAD. Each
+    /// command has its own default: `offline` for `transcribe`,
+    /// `conservative` for `live`.
     #[arg(
         long,
         value_name = "offline|conservative|responsive",
