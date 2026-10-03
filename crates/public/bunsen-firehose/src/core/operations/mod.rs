@@ -46,9 +46,8 @@
 //! - the factory then builds the operator once, so a config that does not
 //!   deserialize fails here too.
 //!
-//! Only a call that passes changes the schema. A new output name that is
-//! already a column, or is not an identifier, panics rather than returning
-//! an error. An executor built from a schema that did not come through
+//! Each failed check is an `Err`, and only a call that passes changes the
+//! schema. An executor built from a schema that did not come through
 //! planning, such as one read from JSON, makes the same type checks when it
 //! builds its runners.
 //!
@@ -194,6 +193,7 @@ mod tests {
                 OperationRunner,
                 OperatorSchedulingMetadata,
             },
+            planner::OperationPlan,
             signature::{
                 FirehoseOperatorSignature,
                 ParameterSpec,
@@ -409,5 +409,65 @@ mod tests {
     #[test]
     fn test_map_op_environment() {
         let _env = MapOpEnvironment::new();
+    }
+
+    /// Plans the test `ADD` with inputs `a`, `b` and output `output`.
+    fn plan_add_to(
+        schema: &mut FirehoseTableSchema,
+        output: &str,
+    ) -> anyhow::Result<BuildPlan> {
+        let env = MapOpEnvironment::from_operators(vec![add_operator_op_binding()]).unwrap();
+        OperationPlan::for_operation_id(ADD)
+            .with_config(AddOperator { bias: 0 })
+            .with_input("x", "a")
+            .with_input("y", "b")
+            .with_output("result", output)
+            .apply_to_schema(schema, &env)
+    }
+
+    #[test]
+    fn test_plan_rejects_clashing_output_column() {
+        let mut schema = FirehoseTableSchema::from_columns(&[
+            ColumnSchema::new::<i32>("a"),
+            ColumnSchema::new::<i32>("b"),
+            ColumnSchema::new::<i32>("c"),
+        ]);
+        let before = schema.clone();
+
+        let err = plan_add_to(&mut schema, "c").unwrap_err();
+        assert!(
+            err.to_string().contains("Duplicate column name 'c'"),
+            "{err}"
+        );
+        assert_eq!(schema, before);
+    }
+
+    #[test]
+    fn test_plan_rejects_non_identifier_output_column() {
+        let mut schema = FirehoseTableSchema::from_columns(&[
+            ColumnSchema::new::<i32>("a"),
+            ColumnSchema::new::<i32>("b"),
+        ]);
+        let before = schema.clone();
+
+        let err = plan_add_to(&mut schema, "not an ident").unwrap_err();
+        assert!(
+            err.to_string()
+                .contains("Invalid identifier: 'not an ident'"),
+            "{err}"
+        );
+        assert_eq!(schema, before);
+    }
+
+    #[test]
+    fn test_plan_adds_new_output_column() {
+        let mut schema = FirehoseTableSchema::from_columns(&[
+            ColumnSchema::new::<i32>("a"),
+            ColumnSchema::new::<i32>("b"),
+        ]);
+
+        let plan = plan_add_to(&mut schema, "c").unwrap();
+        assert_eq!(schema.build_plans, vec![plan]);
+        assert!(schema.column_index("c").is_some());
     }
 }

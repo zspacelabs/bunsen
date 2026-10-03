@@ -9,10 +9,13 @@ use serde::{
     Serialize,
 };
 
-use crate::core::schema::{
-    BuildPlan,
-    ColumnSchema,
-    DataTypeDescription,
+use crate::core::{
+    identifiers,
+    schema::{
+        BuildPlan,
+        ColumnSchema,
+        DataTypeDescription,
+    },
 };
 
 /// Defines a single parameter specification
@@ -284,6 +287,11 @@ impl FirehoseOperatorSignature {
     }
 
     /// Generates a map of output column schemas for the given build plan.
+    ///
+    /// # Errors
+    ///
+    /// If the plan does not bind an output parameter, or binds it to a column
+    /// name that is not an identifier.
     pub fn output_column_schemas_for_plan(
         &self,
         build_plan: &BuildPlan,
@@ -296,6 +304,7 @@ impl FirehoseOperatorSignature {
             let column_name = build_plan.outputs.get(param_name).with_context(|| {
                 format!("Output parameter '{param_name}' not found in build plan")
             })?;
+            identifiers::check_ident(column_name)?;
 
             let data_type = output_param.data_type.clone();
 

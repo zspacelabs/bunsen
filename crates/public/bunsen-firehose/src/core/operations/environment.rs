@@ -109,12 +109,9 @@ pub trait FirehoseOperatorEnvironment: Debug + Send + Sync {
     /// # Returns
     ///
     /// An `anyhow::Result<BuildPlan>` containing the build plan for the
-    /// operation.
-    ///
-    /// # Panics
-    ///
-    /// If an output column name is already in the schema, or is not an
-    /// identifier.
+    /// operation; or an error, with the schema unchanged, if a check fails.
+    /// An output column name that is already in the schema, or is not an
+    /// identifier, is one such error.
     fn apply_plan_to_schema(
         &self,
         schema: &mut FirehoseTableSchema,
