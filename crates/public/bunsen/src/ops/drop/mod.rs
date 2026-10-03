@@ -7,8 +7,9 @@
 //! that decision: they apply the op only when autodiff is enabled.
 //!
 //! - [`dropout`] drops independent elements at random and rescales the rest by
-//!   `1 / (1 - prob)`. It is the operation inside burn's [`Dropout`] module,
-//!   without the training check;
+//!   `1 / (1 - prob)`; at `prob == 1` it returns zeros. It is the operation
+//!   inside burn's [`Dropout`] module, without the training check (burn's
+//!   divides by zero at `prob == 1`);
 //!   [`scaled_dot_product_attention`](crate::ops::transformers::attention::scaled_dot_product_attention)
 //!   uses it on attention weights.
 //! - [`drop_path`] is stochastic depth: it drops whole batch rows, so a
