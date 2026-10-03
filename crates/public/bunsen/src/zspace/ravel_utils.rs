@@ -1,4 +1,4 @@
-//! # Shape Helpers
+//! Row-major raveling of coordinates.
 
 use burn::{
     prelude::Shape,
@@ -8,15 +8,14 @@ use burn::{
     },
 };
 
-/// Computes the ravel index for the given coordinates.
+/// The row-major offset of `coords` in `shape`.
 ///
-/// This returns the row-major order raveling.
+/// [`ravel_dims`] over the shape's dimensions; see it for how coordinates are
+/// wrapped.
 ///
-/// # Arguments
-/// - `coords`: must be the same size as `self.rank()`.
+/// # Panics
 ///
-/// # Returns
-/// - the ravel offset index.
+/// If `coords` does not have one entry per dimension of `shape`.
 pub fn ravel_shape<I: AsIndex>(
     shape: &Shape,
     coords: &[I],
@@ -24,16 +23,19 @@ pub fn ravel_shape<I: AsIndex>(
     ravel_dims(shape.as_slice(), coords)
 }
 
-/// Computes the ravel index for the given coordinates.
+/// The row-major offset of `coords` in a tensor of dimensions `dims`.
 ///
-/// This returns the row-major order raveling.
+/// The last axis is contiguous: the offset is the sum of `coords[i]` times
+/// the product of the dimensions after `i`.
 ///
-/// # Arguments
-/// - `dims`: the dimensions of the shape.
-/// - `coords`: must be the same size as `self.rank()`.
+/// Each coordinate is first wrapped into its dimension, modulo its size, so
+/// `-1` names the last index. An index at or past the size wraps too, rather
+/// than panicking: in `[2, 3]`, the coordinates `[0, 3]` give the offset of
+/// `[0, 0]`.
 ///
-/// # Returns
-/// - the ravel offset index.
+/// # Panics
+///
+/// If `coords` does not have one entry per dimension.
 pub fn ravel_dims<I: AsIndex>(
     dims: &[usize],
     coords: &[I],

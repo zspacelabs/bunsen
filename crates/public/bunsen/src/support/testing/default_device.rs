@@ -176,6 +176,11 @@ mod value_cache {
 /// in hand. [`set_default_device`] replaces the cached device, and
 /// [`reset_default_device`] drops it.
 ///
+/// Sharing one device means that, on an accelerator, every test in a binary
+/// shares one client and one memory pool; a test that loads a model binds a
+/// [`DeviceMemoryGuard`](crate::support::testing::DeviceMemoryGuard) so the
+/// pool it grew goes back to the tests after it.
+///
 /// The cache is keyed on the **device** type, so backends that share one — a
 /// backend and its `Autodiff` wrapper, say — share a single cached device.
 pub fn default_device<D: DeviceOps>() -> D {
@@ -217,18 +222,10 @@ pub fn reset_default_device<D: DeviceOps>() {
 
 #[cfg(test)]
 mod tests {
-    use std::any::TypeId;
-
     use burn::prelude::Device;
 
     use super::*;
-    use crate::support::testing::{
-        CpuBackend,
-        backend_device,
-        default_device,
-        reset_default_device,
-        set_default_device,
-    };
+    use crate::support::testing::CpuBackend;
 
     #[test]
     fn test_device_entry_points_agree() {

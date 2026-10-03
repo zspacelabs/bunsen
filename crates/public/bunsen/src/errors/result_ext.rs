@@ -1,16 +1,21 @@
-//! # Result Utilities
-//!
-//! Methods for [`std::result::Result`] manipulation.
+//! `WithOkOrPanic`: the panicking half of the `try_x` / `x` convention.
 
 use core::fmt::Display;
 
-/// Extension trait for `Result<T, E>` to add `ok_or_panic` method.
+/// Adds [`ok_or_panic`](Self::ok_or_panic) to every `Result` whose error is
+/// `Display`.
+///
+/// This is how the `x` half of a `try_x` / `x` pair is written:
+/// `try_x(..).ok_or_panic()`. See the
+/// [convention](crate::errors#convention-try_x-and-x).
 pub trait WithOkOrPanic<T> {
     /// Unwraps the `Result`, or panics with the error message.
     ///
-    /// This differs from the behavior of [`Result::unwrap`]
-    /// in that the Debug format of the wrapped error is used
-    /// directly as the panic message; and not escaped.
+    /// The panic message is the error's `Display` text, as is.
+    /// [`Result::unwrap`] instead prints the error's `Debug` form after a
+    /// fixed prefix, and `BunsenError`'s derived `Debug` quotes each message
+    /// and escapes its newlines, so a multi-line message (an audit mismatch,
+    /// say) would print as one escaped line.
     fn ok_or_panic(self) -> T;
 }
 

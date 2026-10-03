@@ -1,14 +1,4 @@
-//! # Z-Space utilities.
-//!
-//! Z-Space is frequently used to define the semantics of n-dimensional
-//! integer coordinate systems.
-//!
-//! Z-Space refers to n-dimensional spaces indexed by integer tuples.
-//! It is Manhattan / Taxi-Cab Space, with the addition of a partial ordering.
-//!
-//! Z-Space has a limited notion of regions; limited to axis-aligned
-//! orthogonal regions. The partial ordering is chosen to simplify
-//! the description and containment testing of these regions.
+//! The z-space partial order, and point-in-box checks.
 use core::{
     cmp::Ordering,
     fmt::Debug,
@@ -20,17 +10,20 @@ use crate::errors::{
     WithOkOrPanic,
 };
 
-/// Z-space `PartialOrd`
+/// The z-space partial order: compares two points coordinate by coordinate.
 ///
-/// Compares the partial ordering of two slices (of equal length)
-/// by z-space tuple dominance.
+/// `a` is `Less` than `b` when no coordinate of `a` is greater than the
+/// matching one of `b` and at least one is smaller; `Greater` is the mirror;
+/// `Equal` is equality on every axis. A pair that is smaller on one axis and
+/// greater on another, or that has an incomparable coordinate (a NaN), is
+/// `None`. See the [module docs](crate::zspace).
 ///
 /// For example, the following orderings would hold:
-/// * ``cmp([1, 2], [1, 2]) == Some(Ordering::Equal)``
-/// * ``cmp([0, 0], [0, 1]) == Some(Ordering::Less)``
-/// * ``cmp([1, 0], [0, 0]) == Some(Ordering::Greater)``
-/// * ``cmp([0, 0], [1, 1]) == Some(Ordering::Less)``
-/// * ``cmp([1, 0], [0, 1]) == None``
+/// * `cmp([1, 2], [1, 2]) == Some(Ordering::Equal)`
+/// * `cmp([0, 0], [0, 1]) == Some(Ordering::Less)`
+/// * `cmp([1, 0], [0, 0]) == Some(Ordering::Greater)`
+/// * `cmp([0, 0], [1, 1]) == Some(Ordering::Less)`
+/// * `cmp([1, 0], [0, 1]) == None`
 ///
 /// # Arguments
 ///
@@ -77,12 +70,24 @@ pub fn zspace_partial_cmp<T: PartialOrd>(
     Some(ord)
 }
 
-/// Checks if a `point` is in the half-open range ``[start, end)``.
+/// Checks that `point` is in the half-open box `[start, end)`.
+///
+/// The lower bound is `start <= point` in the
+/// [partial order](zspace_partial_cmp): every coordinate at least `start`'s.
+/// The upper bound is `point < end` in the same order.
+///
+/// # Known issue
+///
+/// `point < end` in the partial order holds when *some* coordinate of `point`
+/// is below `end`'s and none is above, not when *every* coordinate is below.
+/// So a point on a far face of the box passes: `[1, 3]` is accepted in
+/// `[[0, 0], [2, 3])`, though `3` is not below `3`. Of the far faces, only
+/// the corner `end` itself is rejected. This is tracked for repair.
 ///
 /// # Returns
 ///
-/// An `BunsenResult<()>` that is `Ok(())` if the point is in the range,
-/// and a formatted bounds error otherwise.
+/// `Ok(())` if the point passes, else [`BunsenError::Invalid`] naming the
+/// point and the box.
 pub fn try_point_bounds_check<T>(
     point: &[T],
     start: &[T],
@@ -104,7 +109,14 @@ where
     }
 }
 
-/// Expects that a `point` is in the half-open range ``[start, end)``
+/// Expects that `point` is in the half-open box `[start, end)`.
+///
+/// The panicking half of [`try_point_bounds_check`], and it shares that
+/// function's known issue.
+///
+/// # Panics
+///
+/// With the [`try_point_bounds_check`] error's message, if the check fails.
 #[allow(dead_code)]
 pub fn expect_point_bounds_check<T>(
     point: &[T],

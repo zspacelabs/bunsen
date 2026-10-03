@@ -1,11 +1,15 @@
-//! # Compat Tensor Operations
+//! # NaN and infinity replacement
 
 use burn::{
     Tensor,
     prelude::Backend,
 };
 
-/// Maps nan and infinities to numbers.
+/// Replaces NaN, negative infinity and positive infinity with finite values.
+///
+/// Like `numpy.nan_to_num`, except that every replacement is explicit: NaN
+/// becomes `nan_val`, `-inf` becomes `neg_inf_val`, and `+inf` becomes
+/// `pos_inf_val`. Every other value passes through.
 pub fn nan_to_num<B: Backend, const D: usize>(
     tensor: Tensor<B, D>,
     nan_val: f64,

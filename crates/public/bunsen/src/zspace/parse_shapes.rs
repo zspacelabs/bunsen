@@ -1,4 +1,4 @@
-//! Public Encode/Decode Utilites for Burn Types.
+//! The XML attribute codec for shapes.
 use burn::prelude::Shape;
 
 use crate::errors::{
@@ -6,11 +6,11 @@ use crate::errors::{
     BunsenResult,
 };
 
-/// Encodes a [`Shape`] to XML/XPath attribute style.
+/// Encodes a [`Shape`] as an XML attribute value.
 ///
-/// Bracketless space-seperated style, eg: "1", "2 4"
-///
-/// See [`shape_from_xml_attr`].
+/// The dimensions, space-separated and without brackets: `"1"`, `"2 4"`.
+/// Module reflection writes a parameter's `shape` attribute with it; see
+/// [`shape_from_xml_attr`] for the inverse.
 pub fn shape_to_xml_attr(shape: &Shape) -> String {
     shape
         .iter()
@@ -19,11 +19,14 @@ pub fn shape_to_xml_attr(shape: &Shape) -> String {
         .join(" ")
 }
 
-/// Decodes a [`Shape`] from XML/XPath attribute style.
+/// Decodes a [`Shape`] from an XML attribute value.
 ///
-/// Bracketless space-seperated style, eg: "1", "2 4"
+/// The inverse of [`shape_to_xml_attr`]: space-separated dimensions without
+/// brackets, e.g. `"2 4"`.
 ///
-/// See [`shape_to_xml_attr`].
+/// # Errors
+///
+/// [`BunsenError::External`] if a part is not a `usize`.
 pub fn shape_from_xml_attr(val: &str) -> BunsenResult<Shape> {
     Ok(val
         .split_whitespace()

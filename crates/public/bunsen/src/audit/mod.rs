@@ -48,12 +48,12 @@
 //!
 //! # Quick Start
 //!
-//! This module is built with the `audit` feature, which is on by default and
-//! turns on `testing`. With default features off, add it back:
+//! This module is built with the `audit` feature, which turns on `testing`. A
+//! crate that audits in its tests enables it on its dev-dependency:
 //!
 //! ```toml
 //! [dev-dependencies]
-//! bunsen = { version = "*", default-features = false, features = ["audit"] }
+//! bunsen = { version = "*", features = ["audit"] }
 //! ```
 //!
 //! ## Write a body
@@ -110,6 +110,12 @@
 //!
 //! [`audit_across`] runs the body on the reference backend `R`, recording,
 //! then on the target backend `T`, verifying. Nothing touches the disk.
+//!
+//! [`PerformanceBackend`](crate::support::testing::PerformanceBackend) is the
+//! CPU unless a backend feature is on, so the example below compares the CPU
+//! with itself in a bare `cargo test`. Run it with a backend feature (e.g.
+//! `--features wgpu`) for the comparison to mean anything; see
+//! [Test backends](crate::support::testing#test-backends).
 //!
 //! ```
 //! # #[cfg(feature = "audit")] {
@@ -373,10 +379,10 @@
 //!
 //! ## Features
 //!
-//! The whole module is behind the `audit` feature, which is in bunsen's
-//! default features. It turns on `testing`, which provides the test backends
-//! and [`seeded_tensor`](crate::support::testing::seeded_tensor) (and brings
-//! in `rand`), and it brings in `ciborium` for the stream files.
+//! The whole module is behind the `audit` feature. It turns on `testing`,
+//! which provides the test backends and
+//! [`seeded_tensor`](crate::support::testing::seeded_tensor) (and brings in
+//! `rand`), and it brings in `ciborium` for the stream files.
 //!
 //! [`TensorData`]: burn::prelude::TensorData
 //! [`DType`]: burn::tensor::DType

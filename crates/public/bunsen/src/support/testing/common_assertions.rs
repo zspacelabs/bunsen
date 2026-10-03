@@ -24,8 +24,16 @@ use num_traits::float::Float;
 
 use crate::burner::tensor::TensorElemOpExt;
 
-/// Asserts that two vectors of floating-point numbers are close to each other
-/// within a given tolerance.
+/// Asserts that two host slices of floats are close, element by element.
+///
+/// The bound is absolute: each pair must satisfy `|a - e| <= tolerance`. For
+/// tensors, use [`assert_tensors_close`] or [`assert_tensor_close_to_vec`],
+/// which take a relative-and-absolute burn [`Tolerance`].
+///
+/// # Panics
+///
+/// Panics, printing both slices, if the lengths differ or any pair differs
+/// by more than `tolerance`.
 pub fn assert_close_to_vec<T>(
     actual: &[T],
     expected: &[T],

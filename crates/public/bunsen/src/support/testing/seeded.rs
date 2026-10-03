@@ -17,6 +17,25 @@ use rand::{
 /// `seed`, then uploaded at the backend's float element. Unlike
 /// `Tensor::random`, the result does not depend on the backend's RNG or on
 /// global seeding.
+///
+/// Use it for any input that two runs must share: a comparison across
+/// backends, a stored baseline, a golden value. A backend whose float element
+/// is narrower than `f64` sees the same draws, rounded to its element.
+///
+/// ```
+/// use bunsen::support::testing::{
+///     CpuBackend,
+///     backend_device,
+///     seeded_tensor,
+/// };
+/// use burn::tensor::Distribution;
+///
+/// type B = CpuBackend;
+/// let device = backend_device::<B>();
+/// let a = seeded_tensor::<B, 2>(7, [2, 3], Distribution::Default, &device);
+/// let b = seeded_tensor::<B, 2>(7, [2, 3], Distribution::Default, &device);
+/// a.into_data().assert_eq(&b.into_data(), true);
+/// ```
 pub fn seeded_tensor<B: Backend, const D: usize>(
     seed: u64,
     shape: [usize; D],

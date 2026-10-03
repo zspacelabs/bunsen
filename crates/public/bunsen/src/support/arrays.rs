@@ -1,6 +1,9 @@
 //! # Array Utilities
 
-/// Converts a `T` to a `[T; D]`.
+/// Repeats `v` into a `[T; D]`.
+///
+/// For passing one value where a per-axis array is expected, such as a
+/// kernel size or a stride.
 pub fn scalar_to_array<const D: usize, T>(v: T) -> [T; D]
 where
     T: Copy,
@@ -10,7 +13,7 @@ where
 
 #[cfg(test)]
 mod tests {
-    use crate::support::arrays::scalar_to_array;
+    use super::*;
 
     #[test]
     fn test_to_narray() {

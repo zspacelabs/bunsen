@@ -9,55 +9,45 @@ use num_traits::{
 use crate::errors::{
     BunsenError,
     BunsenResult,
+    WithOkOrPanic,
 };
 
-/// Validates a validators in the range `[0.0, 1.0]`.
+/// Checks that `prob` is a probability, in the closed range `[0.0, 1.0]`.
 ///
-/// # Arguments
+/// The fallible half of a `try_x` / `x` pair ([errors convention]); the
+/// panicking half is [`expect_probability`].
 ///
-/// - `prob`: the prob to check.
+/// # Errors
 ///
-/// # Returns
+/// [`BunsenError::Invalid`] if `prob` is below `0.0` or above `1.0`.
 ///
-/// A `BunsenResult<prob>`
+/// [errors convention]: crate::errors#convention-try_x-and-x
 #[inline]
 pub fn try_probability<F: Float + Debug>(prob: F) -> BunsenResult<F> {
     if prob < F::zero() || prob > F::one() {
         Err(BunsenError::Invalid(format!(
-            "validators must be in [0.0, 1.0]: {prob:?}"
+            "probability must be in [0.0, 1.0]: {prob:?}"
         )))
     } else {
         Ok(prob)
     }
 }
 
-/// Expects a validators to be in range `[0.0, 1.0]`, or panic.
+/// Returns `prob` if it is a probability, in `[0.0, 1.0]`.
 ///
-/// # Arguments
-///
-/// - `prob`: the prob to check.
-///
-/// # Returns
-///
-/// `prob`.
+/// The panicking half of [`try_probability`].
 ///
 /// # Panics
 ///
-/// On range error.
+/// With the [`try_probability`] error's message, if `prob` is out of range.
 #[inline]
 pub fn expect_probability<F: Float + Debug>(prob: F) -> F {
-    match try_probability(prob) {
-        Ok(prob) => prob,
-        Err(e) => panic!("{}", e),
-    }
+    try_probability(prob).ok_or_panic()
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::support::validators::prob::{
-        expect_probability,
-        try_probability,
-    };
+    use super::*;
 
     #[test]
     fn test_probability() {
@@ -76,7 +66,7 @@ mod tests {
         assert!(try_probability(2.0f64).is_err());
     }
 
-    #[should_panic(expected = "validators must be in [0.0, 1.0]: -1.0")]
+    #[should_panic(expected = "probability must be in [0.0, 1.0]: -1.0")]
     #[test]
     fn test_probability_panic() {
         expect_probability(-1.0);

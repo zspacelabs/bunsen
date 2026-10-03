@@ -1,4 +1,4 @@
-//! # Config Parsers
+//! # Grid shapes
 
 use core::str::FromStr;
 
@@ -12,28 +12,29 @@ use crate::errors::{
     BunsenResult,
 };
 
-/// A representation of a grid shape.
+/// A 2D grid size: `width` by `height` cells.
+///
+/// It parses from a string ([`FromStr`]), either `"W,H"` or a single `"N"`
+/// for an `N`-by-`N` square, so a command line or a config file can name a
+/// grid. The sims kits' configs use it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct GridShape2D {
-    /// The width of the image.
+    /// The width, in cells.
     pub width: usize,
 
-    /// The height of the image.
+    /// The height, in cells.
     pub height: usize,
 }
 
 impl FromStr for GridShape2D {
     type Err = BunsenError;
 
-    /// Parses a shape string into a ``(W, H)`` tuple.
+    /// Parses `"W,H"`, or `"N"` for an `N`-by-`N` square.
     ///
-    /// Accepts:
-    /// - ``SHAPE``: ``(SHAPE, SHAPE)``.
-    /// - ``[W,H]``: ``(W, H)``.
+    /// # Errors
     ///
-    /// # Returns
-    ///
-    /// a result, or error message.
+    /// [`BunsenError::ParseError`] if the string has more than two parts, or
+    /// a part is not a `usize`.
     fn from_str(s: &str) -> BunsenResult<Self> {
         if s.contains(",") {
             let parts: Vec<&str> = s.split(',').collect();

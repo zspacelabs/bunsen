@@ -1,10 +1,19 @@
-//! # Clone Box Trait
+//! # `CloneBox`
 use std::{
     any::Any,
     fmt::Debug,
 };
 
-/// A trait for cloning values into a boxed form.
+/// A clonable, downcastable `dyn Any`.
+///
+/// Every `'static + Clone + Debug + Send + Sync` type implements it, so any
+/// such value can be boxed as a `Box<dyn CloneBox>`, which is itself `Clone`,
+/// and read back with `downcast_ref`.
+/// [`DynTensor`](crate::burner::tensor::dynamic::DynTensor) holds its
+/// `Tensor<B, R, K>` this way, so its own type names neither rank nor kind.
+///
+/// It erases the type entirely. To make a trait object of your own trait
+/// `Clone`, use the `dyn-clone` crate instead.
 pub trait CloneBox: 'static + Any + Debug + Send + Sync {
     /// Clones the boxed value into a new boxed value.
     fn clone_box(&self) -> Box<dyn CloneBox>;

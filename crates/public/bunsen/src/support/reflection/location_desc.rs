@@ -6,7 +6,12 @@ use serde::{
     Serialize,
 };
 
-/// Serializable [`Location`].
+/// A serializable [`Location`]: file name, line and column.
+///
+/// Built `From` a `&Location`, which `#[track_caller]` code gets from
+/// [`Location::caller`]. It has no accessors; [`Display`] prints it as
+/// `file:line:col`. Audit event headers store one for each checkpoint, so a
+/// mismatch names the line that made it.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
 pub struct LocationDesc {
     filename: String,
