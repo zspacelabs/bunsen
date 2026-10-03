@@ -22,7 +22,7 @@ use bunsen::{
         PretrainedCacheOptions,
     },
     kits::images::resnet::{
-        PREFAB_RESNET_MAP,
+        RESNET_PREFABS,
         ResNet,
         default_resnet_factory,
     },
@@ -293,7 +293,7 @@ pub fn train<B: AutodiffBackend>(args: &Args) -> anyhow::Result<()> {
     // TODO: lift to clap parser.
     if args.pretrained == "list" {
         println!("Available pretrained models:");
-        for prefab in PREFAB_RESNET_MAP.iter() {
+        for prefab in RESNET_PREFABS.iter() {
             let cfg = (prefab.builder)();
             println!("* \"{}\"", prefab.name);
             println!("{cfg:?}");
@@ -308,7 +308,7 @@ pub fn train<B: AutodiffBackend>(args: &Args) -> anyhow::Result<()> {
     let mut model_ref = factory.resolve(&args.pretrained, &cache)?;
     let prefab = model_ref
         .model
-        .prefab(&PREFAB_RESNET_MAP)
+        .prefab(&RESNET_PREFABS)
         .with_context(|| format!("{}: names no prefab", model_ref.id()))?;
     let resnet_prefab = prefab.name.clone();
     let resnet_pretrained = model_ref.id();

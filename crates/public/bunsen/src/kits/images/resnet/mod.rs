@@ -83,7 +83,7 @@
 //!
 //! # Pretrained models
 //!
-//! The geometries are [`PREFAB_RESNET_MAP`]: six
+//! The geometries are [`RESNET_PREFABS`]: six
 //! [`ResNetContractConfig`]s by name, `resnet18` to `resnet152`, each with
 //! 1000 classes. The checkpoints are 14 rows in two groups of the
 //! [`WELL_KNOWN_TABLE`]: [`TORCHVISION`], the reference `ImageNet` weights,
@@ -112,7 +112,7 @@
 //!         PretrainedCacheOptions,
 //!     },
 //!     kits::images::resnet::{
-//!         PREFAB_RESNET_MAP,
+//!         RESNET_PREFABS,
 //!         ResNet,
 //!         default_resnet_factory,
 //!     },
@@ -126,7 +126,7 @@
 //! let device = default_device();
 //! let cache = PretrainedCache::new(PretrainedCacheOptions::default())?;
 //!
-//! let config = PREFAB_RESNET_MAP
+//! let config = RESNET_PREFABS
 //!     .expect_lookup_prefab("resnet18")
 //!     .to_config()
 //!     .with_activation(ActivationConfig::Gelu);

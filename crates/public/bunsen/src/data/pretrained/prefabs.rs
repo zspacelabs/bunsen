@@ -134,7 +134,7 @@ where
 ///
 /// A prefab is a named builder of a config: what a name means as a shape
 /// before any bytes are fetched. Whisper's `WHISPER_PREFABS` and `ResNet`'s
-/// `PREFAB_RESNET_MAP` are the in-tree maps. Which rows instantiate a
+/// `RESNET_PREFABS` are the in-tree maps. Which rows instantiate a
 /// prefab is the rows' side: a [`Pretrained`](super::Pretrained) row names
 /// its prefab, [`PretrainedRef::prefab`](super::PretrainedRef::prefab)
 /// looks it up here for a resolved row (for the kit's hook to build from

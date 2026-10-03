@@ -79,7 +79,7 @@
 //! | Piece | `ResNet` | Whisper | Silero VAD |
 //! |---|---|---|---|
 //! | Configs | [`ResNetContractConfig`](images::resnet::ResNetContractConfig) -> [`ResNetStructureConfig`](images::resnet::ResNetStructureConfig) | [`WhisperApiConfig`](speech::whisper::WhisperApiConfig) -> [`WhisperStructureConfig`](speech::whisper::WhisperStructureConfig) | [`SileroVadSignalConfig`](speech::silero_vad::SileroVadSignalConfig) -> [`SileroVadStftConfig`](speech::silero_vad::SileroVadStftConfig) -> [`SileroVadStructureConfig`](speech::silero_vad::SileroVadStructureConfig) |
-//! | Prefab map | [`PREFAB_RESNET_MAP`](images::resnet::PREFAB_RESNET_MAP) | [`WHISPER_PREFABS`](speech::whisper::pretrained::WHISPER_PREFABS) | none |
+//! | Prefab map | [`RESNET_PREFABS`](images::resnet::RESNET_PREFABS) | [`WHISPER_PREFABS`](speech::whisper::pretrained::WHISPER_PREFABS) | none |
 //! | Table | [`WELL_KNOWN_TABLE`](images::resnet::WELL_KNOWN_TABLE) | [`WELL_KNOWN_TABLE`](speech::whisper::pretrained::WELL_KNOWN_TABLE), a bundled table, and `hf:` | a bundled table |
 //! | Providers | [`default_resnet_providers`](images::resnet::default_resnet_providers) | [`default_whisper_providers`](speech::whisper::pretrained::default_whisper_providers) | [`default_silero_providers`](speech::silero_vad::pretrained::default_silero_providers) |
 //! | Hook | [`ResNetConstruct`](images::resnet::ResNetConstruct) | [`WhisperConstruct`](speech::whisper::pretrained::WhisperConstruct) | [`SileroConstruct`](speech::silero_vad::pretrained::SileroConstruct) |

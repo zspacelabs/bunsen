@@ -20,7 +20,7 @@ use bunsen::{
         PretrainedCacheOptions,
     },
     kits::images::resnet::{
-        PREFAB_RESNET_MAP,
+        RESNET_PREFABS,
         ResNet,
         default_resnet_factory,
     },
@@ -231,7 +231,7 @@ pub fn backend_main<B: AutodiffBackend>(args: &Args) -> anyhow::Result<()> {
 
     B::seed(&device, args.seed);
 
-    let prefab = PREFAB_RESNET_MAP.expect_lookup_prefab(&args.resnet_prefab);
+    let prefab = RESNET_PREFABS.expect_lookup_prefab(&args.resnet_prefab);
 
     let contract = prefab.to_config().with_activation(ActivationConfig::Gelu);
     let resnet: ResNet<B> = contract.to_structure().try_init(&device)?;

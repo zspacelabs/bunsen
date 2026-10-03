@@ -324,7 +324,7 @@ pub static TIMM: StaticPretrainedGroup<'static> = StaticPretrainedGroup {
 /// or `resnet50`.
 ///
 /// Two groups, [`TORCHVISION`] and [`TIMM`], 14 rows in all. Each row
-/// names the [`PREFAB_RESNET_MAP`] prefab it instantiates, and is one
+/// names the [`RESNET_PREFABS`] prefab it instantiates, and is one
 /// `.pth` file under its group's base URL, pinned to its digest. A bare
 /// name is answered by the first group that has it, torchvision.
 pub static WELL_KNOWN_TABLE: StaticPretrainedTable<'static> = StaticPretrainedTable {
@@ -343,7 +343,7 @@ pub fn default_resnet_providers() -> Vec<Arc<dyn PretrainedProvider>> {
 ///
 /// A prefab has no weights. The rows of [`WELL_KNOWN_TABLE`] name the
 /// prefab they instantiate, and [`ResNetConstruct`] builds from it.
-pub static PREFAB_RESNET_MAP: StaticPreFabMap<ResNetContractConfig> = StaticPreFabMap {
+pub static RESNET_PREFABS: StaticPreFabMap<ResNetContractConfig> = StaticPreFabMap {
     name: "resnet",
     description: "Well-Know ResNet configs",
 
@@ -389,8 +389,8 @@ mod construct {
 
     use super::{
         CHECKPOINT,
-        PREFAB_RESNET_MAP,
         RESNET_KIT,
+        RESNET_PREFABS,
         default_resnet_providers,
     };
     use crate::{
@@ -461,7 +461,7 @@ mod construct {
                 return Ok(config.clone());
             }
             model
-                .prefab(&PREFAB_RESNET_MAP)
+                .prefab(&RESNET_PREFABS)
                 .map(|prefab| prefab.to_config())
                 .ok_or_else(|| {
                     BunsenError::Invalid(format!(
@@ -527,8 +527,8 @@ mod tests {
                 n += 1;
                 let prefab = row.prefab.expect("every resnet row names a prefab");
                 assert!(
-                    PREFAB_RESNET_MAP.lookup_prefab(prefab).is_some(),
-                    "{}: prefab {prefab:?} is not in PREFAB_RESNET_MAP",
+                    RESNET_PREFABS.lookup_prefab(prefab).is_some(),
+                    "{}: prefab {prefab:?} is not in RESNET_PREFABS",
                     group.id(row),
                 );
                 let map = row.try_to_map().unwrap();
@@ -555,7 +555,7 @@ mod tests {
             }
         }
         assert_eq!(n, 14);
-        assert_eq!(PREFAB_RESNET_MAP.iter().count(), 6);
+        assert_eq!(RESNET_PREFABS.iter().count(), 6);
     }
 
     /// The table answers `group/name` and bare names, torchvision first.
@@ -681,17 +681,13 @@ mod tests {
         let named = factory.resolve("resnet50", &cache).unwrap();
         let hook = named.hook.clone();
         let named = named.model;
-        let resnet50 = PREFAB_RESNET_MAP
-            .expect_lookup_prefab("resnet50")
-            .to_config();
+        let resnet50 = RESNET_PREFABS.expect_lookup_prefab("resnet50").to_config();
         assert_eq!(
             format!("{:?}", hook.config_for(&named).unwrap()),
             format!("{resnet50:?}")
         );
 
-        let resnet18 = PREFAB_RESNET_MAP
-            .expect_lookup_prefab("resnet18")
-            .to_config();
+        let resnet18 = RESNET_PREFABS.expect_lookup_prefab("resnet18").to_config();
         let explicit = hook.clone().with_config(resnet18.clone());
         assert_eq!(
             format!("{:?}", explicit.config_for(&named).unwrap()),

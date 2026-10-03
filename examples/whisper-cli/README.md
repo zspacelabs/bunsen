@@ -34,7 +34,7 @@ driver and a `models` subcommand; the [model index](#models) and the name-to-mod
   the kit's hook checks the scan against the prefab the name promised before the weights are read, and picks the
   reader by the row's resource `kind`.
 - `data::pretrained::StaticPreFabMap` — the prefab table, `WHISPER_PREFABS`, is bunsen's prefab type over
-  `WhisperApiConfig`, as `PREFAB_RESNET_MAP` is over the ResNet config.
+  `WhisperApiConfig`, as `RESNET_PREFABS` is over the ResNet config.
 - `data::pretrained::PretrainedCache` over `data::cache::BunsenDiskCache` — the cache directory (`--cache-dir`,
   `$BUNSEN_CACHE_DIR`, the platform's cache dir), and the digest-pinned resolve of every resource through it
   (`--offline`, `--upstream-cache-dir`).

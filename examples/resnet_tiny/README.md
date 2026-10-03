@@ -9,7 +9,7 @@ the `swin_tiny` example, sharing the same data-loading machinery.
 
 ## Bunsen features exercised
 
-- `bunsen::kits::images::resnet` — the `ResNet` model, the `PREFAB_RESNET_MAP`
+- `bunsen::kits::images::resnet` — the `ResNet` model, the `RESNET_PREFABS`
   table of geometries, and `default_resnet_factory` for an optional pretrained
   checkpoint.
 - `bunsen::burner::module` — `ToStructureConfig` / `ModuleInit` for module init
