@@ -1,6 +1,6 @@
 [package]
 name = "bunsen-bundled-silero"
-description = "Bunsen bundled Silero VAD assets: the pretrained weights, and optionally the ONNX-generated reference model."
+description = "Bunsen bundled Silero VAD assets: the pretrained weights, generated offline from a committed ONNX graph, and optionally the ONNX-generated reference model."
 publish = true
 
 authors.workspace = true

@@ -12,7 +12,7 @@ use crate::core::{
     schema::FirehoseTableSchema,
 };
 
-/// Trait for executing a batch of operations on a `RowBatch`.
+/// Trait for executing a schema's build plans on a `FirehoseRowBatch`.
 pub trait FirehoseBatchExecutor: Debug + Send + Sync {
     /// Returns the schema used by this executor.
     fn schema(&self) -> &Arc<FirehoseTableSchema>;
@@ -20,7 +20,7 @@ pub trait FirehoseBatchExecutor: Debug + Send + Sync {
     /// Returns the operator environment used by this executor.
     fn environment(&self) -> &Arc<dyn FirehoseOperatorEnvironment>;
 
-    /// Runs the butch under the policy of the executor.
+    /// Runs the batch under the policy of the executor.
     fn execute_batch(
         &self,
         batch: &mut FirehoseRowBatch,
@@ -44,8 +44,13 @@ pub struct SequentialBatchExecutor {
 }
 
 impl SequentialBatchExecutor {
-    /// Creates a new `DefaultBatchExecutor` with the given operator
-    /// environment.
+    /// Creates a new `SequentialBatchExecutor` for the schema, building an
+    /// operator for each of its build plans from the environment.
+    ///
+    /// # Returns
+    ///
+    /// The executor, or an error if the build plans cannot be ordered, or an
+    /// operator cannot be built or does not match its plan.
     pub fn new(
         schema: Arc<FirehoseTableSchema>,
         environment: Arc<dyn FirehoseOperatorEnvironment>,

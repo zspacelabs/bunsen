@@ -7,7 +7,7 @@ edition.workspace = true
 
 repository.workspace = true
 license.workspace = true
-description = "bunsen preview: Arrow-backed chat dataloader with tokenization for training"
+description = "bunsen preview: streams Parquet text shards into packed, shuffled token batches for language-model training in burn"
 
 
 [lints]

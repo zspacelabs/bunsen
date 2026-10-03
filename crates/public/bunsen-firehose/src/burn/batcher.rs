@@ -11,7 +11,8 @@ use crate::core::{
     operations::executor::FirehoseBatchExecutor,
 };
 
-/// Input Adapter for `HackyBatcher`.
+/// Input Adapter for [`FirehoseExecutorBatcher`]: turns dataset items into
+/// the base columns of a row batch.
 pub trait BatcherInputAdapter<I>: Send + Sync
 where
     I: Send + Sync + Clone + std::fmt::Debug + 'static,
@@ -23,7 +24,8 @@ where
     ) -> anyhow::Result<FirehoseRowBatch>;
 }
 
-/// Output Adapter for `HackyBatcher`.
+/// Output Adapter for [`FirehoseExecutorBatcher`]: turns the executed row
+/// batch into the batch burn trains on.
 pub trait BatcherOutputAdapter<B, O>: Send + Sync
 where
     B: Backend,
@@ -38,6 +40,15 @@ where
 }
 
 /// Firehose Row Burn Batcher.
+///
+/// A burn [`Batcher`] that turns a `Vec<I>` of dataset items into a row
+/// batch with a [`BatcherInputAdapter`], runs a [`FirehoseBatchExecutor`]
+/// over it, and makes the output `O` with a [`BatcherOutputAdapter`].
+///
+/// # Panics
+///
+/// [`Batcher::batch`] returns no error, so a failure in any of the three
+/// steps panics.
 pub struct FirehoseExecutorBatcher<B, I, O>
 where
     B: Backend,
@@ -60,8 +71,8 @@ where
     I: Send + Sync + Clone + std::fmt::Debug + 'static,
     O: Send + Clone + std::fmt::Debug + 'static,
 {
-    /// Creates a new `HackyBatcher` with the given executor, input adapter, and
-    /// output adapter.
+    /// Creates a new `FirehoseExecutorBatcher` with the given executor, input
+    /// adapter, and output adapter.
     pub fn new(
         executor: Arc<dyn FirehoseBatchExecutor>,
         input_adapter: Arc<dyn BatcherInputAdapter<I>>,

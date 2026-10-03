@@ -2,8 +2,8 @@
 //!
 //! This crate provides ready-to-use [`bunsen_firehose`] operators for image
 //! data: loading from disk, resizing/recoloring, seedable augmentation, and
-//! conversion to [`burn`] tensors. Each operator registers itself into the
-//! global registry, so [`init_default_operator_environment`] returns an
+//! conversion to [`burn`] tensor data. Each operator registers itself into
+//! the global registry, so [`init_default_operator_environment`] returns an
 //! environment that already knows about all of them.
 //!
 //! The modules:
@@ -24,7 +24,8 @@
 //!   for assembling tensor batches.
 //! - [`colortype_support`] — [`ColorType`] conversion and (de)serialization
 //!   helpers.
-//! - [`test_util`] — image generation/comparison helpers for tests.
+//! - [`test_util`] — a test image and an image-similarity assertion, used by
+//!   this crate's tests.
 //!
 //! # Example: load, resize, and tensorize an image
 //!

@@ -1,6 +1,6 @@
 [package]
 name = "bunsen-bundled-whisper"
-description = "Bunsen bundled Whisper assets: fetches, pins and caches OpenAI's checkpoint, its tokenizer vocabularies, and the ONNX-generated reference model. Hosts none."
+description = "Bunsen bundled Whisper assets: fetches OpenAI's base checkpoint, its tokenizer vocabularies and an ONNX reference model at build time, digest-pinned, each behind a feature. Hosts none."
 publish = true
 
 authors.workspace = true

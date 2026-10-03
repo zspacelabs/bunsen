@@ -8,7 +8,7 @@ version.workspace = true
 repository.workspace = true
 license.workspace = true
 documentation = "https://docs.rs/bunsen-firehose-image/latest/"
-description = "bimm-firehose image processing support"
+description = "Image operators for bunsen-firehose: loading, seeded augmentation, and conversion to burn tensor data"
 
 [lints]
 workspace = true

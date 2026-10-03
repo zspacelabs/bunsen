@@ -1,10 +1,10 @@
 //! # Operator registry
 //!
 //! Operators can be registered *globally* with the
-//! [`register_firehose_operator_factory!
-//! `](crate::register_firehose_operator_factory) / [`define_firehose_operator!
-//! `](crate::define_firehose_operator) macros (built on [`inventory`]).
-//! [`init_default_operator_environment`](crate::ops::init_default_operator_environment)
+//! [`register_firehose_operator_factory`](crate::register_firehose_operator_factory)
+//! and [`define_firehose_operator`](crate::define_firehose_operator) macros
+//! (built on [`inventory`]).
+//! [`init_default_operator_environment`]
 //! then collects every such registration — across all linked crates — into a
 //! fresh [`MapOpEnvironment`] ready to validate and run build plans.
 //!
@@ -39,10 +39,18 @@ use crate::core::operations::{
 
 /// Build the default environment.
 ///
-/// This constructs a `MapOpEnvironment` and adds all operator builders
-/// registered with `bunsen_firehose::register_default_operator_builder!`.
+/// This constructs a [`MapOpEnvironment`] and adds every operator factory
+/// registered with
+/// [`define_firehose_operator`](crate::define_firehose_operator) or
+/// [`register_firehose_operator_factory`](crate::register_firehose_operator_factory)
+/// in any linked crate.
 ///
-/// Each call `build_default_environment` will create a new mutable environment.
+/// Each call creates a new environment, which the caller may extend.
+///
+/// # Panics
+///
+/// If two registrations share an operator id, or a registered factory's
+/// signature has a different id from its registration.
 pub fn init_default_operator_environment() -> MapOpEnvironment {
     let mut env = MapOpEnvironment::default();
 

@@ -16,6 +16,61 @@
 //! exactly that. bunsen's Whisper kit also lists the same files as
 //! `bundled:openai/base`, a row served in place from here.
 //!
+//! ## What it exposes
+//!
+//! Each item exists only under the feature that fetches its asset:
+//!
+//! | Item | Feature | What it is |
+//! |---|---|---|
+//! | `cache_dir()` | `checkpoint` or `vocab` | `OUT_DIR`, laid out as a pretrained cache |
+//! | `base_pt()` | `checkpoint` | `OpenAI`'s multilingual `base.pt` |
+//! | `multilingual_tiktoken()` | `vocab` | the multilingual checkpoints' base vocabulary |
+//! | `gpt2_tiktoken()` | `vocab` | the English-only (`*.en`) checkpoints' base vocabulary |
+//! | `onnx_gen::{EncoderModel, DecoderModel}` | `onnx_gen` | reference models generated from `onnx-community/whisper-base` |
+//!
+//! ## Using local copies: the `WHISPER_*` variables
+//!
+//! A build without the network, or one that should not download hundreds
+//! of megabytes again after a `cargo clean`, can point the build script at
+//! local files. Each variable replaces one asset, and is read only when the
+//! feature that fetches that asset is on:
+//!
+//! | Variable | Feature | Replaces |
+//! |---|---|---|
+//! | `WHISPER_BASE_PT` | `checkpoint` | `base.pt`, behind `base_pt()` |
+//! | `WHISPER_MULTILINGUAL_TIKTOKEN` | `vocab` | `multilingual.tiktoken`, behind `multilingual_tiktoken()` |
+//! | `WHISPER_GPT2_TIKTOKEN` | `vocab` | `gpt2.tiktoken`, behind `gpt2_tiktoken()` |
+//! | `WHISPER_ONNX_ENCODER` | `onnx_gen` | the encoder graph (`encoder_model.onnx`), behind `onnx_gen::EncoderModel` |
+//! | `WHISPER_ONNX_DECODER` | `onnx_gen` | the decoder graph (`decoder_model.onnx`), behind `onnx_gen::DecoderModel` |
+//!
+//! The variable must name a file, or the build fails. Nothing is downloaded
+//! for that asset. The build hashes the file and compares it with the pin:
+//!
+//! - **The pinned file:** it is put where the download would have gone (a
+//!   symlink on Unix, a copy elsewhere). For the checkpoint and the
+//!   vocabularies that is the cache layout, so a cache rooted at `cache_dir()`
+//!   finds them.
+//! - **Any other file:** the build warns and uses it where it is. For the
+//!   checkpoint and the vocabularies, the accessor returns that path, but a
+//!   cache rooted at `cache_dir()` does not see the file. This is how to try a
+//!   different checkpoint or export.
+//!
+//! Changing a variable reruns the build script. `WHISPER_CACHE_DIR`,
+//! `WHISPER_ONNX_OUT_DIR` and the `WHISPER_*_PATH` names are the build
+//! script's outputs to the compiler, not overrides.
+//!
+//! ## On docs.rs
+//!
+//! docs.rs shows little more than this page. Every item is behind
+//! `checkpoint`, `vocab` or `onnx_gen`, and each of those downloads its
+//! asset at build time. docs.rs builds without the network, with the default
+//! features, which are none. To read the items' docs, build them locally,
+//! which fetches the assets unless the variables above point at copies:
+//!
+//! ```text
+//! cargo doc -p bunsen-bundled-whisper --no-deps --features checkpoint,vocab
+//! ```
+//!
 //! ## Crate Features
 #![doc = document_features::document_features!()]
 

@@ -2,11 +2,55 @@
 #![warn(clippy::missing_docs_in_private_items)]
 //! # bunsen-firehose - Burn-based Data Pipeline
 //!
-//! `bunsen-firehose` is a column-oriented data pipeline for feeding [`burn`]
+//! `bunsen-firehose` is a column-oriented data pipeline for feeding burn
 //! models. You describe *what* each column is and *how* derived columns are
 //! computed (a [`FirehoseTableSchema`] of [`ColumnSchema`] + [`BuildPlan`]s),
 //! then run batches of rows ([`FirehoseRowBatch`]) through an executor that
 //! applies the registered operators in dependency order.
+//!
+//! # Why a pipeline, not a batcher
+//!
+//! A plain burn `Batcher` is one function from a `Vec` of dataset items to a
+//! batch of tensors. Every step between the two (read the file, resize,
+//! augment, convert) is code inside that function. To change a step, or to
+//! build a second pipeline from the same steps, you edit or copy the
+//! function, and nothing describes the pipeline but its code.
+//!
+//! Firehose takes the steps out of the function and makes the pipeline
+//! data:
+//!
+//! - **A step is an operator**, with a typed signature and a serializable
+//!   config. An operator is written once and reused by any pipeline, in any
+//!   crate: `bunsen-firehose-image` publishes image loading, augmentation and
+//!   tensor conversion this way, and linking a crate is enough to make its
+//!   operators available ([`ops`]).
+//! - **A pipeline is a schema**: typed columns, plus one [`BuildPlan`] per
+//!   derived column, which names an operator, binds its parameters to columns
+//!   and carries its config. The schema is plain serde data, so a pipeline can
+//!   be logged, saved and compared. Variants share a prefix: a training schema
+//!   can be the validation schema plus an augmentation plan.
+//! - **Planning checks before anything runs.** Adding a plan checks the
+//!   operator's parameter types against the schema's columns and builds the
+//!   operator from its config. A pipeline assembled at run time, in code or
+//!   from a saved schema, fails when it is put together, not when the first
+//!   batch runs.
+//! - **The executor orders the work.** It runs the plans in dependency order,
+//!   whatever order they were added in.
+//!
+//! The two edges stay hand-written: how dataset items become rows, and how
+//! columns become tensors. They are the adapters in [`burn`], and
+//! [`FirehoseExecutorBatcher`] joins them and an executor into a burn
+//! `Batcher`, so burn's data loader and its worker threads drive the
+//! pipeline.
+//!
+//! The price is dynamic typing at run time. A cell is a
+//! [`FirehoseValue`](core::FirehoseValue), JSON or a boxed `Any`, and an
+//! operator reads its inputs by name and parses or downcasts them. Planning
+//! compares the schema's types by type name; a value of the wrong type is
+//! found when it is read. The executor this crate provides,
+//! [`SequentialBatchExecutor`], runs every plan on the calling thread.
+//! [`core::operations`] documents the operator lifecycle and what is
+//! checked when.
 //!
 //! The moving parts:
 //!
@@ -20,8 +64,9 @@
 //!   [`executor`](core::operations::executor) that runs a schema over a batch.
 //! - [`ops`] — the registry of globally-registered operators and
 //!   [`init_default_operator_environment`](ops::init_default_operator_environment).
-//! - [`burn`] — adapters that expose a schema as a [`burn`] `Batcher`, plus
-//!   dataset path-scanning helpers.
+//! - [`burn`] — adapters that expose a schema as a burn `Batcher`, plus dataset
+//!   path-scanning helpers.
+//! - [`utility`] — helpers for writing operators.
 //!
 //! # Example: define an operator, plan a column, run a batch
 //!
@@ -113,10 +158,11 @@
 //! }
 //! ```
 //!
-//! For a full training pipeline — image loading, augmentation, and a [`burn`]
-//! `DataLoaderBuilder` driven by a
-//! [`FirehoseExecutorBatcher`](burn::batcher::FirehoseExecutorBatcher) — see
-//! the `resnet_tiny` example (`examples/resnet_tiny`).
+//! For a full training pipeline — image loading, augmentation, and a burn
+//! `DataLoaderBuilder` driven by a [`FirehoseExecutorBatcher`] — see the
+//! `resnet_tiny` example (`examples/resnet_tiny`). Its training and
+//! validation schemas share the loading plan, and only training adds
+//! augmentation.
 //!
 //! [`FirehoseTableSchema`]: core::schema::FirehoseTableSchema
 //! [`ColumnSchema`]: core::schema::ColumnSchema
@@ -126,15 +172,12 @@
 //! [`FirehoseRowReader`]: core::rows::FirehoseRowReader
 //! [`FirehoseRowWriter`]: core::rows::FirehoseRowWriter
 //! [`FirehoseOperator`]: core::operations::operator::FirehoseOperator
+//! [`FirehoseExecutorBatcher`]: crate::burn::batcher::FirehoseExecutorBatcher
+//! [`SequentialBatchExecutor`]: core::operations::executor::SequentialBatchExecutor
 
-/// New Data Table module.
-pub mod core;
-
-/// Namespace of common operators.
-pub mod ops;
-
-/// Burn Integration Module.
 pub mod burn;
+pub mod core;
+pub mod ops;
 pub mod utility;
 
 /// Experimental Data Pipeline module; non-public.

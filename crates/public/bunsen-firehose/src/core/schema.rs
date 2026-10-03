@@ -43,7 +43,13 @@ impl DataTypeDescription {
     }
 }
 
-/// A build plan for columns in a table schema.
+/// A build plan for columns in a table schema: one recorded call of an
+/// operator.
+///
+/// It names the operator, binds the operator's parameters to columns, and
+/// carries the operator's config as JSON. It is plain serde data; the
+/// operator itself is built from it by an environment's factory. See
+/// [`operations`](crate::core::operations) for the lifecycle.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct BuildPlan {
     /// The ID of the operator.
@@ -71,7 +77,7 @@ pub struct BuildPlan {
 }
 
 impl BuildPlan {
-    /// Creates a new `ColumnBuildPlan` with the given operator spec.
+    /// Creates a new `BuildPlan` for the given operator id.
     pub fn for_operator<S>(id: S) -> Self
     where
         S: AsRef<str>,
@@ -283,7 +289,7 @@ impl ColumnSchema {
     ///
     /// # Returns
     ///
-    /// A new `BimmColumnSchema` with the description attached.
+    /// A new `ColumnSchema` with the description attached.
     pub fn with_description(
         self,
         description: &str,
@@ -295,7 +301,14 @@ impl ColumnSchema {
     }
 }
 
-/// Bimm Table Schema.
+/// A firehose table schema: typed columns, and the build plans that derive
+/// some of them from others.
+///
+/// Columns without a build plan are the base columns, which a batch's
+/// producer fills; the rest are computed by an executor. Build plans are
+/// usually added through
+/// [`OperationPlan::apply_to_schema`](crate::core::operations::planner::OperationPlan::apply_to_schema),
+/// which checks them against the operator environment.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct FirehoseTableSchema {
     /// The columns in the table.
@@ -489,7 +502,7 @@ impl FirehoseTableSchema {
         Self::check_graph(&self.columns, &self.build_plans)
     }
 
-    /// Creates a new `DataTableDescription` with the given columns.
+    /// Creates a new `FirehoseTableSchema` with the given columns.
     #[must_use]
     pub fn from_columns(columns: &[ColumnSchema]) -> Self {
         let mut schema = Self {

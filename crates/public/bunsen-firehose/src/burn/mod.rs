@@ -2,7 +2,7 @@
 //!
 //! Bridges the firehose pipeline to [`burn`]'s data-loading stack:
 //!
-//! - [`batcher`](crate::burn::batcher) —
+//! - [`batcher`] —
 //!   [`FirehoseExecutorBatcher`](crate::burn::batcher::FirehoseExecutorBatcher),
 //!   a [`burn`] `Batcher` that turns a `Vec<I>` of dataset items into a
 //!   [`FirehoseRowBatch`](crate::core::FirehoseRowBatch) (via a
@@ -11,7 +11,7 @@
 //!   [`FirehoseBatchExecutor`](crate::core::operations::executor::FirehoseBatchExecutor),
 //!   and materializes tensors out the other side (via a
 //!   [`BatcherOutputAdapter`](crate::burn::batcher::BatcherOutputAdapter)).
-//! - [`path_scanning`](crate::burn::path_scanning) — helpers such as
+//! - [`path_scanning`] — helpers such as
 //!   [`image_dataset_for_folder`](crate::burn::path_scanning::image_dataset_for_folder)
 //!   that scan `$ROOT/$CLASS/$IMG.{jpg,png}` layouts into a `burn` dataset.
 //!
@@ -37,7 +37,7 @@
 //! See the `resnet_tiny` example (`examples/resnet_tiny`) for a complete,
 //! compiling training pipeline built on these pieces.
 
-/// Provides a `burn_support` Batcher for processing `FirehoseRowBatches`.
+/// The burn `Batcher` that runs a firehose executor, and its adapters.
 pub mod batcher;
 /// Util functions for path scanning.
 pub mod path_scanning;

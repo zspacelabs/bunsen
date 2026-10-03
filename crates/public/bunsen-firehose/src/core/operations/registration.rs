@@ -10,10 +10,13 @@ use crate::core::operations::factory::FirehoseOperatorFactory;
 // macro.
 inventory::collect!(FirehoseOperatorFactoryRegistration);
 
-/// Struct describing a name to constructor for an operator builder.
+/// One global registration: an operator id and the function that builds its
+/// factory.
 ///
-/// Used by `register_default_operator_builder!` to register operator builders
-/// which do not require any additional configuration or parameters.
+/// Submitted to [`inventory`] by
+/// [`register_firehose_operator_factory`](crate::register_firehose_operator_factory)
+/// (and so by [`define_firehose_operator`](crate::define_firehose_operator)),
+/// for factories which need no arguments to build.
 #[derive(Clone)]
 pub struct FirehoseOperatorFactoryRegistration {
     /// The operator ID.

@@ -2,20 +2,15 @@
 //!
 //! The `core` module holds the schema and runtime types of the pipeline:
 //!
-//! - [`schema`](crate::core::schema) — the symbolic
-//!   [`FirehoseTableSchema`](crate::core::schema::FirehoseTableSchema): typed
+//! - [`schema`] — the symbolic [`FirehoseTableSchema`]: typed
 //!   [`ColumnSchema`](crate::core::schema::ColumnSchema)s plus the
 //!   [`BuildPlan`](crate::core::schema::BuildPlan)s that derive columns.
-//! - [`rows`](crate::core::rows) — runtime data
-//!   ([`FirehoseRowBatch`](crate::core::rows::FirehoseRowBatch) /
-//!   [`FirehoseRow`](crate::core::rows::FirehoseRow)), accessed through the
-//!   [`FirehoseRowReader`](crate::core::rows::FirehoseRowReader) /
-//!   [`FirehoseRowWriter`](crate::core::rows::FirehoseRowWriter) traits.
-//! - [`values`](crate::core::values) —
-//!   [`FirehoseValue`](crate::core::values::FirehoseValue), the per-cell sum
-//!   type of "serialized JSON" vs "boxed `Any`".
-//! - [`operations`](crate::core::operations) — operators, factories,
-//!   environments, and the executor that runs a schema over a batch.
+//! - [`rows`] — runtime data ([`FirehoseRowBatch`] / [`FirehoseRow`]), accessed
+//!   through the [`FirehoseRowReader`] / [`FirehoseRowWriter`] traits.
+//! - [`values`] — [`FirehoseValue`], the per-cell sum type of "serialized JSON"
+//!   vs "boxed `Any`".
+//! - [`operations`] — the operator lifecycle: signatures, factories,
+//!   environments, plans, and the executor that runs a schema over a batch.
 //!
 //! # Example: build a schema and fill a batch
 //!
@@ -50,18 +45,17 @@
 //! ```
 //!
 //! See the crate root for an end-to-end example that derives columns with an
-//! [`operations`](crate::core::operations)-registered operator.
+//! [`operations`]-registered operator.
 
 /// Defines legal identifiers for firehose tables.
 pub mod identifiers;
-/// Defines the operator environment for firehose tables.
 pub mod operations;
 /// Defines rows and row batches for firehose tables.
 pub mod rows;
 /// Defines the symbolic schema for firehose tables.
 pub mod schema;
 
-/// Defines `ValueBox`, a sum type for Json Values and boxed values.
+/// Defines [`FirehoseValue`], a sum type of JSON values and boxed values.
 pub mod values;
 
 // TODO: Work out what the `$crate::core::*` re-exports should be.

@@ -31,8 +31,8 @@
 //! of a training and validation set of Parquet shards.
 //!
 //! The batch items are `Tensor<B, 2, Int>`, where `B` is the burn backend
-//! type (e.g. `Cuda` or `Cpu`) and `Int` is the integer tensor type
-//! (e.g. `Int32` or `Int64`).
+//! type (e.g. `Cuda` or `Cpu`) and `Int` is burn's integer tensor kind; the
+//! element type is the backend's integer element.
 //!
 //! ```rust,ignore
 //! let training_data_loader: ChatDataLoader<B> = ChatDataLoader::new(
