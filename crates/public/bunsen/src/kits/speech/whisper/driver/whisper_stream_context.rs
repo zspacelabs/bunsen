@@ -2005,6 +2005,31 @@ mod tests {
         }
     }
 
+    /// The `interval` trigger drafts only while the voice-activity gate says
+    /// speech is in progress, and the gate runs only under `endpoint`:
+    /// without it no draft would ever be made, so the driver refuses the
+    /// pairing at construction.
+    #[test]
+    fn test_init_refuses_interval_without_endpoint() {
+        let device = Device::default();
+        let refused = config(false)
+            .with_emission(EmissionPolicy::new(
+                DecodeTriggers::new().with_interval(Some(std::time::Duration::from_millis(50))),
+                CommitRule::LastTimestamp,
+            ))
+            .init_with_layout(
+                tiny_model_on::<B>(&device),
+                WhisperTokenLayout::new(tiny_layout()),
+                &device,
+            );
+        match refused {
+            Err(BunsenError::Invalid(message)) => {
+                assert!(message.contains("endpoint"), "{message}")
+            }
+            other => panic!("expected Invalid, got {:?}", other.map(|_| ())),
+        }
+    }
+
     /// The configuration refuses what this slice cannot do, with a reason,
     /// and refuses a mismatched language.
     #[test]
@@ -2042,7 +2067,9 @@ mod tests {
         assert!(
             base.clone()
                 .with_emission(EmissionPolicy::new(
-                    DecodeTriggers::new().with_interval(Some(std::time::Duration::ZERO)),
+                    DecodeTriggers::new()
+                        .with_endpoint(true)
+                        .with_interval(Some(std::time::Duration::ZERO)),
                     CommitRule::Complete,
                 ))
                 .init_with_layout(tiny_model_on::<B>(&device), policy.clone(), &device)

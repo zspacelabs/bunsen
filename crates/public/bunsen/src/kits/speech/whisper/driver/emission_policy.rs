@@ -45,7 +45,8 @@ impl From<PresetEmissionPolicy> for EmissionPolicy {
 ///
 /// A `window_full` or `endpoint` decode commits, per the [`CommitRule`];
 /// an `interval` decode drafts. At least one of `window_full` and
-/// `endpoint` must be on, or nothing would ever be decoded.
+/// `endpoint` must be on, or nothing would ever be decoded, and
+/// `interval` needs `endpoint`.
 #[derive(Config, Debug, PartialEq, Eq)]
 pub struct DecodeTriggers {
     /// Decode when a full window of audio has accumulated past the seek
@@ -65,8 +66,11 @@ pub struct DecodeTriggers {
     /// this much media time has passed since the last draft or commit.
     ///
     /// Whether speech is in progress is the voice-activity gate's to say,
-    /// and the gate runs only under `endpoint`; without it no draft is
-    /// ever made.
+    /// and the gate runs only under `endpoint`, so this trigger needs it:
+    /// without it no draft could ever be made, and building a driver
+    /// ([`init_from_bundle`](super::WhisperStreamDriverConfig::init_from_bundle))
+    /// fails with
+    /// [`BunsenError::Invalid`](crate::errors::BunsenError::Invalid).
     #[config(default = "None")]
     pub interval: Option<Duration>,
 }

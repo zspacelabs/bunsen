@@ -210,4 +210,5 @@ stream object
   `BunsenError::Invalid`.
 - The `interval` trigger drafts only while the voice-activity gate says
   speech is in progress, and that gate runs only under `endpoint`
-  ([`DecodeTriggers`](bunsen::kits::speech::whisper::driver::DecodeTriggers)).
+  ([`DecodeTriggers`](bunsen::kits::speech::whisper::driver::DecodeTriggers)),
+  so a driver with `interval` and without `endpoint` fails to build.

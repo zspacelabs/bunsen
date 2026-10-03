@@ -179,7 +179,8 @@ impl WhisperStreamDriverConfig {
     /// vocabulary, if the language and task do not fit the layout, or if
     /// the configuration asks for something this slice of the driver does
     /// not support yet: among them [`CommitRule::Agreement`], which is not
-    /// implemented.
+    /// implemented, and the `interval` trigger without `endpoint`, which
+    /// could never draft.
     pub fn init_from_bundle<B: Backend>(
         &self,
         bundle: Arc<WhisperBundle<B>>,
@@ -223,6 +224,13 @@ impl WhisperStreamDriverConfig {
         if triggers.interval.is_some_and(|i| i.is_zero()) {
             return Err(BunsenError::Invalid(
                 "an interval of zero would draft on every push".to_string(),
+            ));
+        }
+        if triggers.interval.is_some() && !triggers.endpoint {
+            return Err(BunsenError::Invalid(
+                "the interval trigger drafts only while speech is in progress, which only the \
+                 endpoint trigger's voice-activity gate tracks; turn endpoint on as well"
+                    .to_string(),
             ));
         }
         if let CommitRule::Agreement { .. } = self.emission.commit {
