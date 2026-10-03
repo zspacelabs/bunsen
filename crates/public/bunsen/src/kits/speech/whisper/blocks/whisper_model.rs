@@ -305,8 +305,9 @@ impl<B: Backend> HasDType for Whisper<B> {
     /// them.
     ///
     /// # Panics
-    /// If the encoder and the decoder were loaded at different precisions,
-    /// which no checkpoint and no
+    /// If the encoder and the decoder are at different precisions. No
+    /// checkpoint ships that and no loader here produces it; only mapping
+    /// one half on its own can.
     fn dtype(&self) -> DType {
         let (encoder, decoder) = (self.encoder.dtype(), self.decoder.dtype());
         assert_eq!(
