@@ -54,6 +54,8 @@ docs-rs = true
 
 [[preprocessor.rustdoc-links.build]]
 packages = [
+    "bunsen-bundled-silero",
+    "bunsen-bundled-whisper",
     "bunsen-firehose",
     "bunsen-firehose-image",
     "bunsen-arrow-dataloaders",

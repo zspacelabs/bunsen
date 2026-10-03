@@ -2,53 +2,37 @@
 
 [Introduction](./introduction.md)
 
-# Getting Started
+# How bunsen is organized
 
-- [Installation](./getting-started/installation.md)
-- [Overview](./getting-started/overview.md)
+- [The workspace](./organization/workspace.md)
+- [The bunsen crate](./organization/crate.md)
+- [Features, backends and the network](./organization/features.md)
+- [Installing and first use](./organization/install.md)
+- [Kits](./organization/kits.md)
+- [Examples](./organization/examples.md)
 
-# Contracts
+# Bunsen systems
 
-- [Overview](./contracts/overview.md)
-- [Pattern Syntax](./contracts/pattern-syntax.md)
-- [Asserting and Unpacking](./contracts/asserting-and-unpacking.md)
-- [Cost Control](./contracts/cost-control.md)
-- [Error Messages](./contracts/error-messages.md)
+- [Module design conventions](./systems/conventions.md)
+- [Shape contracts](./systems/contracts.md)
+- [Ops, blocks and burn extensions](./systems/ops-and-blocks.md)
+- [Files, caches and pretrained models](./systems/pretrained.md)
+- [Shard sets and training data](./systems/shards.md)
+- [Stateless modules and streaming contexts](./systems/streaming.md)
+- [Parameter groups](./systems/param-groups.md)
+- [Firehose](./systems/firehose.md)
 
-# Ops
+# Development strategies
 
-- [Overview](./ops/overview.md)
-- [Tensor Functions](./ops/tensor-functions.md)
-- [Convolution Support](./ops/convolution.md)
-
-# Blocks
-
-- [Overview](./blocks/overview.md)
-- [Transformers](./blocks/transformers.md)
-- [Images](./blocks/images.md)
-
-# Kits
-
-- [`bunsen::kits::bimm`](./kits/bimm.md)
-- [`bunsen::kits::gpts`](./kits/gpts.md)
-- [`bunsen::kits::sims`](./kits/sims.md)
-
-# Burner
-
-- [Overview](./burner/overview.md)
-- [Module Introspection](./burner/module-introspection.md)
-- [Composite Optimizers](./burner/composite-optimizers.md)
-
-# Guides
-
-- [Building Reusable Modules](./guides/building-reusable-modules.md)
-
-# Contributing
-
-- [Contributing Guide](./contributing/index.md)
-- [Development Setup](./contributing/development.md)
-- [Style and Conventions](./contributing/style.md)
-- [Releasing](./contributing/releasing.md)
+- [Development setup and CI](./development/setup.md)
+- [Testing and backends](./development/testing.md)
+- [Audit probes and baselines](./development/audit.md)
+- [Validation against reference implementations](./development/validation.md)
+- [Upstream bug reproductions](./development/repros.md)
+- [Assets, bundling and the network](./development/assets.md)
+- [Benchmarks](./development/benchmarks.md)
+- [Writing documentation](./development/docs.md)
+- [Releasing](./development/release.md)
 
 ---
 
