@@ -1089,10 +1089,10 @@ mod tests {
     }
 
     /// An STFT policy set directly with a zero kernel, bin count or width is
-    /// an error from `try_to_structure`. Each lowered and built: a zero
-    /// `n_freq` or `stft_kernel` then panicked in the first `forward`, and a
-    /// zero `d_hidden` or `d_bottleneck` panicked there or, on wgpu with a
-    /// zero `d_bottleneck`, gave NaN probabilities.
+    /// an error from `try_to_structure`, not a model that fails in its first
+    /// `forward`: a zero `n_freq` or `stft_kernel` would panic there, and a
+    /// zero `d_hidden` or `d_bottleneck` would panic there too or, on wgpu
+    /// with a zero `d_bottleneck`, give NaN probabilities.
     #[test]
     fn test_stft_try_to_structure_rejects_zero_sizes() {
         let standard = SileroVadSignalConfig::standard_16khz().to_stft();
@@ -1375,7 +1375,7 @@ mod tests {
     }
 
     /// `context_forward_sequence` refuses a zero-width context built by
-    /// hand, saying why; it used to panic inside burn's `unsqueeze_dim`.
+    /// hand, with a message that says why.
     #[test]
     #[serial_test::serial]
     #[should_panic(expected = "context_size above 0")]

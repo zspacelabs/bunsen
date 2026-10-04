@@ -145,7 +145,7 @@
 //! call it makes on the way cannot mutate either, and packaging a window
 //! for a draft leaves the policy as the commit will find it.
 //!
-//! Two implementations cover the behaviours that came up in design.
+//! Two implementations cover four choices of reference.
 //! [`RunningMaxClamp`] in a context written the whole clip before its first
 //! read is upstream's global reference; written as audio arrives, it is the
 //! running one; in a context opened per region, it is the per-region one.

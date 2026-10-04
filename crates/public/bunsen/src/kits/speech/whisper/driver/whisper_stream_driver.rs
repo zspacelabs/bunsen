@@ -178,10 +178,9 @@ impl WhisperStreamDriverConfig {
     /// # Errors
     /// [`BunsenError::Invalid`] if the layout does not fit the model or its
     /// vocabulary, if the language and task do not fit the layout, or if
-    /// the configuration asks for something this slice of the driver does
-    /// not support yet: among them [`CommitRule::Agreement`], which is not
-    /// implemented, and the `interval` trigger without `endpoint`, which
-    /// could never draft.
+    /// the configuration asks for something the driver cannot run: among
+    /// them [`CommitRule::Agreement`], which is not implemented yet, and the
+    /// `interval` trigger without `endpoint`, which could never draft.
     pub fn init_from_bundle<B: Backend>(
         &self,
         bundle: Arc<WhisperBundle<B>>,

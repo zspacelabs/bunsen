@@ -2020,8 +2020,8 @@ mod tests {
         assert_eq!(driver.interval_samples(), None);
     }
 
-    /// `CommitRule::Agreement` is not implemented, so the driver refuses it
-    /// at construction rather than committing as under `Complete`.
+    /// `CommitRule::Agreement` is not implemented yet, so the driver refuses
+    /// it at construction.
     #[test]
     fn test_init_refuses_agreement() {
         let device = Device::default();
@@ -2545,7 +2545,7 @@ mod tests {
                 .with_logit_filters(vec![scripted])
         }
 
-        /// **I9, detecting the language.** Adding drafts cannot change the
+        /// **Drafts and language detection.** Adding drafts cannot change the
         /// language a stream commits under, so it cannot change what is
         /// committed: until a commit has detected the language, a draft
         /// detects one for its own decode and keeps nothing. Here the first
