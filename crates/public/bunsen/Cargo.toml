@@ -56,6 +56,7 @@ default = [
     "train",
     "store_pytorch",
     "store_safetensors",
+    "store_burnpack",
 ]
 
 ## Use the standard library (`burn/std`). Every other feature except the
@@ -90,6 +91,13 @@ store_pytorch = [
 store_safetensors = [
     "store",
     "burn-store/safetensors",
+]
+
+## Read burn's own burnpack (`.bpk`) files through the burn-store: what
+## Silero VAD's weights ship as.
+store_burnpack = [
+    "store",
+    "burn-store/burnpack",
 ]
 
 ## Enable features to use with `burn/train`.
@@ -153,6 +161,7 @@ tokenizer = [
 ## Include the silero-vad pretrained weights in the build.
 silero-weights = [
     "store",
+    "store_burnpack",
     "dep:bunsen-bundled-silero",
 ]
 

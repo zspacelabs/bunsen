@@ -10,7 +10,8 @@
 //!   that carries what a stream needs between chunks (the tail of the last
 //!   chunk and the recurrent state). The model holds no stream state, so one
 //!   loaded model serves any number of streams, a context each.
-//! - [`pretrained`] (feature `store`): how the weights arrive.
+//! - [`pretrained`] (features `store_burnpack` and `cache`, both default): how
+//!   the weights arrive.
 //!   [`default_silero_factory`](pretrained::default_silero_factory) is the
 //!   index: with the `silero-weights` feature, one row, `bundled:silero/vad`,
 //!   the burnpack linked into the binary and written into the cache under its
@@ -29,7 +30,7 @@
 //! chunk by chunk.
 //!
 //! ```rust,no_run
-//! # #[cfg(feature = "store")] {
+//! # #[cfg(all(feature = "store_burnpack", feature = "cache"))] {
 //! use std::sync::Arc;
 //!
 //! use bunsen::{
@@ -115,7 +116,7 @@
 //! [other ways in](crate::kits::speech::whisper#other-ways-in) show it
 //! whole.
 
-#[cfg(feature = "store")]
+#[cfg(all(feature = "store_burnpack", feature = "cache"))]
 pub mod pretrained;
 
 pub mod blocks;
