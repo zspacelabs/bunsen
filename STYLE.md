@@ -119,42 +119,39 @@ These are **not** tensor shapes — leave them as written:
 
 ## Module design
 
-How a bunsen module, its config, and its metadata fit together. The
-reference, with compiled examples of each shape, is the rustdoc of
-`bunsen::burner::module::ModuleInit` and `ToStructureConfig`.
+How a bunsen module, its config, and its metadata fit together. What the
+two config shapes are and how they work (Simple and Stacked,
+`ToStructureConfig` and its blanket `ModuleInit`, the role of the `FooMeta`
+trait) is defined, with compiled examples, in the rustdoc of
+[`ModuleInit`](https://docs.rs/bunsen/latest/bunsen/burner/module/trait.ModuleInit.html#two-config-shapes)
+and
+[`ToStructureConfig`](https://docs.rs/bunsen/latest/bunsen/burner/module/trait.ToStructureConfig.html).
+This section sets what the author of a module family must do.
 
 ### Config shapes: Simple and Stacked
 
-A module family picks one of two shapes. The config lives in the same file
-as the module it builds.
-
-* **Simple Config.** `FooConfig` builds `Foo` and implements
-  `ModuleInit<B, Foo<B>>` directly.
-* **Stacked Config.** `FooStructureConfig` is the unrolled tree, with one
-  field per sub-module config, and implements `ModuleInit`. It has *at
-  least one* upper **policy** config, named for its policy
-  (`FooContractConfig`, `FooApiConfig`, `FooSignalConfig`, ...) and never
-  bare `FooConfig`. Several policies may coexist or chain.
-  * A policy implements `ToStructureConfig`, whose `Structure` is the
-    *lowest* structure config, and never `ModuleInit` directly. The
-    blanket impl gives it `init`; implementing both is a compile error
-    (E0119), so the two pathways cannot drift apart.
-  * Per-policy logic and validation live in `try_to_structure`.
-  * Every Stacked family has a test that `policy.init(&d)` and
-    `policy.to_structure().init(&d)` build modules that agree.
-
-A bare `FooConfig` never coexists with a `FooStructureConfig`. Promote a
-Simple family to Stacked when its user-facing knobs diverge from the
-implementation's parameters, when a second default policy appears, or when
-loaders and tooling need the unrolled tree.
+* The config lives in the same file as the module it builds.
+* A Simple family's config is `FooConfig`, and builds `Foo`.
+* A Stacked family's structure config is `FooStructureConfig`. Each policy
+  config is named for its policy (`FooContractConfig`, `FooApiConfig`,
+  `FooSignalConfig`, ...), never bare `FooConfig`.
+* A bare `FooConfig` never coexists with a `FooStructureConfig`.
+* Promote a Simple family to Stacked when its user-facing knobs diverge from
+  the implementation's parameters, when a second default policy appears, or
+  when loaders and tooling need the unrolled tree.
+* Every Stacked family has a test that `policy.init(&d)` and
+  `policy.to_structure().init(&d)` build modules that agree.
 
 ### Meta traits
 
-A family exposes a narrow `FooMeta` trait: only the values a caller or a test
-needs to read back from either form. Raw fields are required methods; derived
-values are provided methods. Everything else stays on the config, reached
-from the module through an accessor (`options()`, `config()`).
+Every family has a narrow `FooMeta` trait; the
+[`ModuleInit`](https://docs.rs/bunsen/latest/bunsen/burner/module/trait.ModuleInit.html#two-config-shapes)
+docs say what it is for.
 
+* It holds only the values a caller or a test needs to read back from
+  either form. Raw fields are required methods; derived values are provided
+  methods. Everything else stays on the config, reached from the module
+  through an accessor (`options()`, `config()`).
 * Simple: `FooMeta` is implemented by `FooConfig` and `Foo` (and a context,
   if there is one).
 * Stacked: required on `FooStructureConfig` and `Foo`; optional on policies.
@@ -177,10 +174,10 @@ not as `Param`.
 
 ### Injected state
 
-Cache and stream state is injected, never owned by the model: an immutable
-module, plus a per-stream context or cache the caller creates and passes in
-(`KVCache`, `SlidingStftContext`, `WhisperStreamContext`, ...). One model can
-then serve more than one cache or stream in the same process.
+Cache and stream state is injected, never owned by the model; the rule's one
+definition is in the "Ops and blocks" section of the
+[`bunsen::ops`](https://docs.rs/bunsen/latest/bunsen/ops/index.html#ops-and-blocks)
+module docs.
 
 ### `ops` and `blocks`
 

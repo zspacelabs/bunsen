@@ -14,10 +14,14 @@
 //! - **ops** are operation-focused. They may still use the Module or Config
 //!   machinery, but to hold cached tables or state.
 //!
-//! Cache and stream state is *injected*: the caller builds it and passes it
-//! in, and the model never owns it, so one model can have several caches in
-//! one process. [`KVCache`](transformers::attention::KVCache) and
-//! [`SlidingStftContext`](signal::SlidingStftContext) are both examples.
+//! Cache and stream state is *injected*, never owned by the model: the module
+//! is immutable, and the caller creates a per-stream context or a per-decode
+//! cache and passes it in on every call. One model can then serve several
+//! caches or streams in one process.
+//! [`KVCache`](transformers::attention::KVCache),
+//! [`SlidingStftContext`](signal::SlidingStftContext) and
+//! [`WhisperStreamContext`](crate::kits::speech::whisper::driver::WhisperStreamContext)
+//! are examples.
 //!
 //! In practice `ops` is mostly free functions plus small configuration
 //! values, and a few Modules and Configs that hold cached tables or stream

@@ -60,9 +60,10 @@
 //!   [`Loaded`](crate::data::pretrained::Loaded) whose `handle` is an `Arc` of
 //!   the hook's `Built` type, the model or a bundle around it.
 //! - **A driver or context.** Optional. The state a stream or a decode carries
-//!   is injected, never owned by the model: the model is immutable, and the
-//!   caller creates a context or cache and passes it back in, so one loaded
-//!   model serves several streams at once.
+//!   is injected, never owned by the model ([the
+//!   rule](crate::ops#ops-and-blocks)): the model is immutable, and the caller
+//!   creates a context or cache and passes it back in, so one loaded model
+//!   serves several streams at once.
 //! - **A bundled-asset crate.** Optional. Weights a build ships with, behind a
 //!   `*-weights` feature, served by the `bundled:` provider.
 //! - **A validation crate.** Optional. A crate under `crates/validation` that

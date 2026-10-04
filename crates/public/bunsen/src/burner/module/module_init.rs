@@ -54,16 +54,21 @@ use crate::errors::{
 ///
 /// # Two config shapes
 ///
-/// A module family picks one of two shapes: a Simple Config, or a Stacked
-/// Config. Both put the config in the module's file, and both give the family
-/// a narrow `FooMeta` trait: only the values a caller or a test needs to read
-/// back, implemented by a config and by the module it builds, so a test can
-/// check that a module agrees with the config that built it.
+/// A module family's config takes one of two shapes: a Simple Config, or a
+/// Stacked Config. Either way the family has a narrow `FooMeta` trait: the
+/// values a caller or a test reads back, answered alike by a config and by
+/// the module it builds. Code that holds either form asks the same question,
+/// and a test can check that a module agrees with the config that built it.
+///
+/// What the author of a family must do is set by [STYLE.md, "Module
+/// design"][style-module-design]: how the configs are named, when to promote
+/// a Simple family to Stacked, which types implement `FooMeta`, and the tests
+/// each shape requires.
 ///
 /// ## Simple Config
 ///
-/// `FooConfig` builds `Foo`, and implements `ModuleInit` directly. `FooMeta`
-/// is implemented by `FooConfig` and `Foo`. In the crate,
+/// One config builds the module: `FooConfig` builds `Foo`, and implements
+/// `ModuleInit` directly. In the crate,
 /// [`MlpConfig`](crate::blocks::transformers::mlp::MlpConfig) →
 /// [`Mlp`](crate::blocks::transformers::mlp::Mlp) has this shape.
 ///
@@ -145,26 +150,22 @@ use crate::errors::{
 ///
 /// ## Stacked Config
 ///
-/// When the knobs a user turns are not the parameters the implementation
-/// needs (a few sizes against a per-layer tree of sub-configs), the family
-/// splits its config in two levels:
+/// A Stacked Config keeps the knobs a user turns apart from the parameters
+/// the implementation needs (a few sizes against a per-layer tree of
+/// sub-configs), in two levels:
 ///
 /// - `FooStructureConfig` is the unrolled tree: one field per sub-module
 ///   config. It implements `ModuleInit` directly, and it is the config that
 ///   loaders and tooling work with.
-/// - At least one upper *policy* config computes that tree from the user's
-///   knobs. A policy config is named for the policy it encodes
-///   (`FooContractConfig`, `FooApiConfig`, `FooSignalConfig`), never bare
-///   `FooConfig`, which means the Simple shape. ("Contract" here names the
-///   user-facing knobs; it is unrelated to [`crate::contracts`].) Several
-///   policies may build the same structure.
+/// - At least one upper *policy* config, such as `FooContractConfig`, computes
+///   that tree from the user's knobs. ("Contract" here names the user-facing
+///   knobs; it is unrelated to [`crate::contracts`].) Several policies may
+///   build the same structure, or refine one another.
 /// - Each policy implements
 ///   [`ToStructureConfig`](crate::burner::module::ToStructureConfig), lowering
 ///   itself to `FooStructureConfig`, and gets `ModuleInit` from that trait's
 ///   blanket impl. A policy never implements `ModuleInit` itself; the compiler
 ///   rejects it (E0119), so the two pathways below cannot drift apart.
-/// - `FooMeta` is required on `FooStructureConfig` and `Foo`, and optional on
-///   the policies.
 ///
 /// A policy builds its module by either pathway, with the same result:
 ///
@@ -325,6 +326,7 @@ use crate::errors::{
 /// [`SileroVadStructureConfig`]: crate::kits::speech::silero_vad::blocks::SileroVadStructureConfig
 /// [`to_stft`]: crate::kits::speech::silero_vad::blocks::SileroVadSignalConfig::to_stft
 /// [`SwinTransformerV2ContractConfig`]: crate::kits::images::swin::v2::SwinTransformerV2ContractConfig
+/// [style-module-design]: https://github.com/zspacelabs/bunsen/blob/main/STYLE.md#module-design
 pub trait ModuleInit<B: Backend, M: Module<B>> {
     /// Builds the module on `device`, or reports why the config cannot build
     /// it.

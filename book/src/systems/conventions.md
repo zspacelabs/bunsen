@@ -3,10 +3,12 @@
 A bunsen module family has three parts: a config, the module it builds, and
 a narrow trait that both of them answer. This chapter explains
 why the parts are shaped as they are, and how to choose between the two
-config shapes, Simple and Stacked. The rules themselves are in
+config shapes, Simple and Stacked. What the shapes are and how they work is
+defined, with a compiled example of each, in
+[`ModuleInit`](bunsen::burner::module::ModuleInit#two-config-shapes) and
+[`ToStructureConfig`](bunsen::burner::module::ToStructureConfig). What the
+author of a family must do (naming, promotion, the required tests) is set by
 [STYLE.md, "Module design"](https://github.com/zspacelabs/bunsen/blob/main/STYLE.md#module-design).
-The reference, with a compiled example of each shape, is
-[`ModuleInit`](bunsen::burner::module::ModuleInit).
 
 ## Why conventions at all
 

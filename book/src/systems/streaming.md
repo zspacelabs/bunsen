@@ -8,10 +8,10 @@ ends with the Whisper stream driver, the largest system built on it.
 
 ## The principle: state is injected
 
-**Cache and stream state is injected, never owned by the model.** A model
-is immutable once it is built or loaded. The state of one stream or one
-decode lives in a separate value that the caller creates, passes in on
-every call, and drops or resets when it is done.
+**Cache and stream state is injected, never owned by the model.** The rule
+is defined in [`bunsen::ops`](bunsen::ops#ops-and-blocks): the model is
+immutable once it is built or loaded, and the state of one stream or one
+decode lives in a value the caller holds and passes in.
 
 The payoff is that one model serves several streams, or several caches, in
 the same process. A server transcribes many streams with one copy of the
@@ -20,10 +20,8 @@ its own. A batch of decodes from different streams runs through the model
 together. None of that works if the model holds a stream's state in its own
 fields, because then the model *is* the stream.
 
-The rule is stated in
-[STYLE.md](https://github.com/zspacelabs/bunsen/blob/main/STYLE.md#injected-state).
-It also decides where code lives: a cache or a stream context is an op,
-not a block, even when blocks use it
+The rule also decides where code lives: a cache or a stream context is an
+op, not a block, even when blocks use it
 ([Ops, blocks and burn extensions](./ops-and-blocks.md)).
 
 ## The pattern
