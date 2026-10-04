@@ -24,7 +24,8 @@
 //! transliteration of the graph, so `silero-model-validation` checks
 //! bunsen's hand-written Silero VAD against it. The burnpack is generated
 //! either way; the feature decides only whether the generated model is
-//! compiled. It is off by default, so docs.rs does not show the module.
+//! compiled. It is off by default; docs.rs builds the crate with it, so the
+//! module is in the API docs.
 //!
 //! ## Crate Features
 #![doc = document_features::document_features!()]

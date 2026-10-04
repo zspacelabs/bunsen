@@ -63,12 +63,12 @@ doc comment. Renaming or moving an item, method or field leaves the link
 unresolved, and that fails the book build in CI, in the same PR as the
 rename.
 
-What resolves is what docs.rs shows. `bunsen` is built with the feature
-list in its `[package.metadata.docs.rs]`, and the other published crates
-with their defaults, so an item behind a feature that docs.rs doesn't build
-can't be linked. The `crates/dev` and `crates/validation` crates and the
-examples are not in that build. Link them, and other repository files, as
-GitHub URLs, and keep those few.
+Only what docs.rs shows resolves. `bunsen` is built with the feature list
+in its `[package.metadata.docs.rs]`, and the other published crates with
+their defaults (docs.rs may build one with more), so an item behind a
+feature that docs.rs doesn't build can't be linked. The `crates/dev` and
+`crates/validation` crates and the examples are not in that build. Link
+them, and other repository files, as GitHub URLs, and keep those few.
 
 The base URL the links point at is chosen per build:
 
