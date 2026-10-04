@@ -88,6 +88,8 @@ impl Deferred<WhisperConstruct> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[cfg(feature = "store_safetensors")]
+    use crate::kits::speech::whisper::pretrained::WhisperReader;
     use crate::{
         data::{
             cache::BunsenDiskCacheOptions,
@@ -104,7 +106,6 @@ mod tests {
             CHECKPOINT,
             OPENAI,
             WHISPER_KIT,
-            WhisperReader,
             openai_download_root,
         },
     };

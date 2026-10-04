@@ -301,8 +301,12 @@ wordchipper = { workspace = true, default-features = false, optional = true }
 
 [dev-dependencies]
 # bunsen's own tests and doctests use its test support and audit probes,
-# neither of which is a default feature.
-bunsen = { path = ".", features = ["testing", "audit"] }
+# neither of which is a default feature. Cargo merges a dev-dependency's
+# features into every build of the crate's tests, doctests and benches, so
+# this one leaves the defaults off: under `--no-default-features` those
+# targets build without them, and a test that needs a default feature
+# carries a `cfg(feature = ...)` gate for it.
+bunsen = { path = ".", default-features = false, features = ["testing", "audit"] }
 burn = { workspace = true, features = ["autodiff"] }
 serde = { workspace = true }
 serde_json = { workspace = true }
