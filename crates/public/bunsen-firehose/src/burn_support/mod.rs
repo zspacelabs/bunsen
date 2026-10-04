@@ -3,16 +3,16 @@
 //! Bridges the firehose pipeline to [`burn`]'s data-loading stack:
 //!
 //! - [`batcher`] —
-//!   [`FirehoseExecutorBatcher`](crate::burn::batcher::FirehoseExecutorBatcher),
+//!   [`FirehoseExecutorBatcher`](crate::burn_support::batcher::FirehoseExecutorBatcher),
 //!   a [`burn`] `Batcher` that turns a `Vec<I>` of dataset items into a
 //!   [`FirehoseRowBatch`](crate::core::FirehoseRowBatch) (via a
-//!   [`BatcherInputAdapter`](crate::burn::batcher::BatcherInputAdapter)), runs
-//!   it through a
+//!   [`BatcherInputAdapter`](crate::burn_support::batcher::BatcherInputAdapter)),
+//!   runs it through a
 //!   [`FirehoseBatchExecutor`](crate::core::operations::executor::FirehoseBatchExecutor),
 //!   and materializes tensors out the other side (via a
-//!   [`BatcherOutputAdapter`](crate::burn::batcher::BatcherOutputAdapter)).
+//!   [`BatcherOutputAdapter`](crate::burn_support::batcher::BatcherOutputAdapter)).
 //! - [`path_scanning`] — helpers such as
-//!   [`image_dataset_for_folder`](crate::burn::path_scanning::image_dataset_for_folder)
+//!   [`image_dataset_for_folder`](crate::burn_support::path_scanning::image_dataset_for_folder)
 //!   that scan `$ROOT/$CLASS/$IMG.{jpg,png}` layouts into a `burn` dataset.
 //!
 //! # Wiring sketch

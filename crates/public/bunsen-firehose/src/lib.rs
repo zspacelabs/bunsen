@@ -38,7 +38,7 @@
 //!   whatever order they were added in.
 //!
 //! The two edges stay hand-written: how dataset items become rows, and how
-//! columns become tensors. They are the adapters in [`burn`], and
+//! columns become tensors. They are the adapters in [`burn_support`], and
 //! [`FirehoseExecutorBatcher`] joins them and an executor into a burn
 //! `Batcher`, so burn's data loader and its worker threads drive the
 //! pipeline.
@@ -64,8 +64,8 @@
 //!   [`executor`](core::operations::executor) that runs a schema over a batch.
 //! - [`ops`] — the registry of globally-registered operators and
 //!   [`init_default_operator_environment`](ops::init_default_operator_environment).
-//! - [`burn`] — adapters that expose a schema as a burn `Batcher`, plus dataset
-//!   path-scanning helpers.
+//! - [`burn_support`] — adapters that expose a schema as a burn `Batcher`, plus
+//!   dataset path-scanning helpers.
 //! - [`utility`] — helpers for writing operators.
 //!
 //! # Example: define an operator, plan a column, run a batch
@@ -172,10 +172,10 @@
 //! [`FirehoseRowReader`]: core::rows::FirehoseRowReader
 //! [`FirehoseRowWriter`]: core::rows::FirehoseRowWriter
 //! [`FirehoseOperator`]: core::operations::operator::FirehoseOperator
-//! [`FirehoseExecutorBatcher`]: crate::burn::batcher::FirehoseExecutorBatcher
+//! [`FirehoseExecutorBatcher`]: crate::burn_support::batcher::FirehoseExecutorBatcher
 //! [`SequentialBatchExecutor`]: core::operations::executor::SequentialBatchExecutor
 
-pub mod burn;
+pub mod burn_support;
 pub mod core;
 pub mod ops;
 pub mod utility;

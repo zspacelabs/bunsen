@@ -21,7 +21,7 @@ use bunsen::{
     },
 };
 use bunsen_firehose::{
-    burn::{
+    burn_support::{
         batcher::{
             BatcherInputAdapter,
             BatcherOutputAdapter,

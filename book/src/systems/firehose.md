@@ -25,7 +25,7 @@ dependency: that is how `bunsen-firehose-image` adds image
 seeded [augmentation](bunsen_firehose_image::augmentation) and
 [conversion to tensor data](bunsen_firehose_image::burn_support). The bridge
 to burn is
-[`FirehoseExecutorBatcher`](bunsen_firehose::burn::batcher::FirehoseExecutorBatcher),
+[`FirehoseExecutorBatcher`](bunsen_firehose::burn_support::batcher::FirehoseExecutorBatcher),
 a burn `Batcher` that runs the executor over each batch and hands the
 tensors to burn's data loader.
 
