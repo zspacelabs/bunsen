@@ -20,7 +20,7 @@ use crate::{
         TensorBoolOpExt,
         TensorOrderedOpExt,
     },
-    support::range_util::{
+    rust_ext::range_util::{
         range_into,
         shift_range,
     },

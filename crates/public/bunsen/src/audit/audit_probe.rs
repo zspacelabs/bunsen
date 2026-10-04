@@ -44,7 +44,7 @@ use crate::{
         TensorDataCheckExt,
         TensorElemOpExt,
     },
-    support::CloneRef,
+    rust_ext::CloneRef,
 };
 
 /// The data argument of the [`AuditProbe`] checkpoint methods: a `&Tensor` or a

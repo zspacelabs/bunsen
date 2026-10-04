@@ -12,7 +12,7 @@ piece of code belongs, and what it may depend on.
   ops         operations: free functions, and Module/Config types that
                 │ hold cached tables or stream state
   foundation  burner (burn extensions), contracts (shape checks),
-              errors, support, zspace
+              errors, rust_ext (Rust helpers), support, zspace
   ──────────────────────────────────────────────────────────────────
   burn
 
@@ -42,6 +42,7 @@ Each module's own docs carry its map; this table is the one-line version.
 | [`data`](bunsen::data) | The disk cache, pretrained-model loading, and dataset shard sets. See [Files, caches and pretrained models](../systems/pretrained.md). |
 | [`audit`](bunsen::audit) | Audit probes: record a stream of tensor checkpoints from one run and verify another against it. See [Audit probes and baselines](../development/audit.md). |
 | [`errors`](bunsen::errors) | `BunsenError`, `BunsenResult`, and the `try_x` / `x` convention. |
+| [`rust_ext`](bunsen::rust_ext) | Rust-language extensions with no tensor or burn dependency: `CloneBox` / `CloneRef`, array and range helpers, and `LocationDesc`, a serializable source location. |
 | [`support`](bunsen::support) | Shared utilities, including the test backends and devices in [`support::testing`](bunsen::support::testing). |
 | [`zspace`](bunsen::zspace) | Integer-lattice index and shape helpers. |
 | [`prelude`](bunsen::prelude) | The traits most code needs in scope, for one glob import. |
@@ -57,6 +58,8 @@ Each module's own docs carry its map; this table is the one-line version.
   appears.
 - Anything that **extends burn's machinery** itself (module traversal,
   records, optimizers) goes in `burner`.
+- A **Rust-language helper** with no tensor or burn dependency goes in
+  `rust_ext`.
 
 Whatever the layer, a new module follows the
 [module design conventions](../systems/conventions.md).

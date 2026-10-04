@@ -16,7 +16,7 @@ use crate::{
         expect_conv_output_shape,
         get_square_conv2d_padding,
     },
-    support::arrays::scalar_to_array,
+    rust_ext::arrays::scalar_to_array,
 };
 
 /// [`ResNetDownsampleConfig`] Meta trait.

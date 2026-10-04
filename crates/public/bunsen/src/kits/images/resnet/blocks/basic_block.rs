@@ -42,10 +42,8 @@ use crate::{
         conv::stride_div_output_resolution,
         drop::DropBlockOptions,
     },
-    support::{
-        arrays::scalar_to_array,
-        validators::expect_probability,
-    },
+    rust_ext::arrays::scalar_to_array,
+    support::validators::expect_probability,
 };
 
 /// [`BasicBlock`] Meta trait.

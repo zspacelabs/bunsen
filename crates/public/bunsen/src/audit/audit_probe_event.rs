@@ -16,7 +16,7 @@ use crate::{
         BunsenError,
         BunsenResult,
     },
-    support::reflection::LocationDesc,
+    rust_ext::reflection::LocationDesc,
 };
 
 /// Receives the events an [`AuditProbe`] emits.

@@ -22,7 +22,7 @@
 //!   kits        whole models and simulations
 //!   blocks      torch.nn-like components: module roots and tree parts
 //!   ops         operations; Module/Config only to hold cached tables or state
-//!   foundation  burner, contracts, errors, support, zspace
+//!   foundation  burner, contracts, errors, rust_ext, support, zspace
 //!   ───────────────────────────────────────────────────────────────────────
 //!   burn
 //!
@@ -52,6 +52,11 @@
 //! * [`contracts`]: runtime tensor-shape contracts.
 //! * [`errors`]: `BunsenError`, `BunsenResult`, and the `try_x` / `x`
 //!   convention.
+//! * [`rust_ext`]: Rust-language extensions with no tensor or burn dependency:
+//!   [`CloneBox`](rust_ext::CloneBox) / [`CloneRef`](rust_ext::CloneRef), array
+//!   and range helpers, and
+//!   [`LocationDesc`](rust_ext::reflection::LocationDesc), a serializable
+//!   source location.
 //! * [`support`]: shared utilities, including the test backends and devices
 //!   (`support::testing`, feature `testing`).
 //! * [`zspace`]: integer-lattice index and shape helpers.
@@ -117,5 +122,6 @@ pub mod errors;
 pub mod kits;
 pub mod ops;
 pub mod prelude;
+pub mod rust_ext;
 pub mod support;
 pub mod zspace;
