@@ -24,15 +24,9 @@ pub trait ConwaySim<B: Backend> {
     /// Returns the device the board is on.
     fn device(&self) -> B::Device;
 
-    /// Adds noise to the board: each interior cell is hit with probability
-    /// `density`. The halo is then rewritten from the interior, so the next
-    /// step wraps.
-    ///
-    /// The two sims differ in what a hit does: [`ConwayLife2DState`] flips
-    /// the cell, and [`ConwayLife3DState`] sets it live.
-    ///
-    /// [`ConwayLife2DState`]: super::life2d::ConwayLife2DState
-    /// [`ConwayLife3DState`]: super::life3d::ConwayLife3DState
+    /// Adds noise to the board: each interior cell is flipped, live to dead
+    /// or dead to live, with probability `density`. The halo is then
+    /// rewritten from the interior, so the next step wraps.
     fn fuzz(
         &mut self,
         density: f64,

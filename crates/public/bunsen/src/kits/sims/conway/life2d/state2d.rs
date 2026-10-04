@@ -241,6 +241,35 @@ mod tests {
         assert_eq!(life.read_slice(s![1..8, 1..11]), torus_step_2d(&seed));
     }
 
+    /// `fuzz` flips each cell it hits. At density 1 it hits every cell, so
+    /// it inverts the board, halo included, and a second pass restores it.
+    #[test]
+    #[serial]
+    fn test_fuzz_flips_each_hit_cell() {
+        type B = PerformanceBackend;
+        let device = default_device();
+        let _memory = DeviceMemoryGuard::<B>::new(&device);
+
+        // A 7x7 board: a 5x5 torus with live and dead cells.
+        let mut life: ConwayLife2DState<B> =
+            ConwayLife2DConfig::new(GridShape2D::square(7)).init(&device);
+        life.write_slice(
+            s![1..3, 1..4],
+            vec![vec![true, false, true], vec![false, true, true]],
+        );
+        let seed = life.read_slice(s![.., ..]);
+        let inverted: Vec<Vec<bool>> = seed
+            .iter()
+            .map(|row| row.iter().map(|cell| !cell).collect())
+            .collect();
+
+        life.fuzz(1.0);
+        assert_eq!(life.read_slice(s![.., ..]), inverted);
+
+        life.fuzz(1.0);
+        assert_eq!(life.read_slice(s![.., ..]), seed);
+    }
+
     #[test]
     #[serial]
     fn test_smoke() {

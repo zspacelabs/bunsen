@@ -6,11 +6,11 @@ use burn::{
         Bool,
         Int,
     },
-    tensor::Distribution,
 };
 
 use crate::kits::sims::conway::{
     ops::{
+        fuzz_state_3d,
         next_state_wrapped_3d,
         project_wrapped_toroidal_boarders,
     },
@@ -70,12 +70,6 @@ pub struct ConwayLife3DState<B: Backend> {
     pub rules: ConwayRules,
 }
 
-impl<B: Backend> ConwayLife3DState<B> {
-    fn shape(&self) -> [usize; 3] {
-        self.state.shape().dims()
-    }
-}
-
 impl<B: Backend> ConwaySim<B> for ConwayLife3DState<B> {
     fn device(&self) -> B::Device {
         self.state.device()
@@ -89,17 +83,10 @@ impl<B: Backend> ConwaySim<B> for ConwayLife3DState<B> {
             return;
         }
 
-        let noise: Tensor<B, 3, Bool> = Tensor::<B, 3>::random(
-            self.shape(),
-            Distribution::Bernoulli(density),
-            &self.device(),
-        )
-        .equal_elem(1.0);
-
         // The noise lands on the halo too; rewrite it from the interior, so
         // the next step wraps.
         self.state
-            .inplace(|s| project_wrapped_toroidal_boarders(s.bool_or(noise)));
+            .inplace(|s| project_wrapped_toroidal_boarders(fuzz_state_3d(s, density)));
     }
 
     /// Advances the game state.
@@ -113,7 +100,10 @@ impl<B: Backend> ConwaySim<B> for ConwayLife3DState<B> {
 
 #[cfg(test)]
 mod tests {
-    use burn::prelude::s;
+    use burn::{
+        prelude::s,
+        tensor::TensorData,
+    };
     use serial_test::serial;
 
     use super::*;
@@ -195,6 +185,44 @@ mod tests {
         life.step();
 
         assert_eq!(interior(&life), torus_step_3d(&seed, [4, 5, 6], &rules));
+    }
+
+    /// `fuzz` flips each cell it hits. At density 1 it hits every cell, so
+    /// it inverts the board, halo included, and a second pass restores it.
+    #[test]
+    #[serial]
+    fn test_fuzz_flips_each_hit_cell() {
+        type B = PerformanceBackend;
+        let device = default_device();
+        let _memory = DeviceMemoryGuard::<B>::new(&device);
+
+        // A 5x6x7 board: a 3x4x5 torus with live and dead cells, its halo
+        // fresh.
+        let shape = [5, 6, 7];
+        let cells: Vec<bool> = (0..shape.iter().product::<usize>())
+            .map(|i| i % 3 == 0)
+            .collect();
+        let mut life: ConwayLife3DState<B> = ConwayLife3DConfig::new(shape).init(&device);
+        life.state = project_wrapped_toroidal_boarders(Tensor::from_data(
+            TensorData::new(cells, shape),
+            &device,
+        ));
+        let board = |life: &ConwayLife3DState<B>| {
+            life.state
+                .clone()
+                .to_data_as::<bool>()
+                .to_vec::<bool>()
+                .unwrap()
+        };
+        let seed = board(&life);
+        assert!(seed.contains(&true) && seed.contains(&false));
+        let inverted: Vec<bool> = seed.iter().map(|cell| !cell).collect();
+
+        life.fuzz(1.0);
+        assert_eq!(board(&life), inverted);
+
+        life.fuzz(1.0);
+        assert_eq!(board(&life), seed);
     }
 
     #[test]
