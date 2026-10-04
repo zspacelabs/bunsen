@@ -519,9 +519,9 @@ mod tests {
         GptHost { gpt }
     }
 
-    /// The groups once used an element name that doesn't exist
-    /// (`GptHost/GPT/...`). They matched nothing, every parameter fell into
-    /// `remnant`, and Muon never stepped.
+    /// Each group selects something, no two overlap, and together they cover
+    /// the model. A selector that names no element matches nothing, and its
+    /// parameters fall silently into `remnant`, so Muon would never step.
     #[test]
     fn test_param_groups_partition_the_model() {
         let host = tiny_host();

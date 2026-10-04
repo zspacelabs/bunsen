@@ -15,9 +15,9 @@
 //!
 //! ## Preview
 //!
-//! This is a *preview* crate. It was built for one consumer,
-//! `examples/train-chat`, which trains bunsen's `NanoChat` GPT, and its API is
-//! shaped by that example's needs. Expect it to change between releases.
+//! This is a *preview* crate. It serves one consumer, `examples/train-chat`,
+//! which trains bunsen's `NanoChat` GPT, and its API is shaped by that
+//! example's needs. Expect it to change between releases.
 //!
 //! ## The pipeline
 //!
