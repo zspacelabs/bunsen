@@ -1,42 +1,27 @@
 # Writing documentation
 
-bunsen has two kinds of documentation, and each fact belongs in exactly one
-of them. This page is the contract between them, for anyone writing either:
-what goes where, how the book links into the API, how code in the book stays
+bunsen has two kinds of documentation, rustdoc and this book, and each fact
+belongs in exactly one of them. This page covers the book's side, for anyone
+writing it: how the book links into the API, how code in the book stays
 correct, and how to build the book. STYLE.md's
 [rustdoc chapter](https://github.com/zspacelabs/bunsen/blob/main/STYLE.md#rustdoc)
-has the rules for the rustdoc side.
+has the rules for rustdoc, including which facts belong there.
 
 ## rustdoc is the reference
 
-rustdoc documents every interface and every lifecycle: what a type is, how a
-config becomes a module, how a name becomes a loaded model, what a method
-returns and when it fails. The compiler checks its links, its examples run as
-doctests, and it moves with the code.
-
-The book explains what rustdoc can't hold: how the workspace and the crate
-are organized, the systems that cut across modules and why they are built
-the way they are, and how the project is developed. It never restates a
-signature, a method or field list, a feature table or a module tree. It
-names the concept and links to it.
-
-When a book page needs a fact that rustdoc doesn't have, the fix is in
-rustdoc: add the fact there, then link to it. A fact that lives only in the
-book rots, because nothing checks it
-([rustdoc is the reference](https://github.com/zspacelabs/bunsen/blob/main/STYLE.md#rustdoc-is-the-reference)).
+rustdoc documents every interface and every lifecycle; the book explains
+what rustdoc can't hold, names each concept, and links to it. When a book
+page needs a fact that rustdoc doesn't have, the fix is in rustdoc. STYLE.md's
+[rustdoc is the reference](https://github.com/zspacelabs/bunsen/blob/main/STYLE.md#rustdoc-is-the-reference)
+is the rule, including what the book never restates.
 
 ## Module docs must render
 
-A private module's `//!` never reaches the API docs. With bunsen's
-`mod x; pub use x::*;` layout, rustdoc shows the re-exported items and
-nothing of the file, so prose written there is invisible and goes stale
-unchecked. Put what a type is on the type's `///`. Put why an area exists,
-and its lifecycle across files, in the public parent's `//!`. Keep a private
-file to a one-line title.
-[`tools/check_hidden_module_docs.py`](https://github.com/zspacelabs/bunsen/blob/main/tools/check_hidden_module_docs.py)
-lists the modules that break the rule, and CI runs it on every PR. STYLE.md's
+A private module's `//!` never reaches the API docs, so prose written there
+is invisible. STYLE.md's
 [Module docs must render](https://github.com/zspacelabs/bunsen/blob/main/STYLE.md#module-docs-must-render)
-has the details, including when `#[doc(inline)]` matters.
+says where that prose goes instead, and CI enforces it with
+[`tools/check_hidden_module_docs.py`](https://github.com/zspacelabs/bunsen/blob/main/tools/check_hidden_module_docs.py).
 
 ## Linking into the API
 

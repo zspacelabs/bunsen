@@ -4,9 +4,9 @@ Conventions for code, documentation, and build configuration across the
 `bunsen` workspace. This file is the source of truth; assertions added under
 each chapter are applied across the code base.
 
-> See also [`book/src/contributing/style.md`](book/src/contributing/style.md)
-> for prose/Book conventions. This file governs in-source `rustdoc` and the
-> `Cargo.toml` manifests.
+> See also the book's [Writing documentation](book/src/development/docs.md)
+> for the book's own conventions: linking into the API, code in the book, and
+> building it.
 
 ## rustdoc
 
@@ -26,18 +26,23 @@ the cross-links between paired types, and how tensor shapes are written.
 
 ### rustdoc is the reference
 
-rustdoc is the primary documentation for every interface and lifecycle. The
-book (`book/`) explains how bunsen is organized and why, and links into the
-API; it never restates signatures, method or field lists, feature tables, or
-module maps. A fact that lives only in the book is a rustdoc gap: move it
-here, then link to it.
+rustdoc is the primary documentation for every interface and lifecycle: the
+compiler checks its links, its examples run as doctests, and it moves with
+the code. The book (`book/`) explains how the workspace and the crate are
+organized, the systems that cut across modules and why they are built that
+way, and how the project is developed, and links into the API; it never
+restates signatures, method or field lists, feature tables, or module maps.
+A fact that lives only in the book is a rustdoc gap, and nothing checks it:
+add it to rustdoc, then link to it.
 
 * The module map lives once: the crate root (`lib.rs`) for top-level
   modules, and each area's `mod.rs` for its submodules.
 * The book links to items by intra-doc path,
   ``[`ShapeContract`](bunsen::contracts::ShapeContract)``, and the book build
   resolves every such link with rustdoc. A rename that breaks a book link
-  fails CI in the PR that made it.
+  fails CI in the PR that made it. The book's
+  [Linking into the API](book/src/development/docs.md#linking-into-the-api)
+  has the link forms.
 
 ### Module docs must render
 
@@ -59,13 +64,16 @@ it only on a re-export from a *public* module, where it changes the output.
 
 ### Errors: `try_x` and `x`
 
-A fallible operation is `try_x`, returning `BunsenResult`; its panicking twin
-is `x` (or `expect_x`), built on `WithOkOrPanic::ok_or_panic`:
-`ModuleInit::{try_init, init}`, `ToStructureConfig::{try_to_structure,
-to_structure}`, `XmlModuleTree::{try_select, select}`,
-`{try,expect}_probability`. Input that can be wrong (a config, a file, a
-user's spec) is reported from `try_x` as `BunsenError::Invalid`, not as a
-panic.
+The [`bunsen::errors`](https://docs.rs/bunsen/latest/bunsen/errors/index.html#convention-try_x-and-x)
+docs define the convention: a fallible `try_x` returning `BunsenResult`, its
+panicking twin `x` (or `expect_x`), and which `BunsenError` variant fits
+which failure. A pair's docs add two rules on top of it:
+
+* `try_x` carries an `# Errors` section: each variant it returns, and when.
+  Its summary links the convention.
+* `x` names `try_x` as its fallible half and carries a `# Panics` section:
+  it panics with the `try_x` error's message, plus anything it checks on its
+  own.
 
 ### Tensor shape notation
 
@@ -182,8 +190,9 @@ then serve more than one cache or stream in the same process.
   machinery, but only to hold cached tables or state.
 * `ops` never imports `blocks`.
 
-The `bunsen::ops` and `bunsen::blocks` module docs hold the authoritative
-wording.
+The rule's one definition is the "Ops and blocks" section of the
+[`bunsen::ops`](https://docs.rs/bunsen/latest/bunsen/ops/index.html#ops-and-blocks)
+module docs.
 
 ### Variant behaviour lives on the enum
 

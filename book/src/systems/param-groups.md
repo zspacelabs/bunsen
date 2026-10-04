@@ -80,14 +80,13 @@ groups, and a test checks that the groups partition the model.
 ## Pitfalls
 
 **Element names are type names, not field names.** A path that names a field
-as an element matches nothing. This is the mistake train-chat once made: its
-queries started `GptHost/GPT/...`, but the field `gpt` holds a
-`NanoChatGpt`, so the element is `NanoChatGpt`. Every query came back empty,
-every parameter fell into the remnant group, and Muon never stepped a single
-weight. Nothing failed: training ran, with AdamW stepping everything at the
-remnant group's settings. The fixed queries
-start `GptHost/NanoChatGpt/...`. Select a field with `*[@name='gpt']`, or
-its type with `NanoChatGpt`, never with `gpt`.
+as an element matches nothing. In train-chat the field `gpt` holds a
+`NanoChatGpt`, so the element is `NanoChatGpt` and its queries start
+`GptHost/NanoChatGpt/...`. Queries that started `GptHost/gpt/...` would all
+come back empty, every parameter would fall into the remnant group, and Muon
+would never step a single weight. Nothing would fail: training would run,
+with AdamW stepping everything at the remnant group's settings. Select a field
+with `*[@name='gpt']`, or its type with `NanoChatGpt`, never with `gpt`.
 
 **An empty selection is not an error.** A query that matches nothing
 returns an empty set, and the remnant group quietly absorbs the parameters

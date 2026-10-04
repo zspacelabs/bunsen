@@ -15,9 +15,8 @@ its map: [ops](bunsen::ops#map-of-the-module),
 - **Ops** are operation-focused. They may use the `Module` and `Config`
   machinery, but only to hold cached tables or state.
 
-The rule asks what a type is *for*, not whether it owns parameters. An
-older rule said "ops are pure functions, blocks own parameters", and real
-code kept breaking it. [`SlidingStft`](bunsen::ops::signal::SlidingStft) is
+The rule asks what a type is *for*, not whether it owns parameters or is a
+pure function. [`SlidingStft`](bunsen::ops::signal::SlidingStft) is
 a `Module` that holds a fixed analysis window and learns nothing.
 [`DropPath`](bunsen::blocks::images::drop::drop_path::DropPath) owns no
 parameters but sits in a model as a layer.
@@ -34,9 +33,7 @@ holds its settings and calls
 the operation separate means the math is tested on its own, and the block's
 tests only have to show that it is wired correctly.
 
-The authoritative wording is in
-[`bunsen::ops`](bunsen::ops#ops-and-blocks), mirrored in
-[`bunsen::blocks`](bunsen::blocks#blocks-and-ops).
+The rule is defined in [`bunsen::ops`](bunsen::ops#ops-and-blocks).
 
 ## Caches and stream state are ops
 

@@ -86,13 +86,12 @@ hold at once, so heavy tests also run `#[serial]`.
 
 ## Comparing numbers
 
-Two backends rarely compute a float result bit for bit alike: the reduction
-order differs, and some accelerators use reduced-precision matmuls. Compare
-computed values within a tolerance, and compare exactly only values that
-were uploaded, copied or rearranged.
-[`assert_tensors_close`](bunsen::support::testing::assert_tensors_close) and
-[`assert_tensor_close_to_vec`](bunsen::support::testing::assert_tensor_close_to_vec)
-report the size of a mismatch, not just where it is.
+Two backends rarely compute a float result bit for bit alike: they reduce in
+different orders, and some accelerator kernels trade precision for speed. A
+test that runs on whichever backend a developer builds therefore compares
+computed values within a tolerance.
+[`support::testing`](bunsen::support::testing#test-backends) states the rule
+and has the assertions that apply it.
 
 Set a tolerance from measurement, not by guessing. Run on each backend you
 support, look at the drift, and leave headroom over the worst. A real defect

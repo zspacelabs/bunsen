@@ -12,12 +12,9 @@ and
 
 bunsen's Whisper and Silero kits are transliterations, written by reading
 the reference. Their unit tests check the code against itself, so a
-misreading that the code and its tests share passes. It did: stepping
-Whisper against the real implementation turned up four defects behind a
-green suite, among them weights that loaded scrambled and a ReLU where
-Whisper uses GELU. The README's
-[last section](https://github.com/zspacelabs/bunsen/blob/main/crates/validation/whisper-model-validation/README.md#why-this-crate-exists)
-lists them. Validation pins a kit to something with independent provenance.
+misreading that the code and its tests share passes: weights that load
+scrambled, or a ReLU where the reference uses GELU, leave a unit suite
+green. Validation pins a kit to something with independent provenance.
 
 ## A reference that runs inside burn
 
@@ -61,8 +58,8 @@ implementations, several blocks deep, drift apart by as much as the
 backend's arithmetic does, and that differs by backend: CUDA's
 reduced-precision matmul drifts an order of magnitude further than wgpu. So
 a tolerance is measured on each backend and set with headroom over the
-worst. It is still far tighter than a real defect: the ones Whisper's
-validation found were each wrong by 100% or more
+worst. It is still far tighter than the error a real defect causes: a
+scrambled weight or a wrong activation is off by 100% or more
 ([Tolerance](https://github.com/zspacelabs/bunsen/blob/main/crates/validation/whisper-model-validation/README.md#tolerance)).
 
 ## Fixtures generated once

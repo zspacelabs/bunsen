@@ -42,9 +42,8 @@ Cargo unifies features. When one command builds several crates, each
 dependency is built once, with every feature that any of them asked for. A
 crate that forgot to enable a feature it needs still builds, because a
 sibling enabled it, and the failure waits for a user who depends on that
-crate alone. This happened: `bunsen-firehose` relied on `bunsen` turning on
-`burn/std`, built cleanly in the workspace, and failed to publish at
-v0.31.0.
+crate alone. A crate that uses `burn/std` but leaves it to `bunsen` to turn
+on builds cleanly in the workspace, and fails `cargo publish`.
 
 So the test job builds the code several ways, each standing in for a real
 consumer:
@@ -96,8 +95,7 @@ crate's changelog and to choose the version bump ([Releasing](./release.md)).
 
 ## Where to talk
 
-For a small fix, open a pull request. For anything larger, such as a new
-component, a new kit or a breaking API change, open an
-[issue](https://github.com/zspacelabs/bunsen/issues) first. The project's
-Discord is linked from the
+`CONTRIBUTING.md` says when to open an
+[issue](https://github.com/zspacelabs/bunsen/issues) before a pull request.
+The project's Discord is linked from the
 [README](https://github.com/zspacelabs/bunsen/blob/main/README.md).

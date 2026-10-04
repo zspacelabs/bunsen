@@ -54,7 +54,8 @@ returns a [`BunsenResult`](bunsen::errors::BunsenResult), and `x` (or
 `expect_x`) panics through
 [`WithOkOrPanic`](bunsen::errors::WithOkOrPanic). Input that can be wrong is
 reported as [`BunsenError::Invalid`](bunsen::errors::BunsenError::Invalid),
-not as a panic.
+not as a panic
+([the convention](bunsen::errors#convention-try_x-and-x)).
 
 **Modules over bare tensors.** A type that owns a tensor derives `Module`
 even when nothing in it is learnable. `Module` is burn's traversal trait,

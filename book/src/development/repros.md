@@ -64,7 +64,7 @@ removal. Write the message for the workaround you have.
 
 ## Why a separate crate
 
-The reproductions used to live in `bunsen` itself. A reproduction is a
-statement about somebody else's code: it carries a fixture, it wants a real
-accelerator to say anything, and its whole purpose is to stop being true.
-None of that belongs on a published library's public surface.
+A reproduction is a statement about somebody else's code: it carries a
+fixture, it wants a real accelerator to say anything, and its whole purpose
+is to stop being true. None of that belongs on a published library's public
+surface.
