@@ -1057,8 +1057,8 @@ mod tests {
         ];
         let contract = ShapeContract::new(&["rest", "x"], &terms);
 
-        // Without the check in `new`, `rest` is never bound, and unpacking it
-        // panics, even from the `try_` form.
+        // Not reached: `new` panics. An ellipsis has no single size, so
+        // `rest` could never be bound.
         let _ = contract.try_unpack_shape(&[2usize, 3, 4], &["rest"], &[]);
     }
 

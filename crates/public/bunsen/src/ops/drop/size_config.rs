@@ -8,7 +8,7 @@ use serde::{
 /// A size, given relative to a reference size that is only known later.
 ///
 /// [`resolve`](Self::resolve) turns it into a count once the reference is
-/// known. Today the one consumer is [`DropBlockOptions`]: each side of its
+/// known. In the crate, [`DropBlockOptions`] uses it: each side of its
 /// `kernel` is a `SizeConfig`, resolved against the input's height or width,
 /// so a block can be "7 pixels" or "a quarter of the image".
 ///

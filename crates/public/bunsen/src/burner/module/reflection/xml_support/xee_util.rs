@@ -108,10 +108,10 @@ mod tests {
         XmlModuleTree::build(&module)
     }
 
-    /// An error raised while evaluating the expression carries its own kind
-    /// on the source span, not "Parse Error".
+    /// An error raised while evaluating the expression is labelled with its
+    /// own kind on the source span: a type error is a "Type Error".
     #[test]
-    fn test_runtime_error_is_not_labelled_parse_error() {
+    fn test_evaluation_error_is_labelled_with_its_kind() {
         let mut mtree = linear_tree();
 
         // Parses, then fails on evaluation: a two-item sequence has no
@@ -124,7 +124,8 @@ mod tests {
         assert!(!msg.contains("Parse Error"), "{msg}");
     }
 
-    /// A syntax error is still a parse error.
+    /// A syntax error is labelled "Parse Error", and is a
+    /// [`BunsenError::ParseError`].
     #[test]
     fn test_syntax_error_is_labelled_parse_error() {
         let mut mtree = linear_tree();

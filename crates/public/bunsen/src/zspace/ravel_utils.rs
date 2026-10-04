@@ -104,7 +104,8 @@ mod tests {
     #[test]
     #[should_panic(expected = "coordinate 3 is out of range for axis 1 of size 3")]
     fn test_ravel_dims_rejects_coord_at_size() {
-        // Wrapped, `[0, 3]` named `[0, 0]`; unwrapped, offset 3 is `[1, 0]`.
+        // `[0, 3]` is past the end of axis 1. It names no element: neither
+        // `[0, 0]` (wrapped) nor `[1, 0]` (offset 3).
         let offset = ravel_dims(&[2, 3], &[0, 3]);
         panic!("ravel_dims returned {offset}");
     }

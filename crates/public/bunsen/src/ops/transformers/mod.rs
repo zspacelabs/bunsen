@@ -1,7 +1,7 @@
 //! # Transformer operations
 //!
-//! The operations inside transformer layers, and the state they carry. Today
-//! this is [`attention`]: scaled dot-product attention, attention over burn's
+//! The operations inside transformer layers, and the state they carry, in
+//! [`attention`]: scaled dot-product attention, attention over burn's
 //! [`MultiHeadAttention`] weights, and the key/value caches that decoding
 //! carries between steps.
 //!

@@ -53,16 +53,10 @@ macro_rules! performance_backend {
         ///
         /// # Compare within a tolerance
         ///
-        /// The same test runs on whichever backend a developer builds, and
-        /// backends do not agree bit for bit. The CUDA backend, for one,
-        /// compiles its kernels with fast math (`cubecl`'s CUDA runtime turns
-        /// `fast_math` on). Assert computed floats within a tolerance, with
-        /// [`assert_tensors_close`](crate::support::testing::assert_tensors_close)
-        /// or
-        /// [`assert_tensor_close_to_vec`](crate::support::testing::assert_tensor_close_to_vec),
-        /// not with exact equality.
-        ///
-        /// See [Test backends](crate::support::testing#test-backends).
+        /// Backends do not agree bit for bit, so a test compares computed
+        /// floats within a tolerance, not with exact equality. The rule and
+        /// the assertions for it are under
+        /// [Test backends](crate::support::testing#test-backends).
         pub type PerformanceBackend = $backend;
     };
 }

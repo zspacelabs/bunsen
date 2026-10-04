@@ -36,7 +36,8 @@ pub const SHARDS_DIR: &str = "shards";
 /// cache's data directory, at `<data_dir>/shards/<name>/`;
 /// [`at_dir`](Self::at_dir) uses a directory the caller names, where the
 /// shard files sit directly. The second is what a `--dataset-dir` flag maps
-/// to, and it keeps a tree downloaded before this type existed valid.
+/// to, and it accepts any flat directory of shard files, however it was
+/// filled.
 ///
 /// Then [`locate`](Self::locate), [`fetch`](Self::fetch) and, with the
 /// `fetch` feature, `fetch_many` give the shards' paths for a data loader.

@@ -5,22 +5,17 @@
 //!
 //! ## Blocks and ops
 //!
-//! The line between blocks and [`crate::ops`] is about what a thing is *for*:
-//!
-//! - **blocks** are `bunsen.nn` / `torch.nn`-alike components, meant to be used
-//!   as Module roots or as parts of a module tree;
-//! - **ops** are operation-focused. They may still use the Module or Config
-//!   machinery, but to hold cached tables or state.
-//!
-//! Cache and stream state is *injected*, so one model can have several caches
-//! in one process: a block that decodes takes its cache as an argument rather
-//! than holding it. [`CausalSelfAttention::forward`] takes a [`KVCache`],
-//! which is an op.
+//! A block is a component meant to be used as a Module root or as a part of
+//! a module tree. [Ops and blocks](crate::ops#ops-and-blocks) defines the
+//! line between blocks and [`crate::ops`], and the rule that cache and stream
+//! state is injected.
 //!
 //! A block is typically "these parameters, plus these `ops` calls in order";
 //! blocks import ops, never the reverse. A block need not own parameters:
 //! `DropPath`, `DropBlock2d` and `AvgPool2dSame` own none, and are blocks
-//! because they sit in a module tree as layers.
+//! because they sit in a module tree as layers. A block that decodes takes
+//! its cache as an argument rather than holding it:
+//! [`CausalSelfAttention::forward`] takes a [`KVCache`].
 //!
 //! Where [`crate::kits`] supplies whole models (`ResNet`, `NanoChatGpt`,
 //! Whisper, ...), `blocks` supplies the sub-modules those kits are assembled
