@@ -35,19 +35,11 @@
 //!   into a row-major offset;
 //!   [`TensorDataView`](crate::burner::tensor::TensorDataView) indexes with
 //!   them.
-//! - **Shape attributes.** [`shape_to_xml_attr`] / [`shape_from_xml_attr`]
-//!   encode a [`Shape`](burn::prelude::Shape) as a space-separated attribute
-//!   value (`"2 3 4"`). This is the codec [module
-//!   reflection](crate::burner::module::reflection) uses for the `shape`
-//!   attribute of a parameter's XML node. It arguably belongs with reflection's
-//!   XML support rather than here.
 
 mod bounds;
 mod check_slices_bounds;
-mod parse_shapes;
 mod ravel_utils;
 
 pub use bounds::*;
 pub use check_slices_bounds::*;
-pub use parse_shapes::*;
 pub use ravel_utils::*;
