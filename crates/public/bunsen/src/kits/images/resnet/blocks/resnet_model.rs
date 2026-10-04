@@ -1055,7 +1055,7 @@ mod tests {
 
     /// With fewer than 2 stages there is no second-to-last stage for the
     /// `DropBlock` schedule: a nonzero rate is an error from both `try_`
-    /// forms, not an underflow. A rate of 0 places nothing, and is fine.
+    /// forms. A rate of 0 places nothing, and is fine.
     #[test]
     fn test_try_drop_block_schedules_reject_one_stage() {
         let structure = ResNetContractConfig::new(vec![2], 10)
@@ -1079,7 +1079,7 @@ mod tests {
         assert_eq!(module_drop_blocks(&model), vec![None, None]);
     }
 
-    /// The panicking twin names the problem; it does not underflow.
+    /// The panicking twin panics with a message that names the problem.
     #[test]
     #[should_panic(expected = "at least 2 stages")]
     fn test_drop_block_schedule_panics_on_one_stage() {

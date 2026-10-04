@@ -1186,9 +1186,9 @@ mod tests {
         assert!(matches!(bad, Err(BunsenError::Invalid(_))));
     }
 
-    /// The policy's `drop_rate` reaches every block's MLP and attention
-    /// projection dropout, as upstream's `BasicLayer(drop=drop_rate)` does,
-    /// and not only the input dropout.
+    /// The policy's `drop_rate` reaches the input dropout and every block's
+    /// MLP and attention projection dropout, as upstream's
+    /// `BasicLayer(drop=drop_rate)` does.
     #[test]
     fn test_drop_rate_reaches_the_blocks() {
         let policy = tiny_policy().with_drop_rate(0.25);
@@ -1211,7 +1211,7 @@ mod tests {
     }
 
     /// A zero patch size is an error from `try_to_structure`, and so from
-    /// `try_init`, rather than a divide-by-zero panic.
+    /// `try_init`, rather than a panic.
     #[test]
     fn test_try_to_structure_rejects_zero_patch_size() {
         let policy = SwinTransformerV2ContractConfig {

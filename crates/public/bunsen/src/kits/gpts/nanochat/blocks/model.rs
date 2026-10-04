@@ -596,7 +596,7 @@ mod tests {
     }
 
     /// A cached decode that runs past the rotary table fails at the guard,
-    /// which counts the cache's position, not only the step's length.
+    /// which counts the cache's position plus the step's length.
     #[test]
     #[serial]
     #[should_panic(expected = "beyond the rotary embeddings table: 8 + 1 > 8")]

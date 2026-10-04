@@ -424,7 +424,7 @@ mod tests {
     }
 
     /// A grid under 3 cells on a side has no fluid interior: `init` panics
-    /// with the `try_init` error, rather than underflowing `height - 2`.
+    /// with the `try_init` error.
     #[test]
     #[serial]
     #[should_panic(expected = "at least 3 cells on a side")]
