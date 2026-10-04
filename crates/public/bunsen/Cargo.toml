@@ -268,7 +268,11 @@ serde_json = { workspace = true }
 ciborium = { workspace = true, optional = true }
 rand = { workspace = true, optional = true }
 crc = { workspace = true }
-flate2 = { workspace = true }
+# `zlib-rs`, in every build: Whisper's `compression_ratio` must compress as
+# upstream's zlib does, and flate2's default backend, `miniz_oxide`,
+# compresses short loops far less tightly. Without the feature here, the
+# backend would depend on what else in the build enables flate2's features.
+flate2 = { workspace = true, features = ["zlib-rs"] }
 
 directories-next = { workspace = true, optional = true }
 indicatif = { workspace = true, optional = true }

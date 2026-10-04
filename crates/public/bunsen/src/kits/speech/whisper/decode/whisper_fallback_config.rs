@@ -148,6 +148,12 @@ impl WhisperFallbackConfig {
 
 /// Upstream's `compression_ratio`: the text's UTF-8 length over its zlib
 /// compressed length. Empty text is zero.
+///
+/// The compressor is flate2's `zlib-rs` backend at the default level,
+/// which bunsen selects in every build. Its lengths track zlib's to within
+/// a few bytes, so a loop fails
+/// [`WhisperFallbackConfig::compression_ratio_threshold`] as it does
+/// upstream.
 pub fn compression_ratio(text: &str) -> f64 {
     let bytes = text.as_bytes();
     let mut encoder = ZlibEncoder::new(Vec::new(), Compression::default());
@@ -300,6 +306,20 @@ mod tests {
         let sentence = compression_ratio(" We choose to go to the moon.");
         assert!(sentence < 1.0, "{sentence}");
         assert_eq!(compression_ratio(""), 0.0);
+    }
+
+    /// Short loops, the hallucination the threshold exists to catch, fail
+    /// it in every build, as they do upstream: Python's `zlib.compress`
+    /// takes `" Thank you." * 8` from 88 bytes to 22, and `"la " * 20`
+    /// from 60 to 14.
+    #[test]
+    fn test_compression_ratio_fails_short_loops() {
+        let thanks = compression_ratio(&" Thank you.".repeat(8));
+        assert!((thanks - 88.0 / 22.0).abs() < 0.3, "{thanks}");
+        assert!(thanks > 2.4, "{thanks}");
+        let la = compression_ratio(&"la ".repeat(20));
+        assert!((la - 60.0 / 14.0).abs() < 0.3, "{la}");
+        assert!(la > 2.4, "{la}");
     }
 
     /// A rung above zero samples: beam and patience off, best_of on.
