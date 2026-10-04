@@ -24,8 +24,15 @@
 //!   for assembling tensor batches.
 //! - [`colortype_support`] — [`ColorType`] conversion and (de)serialization
 //!   helpers.
-//! - [`test_util`] — a test image and an image-similarity assertion, used by
-//!   this crate's tests.
+#![cfg_attr(
+    feature = "testing",
+    doc = "- [`test_util`] (feature `testing`) — a test image and an image-similarity assertion,"
+)]
+#![cfg_attr(
+    not(feature = "testing"),
+    doc = "- `test_util` (feature `testing`) — a test image and an image-similarity assertion,"
+)]
+//!   for this crate's tests and its dependents'.
 //!
 //! # Example: load, resize, and tensorize an image
 //!
@@ -135,6 +142,7 @@ pub mod augmentation;
 pub mod burn_support;
 pub mod colortype_support;
 pub mod loader;
+#[cfg(any(test, feature = "testing"))]
 pub mod test_util;
 
 /// Represents the shape of an image.

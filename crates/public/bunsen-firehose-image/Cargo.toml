@@ -10,8 +10,18 @@ license.workspace = true
 documentation = "https://docs.rs/bunsen-firehose-image/latest/"
 description = "Image operators for bunsen-firehose: loading, seeded augmentation, and conversion to burn tensor data"
 
+# docs.rs builds with `testing`, so the API docs show `test_util`.
+[package.metadata.docs.rs]
+features = ["testing"]
+
 [lints]
 workspace = true
+
+[features]
+## Test support: the `test_util` module (a deterministic test image and an
+## image-similarity assertion), with the `image-compare` dependency it needs.
+## Not a default; this crate's own tests compile the module without it.
+testing = ["dep:image-compare"]
 
 [dependencies]
 burn = { workspace = true, features = ["std", "dataset", "vision"] }
@@ -29,10 +39,11 @@ indoc = { workspace = true }
 
 image = { workspace = true, features = ["jpeg", "png", "gif", "serde"] }
 
-# TODO: feature guard this dep behind a `test` feature.
-image-compare = { workspace = true }
+image-compare = { workspace = true, optional = true }
 
 [dev-dependencies]
 tempfile = { workspace = true }
 bunsen = { features = ["testing"], path = "../bunsen" }
 serial_test = { workspace = true }
+# `test_util` is compiled into this crate's tests, `testing` or not.
+image-compare = { workspace = true }

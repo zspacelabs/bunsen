@@ -9,10 +9,10 @@
 //!   `image-compare`'s blended RGBA similarity score must be at least one minus
 //!   the tolerance (by default, `0.99`).
 //!
-//! The module is public, and compiled into every build, so a downstream
-//! crate's tests can use it too. That is also why `image-compare` is a
-//! regular dependency of this crate. It is test support, not part of the
-//! operator API.
+//! The module is compiled into this crate's own tests, and into any build
+//! with the `testing` feature, which also brings in `image-compare`. A
+//! downstream crate's tests use it by enabling `testing`. It is test
+//! support, not part of the operator API.
 use image::{
     DynamicImage,
     ImageBuffer,
