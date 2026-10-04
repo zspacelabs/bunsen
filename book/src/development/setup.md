@@ -54,6 +54,9 @@ consumer:
   network code, with the tests.
 - **`bunsen` with no default features.** A user who writes
   `default-features = false` and adds back only what they use.
+  The tests run this way with only the test support (`testing` and
+  `audit`) turned on, so a test that needs a default feature carries a
+  `cfg` gate for it. The library is also checked with no features at all.
 - **`bunsen` with `cache` but not `fetch`.** The disk cache must compile
   without the network code.
 - **`bunsen` with `train` but not `reflection`.** The group optimizers must

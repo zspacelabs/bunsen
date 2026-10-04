@@ -114,6 +114,12 @@ jobs:
       - name: No default features build.
         run: cargo test -p bunsen --no-default-features
 
+      # The step above still enables `testing` and `audit`, through bunsen's
+      # dev-dependency on itself, and with them `std`, `audio`, `tokenizer`
+      # and `flex`. This one builds the library with no features at all.
+      - name: No features at all.
+        run: cargo check -p bunsen --no-default-features
+
       - name: Cache without fetch.
         run: cargo check -p bunsen --no-default-features --features cache
 

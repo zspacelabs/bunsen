@@ -61,8 +61,8 @@ Four jobs, each step commented in the workflow:
 - **CI:** the API docs three ways (the workspace with `--all-features`; `bunsen` alone with the feature list docs.rs
   uses, which `cargo make doc-docsrs` reproduces; `bunsen` with its default features), then
   `cargo test --features download,indicatif` over the workspace, `cargo test -p bunsen --no-default-features`,
-  `cargo check -p bunsen --no-default-features --features cache`, the same with `--features train`, and one
-  `cargo check --manifest-path` per published crate.
+  `cargo check -p bunsen --no-default-features` with no features, then with `--features cache` and with
+  `--features train`, and one `cargo check --manifest-path` per published crate.
 
 The repeated builds are on purpose: Cargo unifies features across the crates in one command, so a crate that forgets
 a feature still builds in the workspace and fails for its users. The book's
