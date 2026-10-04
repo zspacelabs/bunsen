@@ -1,6 +1,7 @@
 use burn::{
     Tensor,
     config::Config,
+    module::Module,
     prelude::{
         Backend,
         Bool,
@@ -62,10 +63,13 @@ impl ConwayLife2DConfig {
 /// [`ConwayLife2DState::step`] to advance the simulation one wrapped
 /// generation at a time, by the fixed B3/S23 rule.
 ///
-/// A plain struct, not a burn `Module`: move it to another device by
-/// moving its `state` tensor.
+/// A burn `Module` over the bare `state` tensor, so `to_device` and `fork`
+/// move the board. The board is not a parameter: it is not written to
+/// records, `ModuleMapper` passes skip it, and it does not appear in
+/// reflection.
 ///
 /// Built by [`ConwayLife2DConfig`].
+#[derive(Module, Debug)]
 pub struct ConwayLife2DState<B: Backend> {
     /// The shape of the board.
     pub shape: GridShape2D,
@@ -268,6 +272,20 @@ mod tests {
 
         life.fuzz(1.0);
         assert_eq!(life.read_slice(s![.., ..]), seed);
+    }
+
+    /// The module traversal reaches the board: it is the one tensor, so
+    /// `devices` lists its device, once.
+    #[test]
+    #[serial]
+    fn test_module_reaches_the_board() {
+        type B = PerformanceBackend;
+        let device = default_device();
+        let _memory = DeviceMemoryGuard::<B>::new(&device);
+
+        let life: ConwayLife2DState<B> =
+            ConwayLife2DConfig::new(GridShape2D::square(5)).init(&device);
+        assert_eq!(life.devices(), vec![device]);
     }
 
     #[test]

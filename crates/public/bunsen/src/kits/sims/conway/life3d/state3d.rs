@@ -1,6 +1,7 @@
 use burn::{
     Tensor,
     config::Config,
+    module::Module,
     prelude::{
         Backend,
         Bool,
@@ -58,10 +59,13 @@ impl ConwayLife3DConfig {
 /// [`ConwayLife3DState::fuzz`], then call [`ConwayLife3DState::step`] to
 /// advance the simulation one wrapped generation at a time.
 ///
-/// A plain struct, not a burn `Module`: move it to another device by
-/// moving its `state` tensor.
+/// A burn `Module` over the bare `state` tensor, so `to_device` and `fork`
+/// move the board. The board is not a parameter: it is not written to
+/// records, `ModuleMapper` passes skip it, and it does not appear in
+/// reflection.
 ///
 /// Built by [`ConwayLife3DConfig`].
+#[derive(Module, Debug)]
 pub struct ConwayLife3DState<B: Backend> {
     /// The current state of the board.
     pub state: Tensor<B, 3, Bool>,
@@ -223,6 +227,19 @@ mod tests {
 
         life.fuzz(1.0);
         assert_eq!(board(&life), seed);
+    }
+
+    /// The module traversal reaches the board: it is the one tensor, so
+    /// `devices` lists its device, once.
+    #[test]
+    #[serial]
+    fn test_module_reaches_the_board() {
+        type B = PerformanceBackend;
+        let device = default_device();
+        let _memory = DeviceMemoryGuard::<B>::new(&device);
+
+        let life: ConwayLife3DState<B> = ConwayLife3DConfig::new([5, 5, 5]).init(&device);
+        assert_eq!(life.devices(), vec![device]);
     }
 
     #[test]
