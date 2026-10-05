@@ -1,20 +1,4 @@
 //! # Fallback: the temperature ladder and its thresholds.
-//!
-//! Upstream's `transcribe()` decodes each window at temperature zero and,
-//! when the result looks bad &mdash; too repetitive by its gzip compression
-//! ratio, or too improbable by its average log probability &mdash; decodes
-//! it again at the next temperature of a ladder, sampling instead of
-//! searching, until one passes or the ladder ends. Silence is the
-//! exception: a window whose `<|nospeech|>` probability is high *and* whose
-//! log probability is low is accepted as it is, and the seek loop then
-//! skips it. A decode that needed a temperature above 0.5 also resets the
-//! prompt carry, so a failure does not feed the next window.
-//!
-//! The ladder is [`decode_with_fallback`], a pure orchestration over a
-//! decode closure, so the policy is testable without a model. bunsen's
-//! default ladder is temperature zero alone: a stream driver re-decoding a
-//! window several times is a latency choice its deployment should make,
-//! not a default; [`WhisperFallbackConfig::upstream`] is the full ladder.
 
 use std::io::Write;
 
@@ -30,6 +14,24 @@ use crate::kits::speech::whisper::decode::{
 };
 
 /// The ladder and the thresholds that climb it.
+///
+/// Upstream's `transcribe()` decodes each window at temperature zero and,
+/// when the result looks bad (too repetitive by its zlib compression
+/// ratio, or too improbable by its average log probability), decodes it
+/// again at the next temperature of a ladder, sampling instead of
+/// searching, until one passes or the ladder ends. Silence is the
+/// exception: a window whose `<|nospeech|>` probability is high *and*
+/// whose log probability is low is accepted as it is, and the seek loop
+/// then [skips](Self::should_skip) it. A decode that needed a temperature
+/// above 0.5 also [resets the prompt carry](Self::resets_prompt), so a
+/// failure does not feed the next window.
+///
+/// The ladder is [`decode_with_fallback`], a pure orchestration over a
+/// decode closure, so the policy is testable without a model. bunsen's
+/// default ladder is temperature zero alone: a stream driver re-decoding a
+/// window several times is a latency choice its deployment should make,
+/// not a default; [`upstream`](Self::upstream) is the full ladder. The
+/// Whisper stream driver takes one as its config's `fallback`.
 #[derive(Config, Debug, PartialEq)]
 pub struct WhisperFallbackConfig {
     /// The temperatures tried in order; the first is the search proper,
@@ -146,6 +148,12 @@ impl WhisperFallbackConfig {
 
 /// Upstream's `compression_ratio`: the text's UTF-8 length over its zlib
 /// compressed length. Empty text is zero.
+///
+/// The compressor is flate2's `zlib-rs` backend at the default level,
+/// which bunsen selects in every build. Its lengths track zlib's to within
+/// a few bytes, so a loop fails
+/// [`WhisperFallbackConfig::compression_ratio_threshold`] as it does
+/// upstream.
 pub fn compression_ratio(text: &str) -> f64 {
     let bytes = text.as_bytes();
     let mut encoder = ZlibEncoder::new(Vec::new(), Compression::default());
@@ -298,6 +306,20 @@ mod tests {
         let sentence = compression_ratio(" We choose to go to the moon.");
         assert!(sentence < 1.0, "{sentence}");
         assert_eq!(compression_ratio(""), 0.0);
+    }
+
+    /// Short loops, the hallucination the threshold exists to catch, fail
+    /// it in every build, as they do upstream: Python's `zlib.compress`
+    /// takes `" Thank you." * 8` from 88 bytes to 22, and `"la " * 20`
+    /// from 60 to 14.
+    #[test]
+    fn test_compression_ratio_fails_short_loops() {
+        let thanks = compression_ratio(&" Thank you.".repeat(8));
+        assert!((thanks - 88.0 / 22.0).abs() < 0.3, "{thanks}");
+        assert!(thanks > 2.4, "{thanks}");
+        let la = compression_ratio(&"la ".repeat(20));
+        assert!((la - 60.0 / 14.0).abs() < 0.3, "{la}");
+        assert!(la > 2.4, "{la}");
     }
 
     /// A rung above zero samples: beam and patience off, best_of on.

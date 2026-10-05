@@ -1,4 +1,4 @@
-//! # Tensor Indexing Utilities
+//! Checking slices against a shape.
 use std::{
     fmt::{
         Display,
@@ -23,7 +23,7 @@ use crate::errors::SlicingError;
 ///
 /// # Result
 ///
-/// Either a positive `Some(usize)` <= the `size`, or `None`.
+/// Either a positive `Some(usize)` < the `size`, or `None`.
 fn maybe_wrap_index(
     idx: isize,
     size: usize,
@@ -88,15 +88,22 @@ fn format_shape(shape: &Shape) -> String {
     format!("[{}]", dim_list)
 }
 
-/// Checks that the given slices are valid for the given tensor shape.
+/// Checks that `slices` fit `shape`, before slicing with them.
+///
+/// There may be fewer slices than dimensions, since the trailing dimensions
+/// are taken whole, but not more. Each slice's `start` must index into its
+/// dimension, counting back from the end when negative; its `end`, if any,
+/// may also equal the dimension's size. The step is not checked.
 ///
 /// # Arguments
 /// - `shape`: The tensor shape.
 /// - `slices`: The slices to check.
 ///
-/// # Returns
+/// # Errors
 ///
-/// A `BunsenResult<()>`.
+/// [`SlicingError::InvalidRank`] if there are more slices than dimensions;
+/// [`SlicingError::OutOfBounds`] if a `start` or `end` falls outside its
+/// dimension. Both carry a message that prints the slices and the shape.
 pub fn check_slices_bounds(
     shape: &Shape,
     slices: &[Slice],

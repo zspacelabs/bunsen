@@ -9,11 +9,13 @@ the `swin_tiny` example, sharing the same data-loading machinery.
 
 ## Bunsen features exercised
 
-- `bunsen::kits::bimm::resnet` — the bimm `ResNet` model and `PREFAB_RESNET_MAP`
-  registry.
-- `bunsen::burner::module` — `ModuleInit` / `DTypeMapper` for module init and
-  dtype mapping.
-- `bunsen::data::cache::BunsenDiskCache` — on-disk artifact caching.
+- `bunsen::kits::images::resnet` — the `ResNet` model; its `pretrained`
+  module has the `RESNET_PREFABS` table of geometries, and
+  `default_resnet_factory` for an optional pretrained checkpoint.
+- `bunsen::burner::module` — `ToStructureConfig` / `ModuleInit` for module init
+  and `DTypeMapper` for dtype mapping.
+- `bunsen::data::pretrained::PretrainedCache` — the digest-pinned cache a
+  pretrained checkpoint is fetched into.
 - `bunsen-firehose` — the columnar batch data engine: `FirehoseTableSchema` /
   `ColumnSchema`, row readers/writers, path scanning, and the Burn
   `FirehoseExecutorBatcher` bridge.

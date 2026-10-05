@@ -1,18 +1,4 @@
 //! # Beam search, as upstream does it.
-//!
-//! Rows are laid out `row = audio_idx * k + beam_idx`, beam varying fastest.
-//! Every step, each beam proposes its `k + 1` best next tokens; the
-//! `k * (k + 1)` candidates of one audio are deduplicated **by full
-//! sequence** (at the first step every beam is the same prompt, and without
-//! this the beam would quietly collapse to width one while still paying for
-//! `k`), ranked by cumulative log probability, and the best `k` that did not
-//! end survive, with the self-attention cache permuted to follow them. A
-//! candidate that ended joins the audio's finished set, which `patience`
-//! caps at `round(k * patience)`; the search completes when every audio's
-//! set is full.
-//!
-//! Log probabilities accumulate in `f32`, as upstream's do, so that a
-//! near-tie ranks the same way.
 
 use std::collections::HashMap;
 
@@ -70,6 +56,25 @@ impl Finished {
 }
 
 /// Upstream's `BeamSearchDecoder`.
+///
+/// Rows are laid out `row = audio_idx * k + beam_idx`, beam varying
+/// fastest. Every step, each beam proposes its `k + 1` best next tokens;
+/// the `k * (k + 1)` candidates of one audio are deduplicated **by full
+/// sequence** (at the first step every beam is the same prompt, and
+/// without this the beam would quietly collapse to width one while still
+/// paying for `k`), ranked by cumulative log probability, and the best `k`
+/// that did not end survive, with the self-attention cache permuted to
+/// follow them. A candidate that ended joins the audio's finished set,
+/// which `patience` caps at `round(k * patience)`; the search completes
+/// when every audio's set is full.
+///
+/// Log probabilities accumulate in `f32`, as upstream's do, so that a
+/// near-tie ranks the same way.
+///
+/// [`DecodeConfig::init_decoder`](super::DecodeConfig::init_decoder) builds
+/// one for a `beam_size` above one at temperature zero; the
+/// [`SequenceRanker`](super::SequenceRanker) then picks among each audio's
+/// finished set.
 #[derive(Debug, Clone)]
 pub struct WhisperBeamSearchDecoder {
     k: usize,

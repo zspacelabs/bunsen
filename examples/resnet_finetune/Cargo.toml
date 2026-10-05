@@ -26,6 +26,7 @@ tar = { workspace = true }
 [features]
 default = []
 wgpu = ["burn/wgpu"]
+vulkan = ["burn/vulkan"]
 cuda = ["burn/cuda"]
 metal = ["burn/metal"]
 

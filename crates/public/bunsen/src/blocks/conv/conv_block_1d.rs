@@ -1,12 +1,4 @@
-//! # `ConvBlock1d` - conv/norm/activation block.
-//!
-//! A [`ConvBlock1d`] module is:
-//! * a [`Conv1d`] layer,
-//! * an optional [`Normalization`] layer,
-//! * an optional [`Activation`] layer.
-//!
-//! With support for hooking the forward method,
-//! to run code between the norm and application images.
+//! `ConvBlock1d`: a conv/norm/activation block.
 
 use burn::{
     config::Config,
@@ -241,7 +233,7 @@ impl<B: Backend> ModuleInit<B, ConvBlock1d<B>> for ConvBlock1dConfig {
 /// * an optional [`Activation`] layer.
 ///
 /// With support for hooking the forward method,
-/// to run code between the norm and application images.
+/// to run code between the norm and activation layers.
 ///
 /// Implements [`ConvBlock1dMeta`].
 ///
@@ -291,7 +283,7 @@ impl<B: Backend> ConvBlock1dMeta for ConvBlock1d<B> {
 impl<B: Backend> ConvBlock1d<B> {
     /// Forward Pass.
     ///
-    /// Applies the conv/norm/act images in sequence:
+    /// Applies the conv/norm/act layers in sequence:
     ///
     /// ```rust,ignore
     /// let x = self.conv.forward(input);
@@ -331,7 +323,7 @@ impl<B: Backend> ConvBlock1d<B> {
     ///     Some(n) => n.forward(x),
     ///     None => x,
     /// };
-    /// let x = self.norm.forward(x);
+    /// let x = f(x);
     /// let x = match &self.act {
     ///     Some(a) => a.forward(x),
     ///     None => x,
@@ -341,9 +333,9 @@ impl<B: Backend> ConvBlock1d<B> {
     ///
     /// # Arguments
     ///
-    /// - `input`: \ `[batch, in_channels, in_length]`.
-    /// - `f`: a callback endofunction, from/to `[batch, in_channels,
-    ///   out_length]`.
+    /// - `input`: `[batch, in_channels, in_length]`.
+    /// - `f`: a callback endofunction over the normalized conv output, from and
+    ///   to `[batch, out_channels, out_length]`.
     ///
     /// # Returns
     ///

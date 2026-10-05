@@ -1,8 +1,14 @@
-//! # Evaluation Key/Value bindings.
+//! Name/value bindings.
 
 use alloc::vec::Vec;
 
-/// A trait for looking up parameters in a stack-like environment.
+/// Name lookup over a list of bindings.
+///
+/// This trait, [`MutableStackMap`] and [`MutableStackEnvironment`] are
+/// general helpers over [`StackEnvironment`]. The contract checks don't use
+/// them: a check resolves names through the contract's
+/// [`index`](crate::contracts::ShapeContract::index). Contract users normally
+/// don't need them.
 pub trait StackMap<'a, V>
 where
     V: Default + Copy,
@@ -30,7 +36,7 @@ where
     ///
     /// # Returns
     ///
-    /// An array of values corresponding to the keys. If a key is not found,
+    /// The values of the keys, in key order.
     ///
     /// # Panics
     ///
@@ -52,7 +58,12 @@ where
     }
 }
 
-/// Type alias for static/stack compatible bindings.
+/// Bindings: the values a caller already knows, as `(name, value)` pairs.
+///
+/// This is the `env` (or `bindings`) argument of every
+/// [`ShapeContract`](crate::contracts::ShapeContract) check. For example,
+/// `&[("window", 8)]` binds `"window"` to 8. Every name must be in the
+/// contract's pattern.
 pub type StackEnvironment<'a> = &'a [(&'a str, usize)];
 
 impl<'a> StackMap<'a, usize> for StackEnvironment<'a> {
@@ -70,10 +81,10 @@ impl<'a> StackMap<'a, usize> for StackEnvironment<'a> {
     }
 }
 
-/// A trait for mutable stack-like environments that allows inserting key-value
-/// pairs.
+/// A [`StackMap`] that can bind new names.
 ///
-/// Provides no support for removing keys.
+/// Provides no support for removing keys. Not used by the contract checks;
+/// see [`StackMap`].
 pub trait MutableStackMap<'a, V>: StackMap<'a, V>
 where
     V: Default + Copy,
@@ -99,7 +110,10 @@ where
     );
 }
 
-/// A mutable stack environment, backed by a static stack environment.
+/// A growable set of bindings: a [`StackEnvironment`] plus a `Vec` of new
+/// bindings.
+///
+/// Not used by the contract checks; see [`StackMap`].
 pub struct MutableStackEnvironment<'a> {
     /// The backing stack environment that contains the original bindings.
     pub backing: StackEnvironment<'a>,

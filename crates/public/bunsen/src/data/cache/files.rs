@@ -1,9 +1,4 @@
-//! # Files
-//!
-//! Naming and placing files in the cache: the `.partial` beside a
-//! destination, a link where a copy would do, and the file a URL names.
-//! None of it reaches the network; that is [`fetch_file`](super::fetch_file),
-//! behind the `fetch` feature.
+//! Files: naming and placing files in the cache.
 
 use std::{
     fs,

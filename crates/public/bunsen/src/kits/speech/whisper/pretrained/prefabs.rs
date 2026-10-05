@@ -1,20 +1,4 @@
 //! # Whisper prefabs
-//!
-//! The public geometries, without weights: upstream's `ModelDimensions` for
-//! every checkpoint `openai-whisper` ships, typed in rather than scanned, so
-//! that a name means a shape before any bytes are fetched, and so that a
-//! checkpoint can be checked against the shape its name promised.
-//!
-//! The vocabulary size is part of the geometry: an English-only `tiny.en`
-//! (51864) and a multilingual `tiny` (51865) are different prefabs, as they
-//! are different `ModelDimensions` upstream. `large-v1` and `large-v2` share
-//! one prefab, `large`; `large-v3` widened the mel bank to 128 and added a
-//! hundredth language; `large-v3-turbo` kept its encoder over a four-layer
-//! decoder.
-//!
-//! What a prefab does *not* fix is what a checkpoint cannot report either:
-//! the audio front end and the token layout. Those are upstream's for every
-//! entry here, and [`WhisperApiConfig`]'s defaults say so.
 
 use crate::{
     data::pretrained::{
@@ -43,6 +27,24 @@ const LARGE_V3: WhisperGeometry = WhisperGeometry::openai(128, 51866, 1280, 32, 
 const LARGE_V3_TURBO: WhisperGeometry = WhisperGeometry::openai(128, 51866, 1280, 32, 4);
 
 /// The Whisper prefabs: every geometry `openai-whisper` ships, by name.
+///
+/// The public geometries, without weights: upstream's `ModelDimensions`
+/// for every checkpoint `openai-whisper` ships, typed in rather than
+/// scanned, so that a name means a shape before any bytes are fetched, and
+/// so that a checkpoint can be checked against the shape its name
+/// promised. A pretrained row names its prefab; [`WhisperGeometry::prefab`]
+/// is the reverse lookup, for a checkpoint that arrived as a path.
+///
+/// The vocabulary size is part of the geometry: an English-only `tiny.en`
+/// (51864) and a multilingual `tiny` (51865) are different prefabs, as they
+/// are different `ModelDimensions` upstream. `large-v1` and `large-v2`
+/// share one prefab, `large`; `large-v3` widened the mel bank to 128 and
+/// added a hundredth language; `large-v3-turbo` kept its encoder over a
+/// four-layer decoder.
+///
+/// What a prefab does *not* fix is what a checkpoint cannot report either:
+/// the audio front end and the token layout. Those are upstream's for
+/// every entry here, and [`WhisperApiConfig`]'s defaults say so.
 pub static WHISPER_PREFABS: StaticPreFabMap<WhisperApiConfig> = StaticPreFabMap {
     name: "whisper",
     description: "OpenAI Whisper geometries, as `whisper.model.ModelDimensions` has them",

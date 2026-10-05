@@ -1,84 +1,49 @@
 # Introduction
 
 `bunsen` is a *batteries-included* community standard library for the
-[`burn`](https://burn.dev) tensor framework. It collects reusable modules,
-tensor operations, shape contracts, and lifecycle utilities that fall outside
-`burn`'s core scope but are needed by anyone building real models on top of it.
+[`burn`](https://burn.dev) tensor framework. It collects the reusable
+modules, tensor operations, shape contracts, pretrained-model machinery and
+module-lifecycle utilities that fall outside `burn`'s core but that anyone
+building real models on top of it ends up needing.
 
-This book is the long-form companion to the
-[API docs](https://docs.rs/bunsen). The API docs answer *what is this type?*;
-this book answers *why does it exist, when do I reach for it, and how do the
-pieces fit together?*
+## This book and the API docs
 
-## What's in the library?
+The [API docs](bunsen) answer *what is this type, and how do I call it?*
+This book answers *how is bunsen put together, why is it built that way, and
+how do we work on it?* The two are deliberately split:
 
-```mermaid
-flowchart LR
-    burn[burn core] --> bunsen
-    bunsen --> contracts[bunsen::contracts]
-    bunsen --> ops[bunsen::ops]
-    bunsen --> blocks[bunsen::blocks]
-    bunsen --> kits[bunsen::kits]
-    kits --> bimm[bimm]
-    kits --> gpts[gpts]
-    kits --> sims[sims]
-    bunsen --> burner[bunsen::burner]
-```
+- every interface, lifecycle and example lives in the API docs, where the
+  compiler checks it;
+- this book explains the organization, the bunsen-specific systems that cut
+  across modules, and the development strategies behind the code, and links
+  into the API docs for everything else.
 
-A whirlwind tour:
-
-- **[`bunsen::contracts`](./contracts/overview.md)** &mdash; runtime
-  tensor-shape contracts: a small DSL that turns paper-style shape
-  notation into a runtime check, fast enough to stay enabled in
-  release.
-- **[`bunsen::ops`](./ops/overview.md)** &mdash; additional `Tensor`
-  operations as pure functions: range generators, clamp, dropout,
-  noise, RMSNorm, repeat-interleave, and convolution shape arithmetic.
-- **[`bunsen::blocks`](./blocks/overview.md)** &mdash; reusable
-  `Module` building blocks: attention and rotary embeddings for
-  transformers, conv composites / patching / pooling / stochastic
-  regularization for image models.
-- **[`bunsen::kits`](./kits/bimm.md)** &mdash; complete domain
-  implementations built on top of the rest of the crate: image-model
-  families ([`bimm`](./kits/bimm.md)), GPT/LLM variants
-  ([`gpts`](./kits/gpts.md)), and iterative tensor simulations
-  ([`sims`](./kits/sims.md)).
-- **[`bunsen::burner`](./burner/overview.md)** &mdash; `burn`-adjacent
-  infrastructure: parameter descriptors,
-  [module reflection](./burner/module-introspection.md), and the
-  [composite optimizer](./burner/composite-optimizers.md) family.
+Every link from this book into the API is checked when the book is built,
+so a renamed or moved item breaks the build, not the reader.
 
 ## Why a "standard library"?
 
-The burn ecosystem moves quickly, and individual extension crates tend to drift
-out of sync with each release. `bunsen` exists to:
+The burn ecosystem moves quickly, and single-purpose extension crates tend
+to drift out of sync with each burn release. `bunsen` exists to:
 
-1. Track the `burn` release cycle tightly, so dependent code doesn't have to.
-2. Provide a single dependency surface for common building blocks instead of
-   a tangle of single-purpose crates.
-3. Centralize testing, documentation, and contracts so contributed components
-   can be trusted across projects.
-
-## Tensor shapes and math
-
-This book uses KaTeX for math. For example, a linear layer computes
-
-$$
-y = x \cdot W^{\top} + b \quad \text{where} \quad x \in \RR^{B \times d_{\text{in}}}.
-$$
-
-See [Contracts](./contracts/overview.md) for how shapes like
-$B \times d_{\text{in}}$ become first-class, machine-checked constraints.
+1. track the `burn` release cycle, so dependent code doesn't have to;
+2. give one dependency surface for common building blocks, instead of a
+   tangle of single-purpose crates;
+3. centralize testing, documentation and validation, so contributed
+   components can be trusted across projects.
 
 ## How to read this book
 
-- New to `bunsen`? Start with
-  [Installation](./getting-started/installation.md) and then the
-  [Overview](./getting-started/overview.md) tour.
-- Already shipping models on `burn`? Jump to
-  [`bunsen::contracts`](./contracts/overview.md),
-  [`bunsen::ops`](./ops/overview.md), or
-  [`bunsen::blocks`](./blocks/overview.md) for what each layer
-  offers.
-- Considering contributing? See the
-  [Contributing Guide](./contributing/index.md).
+- **New to bunsen?** Start with [the workspace](./organization/workspace.md)
+  and [the bunsen crate](./organization/crate.md), then
+  [installing and first use](./organization/install.md).
+- **Building models on bunsen?** Read
+  [module design conventions](./systems/conventions.md) and the systems
+  chapters relevant to you: [shape contracts](./systems/contracts.md),
+  [pretrained models](./systems/pretrained.md),
+  [streaming contexts](./systems/streaming.md),
+  [parameter groups](./systems/param-groups.md).
+- **Contributing?** The [development strategies](./development/setup.md)
+  part explains how bunsen is tested, validated and released;
+  [`CONTRIBUTING.md`](https://github.com/zspacelabs/bunsen/blob/main/CONTRIBUTING.md)
+  is the canonical contributor guide.

@@ -13,19 +13,22 @@ use bunsen::{
     burner::module::{
         DTypeMapper,
         ModuleInit,
+        ToStructureConfig,
     },
     data::pretrained::{
         PretrainedCache,
         PretrainedCacheOptions,
     },
-    kits::bimm::resnet::{
-        PREFAB_RESNET_MAP,
+    kits::images::resnet::{
         ResNet,
-        default_resnet_factory,
+        pretrained::{
+            RESNET_PREFABS,
+            default_resnet_factory,
+        },
     },
 };
 use bunsen_firehose::{
-    burn::{
+    burn_support::{
         batcher::{
             BatcherInputAdapter,
             BatcherOutputAdapter,
@@ -230,7 +233,7 @@ pub fn backend_main<B: AutodiffBackend>(args: &Args) -> anyhow::Result<()> {
 
     B::seed(&device, args.seed);
 
-    let prefab = PREFAB_RESNET_MAP.expect_lookup_prefab(&args.resnet_prefab);
+    let prefab = RESNET_PREFABS.expect_lookup_prefab(&args.resnet_prefab);
 
     let contract = prefab.to_config().with_activation(ActivationConfig::Gelu);
     let resnet: ResNet<B> = contract.to_structure().try_init(&device)?;
@@ -420,7 +423,7 @@ pub fn backend_main<B: AutodiffBackend>(args: &Args) -> anyhow::Result<()> {
 #[derive(Config, Debug)]
 pub struct ModelConfig {
     pub drop_block: DropBlock2dConfig,
-    pub swin: SwinTransformerV2Config,
+    pub swin: SwinTransformerV2ContractConfig,
 }
 
 impl ModelConfig {

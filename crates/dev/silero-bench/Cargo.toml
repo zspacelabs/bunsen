@@ -1,5 +1,7 @@
 [package]
 name = "silero-bench"
+publish = false
+
 authors.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -12,7 +14,8 @@ clap = { workspace = true, features = ["derive"] }
 
 serde_json = { workspace = true }
 burn = { workspace = true, features = ["fusion", "autotune"] }
-bunsen = { path = "../../public/bunsen", features = ["testing"] }
+# `silero-weights` supplies `SileroVadCollection::load_pretrained`.
+bunsen = { path = "../../public/bunsen", features = ["testing", "silero-weights"] }
 hound = { workspace = true }
 
 [lints]

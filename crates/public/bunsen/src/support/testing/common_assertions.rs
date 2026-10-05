@@ -24,8 +24,20 @@ use num_traits::float::Float;
 
 use crate::burner::tensor::TensorElemOpExt;
 
-/// Asserts that two vectors of floating-point numbers are close to each other
-/// within a given tolerance.
+/// Asserts that two host slices of floats are close, element by element.
+///
+/// The bound is absolute: each pair must satisfy `|a - e| <= tolerance`. For
+/// tensors, use [`assert_tensors_close`] or [`assert_tensor_close_to_vec`],
+/// which take a relative-and-absolute burn [`Tolerance`].
+///
+/// Non-finite values follow burn's [`TensorData::assert_approx_eq`]: a NaN
+/// matches only a NaN at the same position, and an infinity matches only the
+/// same infinity.
+///
+/// # Panics
+///
+/// Panics, printing both slices, if the lengths differ or any pair differs
+/// by more than `tolerance`, including a NaN on one side only.
 pub fn assert_close_to_vec<T>(
     actual: &[T],
     expected: &[T],
@@ -38,7 +50,13 @@ pub fn assert_close_to_vec<T>(
         if !pass {
             break;
         }
-        if (a - e).abs() > tolerance {
+        // `a == e` also matches equal infinities, whose difference is NaN.
+        if a == e || (a.is_nan() && e.is_nan()) {
+            continue;
+        }
+        // Not `> tolerance`: that is false for a NaN difference.
+        let within = (a - e).abs() <= tolerance;
+        if !within {
             pass = false;
             break;
         }
@@ -171,6 +189,38 @@ mod tests {
     }
 
     #[test]
+    #[should_panic(expected = "Expected (+/- 0.1)")]
+    fn test_assert_close_to_vec_nan_actual() {
+        assert_close_to_vec(&[1.0, f32::NAN], &[1.0, 1.0], 0.1);
+    }
+
+    #[test]
+    #[should_panic(expected = "Expected (+/- 0.1)")]
+    fn test_assert_close_to_vec_nan_expected() {
+        assert_close_to_vec(&[1.0, 1.0], &[1.0, f64::NAN], 0.1);
+    }
+
+    #[test]
+    fn test_assert_close_to_vec_nan_matches_nan() {
+        assert_close_to_vec(&[1.0, f32::NAN], &[1.0, f32::NAN], 0.1);
+    }
+
+    #[test]
+    fn test_assert_close_to_vec_infinity_matches_same_infinity() {
+        assert_close_to_vec(
+            &[f64::INFINITY, f64::NEG_INFINITY],
+            &[f64::INFINITY, f64::NEG_INFINITY],
+            0.1,
+        );
+    }
+
+    #[test]
+    #[should_panic(expected = "Expected (+/- 0.1)")]
+    fn test_assert_close_to_vec_infinity_sign_mismatch() {
+        assert_close_to_vec(&[f64::INFINITY], &[f64::NEG_INFINITY], 0.1);
+    }
+
+    #[test]
     #[serial]
     fn test_assert_tensor_close_to_vec() {
         let device = default_device();
@@ -207,6 +257,27 @@ mod tests {
         let _memory = DeviceMemoryGuard::<B>::new(&device);
         let a = square([1.0, 2.0, 3.0, 4.0], &device);
         let b = square([1.0, 2.0, 3.0, 9.0], &device);
+        assert_tensors_close(&a, &b, Tolerance::default());
+    }
+
+    #[test]
+    #[serial]
+    #[should_panic(expected = "Tensors are not approx eq")]
+    fn test_assert_tensor_close_to_vec_nan() {
+        let device = default_device();
+        let _memory = DeviceMemoryGuard::<B>::new(&device);
+        let t = square([1.0, 2.0, 3.0, 4.0], &device);
+        assert_tensor_close_to_vec(&t, &[1.0, 2.0, 3.0, f64::NAN], Tolerance::default());
+    }
+
+    #[test]
+    #[serial]
+    #[should_panic(expected = "Tensors are not approx eq")]
+    fn test_assert_tensors_close_nan() {
+        let device = default_device();
+        let _memory = DeviceMemoryGuard::<B>::new(&device);
+        let a = square([1.0, 2.0, 3.0, f64::NAN], &device);
+        let b = square([1.0, 2.0, 3.0, 4.0], &device);
         assert_tensors_close(&a, &b, Tolerance::default());
     }
 }

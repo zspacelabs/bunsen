@@ -4,9 +4,9 @@ Conventions for code, documentation, and build configuration across the
 `bunsen` workspace. This file is the source of truth; assertions added under
 each chapter are applied across the code base.
 
-> See also [`book/src/contributing/style.md`](book/src/contributing/style.md)
-> for prose/Book conventions. This file governs in-source `rustdoc` and the
-> `Cargo.toml` manifests.
+> See also the book's [Writing documentation](book/src/development/docs.md)
+> for the book's own conventions: linking into the API, code in the book, and
+> building it.
 
 ## rustdoc
 
@@ -23,6 +23,57 @@ The base style for rustdoc is [rfc1574].
 
 Every public item needs rustdoc. This chapter defines the structure we expect,
 the cross-links between paired types, and how tensor shapes are written.
+
+### rustdoc is the reference
+
+rustdoc is the primary documentation for every interface and lifecycle: the
+compiler checks its links, its examples run as doctests, and it moves with
+the code. The book (`book/`) explains how the workspace and the crate are
+organized, the systems that cut across modules and why they are built that
+way, and how the project is developed, and links into the API; it never
+restates signatures, method or field lists, feature tables, or module maps.
+A fact that lives only in the book is a rustdoc gap, and nothing checks it:
+add it to rustdoc, then link to it.
+
+* The module map lives once: the crate root (`lib.rs`) for top-level
+  modules, and each area's `mod.rs` for its submodules.
+* The book links to items by intra-doc path,
+  ``[`ShapeContract`](bunsen::contracts::ShapeContract)``, and the book build
+  resolves every such link with rustdoc. A rename that breaks a book link
+  fails CI in the PR that made it. The book's
+  [Linking into the API](book/src/development/docs.md#linking-into-the-api)
+  has the link forms.
+
+### Module docs must render
+
+A private module's `//!` is never rendered: `mod x; pub use x::*;` shows the
+items, not the file. Prose written there is invisible, and it rots unchecked.
+
+* What a type is and how it relates to its neighbours goes on the type's
+  `///`.
+* Why an area exists, and the lifecycle across its files, goes in the
+  public parent's `//!`.
+* A private file keeps at most a one-line `//!` title.
+
+CI enforces this with `tools/check_hidden_module_docs.py`, which fails when a
+non-public, non-test module has more than one `//!` line.
+
+`#[doc(inline)]` on a re-export of a private module is a no-op (rustdoc
+inlines items that are not publicly reachable anyway); don't write it. Use
+it only on a re-export from a *public* module, where it changes the output.
+
+### Errors: `try_x` and `x`
+
+The [`bunsen::errors`](https://docs.rs/bunsen/latest/bunsen/errors/index.html#convention-try_x-and-x)
+docs define the convention: a fallible `try_x` returning `BunsenResult`, its
+panicking twin `x` (or `expect_x`), and which `BunsenError` variant fits
+which failure. A pair's docs add two rules on top of it:
+
+* `try_x` carries an `# Errors` section: each variant it returns, and when.
+  Its summary links the convention.
+* `x` names `try_x` as its fallible half and carries a `# Panics` section:
+  it panics with the `try_x` error's message, plus anything it checks on its
+  own.
 
 ### Tensor shape notation
 
@@ -66,6 +117,100 @@ These are **not** tensor shapes — leave them as written:
 - Half-open ranges and indexing: `[start, end)`, `env[$VAR]`.
 - Intra-doc link syntax: `[text](url)`.
 
+## Module design
+
+How a bunsen module, its config, and its metadata fit together. What the
+two config shapes are and how they work (Simple and Stacked,
+`ToStructureConfig` and its blanket `ModuleInit`, the role of the `FooMeta`
+trait) is defined, with compiled examples, in the rustdoc of
+[`ModuleInit`](https://docs.rs/bunsen/latest/bunsen/burner/module/trait.ModuleInit.html#two-config-shapes)
+and
+[`ToStructureConfig`](https://docs.rs/bunsen/latest/bunsen/burner/module/trait.ToStructureConfig.html).
+This section sets what the author of a module family must do.
+
+### Config shapes: Simple and Stacked
+
+* The config lives in the same file as the module it builds.
+* A Simple family's config is `FooConfig`, and builds `Foo`.
+* A Stacked family's structure config is `FooStructureConfig`. Each policy
+  config is named for its policy (`FooContractConfig`, `FooApiConfig`,
+  `FooSignalConfig`, ...), never bare `FooConfig`.
+* A bare `FooConfig` never coexists with a `FooStructureConfig`.
+* Promote a Simple family to Stacked when its user-facing knobs diverge from
+  the implementation's parameters, when a second default policy appears, or
+  when loaders and tooling need the unrolled tree.
+* Every Stacked family has a test that `policy.init(&d)` and
+  `policy.to_structure().init(&d)` build modules that agree.
+
+### Meta traits
+
+Every family has a narrow `FooMeta` trait; the
+[`ModuleInit`](https://docs.rs/bunsen/latest/bunsen/burner/module/trait.ModuleInit.html#two-config-shapes)
+docs say what it is for.
+
+* It holds only the values a caller or a test needs to read back from
+  either form. Raw fields are required methods; derived values are provided
+  methods. Everything else stays on the config, reached from the module
+  through an accessor (`options()`, `config()`).
+* Simple: `FooMeta` is implemented by `FooConfig` and `Foo` (and a context,
+  if there is one).
+* Stacked: required on `FooStructureConfig` and `Foo`; optional on policies.
+* A test asserts that a config and the module built from it answer every
+  `FooMeta` method alike, using a config that is non-default in every field.
+
+### Modules over bare tensors
+
+A type that owns a `Tensor` derives `Module`, even when nothing in it is
+learnable: `Module` is the traversal and device-mapping trait, and deriving it
+is what lets `to_device` reach the tensors. Hold non-learnable tensors bare,
+not as `Param`.
+
+* `#[derive(Module, Debug)]`, without `Clone`: the derive provides `Clone`.
+* A held config is `#[module(skip)]`. Only fields whose type does not mention
+  `B` can be skipped; a type that must hold a backend-generic non-`Module`
+  (a boxed policy) is a plain struct with `Module`-typed tensor state inside.
+* Bare tensors are not written to records, are skipped by `ModuleMapper`
+  passes (dtype casts), and do not appear in reflection. Say so on the type.
+
+### Injected state
+
+Cache and stream state is injected, never owned by the model; the rule's one
+definition is in the "Ops and blocks" section of the
+[`bunsen::ops`](https://docs.rs/bunsen/latest/bunsen/ops/index.html#ops-and-blocks)
+module docs.
+
+### `ops` and `blocks`
+
+* **blocks** are `torch.nn`-like components, meant to be used as `Module`
+  roots or as parts of a module tree.
+* **ops** are operation-focused. They may use the `Module` / `Config`
+  machinery, but only to hold cached tables or state.
+* `ops` never imports `blocks`.
+
+The rule's one definition is the "Ops and blocks" section of the
+[`bunsen::ops`](https://docs.rs/bunsen/latest/bunsen/ops/index.html#ops-and-blocks)
+module docs.
+
+### Variant behaviour lives on the enum
+
+A value or transform that differs per enum variant is a method on the enum,
+not a `match` at the use site. The calling pipeline then reads as a sequence
+of named steps, and a new variant changes one place.
+
+### Value objects as configuration
+
+When an op has parameters worth naming, they form a value object that
+serializes and embeds in other configs, and that value object is the unit of
+configuration: `ClampOp` inside `NoiseConfig` inside `DropBlockOptions`
+inside `DropBlock2dConfig`. A config embeds the value object; it does not
+copy its fields.
+
+### Test modules
+
+Every `#[cfg(test)] mod tests` opens with `use super::*;`, so the preamble
+tracks the parent's imports. After it, import only what the parent does
+not: dev-dependencies and crate-private test helpers.
+
 ## cargo features
 
 ### Conventional names
@@ -84,9 +229,9 @@ predate the list, so this is an interim expectation — new features are named
 
 ### Backend selection
 
-`cuda`, `metal` and `wgpu` each select one accelerator, and are **never** in
-`default`. Precedence, when more than one is set, is `cuda` > `metal` >
-`wgpu` > `flex`.
+`cuda`, `metal`, `vulkan` and `wgpu` each select one accelerator, and are
+**never** in `default`. Precedence, when more than one is set, is `cuda` >
+`metal` > `vulkan` > `wgpu` > `flex`.
 
 A backend feature enables the backend in **`bunsen`**, not only in `burn`:
 

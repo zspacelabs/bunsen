@@ -43,7 +43,13 @@ impl DataTypeDescription {
     }
 }
 
-/// A build plan for columns in a table schema.
+/// A build plan for columns in a table schema: one recorded call of an
+/// operator.
+///
+/// It names the operator, binds the operator's parameters to columns, and
+/// carries the operator's config as JSON. It is plain serde data; the
+/// operator itself is built from it by an environment's factory. See
+/// [`operations`](crate::core::operations) for the lifecycle.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct BuildPlan {
     /// The ID of the operator.
@@ -71,7 +77,7 @@ pub struct BuildPlan {
 }
 
 impl BuildPlan {
-    /// Creates a new `ColumnBuildPlan` with the given operator spec.
+    /// Creates a new `BuildPlan` for the given operator id.
     pub fn for_operator<S>(id: S) -> Self
     where
         S: AsRef<str>,
@@ -283,7 +289,7 @@ impl ColumnSchema {
     ///
     /// # Returns
     ///
-    /// A new `BimmColumnSchema` with the description attached.
+    /// A new `ColumnSchema` with the description attached.
     pub fn with_description(
         self,
         description: &str,
@@ -295,7 +301,14 @@ impl ColumnSchema {
     }
 }
 
-/// Bimm Table Schema.
+/// A firehose table schema: typed columns, and the build plans that derive
+/// some of them from others.
+///
+/// Columns without a build plan are the base columns, which a batch's
+/// producer fills; the rest are computed by an executor. Build plans are
+/// usually added through
+/// [`OperationPlan::apply_to_schema`](crate::core::operations::planner::OperationPlan::apply_to_schema),
+/// which checks them against the operator environment.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct FirehoseTableSchema {
     /// The columns in the table.
@@ -489,7 +502,7 @@ impl FirehoseTableSchema {
         Self::check_graph(&self.columns, &self.build_plans)
     }
 
-    /// Creates a new `DataTableDescription` with the given columns.
+    /// Creates a new `FirehoseTableSchema` with the given columns.
     #[must_use]
     pub fn from_columns(columns: &[ColumnSchema]) -> Self {
         let mut schema = Self {
@@ -523,13 +536,33 @@ impl FirehoseTableSchema {
     }
 
     /// Adds a column to the table description.
+    ///
+    /// # Errors
+    ///
+    /// If the column's name is not an identifier, or is already a column.
+    pub fn try_add_column(
+        &mut self,
+        column: ColumnSchema,
+    ) -> anyhow::Result<()> {
+        self.check_name(&column.name)?;
+
+        self.columns.push(column);
+        Ok(())
+    }
+
+    /// Adds a column to the table description.
+    ///
+    /// # Panics
+    ///
+    /// With the [`try_add_column`](Self::try_add_column) error's message, if
+    /// the column's name is not an identifier, or is already a column.
     pub fn add_column(
         &mut self,
         column: ColumnSchema,
     ) {
-        self.check_name(&column.name).unwrap();
-
-        self.columns.push(column);
+        if let Err(e) = self.try_add_column(column) {
+            panic!("{e}");
+        }
     }
 
     /// Adds a build plan to the table description.
@@ -576,7 +609,7 @@ impl FirehoseTableSchema {
     /// # Returns
     ///
     /// An `anyhow::Result<()>` indicating success or containing an error if the
-    /// operation fails.
+    /// operation fails. An error can leave the schema partly extended.
     pub fn add_build_plan_and_outputs(
         &mut self,
         plan: BuildPlan,
@@ -590,7 +623,7 @@ impl FirehoseTableSchema {
                 description: description.clone(),
                 data_type: data_type.clone(),
             };
-            self.add_column(column);
+            self.try_add_column(column)?;
         }
 
         self.add_build_plan(plan)
@@ -606,7 +639,9 @@ impl FirehoseTableSchema {
     /// # Returns
     ///
     /// An `anyhow::Result<()>` indicating success or containing an error if the
-    /// operation fails.
+    /// operation fails. An error can leave the schema partly extended;
+    /// [`OperationPlan::apply_to_schema`](crate::core::operations::planner::OperationPlan::apply_to_schema)
+    /// tries a copy first.
     pub fn extend_via_plan(
         &mut self,
         plan: BuildPlan,
@@ -622,7 +657,7 @@ impl FirehoseTableSchema {
         }
 
         for column in output_columns.values() {
-            self.add_column(column.clone());
+            self.try_add_column(column.clone())?;
         }
 
         self.add_build_plan(plan)
@@ -865,6 +900,33 @@ mod tests {
     fn conflicting_column_names_on_add() {
         let mut schema = FirehoseTableSchema::from_columns(&[ColumnSchema::new::<i32>("foo")]);
         schema.add_column(ColumnSchema::new::<String>("foo"));
+    }
+
+    #[test]
+    fn test_try_add_column_rejects_bad_names() {
+        let mut schema = FirehoseTableSchema::from_columns(&[ColumnSchema::new::<i32>("foo")]);
+        let before = schema.clone();
+
+        let err = schema
+            .try_add_column(ColumnSchema::new::<String>("foo"))
+            .unwrap_err();
+        assert_eq!(err.to_string(), "Duplicate column name 'foo'");
+
+        let err = schema
+            .try_add_column(ColumnSchema {
+                name: "not an ident".to_string(),
+                description: None,
+                data_type: DataTypeDescription::new::<i32>(),
+            })
+            .unwrap_err();
+        assert_eq!(err.to_string(), "Invalid identifier: 'not an ident'");
+
+        assert_eq!(schema, before);
+
+        schema
+            .try_add_column(ColumnSchema::new::<String>("bar"))
+            .unwrap();
+        assert!(schema.column_index("bar").is_some());
     }
 
     #[test]

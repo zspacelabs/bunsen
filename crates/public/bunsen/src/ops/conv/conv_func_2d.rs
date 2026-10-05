@@ -1,4 +1,4 @@
-//! # Surface Convolutions (2D)
+//! Functional 2D convolution.
 
 use burn::{
     Tensor,

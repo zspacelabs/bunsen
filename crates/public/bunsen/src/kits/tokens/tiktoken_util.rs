@@ -1,18 +1,4 @@
 //! # The `.tiktoken` rank file.
-//!
-//! Whisper's base vocabulary ships as a `tiktoken` rank file: one
-//! `<base64 bytes> <rank>` pair per line, ranks contiguous from zero.
-//! [`TiktokenRanks`] parses one. Nothing here knows about special tokens —
-//! they are not in the file; see [`tokens`](whisper_token_layout).
-//!
-//! The parser is here, rather than borrowed from a tokenizer crate, for one
-//! reason. `multilingual.tiktoken` ends with the line `= 50256`: base64 of
-//! nothing, and Whisper's rank 50256 is a genuinely empty token. Python's
-//! `base64.b64decode` accepts bare padding and returns `b""`; a strict
-//! decoder rejects it, and then the file cannot be loaded at all. This one
-//! reads an all-padding field as the empty span, as the reference loader
-//! does. It is also what keeps text decoding free of any `std`-only I/O in
-//! its dependency.
 
 use std::{
     collections::HashMap,
@@ -26,9 +12,25 @@ use crate::errors::{
 
 /// The base vocabulary of a `.tiktoken` file: rank to bytes.
 ///
+/// A `tiktoken` rank file, as Whisper's base vocabulary ships: one
+/// `<base64 bytes> <rank>` pair per line, ranks contiguous from zero.
+/// Nothing here knows about special tokens, which are not in the file; a
+/// kit's token layout spells them after the base ranks (Whisper's is
+/// [`WhisperTokenLayout::token_spans`](crate::kits::speech::whisper::driver::WhisperTokenLayout::token_spans)).
+///
 /// Ranks are the token ids the model emits for text; they run from zero
 /// without gaps. An entry is raw bytes, not text — a multi-byte character can
 /// span several ranks, and one entry can be empty.
+///
+/// The parser is here, rather than borrowed from a tokenizer crate, for one
+/// reason. `multilingual.tiktoken` ends with the line `= 50256`: base64 of
+/// nothing, and Whisper's rank 50256 is a genuinely empty token. Python's
+/// `base64.b64decode` accepts bare padding and returns `b""`; a strict
+/// decoder rejects it, and then the file cannot be loaded at all. This one
+/// reads an all-padding field as the empty span, as the reference loader
+/// does. Being here also keeps the ranks available without the `tokenizer`
+/// feature: a bundle's vocabulary, and the suppress list derived from it,
+/// need no tokenizer.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct TiktokenRanks {
     /// Indexed by rank.
@@ -184,6 +186,9 @@ fn lenient_decode_base64(field: &str) -> Option<Vec<u8>> {
 
 /// The symbols upstream's `non_speech_tokens` suppresses when they are a
 /// single token, with or without a leading space.
+///
+/// Whisper-specific: [`non_speech_tokens`] reads it, for the Whisper kit's
+/// default suppress list.
 pub const SYMBOLS: &[&str] = &[
     "\"",
     "#",
@@ -234,6 +239,8 @@ pub const SYMBOLS: &[&str] = &[
     "\u{266a}\u{266a}\u{266a}",
 ];
 /// The music symbols, suppressed by their first token whatever it is.
+///
+/// Whisper-specific, as [`SYMBOLS`].
 pub const MISCELLANEOUS: &[&str] = &[
     "\u{2669}", "\u{266a}", "\u{266b}", "\u{266c}", "\u{266d}", "\u{266e}", "\u{266f}",
 ];
@@ -261,6 +268,9 @@ fn first_token(
 /// Upstream's `Tokenizer.non_speech_tokens`, from the rank file alone:
 /// the ids that would make a transcript say `[APPLAUSE]` or draw a music
 /// note, plus the leading `-` and `'` that would start a word with one.
+///
+/// Whisper-specific: the base of the Whisper kit's
+/// [`default_suppress_tokens`](crate::kits::speech::whisper::logit_filters::default_suppress_tokens).
 pub fn non_speech_tokens(ranks: &TiktokenRanks) -> Vec<i64> {
     let table = lookup(ranks);
     let mut ids: Vec<i64> = [" -", " '"]
@@ -289,6 +299,10 @@ pub fn non_speech_tokens(ranks: &TiktokenRanks) -> Vec<i64> {
 }
 
 /// The id of the single-space token, which opens a blank transcript.
+///
+/// Whisper-specific: what the Whisper kit's
+/// [`SuppressBlank`](crate::kits::speech::whisper::logit_filters::SuppressBlank)
+/// suppresses at the first step.
 pub fn blank_token(ranks: &TiktokenRanks) -> Option<i64> {
     lookup(ranks).get(b" ".as_slice()).copied()
 }

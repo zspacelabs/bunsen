@@ -1,26 +1,4 @@
-//! # Sliding-window STFT analyzer.
-//!
-//! The analyzer is split into:
-//! * [`SlidingStft`] — the fixed analysis coefficients (window, geometry);
-//!   stateless, shareable across streams.
-//! * [`SlidingStftContext`] — a streaming state (the sample queue) bound to a
-//!   [`SlidingStft`]; built by [`SlidingStft::init_state`].
-//!
-//! The spectrum follows the standard real-DFT convention,
-//! `X[k] = Σ_n x[n]·e^(-2πikn/fft_size)` (`numpy.fft.rfft`-compatible),
-//! with no normalization; it is computed with [`burn::tensor::signal::stft`].
-//! The C reference emits the same spectrum with the imaginary parts negated
-//! (an artifact of its FFTW half-complex packing); bin powers `re² + im²`
-//! agree.
-//!
-//! Note: `stft` center-pads windows shorter than `n_fft`, while the
-//! layout puts the window at the frame start with zero-padding at the end;
-//! the analyzer therefore carries its window pre-padded to `fft_size` and
-//! feeds `stft` full-frame windows.
-//!
-//! Note: burn's `stft` (via the `rfft` beneath it) does not yet support
-//! autodiff (the backward is unimplemented upstream), so this analyzer
-//! cannot currently be differentiated through.
+//! Sliding-window STFT analysis.
 
 use burn::{
     prelude::*,
@@ -68,7 +46,7 @@ pub trait SlidingStftMeta {
 
 /// Config for [`SlidingStft`].
 ///
-/// Defaults ta a 768-sample periodic Hann window,
+/// Defaults to a 768-sample periodic Hann window,
 /// hop 256, zero-padded to a 1024-point FFT (513 bins).
 ///
 /// Implements [`SlidingStftMeta`].
@@ -181,7 +159,26 @@ impl<B: Backend> ModuleInit<B, SlidingStft<B>> for SlidingStftConfig {
 /// shared by (or cheaply cloned into) any number of streams.
 ///
 /// Built by [`SlidingStftConfig`]. Implements [`SlidingStftMeta`].
-/// Streaming states are built by [`init_state`](Self::init_state).
+/// Streaming states are built by [`init_state`](Self::init_state); each
+/// [`SlidingStftContext`] carries one stream's sample queue over a clone of
+/// these coefficients. [`analyze`](Self::analyze) is the one-shot form.
+///
+/// # Spectrum convention
+///
+/// The spectrum follows the standard real-DFT convention,
+/// `X[k] = Σ_n x[n]·e^(-2πikn/fft_size)` (`numpy.fft.rfft`-compatible), with
+/// no normalization; it is computed with [`burn::tensor::signal::stft`]. A C
+/// reference built on FFTW's half-complex packing emits the same spectrum with
+/// the imaginary parts negated; bin powers `re² + im²` agree.
+///
+/// `stft` center-pads windows shorter than `n_fft`, while this layout puts the
+/// window at the frame start with zero-padding at the end. The analyzer
+/// therefore carries its window pre-padded to `fft_size` and feeds `stft`
+/// full-frame windows.
+///
+/// burn's `stft` (via the `rfft` beneath it) does not yet support autodiff
+/// (the backward is unimplemented upstream), so this analyzer cannot currently
+/// be differentiated through.
 ///
 /// # Module semantics
 ///
@@ -357,7 +354,7 @@ impl<B: Backend> SlidingStft<B> {
 ///
 /// Each [`forward`](Self::forward) shifts the queue left by `hop_size`,
 /// appends the new hop, and returns the real-DFT spectrum of the windowed,
-/// zero-padded queue (see the module docs for the convention). At stream
+/// zero-padded queue (see [`SlidingStft`]'s *Spectrum convention*). At stream
 /// start the queue is zero, so the first `win_len / hop_size - 1` spectra
 /// cover partially zero-padded windows.
 ///

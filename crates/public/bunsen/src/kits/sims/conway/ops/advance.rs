@@ -20,7 +20,7 @@ use crate::{
         TensorBoolOpExt,
         TensorOrderedOpExt,
     },
-    support::range_util::{
+    rust_ext::range_util::{
         range_into,
         shift_range,
     },
@@ -40,6 +40,9 @@ where
     B: Backend,
     F: Fn(Tensor<B, R, Bool>) -> Tensor<B, R, Bool>,
 {
+    // The step trusts the halo it is given: the sims rewrite it whenever
+    // they edit the board, which keeps the step at one halo rewrite per
+    // generation.
     let inner_update = f(state.clone());
 
     let dirty_boarders = state.slice_assign([INNER_SLICE; R], inner_update);
@@ -51,7 +54,9 @@ where
 ///
 /// # Arguments
 ///
-/// - `state`: a `[H, W]` game state.
+/// - `state`: a `[H, W]` game state, its halo wrapped, as
+///   [`project_wrapped_toroidal_boarders`] leaves it: the step reads the halo
+///   as the edge cells' neighbours.
 ///
 /// # Returns
 /// - the `[H, W]` evolved interior state, with wrapped edges.
@@ -100,7 +105,9 @@ pub fn next_interior_2d<B: Backend>(state: Tensor<B, 2, Bool>) -> Tensor<B, 2, B
 ///
 /// # Arguments
 ///
-/// - `state`: a `[H, W, Z]` game state.
+/// - `state`: a `[H, W, Z]` game state, its halo wrapped, as
+///   [`project_wrapped_toroidal_boarders`] leaves it: the step reads the halo
+///   as the edge cells' neighbours.
 /// - `rules`: a ruleset.
 ///
 /// # Returns

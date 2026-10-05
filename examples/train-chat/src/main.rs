@@ -9,7 +9,10 @@ use std::{
 
 use bunsen::{
     burner::{
-        module::reflection::XmlModuleTree,
+        module::{
+            ModuleInit,
+            reflection::XmlModuleTree,
+        },
         optim::{
             GroupOptimizerAdaptor2,
             OptimizerGroup,
@@ -18,7 +21,7 @@ use bunsen::{
     data::cache::BunsenDiskCache,
     kits::gpts::nanochat::{
         NanoChatGpt,
-        NanoChatGptConfig,
+        NanoChatGptContractConfig,
         NanoChatGptMeta,
         datasets::NANOCHAT_SHARD_SETS,
     },
@@ -40,7 +43,6 @@ use burn::{
     nn::loss::CrossEntropyLossConfig,
     optim::{
         AdamWConfig,
-        LearningRate,
         MuonConfig,
         decay::WeightDecayConfig,
     },
@@ -257,12 +259,12 @@ fn run<B: AutodiffBackend>(args: &Args) -> anyhow::Result<()> {
         .with_parallel(true)
         .build(vocab);
 
-    let gpt_config = NanoChatGptConfig::new()
+    let gpt_config = NanoChatGptContractConfig::new()
         .with_n_embed(args.n_embed)
         .with_n_layer(args.n_layer)
         .with_vocab_size(vocab_size);
 
-    let gpt: NanoChatGpt<B> = gpt_config.clone().init::<B>(&device);
+    let gpt: NanoChatGpt<B> = gpt_config.init(&device);
 
     let host = GptHost { gpt };
 
@@ -295,46 +297,12 @@ fn run<B: AutodiffBackend>(args: &Args) -> anyhow::Result<()> {
     .with_file_checkpointer(CompactRecorder::new())
     .summary();
 
-    let mut mtree = XmlModuleTree::build(&host);
-
-    // See: GPT.setup_optimizer
-    // <https://github.com/karpathy/nanochat/blob/master/nanochat/gpt.py#L374>
-    let matrix_params: HashSet<ParamId> = mtree
-        .select_params("GptHost/GPT/*[@name='h']/Linear/*[@name='weight',@rank=2]")
-        .to_param_ids()?
-        .into_iter()
-        .collect();
-
-    // TODO: value_embeds
-    // TODO: resid
-    // TODO: x0
-    // TODO: smear, smear_gate, blackout
-
-    let embedding_params: HashSet<ParamId> = mtree
-        .select_params("GptHost/GPT/*[@name='wte']")
-        .to_param_ids()?
-        .into_iter()
-        .collect();
-
-    let lm_head_params: HashSet<ParamId> = mtree
-        .select_params("GptHost/GPT/*[@name='lm_head']")
-        .to_param_ids()?
-        .into_iter()
-        .collect();
-
-    let remnant_params: HashSet<ParamId> = mtree
-        .param_ids()?
-        .into_iter()
-        .collect::<HashSet<ParamId>>()
-        .difference(&matrix_params)
-        .cloned()
-        .collect::<HashSet<ParamId>>()
-        .difference(&embedding_params)
-        .cloned()
-        .collect::<HashSet<ParamId>>()
-        .difference(&lm_head_params)
-        .cloned()
-        .collect::<HashSet<ParamId>>();
+    let ParamGroups {
+        matrix: matrix_params,
+        embedding: embedding_params,
+        lm_head: lm_head_params,
+        remnant: remnant_params,
+    } = ParamGroups::select(&host)?;
 
     let model_dim = gpt_config.n_embed();
     let dmodel_lr_scale: f64 = (model_dim as f64 / 768.0_f64).pow(-0.5);
@@ -352,7 +320,10 @@ fn run<B: AutodiffBackend>(args: &Args) -> anyhow::Result<()> {
 
     // TODO: per-group GradientClipping.
 
+    // `new` checks that the groups partition the model's float parameters;
+    // `ParamGroups::select`'s remnant group covers whatever the others don't.
     let optimizer = GroupOptimizerAdaptor2::new(
+        &host,
         vec![
             OptimizerGroup::from_adaptor(
                 lm_head_params,
@@ -363,11 +334,7 @@ fn run<B: AutodiffBackend>(args: &Args) -> anyhow::Result<()> {
                     .with_weight_decay(0.01)
                     .init::<B, GptHost<B>>(),
             )
-            .with_lr_selector(
-                move |lr: f64,
-                      _: &bunsen::public::hashbrown::HashMap<String, LearningRate>|
-                      -> LearningRate { lr * lm_head_lr },
-            ),
+            .with_lr_selector(move |lr| lr * lm_head_lr),
             OptimizerGroup::from_adaptor(
                 embedding_params,
                 &AdamWConfig::new()
@@ -377,11 +344,7 @@ fn run<B: AutodiffBackend>(args: &Args) -> anyhow::Result<()> {
                     .with_weight_decay(0.001)
                     .init::<B, GptHost<B>>(),
             )
-            .with_lr_selector(
-                move |lr: LearningRate,
-                      _: &bunsen::public::hashbrown::HashMap<String, LearningRate>|
-                      -> LearningRate { lr * embedding_lr },
-            ),
+            .with_lr_selector(move |lr| lr * embedding_lr),
             OptimizerGroup::from_adaptor(
                 remnant_params,
                 &AdamWConfig::new()
@@ -391,11 +354,7 @@ fn run<B: AutodiffBackend>(args: &Args) -> anyhow::Result<()> {
                     .with_weight_decay(0.01)
                     .init::<B, GptHost<B>>(),
             )
-            .with_lr_selector(
-                move |lr: LearningRate,
-                      _: &bunsen::public::hashbrown::HashMap<String, LearningRate>|
-                      -> LearningRate { lr * scalar_lr },
-            ),
+            .with_lr_selector(move |lr| lr * scalar_lr),
         ],
         vec![
             OptimizerGroup::from_adaptor(
@@ -407,14 +366,9 @@ fn run<B: AutodiffBackend>(args: &Args) -> anyhow::Result<()> {
                     }))
                     .init::<B, GptHost<B>>(),
             )
-            .with_lr_selector(
-                move |lr: LearningRate,
-                      _: &bunsen::public::hashbrown::HashMap<String, LearningRate>|
-                      -> LearningRate { lr * matrix_lr },
-            ),
+            .with_lr_selector(move |lr| lr * matrix_lr),
         ],
-    )
-    .unwrap();
+    )?;
 
     let result = training.launch(Learner::new(host, optimizer, warmup_scheduler));
 
@@ -483,5 +437,134 @@ impl<B: Backend> InferenceStep for GptHost<B> {
         input: Self::Input,
     ) -> Self::Output {
         self.loss_step(input)
+    }
+}
+
+/// The optimizer groups of the `NanoChat` recipe, as disjoint `ParamId` sets.
+///
+/// See `GPT.setup_optimizer`:
+/// <https://github.com/karpathy/nanochat/blob/master/nanochat/gpt.py#L374>
+#[derive(Debug)]
+pub struct ParamGroups {
+    /// Rank-2 `Linear` weights inside the transformer blocks (Muon).
+    pub matrix: HashSet<ParamId>,
+
+    /// The token embedding table (`AdamW`).
+    pub embedding: HashSet<ParamId>,
+
+    /// The output head (`AdamW`).
+    pub lm_head: HashSet<ParamId>,
+
+    /// Every parameter no other group claims, e.g. the norms (`AdamW`).
+    pub remnant: HashSet<ParamId>,
+}
+
+impl ParamGroups {
+    /// Selects the groups from the module structure.
+    ///
+    /// Element names are module *type* names, and field names are `@name`:
+    /// the `gpt` field is `GptHost/NanoChatGpt`. `h` is a `Vec` of
+    /// `NanoChatGptBlock`, whose `Linear`s sit in `attn` and `mlp`, hence
+    /// `//Linear`. Stacked predicates (`[a][b]`) mean "a and b".
+    pub fn select<B: Backend>(host: &GptHost<B>) -> anyhow::Result<Self> {
+        let mut mtree = XmlModuleTree::build(host);
+        let mut select = |expr: &str| -> anyhow::Result<HashSet<ParamId>> {
+            Ok(mtree.select_param_ids(expr)?.into_iter().collect())
+        };
+
+        let matrix = select("GptHost/NanoChatGpt/*[@name='h']//Linear/*[@name='weight'][@rank=2]")?;
+
+        // TODO: value_embeds
+        // TODO: resid
+        // TODO: x0
+        // TODO: smear, smear_gate, blackout
+
+        let embedding = select("GptHost/NanoChatGpt/*[@name='wte']")?;
+        let lm_head = select("GptHost/NanoChatGpt/*[@name='lm_head']")?;
+
+        let remnant: HashSet<ParamId> = mtree
+            .param_ids()?
+            .into_iter()
+            .filter(|id| !matrix.contains(id) && !embedding.contains(id) && !lm_head.contains(id))
+            .collect();
+
+        Ok(Self {
+            matrix,
+            embedding,
+            lm_head,
+            remnant,
+        })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use bunsen::support::testing::{
+        CpuBackend,
+        default_device,
+    };
+
+    use super::*;
+
+    /// A `GptHost` small enough to build in milliseconds.
+    fn tiny_host() -> GptHost<CpuBackend> {
+        let gpt: NanoChatGpt<CpuBackend> = NanoChatGptContractConfig::new()
+            .with_vocab_size(32)
+            .with_n_layer(2)
+            .with_n_head(2)
+            .with_n_kv_head(2)
+            .with_n_embed(8)
+            .with_init_seq_len(16)
+            .init(&default_device());
+        GptHost { gpt }
+    }
+
+    /// Each group selects something, no two overlap, and together they cover
+    /// the model. A selector that names no element matches nothing, and its
+    /// parameters fall silently into `remnant`, so Muon would never step.
+    #[test]
+    fn test_param_groups_partition_the_model() {
+        let host = tiny_host();
+        let mut mtree = XmlModuleTree::build(&host);
+        let xml = mtree.to_xml(true);
+
+        let groups = ParamGroups::select(&host).unwrap();
+        let named = [
+            ("matrix", &groups.matrix),
+            ("embedding", &groups.embedding),
+            ("lm_head", &groups.lm_head),
+            ("remnant", &groups.remnant),
+        ];
+
+        for (name, group) in named {
+            assert!(
+                !group.is_empty(),
+                "group `{name}` selected nothing in:\n{xml}"
+            );
+        }
+
+        for (i, (a_name, a)) in named.iter().enumerate() {
+            for (b_name, b) in &named[i + 1..] {
+                assert!(a.is_disjoint(b), "groups `{a_name}` and `{b_name}` overlap");
+            }
+        }
+
+        let all: HashSet<ParamId> = mtree.param_ids().unwrap().into_iter().collect();
+        let covered: HashSet<ParamId> = named
+            .iter()
+            .flat_map(|(_, group)| group.iter().copied())
+            .collect();
+        assert_eq!(covered, all);
+
+        // Muon gets every matrix in the blocks, not just some of them.
+        let block_matrices: HashSet<ParamId> = mtree
+            .select_params("GptHost/NanoChatGpt/*[@name='h']")
+            .to_param_descs()
+            .unwrap()
+            .iter()
+            .filter(|desc| desc.rank() == 2)
+            .map(|desc| desc.param_id())
+            .collect();
+        assert_eq!(groups.matrix, block_matrices);
     }
 }

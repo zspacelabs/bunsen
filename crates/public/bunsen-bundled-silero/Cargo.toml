@@ -1,6 +1,6 @@
 [package]
 name = "bunsen-bundled-silero"
-description = "Bunsen bundled Silero VAD assets: the pretrained weights, and optionally the ONNX-generated reference model."
+description = "Bunsen bundled Silero VAD assets: the pretrained weights, generated offline from a committed ONNX graph, and optionally the ONNX-generated reference model."
 publish = true
 
 authors.workspace = true
@@ -9,6 +9,13 @@ rust-version.workspace = true
 version.workspace = true
 repository.workspace = true
 license.workspace = true
+
+# docs.rs builds with `onnx_gen`, so the API docs show the generated model.
+# docs.rs builds have no network, and none is needed: the build script
+# generates from the committed ONNX graph whatever the features, and
+# `onnx_gen` only compiles in the model it generated.
+[package.metadata.docs.rs]
+features = ["onnx_gen"]
 
 [dependencies]
 burn = { workspace = true, features = ["store"] }

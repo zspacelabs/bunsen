@@ -8,7 +8,7 @@ version.workspace = true
 repository.workspace = true
 license.workspace = true
 documentation = "https://docs.rs/bunsen-firehose/latest/"
-description = "bunsen dataloader / processing pipeline"
+description = "A column-oriented data pipeline for burn: typed schemas, build plans and registered operators, run as a burn Batcher"
 
 [lints]
 workspace = true

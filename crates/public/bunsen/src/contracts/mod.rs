@@ -3,37 +3,19 @@
 #![warn(missing_docs)]
 //! # Shape Contracts
 //!
-//! This is a ``no_std`` inline contract programming library for tensor geometry
-//! for the [burner](https://burn.dev) tensor framework.
+//! Runtime checks of tensor shapes against a small pattern language, for
+//! [burn](https://burn.dev) tensors and plain shape arrays.
 //!
-//! Contract programming, or [Design by Contract](https://en.wikipedia.org/wiki/Design_by_contract),
-//! is a programming paradigm that specifies the rights and obligations of
-//! software components.
+//! A contract states what a function expects of a shape, in the spirit of
+//! [Design by Contract](https://en.wikipedia.org/wiki/Design_by_contract).
+//! One call checks the shape, solves for the dimension names the caller
+//! doesn't know yet, and returns the ones it asks for:
 //!
-//! The goal of this library is to make in-line geometry contracts:
-//! * Easy to Read, Write, and Use,
-//! * Performant at Runtime (so they can always be enabled),
-//! * Verbose and Helpful in their error messages.
-//!
-//! ## Features
-//!
-//! - ``burner``: Shape support for [burner](https://burn.dev) types:
-//!    - `&Tensor`, `&Shape`, `Shape`.
-//!
-//! ## API
-//!
-//! Users will primarily use the macros:
-//! - [`unpack_shape_contract`],
-//! - [`assert_shape_contract`], and
-//! - [`assert_shape_contract_periodically`].
-//!
-//! For example:
-//! ```rust,no_run
+//! ```rust
 //! use bunsen::contracts::unpack_shape_contract;
 //!
 //! let shape = [12, 3 * 4, 5 * 4, 3];
 //!
-//! // In release builds, this has a benchmark of ~160ns:
 //! let [b, h_wins, w_wins, c] = unpack_shape_contract!(
 //!     [
 //!         "batch",
@@ -46,177 +28,156 @@
 //!     &[("window_size", 4)],
 //! );
 //!
-//! assert_eq!(b, 12);
-//! assert_eq!(h_wins, 3);
-//! assert_eq!(w_wins, 4);
-//! assert_eq!(c, 3);
+//! assert_eq!([b, h_wins, w_wins, c], [12, 3, 5, 3]);
 //! ```
 //!
-//! In turn, these macros wrap the layer 2 api:
-//! * [`shape_contract`] - a macro for defining shape contracts from
-//!   expressions.
-//! * [`define_shape_contract`] - a macro for defining a static contract.
-//! * [`ShapeContract`] - the constructed contract type.
-//!   * [`ShapeContract::assert_shape`] - assert a contract.
-//!   * [`ShapeContract::unpack_shape`] - assert a contract, and unpack geometry
-//!     components.
-//! * [`run_periodically`] - a macro for running code on an incrementally
-//!   lengthening schedule.
+//! The goals:
+//! - contracts are easy to read and write, and read like the shapes in the docs
+//!   next to them;
+//! - they are cheap enough to leave on in release builds;
+//! - a failure names the dimension that broke, the pattern term, and the values
+//!   in play.
 //!
-//! ### `ShapeView` Support
+//! ## How the types relate
 //!
-//! The shape methods take a [`ShapeView`] parameter; with implementations
-//! for:
-//! * ``&[usize]``, ``&[usize; D]``,
-//! * ``&[u32]``, ``&[u32; D]``,
-//! * ``&[i32]``, ``&[i32; D]``,
-//! * ``&Vec<usize>``,
-//! * ``&Vec<u32>``,
-//! * ``&Vec<i32>``
-//! * ``burner::prelude::Shape``,
-//! * ``&burner::prelude::Shape``,
-//! * ``&burner::prelude::Tensor``
+//! - [`shape_contract!`] parses a pattern at compile time. It expands to a
+//!   [`ShapeContract`] built from `const fn`s, so a contract is usually a
+//!   `static`.
+//! - A [`ShapeContract`] holds one [`DimMatcher`] per pattern term, plus an
+//!   index of every name the pattern uses.
+//! - A [`DimMatcher`] matches one dimension of any size ([`DimMatcher::Any`],
+//!   `_`), a run of dimensions ([`DimMatcher::Ellipsis`], `...`), or one
+//!   dimension against an expression ([`DimMatcher::Expr`]). `_` and
+//!   expressions can carry a label.
+//! - A [`DimExpr`] is an integer expression over named params and constants.
+//!   Matching it against a dimension size checks it, or solves it for one
+//!   unknown param.
+//! - A check takes the shape as a [`ShapeView`], and the values the caller
+//!   already knows as [`StackEnvironment`] bindings (`&[(&str, usize)]`).
 //!
-//! ## Speed and Stack Design
+//! [`shape_contract!`] documents the pattern language. [`ShapeContract`]
+//! documents how a shape is matched (left to right, one unknown per
+//! dimension) and what a failure reports.
 //!
-//! Contracts are only useful when they are fast enough to be always enabled.
+//! ## Macros and methods
 //!
-//! As a result, this library is designed to be fast at runtime,
-//! focusing on `static` contracts and using stack over heap wherever possible.
+//! Most code calls one of three macros. Each defines a `static` contract at
+//! the call site (or names one) and calls one method on it:
 //!
-//! Benchmarks on release builds are available under ``cargo bench -p
-//! bunsen-contracts``:
+//! - [`unpack_shape_contract!`] calls [`ShapeContract::unpack_shape`]: check
+//!   the shape, then return the values of chosen names;
+//! - [`assert_shape_contract!`] calls [`ShapeContract::assert_shape`]: check
+//!   only;
+//! - [`assert_shape_contract_periodically!`] runs the same check through
+//!   [`run_periodically!`], on a schedule that thins out to one call in 1000.
 //!
-//! ```terminaloutput
-//! Running benches/shape_contracts (target/release/deps/contracts-86950340ff3748c1)
-//! unpack_shape            time:   [176.03 ns 177.39 ns 178.81 ns]
-//! Found 2 outliers among 100 measurements (2.00%)
-//! 1 (1.00%) high mild
-//! 1 (1.00%) high severe
+//! All three panic on a mismatch. To get the failure as a value, define the
+//! contract with [`shape_contract!`] or [`define_shape_contract!`] and call
+//! [`ShapeContract::try_assert_shape`] or [`ShapeContract::try_unpack_shape`].
 //!
-//! assert_shape            time:   [166.57 ns 168.00 ns 169.60 ns]
-//! Found 2 outliers among 100 measurements (2.00%)
-//! 1 (1.00%) high mild
-//! 1 (1.00%) high severe
+//! ## Contracts read like the docs
 //!
-//! assert_shape_every_nth/assert_shape_every_nth
-//! time:   [4.4057 ns 4.4769 ns 4.5726 ns]
-//! Found 14 outliers among 100 measurements (14.00%)
-//! 6 (6.00%) high mild
-//! 8 (8.00%) high severe
-//! ```
-//!
-//! ## `shape_contract`! macro
-//!
-//! The `shape_contract!` macro is a compile-time macro that parses a shape
-//! contract from a shape contract pattern:
+//! STYLE.md writes a tensor shape in rustdoc as one code span in square
+//! brackets, such as `[batch, h_wins*size, w_wins*size, channels]`. Write the
+//! contract so that it reads the same: one term per dimension, the same
+//! names, the same arithmetic. A reader can then check the docs against the
+//! code at a glance, and the contract enforces what the docs promise:
 //!
 //! ```rust
 //! use bunsen::contracts::{
-//!     ShapeContract,
-//!     shape_contract,
+//!     assert_shape_contract_periodically,
+//!     unpack_shape_contract,
 //! };
-//! static CONTRACT: ShapeContract =
-//!     shape_contract![_, "w" = "x" + "y", ..., "z" ^ 2];
-//! ```
+//! use burn::prelude::{
+//!     Backend,
+//!     Tensor,
+//! };
+//! # use bunsen::support::testing::CpuBackend;
 //!
-//! A shape pattern is made of one or more dimension matcher terms:
-//! - `_`: for any shape; ignores the size, but requires the dimension to
-//!   exist.,
-//! - `...`: for ellipsis; matches any number of dimensions, only one ellipsis
-//!   is allowed,
-//! - a dim expression.
-//!
-//! ```bnf
-//! ShapeContract => <LabeledExpr> { ',' <LabeledExpr> }* ','?
-//! LabeledExpr => {Param "="}? <Expr>
-//! Expr => <Term> { <AddOp> <Term> }
-//! Term => <Power> { <MulOp> <Power> }
-//! Power => <Factor> [ ^ <usize> ]
-//! Factor => <Param> | ( '(' <Expression> ')' ) | NegOp <Factor>
-//! Param => '"' <identifier> '"'
-//! identifier => { <alpha> | "_" } { <alphanumeric> | "_" }*
-//! NegOp =>      '+' | '-'
-//! AddOp =>      '+' | '-'
-//! MulOp =>      '*'
-//! ```
-//!
-//! ## Usage Example
-//!
-//! ```rust,ignore
-//! use burner::prelude::{Tensor, Backend};
-//! use burner::tensor::BasicOps;
-//! use bunsen::contracts::{unpack_shape_contract, assert_shape_contract_periodically};
-//!
-//! /// Window Partition
+//! /// Splits an image into square windows.
 //! ///
 //! /// # Arguments
 //! ///
-//! /// - `tensor`: `[B, h_wins * window_size, w_wins * window_size, C]` input tensor.
-//! /// - `window_size`: Window size.
+//! /// - `x`: a `[batch, h_wins*size, w_wins*size, channels]` input tensor.
+//! /// - `size`: the window size.
 //! ///
 //! /// # Returns
 //! ///
-//! /// `[B * h_windows * w_windows, window_size, window_size, C]` output tensor.
-//! ///
-//! /// # Panics
-//! ///
-//! /// Panics if the input tensor does not have 4 dimensions.
-//! pub fn window_partition<B: Backend, K>(
-//!     tensor: Tensor<B, 4, K>,
-//!     window_size: usize,
-//! ) -> Tensor<B, 4, K>
-//! where
-//!     K: BasicOps<B>,
-//! {
-//!     // In release builds, this has a benchmark of ~160ns:
-//!     let [b, h_wins, w_wins, c] = unpack_shape_contract!(
-//!         [
-//!             "batch",
-//!             "height" = "h_wins" * "window_size",
-//!             "width" = "w_wins" * "window_size",
-//!             "channels"
-//!         ],
-//!         &tensor,
+//! /// A `[batch*h_wins*w_wins, size, size, channels]` tensor of windows.
+//! pub fn windows<B: Backend>(
+//!     x: Tensor<B, 4>,
+//!     size: usize,
+//! ) -> Tensor<B, 4> {
+//!     let [batch, h_wins, w_wins, channels] = unpack_shape_contract!(
+//!         ["batch", "h_wins" * "size", "w_wins" * "size", "channels"],
+//!         &x.dims(),
 //!         &["batch", "h_wins", "w_wins", "channels"],
-//!         &[("window_size", window_size)],
+//!         &[("size", size)],
 //!     );
 //!
-//!     let tensor = tensor
-//!         .reshape([b, h_wins, window_size, w_wins, window_size, c])
+//!     let x = x
+//!         .reshape([batch, h_wins, size, w_wins, size, channels])
 //!         .swap_dims(2, 3)
-//!         .reshape([b * h_wins * w_wins, window_size, window_size, c]);
+//!         .reshape([batch * h_wins * w_wins, size, size, channels]);
 //!
-//!     // Run an amortized check on the output shape.
-//!     //
-//!     // `run_periodically!{}` runs the first 10 times,
-//!     // then on an incrementally lengthening schedule,
-//!     // until it reaches its default period of 1000.
-//!     //
-//!     // Due to amortization, in release builds, this averages ~4ns:
 //!     assert_shape_contract_periodically!(
-//!         [
-//!             "batch" * "h_wins" * "w_wins",
-//!             "window_size",
-//!             "window_size",
-//!             "channels"
-//!         ],
-//!         &tensor,
+//!         ["batch" * "h_wins" * "w_wins", "size", "size", "channels"],
+//!         &x.dims(),
 //!         &[
-//!             ("batch", b),
+//!             ("batch", batch),
 //!             ("h_wins", h_wins),
 //!             ("w_wins", w_wins),
-//!             ("window_size", window_size),
-//!             ("channels", c),
-//!         ]
+//!             ("size", size),
+//!             ("channels", channels),
+//!         ],
 //!     );
-//!
-//!     tensor
+//!     x
 //! }
-//! ```
-//! ## Error Messages
 //!
-//! Error messages are verbose and helpful.
+//! let x = Tensor::<CpuBackend, 4>::zeros([2, 6, 9, 5], &Default::default());
+//! assert_eq!(windows(x, 3).dims(), [2 * 2 * 3, 3, 3, 5]);
+//! ```
+//!
+//! ## Passing shapes
+//!
+//! Every check takes its shape as `S: Into<ShapeView>`. For a tensor, pass
+//! `&x.dims()`: `dims()` returns a `[usize; D]` array for a tensor of any
+//! rank `D`, and the check borrows it. Passing `&x` also works, but converts
+//! the tensor's [`Shape`](burn::prelude::Shape) into a new `Vec<usize>` on
+//! every call. [`ShapeView`] lists every accepted form and what each costs.
+//!
+//! ## Cost
+//!
+//! The pattern is parsed at compile time, and the macros keep the contract in
+//! a `static`. A check is one pass over the shape's dimensions. It is not
+//! allocation-free: every check allocates a small `Vec` with one slot per
+//! name in the pattern, an unpack collects its result through another, some
+//! [`ShapeView`] conversions allocate, and a failure formats its message.
+//!
+//! To measure it:
+//!
+//! ```text
+//! cargo bench -p bunsen --bench contracts
+//! ```
+//!
+//! Indicative numbers, from a release build on one development machine:
+//! about 170 ns per `unpack_shape` or `assert_shape` call, matching a
+//! 9-dimension shape against the 7-term pattern
+//! `[_, "b", ..., "h"*"p", "w"*"p", "z"^3, "c"]`; and about 4.5 ns per call,
+//! averaged, for the same `assert_shape` under [`run_periodically!`]. Rerun
+//! the bench before relying on them.
+//!
+//! When a check still costs too much, sample it with
+//! [`assert_shape_contract_periodically!`], or gate it with
+//! `#[cfg(debug_assertions)]` so that release builds drop it, as
+//! [`next_interior_3d`](crate::kits::sims::conway::ops::next_interior_3d)
+//! does.
+//!
+//! ## Error messages
+//!
+//! A failed check names the dimension and the pattern term that failed, and
+//! prints the shape, the pattern, and every bound value.
+//! [`ShapeContract`](ShapeContract#error-messages) describes each part.
 //!
 //! ```rust
 //! use bunsen::contracts::{
@@ -225,47 +186,47 @@
 //! };
 //! use indoc::indoc;
 //!
-//! fn example() {
-//!     static CONTRACT: ShapeContract = shape_contract![
-//!         ...,
-//!         "height" = "h_wins" * "window",
-//!         "width" = "w_wins" * "window",
-//!         "color",
-//!     ];
+//! static CONTRACT: ShapeContract = shape_contract![
+//!     ...,
+//!     "height" = "h_wins" * "window",
+//!     "width" = "w_wins" * "window",
+//!     "color",
+//! ];
 //!
-//!     let h_wins = 2;
-//!     let w_wins = 3;
-//!     let window = 4;
-//!     let color = 3;
+//! let shape = [1, 2, 3, 2 * 4, 3 * 4, 3];
 //!
-//!     let shape = [1, 2, 3, h_wins * window, w_wins * window, color];
+//! // Correct bindings: `window` divides both sizes.
+//! let [h_wins, w_wins] = CONTRACT.unpack_shape(
+//!     &shape,
+//!     &["h_wins", "w_wins"],
+//!     &[("window", 4), ("color", 3)],
+//! );
+//! assert_eq!([h_wins, w_wins], [2, 3]);
 //!
-//!     let [h, w] = CONTRACT.unpack_shape(
+//! // Wrong bindings: 5 does not divide 8.
+//! let err = CONTRACT
+//!     .try_unpack_shape(
 //!         &shape,
 //!         &["h_wins", "w_wins"],
-//!         &[("window", window), ("color", color)],
-//!     );
-//!     assert_eq!(h, h_wins);
-//!     assert_eq!(w, w_wins);
+//!         &[("window", 5), ("color", 3)],
+//!     )
+//!     .unwrap_err();
 //!
-//!     assert_eq!(
-//!         CONTRACT
-//!             .try_unpack_shape(
-//!                 &shape,
-//!                 &["h_wins", "w_wins"],
-//!                 &[("window", window + 1), ("color", color),]
-//!             )
-//!             .unwrap_err(),
-//!         indoc! {r#"
-//!             Shape Error:: 8 !~ height=(h_wins*window) :: No integer solution.
-//!              shape:
-//!               [1, 2, 3, 8, 12, 3]
-//!              expected:
-//!               [..., height=(h_wins*window), width=(w_wins*window), color]
-//!               {"window": 5, "color": 3}"#
-//!         },
-//!     );
-//! }
+//! // The first line is `at <file>:<line>: Shape Error`, naming the caller.
+//! let (location, body) = err.split_once('\n').unwrap();
+//! assert!(location.starts_with("at ") && location.ends_with(": Shape Error"));
+//! assert_eq!(
+//!     body,
+//!     indoc! {r#"
+//!           8 !~ height=(h_wins*window) :: No integer solution.
+//!         Actual:
+//!           [1, 2, 3, 8, 12, 3]
+//!         Contract:
+//!           [..., height=(h_wins*window), width=(w_wins*window), color]
+//!         Bindings:
+//!           {"color": 3, "height": 8, "window": 5}"#
+//!     },
+//! );
 //! ```
 
 mod macros;
@@ -280,17 +241,13 @@ pub use macros::{
 };
 
 mod shape_view;
-#[doc(inline)]
 pub use shape_view::*;
 
 mod expressions;
-#[doc(inline)]
 pub use expressions::*;
 
 mod bindings;
-#[doc(inline)]
 pub use bindings::*;
 
 mod shape_contracts;
-#[doc(inline)]
 pub use shape_contracts::*;

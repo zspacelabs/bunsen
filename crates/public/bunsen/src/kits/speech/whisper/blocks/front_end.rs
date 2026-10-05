@@ -1,13 +1,4 @@
 //! # The audio front end a checkpoint was trained with.
-//!
-//! Whisper's log-mels are a grid fixed in time &mdash; a 25 ms
-//! window every 10 ms &mdash; computed at 16 kHz and floored 8 dB under each
-//! window's maximum. A checkpoint records none of that; it is the convention of
-//! the pipeline that trained it. [`WhisperFrontEndConfig`] declares it on the
-//! model, defaulting to upstream's, so every sample-domain number is
-//! derived from it rather than written down, and a checkpoint trained
-//! differently can say so. The mel options and the packaging it drives
-//! live with the driver, as methods on it.
 
 use burn::{
     Tensor,
@@ -34,6 +25,18 @@ use crate::{
 };
 
 /// The audio front end a checkpoint's log-mels were computed with.
+///
+/// Whisper's log-mels are a grid fixed in time (a 25 ms window every
+/// 10 ms), computed at 16 kHz and floored 8 dB under a reference maximum.
+/// A checkpoint records none of that; it is the convention of the pipeline
+/// that trained it. This declares it on the model
+/// ([`WhisperApiConfig::front_end`](super::WhisperApiConfig::front_end)),
+/// defaulting to upstream's, so every sample-domain number is derived from
+/// it rather than written down, and a checkpoint trained differently can
+/// say so. It also builds what it drives: the mel converter
+/// ([`try_init_audio_converter`](Self::try_init_audio_converter)) and the
+/// packaging of a window into encoder input
+/// ([`package_window`](Self::package_window)).
 ///
 /// The grid is in time; [`hop`](Self::hop) and [`n_fft`](Self::n_fft) put
 /// it on samples at [`sample_rate`](Self::sample_rate).
@@ -104,7 +107,7 @@ impl WhisperFrontEndConfig {
     ///
     /// # Errors
     /// See [`validate`](PerceptiveAudioConverterOptions::validate) and
-    /// [`to_vec_filterbank`](PerceptiveAudioConverterOptions::try_to_filterbank_vec).
+    /// [`try_to_filterbank_vec`](PerceptiveAudioConverterOptions::try_to_filterbank_vec).
     pub fn try_init_audio_converter<B: Backend>(
         &self,
         n_mels: usize,
@@ -193,7 +196,7 @@ impl WhisperFrontEndConfig {
     ///
     /// # Arguments
     /// * `joined` - `[batch, frames, n_mels]`, the concatenated output of a
-    ///   [`MelConversionContext`](crate::ops::signal::perceptive_audio::PerceptiveAudioConversionContext)
+    ///   [`PerceptiveAudioConversionContext`](crate::ops::signal::perceptive_audio::PerceptiveAudioConversionContext)
     ///   including its `finish` tail.
     ///
     /// # Returns

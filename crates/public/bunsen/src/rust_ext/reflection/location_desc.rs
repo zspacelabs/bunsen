@@ -1,0 +1,58 @@
+use core::fmt::Display;
+use std::panic::Location;
+
+use serde::{
+    Deserialize,
+    Serialize,
+};
+
+/// A serializable [`Location`]: file name, line and column.
+///
+/// Built `From` a `&Location`, which `#[track_caller]` code gets from
+/// [`Location::caller`]. It has no accessors; [`Display`] prints it as
+/// `file:line:col`. Audit event headers store one for each checkpoint, so a
+/// mismatch names the line that made it.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Hash)]
+pub struct LocationDesc {
+    filename: String,
+    line: u32,
+    col: u32,
+}
+
+impl From<&Location<'_>> for LocationDesc {
+    fn from(loc: &Location) -> Self {
+        Self {
+            filename: loc.file().to_string(),
+            line: loc.line(),
+            col: loc.column(),
+        }
+    }
+}
+
+impl Display for LocationDesc {
+    fn fmt(
+        &self,
+        f: &mut std::fmt::Formatter<'_>,
+    ) -> std::fmt::Result {
+        write!(f, "{}:{}:{}", self.filename, self.line, self.col)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[track_caller]
+    fn who_called_me() -> &'static Location<'static> {
+        Location::caller()
+    }
+
+    #[test]
+    fn test_location_desc() {
+        let loc = who_called_me();
+        let loc_desc = LocationDesc::from(loc);
+        assert_eq!(loc_desc.filename, loc.file().to_string());
+        assert_eq!(loc_desc.line, loc.line());
+        assert_eq!(loc_desc.col, loc.column());
+    }
+}

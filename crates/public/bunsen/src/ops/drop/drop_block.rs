@@ -23,10 +23,10 @@ use serde::{
 };
 
 use crate::{
-    blocks::images::drop::size_config::SizeConfig,
     contracts::unpack_shape_contract,
     ops::{
         conv::conv2d_kernel_midpoint_filter,
+        drop::SizeConfig,
         noise::NoiseConfig,
     },
     support::validators::expect_probability,
@@ -35,7 +35,7 @@ use crate::{
 /// Configuration for `DropBlock`.
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct DropBlockOptions {
-    /// The drop validators.
+    /// The drop probability.
     pub drop_prob: f64,
 
     /// The block size.
@@ -95,11 +95,11 @@ impl Default for DropBlockOptions {
 }
 
 impl DropBlockOptions {
-    /// Extends the options with the given validators.
+    /// Extends the options with the given drop probability.
     ///
     /// # Arguments
     ///
-    /// - `drop_prob` - the validators.
+    /// - `drop_prob` - the drop probability.
     ///
     /// # Panics
     ///
@@ -246,7 +246,7 @@ impl DropBlockOptions {
 
     /// Computes the adjusted gamma rate.
     ///
-    /// Gamma is the adjusted validators that any given point is the midpoint
+    /// Gamma is the adjusted probability that any given point is the midpoint
     /// of a dropped block; given the desired `drop_rate`, the block size, and
     /// the input size.
     ///
@@ -350,7 +350,7 @@ pub fn drop_block_2d_drop_filter_<B: Backend>(
 ///
 /// Dropped values can be resampled from a noise distribution,
 /// kept values can be re-normalized.
-/// The drop validators, block size, and several performance/quality tradeoffs
+/// The drop probability, block size, and several performance/quality tradeoffs
 /// can be configured.
 ///
 /// Based upon [DropBlock (Ghiasi, et al., 2018)](https://arxiv.org/pdf/1810.12890.pdf);
@@ -400,12 +400,15 @@ pub fn drop_block_2d<B: Backend>(
 
         tensor * keep_filter.expand(t_shape.clone()) + noise.expand(t_shape)
     } else {
-        // Rescale to normalize to 1.0.
+        // Rescale to normalize to 1.0. The scaled mask is built in f32 and
+        // cast once: when every block drops, the scale (`count / 1e-7`)
+        // overflows `f16`, and `0 * inf` would be NaN.
+        let keep_filter = keep_filter.cast(DType::F32);
         let count = keep_filter.shape().num_elements() as f32;
-        let total = keep_filter.clone().cast(DType::F32).sum();
-        let norm_scale = count / total.add_scalar(1e-7);
+        let norm_scale = count / keep_filter.clone().sum().add_scalar(1e-7);
+        let scaled_keep = keep_filter * norm_scale.unsqueeze::<4>();
 
-        tensor * keep_filter.expand(t_shape.clone()) * norm_scale.cast(dtype).expand(t_shape)
+        tensor * scaled_keep.cast(dtype).expand(t_shape)
     }
 }
 
@@ -568,6 +571,28 @@ mod tests {
         );
 
         drop.to_data().assert_eq(&tensor.to_data(), false);
+    }
+
+    #[test]
+    #[serial]
+    fn test_drop_block_2d_dropping_everything_in_f16_gives_zeros() {
+        type B = PerformanceBackend;
+        let device = default_device();
+        let _memory = DeviceMemoryGuard::<B>::new(&device);
+
+        let tensor = Tensor::<B, 4>::ones([2, 3, 10, 10], &device).cast(DType::F16);
+
+        // A whole-image block at probability 1 has gamma 1: every block drops.
+        let options = DropBlockOptions::default()
+            .with_drop_prob(1.0)
+            .with_kernel([10, 10]);
+        assert_eq!(options.gamma([10, 10]), 1.0);
+
+        let drop = drop_block_2d(tensor.clone(), &options);
+
+        drop.cast(DType::F32)
+            .to_data()
+            .assert_eq(&tensor.zeros_like().cast(DType::F32).to_data(), true);
     }
 
     #[test]

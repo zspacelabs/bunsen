@@ -3,20 +3,31 @@
 //! The token side of a model kit: what is shared between kits that emit ids
 //! and want text back. Today that is one seam, [`Detokenizer`], and one
 //! implementation of it, `WordchipperDetokenizer`, behind the `tokenizer`
-//! feature.
+//! feature, plus the parser of the `.tiktoken` rank files a byte-level
+//! vocabulary ships as, [`TiktokenRanks`].
 //!
 //! A model kit owns its own token *layout* — which ids are special, what they
 //! mean, how a prompt is built — because that is model-specific and needs no
-//! dependency; Whisper's is [`TokenPolicy`]. What it does not own is the
-//! tokenizer. Ids-to-text is the same operation for every byte-level
+//! dependency; Whisper's is [`WhisperTokenLayout`]. What it does not own is
+//! the tokenizer. Ids-to-text is the same operation for every byte-level
 //! vocabulary, and the crate that does it well is `wordchipper`, so that
-//! lives here once and a kit hands it a table.
+//! lives here once and a kit hands it a table: Whisper's layout spells its
+//! specials after the base ranks and hands the whole `{ id -> bytes }`
+//! table to `WordchipperDetokenizer::from_spans`.
 //!
 //! Only decoding is here. Encoding — the merge table, the pre-tokenizer, the
 //! special-token splitter — is `wordchipper`'s whole job, and a kit that needs
 //! it should use that crate directly.
 //!
-//! [`TokenPolicy`]: crate::kits::speech::whisper::driver::WhisperTokenLayout
+//! # Whisper-specific helpers
+//!
+//! [`SYMBOLS`], [`MISCELLANEOUS`], [`non_speech_tokens`] and
+//! [`blank_token`] are not shared: they compute Whisper's default suppress
+//! list and blank token from its rank file, and only the Whisper kit's
+//! logit filters use them. They live here beside the rank parser they
+//! read.
+//!
+//! [`WhisperTokenLayout`]: crate::kits::speech::whisper::driver::WhisperTokenLayout
 
 use std::fmt::Debug;
 
@@ -29,7 +40,6 @@ mod wordchipper;
 pub use wordchipper::WordchipperDetokenizer;
 
 mod tiktoken_util;
-#[doc(inline)]
 pub use tiktoken_util::*;
 
 /// Turns token ids into text.

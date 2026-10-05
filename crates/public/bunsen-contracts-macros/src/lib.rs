@@ -1,4 +1,9 @@
-//! `proc_macro` support for BIMM Contracts.
+//! The `shape_contract!` proc-macro behind `bunsen::contracts`.
+//!
+//! Use it through
+//! [`bunsen::contracts::shape_contract!`](https://docs.rs/bunsen/latest/bunsen/contracts/macro.shape_contract.html),
+//! which documents the pattern language and brings the names the expansion
+//! uses into scope. This crate has no other public API.
 #![no_std]
 #![warn(missing_docs)]
 
@@ -60,11 +65,13 @@ fn parse_shape_contract_terms(input: ParseStream) -> SynResult<ShapeContractAST>
 /// Parse a single contract dim term from tokens.
 fn parse_dim_matcher_tokens(input: ParseStream) -> SynResult<DimMatcherAST> {
     let mut label = None;
+    let mut label_span = None;
 
     // peek 2: ["name" =]
     if input.peek(LitStr) && input.peek2(Token![=]) {
         let lit: LitStr = input.parse()?;
         label = Some(lit.value());
+        label_span = Some(lit.span());
         input.parse::<Token![=]>()?;
     }
 
@@ -77,6 +84,13 @@ fn parse_dim_matcher_tokens(input: ParseStream) -> SynResult<DimMatcherAST> {
     // Check for ellipsis "..."
     if input.peek(Token![...]) {
         input.parse::<Token![...]>()?;
+        if let Some(span) = label_span {
+            // A label names one size; `...` has none to bind.
+            return Err(syn::Error::new(
+                span,
+                "`...` can't be labelled: it matches a run of dimensions, not one size",
+            ));
+        }
         return Ok(DimMatcherAST::Ellipsis { label });
     }
 
@@ -270,6 +284,12 @@ fn parse_power_expr(input: ParseStream) -> SynResult<ExprAST> {
         input.parse::<Token![^]>()?;
         let exp: syn::LitInt = input.parse()?;
         let exp_value: usize = exp.base10_parse()?;
+        if exp_value == 0 {
+            return Err(syn::Error::new(
+                exp.span(),
+                "`^ 0` is 1 for any base, so it can't match or solve one; write `1`",
+            ));
+        }
         Ok(ExprAST::Pow(Box::new(base), exp_value))
     } else {
         Ok(base)
@@ -418,35 +438,27 @@ impl ShapeContractAST {
     }
 }
 
-/// Parse a shape contract at compile time and return the `ShapePattern` struct.
+/// Parse a shape contract pattern at compile time, and expand to a
+/// `ShapeContract::new(index, terms)` expression.
 ///
-/// This macro generates `no_std` compatible code.
+/// The pattern language is documented on
+/// [`bunsen::contracts::shape_contract!`](https://docs.rs/bunsen/latest/bunsen/contracts/macro.shape_contract.html),
+/// which wraps this macro. The expansion is `const`-evaluable, so it can
+/// initialise a `static`. It collects every param and label into a sorted
+/// name index, and refers to names by their position in it.
 ///
-/// A shape pattern is made of one or more dimension matcher terms:
-/// - `_`: for any shape; ignores the size, but requires the dimension to
-///   exist.,
-/// - `...`: for ellipsis; matches any number of dimensions, only one ellipsis
-///   is allowed,
-/// - a dim expression.
-///
-/// ```bnf
-/// ShapeContract => <LabeledExpr> { ',' <LabeledExpr> }* ','?
-/// LabeledExpr => {Param "="}? <Expr>
-/// Expr => <Term> { <AddOp> <Term> }
-/// Term => <Power> { <MulOp> <Power> }
-/// Power => <Factor> [ ^ <usize> ]
-/// Factor => <Param> | <Const> | ( '(' <Expression> ')' ) | NegOp <Factor>
-/// Param => '"' <identifier> '"'
-/// Const => <integer literal>
-/// identifier => { <alpha> | "_" } { <alphanumeric> | "_" }*
-/// NegOp =>      '+' | '-'
-/// AddOp =>      '+' | '-'
-/// MulOp =>      '*'
-/// ```
+/// The expansion names `ShapeContract`, `DimMatcher` and `DimExpr`
+/// unqualified; the bunsen wrapper imports them. Call it through that
+/// wrapper.
 ///
 /// # Example
-/// ```rust.norun
-/// use bunsen_contracts::{ShapeContract, shape_contract};
+///
+/// ```rust,ignore
+/// use bunsen::contracts::{
+///     ShapeContract,
+///     shape_contract,
+/// };
+///
 /// static CONTRACT: ShapeContract = shape_contract![_, "x" + "y", ..., "z" ^ 2];
 /// ```
 #[proc_macro]
@@ -684,6 +696,30 @@ mod tests {
                     DimMatcher::expr(DimExpr::Const { value: 3isize })
                 ],
             )},
+        );
+    }
+
+    #[test]
+    fn test_label_on_ellipsis_is_rejected() {
+        let tokens: proc_macro2::TokenStream = r#""x", "rest" = ..."#.parse().unwrap();
+        let err = syn::parse2::<ContractSyntax>(tokens)
+            .err()
+            .expect("a labelled `...` must not parse");
+        assert_eq!(
+            err.to_string(),
+            "`...` can't be labelled: it matches a run of dimensions, not one size"
+        );
+    }
+
+    #[test]
+    fn test_zero_exponent_is_rejected() {
+        let tokens: proc_macro2::TokenStream = r#""x" ^ 0"#.parse().unwrap();
+        let err = syn::parse2::<ExprSyntax>(tokens)
+            .err()
+            .expect("`^ 0` must not parse");
+        assert_eq!(
+            err.to_string(),
+            "`^ 0` is 1 for any base, so it can't match or solve one; write `1`"
         );
     }
 

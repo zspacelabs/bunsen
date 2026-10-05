@@ -1,6 +1,4 @@
-//! # Shard-set maps
-//!
-//! Named collections of shard sets: a static table, and its owned twin.
+//! Shard-set maps: named collections of shard sets.
 
 use std::collections::BTreeMap;
 

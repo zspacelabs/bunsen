@@ -36,6 +36,8 @@ use crate::burner::{
 };
 
 /// [`ModuleVisitor`] builder for a [`XmlModuleTree`].
+///
+/// Most callers want [`XmlModuleTree::build`], which wraps this.
 pub struct XmlModuleTreeBuilder<B: Backend> {
     mtree: XmlModuleTree,
 

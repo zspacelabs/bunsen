@@ -1,33 +1,7 @@
-//! # Hugging Face as a provider
-//!
-//! `hf:{org}/{repo}` is a Hugging Face repo: `hf:openai/whisper-large-v3`
-//! is <https://huggingface.co/openai/whisper-large-v3>. [`HfProvider`]
-//! answers such a ref with the repo's safetensors checkpoint as a resource
-//! map, and lists nothing: the hub is not enumerable, and a bare name
-//! never reaches it.
-//!
-//! What a repo holds comes from the hub's file listing (its tree API),
-//! fetched once through the cache and kept there, so a ref resolved once
-//! is resolved again offline. The listing says which files there are and
-//! pins each LFS file by its SHA-256, so the checkpoint is digest-addressed
-//! in the cache like a well-known row's. `transformers` saves a model as
-//! one `model.safetensors` until it passes a shard-size limit, then as
-//! `model-00001-of-0000N.safetensors` and so on with
-//! `model.safetensors.index.json` naming the shard each tensor is in; the
-//! row is one resource or the index and every shard, under the kit's
-//! checkpoint key (`checkpoint`, or `checkpoint.index` and
-//! `checkpoint.00001`, ...), each labeled [`SAFETENSORS`] or
-//! [`SAFETENSORS_INDEX`] for the kit's reader. `config.json` rides along
-//! as `config` when the repo has one. Anything else in the repo (other
-//! frameworks' weights, tokenizer files) is not a resource: a kit reads
-//! what it knows.
-//!
-//! The listing is at a revision, `main` unless another is named; a repo
-//! whose `main` moves is seen again only when the cache is cleared or the
-//! revision is named. Resolving a ref without a cache is an error: the
-//! provider guesses nothing about a repo.
+//! Hugging Face as a pretrained provider: `hf:org/repo`.
 
 use alloc::{
+    collections::BTreeSet,
     format,
     string::{
         String,
@@ -48,6 +22,7 @@ use super::{
     SAFETENSORS,
     SAFETENSORS_INDEX,
     Source,
+    is_sha256_hex,
 };
 use crate::errors::{
     BunsenError,
@@ -102,7 +77,8 @@ pub struct HfTreeEntry {
 /// The LFS part of a listing entry.
 #[derive(Clone, Debug, Deserialize, PartialEq, Eq)]
 pub struct HfLfs {
-    /// The file's SHA-256, lowercase hex.
+    /// The file's SHA-256 in hex, as the listing spells it (the hub's is
+    /// lowercase); [`HfTreeEntry::sha256`] is the pin made from it.
     pub oid: String,
 
     /// The size in bytes.
@@ -111,10 +87,12 @@ pub struct HfLfs {
 }
 
 impl HfTreeEntry {
-    /// The digest that pins this file, when LFS holds it.
-    pub fn sha256(&self) -> Option<&str> {
-        let oid = self.lfs.as_ref()?.oid.as_str();
-        (oid.len() == 64 && oid.bytes().all(|b| b.is_ascii_hexdigit())).then_some(oid)
+    /// The digest that pins this file, when LFS holds it: its oid, in
+    /// lowercase hex, the one spelling of a digest the cache's pins, paths
+    /// and checks use. An oid that is not 64 hex digits pins nothing.
+    pub fn sha256(&self) -> Option<String> {
+        let oid = self.lfs.as_ref()?.oid.to_ascii_lowercase();
+        is_sha256_hex(&oid).then_some(oid)
     }
 }
 
@@ -125,7 +103,94 @@ fn shard_numbers(file: &str) -> Option<(usize, usize)> {
     Some((n.parse().ok()?, of.parse().ok()?))
 }
 
-/// Hugging Face repos, by ref, as safetensors checkpoints.
+/// `; missing model-00003-of-00003.safetensors`: the shards of `1..=of`
+/// that `shards` lacks, at most eight of them by name, or nothing when it
+/// lacks none.
+fn missing_shards(
+    of: usize,
+    shards: &[(usize, usize, &HfTreeEntry)],
+) -> String {
+    let present: BTreeSet<usize> = shards
+        .iter()
+        .map(|(n, _, _)| *n)
+        .filter(|n| (1..=of).contains(n))
+        .collect();
+    let count = of - present.len();
+    if count == 0 {
+        return String::new();
+    }
+    let named: Vec<String> = (1..=of)
+        .filter(|i| !present.contains(i))
+        .take(8)
+        .map(|i| format!("model-{i:05}-of-{of:05}.safetensors"))
+        .collect();
+    let more = if count > named.len() {
+        format!(", and {} more", count - named.len())
+    } else {
+        String::new()
+    };
+    format!("; missing {}{more}", named.join(", "))
+}
+
+/// Hugging Face repos, by ref, as safetensors checkpoints: the `hf:`
+/// provider.
+///
+/// `hf:{org}/{repo}` is a Hugging Face repo: `hf:openai/whisper-large-v3`
+/// is <https://huggingface.co/openai/whisper-large-v3>. The provider
+/// answers such a ref with a row whose map is the repo's safetensors
+/// checkpoint, and it lists nothing: the hub is not enumerable, and a bare
+/// name never reaches it
+/// ([`answers_bare_names`](PretrainedProvider::answers_bare_names) is
+/// `false`). A kit registers one in its default factory, after its own
+/// tables and under its own checkpoint key
+/// ([`with_checkpoint_key`](Self::with_checkpoint_key)); Whisper's does.
+/// The kit's hook then reads the row with
+/// [`SafetensorsCheckpoint`](super::SafetensorsCheckpoint).
+///
+/// # Resolving a ref
+///
+/// What a repo holds comes from the hub's file listing (its tree API, at
+/// [`tree_url`](Self::tree_url)). The listing is fetched once through the
+/// [`PretrainedCache`](super::PretrainedCache) and kept there, so a ref
+/// resolved once resolves again offline. The listing names the files and
+/// pins each LFS file by its SHA-256, so the checkpoint is
+/// digest-addressed in the cache like a well-known row's:
+/// `<cache>/pretrained/<kit>/hf/<sha256>/<file>`. Fetching the listing
+/// needs the `fetch` feature, unless the cache has it already.
+///
+/// Resolving a ref without a cache is an error, and
+/// [`lookup`](PretrainedProvider::lookup) always refuses: the provider
+/// guesses nothing about a repo. A repo that is not there, or a gated one,
+/// answers 401, and the error says so.
+///
+/// # Sharding
+///
+/// `transformers` saves a model as one `model.safetensors` until it passes
+/// a shard-size limit, then as `model-00001-of-0000N.safetensors` and so
+/// on, with `model.safetensors.index.json` naming the shard each tensor is
+/// in. The row ([`row_from_listing`](Self::row_from_listing)) is one
+/// resource, or the index and every shard, under the kit's checkpoint key:
+/// `checkpoint`, or `checkpoint.index` and `checkpoint.00001`, and so on.
+/// Each is labelled [`SAFETENSORS`] or [`SAFETENSORS_INDEX`] for the kit's
+/// reader. `config.json` rides along as `config` when the repo has one.
+/// Anything else in the repo (other frameworks' weights, tokenizer files)
+/// is not a resource: a kit reads what it knows.
+///
+/// The shards must be the whole set their names count: every one of
+/// `model-00001-of-0000N` to `model-0000N-of-0000N`, with the one `N`. A
+/// listing that lacks any is refused, naming them, before anything is
+/// fetched. The listing says nothing of what the index holds; that the
+/// index names exactly these shards is checked when the checkpoint is read
+/// ([`SafetensorsCheckpoint::from_loaded`](super::SafetensorsCheckpoint::from_loaded)).
+///
+/// # Revisions
+///
+/// The listing is at a revision: [`HF_MAIN`] unless another is named
+/// ([`with_revision`](Self::with_revision)). A repo whose `main` moves is
+/// seen again only when the cache is cleared or the revision is named.
+/// [`with_origin`](Self::with_origin) points the provider at a mirror, and
+/// [`with_name`](Self::with_name) lets two providers, at two revisions,
+/// share a factory.
 #[derive(Clone, Debug)]
 pub struct HfProvider {
     /// The provider's name, and the namespace its files are cached under.
@@ -269,7 +334,7 @@ impl HfProvider {
         Resource {
             key: key.to_string(),
             file: entry.path.clone(),
-            sha256: entry.sha256().map(str::to_string),
+            sha256: entry.sha256(),
             kind: Some(kind.to_string()),
             namespace: self.name.clone(),
             sources: vec![Source::Url(self.url(org, repo, &entry.path))],
@@ -283,7 +348,8 @@ impl HfProvider {
     /// # Errors
     /// [`BunsenError::Invalid`] when the listing has neither
     /// [`HF_SINGLE_FILE`] nor [`HF_INDEX_FILE`] with a complete set of
-    /// shards, naming what it has instead.
+    /// shards, naming what it has instead, and the shards a set of one `N`
+    /// lacks.
     pub fn row_from_listing(
         &self,
         name: &str,
@@ -308,21 +374,26 @@ impl HfProvider {
                 .collect();
             shards.sort_by_key(|(n, _, _)| *n);
             let of = shards.first().map(|(_, of, _)| *of).unwrap_or(0);
+            let one_set = shards.iter().all(|(_, o, _)| *o == of);
             let complete = !shards.is_empty()
-                && shards
-                    .iter()
-                    .enumerate()
-                    .all(|(i, (n, o, _))| *n == i + 1 && *o == of);
+                && one_set
+                && shards.len() == of
+                && shards.iter().enumerate().all(|(i, (n, _, _))| *n == i + 1);
             if !complete {
-                return Err(BunsenError::Invalid(format!(
+                let has: Vec<&str> = shards.iter().map(|(_, _, e)| e.path.as_str()).collect();
+                let mut message = format!(
                     "{}:{name}: {HF_INDEX_FILE} with an incomplete set of shards: {}",
                     self.name,
-                    shards
-                        .iter()
-                        .map(|(_, _, e)| e.path.as_str())
-                        .collect::<Vec<_>>()
-                        .join(", ")
-                )));
+                    if has.is_empty() {
+                        "none".to_string()
+                    } else {
+                        has.join(", ")
+                    }
+                );
+                if one_set {
+                    message.push_str(&missing_shards(of, &shards));
+                }
+                return Err(BunsenError::Invalid(message));
             }
             resources.insert(self.resource(
                 org,
@@ -614,6 +685,35 @@ mod tests {
         );
     }
 
+    /// A set numbered from 1 with no gap is still incomplete when its last
+    /// shards are missing: the `-of-N` total says how many there are, and
+    /// the error names the ones the listing lacks.
+    #[test]
+    fn test_a_sharded_repo_missing_its_last_shards_is_refused() {
+        let hf = HfProvider::new();
+        let listing = vec![
+            entry("model.safetensors.index.json", 71_000, None),
+            entry("model-00001-of-00003.safetensors", 1, Some(SHARD_1)),
+            entry("model-00002-of-00003.safetensors", 1, Some(SHARD_2)),
+        ];
+        let err = hf.row_from_listing("org/repo", &listing).unwrap_err();
+        assert!(
+            matches!(&err, BunsenError::Invalid(m) if m.contains("incomplete set of shards") && m.contains("missing model-00003-of-00003.safetensors")),
+            "{err}"
+        );
+
+        // A long tail is named eight shards at most, then counted.
+        let listing = vec![
+            entry("model.safetensors.index.json", 71_000, None),
+            entry("model-00001-of-00012.safetensors", 1, Some(SHARD_1)),
+        ];
+        let err = hf.row_from_listing("org/repo", &listing).unwrap_err();
+        assert!(
+            matches!(&err, BunsenError::Invalid(m) if m.contains("missing model-00002-of-00012.safetensors, ") && m.ends_with("model-00009-of-00012.safetensors, and 3 more")),
+            "{err}"
+        );
+    }
+
     /// A repo with weights in another format only is refused naming them;
     /// a malformed ref is refused before any listing is read; a lookup
     /// without a cache is refused.
@@ -693,12 +793,33 @@ mod tests {
         let listing: Vec<HfTreeEntry> = serde_json::from_str(json).unwrap();
         assert_eq!(listing.len(), 3);
         assert_eq!(listing[0].sha256(), None);
-        assert_eq!(listing[1].sha256(), Some(TINY_SHA));
+        assert_eq!(listing[1].sha256().as_deref(), Some(TINY_SHA));
         assert_eq!(listing[2].kind, "directory");
         let row = HfProvider::new()
             .row_from_listing("openai/whisper-tiny", &listing)
             .unwrap();
         assert_eq!(row.resources.keys(), ["checkpoint", "config"]);
+    }
+
+    /// A digest's hex case carries nothing, and the cache's pins, paths and
+    /// checks are all lowercase: a listing that spells a digest in
+    /// uppercase pins the file by the same digest, in lowercase.
+    #[test]
+    fn test_an_uppercase_digest_pins_in_lowercase() {
+        let json = format!(
+            r#"[{{"type":"file","size":3,"path":"model.safetensors","lfs":{{"oid":"{}","size":3}}}}]"#,
+            TINY_SHA.to_uppercase()
+        );
+        let listing: Vec<HfTreeEntry> = serde_json::from_str(&json).unwrap();
+        assert_eq!(listing[0].sha256().as_deref(), Some(TINY_SHA));
+        let row = HfProvider::new()
+            .row_from_listing("org/repo", &listing)
+            .unwrap();
+        row.resources.validate().unwrap();
+        assert_eq!(
+            row.resources.get("checkpoint").unwrap().sha256.as_deref(),
+            Some(TINY_SHA)
+        );
     }
 
     /// Through a cache, against a loopback hub: the listing is fetched

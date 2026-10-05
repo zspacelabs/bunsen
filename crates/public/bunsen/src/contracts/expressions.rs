@@ -7,7 +7,15 @@ use core::fmt::{
 
 use crate::support::math::maybe_iroot;
 
-/// A stack/static expression algebra for dimension sizes.
+/// An integer expression over a contract's params: the compiled form of one
+/// expression term in a
+/// [`shape_contract!`](crate::contracts::shape_contract!) pattern.
+///
+/// A param is a position in the contract's
+/// [`index`](crate::contracts::ShapeContract::index). The macro builds these
+/// trees from `const` data; users normally don't construct them.
+/// [Matching](crate::contracts::ShapeContract#matching) describes how an
+/// expression is checked or solved against a dimension size.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum DimExpr<'a> {
     /// A constant value.
@@ -29,6 +37,10 @@ pub enum DimExpr<'a> {
     },
 
     /// Exponentiation of an expression.
+    ///
+    /// [`shape_contract!`](crate::contracts::shape_contract!) rejects an
+    /// exponent of 0. Built by hand, `x ^ 0` is 1 for every `x`, so it checks
+    /// a size against 1 and never solves `x`.
     Pow {
         /// The child expression.
         base: &'a DimExpr<'a>,
@@ -50,9 +62,11 @@ pub enum DimExpr<'a> {
     },
 }
 
-/// Display Adapter to format `DimExprs` with a `Index`.
+/// Formats a [`DimExpr`] with the names in a contract's index.
+///
+/// Every compound expression prints in parentheses: `(a*b*(c+(d^2)+(-e)))`.
 pub struct ExprDisplayAdapter<'a> {
-    ///  index.
+    /// The contract's name index.
     pub index: &'a [&'a str],
 
     /// Expression to format.
@@ -134,14 +148,10 @@ enum EvalResult {
     },
 }
 
-/// Result of `SizeExpr::try_match()`.
+/// The result of [`DimExpr::try_match`].
 ///
-/// All values are borrowed from the original expression,
-/// so they are valid as long as the expression is valid.
-///
-/// Runtime errors (malformed expressions, too-many unbound parameters, etc.)
-/// are not represented here; and are returned as `Err(String)` from
-/// `try_match`.
+/// Failures (too many unbound params, no integer solution, no unique
+/// solution) are not represented here; `try_match` returns them as `Err`.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum MatchResult {
     /// All params bound and expression equals target.
@@ -169,7 +179,7 @@ impl<'a> DimExpr<'a> {
     ///
     /// # Returns
     ///
-    /// A `TryEvalResult`:
+    /// An `EvalResult`:
     /// * `Value(value)` - the evaluated value of the expression.
     /// * `UnboundParams(count)` - the count of unbound parameters.
     #[must_use]
@@ -233,13 +243,22 @@ impl<'a> DimExpr<'a> {
     ///
     /// # Returns
     ///
-    /// * `Ok(MatchResult::Match)` if the expression matches the target.
-    /// * `Ok(MatchResult::MissMatch)` if the expression does not match the
-    ///   target.
-    /// * `Ok(MatchResult::Constraint(name, value))` if the expression can be
-    ///   solved for a single unbound parameter.
-    /// * `Ok(MatchResult::UnderConstrained)` if the expression cannot be solved
-    ///   with the current bindings.
+    /// * `Ok(MatchResult::Match)` if every param is bound and the expression
+    ///   equals the target.
+    /// * `Ok(MatchResult::Conflict)` if every param is bound and the expression
+    ///   does not equal the target.
+    /// * `Ok(MatchResult::ParamConstraint { id, value })` if the expression has
+    ///   one unbound param occurrence, and `value` solves it.
+    /// * `Err("Too many unbound params.")` if more than one param occurrence is
+    ///   unbound.
+    /// * `Err("No integer solution.")` if the unbound param has no integer
+    ///   solution, or a `Pow` target has no integer root. This includes a
+    ///   product whose bound factors multiply to 0, against a nonzero target.
+    ///   It also includes a `Pow` with exponent 0 and an unbound base, against
+    ///   a target other than 1.
+    /// * `Err("No unique solution.")` if a product's bound factors multiply to
+    ///   0 and the target is 0, or a `Pow` with exponent 0 has an unbound base
+    ///   and the target is 1: every value of the unbound param solves it.
     #[must_use]
     pub fn try_match(
         &self,
@@ -294,6 +313,13 @@ impl<'a> DimExpr<'a> {
                 }
             }
             DimExpr::Negate { child } => child.try_match(-target, env),
+            DimExpr::Pow { exp: 0, .. } => match self.try_eval(env) {
+                // `x ^ 0` is 1 for every `x`: it can't solve `x`.
+                EvalResult::Value { value } if value == target => Ok(MatchResult::Match),
+                EvalResult::Value { .. } => Ok(MatchResult::Conflict),
+                EvalResult::UnboundParams { .. } if target == 1 => Err("No unique solution."),
+                EvalResult::UnboundParams { .. } => Err("No integer solution."),
+            },
             DimExpr::Pow { base: child, exp } => match maybe_iroot(target, *exp) {
                 Some(root) => child.try_match(root, env),
                 None => Err("No integer solution."),
@@ -311,6 +337,14 @@ impl<'a> DimExpr<'a> {
             DimExpr::Prod { children } => {
                 let (value, rem) = reduce_children(children, env, 1, |tmp, value| *tmp *= value)?;
                 if let Some(expr) = rem {
+                    if value == 0 {
+                        // `0 * x` is 0 for every `x`: it can't solve `x`.
+                        return Err(if target == 0 {
+                            "No unique solution."
+                        } else {
+                            "No integer solution."
+                        });
+                    }
                     if target % value != 0 {
                         // Non-integer solution
                         return Err("No integer solution.");
@@ -538,5 +572,36 @@ mod tests {
         let env = [Some(5), Some(3), None, None];
         assert_eq!(expr.try_eval(&env), EvalResult::UnboundParams { count: 2 });
         assert_eq!(expr.try_match(120, &env), Err("Too many unbound params."));
+    }
+
+    #[test]
+    fn test_match_prod_with_zero_factor() {
+        // b * t, with b bound to 0.
+        let expr = DimExpr::Prod {
+            children: &[DimExpr::Param { id: 0 }, DimExpr::Param { id: 1 }],
+        };
+        let env = [Some(0), None];
+
+        // Every `t` gives 0, so 0 doesn't determine it.
+        assert_eq!(expr.try_match(0, &env), Err("No unique solution."));
+        // No `t` gives 6.
+        assert_eq!(expr.try_match(6, &env), Err("No integer solution."));
+    }
+
+    #[test]
+    fn test_match_pow_zero_exponent() {
+        // x ^ 0 is 1 for every x.
+        let expr = DimExpr::Pow {
+            base: &DimExpr::Param { id: 0 },
+            exp: 0,
+        };
+
+        let env = [None];
+        assert_eq!(expr.try_match(5, &env), Err("No integer solution."));
+        assert_eq!(expr.try_match(1, &env), Err("No unique solution."));
+
+        let env = [Some(5)];
+        assert_eq!(expr.try_match(1, &env), Ok(MatchResult::Match));
+        assert_eq!(expr.try_match(5, &env), Ok(MatchResult::Conflict));
     }
 }

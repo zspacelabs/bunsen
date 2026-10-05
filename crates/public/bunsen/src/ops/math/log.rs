@@ -4,7 +4,12 @@ use burn::{
     prelude::Backend,
 };
 
-/// The logarithm applied during compression.
+/// The base of a logarithm.
+///
+/// [`PerceptiveAudioConverterOptions`] uses it for the log step of its
+/// compression.
+///
+/// [`PerceptiveAudioConverterOptions`]: crate::ops::signal::perceptive_audio::PerceptiveAudioConverterOptions
 #[derive(Config, Copy, Debug, PartialEq)]
 pub enum LogBase {
     /// `log10`. The Whisper / `librosa` default.

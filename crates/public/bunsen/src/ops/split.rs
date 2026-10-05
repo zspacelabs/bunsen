@@ -28,10 +28,22 @@ use burn::{
 ///
 /// # Examples
 ///
-/// ```rust, ignore
+/// ```rust
+/// # use bunsen::{
+/// #     ops::split::split_padded,
+/// #     support::testing::default_device,
+/// # };
+/// # use burn::{
+/// #     Tensor,
+/// #     backend::Flex,
+/// # };
+/// # let device = default_device();
+/// let input = Tensor::<Flex, 2>::ones([2, 5], &device);
+///
 /// // A length-5 axis split into chunks of 2 yields 2 + 2 + (1 padded to 2).
 /// let chunks = split_padded(input, 2, 1);
 /// assert_eq!(chunks.len(), 3);
+/// assert_eq!(chunks[2].dims(), [2, 2]);
 /// ```
 pub fn split_padded<B: Backend, const R: usize, D: AsIndex>(
     input: Tensor<B, R>,
@@ -85,7 +97,19 @@ pub fn split_padded<B: Backend, const R: usize, D: AsIndex>(
 /// Panics if `window` is zero, or if `R2` is not `R + 1`.
 ///
 /// # Examples
-/// ```rust, ignore
+/// ```rust
+/// # use bunsen::{
+/// #     ops::split::window_padded,
+/// #     support::testing::default_device,
+/// # };
+/// # use burn::{
+/// #     Tensor,
+/// #     backend::Flex,
+/// # };
+/// # type B = Flex;
+/// # let device = default_device();
+/// let input = Tensor::<B, 2>::ones([2, 5], &device);
+///
 /// // A length-5 axis windowed by 2 yields 3 windows, the last one padded.
 /// let windows: Tensor<B, 3> = window_padded::<_, 2, 3, _>(input, 2, 1);
 /// assert_eq!(windows.dims(), [2, 3, 2]);

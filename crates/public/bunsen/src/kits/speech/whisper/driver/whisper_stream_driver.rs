@@ -27,6 +27,7 @@ use crate::{
                     WhisperFrontEndConfig,
                 },
                 driver::{
+                    CommitRule,
                     EmissionPolicy,
                     StreamClampPolicy,
                     StreamClock,
@@ -50,7 +51,17 @@ use crate::{
     },
 };
 
-/// Config for [`WhisperStreamDriver`].
+/// Config for [`WhisperStreamDriver`]: what each window is decoded as, and
+/// when a stream emits.
+///
+/// Set the language, task, timestamps, search, [`EmissionPolicy`] and
+/// fallback ladder here, then build the driver over a loaded
+/// [`WhisperBundle`] with [`init_from_bundle`](Self::init_from_bundle),
+/// over a bare model with [`init`](Self::init), or over a model and an
+/// explicit token layout with [`init_with_layout`](Self::init_with_layout).
+/// The driver keeps a copy of this config, and opens a
+/// [`WhisperStreamContext`] per stream with
+/// [`new_context`](WhisperStreamDriver::new_context).
 #[derive(Config, Debug)]
 pub struct WhisperStreamDriverConfig {
     /// The language of the speech, as a
@@ -58,9 +69,10 @@ pub struct WhisperStreamDriverConfig {
     /// code.
     ///
     /// `None` on a multilingual checkpoint detects the language per stream
-    /// from its first decoded window, as upstream's `transcribe()` does;
-    /// must be `None` for an English-only one, which takes no language
-    /// token.
+    /// from its first committed window, as upstream's `transcribe()` does
+    /// from its first; a draft before that detects one for its own decode
+    /// and keeps nothing. Must be `None` for an English-only checkpoint,
+    /// which takes no language token.
     #[config(default = "None")]
     pub language: Option<String>,
 
@@ -104,6 +116,9 @@ pub struct WhisperStreamDriverConfig {
     pub condition_on_previous_text: bool,
 
     /// When to decode, and when a decode is final.
+    ///
+    /// A policy with the `endpoint` trigger needs a voice-activity model,
+    /// attached with [`with_vad`](WhisperStreamDriver::with_vad).
     #[config(default = "EmissionPolicy::offline()")]
     pub emission: EmissionPolicy,
 
@@ -163,8 +178,9 @@ impl WhisperStreamDriverConfig {
     /// # Errors
     /// [`BunsenError::Invalid`] if the layout does not fit the model or its
     /// vocabulary, if the language and task do not fit the layout, or if
-    /// the configuration asks for something this slice of the driver does
-    /// not support yet.
+    /// the configuration asks for something the driver cannot run: among
+    /// them [`CommitRule::Agreement`], which is not implemented yet, and the
+    /// `interval` trigger without `endpoint`, which could never draft.
     pub fn init_from_bundle<B: Backend>(
         &self,
         bundle: Arc<WhisperBundle<B>>,
@@ -208,6 +224,19 @@ impl WhisperStreamDriverConfig {
         if triggers.interval.is_some_and(|i| i.is_zero()) {
             return Err(BunsenError::Invalid(
                 "an interval of zero would draft on every push".to_string(),
+            ));
+        }
+        if triggers.interval.is_some() && !triggers.endpoint {
+            return Err(BunsenError::Invalid(
+                "the interval trigger drafts only while speech is in progress, which only the \
+                 endpoint trigger's voice-activity gate tracks; turn endpoint on as well"
+                    .to_string(),
+            ));
+        }
+        if let CommitRule::Agreement { .. } = self.emission.commit {
+            return Err(BunsenError::Invalid(
+                "the Agreement commit rule is not implemented yet; use Complete or LastTimestamp"
+                    .to_string(),
             ));
         }
 
@@ -263,8 +292,15 @@ impl WhisperStreamDriverConfig {
 /// The shared, immutable half of a transcription: what every stream needs
 /// and none of them mutates.
 ///
-/// Built by [`WhisperStreamDriverConfig::init`]. Opens streams with
-/// [`new_context`](Self::new_context).
+/// Built by [`WhisperStreamDriverConfig`]
+/// ([`init_from_bundle`](WhisperStreamDriverConfig::init_from_bundle) and
+/// its siblings), then optionally given a voice-activity model with
+/// [`with_vad`](Self::with_vad). Opens streams with
+/// [`new_context`](Self::new_context): each [`WhisperStreamContext`] holds
+/// a clone of the driver, which is cheap (the bundle is an `Arc`, and
+/// tensors are shared), and all the state of its stream. So one driver
+/// serves any number of streams in one process, and
+/// [`advance_ready`](super::advance_ready) batches their decodes.
 #[derive(Clone, Debug)]
 pub struct WhisperStreamDriver<B: Backend> {
     config: WhisperStreamDriverConfig,
@@ -421,7 +457,8 @@ impl<B: Backend> WhisperStreamDriver<B> {
         self.task
     }
 
-    /// Whether streams detect their language from their first window.
+    /// Whether streams detect their language, from their first committed
+    /// window.
     pub fn detects_language(&self) -> bool {
         self.prompt.is_empty()
     }
@@ -506,7 +543,8 @@ impl<B: Backend> WhisperStreamDriver<B> {
     /// * `clock` - the stream's sample-to-time map. A bare stream gets
     ///   [`StreamClock::uniform`] at [`sample_rate`](Self::sample_rate).
     /// * `clamp` - where each window's dynamic-range reference comes from: a
-    ///   concrete policy, or a `Box<dyn ClampPolicy<B>>` chosen at run time.
+    ///   concrete policy, or a `Box<dyn StreamClampPolicy<B>>` chosen at run
+    ///   time.
     ///
     /// # Errors
     /// [`BunsenError::Invalid`] if the clock does not run at the model's

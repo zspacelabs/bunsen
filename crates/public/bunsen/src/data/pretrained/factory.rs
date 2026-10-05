@@ -1,34 +1,4 @@
-//! # The pretrained factory
-//!
-//! The one object a caller holds for a kit: its providers, in search
-//! order. The interface is names and a listing:
-//! `factory.load::<B>("[provider:]name", &cache, device)` is the whole
-//! pathway, and [`resolve`](PretrainedFactory::resolve) is its index half,
-//! a [`Deferred`] model that carries the hook its map calls for, so that a
-//! caller overlays a row before loading it and never builds or passes a
-//! hook. A file on disk is not the factory's business; that is a given
-//! [`ResourceMap`] through [`Deferred::from_map`].
-//!
-//! Dispatch: `provider:ref` goes to that provider and nowhere else; a spec
-//! with no `provider:` is offered to each provider that [answers bare
-//! names](PretrainedProvider::answers_bare_names), in registration order,
-//! and the first row wins. A provider's "not here" is `Ok(None)`; any error
-//! a provider returns aborts the lookup, since a hub that cannot be reached
-//! is not the same as a hub that has no such row. `resolve` goes through
-//! the cache, [`PretrainedProvider::resolve`], so a hub can ask what a repo
-//! holds once and answer from the cache after;
-//! [`lookup`](PretrainedFactory::lookup) is the index alone, which a table
-//! answers and a hub does not.
-//!
-//! There is no process-wide registry. A kit ships a `default_{kit}_factory()`
-//! over its compiled-in providers, and a caller that wants more builds on
-//! it:
-//!
-//! ```rust,ignore
-//! let factory = default_whisper_factory()?
-//!     .with_provider(Arc::new(my_hub))?; // answers `hub:org/repo`, lists nothing
-//! let bundle = factory.load_bundle::<B>("openai/base", &cache, &device)?;
-//! ```
+//! The pretrained factory: a kit's providers, and the dispatch of a spec.
 
 use alloc::{
     string::{
@@ -61,6 +31,77 @@ use crate::errors::{
 
 /// A kit's providers, in search order, resolving names to [`Deferred`]
 /// models built through the kit's hook `H`.
+///
+/// The one object a caller holds for a kit. Its interface is names and a
+/// listing. [`load`](Self::load)`::<B>("[provider:]name", &cache, &device)`
+/// is the whole pathway, from a name to a [`Loaded`] model.
+/// [`resolve`](Self::resolve) is its index half: a [`Deferred`] model that
+/// carries the hook its map calls for, so that a caller can overlay a row
+/// ([`Deferred::with_overlay`]) before loading it, and never builds or
+/// passes a hook. [`list`](Self::list), [`ids`](Self::ids) and
+/// [`for_prefab`](Self::for_prefab) answer a listing. A file on disk is
+/// not the factory's business: that is a given [`ResourceMap`], through
+/// [`Deferred::from_map`].
+///
+/// # Dispatch
+///
+/// - `provider:ref`, where `provider` names a registered provider, goes to that
+///   provider and nowhere else.
+/// - Any other spec, with no `:` or with a prefix that names no provider, is
+///   offered whole to each provider that [answers bare
+///   names](PretrainedProvider::answers_bare_names), in registration order, and
+///   the first row wins. A hub such as [`HfProvider`](super::HfProvider)
+///   declines bare names, so it is only reached qualified.
+/// - A provider's "not here" is `Ok(None)`, and the search moves on. Any error
+///   a provider returns aborts the lookup: a hub that cannot be reached is not
+///   the same as a hub that has no such row.
+/// - A spec no provider has is
+///   [`ResourceNotFound`](BunsenError::ResourceNotFound), naming what there is.
+///
+/// [`resolve`](Self::resolve) asks each provider through
+/// [`PretrainedProvider::resolve`], with the cache to hand, so a hub can
+/// ask what a repo holds once and answer from the cache after.
+/// [`lookup`](Self::lookup) asks [`PretrainedProvider::lookup`], the index
+/// alone, which a table answers and a hub refuses.
+///
+/// # No registry
+///
+/// There is no process-wide registry. A kit ships a
+/// `default_{kit}_factory()` over its compiled-in providers
+/// ([`default_resnet_factory`](crate::kits::images::resnet::pretrained::default_resnet_factory),
+/// [`default_whisper_factory`](crate::kits::speech::whisper::pretrained::default_whisper_factory),
+/// [`default_silero_factory`](crate::kits::speech::silero_vad::pretrained::default_silero_factory)),
+/// and a caller that wants more builds on it with
+/// [`with_provider`](Self::with_provider), or takes one away with
+/// [`remove`](Self::remove). Names are unique within a factory, since a
+/// spec's `provider:` selects by name.
+///
+/// # Example
+///
+/// Whisper's factory dispatches without loading anything:
+///
+/// ```rust
+/// # #[cfg(all(feature = "store_pytorch", feature = "cache"))] {
+/// use bunsen::kits::speech::whisper::pretrained::default_whisper_factory;
+///
+/// let factory = default_whisper_factory()?;
+///
+/// // A bare name is offered to the providers that answer bare names, in
+/// // order: the well-known table has it.
+/// let (provider, row) = factory.lookup("tiny")?;
+/// assert_eq!(provider, "well-known");
+/// assert_eq!(row.name, "openai/tiny");
+///
+/// // `hf:` goes to the Hugging Face provider alone, which answers only
+/// // through a cache: its error aborts the lookup.
+/// assert!(factory.lookup("hf:openai/whisper-tiny").is_err());
+///
+/// // An unknown provider names the ones there are.
+/// let err = factory.lookup("nope:tiny").unwrap_err();
+/// assert!(err.to_string().contains("no provider \"nope\""), "{err}");
+/// # }
+/// # Ok::<(), bunsen::errors::BunsenError>(())
+/// ```
 #[derive(Debug)]
 pub struct PretrainedFactory<H: Construct> {
     providers: Vec<Arc<dyn PretrainedProvider>>,

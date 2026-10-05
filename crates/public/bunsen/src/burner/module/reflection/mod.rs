@@ -1,4 +1,99 @@
-//! XML/XPath reflection layer for `burner` [`burn::module::Module`]s.
+//! XML/XPath reflection over [`burn::module::Module`]s: select parameters by
+//! where they sit in a model.
+//!
+//! A `burn` module is a Rust type. It tells the compiler about its
+//! sub-modules, but it has no structure you can query at run time. You need
+//! one whenever you work with a *subset* of a model's parameters, chosen by
+//! structure rather than by name in your code:
+//!
+//! - optimizer groups: the 2-D block weights for Muon, the rest for `AdamW`;
+//! - weight decay on some parameters and not others;
+//! - audits: which tensors, of which shapes and dtypes, a model holds.
+//!
+//! Without reflection, each of these is a hand-written
+//! [`ModuleVisitor`](burn::module::ModuleVisitor). Here you build an
+//! [`XmlModuleTree`] once, an XML document that mirrors the module, and
+//! select from it with `XPath` through an [`XPathModuleQuery`]. "Every rank-2
+//! weight under the blocks" is one query, and it returns
+//! [`ParamId`](burn::module::ParamId)s.
+//!
+//! The main consumer is [`burner::optim`](crate::burner::optim): the selected
+//! `ParamId` sets become its
+//! [`OptimizerGroup`](crate::burner::optim::OptimizerGroup)s.
+//!
+//! This module is behind the `reflection` feature, which is on by default.
+//!
+//! # The document
+//!
+//! [`XmlModuleTree::to_xml`] prints the document. For a `Linear` with a bias:
+//!
+//! ```xml
+//! <XmlModuleTree version="...">
+//!   <Structure>
+//!     <Linear id="n:1" class="struct">
+//!       <Param id="n:2" name="weight" param_id="..." class="tensor" kind="Float" dtype="F32" shape="2 3" rank="2"/>
+//!       <Param id="n:3" name="bias" param_id="..." class="tensor" kind="Float" dtype="F32" shape="3" rank="1"/>
+//!     </Linear>
+//!   </Structure>
+//! </XmlModuleTree>
+//! ```
+//!
+//! **The element name is the module's *type* name, and the field name is
+//! `@name`.** A field `gpt: NanoChatGpt<B>` is `<NanoChatGpt name="gpt">`.
+//! Select it with `NanoChatGpt` or `*[@name='gpt']`, never with `gpt`. A path
+//! that names a field as an element matches nothing, and an empty selection
+//! is not an error. When a query comes back empty, print the dump and read
+//! the names off it.
+//!
+//! - Every query starts at `/XmlModuleTree/Structure`, whose one child is the
+//!   root module.
+//! - `@class` is `struct` or `enum` for a derived module, `builtin` for the
+//!   containers `Vec`, `Array` and `Tuple`, and `tensor` for a `<Param>`.
+//! - A struct field has `@name`. The child of an enum module has the variant
+//!   name as `@name`: `<Normalization name="norm">` holds `<RmsNorm
+//!   name="Rms">`. The items of a `Vec`, `Array` or `Tuple` have no `@name`;
+//!   select them by position (`*[2]`, counting from 1).
+//! - A `<Param>` is a leaf. Its attributes are those of its
+//!   [`TensorParamDesc`](crate::burner::descriptors::TensorParamDesc):
+//!   `param_id`, `kind`, `dtype`, `shape` (dims separated by spaces) and
+//!   `rank`.
+//! - `@id` is unique within one document. It is not stable across builds.
+//! - Plain fields (`usize`, `f64`) do not appear. Elements are created as the
+//!   visitor enters a module's first field, so a module with no visited fields
+//!   at all (`Relu`) has no element of its own. A module whose fields hold no
+//!   parameters (plain tensors) is an empty element.
+//! - Children are in field declaration order. Prefer sets (`HashSet<ParamId>`)
+//!   to relying on that order.
+//!
+//! # `XPath` crib
+//!
+//! You don't need all of `XPath`. A step is relative to the current selection,
+//! which starts at `/XmlModuleTree/Structure`.
+//!
+//! | Pattern | Selects |
+//! | --- | --- |
+//! | `Linear` | Children whose element (type) name is `Linear`. |
+//! | `*` | All children, whatever their name. |
+//! | `*//Linear` | `Linear` descendants of the children, not the children themselves. At the start, `*` is the root module, so this excludes the root. |
+//! | `descendant-or-self::Linear` | All `Linear` elements at or below the current selection; at the start, that includes the root. [`XPathModuleQuery::subtree_elements`] appends this. |
+//! | `*[@name='weight']` | Children whose field name is `weight`. |
+//! | `*[@rank=2]` | Children whose `rank` attribute is 2. |
+//! | `*[2]` | The second child (`XPath` counts from 1). |
+//! | `*[@name='weight'][@rank=2]` | Children for which both predicates hold. `*[@name='weight' and @rank=2]` is the same. |
+//! | `descendant-or-self::Param` | Every `<Param>` at or below the current selection. [`XPathModuleQuery::params`] appends this. |
+//!
+//! **`[a, b]` is not "a and b".** In `XPath` a comma builds a sequence, and a
+//! sequence of two booleans has no truth value: evaluating
+//! `*[@name='weight', @rank=2]` is a type error, `XPTY0004`. The expression
+//! parses, so [`XPathModuleQuery::try_select`] accepts it; the error comes
+//! from the call that evaluates it ([`XPathModuleQuery::to_param_ids`] and
+//! the other terminal calls). Over an empty selection the predicate never
+//! runs, so a wrong path in front of it hides the mistake. Stack the
+//! predicates instead: `[a][b]`.
+//!
+//! # Walkthrough
+//!
+//! An executable tour of the API, one assertion at a time:
 //!
 //! ```rust
 //! use burn::{
@@ -55,7 +150,7 @@
 //! assert_eq!(weight_desc.shape(), &module.weight.shape());
 //! assert_eq!(weight_desc.shape(), &Shape::new([d_input, d_output]));
 //!
-//! // [`TensorParamDesc`] also provides some convience methods:
+//! // [`TensorParamDesc`] also provides some convenience methods:
 //! assert_eq!(weight_desc.rank(), 2);
 //! assert_eq!(weight_desc.num_elements(), 2 * 3);
 //! assert_eq!(
@@ -70,39 +165,20 @@
 //! );
 //!
 //! // Build an XmlModuleTree from the module.
-//! // As the XmlModuleTree holds a non-Send active query environment,
-//! // it must be `mut` to be useful.
+//! // Evaluating XPath needs mutable access to the document,
+//! // so the tree must be `mut` to be queried.
 //! let mut mtree = XmlModuleTree::build(&module);
 //!
-//! // [`XmlModuleTree`] builds an XML meta-description of the module structure.
+//! // [`XmlModuleTree::to_xml`] dumps the document; see "The document" above.
 //! //
-//! // This can be dumped directly to a `String` to examine the module structure.
+//! // The structure sits inside wrapping elements to leave room for other
+//! // metadata later. Every query starts at `/XmlModuleTree/Structure`.
 //! //
-//! // The XPath expressions used by query api all all written in terms of this
-//! // structure; though they start with `/Module/Structure` as their implied
-//! // context.
-//! //
-//! // The module structure is embedded in the wrapping elements to provide
-//! // a pathway to future metadata extension.
-//! //
-//! // # @id - Document-Unique Id
-//! // Every structural element has a document-unique id attribute, which can be
-//! // used to reference the element in the XML.
-//! //
-//! // # <{NAME} class="{CLASS}"/> - Structural Element
-//! // Structural elements are given a {NAME} and {CLASS} in the local namespace,
-//! // derived from the [`burner::module::ModuleVisitor::enter_module`]
-//! // `container_type`.
+//! // The element name comes from the `container_type` that `burn`'s
+//! // [`burn::module::ModuleVisitor::enter_module`] reports:
 //! // * `{TYPE}` => NAME=TYPE, CLASS='builtin'
 //! // * `{C}:{TYPE}` => NAME=TYPE, CLASS=lowercase(C)
-//! //
-//! // # @class - Element Class
-//! // Structural elements derive their class from their `container_type`;
-//! // while `Param` elements are (currently) always "tensor".
-//! //
-//! // # @name - The structural field name.
-//! // If an element is a named field of a "struct"-class parent,
-//! // then it will have a `@name` attribute.
+//! // `Param` elements are always class "tensor".
 //! assert_eq!(
 //!     mtree.to_xml(true),
 //!     indoc::formatdoc! {r#"
@@ -143,17 +219,11 @@
 //!         }
 //! );
 //!
-//! // [`XmlModuleTree::param_ids`] iterates over all [`ParamId`]s.
+//! // [`XmlModuleTree::param_ids`] returns all [`ParamId`]s, as a `Vec`.
 //! //
-//! // This is a useful way to get all the parameter ids in a module;
-//! // but it is actually a wrapper over a series of more complex steps.
-//! //
-//! //   let ids: Vec<ParamId> = mtree
-//! //       .query()
-//! //       // .params() is implicit to [`XPathModuleQuery::to_param_ids`],
-//! //       // equivalent to: .select("descendant-or-self::Param")
-//! //       .to_param_ids()?
-//! //       .collect();
+//! // It is shorthand for `mtree.query().to_param_ids()`, checked below.
+//! // `to_param_ids` applies `.params()` itself, which is
+//! // `.select("descendant-or-self::Param")`.
 //! let module_param_ids: Vec<ParamId> = mtree.param_ids()?;
 //!
 //! // IMPORTANT: Module Tree Ordering
@@ -171,35 +241,28 @@
 //!     [module.weight.id, module.bias.as_ref().unwrap().id]
 //! );
 //!
-//! // [`XPathModuleQuery::to_param_ids`] iterates over [`ParamId`]s for
-//! // each parameter in the subtree.
+//! // [`XPathModuleQuery::to_param_ids`] returns the [`ParamId`]s of every
+//! // parameter in the selected subtrees.
 //! assert_eq!(
 //!     &mtree.query().to_param_ids()?,
 //!     &module_param_ids,
 //! );
 //!
-//! // [`XmlModuleTree::param_descs`] iterates over descriptions of every parameter.
+//! // [`XmlModuleTree::param_descs`] returns a description of every parameter.
 //! //
 //! // This leverages the [`TensorParamDesc`] API to strip generics from
 //! // the introspection api.
 //! //
-//! // Similar to [`XmlModuleTree::param_ids`], this is a wrapper over a series of more
-//! // complex steps.
-//! //
-//! //   let descs: Vec<ParamDesc<TensorDesc>> = mtree
-//! //       .query()
-//! //       // .params() is implicit to [`XPathModuleQuery::to_param_descs`],
-//! //       // equivalent to: .select("descendant-or-self::Param")
-//! //       .to_param_descs()?
-//! //       .collect();
+//! // Like [`XmlModuleTree::param_ids`], it is shorthand for
+//! // `mtree.query().to_param_descs()`, checked below.
 //! let module_param_descs: Vec<TensorParamDesc> = mtree.param_descs()?;
 //! assert_eq!(
 //!     &module_param_descs,
 //!     &vec![weight_desc.clone(), bias_desc.clone()]
 //! );
 //!
-//! // [`XPathModuleQuery::to_param_descs`] iterates over
-//! // [`TensorParamDesc`]s for each parameter in the subtree.
+//! // [`XPathModuleQuery::to_param_descs`] returns a [`TensorParamDesc`]
+//! // for every parameter in the selected subtrees.
 //! assert_eq!(
 //!         &mtree
 //!             .query()
@@ -289,7 +352,7 @@
 //! // For more details, see: <https://en.wikipedia.org/wiki/XPath>
 //!
 //! // The structural elements start at '/XmlModuleTree/Structure/$Elem'.
-//! // But there's only every exactly one root node (currently).
+//! // There is exactly one root element: the root module.
 //! //
 //! // We can select this using either:
 //! // - the element selector (here, "Linear").
@@ -334,17 +397,25 @@
 //!     },],
 //! );
 //!
+//! // "*//Linear" selects descendants of the children, not the children
+//! // themselves, so here it misses the root module.
+//! // "descendant-or-self::Linear" (`subtree_elements`) includes it:
+//! assert!(mtree.select("*//Linear").to_fragments(false)?.is_empty());
+//! assert_eq!(
+//!     mtree.query().subtree_elements("Linear").to_param_ids()?,
+//!     module_param_ids,
+//! );
+//!
 //! // We can select specific names of structural elements by name,
 //! // using an attribute predicated `[@name='name']`.
 //! //
 //! // "Linear/*[@name='weight']":
 //! // - Select the root 'Linear' node,
 //! // - Select all the children of 'Linear',
-//! // - Filter those to elements with the attribte 'name' set to 'weight'.
+//! // - Filter those to elements with the attribute 'name' set to 'weight'.
 //! //
-//! // The "expr[predicate,...]" syntax is used to write filters,
-//! // the selected values in `{expr}' are restricted to those where all
-//! // of the predicates are true.
+//! // "expr[predicate]" keeps the nodes of `expr` for which the predicate
+//! // is true.
 //! let mut query = mtree.query().select("Linear/*[@name='weight']");
 //! assert_eq!(
 //!     query.expr(),
@@ -359,10 +430,29 @@
 //!     ),],
 //! );
 //!
+//! // Predicates stack: "expr[a][b]" keeps the nodes for which both hold,
+//! // and "expr[a and b]" is the same.
+//! assert_eq!(
+//!     mtree.select_param_ids("Linear/*[@name='weight'][@rank=2]")?,
+//!     [module.weight.id],
+//! );
+//! assert_eq!(
+//!     mtree.select_param_ids("Linear/*[@name='weight' and @rank=2]")?,
+//!     [module.weight.id],
+//! );
+//!
+//! // A comma is NOT "and". "[a, b]" is a sequence of two booleans, which
+//! // has no truth value, so evaluating it is an XPath type error. It
+//! // parses, so building the query succeeds; evaluating it fails:
+//! let comma = "Linear/*[@name='weight', @rank=2]";
+//! assert!(mtree.try_select(comma).is_ok());
+//! let err = mtree.select_param_ids(comma).unwrap_err();
+//! assert!(err.to_string().contains("XPTY0004"));
+//!
 //! // We can also select the children of elements by their index.
 //! // Note: XPath indexes from 1, not 0.
 //! //
-//! // The children of sequences in the "bulitins" class ('Tuple', 'Vec', 'Array')
+//! // The children of sequences in the "builtin" class ('Tuple', 'Vec', 'Array')
 //! // don't have names, but do have positional indices in XPath.
 //! //
 //! // "Linear/*[2]":
@@ -384,8 +474,8 @@
 //! // - `query.select(expr)` appends "/expr" to the current query expression.
 //! // - `query.filter(expr)` appends "[expr]" to the current query expression.
 //! //
-//! // `query.params()` may seem superflous, as both `.to_param_ids()` and
-//! // `.to_param_descs()` Implictly call `.params()`.
+//! // `query.params()` may seem superfluous, as both `.to_param_ids()` and
+//! // `.to_param_descs()` implicitly call `.params()`.
 //! //
 //! // However, when used in conjunction with `.filter()`, we can write powerful
 //! // selection expressions.
@@ -540,5 +630,4 @@ pub mod module_visitors;
 pub mod xml_support;
 
 mod xml_module_tree;
-#[doc(inline)]
 pub use xml_module_tree::*;

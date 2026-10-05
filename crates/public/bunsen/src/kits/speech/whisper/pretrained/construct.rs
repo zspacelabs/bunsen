@@ -1,22 +1,4 @@
 //! # Constructing a Whisper pretrained
-//!
-//! The [`Construct`] hook for the Whisper kit: from a resolved model to a
-//! [`WhisperBundle`]. [`plan`](Construct::plan) scans the checkpoint,
-//! checks it against the geometry the model promises, and applies the
-//! vocabulary rule, all before anything but the checkpoint is brought
-//! local; [`construct`](Construct::construct) reads the checkpoint through
-//! the reader and the vocabulary through the rank parser, and checks that
-//! they agree. [`scan`](WhisperConstruct::scan) is the read-only half, for
-//! a listing that wants the geometry without the weights.
-//!
-//! The reader is a [`WhisperReader`], chosen by the checkpoint resource's
-//! `kind` when the hook is made for a map: `OpenAI`'s `.pt` through the
-//! `PyTorch` scanner, `transformers`' `model.safetensors`, one file or
-//! shards, through the safetensors one. Both scan to the same
-//! [`WhisperApiConfig`] and load the same [`Whisper`] model; only the
-//! files' names and layout differ. The checkpoint is the map's
-//! [family](ResourceMap::family) under [`CHECKPOINT`]: one resource, or
-//! an index and its shards.
 
 use std::sync::Arc;
 
@@ -66,6 +48,12 @@ use crate::{
 
 /// How a Whisper checkpoint is read: by the layout its resource's `kind`
 /// names.
+///
+/// Chosen by the checkpoint resource's `kind` when the hook is made for a
+/// map: `OpenAI`'s `.pt` through the `PyTorch` scanner, `transformers`'
+/// `model.safetensors`, one file or shards, through the safetensors one.
+/// Both scan to the same [`WhisperApiConfig`] and load the same
+/// [`Whisper`] model; only the files' names and layout differ.
 #[derive(Clone, Debug)]
 pub enum WhisperReader {
     /// `OpenAI`'s `.pt`: a `PyTorch` state dict under `model_state_dict`,
@@ -155,6 +143,17 @@ impl WhisperReader {
 
 /// How a Whisper pretrained is built: the reader for its checkpoint, and
 /// the geometry the checkpoint must have.
+///
+/// The [`Construct`] hook for the Whisper kit: from a resolved model to a
+/// [`WhisperBundle`]. [`plan`](Construct::plan) scans the checkpoint,
+/// checks it against the geometry the model promises, and applies the
+/// vocabulary rule, all before anything but the checkpoint is brought
+/// local; [`construct`](Construct::construct) reads the checkpoint through
+/// the reader and the vocabulary through the rank parser, and checks that
+/// they agree. [`scan`](Self::scan) is the read-only half, for a listing
+/// that wants the geometry without the weights. The checkpoint is the
+/// map's [family](ResourceMap::family) under [`CHECKPOINT`]: one resource,
+/// or an index and its shards.
 ///
 /// [`for_map`](Construct::for_map) chooses the hook by the checkpoint
 /// resource's `kind`, through [`WhisperReader::for_kind`]: a `PyTorch`

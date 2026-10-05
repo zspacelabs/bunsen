@@ -16,7 +16,7 @@ use crate::{
         AuditProbeEventParams,
     },
     burner::descriptors::ToleranceDesc,
-    support::reflection::LocationDesc,
+    rust_ext::reflection::LocationDesc,
 };
 
 /// Serializable mirror of [`AuditProbeEventParams`].

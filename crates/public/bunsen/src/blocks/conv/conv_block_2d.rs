@@ -1,12 +1,4 @@
-//! # `ConvBlock2d` - conv/norm/activation block.
-//!
-//! A [`ConvBlock2d`] module is:
-//! * a [`Conv2d`] layer,
-//! * an optional [`Normalization`] layer,
-//! * an optional [`Activation`] layer.
-//!
-//! With support for hooking the forward method,
-//! to run code between the norm and application images.
+//! `ConvBlock2d`: a conv/norm/activation block.
 
 use burn::{
     config::Config,
@@ -247,7 +239,7 @@ impl<B: Backend> ModuleInit<B, ConvBlock2d<B>> for ConvBlock2dConfig {
 /// * an optional [`Activation`] layer.
 ///
 /// With support for hooking the forward method,
-/// to run code between the norm and application images.
+/// to run code between the norm and activation layers.
 ///
 /// Implements [`ConvBlock2dMeta`].
 ///
@@ -297,7 +289,7 @@ impl<B: Backend> ConvBlock2dMeta for ConvBlock2d<B> {
 impl<B: Backend> ConvBlock2d<B> {
     /// Forward Pass.
     ///
-    /// Applies the conv/norm/act images in sequence:
+    /// Applies the conv/norm/act layers in sequence:
     ///
     /// ```rust,ignore
     /// let x = self.conv.forward(input);
@@ -337,7 +329,7 @@ impl<B: Backend> ConvBlock2d<B> {
     ///     Some(n) => n.forward(x),
     ///     None => x,
     /// };
-    /// let x = self.norm.forward(x);
+    /// let x = f(x);
     /// let x = match &self.act {
     ///     Some(a) => a.forward(x),
     ///     None => x,
@@ -347,9 +339,9 @@ impl<B: Backend> ConvBlock2d<B> {
     ///
     /// # Arguments
     ///
-    /// - `input`: \ `[batch, in_channels, in_height, in_width]`.
-    /// - `f`: a callback endofunction, from/to `[batch, in_channels,
-    ///   out_height, out_width]`.
+    /// - `input`: `[batch, in_channels, in_height, in_width]`.
+    /// - `f`: a callback endofunction over the normalized conv output, from and
+    ///   to `[batch, out_channels, out_height, out_width]`.
     ///
     /// # Returns
     ///

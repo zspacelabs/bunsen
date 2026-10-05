@@ -21,10 +21,12 @@ use bunsen::{
         PretrainedCache,
         PretrainedCacheOptions,
     },
-    kits::bimm::resnet::{
-        PREFAB_RESNET_MAP,
+    kits::images::resnet::{
         ResNet,
-        default_resnet_factory,
+        pretrained::{
+            RESNET_PREFABS,
+            default_resnet_factory,
+        },
     },
 };
 use burn::{
@@ -214,7 +216,7 @@ pub struct Args {
 
 #[allow(clippy::too_many_arguments)]
 mod local {
-    use bunsen::kits::bimm::resnet::ResNetContractConfig;
+    use bunsen::kits::images::resnet::ResNetContractConfig;
     use burn::config::Config;
 
     /// Log config.
@@ -251,6 +253,9 @@ fn main() -> anyhow::Result<()> {
             feature = "metal" => {
                 type B = burn::backend::Metal<burn::tensor::bf16>;
             }
+            feature = "vulkan" => {
+                type B = burn::backend::Vulkan<burn::tensor::bf16>;
+            }
             feature = "wgpu" => {
                 type B = burn::backend::Wgpu<burn::tensor::bf16>;
             }
@@ -269,6 +274,9 @@ fn main() -> anyhow::Result<()> {
             }
             feature = "wgpu" => {
                 type B = burn::backend::Wgpu;
+            }
+            feature = "vulkan" => {
+                type B = burn::backend::Vulkan;
             }
             _ => {
                 type B = burn::backend::Flex;
@@ -293,7 +301,7 @@ pub fn train<B: AutodiffBackend>(args: &Args) -> anyhow::Result<()> {
     // TODO: lift to clap parser.
     if args.pretrained == "list" {
         println!("Available pretrained models:");
-        for prefab in PREFAB_RESNET_MAP.iter() {
+        for prefab in RESNET_PREFABS.iter() {
             let cfg = (prefab.builder)();
             println!("* \"{}\"", prefab.name);
             println!("{cfg:?}");
@@ -308,7 +316,7 @@ pub fn train<B: AutodiffBackend>(args: &Args) -> anyhow::Result<()> {
     let mut model_ref = factory.resolve(&args.pretrained, &cache)?;
     let prefab = model_ref
         .model
-        .prefab(&PREFAB_RESNET_MAP)
+        .prefab(&RESNET_PREFABS)
         .with_context(|| format!("{}: names no prefab", model_ref.id()))?;
     let resnet_prefab = prefab.name.clone();
     let resnet_pretrained = model_ref.id();

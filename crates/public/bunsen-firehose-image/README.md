@@ -1,62 +1,21 @@
-# bimm-firehose-image
+# bunsen-firehose-image
 
-Image processing support for `bimm-firehose`.
+[![Crates.io Version](https://img.shields.io/crates/v/bunsen-firehose-image)](https://crates.io/crates/bunsen-firehose-image)
+[![docs.rs](https://img.shields.io/docsrs/bunsen-firehose-image)](https://docs.rs/bunsen-firehose-image/latest/bunsen_firehose_image/)
 
-### Example
+Image operators for the [`bunsen-firehose`](https://crates.io/crates/bunsen-firehose) data pipeline: loading an image
+from a path (with optional resizing and recoloring), seeded augmentation stages, and conversion to
+[burn](https://burn.dev) tensor data. Each operator registers itself when the crate is linked, so the default
+firehose operator environment already knows them.
 
-This is an example of how to use the image processing stages.
+- [API docs](https://docs.rs/bunsen-firehose-image/latest/bunsen_firehose_image/): the operators, and an example that
+  loads, resizes and tensorizes an image.
+- [Firehose](https://zspacelabs.ai/bunsen/book/systems/firehose.html), in the bunsen book: an orientation to the
+  pipeline these operators plug into.
+- Examples: [`resnet_tiny`](https://github.com/zspacelabs/bunsen/tree/main/examples/resnet_tiny) and
+  [`swin_tiny`](https://github.com/zspacelabs/bunsen/tree/main/examples/swin_tiny) load and augment CINIC-10 images
+  with these operators.
 
-```rust
-use bunsen_firehose_image::augmentation::AugmentImageOperation;
-use bunsen_firehose_image::augmentation::control::choose_one::ChooseOneStage;
-use bunsen_firehose_image::augmentation::control::with_prob::WithProbStage;
-use bunsen_firehose_image::augmentation::noise::blur::BlurStage;
-use bunsen_firehose_image::augmentation::noise::speckle::SpeckleStage;
-use bunsen_firehose_image::augmentation::orientation::flip::HorizontalFlipStage;
-use bunsen_firehose_image::burn_support::{ImageToTensorData, stack_tensor_data_column};
-use bunsen_firehose_image::loader::{ImageLoader, ResizeSpec};
-use bunsen_firehose_image::{ColorType, ImageShape};
-use std::sync::Arc;
+## License
 
-const PATH_COLUMN: &str = "path";
-const CLASS_COLUMN: &str = "class";
-const SEED_COLUMN: &str = "seed";
-const IMAGE_COLUMN: &str = "image";
-const AUG_COLUMN: &str = "aug";
-
-fn example() {
-    let firehose_env = Arc::new(init_default_operator_environment());
-
-    let mut schema = FirehoseTableSchema::from_columns(&[
-        ColumnSchema::new::<String>(PATH_COLUMN).with_description("path to the image"),
-        ColumnSchema::new::<i32>(CLASS_COLUMN).with_description("image class"),
-        ColumnSchema::new::<u64>(SEED_COLUMN).with_description("instance rng seed"),
-    ]);
-
-    ImageLoader::default()
-        .with_resize(ResizeSpec::new(ImageShape {
-            width: 32,
-            height: 32,
-        }))
-        .with_recolor(ColorType::Rgb8)
-        .to_plan(PATH_COLUMN, IMAGE_COLUMN)
-        .apply_to_schema(&mut schema, firehose_env.as_ref())?;
-
-    AugmentImageOperation::new(vec![
-        Arc::new(WithProbStage::new(
-            0.5,
-            Arc::new(HorizontalFlipStage::new()),
-        )),
-        Arc::new(WithProbStage::new(0.5, Arc::new(SpeckleStage::default()))),
-        Arc::new(
-            ChooseOneStage::new()
-                .with_choice(1.0, Arc::new(BlurStage::Gaussian { sigma: 0.5 }))
-                .with_choice(1.0, Arc::new(BlurStage::Gaussian { sigma: 1.0 }))
-                .with_choice(1.0, Arc::new(BlurStage::Gaussian { sigma: 1.5 }))
-                .with_noop_weight(6.0),
-        ),
-    ])
-        .to_plan(SEED_COLUMN, IMAGE_COLUMN, AUG_COLUMN)
-        .apply_to_schema(&mut schema, firehose_env.as_ref())?;
-}
-```
+Distributed under the terms of both the MIT license and the Apache License (Version 2.0).

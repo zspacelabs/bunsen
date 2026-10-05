@@ -1,4 +1,18 @@
-//! [`Tensor`] ops.
+//! # Float ranges
+//!
+//! burn's `Tensor::arange` and `Tensor::arange_step` build `Int` tensors over
+//! an `i64` range with an integer step. These build *float* ranges, with a
+//! fractional start and step, and evenly spaced points between two ends
+//! (`linspace`), in two forms:
+//!
+//! - on the host, as a `Vec<f64>`: [`vec_arange_start_step`] and
+//!   [`vec_linspace`], for tables and configs built before any tensor exists
+//!   (the drop-path rate tables use `vec_linspace`);
+//! - on the device, as a `[num]` float tensor: [`tensor_arange_start_step`] and
+//!   [`tensor_linspace`].
+//!
+//! The `arange` forms take a point count `num` rather than an end value, and a
+//! `None` step means `1.0`. The `linspace` forms include both ends.
 
 use burn::{
     prelude::{

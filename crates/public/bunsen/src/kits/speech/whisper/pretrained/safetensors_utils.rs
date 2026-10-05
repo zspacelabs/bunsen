@@ -1,15 +1,4 @@
 //! # Reading a `transformers` Whisper checkpoint
-//!
-//! `transformers` exports a Whisper model as `model.safetensors`, or as
-//! shards with an index, under its own parameter names:
-//! `model.encoder.layers.N.self_attn.q_proj.weight` where `OpenAI`'s `.pt`
-//! has `encoder.blocks.N.attn.query.weight`, `fc1` for `mlp.0`,
-//! `embed_positions.weight` for `positional_embedding`, and so on.
-//! [`SafetensorsWhisperScanner`] reads that layout: the geometry from the
-//! files' headers alone, the weights through the generic
-//! [`SafetensorsCheckpoint`] with the names mapped to bunsen's. The tied
-//! output projection, when a repo carries it, is skipped: bunsen's decoder
-//! projects through its token embedding, as upstream's does.
 
 use burn::{
     config::Config,
@@ -96,6 +85,21 @@ pub const BUNSEN_TO_HF: &[(&str, &str)] = &[
 
 /// Reads a `transformers` Whisper checkpoint: `model.safetensors`, or its
 /// shards.
+///
+/// `transformers` exports a Whisper model as `model.safetensors`, or as
+/// shards with an index, under its own parameter names:
+/// `model.encoder.layers.N.self_attn.q_proj.weight` where `OpenAI`'s `.pt`
+/// has `encoder.blocks.N.attn.query.weight`, `fc1` for `mlp.0`,
+/// `embed_positions.weight` for `positional_embedding`, and so on. This
+/// reads that layout: the geometry from the files' headers alone
+/// ([`scan_cfg`](Self::scan_cfg)), the weights through the generic
+/// [`SafetensorsCheckpoint`] with the names mapped to bunsen's
+/// ([`HF_TO_BUNSEN`]). The tied output projection, when a repo carries it,
+/// is left unused: bunsen's decoder projects through its token embedding,
+/// as upstream's does.
+///
+/// [`WhisperReader`](super::WhisperReader) picks this for a checkpoint
+/// whose `kind` is safetensors, which is what the `hf:` provider serves.
 #[derive(Debug, Config)]
 pub struct SafetensorsWhisperScanner {
     /// The audio front end to declare on the scanned config.

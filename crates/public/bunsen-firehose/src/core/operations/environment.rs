@@ -26,25 +26,22 @@ use crate::core::{
     },
 };
 
-/// `OpEnvironment` is a trait that provides access to a collection of operator
-/// bindings.
+/// A collection of operator factories, by operator id.
+///
+/// Planning ([`OperationPlan::apply_to_schema`]) and executors look
+/// operators up here. [`MapOpEnvironment`] is the implementation;
+/// [`init_default_operator_environment`](crate::ops::init_default_operator_environment)
+/// fills one with every registered operator.
 pub trait FirehoseOperatorEnvironment: Debug + Send + Sync {
     /// Returns a reference to the map of operator bindings.
     // TODO: This should be an iterator.
     fn operators(&self) -> &BTreeMap<String, Arc<dyn FirehoseOperatorFactory>>;
 
-    /// Validates a build plan against the input and output types.
-    ///
-    /// # Arguments
-    ///
-    /// * `build_plan` - The build plan for the operator.
-    /// * `input_types` - A map of input parameter names to their data types.
-    /// * `output_types` - A map of output parameter names to their data types.
+    /// Looks up the factory for an operator id.
     ///
     /// # Returns
     ///
-    /// An `anyhow::Result<Arc<dyn FirehoseOperatorFactory>>` containing the
-    /// operator factory.
+    /// The factory, or an error if the id is not in the environment.
     fn lookup_operator_factory(
         &self,
         operator_id: &str,
@@ -58,8 +55,8 @@ pub trait FirehoseOperatorEnvironment: Debug + Send + Sync {
 
     /// Validates the operator's context against the environment.
     ///
-    /// By default, this method calls `init_operator` to perform the validation;
-    /// and maps successful results to `Ok(())`.
+    /// By default, this method calls [`init_operator`](Self::init_operator)
+    /// to perform the validation, and maps success to `Ok(())`.
     ///
     /// # Arguments
     ///
@@ -106,14 +103,15 @@ pub trait FirehoseOperatorEnvironment: Debug + Send + Sync {
     ///
     /// # Arguments
     ///
-    /// * `schema` - A mutable reference to the `TableSchema` to be extended.
-    /// * `planner` - An `OperationPlanner` that contains the details of the
-    ///   operation to be planned.
+    /// * `schema` - The [`FirehoseTableSchema`] to be extended.
+    /// * `planner` - The [`OperationPlan`] to add.
     ///
     /// # Returns
     ///
     /// An `anyhow::Result<BuildPlan>` containing the build plan for the
-    /// operation.
+    /// operation; or an error, with the schema unchanged, if a check fails.
+    /// An output column name that is already in the schema, or is not an
+    /// identifier, is one such error.
     fn apply_plan_to_schema(
         &self,
         schema: &mut FirehoseTableSchema,
@@ -140,8 +138,8 @@ pub trait FirehoseOperatorEnvironment: Debug + Send + Sync {
     }
 }
 
-/// `MapOpEnvironment` is a simple implementation of `OpEnvironment` that uses a
-/// `BTreeMap` to store operators.
+/// `MapOpEnvironment` is a simple implementation of
+/// [`FirehoseOperatorEnvironment`] that uses a `BTreeMap` to store operators.
 #[derive(Debug)]
 pub struct MapOpEnvironment {
     /// A map of operator IDs to their corresponding operator factories.
@@ -243,8 +241,8 @@ pub struct BuildPlanContext {
 }
 
 impl BuildPlanContext {
-    /// Creates a new `OperationInitPlanContext` with the given table schema and
-    /// build plan.
+    /// Creates a new `BuildPlanContext` with the given table schema and build
+    /// plan.
     pub fn new(
         table_schema: Arc<FirehoseTableSchema>,
         build_plan: Arc<BuildPlan>,
@@ -255,7 +253,7 @@ impl BuildPlanContext {
         }
     }
 
-    /// Returns a reference to the table schema.
+    /// Returns the operator id of the build plan.
     pub fn operator_id(&self) -> &str {
         &self.build_plan().operator_id
     }
@@ -314,8 +312,12 @@ impl BuildPlanContext {
     }
 }
 
-/// An operator factory which deserializes the operator from a JSON value.
 /// Context for validating and initializing a column build operation.
+///
+/// A [`BuildPlanContext`] bound to the operator's signature; building one
+/// checks the plan's column types against the signature. It is what a
+/// [`FirehoseOperatorFactory`] receives, as a
+/// [`FirehoseOperatorInitContext`].
 #[derive(Debug, Clone)]
 pub struct OperationInitializationContext {
     /// The build plan context that this signature context wraps.
@@ -344,12 +346,13 @@ impl FirehoseOperatorInitContext for OperationInitializationContext {
 }
 
 impl OperationInitializationContext {
-    /// Creates a new `OperationInitSignatureContext` with the given plan
+    /// Creates a new `OperationInitializationContext` with the given plan
     /// context and signature.
     ///
     /// # Returns
     ///
-    /// An `anyhow::Result<Self>` containing the initialized context.
+    /// The context, or an error if the plan's input or output types do not
+    /// match the signature.
     pub fn init(
         plan_context: BuildPlanContext,
         signature: FirehoseOperatorSignature,

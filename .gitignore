@@ -18,6 +18,8 @@ target
 
 # mdBook build output
 /book/book/
+# mdbook-rustdoc-links' symlink to target/doc (dev builds link into it)
+/book/src/api
 
 # RustRover
 #  JetBrains specific template is maintained in a separate JetBrains.gitignore that can

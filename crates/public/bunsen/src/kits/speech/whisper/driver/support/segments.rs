@@ -1,24 +1,4 @@
 //! # Segments: what a timestamped decode says about time.
-//!
-//! A decode prompted for timestamps returns text bracketed by timestamp
-//! tokens. Upstream's seek loop turns that into segments and a seek
-//! advance, and this is that logic as a pure function over the ids:
-//!
-//! - **Consecutive timestamps** (an end followed by the next start) split the
-//!   sequence into segments, each running from its opening timestamp to its
-//!   closing one. A transcript ending in a lone timestamp closes its last
-//!   segment there, and says there is no speech after it, so the seek advances
-//!   a whole window; otherwise the unfinished trailing segment is dropped and
-//!   the seek advances to the last closed timestamp, to be decoded again with
-//!   more audio behind it.
-//! - **No consecutive timestamps** means the window is one segment: from its
-//!   start to its last timestamp if it has one, else to its end; the seek
-//!   advances a whole window.
-//!
-//! Positions are in mel frames relative to the decoded unit's start; the
-//! caller puts them on its clock. Upstream clears a segment that is
-//! instantaneous or has no text; that is dropped here, since a segment that
-//! carries nothing has nothing to emit and nothing to carry as a prompt.
 
 use crate::kits::speech::whisper::driver::whisper_token_layout::WhisperSpecialIds;
 
@@ -52,6 +32,26 @@ pub(crate) struct WindowSplit {
 
 /// Splits a timestamped decode of one unit into segments, as upstream's
 /// seek loop does.
+///
+/// A decode prompted for timestamps returns text bracketed by timestamp
+/// tokens. Upstream's seek loop turns that into segments and a seek
+/// advance, and this is that logic as a pure function over the ids:
+///
+/// - **Consecutive timestamps** (an end followed by the next start) split the
+///   sequence into segments, each running from its opening timestamp to its
+///   closing one. A transcript ending in a lone timestamp closes its last
+///   segment there, and says there is no speech after it, so the seek advances
+///   a whole unit; otherwise the unfinished trailing segment is returned as the
+///   [`tail`](WindowSplit::tail), and the seek advances to the last closed
+///   timestamp, so that the tail is decoded again with more audio behind it.
+/// - **No consecutive timestamps** means the unit is one segment: from its
+///   start to its last timestamp if it has one, else to its end; the seek
+///   advances a whole unit.
+///
+/// Positions are in mel frames relative to the unit's start; the caller
+/// puts them on its clock. Upstream clears a segment that is instantaneous
+/// or has no text; that is dropped here, since a segment that carries
+/// nothing has nothing to emit and nothing to carry as a prompt.
 ///
 /// # Arguments
 /// * `tokens` - the decoded ids after the prompt, stop token excluded.

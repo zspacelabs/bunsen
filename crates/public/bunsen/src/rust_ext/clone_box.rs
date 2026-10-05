@@ -1,0 +1,75 @@
+//! # `CloneBox`
+use std::{
+    any::Any,
+    fmt::Debug,
+};
+
+/// A clonable, downcastable `dyn Any`.
+///
+/// Every `'static + Clone + Debug + Send + Sync` type implements it, so any
+/// such value can be boxed as a `Box<dyn CloneBox>`, which is itself `Clone`,
+/// and read back with `downcast_ref`.
+/// [`DynTensor`](crate::burner::tensor::dynamic::DynTensor) holds its
+/// `Tensor<B, R, K>` this way, so its own type names neither rank nor kind.
+///
+/// It erases the type entirely. To make a trait object of your own trait
+/// `Clone`, use the `dyn-clone` crate instead.
+pub trait CloneBox: 'static + Any + Debug + Send + Sync {
+    /// Clones the boxed value into a new boxed value.
+    fn clone_box(&self) -> Box<dyn CloneBox>;
+}
+
+impl dyn CloneBox {
+    /// Downcasts the boxed value to a specific type.
+    ///
+    /// See: `Any::downcast_ref`.
+    pub fn downcast_ref<T: Any>(&self) -> Option<&T> {
+        (self as &dyn Any).downcast_ref::<T>()
+    }
+}
+
+impl<T: 'static + Any + Debug + Clone + Send + Sync> CloneBox for T {
+    fn clone_box(&self) -> Box<dyn CloneBox> {
+        Box::new(self.clone())
+    }
+}
+
+impl Clone for Box<dyn CloneBox> {
+    fn clone(&self) -> Self {
+        (**self).clone_box()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use burn::{
+        Tensor,
+        tensor::Distribution,
+    };
+
+    use super::*;
+    use crate::support::testing::{
+        CpuBackend,
+        default_device,
+    };
+
+    fn assert_send<T: Send>() {}
+
+    #[test]
+    fn test_clone_box_tensor() {
+        type B = CpuBackend;
+        let device = default_device();
+
+        let source: Tensor<B, 2> = Tensor::random([2, 3], Distribution::Default, &device);
+
+        let boxed: Box<dyn CloneBox> = Box::new(source.clone());
+
+        assert_send::<Box<dyn CloneBox>>();
+
+        let cloned_box = boxed.clone();
+
+        let clone = cloned_box.downcast_ref::<Tensor<B, 2>>().unwrap();
+
+        clone.to_data().assert_eq(&source.to_data(), true);
+    }
+}

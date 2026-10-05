@@ -1,15 +1,4 @@
-//! # Resource maps
-//!
-//! A named set of [`Resource`]s under a set of [bases](StaticBase): the unit
-//! a pretrained is described in, cached by, and fused from. The keys are the
-//! kit's; nothing here knows which one is the model.
-//!
-//! A static twin for compiled-in tables, an owned twin for everything else.
-//! [`StaticResourceMap::to_map`] appends every base to every file, so an
-//! owned resource stands alone and two maps [fuse](ResourceMap::fuse) by key
-//! with no memory of where a resource came from: strictly, for authoring,
-//! where a repeated key is a mistake; or as an overlay, for an override,
-//! where the right map wins.
+//! Resource maps: named sets of resources, and how two of them fuse.
 
 use alloc::{
     collections::BTreeMap,
@@ -44,6 +33,9 @@ use crate::errors::{
 
 /// A named set of resources under a set of bases, as a compiled-in table
 /// spells it.
+///
+/// [`to_map`](Self::to_map) appends every [base](StaticBase) to every
+/// file, so each owned [`Resource`] stands alone.
 #[derive(Debug)]
 pub struct StaticResourceMap<'a> {
     /// The map's name, for messages.
@@ -117,8 +109,19 @@ pub enum Fuse {
 
 /// A named set of resources, by key.
 ///
+/// The unit a pretrained is described in, cached by, and fused from. The
+/// keys are the kit's; nothing here knows which one is the model. A
+/// [`Pretrained`](super::Pretrained) row is one map, fused from the maps
+/// it lists; [`ResourceMap::given`] is a path as a map;
+/// [`PretrainedCache::load`](super::PretrainedCache::load) brings a whole
+/// map local, as [`LoadedResources`](super::LoadedResources).
+///
 /// Built from a [`StaticResourceMap`], deserialized, or assembled at
-/// runtime; [`validate`](Self::validate) checks a hand-built one.
+/// runtime; [`validate`](Self::validate) checks a hand-built one. Two maps
+/// [fuse](Self::fuse) by key, with no memory of where a resource came
+/// from: [`Fuse::Strict`] for authoring, where a repeated key is a
+/// mistake, or [`Fuse::Overlay`] for an override, where the right-hand map
+/// wins.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ResourceMap {
     /// The map's name, for messages.

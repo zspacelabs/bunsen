@@ -1,14 +1,4 @@
-//! # Pretrained rows
-//!
-//! What a name in a provider is: listing fields, aliases, the prefab it
-//! instantiates when the kit says, and the resource maps it is made of,
-//! fused strictly into one. A row is plain data. It knows no hook, since
-//! the function that loads a kit's models is the kit's and supplies one,
-//! and it does not know which of its resources is the model.
-//!
-//! A static twin for compiled-in tables, an owned serde twin for everything
-//! else. A shared file is a map referenced from many rows; a one-file model
-//! is a row of one map.
+//! Pretrained rows: what a name in a provider is.
 
 use alloc::{
     string::{
@@ -31,6 +21,12 @@ use super::{
 use crate::errors::BunsenResult;
 
 /// A pretrained, as a compiled-in table spells it.
+///
+/// Its [`maps`](Self::maps) are fused strictly into one map when it
+/// becomes the owned twin, a [`Pretrained`]
+/// ([`to_pretrained`](Self::to_pretrained)). A file many rows share is a
+/// map of its own that each row references; a one-file model is a row of
+/// one map.
 #[derive(Debug)]
 pub struct StaticPretrained<'a> {
     /// Its name, unique within its provider.
@@ -122,7 +118,24 @@ impl From<&StaticPretrained<'_>> for Pretrained {
     }
 }
 
-/// A pretrained: a name over a resource map.
+/// A pretrained row: a name in a provider, over a resource map.
+///
+/// What a name in a provider is: listing fields, aliases, the prefab it
+/// instantiates when the kit keeps prefabs, and the resource maps it is
+/// made of, fused strictly into one. A row is plain data. It knows no
+/// hook, since the function that loads a kit's models is the kit's and
+/// supplies one, and it does not know which of its resources is the model.
+///
+/// A compiled-in table spells a row as a [`StaticPretrained`], or it comes
+/// from a manifest through serde. A
+/// [`PretrainedProvider`](super::PretrainedProvider) hands rows out from
+/// its `list`, `lookup` and `resolve`; a
+/// [`PretrainedTable`](super::PretrainedTable) keeps them in groups and
+/// names them `group/name`. A factory wraps the row it found in a
+/// [`PretrainedRef::Named`](super::PretrainedRef::Named), the next step
+/// toward a model. The [`prefab`](Self::prefab) field joins the row to the
+/// kit's [`StaticPreFabMap`](super::StaticPreFabMap), through
+/// [`PretrainedRef::prefab`](super::PretrainedRef::prefab).
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Pretrained {
     /// Its name, unique within its provider.

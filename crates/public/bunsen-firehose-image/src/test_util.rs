@@ -1,4 +1,18 @@
 //! # Image test utilities.
+//!
+//! Helpers for testing image operators, used by this crate's own tests:
+//!
+//! - [`generate_gradient_pattern`] makes a deterministic RGB test image, so a
+//!   test needs no image files.
+//! - [`assert_image_close`] (and [`assert_image_close_rgba`]) asserts that two
+//!   images look alike rather than that their pixels are equal:
+//!   `image-compare`'s blended RGBA similarity score must be at least one minus
+//!   the tolerance (by default, `0.99`).
+//!
+//! The module is compiled into this crate's own tests, and into any build
+//! with the `testing` feature, which also brings in `image-compare`. A
+//! downstream crate's tests use it by enabling `testing`. It is test
+//! support, not part of the operator API.
 use image::{
     DynamicImage,
     ImageBuffer,

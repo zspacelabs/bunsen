@@ -174,6 +174,10 @@ impl TensorDataViewExt for TensorData {
 ///
 /// The view implements [`Deref<Target=TensorData>`].
 ///
+/// `view[&[i, j]]` reads one element; its offset comes from [`ravel_dims`],
+/// so a negative coordinate counts back from the end of its axis, and an
+/// out-of-range coordinate panics.
+///
 /// # Example
 /// ```rust,no_run
 /// use bunsen::burner::tensor::*;
@@ -245,6 +249,11 @@ impl<'a, E: Element> TensorDataView<'a, E> {
     }
 
     /// Ravels the dims via [`ravel_dims`] and the view's shape.
+    ///
+    /// # Panics
+    ///
+    /// If `dims` does not have one entry per axis, or if a coordinate is out
+    /// of range for its axis.
     pub fn ravel_dims<I: AsIndex>(
         &self,
         dims: &[I],
@@ -268,6 +277,10 @@ impl<'a, I: AsIndex, E: Element> Index<&[I]> for TensorDataView<'a, E> {
 /// Mutable [`IndexMut`] view wrapper for a [`TensorData`].
 ///
 /// The view implements [`DerefMut<Target=TensorData>`].
+///
+/// `view[&[i, j]]` reads or writes one element; its offset comes from
+/// [`ravel_dims`], so a negative coordinate counts back from the end of its
+/// axis, and an out-of-range coordinate panics.
 ///
 /// # Example
 /// ```rust,no_run
@@ -356,6 +369,11 @@ impl<'a, E: Element> TensorDataViewMut<'a, E> {
     }
 
     /// Ravels the dims via [`ravel_dims`] and the view's shape.
+    ///
+    /// # Panics
+    ///
+    /// If `dims` does not have one entry per axis, or if a coordinate is out
+    /// of range for its axis.
     pub fn ravel_dims<I: AsIndex>(
         &self,
         dims: &[I],
@@ -451,5 +469,31 @@ mod tests {
 
         view[&[0, 0]] = 10.0;
         assert_eq!(view[&[0, 0]], 10.0);
+    }
+
+    #[test]
+    fn test_tensor_data_index_view_rejects_out_of_range() {
+        let data = TensorData::from([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]]);
+        let view = data.expect_index_view::<f64>();
+
+        assert_eq!(view[&[-1, -1]], 6.0);
+
+        let read = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| view[&[0, 3]]));
+        assert!(read.is_err(), "view[&[0, 3]] read {:?}", read.ok());
+    }
+
+    #[test]
+    fn test_tensor_data_index_mut_view_rejects_out_of_range() {
+        let mut data = TensorData::from([[1.0, 2.0, 3.0], [4.0, 5.0, 6.0]]);
+        let mut view = data.expect_index_mut_view::<f64>();
+
+        let write = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            view[&[0, 3]] = 10.0;
+        }));
+        assert!(write.is_err(), "view[&[0, 3]] = 10.0 did not panic");
+        assert_eq!(
+            data.to_vec::<f64>().unwrap(),
+            vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0]
+        );
     }
 }

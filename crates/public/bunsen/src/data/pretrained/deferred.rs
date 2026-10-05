@@ -1,12 +1,4 @@
-//! # Deferred models
-//!
-//! A [`Deferred`] model is what a name resolved to, not yet loaded: the
-//! resource map, a row's or one given from elsewhere, and the kit's hook
-//! for it, chosen by what the map says about its resources, their `kind`s.
-//! A factory hands one back from a name; a map from elsewhere, a checkpoint
-//! on disk say, becomes one through [`Deferred::from_map`]. Loading needs
-//! nothing more from the caller: different providers' rows may be read by
-//! different mechanisms, and the hook attached is the one for this map.
+//! Deferred models: a resolved ref and its hook, not yet loaded.
 
 use std::collections::BTreeMap;
 
@@ -23,6 +15,23 @@ use super::{
 use crate::errors::BunsenResult;
 
 /// A model not yet loaded: its map, and the hook that will build it.
+///
+/// What a name resolved to. [`PretrainedFactory::resolve`] hands one back
+/// from a spec; a map from elsewhere, a checkpoint on disk say, becomes one
+/// through [`from_map`](Self::from_map), and any [`PretrainedRef`] through
+/// [`new`](Self::new). Either way the hook is
+/// [`Construct::for_map`]'s choice, made from what the map says about its
+/// resources (their `kind`s): different providers' rows may be read by
+/// different mechanisms, and the hook attached is the one for this map.
+///
+/// Before loading, a caller may lay its own resources over the model's
+/// ([`with_overlay`](Self::with_overlay)), ask where each resource stands
+/// ([`status`](Self::status)), or adjust the public `hook`. Loading needs
+/// nothing more: [`load`](Self::load) runs the hook's plan, the
+/// [`PretrainedCache`]'s load, and the hook's construct, and returns a
+/// [`Loaded`] handle.
+///
+/// [`PretrainedFactory::resolve`]: super::PretrainedFactory::resolve
 #[derive(Clone, Debug)]
 pub struct Deferred<H: Construct> {
     /// What resolved: a row of a provider, or a given map.

@@ -11,9 +11,17 @@ use burn::{
 /// input * input.random_like(Bernoulli(p_keep)) / p_keep
 /// ```
 ///
+/// At `prob == 1.0` every element is dropped, and the result is `input * 0`
+/// (zeros, for finite input), as in `PyTorch`'s `dropout`; there is no
+/// `1 / p_keep` to apply.
+///
 /// # Arguments
 /// * `prob` - the drop probability.
 /// * `input` - the input tensor.
+///
+/// # Panics
+///
+/// If `prob` is not in `[0, 1]`.
 pub fn dropout<B: Backend, const D: usize>(
     prob: f64,
     input: Tensor<B, D>,
@@ -22,7 +30,10 @@ pub fn dropout<B: Backend, const D: usize>(
         return input;
     }
     if !(0.0..=1.0).contains(&prob) {
-        panic!("Dropout validators should be between 0 and 1, but got {prob}");
+        panic!("Dropout probability should be between 0 and 1, but got {prob}");
+    }
+    if prob == 1.0 {
+        return input.mul_scalar(0.0);
     }
 
     let prob_keep = 1.0 - prob;
@@ -65,6 +76,21 @@ mod tests {
 
     #[test]
     #[serial]
+    fn dropout_prob_1_should_return_zeros() {
+        type B = PerformanceBackend;
+        let device = default_device();
+        let _memory = DeviceMemoryGuard::<B>::new(&device);
+        let input = Tensor::<B, 2>::random([10, 3], Distribution::Default, &device);
+
+        let output = dropout(1., input.clone());
+
+        output
+            .to_data()
+            .assert_eq(&input.zeros_like().to_data(), true);
+    }
+
+    #[test]
+    #[serial]
     fn dropout_rates_stochastic_test() {
         type B = PerformanceBackend;
         let device = default_device();
@@ -103,7 +129,7 @@ mod tests {
 
     #[test]
     #[serial]
-    #[should_panic = "Dropout validators should be between 0 and 1,"]
+    #[should_panic = "Dropout probability should be between 0 and 1,"]
     fn dropout_prob_invalid() {
         type B = PerformanceBackend;
         let device = default_device();

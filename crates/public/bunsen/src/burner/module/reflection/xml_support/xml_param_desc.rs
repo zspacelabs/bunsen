@@ -30,15 +30,13 @@ use crate::{
                 RANK_ATTR,
                 SHAPE_ATTR,
             },
+            shape_from_xml_attr,
+            shape_to_xml_attr,
         },
     },
     errors::{
         BunsenError,
         BunsenResult,
-    },
-    zspace::{
-        shape_from_xml_attr,
-        shape_to_xml_attr,
     },
 };
 

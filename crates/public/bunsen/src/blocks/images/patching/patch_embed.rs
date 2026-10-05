@@ -1,4 +1,4 @@
-//! # Patch Embedding images and operations.
+//! # Patch embedding layers.
 use burn::{
     config::Config,
     module::Module,

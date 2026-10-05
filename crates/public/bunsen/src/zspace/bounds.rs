@@ -1,14 +1,4 @@
-//! # Z-Space utilities.
-//!
-//! Z-Space is frequently used to define the semantics of n-dimensional
-//! integer coordinate systems.
-//!
-//! Z-Space refers to n-dimensional spaces indexed by integer tuples.
-//! It is Manhattan / Taxi-Cab Space, with the addition of a partial ordering.
-//!
-//! Z-Space has a limited notion of regions; limited to axis-aligned
-//! orthogonal regions. The partial ordering is chosen to simplify
-//! the description and containment testing of these regions.
+//! The z-space partial order, and point-in-box checks.
 use core::{
     cmp::Ordering,
     fmt::Debug,
@@ -20,17 +10,20 @@ use crate::errors::{
     WithOkOrPanic,
 };
 
-/// Z-space `PartialOrd`
+/// The z-space partial order: compares two points coordinate by coordinate.
 ///
-/// Compares the partial ordering of two slices (of equal length)
-/// by z-space tuple dominance.
+/// `a` is `Less` than `b` when no coordinate of `a` is greater than the
+/// matching one of `b` and at least one is smaller; `Greater` is the mirror;
+/// `Equal` is equality on every axis. A pair that is smaller on one axis and
+/// greater on another, or that has an incomparable coordinate (a NaN), is
+/// `None`. See the [module docs](crate::zspace).
 ///
 /// For example, the following orderings would hold:
-/// * ``cmp([1, 2], [1, 2]) == Some(Ordering::Equal)``
-/// * ``cmp([0, 0], [0, 1]) == Some(Ordering::Less)``
-/// * ``cmp([1, 0], [0, 0]) == Some(Ordering::Greater)``
-/// * ``cmp([0, 0], [1, 1]) == Some(Ordering::Less)``
-/// * ``cmp([1, 0], [0, 1]) == None``
+/// * `cmp([1, 2], [1, 2]) == Some(Ordering::Equal)`
+/// * `cmp([0, 0], [0, 1]) == Some(Ordering::Less)`
+/// * `cmp([1, 0], [0, 0]) == Some(Ordering::Greater)`
+/// * `cmp([0, 0], [1, 1]) == Some(Ordering::Less)`
+/// * `cmp([1, 0], [0, 1]) == None`
 ///
 /// # Arguments
 ///
@@ -77,12 +70,22 @@ pub fn zspace_partial_cmp<T: PartialOrd>(
     Some(ord)
 }
 
-/// Checks if a `point` is in the half-open range ``[start, end)``.
+/// Checks that `point` is in the half-open box `[start, end)`.
+///
+/// The test is per axis: `start[i] <= point[i] < end[i]` on every axis `i`.
+/// The lower bound is `start <= point` in the
+/// [partial order](zspace_partial_cmp). The upper bound is stricter than
+/// `point < end` in that order, which would admit a point on a far face of
+/// the box: `[1, 3]` is not in `[[0, 0], [2, 3])`, since `3` is not below `3`.
 ///
 /// # Returns
 ///
-/// An `BunsenResult<()>` that is `Ok(())` if the point is in the range,
-/// and a formatted bounds error otherwise.
+/// `Ok(())` if the point passes, else [`BunsenError::Invalid`] naming the
+/// point and the box. An incomparable coordinate (a NaN) fails.
+///
+/// # Panics
+///
+/// If `point`, `start` and `end` differ in length.
 pub fn try_point_bounds_check<T>(
     point: &[T],
     start: &[T],
@@ -91,11 +94,20 @@ pub fn try_point_bounds_check<T>(
 where
     T: PartialOrd + Debug,
 {
-    if !matches!(
-        zspace_partial_cmp(start, point),
-        Some(Ordering::Less) | Some(Ordering::Equal)
-    ) || zspace_partial_cmp(point, end) != Some(Ordering::Less)
-    {
+    for (a, b) in [(start, point), (point, end)] {
+        assert_eq!(
+            a.len(),
+            b.len(),
+            "length mismatch: {} != {}",
+            a.len(),
+            b.len()
+        );
+    }
+    let inside = point
+        .iter()
+        .zip(start.iter().zip(end.iter()))
+        .all(|(p, (s, e))| s <= p && p < e);
+    if !inside {
         Err(BunsenError::Invalid(format!(
             "{point:?} is not in [ {start:?}, {end:?} )"
         )))
@@ -104,7 +116,14 @@ where
     }
 }
 
-/// Expects that a `point` is in the half-open range ``[start, end)``
+/// Expects that `point` is in the half-open box `[start, end)`.
+///
+/// The panicking half of [`try_point_bounds_check`]: the same per-axis test.
+///
+/// # Panics
+///
+/// With the [`try_point_bounds_check`] error's message, if the check fails;
+/// and if `point`, `start` and `end` differ in length.
 #[allow(dead_code)]
 pub fn expect_point_bounds_check<T>(
     point: &[T],
@@ -164,5 +183,38 @@ mod tests {
                 .to_string()
                 .contains("[-1, 2] is not in [ [0, 0], [2, 3] )")
         );
+    }
+
+    #[test]
+    fn test_point_bounds_check_rejects_far_faces() {
+        let (start, end) = ([0, 0], [2, 3]);
+
+        // The far face of axis 1 (`p[1] == 3`), off the corner.
+        assert!(try_point_bounds_check(&[1, 3], &start, &end).is_err());
+        assert!(try_point_bounds_check(&[0, 3], &start, &end).is_err());
+        // The far face of axis 0 (`p[0] == 2`), off the corner.
+        assert!(try_point_bounds_check(&[2, 0], &start, &end).is_err());
+        assert!(try_point_bounds_check(&[2, 2], &start, &end).is_err());
+        // The corner `end` itself.
+        assert!(try_point_bounds_check(&[2, 3], &start, &end).is_err());
+
+        // Three axes: each far face, with the other coordinates inside.
+        let (start, end) = ([0, 0, 0], [2, 3, 4]);
+        assert!(try_point_bounds_check(&[1, 2, 3], &start, &end).is_ok());
+        assert!(try_point_bounds_check(&[2, 2, 3], &start, &end).is_err());
+        assert!(try_point_bounds_check(&[1, 3, 3], &start, &end).is_err());
+        assert!(try_point_bounds_check(&[1, 2, 4], &start, &end).is_err());
+    }
+
+    #[test]
+    #[should_panic(expected = "[1, 3] is not in [ [0, 0], [2, 3] )")]
+    fn test_expect_point_bounds_check_panics_on_far_face() {
+        expect_point_bounds_check(&[1, 3], &[0, 0], &[2, 3]);
+    }
+
+    #[test]
+    #[should_panic(expected = "length mismatch: 2 != 3")]
+    fn test_point_bounds_check_length_mismatch_panics() {
+        let _ = try_point_bounds_check(&[0, 0], &[0, 0], &[2, 3, 4]);
     }
 }

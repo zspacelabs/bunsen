@@ -1,13 +1,13 @@
 //! # Ranking: which finished candidate a decode returns.
-//!
-//! A beam search ends with several finished sequences per audio; the ranker
-//! picks one. Upstream's is the cumulative log probability normalized by
-//! length, either plainly or with the Google NMT penalty, and that is the
-//! one here.
 
 use std::fmt::Debug;
 
 /// Picks one candidate per audio.
+///
+/// A beam search, or a sampled decode with several trajectories, ends with
+/// several finished sequences per audio; the ranker picks the one the
+/// decode returns. Upstream's is [`MaximumLikelihoodRanker`], the one
+/// [`DecodeConfig::init_ranker`](super::DecodeConfig::init_ranker) builds.
 pub trait SequenceRanker: Send + Sync + Debug {
     /// The index of the winner among `candidates`, each a generated
     /// sequence (prompt and stop token excluded) with its cumulative log
@@ -19,6 +19,9 @@ pub trait SequenceRanker: Send + Sync + Debug {
 }
 
 /// The highest log probability per unit of length.
+///
+/// Upstream's ranker: the cumulative log probability normalized by length,
+/// either plainly or with the Google NMT penalty.
 ///
 /// With `length_penalty` unset the penalty is the length itself; set, it is
 /// `((5 + length) / 6) ^ length_penalty`, from the Google NMT paper.

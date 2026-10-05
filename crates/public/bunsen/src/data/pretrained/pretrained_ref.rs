@@ -1,17 +1,4 @@
-//! # Pretrained references
-//!
-//! What a spec resolved to: a row copied out of a provider, or a map from
-//! somewhere else, such as a path. The name-to-model pathway's first step,
-//! shared by every kit; a factory makes one from a spec, the kit's hook
-//! plans and builds from it.
-//!
-//! A ref is plain data: both halves are serde types, and the provider is
-//! held by name, so a ref outlives the factory that made it. The caller's
-//! resources ride on it through [`with_overlay`](PretrainedRef::with_overlay),
-//! so a hook sees one thing. With the `cache` feature, a
-//! `Deferred` pairs a ref with the kit's hook for it and loads it. With the
-//! `cache` feature, a `Deferred` pairs a ref with the kit's hook for it and
-//! loads it.
+//! Pretrained references: what a spec resolved to.
 
 use core::fmt::Debug;
 
@@ -26,7 +13,22 @@ use super::{
 };
 use crate::errors::BunsenResult;
 
-/// What a spec resolved to.
+/// What a spec resolved to: a row copied out of a provider, or a map from
+/// somewhere else, such as a path.
+///
+/// The first step of the name-to-model pathway, shared by every kit. A
+/// [`PretrainedFactory`](super::PretrainedFactory) makes a
+/// [`Named`](Self::Named) ref from a spec; a path or a manifest becomes a
+/// [`Given`](Self::Given) one through `From<ResourceMap>`. A
+/// [`Deferred`](super::Deferred) model pairs the ref with the kit's hook
+/// and loads it, and the hook plans and builds from the ref:
+/// [`to_map`](Self::to_map) for its files, [`prefab`](Self::prefab) for
+/// the geometry a row promises.
+///
+/// A ref is plain data: the row and the map are serde types, and the
+/// provider is held by name, so a ref outlives the factory that made it.
+/// The caller's resources ride on it through
+/// [`with_overlay`](Self::with_overlay), so a hook sees one thing.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PretrainedRef {
     /// A row in a provider, copied out of it.

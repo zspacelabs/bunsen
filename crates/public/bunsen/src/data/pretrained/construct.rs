@@ -1,13 +1,4 @@
-//! # Construction
-//!
-//! From a resolved ref to what a kit builds. A [`Construct`] hook is the
-//! kit's: it says which cache segment its files live under, what it builds
-//! for a backend, which hook a map calls for (by what the map says about
-//! its resources, their `kind`s), how a ref's map is completed before it is
-//! loaded, and how the loaded parts become the built thing, behind an
-//! `Arc`. A [`Deferred`](super::Deferred) model pairs a ref with its hook
-//! and runs the whole way: plan, load, construct. Nothing here opens a
-//! file.
+//! Construction: the kit's hook from a resolved ref to what it builds.
 
 use std::sync::Arc;
 
@@ -22,6 +13,16 @@ use super::{
 use crate::errors::BunsenResult;
 
 /// What a kit builds from a resolved ref, and how.
+///
+/// The hook is the kit's. It says which cache segment its files live under
+/// ([`KIT`](Self::KIT)), what it builds for a backend
+/// ([`Built`](Self::Built)), which hook a map calls for
+/// ([`for_map`](Self::for_map)), how a ref's map is completed before it is
+/// loaded ([`plan`](Self::plan)), and how the loaded parts become the
+/// built thing, behind an `Arc` ([`construct`](Self::construct)). A
+/// [`Deferred`](super::Deferred) model pairs a ref with its hook and runs
+/// the whole way: plan, [`PretrainedCache::load`], construct. The kits'
+/// hooks are `ResNetConstruct`, `WhisperConstruct` and `SileroConstruct`.
 ///
 /// Not object-safe: [`construct`](Self::construct) is generic over the
 /// backend so that [`Built`](Self::Built) is a real type. A hook is a
@@ -84,6 +85,8 @@ pub trait Construct: Sized {
 
 /// The handle a pretrained hands back: bound by what was built.
 ///
+/// The end of the pathway: what [`Deferred::load`](super::Deferred::load)
+/// and [`PretrainedFactory::load`](super::PretrainedFactory::load) return.
 /// Cloning shares the handle; the built thing is constructed once.
 #[derive(Debug)]
 pub struct Loaded<T> {

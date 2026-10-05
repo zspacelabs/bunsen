@@ -1,8 +1,4 @@
-//! # Shard-set descriptors
-//!
-//! What a shard set is: its name, where its shards come from, how they are
-//! named and numbered, and whether they are pinned. A selection of shards
-//! is also a [`ResourceMap`], for a pretrained that fuses a shard set in.
+//! Shard-set descriptors: what a shard set is.
 
 use std::{
     collections::BTreeSet,
@@ -152,8 +148,15 @@ impl From<&StaticShardSetDescriptor<'_>> for ShardSetDescriptor {
 
 /// A shard set: what it is, and how its shards are named and reached.
 ///
-/// Built from a [`StaticShardSetDescriptor`], deserialized, or assembled at
-/// runtime. [`validate`](Self::validate) checks a hand-built one.
+/// Its name, where its shards come from, how they are named and numbered,
+/// and whether they are pinned. Built from a [`StaticShardSetDescriptor`]
+/// (usually a [`StaticShardSetMap`](super::StaticShardSetMap) lookup),
+/// deserialized, or assembled at runtime; [`validate`](Self::validate)
+/// checks a hand-built one. [`select`](Self::select) turns slices into
+/// shard ids. A [`ShardSet`](super::ShardSet) binds the descriptor to a
+/// directory and brings its shards in, and
+/// [`to_resource_map`](Self::to_resource_map) makes a selection of shards a
+/// [`ResourceMap`], for a pretrained row that fuses a shard set in.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ShardSetDescriptor {
     /// The set's name, unique within its map.

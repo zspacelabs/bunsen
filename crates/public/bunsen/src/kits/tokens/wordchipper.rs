@@ -1,20 +1,4 @@
 //! The `wordchipper`-backed [`Detokenizer`].
-//!
-//! This is the only place in the crate that names `wordchipper`. It is also
-//! where `i64` ids narrow to the vocabulary's token type and where `WCError`
-//! becomes `BunsenError`; neither type reaches a kit's public API.
-//!
-//! [`WordchipperDetokenizer::from_spans`] is the decode-only path: a
-//! `{ id -> bytes }` table and a concatenation, which is `TokenDictDecoder`
-//! with no encoder, no merge table, no regex and no `UnifiedTokenVocab`
-//! behind it. That is deliberate twice over. It is the cheap path — nothing
-//! derives a BPE pair table for a decoder that never reads one. And it is
-//! the only path that can hold an **empty token**, which Whisper's
-//! multilingual vocabulary has at rank 50256: `SlabIndexDecoder` stores
-//! `(start, end)` offsets and reads `end == start` as *absent*, which would
-//! truncate every decode that crosses that id, and `UnifiedTokenVocab`
-//! rejects a token that is neither a byte nor a merge. `TokenDictDecoder` is
-//! a map lookup, and returns the empty span as what it is.
 
 use std::{
     fmt::{
@@ -43,6 +27,26 @@ use crate::{
 /// `T` is the vocabulary's token type — `u16` for Whisper's 51866 ids, `u32`
 /// for the larger GPT vocabularies. Built once and shared through an `Arc`;
 /// it is `Send + Sync`.
+///
+/// This is the only code in the crate that names `wordchipper`. It is also
+/// where `i64` ids narrow to the vocabulary's token type and where
+/// `wordchipper`'s errors become `BunsenError`; neither type reaches a
+/// kit's public API.
+///
+/// [`from_spans`](Self::from_spans) is the decode-only path a kit uses,
+/// and the one Whisper's
+/// [`WhisperTokenLayout`](crate::kits::speech::whisper::driver::WhisperTokenLayout)
+/// builds through: a `{ id -> bytes }` table and a concatenation, which is
+/// `TokenDictDecoder` with no encoder, no merge table, no regex and no
+/// `UnifiedTokenVocab` behind it. That is deliberate twice over. It is the
+/// cheap path: nothing derives a BPE pair table for a decoder that never
+/// reads one. And it is the only path that can hold an **empty token**,
+/// which Whisper's multilingual vocabulary has at rank 50256:
+/// `SlabIndexDecoder` stores `(start, end)` offsets and reads
+/// `end == start` as *absent*, which would truncate every decode that
+/// crosses that id, and `UnifiedTokenVocab` rejects a token that is
+/// neither a byte nor a merge. `TokenDictDecoder` is a map lookup, and
+/// returns the empty span as what it is.
 pub struct WordchipperDetokenizer<T: TokenType> {
     decoder: Arc<dyn TokenDecoder<T>>,
     vocab_size: usize,

@@ -24,6 +24,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      # A private module's `//!` never renders in rustdoc; prose there is
+      # invisible and rots unchecked (STYLE.md, "Module docs must render").
+      - name: Module docs must render
+        run: python3 tools/check_hidden_module_docs.py crates
       - run: rustup toolchain install stable --profile minimal --component clippy
       # `whisper-cli live` captures through `cpal`, whose Linux backend
       # links ALSA.
@@ -32,6 +36,25 @@ jobs:
       # cold on every run.
       - uses: Swatinem/rust-cache@v2
       - run: cargo clippy --no-deps -- -D warnings
+
+  book:
+    name: Book
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: rustup toolchain install stable --profile minimal
+      # mdbook-rustdoc-links runs `cargo doc` and `cargo check` on the crates
+      # the book links into (`book/book.toml`).
+      - uses: Swatinem/rust-cache@v2
+      # Keep these versions in step with `Makefile.toml`'s `ensure-mdbook-*`.
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: mdbook@0.5.4,mdbook-katex@0.10.0,mdbook-mermaid@0.17.1,mdbook-linkcheck2@0.13.0,mdbook-rustdoc-links@3.0.2
+      # GitHub sets `CI`, so every API link must resolve (a renamed or moved
+      # item fails here, in the PR that renamed it), and links are emitted
+      # against docs.rs. linkcheck2 then checks links between book files.
+      - name: Build the book
+        run: mdbook build book
 
   test:
     name: CI
@@ -71,14 +94,37 @@ jobs:
       - name: Docs
         run: cargo doc --no-deps --all-features
 
+      # The step above documents the whole workspace, so Cargo unifies features
+      # across members and a link can resolve there that breaks for `bunsen`
+      # alone. docs.rs builds `bunsen` alone, with the feature list in its
+      # `[package.metadata.docs.rs]`; these two steps reproduce that, and the
+      # plain default-features build a user gets.
+      - name: Docs (docs.rs configuration)
+        run: |
+          features=$(cargo metadata --no-deps --format-version 1 \
+            | jq -r '.packages[] | select(.name == "bunsen") | .metadata.docs.rs.features | join(",")')
+          cargo doc -p bunsen --no-deps --features "$features"
+
+      - name: Docs (default features)
+        run: cargo doc -p bunsen --no-deps
+
       - name: Build and Test
         run: cargo test --features download,indicatif
 
       - name: No default features build.
         run: cargo test -p bunsen --no-default-features
 
+      # The step above still enables `testing` and `audit`, through bunsen's
+      # dev-dependency on itself, and with them `std`, `audio`, `tokenizer`
+      # and `flex`. This one builds the library with no features at all.
+      - name: No features at all.
+        run: cargo check -p bunsen --no-default-features
+
       - name: Cache without fetch.
         run: cargo check -p bunsen --no-default-features --features cache
+
+      - name: Train without reflection.
+        run: cargo check -p bunsen --no-default-features --features train
 
       # `cargo publish` verifies each crate outside the workspace, with only
       # its own dependencies. Every other step here builds several crates at

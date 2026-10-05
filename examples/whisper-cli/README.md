@@ -2,7 +2,8 @@
 
 Transcribes audio with an OpenAI Whisper checkpoint and its vocabulary, through bunsen's Whisper stream driver: a file
 (`transcribe`), pushed in chunks as a live loop would feed it, or the microphone (`live`), as it speaks. Segments are
-printed with their times as they become final; under the responsive preset, drafts come first and are marked `~`.
+printed with their times as they become final. Drafts, marked `~`, come first under the responsive preset, and under
+the conservative one with `--timestamps`.
 The two commands share one flag set for the model, the decode and the output (`WhisperDriverArgs` in
 `src/whisper_clap.rs`); each adds its source's own.
 
@@ -33,7 +34,7 @@ driver and a `models` subcommand; the [model index](#models) and the name-to-mod
   the kit's hook checks the scan against the prefab the name promised before the weights are read, and picks the
   reader by the row's resource `kind`.
 - `data::pretrained::StaticPreFabMap` — the prefab table, `WHISPER_PREFABS`, is bunsen's prefab type over
-  `WhisperApiConfig`, as `PREFAB_RESNET_MAP` is over the ResNet config.
+  `WhisperApiConfig`, as `RESNET_PREFABS` is over the ResNet config.
 - `data::pretrained::PretrainedCache` over `data::cache::BunsenDiskCache` — the cache directory (`--cache-dir`,
   `$BUNSEN_CACHE_DIR`, the platform's cache dir), and the digest-pinned resolve of every resource through it
   (`--offline`, `--upstream-cache-dir`).
@@ -57,11 +58,12 @@ for `cargo test` picks it here too, and what the example runs on is what the tes
 |--------------------------------------|-----------------------------|
 | `--features bunsen/cuda`             | `burn::backend::Cuda`       |
 | `--features bunsen/metal`            | `burn::backend::Metal`      |
+| `--features bunsen/vulkan`           | `burn::backend::Vulkan`     |
 | `--features bunsen/wgpu`             | `burn::backend::Wgpu`       |
 | `--features bunsen/flex`, or nothing | `burn::backend::Flex` (CPU) |
 
-When several are on, the first of `cuda`, `metal`, `wgpu`, `flex` wins. bunsen's default `testing` feature enables
-`flex`, which is why a bare build runs on the CPU. The `dependency/feature` form of `--features` works from any package
+When several are on, the first of `cuda`, `metal`, `vulkan`, `wgpu` wins; with none, it falls back to `Flex`, on the
+CPU. The `dependency/feature` form of `--features` works from any package
 in the workspace, so `cargo run -p whisper-cli --features bunsen/wgpu`
 from the root and `cargo run --features bunsen/wgpu` from this directory are the same build.
 
@@ -103,7 +105,8 @@ touches the GPU from the audio thread. Ctrl-C ends the stream cleanly, so the ta
 before the process exits.
 
 `live`'s defaults differ from `transcribe`'s where the source demands it: `--preset conservative` (a line per speech
-region as it closes, all final; a microphone has no end for `offline` to wait for) and `--chunk-ms 250`
+region as it closes, every commit final, and with `--timestamps` a decode's unfinished tail as a draft; a microphone
+has no end for `offline` to wait for) and `--chunk-ms 250`
 (the callbacks, a few milliseconds each, batched before the front end sees them). `--preset responsive` adds a draft of
 the region so far every 600 ms of speech, marked `~` in the log.
 
@@ -138,8 +141,9 @@ Decode options (shared by `transcribe` and `live`):
 - `--prompt-carry` — prompt each window with the transcript so far (default `true`).
 - `--fallback` — climb upstream's temperature ladder when a window's decode fails its thresholds (default `true`);
   `--fallback false` for temperature zero alone.
-- `--preset` — `offline` (whole windows, all final), `conservative` (speech regions as well, all final),
-  `responsive` (drafts every 600 ms of speech besides). The last two load the bundled VAD. The default is `offline`
+- `--preset` — `offline` (whole windows, never a draft), `conservative` (speech regions as well; every commit is
+  final, and with `--timestamps` a decode's unfinished tail is also printed as a draft), `responsive` (conservative,
+  plus a draft every 600 ms of speech). The last two load the bundled VAD. The default is `offline`
   for `transcribe` and `conservative` for `live`.
 - `--ids` — print each segment's ids beside its text.
 
@@ -249,10 +253,12 @@ All of it is bunsen's: `kits::speech::whisper::pretrained::{WHISPER_PREFABS, OPE
 OPENAI_CHECKPOINTS, MULTILINGUAL_VOCABULARY, GPT2_VOCABULARY}` over `data::pretrained::{StaticPretrained,
 StaticPretrainedGroup, StaticPretrainedTable, StaticResourceMap, PretrainedCache, PretrainedRef}`, with
 `WhisperGeometry` beside `WhisperApiConfig`. `pretrained::default_whisper_factory()` is the index: a
-`PretrainedFactory<WhisperConstruct>` over `dyn PretrainedProvider`s in search order (the well-known table, the
-bundled one when built in, then `HfWhisperProvider`): names and a listing,
-`load_bundle` the whole name-to-model pathway, `resolve` its index half, a `Deferred` model carrying the kit's hook
-chosen by the row's resources, for a `--vocab` overlay. A checkpoint path is not the factory's: it is a given map
+`PretrainedFactory<WhisperConstruct>` over `default_whisper_providers()`, in search order the well-known table, the
+bundled one when built in, then the data layer's generic `HfProvider` for `hf:` refs. It gives names and a listing,
+and its `load_bundle` is the whole name-to-model pathway, the one the `kits::speech::whisper` docs walk. This crate
+takes that pathway in two steps, so that `--vocab` can overlay a file: `resolve`, the index half, gives a `Deferred`
+model carrying the kit's hook chosen by the row's resources, `with_overlay` adds the file, and the `Deferred`'s own
+`load_bundle` builds the bundle. A checkpoint path is not the factory's: it is a given map
 through `Deferred::from_map`, which gets its hook the same way (`Deferred::scan` is the read-only half
 `models inspect` uses), and
 `WhisperVocabulary::{for_layout, map, load}` the layout-to-vocabulary rule, its file and its resolve. A caller with a

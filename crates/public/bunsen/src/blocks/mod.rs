@@ -1,47 +1,69 @@
-//! # Neural-Network / Module Building Blocks
+//! # Neural-network building blocks
 //!
 //! `bunsen::blocks` is a library of reusable `burn::module::Module`
-//! components &mdash; the *parts* you compose into larger models. Each
-//! block ships as a triple:
+//! components: the *parts* you compose into larger models.
 //!
-//! - a `Config` struct (`#[derive(Config)]`),
-//! - a `Module` struct (`#[derive(Module)]`),
-//! - an `init` constructor connecting the two.
+//! ## Blocks and ops
 //!
-//! Where [`crate::ops`] supplies pure functional tensor operations,
-//! `blocks` supplies the *stateful* layers that own parameters and can
-//! be trained.
+//! A block is a component meant to be used as a Module root or as a part of
+//! a module tree. [Ops and blocks](crate::ops#ops-and-blocks) defines the
+//! line between blocks and [`crate::ops`], and the rule that cache and stream
+//! state is injected.
 //!
-//! Where [`crate::kits`] supplies whole end-to-end models (`ResNet`,
-//! `NanoChatGpt`, ...), `blocks` supplies the sub-modules those kits
-//! are assembled from. A typical user picks an existing kit; an author
-//! building a new model reaches into `blocks`.
+//! A block is typically "these parameters, plus these `ops` calls in order";
+//! blocks import ops, never the reverse. A block need not own parameters:
+//! `DropPath`, `DropBlock2d` and `AvgPool2dSame` own none, and are blocks
+//! because they sit in a module tree as layers. A block that decodes takes
+//! its cache as an argument rather than holding it:
+//! [`CausalSelfAttention::forward`] takes a [`KVCache`].
+//!
+//! Where [`crate::kits`] supplies whole models (`ResNet`, `NanoChatGpt`,
+//! Whisper, ...), `blocks` supplies the sub-modules those kits are assembled
+//! from. A typical user picks an existing kit; an author building a new model
+//! reaches into `blocks`.
+//!
+//! ## Lifecycle
+//!
+//! Each block ships as:
+//!
+//! - a `Config` struct (`#[derive(Config)]`);
+//! - a `Module` struct (`#[derive(Module)]`), built by the config;
+//! - usually a `{Name}Meta` trait implemented by both, so the block's geometry
+//!   reads the same before and after init.
+//!
+//! Most configs build their module through [`ModuleInit`]
+//! (`init(&device)` / `try_init(&device)`). A few keep an inherent `init`
+//! instead: the parameter-free `DropPathConfig`, `DropBlock2dConfig` and
+//! `AvgPool2dSameConfig` take no device, and `CausalSelfAttentionConfig` also
+//! takes the layer's index in its stack (see `ModuleInit`'s
+//! [hand-written `init`](crate::burner::module::ModuleInit#hand-written-init)).
 //!
 //! ## Map of the module
 //!
-//! - [`transformers`] &mdash; building blocks for transformer models.
-//!   - [`transformers::attention`] &mdash; causal self-attention
-//!     (`CausalSelfAttention`), scaled-dot-product attention helpers
-//!     (`scaled_dot_product_attention` and friends), and a `KVCache` for
-//!     autoregressive decoding.
-//!   - [`transformers::embedding`] &mdash; positional embeddings, currently
-//!     `RotaryEmbedding` (`RoPE`) with a clip-by-range helper for
-//!     KV-cache-friendly slicing.
+//! - [`conv`]: conv / norm / activation blocks, in 1D and 2D (`ConvBlock1d`,
+//!   `ConvBlock2d`), and sequences of them (`ConvSeq1d`, `ConvSeq2d`).
+//! - [`images`]: vision blocks.
+//!   - [`images::drop`]: structured drop layers, `DropBlock2d` and `DropPath`,
+//!     and the drop-path rate tables.
+//!   - [`images::patching`]: `PatchEmbed`, the Swin Transformer V2 patch
+//!     embedding.
+//!   - [`images::pool`]: `AvgPool2dSame`, average pooling with TensorFlow-style
+//!     "SAME" padding.
+//! - [`rnn`]: recurrent blocks: `FusedLstm`, a single-step LSTM with fused
+//!   gates, and its state type.
+//! - [`transformers`]: transformer blocks.
+//!   - [`transformers::attention`]: `CausalSelfAttention`, with QK-norm, rotary
+//!     embeddings, grouped-query attention and an optional KV cache.
+//!   - [`transformers::embedding`]: `RotaryEmbedding`, and fixture embeddings
+//!     for tests.
+//!   - [`transformers::mlp`]: `Mlp`, the transformer feed-forward block.
 //!
-//! - [`images`] &mdash; building blocks for vision models.
-//!   - [`conv`] &mdash; conv composites: `ConvNorm2d` (conv + batchnorm) and
-//!     `ConvBlock2d` (conv / norm / activation).
-//!   - [`images::patching`] &mdash; patch tokenization, currently `PatchEmbed`
-//!     (ViT-style patch &rarr; embedding projection).
-//!   - [`images::pool`] &mdash; pooling that doesn't fit `burn`'s defaults,
-//!     currently `AvgPool2dSame` (TF-style same-padding average pool).
-//!   - [`images::drop`] &mdash; stochastic regularization layers: `DropBlock`
-//!     (Ghiasi et al., 2018), `DropPath` (stochastic depth, Huang et al.,
-//!     2016), and supporting types (`progressive_dpr` rate tables,
-//!     `SizeConfig`).
+//! See the per-item rustdoc for shape contracts, defaults, and the papers each
+//! block implements.
 //!
-//! See the per-item rustdoc for shape contracts, defaults, and the
-//! papers each block implements.
+//! [`CausalSelfAttention::forward`]: transformers::attention::csa::CausalSelfAttention::forward
+//! [`KVCache`]: crate::ops::transformers::attention::KVCache
+//! [`ModuleInit`]: crate::burner::module::ModuleInit
 
 pub mod conv;
 pub mod images;

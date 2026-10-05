@@ -11,9 +11,12 @@ use num_traits::Float;
 ///
 /// # Returns
 ///
-/// An `anyhow::Result<prob>`
+/// An `anyhow::Result<prob>`: an error if `prob` is below `0.0`, above `1.0`,
+/// or NaN.
 pub fn try_probability<F: Float + Debug>(prob: F) -> anyhow::Result<F> {
-    if prob < F::zero() || prob > F::one() {
+    // Not `prob < 0 || prob > 1`: both are false for NaN.
+    let in_range = prob >= F::zero() && prob <= F::one();
+    if !in_range {
         bail!("probability must be in [0.0, 1.0]: {prob:?}");
     }
     Ok(prob)
@@ -31,7 +34,8 @@ pub fn try_probability<F: Float + Debug>(prob: F) -> anyhow::Result<F> {
 ///
 /// # Panics
 ///
-/// On range error.
+/// With the [`try_probability`] error's message, if `prob` is out of range
+/// or NaN.
 pub fn expect_probability<F: Float + Debug>(prob: F) -> F {
     match try_probability(prob) {
         Ok(prob) => prob,
@@ -64,5 +68,17 @@ mod tests {
     #[test]
     fn test_probability_panic() {
         expect_probability(-1.0);
+    }
+
+    #[test]
+    fn test_probability_rejects_nan() {
+        assert!(try_probability(f32::NAN).is_err());
+        assert!(try_probability(f64::NAN).is_err());
+    }
+
+    #[should_panic(expected = "probability must be in [0.0, 1.0]: NaN")]
+    #[test]
+    fn test_expect_probability_panics_on_nan() {
+        expect_probability(f64::NAN);
     }
 }

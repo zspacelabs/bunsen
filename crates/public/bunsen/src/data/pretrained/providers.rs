@@ -1,22 +1,4 @@
-//! # Pretrained providers
-//!
-//! A provider is a namespace over pretrained rows: the `provider` of
-//! `provider:ref`. It names and looks up, and lists when it can. It knows
-//! no hook, since the function that loads a kit's models is the kit's and
-//! supplies one, and it does not know which resource of a row is the model.
-//! A row may name the prefab it instantiates, so "what shape is this" is
-//! answered by the row, and "what rows exist for this shape" is derived by
-//! scanning the listing. One prefab, many rows, many providers.
-//!
-//! [`PretrainedProvider`] is the trait; a
-//! [`PretrainedFactory`](super::PretrainedFactory) holds providers behind it
-//! and dispatches a spec. The compiled-in rows sit behind one provider named
-//! [`WELL_KNOWN`], a [`PretrainedTable`] of [`PretrainedGroup`]s: the `openai`
-//! of `well-known:openai/tiny`. A group is a labelled set of rows with one
-//! license and origin; a table's ref is `{group}/{name}`, and a bare name or
-//! alias searches its groups in order. A hub that can answer a ref but not
-//! enumerate what it has implements the trait with an empty listing and
-//! declines bare names.
+//! Pretrained providers: namespaces over rows, and the table of groups.
 
 use alloc::{
     format,
@@ -47,19 +29,39 @@ pub const WELL_KNOWN: &str = "well-known";
 
 /// The name of the provider whose rows a build ships with:
 /// `bundled:openai/base`, `bundled:silero/vad`. A kit registers one under
-/// its `*-weights` feature, after [`WELL_KNOWN`], so a bare name's identity
-/// does not change with the feature; the rows are the same files, served
-/// from the bundle rather than fetched.
+/// its `*-weights` feature, after [`WELL_KNOWN`] when it has both, so that
+/// a bare name means the same row with the feature or without. A bundled
+/// row is served from the bundle rather than fetched: in place from files
+/// the build laid out (`bundled:openai/base`, the same files as
+/// `well-known:openai/base`), or from bytes linked into the binary
+/// (`bundled:silero/vad`, which has no well-known twin).
 pub const BUNDLED: &str = "bundled";
 
 /// A namespace of pretrained rows: the `provider` of `provider:ref`.
 ///
+/// A provider names and looks up, and lists when it can. It knows no hook,
+/// since the function that loads a kit's models is the kit's and supplies
+/// one, and it does not know which resource of a row is the model. A row
+/// may name the prefab it instantiates, so "what shape is this" is
+/// answered by the row, and "what rows exist for this shape" is derived by
+/// scanning the listing ([`for_prefab`](Self::for_prefab)). One prefab,
+/// many rows, many providers.
+///
+/// A [`PretrainedFactory`](super::PretrainedFactory) holds a kit's
+/// providers in search order and offers each spec to them; its
+/// [dispatch rules](super::PretrainedFactory#dispatch) are where `Ok(None)`
+/// and an error part ways. The implementations in bunsen are
+/// [`PretrainedTable`], for compiled-in rows ([`WELL_KNOWN`], [`BUNDLED`])
+/// and for any table read from a manifest, and
+/// [`HfProvider`](super::HfProvider), for `hf:org/repo`.
+///
 /// Object-safe by construction, so a factory holds any mix of these behind
 /// `Arc<dyn PretrainedProvider>`. [`list`](Self::list) and
 /// [`lookup`](Self::lookup) are separate so that a provider which cannot
-/// enumerate what it has (a hub) can still answer a ref; such a provider
-/// also says it does not [answer bare names](Self::answers_bare_names), so
-/// a spec with no `provider:` never reaches it.
+/// enumerate what it has (a hub) can still answer a ref, with an empty
+/// listing. Such a provider also says it does not
+/// [answer bare names](Self::answers_bare_names), so a spec with no
+/// `provider:` never reaches it.
 pub trait PretrainedProvider: Send + Sync + fmt::Debug {
     /// The namespace: the `provider` of `provider:ref`.
     fn name(&self) -> &str;
@@ -225,7 +227,11 @@ impl From<&StaticPretrainedGroup<'_>> for PretrainedGroup {
     }
 }
 
-/// A labelled set of pretrained rows: the `openai` of `openai/tiny`.
+/// A labelled set of pretrained rows, with one license and origin: the
+/// `openai` of `openai/tiny`.
+///
+/// A group sits in a [`PretrainedTable`], which names its rows
+/// `group/name`.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct PretrainedGroup {
     /// The label: the `group` in `group/name`.

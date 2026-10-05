@@ -1,8 +1,4 @@
-//! Exact-unpack machinery for [`AuditProbeEventView`] data maps.
-//!
-//! See [`unpack_audit_probe_event_data`] for the one-shot pattern syntax.
-//!
-//! [`AuditProbeEventView`]: crate::audit::AuditProbeEventView
+//! Exact unpacking of audit event data maps.
 
 use std::collections::HashMap;
 
@@ -17,6 +13,14 @@ use crate::errors::{
 ///
 /// This is the shape returned by
 /// [`AuditProbeEventView::data_map_view`](`crate::audit::AuditProbeEventView::data_map_view`).
+///
+/// Read one with [`unpack_audit_probe_event_data!`], which states the whole
+/// map as a pattern. The functions beside this type,
+/// [`assert_exact_data_keys`], [`take_one`], [`take_fixed`] and [`take_any`],
+/// are what the macro expands to. They are public because the expansion
+/// calls them from the caller's crate; use the macro rather than them.
+///
+/// [`unpack_audit_probe_event_data!`]: crate::audit::unpack_audit_probe_event_data
 pub type EventDataView<'a> = HashMap<&'a str, Vec<&'a TensorData>>;
 
 /// Assert that `view` contains every key in `keys`, and no others.

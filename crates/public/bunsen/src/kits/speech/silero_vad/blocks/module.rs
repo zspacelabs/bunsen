@@ -1,34 +1,4 @@
 //! # Silero VAD model.
-//!
-//! [Silero VAD][s] is a small, streaming voice-activity-detection model: given
-//! a short chunk of mono audio and the previous recurrent state, it emits a
-//! per-chunk speech probability and the next state.
-//!
-//! [s]: https://github.com/snakers4/silero-vad
-//!
-//! A [`SileroVad`] model is
-//! built for a single sample rate &mdash; the rate is a property of the model
-//! (and its loaded weights), not a forward-time argument. Multi-rate routing,
-//! if needed, belongs at a higher level.
-//!
-//! The pipeline is:
-//!
-//! 1. an STFT-style analysis [`Conv1d`] (`1 -> 2 * n_freq` channels), whose
-//!    output halves are combined as `sqrt(real^2 + imag^2)` into `n_freq`
-//!    magnitude bins,
-//! 2. a 4-block `ReLU` [`ConvSeq1d`] encoder producing a `hidden`-wide feature
-//!    frame,
-//! 3. a single-step LSTM cell (two gate projections: one over the recurrent
-//!    hidden state, one over the encoder feature),
-//! 4. a `1x1` [`Conv1d`] + sigmoid output head producing the speech
-//!    probability.
-//!
-//! The recurrent state is packed as `[2, batch, d_hidden]`, stacking the LSTM
-//! hidden and cell states along dim 0.
-//!
-//! [`SileroVad::forward`] runs one chunk per call (matching the ONNX
-//! graph), while [`SileroVad::forward_sequence`] streams a whole
-//! chunk-sequence through a single stream, carrying state across chunks.
 
 use burn::{
     config::Config,
@@ -70,16 +40,28 @@ use crate::{
             FusedLstmConfig,
         },
     },
-    burner::module::ModuleInit,
+    burner::module::{
+        ModuleInit,
+        ToStructureConfig,
+    },
     errors::{
         BunsenError,
         BunsenResult,
+        WithOkOrPanic,
     },
     kits::speech::silero_vad::blocks::context::SileroVadContext,
     prelude::TensorOpExt,
 };
 
-/// [`SileroVad`] Signal Config.
+/// [`SileroVad`] Signal Config: the top policy of `SileroVad`'s Stacked
+/// Config.
+///
+/// Describes the model by its signal: sample rate, frequency bins, and widths.
+/// [`try_to_stft`](Self::try_to_stft) (or its panicking twin,
+/// [`to_stft`](Self::to_stft)) refines it into the [`SileroVadStftConfig`]
+/// policy, which spells out the STFT geometry. It implements
+/// [`ToStructureConfig`], lowering straight to [`SileroVadStructureConfig`]
+/// through that step, and gets [`ModuleInit`] from the trait's blanket impl.
 #[derive(Config, Debug)]
 pub struct SileroVadSignalConfig {
     /// The sample rate (in Hz) this model expects, e.g. `16000`.
@@ -108,13 +90,27 @@ impl SileroVadSignalConfig {
         Self::new(8000, 65)
     }
 
-    /// Converts to [`SileroVadStftConfig`].
-    pub fn to_stft(&self) -> SileroVadStftConfig {
+    /// Refines this policy to a [`SileroVadStftConfig`]: an STFT stride of
+    /// `n_freq - 1`, a kernel twice the stride, and input padding of half the
+    /// stride.
+    ///
+    /// # Errors
+    ///
+    /// [`BunsenError::Invalid`] when `n_freq` is below 2, which leaves no
+    /// stride.
+    pub fn try_to_stft(&self) -> BunsenResult<SileroVadStftConfig> {
+        if self.n_freq < 2 {
+            return Err(BunsenError::Invalid(format!(
+                "SileroVad needs at least 2 frequency bins, for an STFT stride (n_freq - 1) above 0; got n_freq = {}",
+                self.n_freq,
+            )));
+        }
+
         let stft_stride = self.n_freq - 1;
         let stft_kernel = stft_stride * 2;
         let input_pad = stft_stride / 2;
 
-        SileroVadStftConfig::new(
+        Ok(SileroVadStftConfig::new(
             self.sample_rate,
             self.n_freq,
             input_pad,
@@ -122,55 +118,95 @@ impl SileroVadSignalConfig {
             stft_stride,
         )
         .with_d_hidden(self.d_hidden)
-        .with_d_bottleneck(self.d_bottleneck)
+        .with_d_bottleneck(self.d_bottleneck))
     }
 
-    /// Converts to [`SileroVadStructureConfig`].
-    pub fn to_structure(&self) -> SileroVadStructureConfig {
-        self.to_stft().to_structure()
-    }
-}
-
-impl<B: Backend> ModuleInit<B, SileroVad<B>> for SileroVadSignalConfig {
-    fn try_init(
-        &self,
-        device: &B::Device,
-    ) -> BunsenResult<SileroVad<B>> {
-        self.to_stft().try_init(device)
+    /// Refines this policy to a [`SileroVadStftConfig`]; the panicking twin of
+    /// [`try_to_stft`](Self::try_to_stft).
+    ///
+    /// # Panics
+    ///
+    /// When `n_freq` is below 2.
+    pub fn to_stft(&self) -> SileroVadStftConfig {
+        self.try_to_stft().ok_or_panic()
     }
 }
 
-/// [`SileroVad`] Stft Config.
+impl ToStructureConfig for SileroVadSignalConfig {
+    type Structure = SileroVadStructureConfig;
+
+    /// Refines through [`try_to_stft`](SileroVadSignalConfig::try_to_stft),
+    /// then lowers the STFT policy.
+    ///
+    /// # Errors
+    ///
+    /// [`BunsenError::Invalid`] when `n_freq` is below 2, or when `d_hidden`
+    /// or `d_bottleneck` is 0.
+    fn try_to_structure(&self) -> BunsenResult<SileroVadStructureConfig> {
+        self.try_to_stft()?.try_to_structure()
+    }
+}
+
+/// [`SileroVad`] Stft Config: the policy of `SileroVad`'s Stacked Config
+/// that spells out the STFT geometry.
+///
+/// [`SileroVadSignalConfig::to_stft`] derives one from the signal; set it
+/// directly for a non-standard STFT. It implements [`ToStructureConfig`],
+/// lowering to [`SileroVadStructureConfig`], and gets [`ModuleInit`] from the
+/// trait's blanket impl.
 #[derive(Config, Debug)]
 pub struct SileroVadStftConfig {
     /// The sample rate (in Hz) this model expects, e.g. `16000`.
     pub sample_rate: usize,
 
-    /// Number of frequency bins.
+    /// Number of frequency bins; above 0.
     pub n_freq: usize,
 
     /// The reflect-padding applied to the right of the input before the STFT.
     pub input_pad: usize,
 
-    /// STFT kernel size.
+    /// STFT kernel size; above 0.
     pub stft_kernel: usize,
 
-    /// STFT stride.
+    /// STFT stride; above 0.
     pub stft_stride: usize,
 
-    /// The recurrent hidden / cell width of the LSTM.
+    /// The recurrent hidden / cell width of the LSTM; above 0.
     #[config(default = "128")]
     pub d_hidden: usize,
 
-    /// The encoder bottleneck dimension.
+    /// The encoder bottleneck dimension; above 0.
     #[config(default = "64")]
     pub d_bottleneck: usize,
 }
 
-impl SileroVadStftConfig {
-    /// Convert this config into a [`SileroVadStructureConfig`].
-    pub fn to_structure(&self) -> SileroVadStructureConfig {
-        SileroVadStructureConfig {
+impl ToStructureConfig for SileroVadStftConfig {
+    type Structure = SileroVadStructureConfig;
+
+    /// Lowers the STFT policy.
+    ///
+    /// # Errors
+    ///
+    /// [`BunsenError::Invalid`] when `n_freq`, `stft_kernel`, `stft_stride`,
+    /// `d_hidden` or `d_bottleneck` is 0. Each would build a model that
+    /// panics in its first `forward` (or, with a zero `d_bottleneck` on
+    /// wgpu, returns NaN).
+    fn try_to_structure(&self) -> BunsenResult<SileroVadStructureConfig> {
+        for (name, value) in [
+            ("n_freq", self.n_freq),
+            ("stft_kernel", self.stft_kernel),
+            ("stft_stride", self.stft_stride),
+            ("d_hidden", self.d_hidden),
+            ("d_bottleneck", self.d_bottleneck),
+        ] {
+            if value == 0 {
+                return Err(BunsenError::Invalid(format!(
+                    "SileroVad needs {name} above 0; got {name} = 0"
+                )));
+            }
+        }
+
+        Ok(SileroVadStructureConfig {
             sample_rate: self.sample_rate,
             input_pad: self.input_pad,
             stft: Conv1dConfig::new(1, 2 * self.n_freq, self.stft_kernel)
@@ -182,16 +218,7 @@ impl SileroVadStftConfig {
             decoder: Conv1dConfig::new(self.d_hidden, 1, 1)
                 .with_padding(PaddingConfig1d::Valid)
                 .with_bias(true),
-        }
-    }
-}
-
-impl<B: Backend> ModuleInit<B, SileroVad<B>> for SileroVadStftConfig {
-    fn try_init(
-        &self,
-        device: &B::Device,
-    ) -> BunsenResult<SileroVad<B>> {
-        self.to_structure().try_init(device)
+        })
     }
 }
 
@@ -219,7 +246,7 @@ pub trait SileroVadMeta {
     /// The reflect-padding applied to the right of the input before the STFT
     /// conv.
     ///
-    /// This is generally 2x the STFT stride.
+    /// This is generally half the STFT stride.
     fn input_pad(&self) -> usize;
 
     /// The kernel size of the STFT conv.
@@ -278,6 +305,8 @@ pub fn encoder_config(
 /// [`SileroVad`] Structure Config.
 ///
 /// The fully explicit structural config for a single-rate Silero VAD model.
+/// Both policies, [`SileroVadSignalConfig`] and [`SileroVadStftConfig`], lower
+/// to it.
 ///
 /// Implements [`SileroVadMeta`]; built into a [`SileroVad`] via
 /// [`ModuleInit`].
@@ -380,8 +409,57 @@ impl<B: Backend> ModuleInit<B, SileroVad<B>> for SileroVadStructureConfig {
 
 /// Silero VAD model for a single sample rate.
 ///
-/// Implements [`SileroVadMeta`]; built by
-/// [`SileroVadStructureConfig`].
+/// [Silero VAD][s] is a small, streaming voice-activity-detection model:
+/// given a short chunk of mono audio and the previous recurrent state, it
+/// emits a per-chunk speech probability and the next state.
+///
+/// [s]: https://github.com/snakers4/silero-vad
+///
+/// A model is built for a single sample rate: the rate is a property of
+/// the model (and its loaded weights), not a forward-time argument. A
+/// checkpoint carries both rates as a
+/// [`SileroVadCollection`](super::SileroVadCollection), which routes by rate.
+///
+/// # Pipeline
+///
+/// The chunk is reflect-padded on the right by
+/// [`input_pad`](SileroVadMeta::input_pad) samples, then:
+///
+/// 1. an STFT-style analysis [`Conv1d`] (`1 -> 2 * n_freq` channels), whose
+///    output halves are combined as `sqrt(real^2 + imag^2)` into `n_freq`
+///    magnitude bins;
+/// 2. a 4-block `ReLU` [`ConvSeq1d`] encoder producing a `d_hidden`-wide
+///    feature frame;
+/// 3. a single-step LSTM cell (two gate projections: one over the recurrent
+///    hidden state, one over the encoder feature);
+/// 4. an output head, a `ReLU`, a `1x1` [`Conv1d`] and a sigmoid, producing the
+///    speech probability.
+///
+/// The recurrent state is `[2, batch, d_hidden]`, the LSTM hidden and cell
+/// states stacked along dim 0. Each batch row is an independent stream.
+///
+/// # Streams
+///
+/// The model holds no stream state; the caller passes it in and gets the
+/// next back. [`forward`](Self::forward) runs one chunk per call against a
+/// bare recurrent state (matching the ONNX graph), and
+/// [`forward_sequence`](Self::forward_sequence) runs a sequence of chunks,
+/// `[steps, batch, samples]`, carrying the state across them. The context
+/// forms, [`context_forward`](Self::context_forward) and
+/// [`context_forward_sequence`](Self::context_forward_sequence), carry a
+/// [`SileroVadContext`] instead: the recurrent state and the tail of the
+/// last chunk, which each chunk is prefixed with, as upstream's streaming
+/// wrapper does. [`SileroVadContextConfig`](super::SileroVadContextConfig)
+/// opens one per stream.
+///
+/// Implements [`SileroVadMeta`]; built by [`SileroVadStructureConfig`]
+/// (directly, or through [`SileroVadSignalConfig`] and
+/// [`SileroVadStftConfig`]), or loaded with its weights through
+/// [`default_silero_factory`](crate::kits::speech::silero_vad::pretrained::default_silero_factory).
+///
+/// The cross-checks against the ONNX reference live in the
+/// `silero-model-validation` crate. On the burn CUDA backend alone the model
+/// diverges from those golden tests, which points at a backend bug.
 #[derive(Module, Debug)]
 pub struct SileroVad<B: Backend> {
     sample_rate: usize,
@@ -440,13 +518,21 @@ impl<B: Backend> SileroVad<B> {
         Tensor::zeros([2, batch, self.d_hidden()], device)
     }
 
-    /// Construct an initial continuation context.
+    /// Construct an initial continuation context: a zero tail of
+    /// `context_size` samples per row, and a zeroed state.
+    ///
+    /// # Panics
+    ///
+    /// When `context_size` is 0;
+    /// [`SileroVadContextConfig::try_init`](super::SileroVadContextConfig::try_init)
+    /// reports that as an error instead.
     pub fn init_context(
         &self,
         batch: usize,
         context_size: usize,
         device: &B::Device,
     ) -> SileroVadContext<B> {
+        assert_context_size(context_size);
         SileroVadContext {
             sample_rate: self.sample_rate(),
             context: Tensor::zeros([batch, context_size], device),
@@ -465,6 +551,11 @@ impl<B: Backend> SileroVad<B> {
     /// `(probabilities, context)`, with:
     /// * `probabilities` : `[steps, batch]`
     /// * `context`: continuation context
+    ///
+    /// # Panics
+    ///
+    /// When the context's rate is not the model's, or the context is 0
+    /// samples wide (built by hand: its constructors refuse one).
     pub fn context_forward_sequence(
         &self,
         chunk_seq: Tensor<B, 3>,
@@ -506,6 +597,7 @@ impl<B: Backend> SileroVad<B> {
                 let context_size = context.dims()[1];
             }
         }
+        assert_context_size(context_size);
 
         // [1, batch, context_size]
         let context: Tensor<B, 3> = context.unsqueeze_dim(0);
@@ -549,6 +641,11 @@ impl<B: Backend> SileroVad<B> {
     /// `(probabilities, context)`, with:
     /// * `probabilities` : `[batch]`
     /// * `context`: the continuation context.
+    ///
+    /// # Panics
+    ///
+    /// When the context's rate is not the model's, or the context is 0
+    /// samples wide (built by hand: its constructors refuse one).
     pub fn context_forward(
         &self,
         chunk: Tensor<B, 2>,
@@ -589,6 +686,7 @@ impl<B: Backend> SileroVad<B> {
                 let context_size = context.dims()[1];
             }
         }
+        assert_context_size(context_size);
 
         let ext_input = Tensor::cat(vec![context, chunk], 1);
         let context = ext_input.clone().slice(s![.., -(context_size as isize)..]);
@@ -851,6 +949,16 @@ impl<B: Backend> SileroVad<B> {
     }
 }
 
+/// Refuses a zero-width context. Its tail slice, `-(0)..`, would take the
+/// whole input, so each chunk after the first would be prefixed with all of
+/// the one before.
+fn assert_context_size(context_size: usize) {
+    assert!(
+        context_size > 0,
+        "a SileroVadContext needs a context_size above 0; got 0"
+    );
+}
+
 #[cfg(test)]
 mod tests {
     use burn::tensor::{
@@ -940,6 +1048,86 @@ mod tests {
         assert!(matches!(bad.validate(), Err(BunsenError::Invalid(_))));
     }
 
+    /// With no frequency bins, the STFT stride (`n_freq - 1`) underflows:
+    /// an error from `try_to_stft` and `try_to_structure`, not a panic.
+    #[test]
+    fn test_try_to_structure_rejects_zero_freq_bins() {
+        let signal = SileroVadSignalConfig::new(16000, 0);
+        assert!(matches!(signal.try_to_stft(), Err(BunsenError::Invalid(_))));
+        assert!(matches!(
+            signal.try_to_structure(),
+            Err(BunsenError::Invalid(_))
+        ));
+    }
+
+    /// With one frequency bin, the STFT stride (`n_freq - 1`) is 0: an error
+    /// from `try_to_stft` and `try_to_structure`, not a model whose STFT conv
+    /// panics on its first `forward`.
+    #[test]
+    fn test_try_to_structure_rejects_one_freq_bin() {
+        let signal = SileroVadSignalConfig::new(16000, 1);
+        assert!(matches!(signal.try_to_stft(), Err(BunsenError::Invalid(_))));
+        assert!(matches!(
+            signal.try_to_structure(),
+            Err(BunsenError::Invalid(_))
+        ));
+    }
+
+    /// An STFT policy set directly with a stride of 0 is an error from
+    /// `try_to_structure`, not a model whose STFT conv panics on its first
+    /// `forward`.
+    #[test]
+    fn test_stft_try_to_structure_rejects_zero_stride() {
+        let stft = SileroVadStftConfig {
+            stft_stride: 0,
+            ..SileroVadSignalConfig::standard_16khz().to_stft()
+        };
+        assert!(matches!(
+            stft.try_to_structure(),
+            Err(BunsenError::Invalid(_))
+        ));
+    }
+
+    /// An STFT policy set directly with a zero kernel, bin count or width is
+    /// an error from `try_to_structure`, not a model that fails in its first
+    /// `forward`: a zero `n_freq` or `stft_kernel` would panic there, and a
+    /// zero `d_hidden` or `d_bottleneck` would panic there too or, on wgpu
+    /// with a zero `d_bottleneck`, give NaN probabilities.
+    #[test]
+    fn test_stft_try_to_structure_rejects_zero_sizes() {
+        let standard = SileroVadSignalConfig::standard_16khz().to_stft();
+        for (field, stft) in [
+            (
+                "n_freq",
+                SileroVadStftConfig {
+                    n_freq: 0,
+                    ..standard.clone()
+                },
+            ),
+            (
+                "stft_kernel",
+                SileroVadStftConfig {
+                    stft_kernel: 0,
+                    ..standard.clone()
+                },
+            ),
+            ("d_hidden", standard.clone().with_d_hidden(0)),
+            ("d_bottleneck", standard.clone().with_d_bottleneck(0)),
+        ] {
+            assert!(
+                matches!(stft.try_to_structure(), Err(BunsenError::Invalid(_))),
+                "{field} = 0 lowered"
+            );
+        }
+
+        // The signal policy reaches the same check through its refinement.
+        let signal = SileroVadSignalConfig::standard_16khz().with_d_hidden(0);
+        assert!(matches!(
+            signal.try_to_structure(),
+            Err(BunsenError::Invalid(_))
+        ));
+    }
+
     #[test]
     #[serial_test::serial]
     fn test_config_meta_matches_module() {
@@ -971,6 +1159,57 @@ mod tests {
             assert_eq!(model.gate_size(), cfg.gate_size());
             assert_eq!(model.d_bottleneck(), cfg.d_bottleneck());
         }
+    }
+
+    /// Asserts that `a` and `b` answer every [`SileroVadMeta`] method alike.
+    fn assert_meta_agrees(
+        a: &impl SileroVadMeta,
+        b: &impl SileroVadMeta,
+    ) {
+        assert_eq!(a.sample_rate(), b.sample_rate());
+        assert_eq!(a.n_freq(), b.n_freq());
+        assert_eq!(a.chunk_size(), b.chunk_size());
+        assert_eq!(a.input_pad(), b.input_pad());
+        assert_eq!(a.stft_kernel(), b.stft_kernel());
+        assert_eq!(a.stft_stride(), b.stft_stride());
+        assert_eq!(a.d_hidden(), b.d_hidden());
+        assert_eq!(a.d_bottleneck(), b.d_bottleneck());
+        assert_eq!(a.gate_size(), b.gate_size());
+    }
+
+    /// Each policy builds the same `SileroVad` through its structure as
+    /// through the blanket `init`.
+    #[test]
+    #[serial_test::serial]
+    fn test_policy_pathways_agree() {
+        let device = default_device();
+        let _memory = DeviceMemoryGuard::<B>::new(&device);
+
+        // The signal policy, at a non-standard rate and widths.
+        let signal = SileroVadSignalConfig::new(4000, 33)
+            .with_d_hidden(32)
+            .with_d_bottleneck(16);
+        let structure = signal.to_structure();
+        assert_eq!(structure.stft_stride(), 32);
+        assert_eq!(structure.chunk_size(), 128);
+
+        let lowered: SileroVad<B> = structure.init(&device);
+        let direct: SileroVad<B> = signal.init(&device);
+        assert_meta_agrees(&direct, &lowered);
+        assert_meta_agrees(&direct, &structure);
+
+        // The STFT policy, with a geometry `to_stft` would not choose.
+        let stft = SileroVadStftConfig::new(4000, 33, 8, 48, 24)
+            .with_d_hidden(32)
+            .with_d_bottleneck(16);
+        let structure = stft.to_structure();
+        assert_eq!(structure.stft_stride(), 24);
+        assert_eq!(structure.chunk_size(), 96);
+
+        let lowered: SileroVad<B> = structure.init(&device);
+        let direct: SileroVad<B> = stft.init(&device);
+        assert_meta_agrees(&direct, &lowered);
+        assert_meta_agrees(&direct, &structure);
     }
 
     #[test]
@@ -1093,5 +1332,59 @@ mod tests {
     fn test_sequence_matches_stepwise_autodiff() {
         type F = <B as BackendTypes>::FloatElem;
         check_sequence_matches_stepwise::<burn::backend::Autodiff<B>, F>();
+    }
+
+    /// A context of width 0, built by hand: `init_context` refuses one.
+    fn zero_width_context(
+        model: &SileroVad<B>,
+        device: &<B as BackendTypes>::Device,
+    ) -> SileroVadContext<B> {
+        SileroVadContext {
+            sample_rate: model.sample_rate(),
+            context: Tensor::zeros([1, 0], device),
+            state: model.init_state(1, device),
+        }
+    }
+
+    /// A zero `context_size` is refused when the context is built. Its tail
+    /// slice, `-(0)..`, is the whole input: each chunk after the first would
+    /// get the entire previous chunk as context.
+    #[test]
+    #[serial_test::serial]
+    #[should_panic(expected = "context_size above 0")]
+    fn test_init_context_refuses_zero_width() {
+        let device = default_device();
+        let model: SileroVad<B> = SileroVadSignalConfig::standard_16khz()
+            .to_structure()
+            .init(&device);
+        let _context = model.init_context(1, 0, &device);
+    }
+
+    /// `context_forward` refuses a zero-width context built by hand, rather
+    /// than prefixing the next chunk with the whole of this one.
+    #[test]
+    #[serial_test::serial]
+    #[should_panic(expected = "context_size above 0")]
+    fn test_context_forward_refuses_a_zero_width_context() {
+        let device = default_device();
+        let model: SileroVad<B> = SileroVadSignalConfig::standard_16khz()
+            .to_structure()
+            .init(&device);
+        let chunk = Tensor::random([1, model.chunk_size()], Distribution::Default, &device);
+        let _ = model.context_forward(chunk, zero_width_context(&model, &device));
+    }
+
+    /// `context_forward_sequence` refuses a zero-width context built by
+    /// hand, with a message that says why.
+    #[test]
+    #[serial_test::serial]
+    #[should_panic(expected = "context_size above 0")]
+    fn test_context_forward_sequence_refuses_a_zero_width_context() {
+        let device = default_device();
+        let model: SileroVad<B> = SileroVadSignalConfig::standard_16khz()
+            .to_structure()
+            .init(&device);
+        let chunks = Tensor::random([2, 1, model.chunk_size()], Distribution::Default, &device);
+        let _ = model.context_forward_sequence(chunks, zero_width_context(&model, &device));
     }
 }

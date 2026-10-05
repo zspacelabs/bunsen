@@ -8,9 +8,19 @@ repository.workspace = true
 license.workspace = true
 
 rust-version.workspace = true
-homepage = "https://zspacelabs.ai/bunsen/book"
+homepage = "https://zspacelabs.ai/bunsen/book/"
 documentation = "https://docs.rs/bunsen/latest/"
 description = "bunsen is a batteries included common library for burn"
+
+# docs.rs builds this feature list, not `all-features`: `whisper-weights`
+# makes `bunsen-bundled-whisper`'s build script download ~145 MB, and docs.rs
+# builds have no network. The backends only change which backend
+# `support::testing::PerformanceBackend` names. The book's API links resolve
+# against this same list (`book/book.toml`, `build.docs-rs`), and so do CI's
+# isolated doc build and `cargo make doc`. docs.rs sets `--cfg docsrs`
+# itself, so there are no `rustdoc-args` here.
+[package.metadata.docs.rs]
+features = ["fetch", "indicatif", "silero-weights", "testing", "audit"]
 
 [lints]
 workspace = true
@@ -38,15 +48,19 @@ harness = false
 
 
 [features]
+# The defaults are what most consumers want; test support (`testing`) and
+# audit probes (`audit`) are opt-in, because they pull in a CPU backend,
+# audio decoding, a tokenizer and the tracing-test stack.
 default = [
     "reflection",
     "train",
-    "testing",
-    "audit",
     "store_pytorch",
     "store_safetensors",
+    "store_burnpack",
 ]
 
+## Use the standard library (`burn/std`). Every other feature except the
+## backends turns this on.
 std = [
     "burn/std",
 ]
@@ -55,7 +69,6 @@ std = [
 reflection = [
     "std",
     "dep:xot",
-    "dep:paste",
     "dep:xee-xpath",
     "dep:spanned_error_message",
 ]
@@ -67,6 +80,7 @@ store = [
     "burn/store",
 ]
 
+## Read PyTorch `.pt` checkpoints through the burn-store.
 store_pytorch = [
     "store",
     "burn-store/pytorch",
@@ -79,11 +93,20 @@ store_safetensors = [
     "burn-store/safetensors",
 ]
 
+## Read burn's own burnpack (`.bpk`) files through the burn-store: what
+## Silero VAD's weights ship as.
+store_burnpack = [
+    "store",
+    "burn-store/burnpack",
+]
+
 ## Enable features to use with `burn/train`.
 train = [
     "std",
     "burn/train",
     "dep:hashbrown",
+    "dep:log",
+    "dep:paste",
 ]
 
 ## Enable the disk cache: where files land (`BunsenDiskCache` and its paths),
@@ -98,7 +121,7 @@ cache = [
 
 ## Reach the network at run time, through `ureq`: `fetch_file`,
 ## `load_cached_path` / `load_data_path`, `fetch_many`, and the URL sources of
-## `WeightsCache::resolve` and `ShardSet::fetch`. Never at build time; that
+## `PretrainedCache::resolve` and `ShardSet::fetch`. Never at build time; that
 ## switch is `download`.
 fetch = [
     "cache",
@@ -124,7 +147,7 @@ audio = [
 
 ## Turns token ids into text, through `wordchipper`.
 ##
-## Ids never need this: a kit's token layout (`kits::speech::whisper::TokenPolicy`
+## Ids never need this: a kit's token layout (`kits::speech::whisper::WhisperTokenLayout`
 ## and every special id) is derived arithmetically and always available.
 ## Only `kits::tokens::WordchipperDetokenizer` is behind it. `wordchipper` comes in with
 ## `default-features = false` — no downloader, no TLS, no thread pool — so
@@ -138,6 +161,7 @@ tokenizer = [
 ## Include the silero-vad pretrained weights in the build.
 silero-weights = [
     "store",
+    "store_burnpack",
     "dep:bunsen-bundled-silero",
 ]
 
@@ -164,36 +188,39 @@ whisper-weights = [
 ## Enable the cuda backend in the bunsen build.
 ## This will impact the bunsen::support::testing::PerformanceBackend choice.
 ## Dependents which enable backends for burn without enabling them for bunsen
-## can still use those backends with bunsen; only bunse specific features will
+## can still use those backends with bunsen; only bunsen-specific features will
 ## be disabled.
 cuda = ["burn/cuda"]
 ## Enable the metal backend in the bunsen build.
 ## This will impact the bunsen::support::testing::PerformanceBackend choice.
 ## Dependents which enable backends for burn without enabling them for bunsen
-## can still use those backends with bunsen; only bunse specific features will
+## can still use those backends with bunsen; only bunsen-specific features will
 ## be disabled.
 metal = ["burn/metal"]
 ## Enable the vulkan backend in the bunsen build.
 ## This will impact the bunsen::support::testing::PerformanceBackend choice.
 ## Dependents which enable backends for burn without enabling them for bunsen
-## can still use those backends with bunsen; only bunse specific features will
+## can still use those backends with bunsen; only bunsen-specific features will
 ## be disabled.
 vulkan = ["burn/vulkan"]
 ## Enable the wgpu backend in the bunsen build.
 ## This will impact the bunsen::support::testing::PerformanceBackend choice.
 ## Dependents which enable backends for burn without enabling them for bunsen
-## can still use those backends with bunsen; only bunse specific features will
+## can still use those backends with bunsen; only bunsen-specific features will
 ## be disabled.
 wgpu = ["burn/wgpu"]
 ## Enable the flex backend in the bunsen build.
 ## This will impact the bunsen::support::testing::PerformanceBackend choice.
 ## Dependents which enable backends for burn without enabling them for bunsen
-## can still use those backends with bunsen; only bunse specific features will
+## can still use those backends with bunsen; only bunsen-specific features will
 ## be disabled.
 flex = ["burn/flex"]
 
 
-## Enables testing support features. Included under test builds.
+## Test support: `support::testing` (test backends and devices, seeded
+## tensors, device memory, assertion helpers), with the `audio`, `tokenizer`
+## and `flex` features it needs. Not a default; bunsen's own tests turn it on
+## through a dev-dependency on bunsen itself.
 testing = [
     "audio",
     "tokenizer",
@@ -224,6 +251,9 @@ bunsen-bundled-whisper = { version = "0.36.1",
     optional = true
 }
 
+# `log`, as `burn`'s optimizers and `Learner` use it.
+log = { workspace = true, optional = true }
+
 tracing = { workspace = true, optional = true }
 tracing-test = { workspace = true, optional = true }
 tracing-subscriber = { workspace = true, optional = true }
@@ -238,7 +268,11 @@ serde_json = { workspace = true }
 ciborium = { workspace = true, optional = true }
 rand = { workspace = true, optional = true }
 crc = { workspace = true }
-flate2 = { workspace = true }
+# `zlib-rs`, in every build: Whisper's `compression_ratio` must compress as
+# upstream's zlib does, and flate2's default backend, `miniz_oxide`,
+# compresses short loops far less tightly. Without the feature here, the
+# backend would depend on what else in the build enables flate2's features.
+flate2 = { workspace = true, features = ["zlib-rs"] }
 
 directories-next = { workspace = true, optional = true }
 indicatif = { workspace = true, optional = true }
@@ -270,7 +304,13 @@ wordchipper = { workspace = true, default-features = false, optional = true }
 
 
 [dev-dependencies]
-bunsen = { path = ".", features = ["testing"] }
+# bunsen's own tests and doctests use its test support and audit probes,
+# neither of which is a default feature. Cargo merges a dev-dependency's
+# features into every build of the crate's tests, doctests and benches, so
+# this one leaves the defaults off: under `--no-default-features` those
+# targets build without them, and a test that needs a default feature
+# carries a `cfg(feature = ...)` gate for it.
+bunsen = { path = ".", default-features = false, features = ["testing", "audit"] }
 burn = { workspace = true, features = ["autodiff"] }
 serde = { workspace = true }
 serde_json = { workspace = true }

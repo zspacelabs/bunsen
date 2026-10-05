@@ -17,7 +17,11 @@ use crate::core::{
     },
 };
 
-/// A factory for creating `FirehoseOperator` instances from a specification.
+/// A factory for creating [`FirehoseOperator`] instances from a build plan.
+///
+/// It holds the operator's [`FirehoseOperatorSignature`], which planning
+/// checks a call against, and builds the operator for each plan that calls
+/// it.
 pub trait FirehoseOperatorFactory: Debug + Send + Sync {
     /// Returns the operator ID.
     fn operator_id(&self) -> &String {
@@ -30,20 +34,17 @@ pub trait FirehoseOperatorFactory: Debug + Send + Sync {
     /// Returns the operator specification.
     fn signature(&self) -> &FirehoseOperatorSignature;
 
-    /// Inits a build plan against the input and output types using an
-    /// `OpInitContext`.
+    /// Builds the operator for one build plan.
     ///
     /// # Arguments
     ///
-    /// * `context` - The context containing the build plan and input/output
-    ///   types.
+    /// * `context` - The schema, the build plan, and this factory's signature,
+    ///   already checked against each other.
     ///
     /// # Returns
     ///
-    /// A `Result<Box<dyn BuildOperator>, String>` where:
-    /// * `Ok` contains a boxed operator that implements the `BuildOperator`
-    ///   trait,
-    /// * `Err` contains an error message if the initialization fails.
+    /// The boxed operator, or an error if it cannot be built from the plan
+    /// (for example, a config that does not deserialize).
     fn init(
         &self,
         context: &dyn FirehoseOperatorInitContext,
@@ -66,7 +67,8 @@ pub trait FirehoseOperatorInitContext {
 }
 
 /// A simple operator factory for types implementing `DeserializeOwned` and
-/// `FirehoseOperator`.
+/// `FirehoseOperator`: the operator is its own config, deserialized from
+/// the build plan's [`config`](BuildPlan::config).
 #[derive(Debug)]
 pub struct SimpleConfigOperatorFactory<T>
 where
@@ -83,8 +85,12 @@ impl<T> SimpleConfigOperatorFactory<T>
 where
     T: DeserializeOwned + FirehoseOperator,
 {
-    /// Creates a new `SpecConfigOpBinding` with the given operator
-    /// specification.
+    /// Creates a new `SimpleConfigOperatorFactory` with the given operator
+    /// signature.
+    ///
+    /// # Panics
+    ///
+    /// If the signature has no operator id.
     pub fn new(spec: FirehoseOperatorSignature) -> Self {
         if spec.operator_id.is_none() {
             panic!("OperatorSpec must have an operator_id");

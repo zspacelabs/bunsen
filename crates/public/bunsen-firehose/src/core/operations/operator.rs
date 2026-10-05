@@ -35,6 +35,11 @@ pub struct OperatorSchedulingMetadata {
 }
 
 /// An instantiated column => column operator.
+///
+/// Built by a
+/// [`FirehoseOperatorFactory`](super::factory::FirehoseOperatorFactory) for one
+/// build plan, and run by an [`OperationRunner`]. It reads its inputs and
+/// writes its outputs by parameter name, through a transaction.
 pub trait FirehoseOperator: 'static + Send + Sync + Debug {
     /// Gets the scheduling metadata for the operator.
     fn scheduling_metadata(&self) -> OperatorSchedulingMetadata {
@@ -111,8 +116,8 @@ impl Debug for OperationRunner {
 }
 
 impl OperationRunner {
-    /// Create a new `BoundPlanBuilder` by binding a `BuildPlan` to a
-    /// `BimmTableSchema`.
+    /// Create a new `OperationRunner` by binding a `BuildPlan` to a
+    /// `FirehoseTableSchema`.
     ///
     /// # Arguments
     ///
@@ -124,8 +129,8 @@ impl OperationRunner {
     ///
     /// # Returns
     ///
-    /// A result containing a `BoundPlanBuilder` if successful, or an error
-    /// message if the binding fails.
+    /// A result containing an `OperationRunner` if successful, or an error
+    /// if the binding fails.
     #[must_use]
     pub fn new_for_plan(
         table_schema: Arc<FirehoseTableSchema>,
@@ -162,8 +167,8 @@ impl OperationRunner {
     ///
     /// # Arguments
     ///
-    /// * `rows` - A mutable slice of `BimmRow` instances that will be processed
-    ///   by the operator.
+    /// * `batch` - The rows to process. The operator's outputs are written back
+    ///   only if it succeeds.
     ///
     /// # Returns
     ///

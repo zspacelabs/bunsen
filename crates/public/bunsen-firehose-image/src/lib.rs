@@ -2,8 +2,8 @@
 //!
 //! This crate provides ready-to-use [`bunsen_firehose`] operators for image
 //! data: loading from disk, resizing/recoloring, seedable augmentation, and
-//! conversion to [`burn`] tensors. Each operator registers itself into the
-//! global registry, so [`init_default_operator_environment`] returns an
+//! conversion to [`burn`] tensor data. Each operator registers itself into
+//! the global registry, so [`init_default_operator_environment`] returns an
 //! environment that already knows about all of them.
 //!
 //! The modules:
@@ -24,7 +24,15 @@
 //!   for assembling tensor batches.
 //! - [`colortype_support`] — [`ColorType`] conversion and (de)serialization
 //!   helpers.
-//! - [`test_util`] — image generation/comparison helpers for tests.
+#![cfg_attr(
+    feature = "testing",
+    doc = "- [`test_util`] (feature `testing`) — a test image and an image-similarity assertion,"
+)]
+#![cfg_attr(
+    not(feature = "testing"),
+    doc = "- `test_util` (feature `testing`) — a test image and an image-similarity assertion,"
+)]
+//!   for this crate's tests and its dependents'.
 //!
 //! # Example: load, resize, and tensorize an image
 //!
@@ -121,7 +129,7 @@
 //!
 //! For a complete training pipeline that wires these operators into a [`burn`]
 //! `DataLoaderBuilder` — including per-row augmentation seeds — see the
-//! `resnet_tiny` example under `demos/bimm/examples`.
+//! `resnet_tiny` example (`examples/resnet_tiny`).
 //!
 //! [`init_default_operator_environment`]: bunsen_firehose::ops::init_default_operator_environment
 
@@ -134,6 +142,7 @@ pub mod augmentation;
 pub mod burn_support;
 pub mod colortype_support;
 pub mod loader;
+#[cfg(any(test, feature = "testing"))]
 pub mod test_util;
 
 /// Represents the shape of an image.

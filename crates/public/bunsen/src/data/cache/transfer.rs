@@ -1,18 +1,4 @@
-//! # Transfer observers
-//!
-//! A transfer is one file moving into the cache: a download today; a copy or
-//! a verification pass later. Observers watch transfers without taking part
-//! in them. The disk cache carries a stack of them
-//! ([`BunsenDiskCacheOptions::transfer_observers`]) and tells every observer
-//! about every transfer, in registration order.
-//!
-//! The shape is a factory plus a per-transfer handle, because a progress bar
-//! has a lifetime: it is created with a length, advanced, and then finished
-//! or abandoned. [`TransferObserver::begin`] hands out one
-//! [`TransferProgress`] per transfer; [`TransferProgressStack`] holds the
-//! handles one transfer got from every observer, and fans out to them.
-//!
-//! [`BunsenDiskCacheOptions::transfer_observers`]: super::BunsenDiskCacheOptions::transfer_observers
+//! Transfer observers: who is told as a file moves into the cache.
 
 use std::{
     fmt,
@@ -63,6 +49,17 @@ pub trait TransferProgress: Send + Sync {
 }
 
 /// Watches transfers; lives on [`BunsenDiskCacheOptions`].
+///
+/// A transfer is one file moving into the cache: a download today, and a
+/// copy or a verification pass later. An observer watches without taking
+/// part. The disk cache tells every observer in its stack about every
+/// transfer, in registration order.
+///
+/// The shape is a factory plus a per-transfer handle, because a progress
+/// bar has a lifetime: it is created with a length, advanced, and then
+/// finished or abandoned. [`begin`](Self::begin) hands out one
+/// [`TransferProgress`] per transfer, and a [`TransferProgressStack`] holds
+/// the handles one transfer got from every observer and fans out to them.
 ///
 /// [`BunsenDiskCacheOptions`]: super::BunsenDiskCacheOptions
 pub trait TransferObserver: Send + Sync + fmt::Debug {

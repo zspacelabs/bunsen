@@ -9,8 +9,18 @@ dependencies = [
 ]
 
 [tasks.doc]
+description = "Build the workspace API docs, then bunsen's docs.rs configuration"
 command = "cargo"
 args = ["doc", "--no-deps"]
+dependencies = ["doc-docsrs"]
+
+[tasks.doc-docsrs]
+description = "Build bunsen's API docs alone, with the feature list docs.rs uses"
+script = '''
+features=$(cargo metadata --no-deps --format-version 1 \
+  | jq -r '.packages[] | select(.name == "bunsen") | .metadata.docs.rs.features | join(",")')
+cargo doc -p bunsen --no-deps --features "$features"
+'''
 
 [tasks.setup]
 dependencies = ["ensure-mdbook-suite"]
@@ -72,11 +82,21 @@ dependencies = [
 # ── mdBook ────────────────────────────────────────────────────────────────────
 
 [tasks.book]
-description = "Build the mdBook in ./book"
+description = "Build the mdBook in ./book, linking into local API docs (book/src/api)"
 dependencies = ["ensure-mdbook-suite"]
 cwd = "book"
 command = "mdbook"
 args = ["build"]
+
+[tasks.book-check]
+description = "Build the book as CI does: every unresolved API link is an error"
+extend = "book"
+env = { MDBOOK_PREPROCESSOR__RUSTDOC_LINKS__FAIL_ON_WARNINGS = "always" }
+
+[tasks.book-release]
+description = "Build the book for publishing: API links pinned to this version on docs.rs"
+extend = "book"
+env = { CI = "1", MDBOOK_OUTPUT__HTML__SITE_URL = "/bunsen/book/" }
 
 [tasks.book-serve]
 description = "Serve the mdBook locally with live reload"
@@ -96,32 +116,35 @@ args = ["clean"]
 dependencies = [
     "ensure-mdbook",
     "ensure-mdbook-katex",
-    "ensure-mdbook-linkcheck",
     "ensure-mdbook-linkcheck2",
     "ensure-mdbook-mermaid",
+    "ensure-mdbook-rustdoc-links",
 ]
+
+# `cargo install` without `--force` is a no-op when the pinned version is
+# already installed, and replaces any other installed version.
 
 [tasks.ensure-mdbook]
 toolchain = "stable"
 command = "cargo"
-args = ["install", "mdbook", "--version", "0.5.1", "--locked", "--force"]
+args = ["install", "mdbook", "--version", "0.5.4", "--locked"]
 
 [tasks.ensure-mdbook-katex]
 toolchain = "stable"
 command = "cargo"
-args = ["install", "mdbook-katex", "--version", "0.10.0-alpha", "--locked", "--force"]
-
-[tasks.ensure-mdbook-linkcheck]
-toolchain = "stable"
-command = "cargo"
-args = ["install", "mdbook-linkcheck", "--version", "0.7.7", "--locked", "--force"]
+args = ["install", "mdbook-katex", "--version", "0.10.0", "--locked"]
 
 [tasks.ensure-mdbook-linkcheck2]
 toolchain = "stable"
 command = "cargo"
-args = ["install", "mdbook-linkcheck2", "--version", "0.12.0", "--locked", "--force"]
+args = ["install", "mdbook-linkcheck2", "--version", "0.13.0", "--locked"]
 
 [tasks.ensure-mdbook-mermaid]
 toolchain = "stable"
 command = "cargo"
-args = ["install", "mdbook-mermaid", "--version", "0.17.0", "--locked", "--force"]
+args = ["install", "mdbook-mermaid", "--version", "0.17.1", "--locked"]
+
+[tasks.ensure-mdbook-rustdoc-links]
+toolchain = "stable"
+command = "cargo"
+args = ["install", "mdbook-rustdoc-links", "--version", "3.0.2", "--locked"]

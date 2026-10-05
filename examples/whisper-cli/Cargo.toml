@@ -15,13 +15,15 @@ workspace = true
 burn = { workspace = true }
 # The backend is bunsen's `PerformanceBackend`, chosen by bunsen's own backend
 # feature at build time: `--features bunsen/wgpu` (or `bunsen/cuda`,
-# `bunsen/metal`, `bunsen/flex`). With none, bunsen's default `testing`
-# feature selects `flex`.
+# `bunsen/metal`, `bunsen/flex`). `PerformanceBackend` lives in
+# `bunsen::support::testing`, hence `testing`, which falls back to `flex`
+# when no backend feature is set.
 #
 # `silero-weights` bundles the VAD the real-time presets need.
 # `indicatif` puts bunsen's progress bar on every weights transfer.
 bunsen = { path = "../../crates/public/bunsen", features = [
     "store",
+    "testing",
     "audio",
     "tokenizer",
     "silero-weights",
@@ -36,4 +38,3 @@ log = { workspace = true }
 # clean stop. On Linux `cpal` links ALSA: `libasound2-dev`.
 cpal = { workspace = true }
 ctrlc = { workspace = true }
-

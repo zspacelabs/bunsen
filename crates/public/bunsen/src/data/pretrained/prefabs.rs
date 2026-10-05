@@ -1,8 +1,4 @@
-//! # Config prefabs for well-known model configurations
-//!
-//! A prefab is a named builder of a config: a geometry a name means before
-//! any bytes are fetched. Which pretrained rows instantiate a prefab is the
-//! rows' side, through `Pretrained::prefab` and a factory's `for_prefab`.
+//! Config prefabs: the geometries a kit knows by name.
 
 use alloc::{
     collections::BTreeMap,
@@ -21,7 +17,12 @@ use burn::config::Config;
 use super::not_found;
 use crate::errors::BunsenResult;
 
-/// Static builder for a [`PreFabConfig`]
+/// One prefab, as a compiled-in table spells it: a name, a line for a
+/// listing, and a builder of the config.
+///
+/// An item of a [`StaticPreFabMap`]. [`to_config`](Self::to_config) builds
+/// the config; [`to_prefab`](Self::to_prefab) gives the owned twin, a
+/// [`PreFabConfig`].
 pub struct StaticPreFabConfig<C>
 where
     C: 'static + Config + Debug + Clone,
@@ -128,7 +129,20 @@ where
     }
 }
 
-/// Static builder for a [`PreFabMap`].
+/// A kit's prefabs, as a compiled-in table spells it: the geometries it
+/// knows by name.
+///
+/// A prefab is a named builder of a config: what a name means as a shape
+/// before any bytes are fetched. Whisper's `WHISPER_PREFABS` and `ResNet`'s
+/// `RESNET_PREFABS` are the in-tree maps. Which rows instantiate a
+/// prefab is the rows' side: a [`Pretrained`](super::Pretrained) row names
+/// its prefab, [`PretrainedRef::prefab`](super::PretrainedRef::prefab)
+/// looks it up here for a resolved row (for the kit's hook to build from
+/// or check against), and a factory's
+/// [`for_prefab`](super::PretrainedFactory::for_prefab) lists the rows of
+/// one prefab. [`find`](Self::find) is the reverse lookup, for a config that
+/// arrived without a name. [`to_prefab_map`](Self::to_prefab_map) gives the
+/// owned twin, a [`PreFabMap`].
 #[derive(Debug)]
 pub struct StaticPreFabMap<C>
 where

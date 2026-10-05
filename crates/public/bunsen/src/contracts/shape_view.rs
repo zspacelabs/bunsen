@@ -1,4 +1,4 @@
-//! # Utility crate for [`ShapeArgument`] for passing shapes in a type-safe manner.
+//! The shape argument of contract checks.
 
 use alloc::vec::Vec;
 
@@ -11,7 +11,31 @@ use burn::{
     tensor::BasicOps,
 };
 
-/// Adaptor to view sources as a `&[usize]`.
+/// A shape as a `[usize]` slice: the `shape` argument of every
+/// [`ShapeContract`](crate::contracts::ShapeContract) check.
+///
+/// `ShapeView` is a struct, not a trait. The checks take
+/// `S: Into<ShapeView>`, so a caller passes a shape in whatever form it has;
+/// the `From` impls below list every accepted form. A view either borrows the
+/// caller's `usize`s or owns a converted copy:
+///
+/// - borrowed, no allocation: `&[usize]`, `&[usize; D]`, `&Vec<usize>`, and
+///   `&Shape`;
+/// - moved, no allocation: `Vec<usize>`;
+/// - converted into a new `Vec<usize>` on every call: `&[u32]`, `&[u32; D]`,
+///   `&[i32]`, `&[i32; D]`, `Vec<u32>`, `Vec<i32>`, an owned `Shape`, and
+///   `&Tensor`.
+///
+/// For a tensor, pass `&x.dims()`, a borrowed `[usize; D]`, rather than `&x`,
+/// which goes through [`Shape`] and copies it into a `Vec`.
+///
+/// # Panics
+///
+/// Converting an `i32` form panics on a negative size, which no dimension can
+/// have. A `From` conversion can't fail, so the panic comes from the check that
+/// converts the shape, even a `try_` method, and names the check's caller. To
+/// handle a negative size as an error, convert the sizes with
+/// `usize::try_from` and pass the `usize`s.
 pub struct ShapeView<'a> {
     slice: Option<&'a [usize]>,
     vec: Option<Vec<usize>>,
@@ -63,6 +87,7 @@ impl<'a, const D: usize> From<&'a [u32; D]> for ShapeView<'a> {
 }
 
 impl<'a, const D: usize> From<&'a [i32; D]> for ShapeView<'a> {
+    #[track_caller]
     fn from(slice: &'a [i32; D]) -> Self {
         slice.as_slice().into()
     }
@@ -75,8 +100,9 @@ impl<'a> From<&'a [u32]> for ShapeView<'a> {
 }
 
 impl<'a> From<&'a [i32]> for ShapeView<'a> {
+    #[track_caller]
     fn from(slice: &'a [i32]) -> Self {
-        Self::from_vec(slice.iter().map(|&d| d as usize).collect::<Vec<_>>())
+        Self::from_vec(sizes_from_i32(slice))
     }
 }
 
@@ -99,9 +125,23 @@ impl<'a> From<Vec<u32>> for ShapeView<'a> {
 }
 
 impl<'a> From<Vec<i32>> for ShapeView<'a> {
+    #[track_caller]
     fn from(vec: Vec<i32>) -> Self {
-        Self::from_vec(vec.iter().map(|&d| d as usize).collect::<Vec<_>>())
+        Self::from_vec(sizes_from_i32(&vec))
     }
+}
+
+/// Converts `i32` sizes to `usize`.
+///
+/// # Panics
+///
+/// If a size is negative.
+#[track_caller]
+fn sizes_from_i32(sizes: &[i32]) -> Vec<usize> {
+    if sizes.iter().any(|&d| d < 0) {
+        panic!("Shape {sizes:?} has a negative size");
+    }
+    sizes.iter().map(|&d| d as usize).collect()
 }
 
 impl<'a> From<&'a Shape> for ShapeView<'a> {
@@ -219,5 +259,18 @@ mod tests {
         let tensor_ref = &tensor;
         let sv: ShapeView = tensor_ref.into();
         assert_eq!(sv.as_ref(), &[2, 2]);
+    }
+
+    #[test]
+    #[should_panic(expected = "Shape [-1, 3] has a negative size")]
+    fn test_negative_i32_size_panics() {
+        let shape: [i32; 2] = [-1, 3];
+        let _: ShapeView = (&shape).into();
+    }
+
+    #[test]
+    #[should_panic(expected = "Shape [4, -2] has a negative size")]
+    fn test_negative_i32_vec_size_panics() {
+        let _: ShapeView = vec![4i32, -2].into();
     }
 }

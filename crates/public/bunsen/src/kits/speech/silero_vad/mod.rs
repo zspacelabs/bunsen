@@ -8,13 +8,15 @@
 //! - [`blocks`]: the model, [`SileroVad`], for one sample rate; the two-rate
 //!   [`SileroVadCollection`] a checkpoint holds; and the [`SileroVadContext`]
 //!   that carries what a stream needs between chunks (the tail of the last
-//!   chunk and the recurrent state).
-//! - [`pretrained`] (feature `store`): how the weights arrive.
-//!   `default_silero_factory()` is the index: with the `silero-weights`
-//!   feature, one row, `bundled:silero/vad`, the burnpack linked into the
-//!   binary and written into the cache under its digest on first use. The
-//!   loaders in `pretrained::load` read the same bytes with no cache at all,
-//!   for a binary that wants nothing else.
+//!   chunk and the recurrent state). The model holds no stream state, so one
+//!   loaded model serves any number of streams, a context each.
+//! - [`pretrained`] (features `store_burnpack` and `cache`, both default): how
+//!   the weights arrive.
+//!   [`default_silero_factory`](pretrained::default_silero_factory) is the
+//!   index: with the `silero-weights` feature, one row, `bundled:silero/vad`,
+//!   the burnpack linked into the binary and written into the cache under its
+//!   digest on first use. The loaders in [`pretrained::load`] read the same
+//!   bytes with no cache at all, for a binary that wants nothing else.
 //!
 //! The ONNX reference this was transliterated from, and the cross-checks
 //! against it, live in the `silero-model-validation` crate. There is
@@ -28,7 +30,7 @@
 //! chunk by chunk.
 //!
 //! ```rust,no_run
-//! # #[cfg(feature = "store")] {
+//! # #[cfg(all(feature = "store_burnpack", feature = "cache"))] {
 //! use std::sync::Arc;
 //!
 //! use bunsen::{
@@ -72,8 +74,8 @@
 //!     samples: &[f32],
 //!     device: &B::Device,
 //! ) -> Vec<f32> {
-//!     // One stream at the branch's rate, and the 64-sample tail the model
-//!     // looks back over.
+//!     // One stream at the branch's rate, and the tail the model looks back
+//!     // over: 64 samples at 16 kHz, 32 at 8 kHz.
 //!     let mut ctx =
 //!         SileroVadContextConfig::new(vad.sample_rate()).init(vad, device);
 //!     let mut probabilities = Vec::new();
@@ -107,14 +109,14 @@
 //!
 //! The Whisper stream driver's real-time emission presets take the model
 //! the same way, and turn its probabilities into speech regions through a
-//! [`VoiceActivityFilterConfig`](crate::kits::speech::whisper::driver::VoiceActivityFilterConfig):
-//!
-//! ```rust,ignore
-//! let vad = load_vad::<B>(device)?;
-//! let driver = driver.with_vad(vad.expect_branch(16000).clone(), Default::default())?;
-//! ```
+//! [`VoiceActivityFilterConfig`](crate::kits::speech::whisper::driver::VoiceActivityFilterConfig),
+//! attached with
+//! [`with_vad`](crate::kits::speech::whisper::driver::WhisperStreamDriver::with_vad):
+//! the 16 kHz branch, cloned out of the collection. The Whisper kit's
+//! [other ways in](crate::kits::speech::whisper#other-ways-in) show it
+//! whole.
 
-#[cfg(feature = "store")]
+#[cfg(all(feature = "store_burnpack", feature = "cache"))]
 pub mod pretrained;
 
 pub mod blocks;

@@ -1,13 +1,4 @@
 //! # The Whisper bundle
-//!
-//! What a Whisper pretrained builds, and what the driver holds behind an
-//! `Arc`: the model, its token layout, and, when the pretrained has one,
-//! the base vocabulary a decode needs for text and for upstream's default
-//! suppress list. Several drivers over one loaded model share the `Arc`.
-//!
-//! A bundle without a vocabulary is ids only, which is still a complete
-//! result: the layout needs no file, and a driver over it emits ids and
-//! applies no suppress list.
 
 use std::{
     fmt,
@@ -41,6 +32,20 @@ use crate::{
 
 /// A loaded Whisper model with its token layout and, when it has one, its
 /// vocabulary.
+///
+/// What a Whisper pretrained builds
+/// ([`WhisperConstruct`](crate::kits::speech::whisper::pretrained::WhisperConstruct)'s
+/// `Built`, through `load_bundle` on the factory), and what the driver
+/// holds behind an `Arc`: the model, its token layout, and, when the
+/// pretrained has one, the base vocabulary a decode needs for text and for
+/// upstream's default suppress list.
+/// [`WhisperStreamDriverConfig::init_from_bundle`](super::WhisperStreamDriverConfig::init_from_bundle)
+/// builds a driver over one; several drivers over one loaded model share
+/// the `Arc`.
+///
+/// A bundle without a vocabulary is ids only, which is still a complete
+/// result: the layout needs no file, and a driver over it emits ids and
+/// applies no suppress list.
 #[derive(Debug)]
 pub struct WhisperBundle<B: Backend> {
     /// The model.

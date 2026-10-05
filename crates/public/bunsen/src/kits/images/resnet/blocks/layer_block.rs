@@ -1,0 +1,608 @@
+//! # `ResNet` Layer Block
+
+use alloc::{
+    format,
+    string::ToString,
+    vec::Vec,
+};
+
+use burn::{
+    config::Config,
+    nn::{
+        BatchNormConfig,
+        activation::ActivationConfig,
+        norm::NormalizationConfig,
+    },
+    prelude::{
+        Backend,
+        Module,
+        Tensor,
+    },
+};
+
+use crate::{
+    burner::module::{
+        ModuleInit,
+        ToStructureConfig,
+    },
+    errors::{
+        BunsenError,
+        BunsenResult,
+    },
+    kits::images::resnet::blocks::{
+        BottleneckPolicyConfig,
+        ResidualBlock,
+        ResidualBlockContractConfig,
+        ResidualBlockMeta,
+        ResidualBlockStructureConfig,
+    },
+    ops::{
+        conv::stride_div_output_resolution,
+        drop::DropBlockOptions,
+    },
+    support::validators::expect_probability,
+};
+
+/// Abstract [`LayerBlock`] Config.
+///
+/// High-level description of one `ResNet` stage: how many blocks, the channel
+/// sizes, dilation, downsampling, and whether to use bottleneck blocks. It
+/// implements [`ToStructureConfig`], lowering to a
+/// [`LayerBlockStructureConfig`], and gets [`ModuleInit`] from that trait's
+/// blanket impl: call `.init(device)` to build the [`LayerBlock`] module, then
+/// drive it with [`LayerBlock::forward`].
+#[derive(Config, Debug)]
+pub struct LayerBlockContractConfig {
+    /// The number of internal blocks.
+    pub num_blocks: usize,
+
+    /// The number of input feature planes.
+    pub in_planes: usize,
+
+    /// The number of output feature planes.
+    pub out_planes: usize,
+
+    /// Dilation rate for conv layers.
+    #[config(default = 1)]
+    pub dilation: usize,
+
+    /// If set, override the first dilation rate.
+    #[config(default = "None")]
+    pub first_dilation: Option<usize>,
+
+    /// Downsample the input by 2x?
+    #[config(default = "false")]
+    pub downsample_input: bool,
+
+    /// Select between [`super::basic_block::BasicBlock`] and
+    /// [`super::bottleneck_block::BottleneckBlock`].
+    #[config(default = "None")]
+    pub bottleneck_policy: Option<BottleneckPolicyConfig>,
+
+    /// Normalization config.
+    ///
+    /// The feature size of this config will be replaced
+    /// with the appropriate feature size for the input layer.
+    #[config(default = "NormalizationConfig::Batch(BatchNormConfig::new(0))")]
+    pub normalization: NormalizationConfig,
+
+    /// Activation config.
+    #[config(default = "ActivationConfig::Relu")]
+    pub activation: ActivationConfig,
+}
+
+impl LayerBlockContractConfig {
+    /// Builds the [`ResidualBlockContractConfig`]s for this layer block.
+    pub fn to_block_contracts(&self) -> Vec<ResidualBlockContractConfig> {
+        let mut first_dilation = self.first_dilation;
+
+        let mut blocks = Vec::with_capacity(self.num_blocks);
+
+        for b in 0..self.num_blocks {
+            let downsample_input = b == 0 && self.downsample_input;
+            let in_planes = if b == 0 {
+                self.in_planes
+            } else {
+                self.out_planes
+            };
+
+            blocks.push(
+                ResidualBlockContractConfig::new(in_planes, self.out_planes)
+                    .with_downsample_input(downsample_input)
+                    .with_first_dilation(first_dilation)
+                    .with_dilation(self.dilation)
+                    .with_bottleneck_policy(self.bottleneck_policy.clone())
+                    .with_normalization(self.normalization.clone())
+                    .with_activation(self.activation.clone()),
+            );
+
+            first_dilation = Some(self.dilation);
+        }
+
+        blocks
+    }
+}
+
+impl ToStructureConfig for LayerBlockContractConfig {
+    type Structure = LayerBlockStructureConfig;
+
+    fn try_to_structure(&self) -> BunsenResult<LayerBlockStructureConfig> {
+        Ok(LayerBlockStructureConfig {
+            blocks: self
+                .to_block_contracts()
+                .iter()
+                .map(|cfg| cfg.try_to_structure())
+                .collect::<BunsenResult<_>>()?,
+        })
+    }
+}
+
+/// [`LayerBlock`] Meta API.
+///
+/// The view shared by [`LayerBlockStructureConfig`] and [`LayerBlock`].
+pub trait LayerBlockMeta {
+    /// The number of blocks.
+    fn len(&self) -> usize;
+
+    /// Checks if the layer block is empty.
+    fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+
+    /// The number of input feature planes.
+    fn in_planes(&self) -> usize;
+
+    /// The number of output feature planes.
+    fn out_planes(&self) -> usize;
+
+    /// Returns the effective stride of the layers.
+    fn stride(&self) -> usize;
+
+    /// Returns the output resolution for a given input resolution.
+    ///
+    /// The input must be a multiple of the stride.
+    ///
+    /// # Arguments
+    ///
+    /// - `input_resolution`: `[in_height=out_height*stride,
+    ///   in_width=out_width*stride]`.
+    ///
+    /// # Returns
+    ///
+    /// `[out_height, out_width]`
+    ///
+    /// # Panics
+    ///
+    /// If the input resolution is not a multiple of the stride.
+    fn output_resolution(
+        &self,
+        input_resolution: [usize; 2],
+    ) -> [usize; 2] {
+        stride_div_output_resolution(input_resolution, self.stride())
+    }
+}
+
+/// [`LayerBlock`] Configuration.
+///
+/// The concrete, per-block structure of a `ResNet` stage: an explicit list of
+/// [`ResidualBlockStructureConfig`]s. [`LayerBlockContractConfig`] lowers to
+/// it. Call `.init(device)` to build the [`LayerBlock`] module, then drive it
+/// with [`LayerBlock::forward`].
+///
+/// Implements [`LayerBlockMeta`].
+#[derive(Config, Debug)]
+pub struct LayerBlockStructureConfig {
+    /// The component blocks.
+    pub blocks: Vec<ResidualBlockStructureConfig>,
+}
+
+impl From<Vec<ResidualBlockStructureConfig>> for LayerBlockStructureConfig {
+    fn from(blocks: Vec<ResidualBlockStructureConfig>) -> Self {
+        Self { blocks }
+    }
+}
+
+impl LayerBlockMeta for LayerBlockStructureConfig {
+    fn len(&self) -> usize {
+        self.blocks.len()
+    }
+
+    fn in_planes(&self) -> usize {
+        self.blocks[0].in_planes()
+    }
+
+    fn out_planes(&self) -> usize {
+        self.blocks[self.blocks.len() - 1].out_planes()
+    }
+
+    fn stride(&self) -> usize {
+        self.blocks
+            .iter()
+            .fold(1, |acc, block| acc * block.stride())
+    }
+}
+
+impl LayerBlockStructureConfig {
+    /// Checks if the config is valid.
+    pub fn try_validate(&self) -> BunsenResult<()> {
+        if self.is_empty() {
+            return Err(BunsenError::Invalid("blocks is empty".to_string()));
+        }
+
+        for idx in 1..self.blocks.len() {
+            let prev = &self.blocks[idx - 1];
+            let curr = &self.blocks[idx];
+            if prev.out_planes() != curr.in_planes() {
+                return Err(BunsenError::Invalid(format!(
+                    "block[{}].out_planes({}) != block[{}].in_planes({})\n{:#?}",
+                    idx - 1,
+                    prev.out_planes(),
+                    idx,
+                    curr.in_planes(),
+                    self,
+                )));
+            }
+        }
+        Ok(())
+    }
+
+    /// Panics if `try_validate` returns an error.
+    pub fn expect_valid(&self) {
+        match self.try_validate() {
+            Ok(_) => (),
+            Err(err) => panic!("{}", err),
+        }
+    }
+
+    /// Applies a mapping over the blocks.
+    pub fn map_blocks<F>(
+        self,
+        f: &mut F,
+    ) -> Self
+    where
+        F: FnMut(usize, ResidualBlockStructureConfig) -> ResidualBlockStructureConfig,
+    {
+        Self {
+            blocks: self
+                .blocks
+                .into_iter()
+                .enumerate()
+                .map(|(idx, block)| f(idx, block))
+                .collect(),
+        }
+    }
+
+    /// Sets the drop block options of every block, the first included, as
+    /// [`LayerBlock::with_drop_block`] does to a built stage.
+    pub fn with_drop_block<O>(
+        self,
+        options: O,
+    ) -> Self
+    where
+        O: Into<Option<DropBlockOptions>>,
+    {
+        let options = options.into();
+        self.map_blocks(&mut |_, block| block.with_drop_block(options.clone()))
+    }
+}
+
+impl<B: Backend> ModuleInit<B, LayerBlock<B>> for LayerBlockStructureConfig {
+    fn try_init(
+        &self,
+        device: &B::Device,
+    ) -> BunsenResult<LayerBlock<B>> {
+        self.try_validate()?;
+
+        Ok(LayerBlock {
+            blocks: self
+                .blocks
+                .iter()
+                .map(|block| block.try_init(device))
+                .collect::<BunsenResult<Vec<ResidualBlock<B>>>>()?,
+        })
+    }
+}
+
+/// Layer block; stack of [`ResidualBlock`]s.
+///
+/// One `ResNet` stage: a sequential run of [`ResidualBlock`]s applied in order,
+/// where the first block typically handles channel/stride changes. Configure
+/// via [`LayerBlockContractConfig`], call `.init(device)` to build, then
+/// [`LayerBlock::forward`] to apply.
+///
+/// Implements [`LayerBlockMeta`].
+///
+/// Built by [`LayerBlockContractConfig`] (high-level) or
+/// [`LayerBlockStructureConfig`].
+#[derive(Module, Debug)]
+pub struct LayerBlock<B: Backend> {
+    /// Internal blocks.
+    pub blocks: Vec<ResidualBlock<B>>,
+}
+
+impl<B: Backend> LayerBlockMeta for LayerBlock<B> {
+    fn len(&self) -> usize {
+        self.blocks.len()
+    }
+
+    fn in_planes(&self) -> usize {
+        self.blocks[0].in_planes()
+    }
+
+    fn out_planes(&self) -> usize {
+        self.blocks[self.blocks.len() - 1].out_planes()
+    }
+
+    fn stride(&self) -> usize {
+        self.blocks
+            .iter()
+            .fold(1, |acc, block| acc * block.stride())
+    }
+}
+
+impl<B: Backend> LayerBlock<B> {
+    /// Debug print.
+    pub fn debug_print(&self) {
+        println!("## LayerBlock: len={}", self.len());
+        for (idx, block) in self.blocks.iter().enumerate() {
+            println!("### block[{}]:", idx);
+            block.debug_print();
+            println!();
+        }
+    }
+
+    /// Applies the layer block.
+    pub fn forward(
+        &self,
+        input: Tensor<B, 4>,
+    ) -> Tensor<B, 4> {
+        #[cfg(debug_assertions)]
+        use crate::contracts::*;
+
+        #[cfg(debug_assertions)]
+        let [batch, out_height, out_width] = unpack_shape_contract!(
+            [
+                "batch",
+                "in_planes",
+                "in_height" = "out_height" * "stride",
+                "in_width" = "out_width" * "stride"
+            ],
+            &input.dims(),
+            &["batch", "out_height", "out_width"],
+            &[("in_planes", self.in_planes()), ("stride", self.stride())],
+        );
+
+        let mut x = input;
+        for block in self.blocks.iter() {
+            x = block.forward(x);
+        }
+
+        #[cfg(debug_assertions)]
+        assert_shape_contract_periodically!(
+            ["batch", "out_planes", "out_height", "out_width"],
+            &x.dims(),
+            &[
+                ("batch", batch),
+                ("out_planes", self.out_planes()),
+                ("out_height", out_height),
+                ("out_width", out_width)
+            ],
+        );
+
+        x
+    }
+
+    /// Applies a mapping over the blocks.
+    pub fn map_blocks<F>(
+        self,
+        f: &mut F,
+    ) -> Self
+    where
+        F: FnMut(usize, ResidualBlock<B>) -> ResidualBlock<B>,
+    {
+        Self {
+            blocks: self
+                .blocks
+                .into_iter()
+                .enumerate()
+                .map(|(idx, block)| f(idx, block))
+                .collect(),
+        }
+    }
+
+    /// Updates the drop path probability.
+    pub fn with_drop_path_prob(
+        self,
+        prob: f64,
+    ) -> Self {
+        let prob = expect_probability(prob);
+        self.map_blocks(&mut |_, block| block.with_drop_path_prob(prob))
+    }
+
+    /// Sets the drop block options of every block.
+    pub fn with_drop_block<O>(
+        self,
+        options: O,
+    ) -> Self
+    where
+        O: Into<Option<DropBlockOptions>>,
+    {
+        let options = options.into();
+        self.map_blocks(&mut |_, block| block.with_drop_block(options.clone()))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use alloc::vec;
+
+    use burn::tensor::{
+        Tolerance,
+        backend::BackendTypes,
+    };
+    use serial_test::serial;
+
+    use super::*;
+    use crate::{
+        contracts::assert_shape_contract,
+        kits::images::resnet::blocks::BasicBlockConfig,
+        prelude::*,
+        support::testing::{
+            DeviceMemoryGuard,
+            PerformanceBackend,
+            default_device,
+        },
+    };
+
+    #[test]
+    fn test_layer_block_config_build() {
+        let num_blocks = 2;
+        let in_planes = 16;
+        let planes = 32;
+        let config: LayerBlockStructureConfig =
+            LayerBlockContractConfig::new(num_blocks, in_planes, planes)
+                .with_downsample_input(true)
+                .to_structure();
+        config.expect_valid();
+        assert_eq!(config.len(), 2);
+        assert_eq!(config.in_planes(), in_planes);
+        assert_eq!(config.out_planes(), planes);
+        assert_eq!(config.stride(), 2);
+        assert_eq!(config.output_resolution([12, 24]), [6, 12]);
+
+        let block1 = &config.blocks[0];
+        assert_eq!(block1.in_planes(), in_planes);
+        assert_eq!(block1.out_planes(), planes);
+        assert_eq!(block1.stride(), 2);
+        assert_eq!(block1.output_resolution([12, 24]), [6, 12]);
+
+        let block2 = &config.blocks[1];
+        assert_eq!(block2.in_planes(), planes);
+        assert_eq!(block2.out_planes(), planes);
+        assert_eq!(block2.stride(), 1);
+        assert_eq!(block2.output_resolution([12, 24]), [12, 24]);
+    }
+
+    #[test]
+    #[serial]
+    pub fn test_layer_block() {
+        type B = PerformanceBackend;
+        type F = <B as BackendTypes>::FloatElem;
+        let device = default_device();
+        let _memory = DeviceMemoryGuard::<B>::new(&device);
+
+        let a_planes = 16;
+        let b_planes = 32;
+        let c_planes = 64;
+
+        let config = LayerBlockStructureConfig::from(vec![
+            BasicBlockConfig::new(a_planes, b_planes)
+                .with_stride(2)
+                .into(),
+            BasicBlockConfig::new(b_planes, c_planes)
+                .with_stride(1)
+                .into(),
+            BasicBlockConfig::new(c_planes, c_planes)
+                .with_stride(1)
+                .into(),
+        ]);
+
+        config.expect_valid();
+
+        assert_eq!(config.in_planes(), a_planes);
+        assert_eq!(config.out_planes(), c_planes);
+        assert_eq!(config.stride(), 2);
+        assert_eq!(config.output_resolution([20, 16]), [10, 8]);
+
+        let block: LayerBlock<B> = config.init(&device);
+
+        assert_eq!(block.in_planes(), a_planes);
+        assert_eq!(block.out_planes(), c_planes);
+        assert_eq!(block.stride(), 2);
+        assert_eq!(block.output_resolution([20, 16]), [10, 8]);
+
+        let batch_size = 2;
+        let input = Tensor::ones([batch_size, a_planes, 20, 16], &device);
+
+        let output = block.forward(input.clone());
+        assert_shape_contract!(
+            ["batch", "out_planes", "out_height", "out_width"],
+            &output.dims(),
+            &[
+                ("batch", batch_size),
+                ("out_planes", c_planes),
+                ("out_height", 10),
+                ("out_width", 8)
+            ],
+        );
+
+        let mut expected = input;
+        for block in block.blocks.iter() {
+            expected = block.forward(expected);
+        }
+        output
+            .to_data_as::<F>()
+            .assert_approx_eq::<F>(&expected.to_data_as::<F>(), Tolerance::default());
+    }
+
+    /// Asserts that `a` and `b` answer every [`LayerBlockMeta`] method alike.
+    fn assert_meta_agrees(
+        a: &impl LayerBlockMeta,
+        b: &impl LayerBlockMeta,
+    ) {
+        assert_eq!(a.len(), b.len());
+        assert_eq!(a.is_empty(), b.is_empty());
+        assert_eq!(a.in_planes(), b.in_planes());
+        assert_eq!(a.out_planes(), b.out_planes());
+        assert_eq!(a.stride(), b.stride());
+        assert_eq!(a.output_resolution([8, 12]), b.output_resolution([8, 12]));
+    }
+
+    /// A policy builds the same `LayerBlock` through its structure as through
+    /// the blanket `init`.
+    #[test]
+    #[serial]
+    fn test_policy_pathways_agree() {
+        type B = PerformanceBackend;
+        let device = default_device();
+        let _memory = DeviceMemoryGuard::<B>::new(&device);
+
+        let policy = LayerBlockContractConfig::new(2, 8, 32)
+            .with_downsample_input(true)
+            .with_bottleneck_policy(Some(BottleneckPolicyConfig::default()));
+
+        let structure = policy.to_structure();
+        assert_eq!(structure.len(), 2);
+        assert_eq!(structure.in_planes(), 8);
+        assert_eq!(structure.out_planes(), 32);
+        assert_eq!(structure.stride(), 2);
+
+        let lowered: LayerBlock<B> = structure.init(&device);
+        let direct: LayerBlock<B> = policy.init(&device);
+
+        assert_meta_agrees(&direct, &lowered);
+        assert_meta_agrees(&direct, &structure);
+    }
+
+    /// The structure's `with_drop_block` gives the options to every block of
+    /// the stage, the first included, as [`LayerBlock::with_drop_block`] and
+    /// timm's `make_blocks` do.
+    #[test]
+    fn test_structure_with_drop_block_reaches_every_block() {
+        let options = DropBlockOptions::default().with_drop_prob(0.1);
+        let structure = LayerBlockContractConfig::new(3, 8, 16)
+            .with_downsample_input(true)
+            .to_structure()
+            .with_drop_block(options.clone());
+
+        let drop_blocks: Vec<Option<DropBlockOptions>> = structure
+            .blocks
+            .iter()
+            .map(|block| match block {
+                ResidualBlockStructureConfig::Basic(config) => config.drop_block.clone(),
+                ResidualBlockStructureConfig::Bottleneck(config) => config.drop_block.clone(),
+            })
+            .collect();
+        assert_eq!(drop_blocks, vec![Some(options); 3]);
+    }
+}

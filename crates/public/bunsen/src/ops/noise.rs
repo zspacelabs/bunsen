@@ -1,4 +1,9 @@
-//! # Tensor Noise Generation Utilities.
+//! # Noise as a value
+//!
+//! [`NoiseConfig`] is a [`Distribution`] plus an optional [`ClampOp`], held
+//! as one value object, with [`NoiseConfig::noise`] and
+//! [`NoiseConfig::noise_like`] to sample it. `DropBlockOptions` carries one
+//! to refill dropped regions.
 
 use burn::{
     module::{

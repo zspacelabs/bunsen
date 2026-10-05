@@ -6,6 +6,9 @@
 //! into a [`SileroVadCollection`](super::SileroVadCollection), both
 //! branches. The loaders in [`load`] read the bytes directly, with no
 //! cache, and stay for a binary that wants nothing else.
+//!
+//! The whole module needs the `store_burnpack` and `cache` features, both
+//! default. The kit has no prefab map.
 
 mod construct;
 pub mod load;
@@ -13,7 +16,5 @@ mod providers;
 
 #[cfg(feature = "silero-weights")]
 pub use bunsen_bundled_silero as bundled;
-#[doc(inline)]
 pub use construct::*;
-#[doc(inline)]
 pub use providers::*;

@@ -1,17 +1,4 @@
 //! # The stream clock: sample index to media time.
-//!
-//! Every stream carries a [`StreamClock`]: sorted `(sample, time)`
-//! anchors plus a sample rate. A bare stream gets one anchor at `(0, 0.0)`,
-//! which reproduces exactly the arithmetic upstream does from its seek
-//! pointer. Everything richer &mdash; a capture callback's timestamp, a
-//! container's presentation time, a dropped buffer becoming a new anchor
-//! rather than a permanent shift &mdash; is an addition to that, not a
-//! departure. Making the general case the only case costs nothing, because
-//! the bare case *is* the general case with one anchor.
-//!
-//! A timestamp token resolves as `clock.time_at(window_origin + index *
-//! 320)`; a region decoded as its own stream keeps correct absolute times
-//! through [`slice`](StreamClock::slice).
 
 use crate::errors::{
     BunsenError,
@@ -29,9 +16,23 @@ pub struct ClockAnchor {
 
 /// A stream's map from sample index to media time.
 ///
+/// Sorted `(sample, time)` [anchors](ClockAnchor) plus a sample rate. Every
+/// [`WhisperStreamContext`](super::WhisperStreamContext) carries one,
+/// given to [`new_context`](super::WhisperStreamDriver::new_context), which
+/// requires it to run at the model's rate; every segment the context emits
+/// is timed through it. A bare stream gets [`uniform`](Self::uniform), one
+/// anchor at `(0, 0.0)`, which reproduces upstream's arithmetic from its
+/// seek pointer exactly. A source that knows better (a capture callback's
+/// timestamp, a container's presentation time, the sample after a dropped
+/// buffer) adds an anchor, and later times follow it instead of drifting.
+///
 /// Between anchors, time advances at the sample rate; before the first and
 /// after the last it extrapolates at the sample rate too. Anchors are kept
-/// sorted by sample and are never removed.
+/// sorted by sample and are never removed; re-anchoring the last sample
+/// replaces its time.
+///
+/// A sub-stream's clock is a [`slice`](Self::slice) of its parent's, so a
+/// speech region decoded as a stream of its own keeps absolute times.
 #[derive(Debug, Clone, PartialEq)]
 pub struct StreamClock {
     rate: usize,

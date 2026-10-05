@@ -1,7 +1,11 @@
-//! # `DropBlock` Layers
+//! [`DropBlock2d`]: `DropBlock` as a module.
 //!
 //! Based upon [DropBlock (Ghiasi et al., 2018)](https://arxiv.org/pdf/1810.12890.pdf);
 //! inspired also by the `python-image-models` implementation.
+//!
+//! The tensor operation is [`drop_block_2d`], configured by a
+//! [`DropBlockOptions`]; [`DropBlock2d`] holds the options and decides when
+//! it runs.
 
 use burn::{
     config::Config,

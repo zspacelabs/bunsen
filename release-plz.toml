@@ -13,7 +13,7 @@
 [workspace]
 # Opt-in model: nothing is released unless a [[package]] entry below sets
 # `release = true`. This automatically keeps the `examples/*` binaries and the
-# unpublished `bunsen-preview-chat-dataloader` crate out of the release process.
+# `crates/dev` and `crates/validation` crates out of the release process.
 release = false
 
 # Regenerate each released crate's CHANGELOG.md from git history (via git-cliff).
@@ -28,10 +28,10 @@ git_release_enable = true
 
 # Only release when the release PR is merged — not on every push to `main`.
 # Without this, the `release` job publishes any crate whose manifest version
-# isn't on crates.io yet the moment it lands on `main`. That's what caused
-# `bunsen-preview-chat-dataloader` (manifest 0.21.3, never published) to attempt
-# a 0.21.3 back-publish. With releases gated on the release PR, a newly-added
-# crate first publishes at the *next* bumped version, alongside the others.
+# isn't on crates.io yet the moment it lands on `main`, so a never-published
+# crate would back-publish at its current manifest version. With releases gated
+# on the release PR, a newly-added crate first publishes at the *next* bumped
+# version, alongside the others.
 #
 # The gate is the merged PR's branch name: `release` runs only when the commit
 # at the head of `main` came from a PR whose branch starts with `release-plz-`
@@ -46,11 +46,11 @@ release_always = false
 
 
 # --- Published crates -------------------------------------------------------
-# All four crates share a single version (lockstep) via `version_group`, which
-# matches the `version.workspace = true` inheritance in the root Cargo.toml: a
-# bump to any one of them moves all of them to the same new version, and the
-# inter-crate `version = "x.y.z"` path-dependency requirements are updated
-# automatically.
+# Every published crate shares a single version (lockstep) via `version_group`,
+# which matches the `version.workspace = true` inheritance in the root
+# Cargo.toml: a bump to any one of them moves all of them to the same new
+# version, and the inter-crate `version = "x.y.z"` path-dependency requirements
+# are updated automatically.
 
 [[package]]
 name = "bunsen"
