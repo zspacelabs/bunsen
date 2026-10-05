@@ -4,22 +4,22 @@
 ones below and never the reverse. Knowing the layers tells you where a new
 piece of code belongs, and what it may depend on.
 
-```text
-  kits        whole models and simulations, with their configs,
-                │ pretrained indexes and runtime drivers
-  blocks      torch.nn-like components: module roots and tree parts
-                │
-  ops         operations: free functions, and Module/Config types that
-                │ hold cached tables or stream state
-  foundation  burner (burn extensions), contracts (shape checks),
-              errors, rust_ext (Rust helpers), support, zspace
-  ──────────────────────────────────────────────────────────────────
-  burn
+From the top of the stack down:
 
-  beside the stack:
-    data    files, caches, pretrained models and dataset shards; kits load through it
-    audit   recording and verifying tensor checkpoints across runs and backends
-```
+| Layer | Contents |
+|---|---|
+| `kits` | Whole models and simulations, with their configs, pretrained indexes and runtime drivers. |
+| `blocks` | `torch.nn`-like components: module roots and tree parts. |
+| `ops` | Operations: free functions, and `Module`/`Config` types that hold cached tables or stream state. |
+| foundation | `burner` (burn extensions), `contracts` (shape checks), `errors`, `rust_ext` (Rust helpers), `support`, `zspace`. |
+| `burn` | The framework underneath; not part of `bunsen`. |
+
+Beside the stack, outside the layering:
+
+- `data`: files, caches, pretrained models and dataset shards; kits load
+  through it.
+- `audit`: recording and verifying tensor checkpoints across runs and
+  backends.
 
 The split between `ops` and `blocks` is a rule, not a convenience: blocks
 are `nn`-like components meant to sit in a module tree; ops are operations

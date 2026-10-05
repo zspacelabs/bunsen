@@ -253,6 +253,9 @@ fn main() -> anyhow::Result<()> {
             feature = "metal" => {
                 type B = burn::backend::Metal<burn::tensor::bf16>;
             }
+            feature = "vulkan" => {
+                type B = burn::backend::Vulkan<burn::tensor::bf16>;
+            }
             feature = "wgpu" => {
                 type B = burn::backend::Wgpu<burn::tensor::bf16>;
             }
@@ -271,6 +274,9 @@ fn main() -> anyhow::Result<()> {
             }
             feature = "wgpu" => {
                 type B = burn::backend::Wgpu;
+            }
+            feature = "vulkan" => {
+                type B = burn::backend::Vulkan;
             }
             _ => {
                 type B = burn::backend::Flex;
