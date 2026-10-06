@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.37.0](https://github.com/zspacelabs/bunsen/compare/bunsen-arrow-dataloaders-v0.36.1...bunsen-arrow-dataloaders-v0.37.0) - 2026-10-06
+
+### Added
+
+- [**breaking**] reconcile the book and rustdoc; restructure modules; fix defects ([#237](https://github.com/zspacelabs/bunsen/pull/237))
+
 ## [0.33.0](https://github.com/zspacelabs/bunsen/compare/bunsen-arrow-dataloaders-v0.32.0...bunsen-arrow-dataloaders-v0.33.0) - 2026-09-21
 
 ### Other

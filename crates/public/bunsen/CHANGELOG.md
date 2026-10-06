@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and this project adheres
 to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.37.0](https://github.com/zspacelabs/bunsen/compare/bunsen-v0.36.1...bunsen-v0.37.0) - 2026-10-06
+
+### Added
+
+- *(errors)* [**breaking**] kinds, context frames and typed causes for BunsenError ([#238](https://github.com/zspacelabs/bunsen/pull/238))
+- [**breaking**] reconcile the book and rustdoc; restructure modules; fix defects ([#237](https://github.com/zspacelabs/bunsen/pull/237))
+- *(audit)* [**breaking**] move audit probes to `bunsen::audit`; add audit streams and baselines ([#236](https://github.com/zspacelabs/bunsen/pull/236))
+
 ## [0.36.1](https://github.com/zspacelabs/bunsen/compare/bunsen-v0.36.0...bunsen-v0.36.1) - 2026-09-25
 
 ### Added
