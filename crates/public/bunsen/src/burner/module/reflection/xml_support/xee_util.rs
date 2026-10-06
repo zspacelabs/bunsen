@@ -4,7 +4,10 @@ use spanned_error_message::{
 };
 use xee_xpath::error::ErrorValue;
 
-use crate::errors::BunsenError;
+use crate::errors::{
+    BunsenError,
+    ParseError,
+};
 
 /// Constructs a long-form error message from an [`ErrorValue`].
 pub fn pretty_errorvalue(e: &ErrorValue) -> String {
@@ -50,18 +53,43 @@ fn error_kind_label(e: &ErrorValue) -> &'static str {
 
 /// Adapts an [`xee_xpath::error::Error`] into a [`BunsenError`].
 ///
-/// Given the source, the message also marks the error's span, labelled
-/// with the kind of error: "Parse Error", "Type Error", and so on.
-/// `XPST0003` (a parse error) becomes [`BunsenError::ParseError`]; every
-/// other error becomes [`BunsenError::External`].
+/// The message is one line: the kind of error, its code, and its summary.
+/// The details hold the code's note and, given the source, the source with
+/// the error's span marked and labelled with the kind of error: "Parse
+/// Error", "Type Error", and so on.
+///
+/// The kind follows the error code:
+/// - `XPST0003` (text outside the grammar) is
+///   [`Illegal`](crate::errors::BunsenErrorKind::Illegal), with a
+///   [`ParseError`] cause for the expression;
+/// - every other standard code (static, type, dynamic, function), and an
+///   application error the expression raised, is `Illegal`, with the `xee`
+///   error as its cause: the expression is wrong;
+/// - `xee`'s `Unsupported` is
+///   [`Unsupported`](crate::errors::BunsenErrorKind::Unsupported), its
+///   `StackOverflow` is [`Sys`](crate::errors::BunsenErrorKind::Sys), and its
+///   `UsedQueryWithWrongQueries` is
+///   [`Internal`](crate::errors::BunsenErrorKind::Internal).
+///
+/// A caller that runs an expression from outside the program re-marks the
+/// `Illegal` errors [`as_policy`](crate::errors::ResultContext::as_policy).
 pub fn adapt_xee_error(
     e: xee_xpath::error::Error,
     src: Option<&str>,
 ) -> BunsenError {
-    let value_descr = pretty_errorvalue(&e.error);
+    let label = error_kind_label(&e.error);
+    let summary = e
+        .error
+        .message()
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ");
+    let message = format!("XPath {label}: {}: {summary}", e.error.code());
 
-    let mut lines = vec![value_descr];
-
+    let mut details = Vec::new();
+    if !e.error.note().is_empty() {
+        details.push(e.error.note().to_string());
+    }
     if let Some(src) = src
         && let Some(src_span) = e.span
     {
@@ -71,19 +99,30 @@ pub fn adapt_xee_error(
             start: offset_to_location(src, rng.start),
             end: offset_to_location(src, rng.end),
             document: spanned_error_message::Document::from_content(src),
-            label: error_kind_label(&e.error).to_string(),
+            label: label.to_string(),
         };
 
-        let clip_message = SpannedErrorMessage::new().create(&section);
-
-        lines.push(clip_message);
+        details.push(SpannedErrorMessage::new().create(&section));
     }
 
-    let msg = lines.join("\n");
+    let error = match &e.error {
+        ErrorValue::XPST0003 => {
+            let mut parse = ParseError::new("XPath expression");
+            if let Some(src) = src {
+                parse = parse.input(src);
+            }
+            BunsenError::illegal(message).with_cause(parse.with_source(e))
+        }
+        ErrorValue::Unsupported => BunsenError::unsupported(message).with_cause(e),
+        ErrorValue::StackOverflow => BunsenError::sys(message).with_cause(e),
+        ErrorValue::UsedQueryWithWrongQueries => BunsenError::internal(message).with_cause(e),
+        _ => BunsenError::illegal(message).with_cause(e),
+    };
 
-    match e.error {
-        ErrorValue::XPST0003 => BunsenError::ParseError(msg),
-        _ => BunsenError::External(msg),
+    if details.is_empty() {
+        error
+    } else {
+        error.with_details(details.join("\n"))
     }
 }
 
@@ -97,6 +136,13 @@ mod tests {
     use super::*;
     use crate::{
         burner::module::reflection::XmlModuleTree,
+        errors::{
+            BunsenErrorKind,
+            testing::{
+                ErrorMatcher,
+                predicate,
+            },
+        },
         support::testing::{
             CpuBackend,
             default_device,
@@ -117,25 +163,32 @@ mod tests {
         // Parses, then fails on evaluation: a two-item sequence has no
         // boolean value.
         let expr = "Linear/*[@name='weight', @rank=2]";
-        let msg = mtree.select_param_ids(expr).unwrap_err().to_string();
+        let err = mtree.select_param_ids(expr).unwrap_err();
 
-        assert!(msg.contains("XPTY0004"), "{msg}");
-        assert!(msg.contains("Type Error"), "{msg}");
-        assert!(!msg.contains("Parse Error"), "{msg}");
+        ErrorMatcher::kind(BunsenErrorKind::Illegal)
+            .message_contains("XPath Type Error: XPTY0004")
+            .details_contains("Type Error")
+            .has_cause::<xee_xpath::error::Error>()
+            .assert(&err);
+        assert!(!format!("{err:#}").contains("Parse Error"), "{err:#}");
     }
 
-    /// A syntax error is labelled "Parse Error", and is a
-    /// [`BunsenError::ParseError`].
+    /// A syntax error is labelled "Parse Error", and is `Illegal` with a
+    /// [`ParseError`] cause.
     #[test]
     fn test_syntax_error_is_labelled_parse_error() {
         let mut mtree = linear_tree();
 
         let err = mtree.try_select("Linear/*[").err().unwrap();
-        assert!(matches!(err, BunsenError::ParseError(_)), "{err:?}");
-
-        let msg = err.to_string();
-        assert!(msg.contains("XPST0003"), "{msg}");
-        assert!(msg.contains("Parse Error"), "{msg}");
+        ErrorMatcher::kind(BunsenErrorKind::Illegal)
+            .message_contains("XPath Parse Error: XPST0003")
+            .details_contains("Parse Error")
+            .cause(predicate("the expression", |p: &ParseError| {
+                p.input
+                    .as_deref()
+                    .is_some_and(|i| i.ends_with("/Linear/*["))
+            }))
+            .assert(&err);
     }
 
     #[test]

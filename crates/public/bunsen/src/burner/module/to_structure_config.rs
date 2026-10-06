@@ -34,9 +34,9 @@ use crate::{
 ///   policies. The inherent [`to_stft`] refines the first into the second, and
 ///   both name [`SileroVadStructureConfig`] as their `Structure`.
 /// - [`SwinTransformerV2ContractConfig`] has a fallible lowering: its
-///   `try_to_structure` is where the policy is validated, and it returns
-///   [`BunsenError::Invalid`](crate::errors::BunsenError::Invalid) for stages
-///   that do not fit the input or the window.
+///   `try_to_structure` is where the policy is validated, and it returns an
+///   [`Illegal`](crate::errors::BunsenErrorKind::Illegal) error for stages that
+///   do not fit the input or the window.
 ///
 /// The trait is in [`crate::prelude`], next to `ModuleInit`.
 ///

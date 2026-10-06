@@ -6,14 +6,26 @@ use burn::tensor::{
 
 use crate::errors::{
     BunsenError,
+    BunsenErrorKind,
     BunsenResult,
+    ParseError,
 };
 
 /// Converts a string to a [`DType`].
 ///
 /// Attempts to parse the format produced by [`Display`](std::fmt::Display).
 ///
-/// Currently, no support for [`DType::QFloat`] is implemented.
+/// A bare `"QFloat"` parses as [`DType::QFloat`] with the default
+/// [`QuantScheme`]; a `QFloat(..)` with a scheme does not parse.
+///
+/// # Errors
+/// - [`Illegal`](BunsenErrorKind::Illegal), with a [`ParseError`] cause, for
+///   text that is not a dtype name;
+/// - [`Unsupported`](BunsenErrorKind::Unsupported) for a `QFloat(..)` with a
+///   scheme.
+///
+/// A caller that parses text from outside the program re-marks the
+/// `Illegal` error [`as_policy`](crate::errors::ResultContext::as_policy).
 pub fn dtype_from_str(dtype: &str) -> BunsenResult<DType> {
     let dtype = dtype.trim();
     let lower = dtype.to_ascii_lowercase();
@@ -49,15 +61,15 @@ pub fn dtype_from_str(dtype: &str) -> BunsenResult<DType> {
         && let buf = buf.trim()
         && let Some(_buf) = buf.strip_suffix(")")
     {
-        return Err(BunsenError::External(format!(
-            "bunsen can't parse QFloat QuantScheme yet: {dtype:?}",
+        return Err(BunsenError::unsupported(format!(
+            "parsing a QFloat QuantScheme is not supported: {dtype:?}",
         )));
     }
 
-    Err(BunsenError::External(format!(
-        "Unsupported dtype: {}",
-        dtype
-    )))
+    Err(BunsenError::from_cause(
+        BunsenErrorKind::Illegal,
+        ParseError::new("dtype").input(dtype),
+    ))
 }
 
 #[cfg(test)]
@@ -69,6 +81,7 @@ mod tests {
     };
 
     use super::*;
+    use crate::errors::testing::ErrorMatcher;
 
     #[test]
     fn test_dtype_from_str() -> BunsenResult<()> {
@@ -100,13 +113,19 @@ mod tests {
             DType::QFloat(QuantScheme::default())
         );
 
-        assert_eq!(
-            dtype_from_str(format!("{:?}", DType::QFloat(QuantScheme::default())).as_str()),
-            Err(BunsenError::External(format!(
-                "bunsen can't parse QFloat QuantScheme yet: \"{:?}\"",
+        ErrorMatcher::kind(BunsenErrorKind::Unsupported)
+            .message_eq(&format!(
+                "parsing a QFloat QuantScheme is not supported: \"{:?}\"",
                 DType::QFloat(QuantScheme::default())
-            )))
-        );
+            ))
+            .assert_err(&dtype_from_str(
+                format!("{:?}", DType::QFloat(QuantScheme::default())).as_str(),
+            ));
+
+        ErrorMatcher::kind(BunsenErrorKind::Illegal)
+            .message_eq("cannot parse dtype \"f99\"")
+            .has_cause::<ParseError>()
+            .assert_err(&dtype_from_str(" f99 "));
 
         Ok(())
     }

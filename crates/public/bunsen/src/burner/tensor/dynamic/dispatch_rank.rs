@@ -14,6 +14,11 @@ pub trait RankHandler: Sized {
     /// Dynamic rank dispatch.
     ///
     /// Handles up to rank=12.
+    ///
+    /// # Errors
+    /// [`Unsupported`](crate::errors::BunsenErrorKind::Unsupported) for a
+    /// rank outside `1..=12`; otherwise, whatever [`call`](Self::call)
+    /// returns.
     fn dyn_call(
         self,
         rank: usize,
@@ -42,9 +47,8 @@ fn dispatch_rank<H: RankHandler>(
         10 => handler.call::<10>(),
         11 => handler.call::<11>(),
         12 => handler.call::<12>(),
-        _ => Err(BunsenError::UnsupportedRank {
-            msg: "unsupported rank".to_string(),
-            rank,
-        }),
+        _ => Err(BunsenError::unsupported(format!(
+            "rank {rank} is not supported; dynamic rank dispatch handles ranks 1 to 12"
+        ))),
     }
 }

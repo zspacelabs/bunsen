@@ -29,6 +29,9 @@ use crate::{
     errors::{
         BunsenError,
         BunsenResult,
+        ConstraintError,
+        Rule,
+        SlicingError,
     },
     rust_ext::CloneBox,
     zspace::check_slices_bounds,
@@ -166,7 +169,7 @@ impl<B: Backend> DynTensor<B> {
 
     /// Downcasts the tensor to a specific rank and kind.
     ///
-    /// # Result
+    /// # Returns
     /// - `Some(&Tensor<B, R, K>)`: if the params are correct,
     /// - `None`: otherwise.
     pub fn downcast_ref<const R: usize, K>(&self) -> Option<&Tensor<B, R, K>>
@@ -178,7 +181,7 @@ impl<B: Backend> DynTensor<B> {
 
     /// Downcasts the tensor to a specific rank and kind.
     ///
-    /// # Result
+    /// # Returns
     /// - `Some(Tensor<B, R, K>)`: if the params are correct,
     /// - `None`: otherwise.
     pub fn downcast_clone<const R: usize, K>(&self) -> Option<Tensor<B, R, K>>
@@ -190,7 +193,7 @@ impl<B: Backend> DynTensor<B> {
 
     /// Downcasts to a static tensor.
     ///
-    /// # Result
+    /// # Returns
     /// - the static tensor: if the params are correct,
     ///
     /// # Panics
@@ -204,7 +207,7 @@ impl<B: Backend> DynTensor<B> {
 
     /// Downcasts to a static tensor.
     ///
-    /// # Result
+    /// # Returns
     /// - the static tensor: if the params are correct,
     ///
     /// # Panics
@@ -222,9 +225,14 @@ impl<B: Backend> DynTensor<B> {
     /// # Arguments
     /// - `slices`: a `SliceArg<R>`.
     ///
-    /// # Result
+    /// # Returns
     /// - `Ok(DynTensor)`: the sliced tensor.
-    /// - `Err(DynTensorError)`: an error.
+    ///
+    /// # Errors
+    /// [`Illegal`](crate::errors::BunsenErrorKind::Illegal), with a
+    /// [`SlicingError`] cause, if the slices do not fit the shape;
+    /// [`Unsupported`](crate::errors::BunsenErrorKind::Unsupported) for a rank
+    /// outside `1..=12`.
     pub fn slice<S>(
         self,
         slices: S,
@@ -235,7 +243,7 @@ impl<B: Backend> DynTensor<B> {
         let rank = self.rank();
         let slices: Vec<Slice> = slices.into_slices(&self.shape);
 
-        check_slices_bounds(&self.shape(), &slices).map_err(BunsenError::SliceError)?;
+        check_slices_bounds(&self.shape(), &slices)?;
 
         struct SliceHandler<B: Backend> {
             this: DynTensor<B>,
@@ -272,16 +280,21 @@ impl<B: Backend> DynTensor<B> {
     /// # Arguments
     /// - `slices`: a dynamic slice of `Slice`.
     ///
-    /// # Result
+    /// # Returns
     /// - `Ok(DynTensor)`: the sliced tensor.
-    /// - `Err(DynTensorError)`: an error.
+    ///
+    /// # Errors
+    /// [`Illegal`](crate::errors::BunsenErrorKind::Illegal), with a
+    /// [`SlicingError`] cause, if the slices do not fit the shape;
+    /// [`Unsupported`](crate::errors::BunsenErrorKind::Unsupported) for a rank
+    /// outside `1..=12`.
     pub fn slice_dyn(
         self,
         slices: &[Slice],
     ) -> BunsenResult<Self> {
         let rank = self.rank();
 
-        check_slices_bounds(&self.shape(), slices).map_err(BunsenError::SliceError)?;
+        check_slices_bounds(&self.shape(), slices)?;
 
         struct SliceDynHandler<'a, B: Backend> {
             this: DynTensor<B>,
@@ -313,9 +326,16 @@ impl<B: Backend> DynTensor<B> {
     /// - `slices`: a `SlicesArg<R2>`.
     /// - `values`: a coercible value; see [`ValuesArg`].
     ///
-    /// # Result
+    /// # Returns
     /// - `Ok(DynTensor)`: a converted tensor.
-    /// - `Err(DynTensorError)`: an error.
+    ///
+    /// # Errors
+    /// [`Illegal`](crate::errors::BunsenErrorKind::Illegal), with a
+    /// [`SlicingError`] cause, if the slices do not fit the shape or `R2` is
+    /// not the tensor's rank; with a [`ConstraintError`] cause, if `values` has
+    /// a different rank than the tensor;
+    /// [`Unsupported`](crate::errors::BunsenErrorKind::Unsupported) for a rank
+    /// outside `1..=12`.
     pub fn slice_assign<const R2: usize, S, V>(
         self,
         slices: S,
@@ -326,21 +346,30 @@ impl<B: Backend> DynTensor<B> {
         V: ValuesArg<B>,
     {
         let rank = self.rank();
-        let slices: [Slice; R2] = slices.into_slices(&self.shape).try_into().map_err(|_| {
-            BunsenError::Invalid(format!(
-                "slice_assign rank ({R2}) does not match tensor rank ({rank})"
-            ))
-        })?;
+        let slices: [Slice; R2] =
+            slices
+                .into_slices(&self.shape)
+                .try_into()
+                .map_err(|slices: Vec<Slice>| SlicingError::InvalidRank {
+                    msg: format!("slice_assign rank ({R2}) does not match tensor rank ({rank})"),
+                    shape: self.shape(),
+                    slices,
+                })?;
         let values: DynTensor<B> = values.into_values(&self.device())?;
 
-        check_slices_bounds(&self.shape(), &slices).map_err(BunsenError::SliceError)?;
+        check_slices_bounds(&self.shape(), &slices)?;
 
         if rank != values.rank() {
-            return Err(BunsenError::Invalid(format!(
-                "slice of rank ({}) cannot be assigned to tensor of rank ({})",
-                values.rank(),
-                rank
-            )));
+            return Err(ConstraintError::new(
+                "DynTensor::slice_assign",
+                "values",
+                Rule::Relation {
+                    lhs: ("values rank".into(), values.rank().to_string()),
+                    op: "==",
+                    rhs: ("tensor rank".into(), rank.to_string()),
+                },
+            )
+            .into());
         }
 
         let values = values.cast(self.dtype())?;
@@ -375,8 +404,9 @@ impl<B: Backend> DynTensor<B> {
                         // let source = source.cast(target.dtype());
                         target.slice_assign(self.slices, source).into()
                     }
-                    _ => Err(BunsenError::Invalid(format!(
-                        "target kind ({:?}) != value kind ({:?})",
+                    // `slice_assign` casts the values to the target's dtype.
+                    _ => Err(BunsenError::internal(format!(
+                        "target kind ({:?}) != value kind ({:?}) after the cast",
                         self.this.kind, self.values.kind
                     )))?,
                 })
@@ -397,9 +427,15 @@ impl<B: Backend> DynTensor<B> {
     ///   taken in full, as in [`DynTensor::slice_dyn`].
     /// - `values`: a coercible value; see [`ValuesArg`].
     ///
-    /// # Result
+    /// # Returns
     /// - `Ok(DynTensor)`: a converted tensor.
-    /// - `Err(DynTensorError)`: an error.
+    ///
+    /// # Errors
+    /// [`Illegal`](crate::errors::BunsenErrorKind::Illegal), with a
+    /// [`SlicingError`] cause, if the slices do not fit the shape; with a
+    /// [`ConstraintError`] cause, if `values` has a different rank than the
+    /// tensor; [`Unsupported`](crate::errors::BunsenErrorKind::Unsupported) for
+    /// a rank outside `1..=12`.
     pub fn slice_assign_dyn<V>(
         self,
         slices: &[Slice],
@@ -423,7 +459,7 @@ impl<B: Backend> DynTensor<B> {
         }
         let rank = self.rank();
 
-        check_slices_bounds(&self.shape(), slices).map_err(BunsenError::SliceError)?;
+        check_slices_bounds(&self.shape(), slices)?;
         let mut slices = slices.to_vec();
         slices.resize(rank, Slice::full());
 
@@ -438,9 +474,12 @@ impl<B: Backend> DynTensor<B> {
 
     /// Flatten the tensor.
     ///
-    /// # Result
+    /// # Returns
     /// - `Ok(DynTensor)`: a flattened (rank=1) tensor.
-    /// - `Err(DynTensorError)`: an error.
+    ///
+    /// # Errors
+    /// [`Unsupported`](crate::errors::BunsenErrorKind::Unsupported) for a rank
+    /// outside `1..=12`.
     pub fn flatten(self) -> BunsenResult<Self> {
         struct FlattenHandler<B: Backend> {
             tensor: DynTensor<B>,
@@ -479,9 +518,12 @@ impl<B: Backend> DynTensor<B> {
     /// # Arguments
     /// - `dtype`: the target data type.
     ///
-    /// # Result
+    /// # Returns
     /// - `Ok(DynTensor)`: a converted tensor.
-    /// - `Err(DynTensorError)`: an error.
+    ///
+    /// # Errors
+    /// [`Unsupported`](crate::errors::BunsenErrorKind::Unsupported) for a rank
+    /// outside `1..=12`.
     pub fn cast(
         self,
         dtype: DType,
@@ -534,9 +576,12 @@ impl<B: Backend> DynTensor<B> {
     /// # Arguments
     /// - `device`: the target device.
     ///
-    /// # Result
+    /// # Returns
     /// - `Ok(DynTensor<B>)`: the moved tensor.
-    /// - `Err(DynTensorError)`: an error.
+    ///
+    /// # Errors
+    /// [`Unsupported`](crate::errors::BunsenErrorKind::Unsupported) for a rank
+    /// outside `1..=12`.
     pub fn to_device(
         self,
         device: &B::Device,
@@ -582,9 +627,12 @@ impl<B: Backend> DynTensor<B> {
     /// - `data`: source [`TensorData`].
     /// - `device`: the target device.
     ///
-    /// # Result
+    /// # Returns
     /// - `Ok(DynTensor<B>)`: the converted tensor.
-    /// - `Err(DynTensorError)`: an error.
+    ///
+    /// # Errors
+    /// [`Unsupported`](crate::errors::BunsenErrorKind::Unsupported) for a rank
+    /// outside `1..=12`.
     pub fn from_data(
         data: TensorData,
         device: &B::Device,
@@ -617,9 +665,12 @@ impl<B: Backend> DynTensor<B> {
 
     /// Convert the tensor to a [`TensorData`].
     ///
-    /// # Result
+    /// # Returns
     /// - `Ok(TensorData)`: the converted data.
-    /// - `Err(DynTensorError)`: an error.
+    ///
+    /// # Errors
+    /// [`Unsupported`](crate::errors::BunsenErrorKind::Unsupported) for a rank
+    /// outside `1..=12`.
     pub fn into_data(self) -> BunsenResult<TensorData> {
         struct ToDataHandler<B: Backend> {
             this: DynTensor<B>,
@@ -641,9 +692,12 @@ impl<B: Backend> DynTensor<B> {
 
     /// Convert the tensor to a [`TensorData`].
     ///
-    /// # Result
+    /// # Returns
     /// - `Ok(TensorData)`: the converted data.
-    /// - `Err(DynTensorError)`: an error.
+    ///
+    /// # Errors
+    /// [`Unsupported`](crate::errors::BunsenErrorKind::Unsupported) for a rank
+    /// outside `1..=12`.
     pub fn to_data(&self) -> BunsenResult<TensorData> {
         self.clone().into_data()
     }
@@ -677,8 +731,13 @@ mod tests {
             tensor::dynamic::*,
         },
         errors::{
-            BunsenError,
+            BunsenErrorKind,
+            ConstraintError,
             SlicingError,
+            testing::{
+                ErrorMatcher,
+                predicate,
+            },
         },
         support::testing::{
             DeviceMemoryGuard,
@@ -990,16 +1049,17 @@ mod tests {
         let _memory = DeviceMemoryGuard::<B>::new(&device);
 
         let values: Tensor<B, 1> = Tensor::zeros([3], &device);
-        assert!(matches!(
-            arange_2x3(&device).slice_assign::<2, _, _>(s![0..1, ..], values),
-            Err(BunsenError::Invalid(_))
-        ));
+        ErrorMatcher::kind(BunsenErrorKind::Illegal)
+            .message_contains("values rank (1) must be == tensor rank (2)")
+            .has_cause::<ConstraintError>()
+            .assert_err(&arange_2x3(&device).slice_assign::<2, _, _>(s![0..1, ..], values));
 
         let values: Tensor<B, 2> = Tensor::zeros([1, 3], &device);
-        assert!(matches!(
-            arange_2x3(&device).slice_assign::<1, _, _>(s![0..1], values),
-            Err(BunsenError::Invalid(_))
-        ));
+        ErrorMatcher::kind(BunsenErrorKind::Illegal)
+            .cause(predicate("InvalidRank", |e: &SlicingError| {
+                matches!(e, SlicingError::InvalidRank { .. })
+            }))
+            .assert_err(&arange_2x3(&device).slice_assign::<1, _, _>(s![0..1], values));
     }
 
     #[test]
@@ -1010,10 +1070,11 @@ mod tests {
         let _memory = DeviceMemoryGuard::<B>::new(&device);
 
         let values: Tensor<B, 2> = Tensor::zeros([1, 3], &device);
-        assert!(matches!(
-            arange_2x3(&device).slice_assign::<2, _, _>(s![5..6, ..], values),
-            Err(BunsenError::SliceError(SlicingError::OutOfBounds { .. }))
-        ));
+        ErrorMatcher::kind(BunsenErrorKind::Illegal)
+            .cause(predicate("OutOfBounds", |e: &SlicingError| {
+                matches!(e, SlicingError::OutOfBounds { .. })
+            }))
+            .assert_err(&arange_2x3(&device).slice_assign::<2, _, _>(s![5..6, ..], values));
     }
 
     #[test]
@@ -1062,11 +1123,14 @@ mod tests {
         let _memory = DeviceMemoryGuard::<B>::new(&device);
 
         let values: Tensor<B, 2> = Tensor::ones([2, 3], &device);
-        assert!(matches!(
-            arange_2x3(&device)
-                .slice_assign_dyn(&[Slice::full(), Slice::full(), Slice::full()], values),
-            Err(BunsenError::SliceError(SlicingError::InvalidRank { .. }))
-        ));
+        ErrorMatcher::kind(BunsenErrorKind::Illegal)
+            .cause(predicate("InvalidRank", |e: &SlicingError| {
+                matches!(e, SlicingError::InvalidRank { .. })
+            }))
+            .assert_err(
+                &arange_2x3(&device)
+                    .slice_assign_dyn(&[Slice::full(), Slice::full(), Slice::full()], values),
+            );
     }
 
     #[test]

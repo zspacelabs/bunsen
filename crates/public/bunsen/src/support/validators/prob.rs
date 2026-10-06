@@ -7,8 +7,8 @@ use num_traits::{
 };
 
 use crate::errors::{
-    BunsenError,
     BunsenResult,
+    ConstraintError,
     WithOkOrPanic,
 };
 
@@ -19,7 +19,10 @@ use crate::errors::{
 ///
 /// # Errors
 ///
-/// [`BunsenError::Invalid`] if `prob` is below `0.0`, above `1.0`, or NaN.
+/// [`Illegal`](crate::errors::BunsenErrorKind::Illegal), with a
+/// [`ConstraintError`] cause whose owner is `"probability"`, if `prob` is
+/// below `0.0`, above `1.0`, or NaN. The check does not know which field it
+/// guards: a caller adds that as context.
 ///
 /// [errors convention]: crate::errors#convention-try_x-and-x
 #[inline]
@@ -27,9 +30,10 @@ pub fn try_probability<F: Float + Debug>(prob: F) -> BunsenResult<F> {
     // Not `prob < 0 || prob > 1`: both are false for NaN.
     let in_range = prob >= F::zero() && prob <= F::one();
     if !in_range {
-        Err(BunsenError::Invalid(format!(
-            "probability must be in [0.0, 1.0]: {prob:?}"
-        )))
+        Err(
+            ConstraintError::out_of_range("probability", "", format!("{prob:?}"), "[0.0, 1.0]")
+                .into(),
+        )
     } else {
         Ok(prob)
     }
@@ -41,7 +45,7 @@ pub fn try_probability<F: Float + Debug>(prob: F) -> BunsenResult<F> {
 ///
 /// # Panics
 ///
-/// With the [`try_probability`] error's message, if `prob` is out of range
+/// With the [`try_probability`] error's report, if `prob` is out of range
 /// or NaN.
 #[inline]
 pub fn expect_probability<F: Float + Debug>(prob: F) -> F {
@@ -51,6 +55,10 @@ pub fn expect_probability<F: Float + Debug>(prob: F) -> F {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::errors::{
+        BunsenErrorKind,
+        testing::ErrorMatcher,
+    };
 
     #[test]
     fn test_probability() {
@@ -69,7 +77,7 @@ mod tests {
         assert!(try_probability(2.0f64).is_err());
     }
 
-    #[should_panic(expected = "probability must be in [0.0, 1.0]: -1.0")]
+    #[should_panic(expected = "probability: -1.0 is outside [0.0, 1.0]")]
     #[test]
     fn test_probability_panic() {
         expect_probability(-1.0);
@@ -77,17 +85,16 @@ mod tests {
 
     #[test]
     fn test_probability_rejects_nan() {
-        assert!(matches!(
-            try_probability(f32::NAN),
-            Err(BunsenError::Invalid(_))
-        ));
-        assert!(matches!(
-            try_probability(f64::NAN),
-            Err(BunsenError::Invalid(_))
-        ));
+        ErrorMatcher::kind(BunsenErrorKind::Illegal)
+            .message_eq("probability: NaN is outside [0.0, 1.0]")
+            .has_cause::<ConstraintError>()
+            .assert_err(&try_probability(f32::NAN));
+        ErrorMatcher::kind(BunsenErrorKind::Illegal)
+            .has_cause::<ConstraintError>()
+            .assert_err(&try_probability(f64::NAN));
     }
 
-    #[should_panic(expected = "probability must be in [0.0, 1.0]: NaN")]
+    #[should_panic(expected = "probability: NaN is outside [0.0, 1.0]")]
     #[test]
     fn test_expect_probability_panics_on_nan() {
         expect_probability(f64::NAN);
