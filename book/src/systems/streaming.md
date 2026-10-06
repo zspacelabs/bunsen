@@ -206,7 +206,7 @@ stream object
 
 - [`CommitRule::Agreement`](bunsen::kits::speech::whisper::driver::CommitRule::Agreement)
   is not implemented yet: building a driver under it fails with
-  `BunsenError::Invalid`.
+  an [`Unsupported`](bunsen::errors::BunsenErrorKind::Unsupported) error.
 - The `interval` trigger drafts only while the voice-activity gate says
   speech is in progress, and that gate runs only under `endpoint`
   ([`DecodeTriggers`](bunsen::kits::speech::whisper::driver::DecodeTriggers)),
