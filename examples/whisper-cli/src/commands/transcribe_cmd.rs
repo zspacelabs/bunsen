@@ -35,9 +35,8 @@ const PRESET: PresetEmissionPolicy = PresetEmissionPolicy::Offline;
 /// a deployment put them; the vocabulary is what gives text rather than
 /// ids and upstream's default suppress list. `silero-weights` bundles the
 /// VAD the real-time presets need.
-/// The backend is [`bunsen::support::testing::PerformanceBackend`],
-/// chosen by bunsen's backend feature at build time (`--features
-/// bunsen/wgpu`; see the README).
+/// The device is `--device`, from the backends compiled in (`--features
+/// wgpu`; see the README).
 #[derive(clap::Args, Debug)]
 pub struct TranscribeCmd {
     #[clap(flatten)]
@@ -71,7 +70,7 @@ impl TranscribeCmd {
     pub fn run(&self) -> BunsenResult<()> {
         self.logging.init(Some(LogLevelNum::Warn))?;
 
-        let device = Device::default();
+        let device = self.whisper.device()?;
         let driver = self.whisper.init_driver(&device, PRESET)?;
         let chunk = self.whisper.chunk_samples(&driver, CHUNK_MS);
 

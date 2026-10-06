@@ -21,12 +21,12 @@ use bunsen::{
         },
         util::ConwaySim,
     },
-    support::testing::backend_device,
     zspace::ravel_dims,
 };
 use burn::{
     backend::flex::ops::unary::log,
     prelude::TensorData,
+    tensor::Device,
 };
 use clap_common::logging::LogArgs;
 use glutin_window::{
@@ -74,8 +74,11 @@ pub struct VisualCmd {
 }
 
 impl VisualCmd {
-    pub fn run(&self) -> BunsenResult<()> {
-        let device = backend_device();
+    pub fn run(
+        &self,
+        device: &Device,
+    ) -> BunsenResult<()> {
+        let device = device.clone();
 
         self.logging.init(None)?;
         log::info!("Running Conway's Game of Life simulation...");
@@ -168,8 +171,8 @@ impl FishbowlApp {
         let frame_data = self.get_frame();
         let frame_slice: &[bool] = frame_data.as_slice().unwrap();
 
-        let h = frame_data.shape[0];
-        let w = frame_data.shape[1];
+        let h = frame_data.shape()[0];
+        let w = frame_data.shape()[1];
 
         let [win_w, win_h] = args.viewport().window_size;
         let draw_scale = [win_w / (w as f64), win_h / (h as f64)];

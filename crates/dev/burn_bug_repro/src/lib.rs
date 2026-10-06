@@ -32,10 +32,9 @@
 //! ```
 //!
 //! A backend feature is optional but nearly always wanted. Without one,
-//! `bunsen::support::testing::PerformanceBackend` resolves to `Flex` (CPU) —
+//! `bunsen::support::testing::performance_device()` is `Flex` (CPU) —
 //! which is *correct* for the `unfold` defect, so the behaviour pin is gated
 //! off rather than reporting a fix that has not happened. The CPU-correctness
 //! checks still run.
 
-pub mod pytorch_strided_weights;
 pub mod unfold;

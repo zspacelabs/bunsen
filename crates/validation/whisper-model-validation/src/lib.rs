@@ -54,6 +54,7 @@
 
 #![cfg_attr(not(feature = "download"), allow(unused))]
 
+use burn::tensor::Device;
 /// The reference models, generated from the `onnx-community` export.
 ///
 /// These used to be generated here. They moved to `bunsen-bundled-whisper` so
@@ -63,6 +64,7 @@
 #[cfg(feature = "download")]
 pub mod reference {
     pub use bunsen_bundled_whisper::onnx_gen::*;
+    use burn::tensor::Device;
 }
 
 /// Whisper's fixed analysis window: 30 s at 16 kHz, 3000 mel frames.

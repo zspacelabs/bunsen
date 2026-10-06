@@ -1,4 +1,5 @@
 #![recursion_limit = "256"]
+use burn::tensor::Device;
 extern crate core;
 
 use std::sync::Arc;
@@ -70,7 +71,6 @@ use burn::{
         Int,
         Tensor,
     },
-    record::CompactRecorder,
     train::{
         ClassificationOutput,
         InferenceStep,
@@ -94,6 +94,7 @@ use burn::{
     },
 };
 use clap::Parser;
+use clap_common::device::DeviceArgs;
 use rand::{
     RngExt,
     rng,
@@ -132,6 +133,10 @@ pub struct Args {
     /// Early stopping patience
     #[arg(long, default_value = "20")]
     patience: usize,
+
+    /// The device to train on.
+    #[command(flatten)]
+    device: DeviceArgs,
 
     /// Embedding ratio: ``ratio * channels * patch_size * patch_size``
     #[arg(long, default_value = "1.25")]
@@ -178,13 +183,6 @@ pub struct TrainingConfig {
 
 fn main() -> anyhow::Result<()> {
     let args = Args::parse();
-
-    cfg_select! {
-        feature = "cuda" => {}
-        feature = "metal" => {}
-        feature = "wgpu" => {}
-        _ => {}
-    }
     backend_main(&args)
 }
 
@@ -197,7 +195,8 @@ fn create_artifact_dir(artifact_dir: &str) {
 
 /// Train the model with the given configuration and devices.
 pub fn backend_main(args: &Args) -> anyhow::Result<()> {
-    let device: Device = Default::default();
+    // Training records gradients: autodiff before the model and inputs.
+    let device: Device = args.device.init().map_err(anyhow::Error::msg)?.autodiff();
 
     let h: usize = 32;
     let w: usize = 32;
@@ -331,7 +330,6 @@ pub fn backend_main(args: &Args) -> anyhow::Result<()> {
                 firehose_env.clone(),
             )?),
             Arc::new(InputAdapter::new(schema.clone())),
-            // Use the InnerBackend for validation.
             Arc::new(OutputAdapter::default()),
         );
 
@@ -348,10 +346,10 @@ pub fn backend_main(args: &Args) -> anyhow::Result<()> {
         .map_err(|e| anyhow::anyhow!("Failed to initialize learning rate scheduler: {}", e))?;
      */
 
+    // One cosine descent over the whole run.
     let batches_per_epoch = train_size / args.batch_size;
-    let epochs_per_restart = 10;
-    let iters_per_restart = batches_per_epoch * epochs_per_restart;
-    let lr_scheduler = CosineAnnealingLrSchedulerConfig::new(args.learning_rate, iters_per_restart)
+    let total_iters = batches_per_epoch * args.num_epochs;
+    let lr_scheduler = CosineAnnealingLrSchedulerConfig::new(args.learning_rate, total_iters)
         .init()
         .map_err(|e| anyhow::anyhow!("Failed to initialize learning rate scheduler: {}", e))?;
 
@@ -367,7 +365,7 @@ pub fn backend_main(args: &Args) -> anyhow::Result<()> {
         // CudaMetric::new(), ??
         LearningRateMetric::new(),
     ))
-    .with_file_checkpointer(CompactRecorder::new())
+    .with_default_checkpointers()
     .early_stopping(MetricEarlyStoppingStrategy::new(
         &LossMetric::new(),
         Aggregate::Mean,
@@ -386,11 +384,13 @@ pub fn backend_main(args: &Args) -> anyhow::Result<()> {
         training_config.optimizer.init(),
         lr_scheduler,
     ));
+    if let Some(error) = result.error {
+        anyhow::bail!("training failed: {error}");
+    }
 
     result
         .model
-        .save_file(format!("{artifact_dir}/model"), &CompactRecorder::new())
-        .expect("Trained model should be saved successfully");
+        .save_file(format!("{artifact_dir}/model.bpk"))?;
 
     Ok(())
 }
@@ -499,16 +499,8 @@ impl BatcherInputAdapter<(String, usize)> for InputAdapter {
     }
 }
 
-struct OutputAdapter {
-    phantom: std::marker::PhantomData,
-}
-impl Default for OutputAdapter {
-    fn default() -> Self {
-        Self {
-            phantom: std::marker::PhantomData,
-        }
-    }
-}
+#[derive(Default)]
+struct OutputAdapter;
 impl BatcherOutputAdapter<(Tensor<4>, Tensor<1, Int>)> for OutputAdapter {
     fn apply(
         &self,

@@ -173,15 +173,15 @@ mod tests {
     use burn::prelude::TensorData;
 
     use super::*;
-    use crate::support::testing::assert_close_to_vec;
+    use crate::support::testing::{
+        assert_close_to_vec,
+        cpu_device,
+    };
 
     /// `[2, 2, 2]`: two rows, two frames, two mels, from a flat
     /// list.
     fn frames(values: [f64; 8]) -> Tensor<3> {
-        Tensor::from_data(
-            TensorData::new(values.to_vec(), [2, 2, 2]),
-            &Default::default(),
-        )
+        Tensor::from_data(TensorData::new(values.to_vec(), [2, 2, 2]), &cpu_device())
     }
 
     fn to_vec(t: Tensor<1>) -> Vec<f64> {

@@ -470,7 +470,7 @@ mod tests {
         out_channels: usize,
         stride: usize,
     ) -> ConvBlock1d {
-        block_config(in_channels, out_channels, stride).init(&Default::default())
+        block_config(in_channels, out_channels, stride).init(&cpu_device())
     }
 
     #[test]
@@ -498,7 +498,7 @@ mod tests {
         // The config rejects it at init.
         let result: BunsenResult<ConvSeq1d> =
             ConvSeq1dConfig::new(vec![block_config(2, 4, 1), block_config(8, 16, 1)])
-                .try_init(&Default::default());
+                .try_init(&cpu_device());
         chain.assert_err(&result);
     }
 
@@ -522,7 +522,7 @@ mod tests {
         assert_eq!(config.stride(), 4);
         assert_eq!(config.try_output_shape([1, 2, 16]).unwrap(), [1, 8, 4]);
 
-        let seq: ConvSeq1d = config.init(&Default::default());
+        let seq: ConvSeq1d = config.init(&cpu_device());
         assert_eq!(seq.in_channels(), config.in_channels());
         assert_eq!(seq.out_channels(), config.out_channels());
         assert_eq!(seq.stride(), config.stride());

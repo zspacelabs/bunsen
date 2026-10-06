@@ -2090,7 +2090,6 @@ version = "0.37.0"
 dependencies = [
  "bunsen",
  "burn",
- "burn-store",
 ]
 
 [[package]]
@@ -6277,6 +6276,7 @@ dependencies = [
  "bunsen",
  "burn",
  "clap",
+ "clap-common",
  "gl 0.14.0",
  "indicatif 0.18.6",
  "piston",
@@ -9271,6 +9271,7 @@ dependencies = [
  "bunsen",
  "burn",
  "clap",
+ "clap-common",
  "csv",
  "flate2",
  "rand 0.10.3",
@@ -9288,6 +9289,7 @@ dependencies = [
  "bunsen-firehose-image",
  "burn",
  "clap",
+ "clap-common",
  "rand 0.10.3",
  "serde",
 ]
@@ -10236,6 +10238,7 @@ dependencies = [
  "bunsen-firehose-image",
  "burn",
  "clap",
+ "clap-common",
  "rand 0.10.3",
  "serde",
 ]

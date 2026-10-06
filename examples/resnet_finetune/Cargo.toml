@@ -10,6 +10,8 @@ repository.workspace = true
 workspace = true
 
 [dependencies]
+# `--device`.
+clap-common = { path = "../../crates/dev/clap-common" }
 burn = { workspace = true, features = ["train", "fusion", "autotune", "network", "vision", "flex"] }
 bunsen = { path = "../../crates/public/bunsen", features = ["indicatif"] }
 
@@ -25,8 +27,8 @@ tar = { workspace = true }
 
 [features]
 default = []
-wgpu = ["burn/wgpu"]
-vulkan = ["burn/vulkan"]
-cuda = ["burn/cuda"]
-metal = ["burn/metal"]
+wgpu = ["burn/wgpu", "clap-common/wgpu"]
+vulkan = ["burn/vulkan", "clap-common/vulkan"]
+cuda = ["burn/cuda", "clap-common/cuda"]
+metal = ["burn/metal", "clap-common/metal"]
 

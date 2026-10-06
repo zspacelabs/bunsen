@@ -126,7 +126,7 @@ impl LiveCmd {
         let device = self.pick_device(&host)?;
         let device_name = device_name(&device);
 
-        let compute = Device::default();
+        let compute = self.whisper.device()?;
         let driver = self.whisper.init_driver(&compute, PRESET)?;
         let model_rate = driver.sample_rate();
         let chunk = self.whisper.chunk_samples(&driver, CHUNK_MS);

@@ -20,6 +20,7 @@ use bunsen::{
         },
     },
     errors::{
+        BunsenError,
         BunsenResult,
         ResultContext,
     },
@@ -52,6 +53,8 @@ use bunsen::{
     },
     ops::signal::perceptive_audio::PerceptiveAudioConverterMeta,
 };
+use burn::tensor::Device;
+use clap_common::device::DeviceArgs;
 
 /// Where fetched weights live, and whether fetching is allowed.
 #[derive(clap::Args, Debug)]
@@ -234,6 +237,21 @@ pub struct WhisperDriverArgs {
     /// Print each segment's ids beside its text.
     #[arg(long)]
     ids: bool,
+
+    /// The device to run the model on.
+    #[command(flatten)]
+    device: DeviceArgs,
+}
+
+impl WhisperDriverArgs {
+    /// The device `--device` names.
+    ///
+    /// # Errors
+    /// [`Unsupported`](bunsen::errors::BunsenErrorKind::Unsupported) when that
+    /// backend is not compiled in.
+    pub fn device(&self) -> BunsenResult<Device> {
+        self.device.init().map_err(BunsenError::unsupported)
+    }
 }
 
 impl WhisperDriverArgs {

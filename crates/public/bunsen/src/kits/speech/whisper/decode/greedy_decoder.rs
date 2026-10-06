@@ -164,14 +164,12 @@ mod tests {
     use burn::prelude::TensorData;
 
     use super::*;
+    use crate::support::testing::cpu_device;
 
     fn logits(rows: &[&[f32]]) -> Tensor<2> {
         let vocab = rows[0].len();
         let flat: Vec<f32> = rows.iter().flat_map(|r| r.iter().copied()).collect();
-        Tensor::from_data(
-            TensorData::new(flat, [rows.len(), vocab]),
-            &Default::default(),
-        )
+        Tensor::from_data(TensorData::new(flat, [rows.len(), vocab]), &cpu_device())
     }
 
     /// Two rows: one keeps going, one stops on the stop token and is fed

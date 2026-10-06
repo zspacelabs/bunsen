@@ -11,19 +11,22 @@ license.workspace = true
 [lints]
 workspace = true
 
+[features]
+cuda = ["burn/cuda", "clap-common/cuda"]
+metal = ["burn/metal", "clap-common/metal"]
+vulkan = ["burn/vulkan", "clap-common/vulkan"]
+wgpu = ["burn/wgpu", "clap-common/wgpu"]
+
 [dependencies]
 burn = { workspace = true }
-# The backend is bunsen's `PerformanceBackend`, chosen by bunsen's own backend
-# feature at build time: `--features bunsen/wgpu` (or `bunsen/cuda`,
-# `bunsen/metal`, `bunsen/flex`). `PerformanceBackend` lives in
-# `bunsen::support::testing`, hence `testing`, which falls back to `flex`
-# when no backend feature is set.
+# The backend is chosen at run time with `--device`, from those compiled in
+# through this crate's backend features (`wgpu`, `vulkan`, `metal`, `cuda`);
+# the CPU is always there.
 #
 # `silero-weights` bundles the VAD the real-time presets need.
 # `indicatif` puts bunsen's progress bar on every weights transfer.
 bunsen = { path = "../../crates/public/bunsen", features = [
     "store",
-    "testing",
     "audio",
     "tokenizer",
     "silero-weights",

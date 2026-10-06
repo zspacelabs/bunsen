@@ -170,6 +170,7 @@ mod tests {
     };
 
     use super::*;
+    use crate::support::testing::cpu_device;
 
     #[test]
     fn test_shape_views() {
@@ -249,7 +250,7 @@ mod tests {
         let sv: ShapeView = shape_ref.into();
         assert_eq!(shape_ref.as_ref(), &expected);
 
-        let tensor: Tensor<2> = Tensor::zeros([2, 2], &Default::default());
+        let tensor: Tensor<2> = Tensor::zeros([2, 2], &cpu_device());
         let tensor_ref = &tensor;
         let sv: ShapeView = tensor_ref.into();
         assert_eq!(sv.as_ref(), &[2, 2]);

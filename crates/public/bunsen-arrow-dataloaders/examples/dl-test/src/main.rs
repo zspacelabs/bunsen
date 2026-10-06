@@ -147,6 +147,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut last_idx = 0;
     let t0 = std::time::Instant::now();
     for (idx, tensor) in dl_iter.enumerate() {
+        let tensor = tensor?;
         assert_eq!(&tensor.dims(), &shape);
         last_idx = idx;
     }

@@ -1,7 +1,10 @@
 use std::sync::Arc;
 
 use anyhow::Context;
-use burn::data::dataloader::batcher::Batcher;
+use burn::{
+    data::dataloader::batcher::Batcher,
+    tensor::Device,
+};
 
 use crate::core::{
     FirehoseRowBatch,

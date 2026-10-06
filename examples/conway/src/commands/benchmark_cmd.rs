@@ -19,11 +19,9 @@ use bunsen::{
             ConwaySim,
         },
     },
-    support::{
-        geometry::GridShape2D,
-        testing::backend_device,
-    },
+    support::geometry::GridShape2D,
 };
+use burn::tensor::Device;
 use clap::Parser;
 use clap_common::logging::LogArgs;
 use indicatif::ProgressBar;
@@ -63,8 +61,11 @@ pub struct BenchmarkCmd {
 }
 
 impl BenchmarkCmd {
-    pub fn run(&self) -> BunsenResult<()> {
-        let device = backend_device();
+    pub fn run(
+        &self,
+        device: &Device,
+    ) -> BunsenResult<()> {
+        let device = device.clone();
         self.logging.init(None)?;
 
         match self.dims {

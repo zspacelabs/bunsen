@@ -13,7 +13,6 @@ use std::{
 };
 
 use bunsen::{
-    burner::tensor::TensorDataView,
     kits::sims::lbm::d2q9::{
         LBMD2Q9Config,
         LBMD2Q9State,
@@ -22,23 +21,22 @@ use bunsen::{
         SPEED_OF_SOUND,
         macroscopic_momentum,
     },
-    prelude::TensorDataViewExt,
-    support::{
-        geometry::GridShape2D,
-        testing::backend_device,
-    },
+    support::geometry::GridShape2D,
 };
 use burn::{
     Tensor,
     prelude::{
         Bool,
-        ElementConversion,
         TensorData,
         s,
     },
-    tensor::DType,
+    tensor::{
+        DType,
+        Device,
+    },
 };
 use clap::Parser;
+use clap_common::device::DeviceArgs;
 use glutin_window::GlutinWindow as Window;
 use indicatif::ProgressBar;
 use opengl_graphics::{
@@ -112,41 +110,25 @@ pub struct Args {
     /// The collision relaxation tau.
     #[arg(long, default_value_t = 0.9)]
     pub tau: f64,
+
+    /// The device to simulate on.
+    #[command(flatten)]
+    pub device: DeviceArgs,
 }
 
 fn main() {
     let args = Args::parse();
     println!("{:#?}", args);
 
-    cfg_select! {
-        feature = "cuda" => {
-            println!("CUDA enabled");
-            run::<burn::backend::Cuda<f32, i32>>(&args);
-        }
-        feature = "metal" => {
-            println!("Metal enabled");
-            run::<burn::backend::Metal<f32, i32>>(&args);
-        }
-        feature = "vulkan" => {
-            println!("Vulkan enabled");
-            run::<burn::backend::Vulkan>(&args);
-        }
-        feature = "wgpu" => {
-            println!("WGPU enabled");
-            run::<burn::backend::Wgpu<f32, i32>>(&args);
-        }
-        feature = "flex" => {
-            println!("Flex enabled");
-            run(&args);
-        }
-        _ => {
-            compile_error!("No backend selected");
-        }
-    }
+    let device = args.device.init().unwrap_or_else(|e| panic!("{e}"));
+    println!("device: {device:?}");
+    run(&args, device);
 }
 
-fn run(args: &Args) {
-    let device = backend_device();
+fn run(
+    args: &Args,
+    device: Device,
+) {
     let dtype: DType = args.dtype.into();
 
     // Change this to OpenGL::V2_1 if not working.
@@ -391,11 +373,11 @@ impl FlowVisApp {
     ) {
         use graphics::*;
 
-        let solid_cells: TensorDataView<bool> = self.solid_mask.expect_index_view();
+        let solid_cells: Vec<bool> = self.solid_mask.try_to_vec_as().unwrap();
 
         let cell_data = self.get_cell_data();
-        let vis_cells: TensorDataView<f32> = cell_data.expect_index_view();
-        let [height, width] = cell_data.shape[0..2].try_into().unwrap();
+        let vis_cells = cell_data.view::<f32>();
+        let [height, width] = cell_data.shape()[0..2].try_into().unwrap();
 
         let [view_width, view_height] = args.viewport().window_size;
 
@@ -406,7 +388,7 @@ impl FlowVisApp {
                 for x in 0..width {
                     let uy: f32 = vis_cells[&[y, x, 0]];
                     let ux: f32 = vis_cells[&[y, x, 1]];
-                    let is_solid = solid_cells[&[y, x]];
+                    let is_solid = solid_cells[y * width + x];
 
                     let color = if is_solid {
                         [1., 1., 1., 1.]

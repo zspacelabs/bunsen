@@ -688,6 +688,7 @@ mod tests {
     use super::*;
     use crate::support::testing::{
         DeviceMemoryGuard,
+        cpu_device,
         performance_device,
     };
 
@@ -851,7 +852,7 @@ mod tests {
 
         let config = ShiftedWindowTransformerBlockConfig::new(d_input, input_resolution, num_heads);
 
-        let _d: ShiftedWindowTransformerBlock = config.init(&Default::default());
+        let _d: ShiftedWindowTransformerBlock = config.init(&cpu_device());
     }
 
     #[should_panic(expected = "input_resolution must be divisible by window size")]
@@ -864,7 +865,7 @@ mod tests {
 
         let config = ShiftedWindowTransformerBlockConfig::new(d_input, input_resolution, num_heads);
 
-        let _d: ShiftedWindowTransformerBlock = config.init(&Default::default());
+        let _d: ShiftedWindowTransformerBlock = config.init(&cpu_device());
     }
 
     #[should_panic(expected = "d_input must be greater than zero")]
@@ -877,7 +878,7 @@ mod tests {
 
         let config = ShiftedWindowTransformerBlockConfig::new(d_input, input_resolution, num_heads);
 
-        let _d: ShiftedWindowTransformerBlock = config.init(&Default::default());
+        let _d: ShiftedWindowTransformerBlock = config.init(&cpu_device());
     }
 
     #[should_panic(expected = "num_heads must be greater than zero")]
@@ -890,7 +891,7 @@ mod tests {
 
         let config = ShiftedWindowTransformerBlockConfig::new(d_input, input_resolution, num_heads);
 
-        let _d: ShiftedWindowTransformerBlock = config.init(&Default::default());
+        let _d: ShiftedWindowTransformerBlock = config.init(&cpu_device());
     }
 
     #[should_panic(expected = "window_size must be greater than zero")]
@@ -905,7 +906,7 @@ mod tests {
         let config = ShiftedWindowTransformerBlockConfig::new(d_input, input_resolution, num_heads)
             .with_window_size(window_size);
 
-        let _d: ShiftedWindowTransformerBlock = config.init(&Default::default());
+        let _d: ShiftedWindowTransformerBlock = config.init(&cpu_device());
     }
 
     #[test]

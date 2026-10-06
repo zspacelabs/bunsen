@@ -4,7 +4,6 @@ use burn::{
         dataset::vision::{
             Annotation,
             ImageDatasetItem,
-            PixelDepth,
         },
     },
     prelude::*,
@@ -119,11 +118,8 @@ impl Batcher<ImageDatasetItem, ClassificationBatch> for ClassificationBatcher {
         device: &Device,
     ) -> ClassificationBatch {
         fn image_as_vec_u8(item: ImageDatasetItem) -> Vec<u8> {
-            // Convert Vec<PixelDepth> to Vec<u8> (Planet images are u8)
-            item.image
-                .into_iter()
-                .map(|p: PixelDepth| -> u8 { p.try_into().unwrap() })
-                .collect::<Vec<u8>>()
+            // Planet images are u8.
+            Vec::<u8>::try_from(item.image).unwrap()
         }
 
         let targets = items
@@ -142,7 +138,7 @@ impl Batcher<ImageDatasetItem, ClassificationBatch> for ClassificationBatcher {
         let images = items
             .into_iter()
             .map(|item| TensorData::new(image_as_vec_u8(item), Shape::new([HEIGHT, WIDTH, 3])))
-            .map(|data| Tensor::<3>::from_data(data.convert::<B::FloatElem>(), device))
+            .map(|data| Tensor::<3>::from_data(data, device))
             .map(|tensor| tensor.permute([2, 0, 1]) / 255) // normalize between [0, 1]
             .collect();
 

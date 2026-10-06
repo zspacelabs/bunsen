@@ -76,6 +76,7 @@ use bunsen_firehose::{
 use burn::{
     prelude::Tensor,
     tensor::{
+        Device,
         TensorCreationOptions,
         TensorData,
     },
@@ -124,7 +125,7 @@ pub fn stack_tensor_data_column(
 
     let item_shape = batch[0]
         .expect_get_ref::<TensorData>(column_name)
-        .shape
+        .shape()
         .clone();
     let stack_shape = [batch.len(), item_shape[0], item_shape[1], item_shape[2]];
 

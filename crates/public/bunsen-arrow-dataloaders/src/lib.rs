@@ -48,9 +48,9 @@
 //! the number of shard paths, and `slice` splits the loader by shard.
 //!
 //! The stages pass a read, decode or tokenizer error along as an `Err`
-//! item, and the last stage unwraps it, so the epoch's iterator panics:
-//! burn's data-loader iterators yield tensors, not results. A shard without
-//! a `text` column of Arrow `Utf8` strings is one such error, from the column
+//! item, and the last stage yields it as a burn `DatasetError`, so the
+//! epoch's iterator reports it rather than panicking. A shard without a
+//! `text` column of Arrow `Utf8` strings is one such error, from the column
 //! select.
 //!
 //! ## Where the shard paths come from

@@ -9,12 +9,22 @@ license.workspace = true
 publish = false
 
 [dependencies]
-burn = { workspace = true, features = ["std"] }
+burn = { workspace = true, features = ["std", "flex"] }
 bunsen = { path = "../../public/bunsen", features = ["std", "testing", "fetch"] }
 
 clap = { workspace = true, features = ["derive"] }
 stderrlog = { workspace = true }
 log = { workspace = true }
+
+[features]
+## Make `--device cuda` available.
+cuda = ["burn/cuda"]
+## Make `--device metal` available.
+metal = ["burn/metal"]
+## Make `--device vulkan` available.
+vulkan = ["burn/vulkan"]
+## Make `--device wgpu` available.
+wgpu = ["burn/wgpu"]
 
 [lints]
 workspace = true

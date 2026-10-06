@@ -61,8 +61,11 @@ use burn::{
         Int,
         Tensor,
     },
-    record::CompactRecorder,
-    tensor::train::{
+    tensor::{
+        Device,
+        FloatDType,
+    },
+    train::{
         InferenceStep,
         Learner,
         MetricEarlyStoppingStrategy,
@@ -75,28 +78,21 @@ use burn::{
             HammingScore,
             LearningRateMetric,
             LossMetric,
-            MetricDefinition,
             store::{
                 Aggregate,
                 Direction,
                 Split,
             },
         },
-        renderer::{
-            EvaluationName,
-            EvaluationProgress,
-            MetricState,
-            MetricsRenderer,
-            MetricsRendererEvaluation,
-            MetricsRendererTraining,
-            ProgressType,
-            TrainingProgress,
-        },
     },
 };
 use clap::{
     Parser,
     ValueEnum,
+};
+use clap_common::device::{
+    DeviceArgs,
+    DeviceChoice,
 };
 
 use crate::{
@@ -146,6 +142,10 @@ pub struct Args {
     /// Use half precision for training.
     #[arg(long, default_value = "false")]
     pub half_precision: bool,
+
+    /// The device to train on.
+    #[command(flatten)]
+    pub device: DeviceArgs,
 
     /// Batch size for processing
     #[arg(short, long, default_value_t = 100)]
@@ -241,25 +241,7 @@ fn main() -> anyhow::Result<()> {
 
     let _source_tree = download();
 
-    if args.half_precision {
-        cfg_select! {
-            feature = "cuda" => {}
-            feature = "metal" => {}
-            feature = "vulkan" => {}
-            feature = "wgpu" => {}
-            _ => {}
-        }
-        train(&args)
-    } else {
-        cfg_select! {
-            feature = "cuda" => {}
-            feature = "metal" => {}
-            feature = "wgpu" => {}
-            feature = "vulkan" => {}
-            _ => {}
-        }
-        train(&args)
-    }
+    train(&args)
 }
 
 fn ensure_artifact_dir(artifact_dir: &str) -> anyhow::Result<()> {
@@ -270,7 +252,12 @@ fn ensure_artifact_dir(artifact_dir: &str) -> anyhow::Result<()> {
 
 #[must_use]
 pub fn train(args: &Args) -> anyhow::Result<()> {
-    let device: Device = Default::default();
+    let mut device = args.device.init().map_err(anyhow::Error::msg)?;
+    if args.half_precision && args.device.choice() != DeviceChoice::Flex {
+        device.configure(FloatDType::BF16)?;
+    }
+    // Training records gradients: autodiff before the model and inputs.
+    let device: Device = device.autodiff();
 
     let factory = default_resnet_factory()?;
 
@@ -410,53 +397,6 @@ pub fn train(args: &Args) -> anyhow::Result<()> {
 
     let now: Instant;
     {
-        /*
-        // Learner config
-        let mut learner_config = LearnerBuilder::new(artifact_dir)
-            .metric_train_numeric(HammingScore::new())
-            .metric_valid_numeric(HammingScore::new())
-            .metric_train_numeric(LossMetric::new())
-            .metric_valid_numeric(LossMetric::new())
-            .metric_train(CudaMetric::new())
-            .metric_valid(CudaMetric::new())
-            .metric_train_numeric(CpuUse::new())
-            .metric_valid_numeric(CpuUse::new())
-            .metric_train_numeric(CpuMemory::new())
-            .metric_valid_numeric(CpuMemory::new())
-            .metric_train_numeric(LearningRateMetric::new())
-            .with_file_checkpointer(CompactRecorder::new())
-            .grads_accumulation(args.grads_accumulation)
-            .num_epochs(args.num_epochs)
-            .summary();
-        /*
-        .renderer(CustomRenderer {})
-        .with_application_logger(None)
-         */
-
-        if args.patience > 0 {
-            learner_config = learner_config.early_stopping(MetricEarlyStoppingStrategy::new(
-                &LossMetric::new(),
-                Aggregate::Mean,
-                Direction::Lowest,
-                Split::Valid,
-                StoppingCondition::NoImprovementSince {
-                    n_epochs: args.patience,
-                },
-            ));
-        }
-
-        let learner = learner_config.build(
-            host,
-            optimizer,
-            lr_scheduler,
-            LearningStrategy::SingleDevice(device.clone()),
-        );
-
-        // Training
-        now = Instant::now();
-        let result = learner.fit(dataloader_train, dataloader_test);
-         */
-
         let training = SupervisedTraining::new(artifact_dir, dataloader_train, dataloader_test)
             .metrics((
                 HammingScore::new(),
@@ -464,7 +404,7 @@ pub fn train(args: &Args) -> anyhow::Result<()> {
                 // CudaMetric::new(), ??
                 LearningRateMetric::new(),
             ))
-            .with_file_checkpointer(CompactRecorder::new())
+            .with_default_checkpointers()
             .early_stopping(MetricEarlyStoppingStrategy::new(
                 &LossMetric::new(),
                 Aggregate::Mean,
@@ -480,12 +420,14 @@ pub fn train(args: &Args) -> anyhow::Result<()> {
 
         now = Instant::now();
         let result = training.launch(Learner::new(host, optimizer, lr_scheduler));
+        if let Some(error) = result.error {
+            anyhow::bail!("training failed: {error}");
+        }
 
         result
             .model
             .resnet
-            .save_file(format!("{artifact_dir}/model"), &CompactRecorder::new())
-            .expect("Trained model should be saved successfully");
+            .save_file(format!("{artifact_dir}/model.bpk"))?;
     }
     let elapsed = now.elapsed().as_secs();
     println!("Training completed in {}m{}s", (elapsed / 60), elapsed % 60);
@@ -493,67 +435,6 @@ pub fn train(args: &Args) -> anyhow::Result<()> {
     println!("{:#?}", args);
 
     Ok(())
-}
-
-struct CustomRenderer {}
-
-impl MetricsRendererTraining for CustomRenderer {
-    fn update_train(
-        &mut self,
-        _state: MetricState,
-    ) {
-    }
-
-    fn update_valid(
-        &mut self,
-        _state: MetricState,
-    ) {
-    }
-
-    fn render_train(
-        &mut self,
-        item: TrainingProgress,
-        _: Vec<ProgressType>,
-    ) {
-        dbg!(item);
-    }
-
-    fn render_valid(
-        &mut self,
-        item: TrainingProgress,
-        _: Vec<ProgressType>,
-    ) {
-        dbg!(item);
-    }
-}
-
-impl MetricsRenderer for CustomRenderer {
-    fn manual_close(&mut self) {
-        // Nothing to do.
-    }
-
-    fn register_metric(
-        &mut self,
-        _definition: MetricDefinition,
-    ) {
-    }
-}
-
-impl MetricsRendererEvaluation for CustomRenderer {
-    fn update_test(
-        &mut self,
-        _name: EvaluationName,
-        _state: MetricState,
-    ) {
-    }
-
-    fn render_test(
-        &mut self,
-        item: EvaluationProgress,
-        _: Vec<ProgressType>,
-    ) {
-        dbg!(item);
-    }
 }
 
 #[derive(Module, Debug)]

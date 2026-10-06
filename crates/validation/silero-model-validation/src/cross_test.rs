@@ -18,7 +18,6 @@ mod tests {
             SileroVadContextConfig,
             SileroVadMeta,
         },
-        prelude::*,
         support::{
             audio::load_audio_mono_sr,
             testing::{

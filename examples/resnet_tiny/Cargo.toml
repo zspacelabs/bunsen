@@ -11,12 +11,14 @@ workspace = true
 
 [features]
 default = []
-wgpu = ["burn/wgpu"]
-cuda = ["burn/cuda"]
-metal = ["burn/metal"]
+wgpu = ["burn/wgpu", "clap-common/wgpu"]
+cuda = ["burn/cuda", "clap-common/cuda"]
+metal = ["burn/metal", "clap-common/metal"]
 
 
 [dependencies]
+# `--device`.
+clap-common = { path = "../../crates/dev/clap-common" }
 burn = { workspace = true, features = ["train", "fusion", "autotune", "vision", "dataset", "flex"] }
 bunsen = { path = "../../crates/public/bunsen", features = ["indicatif"] }
 bunsen-firehose = { path = "../../crates/public/bunsen-firehose" }

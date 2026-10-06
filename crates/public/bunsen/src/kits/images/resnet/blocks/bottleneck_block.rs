@@ -628,8 +628,8 @@ mod tests {
         let device = performance_device();
         let _memory = DeviceMemoryGuard::new(&device);
 
-        let in_planes = 2;
-        let out_planes = 2;
+        let in_planes = 8;
+        let out_planes = 8;
 
         let block: BottleneckBlock =
             BottleneckBlockConfig::new(in_planes, out_planes).init(&device);

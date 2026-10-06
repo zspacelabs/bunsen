@@ -11,10 +11,10 @@ workspace = true
 
 [features]
 default = ["flex"]
-cuda = ["burn/cuda"]
-metal = ["burn/metal"]
-vulkan = ["burn/vulkan"]
-wgpu = ["burn/wgpu"]
+cuda = ["burn/cuda", "clap-common/cuda"]
+metal = ["burn/metal", "clap-common/metal"]
+vulkan = ["burn/vulkan", "clap-common/vulkan"]
+wgpu = ["burn/wgpu", "clap-common/wgpu"]
 flex = ["burn/flex"]
 
 

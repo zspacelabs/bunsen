@@ -30,9 +30,8 @@
 //! The following example builds a data loader for a chat dataset consisting
 //! of a training and validation set of Parquet shards.
 //!
-//! The batch items are `Tensor<2, Int>`, where `B` is the burn backend
-//! type (e.g. `Cuda` or `Cpu`) and `Int` is burn's integer tensor kind; the
-//! element type is the backend's integer element.
+//! The batch items are `Result<Tensor<2, Int>, DatasetError>`, on the
+//! loader's device, at the device's default integer dtype.
 //!
 //! ```rust,ignore
 //! let training_data_loader: ChatDataLoader = ChatDataLoader::new(
@@ -57,12 +56,16 @@ use std::{
 use arrow::error::ArrowError;
 use burn::{
     Tensor,
-    data::dataloader::{
-        DataLoader,
-        DataLoaderIterator,
-        Progress,
+    data::{
+        dataloader::{
+            DataLoader,
+            DataLoaderIterator,
+            Progress,
+        },
+        dataset::DatasetError,
     },
     prelude::TensorData,
+    tensor::Device,
 };
 use rand::prelude::SliceRandom;
 use wordchipper::Tokenizer;
@@ -90,7 +93,7 @@ use crate::{
 /// [`EpochStats`] used for progress reporting.
 pub struct ChatDataLoaderIterator {
     stats: Arc<EpochStats>,
-    inner: Box<dyn Iterator<Item = Tensor<2, burn::prelude::Int>>>,
+    inner: Box<dyn Iterator<Item = Result<Tensor<2, burn::prelude::Int>, DatasetError>>>,
 }
 
 impl ChatDataLoaderIterator {
@@ -166,12 +169,12 @@ impl ChatDataLoaderIterator {
             };
 
         let tensors = shuffle.map(move |result| {
-            let batch = &result.unwrap();
+            let batch = result.map_err(DatasetError::new)?;
             let tensor: Tensor<2, burn::prelude::Int> = Tensor::from_ints(
                 TensorData::new(batch.iter().flatten().copied().collect(), shape),
                 &device,
             );
-            tensor
+            Ok(tensor)
         });
 
         Self {
@@ -190,7 +193,7 @@ impl ChatDataLoaderIterator {
 }
 
 impl Iterator for ChatDataLoaderIterator {
-    type Item = Tensor<2, burn::prelude::Int>;
+    type Item = Result<Tensor<2, burn::prelude::Int>, DatasetError>;
 
     fn next(&mut self) -> Option<Self::Item> {
         self.inner.next()
@@ -376,6 +379,7 @@ impl EpochStats {
         Progress {
             items_processed: self.file_count(),
             items_total: self.items_total(),
+            unit: Some("shards".to_string()),
         }
     }
 }
@@ -441,7 +445,7 @@ mod tests {
         let loader: ChatDataLoader = ChatDataLoader::new(
             vec![shard.to_path_buf()],
             Some(Arc::new(Mutex::new(StdRng::seed_from_u64(seed)))),
-            &Default::default(),
+            &burn::tensor::Device::flex(),
             tokenizer,
             DenseTokenBlocksOptions {
                 batch_size: 1,
@@ -454,7 +458,7 @@ mod tests {
 
         loader
             .start_epoch()
-            .map(|tensor| tensor.into_data().iter::<i64>().collect())
+            .map(|tensor| tensor.unwrap().into_data().iter::<i64>().collect())
             .collect()
     }
 

@@ -7,7 +7,17 @@ use bunsen::{
     errors::BunsenResult,
     prelude::TensorOpExt,
 };
+use burn::tensor::{
+    Device,
+    DeviceConfig,
+    FloatDType,
+    IntDType,
+};
 use clap::Parser;
+use clap_common::device::{
+    DeviceArgs,
+    DeviceChoice,
+};
 use piston::{
     EventLoop,
     OpenGLWindow,
@@ -18,6 +28,10 @@ use piston::{
 #[derive(Parser, Debug)]
 #[command(long_about = None)]
 pub struct Args {
+    /// The device to simulate on.
+    #[command(flatten)]
+    pub device: DeviceArgs,
+
     #[clap(subcommand)]
     pub command: Commands,
 }
@@ -32,36 +46,36 @@ pub enum Commands {
 }
 
 impl Commands {
-    pub fn run(&self) -> BunsenResult<()> {
+    pub fn run(
+        &self,
+        device: &Device,
+    ) -> BunsenResult<()> {
         match self {
-            Commands::Visual(cmd) => cmd.run(),
-            Commands::Benchmark(cmd) => cmd.run(),
+            Commands::Visual(cmd) => cmd.run(device),
+            Commands::Benchmark(cmd) => cmd.run(device),
         }
     }
 }
 
 fn main() -> BunsenResult<()> {
     let args = Args::parse();
-    cfg_select! {
-        feature = "cuda" => {
-            eprintln!("CUDA enabled");
-        }
-        feature = "metal" => {
-            eprintln!("Metal enabled");
-        }
-        feature = "vulkan" => {
-            eprintln!("Vulkan enabled");
-        }
-        feature = "wgpu" => {
-            eprintln!("WGPU enabled");
-        }
-        feature = "flex" => {
-            eprintln!("Flex enabled");
-        }
-        _ => {
-            compile_error!("No backend selected");
-        }
-    }
 
-    args.command.run()
+    let mut device = args.device.init().unwrap_or_else(|e| panic!("{e}"));
+    // The boards are 0/1 cells: half-precision floats, and the narrowest
+    // ints where the backend has them.
+    let config = match args.device.choice() {
+        DeviceChoice::Flex => None,
+        DeviceChoice::Wgpu => Some(DeviceConfig::default().float_dtype(FloatDType::F16)),
+        _ => Some(
+            DeviceConfig::default()
+                .float_dtype(FloatDType::F16)
+                .int_dtype(IntDType::I8),
+        ),
+    };
+    if let Some(config) = config {
+        device.configure(config).unwrap_or_else(|e| panic!("{e}"));
+    }
+    eprintln!("device: {device:?}");
+
+    args.command.run(&device)
 }

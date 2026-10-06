@@ -245,6 +245,11 @@ pub fn sweep(device: &Device) -> Vec<UnfoldCase> {
 #[cfg(test)]
 mod tests {
 
+    use bunsen::support::testing::{
+        cpu_device,
+        performance_device,
+    };
+
     use super::*;
 
     /// The reproduction, against the performance backend.
@@ -277,11 +282,10 @@ mod tests {
     /// Pins the **current** behaviour, so a `CubeCL` fix announces itself here
     /// rather than leaving the covered-span trims as unexplained code.
     ///
-    /// Gated on an accelerator feature: `PerformanceBackend` falls back to
+    /// Gated on an accelerator feature: `performance_device()` falls back to
     /// `Flex` when none is selected, and `Flex` is correct — so without the
     /// gate this would fail on a CPU-only run and report a fix that has not
-    /// happened. The stride repro needs no such gate; that defect is in the
-    /// store, this one is in a kernel.
+    /// happened.
     ///
     /// Asserts only that *something* still reads wrong. Pinning the exact
     /// count would break on a driver or hardware change that alters
