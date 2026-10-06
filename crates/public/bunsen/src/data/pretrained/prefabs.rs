@@ -205,8 +205,9 @@ where
     /// Looks up a prefab.
     ///
     /// # Errors
-    /// [`ResourceNotFound`](crate::errors::BunsenError::ResourceNotFound),
-    /// naming the prefabs there are.
+    /// [`Lookup`](crate::errors::BunsenErrorKind::Lookup), with a
+    /// [`LookupError`](crate::errors::LookupError) naming the prefabs there
+    /// are, under a frame naming the map.
     pub fn try_lookup_prefab(
         &self,
         name: &str,
@@ -264,8 +265,9 @@ where
     /// Looks up a prefab.
     ///
     /// # Errors
-    /// [`ResourceNotFound`](crate::errors::BunsenError::ResourceNotFound),
-    /// naming the prefabs there are.
+    /// [`Lookup`](crate::errors::BunsenErrorKind::Lookup), with a
+    /// [`LookupError`](crate::errors::LookupError) naming the prefabs there
+    /// are, under a frame naming the map.
     pub fn try_lookup_prefab(
         &self,
         name: &str,
@@ -290,7 +292,15 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::errors::BunsenError;
+    use crate::errors::{
+        BunsenErrorKind,
+        LookupError,
+        testing::{
+            ErrorMatcher,
+            predicate,
+            text,
+        },
+    };
 
     #[derive(Config, Debug)]
     struct Toy {
@@ -330,16 +340,16 @@ mod tests {
     /// owned map alike.
     #[test]
     fn test_a_miss_names_what_there_is() {
-        let m = match TOYS.try_lookup_prefab("huge") {
-            Err(BunsenError::ResourceNotFound(m)) => m,
-            other => panic!("{other:?}"),
+        let miss = || {
+            ErrorMatcher::kind(BunsenErrorKind::Lookup)
+                .display(text::eq(
+                    "toys: no prefab \"huge\"; there are: narrow, wide",
+                ))
+                .cause(predicate("candidates narrow, wide", |c: &LookupError| {
+                    c.key == "huge" && c.candidates == ["narrow", "wide"]
+                }))
         };
-        assert_eq!(m, "toys: no prefab \"huge\"; there are: narrow, wide");
-
-        let m = match TOYS.to_prefab_map().try_lookup_prefab("huge") {
-            Err(BunsenError::ResourceNotFound(m)) => m,
-            other => panic!("{other:?}"),
-        };
-        assert_eq!(m, "toys: no prefab \"huge\"; there are: narrow, wide");
+        miss().assert_err(&TOYS.try_lookup_prefab("huge"));
+        miss().assert_err(&TOYS.to_prefab_map().try_lookup_prefab("huge"));
     }
 }

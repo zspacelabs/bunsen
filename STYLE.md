@@ -66,14 +66,29 @@ it only on a re-export from a *public* module, where it changes the output.
 
 The [`bunsen::errors`](https://docs.rs/bunsen/latest/bunsen/errors/index.html#convention-try_x-and-x)
 docs define the convention: a fallible `try_x` returning `BunsenResult`, its
-panicking twin `x` (or `expect_x`), and which `BunsenError` variant fits
-which failure. A pair's docs add two rules on top of it:
+panicking twin `x` (or `expect_x`), which `BunsenErrorKind` fits which
+failure, and how to build, add context to, and handle an error. A pair's docs
+add two rules on top of it:
 
-* `try_x` carries an `# Errors` section: each variant it returns, and when.
-  Its summary links the convention.
+* `try_x` carries an `# Errors` section: each kind it returns, and when, and
+  the cause type where a caller may want to read it (`LookupError`,
+  `ConstraintError`, a subsystem's own cause). Its summary links the
+  convention.
 * `x` names `try_x` as its fallible half and carries a `# Panics` section:
-  it panics with the `try_x` error's message, plus anything it checks on its
+  it panics with the `try_x` error's report, plus anything it checks on its
   own.
+
+Building errors:
+
+* Context goes on with `.context(..)` / `.with_context(..)`, never by
+  formatting an error into a new message: that loses its kind and cause.
+* A message is one line. Evidence (a diff, a dump, a list) goes in
+  `.with_details(..)` or a frame's details.
+* An `io::Error` goes through `sys_at` (naming its path) or `sys_op`. A
+  foreign error is kept as the cause, not formatted into the message.
+
+Tests check errors with `bunsen::errors::testing::ErrorMatcher`, naming the
+kind and only the parts of the message or cause the test is about.
 
 ### Tensor shape notation
 

@@ -25,10 +25,14 @@ use super::{
     Source,
     StaticBase,
     StaticResource,
+    not_found,
 };
 use crate::errors::{
     BunsenError,
+    BunsenErrorKind,
     BunsenResult,
+    LookupError,
+    ResultContext,
 };
 
 /// A named set of resources under a set of bases, as a compiled-in table
@@ -225,36 +229,34 @@ impl ResourceMap {
     /// The resource called `key`.
     ///
     /// # Errors
-    /// [`BunsenError::ResourceNotFound`] naming the keys there are.
+    /// [`Lookup`](BunsenErrorKind::Lookup), with a [`LookupError`] naming the
+    /// keys there are, under a frame naming the map.
     pub fn try_get(
         &self,
         key: &str,
     ) -> BunsenResult<&Resource> {
-        self.get(key).ok_or_else(|| {
-            BunsenError::ResourceNotFound(format!(
-                "{}: no resource {key:?}; there are: {}",
-                self.name,
-                self.keys_for_message()
-            ))
-        })
+        self.get(key)
+            .ok_or_else(|| not_found(Some(&self.name), "resource", key, &self.keys()))
     }
 
     /// Checks the map hangs together: every resource validates and sits
     /// under its own key.
     ///
     /// # Errors
-    /// [`BunsenError::Invalid`] naming the first problem.
+    /// [`Illegal`](BunsenErrorKind::Illegal) naming the first problem,
+    /// under a frame naming the map: a resource filed under a key not its
+    /// own, or one that does not [validate](Resource::validate). The map is
+    /// declared wrong.
     pub fn validate(&self) -> BunsenResult<()> {
         for (key, resource) in &self.resources {
             if key != &resource.key {
-                return Err(BunsenError::Invalid(format!(
-                    "{}: resource {:?} is filed under {key:?}",
-                    self.name, resource.key
-                )));
+                return Err(BunsenError::illegal(format!(
+                    "resource {:?} is filed under {key:?}",
+                    resource.key
+                ))
+                .context(&self.name));
             }
-            resource
-                .validate()
-                .map_err(|e| BunsenError::Invalid(format!("{}: {e}", self.name)))?;
+            resource.validate().context(&self.name)?;
         }
         Ok(())
     }
@@ -263,8 +265,9 @@ impl ResourceMap {
     /// and listing fields.
     ///
     /// # Errors
-    /// Under [`Fuse::Strict`], [`BunsenError::Invalid`] naming a key in
-    /// both.
+    /// Under [`Fuse::Strict`], [`Illegal`](BunsenErrorKind::Illegal), with a
+    /// [`LookupError`] for the key in both, under a frame naming the maps:
+    /// the maps were authored to be disjoint.
     pub fn fuse(
         mut self,
         other: Self,
@@ -272,10 +275,11 @@ impl ResourceMap {
     ) -> BunsenResult<Self> {
         for (key, resource) in other.resources {
             if how == Fuse::Strict && self.resources.contains_key(&key) {
-                return Err(BunsenError::Invalid(format!(
-                    "{}: resource {key:?} is in both {} and {}",
-                    self.name, self.name, other.name
-                )));
+                return Err(BunsenError::from_cause(
+                    BunsenErrorKind::Illegal,
+                    LookupError::duplicate("resource", key),
+                )
+                .context(format!("fusing {} into {}", other.name, self.name)));
             }
             self.resources.insert(key, resource);
         }
@@ -288,9 +292,9 @@ impl ResourceMap {
     /// becomes a provider through.
     ///
     /// # Errors
-    /// [`BunsenError::ResourceNotFound`] for a key the map lacks;
-    /// [`BunsenError::Invalid`] when a path's file name is not the
-    /// resource's.
+    /// As [`try_get`](Self::try_get) for a key the map lacks;
+    /// [`Illegal`](BunsenErrorKind::Illegal), under a frame naming the map,
+    /// when a path's file name is not the resource's.
     pub fn with_local_files(
         mut self,
         name: &str,
@@ -300,12 +304,12 @@ impl ResourceMap {
             let resource = self.try_get(key)?;
             let file_name = path.file_name().map(|n| n.to_string_lossy().into_owned());
             if file_name.as_deref() != Some(resource.file.as_str()) {
-                return Err(BunsenError::Invalid(format!(
-                    "{}: {key} is {}, and {} is not it",
-                    self.name,
+                return Err(BunsenError::illegal(format!(
+                    "{key} is {}, and {} is not it",
                     resource.file,
                     path.display()
-                )));
+                ))
+                .context(&self.name));
             }
             let dir = path.parent().map(Path::to_path_buf);
             let resource = self.resources.get_mut(*key).expect("try_get found it");
@@ -316,19 +320,20 @@ impl ResourceMap {
         }
         Ok(self)
     }
-
-    fn keys_for_message(&self) -> String {
-        if self.resources.is_empty() {
-            "(none)".to_string()
-        } else {
-            self.keys().join(", ")
-        }
-    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::errors::{
+        ConstraintError,
+        LookupProblem,
+        testing::{
+            ErrorMatcher,
+            predicate,
+            text,
+        },
+    };
 
     /// `with_local_files` serves the named resources in place, keeping
     /// their digests and namespaces, and checks each file name.
@@ -361,18 +366,18 @@ mod tests {
             "an unnamed resource is untouched"
         );
 
-        let err = map
-            .clone()
-            .with_local_files("bundled", &[("checkpoint", Path::new("/x/other.pt"))])
-            .unwrap_err();
-        assert!(
-            matches!(&err, BunsenError::Invalid(m) if m.contains("tiny.en.pt") && m.contains("other.pt")),
-            "{err}"
-        );
-        assert!(matches!(
-            map.with_local_files("bundled", &[("config", Path::new("/x/config.json"))]),
-            Err(BunsenError::ResourceNotFound(_))
-        ));
+        ErrorMatcher::kind(BunsenErrorKind::Illegal)
+            .message_contains("tiny.en.pt")
+            .message_contains("other.pt")
+            .assert_err(
+                &map.clone()
+                    .with_local_files("bundled", &[("checkpoint", Path::new("/x/other.pt"))]),
+            );
+        ErrorMatcher::kind(BunsenErrorKind::Lookup)
+            .has_cause::<LookupError>()
+            .assert_err(
+                &map.with_local_files("bundled", &[("config", Path::new("/x/config.json"))]),
+            );
     }
     use crate::data::pretrained::{
         GIVEN_NAMESPACE,
@@ -481,14 +486,14 @@ mod tests {
         );
         fused.validate().unwrap();
 
-        let err = CHECKPOINT
-            .to_map()
-            .fuse(CHECKPOINT.to_map(), Fuse::Strict)
-            .unwrap_err();
-        assert!(
-            matches!(&err, BunsenError::Invalid(m) if m.contains("\"checkpoint\" is in both")),
-            "{err}"
-        );
+        ErrorMatcher::kind(BunsenErrorKind::Illegal)
+            .message_eq("duplicate resource \"checkpoint\"")
+            .frame_contains("fusing a/tiny.en.pt into a/tiny.en.pt")
+            .cause(predicate(
+                "a duplicate \"checkpoint\"",
+                |c: &LookupError| c.problem == LookupProblem::Duplicate && c.key == "checkpoint",
+            ))
+            .assert_err(&CHECKPOINT.to_map().fuse(CHECKPOINT.to_map(), Fuse::Strict));
     }
 
     /// An overlay lets the right map replace: a given path over a row.
@@ -525,15 +530,14 @@ mod tests {
         let mut map = ResourceMap::given("flags", "checkpoint", "/models/my.pt");
         assert_eq!(map.keys(), ["checkpoint"]);
         assert_eq!(map.try_get("checkpoint").unwrap().file, "my.pt");
-        match map.try_get("vocabulary") {
-            Err(BunsenError::ResourceNotFound(m)) => {
-                assert_eq!(
-                    m,
-                    "flags: no resource \"vocabulary\"; there are: checkpoint"
-                );
-            }
-            other => panic!("{other:?}"),
-        }
+        ErrorMatcher::kind(BunsenErrorKind::Lookup)
+            .display(text::eq(
+                "flags: no resource \"vocabulary\"; there are: checkpoint",
+            ))
+            .cause(predicate("candidates: checkpoint", |c: &LookupError| {
+                c.candidates == ["checkpoint"]
+            }))
+            .assert_err(&map.try_get("vocabulary"));
 
         let replaced = map.insert(Resource::given("checkpoint", "/models/other.pt"));
         assert_eq!(replaced.map(|r| r.file), Some("my.pt".to_string()));
@@ -541,10 +545,9 @@ mod tests {
 
         let empty = ResourceMap::new("empty");
         assert!(empty.is_empty());
-        assert!(matches!(
-            empty.try_get("x"),
-            Err(BunsenError::ResourceNotFound(m)) if m.ends_with("there are: (none)")
-        ));
+        ErrorMatcher::kind(BunsenErrorKind::Lookup)
+            .display(text::eq("empty: no resource \"x\""))
+            .assert_err(&empty.try_get("x"));
         empty.validate().unwrap();
     }
 
@@ -557,10 +560,11 @@ mod tests {
             "vocabulary".to_string(),
             Resource::given("checkpoint", "/x.pt"),
         );
-        assert!(matches!(
-            misfiled.validate(),
-            Err(BunsenError::Invalid(m)) if m == "m: resource \"checkpoint\" is filed under \"vocabulary\""
-        ));
+        ErrorMatcher::kind(BunsenErrorKind::Illegal)
+            .display(text::eq(
+                "m: resource \"checkpoint\" is filed under \"vocabulary\"",
+            ))
+            .assert_err(&misfiled.validate());
 
         let mut no_source = ResourceMap::given("m", "checkpoint", "/x.pt");
         no_source
@@ -569,9 +573,11 @@ mod tests {
             .unwrap()
             .sources
             .clear();
-        assert!(matches!(
-            no_source.validate(),
-            Err(BunsenError::Invalid(m)) if m == "m: checkpoint: no source"
-        ));
+        ErrorMatcher::kind(BunsenErrorKind::Illegal)
+            .display(text::eq(
+                "m: checkpoint: Resource.sources: must not be zero or empty",
+            ))
+            .has_cause::<ConstraintError>()
+            .assert_err(&no_source.validate());
     }
 }

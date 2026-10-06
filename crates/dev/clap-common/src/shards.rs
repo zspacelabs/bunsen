@@ -15,7 +15,10 @@ use bunsen::{
             ShardSetDescriptor,
         },
     },
-    errors::BunsenResult,
+    errors::{
+        BunsenResult,
+        ResultContext,
+    },
 };
 use burn::tensor::Slice;
 
@@ -93,12 +96,15 @@ impl ShardArgs {
     /// The ids `--shards` names within `desc`.
     ///
     /// # Errors
-    /// As [`ShardSetDescriptor::select`].
+    /// As [`ShardSetDescriptor::select`], with an
+    /// [`Illegal`](bunsen::errors::BunsenErrorKind::Illegal) error re-marked
+    /// [`Policy`](bunsen::errors::BunsenErrorKind::Policy): `--shards` is a
+    /// request.
     pub fn select(
         &self,
         desc: &ShardSetDescriptor,
     ) -> BunsenResult<Vec<ShardId>> {
-        desc.select(&self.shards)
+        desc.select(&self.shards).as_policy()
     }
 
     /// Selects the shards, brings them in under the policy, logs the report,

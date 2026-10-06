@@ -19,7 +19,10 @@ use bunsen::{
             ResourceMap,
         },
     },
-    errors::BunsenResult,
+    errors::{
+        BunsenResult,
+        ResultContext,
+    },
     kits::speech::{
         silero_vad::{
             SileroVadMeta,
@@ -78,7 +81,8 @@ impl WeightsCacheArgs {
         if let Some(dir) = &self.upstream_cache_dir {
             options = options.with_local_dir(OPENAI_LOCAL_DIR, dir.clone());
         }
-        PretrainedCache::new(options)
+        // The options come from the command line.
+        PretrainedCache::new(options).as_policy()
     }
 }
 
@@ -87,6 +91,9 @@ impl WeightsCacheArgs {
 /// a checkpoint on disk as a one-resource map under [`CHECKPOINT`].
 /// Either way a deferred model with the kit's hook for it; nothing here
 /// builds one.
+///
+/// `spec` is a request, from the command line: a rule it breaks is
+/// [`Policy`](bunsen::errors::BunsenErrorKind::Policy).
 pub fn resolve_model(
     factory: &PretrainedFactory<WhisperConstruct>,
     spec: &str,
@@ -94,9 +101,9 @@ pub fn resolve_model(
 ) -> BunsenResult<Deferred<WhisperConstruct>> {
     let path = Path::new(spec);
     if path.is_file() {
-        return Deferred::from_map(ResourceMap::given(spec, CHECKPOINT, path));
+        return Deferred::from_map(ResourceMap::given(spec, CHECKPOINT, path)).as_policy();
     }
-    factory.resolve(spec, cache)
+    factory.resolve(spec, cache).as_policy()
 }
 
 fn gcd(
@@ -253,7 +260,9 @@ impl WhisperDriverArgs {
         let factory = default_whisper_factory()?;
         let mut model = resolve_model(&factory, &self.model, cache)?;
         if let Some(path) = &self.vocab {
-            model = model.with_overlay(ResourceMap::given("--vocab", VOCABULARY, path))?;
+            model = model
+                .with_overlay(ResourceMap::given("--vocab", VOCABULARY, path))
+                .as_policy()?;
         }
         model.load_bundle::<B>(cache, device)
     }
@@ -335,7 +344,10 @@ impl WhisperDriverArgs {
             .with_condition_on_previous_text(self.prompt_carry)
             .with_emission(preset.into())
             .with_fallback(fallback)
-            .init_from_bundle(bundle, device)?;
+            .init_from_bundle(bundle, device)
+            // The settings come from the command line: `--language`,
+            // `--beam-size`, `--max-tokens`, ...
+            .as_policy()?;
 
         if preset != PresetEmissionPolicy::Offline {
             // The bundled burnpack, through the same cache as the weights:

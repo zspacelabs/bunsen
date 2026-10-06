@@ -15,12 +15,14 @@ use bunsen::{
     errors::{
         BunsenError,
         BunsenResult,
+        LookupError,
     },
     kits::speech::whisper::{
         WhisperApiConfig,
         driver::WhisperSpecialIds,
         pretrained::{
             CHECKPOINT,
+            GeometryMismatch,
             OPENAI_LOCAL_DIR,
             OPENAI_VOCABULARIES_MAPS,
             VOCABULARY,
@@ -312,21 +314,22 @@ fn inspect(
     let loaded = cache.load(WHISPER_KIT, &map)?;
     let checkpoint = loaded.family(CHECKPOINT);
     if checkpoint.is_empty() {
-        return Err(BunsenError::ResourceNotFound(format!(
-            "{}: no {CHECKPOINT} resource",
-            model.id()
-        )));
+        return Err(BunsenError::lookup(
+            LookupError::missing("resource", CHECKPOINT).with_candidates(loaded.keys()),
+        )
+        .context(model.id()));
     }
     for (key, part) in checkpoint {
         println!("{key}: {} ({})", part.path.display(), part.provenance);
     }
 
-    // A named model that does not scan as its prefab is an error from
-    // `scan`; report it as the finding it is rather than a failure.
+    // A named model whose checkpoint does not scan as its prefab is a
+    // `GeometryMismatch` from `scan`; report it as the finding it is rather
+    // than a failure. Any other error is a failure.
     let cfg = match model.scan(&loaded) {
         Ok(cfg) => cfg,
-        Err(BunsenError::Invalid(msg)) if promised.is_some() => {
-            println!("MISMATCH: {msg}");
+        Err(e) if promised.is_some() && e.find::<GeometryMismatch>().is_some() => {
+            println!("MISMATCH: {e}");
             return Ok(());
         }
         Err(e) => return Err(e),

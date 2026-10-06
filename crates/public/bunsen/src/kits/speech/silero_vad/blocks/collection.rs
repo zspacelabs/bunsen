@@ -7,6 +7,7 @@ use crate::{
     errors::{
         BunsenError,
         BunsenResult,
+        LookupError,
         WithOkOrPanic,
     },
     kits::speech::silero_vad::SileroVad,
@@ -32,7 +33,9 @@ impl<B: Backend> SileroVadCollection<B> {
     /// * `sample_rate`: Sample rate in Hz.
     ///
     /// # Errors
-    /// [`BunsenError::ResourceNotFound`] naming the rates there are.
+    /// [`Lookup`](crate::errors::BunsenErrorKind::Lookup), with a
+    /// [`LookupError`] cause whose candidates are the rates there are, when
+    /// no branch runs at `sample_rate`.
     pub fn try_branch(
         &self,
         sample_rate: usize,
@@ -42,13 +45,10 @@ impl<B: Backend> SileroVadCollection<B> {
             .find(|(rate, _)| *rate == sample_rate)
             .map(|(_, vad)| vad)
             .ok_or_else(|| {
-                BunsenError::ResourceNotFound(format!(
-                    "sample_rate {sample_rate} not found in {:?}",
-                    self.branches
-                        .iter()
-                        .map(|(rate, _)| *rate)
-                        .collect::<Vec<_>>()
-                ))
+                BunsenError::lookup(
+                    LookupError::missing("sample-rate branch", sample_rate.to_string())
+                        .with_candidates(self.branches.iter().map(|(rate, _)| rate.to_string())),
+                )
             })
     }
 

@@ -66,7 +66,7 @@ pub struct BenchmarkCmd {
 impl BenchmarkCmd {
     pub fn run<B: Backend>(&self) -> BunsenResult<()> {
         let device = backend_device::<B>();
-        self.logging.init(None);
+        self.logging.init(None)?;
 
         match self.dims {
             2 => self.run2d::<B>(&device),

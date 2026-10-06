@@ -330,17 +330,20 @@
 //! The label, source location and timestamp are **not** compared. Matching
 //! goes by position in the stream, so the *n*-th checkpoint of run B is
 //! checked against the *n*-th of run A, whatever it is called. The header
-//! appears in the error message, so a mismatch names the label and the
-//! `file:line` of the checkpoint that failed. Keep the checkpoint sequence
+//! appears in the error: a mismatch carries a frame naming the event's
+//! position and label, whose details hold the `file:line` of the checkpoint
+//! that failed, its timestamp and its params. Keep the checkpoint sequence
 //! deterministic: no checkpoints inside loops whose trip count depends on the
 //! backend.
 //!
 //! ## Errors, not panics
 //!
 //! Checkpoints return [`BunsenResult`], and the first handler that fails stops
-//! the event; the error carries a [`BunsenError::AssertionError`]. Use `?` to
-//! stop the body at the first divergence, which is usually the interesting
-//! one: later checkpoints only repeat it.
+//! the event. A mismatch is a [`Policy`] error with a [`ValueMismatch`] cause.
+//! The check that failed keeps its own message and evidence, and the report
+//! (`{:#}`, which `ok_or_panic` panics with) prints that evidence, then the
+//! event's frame. Use `?` to stop the body at the first divergence, which is
+//! usually the interesting one: later checkpoints only repeat it.
 //!
 //! [`AuditStreamVerifier`] reports both ways a stream can be the wrong length:
 //! an event past the end is an error in `on_event`, and
@@ -364,8 +367,8 @@
 //! ([`AUDIT_STREAM_FORMAT`]), a version ([`AUDIT_STREAM_VERSION`]), and the
 //! events as [`AuditEventRecord`]s, the serializable mirror of
 //! [`AuditProbeEvent`]. [`load_audit_stream`] rejects a file with another tag
-//! or version. A missing file is [`BunsenError::ResourceNotFound`]. Each data
-//! map is written in key order, but timestamps are stored too, so two
+//! or version, as [`InvalidResource`]. A missing file is a [`Lookup`]. Each
+//! data map is written in key order, but timestamps are stored too, so two
 //! recordings of the same run are equal as streams and not byte for byte.
 //!
 //! ## Custom handlers and event kinds
@@ -390,8 +393,10 @@
 //! [`TolerancePolicy`]: crate::burner::descriptors::TolerancePolicy
 //! [`ToleranceDesc`]: crate::burner::descriptors::ToleranceDesc
 //! [`BunsenResult`]: crate::errors::BunsenResult
-//! [`BunsenError::AssertionError`]: crate::errors::BunsenError::AssertionError
-//! [`BunsenError::ResourceNotFound`]: crate::errors::BunsenError::ResourceNotFound
+//! [`Policy`]: crate::errors::BunsenErrorKind::Policy
+//! [`Lookup`]: crate::errors::BunsenErrorKind::Lookup
+//! [`InvalidResource`]: crate::errors::BunsenErrorKind::InvalidResource
+//! [`ValueMismatch`]: crate::errors::ValueMismatch
 //! [`ReportsOptions`]: reports::ReportsOptions
 //! [`BaselineMode`]: reports::BaselineMode
 //! [`BaselineMode::from_env`]: reports::BaselineMode::from_env

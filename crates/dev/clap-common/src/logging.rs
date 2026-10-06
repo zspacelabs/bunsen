@@ -56,6 +56,10 @@ impl LogArgs {
     /// # Args
     ///
     /// * `default` - Default log level; if None, defaults to Warn.
+    ///
+    /// # Errors
+    /// [`Illegal`](bunsen::errors::BunsenErrorKind::Illegal), with the
+    /// `log::SetLoggerError` as the cause, if a logger is already installed.
     pub fn init(
         &self,
         default: impl Into<Option<LogLevelNum>>,
@@ -83,7 +87,7 @@ impl LogArgs {
                     Timestamp::Off
                 })
                 .init()
-                .map_err(BunsenError::external)?;
+                .map_err(|e| BunsenError::illegal("a logger is already installed").with_cause(e))?;
         }
 
         Ok(())

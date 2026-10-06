@@ -23,6 +23,7 @@ use serde::{
 use crate::errors::{
     BunsenError,
     BunsenResult,
+    ConstraintError,
 };
 
 /// The namespace of a resource that arrived as a path rather than a row.
@@ -423,38 +424,59 @@ impl Resource {
     /// be shadowed by a stale cached one.
     ///
     /// # Errors
-    /// [`BunsenError::Invalid`] naming the first problem.
+    /// [`Illegal`](crate::errors::BunsenErrorKind::Illegal), with a
+    /// [`ConstraintError`] on `Resource` naming the first field at fault,
+    /// under a frame naming the resource: its key, or its file when it has no
+    /// key. The resource is declared wrong; this is not
+    /// [`InvalidResource`](crate::errors::BunsenErrorKind::InvalidResource),
+    /// since nothing outside the program was read. A caller that read the
+    /// declaration from outside the program re-marks it
+    /// [`as_policy`](crate::errors::BunsenError::as_policy).
     pub fn validate(&self) -> BunsenResult<()> {
-        if self.key.is_empty() {
-            return Err(BunsenError::Invalid(format!(
-                "{}: a resource has no key",
-                self.file
-            )));
-        }
-        if self.file.is_empty() {
-            return Err(BunsenError::Invalid(format!("{}: no file name", self.key)));
-        }
-        if self.namespace.is_empty() {
-            return Err(BunsenError::Invalid(format!("{}: no namespace", self.key)));
-        }
-        if self.sources.is_empty() {
-            return Err(BunsenError::Invalid(format!("{}: no source", self.key)));
-        }
-        if let Some(sha256) = &self.sha256
+        let problem = if self.key.is_empty() {
+            Some(ConstraintError::zero_or_empty("Resource", "key"))
+        } else if self.file.is_empty() {
+            Some(ConstraintError::zero_or_empty("Resource", "file"))
+        } else if self.namespace.is_empty() {
+            Some(ConstraintError::zero_or_empty("Resource", "namespace"))
+        } else if self.sources.is_empty() {
+            Some(ConstraintError::zero_or_empty("Resource", "sources"))
+        } else if let Some(sha256) = &self.sha256
             && !is_sha256_hex(sha256)
         {
-            return Err(BunsenError::Invalid(format!(
-                "{}: sha256 {sha256:?} is not 64 lowercase hex digits",
-                self.key
-            )));
+            Some(ConstraintError::custom(
+                "Resource",
+                "sha256",
+                format!("{sha256:?} is not 64 lowercase hex digits"),
+            ))
+        } else if self.bundled().is_some() && self.sha256.is_none() {
+            Some(Self::bundled_without_digest())
+        } else {
+            None
+        };
+        match problem {
+            None => Ok(()),
+            Some(problem) => {
+                let name = if self.key.is_empty() {
+                    &self.file
+                } else {
+                    &self.key
+                };
+                Err(BunsenError::from(problem).context(name))
+            }
         }
-        if self.bundled().is_some() && self.sha256.is_none() {
-            return Err(BunsenError::Invalid(format!(
-                "{}: a bundled source needs a digest to be cached under",
-                self.key
-            )));
-        }
-        Ok(())
+    }
+
+    /// The rule a bundled source without a digest breaks: an unpinned file is
+    /// cached under a name key, and a rebuilt bundle would be shadowed by a
+    /// stale cached one. [`validate`](Self::validate) checks it, and so does
+    /// the cache, which bundled bytes reach without a validate.
+    pub(crate) fn bundled_without_digest() -> ConstraintError {
+        ConstraintError::custom(
+            "Resource",
+            "sha256",
+            "a bundled source needs a digest to be cached under",
+        )
     }
 
     /// The cache directory of an unpinned resource: keyed by its first URL,
@@ -495,6 +517,14 @@ pub(crate) fn is_sha256_hex(s: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::errors::{
+        BunsenErrorKind,
+        testing::{
+            ErrorMatcher,
+            predicate,
+            text,
+        },
+    };
 
     fn upstream_dir_for_display() -> Option<PathBuf> {
         Some(PathBuf::from("/home/someone/.cache/upstream"))
@@ -569,11 +599,11 @@ mod tests {
         };
         assert_eq!(r.bundled(), Some(&b"abc"[..]));
         assert!(r.urls().is_empty());
-        let err = r.validate().unwrap_err();
-        assert!(
-            matches!(&err, BunsenError::Invalid(m) if m.contains("bundled source needs a digest")),
-            "{err}"
-        );
+        ErrorMatcher::kind(BunsenErrorKind::Illegal)
+            .message_contains("bundled source needs a digest")
+            .frame_contains("burnpack")
+            .has_cause::<ConstraintError>()
+            .assert_err(&r.validate());
         r.sha256 =
             Some("ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad".to_string());
         r.validate().unwrap();
@@ -720,33 +750,43 @@ mod tests {
     fn test_validate_names_the_problem() {
         let r = CHECKPOINT.to_resource("openai", &BASES);
 
+        let broken = |field: &'static str| {
+            ErrorMatcher::kind(BunsenErrorKind::Illegal).cause(predicate(
+                format!("a broken Resource.{field}"),
+                move |c: &ConstraintError| c.owner == "Resource" && c.field == field,
+            ))
+        };
+
         let mut no_key = r.clone();
         no_key.key.clear();
-        assert!(matches!(no_key.validate(), Err(BunsenError::Invalid(m)) if m.contains("no key")));
+        broken("key")
+            .frame_contains("tiny.en.pt")
+            .assert_err(&no_key.validate());
 
         let mut no_file = r.clone();
         no_file.file.clear();
-        assert!(
-            matches!(no_file.validate(), Err(BunsenError::Invalid(m)) if m == "checkpoint: no file name")
+        assert_eq!(
+            no_file.validate().unwrap_err().to_string(),
+            "checkpoint: Resource.file: must not be zero or empty"
         );
 
         let mut no_namespace = r.clone();
         no_namespace.namespace.clear();
-        assert!(
-            matches!(no_namespace.validate(), Err(BunsenError::Invalid(m)) if m.contains("no namespace"))
-        );
+        broken("namespace").assert_err(&no_namespace.validate());
 
         let mut no_source = r.clone();
         no_source.sources.clear();
-        assert!(
-            matches!(no_source.validate(), Err(BunsenError::Invalid(m)) if m == "checkpoint: no source")
-        );
+        broken("sources")
+            .display(text::eq(
+                "checkpoint: Resource.sources: must not be zero or empty",
+            ))
+            .assert_err(&no_source.validate());
 
         let mut bad_digest = r.clone();
         bad_digest.sha256 = Some("ABC".to_string());
-        assert!(
-            matches!(bad_digest.validate(), Err(BunsenError::Invalid(m)) if m.contains("sha256"))
-        );
+        broken("sha256")
+            .message_contains("\"ABC\" is not 64 lowercase hex digits")
+            .assert_err(&bad_digest.validate());
 
         let mut unpinned = r;
         unpinned.sha256 = None;

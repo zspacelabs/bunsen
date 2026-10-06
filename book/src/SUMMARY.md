@@ -14,6 +14,10 @@
 # Bunsen systems
 
 - [Module design conventions](./systems/conventions.md)
+- [Errors](./systems/errors.md)
+  - [Consuming errors](./systems/errors/consumers.md)
+  - [Producing errors](./systems/errors/producers.md)
+  - [Complex handlers](./systems/errors/handlers.md)
 - [Shape contracts](./systems/contracts.md)
 - [Ops, blocks and burn extensions](./systems/ops-and-blocks.md)
 - [Files, caches and pretrained models](./systems/pretrained.md)

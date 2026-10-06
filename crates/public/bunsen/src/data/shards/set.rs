@@ -2,6 +2,7 @@
 
 use std::{
     fs,
+    io,
     path::{
         Path,
         PathBuf,
@@ -12,18 +13,23 @@ use super::{
     ShardId,
     ShardSetDescriptor,
 };
-#[cfg(feature = "fetch")]
-use crate::data::cache::{
-    FetchJob,
-    FetchPolicy,
-    FetchReport,
-};
 use crate::{
     data::cache::BunsenDiskCache,
     errors::{
         BunsenError,
         BunsenResult,
+        LookupError,
+        sys_at,
     },
+};
+#[cfg(feature = "fetch")]
+use crate::{
+    data::cache::{
+        FetchJob,
+        FetchPolicy,
+        FetchReport,
+    },
+    errors::ResultContext,
 };
 
 /// The directory under the data dir that holds shard sets, one per name.
@@ -108,17 +114,21 @@ impl<'c> ShardSet<'c> {
     /// yet holds none.
     ///
     /// # Errors
-    /// [`BunsenError::External`] if the root cannot be read.
+    /// If the root cannot be read, its `io::Error` sorted with the path (see
+    /// [`sys_at`]): [`Lookup`](crate::errors::BunsenErrorKind::Lookup) for a
+    /// root that cannot be opened, usually
+    /// [`Sys`](crate::errors::BunsenErrorKind::Sys) otherwise.
     pub fn cached_ids(&self) -> BunsenResult<Vec<ShardId>> {
         let entries = match fs::read_dir(&self.root) {
             Ok(entries) => entries,
-            Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(Vec::new()),
-            Err(e) => return Err(BunsenError::external(e)),
+            Err(e) if e.kind() == io::ErrorKind::NotFound => return Ok(Vec::new()),
+            Err(e) => return Err(sys_at("read directory", &self.root)(e)),
         };
         let mut ids = Vec::new();
         for entry in entries {
-            let entry = entry.map_err(BunsenError::external)?;
-            if !entry.file_type().map_err(BunsenError::external)?.is_file() {
+            let entry = entry.map_err(sys_at("read directory", &self.root))?;
+            let file_type = entry.file_type().map_err(sys_at("stat", entry.path()))?;
+            if !file_type.is_file() {
                 continue;
             }
             let name = entry.file_name();
@@ -133,9 +143,10 @@ impl<'c> ShardSet<'c> {
     /// Shard `id`'s path: on disk already, or fetched when `download` is on.
     ///
     /// # Errors
-    /// [`BunsenError::Invalid`] for an id outside the set;
-    /// [`BunsenError::ResourceNotFound`] if it is not on disk and `download`
-    /// is off; otherwise as [`fetch`](Self::fetch).
+    /// [`Lookup`](crate::errors::BunsenErrorKind::Lookup), with a
+    /// [`LookupError`] cause, for an id outside the set;
+    /// [`Policy`](crate::errors::BunsenErrorKind::Policy) if it is not on disk
+    /// and `download` is off; otherwise as [`fetch`](Self::fetch).
     pub fn locate(
         &self,
         id: ShardId,
@@ -147,26 +158,28 @@ impl<'c> ShardSet<'c> {
             return Ok(path);
         }
         if !download {
-            return Err(BunsenError::ResourceNotFound(format!(
-                "{}: shard {id} is not at {}",
-                self.desc.name,
+            return Err(BunsenError::policy(format!(
+                "shard {id} is not at {}, and downloads are off",
                 path.display()
-            )));
+            ))
+            .context(&self.desc.name));
         }
         self.fetch(id)
     }
 
     /// Brings shard `id` in if it is not on disk, and returns its path.
     /// Needs the `fetch` feature; without it a shard not on disk is
-    /// [`BunsenError::ResourceNotFound`].
+    /// [`Unsupported`](crate::errors::BunsenErrorKind::Unsupported).
     ///
     /// Mirrors are tried in order, the shard is checked against its digest
     /// when the set is pinned, and the transfer reports to the cache's
     /// observers.
     ///
     /// # Errors
-    /// [`BunsenError::Invalid`] for an id outside the set; otherwise
-    /// as [`BunsenDiskCache::fetch_from_urls`].
+    /// [`Lookup`](crate::errors::BunsenErrorKind::Lookup), with a
+    /// [`LookupError`] cause, for an id outside the set; otherwise as
+    /// [`BunsenDiskCache::fetch_from_urls`], under a frame naming the set and
+    /// the shard.
     #[cfg(feature = "fetch")]
     pub fn fetch(
         &self,
@@ -180,7 +193,8 @@ impl<'c> ShardSet<'c> {
         let urls = self.desc.urls(id);
         let urls: Vec<&str> = urls.iter().map(String::as_str).collect();
         self.cache
-            .fetch_from_urls(&urls, &path, self.desc.digest(id))?;
+            .fetch_from_urls(&urls, &path, self.desc.digest(id))
+            .with_context(|| format!("{}: shard {id}", self.desc.name))?;
         Ok(path)
     }
 
@@ -193,8 +207,10 @@ impl<'c> ShardSet<'c> {
     /// cache's observers.
     ///
     /// # Errors
-    /// [`BunsenError::Invalid`] for an id outside the set;
-    /// [`BunsenError::ResourceNotFound`] for a shard that is not on disk.
+    /// [`Lookup`](crate::errors::BunsenErrorKind::Lookup), with a
+    /// [`LookupError`] cause, for an id outside the set;
+    /// [`Unsupported`](crate::errors::BunsenErrorKind::Unsupported) for a
+    /// shard that is not on disk.
     #[cfg(not(feature = "fetch"))]
     pub fn fetch(
         &self,
@@ -205,18 +221,19 @@ impl<'c> ShardSet<'c> {
         if path.is_file() {
             return Ok(path);
         }
-        Err(BunsenError::ResourceNotFound(format!(
-            "{}: shard {id} is not at {}, and fetching needs the `fetch` feature",
-            self.desc.name,
+        Err(BunsenError::unsupported(format!(
+            "shard {id} is not at {}, and fetching needs the `fetch` feature",
             path.display()
-        )))
+        ))
+        .context(&self.desc.name))
     }
 
     #[cfg(feature = "fetch")]
     /// The fetch jobs for `ids`, in the order given.
     ///
     /// # Errors
-    /// [`BunsenError::Invalid`] for an id outside the set.
+    /// [`Lookup`](crate::errors::BunsenErrorKind::Lookup), with a
+    /// [`LookupError`] cause, for an id outside the set.
     pub fn jobs(
         &self,
         ids: &[ShardId],
@@ -236,8 +253,9 @@ impl<'c> ShardSet<'c> {
     /// already on disk are reported as cached.
     ///
     /// # Errors
-    /// [`BunsenError::Invalid`] for an id outside the set. A shard
-    /// that fails to land is in the report, not an error here.
+    /// [`Lookup`](crate::errors::BunsenErrorKind::Lookup), with a
+    /// [`LookupError`] cause, for an id outside the set. A shard that fails
+    /// to land is in the report, not an error here.
     pub fn fetch_many(
         &self,
         ids: &[ShardId],
@@ -254,10 +272,10 @@ impl<'c> ShardSet<'c> {
         if self.desc.contains(id) {
             Ok(())
         } else {
-            Err(BunsenError::Invalid(format!(
-                "{}: shard {id} is out of range; the set has {} shards",
-                self.desc.name, self.desc.count
-            )))
+            Err(
+                BunsenError::lookup(LookupError::out_of_range("shard", id, self.desc.count))
+                    .context(&self.desc.name),
+            )
         }
     }
 }
@@ -267,6 +285,7 @@ mod tests {
     use super::*;
     #[cfg(feature = "fetch")]
     use crate::data::cache::{
+        FetchFailure,
         FetchOutcome,
         OnFailure,
         testing::{
@@ -275,11 +294,21 @@ mod tests {
             serve_n,
         },
     };
-    use crate::data::{
-        cache::BunsenDiskCacheOptions,
-        shards::{
-            StaticShardDigests,
-            StaticShardSetDescriptor,
+    use crate::{
+        data::{
+            cache::BunsenDiskCacheOptions,
+            shards::{
+                StaticShardDigests,
+                StaticShardSetDescriptor,
+            },
+        },
+        errors::{
+            BunsenErrorKind,
+            LookupProblem,
+            testing::{
+                ErrorMatcher,
+                predicate,
+            },
         },
     };
 
@@ -332,18 +361,16 @@ mod tests {
         let set = ShardSet::at_dir(&cache, desc, dir.path().join("elsewhere"));
         assert_eq!(set.root(), dir.path().join("elsewhere"));
         assert!(!set.is_cached(ShardId(0)));
-        assert!(matches!(
-            set.locate(ShardId(0), false),
-            Err(BunsenError::ResourceNotFound(_))
-        ));
-        assert!(matches!(
-            set.locate(ShardId(3), true),
-            Err(BunsenError::Invalid(_))
-        ));
-        assert!(matches!(
-            set.fetch(ShardId(3)),
-            Err(BunsenError::Invalid(_))
-        ));
+        ErrorMatcher::kind(BunsenErrorKind::Policy)
+            .display_contains("served: shard 0 is not at ")
+            .assert_err(&set.locate(ShardId(0), false));
+        let out_of_range = ErrorMatcher::kind(BunsenErrorKind::Lookup)
+            .display_contains("served: shard 3 is out of range; there are 3")
+            .cause(predicate("shard 3 of 3", |l: &LookupError| {
+                l.key == "3" && l.problem == LookupProblem::OutOfRange { len: 3 }
+            }));
+        out_of_range.assert_err(&set.locate(ShardId(3), true));
+        out_of_range.assert_err(&set.fetch(ShardId(3)));
     }
 
     /// `cached_ids` reads what is on disk through the template, ignoring
@@ -448,7 +475,12 @@ mod tests {
         assert_eq!(fs::read(&good).unwrap(), b"abc");
 
         let bad = set.fetch(ShardId(1));
-        assert!(matches!(bad, Err(BunsenError::Invalid(_))), "{bad:?}");
+        ErrorMatcher::kind(BunsenErrorKind::InvalidResource)
+            .frame_contains("served: shard 1")
+            .cause(predicate("a digest failure", |f: &FetchFailure| {
+                matches!(f, FetchFailure::Digest(_))
+            }))
+            .assert_err(&bad);
         assert!(!set.path(ShardId(1)).exists());
 
         let jobs = set.jobs(&[ShardId(0), ShardId(1)]).unwrap();

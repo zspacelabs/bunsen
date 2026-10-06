@@ -81,7 +81,7 @@ impl VisualCmd {
     pub fn run<B: Backend>(&self) -> BunsenResult<()> {
         let device = backend_device::<B>();
 
-        self.logging.init(None);
+        self.logging.init(None)?;
         log::info!("Running Conway's Game of Life simulation...");
         log::info!("{self:#?}");
 

@@ -73,22 +73,24 @@ impl StreamClock {
     /// any audio has been placed against it.
     ///
     /// # Errors
-    /// [`BunsenError::Invalid`] if `sample` is before the last anchor, or if
-    /// `time` is not finite.
+    /// [`InvalidResource`](crate::errors::BunsenErrorKind::InvalidResource)
+    /// if `sample` is before the last anchor, or if `time` is not finite:
+    /// anchors come from a capture clock, so a bad one is the clock's
+    /// fault.
     pub fn anchor(
         &mut self,
         sample: usize,
         time: f64,
     ) -> BunsenResult<()> {
         if !time.is_finite() {
-            return Err(BunsenError::Invalid(format!(
+            return Err(BunsenError::invalid_resource(format!(
                 "anchor time must be finite, got {time}"
             )));
         }
 
         let last = self.anchors.last().expect("never empty");
         if sample < last.sample {
-            return Err(BunsenError::Invalid(format!(
+            return Err(BunsenError::invalid_resource(format!(
                 "anchors must not go backwards: sample {sample} after {}",
                 last.sample,
             )));
@@ -157,6 +159,10 @@ impl StreamClock {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::errors::{
+        BunsenErrorKind,
+        testing::ErrorMatcher,
+    };
 
     fn close(
         a: f64,
@@ -224,9 +230,10 @@ mod tests {
         let mut clock = StreamClock::uniform(16_000);
         clock.anchor(1_000, 1.0).unwrap();
 
-        assert!(clock.anchor(999, 2.0).is_err(), "backwards in sample");
-        assert!(clock.anchor(2_000, f64::NAN).is_err());
-        assert!(clock.anchor(2_000, f64::INFINITY).is_err());
+        let refused = ErrorMatcher::kind(BunsenErrorKind::InvalidResource);
+        refused.assert_err(&clock.anchor(999, 2.0)); // backwards in sample
+        refused.assert_err(&clock.anchor(2_000, f64::NAN));
+        refused.assert_err(&clock.anchor(2_000, f64::INFINITY));
         assert_eq!(
             clock.anchors().len(),
             2,

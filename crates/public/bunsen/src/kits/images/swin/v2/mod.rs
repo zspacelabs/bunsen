@@ -21,8 +21,8 @@
 //!    checks that the stages fit the image and the window, and resolves each
 //!    stage's grid, width and per-block drop-path rates into a
 //!    [`SwinTransformerV2StructureConfig`]. A policy whose stages do not fit is a
-//!    [`BunsenError::Invalid`](crate::errors::BunsenError::Invalid) that
-//!    says why, not a panic.
+//!    [`Illegal`](crate::errors::BunsenErrorKind::Illegal) error that says
+//!    why, not a panic.
 //! 3. `init` builds the [`SwinTransformerV2`]: from the structure, or from the
 //!    policy in one step through the blanket
 //!    [`ModuleInit`](crate::burner::module::ModuleInit), whose `try_init`

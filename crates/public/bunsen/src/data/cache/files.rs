@@ -11,6 +11,8 @@ use std::{
 use crate::errors::{
     BunsenError,
     BunsenResult,
+    ResultContext,
+    sys_at,
 };
 
 /// `<dest>.partial`, keeping every dot of the name (`tiny.en.pt.partial`).
@@ -39,19 +41,23 @@ pub fn file_name_from_url(url: &str) -> Option<&str> {
 /// do: a symlink where the platform has them, then a hard link, then a copy.
 ///
 /// # Errors
-/// [`BunsenError::Invalid`] if `dest` has no parent directory;
-/// [`BunsenError::External`] if none of the three could be made.
+/// [`Illegal`](crate::errors::BunsenErrorKind::Illegal) if `dest` has no
+/// parent directory. If `dest`'s directory cannot be made, or none of the
+/// three could be made, the `io::Error` sorted with its path (see
+/// [`sys_at`]): [`Lookup`](crate::errors::BunsenErrorKind::Lookup) for a
+/// missing `src`, usually [`Sys`](crate::errors::BunsenErrorKind::Sys)
+/// otherwise.
 pub fn link_or_copy(
     src: &Path,
     dest: &Path,
 ) -> BunsenResult<()> {
     let Some(parent) = dest.parent() else {
-        return Err(BunsenError::Invalid(format!(
+        return Err(BunsenError::illegal(format!(
             "{}: not a file path",
             dest.display()
         )));
     };
-    fs::create_dir_all(parent).map_err(BunsenError::external)?;
+    fs::create_dir_all(parent).map_err(sys_at("create directory", parent))?;
 
     #[cfg(unix)]
     if std::os::unix::fs::symlink(src, dest).is_ok() {
@@ -62,12 +68,17 @@ pub fn link_or_copy(
     }
     fs::copy(src, dest)
         .map(|_| ())
-        .map_err(BunsenError::external)
+        .map_err(sys_at("copy", src))
+        .with_context(|| format!("placing {}", dest.display()))
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::errors::{
+        BunsenErrorKind,
+        testing::ErrorMatcher,
+    };
 
     #[test]
     fn test_partial_path_keeps_every_dot() {
@@ -109,9 +120,8 @@ mod tests {
                 .file_type()
                 .is_symlink()
         );
-        assert!(matches!(
-            link_or_copy(&src, Path::new("/")),
-            Err(BunsenError::Invalid(_))
-        ));
+        ErrorMatcher::kind(BunsenErrorKind::Illegal)
+            .message_contains("not a file path")
+            .assert_err(&link_or_copy(&src, Path::new("/")));
     }
 }

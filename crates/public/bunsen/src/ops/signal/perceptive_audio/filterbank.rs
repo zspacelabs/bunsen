@@ -8,6 +8,8 @@ use crate::{
     errors::{
         BunsenError,
         BunsenResult,
+        ConstraintError,
+        Rule,
     },
     ops::arange::vec_linspace,
 };
@@ -189,30 +191,35 @@ impl MelFilterbankConfig {
     ///
     /// # Errors
     ///
-    /// [`BunsenError::Invalid`] if `n_fft` or `n_mels` is zero, if
-    /// `f_min >= f_max`, if the mel points are not strictly increasing (which
+    /// [`Illegal`](crate::errors::BunsenErrorKind::Illegal) if `n_fft` or
+    /// `n_mels` is zero or if `f_min >= f_max` (with a [`ConstraintError`]
+    /// cause), if the mel points are not strictly increasing (which
     /// would make a triangle degenerate), or if any triangle ends up **empty**
     /// — covering no `rfft` bin at all. An empty row silently zeroes a
     /// whole mel channel, so it is rejected rather than returned; it means
     /// `n_mels` is too large for this `n_fft` (`n_fft = 256` with `n_mels =
     /// 128` at 16 kHz leaves 13 rows empty).
     pub fn try_to_vec(&self) -> BunsenResult<Vec<f64>> {
+        const OWNER: &str = "MelFilterbankConfig";
         if self.n_fft == 0 {
-            return Err(BunsenError::Invalid(
-                "MelFilterbank n_fft must be non-zero".to_string(),
-            ));
+            return Err(ConstraintError::zero_or_empty(OWNER, "n_fft").into());
         }
         if self.n_mels == 0 {
-            return Err(BunsenError::Invalid(
-                "MelFilterbank n_mels must be non-zero".to_string(),
-            ));
+            return Err(ConstraintError::zero_or_empty(OWNER, "n_mels").into());
         }
         let f_min = self.f_range.start;
         let f_max = self.f_range.end;
         if f_min >= f_max {
-            return Err(BunsenError::Invalid(format!(
-                "MelFilterbank f_min ({f_min}) must be < f_max ({f_max})",
-            )));
+            return Err(ConstraintError::new(
+                OWNER,
+                "",
+                Rule::Relation {
+                    lhs: ("f_range.start".into(), f_min.to_string()),
+                    op: "<",
+                    rhs: ("f_range.end".into(), f_max.to_string()),
+                },
+            )
+            .into());
         }
 
         let n_bins = self.n_fft / 2 + 1;
@@ -225,8 +232,8 @@ impl MelFilterbankConfig {
 
         for w in points.windows(2) {
             if w[0] >= w[1] {
-                return Err(BunsenError::Invalid(format!(
-                    "MelFilterbank mel points are not strictly increasing \
+                return Err(BunsenError::illegal(format!(
+                    "{OWNER}: mel points are not strictly increasing \
                  ({} then {}); n_mels ({}) is too large for the \
                  [{f_min}, {f_max}] Hz span",
                     w[0], w[1], self.n_mels
@@ -250,8 +257,8 @@ impl MelFilterbankConfig {
             }
 
             if row.iter().all(|&v| v == 0.0) {
-                return Err(BunsenError::Invalid(format!(
-                    "MelFilterbank triangle {i} spanning [{f_lo}, {f_hi}] Hz \
+                return Err(BunsenError::illegal(format!(
+                    "{OWNER}: triangle {i} spanning [{f_lo}, {f_hi}] Hz \
                  covers no rfft bin (bin spacing {} Hz); n_mels ({}) is \
                  too large for n_fft ({})",
                     self.sample_rate as f64 / self.n_fft as f64,
@@ -268,6 +275,10 @@ impl MelFilterbankConfig {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::errors::{
+        BunsenErrorKind,
+        testing::ErrorMatcher,
+    };
 
     /// Asserts `actual` matches `expected` to a relative tolerance.
     fn assert_rel(
@@ -476,10 +487,9 @@ mod tests {
             .with_norm(FilterNorm::Slaney)
             .try_to_vec();
 
-        assert!(
-            matches!(&err, Err(BunsenError::Invalid(m)) if m.contains("covers no rfft bin")),
-            "expected an empty-triangle error, got {err:?}",
-        );
+        ErrorMatcher::kind(BunsenErrorKind::Illegal)
+            .message_contains("covers no rfft bin")
+            .assert_err(&err);
     }
 
     #[test]
@@ -496,10 +506,9 @@ mod tests {
             ok(400, 80, 8000.0..8000.0),
             ok(400, 80, 8000.0..0.0),
         ] {
-            assert!(
-                matches!(bad, Err(BunsenError::Invalid(_))),
-                "expected Invalid, got {bad:?}",
-            );
+            ErrorMatcher::kind(BunsenErrorKind::Illegal)
+                .has_cause::<ConstraintError>()
+                .assert_err(&bad);
         }
 
         assert!(ok(400, 80, 0.0..8000.0).is_ok());

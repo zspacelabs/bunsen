@@ -16,13 +16,17 @@ use burn::prelude::Backend;
 use burn_store::{
     ModuleSnapshot,
     SafetensorsStore,
+    SafetensorsStoreError,
 };
 use serde::Deserialize;
 
 use super::LoadedResources;
 use crate::errors::{
     BunsenError,
+    BunsenErrorKind,
     BunsenResult,
+    ParseError,
+    sys_at,
 };
 
 /// The longest header accepted, `safetensors`' own bound: 100 MB.
@@ -45,29 +49,52 @@ pub struct SafetensorsEntry {
 /// [`SafetensorsCheckpoint::headers`] merges it across shards.
 ///
 /// # Errors
-/// [`BunsenError::External`] for a file that cannot be read;
-/// [`BunsenError::Invalid`] for a file that is not safetensors: a header
-/// length past the file or past 100 MB is refused before anything is
-/// allocated for it.
+/// An `io::Error` sorted by [`sys_at`], naming the path, for a file that
+/// cannot be read: a [`Lookup`](BunsenErrorKind::Lookup) for one that is not
+/// there. [`InvalidResource`](BunsenErrorKind::InvalidResource), with a
+/// [`ParseError`], for a file that is not safetensors: one shorter than the
+/// length prefix, a header that is not JSON or whose entries lack a dtype
+/// or a shape; a header length past the file or past 100 MB is refused
+/// before anything is allocated for it.
 pub fn safetensors_header(path: &Path) -> BunsenResult<BTreeMap<String, SafetensorsEntry>> {
-    let mut file = std::fs::File::open(path).map_err(BunsenError::external)?;
+    let mut file = std::fs::File::open(path).map_err(sys_at("open", path))?;
     let mut len = [0u8; 8];
-    file.read_exact(&mut len).map_err(BunsenError::external)?;
+    file.read_exact(&mut len).map_err(|e| {
+        if e.kind() == std::io::ErrorKind::UnexpectedEof {
+            not_safetensors(
+                path,
+                "safetensors file",
+                "shorter than its 8-byte length prefix",
+            )
+        } else {
+            sys_at("read", path)(e)
+        }
+    })?;
     let len = u64::from_le_bytes(len);
-    let file_len = file.metadata().map_err(BunsenError::external)?.len();
+    let file_len = file.metadata().map_err(sys_at("stat", path))?.len();
     if len > MAX_HEADER_LEN || len.saturating_add(8) > file_len {
-        return Err(BunsenError::Invalid(format!(
-            "{}: not a safetensors file: a header of {len} bytes",
-            path.display()
-        )));
+        return Err(not_safetensors(
+            path,
+            "safetensors file",
+            format!("a header of {len} bytes, in a file of {file_len}"),
+        ));
     }
-    let len = usize::try_from(len).map_err(BunsenError::external)?;
+    let len = usize::try_from(len).map_err(|e| {
+        BunsenError::internal(format!(
+            "a header of {len} bytes, checked, does not fit usize"
+        ))
+        .with_cause(e)
+    })?;
     let mut header = vec![0u8; len];
-    file.read_exact(&mut header)
-        .map_err(BunsenError::external)?;
+    file.read_exact(&mut header).map_err(sys_at("read", path))?;
     let header: serde_json::Map<String, serde_json::Value> = serde_json::from_slice(&header)
         .map_err(|e| {
-            BunsenError::Invalid(format!("{}: not a safetensors header: {e}", path.display()))
+            BunsenError::from_cause(
+                BunsenErrorKind::InvalidResource,
+                ParseError::new("safetensors header")
+                    .at(path.display())
+                    .with_source(e),
+            )
         })?;
 
     let mut entries = BTreeMap::new();
@@ -78,27 +105,46 @@ pub fn safetensors_header(path: &Path) -> BunsenResult<BTreeMap<String, Safetens
         let dtype = value
             .get("dtype")
             .and_then(|d| d.as_str())
-            .ok_or_else(|| BunsenError::Invalid(format!("{}: {name}: no dtype", path.display())))?
+            .ok_or_else(|| {
+                not_safetensors(path, "safetensors header", format!("{name}: no dtype"))
+            })?
             .to_string();
         let shape = value
             .get("shape")
             .and_then(|s| s.as_array())
-            .ok_or_else(|| BunsenError::Invalid(format!("{}: {name}: no shape", path.display())))?
+            .ok_or_else(|| {
+                not_safetensors(path, "safetensors header", format!("{name}: no shape"))
+            })?
             .iter()
             .map(|d| {
                 d.as_u64()
                     .and_then(|d| usize::try_from(d).ok())
                     .ok_or_else(|| {
-                        BunsenError::Invalid(format!(
-                            "{}: {name}: a shape that is not usize",
-                            path.display()
-                        ))
+                        not_safetensors(
+                            path,
+                            "safetensors header",
+                            format!("{name}: a shape that is not usize"),
+                        )
                     })
             })
             .collect::<BunsenResult<Vec<usize>>>()?;
         entries.insert(name, SafetensorsEntry { dtype, shape });
     }
     Ok(entries)
+}
+
+/// An [`InvalidResource`](BunsenErrorKind::InvalidResource) error: the file
+/// at `path` does not parse as `what`, for `reason`.
+#[track_caller]
+fn not_safetensors(
+    path: &Path,
+    what: &'static str,
+    reason: impl core::fmt::Display,
+) -> BunsenError {
+    BunsenError::from_cause(
+        BunsenErrorKind::InvalidResource,
+        ParseError::new(what).at(path.display()).because(reason),
+    )
 }
 
 /// `model.safetensors.index.json`: the shard each tensor is in.
@@ -116,12 +162,19 @@ impl SafetensorsIndex {
     /// Reads an index file.
     ///
     /// # Errors
-    /// [`BunsenError::External`] for a file that cannot be read;
-    /// [`BunsenError::Invalid`] for one that is not an index.
+    /// An `io::Error` sorted by [`sys_at`], naming the path, for a file that
+    /// cannot be opened;
+    /// [`InvalidResource`](BunsenErrorKind::InvalidResource), with a
+    /// [`ParseError`], for one that is not an index.
     pub fn read(path: &Path) -> BunsenResult<Self> {
-        let file = std::fs::File::open(path).map_err(BunsenError::external)?;
+        let file = std::fs::File::open(path).map_err(sys_at("open", path))?;
         serde_json::from_reader(std::io::BufReader::new(file)).map_err(|e| {
-            BunsenError::Invalid(format!("{}: not a safetensors index: {e}", path.display()))
+            BunsenError::from_cause(
+                BunsenErrorKind::InvalidResource,
+                ParseError::new("safetensors index")
+                    .at(path.display())
+                    .with_source(e),
+            )
         })
     }
 
@@ -184,9 +237,11 @@ impl SafetensorsCheckpoint {
     /// which must be exactly the files the index names.
     ///
     /// # Errors
-    /// [`BunsenError::ResourceNotFound`] when `loaded` has nothing under
-    /// `key`, naming what it has; [`BunsenError::Invalid`] for a family
-    /// with no index, or shards that are not the index's.
+    /// As [`LoadedResources::expect`] when `loaded` has nothing under `key`,
+    /// naming what it has; as [`SafetensorsIndex::read`] for the index.
+    /// [`InvalidResource`](BunsenErrorKind::InvalidResource), under a frame
+    /// naming the map, for a family with no index, or shards that are not
+    /// the index's.
     pub fn from_loaded(
         loaded: &LoadedResources,
         key: &str,
@@ -200,11 +255,11 @@ impl SafetensorsCheckpoint {
         }
         let index_key = format!("{key}.index");
         let Some((_, index)) = family.iter().find(|(k, _)| *k == index_key) else {
-            return Err(BunsenError::Invalid(format!(
-                "{}: {} shards under {key:?} and no {index_key:?}",
-                loaded.map.name,
+            return Err(BunsenError::invalid_resource(format!(
+                "{} shards under {key:?} and no {index_key:?}",
                 family.len()
-            )));
+            ))
+            .context(&loaded.map.name));
         };
         let index = SafetensorsIndex::read(&index.path)?;
         let named: Vec<&str> = index.shards();
@@ -222,16 +277,22 @@ impl SafetensorsCheckpoint {
         }
         let have: Vec<&str> = by_file.keys().copied().collect();
         if have != named {
-            return Err(BunsenError::Invalid(format!(
-                "{}: the index names shards {} but the map has {}",
-                loaded.map.name,
-                named.join(", "),
-                if have.is_empty() {
+            let list = |files: &[&str]| {
+                if files.is_empty() {
                     "none".to_string()
                 } else {
-                    have.join(", ")
+                    files.join("\n  ")
                 }
-            )));
+            };
+            return Err(BunsenError::invalid_resource(
+                "the map's shards are not the ones the index names",
+            )
+            .with_details(format!(
+                "the index names:\n  {}\nthe map has:\n  {}",
+                list(&named),
+                list(&have)
+            ))
+            .context(&loaded.map.name));
         }
         Ok(Self {
             shards: named.iter().map(|f| by_file[f].to_path_buf()).collect(),
@@ -242,17 +303,18 @@ impl SafetensorsCheckpoint {
     /// type and shape.
     ///
     /// # Errors
-    /// As [`safetensors_header`]; [`BunsenError::Invalid`] for a tensor
-    /// two shards both hold.
+    /// As [`safetensors_header`];
+    /// [`InvalidResource`](BunsenErrorKind::InvalidResource) for a tensor two
+    /// shards both hold.
     pub fn headers(&self) -> BunsenResult<BTreeMap<String, SafetensorsEntry>> {
         let mut merged = BTreeMap::new();
         for shard in &self.shards {
             for (name, entry) in safetensors_header(shard)? {
                 if merged.insert(name.clone(), entry).is_some() {
-                    return Err(BunsenError::Invalid(format!(
-                        "{}: {name} is in more than one shard",
-                        shard.display()
-                    )));
+                    return Err(BunsenError::invalid_resource(format!(
+                        "{name} is in more than one shard"
+                    ))
+                    .context(shard.display()));
                 }
             }
         }
@@ -264,9 +326,13 @@ impl SafetensorsCheckpoint {
     /// checks that every parameter of the module was found in some shard.
     ///
     /// # Errors
-    /// [`BunsenError::External`] from the store: a file that cannot be
-    /// read, a tensor whose shape does not fit its parameter;
-    /// [`BunsenError::Invalid`] naming the parameters no shard held.
+    /// Under a frame naming the shard, the store's error as the cause: an
+    /// `io::Error` sorted by [`sys_at`] for a file that cannot be read;
+    /// [`InvalidResource`](BunsenErrorKind::InvalidResource), with the
+    /// [`SafetensorsStoreError`], for anything else the store refuses, a
+    /// tensor whose shape does not fit its parameter say.
+    /// [`InvalidResource`](BunsenErrorKind::InvalidResource) naming the
+    /// parameters no shard held, listed in the details.
     pub fn load_into<B: Backend, M: ModuleSnapshot<B>>(
         &self,
         module: &mut M,
@@ -280,7 +346,7 @@ impl SafetensorsCheckpoint {
                 configure(SafetensorsStore::from_file(shard.clone()).allow_partial(true));
             let result = module
                 .load_from(&mut store)
-                .map_err(|e| BunsenError::External(format!("{}: {e}", shard.display())))?;
+                .map_err(|e| store_error(shard, e))?;
             if all.is_none() {
                 let mut every: BTreeSet<String> = result.applied.iter().cloned().collect();
                 every.extend(result.missing.iter().map(|(path, _)| path.clone()));
@@ -296,20 +362,22 @@ impl SafetensorsCheckpoint {
             .filter(|p| !applied.contains(p))
             .collect();
         if !never.is_empty() {
-            return Err(BunsenError::Invalid(format!(
-                "{}: the checkpoint lacks {} of the model's parameters: {}",
-                self.shards
-                    .first()
-                    .map(|s| s.display().to_string())
-                    .unwrap_or_default(),
+            let mut error = BunsenError::invalid_resource(format!(
+                "the checkpoint lacks {} of the model's parameters: {}{}",
                 never.len(),
                 never
                     .iter()
                     .take(8)
                     .map(|s| s.as_str())
                     .collect::<Vec<_>>()
-                    .join(", ")
-            )));
+                    .join(", "),
+                if never.len() > 8 { ", ..." } else { "" }
+            ))
+            .with_details(never.join("\n"));
+            if let Some(first) = self.shards.first() {
+                error = error.context(first.display());
+            }
+            return Err(error);
         }
         Ok(SafetensorsApplied {
             applied: applied.into_iter().collect(),
@@ -318,9 +386,30 @@ impl SafetensorsCheckpoint {
     }
 }
 
+/// The store's error for `shard`, sorted: an `io::Error` by [`sys_at`];
+/// the rest, a format the store refuses or a tensor that does not fit,
+/// [`InvalidResource`](BunsenErrorKind::InvalidResource) with the store's
+/// error as the cause.
+#[track_caller]
+fn store_error(
+    shard: &Path,
+    error: SafetensorsStoreError,
+) -> BunsenError {
+    match error {
+        SafetensorsStoreError::Io(e) => sys_at("load", shard)(e),
+        other => BunsenError::invalid_resource("the store refused the shard")
+            .with_cause(other)
+            .context(shard.display()),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::errors::{
+        LookupError,
+        testing::ErrorMatcher,
+    };
 
     /// Writes a safetensors file with `header` and `data`.
     fn write_safetensors(
@@ -360,11 +449,22 @@ mod tests {
         // allocated for.
         let junk = dir.path().join("junk.safetensors");
         std::fs::write(&junk, b"not a safetensors file at all").unwrap();
-        let err = safetensors_header(&junk).unwrap_err();
-        assert!(
-            matches!(&err, BunsenError::Invalid(m) if m.contains("not a safetensors file")),
-            "{err}"
-        );
+        ErrorMatcher::kind(BunsenErrorKind::InvalidResource)
+            .message_contains("cannot parse safetensors file")
+            .has_cause::<ParseError>()
+            .assert_err(&safetensors_header(&junk));
+
+        // Shorter than the length prefix: not safetensors either.
+        let short = dir.path().join("short.safetensors");
+        std::fs::write(&short, b"abc").unwrap();
+        ErrorMatcher::kind(BunsenErrorKind::InvalidResource)
+            .message_contains("shorter than its 8-byte length prefix")
+            .assert_err(&safetensors_header(&short));
+
+        // Not there at all: a lookup of the path.
+        ErrorMatcher::kind(BunsenErrorKind::Lookup)
+            .has_cause::<LookupError>()
+            .assert_err(&safetensors_header(&dir.path().join("absent.safetensors")));
     }
 
     /// An index names its shards once each; a checkpoint from loaded
@@ -442,21 +542,18 @@ mod tests {
             ("checkpoint.index", &index_path),
             ("checkpoint.00001", &s1),
         ]);
-        let err = SafetensorsCheckpoint::from_loaded(&short, "checkpoint").unwrap_err();
-        assert!(
-            matches!(&err, BunsenError::Invalid(m) if m.contains("the index names shards")),
-            "{err}"
-        );
+        ErrorMatcher::kind(BunsenErrorKind::InvalidResource)
+            .message_eq("the map's shards are not the ones the index names")
+            .details_contains("model-00002-of-00002.safetensors")
+            .frame_contains("sharded")
+            .assert_err(&SafetensorsCheckpoint::from_loaded(&short, "checkpoint"));
         let no_index = loaded(vec![("checkpoint.00001", &s1)]);
-        let err = SafetensorsCheckpoint::from_loaded(&no_index, "checkpoint").unwrap_err();
-        assert!(
-            matches!(&err, BunsenError::Invalid(m) if m.contains("no \"checkpoint.index\"")),
-            "{err}"
-        );
+        ErrorMatcher::kind(BunsenErrorKind::InvalidResource)
+            .message_contains("no \"checkpoint.index\"")
+            .assert_err(&SafetensorsCheckpoint::from_loaded(&no_index, "checkpoint"));
         let nothing = loaded(vec![("config", &index_path)]);
-        assert!(matches!(
-            SafetensorsCheckpoint::from_loaded(&nothing, "checkpoint"),
-            Err(BunsenError::ResourceNotFound(_))
-        ));
+        ErrorMatcher::kind(BunsenErrorKind::Lookup)
+            .has_cause::<LookupError>()
+            .assert_err(&SafetensorsCheckpoint::from_loaded(&nothing, "checkpoint"));
     }
 }

@@ -44,11 +44,15 @@ use crate::errors::{
 /// [`try_init`](Self::try_init) returns a [`BunsenResult`]. A config is data:
 /// it is deserialized from files, assembled by loaders, and edited by users.
 /// A config whose fields disagree (an embedding size that does not split into
-/// its heads, a depth of zero) is an input error to report, not a bug, so an
-/// implementation checks its config in `try_init` and returns
-/// [`BunsenError::Invalid`](crate::errors::BunsenError::Invalid) rather than
-/// panicking. [`init`](Self::init) is the convenience for a config you wrote
-/// yourself: it panics with the error's message, through
+/// its heads, a depth of zero) is an error to report, so an implementation
+/// checks its config in `try_init` and returns an
+/// [`Illegal`](crate::errors::BunsenErrorKind::Illegal) error, usually a
+/// [`ConstraintError`](crate::errors::ConstraintError) naming the config and
+/// the field, rather than panicking. Code that reads a config from outside
+/// the program re-marks the error
+/// [`as_policy`](crate::errors::ResultContext::as_policy).
+/// [`init`](Self::init) is the convenience for a config you wrote yourself:
+/// it panics with the error's report, through
 /// [`WithOkOrPanic::ok_or_panic`]. This is the crate-wide pairing of a `try_x`
 /// that returns a `BunsenResult` with an `x` that panics.
 ///
@@ -74,6 +78,7 @@ use crate::errors::{
 ///
 /// ```
 /// use bunsen::{
+///     errors::ConstraintError,
 ///     prelude::*,
 ///     support::testing::default_device,
 /// };
@@ -113,9 +118,11 @@ use crate::errors::{
 ///         device: &B::Device,
 ///     ) -> BunsenResult<Square<B>> {
 ///         if self.width == 0 {
-///             return Err(BunsenError::Invalid(
-///                 "width must be > 0".to_string(),
-///             ));
+///             return Err(ConstraintError::zero_or_empty(
+///                 "SquareConfig",
+///                 "width",
+///             )
+///             .into());
 ///         }
 ///         Ok(Square {
 ///             proj: LinearConfig::new(self.width, self.width).init(device),
@@ -145,7 +152,7 @@ use crate::errors::{
 /// // A bad config is an error from `try_init`, and a panic from `init`.
 /// let bad: BunsenResult<Square<Flex>> =
 ///     SquareConfig::new(0).try_init(&device);
-/// assert!(bad.is_err());
+/// assert_eq!(bad.unwrap_err().kind(), BunsenErrorKind::Illegal);
 /// ```
 ///
 /// ## Stacked Config
@@ -183,12 +190,13 @@ use crate::errors::{
 ///   both lower straight to [`SileroVadStructureConfig`].
 /// - [`SwinTransformerV2ContractConfig`] has a fallible lowering: its
 ///   `try_to_structure` checks that the stages fit the input and the window, so
-///   `try_init` on the policy returns
-///   [`BunsenError::Invalid`](crate::errors::BunsenError::Invalid) for one that
+///   `try_init` on the policy returns an
+///   [`Illegal`](crate::errors::BunsenErrorKind::Illegal) error for one that
 ///   does not.
 ///
 /// ```
 /// use bunsen::{
+///     errors::ConstraintError,
 ///     prelude::*,
 ///     support::testing::default_device,
 /// };
@@ -227,10 +235,19 @@ use crate::errors::{
 ///     type Structure = TowerStructureConfig;
 ///
 ///     fn try_to_structure(&self) -> BunsenResult<TowerStructureConfig> {
-///         if self.depth == 0 || self.taper == 0 {
-///             return Err(BunsenError::Invalid(
-///                 "depth and taper must be > 0".to_string(),
-///             ));
+///         if self.depth == 0 {
+///             return Err(ConstraintError::zero_or_empty(
+///                 "TowerContractConfig",
+///                 "depth",
+///             )
+///             .into());
+///         }
+///         if self.taper == 0 {
+///             return Err(ConstraintError::zero_or_empty(
+///                 "TowerContractConfig",
+///                 "taper",
+///             )
+///             .into());
 ///         }
 ///         let mut layers = Vec::new();
 ///         let mut d_input = self.width;
@@ -296,7 +313,10 @@ use crate::errors::{
 /// // A bad policy fails in `try_to_structure`; `try_init` passes it on.
 /// let bad: BunsenResult<Tower<Flex>> =
 ///     TowerContractConfig::new(64, 0).try_init(&device);
-/// assert!(bad.is_err());
+/// assert_eq!(
+///     bad.unwrap_err().to_string(),
+///     "TowerContractConfig.depth: must not be zero or empty"
+/// );
 /// ```
 ///
 /// # Hand-written `init`

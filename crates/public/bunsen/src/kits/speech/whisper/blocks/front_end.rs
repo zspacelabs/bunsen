@@ -11,6 +11,7 @@ use crate::{
     errors::{
         BunsenError,
         BunsenResult,
+        ConstraintError,
     },
     kits::speech::whisper::driver::{
         PerWindow,
@@ -78,20 +79,28 @@ impl WhisperFrontEndConfig {
     /// Checks that the grid falls on whole samples.
     ///
     /// # Errors
-    /// [`BunsenError::Invalid`] if the rate, hop or window is zero, or the
-    /// rate does not put the hop and the window on whole samples. At the
-    /// default 10 ms and 25 ms that is any rate not a multiple of 200 Hz.
+    /// [`Illegal`](crate::errors::BunsenErrorKind::Illegal) if the rate, hop
+    /// or window is zero (with a [`ConstraintError`] cause), or the rate does
+    /// not put the hop and the window on whole samples. At the default 10 ms
+    /// and 25 ms that is any rate not a multiple of 200 Hz.
     pub fn validate(&self) -> BunsenResult<()> {
-        if self.sample_rate == 0 || self.hop_ms == 0 || self.window_ms == 0 {
-            return Err(BunsenError::Invalid(format!(
-                "a front end needs a rate, a hop and a window; got {} Hz, {} ms, {} ms",
-                self.sample_rate, self.hop_ms, self.window_ms,
-            )));
+        const OWNER: &str = "WhisperFrontEndConfig";
+        for (field, value) in [
+            ("sample_rate", self.sample_rate),
+            ("hop_ms", self.hop_ms),
+            ("window_ms", self.window_ms),
+        ] {
+            if value == 0 {
+                return Err(ConstraintError::zero_or_empty(OWNER, field).into());
+            }
         }
-        for (what, ms) in [("hop", self.hop_ms), ("window", self.window_ms)] {
+        for (field, what, ms) in [
+            ("hop_ms", "hop", self.hop_ms),
+            ("window_ms", "window", self.window_ms),
+        ] {
             if !(self.sample_rate * ms).is_multiple_of(1000) {
-                return Err(BunsenError::Invalid(format!(
-                    "a {ms} ms {what} is not a whole number of samples at {} Hz",
+                return Err(BunsenError::illegal(format!(
+                    "{OWNER}.{field}: a {ms} ms {what} is not a whole number of samples at {} Hz",
                     self.sample_rate,
                 )));
             }

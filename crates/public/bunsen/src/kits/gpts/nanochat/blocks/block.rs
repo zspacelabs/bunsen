@@ -28,8 +28,9 @@ use crate::{
     },
     burner::module::ModuleInit,
     errors::{
-        BunsenError,
         BunsenResult,
+        ConstraintError,
+        Rule,
         WithOkOrPanic,
     },
     ops::transformers::attention::KVCache,
@@ -81,11 +82,16 @@ impl NanoChatGptBlockConfig {
         device: &B::Device,
     ) -> BunsenResult<NanoChatGptBlock<B>> {
         if self.attn.n_embed() != self.mlp.n_embed() {
-            return Err(BunsenError::Invalid(format!(
-                "Attn and MLP embed sizes must be equal: {} != {}",
-                self.attn.n_embed(),
-                self.mlp.n_embed()
-            )));
+            return Err(ConstraintError::new(
+                "NanoChatGptBlockConfig",
+                "",
+                Rule::Relation {
+                    lhs: ("attn.n_embed".into(), self.attn.n_embed().to_string()),
+                    op: "==",
+                    rhs: ("mlp.n_embed".into(), self.mlp.n_embed().to_string()),
+                },
+            )
+            .into());
         }
 
         let n_embed = self.n_embed();

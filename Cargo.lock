@@ -8879,7 +8879,6 @@ dependencies = [
  "bunsen",
  "burn",
  "clap",
- "hound",
  "serde_json",
 ]
 

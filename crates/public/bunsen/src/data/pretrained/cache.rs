@@ -22,12 +22,6 @@ use super::{
     ResourceMap,
     Source,
 };
-#[cfg(feature = "fetch")]
-use crate::data::cache::{
-    FetchJob,
-    FetchOutcome,
-    FetchPolicy,
-};
 use crate::{
     data::cache::{
         BunsenDiskCache,
@@ -38,7 +32,21 @@ use crate::{
     errors::{
         BunsenError,
         BunsenResult,
+        DigestMismatch,
+        DigestOrigin,
+        LookupError,
+        LookupProblem,
+        sys_at,
     },
+};
+#[cfg(feature = "fetch")]
+use crate::{
+    data::cache::{
+        FetchJob,
+        FetchOutcome,
+        FetchPolicy,
+    },
+    errors::Multiple,
 };
 
 /// The directory under the cache dir that holds a pretrained's resources:
@@ -280,9 +288,10 @@ fn remote_keys(remote: &[RemotePart]) -> String {
 ///
 /// Nothing is linked or copied into the cache: only a download, or bundled
 /// bytes, write there. Every transfer reports to the disk cache's observer
-/// stack. Step 3 needs the `fetch` feature; without it, or on an offline
-/// cache, a resource that only a URL can supply is
-/// [`BunsenError::ResourceNotFound`].
+/// stack. A resource that only a URL can supply is a
+/// [`Policy`](crate::errors::BunsenErrorKind::Policy) error on an offline
+/// cache, and [`Unsupported`](crate::errors::BunsenErrorKind::Unsupported)
+/// without the `fetch` feature, which step 3 needs.
 pub struct PretrainedCache {
     disk: BunsenDiskCache,
     offline: bool,
@@ -408,16 +417,28 @@ impl PretrainedCache {
     /// order: a file in another tool's directory is used in place, hashed
     /// first only when the options ask; bytes linked into the binary are
     /// checked and written into the cache; the URLs are fetched in order,
+    /// a mirror that is down retried as the options' fetch policy says,
     /// checked, and written into the cache. Nothing is linked or copied
     /// in.
     ///
     /// # Errors
-    /// [`BunsenError::ResourceNotFound`] if nothing local matches and the
-    /// cache is offline, the resource has no URL, or the `fetch` feature is
-    /// off;
-    /// [`BunsenError::Invalid`] if a download's or bundled bytes' digest
-    /// does not match, or a local-dir file's when the options verify them;
-    /// [`BunsenError::External`] for a transfer or file-system failure.
+    /// When nothing local matches:
+    /// [`Policy`](crate::errors::BunsenErrorKind::Policy) if the cache is
+    /// offline; [`Unsupported`](crate::errors::BunsenErrorKind::Unsupported)
+    /// if the `fetch` feature is off;
+    /// [`Lookup`](crate::errors::BunsenErrorKind::Lookup), with a
+    /// [`LookupError`] for the path a local source names, if the resource has
+    /// no URL (a given path that is not there).
+    /// [`InvalidResource`](crate::errors::BunsenErrorKind::InvalidResource),
+    /// with a [`DigestMismatch`], if a download's or bundled bytes' digest
+    /// does not match, or a local-dir file's when the options verify them.
+    /// [`Illegal`](crate::errors::BunsenErrorKind::Illegal), with a
+    /// [`ConstraintError`](crate::errors::ConstraintError), for a bundled
+    /// source without a digest, as [`Resource::validate`]. A transfer
+    /// failure is sorted by the disk cache's fetch (a missing or refused URL
+    /// is a `Lookup`, an unreachable one
+    /// [`Unavailable`](crate::errors::BunsenErrorKind::Unavailable)), and a
+    /// file-system failure by [`sys_at`].
     pub fn resolve(
         &self,
         kit: &str,
@@ -427,11 +448,11 @@ impl PretrainedCache {
             Local::Found(found) => Ok(found),
             Local::Remote { dest, urls } => {
                 if self.offline {
-                    return Err(BunsenError::ResourceNotFound(format!(
-                        "{}: not in the cache ({}) and the cache is offline",
-                        res.key,
+                    return Err(BunsenError::policy(format!(
+                        "not in the cache ({}), and the cache is offline",
                         dest.display()
-                    )));
+                    ))
+                    .context(&res.key));
                 }
                 let urls: Vec<&str> = urls.iter().map(String::as_str).collect();
                 self.download(dest, &urls, res.sha256.as_deref())
@@ -448,10 +469,14 @@ impl PretrainedCache {
     /// land stay.
     ///
     /// # Errors
-    /// [`BunsenError::ResourceNotFound`] naming the remote keys when the
-    /// cache is offline or the `fetch` feature is off, or a key with no
-    /// URL; [`BunsenError::External`] naming each key that did not land;
-    /// [`BunsenError::Invalid`] as [`resolve`](Self::resolve).
+    /// As [`resolve`](Self::resolve) for a resource looked for locally.
+    /// Under a frame naming the map:
+    /// [`Policy`](crate::errors::BunsenErrorKind::Policy) naming the remote
+    /// keys when the cache is offline, and
+    /// [`Unsupported`](crate::errors::BunsenErrorKind::Unsupported) when the
+    /// `fetch` feature is off; when some remote resources did not land, a
+    /// [`Multiple`](crate::errors::Multiple) of each one's error, labelled by
+    /// its key, whose kind comes from them.
     pub fn load(
         &self,
         kit: &str,
@@ -474,11 +499,11 @@ impl PretrainedCache {
         }
         if !remote.is_empty() {
             if self.offline {
-                return Err(BunsenError::ResourceNotFound(format!(
-                    "{}: not in the cache, and the cache is offline: {}",
-                    map.name,
+                return Err(BunsenError::policy(format!(
+                    "not in the cache, and the cache is offline: {}",
                     remote_keys(&remote)
-                )));
+                ))
+                .context(&map.name));
             }
             self.fetch_remote(&map.name, remote, &mut parts)?;
         }
@@ -503,6 +528,7 @@ impl PretrainedCache {
         }
 
         let mut urls = Vec::new();
+        let mut tried = Vec::new();
         for source in &res.sources {
             match source {
                 Source::LocalDir { .. } => {
@@ -511,6 +537,7 @@ impl PretrainedCache {
                     };
                     let path = dir.join(&res.file);
                     if !path.is_file() {
+                        tried.push(path);
                         continue;
                     }
                     if self.verify_local_dirs
@@ -531,10 +558,21 @@ impl PretrainedCache {
         }
 
         if urls.is_empty() {
-            return Err(BunsenError::ResourceNotFound(format!(
-                "{}: not local, and no URL to fetch it from",
-                res.key
-            )));
+            // Nothing to fetch: the file is missing where a local source
+            // says it is, a given path say.
+            let missing = tried
+                .first()
+                .cloned()
+                .unwrap_or_else(|| PathBuf::from(&res.file));
+            let looked_in = tried
+                .iter()
+                .map(|p| format!("\n  {}", p.display()))
+                .collect::<String>();
+            return Err(
+                BunsenError::lookup(LookupError::path(missing, LookupProblem::Missing))
+                    .with_details(format!("no URL to fetch it from; looked in:{looked_in}"))
+                    .context(&res.key),
+            );
         }
         Ok(Local::Remote { dest, urls })
     }
@@ -550,23 +588,17 @@ impl PretrainedCache {
         bytes: &[u8],
     ) -> BunsenResult<ResolvedResource> {
         let Some(sha256) = res.sha256.as_deref() else {
-            return Err(BunsenError::Invalid(format!(
-                "{}: a bundled source needs a digest to be cached under",
-                res.key
-            )));
+            return Err(BunsenError::from(Resource::bundled_without_digest()).context(&res.key));
         };
         let found = Sha256::digest(bytes)
             .iter()
             .map(|b| format!("{b:02x}"))
             .collect::<String>();
         if found != sha256 {
-            return Err(BunsenError::Invalid(format!(
-                "{}: the bundled bytes hash to {found}, not the pinned {sha256}",
-                res.key
-            )));
+            return Err(DigestMismatch::new(&res.key, DigestOrigin::Bundled, sha256, found).into());
         }
         if let Some(parent) = dest.parent() {
-            fs::create_dir_all(parent).map_err(BunsenError::external)?;
+            fs::create_dir_all(parent).map_err(sys_at("create", parent))?;
         }
         let partial = partial_path(dest);
         let written = (|| -> std::io::Result<()> {
@@ -577,7 +609,7 @@ impl PretrainedCache {
         })();
         if let Err(e) = written {
             let _ = fs::remove_file(&partial);
-            return Err(BunsenError::External(format!("{}: {e}", dest.display())));
+            return Err(sys_at("write", dest)(e));
         }
         Ok(ResolvedResource {
             path: dest.to_path_buf(),
@@ -585,7 +617,8 @@ impl PretrainedCache {
         })
     }
 
-    /// The URLs, in order, through the disk cache's fetch.
+    /// The URLs, in order, through the disk cache's fetch, retrying a mirror
+    /// that is down as the options' fetch policy says.
     #[cfg(feature = "fetch")]
     fn download(
         &self,
@@ -593,15 +626,16 @@ impl PretrainedCache {
         urls: &[&str],
         sha256: Option<&str>,
     ) -> BunsenResult<ResolvedResource> {
-        self.disk.fetch_from_urls(urls, &dest, sha256)?;
+        self.disk
+            .fetch_from_urls_retrying(urls, &dest, sha256, self.fetch.retries)?;
         Ok(ResolvedResource {
             path: dest,
             provenance: Provenance::Downloaded,
         })
     }
 
-    /// Without the `fetch` feature there is no network: not local is not
-    /// found.
+    /// Without the `fetch` feature there is no network: not local is
+    /// unsupported.
     #[cfg(not(feature = "fetch"))]
     fn download(
         &self,
@@ -609,7 +643,7 @@ impl PretrainedCache {
         _urls: &[&str],
         _sha256: Option<&str>,
     ) -> BunsenResult<ResolvedResource> {
-        Err(BunsenError::ResourceNotFound(format!(
+        Err(BunsenError::unsupported(format!(
             "{}: not local, and fetching needs the `fetch` feature",
             dest.display()
         )))
@@ -633,17 +667,18 @@ impl PretrainedCache {
             .collect();
         let report = self.disk.fetch_many(&jobs, &self.fetch);
 
-        let mut missing = Vec::new();
-        for (outcome, part) in report.outcomes.iter().zip(remote) {
+        let mut failed = Vec::new();
+        let mut skipped = Vec::new();
+        for (outcome, part) in report.outcomes.into_iter().zip(remote) {
             let provenance = match outcome {
                 FetchOutcome::Cached(_) => Provenance::Cached,
                 FetchOutcome::Fetched(_) => Provenance::Downloaded,
                 FetchOutcome::Failed { error, .. } => {
-                    missing.push(format!("{}: {error}", part.key));
+                    failed.push((part.key, error));
                     continue;
                 }
                 FetchOutcome::Skipped { .. } => {
-                    missing.push(format!("{}: skipped", part.key));
+                    skipped.push(part.key);
                     continue;
                 }
             };
@@ -655,20 +690,25 @@ impl PretrainedCache {
                 },
             );
         }
-        if missing.is_empty() {
-            Ok(())
-        } else {
-            Err(BunsenError::External(format!(
-                "{name}: {} of {} resources did not land: {}",
-                missing.len(),
-                jobs.len(),
-                missing.join("; ")
-            )))
+        if failed.is_empty() && skipped.is_empty() {
+            return Ok(());
         }
+        let mut summary = format!(
+            "{} of {} resources did not land",
+            failed.len() + skipped.len(),
+            jobs.len()
+        );
+        if !skipped.is_empty() {
+            summary.push_str(&format!(
+                "; skipped after a failure: {}",
+                skipped.join(", ")
+            ));
+        }
+        Err(BunsenError::from(Multiple::new(summary, failed)).context(name))
     }
 
-    /// Without the `fetch` feature there is no network: not local is not
-    /// found.
+    /// Without the `fetch` feature there is no network: not local is
+    /// unsupported.
     #[cfg(not(feature = "fetch"))]
     fn fetch_remote(
         &self,
@@ -676,10 +716,11 @@ impl PretrainedCache {
         remote: Vec<RemotePart>,
         _parts: &mut BTreeMap<String, ResolvedResource>,
     ) -> BunsenResult<()> {
-        Err(BunsenError::ResourceNotFound(format!(
-            "{name}: not local, and fetching needs the `fetch` feature: {}",
+        Err(BunsenError::unsupported(format!(
+            "not local, and fetching needs the `fetch` feature: {}",
             remote_keys(&remote)
-        )))
+        ))
+        .context(name))
     }
 }
 
@@ -688,14 +729,28 @@ mod tests {
     use std::fs;
 
     use super::*;
-    use crate::data::cache::testing::ABC_SHA256;
-    #[cfg(feature = "fetch")]
-    use crate::data::cache::{
-        OnFailure,
-        testing::{
-            refused_url,
-            serve_once,
+    use crate::{
+        data::cache::testing::ABC_SHA256,
+        errors::{
+            BunsenErrorKind,
+            ConstraintError,
+            testing::{
+                ErrorMatcher,
+                predicate,
+                text,
+            },
         },
+    };
+    #[cfg(feature = "fetch")]
+    use crate::{
+        data::cache::{
+            OnFailure,
+            testing::{
+                refused_url,
+                serve_once,
+            },
+        },
+        errors::testing::not,
     };
 
     fn cache_in(
@@ -773,19 +828,26 @@ mod tests {
             Some(ABC_SHA256),
             vec![Source::Bundled(BundledBytes(b"abd"))],
         );
-        let err = cache.resolve("kit", &wrong).unwrap_err();
-        assert!(
-            matches!(&err, BunsenError::Invalid(m) if m.contains("not the pinned")),
-            "{err}"
-        );
+        ErrorMatcher::kind(BunsenErrorKind::InvalidResource)
+            .message_contains("not the pinned")
+            .cause(predicate("a bundled mismatch", |c: &DigestMismatch| {
+                c.origin == DigestOrigin::Bundled && c.subject == "abd" && c.expected == ABC_SHA256
+            }))
+            .assert_err(&cache.resolve("kit", &wrong));
         assert!(!cache.resource_path("kit", &wrong).exists());
 
+        // The cache checks the rule `validate` does, with the same error.
         let unpinned = res("abe", None, vec![Source::Bundled(BundledBytes(b"abe"))]);
-        assert!(unpinned.validate().is_err());
-        assert!(matches!(
-            cache.resolve("kit", &unpinned),
-            Err(BunsenError::Invalid(_))
-        ));
+        let unpinned_err = |e: &BunsenError| {
+            ErrorMatcher::kind(BunsenErrorKind::Illegal)
+                .display(text::eq(
+                    "abe: Resource.sha256: a bundled source needs a digest to be cached under",
+                ))
+                .has_cause::<ConstraintError>()
+                .assert(e);
+        };
+        unpinned_err(&unpinned.validate().unwrap_err());
+        unpinned_err(&cache.resolve("kit", &unpinned).unwrap_err());
 
         // The local dir comes first when it has the file; the bundle is
         // next; a URL after a bundle is never needed.
@@ -947,10 +1009,8 @@ mod tests {
         )
         .unwrap();
         assert!(verifying.verify_local_dirs());
-        assert!(matches!(
-            verifying.resolve("kit", &r),
-            Err(BunsenError::Invalid(_))
-        ));
+        ErrorMatcher::kind(BunsenErrorKind::InvalidResource)
+            .assert_err(&verifying.resolve("kit", &r));
         fs::write(upstream.join("abc.bin"), b"abc").unwrap();
         assert_eq!(
             verifying.resolve("kit", &r).unwrap().provenance,
@@ -999,8 +1059,11 @@ mod tests {
         );
     }
 
+    /// Offline, a resource only a URL can supply is refused by the
+    /// settings; a resource with no URL that is not where its local source
+    /// says is a lookup of that path.
     #[test]
-    fn test_resource_offline_or_without_a_url_is_not_found() {
+    fn test_resource_offline_or_without_a_url() {
         let dir = tempfile::tempdir().unwrap();
         let offline = cache_in(dir.path(), true);
         let remote = res(
@@ -1008,16 +1071,24 @@ mod tests {
             Some(ABC_SHA256),
             vec![url("https://a.example/abc.bin")],
         );
-        assert!(matches!(
-            offline.resolve("kit", &remote),
-            Err(BunsenError::ResourceNotFound(m)) if m.contains("offline")
-        ));
+        ErrorMatcher::kind(BunsenErrorKind::Policy)
+            .message_contains("the cache is offline")
+            .frame_contains("abc")
+            .assert_err(&offline.resolve("kit", &remote));
 
         let no_url = res("abc", Some(ABC_SHA256), vec![]);
-        assert!(matches!(
-            cache_in(dir.path(), false).resolve("kit", &no_url),
-            Err(BunsenError::ResourceNotFound(m)) if m.contains("no URL")
-        ));
+        ErrorMatcher::kind(BunsenErrorKind::Lookup)
+            .details_contains("no URL")
+            .assert_err(&cache_in(dir.path(), false).resolve("kit", &no_url));
+
+        let absent = dir.path().join("absent.pt");
+        let given = Resource::given("checkpoint", &absent);
+        ErrorMatcher::kind(BunsenErrorKind::Lookup)
+            .frame_contains("checkpoint")
+            .cause(predicate("a missing path", move |c: &LookupError| {
+                c.problem == LookupProblem::Missing && c.key == absent.display().to_string()
+            }))
+            .assert_err(&offline.resolve("kit", &given));
     }
 
     /// A URL is fetched, checked and written under `pretrained/`; the next
@@ -1042,10 +1113,7 @@ mod tests {
 
         let wrong = serve_once("abd.bin", b"abd");
         let r = res("abd", Some(ABC_SHA256), vec![url(&wrong)]);
-        assert!(matches!(
-            cache.resolve("kit", &r),
-            Err(BunsenError::Invalid(_))
-        ));
+        ErrorMatcher::kind(BunsenErrorKind::InvalidResource).assert_err(&cache.resolve("kit", &r));
         assert!(!cache.resource_path("kit", &r).exists());
     }
 
@@ -1140,11 +1208,14 @@ mod tests {
             .with_resource(dead);
 
         let err = cache.load("kit", &map).unwrap_err();
-        assert!(
-            matches!(&err, BunsenError::External(m) if m.contains("dead:")),
-            "{err}"
-        );
-        assert!(!err.to_string().contains("live:"), "{err}");
+        ErrorMatcher::new()
+            .display(text::eq("m: 1 of 2 resources did not land"))
+            .details_contains("dead: ")
+            .details(not(text::contains("live:")))
+            .cause(predicate("one member, dead", |c: &Multiple| {
+                c.members.len() == 1 && c.members[0].0 == "dead"
+            }))
+            .assert(&err);
         assert!(cache.resource_path("kit", &live).is_file());
     }
 
@@ -1171,11 +1242,10 @@ mod tests {
             .with_resource(cached)
             .with_resource(remote);
 
-        let err = cache.load("kit", &map).unwrap_err();
-        assert!(
-            matches!(&err, BunsenError::ResourceNotFound(m) if m.ends_with("offline: remote")),
-            "{err}"
-        );
+        ErrorMatcher::kind(BunsenErrorKind::Policy)
+            .message(text::ends_with("offline: remote"))
+            .frame_contains("m")
+            .assert_err(&cache.load("kit", &map));
 
         let local_only = ResourceMap::new("m").with_resource(res(
             "cached",

@@ -15,6 +15,7 @@ use crate::{
     errors::{
         BunsenError,
         BunsenResult,
+        ResultContext,
     },
     kits::speech::{
         silero_vad::{
@@ -393,8 +394,7 @@ impl<B: Backend> WhisperStreamContext<B> {
     /// [`write`](Self::write) then [`read`](Self::read).
     ///
     /// # Errors
-    ///
-    /// [`BunsenError::Invalid`] after the stream has ended.
+    /// As [`write`](Self::write) and [`read`](Self::read).
     pub fn write_read(
         &mut self,
         samples: &[f32],
@@ -408,14 +408,15 @@ impl<B: Backend> WhisperStreamContext<B> {
     /// [`advance_ready`](super::advance_ready) across many streams.
     ///
     /// # Errors
-    /// [`BunsenError::Invalid`] after the stream has ended.
+    /// [`Illegal`](crate::errors::BunsenErrorKind::Illegal) after the stream
+    /// has ended.
     pub fn write(
         &mut self,
         samples: &[f32],
     ) -> BunsenResult<()> {
         if self.finished {
-            return Err(BunsenError::Invalid(
-                "the stream has ended; nothing more can be fed".to_string(),
+            return Err(BunsenError::illegal(
+                "the stream has ended; nothing more can be fed",
             ));
         }
 
@@ -534,7 +535,9 @@ impl<B: Backend> WhisperStreamContext<B> {
             .audio_conversion_ctx
             .take()
             .expect("the front end is open until the input ends");
-        let (frames, ctx) = ctx.transform(waves)?;
+        // The context built the chunk to the front end's grid, so a refusal
+        // is the context's own fault.
+        let (frames, ctx) = ctx.transform(waves).as_internal()?;
         self.audio_conversion_ctx = Some(ctx);
         self.ingest(frames);
         Ok(())
@@ -1043,7 +1046,12 @@ mod tests {
     use super::*;
     use crate::{
         burner::module::ModuleInit,
-        errors::BunsenResult,
+        errors::{
+            BunsenErrorKind,
+            ConstraintError,
+            LookupError,
+            testing::ErrorMatcher,
+        },
         kits::{
             speech::whisper::{
                 Whisper,
@@ -1465,11 +1473,13 @@ mod tests {
         let mut empty = driver.new_context(clock(), PerWindow).unwrap();
         assert!(empty.end_read().unwrap().is_empty());
         assert!(empty.end_read().unwrap().is_empty(), "flush is idempotent");
-        assert!(
-            empty.write_read(&[0.0; 16]).is_err(),
-            "no pushing after flush"
-        );
-        assert!(empty.write(&[0.0; 16]).is_err(), "nor feeding");
+        // No pushing after flush, nor feeding.
+        ErrorMatcher::kind(BunsenErrorKind::Illegal)
+            .message_contains("the stream has ended")
+            .assert_err(&empty.write_read(&[0.0; 16]));
+        ErrorMatcher::kind(BunsenErrorKind::Illegal)
+            .message_contains("the stream has ended")
+            .assert_err(&empty.write(&[0.0; 16]));
         assert!(empty.is_finished());
         assert!(!empty.is_speaking());
         assert_eq!(empty.regions_pending(), 0);
@@ -2020,8 +2030,8 @@ mod tests {
         assert_eq!(driver.interval_samples(), None);
     }
 
-    /// `CommitRule::Agreement` is not implemented yet, so the driver refuses
-    /// it at construction.
+    /// `CommitRule::Agreement` is not implemented, so the driver refuses it
+    /// at construction, as unsupported.
     #[test]
     fn test_init_refuses_agreement() {
         let device = Device::default();
@@ -2035,12 +2045,9 @@ mod tests {
                 WhisperTokenLayout::new(tiny_layout()),
                 &device,
             );
-        match refused {
-            Err(BunsenError::Invalid(message)) => {
-                assert!(message.contains("not implemented"), "{message}")
-            }
-            other => panic!("expected Invalid, got {:?}", other.map(|_| ())),
-        }
+        ErrorMatcher::kind(BunsenErrorKind::Unsupported)
+            .message_contains("not implemented")
+            .assert_err(&refused);
     }
 
     /// The `interval` trigger drafts only while the voice-activity gate says
@@ -2060,19 +2067,17 @@ mod tests {
                 WhisperTokenLayout::new(tiny_layout()),
                 &device,
             );
-        match refused {
-            Err(BunsenError::Invalid(message)) => {
-                assert!(message.contains("endpoint"), "{message}")
-            }
-            other => panic!("expected Invalid, got {:?}", other.map(|_| ())),
-        }
+        ErrorMatcher::kind(BunsenErrorKind::Illegal)
+            .message_contains("endpoint")
+            .assert_err(&refused);
     }
 
-    /// The configuration refuses what this slice cannot do, with a reason,
-    /// and refuses a mismatched language.
+    /// The configuration refuses a broken rule and an unknown language, and a
+    /// stream refuses a missing voice-activity model and a clock at the
+    /// wrong rate, each with the kind it is.
     #[test]
     #[serial]
-    fn test_init_refuses_the_unsupported() {
+    fn test_init_and_new_context_refuse_bad_settings() {
         let device = default_device();
         let _memory = DeviceMemoryGuard::<B>::new(&device);
         let policy = WhisperTokenLayout::new(tiny_layout());
@@ -2102,24 +2107,28 @@ mod tests {
                 .is_ok(),
             "responsive is the third deployment target",
         );
-        assert!(
-            base.clone()
-                .with_emission(EmissionPolicy::new(
-                    DecodeTriggers::new()
-                        .with_endpoint(true)
-                        .with_interval(Some(std::time::Duration::ZERO)),
-                    CommitRule::Complete,
-                ))
-                .init_with_layout(tiny_model_on::<B>(&device), policy.clone(), &device)
-                .is_err(),
-            "an interval of zero",
-        );
-        assert!(
-            base.clone()
-                .with_language(Some("xx".to_string()))
-                .init_with_layout(tiny_model_on::<B>(&device), policy.clone(), &device)
-                .is_err()
-        );
+        // An interval of zero.
+        ErrorMatcher::kind(BunsenErrorKind::Illegal)
+            .has_cause::<ConstraintError>()
+            .assert_err(
+                &base
+                    .clone()
+                    .with_emission(EmissionPolicy::new(
+                        DecodeTriggers::new()
+                            .with_endpoint(true)
+                            .with_interval(Some(std::time::Duration::ZERO)),
+                        CommitRule::Complete,
+                    ))
+                    .init_with_layout(tiny_model_on::<B>(&device), policy.clone(), &device),
+            );
+        ErrorMatcher::kind(BunsenErrorKind::Lookup)
+            .has_cause::<LookupError>()
+            .assert_err(
+                &base
+                    .clone()
+                    .with_language(Some("xx".to_string()))
+                    .init_with_layout(tiny_model_on::<B>(&device), policy.clone(), &device),
+            );
 
         // Conservative is constructible, but a stream under it needs a VAD.
         let conservative = base
@@ -2127,15 +2136,15 @@ mod tests {
             .with_emission(EmissionPolicy::conservative())
             .init_with_layout(tiny_model_on::<B>(&device), policy, &device)
             .unwrap();
-        assert!(conservative.new_context(clock(), PerWindow).is_err());
+        ErrorMatcher::kind(BunsenErrorKind::Illegal)
+            .message_contains("voice-activity model")
+            .assert_err(&conservative.new_context(clock(), PerWindow));
 
         // A clock at the wrong rate is refused at the stream, not later.
         let driver: WhisperStreamDriver<B> = driver(&device, false);
-        assert!(
-            driver
-                .new_context(StreamClock::uniform(8_000), PerWindow)
-                .is_err()
-        );
+        ErrorMatcher::kind(BunsenErrorKind::Illegal)
+            .has_cause::<ConstraintError>()
+            .assert_err(&driver.new_context(StreamClock::uniform(8_000), PerWindow));
     }
 
     /// Against the real voice-activity model: regions become segments in
@@ -2208,20 +2217,15 @@ mod tests {
             };
             let filter = VoiceActivityFilterConfig::fast_whisper_burn;
 
+            let mismatch =
+                ErrorMatcher::kind(BunsenErrorKind::Illegal).has_cause::<ConstraintError>();
             let eight = SileroVad::<C>::load_8khz_pretrained(&device).unwrap();
-            assert!(driver().with_vad(eight, filter()).is_err());
+            mismatch.assert_err(&driver().with_vad(eight, filter()));
 
             let vad = SileroVad::<C>::load_16khz_pretrained(&device).unwrap();
-            assert!(
-                driver()
-                    .with_vad(vad.clone(), filter().with_sample_rate(8_000))
-                    .is_err()
-            );
-            assert!(
-                driver()
-                    .with_vad(vad.clone(), filter().with_samples_per_chunk(256))
-                    .is_err()
-            );
+            mismatch.assert_err(&driver().with_vad(vad.clone(), filter().with_sample_rate(8_000)));
+            mismatch
+                .assert_err(&driver().with_vad(vad.clone(), filter().with_samples_per_chunk(256)));
 
             let attached = driver().with_vad(vad, filter()).unwrap();
             assert_eq!(

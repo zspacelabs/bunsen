@@ -37,10 +37,18 @@ use crate::{
     errors::{
         BunsenError,
         BunsenResult,
+        LookupError,
+        ResultContext,
     },
 };
 
 /// Loads a [`TensorParamDesc`] from an xml `<Param/>` node.
+///
+/// # Errors
+/// - [`Lookup`](crate::errors::BunsenErrorKind::Lookup), with a [`LookupError`]
+///   cause, if the node lacks an attribute;
+/// - [`Internal`](crate::errors::BunsenErrorKind::Internal) if its `dtype` or
+///   `shape` attribute does not parse: module reflection writes them itself.
 pub fn node_to_tensor_param_desc(
     xot: &xot::Xot,
     node: xot::Node,
@@ -64,20 +72,22 @@ pub fn node_to_tensor_param_desc(
         if let Some(val) = attrs.get(nid) {
             return Ok(val.to_string());
         }
-        Err(BunsenError::ResourceNotFound(format!(
-            "{}/{attr} attribute missing",
-            names::PARAM_ELEM,
-        )))
+        Err(BunsenError::lookup(LookupError::missing("attribute", attr))
+            .context(format!("<{}>", names::PARAM_ELEM)))
     }
 
     // TODO: Extract, real errors.
     let param_id: ParamId =
         ParamId::deserialize(&get_attr(&attrs, param_id_nid, names::PARAM_ID_ATTR)?);
     let kind = TensorKindDesc::from_str(&get_attr(&attrs, kind_nid, names::KIND_ATTR)?).unwrap();
-    let dtype = dtype_from_str(&get_attr(&attrs, dtype_nid, names::DTYPE_ATTR)?)?;
+    let dtype = dtype_from_str(&get_attr(&attrs, dtype_nid, names::DTYPE_ATTR)?)
+        .as_internal()
+        .with_context(|| format!("<{}> {} attribute", names::PARAM_ELEM, names::DTYPE_ATTR))?;
     assert_eq!(kind, dtype.into());
 
-    let shape: Shape = shape_from_xml_attr(&get_attr(&attrs, shape_nid, names::SHAPE_ATTR)?)?;
+    let shape: Shape = shape_from_xml_attr(&get_attr(&attrs, shape_nid, names::SHAPE_ATTR)?)
+        .as_internal()
+        .with_context(|| format!("<{}> {} attribute", names::PARAM_ELEM, names::SHAPE_ATTR))?;
 
     Ok(ParamDesc::new(param_id, TensorDesc::new(dtype, shape)))
 }

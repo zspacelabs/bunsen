@@ -15,6 +15,8 @@ use crate::{
     errors::{
         BunsenError,
         BunsenResult,
+        ConstraintError,
+        Rule,
     },
     kits::images::resnet::{
         ResNet,
@@ -67,8 +69,9 @@ impl ResNetConstruct {
     /// prefab the row names.
     ///
     /// # Errors
-    /// [`BunsenError::Invalid`] when there is neither: a given
-    /// checkpoint needs [`with_config`](Self::with_config).
+    /// [`Illegal`](crate::errors::BunsenErrorKind::Illegal), with a
+    /// [`ConstraintError`] cause ([`Rule::Missing`] on `config`), when there
+    /// is neither: a given checkpoint needs [`with_config`](Self::with_config).
     pub fn config_for(
         &self,
         model: &PretrainedRef,
@@ -80,8 +83,14 @@ impl ResNetConstruct {
             .prefab(&RESNET_PREFABS)
             .map(|prefab| prefab.to_config())
             .ok_or_else(|| {
-                BunsenError::Invalid(format!(
-                    "{}: names no prefab to build from; a given checkpoint needs `with_config`",
+                BunsenError::from(ConstraintError::new(
+                    "ResNetConstruct",
+                    "config",
+                    Rule::Missing,
+                ))
+                .context(format!(
+                    "{}: names no prefab to build from; a given checkpoint needs \
+                         `with_config`",
                     model.id()
                 ))
             })
@@ -138,7 +147,14 @@ mod tests {
                     ResourceMap,
                 },
             },
-            errors::BunsenError,
+            errors::{
+                BunsenErrorKind,
+                testing::{
+                    ErrorMatcher,
+                    predicate,
+                    value,
+                },
+            },
             support::testing::{
                 CpuBackend,
                 default_device,
@@ -181,11 +197,15 @@ mod tests {
             "a path is not a name the factory knows"
         );
         let given = PretrainedRef::from(ResourceMap::given("mine", CHECKPOINT, &file));
-        let err = hook.config_for(&given).unwrap_err();
-        assert!(
-            matches!(&err, BunsenError::Invalid(msg) if msg.contains("with_config")),
-            "{err}"
-        );
+        let missing_config = |kinds: &[BunsenErrorKind]| {
+            ErrorMatcher::new()
+                .with_kind_matching(value::one_of(kinds.to_vec()))
+                .cause(predicate("a missing config", |e: &ConstraintError| {
+                    e.field == "config" && e.rule == Rule::Missing
+                }))
+                .frame_contains("with_config")
+        };
+        missing_config(&[BunsenErrorKind::Illegal]).assert_err(&hook.config_for(&given));
         assert_eq!(
             format!("{:?}", explicit.config_for(&given).unwrap()),
             format!("{resnet18:?}")
@@ -205,9 +225,10 @@ mod tests {
         let err =
             Deferred::<ResNetConstruct>::from_map(ResourceMap::given("mine", CHECKPOINT, &file))
                 .unwrap()
-                .load::<CpuBackend>(&cache, &default_device())
-                .unwrap_err();
-        assert!(matches!(err, BunsenError::Invalid(_)), "{err}");
+                .load::<CpuBackend>(&cache, &default_device());
+        // The loading pathway is an input boundary, which may re-mark the
+        // hook's `Illegal` as `Policy`.
+        missing_config(&[BunsenErrorKind::Policy]).assert_err(&err);
         assert_eq!(<ResNetConstruct as Construct>::KIT, RESNET_KIT);
     }
 }

@@ -55,9 +55,11 @@ instead
 returns a [`BunsenResult`](bunsen::errors::BunsenResult), and `x` (or
 `expect_x`) panics through
 [`WithOkOrPanic`](bunsen::errors::WithOkOrPanic). Input that can be wrong is
-reported as [`BunsenError::Invalid`](bunsen::errors::BunsenError::Invalid),
-not as a panic
-([the convention](bunsen::errors#convention-try_x-and-x)).
+reported as an error of the [kind](bunsen::errors::BunsenErrorKind) it is,
+not as a panic: a config that breaks its own documented rule is `Illegal`,
+and the same config read from a file is `Policy`
+([the convention](bunsen::errors#convention-try_x-and-x),
+[which kind](bunsen::errors#which-kind); see also [Errors](./errors.md)).
 
 **Modules over bare tensors.** A type that owns a tensor derives `Module`
 even when nothing in it is learnable. `Module` is burn's traversal trait,

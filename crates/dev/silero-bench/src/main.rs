@@ -1,9 +1,10 @@
-use std::path::Path;
-
 use bunsen::{
     errors::{
         BunsenError,
+        BunsenErrorKind,
         BunsenResult,
+        ParseError,
+        sys_at,
     },
     kits::speech::silero_vad::{
         SileroVad,
@@ -11,9 +12,12 @@ use bunsen::{
         SileroVadContextConfig,
         SileroVadMeta,
     },
-    support::testing::{
-        PerformanceBackend,
-        backend_device,
+    support::{
+        audio::load_audio_mono_sr,
+        testing::{
+            PerformanceBackend,
+            backend_device,
+        },
     },
 };
 use burn::{
@@ -22,10 +26,6 @@ use burn::{
     tensor::Tolerance,
 };
 use clap::Parser;
-use hound::{
-    SampleFormat,
-    WavSpec,
-};
 
 type B = PerformanceBackend;
 
@@ -63,8 +63,8 @@ fn main() -> BunsenResult<()> {
     println!("  - {} chunk_size: {}", args.sample_rate, chunk_size);
 
     println!("\n> Loading audio file: \"{}\"", args.path);
-    let (spec, mut wav_vec) = load_audio_mono_sr(&args.path, args.sample_rate)?;
-    println!("* {:?}", spec);
+    let mut wav_vec = load_audio_mono_sr(&args.path, args.sample_rate)?;
+    println!("* {} samples", wav_vec.len());
 
     // [steps, 1, samples=chunk_size]
     let chunk_seq: Tensor<B, 3> = {
@@ -96,14 +96,23 @@ fn main() -> BunsenResult<()> {
         chunk_probs
             .clone()
             .to_vec::<f32>()
-            .map_err(BunsenError::external)?
+            .map_err(|e| BunsenError::illegal("the probabilities are not f32").with_cause(e))?
     );
 
-    if let Some(expected) = &args.expected {
-        println!("\n> Checking against expected output: \"{}\"", expected);
-        let expected: Vec<f32> =
-            serde_json::from_reader(std::fs::File::open(expected).map_err(BunsenError::external)?)
-                .map_err(BunsenError::external)?;
+    if let Some(expected_path) = &args.expected {
+        println!(
+            "\n> Checking against expected output: \"{}\"",
+            expected_path
+        );
+        let file = std::fs::File::open(expected_path).map_err(sys_at("open", expected_path))?;
+        let expected: Vec<f32> = serde_json::from_reader(file).map_err(|e| {
+            BunsenError::from_cause(
+                BunsenErrorKind::InvalidResource,
+                ParseError::new("expected output")
+                    .at(expected_path)
+                    .with_source(e),
+            )
+        })?;
 
         let expected: TensorData = TensorData::from(expected.as_slice());
         chunk_probs.assert_approx_eq(&expected, Tolerance::<f32>::permissive());
@@ -111,52 +120,4 @@ fn main() -> BunsenResult<()> {
     }
 
     Ok(())
-}
-
-/// Loads a mono audio file.
-///
-/// # Arguments
-/// * `filename` - path to an audio file.
-/// * `sample_rate` - sample rate of the audio file.
-pub fn load_audio_mono_sr<P: AsRef<Path>>(
-    filename: P,
-    sample_rate: usize,
-) -> BunsenResult<(WavSpec, Vec<f32>)> {
-    let filename = filename.as_ref();
-
-    let mut reader = hound::WavReader::open(filename).map_err(BunsenError::external)?;
-    let spec = reader.spec();
-
-    if spec.channels != 1 {
-        return Err(BunsenError::Invalid(
-            "The audio must be single-channel".to_string(),
-        ));
-    }
-    if spec.sample_rate as usize != sample_rate {
-        return Err(BunsenError::Invalid(format!(
-            "Expected sample_rate = {}, but found {}",
-            sample_rate, spec.sample_rate
-        )));
-    }
-
-    let spec = reader.spec();
-    let samples: Vec<f32> = match (spec.sample_format, spec.bits_per_sample) {
-        (SampleFormat::Float, 32) => reader
-            .samples::<f32>()
-            .map(|s| s.unwrap())
-            .collect::<Vec<f32>>(),
-        (SampleFormat::Int, bits) => {
-            let scale = (1i64 << (bits - 1)) as f32;
-            reader
-                .samples::<i32>()
-                .collect::<Result<Vec<i32>, _>>()
-                .map_err(BunsenError::external)?
-                .into_iter()
-                .map(|s| s as f32 / scale)
-                .collect()
-        }
-        _ => unreachable!("hound rejects other formats at open"),
-    };
-
-    Ok((spec, samples))
 }

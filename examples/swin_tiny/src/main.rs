@@ -10,10 +10,7 @@ use bunsen::{
         DropBlockOptions,
     },
     burner::module::ModuleInit,
-    errors::{
-        BunsenResult,
-        WithOkOrPanic,
-    },
+    errors::BunsenResult,
     kits::images::swin::v2::{
         LayerConfig,
         SwinTransformerV2,
@@ -422,7 +419,7 @@ impl<B: Backend> ModuleInit<B, Model<B>> for ModelConfig {
     ) -> BunsenResult<Model<B>> {
         Ok(Model {
             drop_block: self.drop_block.init(),
-            swin: self.swin.try_init(device).ok_or_panic(),
+            swin: self.swin.try_init(device)?,
         })
     }
 }

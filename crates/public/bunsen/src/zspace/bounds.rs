@@ -80,8 +80,12 @@ pub fn zspace_partial_cmp<T: PartialOrd>(
 ///
 /// # Returns
 ///
-/// `Ok(())` if the point passes, else [`BunsenError::Invalid`] naming the
-/// point and the box. An incomparable coordinate (a NaN) fails.
+/// `Ok(())` if the point passes. An incomparable coordinate (a NaN) fails.
+///
+/// # Errors
+///
+/// [`Illegal`](crate::errors::BunsenErrorKind::Illegal), naming the point
+/// and the box, if the point is outside the box.
 ///
 /// # Panics
 ///
@@ -108,7 +112,7 @@ where
         .zip(start.iter().zip(end.iter()))
         .all(|(p, (s, e))| s <= p && p < e);
     if !inside {
-        Err(BunsenError::Invalid(format!(
+        Err(BunsenError::illegal(format!(
             "{point:?} is not in [ {start:?}, {end:?} )"
         )))
     } else {

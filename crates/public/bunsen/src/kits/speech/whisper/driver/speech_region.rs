@@ -82,21 +82,6 @@ impl SpeechRegion {
     }
 }
 
-#[cfg(any(test, debug_assertions))]
-fn assert_region_sequence(regions: &[SpeechRegion]) -> crate::errors::BunsenResult<()> {
-    for w in regions.windows(2) {
-        let prev = &w[0];
-        let next = &w[1];
-        if prev.end > next.start {
-            return Err(crate::errors::BunsenError::Invalid(format!(
-                "region {:?} ends after region {:?}: {:?}",
-                prev, next, regions
-            )));
-        }
-    }
-    Ok(())
-}
-
 /// Pads regions outward by `pad` samples.
 ///
 /// The first start and the last end are clamped to the stream. Between two
@@ -107,13 +92,18 @@ fn assert_region_sequence(regions: &[SpeechRegion]) -> crate::errors::BunsenResu
 /// * `regions` - raw regions, in order, non-overlapping.
 /// * `pad` - samples to add on each side.
 /// * `total` - samples in the stream.
+///
+/// # Panics
+/// In a debug build, if two regions overlap.
 pub fn pad_regions(
     regions: &mut [SpeechRegion],
     pad: usize,
     total: usize,
 ) {
-    #[cfg(any(test, debug_assertions))]
-    assert_region_sequence(regions).unwrap();
+    debug_assert!(
+        regions.windows(2).all(|w| w[0].end <= w[1].start),
+        "regions overlap: {regions:?}"
+    );
 
     let n = regions.len();
     for i in 0..n {

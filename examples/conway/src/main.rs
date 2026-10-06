@@ -44,7 +44,7 @@ impl Commands {
     }
 }
 
-fn main() {
+fn main() -> BunsenResult<()> {
     let args = Args::parse();
     cfg_select! {
         feature = "cuda" => {
@@ -68,9 +68,9 @@ fn main() {
             type B = burn::backend::Flex;
         }
         _ => {
-            complie_error!("No backend selected");
+            compile_error!("No backend selected");
         }
     }
 
-    args.command.run::<B>();
+    args.command.run::<B>()
 }

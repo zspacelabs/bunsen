@@ -21,6 +21,9 @@ use crate::{
     errors::{
         BunsenError,
         BunsenResult,
+        ConstraintError,
+        ResultContext,
+        Rule,
     },
 };
 
@@ -95,26 +98,29 @@ pub trait ConvSeq2dMeta {
     ///
     /// # Errors
     ///
-    /// [`BunsenError::Invalid`] if the sequence is empty or has a channel
+    /// [`Illegal`](crate::errors::BunsenErrorKind::Illegal), with a
+    /// [`ConstraintError`] cause, if the sequence is empty or has a channel
     /// mismatch between adjacent blocks.
     fn validate(&self) -> BunsenResult<()> {
         let metas = self.block_metas();
         if metas.is_empty() {
-            return Err(BunsenError::Invalid(
-                "ConvSeq2d must have at least one block".to_string(),
-            ));
+            return Err(ConstraintError::zero_or_empty("ConvSeq2d", "blocks").into());
         }
 
         for (idx, pair) in metas.windows(2).enumerate() {
             let prev = pair[0];
             let next = pair[1];
             if prev.out_channels() != next.in_channels() {
-                return Err(BunsenError::Invalid(format!(
-                    "ConvSeq2d block {idx} out_channels ({}) != block {} in_channels ({})",
-                    prev.out_channels(),
-                    idx + 1,
-                    next.in_channels(),
-                )));
+                return Err(ConstraintError::new(
+                    "ConvSeq2d",
+                    "blocks",
+                    Rule::Chain {
+                        index: idx + 1,
+                        out: format!("{} channels", prev.out_channels()),
+                        r#in: format!("{} channels", next.in_channels()),
+                    },
+                )
+                .into());
             }
         }
 
@@ -138,8 +144,9 @@ pub trait ConvSeq2dMeta {
     ///
     /// # Errors
     ///
-    /// [`BunsenError::Invalid`] if some block has no legal output resolution
-    /// for its input resolution (the kernel does not fit the padded input).
+    /// [`Illegal`](crate::errors::BunsenErrorKind::Illegal) if some block has
+    /// no legal output resolution for its input resolution (the kernel does
+    /// not fit the padded input).
     fn try_output_resolution(
         &self,
         input_resolution: [usize; 2],
@@ -148,7 +155,7 @@ pub trait ConvSeq2dMeta {
         for (idx, meta) in self.block_metas().iter().enumerate() {
             resolution = meta
                 .try_output_resolution(resolution)
-                .map_err(|err| BunsenError::Invalid(format!("ConvSeq2d block {idx}: {err}")))?;
+                .with_context(|| format!("ConvSeq2d block {idx}"))?;
         }
         Ok(resolution)
     }
@@ -167,17 +174,17 @@ pub trait ConvSeq2dMeta {
     ///
     /// # Errors
     ///
-    /// [`BunsenError::Invalid`] if the input channels do not match the
-    /// sequence's [`in_channels`](Self::in_channels), or if the input
-    /// resolution has no legal output through the sequence (see
-    /// [`Self::try_output_resolution`]).
+    /// [`Illegal`](crate::errors::BunsenErrorKind::Illegal) if the input
+    /// channels do not match the sequence's [`in_channels`](Self::in_channels),
+    /// or if the input resolution has no legal output through the sequence
+    /// (see [`Self::try_output_resolution`]).
     fn try_output_shape(
         &self,
         input_shape: [usize; 4],
     ) -> BunsenResult<[usize; 4]> {
         let [batch_size, in_channels, in_height, in_width] = input_shape;
         if in_channels != self.in_channels() {
-            return Err(BunsenError::Invalid(format!(
+            return Err(BunsenError::illegal(format!(
                 "ConvSeq2d expected in_channels ({}), got ({in_channels})",
                 self.in_channels(),
             )));
@@ -388,7 +395,8 @@ impl<B: Backend> ConvSeq2d<B> {
     ///
     /// # Errors
     ///
-    /// [`BunsenError::Invalid`] if the blocks do not form a legal sequence; see
+    /// [`Illegal`](crate::errors::BunsenErrorKind::Illegal) if the blocks do
+    /// not form a legal sequence; see
     /// [`ConvSeq2dMeta::validate`].
     pub fn try_new(blocks: Vec<ConvBlock2d<B>>) -> BunsenResult<Self> {
         let seq = Self { blocks };
@@ -432,9 +440,18 @@ mod tests {
     };
 
     use super::*;
-    use crate::support::testing::{
-        CpuBackend,
-        default_device,
+    use crate::{
+        errors::{
+            BunsenErrorKind,
+            testing::{
+                ErrorMatcher,
+                predicate,
+            },
+        },
+        support::testing::{
+            CpuBackend,
+            default_device,
+        },
     };
 
     type I = CpuBackend;
@@ -468,26 +485,31 @@ mod tests {
 
     #[test]
     fn test_validate_empty() {
-        let err = ConvSeq2d::<B>::try_new(vec![]).unwrap_err();
-        assert!(matches!(err, BunsenError::Invalid(_)));
+        let empty = ErrorMatcher::kind(BunsenErrorKind::Illegal)
+            .cause(predicate("empty blocks", |e: &ConstraintError| {
+                e.rule == Rule::ZeroOrEmpty
+            }));
+        empty.assert_err(&ConvSeq2d::<B>::try_new(vec![]));
 
         // The config-level meta validates the same way.
-        let err = ConvSeq2dConfig::new(vec![]).validate().unwrap_err();
-        assert!(matches!(err, BunsenError::Invalid(_)));
+        empty.assert_err(&ConvSeq2dConfig::new(vec![]).validate());
     }
 
     #[test]
     fn test_validate_channel_mismatch() {
         // block 0 out_channels = 4, block 1 in_channels = 8 -> mismatch.
         let blocks = vec![block(2, 4, 1), block(8, 16, 1)];
-        let err = ConvSeq2d::try_new(blocks).unwrap_err();
-        assert!(matches!(err, BunsenError::Invalid(_)));
+        let chain = ErrorMatcher::kind(BunsenErrorKind::Illegal).cause(predicate(
+            "a chain break at block 1",
+            |e: &ConstraintError| matches!(e.rule, Rule::Chain { index: 1, .. }),
+        ));
+        chain.assert_err(&ConvSeq2d::try_new(blocks));
 
         // The config rejects it at init.
         let result: BunsenResult<ConvSeq2d<B>> =
             ConvSeq2dConfig::new(vec![block_config(2, 4, 1), block_config(8, 16, 1)])
                 .try_init(&Default::default());
-        assert!(matches!(result.unwrap_err(), BunsenError::Invalid(_)));
+        chain.assert_err(&result);
     }
 
     #[test]

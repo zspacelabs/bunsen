@@ -45,8 +45,9 @@ use crate::{
         ToStructureConfig,
     },
     errors::{
-        BunsenError,
         BunsenResult,
+        ConstraintError,
+        Rule,
         WithOkOrPanic,
     },
     kits::speech::silero_vad::blocks::context::SileroVadContext,
@@ -96,14 +97,18 @@ impl SileroVadSignalConfig {
     ///
     /// # Errors
     ///
-    /// [`BunsenError::Invalid`] when `n_freq` is below 2, which leaves no
+    /// [`Illegal`](crate::errors::BunsenErrorKind::Illegal), with a
+    /// [`ConstraintError`] cause, when `n_freq` is below 2, which leaves no
     /// stride.
     pub fn try_to_stft(&self) -> BunsenResult<SileroVadStftConfig> {
         if self.n_freq < 2 {
-            return Err(BunsenError::Invalid(format!(
-                "SileroVad needs at least 2 frequency bins, for an STFT stride (n_freq - 1) above 0; got n_freq = {}",
+            return Err(ConstraintError::out_of_range(
+                "SileroVadSignalConfig",
+                "n_freq",
                 self.n_freq,
-            )));
+                "[2, ..), for an STFT stride (n_freq - 1) above 0",
+            )
+            .into());
         }
 
         let stft_stride = self.n_freq - 1;
@@ -140,8 +145,9 @@ impl ToStructureConfig for SileroVadSignalConfig {
     ///
     /// # Errors
     ///
-    /// [`BunsenError::Invalid`] when `n_freq` is below 2, or when `d_hidden`
-    /// or `d_bottleneck` is 0.
+    /// [`Illegal`](crate::errors::BunsenErrorKind::Illegal), with a
+    /// [`ConstraintError`] cause, when `n_freq` is below 2, or when
+    /// `d_hidden` or `d_bottleneck` is 0.
     fn try_to_structure(&self) -> BunsenResult<SileroVadStructureConfig> {
         self.try_to_stft()?.try_to_structure()
     }
@@ -187,10 +193,11 @@ impl ToStructureConfig for SileroVadStftConfig {
     ///
     /// # Errors
     ///
-    /// [`BunsenError::Invalid`] when `n_freq`, `stft_kernel`, `stft_stride`,
-    /// `d_hidden` or `d_bottleneck` is 0. Each would build a model that
-    /// panics in its first `forward` (or, with a zero `d_bottleneck` on
-    /// wgpu, returns NaN).
+    /// [`Illegal`](crate::errors::BunsenErrorKind::Illegal), with a
+    /// [`ConstraintError`] cause, when `n_freq`, `stft_kernel`,
+    /// `stft_stride`, `d_hidden` or `d_bottleneck` is 0. Each would build a
+    /// model that panics in its first `forward` (or, with a zero
+    /// `d_bottleneck` on wgpu, returns NaN).
     fn try_to_structure(&self) -> BunsenResult<SileroVadStructureConfig> {
         for (name, value) in [
             ("n_freq", self.n_freq),
@@ -200,9 +207,7 @@ impl ToStructureConfig for SileroVadStftConfig {
             ("d_bottleneck", self.d_bottleneck),
         ] {
             if value == 0 {
-                return Err(BunsenError::Invalid(format!(
-                    "SileroVad needs {name} above 0; got {name} = 0"
-                )));
+                return Err(ConstraintError::zero_or_empty("SileroVadStftConfig", name).into());
             }
         }
 
@@ -367,24 +372,51 @@ impl SileroVadStructureConfig {
     ///
     /// # Errors
     ///
-    /// [`BunsenError::Invalid`] if the encoder input does not match the
+    /// [`Illegal`](crate::errors::BunsenErrorKind::Illegal), with a
+    /// [`ConstraintError`] cause, if the encoder input does not match the
     /// magnitude bin count, or if the LSTM / head widths are inconsistent.
     pub fn validate(&self) -> BunsenResult<()> {
         self.encoder.validate()?;
 
         let hidden = self.d_hidden();
         if self.encoder.in_channels() != self.n_freq() {
-            return Err(BunsenError::Invalid(format!(
-                "SileroVad encoder in_channels ({}) != n_freq ({})",
-                self.encoder.in_channels(),
-                self.n_freq(),
-            )));
+            return Err(ConstraintError::new(
+                "SileroVadStructureConfig",
+                "",
+                Rule::Relation {
+                    lhs: (
+                        "encoder.in_channels".into(),
+                        self.encoder.in_channels().to_string(),
+                    ),
+                    op: "==",
+                    rhs: ("n_freq".into(), self.n_freq().to_string()),
+                },
+            )
+            .into());
         }
-        if self.decoder.channels_in != hidden || self.decoder.channels_out != 1 {
-            return Err(BunsenError::Invalid(format!(
-                "SileroVad decoder must map hidden ({hidden}) -> 1, got {} -> {}",
-                self.decoder.channels_in, self.decoder.channels_out,
-            )));
+        if self.decoder.channels_in != hidden {
+            return Err(ConstraintError::new(
+                "SileroVadStructureConfig",
+                "",
+                Rule::Relation {
+                    lhs: (
+                        "decoder.channels_in".into(),
+                        self.decoder.channels_in.to_string(),
+                    ),
+                    op: "==",
+                    rhs: ("d_hidden".into(), hidden.to_string()),
+                },
+            )
+            .into());
+        }
+        if self.decoder.channels_out != 1 {
+            return Err(ConstraintError::out_of_range(
+                "SileroVadStructureConfig",
+                "decoder.channels_out",
+                self.decoder.channels_out,
+                "[1, 1]",
+            )
+            .into());
         }
         Ok(())
     }
@@ -969,6 +1001,10 @@ mod tests {
 
     use super::*;
     use crate::{
+        errors::testing::{
+            ErrorMatcher,
+            predicate,
+        },
         prelude::*,
         support::testing::{
             DeviceMemoryGuard,
@@ -1045,7 +1081,9 @@ mod tests {
             encoder: encoder_config(64, 128, 64),
             ..SileroVadSignalConfig::standard_16khz().to_structure()
         };
-        assert!(matches!(bad.validate(), Err(BunsenError::Invalid(_))));
+        ErrorMatcher::kind(BunsenErrorKind::Illegal)
+            .has_cause::<ConstraintError>()
+            .assert_err(&bad.validate());
     }
 
     /// With no frequency bins, the STFT stride (`n_freq - 1`) underflows:
@@ -1053,11 +1091,12 @@ mod tests {
     #[test]
     fn test_try_to_structure_rejects_zero_freq_bins() {
         let signal = SileroVadSignalConfig::new(16000, 0);
-        assert!(matches!(signal.try_to_stft(), Err(BunsenError::Invalid(_))));
-        assert!(matches!(
-            signal.try_to_structure(),
-            Err(BunsenError::Invalid(_))
-        ));
+        ErrorMatcher::kind(BunsenErrorKind::Illegal)
+            .has_cause::<ConstraintError>()
+            .assert_err(&signal.try_to_stft());
+        ErrorMatcher::kind(BunsenErrorKind::Illegal)
+            .has_cause::<ConstraintError>()
+            .assert_err(&signal.try_to_structure());
     }
 
     /// With one frequency bin, the STFT stride (`n_freq - 1`) is 0: an error
@@ -1066,11 +1105,12 @@ mod tests {
     #[test]
     fn test_try_to_structure_rejects_one_freq_bin() {
         let signal = SileroVadSignalConfig::new(16000, 1);
-        assert!(matches!(signal.try_to_stft(), Err(BunsenError::Invalid(_))));
-        assert!(matches!(
-            signal.try_to_structure(),
-            Err(BunsenError::Invalid(_))
-        ));
+        ErrorMatcher::kind(BunsenErrorKind::Illegal)
+            .has_cause::<ConstraintError>()
+            .assert_err(&signal.try_to_stft());
+        ErrorMatcher::kind(BunsenErrorKind::Illegal)
+            .has_cause::<ConstraintError>()
+            .assert_err(&signal.try_to_structure());
     }
 
     /// An STFT policy set directly with a stride of 0 is an error from
@@ -1082,10 +1122,9 @@ mod tests {
             stft_stride: 0,
             ..SileroVadSignalConfig::standard_16khz().to_stft()
         };
-        assert!(matches!(
-            stft.try_to_structure(),
-            Err(BunsenError::Invalid(_))
-        ));
+        ErrorMatcher::kind(BunsenErrorKind::Illegal)
+            .has_cause::<ConstraintError>()
+            .assert_err(&stft.try_to_structure());
     }
 
     /// An STFT policy set directly with a zero kernel, bin count or width is
@@ -1114,18 +1153,19 @@ mod tests {
             ("d_hidden", standard.clone().with_d_hidden(0)),
             ("d_bottleneck", standard.clone().with_d_bottleneck(0)),
         ] {
-            assert!(
-                matches!(stft.try_to_structure(), Err(BunsenError::Invalid(_))),
-                "{field} = 0 lowered"
-            );
+            ErrorMatcher::kind(BunsenErrorKind::Illegal)
+                .cause(predicate(
+                    format!("a zero {field}"),
+                    move |c: &ConstraintError| c.field == field && c.rule == Rule::ZeroOrEmpty,
+                ))
+                .assert_err(&stft.try_to_structure());
         }
 
         // The signal policy reaches the same check through its refinement.
         let signal = SileroVadSignalConfig::standard_16khz().with_d_hidden(0);
-        assert!(matches!(
-            signal.try_to_structure(),
-            Err(BunsenError::Invalid(_))
-        ));
+        ErrorMatcher::kind(BunsenErrorKind::Illegal)
+            .has_cause::<ConstraintError>()
+            .assert_err(&signal.try_to_structure());
     }
 
     #[test]

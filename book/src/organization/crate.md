@@ -41,7 +41,7 @@ Each module's own docs carry its map; this table is the one-line version.
 | [`contracts`](bunsen::contracts) | Runtime tensor-shape contracts. See [Shape contracts](../systems/contracts.md). |
 | [`data`](bunsen::data) | The disk cache, pretrained-model loading, and dataset shard sets. See [Files, caches and pretrained models](../systems/pretrained.md). |
 | [`audit`](bunsen::audit) | Audit probes: record a stream of tensor checkpoints from one run and verify another against it. See [Audit probes and baselines](../development/audit.md). |
-| [`errors`](bunsen::errors) | `BunsenError`, `BunsenResult`, and the `try_x` / `x` convention. |
+| [`errors`](bunsen::errors) | `BunsenError` and its kinds, context frames and typed causes; `BunsenResult`; the `try_x` / `x` convention; and, with `testing`, the `ErrorMatcher` test matchers. |
 | [`rust_ext`](bunsen::rust_ext) | Rust-language extensions with no tensor or burn dependency: `CloneBox` / `CloneRef`, array and range helpers, and `LocationDesc`, a serializable source location. |
 | [`support`](bunsen::support) | Shared utilities, including the test backends and devices in [`support::testing`](bunsen::support::testing). |
 | [`zspace`](bunsen::zspace) | Integer-lattice index and shape helpers. |

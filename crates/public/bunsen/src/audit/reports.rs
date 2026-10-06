@@ -42,7 +42,11 @@ use burn::prelude::Backend;
 
 use crate::errors::{
     BunsenError,
+    BunsenErrorKind,
     BunsenResult,
+    ParseError,
+    ResultContext,
+    sys_at,
 };
 
 /// The cargo target directory: `$CARGO_TARGET_DIR` if set, else the one
@@ -129,7 +133,8 @@ impl ReportsOptions {
     /// not contain `..`.
     ///
     /// # Errors
-    /// [`BunsenError::Invalid`] if `name` escapes the backend directory.
+    /// [`Illegal`](crate::errors::BunsenErrorKind::Illegal) if `name` escapes
+    /// the backend directory.
     pub fn report_path(
         &self,
         backend: &str,
@@ -137,7 +142,7 @@ impl ReportsOptions {
     ) -> BunsenResult<PathBuf> {
         let rel = Path::new(name);
         if name.is_empty() || !rel.components().all(|c| matches!(c, Component::Normal(_))) {
-            return Err(BunsenError::Invalid(format!(
+            return Err(BunsenError::illegal(format!(
                 "report name {name:?} must be a relative path without `..`"
             )));
         }
@@ -172,12 +177,13 @@ impl BaselineMode {
     /// `verify`); unset is `Auto`.
     ///
     /// # Errors
-    /// [`BunsenError::ParseError`] on any other value.
+    /// As [`parse`](Self::parse) on any other value, with a frame naming
+    /// `var`.
     pub fn from_env(var: &str) -> BunsenResult<Self> {
         match env::var(var) {
             Err(_) => Ok(Self::Auto),
             Ok(value) => {
-                Self::parse(&value).map_err(|e| BunsenError::ParseError(format!("{var}: {e}")))
+                Self::parse(&value).with_context(|| format!("reading environment variable {var}"))
             }
         }
     }
@@ -185,15 +191,19 @@ impl BaselineMode {
     /// Parses `auto`, `record`, or `verify` (case-insensitive).
     ///
     /// # Errors
-    /// [`BunsenError::ParseError`] on any other value.
+    /// [`Policy`](crate::errors::BunsenErrorKind::Policy), with a
+    /// [`ParseError`] cause, on any other value.
     pub fn parse(value: &str) -> BunsenResult<Self> {
         match value.to_ascii_lowercase().as_str() {
             "" | "auto" => Ok(Self::Auto),
             "record" => Ok(Self::Record),
             "verify" => Ok(Self::Verify),
-            _ => Err(BunsenError::ParseError(format!(
-                "baseline mode {value:?}: expected auto, record, or verify"
-            ))),
+            _ => Err(BunsenError::from_cause(
+                BunsenErrorKind::Policy,
+                ParseError::new("baseline mode")
+                    .input(value)
+                    .because("expected auto, record, or verify"),
+            )),
         }
     }
 }
@@ -278,30 +288,45 @@ impl SeriesReport {
     /// Parses CSV text written by [`to_csv`](Self::to_csv).
     ///
     /// # Errors
-    /// [`BunsenError::ParseError`] on a malformed header, row, or value.
+    /// [`InvalidResource`](crate::errors::BunsenErrorKind::InvalidResource),
+    /// with a [`ParseError`] cause, on a malformed header, row, or value.
     pub fn from_csv(text: &str) -> BunsenResult<Self> {
+        let invalid = |e: ParseError| BunsenError::from_cause(BunsenErrorKind::InvalidResource, e);
         let mut lines = text.lines();
         let header = lines
             .next()
-            .ok_or_else(|| BunsenError::ParseError("empty series CSV".into()))?;
+            .ok_or_else(|| invalid(ParseError::new("series CSV").because("empty text")))?;
         let mut names = header.split(',');
         if names.next() != Some("step") {
-            return Err(BunsenError::ParseError(format!(
-                "series CSV header {header:?} must start with \"step\""
-            )));
+            return Err(invalid(
+                ParseError::new("series CSV header")
+                    .input(header)
+                    .because("must start with \"step\""),
+            ));
         }
         let mut columns: Vec<(String, Vec<f64>)> =
             names.map(|n| (n.to_string(), Vec::new())).collect();
         for (row, line) in lines.enumerate() {
             let cells: Vec<&str> = line.split(',').collect();
             if cells.len() != columns.len() + 1 || cells[0] != row.to_string() {
-                return Err(BunsenError::ParseError(format!(
-                    "series CSV row {row}: {line:?}"
-                )));
+                return Err(invalid(
+                    ParseError::new("series CSV row")
+                        .at(format!("row {row}"))
+                        .input(line)
+                        .because(format!(
+                            "expected {} cells, starting with step {row}",
+                            columns.len() + 1
+                        )),
+                ));
             }
             for ((_, col), cell) in columns.iter_mut().zip(&cells[1..]) {
                 col.push(cell.parse().map_err(|e| {
-                    BunsenError::ParseError(format!("series CSV row {row}: {cell:?}: {e}"))
+                    invalid(
+                        ParseError::new("series CSV value")
+                            .at(format!("row {row}"))
+                            .input(cell)
+                            .with_source(e),
+                    )
                 })?);
             }
         }
@@ -311,16 +336,17 @@ impl SeriesReport {
     /// Writes the report to `path`, creating parent directories.
     ///
     /// # Errors
-    /// [`BunsenError::External`] on I/O failure.
+    /// An I/O failure, sorted by [`sys_at`]: usually
+    /// [`Sys`](crate::errors::BunsenErrorKind::Sys), or
+    /// [`Lookup`](crate::errors::BunsenErrorKind::Lookup) for a forbidden path.
     pub fn write(
         &self,
         path: &Path,
     ) -> BunsenResult<()> {
-        let io = |e: std::io::Error| BunsenError::External(format!("{}: {e}", path.display()));
         if let Some(parent) = path.parent() {
-            fs::create_dir_all(parent).map_err(io)?;
+            fs::create_dir_all(parent).map_err(sys_at("create directory", parent))?;
         }
-        fs::write(path, self.to_csv()).map_err(io)
+        fs::write(path, self.to_csv()).map_err(sys_at("write", path))
     }
 
     /// Writes the report for backend `B` as `{root}/{backend}/{name}.csv`.
@@ -344,21 +370,27 @@ impl SeriesReport {
     /// Reads a report written by [`write`](Self::write).
     ///
     /// # Errors
-    /// [`BunsenError::External`] on I/O failure; as
-    /// [`from_csv`](Self::from_csv).
+    /// [`Lookup`](crate::errors::BunsenErrorKind::Lookup) if `path` does not
+    /// exist or cannot be read; another I/O failure, sorted by [`sys_at`]; as
+    /// [`from_csv`](Self::from_csv), with a frame naming `path`.
     pub fn read(path: &Path) -> BunsenResult<Self> {
-        let text = fs::read_to_string(path)
-            .map_err(|e| BunsenError::External(format!("{}: {e}", path.display())))?;
-        Self::from_csv(&text)
+        let text = fs::read_to_string(path).map_err(sys_at("read", path))?;
+        Self::from_csv(&text).with_context(|| format!("reading {}", path.display()))
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::support::testing::{
-        CpuBackend,
-        backend_device,
+    use crate::{
+        errors::testing::{
+            ErrorMatcher,
+            predicate,
+        },
+        support::testing::{
+            CpuBackend,
+            backend_device,
+        },
     };
 
     #[test]
@@ -376,9 +408,11 @@ mod tests {
             options.report_path("flex", "a/b.cbor").unwrap(),
             Path::new("r").join("flex").join("a/b.cbor")
         );
-        assert!(options.report_path("flex", "").is_err());
-        assert!(options.report_path("flex", "../x").is_err());
-        assert!(options.report_path("flex", "/abs").is_err());
+        for name in ["", "../x", "/abs"] {
+            ErrorMatcher::kind(BunsenErrorKind::Illegal)
+                .message_contains("must be a relative path without `..`")
+                .assert_err(&options.report_path("flex", name));
+        }
     }
 
     #[test]
@@ -402,7 +436,10 @@ mod tests {
         assert_eq!(BaselineMode::parse("").unwrap(), BaselineMode::Auto);
         assert_eq!(BaselineMode::parse("Record").unwrap(), BaselineMode::Record);
         assert_eq!(BaselineMode::parse("verify").unwrap(), BaselineMode::Verify);
-        assert!(BaselineMode::parse("replay").is_err());
+        ErrorMatcher::kind(BunsenErrorKind::Policy)
+            .message_eq("cannot parse baseline mode \"replay\": expected auto, record, or verify")
+            .has_cause::<ParseError>()
+            .assert_err(&BaselineMode::parse("replay"));
     }
 
     #[test]
@@ -444,9 +481,25 @@ mod tests {
         assert_eq!(SeriesReport::read(&path).unwrap(), report);
         assert_eq!(report.get("error").unwrap()[1], -2.5e-300);
 
-        assert!(SeriesReport::from_csv("x,y\n").is_err());
-        assert!(SeriesReport::from_csv("step,y\n0,abc\n").is_err());
-        assert!(SeriesReport::from_csv("step,y\n1,2\n").is_err());
+        let bad_csv = |at: Option<&str>| {
+            let m = ErrorMatcher::kind(BunsenErrorKind::InvalidResource);
+            let at = at.map(str::to_string);
+            m.cause(predicate(
+                "a series CSV parse error",
+                move |c: &ParseError| c.what.starts_with("series CSV") && c.at == at,
+            ))
+        };
+        bad_csv(None).assert_err(&SeriesReport::from_csv(""));
+        bad_csv(None).assert_err(&SeriesReport::from_csv("x,y\n"));
+        bad_csv(Some("row 0")).assert_err(&SeriesReport::from_csv("step,y\n0,abc\n"));
+        bad_csv(Some("row 0")).assert_err(&SeriesReport::from_csv("step,y\n1,2\n"));
+
+        fs::write(&path, "step,y\n0,abc\n").unwrap();
+        bad_csv(Some("row 0"))
+            .frame_contains("reading ")
+            .assert_err(&SeriesReport::read(&path));
+        ErrorMatcher::kind(BunsenErrorKind::Lookup)
+            .assert_err(&SeriesReport::read(&dir.path().join("absent.csv")));
     }
 
     #[test]

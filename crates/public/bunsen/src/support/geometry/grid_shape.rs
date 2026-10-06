@@ -9,7 +9,9 @@ use serde::{
 
 use crate::errors::{
     BunsenError,
+    BunsenErrorKind,
     BunsenResult,
+    ParseError,
 };
 
 /// A 2D grid size: `width` by `height` cells.
@@ -33,27 +35,33 @@ impl FromStr for GridShape2D {
     ///
     /// # Errors
     ///
-    /// [`BunsenError::ParseError`] if the string has more than two parts, or
-    /// a part is not a `usize`.
+    /// [`Policy`](BunsenErrorKind::Policy), with a [`ParseError`] cause, if
+    /// the string has more than two parts, or a part is not a `usize`: the
+    /// string is a request, such as a command-line value.
     fn from_str(s: &str) -> BunsenResult<Self> {
+        let parse = |what: &'static str, part: &str| {
+            part.parse::<usize>().map_err(|e| {
+                BunsenError::from_cause(
+                    BunsenErrorKind::Policy,
+                    ParseError::new(what).input(part).with_source(e),
+                )
+            })
+        };
         if s.contains(",") {
             let parts: Vec<&str> = s.split(',').collect();
             if parts.len() != 2 {
-                return Err(BunsenError::ParseError(
-                    "Shape must be in the format WIDTH,HEIGHT".to_string(),
+                return Err(BunsenError::from_cause(
+                    BunsenErrorKind::Policy,
+                    ParseError::new("grid shape")
+                        .input(s)
+                        .because("must be WIDTH,HEIGHT or SIZE"),
                 ));
             }
-            let width = parts[0]
-                .parse::<usize>()
-                .map_err(|_| BunsenError::ParseError(format!("Invalid width: {}", parts[0])))?;
-            let height = parts[1]
-                .parse::<usize>()
-                .map_err(|_| BunsenError::ParseError(format!("Invalid height: {}", parts[1])))?;
+            let width = parse("grid width", parts[0])?;
+            let height = parse("grid height", parts[1])?;
             Ok(Self { width, height })
         } else {
-            let size = s
-                .parse::<usize>()
-                .map_err(|_| BunsenError::ParseError(format!("Invalid size: {s}")))?;
+            let size = parse("grid size", s)?;
             Ok(Self::square(size))
         }
     }
@@ -82,6 +90,7 @@ impl GridShape2D {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::errors::testing::ErrorMatcher;
 
     #[test]
     fn test_parse_grid_shape() {
@@ -100,9 +109,17 @@ mod tests {
             }
         );
 
-        assert_eq!(
-            GridShape2D::from_str("10,10,10").expect_err("Expected an error"),
-            BunsenError::ParseError("Shape must be in the format WIDTH,HEIGHT".to_string()),
-        );
+        ErrorMatcher::kind(BunsenErrorKind::Policy)
+            .message_eq("cannot parse grid shape \"10,10,10\": must be WIDTH,HEIGHT or SIZE")
+            .has_cause::<ParseError>()
+            .assert_err(&GridShape2D::from_str("10,10,10"));
+
+        ErrorMatcher::kind(BunsenErrorKind::Policy)
+            .message_eq("cannot parse grid height \"x\": invalid digit found in string")
+            .assert_err(&GridShape2D::from_str("10,x"));
+
+        ErrorMatcher::kind(BunsenErrorKind::Policy)
+            .message_contains("cannot parse grid size \"-1\"")
+            .assert_err(&GridShape2D::from_str("-1"));
     }
 }

@@ -349,6 +349,16 @@ pub enum GroupOptimizerError {
     },
 }
 
+/// A `GroupOptimizerError` is
+/// [`Illegal`](crate::errors::BunsenErrorKind::Illegal): the groups a caller
+/// passed are not a partition of the module's float parameters.
+impl From<GroupOptimizerError> for crate::errors::BunsenError {
+    #[track_caller]
+    fn from(error: GroupOptimizerError) -> Self {
+        crate::errors::BunsenError::from_cause(crate::errors::BunsenErrorKind::Illegal, error)
+    }
+}
+
 fn join_param_ids(param_ids: &[ParamId]) -> String {
     param_ids
         .iter()

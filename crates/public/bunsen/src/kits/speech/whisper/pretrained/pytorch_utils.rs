@@ -11,6 +11,8 @@ use burn_store::{
     ModuleSnapshot,
     ModuleStore,
     PytorchStore,
+    PytorchStoreError,
+    pytorch::PytorchError,
 };
 
 use crate::{
@@ -20,7 +22,11 @@ use crate::{
     },
     errors::{
         BunsenError,
+        BunsenErrorKind,
         BunsenResult,
+        LookupError,
+        LookupProblem,
+        io_error_kind,
     },
     kits::speech::whisper::blocks::{
         AUDIO_ENCODER_STRIDE,
@@ -31,6 +37,35 @@ use crate::{
         WhisperTokenLayoutConfig,
     },
 };
+
+/// Sorts a [`PytorchStoreError`] from reading the checkpoint at `path` by
+/// what it means: a missing or forbidden file is a
+/// [`Lookup`](BunsenErrorKind::Lookup), another failure to read it is by
+/// its `io::ErrorKind`, and the rest is a file that is not the checkpoint
+/// it should be, [`InvalidResource`](BunsenErrorKind::InvalidResource).
+fn pytorch_store_error(path: &Path) -> impl FnOnce(PytorchStoreError) -> BunsenError + '_ {
+    move |error| {
+        let kind = match &error {
+            PytorchStoreError::Io(io) | PytorchStoreError::Reader(PytorchError::Io(io)) => {
+                io_error_kind(io)
+            }
+            _ => BunsenErrorKind::InvalidResource,
+        };
+        if kind == BunsenErrorKind::Lookup {
+            let problem = match &error {
+                PytorchStoreError::Io(io) | PytorchStoreError::Reader(PytorchError::Io(io))
+                    if io.kind() == std::io::ErrorKind::PermissionDenied =>
+                {
+                    LookupProblem::Denied
+                }
+                _ => LookupProblem::Missing,
+            };
+            BunsenError::lookup(LookupError::path(path, problem).with_source(error))
+        } else {
+            BunsenError::from_cause(kind, error).context(path.display())
+        }
+    }
+}
 
 fn block_layers_from_keys<S: AsRef<str>>(
     kind: &str,
@@ -71,6 +106,15 @@ impl PytorchWhisperScanner {
     /// Scan a pytorch whisper checkpoint for configuration.
     ///
     /// Due to the reader, this will always set `n_heads` to 1.
+    ///
+    /// # Errors
+    /// - [`Lookup`](BunsenErrorKind::Lookup) when `path` is missing or
+    ///   forbidden;
+    /// - [`InvalidResource`](BunsenErrorKind::InvalidResource), with the
+    ///   [`PytorchStoreError`] as its cause, when the file is not a `PyTorch`
+    ///   checkpoint; without one, naming a tensor the layout requires and the
+    ///   checkpoint lacks, or has at another rank;
+    /// - [`Sys`](BunsenErrorKind::Sys) when reading it fails otherwise.
     pub fn scan_cfg<P: AsRef<Path>>(
         &self,
         path: P,
@@ -96,36 +140,37 @@ impl PytorchWhisperScanner {
 
         let mut store = store;
 
-        let keys = store.keys().map_err(BunsenError::external)?;
+        let keys = store.keys().map_err(pytorch_store_error(&path))?;
 
-        let [d_model, n_mels] = store
-            .get_snapshot("encoder.head.blocks.0.conv.weight")
-            .map_err(BunsenError::external)?
-            .unwrap()
-            .shape
-            .dims();
+        // The shape of a tensor the layout requires, at the rank it
+        // requires: the same refusals as the safetensors scanner's.
+        let mut shape = |tensor: &str, rank: usize| -> BunsenResult<Vec<usize>> {
+            let shape = store
+                .get_snapshot(tensor)
+                .map_err(pytorch_store_error(&path))?
+                .ok_or_else(|| {
+                    BunsenError::invalid_resource(format!(
+                        "{}: not an OpenAI Whisper checkpoint: no {tensor}",
+                        path.display()
+                    ))
+                })?
+                .shape
+                .to_vec();
+            if shape.len() == rank {
+                Ok(shape)
+            } else {
+                Err(BunsenError::invalid_resource(format!(
+                    "{}: {tensor} has shape {shape:?}, not rank {rank}",
+                    path.display()
+                )))
+            }
+        };
 
-        let [vocab_size, _] = store
-            .get_snapshot("decoder.token_embedding.weight")
-            .map_err(BunsenError::external)?
-            .unwrap()
-            .shape
-            .dims();
-
-        let [k, _] = store
-            .get_snapshot("encoder.positional_embedding")
-            .map_err(BunsenError::external)?
-            .unwrap()
-            .shape
-            .dims();
-        let max_audio_ctx = k * AUDIO_ENCODER_STRIDE;
-
-        let [max_text_ctx, _] = store
-            .get_snapshot("decoder.positional_embedding")
-            .map_err(BunsenError::external)?
-            .unwrap()
-            .shape
-            .dims();
+        let conv1 = shape("encoder.head.blocks.0.conv.weight", 3)?;
+        let (d_model, n_mels) = (conv1[0], conv1[1]);
+        let vocab_size = shape("decoder.token_embedding.weight", 2)?[0];
+        let max_audio_ctx = shape("encoder.positional_embedding", 2)?[0] * AUDIO_ENCODER_STRIDE;
+        let max_text_ctx = shape("decoder.positional_embedding", 2)?[0];
 
         let encoder_layers = block_layers_from_keys("encoder", &keys);
         let decoder_layers = block_layers_from_keys("decoder", &keys);
@@ -148,11 +193,16 @@ impl PytorchWhisperScanner {
     }
 
     /// Loads a pytorch whisper model from a checkpoint.
+    ///
+    /// # Errors
+    /// As [`scan_cfg`](Self::scan_cfg), and for loading the weights;
+    /// as [`ModuleInit::try_init`] for the scanned config.
     pub fn load<B: Backend, P: AsRef<Path>>(
         &self,
         path: P,
         device: &B::Device,
     ) -> BunsenResult<(Whisper<B>, WhisperApiConfig)> {
+        let path = path.as_ref();
         let (mut store, cfg) = self.scan_cfg(path)?;
 
         let module: Whisper<B> = cfg.try_init(device)?;
@@ -167,7 +217,7 @@ impl PytorchWhisperScanner {
 
         module
             .load_from(&mut store)
-            .map_err(BunsenError::external)?;
+            .map_err(pytorch_store_error(path))?;
 
         Ok((module, cfg))
     }

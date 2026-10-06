@@ -24,8 +24,9 @@ use crate::{
         store::FixPytorchLoadMappers,
     },
     errors::{
-        BunsenError,
         BunsenResult,
+        ConstraintError,
+        Rule,
     },
     kits::speech::whisper::blocks::{
         AudioEncoder,
@@ -210,18 +211,26 @@ impl<B: Backend> ModuleInit<B, Whisper<B>> for WhisperStructureConfig {
     ///
     /// # Errors
     ///
-    /// [`BunsenError::Invalid`] when the encoder's and the decoder's `d_model`
-    /// differ, which a hand-edited structure can do; [`WhisperApiConfig`]
-    /// never lowers to one.
+    /// [`Illegal`](crate::errors::BunsenErrorKind::Illegal), with a
+    /// [`ConstraintError`] cause, when the encoder's and the decoder's
+    /// `d_model` differ, which a hand-edited structure can do;
+    /// [`WhisperApiConfig`] never lowers to one.
     fn try_init(
         &self,
         device: &B::Device,
     ) -> BunsenResult<Whisper<B>> {
         let (encoder_width, decoder_width) = (self.encoder.d_model(), self.decoder.d_model());
         if encoder_width != decoder_width {
-            return Err(BunsenError::Invalid(format!(
-                "the encoder's d_model ({encoder_width}) differs from the decoder's ({decoder_width})"
-            )));
+            return Err(ConstraintError::new(
+                "WhisperStructureConfig",
+                "",
+                Rule::Relation {
+                    lhs: ("encoder.d_model".into(), encoder_width.to_string()),
+                    op: "==",
+                    rhs: ("decoder.d_model".into(), decoder_width.to_string()),
+                },
+            )
+            .into());
         }
 
         let encoder = self.encoder.try_init(device)?;
@@ -390,6 +399,10 @@ mod tests {
             tensor::backend_float_dtype,
         },
         contracts::assert_shape_contract,
+        errors::{
+            BunsenErrorKind,
+            testing::ErrorMatcher,
+        },
         support::testing::{
             CpuBackend,
             DeviceMemoryGuard,
@@ -563,7 +576,9 @@ mod tests {
         structure.decoder = TextDecoderConfig::new(16, 32, 12, 1).with_d_head(16);
 
         let bad: BunsenResult<Whisper<B>> = structure.try_init(&device);
-        assert!(matches!(bad, Err(BunsenError::Invalid(_))));
+        ErrorMatcher::kind(BunsenErrorKind::Illegal)
+            .has_cause::<ConstraintError>()
+            .assert_err(&bad);
     }
 
     /// **The dtype boundary.** A checkpoint at a precision the caller does

@@ -26,7 +26,10 @@ use super::{
 };
 use crate::errors::{
     BunsenError,
+    BunsenErrorKind,
     BunsenResult,
+    LookupError,
+    ResultContext,
 };
 
 /// A kit's providers, in search order, resolving names to [`Deferred`]
@@ -55,8 +58,8 @@ use crate::errors::{
 /// - A provider's "not here" is `Ok(None)`, and the search moves on. Any error
 ///   a provider returns aborts the lookup: a hub that cannot be reached is not
 ///   the same as a hub that has no such row.
-/// - A spec no provider has is
-///   [`ResourceNotFound`](BunsenError::ResourceNotFound), naming what there is.
+/// - A spec no provider has is a [`Lookup`](BunsenErrorKind::Lookup) error,
+///   with a [`LookupError`] naming what there is.
 ///
 /// [`resolve`](Self::resolve) asks each provider through
 /// [`PretrainedProvider::resolve`], with the cache to hand, so a hub can
@@ -141,19 +144,19 @@ impl<H: Construct> PretrainedFactory<H> {
     /// Adds a provider at the end of the search order.
     ///
     /// # Errors
-    /// [`BunsenError::Invalid`] when a provider of that name is registered
-    /// already; names are what a spec's `provider:` selects, so two cannot
-    /// share one.
+    /// [`Illegal`](BunsenErrorKind::Illegal), with a duplicate
+    /// [`LookupError`], when a provider of that name is registered already;
+    /// names are what a spec's `provider:` selects, so two cannot share one.
     pub fn register(
         &mut self,
         provider: Arc<dyn PretrainedProvider>,
     ) -> BunsenResult<()> {
         if self.provider(provider.name()).is_some() {
-            return Err(BunsenError::Invalid(alloc::format!(
-                "{}: a provider named {:?} is registered already",
-                H::KIT,
-                provider.name()
-            )));
+            return Err(BunsenError::from_cause(
+                BunsenErrorKind::Illegal,
+                LookupError::duplicate("provider", provider.name()),
+            )
+            .context(H::KIT));
         }
         self.providers.push(provider);
         Ok(())
@@ -253,10 +256,11 @@ impl<H: Construct> PretrainedFactory<H> {
     /// hub, answers this with its own error.
     ///
     /// # Errors
-    /// [`BunsenError::ResourceNotFound`] naming what there is: the
-    /// provider's ids after a qualified miss, the providers after an
-    /// unknown `provider:`, every id otherwise. A provider's own error, as
-    /// it returned it.
+    /// [`Lookup`](BunsenErrorKind::Lookup), with a [`LookupError`] naming
+    /// what there is, under a frame naming where it looked: the provider's
+    /// ids after a qualified miss, the providers after an unknown
+    /// `provider:`, every id otherwise. A provider's own error, as it
+    /// returned it.
     pub fn lookup(
         &self,
         spec: &str,
@@ -276,21 +280,27 @@ impl<H: Construct> PretrainedFactory<H> {
     /// the cache.
     ///
     /// # Errors
-    /// As [`lookup`](Self::lookup) and [`Deferred::new`].
+    /// As [`lookup`](Self::lookup) and [`Deferred::new`]. The spec is the
+    /// caller's input, a name from a command line say: an
+    /// [`Illegal`](BunsenErrorKind::Illegal) error it causes, a malformed
+    /// `hf:` ref say, is re-marked [`Policy`](BunsenErrorKind::Policy).
     pub fn resolve(
         &self,
         spec: &str,
         cache: &PretrainedCache,
     ) -> BunsenResult<Deferred<H>> {
-        let found = self.find(spec, |provider, name| provider.resolve(name, H::KIT, cache))?;
-        let (provider, pretrained) = match found {
-            Some(found) => found,
-            None => return Err(self.not_found(spec)),
+        let resolve = || -> BunsenResult<Deferred<H>> {
+            let found = self.find(spec, |provider, name| provider.resolve(name, H::KIT, cache))?;
+            let (provider, pretrained) = match found {
+                Some(found) => found,
+                None => return Err(self.not_found(spec)),
+            };
+            Deferred::new(PretrainedRef::Named {
+                provider,
+                pretrained,
+            })
         };
-        Deferred::new(PretrainedRef::Named {
-            provider,
-            pretrained,
-        })
+        resolve().as_policy()
     }
 
     /// A name to what the kit builds: [`resolve`](Self::resolve), then
@@ -333,6 +343,7 @@ impl<H: Construct> PretrainedFactory<H> {
     }
 
     /// The error for a spec no provider has.
+    #[track_caller]
     pub(crate) fn not_found(
         &self,
         spec: &str,
@@ -466,7 +477,7 @@ pub(crate) mod testing {
             &self,
             _name: &str,
         ) -> BunsenResult<Option<Pretrained>> {
-            Err(BunsenError::External("failing: unreachable".to_string()))
+            Err(BunsenError::unavailable("failing: unreachable"))
         }
     }
 
@@ -508,13 +519,23 @@ mod tests {
         },
         *,
     };
-    use crate::data::pretrained::{
-        PretrainedGroup,
-        PretrainedTable,
-        Resource,
-        ResourceMap,
-        Source,
-        WELL_KNOWN,
+    use crate::{
+        data::pretrained::{
+            PretrainedGroup,
+            PretrainedTable,
+            Resource,
+            ResourceMap,
+            Source,
+            WELL_KNOWN,
+        },
+        errors::{
+            LookupProblem,
+            testing::{
+                ErrorMatcher,
+                predicate,
+                text,
+            },
+        },
     };
 
     fn row(
@@ -636,11 +657,12 @@ mod tests {
         assert_eq!(factory.providers().len(), 1);
         assert!(factory.provider(WELL_KNOWN).is_some());
 
-        let err = factory.register(well_known()).unwrap_err();
-        assert!(
-            matches!(&err, BunsenError::Invalid(m) if m.contains("\"well-known\" is registered already")),
-            "{err}"
-        );
+        ErrorMatcher::kind(BunsenErrorKind::Illegal)
+            .display(text::eq("kit: duplicate provider \"well-known\""))
+            .cause(predicate("a duplicate provider", |c: &LookupError| {
+                c.problem == LookupProblem::Duplicate
+            }))
+            .assert_err(&factory.register(well_known()));
         assert_eq!(factory.providers().len(), 1);
 
         assert!(factory.remove("nobody").is_none());
@@ -681,20 +703,16 @@ mod tests {
             ("well-known", "a/large-v2")
         );
 
-        match factory.lookup("well-known:a/tiny") {
-            Err(BunsenError::ResourceNotFound(m)) => {
-                assert!(m.starts_with("well-known: no pretrained \"a/tiny\""), "{m}");
-                assert!(m.contains("well-known:a/small"), "{m}");
-            }
-            other => panic!("{other:?}"),
-        }
-        match factory.lookup("nobody:a/small") {
-            Err(BunsenError::ResourceNotFound(m)) => {
-                assert!(m.starts_with("kit: no provider \"nobody\""), "{m}");
-                assert!(m.contains("well-known, hub"), "{m}");
-            }
-            other => panic!("{other:?}"),
-        }
+        ErrorMatcher::kind(BunsenErrorKind::Lookup)
+            .display(text::starts_with("well-known: no pretrained \"a/tiny\""))
+            .message_contains("well-known:a/small")
+            .assert_err(&factory.lookup("well-known:a/tiny"));
+        ErrorMatcher::kind(BunsenErrorKind::Lookup)
+            .display(text::starts_with("kit: no provider \"nobody\""))
+            .cause(predicate("the providers there are", |c: &LookupError| {
+                c.candidates == ["well-known", "hub"]
+            }))
+            .assert_err(&factory.lookup("nobody:a/small"));
     }
 
     /// A bare spec is offered to the providers in order; the first row
@@ -732,14 +750,11 @@ mod tests {
         let (_, row) = factory.lookup("a/s").unwrap();
         assert_eq!(row.name, "a/small");
 
-        match factory.lookup("gigantic") {
-            Err(BunsenError::ResourceNotFound(m)) => {
-                assert!(m.starts_with("kit: no pretrained \"gigantic\""), "{m}");
-                assert!(m.contains("well-known:a/small"), "{m}");
-                assert!(m.contains("second:a/only-here"), "{m}");
-            }
-            other => panic!("{other:?}"),
-        }
+        ErrorMatcher::kind(BunsenErrorKind::Lookup)
+            .display(text::starts_with("kit: no pretrained \"gigantic\""))
+            .message_contains("well-known:a/small")
+            .message_contains("second:a/only-here")
+            .assert_err(&factory.lookup("gigantic"));
         let hub = factory.provider("hub").unwrap();
         assert!(!hub.answers_bare_names());
     }
@@ -767,18 +782,15 @@ mod tests {
         );
         assert_eq!(hub.lookups(), 1);
 
-        assert!(matches!(
-            factory.lookup("whisper-base"),
-            Err(BunsenError::ResourceNotFound(_))
-        ));
+        ErrorMatcher::kind(BunsenErrorKind::Lookup).assert_err(&factory.lookup("whisper-base"));
         assert_eq!(hub.lookups(), 1, "a bare name never reached the hub");
 
-        match factory.lookup("hub:nonsense") {
-            Err(BunsenError::ResourceNotFound(m)) => {
-                assert_eq!(m, "hub: no pretrained \"nonsense\"; there are: (none)");
-            }
-            other => panic!("{other:?}"),
-        }
+        ErrorMatcher::kind(BunsenErrorKind::Lookup)
+            .display(text::eq("hub: no pretrained \"nonsense\""))
+            .cause(predicate("no candidates", |c: &LookupError| {
+                c.candidates.is_empty()
+            }))
+            .assert_err(&factory.lookup("hub:nonsense"));
         assert_eq!(hub.lookups(), 2);
     }
 
@@ -789,14 +801,9 @@ mod tests {
         let factory = PretrainedFactory::<CheckpointPath>::new()
             .with_providers([Arc::new(Failing) as _, well_known()])
             .unwrap();
-        assert!(matches!(
-            factory.lookup("failing:x"),
-            Err(BunsenError::External(_))
-        ));
-        assert!(
-            matches!(factory.lookup("small"), Err(BunsenError::External(_))),
-            "the failing provider answers bare names, and is asked first"
-        );
+        ErrorMatcher::kind(BunsenErrorKind::Unavailable).assert_err(&factory.lookup("failing:x"));
+        // The failing provider answers bare names, and is asked first.
+        ErrorMatcher::kind(BunsenErrorKind::Unavailable).assert_err(&factory.lookup("small"));
         assert_eq!(
             factory.lookup("well-known:small").unwrap().1.name,
             "a/small"
@@ -827,16 +834,11 @@ mod tests {
 
         let file = dir.path().join("ckpt.pt");
         std::fs::write(&file, b"x").unwrap();
-        match factory.resolve(file.to_str().unwrap(), &cache) {
-            Err(BunsenError::ResourceNotFound(m)) => {
-                assert!(m.contains("well-known:a/small"), "{m}");
-            }
-            other => panic!("{other:?}"),
-        }
-        assert!(matches!(
-            factory.resolve("well-known:a/gigantic", &cache),
-            Err(BunsenError::ResourceNotFound(_))
-        ));
+        ErrorMatcher::kind(BunsenErrorKind::Lookup)
+            .message_contains("well-known:a/small")
+            .assert_err(&factory.resolve(file.to_str().unwrap(), &cache));
+        ErrorMatcher::kind(BunsenErrorKind::Lookup)
+            .assert_err(&factory.resolve("well-known:a/gigantic", &cache));
     }
 
     /// `load` runs the whole pathway through the hook the map called for;
@@ -881,13 +883,15 @@ mod tests {
             .unwrap();
         assert_eq!(*loaded.handle, other);
 
-        assert!(
-            matches!(
-                factory.load::<CpuBackend>("well-known:a/small", &cache, &default_device()),
-                Err(BunsenError::ResourceNotFound(_))
-            ),
-            "offline, and nothing local"
-        );
+        // Offline, and nothing local.
+        ErrorMatcher::kind(BunsenErrorKind::Policy)
+            .frame_contains("loading kit \"well-known:a/small\"")
+            .message_contains("the cache is offline")
+            .assert_err(&factory.load::<CpuBackend>(
+                "well-known:a/small",
+                &cache,
+                &default_device(),
+            ));
     }
 
     #[test]

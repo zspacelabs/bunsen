@@ -1,7 +1,10 @@
 use alloc::vec::Vec;
 use core::fmt::Debug;
 use std::{
-    collections::HashMap,
+    collections::{
+        BTreeSet,
+        HashMap,
+    },
     time::SystemTime,
 };
 
@@ -13,8 +16,8 @@ use burn::prelude::{
 use crate::{
     audit::audit_probe::AuditProbeEventParams,
     errors::{
-        BunsenError,
         BunsenResult,
+        ValueMismatch,
     },
     rust_ext::reflection::LocationDesc,
 };
@@ -52,7 +55,7 @@ pub trait AuditProbeEventHandler: Debug {
 /// Shared by [`AuditProbeEvent`] and [`AuditProbeEventStub`]. The
 /// [`AuditProbe`] checkpoint methods fill it from their label and their
 /// `#[track_caller]` location. The header is diagnostic only:
-/// [`try_match_events`] does not compare it, but puts it in the error message,
+/// [`try_match_events`] does not compare it, but puts it in the error's frame,
 /// so a mismatch names the checkpoint that failed.
 ///
 /// [`AuditProbe`]: crate::audit::AuditProbe
@@ -148,21 +151,48 @@ pub trait AuditProbeEventView: Debug {
 
     /// Assert that the shape signatures of the data map match the expected
     /// event.
+    ///
+    /// # Errors
+    /// [`Policy`](crate::errors::BunsenErrorKind::Policy), with a
+    /// [`ValueMismatch`] cause, if the keys, value counts or shapes differ;
+    /// the details list each differing key.
     fn assert_shape_signatures_eq(
         &self,
         expected: &impl AuditProbeEventView,
     ) -> BunsenResult<()> {
         let actual_shape_sig = self.data_map_shape_signature();
         let expected_shape_sig = expected.data_map_shape_signature();
-        if actual_shape_sig != expected_shape_sig {
-            // TODO: Better error message.
-            Err(BunsenError::Invalid(format!(
-                "data map signatures don't match:\nactual: {:#?}\nexpect: {:#?}",
-                actual_shape_sig, expected_shape_sig,
-            )))
-        } else {
-            Ok(())
+        if actual_shape_sig == expected_shape_sig {
+            return Ok(());
         }
+        let show = |shapes: Option<&Vec<Shape>>| match shapes {
+            Some(shapes) => format!("{shapes:?}"),
+            None => "absent".to_string(),
+        };
+        let keys: BTreeSet<&String> = actual_shape_sig
+            .keys()
+            .chain(expected_shape_sig.keys())
+            .collect();
+        let differing: Vec<&String> = keys
+            .into_iter()
+            .filter(|key| actual_shape_sig.get(*key) != expected_shape_sig.get(*key))
+            .collect();
+        let details = differing
+            .iter()
+            .map(|key| {
+                format!(
+                    "{key}: {} != expected {}",
+                    show(actual_shape_sig.get(*key)),
+                    show(expected_shape_sig.get(*key)),
+                )
+            })
+            .collect::<Vec<_>>()
+            .join("\n");
+        Err(ValueMismatch::Other {
+            summary: format!("data map shape signatures differ at keys {differing:?}"),
+            details: Some(details),
+        }
+        .into())
     }
 }
 

@@ -16,8 +16,9 @@ use burn::{
 use crate::{
     burner::module::ModuleInit,
     errors::{
-        BunsenError,
         BunsenResult,
+        ConstraintError,
+        Rule,
     },
     ops::embedding::positional_frequency_table,
 };
@@ -63,10 +64,15 @@ impl<B: Backend> ModuleInit<B, RotaryEmbedding<B>> for RotaryEmbeddingConfig {
         device: &B::Device,
     ) -> BunsenResult<RotaryEmbedding<B>> {
         if !self.head_dim.is_multiple_of(2) {
-            return Err(BunsenError::Invalid(format!(
-                "Head dimension must be even: {}",
-                self.head_dim
-            )));
+            return Err(ConstraintError::new(
+                "RotaryEmbeddingConfig",
+                "head_dim",
+                Rule::NotMultiple {
+                    value: self.head_dim,
+                    of: "2".into(),
+                },
+            )
+            .into());
         }
 
         let freq_matrix =

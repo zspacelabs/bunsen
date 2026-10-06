@@ -12,7 +12,10 @@ use super::{
     PretrainedRef,
     ResourceMap,
 };
-use crate::errors::BunsenResult;
+use crate::errors::{
+    BunsenResult,
+    ResultContext,
+};
 
 /// A model not yet loaded: its map, and the hook that will build it.
 ///
@@ -98,12 +101,18 @@ impl<H: Construct> Deferred<H> {
     /// plan itself looks at is fetched.
     ///
     /// # Errors
-    /// As [`Construct::plan`].
+    /// As [`Construct::plan`], under a frame naming the kit and the model.
+    /// The model is the caller's input: an
+    /// [`Illegal`](crate::errors::BunsenErrorKind::Illegal) error it causes
+    /// is re-marked [`Policy`](crate::errors::BunsenErrorKind::Policy).
     pub fn plan(
         &self,
         cache: &PretrainedCache,
     ) -> BunsenResult<ResourceMap> {
-        self.hook.plan(&self.model, cache)
+        self.hook
+            .plan(&self.model, cache)
+            .with_context(|| format!("planning {} {:?}", H::KIT, self.id()))
+            .as_policy()
     }
 
     /// Loads: [`Construct::plan`], [`PretrainedCache::load`],
@@ -112,20 +121,28 @@ impl<H: Construct> Deferred<H> {
     ///
     /// # Errors
     /// As [`Construct::plan`], [`PretrainedCache::load`] and
-    /// [`Construct::construct`].
+    /// [`Construct::construct`], under a frame naming the kit and the
+    /// model. The model and its files are the caller's input: an
+    /// [`Illegal`](crate::errors::BunsenErrorKind::Illegal) error they cause
+    /// is re-marked [`Policy`](crate::errors::BunsenErrorKind::Policy).
     pub fn load<B: Backend>(
         &self,
         cache: &PretrainedCache,
         device: &B::Device,
     ) -> BunsenResult<Loaded<H::Built<B>>> {
-        let planned = self.plan(cache)?;
-        let resources = cache.load(H::KIT, &planned)?;
-        let handle = self.hook.construct::<B>(&self.model, &resources, device)?;
-        Ok(Loaded {
-            name: resources.map.name.clone(),
-            handle,
-            resources,
-        })
+        let load = || -> BunsenResult<Loaded<H::Built<B>>> {
+            let planned = self.hook.plan(&self.model, cache)?;
+            let resources = cache.load(H::KIT, &planned)?;
+            let handle = self.hook.construct::<B>(&self.model, &resources, device)?;
+            Ok(Loaded {
+                name: resources.map.name.clone(),
+                handle,
+                resources,
+            })
+        };
+        load()
+            .with_context(|| format!("loading {} {:?}", H::KIT, self.id()))
+            .as_policy()
     }
 }
 
@@ -146,7 +163,10 @@ mod tests {
                 testing::CheckpointPath,
             },
         },
-        errors::BunsenError,
+        errors::{
+            BunsenErrorKind,
+            testing::ErrorMatcher,
+        },
         support::testing::{
             CpuBackend,
             default_device,
@@ -218,10 +238,10 @@ mod tests {
         let named = Deferred::<CheckpointPath>::new(named()).unwrap();
         assert_eq!(named.id(), "well-known:a/small");
         assert_eq!(named.status(&cache)["checkpoint"], CacheStatus::Remote);
-        assert!(matches!(
-            named.load::<CpuBackend>(&cache, &default_device()),
-            Err(BunsenError::ResourceNotFound(_))
-        ));
+        ErrorMatcher::kind(BunsenErrorKind::Policy)
+            .frame_contains("loading kit \"well-known:a/small\"")
+            .message_contains("the cache is offline")
+            .assert_err(&named.load::<CpuBackend>(&cache, &default_device()));
     }
 
     /// An overlay replaces by key and keeps the hook the model was given.

@@ -213,10 +213,7 @@ mod tests {
         let chunk_probs = chunk_probs.squeeze_dim::<1>(1).to_data();
 
         // [steps]
-        let expected: Vec<f32> = serde_json::from_reader(
-            std::fs::File::open(expected_path).map_err(BunsenError::external)?,
-        )
-        .map_err(BunsenError::external)?;
+        let expected: Vec<f32> = serde_json::from_reader(std::fs::File::open(expected_path)?)?;
         let expected: TensorData = TensorData::from(expected.as_slice());
 
         chunk_probs.assert_approx_eq(&expected, Tolerance::<f32>::default());

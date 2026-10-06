@@ -125,9 +125,10 @@ impl SafetensorsWhisperScanner {
     /// names. No tensor data is read.
     ///
     /// # Errors
-    /// As [`SafetensorsCheckpoint::headers`]; [`BunsenError::Invalid`]
-    /// naming a tensor the layout requires and the checkpoint lacks, or
-    /// has at another rank.
+    /// As [`SafetensorsCheckpoint::headers`];
+    /// [`InvalidResource`](crate::errors::BunsenErrorKind::InvalidResource)
+    /// naming a tensor the layout requires and the checkpoint lacks, or has
+    /// at another rank.
     pub fn scan_cfg(
         &self,
         checkpoint: &SafetensorsCheckpoint,
@@ -145,7 +146,7 @@ impl SafetensorsWhisperScanner {
                 .get(tensor)
                 .map(|e| e.shape.as_slice())
                 .ok_or_else(|| {
-                    BunsenError::Invalid(format!(
+                    BunsenError::invalid_resource(format!(
                         "{}: not a transformers Whisper checkpoint: no {tensor}",
                         name()
                     ))
@@ -153,7 +154,7 @@ impl SafetensorsWhisperScanner {
             if shape.len() == rank {
                 Ok(shape)
             } else {
-                Err(BunsenError::Invalid(format!(
+                Err(BunsenError::invalid_resource(format!(
                     "{}: {tensor} has shape {shape:?}, not rank {rank}",
                     name()
                 )))
@@ -225,6 +226,10 @@ mod tests {
     use super::*;
     use crate::{
         data::pretrained::safetensors_header,
+        errors::{
+            BunsenErrorKind,
+            testing::ErrorMatcher,
+        },
         kits::speech::whisper::WhisperMeta,
         support::testing::{
             CpuBackend,
@@ -363,11 +368,9 @@ mod tests {
         assert_same_weights(&model, &loaded);
 
         let encoder_only = SafetensorsCheckpoint::single(&s1);
-        let err = scanner.scan_cfg(&encoder_only).unwrap_err();
-        assert!(
-            matches!(&err, BunsenError::Invalid(m) if m.contains("no model.decoder.embed_tokens.weight")),
-            "{err}"
-        );
+        ErrorMatcher::kind(BunsenErrorKind::InvalidResource)
+            .message_contains("no model.decoder.embed_tokens.weight")
+            .assert_err(&scanner.scan_cfg(&encoder_only));
         let decoder_only = SafetensorsCheckpoint::single(&s2);
         assert!(scanner.scan_cfg(&decoder_only).is_err());
     }
@@ -384,12 +387,10 @@ mod tests {
         bytes.extend_from_slice(&[0u8; 24]);
         std::fs::write(&path, bytes).unwrap();
 
-        let err = SafetensorsWhisperScanner::new()
-            .scan_cfg(&SafetensorsCheckpoint::single(&path))
-            .unwrap_err();
-        assert!(
-            matches!(&err, BunsenError::Invalid(m) if m.contains("no model.encoder.conv1.weight")),
-            "{err}"
-        );
+        ErrorMatcher::kind(BunsenErrorKind::InvalidResource)
+            .message_contains("no model.encoder.conv1.weight")
+            .assert_err(
+                &SafetensorsWhisperScanner::new().scan_cfg(&SafetensorsCheckpoint::single(&path)),
+            );
     }
 }

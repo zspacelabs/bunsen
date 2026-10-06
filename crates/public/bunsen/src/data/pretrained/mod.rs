@@ -126,8 +126,8 @@
 //!         },
 //!     },
 //!     errors::{
-//!         BunsenError,
 //!         BunsenResult,
+//!         sys_at,
 //!     },
 //! };
 //! use burn::{
@@ -153,8 +153,9 @@
 //!         loaded: &LoadedResources,
 //!         _device: &B::Device,
 //!     ) -> BunsenResult<Arc<String>> {
-//!         let text = std::fs::read_to_string(loaded.expect("text")?)
-//!             .map_err(BunsenError::external)?;
+//!         let path = loaded.expect("text")?;
+//!         let text =
+//!             std::fs::read_to_string(path).map_err(sys_at("read", path))?;
 //!         Ok(Arc::new(text))
 //!     }
 //! }
@@ -283,22 +284,23 @@ pub use rows::*;
 #[cfg(feature = "store_safetensors")]
 pub use safetensors::*;
 
-/// [`ResourceNotFound`](crate::errors::BunsenError::ResourceNotFound) for a
-/// name a table does not have, naming what it has: `"<table>: no <kind>
-/// "x"; there are: a, b"`.
+/// A [`Lookup`](crate::errors::BunsenErrorKind::Lookup) error for a name a
+/// table does not have: a [`LookupError`](crate::errors::LookupError) for
+/// `name` among the `kind`s, with the names the table has as candidates, under
+/// a frame naming the table when there is one: `"<table>: no <kind> "x";
+/// there are: a, b"`.
+#[track_caller]
 pub(crate) fn not_found(
     table: Option<&str>,
-    kind: &str,
+    kind: &'static str,
     name: &str,
     names: &[&str],
 ) -> crate::errors::BunsenError {
-    let table = table.map(|t| alloc::format!("{t}: ")).unwrap_or_default();
-    let names = if names.is_empty() {
-        alloc::string::String::from("(none)")
-    } else {
-        names.join(", ")
-    };
-    crate::errors::BunsenError::ResourceNotFound(alloc::format!(
-        "{table}no {kind} {name:?}; there are: {names}"
-    ))
+    let error = crate::errors::BunsenError::lookup(
+        crate::errors::LookupError::missing(kind, name).with_candidates(names.iter().copied()),
+    );
+    match table {
+        Some(table) => error.context(table),
+        None => error,
+    }
 }

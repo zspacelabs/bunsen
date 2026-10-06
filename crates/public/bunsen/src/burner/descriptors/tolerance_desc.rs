@@ -19,6 +19,7 @@ use crate::{
     errors::{
         BunsenError,
         BunsenResult,
+        ConstraintError,
     },
     prelude::TensorDataCheckExt,
 };
@@ -120,22 +121,31 @@ impl TolerancePolicy {
     /// not been checked will panic inside burn rather than returning an error.
     ///
     /// # Errors
-    /// [`BunsenError::Invalid`] if a relative tolerance is outside
+    /// [`Illegal`](crate::errors::BunsenErrorKind::Illegal), with a
+    /// [`ConstraintError`] cause, if a relative tolerance is outside
     /// `0.0..=1.0`, or an absolute tolerance is negative.
     pub fn validate(&self) -> BunsenResult<()> {
         let check_relative = |relative: f64| -> BunsenResult<()> {
             if !(0.0..=1.0).contains(&relative) {
-                return Err(BunsenError::Invalid(format!(
-                    "relative tolerance ({relative}) is not in 0.0..=1.0"
-                )));
+                return Err(ConstraintError::out_of_range(
+                    "TolerancePolicy",
+                    "relative",
+                    relative,
+                    "[0.0, 1.0]",
+                )
+                .into());
             }
             Ok(())
         };
         let check_absolute = |absolute: f64| -> BunsenResult<()> {
             if absolute < 0.0 {
-                return Err(BunsenError::Invalid(format!(
-                    "absolute tolerance ({absolute}) is negative"
-                )));
+                return Err(ConstraintError::out_of_range(
+                    "TolerancePolicy",
+                    "absolute",
+                    absolute,
+                    ">= 0.0",
+                )
+                .into());
             }
             Ok(())
         };
@@ -198,7 +208,8 @@ impl ToleranceDesc {
     /// * `policy` - the tolerance rule.
     ///
     /// # Errors
-    /// [`BunsenError::Invalid`] if `policy` fails
+    /// [`Illegal`](crate::errors::BunsenErrorKind::Illegal), with a
+    /// [`ConstraintError`] cause, if `policy` fails
     /// [`validate`](`TolerancePolicy::validate`).
     pub fn new(
         dtype: FloatDType,
@@ -218,15 +229,17 @@ impl ToleranceDesc {
     /// * `policy` - the tolerance rule.
     ///
     /// # Errors
-    /// [`BunsenError::Invalid`] if `dtype` is not a float type, or if
-    /// `policy` fails [`validate`](`TolerancePolicy::validate`).
+    /// [`Illegal`](crate::errors::BunsenErrorKind::Illegal) if `dtype` is not
+    /// a float type, or if `policy` fails
+    /// [`validate`](`TolerancePolicy::validate`) (with a [`ConstraintError`]
+    /// cause).
     pub fn try_from_dtype(
         dtype: DType,
         policy: TolerancePolicy,
     ) -> BunsenResult<Self> {
         if !dtype.is_float() {
-            return Err(BunsenError::Invalid(format!(
-                "dtype ({dtype:?}) is not a float type"
+            return Err(BunsenError::illegal(format!(
+                "ToleranceDesc.dtype: {dtype:?} is not a float type"
             )));
         }
         Self::new(FloatDType::from(dtype), policy)
@@ -238,7 +251,8 @@ impl ToleranceDesc {
     /// * `policy` - the tolerance rule.
     ///
     /// # Errors
-    /// [`BunsenError::Invalid`] if `policy` fails
+    /// [`Illegal`](crate::errors::BunsenErrorKind::Illegal), with a
+    /// [`ConstraintError`] cause, if `policy` fails
     /// [`validate`](`TolerancePolicy::validate`).
     pub fn of<F: Float + Element>(policy: TolerancePolicy) -> BunsenResult<Self> {
         Self::new(FloatDType::from(F::dtype()), policy)
@@ -280,8 +294,9 @@ impl ToleranceDesc {
     /// * `strict` - whether to enforce strict dtype equality.
     ///
     /// # Errors
-    /// [`BunsenError::AssertionError`] describing the first differing
-    /// positions, if the data are not approximately equal.
+    /// [`Policy`](crate::errors::BunsenErrorKind::Policy), with a
+    /// [`ValueMismatch`](crate::errors::ValueMismatch) cause listing the first
+    /// differing positions, if the data are not approximately equal.
     pub fn try_assert_tensor_data_approx_eq(
         &self,
         actual: &TensorData,
@@ -308,6 +323,11 @@ impl ToleranceDesc {
 #[cfg(test)]
 mod test {
     use super::*;
+    use crate::errors::{
+        BunsenErrorKind,
+        ValueMismatch,
+        testing::ErrorMatcher,
+    };
 
     #[test]
     fn test_default_is_balanced() {
@@ -365,23 +385,24 @@ mod test {
         TolerancePolicy::Relative { relative: 1.0 }.validate()?;
         TolerancePolicy::Absolute { absolute: 0.0 }.validate()?;
 
-        let err = TolerancePolicy::Relative { relative: 2.0 }
-            .validate()
-            .unwrap_err();
-        assert!(err.to_string().contains("not in 0.0..=1.0"), "{err}");
+        ErrorMatcher::kind(BunsenErrorKind::Illegal)
+            .message_eq("TolerancePolicy.relative: 2 is outside [0.0, 1.0]")
+            .has_cause::<ConstraintError>()
+            .assert_err(&TolerancePolicy::Relative { relative: 2.0 }.validate());
 
-        let err = TolerancePolicy::Absolute { absolute: -1.0 }
-            .validate()
-            .unwrap_err();
-        assert!(err.to_string().contains("is negative"), "{err}");
+        ErrorMatcher::kind(BunsenErrorKind::Illegal)
+            .message_eq("TolerancePolicy.absolute: -1 is outside >= 0.0")
+            .assert_err(&TolerancePolicy::Absolute { absolute: -1.0 }.validate());
 
-        let err = TolerancePolicy::RelAbs {
-            relative: 0.5,
-            absolute: -1.0,
-        }
-        .validate()
-        .unwrap_err();
-        assert!(err.to_string().contains("is negative"), "{err}");
+        ErrorMatcher::kind(BunsenErrorKind::Illegal)
+            .message_contains("TolerancePolicy.absolute")
+            .assert_err(
+                &TolerancePolicy::RelAbs {
+                    relative: 0.5,
+                    absolute: -1.0,
+                }
+                .validate(),
+            );
 
         Ok(())
     }
@@ -426,15 +447,22 @@ mod test {
 
     #[test]
     fn test_new_rejects_non_float_dtype() {
-        let err = ToleranceDesc::try_from_dtype(DType::I32, TolerancePolicy::Balanced).unwrap_err();
-        assert!(err.to_string().contains("is not a float type"), "{err}");
+        ErrorMatcher::kind(BunsenErrorKind::Illegal)
+            .message_contains("is not a float type")
+            .assert_err(&ToleranceDesc::try_from_dtype(
+                DType::I32,
+                TolerancePolicy::Balanced,
+            ));
     }
 
     #[test]
     fn test_new_rejects_invalid_policy() {
-        let err = ToleranceDesc::new(FloatDType::F32, TolerancePolicy::Relative { relative: 2.0 })
-            .unwrap_err();
-        assert!(err.to_string().contains("not in 0.0..=1.0"), "{err}");
+        ErrorMatcher::kind(BunsenErrorKind::Illegal)
+            .message_contains("is outside [0.0, 1.0]")
+            .assert_err(&ToleranceDesc::new(
+                FloatDType::F32,
+                TolerancePolicy::Relative { relative: 2.0 },
+            ));
     }
 
     #[test]
@@ -464,10 +492,13 @@ mod test {
         let a = TensorData::from([1.0f32]);
         let b = TensorData::from([1.001f32]);
 
-        let err = ToleranceDesc::of::<f32>(TolerancePolicy::Strict)?
-            .try_assert_tensor_data_approx_eq(&a, &b, true)
-            .unwrap_err();
-        assert!(err.to_string().contains("Position 0: 1 != 1.001"), "{err}");
+        let result = ToleranceDesc::of::<f32>(TolerancePolicy::Strict)?
+            .try_assert_tensor_data_approx_eq(&a, &b, true);
+        ErrorMatcher::kind(BunsenErrorKind::Policy)
+            .message_eq("1 of 1 values differ")
+            .details_contains("position 0: 1 != 1.001")
+            .has_cause::<ValueMismatch>()
+            .assert_err(&result);
 
         Ok(())
     }

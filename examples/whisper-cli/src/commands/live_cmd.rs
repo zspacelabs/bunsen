@@ -153,8 +153,9 @@ impl LiveCmd {
         let stop = Arc::new(AtomicBool::new(false));
         {
             let stop = stop.clone();
-            ctrlc::set_handler(move || stop.store(true, Ordering::SeqCst))
-                .map_err(BunsenError::external)?;
+            ctrlc::set_handler(move || stop.store(true, Ordering::SeqCst)).map_err(|e| {
+                BunsenError::sys("could not install the Ctrl-C handler").with_cause(e)
+            })?;
         }
 
         let (tx, rx) = mpsc::channel::<Block>();
@@ -162,7 +163,9 @@ impl LiveCmd {
         let mut transcript = self.whisper.open_stream(&driver)?;
         let limit = self.seconds.map(|s| (s * capture_rate as f64) as usize);
 
-        stream.play().map_err(BunsenError::external)?;
+        stream.play().map_err(|e| {
+            BunsenError::sys(format!("could not start capture on {device_name}")).with_cause(e)
+        })?;
         eprintln!(
             "listening on {device_name}; {}",
             match self.seconds {
@@ -235,25 +238,30 @@ impl LiveCmd {
         host: &Host,
     ) -> BunsenResult<Device> {
         match &self.device {
-            None => host
-                .default_input_device()
-                .ok_or_else(|| BunsenError::Invalid("no default input device".to_string())),
+            None => host.default_input_device().ok_or_else(|| {
+                BunsenError::policy("no default input device; name one with --device")
+            }),
             Some(want) => {
                 let needle = want.to_lowercase();
                 host.input_devices()
-                    .map_err(BunsenError::external)?
+                    .map_err(list_error)?
                     .find(|device| {
                         device_id(device).to_lowercase().contains(&needle)
                             || device_name(device).to_lowercase().contains(&needle)
                     })
                     .ok_or_else(|| {
-                        BunsenError::Invalid(format!(
+                        BunsenError::policy(format!(
                             "no input device matches {want:?}; see --list-devices"
                         ))
                     })
             }
         }
     }
+}
+
+/// Sorts a failure to enumerate the host's input devices.
+fn list_error(e: cpal::DevicesError) -> BunsenError {
+    BunsenError::sys("could not list the input devices").with_cause(e)
 }
 
 /// The device's human-readable name; `?` when the host cannot say.
@@ -300,7 +308,7 @@ fn list_devices(host: &Host) -> BunsenResult<()> {
         Some(device) => println!("default: {}  {}", device_id(&device), device_name(&device)),
         None => println!("default: none"),
     }
-    for device in host.input_devices().map_err(BunsenError::external)? {
+    for device in host.input_devices().map_err(list_error)? {
         let id = device_id(&device);
         let name = device_name(&device);
         match device.default_input_config() {
@@ -325,7 +333,9 @@ fn pick_config(
 ) -> BunsenResult<SupportedStreamConfig> {
     let native = device
         .supported_input_configs()
-        .map_err(BunsenError::external)?
+        .map_err(|e| {
+            BunsenError::sys("could not list the device's input configurations").with_cause(e)
+        })?
         .filter(|range| {
             format_rank(range.sample_format()).is_some()
                 && range.min_sample_rate() <= rate
@@ -337,11 +347,11 @@ fn pick_config(
         return Ok(config);
     }
 
-    let config = device
-        .default_input_config()
-        .map_err(BunsenError::external)?;
+    let config = device.default_input_config().map_err(|e| {
+        BunsenError::sys("could not read the device's default input configuration").with_cause(e)
+    })?;
     if format_rank(config.sample_format()).is_none() {
-        return Err(BunsenError::Invalid(format!(
+        return Err(BunsenError::unsupported(format!(
             "the device captures {}, which this cannot read",
             config.sample_format()
         )));
@@ -401,7 +411,7 @@ fn build_stream(
             error_callback,
             None,
         )
-        .map_err(BunsenError::external)
+        .map_err(|e| BunsenError::sys("could not open the input stream").with_cause(e))
 }
 
 /// Averages each frame's channels into one `f32` sample in `[-1, 1]`.

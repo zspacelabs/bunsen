@@ -46,7 +46,10 @@ pub trait AuditBody {
 /// Each runs on its backend's default test device.
 ///
 /// # Errors
-/// The first checkpoint that does not verify, or a mismatched event count.
+/// [`Policy`](crate::errors::BunsenErrorKind::Policy), with a
+/// [`ValueMismatch`](crate::errors::ValueMismatch) cause, for the first
+/// checkpoint that does not verify, or a mismatched event count. Any error the
+/// body itself returns, unchanged.
 pub fn audit_across<R: Backend, T: Backend>(body: &impl AuditBody) -> BunsenResult<()> {
     let mut recorder = AuditStreamRecorder::default();
     body.run::<R>(
@@ -84,7 +87,9 @@ pub enum BaselineOutcome {
 /// `options.mode()`; see [`audit_baseline_at`].
 ///
 /// # Errors
-/// See [`audit_baseline_at`]; or `name` escapes the backend directory.
+/// See [`audit_baseline_at`];
+/// [`Illegal`](crate::errors::BunsenErrorKind::Illegal) if `name` escapes the
+/// backend directory.
 pub fn audit_baseline<B: Backend>(
     options: &ReportsOptions,
     name: &str,
@@ -101,8 +106,17 @@ pub fn audit_baseline<B: Backend>(
 /// `Record` always records; `Verify` requires the file.
 ///
 /// # Errors
-/// A checkpoint that does not verify, a mismatched event count, a missing
-/// baseline under `Verify`, or an I/O failure.
+/// - [`Policy`](crate::errors::BunsenErrorKind::Policy), with a
+///   [`ValueMismatch`](crate::errors::ValueMismatch) cause, for a checkpoint
+///   that does not verify, or a mismatched event count;
+/// - [`Lookup`](crate::errors::BunsenErrorKind::Lookup) for a missing baseline
+///   under `Verify`;
+/// - as [`load_audit_stream`] and [`save_audit_stream`] for a baseline that
+///   does not read or write;
+/// - any error the body itself returns, unchanged.
+///
+/// [`load_audit_stream`]: crate::audit::load_audit_stream
+/// [`save_audit_stream`]: crate::audit::save_audit_stream
 pub fn audit_baseline_at<B: Backend>(
     path: &Path,
     mode: BaselineMode,
@@ -136,7 +150,17 @@ mod tests {
     use super::*;
     use crate::{
         burner::descriptors::TolerancePolicy,
-        errors::BunsenError,
+        errors::{
+            BunsenErrorKind,
+            LookupError,
+            LookupProblem,
+            ParseError,
+            ValueMismatch,
+            testing::{
+                ErrorMatcher,
+                predicate,
+            },
+        },
         support::testing::{
             CpuBackend,
             PerformanceBackend,
@@ -225,30 +249,48 @@ mod tests {
     #[test]
     fn test_verifier_rejects_a_changed_value() {
         let mut verifier = record(&Body::PLAIN).into_verifier();
-        let err = verify(&mut verifier, &Body::SHIFTED).unwrap_err();
-        assert!(err.to_string().contains("\"x\""), "{err}");
+        ErrorMatcher::kind(BunsenErrorKind::Policy)
+            .frame_contains("audit mismatch at event 0 (\"x\")")
+            .assert_err(&verify(&mut verifier, &Body::SHIFTED));
     }
 
     #[test]
     fn test_verifier_rejects_an_extra_event() {
         let mut verifier = record(&Body::PLAIN).into_verifier();
-        let err = verify(&mut verifier, &Body::EXTRA).unwrap_err();
-        assert!(err.to_string().contains("unexpected audit event"), "{err}");
+        ErrorMatcher::kind(BunsenErrorKind::Policy)
+            .message_contains("unexpected audit event")
+            .has_cause::<ValueMismatch>()
+            .assert_err(&verify(&mut verifier, &Body::EXTRA));
     }
 
     #[test]
     fn test_verifier_rejects_a_missing_event() {
         let mut verifier = record(&Body::EXTRA).into_verifier();
         verify(&mut verifier, &Body::PLAIN).unwrap();
-        let err = verifier.finish().unwrap_err();
-        assert!(err.to_string().contains("saw 2 of 3 events"), "{err}");
+        ErrorMatcher::kind(BunsenErrorKind::Policy)
+            .message_contains("saw 2 of 3 events")
+            .has_cause::<ValueMismatch>()
+            .assert_err(&verifier.finish());
     }
 
     #[test]
     fn test_load_missing_stream_is_not_found() {
         let dir = tempfile::tempdir().unwrap();
-        let err = AuditStreamVerifier::load(&dir.path().join("nope.cbor")).unwrap_err();
-        assert!(matches!(err, BunsenError::ResourceNotFound(_)), "{err}");
+        ErrorMatcher::kind(BunsenErrorKind::Lookup)
+            .cause(predicate("a missing path", |c: &LookupError| {
+                c.problem == LookupProblem::Missing && c.key.ends_with("nope.cbor")
+            }))
+            .assert_err(&AuditStreamVerifier::load(&dir.path().join("nope.cbor")));
+    }
+
+    #[test]
+    fn test_load_garbage_stream_is_invalid_resource() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("garbage.cbor");
+        std::fs::write(&path, b"\xff\xff not cbor").unwrap();
+        ErrorMatcher::kind(BunsenErrorKind::InvalidResource)
+            .has_cause::<ParseError>()
+            .assert_err(&AuditStreamVerifier::load(&path));
     }
 
     /// The CPU backend against the one selected by feature (`cuda`, `metal`,

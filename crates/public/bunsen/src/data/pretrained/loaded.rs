@@ -12,12 +12,14 @@ use std::{
 use super::{
     ResolvedResource,
     ResourceMap,
+    not_found,
 };
 use crate::{
     data::cache::link_or_copy,
     errors::{
         BunsenError,
         BunsenResult,
+        sys_at,
     },
 };
 
@@ -58,22 +60,16 @@ impl LoadedResources {
     /// The path of the resource called `key`.
     ///
     /// # Errors
-    /// [`BunsenError::ResourceNotFound`] naming the keys there are.
+    /// [`Lookup`](crate::errors::BunsenErrorKind::Lookup), with a
+    /// [`LookupError`](crate::errors::LookupError) naming the keys there
+    /// are, under a frame naming the map.
     pub fn expect(
         &self,
         key: &str,
     ) -> BunsenResult<&Path> {
-        self.get(key).map(|r| r.path.as_path()).ok_or_else(|| {
-            let keys = if self.parts.is_empty() {
-                "(none)".to_string()
-            } else {
-                self.keys().join(", ")
-            };
-            BunsenError::ResourceNotFound(format!(
-                "{}: no resource {key:?}; there are: {keys}",
-                self.map.name
-            ))
-        })
+        self.get(key)
+            .map(|r| r.path.as_path())
+            .ok_or_else(|| not_found(Some(&self.map.name), "resource", key, &self.keys()))
     }
 
     /// The label of the resource called `key`, for a listing or a hook's
@@ -118,15 +114,17 @@ impl LoadedResources {
     /// already at a part's place is replaced.
     ///
     /// # Errors
-    /// [`BunsenError::Invalid`] if two parts would land under one file
-    /// name; [`BunsenError::External`] if the directory or a link cannot
-    /// be made.
+    /// [`Illegal`](crate::errors::BunsenErrorKind::Illegal) if two parts
+    /// would land under one file name: the map is declared wrong. An
+    /// `io::Error` sorted by [`sys_at`], naming the path, if the directory
+    /// cannot be made or a file in the way removed; as [`link_or_copy`] if a
+    /// link or copy cannot be made.
     pub fn materialize(
         &self,
         dir: impl Into<PathBuf>,
     ) -> BunsenResult<PathBuf> {
         let dir = dir.into();
-        fs::create_dir_all(&dir).map_err(BunsenError::external)?;
+        fs::create_dir_all(&dir).map_err(sys_at("create", &dir))?;
         let mut placed: BTreeMap<&str, &str> = BTreeMap::new();
         for (key, part) in self.iter() {
             let file = self
@@ -135,14 +133,14 @@ impl LoadedResources {
                 .map(|r| r.file.as_str())
                 .unwrap_or_else(|| key);
             if let Some(other) = placed.insert(file, key) {
-                return Err(BunsenError::Invalid(format!(
-                    "{}: {key} and {other} would both land as {file:?}",
-                    self.map.name
-                )));
+                return Err(BunsenError::illegal(format!(
+                    "{key} and {other} would both land as {file:?}"
+                ))
+                .context(&self.map.name));
             }
             let dest = dir.join(file);
             if dest.symlink_metadata().is_ok() {
-                fs::remove_file(&dest).map_err(BunsenError::external)?;
+                fs::remove_file(&dest).map_err(sys_at("remove", &dest))?;
             }
             link_or_copy(&part.path, &dest)?;
         }
@@ -155,9 +153,19 @@ mod tests {
     use std::path::PathBuf;
 
     use super::*;
-    use crate::data::pretrained::{
-        Provenance,
-        Resource,
+    use crate::{
+        data::pretrained::{
+            Provenance,
+            Resource,
+        },
+        errors::{
+            BunsenErrorKind,
+            LookupError,
+            testing::{
+                ErrorMatcher,
+                predicate,
+            },
+        },
     };
 
     fn loaded() -> LoadedResources {
@@ -208,24 +216,25 @@ mod tests {
     #[test]
     fn test_expect_names_the_keys_there_are() {
         let loaded = loaded();
-        match loaded.expect("config") {
-            Err(BunsenError::ResourceNotFound(m)) => {
-                assert_eq!(
-                    m,
-                    "m: no resource \"config\"; there are: checkpoint, vocabulary"
-                );
-            }
-            other => panic!("{other:?}"),
-        }
+        let err = loaded.expect("config").unwrap_err();
+        ErrorMatcher::kind(BunsenErrorKind::Lookup)
+            .cause(predicate("a missing \"config\"", |c: &LookupError| {
+                c.key == "config" && c.candidates == ["checkpoint", "vocabulary"]
+            }))
+            .assert(&err);
+        assert_eq!(
+            err.to_string(),
+            "m: no resource \"config\"; there are: checkpoint, vocabulary"
+        );
 
         let empty = LoadedResources {
             map: ResourceMap::new("empty"),
             parts: BTreeMap::new(),
         };
-        assert!(matches!(
-            empty.expect("x"),
-            Err(BunsenError::ResourceNotFound(m)) if m.ends_with("there are: (none)")
-        ));
+        ErrorMatcher::kind(BunsenErrorKind::Lookup)
+            .message_eq("no resource \"x\"")
+            .frame_contains("empty")
+            .assert_err(&empty.expect("x"));
     }
 
     /// The view holds every part under its resource's file name, reads as
@@ -287,9 +296,9 @@ mod tests {
                 })
                 .collect(),
         };
-        assert!(matches!(
-            clash.materialize(dir.path().join("clash")),
-            Err(BunsenError::Invalid(m)) if m.contains("same.bin")
-        ));
+        ErrorMatcher::kind(BunsenErrorKind::Illegal)
+            .message_contains("same.bin")
+            .frame_contains("clash")
+            .assert_err(&clash.materialize(dir.path().join("clash")));
     }
 }

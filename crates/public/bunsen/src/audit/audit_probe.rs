@@ -37,8 +37,9 @@ use crate::{
         TolerancePolicy,
     },
     errors::{
-        BunsenError,
         BunsenResult,
+        ResultContext,
+        ValueMismatch,
     },
     prelude::{
         TensorDataCheckExt,
@@ -378,7 +379,23 @@ impl AuditProbeEventParams {
 }
 
 /// Applies per-type event equality.
+///
+/// # Errors
+/// [`Policy`](crate::errors::BunsenErrorKind::Policy), with a
+/// [`ValueMismatch`] cause, if the params, the data map's shape signatures, or
+/// the data differ. The error carries a frame naming the event, whose details
+/// hold the event's variant, label, timestamp, source location and params.
 pub fn try_match_events(
+    actual: &impl AuditProbeEventView,
+    expected: &impl AuditProbeEventView,
+) -> BunsenResult<()> {
+    match_events_at(None, actual, expected)
+}
+
+/// [`try_match_events`] for the event at position `index` of a stream, which
+/// the error's frame names.
+pub(crate) fn match_events_at(
+    index: Option<usize>,
     actual: &impl AuditProbeEventView,
     expected: &impl AuditProbeEventView,
 ) -> BunsenResult<()> {
@@ -387,11 +404,15 @@ pub fn try_match_events(
         expected: &impl AuditProbeEventView,
     ) -> BunsenResult<()> {
         if expected.params() != actual.params() {
-            return Err(BunsenError::Invalid(format!(
-                "StreamEvent params {:?} != expected {:?}",
-                expected.params(),
-                actual.params()
-            )));
+            return Err(ValueMismatch::Other {
+                summary: "event params differ from the expected event's".to_string(),
+                details: Some(format!(
+                    "actual: {:?}\nexpected: {:?}",
+                    actual.params(),
+                    expected.params(),
+                )),
+            }
+            .into());
         }
 
         actual.assert_shape_signatures_eq(expected)?;
@@ -413,28 +434,39 @@ pub fn try_match_events(
             }
         }
     }
-    cmp(actual, expected).map_err(|err| {
+    cmp(actual, expected).context_details(|| {
         let header = actual.header();
         let params = actual.params();
 
-        let mut msg = format!("AuditEvent::{name}:", name = params.variant_name());
+        let mut frame = "audit mismatch".to_string();
+        if let Some(index) = index {
+            frame.push_str(&format!(" at event {index}"));
+        }
         if let Some(label) = &header.label {
-            msg.push_str(&format!(" \"{label}\""));
+            frame.push_str(&format!(" ({label:?})"));
+        }
+
+        let mut details = format!("event: AuditEvent::{}", params.variant_name());
+        if let Some(label) = &header.label {
+            details.push_str(&format!(" {label:?}"));
         }
 
         let ts_utc: OffsetDateTime = header.ts.into();
-        // 2. Format using a macro-compiled description
         let format = format_description!("[year]-[month]-[day] [hour]:[minute]:[second]");
-        let formatted = ts_utc.format(&format).unwrap();
-        msg.push_str(&format!(" @{formatted}\n"));
+        let formatted = ts_utc
+            .format(&format)
+            .unwrap_or_else(|_| ts_utc.to_string());
+        details.push_str(&format!("\ntime: {formatted}"));
 
         if let Some(loc) = &header.loc {
-            msg.push_str(&format!(" at {loc}\n"));
+            details.push_str(&format!("\nat: {loc}"));
         }
-        msg.push_str(&format!("{params:#?}"));
-        msg.push_str(&format!("{err}"));
+        if let Some(loc) = &expected.header().loc {
+            details.push_str(&format!("\nexpected at: {loc}"));
+        }
+        details.push_str(&format!("\nparams: {params:#?}"));
 
-        BunsenError::AssertionError(msg)
+        (frame, details)
     })
 }
 
@@ -442,8 +474,18 @@ pub fn try_match_events(
 mod tests {
     use super::*;
     use crate::{
-        audit::AuditProbeVecRecorder,
-        errors::WithOkOrPanic,
+        audit::{
+            AuditProbeEvent,
+            AuditProbeVecRecorder,
+        },
+        errors::{
+            BunsenErrorKind,
+            WithOkOrPanic,
+            testing::{
+                ErrorMatcher,
+                text,
+            },
+        },
         support::testing::{
             CpuBackend,
             PerformanceBackend,
@@ -453,7 +495,7 @@ mod tests {
 
     #[test]
     #[serial_test::serial]
-    #[should_panic = "iota"]
+    #[should_panic = "audit mismatch at event 0 (\"iota\")"]
     fn test_missmatch() {
         let mut recorder = AuditProbeVecRecorder::default();
         let probe = &mut AuditProbe::new(vec![&mut recorder]);
@@ -474,6 +516,32 @@ mod tests {
             let iota: Tensor<B, 1> = Tensor::arange(5..15, &device).float();
             probe.assert_eq_as::<f64>("iota", &iota).ok_or_panic();
         }
+    }
+
+    #[test]
+    fn test_params_mismatch_names_both_sides() {
+        let data = TensorData::from([1.0f32, 2.0]);
+        let event = |params: AuditProbeEventParams| AuditProbeEvent {
+            header: AuditProbeEventHeader::new(Some("x".to_string()), None, None),
+            params,
+            data: HashMap::from([("data".to_string(), vec![data.clone()])]),
+        };
+        let actual = event(AuditProbeEventParams::AssertTensorEq);
+        let expected = event(AuditProbeEventParams::AssertTensorApproxEx {
+            tolerance: ToleranceDesc::of::<f32>(TolerancePolicy::Balanced).unwrap(),
+        });
+
+        ErrorMatcher::kind(BunsenErrorKind::Policy)
+            .message_eq("event params differ from the expected event's")
+            .details_contains("actual: AssertTensorEq\nexpected: AssertTensorApproxEx")
+            .has_cause::<ValueMismatch>()
+            .frame(text::eq("audit mismatch at event 4 (\"x\")"))
+            .frame_details_contains("event: AuditEvent::AssertTensorEq \"x\"")
+            .assert_err(&match_events_at(Some(4), &actual, &expected));
+
+        ErrorMatcher::kind(BunsenErrorKind::Policy)
+            .frame(text::eq("audit mismatch (\"x\")"))
+            .assert_err(&try_match_events(&actual, &expected));
     }
 
     #[test]

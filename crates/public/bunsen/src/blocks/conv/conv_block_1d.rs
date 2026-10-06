@@ -111,8 +111,9 @@ pub trait ConvBlock1dMeta {
     ///
     /// # Errors
     ///
-    /// [`BunsenError::Invalid`] if there is no legal output length (the kernel
-    /// does not fit the padded input).
+    /// [`Illegal`](crate::errors::BunsenErrorKind::Illegal) if there is no
+    /// legal output length (the kernel does not fit the padded input).
+    /// The message names the input length and the convolution geometry.
     fn try_output_length(
         &self,
         in_length: usize,
@@ -139,8 +140,12 @@ pub trait ConvBlock1dMeta {
             self.dilation(),
         )
         .ok_or_else(|| {
-            BunsenError::Invalid(format!(
-                "ConvBlock1d has no legal output length for input length ({in_length})"
+            BunsenError::illegal(format!(
+                "ConvBlock1d has no legal output length for input length ({in_length}) \
+                 with kernel_size {kernel_size}, stride {stride}, dilation {}, \
+                 padding {:?}",
+                self.dilation(),
+                self.padding(),
             ))
         })
     }
@@ -421,9 +426,15 @@ mod tests {
     };
 
     use super::*;
-    use crate::support::testing::{
-        CpuBackend,
-        backend_device,
+    use crate::{
+        errors::{
+            BunsenErrorKind,
+            testing::ErrorMatcher,
+        },
+        support::testing::{
+            CpuBackend,
+            backend_device,
+        },
     };
 
     #[test]
@@ -479,10 +490,9 @@ mod tests {
 
         // No legal output when the kernel cannot fit.
         let too_big = block(Conv1dConfig::new(2, 4, 5).with_padding(PaddingConfig1d::Valid));
-        assert!(matches!(
-            too_big.try_output_length(3),
-            Err(BunsenError::Invalid(_))
-        ));
+        ErrorMatcher::kind(BunsenErrorKind::Illegal)
+            .message_contains("input length (3)")
+            .assert_err(&too_big.try_output_length(3));
     }
 
     #[test]

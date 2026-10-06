@@ -16,7 +16,6 @@ serde_json = { workspace = true }
 burn = { workspace = true, features = ["fusion", "autotune"] }
 # `silero-weights` supplies `SileroVadCollection::load_pretrained`.
 bunsen = { path = "../../public/bunsen", features = ["testing", "silero-weights"] }
-hound = { workspace = true }
 
 [lints]
 workspace = true

@@ -7,6 +7,7 @@ use burn::prelude::TensorData;
 use crate::errors::{
     BunsenError,
     BunsenResult,
+    ValueMismatch,
 };
 
 /// Borrowed view over an event's data map.
@@ -35,7 +36,9 @@ pub type EventDataView<'a> = HashMap<&'a str, Vec<&'a TensorData>>;
 /// * `keys` - the complete set of keys declared by the pattern.
 ///
 /// # Errors
-/// [`BunsenError::Invalid`] if `view` holds any undeclared key.
+/// [`Policy`](crate::errors::BunsenErrorKind::Policy), with a
+/// [`ValueMismatch`] cause, if `view` holds any undeclared key. The error has
+/// a frame naming `target`.
 pub fn assert_exact_data_keys(
     target: &str,
     view: &EventDataView<'_>,
@@ -52,22 +55,38 @@ pub fn assert_exact_data_keys(
     }
     unexpected.sort_unstable();
 
-    Err(BunsenError::Invalid(format!(
-        "in `{target}`: unexpected event data keys {unexpected:?}; \
-             pattern declares {keys:?}"
-    )))
+    Err(mismatch(
+        target,
+        format!("unexpected event data keys {unexpected:?}; pattern declares {keys:?}"),
+    ))
+}
+
+/// An event data map that does not match the pattern: a [`ValueMismatch`],
+/// under a frame naming the `target`.
+#[track_caller]
+fn mismatch(
+    target: &str,
+    summary: String,
+) -> BunsenError {
+    BunsenError::from(ValueMismatch::Other {
+        summary,
+        details: None,
+    })
+    .context(format!("unpacking `{target}`"))
 }
 
 /// Build the "wrong arity" error for a key.
+#[track_caller]
 fn arity_error(
     target: &str,
     key: &str,
     expected: &str,
     actual: usize,
 ) -> BunsenError {
-    BunsenError::Invalid(format!(
-        "in `{target}`: event data key `{key}` has {actual} values, expected {expected}"
-    ))
+    mismatch(
+        target,
+        format!("event data key `{key}` has {actual} values, expected {expected}"),
+    )
 }
 
 /// Look up `key`, or report it missing.
@@ -81,9 +100,10 @@ fn get_values<'v, 'x>(
         None => {
             let mut present: Vec<&str> = view.keys().copied().collect();
             present.sort_unstable();
-            Err(BunsenError::Invalid(format!(
-                "in `{target}`: missing event data key `{key}`; present keys {present:?}"
-            )))
+            Err(mismatch(
+                target,
+                format!("missing event data key `{key}`; present keys {present:?}"),
+            ))
         }
     }
 }
@@ -96,8 +116,9 @@ fn get_values<'v, 'x>(
 /// * `key` - the key to take.
 ///
 /// # Errors
-/// [`BunsenError::Invalid`] if `key` is absent, or is not bound to
-/// exactly one value.
+/// [`Policy`](crate::errors::BunsenErrorKind::Policy), with a
+/// [`ValueMismatch`] cause, if `key` is absent, or is not bound to exactly one
+/// value. The error has a frame naming `target`.
 pub fn take_one<'x>(
     target: &str,
     view: &EventDataView<'x>,
@@ -118,8 +139,9 @@ pub fn take_one<'x>(
 /// * `key` - the key to take.
 ///
 /// # Errors
-/// [`BunsenError::Invalid`] if `key` is absent, or is not bound to
-/// exactly `K` values.
+/// [`Policy`](crate::errors::BunsenErrorKind::Policy), with a
+/// [`ValueMismatch`] cause, if `key` is absent, or is not bound to exactly `K`
+/// values. The error has a frame naming `target`.
 pub fn take_fixed<'x, const K: usize>(
     target: &str,
     view: &EventDataView<'x>,
@@ -140,7 +162,9 @@ pub fn take_fixed<'x, const K: usize>(
 /// * `key` - the key to take.
 ///
 /// # Errors
-/// [`BunsenError::Invalid`] if `key` is absent.
+/// [`Policy`](crate::errors::BunsenErrorKind::Policy), with a
+/// [`ValueMismatch`] cause, if `key` is absent. The error has a frame naming
+/// `target`.
 pub fn take_any<'x>(
     target: &str,
     view: &EventDataView<'x>,
@@ -176,8 +200,10 @@ pub fn take_any<'x>(
 /// [`BunsenResult`] of an array of unpacked structs, one per target.
 ///
 /// # Errors
-/// [`BunsenError::Invalid`] if any target's data map does not match
-/// the pattern exactly. The error names the target expression.
+/// [`Policy`](crate::errors::BunsenErrorKind::Policy), with a
+/// [`ValueMismatch`](crate::errors::ValueMismatch) cause, if any target's data
+/// map does not match the pattern exactly. The error has a frame naming the
+/// target expression: ``unpacking `&event` ``.
 pub use crate::__unpack_audit_probe_event_data as unpack_audit_probe_event_data;
 
 #[doc(hidden)]
@@ -241,6 +267,13 @@ mod test {
             audit_probe::AuditProbeEventParams,
         },
         burner::descriptors::ToleranceDesc,
+        errors::{
+            BunsenErrorKind,
+            testing::{
+                ErrorMatcher,
+                text,
+            },
+        },
     };
 
     fn event(data: HashMap<String, Vec<TensorData>>) -> AuditProbeEvent {
@@ -322,15 +355,12 @@ mod test {
             ("grad".to_string(), vec![a.clone()]),
         ]));
 
-        let err = unpack_audit_probe_event_data!([&e], { data }).unwrap_err();
-
-        let msg = err.to_string();
-        assert!(msg.contains("in `&e`"), "{msg}");
-        assert!(
-            msg.contains("unexpected event data keys [\"grad\"]"),
-            "{msg}"
-        );
-        assert!(msg.contains("pattern declares [\"data\"]"), "{msg}");
+        ErrorMatcher::kind(BunsenErrorKind::Policy)
+            .frame(text::eq("unpacking `&e`"))
+            .message_contains("unexpected event data keys [\"grad\"]")
+            .message_contains("pattern declares [\"data\"]")
+            .has_cause::<ValueMismatch>()
+            .assert_err(&unpack_audit_probe_event_data!([&e], { data }));
     }
 
     #[test]
@@ -338,11 +368,11 @@ mod test {
         let a = TensorData::from([1, 2, 3]);
         let e = event(HashMap::from([("data".to_string(), vec![a.clone()])]));
 
-        let err = unpack_audit_probe_event_data!([&e], { data, grad }).unwrap_err();
-
-        let msg = err.to_string();
-        assert!(msg.contains("missing event data key `grad`"), "{msg}");
-        assert!(msg.contains("present keys [\"data\"]"), "{msg}");
+        ErrorMatcher::kind(BunsenErrorKind::Policy)
+            .frame(text::eq("unpacking `&e`"))
+            .message_contains("missing event data key `grad`")
+            .message_contains("present keys [\"data\"]")
+            .assert_err(&unpack_audit_probe_event_data!([&e], { data, grad }));
     }
 
     #[test]
@@ -353,20 +383,13 @@ mod test {
             vec![a.clone(), a.clone()],
         )]));
 
-        let solo = unpack_audit_probe_event_data!([&e], { data }).unwrap_err();
-        assert!(
-            solo.to_string()
-                .contains("key `data` has 2 values, expected 1"),
-            "{solo}"
-        );
+        ErrorMatcher::kind(BunsenErrorKind::Policy)
+            .message_contains("key `data` has 2 values, expected 1")
+            .assert_err(&unpack_audit_probe_event_data!([&e], { data }));
 
-        let fixed = unpack_audit_probe_event_data!([&e], { data: [3] }).unwrap_err();
-        assert!(
-            fixed
-                .to_string()
-                .contains("key `data` has 2 values, expected 3"),
-            "{fixed}"
-        );
+        ErrorMatcher::kind(BunsenErrorKind::Policy)
+            .message_contains("key `data` has 2 values, expected 3")
+            .assert_err(&unpack_audit_probe_event_data!([&e], { data: [3] }));
     }
 
     /// The failing target is named, not just the key.
@@ -376,8 +399,9 @@ mod test {
         let good = event(HashMap::from([("data".to_string(), vec![a.clone()])]));
         let bad = event(HashMap::from([("other".to_string(), vec![a.clone()])]));
 
-        let err = unpack_audit_probe_event_data!([&good, &bad], { data }).unwrap_err();
-
-        assert!(err.to_string().contains("in `&bad`"), "{err}");
+        ErrorMatcher::kind(BunsenErrorKind::Policy)
+            .frame(text::eq("unpacking `&bad`"))
+            .display_contains("unpacking `&bad`: ")
+            .assert_err(&unpack_audit_probe_event_data!([&good, &bad], { data }));
     }
 }

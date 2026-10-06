@@ -1,6 +1,10 @@
 //! # Constructing a Whisper pretrained
 
-use std::sync::Arc;
+use std::{
+    error::Error,
+    fmt,
+    sync::Arc,
+};
 
 use burn::prelude::Backend;
 
@@ -26,7 +30,9 @@ use crate::{
     },
     errors::{
         BunsenError,
+        BunsenErrorKind,
         BunsenResult,
+        ResultContext,
     },
     kits::{
         speech::whisper::{
@@ -45,6 +51,86 @@ use crate::{
         tokens::TiktokenRanks,
     },
 };
+
+/// A checkpoint scanned to a geometry other than the one its model
+/// promises: the files at a name are not the model the name claims.
+///
+/// The cause of the [`InvalidResource`](BunsenErrorKind::InvalidResource)
+/// error [`WhisperConstruct::scan`] (and so
+/// [`plan`](Construct::plan)) returns for it. A caller that wants to tell
+/// this apart from a checkpoint it could not read at all finds it with
+/// [`BunsenError::find`]:
+///
+/// ```
+/// # #[cfg(all(feature = "store_pytorch", feature = "cache"))] {
+/// use bunsen::{
+///     errors::{
+///         BunsenError,
+///         BunsenErrorKind,
+///     },
+///     kits::speech::whisper::{
+///         WhisperGeometry,
+///         pretrained::GeometryMismatch,
+///     },
+/// };
+///
+/// let e = BunsenError::from(GeometryMismatch::new(
+///     "well-known:openai/tiny",
+///     WhisperGeometry::openai(80, 51865, 384, 4, 4),
+///     WhisperGeometry::openai(80, 51865, 512, 6, 6),
+/// ));
+/// assert_eq!(e.kind(), BunsenErrorKind::InvalidResource);
+/// let mismatch = e.find::<GeometryMismatch>().unwrap();
+/// assert_eq!(mismatch.model, "well-known:openai/tiny");
+/// # }
+/// ```
+#[non_exhaustive]
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct GeometryMismatch {
+    /// The model's id, as [`PretrainedRef::id`] gives it.
+    pub model: String,
+    /// The geometry the model promises.
+    pub expected: WhisperGeometry,
+    /// The geometry the checkpoint scanned to.
+    pub found: WhisperGeometry,
+}
+
+impl GeometryMismatch {
+    /// `model`'s checkpoint scanned to `found`, not the promised `expected`.
+    pub fn new(
+        model: impl Into<String>,
+        expected: WhisperGeometry,
+        found: WhisperGeometry,
+    ) -> Self {
+        Self {
+            model: model.into(),
+            expected,
+            found,
+        }
+    }
+}
+
+impl fmt::Display for GeometryMismatch {
+    fn fmt(
+        &self,
+        f: &mut fmt::Formatter<'_>,
+    ) -> fmt::Result {
+        write!(
+            f,
+            "{}: the checkpoint's geometry is {:?}, not the promised {:?}",
+            self.model, self.found, self.expected
+        )
+    }
+}
+
+impl Error for GeometryMismatch {}
+
+impl From<GeometryMismatch> for BunsenError {
+    #[track_caller]
+    fn from(error: GeometryMismatch) -> Self {
+        BunsenError::from_cause(BunsenErrorKind::InvalidResource, error)
+    }
+}
 
 /// How a Whisper checkpoint is read: by the layout its resource's `kind`
 /// names.
@@ -81,8 +167,8 @@ impl WhisperReader {
     /// `store_safetensors` feature; anything else has no reader here.
     ///
     /// # Errors
-    /// [`BunsenError::Invalid`] naming the kind, and the feature when it is
-    /// the one missing.
+    /// [`Unsupported`](BunsenErrorKind::Unsupported) naming the kind, and the
+    /// feature when it is the one missing.
     pub fn for_kind(kind: Option<&str>) -> BunsenResult<Self> {
         match kind {
             None => Ok(Self::default()),
@@ -92,10 +178,10 @@ impl WhisperReader {
                 Ok(Self::Safetensors(SafetensorsWhisperScanner::new()))
             }
             #[cfg(not(feature = "store_safetensors"))]
-            Some(kind) if kind.starts_with(SAFETENSORS) => Err(BunsenError::Invalid(format!(
+            Some(kind) if kind.starts_with(SAFETENSORS) => Err(BunsenError::unsupported(format!(
                 "no reader for a {kind:?} checkpoint without the `store_safetensors` feature"
             ))),
-            Some(kind) => Err(BunsenError::Invalid(format!(
+            Some(kind) => Err(BunsenError::unsupported(format!(
                 "no reader for a {kind:?} checkpoint; the Whisper kit reads PyTorch and safetensors checkpoints"
             ))),
         }
@@ -105,8 +191,10 @@ impl WhisperReader {
     /// config without loading its weights.
     ///
     /// # Errors
-    /// [`BunsenError::ResourceNotFound`] when `loaded` has no checkpoint;
-    /// the scanner's for files that are not a checkpoint of its layout.
+    /// [`Lookup`](BunsenErrorKind::Lookup) when `loaded` has no checkpoint;
+    /// the scanner's for files that are not a checkpoint of its layout
+    /// ([`InvalidResource`](BunsenErrorKind::InvalidResource), for the most
+    /// part).
     pub fn scan_cfg(
         &self,
         loaded: &LoadedResources,
@@ -234,9 +322,10 @@ impl WhisperConstruct {
     /// weights, and checks it against the geometry `model` promises.
     ///
     /// # Errors
-    /// As [`WhisperReader::scan_cfg`]; [`BunsenError::Invalid`]
-    /// naming both geometries when the files at that name are not the
-    /// model it claims to be.
+    /// As [`WhisperReader::scan_cfg`];
+    /// [`InvalidResource`](BunsenErrorKind::InvalidResource), with a
+    /// [`GeometryMismatch`] cause naming both geometries, when the files at
+    /// that name are not the model it claims to be.
     pub fn scan(
         &self,
         model: &PretrainedRef,
@@ -254,10 +343,9 @@ impl WhisperConstruct {
         found: &WhisperGeometry,
     ) -> BunsenResult<()> {
         match self.expected_for(model) {
-            Some(expected) if expected != *found => Err(BunsenError::Invalid(format!(
-                "{}: the checkpoint's geometry is {found:?}, not the promised {expected:?}",
-                model.id()
-            ))),
+            Some(expected) if expected != *found => {
+                Err(GeometryMismatch::new(model.id(), expected, *found).into())
+            }
             _ => Ok(()),
         }
     }
@@ -279,10 +367,7 @@ impl Construct for WhisperConstruct {
             map.try_get(CHECKPOINT)?;
             unreachable!("an empty family is a missing key");
         };
-        let reader = WhisperReader::for_kind(first.kind.as_deref()).map_err(|e| match e {
-            BunsenError::Invalid(m) => BunsenError::Invalid(format!("{}: {m}", first.key)),
-            e => e,
-        })?;
+        let reader = WhisperReader::for_kind(first.kind.as_deref()).context(&first.key)?;
         Ok(Self::new().with_reader(reader))
     }
 
@@ -292,6 +377,12 @@ impl Construct for WhisperConstruct {
     /// checkpoint's layout selects; a map that declares one must declare
     /// that file, by name and digest, from wherever it serves it, unless
     /// the caller gave it, which is trusted.
+    ///
+    /// A vocabulary size that is not a Whisper layout is the checkpoint's
+    /// fault, not the code's: it comes back as
+    /// [`Policy`](BunsenErrorKind::Policy), under a frame naming the model.
+    /// A declared vocabulary the checkpoint does not select is
+    /// [`InvalidResource`](BunsenErrorKind::InvalidResource).
     fn plan(
         &self,
         model: &PretrainedRef,
@@ -305,7 +396,12 @@ impl Construct for WhisperConstruct {
         let loaded = cache.load(WHISPER_KIT, &checkpoint)?;
         let cfg = self.scan(model, &loaded)?;
 
-        let ids = *cfg.token_layout.policy_for_vocab(cfg.vocab_size)?.ids();
+        let ids = *cfg
+            .token_layout
+            .policy_for_vocab(cfg.vocab_size)
+            .as_policy()
+            .with_context(|| model.id())?
+            .ids();
         let rule = WhisperVocabulary::for_layout(&ids).map().to_map();
         match map.get(VOCABULARY).cloned() {
             None => map.fuse(rule, Fuse::Strict),
@@ -315,7 +411,7 @@ impl Construct for WhisperConstruct {
                 // served from (a bundle, a mirror) is its own business.
                 let selected = rule.try_get(VOCABULARY)?;
                 if declared.file != selected.file || declared.sha256 != selected.sha256 {
-                    return Err(BunsenError::Invalid(format!(
+                    return Err(BunsenError::invalid_resource(format!(
                         "{}: declares the vocabulary {} but the checkpoint's layout selects {}",
                         map.name, declared.file, selected.file
                     )));
@@ -328,19 +424,27 @@ impl Construct for WhisperConstruct {
     /// Reads the checkpoint into a model at the precision it ships in, and
     /// the vocabulary, when there is one, into ranks the layout agrees
     /// with.
+    ///
+    /// A layout the checkpoint and the vocabulary disagree on is their
+    /// fault, not the code's: it comes back as
+    /// [`Policy`](BunsenErrorKind::Policy), under a frame naming the model.
     fn construct<B: Backend>(
         &self,
-        _model: &PretrainedRef,
+        model: &PretrainedRef,
         loaded: &LoadedResources,
         device: &B::Device,
     ) -> BunsenResult<Arc<WhisperBundle<B>>> {
-        let (model, cfg) = self.reader.load::<B>(loaded, device)?;
-        let layout = cfg.token_layout.policy_for_vocab(cfg.vocab_size)?;
-        let mut bundle = WhisperBundle::new(model, layout);
+        let (whisper, cfg) = self.reader.load::<B>(loaded, device)?;
+        let layout = cfg
+            .token_layout
+            .policy_for_vocab(cfg.vocab_size)
+            .as_policy()
+            .with_context(|| model.id())?;
+        let mut bundle = WhisperBundle::new(whisper, layout);
         if let Some(part) = loaded.get(VOCABULARY) {
             bundle = bundle.with_ranks(TiktokenRanks::load(&part.path)?);
         }
-        bundle.validate()?;
+        bundle.validate().as_policy().with_context(|| model.id())?;
         Ok(Arc::new(bundle))
     }
 }
@@ -348,7 +452,10 @@ impl Construct for WhisperConstruct {
 #[cfg(test)]
 mod reader_tests {
     use super::*;
-    use crate::data::pretrained::Deferred;
+    use crate::{
+        data::pretrained::Deferred,
+        errors::testing::ErrorMatcher,
+    };
 
     /// The checkpoint's `kind` chooses the reader when the hook is chosen,
     /// before its file is opened: an unlabeled or `PyTorch` one gets the
@@ -374,11 +481,9 @@ mod reader_tests {
         }
         #[cfg(not(feature = "store_safetensors"))]
         {
-            let err = WhisperConstruct::for_map(&map).unwrap_err();
-            assert!(
-                matches!(&err, BunsenError::Invalid(m) if m.contains("store_safetensors")),
-                "{err}"
-            );
+            ErrorMatcher::kind(BunsenErrorKind::Unsupported)
+                .message_contains("store_safetensors")
+                .assert_err(&WhisperConstruct::for_map(&map));
         }
 
         // A sharded family under the key: its first resource speaks.
@@ -401,18 +506,15 @@ mod reader_tests {
         assert!(WhisperConstruct::for_map(&sharded).is_err());
 
         map.resources.get_mut(CHECKPOINT).unwrap().kind = Some("burnpack".to_string());
-        let err = WhisperConstruct::for_map(&map).unwrap_err();
-        assert!(
-            matches!(&err, BunsenError::Invalid(m) if m.starts_with("checkpoint: no reader for a \"burnpack\"")),
-            "{err}"
-        );
-        assert!(matches!(
-            Deferred::<WhisperConstruct>::from_map(map),
-            Err(BunsenError::Invalid(_))
-        ));
+        ErrorMatcher::kind(BunsenErrorKind::Unsupported)
+            .frame_contains("checkpoint")
+            .display_contains("checkpoint: no reader for a \"burnpack\"")
+            .assert_err(&WhisperConstruct::for_map(&map));
+        ErrorMatcher::kind(BunsenErrorKind::Unsupported)
+            .assert_err(&Deferred::<WhisperConstruct>::from_map(map));
 
-        let err = WhisperConstruct::for_map(&ResourceMap::new("empty")).unwrap_err();
-        assert!(matches!(err, BunsenError::ResourceNotFound(_)), "{err}");
+        ErrorMatcher::kind(BunsenErrorKind::Lookup)
+            .assert_err(&WhisperConstruct::for_map(&ResourceMap::new("empty")));
     }
 }
 
@@ -424,6 +526,10 @@ mod tests {
     use super::*;
     use crate::{
         data::pretrained::Provenance,
+        errors::testing::{
+            ErrorMatcher,
+            predicate,
+        },
         kits::speech::whisper::{
             WhisperMeta,
             pretrained::{
@@ -512,13 +618,10 @@ mod tests {
             .to_map()
             .fuse(GPT2_VOCABULARY.to_map(), Fuse::Strict)
             .unwrap();
-        let err = WhisperConstruct::new()
-            .plan(&PretrainedRef::from(wrong), &cache)
-            .unwrap_err();
-        assert!(
-            matches!(&err, BunsenError::Invalid(m) if m.contains("gpt2.tiktoken") && m.contains("multilingual.tiktoken")),
-            "{err}"
-        );
+        ErrorMatcher::kind(BunsenErrorKind::InvalidResource)
+            .message_contains("gpt2.tiktoken")
+            .message_contains("multilingual.tiktoken")
+            .assert_err(&WhisperConstruct::new().plan(&PretrainedRef::from(wrong), &cache));
 
         let overridden = PretrainedRef::from(BASE_CHECKPOINT.to_map())
             .with_overlay(ResourceMap::given(
@@ -589,11 +692,15 @@ mod tests {
         hook.plan(&given, &cache).unwrap();
 
         let tiny = hook.clone().with_expected(Some(geometry_of("tiny")));
-        let err = tiny.plan(&given, &cache).unwrap_err();
-        assert!(
-            matches!(&err, BunsenError::Invalid(m) if m.contains("promised")),
-            "{err}"
-        );
+        ErrorMatcher::kind(BunsenErrorKind::InvalidResource)
+            .message_contains("promised")
+            .cause(predicate(
+                "tiny expected, base found",
+                |m: &GeometryMismatch| {
+                    m.expected == geometry_of("tiny") && m.found == geometry_of("base")
+                },
+            ))
+            .assert_err(&tiny.plan(&given, &cache));
 
         // An explicit expectation overrides a wrong promise: `base.pt`
         // under `openai/tiny`, told to expect base, scans.
@@ -633,8 +740,9 @@ mod tests {
             WhisperConstruct::new().with_scanner(PytorchWhisperScanner::new().with_d_head(32));
 
         let named = resolve_model("openai/base").unwrap();
-        let err = hook.scan(&named, &loaded(base)).unwrap_err();
-        assert!(matches!(err, BunsenError::Invalid(_)), "{err}");
+        ErrorMatcher::kind(BunsenErrorKind::InvalidResource)
+            .has_cause::<GeometryMismatch>()
+            .assert_err(&hook.scan(&named, &loaded(base)));
 
         let given = PretrainedRef::from(ResourceMap::given("base", CHECKPOINT, base));
         let cfg = hook.scan(&given, &loaded(base)).unwrap();
@@ -647,10 +755,14 @@ mod tests {
     #[test]
     fn test_a_checkpoint_under_the_wrong_name_is_rejected() {
         let model = resolve_model("openai/tiny").unwrap();
-        let err = WhisperConstruct::new()
-            .scan(&model, &loaded(bunsen_bundled_whisper::base_pt()))
-            .unwrap_err();
-        assert!(matches!(err, BunsenError::Invalid(_)), "{err}");
-        assert!(err.to_string().contains("openai/tiny"), "{err}");
+        ErrorMatcher::kind(BunsenErrorKind::InvalidResource)
+            .cause(predicate(
+                "a mismatch under openai/tiny",
+                |m: &GeometryMismatch| m.model.contains("openai/tiny"),
+            ))
+            .display_contains("openai/tiny")
+            .assert_err(
+                &WhisperConstruct::new().scan(&model, &loaded(bunsen_bundled_whisper::base_pt())),
+            );
     }
 }
