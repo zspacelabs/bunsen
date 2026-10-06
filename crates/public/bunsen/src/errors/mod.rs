@@ -292,6 +292,9 @@
 //! [`try_point_bounds_check`]: crate::zspace::try_point_bounds_check
 //! [`expect_point_bounds_check`]: crate::zspace::expect_point_bounds_check
 
+#[cfg(any(test, feature = "testing"))]
+pub mod testing;
+
 mod bunsen_error;
 mod constraint_error;
 mod detailed;
@@ -305,8 +308,6 @@ mod parse_error;
 mod report;
 mod result_ext;
 mod slicing_error;
-#[cfg(any(test, feature = "testing"))]
-pub mod testing;
 mod value_mismatch;
 
 pub use bunsen_error::*;
