@@ -15,26 +15,32 @@ use sha2::{
 };
 
 use crate::errors::{
-    BunsenError,
     BunsenResult,
+    DigestMismatch,
+    DigestOrigin,
+    sys_at,
 };
 
 /// The lowercase hex SHA-256 of a file.
 ///
 /// # Errors
-/// [`BunsenError::External`] if the file cannot be read.
+/// If the file cannot be read, sorted by its `io::Error` and naming the path
+/// (see [`sys_at`]): [`Lookup`](crate::errors::BunsenErrorKind::Lookup) for a
+/// missing or forbidden file, usually
+/// [`Sys`](crate::errors::BunsenErrorKind::Sys) otherwise.
 pub fn sha256_of(path: &Path) -> BunsenResult<String> {
-    let file = fs::File::open(path).map_err(BunsenError::external)?;
+    let file = fs::File::open(path).map_err(sys_at("open", path))?;
     let mut reader = HashingReader::new(file);
-    io::copy(&mut reader, &mut io::sink()).map_err(BunsenError::external)?;
+    io::copy(&mut reader, &mut io::sink()).map_err(sys_at("read", path))?;
     Ok(reader.hex_digest())
 }
 
-/// Checks a file against a lowercase hex SHA-256.
+/// Checks a file at rest against a lowercase hex SHA-256.
 ///
 /// # Errors
-/// [`BunsenError::Invalid`] on a mismatch, [`BunsenError::External`] if the
-/// file cannot be read.
+/// [`InvalidResource`](crate::errors::BunsenErrorKind::InvalidResource), with
+/// a [`DigestMismatch`] cause whose origin is [`DigestOrigin::AtRest`], on a
+/// mismatch; as [`sha256_of`] if the file cannot be read.
 pub fn verify_sha256(
     path: &Path,
     sha256: &str,
@@ -43,10 +49,13 @@ pub fn verify_sha256(
     if found == sha256 {
         Ok(())
     } else {
-        Err(BunsenError::Invalid(format!(
-            "{}: sha256 is {found}, expected {sha256}",
-            path.display()
-        )))
+        Err(DigestMismatch::new(
+            path.display().to_string(),
+            DigestOrigin::AtRest,
+            sha256,
+            found,
+        )
+        .into())
     }
 }
 
@@ -98,7 +107,18 @@ mod tests {
     };
 
     use super::*;
-    use crate::data::cache::testing::ABC_SHA256;
+    use crate::{
+        data::cache::testing::ABC_SHA256,
+        errors::{
+            BunsenErrorKind,
+            LookupError,
+            LookupProblem,
+            testing::{
+                ErrorMatcher,
+                predicate,
+            },
+        },
+    };
 
     #[test]
     fn test_sha256_of_and_verify() {
@@ -108,21 +128,24 @@ mod tests {
 
         assert_eq!(sha256_of(&path).unwrap(), ABC_SHA256);
         verify_sha256(&path, ABC_SHA256).unwrap();
-        assert!(matches!(
-            verify_sha256(&path, &"0".repeat(64)),
-            Err(BunsenError::Invalid(_))
-        ));
+        ErrorMatcher::kind(BunsenErrorKind::InvalidResource)
+            .cause(predicate("an at-rest mismatch", |m: &DigestMismatch| {
+                m.origin == DigestOrigin::AtRest && m.found == ABC_SHA256
+            }))
+            .assert_err(&verify_sha256(&path, &"0".repeat(64)));
     }
 
+    /// A missing file is a `Lookup` of its path.
     #[test]
-    fn test_a_missing_file_is_external() {
+    fn test_a_missing_file_is_a_lookup() {
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("missing");
-        assert!(matches!(sha256_of(&path), Err(BunsenError::External(_))));
-        assert!(matches!(
-            verify_sha256(&path, ABC_SHA256),
-            Err(BunsenError::External(_))
-        ));
+        let missing = ErrorMatcher::kind(BunsenErrorKind::Lookup)
+            .cause(predicate("a missing path", |l: &LookupError| {
+                l.problem == LookupProblem::Missing
+            }));
+        missing.assert_err(&sha256_of(&path));
+        missing.assert_err(&verify_sha256(&path, ABC_SHA256));
     }
 
     /// The digest covers every byte however the reads are split, and the

@@ -9,6 +9,7 @@ use super::{
 use crate::errors::{
     BunsenError,
     BunsenResult,
+    LookupError,
 };
 
 /// A compiled-in table of shard sets.
@@ -57,7 +58,9 @@ impl StaticShardSetMap {
     /// The set called `name`.
     ///
     /// # Errors
-    /// [`BunsenError::ResourceNotFound`] naming the sets there are.
+    /// [`Lookup`](crate::errors::BunsenErrorKind::Lookup), with a
+    /// [`LookupError`] cause naming the sets there are, under a frame naming
+    /// the table.
     pub fn try_lookup(
         &self,
         name: &str,
@@ -114,7 +117,9 @@ impl ShardSetMap {
     /// The set called `name`.
     ///
     /// # Errors
-    /// [`BunsenError::ResourceNotFound`] naming the sets there are.
+    /// [`Lookup`](crate::errors::BunsenErrorKind::Lookup), with a
+    /// [`LookupError`] cause naming the sets there are, under a frame naming
+    /// the collection.
     pub fn try_lookup(
         &self,
         name: &str,
@@ -140,16 +145,27 @@ fn not_found(
     name: &str,
     names: &[&str],
 ) -> BunsenError {
-    BunsenError::ResourceNotFound(format!(
-        "{map}: no shard set {name:?}; there are: {}",
-        names.join(", ")
-    ))
+    BunsenError::lookup(
+        LookupError::missing("shard set", name).with_candidates(names.iter().copied()),
+    )
+    .context(map)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::data::shards::StaticShardDigests;
+    use crate::{
+        data::shards::StaticShardDigests,
+        errors::{
+            BunsenErrorKind,
+            LookupProblem,
+            testing::{
+                ErrorMatcher,
+                predicate,
+                text,
+            },
+        },
+    };
 
     static TINY: StaticShardSetDescriptor<'static> = StaticShardSetDescriptor {
         name: "tiny",
@@ -188,15 +204,16 @@ mod tests {
         assert_eq!(SETS.names(), vec!["tiny", "small"]);
         assert_eq!(SETS.lookup("small").unwrap().count, 3);
         assert_eq!(SETS.expect_lookup("tiny"), TINY.to_descriptor());
-        match SETS.try_lookup("large") {
-            Err(BunsenError::ResourceNotFound(m)) => {
-                assert_eq!(
-                    m,
-                    "test-sets: no shard set \"large\"; there are: tiny, small"
-                );
-            }
-            other => panic!("{other:?}"),
-        }
+        ErrorMatcher::kind(BunsenErrorKind::Lookup)
+            .display(text::eq(
+                "test-sets: no shard set \"large\"; there are: tiny, small",
+            ))
+            .cause(predicate("a missing set", |l: &LookupError| {
+                l.problem == LookupProblem::Missing
+                    && l.key == "large"
+                    && l.candidates == ["tiny", "small"]
+            }))
+            .assert_err(&SETS.try_lookup("large"));
     }
 
     #[test]
@@ -207,10 +224,10 @@ mod tests {
         assert_eq!(map.names(), vec!["small", "tiny"], "owned names are sorted");
         assert_eq!(map.lookup("tiny"), SETS.lookup("tiny"));
         assert_eq!(map.expect_lookup("small").template, "{index}.bin");
-        assert!(matches!(
-            map.try_lookup("large"),
-            Err(BunsenError::ResourceNotFound(_))
-        ));
+        ErrorMatcher::kind(BunsenErrorKind::Lookup)
+            .frame_contains("test-sets")
+            .message_eq("no shard set \"large\"; there are: small, tiny")
+            .assert_err(&map.try_lookup("large"));
         for d in map.items.values() {
             d.validate().unwrap();
         }

@@ -22,6 +22,7 @@ use super::BunsenDiskCache;
 use crate::errors::{
     BunsenError,
     BunsenResult,
+    Multiple,
 };
 
 /// One file to bring in.
@@ -96,7 +97,11 @@ pub struct FetchPolicy {
     /// Transfers in flight at once. `0` runs one.
     pub parallel: usize,
 
-    /// Extra attempts per job after its first, each over every mirror again.
+    /// Extra attempts per mirror after its first, for a failure a retry can
+    /// help: one whose kind
+    /// [is retryable](crate::errors::BunsenErrorKind::is_retryable), such as
+    /// a dropped connection, a timeout, or a 5xx. Each retry waits first:
+    /// see [`BunsenDiskCache::fetch_from_urls_retrying`].
     pub retries: u32,
 
     /// What one failure does to the jobs not yet started.
@@ -152,13 +157,16 @@ pub enum FetchOutcome {
     /// The file was fetched and checked.
     Fetched(PathBuf),
 
-    /// Every attempt failed; `error` is the last one.
+    /// Every attempt failed.
     Failed {
         /// Where the file was going.
         dest: PathBuf,
-        /// The last attempt's error.
+        /// The error, as
+        /// [`fetch_from_urls`](BunsenDiskCache::fetch_from_urls) returns it:
+        /// with several mirrors that all failed, a
+        /// [`Multiple`] of each mirror's last error.
         error: BunsenError,
-        /// Attempts made, the first included.
+        /// Fetches tried, over every mirror, the first included.
         attempts: u32,
     },
 
@@ -240,7 +248,11 @@ impl FetchReport {
     /// Every file's path, in job order, when every file is there.
     ///
     /// # Errors
-    /// [`BunsenError::External`] naming each job that failed or was skipped.
+    /// A [`Multiple`] with one member per job that failed or was skipped,
+    /// labelled by its file name, whose kind comes from theirs (see
+    /// [`Multiple::kind`]). A failed job's member is its error; a skipped
+    /// job's is [`Unavailable`](crate::errors::BunsenErrorKind::Unavailable):
+    /// it was not tried, and another run may land it.
     pub fn paths(&self) -> BunsenResult<Vec<PathBuf>> {
         if self.is_complete() {
             return Ok(self
@@ -249,23 +261,24 @@ impl FetchReport {
                 .filter_map(|o| o.path().map(Path::to_path_buf))
                 .collect());
         }
-        let missing: Vec<String> = self
+        let members: Vec<(String, BunsenError)> = self
             .outcomes
             .iter()
             .filter_map(|o| match o {
-                FetchOutcome::Failed { dest, error, .. } => {
-                    Some(format!("{}: {error}", file_name(dest)))
-                }
-                FetchOutcome::Skipped { dest } => Some(format!("{}: skipped", file_name(dest))),
+                FetchOutcome::Failed { dest, error, .. } => Some((file_name(dest), error.clone())),
+                FetchOutcome::Skipped { dest } => Some((
+                    file_name(dest),
+                    BunsenError::unavailable("skipped: an earlier failure stopped the batch"),
+                )),
                 _ => None,
             })
             .collect();
-        Err(BunsenError::External(format!(
-            "{} of {} fetches did not land: {}",
-            missing.len(),
-            self.outcomes.len(),
-            missing.join("; ")
-        )))
+        let summary = format!(
+            "{} of {} fetches did not land",
+            members.len(),
+            self.outcomes.len()
+        );
+        Err(Multiple::new(summary, members).into())
     }
 
     fn count(
@@ -315,8 +328,9 @@ impl BunsenDiskCache {
     /// Brings every job's file in, `policy.parallel` at a time.
     ///
     /// A job whose file is already there is [`FetchOutcome::Cached`]; the
-    /// rest go through [`fetch_from_urls`](Self::fetch_from_urls), up to
-    /// `policy.retries` more times each on failure. Under
+    /// rest go through
+    /// [`fetch_from_urls_retrying`](Self::fetch_from_urls_retrying), which
+    /// retries a mirror that is down up to `policy.retries` more times. Under
     /// [`OnFailure::Stop`], the first failure keeps any job not yet started
     /// from starting. Every transfer reports to the observer stack.
     pub fn fetch_many(
@@ -378,19 +392,13 @@ impl BunsenDiskCache {
             return FetchOutcome::Cached(job.dest.clone());
         }
         let urls: Vec<&str> = job.urls.iter().map(String::as_str).collect();
-        let mut attempts = 0;
-        let mut last = None;
-        while attempts <= retries {
-            attempts += 1;
-            match self.fetch_from_urls(&urls, &job.dest, job.sha256.as_deref()) {
-                Ok(()) => return FetchOutcome::Fetched(job.dest.clone()),
-                Err(e) => last = Some(e),
-            }
-        }
-        FetchOutcome::Failed {
-            dest: job.dest.clone(),
-            error: last.expect("at least one attempt was made"),
-            attempts,
+        match self.fetch_mirrors(&urls, &job.dest, job.sha256.as_deref(), retries) {
+            (Ok(()), _) => FetchOutcome::Fetched(job.dest.clone()),
+            (Err(error), attempts) => FetchOutcome::Failed {
+                dest: job.dest.clone(),
+                error,
+                attempts,
+            },
         }
     }
 }
@@ -412,9 +420,13 @@ mod tests {
                 serve_flaky,
                 serve_n,
                 serve_once,
+                serve_status,
             },
         },
-        errors::BunsenError,
+        errors::{
+            BunsenErrorKind,
+            testing::ErrorMatcher,
+        },
     };
 
     fn cache_in(dir: &Path) -> BunsenDiskCache {
@@ -494,15 +506,11 @@ mod tests {
         );
         assert_eq!(fs::read(root.join("shard_1.bin")).unwrap(), b"abc");
 
-        match report.paths() {
-            Err(BunsenError::External(message)) => {
-                assert!(
-                    message.starts_with("1 of 3 fetches did not land: shard_2.bin: "),
-                    "{message}"
-                );
-            }
-            other => panic!("expected External, got {other:?}"),
-        }
+        ErrorMatcher::kind(BunsenErrorKind::Unavailable)
+            .message_eq("1 of 3 fetches did not land")
+            .details_contains("shard_2.bin: [Unavailable] ")
+            .member(0, ErrorMatcher::kind(BunsenErrorKind::Unavailable))
+            .assert_err(&report.paths());
         let summary = report.to_string();
         assert!(
             summary.starts_with("1 fetched, 1 cached, 1 failed, 0 skipped (shard_2.bin: "),
@@ -529,12 +537,10 @@ mod tests {
         assert!(matches!(report.outcomes[1], FetchOutcome::Skipped { .. }));
         assert_eq!(report.skipped(), 1);
         assert!(!dir.path().join("b.bin").exists());
-        match report.paths() {
-            Err(BunsenError::External(message)) => {
-                assert!(message.contains("b.bin: skipped"), "{message}");
-            }
-            other => panic!("expected External, got {other:?}"),
-        }
+        ErrorMatcher::kind(BunsenErrorKind::Unavailable)
+            .message_eq("2 of 2 fetches did not land")
+            .details_contains("b.bin: [Unavailable] skipped")
+            .assert_err(&report.paths());
         assert_eq!(
             report.to_string().split(" (").next().unwrap(),
             "0 fetched, 0 cached, 1 failed, 1 skipped"
@@ -542,7 +548,8 @@ mod tests {
     }
 
     /// A mirror that drops the first connection comes good on the retry; the
-    /// attempt count says how many it took, and without a retry it fails.
+    /// attempt count says how many it took, and without a retry it fails. A
+    /// failure a retry cannot help, a `404`, is not retried.
     #[test]
     fn test_retries_come_good() {
         let dir = tempfile::tempdir().unwrap();
@@ -564,6 +571,19 @@ mod tests {
             matches!(report.outcomes[0], FetchOutcome::Failed { attempts: 1, .. }),
             "{report}"
         );
+
+        let missing = serve_status("m.bin", 404);
+        let jobs = vec![FetchJob::new([missing], dir.path().join("m.bin"))];
+        let report = cache.fetch_many(&jobs, &FetchPolicy::default().with_retries(3));
+        match &report.outcomes[0] {
+            FetchOutcome::Failed {
+                error, attempts, ..
+            } => {
+                assert_eq!(*attempts, 1);
+                ErrorMatcher::kind(BunsenErrorKind::Lookup).assert(error);
+            }
+            other => panic!("expected a failure, got {other:?}"),
+        }
     }
 
     /// Several jobs off one server, more jobs than workers; every path comes

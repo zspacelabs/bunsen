@@ -20,6 +20,10 @@ use crate::{
     errors::{
         BunsenError,
         BunsenResult,
+        ConstraintError,
+        LookupError,
+        ResultContext,
+        Rule,
     },
 };
 
@@ -195,37 +199,51 @@ impl ShardSetDescriptor {
     /// [`INDEX_PLACEHOLDER`], at least one base URL, at least one shard.
     ///
     /// # Errors
-    /// [`BunsenError::Invalid`] naming the first problem.
+    /// [`Illegal`](crate::errors::BunsenErrorKind::Illegal) naming the first
+    /// problem, under a frame naming the set; a
+    /// [`ConstraintError`] cause for an empty `base_urls`, a zero `count`, or
+    /// a digest table whose length is not `count`. A descriptor read from
+    /// outside the program is the reader's to re-mark
+    /// [`as_policy`](crate::errors::ResultContext::as_policy).
     pub fn validate(&self) -> BunsenResult<()> {
+        self.validate_fields().context(&self.name)
+    }
+
+    /// [`validate`](Self::validate), without the frame.
+    fn validate_fields(&self) -> BunsenResult<()> {
+        const OWNER: &str = "ShardSetDescriptor";
         let placeholders = self.template.matches(INDEX_PLACEHOLDER).count();
         if placeholders != 1 {
-            return Err(BunsenError::Invalid(format!(
-                "{}: template {:?} must contain {INDEX_PLACEHOLDER} exactly once, not {placeholders} times",
-                self.name, self.template
+            return Err(BunsenError::illegal(format!(
+                "template {:?} must contain {INDEX_PLACEHOLDER} exactly once, not {placeholders} times",
+                self.template
             )));
         }
         if self.base_urls.is_empty() {
-            return Err(BunsenError::Invalid(format!("{}: no base URL", self.name)));
+            return Err(ConstraintError::zero_or_empty(OWNER, "base_urls").into());
         }
         if self.count == 0 {
-            return Err(BunsenError::Invalid(format!("{}: no shards", self.name)));
+            return Err(ConstraintError::zero_or_empty(OWNER, "count").into());
         }
         if let ShardDigests::Table(table) = &self.digests {
             if table.len() != self.count {
-                return Err(BunsenError::Invalid(format!(
-                    "{}: {} digests for {} shards",
-                    self.name,
-                    table.len(),
-                    self.count
-                )));
+                return Err(ConstraintError::new(
+                    OWNER,
+                    "digests",
+                    Rule::Relation {
+                        lhs: ("digests.len()".to_string(), table.len().to_string()),
+                        op: "==",
+                        rhs: ("count".to_string(), self.count.to_string()),
+                    },
+                )
+                .into());
             }
             let is_hex = |d: &str| {
                 d.len() == 64 && d.bytes().all(|b| matches!(b, b'0'..=b'9' | b'a'..=b'f'))
             };
             if let Some((i, bad)) = table.iter().enumerate().find(|(_, d)| !is_hex(d)) {
-                return Err(BunsenError::Invalid(format!(
-                    "{}: shard {i}'s digest {bad:?} is not 64 lowercase hex digits",
-                    self.name
+                return Err(BunsenError::illegal(format!(
+                    "shard {i}'s digest {bad:?} is not 64 lowercase hex digits"
                 )));
             }
         }
@@ -304,7 +322,8 @@ impl ShardSetDescriptor {
     /// together.
     ///
     /// # Errors
-    /// [`BunsenError::Invalid`] for an id outside the set.
+    /// [`Lookup`](crate::errors::BunsenErrorKind::Lookup), with a
+    /// [`LookupError`] cause, for an id outside the set.
     pub fn to_resource_map(
         &self,
         ids: &[ShardId],
@@ -315,10 +334,10 @@ impl ShardSetDescriptor {
         map.origin = self.origin.clone();
         for &id in ids {
             if !self.contains(id) {
-                return Err(BunsenError::Invalid(format!(
-                    "{}: shard {id} is out of range; the set has {} shards",
-                    self.name, self.count
-                )));
+                return Err(BunsenError::lookup(LookupError::out_of_range(
+                    "shard", id, self.count,
+                ))
+                .context(&self.name));
             }
             let file = self.file_name(id);
             map.insert(Resource {
@@ -340,8 +359,9 @@ impl ShardSetDescriptor {
     /// positive.
     ///
     /// # Errors
-    /// [`BunsenError::Invalid`] for a bound outside `0..=count` or a
-    /// reversed slice.
+    /// [`Illegal`](crate::errors::BunsenErrorKind::Illegal), under a frame
+    /// naming the set: with a [`ConstraintError`] cause for a bound outside
+    /// `-count..=count`, or for a reversed slice.
     pub fn select(
         &self,
         slices: &[Slice],
@@ -354,10 +374,13 @@ impl ShardSetDescriptor {
                 bound
             };
             if resolved < 0 || resolved > count as isize {
-                return Err(BunsenError::Invalid(format!(
-                    "shard index {bound} is out of range for {}, which has {count} shards",
-                    self.name
-                )));
+                return Err(BunsenError::from(ConstraintError::out_of_range(
+                    "ShardSetDescriptor::select",
+                    "slices",
+                    format!("shard index {bound}"),
+                    format!("-{count}..={count}"),
+                ))
+                .context(&self.name));
             }
             Ok(resolved as usize)
         };
@@ -365,9 +388,10 @@ impl ShardSetDescriptor {
         let mut ids = BTreeSet::new();
         for slice in slices {
             if slice.is_reversed() {
-                return Err(BunsenError::Invalid(format!(
+                return Err(BunsenError::illegal(format!(
                     "shard slice {slice} is reversed; shards are selected in order"
-                )));
+                ))
+                .context(&self.name));
             }
             let start = resolve(slice.start)?;
             let end = match slice.end {
@@ -384,6 +408,14 @@ impl ShardSetDescriptor {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::errors::{
+        BunsenErrorKind,
+        LookupProblem,
+        testing::{
+            ErrorMatcher,
+            predicate,
+        },
+    };
 
     pub(crate) fn tiny() -> StaticShardSetDescriptor<'static> {
         StaticShardSetDescriptor {
@@ -434,19 +466,23 @@ mod tests {
 
         let mut short = d.clone();
         short.digests = ShardDigests::Table(vec![TINY_SHA256[0].to_string(); 11]);
-        assert!(matches!(
-            short.validate(),
-            Err(BunsenError::Invalid(m)) if m.contains("11 digests for 12 shards")
-        ));
+        ErrorMatcher::kind(BunsenErrorKind::Illegal)
+            .display_contains(
+                "tiny: ShardSetDescriptor.digests: digests.len() (11) must be == count (12)",
+            )
+            .cause(predicate("the digests field", |c: &ConstraintError| {
+                c.field == "digests"
+            }))
+            .assert_err(&short.validate());
 
         let mut bad = d.clone();
         let mut table = vec![TINY_SHA256[0].to_string(); 12];
         table[3] = TINY_SHA256[0].to_uppercase();
         bad.digests = ShardDigests::Table(table);
-        assert!(matches!(
-            bad.validate(),
-            Err(BunsenError::Invalid(m)) if m.contains("shard 3's digest")
-        ));
+        ErrorMatcher::kind(BunsenErrorKind::Illegal)
+            .message_contains("shard 3's digest")
+            .frame_contains("tiny")
+            .assert_err(&bad.validate());
     }
 
     #[test]
@@ -473,17 +509,29 @@ mod tests {
     fn test_validate_names_the_problem() {
         let mut d = tiny().to_descriptor();
         d.template = "shard.bin".to_string();
-        assert!(matches!(d.validate(), Err(BunsenError::Invalid(m)) if m.contains("exactly once")));
+        ErrorMatcher::kind(BunsenErrorKind::Illegal)
+            .message_contains("exactly once")
+            .assert_err(&d.validate());
         d.template = "{index}-{index}".to_string();
-        assert!(matches!(d.validate(), Err(BunsenError::Invalid(_))));
+        ErrorMatcher::kind(BunsenErrorKind::Illegal)
+            .message_contains("not 2 times")
+            .assert_err(&d.validate());
+
+        let zero_or_empty = |field: &'static str| {
+            ErrorMatcher::kind(BunsenErrorKind::Illegal)
+                .frame_contains("tiny")
+                .cause(predicate(field, move |c: &ConstraintError| {
+                    c.field == field && c.rule == Rule::ZeroOrEmpty
+                }))
+        };
 
         let mut d = tiny().to_descriptor();
         d.base_urls.clear();
-        assert!(matches!(d.validate(), Err(BunsenError::Invalid(m)) if m.contains("no base URL")));
+        zero_or_empty("base_urls").assert_err(&d.validate());
 
         let mut d = tiny().to_descriptor();
         d.count = 0;
-        assert!(matches!(d.validate(), Err(BunsenError::Invalid(m)) if m.contains("no shards")));
+        zero_or_empty("count").assert_err(&d.validate());
     }
 
     #[test]
@@ -540,18 +588,18 @@ mod tests {
             "empty at the end"
         );
 
-        assert!(matches!(
-            d.select(&[Slice::from(..13)]),
-            Err(BunsenError::Invalid(_))
-        ));
-        assert!(matches!(
-            d.select(&[Slice::from(-13..)]),
-            Err(BunsenError::Invalid(_))
-        ));
-        assert!(matches!(
-            d.select(&[Slice::with_step(5, Some(0), -1)]),
-            Err(BunsenError::Invalid(_))
-        ));
+        let out_of_range = ErrorMatcher::kind(BunsenErrorKind::Illegal)
+            .frame_contains("tiny")
+            .has_cause::<ConstraintError>();
+        out_of_range
+            .message_contains("shard index 13 is outside -12..=12")
+            .assert_err(&d.select(&[Slice::from(..13)]));
+        ErrorMatcher::kind(BunsenErrorKind::Illegal)
+            .message_contains("shard index -13 is outside -12..=12")
+            .assert_err(&d.select(&[Slice::from(-13..)]));
+        ErrorMatcher::kind(BunsenErrorKind::Illegal)
+            .message_contains("is reversed")
+            .assert_err(&d.select(&[Slice::with_step(5, Some(0), -1)]));
     }
 
     /// The shards a slice names, as a map: keyed by file name, pinned when
@@ -586,10 +634,12 @@ mod tests {
         assert!(unpinned.get("shard_003.bin").unwrap().sha256.is_none());
         assert_eq!(unpinned.len(), 1);
 
-        assert!(matches!(
-            d.to_resource_map(&[ShardId(12)]),
-            Err(BunsenError::Invalid(_))
-        ));
+        ErrorMatcher::kind(BunsenErrorKind::Lookup)
+            .display_contains("tiny: shard 12 is out of range; there are 12")
+            .cause(predicate("shard 12 of 12", |l: &LookupError| {
+                l.problem == LookupProblem::OutOfRange { len: 12 }
+            }))
+            .assert_err(&d.to_resource_map(&[ShardId(12)]));
     }
 
     #[test]

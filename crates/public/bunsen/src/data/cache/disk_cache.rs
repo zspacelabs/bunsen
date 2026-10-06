@@ -7,13 +7,12 @@ use std::{
     },
     sync::Arc,
 };
-
 #[cfg(feature = "fetch")]
-use crate::data::cache::{
-    fetch_file,
-    fetch_verified,
-    file_name_from_url,
+use std::{
+    thread,
+    time::Duration,
 };
+
 use crate::{
     data::cache::{
         BUNSEN_CACHE_CONFIG,
@@ -24,6 +23,21 @@ use crate::{
     errors::{
         BunsenError,
         BunsenResult,
+    },
+};
+#[cfg(feature = "fetch")]
+use crate::{
+    data::cache::{
+        FetchFailure,
+        fetch_file,
+        fetch_verified,
+        file_name_from_url,
+    },
+    errors::{
+        BunsenErrorKind,
+        ConstraintError,
+        Multiple,
+        ResultContext,
     },
 };
 
@@ -160,21 +174,25 @@ impl BunsenDiskCache {
     /// Constructs a new [`BunsenDiskCache`].
     ///
     /// # Errors
-    /// [`BunsenError::ResourceNotFound`] when a directory cannot be
-    /// resolved: no option, no environment variable, and no platform
-    /// default.
+    /// [`Policy`](crate::errors::BunsenErrorKind::Policy) when a directory
+    /// cannot be resolved: no option, no environment variable, and no
+    /// platform default. Setting either of the first two fixes it.
     pub fn new(options: BunsenDiskCacheOptions) -> BunsenResult<Self> {
         let cache_dir = BUNSEN_CACHE_CONFIG
             .resolve_cache_dir(options.cache_dir)
-            .ok_or(BunsenError::ResourceNotFound(
-                "failed to resolve cache directory".to_string(),
-            ))?;
+            .ok_or_else(|| {
+                BunsenError::policy(format!(
+                    "no cache directory: none was given, {BUNSEN_CACHE_DIR} is not set, and the platform has no default"
+                ))
+            })?;
 
         let data_dir = BUNSEN_CACHE_CONFIG
             .resolve_data_dir(options.data_dir)
-            .ok_or(BunsenError::ResourceNotFound(
-                "failed to resolve data directory".to_string(),
-            ))?;
+            .ok_or_else(|| {
+                BunsenError::policy(format!(
+                    "no data directory: none was given, {BUNSEN_DATA_DIR} is not set, and the platform has no default"
+                ))
+            })?;
 
         Ok(Self {
             cache_dir,
@@ -270,45 +288,111 @@ impl BunsenDiskCache {
         fetch_file(url, dest, sha256, &self.transfer_observers)
     }
 
-    /// Brings `dest` in from `urls`, tried in order, checked against
+    /// Brings `dest` in from `urls`, mirrors tried in order, checked against
     /// `sha256` when one is given; the first URL whose file checks out wins.
     /// Every attempt reports to the observer stack.
     ///
+    /// A mirror is passed over when it fails in a way another mirror may
+    /// not: it is down ([`Unavailable`](BunsenErrorKind::Unavailable)), it
+    /// does not have the file or will not serve it (a
+    /// [`Lookup`](BunsenErrorKind::Lookup) of the URL), or it served bytes
+    /// that do not match the digest ([`FetchFailure::Digest`]). Any other
+    /// failure, such as the local disk failing, stops the fetch: no other
+    /// mirror would help. Nothing is retried;
+    /// [`fetch_from_urls_retrying`](Self::fetch_from_urls_retrying) retries
+    /// a mirror that is down.
+    ///
     /// # Errors
-    /// With one URL its error comes back as is; with several,
-    /// [`BunsenError::External`] naming every failure.
-    /// [`BunsenError::Invalid`] with no URL at all.
+    /// - [`Illegal`](BunsenErrorKind::Illegal), with a [`ConstraintError`]
+    ///   cause, with no URL at all.
+    /// - The error that stopped the fetch, as [`fetch_file`](super::fetch_file)
+    ///   returns it.
+    /// - When every mirror failed: with one URL, its error; with several, a
+    ///   [`Multiple`] holding each mirror's error, labelled by its URL, whose
+    ///   kind comes from theirs (see [`Multiple::kind`]).
     pub fn fetch_from_urls(
         &self,
         urls: &[&str],
         dest: &Path,
         sha256: Option<&str>,
     ) -> BunsenResult<()> {
+        self.fetch_mirrors(urls, dest, sha256, 0).0
+    }
+
+    /// [`fetch_from_urls`](Self::fetch_from_urls), retrying a mirror that is
+    /// down up to `retries` more times before passing it over: the retry
+    /// count of a [`FetchPolicy`](super::FetchPolicy).
+    ///
+    /// Only a failure whose kind
+    /// [is retryable](BunsenErrorKind::is_retryable) is retried. Each retry
+    /// first waits as long as the server's `Retry-After` asked, or else a
+    /// backoff that doubles from 100 ms; either is capped at a minute.
+    ///
+    /// # Errors
+    /// As [`fetch_from_urls`](Self::fetch_from_urls).
+    pub fn fetch_from_urls_retrying(
+        &self,
+        urls: &[&str],
+        dest: &Path,
+        sha256: Option<&str>,
+        retries: u32,
+    ) -> BunsenResult<()> {
+        self.fetch_mirrors(urls, dest, sha256, retries).0
+    }
+
+    /// The mirror loop behind [`fetch_from_urls_retrying`]: the outcome, and
+    /// the number of fetches tried.
+    ///
+    /// [`fetch_from_urls_retrying`]: Self::fetch_from_urls_retrying
+    pub(super) fn fetch_mirrors(
+        &self,
+        urls: &[&str],
+        dest: &Path,
+        sha256: Option<&str>,
+        retries: u32,
+    ) -> (BunsenResult<()>, u32) {
         if urls.is_empty() {
-            return Err(BunsenError::Invalid(format!(
-                "{}: no URL to fetch from",
-                dest.display()
-            )));
+            let error: BunsenResult<()> =
+                Err(ConstraintError::zero_or_empty("BunsenDiskCache", "urls").into());
+            return (error.with_context(|| dest.display().to_string()), 0);
         }
-        let mut failures = Vec::with_capacity(urls.len());
+        let mut attempts = 0;
+        let mut failures: Vec<(String, BunsenError)> = Vec::with_capacity(urls.len());
         for url in urls {
-            match fetch_file(url, dest, sha256, &self.transfer_observers) {
-                Ok(()) => return Ok(()),
-                Err(e) => failures.push((*url, e)),
+            let mut retried = 0;
+            let error = loop {
+                attempts += 1;
+                let error = match fetch_file(url, dest, sha256, &self.transfer_observers) {
+                    Ok(()) => return (Ok(()), attempts),
+                    Err(error) => error,
+                };
+                if error.kind().is_retryable() && retried < retries {
+                    retried += 1;
+                    thread::sleep(retry_delay(&error, retried));
+                    continue;
+                }
+                break error;
+            };
+            let failure = error.find::<FetchFailure>();
+            let next_mirror = error.kind().is_retryable()
+                || matches!(failure, Some(FetchFailure::Digest(_)))
+                || (error.kind() == BunsenErrorKind::Lookup && failure.is_some());
+            if !next_mirror {
+                return (Err(error), attempts);
             }
+            failures.push((url.to_string(), error));
         }
-        if failures.len() == 1 {
-            return Err(failures.pop().expect("one failure").1);
-        }
-        let failures: Vec<String> = failures
-            .iter()
-            .map(|(url, e)| format!("{url}: {e}"))
-            .collect();
-        Err(BunsenError::External(format!(
-            "{}: no URL could be fetched: {}",
-            dest.display(),
-            failures.join("; ")
-        )))
+        let error = if failures.len() == 1 {
+            failures.pop().expect("one failure").1
+        } else {
+            let summary = format!(
+                "{}: none of {} mirrors could be fetched",
+                dest.display(),
+                failures.len()
+            );
+            Multiple::new(summary, failures).into()
+        };
+        (Err(error), attempts)
     }
 
     /// Finds `context/<file>` under `root`, fetching it from `urls` when it
@@ -331,10 +415,10 @@ impl BunsenDiskCache {
     {
         let urls: Vec<&str> = urls.iter().map(AsRef::as_ref).collect();
         let Some(first) = urls.first() else {
-            return Err(BunsenError::Invalid("no URL to load from".to_string()));
+            return Err(ConstraintError::zero_or_empty("BunsenDiskCache", "urls").into());
         };
         let Some(file_name) = file_name_from_url(first) else {
-            return Err(BunsenError::Invalid(format!(
+            return Err(BunsenError::illegal(format!(
                 "{first}: the URL names no file"
             )));
         };
@@ -344,8 +428,8 @@ impl BunsenDiskCache {
             return Ok(path);
         }
         if !download {
-            return Err(BunsenError::ResourceNotFound(format!(
-                "cached file not found: {}",
+            return Err(BunsenError::policy(format!(
+                "{}: not cached, and downloads are off",
                 path.display()
             )));
         }
@@ -375,12 +459,14 @@ impl BunsenDiskCache {
     ///   successfully downloaded.
     ///
     /// # Errors
-    /// * [`BunsenError::ResourceNotFound`] if the file is not cached and
+    /// * [`Policy`](BunsenErrorKind::Policy) if the file is not cached and
     ///   `download` is `false`.
-    /// * [`BunsenError::Invalid`] if a fetched file does not match `sha256`, or
-    ///   no URL names a file.
-    /// * [`BunsenError::External`] if the transfer fails; with several URLs,
-    ///   the message names every failure.
+    /// * [`Illegal`](BunsenErrorKind::Illegal) if there is no URL, or the first
+    ///   URL names no file.
+    /// * Otherwise as [`fetch_from_urls`](Self::fetch_from_urls): a digest
+    ///   mismatch is [`InvalidResource`](BunsenErrorKind::InvalidResource), and
+    ///   with several URLs that all failed, the error is a [`Multiple`] of each
+    ///   URL's.
     pub fn load_cached_path<C, S>(
         &self,
         context: &[C],
@@ -428,6 +514,33 @@ impl BunsenDiskCache {
     {
         self._load_resource(&self.data_dir, context, urls, download, sha256)
     }
+}
+
+/// The longest a retry of a mirror waits.
+#[cfg(feature = "fetch")]
+const MAX_RETRY_DELAY: Duration = Duration::from_secs(60);
+
+/// The first backoff between retries of a mirror; it doubles with each.
+#[cfg(feature = "fetch")]
+const RETRY_BASE_DELAY: Duration = Duration::from_millis(100);
+
+/// How long to wait before retry number `retry` (from 1) after `error`: the
+/// server's `Retry-After` when it sent one, or else the backoff; capped at
+/// [`MAX_RETRY_DELAY`].
+#[cfg(feature = "fetch")]
+fn retry_delay(
+    error: &BunsenError,
+    retry: u32,
+) -> Duration {
+    if let Some(FetchFailure::Status {
+        retry_after: Some(after),
+        ..
+    }) = error.find::<FetchFailure>()
+    {
+        return (*after).min(MAX_RETRY_DELAY);
+    }
+    let doublings = retry.saturating_sub(1).min(16);
+    (RETRY_BASE_DELAY * 2u32.pow(doublings)).min(MAX_RETRY_DELAY)
 }
 
 #[cfg(test)]
@@ -565,14 +678,22 @@ mod fetch_tests {
     use std::fs;
 
     use super::*;
-    use crate::data::cache::{
-        partial_path,
-        testing::{
-            ABC_SHA256,
-            CacheProgressEvent,
-            RecordingObserver,
-            refused_url,
-            serve_once,
+    use crate::{
+        data::cache::{
+            partial_path,
+            testing::{
+                ABC_SHA256,
+                CacheProgressEvent,
+                RecordingObserver,
+                refused_url,
+                serve_flaky,
+                serve_once,
+                serve_status,
+            },
+        },
+        errors::testing::{
+            ErrorMatcher,
+            predicate,
         },
     };
 
@@ -662,15 +783,11 @@ mod fetch_tests {
         let cache_file = cache.cache_path(&context, "file.txt");
         assert_ne!(data_file, cache_file);
 
-        // Nothing on disk: neither finds anything.
-        assert!(matches!(
-            cache.load_data_path(&context, &urls, false, None),
-            Err(BunsenError::ResourceNotFound(_))
-        ));
-        assert!(matches!(
-            cache.load_cached_path(&context, &urls, false, None),
-            Err(BunsenError::ResourceNotFound(_))
-        ));
+        // Nothing on disk: neither finds anything, and downloads are off.
+        let not_cached = ErrorMatcher::kind(BunsenErrorKind::Policy)
+            .message_contains("not cached, and downloads are off");
+        not_cached.assert_err(&cache.load_data_path(&context, &urls, false, None));
+        not_cached.assert_err(&cache.load_cached_path(&context, &urls, false, None));
 
         // A data file is found by `load_data_path` only.
         fs::create_dir_all(data_file.parent().unwrap()).unwrap();
@@ -679,10 +796,7 @@ mod fetch_tests {
             cache.load_data_path(&context, &urls, false, None).unwrap(),
             data_file
         );
-        assert!(matches!(
-            cache.load_cached_path(&context, &urls, false, None),
-            Err(BunsenError::ResourceNotFound(_))
-        ));
+        not_cached.assert_err(&cache.load_cached_path(&context, &urls, false, None));
 
         // A cache file is found by `load_cached_path` only.
         fs::remove_file(&data_file).unwrap();
@@ -694,10 +808,7 @@ mod fetch_tests {
                 .unwrap(),
             cache_file
         );
-        assert!(matches!(
-            cache.load_data_path(&context, &urls, false, None),
-            Err(BunsenError::ResourceNotFound(_))
-        ));
+        not_cached.assert_err(&cache.load_data_path(&context, &urls, false, None));
     }
 
     fn observing_cache(
@@ -749,7 +860,7 @@ mod fetch_tests {
     }
 
     /// A pinned file whose bytes do not match is refused, leaves nothing on
-    /// disk, and comes back `Invalid` when it was the only URL.
+    /// disk, and comes back `InvalidResource` when it was the only URL.
     #[test]
     fn test_load_cached_path_refuses_a_bad_digest() {
         let dir = tempfile::tempdir().unwrap();
@@ -759,13 +870,17 @@ mod fetch_tests {
         let url = serve_once("abc.bin", b"abd");
         let result = cache.load_cached_path(&["t"], &[url.as_str()], true, Some(ABC_SHA256));
 
-        assert!(matches!(result, Err(BunsenError::Invalid(_))), "{result:?}");
+        ErrorMatcher::kind(BunsenErrorKind::InvalidResource)
+            .has_cause::<FetchFailure>()
+            .assert_err(&result);
         let path = cache.cache_path(&["t"], "abc.bin");
         assert!(!path.exists());
         assert!(!partial_path(&path).exists());
     }
 
-    /// When every URL fails, the error names each one.
+    /// When every URL fails, the error holds each one's, labelled by its URL,
+    /// and takes its kind from theirs: two mirrors that are down are
+    /// `Unavailable`.
     #[test]
     fn test_load_cached_path_names_every_failed_url() {
         let dir = tempfile::tempdir().unwrap();
@@ -774,14 +889,127 @@ mod fetch_tests {
 
         let a = refused_url("abc.bin");
         let b = refused_url("abc.bin");
-        match cache.load_cached_path(&["t"], &[a.as_str(), b.as_str()], true, None) {
-            Err(BunsenError::External(message)) => {
-                assert!(message.contains(&a), "{message}");
-                assert!(message.contains(&b), "{message}");
-            }
-            other => panic!("expected External, got {other:?}"),
-        }
+        let result = cache.load_cached_path(&["t"], &[a.as_str(), b.as_str()], true, None);
+        let down = || ErrorMatcher::kind(BunsenErrorKind::Unavailable).has_cause::<FetchFailure>();
+        ErrorMatcher::kind(BunsenErrorKind::Unavailable)
+            .message_contains("none of 2 mirrors could be fetched")
+            .details_contains(&format!("{a}: [Unavailable]"))
+            .details_contains(&format!("{b}: [Unavailable]"))
+            .member(0, down())
+            .member(1, down())
+            .assert_err(&result);
         assert!(observer.events().is_empty());
+    }
+
+    /// A mirror without the file (`404`) and one with the wrong bytes are both
+    /// passed over for the next; the aggregate holds both, and is a `Lookup`
+    /// after its first member.
+    #[test]
+    fn test_fetch_from_urls_passes_over_missing_and_corrupt_mirrors() {
+        let dir = tempfile::tempdir().unwrap();
+        let observer = Arc::new(RecordingObserver::default());
+        let cache = observing_cache(dir.path(), &observer);
+        let dest = cache.cache_path(&["t"], "abc.bin");
+
+        let missing = serve_status("abc.bin", 404);
+        let corrupt = serve_once("abc.bin", b"abd");
+        let live = serve_once("abc.bin", b"abc");
+        cache
+            .fetch_from_urls(
+                &[missing.as_str(), corrupt.as_str(), live.as_str()],
+                &dest,
+                Some(ABC_SHA256),
+            )
+            .unwrap();
+        assert_eq!(fs::read(&dest).unwrap(), b"abc");
+
+        let dest = cache.cache_path(&["t"], "abd.bin");
+        let missing = serve_status("abc.bin", 404);
+        let corrupt = serve_once("abc.bin", b"abd");
+        let result = cache.fetch_from_urls(
+            &[missing.as_str(), corrupt.as_str()],
+            &dest,
+            Some(ABC_SHA256),
+        );
+        ErrorMatcher::kind(BunsenErrorKind::Lookup)
+            .member(0, ErrorMatcher::kind(BunsenErrorKind::Lookup))
+            .member(
+                1,
+                ErrorMatcher::kind(BunsenErrorKind::InvalidResource)
+                    .cause(predicate("a digest failure", |f: &FetchFailure| {
+                        matches!(f, FetchFailure::Digest(_))
+                    })),
+            )
+            .assert_err(&result);
+    }
+
+    /// A failure no other mirror could help stops the loop: a destination
+    /// that is not a file path is `Illegal`, and the second mirror is not
+    /// tried.
+    #[test]
+    fn test_fetch_from_urls_stops_on_a_failure_no_mirror_helps() {
+        let dir = tempfile::tempdir().unwrap();
+        let observer = Arc::new(RecordingObserver::default());
+        let cache = observing_cache(dir.path(), &observer);
+        let a = serve_once("abc.bin", b"abc");
+        let b = serve_once("abc.bin", b"abc");
+        let result = cache.fetch_mirrors(&[a.as_str(), b.as_str()], Path::new("/"), None, 0);
+        ErrorMatcher::kind(BunsenErrorKind::Illegal)
+            .message_contains("not a file path")
+            .assert_err(&result.0);
+        assert_eq!(result.1, 1, "one fetch was tried");
+    }
+
+    /// A mirror that is down is retried within the budget before it is
+    /// passed over; without a budget it is not retried.
+    #[test]
+    fn test_fetch_from_urls_retrying_retries_a_mirror_that_is_down() {
+        let dir = tempfile::tempdir().unwrap();
+        let observer = Arc::new(RecordingObserver::default());
+        let cache = observing_cache(dir.path(), &observer);
+
+        let flaky = serve_flaky("abc.bin", b"abc", 1);
+        let dest = cache.cache_path(&["t"], "abc.bin");
+        let (result, attempts) = cache.fetch_mirrors(&[flaky.as_str()], &dest, None, 2);
+        result.unwrap();
+        assert_eq!(attempts, 2);
+
+        let flaky = serve_flaky("abc.bin", b"abc", 1);
+        let dest = cache.cache_path(&["t"], "abd.bin");
+        ErrorMatcher::kind(BunsenErrorKind::Unavailable).assert_err(&cache.fetch_from_urls(
+            &[flaky.as_str()],
+            &dest,
+            None,
+        ));
+
+        // A 404 is not retried, whatever the budget.
+        let missing = serve_status("abc.bin", 404);
+        let (result, attempts) = cache.fetch_mirrors(&[missing.as_str()], &dest, None, 3);
+        ErrorMatcher::kind(BunsenErrorKind::Lookup).assert_err(&result);
+        assert_eq!(attempts, 1);
+    }
+
+    /// A `Retry-After` is honored, and capped.
+    #[test]
+    fn test_retry_delay() {
+        let status = |retry_after: Option<Duration>| {
+            BunsenError::from(FetchFailure::Status {
+                url: "u".to_string(),
+                status: 503,
+                retry_after,
+            })
+        };
+        assert_eq!(
+            retry_delay(&status(Some(Duration::from_secs(2))), 1),
+            Duration::from_secs(2)
+        );
+        assert_eq!(
+            retry_delay(&status(Some(Duration::from_secs(3600))), 1),
+            MAX_RETRY_DELAY
+        );
+        assert_eq!(retry_delay(&status(None), 1), RETRY_BASE_DELAY);
+        assert_eq!(retry_delay(&status(None), 3), RETRY_BASE_DELAY * 4);
+        assert_eq!(retry_delay(&status(None), 40), MAX_RETRY_DELAY);
     }
 
     /// A URL that names no file is refused before anything is fetched.
@@ -792,8 +1020,11 @@ mod fetch_tests {
         let cache = observing_cache(dir.path(), &observer);
 
         let result = cache.load_cached_path(&["t"], &["https://example.invalid/dir/"], true, None);
-        assert!(matches!(result, Err(BunsenError::Invalid(_))), "{result:?}");
-        let result = cache.load_cached_path::<&str, &str>(&["t"], &[], true, None);
-        assert!(matches!(result, Err(BunsenError::Invalid(_))), "{result:?}");
+        ErrorMatcher::kind(BunsenErrorKind::Illegal)
+            .message_contains("names no file")
+            .assert_err(&result);
+        let no_url = ErrorMatcher::kind(BunsenErrorKind::Illegal).has_cause::<ConstraintError>();
+        no_url.assert_err(&cache.load_cached_path::<&str, &str>(&["t"], &[], true, None));
+        no_url.assert_err(&cache.fetch_from_urls(&[], Path::new("/d/f.bin"), None));
     }
 }
