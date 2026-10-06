@@ -60,7 +60,7 @@ the code that uses it:
 - **It is public, `#[non_exhaustive]`, and documented** in the `# Errors`
   sections of the functions that return it, so callers can find it.
 
-The shared cause types in [`bunsen::errors`](bunsen::errors), such as
+The shared cause types in [`bunsen::errors`], such as
 [`LookupError`](bunsen::errors::LookupError) and
 [`DigestMismatch`](bunsen::errors::DigestMismatch), follow the same rules.
 

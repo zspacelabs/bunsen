@@ -16,7 +16,7 @@ error is shaped and why, from three points of view, one per chapter:
   need typed facts that generic code never reads.
 
 The reference for all of it, with compiled examples, is the
-[`bunsen::errors`](bunsen::errors) module docs.
+[`bunsen::errors`] module docs.
 
 ## The shape of an error
 
