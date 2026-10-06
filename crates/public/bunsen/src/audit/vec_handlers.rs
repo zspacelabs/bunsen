@@ -5,7 +5,7 @@ use crate::{
         AuditProbeEvent,
         AuditProbeEventStub,
         AuditProbeEventView,
-        audit_probe::try_match_events,
+        audit_probe::match_events_at,
         audit_probe_event::AuditProbeEventHandler,
     },
     errors::BunsenResult,
@@ -49,6 +49,7 @@ impl AuditProbeEventHandler for AuditProbeVecRecorder {
 /// expected events that never arrived; prefer [`AuditStreamVerifier`].
 ///
 /// [`AuditStreamVerifier`]: crate::audit::AuditStreamVerifier
+/// [`try_match_events`]: crate::audit::try_match_events
 #[derive(Debug, Clone, Default)]
 pub struct AuditProbeVecVerifier {
     events: Vec<AuditProbeEvent>,
@@ -63,7 +64,7 @@ impl AuditProbeVecVerifier {
         Self { events, next }
     }
 
-    fn next_expected_event(&mut self) -> Option<AuditProbeEventStub<'_>> {
+    fn next_expected_event(&mut self) -> Option<(usize, AuditProbeEventStub<'_>)> {
         match self.next {
             None => None,
             Some(idx) => {
@@ -73,7 +74,7 @@ impl AuditProbeVecVerifier {
                 } else {
                     self.next = None;
                 }
-                Some(event.to_stub())
+                Some((idx, event.to_stub()))
             }
         }
     }
@@ -84,6 +85,7 @@ impl AuditProbeEventHandler for AuditProbeVecVerifier {
         &mut self,
         stub: &AuditProbeEventStub<'_>,
     ) -> BunsenResult<()> {
-        try_match_events(stub, &self.next_expected_event().unwrap())
+        let (idx, expected) = self.next_expected_event().unwrap();
+        match_events_at(Some(idx), stub, &expected)
     }
 }

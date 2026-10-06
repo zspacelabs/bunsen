@@ -3,6 +3,7 @@ use std::{
     io::{
         BufReader,
         BufWriter,
+        Write,
     },
     path::Path,
 };
@@ -19,11 +20,15 @@ use crate::{
         AuditProbeEventHandler,
         AuditProbeEventStub,
         AuditProbeEventView,
-        try_match_events,
+        audit_probe::match_events_at,
     },
     errors::{
         BunsenError,
+        BunsenErrorKind,
         BunsenResult,
+        ParseError,
+        ValueMismatch,
+        sys_at,
     },
 };
 
@@ -58,7 +63,11 @@ pub struct AuditStreamFile {
 /// directories.
 ///
 /// # Errors
-/// [`BunsenError::External`] on I/O or encoding failure.
+/// An I/O failure, sorted by [`sys_at`]: usually
+/// [`Sys`](crate::errors::BunsenErrorKind::Sys), or
+/// [`Lookup`](crate::errors::BunsenErrorKind::Lookup) for a forbidden path.
+/// [`Internal`](crate::errors::BunsenErrorKind::Internal) if the events do not
+/// encode.
 pub fn save_audit_stream(
     path: &Path,
     events: &[AuditProbeEvent],
@@ -69,31 +78,41 @@ pub fn save_audit_stream(
         events: events.iter().map(AuditEventRecord::from).collect(),
     };
     if let Some(parent) = path.parent() {
-        fs::create_dir_all(parent).map_err(|e| io_error(path, e))?;
+        fs::create_dir_all(parent).map_err(sys_at("create directory", parent))?;
     }
-    let out = fs::File::create(path).map_err(|e| io_error(path, e))?;
-    ciborium::into_writer(&file, BufWriter::new(out))
-        .map_err(|e| BunsenError::External(format!("writing {}: {e}", path.display())))
+    let mut out = BufWriter::new(fs::File::create(path).map_err(sys_at("create", path))?);
+    ciborium::into_writer(&file, &mut out).map_err(|e| match e {
+        ciborium::ser::Error::Io(err) => sys_at("write", path)(err),
+        value => BunsenError::internal(format!("cannot encode audit stream {}", path.display()))
+            .with_cause(value),
+    })?;
+    out.flush().map_err(sys_at("write", path))
 }
 
 /// Reads the events of an [`AuditStreamFile`] from `path`.
 ///
 /// # Errors
-/// [`BunsenError::ResourceNotFound`] if `path` does not exist;
-/// [`BunsenError::External`] on I/O or decoding failure;
-/// [`BunsenError::Invalid`] on a wrong format tag or version.
+/// - [`Lookup`](crate::errors::BunsenErrorKind::Lookup), with a
+///   [`LookupError`](crate::errors::LookupError) cause, if `path` does not
+///   exist or cannot be opened;
+/// - [`InvalidResource`](crate::errors::BunsenErrorKind::InvalidResource) if
+///   the file is not CBOR of an [`AuditStreamFile`] (with a [`ParseError`]
+///   cause), or has another format tag or version;
+/// - another I/O failure, sorted by [`sys_at`].
 pub fn load_audit_stream(path: &Path) -> BunsenResult<Vec<AuditProbeEvent>> {
-    if !path.exists() {
-        return Err(BunsenError::ResourceNotFound(format!(
-            "audit stream {}",
-            path.display()
-        )));
-    }
-    let input = fs::File::open(path).map_err(|e| io_error(path, e))?;
-    let file: AuditStreamFile = ciborium::from_reader(BufReader::new(input))
-        .map_err(|e| BunsenError::External(format!("reading {}: {e}", path.display())))?;
+    let input = fs::File::open(path).map_err(sys_at("open", path))?;
+    let file: AuditStreamFile =
+        ciborium::from_reader(BufReader::new(input)).map_err(|e| match e {
+            ciborium::de::Error::Io(err) => sys_at("read", path)(err),
+            other => BunsenError::from_cause(
+                BunsenErrorKind::InvalidResource,
+                ParseError::new("audit stream")
+                    .at(path.display())
+                    .with_source(other),
+            ),
+        })?;
     if file.format != AUDIT_STREAM_FORMAT || file.version != AUDIT_STREAM_VERSION {
-        return Err(BunsenError::Invalid(format!(
+        return Err(BunsenError::invalid_resource(format!(
             "{}: format {:?} version {}, expected {AUDIT_STREAM_FORMAT:?} version \
              {AUDIT_STREAM_VERSION}",
             path.display(),
@@ -102,13 +121,6 @@ pub fn load_audit_stream(path: &Path) -> BunsenResult<Vec<AuditProbeEvent>> {
         )));
     }
     Ok(file.events.into_iter().map(AuditProbeEvent::from).collect())
-}
-
-fn io_error(
-    path: &Path,
-    err: std::io::Error,
-) -> BunsenError {
-    BunsenError::External(format!("{}: {err}", path.display()))
 }
 
 /// An [`AuditProbeEventHandler`] that records each event in memory.
@@ -169,7 +181,11 @@ impl AuditStreamRecorder {
 /// rather than a panic, and [`finish`](Self::finish) reports expected events
 /// that never arrived; call it when the run ends.
 ///
+/// A mismatch is [`Policy`](crate::errors::BunsenErrorKind::Policy), with a
+/// [`ValueMismatch`] cause.
+///
 /// [`AuditProbeVecVerifier`]: crate::audit::AuditProbeVecVerifier
+/// [`try_match_events`]: crate::audit::try_match_events
 #[derive(Debug, Clone)]
 pub struct AuditStreamVerifier {
     events: Vec<AuditProbeEvent>,
@@ -182,14 +198,19 @@ impl AuditProbeEventHandler for AuditStreamVerifier {
         stub: &AuditProbeEventStub<'_>,
     ) -> BunsenResult<()> {
         let Some(expected) = self.events.get(self.next) else {
-            return Err(BunsenError::AssertionError(format!(
-                "unexpected audit event {:?}: the expected stream has only {} events",
-                stub.header.label,
-                self.events.len(),
-            )));
+            return Err(ValueMismatch::Other {
+                summary: format!(
+                    "unexpected audit event {:?}: the expected stream has only {} events",
+                    stub.header.label,
+                    self.events.len(),
+                ),
+                details: None,
+            }
+            .into());
         };
+        let index = self.next;
         self.next += 1;
-        try_match_events(stub, expected)
+        match_events_at(Some(index), stub, expected)
     }
 }
 
@@ -210,16 +231,21 @@ impl AuditStreamVerifier {
     /// Checks that every expected event was seen.
     ///
     /// # Errors
-    /// [`BunsenError::AssertionError`] naming the first missing event.
+    /// [`Policy`](crate::errors::BunsenErrorKind::Policy), with a
+    /// [`ValueMismatch`] cause, naming the first missing event.
     pub fn finish(&self) -> BunsenResult<()> {
         match self.events.get(self.next) {
             None => Ok(()),
-            Some(missing) => Err(BunsenError::AssertionError(format!(
-                "audit stream ended early: saw {} of {} events; next expected {:?}",
-                self.next,
-                self.events.len(),
-                missing.header.label,
-            ))),
+            Some(missing) => Err(ValueMismatch::Other {
+                summary: format!(
+                    "audit stream ended early: saw {} of {} events; next expected {:?}",
+                    self.next,
+                    self.events.len(),
+                    missing.header.label,
+                ),
+                details: None,
+            }
+            .into()),
         }
     }
 }
