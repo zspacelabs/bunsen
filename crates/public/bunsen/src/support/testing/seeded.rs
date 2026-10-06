@@ -25,15 +25,15 @@ use rand::{
 /// ```
 /// use bunsen::support::testing::{
 ///     CpuBackend,
-///     backend_device,
+///     cpu_device,
 ///     seeded_tensor,
 /// };
 /// use burn::tensor::Distribution;
 ///
 /// type B = CpuBackend;
-/// let device = backend_device::<B>();
-/// let a = seeded_tensor::<B, 2>(7, [2, 3], Distribution::Default, &device);
-/// let b = seeded_tensor::<B, 2>(7, [2, 3], Distribution::Default, &device);
+/// let device = cpu_device();
+/// let a = seeded_tensor::<2>(7, [2, 3], Distribution::Default, &device);
+/// let b = seeded_tensor::<2>(7, [2, 3], Distribution::Default, &device);
 /// a.into_data().assert_eq(&b.into_data(), true);
 /// ```
 pub fn seeded_tensor<B: Backend, const D: usize>(
@@ -56,8 +56,7 @@ mod tests {
 
     use super::*;
     use crate::support::testing::{
-        CpuBackend,
-        backend_device,
+        CpuBackend, 
     };
 
     fn host<const D: usize>(tensor: &Tensor<CpuBackend, D>) -> Vec<f64> {
@@ -67,11 +66,11 @@ mod tests {
     #[test]
     fn test_seeded_tensor_is_deterministic() {
         type B = CpuBackend;
-        let device = backend_device::<B>();
+        let device = cpu_device();
         let dist = Distribution::Uniform(-1.0, 1.0);
-        let a = seeded_tensor::<B, 3>(7, [2, 3, 4], dist, &device);
-        let b = seeded_tensor::<B, 3>(7, [2, 3, 4], dist, &device);
-        let c = seeded_tensor::<B, 3>(8, [2, 3, 4], dist, &device);
+        let a = seeded_tensor::<3>(7, [2, 3, 4], dist, &device);
+        let b = seeded_tensor::<3>(7, [2, 3, 4], dist, &device);
+        let c = seeded_tensor::<3>(8, [2, 3, 4], dist, &device);
         assert_eq!(
             a.dtype(),
             <<B as BackendTypes>::FloatElem as Element>::dtype()

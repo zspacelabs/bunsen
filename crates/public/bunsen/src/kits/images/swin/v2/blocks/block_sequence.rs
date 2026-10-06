@@ -337,7 +337,7 @@ mod tests {
         support::testing::{
             DeviceMemoryGuard,
             PerformanceBackend,
-            default_device,
+            performance_device,
         },
     };
 
@@ -426,8 +426,8 @@ mod tests {
             window_size,
         );
 
-        let device = default_device();
-        let _memory = DeviceMemoryGuard::<B>::new(&device);
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
         let module: StochasticDepthTransformerBlockSequence<B> =
             config.try_init(&device).ok_or_panic();
 

@@ -48,7 +48,7 @@ use crate::{
         DeviceMemoryGuard,
         PerformanceBackend,
         assert_close_to_vec,
-        default_device,
+        performance_device,
     },
 };
 
@@ -153,8 +153,8 @@ fn test_filterbank_matches_librosa() {
 #[test]
 #[serial_test::serial]
 fn test_batch_logmel_matches_librosa_center_false() {
-    let device = default_device();
-    let _memory = DeviceMemoryGuard::<B>::new(&device);
+    let device = performance_device();
+    let _memory = DeviceMemoryGuard::new(&device);
     let opts = parity_options().with_start_padding(PaddingMode::None);
     let conv: PerceptiveAudioConverter<B> = opts.try_init(&device).ok_or_panic();
 
@@ -175,8 +175,8 @@ fn test_batch_logmel_matches_librosa_center_false() {
 #[test]
 #[serial_test::serial]
 fn test_streaming_logmel_matches_librosa_center_true() {
-    let device = default_device();
-    let _memory = DeviceMemoryGuard::<B>::new(&device);
+    let device = performance_device();
+    let _memory = DeviceMemoryGuard::new(&device);
     let conv: PerceptiveAudioConverter<B> = parity_options().try_init(&device).ok_or_panic();
 
     let (x, _) = signal_tensor(&device);
@@ -210,8 +210,8 @@ fn test_streaming_logmel_matches_librosa_center_true() {
 #[test]
 #[serial_test::serial]
 fn test_whisper_logmel_matches_reference() {
-    let device = default_device();
-    let _memory = DeviceMemoryGuard::<B>::new(&device);
+    let device = performance_device();
+    let _memory = DeviceMemoryGuard::new(&device);
     let conv: PerceptiveAudioConverter<B> = parity_options().try_init(&device).ok_or_panic();
 
     let (x, _) = signal_tensor(&device);
@@ -246,8 +246,8 @@ fn test_whisper_logmel_matches_reference() {
 #[test]
 #[serial_test::serial]
 fn test_chunked_streaming_matches_librosa_center_true() {
-    let device = default_device();
-    let _memory = DeviceMemoryGuard::<B>::new(&device);
+    let device = performance_device();
+    let _memory = DeviceMemoryGuard::new(&device);
     let conv: PerceptiveAudioConverter<B> = parity_options().try_init(&device).ok_or_panic();
 
     let samples = fixture("signal_2s_16k.f32");

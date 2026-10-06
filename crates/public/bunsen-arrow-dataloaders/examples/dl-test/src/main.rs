@@ -8,7 +8,7 @@ use bunsen::{
     kits::gpts::nanochat::datasets::NANOCHAT_SHARD_SETS,
     support::testing::{
         PerformanceBackend,
-        backend_device,
+        performance_device,
     },
 };
 use bunsen_arrow_dataloaders::{
@@ -131,7 +131,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     type B = PerformanceBackend;
 
-    let device = backend_device::<B>();
+    let device = performance_device();
 
     let data_loader: ChatDataLoader<B> = ChatDataLoader::new(
         shard_paths,

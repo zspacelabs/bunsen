@@ -178,7 +178,7 @@ mod tests {
         kits::speech::silero_vad::SileroVadSignalConfig,
         support::testing::{
             PerformanceBackend,
-            default_device,
+            performance_device,
         },
     };
 
@@ -199,7 +199,7 @@ mod tests {
     #[test]
     #[serial_test::serial]
     fn test_try_init_refuses_a_zero_context() {
-        let device = default_device();
+        let device = performance_device();
         // A small model at each rate: the context takes the model's rate.
         let vad_at = |rate: usize| -> SileroVad<B> {
             SileroVadSignalConfig::new(rate, 33)

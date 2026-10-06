@@ -68,7 +68,7 @@ mod tests {
     use super::*;
     use crate::support::testing::{
         CpuBackend,
-        default_device,
+        cpu_device,
     };
 
     type B = CpuBackend;
@@ -80,7 +80,7 @@ mod tests {
         assert_eq!(log_base.base(), core::f64::consts::E);
         assert_eq!(log_base.base_ln(), 1.0);
 
-        let device = default_device();
+        let device = cpu_device();
         let x: Tensor<B, 1> = Tensor::from_floats([1.0, 10.0, 100.0], &device);
         let result = log_base.apply(x);
         let expected: Tensor<B, 1> =
@@ -97,7 +97,7 @@ mod tests {
         assert_eq!(log_base.base(), 10.0);
         assert_eq!(log_base.base_ln(), 10.0_f64.ln());
 
-        let device = default_device();
+        let device = cpu_device();
         let x: Tensor<B, 1> = Tensor::from_floats([1.0, 10.0, 100.0], &device);
         let result = log_base.apply(x);
         let expected: Tensor<B, 1> = Tensor::from_floats([0.0, 1.0, 2.0], &device);
@@ -111,7 +111,7 @@ mod tests {
         assert_eq!(log_base.base(), 2.0);
         assert_eq!(log_base.base_ln(), 2.0_f64.ln());
 
-        let device = default_device();
+        let device = cpu_device();
         let x: Tensor<B, 1> = Tensor::from_floats([1.0, 10.0, 100.0], &device);
         let result = log_base.apply(x);
 

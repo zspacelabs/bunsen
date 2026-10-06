@@ -204,7 +204,7 @@ mod tests {
     use crate::support::testing::{
         DeviceMemoryGuard,
         PerformanceBackend,
-        default_device,
+        performance_device,
         seeded_tensor,
     };
 
@@ -215,12 +215,12 @@ mod tests {
     #[serial]
     fn test_sdpa_attn_weight_drops_out_after_softmax() {
         type B = PerformanceBackend;
-        let device = default_device();
-        let _memory = DeviceMemoryGuard::<B>::new(&device);
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
 
         let shape = [2, 2, 4, 8];
-        let q = seeded_tensor::<B, 4>(1, shape, Distribution::Default, &device);
-        let k = seeded_tensor::<B, 4>(2, shape, Distribution::Default, &device);
+        let q = seeded_tensor::<4>(1, shape, Distribution::Default, &device);
+        let k = seeded_tensor::<4>(2, shape, Distribution::Default, &device);
 
         let p = 0.5;
         let config = ScaledDotProductAttentionConfig::new();
@@ -255,8 +255,8 @@ mod tests {
     #[serial]
     fn test_scaled_dot_product_attention_bias() {
         type B = PerformanceBackend;
-        let device = default_device();
-        let _memory = DeviceMemoryGuard::<B>::new(&device);
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
         let dtype = DType::F32;
 
         let l = 3;

@@ -157,7 +157,7 @@ mod tests {
             },
             support::testing::{
                 CpuBackend,
-                default_device,
+                cpu_device,
             },
         };
 
@@ -225,7 +225,7 @@ mod tests {
         let err =
             Deferred::<ResNetConstruct>::from_map(ResourceMap::given("mine", CHECKPOINT, &file))
                 .unwrap()
-                .load::<CpuBackend>(&cache, &default_device());
+                .load::<CpuBackend>(&cache, &cpu_device());
         // The loading pathway is an input boundary, which may re-mark the
         // hook's `Illegal` as `Policy`.
         missing_config(&[BunsenErrorKind::Policy]).assert_err(&err);

@@ -232,7 +232,7 @@ pub fn backend_main<B: AutodiffBackend>(args: &Args) -> anyhow::Result<()> {
     .with_attn_drop_rate(0.2)
     .with_drop_rate(0.2);
 
-    B::seed(&device, args.seed);
+    device.seed(args.seed);
 
     let training_config = TrainingConfig::new(
         ModelConfig {

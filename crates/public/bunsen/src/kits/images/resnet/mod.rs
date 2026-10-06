@@ -32,11 +32,11 @@
 //!         ResNet,
 //!         pretrained::default_resnet_factory,
 //!     },
-//!     support::testing::default_device,
+//!     support::testing::cpu_device,
 //! };
 //! use burn::backend::Flex;
 //!
-//! let device = default_device();
+//! let device = cpu_device();
 //! let cache = PretrainedCache::new(PretrainedCacheOptions::default())?;
 //!
 //! // `torchvision/resnet18` names its prefab, which the factory's hook

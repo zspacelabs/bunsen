@@ -241,7 +241,7 @@ mod tests {
         support::testing::{
             CpuBackend,
             assert_tensor_close_to_vec,
-            default_device,
+            cpu_device,
         },
     };
 
@@ -367,7 +367,7 @@ mod tests {
     /// The clamp range is the front end's, not a constant.
     #[test]
     fn test_package_window_uses_the_configured_range() {
-        let device = default_device();
+        let device = cpu_device();
         let window: Tensor<B, 3> =
             Tensor::from_data(TensorData::new(vec![0.0_f64, -20.0], [1, 2, 1]), &device);
         let reference: Tensor<B, 1> =
@@ -388,7 +388,7 @@ mod tests {
     /// 1]`.
     #[test]
     fn test_package_mels_shape_over_a_range() {
-        let device = default_device();
+        let device = cpu_device();
 
         for batch in 1..4 {
             for n_mels in 1..5 {
@@ -414,7 +414,7 @@ mod tests {
     /// would become the maximum and floor everything else at 91.
     #[test]
     fn test_package_mels_ignores_the_dropped_frame_over_a_range() {
-        let device = default_device();
+        let device = cpu_device();
         let n_mels = 2;
 
         for frames in 2..10 {
@@ -439,7 +439,7 @@ mod tests {
     #[test]
     #[should_panic(expected = "at least 2 frames")]
     fn test_package_mels_rejects_a_single_frame() {
-        let device = default_device();
+        let device = cpu_device();
         let joined: Tensor<B, 3> = Tensor::zeros([1, 1, 4], &device);
 
         let _ = package_mels(joined);
@@ -449,7 +449,7 @@ mod tests {
     #[test]
     #[should_panic(expected = "at least 2 frames")]
     fn test_package_mels_rejects_zero_frames() {
-        let device = default_device();
+        let device = cpu_device();
         let joined: Tensor<B, 3> = Tensor::zeros([1, 0, 4], &device);
 
         let _ = package_mels(joined);
@@ -460,7 +460,7 @@ mod tests {
     /// else. That ordering is the part worth pinning.
     #[test]
     fn test_package_mels_clamps_after_dropping_the_frame() {
-        let device = default_device();
+        let device = cpu_device();
 
         // One row, one mel, three frames. The last is an outlier that would
         // dominate the maximum if it survived to the clamp.
@@ -483,7 +483,7 @@ mod tests {
     /// with different peaks, so that the per-row reference is exercised.
     #[test]
     fn test_split_packaging_equals_package_mels() {
-        let device = default_device();
+        let device = cpu_device();
         let (batch, frames, n_mels) = (3, 7, 4);
 
         let data: Vec<f64> = (0..batch * frames * n_mels)
@@ -505,7 +505,7 @@ mod tests {
     /// harder and leaves the others alone.
     #[test]
     fn test_package_window_floors_each_row_against_its_reference() {
-        let device = default_device();
+        let device = cpu_device();
 
         // Two rows, two frames, one mel: `[0, -20]` in each row.
         let window: Tensor<B, 3> = Tensor::from_data(
@@ -530,7 +530,7 @@ mod tests {
     /// values above the floor pass through unchanged, whatever the reference.
     #[test]
     fn test_package_window_never_clips_above_the_floor() {
-        let device = default_device();
+        let device = cpu_device();
         let window: Tensor<B, 3> =
             Tensor::from_data(TensorData::new(vec![4.0_f64, 0.0], [1, 2, 1]), &device);
         let reference: Tensor<B, 1> =

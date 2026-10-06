@@ -43,12 +43,12 @@ pub fn release_cached_device_memory<B: Backend>(device: &B::Device) {
 /// use bunsen::support::testing::{
 ///     CpuBackend,
 ///     DeviceMemoryGuard,
-///     default_device,
+///     cpu_device,
 /// };
 ///
 /// type B = CpuBackend;
-/// let device = default_device();
-/// let _memory = DeviceMemoryGuard::<B>::new(&device);
+/// let device = cpu_device();
+/// let _memory = DeviceMemoryGuard::new(&device);
 ///
 /// // ... load a model, run it, assert on it ...
 /// ```
@@ -100,8 +100,7 @@ mod tests {
 
     use super::*;
     use crate::support::testing::{
-        CpuBackend,
-        default_device,
+        CpuBackend, 
     };
 
     /// The release path runs, and leaves live tensors alone.
@@ -110,11 +109,11 @@ mod tests {
     /// rather than any reclamation: a guard around live work is harmless.
     #[test]
     fn test_guard_leaves_live_tensors_intact() {
-        let device = default_device();
+        let device = cpu_device();
         let tensor = Tensor::<CpuBackend, 1>::from_data(TensorData::from([1.0, 2.0]), &device);
 
         {
-            let _memory = DeviceMemoryGuard::<CpuBackend>::new(&device);
+            let _memory = DeviceMemoryGuard::new(&device);
             release_cached_device_memory::<CpuBackend>(&device);
         }
 

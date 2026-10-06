@@ -194,8 +194,8 @@ pub fn default_device<D: DeviceOps>() -> D {
 /// is keyed by `B::Device`.
 ///
 /// ```
-/// # use bunsen::support::testing::{CpuBackend, backend_device};
-/// let device = backend_device::<CpuBackend>();
+/// # use bunsen::support::testing::{cpu_device, CpuBackend, backend_device};
+/// let device = cpu_device();
 /// ```
 pub fn backend_device<B: Backend>() -> B::Device {
     default_device::<B::Device>()
@@ -229,9 +229,9 @@ mod tests {
 
     #[test]
     fn test_device_entry_points_agree() {
-        let device = backend_device::<CpuBackend>();
+        let device = cpu_device();
 
-        assert_eq!(device, backend_device::<CpuBackend>());
+        assert_eq!(device, cpu_device());
         assert_eq!(device, default_device::<Device<CpuBackend>>());
     }
 
@@ -240,12 +240,12 @@ mod tests {
         // Every write below restores the slot to the value it already holds,
         // so racing a concurrent reader is harmless: a reset it observes is
         // re-memoized to the same default.
-        let device = backend_device::<CpuBackend>();
+        let device = cpu_device();
 
         set_default_device(device.clone());
-        assert_eq!(backend_device::<CpuBackend>(), device);
+        assert_eq!(cpu_device(), device);
 
         reset_default_device::<Device<CpuBackend>>();
-        assert_eq!(backend_device::<CpuBackend>(), device);
+        assert_eq!(cpu_device(), device);
     }
 }

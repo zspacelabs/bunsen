@@ -325,10 +325,10 @@ mod tests {
     #[test]
     #[serial_test::serial]
     fn test_residual_decoder_forward() {
-        use crate::support::testing::default_device;
+        use crate::support::testing::performance_device;
         type B = crate::support::testing::PerformanceBackend;
-        let device = default_device();
-        let _memory = DeviceMemoryGuard::<B>::new(&device);
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
 
         let d_model = 128;
 

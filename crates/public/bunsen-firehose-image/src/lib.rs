@@ -164,7 +164,7 @@ mod tests {
     use bunsen::support::testing::{
         DeviceMemoryGuard,
         PerformanceBackend,
-        default_device,
+        performance_device,
     };
     use bunsen_firehose::{
         core::{
@@ -212,8 +212,8 @@ mod tests {
 
         type B = PerformanceBackend;
 
-        let device = default_device();
-        let _memory = DeviceMemoryGuard::<B>::new(&device);
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
 
         let env = Arc::new(init_default_operator_environment());
 

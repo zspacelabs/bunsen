@@ -31,13 +31,13 @@ use burn::{
 /// ```rust
 /// # use bunsen::{
 /// #     ops::split::split_padded,
-/// #     support::testing::default_device,
+/// #     support::testing::cpu_device,
 /// # };
 /// # use burn::{
 /// #     Tensor,
 /// #     backend::Flex,
 /// # };
-/// # let device = default_device();
+/// # let device = cpu_device();
 /// let input = Tensor::<Flex, 2>::ones([2, 5], &device);
 ///
 /// // A length-5 axis split into chunks of 2 yields 2 + 2 + (1 padded to 2).
@@ -100,14 +100,14 @@ pub fn split_padded<B: Backend, const R: usize, D: AsIndex>(
 /// ```rust
 /// # use bunsen::{
 /// #     ops::split::window_padded,
-/// #     support::testing::default_device,
+/// #     support::testing::cpu_device,
 /// # };
 /// # use burn::{
 /// #     Tensor,
 /// #     backend::Flex,
 /// # };
 /// # type B = Flex;
-/// # let device = default_device();
+/// # let device = cpu_device();
 /// let input = Tensor::<B, 2>::ones([2, 5], &device);
 ///
 /// // A length-5 axis windowed by 2 yields 3 windows, the last one padded.
@@ -153,15 +153,14 @@ mod tests {
 
     use super::*;
     use crate::support::testing::{
-        CpuBackend,
-        default_device,
+        CpuBackend, 
     };
 
     type B = CpuBackend;
 
     #[test]
     fn test_split_padded_pads_the_short_chunk() {
-        let device = default_device();
+        let device = cpu_device();
         let input =
             Tensor::<B, 2>::from_data([[0., 1., 2., 3., 4.], [5., 6., 7., 8., 9.]], &device);
 
@@ -178,7 +177,7 @@ mod tests {
 
     #[test]
     fn test_split_padded_exact_division_does_not_pad() {
-        let device = default_device();
+        let device = cpu_device();
         let input = Tensor::<B, 2>::from_data([[0., 1., 2., 3.], [4., 5., 6., 7.]], &device);
 
         let chunks = split_padded(input.clone(), 2, 1);
@@ -190,7 +189,7 @@ mod tests {
 
     #[test]
     fn test_split_padded_accepts_a_negative_dim() {
-        let device = default_device();
+        let device = cpu_device();
         let input = Tensor::<B, 2>::from_data([[0., 1., 2.], [3., 4., 5.]], &device);
 
         let by_neg = split_padded(input.clone(), 2, -1);
@@ -204,7 +203,7 @@ mod tests {
 
     #[test]
     fn test_split_padded_empty_axis_yields_nothing() {
-        let device = default_device();
+        let device = cpu_device();
         let input = Tensor::<B, 2>::zeros([2, 0], &device);
         assert!(split_padded(input, 4, 1).is_empty());
     }
@@ -212,14 +211,14 @@ mod tests {
     #[test]
     #[should_panic(expected = "non-zero")]
     fn test_split_padded_rejects_zero_size() {
-        let device = default_device();
+        let device = cpu_device();
         let input = Tensor::<B, 2>::zeros([2, 4], &device);
         let _ = split_padded(input, 0, 1);
     }
 
     #[test]
     fn test_window_padded_pads_the_short_window() {
-        let device = default_device();
+        let device = cpu_device();
         let input =
             Tensor::<B, 2>::from_data([[0., 1., 2., 3., 4.], [5., 6., 7., 8., 9.]], &device);
 
@@ -237,7 +236,7 @@ mod tests {
 
     #[test]
     fn test_window_padded_exact_division_does_not_pad() {
-        let device = default_device();
+        let device = cpu_device();
         let input = Tensor::<B, 2>::from_data([[0., 1., 2., 3.], [4., 5., 6., 7.]], &device);
 
         let windows = window_padded::<_, 2, 3, _>(input.clone(), 2, 1);
@@ -254,7 +253,7 @@ mod tests {
     /// on whichever axis happens to be last.
     #[test]
     fn test_window_padded_windows_an_interior_dim() {
-        let device = default_device();
+        let device = cpu_device();
         let input = Tensor::<B, 3>::from_data([[[0., 1.], [2., 3.], [4., 5.]]], &device);
 
         let windows = window_padded::<_, 3, 4, _>(input, 2, 1);
@@ -268,7 +267,7 @@ mod tests {
 
     #[test]
     fn test_window_padded_accepts_a_negative_dim() {
-        let device = default_device();
+        let device = cpu_device();
         let input = Tensor::<B, 2>::from_data([[0., 1., 2.], [3., 4., 5.]], &device);
 
         let by_neg = window_padded::<_, 2, 3, _>(input.clone(), 2, -1);
@@ -279,7 +278,7 @@ mod tests {
 
     #[test]
     fn test_window_padded_empty_axis_yields_no_windows() {
-        let device = default_device();
+        let device = cpu_device();
         let input = Tensor::<B, 2>::zeros([2, 0], &device);
 
         let windows = window_padded::<_, 2, 3, _>(input, 4, 1);
@@ -289,7 +288,7 @@ mod tests {
     /// `window_padded` is `split_padded` stacked along the same dim.
     #[test]
     fn test_window_padded_matches_stacked_split_padded() {
-        let device = default_device();
+        let device = cpu_device();
         let input = Tensor::<B, 3>::random([2, 5, 3], Distribution::Default, &device);
 
         let stacked: Tensor<B, 4> = Tensor::stack(split_padded(input.clone(), 2, 1), 1);
@@ -302,7 +301,7 @@ mod tests {
     #[test]
     #[should_panic(expected = "non-zero")]
     fn test_window_padded_rejects_zero_window() {
-        let device = default_device();
+        let device = cpu_device();
         let input = Tensor::<B, 2>::zeros([2, 4], &device);
         let _: Tensor<B, 3> = window_padded(input, 0, 1);
     }
@@ -310,7 +309,7 @@ mod tests {
     #[test]
     #[should_panic(expected = "output rank")]
     fn test_window_padded_rejects_a_bad_output_rank() {
-        let device = default_device();
+        let device = cpu_device();
         let input = Tensor::<B, 2>::zeros([2, 4], &device);
         let _: Tensor<B, 4> = window_padded::<_, 2, 4, _>(input, 2, 1);
     }

@@ -742,7 +742,7 @@ mod tests {
         support::testing::{
             DeviceMemoryGuard,
             PerformanceBackend,
-            backend_device,
+            performance_device,
         },
     };
 
@@ -759,8 +759,8 @@ mod tests {
     #[serial_test::serial]
     fn test_stub_float() {
         type B = PerformanceBackend;
-        let device = backend_device::<B>();
-        let _memory = DeviceMemoryGuard::<B>::new(&device);
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
 
         let source: Tensor<B, 2> = Tensor::random([2, 3], Distribution::Default, &device);
 
@@ -805,8 +805,8 @@ mod tests {
     #[serial_test::serial]
     fn test_stub_int() {
         type B = PerformanceBackend;
-        let device = backend_device::<B>();
-        let _memory = DeviceMemoryGuard::<B>::new(&device);
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
 
         let source: Tensor<B, 2> = Tensor::random([2, 3], Distribution::Default, &device);
         let source = source.int();
@@ -852,8 +852,8 @@ mod tests {
     #[serial_test::serial]
     fn test_stub_bool() {
         type B = PerformanceBackend;
-        let device = backend_device::<B>();
-        let _memory = DeviceMemoryGuard::<B>::new(&device);
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
 
         let source: Tensor<B, 2> = Tensor::random([2, 3], Distribution::Bernoulli(0.5), &device);
         let source = source.bool();
@@ -899,8 +899,8 @@ mod tests {
     #[serial_test::serial]
     fn test_clone() {
         type B = PerformanceBackend;
-        let device = backend_device::<B>();
-        let _memory = DeviceMemoryGuard::<B>::new(&device);
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
 
         let source: Tensor<B, 2> = Tensor::random([2, 3], Distribution::Default, &device);
 
@@ -918,8 +918,8 @@ mod tests {
     #[serial_test::serial]
     fn test_slice() {
         type B = PerformanceBackend;
-        let device = backend_device::<B>();
-        let _memory = DeviceMemoryGuard::<B>::new(&device);
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
 
         let source: Tensor<B, 2> = Tensor::random([2, 3], Distribution::Default, &device);
 
@@ -938,8 +938,8 @@ mod tests {
     #[serial_test::serial]
     fn test_slice_dyn() {
         type B = PerformanceBackend;
-        let device = backend_device::<B>();
-        let _memory = DeviceMemoryGuard::<B>::new(&device);
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
 
         let source: Tensor<B, 2> = Tensor::random([2, 3], Distribution::Default, &device);
 
@@ -965,8 +965,8 @@ mod tests {
     #[serial_test::serial]
     fn test_slice_assign() {
         type B = PerformanceBackend;
-        let device = backend_device::<B>();
-        let _memory = DeviceMemoryGuard::<B>::new(&device);
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
 
         let values: Tensor<B, 2> = Tensor::zeros([2, 1], &device);
         let result = arange_2x3(&device)
@@ -983,8 +983,8 @@ mod tests {
     #[serial_test::serial]
     fn test_slice_assign_casts_values() {
         type B = PerformanceBackend;
-        let device = backend_device::<B>();
-        let _memory = DeviceMemoryGuard::<B>::new(&device);
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
 
         let values: Tensor<B, 2, Int> = Tensor::from_data([[9], [9]], &device);
         let result = arange_2x3(&device)
@@ -1001,8 +1001,8 @@ mod tests {
     #[serial_test::serial]
     fn test_slice_assign_tensor_data() {
         type B = PerformanceBackend;
-        let device = backend_device::<B>();
-        let _memory = DeviceMemoryGuard::<B>::new(&device);
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
 
         let result: DynTensor<B> = arange_2x3(&device)
             .slice_assign::<2, _, _>(s![0..1, ..], TensorData::from([[7.0f32, 7.0, 7.0]]))
@@ -1017,8 +1017,8 @@ mod tests {
     #[serial_test::serial]
     fn test_slice_assign_int_and_bool() {
         type B = PerformanceBackend;
-        let device = backend_device::<B>();
-        let _memory = DeviceMemoryGuard::<B>::new(&device);
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
 
         let source: Tensor<B, 1, Int> = Tensor::arange(0..4, &device);
         let values: Tensor<B, 1, Int> = Tensor::from_data([8, 9], &device);
@@ -1045,8 +1045,8 @@ mod tests {
     #[serial_test::serial]
     fn test_slice_assign_rank_errors() {
         type B = PerformanceBackend;
-        let device = backend_device::<B>();
-        let _memory = DeviceMemoryGuard::<B>::new(&device);
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
 
         let values: Tensor<B, 1> = Tensor::zeros([3], &device);
         ErrorMatcher::kind(BunsenErrorKind::Illegal)
@@ -1066,8 +1066,8 @@ mod tests {
     #[serial_test::serial]
     fn test_slice_assign_out_of_bounds() {
         type B = PerformanceBackend;
-        let device = backend_device::<B>();
-        let _memory = DeviceMemoryGuard::<B>::new(&device);
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
 
         let values: Tensor<B, 2> = Tensor::zeros([1, 3], &device);
         ErrorMatcher::kind(BunsenErrorKind::Illegal)
@@ -1081,8 +1081,8 @@ mod tests {
     #[serial_test::serial]
     fn test_slice_assign_dyn() {
         type B = PerformanceBackend;
-        let device = backend_device::<B>();
-        let _memory = DeviceMemoryGuard::<B>::new(&device);
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
 
         let values: Tensor<B, 2> = Tensor::ones([1, 3], &device);
         arange_2x3(&device)
@@ -1100,8 +1100,8 @@ mod tests {
     #[serial_test::serial]
     fn test_slice_assign_dyn_partial_slices() {
         type B = PerformanceBackend;
-        let device = backend_device::<B>();
-        let _memory = DeviceMemoryGuard::<B>::new(&device);
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
 
         let values: Tensor<B, 2> = Tensor::ones([1, 3], &device);
         arange_2x3(&device)
@@ -1119,8 +1119,8 @@ mod tests {
     #[serial_test::serial]
     fn test_slice_assign_dyn_too_many_slices() {
         type B = PerformanceBackend;
-        let device = backend_device::<B>();
-        let _memory = DeviceMemoryGuard::<B>::new(&device);
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
 
         let values: Tensor<B, 2> = Tensor::ones([2, 3], &device);
         ErrorMatcher::kind(BunsenErrorKind::Illegal)
@@ -1136,8 +1136,8 @@ mod tests {
     #[test]
     fn test_tensor_rank_desc() {
         type B = PerformanceBackend;
-        let device = backend_device::<B>();
-        let _memory = DeviceMemoryGuard::<B>::new(&device);
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
 
         // Float
         {

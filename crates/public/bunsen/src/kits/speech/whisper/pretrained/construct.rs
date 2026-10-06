@@ -541,7 +541,7 @@ mod tests {
         },
         support::testing::{
             PerformanceBackend,
-            default_device,
+            performance_device,
         },
     };
 
@@ -573,7 +573,7 @@ mod tests {
         let cache = offline_cache();
         let loaded = default_whisper_factory()
             .unwrap()
-            .load::<PerformanceBackend>("openai/base", &cache, &default_device())
+            .load::<PerformanceBackend>("openai/base", &cache, &performance_device())
             .unwrap();
 
         assert_eq!(loaded.name, "well-known:openai/base");

@@ -136,15 +136,15 @@ mod tests {
     use crate::support::testing::{
         DeviceMemoryGuard,
         PerformanceBackend,
-        default_device,
+        performance_device,
     };
 
     #[test]
     #[serial]
     fn test_avg_pool_2d_same_output_is_ceil_of_size_over_stride() {
         type B = PerformanceBackend;
-        let device = default_device();
-        let _memory = DeviceMemoryGuard::<B>::new(&device);
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
 
         // Kernel 3, stride 3 (burn's default stride is the kernel size).
         let pool = AvgPool2dSameConfig::new(AvgPool2dConfig::new([3, 3])).init();

@@ -755,7 +755,7 @@ mod tests {
             CpuBackend,
             DeviceMemoryGuard,
             PerformanceBackend,
-            default_device,
+            cpu_device, performance_device,
         },
     };
 
@@ -807,8 +807,8 @@ mod tests {
     #[serial]
     fn test_to_layers_50_bottleneck() {
         type B = PerformanceBackend;
-        let device = default_device();
-        let _memory = DeviceMemoryGuard::<B>::new(&device);
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
 
         let cfg = ResNetContractConfig::new(RESNET50_BLOCKS.to_vec(), 1000).with_bottleneck(true);
         let layers = cfg.to_layer_contracts();
@@ -849,8 +849,8 @@ mod tests {
     #[serial]
     fn test_policy_pathways_agree() {
         type B = PerformanceBackend;
-        let device = default_device();
-        let _memory = DeviceMemoryGuard::<B>::new(&device);
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
 
         let policy = ResNetContractConfig::new(vec![1, 1], 7)
             .with_stem_width(8)
@@ -873,7 +873,7 @@ mod tests {
     /// the head has no stage to take its width from.
     #[test]
     fn test_try_init_rejects_no_stages() {
-        let device: burn::prelude::Device<CpuBackend> = Default::default();
+        let device = cpu_device();
 
         let structure = ResNetStructureConfig {
             layers: vec![],
@@ -897,7 +897,7 @@ mod tests {
     /// A stage with no blocks is an error from `try_init`, not a panic.
     #[test]
     fn test_try_init_rejects_an_empty_stage() {
-        let device: burn::prelude::Device<CpuBackend> = Default::default();
+        let device = cpu_device();
 
         let bad: BunsenResult<ResNet<CpuBackend>> = ResNetContractConfig::new(vec![1, 0], 7)
             .with_stem_width(8)
@@ -980,7 +980,7 @@ mod tests {
     /// The module's stochastic-depth schedule is timm's.
     #[test]
     fn test_module_drop_path_schedule_matches_timm() {
-        let device: burn::prelude::Device<CpuBackend> = Default::default();
+        let device = cpu_device();
         let model: ResNet<CpuBackend> = ResNetContractConfig::new(vec![2, 2, 2, 2], 10)
             .with_stem_width(8)
             .init(&device);
@@ -997,7 +997,7 @@ mod tests {
             .with_stem_width(8)
             .to_structure();
 
-        let device: burn::prelude::Device<CpuBackend> = Default::default();
+        let device = cpu_device();
         let model: ResNet<CpuBackend> = structure.init(&device);
         let model = model.with_stochastic_path_depth(0.1);
         assert_rates_eq(&module_drop_path_probs(&model), &[0.0, 0.1]);
@@ -1074,7 +1074,7 @@ mod tests {
             timm_drop_blocks_2222_at_0_1()
         );
 
-        let device: burn::prelude::Device<CpuBackend> = Default::default();
+        let device = cpu_device();
         let model: ResNet<CpuBackend> = structure.init(&device);
         assert_eq!(module_drop_blocks(&model), timm_drop_blocks_2222_at_0_1());
     }
@@ -1082,7 +1082,7 @@ mod tests {
     /// The module's DropBlock schedule is timm's.
     #[test]
     fn test_module_drop_block_schedule_matches_timm() {
-        let device: burn::prelude::Device<CpuBackend> = Default::default();
+        let device = cpu_device();
         let model: ResNet<CpuBackend> = ResNetContractConfig::new(vec![2, 2, 2, 2], 10)
             .with_stem_width(8)
             .init(&device);
@@ -1099,7 +1099,7 @@ mod tests {
         let structure = ResNetContractConfig::new(vec![2], 10)
             .with_stem_width(8)
             .to_structure();
-        let device: burn::prelude::Device<CpuBackend> = Default::default();
+        let device = cpu_device();
         let model: ResNet<CpuBackend> = structure.init(&device);
 
         let one_stage =

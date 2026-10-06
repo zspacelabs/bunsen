@@ -31,10 +31,10 @@ use crate::errors::{
 /// #         MlpConfig,
 /// #     },
 /// #     prelude::*,
-/// #     support::testing::default_device,
+/// #     support::testing::cpu_device,
 /// # };
 /// # type B = burn::backend::Flex;
-/// # let device = default_device();
+/// # let device = cpu_device();
 /// # let config = MlpConfig::new(16);
 /// let mlp: Mlp<B> = config.init(&device);
 /// ```
@@ -80,7 +80,7 @@ use crate::errors::{
 /// use bunsen::{
 ///     errors::ConstraintError,
 ///     prelude::*,
-///     support::testing::default_device,
+///     support::testing::cpu_device,
 /// };
 /// use burn::{
 ///     backend::Flex,
@@ -142,7 +142,7 @@ use crate::errors::{
 ///     }
 /// }
 ///
-/// let device = default_device();
+/// let device = cpu_device();
 /// let config = SquareConfig::new(8);
 ///
 /// // The binding names the module, and so the backend.
@@ -198,7 +198,7 @@ use crate::errors::{
 /// use bunsen::{
 ///     errors::ConstraintError,
 ///     prelude::*,
-///     support::testing::default_device,
+///     support::testing::cpu_device,
 /// };
 /// use burn::{
 ///     backend::Flex,
@@ -296,7 +296,7 @@ use crate::errors::{
 ///     }
 /// }
 ///
-/// let device = default_device();
+/// let device = cpu_device();
 /// let policy = TowerContractConfig::new(64, 3);
 ///
 /// // Pathway 1: lower to the structure, then build it.

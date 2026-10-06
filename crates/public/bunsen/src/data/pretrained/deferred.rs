@@ -169,7 +169,7 @@ mod tests {
         },
         support::testing::{
             CpuBackend,
-            default_device,
+            cpu_device,
         },
     };
 
@@ -226,7 +226,7 @@ mod tests {
         assert_eq!(given.id(), spec);
         assert_eq!(given.status(&cache)["checkpoint"], CacheStatus::LocalDir);
         assert_eq!(given.plan(&cache).unwrap(), given.to_map());
-        let loaded = given.load::<CpuBackend>(&cache, &default_device()).unwrap();
+        let loaded = given.load::<CpuBackend>(&cache, &cpu_device()).unwrap();
         assert_eq!(*loaded.handle, file);
         assert_eq!(loaded.name, spec);
         assert_eq!(
@@ -241,7 +241,7 @@ mod tests {
         ErrorMatcher::kind(BunsenErrorKind::Policy)
             .frame_contains("loading kit \"well-known:a/small\"")
             .message_contains("the cache is offline")
-            .assert_err(&named.load::<CpuBackend>(&cache, &default_device()));
+            .assert_err(&named.load::<CpuBackend>(&cache, &cpu_device()));
     }
 
     /// An overlay replaces by key and keeps the hook the model was given.
@@ -258,7 +258,7 @@ mod tests {
             .unwrap();
         assert_eq!(model.id(), "well-known:a/small");
         assert_eq!(model.to_map().get("checkpoint").unwrap().file, "other.pt");
-        let loaded = model.load::<CpuBackend>(&cache, &default_device()).unwrap();
+        let loaded = model.load::<CpuBackend>(&cache, &cpu_device()).unwrap();
         assert_eq!(*loaded.handle, other);
         assert_eq!(loaded.name, "well-known:a/small");
     }

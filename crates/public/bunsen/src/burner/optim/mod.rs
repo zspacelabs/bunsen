@@ -93,7 +93,7 @@
 //!     },
 //!     support::testing::{
 //!         CpuBackend,
-//!         default_device,
+//!         cpu_device,
 //!     },
 //! };
 //! use burn::{
@@ -139,7 +139,7 @@
 //!     optim.step(1e-2, net, grads)
 //! }
 //!
-//! let device = default_device();
+//! let device = cpu_device().autodiff();
 //!
 //! // The first run trains, and saves a checkpoint.
 //! let (net, mut optim) = build(&device)?;
@@ -262,7 +262,7 @@
 //! }
 //!
 //! type B = Autodiff<bunsen::support::testing::CpuBackend>;
-//! let device = bunsen::support::testing::default_device();
+//! let device = bunsen::support::testing::cpu_device().autodiff();
 //! let net: Net<B> = Net {
 //!     body: LinearConfig::new(4, 4).init(&device),
 //!     head: LinearConfig::new(4, 2).init(&device),

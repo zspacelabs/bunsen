@@ -111,7 +111,7 @@ mod tests {
     use crate::support::testing::{
         DeviceMemoryGuard,
         PerformanceBackend,
-        default_device,
+        performance_device,
     };
 
     /// `(kernel_size, stride, dilation, [padding for size 1..=12])`, from the
@@ -177,8 +177,8 @@ mod tests {
     #[serial]
     fn test_pad_same_puts_the_odd_pixel_bottom_right() {
         type B = PerformanceBackend;
-        let device = default_device();
-        let _memory = DeviceMemoryGuard::<B>::new(&device);
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
 
         // Height 10 pads by 2 (1 + 1); width 8 pads by 1 (0 + 1).
         let input = Tensor::<B, 4>::ones([1, 1, 10, 8], &device);

@@ -24,7 +24,7 @@ mod tests {
             testing::{
                 DeviceMemoryGuard,
                 PerformanceBackend,
-                default_device,
+                performance_device,
             },
         },
     };
@@ -46,8 +46,8 @@ mod tests {
         type B = PerformanceBackend;
         type F = <B as BackendTypes>::FloatElem;
 
-        let device = default_device();
-        let _memory = DeviceMemoryGuard::<B>::new(&device);
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
 
         let sc: SileroVadCollection<B> =
             SileroVadCollection::load_pretrained(&device).ok_or_panic();
@@ -100,8 +100,8 @@ mod tests {
 
         let wav_path = concat!(env!("CARGO_MANIFEST_DIR"), "/testdata/test.wav");
 
-        let device = default_device();
-        let _memory = DeviceMemoryGuard::<B>::new(&device);
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
 
         let sc: SileroVadCollection<B> = SileroVadCollection::load_pretrained(&device)?;
         let r_mod: ReferenceModel<B> = ReferenceModel::load_pretrained(&device);
@@ -176,8 +176,8 @@ mod tests {
         let sample_rate = 16000;
 
         type B = PerformanceBackend;
-        let device = default_device();
-        let _memory = DeviceMemoryGuard::<B>::new(&device);
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
 
         let vad: SileroVad<B> = SileroVadCollection::load_pretrained(&device)?
             .try_branch(sample_rate)?

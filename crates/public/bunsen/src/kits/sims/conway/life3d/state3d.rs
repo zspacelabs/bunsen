@@ -116,7 +116,7 @@ mod tests {
         support::testing::{
             DeviceMemoryGuard,
             PerformanceBackend,
-            default_device,
+            performance_device,
         },
     };
 
@@ -162,8 +162,8 @@ mod tests {
     #[serial]
     fn test_step_after_fuzz_wraps() {
         type B = PerformanceBackend;
-        let device = default_device();
-        let _memory = DeviceMemoryGuard::<B>::new(&device);
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
 
         // A 6x7x8 board: a 4x5x6 torus. With 26 neighbours, these rules and
         // this density leave most cells' fate to a few neighbours, so a
@@ -197,8 +197,8 @@ mod tests {
     #[serial]
     fn test_fuzz_flips_each_hit_cell() {
         type B = PerformanceBackend;
-        let device = default_device();
-        let _memory = DeviceMemoryGuard::<B>::new(&device);
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
 
         // A 5x6x7 board: a 3x4x5 torus with live and dead cells, its halo
         // fresh.
@@ -235,8 +235,8 @@ mod tests {
     #[serial]
     fn test_module_reaches_the_board() {
         type B = PerformanceBackend;
-        let device = default_device();
-        let _memory = DeviceMemoryGuard::<B>::new(&device);
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
 
         let life: ConwayLife3DState<B> = ConwayLife3DConfig::new([5, 5, 5]).init(&device);
         assert_eq!(life.devices(), vec![device]);
@@ -246,8 +246,8 @@ mod tests {
     #[serial]
     fn test_smoke() {
         type B = PerformanceBackend;
-        let device = default_device();
-        let _memory = DeviceMemoryGuard::<B>::new(&device);
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
 
         let steps = 100;
         let grid_size = 20;

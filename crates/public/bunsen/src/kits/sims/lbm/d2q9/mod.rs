@@ -128,13 +128,13 @@
 //!         geometry::GridShape2D,
 //!         testing::{
 //!             CpuBackend,
-//!             default_device,
+//!             cpu_device, performance_device,
 //!         },
 //!     },
 //! };
 //! use burn::prelude::s;
 //!
-//! let device = default_device();
+//! let device = cpu_device();
 //! let rho = SPEED_OF_SOUND / 100.0;
 //!
 //! let mut sim: LBMD2Q9State<CpuBackend> =
@@ -205,8 +205,7 @@ mod tests {
         },
         support::testing::{
             DeviceMemoryGuard,
-            PerformanceBackend,
-            default_device,
+            PerformanceBackend, 
         },
     };
 
@@ -214,8 +213,8 @@ mod tests {
     #[serial]
     fn test_closed_box_steps_conserve_mass() {
         type B = PerformanceBackend;
-        let device = default_device();
-        let _memory = DeviceMemoryGuard::<B>::new(&device);
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
 
         let k = 5;
         let height = 6;

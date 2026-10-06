@@ -57,7 +57,7 @@ mod tests {
         support::testing::{
             DeviceMemoryGuard,
             PerformanceBackend,
-            default_device,
+            performance_device,
         },
     };
 
@@ -65,8 +65,8 @@ mod tests {
     #[serial]
     fn dropout_prob_0_should_return_input() {
         type B = PerformanceBackend;
-        let device = default_device();
-        let _memory = DeviceMemoryGuard::<B>::new(&device);
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
         let input = Tensor::<B, 2>::random([10, 3], Distribution::Default, &device);
 
         let output = dropout(0., input.clone());
@@ -78,8 +78,8 @@ mod tests {
     #[serial]
     fn dropout_prob_1_should_return_zeros() {
         type B = PerformanceBackend;
-        let device = default_device();
-        let _memory = DeviceMemoryGuard::<B>::new(&device);
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
         let input = Tensor::<B, 2>::random([10, 3], Distribution::Default, &device);
 
         let output = dropout(1., input.clone());
@@ -93,9 +93,9 @@ mod tests {
     #[serial]
     fn dropout_rates_stochastic_test() {
         type B = PerformanceBackend;
-        let device = default_device();
-        let _memory = DeviceMemoryGuard::<B>::new(&device);
-        B::seed(&device, 0);
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
+        device.seed(0);
 
         let input = Tensor::<B, 2>::ones([10, 10], &device);
         let num_elem = input.shape().num_elements();
@@ -132,8 +132,8 @@ mod tests {
     #[should_panic = "Dropout probability should be between 0 and 1,"]
     fn dropout_prob_invalid() {
         type B = PerformanceBackend;
-        let device = default_device();
-        let _memory = DeviceMemoryGuard::<B>::new(&device);
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
 
         let input = Tensor::<B, 1>::ones([10], &device);
         let _ = dropout(-10., input);

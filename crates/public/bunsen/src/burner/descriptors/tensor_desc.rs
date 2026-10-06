@@ -258,8 +258,7 @@ mod tests {
     use crate::support::testing::{
         DeviceMemoryGuard,
         PerformanceBackend,
-        backend_device,
-        default_device,
+        performance_device, 
     };
 
     #[test]
@@ -285,8 +284,8 @@ mod tests {
     #[test]
     fn test_tensor_rank_desc() {
         type B = PerformanceBackend;
-        let device = backend_device::<B>();
-        let _memory = DeviceMemoryGuard::<B>::new(&device);
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
 
         // Float
         {

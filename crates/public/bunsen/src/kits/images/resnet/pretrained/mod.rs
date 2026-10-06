@@ -43,14 +43,14 @@
 //!             default_resnet_factory,
 //!         },
 //!     },
-//!     support::testing::default_device,
+//!     support::testing::cpu_device,
 //! };
 //! use burn::{
 //!     backend::Flex,
 //!     nn::activation::ActivationConfig,
 //! };
 //!
-//! let device = default_device();
+//! let device = cpu_device();
 //! let cache = PretrainedCache::new(PretrainedCacheOptions::default())?;
 //!
 //! let config = RESNET_PREFABS

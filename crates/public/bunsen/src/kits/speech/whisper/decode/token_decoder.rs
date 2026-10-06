@@ -567,7 +567,7 @@ mod tests {
         support::testing::{
             DeviceMemoryGuard,
             PerformanceBackend,
-            default_device,
+            performance_device,
         },
     };
 
@@ -586,8 +586,8 @@ mod tests {
     #[test]
     #[serial]
     fn test_mel_windows_splits_and_pads() {
-        let device = default_device();
-        let _memory = DeviceMemoryGuard::<B>::new(&device);
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
         let (batch, n_mels, window) = (1, 4, 10);
 
         // Exactly two windows.
@@ -614,8 +614,8 @@ mod tests {
     #[test]
     #[serial]
     fn test_mel_windows_preserves_content() {
-        let device = default_device();
-        let _memory = DeviceMemoryGuard::<B>::new(&device);
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
         let frames = 7;
 
         let mels: Tensor<B, 3> = Tensor::from_data(
@@ -638,8 +638,8 @@ mod tests {
     #[test]
     #[serial]
     fn test_decode_window_respects_the_token_cap() {
-        let device = default_device();
-        let _memory = DeviceMemoryGuard::<B>::new(&device);
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
         let model = tiny_model(&device);
 
         let mels: Tensor<B, 3> = Tensor::random(
@@ -668,8 +668,8 @@ mod tests {
     #[test]
     #[serial]
     fn test_decode_window_stops_on_eot() {
-        let device = default_device();
-        let _memory = DeviceMemoryGuard::<B>::new(&device);
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
         let model = tiny_model(&device);
 
         let mels: Tensor<B, 3> = Tensor::random(
@@ -694,8 +694,8 @@ mod tests {
     #[test]
     #[serial]
     fn test_decode_chunked_covers_every_window() {
-        let device = default_device();
-        let _memory = DeviceMemoryGuard::<B>::new(&device);
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
         let model = tiny_model(&device);
         let window = model.max_audio_ctx();
 
@@ -724,8 +724,8 @@ mod tests {
     #[test]
     #[serial]
     fn test_batched_decode_matches_individual() {
-        let device = default_device();
-        let _memory = DeviceMemoryGuard::<B>::new(&device);
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
         let model = tiny_model(&device);
         let (batch, window) = (3, model.max_audio_ctx());
 
@@ -760,8 +760,8 @@ mod tests {
     #[test]
     #[serial]
     fn test_batched_rows_finish_independently() {
-        let device = default_device();
-        let _memory = DeviceMemoryGuard::<B>::new(&device);
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
         let model = tiny_model(&device);
         let (batch, window) = (3, model.max_audio_ctx());
 
@@ -819,8 +819,7 @@ mod search_tests {
         prelude::TensorElemOpExt,
         support::testing::{
             DeviceMemoryGuard,
-            PerformanceBackend,
-            default_device,
+            PerformanceBackend, 
         },
     };
 
@@ -832,7 +831,7 @@ mod search_tests {
 
     /// A tiny model, seeded so a near-tie ranks the same way every run.
     fn tiny_model(device: &burn::prelude::Device<B>) -> Whisper<B> {
-        B::seed(device, 11);
+        device.seed(11);
         WhisperApiConfig::new(
             /* n_mels */ 8, /* vocab_size */ VOCAB, /* d_model */ 64,
             /* max_audio_ctx */ 16, /* n_encoder_layers */ 1, /* max_text_ctx */ 12,
@@ -853,8 +852,8 @@ mod search_tests {
     #[test]
     #[serial]
     fn test_beam_of_one_is_greedy() {
-        let device = default_device();
-        let _memory = DeviceMemoryGuard::<B>::new(&device);
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
         let model = tiny_model(&device);
         let mels = windows(3, &device);
 
@@ -874,8 +873,8 @@ mod search_tests {
     #[test]
     #[serial]
     fn test_beam_search_runs_wider() {
-        let device = default_device();
-        let _memory = DeviceMemoryGuard::<B>::new(&device);
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
         let model = tiny_model(&device);
         let mels = windows(2, &device);
 
@@ -898,8 +897,8 @@ mod search_tests {
     #[test]
     #[serial]
     fn test_reorder_permutes_the_self_attention_cache() {
-        let device = default_device();
-        let _memory = DeviceMemoryGuard::<B>::new(&device);
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
         let model = tiny_model(&device);
         let mels = windows(1, &device).repeat_dim(0, 2);
 
@@ -943,8 +942,8 @@ mod search_tests {
     #[test]
     #[serial]
     fn test_filters_reach_the_search() {
-        let device = default_device();
-        let _memory = DeviceMemoryGuard::<B>::new(&device);
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
         let model = tiny_model(&device);
         let mels = windows(1, &device);
 
@@ -969,8 +968,8 @@ mod search_tests {
     #[test]
     #[serial]
     fn test_sampling_best_of_and_the_probe() {
-        let device = default_device();
-        let _memory = DeviceMemoryGuard::<B>::new(&device);
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
         let model = tiny_model(&device);
         let mels = windows(2, &device);
 
@@ -983,7 +982,7 @@ mod search_tests {
             .with_sot_token(Some(1))
             .with_no_speech_token(Some(7));
 
-        B::seed(&device, 3);
+        device.seed(3);
         let first = model.decode_windows_full(mels.clone(), &config, &[]);
         assert_eq!(first.len(), 2, "one answer per audio, not per trajectory");
         for d in &first {
@@ -995,7 +994,7 @@ mod search_tests {
             assert!(d.avg_logprob() <= 0.0);
         }
 
-        B::seed(&device, 3);
+        device.seed(3);
         let again = model.decode_windows_full(mels.clone(), &config, &[]);
         assert_eq!(again, first, "repeatable under the seed");
 
@@ -1018,8 +1017,8 @@ mod search_tests {
     #[test]
     #[serial]
     fn test_shared_cross_kv_matches_materialized() {
-        let device = default_device();
-        let _memory = DeviceMemoryGuard::<B>::new(&device);
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
         let model = tiny_model(&device);
         let xa = model.forward_encoder(windows(2, &device));
         let group = 3;
@@ -1075,8 +1074,8 @@ mod search_tests {
         }
         let filters: Vec<Arc<dyn LogitFilter<B>>> = vec![Arc::new(Ramp)];
 
-        let device = default_device();
-        let _memory = DeviceMemoryGuard::<B>::new(&device);
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
         let model = tiny_model(&device);
         let mels = windows(2, &device);
         let base = DecodeConfig::new(vec![1, 2], EOT)

@@ -8,7 +8,7 @@ use bunsen::{
         },
         noise::NoiseConfig,
     },
-    support::testing::default_device,
+    support::testing::cpu_device,
 };
 use burn::{
     backend::Flex,
@@ -22,7 +22,7 @@ use criterion::{
 
 fn bench_drop_block_10x32x32x3_7_normalise(c: &mut Criterion) {
     type B = Flex<f32>;
-    let device = default_device();
+    let device = cpu_device();
 
     let batch_size = 10;
     let height = 32;

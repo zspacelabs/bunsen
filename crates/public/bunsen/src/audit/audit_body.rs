@@ -17,7 +17,7 @@ use crate::{
         },
     },
     errors::BunsenResult,
-    support::testing::backend_device,
+    support::testing::cpu_device,
 };
 
 /// A test body that runs on any backend, emitting audit checkpoints.
@@ -196,7 +196,7 @@ mod tests {
             probe: &mut AuditProbe<'_>,
             device: &B::Device,
         ) -> BunsenResult<()> {
-            let x = seeded_tensor::<B, 3>(1, [2, 3, 4], Distribution::Uniform(-1.0, 1.0), device)
+            let x = seeded_tensor::<3>(1, [2, 3, 4], Distribution::Uniform(-1.0, 1.0), device)
                 + self.shift;
 
             probe.assert_eq_as::<f32>("x", &x)?;
@@ -216,7 +216,7 @@ mod tests {
         let mut recorder = AuditStreamRecorder::default();
         body.run::<CpuBackend>(
             &mut AuditProbe::new(vec![&mut recorder]),
-            &backend_device::<CpuBackend>(),
+            &cpu_device(),
         )
         .unwrap();
         recorder
@@ -228,7 +228,7 @@ mod tests {
     ) -> BunsenResult<()> {
         body.run::<CpuBackend>(
             &mut AuditProbe::new(vec![verifier]),
-            &backend_device::<CpuBackend>(),
+            &cpu_device(),
         )
     }
 
@@ -329,7 +329,7 @@ mod tests {
     fn test_baseline_uses_the_call_site_location() {
         let dir = tempfile::tempdir().unwrap();
         let options = ReportsOptions::new(dir.path());
-        let device = backend_device::<CpuBackend>();
+        let device = cpu_device();
         let path = options
             .report_path(&backend_label::<CpuBackend>(&device), "group/body.cbor")
             .unwrap();

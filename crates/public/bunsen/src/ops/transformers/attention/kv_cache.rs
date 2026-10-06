@@ -359,7 +359,7 @@ mod tests {
     use crate::support::testing::{
         DeviceMemoryGuard,
         PerformanceBackend,
-        default_device,
+        performance_device,
         seeded_tensor,
     };
 
@@ -379,8 +379,8 @@ mod tests {
         (0..cache.num_layers())
             .map(|layer| {
                 let seed = 2 * layer as u64;
-                let k = seeded_tensor::<B, 4>(seed, shape, Distribution::Default, device);
-                let v = seeded_tensor::<B, 4>(seed + 1, shape, Distribution::Default, device);
+                let k = seeded_tensor::<4>(seed, shape, Distribution::Default, device);
+                let v = seeded_tensor::<4>(seed + 1, shape, Distribution::Default, device);
                 cache.insert_kv(layer, k.clone(), v.clone());
                 (k, v)
             })
@@ -395,8 +395,8 @@ mod tests {
         filled: usize,
     ) {
         type B = PerformanceBackend;
-        let device = default_device();
-        let _memory = DeviceMemoryGuard::<B>::new(&device);
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
 
         let [num_heads, head_dim, num_layers] = [2, 4, 2];
         let mut source: KVCache<B> =

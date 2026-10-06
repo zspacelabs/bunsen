@@ -183,7 +183,7 @@ mod tests {
             DeviceMemoryGuard,
             PerformanceBackend,
             assert_tensors_close,
-            default_device,
+            performance_device,
             seeded_tensor,
         },
     };
@@ -192,8 +192,8 @@ mod tests {
     #[serial]
     fn test_gpt_block_config() {
         type B = PerformanceBackend;
-        let device = default_device();
-        let _memory = DeviceMemoryGuard::<B>::new(&device);
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
 
         let n_embed = 1024;
         let n_head = 128;
@@ -220,8 +220,8 @@ mod tests {
     #[serial]
     fn test_gpt_block_forward() {
         type B = PerformanceBackend;
-        let device = default_device();
-        let _memory = DeviceMemoryGuard::<B>::new(&device);
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
 
         let batch = 2;
         let seq_len = 10;
@@ -257,8 +257,8 @@ mod tests {
     #[serial]
     fn test_gpt_block_adds_sublayers_to_residual() {
         type B = PerformanceBackend;
-        let device = default_device();
-        let _memory = DeviceMemoryGuard::<B>::new(&device);
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
 
         let [batch, seq_len, n_embed] = [2, 5, 32];
         let config = NanoChatGptBlockConfig::new(
@@ -268,7 +268,7 @@ mod tests {
         let mut block: NanoChatGptBlock<B> = config.init(0, &device);
         let r_emb = RotaryEmbeddingConfig::new(seq_len, block.attn.head_dim()).init(&device);
         let input =
-            seeded_tensor::<B, 3>(1, [batch, seq_len, n_embed], Distribution::Default, &device);
+            seeded_tensor::<3>(1, [batch, seq_len, n_embed], Distribution::Default, &device);
 
         // With the MLP's output projection zeroed, the block is
         // `x + attn(norm(x))`.

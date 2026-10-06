@@ -359,7 +359,7 @@ mod tests {
             DeviceMemoryGuard,
             PerformanceBackend,
             assert_tensors_close,
-            default_device,
+            cpu_device, performance_device,
             seeded_tensor,
         },
     };
@@ -380,7 +380,7 @@ mod tests {
     #[allow(unused)]
     fn test_csa_forward() {
         type B = CpuBackend;
-        let device = default_device();
+        let device = cpu_device();
 
         let batch = 1;
         let seq_len = 10;
@@ -418,8 +418,8 @@ mod tests {
     #[serial]
     fn test_csa_cached_chunk_matches_full_pass() {
         type B = PerformanceBackend;
-        let device = default_device();
-        let _memory = DeviceMemoryGuard::<B>::new(&device);
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
 
         let [batch, seq_len, n_embed] = [2, 6, 16];
         let prefix = 3;
@@ -429,7 +429,7 @@ mod tests {
         let r_emb: RotaryEmbedding<B> =
             RotaryEmbeddingConfig::new(seq_len, csa.head_dim()).init(&device);
         let input =
-            seeded_tensor::<B, 3>(1, [batch, seq_len, n_embed], Distribution::Default, &device);
+            seeded_tensor::<3>(1, [batch, seq_len, n_embed], Distribution::Default, &device);
 
         let full = csa.forward(input.clone(), &r_emb, &mut None);
 

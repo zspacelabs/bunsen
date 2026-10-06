@@ -489,7 +489,7 @@ mod tests {
         support::testing::{
             CpuBackend,
             PerformanceBackend,
-            default_device,
+            cpu_device, performance_device,
         },
     };
 
@@ -501,7 +501,7 @@ mod tests {
         let probe = &mut AuditProbe::new(vec![&mut recorder]);
         {
             type B = PerformanceBackend;
-            let device = default_device();
+            let device = performance_device();
 
             let iota: Tensor<B, 1> = Tensor::arange(0..10, &device).float();
             probe.assert_eq_as::<f64>("iota", &iota).ok_or_panic();
@@ -511,7 +511,7 @@ mod tests {
         let probe = &mut AuditProbe::new(vec![&mut verifier]);
         {
             type B = CpuBackend;
-            let device = default_device();
+            let device = cpu_device();
 
             let iota: Tensor<B, 1> = Tensor::arange(5..15, &device).float();
             probe.assert_eq_as::<f64>("iota", &iota).ok_or_panic();

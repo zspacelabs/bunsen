@@ -200,13 +200,13 @@ mod tests {
         CpuBackend,
         DeviceMemoryGuard,
         PerformanceBackend,
-        default_device,
+        cpu_device, performance_device,
     };
 
     #[test]
     fn test_window_index_offset_grid() {
         type B = CpuBackend;
-        let device = default_device();
+        let device = cpu_device();
 
         window_index_offset_grid::<B>([3, 2], &device)
             .to_data()
@@ -225,7 +225,7 @@ mod tests {
     #[test]
     fn test_window_relative_offset_grid() {
         type B = CpuBackend;
-        let device = default_device();
+        let device = cpu_device();
 
         window_relative_offset_grid::<B>([3, 2], &device)
             .clone()
@@ -246,8 +246,8 @@ mod tests {
     #[serial]
     fn test_window_log_offset_grid() {
         type B = PerformanceBackend;
-        let device = default_device();
-        let _memory = DeviceMemoryGuard::<B>::new(&device);
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
         let base = 8.0;
 
         let actual = window_log1p_relative_offset_grid::<B>([3, 2], base, &device);
@@ -285,7 +285,7 @@ mod tests {
         type B = CpuBackend;
         let window_shape = [2, 3];
 
-        let device = default_device();
+        let device = cpu_device();
         let rel = window_attention_relative_position_index::<B>(window_shape, &device);
         rel.to_data().assert_eq(
             &TensorData::from([

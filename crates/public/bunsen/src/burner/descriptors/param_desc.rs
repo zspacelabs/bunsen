@@ -92,14 +92,14 @@ mod tests {
     };
     use crate::support::testing::{
         CpuBackend,
-        default_device,
+        cpu_device,
     };
 
     type B = CpuBackend;
 
     #[test]
     fn test_from_param() {
-        let device = default_device();
+        let device = cpu_device();
 
         let linear = LinearConfig::new(2, 3).init::<B>(&device);
 

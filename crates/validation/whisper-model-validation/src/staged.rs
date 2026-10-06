@@ -16,7 +16,7 @@ use bunsen::{
     support::testing::{
         DeviceMemoryGuard,
         PerformanceBackend,
-        default_device,
+        performance_device,
     },
 };
 use burn::{
@@ -39,8 +39,8 @@ type F = <B as BackendTypes>::FloatElem;
 #[test]
 #[serial_test::serial]
 fn test_reference_encoder_runs() {
-    let device = default_device();
-    let _memory = DeviceMemoryGuard::<B>::new(&device);
+    let device = performance_device();
+    let _memory = DeviceMemoryGuard::new(&device);
     let model = reference::EncoderModel::<B>::load_pretrained(&device);
 
     let out = model.forward(synthetic_mels::<B>(&device));
@@ -68,8 +68,8 @@ fn test_reference_encoder_runs() {
 #[test]
 #[serial_test::serial]
 fn test_bunsen_encoder_matches_reference() {
-    let device = default_device();
-    let _memory = DeviceMemoryGuard::<B>::new(&device);
+    let device = performance_device();
+    let _memory = DeviceMemoryGuard::new(&device);
     let mels: Tensor<B, 3> = synthetic_mels::<B>(&device);
 
     let reference = reference::EncoderModel::<B>::load_pretrained(&device).forward(mels.clone());
@@ -136,8 +136,8 @@ fn decoder_inputs(
 #[test]
 #[serial_test::serial]
 fn test_bunsen_decoder_matches_reference() {
-    let device = default_device();
-    let _memory = DeviceMemoryGuard::<B>::new(&device);
+    let device = performance_device();
+    let _memory = DeviceMemoryGuard::new(&device);
     let model = load_bunsen(&device);
     let (tokens, xa) = decoder_inputs(&device);
 
@@ -162,8 +162,8 @@ fn test_bunsen_decoder_matches_reference() {
 #[test]
 #[serial_test::serial]
 fn test_bunsen_decoder_argmax_matches_reference() {
-    let device = default_device();
-    let _memory = DeviceMemoryGuard::<B>::new(&device);
+    let device = performance_device();
+    let _memory = DeviceMemoryGuard::new(&device);
     let model = load_bunsen(&device);
     let (tokens, xa) = decoder_inputs(&device);
 

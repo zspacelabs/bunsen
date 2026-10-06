@@ -100,7 +100,7 @@ mod tests {
         support::testing::{
             DeviceMemoryGuard,
             PerformanceBackend,
-            default_device,
+            performance_device,
         },
     };
 
@@ -108,8 +108,8 @@ mod tests {
     #[serial]
     fn test_collision_invariants() {
         type B = PerformanceBackend;
-        let device = default_device();
-        let _memory = DeviceMemoryGuard::<B>::new(&device);
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
 
         let dtype = F32;
 

@@ -231,7 +231,7 @@ pub fn backend_main<B: AutodiffBackend>(args: &Args) -> anyhow::Result<()> {
     };
     let num_classes = 10;
 
-    B::seed(&device, args.seed);
+    device.seed(args.seed);
 
     let prefab = RESNET_PREFABS.expect_lookup_prefab(&args.resnet_prefab);
 

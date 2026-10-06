@@ -424,7 +424,7 @@ mod tests {
     use crate::support::testing::{
         DeviceMemoryGuard,
         PerformanceBackend,
-        default_device,
+        performance_device,
     };
 
     #[test]
@@ -503,8 +503,8 @@ mod tests {
     #[serial]
     fn test_drop_block_2d_drop_filter() {
         type B = PerformanceBackend;
-        let device = default_device();
-        let _memory = DeviceMemoryGuard::<B>::new(&device);
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
 
         let selected_blocks: Tensor<B, 4> = Tensor::<B, 2>::from_data(
             [
@@ -555,8 +555,8 @@ mod tests {
     #[serial]
     fn test_drop_block_2d_no_op() {
         type B = PerformanceBackend;
-        let device = default_device();
-        let _memory = DeviceMemoryGuard::<B>::new(&device);
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
 
         let shape = [2, 3, 7, 9];
         let tensor: Tensor<B, 4> = Tensor::ones(shape, &device);
@@ -577,8 +577,8 @@ mod tests {
     #[serial]
     fn test_drop_block_2d_dropping_everything_in_f16_gives_zeros() {
         type B = PerformanceBackend;
-        let device = default_device();
-        let _memory = DeviceMemoryGuard::<B>::new(&device);
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
 
         let tensor = Tensor::<B, 4>::ones([2, 3, 10, 10], &device).cast(DType::F16);
 
@@ -599,8 +599,8 @@ mod tests {
     #[serial]
     fn test_drop_block_2d_with_norm() {
         type B = PerformanceBackend;
-        let device = default_device();
-        let _memory = DeviceMemoryGuard::<B>::new(&device);
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
 
         let shape = [2, 3, 100, 100];
         let tensor: Tensor<B, 4> = Tensor::ones(shape, &device);
@@ -633,8 +633,8 @@ mod tests {
     #[serial]
     fn test_drop_block_2d_with_noise() {
         type B = PerformanceBackend;
-        let device = default_device();
-        let _memory = DeviceMemoryGuard::<B>::new(&device);
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
 
         let shape = [2, 3, 100, 100];
         let tensor: Tensor<B, 4> = Tensor::ones(shape, &device);

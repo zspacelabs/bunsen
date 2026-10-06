@@ -255,7 +255,7 @@ mod tests {
     #[test]
     #[ignore = "asserts correct semantics; fails on affected backends by design"]
     fn test_repro_on_performance_backend() {
-        let device = <PerformanceBackend as BackendTypes>::Device::default();
+        let device = performance_device();
         control_odd_step::<PerformanceBackend>(&device);
         control_no_tail::<PerformanceBackend>(&device);
         minimal::<PerformanceBackend>(&device);
@@ -267,7 +267,7 @@ mod tests {
     /// would catch a regression that made the CPU path match the broken one.
     #[test]
     fn test_cpu_backend_is_correct() {
-        let device = <CpuBackend as BackendTypes>::Device::default();
+        let device = cpu_device();
         control_odd_step::<CpuBackend>(&device);
         control_no_tail::<CpuBackend>(&device);
         minimal::<CpuBackend>(&device);
@@ -290,7 +290,7 @@ mod tests {
     #[test]
     #[cfg(any(feature = "wgpu", feature = "cuda", feature = "metal"))]
     fn test_performance_backend_is_currently_wrong() {
-        let device = <PerformanceBackend as BackendTypes>::Device::default();
+        let device = performance_device();
 
         assert!(
             !sweep::<PerformanceBackend>(&device).is_empty(),
@@ -310,7 +310,7 @@ mod tests {
     #[test]
     #[ignore = "diagnostic report, not an assertion"]
     fn test_report_sweep() {
-        let device = <PerformanceBackend as BackendTypes>::Device::default();
+        let device = performance_device();
         let wrong = sweep::<PerformanceBackend>(&device);
 
         eprintln!("{} configurations read wrong", wrong.len());

@@ -462,7 +462,7 @@ mod tests {
         support::testing::{
             DeviceMemoryGuard,
             PerformanceBackend,
-            default_device,
+            performance_device,
         },
     };
 
@@ -484,8 +484,8 @@ mod tests {
     #[serial]
     fn test_gpt_forward() {
         type B = PerformanceBackend;
-        let device = default_device();
-        let _memory = DeviceMemoryGuard::<B>::new(&device);
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
 
         let batch_size = 1;
         let seq_len = 100;
@@ -539,8 +539,8 @@ mod tests {
     #[serial]
     fn test_policy_pathways_agree() {
         type B = PerformanceBackend;
-        let device = default_device();
-        let _memory = DeviceMemoryGuard::<B>::new(&device);
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
 
         let policy = NanoChatGptContractConfig::new()
             .with_init_seq_len(16)
@@ -584,8 +584,8 @@ mod tests {
     #[serial]
     fn test_cached_decode_fills_rotary_table() {
         type B = PerformanceBackend;
-        let device = default_device();
-        let _memory = DeviceMemoryGuard::<B>::new(&device);
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
 
         let gpt = tiny_gpt::<B>(&device);
         let mut cache = gpt.new_kv_cache(1);
@@ -602,8 +602,8 @@ mod tests {
     #[should_panic(expected = "beyond the rotary embeddings table: 8 + 1 > 8")]
     fn test_cached_decode_past_rotary_table_panics() {
         type B = PerformanceBackend;
-        let device = default_device();
-        let _memory = DeviceMemoryGuard::<B>::new(&device);
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
 
         let gpt = tiny_gpt::<B>(&device);
         let mut cache = gpt.new_kv_cache(1);
@@ -619,8 +619,8 @@ mod tests {
     #[serial]
     fn test_forward_normalizes_the_embedding() {
         type B = PerformanceBackend;
-        let device = default_device();
-        let _memory = DeviceMemoryGuard::<B>::new(&device);
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
 
         let mut gpt = tiny_gpt::<B>(&device);
         let table: Tensor<B, 2> = Tensor::random([16, 16], Distribution::Normal(0.0, 1.0), &device);

@@ -84,7 +84,7 @@
 //! A test of real tensor math, as it would sit in a `#[test] #[serial] fn`:
 //!
 //! ```
-//! use bunsen::support::testing::{
+//! use bunsen::support::testing::{performance_device, 
 //!     DeviceMemoryGuard,
 //!     PerformanceBackend,
 //!     assert_tensors_close,
@@ -97,10 +97,10 @@
 //! };
 //!
 //! type B = PerformanceBackend;
-//! let device = backend_device::<B>();
-//! let _memory = DeviceMemoryGuard::<B>::new(&device);
+//! let device = performance_device();
+//! let _memory = DeviceMemoryGuard::new(&device);
 //!
-//! let x = seeded_tensor::<B, 2>(7, [4, 8], Distribution::Default, &device);
+//! let x = seeded_tensor::<2>(7, [4, 8], Distribution::Default, &device);
 //! let y = (x.clone() * 3.0) / 3.0;
 //! assert_tensors_close(&y, &x, Tolerance::default());
 //! ```

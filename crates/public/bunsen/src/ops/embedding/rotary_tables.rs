@@ -69,15 +69,15 @@ mod tests {
     use crate::support::testing::{
         DeviceMemoryGuard,
         PerformanceBackend,
-        default_device,
+        performance_device,
     };
 
     #[test]
     #[serial]
     fn test_inverse_frequency_table() {
         type B = PerformanceBackend;
-        let device = default_device();
-        let _memory = DeviceMemoryGuard::<B>::new(&device);
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
 
         let base = 10000;
         let head_dim = 4;
@@ -104,8 +104,8 @@ mod tests {
     #[serial]
     fn test_frequency_matrix() {
         type B = PerformanceBackend;
-        let device = default_device();
-        let _memory = DeviceMemoryGuard::<B>::new(&device);
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
 
         let base = 10000;
         let head_dim = 4;

@@ -225,7 +225,7 @@ mod tests {
         support::testing::{
             DeviceMemoryGuard,
             PerformanceBackend,
-            default_device,
+            performance_device,
         },
     };
 
@@ -233,8 +233,8 @@ mod tests {
     #[serial]
     fn test_clip_range() {
         type B = PerformanceBackend;
-        let device = default_device();
-        let _memory = DeviceMemoryGuard::<B>::new(&device);
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
 
         let config = RotaryEmbeddingConfig::new(1024, 64);
         let re: RotaryEmbedding<B> = config.init(&device);
@@ -259,8 +259,8 @@ mod tests {
     #[serial]
     fn test_rotary_embedding() {
         type B = PerformanceBackend;
-        let device = default_device();
-        let _memory = DeviceMemoryGuard::<B>::new(&device);
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
 
         let batch = 1;
         let heads = 2;

@@ -11,7 +11,7 @@ use bunsen::{
     },
     support::testing::{
         PerformanceBackend,
-        default_device,
+        performance_device,
     },
 };
 use burn::{
@@ -36,7 +36,7 @@ use criterion::{
 
 fn bench_lbm_d2q9(c: &mut Criterion) {
     type B = PerformanceBackend;
-    let device = default_device();
+    let device = performance_device();
 
     let n = 1000;
 

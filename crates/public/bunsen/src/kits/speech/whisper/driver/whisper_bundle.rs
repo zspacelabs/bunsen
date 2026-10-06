@@ -189,7 +189,7 @@ mod tests {
         },
         support::testing::{
             CpuBackend,
-            default_device,
+            cpu_device,
         },
     };
 
@@ -197,7 +197,7 @@ mod tests {
     fn tiny_model() -> Whisper<CpuBackend> {
         WhisperGeometry::openai(8, 64, 64, 1, 1)
             .to_api_config()
-            .try_init(&default_device())
+            .try_init(&cpu_device())
             .unwrap()
     }
 

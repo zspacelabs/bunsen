@@ -140,7 +140,7 @@ mod tests {
         },
         support::testing::{
             CpuBackend,
-            default_device,
+            cpu_device,
         },
     };
 
@@ -243,7 +243,7 @@ mod tests {
             model: PretrainedRef::from(ResourceMap::given("mine", "checkpoint", &checkpoint)),
             hook,
         }
-        .load::<CpuBackend>(&cache, &default_device())
+        .load::<CpuBackend>(&cache, &cpu_device())
         .unwrap();
 
         assert_eq!(loaded.name, "mine");
@@ -285,7 +285,7 @@ mod tests {
             model: model.clone(),
             hook,
         }
-        .load::<CpuBackend>(&cache, &default_device())
+        .load::<CpuBackend>(&cache, &cpu_device())
         .unwrap();
         assert_eq!(*loaded.handle, vec![checkpoint.clone(), vocabulary.clone()]);
 
@@ -293,7 +293,7 @@ mod tests {
         let no_rule = Deferred::<Paths>::new(model.clone()).unwrap();
         assert!(no_rule.hook.vocabulary.is_none());
         let loaded = no_rule
-            .load::<CpuBackend>(&cache, &default_device())
+            .load::<CpuBackend>(&cache, &cpu_device())
             .unwrap();
         assert_eq!(*loaded.handle, vec![checkpoint, vocabulary]);
 
@@ -316,7 +316,7 @@ mod tests {
             &checkpoint,
         ))
         .unwrap()
-        .load::<CpuBackend>(&cache, &default_device())
+        .load::<CpuBackend>(&cache, &cpu_device())
         .unwrap_err();
         ErrorMatcher::kind(BunsenErrorKind::Lookup)
             .frame_contains("loading paths \"mine\"")
@@ -328,7 +328,7 @@ mod tests {
         let absent = dir.path().join("absent.pt");
         let err = Deferred::<Paths>::from_map(ResourceMap::given("mine", "checkpoint", &absent))
             .unwrap()
-            .load::<CpuBackend>(&cache, &default_device())
+            .load::<CpuBackend>(&cache, &cpu_device())
             .unwrap_err();
         ErrorMatcher::kind(BunsenErrorKind::Lookup)
             .cause(predicate("the absent path", move |c: &LookupError| {

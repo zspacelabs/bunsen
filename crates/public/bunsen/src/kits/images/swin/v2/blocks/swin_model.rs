@@ -819,7 +819,7 @@ mod tests {
             CpuBackend,
             DeviceMemoryGuard,
             PerformanceBackend,
-            default_device,
+            cpu_device, performance_device,
         },
     };
 
@@ -890,8 +890,8 @@ mod tests {
             ]
         );
 
-        let device = default_device();
-        let _memory = DeviceMemoryGuard::<B>::new(&device);
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
         let model: SwinTransformerV2<B> = config.try_init(&device).ok_or_panic();
 
         assert_eq!(model.input_resolution(), [224, 224]);
@@ -932,8 +932,8 @@ mod tests {
     #[serial]
     fn test_smoke_test_ape() {
         type B = PerformanceBackend;
-        let device = default_device();
-        let _memory = DeviceMemoryGuard::<B>::new(&device);
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
 
         let b = 2;
         let d_input = 3;
@@ -1014,8 +1014,8 @@ mod tests {
     #[serial]
     fn test_smoke_test_no_ape() {
         type B = PerformanceBackend;
-        let device = default_device();
-        let _memory = DeviceMemoryGuard::<B>::new(&device);
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
 
         let b = 2;
         let d_input = 3;
@@ -1137,8 +1137,8 @@ mod tests {
     #[serial]
     fn test_policy_pathways_agree() {
         type B = PerformanceBackend;
-        let device = default_device();
-        let _memory = DeviceMemoryGuard::<B>::new(&device);
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
 
         let policy = tiny_policy()
             .with_mlp_ratio(2.0)
@@ -1193,7 +1193,7 @@ mod tests {
             "input_resolution must match",
         );
 
-        let device: burn::prelude::Device<CpuBackend> = Default::default();
+        let device = cpu_device();
         let bad: BunsenResult<SwinTransformerV2<CpuBackend>> =
             tiny_policy().with_window_size(4).try_init(&device);
         ErrorMatcher::kind(BunsenErrorKind::Illegal)
@@ -1217,7 +1217,7 @@ mod tests {
             }
         }
 
-        let device: burn::prelude::Device<CpuBackend> = Default::default();
+        let device = cpu_device();
         let model: SwinTransformerV2<CpuBackend> = policy.init(&device);
         assert_eq!(model.grid_input_dropout.prob, 0.25);
         for sequence in &model.grid_transformer_block_sequences {
@@ -1238,7 +1238,7 @@ mod tests {
             .message_contains("patch_size");
         zero_patch.assert_err(&policy.try_to_structure());
 
-        let device: burn::prelude::Device<CpuBackend> = Default::default();
+        let device = cpu_device();
         let bad: BunsenResult<SwinTransformerV2<CpuBackend>> = policy.try_init(&device);
         zero_patch.assert_err(&bad);
     }

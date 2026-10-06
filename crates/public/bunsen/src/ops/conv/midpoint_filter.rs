@@ -52,13 +52,13 @@ mod tests {
     use super::*;
     use crate::support::testing::{
         CpuBackend,
-        default_device,
+        cpu_device,
     };
 
     #[test]
     fn test_conv2d_kernel_midpoint_filter() {
         type B = CpuBackend;
-        let device = default_device();
+        let device = cpu_device();
 
         let shape = [7, 9];
         let kernel_shape = [2, 3];

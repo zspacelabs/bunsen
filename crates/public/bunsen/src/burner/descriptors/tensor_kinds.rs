@@ -107,7 +107,7 @@ mod tests {
         burner::descriptors::TensorKindDesc,
         support::testing::{
             CpuBackend,
-            default_device,
+            cpu_device,
         },
     };
 
@@ -115,7 +115,7 @@ mod tests {
 
     #[test]
     fn test_tensor_kinds() {
-        let device = default_device();
+        let device = cpu_device();
         assert_eq!(TensorKindDesc::for_kind::<Bool>(), TensorKindDesc::Bool);
         assert_eq!(
             TensorKindDesc::kind(&Tensor::<B, 1, Bool>::zeros(&[1], &device)),

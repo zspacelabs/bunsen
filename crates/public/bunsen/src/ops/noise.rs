@@ -143,7 +143,7 @@ mod tests {
     use super::*;
     use crate::support::testing::{
         CpuBackend,
-        default_device,
+        cpu_device,
     };
 
     #[test]
@@ -211,7 +211,7 @@ mod tests {
     #[test]
     fn test_noise_like_default_clamp() {
         type B = CpuBackend;
-        let device = default_device();
+        let device = cpu_device();
 
         let reference: Tensor<B, 2> = Tensor::ones([20, 20], &device);
         let numel = reference.shape().num_elements() as f64;
@@ -242,7 +242,7 @@ mod tests {
     #[test]
     fn test_noise_like_bernoulli() {
         type B = CpuBackend;
-        let device = default_device();
+        let device = cpu_device();
 
         let reference: Tensor<B, 2> = Tensor::ones([20, 20], &device);
 

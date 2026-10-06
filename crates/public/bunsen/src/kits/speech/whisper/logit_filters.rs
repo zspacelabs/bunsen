@@ -395,7 +395,7 @@ mod tests {
         },
         support::testing::{
             CpuBackend,
-            default_device,
+            cpu_device,
         },
     };
 
@@ -418,7 +418,7 @@ mod tests {
 
     #[test]
     fn test_suppress_tokens() {
-        let device = default_device();
+        let device = cpu_device();
 
         let filter = SuppressTokens::new([3, 1, 3, 99, -1]);
         assert_eq!(filter.ids(), &[-1, 1, 3, 99], "sorted, deduplicated");
@@ -519,7 +519,7 @@ mod tests {
     /// the best text token the text goes, row by row.
     #[test]
     fn test_timestamp_rules_probability_clause() {
-        let device = default_device();
+        let device = cpu_device();
 
         let ids = layout();
         let rules = ApplyTimestampRules::new(&ids, None);
@@ -561,7 +561,7 @@ mod tests {
     /// Detection leaves only the language block standing.
     #[test]
     fn test_restrict_to_languages() {
-        let device = default_device();
+        let device = cpu_device();
 
         let ids = WhisperSpecialIds::new(5, 3).unwrap();
         let filter = RestrictToLanguages::new(&ids);

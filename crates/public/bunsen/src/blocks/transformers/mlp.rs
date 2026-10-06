@@ -208,7 +208,7 @@ mod tests {
         support::testing::{
             DeviceMemoryGuard,
             PerformanceBackend,
-            default_device,
+            performance_device,
         },
     };
 
@@ -227,8 +227,8 @@ mod tests {
     #[serial]
     fn test_mlp() {
         type B = PerformanceBackend;
-        let device = default_device();
-        let _memory = DeviceMemoryGuard::<B>::new(&device);
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
 
         for activation in [ActivationConfig::Relu, ActivationConfig::Gelu] {
             for ef in [4, 3] {

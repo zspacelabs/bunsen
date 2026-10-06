@@ -113,13 +113,13 @@ mod tests {
     use super::*;
     use crate::support::testing::{
         CpuBackend,
-        default_device,
+        cpu_device,
     };
 
     #[test]
     fn test_drop_path_wrapper() {
         type B = CpuBackend;
-        let device = default_device();
+        let device = cpu_device();
 
         let n = 3;
         let shape = [n, 2, 4];
@@ -137,7 +137,7 @@ mod tests {
     #[test]
     fn test_drop_path_sample() {
         type B = CpuBackend;
-        let device = default_device();
+        let device = cpu_device();
 
         let n = 3;
         let shape = [n, 2, 4];

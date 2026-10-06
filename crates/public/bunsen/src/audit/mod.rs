@@ -89,7 +89,7 @@
 //!         device: &B::Device,
 //!     ) -> BunsenResult<()> {
 //!         let x =
-//!             seeded_tensor::<B, 2>(7, [4, 8], Distribution::Default, device);
+//!             seeded_tensor::<2>(7, [4, 8], Distribution::Default, device);
 //!         // Uploaded host values: bit-identical everywhere.
 //!         probe.assert_eq_as::<f32>("x", &x)?;
 //!
@@ -191,12 +191,12 @@
 //!     },
 //!     support::testing::{
 //!         CpuBackend,
-//!         backend_device,
+//!         cpu_device,
 //!     },
 //! };
 //! use burn::prelude::Tensor;
 //!
-//! let device = backend_device::<CpuBackend>();
+//! let device = cpu_device();
 //! let x: Tensor<CpuBackend, 1> = Tensor::arange(0..8, &device).float();
 //!
 //! let mut recorder = AuditStreamRecorder::default();

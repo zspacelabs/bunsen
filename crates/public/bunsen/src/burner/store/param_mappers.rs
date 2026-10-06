@@ -72,7 +72,7 @@ mod tests {
         burner::tensor::TensorElemOpExt,
         support::testing::{
             CpuBackend,
-            default_device,
+            cpu_device,
         },
     };
 
@@ -83,7 +83,7 @@ mod tests {
     /// crosses the store boundary.
     #[test]
     fn test_repair_preserves_the_live_value() {
-        let device = default_device();
+        let device = cpu_device();
 
         let linear = LinearConfig::new(3, 5).with_bias(false).init::<B>(&device);
         let before = linear.weight.val();
@@ -101,7 +101,7 @@ mod tests {
     /// loaded reproduces the store's orientation.
     #[test]
     fn test_load_then_save_round_trips() {
-        let device = default_device();
+        let device = cpu_device();
 
         // A store-orientation tensor: `[d_output, d_input]`.
         let stored: Tensor<B, 2> = Tensor::from_data(

@@ -60,7 +60,7 @@
 //!     },
 //!     support::testing::{
 //!         CpuBackend,
-//!         default_device,
+//!         cpu_device,
 //!     },
 //! };
 //! use burn::prelude::{
@@ -69,7 +69,7 @@
 //! };
 //!
 //! type B = CpuBackend;
-//! let device = default_device();
+//! let device = cpu_device();
 //!
 //! let gpt: NanoChatGpt<B> = NanoChatGptContractConfig::new()
 //!     .with_vocab_size(64)

@@ -500,8 +500,7 @@ impl ParamGroups {
 #[cfg(test)]
 mod tests {
     use bunsen::support::testing::{
-        CpuBackend,
-        default_device,
+        CpuBackend, 
     };
 
     use super::*;

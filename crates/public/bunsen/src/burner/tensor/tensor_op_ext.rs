@@ -417,13 +417,13 @@ mod tests {
     use super::*;
     use crate::support::testing::{
         CpuBackend,
-        default_device,
+        cpu_device,
     };
     type B = CpuBackend;
 
     #[test]
     fn test_release_swap() {
-        let device = default_device();
+        let device = cpu_device();
         let mut tensor: Tensor<B, 1> =
             Tensor::<B, 1>::from_data(TensorData::from([0.0, 1.0, 2.0, 3.0]), &device);
         assert_eq!(tensor.dims(), [4]);
@@ -439,7 +439,7 @@ mod tests {
 
     #[test]
     fn test_replace_with() {
-        let device = default_device();
+        let device = cpu_device();
         let mut tensor: Tensor<B, 1> =
             Tensor::<B, 1>::from_data(TensorData::from([0.0, 1.0, 2.0, 3.0]), &device);
 
@@ -456,7 +456,7 @@ mod tests {
 
     #[test]
     fn test_select_dim() {
-        let device = default_device();
+        let device = cpu_device();
         let tensor: Tensor<B, 2> =
             Tensor::from_data(TensorData::from([[0.0, 1.0], [2.0, 3.0]]), &device);
 
@@ -469,7 +469,7 @@ mod tests {
 
     #[test]
     fn test_in_range_scalar() {
-        let device = default_device();
+        let device = cpu_device();
         let x: Tensor<B, 1, Int> = Tensor::from_data([0, 1, 2, 3], &device);
 
         let b = x.in_range_scalar(1..3);
@@ -480,7 +480,7 @@ mod tests {
 
     #[test]
     fn test_in_range() {
-        let device = default_device();
+        let device = cpu_device();
         let x: Tensor<B, 1, Int> = Tensor::from_data([0, 0, 0, 0], &device);
 
         let start: Tensor<B, 1, Int> = Tensor::from_data([-1, 0, 0, 3], &device);
@@ -494,7 +494,7 @@ mod tests {
 
     #[test]
     fn test_int_square() {
-        let device = default_device();
+        let device = cpu_device();
         let x: Tensor<B, 1, Int> = Tensor::from_data([0, 1, 2, 3], &device);
 
         x.square()
@@ -504,7 +504,7 @@ mod tests {
 
     #[test]
     fn test_bool_count_dim() {
-        let device = default_device();
+        let device = cpu_device();
         let x: Tensor<B, 2, Bool> =
             Tensor::from_data([[true, true, false], [true, false, false]], &device);
 

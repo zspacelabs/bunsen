@@ -325,7 +325,7 @@ pub fn train<B: AutodiffBackend>(args: &Args) -> anyhow::Result<()> {
     let artifact_dir: &str = args.artifact_dir.as_ref();
     ensure_artifact_dir(artifact_dir)?;
 
-    B::seed(&device, args.seed);
+    device.seed(args.seed);
 
     let mut resnet_config = prefab.to_config();
 

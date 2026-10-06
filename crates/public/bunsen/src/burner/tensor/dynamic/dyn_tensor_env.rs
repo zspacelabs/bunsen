@@ -170,14 +170,14 @@ mod tests {
         prelude::*,
         support::testing::{
             CpuBackend,
-            default_device,
+            cpu_device,
         },
     };
 
     #[test]
     fn test_dyn_tensor_env() {
         type B = CpuBackend;
-        let device = default_device();
+        let device = cpu_device();
 
         // Two handles to the same environment.
         let mut env1_a = DynTensorEnv::<B>::default();
@@ -273,7 +273,7 @@ mod tests {
     #[should_panic(expected = "tensor \"foo\" (rank=2, kind=Int) is not a Tensor<_, 2, ")]
     fn test_expect_tensor_type_mismatch() {
         type B = CpuBackend;
-        let device = default_device();
+        let device = cpu_device();
 
         let mut env = DynTensorEnv::<B>::default();
         let int_tensor: Tensor<B, 2, Int> = Tensor::arange(0..6, &device).reshape([2, 3]);

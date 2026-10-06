@@ -286,7 +286,7 @@ mod tests {
     use crate::support::testing::{
         DeviceMemoryGuard,
         PerformanceBackend,
-        default_device,
+        performance_device,
     };
 
     fn logits<B: Backend>(
@@ -308,8 +308,8 @@ mod tests {
     #[serial_test::serial]
     fn test_first_step_deduplicates() {
         type B = PerformanceBackend;
-        let device = default_device();
-        let _memory = DeviceMemoryGuard::<B>::new(&device);
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
 
         let mut decoder = WhisperBeamSearchDecoder::new(3, EOT, None);
         let mut tokens = vec![vec![7]; 3];
@@ -341,8 +341,8 @@ mod tests {
     #[serial_test::serial]
     fn test_finished_set_and_patience() {
         type B = PerformanceBackend;
-        let device = default_device();
-        let _memory = DeviceMemoryGuard::<B>::new(&device);
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
         let mut decoder = WhisperBeamSearchDecoder::new(2, EOT, None);
         assert_eq!(decoder.beam_size(), 2);
         assert_eq!(decoder.max_candidates(), 2);
@@ -389,8 +389,8 @@ mod tests {
     #[serial_test::serial]
     fn test_patience_and_finalize_fill() {
         type B = PerformanceBackend;
-        let device = default_device();
-        let _memory = DeviceMemoryGuard::<B>::new(&device);
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
         let mut decoder = WhisperBeamSearchDecoder::new(2, EOT, Some(2.0));
         assert_eq!(decoder.max_candidates(), 4);
         let mut tokens = vec![vec![7]; 2];
@@ -425,8 +425,8 @@ mod tests {
     #[serial_test::serial]
     fn test_groups_are_independent() {
         type B = PerformanceBackend;
-        let device = default_device();
-        let _memory = DeviceMemoryGuard::<B>::new(&device);
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
         let mut decoder = WhisperBeamSearchDecoder::new(2, EOT, None);
         let mut tokens = vec![vec![7]; 4];
         let mut sums = vec![0.0; 4];

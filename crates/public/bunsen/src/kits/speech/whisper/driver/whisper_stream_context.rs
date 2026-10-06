@@ -1075,7 +1075,7 @@ mod tests {
         support::testing::{
             DeviceMemoryGuard,
             PerformanceBackend,
-            default_device,
+            cpu_device, performance_device,
         },
     };
 
@@ -1091,7 +1091,7 @@ mod tests {
     /// is 16 frames (2560 samples), so a short clip has several windows.
     /// Seeded, so a run is the same run on the same backend.
     fn tiny_model_on<B: Backend>(device: &B::Device) -> Whisper<B> {
-        B::seed(device, 7);
+        device.seed(7);
         WhisperApiConfig::new(
             /* n_mels */ 8,
             /* vocab_size */ tiny_layout().n_vocab(),
@@ -1238,7 +1238,7 @@ mod tests {
     #[test]
     #[serial]
     fn test_single_push_matches_decode_chunked() {
-        let device = Device::default();
+        let device = performance_device();
         let driver = driver(&device, false);
         let audio = clip();
 
@@ -1292,7 +1292,7 @@ mod tests {
     #[test]
     #[serial]
     fn test_random_pushes_match_single_push() {
-        let device = Device::default();
+        let device = performance_device();
         let driver = driver(&device, false);
         let audio = clip();
 
@@ -1345,7 +1345,7 @@ mod tests {
     #[test]
     #[serial]
     fn test_segments_sit_on_the_clock() {
-        let device = Device::default();
+        let device = performance_device();
         let driver: WhisperStreamDriver<B> = driver(&device, false);
         let audio = clip();
         let hop = driver.audio_converter().hop() as f64;
@@ -1378,8 +1378,8 @@ mod tests {
     #[test]
     #[serial]
     fn test_prompt_carry() {
-        let device = default_device();
-        let _memory = DeviceMemoryGuard::<B>::new(&device);
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
         let driver: WhisperStreamDriver<B> = driver(&device, true);
         let audio = clip();
         let width = driver.window_frames();
@@ -1441,8 +1441,8 @@ mod tests {
             }
         }
 
-        let device = default_device();
-        let _memory = DeviceMemoryGuard::<B>::new(&device);
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
         let driver: WhisperStreamDriver<B> =
             driver(&device, false).with_detokenizer(Arc::new(Numbers));
         let audio = clip();
@@ -1466,8 +1466,8 @@ mod tests {
     #[test]
     #[serial]
     fn test_lifecycle_edges() {
-        let device = default_device();
-        let _memory = DeviceMemoryGuard::<B>::new(&device);
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
         let driver: WhisperStreamDriver<B> = driver(&device, false);
 
         let mut empty = driver.new_context(clock(), PerWindow).unwrap();
@@ -1513,7 +1513,7 @@ mod tests {
     #[test]
     #[serial]
     fn test_advance_ready_matches_solo() {
-        let device = Device::default();
+        let device = performance_device();
         let driver = driver(&device, false).with_logit_filters(decisive());
         let clips = [clip_seeded(0.5, 440.0), clip_seeded(0.3, 660.0)];
 
@@ -1563,7 +1563,7 @@ mod tests {
     #[test]
     #[serial]
     fn test_advance_ready_with_prompt_carry() {
-        let device = Device::default();
+        let device = performance_device();
         let driver = driver(&device, true).with_logit_filters(decisive());
         let audio = clip();
         // 4000 samples: one 16-frame window and change.
@@ -1728,7 +1728,7 @@ mod tests {
     #[test]
     #[serial]
     fn test_timestamps_split_windows_into_segments() {
-        let device = Device::default();
+        let device = performance_device();
         let driver = timestamped(&device, CommitRule::Complete);
         let tb = tiny_layout().timestamp_begin;
         let hop = driver.audio_converter().hop() as f64;
@@ -1770,7 +1770,7 @@ mod tests {
     #[test]
     #[serial]
     fn test_segment_times_are_invariant_to_clock_origin() {
-        let device = Device::default();
+        let device = performance_device();
         let driver = timestamped(&device, CommitRule::Complete);
         let audio = clip();
 
@@ -1790,7 +1790,7 @@ mod tests {
     #[test]
     #[serial]
     fn test_last_timestamp_drafts_the_tail() {
-        let device = Device::default();
+        let device = performance_device();
         let audio = clip();
         let complete = run_clip(&timestamped(&device, CommitRule::Complete), &audio, None);
         let last = run_clip(
@@ -1878,7 +1878,7 @@ mod tests {
     #[test]
     #[serial]
     fn test_fallback_ladder_recovers() {
-        let device = Device::default();
+        let device = performance_device();
         let audio = clip();
         let flat = degenerate_driver(&device, WhisperFallbackConfig::new());
         let mut ctx = flat.new_context(clock(), PerWindow).unwrap();
@@ -1933,7 +1933,7 @@ mod tests {
     #[test]
     #[serial]
     fn test_no_speech_skips_a_window() {
-        let device = Device::default();
+        let device = performance_device();
         let audio = clip();
 
         let skipping = degenerate_driver(
@@ -1971,7 +1971,7 @@ mod tests {
     #[test]
     #[serial]
     fn test_language_is_detected_per_stream() {
-        let device = Device::default();
+        let device = performance_device();
         let detecting = WhisperStreamDriverConfig::new()
             .with_max_tokens(4)
             .init_with_layout(
@@ -2015,7 +2015,7 @@ mod tests {
     /// The driver reports the model's rate, and the grid derived from it.
     #[test]
     fn test_driver_reports_the_models_rate() {
-        let device = Device::default();
+        let device = performance_device();
         let driver = WhisperStreamDriverConfig::new()
             .init_with_layout(
                 tiny_model_on::<B>(&device),
@@ -2034,7 +2034,7 @@ mod tests {
     /// at construction, as unsupported.
     #[test]
     fn test_init_refuses_agreement() {
-        let device = Device::default();
+        let device = performance_device();
         let refused = config(false)
             .with_emission(EmissionPolicy::new(
                 DecodeTriggers::new(),
@@ -2056,7 +2056,7 @@ mod tests {
     /// pairing at construction.
     #[test]
     fn test_init_refuses_interval_without_endpoint() {
-        let device = Device::default();
+        let device = performance_device();
         let refused = config(false)
             .with_emission(EmissionPolicy::new(
                 DecodeTriggers::new().with_interval(Some(std::time::Duration::from_millis(50))),
@@ -2078,8 +2078,8 @@ mod tests {
     #[test]
     #[serial]
     fn test_init_and_new_context_refuse_bad_settings() {
-        let device = default_device();
-        let _memory = DeviceMemoryGuard::<B>::new(&device);
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
         let policy = WhisperTokenLayout::new(tiny_layout());
         let base = WhisperStreamDriverConfig::new().with_language(Some("en".to_string()));
 
@@ -2204,7 +2204,7 @@ mod tests {
         #[test]
         #[serial]
         fn test_with_vad_refuses_a_mismatch() {
-            let device = CDevice::default();
+            let device = cpu_device();
             let driver = || {
                 config(false)
                     .with_emission(EmissionPolicy::conservative())
@@ -2242,7 +2242,7 @@ mod tests {
         #[test]
         #[serial]
         fn test_regions_become_segments_on_the_parent_clock() {
-            let device = CDevice::default();
+            let device = cpu_device();
             let vad = SileroVad::<C>::load_16khz_pretrained(&device).unwrap();
             let regions_only = EmissionPolicy::new(
                 DecodeTriggers::new()
@@ -2321,7 +2321,7 @@ mod tests {
         #[test]
         #[serial]
         fn test_conservative_skips_silence() {
-            let device = CDevice::default();
+            let device = cpu_device();
             let driver = conservative_driver(&device);
             let audio = speech();
 
@@ -2401,7 +2401,7 @@ mod tests {
         #[test]
         #[serial]
         fn test_responsive_commits_what_conservative_commits() {
-            let device = CDevice::default();
+            let device = cpu_device();
             let scripted: Arc<dyn LogitFilter<C>> = Arc::new(Script(vec![3, 1, 4, 1]));
             let conservative = conservative_driver(&device).with_logit_filters(vec![scripted]);
             let responsive = responsive_driver(&device);
@@ -2463,7 +2463,7 @@ mod tests {
         #[test]
         #[serial]
         fn test_advance_ready_drafts_like_solo() {
-            let device = CDevice::default();
+            let device = cpu_device();
             let driver = responsive_driver(&device);
             let audio = speech();
 
@@ -2526,7 +2526,7 @@ mod tests {
             policy: EmissionPolicy,
         ) -> WhisperStreamDriver<C> {
             let ids = WhisperSpecialIds::new(5, 2).unwrap();
-            C::seed(device, 1);
+            device.seed(1);
             // Materialized now, so that every call builds the same weights.
             let mut model: Whisper<C> = WhisperApiConfig::new(8, ids.n_vocab(), 64, 16, 1, 16, 1)
                 .init(device)
@@ -2559,7 +2559,7 @@ mod tests {
         #[test]
         #[serial]
         fn test_drafts_never_fix_the_language() {
-            let device = CDevice::default();
+            let device = cpu_device();
 
             let conservative = detecting_driver(&device, EmissionPolicy::conservative());
             assert!(conservative.detects_language());
@@ -2623,7 +2623,7 @@ mod tests {
         #[test]
         #[serial]
         fn test_offline_ignores_the_vad() {
-            let device = CDevice::default();
+            let device = cpu_device();
             let vad = SileroVad::<C>::load_16khz_pretrained(&device).unwrap();
             let driver = config(false)
                 .init_with_layout(

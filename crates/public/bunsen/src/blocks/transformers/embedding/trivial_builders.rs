@@ -71,15 +71,15 @@ mod tests {
     use crate::support::testing::{
         DeviceMemoryGuard,
         PerformanceBackend,
-        default_device,
+        performance_device,
     };
 
     #[test]
     #[serial_test::serial]
     fn test_iota_embedding() {
         type B = PerformanceBackend;
-        let device = default_device();
-        let _memory = DeviceMemoryGuard::<B>::new(&device);
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
         let n = 3;
         let d = 4;
         let emb = iota_embedding::<PerformanceBackend>(n, d, &device);
@@ -104,8 +104,8 @@ mod tests {
     #[serial_test::serial]
     fn test_identity_embedding() {
         type B = PerformanceBackend;
-        let device = default_device();
-        let _memory = DeviceMemoryGuard::<B>::new(&device);
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
         let n = 5;
         let emb = identity_embedding::<PerformanceBackend>(n, &device);
 

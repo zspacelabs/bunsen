@@ -432,7 +432,7 @@ mod tests {
             assert_close_to_vec,
             assert_tensor_close_to_vec,
             assert_tensors_close,
-            default_device,
+            performance_device,
         },
     };
 
@@ -469,8 +469,8 @@ mod tests {
     #[serial_test::serial]
     fn test_context_meta_and_lifecycle() {
         type B = PerformanceBackend;
-        let device = default_device();
-        let _memory = DeviceMemoryGuard::<B>::new(&device);
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
         let opts = PerceptiveAudioConverterOptions::default();
         let conv: PerceptiveAudioConverter<B> = opts.try_init(&device).ok_or_panic();
 
@@ -506,8 +506,8 @@ mod tests {
     #[serial_test::serial]
     fn test_frame_accounting_over_a_30s_window() {
         type B = PerformanceBackend;
-        let device = default_device();
-        let _memory = DeviceMemoryGuard::<B>::new(&device);
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
         let opts = PerceptiveAudioConverterOptions::default();
         let conv: PerceptiveAudioConverter<B> = opts.try_init(&device).ok_or_panic();
 
@@ -535,8 +535,8 @@ mod tests {
     #[serial_test::serial]
     fn test_running_frame_count_is_invariant() {
         type B = PerformanceBackend;
-        let device = default_device();
-        let _memory = DeviceMemoryGuard::<B>::new(&device);
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
         let conv: PerceptiveAudioConverter<B> = PerceptiveAudioConverterOptions::default()
             .try_init(&device)
             .ok_or_panic();
@@ -574,8 +574,8 @@ mod tests {
     #[serial_test::serial]
     fn test_chunked_transform_is_a_homomorphism() {
         type B = PerformanceBackend;
-        let device = default_device();
-        let _memory = DeviceMemoryGuard::<B>::new(&device);
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
         let conv: PerceptiveAudioConverter<B> = PerceptiveAudioConverterOptions::default()
             .try_init(&device)
             .ok_or_panic();
@@ -629,8 +629,8 @@ mod tests {
     #[serial_test::serial]
     fn test_batch_rows_are_independent() {
         type B = PerformanceBackend;
-        let device = default_device();
-        let _memory = DeviceMemoryGuard::<B>::new(&device);
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
         let conv: PerceptiveAudioConverter<B> = PerceptiveAudioConverterOptions::default()
             .try_init(&device)
             .ok_or_panic();
@@ -665,8 +665,8 @@ mod tests {
     #[serial_test::serial]
     fn test_transform_rejects_bad_input() {
         type B = PerformanceBackend;
-        let device = default_device();
-        let _memory = DeviceMemoryGuard::<B>::new(&device);
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
         let conv: PerceptiveAudioConverter<B> = PerceptiveAudioConverterOptions::default()
             .try_init(&device)
             .ok_or_panic();
@@ -698,8 +698,8 @@ mod tests {
     #[serial_test::serial]
     fn test_finish_respects_end_padding() {
         type B = PerformanceBackend;
-        let device = default_device();
-        let _memory = DeviceMemoryGuard::<B>::new(&device);
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
 
         // No end padding: nothing to flush.
         let unpadded: PerceptiveAudioConverter<B> = PerceptiveAudioConverterOptions::default()
@@ -734,8 +734,8 @@ mod tests {
     #[serial_test::serial]
     fn test_stage_stack_matches_transform() {
         type B = PerformanceBackend;
-        let device = default_device();
-        let _memory = DeviceMemoryGuard::<B>::new(&device);
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
         let conv: PerceptiveAudioConverter<B> = PerceptiveAudioConverterOptions::default()
             .try_init(&device)
             .ok_or_panic();
@@ -762,8 +762,8 @@ mod tests {
     #[serial_test::serial]
     fn test_extend_stage_carry_contents() {
         type B = PerformanceBackend;
-        let device = default_device();
-        let _memory = DeviceMemoryGuard::<B>::new(&device);
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
         let conv: PerceptiveAudioConverter<B> = PerceptiveAudioConverterOptions::default()
             .try_init(&device)
             .ok_or_panic();

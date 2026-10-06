@@ -124,9 +124,9 @@
 //!     },
 //! };
 //!
-//! use bunsen::support::testing::default_device;
+//! use bunsen::support::testing::cpu_device;
 //! type B = bunsen::support::testing::CpuBackend;
-//! let device = default_device();
+//! let device = cpu_device();
 //!
 //! // Create a Linear module, with a bias:
 //! // * `weight` - `Param<Tensor<B, 2>>` [d_input, d_output].

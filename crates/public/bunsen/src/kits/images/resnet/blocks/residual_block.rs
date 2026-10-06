@@ -368,7 +368,7 @@ mod tests {
         support::testing::{
             DeviceMemoryGuard,
             PerformanceBackend,
-            default_device,
+            performance_device,
         },
     };
 
@@ -404,8 +404,8 @@ mod tests {
     #[serial]
     fn test_residual_block_basic_block() {
         type B = PerformanceBackend;
-        let device = default_device();
-        let _memory = DeviceMemoryGuard::<B>::new(&device);
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
 
         let batch_size = 2;
         let in_planes = 16;
@@ -445,8 +445,8 @@ mod tests {
     #[serial]
     fn test_residual_block_bottleneck_block() {
         type B = PerformanceBackend;
-        let device = default_device();
-        let _memory = DeviceMemoryGuard::<B>::new(&device);
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
 
         let batch_size = 2;
         let in_planes = 16;
@@ -500,8 +500,8 @@ mod tests {
     #[serial]
     fn test_policy_pathways_agree() {
         type B = PerformanceBackend;
-        let device = default_device();
-        let _memory = DeviceMemoryGuard::<B>::new(&device);
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
 
         let policy = ResidualBlockContractConfig::new(8, 32)
             .with_downsample_input(true)

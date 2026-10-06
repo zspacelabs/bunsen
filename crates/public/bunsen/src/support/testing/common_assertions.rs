@@ -148,7 +148,7 @@ mod tests {
     use super::*;
     use crate::support::testing::{
         DeviceMemoryGuard,
-        default_device,
+        performance_device,
     };
 
     type B = crate::support::testing::PerformanceBackend;
@@ -223,8 +223,8 @@ mod tests {
     #[test]
     #[serial]
     fn test_assert_tensor_close_to_vec() {
-        let device = default_device();
-        let _memory = DeviceMemoryGuard::<B>::new(&device);
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
         let t = square([1.0, 2.0, 3.0, 4.0], &device);
         assert_tensor_close_to_vec(&t, &[1.0, 2.0, 3.0, 4.0], Tolerance::default());
     }
@@ -233,8 +233,8 @@ mod tests {
     #[serial]
     #[should_panic]
     fn test_assert_tensor_close_to_vec_bad_values() {
-        let device = default_device();
-        let _memory = DeviceMemoryGuard::<B>::new(&device);
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
         let t = square([1.0, 2.0, 3.0, 4.0], &device);
         assert_tensor_close_to_vec(&t, &[1.0, 2.0, 3.0, 9.0], Tolerance::default());
     }
@@ -242,8 +242,8 @@ mod tests {
     #[test]
     #[serial]
     fn test_assert_tensors_close() {
-        let device = default_device();
-        let _memory = DeviceMemoryGuard::<B>::new(&device);
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
         let a = square([1.0, 2.0, 3.0, 4.0], &device);
         let b = square([1.0, 2.0, 3.0, 4.0], &device);
         assert_tensors_close(&a, &b, Tolerance::default());
@@ -253,8 +253,8 @@ mod tests {
     #[serial]
     #[should_panic]
     fn test_assert_tensors_close_bad_values() {
-        let device = default_device();
-        let _memory = DeviceMemoryGuard::<B>::new(&device);
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
         let a = square([1.0, 2.0, 3.0, 4.0], &device);
         let b = square([1.0, 2.0, 3.0, 9.0], &device);
         assert_tensors_close(&a, &b, Tolerance::default());
@@ -264,8 +264,8 @@ mod tests {
     #[serial]
     #[should_panic(expected = "Tensors are not approx eq")]
     fn test_assert_tensor_close_to_vec_nan() {
-        let device = default_device();
-        let _memory = DeviceMemoryGuard::<B>::new(&device);
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
         let t = square([1.0, 2.0, 3.0, 4.0], &device);
         assert_tensor_close_to_vec(&t, &[1.0, 2.0, 3.0, f64::NAN], Tolerance::default());
     }
@@ -274,8 +274,8 @@ mod tests {
     #[serial]
     #[should_panic(expected = "Tensors are not approx eq")]
     fn test_assert_tensors_close_nan() {
-        let device = default_device();
-        let _memory = DeviceMemoryGuard::<B>::new(&device);
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
         let a = square([1.0, 2.0, 3.0, f64::NAN], &device);
         let b = square([1.0, 2.0, 3.0, 4.0], &device);
         assert_tensors_close(&a, &b, Tolerance::default());

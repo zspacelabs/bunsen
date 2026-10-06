@@ -240,7 +240,7 @@ mod tests {
         prelude::*,
         support::testing::{
             CpuBackend,
-            default_device,
+            cpu_device,
         },
     };
 
@@ -274,7 +274,7 @@ mod tests {
     #[test]
     #[traced_test]
     fn test_hann() {
-        let device = default_device();
+        let device = cpu_device();
 
         // size = 0
         check_hann_impl::<B>(true, &[], &device);
@@ -334,7 +334,7 @@ mod tests {
     #[test]
     #[traced_test]
     fn test_blackman() {
-        let device = default_device();
+        let device = cpu_device();
 
         // size = 0
         check_blackman_impl::<B>(true, &[], &device);

@@ -64,7 +64,7 @@ mod test {
         support::testing::{
             DeviceMemoryGuard,
             PerformanceBackend,
-            default_device,
+            performance_device,
         },
     };
 
@@ -72,8 +72,8 @@ mod test {
     #[serial_test::serial]
     fn test_wrap_state_2d() {
         type B = PerformanceBackend;
-        let device = default_device();
-        let _memory = DeviceMemoryGuard::<B>::new(&device);
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
 
         let shape: Shape = [5, 6].into();
 
@@ -115,8 +115,8 @@ mod test {
     #[serial_test::serial]
     fn test_wrap_state_3d() {
         type B = PerformanceBackend;
-        let device = default_device();
-        let _memory = DeviceMemoryGuard::<B>::new(&device);
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
 
         let shape: Shape = [4, 5, 6].into();
 

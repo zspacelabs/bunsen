@@ -16,7 +16,7 @@ use bunsen::{
         audio::load_audio_mono_sr,
         testing::{
             PerformanceBackend,
-            backend_device,
+            performance_device,
         },
     },
 };
@@ -51,7 +51,7 @@ fn main() -> BunsenResult<()> {
     println!("* {:#?}", args);
 
     println!("\n> Loading models");
-    let device = backend_device::<B>();
+    let device = performance_device();
     println!("* device: {:?}", device);
 
     println!("* SileroVad");

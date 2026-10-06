@@ -68,15 +68,15 @@ mod tests {
     use crate::support::testing::{
         DeviceMemoryGuard,
         PerformanceBackend,
-        default_device,
+        performance_device,
     };
 
     #[test]
     #[serial]
     fn test_rms_norm() {
         type B = PerformanceBackend;
-        let device = default_device();
-        let _memory = DeviceMemoryGuard::<B>::new(&device);
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
 
         let x: Tensor<B, 3> = Tensor::random([2, 3, 4], Distribution::Default, &device);
         let options = RmsNormOptions::default();

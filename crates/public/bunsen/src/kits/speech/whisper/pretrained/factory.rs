@@ -412,7 +412,7 @@ mod hub_tests {
         support::testing::{
             CpuBackend,
             assert_tensors_close,
-            default_device,
+            cpu_device,
         },
     };
 
@@ -423,7 +423,7 @@ mod hub_tests {
     /// two readers.
     #[test]
     fn test_hf_whisper_tiny_is_openai_tiny() {
-        let device = default_device();
+        let device = cpu_device();
         let cache = PretrainedCache::new(PretrainedCacheOptions::default()).unwrap();
         let factory = default_whisper_factory().unwrap();
 

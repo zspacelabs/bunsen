@@ -169,7 +169,7 @@ mod tests {
         support::testing::{
             DeviceMemoryGuard,
             PerformanceBackend,
-            default_device,
+            performance_device,
         },
     };
 
@@ -204,8 +204,8 @@ mod tests {
     #[serial]
     fn test_step_after_write_slice_wraps() {
         type B = PerformanceBackend;
-        let device = default_device();
-        let _memory = DeviceMemoryGuard::<B>::new(&device);
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
 
         // A 7x7 board: a 5x5 torus in rows and columns 1..6.
         let mut life: ConwayLife2DState<B> =
@@ -228,8 +228,8 @@ mod tests {
     #[serial]
     fn test_step_after_fuzz_wraps() {
         type B = PerformanceBackend;
-        let device = default_device();
-        let _memory = DeviceMemoryGuard::<B>::new(&device);
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
 
         // A 9x12 board: a 7x10 torus in rows 1..8, columns 1..11.
         let mut life: ConwayLife2DState<B> = ConwayLife2DConfig::new(GridShape2D {
@@ -251,8 +251,8 @@ mod tests {
     #[serial]
     fn test_fuzz_flips_each_hit_cell() {
         type B = PerformanceBackend;
-        let device = default_device();
-        let _memory = DeviceMemoryGuard::<B>::new(&device);
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
 
         // A 7x7 board: a 5x5 torus with live and dead cells.
         let mut life: ConwayLife2DState<B> =
@@ -280,8 +280,8 @@ mod tests {
     #[serial]
     fn test_module_reaches_the_board() {
         type B = PerformanceBackend;
-        let device = default_device();
-        let _memory = DeviceMemoryGuard::<B>::new(&device);
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
 
         let life: ConwayLife2DState<B> =
             ConwayLife2DConfig::new(GridShape2D::square(5)).init(&device);
@@ -292,8 +292,8 @@ mod tests {
     #[serial]
     fn test_smoke() {
         type B = PerformanceBackend;
-        let device = default_device();
-        let _memory = DeviceMemoryGuard::<B>::new(&device);
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
 
         let steps = 100;
         let grid_size = 20;
@@ -313,8 +313,8 @@ mod tests {
     #[serial]
     fn test_logic() {
         type B = PerformanceBackend;
-        let device = default_device();
-        let _memory = DeviceMemoryGuard::<B>::new(&device);
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
         let config = ConwayLife2DConfig {
             shape: GridShape2D::square(5),
         };

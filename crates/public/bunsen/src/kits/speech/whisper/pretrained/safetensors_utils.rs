@@ -233,7 +233,7 @@ mod tests {
         kits::speech::whisper::WhisperMeta,
         support::testing::{
             CpuBackend,
-            default_device,
+            cpu_device,
         },
     };
 
@@ -301,7 +301,7 @@ mod tests {
     /// transposition both ways.
     #[test]
     fn test_a_transformers_layout_round_trips() {
-        let device = default_device();
+        let device = cpu_device();
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("model.safetensors");
         let model: Whisper<CpuBackend> = toy().try_init(&device).unwrap();
@@ -343,7 +343,7 @@ mod tests {
     /// a shard held back is a load error naming what is missing.
     #[test]
     fn test_a_sharded_layout_round_trips() {
-        let device = default_device();
+        let device = cpu_device();
         let dir = tempfile::tempdir().unwrap();
         let model: Whisper<CpuBackend> = toy().try_init(&device).unwrap();
         let s1 = dir.path().join("model-00001-of-00002.safetensors");

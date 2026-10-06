@@ -1009,7 +1009,7 @@ mod tests {
         support::testing::{
             DeviceMemoryGuard,
             PerformanceBackend,
-            default_device,
+            performance_device,
         },
     };
 
@@ -1171,8 +1171,8 @@ mod tests {
     #[test]
     #[serial_test::serial]
     fn test_config_meta_matches_module() {
-        let device = default_device();
-        let _memory = DeviceMemoryGuard::<B>::new(&device);
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
 
         for (cfg, n_freq, chunk_size) in [
             (
@@ -1222,8 +1222,8 @@ mod tests {
     #[test]
     #[serial_test::serial]
     fn test_policy_pathways_agree() {
-        let device = default_device();
-        let _memory = DeviceMemoryGuard::<B>::new(&device);
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
 
         // The signal policy, at a non-standard rate and widths.
         let signal = SileroVadSignalConfig::new(4000, 33)
@@ -1255,8 +1255,8 @@ mod tests {
     #[test]
     #[serial_test::serial]
     fn test_forward_shapes_and_range() {
-        let device = default_device();
-        let _memory = DeviceMemoryGuard::<B>::new(&device);
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
 
         for cfg in [
             SileroVadSignalConfig::standard_16khz().to_structure(),
@@ -1288,8 +1288,8 @@ mod tests {
     #[test]
     #[serial_test::serial]
     fn test_forward_sequence_shapes() {
-        let device = default_device();
-        let _memory = DeviceMemoryGuard::<B>::new(&device);
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
 
         let batch = 8;
         let steps = 5;
@@ -1393,7 +1393,7 @@ mod tests {
     #[serial_test::serial]
     #[should_panic(expected = "context_size above 0")]
     fn test_init_context_refuses_zero_width() {
-        let device = default_device();
+        let device = performance_device();
         let model: SileroVad<B> = SileroVadSignalConfig::standard_16khz()
             .to_structure()
             .init(&device);
@@ -1406,7 +1406,7 @@ mod tests {
     #[serial_test::serial]
     #[should_panic(expected = "context_size above 0")]
     fn test_context_forward_refuses_a_zero_width_context() {
-        let device = default_device();
+        let device = performance_device();
         let model: SileroVad<B> = SileroVadSignalConfig::standard_16khz()
             .to_structure()
             .init(&device);
@@ -1420,7 +1420,7 @@ mod tests {
     #[serial_test::serial]
     #[should_panic(expected = "context_size above 0")]
     fn test_context_forward_sequence_refuses_a_zero_width_context() {
-        let device = default_device();
+        let device = performance_device();
         let model: SileroVad<B> = SileroVadSignalConfig::standard_16khz()
             .to_structure()
             .init(&device);

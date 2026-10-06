@@ -1077,7 +1077,7 @@ mod tests {
     use super::*;
     use crate::support::testing::{
         CpuBackend,
-        default_device,
+        cpu_device,
     };
 
     type B = Autodiff<CpuBackend>;
@@ -1085,7 +1085,7 @@ mod tests {
     type SgdO = Sgd<CpuBackend>;
 
     fn net() -> Net {
-        let device = default_device();
+        let device = cpu_device().autodiff();
         (
             LinearConfig::new(3, 3).init(&device),
             LinearConfig::new(3, 2).init(&device),
@@ -1122,7 +1122,7 @@ mod tests {
 
     /// Gradients of one backward pass; every parameter gets one.
     fn grads(net: &Net) -> GradientsParams {
-        let x = Tensor::<B, 2>::ones([2, 3], &default_device());
+        let x = Tensor::<B, 2>::ones([2, 3], &cpu_device().autodiff());
         let loss = net.1.forward(net.0.forward(x)).sum();
         GradientsParams::from_grads(loss.backward(), net)
     }
@@ -1581,7 +1581,7 @@ mod tests {
         R: Record<B>,
     {
         let bytes = recorder.record(record, ()).unwrap();
-        recorder.load(bytes, &default_device()).unwrap()
+        recorder.load(bytes, &cpu_device().autodiff()).unwrap()
     }
 
     /// A model record and an optimizer record, saved together.
@@ -1653,7 +1653,7 @@ mod tests {
 
     #[test]
     fn test_group_record_keeps_param_ids_through_a_recorder() {
-        let device = default_device();
+        let device = cpu_device().autodiff();
         let adamw = adamw();
         let state = |value: f32| {
             let tensor = Tensor::<CpuBackend, 1>::full([2], value, &device);
@@ -1831,7 +1831,7 @@ mod tests {
     fn test_learner_resumes_from_a_checkpoint() {
         type Optim = GroupOptimizerAdaptor2<SgdO, AdamW, LearnerNet<B>, B>;
 
-        let device = default_device();
+        let device = cpu_device().autodiff();
         let new_net = || LearnerNet::<B> {
             body: LinearConfig::new(3, 3).init(&device),
             head: LinearConfig::new(3, 2).init(&device),

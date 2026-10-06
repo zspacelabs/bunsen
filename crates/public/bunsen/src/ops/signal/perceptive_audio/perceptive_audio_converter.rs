@@ -980,7 +980,7 @@ mod tests {
             assert_close_to_vec,
             assert_tensor_close_to_vec,
             assert_tensors_close,
-            default_device,
+            performance_device,
         },
     };
 
@@ -989,8 +989,8 @@ mod tests {
     #[test]
     #[serial_test::serial]
     fn test_converter_tensor_shapes() {
-        let device = default_device();
-        let _memory = DeviceMemoryGuard::<B>::new(&device);
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
         let opts = PerceptiveAudioConverterOptions::default();
         let conv: PerceptiveAudioConverter<B> = opts.try_init(&device).ok_or_panic();
 
@@ -1015,8 +1015,8 @@ mod tests {
     #[test]
     #[serial_test::serial]
     fn test_converter_tensors_match_host_reference() {
-        let device = default_device();
-        let _memory = DeviceMemoryGuard::<B>::new(&device);
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
         let opts = PerceptiveAudioConverterOptions::default();
         let conv: PerceptiveAudioConverter<B> = opts.try_init(&device).ok_or_panic();
 
@@ -1053,8 +1053,8 @@ mod tests {
             signal::rfft,
         };
 
-        let device = default_device();
-        let _memory = DeviceMemoryGuard::<B>::new(&device);
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
         let (n_fft, n_bins, batch) = (512, 257, 3);
 
         let opts = PerceptiveAudioConverterOptions::default()
@@ -1081,8 +1081,8 @@ mod tests {
     fn test_to_device_moves_every_tensor() {
         use burn::module::Module as _;
 
-        let device = default_device();
-        let _memory = DeviceMemoryGuard::<B>::new(&device);
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
         let conv: PerceptiveAudioConverter<B> = PerceptiveAudioConverterOptions::default()
             .try_init(&device)
             .ok_or_panic();
@@ -1146,8 +1146,8 @@ mod tests {
     #[test]
     #[serial_test::serial]
     fn test_frame_count() {
-        let device = default_device();
-        let _memory = DeviceMemoryGuard::<B>::new(&device);
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
         let conv: PerceptiveAudioConverter<B> = PerceptiveAudioConverterOptions::default()
             .try_init(&device)
             .ok_or_panic();
@@ -1172,8 +1172,8 @@ mod tests {
     #[test]
     #[serial_test::serial]
     fn test_frame_matches_host_reference() {
-        let device = default_device();
-        let _memory = DeviceMemoryGuard::<B>::new(&device);
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
         let opts = PerceptiveAudioConverterOptions::default();
         let conv: PerceptiveAudioConverter<B> = opts.try_init(&device).ok_or_panic();
         let window = opts.window.to_vec_window(opts.n_fft);
@@ -1207,8 +1207,8 @@ mod tests {
     #[test]
     #[serial_test::serial]
     fn test_frame_rows_are_independent() {
-        let device = default_device();
-        let _memory = DeviceMemoryGuard::<B>::new(&device);
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
         let opts = PerceptiveAudioConverterOptions::default();
         let conv: PerceptiveAudioConverter<B> = opts.try_init(&device).ok_or_panic();
 
@@ -1257,8 +1257,8 @@ mod tests {
     #[test]
     #[serial_test::serial]
     fn test_spectrum_matches_host_dft() {
-        let device = default_device();
-        let _memory = DeviceMemoryGuard::<B>::new(&device);
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
         let (n_fft, hop, n_mels) = (64, 32, 8);
         let opts = PerceptiveAudioConverterOptions::default()
             .with_n_fft(n_fft)
@@ -1292,8 +1292,8 @@ mod tests {
     #[test]
     #[serial_test::serial]
     fn test_spectrum_peaks_at_bin_centre() {
-        let device = default_device();
-        let _memory = DeviceMemoryGuard::<B>::new(&device);
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
         let opts = PerceptiveAudioConverterOptions::default();
         let conv: PerceptiveAudioConverter<B> = opts.try_init(&device).ok_or_panic();
 
@@ -1331,8 +1331,8 @@ mod tests {
     #[test]
     #[serial_test::serial]
     fn test_mel_matches_host_matmul() {
-        let device = default_device();
-        let _memory = DeviceMemoryGuard::<B>::new(&device);
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
         let (n_fft, n_mels) = (64, 8);
         let opts = PerceptiveAudioConverterOptions::default()
             .with_n_fft(n_fft)
@@ -1370,8 +1370,8 @@ mod tests {
     #[test]
     #[serial_test::serial]
     fn test_compress_floors_zero_input() {
-        let device = default_device();
-        let _memory = DeviceMemoryGuard::<B>::new(&device);
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
         let opts = PerceptiveAudioConverterOptions::default();
         let conv: PerceptiveAudioConverter<B> = opts.try_init(&device).ok_or_panic();
 
@@ -1399,8 +1399,8 @@ mod tests {
     #[test]
     #[serial_test::serial]
     fn test_per_call_clamp_is_per_row() {
-        let device = default_device();
-        let _memory = DeviceMemoryGuard::<B>::new(&device);
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
         let n_mels = 4;
 
         // Log-domain input: row 0 -> [0, -10, 0, 0]; row 1 -> [-2, -10, -2,
@@ -1436,8 +1436,8 @@ mod tests {
     #[test]
     #[serial_test::serial]
     fn test_compress_honours_log_base() {
-        let device = default_device();
-        let _memory = DeviceMemoryGuard::<B>::new(&device);
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
         let n_mels = 2;
 
         // `ln(max(v, floor))`.
@@ -1456,8 +1456,8 @@ mod tests {
     #[test]
     #[serial_test::serial]
     fn test_forward_chains_the_stages() {
-        let device = default_device();
-        let _memory = DeviceMemoryGuard::<B>::new(&device);
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
         let opts = PerceptiveAudioConverterOptions::default();
         let conv: PerceptiveAudioConverter<B> = opts.try_init(&device).ok_or_panic();
 
@@ -1610,8 +1610,8 @@ mod tests {
     #[test]
     #[serial_test::serial]
     fn test_converter() {
-        let device = default_device();
-        let _memory = DeviceMemoryGuard::<B>::new(&device);
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
 
         let options = PerceptiveAudioConverterOptions::default();
         let _conv: PerceptiveAudioConverter<B> = options.try_init(&device).ok_or_panic();
@@ -1623,8 +1623,8 @@ mod tests {
     #[test]
     #[serial_test::serial]
     fn test_meta_agrees_between_config_and_module() {
-        let device = default_device();
-        let _memory = DeviceMemoryGuard::<B>::new(&device);
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
 
         // Non-default across every meta field, so a delegation that read the
         // wrong one — or a default — shows up.
@@ -1671,8 +1671,8 @@ mod tests {
     #[test]
     #[serial_test::serial]
     fn test_try_init_rejects_bad_options() {
-        let device = default_device();
-        let _memory = DeviceMemoryGuard::<B>::new(&device);
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
 
         // Scalar geometry.
         let bad = PerceptiveAudioConverterOptions::default().with_hop(0);

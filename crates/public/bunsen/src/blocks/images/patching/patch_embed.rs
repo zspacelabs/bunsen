@@ -260,7 +260,7 @@ mod tests {
         errors::WithOkOrPanic,
         support::testing::{
             CpuBackend,
-            default_device,
+            cpu_device,
         },
     };
 
@@ -287,7 +287,7 @@ mod tests {
         assert_eq!(config.d_output(), 768);
         assert!(config.enable_patch_norm());
 
-        let device = default_device();
+        let device = cpu_device();
         let patch_embed: PatchEmbed<B> = config.try_init(&device).ok_or_panic();
 
         assert_eq!(patch_embed.input_resolution(), [224, 224]);
@@ -314,7 +314,7 @@ mod tests {
             d_output: 768,
             enable_patch_norm: true,
         };
-        let device = default_device();
+        let device = cpu_device();
         let _d: PatchEmbed<B> = config.try_init(&device).ok_or_panic();
     }
 
@@ -328,7 +328,7 @@ mod tests {
             d_output: 768,
             enable_patch_norm: true,
         };
-        let device = default_device();
+        let device = cpu_device();
         let patch_embed = config.try_init(&device).ok_or_panic();
 
         let input = Tensor::<B, 4>::from_data(
@@ -350,7 +350,7 @@ mod tests {
             d_output: 768,
             enable_patch_norm: false,
         };
-        let device = default_device();
+        let device = cpu_device();
         let patch_embed = config.try_init(&device).ok_or_panic();
 
         let input = Tensor::<B, 4>::from_data(

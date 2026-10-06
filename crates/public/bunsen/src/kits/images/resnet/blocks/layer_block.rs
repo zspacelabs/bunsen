@@ -460,7 +460,7 @@ mod tests {
         support::testing::{
             DeviceMemoryGuard,
             PerformanceBackend,
-            default_device,
+            performance_device,
         },
     };
 
@@ -498,8 +498,8 @@ mod tests {
     pub fn test_layer_block() {
         type B = PerformanceBackend;
         type F = <B as BackendTypes>::FloatElem;
-        let device = default_device();
-        let _memory = DeviceMemoryGuard::<B>::new(&device);
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
 
         let a_planes = 16;
         let b_planes = 32;
@@ -574,8 +574,8 @@ mod tests {
     #[serial]
     fn test_policy_pathways_agree() {
         type B = PerformanceBackend;
-        let device = default_device();
-        let _memory = DeviceMemoryGuard::<B>::new(&device);
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
 
         let policy = LayerBlockContractConfig::new(2, 8, 32)
             .with_downsample_input(true)

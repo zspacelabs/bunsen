@@ -87,13 +87,13 @@ mod tests {
     use super::*;
     use crate::support::testing::{
         CpuBackend,
-        default_device,
+        cpu_device,
     };
 
     #[test]
     fn test_module_inference() {
         type B = CpuBackend;
-        let device = default_device();
+        let device = cpu_device();
 
         let config = DropBlock2dConfig::new();
 
@@ -118,7 +118,7 @@ mod tests {
     fn test_module_training() {
         type I = CpuBackend;
         type B = Autodiff<I>;
-        let device = default_device();
+        let device = cpu_device().autodiff();
 
         let drop_prob = 0.1;
 

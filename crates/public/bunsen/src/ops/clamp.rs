@@ -118,7 +118,7 @@ mod tests {
     use super::*;
     use crate::support::testing::{
         CpuBackend,
-        default_device,
+        cpu_device,
     };
 
     #[test]
@@ -141,7 +141,7 @@ mod tests {
     #[test]
     fn test_config() {
         type B = CpuBackend;
-        let device = default_device();
+        let device = cpu_device();
 
         let cfg = ClampOp::default();
         assert_eq!(

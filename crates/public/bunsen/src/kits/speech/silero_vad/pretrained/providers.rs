@@ -206,13 +206,13 @@ mod tests {
             support::testing::{
                 DeviceMemoryGuard,
                 PerformanceBackend,
-                default_device,
+                performance_device,
             },
         };
         type B = PerformanceBackend;
 
-        let device = default_device();
-        let _memory = DeviceMemoryGuard::<B>::new(&device);
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
         let dir = tempfile::tempdir().unwrap();
         let cache = PretrainedCache::new(
             PretrainedCacheOptions::default()

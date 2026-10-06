@@ -323,7 +323,7 @@ mod tests {
             CpuBackend,
             DeviceMemoryGuard,
             PerformanceBackend,
-            default_device,
+            cpu_device, performance_device,
         },
     };
 
@@ -339,7 +339,7 @@ mod tests {
         assert_eq!(config.window_height(), 3);
         assert_eq!(config.window_width(), 2);
 
-        let device = default_device();
+        let device = cpu_device();
         let rpb: OffsetGridRelativePositionBias<B> = config.try_init(&device).ok_or_panic();
 
         assert_eq!(rpb.base(), 8.0);
@@ -353,8 +353,8 @@ mod tests {
     #[serial]
     fn test_og_rpb() {
         type B = PerformanceBackend;
-        let device = default_device();
-        let _memory = DeviceMemoryGuard::<B>::new(&device);
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
 
         let window_shape = [3, 2];
         let num_heads = 8;
@@ -401,7 +401,7 @@ mod tests {
         assert_eq!(config.d_hidden(), 512);
         assert_eq!(config.num_heads(), 8);
 
-        let device = default_device();
+        let device = cpu_device();
         let mlp: ContinuousPositionBiasMlp<B> = config.init(&device);
 
         assert_eq!(mlp.d_hidden(), 512);

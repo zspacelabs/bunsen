@@ -407,7 +407,7 @@ mod tests {
             CpuBackend,
             DeviceMemoryGuard,
             PerformanceBackend,
-            default_device,
+            cpu_device, performance_device,
             param_load_mapping,
         },
     };
@@ -438,7 +438,7 @@ mod tests {
     fn test_fix_pytorch_load_mappers_covers_the_projections() {
         type B = CpuBackend;
 
-        let device: Device<B> = Default::default();
+        let device = cpu_device();
 
         // `n_heads` is `d_model / d_head`, and `d_head` defaults to 64.
         let model: Whisper<B> = WhisperApiConfig::new(8, 16, 128, 16, 1, 16, 1)
@@ -489,7 +489,7 @@ mod tests {
     #[test]
     fn test_front_end_and_layout_propagate() {
         type B = CpuBackend;
-        let device: Device<B> = Default::default();
+        let device = cpu_device();
 
         let config = WhisperApiConfig::new(8, 16, 128, 16, 1, 16, 1);
         assert_eq!(config.front_end, WhisperFrontEndConfig::new());
@@ -544,7 +544,7 @@ mod tests {
     #[test]
     fn test_policy_pathways_agree() {
         type B = CpuBackend;
-        let device: Device<B> = Default::default();
+        let device = cpu_device();
 
         let policy = WhisperApiConfig::new(8, 16, 64, 16, 1, 12, 2)
             .with_d_head(16)
@@ -568,7 +568,7 @@ mod tests {
     #[test]
     fn test_try_init_rejects_mismatched_widths() {
         type B = CpuBackend;
-        let device: Device<B> = Default::default();
+        let device = cpu_device();
 
         let mut structure = WhisperApiConfig::new(8, 16, 64, 16, 1, 12, 1)
             .with_d_head(16)
@@ -593,7 +593,7 @@ mod tests {
     #[serial]
     fn test_dtype_is_cast_at_the_interface() {
         type B = CpuBackend;
-        let device: Device<B> = Default::default();
+        let device = cpu_device();
 
         let float = backend_float_dtype::<B>();
         let model: Whisper<B> = WhisperApiConfig::new(8, 32, 64, 16, 1, 12, 1)
@@ -654,7 +654,7 @@ mod tests {
         type B = CpuBackend;
         type F = <B as BackendTypes>::FloatElem;
 
-        let device: Device<B> = Default::default();
+        let device = cpu_device();
 
         // `Param::clone` on a *lazily* initialized parameter clones the
         // initializer rather than the value, and a random initializer then
@@ -687,8 +687,8 @@ mod tests {
     #[serial]
     fn test_whisper_forward() {
         type B = PerformanceBackend;
-        let device = default_device();
-        let _memory = DeviceMemoryGuard::<B>::new(&device);
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
 
         let d_model = 128;
         let n_mels = 80;

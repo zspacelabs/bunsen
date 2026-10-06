@@ -9,7 +9,7 @@ pub fn first_use() {
             MlpConfig,
         },
         prelude::*,
-        support::testing::default_device,
+        support::testing::cpu_device,
     };
     use burn::{
         backend::Flex,
@@ -17,7 +17,7 @@ pub fn first_use() {
     };
 
     type B = Flex;
-    let device = default_device();
+    let device = cpu_device();
 
     // `init` comes from `ModuleInit`; the binding's type picks the backend.
     let mlp: Mlp<B> = MlpConfig::new(16).init(&device);

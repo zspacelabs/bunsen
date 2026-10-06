@@ -332,7 +332,7 @@ mod tests {
         support::testing::{
             DeviceMemoryGuard,
             PerformanceBackend,
-            default_device,
+            performance_device,
         },
     };
 
@@ -352,8 +352,8 @@ mod tests {
     #[serial]
     fn test_init_fills_the_interior_only() {
         type B = PerformanceBackend;
-        let device = default_device();
-        let _memory = DeviceMemoryGuard::<B>::new(&device);
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
 
         let world = small_world::<B>(&device);
 
@@ -386,8 +386,8 @@ mod tests {
     #[serial]
     fn test_advance_step_conserves_mass_and_stays_finite() {
         type B = PerformanceBackend;
-        let device = default_device();
-        let _memory = DeviceMemoryGuard::<B>::new(&device);
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
 
         let mut world = small_world::<B>(&device);
 
@@ -428,8 +428,8 @@ mod tests {
     #[should_panic(expected = "degenerate total mass")]
     fn test_correction_term_rejects_a_degenerate_mass() {
         type B = PerformanceBackend;
-        let device = default_device();
-        let _memory = DeviceMemoryGuard::<B>::new(&device);
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
 
         let mut world = small_world::<B>(&device);
 
@@ -445,8 +445,8 @@ mod tests {
     #[should_panic(expected = "at least 3 cells on a side")]
     fn test_init_rejects_a_grid_under_3() {
         type B = PerformanceBackend;
-        let device = default_device();
-        let _memory = DeviceMemoryGuard::<B>::new(&device);
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
 
         let _ = LBMD2Q9Config::new(GridShape2D {
             width: 8,
@@ -462,8 +462,8 @@ mod tests {
     #[serial]
     fn test_try_init_rejects_bad_configs() {
         type B = PerformanceBackend;
-        let device = default_device();
-        let _memory = DeviceMemoryGuard::<B>::new(&device);
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
 
         for (height, width) in [(0, 8), (1, 8), (2, 8), (8, 2), (2, 2)] {
             let result =

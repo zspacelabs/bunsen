@@ -81,7 +81,7 @@ mod tests {
     use super::*;
     use crate::support::testing::{
         CpuBackend,
-        default_device,
+        cpu_device,
         param_load_mapping,
     };
 
@@ -116,7 +116,7 @@ mod tests {
     /// A `Linear` gets the repair on its weight, and its value is untouched.
     #[test]
     fn test_linear_weight_is_repaired() {
-        let device = default_device();
+        let device = cpu_device();
 
         let linear = LinearConfig::new(3, 5).init::<B>(&device);
         let before = linear.weight.val().to_data();
@@ -131,7 +131,7 @@ mod tests {
     /// silently wrong model rather than a load error.
     #[test]
     fn test_attention_repairs_every_projection() {
-        let device: Device<B> = Default::default();
+        let device = cpu_device();
 
         let attn = MultiHeadAttentionConfig::new(4, 2).init::<B>(&device);
         assert_eq!(load_mapped_probe(&attn.query.weight, &device), UNMAPPED);
@@ -151,7 +151,7 @@ mod tests {
     /// The `Vec` impl carries the walk into a stack of blocks.
     #[test]
     fn test_vec_repairs_each_element() {
-        let device: Device<B> = Default::default();
+        let device = cpu_device();
 
         let linears: Vec<Linear<B>> = (0..3)
             .map(|_| LinearConfig::new(3, 5).init::<B>(&device))

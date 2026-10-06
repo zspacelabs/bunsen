@@ -531,7 +531,7 @@ mod tests {
             CpuBackend,
             DeviceMemoryGuard,
             PerformanceBackend,
-            default_device,
+            cpu_device, performance_device,
         },
     };
 
@@ -579,7 +579,7 @@ mod tests {
 
     #[test]
     fn test_init_meta_matches_config() {
-        let device = default_device();
+        let device = cpu_device();
         let cfg = SlidingStftConfig::new()
             .with_win_len(48)
             .with_hop_size(16)
@@ -626,7 +626,7 @@ mod tests {
     /// being traversed.
     #[test]
     fn test_module_semantics() {
-        let device = default_device();
+        let device = cpu_device();
         let cfg = SlidingStftConfig::new()
             .with_win_len(48)
             .with_hop_size(16)
@@ -675,7 +675,7 @@ mod tests {
     #[test]
     #[should_panic(expected = "batch_size must be non-zero")]
     fn test_init_state_rejects_zero_batch() {
-        let device = default_device();
+        let device = cpu_device();
         let coef: SlidingStft<B> = SlidingStftConfig::new().init(&device);
         coef.init_state(0);
     }
@@ -770,7 +770,7 @@ mod tests {
     /// fill a whole window are ignored.
     #[test]
     fn test_analyze_frame_count_and_shape() {
-        let device = default_device();
+        let device = cpu_device();
         let cfg = SlidingStftConfig::new()
             .with_win_len(48)
             .with_hop_size(16)
@@ -794,7 +794,7 @@ mod tests {
     /// signal. Uses a ragged `samples`, so the ignored tail is covered too.
     #[test]
     fn test_analyze_matches_naive_dft() {
-        let device = default_device();
+        let device = cpu_device();
         let cfg = SlidingStftConfig::new()
             .with_win_len(48)
             .with_hop_size(16)
@@ -833,8 +833,8 @@ mod tests {
         type P = PerformanceBackend;
         type PF = <P as BackendTypes>::FloatElem;
 
-        let device = default_device();
-        let _memory = DeviceMemoryGuard::<P>::new(&device);
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
         // The default geometry, with `samples = win_len + 8` leaving an
         // uncovered tail of 8. Small geometries do not vectorize, so they
         // cannot exercise the framing's vectorized path at all.
@@ -874,7 +874,7 @@ mod tests {
 
     #[test]
     fn test_forward_matches_naive_dft() {
-        let device = default_device();
+        let device = cpu_device();
         let cfg = SlidingStftConfig::new()
             .with_win_len(48)
             .with_hop_size(16)
@@ -915,7 +915,7 @@ mod tests {
 
     #[test]
     fn test_forward_sequence_matches_stepwise() {
-        let device = default_device();
+        let device = cpu_device();
         let steps = 7;
         let batch = 2;
 
@@ -963,7 +963,7 @@ mod tests {
 
     #[test]
     fn test_reset() {
-        let device = default_device();
+        let device = cpu_device();
         let cfg = SlidingStftConfig::new()
             .with_win_len(48)
             .with_hop_size(16)

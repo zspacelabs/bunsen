@@ -23,7 +23,7 @@ use bunsen::{
         DeviceMemoryGuard,
         PerformanceBackend,
         asr::text_error_rate,
-        default_device,
+        performance_device,
     },
 };
 use burn::{
@@ -143,8 +143,8 @@ fn greedy_reference<B: Backend>(
 #[test]
 #[serial_test::serial]
 fn test_bunsen_agrees_with_openai_reference() {
-    let device = default_device();
-    let _memory = DeviceMemoryGuard::<B>::new(&device);
+    let device = performance_device();
+    let _memory = DeviceMemoryGuard::new(&device);
 
     let table = vocab();
     let model = bunsen_model::<B>(&device);
@@ -190,8 +190,8 @@ fn test_bunsen_agrees_with_openai_reference() {
 #[test]
 #[serial_test::serial]
 fn test_onnx_encoder_matches_bunsen_on_real_audio() {
-    let device = default_device();
-    let _memory = DeviceMemoryGuard::<B>::new(&device);
+    let device = performance_device();
+    let _memory = DeviceMemoryGuard::new(&device);
 
     let reference = reference::EncoderModel::<B>::load_pretrained(&device);
     let ours = bunsen_model(&device);
@@ -214,8 +214,8 @@ fn test_onnx_encoder_matches_bunsen_on_real_audio() {
 #[test]
 #[serial_test::serial]
 fn test_onnx_reference_transcribes_real_audio() {
-    let device = default_device();
-    let _memory = DeviceMemoryGuard::<B>::new(&device);
+    let device = performance_device();
+    let _memory = DeviceMemoryGuard::new(&device);
 
     let table = vocab();
     let reference_enc = reference::EncoderModel::<B>::load_pretrained(&device);
@@ -262,8 +262,8 @@ fn test_onnx_reference_transcribes_real_audio() {
 #[test]
 #[serial_test::serial]
 fn test_onnx_reference_and_bunsen_transcribe_alike() {
-    let device = default_device();
-    let _memory = DeviceMemoryGuard::<B>::new(&device);
+    let device = performance_device();
+    let _memory = DeviceMemoryGuard::new(&device);
 
     let table = vocab();
     let reference_enc = reference::EncoderModel::<B>::load_pretrained(&device);
@@ -307,8 +307,8 @@ fn test_onnx_reference_and_bunsen_transcribe_alike() {
 #[test]
 #[serial_test::serial]
 fn test_bunsen_accuracy_against_transcript() {
-    let device = default_device();
-    let _memory = DeviceMemoryGuard::<B>::new(&device);
+    let device = performance_device();
+    let _memory = DeviceMemoryGuard::new(&device);
 
     let table = vocab();
     let model = bunsen_model::<B>(&device);
@@ -364,8 +364,8 @@ fn decode_filtered(
 #[test]
 #[serial_test::serial]
 fn test_bunsen_agrees_with_openai_reference_under_default_filters() {
-    let device = default_device();
-    let _memory = DeviceMemoryGuard::<B>::new(&device);
+    let device = performance_device();
+    let _memory = DeviceMemoryGuard::new(&device);
 
     let table = vocab();
     let model = bunsen_model::<B>(&device);
@@ -412,8 +412,8 @@ fn test_bunsen_agrees_with_openai_reference_under_default_filters() {
 #[test]
 #[serial_test::serial]
 fn test_bunsen_beam_agrees_with_openai_reference() {
-    let device = default_device();
-    let _memory = DeviceMemoryGuard::<B>::new(&device);
+    let device = performance_device();
+    let _memory = DeviceMemoryGuard::new(&device);
 
     let table = vocab();
     let model = bunsen_model::<B>(&device);
@@ -459,8 +459,8 @@ fn test_bunsen_beam_agrees_with_openai_reference() {
 #[test]
 #[serial_test::serial]
 fn test_bunsen_timestamps_agree_with_openai_reference() {
-    let device = default_device();
-    let _memory = DeviceMemoryGuard::<B>::new(&device);
+    let device = performance_device();
+    let _memory = DeviceMemoryGuard::new(&device);
 
     let table = vocab();
     let model = bunsen_model::<B>(&device);
@@ -513,8 +513,8 @@ fn test_bunsen_timestamps_agree_with_openai_reference() {
 #[test]
 #[serial_test::serial]
 fn test_bunsen_driver_transcribes_like_openai() {
-    let device = default_device();
-    let _memory = DeviceMemoryGuard::<B>::new(&device);
+    let device = performance_device();
+    let _memory = DeviceMemoryGuard::new(&device);
 
     let table = vocab();
     let driver = WhisperStreamDriverConfig::new()
@@ -608,8 +608,8 @@ fn test_bunsen_driver_transcribes_like_openai() {
 #[test]
 #[serial_test::serial]
 fn test_bunsen_detects_the_language() {
-    let device = default_device();
-    let _memory = DeviceMemoryGuard::<B>::new(&device);
+    let device = performance_device();
+    let _memory = DeviceMemoryGuard::new(&device);
 
     let table = vocab();
     let model = bunsen_model::<B>(&device);

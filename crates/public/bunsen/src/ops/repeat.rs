@@ -27,7 +27,7 @@ use burn::{
 /// ```rust
 /// use bunsen::{
 ///     ops::repeat::repeat_interleave,
-///     support::testing::default_device,
+///     support::testing::cpu_device,
 /// };
 /// use burn::{
 ///     Tensor,
@@ -35,7 +35,7 @@ use burn::{
 /// };
 ///
 /// type B = Flex;
-/// let device = default_device();
+/// let device = cpu_device();
 ///
 /// let input =
 ///     Tensor::<B, 2>::from_data([[0., 1., 2.], [3., 4., 5.]], &device);
@@ -75,14 +75,13 @@ pub fn repeat_interleave<B: Backend, const R: usize, const R2: usize, D: AsIndex
 mod tests {
     use super::*;
     use crate::support::testing::{
-        CpuBackend,
-        default_device,
+        CpuBackend, 
     };
 
     #[test]
     fn test_repeat_interleave() {
         type B = CpuBackend;
-        let device = default_device();
+        let device = cpu_device();
 
         let input = Tensor::<B, 2>::from_data([[0., 1., 2.], [3., 4., 5.]], &device);
 

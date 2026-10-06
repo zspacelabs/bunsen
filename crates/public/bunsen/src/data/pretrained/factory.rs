@@ -849,7 +849,7 @@ mod tests {
             data::pretrained::Provenance,
             support::testing::{
                 CpuBackend,
-                default_device,
+                cpu_device,
             },
         };
 
@@ -863,7 +863,7 @@ mod tests {
             .unwrap();
 
         let loaded = factory
-            .load::<CpuBackend>("disk:l/ckpt", &cache, &default_device())
+            .load::<CpuBackend>("disk:l/ckpt", &cache, &cpu_device())
             .unwrap();
         assert_eq!(*loaded.handle, file);
         assert_eq!(loaded.name, "disk:l/ckpt");
@@ -879,7 +879,7 @@ mod tests {
             .unwrap()
             .with_overlay(ResourceMap::given("mine", "checkpoint", &other))
             .unwrap()
-            .load::<CpuBackend>(&cache, &default_device())
+            .load::<CpuBackend>(&cache, &cpu_device())
             .unwrap();
         assert_eq!(*loaded.handle, other);
 
@@ -890,7 +890,7 @@ mod tests {
             .assert_err(&factory.load::<CpuBackend>(
                 "well-known:a/small",
                 &cache,
-                &default_device(),
+                &cpu_device(),
             ));
     }
 

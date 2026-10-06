@@ -56,11 +56,11 @@
 //!         SwinTransformerV2ContractConfig,
 //!         SwinTransformerV2Meta,
 //!     },
-//!     support::testing::default_device,
+//!     support::testing::cpu_device,
 //! };
 //! use burn::backend::Flex;
 //!
-//! let device = default_device();
+//! let device = cpu_device();
 //!
 //! // A 256x256 RGB image in 4x4 patches: a 64x64 grid, then 32x32 after
 //! // one merge, which the 8x8 window divides.

@@ -389,7 +389,7 @@ mod tests {
         },
         support::testing::{
             CpuBackend,
-            backend_device,
+            cpu_device,
         },
     };
 
@@ -421,7 +421,7 @@ mod tests {
         assert_eq!(path_label("fusion<cubecl<cuda>>"), "fusion_cubecl_cuda");
         assert_eq!(path_label("ndarray"), "ndarray");
 
-        let label = backend_label::<CpuBackend>(&backend_device::<CpuBackend>());
+        let label = backend_label::<CpuBackend>(&cpu_device());
         assert!(!label.is_empty());
         assert!(
             label
@@ -468,7 +468,7 @@ mod tests {
         assert_eq!(SeriesReport::read(&path).unwrap(), report);
 
         let options = ReportsOptions::new(dir.path());
-        let device = backend_device::<CpuBackend>();
+        let device = cpu_device();
         let path = report
             .write_report::<CpuBackend>(&options, &device, "g/s")
             .unwrap();

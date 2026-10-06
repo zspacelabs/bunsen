@@ -146,13 +146,13 @@ mod tests {
     use super::*;
     use crate::support::testing::{
         CpuBackend,
-        default_device,
+        cpu_device,
     };
 
     #[test]
     fn test_drop_path() {
         type B = CpuBackend;
-        let device = default_device();
+        let device = cpu_device();
         let drop_prob = 0.5;
         let scale_by_keep = true;
 
@@ -184,7 +184,7 @@ mod tests {
         assert_eq!(module.keep_prob(), 1.0 - drop_prob);
         assert!(module.scale_by_keep());
 
-        let device = default_device();
+        let device = cpu_device();
         let shape = [2, 3, 4];
         let x = Tensor::<B, 3>::random(shape, Distribution::Uniform(0.0, 1.0), &device);
 

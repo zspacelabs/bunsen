@@ -373,7 +373,7 @@ mod tests {
         },
         support::testing::{
             CpuBackend,
-            default_device,
+            cpu_device,
         },
     };
 
@@ -520,7 +520,7 @@ Ig== x
     #[test]
     fn test_suppress_blank() {
         type B = CpuBackend;
-        let device = default_device();
+        let device = cpu_device();
 
         let filter = SuppressBlank::new(2, 4);
         let first = to_rows(LogitFilter::<B>::apply(

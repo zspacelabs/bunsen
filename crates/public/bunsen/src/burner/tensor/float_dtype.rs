@@ -28,7 +28,7 @@ mod tests {
     use super::*;
     use crate::support::testing::{
         CpuBackend,
-        default_device,
+        cpu_device,
     };
 
     /// The helper agrees with what an undtyped tensor actually gets: that
@@ -36,7 +36,7 @@ mod tests {
     #[test]
     fn test_matches_a_default_tensor() {
         type B = CpuBackend;
-        let device = default_device();
+        let device = cpu_device();
 
         let t: burn::Tensor<B, 1> = burn::Tensor::zeros([2], &device);
         assert_eq!(backend_float_dtype::<B>(), t.dtype());
