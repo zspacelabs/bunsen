@@ -22,8 +22,9 @@
 //!   submodule;
 //! - everything in [`crate::contracts`]: `ShapeContract` and the shape contract
 //!   macros, such as `shape_contract!` and `assert_shape_contract!`;
-//! - everything in [`crate::errors`]: `BunsenError`, `BunsenResult`,
-//!   `SlicingError`, and `WithOkOrPanic`.
+//! - from [`crate::errors`]: `BunsenError`, `BunsenErrorKind`, `BunsenResult`,
+//!   and the `ResultContext` and `WithOkOrPanic` traits. The cause types
+//!   (`ConstraintError`, `LookupError`, ...) stay in `errors`.
 //!
 //! It re-exports no `Module` types, configs, or backends; import those from
 //! where they live. No name in it is also in `burn::prelude`, so the two globs
@@ -38,5 +39,11 @@ pub use crate::burner::module::{
 pub use crate::burner::tensor::*;
 #[doc(inline)]
 pub use crate::contracts::*;
-#[doc(inline)]
-pub use crate::errors::*;
+#[doc(no_inline)]
+pub use crate::errors::{
+    BunsenError,
+    BunsenErrorKind,
+    BunsenResult,
+    ResultContext,
+    WithOkOrPanic,
+};
