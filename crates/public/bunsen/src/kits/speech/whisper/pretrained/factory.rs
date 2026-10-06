@@ -37,8 +37,8 @@ use crate::{
 /// [`with_provider`](PretrainedFactory::with_provider).
 ///
 /// # Errors
-/// [`BunsenError::Invalid`](crate::errors::BunsenError::Invalid) if two of
-/// the defaults share a name, which the tests pin they do not.
+/// As [`PretrainedFactory::with_providers`], if two of the defaults share a
+/// name, which the tests pin they do not.
 pub fn default_whisper_factory() -> BunsenResult<PretrainedFactory<WhisperConstruct>> {
     PretrainedFactory::new().with_providers(default_whisper_providers())
 }
@@ -101,7 +101,13 @@ mod tests {
                 testing::ListsNothing,
             },
         },
-        errors::BunsenError,
+        errors::{
+            BunsenErrorKind,
+            testing::{
+                ErrorMatcher,
+                value::one_of,
+            },
+        },
         kits::speech::whisper::pretrained::{
             CHECKPOINT,
             OPENAI,
@@ -155,14 +161,8 @@ mod tests {
             factory.lookup("well-known:openai/tiny").unwrap().1.name,
             "openai/tiny"
         );
-        assert!(matches!(
-            factory.lookup("nobody:base"),
-            Err(BunsenError::ResourceNotFound(_))
-        ));
-        assert!(matches!(
-            factory.lookup("gigantic"),
-            Err(BunsenError::ResourceNotFound(_))
-        ));
+        ErrorMatcher::kind(BunsenErrorKind::Lookup).assert_err(&factory.lookup("nobody:base"));
+        ErrorMatcher::kind(BunsenErrorKind::Lookup).assert_err(&factory.lookup("gigantic"));
         assert!(openai_download_root().is_some_and(|d| d.ends_with("whisper")));
     }
 
@@ -203,43 +203,29 @@ mod tests {
         let file = dir.path().join("ckpt.pt");
         std::fs::write(&file, b"x").unwrap();
         let spec = file.to_str().unwrap();
-        assert!(matches!(
-            factory.resolve(spec, &cache),
-            Err(BunsenError::ResourceNotFound(_))
-        ));
+        ErrorMatcher::kind(BunsenErrorKind::Lookup).assert_err(&factory.resolve(spec, &cache));
         let given =
             Deferred::<WhisperConstruct>::from_map(ResourceMap::given(spec, CHECKPOINT, &file))
                 .unwrap();
         assert_eq!(given.id(), spec);
         assert!(given.model.named().is_none());
 
-        assert!(matches!(
-            factory.resolve("openai/gigantic", &cache),
-            Err(BunsenError::ResourceNotFound(_))
-        ));
+        ErrorMatcher::kind(BunsenErrorKind::Lookup)
+            .assert_err(&factory.resolve("openai/gigantic", &cache));
 
         // A Hugging Face ref is resolved through the cache: offline, with
         // no listing cached, it is refused naming the ref; the index alone
         // does not answer it; a bare `org/repo` never reaches the hub.
-        let err = factory
-            .resolve("hf:openai/whisper-tiny", &cache)
-            .unwrap_err();
-        assert!(
-            matches!(&err, BunsenError::ResourceNotFound(m) if m.starts_with("hf:openai/whisper-tiny")),
-            "{err}"
-        );
-        assert!(matches!(
-            factory.lookup("hf:openai/whisper-tiny"),
-            Err(BunsenError::Invalid(_))
-        ));
-        assert!(matches!(
-            factory.lookup("openai/whisper-tiny"),
-            Err(BunsenError::ResourceNotFound(_))
-        ));
-        assert!(matches!(
-            factory.lookup("hf:whisper-tiny"),
-            Err(BunsenError::Invalid(_))
-        ));
+        ErrorMatcher::kind(BunsenErrorKind::Policy)
+            .display_contains("hf:openai/whisper-tiny")
+            .assert_err(&factory.resolve("hf:openai/whisper-tiny", &cache));
+        ErrorMatcher::kind(BunsenErrorKind::Policy)
+            .assert_err(&factory.lookup("hf:openai/whisper-tiny"));
+        ErrorMatcher::kind(BunsenErrorKind::Lookup)
+            .assert_err(&factory.lookup("openai/whisper-tiny"));
+        ErrorMatcher::new()
+            .with_kind_matching(one_of([BunsenErrorKind::Illegal, BunsenErrorKind::Policy]))
+            .assert_err(&factory.lookup("hf:whisper-tiny"));
     }
 
     /// One prefab, many rows: derived from the listing, per group and
@@ -297,20 +283,21 @@ mod tests {
             WhisperReader::Safetensors(_)
         ));
         #[cfg(not(feature = "store_safetensors"))]
-        assert!(
-            matches!(&resolved, Err(BunsenError::Invalid(m)) if m.contains("store_safetensors")),
-            "{resolved:?}"
-        );
+        ErrorMatcher::kind(BunsenErrorKind::Unsupported)
+            .message_contains("store_safetensors")
+            .assert_err(&resolved);
     }
 
     /// Registering the defaults twice is the error a duplicate name is.
     #[test]
     fn test_the_defaults_have_no_duplicate() {
-        let err = default_whisper_factory()
-            .unwrap()
-            .with_providers(default_whisper_providers())
-            .unwrap_err();
-        assert!(matches!(err, BunsenError::Invalid(_)), "{err}");
+        ErrorMatcher::new()
+            .with_kind_matching(one_of([BunsenErrorKind::Illegal, BunsenErrorKind::Lookup]))
+            .assert_err(
+                &default_whisper_factory()
+                    .unwrap()
+                    .with_providers(default_whisper_providers()),
+            );
     }
 
     /// `bundled:openai/base` is the bundle's files, used in place from a

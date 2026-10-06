@@ -6,6 +6,9 @@ use crate::{
     errors::{
         BunsenError,
         BunsenResult,
+        ConstraintError,
+        LookupError,
+        Rule,
     },
     kits::{
         speech::whisper::blocks::WhisperTokenLayoutConfig,
@@ -156,7 +159,8 @@ impl WhisperTokenLayoutConfig {
     /// this layout's languages.
     ///
     /// # Errors
-    /// [`BunsenError::Invalid`] if the layout does not
+    /// [`Illegal`](crate::errors::BunsenErrorKind::Illegal), with a
+    /// [`ConstraintError`] cause, if the layout does not
     /// [`validate`](Self::validate), or `num_languages` is zero or exceeds
     /// the languages it has.
     pub fn special_ids(
@@ -166,10 +170,13 @@ impl WhisperTokenLayoutConfig {
     ) -> BunsenResult<WhisperSpecialIds> {
         self.validate()?;
         if num_languages == 0 || num_languages > self.languages.len() {
-            return Err(BunsenError::Invalid(format!(
-                "num_languages must be in 1..={}, got {num_languages}",
-                self.languages.len(),
-            )));
+            return Err(ConstraintError::out_of_range(
+                "WhisperTokenLayoutConfig::special_ids",
+                "num_languages",
+                num_languages,
+                format!("1..={}", self.languages.len()),
+            )
+            .into());
         }
 
         // The leading specials, the language block, the control tokens, the
@@ -207,7 +214,9 @@ impl WhisperTokenLayoutConfig {
     /// upstream makes the same call.)
     ///
     /// # Errors
-    /// [`BunsenError::Invalid`] if `n_vocab` is not one of those sizes.
+    /// [`Illegal`](crate::errors::BunsenErrorKind::Illegal), with a
+    /// [`ConstraintError`] cause, if `n_vocab` is not one of those sizes. A
+    /// caller that read `n_vocab` from a checkpoint re-marks it.
     pub fn special_ids_for_vocab(
         &self,
         n_vocab: usize,
@@ -225,12 +234,17 @@ impl WhisperTokenLayoutConfig {
             .checked_sub(self.size_without_languages(n_base))
             .filter(|n| (1..=self.languages.len()).contains(n))
             .ok_or_else(|| {
-                BunsenError::Invalid(format!(
-                    "{n_vocab} is not a Whisper vocabulary size: expected {} (English-only) or \
-                     {} (multilingual) plus a language count in 1..={}",
-                    self.size_without_languages(self.english_base_ranks),
-                    self.size_without_languages(self.multilingual_base_ranks),
-                    self.languages.len(),
+                BunsenError::from(ConstraintError::out_of_range(
+                    "WhisperTokenLayoutConfig::special_ids_for_vocab",
+                    "n_vocab",
+                    n_vocab,
+                    format!(
+                        "the Whisper vocabulary sizes: {} (English-only) or {} (multilingual), \
+                         plus a language count in 1..={}",
+                        self.size_without_languages(self.english_base_ranks),
+                        self.size_without_languages(self.multilingual_base_ranks),
+                        self.languages.len(),
+                    ),
                 ))
             })?;
 
@@ -329,7 +343,8 @@ impl WhisperTokenLayout {
     /// See [`WhisperTokenLayoutConfig::special_ids_for_vocab`].
     ///
     /// # Errors
-    /// [`BunsenError::Invalid`] if `n_vocab` is not a Whisper vocabulary
+    /// [`Illegal`](crate::errors::BunsenErrorKind::Illegal), with a
+    /// [`ConstraintError`] cause, if `n_vocab` is not a Whisper vocabulary
     /// size.
     pub fn from_vocab_size(n_vocab: usize) -> BunsenResult<Self> {
         WhisperTokenLayoutConfig::new().policy_for_vocab(n_vocab)
@@ -467,8 +482,11 @@ impl WhisperTokenLayout {
     /// * `timestamps` - whether the model may emit timestamp tokens.
     ///
     /// # Errors
-    /// [`BunsenError::Invalid`] if the language is not one this layout has,
-    /// or if either is given for an English-only layout, which takes neither.
+    /// - [`Lookup`](crate::errors::BunsenErrorKind::Lookup), with a
+    ///   [`LookupError`] cause listing the codes there are, if the language is
+    ///   not one this layout has;
+    /// - [`Illegal`](crate::errors::BunsenErrorKind::Illegal) if either is
+    ///   given for an English-only layout, which takes neither.
     pub fn sot_sequence(
         &self,
         language: Option<&str>,
@@ -481,19 +499,18 @@ impl WhisperTokenLayout {
         if ids.is_multilingual() {
             if let Some(code) = language {
                 seq.push(self.language_token(code).ok_or_else(|| {
-                    BunsenError::Invalid(format!(
-                        "unknown language `{code}`: this vocabulary has the first {} of {}",
-                        ids.num_languages,
-                        self.layout.languages.len(),
-                    ))
+                    BunsenError::lookup(
+                        LookupError::missing("language", code)
+                            .with_candidates(self.languages().iter().map(String::as_str)),
+                    )
                 })?);
             }
             if let Some(task) = task {
                 seq.push(ids.task_token(task));
             }
         } else if language.is_some() || task.is_some() {
-            return Err(BunsenError::Invalid(
-                "an English-only vocabulary takes no language or task token".to_string(),
+            return Err(BunsenError::illegal(
+                "an English-only vocabulary takes no language or task token",
             ));
         }
 
@@ -511,20 +528,26 @@ impl WhisperTokenLayout {
     /// `<|name|>` — `n_vocab` entries in all.
     ///
     /// # Errors
-    /// [`BunsenError::Invalid`] if the ranks are not the base of
+    /// [`Illegal`](crate::errors::BunsenErrorKind::Illegal), with a
+    /// [`ConstraintError`] cause, if the ranks are not the base of
     /// `WhisperTokenLayout`'s layout: the vocabulary file and the
-    /// checkpoint disagree.
+    /// checkpoint disagree. A caller that loaded both re-marks it.
     pub fn token_spans(
         &self,
         ranks: &TiktokenRanks,
     ) -> BunsenResult<Vec<Vec<u8>>> {
         let ids = self.ids();
         if ranks.len() != ids.n_base {
-            return Err(BunsenError::Invalid(format!(
-                "the vocabulary has {} base ranks but the layout expects {}",
-                ranks.len(),
-                ids.n_base,
-            )));
+            return Err(ConstraintError::new(
+                "WhisperTokenLayout::token_spans",
+                "",
+                Rule::Relation {
+                    lhs: ("ranks.len()".into(), ranks.len().to_string()),
+                    op: "==",
+                    rhs: ("the layout's n_base".into(), ids.n_base.to_string()),
+                },
+            )
+            .into());
         }
 
         let mut spans = Vec::with_capacity(ids.n_vocab());
@@ -539,9 +562,7 @@ impl WhisperTokenLayout {
     /// [`Self::token_spans`] handed to `wordchipper`'s decode-only path.
     ///
     /// # Errors
-    /// [`BunsenError::Invalid`] if the ranks are not the base of
-    /// `WhisperTokenLayout`'s layout: the vocabulary file and the
-    /// checkpoint disagree.
+    /// As [`token_spans`](Self::token_spans).
     #[cfg(feature = "tokenizer")]
     pub fn detokenizer(
         &self,
@@ -555,9 +576,8 @@ impl WhisperTokenLayout {
     /// [`Self::detokenizer`] over a `.tiktoken` file.
     ///
     /// # Errors
-    /// [`BunsenError::Invalid`] if the ranks are not the base of
-    /// `WhisperTokenLayout`'s layout: the vocabulary file and the
-    /// checkpoint disagree.
+    /// As [`TiktokenRanks::load`] for the file, then as
+    /// [`token_spans`](Self::token_spans).
     #[cfg(feature = "tokenizer")]
     pub fn load_detokenizer(
         &self,
@@ -570,9 +590,18 @@ impl WhisperTokenLayout {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::kits::speech::whisper::{
-        blocks::CONTROL_TOKENS,
-        driver::whisper_token_layout::WhisperSpecialIds,
+    use crate::{
+        errors::{
+            BunsenErrorKind,
+            testing::{
+                ErrorMatcher,
+                predicate,
+            },
+        },
+        kits::speech::whisper::{
+            blocks::CONTROL_TOKENS,
+            driver::whisper_token_layout::WhisperSpecialIds,
+        },
     };
 
     /// The layout `whisper.tokenizer` produces, read off the real thing for
@@ -923,11 +952,17 @@ mod tests {
                 .unwrap(),
             [50258, 50359],
         );
-        assert!(multilingual.sot_sequence(Some("xx"), None, true).is_err());
-        assert!(
-            multilingual.sot_sequence(Some("yue"), None, true).is_err(),
-            "yue needs the 100-language layout",
-        );
+        ErrorMatcher::kind(BunsenErrorKind::Lookup)
+            .cause(predicate("a missing \"xx\"", |e: &LookupError| {
+                e.key == "xx" && e.candidates.len() == 99
+            }))
+            .assert_err(&multilingual.sot_sequence(Some("xx"), None, true));
+        // yue needs the 100-language layout.
+        ErrorMatcher::kind(BunsenErrorKind::Lookup).assert_err(&multilingual.sot_sequence(
+            Some("yue"),
+            None,
+            true,
+        ));
 
         let english = WhisperTokenLayout::from_vocab_size(51864).unwrap();
         assert_eq!(english.sot_sequence(None, None, true).unwrap(), [50257]);
@@ -935,12 +970,16 @@ mod tests {
             english.sot_sequence(None, None, false).unwrap(),
             [50257, 50362]
         );
-        assert!(english.sot_sequence(Some("en"), None, true).is_err());
-        assert!(
-            english
-                .sot_sequence(None, Some(WhisperTask::Transcribe), true)
-                .is_err()
-        );
+        ErrorMatcher::kind(BunsenErrorKind::Illegal).assert_err(&english.sot_sequence(
+            Some("en"),
+            None,
+            true,
+        ));
+        ErrorMatcher::kind(BunsenErrorKind::Illegal).assert_err(&english.sot_sequence(
+            None,
+            Some(WhisperTask::Transcribe),
+            true,
+        ));
     }
 
     /// Five base ranks, including an empty one, laid out with two languages.
@@ -970,8 +1009,9 @@ mod tests {
         let (ranks, _) = tiny();
         let wrong = WhisperTokenLayout::new(WhisperSpecialIds::new(4, 2).unwrap());
 
-        let err = wrong.token_spans(&ranks).unwrap_err();
-        assert!(matches!(err, BunsenError::Invalid(_)), "{err:?}");
+        ErrorMatcher::kind(BunsenErrorKind::Illegal)
+            .has_cause::<ConstraintError>()
+            .assert_err(&wrong.token_spans(&ranks));
     }
 
     #[cfg(feature = "tokenizer")]

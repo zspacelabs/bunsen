@@ -3,8 +3,9 @@
 use burn::config::Config;
 
 use crate::errors::{
-    BunsenError,
     BunsenResult,
+    ConstraintError,
+    Rule,
 };
 
 /// Language codes, in the order Whisper assigns their tokens.
@@ -100,37 +101,51 @@ impl WhisperTokenLayoutConfig {
     /// and one timestamp, and a positive step.
     ///
     /// # Errors
-    /// [`BunsenError::Invalid`] naming what is off.
+    /// [`Illegal`](crate::errors::BunsenErrorKind::Illegal), with a
+    /// [`ConstraintError`] cause naming the field that is off.
     pub fn validate(&self) -> BunsenResult<()> {
-        if self.leading_specials.len() != LEADING_SPECIALS.len() {
-            return Err(BunsenError::Invalid(format!(
-                "a layout has {} leading specials, not {}",
-                LEADING_SPECIALS.len(),
+        const OWNER: &str = "WhisperTokenLayoutConfig";
+        for (field, found, roles, expected) in [
+            (
+                "leading_specials.len()",
                 self.leading_specials.len(),
-            )));
-        }
-        if self.control_tokens.len() != CONTROL_TOKENS.len() {
-            return Err(BunsenError::Invalid(format!(
-                "a layout has {} control tokens, not {}",
-                CONTROL_TOKENS.len(),
+                "LEADING_SPECIALS.len()",
+                LEADING_SPECIALS.len(),
+            ),
+            (
+                "control_tokens.len()",
                 self.control_tokens.len(),
-            )));
+                "CONTROL_TOKENS.len()",
+                CONTROL_TOKENS.len(),
+            ),
+        ] {
+            if found != expected {
+                return Err(ConstraintError::new(
+                    OWNER,
+                    "",
+                    Rule::Relation {
+                        lhs: (field.into(), found.to_string()),
+                        op: "==",
+                        rhs: (roles.into(), expected.to_string()),
+                    },
+                )
+                .into());
+            }
         }
         if self.languages.is_empty() {
-            return Err(BunsenError::Invalid(
-                "a layout needs at least one language".to_string(),
-            ));
+            return Err(ConstraintError::zero_or_empty(OWNER, "languages").into());
         }
         if self.timestamp_tokens == 0 {
-            return Err(BunsenError::Invalid(
-                "a layout needs at least one timestamp token".to_string(),
-            ));
+            return Err(ConstraintError::zero_or_empty(OWNER, "timestamp_tokens").into());
         }
         if self.timestamp_step_seconds.is_nan() || self.timestamp_step_seconds <= 0.0 {
-            return Err(BunsenError::Invalid(format!(
-                "the timestamp step must be positive, got {}",
+            return Err(ConstraintError::out_of_range(
+                OWNER,
+                "timestamp_step_seconds",
                 self.timestamp_step_seconds,
-            )));
+                "> 0",
+            )
+            .into());
         }
         Ok(())
     }
@@ -166,6 +181,10 @@ impl WhisperTokenLayoutConfig {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::errors::{
+        BunsenErrorKind,
+        testing::ErrorMatcher,
+    };
 
     #[test]
     fn test_languages_table() {
@@ -195,13 +214,18 @@ mod tests {
     #[test]
     fn test_validate_rejects_missing_roles() {
         let layout = WhisperTokenLayoutConfig::new();
-        assert!(
-            layout
-                .clone()
-                .with_leading_specials(vec!["<|eot|>".to_string()])
-                .validate()
-                .is_err()
-        );
+        // The message puts the layout's count first, the roles' second.
+        ErrorMatcher::kind(BunsenErrorKind::Illegal)
+            .has_cause::<ConstraintError>()
+            .message_eq(
+                "WhisperTokenLayoutConfig: leading_specials.len() (1) must be == LEADING_SPECIALS.len() (2)",
+            )
+            .assert_err(
+                &layout
+                    .clone()
+                    .with_leading_specials(vec!["<|eot|>".to_string()])
+                    .validate(),
+            );
         assert!(
             layout
                 .clone()

@@ -121,8 +121,8 @@ pub fn default_silero_providers() -> Vec<Arc<dyn PretrainedProvider>> {
 /// name is not found.
 ///
 /// # Errors
-/// [`BunsenError::Invalid`](crate::errors::BunsenError::Invalid) if two of
-/// the defaults share a name, which the tests pin they do not.
+/// As [`PretrainedFactory::with_providers`], if two of the defaults share a
+/// name, which the tests pin they do not.
 pub fn default_silero_factory() -> BunsenResult<PretrainedFactory<SileroConstruct>> {
     PretrainedFactory::new().with_providers(default_silero_providers())
 }
@@ -130,7 +130,10 @@ pub fn default_silero_factory() -> BunsenResult<PretrainedFactory<SileroConstruc
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::errors::BunsenError;
+    use crate::errors::{
+        BunsenErrorKind,
+        testing::ErrorMatcher,
+    };
 
     /// Without the bundle there is nothing to list and nothing answers.
     #[cfg(not(feature = "silero-weights"))]
@@ -140,10 +143,7 @@ mod tests {
         assert_eq!(factory.kit(), SILERO_KIT);
         assert!(factory.providers().is_empty());
         assert!(factory.ids().is_empty());
-        assert!(matches!(
-            factory.lookup("vad"),
-            Err(BunsenError::ResourceNotFound(_))
-        ));
+        ErrorMatcher::kind(BunsenErrorKind::Lookup).assert_err(&factory.lookup("vad"));
     }
 
     /// The bundled row is pinned to the build's digest, has the bytes, and
@@ -174,10 +174,7 @@ mod tests {
         for spec in ["bundled:silero/vad", "silero/vad", "vad"] {
             assert_eq!(factory.lookup(spec).unwrap().1.name, "silero/vad", "{spec}");
         }
-        assert!(matches!(
-            factory.lookup("silero/v4"),
-            Err(BunsenError::ResourceNotFound(_))
-        ));
+        ErrorMatcher::kind(BunsenErrorKind::Lookup).assert_err(&factory.lookup("silero/v4"));
     }
 
     /// `bundled:silero/vad` loads through the factory from a cache that

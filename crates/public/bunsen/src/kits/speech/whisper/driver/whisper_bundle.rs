@@ -9,8 +9,9 @@ use burn::prelude::Backend;
 
 use crate::{
     errors::{
-        BunsenError,
         BunsenResult,
+        ConstraintError,
+        Rule,
     },
     kits::{
         speech::whisper::{
@@ -77,8 +78,9 @@ impl<B: Backend> WhisperBundle<B> {
     /// vocabulary size, and no vocabulary.
     ///
     /// # Errors
-    /// [`BunsenError::Invalid`] if the vocabulary size is not a Whisper
-    /// layout.
+    /// [`Illegal`](crate::errors::BunsenErrorKind::Illegal), with a
+    /// [`ConstraintError`] cause, if the vocabulary size is not a Whisper
+    /// layout. A caller that loaded the model from a checkpoint re-marks it.
     pub fn from_model(model: Whisper<B>) -> BunsenResult<Self> {
         let layout = model.token_layout().policy_for_vocab(model.vocab_size())?;
         Ok(Self::new(model, layout))
@@ -98,15 +100,25 @@ impl<B: Backend> WhisperBundle<B> {
     /// layout's base ranks.
     ///
     /// # Errors
-    /// [`BunsenError::Invalid`] naming the disagreement.
+    /// [`Illegal`](crate::errors::BunsenErrorKind::Illegal), with a
+    /// [`ConstraintError`] cause naming the disagreement. A caller that
+    /// loaded the parts from a checkpoint re-marks it.
     pub fn validate(&self) -> BunsenResult<()> {
         let ids = self.layout.ids();
         if ids.n_vocab() > self.model.vocab_size() {
-            return Err(BunsenError::Invalid(format!(
-                "the token layout has {} ids but the model's vocabulary has {}",
-                ids.n_vocab(),
-                self.model.vocab_size(),
-            )));
+            return Err(ConstraintError::new(
+                "WhisperBundle",
+                "",
+                Rule::Relation {
+                    lhs: ("layout.ids().n_vocab()".into(), ids.n_vocab().to_string()),
+                    op: "<=",
+                    rhs: (
+                        "model.vocab_size()".into(),
+                        self.model.vocab_size().to_string(),
+                    ),
+                },
+            )
+            .into());
         }
         if let Some(ranks) = &self.ranks {
             self.layout.token_spans(ranks)?;
@@ -167,6 +179,10 @@ mod tests {
     use super::*;
     use crate::{
         burner::module::ModuleInit,
+        errors::{
+            BunsenErrorKind,
+            testing::ErrorMatcher,
+        },
         kits::speech::whisper::{
             WhisperGeometry,
             blocks::WhisperTokenLayoutConfig,
@@ -234,7 +250,9 @@ mod tests {
 
         let short = WhisperBundle::new(tiny_model(), tiny_layout())
             .with_ranks(TiktokenRanks::parse("IA== 0\n").unwrap());
-        assert!(matches!(short.validate(), Err(BunsenError::Invalid(_))));
+        ErrorMatcher::kind(BunsenErrorKind::Illegal)
+            .has_cause::<ConstraintError>()
+            .assert_err(&short.validate());
     }
 
     /// A layout with more ids than the model has is refused, and a model
@@ -245,10 +263,12 @@ mod tests {
             tiny_model(),
             WhisperTokenLayout::from_vocab_size(51865).unwrap(),
         );
-        assert!(matches!(too_big.validate(), Err(BunsenError::Invalid(m)) if m.contains("51865")));
-        assert!(matches!(
-            WhisperBundle::from_model(tiny_model()),
-            Err(BunsenError::Invalid(_))
-        ));
+        ErrorMatcher::kind(BunsenErrorKind::Illegal)
+            .has_cause::<ConstraintError>()
+            .message_contains("51865")
+            .assert_err(&too_big.validate());
+        ErrorMatcher::kind(BunsenErrorKind::Illegal)
+            .has_cause::<ConstraintError>()
+            .assert_err(&WhisperBundle::from_model(tiny_model()));
     }
 }

@@ -9,6 +9,7 @@ use crate::{
     errors::{
         BunsenError,
         BunsenResult,
+        ConstraintError,
         WithOkOrPanic,
     },
     kits::speech::silero_vad::SileroVad,
@@ -127,7 +128,8 @@ impl SileroVadContextConfig {
     ///
     /// # Errors
     ///
-    /// [`BunsenError::Invalid`] when `context_size` is 0, as
+    /// [`Illegal`](crate::errors::BunsenErrorKind::Illegal), with a
+    /// [`ConstraintError`] cause, when `context_size` is 0, as
     /// [`default_context_size`](Self::default_context_size) gives below
     /// 250 Hz. Upstream always prefixes a tail; for no context at all, run
     /// the model's bare [`forward`](SileroVad::forward) instead.
@@ -137,8 +139,12 @@ impl SileroVadContextConfig {
         device: &B::Device,
     ) -> BunsenResult<SileroVadContext<B>> {
         if self.context_size == 0 {
-            return Err(BunsenError::Invalid(format!(
-                "a SileroVadContext needs a context_size above 0; got 0 (the default, sample_rate / 250, is 0 below 250 Hz; sample_rate = {})",
+            return Err(BunsenError::from(ConstraintError::zero_or_empty(
+                "SileroVadContextConfig",
+                "context_size",
+            ))
+            .with_details(format!(
+                "the default, sample_rate / 250, is 0 below 250 Hz; sample_rate = {}",
                 self.sample_rate,
             )));
         }
@@ -165,6 +171,10 @@ mod tests {
     use super::*;
     use crate::{
         burner::module::ModuleInit,
+        errors::{
+            BunsenErrorKind,
+            testing::ErrorMatcher,
+        },
         kits::speech::silero_vad::SileroVadSignalConfig,
         support::testing::{
             PerformanceBackend,
@@ -204,13 +214,9 @@ mod tests {
             SileroVadContextConfig::new(0),
         ] {
             assert_eq!(cfg.context_size(), 0);
-            assert!(
-                matches!(
-                    cfg.try_init(&vad_at(cfg.sample_rate), &device),
-                    Err(BunsenError::Invalid(_))
-                ),
-                "{cfg:?} opened"
-            );
+            ErrorMatcher::kind(BunsenErrorKind::Illegal)
+                .has_cause::<ConstraintError>()
+                .assert_err(&cfg.try_init(&vad_at(cfg.sample_rate), &device));
         }
 
         let cfg = SileroVadContextConfig::new(250);

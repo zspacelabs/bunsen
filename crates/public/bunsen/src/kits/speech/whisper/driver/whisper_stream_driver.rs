@@ -10,6 +10,8 @@ use crate::{
     errors::{
         BunsenError,
         BunsenResult,
+        ConstraintError,
+        Rule,
     },
     kits::{
         speech::{
@@ -136,7 +138,8 @@ impl WhisperStreamDriverConfig {
     /// [`init_from_bundle`](Self::init_from_bundle).
     ///
     /// # Errors
-    /// [`BunsenError::Invalid`] if the vocabulary size is not a Whisper
+    /// [`Illegal`](crate::errors::BunsenErrorKind::Illegal), with a
+    /// [`ConstraintError`] cause, if the vocabulary size is not a Whisper
     /// layout, or as [`init_from_bundle`](Self::init_from_bundle).
     pub fn init<B: Backend>(
         &self,
@@ -176,11 +179,20 @@ impl WhisperStreamDriverConfig {
     /// either. Several drivers over one bundle are `Arc::clone`s of it.
     ///
     /// # Errors
-    /// [`BunsenError::Invalid`] if the layout does not fit the model or its
-    /// vocabulary, if the language and task do not fit the layout, or if
-    /// the configuration asks for something the driver cannot run: among
-    /// them [`CommitRule::Agreement`], which is not implemented yet, and the
-    /// `interval` trigger without `endpoint`, which could never draft.
+    /// - [`Illegal`](crate::errors::BunsenErrorKind::Illegal) if the layout
+    ///   does not fit the model or its vocabulary (see
+    ///   [`WhisperBundle::validate`]), if a language or task is given for an
+    ///   English-only layout, or if the configuration breaks a rule: no trigger
+    ///   that decodes, a zero `interval`, the `interval` trigger without
+    ///   `endpoint` (which could never draft), a zero `beam_size` or `best_of`,
+    ///   no fallback temperature, or a `patience` that collects no candidates.
+    ///   A broken field rule carries a [`ConstraintError`].
+    /// - [`Lookup`](crate::errors::BunsenErrorKind::Lookup) if the language is
+    ///   not one the layout has (see [`WhisperTokenLayout::sot_sequence`]).
+    /// - [`Unsupported`](crate::errors::BunsenErrorKind::Unsupported) for
+    ///   [`CommitRule::Agreement`], which is not implemented.
+    /// - As [`WhisperFrontEndConfig::try_init_audio_converter`] for the model's
+    ///   front end.
     pub fn init_from_bundle<B: Backend>(
         &self,
         bundle: Arc<WhisperBundle<B>>,
@@ -190,8 +202,8 @@ impl WhisperStreamDriverConfig {
         let special_ids = *bundle.layout.ids();
 
         if !special_ids.is_multilingual() && self.language.is_some() {
-            return Err(BunsenError::Invalid(
-                "an English-only checkpoint takes no language".to_string(),
+            return Err(BunsenError::illegal(
+                "WhisperStreamDriverConfig.language: an English-only checkpoint takes no language",
             ));
         }
         let task = special_ids.is_multilingual().then_some(self.task);
@@ -214,52 +226,58 @@ impl WhisperStreamDriverConfig {
             )));
         }
 
+        const OWNER: &str = "WhisperStreamDriverConfig";
         let triggers = &self.emission.triggers;
         if !triggers.window_full && !triggers.endpoint {
-            return Err(BunsenError::Invalid(
-                "with neither the window_full nor the endpoint trigger nothing would ever decode"
-                    .to_string(),
+            return Err(BunsenError::illegal(
+                "WhisperStreamDriverConfig.emission.triggers: with neither the window_full nor \
+                 the endpoint trigger nothing would ever decode",
             ));
         }
         if triggers.interval.is_some_and(|i| i.is_zero()) {
-            return Err(BunsenError::Invalid(
-                "an interval of zero would draft on every push".to_string(),
-            ));
+            return Err(BunsenError::from(ConstraintError::zero_or_empty(
+                OWNER,
+                "emission.triggers.interval",
+            ))
+            .with_details("an interval of zero would draft on every push"));
         }
         if triggers.interval.is_some() && !triggers.endpoint {
-            return Err(BunsenError::Invalid(
-                "the interval trigger drafts only while speech is in progress, which only the \
-                 endpoint trigger's voice-activity gate tracks; turn endpoint on as well"
-                    .to_string(),
+            return Err(BunsenError::illegal(
+                "WhisperStreamDriverConfig.emission.triggers: the interval trigger drafts only \
+                 while speech is in progress, which only the endpoint trigger's voice-activity \
+                 gate tracks; turn endpoint on as well",
             ));
         }
         if let CommitRule::Agreement { .. } = self.emission.commit {
-            return Err(BunsenError::Invalid(
-                "the Agreement commit rule is not implemented yet; use Complete or LastTimestamp"
-                    .to_string(),
+            return Err(BunsenError::unsupported(
+                "WhisperStreamDriverConfig.emission.commit: the Agreement commit rule is not \
+                 implemented; use Complete or LastTimestamp",
             ));
         }
 
         if self.beam_size == 0 {
-            return Err(BunsenError::Invalid(
-                "beam_size must be at least one".to_string(),
-            ));
+            return Err(ConstraintError::zero_or_empty(OWNER, "beam_size").into());
         }
         if self.fallback.temperatures.is_empty() {
-            return Err(BunsenError::Invalid(
-                "the fallback ladder needs at least one temperature".to_string(),
-            ));
+            return Err(ConstraintError::zero_or_empty(OWNER, "fallback.temperatures").into());
         }
         if self.fallback.best_of == Some(0) {
-            return Err(BunsenError::Invalid(
-                "best_of must be at least one".to_string(),
-            ));
+            return Err(ConstraintError::zero_or_empty(OWNER, "fallback.best_of").into());
         }
         if (self.beam_size as f64 * self.patience.unwrap_or(1.0)).round() < 1.0 {
-            return Err(BunsenError::Invalid(format!(
-                "a patience of {:?} with {} beams collects no candidates",
-                self.patience, self.beam_size
-            )));
+            // `round(beam_size * patience) >= 1` is `patience >= 0.5 /
+            // beam_size`.
+            return Err(ConstraintError::out_of_range(
+                OWNER,
+                "patience",
+                self.patience.unwrap_or(1.0),
+                format!(
+                    "[{}, ..) with {} beams, to collect a candidate",
+                    0.5 / self.beam_size as f64,
+                    self.beam_size,
+                ),
+            )
+            .into());
         }
 
         let audio_converter = bundle
@@ -363,7 +381,8 @@ impl<B: Backend> WhisperStreamDriver<B> {
     /// one without.
     ///
     /// # Errors
-    /// [`BunsenError::Invalid`] if the model or the filter runs at a rate
+    /// [`Illegal`](crate::errors::BunsenErrorKind::Illegal), with a
+    /// [`ConstraintError`] cause, if the model or the filter runs at a rate
     /// other than this driver's model, or the filter's chunk is not the
     /// model's.
     pub fn with_vad(
@@ -384,25 +403,37 @@ impl<B: Backend> WhisperStreamDriver<B> {
         vad: &SileroVad<B>,
         filter: &VoiceActivityFilterConfig,
     ) -> BunsenResult<()> {
+        const OWNER: &str = "WhisperStreamDriver::with_vad";
+        let must_equal = |lhs: (&str, usize), rhs: (&str, usize)| -> BunsenError {
+            ConstraintError::new(
+                OWNER,
+                "",
+                Rule::Relation {
+                    lhs: (lhs.0.into(), lhs.1.to_string()),
+                    op: "==",
+                    rhs: (rhs.0.into(), rhs.1.to_string()),
+                },
+            )
+            .into()
+        };
         let rate = self.sample_rate();
         if vad.sample_rate() != rate {
-            return Err(BunsenError::Invalid(format!(
-                "the voice-activity model runs at {} Hz; this driver's model at {rate}",
-                vad.sample_rate(),
-            )));
+            return Err(must_equal(
+                ("vad.sample_rate()", vad.sample_rate()),
+                ("the driver's sample_rate()", rate),
+            ));
         }
         if filter.sample_rate != rate {
-            return Err(BunsenError::Invalid(format!(
-                "the voice-activity filter is configured at {} Hz; this driver's model at {rate}",
-                filter.sample_rate,
-            )));
+            return Err(must_equal(
+                ("filter.sample_rate", filter.sample_rate),
+                ("the driver's sample_rate()", rate),
+            ));
         }
         if filter.samples_per_chunk != vad.chunk_size() {
-            return Err(BunsenError::Invalid(format!(
-                "the voice-activity filter expects {}-sample chunks; the model emits {}",
-                filter.samples_per_chunk,
-                vad.chunk_size(),
-            )));
+            return Err(must_equal(
+                ("filter.samples_per_chunk", filter.samples_per_chunk),
+                ("vad.chunk_size()", vad.chunk_size()),
+            ));
         }
         Ok(())
     }
@@ -547,8 +578,9 @@ impl<B: Backend> WhisperStreamDriver<B> {
     ///   time.
     ///
     /// # Errors
-    /// [`BunsenError::Invalid`] if the clock does not run at the model's
-    /// [`sample_rate`](Self::sample_rate), or if the emission policy wants
+    /// [`Illegal`](crate::errors::BunsenErrorKind::Illegal) if the clock
+    /// does not run at the model's [`sample_rate`](Self::sample_rate) (with
+    /// a [`ConstraintError`] cause), or if the emission policy wants
     /// endpoints and no VAD was attached.
     pub fn new_context<C: StreamClampPolicy<B> + 'static>(
         &self,
@@ -556,16 +588,23 @@ impl<B: Backend> WhisperStreamDriver<B> {
         clamp: C,
     ) -> BunsenResult<WhisperStreamContext<B>> {
         if clock.rate() != self.sample_rate() {
-            return Err(BunsenError::Invalid(format!(
-                "the stream clock runs at {} Hz; the model's front end at {}",
-                clock.rate(),
-                self.sample_rate(),
-            )));
+            return Err(ConstraintError::new(
+                "WhisperStreamDriver::new_context",
+                "",
+                Rule::Relation {
+                    lhs: ("clock.rate()".into(), clock.rate().to_string()),
+                    op: "==",
+                    rhs: (
+                        "the model's sample_rate()".into(),
+                        self.sample_rate().to_string(),
+                    ),
+                },
+            )
+            .into());
         }
         if self.config.emission.triggers.endpoint && self.vad_model.is_none() {
-            return Err(BunsenError::Invalid(
-                "the endpoint trigger needs a voice-activity model; attach one with with_vad"
-                    .to_string(),
+            return Err(BunsenError::illegal(
+                "the endpoint trigger needs a voice-activity model; attach one with with_vad",
             ));
         }
 

@@ -70,7 +70,7 @@ pub struct DecodeTriggers {
     /// without it no draft could ever be made, and building a driver
     /// ([`init_from_bundle`](super::WhisperStreamDriverConfig::init_from_bundle))
     /// fails with
-    /// [`BunsenError::Invalid`](crate::errors::BunsenError::Invalid).
+    /// [`Illegal`](crate::errors::BunsenErrorKind::Illegal).
     #[config(default = "None")]
     pub interval: Option<Duration>,
 }
@@ -98,10 +98,10 @@ pub enum CommitRule {
     /// Commit a prefix once `runs` consecutive decodes agree on it. The one
     /// rule under which a provisional decode becomes load-bearing.
     ///
-    /// Not implemented yet: building a driver under it
+    /// Not implemented: building a driver under it
     /// ([`init_from_bundle`](super::WhisperStreamDriverConfig::init_from_bundle))
     /// fails with
-    /// [`BunsenError::Invalid`](crate::errors::BunsenError::Invalid).
+    /// [`Unsupported`](crate::errors::BunsenErrorKind::Unsupported).
     Agreement {
         /// Consecutive decodes that must agree.
         runs: usize,

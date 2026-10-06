@@ -3,6 +3,7 @@ use std::path::Path;
 
 use burn::prelude::Backend;
 use burn_store::{
+    BurnpackError,
     BurnpackStore,
     KeyRemapper,
     ModuleSnapshot,
@@ -12,8 +13,11 @@ use crate::{
     burner::module::ModuleInit,
     errors::{
         BunsenError,
+        BunsenErrorKind,
         BunsenResult,
+        ResultContext,
         WithOkOrPanic,
+        sys_at,
     },
     kits::speech::silero_vad::{
         SileroVad,
@@ -68,12 +72,18 @@ impl<B: Backend> SileroVad<B> {
 
     /// Load the 16khz model from a burnpack file.
     /// Uses the upstream `silero_vad` keying.
+    ///
+    /// # Errors
+    /// [`Lookup`](crate::errors::BunsenErrorKind::Lookup) when `path` is
+    /// missing or forbidden; otherwise as
+    /// [`load_from_burnpack`](Self::load_from_burnpack), under a frame
+    /// naming the file.
     pub fn load_16khz_from_burnpack_file(
         path: impl AsRef<Path>,
         device: &B::Device,
     ) -> BunsenResult<Self> {
-        Self::load_from_burnpack(
-            BurnpackStore::from_file(path),
+        Self::load_from_burnpack_path(
+            path,
             SileroVadSignalConfig::standard_16khz(),
             Self::pretrained_16khz_remapper(),
             device,
@@ -96,12 +106,18 @@ impl<B: Backend> SileroVad<B> {
 
     /// Load the 8khz model from a burnpack file.
     /// Uses the upstream `silero_vad` keying.
+    ///
+    /// # Errors
+    /// [`Lookup`](crate::errors::BunsenErrorKind::Lookup) when `path` is
+    /// missing or forbidden; otherwise as
+    /// [`load_from_burnpack`](Self::load_from_burnpack), under a frame
+    /// naming the file.
     pub fn load_8khz_from_burnpack_file(
         path: impl AsRef<Path>,
         device: &B::Device,
     ) -> BunsenResult<Self> {
-        Self::load_from_burnpack(
-            BurnpackStore::from_file(path),
+        Self::load_from_burnpack_path(
+            path,
             SileroVadSignalConfig::standard_8khz(),
             Self::pretrained_8khz_remapper(),
             device,
@@ -138,7 +154,32 @@ impl<B: Backend> SileroVad<B> {
         .ok_or_panic()
     }
 
+    /// Load from a burnpack file, under a frame naming it.
+    fn load_from_burnpack_path<C>(
+        path: impl AsRef<Path>,
+        cfg: C,
+        remapper: KeyRemapper,
+        device: &B::Device,
+    ) -> BunsenResult<Self>
+    where
+        C: ModuleInit<B, Self>,
+    {
+        let path = path.as_ref();
+        std::fs::metadata(path).map_err(sys_at("open", path))?;
+        Self::load_from_burnpack(BurnpackStore::from_file(path), cfg, remapper, device)
+            .with_context(|| format!("loading {}", path.display()))
+    }
+
     /// Load from a burnpack store.
+    ///
+    /// # Errors
+    /// - as `cfg`'s [`try_init`](ModuleInit::try_init);
+    /// - [`InvalidResource`](crate::errors::BunsenErrorKind::InvalidResource),
+    ///   with the [`BurnpackError`] as its cause, when the store is not a
+    ///   burnpack or lacks a tensor the model needs;
+    ///   [`Unsupported`](crate::errors::BunsenErrorKind::Unsupported) for a
+    ///   burnpack version this build does not read;
+    ///   [`Sys`](crate::errors::BunsenErrorKind::Sys) when reading it fails.
     pub fn load_from_burnpack<C>(
         store: BurnpackStore,
         cfg: C,
@@ -150,12 +191,20 @@ impl<B: Backend> SileroVad<B> {
     {
         let mut store = store.remap(remapper);
         let mut module = cfg.try_init(device)?;
-        module
-            .load_from(&mut store)
-            .map_err(BunsenError::external)?;
+        module.load_from(&mut store).map_err(burnpack_load_error)?;
 
         Ok(module)
     }
+}
+
+/// Sorts a [`BurnpackError`] from loading a module by what it means.
+fn burnpack_load_error(error: BurnpackError) -> BunsenError {
+    let kind = match &error {
+        BurnpackError::IoError(_) => BunsenErrorKind::Sys,
+        BurnpackError::InvalidVersion => BunsenErrorKind::Unsupported,
+        _ => BunsenErrorKind::InvalidResource,
+    };
+    BunsenError::from_cause(kind, error)
 }
 
 impl<B: Backend> SileroVadCollection<B> {
