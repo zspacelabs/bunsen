@@ -66,8 +66,9 @@ impl StaticPretrained<'_> {
     /// is.
     ///
     /// # Errors
-    /// [`BunsenError::Invalid`](crate::errors::BunsenError::Invalid) naming
-    /// a key two of the maps share.
+    /// [`Illegal`](crate::errors::BunsenErrorKind::Illegal), as
+    /// [`ResourceMap::fuse`] under [`Fuse::Strict`], naming a key two of the
+    /// maps share.
     pub fn try_to_map(&self) -> BunsenResult<ResourceMap> {
         let mut fused = ResourceMap::new(self.name);
         fused.description = self.description.to_string();
@@ -179,7 +180,11 @@ mod tests {
             StaticBase,
             StaticResource,
         },
-        errors::BunsenError,
+        errors::{
+            BunsenErrorKind,
+            LookupError,
+            testing::ErrorMatcher,
+        },
     };
 
     macro_rules! one_file {
@@ -259,16 +264,15 @@ mod tests {
     /// fallible form, a panic in the other.
     #[test]
     fn test_a_repeated_key_is_refused() {
-        let err = CLASH.try_to_map().unwrap_err();
-        assert!(
-            matches!(&err, BunsenError::Invalid(m) if m.contains("\"checkpoint\" is in both")),
-            "{err}"
-        );
+        ErrorMatcher::kind(BunsenErrorKind::Illegal)
+            .message_eq("duplicate resource \"checkpoint\"")
+            .has_cause::<LookupError>()
+            .assert_err(&CLASH.try_to_map());
         assert!(CLASH.try_to_pretrained().is_err());
     }
 
     #[test]
-    #[should_panic(expected = "\"checkpoint\" is in both")]
+    #[should_panic(expected = "duplicate resource \"checkpoint\"")]
     fn test_to_map_panics_on_a_repeated_key() {
         CLASH.to_map();
     }

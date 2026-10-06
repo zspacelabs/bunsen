@@ -26,7 +26,9 @@ use super::{
 };
 use crate::errors::{
     BunsenError,
+    BunsenErrorKind,
     BunsenResult,
+    ParseError,
 };
 
 /// The provider's default name: the `hf` of `hf:openai/whisper-tiny`, and
@@ -288,7 +290,11 @@ impl HfProvider {
     /// The `org` and `repo` of a ref, which is exactly `org/repo`.
     ///
     /// # Errors
-    /// [`BunsenError::Invalid`] for anything else.
+    /// [`Illegal`](BunsenErrorKind::Illegal), with a [`ParseError`], for
+    /// anything else. A caller that took the ref from outside the program
+    /// re-marks it [`as_policy`](BunsenError::as_policy), as
+    /// [`PretrainedFactory::resolve`](super::PretrainedFactory::resolve)
+    /// does.
     pub fn split<'a>(
         &self,
         name: &'a str,
@@ -297,10 +303,12 @@ impl HfProvider {
             Some((org, repo)) if !org.is_empty() && !repo.is_empty() && !repo.contains('/') => {
                 Ok((org, repo))
             }
-            _ => Err(BunsenError::Invalid(format!(
-                "{}:{name}: a Hugging Face ref is org/repo",
-                self.name
-            ))),
+            _ => Err(BunsenError::from_cause(
+                BunsenErrorKind::Illegal,
+                ParseError::new("Hugging Face ref")
+                    .input(format!("{}:{name}", self.name))
+                    .because("a ref is org/repo"),
+            )),
         }
     }
 
@@ -346,10 +354,12 @@ impl HfProvider {
     /// hub's LFS digests, and `config.json` when there is one.
     ///
     /// # Errors
-    /// [`BunsenError::Invalid`] when the listing has neither
-    /// [`HF_SINGLE_FILE`] nor [`HF_INDEX_FILE`] with a complete set of
-    /// shards, naming what it has instead, and the shards a set of one `N`
-    /// lacks.
+    /// As [`split`](Self::split) for a malformed ref.
+    /// [`InvalidResource`](BunsenErrorKind::InvalidResource), under a frame
+    /// naming the ref, when the listing has neither [`HF_SINGLE_FILE`] nor
+    /// [`HF_INDEX_FILE`] with a complete set of shards, naming what it has
+    /// instead, and the shards a set of one `N` lacks: the repo is not the
+    /// checkpoint a ref names.
     pub fn row_from_listing(
         &self,
         name: &str,
@@ -382,8 +392,7 @@ impl HfProvider {
             if !complete {
                 let has: Vec<&str> = shards.iter().map(|(_, _, e)| e.path.as_str()).collect();
                 let mut message = format!(
-                    "{}:{name}: {HF_INDEX_FILE} with an incomplete set of shards: {}",
-                    self.name,
+                    "{HF_INDEX_FILE} with an incomplete set of shards: {}",
                     if has.is_empty() {
                         "none".to_string()
                     } else {
@@ -393,7 +402,9 @@ impl HfProvider {
                 if one_set {
                     message.push_str(&missing_shards(of, &shards));
                 }
-                return Err(BunsenError::Invalid(message));
+                return Err(
+                    BunsenError::invalid_resource(message).context(format!("{}:{name}", self.name))
+                );
             }
             resources.insert(self.resource(
                 org,
@@ -427,16 +438,16 @@ impl HfProvider {
                         || p.ends_with(".gguf")
                 })
                 .collect();
-            return Err(BunsenError::Invalid(format!(
-                "{}:{name}: no {HF_SINGLE_FILE} or {HF_INDEX_FILE} at {}; the repo has: {}",
-                self.name,
+            return Err(BunsenError::invalid_resource(format!(
+                "no {HF_SINGLE_FILE} or {HF_INDEX_FILE} at {}; the repo has: {}",
                 self.revision,
                 if weights.is_empty() {
                     "no weights".to_string()
                 } else {
                     weights.join(", ")
                 }
-            )));
+            ))
+            .context(format!("{}:{name}", self.name)));
         }
         let mut with_config = "";
         if let Some(config) = file(HF_CONFIG_FILE) {
@@ -468,29 +479,49 @@ impl HfProvider {
         kit: &str,
         cache: &PretrainedCache,
     ) -> BunsenResult<Vec<HfTreeEntry>> {
+        use crate::errors::{
+            LookupError,
+            LookupProblem,
+            ResultContext,
+            sys_at,
+        };
+
         let (org, repo) = self.split(name)?;
         let resource = self.listing_resource(org, repo);
-        let resolved = cache.resolve(kit, &resource).map_err(|e| match e {
-            BunsenError::External(m) if m.contains("http status: 401") => BunsenError::External(
+        let resolved = cache.resolve(kit, &resource);
+        // The hub answers 401 to an anonymous caller both for a repo that is
+        // not there and for a gated one.
+        let unauthorized = resolved
+            .as_ref()
+            .err()
+            .and_then(|e| e.find::<LookupError>())
+            .is_some_and(|l| l.problem == LookupProblem::Unauthorized);
+        let resolved = resolved.with_context(|| {
+            if unauthorized {
                 format!(
-                    "{}:{name}: {m} (a repo that is not there, or a gated one, answers 401 to an anonymous caller)",
+                    "{}:{name}: the repo does not exist, or is gated (bunsen fetches anonymously, so a gated repo is unreachable)",
                     self.name
-                ),
-            ),
-            BunsenError::External(m) => BunsenError::External(format!("{}:{name}: {m}", self.name)),
-            BunsenError::ResourceNotFound(m) => BunsenError::ResourceNotFound(format!(
-                "{}:{name}: the repo's file listing is {m}",
-                self.name
-            )),
-            other => other,
+                )
+            } else {
+                format!("{}:{name}: file listing", self.name)
+            }
         })?;
-        let file = std::fs::File::open(&resolved.path).map_err(BunsenError::external)?;
+        let path = &resolved.path;
+        let file = std::fs::File::open(path)
+            .map_err(sys_at("open", path))
+            .with_context(|| format!("{}:{name}: file listing", self.name))?;
         serde_json::from_reader(std::io::BufReader::new(file)).map_err(|e| {
-            BunsenError::Invalid(format!(
-                "{}:{name}: {}: not a file listing: {e}",
-                self.name,
-                resolved.path.display()
+            BunsenError::from_cause(
+                BunsenErrorKind::InvalidResource,
+                ParseError::new("Hugging Face file listing")
+                    .at(path.display())
+                    .with_source(e),
+            )
+            .with_details(format!(
+                "the listing is cached unpinned; remove {} to fetch it again",
+                path.display()
             ))
+            .context(format!("{}:{name}: file listing", self.name))
         })
     }
 }
@@ -516,16 +547,18 @@ impl PretrainedProvider for HfProvider {
     /// An error: what a repo holds is the hub's to say, through a cache.
     ///
     /// # Errors
-    /// [`BunsenError::Invalid`], always.
+    /// As [`split`](Self::split) for a malformed ref;
+    /// [`Policy`](BunsenErrorKind::Policy) otherwise, always: the request
+    /// needs a cache.
     fn lookup(
         &self,
         name: &str,
     ) -> BunsenResult<Option<Pretrained>> {
         self.split(name)?;
-        Err(BunsenError::Invalid(format!(
-            "{}:{name}: a Hugging Face ref is resolved through a cache, which asks the hub what the repo holds",
-            self.name
-        )))
+        Err(BunsenError::policy(
+            "a Hugging Face ref is resolved through a cache, which asks the hub what the repo holds",
+        )
+        .context(format!("{}:{name}", self.name)))
     }
 
     /// The row for `org/repo` from its file listing, fetched once into
@@ -533,10 +566,17 @@ impl PretrainedProvider for HfProvider {
     ///
     /// # Errors
     /// As [`split`](Self::split) and
-    /// [`row_from_listing`](Self::row_from_listing); the cache's, naming
-    /// the ref, for a listing that cannot be had: a repo that is not there
-    /// answers 401, and an offline cache that never saw the repo has
-    /// nothing.
+    /// [`row_from_listing`](Self::row_from_listing). For a listing that
+    /// cannot be had, the cache's error under a frame naming the ref: a repo
+    /// that is not there, or a gated one, answers 401, a
+    /// [`Lookup`](BunsenErrorKind::Lookup) whose
+    /// [`LookupError`](crate::errors::LookupError) problem is
+    /// [`Unauthorized`](crate::errors::LookupProblem::Unauthorized), and an
+    /// offline cache that never saw the repo is a
+    /// [`Policy`](BunsenErrorKind::Policy) error. A cached listing that does
+    /// not parse is
+    /// [`InvalidResource`](BunsenErrorKind::InvalidResource), with a
+    /// [`ParseError`].
     #[cfg(feature = "cache")]
     fn resolve(
         &self,
@@ -566,6 +606,10 @@ fn megabytes(bytes: u64) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::errors::testing::{
+        ErrorMatcher,
+        text,
+    };
 
     fn entry(
         path: &str,
@@ -676,13 +720,10 @@ mod tests {
             entry("model-00002-of-00002.safetensors", 1, Some(SHARD_2)),
             entry("model.safetensors.index.json", 71_000, None),
         ];
-        let err = hf
-            .row_from_listing("ivrit-ai/whisper-large-v3", &incomplete)
-            .unwrap_err();
-        assert!(
-            matches!(&err, BunsenError::Invalid(m) if m.contains("incomplete set of shards")),
-            "{err}"
-        );
+        ErrorMatcher::kind(BunsenErrorKind::InvalidResource)
+            .message_contains("incomplete set of shards")
+            .frame_contains("hf:ivrit-ai/whisper-large-v3")
+            .assert_err(&hf.row_from_listing("ivrit-ai/whisper-large-v3", &incomplete));
     }
 
     /// A set numbered from 1 with no gap is still incomplete when its last
@@ -696,22 +737,22 @@ mod tests {
             entry("model-00001-of-00003.safetensors", 1, Some(SHARD_1)),
             entry("model-00002-of-00003.safetensors", 1, Some(SHARD_2)),
         ];
-        let err = hf.row_from_listing("org/repo", &listing).unwrap_err();
-        assert!(
-            matches!(&err, BunsenError::Invalid(m) if m.contains("incomplete set of shards") && m.contains("missing model-00003-of-00003.safetensors")),
-            "{err}"
-        );
+        ErrorMatcher::kind(BunsenErrorKind::InvalidResource)
+            .message_contains("incomplete set of shards")
+            .message_contains("missing model-00003-of-00003.safetensors")
+            .assert_err(&hf.row_from_listing("org/repo", &listing));
 
         // A long tail is named eight shards at most, then counted.
         let listing = vec![
             entry("model.safetensors.index.json", 71_000, None),
             entry("model-00001-of-00012.safetensors", 1, Some(SHARD_1)),
         ];
-        let err = hf.row_from_listing("org/repo", &listing).unwrap_err();
-        assert!(
-            matches!(&err, BunsenError::Invalid(m) if m.contains("missing model-00002-of-00012.safetensors, ") && m.ends_with("model-00009-of-00012.safetensors, and 3 more")),
-            "{err}"
-        );
+        ErrorMatcher::kind(BunsenErrorKind::InvalidResource)
+            .message_contains("missing model-00002-of-00012.safetensors, ")
+            .message(text::ends_with(
+                "model-00009-of-00012.safetensors, and 3 more",
+            ))
+            .assert_err(&hf.row_from_listing("org/repo", &listing));
     }
 
     /// A repo with weights in another format only is refused naming them;
@@ -725,11 +766,10 @@ mod tests {
             entry("tf_model.h5", 10, Some(SHARD_2)),
             entry("README.md", 10, None),
         ];
-        let err = hf.row_from_listing("some/repo", &listing).unwrap_err();
-        assert!(
-            matches!(&err, BunsenError::Invalid(m) if m.contains("no model.safetensors") && m.contains("pytorch_model.bin, tf_model.h5")),
-            "{err}"
-        );
+        ErrorMatcher::kind(BunsenErrorKind::InvalidResource)
+            .message_contains("no model.safetensors")
+            .message_contains("pytorch_model.bin, tf_model.h5")
+            .assert_err(&hf.row_from_listing("some/repo", &listing));
 
         for bad in [
             "whisper-tiny",
@@ -738,17 +778,14 @@ mod tests {
             "openai/whisper/tiny",
             "",
         ] {
-            let err = hf.row_from_listing(bad, &[]).unwrap_err();
-            assert!(
-                matches!(&err, BunsenError::Invalid(m) if m.contains("org/repo")),
-                "{bad:?}: {err}"
-            );
+            ErrorMatcher::kind(BunsenErrorKind::Illegal)
+                .message_contains("org/repo")
+                .has_cause::<ParseError>()
+                .assert_err(&hf.row_from_listing(bad, &[]));
         }
-        let err = hf.lookup("openai/whisper-tiny").unwrap_err();
-        assert!(
-            matches!(&err, BunsenError::Invalid(m) if m.contains("through a cache")),
-            "{err}"
-        );
+        ErrorMatcher::kind(BunsenErrorKind::Policy)
+            .message_contains("through a cache")
+            .assert_err(&hf.lookup("openai/whisper-tiny"));
         assert!(hf.list().is_empty());
         assert!(hf.ids().is_empty());
         assert!(!hf.answers_bare_names());
@@ -825,7 +862,7 @@ mod tests {
     /// Through a cache, against a loopback hub: the listing is fetched
     /// once, the row is pinned by it, and an offline cache that has the
     /// listing resolves the ref again without the network; a hub that
-    /// answers 401 is reported with the ref, the URL and what 401 means.
+    /// answers 401 is reported with the ref and what 401 means.
     #[cfg(all(feature = "cache", feature = "fetch"))]
     #[test]
     fn test_resolve_fetches_the_listing_once_and_keeps_it() {
@@ -891,17 +928,22 @@ mod tests {
         let offline = cache_at(true);
         let again = hf.resolve("org/repo", "kit", &offline).unwrap().unwrap();
         assert_eq!(again, row);
-        let err = hf.resolve("org/other", "kit", &offline).unwrap_err();
-        assert!(
-            matches!(&err, BunsenError::ResourceNotFound(m) if m.starts_with("hf:org/other: the repo's file listing is")),
-            "{err}"
-        );
+        ErrorMatcher::kind(BunsenErrorKind::Policy)
+            .display(text::starts_with("hf:org/other: file listing: "))
+            .message_contains("the cache is offline")
+            .assert_err(&hf.resolve("org/other", "kit", &offline));
 
         let gone = HfProvider::new().with_origin(origin_of(serve_status("any", 401)));
-        let err = gone.resolve("nobody/nothing", "kit", &online).unwrap_err();
-        assert!(
-            matches!(&err, BunsenError::External(m) if m.starts_with("hf:nobody/nothing: http://") && m.contains("http status: 401") && m.contains("anonymous caller")),
-            "{err}"
-        );
+        ErrorMatcher::kind(BunsenErrorKind::Lookup)
+            .display(text::starts_with(
+                "hf:nobody/nothing: the repo does not exist, or is gated",
+            ))
+            .cause(crate::errors::testing::predicate(
+                "an unauthorized lookup",
+                |c: &crate::errors::LookupError| {
+                    c.problem == crate::errors::LookupProblem::Unauthorized
+                },
+            ))
+            .assert_err(&gone.resolve("nobody/nothing", "kit", &online));
     }
 }

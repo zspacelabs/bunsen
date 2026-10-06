@@ -129,7 +129,15 @@ mod tests {
                 Provenance,
             },
         },
-        errors::BunsenError,
+        errors::{
+            BunsenErrorKind,
+            LookupError,
+            LookupProblem,
+            testing::{
+                ErrorMatcher,
+                predicate,
+            },
+        },
         support::testing::{
             CpuBackend,
             default_device,
@@ -292,9 +300,9 @@ mod tests {
         assert_eq!(NeedsConfig.plan(&model, &cache).unwrap(), model.to_map());
     }
 
-    /// A hook that asks for a part the map lacks gets `ResourceNotFound`
+    /// A hook that asks for a part the map lacks gets a lookup error
     /// naming the keys there are; a map with a part that is not on disk
-    /// fails at the load, before the hook runs.
+    /// fails at the load, before the hook runs, naming the path.
     #[test]
     fn test_a_missing_part_is_named() {
         let dir = tempfile::tempdir().unwrap();
@@ -310,19 +318,22 @@ mod tests {
         .unwrap()
         .load::<CpuBackend>(&cache, &default_device())
         .unwrap_err();
-        assert!(
-            matches!(&err, BunsenError::ResourceNotFound(m) if m.contains("\"config\"") && m.contains("checkpoint")),
-            "{err}"
-        );
+        ErrorMatcher::kind(BunsenErrorKind::Lookup)
+            .frame_contains("loading paths \"mine\"")
+            .cause(predicate("a missing \"config\"", |c: &LookupError| {
+                c.key == "config" && c.candidates == ["checkpoint"]
+            }))
+            .assert(&err);
 
-        let err = Deferred::<Paths>::from_map(ResourceMap::given(
-            "mine",
-            "checkpoint",
-            dir.path().join("absent.pt"),
-        ))
-        .unwrap()
-        .load::<CpuBackend>(&cache, &default_device())
-        .unwrap_err();
-        assert!(matches!(&err, BunsenError::ResourceNotFound(_)), "{err}");
+        let absent = dir.path().join("absent.pt");
+        let err = Deferred::<Paths>::from_map(ResourceMap::given("mine", "checkpoint", &absent))
+            .unwrap()
+            .load::<CpuBackend>(&cache, &default_device())
+            .unwrap_err();
+        ErrorMatcher::kind(BunsenErrorKind::Lookup)
+            .cause(predicate("the absent path", move |c: &LookupError| {
+                c.problem == LookupProblem::Missing && c.key == absent.display().to_string()
+            }))
+            .assert(&err);
     }
 }
