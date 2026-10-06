@@ -74,10 +74,7 @@ use bunsen_firehose::{
     define_firehose_operator,
 };
 use burn::{
-    prelude::{
-        Backend,
-        Tensor,
-    },
+    prelude::Tensor,
     tensor::{
         TensorCreationOptions,
         TensorData,
@@ -160,10 +157,10 @@ pub fn stack_tensor_data_column(
 /// # Returns
 ///
 /// A tensor representation of the image with shape `[height, width, channels]`.
-pub fn image_to_f32_tensor<B: Backend>(
+pub fn image_to_f32_tensor(
     image: &DynamicImage,
-    device: &B::Device,
-) -> Tensor<B, 3> {
+    device: &Device,
+) -> Tensor<3> {
     let height = image.height() as usize;
     let width = image.width() as usize;
     let colors = image.color().channel_count() as usize;

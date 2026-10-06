@@ -18,7 +18,7 @@
 //!     -> tokenize_text_batches        (Iterator<ArrowResult<Vec<Vec<u32>>>>)
 //!     -> DenseTokenBlockBatcher       (Iterator<ArrowResult<Vec<Vec<u32>>>>)
 //!     -> ShuffleIter (optional)
-//!     -> Tensor<B, 2, Int>
+//!     -> Tensor<2, Int>
 //! ```
 //!
 //! Counters layered into the pipeline via [`crate::iterators::IterWatcher`]
@@ -30,19 +30,19 @@
 //! The following example builds a data loader for a chat dataset consisting
 //! of a training and validation set of Parquet shards.
 //!
-//! The batch items are `Tensor<B, 2, Int>`, where `B` is the burn backend
+//! The batch items are `Tensor<2, Int>`, where `B` is the burn backend
 //! type (e.g. `Cuda` or `Cpu`) and `Int` is burn's integer tensor kind; the
 //! element type is the backend's integer element.
 //!
 //! ```rust,ignore
-//! let training_data_loader: ChatDataLoader<B> = ChatDataLoader::new(
+//! let training_data_loader: ChatDataLoader = ChatDataLoader::new(
 //!     training_paths,
 //!     Some(Arc::new(Mutex::new(StdRng::seed_from_u64(0)))),
 //!     &device,
 //!     tok.clone(),
 //!     dl_config.clone(),
 //! );
-//! let validation_data_loader: ChatDataLoader<B::InnerBackend> =
+//! let validation_data_loader: ChatDataLoader =
 //!     ChatDataLoader::new(validation_paths, None, &device, tok.clone(), dl_config);
 //! ```
 use std::{
@@ -62,10 +62,7 @@ use burn::{
         DataLoaderIterator,
         Progress,
     },
-    prelude::{
-        Backend,
-        TensorData,
-    },
+    prelude::TensorData,
 };
 use rand::prelude::SliceRandom;
 use wordchipper::Tokenizer;
@@ -91,12 +88,12 @@ use crate::{
 /// (Parquet read -> column select -> tokenize -> dense pack -> optional
 /// shuffle -> tensor materialization) and exposes the shared
 /// [`EpochStats`] used for progress reporting.
-pub struct ChatDataLoaderIterator<B: Backend> {
+pub struct ChatDataLoaderIterator {
     stats: Arc<EpochStats>,
-    inner: Box<dyn Iterator<Item = Tensor<B, 2, burn::prelude::Int>>>,
+    inner: Box<dyn Iterator<Item = Tensor<2, burn::prelude::Int>>>,
 }
 
-impl<B: Backend> ChatDataLoaderIterator<B> {
+impl ChatDataLoaderIterator {
     /// Builds the streaming pipeline for one epoch.
     ///
     /// ## Arguments
@@ -109,7 +106,7 @@ impl<B: Backend> ChatDataLoaderIterator<B> {
     ///   to the packed blocks; `None` preserves source order.
     /// * `text_column` - Name of the UTF-8 column in each shard to tokenize.
     pub fn new(
-        device: B::Device,
+        device: Device,
         tokenizer: Arc<Tokenizer<u32>>,
         shard_paths: Vec<PathBuf>,
         block_options: DenseTokenBlocksOptions,
@@ -170,7 +167,7 @@ impl<B: Backend> ChatDataLoaderIterator<B> {
 
         let tensors = shuffle.map(move |result| {
             let batch = &result.unwrap();
-            let tensor: Tensor<B, 2, burn::prelude::Int> = Tensor::from_ints(
+            let tensor: Tensor<2, burn::prelude::Int> = Tensor::from_ints(
                 TensorData::new(batch.iter().flatten().copied().collect(), shape),
                 &device,
             );
@@ -192,17 +189,15 @@ impl<B: Backend> ChatDataLoaderIterator<B> {
     }
 }
 
-impl<B: Backend> Iterator for ChatDataLoaderIterator<B> {
-    type Item = Tensor<B, 2, burn::prelude::Int>;
+impl Iterator for ChatDataLoaderIterator {
+    type Item = Tensor<2, burn::prelude::Int>;
 
     fn next(&mut self) -> Option<Self::Item> {
         self.inner.next()
     }
 }
 
-impl<B: Backend> DataLoaderIterator<Tensor<B, 2, burn::prelude::Int>>
-    for ChatDataLoaderIterator<B>
-{
+impl DataLoaderIterator<Tensor<2, burn::prelude::Int>> for ChatDataLoaderIterator {
     fn progress(&self) -> Progress {
         self.stats.progress()
     }
@@ -216,15 +211,15 @@ impl<B: Backend> DataLoaderIterator<Tensor<B, 2, burn::prelude::Int>>
 /// blocks, both drawn from that `rng`; without an `rng` the loader returns
 /// shards (and packed blocks) in their input order.
 #[derive(Clone)]
-pub struct ChatDataLoader<B: Backend> {
+pub struct ChatDataLoader {
     shard_paths: Vec<PathBuf>,
     rng: Option<Arc<Mutex<dyn rand::Rng + Send>>>,
-    device: B::Device,
+    device: Device,
     tokenizer: Arc<Tokenizer<u32>>,
     block_options: DenseTokenBlocksOptions,
 }
 
-impl<B: Backend> ChatDataLoader<B> {
+impl ChatDataLoader {
     /// Builds a new chat data loader.
     ///
     /// ## Arguments
@@ -239,7 +234,7 @@ impl<B: Backend> ChatDataLoader<B> {
     pub fn new(
         files: Vec<PathBuf>,
         rng: Option<Arc<Mutex<dyn rand::Rng + Send>>>,
-        device: &B::Device,
+        device: &Device,
         tokenizer: Arc<Tokenizer<u32>>,
         block_options: DenseTokenBlocksOptions,
     ) -> Self {
@@ -257,7 +252,7 @@ impl<B: Backend> ChatDataLoader<B> {
     /// With an rng, the epoch draws its shard order and its block-shuffle
     /// seed from it, so successive epochs shuffle differently, and a loader
     /// built with the same seeded rng repeats them.
-    pub fn start_epoch(&self) -> ChatDataLoaderIterator<B> {
+    pub fn start_epoch(&self) -> ChatDataLoaderIterator {
         let mut shard_paths = self.shard_paths.clone();
         let shuffle_options = self.rng.as_ref().map(|mutex| {
             let mut rng = mutex.lock().unwrap();
@@ -280,11 +275,8 @@ impl<B: Backend> ChatDataLoader<B> {
     }
 }
 
-impl<B: Backend> DataLoader<B, Tensor<B, 2, burn::prelude::Int>> for ChatDataLoader<B>
-where
-    B: Backend,
-{
-    fn iter(&self) -> Box<dyn DataLoaderIterator<Tensor<B, 2, burn::prelude::Int>>> {
+impl DataLoader<Tensor<2, burn::prelude::Int>> for ChatDataLoader {
+    fn iter(&self) -> Box<dyn DataLoaderIterator<Tensor<2, burn::prelude::Int>>> {
         Box::new(self.start_epoch())
     }
 
@@ -294,8 +286,8 @@ where
 
     fn to_device(
         &self,
-        device: &B::Device,
-    ) -> Arc<dyn DataLoader<B, Tensor<B, 2, burn::prelude::Int>>> {
+        device: &Device,
+    ) -> Arc<dyn DataLoader<Tensor<2, burn::prelude::Int>>> {
         Arc::new(Self {
             shard_paths: self.shard_paths.clone(),
             rng: self.rng.clone(),
@@ -309,7 +301,7 @@ where
         &self,
         start: usize,
         end: usize,
-    ) -> Arc<dyn DataLoader<B, Tensor<B, 2, burn::prelude::Int>>> {
+    ) -> Arc<dyn DataLoader<Tensor<2, burn::prelude::Int>>> {
         Arc::new(Self {
             shard_paths: self.shard_paths[start..end].to_vec(),
             rng: self.rng.clone(),
@@ -418,8 +410,6 @@ mod tests {
 
     use super::*;
 
-    type B = burn::backend::Flex;
-
     /// Writes `texts` as the `text` column of a one-shard Parquet file.
     fn write_shard(
         path: &Path,
@@ -448,7 +438,7 @@ mod tests {
         );
         let tokenizer = wordchipper::TokenizerOptions::default().build(vocab.into());
 
-        let loader: ChatDataLoader<B> = ChatDataLoader::new(
+        let loader: ChatDataLoader = ChatDataLoader::new(
             vec![shard.to_path_buf()],
             Some(Arc::new(Mutex::new(StdRng::seed_from_u64(seed)))),
             &Default::default(),

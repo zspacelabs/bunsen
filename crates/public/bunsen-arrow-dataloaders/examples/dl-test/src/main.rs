@@ -6,10 +6,7 @@ use std::sync::{
 use bunsen::{
     data::cache::BunsenDiskCache,
     kits::gpts::nanochat::datasets::NANOCHAT_SHARD_SETS,
-    support::testing::{
-        PerformanceBackend,
-        performance_device,
-    },
+    support::testing::performance_device,
 };
 use bunsen_arrow_dataloaders::{
     dataloaders::chat::ChatDataLoader,
@@ -129,11 +126,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         eos: vec![],
     };
 
-    type B = PerformanceBackend;
-
     let device = performance_device();
 
-    let data_loader: ChatDataLoader<B> = ChatDataLoader::new(
+    let data_loader: ChatDataLoader = ChatDataLoader::new(
         shard_paths,
         Some(Arc::new(Mutex::new(StdRng::seed_from_u64(0)))),
         &device,

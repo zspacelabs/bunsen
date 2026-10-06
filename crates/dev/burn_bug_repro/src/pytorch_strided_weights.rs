@@ -80,9 +80,9 @@ const D_OUTPUT: usize = 8;
 
 /// A single `Linear`, to give the store a `Struct:Linear` destination.
 #[derive(Module, Debug)]
-pub struct StridedLinearProbe<B: Backend> {
+pub struct StridedLinearProbe {
     /// The projection under test.
-    pub lin: Linear<B>,
+    pub lin: Linear,
 }
 
 /// Loads the fixture's `key` entry into a `Linear(3, 8)`.
@@ -90,17 +90,17 @@ pub struct StridedLinearProbe<B: Backend> {
 /// # Arguments
 /// * `key`: the checkpoint's top-level key — `"strided"` or `"contiguous"`.
 /// * `repair`: whether to attach [`repair_pytorch_strided_weight`].
-pub fn load_probe<B: Backend>(
+pub fn load_probe(
     key: &str,
     repair: bool,
-    device: &B::Device,
-) -> StridedLinearProbe<B> {
+    device: &Device,
+) -> StridedLinearProbe {
     let path = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .join("testdata/pytorch_strided_linear.pt");
 
     let mut lin = LinearConfig::new(D_INPUT, D_OUTPUT)
         .with_bias(false)
-        .init::<B>(device);
+        .init(device);
 
     if repair {
         lin.weight = repair_pytorch_strided_weight(lin.weight);
@@ -128,28 +128,25 @@ pub fn expected_weight() -> Vec<f64> {
 }
 
 /// Reads a `[3, 8]` weight back as `f64`, row-major.
-pub fn weight_of<B: Backend>(probe: &StridedLinearProbe<B>) -> Vec<f64> {
+pub fn weight_of(probe: &StridedLinearProbe) -> Vec<f64> {
     probe
         .lin
         .weight
         .val()
         .cast(burn::tensor::DType::F64)
         .to_data()
-        .to_vec()
+        .try_into_vec_as()
         .unwrap()
 }
 
 #[cfg(test)]
 mod tests {
     use bunsen::support::testing::{
-        CpuBackend,
         assert_close_to_vec,
         cpu_device,
     };
 
     use super::*;
-
-    type B = CpuBackend;
 
     /// The fixture is `f32`, so `0.1` is only good to about `1.5e-8`.
     const TOLERANCE: f64 = 1e-6;
@@ -159,7 +156,7 @@ mod tests {
     #[test]
     fn test_contiguous_source_is_correct() {
         let device = cpu_device();
-        let probe = load_probe::<B>("contiguous", false, &device);
+        let probe = load_probe("contiguous", false, &device);
 
         assert_close_to_vec(&weight_of(&probe), &expected_weight(), TOLERANCE);
     }
@@ -173,7 +170,7 @@ mod tests {
     #[ignore = "reproduces the burn-store stride defect; fails until it is fixed"]
     fn test_strided_source_should_match_contiguous() {
         let device = cpu_device();
-        let probe = load_probe::<B>("strided", false, &device);
+        let probe = load_probe("strided", false, &device);
 
         assert_close_to_vec(&weight_of(&probe), &expected_weight(), TOLERANCE);
     }
@@ -185,7 +182,7 @@ mod tests {
     #[test]
     fn test_strided_source_is_currently_corrupt() {
         let device = cpu_device();
-        let probe = load_probe::<B>("strided", false, &device);
+        let probe = load_probe("strided", false, &device);
 
         let got = weight_of(&probe);
         let want = expected_weight();
@@ -208,7 +205,7 @@ mod tests {
     #[test]
     fn test_repair_recovers_the_weight() {
         let device = cpu_device();
-        let probe = load_probe::<B>("strided", true, &device);
+        let probe = load_probe("strided", true, &device);
 
         assert_close_to_vec(&weight_of(&probe), &expected_weight(), TOLERANCE);
     }

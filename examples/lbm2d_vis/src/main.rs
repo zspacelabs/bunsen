@@ -22,10 +22,7 @@ use bunsen::{
         SPEED_OF_SOUND,
         macroscopic_momentum,
     },
-    prelude::{
-        TensorDataViewExt,
-        TensorElemOpExt,
-    },
+    prelude::TensorDataViewExt,
     support::{
         geometry::GridShape2D,
         testing::backend_device,
@@ -34,7 +31,6 @@ use bunsen::{
 use burn::{
     Tensor,
     prelude::{
-        Backend,
         Bool,
         ElementConversion,
         TensorData,
@@ -141,7 +137,7 @@ fn main() {
         }
         feature = "flex" => {
             println!("Flex enabled");
-            run::<burn::backend::Flex>(&args);
+            run(&args);
         }
         _ => {
             compile_error!("No backend selected");
@@ -149,8 +145,8 @@ fn main() {
     }
 }
 
-fn run<B: Backend>(args: &Args) {
-    let device = backend_device::<B>();
+fn run(args: &Args) {
+    let device = backend_device();
     let dtype: DType = args.dtype.into();
 
     // Change this to OpenGL::V2_1 if not working.
@@ -161,7 +157,7 @@ fn run<B: Backend>(args: &Args) {
 
     let background_density = SPEED_OF_SOUND / 100.0;
 
-    let mut world_state: LBMD2Q9State<B> = LBMD2Q9Config::new(args.grid_shape)
+    let mut world_state: LBMD2Q9State = LBMD2Q9Config::new(args.grid_shape)
         .with_relaxation(RelaxationParam::Tau(args.tau))
         .init(&device, background_density);
     world_state.dist = world_state
@@ -187,7 +183,7 @@ fn run<B: Backend>(args: &Args) {
         world_state.advance_step();
     }
 
-    let solid_mask: Tensor<B, 2, Bool> = world_state.solid_mask.clone();
+    let solid_mask: Tensor<2, Bool> = world_state.solid_mask.clone();
 
     let sim_delay = if args.tps > 0.0 {
         Some(Duration::from_secs_f32(1.0 / args.tps))
@@ -198,7 +194,7 @@ fn run<B: Backend>(args: &Args) {
     let vis_cells: Arc<Mutex<TensorData>> =
         Arc::new(Mutex::new(TensorData::zeros::<f32, _>([height, width, 2])));
     let vis_cells_publish = vis_cells.clone();
-    let constants: LbmTables<B> = LbmTables::for_dist(&world_state.dist);
+    let constants: LbmTables = LbmTables::for_dist(&world_state.dist);
 
     let mut last_export = std::time::Instant::now();
     let export_delay = Duration::from_secs_f32(1.0 / args.fps as f32);
@@ -260,13 +256,13 @@ pub struct Simulation {
 }
 
 impl Simulation {
-    pub fn new<B: Backend, F>(
-        world: LBMD2Q9State<B>,
+    pub fn new<F>(
+        world: LBMD2Q9State,
         step_duration: Option<Duration>,
         mut observer: F,
     ) -> Self
     where
-        F: FnMut(usize, Tensor<B, 4>) + Send + 'static,
+        F: FnMut(usize, Tensor<4>) + Send + 'static,
     {
         let shutdown = Arc::new(AtomicBool::new(false));
 
@@ -314,7 +310,7 @@ impl Simulation {
                 let outflow_slice = s![-1, start..start + 10, 0, ..];
                 let outflow = dist.clone().slice(outflow_slice);
 
-                stash += r * outflow.clone().sum().into_scalar().elem::<f32>();
+                stash += r * outflow.clone().sum().into_scalar::<f32>();
 
                 let mut dist = dist
                     .clone()
@@ -329,8 +325,7 @@ impl Simulation {
                             .solid_mask
                             .clone()
                             .slice(s![ry, rx])
-                            .into_scalar()
-                            .elem::<bool>()
+                            .into_scalar::<bool>()
                         {
                             continue;
                         }
@@ -338,7 +333,7 @@ impl Simulation {
                         break (ry, rx);
                     };
 
-                    let existing: f32 = dist.clone().slice(s![ry, rx, 1, 1]).into_scalar().elem();
+                    let existing: f32 = dist.clone().slice(s![ry, rx, 1, 1]).into_scalar();
 
                     dist = dist.slice_fill(s![ry, rx, 1, 1], existing + stash);
                     stash = 0.0;

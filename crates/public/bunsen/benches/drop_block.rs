@@ -10,10 +10,7 @@ use bunsen::{
     },
     support::testing::cpu_device,
 };
-use burn::{
-    backend::Flex,
-    prelude::Tensor,
-};
+use burn::prelude::Tensor;
 use criterion::{
     Criterion,
     criterion_group,
@@ -21,7 +18,6 @@ use criterion::{
 };
 
 fn bench_drop_block_10x32x32x3_7_normalise(c: &mut Criterion) {
-    type B = Flex<f32>;
     let device = cpu_device();
 
     let batch_size = 10;
@@ -30,7 +26,7 @@ fn bench_drop_block_10x32x32x3_7_normalise(c: &mut Criterion) {
     let channels = 3;
 
     let shape = [batch_size, height, width, channels];
-    let tensor: Tensor<B, 4> = Tensor::ones(shape, &device);
+    let tensor: Tensor<4> = Tensor::ones(shape, &device);
 
     for noise in [None, Some(NoiseConfig::default())] {
         for batchwise in [false, true] {

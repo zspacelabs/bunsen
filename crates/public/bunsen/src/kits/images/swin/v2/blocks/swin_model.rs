@@ -21,10 +21,8 @@ use burn::{
             AdaptiveAvgPool1dConfig,
         },
     },
-    prelude::{
-        Backend,
-        Tensor,
-    },
+    prelude::Tensor,
+    tensor::Device,
 };
 
 use crate::{
@@ -497,11 +495,11 @@ impl SwinTransformerV2Meta for SwinTransformerV2StructureConfig {
     }
 }
 
-impl<B: Backend> ModuleInit<B, SwinTransformerV2<B>> for SwinTransformerV2StructureConfig {
+impl ModuleInit<SwinTransformerV2> for SwinTransformerV2StructureConfig {
     fn try_init(
         &self,
-        device: &B::Device,
-    ) -> BunsenResult<SwinTransformerV2<B>> {
+        device: &Device,
+    ) -> BunsenResult<SwinTransformerV2> {
         let Some(last_block) = self.block_configs.last() else {
             return Err(ConstraintError::zero_or_empty(
                 "SwinTransformerV2StructureConfig",
@@ -511,11 +509,11 @@ impl<B: Backend> ModuleInit<B, SwinTransformerV2<B>> for SwinTransformerV2Struct
         };
         let grid_output_features = last_block.d_input();
 
-        let patch_embed: PatchEmbed<B> = self.patch_config.try_init(device)?;
+        let patch_embed: PatchEmbed = self.patch_config.try_init(device)?;
 
         // ape: trunc_normal: ([1, num_patches, d_embed], std=0.02)
         // defaults: (mean=0.0, a=-2.0, b=2.0)
-        let patch_ape: Option<Param<Tensor<B, 3>>> = if self.enable_ape {
+        let patch_ape: Option<Param<Tensor<3>>> = if self.enable_ape {
             Some(
                 Initializer::Normal {
                     mean: 0.0,
@@ -534,7 +532,7 @@ impl<B: Backend> ModuleInit<B, SwinTransformerV2<B>> for SwinTransformerV2Struct
             .block_configs
             .iter()
             .map(|config| config.try_init(device))
-            .collect::<BunsenResult<Vec<StochasticDepthTransformerBlockSequence<B>>>>()?;
+            .collect::<BunsenResult<Vec<StochasticDepthTransformerBlockSequence>>>()?;
 
         let grid_merge_layers = self.block_configs[..self.block_configs.len() - 1]
             .iter()
@@ -542,7 +540,7 @@ impl<B: Backend> ModuleInit<B, SwinTransformerV2<B>> for SwinTransformerV2Struct
                 PatchMergingConfig::new(config.input_resolution(), config.d_input())
                     .try_init(device)
             })
-            .collect::<BunsenResult<Vec<PatchMerging<B>>>>()?;
+            .collect::<BunsenResult<Vec<PatchMerging>>>()?;
 
         let module = SwinTransformerV2 {
             patch_embed,
@@ -570,25 +568,25 @@ impl<B: Backend> ModuleInit<B, SwinTransformerV2<B>> for SwinTransformerV2Struct
 /// Built by [`SwinTransformerV2ContractConfig`] (high-level) or
 /// [`SwinTransformerV2StructureConfig`].
 #[derive(Module, Debug)]
-pub struct SwinTransformerV2<B: Backend> {
+pub struct SwinTransformerV2 {
     /// The patch embedding layer that converts the input image into patches.
-    pub patch_embed: PatchEmbed<B>,
+    pub patch_embed: PatchEmbed,
 
     /// The absolute positional encoding (APE) for the patches, if enabled.
-    pub patch_ape: Option<Param<Tensor<B, 3>>>,
+    pub patch_ape: Option<Param<Tensor<3>>>,
 
     /// The input dropout layer applied to the patch embeddings.
     pub grid_input_dropout: Dropout,
 
     /// The sequences of transformer blocks for the grid.
-    pub grid_transformer_block_sequences: Vec<StochasticDepthTransformerBlockSequence<B>>,
+    pub grid_transformer_block_sequences: Vec<StochasticDepthTransformerBlockSequence>,
 
     /// The patch merging layers that reduce the spatial dimensions of the grid.
-    pub grid_merge_layers: Vec<PatchMerging<B>>,
+    pub grid_merge_layers: Vec<PatchMerging>,
 
     /// The layer normalization applied to the output of the grid transformer
     /// blocks.
-    pub grid_output_norm: LayerNorm<B>,
+    pub grid_output_norm: LayerNorm,
 
     /// The number of output features after the grid transformer blocks.
     pub grid_output_features: usize,
@@ -597,7 +595,7 @@ pub struct SwinTransformerV2<B: Backend> {
     pub head_avgpool: AdaptiveAvgPool1d,
 
     /// The final classification head.
-    pub head: Linear<B>,
+    pub head: Linear,
 
     /// Dropout rate on the patch embeddings, and in each block's MLP and
     /// attention projection.
@@ -610,7 +608,7 @@ pub struct SwinTransformerV2<B: Backend> {
     pub drop_path_rate: f64,
 }
 
-impl<B: Backend> SwinTransformerV2Meta for SwinTransformerV2<B> {
+impl SwinTransformerV2Meta for SwinTransformerV2 {
     fn input_resolution(&self) -> [usize; 2] {
         self.patch_embed.input_resolution()
     }
@@ -674,15 +672,15 @@ impl<B: Backend> SwinTransformerV2Meta for SwinTransformerV2<B> {
     }
 }
 
-impl<B: Backend> SwinTransformerV2<B> {
+impl SwinTransformerV2 {
     /// Applies patch embedding and absolute positional encoding (APE) to the
     /// input image tensor.
     #[inline(always)]
     #[must_use]
     fn apply_patching(
         &self,
-        input: Tensor<B, 4>,
-    ) -> Tensor<B, 3> {
+        input: Tensor<4>,
+    ) -> Tensor<3> {
         let x = self.patch_embed.forward(input);
 
         match self.patch_ape {
@@ -696,8 +694,8 @@ impl<B: Backend> SwinTransformerV2<B> {
     #[must_use]
     fn apply_stack(
         &self,
-        input: Tensor<B, 3>,
-    ) -> Tensor<B, 3> {
+        input: Tensor<3>,
+    ) -> Tensor<3> {
         let mut x = self.grid_input_dropout.forward(input);
 
         for layer_i in 0..self.grid_transformer_block_sequences.len() {
@@ -718,8 +716,8 @@ impl<B: Backend> SwinTransformerV2<B> {
     #[must_use]
     fn aggregate_grid(
         &self,
-        input: Tensor<B, 3>,
-    ) -> Tensor<B, 2> {
+        input: Tensor<3>,
+    ) -> Tensor<2> {
         // input: B L C
         let x = input.swap_dims(1, 2);
         let x = self.head_avgpool.forward(x);
@@ -733,8 +731,8 @@ impl<B: Backend> SwinTransformerV2<B> {
     #[must_use]
     fn apply_head(
         &self,
-        input: Tensor<B, 2>,
-    ) -> Tensor<B, 2> {
+        input: Tensor<2>,
+    ) -> Tensor<2> {
         self.head.forward(input)
     }
 
@@ -755,8 +753,8 @@ impl<B: Backend> SwinTransformerV2<B> {
     #[must_use]
     pub fn forward(
         &self,
-        input: Tensor<B, 4>,
-    ) -> Tensor<B, 2> {
+        input: Tensor<4>,
+    ) -> Tensor<2> {
         let [batch] = unpack_shape_contract!(
             ["batch", "d_input", "height", "width"],
             &input.dims(),
@@ -816,17 +814,15 @@ mod tests {
         },
         kits::images::swin::v2::blocks::ShiftedWindowTransformerBlockMeta,
         support::testing::{
-            CpuBackend,
             DeviceMemoryGuard,
-            PerformanceBackend,
-            cpu_device, performance_device,
+            cpu_device,
+            performance_device,
         },
     };
 
     #[test]
     #[serial]
     fn test_swin_transformer_v2_meta() {
-        type B = PerformanceBackend;
         let config = SwinTransformerV2ContractConfig {
             input_resolution: [224, 224],
             patch_size: 4,
@@ -892,7 +888,7 @@ mod tests {
 
         let device = performance_device();
         let _memory = DeviceMemoryGuard::new(&device);
-        let model: SwinTransformerV2<B> = config.try_init(&device).ok_or_panic();
+        let model: SwinTransformerV2 = config.try_init(&device).ok_or_panic();
 
         assert_eq!(model.input_resolution(), [224, 224]);
         assert_eq!(model.input_height(), 224);
@@ -931,7 +927,6 @@ mod tests {
     #[test]
     #[serial]
     fn test_smoke_test_ape() {
-        type B = PerformanceBackend;
         let device = performance_device();
         let _memory = DeviceMemoryGuard::new(&device);
 
@@ -975,15 +970,15 @@ mod tests {
             layer_configs,
         )
         .with_window_size(window_size);
-        let model: SwinTransformerV2<B> = self1.try_init(&device).ok_or_panic();
+        let model: SwinTransformerV2 = self1.try_init(&device).ok_or_panic();
 
         let distribution = Distribution::Normal(0.0, 0.02);
-        let input = Tensor::<B, 4>::random([b, d_input, h, w], distribution, &device);
+        let input = Tensor::<4>::random([b, d_input, h, w], distribution, &device);
 
         let output = model.forward(input.clone());
         assert_eq!(output.dims(), [b, num_classes]);
 
-        let expected: Tensor<B, 2> = {
+        let expected: Tensor<2> = {
             let patched = model.apply_patching(input.clone());
             assert_eq!(
                 patched.dims(),
@@ -1013,7 +1008,6 @@ mod tests {
     #[test]
     #[serial]
     fn test_smoke_test_no_ape() {
-        type B = PerformanceBackend;
         let device = performance_device();
         let _memory = DeviceMemoryGuard::new(&device);
 
@@ -1058,15 +1052,15 @@ mod tests {
         )
         .with_enable_ape(false)
         .with_window_size(window_size);
-        let model: SwinTransformerV2<B> = self1.try_init(&device).ok_or_panic();
+        let model: SwinTransformerV2 = self1.try_init(&device).ok_or_panic();
 
         let distribution = Distribution::Normal(0.0, 0.02);
-        let input = Tensor::<B, 4>::random([b, d_input, h, w], distribution, &device);
+        let input = Tensor::<4>::random([b, d_input, h, w], distribution, &device);
 
         let output = model.forward(input.clone());
         assert_eq!(output.dims(), [b, num_classes]);
 
-        let expected: Tensor<B, 2> = {
+        let expected: Tensor<2> = {
             let patched = model.apply_patching(input.clone());
             assert_eq!(
                 patched.dims(),
@@ -1136,7 +1130,6 @@ mod tests {
     #[test]
     #[serial]
     fn test_policy_pathways_agree() {
-        type B = PerformanceBackend;
         let device = performance_device();
         let _memory = DeviceMemoryGuard::new(&device);
 
@@ -1154,8 +1147,8 @@ mod tests {
         assert_eq!(structure.layer_dims(), vec![24, 48]);
         assert_meta_agrees(&policy, &structure);
 
-        let lowered: SwinTransformerV2<B> = structure.init(&device);
-        let direct: SwinTransformerV2<B> = policy.init(&device);
+        let lowered: SwinTransformerV2 = structure.init(&device);
+        let direct: SwinTransformerV2 = policy.init(&device);
 
         assert_meta_agrees(&direct, &lowered);
         assert_meta_agrees(&direct, &structure);
@@ -1194,7 +1187,7 @@ mod tests {
         );
 
         let device = cpu_device();
-        let bad: BunsenResult<SwinTransformerV2<CpuBackend>> =
+        let bad: BunsenResult<SwinTransformerV2> =
             tiny_policy().with_window_size(4).try_init(&device);
         ErrorMatcher::kind(BunsenErrorKind::Illegal)
             .message_contains("multiple of window_size")
@@ -1218,7 +1211,7 @@ mod tests {
         }
 
         let device = cpu_device();
-        let model: SwinTransformerV2<CpuBackend> = policy.init(&device);
+        let model: SwinTransformerV2 = policy.init(&device);
         assert_eq!(model.grid_input_dropout.prob, 0.25);
         for sequence in &model.grid_transformer_block_sequences {
             assert_eq!(sequence.drop_rate(), 0.25);
@@ -1239,7 +1232,7 @@ mod tests {
         zero_patch.assert_err(&policy.try_to_structure());
 
         let device = cpu_device();
-        let bad: BunsenResult<SwinTransformerV2<CpuBackend>> = policy.try_init(&device);
+        let bad: BunsenResult<SwinTransformerV2> = policy.try_init(&device);
         zero_patch.assert_err(&bad);
     }
 }

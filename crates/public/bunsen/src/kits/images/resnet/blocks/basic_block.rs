@@ -9,11 +9,11 @@ use burn::{
         norm::NormalizationConfig,
     },
     prelude::{
-        Backend,
         Config,
         Module,
         Tensor,
     },
+    tensor::Device,
 };
 
 use crate::{
@@ -187,11 +187,11 @@ impl BasicBlockMeta for BasicBlockConfig {
     }
 }
 
-impl<B: Backend> ModuleInit<B, BasicBlock<B>> for BasicBlockConfig {
+impl ModuleInit<BasicBlock> for BasicBlockConfig {
     fn try_init(
         &self,
-        device: &B::Device,
-    ) -> BunsenResult<BasicBlock<B>> {
+        device: &Device,
+    ) -> BunsenResult<BasicBlock> {
         let drop_path_prob = expect_probability(self.drop_path_prob);
 
         let in_planes = self.in_planes();
@@ -290,17 +290,17 @@ impl<B: Backend> ModuleInit<B, BasicBlock<B>> for BasicBlockConfig {
 ///
 /// Built by [`BasicBlockConfig`].
 #[derive(Module, Debug)]
-pub struct BasicBlock<B: Backend> {
+pub struct BasicBlock {
     /// Reduction factor.
     pub reduce_first: usize,
 
     /// Optional downsample (conv + norm) for the residual connection.
-    pub downsample: Option<ConvBlock2d<B>>,
+    pub downsample: Option<ConvBlock2d>,
 
     /// First Conv/Norm/Act Block.
-    pub cb1: ConvBlock2d<B>,
+    pub cb1: ConvBlock2d,
     /// Second Conv/Norm/Act Block.
-    pub cb2: ConvBlock2d<B>,
+    pub cb2: ConvBlock2d,
 
     /// Optional `DropBlock` layer.
     pub drop_block: Option<DropBlock2d>,
@@ -309,7 +309,7 @@ pub struct BasicBlock<B: Backend> {
     pub drop_path: Option<DropPath>,
 }
 
-impl<B: Backend> BasicBlockMeta for BasicBlock<B> {
+impl BasicBlockMeta for BasicBlock {
     fn in_planes(&self) -> usize {
         self.cb1.in_channels()
     }
@@ -341,7 +341,7 @@ impl<B: Backend> BasicBlockMeta for BasicBlock<B> {
     }
 }
 
-impl<B: Backend> BasicBlock<B> {
+impl BasicBlock {
     /// Debug Print.
     pub fn debug_print(&self) {
         println!("#### BasicBlock");
@@ -365,8 +365,8 @@ impl<B: Backend> BasicBlock<B> {
     /// tensor.
     pub fn forward(
         &self,
-        input: Tensor<B, 4>,
-    ) -> Tensor<B, 4> {
+        input: Tensor<4>,
+    ) -> Tensor<4> {
         #[cfg(debug_assertions)]
         use crate::contracts::*;
 
@@ -472,20 +472,16 @@ impl<B: Backend> BasicBlock<B> {
 
 #[cfg(test)]
 mod tests {
-    use burn::{
-        backend::Autodiff,
-        nn::activation::ActivationConfig,
-    };
+    use burn::nn::activation::ActivationConfig;
     use serial_test::serial;
 
     use super::*;
     use crate::{
         contracts::assert_shape_contract,
         support::testing::{
-            CpuBackend,
             DeviceMemoryGuard,
-            PerformanceBackend,
-            cpu_device, performance_device,
+            cpu_device,
+            performance_device,
         },
     };
 
@@ -518,13 +514,12 @@ mod tests {
 
     #[test]
     fn test_basic_block_meta() {
-        type B = CpuBackend;
         let device = cpu_device();
 
         let in_planes = 2;
         let out_planes = in_planes;
 
-        let block: BasicBlock<B> = BasicBlockConfig::new(in_planes, out_planes).init(&device);
+        let block: BasicBlock = BasicBlockConfig::new(in_planes, out_planes).init(&device);
 
         assert_eq!(block.in_planes(), in_planes);
         assert_eq!(block.out_planes(), out_planes);
@@ -535,7 +530,6 @@ mod tests {
     #[test]
     #[serial]
     fn test_basic_block_forward_same_channels_no_downsample_autodiff() {
-        type B = Autodiff<PerformanceBackend>;
         let device = performance_device().autodiff();
         let _memory = DeviceMemoryGuard::new(&device);
 
@@ -545,7 +539,7 @@ mod tests {
         let in_height = 8;
         let in_width = 8;
 
-        let block: BasicBlock<B> = BasicBlockConfig::new(in_planes, out_planes).init(&device);
+        let block: BasicBlock = BasicBlockConfig::new(in_planes, out_planes).init(&device);
         let out_planes = block.out_planes();
 
         let input = Tensor::ones([batch_size, in_planes, in_height, in_width], &device);
@@ -566,7 +560,6 @@ mod tests {
     #[test]
     #[serial]
     fn test_basic_block_forward_downsample_drop_block_drop_path_autodiff() {
-        type B = Autodiff<PerformanceBackend>;
         let device = performance_device().autodiff();
         let _memory = DeviceMemoryGuard::new(&device);
 
@@ -576,7 +569,7 @@ mod tests {
         let in_height = 8;
         let in_width = 8;
 
-        let block: BasicBlock<B> = BasicBlockConfig::new(in_planes, planes)
+        let block: BasicBlock = BasicBlockConfig::new(in_planes, planes)
             .with_drop_path_prob(0.1)
             .with_drop_block(Some(DropBlockOptions::default()))
             .with_stride(2)

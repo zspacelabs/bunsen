@@ -11,7 +11,6 @@ use bunsen::{
     kits::speech::whisper::driver::PresetEmissionPolicy,
     support::audio::load_audio_mono_sr,
 };
-use burn::prelude::Backend;
 use clap_common::logging::{
     LogArgs,
     LogLevelNum,
@@ -69,11 +68,11 @@ pub struct TranscribeCmd {
 }
 
 impl TranscribeCmd {
-    pub fn run<B: Backend>(&self) -> BunsenResult<()> {
+    pub fn run(&self) -> BunsenResult<()> {
         self.logging.init(Some(LogLevelNum::Warn))?;
 
-        let device = B::Device::default();
-        let driver = self.whisper.init_driver::<B>(&device, PRESET)?;
+        let device = Device::default();
+        let driver = self.whisper.init_driver(&device, PRESET)?;
         let chunk = self.whisper.chunk_samples(&driver, CHUNK_MS);
 
         let num_files = self.files.len();

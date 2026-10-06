@@ -10,8 +10,8 @@
 //!   that carries what a stream needs between chunks (the tail of the last
 //!   chunk and the recurrent state). The model holds no stream state, so one
 //!   loaded model serves any number of streams, a context each.
-//! - [`pretrained`] (features `store` and `cache`, both default): how
-//!   the weights arrive.
+//! - [`pretrained`] (features `store` and `cache`, both default): how the
+//!   weights arrive.
 //!   [`default_silero_factory`](pretrained::default_silero_factory) is the
 //!   index: with the `silero-weights` feature, one row, `bundled:silero/vad`,
 //!   the burnpack linked into the binary and written into the cache under its
@@ -47,32 +47,27 @@
 //!         pretrained::default_silero_factory,
 //!     },
 //! };
-//! use burn::{
-//!     prelude::Backend,
-//!     tensor::{
-//!         ElementConversion,
-//!         Tensor,
-//!     },
+//! use burn::tensor::{
+//!     ElementConversion,
+//!     Tensor,
 //! };
 //!
 //! /// The bundled model, both rates, on `device`: from the cache, or
 //! /// written into it from the binary on first use.
-//! fn load_vad<B: Backend>(
-//!     device: &B::Device
-//! ) -> BunsenResult<Arc<SileroVadCollection<B>>> {
+//! fn load_vad(device: &Device) -> BunsenResult<Arc<SileroVadCollection>> {
 //!     let cache = PretrainedCache::new(PretrainedCacheOptions::default())?;
 //!     Ok(default_silero_factory()?
-//!         .load::<B>("bundled:silero/vad", &cache, device)?
+//!         .load("bundled:silero/vad", &cache, device)?
 //!         .handle)
 //! }
 //!
 //! /// One stream through one branch: mono samples at the branch's rate,
 //! /// a chunk at a time, each answered with the probability it holds
 //! /// speech.
-//! fn speech_probabilities<B: Backend>(
-//!     vad: &SileroVad<B>,
+//! fn speech_probabilities(
+//!     vad: &SileroVad,
 //!     samples: &[f32],
-//!     device: &B::Device,
+//!     device: &Device,
 //! ) -> Vec<f32> {
 //!     // One stream at the branch's rate, and the tail the model looks back
 //!     // over: 64 samples at 16 kHz, 32 at 8 kHz.
@@ -80,20 +75,20 @@
 //!         SileroVadContextConfig::new(vad.sample_rate()).init(vad, device);
 //!     let mut probabilities = Vec::new();
 //!     for chunk in samples.chunks_exact(vad.chunk_size()) {
-//!         let chunk: Tensor<B, 2> =
-//!             Tensor::<B, 1>::from_floats(chunk, device).unsqueeze();
+//!         let chunk: Tensor<2> =
+//!             Tensor::<1>::from_floats(chunk, device).unsqueeze();
 //!         let (probability, next) = vad.context_forward(chunk, ctx);
 //!         ctx = next;
-//!         probabilities.push(probability.into_scalar().elem::<f32>());
+//!         probabilities.push(probability.into_scalar::<f32>());
 //!     }
 //!     probabilities
 //! }
 //!
-//! fn run<B: Backend>(
-//!     device: &B::Device,
+//! fn run(
+//!     device: &Device,
 //!     samples: &[f32],
 //! ) -> BunsenResult<()> {
-//!     let vad = load_vad::<B>(device)?;
+//!     let vad = load_vad(device)?;
 //!     let branch = vad.expect_branch(16000);
 //!     for (i, p) in speech_probabilities(branch, samples, device)
 //!         .iter()

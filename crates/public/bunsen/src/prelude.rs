@@ -18,7 +18,7 @@
 //!   extension traits (`TensorOpExt`, `TensorElemOpExt`, `TensorOrderedOpExt`,
 //!   `TensorIntOpExt`, `TensorBoolOpExt`, `TensorDataViewExt`,
 //!   `TensorDataToVecAsExt`, `TensorDataCheckExt`), the `TensorDataView` and
-//!   `TensorDataViewMut` views, `backend_float_dtype`, and the `dynamic`
+//!   `TensorDataViewMut` views, `device_float_dtype`, and the `dynamic`
 //!   submodule;
 //! - everything in [`crate::contracts`]: `ShapeContract` and the shape contract
 //!   macros, such as `shape_contract!` and `assert_shape_contract!`;

@@ -1,7 +1,6 @@
 use burn::{
     Tensor,
     config::Config,
-    prelude::Backend,
     tensor::TensorCreationOptions,
 };
 
@@ -68,11 +67,11 @@ impl SamplingWindowBuilder for StftWindowConfig {
         }
     }
 
-    fn to_tensor_window<B: Backend>(
+    fn to_tensor_window(
         &self,
         size: usize,
-        options: impl Into<TensorCreationOptions<B>>,
-    ) -> Tensor<B, 1> {
+        options: impl Into<TensorCreationOptions>,
+    ) -> Tensor<1> {
         match self {
             Self::Ones => Tensor::ones([size], options),
             Self::CosineWindow(cfg) => cfg.to_tensor_window(size, options),
@@ -95,20 +94,13 @@ mod tests {
     use burn::{
         Tensor,
         prelude::TensorData,
-        tensor::{
-            Tolerance,
-            backend::BackendTypes,
-        },
+        tensor::Tolerance,
     };
 
     use super::*;
-    use crate::support::testing::{
-        CpuBackend,
-        cpu_device,
-    };
+    use crate::support::testing::cpu_device;
 
-    type B = CpuBackend;
-    type F = <B as BackendTypes>::FloatElem;
+    type F = f32;
 
     #[test]
     fn test_hamming_coefficients() {
@@ -143,7 +135,7 @@ mod tests {
                 StftWindowConfig::Hamming { periodic },
             ] {
                 let host = window.to_vec_window(48);
-                let tensor: Tensor<B, 1> = window.to_tensor_window(48, &device);
+                let tensor: Tensor<1> = window.to_tensor_window(48, &device);
                 tensor
                     .to_data()
                     .assert_approx_eq::<F>(&TensorData::new(host, [48]), Tolerance::permissive());

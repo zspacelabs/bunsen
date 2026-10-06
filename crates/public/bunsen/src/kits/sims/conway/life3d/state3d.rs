@@ -3,10 +3,10 @@ use burn::{
     config::Config,
     module::Module,
     prelude::{
-        Backend,
         Bool,
         Int,
     },
+    tensor::Device,
 };
 
 use crate::kits::sims::conway::{
@@ -39,12 +39,12 @@ pub struct ConwayLife3DConfig {
 
 impl ConwayLife3DConfig {
     /// Initializes an all-dead [`ConwayLife3DState`] on `device`.
-    pub fn init<B: Backend>(
+    pub fn init(
         &self,
-        device: &B::Device,
-    ) -> ConwayLife3DState<B> {
+        device: &Device,
+    ) -> ConwayLife3DState {
         ConwayLife3DState {
-            state: Tensor::<B, 3, Int>::zeros(&self.shape, device).bool(),
+            state: Tensor::<3, Int>::zeros(&self.shape, device).bool(),
             rules: self.rules.clone(),
         }
     }
@@ -66,16 +66,17 @@ impl ConwayLife3DConfig {
 ///
 /// Built by [`ConwayLife3DConfig`].
 #[derive(Module, Debug)]
-pub struct ConwayLife3DState<B: Backend> {
+pub struct ConwayLife3DState {
     /// The current state of the board.
-    pub state: Tensor<B, 3, Bool>,
+    pub state: Tensor<3, Bool>,
 
     /// The ruleset to use.
+    #[module(skip)]
     pub rules: ConwayRules,
 }
 
-impl<B: Backend> ConwaySim<B> for ConwayLife3DState<B> {
-    fn device(&self) -> B::Device {
+impl ConwaySim for ConwayLife3DState {
+    fn device(&self) -> Device {
         self.state.device()
     }
 
@@ -111,13 +112,9 @@ mod tests {
     use serial_test::serial;
 
     use super::*;
-    use crate::{
-        prelude::TensorElemOpExt,
-        support::testing::{
-            DeviceMemoryGuard,
-            PerformanceBackend,
-            performance_device,
-        },
+    use crate::support::testing::{
+        DeviceMemoryGuard,
+        performance_device,
     };
 
     /// One generation of a `[h, w, z]` torus, flat in row-major order, by
@@ -161,7 +158,6 @@ mod tests {
     #[test]
     #[serial]
     fn test_step_after_fuzz_wraps() {
-        type B = PerformanceBackend;
         let device = performance_device();
         let _memory = DeviceMemoryGuard::new(&device);
 
@@ -172,16 +168,16 @@ mod tests {
             spawn: 5..7,
             keep: 4..7,
         };
-        let mut life: ConwayLife3DState<B> = ConwayLife3DConfig::new([6, 7, 8])
+        let mut life: ConwayLife3DState = ConwayLife3DConfig::new([6, 7, 8])
             .with_rules(rules.clone())
             .init(&device);
         life.fuzz(0.2);
-        let interior = |life: &ConwayLife3DState<B>| {
+        let interior = |life: &ConwayLife3DState| {
             life.state
                 .clone()
                 .slice(s![1..5, 1..6, 1..7])
                 .to_data_as::<bool>()
-                .to_vec::<bool>()
+                .try_to_vec_as::<bool>()
                 .unwrap()
         };
         let seed = interior(&life);
@@ -196,7 +192,6 @@ mod tests {
     #[test]
     #[serial]
     fn test_fuzz_flips_each_hit_cell() {
-        type B = PerformanceBackend;
         let device = performance_device();
         let _memory = DeviceMemoryGuard::new(&device);
 
@@ -206,16 +201,16 @@ mod tests {
         let cells: Vec<bool> = (0..shape.iter().product::<usize>())
             .map(|i| i % 3 == 0)
             .collect();
-        let mut life: ConwayLife3DState<B> = ConwayLife3DConfig::new(shape).init(&device);
+        let mut life: ConwayLife3DState = ConwayLife3DConfig::new(shape).init(&device);
         life.state = project_wrapped_toroidal_boarders(Tensor::from_data(
             TensorData::new(cells, shape),
             &device,
         ));
-        let board = |life: &ConwayLife3DState<B>| {
+        let board = |life: &ConwayLife3DState| {
             life.state
                 .clone()
                 .to_data_as::<bool>()
-                .to_vec::<bool>()
+                .try_to_vec_as::<bool>()
                 .unwrap()
         };
         let seed = board(&life);
@@ -234,18 +229,16 @@ mod tests {
     #[test]
     #[serial]
     fn test_module_reaches_the_board() {
-        type B = PerformanceBackend;
         let device = performance_device();
         let _memory = DeviceMemoryGuard::new(&device);
 
-        let life: ConwayLife3DState<B> = ConwayLife3DConfig::new([5, 5, 5]).init(&device);
+        let life: ConwayLife3DState = ConwayLife3DConfig::new([5, 5, 5]).init(&device);
         assert_eq!(life.devices(), vec![device]);
     }
 
     #[test]
     #[serial]
     fn test_smoke() {
-        type B = PerformanceBackend;
         let device = performance_device();
         let _memory = DeviceMemoryGuard::new(&device);
 
@@ -259,7 +252,7 @@ mod tests {
                 keep: 2..4,
             },
         };
-        let mut game: ConwayLife3DState<B> = config.init(&device);
+        let mut game: ConwayLife3DState = config.init(&device);
         game.fuzz(0.05);
 
         for _ in 0..steps {

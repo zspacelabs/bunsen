@@ -8,10 +8,8 @@ use alloc::{
 use burn::{
     config::Config,
     module::Module,
-    prelude::{
-        Backend,
-        Tensor,
-    },
+    prelude::Tensor,
+    tensor::Device,
 };
 
 use crate::{
@@ -215,13 +213,13 @@ impl StochasticDepthTransformerBlockSequenceConfig {
     }
 }
 
-impl<B: Backend> ModuleInit<B, StochasticDepthTransformerBlockSequence<B>>
+impl ModuleInit<StochasticDepthTransformerBlockSequence>
     for StochasticDepthTransformerBlockSequenceConfig
 {
     fn try_init(
         &self,
-        device: &B::Device,
-    ) -> BunsenResult<StochasticDepthTransformerBlockSequence<B>> {
+        device: &Device,
+    ) -> BunsenResult<StochasticDepthTransformerBlockSequence> {
         Ok(StochasticDepthTransformerBlockSequence {
             blocks: self
                 .block_configs()
@@ -241,13 +239,11 @@ impl<B: Backend> ModuleInit<B, StochasticDepthTransformerBlockSequence<B>>
 ///
 /// Built by [`StochasticDepthTransformerBlockSequenceConfig`].
 #[derive(Module, Debug)]
-pub struct StochasticDepthTransformerBlockSequence<B: Backend> {
-    blocks: Vec<ShiftedWindowTransformerBlock<B>>,
+pub struct StochasticDepthTransformerBlockSequence {
+    blocks: Vec<ShiftedWindowTransformerBlock>,
 }
 
-impl<B: Backend> StochasticDepthTransformerBlockSequenceMeta
-    for StochasticDepthTransformerBlockSequence<B>
-{
+impl StochasticDepthTransformerBlockSequenceMeta for StochasticDepthTransformerBlockSequence {
     fn d_input(&self) -> usize {
         self.blocks[0].d_input()
     }
@@ -289,7 +285,7 @@ impl<B: Backend> StochasticDepthTransformerBlockSequenceMeta
     }
 }
 
-impl<B: Backend> StochasticDepthTransformerBlockSequence<B> {
+impl StochasticDepthTransformerBlockSequence {
     /// Applies the layer to the input tensor.
     ///
     /// # Arguments
@@ -306,8 +302,8 @@ impl<B: Backend> StochasticDepthTransformerBlockSequence<B> {
     #[must_use]
     pub fn forward(
         &self,
-        x: Tensor<B, 3>,
-    ) -> Tensor<B, 3> {
+        x: Tensor<3>,
+    ) -> Tensor<3> {
         let [h, w] = self.input_resolution();
         let env = [("height", h), ("width", w)];
 
@@ -336,7 +332,6 @@ mod tests {
         errors::WithOkOrPanic,
         support::testing::{
             DeviceMemoryGuard,
-            PerformanceBackend,
             performance_device,
         },
     };
@@ -410,8 +405,6 @@ mod tests {
     #[test]
     #[serial]
     fn test_module_init() {
-        type B = PerformanceBackend;
-
         let d_input = 96;
         let input_resolution = [56, 56];
         let depth = 12;
@@ -428,7 +421,7 @@ mod tests {
 
         let device = performance_device();
         let _memory = DeviceMemoryGuard::new(&device);
-        let module: StochasticDepthTransformerBlockSequence<B> =
+        let module: StochasticDepthTransformerBlockSequence =
             config.try_init(&device).ok_or_panic();
 
         assert_eq!(module.d_input(), d_input);

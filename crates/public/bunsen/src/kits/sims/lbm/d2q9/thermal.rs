@@ -1,8 +1,5 @@
 //! # Thermal Equilibrium
-use burn::{
-    Tensor,
-    prelude::Backend,
-};
+use burn::Tensor;
 
 use crate::kits::sims::lbm::d2q9::{
     C2,
@@ -21,11 +18,11 @@ use crate::kits::sims::lbm::d2q9::{
 /// # Returns
 /// - `[H, W, Y=3, X=3]` equilibrium distribution
 #[rustfmt::skip]
-pub fn thermal_equilibrium<B: Backend>(
-    rho: Tensor<B, 2>,
-    u: Tensor<B, 3>,
-    lbm_tables: &LbmTables<B>,
-) -> Tensor<B, 4> {
+pub fn thermal_equilibrium(
+    rho: Tensor<2>,
+    u: Tensor<3>,
+    lbm_tables: &LbmTables,
+) -> Tensor<4> {
     // [H, W, Y, X]
     let e_dot_u = lattice_dot_velocity(u.clone(), lbm_tables.e_vec());
 
@@ -51,10 +48,10 @@ pub fn thermal_equilibrium<B: Backend>(
 ///
 /// # Returns
 /// - `[H, W, Y=3, X=3]` dot product at each grid point and direction.
-pub fn lattice_dot_velocity<B: Backend>(
-    u: Tensor<B, 3>,
-    e: Tensor<B, 3>,
-) -> Tensor<B, 4> {
+pub fn lattice_dot_velocity(
+    u: Tensor<3>,
+    e: Tensor<3>,
+) -> Tensor<4> {
     ldv_projection(e, u).sum_dim(4).squeeze_dims::<4>(&[4])
 }
 
@@ -66,10 +63,10 @@ pub fn lattice_dot_velocity<B: Backend>(
 ///
 /// # Returns
 /// - `[H, W, Y=3, X=3, (Y, X)=2]` projection.
-pub fn ldv_projection<B: Backend>(
-    e: Tensor<B, 3>,
-    u: Tensor<B, 3>,
-) -> Tensor<B, 5> {
+pub fn ldv_projection(
+    e: Tensor<3>,
+    u: Tensor<3>,
+) -> Tensor<5> {
     // e[None, None, ... ] * u[..., None, :] -> [H, W, Y, X, 2]
     // e[1, 1, Y, X, (Y, X)=2] * u[H, W, 1, 1, (Y, X)=2]
     // -> [H, W, Y, X, (Y, X)]
@@ -99,7 +96,6 @@ mod tests {
         },
         support::testing::{
             DeviceMemoryGuard,
-            PerformanceBackend,
             performance_device,
         },
     };
@@ -107,17 +103,16 @@ mod tests {
     #[test]
     #[serial]
     fn test_equilibrium() {
-        type B = PerformanceBackend;
         let device = performance_device();
         let _memory = DeviceMemoryGuard::new(&device);
 
-        let dist = Tensor::<B, 4>::random([20, 20, 3, 3], Distribution::Default, &device);
+        let dist = Tensor::<4>::random([20, 20, 3, 3], Distribution::Default, &device);
 
-        let lbm_tables: LbmTables<B> = LbmTables::for_dist(&dist);
+        let lbm_tables: LbmTables = LbmTables::for_dist(&dist);
 
         let (rho, u) = moments(dist.clone(), &lbm_tables);
 
-        let equi_dist: Tensor<B, 4> = thermal_equilibrium(rho.clone(), u.clone(), &lbm_tables);
+        let equi_dist: Tensor<4> = thermal_equilibrium(rho.clone(), u.clone(), &lbm_tables);
 
         density(equi_dist.clone())
             .to_data()
@@ -139,13 +134,12 @@ mod tests {
     #[test]
     #[serial]
     fn test_equilibrium_invariants() {
-        type B = PerformanceBackend;
         let device = performance_device();
         let _memory = DeviceMemoryGuard::new(&device);
 
         let dtype = F32;
 
-        let dist = Tensor::<B, 4>::random([20, 20, 3, 3], Distribution::Uniform(0.1, 1.0), &device)
+        let dist = Tensor::<4>::random([20, 20, 3, 3], Distribution::Uniform(0.1, 1.0), &device)
             .cast(dtype);
 
         let lbm_tables = LbmTables::for_dist(&dist);
@@ -162,18 +156,17 @@ mod tests {
     #[test]
     #[serial]
     fn test_lattice_dot_velocity() {
-        type B = PerformanceBackend;
         let device = performance_device();
         let _memory = DeviceMemoryGuard::new(&device);
 
-        let e: Tensor<B, 3> = direction_vectors(&device);
+        let e: Tensor<3> = direction_vectors(&device);
 
-        let u: Tensor<B, 3> = Tensor::from_data([[[0.1, -2.], [0.5, -1.5]]], &device);
+        let u: Tensor<3> = Tensor::from_data([[[0.1, -2.], [0.5, -1.5]]], &device);
 
         let parts = ldv_projection(e.clone(), u.clone());
 
         parts.to_data().assert_approx_eq::<f32>(
-            &Tensor::<B, 5>::from_data(
+            &Tensor::<5>::from_data(
                 [[
                     [
                         [[-0.1, 2.], [-0.1, 0.], [-0.1, -2.]],

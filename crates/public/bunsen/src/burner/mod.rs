@@ -4,7 +4,7 @@
 //! *next to* `burn` itself, not on top of its tensor surface. Where
 //! [`crate::blocks`] gives you new `Module`s and [`crate::kits`] gives
 //! you whole models, `burner` gives you the tooling for working with
-//! `burn` modules, optimizers, and records at a level `burn`'s default
+//! `burn` modules and optimizers at a level `burn`'s default
 //! surface doesn't expose.
 //!
 //! Most code that uses `bunsen` won't import from `burner` at all. You
@@ -24,8 +24,8 @@
 //!   config. Both are in [`crate::prelude`];
 //! - **carry tensor metadata** in non-generic code paths &mdash;
 //!   [`descriptors::TensorParamDesc`] captures the metadata of any
-//!   `Param<Tensor<B, R, K>>` (its `ParamId`, `Shape`, rank, dtype, kind)
-//!   without carrying the generics that the underlying tensor type does.
+//!   `Param<Tensor<R, K>>` (its `ParamId`, `Shape`, rank, dtype, kind) without
+//!   carrying the generics that the underlying tensor type does.
 //!
 //! The reflection and group-optimizer pieces compose: the canonical
 //! pattern is to walk a model with `XmlModuleTree`, slice it into
@@ -46,12 +46,6 @@
 //! - [`optim`] &mdash; optimizer extensions (under `features = ["train"]`).
 //!   Headlined by the `GroupOptimizerAdaptor{N}` family and the
 //!   `OptimizerGroup` / `LrSelector` building blocks.
-//! - [`record`] &mdash; [`display_record`](record::display_record), a debug
-//!   dump of a `burn::record` record's layout without its tensor data.
-//! - [`store`] &mdash; helpers for what crosses a store boundary: load/save
-//!   mappers that repair `PyTorch` weights
-//!   ([`repair_pytorch_strided_weight`](store::repair_pytorch_strided_weight),
-//!   [`FixPytorchLoadMappers`](store::FixPytorchLoadMappers)).
 //! - [`tensor`] &mdash; tensor helpers that don't fit neatly in [`crate::ops`]:
 //!   `Tensor` and `TensorData` extension traits, `TensorData` index views, and
 //!   [`tensor::dynamic`]'s type- and rank-erased
@@ -95,8 +89,6 @@
 pub mod descriptors;
 pub mod distribution;
 pub mod module;
-pub mod record;
-pub mod store;
 
 // PARKED(burn22): the group optimizer is rewritten against burn 0.22's
 // `ModuleOptimizer` in `[optim_rewrite]`; restore `#[cfg(feature = "train")]`.

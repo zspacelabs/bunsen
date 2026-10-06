@@ -10,7 +10,7 @@ use std::{
 /// such value can be boxed as a `Box<dyn CloneBox>`, which is itself `Clone`,
 /// and read back with `downcast_ref`.
 /// [`DynTensor`](crate::burner::tensor::dynamic::DynTensor) holds its
-/// `Tensor<B, R, K>` this way, so its own type names neither rank nor kind.
+/// `Tensor<R, K>` this way, so its own type names neither rank nor kind.
 ///
 /// It erases the type entirely. To make a trait object of your own trait
 /// `Clone`, use the `dyn-clone` crate instead.
@@ -48,19 +48,15 @@ mod tests {
     };
 
     use super::*;
-    use crate::support::testing::{
-        CpuBackend,
-        cpu_device,
-    };
+    use crate::support::testing::cpu_device;
 
     fn assert_send<T: Send>() {}
 
     #[test]
     fn test_clone_box_tensor() {
-        type B = CpuBackend;
         let device = cpu_device();
 
-        let source: Tensor<B, 2> = Tensor::random([2, 3], Distribution::Default, &device);
+        let source: Tensor<2> = Tensor::random([2, 3], Distribution::Default, &device);
 
         let boxed: Box<dyn CloneBox> = Box::new(source.clone());
 
@@ -68,7 +64,7 @@ mod tests {
 
         let cloned_box = boxed.clone();
 
-        let clone = cloned_box.downcast_ref::<Tensor<B, 2>>().unwrap();
+        let clone = cloned_box.downcast_ref::<Tensor<2>>().unwrap();
 
         clone.to_data().assert_eq(&source.to_data(), true);
     }

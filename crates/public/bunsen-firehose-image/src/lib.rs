@@ -163,7 +163,6 @@ mod tests {
 
     use bunsen::support::testing::{
         DeviceMemoryGuard,
-        PerformanceBackend,
         performance_device,
     };
     use bunsen_firehose::{
@@ -209,8 +208,6 @@ mod tests {
     #[serial_test::serial]
     fn test_example() -> anyhow::Result<()> {
         let temp_dir = tempfile::tempdir().unwrap();
-
-        type B = PerformanceBackend;
 
         let device = performance_device();
         let _memory = DeviceMemoryGuard::new(&device);
@@ -345,10 +342,7 @@ mod tests {
         );
 
         let row_data = row.maybe_get("data").unwrap().as_ref::<TensorData>()?;
-        row_data.assert_eq(
-            &image_to_f32_tensor::<B>(row_image, &device).to_data(),
-            true,
-        );
+        row_data.assert_eq(&image_to_f32_tensor(row_image, &device).to_data(), true);
 
         Ok(())
     }

@@ -13,10 +13,10 @@ use burn::{
         norm::NormalizationConfig,
     },
     prelude::{
-        Backend,
         Module,
         Tensor,
     },
+    tensor::Device,
 };
 
 use crate::{
@@ -296,11 +296,11 @@ impl LayerBlockStructureConfig {
     }
 }
 
-impl<B: Backend> ModuleInit<B, LayerBlock<B>> for LayerBlockStructureConfig {
+impl ModuleInit<LayerBlock> for LayerBlockStructureConfig {
     fn try_init(
         &self,
-        device: &B::Device,
-    ) -> BunsenResult<LayerBlock<B>> {
+        device: &Device,
+    ) -> BunsenResult<LayerBlock> {
         self.try_validate()?;
 
         Ok(LayerBlock {
@@ -308,7 +308,7 @@ impl<B: Backend> ModuleInit<B, LayerBlock<B>> for LayerBlockStructureConfig {
                 .blocks
                 .iter()
                 .map(|block| block.try_init(device))
-                .collect::<BunsenResult<Vec<ResidualBlock<B>>>>()?,
+                .collect::<BunsenResult<Vec<ResidualBlock>>>()?,
         })
     }
 }
@@ -325,12 +325,12 @@ impl<B: Backend> ModuleInit<B, LayerBlock<B>> for LayerBlockStructureConfig {
 /// Built by [`LayerBlockContractConfig`] (high-level) or
 /// [`LayerBlockStructureConfig`].
 #[derive(Module, Debug)]
-pub struct LayerBlock<B: Backend> {
+pub struct LayerBlock {
     /// Internal blocks.
-    pub blocks: Vec<ResidualBlock<B>>,
+    pub blocks: Vec<ResidualBlock>,
 }
 
-impl<B: Backend> LayerBlockMeta for LayerBlock<B> {
+impl LayerBlockMeta for LayerBlock {
     fn len(&self) -> usize {
         self.blocks.len()
     }
@@ -350,7 +350,7 @@ impl<B: Backend> LayerBlockMeta for LayerBlock<B> {
     }
 }
 
-impl<B: Backend> LayerBlock<B> {
+impl LayerBlock {
     /// Debug print.
     pub fn debug_print(&self) {
         println!("## LayerBlock: len={}", self.len());
@@ -364,8 +364,8 @@ impl<B: Backend> LayerBlock<B> {
     /// Applies the layer block.
     pub fn forward(
         &self,
-        input: Tensor<B, 4>,
-    ) -> Tensor<B, 4> {
+        input: Tensor<4>,
+    ) -> Tensor<4> {
         #[cfg(debug_assertions)]
         use crate::contracts::*;
 
@@ -408,7 +408,7 @@ impl<B: Backend> LayerBlock<B> {
         f: &mut F,
     ) -> Self
     where
-        F: FnMut(usize, ResidualBlock<B>) -> ResidualBlock<B>,
+        F: FnMut(usize, ResidualBlock) -> ResidualBlock,
     {
         Self {
             blocks: self
@@ -446,20 +446,15 @@ impl<B: Backend> LayerBlock<B> {
 mod tests {
     use alloc::vec;
 
-    use burn::tensor::{
-        Tolerance,
-        backend::BackendTypes,
-    };
+    use burn::tensor::Tolerance;
     use serial_test::serial;
 
     use super::*;
     use crate::{
         contracts::assert_shape_contract,
         kits::images::resnet::blocks::BasicBlockConfig,
-        prelude::*,
         support::testing::{
             DeviceMemoryGuard,
-            PerformanceBackend,
             performance_device,
         },
     };
@@ -496,8 +491,7 @@ mod tests {
     #[test]
     #[serial]
     pub fn test_layer_block() {
-        type B = PerformanceBackend;
-        type F = <B as BackendTypes>::FloatElem;
+        type F = f32;
         let device = performance_device();
         let _memory = DeviceMemoryGuard::new(&device);
 
@@ -524,7 +518,7 @@ mod tests {
         assert_eq!(config.stride(), 2);
         assert_eq!(config.output_resolution([20, 16]), [10, 8]);
 
-        let block: LayerBlock<B> = config.init(&device);
+        let block: LayerBlock = config.init(&device);
 
         assert_eq!(block.in_planes(), a_planes);
         assert_eq!(block.out_planes(), c_planes);
@@ -573,7 +567,6 @@ mod tests {
     #[test]
     #[serial]
     fn test_policy_pathways_agree() {
-        type B = PerformanceBackend;
         let device = performance_device();
         let _memory = DeviceMemoryGuard::new(&device);
 
@@ -587,8 +580,8 @@ mod tests {
         assert_eq!(structure.out_planes(), 32);
         assert_eq!(structure.stride(), 2);
 
-        let lowered: LayerBlock<B> = structure.init(&device);
-        let direct: LayerBlock<B> = policy.init(&device);
+        let lowered: LayerBlock = structure.init(&device);
+        let direct: LayerBlock = policy.init(&device);
 
         assert_meta_agrees(&direct, &lowered);
         assert_meta_agrees(&direct, &structure);

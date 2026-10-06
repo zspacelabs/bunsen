@@ -2,10 +2,7 @@
 
 use burn::{
     Tensor,
-    prelude::{
-        Backend,
-        s,
-    },
+    prelude::s,
 };
 
 use crate::kits::sims::lbm::d2q9::space;
@@ -18,7 +15,7 @@ use crate::kits::sims::lbm::d2q9::space;
 ///
 /// # Returns
 /// - The updated `[H[1:-1], W[1:-1], VY=3, VX=3]` interior.
-pub fn stream_interior_windows<B: Backend>(dist: Tensor<B, 4>) -> Tensor<B, 4> {
+pub fn stream_interior_windows(dist: Tensor<4>) -> Tensor<4> {
     #[cfg(debug_assertions)]
     let [h, w] = crate::contracts::unpack_shape_contract!(
         ["H", "W", "VY", "VX"],
@@ -33,14 +30,14 @@ pub fn stream_interior_windows<B: Backend>(dist: Tensor<B, 4>) -> Tensor<B, 4> {
     // cat([cat([tensor,]),]) is ~10% faster than cat([tensor,]).reshape([...,
     // 3, 3]) Timing: crutcher, Oct 2025:
     // This also beats empty() + 0..3 0..3 slice_assign by ~8%
-    let result: Tensor<B, 4> = Tensor::cat(
+    let result: Tensor<4> = Tensor::cat(
         (0..3)
-            .map(|vy| -> Tensor<B, 4> {
+            .map(|vy| -> Tensor<4> {
                 let source_vy = 2 - vy;
 
                 Tensor::cat(
                     (0..3)
-                        .map(|vx| -> Tensor<B, 4> {
+                        .map(|vx| -> Tensor<4> {
                             let source_vx = 2 - vx;
 
                             windows
@@ -79,7 +76,7 @@ pub fn stream_interior_windows<B: Backend>(dist: Tensor<B, 4>) -> Tensor<B, 4> {
 ///
 /// # Returns
 /// - The updated `[H, W, VY=3, VX=3]` distribution.
-pub fn outflow_clipping_stream<B: Backend>(thermal_dist: Tensor<B, 4>) -> Tensor<B, 4> {
+pub fn outflow_clipping_stream(thermal_dist: Tensor<4>) -> Tensor<4> {
     thermal_dist
         .zeros_like()
         .cast(thermal_dist.dtype()) // TODO: remove when zeros_like() supports dtype.
@@ -166,7 +163,6 @@ mod tests {
     use super::*;
     use crate::support::testing::{
         DeviceMemoryGuard,
-        PerformanceBackend,
         performance_device,
     };
 
@@ -174,11 +170,10 @@ mod tests {
     #[serial]
     #[rustfmt::skip]
     fn test_stream_interior_windows() {
-        type B = PerformanceBackend;
         let device = performance_device();
         let _memory = DeviceMemoryGuard::new(&device);
 
-        let state: Tensor<B, 4> = Tensor::from_data([
+        let state: Tensor<4> = Tensor::from_data([
             [
                 [
                     [0., 1., 2.],
@@ -236,7 +231,7 @@ mod tests {
 
         assert_eq!(result.dims(), [1, 1, 3, 3]);
 
-        let expected: Tensor<B, 4> = Tensor::from_data([[[
+        let expected: Tensor<4> = Tensor::from_data([[[
             [72., 64., 56.],
             [48., 40., 32.],
             [24., 16., 8.],

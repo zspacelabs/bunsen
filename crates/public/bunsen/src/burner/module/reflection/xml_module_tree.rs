@@ -17,7 +17,6 @@ use burn::{
         Linear,
         LinearConfig,
     },
-    prelude::Backend,
 };
 use xee_xpath::{
     Documents,
@@ -98,7 +97,7 @@ impl XmlModuleTree {
     /// Walks the module once with an [`XmlModuleTreeBuilder`]. The tree
     /// records structure and parameter ids; it does not follow later changes
     /// to the module.
-    pub fn build<B: Backend, M: Module<B>>(module: &M) -> Self {
+    pub fn build<M: Module>(module: &M) -> Self {
         XmlModuleTreeBuilder::build(module)
     }
 
@@ -214,7 +213,7 @@ impl XmlModuleTree {
     /// # use bunsen::burner::module::reflection::XmlModuleTree;
     /// # type B = bunsen::support::testing::{cpu_device, CpuBackend};
     /// # let device = bunsen::support::testing::cpu_device();
-    /// let module: Linear<B> = LinearConfig::new(2, 3).init(&device);
+    /// let module: Linear = LinearConfig::new(2, 3).init(&device);
     /// let mut mtree = XmlModuleTree::build(&module);
     ///
     /// let ids = mtree.param_ids()?;
@@ -239,7 +238,7 @@ impl XmlModuleTree {
     /// # use bunsen::burner::module::reflection::XmlModuleTree;
     /// # type B = bunsen::support::testing::{cpu_device, CpuBackend};
     /// # let device = bunsen::support::testing::cpu_device();
-    /// let module: Linear<B> = LinearConfig::new(2, 3).init(&device);
+    /// let module: Linear = LinearConfig::new(2, 3).init(&device);
     /// let mut mtree = XmlModuleTree::build(&module);
     ///
     /// let descs = mtree.param_descs()?;
@@ -277,7 +276,7 @@ impl XmlModuleTree {
     /// # use bunsen::burner::module::reflection::XmlModuleTree;
     /// # type B = bunsen::support::testing::{cpu_device, CpuBackend};
     /// # let device = bunsen::support::testing::cpu_device();
-    /// let module: Linear<B> = LinearConfig::new(2, 3).init(&device);
+    /// let module: Linear = LinearConfig::new(2, 3).init(&device);
     /// let mut mtree = XmlModuleTree::build(&module);
     ///
     /// let expected = "/XmlModuleTree/Structure/Linear/*[@name='weight']";
@@ -312,7 +311,7 @@ impl XmlModuleTree {
     /// # use bunsen::burner::module::reflection::XmlModuleTree;
     /// # type B = bunsen::support::testing::{cpu_device, CpuBackend};
     /// # let device = bunsen::support::testing::cpu_device();
-    /// let module: Linear<B> = LinearConfig::new(2, 3).init(&device);
+    /// let module: Linear = LinearConfig::new(2, 3).init(&device);
     /// let mut mtree = XmlModuleTree::build(&module);
     ///
     /// let query = mtree.try_select("Linear/*[@name='weight']")?;
@@ -343,7 +342,7 @@ impl XmlModuleTree {
     /// # use bunsen::burner::module::reflection::XmlModuleTree;
     /// # type B = bunsen::support::testing::{cpu_device, CpuBackend};
     /// # let device = bunsen::support::testing::cpu_device();
-    /// let module: Linear<B> = LinearConfig::new(2, 3).init(&device);
+    /// let module: Linear = LinearConfig::new(2, 3).init(&device);
     /// let mut mtree = XmlModuleTree::build(&module);
     ///
     /// let expected = "/XmlModuleTree/Structure/Linear/descendant-or-self::Param";
@@ -400,7 +399,7 @@ impl XmlModuleTree {
     ///
     /// use burn::module::ParamId;
     ///
-    /// let module: Linear<B> = LinearConfig::new(2, 3).init(&device);
+    /// let module: Linear = LinearConfig::new(2, 3).init(&device);
     /// let mut mtree = XmlModuleTree::build(&module);
     ///
     /// let ids: Vec<ParamId> = mtree.select_param_ids("Linear/*[@rank=2]")?;
@@ -688,7 +687,7 @@ impl<'a> XPathModuleQuery<'a> {
     /// # let device = bunsen::support::testing::cpu_device();
     /// use burn::module::ParamId;
     ///
-    /// let module: Linear<B> = LinearConfig::new(2, 3).init(&device);
+    /// let module: Linear = LinearConfig::new(2, 3).init(&device);
     /// let mut mtree = XmlModuleTree::build(&module);
     ///
     /// let ids = mtree.select("Linear").to_param_ids()?;
@@ -763,17 +762,13 @@ mod tests {
     use super::*;
     use crate::{
         burner::descriptors::TensorParamDesc,
-        support::testing::{
-            CpuBackend,
-            cpu_device,
-        },
+        support::testing::cpu_device,
     };
 
     #[test]
     fn test_predicate_conjunction() {
-        type B = CpuBackend;
         let device = cpu_device();
-        let module: Linear<B> = LinearConfig::new(2, 3).init(&device);
+        let module: Linear = LinearConfig::new(2, 3).init(&device);
         let mut mtree = XmlModuleTree::build(&module);
 
         // Stacked predicates and `and` both mean "all of these".
@@ -814,9 +809,8 @@ mod tests {
 
     #[test]
     fn test_debug() {
-        type B = CpuBackend;
         let device = cpu_device();
-        let module: Linear<B> = LinearConfig::new(2, 3).init(&device);
+        let module: Linear = LinearConfig::new(2, 3).init(&device);
 
         let weight_desc: TensorParamDesc = TensorParamDesc::from(&module.weight);
         let bias_ref = module.bias.as_ref().unwrap();
@@ -858,9 +852,8 @@ mod tests {
 
     #[test]
     fn test_to_xml() {
-        type B = CpuBackend;
         let device = cpu_device();
-        let module: Linear<B> = LinearConfig::new(2, 3).init(&device);
+        let module: Linear = LinearConfig::new(2, 3).init(&device);
 
         let weight_desc: TensorParamDesc = TensorParamDesc::from(&module.weight);
         let bias_ref = module.bias.as_ref().unwrap();

@@ -1,15 +1,16 @@
 use burn::{
     Tensor,
-    prelude,
-    prelude::Backend,
     tensor::{
         DType,
-        TensorKind,
+        kind::{
+            Kind,
+            TensorKind,
+        },
     },
 };
 use strum;
 
-/// A meta-descriptor for [`burn::tensor::TensorKind`].
+/// A meta-descriptor for [`burn::tensor::kind::TensorKind`].
 #[derive(
     Debug,
     Clone,
@@ -40,19 +41,32 @@ pub enum TensorKindDesc {
 }
 
 impl TensorKindDesc {
-    /// Returns the [`TensorKindDesc`] for a `burner`
-    /// [`burn::tensor::TensorKind`].
-    pub const fn for_kind<K: ParamKindBinding>() -> Self {
-        K::KIND
+    /// Returns the [`TensorKindDesc`] for a [`burn::tensor::kind::TensorKind`].
+    pub const fn for_kind<K: TensorKind>() -> Self {
+        Self::of(K::KIND)
+    }
+
+    /// Returns the [`TensorKindDesc`] for a [`Kind`].
+    pub const fn of(kind: Kind) -> Self {
+        match kind {
+            Kind::Bool => TensorKindDesc::Bool,
+            Kind::Float => TensorKindDesc::Float,
+            Kind::Int => TensorKindDesc::Int,
+        }
     }
 
     /// Returns the kind of the given tensor.
-    pub fn kind<B, const R: usize, K>(_tensor: &Tensor<B, R, K>) -> Self
+    pub fn kind<const R: usize, K>(_tensor: &Tensor<R, K>) -> Self
     where
-        B: Backend,
-        K: TensorKind<B> + ParamKindBinding,
+        K: TensorKind + burn::tensor::kind::Basic,
     {
         Self::for_kind::<K>()
+    }
+}
+
+impl From<Kind> for TensorKindDesc {
+    fn from(kind: Kind) -> Self {
+        Self::of(kind)
     }
 }
 
@@ -68,24 +82,6 @@ impl From<DType> for TensorKindDesc {
             panic!("Unsupported dtype: {dtype:?}")
         }
     }
-}
-
-/// A trait that binds a `burner` Tensor Kind to a `ParamKind`.
-pub trait ParamKindBinding {
-    /// The [`TensorKindDesc`] kind wrapper.
-    const KIND: TensorKindDesc;
-}
-
-impl ParamKindBinding for prelude::Bool {
-    const KIND: TensorKindDesc = TensorKindDesc::Bool;
-}
-
-impl ParamKindBinding for prelude::Float {
-    const KIND: TensorKindDesc = TensorKindDesc::Float;
-}
-
-impl ParamKindBinding for prelude::Int {
-    const KIND: TensorKindDesc = TensorKindDesc::Int;
 }
 
 #[cfg(test)]
@@ -105,32 +101,27 @@ mod tests {
 
     use crate::{
         burner::descriptors::TensorKindDesc,
-        support::testing::{
-            CpuBackend,
-            cpu_device,
-        },
+        support::testing::cpu_device,
     };
-
-    type B = CpuBackend;
 
     #[test]
     fn test_tensor_kinds() {
         let device = cpu_device();
         assert_eq!(TensorKindDesc::for_kind::<Bool>(), TensorKindDesc::Bool);
         assert_eq!(
-            TensorKindDesc::kind(&Tensor::<B, 1, Bool>::zeros(&[1], &device)),
+            TensorKindDesc::kind(&Tensor::<1, Bool>::zeros(&[1], &device)),
             TensorKindDesc::Bool
         );
 
         assert_eq!(TensorKindDesc::for_kind::<Float>(), TensorKindDesc::Float);
         assert_eq!(
-            TensorKindDesc::kind(&Tensor::<B, 1, Float>::zeros(&[1], &device)),
+            TensorKindDesc::kind(&Tensor::<1, Float>::zeros(&[1], &device)),
             TensorKindDesc::Float
         );
 
         assert_eq!(TensorKindDesc::for_kind::<Int>(), TensorKindDesc::Int);
         assert_eq!(
-            TensorKindDesc::kind(&Tensor::<B, 1, Int>::zeros(&[1], &device)),
+            TensorKindDesc::kind(&Tensor::<1, Int>::zeros(&[1], &device)),
             TensorKindDesc::Int
         );
     }

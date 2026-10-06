@@ -46,9 +46,8 @@
 //!   ([`ModuleInit`](burner::module::ModuleInit),
 //!   [`ToStructureConfig`](burner::module::ToStructureConfig)), module
 //!   [`reflection`](burner::module::reflection), grouped optimizers
-//!   ([`optim`](burner::optim)), `Tensor` extension traits
-//!   ([`tensor`](burner::tensor)), and PyTorch-load repairs
-//!   ([`store`](burner::store)).
+//!   ([`optim`](burner::optim)), and `Tensor` extension traits
+//!   ([`tensor`](burner::tensor)).
 //! * [`contracts`]: runtime tensor-shape contracts.
 //! * [`errors`]: `BunsenError`, `BunsenResult`, and the `try_x` / `x`
 //!   convention.

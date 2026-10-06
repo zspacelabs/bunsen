@@ -23,7 +23,6 @@ use bunsen::{
     },
     kits::speech::whisper::driver::PresetEmissionPolicy,
 };
-use burn::prelude::Backend;
 use clap_common::logging::{
     LogArgs,
     LogLevelNum,
@@ -117,7 +116,7 @@ struct Block {
 }
 
 impl LiveCmd {
-    pub fn run<B: Backend>(&self) -> BunsenResult<()> {
+    pub fn run(&self) -> BunsenResult<()> {
         self.logging.init(Some(LogLevelNum::Warn))?;
 
         let host = cpal::default_host();
@@ -127,8 +126,8 @@ impl LiveCmd {
         let device = self.pick_device(&host)?;
         let device_name = device_name(&device);
 
-        let compute = B::Device::default();
-        let driver = self.whisper.init_driver::<B>(&compute, PRESET)?;
+        let compute = Device::default();
+        let driver = self.whisper.init_driver(&compute, PRESET)?;
         let model_rate = driver.sample_rate();
         let chunk = self.whisper.chunk_samples(&driver, CHUNK_MS);
         log::debug!(
@@ -283,8 +282,8 @@ fn device_id(device: &Device) -> String {
 
 /// Pushes `samples` as one block, anchored at `time` when the host gave
 /// one.
-fn push<B: Backend>(
-    transcript: &mut TranscriptStream<B>,
+fn push(
+    transcript: &mut TranscriptStream,
     samples: &[f32],
     time: Option<f64>,
 ) -> BunsenResult<()> {

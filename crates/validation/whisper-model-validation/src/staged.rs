@@ -5,32 +5,24 @@
 //! cannot be inherited from upstream. `audio` runs the composition.
 
 use bunsen::{
-    burner::{
-        module::DTypeMapper,
-        tensor::TensorElemOpExt,
-    },
+    burner::module::DTypeMapper,
     kits::speech::whisper::{
         WhisperMeta,
         blocks::Whisper,
     },
     support::testing::{
         DeviceMemoryGuard,
-        PerformanceBackend,
         performance_device,
     },
 };
 use burn::{
     prelude::*,
-    tensor::{
-        Tolerance,
-        backend::BackendTypes,
-    },
+    tensor::Tolerance,
 };
 
 use super::*;
 
-type B = PerformanceBackend;
-type F = <B as BackendTypes>::FloatElem;
+type F = f32;
 
 /// The reference model loads, runs, and is deterministic.
 ///
@@ -41,19 +33,19 @@ type F = <B as BackendTypes>::FloatElem;
 fn test_reference_encoder_runs() {
     let device = performance_device();
     let _memory = DeviceMemoryGuard::new(&device);
-    let model = reference::EncoderModel::<B>::load_pretrained(&device);
+    let model = reference::EncoderModel::load_pretrained(&device);
 
-    let out = model.forward(synthetic_mels::<B>(&device));
+    let out = model.forward(synthetic_mels(&device));
     assert_eq!(out.dims(), [1, N_FRAMES / 2, D_MODEL]);
 
-    let values: Vec<f32> = out.clone().into_data().convert::<f32>().to_vec().unwrap();
+    let values: Vec<f32> = out.clone().into_data().try_into_vec_as::<f32>().unwrap();
     assert!(
         values.iter().all(|v| v.is_finite()),
         "the reference encoder produced a non-finite value",
     );
 
     // Same input, same output — nothing in the graph is order-dependent.
-    let again = model.forward(synthetic_mels::<B>(&device));
+    let again = model.forward(synthetic_mels(&device));
     out.to_data_as::<F>()
         .assert_approx_eq::<F>(&again.to_data_as::<F>(), Tolerance::default());
 }
@@ -70,11 +62,11 @@ fn test_reference_encoder_runs() {
 fn test_bunsen_encoder_matches_reference() {
     let device = performance_device();
     let _memory = DeviceMemoryGuard::new(&device);
-    let mels: Tensor<B, 3> = synthetic_mels::<B>(&device);
+    let mels: Tensor<3> = synthetic_mels(&device);
 
-    let reference = reference::EncoderModel::<B>::load_pretrained(&device).forward(mels.clone());
+    let reference = reference::EncoderModel::load_pretrained(&device).forward(mels.clone());
 
-    let bundle = load_base::<B>(&device);
+    let bundle = load_base(&device);
     assert_eq!(
         bundle.model.n_mels(),
         N_MELS,
@@ -111,8 +103,8 @@ fn test_bunsen_encoder_matches_reference() {
 /// Takes the device rather than making one, so that the caller can bind a
 /// [`DeviceMemoryGuard`] over it *before* the weights land — the guard has to
 /// outlive the model to reclaim the pages the model sat in.
-fn load_bunsen(device: &burn::prelude::Device<B>) -> Whisper<B> {
-    let bundle = load_base::<B>(device);
+fn load_bunsen(device: &burn::prelude::Device) -> Whisper {
+    let bundle = load_base(device);
 
     // OpenAI ships these checkpoints in fp16; the reference graph is f32.
     // Feeding f32 input to an f16 model does not error here, it just
@@ -124,11 +116,9 @@ fn load_bunsen(device: &burn::prelude::Device<B>) -> Whisper<B> {
 }
 
 /// The decoder inputs both implementations see.
-fn decoder_inputs(
-    device: &burn::prelude::Device<B>
-) -> (Tensor<B, 2, burn::tensor::Int>, Tensor<B, 3>) {
+fn decoder_inputs(device: &burn::prelude::Device) -> (Tensor<2, burn::tensor::Int>, Tensor<3>) {
     let tokens = Tensor::from_data(TensorData::new(TOKENS.to_vec(), [1, TOKENS.len()]), device);
-    (tokens, synthetic_encoder_output::<B>(device))
+    (tokens, synthetic_encoder_output(device))
 }
 
 /// **The decoder cross-check.** bunsen's text decoder must match the
@@ -142,7 +132,7 @@ fn test_bunsen_decoder_matches_reference() {
     let (tokens, xa) = decoder_inputs(&device);
 
     // `.0` is the logits; the rest of the tuple is the present KV cache.
-    let reference = reference::DecoderModel::<B>::load_pretrained(&device)
+    let reference = reference::DecoderModel::load_pretrained(&device)
         .forward(tokens.clone(), xa.clone())
         .0;
     assert_eq!(reference.dims(), [1, TOKENS.len(), N_VOCAB]);
@@ -167,17 +157,16 @@ fn test_bunsen_decoder_argmax_matches_reference() {
     let model = load_bunsen(&device);
     let (tokens, xa) = decoder_inputs(&device);
 
-    let reference = reference::DecoderModel::<B>::load_pretrained(&device)
+    let reference = reference::DecoderModel::load_pretrained(&device)
         .forward(tokens.clone(), xa.clone())
         .0;
     let ours = model.forward_decoder(tokens, xa);
 
-    let pick = |t: Tensor<B, 3>| -> Vec<i64> {
+    let pick = |t: Tensor<3>| -> Vec<i64> {
         t.argmax(2)
             .flatten::<1>(0, 2)
             .into_data()
-            .convert::<i64>()
-            .to_vec()
+            .try_into_vec_as::<i64>()
             .unwrap()
     };
 

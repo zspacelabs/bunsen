@@ -2,7 +2,7 @@
 
 use std::sync::Arc;
 
-use burn::prelude::Backend;
+use burn::tensor::Device;
 
 use super::{
     LoadedResources,
@@ -41,7 +41,7 @@ pub trait Construct: Sized {
     const KIT: &'static str;
 
     /// What construction yields, for a backend.
-    type Built<B: Backend>;
+    type Built;
 
     /// The hook for `map`: the reader its resources' `kind`s call for.
     ///
@@ -75,12 +75,12 @@ pub trait Construct: Sized {
     /// The kit's: a part the map lacks
     /// ([`LoadedResources::expect`]), or one that does not read as what its
     /// key says.
-    fn construct<B: Backend>(
+    fn construct(
         &self,
         model: &PretrainedRef,
         loaded: &LoadedResources,
-        device: &B::Device,
-    ) -> BunsenResult<Arc<Self::Built<B>>>;
+        device: &Device,
+    ) -> BunsenResult<Arc<Self::Built>>;
 }
 
 /// The handle a pretrained hands back: bound by what was built.
@@ -138,10 +138,7 @@ mod tests {
                 predicate,
             },
         },
-        support::testing::{
-            CpuBackend,
-            cpu_device,
-        },
+        support::testing::cpu_device,
     };
 
     /// A hook that builds the list of its parts' paths, in key order, and
@@ -151,7 +148,7 @@ mod tests {
     }
 
     impl Construct for Paths {
-        type Built<B: Backend> = Vec<PathBuf>;
+        type Built = Vec<PathBuf>;
 
         const KIT: &'static str = "paths";
 
@@ -174,11 +171,11 @@ mod tests {
             }
         }
 
-        fn construct<B: Backend>(
+        fn construct(
             &self,
             _model: &PretrainedRef,
             loaded: &LoadedResources,
-            _device: &B::Device,
+            _device: &Device,
         ) -> BunsenResult<Arc<Vec<PathBuf>>> {
             loaded.expect("checkpoint")?;
             Ok(Arc::new(
@@ -192,7 +189,7 @@ mod tests {
     struct NeedsConfig;
 
     impl Construct for NeedsConfig {
-        type Built<B: Backend> = ();
+        type Built = ();
 
         const KIT: &'static str = "paths";
 
@@ -200,11 +197,11 @@ mod tests {
             Ok(NeedsConfig)
         }
 
-        fn construct<B: Backend>(
+        fn construct(
             &self,
             _model: &PretrainedRef,
             loaded: &LoadedResources,
-            _device: &B::Device,
+            _device: &Device,
         ) -> BunsenResult<Arc<()>> {
             loaded.expect("config")?;
             Ok(Arc::new(()))
@@ -243,7 +240,7 @@ mod tests {
             model: PretrainedRef::from(ResourceMap::given("mine", "checkpoint", &checkpoint)),
             hook,
         }
-        .load::<CpuBackend>(&cache, &cpu_device())
+        .load(&cache, &cpu_device())
         .unwrap();
 
         assert_eq!(loaded.name, "mine");
@@ -285,16 +282,14 @@ mod tests {
             model: model.clone(),
             hook,
         }
-        .load::<CpuBackend>(&cache, &cpu_device())
+        .load(&cache, &cpu_device())
         .unwrap();
         assert_eq!(*loaded.handle, vec![checkpoint.clone(), vocabulary.clone()]);
 
         // The hook a map calls for, with no rule of its own.
         let no_rule = Deferred::<Paths>::new(model.clone()).unwrap();
         assert!(no_rule.hook.vocabulary.is_none());
-        let loaded = no_rule
-            .load::<CpuBackend>(&cache, &cpu_device())
-            .unwrap();
+        let loaded = no_rule.load(&cache, &cpu_device()).unwrap();
         assert_eq!(*loaded.handle, vec![checkpoint, vocabulary]);
 
         assert_eq!(NeedsConfig.plan(&model, &cache).unwrap(), model.to_map());
@@ -316,7 +311,7 @@ mod tests {
             &checkpoint,
         ))
         .unwrap()
-        .load::<CpuBackend>(&cache, &cpu_device())
+        .load(&cache, &cpu_device())
         .unwrap_err();
         ErrorMatcher::kind(BunsenErrorKind::Lookup)
             .frame_contains("loading paths \"mine\"")
@@ -328,7 +323,7 @@ mod tests {
         let absent = dir.path().join("absent.pt");
         let err = Deferred::<Paths>::from_map(ResourceMap::given("mine", "checkpoint", &absent))
             .unwrap()
-            .load::<CpuBackend>(&cache, &cpu_device())
+            .load(&cache, &cpu_device())
             .unwrap_err();
         ErrorMatcher::kind(BunsenErrorKind::Lookup)
             .cause(predicate("the absent path", move |c: &LookupError| {

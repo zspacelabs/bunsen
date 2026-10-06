@@ -2,10 +2,7 @@
 
 use burn::{
     Tensor,
-    prelude::{
-        Backend,
-        Int,
-    },
+    prelude::Int,
     tensor::{
         Distribution,
         activation::log_softmax,
@@ -83,7 +80,7 @@ impl WhisperGreedyDecoder {
     }
 }
 
-impl<B: Backend> TokenDecoder<B> for WhisperGreedyDecoder {
+impl TokenDecoder for WhisperGreedyDecoder {
     fn group_size(&self) -> usize {
         self.group
     }
@@ -95,7 +92,7 @@ impl<B: Backend> TokenDecoder<B> for WhisperGreedyDecoder {
     fn update(
         &mut self,
         tokens: &mut Vec<Vec<i64>>,
-        logits: Tensor<B, 2>,
+        logits: Tensor<2>,
         sum_logprobs: &mut [f32],
         _reorder: &mut dyn FnMut(&[usize]),
     ) -> (Vec<i64>, bool) {
@@ -104,10 +101,10 @@ impl<B: Backend> TokenDecoder<B> for WhisperGreedyDecoder {
             self.finished = vec![false; rows];
         }
 
-        let picked: Tensor<B, 2, Int> = if self.temperature > 0.0 {
+        let picked: Tensor<2, Int> = if self.temperature > 0.0 {
             // Gumbel-max: argmax(logits / t + g), g = -log(-log u), is a
             // sample from softmax(logits / t). Suppressed ids stay -inf.
-            let uniform: Tensor<B, 2> = Tensor::random(
+            let uniform: Tensor<2> = Tensor::random(
                 logits.dims(),
                 Distribution::Uniform(0.0, 1.0),
                 &logits.device(),
@@ -118,17 +115,11 @@ impl<B: Backend> TokenDecoder<B> for WhisperGreedyDecoder {
         } else {
             logits.clone().argmax(1)
         };
-        let chosen: Vec<i64> = picked
-            .clone()
-            .into_data()
-            .convert::<i64>()
-            .to_vec()
-            .unwrap();
+        let chosen: Vec<i64> = picked.clone().into_data().try_into_vec_as::<i64>().unwrap();
         let logprobs: Vec<f32> = log_softmax(logits, 1)
             .gather(1, picked)
             .into_data()
-            .convert::<f32>()
-            .to_vec()
+            .try_into_vec_as::<f32>()
             .unwrap();
 
         let mut feed = Vec::with_capacity(rows);
@@ -173,11 +164,8 @@ mod tests {
     use burn::prelude::TensorData;
 
     use super::*;
-    use crate::support::testing::CpuBackend;
 
-    type B = CpuBackend;
-
-    fn logits(rows: &[&[f32]]) -> Tensor<B, 2> {
+    fn logits(rows: &[&[f32]]) -> Tensor<2> {
         let vocab = rows[0].len();
         let flat: Vec<f32> = rows.iter().flat_map(|r| r.iter().copied()).collect();
         Tensor::from_data(
@@ -197,7 +185,7 @@ mod tests {
         let mut reorders = 0;
         let mut reorder = |_: &[usize]| reorders += 1;
 
-        let (feed, done) = TokenDecoder::<B>::update(
+        let (feed, done) = TokenDecoder::update(
             &mut decoder,
             &mut tokens,
             logits(&[&[0.0, 5.0, 0.0, 0.0], &[0.0, 0.0, 0.0, 5.0]]),
@@ -210,7 +198,7 @@ mod tests {
         assert!(sums[0] < 0.0 && sums[0] > -0.1, "log p of a confident pick");
         assert_eq!(sums[1], 0.0, "a stop token adds nothing");
 
-        let (feed, done) = TokenDecoder::<B>::update(
+        let (feed, done) = TokenDecoder::update(
             &mut decoder,
             &mut tokens,
             logits(&[&[0.0, 0.0, 0.0, 5.0], &[5.0, 0.0, 0.0, 0.0]]),
@@ -226,12 +214,12 @@ mod tests {
         );
         assert_eq!(reorders, 0, "greedy never permutes the cache");
 
-        let out = TokenDecoder::<B>::finalize(&mut decoder, tokens, sums, 2);
+        let out = TokenDecoder::finalize(&mut decoder, tokens, sums, 2);
         assert_eq!(out[0].len(), 1);
         assert_eq!(out[0][0].0, vec![1]);
         assert_eq!(out[1][0].0, Vec::<i64>::new());
 
-        TokenDecoder::<B>::reset(&mut decoder);
+        TokenDecoder::reset(&mut decoder);
         assert!(decoder.finished.is_empty());
     }
 
@@ -247,7 +235,7 @@ mod tests {
         for _ in 0..8 {
             let mut tokens = vec![vec![9]];
             let mut sums = vec![0.0];
-            let (feed, _) = TokenDecoder::<B>::update(
+            let (feed, _) = TokenDecoder::update(
                 &mut decoder,
                 &mut tokens,
                 logits(&[&[0.0, 30.0, 0.0, 0.0]]),
@@ -260,14 +248,14 @@ mod tests {
                 "log p of a certain pick: {}",
                 sums[0]
             );
-            TokenDecoder::<B>::reset(&mut decoder);
+            TokenDecoder::reset(&mut decoder);
         }
 
         let mut seen = [0usize; 4];
         for _ in 0..64 {
             let mut tokens = vec![vec![9]];
             let mut sums = vec![0.0];
-            let (feed, _) = TokenDecoder::<B>::update(
+            let (feed, _) = TokenDecoder::update(
                 &mut decoder,
                 &mut tokens,
                 logits(&[&[5.0, -30.0, 5.0, -30.0]]),
@@ -275,7 +263,7 @@ mod tests {
                 &mut reorder,
             );
             seen[feed[0] as usize] += 1;
-            TokenDecoder::<B>::reset(&mut decoder);
+            TokenDecoder::reset(&mut decoder);
         }
         assert!(seen[0] > 0 && seen[2] > 0, "both sides of a tie: {seen:?}");
         assert!(
@@ -290,8 +278,8 @@ mod tests {
         let mut decoder = WhisperGreedyDecoder::new(3, 9)
             .with_temperature(0.5)
             .with_group(2);
-        assert_eq!(TokenDecoder::<B>::group_size(&decoder), 2);
-        let out = TokenDecoder::<B>::finalize(
+        assert_eq!(TokenDecoder::group_size(&decoder), 2);
+        let out = TokenDecoder::finalize(
             &mut decoder,
             vec![vec![9, 1], vec![9, 2], vec![9, 1, 1], vec![9]],
             vec![-1.0, -2.0, -3.0, -4.0],

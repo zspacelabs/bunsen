@@ -2,8 +2,10 @@
 
 use burn::{
     Tensor,
-    prelude::Backend,
-    tensor::linalg,
+    tensor::{
+        Device,
+        linalg,
+    },
 };
 
 /// Computes the rotary embedding inverse frequency table.
@@ -19,11 +21,11 @@ use burn::{
 /// # Returns
 /// - a `[head_dim / 2]` tensor, holding, for each even dimension index `d`, the
 ///   inverse frequency `1.0 / base**(d / head_dim)`.
-pub fn inverse_frequency_table<B: Backend>(
+pub fn inverse_frequency_table(
     base: usize,
     head_dim: usize,
-    device: &B::Device,
-) -> Tensor<B, 1> {
+    device: &Device,
+) -> Tensor<1> {
     Tensor::from_data([base as f32], device).powf(
         -Tensor::arange_step(0..head_dim as i64, 2, device)
             .float()
@@ -47,17 +49,17 @@ pub fn inverse_frequency_table<B: Backend>(
 ///
 /// # Returns
 /// - `[T, F=D/2]` sequence x inverse frequency table.
-pub fn positional_frequency_table<B: Backend>(
+pub fn positional_frequency_table(
     seq_len: usize,
     base: usize,
     head_dim: usize,
-    device: &B::Device,
-) -> Tensor<B, 2> {
-    let inv_freq = inverse_frequency_table::<B>(base, head_dim, device);
+    device: &Device,
+) -> Tensor<2> {
+    let inv_freq = inverse_frequency_table(base, head_dim, device);
 
-    let t: Tensor<B, 1> = Tensor::arange(0..seq_len as i64, device).float();
+    let t: Tensor<1> = Tensor::arange(0..seq_len as i64, device).float();
 
-    linalg::outer::<_, 1, 2, _>(t, inv_freq)
+    linalg::outer::<1, 2, _>(t, inv_freq)
 }
 
 #[cfg(test)]
@@ -68,14 +70,12 @@ mod tests {
     use super::*;
     use crate::support::testing::{
         DeviceMemoryGuard,
-        PerformanceBackend,
         performance_device,
     };
 
     #[test]
     #[serial]
     fn test_inverse_frequency_table() {
-        type B = PerformanceBackend;
         let device = performance_device();
         let _memory = DeviceMemoryGuard::new(&device);
 
@@ -85,10 +85,10 @@ mod tests {
         let base_f = base as f32;
         let head_dim_f = head_dim as f32;
 
-        inverse_frequency_table::<B>(base, head_dim, &device)
+        inverse_frequency_table(base, head_dim, &device)
             .to_data()
             .assert_approx_eq(
-                &Tensor::<B, 1>::from_data(
+                &Tensor::<1>::from_data(
                     [
                         1.0 / base_f.powf(0.0 / head_dim_f),
                         1.0 / base_f.powf(2.0 / head_dim_f),
@@ -103,7 +103,6 @@ mod tests {
     #[test]
     #[serial]
     fn test_frequency_matrix() {
-        type B = PerformanceBackend;
         let device = performance_device();
         let _memory = DeviceMemoryGuard::new(&device);
 
@@ -113,10 +112,10 @@ mod tests {
         let base_f = base as f32;
         let head_dim_f = head_dim as f32;
 
-        positional_frequency_table::<B>(3, base, head_dim, &device)
+        positional_frequency_table(3, base, head_dim, &device)
             .to_data()
             .assert_approx_eq(
-                &Tensor::<B, 2>::from_data(
+                &Tensor::<2>::from_data(
                     [
                         [0.0, 0.0],
                         [

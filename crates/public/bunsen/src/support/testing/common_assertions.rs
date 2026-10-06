@@ -1,28 +1,13 @@
-use std::{
-    any::{
-        Any,
-        TypeId,
-    },
-    fmt::Debug,
-    sync::LazyLock,
-};
+use std::fmt::Debug;
 
 use burn::{
-    module::Param,
     prelude::{
-        Backend,
         Tensor,
         TensorData,
     },
-    tensor::{
-        Tolerance,
-        backend::DeviceOps,
-    },
+    tensor::Tolerance,
 };
-use dashmap::DashMap;
 use num_traits::float::Float;
-
-use crate::burner::tensor::TensorElemOpExt;
 
 /// Asserts that two host slices of floats are close, element by element.
 ///
@@ -76,72 +61,47 @@ pub fn assert_close_to_vec<T>(
 ///
 /// Panics if `expected` does not hold exactly `actual.dims()` elements, or if
 /// any pair differs by more than `tolerance`.
-pub fn assert_tensor_close_to_vec<B, const D: usize>(
-    actual: &Tensor<B, D>,
+pub fn assert_tensor_close_to_vec<const D: usize>(
+    actual: &Tensor<D>,
     expected: &[f64],
-    tolerance: Tolerance<B::FloatElem>,
-) where
-    B: Backend,
-    B::FloatElem: Float,
-{
-    let expected = TensorData::new(expected.to_vec(), actual.dims()).convert::<B::FloatElem>();
+    tolerance: Tolerance<f32>,
+) {
+    let expected = TensorData::new(expected.to_vec(), actual.dims()).convert::<f32>();
     actual
-        .to_data_as::<B::FloatElem>()
-        .assert_approx_eq::<B::FloatElem>(&expected, tolerance);
+        .to_data_as::<f32>()
+        .assert_approx_eq::<f32>(&expected, tolerance);
 }
 
 /// Asserts that two tensors of the same shape are approximately equal.
 ///
-/// Both sides are read back at the backend's float element type, so tensors
-/// that differ only in dtype still compare.
+/// Both sides are read back as `f32`, so tensors that differ only in dtype
+/// still compare.
 ///
 /// # Panics
 ///
 /// Panics if the shapes differ, or if any pair of values differs by more than
 /// `tolerance`.
-pub fn assert_tensors_close<B, const D: usize>(
-    actual: &Tensor<B, D>,
-    expected: &Tensor<B, D>,
-    tolerance: Tolerance<B::FloatElem>,
-) where
-    B: Backend,
-    B::FloatElem: Float,
-{
+pub fn assert_tensors_close<const D: usize>(
+    actual: &Tensor<D>,
+    expected: &Tensor<D>,
+    tolerance: Tolerance<f32>,
+) {
     actual
-        .to_data_as::<B::FloatElem>()
-        .assert_approx_eq::<B::FloatElem>(&expected.to_data_as::<B::FloatElem>(), tolerance);
-}
-
-/// Applies a parameter's **load**-path mapping to a tensor.
-///
-/// A [`Param`] can carry transformations that run only as it crosses a store
-/// boundary — see [`repair_pytorch_strided_weight`] — which makes them
-/// invisible from the outside. This exposes the load side, so a test can
-/// assert *which* mappings a module attached, and to which parameters.
-///
-/// [`repair_pytorch_strided_weight`]:
-///     crate::burner::store::repair_pytorch_strided_weight
-pub fn param_load_mapping<B, const D: usize>(
-    param: &Param<Tensor<B, D>>,
-    tensor: Tensor<B, D>,
-) -> Tensor<B, D>
-where
-    B: Backend,
-{
-    param.clone().consume().2.on_load(tensor)
+        .to_data_as::<f32>()
+        .assert_approx_eq::<f32>(&expected.to_data_as::<f32>(), tolerance);
 }
 
 #[cfg(test)]
 mod tests {
-    use std::any::TypeId;
-
     use burn::{
         prelude::{
-            Device,
             Tensor,
             TensorData,
         },
-        tensor::Tolerance,
+        tensor::{
+            Device,
+            Tolerance,
+        },
     };
     use serial_test::serial;
 
@@ -151,13 +111,11 @@ mod tests {
         performance_device,
     };
 
-    type B = crate::support::testing::PerformanceBackend;
-
     /// A `[2, 2]` tensor holding `values` in row-major order.
     fn square(
         values: [f64; 4],
-        device: &Device<B>,
-    ) -> Tensor<B, 2> {
+        device: &Device,
+    ) -> Tensor<2> {
         Tensor::from_data(TensorData::new(values.to_vec(), [2, 2]), device)
     }
 

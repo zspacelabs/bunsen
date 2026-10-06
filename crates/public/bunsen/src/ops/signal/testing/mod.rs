@@ -1,10 +1,7 @@
 //! Testing utilities for signal operations.
 
 use burn::{
-    prelude::{
-        Backend,
-        TensorData,
-    },
+    prelude::TensorData,
     tensor::{
         TensorCreationOptions,
         Tolerance,
@@ -14,7 +11,6 @@ use tracing::debug;
 
 use crate::{
     ops::signal::SamplingWindowBuilder,
-    prelude::TensorElemOpExt,
     support::testing::assert_close_to_vec,
 };
 
@@ -31,10 +27,10 @@ use crate::{
 /// # Panics
 ///
 /// Panics if either materialization differs from `expected`.
-pub fn assert_sampling_window_builder_implementation<B: Backend>(
+pub fn assert_sampling_window_builder_implementation(
     builder: &impl SamplingWindowBuilder,
     expected: &[f64],
-    options: impl Into<TensorCreationOptions<B>>,
+    options: impl Into<TensorCreationOptions>,
 ) {
     let size = expected.len();
     let options = options.into();

@@ -10,10 +10,8 @@ use burn::{
             Conv2dConfig,
         },
     },
-    prelude::{
-        Backend,
-        Tensor,
-    },
+    prelude::Tensor,
+    tensor::Device,
 };
 
 use crate::{
@@ -112,11 +110,11 @@ impl PatchEmbedMeta for PatchEmbedConfig {
     }
 }
 
-impl<B: Backend> ModuleInit<B, PatchEmbed<B>> for PatchEmbedConfig {
+impl ModuleInit<PatchEmbed> for PatchEmbedConfig {
     fn try_init(
         &self,
-        device: &B::Device,
-    ) -> BunsenResult<PatchEmbed<B>> {
+        device: &Device,
+    ) -> BunsenResult<PatchEmbed> {
         let [h, w] = self.input_resolution;
         assert!(
             h % self.patch_size == 0 && w % self.patch_size == 0,
@@ -146,7 +144,7 @@ impl<B: Backend> ModuleInit<B, PatchEmbed<B>> for PatchEmbedConfig {
 ///
 /// Built by [`PatchEmbedConfig`].
 #[derive(Module, Debug)]
-pub struct PatchEmbed<B: Backend> {
+pub struct PatchEmbed {
     /// Input resolution (height, width).
     pub input_resolution: [usize; 2],
 
@@ -154,13 +152,13 @@ pub struct PatchEmbed<B: Backend> {
     pub patch_size: usize,
 
     /// Convolutional layer for patch projection.
-    pub projection: Conv2d<B>,
+    pub projection: Conv2d,
 
     /// Patch normalization layer, if enabled.
-    pub norm: Option<LayerNorm<B>>,
+    pub norm: Option<LayerNorm>,
 }
 
-impl<B: Backend> PatchEmbedMeta for PatchEmbed<B> {
+impl PatchEmbedMeta for PatchEmbed {
     fn input_resolution(&self) -> [usize; 2] {
         self.input_resolution
     }
@@ -182,7 +180,7 @@ impl<B: Backend> PatchEmbedMeta for PatchEmbed<B> {
     }
 }
 
-impl<B: Backend> PatchEmbed<B> {
+impl PatchEmbed {
     /// Applies the `PatchEmbed` module to an input tensor.
     ///
     /// # Arguments
@@ -195,8 +193,8 @@ impl<B: Backend> PatchEmbed<B> {
     #[must_use]
     pub fn forward(
         &self,
-        x: Tensor<B, 4>,
-    ) -> Tensor<B, 3> {
+        x: Tensor<4>,
+    ) -> Tensor<3> {
         assert_shape_contract_periodically!(
             ["batch", "d_input", "height", "width"],
             &x.dims(),
@@ -258,15 +256,11 @@ mod tests {
     use super::*;
     use crate::{
         errors::WithOkOrPanic,
-        support::testing::{
-            CpuBackend,
-            cpu_device,
-        },
+        support::testing::cpu_device,
     };
 
     #[test]
     fn test_patch_embed_meta() {
-        type B = CpuBackend;
         let config = PatchEmbedConfig {
             input_resolution: [224, 224],
             patch_size: 16,
@@ -288,7 +282,7 @@ mod tests {
         assert!(config.enable_patch_norm());
 
         let device = cpu_device();
-        let patch_embed: PatchEmbed<B> = config.try_init(&device).ok_or_panic();
+        let patch_embed: PatchEmbed = config.try_init(&device).ok_or_panic();
 
         assert_eq!(patch_embed.input_resolution(), [224, 224]);
         assert_eq!(patch_embed.patch_size(), 16);
@@ -306,7 +300,6 @@ mod tests {
     #[should_panic(expected = "Input resolution must be divisible by patch size")]
     #[test]
     fn test_patch_embed_invalid_resolution() {
-        type B = CpuBackend;
         let config = PatchEmbedConfig {
             input_resolution: [224, 223], // Invalid resolution
             patch_size: 16,
@@ -315,12 +308,11 @@ mod tests {
             enable_patch_norm: true,
         };
         let device = cpu_device();
-        let _d: PatchEmbed<B> = config.try_init(&device).ok_or_panic();
+        let _d: PatchEmbed = config.try_init(&device).ok_or_panic();
     }
 
     #[test]
     fn test_patch_embed_forward() {
-        type B = CpuBackend;
         let config = PatchEmbedConfig {
             input_resolution: [224, 224],
             patch_size: 16,
@@ -331,7 +323,7 @@ mod tests {
         let device = cpu_device();
         let patch_embed = config.try_init(&device).ok_or_panic();
 
-        let input = Tensor::<B, 4>::from_data(
+        let input = Tensor::<4>::from_data(
             TensorData::new(vec![1.0; 3 * 224 * 224], [1, 3, 224, 224]),
             &device,
         );
@@ -342,7 +334,6 @@ mod tests {
 
     #[test]
     fn test_patch_embed_without_norm() {
-        type B = CpuBackend;
         let config = PatchEmbedConfig {
             input_resolution: [224, 224],
             patch_size: 16,
@@ -353,7 +344,7 @@ mod tests {
         let device = cpu_device();
         let patch_embed = config.try_init(&device).ok_or_panic();
 
-        let input = Tensor::<B, 4>::from_data(
+        let input = Tensor::<4>::from_data(
             TensorData::new(vec![1.0; 3 * 224 * 224], [1, 3, 224, 224]),
             &device,
         );

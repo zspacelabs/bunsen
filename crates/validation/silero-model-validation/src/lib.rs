@@ -38,7 +38,7 @@ pub mod reference {
     pub use bunsen_bundled_silero::onnx_gen::*;
 
     /// Reference ONNX Model.
-    pub type ReferenceModel<B> = Model<B>;
+    pub type ReferenceModel = Model;
 }
 
 mod cross_test;

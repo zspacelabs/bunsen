@@ -1,4 +1,4 @@
-use burn::prelude::Backend;
+use burn::tensor::Device;
 
 /// Releases `device`'s cached memory pages.
 ///
@@ -23,15 +23,15 @@ use burn::prelude::Backend;
 ///
 /// Only pages that are **entirely free** are returned, so this reclaims a
 /// previous test's pool rather than the caller's own live tensors. It is a
-/// no-op on backends without a pooled allocator, [`CpuBackend`] among them.
+/// no-op on backends without a pooled allocator, [`cpu_device`] among them.
 ///
 /// Prefer [`DeviceMemoryGuard`] at a test's top over calling this at its
 /// bottom: a trailing call is skipped by the panic it would be most useful
 /// after.
 ///
-/// [`CpuBackend`]: crate::support::testing::CpuBackend
-pub fn release_cached_device_memory<B: Backend>(device: &B::Device) {
-    B::memory_cleanup(device);
+/// [`cpu_device`]: crate::support::testing::cpu_device
+pub fn release_cached_device_memory(device: &Device) {
+    device.memory_cleanup();
 }
 
 /// Releases a device's cached memory pages when it drops.
@@ -41,12 +41,10 @@ pub fn release_cached_device_memory<B: Backend>(device: &B::Device) {
 ///
 /// ```
 /// use bunsen::support::testing::{
-///     CpuBackend,
 ///     DeviceMemoryGuard,
 ///     cpu_device,
 /// };
 ///
-/// type B = CpuBackend;
 /// let device = cpu_device();
 /// let _memory = DeviceMemoryGuard::new(&device);
 ///
@@ -71,23 +69,26 @@ pub fn release_cached_device_memory<B: Backend>(device: &B::Device) {
 /// time; it does nothing about what it holds *at once*, and tests running
 /// concurrently each hold their own working set. A dozen of those is enough to
 /// exhaust a 24 GiB card even though no single one comes close.
-pub struct DeviceMemoryGuard<B: Backend> {
+pub struct DeviceMemoryGuard {
     /// The device whose pool is released on drop.
-    device: B::Device,
+    device: Device,
 }
 
-impl<B: Backend> DeviceMemoryGuard<B> {
+impl DeviceMemoryGuard {
     /// Guards `device`'s memory pool, releasing it when the guard drops.
-    pub fn new(device: &B::Device) -> Self {
+    pub fn new(device: &Device) -> Self {
         Self {
             device: device.clone(),
         }
     }
 }
 
-impl<B: Backend> Drop for DeviceMemoryGuard<B> {
+impl Drop for DeviceMemoryGuard {
     fn drop(&mut self) {
-        release_cached_device_memory::<B>(&self.device);
+        // Queued work can still hold pages; let it finish first. A poisoned
+        // device reports an error here, which must not panic mid-unwind.
+        let _ = self.device.sync();
+        release_cached_device_memory(&self.device);
     }
 }
 
@@ -99,24 +100,25 @@ mod tests {
     };
 
     use super::*;
-    use crate::support::testing::{
-        CpuBackend, 
-    };
+    use crate::support::testing::cpu_device;
 
     /// The release path runs, and leaves live tensors alone.
     ///
-    /// `CpuBackend` has no pooled allocator, so this asserts the contract
+    /// The CPU device has no pooled allocator, so this asserts the contract
     /// rather than any reclamation: a guard around live work is harmless.
     #[test]
     fn test_guard_leaves_live_tensors_intact() {
         let device = cpu_device();
-        let tensor = Tensor::<CpuBackend, 1>::from_data(TensorData::from([1.0, 2.0]), &device);
+        let tensor = Tensor::<1>::from_data(TensorData::from([1.0, 2.0]), &device);
 
         {
             let _memory = DeviceMemoryGuard::new(&device);
-            release_cached_device_memory::<CpuBackend>(&device);
+            release_cached_device_memory(&device);
         }
 
-        assert_eq!(tensor.into_data().to_vec::<f32>().unwrap(), vec![1.0, 2.0]);
+        assert_eq!(
+            tensor.into_data().try_to_vec_as::<f32>().unwrap(),
+            vec![1.0, 2.0]
+        );
     }
 }

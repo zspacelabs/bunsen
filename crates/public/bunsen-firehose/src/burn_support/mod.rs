@@ -25,7 +25,7 @@
 //! let batcher = FirehoseExecutorBatcher::new(
 //!     Arc::new(SequentialBatchExecutor::new(schema.clone(), env.clone())?),
 //!     Arc::new(MyInputAdapter::new(schema.clone())),
-//!     Arc::new(MyOutputAdapter::<B>::default()),
+//!     Arc::new(MyOutputAdapter::default()),
 //! );
 //!
 //! let loader = DataLoaderBuilder::new(batcher)

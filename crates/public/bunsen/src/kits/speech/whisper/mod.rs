@@ -78,23 +78,22 @@
 //!         pretrained::default_whisper_factory,
 //!     },
 //! };
-//! use burn::prelude::Backend;
 //!
 //! /// The named model as a driver on `device`, with the defaults: the
 //! /// language detected from the first window, a transcription, greedy,
 //! /// and the offline emission policy, which decodes whole windows as
 //! /// they fill and commits each once.
-//! fn load_driver<B: Backend>(
+//! fn load_driver(
 //!     name: &str,
-//!     device: &B::Device,
-//! ) -> BunsenResult<WhisperStreamDriver<B>> {
+//!     device: &Device,
+//! ) -> BunsenResult<WhisperStreamDriver> {
 //!     let cache = PretrainedCache::new(PretrainedCacheOptions::default())?;
 //!
 //!     // A name to a bundle: the checkpoint read through the reader its
 //!     // row names, checked against the geometry the name promises, and
 //!     // the vocabulary its token layout selects.
-//!     let bundle = default_whisper_factory()?
-//!         .load_bundle::<B>(name, &cache, device)?;
+//!     let bundle =
+//!         default_whisper_factory()?.load_bundle(name, &cache, device)?;
 //!
 //!     WhisperStreamDriverConfig::new().init_from_bundle(bundle, device)
 //! }
@@ -102,8 +101,8 @@
 //! /// One stream through the driver: mono samples at the model's rate
 //! /// (16 kHz), pushed as a live loop would feed them; the segments as
 //! /// they became final.
-//! fn transcribe<B: Backend>(
-//!     driver: &WhisperStreamDriver<B>,
+//! fn transcribe(
+//!     driver: &WhisperStreamDriver,
 //!     samples: &[f32],
 //! ) -> BunsenResult<Vec<TranscriptSegment>> {
 //!     // A bare stream: a clock from zero at the model's rate, and the
@@ -127,11 +126,11 @@
 //!     Ok(segments)
 //! }
 //!
-//! fn run<B: Backend>(
-//!     device: &B::Device,
+//! fn run(
+//!     device: &Device,
 //!     samples: &[f32],
 //! ) -> BunsenResult<()> {
-//!     let driver = load_driver::<B>("openai/base", device)?;
+//!     let driver = load_driver("openai/base", device)?;
 //!     for segment in transcribe(&driver, samples)? {
 //!         println!(
 //!             "[{:7.2} --> {:7.2}] {}",
@@ -190,27 +189,26 @@
 //!         },
 //!     },
 //! };
-//! use burn::prelude::Backend;
 //!
 //! /// A checkpoint on disk: a given map, read by the reader its file
 //! /// calls for, with the vocabulary its layout selects.
-//! fn load_from_path<B: Backend>(
+//! fn load_from_path(
 //!     path: &Path,
 //!     cache: &PretrainedCache,
-//!     device: &B::Device,
-//! ) -> BunsenResult<Arc<WhisperBundle<B>>> {
+//!     device: &Device,
+//! ) -> BunsenResult<Arc<WhisperBundle>> {
 //!     Deferred::<WhisperConstruct>::from_map(ResourceMap::given(
 //!         "mine", CHECKPOINT, path,
 //!     ))?
-//!     .load_bundle::<B>(cache, device)
+//!     .load_bundle(cache, device)
 //! }
 //!
 //! /// A Hugging Face repo: `transformers`' safetensors, one file or shards.
-//! fn load_from_hub<B: Backend>(
+//! fn load_from_hub(
 //!     cache: &PretrainedCache,
-//!     device: &B::Device,
-//! ) -> BunsenResult<Arc<WhisperBundle<B>>> {
-//!     default_whisper_factory()?.load_bundle::<B>(
+//!     device: &Device,
+//! ) -> BunsenResult<Arc<WhisperBundle>> {
+//!     default_whisper_factory()?.load_bundle(
 //!         "hf:openai/whisper-large-v3",
 //!         cache,
 //!         device,
@@ -218,28 +216,28 @@
 //! }
 //!
 //! /// A named model with a vocabulary file of one's own over its row's.
-//! fn load_with_vocabulary<B: Backend>(
+//! fn load_with_vocabulary(
 //!     vocabulary: &Path,
 //!     cache: &PretrainedCache,
-//!     device: &B::Device,
-//! ) -> BunsenResult<Arc<WhisperBundle<B>>> {
+//!     device: &Device,
+//! ) -> BunsenResult<Arc<WhisperBundle>> {
 //!     default_whisper_factory()?
 //!         .resolve("openai/tiny.en", cache)?
 //!         .with_overlay(ResourceMap::given(
 //!             "--vocab", VOCABULARY, vocabulary,
 //!         ))?
-//!         .load_bundle::<B>(cache, device)
+//!         .load_bundle(cache, device)
 //! }
 //!
 //! /// Conservative real time: decodes on speech endpoints as well as full
 //! /// windows, with the bundled Silero model as the voice-activity gate.
-//! fn conservative_driver<B: Backend>(
-//!     bundle: Arc<WhisperBundle<B>>,
+//! fn conservative_driver(
+//!     bundle: Arc<WhisperBundle>,
 //!     cache: &PretrainedCache,
-//!     device: &B::Device,
-//! ) -> BunsenResult<WhisperStreamDriver<B>> {
+//!     device: &Device,
+//! ) -> BunsenResult<WhisperStreamDriver> {
 //!     let vad = default_silero_factory()?
-//!         .load::<B>("bundled:silero/vad", cache, device)?
+//!         .load("bundled:silero/vad", cache, device)?
 //!         .handle;
 //!     // The 16 kHz branch, and the filter's 16 kHz defaults: the model's
 //!     // rate.

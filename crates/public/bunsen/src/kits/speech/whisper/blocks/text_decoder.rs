@@ -11,13 +11,11 @@ use burn::{
         LayerNorm,
         LayerNormConfig,
     },
-    prelude::{
-        Backend,
-        s,
-    },
+    prelude::s,
     tensor::{
         Bool,
         DType,
+        Device,
         Distribution,
         Int,
         TensorData,
@@ -31,8 +29,7 @@ use crate::{
             HasDType,
             ModuleInit,
         },
-        store::FixPytorchLoadMappers,
-        tensor::backend_float_dtype,
+        tensor::device_float_dtype,
     },
     errors::BunsenResult,
     kits::speech::whisper::blocks::{
@@ -113,15 +110,15 @@ impl TextDecoderMeta for TextDecoderConfig {
     }
 }
 
-impl<B: Backend> ModuleInit<B, TextDecoder<B>> for TextDecoderConfig {
+impl ModuleInit<TextDecoder> for TextDecoderConfig {
     fn try_init(
         &self,
-        device: &B::Device,
-    ) -> BunsenResult<TextDecoder<B>> {
+        device: &Device,
+    ) -> BunsenResult<TextDecoder> {
         Ok(TextDecoder {
             token_embedding: EmbeddingConfig::new(self.vocab_size, self.d_model).init(device),
 
-            positional_embedding: Param::from_tensor(Tensor::<B, 2>::random(
+            positional_embedding: Param::from_tensor(Tensor::<2>::random(
                 [self.max_context, self.d_model],
                 Distribution::Normal(0.0, 1.0),
                 device,
@@ -134,7 +131,7 @@ impl<B: Backend> ModuleInit<B, TextDecoder<B>> for TextDecoderConfig {
                         .with_dropout(self.block_dropout)
                         .try_init(device)
                 })
-                .collect::<BunsenResult<Vec<ResidualDecoderAttentionBlock<B>>>>()?,
+                .collect::<BunsenResult<Vec<ResidualDecoderAttentionBlock>>>()?,
 
             ln: LayerNormConfig::new(self.d_model).init(device),
             // mask: Param::from_tensor(attn_decoder_mask(self.max_text_context, device)),
@@ -151,31 +148,22 @@ impl<B: Backend> ModuleInit<B, TextDecoder<B>> for TextDecoderConfig {
 ///
 /// Built by [`TextDecoderConfig`].
 #[derive(Module, Debug)]
-pub struct TextDecoder<B: Backend> {
+pub struct TextDecoder {
     /// The token embedding.
-    pub token_embedding: Embedding<B>,
+    pub token_embedding: Embedding,
 
     /// The positional embedding.
-    pub positional_embedding: Param<Tensor<B, 2>>,
+    pub positional_embedding: Param<Tensor<2>>,
 
     /// The decoder blocks.
-    pub blocks: Vec<ResidualDecoderAttentionBlock<B>>,
+    pub blocks: Vec<ResidualDecoderAttentionBlock>,
 
     /// The output layer norm.
-    pub ln: LayerNorm<B>,
-    // mask: Param<Tensor<B, 2>>,
+    pub ln: LayerNorm,
+    // mask: Param<Tensor<2>>,
 }
 
-impl<B: Backend> FixPytorchLoadMappers for TextDecoder<B> {
-    /// Only the attention blocks are affected: the token and positional
-    /// embeddings and the final layer norm are stored contiguously.
-    fn fix_pytorch_load_mappers(mut self) -> Self {
-        self.blocks = self.blocks.fix_pytorch_load_mappers();
-        self
-    }
-}
-
-impl<B: Backend> TextDecoderMeta for TextDecoder<B> {
+impl TextDecoderMeta for TextDecoder {
     fn vocab_size(&self) -> usize {
         self.token_embedding.weight.val().dims()[0]
     }
@@ -197,13 +185,13 @@ impl<B: Backend> TextDecoderMeta for TextDecoder<B> {
     }
 }
 
-impl<B: Backend> HasDType for TextDecoder<B> {
+impl HasDType for TextDecoder {
     fn dtype(&self) -> DType {
         self.token_embedding.weight.dtype()
     }
 }
 
-impl<B: Backend> TextDecoder<B> {
+impl TextDecoder {
     /// Runs the decoder.
     ///
     /// # Arguments
@@ -213,7 +201,7 @@ impl<B: Backend> TextDecoder<B> {
     ///
     /// # Returns
     /// `[batch, seq, n_vocab]` logits, in the backend's default float
-    /// ([`backend_float_dtype`]) whatever the decoder's own precision. This
+    /// ([`device_float_dtype`]) whatever the decoder's own precision. This
     /// is the model's outward edge: everything past it — the log-softmax,
     /// the samplers, the [`LogitFilter`]s, the host reads — works in the
     /// backend's float, and upstream likewise takes its logits to `float()`
@@ -222,9 +210,9 @@ impl<B: Backend> TextDecoder<B> {
     /// [`LogitFilter`]: crate::kits::speech::whisper::logit_filters::LogitFilter
     pub fn forward(
         &self,
-        x: Tensor<B, 2, Int>,
-        xa: Tensor<B, 3>,
-    ) -> Tensor<B, 3> {
+        x: Tensor<2, Int>,
+        xa: Tensor<3>,
+    ) -> Tensor<3> {
         let xa = xa.cast(self.dtype());
 
         let [_batch, seq_len] = x.dims();
@@ -239,7 +227,7 @@ impl<B: Backend> TextDecoder<B> {
 
         //let mask = attn_decoder_mask(seq_len);
 
-        let mask: Option<Tensor<B, 3, Bool>> = causal_mask(seq_len, 0, &x.device()).into();
+        let mask: Option<Tensor<3, Bool>> = causal_mask(seq_len, 0, &x.device()).into();
 
         let mut x = x;
         for b in self.blocks.iter() {
@@ -250,7 +238,10 @@ impl<B: Backend> TextDecoder<B> {
 
         // denorm [batch, seq_len, n_vocab]
         // Needs softmax / beamsearch.
-        unembed(&self.token_embedding, x).cast(backend_float_dtype::<B>())
+        {
+            let dtype = device_float_dtype(&x.device());
+            unembed(&self.token_embedding, x).cast(dtype)
+        }
     }
 
     /// Opens an incremental decode cache against a fixed encoder output.
@@ -263,8 +254,8 @@ impl<B: Backend> TextDecoder<B> {
     ///   dtype; the cache is built in [`dtype`](Self::dtype).
     pub fn new_cache(
         &self,
-        xa: Tensor<B, 3>,
-    ) -> TextDecoderCache<B> {
+        xa: Tensor<3>,
+    ) -> TextDecoderCache {
         self.new_cache_grouped(xa, 1)
     }
 
@@ -280,9 +271,9 @@ impl<B: Backend> TextDecoder<B> {
     /// beam that repeating `xa` would cost is never made.
     pub fn new_cache_grouped(
         &self,
-        xa: Tensor<B, 3>,
+        xa: Tensor<3>,
         group: usize,
-    ) -> TextDecoderCache<B> {
+    ) -> TextDecoderCache {
         assert!(group >= 1, "at least one row per audio");
 
         // The cross-attention cache is the bulk of the decode's state and is
@@ -326,9 +317,9 @@ impl<B: Backend> TextDecoder<B> {
     /// the backend's default float, as [`forward`](Self::forward).
     pub fn forward_cached(
         &self,
-        x: Tensor<B, 2, Int>,
-        cache: &mut TextDecoderCache<B>,
-    ) -> Tensor<B, 3> {
+        x: Tensor<2, Int>,
+        cache: &mut TextDecoderCache,
+    ) -> Tensor<3> {
         assert_eq!(
             cache.n_layers(),
             self.blocks.len(),
@@ -348,7 +339,7 @@ impl<B: Backend> TextDecoder<B> {
 
         // One query attends to everything cached, so a mask would be all-false
         // and is skipped.
-        let mask: Option<Tensor<B, 3, Bool>> = if seq_new > 1 {
+        let mask: Option<Tensor<3, Bool>> = if seq_new > 1 {
             Some(causal_mask(seq_new, past, &h.device()))
         } else {
             None
@@ -366,22 +357,25 @@ impl<B: Backend> TextDecoder<B> {
 
         cache.pos += seq_new;
 
-        unembed(&self.token_embedding, self.ln.forward(h)).cast(backend_float_dtype::<B>())
+        {
+            let dtype = device_float_dtype(&h.device());
+            unembed(&self.token_embedding, self.ln.forward(h)).cast(dtype)
+        }
     }
 
     fn embed(
         &self,
-        x: Tensor<B, 2, Int>,
-    ) -> Tensor<B, 3> {
+        x: Tensor<2, Int>,
+    ) -> Tensor<3> {
         self.embed_at(x, 0)
     }
 
     /// Embeds `x`, taking positions from `offset` rather than from zero.
     fn embed_at(
         &self,
-        x: Tensor<B, 2, Int>,
+        x: Tensor<2, Int>,
         offset: usize,
-    ) -> Tensor<B, 3> {
+    ) -> Tensor<3> {
         let seq_len = x.dims()[1];
         self.token_embedding.forward(x)
             + self
@@ -401,14 +395,14 @@ impl<B: Backend> TextDecoder<B> {
 ///
 /// Deliberately **not** a `Module`: this is per-stream decode state and holds
 /// no parameters.
-pub struct TextDecoderCache<B: Backend> {
+pub struct TextDecoderCache {
     /// Self-attention keys and values, grown one step at a time.
-    self_kv: Vec<Option<AttnKvPair<B>>>,
+    self_kv: Vec<Option<AttnKvPair>>,
 
     /// Cross-attention keys and values, projected once from the encoder
     /// output. This is the bulk of what the cache saves: over 1500 encoder
     /// frames, per layer, per token.
-    cross_kv: Vec<AttnKvPair<B>>,
+    cross_kv: Vec<AttnKvPair>,
 
     /// Decode rows per cross-attention row; one unless the cache is shared
     /// by a group, as by a beam search's beams.
@@ -418,13 +412,13 @@ pub struct TextDecoderCache<B: Backend> {
     pos: usize,
 }
 
-impl<B: Backend> HasDType for TextDecoderCache<B> {
+impl HasDType for TextDecoderCache {
     fn dtype(&self) -> DType {
         self.cross_kv[0].dtype()
     }
 }
 
-impl<B: Backend> TextDecoderCache<B> {
+impl TextDecoderCache {
     /// The number of tokens consumed so far.
     pub fn pos(&self) -> usize {
         self.pos
@@ -479,7 +473,7 @@ impl<B: Backend> TextDecoderCache<B> {
         }
 
         let device = first.key.device();
-        let indices: Tensor<B, 1, Int> = Tensor::from_data(
+        let indices: Tensor<1, Int> = Tensor::from_data(
             TensorData::new(
                 sources.iter().map(|&s| s as i64).collect::<Vec<_>>(),
                 [sources.len()],
@@ -502,17 +496,15 @@ mod tests {
     use crate::{
         contracts::assert_shape_contract,
         support::testing::{
-            CpuBackend,
             DeviceMemoryGuard,
-            PerformanceBackend,
-            cpu_device, performance_device,
+            cpu_device,
+            performance_device,
         },
     };
 
     #[test]
     #[serial]
     fn test_text_decoder_forward() {
-        type B = PerformanceBackend;
         let device = performance_device();
         let _memory = DeviceMemoryGuard::new(&device);
 
@@ -527,7 +519,7 @@ mod tests {
         assert_eq!(config.d_model(), d_model);
         assert_eq!(config.max_context(), max_context);
 
-        let decoder: TextDecoder<B> = config.init(&device);
+        let decoder: TextDecoder = config.init(&device);
 
         assert_eq!(decoder.vocab_size(), vocab_size);
         assert_eq!(decoder.d_model(), d_model);
@@ -536,9 +528,8 @@ mod tests {
         let batch = 2;
         let seq_len = max_context / 2;
 
-        let x: Tensor<B, 2, Int> = Tensor::zeros([batch, seq_len], &device);
-        let xa: Tensor<B, 3> =
-            Tensor::random([batch, seq_len, d_model], Default::default(), &device);
+        let x: Tensor<2, Int> = Tensor::zeros([batch, seq_len], &device);
+        let xa: Tensor<3> = Tensor::random([batch, seq_len, d_model], Default::default(), &device);
 
         let output = decoder.forward(x.clone(), xa.clone());
 
@@ -562,14 +553,10 @@ mod tests {
             tensor::{
                 Distribution,
                 Tolerance,
-                backend::BackendTypes,
             },
         };
 
-        use crate::burner::tensor::TensorElemOpExt;
-
-        type B = PerformanceBackend;
-        type F = <B as BackendTypes>::FloatElem;
+        type F = f32;
 
         let device = performance_device();
         let _memory = DeviceMemoryGuard::new(&device);
@@ -579,10 +566,10 @@ mod tests {
         let (vocab, d_model, max_ctx, layers) = (64, 128, 16, 2);
         let (batch, cross_len, seq) = (2, 5, 6);
 
-        let decoder: TextDecoder<B> =
+        let decoder: TextDecoder =
             TextDecoderConfig::new(vocab, d_model, max_ctx, layers).init(&device);
 
-        let tokens: Tensor<B, 2, Int> = Tensor::from_data(
+        let tokens: Tensor<2, Int> = Tensor::from_data(
             TensorData::new(
                 (0..batch * seq)
                     .map(|k| (k % vocab) as i64)
@@ -591,7 +578,7 @@ mod tests {
             ),
             &device,
         );
-        let xa: Tensor<B, 3> =
+        let xa: Tensor<3> =
             Tensor::random([batch, cross_len, d_model], Distribution::Default, &device);
 
         let whole = decoder.forward(tokens.clone(), xa.clone());
@@ -605,7 +592,7 @@ mod tests {
         }
         assert_eq!(cache.pos(), seq);
 
-        let stepped: Tensor<B, 3> = Tensor::cat(steps, 1);
+        let stepped: Tensor<3> = Tensor::cat(steps, 1);
         assert_eq!(stepped.dims(), whole.dims());
 
         stepped
@@ -623,29 +610,24 @@ mod tests {
             tensor::{
                 Distribution,
                 Tolerance,
-                backend::BackendTypes,
             },
         };
 
-        use crate::burner::tensor::TensorElemOpExt;
-
-        type B = PerformanceBackend;
-        type F = <B as BackendTypes>::FloatElem;
+        type F = f32;
 
         let device = performance_device();
         let _memory = DeviceMemoryGuard::new(&device);
         let (vocab, d_model, max_ctx, layers) = (64, 128, 16, 1);
         let (cross_len, seq, prompt) = (4, 5, 3);
 
-        let decoder: TextDecoder<B> =
+        let decoder: TextDecoder =
             TextDecoderConfig::new(vocab, d_model, max_ctx, layers).init(&device);
 
-        let tokens: Tensor<B, 2, Int> = Tensor::from_data(
+        let tokens: Tensor<2, Int> = Tensor::from_data(
             TensorData::new((0..seq).map(|k| k as i64).collect::<Vec<_>>(), [1, seq]),
             &device,
         );
-        let xa: Tensor<B, 3> =
-            Tensor::random([1, cross_len, d_model], Distribution::Default, &device);
+        let xa: Tensor<3> = Tensor::random([1, cross_len, d_model], Distribution::Default, &device);
 
         let whole = decoder.forward(tokens.clone(), xa.clone());
 
@@ -658,7 +640,7 @@ mod tests {
             parts.push(decoder.forward_cached(step, &mut cache));
         }
 
-        let mixed: Tensor<B, 3> = Tensor::cat(parts, 1);
+        let mixed: Tensor<3> = Tensor::cat(parts, 1);
         mixed
             .to_data_as::<F>()
             .assert_approx_eq::<F>(&whole.to_data_as::<F>(), Tolerance::permissive());
@@ -676,26 +658,24 @@ mod tests {
     fn test_caches_take_the_decoders_dtype() {
         use burn::{
             module::Module,
-            prelude::Device,
             tensor::Distribution,
         };
 
         use crate::burner::{
             module::DTypeMapper,
-            tensor::backend_float_dtype,
+            tensor::device_float_dtype,
         };
 
-        type B = CpuBackend;
         let device = cpu_device();
 
-        let float = backend_float_dtype::<B>();
-        let decoder: TextDecoder<B> = TextDecoderConfig::new(32, 128, 8, 1).init(&device);
+        let float = device_float_dtype(&device);
+        let decoder: TextDecoder = TextDecoderConfig::new(32, 128, 8, 1).init(&device);
         let decoder = decoder.map(&mut DTypeMapper::new(DType::F16));
         assert_eq!(decoder.dtype(), DType::F16);
 
         // Features at the *caller's* precision, as a caller that widened
         // them, or built them by hand, would have.
-        let xa: Tensor<B, 3> = Tensor::random([1, 4, 128], Distribution::Default, &device);
+        let xa: Tensor<3> = Tensor::random([1, 4, 128], Distribution::Default, &device);
         assert_eq!(xa.dtype(), float);
 
         let mut cache = decoder.new_cache(xa);
@@ -704,7 +684,7 @@ mod tests {
             assert_eq!(kv.dtype(), DType::F16);
         }
 
-        let tokens: Tensor<B, 2, Int> =
+        let tokens: Tensor<2, Int> =
             Tensor::from_data(TensorData::new(vec![3i64, 5], [1, 2]), &device);
         let logits = decoder.forward_cached(tokens, &mut cache);
 
@@ -725,25 +705,21 @@ mod tests {
             tensor::{
                 Distribution,
                 Tolerance,
-                backend::BackendTypes,
             },
         };
 
-        use crate::burner::tensor::TensorElemOpExt;
-
-        type B = PerformanceBackend;
-        type F = <B as BackendTypes>::FloatElem;
+        type F = f32;
 
         let device = performance_device();
         let _memory = DeviceMemoryGuard::new(&device);
         let (vocab, d_model, max_ctx, layers) = (32, 128, 8, 1);
 
-        let decoder: TextDecoder<B> =
+        let decoder: TextDecoder =
             TextDecoderConfig::new(vocab, d_model, max_ctx, layers).init(&device);
 
-        let tokens: Tensor<B, 2, Int> =
+        let tokens: Tensor<2, Int> =
             Tensor::from_data(TensorData::new(vec![3i64, 5], [1, 2]), &device);
-        let xa: Tensor<B, 3> = Tensor::random([1, 4, d_model], Distribution::Default, &device);
+        let xa: Tensor<3> = Tensor::random([1, 4, d_model], Distribution::Default, &device);
 
         let mut cache = decoder.new_cache(xa);
         let first = decoder.forward_cached(tokens.clone(), &mut cache);

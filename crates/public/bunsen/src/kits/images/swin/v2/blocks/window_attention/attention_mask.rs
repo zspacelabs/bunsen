@@ -1,8 +1,10 @@
-use burn::prelude::{
-    Backend,
-    Bool,
-    Int,
-    Tensor,
+use burn::{
+    prelude::{
+        Bool,
+        Int,
+        Tensor,
+    },
+    tensor::Device,
 };
 
 use crate::kits::images::swin::v2::blocks::window_partition;
@@ -21,13 +23,13 @@ use crate::kits::images::swin::v2::blocks::window_partition;
 ///
 /// - `[b_nw, num_heads, Wh*Ww, Wh*Ww]` output tensor.
 #[must_use]
-pub fn apply_attention_mask<B: Backend>(
+pub fn apply_attention_mask(
     b_nw: usize,
     n: usize,
     num_heads: usize,
-    attn: Tensor<B, 4>,
-    mask: Tensor<B, 3>,
-) -> Tensor<B, 4> {
+    attn: Tensor<4>,
+    mask: Tensor<3>,
+) -> Tensor<4> {
     // Attention mask
     let num_windows = mask.dims()[0];
     let b = b_nw / num_windows;
@@ -37,7 +39,7 @@ pub fn apply_attention_mask<B: Backend>(
     let mask = mask.unsqueeze_dims::<5>(&[0, 2]);
     // 1, num_windows, 1, Wh*Ww, Wh*Ww
 
-    let attn: Tensor<B, 5> = attn + mask;
+    let attn: Tensor<5> = attn + mask;
     // b, num_windows, num_heads, Wh*Ww, Wh*Ww
 
     attn.reshape([-1, num_heads as i32, n as i32, n as i32])
@@ -60,15 +62,15 @@ pub fn apply_attention_mask<B: Backend>(
 ///
 /// A tensor representing the shifted window image mask.
 #[must_use]
-fn sw_img_mask<B: Backend>(
+fn sw_img_mask(
     input_shape: [usize; 2],
     window_size: usize,
     shift_size: usize,
-    device: &B::Device,
-) -> Tensor<B, 2, Int> {
+    device: &Device,
+) -> Tensor<2, Int> {
     let [h, w] = input_shape;
 
-    let mut img_mask = Tensor::<B, 2, Int>::zeros([h, w], device);
+    let mut img_mask = Tensor::<2, Int>::zeros([h, w], device);
 
     let h = h as i32;
     let w = w as i32;
@@ -105,7 +107,7 @@ fn sw_img_mask<B: Backend>(
             // w.clone()]).dims();
             let slice_shape = [h.len(), w.len()];
 
-            let val: Tensor<B, 1, Int> = Tensor::full([1], cnt, device);
+            let val: Tensor<1, Int> = Tensor::full([1], cnt, device);
             let val = val.expand(slice_shape);
 
             img_mask = img_mask.slice_assign([h.clone(), w.clone()], val);
@@ -131,12 +133,12 @@ fn sw_img_mask<B: Backend>(
 ///
 /// A tensor representing the shifted window attention mask.
 #[must_use]
-pub fn sw_attn_mask<B: Backend>(
+pub fn sw_attn_mask(
     input_shape: [usize; 2],
     window_size: usize,
     shift_size: usize,
-    device: &B::Device,
-) -> Tensor<B, 3, Bool> {
+    device: &Device,
+) -> Tensor<3, Bool> {
     let img_mask = sw_img_mask(input_shape, window_size, shift_size, device);
     // ws, ws
     let img_mask = img_mask.unsqueeze_dims::<4>(&[0, 3]);
@@ -165,7 +167,6 @@ mod tests {
     use super::*;
     use crate::support::testing::{
         DeviceMemoryGuard,
-        PerformanceBackend,
         performance_device,
     };
 
@@ -173,26 +174,23 @@ mod tests {
     #[should_panic(expected = "Height 5 is not divisible by window size 2")]
     #[serial]
     fn test_sw_img_mask_height_not_divisible() {
-        type B = PerformanceBackend;
         let device = performance_device();
         let _memory = DeviceMemoryGuard::new(&device);
-        let _d = sw_img_mask::<B>([5, 4], 2, 1, &device);
+        let _d = sw_img_mask([5, 4], 2, 1, &device);
     }
 
     #[test]
     #[should_panic(expected = "Width 5 is not divisible by window size 2")]
     #[serial]
     fn test_sw_img_mask_width_not_divisible() {
-        type B = PerformanceBackend;
         let device = performance_device();
         let _memory = DeviceMemoryGuard::new(&device);
-        let _d = sw_img_mask::<B>([4, 5], 2, 1, &device);
+        let _d = sw_img_mask([4, 5], 2, 1, &device);
     }
 
     #[test]
     #[serial]
     fn test_apply_attention_mask() {
-        type B = PerformanceBackend;
         let b = 2;
         let nw = 2;
         let b_nw = b * nw;
@@ -202,11 +200,11 @@ mod tests {
 
         let device = performance_device();
         let _memory = DeviceMemoryGuard::new(&device);
-        let attn = Tensor::<B, 4>::zeros([b_nw, num_heads, n, n], &device);
+        let attn = Tensor::<4>::zeros([b_nw, num_heads, n, n], &device);
         // (b*nw, num_heads, ws*ws, ws*ws)
 
         // (nw, ws*ws, ws*ws)
-        let mask = Tensor::<B, 3>::from_data(
+        let mask = Tensor::<3>::from_data(
             [
                 [
                     [0.0, 0.25, 0.5, 0.75],
@@ -237,7 +235,7 @@ mod tests {
                     .squeeze_dim::<4>(0)
                     .squeeze_dim::<3>(0);
 
-                let wmask: Tensor<B, 2> = mask.clone().slice_dim(0, wi).squeeze_dim::<2>(0);
+                let wmask: Tensor<2> = mask.clone().slice_dim(0, wi).squeeze_dim::<2>(0);
 
                 for hi in 0..num_heads {
                     let h_attn = window.clone().slice_dim(0, hi).squeeze_dim::<2>(0);
@@ -251,181 +249,174 @@ mod tests {
     #[test]
     #[serial]
     fn test_attn_mask() {
-        type B = PerformanceBackend;
         // let b_nw = 1;
         let device = performance_device();
         let _memory = DeviceMemoryGuard::new(&device);
 
-        sw_attn_mask::<B>([4, 4], 2, 1, &device)
-            .to_data()
-            .assert_eq(
-                &TensorData::from([
-                    [
-                        [false, false, false, false],
-                        [false, false, false, false],
-                        [false, false, false, false],
-                        [false, false, false, false],
-                    ],
-                    [
-                        [false, true, false, true],
-                        [true, false, true, false],
-                        [false, true, false, true],
-                        [true, false, true, false],
-                    ],
-                    [
-                        [false, false, true, true],
-                        [false, false, true, true],
-                        [true, true, false, false],
-                        [true, true, false, false],
-                    ],
-                    [
-                        [false, true, true, true],
-                        [true, false, true, true],
-                        [true, true, false, true],
-                        [true, true, true, false],
-                    ],
-                ]),
-                false,
-            );
+        sw_attn_mask([4, 4], 2, 1, &device).to_data().assert_eq(
+            &TensorData::from([
+                [
+                    [false, false, false, false],
+                    [false, false, false, false],
+                    [false, false, false, false],
+                    [false, false, false, false],
+                ],
+                [
+                    [false, true, false, true],
+                    [true, false, true, false],
+                    [false, true, false, true],
+                    [true, false, true, false],
+                ],
+                [
+                    [false, false, true, true],
+                    [false, false, true, true],
+                    [true, true, false, false],
+                    [true, true, false, false],
+                ],
+                [
+                    [false, true, true, true],
+                    [true, false, true, true],
+                    [true, true, false, true],
+                    [true, true, true, false],
+                ],
+            ]),
+            false,
+        );
 
-        sw_attn_mask::<B>([6, 6], 3, 1, &device)
-            .to_data()
-            .assert_eq(
-                &TensorData::from([
+        sw_attn_mask([6, 6], 3, 1, &device).to_data().assert_eq(
+            &TensorData::from([
+                [
                     [
-                        [
-                            false, false, false, false, false, false, false, false, false,
-                        ],
-                        [
-                            false, false, false, false, false, false, false, false, false,
-                        ],
-                        [
-                            false, false, false, false, false, false, false, false, false,
-                        ],
-                        [
-                            false, false, false, false, false, false, false, false, false,
-                        ],
-                        [
-                            false, false, false, false, false, false, false, false, false,
-                        ],
-                        [
-                            false, false, false, false, false, false, false, false, false,
-                        ],
-                        [
-                            false, false, false, false, false, false, false, false, false,
-                        ],
-                        [
-                            false, false, false, false, false, false, false, false, false,
-                        ],
-                        [
-                            false, false, false, false, false, false, false, false, false,
-                        ],
+                        false, false, false, false, false, false, false, false, false,
                     ],
                     [
-                        [false, false, true, false, false, true, false, false, true],
-                        [false, false, true, false, false, true, false, false, true],
-                        [true, true, false, true, true, false, true, true, false],
-                        [false, false, true, false, false, true, false, false, true],
-                        [false, false, true, false, false, true, false, false, true],
-                        [true, true, false, true, true, false, true, true, false],
-                        [false, false, true, false, false, true, false, false, true],
-                        [false, false, true, false, false, true, false, false, true],
-                        [true, true, false, true, true, false, true, true, false],
+                        false, false, false, false, false, false, false, false, false,
                     ],
                     [
-                        [false, false, false, false, false, false, true, true, true],
-                        [false, false, false, false, false, false, true, true, true],
-                        [false, false, false, false, false, false, true, true, true],
-                        [false, false, false, false, false, false, true, true, true],
-                        [false, false, false, false, false, false, true, true, true],
-                        [false, false, false, false, false, false, true, true, true],
-                        [true, true, true, true, true, true, false, false, false],
-                        [true, true, true, true, true, true, false, false, false],
-                        [true, true, true, true, true, true, false, false, false],
+                        false, false, false, false, false, false, false, false, false,
                     ],
                     [
-                        [false, false, true, false, false, true, true, true, true],
-                        [false, false, true, false, false, true, true, true, true],
-                        [true, true, false, true, true, false, true, true, true],
-                        [false, false, true, false, false, true, true, true, true],
-                        [false, false, true, false, false, true, true, true, true],
-                        [true, true, false, true, true, false, true, true, true],
-                        [true, true, true, true, true, true, false, false, true],
-                        [true, true, true, true, true, true, false, false, true],
-                        [true, true, true, true, true, true, true, true, false],
+                        false, false, false, false, false, false, false, false, false,
                     ],
-                ]),
-                false,
-            );
+                    [
+                        false, false, false, false, false, false, false, false, false,
+                    ],
+                    [
+                        false, false, false, false, false, false, false, false, false,
+                    ],
+                    [
+                        false, false, false, false, false, false, false, false, false,
+                    ],
+                    [
+                        false, false, false, false, false, false, false, false, false,
+                    ],
+                    [
+                        false, false, false, false, false, false, false, false, false,
+                    ],
+                ],
+                [
+                    [false, false, true, false, false, true, false, false, true],
+                    [false, false, true, false, false, true, false, false, true],
+                    [true, true, false, true, true, false, true, true, false],
+                    [false, false, true, false, false, true, false, false, true],
+                    [false, false, true, false, false, true, false, false, true],
+                    [true, true, false, true, true, false, true, true, false],
+                    [false, false, true, false, false, true, false, false, true],
+                    [false, false, true, false, false, true, false, false, true],
+                    [true, true, false, true, true, false, true, true, false],
+                ],
+                [
+                    [false, false, false, false, false, false, true, true, true],
+                    [false, false, false, false, false, false, true, true, true],
+                    [false, false, false, false, false, false, true, true, true],
+                    [false, false, false, false, false, false, true, true, true],
+                    [false, false, false, false, false, false, true, true, true],
+                    [false, false, false, false, false, false, true, true, true],
+                    [true, true, true, true, true, true, false, false, false],
+                    [true, true, true, true, true, true, false, false, false],
+                    [true, true, true, true, true, true, false, false, false],
+                ],
+                [
+                    [false, false, true, false, false, true, true, true, true],
+                    [false, false, true, false, false, true, true, true, true],
+                    [true, true, false, true, true, false, true, true, true],
+                    [false, false, true, false, false, true, true, true, true],
+                    [false, false, true, false, false, true, true, true, true],
+                    [true, true, false, true, true, false, true, true, true],
+                    [true, true, true, true, true, true, false, false, true],
+                    [true, true, true, true, true, true, false, false, true],
+                    [true, true, true, true, true, true, true, true, false],
+                ],
+            ]),
+            false,
+        );
 
-        sw_attn_mask::<B>([6, 6], 3, 2, &device)
-            .to_data()
-            .assert_eq(
-                &TensorData::from([
+        sw_attn_mask([6, 6], 3, 2, &device).to_data().assert_eq(
+            &TensorData::from([
+                [
                     [
-                        [
-                            false, false, false, false, false, false, false, false, false,
-                        ],
-                        [
-                            false, false, false, false, false, false, false, false, false,
-                        ],
-                        [
-                            false, false, false, false, false, false, false, false, false,
-                        ],
-                        [
-                            false, false, false, false, false, false, false, false, false,
-                        ],
-                        [
-                            false, false, false, false, false, false, false, false, false,
-                        ],
-                        [
-                            false, false, false, false, false, false, false, false, false,
-                        ],
-                        [
-                            false, false, false, false, false, false, false, false, false,
-                        ],
-                        [
-                            false, false, false, false, false, false, false, false, false,
-                        ],
-                        [
-                            false, false, false, false, false, false, false, false, false,
-                        ],
+                        false, false, false, false, false, false, false, false, false,
                     ],
                     [
-                        [false, true, true, false, true, true, false, true, true],
-                        [true, false, false, true, false, false, true, false, false],
-                        [true, false, false, true, false, false, true, false, false],
-                        [false, true, true, false, true, true, false, true, true],
-                        [true, false, false, true, false, false, true, false, false],
-                        [true, false, false, true, false, false, true, false, false],
-                        [false, true, true, false, true, true, false, true, true],
-                        [true, false, false, true, false, false, true, false, false],
-                        [true, false, false, true, false, false, true, false, false],
+                        false, false, false, false, false, false, false, false, false,
                     ],
                     [
-                        [false, false, false, true, true, true, true, true, true],
-                        [false, false, false, true, true, true, true, true, true],
-                        [false, false, false, true, true, true, true, true, true],
-                        [true, true, true, false, false, false, false, false, false],
-                        [true, true, true, false, false, false, false, false, false],
-                        [true, true, true, false, false, false, false, false, false],
-                        [true, true, true, false, false, false, false, false, false],
-                        [true, true, true, false, false, false, false, false, false],
-                        [true, true, true, false, false, false, false, false, false],
+                        false, false, false, false, false, false, false, false, false,
                     ],
                     [
-                        [false, true, true, true, true, true, true, true, true],
-                        [true, false, false, true, true, true, true, true, true],
-                        [true, false, false, true, true, true, true, true, true],
-                        [true, true, true, false, true, true, false, true, true],
-                        [true, true, true, true, false, false, true, false, false],
-                        [true, true, true, true, false, false, true, false, false],
-                        [true, true, true, false, true, true, false, true, true],
-                        [true, true, true, true, false, false, true, false, false],
-                        [true, true, true, true, false, false, true, false, false],
+                        false, false, false, false, false, false, false, false, false,
                     ],
-                ]),
-                false,
-            );
+                    [
+                        false, false, false, false, false, false, false, false, false,
+                    ],
+                    [
+                        false, false, false, false, false, false, false, false, false,
+                    ],
+                    [
+                        false, false, false, false, false, false, false, false, false,
+                    ],
+                    [
+                        false, false, false, false, false, false, false, false, false,
+                    ],
+                    [
+                        false, false, false, false, false, false, false, false, false,
+                    ],
+                ],
+                [
+                    [false, true, true, false, true, true, false, true, true],
+                    [true, false, false, true, false, false, true, false, false],
+                    [true, false, false, true, false, false, true, false, false],
+                    [false, true, true, false, true, true, false, true, true],
+                    [true, false, false, true, false, false, true, false, false],
+                    [true, false, false, true, false, false, true, false, false],
+                    [false, true, true, false, true, true, false, true, true],
+                    [true, false, false, true, false, false, true, false, false],
+                    [true, false, false, true, false, false, true, false, false],
+                ],
+                [
+                    [false, false, false, true, true, true, true, true, true],
+                    [false, false, false, true, true, true, true, true, true],
+                    [false, false, false, true, true, true, true, true, true],
+                    [true, true, true, false, false, false, false, false, false],
+                    [true, true, true, false, false, false, false, false, false],
+                    [true, true, true, false, false, false, false, false, false],
+                    [true, true, true, false, false, false, false, false, false],
+                    [true, true, true, false, false, false, false, false, false],
+                    [true, true, true, false, false, false, false, false, false],
+                ],
+                [
+                    [false, true, true, true, true, true, true, true, true],
+                    [true, false, false, true, true, true, true, true, true],
+                    [true, false, false, true, true, true, true, true, true],
+                    [true, true, true, false, true, true, false, true, true],
+                    [true, true, true, true, false, false, true, false, false],
+                    [true, true, true, true, false, false, true, false, false],
+                    [true, true, true, false, true, true, false, true, true],
+                    [true, true, true, true, false, false, true, false, false],
+                    [true, true, true, true, false, false, true, false, false],
+                ],
+            ]),
+            false,
+        );
     }
 }

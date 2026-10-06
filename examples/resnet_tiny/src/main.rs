@@ -64,7 +64,6 @@ use bunsen_firehose_image::{
     },
 };
 use burn::{
-    backend::Autodiff,
     data::{
         dataloader::{
             DataLoaderBuilder,
@@ -79,13 +78,11 @@ use burn::{
     },
     optim::AdamWConfig,
     prelude::{
-        Backend,
         Int,
         Module,
         Tensor,
     },
     record::CompactRecorder,
-    tensor::backend::AutodiffBackend,
     train::{
         ClassificationOutput,
         InferenceStep,
@@ -198,20 +195,12 @@ fn main() -> anyhow::Result<()> {
     let args = Args::parse();
 
     cfg_select! {
-        feature = "cuda" => {
-            type B = burn::backend::Cuda<burn::tensor::bf16>;
-        }
-        feature = "metal" => {
-            type B = burn::backend::Metal<burn::tensor::bf16>;
-        }
-        feature = "wgpu" => {
-            type B = burn::backend::Wgpu<burn::tensor::bf16>;
-        }
-        _ => {
-            type B = burn::backend::Flex;
-        }
+        feature = "cuda" => {}
+        feature = "metal" => {}
+        feature = "wgpu" => {}
+        _ => {}
     }
-    backend_main::<Autodiff<B>>(&args)
+    backend_main(&args)
 }
 
 /// Create the artifact directory for saving training artifacts.
@@ -222,8 +211,8 @@ fn create_artifact_dir(artifact_dir: &str) {
 }
 
 /// Train the model with the given configuration and devices.
-pub fn backend_main<B: AutodiffBackend>(args: &Args) -> anyhow::Result<()> {
-    let device: B::Device = Default::default();
+pub fn backend_main(args: &Args) -> anyhow::Result<()> {
+    let device: Device = Default::default();
 
     let image_shape = ImageShape {
         height: 32,
@@ -236,9 +225,9 @@ pub fn backend_main<B: AutodiffBackend>(args: &Args) -> anyhow::Result<()> {
     let prefab = RESNET_PREFABS.expect_lookup_prefab(&args.resnet_prefab);
 
     let contract = prefab.to_config().with_activation(ActivationConfig::Gelu);
-    let resnet: ResNet<B> = contract.to_structure().try_init(&device)?;
+    let resnet: ResNet = contract.to_structure().try_init(&device)?;
 
-    let resnet: ResNet<B> = match &args.resnet_pretrained {
+    let resnet: ResNet = match &args.resnet_pretrained {
         Some(pretrained) => {
             let old_float_type = resnet.output_fc.weight.dtype();
 
@@ -248,7 +237,7 @@ pub fn backend_main<B: AutodiffBackend>(args: &Args) -> anyhow::Result<()> {
             let cache = PretrainedCache::new(PretrainedCacheOptions::default())?;
             let mut model = default_resnet_factory()?.resolve(pretrained, &cache)?;
             model.hook = model.hook.with_config(contract.clone());
-            let loaded = model.load::<B>(&cache, &device)?;
+            let loaded = model.load(&cache, &device)?;
 
             Arc::unwrap_or_clone(loaded.handle).map(&mut DTypeMapper::new(old_float_type))
         }
@@ -258,7 +247,7 @@ pub fn backend_main<B: AutodiffBackend>(args: &Args) -> anyhow::Result<()> {
     .with_stochastic_drop_block(args.drop_block_prob)
     .with_stochastic_path_depth(args.drop_path_prob);
 
-    let model: Model<B> = Model { resnet };
+    let model: Model = Model { resnet };
 
     let optim_config = AdamWConfig::new()
         .with_weight_decay(5e-4)
@@ -327,7 +316,7 @@ pub fn backend_main<B: AutodiffBackend>(args: &Args) -> anyhow::Result<()> {
                 firehose_env.clone(),
             )?),
             Arc::new(InputAdapter::new(schema.clone())),
-            Arc::new(OutputAdapter::<B>::default()),
+            Arc::new(OutputAdapter::default()),
         );
 
         let mut builder = DataLoaderBuilder::new(batcher)
@@ -360,7 +349,7 @@ pub fn backend_main<B: AutodiffBackend>(args: &Args) -> anyhow::Result<()> {
             )?),
             Arc::new(InputAdapter::new(schema.clone())),
             // Use the InnerBackend for validation.
-            Arc::new(OutputAdapter::<B::InnerBackend>::default()),
+            Arc::new(OutputAdapter::default()),
         );
 
         let mut builder = DataLoaderBuilder::new(batcher).batch_size(args.batch_size);
@@ -398,7 +387,7 @@ pub fn backend_main<B: AutodiffBackend>(args: &Args) -> anyhow::Result<()> {
     ))
     .with_file_checkpointer(CompactRecorder::new())
     .early_stopping(MetricEarlyStoppingStrategy::new(
-        &LossMetric::<B>::new(),
+        &LossMetric::new(),
         Aggregate::Mean,
         Direction::Lowest,
         Split::Valid,
@@ -427,29 +416,29 @@ pub struct ModelConfig {
 }
 
 impl ModelConfig {
-    pub fn init<B: Backend>(
+    pub fn init(
         self,
-        device: &B::Device,
-    ) -> Model<B> {
+        device: &Device,
+    ) -> Model {
         Model {
             drop_block: self.drop_block.init(),
-            swin: self.swin.init::<B>(device),
+            swin: self.swin.init(device),
         }
     }
 }
  */
 
 #[derive(Module, Debug)]
-pub struct Model<B: Backend> {
-    pub resnet: ResNet<B>,
+pub struct Model {
+    pub resnet: ResNet,
 }
 
-impl<B: Backend> Model<B> {
+impl Model {
     pub fn forward_classification(
         &self,
-        images: Tensor<B, 4>,
-        targets: Tensor<B, 1, Int>,
-    ) -> ClassificationOutput<B> {
+        images: Tensor<4>,
+        targets: Tensor<1, Int>,
+    ) -> ClassificationOutput {
         let output = self.resnet.forward(images);
 
         let loss = CrossEntropyLossConfig::new()
@@ -462,9 +451,9 @@ impl<B: Backend> Model<B> {
     }
 }
 
-impl<B: AutodiffBackend> TrainStep for Model<B> {
-    type Input = (Tensor<B, 4>, Tensor<B, 1, Int>);
-    type Output = ClassificationOutput<B>;
+impl TrainStep for Model {
+    type Input = (Tensor<4>, Tensor<1, Int>);
+    type Output = ClassificationOutput;
 
     fn step(
         &self,
@@ -476,9 +465,9 @@ impl<B: AutodiffBackend> TrainStep for Model<B> {
     }
 }
 
-impl<B: Backend> InferenceStep for Model<B> {
-    type Input = (Tensor<B, 4>, Tensor<B, 1, Int>);
-    type Output = ClassificationOutput<B>;
+impl InferenceStep for Model {
+    type Input = (Tensor<4>, Tensor<1, Int>);
+    type Output = ClassificationOutput;
 
     fn step(
         &self,
@@ -524,26 +513,23 @@ impl BatcherInputAdapter<(String, usize)> for InputAdapter {
     }
 }
 
-struct OutputAdapter<B: Backend> {
-    phantom: std::marker::PhantomData<B>,
+struct OutputAdapter {
+    phantom: std::marker::PhantomData,
 }
-impl<B> Default for OutputAdapter<B>
-where
-    B: Backend,
-{
+impl Default for OutputAdapter {
     fn default() -> Self {
         Self {
             phantom: std::marker::PhantomData,
         }
     }
 }
-impl<B: Backend> BatcherOutputAdapter<B, (Tensor<B, 4>, Tensor<B, 1, Int>)> for OutputAdapter<B> {
+impl BatcherOutputAdapter<(Tensor<4>, Tensor<1, Int>)> for OutputAdapter {
     fn apply(
         &self,
         batch: &FirehoseRowBatch,
-        device: &B::Device,
-    ) -> anyhow::Result<(Tensor<B, 4>, Tensor<B, 1, Int>)> {
-        let image_batch = Tensor::<B, 4>::from_data(
+        device: &Device,
+    ) -> anyhow::Result<(Tensor<4>, Tensor<1, Int>)> {
+        let image_batch = Tensor::<4>::from_data(
             stack_tensor_data_column(batch, DATA_COLUMN)
                 .expect("Failed to stack tensor data column"),
             device,

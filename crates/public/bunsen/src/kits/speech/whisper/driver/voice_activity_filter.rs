@@ -668,19 +668,14 @@ mod tests {
             },
             support::{
                 audio::load_audio_mono_sr,
-                testing::{
-                    CpuBackend,
-                    cpu_device,
-                },
+                testing::cpu_device,
             },
         };
-
-        type B = CpuBackend;
 
         /// Silero's probabilities for the clip, one per chunk.
         fn probabilities() -> (Vec<f32>, usize) {
             let device = cpu_device();
-            let vad = SileroVad::<B>::load_16khz_pretrained(&device).unwrap();
+            let vad = SileroVad::load_16khz_pretrained(&device).unwrap();
             let path = concat!(
                 env!("CARGO_MANIFEST_DIR"),
                 "/testdata/audio/jfk_moon_4s.mp3"
@@ -697,12 +692,12 @@ mod tests {
                 wav.resize(wav.len() + chunk - tail, 0.0);
             }
             let steps = wav.len() / chunk;
-            let chunks: Tensor<B, 3> =
+            let chunks: Tensor<3> =
                 Tensor::from_data(TensorData::new(wav, [steps, 1, chunk]), &device);
 
             let context = SileroVadContextConfig::new(sample_rate).init(&vad, &device);
             let (probs, _) = vad.context_forward_sequence(chunks, context);
-            let probs: Vec<f32> = probs.to_data().convert::<f32>().to_vec().unwrap();
+            let probs: Vec<f32> = probs.to_data().try_into_vec_as::<f32>().unwrap();
             assert_eq!(probs.len(), steps);
             (probs, total)
         }

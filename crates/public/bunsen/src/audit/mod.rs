@@ -75,18 +75,15 @@
 //!     errors::BunsenResult,
 //!     support::testing::seeded_tensor,
 //! };
-//! use burn::{
-//!     prelude::Backend,
-//!     tensor::Distribution,
-//! };
+//! use burn::tensor::Distribution;
 //!
 //! struct Softmax;
 //!
 //! impl AuditBody for Softmax {
-//!     fn run<B: Backend>(
+//!     fn run(
 //!         &self,
 //!         probe: &mut AuditProbe<'_>,
-//!         device: &B::Device,
+//!         device: &Device,
 //!     ) -> BunsenResult<()> {
 //!         let x =
 //!             seeded_tensor::<2>(7, [4, 8], Distribution::Default, device);
@@ -120,22 +117,19 @@
 //! ```
 //! # #[cfg(feature = "audit")] {
 //! # use bunsen::{audit::{AuditBody, AuditProbe}, errors::BunsenResult};
-//! # use burn::prelude::Backend;
 //! # struct Softmax;
 //! # impl AuditBody for Softmax {
-//! #     fn run<B: Backend>(&self, _: &mut AuditProbe<'_>, _: &B::Device) -> BunsenResult<()> {
+//! #     fn run(&self, _: &mut AuditProbe<'_>, _: &Device) -> BunsenResult<()> {
 //! #         Ok(())
 //! #     }
 //! # }
 //! use bunsen::{
 //!     audit::audit_across,
 //!     support::testing::{
-//!         CpuBackend,
-//!         PerformanceBackend,
 //!     },
 //! };
 //!
-//! audit_across::<CpuBackend, PerformanceBackend>(&Softmax).unwrap();
+//! audit_across::<PerformanceBackend>(&Softmax).unwrap();
 //! # }
 //! ```
 //!
@@ -147,10 +141,9 @@
 //! ```
 //! # #[cfg(feature = "audit")] {
 //! # use bunsen::{audit::{AuditBody, AuditProbe}, errors::BunsenResult};
-//! # use burn::prelude::Backend;
 //! # struct Softmax;
 //! # impl AuditBody for Softmax {
-//! #     fn run<B: Backend>(&self, _: &mut AuditProbe<'_>, _: &B::Device) -> BunsenResult<()> {
+//! #     fn run(&self, _: &mut AuditProbe<'_>, _: &Device) -> BunsenResult<()> {
 //! #         Ok(())
 //! #     }
 //! # }
@@ -160,18 +153,17 @@
 //!         audit_baseline,
 //!         reports::ReportsOptions,
 //!     },
-//!     support::testing::CpuBackend,
 //! };
 //!
 //! let dir = tempfile::tempdir().unwrap();
 //! let options = ReportsOptions::new(dir.path());
 //!
 //! // No baseline yet: this run is recorded.
-//! let first = audit_baseline::<CpuBackend>(&options, "softmax", &Softmax).unwrap();
+//! let first = audit_baseline(&options, "softmax", &Softmax).unwrap();
 //! assert!(matches!(first, BaselineOutcome::Recorded(_)));
 //!
 //! // From now on, runs are verified against it.
-//! let second = audit_baseline::<CpuBackend>(&options, "softmax", &Softmax).unwrap();
+//! let second = audit_baseline(&options, "softmax", &Softmax).unwrap();
 //! assert!(matches!(second, BaselineOutcome::Verified(_)));
 //! # }
 //! ```
@@ -189,15 +181,12 @@
 //!         AuditProbe,
 //!         AuditStreamRecorder,
 //!     },
-//!     support::testing::{
-//!         CpuBackend,
-//!         cpu_device,
-//!     },
+//!     support::testing::cpu_device,
 //! };
 //! use burn::prelude::Tensor;
 //!
 //! let device = cpu_device();
-//! let x: Tensor<CpuBackend, 1> = Tensor::arange(0..8, &device).float();
+//! let x: Tensor<1> = Tensor::arange(0..8, &device).float();
 //!
 //! let mut recorder = AuditStreamRecorder::default();
 //! {
@@ -225,14 +214,14 @@
 //! [`SeriesReport::write_report`](reports::SeriesReport::write_report)
 //! take a [`ReportsOptions`], and [`audit_baseline_at`] takes a path.
 //!
-//! A baseline named `name` for backend `B` is stored at
+//! A baseline named `name`, run on `device`, is stored at
 //!
 //! ```text
 //! {root}/{backend_label}/{name}.cbor
 //! ```
 //!
-//! where [`backend_label`](reports::backend_label) is
-//! `B::name(device)` made path-safe (`cubecl<wgpu<spirv>>` becomes
+//! where [`backend_label`](reports::backend_label) is the name of the
+//! backend behind `device`, made path-safe (`cubecl<wgpu<spirv>>` becomes
 //! `cubecl_wgpu_spirv`). Baselines are per backend: a CPU baseline never
 //! verifies a GPU run. To compare backends with each other, use
 //! [`audit_across`]. `name` may contain `/` to group baselines, but must be

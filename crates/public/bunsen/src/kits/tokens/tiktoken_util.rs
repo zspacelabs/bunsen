@@ -371,10 +371,7 @@ mod tests {
             LogitFilter,
             SuppressBlank,
         },
-        support::testing::{
-            CpuBackend,
-            cpu_device,
-        },
+        support::testing::cpu_device,
     };
 
     #[test]
@@ -500,18 +497,18 @@ Ig== x
             .assert_err(&TiktokenRanks::load("/nonexistent/whisper.tiktoken"));
     }
 
-    fn logits<B: Backend>(
+    fn logits(
         rows: &[&[f32]],
-        device: &B::Device,
-    ) -> Tensor<B, 2> {
+        device: &Device,
+    ) -> Tensor<2> {
         let vocab = rows[0].len();
         let flat: Vec<f32> = rows.iter().flat_map(|r| r.iter().copied()).collect();
         Tensor::from_data(TensorData::new(flat, [rows.len(), vocab]), device)
     }
 
-    fn to_rows<B: Backend>(t: Tensor<B, 2>) -> Vec<Vec<f32>> {
+    fn to_rows(t: Tensor<2>) -> Vec<Vec<f32>> {
         let [rows, vocab] = t.dims();
-        let flat = t.to_data().convert::<f32>().to_vec::<f32>().unwrap();
+        let flat = t.to_data().try_to_vec_as::<f32>().unwrap();
         flat.chunks(vocab).map(|c| c.to_vec()).collect::<Vec<_>>()[..rows].to_vec()
     }
 
@@ -519,11 +516,10 @@ Ig== x
     /// the blank and the stop token are allowed again.
     #[test]
     fn test_suppress_blank() {
-        type B = CpuBackend;
         let device = cpu_device();
 
         let filter = SuppressBlank::new(2, 4);
-        let first = to_rows(LogitFilter::<B>::apply(
+        let first = to_rows(LogitFilter::apply(
             &filter,
             logits(&[&[0.0, 1.0, 2.0, 3.0, 4.0]], &device),
             &[vec![9, 9]],
@@ -534,7 +530,7 @@ Ig== x
             vec![0.0, 1.0, f32::NEG_INFINITY, 3.0, f32::NEG_INFINITY]
         );
 
-        let later = to_rows(LogitFilter::<B>::apply(
+        let later = to_rows(LogitFilter::apply(
             &filter,
             logits(&[&[0.0, 1.0, 2.0, 3.0, 4.0]], &device),
             &[vec![9, 9, 1]],

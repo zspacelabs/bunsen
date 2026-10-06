@@ -3,7 +3,6 @@ use burn::{
         LearningRate,
         SimpleOptimizer,
     },
-    prelude::Backend,
     tensor::Tensor,
 };
 
@@ -27,22 +26,22 @@ use burn::{
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct FrozenOptimizer;
 
-impl<B: Backend> SimpleOptimizer<B> for FrozenOptimizer {
+impl SimpleOptimizer for FrozenOptimizer {
     type State<const D: usize> = ();
 
     fn step<const D: usize>(
         &self,
         _lr: LearningRate,
-        tensor: Tensor<B, D>,
-        _grad: Tensor<B, D>,
+        tensor: Tensor<D>,
+        _grad: Tensor<D>,
         _state: Option<Self::State<D>>,
-    ) -> (Tensor<B, D>, Option<Self::State<D>>) {
+    ) -> (Tensor<D>, Option<Self::State<D>>) {
         (tensor, None)
     }
 
     fn to_device<const D: usize>(
         state: Self::State<D>,
-        _device: &B::Device,
+        _device: &Device,
     ) -> Self::State<D> {
         state
     }

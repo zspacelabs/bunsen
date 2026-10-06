@@ -4,7 +4,7 @@
 
 use std::ops::Range;
 
-use burn::prelude::Backend;
+use burn::tensor::Device;
 use serde::{
     Deserialize,
     Serialize,
@@ -20,9 +20,9 @@ pub mod slices;
 ///
 /// [`ConwayLife2DState`]: super::life2d::ConwayLife2DState
 /// [`ConwayLife3DState`]: super::life3d::ConwayLife3DState
-pub trait ConwaySim<B: Backend> {
+pub trait ConwaySim {
     /// Returns the device the board is on.
-    fn device(&self) -> B::Device;
+    fn device(&self) -> Device;
 
     /// Adds noise to the board: each interior cell is flipped, live to dead
     /// or dead to live, with probability `density`. The halo is then

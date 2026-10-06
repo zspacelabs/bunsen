@@ -11,7 +11,7 @@ use burn::{
             MultiHeadAttentionConfig,
         },
     },
-    prelude::Backend,
+    tensor::Device,
 };
 
 use super::WHISPER_DEFAULT_D_MODEL;
@@ -21,10 +21,7 @@ use crate::{
         MlpConfig,
         layer_norm_mlp,
     },
-    burner::{
-        module::ModuleInit,
-        store::FixPytorchLoadMappers,
-    },
+    burner::module::ModuleInit,
     ops::transformers::attention::layer_norm_self_attn,
 };
 
@@ -70,13 +67,11 @@ impl ResidualEncoderAttentionBlockMeta for ResidualEncoderAttentionBlockConfig {
     }
 }
 
-impl<B: Backend> ModuleInit<B, ResidualEncoderAttentionBlock<B>>
-    for ResidualEncoderAttentionBlockConfig
-{
+impl ModuleInit<ResidualEncoderAttentionBlock> for ResidualEncoderAttentionBlockConfig {
     fn try_init(
         &self,
-        device: &B::Device,
-    ) -> crate::errors::BunsenResult<ResidualEncoderAttentionBlock<B>> {
+        device: &Device,
+    ) -> crate::errors::BunsenResult<ResidualEncoderAttentionBlock> {
         let mha_cfg =
             MultiHeadAttentionConfig::new(self.d_model, self.n_heads()).with_dropout(self.dropout);
         let ln_cfg = LayerNormConfig::new(self.d_model);
@@ -88,7 +83,7 @@ impl<B: Backend> ModuleInit<B, ResidualEncoderAttentionBlock<B>>
 
         // Whisper's MLP projections carry a bias, and it runs
         // `Linear -> GELU -> Linear`; the `MlpConfig` default is ReLU.
-        let mlp: Mlp<B> = MlpConfig::new(self.d_model)
+        let mlp: Mlp = MlpConfig::new(self.d_model)
             .with_activation(ActivationConfig::Gelu)
             .with_bias(true)
             .try_init(device)?;
@@ -110,31 +105,21 @@ impl<B: Backend> ModuleInit<B, ResidualEncoderAttentionBlock<B>>
 ///
 /// Built by [`ResidualEncoderAttentionBlockConfig`].
 #[derive(Module, Debug)]
-pub struct ResidualEncoderAttentionBlock<B: Backend> {
+pub struct ResidualEncoderAttentionBlock {
     /// Attention Normalization.
-    pub attn_ln: LayerNorm<B>,
+    pub attn_ln: LayerNorm,
 
     /// Attention.
-    pub attn: MultiHeadAttention<B>,
+    pub attn: MultiHeadAttention,
 
     /// MLP Normalization.
-    pub mlp_ln: LayerNorm<B>,
+    pub mlp_ln: LayerNorm,
 
     /// MLP.
-    pub mlp: Mlp<B>,
+    pub mlp: Mlp,
 }
 
-impl<B: Backend> FixPytorchLoadMappers for ResidualEncoderAttentionBlock<B> {
-    /// The `Linear` weights live in the attention and the MLP; the layer
-    /// norms are rank-1 and unaffected.
-    fn fix_pytorch_load_mappers(mut self) -> Self {
-        self.attn = self.attn.fix_pytorch_load_mappers();
-        self.mlp = self.mlp.fix_pytorch_load_mappers();
-        self
-    }
-}
-
-impl<B: Backend> ResidualEncoderAttentionBlockMeta for ResidualEncoderAttentionBlock<B> {
+impl ResidualEncoderAttentionBlockMeta for ResidualEncoderAttentionBlock {
     fn d_model(&self) -> usize {
         self.attn.d_model
     }
@@ -148,7 +133,7 @@ impl<B: Backend> ResidualEncoderAttentionBlockMeta for ResidualEncoderAttentionB
     }
 }
 
-impl<B: Backend> ResidualEncoderAttentionBlock<B> {
+impl ResidualEncoderAttentionBlock {
     /// Forward pass of the residual decoder attention block.
     ///
     /// # Arguments
@@ -158,8 +143,8 @@ impl<B: Backend> ResidualEncoderAttentionBlock<B> {
     /// `[batch, seq_len, d_model]`
     pub fn forward(
         &self,
-        x: Tensor<B, 3>,
-    ) -> Tensor<B, 3> {
+        x: Tensor<3>,
+    ) -> Tensor<3> {
         let self_attn = layer_norm_self_attn(&self.attn_ln, &self.attn, x.clone(), None);
         let x = x + self_attn.context;
 
@@ -185,7 +170,6 @@ mod tests {
     #[serial_test::serial]
     fn test_residual_decoder_forward() {
         use crate::support::testing::performance_device;
-        type B = crate::support::testing::PerformanceBackend;
         let device = performance_device();
         let _memory = DeviceMemoryGuard::new(&device);
 
@@ -197,7 +181,7 @@ mod tests {
         assert_eq!(cfg.d_model(), d_model);
         assert_eq!(cfg.n_heads(), n_heads);
 
-        let block: ResidualEncoderAttentionBlock<B> = cfg.init(&device);
+        let block: ResidualEncoderAttentionBlock = cfg.init(&device);
 
         assert_eq!(block.d_model(), d_model);
         assert_eq!(block.n_heads(), n_heads);
@@ -206,7 +190,7 @@ mod tests {
         let seq_len = 10;
         let shape: Shape = [batch, seq_len, d_model].into();
 
-        let x: Tensor<B, 3> = Tensor::random(shape.clone(), Distribution::Default, &device);
+        let x: Tensor<3> = Tensor::random(shape.clone(), Distribution::Default, &device);
 
         let output = block.forward(x.clone());
 

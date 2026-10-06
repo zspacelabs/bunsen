@@ -2,10 +2,9 @@
 
 use burn::{
     Tensor,
-    prelude::Backend,
     tensor::{
-        BasicOps,
         Slice,
+        kind::Basic,
     },
 };
 
@@ -19,12 +18,9 @@ use crate::prelude::TensorOpExt;
 /// function.
 ///
 /// Given the 1D space: "ZABCDEZ", this will produce "EABCDEA".
-pub fn project_wrapped_toroidal_boarders<B, const R: usize, K>(
-    state: Tensor<B, R, K>
-) -> Tensor<B, R, K>
+pub fn project_wrapped_toroidal_boarders<const R: usize, K>(state: Tensor<R, K>) -> Tensor<R, K>
 where
-    B: Backend,
-    K: BasicOps<B>,
+    K: Basic,
 {
     fn mk_slices<const R: usize>(
         dim: usize,
@@ -59,25 +55,20 @@ mod test {
     };
 
     use super::*;
-    use crate::{
-        burner::tensor::*,
-        support::testing::{
-            DeviceMemoryGuard,
-            PerformanceBackend,
-            performance_device,
-        },
+    use crate::support::testing::{
+        DeviceMemoryGuard,
+        performance_device,
     };
 
     #[test]
     #[serial_test::serial]
     fn test_wrap_state_2d() {
-        type B = PerformanceBackend;
         let device = performance_device();
         let _memory = DeviceMemoryGuard::new(&device);
 
         let shape: Shape = [5, 6].into();
 
-        let state: Tensor<B, 2, Int> = Tensor::arange(0..shape.num_elements() as i64, &device)
+        let state: Tensor<2, Int> = Tensor::arange(0..shape.num_elements() as i64, &device)
             .add_scalar(100)
             .reshape(shape.clone());
 
@@ -114,13 +105,12 @@ mod test {
     #[test]
     #[serial_test::serial]
     fn test_wrap_state_3d() {
-        type B = PerformanceBackend;
         let device = performance_device();
         let _memory = DeviceMemoryGuard::new(&device);
 
         let shape: Shape = [4, 5, 6].into();
 
-        let state: Tensor<B, 3, Int> = Tensor::arange(0..shape.num_elements() as i64, &device)
+        let state: Tensor<3, Int> = Tensor::arange(0..shape.num_elements() as i64, &device)
             .add_scalar(100)
             .reshape(shape.clone());
 

@@ -2,14 +2,11 @@
 use burn::{
     Tensor,
     module::Module,
-    prelude::{
-        Backend,
-        ElementConversion,
-        Int,
-    },
+    prelude::Int,
     tensor::{
         DType,
         DType::F32,
+        Device,
     },
 };
 
@@ -20,8 +17,8 @@ use crate::contracts::unpack_shape_contract;
 /// # Returns
 ///
 /// The `[VY=3, VX=3, (VY, VX)=2]` int direction indices.
-pub fn direction_indices<B: Backend>(device: &B::Device) -> Tensor<B, 3, Int> {
-    Tensor::<B, 3, Int>::from_data(
+pub fn direction_indices(device: &Device) -> Tensor<3, Int> {
+    Tensor::<3, Int>::from_data(
         [
             [[-1, -1], [-1, 0], [-1, 1]],
             [[0, -1], [0, 0], [0, 1]],
@@ -36,7 +33,7 @@ pub fn direction_indices<B: Backend>(device: &B::Device) -> Tensor<B, 3, Int> {
 /// # Returns
 ///
 /// The `[VY=3, VX=3, (VY, VX)=2]` float direction vectors.
-pub fn direction_vectors<B: Backend>(device: &B::Device) -> Tensor<B, 3> {
+pub fn direction_vectors(device: &Device) -> Tensor<3> {
     direction_indices(device).float()
 }
 
@@ -45,8 +42,8 @@ pub fn direction_vectors<B: Backend>(device: &B::Device) -> Tensor<B, 3> {
 /// # Returns
 ///
 /// The `[VY=3, VX=3]` equilibrium weight matrix.
-pub fn weight_matrix<B: Backend>(device: &B::Device) -> Tensor<B, 2> {
-    Tensor::<B, 2>::from_data(
+pub fn weight_matrix(device: &Device) -> Tensor<2> {
+    Tensor::<2>::from_data(
         [
             [1.0 / 36.0, 1.0 / 9.0, 1.0 / 36.0],
             [1.0 / 9.0, 4.0 / 9.0, 1.0 / 9.0],
@@ -65,20 +62,20 @@ pub fn weight_matrix<B: Backend>(device: &B::Device) -> Tensor<B, 2> {
 ///
 /// Used by [`LBMD2Q9State`](super::LBMD2Q9State).
 #[derive(Module, Debug)]
-pub struct LbmTables<B: Backend> {
+pub struct LbmTables {
     /// `[H, W, (Y, X)=2]` integer direction indices.
-    e_idx: Tensor<B, 3, Int>,
+    e_idx: Tensor<3, Int>,
 
     /// `[H, W, (Y, X)=2]` float direction vectors.
-    e_vec: Tensor<B, 3>,
+    e_vec: Tensor<3>,
 
     /// `[Y=3, X=3]` equilibrium weights
-    w: Tensor<B, 2>,
+    w: Tensor<2>,
 }
 
-impl<B: Backend> LbmTables<B> {
+impl LbmTables {
     /// Creates new space `lbm_tables`.
-    pub fn init(device: &B::Device) -> Self {
+    pub fn init(device: &Device) -> Self {
         let e_idx = direction_indices(device);
         let e_vec = e_idx.clone().float();
         Self {
@@ -89,7 +86,7 @@ impl<B: Backend> LbmTables<B> {
     }
 
     /// Returns appropriate `lbm_tables` for the distribution.
-    pub fn for_dist(dist: &Tensor<B, 4>) -> Self {
+    pub fn for_dist(dist: &Tensor<4>) -> Self {
         Self::init(&dist.device()).to_dtype(dist.dtype())
     }
 
@@ -106,17 +103,17 @@ impl<B: Backend> LbmTables<B> {
     }
 
     /// Returns the direction indices.
-    pub fn e_idx(&self) -> Tensor<B, 3, Int> {
+    pub fn e_idx(&self) -> Tensor<3, Int> {
         self.e_idx.clone()
     }
 
     /// Returns the direction vectors.
-    pub fn e_vec(&self) -> Tensor<B, 3> {
+    pub fn e_vec(&self) -> Tensor<3> {
         self.e_vec.clone()
     }
 
     /// Returns the equilibrium weight matrix.
-    pub fn w(&self) -> Tensor<B, 2> {
+    pub fn w(&self) -> Tensor<2> {
         self.w.clone()
     }
 }
@@ -129,9 +126,9 @@ impl<B: Backend> LbmTables<B> {
 ///
 /// - `label`: the label to use.
 /// - `dist`: the dist to print.
-pub fn dbg_dist<B: Backend>(
+pub fn dbg_dist(
     label: &str,
-    dist: Tensor<B, 4>,
+    dist: Tensor<4>,
 ) {
     let [height, width] = unpack_shape_contract!(
         ["h", "w", "vy", "vx"],
@@ -140,10 +137,10 @@ pub fn dbg_dist<B: Backend>(
         &[("vy", 3), ("vx", 3)]
     );
 
-    let total_energy: f32 = dist.clone().sum().into_scalar().elem();
+    let total_energy: f32 = dist.clone().sum().into_scalar();
     println!("{label}: {total_energy:<8.2e}");
 
-    let data = dist.cast(F32).to_data().to_vec::<f32>().unwrap();
+    let data = dist.cast(F32).to_data().try_to_vec_as::<f32>().unwrap();
 
     fn cross_bar_line(width: usize) {
         print!("+");
@@ -184,7 +181,7 @@ pub fn dbg_dist<B: Backend>(
 /// # Returns
 ///
 /// A `[H, W]` population density.
-pub fn density<B: Backend>(dist: Tensor<B, 4>) -> Tensor<B, 2> {
+pub fn density(dist: Tensor<4>) -> Tensor<2> {
     dist.sum_dims(&[2, 3]).squeeze_dims::<2>(&[2, 3])
 }
 
@@ -200,10 +197,10 @@ pub fn density<B: Backend>(dist: Tensor<B, 4>) -> Tensor<B, 2> {
 /// # Returns
 ///
 /// The `[H, W, (Y, X)=2]` momentum.
-pub fn macroscopic_momentum<B: Backend>(
-    dist: Tensor<B, 4>,
-    e: Tensor<B, 3>,
-) -> Tensor<B, 3> {
+pub fn macroscopic_momentum(
+    dist: Tensor<4>,
+    e: Tensor<3>,
+) -> Tensor<3> {
     dist.unsqueeze_dims::<5>(&[-1])
         .mul(e.unsqueeze::<5>())
         .sum_dims(&[2, 3])
@@ -220,10 +217,10 @@ pub fn macroscopic_momentum<B: Backend>(
 /// # Returns
 ///
 /// The `[H, W, (Y, X)=2]` velocity.
-pub fn normalize_velocity<B: Backend>(
-    m: Tensor<B, 3>,
-    rho: Tensor<B, 2>,
-) -> Tensor<B, 3> {
+pub fn normalize_velocity(
+    m: Tensor<3>,
+    rho: Tensor<2>,
+) -> Tensor<3> {
     // TODO: div-by-zero check?
     // .clamp_min(1e-15)?
     m.div(rho.unsqueeze_dim(2))
@@ -238,11 +235,11 @@ pub fn normalize_velocity<B: Backend>(
 ///
 /// # Returns
 /// - `[H, W, (Y, X)=2]` velocity.
-pub fn macroscopic_velocity<B: Backend>(
-    dist: Tensor<B, 4>,
-    rho: Tensor<B, 2>,
-    e: Tensor<B, 3>,
-) -> Tensor<B, 3> {
+pub fn macroscopic_velocity(
+    dist: Tensor<4>,
+    rho: Tensor<2>,
+    e: Tensor<3>,
+) -> Tensor<3> {
     normalize_velocity(macroscopic_momentum(dist, e), rho)
 }
 
@@ -253,7 +250,7 @@ pub fn macroscopic_velocity<B: Backend>(
 ///
 /// # Returns
 /// - `[H, W]` velocity magnitude squared
-pub fn velocity_squared<B: Backend>(u: Tensor<B, 3>) -> Tensor<B, 2> {
+pub fn velocity_squared(u: Tensor<3>) -> Tensor<2> {
     u.square().sum_dim(2).squeeze_dims::<2>(&[2])
 }
 
@@ -268,10 +265,10 @@ pub fn velocity_squared<B: Backend>(u: Tensor<B, 3>) -> Tensor<B, 2> {
 /// ``(density, velocity)`` where:
 /// - `density`: `[H, W]`
 /// - `velocity`: `[H, W, (Y, X)=2]`
-pub fn moments<B: Backend>(
-    dist: Tensor<B, 4>,
-    lbm_tables: &LbmTables<B>,
-) -> (Tensor<B, 2>, Tensor<B, 3>) {
+pub fn moments(
+    dist: Tensor<4>,
+    lbm_tables: &LbmTables,
+) -> (Tensor<2>, Tensor<3>) {
     let rho = density(dist.clone());
     let u = macroscopic_velocity(dist, rho.clone(), lbm_tables.e_vec());
     (rho, u)
@@ -290,7 +287,7 @@ pub fn moments<B: Backend>(
 ///
 /// # Returns
 /// `[H, W, VY=3, VX=3, WIN_Y=3, WIN_X=3]` folded windows.
-pub fn dist_windows<B: Backend>(dist: Tensor<B, 4>) -> Tensor<B, 6> {
+pub fn dist_windows(dist: Tensor<4>) -> Tensor<6> {
     dist.unfold::<5, _>(0, 3, 1).unfold::<6, _>(1, 3, 1)
 }
 
@@ -305,18 +302,16 @@ mod tests {
     };
     use crate::support::testing::{
         DeviceMemoryGuard,
-        PerformanceBackend,
         performance_device,
     };
 
     #[test]
     #[serial]
     fn test_population_density() {
-        type B = PerformanceBackend;
         let device = performance_device();
         let _memory = DeviceMemoryGuard::new(&device);
 
-        let dist: Tensor<B, 4> = Tensor::from_data(
+        let dist: Tensor<4> = Tensor::from_data(
             [
                 [
                     [[1., 2., 3.], [4., 5., 6.], [7., 8., 9.]],
@@ -333,7 +328,7 @@ mod tests {
         let rho = density(dist.clone());
 
         rho.to_data().assert_approx_eq::<f32>(
-            &Tensor::<B, 2>::from_data([[45., 450.], [61., 6.]], &device).to_data(),
+            &Tensor::<2>::from_data([[45., 450.], [61., 6.]], &device).to_data(),
             Tolerance::default(),
         )
     }
@@ -341,14 +336,13 @@ mod tests {
     #[test]
     #[serial]
     fn test_direction_vectors() {
-        type B = PerformanceBackend;
         let device = performance_device();
         let _memory = DeviceMemoryGuard::new(&device);
 
-        let e: Tensor<B, 3> = direction_vectors(&device);
+        let e: Tensor<3> = direction_vectors(&device);
 
         e.to_data().assert_eq(
-            &Tensor::<B, 3>::from_data(
+            &Tensor::<3>::from_data(
                 [
                     [[-1., -1.], [-1., 0.], [-1., 1.]],
                     [[0., -1.], [0., 0.], [0., 1.]],
@@ -364,14 +358,13 @@ mod tests {
     #[test]
     #[serial]
     fn test_weight_matrix() {
-        type B = PerformanceBackend;
         let device = performance_device();
         let _memory = DeviceMemoryGuard::new(&device);
 
-        let w: Tensor<B, 2> = weight_matrix(&device);
+        let w: Tensor<2> = weight_matrix(&device);
 
         w.to_data().assert_eq(
-            &Tensor::<B, 2>::from_data(
+            &Tensor::<2>::from_data(
                 [
                     [1.0 / 36.0, 1.0 / 9.0, 1.0 / 36.0],
                     [1.0 / 9.0, 4.0 / 9.0, 1.0 / 9.0],
@@ -387,11 +380,10 @@ mod tests {
     #[test]
     #[serial]
     fn test_momentum_and_velocity() {
-        type B = PerformanceBackend;
         let device = performance_device();
         let _memory = DeviceMemoryGuard::new(&device);
 
-        let dist: Tensor<B, 4> = Tensor::from_data(
+        let dist: Tensor<4> = Tensor::from_data(
             [[
                 [[1., 0., 0.], [0., 10., 0.], [0., 0., 0.]],
                 [[1., 2., 3.], [4., 10., 5.], [6., 7., 8.]],
@@ -404,16 +396,16 @@ mod tests {
         let momentum = macroscopic_momentum(dist.clone(), lbm_tables.e_vec());
 
         momentum.to_data().assert_approx_eq::<f32>(
-            &Tensor::<B, 3>::from_data([[[-1., -1.], [15., 5.]]], &device).to_data(),
+            &Tensor::<3>::from_data([[[-1., -1.], [15., 5.]]], &device).to_data(),
             Tolerance::default(),
         );
 
         let (rho, u) = moments(dist.clone(), &lbm_tables);
 
-        let rho_data = rho.to_data().to_vec::<f32>().unwrap();
+        let rho_data = rho.to_data().try_to_vec_as::<f32>().unwrap();
 
         u.to_data().assert_approx_eq::<f32>(
-            &Tensor::<B, 3>::from_data(
+            &Tensor::<3>::from_data(
                 [[
                     [-1. / rho_data[0], -1. / rho_data[0]],
                     [15. / rho_data[1], 5. / rho_data[1]],
@@ -427,7 +419,7 @@ mod tests {
         let v_sq = velocity_squared(u.clone());
 
         v_sq.to_data().assert_approx_eq::<f32>(
-            &Tensor::<B, 2>::from_data(
+            &Tensor::<2>::from_data(
                 [[
                     (1. + 1.) / rho_data[0].powi(2),
                     (15. * 15. + 5. * 5.) / rho_data[1].powi(2),

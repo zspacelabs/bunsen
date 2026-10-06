@@ -21,16 +21,12 @@ use bunsen::{
         },
         util::ConwaySim,
     },
-    prelude::TensorElemOpExt,
     support::testing::backend_device,
     zspace::ravel_dims,
 };
 use burn::{
     backend::flex::ops::unary::log,
-    prelude::{
-        Backend,
-        TensorData,
-    },
+    prelude::TensorData,
 };
 use clap_common::logging::LogArgs;
 use glutin_window::{
@@ -78,14 +74,14 @@ pub struct VisualCmd {
 }
 
 impl VisualCmd {
-    pub fn run<B: Backend>(&self) -> BunsenResult<()> {
-        let device = backend_device::<B>();
+    pub fn run(&self) -> BunsenResult<()> {
+        let device = backend_device();
 
         self.logging.init(None)?;
         log::info!("Running Conway's Game of Life simulation...");
         log::info!("{self:#?}");
 
-        let mut conway: ConwayLife2DState<B> =
+        let mut conway: ConwayLife2DState =
             ConwayLife2DConfig::new(self.sim.grid.grid_shape).init(&device);
         conway.fuzz(self.sim.initial_density);
         conway.step();
@@ -211,8 +207,8 @@ pub struct Simulation {
 }
 
 impl Simulation {
-    pub fn new<B: Backend>(
-        conway: ConwayLife2DState<B>,
+    pub fn new(
+        conway: ConwayLife2DState,
         noise: f64,
         tic_duration: Option<Duration>,
         export_duration: Duration,

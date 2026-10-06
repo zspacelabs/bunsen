@@ -2,14 +2,11 @@
 use burn::{
     Tensor,
     prelude::{
-        Backend,
         Bool,
         SliceArg,
     },
     tensor::Slice,
 };
-
-use crate::prelude::TensorElemOpExt;
 
 /// Range size of a [`Slice`].
 pub fn slice_size(slice: &Slice) -> usize {
@@ -22,8 +19,8 @@ pub fn slices_shape(slices: &[Slice; 2]) -> [usize; 2] {
 }
 
 /// Read a 2D slice from a tensor.
-pub fn read_2d_slice<B: Backend, R>(
-    state: Tensor<B, 2, Bool>,
+pub fn read_2d_slice<R>(
+    state: Tensor<2, Bool>,
     ranges: R,
 ) -> Vec<Vec<bool>>
 where
@@ -35,7 +32,7 @@ where
     state
         .slice(slices)
         .to_data_as::<bool>()
-        .to_vec::<bool>()
+        .try_to_vec_as::<bool>()
         .unwrap()
         .chunks(w)
         .map(<[_]>::to_vec)

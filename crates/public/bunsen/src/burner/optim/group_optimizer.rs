@@ -28,17 +28,10 @@ use burn::{
         },
         record::AdaptorRecord,
     },
-    prelude::{
-        Backend,
-        Device,
-    },
+    prelude::Device,
     record::{
         PrecisionSettings,
         Record,
-    },
-    tensor::backend::{
-        AutodiffBackend,
-        BackendTypes,
     },
 };
 use hashbrown::{
@@ -68,10 +61,9 @@ use crate::burner::optim::{
 /// moved.
 /// See the [module docs](crate::burner::optim) for the lifecycle.
 #[derive(Clone)]
-pub struct OptimizerGroup<B, O>
+pub struct OptimizerGroup<O>
 where
-    B: AutodiffBackend,
-    O: SimpleOptimizer<B::InnerBackend>,
+    O: SimpleOptimizer,
 {
     /// The Parameters assigned to this group.
     pub params: HashSet<ParamId>,
@@ -82,13 +74,12 @@ where
     /// Learning rate mapping function.
     pub lr_selector: Option<Arc<dyn LrSelector>>,
 
-    phantom: PhantomData<B>,
+    phantom: PhantomData,
 }
 
-impl<B, O> OptimizerGroup<B, O>
+impl<O> OptimizerGroup<O>
 where
-    B: AutodiffBackend,
-    O: SimpleOptimizer<B::InnerBackend>,
+    O: SimpleOptimizer,
 {
     /// Creates a group of `params`, stepped by `optim`, at the global
     /// learning rate.
@@ -108,7 +99,7 @@ where
     /// inside `adaptor`, at the global learning rate.
     ///
     /// `adaptor` is what a `burn` optimizer config's `init()` returns, e.g.
-    /// `AdamWConfig::new().init::<B, M>()`. Only its optimizer is used; its
+    /// `AdamWConfig::new().init::<M>()`. Only its optimizer is used; its
     /// gradient clipping and state are not.
     pub fn from_adaptor<M, I>(
         params: I,
@@ -116,7 +107,7 @@ where
     ) -> Self
     where
         I: IntoIterator<Item = ParamId>,
-        M: AutodiffModule<B>,
+        M: AutodiffModule,
     {
         Self::new(params.into_iter().collect(), adaptor.optim().clone())
     }
@@ -163,10 +154,7 @@ where
     }
 }
 
-impl<B> OptimizerGroup<B, FrozenOptimizer>
-where
-    B: AutodiffBackend,
-{
+impl OptimizerGroup<FrozenOptimizer> {
     /// Creates a frozen group: its `params` are never moved.
     ///
     /// The group's optimizer is [`FrozenOptimizer`]. The parameters count as
@@ -189,19 +177,17 @@ where
 #[derive(Clone)]
 pub struct OptimizerGroupRecord<O, B>
 where
-    B: AutodiffBackend,
-    O: SimpleOptimizer<B::InnerBackend>,
+    O: SimpleOptimizer,
 {
     /// The optimizer states for each parameter in the group.
     pub param_map: HashMap<ParamId, AdaptorRecord<O, B>>,
 }
 
-impl<O, B> Record<B> for OptimizerGroupRecord<O, B>
+impl<O, B> Record for OptimizerGroupRecord<O, B>
 where
-    B: AutodiffBackend,
-    O: SimpleOptimizer<B::InnerBackend>,
+    O: SimpleOptimizer,
 {
-    type Item<S2: PrecisionSettings> = Vec<(String, <AdaptorRecord<O, B> as Record<B>>::Item<S2>)>;
+    type Item<S2: PrecisionSettings> = Vec<(String, <AdaptorRecord<O, B> as Record>::Item<S2>)>;
 
     fn into_item<S2: PrecisionSettings>(self) -> Self::Item<S2> {
         self.param_map
@@ -214,7 +200,7 @@ where
     /// If a key is not a serialized `ParamId` ([`ParamId::deserialize`]).
     fn from_item<S2: PrecisionSettings>(
         item: Self::Item<S2>,
-        device: &B::Device,
+        device: &Device,
     ) -> Self {
         Self {
             param_map: item
@@ -266,10 +252,9 @@ pub struct GroupOptimizerAdaptorRecordItem<G> {
     pub groups: G,
 }
 
-impl<B, G> Record<B> for GroupOptimizerAdaptorRecord<G>
+impl<G> Record for GroupOptimizerAdaptorRecord<G>
 where
-    B: Backend,
-    G: Record<B>,
+    G: Record,
 {
     type Item<S: PrecisionSettings> = GroupOptimizerAdaptorRecordItem<G::Item<S>>;
 
@@ -289,7 +274,7 @@ where
     /// ([`ParamId::deserialize`]).
     fn from_item<S: PrecisionSettings>(
         item: Self::Item<S>,
-        device: &B::Device,
+        device: &Device,
     ) -> Self {
         Self {
             dispatch: item
@@ -406,10 +391,10 @@ pub enum UnknownParamPolicy {
 /// order.
 struct FloatParamIds(Vec<ParamId>);
 
-impl<B: Backend> ModuleVisitor<B> for FloatParamIds {
+impl ModuleVisitor for FloatParamIds {
     fn visit_float<const D: usize>(
         &mut self,
-        param: &Param<Tensor<B, D>>,
+        param: &Param<Tensor<D>>,
     ) {
         self.0.push(param.id);
     }
@@ -417,13 +402,12 @@ impl<B: Backend> ModuleVisitor<B> for FloatParamIds {
 
 /// Lists the float parameters of `module` that are not in `dispatch`, in
 /// visiting order.
-fn unassigned_float_params<B, M>(
+fn unassigned_float_params<M>(
     module: &M,
     dispatch: &HashMap<ParamId, (usize, usize)>,
 ) -> Vec<ParamId>
 where
-    B: Backend,
-    M: Module<B>,
+    M: Module,
 {
     let mut float_params = FloatParamIds(Vec::new());
     module.visit(&mut float_params);
@@ -465,15 +449,14 @@ fn admit_unassigned(
 ///
 /// # Panics
 /// Under [`UnknownParamPolicy::Panic`], if there are any.
-fn check_step_params<B, M>(
+fn check_step_params<M>(
     adaptor: &str,
     policy: UnknownParamPolicy,
     module: &M,
     dispatch: &HashMap<ParamId, (usize, usize)>,
     warned: &mut HashSet<ParamId>,
 ) where
-    B: Backend,
-    M: Module<B>,
+    M: Module,
 {
     if policy == UnknownParamPolicy::Freeze {
         return;
@@ -596,18 +579,17 @@ fn check_loaded_groups(
 ///
 /// Factored out to avoid duplicating the record-management logic per type arm.
 #[inline(always)]
-fn step_group<B, O, const D: usize>(
+fn step_group<O, const D: usize>(
     optim: &O,
     records: &mut HashMap<ParamId, AdaptorRecord<O, B>>,
     id: ParamId,
-    tensor: Tensor<B::InnerBackend, D>,
-    grad: Tensor<B::InnerBackend, D>,
+    tensor: Tensor<D>,
+    grad: Tensor<D>,
     device: &<<B as AutodiffBackend>::InnerBackend as BackendTypes>::Device,
     lr: LearningRate,
-) -> Tensor<B::InnerBackend, D>
+) -> Tensor<D>
 where
-    B: AutodiffBackend,
-    O: SimpleOptimizer<B::InnerBackend>,
+    O: SimpleOptimizer,
 {
     let (key, record) = records.remove_entry(&id).unzip();
     let state = record.map(|r| O::to_device(r.into_state(), device));
@@ -662,11 +644,10 @@ macro_rules! define_group_optimizer_adaptor {
             #[derive(Clone)]
             pub struct [<GroupOptimizerAdaptor $N>]<$($O,)+ M, B>
             where
-                $( $O: SimpleOptimizer<B::InnerBackend>, )+
-                M: AutodiffModule<B>,
-                B: AutodiffBackend,
+                $( $O: SimpleOptimizer, )+
+                M: AutodiffModule,
             {
-                $( [<groups_ $idx>]: Vec<OptimizerGroup<B, $O>>, )+
+                $( [<groups_ $idx>]: Vec<OptimizerGroup<$O>>, )+
 
                 /// `ParamId` → (`type_tag`, `group_index`); saved in the
                 /// record, and restored by `load_record`.
@@ -686,9 +667,8 @@ macro_rules! define_group_optimizer_adaptor {
 
             impl<$($O,)+ M, B> [<GroupOptimizerAdaptor $N>]<$($O,)+ M, B>
             where
-                $( $O: SimpleOptimizer<B::InnerBackend>, )+
-                M: AutodiffModule<B>,
-                B: AutodiffBackend,
+                $( $O: SimpleOptimizer, )+
+                M: AutodiffModule,
             {
                 /// Builds the adaptor for `module` from one `Vec` of groups
                 /// per optimizer type, in type-parameter order, under the
@@ -705,7 +685,7 @@ macro_rules! define_group_optimizer_adaptor {
                 #[allow(clippy::too_many_arguments)]
                 pub fn new(
                     module: &M,
-                    $( [<groups_ $idx>]: Vec<OptimizerGroup<B, $O>>, )+
+                    $( [<groups_ $idx>]: Vec<OptimizerGroup<$O>>, )+
                 ) -> Result<Self, GroupOptimizerError> {
                     Self::new_with_policy(
                         module,
@@ -730,7 +710,7 @@ macro_rules! define_group_optimizer_adaptor {
                 pub fn new_with_policy(
                     module: &M,
                     policy: UnknownParamPolicy,
-                    $( [<groups_ $idx>]: Vec<OptimizerGroup<B, $O>>, )+
+                    $( [<groups_ $idx>]: Vec<OptimizerGroup<$O>>, )+
                 ) -> Result<Self, GroupOptimizerError> {
                     let mut dispatch = HashMap::new();
 
@@ -817,9 +797,8 @@ macro_rules! define_group_optimizer_adaptor {
             impl<$($O,)+ M, B> Optimizer<M, B>
                 for [<GroupOptimizerAdaptor $N>]<$($O,)+ M, B>
             where
-                $( $O: SimpleOptimizer<B::InnerBackend>, )+
-                M: AutodiffModule<B>,
-                B: AutodiffBackend,
+                $( $O: SimpleOptimizer, )+
+                M: AutodiffModule,
             {
                 #[allow(clippy::type_complexity)]
                 type Record = GroupOptimizerAdaptorRecord<(
@@ -910,10 +889,9 @@ macro_rules! define_group_optimizer_adaptor {
             )]
             struct [<GroupOptimizerMapper $N>]<'a, B, $($O,)+>
             where
-                B: AutodiffBackend,
-                $( $O: SimpleOptimizer<B::InnerBackend>, )+
+                $( $O: SimpleOptimizer, )+
             {
-                $( [<groups_ $idx>]: &'a Vec<OptimizerGroup<B, $O>>, )+
+                $( [<groups_ $idx>]: &'a Vec<OptimizerGroup<$O>>, )+
 
                 dispatch: &'a HashMap<ParamId, (usize, usize)>,
 
@@ -926,20 +904,19 @@ macro_rules! define_group_optimizer_adaptor {
                 grad_clipping: Option<&'a GradientClipping>,
             }
 
-            impl<B, $($O,)+> ModuleMapper<B>
+            impl<$($O,)+> ModuleMapper
                 for [<GroupOptimizerMapper $N>]<'_, B, $($O,)+>
             where
-                B: AutodiffBackend,
-                $( $O: SimpleOptimizer<B::InnerBackend>, )+
+                $( $O: SimpleOptimizer, )+
             {
                 fn map_float<const D: usize>(
                     &mut self,
-                    param: Param<Tensor<B, D>>,
-                ) -> Param<Tensor<B, D>> {
+                    param: Param<Tensor<D>>,
+                ) -> Param<Tensor<D>> {
                     let (id, tensor, mapper) = param.consume();
 
                     let Some((grad, device)) =
-                        self.grads.remove::<B::InnerBackend, D>(id)
+                        self.grads.remove::<D>(id)
                     else {
                         return Param::from_mapped_value(id, tensor, mapper);
                     };
@@ -970,7 +947,7 @@ macro_rules! define_group_optimizer_adaptor {
                                 let group = &self.[<groups_ $idx>][idx];
                                 let lr = group.lr(self.global_lr);
 
-                                step_group::<B, $O, D>(
+                                step_group::<$O, D>(
                                     &group.optim,
                                     &mut self.[<records_ $idx>][idx].param_map,
                                     id,
@@ -1040,7 +1017,6 @@ mod tests {
     };
 
     use burn::{
-        backend::Autodiff,
         nn::{
             Linear,
             LinearConfig,
@@ -1075,14 +1051,10 @@ mod tests {
     };
 
     use super::*;
-    use crate::support::testing::{
-        CpuBackend,
-        cpu_device,
-    };
+    use crate::support::testing::cpu_device;
 
-    type B = Autodiff<CpuBackend>;
-    type Net = (Linear<B>, Linear<B>);
-    type SgdO = Sgd<CpuBackend>;
+    type Net = (Linear, Linear);
+    type SgdO = Sgd;
 
     fn net() -> Net {
         let device = cpu_device().autodiff();
@@ -1122,7 +1094,7 @@ mod tests {
 
     /// Gradients of one backward pass; every parameter gets one.
     fn grads(net: &Net) -> GradientsParams {
-        let x = Tensor::<B, 2>::ones([2, 3], &cpu_device().autodiff());
+        let x = Tensor::<2>::ones([2, 3], &cpu_device().autodiff());
         let loss = net.1.forward(net.0.forward(x)).sum();
         GradientsParams::from_grads(loss.backward(), net)
     }
@@ -1577,8 +1549,8 @@ mod tests {
         record: R,
     ) -> R
     where
-        Rec: Recorder<B, RecordArgs = (), RecordOutput = Vec<u8>, LoadArgs = Vec<u8>>,
-        R: Record<B>,
+        Rec: Recorder<RecordArgs = (), RecordOutput = Vec<u8>, LoadArgs = Vec<u8>>,
+        R: Record,
     {
         let bytes = recorder.record(record, ()).unwrap();
         recorder.load(bytes, &cpu_device().autodiff()).unwrap()
@@ -1586,7 +1558,7 @@ mod tests {
 
     /// A model record and an optimizer record, saved together.
     type Checkpoint = (
-        <Net as Module<B>>::Record,
+        <Net as Module>::Record,
         <SgdAdamW as Optimizer<Net, B>>::Record,
     );
 
@@ -1656,14 +1628,9 @@ mod tests {
         let device = cpu_device().autodiff();
         let adamw = adamw();
         let state = |value: f32| {
-            let tensor = Tensor::<CpuBackend, 1>::full([2], value, &device);
-            let (_, state) = SimpleOptimizer::<CpuBackend>::step(
-                adamw.optim(),
-                0.1,
-                tensor.clone(),
-                tensor,
-                None,
-            );
+            let tensor = Tensor::<1>::full([2], value, &device);
+            let (_, state) =
+                SimpleOptimizer::step(adamw.optim(), 0.1, tensor.clone(), tensor, None);
             AdaptorRecord::<AdamW, B>::from_state(state.unwrap())
         };
         let [a, b] = [ParamId::new(), ParamId::new()];
@@ -1797,12 +1764,12 @@ mod tests {
     /// [`Net`] as a struct, for a `Learner`: its train step is one backward
     /// pass of [`grads`]' loss.
     #[derive(Module, Debug)]
-    struct LearnerNet<B: Backend> {
-        body: Linear<B>,
-        head: Linear<B>,
+    struct LearnerNet {
+        body: Linear,
+        head: Linear,
     }
 
-    impl<B: AutodiffBackend> TrainStep for LearnerNet<B> {
+    impl TrainStep for LearnerNet {
         type Input = ();
         type Output = ();
 
@@ -1810,13 +1777,13 @@ mod tests {
             &self,
             _item: (),
         ) -> TrainOutput<()> {
-            let x = Tensor::<B, 2>::ones([2, 3], &self.body.weight.device());
+            let x = Tensor::<2>::ones([2, 3], &self.body.weight.device());
             let loss = self.head.forward(self.body.forward(x)).sum();
             TrainOutput::new(self, loss.backward(), ())
         }
     }
 
-    impl<B: Backend> InferenceStep for LearnerNet<B> {
+    impl InferenceStep for LearnerNet {
         type Input = ();
         type Output = ();
 
@@ -1829,30 +1796,30 @@ mod tests {
 
     #[test]
     fn test_learner_resumes_from_a_checkpoint() {
-        type Optim = GroupOptimizerAdaptor2<SgdO, AdamW, LearnerNet<B>, B>;
+        type Optim = GroupOptimizerAdaptor2<SgdO, AdamW, LearnerNet, B>;
 
         let device = cpu_device().autodiff();
-        let new_net = || LearnerNet::<B> {
+        let new_net = || LearnerNet {
             body: LinearConfig::new(3, 3).init(&device),
             head: LinearConfig::new(3, 2).init(&device),
         };
         // SGD for the weights, `AdamW` for the biases.
-        let new_optim = |net: &LearnerNet<B>| -> Optim {
-            let bias = |linear: &Linear<B>| linear.bias.as_ref().unwrap().id;
+        let new_optim = |net: &LearnerNet| -> Optim {
+            let bias = |linear: &Linear| linear.bias.as_ref().unwrap().id;
             Optim::new(
                 net,
                 vec![OptimizerGroup::from_adaptor(
                     [net.body.weight.id, net.head.weight.id],
-                    &SgdConfig::new().init::<B, LearnerNet<B>>(),
+                    &SgdConfig::new().init::<LearnerNet>(),
                 )],
                 vec![OptimizerGroup::from_adaptor(
                     [bias(&net.body), bias(&net.head)],
-                    &AdamWConfig::new().init::<B, LearnerNet<B>>(),
+                    &AdamWConfig::new().init::<LearnerNet>(),
                 )],
             )
             .unwrap()
         };
-        let values = |net: &LearnerNet<B>| {
+        let values = |net: &LearnerNet| {
             [&net.body, &net.head].map(|linear| {
                 (
                     linear.weight.val().into_data(),

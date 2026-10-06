@@ -90,18 +90,13 @@ mod tests {
         },
         *,
     };
-    use crate::support::testing::{
-        CpuBackend,
-        cpu_device,
-    };
-
-    type B = CpuBackend;
+    use crate::support::testing::cpu_device;
 
     #[test]
     fn test_from_param() {
         let device = cpu_device();
 
-        let linear = LinearConfig::new(2, 3).init::<B>(&device);
+        let linear = LinearConfig::new(2, 3).init(&device);
 
         let param = linear.weight;
 

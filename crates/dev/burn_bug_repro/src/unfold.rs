@@ -90,13 +90,13 @@ pub fn inferred_line_width(
 ///
 /// # Panics
 /// On an affected backend. That is the point.
-pub fn minimal<B: Backend>(device: &B::Device) {
-    let input = Tensor::<B, 1, Int>::arange(0..10, device).reshape([2, 5]);
+pub fn minimal(device: &Device) {
+    let input = Tensor::<1, Int>::arange(0..10, device).reshape([2, 5]);
     let unfolded = input.unfold::<3, _>(1, 2, 2);
 
     assert_eq!(unfolded.dims(), [2, 2, 2]);
 
-    let got: Vec<i32> = unfolded.to_data().to_vec().unwrap();
+    let got: Vec<i32> = unfolded.to_data().try_into_vec_as().unwrap();
     let want = vec![0, 1, 2, 3, /* row 1 */ 5, 6, 7, 8];
 
     assert_eq!(
@@ -116,13 +116,13 @@ pub fn minimal<B: Backend>(device: &B::Device) {
 /// # Panics
 /// If this fails, the defect is *not* the one described here and the diagnosis
 /// needs revisiting.
-pub fn control_odd_step<B: Backend>(device: &B::Device) {
-    let input = Tensor::<B, 1, Int>::arange(0..10, device).reshape([2, 5]);
+pub fn control_odd_step(device: &Device) {
+    let input = Tensor::<1, Int>::arange(0..10, device).reshape([2, 5]);
     let unfolded = input.unfold::<3, _>(1, 2, 3);
 
     assert_eq!(unfolded.dims(), [2, 2, 2]);
 
-    let got: Vec<i32> = unfolded.to_data().to_vec().unwrap();
+    let got: Vec<i32> = unfolded.to_data().try_into_vec_as().unwrap();
     // Row 0: [0,1] [3,4]   Row 1: [5,6] [8,9]
     assert_eq!(got, vec![0, 1, 3, 4, 5, 6, 8, 9]);
 }
@@ -136,13 +136,13 @@ pub fn control_odd_step<B: Backend>(device: &B::Device) {
 ///
 /// # Panics
 /// If this fails, the diagnosis needs revisiting.
-pub fn control_no_tail<B: Backend>(device: &B::Device) {
-    let input = Tensor::<B, 1, Int>::arange(0..8, device).reshape([2, 4]);
+pub fn control_no_tail(device: &Device) {
+    let input = Tensor::<1, Int>::arange(0..8, device).reshape([2, 4]);
     let unfolded = input.unfold::<3, _>(1, 2, 2);
 
     assert_eq!(unfolded.dims(), [2, 2, 2]);
 
-    let got: Vec<i32> = unfolded.to_data().to_vec().unwrap();
+    let got: Vec<i32> = unfolded.to_data().try_into_vec_as().unwrap();
     // Row 0: [0,1] [2,3]   Row 1: [4,5] [6,7]
     assert_eq!(got, vec![0, 1, 2, 3, 4, 5, 6, 7]);
 }
@@ -152,9 +152,13 @@ pub fn control_no_tail<B: Backend>(device: &B::Device) {
 /// `size = 2, step = 4, len = 9`. Returns the flat index row 1 actually starts
 /// at: `6` would mean the covered span is substituted, `8` that the row is
 /// rounded down to a whole line, and `9` that the backend is correct.
-pub fn discriminate_truncation_rule<B: Backend>(device: &B::Device) -> i32 {
-    let input = Tensor::<B, 1, Int>::arange(0..18, device).reshape([2, 9]);
-    let got: Vec<i32> = input.unfold::<3, _>(1, 2, 4).to_data().to_vec().unwrap();
+pub fn discriminate_truncation_rule(device: &Device) -> i32 {
+    let input = Tensor::<1, Int>::arange(0..18, device).reshape([2, 9]);
+    let got: Vec<i32> = input
+        .unfold::<3, _>(1, 2, 4)
+        .to_data()
+        .try_into_vec_as()
+        .unwrap();
 
     // Row 1's first window begins after row 0's `num * size` elements.
     let num = 2usize;
@@ -191,7 +195,7 @@ impl UnfoldCase {
 /// watch the failing set shrink to empty. Compare each entry's
 /// [`predicted_wrong`](UnfoldCase::predicted_wrong) against its presence here:
 /// on an affected backend the two agree exactly.
-pub fn sweep<B: Backend>(device: &B::Device) -> Vec<UnfoldCase> {
+pub fn sweep(device: &Device) -> Vec<UnfoldCase> {
     let mut wrong = Vec::new();
 
     for size in 2..=8usize {
@@ -204,12 +208,12 @@ pub fn sweep<B: Backend>(device: &B::Device) -> Vec<UnfoldCase> {
                     }
 
                     let rows = 2usize;
-                    let input = Tensor::<B, 1, Int>::arange(0..(rows * len) as i64, device)
+                    let input = Tensor::<1, Int>::arange(0..(rows * len) as i64, device)
                         .reshape([rows, len]);
                     let got: Vec<i32> = input
                         .unfold::<3, _>(1, size, step)
                         .to_data()
-                        .to_vec()
+                        .try_into_vec_as()
                         .unwrap();
 
                     let want: Vec<i32> = (0..rows)
@@ -240,11 +244,6 @@ pub fn sweep<B: Backend>(device: &B::Device) -> Vec<UnfoldCase> {
 
 #[cfg(test)]
 mod tests {
-    use bunsen::support::testing::{
-        CpuBackend,
-        PerformanceBackend,
-    };
-    use burn::tensor::backend::BackendTypes;
 
     use super::*;
 
@@ -256,9 +255,9 @@ mod tests {
     #[ignore = "asserts correct semantics; fails on affected backends by design"]
     fn test_repro_on_performance_backend() {
         let device = performance_device();
-        control_odd_step::<PerformanceBackend>(&device);
-        control_no_tail::<PerformanceBackend>(&device);
-        minimal::<PerformanceBackend>(&device);
+        control_odd_step(&device);
+        control_no_tail(&device);
+        minimal(&device);
     }
 
     /// The same reproduction against `Flex`, which is unaffected.
@@ -268,11 +267,11 @@ mod tests {
     #[test]
     fn test_cpu_backend_is_correct() {
         let device = cpu_device();
-        control_odd_step::<CpuBackend>(&device);
-        control_no_tail::<CpuBackend>(&device);
-        minimal::<CpuBackend>(&device);
-        assert_eq!(discriminate_truncation_rule::<CpuBackend>(&device), 9);
-        assert!(sweep::<CpuBackend>(&device).is_empty());
+        control_odd_step(&device);
+        control_no_tail(&device);
+        minimal(&device);
+        assert_eq!(discriminate_truncation_rule(&device), 9);
+        assert!(sweep(&device).is_empty());
     }
 
     /// Pins the **current** behaviour, so a `CubeCL` fix announces itself here
@@ -293,7 +292,7 @@ mod tests {
         let device = performance_device();
 
         assert!(
-            !sweep::<PerformanceBackend>(&device).is_empty(),
+            !sweep(&device).is_empty(),
             "`unfold` now reads every swept configuration correctly — CubeCL \
              appears to honour the outer stride. Un-ignore \
              `test_repro_on_performance_backend`, and re-check the \
@@ -311,7 +310,7 @@ mod tests {
     #[ignore = "diagnostic report, not an assertion"]
     fn test_report_sweep() {
         let device = performance_device();
-        let wrong = sweep::<PerformanceBackend>(&device);
+        let wrong = sweep(&device);
 
         eprintln!("{} configurations read wrong", wrong.len());
         eprintln!("size step  len num tail    v  predicted");
@@ -329,7 +328,7 @@ mod tests {
         }
         eprintln!(
             "row 1 starts at flat {} (6 = covered-span rule, 8 = truncation rule, 9 = correct)",
-            discriminate_truncation_rule::<PerformanceBackend>(&device),
+            discriminate_truncation_rule(&device),
         );
         assert!(
             wrong.iter().all(UnfoldCase::predicted_wrong),

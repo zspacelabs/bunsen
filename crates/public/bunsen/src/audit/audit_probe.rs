@@ -6,16 +6,13 @@ use std::{
 
 use burn::{
     Tensor,
-    prelude::{
-        Backend,
-        TensorData,
-    },
+    prelude::TensorData,
     tensor::{
-        BasicOps,
         DType,
         Element,
         FloatDType,
         f16,
+        kind::Basic,
     },
 };
 use num_traits::Float;
@@ -41,10 +38,7 @@ use crate::{
         ResultContext,
         ValueMismatch,
     },
-    prelude::{
-        TensorDataCheckExt,
-        TensorElemOpExt,
-    },
+    prelude::TensorDataCheckExt,
     rust_ext::CloneRef,
 };
 
@@ -96,7 +90,7 @@ impl<'a> DataArg<'a> for &'a TensorData {
     }
 }
 
-impl<'a, B: Backend, const R: usize, K: BasicOps<B>> DataArg<'a> for &'a Tensor<B, R, K> {
+impl<'a, const R: usize, K: Basic> DataArg<'a> for &'a Tensor<R, K> {
     fn into_data_ref(self) -> CloneRef<'a, TensorData> {
         CloneRef::Clone(self.to_data())
     }
@@ -472,6 +466,8 @@ pub(crate) fn match_events_at(
 
 #[cfg(test)]
 mod tests {
+    use burn::tensor::Device;
+
     use super::*;
     use crate::{
         audit::{
@@ -487,9 +483,8 @@ mod tests {
             },
         },
         support::testing::{
-            CpuBackend,
-            PerformanceBackend,
-            cpu_device, performance_device,
+            cpu_device,
+            performance_device,
         },
     };
 
@@ -500,20 +495,18 @@ mod tests {
         let mut recorder = AuditProbeVecRecorder::default();
         let probe = &mut AuditProbe::new(vec![&mut recorder]);
         {
-            type B = PerformanceBackend;
             let device = performance_device();
 
-            let iota: Tensor<B, 1> = Tensor::arange(0..10, &device).float();
+            let iota: Tensor<1> = Tensor::arange(0..10, &device).float();
             probe.assert_eq_as::<f64>("iota", &iota).ok_or_panic();
         }
 
         let mut verifier = recorder.into_verifier();
         let probe = &mut AuditProbe::new(vec![&mut verifier]);
         {
-            type B = CpuBackend;
             let device = cpu_device();
 
-            let iota: Tensor<B, 1> = Tensor::arange(5..15, &device).float();
+            let iota: Tensor<1> = Tensor::arange(5..15, &device).float();
             probe.assert_eq_as::<f64>("iota", &iota).ok_or_panic();
         }
     }
@@ -547,10 +540,13 @@ mod tests {
     #[test]
     #[serial_test::serial]
     fn test_stream() -> BunsenResult<()> {
-        fn example<B: Backend>(probe: &mut AuditProbe) -> BunsenResult<()> {
-            let device = default_device();
+        fn example(
+            probe: &mut AuditProbe,
+            device: &Device,
+        ) -> BunsenResult<()> {
+            let device = device.clone();
 
-            let iota: Tensor<B, 1> = Tensor::arange(0..10, &device).float();
+            let iota: Tensor<1> = Tensor::arange(0..10, &device).float();
             probe.assert_eq_as::<f64>("iota", &iota)?;
             probe.assert_eq_cast("iota", &iota, DType::F16)?;
 
@@ -571,10 +567,13 @@ mod tests {
         }
 
         let mut recorder = AuditProbeVecRecorder::default();
-        example::<PerformanceBackend>(&mut AuditProbe::new(vec![&mut recorder]))?;
+        example(
+            &mut AuditProbe::new(vec![&mut recorder]),
+            &performance_device(),
+        )?;
 
         let mut verifier = recorder.into_verifier();
-        example::<CpuBackend>(&mut AuditProbe::new(vec![&mut verifier]))?;
+        example(&mut AuditProbe::new(vec![&mut verifier]), &cpu_device())?;
 
         Ok(())
     }

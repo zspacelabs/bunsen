@@ -1,7 +1,6 @@
 use burn::{
     Tensor,
     config::Config,
-    prelude::Backend,
     tensor::TensorCreationOptions,
 };
 
@@ -84,11 +83,11 @@ impl SamplingWindowBuilder for CosineWindowConfig {
             .collect()
     }
 
-    fn to_tensor_window<B: Backend>(
+    fn to_tensor_window(
         &self,
         size: usize,
-        options: impl Into<TensorCreationOptions<B>>,
-    ) -> Tensor<B, 1> {
+        options: impl Into<TensorCreationOptions>,
+    ) -> Tensor<1> {
         match size {
             0 | 1 => return Tensor::ones([size], options),
             _ => (),
@@ -191,11 +190,11 @@ impl SamplingWindowBuilder for DualCosineWindow {
             .collect()
     }
 
-    fn to_tensor_window<B: Backend>(
+    fn to_tensor_window(
         &self,
         size: usize,
-        options: impl Into<TensorCreationOptions<B>>,
-    ) -> Tensor<B, 1> {
+        options: impl Into<TensorCreationOptions>,
+    ) -> Tensor<1> {
         match size {
             0 | 1 => return Tensor::ones([size], options),
             _ => (),
@@ -221,7 +220,6 @@ mod tests {
         prelude::TensorData,
         tensor::{
             Tolerance,
-            backend::BackendTypes,
             signal::{
                 blackman_window,
                 hann_window,
@@ -237,20 +235,15 @@ mod tests {
     use super::*;
     use crate::{
         ops::signal::testing::assert_sampling_window_builder_implementation,
-        prelude::*,
-        support::testing::{
-            CpuBackend,
-            cpu_device,
-        },
+        support::testing::cpu_device,
     };
 
-    type B = CpuBackend;
-    type F = <B as BackendTypes>::FloatElem;
+    type F = f32;
 
-    fn check_hann_impl<B: Backend>(
+    fn check_hann_impl(
         periodic: bool,
         expected: &[f64],
-        options: impl Into<TensorCreationOptions<B>>,
+        options: impl Into<TensorCreationOptions>,
     ) {
         let cfg = CosineWindowConfig::hann(periodic);
         debug!("cfg: {:?}", cfg);
@@ -260,7 +253,7 @@ mod tests {
         let options = options.into();
 
         info!("checking hann_window reference implementation");
-        hann_window::<B>(size, periodic, options.clone())
+        hann_window(size, periodic, options.clone())
             .to_data_as::<F>()
             .assert_approx_eq::<F>(
                 &TensorData::from(expected).convert::<F>(),
@@ -268,7 +261,7 @@ mod tests {
             );
 
         info!("cross-checking vec/tensor impls");
-        assert_sampling_window_builder_implementation::<B>(&cfg, expected, options.clone());
+        assert_sampling_window_builder_implementation(&cfg, expected, options.clone());
     }
 
     #[test]
@@ -277,28 +270,28 @@ mod tests {
         let device = cpu_device();
 
         // size = 0
-        check_hann_impl::<B>(true, &[], &device);
-        check_hann_impl::<B>(false, &[], &device);
+        check_hann_impl(true, &[], &device);
+        check_hann_impl(false, &[], &device);
 
         // size = 1
-        check_hann_impl::<B>(true, &[1.0], &device);
-        check_hann_impl::<B>(false, &[1.0], &device);
+        check_hann_impl(true, &[1.0], &device);
+        check_hann_impl(false, &[1.0], &device);
 
         // size = 2
-        check_hann_impl::<B>(true, &[0.0, 1.0], &device);
-        check_hann_impl::<B>(false, &[0.0, 0.0], &device);
+        check_hann_impl(true, &[0.0, 1.0], &device);
+        check_hann_impl(false, &[0.0, 0.0], &device);
 
         // size = 3
-        check_hann_impl::<B>(true, &[0.0, 0.75, 0.75], &device);
-        check_hann_impl::<B>(false, &[0.0, 1.0, 0.0], &device);
+        check_hann_impl(true, &[0.0, 0.75, 0.75], &device);
+        check_hann_impl(false, &[0.0, 1.0, 0.0], &device);
 
         // size = 8
-        check_hann_impl::<B>(
+        check_hann_impl(
             true,
             &[0.0, 0.146447, 0.5, 0.853553, 1.0, 0.853553, 0.5, 0.146447],
             &device,
         );
-        check_hann_impl::<B>(
+        check_hann_impl(
             false,
             &[
                 0.0, 0.188255, 0.611260, 0.950484, 0.950484, 0.611260, 0.188255, 0.0,
@@ -307,10 +300,10 @@ mod tests {
         );
     }
 
-    fn check_blackman_impl<B: Backend>(
+    fn check_blackman_impl(
         periodic: bool,
         expected: &[f64],
-        options: impl Into<TensorCreationOptions<B>>,
+        options: impl Into<TensorCreationOptions>,
     ) {
         let cfg = DualCosineWindow::blackman(periodic);
         debug!("cfg: {:?}", cfg);
@@ -320,7 +313,7 @@ mod tests {
         let options = options.into();
 
         info!("checking blackman_window reference implementation");
-        blackman_window::<B>(size, periodic, options.clone())
+        blackman_window(size, periodic, options.clone())
             .to_data_as::<F>()
             .assert_approx_eq::<F>(
                 &TensorData::from(expected).convert::<F>(),
@@ -328,7 +321,7 @@ mod tests {
             );
 
         info!("cross-checking vec/tensor impls");
-        assert_sampling_window_builder_implementation::<B>(&cfg, expected, options.clone());
+        assert_sampling_window_builder_implementation(&cfg, expected, options.clone());
     }
 
     #[test]
@@ -337,28 +330,28 @@ mod tests {
         let device = cpu_device();
 
         // size = 0
-        check_blackman_impl::<B>(true, &[], &device);
-        check_blackman_impl::<B>(false, &[], &device);
+        check_blackman_impl(true, &[], &device);
+        check_blackman_impl(false, &[], &device);
 
         // size = 1
-        check_blackman_impl::<B>(true, &[1.0], &device);
-        check_blackman_impl::<B>(false, &[1.0], &device);
+        check_blackman_impl(true, &[1.0], &device);
+        check_blackman_impl(false, &[1.0], &device);
 
         // size = 2
-        check_blackman_impl::<B>(true, &[0.0, 1.0], &device);
-        check_blackman_impl::<B>(false, &[0.0, 0.0], &device);
+        check_blackman_impl(true, &[0.0, 1.0], &device);
+        check_blackman_impl(false, &[0.0, 0.0], &device);
 
         // size = 3
-        check_blackman_impl::<B>(true, &[0.0, 0.63, 0.63], &device);
-        check_blackman_impl::<B>(false, &[0.0, 1.0, 0.0], &device);
+        check_blackman_impl(true, &[0.0, 0.63, 0.63], &device);
+        check_blackman_impl(false, &[0.0, 1.0, 0.0], &device);
 
         // size = 8
-        check_blackman_impl::<B>(
+        check_blackman_impl(
             true,
             &[0.0, 0.0664466, 0.34, 0.77355, 1.0, 0.77355, 0.34, 0.0664466],
             &device,
         );
-        check_blackman_impl::<B>(
+        check_blackman_impl(
             false,
             &[
                 0.0, 0.09045343, 0.45918, 0.92036, 0.92036, 0.45918, 0.09045343, 0.0,

@@ -62,9 +62,9 @@ pub mod onnx_gen {
 
     include!(concat!(env!("OUT_DIR"), "/silero_vad_op18_ifless.rs"));
 
-    impl<B: Backend> Model<B> {
+    impl Model {
         /// Load the pretrained model.
-        pub fn load_pretrained(device: &B::Device) -> Model<B> {
+        pub fn load_pretrained(device: &Device) -> Model {
             Model::from_bytes(burnpack_as_burn_bytes(), device)
         }
     }

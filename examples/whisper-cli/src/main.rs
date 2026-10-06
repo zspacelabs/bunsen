@@ -1,8 +1,4 @@
-use bunsen::{
-    errors::*,
-    support::testing::PerformanceBackend,
-};
-use burn::prelude::Backend;
+use bunsen::errors::*;
 use clap::Parser;
 
 pub mod commands;
@@ -18,7 +14,7 @@ struct Args {
 
 fn main() -> BunsenResult<()> {
     let args = Args::parse();
-    args.command.run::<PerformanceBackend>()
+    args.command.run()
 }
 
 #[derive(clap::Subcommand, Debug)]
@@ -34,10 +30,10 @@ pub enum Commands {
 }
 
 impl Commands {
-    pub fn run<B: Backend>(&self) -> BunsenResult<()> {
+    pub fn run(&self) -> BunsenResult<()> {
         match self {
-            Commands::Transcribe(cmd) => cmd.run::<B>(),
-            Commands::Live(cmd) => cmd.run::<B>(),
+            Commands::Transcribe(cmd) => cmd.run(),
+            Commands::Live(cmd) => cmd.run(),
             Commands::Models(cmd) => cmd.run(),
         }
     }

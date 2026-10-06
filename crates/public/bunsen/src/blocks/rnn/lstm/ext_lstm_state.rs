@@ -4,10 +4,10 @@ use burn::{
     Tensor,
     nn::LstmState,
     prelude::{
-        Backend,
         Shape,
         SliceArg,
     },
+    tensor::Device,
 };
 
 /// State bundle for LSTM implementations.
@@ -15,26 +15,26 @@ use burn::{
 /// This is a stand-in for [`LstmState`].
 /// Waiting on: <https://github.com/tracel-ai/burn/pull/5167>
 #[derive(Debug, Clone)]
-pub struct ExtLstmState<B: Backend, const D: usize> {
+pub struct ExtLstmState<const D: usize> {
     /// The cell state.
-    pub cell: Tensor<B, D>,
+    pub cell: Tensor<D>,
     /// The hidden state.
-    pub hidden: Tensor<B, D>,
+    pub hidden: Tensor<D>,
 }
 
-impl<B: Backend, const D: usize> From<LstmState<B, D>> for ExtLstmState<B, D> {
-    fn from(state: LstmState<B, D>) -> Self {
+impl<const D: usize> From<LstmState<D>> for ExtLstmState<D> {
+    fn from(state: LstmState<D>) -> Self {
         Self::new(state.cell, state.hidden)
     }
 }
 
-impl<B: Backend, const D: usize> From<ExtLstmState<B, D>> for LstmState<B, D> {
-    fn from(state: ExtLstmState<B, D>) -> Self {
+impl<const D: usize> From<ExtLstmState<D>> for LstmState<D> {
+    fn from(state: ExtLstmState<D>) -> Self {
         Self::new(state.cell, state.hidden)
     }
 }
 
-impl<B: Backend, const D: usize> ExtLstmState<B, D> {
+impl<const D: usize> ExtLstmState<D> {
     /// Construct a new [`ExtLstmState`].
     ///
     /// This is the inverse to [`Self::unpack`].
@@ -46,8 +46,8 @@ impl<B: Backend, const D: usize> ExtLstmState<B, D> {
     /// # Debug Assertion
     /// `cell.shape() == hidden.shape()`
     pub fn new(
-        cell: Tensor<B, D>,
-        hidden: Tensor<B, D>,
+        cell: Tensor<D>,
+        hidden: Tensor<D>,
     ) -> Self {
         #[cfg(any(test, debug_assertions))]
         assert_eq!(cell.shape(), hidden.shape());
@@ -62,7 +62,7 @@ impl<B: Backend, const D: usize> ExtLstmState<B, D> {
     /// * `device` - the device to allocate the state on.
     pub fn initial<S>(
         shape: S,
-        device: &B::Device,
+        device: &Device,
     ) -> Self
     where
         S: Into<Shape>,
@@ -78,14 +78,14 @@ impl<B: Backend, const D: usize> ExtLstmState<B, D> {
     }
 
     /// Get the device of the state.
-    pub fn device(&self) -> B::Device {
+    pub fn device(&self) -> Device {
         self.cell.device()
     }
 
     /// Unpack the state to (cell, hidden).
     ///
     /// This is the inverse to [`Self::new`].
-    pub fn unpack(self) -> (Tensor<B, D>, Tensor<B, D>) {
+    pub fn unpack(self) -> (Tensor<D>, Tensor<D>) {
         (self.cell, self.hidden)
     }
 
@@ -99,9 +99,9 @@ impl<B: Backend, const D: usize> ExtLstmState<B, D> {
     pub fn map_state<const D2: usize, F>(
         self,
         f: F,
-    ) -> ExtLstmState<B, D2>
+    ) -> ExtLstmState<D2>
     where
-        F: Fn(Tensor<B, D>) -> Tensor<B, D2>,
+        F: Fn(Tensor<D>) -> Tensor<D2>,
     {
         let Self { cell, hidden } = self;
         ExtLstmState {
@@ -130,7 +130,7 @@ impl<B: Backend, const D: usize> ExtLstmState<B, D> {
     pub fn squeeze_dim<const D2: usize>(
         self,
         dim: usize,
-    ) -> ExtLstmState<B, D2> {
+    ) -> ExtLstmState<D2> {
         self.map_state(|t| t.squeeze_dim(dim))
     }
 
@@ -140,7 +140,7 @@ impl<B: Backend, const D: usize> ExtLstmState<B, D> {
     pub fn unsqueeze_dim<const D2: usize>(
         self,
         dim: usize,
-    ) -> ExtLstmState<B, D2> {
+    ) -> ExtLstmState<D2> {
         self.map_state(|t| t.unsqueeze_dim(dim))
     }
 
@@ -148,9 +148,9 @@ impl<B: Backend, const D: usize> ExtLstmState<B, D> {
     ///
     /// See: [`Tensor::stack`].
     pub fn stack<const D2: usize>(
-        states: Vec<ExtLstmState<B, D>>,
+        states: Vec<ExtLstmState<D>>,
         dim: usize,
-    ) -> ExtLstmState<B, D2> {
+    ) -> ExtLstmState<D2> {
         let (c_it, h_it): (Vec<_>, Vec<_>) = states.into_iter().map(|s| s.unpack()).unzip();
         ExtLstmState {
             cell: Tensor::stack(c_it, dim),
@@ -160,7 +160,7 @@ impl<B: Backend, const D: usize> ExtLstmState<B, D> {
 }
 
 /// Extension trait for attaching an initializer to an [`Option<ExtLstmState>`].
-pub trait OptionalInitialLstmState<B: Backend, const D: usize> {
+pub trait OptionalInitialLstmState<const D: usize> {
     /// Unwrap the optional state, or allocate initial state.
     ///
     /// # Arguments
@@ -172,18 +172,18 @@ pub trait OptionalInitialLstmState<B: Backend, const D: usize> {
     fn unwrap_or_initial<S>(
         self,
         shape: S,
-        device: &B::Device,
-    ) -> ExtLstmState<B, D>
+        device: &Device,
+    ) -> ExtLstmState<D>
     where
         S: Into<Shape>;
 }
 
-impl<B: Backend, const D: usize> OptionalInitialLstmState<B, D> for Option<ExtLstmState<B, D>> {
+impl<const D: usize> OptionalInitialLstmState<D> for Option<ExtLstmState<D>> {
     fn unwrap_or_initial<S>(
         self,
         shape: S,
-        device: &B::Device,
-    ) -> ExtLstmState<B, D>
+        device: &Device,
+    ) -> ExtLstmState<D>
     where
         S: Into<Shape>,
     {
@@ -202,17 +202,12 @@ mod tests {
     };
 
     use super::*;
-    use crate::support::testing::{
-        CpuBackend,
-        cpu_device,
-    };
+    use crate::support::testing::cpu_device;
 
-    type B = CpuBackend;
-
-    fn random_state<B: Backend, const D: usize, S>(
+    fn random_state<const D: usize, S>(
         shape: S,
-        device: &B::Device,
-    ) -> ExtLstmState<B, D>
+        device: &Device,
+    ) -> ExtLstmState<D>
     where
         S: Into<Shape> + Clone,
     {
@@ -230,7 +225,7 @@ mod tests {
         let cell = Tensor::random(shape, Distribution::Default, &device);
         let hidden = Tensor::random(shape, Distribution::Default, &device);
 
-        let state: ExtLstmState<B, 3> = ExtLstmState::new(cell.clone(), hidden.clone());
+        let state: ExtLstmState<3> = ExtLstmState::new(cell.clone(), hidden.clone());
 
         assert_eq!(state.shape(), Shape::from(shape));
         assert_eq!(state.device(), device);
@@ -244,8 +239,8 @@ mod tests {
     fn test_new_shape_mismatch() {
         let device = cpu_device();
 
-        let cell = Tensor::<B, 2>::zeros([2, 3], &device);
-        let hidden = Tensor::<B, 2>::zeros([2, 4], &device);
+        let cell = Tensor::<2>::zeros([2, 3], &device);
+        let hidden = Tensor::<2>::zeros([2, 4], &device);
 
         let _ = ExtLstmState::new(cell, hidden);
     }
@@ -255,7 +250,7 @@ mod tests {
         let shape = [2, 3];
         let device = cpu_device();
 
-        let state: ExtLstmState<B, 2> = ExtLstmState::initial(shape, &device);
+        let state: ExtLstmState<2> = ExtLstmState::initial(shape, &device);
 
         assert_eq!(state.shape(), Shape::from(shape));
         assert_eq!(state.device(), device);
@@ -268,7 +263,7 @@ mod tests {
     #[test]
     fn test_unpack() {
         let device = cpu_device();
-        let state: ExtLstmState<B, 3> = random_state([2, 3, 4], &device);
+        let state: ExtLstmState<3> = random_state([2, 3, 4], &device);
 
         let expected_cell = state.cell.to_data();
         let expected_hidden = state.hidden.to_data();
@@ -282,12 +277,12 @@ mod tests {
     #[test]
     fn test_map_state() {
         let device = cpu_device();
-        let state: ExtLstmState<B, 2> = random_state([2, 3], &device);
+        let state: ExtLstmState<2> = random_state([2, 3], &device);
 
         let expected_cell = state.cell.clone().reshape([3, 2]).to_data();
         let expected_hidden = state.hidden.clone().reshape([3, 2]).to_data();
 
-        let mapped: ExtLstmState<B, 2> = state.map_state(|t| t.reshape([3, 2]));
+        let mapped: ExtLstmState<2> = state.map_state(|t| t.reshape([3, 2]));
 
         assert_eq!(mapped.shape(), Shape::from([3, 2]));
         mapped.cell.to_data().assert_eq(&expected_cell, true);
@@ -297,9 +292,9 @@ mod tests {
     #[test]
     fn test_map_state_changes_rank() {
         let device = cpu_device();
-        let state: ExtLstmState<B, 2> = random_state([2, 3], &device);
+        let state: ExtLstmState<2> = random_state([2, 3], &device);
 
-        let mapped: ExtLstmState<B, 3> = state.map_state(|t| t.reshape([1, 2, 3]));
+        let mapped: ExtLstmState<3> = state.map_state(|t| t.reshape([1, 2, 3]));
 
         assert_eq!(mapped.shape(), Shape::from([1, 2, 3]));
     }
@@ -307,7 +302,7 @@ mod tests {
     #[test]
     fn test_slice() {
         let device = cpu_device();
-        let state: ExtLstmState<B, 2> = random_state([4, 3], &device);
+        let state: ExtLstmState<2> = random_state([4, 3], &device);
 
         let expected_cell = state.cell.clone().slice(s![1..3, ..]).to_data();
         let expected_hidden = state.hidden.clone().slice(s![1..3, ..]).to_data();
@@ -322,12 +317,12 @@ mod tests {
     #[test]
     fn test_squeeze_dim() {
         let device = cpu_device();
-        let state: ExtLstmState<B, 3> = random_state([2, 1, 3], &device);
+        let state: ExtLstmState<3> = random_state([2, 1, 3], &device);
 
         let expected_cell = state.cell.clone().squeeze_dim::<2>(1).to_data();
         let expected_hidden = state.hidden.clone().squeeze_dim::<2>(1).to_data();
 
-        let squeezed: ExtLstmState<B, 2> = state.squeeze_dim(1);
+        let squeezed: ExtLstmState<2> = state.squeeze_dim(1);
 
         assert_eq!(squeezed.shape(), Shape::from([2, 3]));
         squeezed.cell.to_data().assert_eq(&expected_cell, true);
@@ -337,12 +332,12 @@ mod tests {
     #[test]
     fn test_unsqueeze_dim() {
         let device = cpu_device();
-        let state: ExtLstmState<B, 2> = random_state([2, 3], &device);
+        let state: ExtLstmState<2> = random_state([2, 3], &device);
 
         let expected_cell = state.cell.clone().unsqueeze_dim::<3>(1).to_data();
         let expected_hidden = state.hidden.clone().unsqueeze_dim::<3>(1).to_data();
 
-        let unsqueezed: ExtLstmState<B, 3> = state.unsqueeze_dim(1);
+        let unsqueezed: ExtLstmState<3> = state.unsqueeze_dim(1);
 
         assert_eq!(unsqueezed.shape(), Shape::from([2, 1, 3]));
         unsqueezed.cell.to_data().assert_eq(&expected_cell, true);
@@ -355,11 +350,11 @@ mod tests {
     #[test]
     fn test_squeeze_unsqueeze_roundtrip() {
         let device = cpu_device();
-        let state: ExtLstmState<B, 2> = random_state([2, 3], &device);
+        let state: ExtLstmState<2> = random_state([2, 3], &device);
 
         let expected_cell = state.cell.to_data();
 
-        let roundtrip: ExtLstmState<B, 2> = state.unsqueeze_dim::<3>(1).squeeze_dim(1);
+        let roundtrip: ExtLstmState<2> = state.unsqueeze_dim::<3>(1).squeeze_dim(1);
 
         assert_eq!(roundtrip.shape(), Shape::from([2, 3]));
         roundtrip.cell.to_data().assert_eq(&expected_cell, true);
@@ -368,14 +363,14 @@ mod tests {
     #[test]
     fn test_stack() {
         let device = cpu_device();
-        let a: ExtLstmState<B, 2> = random_state([2, 3], &device);
-        let b: ExtLstmState<B, 2> = random_state([2, 3], &device);
+        let a: ExtLstmState<2> = random_state([2, 3], &device);
+        let b: ExtLstmState<2> = random_state([2, 3], &device);
 
         let expected_cell = Tensor::stack::<3>(vec![a.cell.clone(), b.cell.clone()], 1).to_data();
         let expected_hidden =
             Tensor::stack::<3>(vec![a.hidden.clone(), b.hidden.clone()], 1).to_data();
 
-        let stacked: ExtLstmState<B, 3> = ExtLstmState::stack(vec![a, b], 1);
+        let stacked: ExtLstmState<3> = ExtLstmState::stack(vec![a, b], 1);
 
         assert_eq!(stacked.shape(), Shape::from([2, 2, 3]));
         stacked.cell.to_data().assert_eq(&expected_cell, true);
@@ -385,7 +380,7 @@ mod tests {
     #[test]
     fn test_unwrap_or_initial_some() {
         let device = cpu_device();
-        let state: ExtLstmState<B, 2> = random_state([2, 3], &device);
+        let state: ExtLstmState<2> = random_state([2, 3], &device);
 
         let expected_cell = state.cell.to_data();
         let expected_hidden = state.hidden.to_data();
@@ -403,7 +398,7 @@ mod tests {
         let shape = [2, 3];
         let device = cpu_device();
 
-        let unwrapped: ExtLstmState<B, 2> = None.unwrap_or_initial(shape, &device);
+        let unwrapped: ExtLstmState<2> = None.unwrap_or_initial(shape, &device);
 
         assert_eq!(unwrapped.shape(), Shape::from(shape));
 

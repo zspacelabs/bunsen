@@ -29,7 +29,7 @@
 //! ## KV-cache decode modes
 //!
 //! [`forward`](csa::CausalSelfAttention::forward) takes
-//! `kv_cache: &mut Option<&mut KVCache<B>>`. The cache is injected: the
+//! `kv_cache: &mut Option<&mut KVCache>`. The cache is injected: the
 //! caller owns it (for example from [`NanoChatGpt::new_kv_cache`]), so one
 //! model can run several decodes at once.
 //!

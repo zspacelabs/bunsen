@@ -5,10 +5,7 @@ use burn::{
         AvgPool2d,
         AvgPool2dConfig,
     },
-    prelude::{
-        Backend,
-        Tensor,
-    },
+    prelude::Tensor,
 };
 
 use crate::ops::conv::pad_same;
@@ -112,17 +109,17 @@ impl AvgPool2dSameConfig {
 /// [`AvgPool2d`].
 ///
 /// Built by [`AvgPool2dSameConfig`].
-#[derive(Module, Clone, Debug)]
+#[derive(Module, Debug)]
 pub struct AvgPool2dSame {
     pool: AvgPool2d,
 }
 
 impl AvgPool2dSame {
     /// Forward Pass.
-    pub fn forward<B: Backend>(
+    pub fn forward(
         &self,
-        input: Tensor<B, 4>,
-    ) -> Tensor<B, 4> {
+        input: Tensor<4>,
+    ) -> Tensor<4> {
         let x = pad_same(input, self.pool.kernel_size, self.pool.stride, [1, 1], 0.0);
         self.pool.forward(x)
     }
@@ -135,14 +132,12 @@ mod tests {
     use super::*;
     use crate::support::testing::{
         DeviceMemoryGuard,
-        PerformanceBackend,
         performance_device,
     };
 
     #[test]
     #[serial]
     fn test_avg_pool_2d_same_output_is_ceil_of_size_over_stride() {
-        type B = PerformanceBackend;
         let device = performance_device();
         let _memory = DeviceMemoryGuard::new(&device);
 
@@ -150,7 +145,7 @@ mod tests {
         let pool = AvgPool2dSameConfig::new(AvgPool2dConfig::new([3, 3])).init();
 
         // `[ceil(10 / 3), ceil(8 / 3)] == [4, 3]`.
-        let input = Tensor::<B, 4>::ones([1, 1, 10, 8], &device);
+        let input = Tensor::<4>::ones([1, 1, 10, 8], &device);
         assert_eq!(pool.forward(input).dims(), [1, 1, 4, 3]);
     }
 }

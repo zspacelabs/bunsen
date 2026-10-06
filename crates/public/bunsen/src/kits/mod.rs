@@ -53,7 +53,7 @@
 //! - **`default_{kit}_factory()`.** A
 //!   [`PretrainedFactory`](crate::data::pretrained::PretrainedFactory) over the
 //!   default providers, behind the hook. A name to a model is one call:
-//!   `default_{kit}_factory()?.load::<B>(name, &cache, &device)`. There is [no
+//!   `default_{kit}_factory()?.load(name, &cache, &device)`. There is [no
 //!   registry](crate::data::pretrained::PretrainedFactory#no-registry): a
 //!   caller who wants another provider adds it to the factory.
 //! - **The built handle.** What `load` returns: a

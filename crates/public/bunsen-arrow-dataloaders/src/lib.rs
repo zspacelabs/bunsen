@@ -10,7 +10,7 @@
 //!
 //! [`ChatDataLoader`] runs that pipeline as a burn
 //! [`DataLoader`](burn::data::dataloader::DataLoader). Each item is a
-//! `[batch_size, batch_seq_len]` `Tensor<B, 2, Int>` of token ids, packed
+//! `[batch_size, batch_seq_len]` `Tensor<2, Int>` of token ids, packed
 //! end to end, with no padding.
 //!
 //! ## Preview

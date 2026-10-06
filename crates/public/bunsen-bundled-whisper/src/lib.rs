@@ -167,9 +167,9 @@ pub mod onnx_gen {
 
         include!(concat!(env!("OUT_DIR"), "/whisper_base_encoder.rs"));
 
-        impl<B: Backend> Model<B> {
+        impl Model {
             /// Loads the reference encoder from the generated weights.
-            pub fn load_pretrained(device: &B::Device) -> Self {
+            pub fn load_pretrained(device: &Device) -> Self {
                 Self::from_file(
                     std::path::Path::new(env!("WHISPER_ONNX_OUT_DIR"))
                         .join("whisper_base_encoder.bpk"),
@@ -192,9 +192,9 @@ pub mod onnx_gen {
 
         include!(concat!(env!("OUT_DIR"), "/whisper_base_decoder.rs"));
 
-        impl<B: Backend> Model<B> {
+        impl Model {
             /// Loads the reference decoder from the generated weights.
-            pub fn load_pretrained(device: &B::Device) -> Self {
+            pub fn load_pretrained(device: &Device) -> Self {
                 Self::from_file(
                     std::path::Path::new(env!("WHISPER_ONNX_OUT_DIR"))
                         .join("whisper_base_decoder.bpk"),

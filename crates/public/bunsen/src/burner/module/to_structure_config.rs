@@ -1,6 +1,6 @@
 use burn::{
     module::Module,
-    prelude::Backend,
+    tensor::Device,
 };
 
 use crate::{
@@ -42,7 +42,7 @@ use crate::{
 ///
 /// # `init` for free
 ///
-/// Every implementor gets `ModuleInit<B, M>` for each module `M` its structure
+/// Every implementor gets `ModuleInit<M>` for each module `M` its structure
 /// config builds, through a blanket impl whose `try_init` is
 /// `self.try_to_structure()?.try_init(device)`. So `policy.init(&device)` and
 /// `policy.to_structure().init(&device)` build the same module.
@@ -62,7 +62,6 @@ use crate::{
 ///         Linear,
 ///         LinearConfig,
 ///     },
-///     prelude::Backend,
 /// };
 ///
 /// #[derive(Config, Debug)]
@@ -70,11 +69,11 @@ use crate::{
 ///     pub layer: LinearConfig,
 /// }
 ///
-/// impl<B: Backend> ModuleInit<B, Wide<B>> for WideStructureConfig {
+/// impl ModuleInit<Wide> for WideStructureConfig {
 ///     fn try_init(
 ///         &self,
-///         device: &B::Device,
-///     ) -> BunsenResult<Wide<B>> {
+///         device: &Device,
+///     ) -> BunsenResult<Wide> {
 ///         Ok(Wide {
 ///             layer: self.layer.init(device),
 ///         })
@@ -82,8 +81,8 @@ use crate::{
 /// }
 ///
 /// #[derive(Module, Debug)]
-/// pub struct Wide<B: Backend> {
-///     layer: Linear<B>,
+/// pub struct Wide {
+///     layer: Linear,
 /// }
 ///
 /// #[derive(Config, Debug)]
@@ -103,11 +102,11 @@ use crate::{
 /// }
 ///
 /// // error[E0119]: conflicting implementations of trait `ModuleInit<_, Wide<_>>`
-/// impl<B: Backend> ModuleInit<B, Wide<B>> for WideContractConfig {
+/// impl ModuleInit<Wide> for WideContractConfig {
 ///     fn try_init(
 ///         &self,
-///         device: &B::Device,
-///     ) -> BunsenResult<Wide<B>> {
+///         device: &Device,
+///     ) -> BunsenResult<Wide> {
 ///         self.try_to_structure()?.try_init(device)
 ///     }
 /// }
@@ -136,16 +135,15 @@ pub trait ToStructureConfig {
 }
 
 /// A policy config inits through its structure config.
-impl<B, M, C> ModuleInit<B, M> for C
+impl<M, C> ModuleInit<M> for C
 where
-    B: Backend,
-    M: Module<B>,
+    M: Module,
     C: ToStructureConfig,
-    C::Structure: ModuleInit<B, M>,
+    C::Structure: ModuleInit<M>,
 {
     fn try_init(
         &self,
-        device: &B::Device,
+        device: &Device,
     ) -> BunsenResult<M> {
         self.try_to_structure()?.try_init(device)
     }

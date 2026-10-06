@@ -31,7 +31,7 @@
 //!    optimizer config's `init()` returns. [`OptimizerGroup::frozen`] builds a
 //!    group whose parameters are never moved ([`FrozenOptimizer`]).
 //! 3. **Compose with `GroupOptimizerAdaptorN::new`.** Pass the module, then one
-//!    `Vec<OptimizerGroup<B, Oi>>` per optimizer type; e.g.
+//!    `Vec<OptimizerGroup<Oi>>` per optimizer type; e.g.
 //!    [`GroupOptimizerAdaptor2::new`] takes two. It checks that the groups
 //!    partition the module's float parameters: none in two groups, none in no
 //!    group. `new_with_policy` (e.g.
@@ -91,13 +91,9 @@
 //!         GroupOptimizerError,
 //!         OptimizerGroup,
 //!     },
-//!     support::testing::{
-//!         CpuBackend,
-//!         cpu_device,
-//!     },
+//!     support::testing::cpu_device,
 //! };
 //! use burn::{
-//!     backend::Autodiff,
 //!     module::Module,
 //!     nn::{
 //!         Linear,
@@ -113,28 +109,25 @@
 //!     tensor::Tensor,
 //! };
 //!
-//! type B = Autodiff<CpuBackend>;
-//! type Optim = GroupOptimizerAdaptor1<Sgd<CpuBackend>, Linear<B>, B>;
+//! type Optim = GroupOptimizerAdaptor1<Sgd, Linear, B>;
 //!
 //! /// Builds the model and its adaptor: the same code starts a run and resumes
 //! /// one.
-//! fn build(
-//!     device: &Device<B>
-//! ) -> Result<(Linear<B>, Optim), GroupOptimizerError> {
-//!     let net: Linear<B> = LinearConfig::new(4, 2).init(device);
+//! fn build(device: &Device) -> Result<(Linear, Optim), GroupOptimizerError> {
+//!     let net: Linear = LinearConfig::new(4, 2).init(device);
 //!     let params = [net.weight.id, net.bias.as_ref().unwrap().id];
-//!     let sgd = SgdConfig::new().init::<B, Linear<B>>();
+//!     let sgd = SgdConfig::new().init::<Linear>();
 //!     let optim =
 //!         Optim::new(&net, vec![OptimizerGroup::from_adaptor(params, &sgd)])?;
 //!     Ok((net, optim))
 //! }
 //!
 //! fn train_step(
-//!     net: Linear<B>,
+//!     net: Linear,
 //!     optim: &mut Optim,
-//!     device: &Device<B>,
-//! ) -> Linear<B> {
-//!     let loss = net.forward(Tensor::<B, 2>::ones([3, 4], device)).sum();
+//!     device: &Device,
+//! ) -> Linear {
+//!     let loss = net.forward(Tensor::<2>::ones([3, 4], device)).sum();
 //!     let grads = GradientsParams::from_grads(loss.backward(), &net);
 //!     optim.step(1e-2, net, grads)
 //! }
@@ -236,7 +229,6 @@
 //!     public::hashbrown::HashSet,
 //! };
 //! use burn::{
-//!     backend::Autodiff,
 //!     module::{
 //!         Module,
 //!         ParamId,
@@ -251,19 +243,17 @@
 //!         MuonConfig,
 //!         Optimizer,
 //!     },
-//!     prelude::Backend,
 //!     tensor::Tensor,
 //! };
 //!
 //! #[derive(Module, Debug)]
-//! struct Net<B: Backend> {
-//!     body: Linear<B>,
-//!     head: Linear<B>,
+//! struct Net {
+//!     body: Linear,
+//!     head: Linear,
 //! }
 //!
-//! type B = Autodiff<bunsen::support::testing::CpuBackend>;
 //! let device = bunsen::support::testing::cpu_device().autodiff();
-//! let net: Net<B> = Net {
+//! let net: Net = Net {
 //!     body: LinearConfig::new(4, 4).init(&device),
 //!     head: LinearConfig::new(4, 2).init(&device),
 //! };
@@ -282,26 +272,26 @@
 //! assert_eq!((matrices.len(), rest.len()), (2, 2));
 //!
 //! // 2. Groups.
-//! let muon = MuonConfig::new().init::<B, Net<B>>();
-//! let adamw = AdamWConfig::new().init::<B, Net<B>>();
+//! let muon = MuonConfig::new().init::<Net>();
+//! let adamw = AdamWConfig::new().init::<Net>();
 //! let matrix_group = OptimizerGroup::from_adaptor(matrices.clone(), &muon);
 //! let rest_group = OptimizerGroup::from_adaptor(rest.clone(), &adamw)
 //!     .with_lr_selector(|lr| lr * 0.5);
 //!
 //! // 3. Compose: the module, then one `Vec` of groups per optimizer type.
-//! let mut optim: GroupOptimizerAdaptor2<_, _, Net<B>, B> =
+//! let mut optim: GroupOptimizerAdaptor2<_, _, Net, B> =
 //!     GroupOptimizerAdaptor2::new(&net, vec![matrix_group], vec![rest_group])?;
 //!
 //! // 4. Step it like any `burn` optimizer, or hand it to a `Learner`.
 //! let before = net.body.weight.val().into_data();
-//! let x = Tensor::<B, 2>::ones([3, 4], &device);
+//! let x = Tensor::<2>::ones([3, 4], &device);
 //! let loss = net.head.forward(net.body.forward(x)).sum();
 //! let grads = GradientsParams::from_grads(loss.backward(), &net);
 //! let net = optim.step(1e-2, net, grads);
 //! assert_ne!(net.body.weight.val().into_data(), before);
 //!
 //! // A parameter claimed by two groups is rejected.
-//! let twice: Result<GroupOptimizerAdaptor2<_, _, Net<B>, B>, _> =
+//! let twice: Result<GroupOptimizerAdaptor2<_, _, Net, B>, _> =
 //!     GroupOptimizerAdaptor2::new(
 //!         &net,
 //!         vec![OptimizerGroup::from_adaptor(matrices.clone(), &muon)],
@@ -313,7 +303,7 @@
 //! ));
 //!
 //! // So is a parameter claimed by none: here, the biases.
-//! let partial: Result<GroupOptimizerAdaptor1<_, Net<B>, B>, _> =
+//! let partial: Result<GroupOptimizerAdaptor1<_, Net, B>, _> =
 //!     GroupOptimizerAdaptor1::new(
 //!         &net,
 //!         vec![OptimizerGroup::from_adaptor(matrices.clone(), &muon)],
@@ -324,14 +314,14 @@
 //! ));
 //!
 //! // To keep the biases fixed, freeze them in a group of their own.
-//! let mut frozen: GroupOptimizerAdaptor2<_, FrozenOptimizer, Net<B>, B> =
+//! let mut frozen: GroupOptimizerAdaptor2<_, FrozenOptimizer, Net, B> =
 //!     GroupOptimizerAdaptor2::new(
 //!         &net,
 //!         vec![OptimizerGroup::from_adaptor(matrices, &muon)],
 //!         vec![OptimizerGroup::frozen(rest)],
 //!     )?;
 //! let bias = net.body.bias.as_ref().unwrap().val().into_data();
-//! let x = Tensor::<B, 2>::ones([3, 4], &device);
+//! let x = Tensor::<2>::ones([3, 4], &device);
 //! let loss = net.head.forward(net.body.forward(x)).sum();
 //! let grads = GradientsParams::from_grads(loss.backward(), &net);
 //! let net = frozen.step(1e-2, net, grads);

@@ -2,7 +2,7 @@
 
 use std::sync::Arc;
 
-use burn::prelude::Backend;
+use burn::tensor::Device;
 
 use crate::{
     burner::module::ModuleInit,
@@ -98,7 +98,7 @@ impl ResNetConstruct {
 }
 
 impl Construct for ResNetConstruct {
-    type Built<B: Backend> = ResNet<B>;
+    type Built = ResNet;
 
     const KIT: &'static str = RESNET_KIT;
 
@@ -109,14 +109,14 @@ impl Construct for ResNetConstruct {
     }
 
     /// Initialises the config's model and reads the checkpoint into it.
-    fn construct<B: Backend>(
+    fn construct(
         &self,
         model: &PretrainedRef,
         loaded: &LoadedResources,
-        device: &B::Device,
-    ) -> BunsenResult<Arc<ResNet<B>>> {
+        device: &Device,
+    ) -> BunsenResult<Arc<ResNet>> {
         let config = self.config_for(model)?;
-        let resnet: ResNet<B> = config.try_init(device)?;
+        let resnet: ResNet = config.try_init(device)?;
         Ok(Arc::new(
             resnet.load_pytorch_weights(loaded.expect(CHECKPOINT)?)?,
         ))
@@ -155,10 +155,7 @@ mod tests {
                     value,
                 },
             },
-            support::testing::{
-                CpuBackend,
-                cpu_device,
-            },
+            support::testing::cpu_device,
         };
 
         let dir = tempfile::tempdir().unwrap();
@@ -225,7 +222,7 @@ mod tests {
         let err =
             Deferred::<ResNetConstruct>::from_map(ResourceMap::given("mine", CHECKPOINT, &file))
                 .unwrap()
-                .load::<CpuBackend>(&cache, &cpu_device());
+                .load(&cache, &cpu_device());
         // The loading pathway is an input boundary, which may re-mark the
         // hook's `Illegal` as `Policy`.
         missing_config(&[BunsenErrorKind::Policy]).assert_err(&err);

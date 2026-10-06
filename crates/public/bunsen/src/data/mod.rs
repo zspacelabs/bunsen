@@ -45,9 +45,9 @@
 //!   │     per resource: the cache path, else a local dir (used in
 //!   │     place) or bundled bytes (written in), else its URLs,
 //!   │     fetched together under the FetchPolicy [fetch]
-//!   │   H::construct(ref, loaded, device) -> Arc<H::Built<B>>
+//!   │   H::construct(ref, loaded, device) -> Arc<H::Built>
 //!   ▼
-//! Loaded<H::Built<B>>: name, handle (an Arc), resources
+//! Loaded<H::Built>: name, handle (an Arc), resources
 //! ```
 //!
 //! - **Spec to row.** [`PretrainedFactory::resolve`] offers a spec to its

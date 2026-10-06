@@ -3,32 +3,36 @@
 //! What bunsen's own tests are written with, published for the tests of code
 //! built on bunsen. This module exists only with the `testing` feature (and
 //! in bunsen's own unit tests). The feature also turns on `flex`, the CPU
-//! backend behind [`CpuBackend`].
+//! backend behind [`cpu_device`].
 //!
-//! # Test backends
+//! # Test devices
 //!
-//! A test names its backend through one of two aliases, not a concrete
+//! A test takes its device from one of two functions, not from a concrete
 //! backend:
 //!
-//! - [`PerformanceBackend`] is for anything that does tensor math. It names the
+//! - [`performance_device`] is for anything that does tensor math. It is the
 //!   best accelerator that this build of bunsen enables, by feature: `cuda`,
 //!   then `metal`, then `vulkan`, then `wgpu`. With none of them it is
-//!   [`CpuBackend`]. One suite then runs on whichever backend a developer
-//!   builds, with no per-backend copies of the tests.
-//! - [`CpuBackend`] is `Flex`, the CPU backend, always present under `testing`.
+//!   [`cpu_device`]. One suite then runs on whichever backend a developer
+//!   builds, with no per-backend copies of the tests. `BURN_DEVICE` in the
+//!   environment overrides the choice, through burn's `Device::default()`.
+//! - [`cpu_device`] is `Flex`, the CPU backend, always present under `testing`.
 //!   It is for trivial plumbing tests: setup and teardown, config round trips,
 //!   shape bookkeeping. It is not a numerical reference, and a test does not
 //!   move to it to get trustworthy numbers.
 //!
+//! A test that trains, or checks a training-only path, calls `.autodiff()` on
+//! the device before building its module and inputs.
+//!
 //! **The CPU fallback is silent.** Without a backend feature on bunsen,
-//! `PerformanceBackend` *is* the CPU. A bare `cargo test` builds and passes
+//! `performance_device()` *is* the CPU. A bare `cargo test` builds and passes
 //! every test written against it without touching a GPU, so a regression that
 //! only an accelerator shows passes too. Run tensor tests with a backend
 //! feature: `cargo test -p bunsen --features wgpu`. A dependent forwards it
-//! as `bunsen/wgpu`; enabling `burn/wgpu` alone leaves the alias on the CPU.
+//! as `bunsen/wgpu`; enabling `burn/wgpu` alone leaves the choice on the CPU.
 //!
 //! **Tolerances, not bit-exactness.** A test written against
-//! `PerformanceBackend` runs on whatever backend the developer has, and
+//! `performance_device()` runs on whatever backend the developer has, and
 //! backends do not agree bit for bit: kernels reduce in different orders, and
 //! the CUDA backend compiles its kernels with fast math (`cubecl`'s CUDA
 //! runtime turns `fast_math` on). Compare computed floats within a tolerance,
@@ -37,14 +41,6 @@
 //!
 //! To check that two backends agree with each other, or that a result has not
 //! drifted from a recorded run, use `bunsen::audit` (the `audit` feature).
-//!
-//! # Devices
-//!
-//! [`default_device`] and [`backend_device`] return one shared device per
-//! device type, built on first use and cached for the life of the process.
-//! Every test in a binary therefore uses the same device, and on an
-//! accelerator the same client and memory pool. [`set_default_device`] pins
-//! another device; [`reset_default_device`] drops the cached one.
 //!
 //! # Seeded inputs
 //!
@@ -71,8 +67,6 @@
 //! - [`assert_tensor_close_to_vec`]: a tensor against a row-major host buffer
 //!   of `f64`, within a `Tolerance`.
 //! - [`assert_close_to_vec`]: two host slices, within an absolute tolerance.
-//! - [`param_load_mapping`]: runs a parameter's load-path mapping, so a test
-//!   can check which mapping a module attached.
 //!
 //! # Speech
 //!
@@ -84,11 +78,10 @@
 //! A test of real tensor math, as it would sit in a `#[test] #[serial] fn`:
 //!
 //! ```
-//! use bunsen::support::testing::{performance_device, 
+//! use bunsen::support::testing::{
 //!     DeviceMemoryGuard,
-//!     PerformanceBackend,
 //!     assert_tensors_close,
-//!     backend_device,
+//!     performance_device,
 //!     seeded_tensor,
 //! };
 //! use burn::tensor::{
@@ -96,7 +89,6 @@
 //!     Tolerance,
 //! };
 //!
-//! type B = PerformanceBackend;
 //! let device = performance_device();
 //! let _memory = DeviceMemoryGuard::new(&device);
 //!
@@ -108,12 +100,10 @@ pub mod asr;
 
 mod common_assertions;
 mod common_devices;
-mod default_device;
 mod device_memory;
 mod seeded;
 
 pub use common_assertions::*;
 pub use common_devices::*;
-pub use default_device::*;
 pub use device_memory::*;
 pub use seeded::*;

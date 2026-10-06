@@ -131,7 +131,7 @@ pub trait AuditProbeEventView: Debug {
             .map(|(k, v)| {
                 (
                     k.to_owned(),
-                    v.iter().map(|&d| d.shape.clone()).collect::<Vec<Shape>>(),
+                    v.iter().map(|&d| d.shape().clone()).collect::<Vec<Shape>>(),
                 )
             })
             .collect()

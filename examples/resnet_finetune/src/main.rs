@@ -62,11 +62,7 @@ use burn::{
         Tensor,
     },
     record::CompactRecorder,
-    tensor::backend::{
-        AutodiffBackend,
-        Backend,
-    },
-    train::{
+    tensor::train::{
         InferenceStep,
         Learner,
         MetricEarlyStoppingStrategy,
@@ -247,42 +243,22 @@ fn main() -> anyhow::Result<()> {
 
     if args.half_precision {
         cfg_select! {
-            feature = "cuda" => {
-                type B = burn::backend::Cuda<burn::tensor::bf16>;
-            }
-            feature = "metal" => {
-                type B = burn::backend::Metal<burn::tensor::bf16>;
-            }
-            feature = "vulkan" => {
-                type B = burn::backend::Vulkan<burn::tensor::bf16>;
-            }
-            feature = "wgpu" => {
-                type B = burn::backend::Wgpu<burn::tensor::bf16>;
-            }
-            _ => {
-                type B = burn::backend::Flex;
-            }
+            feature = "cuda" => {}
+            feature = "metal" => {}
+            feature = "vulkan" => {}
+            feature = "wgpu" => {}
+            _ => {}
         }
-        train::<burn::backend::Autodiff<B>>(&args)
+        train(&args)
     } else {
         cfg_select! {
-            feature = "cuda" => {
-                type B = burn::backend::Cuda;
-            }
-            feature = "metal" => {
-                type B = burn::backend::Metal;
-            }
-            feature = "wgpu" => {
-                type B = burn::backend::Wgpu;
-            }
-            feature = "vulkan" => {
-                type B = burn::backend::Vulkan;
-            }
-            _ => {
-                type B = burn::backend::Flex;
-            }
+            feature = "cuda" => {}
+            feature = "metal" => {}
+            feature = "wgpu" => {}
+            feature = "vulkan" => {}
+            _ => {}
         }
-        train::<burn::backend::Autodiff<B>>(&args)
+        train(&args)
     }
 }
 
@@ -293,8 +269,8 @@ fn ensure_artifact_dir(artifact_dir: &str) -> anyhow::Result<()> {
 }
 
 #[must_use]
-pub fn train<B: AutodiffBackend>(args: &Args) -> anyhow::Result<()> {
-    let device: B::Device = Default::default();
+pub fn train(args: &Args) -> anyhow::Result<()> {
+    let device: Device = Default::default();
 
     let factory = default_resnet_factory()?;
 
@@ -348,7 +324,7 @@ pub fn train<B: AutodiffBackend>(args: &Args) -> anyhow::Result<()> {
         }
     }
 
-    let model: ResNet<B> = resnet_config.clone().try_init(&device)?;
+    let model: ResNet = resnet_config.clone().try_init(&device)?;
 
     let old_float_type = model.output_fc.weight.dtype();
 
@@ -357,10 +333,10 @@ pub fn train<B: AutodiffBackend>(args: &Args) -> anyhow::Result<()> {
     // the checkpoint is read into that model.
     model_ref.hook = model_ref.hook.with_config(resnet_config.clone());
     let loaded = model_ref
-        .load::<B>(&cache, &device)
+        .load(&cache, &device)
         .context("Failed to load pretrained weights")?;
 
-    let mut model: ResNet<B> = Arc::unwrap_or_clone(loaded.handle)
+    let mut model: ResNet = Arc::unwrap_or_clone(loaded.handle)
         .map(&mut DTypeMapper::new(old_float_type))
         .with_classes(CLASSES.len())
         .with_stochastic_drop_block(args.drop_block_prob)
@@ -370,7 +346,7 @@ pub fn train<B: AutodiffBackend>(args: &Args) -> anyhow::Result<()> {
         model = model.freeze_layers();
     }
 
-    let host: Host<B> = Host {
+    let host: Host = Host {
         smoothing: args.smoothing,
         resnet: model,
     };
@@ -398,8 +374,8 @@ pub fn train<B: AutodiffBackend>(args: &Args) -> anyhow::Result<()> {
     .expect("Config should be saved successfully");
 
     // Dataloaders
-    let batcher_train = ClassificationBatcher::<B>::new(device.clone());
-    let batcher_valid = ClassificationBatcher::<B::InnerBackend>::new(device.clone());
+    let batcher_train = ClassificationBatcher::new(device.clone());
+    let batcher_valid = ClassificationBatcher::new(device.clone());
 
     let (train, valid) =
         ImageFolderDataset::planet_train_val_split(args.train_percentage, args.seed)?;
@@ -459,7 +435,7 @@ pub fn train<B: AutodiffBackend>(args: &Args) -> anyhow::Result<()> {
 
         if args.patience > 0 {
             learner_config = learner_config.early_stopping(MetricEarlyStoppingStrategy::new(
-                &LossMetric::<B>::new(),
+                &LossMetric::new(),
                 Aggregate::Mean,
                 Direction::Lowest,
                 Split::Valid,
@@ -490,7 +466,7 @@ pub fn train<B: AutodiffBackend>(args: &Args) -> anyhow::Result<()> {
             ))
             .with_file_checkpointer(CompactRecorder::new())
             .early_stopping(MetricEarlyStoppingStrategy::new(
-                &LossMetric::<B>::new(),
+                &LossMetric::new(),
                 Aggregate::Mean,
                 Direction::Lowest,
                 Split::Valid,
@@ -581,32 +557,32 @@ impl MetricsRendererEvaluation for CustomRenderer {
 }
 
 #[derive(Module, Debug)]
-pub struct Host<B: Backend> {
+pub struct Host {
     pub smoothing: Option<f32>,
 
-    pub resnet: ResNet<B>,
+    pub resnet: ResNet,
 }
 
-pub trait MultiLabelClassification<B: Backend> {
+pub trait MultiLabelClassification {
     fn forward_classification(
         &self,
-        images: Tensor<B, 4>,
-        targets: Tensor<B, 2, Int>,
-    ) -> MultiLabelClassificationOutput<B>;
+        images: Tensor<4>,
+        targets: Tensor<2, Int>,
+    ) -> MultiLabelClassificationOutput;
 }
 
-impl<B: Backend> MultiLabelClassification<B> for Host<B> {
+impl MultiLabelClassification for Host {
     fn forward_classification(
         &self,
-        images: Tensor<B, 4>,
-        targets: Tensor<B, 2, Int>,
-    ) -> MultiLabelClassificationOutput<B> {
+        images: Tensor<4>,
+        targets: Tensor<2, Int>,
+    ) -> MultiLabelClassificationOutput {
         let device = images.device();
         let output = self.resnet.forward(images);
 
         let mut loss_cfg = BinaryCrossEntropyLossConfig::new().with_logits(true);
 
-        if B::ad_enabled(&device) {
+        if device.is_autodiff() {
             loss_cfg = loss_cfg.with_smoothing(self.smoothing);
         }
 
@@ -618,9 +594,9 @@ impl<B: Backend> MultiLabelClassification<B> for Host<B> {
     }
 }
 
-impl<B: AutodiffBackend> TrainStep for Host<B> {
-    type Input = ClassificationBatch<B>;
-    type Output = MultiLabelClassificationOutput<B>;
+impl TrainStep for Host {
+    type Input = ClassificationBatch;
+    type Output = MultiLabelClassificationOutput;
 
     fn step(
         &self,
@@ -632,9 +608,9 @@ impl<B: AutodiffBackend> TrainStep for Host<B> {
     }
 }
 
-impl<B: Backend> InferenceStep for Host<B> {
-    type Input = ClassificationBatch<B>;
-    type Output = MultiLabelClassificationOutput<B>;
+impl InferenceStep for Host {
+    type Input = ClassificationBatch;
+    type Output = MultiLabelClassificationOutput;
 
     fn step(
         &self,

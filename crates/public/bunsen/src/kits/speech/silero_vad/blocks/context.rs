@@ -2,7 +2,7 @@ use burn::{
     Tensor,
     config::Config,
     module::Module,
-    prelude::Backend,
+    tensor::Device,
 };
 
 use crate::{
@@ -84,19 +84,19 @@ impl SileroVadContextMeta for SileroVadContextConfig {
 /// [`SileroVad::context_forward_sequence`], each of which takes one and
 /// returns the next. Implements [`SileroVadContextMeta`].
 #[derive(Module, Debug)]
-pub struct SileroVadContext<B: Backend> {
+pub struct SileroVadContext {
     /// The sample rate of the context.
     pub sample_rate: usize,
 
     /// The preceding input context, `[batch, context_size]`; at least one
     /// sample wide.
-    pub context: Tensor<B, 2>,
+    pub context: Tensor<2>,
 
     /// The current input state.
-    pub state: Tensor<B, 3>,
+    pub state: Tensor<3>,
 }
 
-impl<B: Backend> SileroVadContextMeta for SileroVadContext<B> {
+impl SileroVadContextMeta for SileroVadContext {
     fn sample_rate(&self) -> usize {
         self.sample_rate
     }
@@ -133,11 +133,11 @@ impl SileroVadContextConfig {
     /// [`default_context_size`](Self::default_context_size) gives below
     /// 250 Hz. Upstream always prefixes a tail; for no context at all, run
     /// the model's bare [`forward`](SileroVad::forward) instead.
-    pub fn try_init<B: Backend>(
+    pub fn try_init(
         &self,
-        vad: &SileroVad<B>,
-        device: &B::Device,
-    ) -> BunsenResult<SileroVadContext<B>> {
+        vad: &SileroVad,
+        device: &Device,
+    ) -> BunsenResult<SileroVadContext> {
         if self.context_size == 0 {
             return Err(BunsenError::from(ConstraintError::zero_or_empty(
                 "SileroVadContextConfig",
@@ -157,11 +157,11 @@ impl SileroVadContextConfig {
     /// # Panics
     ///
     /// When `context_size` is 0.
-    pub fn init<B: Backend>(
+    pub fn init(
         &self,
-        vad: &SileroVad<B>,
-        device: &B::Device,
-    ) -> SileroVadContext<B> {
+        vad: &SileroVad,
+        device: &Device,
+    ) -> SileroVadContext {
         self.try_init(vad, device).ok_or_panic()
     }
 }
@@ -176,13 +176,8 @@ mod tests {
             testing::ErrorMatcher,
         },
         kits::speech::silero_vad::SileroVadSignalConfig,
-        support::testing::{
-            PerformanceBackend,
-            performance_device,
-        },
+        support::testing::performance_device,
     };
-
-    type B = PerformanceBackend;
 
     /// The tail each chunk is prefixed with is upstream's: 64 samples at
     /// 16 kHz and 32 at 8 kHz (`OnnxWrapper` in silero-vad's
@@ -201,7 +196,7 @@ mod tests {
     fn test_try_init_refuses_a_zero_context() {
         let device = performance_device();
         // A small model at each rate: the context takes the model's rate.
-        let vad_at = |rate: usize| -> SileroVad<B> {
+        let vad_at = |rate: usize| -> SileroVad {
             SileroVadSignalConfig::new(rate, 33)
                 .with_d_hidden(32)
                 .with_d_bottleneck(16)

@@ -6,11 +6,11 @@ use burn::{
     Tensor,
     config::Config,
     module::Module,
-    prelude::{
-        Backend,
-        s,
+    prelude::s,
+    tensor::{
+        DType,
+        Device,
     },
-    tensor::DType,
 };
 
 use crate::{
@@ -58,11 +58,11 @@ impl RotaryEmbeddingMeta for RotaryEmbeddingConfig {
     }
 }
 
-impl<B: Backend> ModuleInit<B, RotaryEmbedding<B>> for RotaryEmbeddingConfig {
+impl ModuleInit<RotaryEmbedding> for RotaryEmbeddingConfig {
     fn try_init(
         &self,
-        device: &B::Device,
-    ) -> BunsenResult<RotaryEmbedding<B>> {
+        device: &Device,
+    ) -> BunsenResult<RotaryEmbedding> {
         if !self.head_dim.is_multiple_of(2) {
             return Err(ConstraintError::new(
                 "RotaryEmbeddingConfig",
@@ -115,18 +115,18 @@ impl<B: Backend> ModuleInit<B, RotaryEmbedding<B>> for RotaryEmbeddingConfig {
 ///
 /// Built by [`RotaryEmbeddingConfig`].
 #[derive(Module, Debug)]
-pub struct RotaryEmbedding<B: Backend> {
+pub struct RotaryEmbedding {
     /// Head Dimension, D
     pub head_dim: usize,
 
     /// a `[1, T, 1, D/2]` tensor.
-    pub cos: Tensor<B, 4>,
+    pub cos: Tensor<4>,
 
     /// a `[1, T, 1, D/2]` tensor.
-    pub sin: Tensor<B, 4>,
+    pub sin: Tensor<4>,
 }
 
-impl<B: Backend> RotaryEmbeddingMeta for RotaryEmbedding<B> {
+impl RotaryEmbeddingMeta for RotaryEmbedding {
     fn seq_len(&self) -> usize {
         self.cos.dims()[1]
     }
@@ -136,7 +136,7 @@ impl<B: Backend> RotaryEmbeddingMeta for RotaryEmbedding<B> {
     }
 }
 
-impl<B: Backend> RotaryEmbedding<B> {
+impl RotaryEmbedding {
     /// Casts the embedding to a different dtype.
     pub fn cast(
         self,
@@ -176,8 +176,8 @@ impl<B: Backend> RotaryEmbedding<B> {
     /// - a `[B, T, H, D]` tensor.
     pub fn apply(
         &self,
-        input: Tensor<B, 4>,
-    ) -> Tensor<B, 4> {
+        input: Tensor<4>,
+    ) -> Tensor<4> {
         #[cfg(debug_assertions)]
         let [b, h] = crate::contracts::unpack_shape_contract!(
             ["B", "T", "H", "D"],
@@ -224,7 +224,6 @@ mod tests {
         contracts::assert_shape_contract,
         support::testing::{
             DeviceMemoryGuard,
-            PerformanceBackend,
             performance_device,
         },
     };
@@ -232,12 +231,11 @@ mod tests {
     #[test]
     #[serial]
     fn test_clip_range() {
-        type B = PerformanceBackend;
         let device = performance_device();
         let _memory = DeviceMemoryGuard::new(&device);
 
         let config = RotaryEmbeddingConfig::new(1024, 64);
-        let re: RotaryEmbedding<B> = config.init(&device);
+        let re: RotaryEmbedding = config.init(&device);
         assert_eq!(re.seq_len(), 1024);
         assert_eq!(re.head_dim(), 64);
 
@@ -258,7 +256,6 @@ mod tests {
     #[test]
     #[serial]
     fn test_rotary_embedding() {
-        type B = PerformanceBackend;
         let device = performance_device();
         let _memory = DeviceMemoryGuard::new(&device);
 
@@ -272,11 +269,11 @@ mod tests {
         assert_eq!(config.head_dim(), head_dim);
         assert_eq!(config.base, 10000);
 
-        let re: RotaryEmbedding<B> = config.init(&device);
+        let re: RotaryEmbedding = config.init(&device);
         assert_eq!(re.seq_len(), seq_len);
         assert_eq!(re.head_dim(), head_dim);
 
-        let input: Tensor<B, 4> = Tensor::random(
+        let input: Tensor<4> = Tensor::random(
             [batch, seq_len, heads, head_dim],
             Distribution::Default,
             &device,

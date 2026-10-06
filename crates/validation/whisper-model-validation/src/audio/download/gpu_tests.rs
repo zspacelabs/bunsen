@@ -18,10 +18,8 @@ use bunsen::{
         },
         split_mel_windows,
     },
-    prelude::TensorElemOpExt,
     support::testing::{
         DeviceMemoryGuard,
-        PerformanceBackend,
         asr::text_error_rate,
         performance_device,
     },
@@ -29,15 +27,11 @@ use bunsen::{
 use burn::{
     Tensor,
     prelude::{
-        Backend,
         Device,
         Int,
         TensorData,
     },
-    tensor::{
-        Tolerance,
-        backend::BackendTypes,
-    },
+    tensor::Tolerance,
 };
 
 use crate::{
@@ -60,8 +54,7 @@ use crate::{
     reference,
 };
 
-type B = PerformanceBackend;
-type F = <B as BackendTypes>::FloatElem;
+type F = f32;
 
 /// The prompt and stop token, derived from the layout rather than written
 /// down: `<|startoftranscript|> <|en|> <|transcribe|> <|notimestamps|>`, then
@@ -76,10 +69,10 @@ fn decode_config(table: &Vocab) -> GreedyDecodeConfig {
 
 /// Splits log-mels into the encoder's fixed windows, zero-padding
 /// the last.
-fn windows_of<B: Backend>(
-    mels: Tensor<B, 3>,
-    device: &Device<B>,
-) -> Vec<Tensor<B, 3>> {
+fn windows_of(
+    mels: Tensor<3>,
+    device: &Device,
+) -> Vec<Tensor<3>> {
     let frames = mels.dims()[2];
     (0..frames.div_ceil(N_FRAMES))
         .map(|w| {
@@ -104,10 +97,10 @@ fn windows_of<B: Backend>(
 ///
 /// The export is KV-cache-free, so the whole prefix is re-fed every
 /// step — which is slow, and exactly why bunsen has a cache.
-fn greedy_reference<B: Backend>(
-    decoder: &reference::DecoderModel<B>,
-    xa: Tensor<B, 3>,
-    device: &Device<B>,
+fn greedy_reference(
+    decoder: &reference::DecoderModel,
+    xa: Tensor<3>,
+    device: &Device,
     config: &GreedyDecodeConfig,
 ) -> Vec<i64> {
     let mut prefix = config.prompt.clone();
@@ -115,7 +108,7 @@ fn greedy_reference<B: Backend>(
 
     for _ in 0..224 {
         let len = prefix.len();
-        let tokens: Tensor<B, 2, Int> =
+        let tokens: Tensor<2, Int> =
             Tensor::from_data(TensorData::new(prefix.clone(), [1, len]), device);
 
         let picked: Vec<i64> = decoder
@@ -124,8 +117,7 @@ fn greedy_reference<B: Backend>(
             .slice_dim(1, (len - 1) as isize..len as isize)
             .argmax(2)
             .into_data()
-            .convert::<i64>()
-            .to_vec()
+            .try_into_vec_as::<i64>()
             .unwrap();
 
         if picked[0] == config.eot_token {
@@ -147,7 +139,7 @@ fn test_bunsen_agrees_with_openai_reference() {
     let _memory = DeviceMemoryGuard::new(&device);
 
     let table = vocab();
-    let model = bunsen_model::<B>(&device);
+    let model = bunsen_model(&device);
     let config = decode_config(&table);
 
     for fixture in FIXTURES {
@@ -193,7 +185,7 @@ fn test_onnx_encoder_matches_bunsen_on_real_audio() {
     let device = performance_device();
     let _memory = DeviceMemoryGuard::new(&device);
 
-    let reference = reference::EncoderModel::<B>::load_pretrained(&device);
+    let reference = reference::EncoderModel::load_pretrained(&device);
     let ours = bunsen_model(&device);
 
     for fixture in FIXTURES {
@@ -218,8 +210,8 @@ fn test_onnx_reference_transcribes_real_audio() {
     let _memory = DeviceMemoryGuard::new(&device);
 
     let table = vocab();
-    let reference_enc = reference::EncoderModel::<B>::load_pretrained(&device);
-    let reference_dec = reference::DecoderModel::<B>::load_pretrained(&device);
+    let reference_enc = reference::EncoderModel::load_pretrained(&device);
+    let reference_dec = reference::DecoderModel::load_pretrained(&device);
     let config = decode_config(&table);
 
     for fixture in FIXTURES {
@@ -266,8 +258,8 @@ fn test_onnx_reference_and_bunsen_transcribe_alike() {
     let _memory = DeviceMemoryGuard::new(&device);
 
     let table = vocab();
-    let reference_enc = reference::EncoderModel::<B>::load_pretrained(&device);
-    let reference_dec = reference::DecoderModel::<B>::load_pretrained(&device);
+    let reference_enc = reference::EncoderModel::load_pretrained(&device);
+    let reference_dec = reference::DecoderModel::load_pretrained(&device);
     let ours = bunsen_model(&device);
     let config = decode_config(&table);
 
@@ -311,7 +303,7 @@ fn test_bunsen_accuracy_against_transcript() {
     let _memory = DeviceMemoryGuard::new(&device);
 
     let table = vocab();
-    let model = bunsen_model::<B>(&device);
+    let model = bunsen_model(&device);
     let config = decode_config(&table);
 
     for fixture in FIXTURES {
@@ -341,10 +333,10 @@ fn test_bunsen_accuracy_against_transcript() {
 
 /// One window's decode under `config` and `filters`, per window of the clip.
 fn decode_filtered(
-    model: &Whisper<B>,
-    mels: Tensor<B, 3>,
+    model: &Whisper,
+    mels: Tensor<3>,
     config: &DecodeConfig,
-    filters: &[Arc<dyn LogitFilter<B>>],
+    filters: &[Arc<dyn LogitFilter>],
 ) -> Vec<Vec<i64>> {
     split_mel_windows(mels, N_FRAMES)
         .into_iter()
@@ -368,9 +360,9 @@ fn test_bunsen_agrees_with_openai_reference_under_default_filters() {
     let _memory = DeviceMemoryGuard::new(&device);
 
     let table = vocab();
-    let model = bunsen_model::<B>(&device);
+    let model = bunsen_model(&device);
     let config = DecodeConfig::from(&decode_config(&table));
-    let filters = default_filters::<B>(&table.ranks, table.policy.ids());
+    let filters = default_filters(&table.ranks, table.policy.ids());
 
     for fixture in FIXTURES {
         let reference = Reference::load(fixture.name);
@@ -416,9 +408,9 @@ fn test_bunsen_beam_agrees_with_openai_reference() {
     let _memory = DeviceMemoryGuard::new(&device);
 
     let table = vocab();
-    let model = bunsen_model::<B>(&device);
+    let model = bunsen_model(&device);
     let config = DecodeConfig::from(&decode_config(&table)).with_beam_size(5);
-    let filters = default_filters::<B>(&table.ranks, table.policy.ids());
+    let filters = default_filters(&table.ranks, table.policy.ids());
 
     for fixture in FIXTURES {
         let reference = Reference::load(fixture.name);
@@ -463,14 +455,14 @@ fn test_bunsen_timestamps_agree_with_openai_reference() {
     let _memory = DeviceMemoryGuard::new(&device);
 
     let table = vocab();
-    let model = bunsen_model::<B>(&device);
+    let model = bunsen_model(&device);
     let ids = table.policy.ids();
     let prompt = table
         .policy
         .sot_sequence(Some("en"), Some(WhisperTask::Transcribe), true)
         .expect("a multilingual layout");
     let config = DecodeConfig::new(prompt, ids.eot);
-    let mut filters = default_filters::<B>(&table.ranks, ids);
+    let mut filters = default_filters(&table.ranks, ids);
     filters.push(std::sync::Arc::new(ApplyTimestampRules::new(ids, Some(50))));
 
     for fixture in FIXTURES {
@@ -520,9 +512,9 @@ fn test_bunsen_driver_transcribes_like_openai() {
     let driver = WhisperStreamDriverConfig::new()
         .with_language(Some("en".to_string()))
         .with_timestamps(true)
-        .init_with_layout(bunsen_model::<B>(&device), table.policy.clone(), &device)
+        .init_with_layout(bunsen_model(&device), table.policy.clone(), &device)
         .expect("a multilingual layout with a language")
-        .with_logit_filters(default_filters::<B>(&table.ranks, table.policy.ids()));
+        .with_logit_filters(default_filters(&table.ranks, table.policy.ids()));
 
     for fixture in FIXTURES {
         let reference = Reference::load(fixture.name);
@@ -612,7 +604,7 @@ fn test_bunsen_detects_the_language() {
     let _memory = DeviceMemoryGuard::new(&device);
 
     let table = vocab();
-    let model = bunsen_model::<B>(&device);
+    let model = bunsen_model(&device);
 
     for fixture in FIXTURES {
         let windows = split_mel_windows(clip_mels(fixture.name, &device), N_FRAMES);

@@ -58,20 +58,16 @@
 //!         NanoChatGpt,
 //!         NanoChatGptContractConfig,
 //!     },
-//!     support::testing::{
-//!         CpuBackend,
-//!         cpu_device,
-//!     },
+//!     support::testing::cpu_device,
 //! };
 //! use burn::prelude::{
 //!     Int,
 //!     Tensor,
 //! };
 //!
-//! type B = CpuBackend;
 //! let device = cpu_device();
 //!
-//! let gpt: NanoChatGpt<B> = NanoChatGptContractConfig::new()
+//! let gpt: NanoChatGpt = NanoChatGptContractConfig::new()
 //!     .with_vocab_size(64)
 //!     .with_n_layer(2)
 //!     .with_n_head(2)
@@ -81,14 +77,14 @@
 //!     .init(&device);
 //!
 //! // Training: the whole sequence at once, with no cache.
-//! let ids = Tensor::<B, 2, Int>::zeros([1, 8], &device);
+//! let ids = Tensor::<2, Int>::zeros([1, 8], &device);
 //! assert_eq!(gpt.forward(ids, &mut None).dims(), [1, 8, 64]);
 //!
 //! // Decoding: the caller owns the cache, and passes it to every step.
 //! let mut cache = gpt.new_kv_cache(1);
-//! let prompt = Tensor::<B, 2, Int>::zeros([1, 4], &device);
+//! let prompt = Tensor::<2, Int>::zeros([1, 4], &device);
 //! let _ = gpt.forward(prompt, &mut Some(&mut cache));
-//! let next = Tensor::<B, 2, Int>::zeros([1, 1], &device);
+//! let next = Tensor::<2, Int>::zeros([1, 1], &device);
 //! assert_eq!(gpt.forward(next, &mut Some(&mut cache)).dims(), [1, 1, 64]);
 //! ```
 

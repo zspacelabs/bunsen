@@ -127,8 +127,8 @@
 //!     support::{
 //!         geometry::GridShape2D,
 //!         testing::{
-//!             CpuBackend,
-//!             cpu_device, performance_device,
+//!             cpu_device,
+//!             performance_device,
 //!         },
 //!     },
 //! };
@@ -137,10 +137,9 @@
 //! let device = cpu_device();
 //! let rho = SPEED_OF_SOUND / 100.0;
 //!
-//! let mut sim: LBMD2Q9State<CpuBackend> =
-//!     LBMD2Q9Config::new(GridShape2D::square(16))
-//!         .with_relaxation(RelaxationParam::Tau(0.9))
-//!         .init(&device, rho);
+//! let mut sim: LBMD2Q9State = LBMD2Q9Config::new(GridShape2D::square(16))
+//!     .with_relaxation(RelaxationParam::Tau(0.9))
+//!     .init(&device, rho);
 //!
 //! // A dense spot in the rest population, a wall, and the mass to hold.
 //! sim.dist = sim.dist.slice_fill(s![5, 7, 1, 1], 5.0 * rho);
@@ -189,7 +188,6 @@ mod tests {
         Tensor,
         prelude::{
             Bool,
-            ElementConversion,
             s,
         },
     };
@@ -205,14 +203,13 @@ mod tests {
         },
         support::testing::{
             DeviceMemoryGuard,
-            PerformanceBackend, 
+            performance_device,
         },
     };
 
     #[test]
     #[serial]
     fn test_closed_box_steps_conserve_mass() {
-        type B = PerformanceBackend;
         let device = performance_device();
         let _memory = DeviceMemoryGuard::new(&device);
 
@@ -221,13 +218,13 @@ mod tests {
         let width = 6;
         let debug = false;
 
-        let solid_mask: Tensor<B, 2, Bool> = Tensor::full([height, width], false, &device)
+        let solid_mask: Tensor<2, Bool> = Tensor::full([height, width], false, &device)
             .slice_fill(s![0, ..], true)
             .slice_fill(s![-1, ..], true)
             .slice_fill(s![.., 0], true)
             .slice_fill(s![.., -1], true);
 
-        let dist_t0: Tensor<B, 4> = Tensor::zeros([height, width, 3, 3], &device)
+        let dist_t0: Tensor<4> = Tensor::zeros([height, width, 3, 3], &device)
             .slice_fill(s![.., .., 1, 1], 1.0)
             .slice_fill(s![1, 1, 1, 1], 3.0)
             .slice_fill(s![1, -2, 1, 1], 5.0)
@@ -237,7 +234,7 @@ mod tests {
             dbg_dist("dist_t0", dist_t0.clone());
         }
 
-        let initial_mass: f64 = dist_t0.clone().sum().into_scalar().elem();
+        let initial_mass: f64 = dist_t0.clone().sum().into_scalar();
 
         let lbm_tables = space::LbmTables::init(&device);
 
@@ -261,7 +258,7 @@ mod tests {
             }
 
             current = thermal_phase;
-            let current_mass: f64 = current.clone().sum().into_scalar().elem();
+            let current_mass: f64 = current.clone().sum().into_scalar();
 
             assert!(
                 (current_mass - initial_mass).abs() <= 1e-4 * initial_mass,

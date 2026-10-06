@@ -5,12 +5,8 @@ pub mod sim;
 
 use bunsen::{
     errors::BunsenResult,
-    prelude::{
-        TensorElemOpExt,
-        TensorOpExt,
-    },
+    prelude::TensorOpExt,
 };
-use burn::prelude::Backend;
 use clap::Parser;
 use piston::{
     EventLoop,
@@ -36,10 +32,10 @@ pub enum Commands {
 }
 
 impl Commands {
-    pub fn run<B: Backend>(&self) -> BunsenResult<()> {
+    pub fn run(&self) -> BunsenResult<()> {
         match self {
-            Commands::Visual(cmd) => cmd.run::<B>(),
-            Commands::Benchmark(cmd) => cmd.run::<B>(),
+            Commands::Visual(cmd) => cmd.run(),
+            Commands::Benchmark(cmd) => cmd.run(),
         }
     }
 }
@@ -49,28 +45,23 @@ fn main() -> BunsenResult<()> {
     cfg_select! {
         feature = "cuda" => {
             eprintln!("CUDA enabled");
-            type B = burn::backend::Cuda<burn::tensor::f16, i8>;
         }
         feature = "metal" => {
             eprintln!("Metal enabled");
-            type B = burn::backend::Metal<burn::tensor::f16, i8>;
         }
         feature = "vulkan" => {
             eprintln!("Vulkan enabled");
-            type B = burn::backend::Vulkan<burn::tensor::f16, i8>;
         }
         feature = "wgpu" => {
             eprintln!("WGPU enabled");
-            type B = burn::backend::Wgpu<burn::tensor::f16>;
         }
         feature = "flex" => {
             eprintln!("Flex enabled");
-            type B = burn::backend::Flex;
         }
         _ => {
             compile_error!("No backend selected");
         }
     }
 
-    args.command.run::<B>()
+    args.command.run()
 }

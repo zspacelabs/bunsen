@@ -38,7 +38,7 @@ use std::{
     },
 };
 
-use burn::prelude::Backend;
+use burn::tensor::Device;
 
 use crate::errors::{
     BunsenError,
@@ -70,11 +70,24 @@ fn target_dir_of(exe: &Path) -> Option<PathBuf> {
     Some(dir.parent()?.to_path_buf())
 }
 
-/// A path-safe label for backend `B`: its name, with each run of characters
-/// other than `[A-Za-z0-9.-]` replaced by one `_`, and no leading or trailing
-/// `_`; `cubecl<wgpu<spirv>>` gives `cubecl_wgpu_spirv`.
-pub fn backend_label<B: Backend>(device: &B::Device) -> String {
-    path_label(&B::name(device))
+/// A path-safe label for the backend behind `device`: its name, with each run
+/// of characters other than `[A-Za-z0-9.-]` replaced by one `_`, and no leading
+/// or trailing `_`; `cubecl<wgpu<spirv>>` gives `cubecl_wgpu_spirv`.
+///
+/// The name is the backend's own, without the `dispatch<…>` wrapper every
+/// device carries.
+pub fn backend_label(device: &Device) -> String {
+    use burn::backend::{
+        Backend,
+        Dispatch,
+    };
+
+    let name = Dispatch::name(device.as_dispatch());
+    let name = name
+        .strip_prefix("dispatch<")
+        .and_then(|inner| inner.strip_suffix('>'))
+        .unwrap_or(&name);
+    path_label(name)
 }
 
 fn path_label(name: &str) -> String {
@@ -349,20 +362,21 @@ impl SeriesReport {
         fs::write(path, self.to_csv()).map_err(sys_at("write", path))
     }
 
-    /// Writes the report for backend `B` as `{root}/{backend}/{name}.csv`.
+    /// Writes the report for the backend behind `device` as
+    /// `{root}/{backend}/{name}.csv`.
     ///
     /// # Returns
     /// The path written.
     ///
     /// # Errors
     /// As [`ReportsOptions::report_path`] and [`write`](Self::write).
-    pub fn write_report<B: Backend>(
+    pub fn write_report(
         &self,
         options: &ReportsOptions,
-        device: &B::Device,
+        device: &Device,
         name: &str,
     ) -> BunsenResult<PathBuf> {
-        let path = options.report_path(&backend_label::<B>(device), &format!("{name}.csv"))?;
+        let path = options.report_path(&backend_label(device), &format!("{name}.csv"))?;
         self.write(&path)?;
         Ok(path)
     }
@@ -388,8 +402,8 @@ mod tests {
             predicate,
         },
         support::testing::{
-            CpuBackend,
             cpu_device,
+            performance_device,
         },
     };
 
@@ -421,7 +435,9 @@ mod tests {
         assert_eq!(path_label("fusion<cubecl<cuda>>"), "fusion_cubecl_cuda");
         assert_eq!(path_label("ndarray"), "ndarray");
 
-        let label = backend_label::<CpuBackend>(&cpu_device());
+        assert_eq!(backend_label(&cpu_device()), "flex");
+
+        let label = backend_label(&performance_device());
         assert!(!label.is_empty());
         assert!(
             label
@@ -469,13 +485,11 @@ mod tests {
 
         let options = ReportsOptions::new(dir.path());
         let device = cpu_device();
-        let path = report
-            .write_report::<CpuBackend>(&options, &device, "g/s")
-            .unwrap();
+        let path = report.write_report(&options, &device, "g/s").unwrap();
         assert_eq!(
             path,
             options
-                .report_path(&backend_label::<CpuBackend>(&device), "g/s.csv")
+                .report_path(&backend_label(&device), "g/s.csv")
                 .unwrap()
         );
         assert_eq!(SeriesReport::read(&path).unwrap(), report);
