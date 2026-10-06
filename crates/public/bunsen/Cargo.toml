@@ -52,11 +52,9 @@ harness = false
 # audit probes (`audit`) are opt-in, because they pull in a CPU backend,
 # audio decoding, a tokenizer and the tracing-test stack.
 default = [
-    "reflection",
     "train",
     "store_pytorch",
     "store_safetensors",
-    "store_burnpack",
 ]
 
 ## Use the standard library (`burn/std`). Every other feature except the
@@ -73,7 +71,8 @@ reflection = [
     "dep:spanned_error_message",
 ]
 
-## Enable the burn-store.
+## Enable the burn-store, including burn's own burnpack (`.bpk`) files:
+## what Silero VAD's weights ship as.
 store = [
     "std",
     "cache",
@@ -83,21 +82,14 @@ store = [
 ## Read PyTorch `.pt` checkpoints through the burn-store.
 store_pytorch = [
     "store",
-    "burn-store/pytorch",
+    "burn/pytorch",
 ]
 
 ## Read `transformers`' `model.safetensors` through the burn-store: what a
 ## Hugging Face repo serves.
 store_safetensors = [
     "store",
-    "burn-store/safetensors",
-]
-
-## Read burn's own burnpack (`.bpk`) files through the burn-store: what
-## Silero VAD's weights ship as.
-store_burnpack = [
-    "store",
-    "burn-store/burnpack",
+    "burn/safetensors",
 ]
 
 ## Enable features to use with `burn/train`.
@@ -161,7 +153,6 @@ tokenizer = [
 ## Include the silero-vad pretrained weights in the build.
 silero-weights = [
     "store",
-    "store_burnpack",
     "dep:bunsen-bundled-silero",
 ]
 
@@ -235,6 +226,7 @@ testing = [
 ## verification, and stored baselines.
 audit = [
     "testing",
+    "burn/extension",
     "dep:ciborium",
 ]
 
@@ -258,8 +250,7 @@ tracing = { workspace = true, optional = true }
 tracing-test = { workspace = true, optional = true }
 tracing-subscriber = { workspace = true, optional = true }
 
-burn = { workspace = true }
-burn-store = { workspace = true, optional = true }
+burn = { workspace = true, features = ["linalg", "signal"] }
 
 # burner-locked public deps:
 hashbrown = { workspace = true, optional = true }

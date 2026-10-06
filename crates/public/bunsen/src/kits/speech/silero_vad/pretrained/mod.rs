@@ -7,7 +7,7 @@
 //! branches. The loaders in [`load`] read the bytes directly, with no
 //! cache, and stay for a binary that wants nothing else.
 //!
-//! The whole module needs the `store_burnpack` and `cache` features, both
+//! The whole module needs the `store` and `cache` features, both
 //! default. The kit has no prefab map.
 
 mod construct;

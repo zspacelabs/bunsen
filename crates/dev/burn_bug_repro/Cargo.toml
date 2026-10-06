@@ -27,7 +27,7 @@ metal = ["burn/metal", "bunsen/metal"]
 
 [dependencies]
 burn = { workspace = true, features = ["store"] }
-burn-store = { workspace = true, features = ["pytorch"] }
+burn-store = { workspace = true, features = ["std", "pytorch"] }
 # Supplies `PerformanceBackend`/`CpuBackend`, so the backend selection matches
 # the rest of the workspace, and `repair_pytorch_strided_weight`, which is the
 # workaround one of these defects is pinned against.

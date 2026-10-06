@@ -98,6 +98,8 @@ pub mod module;
 pub mod record;
 pub mod store;
 
-#[cfg(feature = "train")]
+// PARKED(burn22): the group optimizer is rewritten against burn 0.22's
+// `ModuleOptimizer` in `[optim_rewrite]`; restore `#[cfg(feature = "train")]`.
+#[cfg(any())]
 pub mod optim;
 pub mod tensor;

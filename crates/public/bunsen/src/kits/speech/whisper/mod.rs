@@ -158,7 +158,7 @@
 //! here.
 //!
 //! ```rust,no_run
-//! # #[cfg(all(feature = "store_pytorch", feature = "store_burnpack", feature = "cache"))] {
+//! # #[cfg(all(feature = "store_pytorch", feature = "cache"))] {
 //! use std::{
 //!     path::Path,
 //!     sync::Arc,

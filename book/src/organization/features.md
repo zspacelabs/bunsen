@@ -33,7 +33,7 @@ need:
 - `testing` and `audit`: the test support in
   [`support::testing`](bunsen::support::testing) and the
   [audit probes](../development/audit.md).
-- `store`, `store_pytorch`, `store_safetensors` and `store_burnpack`: reading
+- `store`, `store_pytorch` and `store_safetensors`: reading
   PyTorch checkpoints, safetensors and burnpacks through burn-store.
 
 The crate docs say which are on by default. `default-features = false` plus
