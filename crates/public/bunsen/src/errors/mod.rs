@@ -215,7 +215,7 @@
 //! error into a new message, and hold the members of an aggregate as
 //! `BunsenError` values in a [`Multiple`]. `find` cannot see through text.
 //!
-//! # The `try_x` and `x` convention
+//! # Convention: `try_x` and `x`
 //!
 //! A fallible operation comes as a pair:
 //!

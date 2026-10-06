@@ -23,7 +23,7 @@ use crate::errors::{
 };
 
 /// The result of a fallible bunsen operation: the `try_x` half of the
-/// [convention](crate::errors#the-try_x-and-x-convention).
+/// [convention](crate::errors#convention-try_x-and-x).
 pub type BunsenResult<T> = core::result::Result<T, BunsenError>;
 
 /// A shared, type-erased cause.
@@ -313,6 +313,9 @@ impl BunsenError {
     /// Every kind but [`Internal`](BunsenErrorKind::Internal) changes; an
     /// `Illegal` error passes through unchanged.
     #[track_caller]
+    // `as_*` by value: re-marking consumes the error and returns it, like a
+    // builder; the name says what it becomes.
+    #[allow(clippy::wrong_self_convention)]
     pub fn as_illegal(self) -> Self {
         match self.kind() {
             BunsenErrorKind::Illegal | BunsenErrorKind::Internal => self,
@@ -326,6 +329,9 @@ impl BunsenError {
     ///
     /// Every other kind passes through unchanged.
     #[track_caller]
+    // `as_*` by value: re-marking consumes the error and returns it, like a
+    // builder; the name says what it becomes.
+    #[allow(clippy::wrong_self_convention)]
     pub fn as_policy(self) -> Self {
         match self.kind() {
             BunsenErrorKind::Illegal => self.remark(BunsenErrorKind::Policy, Location::caller()),
@@ -339,6 +345,9 @@ impl BunsenError {
     ///
     /// Every other kind passes through unchanged.
     #[track_caller]
+    // `as_*` by value: re-marking consumes the error and returns it, like a
+    // builder; the name says what it becomes.
+    #[allow(clippy::wrong_self_convention)]
     pub fn as_internal(self) -> Self {
         match self.kind() {
             BunsenErrorKind::Illegal => self.remark(BunsenErrorKind::Internal, Location::caller()),
@@ -442,10 +451,6 @@ impl BunsenError {
     pub fn report(&self) -> Report<'_> {
         Report::new(self)
     }
-
-    pub(crate) fn message_is_cause(&self) -> bool {
-        self.0.message_is_cause
-    }
 }
 
 impl Error for BunsenError {
@@ -522,7 +527,7 @@ mod tests {
         let io = io::Error::new(io::ErrorKind::Other, "disk on fire");
         let e = BunsenError::from_cause(BunsenErrorKind::Sys, io);
         assert_eq!(e.to_string(), "disk on fire");
-        assert!(e.message_is_cause());
+        assert!(e.0.message_is_cause);
         assert!(e.source().is_none());
         assert!(e.find::<io::Error>().is_some());
 
@@ -535,7 +540,7 @@ mod tests {
         let io = io::Error::new(io::ErrorKind::Other, "disk on fire");
         let e = BunsenError::sys("writing the cache").with_cause(io);
         assert_eq!(e.to_string(), "writing the cache");
-        assert!(!e.message_is_cause());
+        assert!(!e.0.message_is_cause);
         assert!(e.source().is_some());
         let report = format!("{e:#}");
         assert!(report.contains("caused by: disk on fire"), "{report}");

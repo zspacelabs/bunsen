@@ -20,6 +20,10 @@ use crate::errors::{
     BunsenErrorKind,
 };
 
+/// How many candidates a [`LookupError`]'s one-line `Display` names; the rest
+/// are counted. [`LookupError::candidates`] holds them all.
+const MAX_CANDIDATES_SHOWN: usize = 16;
+
 /// Where a [`LookupError`]'s key was looked up.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Namespace {
@@ -263,7 +267,11 @@ impl fmt::Display for LookupError {
                     }
                 }
                 if !self.candidates.is_empty() {
-                    write!(f, "; there are: {}", self.candidates.join(", "))?;
+                    let shown = self.candidates.len().min(MAX_CANDIDATES_SHOWN);
+                    write!(f, "; there are: {}", self.candidates[..shown].join(", "))?;
+                    if shown < self.candidates.len() {
+                        write!(f, ", and {} more", self.candidates.len() - shown)?;
+                    }
                 }
                 Ok(())
             }
@@ -314,6 +322,15 @@ mod tests {
             LookupError::out_of_range("shard", 9, 4).to_string(),
             "shard 9 is out of range; there are 4"
         );
+    }
+
+    #[test]
+    fn test_many_candidates_are_counted() {
+        let names: Vec<String> = (0..20).map(|i| alloc::format!("c{i}")).collect();
+        let text = LookupError::missing("language", "xx")
+            .with_candidates(names)
+            .to_string();
+        assert!(text.ends_with("c15, and 4 more"), "{text}");
     }
 
     #[test]

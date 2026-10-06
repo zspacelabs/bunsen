@@ -9,7 +9,7 @@ use crate::errors::BunsenResult;
 ///
 /// This is how the `x` half of a `try_x` / `x` pair is written:
 /// `try_x(..).ok_or_panic()`. See the
-/// [convention](crate::errors#the-try_x-and-x-convention).
+/// [convention](crate::errors#convention-try_x-and-x).
 pub trait WithOkOrPanic<T> {
     /// Unwraps the `Result`, or panics with the error's alternate `Display`
     /// (`{:#}`).
@@ -75,16 +75,25 @@ pub trait ResultContext<T> {
     /// Re-marks an `Illegal` error as `Policy`, at an input boundary. See
     /// [`BunsenError::as_policy`](crate::errors::BunsenError::as_policy).
     #[track_caller]
+    // `as_*` by value: re-marking consumes the error and returns it, like a
+    // builder; the name says what it becomes.
+    #[allow(clippy::wrong_self_convention)]
     fn as_policy(self) -> BunsenResult<T>;
 
     /// Re-marks an `Illegal` error as `Internal`. See
     /// [`BunsenError::as_internal`](crate::errors::BunsenError::as_internal).
     #[track_caller]
+    // `as_*` by value: re-marking consumes the error and returns it, like a
+    // builder; the name says what it becomes.
+    #[allow(clippy::wrong_self_convention)]
     fn as_internal(self) -> BunsenResult<T>;
 
     /// Re-marks a runtime error as `Illegal`. See
     /// [`BunsenError::as_illegal`](crate::errors::BunsenError::as_illegal).
     #[track_caller]
+    // `as_*` by value: re-marking consumes the error and returns it, like a
+    // builder; the name says what it becomes.
+    #[allow(clippy::wrong_self_convention)]
     fn as_illegal(self) -> BunsenResult<T>;
 }
 
