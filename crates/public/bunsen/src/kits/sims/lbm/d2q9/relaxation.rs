@@ -10,8 +10,8 @@ use serde::{
 };
 
 use crate::errors::{
-    BunsenError,
     BunsenResult,
+    ConstraintError,
     WithOkOrPanic,
 };
 
@@ -108,15 +108,16 @@ impl RelaxationParam {
     ///
     /// # Errors
     ///
-    /// [`BunsenError::Invalid`] if the value is out of range, or NaN.
+    /// [`Illegal`](crate::errors::BunsenErrorKind::Illegal), with a
+    /// [`ConstraintError`] cause, if the value is out of range, or NaN.
     pub fn try_validate(&self) -> BunsenResult<()> {
         match *self {
             RelaxationParam::Omega(omega) if !(0.0..=2.0).contains(&omega) => Err(
-                BunsenError::Invalid(format!("omega ({omega}) must be in [0, 2.0] range")),
+                ConstraintError::out_of_range("RelaxationParam", "omega", omega, "[0, 2]").into(),
             ),
-            RelaxationParam::Tau(tau) if !(0.5..).contains(&tau) => {
-                Err(BunsenError::Invalid(format!("tau ({tau}) must be >= 0.5")))
-            }
+            RelaxationParam::Tau(tau) if !(0.5..).contains(&tau) => Err(
+                ConstraintError::out_of_range("RelaxationParam", "tau", tau, "[0.5, +inf)").into(),
+            ),
             _ => Ok(()),
         }
     }
@@ -154,10 +155,16 @@ mod tests {
     use serial_test::serial;
 
     use super::*;
-    use crate::support::testing::{
-        DeviceMemoryGuard,
-        PerformanceBackend,
-        default_device,
+    use crate::{
+        errors::{
+            BunsenErrorKind,
+            testing::ErrorMatcher,
+        },
+        support::testing::{
+            DeviceMemoryGuard,
+            PerformanceBackend,
+            default_device,
+        },
     };
 
     #[test]
@@ -176,8 +183,8 @@ mod tests {
     /// An out-of-range value is an `Err` from `try_validate`, not a panic.
     #[test]
     fn test_try_validate_rejects_out_of_range() {
-        assert_eq!(RelaxationParam::Omega(2.0).try_validate(), Ok(()));
-        assert_eq!(RelaxationParam::Tau(0.5).try_validate(), Ok(()));
+        RelaxationParam::Omega(2.0).try_validate().unwrap();
+        RelaxationParam::Tau(0.5).try_validate().unwrap();
 
         for bad in [
             RelaxationParam::Omega(2.01),
@@ -186,22 +193,21 @@ mod tests {
             RelaxationParam::Tau(0.49),
             RelaxationParam::Tau(f64::NAN),
         ] {
-            assert!(
-                matches!(bad.try_validate(), Err(BunsenError::Invalid(_))),
-                "{bad:?}"
-            );
+            ErrorMatcher::kind(BunsenErrorKind::Illegal)
+                .has_cause::<ConstraintError>()
+                .assert_err(&bad.try_validate());
         }
     }
 
     #[test]
-    #[should_panic(expected = "tau (0.49) must be >= 0.5")]
+    #[should_panic(expected = "RelaxationParam.tau: 0.49 is outside [0.5, +inf)")]
     fn test_bad_tau() {
         let relaxation = RelaxationParam::Tau(0.49);
         relaxation.validate();
     }
 
     #[test]
-    #[should_panic(expected = "omega (2.01) must be in [0, 2.0] range")]
+    #[should_panic(expected = "RelaxationParam.omega: 2.01 is outside [0, 2]")]
     fn test_bad_omega() {
         let relaxation = RelaxationParam::Omega(2.01);
         relaxation.validate();

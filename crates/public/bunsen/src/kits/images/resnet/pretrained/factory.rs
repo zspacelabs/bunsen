@@ -13,8 +13,8 @@ use crate::{
 /// [`ResNetConstruct`].
 ///
 /// # Errors
-/// [`BunsenError::Invalid`](crate::errors::BunsenError::Invalid) if two of
-/// the defaults share a name, which the tests pin they do not.
+/// As [`PretrainedFactory::register`], if two of the defaults share a name,
+/// which the tests pin they do not.
 pub fn default_resnet_factory() -> BunsenResult<PretrainedFactory<ResNetConstruct>> {
     PretrainedFactory::new().with_providers(default_resnet_providers())
 }

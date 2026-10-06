@@ -29,6 +29,7 @@ use crate::{
     errors::{
         BunsenError,
         BunsenResult,
+        ConstraintError,
         WithOkOrPanic,
     },
     support::geometry::GridShape2D,
@@ -75,9 +76,10 @@ impl LBMD2Q9Config {
     ///
     /// # Errors
     ///
-    /// [`BunsenError::Invalid`] if the grid is under 3 cells on a side, which
-    /// leaves no fluid inside the outer ring, or if the relaxation is out of
-    /// range ([`RelaxationParam::try_validate`]).
+    /// [`Illegal`](crate::errors::BunsenErrorKind::Illegal), with a
+    /// [`ConstraintError`] cause, if the grid is under 3 cells on a side,
+    /// which leaves no fluid inside the outer ring, or if the relaxation is
+    /// out of range ([`RelaxationParam::try_validate`]).
     pub fn try_init<B: Backend>(
         self,
         device: &B::Device,
@@ -86,10 +88,19 @@ impl LBMD2Q9Config {
         let height = self.shape.height;
         let width = self.shape.width;
 
-        if height < 3 || width < 3 {
-            return Err(BunsenError::Invalid(format!(
-                "an LBM grid needs at least 3 cells on a side, for a fluid interior inside its outer ring; got height {height}, width {width}"
-            )));
+        for (field, value) in [("shape.height", height), ("shape.width", width)] {
+            if value < 3 {
+                return Err(BunsenError::from(ConstraintError::out_of_range(
+                    "LBMD2Q9Config",
+                    field,
+                    value,
+                    "[3, +inf)",
+                ))
+                .with_details(format!(
+                    "an LBM grid needs at least 3 cells on a side, for a fluid \
+                     interior inside its outer ring; got height {height}, width {width}"
+                )));
+            }
         }
         self.relaxation.try_validate()?;
 
@@ -310,6 +321,10 @@ mod tests {
 
     use super::*;
     use crate::{
+        errors::{
+            BunsenErrorKind,
+            testing::ErrorMatcher,
+        },
         kits::sims::lbm::d2q9::{
             SPEED_OF_SOUND,
             macroscopic_momentum,
@@ -453,16 +468,18 @@ mod tests {
         for (height, width) in [(0, 8), (1, 8), (2, 8), (8, 2), (2, 2)] {
             let result =
                 LBMD2Q9Config::new(GridShape2D { width, height }).try_init::<B>(&device, RHO);
-            assert!(
-                matches!(result, Err(BunsenError::Invalid(_))),
-                "{height}x{width}"
-            );
+            ErrorMatcher::kind(BunsenErrorKind::Illegal)
+                .has_cause::<ConstraintError>()
+                .details_contains("at least 3 cells on a side")
+                .assert_err(&result);
         }
 
         let result = LBMD2Q9Config::new(GridShape2D::square(8))
             .with_relaxation(RelaxationParam::Tau(0.49))
             .try_init::<B>(&device, RHO);
-        assert!(matches!(result, Err(BunsenError::Invalid(_))));
+        ErrorMatcher::kind(BunsenErrorKind::Illegal)
+            .message_contains("RelaxationParam.tau")
+            .assert_err(&result);
 
         let mut world = LBMD2Q9Config::new(GridShape2D::square(3))
             .with_relaxation(RelaxationParam::Tau(0.9))

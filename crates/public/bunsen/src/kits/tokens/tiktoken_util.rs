@@ -7,7 +7,10 @@ use std::{
 
 use crate::errors::{
     BunsenError,
+    BunsenErrorKind,
     BunsenResult,
+    ParseError,
+    sys_at,
 };
 
 /// The base vocabulary of a `.tiktoken` file: rank to bytes.
@@ -45,9 +48,32 @@ impl TiktokenRanks {
     /// `0..len` in any order.
     ///
     /// # Errors
-    /// [`BunsenError::ParseError`] for a malformed line, a rank that repeats
-    /// or is missing, or an empty file.
+    /// [`InvalidResource`](BunsenErrorKind::InvalidResource), with a
+    /// [`ParseError`] cause whose `at` names the line, for a malformed line, a
+    /// rank that repeats or is missing, or an empty file.
     pub fn parse(text: &str) -> BunsenResult<Self> {
+        Self::parse_from(text, None)
+    }
+
+    /// [`parse`](Self::parse), with `origin` (the file's path) in each
+    /// [`ParseError`]'s `at`.
+    fn parse_from(
+        text: &str,
+        origin: Option<&Path>,
+    ) -> BunsenResult<Self> {
+        let invalid =
+            |error: ParseError| BunsenError::from_cause(BunsenErrorKind::InvalidResource, error);
+        // `<path>:<line>`, or `line <line>` for text with no path.
+        let at_line = |number: usize| match origin {
+            Some(path) => format!("{}:{number}", path.display()),
+            None => format!("line {number}"),
+        };
+        // The file as a whole, for a fault no one line holds.
+        let in_file = |error: ParseError| match origin {
+            Some(path) => error.at(path.display()),
+            None => error,
+        };
+
         let mut entries: Vec<(usize, Vec<u8>)> = Vec::new();
 
         for (i, line) in text.lines().enumerate() {
@@ -60,38 +86,54 @@ impl TiktokenRanks {
             let mut fields = line.split_whitespace();
             let (Some(b64), Some(rank), None) = (fields.next(), fields.next(), fields.next())
             else {
-                return Err(BunsenError::ParseError(format!(
-                    "line {number}: expected `<base64> <rank>`, got {line:?}"
-                )));
+                return Err(invalid(
+                    ParseError::new("tiktoken rank line")
+                        .at(at_line(number))
+                        .input(line)
+                        .because("expected `<base64> <rank>`"),
+                ));
             };
 
             let span = lenient_decode_base64(b64).ok_or_else(|| {
-                BunsenError::ParseError(format!("line {number}: invalid base64 {b64:?}"))
+                invalid(
+                    ParseError::new("tiktoken base64 field")
+                        .at(at_line(number))
+                        .input(b64)
+                        .because("not base64"),
+                )
             })?;
-            let rank: usize = rank.parse().map_err(|_| {
-                BunsenError::ParseError(format!("line {number}: invalid rank {rank:?}"))
+            let rank: usize = rank.parse().map_err(|e| {
+                invalid(
+                    ParseError::new("tiktoken rank")
+                        .at(at_line(number))
+                        .input(rank)
+                        .with_source(e),
+                )
             })?;
 
             entries.push((rank, span));
         }
 
         if entries.is_empty() {
-            return Err(BunsenError::ParseError(
-                "tiktoken file has no ranks".to_string(),
-            ));
+            return Err(invalid(in_file(
+                ParseError::new("tiktoken rank file").because("it has no ranks"),
+            )));
         }
 
         let count = entries.len();
         let mut spans: Vec<Option<Vec<u8>>> = vec![None; count];
         for (rank, span) in entries {
             let slot = spans.get_mut(rank).ok_or_else(|| {
-                BunsenError::ParseError(format!(
-                    "rank {rank} is beyond the {count} entries: ranks must be contiguous from 0"
-                ))
+                invalid(in_file(ParseError::new("tiktoken rank file").because(
+                    format!(
+                        "rank {rank} is beyond the {count} entries: ranks must be contiguous from 0"
+                    ),
+                )))
             })?;
             if slot.is_some() {
-                return Err(BunsenError::ParseError(format!(
-                    "rank {rank} appears more than once"
+                return Err(invalid(in_file(
+                    ParseError::new("tiktoken rank file")
+                        .because(format!("rank {rank} appears more than once")),
                 )));
             }
             *slot = Some(span);
@@ -110,11 +152,15 @@ impl TiktokenRanks {
     /// Reads and parses a `.tiktoken` file.
     ///
     /// # Errors
-    /// [`BunsenError::External`] if the file cannot be read, or whatever
-    /// [`parse`](Self::parse) reports.
+    /// [`Lookup`](BunsenErrorKind::Lookup), with a
+    /// [`LookupError`](crate::errors::LookupError) cause, if the file is
+    /// missing or unreadable; another I/O failure by its kind (see
+    /// [`sys_at`]); or whatever [`parse`](Self::parse) reports, with the
+    /// path in each [`ParseError`]'s `at`.
     pub fn load(path: impl AsRef<Path>) -> BunsenResult<Self> {
-        let text = std::fs::read_to_string(path.as_ref()).map_err(BunsenError::external)?;
-        Self::parse(&text)
+        let path = path.as_ref();
+        let text = std::fs::read_to_string(path).map_err(sys_at("read", path))?;
+        Self::parse_from(&text, Some(path))
     }
 
     /// The number of ranks; the first special id in a layout built on this
@@ -313,6 +359,14 @@ mod tests {
 
     use super::*;
     use crate::{
+        errors::{
+            LookupError,
+            LookupProblem,
+            testing::{
+                ErrorMatcher,
+                predicate,
+            },
+        },
         kits::speech::whisper::logit_filters::{
             LogitFilter,
             SuppressBlank,
@@ -399,14 +453,51 @@ mod tests {
             ("IQ== 1", "does not start at zero"),
         ] {
             let err = TiktokenRanks::parse(text).expect_err(why);
-            assert!(matches!(err, BunsenError::ParseError(_)), "{why}: {err:?}");
+            ErrorMatcher::kind(BunsenErrorKind::InvalidResource)
+                .has_cause::<ParseError>()
+                .assert(&err);
         }
     }
 
     #[test]
+    fn test_parse_errors_name_the_line() {
+        ErrorMatcher::kind(BunsenErrorKind::InvalidResource)
+            .cause(predicate("at line 2", |e: &ParseError| {
+                e.at.as_deref() == Some("line 2")
+            }))
+            .assert_err(&TiktokenRanks::parse(
+                "IQ== 0
+I%== 1",
+            ));
+    }
+
+    #[test]
+    fn test_load_names_the_file_and_line() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("bad.tiktoken");
+        std::fs::write(
+            &path,
+            "IQ== 0
+Ig== x
+",
+        )
+        .unwrap();
+        let at = format!("{}:2", path.display());
+
+        ErrorMatcher::kind(BunsenErrorKind::InvalidResource)
+            .cause(predicate("at the file's line 2", move |e: &ParseError| {
+                e.at.as_deref() == Some(at.as_str())
+            }))
+            .assert_err(&TiktokenRanks::load(&path));
+    }
+
+    #[test]
     fn test_load_reports_a_missing_file() {
-        let err = TiktokenRanks::load("/nonexistent/whisper.tiktoken").unwrap_err();
-        assert!(matches!(err, BunsenError::External(_)), "{err:?}");
+        ErrorMatcher::kind(BunsenErrorKind::Lookup)
+            .cause(predicate("a missing path", |e: &LookupError| {
+                e.problem == LookupProblem::Missing && e.key == "/nonexistent/whisper.tiktoken"
+            }))
+            .assert_err(&TiktokenRanks::load("/nonexistent/whisper.tiktoken"));
     }
 
     fn logits<B: Backend>(

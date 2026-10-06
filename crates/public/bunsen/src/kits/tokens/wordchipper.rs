@@ -11,6 +11,7 @@ use std::{
 use wordchipper::{
     TokenDecoder,
     TokenType,
+    WCError,
     decoders::TokenDictDecoder,
 };
 
@@ -18,6 +19,7 @@ use crate::{
     errors::{
         BunsenError,
         BunsenResult,
+        ConstraintError,
     },
     kits::tokens::Detokenizer,
 };
@@ -77,17 +79,20 @@ impl<T: TokenType> WordchipperDetokenizer<T> {
     /// not a gap.
     ///
     /// # Errors
-    /// [`BunsenError::Invalid`] if an id does not fit `T`.
+    /// [`Illegal`](crate::errors::BunsenErrorKind::Illegal), with a
+    /// [`ConstraintError`] cause, if an id does not fit `T`.
     pub fn from_spans(spans: impl IntoIterator<Item = (usize, Vec<u8>)>) -> BunsenResult<Self> {
         let mut table = wordchipper::hash_map_new::<T, Vec<u8>>();
         let mut vocab_size = 0;
 
         for (id, bytes) in spans {
             let token = T::from_usize(id).ok_or_else(|| {
-                BunsenError::Invalid(format!(
-                    "token id {id} does not fit {}",
-                    std::any::type_name::<T>(),
-                ))
+                ConstraintError::out_of_range(
+                    "WordchipperDetokenizer",
+                    "spans",
+                    format!("token id {id}"),
+                    format!("the range of {}", std::any::type_name::<T>()),
+                )
             })?;
             table.insert(token, bytes);
             vocab_size = vocab_size.max(id + 1);
@@ -130,7 +135,7 @@ impl<T: TokenType> Detokenizer for WordchipperDetokenizer<T> {
                 T::from_i64(id)
                     .filter(|t| t.to_usize().is_some_and(|t| t < self.vocab_size))
                     .ok_or_else(|| {
-                        BunsenError::Invalid(format!(
+                        BunsenError::invalid_resource(format!(
                             "token id {id} is outside the {}-id vocabulary",
                             self.vocab_size,
                         ))
@@ -140,18 +145,37 @@ impl<T: TokenType> Detokenizer for WordchipperDetokenizer<T> {
 
         // An id inside the range but missing from the table stops the decode
         // short; going through `try_result` rather than `.value` turns that
-        // into an error instead of a silent truncation.
+        // into an error instead of a silent truncation. It is the same
+        // failure as an id past the end, so it gets the same kind, with the
+        // decoder's error as the cause.
         self.decoder
             .try_decode_to_string(&narrowed)
-            .map_err(BunsenError::external)?
+            .map_err(BunsenError::other)?
             .try_result()
-            .map_err(BunsenError::external)
+            .map_err(|e| {
+                let message = match e {
+                    WCError::IncompleteDecode { remaining } if remaining <= ids.len() => format!(
+                        "token id {} is not in the {}-id vocabulary",
+                        ids[ids.len() - remaining],
+                        self.vocab_size,
+                    ),
+                    _ => format!(
+                        "the {}-id vocabulary does not cover every id",
+                        self.vocab_size
+                    ),
+                };
+                BunsenError::invalid_resource(message).with_cause(e)
+            })
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::errors::{
+        BunsenErrorKind,
+        testing::ErrorMatcher,
+    };
 
     /// Five ids, including an empty one and a gap: the party popper's four
     /// bytes split across ids 1 and 2.
@@ -205,15 +229,17 @@ mod tests {
         let detok = tiny::<u16>();
 
         for bad in [-1, 7, i64::from(u16::MAX) + 1, i64::MAX, i64::MIN] {
-            let err = detok.detokenize(&[0, bad, 3]).expect_err("out of range");
-            assert!(matches!(err, BunsenError::Invalid(_)), "{bad}: {err:?}");
-            assert!(err.to_string().contains(&bad.to_string()), "{err}");
+            ErrorMatcher::kind(BunsenErrorKind::InvalidResource)
+                .message_contains(&format!("token id {bad} "))
+                .assert_err(&detok.detokenize(&[0, bad, 3]));
         }
 
         // Inside the range but not in the table: the decode stops, and that
-        // is reported rather than swallowed.
-        let err = detok.detokenize(&[0, 5, 3]).expect_err("a gap");
-        assert!(matches!(err, BunsenError::External(_)), "{err:?}");
+        // is reported rather than swallowed, as the same kind of failure.
+        ErrorMatcher::kind(BunsenErrorKind::InvalidResource)
+            .message_contains("token id 5 ")
+            .has_cause::<WCError>()
+            .assert_err(&detok.detokenize(&[0, 5, 3]));
     }
 
     #[test]
@@ -224,8 +250,13 @@ mod tests {
         );
 
         // An id that does not fit the token type is refused at build time.
-        let err = WordchipperDetokenizer::<u16>::from_spans([(70_000, b"x".to_vec())]).unwrap_err();
-        assert!(matches!(err, BunsenError::Invalid(_)), "{err:?}");
+        ErrorMatcher::kind(BunsenErrorKind::Illegal)
+            .has_cause::<ConstraintError>()
+            .message_contains("token id 70000")
+            .assert_err(&WordchipperDetokenizer::<u16>::from_spans([(
+                70_000,
+                b"x".to_vec(),
+            )]));
     }
 
     #[test]

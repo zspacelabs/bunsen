@@ -159,9 +159,9 @@ impl<B: Backend> PerceptiveAudioConversionContext<B> {
     ///
     /// # Errors
     ///
-    /// [`BunsenError::Invalid`] if the batch size does not match, if `samples`
-    /// is zero or not a multiple of `hop`, or if the first chunk is too short
-    /// to produce a frame.
+    /// [`Illegal`](crate::errors::BunsenErrorKind::Illegal) if the batch size
+    /// does not match, if `samples` is zero or not a multiple of `hop`, or if
+    /// the first chunk is too short to produce a frame.
     pub fn transform(
         self,
         waves: Tensor<B, 2>,
@@ -255,18 +255,18 @@ impl<B: Backend> PerceptiveAudioConversionContext<B> {
         let [batch, samples] = waves.dims();
 
         if batch != self.batch_size {
-            return Err(BunsenError::Invalid(format!(
-                "MelConversionContext batch ({batch}) must match the context \
-                 batch size ({})",
+            return Err(BunsenError::illegal(format!(
+                "PerceptiveAudioConversionContext: waves batch ({batch}) must \
+                 match the context batch size ({})",
                 self.batch_size,
             )));
         }
 
         let hop = self.hop();
         if samples == 0 || samples % hop != 0 {
-            return Err(BunsenError::Invalid(format!(
-                "MelConversionContext samples ({samples}) must be a non-zero \
-                 multiple of hop ({hop})",
+            return Err(BunsenError::illegal(format!(
+                "PerceptiveAudioConversionContext: waves samples ({samples}) \
+                 must be a non-zero multiple of hop ({hop})",
             )));
         }
 
@@ -292,10 +292,10 @@ impl<B: Backend> PerceptiveAudioConversionContext<B> {
                     // `p + 1` samples, hence `min_first_chunk`.
                     PaddingMode::Reflect => {
                         if samples < self.min_first_chunk() {
-                            return Err(BunsenError::Invalid(format!(
-                                "MelConversionContext reflect start padding \
-                                 needs at least {} samples in the first chunk, \
-                                 got {samples}",
+                            return Err(BunsenError::illegal(format!(
+                                "PerceptiveAudioConversionContext: reflect start \
+                                 padding needs at least {} samples in the first \
+                                 chunk, got {samples}",
                                 self.min_first_chunk(),
                             )));
                         }
@@ -308,10 +308,10 @@ impl<B: Backend> PerceptiveAudioConversionContext<B> {
 
         let frames = self.converter.frame_count(extended.dims()[1]);
         if frames == 0 {
-            return Err(BunsenError::Invalid(format!(
-                "MelConversionContext first chunk of {samples} samples is too \
-                 short to fill a frame; with {:?} start padding it needs at \
-                 least {} samples",
+            return Err(BunsenError::illegal(format!(
+                "PerceptiveAudioConversionContext: first chunk of {samples} \
+                 samples is too short to fill a frame; with {:?} start padding \
+                 it needs at least {} samples",
                 self.start_padding(),
                 self.n_fft() - self.start_padding().pad_len(self.n_fft()),
             )));
@@ -420,7 +420,11 @@ mod tests {
             module::ModuleInit,
             tensor::TensorDataToVecAsExt,
         },
-        errors::WithOkOrPanic,
+        errors::{
+            BunsenErrorKind,
+            WithOkOrPanic,
+            testing::ErrorMatcher,
+        },
         ops::signal::perceptive_audio::PerceptiveAudioConverterOptions,
         support::testing::{
             DeviceMemoryGuard,
@@ -670,18 +674,24 @@ mod tests {
         // Not a hop multiple.
         let ctx = conv.new_context(2);
         let bad = from_rows::<B>(&rows(2, 1601), &device);
-        assert!(matches!(ctx.transform(bad), Err(BunsenError::Invalid(_)),));
+        ErrorMatcher::kind(BunsenErrorKind::Illegal)
+            .message_contains("multiple of hop")
+            .assert_err(&ctx.transform(bad));
 
         // Wrong batch.
         let ctx = conv.new_context(2);
         let bad = from_rows::<B>(&rows(3, 1600), &device);
-        assert!(matches!(ctx.transform(bad), Err(BunsenError::Invalid(_)),));
+        ErrorMatcher::kind(BunsenErrorKind::Illegal)
+            .message_contains("batch (3)")
+            .assert_err(&ctx.transform(bad));
 
         // Too short to reflect: `min_first_chunk` is 201, and 160 is the
         // largest hop-aligned chunk below it.
         let ctx = conv.new_context(1);
         let bad = from_rows::<B>(&rows(1, 160), &device);
-        assert!(matches!(ctx.transform(bad), Err(BunsenError::Invalid(_)),));
+        ErrorMatcher::kind(BunsenErrorKind::Illegal)
+            .message_contains("reflect start padding")
+            .assert_err(&ctx.transform(bad));
     }
 
     #[test]

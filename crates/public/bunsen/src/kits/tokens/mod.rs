@@ -60,7 +60,12 @@ pub trait Detokenizer: Send + Sync + Debug {
     /// the call; the detokenizer renders whatever it is handed.
     ///
     /// # Errors
-    /// If an id is outside the vocabulary. Nothing is skipped silently.
+    /// [`InvalidResource`](crate::errors::BunsenErrorKind::InvalidResource)
+    /// if an id is outside the vocabulary. Nothing is skipped silently. The
+    /// ids are a model's output, so an id the vocabulary does not cover means
+    /// the model and its vocabulary disagree; a caller that built the ids
+    /// itself can re-mark the error
+    /// [`as_illegal`](crate::errors::ResultContext::as_illegal).
     fn detokenize(
         &self,
         ids: &[i64],

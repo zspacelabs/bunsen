@@ -103,10 +103,7 @@ mod tests {
         },
         errors::{
             BunsenErrorKind,
-            testing::{
-                ErrorMatcher,
-                value::one_of,
-            },
+            testing::ErrorMatcher,
         },
         kits::speech::whisper::pretrained::{
             CHECKPOINT,
@@ -223,9 +220,7 @@ mod tests {
             .assert_err(&factory.lookup("hf:openai/whisper-tiny"));
         ErrorMatcher::kind(BunsenErrorKind::Lookup)
             .assert_err(&factory.lookup("openai/whisper-tiny"));
-        ErrorMatcher::new()
-            .with_kind_matching(one_of([BunsenErrorKind::Illegal, BunsenErrorKind::Policy]))
-            .assert_err(&factory.lookup("hf:whisper-tiny"));
+        ErrorMatcher::kind(BunsenErrorKind::Illegal).assert_err(&factory.lookup("hf:whisper-tiny"));
     }
 
     /// One prefab, many rows: derived from the listing, per group and
@@ -291,13 +286,11 @@ mod tests {
     /// Registering the defaults twice is the error a duplicate name is.
     #[test]
     fn test_the_defaults_have_no_duplicate() {
-        ErrorMatcher::new()
-            .with_kind_matching(one_of([BunsenErrorKind::Illegal, BunsenErrorKind::Lookup]))
-            .assert_err(
-                &default_whisper_factory()
-                    .unwrap()
-                    .with_providers(default_whisper_providers()),
-            );
+        ErrorMatcher::kind(BunsenErrorKind::Illegal).assert_err(
+            &default_whisper_factory()
+                .unwrap()
+                .with_providers(default_whisper_providers()),
+        );
     }
 
     /// `bundled:openai/base` is the bundle's files, used in place from a

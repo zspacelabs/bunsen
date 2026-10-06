@@ -15,6 +15,9 @@ use crate::{
     errors::{
         BunsenError,
         BunsenResult,
+        ConstraintError,
+        ResultContext,
+        Rule,
     },
     ops::{
         math::LogBase,
@@ -424,10 +427,12 @@ impl PerceptiveAudioConverterOptions {
     ///
     /// # Errors
     ///
-    /// [`BunsenError::Invalid`] if any triangle covers no `rfft` bin — see
-    /// [`MelFilterbankConfig::try_to_vec`].
+    /// [`Illegal`](crate::errors::BunsenErrorKind::Illegal) if any triangle
+    /// covers no `rfft` bin — see [`MelFilterbankConfig::try_to_vec`].
     pub fn try_to_filterbank_vec(&self) -> BunsenResult<Vec<f64>> {
-        self.to_mel_filterbank_config().try_to_vec()
+        self.to_mel_filterbank_config()
+            .try_to_vec()
+            .context("building the mel filterbank")
     }
 
     /// Build the [`MelFilterbankConfig`] for the mel filterbank.
@@ -512,52 +517,68 @@ impl PerceptiveAudioConverterOptions {
     ///
     /// # Errors
     ///
-    /// [`BunsenError::Invalid`] if `sample_rate`, `n_fft`, `hop`, or `n_mels`
-    /// is zero, if `hop > n_fft`, if `f_min >= f_max`, if `f_max` exceeds
-    /// Nyquist, or if `affine.div` is zero.
+    /// [`Illegal`](crate::errors::BunsenErrorKind::Illegal), with a
+    /// [`ConstraintError`] cause, if `sample_rate`, `n_fft`, `hop`, or
+    /// `n_mels` is zero, if `hop > n_fft`, if `f_min >= f_max`, or if `f_max`
+    /// exceeds Nyquist.
+    ///
+    /// [`Unsupported`](crate::errors::BunsenErrorKind::Unsupported) if
+    /// `pre_emphasis` is set or `remove_dc` is true: neither is implemented.
     pub fn validate(&self) -> BunsenResult<()> {
+        const OWNER: &str = "PerceptiveAudioConverterOptions";
         if self.sample_rate == 0 {
-            return Err(BunsenError::Invalid(
-                "PerceptiveAudioConverter sample_rate must be non-zero".to_string(),
-            ));
+            return Err(ConstraintError::zero_or_empty(OWNER, "sample_rate").into());
         }
         if self.n_fft == 0 {
-            return Err(BunsenError::Invalid(
-                "PerceptiveAudioConverter n_fft must be non-zero".to_string(),
-            ));
+            return Err(ConstraintError::zero_or_empty(OWNER, "n_fft").into());
         }
         if self.hop == 0 {
-            return Err(BunsenError::Invalid(
-                "PerceptiveAudioConverter hop must be non-zero".to_string(),
-            ));
+            return Err(ConstraintError::zero_or_empty(OWNER, "hop").into());
         }
         if self.hop > self.n_fft {
-            return Err(BunsenError::Invalid(format!(
-                "PerceptiveAudioConverter hop ({}) must be <= n_fft ({})",
-                self.hop, self.n_fft,
-            )));
+            return Err(ConstraintError::new(
+                OWNER,
+                "",
+                Rule::Relation {
+                    lhs: ("hop".into(), self.hop.to_string()),
+                    op: "<=",
+                    rhs: ("n_fft".into(), self.n_fft.to_string()),
+                },
+            )
+            .into());
         }
         if self.n_mels == 0 {
-            return Err(BunsenError::Invalid(
-                "PerceptiveAudioConverter n_mels must be non-zero".to_string(),
-            ));
+            return Err(ConstraintError::zero_or_empty(OWNER, "n_mels").into());
         }
 
         let f_max = self.f_max_hz();
         let nyquist = self.nyquist();
         if f_max > nyquist {
-            return Err(BunsenError::Invalid(format!(
-                "PerceptiveAudioConverter f_max ({f_max}) must be <= Nyquist ({nyquist})",
-            )));
+            return Err(ConstraintError::new(
+                OWNER,
+                "",
+                Rule::Relation {
+                    lhs: ("f_max".into(), f_max.to_string()),
+                    op: "<=",
+                    rhs: ("Nyquist".into(), nyquist.to_string()),
+                },
+            )
+            .into());
         }
         // Written out rather than `f_min >= f_max` so a NaN edge is rejected
         // too: `NaN >= x` is false, which would let it through to produce NaN
         // mel points.
         if self.f_min.is_nan() || f_max.is_nan() || self.f_min >= f_max {
-            return Err(BunsenError::Invalid(format!(
-                "PerceptiveAudioConverter f_min ({}) must be < f_max ({f_max})",
-                self.f_min,
-            )));
+            return Err(ConstraintError::new(
+                OWNER,
+                "",
+                Rule::Relation {
+                    lhs: ("f_min".into(), self.f_min.to_string()),
+                    op: "<",
+                    rhs: ("f_max".into(), f_max.to_string()),
+                },
+            )
+            .into());
         }
 
         // Rejected rather than silently ignored. `t_stage_preproc` is the
@@ -566,13 +587,13 @@ impl PerceptiveAudioConverterOptions {
         // Pre-emphasis also needs one extra carried sample, which changes the
         // streaming carry — not a change to make untested.
         if self.pre_emphasis.is_some() {
-            return Err(BunsenError::Invalid(
-                "PerceptiveAudioConverter pre_emphasis is not implemented yet".to_string(),
+            return Err(BunsenError::unsupported(
+                "PerceptiveAudioConverterOptions.pre_emphasis is not implemented",
             ));
         }
         if self.remove_dc {
-            return Err(BunsenError::Invalid(
-                "PerceptiveAudioConverter remove_dc is not implemented yet".to_string(),
+            return Err(BunsenError::unsupported(
+                "PerceptiveAudioConverterOptions.remove_dc is not implemented",
             ));
         }
 
@@ -948,7 +969,11 @@ mod tests {
     use super::*;
     use crate::{
         burner::tensor::TensorDataToVecAsExt,
-        errors::WithOkOrPanic,
+        errors::{
+            BunsenErrorKind,
+            WithOkOrPanic,
+            testing::ErrorMatcher,
+        },
         support::testing::{
             DeviceMemoryGuard,
             PerformanceBackend,
@@ -1523,10 +1548,23 @@ mod tests {
             base().with_f_min(8000.0),
             base().with_f_min(9000.0).with_f_max(Some(8000.0)),
         ] {
-            assert!(
-                matches!(bad.validate(), Err(BunsenError::Invalid(_))),
-                "expected Invalid: {bad:?}",
-            );
+            ErrorMatcher::kind(BunsenErrorKind::Illegal)
+                .has_cause::<ConstraintError>()
+                .assert_err(&bad.validate());
+        }
+    }
+
+    #[test]
+    fn test_validation_rejects_unimplemented_options() {
+        let base = PerceptiveAudioConverterOptions::default;
+
+        for bad in [
+            base().with_pre_emphasis(Some(0.97)),
+            base().with_remove_dc(true),
+        ] {
+            ErrorMatcher::kind(BunsenErrorKind::Unsupported)
+                .message_contains("is not implemented")
+                .assert_err(&bad.validate());
         }
     }
 
@@ -1540,10 +1578,10 @@ mod tests {
         opts.validate().unwrap();
 
         let bank = opts.try_to_filterbank_vec();
-        assert!(
-            matches!(&bank, Err(BunsenError::Invalid(m)) if m.contains("covers no rfft bin")),
-            "expected an empty-triangle error, got {bank:?}",
-        );
+        ErrorMatcher::kind(BunsenErrorKind::Illegal)
+            .message_contains("covers no rfft bin")
+            .frame_contains("mel filterbank")
+            .assert_err(&bank);
     }
 
     #[test]
@@ -1638,19 +1676,22 @@ mod tests {
 
         // Scalar geometry.
         let bad = PerceptiveAudioConverterOptions::default().with_hop(0);
-        assert!(matches!(
-            ModuleInit::<B, PerceptiveAudioConverter<B>>::try_init(&bad, &device),
-            Err(BunsenError::Invalid(_)),
-        ));
+        ErrorMatcher::kind(BunsenErrorKind::Illegal)
+            .has_cause::<ConstraintError>()
+            .assert_err(&ModuleInit::<B, PerceptiveAudioConverter<B>>::try_init(
+                &bad, &device,
+            ));
 
         // Only reachable by building the filterbank.
         let empty_rows = PerceptiveAudioConverterOptions::default()
             .with_n_fft(256)
             .with_n_mels(128);
-        assert!(matches!(
-            ModuleInit::<B, PerceptiveAudioConverter<B>>::try_init(&empty_rows, &device),
-            Err(BunsenError::Invalid(_)),
-        ));
+        ErrorMatcher::kind(BunsenErrorKind::Illegal)
+            .message_contains("covers no rfft bin")
+            .assert_err(&ModuleInit::<B, PerceptiveAudioConverter<B>>::try_init(
+                &empty_rows,
+                &device,
+            ));
 
         // A non-default but legal configuration still initializes.
         let ok = PerceptiveAudioConverterOptions::default()

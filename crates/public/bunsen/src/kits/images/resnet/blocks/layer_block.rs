@@ -2,7 +2,6 @@
 
 use alloc::{
     format,
-    string::ToString,
     vec::Vec,
 };
 
@@ -28,6 +27,9 @@ use crate::{
     errors::{
         BunsenError,
         BunsenResult,
+        ConstraintError,
+        Rule,
+        WithOkOrPanic,
     },
     kits::images::resnet::blocks::{
         BottleneckPolicyConfig,
@@ -224,34 +226,42 @@ impl LayerBlockMeta for LayerBlockStructureConfig {
 
 impl LayerBlockStructureConfig {
     /// Checks if the config is valid.
+    ///
+    /// # Errors
+    ///
+    /// [`Illegal`](crate::errors::BunsenErrorKind::Illegal), with a
+    /// [`ConstraintError`] cause, if there are no blocks, or if a block's
+    /// `out_planes` is not the next block's `in_planes`; the details hold the
+    /// whole config.
     pub fn try_validate(&self) -> BunsenResult<()> {
         if self.is_empty() {
-            return Err(BunsenError::Invalid("blocks is empty".to_string()));
+            return Err(
+                ConstraintError::zero_or_empty("LayerBlockStructureConfig", "blocks").into(),
+            );
         }
 
         for idx in 1..self.blocks.len() {
             let prev = &self.blocks[idx - 1];
             let curr = &self.blocks[idx];
             if prev.out_planes() != curr.in_planes() {
-                return Err(BunsenError::Invalid(format!(
-                    "block[{}].out_planes({}) != block[{}].in_planes({})\n{:#?}",
-                    idx - 1,
-                    prev.out_planes(),
-                    idx,
-                    curr.in_planes(),
-                    self,
-                )));
+                return Err(BunsenError::from(ConstraintError::new(
+                    "LayerBlockStructureConfig",
+                    "blocks",
+                    Rule::Chain {
+                        index: idx,
+                        out: format!("{} planes", prev.out_planes()),
+                        r#in: format!("{} planes", curr.in_planes()),
+                    },
+                ))
+                .with_details(format!("{self:#?}")));
             }
         }
         Ok(())
     }
 
-    /// Panics if `try_validate` returns an error.
+    /// Panics, with the error's report, if `try_validate` returns an error.
     pub fn expect_valid(&self) {
-        match self.try_validate() {
-            Ok(_) => (),
-            Err(err) => panic!("{}", err),
-        }
+        self.try_validate().ok_or_panic()
     }
 
     /// Applies a mapping over the blocks.

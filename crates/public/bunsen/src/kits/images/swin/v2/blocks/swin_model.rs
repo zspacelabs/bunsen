@@ -1,9 +1,6 @@
 //! # Top-Level Swin Transformer v2 model components.
 
-use alloc::{
-    string::ToString,
-    vec::Vec,
-};
+use alloc::vec::Vec;
 
 use burn::{
     config::Config,
@@ -50,6 +47,7 @@ use crate::{
     errors::{
         BunsenError,
         BunsenResult,
+        ConstraintError,
     },
     kits::images::swin::v2::blocks::{
         PatchMerging,
@@ -143,8 +141,9 @@ pub trait SwinTransformerV2Meta {
 /// [`ToStructureConfig`], and its lowering is fallible:
 /// [`try_to_structure`](ToStructureConfig::try_to_structure) checks that the
 /// stages fit the input and the window, and returns the
-/// [`SwinTransformerV2StructureConfig`] or a [`BunsenError::Invalid`] that
-/// says what does not fit. `.init(device)`, from the trait's blanket
+/// [`SwinTransformerV2StructureConfig`] or an
+/// [`Illegal`](crate::errors::BunsenErrorKind::Illegal) error that says what
+/// does not fit. `.init(device)`, from the trait's blanket
 /// [`ModuleInit`] impl, lowers and builds in one step; then `forward` an image
 /// tensor to get classification logits.
 #[derive(Config, Debug)]
@@ -267,15 +266,15 @@ impl ToStructureConfig for SwinTransformerV2ContractConfig {
     ///
     /// # Errors
     ///
-    /// [`BunsenError::Invalid`] when `patch_size` is 0, when there are no
-    /// stages, when the last stage's patch grid is empty or not a multiple of
+    /// [`Illegal`](crate::errors::BunsenErrorKind::Illegal) when `patch_size`
+    /// is 0 or there are no stages (with a [`ConstraintError`] cause), when
+    /// the last stage's patch grid is empty or not a multiple of
     /// `window_size`, or when `input_resolution` is not that grid scaled back
     /// up by the merges and the patch size.
     fn try_to_structure(&self) -> BunsenResult<SwinTransformerV2StructureConfig> {
+        const OWNER: &str = "SwinTransformerV2ContractConfig";
         if self.patch_size == 0 {
-            return Err(BunsenError::Invalid(
-                "patch_size must be non-zero".to_string(),
-            ));
+            return Err(ConstraintError::zero_or_empty(OWNER, "patch_size").into());
         }
 
         let patch_config = PatchEmbedConfig::new(
@@ -287,9 +286,7 @@ impl ToStructureConfig for SwinTransformerV2ContractConfig {
         .with_enable_patch_norm(self.enable_patch_norm);
 
         if self.layer_configs.is_empty() {
-            return Err(BunsenError::Invalid(
-                "At least one layer configuration is required".to_string(),
-            ));
+            return Err(ConstraintError::zero_or_empty(OWNER, "layer_configs").into());
         }
 
         let mut layer_resolutions: Vec<[usize; 2]> = Vec::with_capacity(self.layer_configs.len());
@@ -308,21 +305,23 @@ impl ToStructureConfig for SwinTransformerV2ContractConfig {
         let output_resolution = *layer_resolutions.last().unwrap();
         let [last_h, last_w] = output_resolution;
         if last_h == 0 || last_w == 0 {
-            return Err(BunsenError::Invalid(format!(
-                "Output resolution must be non-zero: {output_resolution:?}"
+            return Err(BunsenError::illegal(format!(
+                "{OWNER}: the last stage's patch grid must be non-zero: \
+                 {output_resolution:?}"
             )));
         }
         if !last_h.is_multiple_of(self.window_size) || !last_w.is_multiple_of(self.window_size) {
-            return Err(BunsenError::Invalid(format!(
-                "Output resolution must be divisible by window size: {:?} / {:?}",
+            return Err(BunsenError::illegal(format!(
+                "{OWNER}: the last stage's patch grid {:?} must be a multiple of \
+                 window_size ({})",
                 output_resolution, self.window_size
             )));
         }
         let expansion_scale = 2_usize.pow((self.layer_configs.len() - 1) as u32) * self.patch_size;
         let expected_resolution = [last_h * expansion_scale, last_w * expansion_scale];
         if patch_config.input_resolution() != expected_resolution {
-            return Err(BunsenError::Invalid(format!(
-                "Input resolution must match [<c> * <window_size:{:?}> * 2^(<layers:{:?}>-1) * <patch_size:{:?}>, ...]: {:?} != {:?}",
+            return Err(BunsenError::illegal(format!(
+                "{OWNER}: input_resolution must match [<c> * <window_size:{:?}> * 2^(<layers:{:?}>-1) * <patch_size:{:?}>, ...]: {:?} != {:?}",
                 self.window_size,
                 self.layer_configs.len(),
                 self.patch_size,
@@ -504,9 +503,11 @@ impl<B: Backend> ModuleInit<B, SwinTransformerV2<B>> for SwinTransformerV2Struct
         device: &B::Device,
     ) -> BunsenResult<SwinTransformerV2<B>> {
         let Some(last_block) = self.block_configs.last() else {
-            return Err(BunsenError::Invalid(
-                "At least one layer configuration is required".to_string(),
-            ));
+            return Err(ConstraintError::zero_or_empty(
+                "SwinTransformerV2StructureConfig",
+                "block_configs",
+            )
+            .into());
         };
         let grid_output_features = last_block.d_input();
 
@@ -808,7 +809,11 @@ mod tests {
 
     use super::*;
     use crate::{
-        errors::WithOkOrPanic,
+        errors::{
+            BunsenErrorKind,
+            WithOkOrPanic,
+            testing::ErrorMatcher,
+        },
         kits::images::swin::v2::blocks::ShiftedWindowTransformerBlockMeta,
         support::testing::{
             CpuBackend,
@@ -1162,28 +1167,38 @@ mod tests {
     fn test_try_to_structure_rejects_bad_policy() {
         assert!(tiny_policy().try_to_structure().is_ok());
 
-        let is_invalid = |policy: SwinTransformerV2ContractConfig| {
-            matches!(policy.try_to_structure(), Err(BunsenError::Invalid(_)))
+        let rejects = |policy: SwinTransformerV2ContractConfig, text: &str| {
+            ErrorMatcher::kind(BunsenErrorKind::Illegal)
+                .message_contains(text)
+                .assert_err(&policy.try_to_structure());
         };
 
         // No stages.
-        assert!(is_invalid(SwinTransformerV2ContractConfig {
-            layer_configs: vec![],
-            ..tiny_policy()
-        }));
+        rejects(
+            SwinTransformerV2ContractConfig {
+                layer_configs: vec![],
+                ..tiny_policy()
+            },
+            "layer_configs",
+        );
         // The last stage's `[6, 6]` grid is not a multiple of the window.
-        assert!(is_invalid(tiny_policy().with_window_size(4)));
+        rejects(tiny_policy().with_window_size(4), "multiple of window_size");
         // `[50, 50]` still patches to a `[12, 12]` grid, but is not that grid
         // scaled back up.
-        assert!(is_invalid(SwinTransformerV2ContractConfig {
-            input_resolution: [50, 50],
-            ..tiny_policy()
-        }));
+        rejects(
+            SwinTransformerV2ContractConfig {
+                input_resolution: [50, 50],
+                ..tiny_policy()
+            },
+            "input_resolution must match",
+        );
 
         let device: burn::prelude::Device<CpuBackend> = Default::default();
         let bad: BunsenResult<SwinTransformerV2<CpuBackend>> =
             tiny_policy().with_window_size(4).try_init(&device);
-        assert!(matches!(bad, Err(BunsenError::Invalid(_))));
+        ErrorMatcher::kind(BunsenErrorKind::Illegal)
+            .message_contains("multiple of window_size")
+            .assert_err(&bad);
     }
 
     /// The policy's `drop_rate` reaches the input dropout and every block's
@@ -1218,13 +1233,13 @@ mod tests {
             patch_size: 0,
             ..tiny_policy()
         };
-        assert!(matches!(
-            policy.try_to_structure(),
-            Err(BunsenError::Invalid(_))
-        ));
+        let zero_patch = ErrorMatcher::kind(BunsenErrorKind::Illegal)
+            .has_cause::<ConstraintError>()
+            .message_contains("patch_size");
+        zero_patch.assert_err(&policy.try_to_structure());
 
         let device: burn::prelude::Device<CpuBackend> = Default::default();
         let bad: BunsenResult<SwinTransformerV2<CpuBackend>> = policy.try_init(&device);
-        assert!(matches!(bad, Err(BunsenError::Invalid(_))));
+        zero_patch.assert_err(&bad);
     }
 }

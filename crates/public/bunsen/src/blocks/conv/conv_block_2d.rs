@@ -112,8 +112,9 @@ pub trait ConvBlock2dMeta {
     ///
     /// # Errors
     ///
-    /// [`BunsenError::Invalid`] if there is no legal output resolution (the
-    /// kernel does not fit the padded input).
+    /// [`Illegal`](crate::errors::BunsenErrorKind::Illegal) if there is no
+    /// legal output resolution (the kernel does not fit the padded input).
+    /// The message names the input resolution and the convolution geometry.
     fn try_output_resolution(
         &self,
         input_resolution: [usize; 2],
@@ -144,9 +145,11 @@ pub trait ConvBlock2dMeta {
             input_resolution[1] + total_padding[1],
         ];
         maybe_conv_output_shape(effective, kernel_size, stride, [0, 0], dilation).ok_or_else(|| {
-            BunsenError::Invalid(format!(
+            BunsenError::illegal(format!(
                 "ConvBlock2d has no legal output resolution for input resolution \
-                 ({input_resolution:?})"
+                 ({input_resolution:?}) with kernel_size {kernel_size:?}, stride \
+                 {stride:?}, dilation {dilation:?}, padding {:?}",
+                self.padding(),
             ))
         })
     }
@@ -431,9 +434,15 @@ mod tests {
     };
 
     use super::*;
-    use crate::support::testing::{
-        CpuBackend,
-        backend_device,
+    use crate::{
+        errors::{
+            BunsenErrorKind,
+            testing::ErrorMatcher,
+        },
+        support::testing::{
+            CpuBackend,
+            backend_device,
+        },
     };
 
     #[test]
@@ -492,10 +501,9 @@ mod tests {
 
         // No legal output when the kernel cannot fit.
         let too_big = block(Conv2dConfig::new([2, 4], [5, 5]).with_padding(PaddingConfig2d::Valid));
-        assert!(matches!(
-            too_big.try_output_resolution([3, 3]),
-            Err(BunsenError::Invalid(_))
-        ));
+        ErrorMatcher::kind(BunsenErrorKind::Illegal)
+            .message_contains("input resolution ([3, 3])")
+            .assert_err(&too_big.try_output_resolution([3, 3]));
     }
 
     #[test]

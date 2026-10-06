@@ -17,8 +17,9 @@ use crate::{
         tensor::TensorOpExt,
     },
     errors::{
-        BunsenError,
         BunsenResult,
+        ConstraintError,
+        Rule,
     },
     ops::signal::{
         SamplingWindowBuilder,
@@ -88,32 +89,47 @@ impl SlidingStftConfig {
     ///
     /// # Errors
     ///
-    /// [`BunsenError::Invalid`] if `hop_size` is zero, if
+    /// [`Illegal`](crate::errors::BunsenErrorKind::Illegal), with a
+    /// [`ConstraintError`] cause, if `hop_size` is zero, if
     /// `hop_size > win_len` or `win_len > fft_size`, or if `fft_size` is not
     /// a power of two.
     pub fn validate(&self) -> BunsenResult<()> {
+        const OWNER: &str = "SlidingStftConfig";
         if self.hop_size == 0 {
-            return Err(BunsenError::Invalid(
-                "SlidingStft hop_size must be non-zero".to_string(),
-            ));
+            return Err(ConstraintError::zero_or_empty(OWNER, "hop_size").into());
         }
         if self.win_len < self.hop_size {
-            return Err(BunsenError::Invalid(format!(
-                "SlidingStft win_len ({}) must be >= hop_size ({})",
-                self.win_len, self.hop_size,
-            )));
+            return Err(ConstraintError::new(
+                OWNER,
+                "",
+                Rule::Relation {
+                    lhs: ("win_len".into(), self.win_len.to_string()),
+                    op: ">=",
+                    rhs: ("hop_size".into(), self.hop_size.to_string()),
+                },
+            )
+            .into());
         }
         if self.fft_size < self.win_len {
-            return Err(BunsenError::Invalid(format!(
-                "SlidingStft fft_size ({}) must be >= win_len ({})",
-                self.fft_size, self.win_len,
-            )));
+            return Err(ConstraintError::new(
+                OWNER,
+                "",
+                Rule::Relation {
+                    lhs: ("fft_size".into(), self.fft_size.to_string()),
+                    op: ">=",
+                    rhs: ("win_len".into(), self.win_len.to_string()),
+                },
+            )
+            .into());
         }
         if !self.fft_size.is_power_of_two() {
-            return Err(BunsenError::Invalid(format!(
-                "SlidingStft fft_size ({}) must be a power of two",
+            return Err(ConstraintError::out_of_range(
+                OWNER,
+                "fft_size",
                 self.fft_size,
-            )));
+                "the powers of two",
+            )
+            .into());
         }
         Ok(())
     }
@@ -506,6 +522,10 @@ mod tests {
 
     use super::*;
     use crate::{
+        errors::{
+            BunsenErrorKind,
+            testing::ErrorMatcher,
+        },
         prelude::*,
         support::testing::{
             CpuBackend,
@@ -551,10 +571,9 @@ mod tests {
                 .with_fft_size(1536)
                 .with_win_len(768),
         ] {
-            assert!(
-                matches!(bad.validate(), Err(BunsenError::Invalid(_))),
-                "expected Invalid: {bad:?}",
-            );
+            ErrorMatcher::kind(BunsenErrorKind::Illegal)
+                .has_cause::<ConstraintError>()
+                .assert_err(&bad.validate());
         }
     }
 

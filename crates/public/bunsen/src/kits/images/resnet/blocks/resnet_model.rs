@@ -41,6 +41,8 @@ use crate::{
     errors::{
         BunsenError,
         BunsenResult,
+        ConstraintError,
+        ResultContext,
         WithOkOrPanic,
     },
     kits::images::resnet::{
@@ -282,8 +284,9 @@ impl ResNetStructureConfig {
     ///
     /// # Errors
     ///
-    /// [`BunsenError::Invalid`] if `drop_prob` is not a probability, or if
-    /// it is above 0 and the structure has fewer than 2 stages.
+    /// [`Illegal`](crate::errors::BunsenErrorKind::Illegal) if `drop_prob` is
+    /// not a probability, or if it is above 0 and the structure has fewer
+    /// than 2 stages.
     pub fn try_with_standard_drop_block_prob(
         self,
         drop_prob: f64,
@@ -393,17 +396,17 @@ fn stochastic_depth_rate(
 ///
 /// # Errors
 ///
-/// [`BunsenError::Invalid`] if `drop_prob` is not a probability, or if it is
-/// above 0 and `num_stages` is below 2.
+/// [`Illegal`](crate::errors::BunsenErrorKind::Illegal) if `drop_prob` is
+/// not a probability, or if it is above 0 and `num_stages` is below 2.
 fn standard_drop_block_options(
     drop_prob: f64,
     num_stages: usize,
 ) -> BunsenResult<Vec<Option<DropBlockOptions>>> {
-    let drop_prob = try_probability(drop_prob)?;
+    let drop_prob = try_probability(drop_prob).context("drop_prob")?;
     let mut options = vec![None; num_stages];
     if drop_prob > 0.0 {
         if num_stages < 2 {
-            return Err(BunsenError::Invalid(format!(
+            return Err(BunsenError::illegal(format!(
                 "the standard DropBlock schedule needs at least 2 stages, for its last two; got {num_stages}"
             )));
         }
@@ -426,20 +429,21 @@ impl<B: Backend> ModuleInit<B, ResNet<B>> for ResNetStructureConfig {
     ///
     /// # Errors
     ///
-    /// [`BunsenError::Invalid`] when there are no stages, or when a stage
+    /// [`Illegal`](crate::errors::BunsenErrorKind::Illegal), with a
+    /// [`ConstraintError`] cause, when there are no stages, or when a stage
     /// fails [`LayerBlockStructureConfig::try_validate`] (it has no blocks, or
-    /// its blocks' planes do not chain).
+    /// its blocks' planes do not chain); a frame names the stage.
     fn try_init(
         &self,
         device: &B::Device,
     ) -> BunsenResult<ResNet<B>> {
         if self.layers.is_empty() {
-            return Err(BunsenError::Invalid(
-                "a ResNet needs at least one stage".to_string(),
-            ));
+            return Err(ConstraintError::zero_or_empty("ResNetStructureConfig", "layers").into());
         }
-        for layer in &self.layers {
-            layer.try_validate()?;
+        for (idx, layer) in self.layers.iter().enumerate() {
+            layer
+                .try_validate()
+                .with_context(|| format!("ResNet stage {idx} (layers[{idx}])"))?;
         }
 
         let head_planes = self.head_planes();
@@ -547,6 +551,15 @@ impl<B: Backend> ResNet<B> {
     }
 
     /// Loads weights from a `PyTorch` weights path.
+    ///
+    /// # Errors
+    ///
+    /// [`Lookup`](crate::errors::BunsenErrorKind::Lookup) if the file is
+    /// missing or unreadable (see [`sys_at`](crate::errors::sys_at)); other
+    /// I/O failures by their kind.
+    /// [`InvalidResource`](crate::errors::BunsenErrorKind::InvalidResource),
+    /// with the [`PytorchStoreError`](burn_store::PytorchStoreError) as its
+    /// cause, if the checkpoint does not load into the model.
     #[cfg(feature = "store_pytorch")]
     pub fn load_pytorch_weights(
         mut self,
@@ -555,8 +568,14 @@ impl<B: Backend> ResNet<B> {
         use burn_store::{
             ModuleSnapshot,
             PytorchStore,
+            PytorchStoreError,
+            pytorch::PytorchError,
         };
-        let mut store = PytorchStore::from_file(path)
+
+        use crate::errors::sys_at;
+
+        let path = path.into();
+        let mut store = PytorchStore::from_file(path.clone())
             .skip_enum_variants(true)
             .with_key_remapping(r"bn(\d+)\.weight", "bn$1.gamma")
             .with_key_remapping(r"bn(\d+)\.bias", "bn$1.beta")
@@ -569,8 +588,16 @@ impl<B: Backend> ResNet<B> {
             .with_key_remapping(r"fc\.", "output_fc.")
             .with_key_remapping(r"layer(\d+)\.", "layers.$1.blocks.");
 
-        self.load_from(&mut store)
-            .map_err(|e| BunsenError::External(e.to_string()))?;
+        self.load_from(&mut store).map_err(|e| match e {
+            PytorchStoreError::Io(io) | PytorchStoreError::Reader(PytorchError::Io(io)) => {
+                sys_at("read", &path)(io)
+            }
+            e => BunsenError::invalid_resource(format!(
+                "cannot load PyTorch weights from {}",
+                path.display()
+            ))
+            .with_cause(e),
+        })?;
 
         Ok(self)
     }
@@ -664,8 +691,9 @@ impl<B: Backend> ResNet<B> {
     ///
     /// # Errors
     ///
-    /// [`BunsenError::Invalid`] if `drop_prob` is not a probability, or if
-    /// it is above 0 and the model has fewer than 2 stages.
+    /// [`Illegal`](crate::errors::BunsenErrorKind::Illegal) if `drop_prob` is
+    /// not a probability, or if it is above 0 and the model has fewer than 2
+    /// stages.
     pub fn try_with_stochastic_drop_block(
         self,
         drop_prob: f64,
@@ -715,6 +743,10 @@ mod tests {
 
     use super::*;
     use crate::{
+        errors::{
+            BunsenErrorKind,
+            testing::ErrorMatcher,
+        },
         kits::images::resnet::{
             RESNET34_BLOCKS,
             RESNET50_BLOCKS,
@@ -849,14 +881,17 @@ mod tests {
                 .with_stem_width(8)
                 .to_structure()
         };
+        let no_stages = ErrorMatcher::kind(BunsenErrorKind::Illegal)
+            .has_cause::<ConstraintError>()
+            .message_contains("ResNetStructureConfig.layers");
         let bad: BunsenResult<ResNet<CpuBackend>> = structure.try_init(&device);
-        assert!(matches!(bad, Err(BunsenError::Invalid(_))));
+        no_stages.assert_err(&bad);
 
         // The policy reaches the same check through the blanket `try_init`.
         let bad: BunsenResult<ResNet<CpuBackend>> = ResNetContractConfig::new(vec![], 7)
             .with_stem_width(8)
             .try_init(&device);
-        assert!(matches!(bad, Err(BunsenError::Invalid(_))));
+        no_stages.assert_err(&bad);
     }
 
     /// A stage with no blocks is an error from `try_init`, not a panic.
@@ -867,7 +902,10 @@ mod tests {
         let bad: BunsenResult<ResNet<CpuBackend>> = ResNetContractConfig::new(vec![1, 0], 7)
             .with_stem_width(8)
             .try_init(&device);
-        assert!(matches!(bad, Err(BunsenError::Invalid(_))));
+        ErrorMatcher::kind(BunsenErrorKind::Illegal)
+            .has_cause::<ConstraintError>()
+            .frame_contains("ResNet stage 1")
+            .assert_err(&bad);
     }
 
     /// timm's stochastic-depth schedule (`make_blocks` in `resnet.py`) for a
@@ -1064,14 +1102,15 @@ mod tests {
         let device: burn::prelude::Device<CpuBackend> = Default::default();
         let model: ResNet<CpuBackend> = structure.init(&device);
 
-        assert!(matches!(
-            structure.clone().try_with_standard_drop_block_prob(0.1),
-            Err(BunsenError::Invalid(_))
-        ));
-        assert!(matches!(
-            model.clone().try_with_stochastic_drop_block(0.1),
-            Err(BunsenError::Invalid(_))
-        ));
+        let one_stage =
+            ErrorMatcher::kind(BunsenErrorKind::Illegal).message_contains("at least 2 stages");
+        one_stage.assert_err(&structure.clone().try_with_standard_drop_block_prob(0.1));
+        one_stage.assert_err(&model.clone().try_with_stochastic_drop_block(0.1));
+
+        // A rate that is not a probability names the field.
+        ErrorMatcher::kind(BunsenErrorKind::Illegal)
+            .frame_contains("drop_prob")
+            .assert_err(&structure.clone().try_with_standard_drop_block_prob(1.5));
 
         let structure = structure.try_with_standard_drop_block_prob(0.0).unwrap();
         assert_eq!(structure_drop_blocks(&structure), vec![None, None]);

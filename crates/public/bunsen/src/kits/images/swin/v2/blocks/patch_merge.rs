@@ -22,8 +22,9 @@ use crate::{
         unpack_shape_contract,
     },
     errors::{
-        BunsenError,
         BunsenResult,
+        ConstraintError,
+        Rule,
     },
     kits::images::swin::v2::blocks::{
         window_partition,
@@ -100,12 +101,18 @@ impl<B: Backend> ModuleInit<B, PatchMerging<B>> for PatchMergingConfig {
         &self,
         device: &B::Device,
     ) -> BunsenResult<PatchMerging<B>> {
-        let [h, w] = self.input_resolution;
-        if h % 2 != 0 || w % 2 != 0 {
-            return Err(BunsenError::Invalid(format!(
-                "Input resolution must be divisible by 2: {:?}",
-                self.input_resolution
-            )));
+        for (axis, value) in self.input_resolution.into_iter().enumerate() {
+            if !value.is_multiple_of(2) {
+                return Err(ConstraintError::new(
+                    "PatchMergingConfig",
+                    format!("input_resolution[{axis}]"),
+                    Rule::NotMultiple {
+                        value,
+                        of: "2".into(),
+                    },
+                )
+                .into());
+            }
         }
 
         Ok(PatchMerging {
@@ -367,7 +374,7 @@ mod tests {
         assert_eq!(patch_merging.output_width(), 4);
     }
 
-    #[should_panic(expected = "Input resolution must be divisible by 2")]
+    #[should_panic(expected = "PatchMergingConfig.input_resolution[0]: 13 is not a multiple of 2")]
     #[test]
     #[serial]
     fn test_patch_merging_invalid_resolution() {
