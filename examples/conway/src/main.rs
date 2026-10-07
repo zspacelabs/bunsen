@@ -9,14 +9,13 @@ use bunsen::{
 };
 use burn::tensor::{
     Device,
-    DeviceConfig,
-    FloatDType,
     IntDType,
 };
 use clap::Parser;
 use clap_common::device::{
     DeviceArgs,
-    DeviceChoice,
+    DevicePrefs,
+    Precision,
 };
 use piston::{
     EventLoop,
@@ -60,22 +59,14 @@ impl Commands {
 fn main() -> BunsenResult<()> {
     let args = Args::parse();
 
-    let mut device = args.device.init().unwrap_or_else(|e| panic!("{e}"));
-    // The boards are 0/1 cells: half-precision floats, and the narrowest
-    // ints where the backend has them.
-    let config = match args.device.choice() {
-        DeviceChoice::Flex => None,
-        DeviceChoice::Wgpu => Some(DeviceConfig::default().float_dtype(FloatDType::F16)),
-        _ => Some(
-            DeviceConfig::default()
-                .float_dtype(FloatDType::F16)
-                .int_dtype(IntDType::I8),
-        ),
-    };
-    if let Some(config) = config {
-        device.configure(config).unwrap_or_else(|e| panic!("{e}"));
-    }
-    eprintln!("device: {device:?}");
+    // The boards are 0/1 cells: any half-precision float, and the narrowest
+    // int the backend has.
+    let prefs = DevicePrefs::new()
+        .with_precision(Precision::AnyHalf)
+        .with_half(Precision::AnyHalf)
+        .with_ints([IntDType::I8, IntDType::I32]);
+    let device = args.device.init(&prefs).unwrap_or_else(|e| panic!("{e}"));
+    eprintln!("{}", clap_common::device::describe(&device));
 
     args.command.run(&device)
 }
