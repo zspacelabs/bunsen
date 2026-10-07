@@ -25,12 +25,12 @@ testing = ["dep:image-compare"]
 
 [dependencies]
 burn = { workspace = true, features = ["std", "dataset", "vision"] }
-bunsen-firehose = { version = "0.38.0", path = "../bunsen-firehose" }
+bunsen-firehose = { version = "0.38.1", path = "../bunsen-firehose" }
 
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
 
-bunsen = { version = "0.38.0", path = "../bunsen", default-features = false, features = ["std"] }
+bunsen = { version = "0.38.1", path = "../bunsen", default-features = false, features = ["std"] }
 
 rand = { workspace = true, features = ["std"] }
 inventory = { workspace = true }
