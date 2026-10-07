@@ -206,16 +206,15 @@ impl BlockMlp {
 
 /// Applies an inner function under conditional cyclic shift.
 ///
-/// This is used for shifted window attention. When `swa_enabled` is true,
-/// it cyclically shifts the input tensor by `shift_size` in the last two
-/// dimensions, applies the function `f`, and then reverses the cyclic shift.
-///
-/// When `swa_enabled` is false, it simply applies the function `f` without any
-/// shift.
+/// This is used for shifted window attention. When `shift` is non-zero, it
+/// rolls the height and width axes by `-shift` (as Swin's
+/// `torch.roll(x, (-shift, -shift), dims=(1, 2))` does), applies `f`, and rolls
+/// them back by `shift`. When `shift` is zero, it applies `f` alone.
 ///
 /// # Arguments
 ///
 /// * `x` - Input tensor of `[batch, height, width, channels]`.
+/// * `shift` - The cyclic shift, in cells.
 /// * `f` - Function to apply on the shifted tensor.
 ///
 /// # Returns
@@ -237,7 +236,7 @@ where
 
     // Cyclic shift for shifted window attention.
     let x = if shift != 0 {
-        x.roll(&dims, &[-shift, -shift])
+        x.roll(&[-shift, -shift], &dims)
     } else {
         x
     };
@@ -246,7 +245,7 @@ where
 
     // Reverse cyclic shift.
     if shift != 0 {
-        x.roll(&dims, &[shift, shift])
+        x.roll(&[shift, shift], &dims)
     } else {
         x
     }
@@ -760,35 +759,38 @@ mod tests {
     fn test_with_shift() {
         let device = performance_device();
         let _memory = DeviceMemoryGuard::new(&device);
-        let b = 1;
-        let h = 4;
-        let w = 4;
-        let c = 3;
+        let [b, h, w, c] = [1, 3, 4, 2];
 
-        let distribution = Distribution::Uniform(0.0, 1.0);
-        let input = Tensor::<4>::random([b, h, w, c], distribution, &device);
-
-        let idx: Tensor<4> = Tensor::arange(0..input.shape().num_elements() as i64, &device)
+        let input: Tensor<4> = Tensor::arange(0..(b * h * w * c) as i64, &device)
             .reshape([b, h, w, c])
             .float();
+        let host = |t: &Tensor<4>| t.to_data().try_to_vec_as::<f32>().unwrap();
+        let at = |y: usize, x: usize, k: usize| ((y * w + x) * c + k) as f32;
 
-        // No-op shift:
-        with_shift(input.clone(), 0, |x| x + idx.clone())
-            .to_data()
-            .assert_eq(&(input.clone() + idx.clone()).to_data(), true);
+        // No shift: `f` sees the input as is.
+        let mut seen = None;
+        let out = with_shift(input.clone(), 0, |t| {
+            seen = Some(t.clone());
+            t
+        });
+        assert_eq!(host(&seen.unwrap()), host(&input));
+        assert_eq!(host(&out), host(&input));
 
-        with_shift(input.clone(), 1, |x| x + idx.clone())
-            .to_data()
-            .assert_eq(
-                &({
-                    let x = input.clone();
-                    let x = x.roll(&[1, 2], &[-1, -1]);
-                    let x = x + idx.clone();
-                    x.roll(&[1, 2], &[1, 1])
-                })
-                .to_data(),
-                true,
-            );
+        // `shift = 1`: `f` sees H and W rolled back by one, as
+        // `torch.roll(x, (-1, -1), dims=(1, 2))` does; channels untouched.
+        let mut seen = None;
+        let out = with_shift(input.clone(), 1, |t| {
+            seen = Some(t.clone());
+            t
+        });
+        let expected: Vec<f32> = (0..h)
+            .flat_map(|y| (0..w).flat_map(move |x| (0..c).map(move |k| (y, x, k))))
+            .map(|(y, x, k)| at((y + 1) % h, (x + 1) % w, k))
+            .collect();
+        assert_eq!(host(&seen.unwrap()), expected);
+
+        // The reverse shift restores the layout.
+        assert_eq!(host(&out), host(&input));
     }
 
     #[test]
