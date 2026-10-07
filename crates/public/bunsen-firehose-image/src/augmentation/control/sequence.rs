@@ -1,6 +1,7 @@
 //! Stage that runs a sequence of stages.
 use std::sync::Arc;
 
+use bunsen::errors::BunsenResult;
 use image::DynamicImage;
 use serde::{
     Deserialize,
@@ -39,8 +40,8 @@ impl WithAugmentationStageBuilder for StageSequence {
     fn build_stage(
         config: &AugmentationStageConfig,
         builder: &dyn PluginBuilder,
-    ) -> anyhow::Result<Arc<dyn AugmentationStage>> {
-        let config: StageSequenceConfig = serde_json::from_value(config.body.clone())?;
+    ) -> BunsenResult<Arc<dyn AugmentationStage>> {
+        let config: StageSequenceConfig = config.parse_body()?;
         let stages = builder.build_stage_vector(&config.stages)?;
         Ok(Arc::new(StageSequence { stages }))
     }
@@ -66,7 +67,7 @@ impl AugmentationStage for StageSequence {
         &self,
         image: DynamicImage,
         ctx: &mut ImageAugContext,
-    ) -> anyhow::Result<DynamicImage> {
+    ) -> BunsenResult<DynamicImage> {
         let mut image = image;
         for stage in &self.stages {
             image = stage.augment_image(image, ctx)?;

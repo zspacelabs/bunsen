@@ -19,6 +19,12 @@ use bunsen::{
         },
     },
     data::cache::BunsenDiskCache,
+    errors::{
+        BunsenError,
+        BunsenResult,
+        ResultContext,
+        sys_at,
+    },
     kits::gpts::nanochat::{
         NanoChatGpt,
         NanoChatGptContractConfig,
@@ -180,19 +186,19 @@ pub struct Args {
     pub device: DeviceArgs,
 }
 
-fn ensure_artifact_dir(artifact_dir: &str) -> anyhow::Result<()> {
+fn ensure_artifact_dir(artifact_dir: &str) -> BunsenResult<()> {
     let _ignored = std::fs::remove_dir_all(artifact_dir);
-    std::fs::create_dir_all(artifact_dir)?;
+    std::fs::create_dir_all(artifact_dir).map_err(sys_at("create", artifact_dir))?;
     Ok(())
 }
 
-fn main() -> anyhow::Result<()> {
+fn main() -> BunsenResult<()> {
     let args = Args::parse();
 
     run(&args)
 }
 
-fn run(args: &Args) -> anyhow::Result<()> {
+fn run(args: &Args) -> BunsenResult<()> {
     type T = u32;
 
     println!("{:#?}", args);
@@ -205,7 +211,7 @@ fn run(args: &Args) -> anyhow::Result<()> {
     let device: Device = args
         .device
         .init(&DevicePrefs::training())
-        .map_err(anyhow::Error::msg)?;
+        .map_err(BunsenError::unsupported)?;
 
     let shard_cache = BunsenDiskCache::default();
     let shard_paths = args.shards.fetch_paths(
@@ -226,9 +232,12 @@ fn run(args: &Args) -> anyhow::Result<()> {
     let validation_paths: Vec<PathBuf> = shard_paths[num_training_shards..].to_vec();
 
     let mut vocab: UnifiedTokenVocab<T> =
-        wordchipper::load_vocab(&args.pretrained_vocab, &mut disk_cache)?
+        wordchipper::load_vocab(&args.pretrained_vocab, &mut disk_cache)
+            .map_err(BunsenError::other)
+            .context("loading the vocabulary")?
             .vocab()
-            .to_token_type()?;
+            .to_token_type()
+            .map_err(BunsenError::other)?;
 
     let max_token = vocab.max_token().unwrap();
 
@@ -368,12 +377,14 @@ fn run(args: &Args) -> anyhow::Result<()> {
         plan.lr_scheduler(warmup_scheduler),
     ));
     if let Some(error) = result.error {
-        anyhow::bail!("training failed: {error}");
+        return Err(BunsenError::other(error).context("training"));
     }
 
     result
         .model
-        .save_file(format!("{artifact_dir}/model.bpk"))?;
+        .save_file(format!("{artifact_dir}/model.bpk"))
+        .map_err(BunsenError::other)
+        .context("saving the model")?;
 
     Ok(())
 }
@@ -464,9 +475,9 @@ impl ParamGroups {
     /// the `gpt` field is `GptHost/NanoChatGpt`. `h` is a `Vec` of
     /// `NanoChatGptBlock`, whose `Linear`s sit in `attn` and `mlp`, hence
     /// `//Linear`. Stacked predicates (`[a][b]`) mean "a and b".
-    pub fn select(host: &GptHost) -> anyhow::Result<Self> {
+    pub fn select(host: &GptHost) -> BunsenResult<Self> {
         let mut mtree = XmlModuleTree::build(host);
-        let mut select = |expr: &str| -> anyhow::Result<HashSet<ParamId>> {
+        let mut select = |expr: &str| -> BunsenResult<HashSet<ParamId>> {
             Ok(mtree.select_param_ids(expr)?.into_iter().collect())
         };
 

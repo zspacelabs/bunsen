@@ -3,7 +3,11 @@ use std::{
     marker::PhantomData,
 };
 
-use anyhow::Context;
+use bunsen::errors::{
+    BunsenError,
+    BunsenErrorKind,
+    BunsenResult,
+};
 use serde::de::DeserializeOwned;
 
 use crate::core::{
@@ -48,7 +52,7 @@ pub trait FirehoseOperatorFactory: Debug + Send + Sync {
     fn init(
         &self,
         context: &dyn FirehoseOperatorInitContext,
-    ) -> anyhow::Result<Box<dyn FirehoseOperator>>;
+    ) -> BunsenResult<Box<dyn FirehoseOperator>>;
 }
 
 /// The init interface for `FirehoseOperatorFactory`.
@@ -113,13 +117,15 @@ where
     fn init(
         &self,
         context: &dyn FirehoseOperatorInitContext,
-    ) -> anyhow::Result<Box<dyn FirehoseOperator>> {
+    ) -> BunsenResult<Box<dyn FirehoseOperator>> {
         let config = &context.build_plan().config;
-        let op: T = serde_json::from_value(config.clone()).with_context(|| {
-            format!(
-                "Failed to deserialize operator config for {}: {}",
-                self.signature.operator_id.as_deref().unwrap_or("unknown"),
-                serde_json::to_string_pretty(config).unwrap()
+        let op: T = serde_json::from_value(config.clone()).map_err(|e| {
+            BunsenError::from_cause(BunsenErrorKind::Illegal, e).context_details(
+                format!(
+                    "deserializing the operator config for {}",
+                    self.signature.operator_id.as_deref().unwrap_or("unknown"),
+                ),
+                format!("{config:#}"),
             )
         })?;
         Ok(Box::new(op))
@@ -128,6 +134,7 @@ where
 
 #[cfg(test)]
 mod tests {
+    use bunsen::errors::BunsenResult;
     use serde::{
         Deserialize,
         Serialize,
@@ -159,7 +166,7 @@ mod tests {
         fn apply_to_row(
             &self,
             _row: &mut FirehoseRowTransaction,
-        ) -> anyhow::Result<()> {
+        ) -> BunsenResult<()> {
             todo!()
         }
     }

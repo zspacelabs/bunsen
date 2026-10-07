@@ -1,5 +1,7 @@
 use std::fmt::Debug;
 
+use bunsen::errors::BunsenResult;
+
 use crate::pipeline::{
     DataLoadMetaDataItem,
     DataLoadSchedule,
@@ -11,7 +13,7 @@ where
     M: DataLoadMetaDataItem,
 {
     /// Builds a schedule from the source.
-    fn build_schedule(&self) -> anyhow::Result<DataLoadSchedule<M>>;
+    fn build_schedule(&self) -> BunsenResult<DataLoadSchedule<M>>;
 }
 
 /// Boxed extension trait for `DataScheduleSource`.
@@ -66,7 +68,7 @@ impl<M> DataScheduleSource<M> for FixedScheduleSource<M>
 where
     M: DataLoadMetaDataItem,
 {
-    fn build_schedule(&self) -> anyhow::Result<DataLoadSchedule<M>> {
+    fn build_schedule(&self) -> BunsenResult<DataLoadSchedule<M>> {
         Ok(self.schedule.clone())
     }
 }
@@ -121,7 +123,7 @@ impl<M> DataScheduleSource<M> for SimpleFilterSource<M>
 where
     M: DataLoadMetaDataItem,
 {
-    fn build_schedule(&self) -> anyhow::Result<DataLoadSchedule<M>> {
+    fn build_schedule(&self) -> BunsenResult<DataLoadSchedule<M>> {
         self.inner
             .build_schedule()
             .map(|schedule| schedule.filter(|item| (self.predicate)(item)))
@@ -134,7 +136,7 @@ pub struct ScheduleSourceMappingWrapper<A, B, F>
 where
     A: DataLoadMetaDataItem,
     B: DataLoadMetaDataItem,
-    F: Fn(&DataLoadSchedule<A>) -> anyhow::Result<DataLoadSchedule<B>> + Send + Sync + 'static,
+    F: Fn(&DataLoadSchedule<A>) -> BunsenResult<DataLoadSchedule<B>> + Send + Sync + 'static,
 {
     /// The inner source that provides the initial schedule.
     inner: Box<dyn DataScheduleSource<A>>,
@@ -147,7 +149,7 @@ impl<A, B, F> Debug for ScheduleSourceMappingWrapper<A, B, F>
 where
     A: DataLoadMetaDataItem,
     B: DataLoadMetaDataItem,
-    F: Fn(&DataLoadSchedule<A>) -> anyhow::Result<DataLoadSchedule<B>> + Send + Sync + 'static,
+    F: Fn(&DataLoadSchedule<A>) -> BunsenResult<DataLoadSchedule<B>> + Send + Sync + 'static,
 {
     fn fmt(
         &self,
@@ -163,7 +165,7 @@ impl<A, B, F> ScheduleSourceMappingWrapper<A, B, F>
 where
     A: DataLoadMetaDataItem,
     B: DataLoadMetaDataItem,
-    F: Fn(&DataLoadSchedule<A>) -> anyhow::Result<DataLoadSchedule<B>> + Send + Sync + 'static,
+    F: Fn(&DataLoadSchedule<A>) -> BunsenResult<DataLoadSchedule<B>> + Send + Sync + 'static,
 {
     /// Creates a new `ScheduleSourceMappingWrapper` with the provided inner
     /// source and mapping function.
@@ -184,9 +186,9 @@ impl<A, B, F> DataScheduleSource<B> for ScheduleSourceMappingWrapper<A, B, F>
 where
     A: DataLoadMetaDataItem,
     B: DataLoadMetaDataItem,
-    F: Fn(&DataLoadSchedule<A>) -> anyhow::Result<DataLoadSchedule<B>> + Send + Sync + 'static,
+    F: Fn(&DataLoadSchedule<A>) -> BunsenResult<DataLoadSchedule<B>> + Send + Sync + 'static,
 {
-    fn build_schedule(&self) -> anyhow::Result<DataLoadSchedule<B>> {
+    fn build_schedule(&self) -> BunsenResult<DataLoadSchedule<B>> {
         self.inner
             .build_schedule()
             .and_then(|schedule| (self.map_func)(&schedule))
@@ -199,7 +201,7 @@ mod tests {
     use crate::pipeline::DataLoadSchedule;
 
     #[test]
-    fn test_fixed_schedule_source() -> anyhow::Result<()> {
+    fn test_fixed_schedule_source() -> BunsenResult<()> {
         let items = vec![2, 3, 5];
         let source = FixedScheduleSource::from(items.clone());
 
@@ -212,7 +214,7 @@ mod tests {
     }
 
     #[test]
-    fn test_simple_filter_source() -> anyhow::Result<()> {
+    fn test_simple_filter_source() -> BunsenResult<()> {
         let items = vec![1, 2, 3, 4, 5];
         let source = FixedScheduleSource::from(items.clone());
         let filter_source = SimpleFilterSource::new(source.boxed(), Box::new(|&x| x % 2 == 0));

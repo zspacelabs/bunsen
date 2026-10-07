@@ -34,7 +34,7 @@ use burn::tensor::Slice;
 ///    pub shards: ShardArgs,
 /// }
 ///
-/// fn main() -> anyhow::Result<()> {
+/// fn main() -> BunsenResult<()> {
 ///    let args = Args::parse();
 ///    let cache = BunsenDiskCache::default();
 ///    let paths = args.shards.fetch_paths(

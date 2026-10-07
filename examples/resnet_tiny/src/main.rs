@@ -19,6 +19,11 @@ use bunsen::{
         PretrainedCache,
         PretrainedCacheOptions,
     },
+    errors::{
+        BunsenError,
+        BunsenResult,
+        ResultContext,
+    },
     kits::images::resnet::{
         ResNet,
         pretrained::{
@@ -200,7 +205,7 @@ pub struct Args {
     device: DeviceArgs,
 }
 
-fn main() -> anyhow::Result<()> {
+fn main() -> BunsenResult<()> {
     let args = Args::parse();
     backend_main(&args)
 }
@@ -213,13 +218,13 @@ fn create_artifact_dir(artifact_dir: &str) {
 }
 
 /// Train the model with the given configuration and devices.
-pub fn backend_main(args: &Args) -> anyhow::Result<()> {
+pub fn backend_main(args: &Args) -> BunsenResult<()> {
     // bf16 wherever the backend trains in it well; autodiff before the model
     // and inputs.
     let prefs = DevicePrefs::training()
         .with_precision(Precision::BF16Half)
         .with_half(Precision::BF16Half);
-    let device: Device = args.device.init(&prefs).map_err(anyhow::Error::msg)?;
+    let device: Device = args.device.init(&prefs).map_err(BunsenError::unsupported)?;
 
     let image_shape = ImageShape {
         height: 32,
@@ -368,7 +373,7 @@ pub fn backend_main(args: &Args) -> anyhow::Result<()> {
     /*
     let lr_scheduler = ExponentialLrSchedulerConfig::new(args.learning_rate, args.lr_gamma)
         .init()
-        .map_err(|e| anyhow::anyhow!("Failed to initialize learning rate scheduler: {}", e))?;
+        .map_err(|e| BunsenError::illegal(e).context("initializing the learning rate scheduler"))?;
      */
 
     // One cosine descent over the whole run.
@@ -376,7 +381,7 @@ pub fn backend_main(args: &Args) -> anyhow::Result<()> {
     let total_iters = batches_per_epoch * args.num_epochs;
     let lr_scheduler = CosineAnnealingLrSchedulerConfig::new(args.learning_rate, total_iters)
         .init()
-        .map_err(|e| anyhow::anyhow!("Failed to initialize learning rate scheduler: {}", e))?;
+        .map_err(|e| BunsenError::illegal(e).context("initializing the learning rate scheduler"))?;
 
     let training = SupervisedTraining::new(
         artifact_dir,
@@ -406,12 +411,14 @@ pub fn backend_main(args: &Args) -> anyhow::Result<()> {
 
     let result = training.launch(Learner::new(model, optim_config.init(), lr_scheduler));
     if let Some(error) = result.error {
-        anyhow::bail!("training failed: {error}");
+        return Err(BunsenError::other(error).context("training"));
     }
 
     result
         .model
-        .save_file(format!("{artifact_dir}/model.bpk"))?;
+        .save_file(format!("{artifact_dir}/model.bpk"))
+        .map_err(BunsenError::other)
+        .context("saving the model")?;
 
     Ok(())
 }
@@ -489,7 +496,7 @@ impl InferenceStep for Model {
 fn init_batch_from_dataset_items(
     inputs: &Vec<(String, usize)>,
     batch: &mut FirehoseRowBatch,
-) -> anyhow::Result<()> {
+) -> BunsenResult<()> {
     let mut local_rng = rng();
     for item in inputs {
         let (path, class) = item;
@@ -514,7 +521,7 @@ impl BatcherInputAdapter<(String, usize)> for InputAdapter {
     fn apply(
         &self,
         inputs: Vec<(String, usize)>,
-    ) -> anyhow::Result<FirehoseRowBatch> {
+    ) -> BunsenResult<FirehoseRowBatch> {
         let mut batch = FirehoseRowBatch::new(self.schema.clone());
         init_batch_from_dataset_items(&inputs, &mut batch)?;
         Ok(batch)
@@ -528,7 +535,7 @@ impl BatcherOutputAdapter<(Tensor<4>, Tensor<1, Int>)> for OutputAdapter {
         &self,
         batch: &FirehoseRowBatch,
         device: &Device,
-    ) -> anyhow::Result<(Tensor<4>, Tensor<1, Int>)> {
+    ) -> BunsenResult<(Tensor<4>, Tensor<1, Int>)> {
         let image_batch = Tensor::<4>::from_data(
             stack_tensor_data_column(batch, DATA_COLUMN)
                 .expect("Failed to stack tensor data column"),

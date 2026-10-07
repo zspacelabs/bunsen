@@ -63,6 +63,7 @@ impl FirehoseOperatorFactoryRegistration {
 
 #[cfg(test)]
 mod tests {
+    use bunsen::errors::BunsenResult;
     use serde::{
         Deserialize,
         Serialize,
@@ -101,7 +102,7 @@ mod tests {
         fn apply_to_row(
             &self,
             _row: &mut crate::core::rows::FirehoseRowTransaction,
-        ) -> anyhow::Result<()> {
+        ) -> BunsenResult<()> {
             todo!()
         }
     }

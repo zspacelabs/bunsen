@@ -1,7 +1,10 @@
 //! Stage that randomly selects one of its children.
 use std::sync::Arc;
 
-use anyhow::bail;
+use bunsen::errors::{
+    BunsenError,
+    BunsenResult,
+};
 use image::DynamicImage;
 use rand::RngExt;
 use serde::{
@@ -107,8 +110,8 @@ impl WithAugmentationStageBuilder for ChooseOneStage {
     fn build_stage(
         config: &AugmentationStageConfig,
         builder: &dyn PluginBuilder,
-    ) -> anyhow::Result<Arc<dyn AugmentationStage>> {
-        let config: ChooseOneStageConfig = serde_json::from_value(config.body.clone())?;
+    ) -> BunsenResult<Arc<dyn AugmentationStage>> {
+        let config: ChooseOneStageConfig = config.parse_body()?;
 
         let mut stages = Vec::with_capacity(config.choices.len());
         let mut weights = Vec::with_capacity(config.choices.len());
@@ -116,11 +119,10 @@ impl WithAugmentationStageBuilder for ChooseOneStage {
             weights.push(choice.weight);
             let weight = choice.weight.unwrap_or(1.0);
             if weight < 0.0 {
-                bail!(
-                    "Invalid weight ({}) at index ({idx}):\n{}",
-                    weight,
-                    serde_json::to_string_pretty(&config)?
-                );
+                return Err(BunsenError::illegal(format!(
+                    "Invalid weight ({weight}) at index ({idx})"
+                ))
+                .with_details(format!("{config:#?}")));
             }
             stages.push(builder.build_stage(&choice.stage)?);
         }
@@ -153,7 +155,7 @@ impl AugmentationStage for ChooseOneStage {
         &self,
         image: DynamicImage,
         ctx: &mut ImageAugContext,
-    ) -> anyhow::Result<DynamicImage> {
+    ) -> BunsenResult<DynamicImage> {
         let mut r = self.total_weight() * ctx.rng_mut().random::<f32>();
         let mut idx = 0;
         for weight in &self.weights {

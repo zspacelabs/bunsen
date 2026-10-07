@@ -23,7 +23,7 @@ num-traits = { workspace = true }
 
 globwalk = { workspace = true }
 
-anyhow = { workspace = true }
+bunsen = { version = "0.37.0", path = "../bunsen", default-features = false, features = ["std"] }
 
 inventory = { workspace = true }
 
@@ -31,4 +31,7 @@ indoc = { workspace = true }
 
 regex = { workspace = true }
 regex-macro = { workspace = true }
+
+[dev-dependencies]
+bunsen = { path = "../bunsen", features = ["testing"] }
 

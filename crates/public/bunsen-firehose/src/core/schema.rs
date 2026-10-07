@@ -9,9 +9,12 @@ use std::{
     },
 };
 
-use anyhow::{
-    anyhow,
-    bail,
+use bunsen::errors::{
+    BunsenError,
+    BunsenErrorKind,
+    BunsenResult,
+    LookupError,
+    WithOkOrPanic,
 };
 use serde::{
     Deserialize,
@@ -200,14 +203,14 @@ impl BuildPlan {
         parameter_type: &str,
         parameter_name: &str,
         parameter_map: &'a BTreeMap<String, String>,
-    ) -> anyhow::Result<&'a str> {
+    ) -> BunsenResult<&'a str> {
         parameter_map
             .get(parameter_name)
             .map(|column_name| column_name.as_str())
             .ok_or_else(|| {
-                anyhow!(
-                    "'{parameter_name}' is not a {parameter_type} parameter\n:{:?}",
-                    self
+                BunsenError::lookup(
+                    LookupError::missing(format!("{parameter_type} parameter"), parameter_name)
+                        .with_candidates(parameter_map.keys().cloned()),
                 )
             })
     }
@@ -220,12 +223,12 @@ impl BuildPlan {
     ///
     /// # Returns
     ///
-    /// An `anyhow::Result<&str>` containing the column name corresponding to
+    /// A `BunsenResult<&str>` containing the column name corresponding to
     /// the input parameter.
     pub fn translate_input_name(
         &self,
         parameter_name: &str,
-    ) -> anyhow::Result<&str> {
+    ) -> BunsenResult<&str> {
         self.translate_parameter_name("input", parameter_name, &self.inputs)
     }
 
@@ -237,12 +240,12 @@ impl BuildPlan {
     ///
     /// # Returns
     ///
-    /// An `anyhow::Result<&str>` containing the column name corresponding to
+    /// A `BunsenResult<&str>` containing the column name corresponding to
     /// the output parameter.
     pub fn translate_output_name(
         &self,
         parameter_name: &str,
-    ) -> anyhow::Result<&str> {
+    ) -> BunsenResult<&str> {
         self.translate_parameter_name("output", parameter_name, &self.outputs)
     }
 }
@@ -420,12 +423,12 @@ impl FirehoseTableSchema {
     ///
     /// # Returns
     ///
-    /// An `anyhow::Result<(Vec<String>, Vec<BuildPlan>)>` containing the base
+    /// A `BunsenResult<(Vec<String>, Vec<BuildPlan>)>` containing the base
     /// columns and the ordered build plans.
     fn check_graph(
         columns: &[ColumnSchema],
         plans: &[BuildPlan],
-    ) -> anyhow::Result<(Vec<String>, Vec<BuildPlan>)> {
+    ) -> BunsenResult<(Vec<String>, Vec<BuildPlan>)> {
         let column_names: Vec<String> = columns.iter().map(|c| c.name.clone()).collect();
 
         let mut base_columns: Vec<String> = column_names.clone();
@@ -477,11 +480,11 @@ impl FirehoseTableSchema {
         }
 
         if scheduled_columns.len() != column_names.len() {
-            bail!(
+            return Err(BunsenError::illegal(format!(
                 "Not all columns are scheduled: expected {}, got {}",
                 column_names.len(),
                 scheduled_columns.len()
-            );
+            )));
         }
 
         let order: Vec<BuildPlan> = plan_order.iter().map(|&idx| plans[idx].clone()).collect();
@@ -496,9 +499,9 @@ impl FirehoseTableSchema {
     ///
     /// # Returns
     ///
-    /// An `anyhow::Result<(Vec<String>, Vec<BuildPlan>)>` containing the base
+    /// A `BunsenResult<(Vec<String>, Vec<BuildPlan>)>` containing the base
     /// columns and the ordered build plans.
-    pub fn build_order(&self) -> anyhow::Result<(Vec<String>, Vec<BuildPlan>)> {
+    pub fn build_order(&self) -> BunsenResult<(Vec<String>, Vec<BuildPlan>)> {
         Self::check_graph(&self.columns, &self.build_plans)
     }
 
@@ -525,11 +528,14 @@ impl FirehoseTableSchema {
     fn check_name(
         &self,
         name: &str,
-    ) -> anyhow::Result<()> {
+    ) -> BunsenResult<()> {
         identifiers::check_ident(name)?;
 
         if self.columns.iter().any(|c| c.name == name) {
-            Err(anyhow!("Duplicate column name '{name}'"))
+            Err(BunsenError::from_cause(
+                BunsenErrorKind::Illegal,
+                LookupError::duplicate("column", name),
+            ))
         } else {
             Ok(())
         }
@@ -543,7 +549,7 @@ impl FirehoseTableSchema {
     pub fn try_add_column(
         &mut self,
         column: ColumnSchema,
-    ) -> anyhow::Result<()> {
+    ) -> BunsenResult<()> {
         self.check_name(&column.name)?;
 
         self.columns.push(column);
@@ -554,36 +560,42 @@ impl FirehoseTableSchema {
     ///
     /// # Panics
     ///
-    /// With the [`try_add_column`](Self::try_add_column) error's message, if
+    /// With the [`try_add_column`](Self::try_add_column) error's report, if
     /// the column's name is not an identifier, or is already a column.
     pub fn add_column(
         &mut self,
         column: ColumnSchema,
     ) {
-        if let Err(e) = self.try_add_column(column) {
-            panic!("{e}");
-        }
+        self.try_add_column(column).ok_or_panic()
     }
 
     /// Adds a build plan to the table description.
     pub fn add_build_plan(
         &mut self,
         plan: BuildPlan,
-    ) -> anyhow::Result<()> {
+    ) -> BunsenResult<()> {
         // Check that all the input and output columns exist.
         for cname in plan.inputs.values() {
             if self.column_index(cname).is_none() {
-                bail!("Input column '{cname}' does not exist in the schema");
+                return Err(self
+                    .missing_column(cname)
+                    .as_illegal()
+                    .context("build plan input"));
             }
         }
         for cname in plan.outputs.values() {
             if self.column_index(cname).is_none() {
-                bail!("Output column '{cname}' does not exist in the schema");
+                return Err(self
+                    .missing_column(cname)
+                    .as_illegal()
+                    .context("build plan output"));
             }
 
             for alt_plan in &self.build_plans {
                 if alt_plan.outputs.values().any(|v| v == cname) {
-                    bail!("Output column '{cname}' already exists in another build plan");
+                    return Err(BunsenError::illegal(format!(
+                        "Output column '{cname}' already exists in another build plan"
+                    )));
                 }
             }
         }
@@ -608,13 +620,13 @@ impl FirehoseTableSchema {
     ///
     /// # Returns
     ///
-    /// An `anyhow::Result<()>` indicating success or containing an error if the
+    /// A `BunsenResult<()>` indicating success or containing an error if the
     /// operation fails. An error can leave the schema partly extended.
     pub fn add_build_plan_and_outputs(
         &mut self,
         plan: BuildPlan,
         output_info: &[(String, DataTypeDescription, Option<String>)],
-    ) -> anyhow::Result<()> {
+    ) -> BunsenResult<()> {
         // Now add the output columns.
         for (pname, data_type, description) in output_info {
             let cname = plan.outputs.get(pname).expect("Output column not found");
@@ -638,7 +650,7 @@ impl FirehoseTableSchema {
     ///
     /// # Returns
     ///
-    /// An `anyhow::Result<()>` indicating success or containing an error if the
+    /// A `BunsenResult<()>` indicating success or containing an error if the
     /// operation fails. An error can leave the schema partly extended;
     /// [`OperationPlan::apply_to_schema`](crate::core::operations::planner::OperationPlan::apply_to_schema)
     /// tries a copy first.
@@ -646,14 +658,14 @@ impl FirehoseTableSchema {
         &mut self,
         plan: BuildPlan,
         output_columns: &BTreeMap<String, ColumnSchema>,
-    ) -> anyhow::Result<()> {
+    ) -> BunsenResult<()> {
         let all_plan_output_cnames = plan.outputs.values().collect::<HashSet<_>>();
         let all_output_cnames = output_columns.keys().collect::<HashSet<_>>();
 
         if all_plan_output_cnames != all_output_cnames {
-            bail!(
+            return Err(BunsenError::illegal(format!(
                 "Output columns in plan do not match provided output columns: {all_plan_output_cnames:?} != {all_output_cnames:?}"
-            );
+            )));
         }
 
         for column in output_columns.values() {
@@ -670,12 +682,10 @@ impl FirehoseTableSchema {
         &mut self,
         old_name: &str,
         new_name: &str,
-    ) -> anyhow::Result<()> {
+    ) -> BunsenResult<()> {
         let index = match self.column_index(old_name) {
             Some(idx) => idx,
-            None => {
-                bail!("Column '{old_name}' not found");
-            }
+            None => return Err(self.missing_column(old_name)),
         };
 
         if old_name == new_name {
@@ -684,7 +694,10 @@ impl FirehoseTableSchema {
         }
 
         if self.column_index(new_name).is_some() {
-            bail!("Column name '{new_name}' already exists");
+            return Err(BunsenError::from_cause(
+                BunsenErrorKind::Illegal,
+                LookupError::duplicate("column", new_name),
+            ));
         }
 
         self.check_name(new_name)?;
@@ -739,21 +752,41 @@ impl FirehoseTableSchema {
     ///
     /// # Returns
     ///
-    /// An `anyhow::Result<usize>` containing the index of the column if it
+    /// A `BunsenResult<usize>` containing the index of the column if it
     /// exists.
     pub fn check_column_index(
         &self,
         name: &str,
-    ) -> anyhow::Result<usize> {
+    ) -> BunsenResult<usize> {
         match self.column_index(name) {
             Some(idx) => Ok(idx),
-            None => bail!("Column '{name}' not found in schema"),
+            None => Err(self.missing_column(name)),
         }
+    }
+
+    /// The [`Lookup`](BunsenErrorKind::Lookup) error for a column `name`
+    /// that is not in the schema, listing the columns there are.
+    fn missing_column(
+        &self,
+        name: &str,
+    ) -> BunsenError {
+        BunsenError::lookup(
+            LookupError::missing("column", name)
+                .with_candidates(self.columns.iter().map(|c| c.name.clone())),
+        )
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use bunsen::errors::{
+        LookupProblem,
+        testing::{
+            ErrorMatcher,
+            predicate,
+            text,
+        },
+    };
     use indoc::indoc;
 
     use super::*;
@@ -783,7 +816,7 @@ mod tests {
     }
 
     #[test]
-    fn test_schema() -> anyhow::Result<()> {
+    fn test_schema() -> BunsenResult<()> {
         let mut schema = FirehoseTableSchema::from_columns(&[ColumnSchema::new::<i32>("foo")]);
         schema.add_column(ColumnSchema::new::<String>("bar"));
 
@@ -872,6 +905,52 @@ mod tests {
         Ok(())
     }
 
+    #[test]
+    fn test_column_lookup_errors() {
+        let mut schema = FirehoseTableSchema::from_columns(&[
+            ColumnSchema::new::<i32>("foo"),
+            ColumnSchema::new::<i32>("bar"),
+        ]);
+
+        assert_eq!(schema.check_column_index("bar").unwrap(), 1);
+
+        let missing = ErrorMatcher::kind(BunsenErrorKind::Lookup)
+            .display(text::eq("no column \"nope\"; there are: foo, bar"))
+            .cause(predicate("a missing \"nope\"", |l: &LookupError| {
+                l.key == "nope" && l.problem == LookupProblem::Missing
+            }));
+        missing.assert_err(&schema.check_column_index("nope"));
+        missing.assert_err(&schema.rename_column("nope", "baz"));
+
+        ErrorMatcher::kind(BunsenErrorKind::Illegal)
+            .display(text::eq("duplicate column \"bar\""))
+            .assert_err(&schema.rename_column("foo", "bar"));
+
+        ErrorMatcher::kind(BunsenErrorKind::Illegal)
+            .display(text::eq(
+                "build plan input: no column \"nope\"; there are: foo, bar",
+            ))
+            .assert_err(
+                &schema.add_build_plan(
+                    BuildPlan::for_operator("fh:op://x::Y")
+                        .with_inputs(&[("x", "nope")])
+                        .with_outputs(&[("y", "bar")]),
+                ),
+            );
+    }
+
+    #[test]
+    fn test_build_plan_translate_names() {
+        let plan = BuildPlan::for_operator("fh:op://x::Y")
+            .with_inputs(&[("x", "a")])
+            .with_outputs(&[("y", "b")]);
+        assert_eq!(plan.translate_input_name("x").unwrap(), "a");
+
+        ErrorMatcher::kind(BunsenErrorKind::Lookup)
+            .display(text::eq("no input parameter \"y\"; there are: x"))
+            .assert_err(&plan.translate_input_name("y"));
+    }
+
     #[should_panic(expected = "Column \"nonexistent\" not found in schema")]
     #[test]
     fn test_lookup_column_nonexistent() {
@@ -887,7 +966,7 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected = "Duplicate column name 'foo'")]
+    #[should_panic(expected = "duplicate column \"foo\"")]
     fn conflicting_column_names_on_validate() {
         let _schema = FirehoseTableSchema::from_columns(&[
             ColumnSchema::new::<i32>("foo"),
@@ -896,7 +975,7 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected = "Duplicate column name 'foo'")]
+    #[should_panic(expected = "duplicate column \"foo\"")]
     fn conflicting_column_names_on_add() {
         let mut schema = FirehoseTableSchema::from_columns(&[ColumnSchema::new::<i32>("foo")]);
         schema.add_column(ColumnSchema::new::<String>("foo"));
@@ -907,19 +986,20 @@ mod tests {
         let mut schema = FirehoseTableSchema::from_columns(&[ColumnSchema::new::<i32>("foo")]);
         let before = schema.clone();
 
-        let err = schema
-            .try_add_column(ColumnSchema::new::<String>("foo"))
-            .unwrap_err();
-        assert_eq!(err.to_string(), "Duplicate column name 'foo'");
+        ErrorMatcher::kind(BunsenErrorKind::Illegal)
+            .display(text::eq("duplicate column \"foo\""))
+            .cause(predicate("a duplicate \"foo\"", |l: &LookupError| {
+                l.key == "foo" && l.problem == LookupProblem::Duplicate
+            }))
+            .assert_err(&schema.try_add_column(ColumnSchema::new::<String>("foo")));
 
-        let err = schema
-            .try_add_column(ColumnSchema {
+        ErrorMatcher::kind(BunsenErrorKind::Illegal)
+            .display(text::eq("Invalid identifier: 'not an ident'"))
+            .assert_err(&schema.try_add_column(ColumnSchema {
                 name: "not an ident".to_string(),
                 description: None,
                 data_type: DataTypeDescription::new::<i32>(),
-            })
-            .unwrap_err();
-        assert_eq!(err.to_string(), "Invalid identifier: 'not an ident'");
+            }));
 
         assert_eq!(schema, before);
 

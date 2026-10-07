@@ -1,6 +1,7 @@
 //! Stage that randomly runs, or skips, a child.
 use std::sync::Arc;
 
+use bunsen::errors::BunsenResult;
 use bunsen_firehose::utility::probability::try_probability;
 use image::DynamicImage;
 use rand::RngExt;
@@ -57,8 +58,8 @@ impl WithAugmentationStageBuilder for WithProbStage {
     fn build_stage(
         config: &AugmentationStageConfig,
         builder: &dyn PluginBuilder,
-    ) -> anyhow::Result<Arc<dyn AugmentationStage>> {
-        let config: WithProbStageConfig = serde_json::from_value(config.body.clone())?;
+    ) -> BunsenResult<Arc<dyn AugmentationStage>> {
+        let config: WithProbStageConfig = config.parse_body()?;
 
         Ok(Arc::new(Self {
             prob: try_probability(config.prob)?,
@@ -84,7 +85,7 @@ impl AugmentationStage for WithProbStage {
         &self,
         image: DynamicImage,
         ctx: &mut ImageAugContext,
-    ) -> anyhow::Result<DynamicImage> {
+    ) -> BunsenResult<DynamicImage> {
         let mut image = image;
         if ctx.rng_mut().random::<f64>() < self.prob {
             image = self.inner.augment_image(image, ctx)?;

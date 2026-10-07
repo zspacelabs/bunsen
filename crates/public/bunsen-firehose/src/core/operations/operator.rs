@@ -3,6 +3,7 @@ use std::{
     sync::Arc,
 };
 
+use bunsen::errors::BunsenResult;
 use serde::{
     Deserialize,
     Serialize,
@@ -53,13 +54,13 @@ pub trait FirehoseOperator: 'static + Send + Sync + Debug {
     ///
     /// # Returns
     ///
-    /// An `anyhow::Result<()>` indicating success or containing an error if the
+    /// A `BunsenResult<()>` indicating success or containing an error if the
     /// operation fails.
     #[must_use]
     fn apply_to_batch(
         &self,
         txn: &mut FirehoseBatchTransaction,
-    ) -> anyhow::Result<()> {
+    ) -> BunsenResult<()> {
         for index in 0..txn.len() {
             let mut row_txn = txn.mut_row_transaction(index);
             self.apply_to_row(&mut row_txn)?;
@@ -71,13 +72,13 @@ pub trait FirehoseOperator: 'static + Send + Sync + Debug {
     ///
     /// # Returns
     ///
-    /// An `anyhow::Result<()>` indicating success or containing an error if the
+    /// A `BunsenResult<()>` indicating success or containing an error if the
     /// operation fails.
     #[must_use]
     fn apply_to_row(
         &self,
         txn: &mut FirehoseRowTransaction,
-    ) -> anyhow::Result<()>;
+    ) -> BunsenResult<()>;
 }
 
 /// Represents a schema + instantiated column operator for a particular build
@@ -136,7 +137,7 @@ impl OperationRunner {
         table_schema: Arc<FirehoseTableSchema>,
         build_plan: Arc<BuildPlan>,
         env: &dyn FirehoseOperatorEnvironment,
-    ) -> anyhow::Result<OperationRunner> {
+    ) -> BunsenResult<OperationRunner> {
         let table_schema = table_schema.clone();
         let build_plan = build_plan.clone();
 
@@ -176,7 +177,7 @@ impl OperationRunner {
     pub fn apply_to_batch(
         &self,
         batch: &mut FirehoseRowBatch,
-    ) -> anyhow::Result<()> {
+    ) -> BunsenResult<()> {
         // TODO: sub-batch based upon scheduling metadata.effective_batch_size.
         // Requires batch.slice(); batch.assign_slice_from();
 

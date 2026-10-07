@@ -59,6 +59,8 @@ where
 mod tests {
     use std::sync::Arc;
 
+    use bunsen::errors::BunsenResult;
+
     use super::*;
     use crate::pipeline::FnOperator;
 
@@ -66,7 +68,7 @@ mod tests {
     fn test_index_to_str_plan() {
         let schedule: DataLoadSchedule<usize> = vec![3, 1, 2].into();
 
-        let load = |idx: &usize| -> anyhow::Result<String> { Ok(format!("i:{idx}")) };
+        let load = |idx: &usize| -> BunsenResult<String> { Ok(format!("i:{idx}")) };
 
         let _plan = DataLoadPlan::init(schedule, Some(Arc::new(FnOperator::new(load))));
     }

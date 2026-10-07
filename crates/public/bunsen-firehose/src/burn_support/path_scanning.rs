@@ -3,13 +3,22 @@ use std::collections::{
     HashSet,
 };
 
-use burn::data::dataset::{
-    InMemDataset,
-    vision::ImageLoaderError,
+use bunsen::errors::{
+    BunsenError,
+    BunsenErrorKind,
+    BunsenResult,
+    io_error_kind,
 };
+use burn::data::dataset::InMemDataset;
 
 /// Scan a folder of ``$ROOT/$CLASS/$IMG.{jpg,png}`` into an `InMemDataset`.
-pub fn image_dataset_for_folder<P>(root: P) -> anyhow::Result<InMemDataset<(String, usize)>>
+///
+/// # Errors
+///
+/// A walk failure, of the kind its `io::Error` sorts into: a missing or
+/// unreadable folder is a [`Lookup`](BunsenErrorKind::Lookup); a symlink loop
+/// is [`InvalidResource`](BunsenErrorKind::InvalidResource).
+pub fn image_dataset_for_folder<P>(root: P) -> BunsenResult<InMemDataset<(String, usize)>>
 where
     P: AsRef<std::path::Path>,
 {
@@ -18,24 +27,33 @@ where
         .follow_links(true)
         .sort_by(|p1, p2| p1.path().cmp(p2.path())) // order by path
         .build()
-        .map_err(|e| anyhow::anyhow!("Failed to scan folder: {}", e))?;
+        .map_err(|e| {
+            BunsenError::from_cause(BunsenErrorKind::Internal, e)
+                .context(format!("scanning {}", root.as_ref().display()))
+        })?;
 
     // Get all dataset items
     let mut items = Vec::new();
     let mut classes = HashSet::new();
     for img in walker {
-        let img = img?;
+        let img = img.map_err(|e| {
+            let kind = e
+                .io_error()
+                .map_or(BunsenErrorKind::InvalidResource, io_error_kind);
+            BunsenError::from_cause(kind, e)
+                .context(format!("scanning {}", root.as_ref().display()))
+        })?;
         let image_path = img.path().to_path_buf();
 
         // Label name is represented by the parent folder name
         let label = image_path
             .parent()
+            .and_then(|parent| parent.file_name())
             .ok_or_else(|| {
-                ImageLoaderError::IOError("Could not resolve image parent folder".to_string())
-            })?
-            .file_name()
-            .ok_or_else(|| {
-                ImageLoaderError::IOError("Could not resolve image parent folder name".to_string())
+                BunsenError::internal(format!(
+                    "image path has no parent folder name: {}",
+                    image_path.display()
+                ))
             })?
             .to_string_lossy()
             .into_owned();
