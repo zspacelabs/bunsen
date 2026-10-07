@@ -8,6 +8,7 @@ use bunsen::{
     kits::gpts::nanochat::datasets::NANOCHAT_SHARD_SETS,
     support::testing::performance_device,
 };
+use bunsen_app::shards::ShardArgs;
 use bunsen_arrow_dataloaders::{
     dataloaders::chat::ChatDataLoader,
     tokens::{
@@ -16,7 +17,6 @@ use bunsen_arrow_dataloaders::{
     },
 };
 use clap::Parser;
-use clap_common::shards::ShardArgs;
 use rand::{
     SeedableRng,
     rngs::StdRng,

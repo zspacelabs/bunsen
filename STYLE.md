@@ -264,16 +264,18 @@ feature reaches `bunsen` — so a test written against `performance_device()`
 still compiles and still passes, having quietly measured the CPU.
 
 `flex` names that fallback rather than an accelerator, and is exempt from the
-prohibition above: an example that wants to run without hardware carries it in
-`default`.
+prohibition above.
 
 An example binary does not use `performance_device()`: it picks its device
-at run time, with `--device` from `clap_common::device::DeviceArgs`. Its
-backend features forward to `clap-common`, which offers a backend only when it
-was built with it:
+and precision at run time, with `bunsen_app::device::DeviceArgs` (`--device`,
+`--precision`, `--float-dtype`), from the preferences it states in a
+`DevicePrefs`. `bunsen-app` always has the CPU, and offers an accelerator only
+when it was built with that backend, so an example's backend features (and the
+training examples' `tui`) forward to it and to nothing else:
 
 ```text
-prefer:  wgpu = ["burn/wgpu", "clap-common/wgpu"]
+prefer:  wgpu = ["bunsen-app/wgpu"]
+not:     wgpu = ["burn/wgpu", "bunsen-app/wgpu"]   (bunsen-app already enables it)
 ```
 
 ### GPU tests

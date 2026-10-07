@@ -23,6 +23,11 @@ use bunsen::{
     },
     support::geometry::GridShape2D,
 };
+use bunsen_app::device::{
+    DeviceArgs,
+    DevicePrefs,
+    Precision,
+};
 use burn::{
     Tensor,
     prelude::{
@@ -30,13 +35,9 @@ use burn::{
         TensorData,
         s,
     },
-    tensor::{
-        DType,
-        Device,
-    },
+    tensor::Device,
 };
 use clap::Parser;
-use clap_common::device::DeviceArgs;
 use glutin_window::GlutinWindow as Window;
 use indicatif::ProgressBar;
 use opengl_graphics::{
@@ -56,25 +57,6 @@ use piston::{
 };
 use rand::RngExt;
 
-/// Simulation `DType` enum.
-#[derive(Debug, Clone, Copy, clap::ValueEnum, strum::Display)]
-pub enum SimDType {
-    /// Use `F16`.
-    F16,
-
-    /// Use `F32`.
-    F32,
-}
-
-impl From<SimDType> for DType {
-    fn from(value: SimDType) -> Self {
-        match value {
-            SimDType::F16 => DType::F16,
-            SimDType::F32 => DType::F32,
-        }
-    }
-}
-
 /// Fluid Flow demo for Burn.
 #[derive(Parser, Debug)]
 #[command(long_about = None)]
@@ -82,10 +64,6 @@ pub struct Args {
     /// The grid shape as `[ WIDTH, HEIGHT ]`, or `X` => `[X, X]`.
     #[arg(long, default_value = "300")]
     pub grid_shape: GridShape2D,
-
-    /// Simulation dtype.
-    #[arg(long, default_value = "f16")]
-    pub dtype: SimDType,
 
     /// The max frames per second.
     #[arg(long, default_value_t = 60)]
@@ -120,8 +98,12 @@ fn main() {
     let args = Args::parse();
     println!("{:#?}", args);
 
-    let device = args.device.init().unwrap_or_else(|e| panic!("{e}"));
-    println!("device: {device:?}");
+    // The flow fits f16: half precision wherever the backend runs it well.
+    let prefs = DevicePrefs::new()
+        .with_precision(Precision::AnyHalf)
+        .with_half(Precision::AnyHalf);
+    let device = args.device.init(&prefs).unwrap_or_else(|e| panic!("{e}"));
+    println!("{}", bunsen_app::device::describe(&device));
     run(&args, device);
 }
 
@@ -129,8 +111,6 @@ fn run(
     args: &Args,
     device: Device,
 ) {
-    let dtype: DType = args.dtype.into();
-
     // Change this to OpenGL::V2_1 if not working.
     let opengl = OpenGL::V3_2;
 
@@ -158,7 +138,6 @@ fn run(
         .slice_fill(s![-h6..-h6 + stroke, w6..2 * w6], true)
         .slice_fill(s![-h6..-h6 + stroke, -3 * w6..-w6], true);
 
-    let mut world_state = world_state.to_dtype(dtype);
     world_state.save_correct_total_mass();
 
     for _ in 0..args.init_skip_steps {

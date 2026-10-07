@@ -27,6 +27,13 @@ use bunsen::{
     },
     public::hashbrown::HashSet,
 };
+use bunsen_app::{
+    device::{
+        DeviceArgs,
+        DevicePrefs,
+    },
+    shards::ShardArgs,
+};
 use bunsen_arrow_dataloaders::{
     dataloaders::chat::ChatDataLoader,
     tokens::{
@@ -65,10 +72,6 @@ use burn::{
     },
 };
 use clap::Parser;
-use clap_common::{
-    device::DeviceArgs,
-    shards::ShardArgs,
-};
 use num_traits::Pow;
 use rand::{
     SeedableRng,
@@ -199,7 +202,10 @@ fn run(args: &Args) -> anyhow::Result<()> {
     ensure_artifact_dir(artifact_dir)?;
 
     // Training records gradients: autodiff before the model and inputs.
-    let device: Device = args.device.init().map_err(anyhow::Error::msg)?.autodiff();
+    let device: Device = args
+        .device
+        .init(&DevicePrefs::training())
+        .map_err(anyhow::Error::msg)?;
 
     let shard_cache = BunsenDiskCache::default();
     let shard_paths = args.shards.fetch_paths(

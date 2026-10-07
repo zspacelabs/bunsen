@@ -23,12 +23,12 @@ use bunsen::{
     },
     zspace::ravel_dims,
 };
+use bunsen_app::logging::LogArgs;
 use burn::{
     backend::flex::ops::unary::log,
     prelude::TensorData,
     tensor::Device,
 };
-use clap_common::logging::LogArgs;
 use glutin_window::{
     GlutinWindow,
     OpenGL,

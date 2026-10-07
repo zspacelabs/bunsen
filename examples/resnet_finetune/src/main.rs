@@ -29,6 +29,10 @@ use bunsen::{
         },
     },
 };
+use bunsen_app::device::{
+    DeviceArgs,
+    DevicePrefs,
+};
 use burn::{
     config::Config,
     data::{
@@ -61,10 +65,7 @@ use burn::{
         Int,
         Tensor,
     },
-    tensor::{
-        Device,
-        FloatDType,
-    },
+    tensor::Device,
     train::{
         InferenceStep,
         Learner,
@@ -89,10 +90,6 @@ use burn::{
 use clap::{
     Parser,
     ValueEnum,
-};
-use clap_common::device::{
-    DeviceArgs,
-    DeviceChoice,
 };
 
 use crate::{
@@ -138,10 +135,6 @@ pub struct Args {
     /// Directory to save the artifacts.
     #[arg(long, default_value = "/tmp/resnet_finetune")]
     pub artifact_dir: String,
-
-    /// Use half precision for training.
-    #[arg(long, default_value = "false")]
-    pub half_precision: bool,
 
     /// The device to train on.
     #[command(flatten)]
@@ -252,12 +245,12 @@ fn ensure_artifact_dir(artifact_dir: &str) -> anyhow::Result<()> {
 
 #[must_use]
 pub fn train(args: &Args) -> anyhow::Result<()> {
-    let mut device = args.device.init().map_err(anyhow::Error::msg)?;
-    if args.half_precision && args.device.choice() != DeviceChoice::Flex {
-        device.configure(FloatDType::BF16)?;
-    }
-    // Training records gradients: autodiff before the model and inputs.
-    let device: Device = device.autodiff();
+    // f32 unless `--precision half` (bf16, where the backend trains in it
+    // well); autodiff before the model and inputs.
+    let device: Device = args
+        .device
+        .init(&DevicePrefs::training())
+        .map_err(anyhow::Error::msg)?;
 
     let factory = default_resnet_factory()?;
 

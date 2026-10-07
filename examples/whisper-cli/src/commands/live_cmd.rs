@@ -23,7 +23,7 @@ use bunsen::{
     },
     kits::speech::whisper::driver::PresetEmissionPolicy,
 };
-use clap_common::logging::{
+use bunsen_app::logging::{
     LogArgs,
     LogLevelNum,
 };

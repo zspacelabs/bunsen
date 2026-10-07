@@ -53,8 +53,8 @@ use bunsen::{
     },
     ops::signal::perceptive_audio::PerceptiveAudioConverterMeta,
 };
+use bunsen_app::device::BackendArgs;
 use burn::tensor::Device;
-use clap_common::device::DeviceArgs;
 
 /// Where fetched weights live, and whether fetching is allowed.
 #[derive(clap::Args, Debug)]
@@ -240,7 +240,7 @@ pub struct WhisperDriverArgs {
 
     /// The device to run the model on.
     #[command(flatten)]
-    device: DeviceArgs,
+    device: BackendArgs,
 }
 
 impl WhisperDriverArgs {

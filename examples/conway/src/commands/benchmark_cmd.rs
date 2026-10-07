@@ -21,9 +21,9 @@ use bunsen::{
     },
     support::geometry::GridShape2D,
 };
+use bunsen_app::logging::LogArgs;
 use burn::tensor::Device;
 use clap::Parser;
-use clap_common::logging::LogArgs;
 use indicatif::ProgressBar;
 
 /// Conway's Game of Life benchmark for Burn.

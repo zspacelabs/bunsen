@@ -18,6 +18,10 @@ use bunsen::{
         SwinTransformerV2ContractConfig,
     },
 };
+use bunsen_app::device::{
+    DeviceArgs,
+    DevicePrefs,
+};
 use bunsen_firehose::{
     burn_support::{
         batcher::{
@@ -94,7 +98,6 @@ use burn::{
     },
 };
 use clap::Parser;
-use clap_common::device::DeviceArgs;
 use rand::{
     RngExt,
     rng,
@@ -196,7 +199,10 @@ fn create_artifact_dir(artifact_dir: &str) {
 /// Train the model with the given configuration and devices.
 pub fn backend_main(args: &Args) -> anyhow::Result<()> {
     // Training records gradients: autodiff before the model and inputs.
-    let device: Device = args.device.init().map_err(anyhow::Error::msg)?.autodiff();
+    let device: Device = args
+        .device
+        .init(&DevicePrefs::training())
+        .map_err(anyhow::Error::msg)?;
 
     let h: usize = 32;
     let w: usize = 32;

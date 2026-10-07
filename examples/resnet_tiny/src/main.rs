@@ -27,6 +27,11 @@ use bunsen::{
         },
     },
 };
+use bunsen_app::device::{
+    DeviceArgs,
+    DevicePrefs,
+    Precision,
+};
 use bunsen_firehose::{
     burn_support::{
         batcher::{
@@ -82,10 +87,7 @@ use burn::{
         Module,
         Tensor,
     },
-    tensor::{
-        Device,
-        FloatDType,
-    },
+    tensor::Device,
     train::{
         ClassificationOutput,
         InferenceStep,
@@ -109,10 +111,6 @@ use burn::{
     },
 };
 use clap::Parser;
-use clap_common::device::{
-    DeviceArgs,
-    DeviceChoice,
-};
 use rand::{
     RngExt,
     rng,
@@ -216,13 +214,12 @@ fn create_artifact_dir(artifact_dir: &str) {
 
 /// Train the model with the given configuration and devices.
 pub fn backend_main(args: &Args) -> anyhow::Result<()> {
-    let mut device = args.device.init().map_err(anyhow::Error::msg)?;
-    // Accelerators train in bf16; the CPU in f32.
-    if args.device.choice() != DeviceChoice::Flex {
-        device.configure(FloatDType::BF16)?;
-    }
-    // Training records gradients: autodiff before the model and inputs.
-    let device: Device = device.autodiff();
+    // bf16 wherever the backend trains in it well; autodiff before the model
+    // and inputs.
+    let prefs = DevicePrefs::training()
+        .with_precision(Precision::BF16Half)
+        .with_half(Precision::BF16Half);
+    let device: Device = args.device.init(&prefs).map_err(anyhow::Error::msg)?;
 
     let image_shape = ImageShape {
         height: 32,
