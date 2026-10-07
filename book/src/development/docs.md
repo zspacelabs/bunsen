@@ -112,12 +112,12 @@ tools on first use, at the versions CI uses:
 | `cargo make book` | builds the book against the local API docs; an unresolved API link is a warning |
 | `cargo make book-check` | the same build CI runs: an unresolved API link is an error |
 | `cargo make book-serve` | serves the book locally, rebuilding as you edit |
-| `cargo make book-release` | builds the book for publishing, with API links pinned to this release on docs.rs |
+| `cargo make book-release` | the publishing build: API links pinned to this release on docs.rs |
 
 Run `book-check` before pushing a change that touches the book or renames
 anything public. The build runs `cargo doc` itself, so the first run is
-slow. `book-release` is part of a release, not of everyday work
-([Releasing](./release.md)).
+slow. The release workflow makes the `book-release` build and publishes
+it ([Releasing](./release.md)); run it locally only to preview that.
 
 ## Writing a page
 

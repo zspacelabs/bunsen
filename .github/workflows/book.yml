@@ -1,0 +1,111 @@
+name: book
+
+# Builds the book at a release and publishes it to GitHub Pages.
+#
+# The site is the `gh-pages` branch, served at https://zspacelabs.ai/bunsen/
+# (the zspacelabs org site's custom domain carries this repository's project
+# site). This workflow owns the whole branch:
+#
+#   gh-pages
+#   ├── .nojekyll    serve the files as they are; no Jekyll pass
+#   ├── index.html   redirects to book/
+#   └── book/        the built book, replaced on every publish
+#
+# It runs two ways:
+#   * from release-plz.yml, once a release PR has merged and the crates are
+#     published;
+#   * by hand, to republish a release: `gh workflow run book.yml -f ref=bunsen-vX.Y.Z`.
+#
+# The build is `mdbook build book` with `CI` set, as in ci.yml: every API link
+# must resolve, and the links point at docs.rs, pinned to the versions in the
+# release's `Cargo.lock`. Those links are dead until docs.rs has built the
+# release, usually a few minutes after it lands on crates.io.
+#
+# Required configuration (one-time):
+#   * Settings -> Pages -> Build and deployment: "Deploy from a branch",
+#     branch `gh-pages`, folder `/ (root)`. The first run creates the branch.
+
+on:
+  workflow_call:
+    inputs:
+      ref:
+        description: "The git ref to build: a release tag or commit."
+        required: true
+        type: string
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: "The release tag to build, e.g. bunsen-v0.38.0."
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+# Publishes push to one branch; run them one at a time, in order.
+concurrency:
+  group: book-publish
+  cancel-in-progress: false
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  publish:
+    name: Publish the book
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref }}
+      - run: rustup toolchain install stable --profile minimal
+      # mdbook-rustdoc-links runs `cargo doc` and `cargo check` on the crates
+      # the book links into (`book/book.toml`).
+      - uses: Swatinem/rust-cache@v2
+      # Keep these versions in step with ci.yml and `Makefile.toml`'s
+      # `ensure-mdbook-*`.
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: mdbook@0.5.4,mdbook-katex@0.10.0,mdbook-mermaid@0.17.1,mdbook-linkcheck2@0.13.0,mdbook-rustdoc-links@3.0.2
+      - name: Build the book
+        run: mdbook build book
+      - name: Publish to gh-pages
+        env:
+          REF: ${{ inputs.ref }}
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          if git ls-remote --exit-code --heads origin gh-pages >/dev/null; then
+            git fetch --depth=1 origin gh-pages
+            git worktree add --detach "$RUNNER_TEMP/site" FETCH_HEAD
+          else
+            git worktree add --orphan -b gh-pages "$RUNNER_TEMP/site"
+          fi
+          cd "$RUNNER_TEMP/site"
+
+          touch .nojekyll
+          cat > index.html <<'HTML'
+          <!doctype html>
+          <html lang="en">
+          <head>
+            <meta charset="utf-8">
+            <title>The Bunsen Book</title>
+            <meta http-equiv="refresh" content="0; url=book/">
+            <link rel="canonical" href="book/">
+          </head>
+          <body>
+            <p><a href="book/">The Bunsen Book</a></p>
+          </body>
+          </html>
+          HTML
+          rm -rf book
+          cp -r "$GITHUB_WORKSPACE/book/book/html" book
+
+          git add -A
+          if git diff --cached --quiet; then
+            echo "gh-pages is already up to date with $REF."
+            exit 0
+          fi
+          git commit -m "Publish the book for $REF ($(git -C "$GITHUB_WORKSPACE" rev-parse --short HEAD))"
+          git push origin HEAD:refs/heads/gh-pages

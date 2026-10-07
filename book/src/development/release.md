@@ -21,11 +21,11 @@ an API break gets a breaking bump even when its commit didn't say so.
 
 ## The book
 
-The published book is built by hand after a release, with
-`cargo make book-release`. That build points every API link at docs.rs,
-pinned to the version just released. So it is built from the release, not
-from `main`, and only once docs.rs has built that version; until then the
-pinned links are dead. CI builds and checks the book on every pull request,
-but only this step publishes it. The steps are in `CONTRIBUTING.md`'s
-release section, and [Writing documentation](./docs.md#building-the-book)
-covers the other book tasks.
+The release workflow publishes the book after every release, to GitHub
+Pages. The build points every API link at docs.rs, pinned to the version
+just released, so it is built from the release, not from `main`, and the
+pinned links are dead until docs.rs has built that version. CI builds and
+checks the book on every pull request, but only a release publishes it.
+`CONTRIBUTING.md`'s release section says how to republish by hand, and
+[Writing documentation](./docs.md#building-the-book) covers the other book
+tasks.

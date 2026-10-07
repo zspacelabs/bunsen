@@ -96,7 +96,7 @@ it as breaking.
 
 Releases are automated by **release-plz**: you never bump versions, edit crate changelogs, or run `cargo publish` by
 hand. Configuration lives in [`release-plz.toml`](release-plz.toml); the automation runs from
-[`.github/workflows/release-plz.yml`](.github/workflows/release-plz.yml). The one manual step is publishing the book.
+[`.github/workflows/release-plz.yml`](.github/workflows/release-plz.yml), which also publishes the book.
 
 ### What gets released
 
@@ -123,24 +123,28 @@ the examples and the `crates/dev` and `crates/validation` crates stay out.
 3. When you're ready to cut a release, review and **merge the release PR**.
 4. On merge, release-plz tags the release (`bunsen-vX.Y.Z`, and one tag per crate), publishes the crates to
    crates.io, and creates a GitHub release with the changelog notes.
-5. **Publish the book**, by hand ([below](#publishing-the-book)).
+5. The same workflow then builds the book at the release commit and publishes it ([below](#publishing-the-book)).
 
 To hold back a release, just don't merge the release PR yet; it keeps updating itself until you do.
 
 ### Publishing the book
 
-The published book is built from the release, with every API link pinned to the released version on docs.rs, so
-publish it only after the release PR has merged and [docs.rs](https://docs.rs/crate/bunsen/latest) has built the new
-version (usually a few minutes). Before that, the pinned links are dead.
+The book is served by GitHub Pages from the `gh-pages` branch, at <https://zspacelabs.ai/bunsen/book/>; the branch
+root redirects to the book. [`.github/workflows/book.yml`](.github/workflows/book.yml) owns that branch: it builds the
+book at a release and replaces `book/` on the branch with the result. The `book` job in `release-plz.yml` runs it after
+every release, at the release commit.
 
-1. Check out the release commit (the merged release PR, tagged `bunsen-vX.Y.Z`).
-2. Run `cargo make book-release`. It builds as CI does, so an unresolved API link is an error, points the API links at
-   docs.rs at the versions in `Cargo.lock`, and sets the site URL to `/bunsen/book/`. The output is `book/book/html`.
-3. In a checkout of [`zspacelabs/zspacelabs.github.io`](https://github.com/zspacelabs/zspacelabs.github.io), replace
-   the contents of `bunsen/book/` with the contents of `book/book/html`, then commit and push to `main`. GitHub Pages
-   serves it at <https://zspacelabs.ai/bunsen/book/>.
+The build is the one CI runs, so an unresolved API link is an error, and every API link points at docs.rs, pinned to
+the versions in the release's `Cargo.lock`. Those links are dead until docs.rs has built the release, usually a few
+minutes after it reaches crates.io.
 
-CI builds and checks the book on every pull request; only this step publishes it.
+To publish a release by hand (to rebuild it, or after a failed `book` job), run the workflow on its tag:
+
+```sh
+gh workflow run book.yml -f ref=bunsen-vX.Y.Z
+```
+
+`cargo make book-release` makes the same build locally, in `book/book/html`, for previewing what will be published.
 
 ### One-time setup
 
@@ -150,6 +154,8 @@ These must be configured on the GitHub repository before the workflow can run:
   `publish-update` scopes for the `bunsen*` crates, added under *Settings → Secrets and variables → Actions*. Give it a
   deliberate expiry. An expired token fails the release with "403 Forbidden: authentication failed"; rotate it with
   `gh secret set CARGO_REGISTRY_TOKEN` and re-run the failed job with `gh run rerun <run-id> --failed`.
+- **GitHub Pages**: *Settings → Pages → Build and deployment* → "Deploy from a branch", branch `gh-pages`, folder
+  `/ (root)`. The first run of `book.yml` creates the branch.
 - **Allow Actions to open PRs**: *Settings → Actions → General → Workflow permissions* → enable "Allow GitHub Actions
   to create and approve pull requests".
 - **`RELEASE_PLZ_WORKFLOW`** (optional): a personal access token or GitHub App token. PRs opened with the built-in
@@ -187,6 +193,6 @@ links into the API, and how code in the book stays compiled. The tasks, from `Ma
 | `cargo make book`         | builds the book against the local API docs; an unresolved API link is a warning       |
 | `cargo make book-check`   | the build CI runs: an unresolved API link is an error                                 |
 | `cargo make book-serve`   | serves the book locally, rebuilding as you edit                                       |
-| `cargo make book-release` | the publishing build, run once per release ([Publishing the book](#publishing-the-book)) |
+| `cargo make book-release` | the publishing build, as the release workflow runs it ([Publishing the book](#publishing-the-book)) |
 
 Each task installs the pinned mdbook tools on first use. The build runs `cargo doc` itself, so the first run is slow.
