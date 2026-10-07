@@ -30,7 +30,7 @@ structure once, as a document, and the groups are queries against it.
 [`XmlModuleTree`](bunsen::burner::module::reflection::XmlModuleTree) mirrors
 a built module as an XML document, and you select from it with XPath.
 **The element name is the module's type name, and the field name is the
-`@name` attribute.** A field `gpt: NanoChatGpt<B>` is the element
+`@name` attribute.** A field `gpt: NanoChatGpt` is the element
 `<NanoChatGpt name="gpt">`, and each parameter is a `<Param>` leaf with its
 `rank`, `shape` and `dtype` as attributes. So "every rank-2 weight of a
 `Linear` under the field `h`" is a short path:
