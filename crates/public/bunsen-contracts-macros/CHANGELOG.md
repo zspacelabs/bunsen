@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.38.0](https://github.com/zspacelabs/bunsen/compare/bunsen-contracts-macros-v0.37.0...bunsen-contracts-macros-v0.38.0) - 2026-10-07
+
+### Other
+
+- update Cargo.toml dependencies
+
 ## [0.37.0](https://github.com/zspacelabs/bunsen/compare/bunsen-contracts-macros-v0.36.1...bunsen-contracts-macros-v0.37.0) - 2026-10-06
 
 ### Added

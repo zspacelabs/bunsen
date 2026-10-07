@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.38.0](https://github.com/zspacelabs/bunsen/compare/bunsen-firehose-image-v0.37.0...bunsen-firehose-image-v0.38.0) - 2026-10-07
+
+### Added
+
+- *(firehose)* [**breaking**] replace anyhow with BunsenError ([#242](https://github.com/zspacelabs/bunsen/pull/242))
+- [**breaking**] migrate to burn 0.22 ([#239](https://github.com/zspacelabs/bunsen/pull/239))
+
 ## [0.37.0](https://github.com/zspacelabs/bunsen/compare/bunsen-firehose-image-v0.36.1...bunsen-firehose-image-v0.37.0) - 2026-10-06
 
 ### Added
