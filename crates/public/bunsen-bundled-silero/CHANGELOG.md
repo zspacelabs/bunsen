@@ -7,6 +7,12 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.38.0](https://github.com/zspacelabs/bunsen/compare/bunsen-bundled-silero-v0.37.0...bunsen-bundled-silero-v0.38.0) - 2026-10-07
+
+### Added
+
+- [**breaking**] migrate to burn 0.22 ([#239](https://github.com/zspacelabs/bunsen/pull/239))
+
 ## [0.37.0](https://github.com/zspacelabs/bunsen/compare/bunsen-bundled-silero-v0.36.1...bunsen-bundled-silero-v0.37.0) - 2026-10-06
 
 ### Added
