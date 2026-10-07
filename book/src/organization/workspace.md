@@ -36,7 +36,7 @@ explains the scheme.
 | Crate | Role |
 |---|---|
 | [`burn_bug_repro`](https://github.com/zspacelabs/bunsen/tree/main/crates/dev/burn_bug_repro) | Reproductions of defects in burn and its ecosystem, each paired with a pin on today's behaviour. See [Upstream bug reproductions](../development/repros.md). |
-| [`clap-common`](https://github.com/zspacelabs/bunsen/tree/main/crates/dev/clap-common) | Shared command-line plumbing (logging, device selection, shard selection, fetch policy) for the examples. |
+| [`bunsen-app`](https://github.com/zspacelabs/bunsen/tree/main/crates/dev/bunsen-app) | Shared command-line plumbing (logging, device selection, shard selection, fetch policy) for the examples. |
 | [`silero-bench`](https://github.com/zspacelabs/bunsen/tree/main/crates/dev/silero-bench) | A benchmark CLI for Silero VAD. See [Benchmarks](../development/benchmarks.md). |
 
 ## Validation crates

@@ -1459,6 +1459,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "bunsen-app"
+version = "0.37.0"
+dependencies = [
+ "bunsen",
+ "burn",
+ "clap",
+ "log",
+ "stderrlog",
+]
+
+[[package]]
 name = "bunsen-arrow-dataloaders"
 version = "0.37.0"
 dependencies = [
@@ -2393,17 +2404,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "clap-common"
-version = "0.37.0"
-dependencies = [
- "bunsen",
- "burn",
- "clap",
- "log",
- "stderrlog",
-]
-
-[[package]]
 name = "clap_builder"
 version = "4.6.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2601,9 +2601,9 @@ name = "conway"
 version = "0.0.0"
 dependencies = [
  "bunsen",
+ "bunsen-app",
  "burn",
  "clap",
- "clap-common",
  "gl 0.14.0",
  "indicatif 0.18.6",
  "log",
@@ -3957,10 +3957,10 @@ name = "dl-test"
 version = "0.0.0"
 dependencies = [
  "bunsen",
+ "bunsen-app",
  "bunsen-arrow-dataloaders",
  "burn",
  "clap",
- "clap-common",
  "humansize",
  "log",
  "rand 0.10.3",
@@ -6413,9 +6413,9 @@ name = "lbm2d_vis"
 version = "0.0.0"
 dependencies = [
  "bunsen",
+ "bunsen-app",
  "burn",
  "clap",
- "clap-common",
  "gl 0.14.0",
  "indicatif 0.18.6",
  "piston",
@@ -9693,9 +9693,9 @@ version = "0.0.0"
 dependencies = [
  "anyhow",
  "bunsen",
+ "bunsen-app",
  "burn",
  "clap",
- "clap-common",
  "csv",
  "flate2",
  "rand 0.10.3",
@@ -9709,11 +9709,11 @@ version = "0.0.0"
 dependencies = [
  "anyhow",
  "bunsen",
+ "bunsen-app",
  "bunsen-firehose",
  "bunsen-firehose-image",
  "burn",
  "clap",
- "clap-common",
  "rand 0.10.3",
  "serde",
 ]
@@ -10679,11 +10679,11 @@ version = "0.0.0"
 dependencies = [
  "anyhow",
  "bunsen",
+ "bunsen-app",
  "bunsen-firehose",
  "bunsen-firehose-image",
  "burn",
  "clap",
- "clap-common",
  "rand 0.10.3",
  "serde",
 ]
@@ -11534,10 +11534,10 @@ version = "0.0.0"
 dependencies = [
  "anyhow",
  "bunsen",
+ "bunsen-app",
  "bunsen-arrow-dataloaders",
  "burn",
  "clap",
- "clap-common",
  "log",
  "num-traits",
  "rand 0.10.3",
@@ -12607,9 +12607,9 @@ name = "whisper-cli"
 version = "0.37.0"
 dependencies = [
  "bunsen",
+ "bunsen-app",
  "burn",
  "clap",
- "clap-common",
  "cpal",
  "ctrlc",
  "log",

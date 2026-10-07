@@ -19,9 +19,17 @@ public API is felt first, so CI builds all of them.
 
 Every example picks its device at run time with `--device` (`auto`, `cuda`,
 `metal`, `vulkan`, `wgpu` or `flex`) and `--device-index`, through
-`clap-common`'s `DeviceArgs`. A backend is offered only when the example was
+`bunsen-app`'s `DeviceArgs`. A backend is offered only when the example was
 built with its cargo feature (`cuda`, `metal`, `vulkan`, `wgpu`); `flex`, the
 CPU, always is, and `auto`, the default, takes the first accelerator built
 in. Each README has the exact command.
+
+`--precision` picks the default float dtype: `auto` is the example's own
+choice, `full` is `f32`, and `half` is the example's half precision, which
+resolves per backend: `bf16` where a training example wants `f32`'s range and
+the backend runs it well, `f16` where any 16-bit float will do, and `f32` on
+the CPU or where the backend lacks the half. `--float-dtype` and `--int-dtype`
+name an exact dtype instead. The training examples also draw burn's terminal
+dashboard (their default `tui` feature) when run in a terminal.
 [Features, backends and the network](./features.md) explains bunsen's own
 backend features and why some examples also need `fetch`.

@@ -23,6 +23,11 @@ use bunsen::{
     },
     support::geometry::GridShape2D,
 };
+use bunsen_app::device::{
+    DeviceArgs,
+    DevicePrefs,
+    Precision,
+};
 use burn::{
     Tensor,
     prelude::{
@@ -33,11 +38,6 @@ use burn::{
     tensor::Device,
 };
 use clap::Parser;
-use clap_common::device::{
-    DeviceArgs,
-    DevicePrefs,
-    Precision,
-};
 use glutin_window::GlutinWindow as Window;
 use indicatif::ProgressBar;
 use opengl_graphics::{
@@ -103,7 +103,7 @@ fn main() {
         .with_precision(Precision::AnyHalf)
         .with_half(Precision::AnyHalf);
     let device = args.device.init(&prefs).unwrap_or_else(|e| panic!("{e}"));
-    println!("{}", clap_common::device::describe(&device));
+    println!("{}", bunsen_app::device::describe(&device));
     run(&args, device);
 }
 

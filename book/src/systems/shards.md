@@ -67,5 +67,5 @@ for a pretrained row that includes a shard set.
 joins the two halves. Its command line selects shards of NanoChat's corpus
 and a fetch policy, it fetches the selection through a `ShardSet`, splits the
 paths into training and validation, and hands each part to a
-`ChatDataLoader`. The shard-selection arguments come from the `clap-common`
+`ChatDataLoader`. The shard-selection arguments come from the `bunsen-app`
 dev crate, and the loader crate's own `dl-test` example uses the same ones.

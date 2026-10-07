@@ -27,6 +27,13 @@ use bunsen::{
     },
     public::hashbrown::HashSet,
 };
+use bunsen_app::{
+    device::{
+        DeviceArgs,
+        DevicePrefs,
+    },
+    shards::ShardArgs,
+};
 use bunsen_arrow_dataloaders::{
     dataloaders::chat::ChatDataLoader,
     tokens::{
@@ -65,13 +72,6 @@ use burn::{
     },
 };
 use clap::Parser;
-use clap_common::{
-    device::{
-        DeviceArgs,
-        DevicePrefs,
-    },
-    shards::ShardArgs,
-};
 use num_traits::Pow;
 use rand::{
     SeedableRng,

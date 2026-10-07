@@ -11,18 +11,21 @@ workspace = true
 
 [features]
 default = ["tui"]
-## burn's terminal dashboard for training metrics, when stdout is a terminal;
-## plain text logs otherwise, or without this feature.
-tui = ["burn/tui"]
-wgpu = ["burn/wgpu", "clap-common/wgpu"]
-cuda = ["burn/cuda", "clap-common/cuda"]
-metal = ["burn/metal", "clap-common/metal"]
-
+## burn's terminal dashboard for training metrics, when stdout is a terminal.
+tui = ["bunsen-app/tui"]
+## Make `--device cuda` available.
+cuda = ["bunsen-app/cuda"]
+## Make `--device metal` available.
+metal = ["bunsen-app/metal"]
+## Make `--device vulkan` available.
+vulkan = ["bunsen-app/vulkan"]
+## Make `--device wgpu` available.
+wgpu = ["bunsen-app/wgpu"]
 
 [dependencies]
 # `--device`.
-clap-common = { path = "../../crates/dev/clap-common" }
-burn = { workspace = true, features = ["train", "fusion", "autotune", "vision", "dataset", "flex"] }
+bunsen-app = { path = "../../crates/dev/bunsen-app" }
+burn = { workspace = true, features = ["train", "fusion", "autotune", "vision", "dataset"] }
 bunsen = { path = "../../crates/public/bunsen", features = ["indicatif"] }
 bunsen-firehose = { path = "../../crates/public/bunsen-firehose" }
 bunsen-firehose-image = { path = "../../crates/public/bunsen-firehose-image" }

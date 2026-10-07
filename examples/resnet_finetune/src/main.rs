@@ -29,6 +29,10 @@ use bunsen::{
         },
     },
 };
+use bunsen_app::device::{
+    DeviceArgs,
+    DevicePrefs,
+};
 use burn::{
     config::Config,
     data::{
@@ -86,10 +90,6 @@ use burn::{
 use clap::{
     Parser,
     ValueEnum,
-};
-use clap_common::device::{
-    DeviceArgs,
-    DevicePrefs,
 };
 
 use crate::{

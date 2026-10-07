@@ -27,6 +27,11 @@ use bunsen::{
         },
     },
 };
+use bunsen_app::device::{
+    DeviceArgs,
+    DevicePrefs,
+    Precision,
+};
 use bunsen_firehose::{
     burn_support::{
         batcher::{
@@ -106,11 +111,6 @@ use burn::{
     },
 };
 use clap::Parser;
-use clap_common::device::{
-    DeviceArgs,
-    DevicePrefs,
-    Precision,
-};
 use rand::{
     RngExt,
     rng,

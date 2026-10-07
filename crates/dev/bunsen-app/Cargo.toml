@@ -1,5 +1,6 @@
 [package]
-name = "clap-common"
+name = "bunsen-app"
+description = "Shared command-line plumbing for bunsen's example binaries: device and precision selection, logging, shard selection."
 authors.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -25,6 +26,9 @@ metal = ["burn/metal"]
 vulkan = ["burn/vulkan"]
 ## Make `--device wgpu` available.
 wgpu = ["burn/wgpu"]
+## burn's terminal dashboard for training metrics, drawn when stdout is a
+## terminal; plain text logs otherwise.
+tui = ["burn/tui"]
 
 [lints]
 workspace = true

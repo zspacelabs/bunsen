@@ -35,7 +35,7 @@ use bunsen::{
         },
     },
 };
-use clap_common::logging::{
+use bunsen_app::logging::{
     LogArgs,
     LogLevelNum,
 };

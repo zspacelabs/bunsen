@@ -53,8 +53,8 @@ use bunsen::{
     },
     ops::signal::perceptive_audio::PerceptiveAudioConverterMeta,
 };
+use bunsen_app::device::BackendArgs;
 use burn::tensor::Device;
-use clap_common::device::BackendArgs;
 
 /// Where fetched weights live, and whether fetching is allowed.
 #[derive(clap::Args, Debug)]

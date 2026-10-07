@@ -7,16 +7,16 @@ use bunsen::{
     errors::BunsenResult,
     prelude::TensorOpExt,
 };
+use bunsen_app::device::{
+    DeviceArgs,
+    DevicePrefs,
+    Precision,
+};
 use burn::tensor::{
     Device,
     IntDType,
 };
 use clap::Parser;
-use clap_common::device::{
-    DeviceArgs,
-    DevicePrefs,
-    Precision,
-};
 use piston::{
     EventLoop,
     OpenGLWindow,
@@ -66,7 +66,7 @@ fn main() -> BunsenResult<()> {
         .with_half(Precision::AnyHalf)
         .with_ints([IntDType::I8, IntDType::I32]);
     let device = args.device.init(&prefs).unwrap_or_else(|e| panic!("{e}"));
-    eprintln!("{}", clap_common::device::describe(&device));
+    eprintln!("{}", bunsen_app::device::describe(&device));
 
     args.command.run(&device)
 }

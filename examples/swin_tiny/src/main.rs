@@ -18,6 +18,10 @@ use bunsen::{
         SwinTransformerV2ContractConfig,
     },
 };
+use bunsen_app::device::{
+    DeviceArgs,
+    DevicePrefs,
+};
 use bunsen_firehose::{
     burn_support::{
         batcher::{
@@ -94,10 +98,6 @@ use burn::{
     },
 };
 use clap::Parser;
-use clap_common::device::{
-    DeviceArgs,
-    DevicePrefs,
-};
 use rand::{
     RngExt,
     rng,

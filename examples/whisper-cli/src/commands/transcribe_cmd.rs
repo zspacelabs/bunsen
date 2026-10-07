@@ -11,7 +11,7 @@ use bunsen::{
     kits::speech::whisper::driver::PresetEmissionPolicy,
     support::audio::load_audio_mono_sr,
 };
-use clap_common::logging::{
+use bunsen_app::logging::{
     LogArgs,
     LogLevelNum,
 };

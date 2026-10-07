@@ -9,19 +9,20 @@ workspace = true
 
 
 [features]
-default = ["flex"]
-cuda = ["burn/cuda", "clap-common/cuda"]
-metal = ["burn/metal", "clap-common/metal"]
-vulkan = ["burn/vulkan", "clap-common/vulkan"]
-wgpu = ["burn/wgpu", "clap-common/wgpu"]
-flex = ["burn/flex"]
-
+## Make `--device cuda` available.
+cuda = ["bunsen-app/cuda"]
+## Make `--device metal` available.
+metal = ["bunsen-app/metal"]
+## Make `--device vulkan` available.
+vulkan = ["bunsen-app/vulkan"]
+## Make `--device wgpu` available.
+wgpu = ["bunsen-app/wgpu"]
 
 [dependencies]
 burn = { workspace = true, features = ["fusion"] }
 bunsen = { path = "../../crates/public/bunsen" }
 # `--device`.
-clap-common = { path = "../../crates/dev/clap-common" }
+bunsen-app = { path = "../../crates/dev/bunsen-app" }
 
 clap = { workspace = true, features = ["derive"] }
 indicatif = { workspace = true }
