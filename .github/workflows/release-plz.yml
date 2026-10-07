@@ -6,6 +6,8 @@ name: release-plz
 #                  regenerates the per-crate CHANGELOG.md files.
 #   * release    — once that PR is merged, publishes the crates to crates.io and
 #                  creates the git tags + GitHub releases.
+#   * book       — after a release, builds the book at the release commit and
+#                  publishes it to GitHub Pages (book.yml).
 #
 # Required configuration (one-time):
 #   * Repository secret CARGO_REGISTRY_TOKEN — a crates.io API token
@@ -43,6 +45,8 @@ jobs:
   release:
     name: release-plz release
     runs-on: ubuntu-latest
+    outputs:
+      releases_created: ${{ steps.release-plz.outputs.releases_created }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -51,12 +55,23 @@ jobs:
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
       - name: Run release-plz
+        id: release-plz
         uses: release-plz/action@v0.5
         with:
           command: release
         env:
           GITHUB_TOKEN: ${{ secrets.RELEASE_PLZ_WORKFLOW || secrets.GITHUB_TOKEN }}
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+
+  # Publish the book for the release just made. `github.sha` is the merged
+  # release PR's commit, the one the release tags point at.
+  book:
+    name: Publish the book
+    needs: release
+    if: needs.release.outputs.releases_created == 'true'
+    uses: ./.github/workflows/book.yml
+    with:
+      ref: ${{ github.sha }}
 
   # Keep the release PR up to date on every push to main.
   release-pr:
