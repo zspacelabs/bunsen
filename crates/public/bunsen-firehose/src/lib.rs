@@ -77,6 +77,7 @@
 //! ```
 //! use std::sync::Arc;
 //!
+//! use bunsen::errors::BunsenResult;
 //! use serde::{Deserialize, Serialize};
 //!
 //! use bunsen_firehose::core::{
@@ -104,7 +105,7 @@
 //! }
 //!
 //! impl FirehoseOperator for Add {
-//!     fn apply_to_row(&self, txn: &mut FirehoseRowTransaction) -> anyhow::Result<()> {
+//!     fn apply_to_row(&self, txn: &mut FirehoseRowTransaction) -> BunsenResult<()> {
 //!         let x = txn.expect_get_parsed::<i64>("x");
 //!         let y = txn.expect_get_parsed::<i64>("y");
 //!         txn.expect_set_serialized("result", x + y + self.bias);
@@ -112,7 +113,7 @@
 //!     }
 //! }
 //!
-//! fn main() -> anyhow::Result<()> {
+//! fn main() -> BunsenResult<()> {
 //!     // An environment maps operator ids to factories that build operators
 //!     // from their (JSON) config.
 //!     let factory: Arc<SimpleConfigOperatorFactory<Add>> =

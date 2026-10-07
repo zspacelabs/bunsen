@@ -1,4 +1,5 @@
 //! Image to tensor data conversion functions.
+use bunsen::errors::BunsenResult;
 use bunsen_firehose::core::{
     FirehoseRowReader,
     FirehoseRowWriter,
@@ -59,7 +60,7 @@ impl FirehoseOperator for ImageToTensorData {
     fn apply_to_row(
         &self,
         txn: &mut FirehoseRowTransaction,
-    ) -> anyhow::Result<()> {
+    ) -> BunsenResult<()> {
         let image: &DynamicImage = txn.expect_get_ref("image");
 
         let height = image.height() as usize;

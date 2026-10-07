@@ -12,6 +12,7 @@
 //! applied directly:
 //!
 //! ```
+//! use bunsen::errors::BunsenResult;
 //! use bunsen_firehose_image::augmentation::{
 //!     AugmentationStage,
 //!     ImageAugContext,
@@ -26,7 +27,7 @@
 //!     rngs::StdRng,
 //! };
 //!
-//! fn main() -> anyhow::Result<()> {
+//! fn main() -> BunsenResult<()> {
 //!     let stage = HorizontalFlipStage::new();
 //!
 //!     // The context carries a seeded RNG; stages draw from it for randomness.
@@ -47,7 +48,12 @@ use std::{
     sync::Arc,
 };
 
-use anyhow::Context;
+use bunsen::errors::{
+    BunsenError,
+    BunsenErrorKind,
+    BunsenResult,
+    LookupError,
+};
 use bunsen_firehose::{
     core::{
         FirehoseRowReader,
@@ -77,6 +83,7 @@ use rand::SeedableRng;
 use serde::{
     Deserialize,
     Serialize,
+    de::DeserializeOwned,
 };
 
 pub mod control;
@@ -131,7 +138,7 @@ pub struct AugmentationStageGlobalRegistration {
     pub build_stage: fn(
         config: &AugmentationStageConfig,
         builder: &dyn PluginBuilder,
-    ) -> anyhow::Result<Arc<dyn AugmentationStage>>,
+    ) -> BunsenResult<Arc<dyn AugmentationStage>>,
 }
 
 /// Builder for the `PluginConfig` to `ImageAugPlugin` path.
@@ -140,13 +147,13 @@ pub trait PluginBuilder {
     fn build_stage(
         &self,
         config: &AugmentationStageConfig,
-    ) -> anyhow::Result<Arc<dyn AugmentationStage>>;
+    ) -> BunsenResult<Arc<dyn AugmentationStage>>;
 
     /// Build a vector of
     fn build_stage_vector(
         &self,
         configs: &Vec<AugmentationStageConfig>,
-    ) -> anyhow::Result<Vec<Arc<dyn AugmentationStage>>> {
+    ) -> BunsenResult<Vec<Arc<dyn AugmentationStage>>> {
         let mut plugins = Vec::with_capacity(configs.len());
         for config in configs {
             plugins.push(self.build_stage(config)?);
@@ -161,7 +168,7 @@ pub trait WithAugmentationStageBuilder {
     fn build_stage(
         config: &AugmentationStageConfig,
         builder: &dyn PluginBuilder,
-    ) -> anyhow::Result<Arc<dyn AugmentationStage>>;
+    ) -> BunsenResult<Arc<dyn AugmentationStage>>;
 }
 
 /// Global plugin registry builder.
@@ -171,13 +178,21 @@ impl PluginBuilder for GlobalRegistryBuilder {
     fn build_stage(
         &self,
         config: &AugmentationStageConfig,
-    ) -> anyhow::Result<Arc<dyn AugmentationStage>> {
+    ) -> BunsenResult<Arc<dyn AugmentationStage>> {
         let name = config.name.as_str();
 
         let reg = inventory::iter::<AugmentationStageGlobalRegistration>
             .into_iter()
             .find(|reg| reg.name == name)
-            .ok_or_else(|| anyhow::anyhow!("No plugin named {}", name))?;
+            .ok_or_else(|| {
+                BunsenError::lookup(
+                    LookupError::missing("augmentation stage", name).with_candidates(
+                        inventory::iter::<AugmentationStageGlobalRegistration>
+                            .into_iter()
+                            .map(|reg| reg.name),
+                    ),
+                )
+            })?;
 
         (reg.build_stage)(config, self)
     }
@@ -232,7 +247,7 @@ pub trait AugmentationStage: Debug + Send + Sync {
         &self,
         image: DynamicImage,
         ctx: &mut ImageAugContext,
-    ) -> anyhow::Result<DynamicImage>;
+    ) -> BunsenResult<DynamicImage>;
 }
 
 /// Serializable config for name and body for `AugmentationStage`.
@@ -244,6 +259,21 @@ pub struct AugmentationStageConfig {
     /// The body of the plugin.
     #[serde(default, skip_serializing_if = "serde_json::Value::is_null")]
     pub body: serde_json::Value,
+}
+
+impl AugmentationStageConfig {
+    /// Parses the body as a stage's config `T`.
+    ///
+    /// # Errors
+    ///
+    /// [`Illegal`](BunsenErrorKind::Illegal), with the `serde_json::Error` as
+    /// the cause, if the body is not a `T`.
+    pub fn parse_body<T: DeserializeOwned>(&self) -> BunsenResult<T> {
+        serde_json::from_value(self.body.clone()).map_err(|e| {
+            BunsenError::from_cause(BunsenErrorKind::Illegal, e)
+                .context(format!("parsing the {:?} stage config", self.name))
+        })
+    }
 }
 
 /// Image augmentation operator.
@@ -318,16 +348,17 @@ impl FirehoseOperatorFactory for AugmentImageOperatorFactory {
     fn init(
         &self,
         context: &dyn FirehoseOperatorInitContext,
-    ) -> anyhow::Result<Box<dyn FirehoseOperator>> {
+    ) -> BunsenResult<Box<dyn FirehoseOperator>> {
         let config = &context.build_plan().config;
-        let cfg: AugmentImageConfig =
-            serde_json::from_value(config.clone()).with_context(|| {
+        let cfg: AugmentImageConfig = serde_json::from_value(config.clone()).map_err(|e| {
+            BunsenError::from_cause(BunsenErrorKind::Illegal, e).context_details(
                 format!(
-                    "Failed to deserialize operator config for {}: {}",
+                    "deserializing the operator config for {}",
                     self.signature.operator_id.as_deref().unwrap_or("unknown"),
-                    serde_json::to_string_pretty(config).unwrap()
-                )
-            })?;
+                ),
+                format!("{config:#}"),
+            )
+        })?;
 
         let builder = GlobalRegistryBuilder {};
         let stages = builder.build_stage_vector(&cfg.stages)?;
@@ -382,7 +413,7 @@ impl FirehoseOperator for AugmentImageOperation {
     fn apply_to_row(
         &self,
         txn: &mut FirehoseRowTransaction,
-    ) -> anyhow::Result<()> {
+    ) -> BunsenResult<()> {
         let mut image = txn.expect_get_ref::<DynamicImage>("source").clone();
         let mut ctx = ImageAugContext::new(rand::rngs::StdRng::seed_from_u64(
             txn.expect_get_parsed("seed"),
@@ -400,6 +431,13 @@ impl FirehoseOperator for AugmentImageOperation {
 
 #[cfg(test)]
 mod tests {
+    use bunsen::errors::{
+        LookupProblem,
+        testing::{
+            ErrorMatcher,
+            predicate,
+        },
+    };
     use serde_json::json;
 
     use super::*;
@@ -409,7 +447,39 @@ mod tests {
     };
 
     #[test]
-    fn test_plugin_builder() -> anyhow::Result<()> {
+    fn test_plugin_builder_errors() {
+        let builder = GlobalRegistryBuilder {};
+
+        ErrorMatcher::kind(BunsenErrorKind::Lookup)
+            .cause(predicate("a missing \"nope\"", |l: &LookupError| {
+                l.key == "nope"
+                    && l.problem == LookupProblem::Missing
+                    && l.candidates.iter().any(|c| c == NOOP_STAGE)
+            }))
+            .assert_err(
+                &builder
+                    .build_stage(&AugmentationStageConfig {
+                        name: "nope".to_string(),
+                        body: serde_json::Value::Null,
+                    })
+                    .map(|_| ()),
+            );
+
+        ErrorMatcher::kind(BunsenErrorKind::Illegal)
+            .frame_contains(STAGE_SEQUENCE)
+            .has_cause::<serde_json::Error>()
+            .assert_err(
+                &builder
+                    .build_stage(&AugmentationStageConfig {
+                        name: STAGE_SEQUENCE.to_string(),
+                        body: json!({ "stages": 3 }),
+                    })
+                    .map(|_| ()),
+            );
+    }
+
+    #[test]
+    fn test_plugin_builder() -> BunsenResult<()> {
         let cfg_json = json! {
             {
                 "name": STAGE_SEQUENCE,
@@ -422,17 +492,17 @@ mod tests {
                 }
             }
         };
-        let pretty = serde_json::to_string_pretty(&cfg_json)?;
+        let pretty = serde_json::to_string_pretty(&cfg_json).unwrap();
         println!("{pretty}");
 
-        let cfg = serde_json::from_value::<AugmentationStageConfig>(cfg_json.clone())?;
+        let cfg = serde_json::from_value::<AugmentationStageConfig>(cfg_json.clone()).unwrap();
 
         let builder = GlobalRegistryBuilder {};
 
         let plugin = builder.build_stage(&cfg)?;
 
         let new_cfg = plugin.as_config();
-        let new_pretty = serde_json::to_string_pretty(&new_cfg)?;
+        let new_pretty = serde_json::to_string_pretty(&new_cfg).unwrap();
         println!("{new_pretty}");
 
         // assert!(false);

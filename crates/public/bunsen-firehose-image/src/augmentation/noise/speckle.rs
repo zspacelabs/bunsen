@@ -1,6 +1,7 @@
 //! Image speckle noise stages.
 use std::sync::Arc;
 
+use bunsen::errors::BunsenResult;
 use image::{
     DynamicImage,
     GenericImage,
@@ -47,10 +48,8 @@ impl WithAugmentationStageBuilder for SpeckleStage {
     fn build_stage(
         config: &AugmentationStageConfig,
         _builder: &dyn PluginBuilder,
-    ) -> anyhow::Result<Arc<dyn AugmentationStage>> {
-        Ok(Arc::new(serde_json::from_value::<SpeckleStage>(
-            config.body.clone(),
-        )?))
+    ) -> BunsenResult<Arc<dyn AugmentationStage>> {
+        Ok(Arc::new(config.parse_body::<SpeckleStage>()?))
     }
 }
 
@@ -67,7 +66,7 @@ impl AugmentationStage for SpeckleStage {
         &self,
         image: DynamicImage,
         _ctx: &mut ImageAugContext,
-    ) -> anyhow::Result<DynamicImage> {
+    ) -> BunsenResult<DynamicImage> {
         Ok(match self {
             SpeckleStage::Uniform { density } => {
                 let mut image = image.clone();

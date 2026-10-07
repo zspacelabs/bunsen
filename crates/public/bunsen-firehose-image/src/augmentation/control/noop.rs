@@ -1,6 +1,7 @@
 //! Stage that does nothing.
 use std::sync::Arc;
 
+use bunsen::errors::BunsenResult;
 use image::DynamicImage;
 use serde::{
     Deserialize,
@@ -29,10 +30,8 @@ impl WithAugmentationStageBuilder for NoOpStage {
     fn build_stage(
         config: &AugmentationStageConfig,
         _builder: &dyn PluginBuilder,
-    ) -> anyhow::Result<Arc<dyn AugmentationStage>> {
-        Ok(Arc::new(serde_json::from_value::<NoOpStage>(
-            config.body.clone(),
-        )?))
+    ) -> BunsenResult<Arc<dyn AugmentationStage>> {
+        Ok(Arc::new(config.parse_body::<NoOpStage>()?))
     }
 }
 
@@ -49,7 +48,7 @@ impl AugmentationStage for NoOpStage {
         &self,
         image: DynamicImage,
         _ctx: &mut ImageAugContext,
-    ) -> anyhow::Result<DynamicImage> {
+    ) -> BunsenResult<DynamicImage> {
         Ok(image)
     }
 }

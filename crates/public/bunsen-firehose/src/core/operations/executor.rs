@@ -3,6 +3,8 @@ use std::{
     sync::Arc,
 };
 
+use bunsen::errors::BunsenResult;
+
 use crate::core::{
     operations::{
         environment::FirehoseOperatorEnvironment,
@@ -24,7 +26,7 @@ pub trait FirehoseBatchExecutor: Debug + Send + Sync {
     fn execute_batch(
         &self,
         batch: &mut FirehoseRowBatch,
-    ) -> anyhow::Result<()>;
+    ) -> BunsenResult<()>;
 }
 
 /// A sequential batch executor.
@@ -54,7 +56,7 @@ impl SequentialBatchExecutor {
     pub fn new(
         schema: Arc<FirehoseTableSchema>,
         environment: Arc<dyn FirehoseOperatorEnvironment>,
-    ) -> anyhow::Result<Self> {
+    ) -> BunsenResult<Self> {
         let mut op_runners = Vec::new();
         let (_base, build_order) = schema.build_order()?;
         for plan in &build_order {
@@ -86,7 +88,7 @@ impl FirehoseBatchExecutor for SequentialBatchExecutor {
     fn execute_batch(
         &self,
         batch: &mut FirehoseRowBatch,
-    ) -> anyhow::Result<()> {
+    ) -> BunsenResult<()> {
         for runner in &self.op_runners {
             runner.apply_to_batch(batch)?;
         }
@@ -129,7 +131,7 @@ impl ThreadedBatchExecutor {
         num_workers: usize,
         schema: Arc<FirehoseTableSchema>,
         environment: Arc<dyn FirehoseOperatorEnvironment>,
-    ) -> anyhow::Result<Self> {
+    ) -> BunsenResult<Self> {
         let mut op_runners = Vec::new();
         let (_base, build_order) = schema.build_order()?;
         for plan in &build_order {
@@ -169,7 +171,7 @@ impl FirehoseBatchExecutor for ThreadedBatchExecutor {
     fn execute_batch(
         &self,
         batch: &mut FirehoseRowBatch,
-    ) -> anyhow::Result<()> {
+    ) -> BunsenResult<()> {
         let chunk_size = batch.len() / self.num_workers;
         for idx in 0..self.num_workers {
             let mut chunk = batch.empty_like();

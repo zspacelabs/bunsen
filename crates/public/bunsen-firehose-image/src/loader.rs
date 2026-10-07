@@ -10,6 +10,11 @@
 //! ```
 //! use std::sync::Arc;
 //!
+//! use bunsen::errors::{
+//!     BunsenError,
+//!     BunsenResult,
+//!     sys_op,
+//! };
 //! use bunsen_firehose::{
 //!     core::{
 //!         FirehoseRowBatch,
@@ -38,7 +43,7 @@
 //!     RgbImage,
 //! };
 //!
-//! fn main() -> anyhow::Result<()> {
+//! fn main() -> BunsenResult<()> {
 //!     let env = Arc::new(init_default_operator_environment());
 //!
 //!     let mut schema =
@@ -55,9 +60,11 @@
 //!         .apply_to_schema(&mut schema, env.as_ref())?;
 //!     let schema = Arc::new(schema);
 //!
-//!     let dir = tempfile::tempdir()?;
+//!     let dir = tempfile::tempdir().map_err(sys_op("create a temp dir"))?;
 //!     let path = dir.path().join("img.png");
-//!     DynamicImage::from(RgbImage::new(20, 20)).save(&path)?;
+//!     DynamicImage::from(RgbImage::new(20, 20))
+//!         .save(&path)
+//!         .map_err(BunsenError::other)?;
 //!
 //!     let executor =
 //!         SequentialBatchExecutor::new(schema.clone(), env.clone())?;
@@ -77,7 +84,12 @@
 //!     Ok(())
 //! }
 //! ```
-use anyhow::Context;
+use bunsen::errors::{
+    BunsenError,
+    BunsenErrorKind,
+    BunsenResult,
+    sys_at,
+};
 use bunsen_firehose::{
     core::{
         FirehoseRowReader,
@@ -256,11 +268,10 @@ impl FirehoseOperator for ImageLoader {
     fn apply_to_row(
         &self,
         txn: &mut FirehoseRowTransaction,
-    ) -> anyhow::Result<()> {
+    ) -> BunsenResult<()> {
         let path = txn.maybe_get("path").unwrap().parse_as::<String>()?;
 
-        let mut image = image::open(path.clone())
-            .with_context(|| format!("Failed to load image from path: {path}"))?;
+        let mut image = image::open(&path).map_err(|e| open_error(&path, e))?;
 
         if let Some(spec) = &self.resize
             && (image.width() != spec.shape.width || image.height() != spec.shape.height)
@@ -279,11 +290,36 @@ impl FirehoseOperator for ImageLoader {
     }
 }
 
+/// Sorts an `image::open` failure on `path` into a [`BunsenError`].
+///
+/// An I/O failure sorts by its `io::Error`, through [`sys_at`]: a missing or
+/// unreadable file is a [`Lookup`](BunsenErrorKind::Lookup). A format the
+/// build cannot decode is [`Unsupported`](BunsenErrorKind::Unsupported), and a
+/// file that does not decode is
+/// [`InvalidResource`](BunsenErrorKind::InvalidResource).
+fn open_error(
+    path: &str,
+    error: image::ImageError,
+) -> BunsenError {
+    match error {
+        image::ImageError::IoError(e) => sys_at("open image", path)(e),
+        image::ImageError::Unsupported(_) => {
+            BunsenError::from_cause(BunsenErrorKind::Unsupported, error)
+                .context(format!("opening image {path}"))
+        }
+        _ => BunsenError::from_cause(BunsenErrorKind::InvalidResource, error)
+            .context(format!("opening image {path}")),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use std::sync::Arc;
 
-    use anyhow::Context;
+    use bunsen::errors::{
+        sys_op,
+        testing::ErrorMatcher,
+    };
     use bunsen_firehose::{
         core::{
             FirehoseRowBatch,
@@ -310,9 +346,33 @@ mod tests {
     };
 
     #[test]
-    fn test_image_loader() -> anyhow::Result<()> {
-        let temp_dir =
-            tempfile::tempdir().with_context(|| "Failed to create temporary directory")?;
+    fn test_open_error_kinds() {
+        let temp_dir = tempfile::tempdir().unwrap();
+
+        let missing = temp_dir
+            .path()
+            .join("missing.png")
+            .to_string_lossy()
+            .to_string();
+        ErrorMatcher::kind(BunsenErrorKind::Lookup)
+            .has_cause::<std::io::Error>()
+            .assert(&open_error(&missing, image::open(&missing).unwrap_err()));
+
+        let junk = temp_dir
+            .path()
+            .join("junk.png")
+            .to_string_lossy()
+            .to_string();
+        std::fs::write(&junk, b"not a png").unwrap();
+        ErrorMatcher::kind(BunsenErrorKind::InvalidResource)
+            .frame_contains("opening image")
+            .has_cause::<image::ImageError>()
+            .assert(&open_error(&junk, image::open(&junk).unwrap_err()));
+    }
+
+    #[test]
+    fn test_image_loader() -> BunsenResult<()> {
+        let temp_dir = tempfile::tempdir().map_err(sys_op("create a temp dir"))?;
 
         let image_path = temp_dir
             .path()

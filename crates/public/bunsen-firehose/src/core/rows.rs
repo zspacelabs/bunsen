@@ -11,7 +11,11 @@ use std::{
     vec::Drain,
 };
 
-use anyhow::Context;
+use bunsen::errors::{
+    BunsenError,
+    BunsenResult,
+    LookupError,
+};
 use serde::{
     Serialize,
     de::DeserializeOwned,
@@ -156,14 +160,15 @@ pub trait FirehoseRowReader {
     ///
     /// # Returns
     ///
-    /// An `anyhow::Result<&FirehoseValue>` reference to the column value; or an
-    /// error.
+    /// A `BunsenResult<&FirehoseValue>` reference to the column value; or a
+    /// [`Lookup`](bunsen::errors::BunsenErrorKind::Lookup) error, if the
+    /// column is not in the schema or holds no value.
     fn try_get(
         &self,
         column_name: &str,
-    ) -> anyhow::Result<&FirehoseValue> {
+    ) -> BunsenResult<&FirehoseValue> {
         self.maybe_get(column_name)
-            .with_context(|| format!("Column not found: {}", column_name))
+            .ok_or_else(|| BunsenError::lookup(LookupError::missing("row column", column_name)))
     }
 
     /// Gets the column.
@@ -700,8 +705,8 @@ impl<'a> FirehoseBatchTransaction<'a> {
     ///
     /// # Returns
     ///
-    /// An `anyhow::Result<()>` indicating success or failure.
-    pub fn commit(mut self) -> anyhow::Result<()> {
+    /// A `BunsenResult<()>` indicating success or failure.
+    pub fn commit(mut self) -> BunsenResult<()> {
         for (original, update) in self.original.iter_mut().zip(self.updates.iter_mut()) {
             for target_column in self.build_plan.outputs.values() {
                 // Transfer the ownership of the value from the update row to
@@ -959,7 +964,7 @@ mod tests {
     }
 
     #[test]
-    fn test_row_mutation() -> anyhow::Result<()> {
+    fn test_row_mutation() -> BunsenResult<()> {
         let schema = Arc::new(FirehoseTableSchema::from_columns(&[
             ColumnSchema::new::<i32>("foo"),
             ColumnSchema::new::<MyStruct>("bar"),
@@ -1013,7 +1018,7 @@ mod tests {
     }
 
     #[test]
-    fn test_set_columns() -> anyhow::Result<()> {
+    fn test_set_columns() -> BunsenResult<()> {
         let schema = Arc::new(FirehoseTableSchema::from_columns(&[
             ColumnSchema::new::<i32>("foo"),
             ColumnSchema::new::<String>("bar"),
@@ -1078,7 +1083,7 @@ mod tests {
     }
 
     #[test]
-    fn test_batch_transaction() -> anyhow::Result<()> {
+    fn test_batch_transaction() -> BunsenResult<()> {
         let mut schema = FirehoseTableSchema::from_columns(&[
             ColumnSchema::new::<i32>("foo"),
             ColumnSchema::new::<String>("bar"),

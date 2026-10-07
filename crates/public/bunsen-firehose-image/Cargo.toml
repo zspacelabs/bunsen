@@ -30,7 +30,7 @@ bunsen-firehose = { version = "0.37.0", path = "../bunsen-firehose" }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
 
-anyhow = { workspace = true }
+bunsen = { version = "0.37.0", path = "../bunsen", default-features = false, features = ["std"] }
 
 rand = { workspace = true, features = ["std"] }
 inventory = { workspace = true }

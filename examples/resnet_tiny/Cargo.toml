@@ -34,5 +34,4 @@ serde = { workspace = true, features = ["derive"] }
 clap = { workspace = true, features = ["derive"] }
 
 rand = { workspace = true }
-anyhow = { workspace = true }
 

@@ -44,6 +44,11 @@
 //! ```
 //! use std::sync::Arc;
 //!
+//! use bunsen::errors::{
+//!     BunsenError,
+//!     BunsenResult,
+//!     sys_op,
+//! };
 //! use bunsen_firehose::{
 //!     core::{
 //!         FirehoseRowBatch,
@@ -74,7 +79,7 @@
 //!     RgbImage,
 //! };
 //!
-//! fn main() -> anyhow::Result<()> {
+//! fn main() -> BunsenResult<()> {
 //!     // Every image operator registers itself globally; this collects them
 //!     // (LOAD_IMAGE, IMAGE_TO_TENSOR_DATA, AUGMENT_IMAGE, ...) into one env.
 //!     let env = Arc::new(init_default_operator_environment());
@@ -99,9 +104,11 @@
 //!     let schema = Arc::new(schema);
 //!
 //!     // Write a throwaway PNG to feed the pipeline.
-//!     let dir = tempfile::tempdir()?;
+//!     let dir = tempfile::tempdir().map_err(sys_op("create a temp dir"))?;
 //!     let path = dir.path().join("img.png");
-//!     DynamicImage::from(RgbImage::new(32, 32)).save(&path)?;
+//!     DynamicImage::from(RgbImage::new(32, 32))
+//!         .save(&path)
+//!         .map_err(BunsenError::other)?;
 //!
 //!     let executor =
 //!         SequentialBatchExecutor::new(schema.clone(), env.clone())?;
@@ -164,9 +171,12 @@ pub use image::ColorType;
 mod tests {
     use std::sync::Arc;
 
-    use bunsen::support::testing::{
-        DeviceMemoryGuard,
-        performance_device,
+    use bunsen::{
+        errors::BunsenResult,
+        support::testing::{
+            DeviceMemoryGuard,
+            performance_device,
+        },
     };
     use bunsen_firehose::{
         core::{
@@ -209,7 +219,7 @@ mod tests {
 
     #[test]
     #[serial_test::serial]
-    fn test_example() -> anyhow::Result<()> {
+    fn test_example() -> BunsenResult<()> {
         let temp_dir = tempfile::tempdir().unwrap();
 
         let device = performance_device();

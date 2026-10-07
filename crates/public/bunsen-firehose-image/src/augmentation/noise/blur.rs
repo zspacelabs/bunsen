@@ -1,6 +1,7 @@
 //! Image blur stages.
 use std::sync::Arc;
 
+use bunsen::errors::BunsenResult;
 use image::DynamicImage;
 use serde::{
     Deserialize,
@@ -41,10 +42,8 @@ impl WithAugmentationStageBuilder for BlurStage {
     fn build_stage(
         config: &AugmentationStageConfig,
         _builder: &dyn PluginBuilder,
-    ) -> anyhow::Result<Arc<dyn AugmentationStage>> {
-        Ok(Arc::new(serde_json::from_value::<BlurStage>(
-            config.body.clone(),
-        )?))
+    ) -> BunsenResult<Arc<dyn AugmentationStage>> {
+        Ok(Arc::new(config.parse_body::<BlurStage>()?))
     }
 }
 
@@ -61,7 +60,7 @@ impl AugmentationStage for BlurStage {
         &self,
         image: DynamicImage,
         _ctx: &mut ImageAugContext,
-    ) -> anyhow::Result<DynamicImage> {
+    ) -> BunsenResult<DynamicImage> {
         Ok(match self {
             BlurStage::Gaussian { sigma } => image.blur(*sigma),
         })

@@ -1,5 +1,6 @@
 use std::collections::BTreeMap;
 
+use bunsen::errors::BunsenResult;
 use serde::{
     Deserialize,
     Serialize,
@@ -125,11 +126,11 @@ impl OperationPlan {
     ///
     /// # Returns
     ///
-    /// An `anyhow::Result` of (`BuildPlan`, { column: `ColumnSchema`}).
+    /// A `BunsenResult` of (`BuildPlan`, { column: `ColumnSchema`}).
     pub fn plan_for_signature(
         self,
         signature: &FirehoseOperatorSignature,
-    ) -> anyhow::Result<(BuildPlan, BTreeMap<String, ColumnSchema>)> {
+    ) -> BunsenResult<(BuildPlan, BTreeMap<String, ColumnSchema>)> {
         let mut plan = BuildPlan::for_operator(self.operator_id);
         plan.inputs = self.inputs.clone();
         plan.outputs = self.outputs.clone();
@@ -163,7 +164,7 @@ impl OperationPlan {
         self,
         schema: &mut FirehoseTableSchema,
         env: &dyn FirehoseOperatorEnvironment,
-    ) -> anyhow::Result<BuildPlan> {
+    ) -> BunsenResult<BuildPlan> {
         env.apply_plan_to_schema(schema, self)
     }
 }

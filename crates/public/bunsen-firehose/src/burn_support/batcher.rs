@@ -1,6 +1,10 @@
 use std::sync::Arc;
 
-use anyhow::Context;
+use bunsen::errors::{
+    BunsenResult,
+    ResultContext,
+    WithOkOrPanic,
+};
 use burn::{
     data::dataloader::batcher::Batcher,
     tensor::Device,
@@ -21,7 +25,7 @@ where
     fn apply(
         &self,
         inputs: Vec<I>,
-    ) -> anyhow::Result<FirehoseRowBatch>;
+    ) -> BunsenResult<FirehoseRowBatch>;
 }
 
 /// Output Adapter for [`FirehoseExecutorBatcher`]: turns the executed row
@@ -35,7 +39,7 @@ where
         &self,
         batch: &FirehoseRowBatch,
         device: &Device,
-    ) -> anyhow::Result<O>;
+    ) -> BunsenResult<O>;
 }
 
 /// Firehose Row Burn Batcher.
@@ -91,17 +95,17 @@ where
     ///
     /// # Returns
     ///
-    /// An `anyhow::Result` containing the output of type `O`.
+    /// A `BunsenResult` containing the output of type `O`.
     fn batch_result(
         &self,
         items: Vec<I>,
         device: &Device,
-    ) -> anyhow::Result<O> {
+    ) -> BunsenResult<O> {
         let mut batch = self.input_adapter.apply(items)?;
 
         self.executor
             .execute_batch(&mut batch)
-            .with_context(|| "Failed to execute batch".to_string())?;
+            .context("executing batch")?;
 
         self.output_adapter.apply(&batch, device)
     }
@@ -117,7 +121,6 @@ where
         items: Vec<I>,
         device: &Device,
     ) -> O {
-        self.batch_result(items, device)
-            .expect("Failed to execute batch")
+        self.batch_result(items, device).ok_or_panic()
     }
 }

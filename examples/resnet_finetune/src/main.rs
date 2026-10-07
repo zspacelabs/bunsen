@@ -11,7 +11,6 @@ use std::{
     time::Instant,
 };
 
-use anyhow::Context;
 use bunsen::{
     burner::module::{
         DTypeMapper,
@@ -20,6 +19,12 @@ use bunsen::{
     data::pretrained::{
         PretrainedCache,
         PretrainedCacheOptions,
+    },
+    errors::{
+        BunsenError,
+        BunsenResult,
+        ResultContext,
+        sys_at,
     },
     kits::images::resnet::{
         ResNet,
@@ -229,7 +234,7 @@ mod local {
 }
 use local::*;
 
-fn main() -> anyhow::Result<()> {
+fn main() -> BunsenResult<()> {
     let args = Args::parse();
 
     let _source_tree = download();
@@ -237,20 +242,20 @@ fn main() -> anyhow::Result<()> {
     train(&args)
 }
 
-fn ensure_artifact_dir(artifact_dir: &str) -> anyhow::Result<()> {
+fn ensure_artifact_dir(artifact_dir: &str) -> BunsenResult<()> {
     let _ignored = std::fs::remove_dir_all(artifact_dir);
-    std::fs::create_dir_all(artifact_dir)?;
+    std::fs::create_dir_all(artifact_dir).map_err(sys_at("create", artifact_dir))?;
     Ok(())
 }
 
 #[must_use]
-pub fn train(args: &Args) -> anyhow::Result<()> {
+pub fn train(args: &Args) -> BunsenResult<()> {
     // f32 unless `--precision half` (bf16, where the backend trains in it
     // well); autodiff before the model and inputs.
     let device: Device = args
         .device
         .init(&DevicePrefs::training())
-        .map_err(anyhow::Error::msg)?;
+        .map_err(BunsenError::unsupported)?;
 
     let factory = default_resnet_factory()?;
 
@@ -273,7 +278,7 @@ pub fn train(args: &Args) -> anyhow::Result<()> {
     let prefab = model_ref
         .model
         .prefab(&RESNET_PREFABS)
-        .with_context(|| format!("{}: names no prefab", model_ref.id()))?;
+        .ok_or_else(|| BunsenError::policy(format!("{}: names no prefab", model_ref.id())))?;
     let resnet_prefab = prefab.name.clone();
     let resnet_pretrained = model_ref.id();
 
@@ -314,7 +319,7 @@ pub fn train(args: &Args) -> anyhow::Result<()> {
     model_ref.hook = model_ref.hook.with_config(resnet_config.clone());
     let loaded = model_ref
         .load(&cache, &device)
-        .context("Failed to load pretrained weights")?;
+        .context("loading pretrained weights")?;
 
     let mut model: ResNet = Arc::unwrap_or_clone(loaded.handle)
         .map(&mut DTypeMapper::new(old_float_type))
@@ -358,7 +363,9 @@ pub fn train(args: &Args) -> anyhow::Result<()> {
     let batcher_valid = ClassificationBatcher::new(device.clone());
 
     let (train, valid) =
-        ImageFolderDataset::planet_train_val_split(args.train_percentage, args.seed)?;
+        ImageFolderDataset::planet_train_val_split(args.train_percentage, args.seed)
+            .map_err(BunsenError::other)
+            .context("loading the planet dataset")?;
 
     let train_set_size = train.len();
 
@@ -414,13 +421,15 @@ pub fn train(args: &Args) -> anyhow::Result<()> {
         now = Instant::now();
         let result = training.launch(Learner::new(host, optimizer, lr_scheduler));
         if let Some(error) = result.error {
-            anyhow::bail!("training failed: {error}");
+            return Err(BunsenError::other(error).context("training"));
         }
 
         result
             .model
             .resnet
-            .save_file(format!("{artifact_dir}/model.bpk"))?;
+            .save_file(format!("{artifact_dir}/model.bpk"))
+            .map_err(BunsenError::other)
+            .context("saving the model")?;
     }
     let elapsed = now.elapsed().as_secs();
     println!("Training completed in {}m{}s", (elapsed / 60), elapsed % 60);

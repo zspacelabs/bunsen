@@ -11,7 +11,6 @@ bunsen-arrow-dataloaders = { path = "../../crates/public/bunsen-arrow-dataloader
 
 num-traits = { workspace = true }
 rand = { workspace = true }
-anyhow = { workspace = true }
 clap = { workspace = true, features = ["derive"] }
 log = { workspace = true }
 wordchipper = { workspace = true, features = ["client"] }

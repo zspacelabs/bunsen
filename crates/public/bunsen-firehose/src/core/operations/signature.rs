@@ -1,8 +1,9 @@
 use std::collections::BTreeMap;
 
-use anyhow::{
-    Context,
-    bail,
+use bunsen::errors::{
+    BunsenError,
+    BunsenResult,
+    WithOkOrPanic,
 };
 use serde::{
     Deserialize,
@@ -168,19 +169,17 @@ impl FirehoseOperatorSignature {
     ///
     /// # Returns
     ///
-    /// An `anyhow::Result<Vec<ParameterSpec>>` containing a new vector of
+    /// A `BunsenResult<Vec<ParameterSpec>>` containing a new vector of
     /// parameter specifications with the added parameter.
     fn with_parameter(
         spec: ParameterSpec,
         ptype: &str,
         specs: &[ParameterSpec],
-    ) -> anyhow::Result<Vec<ParameterSpec>> {
+    ) -> BunsenResult<Vec<ParameterSpec>> {
         if let Some(that) = specs.iter().find(|prev| prev.name == spec.name) {
-            bail!(
-                "Duplicate {ptype} parameter '{}':\na. {:?}\nb. {:?}",
-                spec.name,
-                that,
-                spec
+            Err(
+                BunsenError::illegal(format!("Duplicate {ptype} parameter '{}'", spec.name))
+                    .with_details(format!("a. {that:?}\nb. {spec:?}")),
             )
         } else {
             let mut new_specs = specs.to_vec();
@@ -205,7 +204,7 @@ impl FirehoseOperatorSignature {
     pub fn with_input_result(
         self,
         spec: ParameterSpec,
-    ) -> anyhow::Result<Self> {
+    ) -> BunsenResult<Self> {
         Ok(Self {
             operator_id: self.operator_id,
             description: self.description,
@@ -231,10 +230,7 @@ impl FirehoseOperatorSignature {
         self,
         spec: ParameterSpec,
     ) -> Self {
-        match self.with_input_result(spec) {
-            Ok(signature) => signature,
-            Err(e) => panic!("{e}"),
-        }
+        self.with_input_result(spec).ok_or_panic()
     }
 
     /// Extends the operator specification with an output parameter.
@@ -253,7 +249,7 @@ impl FirehoseOperatorSignature {
     pub fn with_output_result(
         self,
         spec: ParameterSpec,
-    ) -> anyhow::Result<Self> {
+    ) -> BunsenResult<Self> {
         Ok(Self {
             operator_id: self.operator_id,
             description: self.description,
@@ -280,10 +276,7 @@ impl FirehoseOperatorSignature {
         self,
         spec: ParameterSpec,
     ) -> Self {
-        match self.with_output_result(spec) {
-            Ok(signature) => signature,
-            Err(e) => panic!("{e}"),
-        }
+        self.with_output_result(spec).ok_or_panic()
     }
 
     /// Generates a map of output column schemas for the given build plan.
@@ -295,14 +288,16 @@ impl FirehoseOperatorSignature {
     pub fn output_column_schemas_for_plan(
         &self,
         build_plan: &BuildPlan,
-    ) -> anyhow::Result<BTreeMap<String, ColumnSchema>> {
+    ) -> BunsenResult<BTreeMap<String, ColumnSchema>> {
         let mut result = BTreeMap::new();
 
         for output_param in &self.outputs {
             let param_name = &output_param.name;
 
-            let column_name = build_plan.outputs.get(param_name).with_context(|| {
-                format!("Output parameter '{param_name}' not found in build plan")
+            let column_name = build_plan.outputs.get(param_name).ok_or_else(|| {
+                BunsenError::illegal(format!(
+                    "Output parameter '{param_name}' not found in build plan"
+                ))
             })?;
             identifiers::check_ident(column_name)?;
 
@@ -324,7 +319,7 @@ impl FirehoseOperatorSignature {
         &self,
         input_types: &BTreeMap<String, DataTypeDescription>,
         output_types: &BTreeMap<String, DataTypeDescription>,
-    ) -> anyhow::Result<()> {
+    ) -> BunsenResult<()> {
         self.validate_parameters("input", &self.inputs, input_types)?;
         self.validate_parameters("output", &self.outputs, output_types)?;
         Ok(())
@@ -343,34 +338,29 @@ impl FirehoseOperatorSignature {
     ///
     /// # Returns
     ///
-    /// An `anyhow::Result<()>` indicating success or failure.
+    /// A `BunsenResult<()>` indicating success or failure.
     fn validate_parameters(
         &self,
         param_type: &str,
         specs: &[ParameterSpec],
         provided: &BTreeMap<String, DataTypeDescription>,
-    ) -> anyhow::Result<()> {
+    ) -> BunsenResult<()> {
         // Check for required parameters
         let required_params = specs;
 
         for spec in required_params {
             if !provided.contains_key(&spec.name) {
-                bail!(
+                return Err(BunsenError::illegal(format!(
                     "Missing required {} parameter '{}' of type {:?}",
-                    param_type,
-                    spec.name,
-                    spec.data_type
-                );
+                    param_type, spec.name, spec.data_type
+                )));
             }
 
             if provided[&spec.name].type_name != spec.data_type.type_name {
-                bail!(
+                return Err(BunsenError::illegal(format!(
                     "{} parameter '{}' expected type {:?}, but got {:?}",
-                    param_type,
-                    spec.name,
-                    spec.data_type,
-                    provided[&spec.name]
-                );
+                    param_type, spec.name, spec.data_type, provided[&spec.name]
+                )));
             }
         }
 
@@ -384,13 +374,13 @@ impl FirehoseOperatorSignature {
             match expected_names.get(name) {
                 Some(expected_type) => {
                     if data_type.type_name != expected_type.type_name {
-                        bail!(
+                        return Err(BunsenError::illegal(format!(
                             "{param_type} parameter '{name}' expected type {expected_type:?}, but got {data_type:?}"
-                        );
+                        )));
                     }
                 }
                 None => {
-                    bail!(
+                    return Err(BunsenError::illegal(format!(
                         "Unexpected {} parameter '{}'. Expected parameters: [{}]",
                         param_type,
                         name,
@@ -399,7 +389,7 @@ impl FirehoseOperatorSignature {
                             .map(|s| s.name.as_str())
                             .collect::<Vec<_>>()
                             .join(", ")
-                    );
+                    )));
                 }
             }
         }
@@ -456,7 +446,7 @@ mod tests {
         );
     }
 
-    #[should_panic(expected = "Duplicate input parameter 'count':")]
+    #[should_panic(expected = "Duplicate input parameter 'count'")]
     #[test]
     fn test_duplicate_input_parameter() {
         FirehoseOperatorSignature::default()
@@ -465,7 +455,7 @@ mod tests {
             .with_input(ParameterSpec::new::<String>("count")); // Duplicate name
     }
 
-    #[should_panic(expected = "Duplicate output parameter 'count':")]
+    #[should_panic(expected = "Duplicate output parameter 'count'")]
     #[test]
     fn test_duplicate_output_parameter() {
         FirehoseOperatorSignature::default()

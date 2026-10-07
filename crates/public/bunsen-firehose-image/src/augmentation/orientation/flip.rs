@@ -1,6 +1,7 @@
 //! Image flip stages.
 use std::sync::Arc;
 
+use bunsen::errors::BunsenResult;
 use image::DynamicImage;
 use serde::{
     Deserialize,
@@ -42,10 +43,8 @@ impl WithAugmentationStageBuilder for HorizontalFlipStage {
     fn build_stage(
         config: &AugmentationStageConfig,
         _builder: &dyn PluginBuilder,
-    ) -> anyhow::Result<Arc<dyn AugmentationStage>> {
-        Ok(Arc::new(serde_json::from_value::<HorizontalFlipStage>(
-            config.body.clone(),
-        )?))
+    ) -> BunsenResult<Arc<dyn AugmentationStage>> {
+        Ok(Arc::new(config.parse_body::<HorizontalFlipStage>()?))
     }
 }
 
@@ -62,7 +61,7 @@ impl AugmentationStage for HorizontalFlipStage {
         &self,
         image: DynamicImage,
         _ctx: &mut ImageAugContext,
-    ) -> anyhow::Result<DynamicImage> {
+    ) -> BunsenResult<DynamicImage> {
         Ok(image.fliph())
     }
 }
@@ -90,10 +89,8 @@ impl WithAugmentationStageBuilder for VerticalFlipStage {
     fn build_stage(
         config: &AugmentationStageConfig,
         _builder: &dyn PluginBuilder,
-    ) -> anyhow::Result<Arc<dyn AugmentationStage>> {
-        Ok(Arc::new(serde_json::from_value::<VerticalFlipStage>(
-            config.body.clone(),
-        )?))
+    ) -> BunsenResult<Arc<dyn AugmentationStage>> {
+        Ok(Arc::new(config.parse_body::<VerticalFlipStage>()?))
     }
 }
 
@@ -110,7 +107,7 @@ impl AugmentationStage for VerticalFlipStage {
         &self,
         image: DynamicImage,
         _ctx: &mut ImageAugContext,
-    ) -> anyhow::Result<DynamicImage> {
+    ) -> BunsenResult<DynamicImage> {
         Ok(image.flipv())
     }
 }

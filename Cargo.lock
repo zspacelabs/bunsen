@@ -1519,7 +1519,7 @@ dependencies = [
 name = "bunsen-firehose"
 version = "0.37.0"
 dependencies = [
- "anyhow",
+ "bunsen",
  "burn",
  "globwalk",
  "indoc",
@@ -1535,7 +1535,6 @@ dependencies = [
 name = "bunsen-firehose-image"
 version = "0.37.0"
 dependencies = [
- "anyhow",
  "bunsen",
  "bunsen-firehose",
  "burn",
@@ -9691,7 +9690,6 @@ dependencies = [
 name = "resnet_finetune"
 version = "0.0.0"
 dependencies = [
- "anyhow",
  "bunsen",
  "bunsen-app",
  "burn",
@@ -9707,7 +9705,6 @@ dependencies = [
 name = "resnet_tiny"
 version = "0.0.0"
 dependencies = [
- "anyhow",
  "bunsen",
  "bunsen-app",
  "bunsen-firehose",
@@ -10677,7 +10674,6 @@ checksum = "13c2bddecc57b384dee18652358fb23172facb8a2c51ccc10d74c157bdea3292"
 name = "swin_tiny"
 version = "0.0.0"
 dependencies = [
- "anyhow",
  "bunsen",
  "bunsen-app",
  "bunsen-firehose",
@@ -11532,7 +11528,6 @@ dependencies = [
 name = "train-chat"
 version = "0.0.0"
 dependencies = [
- "anyhow",
  "bunsen",
  "bunsen-app",
  "bunsen-arrow-dataloaders",

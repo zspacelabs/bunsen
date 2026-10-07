@@ -173,6 +173,16 @@ mod tests {
         sync::Arc,
     };
 
+    use bunsen::errors::{
+        BunsenErrorKind,
+        BunsenResult,
+        LookupError,
+        LookupProblem,
+        testing::{
+            ErrorMatcher,
+            predicate,
+        },
+    };
     // use crate::define_firehose_operator_id;
     use indoc::indoc;
     use serde::{
@@ -238,7 +248,7 @@ mod tests {
         fn apply_to_row(
             &self,
             txn: &mut FirehoseRowTransaction,
-        ) -> anyhow::Result<()> {
+        ) -> BunsenResult<()> {
             let x = txn.maybe_get("x").unwrap().parse_as::<i32>()?;
             let y = txn.maybe_get("y").unwrap().parse_as::<i32>()?;
 
@@ -251,7 +261,6 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected = "'x' expected type")]
     fn test_bad_input_data_type() {
         let mut schema = FirehoseTableSchema::from_columns(&[
             ColumnSchema::new::<String>("a").with_description("First input"),
@@ -272,16 +281,16 @@ mod tests {
             Arc::new(MapOpEnvironment::from_operators(vec![add_operator_op_binding()]).unwrap())
                 as Arc<dyn FirehoseOperatorEnvironment>;
 
-        let _builder = OperationRunner::new_for_plan(
-            Arc::new(schema.clone()),
-            Arc::new(schema.build_plans[0].clone()),
-            env.as_ref(),
-        )
-        .unwrap();
+        ErrorMatcher::kind(BunsenErrorKind::Illegal)
+            .message_contains("'x' expected type")
+            .assert_err(&OperationRunner::new_for_plan(
+                Arc::new(schema.clone()),
+                Arc::new(schema.build_plans[0].clone()),
+                env.as_ref(),
+            ));
     }
 
     #[test]
-    #[should_panic(expected = "'result' expected type")]
     fn test_bad_output_data_type() {
         let mut schema = FirehoseTableSchema::from_columns(&[
             ColumnSchema::new::<i32>("a").with_description("First input"),
@@ -300,16 +309,38 @@ mod tests {
 
         let env = MapOpEnvironment::from_operators(vec![add_operator_op_binding()]).unwrap();
 
-        let _builder = OperationRunner::new_for_plan(
-            Arc::new(schema.clone()),
-            Arc::new(schema.build_plans[0].clone()),
-            &env,
-        )
-        .unwrap();
+        ErrorMatcher::kind(BunsenErrorKind::Illegal)
+            .message_contains("'result' expected type")
+            .assert_err(&OperationRunner::new_for_plan(
+                Arc::new(schema.clone()),
+                Arc::new(schema.build_plans[0].clone()),
+                &env,
+            ));
     }
 
     #[test]
-    fn test_simple_op() -> anyhow::Result<()> {
+    fn test_environment_operator_lookup() {
+        let mut env = MapOpEnvironment::from_operators(vec![add_operator_op_binding()]).unwrap();
+
+        assert!(env.lookup_operator_factory(ADD).is_ok());
+
+        ErrorMatcher::kind(BunsenErrorKind::Lookup)
+            .cause(predicate("a missing \"nope\"", |l: &LookupError| {
+                l.key == "nope"
+                    && l.problem == LookupProblem::Missing
+                    && l.candidates == [ADD.to_string()]
+            }))
+            .assert_err(&env.lookup_operator_factory("nope").map(|_| ()));
+
+        ErrorMatcher::kind(BunsenErrorKind::Illegal)
+            .cause(predicate("a duplicate ADD", |l: &LookupError| {
+                l.key == ADD && l.problem == LookupProblem::Duplicate
+            }))
+            .assert_err(&env.add_operator(add_operator_op_binding()));
+    }
+
+    #[test]
+    fn test_simple_op() -> BunsenResult<()> {
         let mut schema = FirehoseTableSchema::from_columns(&[
             ColumnSchema::new::<i32>("a").with_description("First input"),
             ColumnSchema::new::<i32>("b").with_description("Second input"),
@@ -415,7 +446,7 @@ mod tests {
     fn plan_add_to(
         schema: &mut FirehoseTableSchema,
         output: &str,
-    ) -> anyhow::Result<BuildPlan> {
+    ) -> BunsenResult<BuildPlan> {
         let env = MapOpEnvironment::from_operators(vec![add_operator_op_binding()]).unwrap();
         OperationPlan::for_operation_id(ADD)
             .with_config(AddOperator { bias: 0 })
@@ -434,11 +465,9 @@ mod tests {
         ]);
         let before = schema.clone();
 
-        let err = plan_add_to(&mut schema, "c").unwrap_err();
-        assert!(
-            err.to_string().contains("Duplicate column name 'c'"),
-            "{err}"
-        );
+        ErrorMatcher::kind(BunsenErrorKind::Illegal)
+            .display_contains("duplicate column \"c\"")
+            .assert_err(&plan_add_to(&mut schema, "c"));
         assert_eq!(schema, before);
     }
 
@@ -450,12 +479,9 @@ mod tests {
         ]);
         let before = schema.clone();
 
-        let err = plan_add_to(&mut schema, "not an ident").unwrap_err();
-        assert!(
-            err.to_string()
-                .contains("Invalid identifier: 'not an ident'"),
-            "{err}"
-        );
+        ErrorMatcher::kind(BunsenErrorKind::Illegal)
+            .display_contains("Invalid identifier: 'not an ident'")
+            .assert_err(&plan_add_to(&mut schema, "not an ident"));
         assert_eq!(schema, before);
     }
 

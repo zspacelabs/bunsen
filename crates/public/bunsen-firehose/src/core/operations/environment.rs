@@ -4,9 +4,11 @@ use std::{
     sync::Arc,
 };
 
-use anyhow::{
-    Context,
-    bail,
+use bunsen::errors::{
+    BunsenError,
+    BunsenErrorKind,
+    BunsenResult,
+    LookupError,
 };
 
 use crate::core::{
@@ -41,16 +43,18 @@ pub trait FirehoseOperatorEnvironment: Debug + Send + Sync {
     ///
     /// # Returns
     ///
-    /// The factory, or an error if the id is not in the environment.
+    /// The factory, or a [`Lookup`](BunsenErrorKind::Lookup) error if the id
+    /// is not in the environment.
     fn lookup_operator_factory(
         &self,
         operator_id: &str,
-    ) -> anyhow::Result<Arc<dyn FirehoseOperatorFactory>> {
-        Ok(self
-            .operators()
-            .get(operator_id)
-            .with_context(|| format!("Operator '{operator_id}' not found in environment."))?
-            .clone())
+    ) -> BunsenResult<Arc<dyn FirehoseOperatorFactory>> {
+        self.operators().get(operator_id).cloned().ok_or_else(|| {
+            BunsenError::lookup(
+                LookupError::missing("operator", operator_id)
+                    .with_candidates(self.operators().keys().cloned()),
+            )
+        })
     }
 
     /// Validates the operator's context against the environment.
@@ -65,11 +69,11 @@ pub trait FirehoseOperatorEnvironment: Debug + Send + Sync {
     ///
     /// # Returns
     ///
-    /// An `anyhow::Result<()>` indicating successful validation.
+    /// A `BunsenResult<()>` indicating successful validation.
     fn validate_context(
         &self,
         plan_context: BuildPlanContext,
-    ) -> anyhow::Result<()> {
+    ) -> BunsenResult<()> {
         self.init_operator(plan_context).map(|_| ())
     }
 
@@ -82,12 +86,12 @@ pub trait FirehoseOperatorEnvironment: Debug + Send + Sync {
     ///
     /// # Returns
     ///
-    /// An `anyhow::Result<Box<dyn FirehoseOperator>>` containing the
+    /// A `BunsenResult<Box<dyn FirehoseOperator>>` containing the
     /// initialized operator.
     fn init_operator(
         &self,
         plan_context: BuildPlanContext,
-    ) -> anyhow::Result<Box<dyn FirehoseOperator>> {
+    ) -> BunsenResult<Box<dyn FirehoseOperator>> {
         let factory = self.lookup_operator_factory(plan_context.operator_id())?;
 
         let context = plan_context.bind_signature(factory.signature())?;
@@ -108,7 +112,7 @@ pub trait FirehoseOperatorEnvironment: Debug + Send + Sync {
     ///
     /// # Returns
     ///
-    /// An `anyhow::Result<BuildPlan>` containing the build plan for the
+    /// A `BunsenResult<BuildPlan>` containing the build plan for the
     /// operation; or an error, with the schema unchanged, if a check fails.
     /// An output column name that is already in the schema, or is not an
     /// identifier, is one such error.
@@ -116,7 +120,7 @@ pub trait FirehoseOperatorEnvironment: Debug + Send + Sync {
         &self,
         schema: &mut FirehoseTableSchema,
         planner: OperationPlan,
-    ) -> anyhow::Result<BuildPlan> {
+    ) -> BunsenResult<BuildPlan> {
         let operator_id = &planner.operator_id;
 
         let factory = self.lookup_operator_factory(operator_id)?;
@@ -168,10 +172,8 @@ impl MapOpEnvironment {
     ///
     /// # Returns
     ///
-    /// An `anyhow::Result<Self>` containing the initialized environment.
-    pub fn from_operators(
-        factories: Vec<Arc<dyn FirehoseOperatorFactory>>
-    ) -> anyhow::Result<Self> {
+    /// A `BunsenResult<Self>` containing the initialized environment.
+    pub fn from_operators(factories: Vec<Arc<dyn FirehoseOperatorFactory>>) -> BunsenResult<Self> {
         let mut this = Self::new();
         this.add_all_operators(factories)?;
         Ok(this)
@@ -185,15 +187,19 @@ impl MapOpEnvironment {
     ///
     /// # Returns
     ///
-    /// An `anyhow::Result<()>` indicating success or containing an error if the
-    /// binding already exists.
+    /// A `BunsenResult<()>` indicating success, or an
+    /// [`Illegal`](BunsenErrorKind::Illegal) error if the binding already
+    /// exists.
     pub fn add_operator(
         &mut self,
         factory: Arc<dyn FirehoseOperatorFactory>,
-    ) -> anyhow::Result<()> {
+    ) -> BunsenResult<()> {
         let id = factory.operator_id();
         if self.operators.contains_key(id) {
-            bail!("Operator with ID '{id}' already exists in MapOpEnvironment.");
+            return Err(BunsenError::from_cause(
+                BunsenErrorKind::Illegal,
+                LookupError::duplicate("operator", id.as_str()),
+            ));
         }
         self.operators.insert(id.clone(), factory);
         Ok(())
@@ -207,12 +213,12 @@ impl MapOpEnvironment {
     ///
     /// # Returns
     ///
-    /// An `anyhow::Result<()>` indicating success or containing an error if any
+    /// A `BunsenResult<()>` indicating success or containing an error if any
     /// binding fails to be added.
     pub fn add_all_operators(
         &mut self,
         factories: Vec<Arc<dyn FirehoseOperatorFactory>>,
-    ) -> anyhow::Result<()> {
+    ) -> BunsenResult<()> {
         for binding in factories.into_iter() {
             self.add_operator(binding.clone())?;
         }
@@ -272,12 +278,12 @@ impl BuildPlanContext {
     ///
     /// # Returns
     ///
-    /// An `anyhow::Result<OperationInitializationContext>` containing the bound
+    /// A `BunsenResult<OperationInitializationContext>` containing the bound
     /// context.
     pub fn bind_signature(
         self,
         signature: &FirehoseOperatorSignature,
-    ) -> anyhow::Result<OperationInitializationContext> {
+    ) -> BunsenResult<OperationInitializationContext> {
         OperationInitializationContext::init(self, signature.clone())
     }
 
@@ -356,7 +362,7 @@ impl OperationInitializationContext {
     pub fn init(
         plan_context: BuildPlanContext,
         signature: FirehoseOperatorSignature,
-    ) -> anyhow::Result<Self> {
+    ) -> BunsenResult<Self> {
         signature.validate(&plan_context.input_types(), &plan_context.output_types())?;
 
         Ok(Self {

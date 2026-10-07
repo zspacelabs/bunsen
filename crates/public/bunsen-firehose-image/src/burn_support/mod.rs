@@ -9,6 +9,7 @@
 //! ```
 //! use std::sync::Arc;
 //!
+//! use bunsen::errors::BunsenResult;
 //! use bunsen_firehose::{
 //!     core::{
 //!         FirehoseRowBatch,
@@ -30,7 +31,7 @@
 //!     RgbImage,
 //! };
 //!
-//! fn main() -> anyhow::Result<()> {
+//! fn main() -> BunsenResult<()> {
 //!     let env = Arc::new(init_default_operator_environment());
 //!
 //!     let mut schema =
@@ -62,6 +63,7 @@
 //!     Ok(())
 //! }
 //! ```
+use bunsen::errors::BunsenResult;
 use bunsen_firehose::{
     core::{
         FirehoseRowBatch,
@@ -119,11 +121,11 @@ define_firehose_operator!(
 ///
 /// # Returns
 ///
-/// An `anyhow::Result<TensorData`.
+/// A `BunsenResult<TensorData`.
 pub fn stack_tensor_data_column(
     batch: &FirehoseRowBatch,
     column_name: &str,
-) -> anyhow::Result<TensorData> {
+) -> BunsenResult<TensorData> {
     assert!(!batch.is_empty());
 
     let item_shape = batch[0]

@@ -15,7 +15,6 @@ bunsen-app = { path = "../../crates/dev/bunsen-app" }
 burn = { workspace = true, features = ["train", "fusion", "autotune", "network", "vision"] }
 bunsen = { path = "../../crates/public/bunsen", features = ["indicatif"] }
 
-anyhow = { workspace = true }
 clap = { workspace = true, features = ["derive"] }
 
 # Dataset files

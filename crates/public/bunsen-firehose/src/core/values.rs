@@ -6,9 +6,11 @@ use std::{
     fmt::Debug,
 };
 
-use anyhow::{
-    Context,
-    bail,
+use bunsen::errors::{
+    BunsenError,
+    BunsenErrorKind,
+    BunsenResult,
+    WithOkOrPanic,
 };
 use serde::{
     Serialize,
@@ -34,8 +36,10 @@ pub enum FirehoseValue {
 ///
 /// # Returns
 ///
-/// An `anyhow::Result<()>` indicating whether the type can be boxed.
-pub fn try_boxable<T: 'static>() -> anyhow::Result<()> {
+/// A `BunsenResult<()>` indicating whether the type can be boxed: an
+/// [`Illegal`](BunsenErrorKind::Illegal) error for a type that must be
+/// serialized instead.
+pub fn try_boxable<T: 'static>() -> BunsenResult<()> {
     let type_id = TypeId::of::<T>();
     let forbidden_types = [
         TypeId::of::<serde_json::Value>(),
@@ -52,10 +56,10 @@ pub fn try_boxable<T: 'static>() -> anyhow::Result<()> {
     ];
     if forbidden_types.contains(&type_id) {
         let type_name = std::any::type_name::<T>();
-        bail!(
+        return Err(BunsenError::illegal(format!(
             "Type `{type_name}` must be serialized, not boxed; \
              use a ValueBox::Value instead."
-        );
+        )));
     }
 
     Ok(())
@@ -65,10 +69,7 @@ pub fn try_boxable<T: 'static>() -> anyhow::Result<()> {
 ///
 /// `panic!` wrapper for `try_boxable`.
 pub fn check_boxable<T: 'static>() {
-    match try_boxable::<T>() {
-        Ok(_) => (),
-        Err(e) => panic!("{e}"),
-    }
+    try_boxable::<T>().ok_or_panic()
 }
 
 impl Debug for FirehoseValue {
@@ -85,12 +86,15 @@ impl Debug for FirehoseValue {
 
 impl FirehoseValue {
     /// Creates a new `ValueBox::Value` by serializing an object.
-    pub fn serialized<T>(obj: T) -> anyhow::Result<Self>
+    pub fn serialized<T>(obj: T) -> BunsenResult<Self>
     where
         T: 'static + Serialize,
     {
         serde_json::to_value(obj)
-            .with_context(|| "Failed to serialize value")
+            .map_err(|e| {
+                BunsenError::from_cause(BunsenErrorKind::Illegal, e)
+                    .context(format!("serializing a `{}`", std::any::type_name::<T>()))
+            })
             .map(FirehoseValue::Value)
     }
 
@@ -151,18 +155,19 @@ impl FirehoseValue {
     ///
     /// # Returns
     ///
-    /// An `anyhow::Result<T>` where `T` is the deserialized type;
-    /// if deserialization fails, it returns an error with context.
-    pub fn parse_as<T>(&self) -> anyhow::Result<T>
+    /// A `BunsenResult<T>` where `T` is the deserialized type;
+    /// if deserialization fails, an [`Illegal`](BunsenErrorKind::Illegal)
+    /// error whose cause is the `serde_json::Error`.
+    pub fn parse_as<T>(&self) -> BunsenResult<T>
     where
         T: DeserializeOwned + 'static,
     {
         let value = self.unwrap_value();
-        serde_json::from_value(value.clone()).with_context(|| {
-            format!(
-                "ValueBox::deserialize_value::<{}>() failed on: {value}",
+        serde_json::from_value(value.clone()).map_err(|e| {
+            BunsenError::from_cause(BunsenErrorKind::Illegal, e).context(format!(
+                "parsing {value} as a `{}`",
                 std::any::type_name::<T>()
-            )
+            ))
         })
     }
 
@@ -185,7 +190,7 @@ impl FirehoseValue {
     where
         T: DeserializeOwned + 'static,
     {
-        self.parse_as::<T>().unwrap()
+        self.parse_as::<T>().ok_or_panic()
     }
 
     /// Unwraps the `ValueBox` and returns a reference to the contained boxed
@@ -201,16 +206,19 @@ impl FirehoseValue {
     ///
     /// # Returns
     ///
-    /// An `anyhow::Result<&T>` where `T` is the down-cast type;
-    /// if the downcast fails, it returns an error with context.
-    pub fn as_ref<T>(&self) -> anyhow::Result<&T>
+    /// A `BunsenResult<&T>` where `T` is the down-cast type;
+    /// if the downcast fails, an [`Illegal`](BunsenErrorKind::Illegal) error.
+    pub fn as_ref<T>(&self) -> BunsenResult<&T>
     where
         T: 'static,
     {
         if let FirehoseValue::Boxed(boxed) = self {
-            boxed
-                .downcast_ref::<T>()
-                .with_context(|| "Failed to downcast boxed value")
+            boxed.downcast_ref::<T>().ok_or_else(|| {
+                BunsenError::illegal(format!(
+                    "Failed to downcast boxed value to `{}`",
+                    std::any::type_name::<T>()
+                ))
+            })
         } else {
             panic!(
                 "ValueBox::unwrap_boxed::<{}>() called on {self:?}",
@@ -244,21 +252,25 @@ impl FirehoseValue {
 
 #[cfg(test)]
 mod tests {
+    use bunsen::errors::testing::ErrorMatcher;
+
     use super::*;
 
     #[test]
     fn test_try_boxable() {
-        assert!(try_boxable::<serde_json::Value>().is_err());
-        assert!(try_boxable::<&'static str>().is_err());
-        assert!(try_boxable::<&str>().is_err());
-        assert!(try_boxable::<String>().is_err());
-        assert!(try_boxable::<i32>().is_err());
-        assert!(try_boxable::<i64>().is_err());
-        assert!(try_boxable::<f32>().is_err());
-        assert!(try_boxable::<f64>().is_err());
-        assert!(try_boxable::<usize>().is_err());
-        assert!(try_boxable::<isize>().is_err());
-        assert!(try_boxable::<bool>().is_err());
+        let not_boxable = ErrorMatcher::kind(BunsenErrorKind::Illegal)
+            .message_contains("must be serialized, not boxed");
+        not_boxable.assert_err(&try_boxable::<serde_json::Value>());
+        not_boxable.assert_err(&try_boxable::<&'static str>());
+        not_boxable.assert_err(&try_boxable::<&str>());
+        not_boxable.assert_err(&try_boxable::<String>());
+        not_boxable.assert_err(&try_boxable::<i32>());
+        not_boxable.assert_err(&try_boxable::<i64>());
+        not_boxable.assert_err(&try_boxable::<f32>());
+        not_boxable.assert_err(&try_boxable::<f64>());
+        not_boxable.assert_err(&try_boxable::<usize>());
+        not_boxable.assert_err(&try_boxable::<isize>());
+        not_boxable.assert_err(&try_boxable::<bool>());
 
         assert!(try_boxable::<MyStruct>().is_ok());
     }
@@ -272,7 +284,7 @@ mod tests {
     }
 
     #[test]
-    fn test_from_json_value() -> anyhow::Result<()> {
+    fn test_from_json_value() -> BunsenResult<()> {
         let json_value = serde_json::json!(["foo", "bar"]);
         let vb = FirehoseValue::from_json_value(json_value.clone());
         assert!(vb.is_value());
@@ -286,17 +298,18 @@ mod tests {
     }
 
     #[test]
-    fn test_string_value() -> anyhow::Result<()> {
+    fn test_string_value() -> BunsenResult<()> {
         let vb = FirehoseValue::serialized("abc")?;
         assert!(vb.is_value());
         assert!(!vb.is_boxed());
 
         assert_eq!(vb.parse_as::<String>()?, "abc");
 
-        assert_eq!(
-            vb.parse_as::<i32>().unwrap_err().to_string(),
-            "ValueBox::deserialize_value::<i32>() failed on: \"abc\""
-        );
+        ErrorMatcher::kind(BunsenErrorKind::Illegal)
+            .frame_contains("parsing \"abc\" as a `i32`")
+            .message_eq("invalid type: string \"abc\", expected i32")
+            .has_cause::<serde_json::Error>()
+            .assert_err(&vb.parse_as::<i32>());
 
         assert_eq!(vb.unwrap_value().as_str().unwrap(), "abc");
 
@@ -329,7 +342,7 @@ mod tests {
     }
 
     #[test]
-    fn test_int_value() -> anyhow::Result<()> {
+    fn test_int_value() -> BunsenResult<()> {
         let vb = FirehoseValue::serialized(42_i32)?;
         assert!(vb.is_value());
         assert!(!vb.is_boxed());
@@ -344,7 +357,7 @@ mod tests {
     }
 
     #[test]
-    fn test_int_array() -> anyhow::Result<()> {
+    fn test_int_array() -> BunsenResult<()> {
         let vb = FirehoseValue::serialized(vec![42_i32, 0_i32])?;
         assert!(vb.is_value());
         assert!(!vb.is_boxed());
@@ -363,7 +376,7 @@ mod tests {
     }
 
     #[test]
-    fn test_boxed_value() -> anyhow::Result<()> {
+    fn test_boxed_value() -> BunsenResult<()> {
         let my_struct = MyStruct {
             field1: "test".to_string(),
             field2: 123,
@@ -375,10 +388,11 @@ mod tests {
 
         assert_eq!(vb.as_ref::<MyStruct>()?, &my_struct);
 
-        assert_eq!(
-            vb.as_ref::<Vec<String>>().unwrap_err().to_string(),
-            "Failed to downcast boxed value"
-        );
+        ErrorMatcher::kind(BunsenErrorKind::Illegal)
+            .message_eq(
+                "Failed to downcast boxed value to `alloc::vec::Vec<alloc::string::String>`",
+            )
+            .assert_err(&vb.as_ref::<Vec<String>>());
 
         Ok(())
     }
