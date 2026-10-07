@@ -1,10 +1,18 @@
 # Introduction
 
-`bunsen` is a *batteries-included* community standard library for the
-[`burn`](https://burn.dev) tensor framework. It collects the reusable
-modules, tensor operations, shape contracts, pretrained-model machinery and
-module-lifecycle utilities that fall outside `burn`'s core but that anyone
-building real models on top of it ends up needing.
+## bunsen - tackling tomorrow's burn problems today!
+
+The [burn](https://burn.dev) team is working hard to give us a stable long term foundation
+for developing high-performance and maintainable tensor programming in
+Rust; The "in Rust" aspect requires a degree of type and runtime R&D research
+and that requires a conservative posture to api extension.
+
+`bunsen` provides a "batteries included" complementary community standard library
+for research extensions to `burn`; ideas which are useful enough
+to collect into one place, document, and build upon; but front-run
+the `burn` interface frontier.
+Every idea in `bunsen` seeks to either be refined and ported into `burn`,
+or supplanted by the eventual `burn` solution to that problem.
 
 ## This book and the API docs
 
