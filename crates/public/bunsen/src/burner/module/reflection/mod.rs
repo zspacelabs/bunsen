@@ -62,6 +62,9 @@
 //!   visitor enters a module's first field, so a module with no visited fields
 //!   at all (`Relu`) has no element of its own. A module whose fields hold no
 //!   parameters (plain tensors) is an empty element.
+//! - The tree holds tensor parameters only. Flags (`Param<Flag>`, such as a
+//!   `Dropout`'s training switch) are not shown, so a module whose only visited
+//!   field is a flag (`<Dropout name="dropout">`) is an empty element too.
 //! - Children are in field declaration order. Prefer sets (`HashSet<ParamId>`)
 //!   to relying on that order.
 //!

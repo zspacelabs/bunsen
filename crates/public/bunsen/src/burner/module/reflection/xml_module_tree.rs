@@ -64,9 +64,9 @@ pub const XML_MODULE_TREE_VERSION: &str = env!("CARGO_PKG_VERSION");
 ///   an [`XPathModuleQuery`] terminal call;
 /// - print it with [`to_xml`](Self::to_xml) to see what to select.
 ///
-/// The tree is a snapshot of structure and parameter ids; it holds no
-/// tensors. The element layout, the naming rule (element = type name,
-/// `@name` = field name) and an `XPath` crib are in the
+/// The tree is a snapshot of structure and tensor parameter ids; it holds no
+/// tensors, and no flags (`Param<Flag>`). The element layout, the naming rule
+/// (element = type name, `@name` = field name) and an `XPath` crib are in the
 /// [module docs](crate::burner::module::reflection).
 pub struct XmlModuleTree {
     docs: Documents,
@@ -211,7 +211,6 @@ impl XmlModuleTree {
     /// ```rust
     /// # use burn::nn::{Linear, LinearConfig};
     /// # use bunsen::burner::module::reflection::XmlModuleTree;
-    /// # type B = bunsen::support::testing::{cpu_device, CpuBackend};
     /// # let device = bunsen::support::testing::cpu_device();
     /// let module: Linear = LinearConfig::new(2, 3).init(&device);
     /// let mut mtree = XmlModuleTree::build(&module);
@@ -236,7 +235,6 @@ impl XmlModuleTree {
     /// ```rust
     /// # use burn::nn::{Linear, LinearConfig};
     /// # use bunsen::burner::module::reflection::XmlModuleTree;
-    /// # type B = bunsen::support::testing::{cpu_device, CpuBackend};
     /// # let device = bunsen::support::testing::cpu_device();
     /// let module: Linear = LinearConfig::new(2, 3).init(&device);
     /// let mut mtree = XmlModuleTree::build(&module);
@@ -274,7 +272,6 @@ impl XmlModuleTree {
     /// ```rust
     /// # use burn::nn::{Linear, LinearConfig};
     /// # use bunsen::burner::module::reflection::XmlModuleTree;
-    /// # type B = bunsen::support::testing::{cpu_device, CpuBackend};
     /// # let device = bunsen::support::testing::cpu_device();
     /// let module: Linear = LinearConfig::new(2, 3).init(&device);
     /// let mut mtree = XmlModuleTree::build(&module);
@@ -309,7 +306,6 @@ impl XmlModuleTree {
     /// ```rust
     /// # use burn::nn::{Linear, LinearConfig};
     /// # use bunsen::burner::module::reflection::XmlModuleTree;
-    /// # type B = bunsen::support::testing::{cpu_device, CpuBackend};
     /// # let device = bunsen::support::testing::cpu_device();
     /// let module: Linear = LinearConfig::new(2, 3).init(&device);
     /// let mut mtree = XmlModuleTree::build(&module);
@@ -340,7 +336,6 @@ impl XmlModuleTree {
     /// ```rust
     /// # use burn::nn::{Linear, LinearConfig};
     /// # use bunsen::burner::module::reflection::XmlModuleTree;
-    /// # type B = bunsen::support::testing::{cpu_device, CpuBackend};
     /// # let device = bunsen::support::testing::cpu_device();
     /// let module: Linear = LinearConfig::new(2, 3).init(&device);
     /// let mut mtree = XmlModuleTree::build(&module);
@@ -393,7 +388,6 @@ impl XmlModuleTree {
     /// ```rust
     /// # use burn::nn::{Linear, LinearConfig};
     /// # use bunsen::burner::module::reflection::XmlModuleTree;
-    /// # type B = bunsen::support::testing::{cpu_device, CpuBackend};
     /// # let device = bunsen::support::testing::cpu_device();
     /// use std::collections::HashSet;
     ///
@@ -683,7 +677,6 @@ impl<'a> XPathModuleQuery<'a> {
     /// ```rust
     /// # use burn::nn::{Linear, LinearConfig};
     /// # use bunsen::burner::module::reflection::XmlModuleTree;
-    /// # type B = bunsen::support::testing::{cpu_device, CpuBackend};
     /// # let device = bunsen::support::testing::cpu_device();
     /// use burn::module::ParamId;
     ///
@@ -755,8 +748,8 @@ impl<'a> XPathModuleQuery<'a> {
 #[allow(unused)]
 mod tests {
     use burn::nn::{
-        Linear,
-        LinearConfig,
+        Dropout,
+        DropoutConfig,
     };
 
     use super::*;
@@ -764,6 +757,54 @@ mod tests {
         burner::descriptors::TensorParamDesc,
         support::testing::cpu_device,
     };
+
+    #[derive(Module, Debug)]
+    struct Block {
+        linear: Linear,
+        dropout: Dropout,
+    }
+
+    #[test]
+    fn test_flags_are_not_shown() {
+        let device = cpu_device();
+        let module = Block {
+            linear: LinearConfig::new(2, 3).init(&device),
+            dropout: DropoutConfig::new(0.1).init(),
+        };
+        let mut mtree = XmlModuleTree::build(&module);
+
+        // The dropout's `training` flag is visited, which opens a
+        // `<Dropout>` element, but the flag itself has no node.
+        assert_eq!(
+            mtree.to_xml(true),
+            indoc::formatdoc! {r#"
+                <XmlModuleTree version="{XML_MODULE_TREE_VERSION}">
+                  <Structure>
+                    <Block id="n:1" class="struct">
+                      <Linear id="n:2" name="linear" class="struct">
+                        <Param id="n:3" name="weight" param_id="{weight_id}" class="tensor" kind="Float" dtype="{dtype}" shape="2 3" rank="2"/>
+                        <Param id="n:4" name="bias" param_id="{bias_id}" class="tensor" kind="Float" dtype="{dtype}" shape="3" rank="1"/>
+                      </Linear>
+                      <Dropout id="n:5" name="dropout" class="struct"/>
+                    </Block>
+                  </Structure>
+                </XmlModuleTree>
+                "#,
+                weight_id = module.linear.weight.id,
+                bias_id = module.linear.bias.as_ref().unwrap().id,
+                dtype = format!("{:?}", module.linear.weight.dtype()),
+            }
+        );
+
+        assert_eq!(
+            mtree.param_ids().unwrap(),
+            [
+                module.linear.weight.id,
+                module.linear.bias.as_ref().unwrap().id
+            ]
+        );
+        assert!(mtree.select_param_ids("Block/Dropout").unwrap().is_empty());
+    }
 
     #[test]
     fn test_predicate_conjunction() {

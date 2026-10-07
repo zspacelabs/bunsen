@@ -46,8 +46,6 @@ pub struct XmlModuleTreeBuilder {
     pending_name: Option<String>,
 
     next_id: usize,
-
-    phantom: std::marker::PhantomData,
 }
 
 impl XmlModuleTreeBuilder {
@@ -75,7 +73,6 @@ impl XmlModuleTreeBuilder {
             pending_name: None,
             stack: vec![],
             next_id: 0,
-            phantom: Default::default(),
         }
     }
 
