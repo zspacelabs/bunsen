@@ -54,6 +54,9 @@ pub fn relaxed_sum<S: Into<OmegaSource>>(
 }
 
 /// Omegas for the BGK collision operator.
+// An argument type, built through `Into` for one call and dropped; boxing the
+// tensor would cost an allocation per step to save stack it never occupies.
+#[allow(clippy::large_enum_variant)]
 pub enum OmegaSource {
     /// Scalar relaxation frequency.
     Relaxation(RelaxationParam),

@@ -55,7 +55,10 @@
 //!     let data =
 //!         batch[0].maybe_get("data").unwrap().as_ref::<TensorData>()?;
 //!     // [height, width, channels]
-//!     assert_eq!([data.shape[0], data.shape[1], data.shape[2]], [4, 8, 3]);
+//!     assert_eq!(
+//!         [data.shape()[0], data.shape()[1], data.shape()[2]],
+//!         [4, 8, 3]
+//!     );
 //!     Ok(())
 //! }
 //! ```
