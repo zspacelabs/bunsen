@@ -1418,10 +1418,8 @@ dependencies = [
  "hound",
  "indicatif 0.18.6",
  "indoc",
- "log",
  "nearly",
  "num-traits",
- "paste",
  "rand 0.10.3",
  "serde",
  "serde_json",
@@ -11005,6 +11003,23 @@ checksum = "ad06847b7afb65c7866a36664b75c40b895e318cea4f71299f013fb22965329d"
 dependencies = [
  "quote",
  "syn 2.0.119",
+]
+
+[[package]]
+name = "train-chat"
+version = "0.0.0"
+dependencies = [
+ "anyhow",
+ "bunsen",
+ "bunsen-arrow-dataloaders",
+ "burn",
+ "clap",
+ "clap-common",
+ "log",
+ "num-traits",
+ "rand 0.10.3",
+ "wordchipper",
+ "wordchipper-cli-util",
 ]
 
 [[package]]

@@ -14,7 +14,7 @@ use bunsen::{
             reflection::XmlModuleTree,
         },
         optim::{
-            GroupOptimizerAdaptor2,
+            GroupOptimizerPlan,
             OptimizerGroup,
         },
     },
@@ -46,8 +46,8 @@ use burn::{
         MuonConfig,
         decay::WeightDecayConfig,
     },
-    record::CompactRecorder,
     tensor::{
+        Device,
         Tensor,
         s,
     },
@@ -65,7 +65,10 @@ use burn::{
     },
 };
 use clap::Parser;
-use clap_common::shards::ShardArgs;
+use clap_common::{
+    device::DeviceArgs,
+    shards::ShardArgs,
+};
 use num_traits::Pow;
 use rand::{
     SeedableRng,
@@ -168,6 +171,10 @@ pub struct Args {
     /// Directory to save the artifacts.
     #[arg(long, default_value = "/tmp/chat")]
     pub artifact_dir: String,
+
+    /// The device to train on.
+    #[command(flatten)]
+    pub device: DeviceArgs,
 }
 
 fn ensure_artifact_dir(artifact_dir: &str) -> anyhow::Result<()> {
@@ -179,23 +186,7 @@ fn ensure_artifact_dir(artifact_dir: &str) -> anyhow::Result<()> {
 fn main() -> anyhow::Result<()> {
     let args = Args::parse();
 
-    cfg_select! {
-        feature = "cuda" => {
-            println!("Using Cuda backend.");
-            run(&args)
-        }
-        feature = "metal" => {
-            println!("Using Metal backend.");
-            run(&args)
-        }
-        feature = "wgpu" => {
-            println!("Using Wgpu backend.");
-            run(&args)
-        }
-        _ => {
-            compile_error!("No backend feature selected");
-        }
-    }
+    run(&args)
 }
 
 fn run(args: &Args) -> anyhow::Result<()> {
@@ -207,7 +198,8 @@ fn run(args: &Args) -> anyhow::Result<()> {
     let artifact_dir: &str = args.artifact_dir.as_ref();
     ensure_artifact_dir(artifact_dir)?;
 
-    let device: Device = Default::default();
+    // Training records gradients: autodiff before the model and inputs.
+    let device: Device = args.device.init().map_err(anyhow::Error::msg)?.autodiff();
 
     let shard_cache = BunsenDiskCache::default();
     let shard_paths = args.shards.fetch_paths(
@@ -289,7 +281,7 @@ fn run(args: &Args) -> anyhow::Result<()> {
     .grads_accumulation(args.grads_accumulation)
     .num_epochs(args.num_epochs)
     .metrics((LossMetric::new(), LearningRateMetric::new()))
-    .with_file_checkpointer(CompactRecorder::new())
+    .with_default_checkpointers()
     .summary();
 
     let ParamGroups {
@@ -315,62 +307,67 @@ fn run(args: &Args) -> anyhow::Result<()> {
 
     // TODO: per-group GradientClipping.
 
-    // `new` checks that the groups partition the model's float parameters;
-    // `ParamGroups::select`'s remnant group covers whatever the others don't.
-    let optimizer = GroupOptimizerAdaptor2::new(
+    // `try_new` checks that the groups partition the model's float
+    // parameters; `ParamGroups::select`'s remnant group covers whatever the
+    // others don't.
+    let plan = GroupOptimizerPlan::try_new(
         &host,
         vec![
-            OptimizerGroup::from_adaptor(
+            OptimizerGroup::new(
                 lm_head_params,
-                &AdamWConfig::new()
+                AdamWConfig::new()
                     .with_beta_1(0.8)
                     .with_beta_2(0.96)
                     .with_epsilon(1e-10)
                     .with_weight_decay(0.01)
-                    .init::<GptHost>(),
+                    .build(),
             )
             .with_lr_selector(move |lr| lr * lm_head_lr),
-            OptimizerGroup::from_adaptor(
+            OptimizerGroup::new(
                 embedding_params,
-                &AdamWConfig::new()
+                AdamWConfig::new()
                     .with_beta_1(0.8)
                     .with_beta_2(0.995)
                     .with_epsilon(1e-10)
                     .with_weight_decay(0.001)
-                    .init::<GptHost>(),
+                    .build(),
             )
             .with_lr_selector(move |lr| lr * embedding_lr),
-            OptimizerGroup::from_adaptor(
+            OptimizerGroup::new(
                 remnant_params,
-                &AdamWConfig::new()
+                AdamWConfig::new()
                     .with_beta_1(0.8)
                     .with_beta_2(0.96)
                     .with_epsilon(1e-10)
                     .with_weight_decay(0.01)
-                    .init::<GptHost>(),
+                    .build(),
             )
             .with_lr_selector(move |lr| lr * scalar_lr),
-        ],
-        vec![
-            OptimizerGroup::from_adaptor(
+            OptimizerGroup::new(
                 matrix_params,
-                &MuonConfig::new()
+                MuonConfig::new()
                     // .with_adjust_lr_fn(AdjustLrFn::MatchRmsAdamW)
                     .with_weight_decay(Some(WeightDecayConfig {
                         penalty: args.weight_decay,
                     }))
-                    .init::<GptHost>(),
+                    .build(),
             )
             .with_lr_selector(move |lr| lr * matrix_lr),
         ],
     )?;
 
-    let result = training.launch(Learner::new(host, optimizer, warmup_scheduler));
+    let result = training.launch(Learner::new(
+        host,
+        plan.optimizer(),
+        plan.lr_scheduler(warmup_scheduler),
+    ));
+    if let Some(error) = result.error {
+        anyhow::bail!("training failed: {error}");
+    }
 
     result
         .model
-        .save_file(format!("{artifact_dir}/model"), &CompactRecorder::new())
-        .expect("Trained model should be saved successfully");
+        .save_file(format!("{artifact_dir}/model.bpk"))?;
 
     Ok(())
 }
@@ -495,7 +492,6 @@ impl ParamGroups {
 #[cfg(test)]
 mod tests {
 
-
     use super::*;
 
     /// A `GptHost` small enough to build in milliseconds.
@@ -507,7 +503,7 @@ mod tests {
             .with_n_kv_head(2)
             .with_n_embed(8)
             .with_init_seq_len(16)
-            .init(&default_device());
+            .init(&bunsen::support::testing::cpu_device());
         GptHost { gpt }
     }
 

@@ -14,8 +14,9 @@ separately-tuned AdamW groups, with a linear learning-rate warmup.
 - `bunsen::burner::module::reflection::XmlModuleTree` — reflect over the module tree and select parameters by XPath-like
   queries (`select_params`,
   `to_param_ids`) to build optimizer groups.
-- `bunsen::burner::optim` — `GroupOptimizerAdaptor2` and `OptimizerGroup` for composing multiple optimizers (Muon +
-  AdamW) with per-group learning-rate selectors over disjoint parameter sets.
+- `bunsen::burner::optim` — `OptimizerGroup` and `GroupOptimizerPlan`, which check that the groups partition the
+  model and build burn's `ModuleOptimizer` (Muon + AdamW) and `ModuleLrScheduler` (per-group learning-rate selectors
+  over the warmup schedule).
 - `bunsen::public::hashbrown` — re-exported `HashSet` / `HashMap`.
 - `bunsen-arrow-dataloaders` — the `ChatDataLoader` plus dense token-block batching options (`DenseTokenBlocksOptions`,
   `TokenBatchIteratorOptions`).
@@ -28,9 +29,11 @@ in the example set.
 
 ## Running the Example
 
-Train; the shards named by `--shards` are fetched first if they are not there (each is ~90 MB):
+Train; the shards named by `--shards` are fetched first if they are not there (each is ~90 MB). Build with a backend
+feature (`wgpu`, `vulkan`, `metal`, `cuda`) and pick the device with `--device` (`auto`, the default, takes the first
+compiled-in accelerator; `flex`, the CPU, is always there):
 
 ```bash
-$ cargo run --release -p train-chat -- \
+$ cargo run --release -p train-chat --features wgpu -- \
   --dataset-dir ~/Data/nanochat/dataset/ --shards 0..10 --weight-decay 0.02
 ```

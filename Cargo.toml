@@ -14,11 +14,6 @@ members = [
     "crates/validation/*",
     "examples/*",
 ]
-# PARKED(burn22): train-chat uses the group optimizer and `XmlModuleTree`;
-# it returns with `[optim_rewrite]`.
-exclude = [
-    "examples/train-chat",
-]
 
 [workspace.package]
 authors = [
