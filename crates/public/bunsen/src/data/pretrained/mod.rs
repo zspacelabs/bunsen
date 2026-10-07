@@ -130,16 +130,13 @@
 //!         sys_at,
 //!     },
 //! };
-//! use burn::{
-//!     backend::Flex,
-//!     prelude::Backend,
-//! };
+//! use burn::tensor::Device;
 //!
 //! /// The toy kit's hook: it builds the text of the `text` resource.
 //! struct Greeting;
 //!
 //! impl Construct for Greeting {
-//!     type Built<B: Backend> = String;
+//!     type Built = String;
 //!
 //!     const KIT: &'static str = "greeting";
 //!
@@ -147,11 +144,11 @@
 //!         Ok(Greeting)
 //!     }
 //!
-//!     fn construct<B: Backend>(
+//!     fn construct(
 //!         &self,
 //!         _model: &PretrainedRef,
 //!         loaded: &LoadedResources,
-//!         _device: &B::Device,
+//!         _device: &Device,
 //!     ) -> BunsenResult<Arc<String>> {
 //!         let path = loaded.expect("text")?;
 //!         let text =
@@ -216,7 +213,7 @@
 //!
 //! // The whole pathway: the alias resolves to the row, the file is used in
 //! // place, and the hook builds.
-//! let loaded = factory.load::<Flex>("hi", &cache, &Default::default())?;
+//! let loaded = factory.load("hi", &cache, &Default::default())?;
 //! assert_eq!(loaded.name, "well-known:toy/hello");
 //! assert_eq!(*loaded.handle, "hello");
 //! let text = loaded.resources.get("text").expect("the text");
@@ -229,7 +226,7 @@
 //!     "text",
 //!     upstream.join("hello.txt"),
 //! ))?;
-//! let loaded = given.load::<Flex>(&cache, &Default::default())?;
+//! let loaded = given.load(&cache, &Default::default())?;
 //! assert_eq!(
 //!     (loaded.name.as_str(), loaded.handle.as_str()),
 //!     ("mine", "hello")

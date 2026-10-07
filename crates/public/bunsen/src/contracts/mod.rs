@@ -88,11 +88,7 @@
 //!     assert_shape_contract_periodically,
 //!     unpack_shape_contract,
 //! };
-//! use burn::prelude::{
-//!     Backend,
-//!     Tensor,
-//! };
-//! # use bunsen::support::testing::CpuBackend;
+//! use burn::prelude::Tensor;
 //!
 //! /// Splits an image into square windows.
 //! ///
@@ -104,10 +100,10 @@
 //! /// # Returns
 //! ///
 //! /// A `[batch*h_wins*w_wins, size, size, channels]` tensor of windows.
-//! pub fn windows<B: Backend>(
-//!     x: Tensor<B, 4>,
+//! pub fn windows(
+//!     x: Tensor<4>,
 //!     size: usize,
-//! ) -> Tensor<B, 4> {
+//! ) -> Tensor<4> {
 //!     let [batch, h_wins, w_wins, channels] = unpack_shape_contract!(
 //!         ["batch", "h_wins" * "size", "w_wins" * "size", "channels"],
 //!         &x.dims(),
@@ -134,7 +130,7 @@
 //!     x
 //! }
 //!
-//! let x = Tensor::<CpuBackend, 4>::zeros([2, 6, 9, 5], &Default::default());
+//! let x = Tensor::<4>::zeros([2, 6, 9, 5], &Default::default());
 //! assert_eq!(windows(x, 3).dims(), [2 * 2 * 3, 3, 3, 5]);
 //! ```
 //!

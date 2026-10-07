@@ -2,11 +2,11 @@ use burn::{
     Tensor,
     config::Config,
     module::Module,
-    prelude::{
-        Backend,
-        Int,
+    prelude::Int,
+    tensor::{
+        DType,
+        Device,
     },
-    tensor::DType,
 };
 
 use super::{
@@ -15,13 +15,10 @@ use super::{
     WhisperTokenLayoutConfig,
 };
 use crate::{
-    burner::{
-        module::{
-            HasDType,
-            ModuleInit,
-            ToStructureConfig,
-        },
-        store::FixPytorchLoadMappers,
+    burner::module::{
+        HasDType,
+        ModuleInit,
+        ToStructureConfig,
     },
     errors::{
         BunsenResult,
@@ -206,7 +203,7 @@ impl WhisperMeta for WhisperStructureConfig {
     }
 }
 
-impl<B: Backend> ModuleInit<B, Whisper<B>> for WhisperStructureConfig {
+impl ModuleInit<Whisper> for WhisperStructureConfig {
     /// Builds the [`Whisper`] module.
     ///
     /// # Errors
@@ -217,8 +214,8 @@ impl<B: Backend> ModuleInit<B, Whisper<B>> for WhisperStructureConfig {
     /// [`WhisperApiConfig`] never lowers to one.
     fn try_init(
         &self,
-        device: &B::Device,
-    ) -> BunsenResult<Whisper<B>> {
+        device: &Device,
+    ) -> BunsenResult<Whisper> {
         let (encoder_width, decoder_width) = (self.encoder.d_model(), self.decoder.d_model());
         if encoder_width != decoder_width {
             return Err(ConstraintError::new(
@@ -255,7 +252,7 @@ impl<B: Backend> ModuleInit<B, Whisper<B>> for WhisperStructureConfig {
 ///
 /// Built by [`WhisperApiConfig`] (high-level) or [`WhisperStructureConfig`].
 #[derive(Module, Debug)]
-pub struct Whisper<B: Backend> {
+pub struct Whisper {
     /// The audio front end the log-mels are computed with. A
     /// constant of the module, not part of its record: set by the config at
     /// `init`, it survives a checkpoint load, and the config carries it
@@ -269,21 +266,13 @@ pub struct Whisper<B: Backend> {
     token_layout: WhisperTokenLayoutConfig,
 
     /// The [`AudioEncoder`].
-    pub encoder: AudioEncoder<B>,
+    pub encoder: AudioEncoder,
 
     /// The [`TextDecoder`].
-    pub decoder: TextDecoder<B>,
+    pub decoder: TextDecoder,
 }
 
-impl<B: Backend> FixPytorchLoadMappers for Whisper<B> {
-    fn fix_pytorch_load_mappers(mut self) -> Self {
-        self.encoder = self.encoder.fix_pytorch_load_mappers();
-        self.decoder = self.decoder.fix_pytorch_load_mappers();
-        self
-    }
-}
-
-impl<B: Backend> WhisperMeta for Whisper<B> {
+impl WhisperMeta for Whisper {
     fn front_end(&self) -> &WhisperFrontEndConfig {
         &self.front_end
     }
@@ -301,14 +290,14 @@ impl<B: Backend> WhisperMeta for Whisper<B> {
     }
 }
 
-impl<B: Backend> HasDType for Whisper<B> {
+impl HasDType for Whisper {
     /// The dtype the model's parameters were loaded in, and so the one it
     /// computes in. `OpenAI`'s checkpoints ship in fp16.
     ///
     /// This is **not** the dtype of the model's interface. Log-mels go in at
     /// whatever float the front end produced and are cast here; logits come
     /// out in the backend's default float
-    /// ([`backend_float_dtype`](crate::burner::tensor::backend_float_dtype)).
+    /// ([`device_float_dtype`](crate::burner::tensor::device_float_dtype)).
     /// What stays at this precision is everything between: the encoder
     /// features, and the cross- and self-attention caches projected from
     /// them.
@@ -327,7 +316,7 @@ impl<B: Backend> HasDType for Whisper<B> {
     }
 }
 
-impl<B: Backend> Whisper<B> {
+impl Whisper {
     /// Forward pass through the Whisper model.
     ///
     /// # Arguments
@@ -339,9 +328,9 @@ impl<B: Backend> Whisper<B> {
     /// `[batch, seq, vocab_size]` logits, in the backend's default float.
     pub fn forward(
         &self,
-        mel: Tensor<B, 3>,
-        tokens: Tensor<B, 2, Int>,
-    ) -> Tensor<B, 3> {
+        mel: Tensor<3>,
+        tokens: Tensor<2, Int>,
+    ) -> Tensor<3> {
         self.forward_decoder(tokens, self.forward_encoder(mel))
     }
 
@@ -357,8 +346,8 @@ impl<B: Backend> Whisper<B> {
     /// are not an interface value. See [`AudioEncoder::forward`].
     pub fn forward_encoder(
         &self,
-        mel: Tensor<B, 3>,
-    ) -> Tensor<B, 3> {
+        mel: Tensor<3>,
+    ) -> Tensor<3> {
         self.encoder.forward(mel)
     }
 
@@ -373,30 +362,23 @@ impl<B: Backend> Whisper<B> {
     /// See [`TextDecoder::forward`].
     pub fn forward_decoder(
         &self,
-        tokens: Tensor<B, 2, Int>,
-        encoder_output: Tensor<B, 3>,
-    ) -> Tensor<B, 3> {
+        tokens: Tensor<2, Int>,
+        encoder_output: Tensor<3>,
+    ) -> Tensor<3> {
         self.decoder.forward(tokens, encoder_output)
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use burn::{
-        module::Param,
-        prelude::{
-            Device,
-            TensorData,
-        },
-        tensor::Distribution,
-    };
+    use burn::tensor::Distribution;
     use serial_test::serial;
 
     use super::*;
     use crate::{
         burner::{
             module::DTypeMapper,
-            tensor::backend_float_dtype,
+            tensor::device_float_dtype,
         },
         contracts::assert_shape_contract,
         errors::{
@@ -404,98 +386,23 @@ mod tests {
             testing::ErrorMatcher,
         },
         support::testing::{
-            CpuBackend,
             DeviceMemoryGuard,
-            PerformanceBackend,
-            default_device,
-            param_load_mapping,
+            cpu_device,
+            performance_device,
         },
     };
-
-    /// Whether `param` carries a load-path mapping, read through a `[2, 3]`
-    /// probe that the repair visibly reorders.
-    fn is_mapped(
-        param: &Param<Tensor<CpuBackend, 2>>,
-        device: &Device<CpuBackend>,
-    ) -> bool {
-        let probe: Tensor<CpuBackend, 2> = Tensor::from_data(
-            TensorData::new((0..6).map(|v| v as f64).collect::<Vec<_>>(), [2, 3]),
-            device,
-        );
-
-        let flat = |t: Tensor<CpuBackend, 2>| -> Vec<f32> {
-            t.cast(DType::F32).to_data().to_vec().unwrap()
-        };
-
-        flat(param_load_mapping(param, probe.clone())) != flat(probe)
-    }
-
-    /// **The walk's coverage.** Every `Linear` weight in the model must carry
-    /// the repair, and nothing else may: a missed projection loads scrambled,
-    /// and an extra one — on a parameter the checkpoint stores contiguously —
-    /// is a silent transpose.
-    #[test]
-    fn test_fix_pytorch_load_mappers_covers_the_projections() {
-        type B = CpuBackend;
-
-        let device: Device<B> = Default::default();
-
-        // `n_heads` is `d_model / d_head`, and `d_head` defaults to 64.
-        let model: Whisper<B> = WhisperApiConfig::new(8, 16, 128, 16, 1, 16, 1)
-            .try_init(&device)
-            .unwrap();
-
-        // Initialization leaves the parameters alone; the repair is attached
-        // only on the way to a PyTorch load.
-        assert!(!is_mapped(
-            &model.encoder.blocks[0].attn.query.weight,
-            &device
-        ));
-
-        let model = model.fix_pytorch_load_mappers();
-
-        let encoder = &model.encoder.blocks[0];
-        let decoder = &model.decoder.blocks[0];
-        for weight in [
-            &encoder.attn.query.weight,
-            &encoder.attn.key.weight,
-            &encoder.attn.value.weight,
-            &encoder.attn.output.weight,
-            &encoder.mlp.linear1.weight,
-            &encoder.mlp.linear2.weight,
-            &decoder.attn.query.weight,
-            &decoder.attn.key.weight,
-            &decoder.attn.value.weight,
-            &decoder.attn.output.weight,
-            &decoder.cross_attn.query.weight,
-            &decoder.cross_attn.key.weight,
-            &decoder.cross_attn.value.weight,
-            &decoder.cross_attn.output.weight,
-            &decoder.mlp.linear1.weight,
-            &decoder.mlp.linear2.weight,
-        ] {
-            assert!(is_mapped(weight, &device));
-        }
-
-        // The embeddings are stored contiguously — the conv head's weights
-        // are rank-3, which the repair cannot reach at all.
-        assert!(!is_mapped(&model.encoder.positional_embedding, &device));
-        assert!(!is_mapped(&model.decoder.positional_embedding, &device));
-        assert!(!is_mapped(&model.decoder.token_embedding.weight, &device));
-    }
 
     /// The front end and the token layout default to upstream's and ride
     /// config -> structure -> module.
     #[test]
     fn test_front_end_and_layout_propagate() {
-        type B = CpuBackend;
-        let device: Device<B> = Default::default();
+        let device = cpu_device();
 
         let config = WhisperApiConfig::new(8, 16, 128, 16, 1, 16, 1);
         assert_eq!(config.front_end, WhisperFrontEndConfig::new());
         assert_eq!(config.token_layout, WhisperTokenLayoutConfig::new());
         assert_eq!(config.to_structure().sample_rate(), 16_000);
-        let model: Whisper<B> = config.try_init(&device).unwrap();
+        let model: Whisper = config.try_init(&device).unwrap();
         assert_eq!(model.sample_rate(), 16_000);
         assert_eq!(model.token_layout().languages.len(), 100);
 
@@ -503,7 +410,7 @@ mod tests {
             .with_front_end(WhisperFrontEndConfig::new().with_sample_rate(8_000))
             .with_token_layout(WhisperTokenLayoutConfig::new().with_timestamp_tokens(751));
         assert_eq!(config.to_structure().sample_rate(), 8_000);
-        let model: Whisper<B> = config.try_init(&device).unwrap();
+        let model: Whisper = config.try_init(&device).unwrap();
         assert_eq!(model.sample_rate(), 8_000);
         assert_eq!(model.front_end().hop(), 80);
         assert_eq!(model.token_layout().timestamp_tokens, 751);
@@ -543,8 +450,7 @@ mod tests {
     /// the blanket `init`.
     #[test]
     fn test_policy_pathways_agree() {
-        type B = CpuBackend;
-        let device: Device<B> = Default::default();
+        let device = cpu_device();
 
         let policy = WhisperApiConfig::new(8, 16, 64, 16, 1, 12, 2)
             .with_d_head(16)
@@ -555,8 +461,8 @@ mod tests {
         assert_eq!(structure.encoder().n_heads(), 4);
         assert_eq!(structure.decoder().n_layers(), 2);
 
-        let lowered: Whisper<B> = structure.init(&device);
-        let direct: Whisper<B> = policy.init(&device);
+        let lowered: Whisper = structure.init(&device);
+        let direct: Whisper = policy.init(&device);
 
         assert_meta_agrees(&direct, &lowered);
         assert_meta_agrees(&direct, &structure);
@@ -567,15 +473,14 @@ mod tests {
     /// hand-edited structure can be one.
     #[test]
     fn test_try_init_rejects_mismatched_widths() {
-        type B = CpuBackend;
-        let device: Device<B> = Default::default();
+        let device = cpu_device();
 
         let mut structure = WhisperApiConfig::new(8, 16, 64, 16, 1, 12, 1)
             .with_d_head(16)
             .to_structure();
         structure.decoder = TextDecoderConfig::new(16, 32, 12, 1).with_d_head(16);
 
-        let bad: BunsenResult<Whisper<B>> = structure.try_init(&device);
+        let bad: BunsenResult<Whisper> = structure.try_init(&device);
         ErrorMatcher::kind(BunsenErrorKind::Illegal)
             .has_cause::<ConstraintError>()
             .assert_err(&bad);
@@ -592,11 +497,10 @@ mod tests {
     #[test]
     #[serial]
     fn test_dtype_is_cast_at_the_interface() {
-        type B = CpuBackend;
-        let device: Device<B> = Default::default();
+        let device = cpu_device();
 
-        let float = backend_float_dtype::<B>();
-        let model: Whisper<B> = WhisperApiConfig::new(8, 32, 64, 16, 1, 12, 1)
+        let float = device_float_dtype(&device);
+        let model: Whisper = WhisperApiConfig::new(8, 32, 64, 16, 1, 12, 1)
             .try_init(&device)
             .unwrap();
         assert_eq!(model.dtype(), float, "init builds at the backend's float");
@@ -605,8 +509,8 @@ mod tests {
         assert_eq!(half.dtype(), DType::F16);
 
         // The mel front end's output: the backend's float, not the model's.
-        let mel: Tensor<B, 3> = Tensor::random([1, 8, 16], Distribution::Default, &device);
-        let tokens: Tensor<B, 2, Int> = Tensor::zeros([1, 4], &device);
+        let mel: Tensor<3> = Tensor::random([1, 8, 16], Distribution::Default, &device);
+        let tokens: Tensor<2, Int> = Tensor::zeros([1, 4], &device);
         assert_eq!(mel.dtype(), float);
 
         // In at the backend's float, out at it, with the model's own
@@ -644,31 +548,23 @@ mod tests {
     #[test]
     #[serial]
     fn test_half_precision_tracks_full() {
-        use burn::tensor::{
-            Tolerance,
-            backend::BackendTypes,
-        };
+        use burn::tensor::Tolerance;
 
-        use crate::burner::tensor::TensorElemOpExt;
+        type F = f32;
 
-        type B = CpuBackend;
-        type F = <B as BackendTypes>::FloatElem;
+        let device = cpu_device();
 
-        let device: Device<B> = Default::default();
-
-        // `Param::clone` on a *lazily* initialized parameter clones the
-        // initializer rather than the value, and a random initializer then
-        // gives the clone different weights — two models, not one model at
-        // two precisions. Mapping onto the dtype it already has forces
-        // every parameter first, which is what makes the clone a copy.
-        let full: Whisper<B> = WhisperApiConfig::new(8, 32, 64, 16, 1, 12, 1)
+        // `half` is a clone of `full`, cast to f16. Cloning a lazily
+        // initialized `Param` shares its initialization, so the clone holds
+        // the same weights: one model at two precisions, not two models.
+        let full: Whisper = WhisperApiConfig::new(8, 32, 64, 16, 1, 12, 1)
             .try_init(&device)
             .unwrap()
-            .map(&mut DTypeMapper::new(backend_float_dtype::<B>()));
+            .map(&mut DTypeMapper::new(device_float_dtype(&device)));
         let half = full.clone().map(&mut DTypeMapper::new(DType::F16));
 
-        let mel: Tensor<B, 3> = Tensor::random([1, 8, 16], Distribution::Default, &device);
-        let tokens: Tensor<B, 2, Int> = Tensor::zeros([1, 4], &device);
+        let mel: Tensor<3> = Tensor::random([1, 8, 16], Distribution::Default, &device);
+        let tokens: Tensor<2, Int> = Tensor::zeros([1, 4], &device);
 
         // fp16 carries a bit over three decimal digits, and this is a whole
         // encoder and decoder deep: the agreement is precision-limited.
@@ -686,9 +582,8 @@ mod tests {
     #[test]
     #[serial]
     fn test_whisper_forward() {
-        type B = PerformanceBackend;
-        let device = default_device();
-        let _memory = DeviceMemoryGuard::<B>::new(&device);
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
 
         let d_model = 128;
         let n_mels = 80;
@@ -733,7 +628,7 @@ mod tests {
         assert_eq!(structural.decoder().n_heads(), n_text_heads);
         assert_eq!(structural.decoder().n_layers(), n_text_layers);
 
-        let model: Whisper<B> = structural.try_init(&device).unwrap();
+        let model: Whisper = structural.try_init(&device).unwrap();
 
         assert_eq!(model.n_mels(), n_mels);
         assert_eq!(model.vocab_size(), vocab_size);
@@ -759,9 +654,9 @@ mod tests {
         // cross-attention expects the token sequence to match that length.
         let token_len = audio_len / 2;
 
-        let mel: Tensor<B, 3> =
+        let mel: Tensor<3> =
             Tensor::random([batch, n_mels, audio_len], Default::default(), &device);
-        let tokens: Tensor<B, 2, Int> = Tensor::zeros([batch, token_len], &device);
+        let tokens: Tensor<2, Int> = Tensor::zeros([batch, token_len], &device);
 
         // The encoder halves the audio sequence length (conv stride 2).
         let encoder_output = model.forward_encoder(mel.clone());

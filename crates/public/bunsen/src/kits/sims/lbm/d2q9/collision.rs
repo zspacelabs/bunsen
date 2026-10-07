@@ -2,10 +2,7 @@
 
 use burn::{
     Tensor,
-    prelude::{
-        Backend,
-        Bool,
-    },
+    prelude::Bool,
 };
 
 use crate::kits::sims::lbm::d2q9::{
@@ -38,12 +35,12 @@ use crate::kits::sims::lbm::d2q9::{
 ///
 /// # Returns
 /// - `[H, W, VY=3, VX=3]` post-collision distribution
-pub fn bgk_collision<B: Backend, S: Into<OmegaSource<B>>>(
-    dist: Tensor<B, 4>,
+pub fn bgk_collision<S: Into<OmegaSource>>(
+    dist: Tensor<4>,
     relaxation: S,
     correction: Option<f64>,
-    lbm_tables: &LbmTables<B>,
-) -> Tensor<B, 4> {
+    lbm_tables: &LbmTables,
+) -> Tensor<4> {
     let (source_rho, u) = moments(dist.clone(), lbm_tables);
     let eq_dist = thermal_equilibrium(source_rho.clone(), u, lbm_tables);
     relaxed_sum(dist, eq_dist, relaxation, correction)
@@ -64,13 +61,13 @@ pub fn bgk_collision<B: Backend, S: Into<OmegaSource<B>>>(
 ///
 /// # Returns
 /// - `[H, W, VY=3, VX=3]` distribution.
-pub fn bgk_collision_with_spherical_reflection<B: Backend>(
-    dist: Tensor<B, 4>,
-    solid_mask: Tensor<B, 2, Bool>,
+pub fn bgk_collision_with_spherical_reflection(
+    dist: Tensor<4>,
+    solid_mask: Tensor<2, Bool>,
     relaxation: RelaxationParam,
     correction: Option<f64>,
-    lbm_tables: &LbmTables<B>,
-) -> Tensor<B, 4> {
+    lbm_tables: &LbmTables,
+) -> Tensor<4> {
     with_spherical_reflection(
         dist.clone(),
         bgk_collision(dist, relaxation, correction, lbm_tables),
@@ -99,21 +96,19 @@ mod tests {
         },
         support::testing::{
             DeviceMemoryGuard,
-            PerformanceBackend,
-            default_device,
+            performance_device,
         },
     };
 
     #[test]
     #[serial]
     fn test_collision_invariants() {
-        type B = PerformanceBackend;
-        let device = default_device();
-        let _memory = DeviceMemoryGuard::<B>::new(&device);
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
 
         let dtype = F32;
 
-        let dist = Tensor::<B, 4>::random([20, 20, 3, 3], Distribution::Uniform(0.1, 1.0), &device)
+        let dist = Tensor::<4>::random([20, 20, 3, 3], Distribution::Uniform(0.1, 1.0), &device)
             .cast(dtype);
         let rho = density(dist.clone());
 

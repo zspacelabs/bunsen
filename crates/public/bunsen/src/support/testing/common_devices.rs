@@ -1,9 +1,6 @@
-use burn::{
-    prelude::Backend,
-    tensor::backend::DeviceOps,
-};
+use burn::tensor::Device;
 
-/// The CPU backend, `Flex`, for trivial plumbing tests.
+/// The CPU device, `Flex`, for trivial plumbing tests.
 ///
 /// Use it where a test checks mechanics rather than numbers: setup and
 /// teardown, config round trips, shape bookkeeping. It is always present
@@ -13,71 +10,56 @@ use burn::{
 /// It is **not** the numerically trustworthy choice. A pass on the CPU says
 /// nothing about the kernels an accelerator runs, and a test does not move
 /// here to get better numbers. A test that does real tensor math uses
-/// [`PerformanceBackend`], and compares within a tolerance. See
-/// [Test backends](crate::support::testing#test-backends).
-pub type CpuBackend = ::burn::backend::Flex;
-
-/// Defines [`PerformanceBackend`] as `$backend`, so its docs are written once
-/// for every arm of the `cfg_select!` below. `$selected` says which arm this
-/// build took; it follows a heading, since rustfmt drops a blank doc line
-/// that comes right before an attribute.
-macro_rules! performance_backend {
-    ($backend:ty, $selected:literal) => {
-        /// The burn backend for tests that do tensor math: the best
-        /// accelerator that this build of bunsen enables.
-        ///
-        /// # Selection
-        ///
-        /// The first backend feature enabled **on bunsen**, in this order,
-        /// picks it:
-        ///
-        /// 1. `cuda`: `burn::backend::Cuda`;
-        /// 2. `metal`: `burn::backend::Metal`;
-        /// 3. `vulkan`: `burn::backend::Vulkan`;
-        /// 4. `wgpu`: `burn::backend::Wgpu`;
-        /// 5. none of them: [`CpuBackend`], which is `Flex`.
-        ///
-        /// Only `bunsen/<backend>` moves it. A dependent that enables
-        /// `burn/wgpu` but not `bunsen/wgpu` still gets the CPU here.
-        ///
-        /// # This build
-        #[doc = $selected]
-        ///
-        /// # The CPU fallback is silent
-        ///
-        /// Without a backend feature, this *is* [`CpuBackend`]. A bare
-        /// `cargo test` builds and passes every test written against it,
-        /// having run them all on the CPU, so a regression that only an
-        /// accelerator shows passes too. Run tensor tests with a backend
-        /// feature, e.g. `cargo test -p bunsen --features wgpu`.
-        ///
-        /// # Compare within a tolerance
-        ///
-        /// Backends do not agree bit for bit, so a test compares computed
-        /// floats within a tolerance, not with exact equality. The rule and
-        /// the assertions for it are under
-        /// [Test backends](crate::support::testing#test-backends).
-        pub type PerformanceBackend = $backend;
-    };
+/// [`performance_device`], and compares within a tolerance. See
+/// [Test devices](crate::support::testing#test-devices).
+pub fn cpu_device() -> Device {
+    Device::flex()
 }
 
-cfg_select! {
-    feature = "cuda" => {
-        performance_backend!(::burn::backend::Cuda, "`Cuda`, from the `cuda` feature.");
+/// The device for tests that do tensor math: the best accelerator that this
+/// build of bunsen enables.
+///
+/// # Selection
+///
+/// 1. With `BURN_DEVICE` set in the environment, burn's own choice,
+///    `Device::default()`, which reads it.
+/// 2. Otherwise the first backend feature enabled **on bunsen**, in this order:
+///    1. `cuda`: `Device::cuda(0)`;
+///    2. `metal`: `Device::metal(DeviceKind::DefaultDevice)`;
+///    3. `vulkan`: `Device::vulkan(DeviceKind::DefaultDevice)`;
+///    4. `wgpu`: `Device::wgpu(DeviceKind::DefaultDevice)`;
+///    5. none of them: [`cpu_device`], which is `Flex`.
+///
+/// Only `bunsen/<backend>` moves the choice. A dependent that enables
+/// `burn/wgpu` but not `bunsen/wgpu` still gets the CPU here.
+///
+/// # The CPU fallback is silent
+///
+/// Without a backend feature, this *is* [`cpu_device`]. A bare `cargo test`
+/// builds and passes every test written against it, having run them all on
+/// the CPU, so a regression that only an accelerator shows passes too. Run
+/// tensor tests with a backend feature, e.g.
+/// `cargo test -p bunsen --features wgpu`.
+///
+/// # Compare within a tolerance
+///
+/// Backends do not agree bit for bit, so a test compares computed floats
+/// within a tolerance, not with exact equality. The rule and the assertions
+/// for it are under [Test devices](crate::support::testing#test-devices).
+pub fn performance_device() -> Device {
+    if std::env::var_os("BURN_DEVICE").is_some() {
+        return Device::default();
     }
-    feature = "metal" => {
-        performance_backend!(::burn::backend::Metal, "`Metal`, from the `metal` feature.");
-    }
-    feature = "vulkan" => {
-        performance_backend!(
-            ::burn::backend::Vulkan,
-            "`Vulkan`, from the `vulkan` feature."
-        );
-    }
-    feature = "wgpu" => {
-        performance_backend!(::burn::backend::Wgpu, "`Wgpu`, from the `wgpu` feature.");
-    }
-    _ => {
-        performance_backend!(CpuBackend, "[`CpuBackend`]: no backend feature is on.");
+    feature_performance_device()
+}
+
+/// The [`performance_device`] that bunsen's backend features select.
+fn feature_performance_device() -> Device {
+    cfg_select! {
+        feature = "cuda" => Device::cuda(0),
+        feature = "metal" => Device::metal(burn::tensor::DeviceKind::DefaultDevice),
+        feature = "vulkan" => Device::vulkan(burn::tensor::DeviceKind::DefaultDevice),
+        feature = "wgpu" => Device::wgpu(burn::tensor::DeviceKind::DefaultDevice),
+        _ => cpu_device(),
     }
 }

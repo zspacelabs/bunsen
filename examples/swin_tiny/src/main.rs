@@ -1,4 +1,5 @@
 #![recursion_limit = "256"]
+use burn::tensor::Device;
 extern crate core;
 
 use std::sync::Arc;
@@ -16,6 +17,10 @@ use bunsen::{
         SwinTransformerV2,
         SwinTransformerV2ContractConfig,
     },
+};
+use bunsen_app::device::{
+    DeviceArgs,
+    DevicePrefs,
 };
 use bunsen_firehose::{
     burn_support::{
@@ -54,7 +59,6 @@ use bunsen_firehose_image::{
     },
 };
 use burn::{
-    backend::Autodiff,
     config::Config,
     data::{
         dataloader::{
@@ -68,12 +72,9 @@ use burn::{
     nn::loss::CrossEntropyLossConfig,
     optim::AdamWConfig,
     prelude::{
-        Backend,
         Int,
         Tensor,
     },
-    record::CompactRecorder,
-    tensor::backend::AutodiffBackend,
     train::{
         ClassificationOutput,
         InferenceStep,
@@ -136,6 +137,10 @@ pub struct Args {
     #[arg(long, default_value = "20")]
     patience: usize,
 
+    /// The device to train on.
+    #[command(flatten)]
+    device: DeviceArgs,
+
     /// Embedding ratio: ``ratio * channels * patch_size * patch_size``
     #[arg(long, default_value = "1.25")]
     embed_ratio: f64,
@@ -181,22 +186,7 @@ pub struct TrainingConfig {
 
 fn main() -> anyhow::Result<()> {
     let args = Args::parse();
-
-    cfg_select! {
-        feature = "cuda" => {
-            type B = burn::backend::Cuda;
-        }
-        feature = "metal" => {
-            type B = burn::backend::Metal;
-        }
-        feature = "wgpu" => {
-            type B = burn::backend::Wgpu;
-        }
-        _ => {
-            type B = burn::backend::Flex;
-        }
-    }
-    backend_main::<Autodiff<B>>(&args)
+    backend_main(&args)
 }
 
 /// Create the artifact directory for saving training artifacts.
@@ -207,8 +197,12 @@ fn create_artifact_dir(artifact_dir: &str) {
 }
 
 /// Train the model with the given configuration and devices.
-pub fn backend_main<B: AutodiffBackend>(args: &Args) -> anyhow::Result<()> {
-    let device: B::Device = Default::default();
+pub fn backend_main(args: &Args) -> anyhow::Result<()> {
+    // Training records gradients: autodiff before the model and inputs.
+    let device: Device = args
+        .device
+        .init(&DevicePrefs::training())
+        .map_err(anyhow::Error::msg)?;
 
     let h: usize = 32;
     let w: usize = 32;
@@ -232,7 +226,7 @@ pub fn backend_main<B: AutodiffBackend>(args: &Args) -> anyhow::Result<()> {
     .with_attn_drop_rate(0.2)
     .with_drop_rate(0.2);
 
-    B::seed(&device, args.seed);
+    device.seed(args.seed);
 
     let training_config = TrainingConfig::new(
         ModelConfig {
@@ -312,7 +306,7 @@ pub fn backend_main<B: AutodiffBackend>(args: &Args) -> anyhow::Result<()> {
                 firehose_env.clone(),
             )?),
             Arc::new(InputAdapter::new(schema.clone())),
-            Arc::new(OutputAdapter::<B>::default()),
+            Arc::new(OutputAdapter),
         );
 
         let mut builder = DataLoaderBuilder::new(batcher).batch_size(args.batch_size);
@@ -342,8 +336,7 @@ pub fn backend_main<B: AutodiffBackend>(args: &Args) -> anyhow::Result<()> {
                 firehose_env.clone(),
             )?),
             Arc::new(InputAdapter::new(schema.clone())),
-            // Use the InnerBackend for validation.
-            Arc::new(OutputAdapter::<B::InnerBackend>::default()),
+            Arc::new(OutputAdapter),
         );
 
         let mut builder = DataLoaderBuilder::new(batcher).batch_size(args.batch_size);
@@ -359,10 +352,10 @@ pub fn backend_main<B: AutodiffBackend>(args: &Args) -> anyhow::Result<()> {
         .map_err(|e| anyhow::anyhow!("Failed to initialize learning rate scheduler: {}", e))?;
      */
 
+    // One cosine descent over the whole run.
     let batches_per_epoch = train_size / args.batch_size;
-    let epochs_per_restart = 10;
-    let iters_per_restart = batches_per_epoch * epochs_per_restart;
-    let lr_scheduler = CosineAnnealingLrSchedulerConfig::new(args.learning_rate, iters_per_restart)
+    let total_iters = batches_per_epoch * args.num_epochs;
+    let lr_scheduler = CosineAnnealingLrSchedulerConfig::new(args.learning_rate, total_iters)
         .init()
         .map_err(|e| anyhow::anyhow!("Failed to initialize learning rate scheduler: {}", e))?;
 
@@ -378,9 +371,9 @@ pub fn backend_main<B: AutodiffBackend>(args: &Args) -> anyhow::Result<()> {
         // CudaMetric::new(), ??
         LearningRateMetric::new(),
     ))
-    .with_file_checkpointer(CompactRecorder::new())
+    .with_default_checkpointers()
     .early_stopping(MetricEarlyStoppingStrategy::new(
-        &LossMetric::<B>::new(),
+        &LossMetric::new(),
         Aggregate::Mean,
         Direction::Lowest,
         Split::Valid,
@@ -397,11 +390,13 @@ pub fn backend_main<B: AutodiffBackend>(args: &Args) -> anyhow::Result<()> {
         training_config.optimizer.init(),
         lr_scheduler,
     ));
+    if let Some(error) = result.error {
+        anyhow::bail!("training failed: {error}");
+    }
 
     result
         .model
-        .save_file(format!("{artifact_dir}/model"), &CompactRecorder::new())
-        .expect("Trained model should be saved successfully");
+        .save_file(format!("{artifact_dir}/model.bpk"))?;
 
     Ok(())
 }
@@ -412,11 +407,11 @@ pub struct ModelConfig {
     pub swin: SwinTransformerV2ContractConfig,
 }
 
-impl<B: Backend> ModuleInit<B, Model<B>> for ModelConfig {
+impl ModuleInit<Model> for ModelConfig {
     fn try_init(
         &self,
-        device: &B::Device,
-    ) -> BunsenResult<Model<B>> {
+        device: &Device,
+    ) -> BunsenResult<Model> {
         Ok(Model {
             drop_block: self.drop_block.init(),
             swin: self.swin.try_init(device)?,
@@ -425,17 +420,17 @@ impl<B: Backend> ModuleInit<B, Model<B>> for ModelConfig {
 }
 
 #[derive(Module, Debug)]
-pub struct Model<B: Backend> {
+pub struct Model {
     pub drop_block: DropBlock2d,
-    pub swin: SwinTransformerV2<B>,
+    pub swin: SwinTransformerV2,
 }
 
-impl<B: Backend> Model<B> {
+impl Model {
     pub fn forward_classification(
         &self,
-        images: Tensor<B, 4>,
-        targets: Tensor<B, 1, Int>,
-    ) -> ClassificationOutput<B> {
+        images: Tensor<4>,
+        targets: Tensor<1, Int>,
+    ) -> ClassificationOutput {
         let images = self.drop_block.forward(images);
         let output = self.swin.forward(images);
 
@@ -448,9 +443,9 @@ impl<B: Backend> Model<B> {
     }
 }
 
-impl<B: AutodiffBackend> TrainStep for Model<B> {
-    type Input = (Tensor<B, 4>, Tensor<B, 1, Int>);
-    type Output = ClassificationOutput<B>;
+impl TrainStep for Model {
+    type Input = (Tensor<4>, Tensor<1, Int>);
+    type Output = ClassificationOutput;
 
     fn step(
         &self,
@@ -462,9 +457,9 @@ impl<B: AutodiffBackend> TrainStep for Model<B> {
     }
 }
 
-impl<B: Backend> InferenceStep for Model<B> {
-    type Input = (Tensor<B, 4>, Tensor<B, 1, Int>);
-    type Output = ClassificationOutput<B>;
+impl InferenceStep for Model {
+    type Input = (Tensor<4>, Tensor<1, Int>);
+    type Output = ClassificationOutput;
 
     fn step(
         &self,
@@ -510,26 +505,15 @@ impl BatcherInputAdapter<(String, usize)> for InputAdapter {
     }
 }
 
-struct OutputAdapter<B: Backend> {
-    phantom: std::marker::PhantomData<B>,
-}
-impl<B> Default for OutputAdapter<B>
-where
-    B: Backend,
-{
-    fn default() -> Self {
-        Self {
-            phantom: std::marker::PhantomData,
-        }
-    }
-}
-impl<B: Backend> BatcherOutputAdapter<B, (Tensor<B, 4>, Tensor<B, 1, Int>)> for OutputAdapter<B> {
+#[derive(Default)]
+struct OutputAdapter;
+impl BatcherOutputAdapter<(Tensor<4>, Tensor<1, Int>)> for OutputAdapter {
     fn apply(
         &self,
         batch: &FirehoseRowBatch,
-        device: &B::Device,
-    ) -> anyhow::Result<(Tensor<B, 4>, Tensor<B, 1, Int>)> {
-        let image_batch = Tensor::<B, 4>::from_data(
+        device: &Device,
+    ) -> anyhow::Result<(Tensor<4>, Tensor<1, Int>)> {
+        let image_batch = Tensor::<4>::from_data(
             stack_tensor_data_column(batch, DATA_COLUMN)
                 .expect("Failed to stack tensor data column"),
             device,

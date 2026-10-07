@@ -57,7 +57,6 @@ use burn::{
     Tensor,
     module::Module,
     prelude::{
-        Backend,
         Device,
         TensorData,
     },
@@ -306,10 +305,10 @@ mod gpu_tests;
 /// Whisper pads short audio, and then converted in a single call — the
 /// streaming context is a homomorphism over chunking, so one call and many
 /// give the same spectrogram.
-pub fn clip_mels<B: Backend>(
+pub fn clip_mels(
     name: &str,
-    device: &Device<B>,
-) -> Tensor<B, 3> {
+    device: &Device,
+) -> Tensor<3> {
     let wav = samples(name);
 
     let windows = wav.len().div_ceil(N_SAMPLES).max(1);
@@ -318,7 +317,7 @@ pub fn clip_mels<B: Backend>(
     let n = values.len();
 
     let front_end = WhisperFrontEndConfig::new().with_sample_rate(SAMPLE_RATE);
-    let converter: PerceptiveAudioConverter<B> = front_end
+    let converter: PerceptiveAudioConverter = front_end
         .mel_converter_options(N_MELS)
         .expect("a Whisper rate")
         .try_init(device)
@@ -341,8 +340,8 @@ pub fn clip_mels<B: Backend>(
 /// OpenAI ships fp16; the mel front end produces the backend's default
 /// float. Feeding f32 input to an f16 model does not error, it just
 /// returns wrong numbers, so the cast is load-bearing.
-pub fn bunsen_model<B: Backend>(device: &Device<B>) -> Whisper<B> {
-    let bundle = crate::load_base::<B>(device);
+pub fn bunsen_model(device: &Device) -> Whisper {
+    let bundle = crate::load_base(device);
     let model = &bundle.model;
 
     assert_eq!(model.n_mels(), N_MELS, "not a `base` model");
@@ -367,7 +366,7 @@ pub fn bunsen_model<B: Backend>(device: &Device<B>) -> Whisper<B> {
 ///
 /// The gates assert on text, because a backend can flip a near-tied argmax
 /// without moving the words; this is what says whether that happened, and
-/// where, so a failure, or a pass that hides a flipped token, can be read at
+/// where so a failure, or a pass that hides a flipped token, can be read at
 /// token level.
 pub fn report_id_diff(
     label: &str,

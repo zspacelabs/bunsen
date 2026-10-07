@@ -5,11 +5,13 @@ use burn::{
     Tensor,
     config::Config,
     prelude::{
-        Backend,
         Int,
         TensorData,
     },
-    tensor::activation::softmax,
+    tensor::{
+        Device,
+        activation::softmax,
+    },
 };
 
 use crate::{
@@ -41,10 +43,10 @@ use crate::{
 ///
 /// # Returns
 /// A vec of `[batch, n_mels, window]` sized tensors.
-pub fn split_mel_windows<B: Backend>(
-    mels: Tensor<B, 3>,
+pub fn split_mel_windows(
+    mels: Tensor<3>,
     window: usize,
-) -> Vec<Tensor<B, 3>> {
+) -> Vec<Tensor<3>> {
     split_padded(mels, window, 2)
 }
 
@@ -55,7 +57,7 @@ pub fn split_mel_windows<B: Backend>(
 /// and the cache; the search owns the sequences' bookkeeping and tells the
 /// loop, through `reorder`, how to permute the self-attention cache when
 /// its members branch.
-pub trait TokenDecoder<B: Backend>: Send + Debug {
+pub trait TokenDecoder: Send + Debug {
     /// Rows per audio.
     fn group_size(&self) -> usize;
 
@@ -78,7 +80,7 @@ pub trait TokenDecoder<B: Backend>: Send + Debug {
     fn update(
         &mut self,
         tokens: &mut Vec<Vec<i64>>,
-        logits: Tensor<B, 2>,
+        logits: Tensor<2>,
         sum_logprobs: &mut [f32],
         reorder: &mut dyn FnMut(&[usize]),
     ) -> (Vec<i64>, bool);
@@ -198,7 +200,7 @@ impl DecodeConfig {
     /// The search this config asks for: sampling above temperature zero,
     /// else a beam search when `beam_size` is more than one, else the
     /// argmax.
-    pub fn init_decoder<B: Backend>(&self) -> Box<dyn TokenDecoder<B>> {
+    pub fn init_decoder(&self) -> Box<dyn TokenDecoder> {
         if self.temperature > 0.0 {
             Box::new(
                 WhisperGreedyDecoder::new(self.eot_token, self.prompt[0])
@@ -231,16 +233,16 @@ impl From<&GreedyDecodeConfig> for DecodeConfig {
 }
 
 /// The `[rows, step_len]` tensor that feeds a step.
-fn feed_tensor<B: Backend>(
+fn feed_tensor(
     feed: &[i64],
     step_len: usize,
-    device: &B::Device,
-) -> Tensor<B, 2, Int> {
+    device: &Device,
+) -> Tensor<2, Int> {
     let rows = feed.len() / step_len;
     Tensor::from_data(TensorData::new(feed.to_vec(), [rows, step_len]), device)
 }
 
-impl<B: Backend> Whisper<B> {
+impl Whisper {
     /// Decodes a batch of mel windows.
     ///
     /// # Arguments
@@ -259,9 +261,9 @@ impl<B: Backend> Whisper<B> {
     /// the prompt is empty.
     pub fn decode_windows(
         &self,
-        mels: Tensor<B, 3>,
+        mels: Tensor<3>,
         config: &DecodeConfig,
-        filters: &[Arc<dyn LogitFilter<B>>],
+        filters: &[Arc<dyn LogitFilter>],
     ) -> Vec<Vec<i64>> {
         self.decode_windows_full(mels, config, filters)
             .into_iter()
@@ -274,9 +276,9 @@ impl<B: Backend> Whisper<B> {
     /// probability when probed.
     pub fn decode_windows_full(
         &self,
-        mels: Tensor<B, 3>,
+        mels: Tensor<3>,
         config: &DecodeConfig,
-        filters: &[Arc<dyn LogitFilter<B>>],
+        filters: &[Arc<dyn LogitFilter>],
     ) -> Vec<DecodedTokens> {
         let [n_audio, _, frames] = mels.dims();
         assert!(n_audio > 0, "decode needs at least one row");
@@ -294,10 +296,10 @@ impl<B: Backend> Whisper<B> {
     /// the search's own business.
     pub fn decode_windows_with(
         &self,
-        mels: Tensor<B, 3>,
+        mels: Tensor<3>,
         config: &DecodeConfig,
-        decoder: &mut dyn TokenDecoder<B>,
-        filters: &[Arc<dyn LogitFilter<B>>],
+        decoder: &mut dyn TokenDecoder,
+        filters: &[Arc<dyn LogitFilter>],
     ) -> Vec<Vec<i64>> {
         let [n_audio, _, frames] = mels.dims();
         assert!(n_audio > 0, "decode needs at least one row");
@@ -318,9 +320,9 @@ impl<B: Backend> Whisper<B> {
     /// * `xa` - `[batch, positions, d_model]`, one row per audio.
     pub fn decode_features(
         &self,
-        xa: Tensor<B, 3>,
+        xa: Tensor<3>,
         config: &DecodeConfig,
-        filters: &[Arc<dyn LogitFilter<B>>],
+        filters: &[Arc<dyn LogitFilter>],
     ) -> Vec<Vec<i64>> {
         self.decode_features_full(xa, config, filters)
             .into_iter()
@@ -333,20 +335,20 @@ impl<B: Backend> Whisper<B> {
     /// probability when probed.
     pub fn decode_features_full(
         &self,
-        xa: Tensor<B, 3>,
+        xa: Tensor<3>,
         config: &DecodeConfig,
-        filters: &[Arc<dyn LogitFilter<B>>],
+        filters: &[Arc<dyn LogitFilter>],
     ) -> Vec<DecodedTokens> {
-        self.search(xa, config, config.init_decoder::<B>().as_mut(), filters)
+        self.search(xa, config, config.init_decoder().as_mut(), filters)
     }
 
     /// [`Self::decode_features`] with an explicit search.
     pub fn decode_features_with(
         &self,
-        xa: Tensor<B, 3>,
+        xa: Tensor<3>,
         config: &DecodeConfig,
-        decoder: &mut dyn TokenDecoder<B>,
-        filters: &[Arc<dyn LogitFilter<B>>],
+        decoder: &mut dyn TokenDecoder,
+        filters: &[Arc<dyn LogitFilter>],
     ) -> Vec<Vec<i64>> {
         self.search(xa, config, decoder, filters)
             .into_iter()
@@ -362,10 +364,10 @@ impl<B: Backend> Whisper<B> {
     /// * `decoder` - the search, whose group size widens the batch.
     pub fn search(
         &self,
-        xa: Tensor<B, 3>,
+        xa: Tensor<3>,
         config: &DecodeConfig,
-        decoder: &mut dyn TokenDecoder<B>,
-        filters: &[Arc<dyn LogitFilter<B>>],
+        decoder: &mut dyn TokenDecoder,
+        filters: &[Arc<dyn LogitFilter>],
     ) -> Vec<DecodedTokens> {
         let n_audio = xa.dims()[0];
         assert!(n_audio > 0, "decode needs at least one row");
@@ -380,7 +382,7 @@ impl<B: Backend> Whisper<B> {
         let mut cache = if k > 1 && !config.shared_cross_kv {
             // Ground level: cross-KV materialized per beam.
             self.decoder
-                .new_cache(repeat_interleave::<B, 3, 4, _>(xa, k, 0))
+                .new_cache(repeat_interleave::<3, 4, _>(xa, k, 0))
         } else {
             self.decoder.new_cache_grouped(xa, k)
         };
@@ -414,16 +416,16 @@ impl<B: Backend> Whisper<B> {
                 && let Ok(id) = usize::try_from(no_speech_id)
                 && id < vocab
             {
-                let at_sot: Tensor<B, 2> = logits
+                let at_sot: Tensor<2> = logits
                     .clone()
                     .slice_dim(1, at as isize..(at + 1) as isize)
                     .reshape([rows, vocab]);
                 let probs = softmax(at_sot, 1).slice_dim(1, id as isize..(id + 1) as isize);
-                no_speech = Some(probs.into_data().convert::<f32>().to_vec().unwrap());
+                no_speech = Some(probs.into_data().try_into_vec_as::<f32>().unwrap());
             }
 
             let last = positions - 1;
-            let mut logits: Tensor<B, 2> = logits
+            let mut logits: Tensor<2> = logits
                 .slice_dim(1, last as isize..(last + 1) as isize)
                 .reshape([rows, vocab]);
 
@@ -480,11 +482,11 @@ impl<B: Backend> Whisper<B> {
     /// The language token per audio.
     pub fn detect_language(
         &self,
-        xa: Tensor<B, 3>,
+        xa: Tensor<3>,
         ids: &WhisperSpecialIds,
     ) -> Vec<i64> {
         let config = DecodeConfig::new(vec![ids.sot], ids.eot).with_max_tokens(1);
-        let filters: [Arc<dyn LogitFilter<B>>; 1] = [Arc::new(RestrictToLanguages::new(ids))];
+        let filters: [Arc<dyn LogitFilter>; 1] = [Arc::new(RestrictToLanguages::new(ids))];
         self.decode_features(xa, &config, &filters)
             .into_iter()
             .map(|row| row[0])
@@ -508,7 +510,7 @@ impl<B: Backend> Whisper<B> {
     /// the prompt is empty.
     pub fn decode_window_batched(
         &self,
-        mels: Tensor<B, 3>,
+        mels: Tensor<3>,
         config: &GreedyDecodeConfig,
     ) -> Vec<Vec<i64>> {
         self.decode_windows(mels, &DecodeConfig::from(config), &[])
@@ -523,7 +525,7 @@ impl<B: Backend> Whisper<B> {
     /// If the batch is not one.
     pub fn decode_window(
         &self,
-        mels: Tensor<B, 3>,
+        mels: Tensor<3>,
         config: &GreedyDecodeConfig,
     ) -> Vec<i64> {
         assert_eq!(mels.dims()[0], 1, "decode_window handles a batch of one");
@@ -544,7 +546,7 @@ impl<B: Backend> Whisper<B> {
     /// One id sequence per window.
     pub fn decode_chunked(
         &self,
-        mels: Tensor<B, 3>,
+        mels: Tensor<3>,
         config: &GreedyDecodeConfig,
     ) -> Vec<Vec<i64>> {
         split_mel_windows(mels, self.max_audio_ctx())
@@ -563,18 +565,14 @@ mod tests {
     use crate::{
         burner::module::ModuleInit,
         kits::speech::whisper::blocks::WhisperApiConfig,
-        prelude::TensorElemOpExt,
         support::testing::{
             DeviceMemoryGuard,
-            PerformanceBackend,
-            default_device,
+            performance_device,
         },
     };
 
-    type B = PerformanceBackend;
-
     /// A tiny model, sized so the attention has whole heads.
-    fn tiny_model(device: &burn::prelude::Device<B>) -> Whisper<B> {
+    fn tiny_model(device: &burn::prelude::Device) -> Whisper {
         WhisperApiConfig::new(
             /* n_mels */ 8, /* vocab_size */ 32, /* d_model */ 64,
             /* max_audio_ctx */ 16, /* n_encoder_layers */ 1, /* max_text_ctx */ 12,
@@ -586,27 +584,24 @@ mod tests {
     #[test]
     #[serial]
     fn test_mel_windows_splits_and_pads() {
-        let device = default_device();
-        let _memory = DeviceMemoryGuard::<B>::new(&device);
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
         let (batch, n_mels, window) = (1, 4, 10);
 
         // Exactly two windows.
-        let exact: Tensor<B, 3> =
-            Tensor::random([batch, n_mels, 20], Distribution::Default, &device);
+        let exact: Tensor<3> = Tensor::random([batch, n_mels, 20], Distribution::Default, &device);
         let windows = split_mel_windows(exact, window);
         assert_eq!(windows.len(), 2);
         assert!(windows.iter().all(|w| w.dims() == [batch, n_mels, window]));
 
         // A ragged tail is padded up, not dropped.
-        let ragged: Tensor<B, 3> =
-            Tensor::random([batch, n_mels, 25], Distribution::Default, &device);
+        let ragged: Tensor<3> = Tensor::random([batch, n_mels, 25], Distribution::Default, &device);
         let windows = split_mel_windows(ragged, window);
         assert_eq!(windows.len(), 3);
         assert!(windows.iter().all(|w| w.dims() == [batch, n_mels, window]));
 
         // Shorter than one window still gives one padded window.
-        let short: Tensor<B, 3> =
-            Tensor::random([batch, n_mels, 3], Distribution::Default, &device);
+        let short: Tensor<3> = Tensor::random([batch, n_mels, 3], Distribution::Default, &device);
         assert_eq!(split_mel_windows(short, window).len(), 1);
     }
 
@@ -614,11 +609,11 @@ mod tests {
     #[test]
     #[serial]
     fn test_mel_windows_preserves_content() {
-        let device = default_device();
-        let _memory = DeviceMemoryGuard::<B>::new(&device);
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
         let frames = 7;
 
-        let mels: Tensor<B, 3> = Tensor::from_data(
+        let mels: Tensor<3> = Tensor::from_data(
             TensorData::new(
                 (0..frames).map(|f| (f + 1) as f64).collect::<Vec<_>>(),
                 [1, 1, frames],
@@ -630,7 +625,7 @@ mod tests {
         assert_eq!(windows.len(), 1);
 
         // Converted on the host: not every backend can cast to f64 on device.
-        let got: Vec<f64> = windows[0].to_data_as::<f64>().to_vec().unwrap();
+        let got: Vec<f64> = windows[0].to_data().try_into_vec_as::<f64>().unwrap();
 
         assert_eq!(got, vec![1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 0.0, 0.0, 0.0]);
     }
@@ -638,11 +633,11 @@ mod tests {
     #[test]
     #[serial]
     fn test_decode_window_respects_the_token_cap() {
-        let device = default_device();
-        let _memory = DeviceMemoryGuard::<B>::new(&device);
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
         let model = tiny_model(&device);
 
-        let mels: Tensor<B, 3> = Tensor::random(
+        let mels: Tensor<3> = Tensor::random(
             [1, model.n_mels(), model.max_audio_ctx()],
             Distribution::Default,
             &device,
@@ -668,11 +663,11 @@ mod tests {
     #[test]
     #[serial]
     fn test_decode_window_stops_on_eot() {
-        let device = default_device();
-        let _memory = DeviceMemoryGuard::<B>::new(&device);
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
         let model = tiny_model(&device);
 
-        let mels: Tensor<B, 3> = Tensor::random(
+        let mels: Tensor<3> = Tensor::random(
             [1, model.n_mels(), model.max_audio_ctx()],
             Distribution::Default,
             &device,
@@ -694,13 +689,13 @@ mod tests {
     #[test]
     #[serial]
     fn test_decode_chunked_covers_every_window() {
-        let device = default_device();
-        let _memory = DeviceMemoryGuard::<B>::new(&device);
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
         let model = tiny_model(&device);
         let window = model.max_audio_ctx();
 
         // Two and a half windows.
-        let mels: Tensor<B, 3> = Tensor::random(
+        let mels: Tensor<3> = Tensor::random(
             [1, model.n_mels(), window * 2 + window / 2],
             Distribution::Default,
             &device,
@@ -724,13 +719,13 @@ mod tests {
     #[test]
     #[serial]
     fn test_batched_decode_matches_individual() {
-        let device = default_device();
-        let _memory = DeviceMemoryGuard::<B>::new(&device);
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
         let model = tiny_model(&device);
         let (batch, window) = (3, model.max_audio_ctx());
 
         // Distinct rows, so agreement is not trivially satisfied.
-        let mels: Tensor<B, 3> = Tensor::random(
+        let mels: Tensor<3> = Tensor::random(
             [batch, model.n_mels(), window],
             Distribution::Default,
             &device,
@@ -760,12 +755,12 @@ mod tests {
     #[test]
     #[serial]
     fn test_batched_rows_finish_independently() {
-        let device = default_device();
-        let _memory = DeviceMemoryGuard::<B>::new(&device);
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
         let model = tiny_model(&device);
         let (batch, window) = (3, model.max_audio_ctx());
 
-        let mels: Tensor<B, 3> = Tensor::random(
+        let mels: Tensor<3> = Tensor::random(
             [batch, model.n_mels(), window],
             Distribution::Default,
             &device,
@@ -805,7 +800,6 @@ mod search_tests {
     use burn::tensor::{
         Distribution,
         Tolerance,
-        ops::FloatElem,
     };
     use serial_test::serial;
 
@@ -816,23 +810,20 @@ mod search_tests {
             blocks::WhisperApiConfig,
             logit_filters::SuppressTokens,
         },
-        prelude::TensorElemOpExt,
         support::testing::{
             DeviceMemoryGuard,
-            PerformanceBackend,
-            default_device,
+            performance_device,
         },
     };
 
-    type B = PerformanceBackend;
-    type F = FloatElem<B>;
+    type F = f32;
 
     const VOCAB: usize = 32;
     const EOT: i64 = 31;
 
     /// A tiny model, seeded so a near-tie ranks the same way every run.
-    fn tiny_model(device: &burn::prelude::Device<B>) -> Whisper<B> {
-        B::seed(device, 11);
+    fn tiny_model(device: &burn::prelude::Device) -> Whisper {
+        device.seed(11);
         WhisperApiConfig::new(
             /* n_mels */ 8, /* vocab_size */ VOCAB, /* d_model */ 64,
             /* max_audio_ctx */ 16, /* n_encoder_layers */ 1, /* max_text_ctx */ 12,
@@ -843,8 +834,8 @@ mod search_tests {
 
     fn windows(
         n: usize,
-        device: &burn::prelude::Device<B>,
-    ) -> Tensor<B, 3> {
+        device: &burn::prelude::Device,
+    ) -> Tensor<3> {
         Tensor::random([n, 8, 16], Distribution::Default, device)
     }
 
@@ -853,8 +844,8 @@ mod search_tests {
     #[test]
     #[serial]
     fn test_beam_of_one_is_greedy() {
-        let device = default_device();
-        let _memory = DeviceMemoryGuard::<B>::new(&device);
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
         let model = tiny_model(&device);
         let mels = windows(3, &device);
 
@@ -874,8 +865,8 @@ mod search_tests {
     #[test]
     #[serial]
     fn test_beam_search_runs_wider() {
-        let device = default_device();
-        let _memory = DeviceMemoryGuard::<B>::new(&device);
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
         let model = tiny_model(&device);
         let mels = windows(2, &device);
 
@@ -898,13 +889,13 @@ mod search_tests {
     #[test]
     #[serial]
     fn test_reorder_permutes_the_self_attention_cache() {
-        let device = default_device();
-        let _memory = DeviceMemoryGuard::<B>::new(&device);
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
         let model = tiny_model(&device);
         let mels = windows(1, &device).repeat_dim(0, 2);
 
-        let prompts = |rows: Vec<i64>| feed_tensor::<B>(&rows, 2, &device);
-        let next = feed_tensor::<B>(&[5, 5], 1, &device);
+        let prompts = |rows: Vec<i64>| feed_tensor(&rows, 2, &device);
+        let next = feed_tensor(&[5, 5], 1, &device);
 
         let mut swapped = model.decoder.new_cache(model.forward_encoder(mels.clone()));
         model
@@ -943,12 +934,12 @@ mod search_tests {
     #[test]
     #[serial]
     fn test_filters_reach_the_search() {
-        let device = default_device();
-        let _memory = DeviceMemoryGuard::<B>::new(&device);
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
         let model = tiny_model(&device);
         let mels = windows(1, &device);
 
-        let only = |allowed: &[i64]| -> Vec<Arc<dyn LogitFilter<B>>> {
+        let only = |allowed: &[i64]| -> Vec<Arc<dyn LogitFilter>> {
             let ids = (0..VOCAB as i64).filter(|id| !allowed.contains(id));
             vec![Arc::new(SuppressTokens::new(ids))]
         };
@@ -969,8 +960,8 @@ mod search_tests {
     #[test]
     #[serial]
     fn test_sampling_best_of_and_the_probe() {
-        let device = default_device();
-        let _memory = DeviceMemoryGuard::<B>::new(&device);
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
         let model = tiny_model(&device);
         let mels = windows(2, &device);
 
@@ -983,7 +974,7 @@ mod search_tests {
             .with_sot_token(Some(1))
             .with_no_speech_token(Some(7));
 
-        B::seed(&device, 3);
+        device.seed(3);
         let first = model.decode_windows_full(mels.clone(), &config, &[]);
         assert_eq!(first.len(), 2, "one answer per audio, not per trajectory");
         for d in &first {
@@ -995,7 +986,7 @@ mod search_tests {
             assert!(d.avg_logprob() <= 0.0);
         }
 
-        B::seed(&device, 3);
+        device.seed(3);
         let again = model.decode_windows_full(mels.clone(), &config, &[]);
         assert_eq!(again, first, "repeatable under the seed");
 
@@ -1018,8 +1009,8 @@ mod search_tests {
     #[test]
     #[serial]
     fn test_shared_cross_kv_matches_materialized() {
-        let device = default_device();
-        let _memory = DeviceMemoryGuard::<B>::new(&device);
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
         let model = tiny_model(&device);
         let xa = model.forward_encoder(windows(2, &device));
         let group = 3;
@@ -1028,12 +1019,12 @@ mod search_tests {
         assert_eq!(shared.group(), group);
         let mut materialized = model
             .decoder
-            .new_cache(repeat_interleave::<B, 3, 4, _>(xa, group, 0));
+            .new_cache(repeat_interleave::<3, 4, _>(xa, group, 0));
         assert_eq!(materialized.group(), 1);
 
         // Six rows: audio 0's three beams, audio 1's three, with different
         // prompts so the rows are told apart.
-        let prompts = feed_tensor::<B>(&[1, 2, 1, 3, 1, 4, 2, 1, 3, 1, 4, 1], 2, &device);
+        let prompts = feed_tensor(&[1, 2, 1, 3, 1, 4, 2, 1, 3, 1, 4, 1], 2, &device);
         let a = model.decoder.forward_cached(prompts.clone(), &mut shared);
         let b = model.decoder.forward_cached(prompts, &mut materialized);
         a.to_data_as::<F>()
@@ -1043,7 +1034,7 @@ mod search_tests {
         let sources = [1, 0, 1, 5, 5, 3];
         shared.reorder(&sources);
         materialized.reorder(&sources);
-        let next = feed_tensor::<B>(&[7, 8, 9, 7, 8, 9], 1, &device);
+        let next = feed_tensor(&[7, 8, 9, 7, 8, 9], 1, &device);
         let a = model.decoder.forward_cached(next.clone(), &mut shared);
         let b = model.decoder.forward_cached(next, &mut materialized);
         a.to_data_as::<F>()
@@ -1060,23 +1051,23 @@ mod search_tests {
     fn test_beam_search_on_shared_cross_kv_is_the_ground() {
         #[derive(Debug)]
         struct Ramp;
-        impl LogitFilter<B> for Ramp {
+        impl LogitFilter for Ramp {
             fn apply(
                 &self,
-                logits: Tensor<B, 2>,
+                logits: Tensor<2>,
                 _tokens: &[Vec<i64>],
                 _prompt_len: usize,
-            ) -> Tensor<B, 2> {
+            ) -> Tensor<2> {
                 let [rows, vocab] = logits.dims();
-                let ramp: Tensor<B, 1> =
+                let ramp: Tensor<1> =
                     Tensor::arange(0..vocab as i64, &logits.device()).float() * 0.05;
                 logits + ramp.unsqueeze::<2>().expand([rows, vocab])
             }
         }
-        let filters: Vec<Arc<dyn LogitFilter<B>>> = vec![Arc::new(Ramp)];
+        let filters: Vec<Arc<dyn LogitFilter>> = vec![Arc::new(Ramp)];
 
-        let device = default_device();
-        let _memory = DeviceMemoryGuard::<B>::new(&device);
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
         let model = tiny_model(&device);
         let mels = windows(2, &device);
         let base = DecodeConfig::new(vec![1, 2], EOT)

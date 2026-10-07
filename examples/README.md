@@ -2,12 +2,12 @@
 
 Runnable programs, one or more per kit or system. They are not published, and CI builds all of them. The book's
 [Examples](https://zspacelabs.ai/bunsen/book/organization/examples.html) page says what each one shows and how to
-choose a backend; each example's own README says how to run it.
+choose a device; each example's own README says how to run it.
 
 - [`conway`](conway): Conway's Game of Life in 2D and 3D, with `visual` and `benchmark` subcommands.
   Uses `kits::sims::conway`, `support::geometry::GridShape2D` and `zspace::ravel_dims`.
 - [`lbm2d_vis`](lbm2d_vis): a D2Q9 lattice-Boltzmann fluid simulation, rendered live.
-  Uses `kits::sims::lbm::d2q9`, `burner::tensor::TensorDataView` and `support::geometry::GridShape2D`.
+  Uses `kits::sims::lbm::d2q9` and `support::geometry::GridShape2D`.
 - [`resnet_finetune`](resnet_finetune): fine-tunes a pretrained ResNet for multi-label classification, with model
   surgery. Uses `kits::images::resnet::pretrained` (`default_resnet_factory`, `RESNET_PREFABS`),
   `data::pretrained::PretrainedCache` and `burner::module` (`ModuleInit`, `DTypeMapper`).

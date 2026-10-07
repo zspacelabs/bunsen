@@ -20,6 +20,7 @@ use bunsen::{
         },
     },
     errors::{
+        BunsenError,
         BunsenResult,
         ResultContext,
     },
@@ -52,7 +53,8 @@ use bunsen::{
     },
     ops::signal::perceptive_audio::PerceptiveAudioConverterMeta,
 };
-use burn::prelude::Backend;
+use bunsen_app::device::BackendArgs;
+use burn::tensor::Device;
 
 /// Where fetched weights live, and whether fetching is allowed.
 #[derive(clap::Args, Debug)]
@@ -235,6 +237,21 @@ pub struct WhisperDriverArgs {
     /// Print each segment's ids beside its text.
     #[arg(long)]
     ids: bool,
+
+    /// The device to run the model on.
+    #[command(flatten)]
+    device: BackendArgs,
+}
+
+impl WhisperDriverArgs {
+    /// The device `--device` names.
+    ///
+    /// # Errors
+    /// [`Unsupported`](bunsen::errors::BunsenErrorKind::Unsupported) when that
+    /// backend is not compiled in.
+    pub fn device(&self) -> BunsenResult<Device> {
+        self.device.init().map_err(BunsenError::unsupported)
+    }
 }
 
 impl WhisperDriverArgs {
@@ -252,11 +269,11 @@ impl WhisperDriverArgs {
     /// `OpenAI`'s checkpoints are fp16 while the mel front end works in the
     /// backend's float, but the model casts at its own edges — mels in,
     /// logits out — so nothing here has to re-type it.
-    pub fn load_bundle<B: Backend>(
+    pub fn load_bundle(
         &self,
         cache: &PretrainedCache,
-        device: &B::Device,
-    ) -> BunsenResult<Arc<WhisperBundle<B>>> {
+        device: &Device,
+    ) -> BunsenResult<Arc<WhisperBundle>> {
         let factory = default_whisper_factory()?;
         let mut model = resolve_model(&factory, &self.model, cache)?;
         if let Some(path) = &self.vocab {
@@ -264,7 +281,7 @@ impl WhisperDriverArgs {
                 .with_overlay(ResourceMap::given("--vocab", VOCABULARY, path))
                 .as_policy()?;
         }
-        model.load_bundle::<B>(cache, device)
+        model.load_bundle(cache, device)
     }
 
     /// Initialize the cache.
@@ -289,9 +306,9 @@ impl WhisperDriverArgs {
     /// it and every push has the same shape: the front end, the gate and
     /// the autotuned kernels behind them see one size, not a drift of
     /// remainders.
-    pub fn chunk_samples<B: Backend>(
+    pub fn chunk_samples(
         &self,
-        driver: &WhisperStreamDriver<B>,
+        driver: &WhisperStreamDriver,
         default_ms: usize,
     ) -> usize {
         let want = (self.chunk_ms.unwrap_or(default_ms) * driver.sample_rate() / 1000).max(1);
@@ -306,14 +323,14 @@ impl WhisperDriverArgs {
     ///
     /// `default_preset` is the command's emission preset, for when
     /// `--preset` is omitted.
-    pub fn init_driver<B: Backend>(
+    pub fn init_driver(
         &self,
-        device: &B::Device,
+        device: &Device,
         default_preset: PresetEmissionPolicy,
-    ) -> BunsenResult<WhisperStreamDriver<B>> {
+    ) -> BunsenResult<WhisperStreamDriver> {
         let preset = self.preset(default_preset);
         let cache = self.init_cache()?;
-        let bundle = self.load_bundle::<B>(&cache, device)?;
+        let bundle = self.load_bundle(&cache, device)?;
         log::info!("Loaded Whisper: {bundle}");
 
         // The token layout follows from the vocabulary size, and the
@@ -335,7 +352,7 @@ impl WhisperDriverArgs {
             WhisperFallbackConfig::new()
         };
 
-        let mut driver: WhisperStreamDriver<B> = WhisperStreamDriverConfig::new()
+        let mut driver: WhisperStreamDriver = WhisperStreamDriverConfig::new()
             .with_language(language)
             .with_task(self.task)
             .with_timestamps(self.timestamps)
@@ -353,7 +370,7 @@ impl WhisperDriverArgs {
             // The bundled burnpack, through the same cache as the weights:
             // written in from the binary on first use, cached after.
             let vad = default_silero_factory()?
-                .load::<B>("bundled:silero/vad", &cache, device)?
+                .load("bundled:silero/vad", &cache, device)?
                 .handle;
             driver = driver.with_vad(vad.expect_branch(16000).clone(), Default::default())?;
         }
@@ -373,10 +390,10 @@ impl WhisperDriverArgs {
     /// maximum as the mel clamp reference. A source that knows its capture
     /// times anchors them through
     /// [`anchor_write_read`](TranscriptStream::anchor_write_read).
-    pub fn open_stream<B: Backend>(
+    pub fn open_stream(
         &self,
-        driver: &WhisperStreamDriver<B>,
-    ) -> BunsenResult<TranscriptStream<B>> {
+        driver: &WhisperStreamDriver,
+    ) -> BunsenResult<TranscriptStream> {
         let ctx = driver.new_context(
             StreamClock::uniform(driver.sample_rate()),
             RunningMaxClamp::new(),
@@ -399,15 +416,15 @@ impl WhisperDriverArgs {
 /// [`write_read`](Self::write_read) or
 /// [`anchor_write_read`](Self::anchor_write_read); ended with
 /// [`end_read`](Self::end_read).
-pub struct TranscriptStream<B: Backend> {
-    ctx: WhisperStreamContext<B>,
+pub struct TranscriptStream {
+    ctx: WhisperStreamContext,
     detects_language: bool,
     announced: bool,
     ids: bool,
     last_end: f64,
 }
 
-impl<B: Backend> TranscriptStream<B> {
+impl TranscriptStream {
     /// Pushes samples at the model's rate, and reports what came out.
     pub fn write_read(
         &mut self,

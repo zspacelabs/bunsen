@@ -122,7 +122,10 @@
 //!     let data =
 //!         batch[0].maybe_get("data").unwrap().as_ref::<TensorData>()?;
 //!     // [height, width, channels]
-//!     assert_eq!([data.shape[0], data.shape[1], data.shape[2]], [16, 16, 3]);
+//!     assert_eq!(
+//!         [data.shape()[0], data.shape()[1], data.shape()[2]],
+//!         [16, 16, 3]
+//!     );
 //!     Ok(())
 //! }
 //! ```
@@ -163,8 +166,7 @@ mod tests {
 
     use bunsen::support::testing::{
         DeviceMemoryGuard,
-        PerformanceBackend,
-        default_device,
+        performance_device,
     };
     use bunsen_firehose::{
         core::{
@@ -210,10 +212,8 @@ mod tests {
     fn test_example() -> anyhow::Result<()> {
         let temp_dir = tempfile::tempdir().unwrap();
 
-        type B = PerformanceBackend;
-
-        let device = default_device();
-        let _memory = DeviceMemoryGuard::<B>::new(&device);
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
 
         let env = Arc::new(init_default_operator_environment());
 
@@ -267,7 +267,7 @@ mod tests {
                       "name": "data",
                       "description": "TensorData representation of the image.",
                       "data_type": {
-                        "type_name": "burn_backend::data::tensor::TensorData"
+                        "type_name": "burn_std::data::tensor::base::TensorData"
                       }
                     }
                   ],
@@ -345,10 +345,7 @@ mod tests {
         );
 
         let row_data = row.maybe_get("data").unwrap().as_ref::<TensorData>()?;
-        row_data.assert_eq(
-            &image_to_f32_tensor::<B>(row_image, &device).to_data(),
-            true,
-        );
+        row_data.assert_eq(&image_to_f32_tensor(row_image, &device).to_data(), true);
 
         Ok(())
     }

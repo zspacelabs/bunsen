@@ -28,23 +28,17 @@ needs it.
 
 ## A pin names its workaround
 
-`burn-store`'s PyTorch reader ignores tensor strides, which scrambles any
-non-square weight that a checkpoint stores as a transposed view. bunsen
-undoes the damage with
-[`repair_pytorch_strided_weight`](bunsen::burner::store::repair_pytorch_strided_weight),
-which [`FixPytorchLoadMappers`](bunsen::burner::store::FixPytorchLoadMappers)
-attaches on the way to a PyTorch load
-([PyTorch checkpoints](../systems/pretrained.md#pytorch-checkpoints)). Once
-`burn-store` honours strides, the repair is itself the bug: a silent second
-transpose. So the pin in the `pytorch_strided_weights` module fails with a
-message that names `repair_pytorch_strided_weight` and its callers as the
-thing to remove.
+A pin's failure message is written for whoever next updates the dependency:
+it names the workaround the defect justified and says what to do with it.
+Some workarounds turn into bugs once the defect is fixed. A repair that
+undoes damage, applied to data that is no longer damaged, does damage of its
+own, and its pin asks for the repair's removal.
 
-Not every workaround is dangerous to leave in place. `unfold` on the CubeCL
-backends truncates an outer stride, and bunsen avoids it by trimming an
-input to the span its windows cover. The trim changes nothing once the
-defect is gone, so that pin's message asks for a re-check rather than a
-removal. Write the message for the workaround you have.
+Others are harmless after a fix. `unfold` on the CubeCL backends truncates an
+outer stride, and bunsen avoids it by trimming an input to the span its
+windows cover. The trim changes nothing once the defect is gone, so the pin
+in the `unfold` module asks for a re-check rather than a removal. Write the
+message for the workaround you have.
 
 ## Writing a reproduction
 

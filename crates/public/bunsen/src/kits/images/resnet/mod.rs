@@ -32,22 +32,21 @@
 //!         ResNet,
 //!         pretrained::default_resnet_factory,
 //!     },
-//!     support::testing::default_device,
+//!     support::testing::cpu_device,
 //! };
-//! use burn::backend::Flex;
 //!
-//! let device = default_device();
+//! let device = cpu_device();
 //! let cache = PretrainedCache::new(PretrainedCacheOptions::default())?;
 //!
 //! // `torchvision/resnet18` names its prefab, which the factory's hook
 //! // builds from.
-//! let loaded = default_resnet_factory()?.load::<Flex>(
+//! let loaded = default_resnet_factory()?.load(
 //!     "torchvision/resnet18",
 //!     &cache,
 //!     &device,
 //! )?;
 //!
-//! let model: ResNet<Flex> = Arc::unwrap_or_clone(loaded.handle)
+//! let model: ResNet = Arc::unwrap_or_clone(loaded.handle)
 //!     // re-head the model to 10 classes:
 //!     .with_classes(10)
 //!     // Enable (drop_block_prob) stochastic block drops for training:

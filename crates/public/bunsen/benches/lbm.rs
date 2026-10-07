@@ -9,10 +9,7 @@ use bunsen::{
         stream_interior_windows,
         with_spherical_reflection,
     },
-    support::testing::{
-        PerformanceBackend,
-        default_device,
-    },
+    support::testing::performance_device,
 };
 use burn::{
     Tensor,
@@ -35,8 +32,7 @@ use criterion::{
 };
 
 fn bench_lbm_d2q9(c: &mut Criterion) {
-    type B = PerformanceBackend;
-    let device = default_device();
+    let device = performance_device();
 
     let n = 1000;
 
@@ -45,10 +41,10 @@ fn bench_lbm_d2q9(c: &mut Criterion) {
     let relaxation = RelaxationParam::Omega(1.5);
 
     for dtype in [F32, F64] {
-        let dist = Tensor::<B, 4>::random([n, n, 3, 3], Distribution::Default, &device);
+        let dist = Tensor::<4>::random([n, n, 3, 3], Distribution::Default, &device);
         let dist = dist.cast(dtype);
 
-        let solid_mask = Tensor::<B, 2, Bool>::full([n, n], false, &device);
+        let solid_mask = Tensor::<2, Bool>::full([n, n], false, &device);
 
         let lbm_tables = LbmTables::for_dist(&dist);
 
@@ -56,7 +52,7 @@ fn bench_lbm_d2q9(c: &mut Criterion) {
             b.iter(|| {
                 let dist_col = bgk_collision(dist.clone(), relaxation, None, &lbm_tables);
 
-                black_box(dist_col.mean().into_scalar());
+                black_box(dist_col.mean().into_scalar::<f32>());
             })
         });
 
@@ -70,7 +66,7 @@ fn bench_lbm_d2q9(c: &mut Criterion) {
                     &lbm_tables,
                 );
 
-                black_box(dist_col.mean().into_scalar());
+                black_box(dist_col.mean().into_scalar::<f32>());
             })
         });
 
@@ -93,7 +89,7 @@ fn bench_lbm_d2q9(c: &mut Criterion) {
                 let stream_result = stream_interior_windows(dist.clone());
                 let dist = dist.slice_assign(s![1..-1, 1..-1], stream_result);
 
-                black_box(dist.mean().into_scalar());
+                black_box(dist.mean().into_scalar::<f32>());
             })
         });
     }

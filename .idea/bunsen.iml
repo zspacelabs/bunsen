@@ -35,7 +35,7 @@
       <sourceFolder url="file://$MODULE_DIR$/examples/whisper-cli/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/crates/dev/burn-rmexp-dyntensor/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/crates/dev/tensor-library-exp/src" isTestSource="false" />
-      <sourceFolder url="file://$MODULE_DIR$/crates/dev/clap-common/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/crates/dev/bunsen-app/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/examples/conway/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/crates/dev/book-snippets/src" isTestSource="false" />
       <excludeFolder url="file://$MODULE_DIR$/crates/public/bunsen/target" />

@@ -205,14 +205,12 @@ mod tests {
             },
             support::testing::{
                 DeviceMemoryGuard,
-                PerformanceBackend,
-                default_device,
+                performance_device,
             },
         };
-        type B = PerformanceBackend;
 
-        let device = default_device();
-        let _memory = DeviceMemoryGuard::<B>::new(&device);
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
         let dir = tempfile::tempdir().unwrap();
         let cache = PretrainedCache::new(
             PretrainedCacheOptions::default()
@@ -230,9 +228,7 @@ mod tests {
         assert_eq!(model.id(), "bundled:silero/vad");
         assert_eq!(model.status(&cache)[BURNPACK], CacheStatus::Bundled);
 
-        let loaded = factory
-            .load::<B>("bundled:silero/vad", &cache, &device)
-            .unwrap();
+        let loaded = factory.load("bundled:silero/vad", &cache, &device).unwrap();
         let part = loaded.resources.get(BURNPACK).unwrap();
         assert_eq!(part.provenance, Provenance::Bundled);
         assert!(part.path.starts_with(dir.path().join("cache")));
@@ -242,27 +238,24 @@ mod tests {
         );
         assert_eq!(model.status(&cache)[BURNPACK], CacheStatus::Cached);
 
-        let again = factory.load::<B>("vad", &cache, &device).unwrap();
+        let again = factory.load("vad", &cache, &device).unwrap();
         assert_eq!(
             again.resources.get(BURNPACK).unwrap().provenance,
             Provenance::Cached
         );
 
         // The same numbers as the bytes loader's, on both branches.
-        let direct = SileroVadCollection::<B>::load_pretrained(&device).unwrap();
+        let direct = SileroVadCollection::load_pretrained(&device).unwrap();
         for rate in [16000, 8000] {
             let a = loaded.handle.expect_branch(rate);
             let b = direct.expect_branch(rate);
             let batch = 2;
-            let input = Tensor::<B, 2>::random(
-                [batch, 64 + a.chunk_size()],
-                Distribution::Default,
-                &device,
-            );
+            let input =
+                Tensor::<2>::random([batch, 64 + a.chunk_size()], Distribution::Default, &device);
             let (pa, _) = a.forward(input.clone(), a.init_state(batch, &device));
             let (pb, _) = b.forward(input, b.init_state(batch, &device));
-            let pa: Vec<f32> = pa.into_data().to_vec().unwrap();
-            let pb: Vec<f32> = pb.into_data().to_vec().unwrap();
+            let pa: Vec<f32> = pa.into_data().try_into_vec_as().unwrap();
+            let pb: Vec<f32> = pb.into_data().try_into_vec_as().unwrap();
             assert_eq!(pa.len(), batch);
             for (x, y) in pa.iter().zip(&pb) {
                 assert!((x - y).abs() < 1e-5, "{rate} Hz: {x} vs {y}");

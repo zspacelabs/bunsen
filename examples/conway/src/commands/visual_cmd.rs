@@ -21,18 +21,14 @@ use bunsen::{
         },
         util::ConwaySim,
     },
-    prelude::TensorElemOpExt,
-    support::testing::backend_device,
     zspace::ravel_dims,
 };
+use bunsen_app::logging::LogArgs;
 use burn::{
     backend::flex::ops::unary::log,
-    prelude::{
-        Backend,
-        TensorData,
-    },
+    prelude::TensorData,
+    tensor::Device,
 };
-use clap_common::logging::LogArgs;
 use glutin_window::{
     GlutinWindow,
     OpenGL,
@@ -78,14 +74,17 @@ pub struct VisualCmd {
 }
 
 impl VisualCmd {
-    pub fn run<B: Backend>(&self) -> BunsenResult<()> {
-        let device = backend_device::<B>();
+    pub fn run(
+        &self,
+        device: &Device,
+    ) -> BunsenResult<()> {
+        let device = device.clone();
 
         self.logging.init(None)?;
         log::info!("Running Conway's Game of Life simulation...");
         log::info!("{self:#?}");
 
-        let mut conway: ConwayLife2DState<B> =
+        let mut conway: ConwayLife2DState =
             ConwayLife2DConfig::new(self.sim.grid.grid_shape).init(&device);
         conway.fuzz(self.sim.initial_density);
         conway.step();
@@ -172,8 +171,8 @@ impl FishbowlApp {
         let frame_data = self.get_frame();
         let frame_slice: &[bool] = frame_data.as_slice().unwrap();
 
-        let h = frame_data.shape[0];
-        let w = frame_data.shape[1];
+        let h = frame_data.shape()[0];
+        let w = frame_data.shape()[1];
 
         let [win_w, win_h] = args.viewport().window_size;
         let draw_scale = [win_w / (w as f64), win_h / (h as f64)];
@@ -211,8 +210,8 @@ pub struct Simulation {
 }
 
 impl Simulation {
-    pub fn new<B: Backend>(
-        conway: ConwayLife2DState<B>,
+    pub fn new(
+        conway: ConwayLife2DState,
         noise: f64,
         tic_duration: Option<Duration>,
         export_duration: Duration,

@@ -30,7 +30,7 @@ structure once, as a document, and the groups are queries against it.
 [`XmlModuleTree`](bunsen::burner::module::reflection::XmlModuleTree) mirrors
 a built module as an XML document, and you select from it with XPath.
 **The element name is the module's type name, and the field name is the
-`@name` attribute.** A field `gpt: NanoChatGpt<B>` is the element
+`@name` attribute.** A field `gpt: NanoChatGpt` is the element
 `<NanoChatGpt name="gpt">`, and each parameter is a `<Param>` leaf with its
 `rank`, `shape` and `dtype` as attributes. So "every rank-2 weight of a
 `Linear` under the field `h`" is a short path:
@@ -49,24 +49,28 @@ XPath forms you need.
 3. Gather every parameter that no group claimed into a remnant group, and
    check that no group is empty.
 4. Wrap each set in an [`OptimizerGroup`](bunsen::burner::optim::OptimizerGroup)
-   with its optimizer and, if it needs one, a learning-rate rule
-   ([`LrSelector`](bunsen::burner::optim::LrSelector)).
-5. Compose the module and the groups with a `GroupOptimizerAdaptorN`, such
-   as [`GroupOptimizerAdaptor2`](bunsen::burner::optim::GroupOptimizerAdaptor2),
-   and use it wherever a single burn optimizer would go.
+   with its optimizer (any burn optimizer, such as
+   `AdamWConfig::new().build()`) and, if it needs them, a learning-rate rule
+   ([`LrSelector`](bunsen::burner::optim::LrSelector)) and a gradient
+   clipping.
+5. Plan the module and the groups with
+   [`GroupOptimizerPlan::try_new`](bunsen::burner::optim::GroupOptimizerPlan::try_new).
+6. Build burn's `ModuleOptimizer` with `plan.optimizer()` and its
+   `ModuleLrScheduler` with `plan.lr_scheduler(schedule)`, and hand both to
+   a `Learner`, or step them in your own loop.
 
-The adaptor's `N` counts optimizer *types*, not groups: three AdamW groups
-and one Muon group need `GroupOptimizerAdaptor2`. The adaptor checks that
-the groups partition the module's float parameters. It rejects a parameter
-that two groups claim
+Groups of any number of optimizer types go in one `Vec`: burn's
+`ModuleOptimizer` erases the type. The plan checks that the groups
+partition the module's float parameters. It rejects a parameter that two
+groups claim
 ([`DuplicateParamId`](bunsen::burner::optim::GroupOptimizerError::DuplicateParamId)),
 so nothing is stepped twice, and a float parameter that no group claims
-([`UnassignedParamIds`](bunsen::burner::optim::GroupOptimizerError::UnassignedParamIds)),
-so nothing is silently left out. To keep parameters fixed on purpose, put
-them in a frozen group
+([`UnassignedParamIds`](bunsen::burner::optim::GroupOptimizerError::UnassignedParamIds),
+listing each one's module path), so nothing is silently left out. To keep
+parameters fixed on purpose, put them in a frozen group
 ([`OptimizerGroup::frozen`](bunsen::burner::optim::OptimizerGroup::frozen)),
 whose optimizer never moves them. A group's learning rate is a function of
-the scheduled rate, so one scheduler drives every group and each group shapes
+the scheduled rate, so one schedule drives every group and each group shapes
 its own rate.
 
 The module docs have a compiled example
@@ -104,26 +108,26 @@ empty selection it is never evaluated at all, so a wrong path in front of it
 hides the mistake. Stack the predicates, `[@name='weight'][@rank=2]`, or use
 `and` ([XPath crib](bunsen::burner::module::reflection#xpath-crib)).
 
-**The model must keep the ids the groups hold.** A group is a set of
-`ParamId`s, and the adaptor never steps a parameter whose id it doesn't know.
-That happens when the model changes after the adaptor is built (a new head,
-other surgery), or when `step` is handed a different model. By default `step`
-then panics, naming the ids, rather than train part of the model in silence.
-Select the groups after surgery. An
-[`UnknownParamPolicy`](bunsen::burner::optim::UnknownParamPolicy) relaxes the
-check, at `new` and at `step`, to a warning logged once per id (`Warn`) or to
-silence (`Freeze`). To keep parameters fixed on purpose, use a frozen group
-instead.
+**The plan holds paths, not ids.** Groups are selected by `ParamId`, but
+the plan keys each group by the module paths of its parameters, such as
+`gpt.h.0.attn.c_q.weight`. A model with the same structure is stepped the
+same way, whatever its ids. A parameter at a path the plan doesn't hold, such
+as a head added under a new field after the plan was built, goes to the
+fallback optimizer. By default that fallback panics at `step`, naming the
+parameter's rank and shape, rather than train part of the model in silence.
+Plan the groups after surgery. An
+[`UnknownParamPolicy`](bunsen::burner::optim::UnknownParamPolicy) of
+`Freeze` accepts unclaimed parameters at `try_new` and leaves them unchanged
+at `step`. To keep parameters fixed on purpose, use a frozen group instead.
 
-**Load a checkpoint into the model and the optimizer together.** Ids persist
-across a checkpoint: `load_record` gives each parameter the id saved in the
-record, so a restored model has the saved run's ids, not the ones it was built
-with. The adaptor's record saves which group steps each id, and loading it
-restores that. So a resumed run builds a fresh model and adaptor, the same way
-the first run did, and loads both records; a `Learner` resuming from a
-checkpoint does the loading for you. A model record loaded without its
-optimizer record leaves the adaptor holding the fresh ids, and `step` panics.
-The record's groups are matched to the adaptor's by position, so build the
-resumed adaptor with the same groups, in the same order: `load_record` panics
-when they don't fit
+**Resuming builds the same plan over a fresh model.** Ids persist across a
+checkpoint: `load_record` gives each parameter the id saved in the record,
+so a restored model has the saved run's ids, not the ones it was built with.
+The optimizer record saves each parameter's state with its module path, and
+loading it hands each state to the group that holds that path. So a resumed
+run builds a fresh model and plans it the same way the first run did, then
+loads the model record and the optimizer record; a `Learner` resuming from a
+checkpoint does the loading for you. The scheduler's record is matched by
+position, so build the resumed scheduler from a plan with the same groups,
+in the same order, over the same schedule
 ([resuming](bunsen::burner::optim#resuming-from-a-checkpoint)).

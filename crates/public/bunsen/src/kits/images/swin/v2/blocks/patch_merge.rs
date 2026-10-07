@@ -8,11 +8,11 @@ use burn::{
         Linear,
         LinearConfig,
     },
-    prelude::{
-        Backend,
-        Tensor,
+    prelude::Tensor,
+    tensor::{
+        Device,
+        kind::Basic,
     },
-    tensor::BasicOps,
 };
 
 use crate::{
@@ -96,11 +96,11 @@ impl PatchMergingMeta for PatchMergingConfig {
     }
 }
 
-impl<B: Backend> ModuleInit<B, PatchMerging<B>> for PatchMergingConfig {
+impl ModuleInit<PatchMerging> for PatchMergingConfig {
     fn try_init(
         &self,
-        device: &B::Device,
-    ) -> BunsenResult<PatchMerging<B>> {
+        device: &Device,
+    ) -> BunsenResult<PatchMerging> {
         for (axis, value) in self.input_resolution.into_iter().enumerate() {
             if !value.is_multiple_of(2) {
                 return Err(ConstraintError::new(
@@ -139,18 +139,18 @@ impl<B: Backend> ModuleInit<B, PatchMerging<B>> for PatchMergingConfig {
 ///
 /// Built by [`PatchMergingConfig`].
 #[derive(Module, Debug)]
-pub struct PatchMerging<B: Backend> {
+pub struct PatchMerging {
     /// Input resolution (height, width).
     input_resolution: [usize; 2],
 
     /// Linear layer for reducing the feature dimension.
-    reduction: Linear<B>,
+    reduction: Linear,
 
     /// Layer norm layer.
-    norm: LayerNorm<B>,
+    norm: LayerNorm,
 }
 
-impl<B: Backend> PatchMergingMeta for PatchMerging<B> {
+impl PatchMergingMeta for PatchMerging {
     fn d_input(&self) -> usize {
         self.reduction.weight.dims()[0] / 4
     }
@@ -160,7 +160,7 @@ impl<B: Backend> PatchMergingMeta for PatchMerging<B> {
     }
 }
 
-impl<B: Backend> PatchMerging<B> {
+impl PatchMerging {
     /// Forward pass of the `PatchMerging` module.
     ///
     /// # Arguments
@@ -176,8 +176,8 @@ impl<B: Backend> PatchMerging<B> {
     /// On shape contract failure.
     pub fn forward(
         &self,
-        x: Tensor<B, 3>,
-    ) -> Tensor<B, 3> {
+        x: Tensor<3>,
+    ) -> Tensor<3> {
         let [b, h, w] = unpack_shape_contract!(
             ["batch", "flat" = "height" * "width", "d_in"],
             &x.dims(),
@@ -227,13 +227,13 @@ impl<B: Backend> PatchMerging<B> {
 /// # Panics
 ///
 /// On shape contract failure.
-pub fn collate_patches<B: Backend, K>(
-    x: Tensor<B, 3, K>,
+pub fn collate_patches<K>(
+    x: Tensor<3, K>,
     h: usize,
     w: usize,
-) -> Tensor<B, 3, K>
+) -> Tensor<3, K>
 where
-    K: BasicOps<B>,
+    K: Basic,
 {
     let [b, h, w, c] = unpack_shape_contract!(
         ["batch", "flat" = "height" * "width", "channels"],
@@ -276,13 +276,13 @@ where
 /// # Panics
 ///
 /// On shape contract failure.
-pub fn decollate_patches<B: Backend, K>(
-    x: Tensor<B, 3, K>,
+pub fn decollate_patches<K>(
+    x: Tensor<3, K>,
     height: usize,
     width: usize,
-) -> Tensor<B, 3, K>
+) -> Tensor<3, K>
 where
-    K: BasicOps<B>,
+    K: Basic,
 {
     let h2 = height / 2;
     let w2 = width / 2;
@@ -316,27 +316,25 @@ mod tests {
         },
         errors::WithOkOrPanic,
         support::testing::{
-            CpuBackend,
             DeviceMemoryGuard,
-            PerformanceBackend,
-            default_device,
+            cpu_device,
+            performance_device,
         },
     };
 
     #[test]
     #[serial]
     fn test_collate_patches() {
-        type B = PerformanceBackend;
         let b = 2;
         let h = 4;
         let w = 6;
         let c = 5;
 
-        let device = default_device();
-        let _memory = DeviceMemoryGuard::<B>::new(&device);
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
 
         let distribution = Distribution::Normal(0., 1.);
-        let x = Tensor::<B, 3>::random([b, h * w, c], distribution, &device);
+        let x = Tensor::<3>::random([b, h * w, c], distribution, &device);
 
         let y = collate_patches(x.clone(), h, w);
         assert_eq!(&y.dims(), &[b, (h / 2) * (w / 2), 4 * c]);
@@ -349,7 +347,6 @@ mod tests {
     #[test]
     #[serial]
     fn test_patch_merging_meta() {
-        type B = PerformanceBackend;
         let config = PatchMergingConfig {
             input_resolution: [12, 8],
             d_input: 3,
@@ -362,9 +359,9 @@ mod tests {
         assert_eq!(config.output_height(), 6);
         assert_eq!(config.output_width(), 4);
 
-        let device = default_device();
-        let _memory = DeviceMemoryGuard::<B>::new(&device);
-        let patch_merging: PatchMerging<B> = config.try_init(&device).ok_or_panic();
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
+        let patch_merging: PatchMerging = config.try_init(&device).ok_or_panic();
 
         assert_eq!(patch_merging.input_resolution(), [12, 8]);
         assert_eq!(patch_merging.d_input(), 3);
@@ -378,22 +375,20 @@ mod tests {
     #[test]
     #[serial]
     fn test_patch_merging_invalid_resolution() {
-        type B = PerformanceBackend;
         let config = PatchMergingConfig {
             input_resolution: [13, 8], // Invalid height
             d_input: 3,
         };
-        let device = default_device();
-        let _memory = DeviceMemoryGuard::<B>::new(&device);
-        let _d: PatchMerging<B> = config.try_init(&device).ok_or_panic();
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
+        let _d: PatchMerging = config.try_init(&device).ok_or_panic();
     }
 
     #[test]
     #[serial]
     fn test_patch_merging() {
-        type B = PerformanceBackend;
-        let device = default_device();
-        let _memory = DeviceMemoryGuard::<B>::new(&device);
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
 
         let b = 2;
         let h = 12;
@@ -404,7 +399,7 @@ mod tests {
             input_resolution: [h, w],
             d_input: c,
         };
-        let patch_merging: PatchMerging<B> = config.try_init(&device).ok_or_panic();
+        let patch_merging: PatchMerging = config.try_init(&device).ok_or_panic();
 
         let distribution = Distribution::Normal(0., 1.);
         let x = Tensor::random([b, h * w, c], distribution, &device);
@@ -415,7 +410,6 @@ mod tests {
 
     #[test]
     fn test_patch_embed_meta() {
-        type B = CpuBackend;
         let config = PatchEmbedConfig::new([12, 8], 4, 3, 6).with_enable_patch_norm(false);
 
         assert_eq!(config.input_resolution(), [12, 8]);
@@ -427,8 +421,8 @@ mod tests {
         assert_eq!(config.patches_height(), 3);
         assert_eq!(config.patches_width(), 2);
 
-        let device = default_device();
-        let patch_embed: PatchEmbed<B> = config.try_init(&device).ok_or_panic();
+        let device = cpu_device();
+        let patch_embed: PatchEmbed = config.try_init(&device).ok_or_panic();
 
         assert_eq!(patch_embed.input_resolution(), [12, 8]);
         assert_eq!(patch_embed.patch_size(), 4);
@@ -443,9 +437,8 @@ mod tests {
     #[test]
     #[serial]
     fn test_patch_embed() {
-        type B = PerformanceBackend;
-        let device = default_device();
-        let _memory = DeviceMemoryGuard::<B>::new(&device);
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
 
         let b = 2;
         let h = 12;
@@ -468,7 +461,7 @@ mod tests {
             assert_eq!(&y.dims(), &[b, (h / 4) * (w / 4), d_output]);
 
             let z = patch_embed.projection.forward(x.clone());
-            let z: Tensor<B, 3> = z.flatten(2, 3);
+            let z: Tensor<3> = z.flatten(2, 3);
             let z = z.swap_dims(1, 2);
 
             y.into_data().assert_eq(&z.into_data(), true);
@@ -483,7 +476,7 @@ mod tests {
             assert_eq!(&y.dims(), &[b, (h / 4) * (w / 4), d_output]);
 
             let z = patch_embed.projection.forward(x.clone());
-            let z: Tensor<B, 3> = z.flatten(2, 3);
+            let z: Tensor<3> = z.flatten(2, 3);
             let z = z.swap_dims(1, 2);
             let z = patch_embed.norm.as_ref().unwrap().forward(z);
 

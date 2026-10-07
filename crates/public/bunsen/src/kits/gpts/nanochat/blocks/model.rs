@@ -16,10 +16,10 @@ use burn::{
         },
     },
     prelude::{
-        Backend,
         Config,
         Int,
     },
+    tensor::Device,
 };
 
 use crate::{
@@ -267,11 +267,11 @@ impl NanoChatGptMeta for NanoChatGptStructureConfig {
     }
 }
 
-impl<B: Backend> ModuleInit<B, NanoChatGpt<B>> for NanoChatGptStructureConfig {
+impl ModuleInit<NanoChatGpt> for NanoChatGptStructureConfig {
     fn try_init(
         &self,
-        device: &B::Device,
-    ) -> BunsenResult<NanoChatGpt<B>> {
+        device: &Device,
+    ) -> BunsenResult<NanoChatGpt> {
         let n_embed = self.n_embed();
         Ok(NanoChatGpt {
             wte: self.wte.init(device),
@@ -280,7 +280,7 @@ impl<B: Backend> ModuleInit<B, NanoChatGpt<B>> for NanoChatGptStructureConfig {
                 .iter()
                 .enumerate()
                 .map(|(layer_idx, c)| c.try_init(layer_idx, device))
-                .collect::<BunsenResult<Vec<NanoChatGptBlock<B>>>>()?,
+                .collect::<BunsenResult<Vec<NanoChatGptBlock>>>()?,
             h_norm: self.norm.clone().with_num_features(n_embed).init(device),
             lm_head: self.lm_head.init(device),
             r_emb: self.r_emb.try_init(device)?,
@@ -304,18 +304,18 @@ impl<B: Backend> ModuleInit<B, NanoChatGpt<B>> for NanoChatGptStructureConfig {
 /// Built by [`NanoChatGptContractConfig`] (high-level) or
 /// [`NanoChatGptStructureConfig`].
 #[derive(Module, Debug)]
-pub struct NanoChatGpt<B: Backend> {
-    wte: Embedding<B>,
-    h: Vec<NanoChatGptBlock<B>>,
-    h_norm: Normalization<B>,
-    lm_head: Linear<B>,
-    r_emb: RotaryEmbedding<B>,
+pub struct NanoChatGpt {
+    wte: Embedding,
+    h: Vec<NanoChatGptBlock>,
+    h_norm: Normalization,
+    lm_head: Linear,
+    r_emb: RotaryEmbedding,
 
     init_seq_len: usize,
     softcap: f64,
 }
 
-impl<B: Backend> NanoChatGptMeta for NanoChatGpt<B> {
+impl NanoChatGptMeta for NanoChatGpt {
     fn n_embed(&self) -> usize {
         // burn's `Embedding` weight is `[n_embedding, d_model]`.
         self.wte.weight.dims()[1]
@@ -346,7 +346,7 @@ impl<B: Backend> NanoChatGptMeta for NanoChatGpt<B> {
     }
 }
 
-impl<B: Backend> NanoChatGpt<B> {
+impl NanoChatGpt {
     /// Forward Pass.
     ///
     /// # Arguments
@@ -364,9 +364,9 @@ impl<B: Backend> NanoChatGpt<B> {
     /// (0 without a cache) plus `T` exceeds `max_seq_len`.
     pub fn forward(
         &self,
-        idx: Tensor<B, 2, Int>,
-        kv_cache: &mut Option<&mut KVCache<B>>,
-    ) -> Tensor<B, 3> {
+        idx: Tensor<2, Int>,
+        kv_cache: &mut Option<&mut KVCache>,
+    ) -> Tensor<3> {
         let [b, t] = unpack_shape_contract!(["B", "T"], &idx.dims());
 
         let t0 = match kv_cache {
@@ -417,7 +417,7 @@ impl<B: Backend> NanoChatGpt<B> {
     pub fn new_kv_cache(
         &self,
         batch_size: usize,
-    ) -> KVCache<B> {
+    ) -> KVCache {
         KVCacheConfig {
             batch_size,
             num_heads: self.n_kv_head(),
@@ -461,8 +461,7 @@ mod tests {
         contracts::assert_shape_contract,
         support::testing::{
             DeviceMemoryGuard,
-            PerformanceBackend,
-            default_device,
+            performance_device,
         },
     };
 
@@ -483,9 +482,8 @@ mod tests {
     #[test]
     #[serial]
     fn test_gpt_forward() {
-        type B = PerformanceBackend;
-        let device = default_device();
-        let _memory = DeviceMemoryGuard::<B>::new(&device);
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
 
         let batch_size = 1;
         let seq_len = 100;
@@ -498,11 +496,11 @@ mod tests {
             .with_vocab_size(vocab_size)
             .with_n_embed(n_embed)
             .with_n_layer(n_layer);
-        let gpt: NanoChatGpt<B> = cfg.init(&device);
+        let gpt: NanoChatGpt = cfg.init(&device);
 
         let mut kv_cache = gpt.new_kv_cache(batch_size);
 
-        let input_tokens = Tensor::<B, 2>::random(
+        let input_tokens = Tensor::<2>::random(
             [batch_size, seq_len],
             Distribution::Uniform(0.0, vocab_size as f64),
             &device,
@@ -538,9 +536,8 @@ mod tests {
     #[test]
     #[serial]
     fn test_policy_pathways_agree() {
-        type B = PerformanceBackend;
-        let device = default_device();
-        let _memory = DeviceMemoryGuard::<B>::new(&device);
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
 
         let policy = NanoChatGptContractConfig::new()
             .with_init_seq_len(16)
@@ -556,8 +553,8 @@ mod tests {
         assert_eq!(structure.max_seq_len(), 32);
         assert_eq!(structure.head_dim(), 8);
 
-        let lowered: NanoChatGpt<B> = structure.init(&device);
-        let direct: NanoChatGpt<B> = policy.init(&device);
+        let lowered: NanoChatGpt = structure.init(&device);
+        let direct: NanoChatGpt = policy.init(&device);
 
         assert_meta_agrees(&direct, &lowered);
         assert_meta_agrees(&structure, &lowered);
@@ -565,8 +562,8 @@ mod tests {
     }
 
     /// A tiny model whose rotary table, `max_seq_len`, is 8 positions.
-    fn tiny_gpt<B: Backend>(device: &B::Device) -> NanoChatGpt<B> {
-        let gpt: NanoChatGpt<B> = NanoChatGptContractConfig::new()
+    fn tiny_gpt(device: &Device) -> NanoChatGpt {
+        let gpt: NanoChatGpt = NanoChatGptContractConfig::new()
             .with_init_seq_len(4)
             .with_max_seq_len_factor(2)
             .with_vocab_size(16)
@@ -583,11 +580,10 @@ mod tests {
     #[test]
     #[serial]
     fn test_cached_decode_fills_rotary_table() {
-        type B = PerformanceBackend;
-        let device = default_device();
-        let _memory = DeviceMemoryGuard::<B>::new(&device);
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
 
-        let gpt = tiny_gpt::<B>(&device);
+        let gpt = tiny_gpt(&device);
         let mut cache = gpt.new_kv_cache(1);
         gpt.forward(Tensor::zeros([1, 7], &device), &mut Some(&mut cache));
         let logits = gpt.forward(Tensor::zeros([1, 1], &device), &mut Some(&mut cache));
@@ -601,11 +597,10 @@ mod tests {
     #[serial]
     #[should_panic(expected = "beyond the rotary embeddings table: 8 + 1 > 8")]
     fn test_cached_decode_past_rotary_table_panics() {
-        type B = PerformanceBackend;
-        let device = default_device();
-        let _memory = DeviceMemoryGuard::<B>::new(&device);
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
 
-        let gpt = tiny_gpt::<B>(&device);
+        let gpt = tiny_gpt(&device);
         let mut cache = gpt.new_kv_cache(1);
         gpt.forward(Tensor::zeros([1, 8], &device), &mut Some(&mut cache));
         gpt.forward(Tensor::zeros([1, 1], &device), &mut Some(&mut cache));
@@ -618,13 +613,12 @@ mod tests {
     #[test]
     #[serial]
     fn test_forward_normalizes_the_embedding() {
-        type B = PerformanceBackend;
-        let device = default_device();
-        let _memory = DeviceMemoryGuard::<B>::new(&device);
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
 
-        let mut gpt = tiny_gpt::<B>(&device);
-        let table: Tensor<B, 2> = Tensor::random([16, 16], Distribution::Normal(0.0, 1.0), &device);
-        let tokens: Tensor<B, 2, Int> = Tensor::from_data([[3, 1, 4, 1, 5, 9]], &device);
+        let mut gpt = tiny_gpt(&device);
+        let table: Tensor<2> = Tensor::random([16, 16], Distribution::Normal(0.0, 1.0), &device);
+        let tokens: Tensor<2, Int> = Tensor::from_data([[3, 1, 4, 1, 5, 9]], &device);
 
         gpt.wte.weight = Param::from_tensor(table.clone());
         let logits = gpt.forward(tokens.clone(), &mut None);

@@ -3,7 +3,7 @@ use std::path::{
     PathBuf,
 };
 
-use burn::prelude::Backend;
+use burn::tensor::Device;
 
 use crate::{
     audit::{
@@ -17,51 +17,61 @@ use crate::{
         },
     },
     errors::BunsenResult,
-    support::testing::backend_device,
 };
 
-/// A test body that runs on any backend, emitting audit checkpoints.
+/// A test body that runs on any device, emitting audit checkpoints.
 ///
-/// A closure cannot be generic over the backend, so a body is a type with a
-/// generic `run`. The harness functions [`audit_across`] and [`audit_baseline`]
-/// call `run` once per run, each time with an [`AuditProbe`] wired to a
-/// recorder ([`AuditStreamRecorder`]) or a verifier ([`AuditStreamVerifier`]).
-/// A body must make the same sequence of checkpoints on every backend, since
-/// events are matched by position.
+/// The harness functions [`audit_across`] and [`audit_baseline`] call `run`
+/// once per run, each time with an [`AuditProbe`] wired to a recorder
+/// ([`AuditStreamRecorder`]) or a verifier ([`AuditStreamVerifier`]). A body
+/// must make the same sequence of checkpoints on every device, since events
+/// are matched by position.
+///
+/// A closure `Fn(&mut AuditProbe<'_>, &Device) -> BunsenResult<()>` is a body.
 pub trait AuditBody {
-    /// Run the body on backend `B`, sending checkpoints to `probe`.
+    /// Run the body on `device`, sending checkpoints to `probe`.
     ///
     /// # Errors
     /// Errors from `probe` (a checkpoint that does not verify), or from the
     /// body itself.
-    fn run<B: Backend>(
+    fn run(
         &self,
         probe: &mut AuditProbe<'_>,
-        device: &B::Device,
+        device: &Device,
     ) -> BunsenResult<()>;
 }
 
-/// Runs `body` on `R`, recording, then on `T`, verifying against `R`.
-///
-/// Each runs on its backend's default test device.
+impl<F> AuditBody for F
+where
+    F: Fn(&mut AuditProbe<'_>, &Device) -> BunsenResult<()>,
+{
+    fn run(
+        &self,
+        probe: &mut AuditProbe<'_>,
+        device: &Device,
+    ) -> BunsenResult<()> {
+        self(probe, device)
+    }
+}
+
+/// Runs `body` on `reference`, recording, then on `target`, verifying
+/// against the recording.
 ///
 /// # Errors
 /// [`Policy`](crate::errors::BunsenErrorKind::Policy), with a
 /// [`ValueMismatch`](crate::errors::ValueMismatch) cause, for the first
 /// checkpoint that does not verify, or a mismatched event count. Any error the
 /// body itself returns, unchanged.
-pub fn audit_across<R: Backend, T: Backend>(body: &impl AuditBody) -> BunsenResult<()> {
+pub fn audit_across(
+    reference: &Device,
+    target: &Device,
+    body: &impl AuditBody,
+) -> BunsenResult<()> {
     let mut recorder = AuditStreamRecorder::default();
-    body.run::<R>(
-        &mut AuditProbe::new(vec![&mut recorder]),
-        &backend_device::<R>(),
-    )?;
+    body.run(&mut AuditProbe::new(vec![&mut recorder]), reference)?;
 
     let mut verifier = recorder.into_verifier();
-    body.run::<T>(
-        &mut AuditProbe::new(vec![&mut verifier]),
-        &backend_device::<T>(),
-    )?;
+    body.run(&mut AuditProbe::new(vec![&mut verifier]), target)?;
     verifier.finish()
 }
 
@@ -80,27 +90,29 @@ pub enum BaselineOutcome {
     Verified(PathBuf),
 }
 
-/// Runs `body` on `B` against the stored baseline `name`.
+/// Runs `body` on `device` against the stored baseline `name`.
 ///
 /// The baseline lives at
-/// `options.report_path(backend_label, name + ".cbor")`, and is treated per
+/// `options.report_path(backend_label(device), name + ".cbor")`, and is
+/// treated per
 /// `options.mode()`; see [`audit_baseline_at`].
 ///
 /// # Errors
 /// See [`audit_baseline_at`];
 /// [`Illegal`](crate::errors::BunsenErrorKind::Illegal) if `name` escapes the
 /// backend directory.
-pub fn audit_baseline<B: Backend>(
+pub fn audit_baseline(
     options: &ReportsOptions,
+    device: &Device,
     name: &str,
     body: &impl AuditBody,
 ) -> BunsenResult<BaselineOutcome> {
-    let device = backend_device::<B>();
-    let path = options.report_path(&backend_label::<B>(&device), &format!("{name}.cbor"))?;
-    audit_baseline_at::<B>(&path, options.mode(), body)
+    let path = options.report_path(&backend_label(device), &format!("{name}.cbor"))?;
+    audit_baseline_at(&path, options.mode(), device, body)
 }
 
-/// Runs `body` on `B` against the baseline stream at `path`, under `mode`.
+/// Runs `body` on `device` against the baseline stream at `path`, under
+/// `mode`.
 ///
 /// `Auto` records when the file is absent and verifies when present;
 /// `Record` always records; `Verify` requires the file.
@@ -117,12 +129,12 @@ pub fn audit_baseline<B: Backend>(
 ///
 /// [`load_audit_stream`]: crate::audit::load_audit_stream
 /// [`save_audit_stream`]: crate::audit::save_audit_stream
-pub fn audit_baseline_at<B: Backend>(
+pub fn audit_baseline_at(
     path: &Path,
     mode: BaselineMode,
+    device: &Device,
     body: &impl AuditBody,
 ) -> BunsenResult<BaselineOutcome> {
-    let device = backend_device::<B>();
     let path = path.to_path_buf();
     let record = match mode {
         BaselineMode::Auto => !path.exists(),
@@ -132,12 +144,12 @@ pub fn audit_baseline_at<B: Backend>(
 
     if record {
         let mut recorder = AuditStreamRecorder::default();
-        body.run::<B>(&mut AuditProbe::new(vec![&mut recorder]), &device)?;
+        body.run(&mut AuditProbe::new(vec![&mut recorder]), device)?;
         recorder.save(&path)?;
         Ok(BaselineOutcome::Recorded(path))
     } else {
         let mut verifier = AuditStreamVerifier::load(&path)?;
-        body.run::<B>(&mut AuditProbe::new(vec![&mut verifier]), &device)?;
+        body.run(&mut AuditProbe::new(vec![&mut verifier]), device)?;
         verifier.finish()?;
         Ok(BaselineOutcome::Verified(path))
     }
@@ -162,8 +174,8 @@ mod tests {
             },
         },
         support::testing::{
-            CpuBackend,
-            PerformanceBackend,
+            cpu_device,
+            performance_device,
             seeded_tensor,
         },
     };
@@ -191,12 +203,12 @@ mod tests {
     }
 
     impl AuditBody for Body {
-        fn run<B: Backend>(
+        fn run(
             &self,
             probe: &mut AuditProbe<'_>,
-            device: &B::Device,
+            device: &Device,
         ) -> BunsenResult<()> {
-            let x = seeded_tensor::<B, 3>(1, [2, 3, 4], Distribution::Uniform(-1.0, 1.0), device)
+            let x = seeded_tensor::<3>(1, [2, 3, 4], Distribution::Uniform(-1.0, 1.0), device)
                 + self.shift;
 
             probe.assert_eq_as::<f32>("x", &x)?;
@@ -214,11 +226,8 @@ mod tests {
 
     fn record(body: &Body) -> AuditStreamRecorder {
         let mut recorder = AuditStreamRecorder::default();
-        body.run::<CpuBackend>(
-            &mut AuditProbe::new(vec![&mut recorder]),
-            &backend_device::<CpuBackend>(),
-        )
-        .unwrap();
+        body.run(&mut AuditProbe::new(vec![&mut recorder]), &cpu_device())
+            .unwrap();
         recorder
     }
 
@@ -226,10 +235,7 @@ mod tests {
         verifier: &mut AuditStreamVerifier,
         body: &Body,
     ) -> BunsenResult<()> {
-        body.run::<CpuBackend>(
-            &mut AuditProbe::new(vec![verifier]),
-            &backend_device::<CpuBackend>(),
-        )
+        body.run(&mut AuditProbe::new(vec![verifier]), &cpu_device())
     }
 
     #[test]
@@ -298,7 +304,7 @@ mod tests {
     #[test]
     #[serial_test::serial]
     fn test_audit_across_backends() {
-        audit_across::<CpuBackend, PerformanceBackend>(&Body::PLAIN).unwrap();
+        audit_across(&cpu_device(), &performance_device(), &Body::PLAIN).unwrap();
     }
 
     #[test]
@@ -306,44 +312,54 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("baseline").join("body.cbor");
 
-        let outcome = audit_baseline_at::<CpuBackend>(&path, BaselineMode::Auto, &Body::PLAIN);
+        let outcome = audit_baseline_at(&path, BaselineMode::Auto, &cpu_device(), &Body::PLAIN);
         assert_eq!(outcome.unwrap(), BaselineOutcome::Recorded(path.clone()));
 
-        let outcome = audit_baseline_at::<CpuBackend>(&path, BaselineMode::Auto, &Body::PLAIN);
+        let outcome = audit_baseline_at(&path, BaselineMode::Auto, &cpu_device(), &Body::PLAIN);
         assert_eq!(outcome.unwrap(), BaselineOutcome::Verified(path.clone()));
 
         assert!(
-            audit_baseline_at::<CpuBackend>(&path, BaselineMode::Verify, &Body::SHIFTED).is_err()
+            audit_baseline_at(&path, BaselineMode::Verify, &cpu_device(), &Body::SHIFTED).is_err()
         );
 
-        let outcome = audit_baseline_at::<CpuBackend>(&path, BaselineMode::Record, &Body::SHIFTED);
+        let outcome = audit_baseline_at(&path, BaselineMode::Record, &cpu_device(), &Body::SHIFTED);
         assert_eq!(outcome.unwrap(), BaselineOutcome::Recorded(path.clone()));
 
         let missing = dir.path().join("baseline_missing").join("body.cbor");
         assert!(
-            audit_baseline_at::<CpuBackend>(&missing, BaselineMode::Verify, &Body::PLAIN).is_err()
+            audit_baseline_at(&missing, BaselineMode::Verify, &cpu_device(), &Body::PLAIN).is_err()
         );
+    }
+
+    /// A closure is a body.
+    #[test]
+    fn test_closure_body() {
+        let body = |probe: &mut AuditProbe<'_>, device: &Device| -> BunsenResult<()> {
+            let x = seeded_tensor::<2>(3, [2, 2], Distribution::Default, device);
+            probe.assert_eq_as::<f32>("x", &x)
+        };
+        audit_across(&cpu_device(), &cpu_device(), &body).unwrap();
     }
 
     #[test]
     fn test_baseline_uses_the_call_site_location() {
         let dir = tempfile::tempdir().unwrap();
         let options = ReportsOptions::new(dir.path());
-        let device = backend_device::<CpuBackend>();
+        let device = cpu_device();
         let path = options
-            .report_path(&backend_label::<CpuBackend>(&device), "group/body.cbor")
+            .report_path(&backend_label(&device), "group/body.cbor")
             .unwrap();
         assert!(path.starts_with(dir.path()));
 
-        let outcome = audit_baseline::<CpuBackend>(&options, "group/body", &Body::PLAIN);
+        let outcome = audit_baseline(&options, &device, "group/body", &Body::PLAIN);
         assert_eq!(outcome.unwrap(), BaselineOutcome::Recorded(path.clone()));
         assert!(path.exists());
 
-        let outcome = audit_baseline::<CpuBackend>(&options, "group/body", &Body::PLAIN);
+        let outcome = audit_baseline(&options, &device, "group/body", &Body::PLAIN);
         assert_eq!(outcome.unwrap(), BaselineOutcome::Verified(path.clone()));
 
         let verify = options.with_mode(BaselineMode::Verify);
-        assert!(audit_baseline::<CpuBackend>(&verify, "group/body", &Body::SHIFTED).is_err());
-        assert!(audit_baseline::<CpuBackend>(&verify, "absent", &Body::PLAIN).is_err());
+        assert!(audit_baseline(&verify, &device, "group/body", &Body::SHIFTED).is_err());
+        assert!(audit_baseline(&verify, &device, "absent", &Body::PLAIN).is_err());
     }
 }

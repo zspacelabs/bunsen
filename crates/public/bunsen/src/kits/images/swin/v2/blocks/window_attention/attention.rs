@@ -12,11 +12,9 @@ use burn::{
         LinearConfig,
         activation::ActivationConfig,
     },
-    prelude::{
-        Backend,
-        Tensor,
-    },
+    prelude::Tensor,
     tensor::{
+        Device,
         activation::softmax,
         linalg::{
             Norm,
@@ -109,7 +107,7 @@ impl WindowAttentionMeta for WindowAttentionConfig {
     }
 }
 
-impl<B: Backend> WindowAttentionMeta for WindowAttention<B> {
+impl WindowAttentionMeta for WindowAttention {
     fn d_input(&self) -> usize {
         self.d_input
     }
@@ -177,7 +175,7 @@ pub struct WindowAttentionConfig {
 ///
 /// Built by [`WindowAttentionConfig`].
 #[derive(Module, Debug)]
-pub struct WindowAttention<B: Backend> {
+pub struct WindowAttention {
     /// Input dimension size.
     pub d_input: usize,
 
@@ -185,22 +183,22 @@ pub struct WindowAttention<B: Backend> {
     pub num_heads: usize,
 
     /// Linear layer for Q.
-    pub q_linear: Linear<B>,
+    pub q_linear: Linear,
 
     /// Linear layer for K.
-    pub k_linear: Linear<B>,
+    pub k_linear: Linear,
 
     /// Linear layer for V.
-    pub v_linear: Linear<B>,
+    pub v_linear: Linear,
 
     /// Learnable logit scale.
-    pub logit_scale: Param<Tensor<B, 3>>,
+    pub logit_scale: Param<Tensor<3>>,
 
     /// Relative position bias module.
-    pub rpb_module: OffsetGridRelativePositionBias<B>,
+    pub rpb_module: OffsetGridRelativePositionBias,
 
     /// Linear layer for projection.
-    pub proj: Linear<B>,
+    pub proj: Linear,
 
     /// Dropout for attention.
     pub attn_drop: Dropout,
@@ -209,7 +207,7 @@ pub struct WindowAttention<B: Backend> {
     pub proj_drop: Dropout,
 }
 
-impl<B: Backend> WindowAttention<B> {
+impl WindowAttention {
     /// Forward pass of the `WindowAttention` module.
     ///
     /// # Arguments
@@ -227,9 +225,9 @@ impl<B: Backend> WindowAttention<B> {
     #[must_use]
     pub fn forward(
         &self,
-        x: Tensor<B, 3>,
-        mask: Option<Tensor<B, 3>>,
-    ) -> Tensor<B, 3> {
+        x: Tensor<3>,
+        mask: Option<Tensor<3>>,
+    ) -> Tensor<3> {
         let [wh, ww] = self.window_shape();
 
         let [b_nw, n, c] = unpack_shape_contract!(
@@ -285,10 +283,10 @@ impl<B: Backend> WindowAttention<B> {
         &self,
         b_nw: usize,
         n: usize,
-        q: Tensor<B, 4>,
-        k: Tensor<B, 4>,
-        mask: Option<Tensor<B, 3>>,
-    ) -> Tensor<B, 4> {
+        q: Tensor<4>,
+        k: Tensor<4>,
+        mask: Option<Tensor<3>>,
+    ) -> Tensor<4> {
         // cosine attention
         let q = vector_normalize(q, Norm::L2, 3, EPS);
         // (b_nw, num_heads, ws*ws, c_per_head)
@@ -330,7 +328,7 @@ impl<B: Backend> WindowAttention<B> {
     /// # Returns
     /// * `[num_heads, 1, 1]`
     #[must_use]
-    fn logit_scale(&self) -> Tensor<B, 3> {
+    fn logit_scale(&self) -> Tensor<3> {
         // TODO(crutcher): I suspect this is a bug in the original code.
         // I *think* the authors thought this was log_10; and not log_e;
         // it doesn't make sense to use log_e with a scale of 10.0 here.
@@ -342,7 +340,7 @@ impl<B: Backend> WindowAttention<B> {
     /// # Returns
     /// * `[num_heads, Wh*Ww, Wh*Ww]`
     #[must_use]
-    fn relative_pos_bias(&self) -> Tensor<B, 3> {
+    fn relative_pos_bias(&self) -> Tensor<3> {
         self.rpb_module.forward()
     }
 
@@ -357,17 +355,17 @@ impl<B: Backend> WindowAttention<B> {
     #[must_use]
     fn encode_attention(
         &self,
-        attn: Tensor<B, 4>,
-    ) -> Tensor<B, 4> {
+        attn: Tensor<4>,
+    ) -> Tensor<4> {
         attn * self.logit_scale().unsqueeze() + self.relative_pos_bias().unsqueeze()
     }
 }
 
-impl<B: Backend> ModuleInit<B, WindowAttention<B>> for WindowAttentionConfig {
+impl ModuleInit<WindowAttention> for WindowAttentionConfig {
     fn try_init(
         &self,
-        device: &B::Device,
-    ) -> BunsenResult<WindowAttention<B>> {
+        device: &Device,
+    ) -> BunsenResult<WindowAttention> {
         let d_input = self.d_input();
         let num_heads = self.num_heads();
         let window_size = self.window_shape();
@@ -390,7 +388,7 @@ impl<B: Backend> ModuleInit<B, WindowAttention<B>> for WindowAttentionConfig {
                 // TODO(crutcher): I suspect this is a bug in the original code.
                 // I *think* the authors thought this was log_10; and not log_e;
                 // it doesn't make sense to use log_e with a scale of 10.0 here.
-                Tensor::<B, 3>::ones([num_heads, 1, 1], device)
+                Tensor::<3>::ones([num_heads, 1, 1], device)
                     .mul_scalar(10.0)
                     .log(),
             ),
@@ -425,16 +423,13 @@ mod tests {
         contracts::assert_shape_contract,
         support::testing::{
             DeviceMemoryGuard,
-            PerformanceBackend,
-            default_device,
+            performance_device,
         },
     };
 
     #[test]
     #[serial]
     fn test_window_attention_meta() {
-        type B = PerformanceBackend;
-
         let window_shape = [4, 4];
         let num_heads = 8;
         let channels = num_heads * 3; // Assuming cph = 3
@@ -450,9 +445,9 @@ mod tests {
         assert_eq!(config.window_height(), 4);
         assert_eq!(config.window_width(), 4);
 
-        let device = default_device();
-        let _memory = DeviceMemoryGuard::<B>::new(&device);
-        let attn_mod: WindowAttention<B> = config.try_init(&device).ok_or_panic();
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
+        let attn_mod: WindowAttention = config.try_init(&device).ok_or_panic();
 
         assert_eq!(attn_mod.d_input(), channels);
         assert_eq!(attn_mod.window_shape(), window_shape);
@@ -465,8 +460,6 @@ mod tests {
     #[test]
     #[serial]
     fn test_wa() {
-        type B = PerformanceBackend;
-
         let b = 3;
         let num_windows = 2;
 
@@ -478,16 +471,16 @@ mod tests {
 
         let config = WindowAttentionConfig::new(channels, [window_size, window_size], num_heads);
 
-        let device = default_device();
-        let _memory = DeviceMemoryGuard::<B>::new(&device);
-        let attn_mod: WindowAttention<B> = config.try_init(&device).ok_or_panic();
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
+        let attn_mod: WindowAttention = config.try_init(&device).ok_or_panic();
 
         assert_eq!(attn_mod.d_input(), channels);
         assert_eq!(attn_mod.window_shape(), [window_size, window_size]);
         assert_eq!(attn_mod.num_heads(), num_heads);
 
         let distribution = Distribution::Uniform(0.0, 1.0);
-        let input = Tensor::<B, 3>::random(
+        let input = Tensor::<3>::random(
             [b * num_windows, window_size * window_size, channels],
             distribution,
             &device,

@@ -10,10 +10,7 @@ use burn::{
             MultiHeadAttention,
         },
     },
-    prelude::{
-        Backend,
-        Bool,
-    },
+    prelude::Bool,
     tensor::activation::{
         quiet_softmax,
         softmax,
@@ -26,10 +23,10 @@ use super::AttnKvPair;
 ///
 /// For cross-attention this is the whole win: call it once per layer against
 /// the encoder output and the result serves every decode step.
-pub fn project_kv_pair<B: Backend>(
-    mha: &MultiHeadAttention<B>,
-    x: Tensor<B, 3>,
-) -> AttnKvPair<B> {
+pub fn project_kv_pair(
+    mha: &MultiHeadAttention,
+    x: Tensor<3>,
+) -> AttnKvPair {
     AttnKvPair {
         key: split_heads(mha, mha.key.forward(x.clone())),
         value: split_heads(mha, mha.value.forward(x)),
@@ -39,10 +36,10 @@ pub fn project_kv_pair<B: Backend>(
 /// `[batch, seq, d_model]` -> `[batch, heads, seq, d_k]`.
 ///
 /// Mirrors `MultiHeadAttention::attention_linear`, minus the projection.
-pub fn split_heads<B: Backend>(
-    mha: &MultiHeadAttention<B>,
-    x: Tensor<B, 3>,
-) -> Tensor<B, 4> {
+pub fn split_heads(
+    mha: &MultiHeadAttention,
+    x: Tensor<3>,
+) -> Tensor<4> {
     let [batch, seq, _] = x.dims();
     x.reshape([batch, seq, mha.n_heads, mha.d_k])
         .swap_dims(1, 2)
@@ -59,12 +56,12 @@ pub fn split_heads<B: Backend>(
 /// The [`MhaOutput`]:
 /// * `context` : `[batch, seq_len, d_model]`.
 /// * `weights` : `[batch, n_heads, seq_len, seq_len]`.
-pub fn layer_norm_self_attn<B: Backend>(
-    layer_norm: &LayerNorm<B>,
-    mh_attn: &MultiHeadAttention<B>,
-    x: Tensor<B, 3>,
-    mask: Option<Tensor<B, 3, Bool>>,
-) -> MhaOutput<B> {
+pub fn layer_norm_self_attn(
+    layer_norm: &LayerNorm,
+    mh_attn: &MultiHeadAttention,
+    x: Tensor<3>,
+    mask: Option<Tensor<3, Bool>>,
+) -> MhaOutput {
     #[cfg(any(debug_assertions, test))]
     {
         use crate::contracts::*;
@@ -122,12 +119,12 @@ pub fn layer_norm_self_attn<B: Backend>(
 /// The [`MhaOutput`]:
 /// * `context` : `[batch, seq_len, d_model]`.
 /// * `weights` : `[batch, n_heads, seq_len, cross_len]`.
-pub fn layer_norm_cross_attn<B: Backend>(
-    layer_norm: &LayerNorm<B>,
-    mh_attn: &MultiHeadAttention<B>,
-    x: Tensor<B, 3>,
-    xa: Tensor<B, 3>,
-) -> MhaOutput<B> {
+pub fn layer_norm_cross_attn(
+    layer_norm: &LayerNorm,
+    mh_attn: &MultiHeadAttention,
+    x: Tensor<3>,
+    xa: Tensor<3>,
+) -> MhaOutput {
     #[cfg(any(debug_assertions, test))]
     {
         crate::contracts::define_shape_contract!(CONTRACT, ["batch", "seq_len", "d_model"]);
@@ -161,12 +158,12 @@ pub fn layer_norm_cross_attn<B: Backend>(
 ///
 /// # Returns
 /// `[batch, seq_new, d_model]`.
-pub fn attend_q_kv_mask<B: Backend>(
-    mha: &MultiHeadAttention<B>,
-    q: Tensor<B, 4>,
-    kv: &AttnKvPair<B>,
-    mask: Option<Tensor<B, 3, Bool>>,
-) -> Tensor<B, 3> {
+pub fn attend_q_kv_mask(
+    mha: &MultiHeadAttention,
+    q: Tensor<4>,
+    kv: &AttnKvPair,
+    mask: Option<Tensor<3, Bool>>,
+) -> Tensor<3> {
     let [batch, _, seq_new, _] = q.dims();
 
     let scores = q
@@ -210,13 +207,13 @@ pub fn attend_q_kv_mask<B: Backend>(
 ///
 /// # Returns
 /// `[batch, seq_new, d_model]`.
-pub fn layer_norm_self_attn_w_kv_cache<B: Backend>(
-    layer_norm: &LayerNorm<B>,
-    mha: &MultiHeadAttention<B>,
-    x: Tensor<B, 3>,
-    mask: Option<Tensor<B, 3, Bool>>,
-    cache: &mut Option<AttnKvPair<B>>,
-) -> Tensor<B, 3> {
+pub fn layer_norm_self_attn_w_kv_cache(
+    layer_norm: &LayerNorm,
+    mha: &MultiHeadAttention,
+    x: Tensor<3>,
+    mask: Option<Tensor<3, Bool>>,
+    cache: &mut Option<AttnKvPair>,
+) -> Tensor<3> {
     #[cfg(any(debug_assertions, test))]
     crate::contracts::assert_shape_contract!(
         ["batch", "seq_new", "d_model"],
@@ -253,12 +250,12 @@ pub fn layer_norm_self_attn_w_kv_cache<B: Backend>(
 ///
 /// # Returns
 /// `[batch, seq_new, d_model]`.
-pub fn layer_norm_cross_attn_w_kv_cache<B: Backend>(
-    layer_norm: &LayerNorm<B>,
-    mha: &MultiHeadAttention<B>,
-    x: Tensor<B, 3>,
-    kv: &AttnKvPair<B>,
-) -> Tensor<B, 3> {
+pub fn layer_norm_cross_attn_w_kv_cache(
+    layer_norm: &LayerNorm,
+    mha: &MultiHeadAttention,
+    x: Tensor<3>,
+    kv: &AttnKvPair,
+) -> Tensor<3> {
     #[cfg(any(debug_assertions, test))]
     {
         crate::contracts::assert_shape_contract!(
@@ -293,13 +290,13 @@ pub fn layer_norm_cross_attn_w_kv_cache<B: Backend>(
 /// * `x` - `[cached_rows * group, seq_new, d_model]`.
 /// * `kv` - `[cached_rows, heads, cross_len, d_k]`.
 /// * `group` - query rows per cached row; one is the plain call.
-pub fn layer_norm_cross_attn_w_kv_cache_grouped<B: Backend>(
-    layer_norm: &LayerNorm<B>,
-    mha: &MultiHeadAttention<B>,
-    x: Tensor<B, 3>,
-    kv: &AttnKvPair<B>,
+pub fn layer_norm_cross_attn_w_kv_cache_grouped(
+    layer_norm: &LayerNorm,
+    mha: &MultiHeadAttention,
+    x: Tensor<3>,
+    kv: &AttnKvPair,
     group: usize,
-) -> Tensor<B, 3> {
+) -> Tensor<3> {
     if group == 1 {
         return layer_norm_cross_attn_w_kv_cache(layer_norm, mha, x, kv);
     }
@@ -339,7 +336,6 @@ mod tests {
         tensor::{
             Distribution,
             Tolerance,
-            backend::BackendTypes,
         },
     };
 
@@ -347,16 +343,9 @@ mod tests {
         super::causal_mask,
         *,
     };
-    use crate::{
-        burner::tensor::TensorElemOpExt,
-        support::testing::{
-            CpuBackend,
-            default_device,
-        },
-    };
+    use crate::support::testing::cpu_device;
 
-    type B = CpuBackend;
-    type F = <B as BackendTypes>::FloatElem;
+    type F = f32;
 
     /// Cross-attention must accept a `xa` whose sequence length differs from
     /// the query's — that is the entire point of it.
@@ -366,16 +355,15 @@ mod tests {
     /// deliberately mismatched lengths.
     #[test]
     fn test_cross_attn_accepts_a_different_cross_length() {
-        let device = default_device();
+        let device = cpu_device();
         let (batch, d_model, n_heads) = (2, 32, 4);
         let (seq_len, cross_len) = (3, 17);
 
-        let attn = MultiHeadAttentionConfig::new(d_model, n_heads).init::<B>(&device);
-        let ln = LayerNormConfig::new(d_model).init::<B>(&device);
+        let attn = MultiHeadAttentionConfig::new(d_model, n_heads).init(&device);
+        let ln = LayerNormConfig::new(d_model).init(&device);
 
-        let x = Tensor::<B, 3>::random([batch, seq_len, d_model], Distribution::Default, &device);
-        let xa =
-            Tensor::<B, 3>::random([batch, cross_len, d_model], Distribution::Default, &device);
+        let x = Tensor::<3>::random([batch, seq_len, d_model], Distribution::Default, &device);
+        let xa = Tensor::<3>::random([batch, cross_len, d_model], Distribution::Default, &device);
 
         let out = layer_norm_cross_attn(&ln, &attn, x, xa);
 
@@ -388,13 +376,13 @@ mod tests {
     /// simply stop checking.
     #[test]
     fn test_cross_attn_accepts_equal_lengths() {
-        let device = default_device();
+        let device = cpu_device();
         let (batch, d_model, n_heads, seq_len) = (1, 16, 2, 5);
 
-        let attn = MultiHeadAttentionConfig::new(d_model, n_heads).init::<B>(&device);
-        let ln = LayerNormConfig::new(d_model).init::<B>(&device);
+        let attn = MultiHeadAttentionConfig::new(d_model, n_heads).init(&device);
+        let ln = LayerNormConfig::new(d_model).init(&device);
 
-        let x = Tensor::<B, 3>::random([batch, seq_len, d_model], Distribution::Default, &device);
+        let x = Tensor::<3>::random([batch, seq_len, d_model], Distribution::Default, &device);
 
         let out = layer_norm_cross_attn(&ln, &attn, x.clone(), x);
         assert_eq!(out.context.dims(), [batch, seq_len, d_model]);
@@ -404,14 +392,14 @@ mod tests {
     #[test]
     #[should_panic(expected = "Shape Error")]
     fn test_cross_attn_rejects_a_d_model_mismatch() {
-        let device = default_device();
+        let device = cpu_device();
         let (batch, d_model, n_heads) = (1, 16, 2);
 
-        let attn = MultiHeadAttentionConfig::new(d_model, n_heads).init::<B>(&device);
-        let ln = LayerNormConfig::new(d_model).init::<B>(&device);
+        let attn = MultiHeadAttentionConfig::new(d_model, n_heads).init(&device);
+        let ln = LayerNormConfig::new(d_model).init(&device);
 
-        let x = Tensor::<B, 3>::random([batch, 4, d_model], Distribution::Default, &device);
-        let xa = Tensor::<B, 3>::random([batch, 9, d_model * 2], Distribution::Default, &device);
+        let x = Tensor::<3>::random([batch, 4, d_model], Distribution::Default, &device);
+        let xa = Tensor::<3>::random([batch, 9, d_model * 2], Distribution::Default, &device);
 
         layer_norm_cross_attn(&ln, &attn, x, xa);
     }
@@ -424,22 +412,22 @@ mod tests {
     /// all break it, and none would show up in a shape check.
     #[test]
     fn test_cached_self_attn_matches_uncached() {
-        let device = default_device();
+        let device = cpu_device();
         let (batch, d_model, n_heads, seq) = (2, 32, 4, 5);
 
-        let mha = MultiHeadAttentionConfig::new(d_model, n_heads).init::<B>(&device);
-        let ln = LayerNormConfig::new(d_model).init::<B>(&device);
+        let mha = MultiHeadAttentionConfig::new(d_model, n_heads).init(&device);
+        let ln = LayerNormConfig::new(d_model).init(&device);
 
-        let x = Tensor::<B, 3>::random([batch, seq, d_model], Distribution::Default, &device);
+        let x = Tensor::<3>::random([batch, seq, d_model], Distribution::Default, &device);
 
         // Uncached: one pass, causally masked.
-        let mask = causal_mask::<B>(seq, 0, &device);
+        let mask = causal_mask(seq, 0, &device);
         let whole = mha
             .forward(MhaInput::self_attn(ln.forward(x.clone())).mask_attn(mask))
             .context;
 
         // Cached: one token at a time. A lone query needs no mask.
-        let mut cache: Option<AttnKvPair<B>> = None;
+        let mut cache: Option<AttnKvPair> = None;
         let mut steps = Vec::with_capacity(seq);
         for t in 0..seq {
             let step = x.clone().slice_dim(1, t as isize..(t + 1) as isize);
@@ -450,7 +438,7 @@ mod tests {
 
         assert_eq!(cache.as_ref().unwrap().seq_len(), seq);
 
-        let stepped: Tensor<B, 3> = Tensor::cat(steps, 1);
+        let stepped: Tensor<3> = Tensor::cat(steps, 1);
         stepped
             .to_data_as::<F>()
             .assert_approx_eq::<F>(&whole.to_data_as::<F>(), Tolerance::permissive());
@@ -460,21 +448,21 @@ mod tests {
     /// which is what a prompt prefill does.
     #[test]
     fn test_cached_self_attn_prefill_matches_stepping() {
-        let device = default_device();
+        let device = cpu_device();
         let (batch, d_model, n_heads, seq) = (1, 32, 4, 6);
 
-        let mha = MultiHeadAttentionConfig::new(d_model, n_heads).init::<B>(&device);
-        let ln = LayerNormConfig::new(d_model).init::<B>(&device);
-        let x = Tensor::<B, 3>::random([batch, seq, d_model], Distribution::Default, &device);
+        let mha = MultiHeadAttentionConfig::new(d_model, n_heads).init(&device);
+        let ln = LayerNormConfig::new(d_model).init(&device);
+        let x = Tensor::<3>::random([batch, seq, d_model], Distribution::Default, &device);
 
         // Prefill 4, then step the last 2.
         let split = 4;
-        let mut cache: Option<AttnKvPair<B>> = None;
+        let mut cache: Option<AttnKvPair> = None;
         let prefill = layer_norm_self_attn_w_kv_cache(
             &ln,
             &mha,
             x.clone().slice_dim(1, 0..split as isize),
-            Some(causal_mask::<B>(split, 0, &device)),
+            Some(causal_mask(split, 0, &device)),
             &mut cache,
         );
         let mut parts = vec![prefill];
@@ -484,15 +472,15 @@ mod tests {
                 &ln, &mha, step, None, &mut cache,
             ));
         }
-        let mixed: Tensor<B, 3> = Tensor::cat(parts, 1);
+        let mixed: Tensor<3> = Tensor::cat(parts, 1);
 
         // All in one go.
-        let mut cache2: Option<AttnKvPair<B>> = None;
+        let mut cache2: Option<AttnKvPair> = None;
         let at_once = layer_norm_self_attn_w_kv_cache(
             &ln,
             &mha,
             x,
-            Some(causal_mask::<B>(seq, 0, &device)),
+            Some(causal_mask(seq, 0, &device)),
             &mut cache2,
         );
 
@@ -505,16 +493,15 @@ mod tests {
     /// path, and must accept a cross length unrelated to the query length.
     #[test]
     fn test_cached_cross_attn_matches_uncached() {
-        let device = default_device();
+        let device = cpu_device();
         let (batch, d_model, n_heads) = (2, 32, 4);
         let (seq, cross_len) = (3, 17);
 
-        let mha = MultiHeadAttentionConfig::new(d_model, n_heads).init::<B>(&device);
-        let ln = LayerNormConfig::new(d_model).init::<B>(&device);
+        let mha = MultiHeadAttentionConfig::new(d_model, n_heads).init(&device);
+        let ln = LayerNormConfig::new(d_model).init(&device);
 
-        let x = Tensor::<B, 3>::random([batch, seq, d_model], Distribution::Default, &device);
-        let xa =
-            Tensor::<B, 3>::random([batch, cross_len, d_model], Distribution::Default, &device);
+        let x = Tensor::<3>::random([batch, seq, d_model], Distribution::Default, &device);
+        let xa = Tensor::<3>::random([batch, cross_len, d_model], Distribution::Default, &device);
 
         let uncached = mha
             .forward(MhaInput::new(ln.forward(x.clone()), xa.clone(), xa.clone()))

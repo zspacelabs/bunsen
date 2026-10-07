@@ -21,7 +21,6 @@ use std::{
 use burn::{
     Tensor,
     prelude::{
-        Backend,
         Bool,
         TensorData,
     },
@@ -35,7 +34,7 @@ use crate::kits::{
 };
 
 /// Rewrites the logits the search chooses from.
-pub trait LogitFilter<B: Backend>: Send + Sync + Debug {
+pub trait LogitFilter: Send + Sync + Debug {
     /// Rewrites `logits`, `[rows, vocab]`, the last position's, given the
     /// sequences so far and how long their prompt is.
     ///
@@ -46,17 +45,17 @@ pub trait LogitFilter<B: Backend>: Send + Sync + Debug {
     ///   filter can tell the first sampled position.
     fn apply(
         &self,
-        logits: Tensor<B, 2>,
+        logits: Tensor<2>,
         tokens: &[Vec<i64>],
         prompt_len: usize,
-    ) -> Tensor<B, 2>;
+    ) -> Tensor<2>;
 }
 
 /// Sets the given ids to `-inf` in every row.
-fn suppress<B: Backend>(
-    logits: Tensor<B, 2>,
+fn suppress(
+    logits: Tensor<2>,
     ids: &[i64],
-) -> Tensor<B, 2> {
+) -> Tensor<2> {
     let [rows, vocab] = logits.dims();
     let mut mask = vec![false; vocab];
     for &id in ids {
@@ -66,8 +65,7 @@ fn suppress<B: Backend>(
             mask[i] = true;
         }
     }
-    let mask: Tensor<B, 1, Bool> =
-        Tensor::from_data(TensorData::new(mask, [vocab]), &logits.device());
+    let mask: Tensor<1, Bool> = Tensor::from_data(TensorData::new(mask, [vocab]), &logits.device());
     logits.mask_fill(
         mask.unsqueeze::<2>().expand([rows, vocab]),
         f32::NEG_INFINITY,
@@ -95,13 +93,13 @@ impl SuppressTokens {
     }
 }
 
-impl<B: Backend> LogitFilter<B> for SuppressTokens {
+impl LogitFilter for SuppressTokens {
     fn apply(
         &self,
-        logits: Tensor<B, 2>,
+        logits: Tensor<2>,
         _tokens: &[Vec<i64>],
         _prompt_len: usize,
-    ) -> Tensor<B, 2> {
+    ) -> Tensor<2> {
         suppress(logits, &self.ids)
     }
 }
@@ -127,13 +125,13 @@ impl SuppressBlank {
     }
 }
 
-impl<B: Backend> LogitFilter<B> for SuppressBlank {
+impl LogitFilter for SuppressBlank {
     fn apply(
         &self,
-        logits: Tensor<B, 2>,
+        logits: Tensor<2>,
         tokens: &[Vec<i64>],
         prompt_len: usize,
-    ) -> Tensor<B, 2> {
+    ) -> Tensor<2> {
         if tokens.first().is_some_and(|t| t.len() == prompt_len) {
             suppress(logits, &self.ids)
         } else {
@@ -168,10 +166,10 @@ pub fn default_suppress_tokens(
 /// # Panics
 /// If the vocabulary has no single-space token, which no Whisper vocabulary
 /// lacks.
-pub fn default_filters<B: Backend>(
+pub fn default_filters(
     ranks: &TiktokenRanks,
     ids: &WhisperSpecialIds,
-) -> Vec<Arc<dyn LogitFilter<B>>> {
+) -> Vec<Arc<dyn LogitFilter>> {
     let blank = tokens::blank_token(ranks).expect("the vocabulary has a space token");
     vec![
         Arc::new(SuppressBlank::new(blank, ids.eot)),
@@ -180,10 +178,10 @@ pub fn default_filters<B: Backend>(
 }
 
 /// Sets, per row, the id ranges `ranges[row]` to `-inf`.
-fn suppress_rows<B: Backend>(
-    logits: Tensor<B, 2>,
+fn suppress_rows(
+    logits: Tensor<2>,
     ranges: &[Vec<Range<usize>>],
-) -> Tensor<B, 2> {
+) -> Tensor<2> {
     let [rows, vocab] = logits.dims();
     if ranges.iter().all(|r| r.is_empty()) {
         return logits;
@@ -195,7 +193,7 @@ fn suppress_rows<B: Backend>(
             mask[row * vocab + a..row * vocab + b].fill(true);
         }
     }
-    let mask: Tensor<B, 2, Bool> =
+    let mask: Tensor<2, Bool> =
         Tensor::from_data(TensorData::new(mask, [rows, vocab]), &logits.device());
     logits.mask_fill(mask, f32::NEG_INFINITY)
 }
@@ -291,13 +289,13 @@ impl ApplyTimestampRules {
     }
 }
 
-impl<B: Backend> LogitFilter<B> for ApplyTimestampRules {
+impl LogitFilter for ApplyTimestampRules {
     fn apply(
         &self,
-        logits: Tensor<B, 2>,
+        logits: Tensor<2>,
         tokens: &[Vec<i64>],
         prompt_len: usize,
-    ) -> Tensor<B, 2> {
+    ) -> Tensor<2> {
         let [rows, vocab] = logits.dims();
         let ranges: Vec<Vec<Range<usize>>> = tokens
             .iter()
@@ -320,13 +318,11 @@ impl<B: Backend> LogitFilter<B> for ApplyTimestampRules {
         // backend, and two floats per row are nothing to move.
         let timestamp_logprob: Vec<f32> = timestamp_logprob
             .into_data()
-            .convert::<f32>()
-            .to_vec()
+            .try_into_vec_as::<f32>()
             .unwrap();
         let max_text_logprob: Vec<f32> = max_text_logprob
             .into_data()
-            .convert::<f32>()
-            .to_vec()
+            .try_into_vec_as::<f32>()
             .unwrap();
         let prefer: Vec<bool> = timestamp_logprob
             .iter()
@@ -373,13 +369,13 @@ impl RestrictToLanguages {
     }
 }
 
-impl<B: Backend> LogitFilter<B> for RestrictToLanguages {
+impl LogitFilter for RestrictToLanguages {
     fn apply(
         &self,
-        logits: Tensor<B, 2>,
+        logits: Tensor<2>,
         tokens: &[Vec<i64>],
         _prompt_len: usize,
-    ) -> Tensor<B, 2> {
+    ) -> Tensor<2> {
         let ranges = vec![vec![0..self.begin, self.begin + self.count..usize::MAX]; tokens.len()];
         suppress_rows(logits, &ranges)
     }
@@ -387,45 +383,42 @@ impl<B: Backend> LogitFilter<B> for RestrictToLanguages {
 
 #[cfg(test)]
 mod tests {
+    use burn::tensor::Device;
+
     use super::*;
     use crate::{
         kits::tokens::{
             blank_token,
             non_speech_tokens,
         },
-        support::testing::{
-            CpuBackend,
-            default_device,
-        },
+        support::testing::cpu_device,
     };
 
-    type B = CpuBackend;
-
-    fn logits<B: Backend>(
+    fn logits(
         rows: &[&[f32]],
-        device: &B::Device,
-    ) -> Tensor<B, 2> {
+        device: &Device,
+    ) -> Tensor<2> {
         let vocab = rows[0].len();
         let flat: Vec<f32> = rows.iter().flat_map(|r| r.iter().copied()).collect();
         Tensor::from_data(TensorData::new(flat, [rows.len(), vocab]), device)
     }
 
-    fn to_rows<B: Backend>(t: Tensor<B, 2>) -> Vec<Vec<f32>> {
+    fn to_rows(t: Tensor<2>) -> Vec<Vec<f32>> {
         let [rows, vocab] = t.dims();
-        let flat = t.to_data().convert::<f32>().to_vec::<f32>().unwrap();
+        let flat = t.to_data().try_to_vec_as::<f32>().unwrap();
         flat.chunks(vocab).map(|c| c.to_vec()).collect::<Vec<_>>()[..rows].to_vec()
     }
 
     #[test]
     fn test_suppress_tokens() {
-        let device = default_device();
+        let device = cpu_device();
 
         let filter = SuppressTokens::new([3, 1, 3, 99, -1]);
         assert_eq!(filter.ids(), &[-1, 1, 3, 99], "sorted, deduplicated");
 
-        let out = to_rows(LogitFilter::<B>::apply(
+        let out = to_rows(LogitFilter::apply(
             &filter,
-            logits::<B>(
+            logits(
                 &[&[0.0, 1.0, 2.0, 3.0, 4.0], &[5.0, 6.0, 7.0, 8.0, 9.0]],
                 &device,
             ),
@@ -519,7 +512,7 @@ mod tests {
     /// the best text token the text goes, row by row.
     #[test]
     fn test_timestamp_rules_probability_clause() {
-        let device = default_device();
+        let device = cpu_device();
 
         let ids = layout();
         let rules = ApplyTimestampRules::new(&ids, None);
@@ -537,9 +530,9 @@ mod tests {
             row1[t] = 1.0;
         }
         let rows: Vec<&[f32]> = vec![&row0, &row1];
-        let out = to_rows(LogitFilter::<B>::apply(
+        let out = to_rows(LogitFilter::apply(
             &rules,
-            logits::<B>(&rows, &device),
+            logits(&rows, &device),
             &[vec![9, tb as i64, 3], vec![9, tb as i64, 3]],
             1,
         ));
@@ -561,15 +554,15 @@ mod tests {
     /// Detection leaves only the language block standing.
     #[test]
     fn test_restrict_to_languages() {
-        let device = default_device();
+        let device = cpu_device();
 
         let ids = WhisperSpecialIds::new(5, 3).unwrap();
         let filter = RestrictToLanguages::new(&ids);
         let vocab = ids.n_vocab();
         let row: Vec<f32> = (0..vocab).map(|i| i as f32).collect();
-        let out = to_rows(LogitFilter::<B>::apply(
+        let out = to_rows(LogitFilter::apply(
             &filter,
-            logits::<B>(&[&row], &device),
+            logits(&[&row], &device),
             &[vec![6]],
             1,
         ));
@@ -649,7 +642,7 @@ mod tests {
                 assert!(all.contains(&id));
             }
             assert_eq!(all.len(), 82 + 6);
-            assert_eq!(default_filters::<B>(&ranks, &ids).len(), 2);
+            assert_eq!(default_filters(&ranks, &ids).len(), 2);
         }
 
         #[test]

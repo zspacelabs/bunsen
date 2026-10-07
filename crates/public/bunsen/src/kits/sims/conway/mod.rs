@@ -57,18 +57,15 @@
 //!     },
 //!     support::{
 //!         geometry::GridShape2D,
-//!         testing::{
-//!             CpuBackend,
-//!             default_device,
-//!         },
+//!         testing::cpu_device,
 //!     },
 //! };
 //! use burn::prelude::s;
 //!
-//! let device = default_device();
+//! let device = cpu_device();
 //!
 //! // A 7x7 board: a 5x5 torus inside a one-cell halo.
-//! let mut life: ConwayLife2DState<CpuBackend> =
+//! let mut life: ConwayLife2DState =
 //!     ConwayLife2DConfig::new(GridShape2D::square(7)).init(&device);
 //!
 //! // A blinker: three in a row turn to three in a column.

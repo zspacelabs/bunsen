@@ -4,10 +4,8 @@ use burn::{
     Tensor,
     config::Config,
     module::Module,
-    prelude::{
-        Backend,
-        TensorData,
-    },
+    prelude::TensorData,
+    tensor::Device,
 };
 
 use crate::{
@@ -79,10 +77,10 @@ impl SpectrumKind {
     ///
     /// Power is what the DFT stage produces, so [`Power`](Self::Power) is the
     /// identity and [`Magnitude`](Self::Magnitude) takes the square root.
-    pub fn power_to_spectrum<B: Backend, const D: usize>(
+    pub fn power_to_spectrum<const D: usize>(
         &self,
-        power: Tensor<B, D>,
-    ) -> Tensor<B, D> {
+        power: Tensor<D>,
+    ) -> Tensor<D> {
         match self {
             Self::Power => power,
             Self::Magnitude => power.sqrt(),
@@ -150,10 +148,10 @@ impl RangeClamp {
     ///
     /// # Arguments
     /// * `x`: `[batch, frames, n_mels]` log-mels.
-    pub fn apply<B: Backend>(
+    pub fn apply(
         &self,
-        x: Tensor<B, 3>,
-    ) -> Tensor<B, 3> {
+        x: Tensor<3>,
+    ) -> Tensor<3> {
         match self {
             // A caller-supplied reference is a plain scalar floor, and the
             // only form that survives being chunked differently.
@@ -198,10 +196,10 @@ impl Default for AffineCompress {
 
 impl AffineCompress {
     /// Applies `(x + bias) / div` elementwise.
-    pub fn apply<B: Backend, const D: usize>(
+    pub fn apply<const D: usize>(
         &self,
-        x: Tensor<B, D>,
-    ) -> Tensor<B, D> {
+        x: Tensor<D>,
+    ) -> Tensor<D> {
         x.add_scalar(self.bias).div_scalar(self.div)
     }
 }
@@ -601,7 +599,7 @@ impl PerceptiveAudioConverterOptions {
     }
 }
 
-impl<B: Backend> ModuleInit<B, PerceptiveAudioConverter<B>> for PerceptiveAudioConverterOptions {
+impl ModuleInit<PerceptiveAudioConverter> for PerceptiveAudioConverterOptions {
     /// Initializes a [`PerceptiveAudioConverter`] on `device`.
     ///
     /// # Errors
@@ -610,8 +608,8 @@ impl<B: Backend> ModuleInit<B, PerceptiveAudioConverter<B>> for PerceptiveAudioC
     /// [`to_vec_filterbank`](PerceptiveAudioConverterOptions::try_to_filterbank_vec).
     fn try_init(
         &self,
-        device: &B::Device,
-    ) -> BunsenResult<PerceptiveAudioConverter<B>> {
+        device: &Device,
+    ) -> BunsenResult<PerceptiveAudioConverter> {
         self.validate()?;
 
         let (n_fft, n_bins, n_mels) = (self.n_fft, self.n_bins(), self.n_mels);
@@ -650,7 +648,7 @@ impl<B: Backend> ModuleInit<B, PerceptiveAudioConverter<B>> for PerceptiveAudioC
 /// Implements [`PerceptiveAudioConverterMeta`], so geometry reads the same here
 /// as on the [`PerceptiveAudioConverterOptions`] it was built from.
 #[derive(Module, Debug)]
-pub struct PerceptiveAudioConverter<B: Backend> {
+pub struct PerceptiveAudioConverter {
     /// The options this was built from.
     ///
     /// `skip`ped: it is configuration, not module state, and carries no
@@ -662,22 +660,22 @@ pub struct PerceptiveAudioConverter<B: Backend> {
     ///
     /// Applied when framing, **not** folded into the DFT tables, so every
     /// spectrum implementation sees the same windowed frames.
-    pub window: Tensor<B, 1>,
+    pub window: Tensor<1>,
 
     /// The `[n_bins, n_mels]` mel filterbank, stored transposed.
     ///
     /// A `[.., n_bins]` spectrum becomes `[.., n_mels]` by a plain matmul.
-    pub mel_t: Tensor<B, 2>,
+    pub mel_t: Tensor<2>,
 
     /// The `[n_fft, n_bins]` real-DFT cosine table.
-    pub dft_cos: Tensor<B, 2>,
+    pub dft_cos: Tensor<2>,
 
     /// The `[n_fft, n_bins]` real-DFT sine table, carrying the forward
     /// transform's negative sign.
-    pub dft_sin: Tensor<B, 2>,
+    pub dft_sin: Tensor<2>,
 }
 
-impl<B: Backend> PerceptiveAudioConverter<B> {
+impl PerceptiveAudioConverter {
     /// The options this converter was built from.
     ///
     /// The escape hatch for everything [`PerceptiveAudioConverterMeta`]
@@ -718,8 +716,8 @@ impl<B: Backend> PerceptiveAudioConverter<B> {
     /// `frames = (samples - n_fft) / hop + 1`.
     pub fn frame(
         &self,
-        x: Tensor<B, 2>,
-    ) -> Tensor<B, 3> {
+        x: Tensor<2>,
+    ) -> Tensor<3> {
         #[cfg(any(test, debug_assertions))]
         let [batch, samples] = crate::contracts::unpack_shape_contract!(
             ["batch", "samples"],
@@ -761,7 +759,7 @@ impl<B: Backend> PerceptiveAudioConverter<B> {
         let x = x.slice_dim(1, 0..covered as isize);
 
         // [batch, frames, n_fft]
-        let framed: Tensor<B, 3> = x.unfold(1, n_fft, hop);
+        let framed: Tensor<3> = x.unfold(1, n_fft, hop);
 
         // Broadcast the window across batch and frame.
         let framed = framed.mul(self.window.clone().reshape([1, 1, n_fft]));
@@ -790,8 +788,8 @@ impl<B: Backend> PerceptiveAudioConverter<B> {
     /// `[batch, frames, n_bins]`.
     pub fn spectrum(
         &self,
-        frames: Tensor<B, 3>,
-    ) -> Tensor<B, 3> {
+        frames: Tensor<3>,
+    ) -> Tensor<3> {
         #[cfg(any(test, debug_assertions))]
         let [batch, n_frames] = crate::contracts::unpack_shape_contract!(
             ["batch", "frames", "n_fft"],
@@ -813,7 +811,7 @@ impl<B: Backend> PerceptiveAudioConverter<B> {
                 // `[rows, n_fft] @ [n_fft, n_bins]` matmul beats broadcasting
                 // the tables across a batch axis.
                 let rows = batch * n_frames;
-                let flat: Tensor<B, 2> = frames.reshape([rows, n_fft]);
+                let flat: Tensor<2> = frames.reshape([rows, n_fft]);
 
                 let re = flat.clone().matmul(self.dft_cos.clone());
                 let im = flat.matmul(self.dft_sin.clone());
@@ -827,7 +825,7 @@ impl<B: Backend> PerceptiveAudioConverter<B> {
 
         let out = self.options.spectrum.power_to_spectrum(power);
 
-        let out: Tensor<B, 3> = out.reshape([batch, n_frames, n_bins]);
+        let out: Tensor<3> = out.reshape([batch, n_frames, n_bins]);
 
         #[cfg(any(test, debug_assertions))]
         crate::contracts::assert_shape_contract!(
@@ -849,8 +847,8 @@ impl<B: Backend> PerceptiveAudioConverter<B> {
     /// `[batch, frames, n_mels]` mel energies, before compression.
     pub fn mel(
         &self,
-        spectrum: Tensor<B, 3>,
-    ) -> Tensor<B, 3> {
+        spectrum: Tensor<3>,
+    ) -> Tensor<3> {
         #[cfg(any(test, debug_assertions))]
         let [batch, n_frames] = crate::contracts::unpack_shape_contract!(
             ["batch", "frames", "n_bins"],
@@ -864,11 +862,11 @@ impl<B: Backend> PerceptiveAudioConverter<B> {
         let (n_bins, n_mels) = (self.n_bins(), self.n_mels());
 
         let rows = batch * n_frames;
-        let flat: Tensor<B, 2> = spectrum.reshape([rows, n_bins]);
+        let flat: Tensor<2> = spectrum.reshape([rows, n_bins]);
 
         // `mel_t` is stored `[n_bins, n_mels]`, so no transpose here.
         let out = flat.matmul(self.mel_t.clone());
-        let out: Tensor<B, 3> = out.reshape([batch, n_frames, n_mels]);
+        let out: Tensor<3> = out.reshape([batch, n_frames, n_mels]);
 
         #[cfg(any(test, debug_assertions))]
         crate::contracts::assert_shape_contract!(
@@ -893,8 +891,8 @@ impl<B: Backend> PerceptiveAudioConverter<B> {
     ///   [`mel`](Self::mel).
     pub fn compress(
         &self,
-        mels: Tensor<B, 3>,
-    ) -> Tensor<B, 3> {
+        mels: Tensor<3>,
+    ) -> Tensor<3> {
         #[cfg(any(test, debug_assertions))]
         crate::contracts::assert_shape_contract!(
             ["batch", "frames", "n_mels"],
@@ -926,13 +924,13 @@ impl<B: Backend> PerceptiveAudioConverter<B> {
     /// * `x`: `[batch, samples]`, with `samples >= n_fft`.
     pub fn forward(
         &self,
-        x: Tensor<B, 2>,
-    ) -> Tensor<B, 3> {
+        x: Tensor<2>,
+    ) -> Tensor<3> {
         self.compress(self.mel(self.spectrum(self.frame(x))))
     }
 }
 
-impl<B: Backend> PerceptiveAudioConverterMeta for PerceptiveAudioConverter<B> {
+impl PerceptiveAudioConverterMeta for PerceptiveAudioConverter {
     fn sample_rate(&self) -> usize {
         self.options.sample_rate
     }
@@ -968,7 +966,6 @@ mod tests {
 
     use super::*;
     use crate::{
-        burner::tensor::TensorDataToVecAsExt,
         errors::{
             BunsenErrorKind,
             WithOkOrPanic,
@@ -976,23 +973,20 @@ mod tests {
         },
         support::testing::{
             DeviceMemoryGuard,
-            PerformanceBackend,
             assert_close_to_vec,
             assert_tensor_close_to_vec,
             assert_tensors_close,
-            default_device,
+            performance_device,
         },
     };
-
-    type B = PerformanceBackend;
 
     #[test]
     #[serial_test::serial]
     fn test_converter_tensor_shapes() {
-        let device = default_device();
-        let _memory = DeviceMemoryGuard::<B>::new(&device);
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
         let opts = PerceptiveAudioConverterOptions::default();
-        let conv: PerceptiveAudioConverter<B> = opts.try_init(&device).ok_or_panic();
+        let conv: PerceptiveAudioConverter = opts.try_init(&device).ok_or_panic();
 
         assert_eq!(conv.window.dims(), [400]);
         assert_eq!(conv.mel_t.dims(), [201, 80]);
@@ -1002,7 +996,7 @@ mod tests {
         // `pad_to_pow2` widens the transform, so the bin axis grows — but the
         // DFT tables keep `n_fft` rows, because the padding is zeros that
         // contribute nothing to the sum.
-        let pow2: PerceptiveAudioConverter<B> = PerceptiveAudioConverterOptions::default()
+        let pow2: PerceptiveAudioConverter = PerceptiveAudioConverterOptions::default()
             .with_pad_to_pow2(true)
             .try_init(&device)
             .ok_or_panic();
@@ -1015,10 +1009,10 @@ mod tests {
     #[test]
     #[serial_test::serial]
     fn test_converter_tensors_match_host_reference() {
-        let device = default_device();
-        let _memory = DeviceMemoryGuard::<B>::new(&device);
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
         let opts = PerceptiveAudioConverterOptions::default();
-        let conv: PerceptiveAudioConverter<B> = opts.try_init(&device).ok_or_panic();
+        let conv: PerceptiveAudioConverter = opts.try_init(&device).ok_or_panic();
 
         // The window is the same one `StftWindowConfig` builds on the host.
         assert_tensor_close_to_vec(
@@ -1053,17 +1047,17 @@ mod tests {
             signal::rfft,
         };
 
-        let device = default_device();
-        let _memory = DeviceMemoryGuard::<B>::new(&device);
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
         let (n_fft, n_bins, batch) = (512, 257, 3);
 
         let opts = PerceptiveAudioConverterOptions::default()
             .with_n_fft(n_fft)
             .with_hop(128);
-        let conv: PerceptiveAudioConverter<B> = opts.try_init(&device).ok_or_panic();
+        let conv: PerceptiveAudioConverter = opts.try_init(&device).ok_or_panic();
         assert_eq!(conv.dft_cos.dims(), [n_fft, n_bins]);
 
-        let frames: Tensor<B, 2> = Tensor::random([batch, n_fft], Distribution::Default, &device);
+        let frames: Tensor<2> = Tensor::random([batch, n_fft], Distribution::Default, &device);
 
         // `X[k] = Σ x[n]·e^(-2πikn/N)`, so the tables give `(re, im)` directly.
         let re = frames.clone().matmul(conv.dft_cos.clone());
@@ -1081,13 +1075,13 @@ mod tests {
     fn test_to_device_moves_every_tensor() {
         use burn::module::Module as _;
 
-        let device = default_device();
-        let _memory = DeviceMemoryGuard::<B>::new(&device);
-        let conv: PerceptiveAudioConverter<B> = PerceptiveAudioConverterOptions::default()
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
+        let conv: PerceptiveAudioConverter = PerceptiveAudioConverterOptions::default()
             .try_init(&device)
             .ok_or_panic();
 
-        let before = conv.mel_t.to_data().to_vec_as::<f64>().unwrap();
+        let before = conv.mel_t.to_data().try_to_vec_as::<f64>().unwrap();
 
         // One device here, so this pins traversal rather than a real move: a
         // dropped derive or a stray `#[module(skip)]` on a tensor field drops
@@ -1131,10 +1125,10 @@ mod tests {
 
     /// Builds `[batch, samples]` from [`sample`], and the matching host rows.
     fn signal(
-        device: &burn::prelude::Device<B>,
+        device: &burn::prelude::Device,
         batch: usize,
         samples: usize,
-    ) -> (Tensor<B, 2>, Vec<Vec<f64>>) {
+    ) -> (Tensor<2>, Vec<Vec<f64>>) {
         let rows: Vec<Vec<f64>> = (0..batch)
             .map(|r| (0..samples).map(|i| sample(r, i)).collect())
             .collect();
@@ -1146,9 +1140,9 @@ mod tests {
     #[test]
     #[serial_test::serial]
     fn test_frame_count() {
-        let device = default_device();
-        let _memory = DeviceMemoryGuard::<B>::new(&device);
-        let conv: PerceptiveAudioConverter<B> = PerceptiveAudioConverterOptions::default()
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
+        let conv: PerceptiveAudioConverter = PerceptiveAudioConverterOptions::default()
             .try_init(&device)
             .ok_or_panic();
 
@@ -1172,10 +1166,10 @@ mod tests {
     #[test]
     #[serial_test::serial]
     fn test_frame_matches_host_reference() {
-        let device = default_device();
-        let _memory = DeviceMemoryGuard::<B>::new(&device);
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
         let opts = PerceptiveAudioConverterOptions::default();
-        let conv: PerceptiveAudioConverter<B> = opts.try_init(&device).ok_or_panic();
+        let conv: PerceptiveAudioConverter = opts.try_init(&device).ok_or_panic();
         let window = opts.window.to_vec_window(opts.n_fft);
 
         let batch = 3;
@@ -1207,10 +1201,10 @@ mod tests {
     #[test]
     #[serial_test::serial]
     fn test_frame_rows_are_independent() {
-        let device = default_device();
-        let _memory = DeviceMemoryGuard::<B>::new(&device);
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
         let opts = PerceptiveAudioConverterOptions::default();
-        let conv: PerceptiveAudioConverter<B> = opts.try_init(&device).ok_or_panic();
+        let conv: PerceptiveAudioConverter = opts.try_init(&device).ok_or_panic();
 
         // A ragged length, so this also exercises the trimmed path.
         let samples = 1000;
@@ -1218,17 +1212,17 @@ mod tests {
         let together = conv
             .frame(batched.clone())
             .to_data()
-            .to_vec_as::<f64>()
+            .try_to_vec_as::<f64>()
             .unwrap();
 
         let frames = conv.frame_count(samples);
         let per_row = frames * opts.n_fft;
 
         for row in 0..3 {
-            let single: Tensor<B, 2> = batched
+            let single: Tensor<2> = batched
                 .clone()
                 .slice_dim(0, row as isize..(row + 1) as isize);
-            let alone = conv.frame(single).to_data().to_vec_as::<f64>().unwrap();
+            let alone = conv.frame(single).to_data().try_to_vec_as::<f64>().unwrap();
 
             assert_close_to_vec(&alone, &together[row * per_row..(row + 1) * per_row], 1e-9);
         }
@@ -1257,14 +1251,14 @@ mod tests {
     #[test]
     #[serial_test::serial]
     fn test_spectrum_matches_host_dft() {
-        let device = default_device();
-        let _memory = DeviceMemoryGuard::<B>::new(&device);
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
         let (n_fft, hop, n_mels) = (64, 32, 8);
         let opts = PerceptiveAudioConverterOptions::default()
             .with_n_fft(n_fft)
             .with_hop(hop)
             .with_n_mels(n_mels);
-        let conv: PerceptiveAudioConverter<B> = opts.try_init(&device).ok_or_panic();
+        let conv: PerceptiveAudioConverter = opts.try_init(&device).ok_or_panic();
 
         let (batch, samples) = (3, 256);
         let (x, rows) = signal(&device, batch, samples);
@@ -1277,7 +1271,7 @@ mod tests {
 
         // Re-derive from the framed tensor, so this tests the spectrum stage
         // alone rather than re-testing framing.
-        let framed_host = framed.to_data().to_vec_as::<f64>().unwrap();
+        let framed_host = framed.to_data().try_to_vec_as::<f64>().unwrap();
         let mut expected = Vec::with_capacity(batch * frames * opts.n_bins());
         for f in 0..batch * frames {
             let frame = &framed_host[f * n_fft..(f + 1) * n_fft];
@@ -1292,10 +1286,10 @@ mod tests {
     #[test]
     #[serial_test::serial]
     fn test_spectrum_peaks_at_bin_centre() {
-        let device = default_device();
-        let _memory = DeviceMemoryGuard::<B>::new(&device);
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
         let opts = PerceptiveAudioConverterOptions::default();
-        let conv: PerceptiveAudioConverter<B> = opts.try_init(&device).ok_or_panic();
+        let conv: PerceptiveAudioConverter = opts.try_init(&device).ok_or_panic();
 
         let (n_fft, n_bins) = (opts.n_fft, opts.n_bins());
         let k = 40; // bin 40 -> 40 * 16000 / 400 = 1600 Hz
@@ -1308,7 +1302,7 @@ mod tests {
         let power = conv
             .spectrum(conv.frame(x))
             .to_data()
-            .to_vec_as::<f64>()
+            .try_to_vec_as::<f64>()
             .unwrap();
         assert_eq!(power.len(), n_bins);
 
@@ -1331,14 +1325,14 @@ mod tests {
     #[test]
     #[serial_test::serial]
     fn test_mel_matches_host_matmul() {
-        let device = default_device();
-        let _memory = DeviceMemoryGuard::<B>::new(&device);
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
         let (n_fft, n_mels) = (64, 8);
         let opts = PerceptiveAudioConverterOptions::default()
             .with_n_fft(n_fft)
             .with_hop(32)
             .with_n_mels(n_mels);
-        let conv: PerceptiveAudioConverter<B> = opts.try_init(&device).ok_or_panic();
+        let conv: PerceptiveAudioConverter = opts.try_init(&device).ok_or_panic();
         let n_bins = opts.n_bins();
 
         let (batch, samples) = (2, 192);
@@ -1351,7 +1345,7 @@ mod tests {
         assert_eq!(mels.dims(), [batch, frames, n_mels]);
 
         // `[rows, n_bins] @ [n_bins, n_mels]`, on the host.
-        let spec_host = spectrum.to_data().to_vec_as::<f64>().unwrap();
+        let spec_host = spectrum.to_data().try_to_vec_as::<f64>().unwrap();
         let bank_t = opts.to_vec_filterbank_t().unwrap();
         let mut expected = Vec::with_capacity(batch * frames * n_mels);
         for r in 0..batch * frames {
@@ -1370,13 +1364,17 @@ mod tests {
     #[test]
     #[serial_test::serial]
     fn test_compress_floors_zero_input() {
-        let device = default_device();
-        let _memory = DeviceMemoryGuard::<B>::new(&device);
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
         let opts = PerceptiveAudioConverterOptions::default();
-        let conv: PerceptiveAudioConverter<B> = opts.try_init(&device).ok_or_panic();
+        let conv: PerceptiveAudioConverter = opts.try_init(&device).ok_or_panic();
 
-        let zeros: Tensor<B, 3> = Tensor::zeros([2, 4, opts.n_mels], &device);
-        let out = conv.compress(zeros).to_data().to_vec_as::<f64>().unwrap();
+        let zeros: Tensor<3> = Tensor::zeros([2, 4, opts.n_mels], &device);
+        let out = conv
+            .compress(zeros)
+            .to_data()
+            .try_to_vec_as::<f64>()
+            .unwrap();
 
         // All-zero energy must land on a finite floor, not -inf or NaN.
         assert!(
@@ -1399,8 +1397,8 @@ mod tests {
     #[test]
     #[serial_test::serial]
     fn test_per_call_clamp_is_per_row() {
-        let device = default_device();
-        let _memory = DeviceMemoryGuard::<B>::new(&device);
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
         let n_mels = 4;
 
         // Log-domain input: row 0 -> [0, -10, 0, 0]; row 1 -> [-2, -10, -2,
@@ -1409,12 +1407,12 @@ mod tests {
             0.0, -10.0, 0.0, 0.0, //
             -2.0, -10.0, -2.0, -2.0,
         ];
-        let x: Tensor<B, 3> = Tensor::from_data(TensorData::new(logs, [2, 1, n_mels]), &device);
+        let x: Tensor<3> = Tensor::from_data(TensorData::new(logs, [2, 1, n_mels]), &device);
 
         let out = RangeClamp::PerWindowClamp { db: 8.0 }
             .apply(x)
             .to_data()
-            .to_vec_as::<f64>()
+            .try_to_vec_as::<f64>()
             .unwrap();
 
         // Row 0: max 0, floor -8, so -10 clips to -8.
@@ -1436,15 +1434,15 @@ mod tests {
     #[test]
     #[serial_test::serial]
     fn test_compress_honours_log_base() {
-        let device = default_device();
-        let _memory = DeviceMemoryGuard::<B>::new(&device);
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
         let n_mels = 2;
 
         // `ln(max(v, floor))`.
         let opts = PerceptiveAudioConverterOptions::default()
             .with_n_mels(n_mels)
             .with_log_base(LogBase::E);
-        let conv: PerceptiveAudioConverter<B> = opts.try_init(&device).ok_or_panic();
+        let conv: PerceptiveAudioConverter = opts.try_init(&device).ok_or_panic();
 
         let x = Tensor::from_data(
             TensorData::new(vec![1.0_f64, core::f64::consts::E], [1, 1, n_mels]),
@@ -1456,10 +1454,10 @@ mod tests {
     #[test]
     #[serial_test::serial]
     fn test_forward_chains_the_stages() {
-        let device = default_device();
-        let _memory = DeviceMemoryGuard::<B>::new(&device);
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
         let opts = PerceptiveAudioConverterOptions::default();
-        let conv: PerceptiveAudioConverter<B> = opts.try_init(&device).ok_or_panic();
+        let conv: PerceptiveAudioConverter = opts.try_init(&device).ok_or_panic();
 
         let (batch, samples) = (2, 4000);
         let (x, _) = signal(&device, batch, samples);
@@ -1473,7 +1471,7 @@ mod tests {
 
         assert!(
             out.to_data()
-                .to_vec_as::<f64>()
+                .try_to_vec_as::<f64>()
                 .unwrap()
                 .iter()
                 .all(|v| v.is_finite())
@@ -1610,11 +1608,11 @@ mod tests {
     #[test]
     #[serial_test::serial]
     fn test_converter() {
-        let device = default_device();
-        let _memory = DeviceMemoryGuard::<B>::new(&device);
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
 
         let options = PerceptiveAudioConverterOptions::default();
-        let _conv: PerceptiveAudioConverter<B> = options.try_init(&device).ok_or_panic();
+        let _conv: PerceptiveAudioConverter = options.try_init(&device).ok_or_panic();
     }
 
     /// The point of [`PerceptiveAudioConverterMeta`]: a config and the module
@@ -1623,8 +1621,8 @@ mod tests {
     #[test]
     #[serial_test::serial]
     fn test_meta_agrees_between_config_and_module() {
-        let device = default_device();
-        let _memory = DeviceMemoryGuard::<B>::new(&device);
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
 
         // Non-default across every meta field, so a delegation that read the
         // wrong one — or a default — shows up.
@@ -1638,7 +1636,7 @@ mod tests {
             .with_end_padding(PaddingMode::None)
             .with_f_max(Some(4000.0));
 
-        let conv: PerceptiveAudioConverter<B> = options.try_init(&device).ok_or_panic();
+        let conv: PerceptiveAudioConverter = options.try_init(&device).ok_or_panic();
 
         fn assert_same_meta(
             a: &impl PerceptiveAudioConverterMeta,
@@ -1671,14 +1669,14 @@ mod tests {
     #[test]
     #[serial_test::serial]
     fn test_try_init_rejects_bad_options() {
-        let device = default_device();
-        let _memory = DeviceMemoryGuard::<B>::new(&device);
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
 
         // Scalar geometry.
         let bad = PerceptiveAudioConverterOptions::default().with_hop(0);
         ErrorMatcher::kind(BunsenErrorKind::Illegal)
             .has_cause::<ConstraintError>()
-            .assert_err(&ModuleInit::<B, PerceptiveAudioConverter<B>>::try_init(
+            .assert_err(&ModuleInit::<PerceptiveAudioConverter>::try_init(
                 &bad, &device,
             ));
 
@@ -1688,7 +1686,7 @@ mod tests {
             .with_n_mels(128);
         ErrorMatcher::kind(BunsenErrorKind::Illegal)
             .message_contains("covers no rfft bin")
-            .assert_err(&ModuleInit::<B, PerceptiveAudioConverter<B>>::try_init(
+            .assert_err(&ModuleInit::<PerceptiveAudioConverter>::try_init(
                 &empty_rows,
                 &device,
             ));
@@ -1697,6 +1695,6 @@ mod tests {
         let ok = PerceptiveAudioConverterOptions::default()
             .with_n_mels(40)
             .with_start_padding(PaddingMode::None);
-        let _conv: PerceptiveAudioConverter<B> = ok.try_init(&device).ok_or_panic();
+        let _conv: PerceptiveAudioConverter = ok.try_init(&device).ok_or_panic();
     }
 }

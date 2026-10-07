@@ -1,11 +1,11 @@
 //! # Reproductions of defects in `burn` and its ecosystem.
 //!
-//! A home for backend-generic harnesses that pin bugs living outside bunsen.
-//! Each is written so the behaviour under test rests only on public API,
-//! keeping the reproduction portable: taking one upstream should mean swapping
-//! the test helpers, not rewriting the test. A module may also pin bunsen's own
-//! workaround for the defect, which is not portable and does not travel with
-//! it.
+//! A home for harnesses, run on any device, that pin bugs living outside
+//! bunsen. Each is written so the behaviour under test rests only on public
+//! API, keeping the reproduction portable: taking one upstream should mean
+//! swapping the test helpers, not rewriting the test. A module may also pin
+//! bunsen's own workaround for the defect, which is not portable and does not
+//! travel with it.
 //!
 //! Each module documents one defect, and carries two kinds of test:
 //!
@@ -32,10 +32,9 @@
 //! ```
 //!
 //! A backend feature is optional but nearly always wanted. Without one,
-//! `bunsen::support::testing::PerformanceBackend` resolves to `Flex` (CPU) —
+//! `bunsen::support::testing::performance_device()` is `Flex` (CPU) —
 //! which is *correct* for the `unfold` defect, so the behaviour pin is gated
 //! off rather than reporting a fix that has not happened. The CPU-correctness
 //! checks still run.
 
-pub mod pytorch_strided_weights;
 pub mod unfold;

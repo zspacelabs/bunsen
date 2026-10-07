@@ -1,0 +1,34 @@
+[package]
+name = "bunsen-app"
+description = "Shared command-line plumbing for bunsen's example binaries: device and precision selection, logging, shard selection."
+authors.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+version.workspace = true
+repository.workspace = true
+license.workspace = true
+publish = false
+
+[dependencies]
+burn = { workspace = true, features = ["std", "flex"] }
+bunsen = { path = "../../public/bunsen", features = ["std", "testing", "fetch"] }
+
+clap = { workspace = true, features = ["derive"] }
+stderrlog = { workspace = true }
+log = { workspace = true }
+
+[features]
+## Make `--device cuda` available.
+cuda = ["burn/cuda"]
+## Make `--device metal` available.
+metal = ["burn/metal"]
+## Make `--device vulkan` available.
+vulkan = ["burn/vulkan"]
+## Make `--device wgpu` available.
+wgpu = ["burn/wgpu"]
+## burn's terminal dashboard for training metrics, drawn when stdout is a
+## terminal; plain text logs otherwise.
+tui = ["burn/tui"]
+
+[lints]
+workspace = true

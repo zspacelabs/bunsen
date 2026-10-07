@@ -11,19 +11,26 @@ license.workspace = true
 [lints]
 workspace = true
 
+[features]
+## Make `--device cuda` available.
+cuda = ["bunsen-app/cuda"]
+## Make `--device metal` available.
+metal = ["bunsen-app/metal"]
+## Make `--device vulkan` available.
+vulkan = ["bunsen-app/vulkan"]
+## Make `--device wgpu` available.
+wgpu = ["bunsen-app/wgpu"]
+
 [dependencies]
 burn = { workspace = true }
-# The backend is bunsen's `PerformanceBackend`, chosen by bunsen's own backend
-# feature at build time: `--features bunsen/wgpu` (or `bunsen/cuda`,
-# `bunsen/metal`, `bunsen/flex`). `PerformanceBackend` lives in
-# `bunsen::support::testing`, hence `testing`, which falls back to `flex`
-# when no backend feature is set.
+# The backend is chosen at run time with `--device`, from those compiled in
+# through this crate's backend features (`wgpu`, `vulkan`, `metal`, `cuda`);
+# the CPU is always there.
 #
 # `silero-weights` bundles the VAD the real-time presets need.
 # `indicatif` puts bunsen's progress bar on every weights transfer.
 bunsen = { path = "../../crates/public/bunsen", features = [
     "store",
-    "testing",
     "audio",
     "tokenizer",
     "silero-weights",
@@ -31,7 +38,7 @@ bunsen = { path = "../../crates/public/bunsen", features = [
 ] }
 
 clap = { workspace = true, features = ["derive"] }
-clap-common = { path = "../../crates/dev/clap-common" }
+bunsen-app = { path = "../../crates/dev/bunsen-app" }
 log = { workspace = true }
 
 # `live`: the microphone through the host's audio API, and Ctrl-C as a

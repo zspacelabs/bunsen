@@ -23,10 +23,10 @@ use burn::{
         },
     },
     prelude::{
-        Backend,
         Config,
         Tensor,
     },
+    tensor::Device,
 };
 
 use crate::{
@@ -424,7 +424,7 @@ fn standard_drop_block_options(
     Ok(options)
 }
 
-impl<B: Backend> ModuleInit<B, ResNet<B>> for ResNetStructureConfig {
+impl ModuleInit<ResNet> for ResNetStructureConfig {
     /// Builds the [`ResNet`] module.
     ///
     /// # Errors
@@ -435,8 +435,8 @@ impl<B: Backend> ModuleInit<B, ResNet<B>> for ResNetStructureConfig {
     /// its blocks' planes do not chain); a frame names the stage.
     fn try_init(
         &self,
-        device: &B::Device,
-    ) -> BunsenResult<ResNet<B>> {
+        device: &Device,
+    ) -> BunsenResult<ResNet> {
         if self.layers.is_empty() {
             return Err(ConstraintError::zero_or_empty("ResNetStructureConfig", "layers").into());
         }
@@ -484,22 +484,22 @@ impl<B: Backend> ModuleInit<B, ResNet<B>> for ResNetStructureConfig {
 ///
 /// Built by [`ResNetContractConfig`] (high-level) or [`ResNetStructureConfig`].
 #[derive(Module, Debug)]
-pub struct ResNet<B: Backend> {
+pub struct ResNet {
     /// Input conv/norm.
-    pub input_cb: ConvBlock2d<B>,
+    pub input_cb: ConvBlock2d,
     /// Input pool.
     pub input_pool: MaxPool2d,
 
     /// Layers.
-    pub layers: Vec<LayerBlock<B>>,
+    pub layers: Vec<LayerBlock>,
 
     /// Head pooling.
     pub output_pool: AdaptiveAvgPool2d,
     /// Head classifier.
-    pub output_fc: Linear<B>,
+    pub output_fc: Linear,
 }
 
-impl<B: Backend> ResNetMeta for ResNet<B> {
+impl ResNetMeta for ResNet {
     fn num_stages(&self) -> usize {
         self.layers.len()
     }
@@ -513,7 +513,7 @@ impl<B: Backend> ResNetMeta for ResNet<B> {
     }
 }
 
-impl<B: Backend> ResNet<B> {
+impl ResNet {
     /// Debug Printout.
     pub fn debug_print(&self) {
         for (idx, layer) in self.layers.iter().enumerate() {
@@ -531,8 +531,8 @@ impl<B: Backend> ResNet<B> {
     /// Forward pass.
     pub fn forward(
         &self,
-        input: Tensor<B, 4>,
-    ) -> Tensor<B, 2> {
+        input: Tensor<4>,
+    ) -> Tensor<2> {
         // Prep block
         let x = self.input_cb.forward(input);
         let x = self.input_pool.forward(x);
@@ -558,14 +558,14 @@ impl<B: Backend> ResNet<B> {
     /// missing or unreadable (see [`sys_at`](crate::errors::sys_at)); other
     /// I/O failures by their kind.
     /// [`InvalidResource`](crate::errors::BunsenErrorKind::InvalidResource),
-    /// with the [`PytorchStoreError`](burn_store::PytorchStoreError) as its
+    /// with the [`PytorchStoreError`](burn::store::PytorchStoreError) as its
     /// cause, if the checkpoint does not load into the model.
     #[cfg(feature = "store_pytorch")]
     pub fn load_pytorch_weights(
         mut self,
         path: impl Into<std::path::PathBuf>,
     ) -> BunsenResult<Self> {
-        use burn_store::{
+        use burn::store::{
             ModuleSnapshot,
             PytorchStore,
             PytorchStoreError,
@@ -634,7 +634,7 @@ impl<B: Backend> ResNet<B> {
 
         let net_num_blocks = self.layers.iter().map(|b| b.len()).sum::<usize>();
         let mut net_block_idx = 0;
-        let mut update_drop_path = |_idx: usize, block: ResidualBlock<B>| {
+        let mut update_drop_path = |_idx: usize, block: ResidualBlock| {
             let block_dpr = stochastic_depth_rate(drop_path_rate, net_block_idx, net_num_blocks);
             net_block_idx += 1;
             if block_dpr > 0.0 {
@@ -723,7 +723,7 @@ impl<B: Backend> ResNet<B> {
         f: F,
     ) -> Self
     where
-        F: Fn(Vec<LayerBlock<B>>) -> Vec<LayerBlock<B>>,
+        F: Fn(Vec<LayerBlock>) -> Vec<LayerBlock>,
     {
         Self {
             layers: f(self.layers),
@@ -752,17 +752,16 @@ mod tests {
             RESNET50_BLOCKS,
         },
         support::testing::{
-            CpuBackend,
             DeviceMemoryGuard,
-            PerformanceBackend,
-            default_device,
+            cpu_device,
+            performance_device,
         },
     };
 
     /// Fetches a checkpoint through the kit's factory and reads it into
     /// its prefab's model.
     #[cfg(all(feature = "store_pytorch", feature = "cache", feature = "fetch"))]
-    fn test_load_pytorch<B: Backend>(spec: &str) -> BunsenResult<()> {
+    fn test_load_pytorch(spec: &str) -> BunsenResult<()> {
         use crate::{
             data::pretrained::{
                 PretrainedCache,
@@ -771,10 +770,10 @@ mod tests {
             kits::images::resnet::pretrained::default_resnet_factory,
         };
 
-        let device = default_device();
+        let device = performance_device();
         let cache = PretrainedCache::new(PretrainedCacheOptions::default())?;
-        let loaded = default_resnet_factory()?.load::<B>(spec, &cache, &device)?;
-        let _model: &ResNet<B> = &loaded.handle;
+        let loaded = default_resnet_factory()?.load(spec, &cache, &device)?;
+        let _model: &ResNet = &loaded.handle;
         Ok(())
     }
 
@@ -782,14 +781,14 @@ mod tests {
     #[serial]
     #[cfg(all(feature = "store_pytorch", feature = "cache", feature = "fetch"))]
     fn test_load_pytorch_prefab() -> BunsenResult<()> {
-        test_load_pytorch::<PerformanceBackend>("torchvision/resnet18")
+        test_load_pytorch("torchvision/resnet18")
     }
 
     #[test]
     #[serial]
     #[cfg(all(feature = "store_pytorch", feature = "cache", feature = "fetch"))]
     fn test_load_pytorch_prefab_cuda() -> BunsenResult<()> {
-        test_load_pytorch::<PerformanceBackend>("torchvision/resnet34")
+        test_load_pytorch("torchvision/resnet34")
     }
 
     #[test]
@@ -806,9 +805,8 @@ mod tests {
     #[test]
     #[serial]
     fn test_to_layers_50_bottleneck() {
-        type B = PerformanceBackend;
-        let device = default_device();
-        let _memory = DeviceMemoryGuard::<B>::new(&device);
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
 
         let cfg = ResNetContractConfig::new(RESNET50_BLOCKS.to_vec(), 1000).with_bottleneck(true);
         let layers = cfg.to_layer_contracts();
@@ -826,7 +824,7 @@ mod tests {
         println!("{:#?}", blocks);
         println!();
 
-        let model: ResNet<B> = cfg.to_structure().init(&device);
+        let model: ResNet = cfg.to_structure().init(&device);
 
         model.debug_print();
 
@@ -848,9 +846,8 @@ mod tests {
     #[test]
     #[serial]
     fn test_policy_pathways_agree() {
-        type B = PerformanceBackend;
-        let device = default_device();
-        let _memory = DeviceMemoryGuard::<B>::new(&device);
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
 
         let policy = ResNetContractConfig::new(vec![1, 1], 7)
             .with_stem_width(8)
@@ -862,8 +859,8 @@ mod tests {
         assert_eq!(structure.head_planes(), 64);
         assert_eq!(structure.num_classes(), 7);
 
-        let lowered: ResNet<B> = structure.init(&device);
-        let direct: ResNet<B> = policy.init(&device);
+        let lowered: ResNet = structure.init(&device);
+        let direct: ResNet = policy.init(&device);
 
         assert_meta_agrees(&direct, &lowered);
         assert_meta_agrees(&direct, &structure);
@@ -873,7 +870,7 @@ mod tests {
     /// the head has no stage to take its width from.
     #[test]
     fn test_try_init_rejects_no_stages() {
-        let device: burn::prelude::Device<CpuBackend> = Default::default();
+        let device = cpu_device();
 
         let structure = ResNetStructureConfig {
             layers: vec![],
@@ -884,11 +881,11 @@ mod tests {
         let no_stages = ErrorMatcher::kind(BunsenErrorKind::Illegal)
             .has_cause::<ConstraintError>()
             .message_contains("ResNetStructureConfig.layers");
-        let bad: BunsenResult<ResNet<CpuBackend>> = structure.try_init(&device);
+        let bad: BunsenResult<ResNet> = structure.try_init(&device);
         no_stages.assert_err(&bad);
 
         // The policy reaches the same check through the blanket `try_init`.
-        let bad: BunsenResult<ResNet<CpuBackend>> = ResNetContractConfig::new(vec![], 7)
+        let bad: BunsenResult<ResNet> = ResNetContractConfig::new(vec![], 7)
             .with_stem_width(8)
             .try_init(&device);
         no_stages.assert_err(&bad);
@@ -897,9 +894,9 @@ mod tests {
     /// A stage with no blocks is an error from `try_init`, not a panic.
     #[test]
     fn test_try_init_rejects_an_empty_stage() {
-        let device: burn::prelude::Device<CpuBackend> = Default::default();
+        let device = cpu_device();
 
-        let bad: BunsenResult<ResNet<CpuBackend>> = ResNetContractConfig::new(vec![1, 0], 7)
+        let bad: BunsenResult<ResNet> = ResNetContractConfig::new(vec![1, 0], 7)
             .with_stem_width(8)
             .try_init(&device);
         ErrorMatcher::kind(BunsenErrorKind::Illegal)
@@ -938,7 +935,7 @@ mod tests {
 
     /// Each block's drop-path probability in a module, in net order; 0 for a
     /// block without a `DropPath`.
-    fn module_drop_path_probs<B: Backend>(model: &ResNet<B>) -> Vec<f64> {
+    fn module_drop_path_probs(model: &ResNet) -> Vec<f64> {
         model
             .layers
             .iter()
@@ -980,8 +977,8 @@ mod tests {
     /// The module's stochastic-depth schedule is timm's.
     #[test]
     fn test_module_drop_path_schedule_matches_timm() {
-        let device: burn::prelude::Device<CpuBackend> = Default::default();
-        let model: ResNet<CpuBackend> = ResNetContractConfig::new(vec![2, 2, 2, 2], 10)
+        let device = cpu_device();
+        let model: ResNet = ResNetContractConfig::new(vec![2, 2, 2, 2], 10)
             .with_stem_width(8)
             .init(&device);
         let model = model.with_stochastic_path_depth(0.1);
@@ -997,8 +994,8 @@ mod tests {
             .with_stem_width(8)
             .to_structure();
 
-        let device: burn::prelude::Device<CpuBackend> = Default::default();
-        let model: ResNet<CpuBackend> = structure.init(&device);
+        let device = cpu_device();
+        let model: ResNet = structure.init(&device);
         let model = model.with_stochastic_path_depth(0.1);
         assert_rates_eq(&module_drop_path_probs(&model), &[0.0, 0.1]);
 
@@ -1046,7 +1043,7 @@ mod tests {
     }
 
     /// Each block's DropBlock options in a module, in net order.
-    fn module_drop_blocks<B: Backend>(model: &ResNet<B>) -> Vec<Option<DropBlockOptions>> {
+    fn module_drop_blocks(model: &ResNet) -> Vec<Option<DropBlockOptions>> {
         model
             .layers
             .iter()
@@ -1074,16 +1071,16 @@ mod tests {
             timm_drop_blocks_2222_at_0_1()
         );
 
-        let device: burn::prelude::Device<CpuBackend> = Default::default();
-        let model: ResNet<CpuBackend> = structure.init(&device);
+        let device = cpu_device();
+        let model: ResNet = structure.init(&device);
         assert_eq!(module_drop_blocks(&model), timm_drop_blocks_2222_at_0_1());
     }
 
     /// The module's DropBlock schedule is timm's.
     #[test]
     fn test_module_drop_block_schedule_matches_timm() {
-        let device: burn::prelude::Device<CpuBackend> = Default::default();
-        let model: ResNet<CpuBackend> = ResNetContractConfig::new(vec![2, 2, 2, 2], 10)
+        let device = cpu_device();
+        let model: ResNet = ResNetContractConfig::new(vec![2, 2, 2, 2], 10)
             .with_stem_width(8)
             .init(&device);
         let model = model.with_stochastic_drop_block(0.1);
@@ -1099,8 +1096,8 @@ mod tests {
         let structure = ResNetContractConfig::new(vec![2], 10)
             .with_stem_width(8)
             .to_structure();
-        let device: burn::prelude::Device<CpuBackend> = Default::default();
-        let model: ResNet<CpuBackend> = structure.init(&device);
+        let device = cpu_device();
+        let model: ResNet = structure.init(&device);
 
         let one_stage =
             ErrorMatcher::kind(BunsenErrorKind::Illegal).message_contains("at least 2 stages");

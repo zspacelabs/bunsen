@@ -23,8 +23,7 @@ use bunsen::{
     },
     kits::speech::whisper::driver::PresetEmissionPolicy,
 };
-use burn::prelude::Backend;
-use clap_common::logging::{
+use bunsen_app::logging::{
     LogArgs,
     LogLevelNum,
 };
@@ -96,7 +95,7 @@ pub struct LiveCmd {
     /// name (see `--list-devices`); the host's default input device when
     /// omitted.
     #[arg(long)]
-    device: Option<String>,
+    input_device: Option<String>,
 
     /// List the input devices, id and name, and exit. Loads nothing.
     #[arg(long)]
@@ -117,7 +116,7 @@ struct Block {
 }
 
 impl LiveCmd {
-    pub fn run<B: Backend>(&self) -> BunsenResult<()> {
+    pub fn run(&self) -> BunsenResult<()> {
         self.logging.init(Some(LogLevelNum::Warn))?;
 
         let host = cpal::default_host();
@@ -127,8 +126,8 @@ impl LiveCmd {
         let device = self.pick_device(&host)?;
         let device_name = device_name(&device);
 
-        let compute = B::Device::default();
-        let driver = self.whisper.init_driver::<B>(&compute, PRESET)?;
+        let compute = self.whisper.device()?;
+        let driver = self.whisper.init_driver(&compute, PRESET)?;
         let model_rate = driver.sample_rate();
         let chunk = self.whisper.chunk_samples(&driver, CHUNK_MS);
         log::debug!(
@@ -232,14 +231,14 @@ impl LiveCmd {
         Ok(())
     }
 
-    /// `--device`, or the host's default input device.
+    /// `--input-device`, or the host's default input device.
     fn pick_device(
         &self,
         host: &Host,
     ) -> BunsenResult<Device> {
-        match &self.device {
+        match &self.input_device {
             None => host.default_input_device().ok_or_else(|| {
-                BunsenError::policy("no default input device; name one with --device")
+                BunsenError::policy("no default input device; name one with --input-device")
             }),
             Some(want) => {
                 let needle = want.to_lowercase();
@@ -283,8 +282,8 @@ fn device_id(device: &Device) -> String {
 
 /// Pushes `samples` as one block, anchored at `time` when the host gave
 /// one.
-fn push<B: Backend>(
-    transcript: &mut TranscriptStream<B>,
+fn push(
+    transcript: &mut TranscriptStream,
     samples: &[f32],
     time: Option<f64>,
 ) -> BunsenResult<()> {

@@ -1,7 +1,6 @@
 use burn::{
     Tensor,
     prelude::{
-        Backend,
         Bool,
         Float,
         Int,
@@ -10,9 +9,10 @@ use burn::{
         TensorData,
     },
     tensor::{
-        BasicOps,
         DType,
+        Device,
         Slice,
+        kind::Basic,
     },
 };
 
@@ -38,10 +38,10 @@ use crate::{
 };
 
 /// Provides a dynamic version of [`Tensor::slice`].
-pub fn slice_dyn<B: Backend, const R: usize, K: BasicOps<B>>(
-    tensor: Tensor<B, R, K>,
+pub fn slice_dyn<const R: usize, K: Basic>(
+    tensor: Tensor<R, K>,
     slices: &[Slice],
-) -> Tensor<B, R, K> {
+) -> Tensor<R, K> {
     let mut tensor = tensor;
     for (dim, slice) in slices.iter().enumerate() {
         tensor = tensor.slice_dim(dim, *slice);
@@ -50,75 +50,74 @@ pub fn slice_dyn<B: Backend, const R: usize, K: BasicOps<B>>(
 }
 
 /// Values conversion trait for [`DynTensor::slice_assign`].
-pub trait ValuesArg<B: Backend>: Sized {
+pub trait ValuesArg: Sized {
     /// Convert to a [`DynTensor`] on a given device.
     fn into_values(
         self,
-        device: &B::Device,
-    ) -> BunsenResult<DynTensor<B>>;
+        device: &Device,
+    ) -> BunsenResult<DynTensor>;
 }
 
-impl<B: Backend, T: Into<DynTensor<B>>> ValuesArg<B> for T {
+impl<T: Into<DynTensor>> ValuesArg for T {
     fn into_values(
         self,
-        device: &B::Device,
-    ) -> BunsenResult<DynTensor<B>> {
+        device: &Device,
+    ) -> BunsenResult<DynTensor> {
         self.into().to_device(device)
     }
 }
 
-impl<B: Backend> ValuesArg<B> for TensorData {
+impl ValuesArg for TensorData {
     fn into_values(
         self,
-        device: &B::Device,
-    ) -> BunsenResult<DynTensor<B>> {
+        device: &Device,
+    ) -> BunsenResult<DynTensor> {
         DynTensor::from_data(self, device)
     }
 }
 
 /// A dynamic [`Tensor`] wrapper that can be sliced.
 #[derive(Debug, Clone)]
-pub struct DynTensor<B: Backend> {
+pub struct DynTensor {
     shape: Shape,
     dtype: DType,
     kind: TensorKindDesc,
-    device: B::Device,
+    device: Device,
     tensor: Box<dyn CloneBox>,
-    phantom: std::marker::PhantomData<B>,
 }
 
-impl<B: Backend, const R: usize, K> From<Tensor<B, R, K>> for DynTensor<B>
+impl<const R: usize, K> From<Tensor<R, K>> for DynTensor
 where
-    K: 'static + BasicOps<B>,
+    K: 'static + Basic,
 {
-    fn from(val: Tensor<B, R, K>) -> Self {
+    fn from(val: Tensor<R, K>) -> Self {
         DynTensor::new(val)
     }
 }
 
-impl<B: Backend> From<&DynTensor<B>> for TensorDesc {
-    fn from(val: &DynTensor<B>) -> Self {
+impl From<&DynTensor> for TensorDesc {
+    fn from(val: &DynTensor) -> Self {
         TensorDesc::new(val.dtype, val.shape())
     }
 }
 
-impl<B: Backend> From<&DynTensor<B>> for TensorRankType {
-    fn from(val: &DynTensor<B>) -> Self {
+impl From<&DynTensor> for TensorRankType {
+    fn from(val: &DynTensor) -> Self {
         TensorRankType::new(val.dtype, val.shape.rank())
     }
 }
 
-impl<B: Backend> HasDType for DynTensor<B> {
+impl HasDType for DynTensor {
     fn dtype(&self) -> DType {
         self.dtype
     }
 }
 
-impl<B: Backend> DynTensor<B> {
+impl DynTensor {
     /// Create a new `TensorStub` from a tensor.
-    pub fn new<const R: usize, K>(tensor: Tensor<B, R, K>) -> Self
+    pub fn new<const R: usize, K>(tensor: Tensor<R, K>) -> Self
     where
-        K: BasicOps<B> + 'static,
+        K: Basic + 'static,
     {
         Self {
             shape: tensor.shape(),
@@ -126,7 +125,6 @@ impl<B: Backend> DynTensor<B> {
             kind: tensor.dtype().into(),
             device: tensor.device(),
             tensor: Box::new(tensor),
-            phantom: std::marker::PhantomData,
         }
     }
 
@@ -163,30 +161,30 @@ impl<B: Backend> DynTensor<B> {
     }
 
     /// Get the tensor device.
-    pub fn device(&self) -> B::Device {
+    pub fn device(&self) -> Device {
         self.device.clone()
     }
 
     /// Downcasts the tensor to a specific rank and kind.
     ///
     /// # Returns
-    /// - `Some(&Tensor<B, R, K>)`: if the params are correct,
+    /// - `Some(&Tensor<R, K>)`: if the params are correct,
     /// - `None`: otherwise.
-    pub fn downcast_ref<const R: usize, K>(&self) -> Option<&Tensor<B, R, K>>
+    pub fn downcast_ref<const R: usize, K>(&self) -> Option<&Tensor<R, K>>
     where
-        K: 'static + BasicOps<B>,
+        K: 'static + Basic,
     {
-        self.tensor.downcast_ref::<Tensor<B, R, K>>()
+        self.tensor.downcast_ref::<Tensor<R, K>>()
     }
 
     /// Downcasts the tensor to a specific rank and kind.
     ///
     /// # Returns
-    /// - `Some(Tensor<B, R, K>)`: if the params are correct,
+    /// - `Some(Tensor<R, K>)`: if the params are correct,
     /// - `None`: otherwise.
-    pub fn downcast_clone<const R: usize, K>(&self) -> Option<Tensor<B, R, K>>
+    pub fn downcast_clone<const R: usize, K>(&self) -> Option<Tensor<R, K>>
     where
-        K: 'static + BasicOps<B>,
+        K: 'static + Basic,
     {
         self.downcast_ref::<R, K>().cloned()
     }
@@ -198,9 +196,9 @@ impl<B: Backend> DynTensor<B> {
     ///
     /// # Panics
     /// If the types are incorrect.
-    pub fn unwrap<const R: usize, K>(self) -> Tensor<B, R, K>
+    pub fn unwrap<const R: usize, K>(self) -> Tensor<R, K>
     where
-        K: 'static + BasicOps<B>,
+        K: 'static + Basic,
     {
         self.unwrap_clone()
     }
@@ -212,9 +210,9 @@ impl<B: Backend> DynTensor<B> {
     ///
     /// # Panics
     /// If the types are incorrect.
-    pub fn unwrap_clone<const R: usize, K>(&self) -> Tensor<B, R, K>
+    pub fn unwrap_clone<const R: usize, K>(&self) -> Tensor<R, K>
     where
-        K: 'static + BasicOps<B>,
+        K: 'static + Basic,
     {
         self.downcast_clone::<R, K>()
             .expect("downcast_clone failed")
@@ -245,12 +243,12 @@ impl<B: Backend> DynTensor<B> {
 
         check_slices_bounds(&self.shape(), &slices)?;
 
-        struct SliceHandler<B: Backend> {
-            this: DynTensor<B>,
+        struct SliceHandler {
+            this: DynTensor,
             slices: Vec<Slice>,
         }
-        impl<B: Backend> RankHandler for SliceHandler<B> {
-            type Output = DynTensor<B>;
+        impl RankHandler for SliceHandler {
+            type Output = DynTensor;
 
             fn call<const R: usize>(self) -> BunsenResult<Self::Output> {
                 Ok(match self.this.kind {
@@ -296,12 +294,12 @@ impl<B: Backend> DynTensor<B> {
 
         check_slices_bounds(&self.shape(), slices)?;
 
-        struct SliceDynHandler<'a, B: Backend> {
-            this: DynTensor<B>,
+        struct SliceDynHandler<'a> {
+            this: DynTensor,
             slices: &'a [Slice],
         }
-        impl<'a, B: Backend> RankHandler for SliceDynHandler<'a, B> {
-            type Output = DynTensor<B>;
+        impl<'a> RankHandler for SliceDynHandler<'a> {
+            type Output = DynTensor;
 
             fn call<const R: usize>(self) -> BunsenResult<Self::Output> {
                 Ok(match self.this.kind {
@@ -343,7 +341,7 @@ impl<B: Backend> DynTensor<B> {
     ) -> BunsenResult<Self>
     where
         S: SliceArg,
-        V: ValuesArg<B>,
+        V: ValuesArg,
     {
         let rank = self.rank();
         let slices: [Slice; R2] =
@@ -355,7 +353,7 @@ impl<B: Backend> DynTensor<B> {
                     shape: self.shape(),
                     slices,
                 })?;
-        let values: DynTensor<B> = values.into_values(&self.device())?;
+        let values: DynTensor = values.into_values(&self.device())?;
 
         check_slices_bounds(&self.shape(), &slices)?;
 
@@ -376,13 +374,13 @@ impl<B: Backend> DynTensor<B> {
 
         // TODO: check that slices shape == source.shape
 
-        struct SliceAssignHandler<B: Backend, const R2: usize> {
-            this: DynTensor<B>,
+        struct SliceAssignHandler<const R2: usize> {
+            this: DynTensor,
             slices: [Slice; R2],
-            values: DynTensor<B>,
+            values: DynTensor,
         }
-        impl<B: Backend, const R2: usize> RankHandler for SliceAssignHandler<B, R2> {
-            type Output = DynTensor<B>;
+        impl<const R2: usize> RankHandler for SliceAssignHandler<R2> {
+            type Output = DynTensor;
 
             fn call<const R: usize>(self) -> BunsenResult<Self::Output> {
                 Ok(match (self.this.kind, self.values.kind) {
@@ -442,15 +440,15 @@ impl<B: Backend> DynTensor<B> {
         values: V,
     ) -> BunsenResult<Self>
     where
-        V: ValuesArg<B>,
+        V: ValuesArg,
     {
-        struct SliceAssignDynHandler<B: Backend> {
-            this: DynTensor<B>,
+        struct SliceAssignDynHandler {
+            this: DynTensor,
             slices: Vec<Slice>,
-            values: DynTensor<B>,
+            values: DynTensor,
         }
-        impl<B: Backend> RankHandler for SliceAssignDynHandler<B> {
-            type Output = DynTensor<B>;
+        impl RankHandler for SliceAssignDynHandler {
+            type Output = DynTensor;
 
             fn call<const R: usize>(self) -> BunsenResult<Self::Output> {
                 self.this
@@ -481,11 +479,11 @@ impl<B: Backend> DynTensor<B> {
     /// [`Unsupported`](crate::errors::BunsenErrorKind::Unsupported) for a rank
     /// outside `1..=12`.
     pub fn flatten(self) -> BunsenResult<Self> {
-        struct FlattenHandler<B: Backend> {
-            tensor: DynTensor<B>,
+        struct FlattenHandler {
+            tensor: DynTensor,
         }
-        impl<B: Backend> RankHandler for FlattenHandler<B> {
-            type Output = DynTensor<B>;
+        impl RankHandler for FlattenHandler {
+            type Output = DynTensor;
 
             fn call<const R: usize>(self) -> BunsenResult<Self::Output> {
                 Ok(match self.tensor.kind {
@@ -528,18 +526,18 @@ impl<B: Backend> DynTensor<B> {
         self,
         dtype: DType,
     ) -> BunsenResult<Self> {
-        struct CastHandler<B: Backend> {
-            this: DynTensor<B>,
+        struct CastHandler {
+            this: DynTensor,
             dtype: DType,
         }
-        impl<B: Backend> RankHandler for CastHandler<B> {
-            type Output = DynTensor<B>;
+        impl RankHandler for CastHandler {
+            type Output = DynTensor;
 
             fn call<const R: usize>(self) -> BunsenResult<Self::Output> {
                 let target_kind: TensorKindDesc = self.dtype.into();
                 Ok(match self.this.kind {
                     TensorKindDesc::Float => {
-                        let tensor: Tensor<B, R, Float> = self.this.unwrap_clone();
+                        let tensor: Tensor<R, Float> = self.this.unwrap_clone();
                         match target_kind {
                             TensorKindDesc::Float => tensor.cast(self.dtype).into(),
                             TensorKindDesc::Int => tensor.int().cast(self.dtype).into(),
@@ -547,7 +545,7 @@ impl<B: Backend> DynTensor<B> {
                         }
                     }
                     TensorKindDesc::Int => {
-                        let tensor: Tensor<B, R, Int> = self.this.unwrap_clone();
+                        let tensor: Tensor<R, Int> = self.this.unwrap_clone();
                         match target_kind {
                             TensorKindDesc::Float => tensor.float().cast(self.dtype).into(),
                             TensorKindDesc::Int => tensor.cast(self.dtype).into(),
@@ -555,7 +553,7 @@ impl<B: Backend> DynTensor<B> {
                         }
                     }
                     TensorKindDesc::Bool => {
-                        let tensor: Tensor<B, R, Bool> = self.this.unwrap_clone();
+                        let tensor: Tensor<R, Bool> = self.this.unwrap_clone();
                         match target_kind {
                             TensorKindDesc::Float => tensor.float().cast(self.dtype).into(),
                             TensorKindDesc::Int => tensor.int().cast(self.dtype).into(),
@@ -577,25 +575,25 @@ impl<B: Backend> DynTensor<B> {
     /// - `device`: the target device.
     ///
     /// # Returns
-    /// - `Ok(DynTensor<B>)`: the moved tensor.
+    /// - `Ok(DynTensor)`: the moved tensor.
     ///
     /// # Errors
     /// [`Unsupported`](crate::errors::BunsenErrorKind::Unsupported) for a rank
     /// outside `1..=12`.
     pub fn to_device(
         self,
-        device: &B::Device,
+        device: &Device,
     ) -> BunsenResult<Self> {
         if &self.device() == device {
             return Ok(self);
         }
 
-        struct ToDeviceHandler<'a, B: Backend> {
-            this: DynTensor<B>,
-            device: &'a B::Device,
+        struct ToDeviceHandler<'a> {
+            this: DynTensor,
+            device: &'a Device,
         }
-        impl<'a, B: Backend> RankHandler for ToDeviceHandler<'a, B> {
-            type Output = DynTensor<B>;
+        impl<'a> RankHandler for ToDeviceHandler<'a> {
+            type Output = DynTensor;
 
             fn call<const R: usize>(self) -> BunsenResult<Self::Output> {
                 Ok(match self.this.kind {
@@ -628,33 +626,33 @@ impl<B: Backend> DynTensor<B> {
     /// - `device`: the target device.
     ///
     /// # Returns
-    /// - `Ok(DynTensor<B>)`: the converted tensor.
+    /// - `Ok(DynTensor)`: the converted tensor.
     ///
     /// # Errors
     /// [`Unsupported`](crate::errors::BunsenErrorKind::Unsupported) for a rank
     /// outside `1..=12`.
     pub fn from_data(
         data: TensorData,
-        device: &B::Device,
+        device: &Device,
     ) -> BunsenResult<Self> {
-        struct FromDataHandler<'a, B: Backend> {
+        struct FromDataHandler<'a> {
             data: TensorData,
-            device: &'a B::Device,
+            device: &'a Device,
         }
-        impl<'a, B: Backend> RankHandler for FromDataHandler<'a, B> {
-            type Output = DynTensor<B>;
+        impl<'a> RankHandler for FromDataHandler<'a> {
+            type Output = DynTensor;
 
             fn call<const R: usize>(self) -> BunsenResult<Self::Output> {
-                let kind: TensorKindDesc = self.data.dtype.into();
+                let kind: TensorKindDesc = self.data.dtype().into();
                 Ok(match kind {
                     TensorKindDesc::Float => {
-                        Tensor::<B, R, Float>::from_data(self.data, self.device).into()
+                        Tensor::<R, Float>::from_data(self.data, self.device).into()
                     }
                     TensorKindDesc::Int => {
-                        Tensor::<B, R, Int>::from_data(self.data, self.device).into()
+                        Tensor::<R, Int>::from_data(self.data, self.device).into()
                     }
                     TensorKindDesc::Bool => {
-                        Tensor::<B, R, Bool>::from_data(self.data, self.device).into()
+                        Tensor::<R, Bool>::from_data(self.data, self.device).into()
                     }
                 })
             }
@@ -672,10 +670,10 @@ impl<B: Backend> DynTensor<B> {
     /// [`Unsupported`](crate::errors::BunsenErrorKind::Unsupported) for a rank
     /// outside `1..=12`.
     pub fn into_data(self) -> BunsenResult<TensorData> {
-        struct ToDataHandler<B: Backend> {
-            this: DynTensor<B>,
+        struct ToDataHandler {
+            this: DynTensor,
         }
-        impl<B: Backend> RankHandler for ToDataHandler<B> {
+        impl RankHandler for ToDataHandler {
             type Output = TensorData;
 
             fn call<const R: usize>(self) -> BunsenResult<Self::Output> {
@@ -707,12 +705,12 @@ impl<B: Backend> DynTensor<B> {
 mod tests {
     use burn::{
         prelude::{
-            Backend,
             Shape,
             s,
         },
         tensor::{
             Bool,
+            Device,
             Distribution,
             Float,
             Int,
@@ -741,28 +739,24 @@ mod tests {
         },
         support::testing::{
             DeviceMemoryGuard,
-            PerformanceBackend,
-            backend_device,
+            performance_device,
         },
     };
 
     #[test]
     fn test_is_send() {
-        type B = PerformanceBackend;
-
         fn assert_send<T: Send>() {}
 
-        assert_send::<DynTensor<B>>();
+        assert_send::<DynTensor>();
     }
 
     #[test]
     #[serial_test::serial]
     fn test_stub_float() {
-        type B = PerformanceBackend;
-        let device = backend_device::<B>();
-        let _memory = DeviceMemoryGuard::<B>::new(&device);
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
 
-        let source: Tensor<B, 2> = Tensor::random([2, 3], Distribution::Default, &device);
+        let source: Tensor<2> = Tensor::random([2, 3], Distribution::Default, &device);
 
         let stub = DynTensor::new(source.clone());
 
@@ -804,11 +798,10 @@ mod tests {
     #[test]
     #[serial_test::serial]
     fn test_stub_int() {
-        type B = PerformanceBackend;
-        let device = backend_device::<B>();
-        let _memory = DeviceMemoryGuard::<B>::new(&device);
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
 
-        let source: Tensor<B, 2> = Tensor::random([2, 3], Distribution::Default, &device);
+        let source: Tensor<2> = Tensor::random([2, 3], Distribution::Default, &device);
         let source = source.int();
 
         let stub = DynTensor::new(source.clone());
@@ -851,11 +844,10 @@ mod tests {
     #[test]
     #[serial_test::serial]
     fn test_stub_bool() {
-        type B = PerformanceBackend;
-        let device = backend_device::<B>();
-        let _memory = DeviceMemoryGuard::<B>::new(&device);
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
 
-        let source: Tensor<B, 2> = Tensor::random([2, 3], Distribution::Bernoulli(0.5), &device);
+        let source: Tensor<2> = Tensor::random([2, 3], Distribution::Bernoulli(0.5), &device);
         let source = source.bool();
 
         let stub = DynTensor::new(source.clone());
@@ -898,11 +890,10 @@ mod tests {
     #[test]
     #[serial_test::serial]
     fn test_clone() {
-        type B = PerformanceBackend;
-        let device = backend_device::<B>();
-        let _memory = DeviceMemoryGuard::<B>::new(&device);
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
 
-        let source: Tensor<B, 2> = Tensor::random([2, 3], Distribution::Default, &device);
+        let source: Tensor<2> = Tensor::random([2, 3], Distribution::Default, &device);
 
         let stub = DynTensor::new(source.clone());
 
@@ -917,11 +908,10 @@ mod tests {
     #[test]
     #[serial_test::serial]
     fn test_slice() {
-        type B = PerformanceBackend;
-        let device = backend_device::<B>();
-        let _memory = DeviceMemoryGuard::<B>::new(&device);
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
 
-        let source: Tensor<B, 2> = Tensor::random([2, 3], Distribution::Default, &device);
+        let source: Tensor<2> = Tensor::random([2, 3], Distribution::Default, &device);
 
         let stub = DynTensor::new(source.clone());
 
@@ -937,11 +927,10 @@ mod tests {
     #[test]
     #[serial_test::serial]
     fn test_slice_dyn() {
-        type B = PerformanceBackend;
-        let device = backend_device::<B>();
-        let _memory = DeviceMemoryGuard::<B>::new(&device);
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
 
-        let source: Tensor<B, 2> = Tensor::random([2, 3], Distribution::Default, &device);
+        let source: Tensor<2> = Tensor::random([2, 3], Distribution::Default, &device);
 
         let stub = DynTensor::new(source.clone());
 
@@ -957,18 +946,17 @@ mod tests {
     }
 
     /// `[[0, 1, 2], [3, 4, 5]]` as a float [`DynTensor`].
-    fn arange_2x3<B: Backend>(device: &B::Device) -> DynTensor<B> {
+    fn arange_2x3(device: &Device) -> DynTensor {
         Tensor::arange(0..6, device).reshape([2, 3]).float().into()
     }
 
     #[test]
     #[serial_test::serial]
     fn test_slice_assign() {
-        type B = PerformanceBackend;
-        let device = backend_device::<B>();
-        let _memory = DeviceMemoryGuard::<B>::new(&device);
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
 
-        let values: Tensor<B, 2> = Tensor::zeros([2, 1], &device);
+        let values: Tensor<2> = Tensor::zeros([2, 1], &device);
         let result = arange_2x3(&device)
             .slice_assign::<2, _, _>(s![.., 1..2], values)
             .unwrap();
@@ -982,11 +970,10 @@ mod tests {
     #[test]
     #[serial_test::serial]
     fn test_slice_assign_casts_values() {
-        type B = PerformanceBackend;
-        let device = backend_device::<B>();
-        let _memory = DeviceMemoryGuard::<B>::new(&device);
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
 
-        let values: Tensor<B, 2, Int> = Tensor::from_data([[9], [9]], &device);
+        let values: Tensor<2, Int> = Tensor::from_data([[9], [9]], &device);
         let result = arange_2x3(&device)
             .slice_assign::<2, _, _>(s![.., 0..1], values)
             .unwrap();
@@ -1000,11 +987,10 @@ mod tests {
     #[test]
     #[serial_test::serial]
     fn test_slice_assign_tensor_data() {
-        type B = PerformanceBackend;
-        let device = backend_device::<B>();
-        let _memory = DeviceMemoryGuard::<B>::new(&device);
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
 
-        let result: DynTensor<B> = arange_2x3(&device)
+        let result: DynTensor = arange_2x3(&device)
             .slice_assign::<2, _, _>(s![0..1, ..], TensorData::from([[7.0f32, 7.0, 7.0]]))
             .unwrap();
         result.into_data().unwrap().assert_eq(
@@ -1016,12 +1002,11 @@ mod tests {
     #[test]
     #[serial_test::serial]
     fn test_slice_assign_int_and_bool() {
-        type B = PerformanceBackend;
-        let device = backend_device::<B>();
-        let _memory = DeviceMemoryGuard::<B>::new(&device);
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
 
-        let source: Tensor<B, 1, Int> = Tensor::arange(0..4, &device);
-        let values: Tensor<B, 1, Int> = Tensor::from_data([8, 9], &device);
+        let source: Tensor<1, Int> = Tensor::arange(0..4, &device);
+        let values: Tensor<1, Int> = Tensor::from_data([8, 9], &device);
         DynTensor::new(source)
             .slice_assign::<1, _, _>(s![1..3], values)
             .unwrap()
@@ -1030,8 +1015,8 @@ mod tests {
             .convert::<i64>()
             .assert_eq(&TensorData::from([0i64, 8, 9, 3]), false);
 
-        let source: Tensor<B, 1, Bool> = Tensor::from_data([false, false, false], &device);
-        let values: Tensor<B, 1, Bool> = Tensor::from_data([true], &device);
+        let source: Tensor<1, Bool> = Tensor::from_data([false, false, false], &device);
+        let values: Tensor<1, Bool> = Tensor::from_data([true], &device);
 
         DynTensor::new(source)
             .slice_assign::<1, _, _>(s![2..3], values)
@@ -1044,17 +1029,16 @@ mod tests {
     #[test]
     #[serial_test::serial]
     fn test_slice_assign_rank_errors() {
-        type B = PerformanceBackend;
-        let device = backend_device::<B>();
-        let _memory = DeviceMemoryGuard::<B>::new(&device);
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
 
-        let values: Tensor<B, 1> = Tensor::zeros([3], &device);
+        let values: Tensor<1> = Tensor::zeros([3], &device);
         ErrorMatcher::kind(BunsenErrorKind::Illegal)
             .message_contains("values rank (1) must be == tensor rank (2)")
             .has_cause::<ConstraintError>()
             .assert_err(&arange_2x3(&device).slice_assign::<2, _, _>(s![0..1, ..], values));
 
-        let values: Tensor<B, 2> = Tensor::zeros([1, 3], &device);
+        let values: Tensor<2> = Tensor::zeros([1, 3], &device);
         ErrorMatcher::kind(BunsenErrorKind::Illegal)
             .cause(predicate("InvalidRank", |e: &SlicingError| {
                 matches!(e, SlicingError::InvalidRank { .. })
@@ -1065,11 +1049,10 @@ mod tests {
     #[test]
     #[serial_test::serial]
     fn test_slice_assign_out_of_bounds() {
-        type B = PerformanceBackend;
-        let device = backend_device::<B>();
-        let _memory = DeviceMemoryGuard::<B>::new(&device);
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
 
-        let values: Tensor<B, 2> = Tensor::zeros([1, 3], &device);
+        let values: Tensor<2> = Tensor::zeros([1, 3], &device);
         ErrorMatcher::kind(BunsenErrorKind::Illegal)
             .cause(predicate("OutOfBounds", |e: &SlicingError| {
                 matches!(e, SlicingError::OutOfBounds { .. })
@@ -1080,11 +1063,10 @@ mod tests {
     #[test]
     #[serial_test::serial]
     fn test_slice_assign_dyn() {
-        type B = PerformanceBackend;
-        let device = backend_device::<B>();
-        let _memory = DeviceMemoryGuard::<B>::new(&device);
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
 
-        let values: Tensor<B, 2> = Tensor::ones([1, 3], &device);
+        let values: Tensor<2> = Tensor::ones([1, 3], &device);
         arange_2x3(&device)
             .slice_assign_dyn(&[Slice::new(1, None, 1), Slice::full()], values)
             .unwrap()
@@ -1099,11 +1081,10 @@ mod tests {
     #[test]
     #[serial_test::serial]
     fn test_slice_assign_dyn_partial_slices() {
-        type B = PerformanceBackend;
-        let device = backend_device::<B>();
-        let _memory = DeviceMemoryGuard::<B>::new(&device);
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
 
-        let values: Tensor<B, 2> = Tensor::ones([1, 3], &device);
+        let values: Tensor<2> = Tensor::ones([1, 3], &device);
         arange_2x3(&device)
             .slice_assign_dyn(&[Slice::new(0, Some(1), 1)], values)
             .unwrap()
@@ -1118,11 +1099,10 @@ mod tests {
     #[test]
     #[serial_test::serial]
     fn test_slice_assign_dyn_too_many_slices() {
-        type B = PerformanceBackend;
-        let device = backend_device::<B>();
-        let _memory = DeviceMemoryGuard::<B>::new(&device);
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
 
-        let values: Tensor<B, 2> = Tensor::ones([2, 3], &device);
+        let values: Tensor<2> = Tensor::ones([2, 3], &device);
         ErrorMatcher::kind(BunsenErrorKind::Illegal)
             .cause(predicate("InvalidRank", |e: &SlicingError| {
                 matches!(e, SlicingError::InvalidRank { .. })
@@ -1135,14 +1115,13 @@ mod tests {
 
     #[test]
     fn test_tensor_rank_desc() {
-        type B = PerformanceBackend;
-        let device = backend_device::<B>();
-        let _memory = DeviceMemoryGuard::<B>::new(&device);
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
 
         // Float
         {
             // Tensor
-            let tensor: Tensor<B, 2> = Tensor::ones([2, 3], &device);
+            let tensor: Tensor<2> = Tensor::ones([2, 3], &device);
             let dtensor = DynTensor::new(tensor);
             let dtype = dtensor.dtype();
 
@@ -1164,7 +1143,7 @@ mod tests {
         // Int
         {
             // Tensor
-            let tensor: Tensor<B, 2, Int> = Tensor::ones([2, 3], &device);
+            let tensor: Tensor<2, Int> = Tensor::ones([2, 3], &device);
             let dtensor = DynTensor::new(tensor);
             let dtype = dtensor.dtype();
 
@@ -1186,7 +1165,7 @@ mod tests {
         // Bool
         {
             // Tensor
-            let tensor: Tensor<B, 2, Bool> = Tensor::zeros([2, 3], &device);
+            let tensor: Tensor<2, Bool> = Tensor::zeros([2, 3], &device);
             let dtensor = DynTensor::new(tensor);
             let dtype = dtensor.dtype();
 

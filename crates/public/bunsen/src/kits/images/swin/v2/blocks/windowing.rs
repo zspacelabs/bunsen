@@ -1,11 +1,8 @@
 //! Windowing operations for Swin Transformer v2
 
 use burn::{
-    prelude::{
-        Backend,
-        Tensor,
-    },
-    tensor::BasicOps,
+    prelude::Tensor,
+    tensor::kind::Basic,
 };
 
 use crate::contracts::unpack_shape_contract;
@@ -32,12 +29,12 @@ use crate::contracts::unpack_shape_contract;
 /// multiple of `window_size`.
 #[inline]
 #[must_use]
-pub fn window_partition<B: Backend, K>(
-    tensor: Tensor<B, 4, K>,
+pub fn window_partition<K>(
+    tensor: Tensor<4, K>,
     window_size: usize,
-) -> Tensor<B, 4, K>
+) -> Tensor<4, K>
 where
-    K: BasicOps<B>,
+    K: Basic,
 {
     let [b, h_wins, w_wins, c] = unpack_shape_contract!(
         [
@@ -79,14 +76,14 @@ where
 /// On shape contract failure.
 #[inline]
 #[must_use]
-pub fn window_reverse<B: Backend, K>(
-    windows: Tensor<B, 4, K>,
+pub fn window_reverse<K>(
+    windows: Tensor<4, K>,
     window_size: usize,
     height: usize,
     width: usize,
-) -> Tensor<B, 4, K>
+) -> Tensor<4, K>
 where
-    K: BasicOps<B>,
+    K: Basic,
 {
     let h_wins = height / window_size;
     let w_wins = width / window_size;
@@ -127,16 +124,14 @@ mod tests {
     use super::*;
     use crate::support::testing::{
         DeviceMemoryGuard,
-        PerformanceBackend,
-        default_device,
+        performance_device,
     };
 
     #[test]
     #[serial]
     fn test_window_partition() {
-        type B = PerformanceBackend;
-        let device = default_device();
-        let _memory = DeviceMemoryGuard::<B>::new(&device);
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
 
         let b = 3;
         let window_size = 4;
@@ -148,7 +143,7 @@ mod tests {
         let w = w_wins * window_size;
 
         let distribution = Distribution::Uniform(0.0, 1.0);
-        let input = Tensor::<B, 4>::random([b, h, w, channels], distribution, &device);
+        let input = Tensor::<4>::random([b, h, w, channels], distribution, &device);
 
         let windows = window_partition(input.clone(), window_size);
 

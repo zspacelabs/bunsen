@@ -56,7 +56,7 @@ at the call site:
   small, general methods that read as if they were burn's own, such as
   [`count_dim`](bunsen::burner::tensor::TensorBoolOpExt::count_dim),
   [`in_range`](bunsen::burner::tensor::TensorOrderedOpExt::in_range) or
-  [`extract`](bunsen::burner::tensor::TensorOpExt::extract).
+  [`replace_with`](bunsen::burner::tensor::TensorOpExt::replace_with).
   [`bunsen::prelude`] brings them into scope.
 - **`ops`** holds free functions: operations you would name as a step in a
   model, often with settings of their own, such as

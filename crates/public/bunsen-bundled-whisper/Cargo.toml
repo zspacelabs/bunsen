@@ -12,7 +12,7 @@ license.workspace = true
 
 [dependencies]
 burn = { workspace = true, features = ["store"] }
-burn-store = { workspace = true }
+burn-store = { workspace = true, features = ["std"] }
 document-features = { workspace = true }
 
 [build-dependencies]

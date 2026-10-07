@@ -43,14 +43,11 @@
 //!             default_resnet_factory,
 //!         },
 //!     },
-//!     support::testing::default_device,
+//!     support::testing::cpu_device,
 //! };
-//! use burn::{
-//!     backend::Flex,
-//!     nn::activation::ActivationConfig,
-//! };
+//! use burn::nn::activation::ActivationConfig;
 //!
-//! let device = default_device();
+//! let device = cpu_device();
 //! let cache = PretrainedCache::new(PretrainedCacheOptions::default())?;
 //!
 //! let config = RESNET_PREFABS
@@ -61,8 +58,8 @@
 //! let mut model =
 //!     default_resnet_factory()?.resolve("timm/resnet18_a1", &cache)?;
 //! model.hook = model.hook.with_config(config);
-//! let resnet: ResNet<Flex> =
-//!     Arc::unwrap_or_clone(model.load::<Flex>(&cache, &device)?.handle);
+//! let resnet: ResNet =
+//!     Arc::unwrap_or_clone(model.load(&cache, &device)?.handle);
 //! # }
 //! # Ok::<(), bunsen::errors::BunsenError>(())
 //! ```

@@ -7,11 +7,13 @@ use burn::{
         ActivationConfig,
     },
     prelude::{
-        Backend,
         Int,
         Tensor,
     },
-    tensor::activation::sigmoid,
+    tensor::{
+        Device,
+        activation::sigmoid,
+    },
 };
 
 use crate::{
@@ -86,13 +88,11 @@ impl OffsetGridRelativePositionBiasMeta for OffsetGridRelativePositionBiasConfig
     }
 }
 
-impl<B: Backend> ModuleInit<B, OffsetGridRelativePositionBias<B>>
-    for OffsetGridRelativePositionBiasConfig
-{
+impl ModuleInit<OffsetGridRelativePositionBias> for OffsetGridRelativePositionBiasConfig {
     fn try_init(
         &self,
-        device: &B::Device,
-    ) -> BunsenResult<OffsetGridRelativePositionBias<B>> {
+        device: &Device,
+    ) -> BunsenResult<OffsetGridRelativePositionBias> {
         Ok(OffsetGridRelativePositionBias {
             base: self.base,
             num_heads: self.num_heads,
@@ -104,7 +104,7 @@ impl<B: Backend> ModuleInit<B, OffsetGridRelativePositionBias<B>>
                 device,
             ),
 
-            rel_index: window_attention_relative_position_index::<B>(self.window_shape, device),
+            rel_index: window_attention_relative_position_index(self.window_shape, device),
 
             cbp: ContinuousPositionBiasMlpConfig::new(self.num_heads)
                 .with_d_hidden(self.mlp_hidden_dim)
@@ -120,7 +120,7 @@ impl<B: Backend> ModuleInit<B, OffsetGridRelativePositionBias<B>>
 ///
 /// Built by [`OffsetGridRelativePositionBiasConfig`].
 #[derive(Module, Debug)]
-pub struct OffsetGridRelativePositionBias<B: Backend> {
+pub struct OffsetGridRelativePositionBias {
     /// The base value for the relative position bias.
     pub base: f64,
 
@@ -131,16 +131,16 @@ pub struct OffsetGridRelativePositionBias<B: Backend> {
     pub window_shape: [usize; 2],
 
     /// The relative coordinates table for the window.
-    pub rel_coords_table: Tensor<B, 3>,
+    pub rel_coords_table: Tensor<3>,
 
     /// The relative position index for the window.
-    pub rel_index: Tensor<B, 2, Int>,
+    pub rel_index: Tensor<2, Int>,
 
     /// The continuous position bias MLP.
-    pub cbp: ContinuousPositionBiasMlp<B>,
+    pub cbp: ContinuousPositionBiasMlp,
 }
 
-impl<B: Backend> OffsetGridRelativePositionBiasMeta for OffsetGridRelativePositionBias<B> {
+impl OffsetGridRelativePositionBiasMeta for OffsetGridRelativePositionBias {
     fn num_heads(&self) -> usize {
         self.num_heads
     }
@@ -154,7 +154,7 @@ impl<B: Backend> OffsetGridRelativePositionBiasMeta for OffsetGridRelativePositi
     }
 }
 
-impl<B: Backend> OffsetGridRelativePositionBias<B> {
+impl OffsetGridRelativePositionBias {
     /// Returns the learned relative position bias.
     ///
     /// This is hashed such that all pairs of locations in the window with the
@@ -167,7 +167,7 @@ impl<B: Backend> OffsetGridRelativePositionBias<B> {
     /// containing the relative position bias for each head and position
     /// pair.
     #[must_use]
-    pub fn forward(&self) -> Tensor<B, 3> {
+    pub fn forward(&self) -> Tensor<3> {
         let [h, w] = self.window_shape;
         let hw = h * w;
 
@@ -256,13 +256,13 @@ impl ContinuousPositionBiasMlpMeta for ContinuousPositionBiasMlpConfig {
 ///
 /// Built by [`ContinuousPositionBiasMlpConfig`].
 #[derive(Module, Debug)]
-pub struct ContinuousPositionBiasMlp<B: Backend> {
-    l1: nn::Linear<B>,
-    act: Activation<B>,
-    l2: nn::Linear<B>,
+pub struct ContinuousPositionBiasMlp {
+    l1: nn::Linear,
+    act: Activation,
+    l2: nn::Linear,
 }
 
-impl<B: Backend> ContinuousPositionBiasMlpMeta for ContinuousPositionBiasMlp<B> {
+impl ContinuousPositionBiasMlpMeta for ContinuousPositionBiasMlp {
     fn d_hidden(&self) -> usize {
         self.l1.weight.dims()[1]
     }
@@ -272,11 +272,11 @@ impl<B: Backend> ContinuousPositionBiasMlpMeta for ContinuousPositionBiasMlp<B> 
     }
 }
 
-impl<B: Backend> ModuleInit<B, ContinuousPositionBiasMlp<B>> for ContinuousPositionBiasMlpConfig {
+impl ModuleInit<ContinuousPositionBiasMlp> for ContinuousPositionBiasMlpConfig {
     fn try_init(
         &self,
-        device: &B::Device,
-    ) -> BunsenResult<ContinuousPositionBiasMlp<B>> {
+        device: &Device,
+    ) -> BunsenResult<ContinuousPositionBiasMlp> {
         Ok(ContinuousPositionBiasMlp {
             l1: nn::LinearConfig::new(2, self.d_hidden).init(device),
 
@@ -289,7 +289,7 @@ impl<B: Backend> ModuleInit<B, ContinuousPositionBiasMlp<B>> for ContinuousPosit
     }
 }
 
-impl<B: Backend> ContinuousPositionBiasMlp<B> {
+impl ContinuousPositionBiasMlp {
     /// Applies the MLP to the input tensor.
     ///
     /// # Arguments
@@ -303,8 +303,8 @@ impl<B: Backend> ContinuousPositionBiasMlp<B> {
     #[must_use]
     pub fn forward<const D: usize>(
         &self,
-        x: Tensor<B, D>,
-    ) -> Tensor<B, D> {
+        x: Tensor<D>,
+    ) -> Tensor<D> {
         let x = self.l1.forward(x);
         let x = self.act.forward(x);
         self.l2.forward(x)
@@ -320,17 +320,14 @@ mod tests {
         contracts::assert_shape_contract,
         errors::WithOkOrPanic,
         support::testing::{
-            CpuBackend,
             DeviceMemoryGuard,
-            PerformanceBackend,
-            default_device,
+            cpu_device,
+            performance_device,
         },
     };
 
     #[test]
     fn test_rpb_meta() {
-        type B = CpuBackend;
-
         let config = OffsetGridRelativePositionBiasConfig::new(12, [3, 2]);
 
         assert_eq!(config.base(), 8.0);
@@ -339,8 +336,8 @@ mod tests {
         assert_eq!(config.window_height(), 3);
         assert_eq!(config.window_width(), 2);
 
-        let device = default_device();
-        let rpb: OffsetGridRelativePositionBias<B> = config.try_init(&device).ok_or_panic();
+        let device = cpu_device();
+        let rpb: OffsetGridRelativePositionBias = config.try_init(&device).ok_or_panic();
 
         assert_eq!(rpb.base(), 8.0);
         assert_eq!(rpb.num_heads(), 12);
@@ -352,15 +349,14 @@ mod tests {
     #[test]
     #[serial]
     fn test_og_rpb() {
-        type B = PerformanceBackend;
-        let device = default_device();
-        let _memory = DeviceMemoryGuard::<B>::new(&device);
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
 
         let window_shape = [3, 2];
         let num_heads = 8;
 
         let config = OffsetGridRelativePositionBiasConfig::new(num_heads, window_shape);
-        let rpb: OffsetGridRelativePositionBias<B> = config.try_init(&device).ok_or_panic();
+        let rpb: OffsetGridRelativePositionBias = config.try_init(&device).ok_or_panic();
 
         assert_eq!(rpb.base(), 8.0);
         assert_eq!(rpb.num_heads(), num_heads);
@@ -369,12 +365,12 @@ mod tests {
         assert_eq!(rpb.window_width(), window_shape[1]);
 
         rpb.rel_coords_table.to_data().assert_eq(
-            &window_log1p_relative_offset_grid::<B>(window_shape, 8.0, &device).to_data(),
+            &window_log1p_relative_offset_grid(window_shape, 8.0, &device).to_data(),
             true,
         );
 
         rpb.rel_index.to_data().assert_eq(
-            &window_attention_relative_position_index::<B>(window_shape, &device).to_data(),
+            &window_attention_relative_position_index(window_shape, &device).to_data(),
             true,
         );
 
@@ -395,14 +391,13 @@ mod tests {
     #[test]
     #[serial]
     fn test_cpb_mlp_meta() {
-        type B = CpuBackend;
         let config = ContinuousPositionBiasMlpConfig::new(8).with_d_hidden(512);
 
         assert_eq!(config.d_hidden(), 512);
         assert_eq!(config.num_heads(), 8);
 
-        let device = default_device();
-        let mlp: ContinuousPositionBiasMlp<B> = config.init(&device);
+        let device = cpu_device();
+        let mlp: ContinuousPositionBiasMlp = config.init(&device);
 
         assert_eq!(mlp.d_hidden(), 512);
         assert_eq!(mlp.num_heads(), 8);

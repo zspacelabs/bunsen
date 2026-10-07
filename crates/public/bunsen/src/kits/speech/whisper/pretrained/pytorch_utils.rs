@@ -5,21 +5,18 @@ use std::path::{
 
 use burn::{
     config::Config,
-    prelude::Backend,
-};
-use burn_store::{
-    ModuleSnapshot,
-    ModuleStore,
-    PytorchStore,
-    PytorchStoreError,
-    pytorch::PytorchError,
+    store::{
+        ModuleSnapshot,
+        ModuleStore,
+        PytorchStore,
+        PytorchStoreError,
+        pytorch::PytorchError,
+    },
+    tensor::Device,
 };
 
 use crate::{
-    burner::{
-        module::ModuleInit,
-        store::FixPytorchLoadMappers,
-    },
+    burner::module::ModuleInit,
     errors::{
         BunsenError,
         BunsenErrorKind,
@@ -146,7 +143,7 @@ impl PytorchWhisperScanner {
         // requires: the same refusals as the safetensors scanner's.
         let mut shape = |tensor: &str, rank: usize| -> BunsenResult<Vec<usize>> {
             let shape = store
-                .get_snapshot(tensor)
+                .get_tensor(tensor)
                 .map_err(pytorch_store_error(&path))?
                 .ok_or_else(|| {
                     BunsenError::invalid_resource(format!(
@@ -197,23 +194,15 @@ impl PytorchWhisperScanner {
     /// # Errors
     /// As [`scan_cfg`](Self::scan_cfg), and for loading the weights;
     /// as [`ModuleInit::try_init`] for the scanned config.
-    pub fn load<B: Backend, P: AsRef<Path>>(
+    pub fn load<P: AsRef<Path>>(
         &self,
         path: P,
-        device: &B::Device,
-    ) -> BunsenResult<(Whisper<B>, WhisperApiConfig)> {
+        device: &Device,
+    ) -> BunsenResult<(Whisper, WhisperApiConfig)> {
         let path = path.as_ref();
         let (mut store, cfg) = self.scan_cfg(path)?;
 
-        let module: Whisper<B> = cfg.try_init(device)?;
-
-        // `burn-store` reads PyTorch storage without honoring strides, and
-        // every `Linear` weight in an OpenAI Whisper checkpoint is a
-        // column-major view — see `burn_bug_repro::pytorch_strided_weights`.
-        // Attach the
-        // repair before the load, and only here: on a weight that did not
-        // need it, the mapper is a silent transpose.
-        let mut module = module.fix_pytorch_load_mappers();
+        let mut module: Whisper = cfg.try_init(device)?;
 
         module
             .load_from(&mut store)

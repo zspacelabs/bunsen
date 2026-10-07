@@ -2,9 +2,9 @@
 
 use burn::{
     config::Config,
-    prelude::Backend,
+    store::PyTorchToBurnAdapter,
+    tensor::Device,
 };
-use burn_store::PyTorchToBurnAdapter;
 
 use crate::{
     burner::module::ModuleInit,
@@ -194,13 +194,13 @@ impl SafetensorsWhisperScanner {
     /// # Errors
     /// As [`scan_cfg`](Self::scan_cfg) and
     /// [`SafetensorsCheckpoint::load_into`].
-    pub fn load<B: Backend>(
+    pub fn load(
         &self,
         checkpoint: &SafetensorsCheckpoint,
-        device: &B::Device,
-    ) -> BunsenResult<(Whisper<B>, WhisperApiConfig)> {
+        device: &Device,
+    ) -> BunsenResult<(Whisper, WhisperApiConfig)> {
         let cfg = self.scan_cfg(checkpoint)?;
-        let mut module: Whisper<B> = cfg.try_init(device)?;
+        let mut module: Whisper = cfg.try_init(device)?;
         checkpoint.load_into(&mut module, |store| {
             let mut store = store.with_from_adapter(PyTorchToBurnAdapter);
             for (from, to) in HF_TO_BUNSEN {
@@ -216,11 +216,13 @@ impl SafetensorsWhisperScanner {
 mod tests {
     use std::path::Path;
 
-    use burn::tensor::Tensor;
-    use burn_store::{
-        BurnToPyTorchAdapter,
-        ModuleSnapshot,
-        SafetensorsStore,
+    use burn::{
+        store::{
+            BurnToPyTorchAdapter,
+            ModuleSnapshot,
+            SafetensorsStore,
+        },
+        tensor::Tensor,
     };
 
     use super::*;
@@ -231,10 +233,7 @@ mod tests {
             testing::ErrorMatcher,
         },
         kits::speech::whisper::WhisperMeta,
-        support::testing::{
-            CpuBackend,
-            default_device,
-        },
+        support::testing::cpu_device,
     };
 
     /// Eight-wide heads over a 16-wide model, which the scanner must be
@@ -250,7 +249,7 @@ mod tests {
     /// weight layout; `only` keeps the parameters matching a pattern, for
     /// a shard.
     fn write_hf(
-        model: &Whisper<CpuBackend>,
+        model: &Whisper,
         path: &Path,
         only: Option<&str>,
     ) {
@@ -267,10 +266,10 @@ mod tests {
 
     /// The parameters of two models that must agree, compared.
     fn assert_same_weights(
-        a: &Whisper<CpuBackend>,
-        b: &Whisper<CpuBackend>,
+        a: &Whisper,
+        b: &Whisper,
     ) {
-        let same = |x: Tensor<CpuBackend, 2>, y: Tensor<CpuBackend, 2>| {
+        let same = |x: Tensor<2>, y: Tensor<2>| {
             assert_eq!(x.dims(), y.dims());
             x.into_data().assert_eq(&y.into_data(), false);
         };
@@ -301,10 +300,10 @@ mod tests {
     /// transposition both ways.
     #[test]
     fn test_a_transformers_layout_round_trips() {
-        let device = default_device();
+        let device = cpu_device();
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("model.safetensors");
-        let model: Whisper<CpuBackend> = toy().try_init(&device).unwrap();
+        let model: Whisper = toy().try_init(&device).unwrap();
         write_hf(&model, &path, None);
 
         let header = safetensors_header(&path).unwrap();
@@ -331,7 +330,7 @@ mod tests {
         let cfg = scanner.scan_cfg(&checkpoint).unwrap();
         assert_eq!(cfg.geometry(), toy().geometry());
 
-        let (loaded, cfg) = scanner.load::<CpuBackend>(&checkpoint, &device).unwrap();
+        let (loaded, cfg) = scanner.load(&checkpoint, &device).unwrap();
         assert_eq!(cfg.geometry(), toy().geometry());
         assert_eq!(loaded.n_mels(), 80);
         assert_eq!(loaded.vocab_size(), 64);
@@ -343,9 +342,9 @@ mod tests {
     /// a shard held back is a load error naming what is missing.
     #[test]
     fn test_a_sharded_layout_round_trips() {
-        let device = default_device();
+        let device = cpu_device();
         let dir = tempfile::tempdir().unwrap();
-        let model: Whisper<CpuBackend> = toy().try_init(&device).unwrap();
+        let model: Whisper = toy().try_init(&device).unwrap();
         let s1 = dir.path().join("model-00001-of-00002.safetensors");
         let s2 = dir.path().join("model-00002-of-00002.safetensors");
         write_hf(&model, &s1, Some(r"^encoder\."));
@@ -364,7 +363,7 @@ mod tests {
         let scanner = SafetensorsWhisperScanner::new().with_d_head(D_HEAD);
         let cfg = scanner.scan_cfg(&checkpoint).unwrap();
         assert_eq!(cfg.geometry(), toy().geometry());
-        let (loaded, _) = scanner.load::<CpuBackend>(&checkpoint, &device).unwrap();
+        let (loaded, _) = scanner.load(&checkpoint, &device).unwrap();
         assert_same_weights(&model, &loaded);
 
         let encoder_only = SafetensorsCheckpoint::single(&s1);

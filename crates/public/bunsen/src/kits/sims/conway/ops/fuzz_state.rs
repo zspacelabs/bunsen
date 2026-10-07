@@ -2,10 +2,7 @@
 
 use burn::{
     Tensor,
-    prelude::{
-        Backend,
-        Bool,
-    },
+    prelude::Bool,
     tensor::Distribution,
 };
 
@@ -20,15 +17,15 @@ use burn::{
 ///
 /// # Returns
 /// - a fuzzed `[...]` state.
-pub fn fuzz_state<B: Backend, const R: usize>(
-    state: Tensor<B, R, Bool>,
+pub fn fuzz_state<const R: usize>(
+    state: Tensor<R, Bool>,
     density: f64,
-) -> Tensor<B, R, Bool> {
+) -> Tensor<R, Bool> {
     if density == 0.0 {
         return state;
     }
 
-    let noise = Tensor::<B, R>::random(
+    let noise = Tensor::<R>::random(
         state.shape(),
         Distribution::Bernoulli(density),
         &state.device(),
@@ -49,10 +46,10 @@ pub fn fuzz_state<B: Backend, const R: usize>(
 ///
 /// # Returns
 /// - the fuzzed `[H, W]` state.
-pub fn fuzz_state_2d<B: Backend>(
-    state: Tensor<B, 2, Bool>,
+pub fn fuzz_state_2d(
+    state: Tensor<2, Bool>,
     density: f64,
-) -> Tensor<B, 2, Bool> {
+) -> Tensor<2, Bool> {
     fuzz_state(state, density)
 }
 
@@ -67,9 +64,9 @@ pub fn fuzz_state_2d<B: Backend>(
 ///
 /// # Returns
 /// - the fuzzed `[H, W, Z]` state.
-pub fn fuzz_state_3d<B: Backend>(
-    state: Tensor<B, 3, Bool>,
+pub fn fuzz_state_3d(
+    state: Tensor<3, Bool>,
     density: f64,
-) -> Tensor<B, 3, Bool> {
+) -> Tensor<3, Bool> {
     fuzz_state(state, density)
 }

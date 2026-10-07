@@ -14,11 +14,11 @@ use burn::{
         },
     },
     prelude::{
-        Backend,
         Bool,
         Int,
         s,
     },
+    tensor::Device,
 };
 
 use crate::{
@@ -135,11 +135,11 @@ impl CausalSelfAttentionConfig {
 
 impl CausalSelfAttentionConfig {
     /// Initializes the module.
-    pub fn try_init<B: Backend>(
+    pub fn try_init(
         &self,
         layer_index: usize,
-        device: &B::Device,
-    ) -> BunsenResult<CausalSelfAttention<B>> {
+        device: &Device,
+    ) -> BunsenResult<CausalSelfAttention> {
         self.validate();
         let head_dim = self.head_dim();
 
@@ -172,11 +172,11 @@ impl CausalSelfAttentionConfig {
     }
 
     /// Initializes the module, or panic.
-    pub fn init<B: Backend>(
+    pub fn init(
         &self,
         layer_index: usize,
-        device: &B::Device,
-    ) -> CausalSelfAttention<B> {
+        device: &Device,
+    ) -> CausalSelfAttention {
         self.try_init(layer_index, device).ok_or_panic()
     }
 }
@@ -192,7 +192,7 @@ impl CausalSelfAttentionConfig {
 ///
 /// Built by [`CausalSelfAttentionConfig`].
 #[derive(Module, Debug)]
-pub struct CausalSelfAttention<B: Backend> {
+pub struct CausalSelfAttention {
     /// Layer Index.
     pub layer_index: usize,
 
@@ -200,25 +200,25 @@ pub struct CausalSelfAttention<B: Backend> {
     pub head_dim: usize,
 
     /// Query Linear.
-    pub c_q: Linear<B>,
+    pub c_q: Linear,
 
     /// Query Normalization.
-    pub q_norm: Normalization<B>,
+    pub q_norm: Normalization,
 
     /// Key Linear.
-    pub c_k: Linear<B>,
+    pub c_k: Linear,
 
     /// Key Normalization.
-    pub k_norm: Normalization<B>,
+    pub k_norm: Normalization,
 
     /// Value Linear.
-    pub c_v: Linear<B>,
+    pub c_v: Linear,
 
     /// Output Projection Linear.
-    pub c_proj: Linear<B>,
+    pub c_proj: Linear,
 }
 
-impl<B: Backend> CausalSelfAttentionMeta for CausalSelfAttention<B> {
+impl CausalSelfAttentionMeta for CausalSelfAttention {
     fn n_embed(&self) -> usize {
         self.c_q.weight.dims()[0]
     }
@@ -236,7 +236,7 @@ impl<B: Backend> CausalSelfAttentionMeta for CausalSelfAttention<B> {
     }
 }
 
-impl<B: Backend> CausalSelfAttention<B> {
+impl CausalSelfAttention {
     /// Forward Pass.
     ///
     /// # Arguments
@@ -248,10 +248,10 @@ impl<B: Backend> CausalSelfAttention<B> {
     /// - `[B, T, D]` attention.
     pub fn forward(
         &self,
-        input: Tensor<B, 3>,
-        r_emb: &RotaryEmbedding<B>,
-        kv_cache: &mut Option<&mut KVCache<B>>,
-    ) -> Tensor<B, 3> {
+        input: Tensor<3>,
+        r_emb: &RotaryEmbedding,
+        kv_cache: &mut Option<&mut KVCache>,
+    ) -> Tensor<3> {
         let [b, t_q] = unpack_shape_contract!(
             ["B", "T", "D"],
             &input.dims(),
@@ -291,7 +291,7 @@ impl<B: Backend> CausalSelfAttention<B> {
         }
         let t_kv = k.dims()[2];
 
-        let attn_mask: Option<Tensor<B, 2, Bool>>;
+        let attn_mask: Option<Tensor<2, Bool>>;
         let is_causal: bool;
         if kv_cache.is_none() || t_q == t_kv {
             attn_mask = None;
@@ -301,16 +301,14 @@ impl<B: Backend> CausalSelfAttention<B> {
             is_causal = false;
         } else {
             let device = q.device();
-            let mut mask = Tensor::<B, 2, Bool>::empty([t_q, t_kv], &device);
+            let mut mask = Tensor::<2, Bool>::empty([t_q, t_kv], &device);
             let prefix_len = t_kv - t_q;
             if prefix_len > 0 {
                 mask = mask.slice_fill(s![.., ..prefix_len], true);
             }
             // Causal within the chunk: each new token sees itself and the
             // new tokens before it.
-            let fill = Tensor::<B, 2, Int>::ones([t_q, t_q], &device)
-                .tril(0)
-                .bool();
+            let fill = Tensor::<2, Int>::ones([t_q, t_q], &device).tril(0).bool();
             mask = mask.slice_assign(s![.., prefix_len..], fill);
 
             attn_mask = Some(mask);
@@ -355,11 +353,10 @@ mod tests {
         contracts::assert_shape_contract,
         ops::transformers::attention::KVCacheConfig,
         support::testing::{
-            CpuBackend,
             DeviceMemoryGuard,
-            PerformanceBackend,
             assert_tensors_close,
-            default_device,
+            cpu_device,
+            performance_device,
             seeded_tensor,
         },
     };
@@ -379,8 +376,7 @@ mod tests {
     #[test]
     #[allow(unused)]
     fn test_csa_forward() {
-        type B = CpuBackend;
-        let device = default_device();
+        let device = cpu_device();
 
         let batch = 1;
         let seq_len = 10;
@@ -391,17 +387,17 @@ mod tests {
         let layer_index = 12;
 
         let cfg = CausalSelfAttentionConfig::new(n_head, n_kv_head, n_embed);
-        let csa: CausalSelfAttention<B> = cfg.init(layer_index, &device);
+        let csa: CausalSelfAttention = cfg.init(layer_index, &device);
 
         let head_dim = csa.head_dim();
 
         let re_cfg = RotaryEmbeddingConfig::new(seq_len, csa.head_dim());
-        let r_emb: RotaryEmbedding<B> = re_cfg.init(&device);
+        let r_emb: RotaryEmbedding = re_cfg.init(&device);
 
-        let input: Tensor<B, 3> =
+        let input: Tensor<3> =
             Tensor::random([batch, seq_len, n_embed], Distribution::Default, &device);
 
-        let mut kv_cache: Option<&mut KVCache<B>> = None;
+        let mut kv_cache: Option<&mut KVCache> = None;
 
         let output = csa.forward(input.clone(), &r_emb, &mut kv_cache);
         assert_shape_contract!(
@@ -417,23 +413,22 @@ mod tests {
     #[test]
     #[serial]
     fn test_csa_cached_chunk_matches_full_pass() {
-        type B = PerformanceBackend;
-        let device = default_device();
-        let _memory = DeviceMemoryGuard::<B>::new(&device);
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
 
         let [batch, seq_len, n_embed] = [2, 6, 16];
         let prefix = 3;
 
-        let csa: CausalSelfAttention<B> =
+        let csa: CausalSelfAttention =
             CausalSelfAttentionConfig::new(4, 2, n_embed).init(0, &device);
-        let r_emb: RotaryEmbedding<B> =
+        let r_emb: RotaryEmbedding =
             RotaryEmbeddingConfig::new(seq_len, csa.head_dim()).init(&device);
         let input =
-            seeded_tensor::<B, 3>(1, [batch, seq_len, n_embed], Distribution::Default, &device);
+            seeded_tensor::<3>(1, [batch, seq_len, n_embed], Distribution::Default, &device);
 
         let full = csa.forward(input.clone(), &r_emb, &mut None);
 
-        let mut cache: KVCache<B> =
+        let mut cache: KVCache =
             KVCacheConfig::new(batch, csa.n_kv_head(), seq_len, csa.head_dim(), 1).init();
         let head = csa.forward(
             input.clone().slice(s![.., ..prefix]),

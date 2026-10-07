@@ -1,7 +1,4 @@
-use burn::{
-    module::Module,
-    prelude::Backend,
-};
+use burn::module::Module;
 
 use crate::{
     errors::{
@@ -21,12 +18,12 @@ use crate::{
 /// upstream graph). A stream picks its branch by rate with
 /// [`try_branch`](Self::try_branch) or [`expect_branch`](Self::expect_branch).
 #[derive(Module, Debug)]
-pub struct SileroVadCollection<B: Backend> {
+pub struct SileroVadCollection {
     /// Per-sample-rate models.
-    pub branches: Vec<(usize, SileroVad<B>)>,
+    pub branches: Vec<(usize, SileroVad)>,
 }
 
-impl<B: Backend> SileroVadCollection<B> {
+impl SileroVadCollection {
     /// The model for the given sample rate.
     ///
     /// # Arguments
@@ -39,7 +36,7 @@ impl<B: Backend> SileroVadCollection<B> {
     pub fn try_branch(
         &self,
         sample_rate: usize,
-    ) -> BunsenResult<&SileroVad<B>> {
+    ) -> BunsenResult<&SileroVad> {
         self.branches
             .iter()
             .find(|(rate, _)| *rate == sample_rate)
@@ -58,7 +55,7 @@ impl<B: Backend> SileroVadCollection<B> {
     pub fn expect_branch(
         &self,
         sample_rate: usize,
-    ) -> &SileroVad<B> {
+    ) -> &SileroVad {
         self.try_branch(sample_rate).ok_or_panic()
     }
 }

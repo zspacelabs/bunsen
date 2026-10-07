@@ -5,8 +5,7 @@ use std::{
 
 use burn::{
     Tensor,
-    prelude::Backend,
-    tensor::BasicOps,
+    tensor::kind::Basic,
 };
 use dashmap::DashMap;
 
@@ -17,11 +16,11 @@ use crate::prelude::dynamic::DynTensor;
 /// Instances of [`DynTensorEnv`] are shared handles to a common tensor
 /// environment; and new handles can be created by [`Clone::clone`].
 #[derive(Debug, Clone, Default)]
-pub struct DynTensorEnv<B: Backend> {
-    map: Arc<DashMap<String, DynTensor<B>>>,
+pub struct DynTensorEnv {
+    map: Arc<DashMap<String, DynTensor>>,
 }
 
-impl<B: Backend> DynTensorEnv<B> {
+impl DynTensorEnv {
     /// Create a new environment which is a distinct copy.
     pub fn copy(&self) -> Self {
         Self {
@@ -52,7 +51,7 @@ impl<B: Backend> DynTensorEnv<B> {
     ///
     /// A ref-guard iterator, the items of the environment.
     /// Use `r.key()` and `r.value()` to access the key and value of each item.
-    pub fn iter(&self) -> dashmap::iter::Iter<'_, String, DynTensor<B>> {
+    pub fn iter(&self) -> dashmap::iter::Iter<'_, String, DynTensor> {
         self.map.iter()
     }
 
@@ -60,7 +59,7 @@ impl<B: Backend> DynTensorEnv<B> {
     pub fn bind(
         &mut self,
         name: impl AsRef<str>,
-        tensor: impl Into<DynTensor<B>>,
+        tensor: impl Into<DynTensor>,
     ) {
         self.map.insert(name.as_ref().to_string(), tensor.into());
     }
@@ -73,7 +72,7 @@ impl<B: Backend> DynTensorEnv<B> {
     pub fn drop(
         &mut self,
         name: impl AsRef<str>,
-    ) -> Option<DynTensor<B>> {
+    ) -> Option<DynTensor> {
         self.map.remove(name.as_ref()).map(|(_, v)| v)
     }
 
@@ -89,7 +88,7 @@ impl<B: Backend> DynTensorEnv<B> {
     pub fn get_ref(
         &self,
         name: impl AsRef<str>,
-    ) -> Option<dashmap::mapref::one::Ref<'_, String, DynTensor<B>>> {
+    ) -> Option<dashmap::mapref::one::Ref<'_, String, DynTensor>> {
         self.map.get(name.as_ref())
     }
 
@@ -97,7 +96,7 @@ impl<B: Backend> DynTensorEnv<B> {
     pub fn get_dyn(
         &self,
         name: impl AsRef<str>,
-    ) -> Option<DynTensor<B>> {
+    ) -> Option<DynTensor> {
         self.get_ref(name).map(|r| r.value().clone())
     }
 
@@ -105,7 +104,7 @@ impl<B: Backend> DynTensorEnv<B> {
     pub fn expect_dyn(
         &self,
         name: impl AsRef<str>,
-    ) -> DynTensor<B> {
+    ) -> DynTensor {
         let name = name.as_ref();
         self.get_dyn(name)
             .unwrap_or_else(|| panic!("tensor not found: {name:?}"))
@@ -115,15 +114,15 @@ impl<B: Backend> DynTensorEnv<B> {
     ///
     /// # Returns
     ///
-    /// Either the typed [`Some(Tensor<B, D, K>)`](`burn::tensor::Tensor`);
+    /// Either the typed [`Some(Tensor<D, K>)`](`burn::tensor::Tensor`);
     /// or `None` if the key isn't bound, or the tensor does not match this
     /// type.
     pub fn get_tensor<const D: usize, K>(
         &self,
         name: impl AsRef<str>,
-    ) -> Option<Tensor<B, D, K>>
+    ) -> Option<Tensor<D, K>>
     where
-        K: BasicOps<B> + 'static,
+        K: Basic + 'static,
     {
         self.get_dyn(name).and_then(|dt| dt.downcast_clone())
     }
@@ -136,9 +135,9 @@ impl<B: Backend> DynTensorEnv<B> {
     pub fn expect_tensor<const D: usize, K>(
         &self,
         name: impl AsRef<str>,
-    ) -> Tensor<B, D, K>
+    ) -> Tensor<D, K>
     where
-        K: BasicOps<B> + 'static,
+        K: Basic + 'static,
     {
         let name = name.as_ref();
         let dt = self.expect_dyn(name);
@@ -166,26 +165,19 @@ mod tests {
     };
 
     use super::*;
-    use crate::{
-        prelude::*,
-        support::testing::{
-            CpuBackend,
-            default_device,
-        },
-    };
+    use crate::support::testing::cpu_device;
 
     #[test]
     fn test_dyn_tensor_env() {
-        type B = CpuBackend;
-        let device = default_device();
+        let device = cpu_device();
 
         // Two handles to the same environment.
-        let mut env1_a = DynTensorEnv::<B>::default();
+        let mut env1_a = DynTensorEnv::default();
         let mut env1_b = env1_a.clone();
 
-        let int_tensor: Tensor<B, 2, Int> = Tensor::arange(0..6, &device).reshape([2, 3]);
-        let float_tensor: Tensor<B, 3> = Tensor::arange(0..24, &device).reshape([2, 3, 4]).float();
-        let bool_tensor: Tensor<B, 1, Bool> = Tensor::zeros([2], &device);
+        let int_tensor: Tensor<2, Int> = Tensor::arange(0..6, &device).reshape([2, 3]);
+        let float_tensor: Tensor<3> = Tensor::arange(0..24, &device).reshape([2, 3, 4]).float();
+        let bool_tensor: Tensor<1, Bool> = Tensor::zeros([2], &device);
 
         assert_eq!(env1_a.contains_key("foo"), false);
         assert_eq!(env1_b.contains_key("foo"), false);
@@ -201,7 +193,7 @@ mod tests {
             .to_data_as::<i32>()
             .assert_eq(&int_tensor.to_data_as::<i32>(), true);
 
-        let float_dyn_tensor: DynTensor<B> = float_tensor.clone().into();
+        let float_dyn_tensor: DynTensor = float_tensor.clone().into();
         env1_a.bind("bar", float_dyn_tensor);
         assert_eq!(env1_a.contains_key("bar"), true);
         assert_eq!(env1_b.contains_key("bar"), true);
@@ -260,23 +252,22 @@ mod tests {
     #[test]
     #[should_panic(expected = "tensor not found: \"missing\"")]
     fn test_expect_dyn_missing() {
-        DynTensorEnv::<CpuBackend>::default().expect_dyn("missing");
+        DynTensorEnv::default().expect_dyn("missing");
     }
 
     #[test]
     #[should_panic(expected = "tensor not found: \"missing\"")]
     fn test_expect_tensor_missing() {
-        DynTensorEnv::<CpuBackend>::default().expect_tensor::<2, Float>("missing");
+        DynTensorEnv::default().expect_tensor::<2, Float>("missing");
     }
 
     #[test]
     #[should_panic(expected = "tensor \"foo\" (rank=2, kind=Int) is not a Tensor<_, 2, ")]
     fn test_expect_tensor_type_mismatch() {
-        type B = CpuBackend;
-        let device = default_device();
+        let device = cpu_device();
 
-        let mut env = DynTensorEnv::<B>::default();
-        let int_tensor: Tensor<B, 2, Int> = Tensor::arange(0..6, &device).reshape([2, 3]);
+        let mut env = DynTensorEnv::default();
+        let int_tensor: Tensor<2, Int> = Tensor::arange(0..6, &device).reshape([2, 3]);
         env.bind("foo", int_tensor);
 
         env.expect_tensor::<2, Float>("foo");

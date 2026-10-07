@@ -13,7 +13,6 @@ use std::{
 };
 
 use bunsen::{
-    burner::tensor::TensorDataView,
     kits::sims::lbm::d2q9::{
         LBMD2Q9Config,
         LBMD2Q9State,
@@ -22,25 +21,21 @@ use bunsen::{
         SPEED_OF_SOUND,
         macroscopic_momentum,
     },
-    prelude::{
-        TensorDataViewExt,
-        TensorElemOpExt,
-    },
-    support::{
-        geometry::GridShape2D,
-        testing::backend_device,
-    },
+    support::geometry::GridShape2D,
+};
+use bunsen_app::device::{
+    DeviceArgs,
+    DevicePrefs,
+    Precision,
 };
 use burn::{
     Tensor,
     prelude::{
-        Backend,
         Bool,
-        ElementConversion,
         TensorData,
         s,
     },
-    tensor::DType,
+    tensor::Device,
 };
 use clap::Parser;
 use glutin_window::GlutinWindow as Window;
@@ -62,25 +57,6 @@ use piston::{
 };
 use rand::RngExt;
 
-/// Simulation `DType` enum.
-#[derive(Debug, Clone, Copy, clap::ValueEnum, strum::Display)]
-pub enum SimDType {
-    /// Use `F16`.
-    F16,
-
-    /// Use `F32`.
-    F32,
-}
-
-impl From<SimDType> for DType {
-    fn from(value: SimDType) -> Self {
-        match value {
-            SimDType::F16 => DType::F16,
-            SimDType::F32 => DType::F32,
-        }
-    }
-}
-
 /// Fluid Flow demo for Burn.
 #[derive(Parser, Debug)]
 #[command(long_about = None)]
@@ -88,10 +64,6 @@ pub struct Args {
     /// The grid shape as `[ WIDTH, HEIGHT ]`, or `X` => `[X, X]`.
     #[arg(long, default_value = "300")]
     pub grid_shape: GridShape2D,
-
-    /// Simulation dtype.
-    #[arg(long, default_value = "f16")]
-    pub dtype: SimDType,
 
     /// The max frames per second.
     #[arg(long, default_value_t = 60)]
@@ -116,43 +88,29 @@ pub struct Args {
     /// The collision relaxation tau.
     #[arg(long, default_value_t = 0.9)]
     pub tau: f64,
+
+    /// The device to simulate on.
+    #[command(flatten)]
+    pub device: DeviceArgs,
 }
 
 fn main() {
     let args = Args::parse();
     println!("{:#?}", args);
 
-    cfg_select! {
-        feature = "cuda" => {
-            println!("CUDA enabled");
-            run::<burn::backend::Cuda<f32, i32>>(&args);
-        }
-        feature = "metal" => {
-            println!("Metal enabled");
-            run::<burn::backend::Metal<f32, i32>>(&args);
-        }
-        feature = "vulkan" => {
-            println!("Vulkan enabled");
-            run::<burn::backend::Vulkan>(&args);
-        }
-        feature = "wgpu" => {
-            println!("WGPU enabled");
-            run::<burn::backend::Wgpu<f32, i32>>(&args);
-        }
-        feature = "flex" => {
-            println!("Flex enabled");
-            run::<burn::backend::Flex>(&args);
-        }
-        _ => {
-            compile_error!("No backend selected");
-        }
-    }
+    // The flow fits f16: half precision wherever the backend runs it well.
+    let prefs = DevicePrefs::new()
+        .with_precision(Precision::AnyHalf)
+        .with_half(Precision::AnyHalf);
+    let device = args.device.init(&prefs).unwrap_or_else(|e| panic!("{e}"));
+    println!("{}", bunsen_app::device::describe(&device));
+    run(&args, device);
 }
 
-fn run<B: Backend>(args: &Args) {
-    let device = backend_device::<B>();
-    let dtype: DType = args.dtype.into();
-
+fn run(
+    args: &Args,
+    device: Device,
+) {
     // Change this to OpenGL::V2_1 if not working.
     let opengl = OpenGL::V3_2;
 
@@ -161,7 +119,7 @@ fn run<B: Backend>(args: &Args) {
 
     let background_density = SPEED_OF_SOUND / 100.0;
 
-    let mut world_state: LBMD2Q9State<B> = LBMD2Q9Config::new(args.grid_shape)
+    let mut world_state: LBMD2Q9State = LBMD2Q9Config::new(args.grid_shape)
         .with_relaxation(RelaxationParam::Tau(args.tau))
         .init(&device, background_density);
     world_state.dist = world_state
@@ -180,14 +138,13 @@ fn run<B: Backend>(args: &Args) {
         .slice_fill(s![-h6..-h6 + stroke, w6..2 * w6], true)
         .slice_fill(s![-h6..-h6 + stroke, -3 * w6..-w6], true);
 
-    let mut world_state = world_state.to_dtype(dtype);
     world_state.save_correct_total_mass();
 
     for _ in 0..args.init_skip_steps {
         world_state.advance_step();
     }
 
-    let solid_mask: Tensor<B, 2, Bool> = world_state.solid_mask.clone();
+    let solid_mask: Tensor<2, Bool> = world_state.solid_mask.clone();
 
     let sim_delay = if args.tps > 0.0 {
         Some(Duration::from_secs_f32(1.0 / args.tps))
@@ -198,7 +155,7 @@ fn run<B: Backend>(args: &Args) {
     let vis_cells: Arc<Mutex<TensorData>> =
         Arc::new(Mutex::new(TensorData::zeros::<f32, _>([height, width, 2])));
     let vis_cells_publish = vis_cells.clone();
-    let constants: LbmTables<B> = LbmTables::for_dist(&world_state.dist);
+    let constants: LbmTables = LbmTables::for_dist(&world_state.dist);
 
     let mut last_export = std::time::Instant::now();
     let export_delay = Duration::from_secs_f32(1.0 / args.fps as f32);
@@ -260,13 +217,13 @@ pub struct Simulation {
 }
 
 impl Simulation {
-    pub fn new<B: Backend, F>(
-        world: LBMD2Q9State<B>,
+    pub fn new<F>(
+        world: LBMD2Q9State,
         step_duration: Option<Duration>,
         mut observer: F,
     ) -> Self
     where
-        F: FnMut(usize, Tensor<B, 4>) + Send + 'static,
+        F: FnMut(usize, Tensor<4>) + Send + 'static,
     {
         let shutdown = Arc::new(AtomicBool::new(false));
 
@@ -314,7 +271,7 @@ impl Simulation {
                 let outflow_slice = s![-1, start..start + 10, 0, ..];
                 let outflow = dist.clone().slice(outflow_slice);
 
-                stash += r * outflow.clone().sum().into_scalar().elem::<f32>();
+                stash += r * outflow.clone().sum().into_scalar::<f32>();
 
                 let mut dist = dist
                     .clone()
@@ -329,8 +286,7 @@ impl Simulation {
                             .solid_mask
                             .clone()
                             .slice(s![ry, rx])
-                            .into_scalar()
-                            .elem::<bool>()
+                            .into_scalar::<bool>()
                         {
                             continue;
                         }
@@ -338,7 +294,7 @@ impl Simulation {
                         break (ry, rx);
                     };
 
-                    let existing: f32 = dist.clone().slice(s![ry, rx, 1, 1]).into_scalar().elem();
+                    let existing: f32 = dist.clone().slice(s![ry, rx, 1, 1]).into_scalar();
 
                     dist = dist.slice_fill(s![ry, rx, 1, 1], existing + stash);
                     stash = 0.0;
@@ -396,11 +352,11 @@ impl FlowVisApp {
     ) {
         use graphics::*;
 
-        let solid_cells: TensorDataView<bool> = self.solid_mask.expect_index_view();
+        let solid_cells: Vec<bool> = self.solid_mask.try_to_vec_as().unwrap();
 
         let cell_data = self.get_cell_data();
-        let vis_cells: TensorDataView<f32> = cell_data.expect_index_view();
-        let [height, width] = cell_data.shape[0..2].try_into().unwrap();
+        let vis_cells = cell_data.view::<f32>();
+        let [height, width] = cell_data.shape()[0..2].try_into().unwrap();
 
         let [view_width, view_height] = args.viewport().window_size;
 
@@ -411,7 +367,7 @@ impl FlowVisApp {
                 for x in 0..width {
                     let uy: f32 = vis_cells[&[y, x, 0]];
                     let ux: f32 = vis_cells[&[y, x, 1]];
-                    let is_solid = solid_cells[&[y, x]];
+                    let is_solid = solid_cells[y * width + x];
 
                     let color = if is_solid {
                         [1., 1., 1., 1.]

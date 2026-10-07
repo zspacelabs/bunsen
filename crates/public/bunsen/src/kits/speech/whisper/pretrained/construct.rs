@@ -6,7 +6,7 @@ use std::{
     sync::Arc,
 };
 
-use burn::prelude::Backend;
+use burn::tensor::Device;
 
 #[cfg(feature = "store_safetensors")]
 use crate::data::pretrained::SafetensorsCheckpoint;
@@ -213,15 +213,15 @@ impl WhisperReader {
     ///
     /// # Errors
     /// As [`scan_cfg`](Self::scan_cfg); the scanner's.
-    pub fn load<B: Backend>(
+    pub fn load(
         &self,
         loaded: &LoadedResources,
-        device: &B::Device,
-    ) -> BunsenResult<(Whisper<B>, WhisperApiConfig)> {
+        device: &Device,
+    ) -> BunsenResult<(Whisper, WhisperApiConfig)> {
         match self {
-            Self::Pytorch(scanner) => scanner.load::<B, _>(loaded.expect(CHECKPOINT)?, device),
+            Self::Pytorch(scanner) => scanner.load::<_>(loaded.expect(CHECKPOINT)?, device),
             #[cfg(feature = "store_safetensors")]
-            Self::Safetensors(scanner) => scanner.load::<B>(
+            Self::Safetensors(scanner) => scanner.load(
                 &SafetensorsCheckpoint::from_loaded(loaded, CHECKPOINT)?,
                 device,
             ),
@@ -352,7 +352,7 @@ impl WhisperConstruct {
 }
 
 impl Construct for WhisperConstruct {
-    type Built<B: Backend> = WhisperBundle<B>;
+    type Built = WhisperBundle;
 
     const KIT: &'static str = WHISPER_KIT;
 
@@ -428,13 +428,13 @@ impl Construct for WhisperConstruct {
     /// A layout the checkpoint and the vocabulary disagree on is their
     /// fault, not the code's: it comes back as
     /// [`Policy`](BunsenErrorKind::Policy), under a frame naming the model.
-    fn construct<B: Backend>(
+    fn construct(
         &self,
         model: &PretrainedRef,
         loaded: &LoadedResources,
-        device: &B::Device,
-    ) -> BunsenResult<Arc<WhisperBundle<B>>> {
-        let (whisper, cfg) = self.reader.load::<B>(loaded, device)?;
+        device: &Device,
+    ) -> BunsenResult<Arc<WhisperBundle>> {
+        let (whisper, cfg) = self.reader.load(loaded, device)?;
         let layout = cfg
             .token_layout
             .policy_for_vocab(cfg.vocab_size)
@@ -539,10 +539,7 @@ mod tests {
                 testing::offline_cache,
             },
         },
-        support::testing::{
-            PerformanceBackend,
-            default_device,
-        },
+        support::testing::performance_device,
     };
 
     fn resolve_model(spec: &str) -> BunsenResult<PretrainedRef> {
@@ -573,7 +570,7 @@ mod tests {
         let cache = offline_cache();
         let loaded = default_whisper_factory()
             .unwrap()
-            .load::<PerformanceBackend>("openai/base", &cache, &default_device())
+            .load("openai/base", &cache, &performance_device())
             .unwrap();
 
         assert_eq!(loaded.name, "well-known:openai/base");

@@ -1,9 +1,6 @@
 //! TensorFlow-style "SAME" padding.
 
-use burn::prelude::{
-    Backend,
-    Tensor,
-};
+use burn::prelude::Tensor;
 
 // # Reference Python
 //
@@ -86,13 +83,13 @@ pub fn get_same_padding(
 /// # Returns
 ///
 /// The `[batch, channels, height + pad_h, width + pad_w]` padded tensor.
-pub fn pad_same<B: Backend>(
-    input: Tensor<B, 4>,
+pub fn pad_same(
+    input: Tensor<4>,
     kernel_size: [usize; 2],
     stride: [usize; 2],
     dilation: [usize; 2],
     value: f32,
-) -> Tensor<B, 4> {
+) -> Tensor<4> {
     let ih = input.shape()[2];
     let iw = input.shape()[3];
     let pad_h = get_same_padding(ih, kernel_size[0], stride[0], dilation[0]);
@@ -110,8 +107,7 @@ mod tests {
     use super::*;
     use crate::support::testing::{
         DeviceMemoryGuard,
-        PerformanceBackend,
-        default_device,
+        performance_device,
     };
 
     /// `(kernel_size, stride, dilation, [padding for size 1..=12])`, from the
@@ -176,12 +172,11 @@ mod tests {
     #[test]
     #[serial]
     fn test_pad_same_puts_the_odd_pixel_bottom_right() {
-        type B = PerformanceBackend;
-        let device = default_device();
-        let _memory = DeviceMemoryGuard::<B>::new(&device);
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
 
         // Height 10 pads by 2 (1 + 1); width 8 pads by 1 (0 + 1).
-        let input = Tensor::<B, 4>::ones([1, 1, 10, 8], &device);
+        let input = Tensor::<4>::ones([1, 1, 10, 8], &device);
         let output = pad_same(input.clone(), [3, 3], [3, 3], [1, 1], 0.0);
 
         assert_eq!(output.dims(), [1, 1, 12, 9]);
@@ -190,6 +185,6 @@ mod tests {
             .slice([0..1, 0..1, 1..11, 0..8])
             .to_data()
             .assert_eq(&input.to_data(), true);
-        assert_eq!(output.sum().into_scalar(), 80.0);
+        assert_eq!(output.sum().into_scalar::<f32>(), 80.0);
     }
 }

@@ -13,10 +13,7 @@
 use burn::{
     config::Config,
     module::Module,
-    prelude::{
-        Backend,
-        Tensor,
-    },
+    prelude::Tensor,
 };
 
 use crate::{
@@ -78,7 +75,7 @@ impl DropPathConfig {
 /// regularization.
 ///
 /// Built by [`DropPathConfig`].
-#[derive(Module, Clone, Debug)]
+#[derive(Module, Debug)]
 pub struct DropPath {
     /// Probability of dropping a path.
     pub drop_prob: f64,
@@ -100,11 +97,11 @@ impl DropPathMeta for DropPath {
 impl DropPath {
     /// Applies `drop_path` pass on the input tensor.
     #[must_use]
-    pub fn forward<B: Backend, const D: usize>(
+    pub fn forward<const D: usize>(
         &self,
-        input: Tensor<B, D>,
-    ) -> Tensor<B, D> {
-        let training = B::ad_enabled(&input.device());
+        input: Tensor<D>,
+    ) -> Tensor<D> {
+        let training = input.device().is_autodiff();
         drop_path(input, self.drop_prob, training, self.scale_by_keep)
     }
 
@@ -124,13 +121,13 @@ impl DropPath {
     /// connection applied.
     #[inline]
     #[must_use]
-    pub fn with_skip<B: Backend, const D: usize, F>(
+    pub fn with_skip<const D: usize, F>(
         &self,
-        x: Tensor<B, D>,
+        x: Tensor<D>,
         f: F,
-    ) -> Tensor<B, D>
+    ) -> Tensor<D>
     where
-        F: FnOnce(Tensor<B, D>) -> Tensor<B, D>,
+        F: FnOnce(Tensor<D>) -> Tensor<D>,
     {
         x.clone() + self.forward(f(x))
     }
@@ -144,15 +141,11 @@ mod tests {
     };
 
     use super::*;
-    use crate::support::testing::{
-        CpuBackend,
-        default_device,
-    };
+    use crate::support::testing::cpu_device;
 
     #[test]
     fn test_drop_path() {
-        type B = CpuBackend;
-        let device = default_device();
+        let device = cpu_device();
         let drop_prob = 0.5;
         let scale_by_keep = true;
 
@@ -163,7 +156,7 @@ mod tests {
 
         let module = config.init();
 
-        let input = Tensor::<B, 4>::random([2, 3, 4, 5], Distribution::Uniform(0.0, 1.0), &device);
+        let input = Tensor::<4>::random([2, 3, 4, 5], Distribution::Uniform(0.0, 1.0), &device);
         let output = module.forward(input.clone());
 
         assert_eq!(input.dims(), output.dims());
@@ -171,7 +164,6 @@ mod tests {
 
     #[test]
     fn test_droppath_module() {
-        type B = CpuBackend;
         let drop_prob = 0.2;
         let config = DropPathConfig::new().with_drop_prob(drop_prob);
 
@@ -184,9 +176,9 @@ mod tests {
         assert_eq!(module.keep_prob(), 1.0 - drop_prob);
         assert!(module.scale_by_keep());
 
-        let device = default_device();
+        let device = cpu_device();
         let shape = [2, 3, 4];
-        let x = Tensor::<B, 3>::random(shape, Distribution::Uniform(0.0, 1.0), &device);
+        let x = Tensor::<3>::random(shape, Distribution::Uniform(0.0, 1.0), &device);
 
         // TODO(crutcher): work out how to enable/disable training mode in
         // tests.

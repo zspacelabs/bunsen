@@ -15,10 +15,7 @@
 //! `None` step means `1.0`. The `linspace` forms include both ends.
 
 use burn::{
-    prelude::{
-        Backend,
-        Tensor,
-    },
+    prelude::Tensor,
     tensor::TensorCreationOptions,
 };
 
@@ -87,12 +84,12 @@ pub fn vec_linspace(
 ///
 /// # Returns
 /// `[num]` sized tensor.
-pub fn tensor_arange_start_step<B: Backend>(
+pub fn tensor_arange_start_step(
     num: usize,
     start: f64,
     step: Option<f64>,
-    options: impl Into<TensorCreationOptions<B>>,
-) -> Tensor<B, 1> {
+    options: impl Into<TensorCreationOptions>,
+) -> Tensor<1> {
     let x = Tensor::arange(0..num as i64, options).float();
 
     let x = match step {
@@ -119,12 +116,12 @@ pub fn tensor_arange_start_step<B: Backend>(
 /// # Returns
 ///
 /// A 1D tensor containing the generated floating point values.
-pub fn tensor_linspace<B: Backend>(
+pub fn tensor_linspace(
     start: f64,
     end: f64,
     num: usize,
-    options: impl Into<TensorCreationOptions<B>>,
-) -> Tensor<B, 1> {
+    options: impl Into<TensorCreationOptions>,
+) -> Tensor<1> {
     assert!(num > 0, "Number of points must be positive");
 
     if num == 1 {
@@ -141,27 +138,19 @@ pub fn tensor_linspace<B: Backend>(
 mod tests {
     use burn::{
         prelude::TensorData,
-        tensor::{
-            Tolerance,
-            backend::BackendTypes,
-        },
+        tensor::Tolerance,
     };
 
     use super::*;
-    use crate::{
-        prelude::*,
-        support::testing::{
-            CpuBackend,
-            assert_close_to_vec,
-            default_device,
-        },
+    use crate::support::testing::{
+        assert_close_to_vec,
+        cpu_device,
     };
-    type B = CpuBackend;
-    type F = <B as BackendTypes>::FloatElem;
+    type F = f32;
 
     #[test]
     fn test_arange_start_step() {
-        let device = default_device();
+        let device = cpu_device();
 
         let num = 5;
 
@@ -172,7 +161,7 @@ mod tests {
             let expected = vec![-3.0, -2.0, -1.0, 0.0, 1.0];
 
             let vec_actual = vec_arange_start_step(num, start, step);
-            let tensor_actual = tensor_arange_start_step::<B>(num, start, step, &device);
+            let tensor_actual = tensor_arange_start_step(num, start, step, &device);
 
             assert_close_to_vec(&vec_actual, &expected, 0.0001);
             tensor_actual
@@ -189,7 +178,7 @@ mod tests {
             let expected = vec![3.0, 2.0, 1.0, 0.0, -1.0];
 
             let vec_actual = vec_arange_start_step(num, start, step);
-            let tensor_actual = tensor_arange_start_step::<B>(num, start, step, &device);
+            let tensor_actual = tensor_arange_start_step(num, start, step, &device);
 
             assert_close_to_vec(&vec_actual, &expected, 0.0001);
 
@@ -201,7 +190,7 @@ mod tests {
 
     #[test]
     fn test_arange_linspace() {
-        let device = default_device();
+        let device = cpu_device();
 
         let num = 5;
 
@@ -214,7 +203,7 @@ mod tests {
             let end = expected[num - 1];
 
             let vec_actual = vec_linspace(start, end, num);
-            let tensor_actual = tensor_linspace::<B>(start, end, num, &device);
+            let tensor_actual = tensor_linspace(start, end, num, &device);
 
             assert_close_to_vec(&vec_actual, &expected, 0.0001);
 
@@ -231,7 +220,7 @@ mod tests {
             let expected = vec![-3.0, -2.0, -1.0, 0.0, 1.0];
 
             let vec_actual = vec_linspace(start, end, num);
-            let tensor_actual = tensor_linspace::<B>(start, end, num, &device);
+            let tensor_actual = tensor_linspace(start, end, num, &device);
 
             assert_close_to_vec(&vec_actual, &expected, 0.0001);
             tensor_actual
@@ -247,7 +236,7 @@ mod tests {
             let expected = vec![3.0, 2.0, 1.0, 0.0, -1.0];
 
             let vec_actual = vec_linspace(start, end, num);
-            let tensor_actual = tensor_linspace::<B>(start, end, num, &device);
+            let tensor_actual = tensor_linspace(start, end, num, &device);
 
             assert_close_to_vec(&vec_actual, &expected, 0.0001);
             tensor_actual
@@ -258,13 +247,13 @@ mod tests {
 
     #[test]
     fn test_linspace_int_step() {
-        let device = default_device();
+        let device = cpu_device();
 
         let start: f64 = 0.0;
         let end: f64 = 1.0;
         let num: usize = 5;
 
-        let actual = tensor_linspace::<B>(start, end, num, &device);
+        let actual = tensor_linspace(start, end, num, &device);
 
         actual.to_data_as::<F>().assert_approx_eq::<F>(
             &TensorData::from([0.0, 0.25, 0.5, 0.75, 1.0]),
@@ -274,13 +263,13 @@ mod tests {
 
     #[test]
     fn test_float_vec_linspace_neg_float_step() {
-        let device = default_device();
+        let device = cpu_device();
 
         let start: f64 = 1.0;
         let end: f64 = -0.2;
         let num: usize = 5;
 
-        let actual = tensor_linspace::<B>(start, end, num, &device);
+        let actual = tensor_linspace(start, end, num, &device);
 
         actual.to_data_as::<F>().assert_approx_eq::<F>(
             &TensorData::from([1.0, 0.7, 0.4, 0.1, -0.2]),
@@ -290,13 +279,13 @@ mod tests {
 
     #[test]
     fn test_float_vec_linspace_n1() {
-        let device = default_device();
+        let device = cpu_device();
 
         let start: f64 = 0.0;
         let end: f64 = 1.0;
         let num: usize = 1;
 
-        let actual = tensor_linspace::<B>(start, end, num, &device);
+        let actual = tensor_linspace(start, end, num, &device);
 
         actual
             .to_data_as::<F>()

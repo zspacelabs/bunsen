@@ -6,7 +6,6 @@ use burn::{
         Param,
     },
     prelude::{
-        Backend,
         Bool,
         Float,
         Int,
@@ -38,7 +37,7 @@ use crate::burner::{
 /// [`ModuleVisitor`] builder for a [`XmlModuleTree`].
 ///
 /// Most callers want [`XmlModuleTree::build`], which wraps this.
-pub struct XmlModuleTreeBuilder<B: Backend> {
+pub struct XmlModuleTreeBuilder {
     mtree: XmlModuleTree,
 
     depth: usize,
@@ -47,13 +46,11 @@ pub struct XmlModuleTreeBuilder<B: Backend> {
     pending_name: Option<String>,
 
     next_id: usize,
-
-    phantom: std::marker::PhantomData<B>,
 }
 
-impl<B: Backend> XmlModuleTreeBuilder<B> {
+impl XmlModuleTreeBuilder {
     /// Builds a [`XmlModuleTree`] from a [`Module`].
-    pub fn build<M: Module<B>>(module: &M) -> XmlModuleTree {
+    pub fn build<M: Module>(module: &M) -> XmlModuleTree {
         let mut builder = Self::new();
         module.visit(&mut builder);
         builder.mtree
@@ -69,14 +66,13 @@ impl<B: Backend> XmlModuleTreeBuilder<B> {
 
         xot.append(root, base).unwrap();
 
-        XmlModuleTreeBuilder::<B> {
+        XmlModuleTreeBuilder {
             mtree,
             depth: 0,
             base,
             pending_name: None,
             stack: vec![],
             next_id: 0,
-            phantom: Default::default(),
         }
     }
 
@@ -151,7 +147,7 @@ impl<B: Backend> XmlModuleTreeBuilder<B> {
     }
 }
 
-impl<B: Backend> ModuleVisitor<B> for XmlModuleTreeBuilder<B> {
+impl ModuleVisitor for XmlModuleTreeBuilder {
     fn enter_module(
         &mut self,
         name: &str,
@@ -203,21 +199,21 @@ impl<B: Backend> ModuleVisitor<B> for XmlModuleTreeBuilder<B> {
 
     fn visit_bool<const D: usize>(
         &mut self,
-        param: &Param<Tensor<B, D, Bool>>,
+        param: &Param<Tensor<D, Bool>>,
     ) {
         self.add_param_desc(param.into());
     }
 
     fn visit_float<const D: usize>(
         &mut self,
-        param: &Param<Tensor<B, D, Float>>,
+        param: &Param<Tensor<D, Float>>,
     ) {
         self.add_param_desc(param.into());
     }
 
     fn visit_int<const D: usize>(
         &mut self,
-        param: &Param<Tensor<B, D, Int>>,
+        param: &Param<Tensor<D, Int>>,
     ) {
         self.add_param_desc(param.into());
     }

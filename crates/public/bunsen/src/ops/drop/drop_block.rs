@@ -7,14 +7,13 @@ use burn::{
         ModuleDisplay,
         ModuleDisplayDefault,
     },
-    prelude::{
-        Backend,
-        Float,
-    },
+    prelude::Float,
     tensor::{
         DType,
+        Device,
         Distribution,
         module::max_pool2d,
+        ops::MaxPoolOptions,
     },
 };
 use serde::{
@@ -275,11 +274,11 @@ impl DropBlockOptions {
     /// # Returns
     ///
     /// Gamma noise, sampled at ``self.gamma([h, w])`` rate.
-    pub fn gamma_noise<B: Backend>(
+    pub fn gamma_noise(
         &self,
         noise_shape: [usize; 4],
-        device: &B::Device,
-    ) -> Tensor<B, 4> {
+        device: &Device,
+    ) -> Tensor<4> {
         let [_, _, h, w] = noise_shape;
         let gamma = self.gamma([h, w]);
         Tensor::random(noise_shape, Distribution::Bernoulli(gamma), device)
@@ -296,11 +295,11 @@ impl DropBlockOptions {
 ///   selected conv to drop, `0.0` everywhere else. Expected to be gamma noise.
 /// * `kernel_shape` - the shape of the kernel.
 /// * `partial_edge_blocks` - permit partial conv at the edges, faster.
-pub fn drop_block_2d_drop_filter_<B: Backend>(
-    selected_blocks: Tensor<B, 4>,
+pub fn drop_block_2d_drop_filter_(
+    selected_blocks: Tensor<4>,
     kernel_shape: [usize; 2],
     partial_edge_blocks: bool,
-) -> Tensor<B, 4> {
+) -> Tensor<4> {
     let [_, _, h, w] = unpack_shape_contract!(["b", "c", "h", "w"], &selected_blocks.dims());
     let [kh, kw] = kernel_shape;
 
@@ -316,20 +315,16 @@ pub fn drop_block_2d_drop_filter_<B: Backend>(
 
     if !partial_edge_blocks {
         selection = selection
-            * conv2d_kernel_midpoint_filter::<B, Float>([h, w], kernel_shape, device)
+            * conv2d_kernel_midpoint_filter::<Float>([h, w], kernel_shape, device)
                 .unsqueeze_dims::<4>(&[0, 1])
                 .cast(dtype);
     }
 
-    let ceil_mode = false;
-
     selection = max_pool2d(
         selection,
-        kernel_shape,
-        [1, 1],
-        [kh / 2, kw / 2],
-        [1, 1],
-        ceil_mode,
+        MaxPoolOptions::new(kernel_shape)
+            .with_stride([1, 1])
+            .with_padding([kh / 2, kw / 2]),
     );
 
     // Clip even-kernel padding artifacts.
@@ -364,10 +359,10 @@ pub fn drop_block_2d_drop_filter_<B: Backend>(
 /// # Returns
 ///
 /// A `[batch, channels, height, width]` tensor.
-pub fn drop_block_2d<B: Backend>(
-    tensor: Tensor<B, 4>,
+pub fn drop_block_2d(
+    tensor: Tensor<4>,
     options: &DropBlockOptions,
-) -> Tensor<B, 4> {
+) -> Tensor<4> {
     if options.drop_prob == 0.0 {
         // This is a no-op.
         return tensor;
@@ -389,13 +384,13 @@ pub fn drop_block_2d<B: Backend>(
 
     let gamma_noise = options.gamma_noise(noise_shape, device);
 
-    let drop_filter: Tensor<B, 4> =
+    let drop_filter: Tensor<4> =
         drop_block_2d_drop_filter_(gamma_noise, kernel, options.partial_edge_blocks).cast(dtype);
-    let keep_filter: Tensor<B, 4> = 1.0 - drop_filter.clone();
+    let keep_filter: Tensor<4> = 1.0 - drop_filter.clone();
 
     if let Some(noise_cfg) = &options.noise {
         // Fill in the dropped regions with sampled noise.
-        let noise: Tensor<B, 4> = noise_cfg.noise(noise_shape, device).cast(dtype);
+        let noise: Tensor<4> = noise_cfg.noise(noise_shape, device).cast(dtype);
         let noise = noise * drop_filter;
 
         tensor * keep_filter.expand(t_shape.clone()) + noise.expand(t_shape)
@@ -423,8 +418,7 @@ mod tests {
     use super::*;
     use crate::support::testing::{
         DeviceMemoryGuard,
-        PerformanceBackend,
-        default_device,
+        performance_device,
     };
 
     #[test]
@@ -502,11 +496,10 @@ mod tests {
     #[test]
     #[serial]
     fn test_drop_block_2d_drop_filter() {
-        type B = PerformanceBackend;
-        let device = default_device();
-        let _memory = DeviceMemoryGuard::<B>::new(&device);
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
 
-        let selected_blocks: Tensor<B, 4> = Tensor::<B, 2>::from_data(
+        let selected_blocks: Tensor<4> = Tensor::<2>::from_data(
             [
                 [0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0],
                 [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
@@ -554,12 +547,11 @@ mod tests {
     #[test]
     #[serial]
     fn test_drop_block_2d_no_op() {
-        type B = PerformanceBackend;
-        let device = default_device();
-        let _memory = DeviceMemoryGuard::<B>::new(&device);
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
 
         let shape = [2, 3, 7, 9];
-        let tensor: Tensor<B, 4> = Tensor::ones(shape, &device);
+        let tensor: Tensor<4> = Tensor::ones(shape, &device);
 
         let drop_prob = 0.0;
 
@@ -576,11 +568,10 @@ mod tests {
     #[test]
     #[serial]
     fn test_drop_block_2d_dropping_everything_in_f16_gives_zeros() {
-        type B = PerformanceBackend;
-        let device = default_device();
-        let _memory = DeviceMemoryGuard::<B>::new(&device);
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
 
-        let tensor = Tensor::<B, 4>::ones([2, 3, 10, 10], &device).cast(DType::F16);
+        let tensor = Tensor::<4>::ones([2, 3, 10, 10], &device).cast(DType::F16);
 
         // A whole-image block at probability 1 has gamma 1: every block drops.
         let options = DropBlockOptions::default()
@@ -598,12 +589,11 @@ mod tests {
     #[test]
     #[serial]
     fn test_drop_block_2d_with_norm() {
-        type B = PerformanceBackend;
-        let device = default_device();
-        let _memory = DeviceMemoryGuard::<B>::new(&device);
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
 
         let shape = [2, 3, 100, 100];
-        let tensor: Tensor<B, 4> = Tensor::ones(shape, &device);
+        let tensor: Tensor<4> = Tensor::ones(shape, &device);
 
         let drop_prob = 0.1;
 
@@ -619,12 +609,17 @@ mod tests {
         let numel = drop.shape().num_elements();
 
         // They've all been rescaled upwards.
-        let keep_count = drop.clone().greater_elem(1.0).int().sum().into_scalar() as usize;
+        let keep_count = drop
+            .clone()
+            .greater_elem(1.0)
+            .int()
+            .sum()
+            .into_scalar::<i64>() as usize;
         let drop_count = numel - keep_count;
         let drop_ratio = drop_count as f64 / numel as f64;
         assert!((drop_ratio - drop_prob).abs() < 0.15);
 
-        let total = drop.sum().into_scalar() as f64;
+        let total = drop.sum().into_scalar::<f64>();
         let norm = total / numel as f64;
         assert!((norm - 1.0).abs() < 0.01);
     }
@@ -632,12 +627,11 @@ mod tests {
     #[test]
     #[serial]
     fn test_drop_block_2d_with_noise() {
-        type B = PerformanceBackend;
-        let device = default_device();
-        let _memory = DeviceMemoryGuard::<B>::new(&device);
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
 
         let shape = [2, 3, 100, 100];
-        let tensor: Tensor<B, 4> = Tensor::ones(shape, &device);
+        let tensor: Tensor<4> = Tensor::ones(shape, &device);
 
         let drop_prob = 0.1;
 
@@ -655,7 +649,7 @@ mod tests {
 
         // This should be an exact match; the Distribution::Default is [0.0,
         // 1.0); and will never generate a 1.0.
-        let keep_count = drop.equal_elem(1.0).int().sum().into_scalar() as usize;
+        let keep_count = drop.equal_elem(1.0).int().sum().into_scalar::<i64>() as usize;
 
         let drop_count = numel - keep_count;
 

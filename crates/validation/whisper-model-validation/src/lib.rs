@@ -24,7 +24,7 @@
 //! None is inferred from the others. With `download,gpu-tests` the suite is
 //! twelve tests; with either alone it is the three fixture-integrity checks.
 //!
-//! Pass a backend deliberately. `PerformanceBackend` falls through to `Flex`
+//! Pass a backend deliberately. `performance_device()` falls through to `Flex`
 //! when none reaches `bunsen`, so a run without one does not fail — it
 //! quietly measures the CPU and passes. `--release` matters for the same
 //! reason: the work is inside `burn`'s kernels, not in this crate.
@@ -54,6 +54,7 @@
 
 #![cfg_attr(not(feature = "download"), allow(unused))]
 
+use burn::tensor::Device;
 /// The reference models, generated from the `onnx-community` export.
 ///
 /// These used to be generated here. They moved to `bunsen-bundled-whisper` so
@@ -94,12 +95,12 @@ pub fn weights_cache() -> bunsen::data::pretrained::PretrainedCache {
 
 /// bunsen's Whisper `openai/base`, at the precision it ships in (fp16), with
 /// its token layout and vocabulary, shared.
-pub fn load_base<B: burn::prelude::Backend>(
-    device: &B::Device
-) -> std::sync::Arc<bunsen::kits::speech::whisper::driver::WhisperBundle<B>> {
+pub fn load_base(
+    device: &Device
+) -> std::sync::Arc<bunsen::kits::speech::whisper::driver::WhisperBundle> {
     bunsen::kits::speech::whisper::pretrained::default_whisper_factory()
         .expect("the whisper factory")
-        .load_bundle::<B>("openai/base", &weights_cache(), device)
+        .load_bundle("openai/base", &weights_cache(), device)
         .expect("load openai/base")
 }
 
@@ -123,9 +124,7 @@ pub const TOKENS: [i64; 4] = [50258, 50259, 50359, 1770];
 ///
 /// Cheap and seed-free, so both implementations get bit-identical input
 /// without needing an audio fixture.
-pub fn synthetic_mels<B: burn::prelude::Backend>(
-    device: &B::Device
-) -> burn::prelude::Tensor<B, 3> {
+pub fn synthetic_mels(device: &Device) -> burn::prelude::Tensor<3> {
     use burn::prelude::*;
 
     let data: Vec<f64> = (0..N_MELS * N_FRAMES)
@@ -143,9 +142,7 @@ pub fn synthetic_mels<B: burn::prelude::Backend>(
 ///
 /// Using a synthetic `xa` rather than either encoder's real output isolates
 /// the decoder: a disagreement cannot be inherited from upstream.
-pub fn synthetic_encoder_output<B: burn::prelude::Backend>(
-    device: &B::Device
-) -> burn::prelude::Tensor<B, 3> {
+pub fn synthetic_encoder_output(device: &Device) -> burn::prelude::Tensor<3> {
     use burn::prelude::*;
 
     let (seq, width) = (N_FRAMES / 2, D_MODEL);

@@ -10,7 +10,7 @@ use alloc::{
 };
 use core::marker::PhantomData;
 
-use burn::prelude::Backend;
+use burn::tensor::Device;
 
 #[cfg(doc)]
 use super::ResourceMap;
@@ -36,7 +36,7 @@ use crate::errors::{
 /// models built through the kit's hook `H`.
 ///
 /// The one object a caller holds for a kit. Its interface is names and a
-/// listing. [`load`](Self::load)`::<B>("[provider:]name", &cache, &device)`
+/// listing. [`load`](Self::load)`("[provider:]name", &cache, &device)`
 /// is the whole pathway, from a name to a [`Loaded`] model.
 /// [`resolve`](Self::resolve) is its index half: a [`Deferred`] model that
 /// carries the hook its map calls for, so that a caller can overlay a row
@@ -308,13 +308,13 @@ impl<H: Construct> PretrainedFactory<H> {
     ///
     /// # Errors
     /// As [`resolve`](Self::resolve) and [`Deferred::load`].
-    pub fn load<B: Backend>(
+    pub fn load(
         &self,
         spec: &str,
         cache: &PretrainedCache,
-        device: &B::Device,
-    ) -> BunsenResult<Loaded<H::Built<B>>> {
-        self.resolve(spec, cache)?.load::<B>(cache, device)
+        device: &Device,
+    ) -> BunsenResult<Loaded<H::Built>> {
+        self.resolve(spec, cache)?.load(cache, device)
     }
 
     /// The dispatch behind [`lookup`](Self::lookup) and
@@ -487,7 +487,7 @@ pub(crate) mod testing {
     pub struct CheckpointPath;
 
     impl Construct for CheckpointPath {
-        type Built<B: Backend> = PathBuf;
+        type Built = PathBuf;
 
         const KIT: &'static str = "kit";
 
@@ -495,11 +495,11 @@ pub(crate) mod testing {
             Ok(Self)
         }
 
-        fn construct<B: Backend>(
+        fn construct(
             &self,
             _model: &PretrainedRef,
             loaded: &LoadedResources,
-            _device: &B::Device,
+            _device: &Device,
         ) -> BunsenResult<Arc<PathBuf>> {
             Ok(Arc::new(loaded.expect("checkpoint")?.to_path_buf()))
         }
@@ -847,10 +847,7 @@ mod tests {
     fn test_load_goes_through_the_hook() {
         use crate::{
             data::pretrained::Provenance,
-            support::testing::{
-                CpuBackend,
-                default_device,
-            },
+            support::testing::cpu_device,
         };
 
         let dir = tempfile::tempdir().unwrap();
@@ -862,9 +859,7 @@ mod tests {
             .with_providers([well_known(), on_disk])
             .unwrap();
 
-        let loaded = factory
-            .load::<CpuBackend>("disk:l/ckpt", &cache, &default_device())
-            .unwrap();
+        let loaded = factory.load("disk:l/ckpt", &cache, &cpu_device()).unwrap();
         assert_eq!(*loaded.handle, file);
         assert_eq!(loaded.name, "disk:l/ckpt");
         assert_eq!(
@@ -879,7 +874,7 @@ mod tests {
             .unwrap()
             .with_overlay(ResourceMap::given("mine", "checkpoint", &other))
             .unwrap()
-            .load::<CpuBackend>(&cache, &default_device())
+            .load(&cache, &cpu_device())
             .unwrap();
         assert_eq!(*loaded.handle, other);
 
@@ -887,11 +882,7 @@ mod tests {
         ErrorMatcher::kind(BunsenErrorKind::Policy)
             .frame_contains("loading kit \"well-known:a/small\"")
             .message_contains("the cache is offline")
-            .assert_err(&factory.load::<CpuBackend>(
-                "well-known:a/small",
-                &cache,
-                &default_device(),
-            ));
+            .assert_err(&factory.load("well-known:a/small", &cache, &cpu_device()));
     }
 
     #[test]

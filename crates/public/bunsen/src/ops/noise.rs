@@ -12,11 +12,13 @@ use burn::{
         ModuleDisplayDefault,
     },
     prelude::{
-        Backend,
         Shape,
         Tensor,
     },
-    tensor::Distribution,
+    tensor::{
+        Device,
+        Distribution,
+    },
 };
 use serde::{
     Deserialize,
@@ -104,11 +106,11 @@ impl NoiseConfig {
     /// # Returns
     ///
     /// A new tensor with the given shape and device, filled with noise.
-    pub fn noise<B: Backend, S, const D: usize>(
+    pub fn noise<S, const D: usize>(
         &self,
         shape: S,
-        device: &B::Device,
-    ) -> Tensor<B, D>
+        device: &Device,
+    ) -> Tensor<D>
     where
         S: Into<Shape>,
     {
@@ -128,10 +130,10 @@ impl NoiseConfig {
     /// # Returns
     ///
     /// A new tensor with the same shape and device as the reference.
-    pub fn noise_like<B: Backend, const D: usize>(
+    pub fn noise_like<const D: usize>(
         &self,
-        tensor: &Tensor<B, D>,
-    ) -> Tensor<B, D> {
+        tensor: &Tensor<D>,
+    ) -> Tensor<D> {
         self.noise(tensor.shape(), &tensor.device())
     }
 }
@@ -141,10 +143,7 @@ mod tests {
     use burn::module::DisplaySettings;
 
     use super::*;
-    use crate::support::testing::{
-        CpuBackend,
-        default_device,
-    };
+    use crate::support::testing::cpu_device;
 
     #[test]
     fn test_noise_config_display() {
@@ -210,10 +209,9 @@ mod tests {
 
     #[test]
     fn test_noise_like_default_clamp() {
-        type B = CpuBackend;
-        let device = default_device();
+        let device = cpu_device();
 
-        let reference: Tensor<B, 2> = Tensor::ones([20, 20], &device);
+        let reference: Tensor<2> = Tensor::ones([20, 20], &device);
         let numel = reference.shape().num_elements() as f64;
 
         let noise = NoiseConfig::default()
@@ -227,7 +225,12 @@ mod tests {
         // * All values should be in [0.5, 1.0)
 
         // count 0.5
-        let count_05 = noise.clone().equal_elem(0.5).int().sum().into_scalar() as f64;
+        let count_05 = noise
+            .clone()
+            .equal_elem(0.5)
+            .int()
+            .sum()
+            .into_scalar::<f64>();
         assert!((0.5 - (count_05 / numel)).abs() < 0.15);
 
         let count_ge_1 = noise
@@ -235,16 +238,15 @@ mod tests {
             .greater_equal_elem(1.0)
             .int()
             .sum()
-            .into_scalar();
+            .into_scalar::<i64>();
         assert_eq!(count_ge_1, 0);
     }
 
     #[test]
     fn test_noise_like_bernoulli() {
-        type B = CpuBackend;
-        let device = default_device();
+        let device = cpu_device();
 
-        let reference: Tensor<B, 2> = Tensor::ones([20, 20], &device);
+        let reference: Tensor<2> = Tensor::ones([20, 20], &device);
 
         let p = 0.1;
 
@@ -256,7 +258,7 @@ mod tests {
         assert_eq!(noise.device(), reference.device());
 
         let ratio =
-            (noise.clone().sum().into_scalar() as f64) / (noise.shape().num_elements() as f64);
+            noise.clone().sum().into_scalar::<f64>() / (noise.shape().num_elements() as f64);
         assert!((ratio - p).abs() < 0.05);
     }
 }

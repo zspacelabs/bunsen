@@ -10,10 +10,7 @@
 use burn::{
     config::Config,
     module::Module,
-    prelude::{
-        Backend,
-        Tensor,
-    },
+    prelude::Tensor,
 };
 
 #[doc(inline)]
@@ -51,9 +48,10 @@ impl DropBlock2dConfig {
 /// inspired also by the `python-image-models` implementation.
 ///
 /// Built by [`DropBlock2dConfig`].
-#[derive(Module, Clone, Debug)]
+#[derive(Module, Debug)]
 pub struct DropBlock2d {
     /// The options for the drop block algorithm.
+    #[module(skip)]
     pub options: DropBlockOptions,
 }
 
@@ -68,11 +66,11 @@ impl DropBlock2d {
     /// # Returns
     ///
     /// A tensor of the same shape, type, and device.
-    pub fn forward<B: Backend>(
+    pub fn forward(
         &self,
-        tensor: Tensor<B, 4>,
-    ) -> Tensor<B, 4> {
-        if B::ad_enabled(&tensor.device()) {
+        tensor: Tensor<4>,
+    ) -> Tensor<4> {
+        if tensor.device().is_autodiff() {
             drop_block_2d(tensor.clone(), &self.options)
         } else {
             tensor
@@ -82,18 +80,13 @@ impl DropBlock2d {
 
 #[cfg(test)]
 mod tests {
-    use burn::backend::Autodiff;
 
     use super::*;
-    use crate::support::testing::{
-        CpuBackend,
-        default_device,
-    };
+    use crate::support::testing::cpu_device;
 
     #[test]
     fn test_module_inference() {
-        type B = CpuBackend;
-        let device = default_device();
+        let device = cpu_device();
 
         let config = DropBlock2dConfig::new();
 
@@ -105,9 +98,9 @@ mod tests {
         let width = height;
         let shape = [batch_size, channels, height, width];
 
-        let tensor: Tensor<B, 4> = Tensor::ones(shape, &device);
+        let tensor: Tensor<4> = Tensor::ones(shape, &device);
 
-        assert_eq!(B::ad_enabled(&tensor.device()), false);
+        assert_eq!(tensor.device().is_autodiff(), false);
         let result = module.forward(tensor.clone());
 
         // Not under training; so a no-op.
@@ -116,9 +109,7 @@ mod tests {
 
     #[test]
     fn test_module_training() {
-        type I = CpuBackend;
-        type B = Autodiff<I>;
-        let device = default_device();
+        let device = cpu_device().autodiff();
 
         let drop_prob = 0.1;
 
@@ -136,21 +127,26 @@ mod tests {
         let width = height;
         let shape = [batch_size, channels, height, width];
 
-        let tensor: Tensor<B, 4> = Tensor::ones(shape, &device);
+        let tensor: Tensor<4> = Tensor::ones(shape, &device);
 
-        assert_eq!(B::ad_enabled(&tensor.device()), true);
+        assert_eq!(tensor.device().is_autodiff(), true);
         let drop = module.forward(tensor.clone());
 
         // Count all 1.0; which are the non-dropped values.
         let numel = drop.shape().num_elements();
 
         // They've all been rescaled upwards.
-        let keep_count = drop.clone().greater_elem(1.0).int().sum().into_scalar() as usize;
+        let keep_count = drop
+            .clone()
+            .greater_elem(1.0)
+            .int()
+            .sum()
+            .into_scalar::<i64>() as usize;
         let drop_count = numel - keep_count;
         let drop_ratio = drop_count as f64 / numel as f64;
         assert!((drop_ratio - drop_prob).abs() < 0.15);
 
-        let total = drop.sum().into_scalar() as f64;
+        let total = drop.sum().into_scalar::<f64>();
         let norm = total / numel as f64;
         assert!((norm - 1.0).abs() < 0.01);
     }

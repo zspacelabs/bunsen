@@ -2,7 +2,7 @@
 
 use std::sync::Arc;
 
-use burn::prelude::Backend;
+use burn::tensor::Device;
 
 use crate::{
     data::pretrained::{
@@ -48,13 +48,13 @@ impl PretrainedFactory<WhisperConstruct> {
     ///
     /// # Errors
     /// As [`load`](Self::load).
-    pub fn load_bundle<B: Backend>(
+    pub fn load_bundle(
         &self,
         spec: &str,
         cache: &PretrainedCache,
-        device: &B::Device,
-    ) -> BunsenResult<Arc<WhisperBundle<B>>> {
-        Ok(self.load::<B>(spec, cache, device)?.handle)
+        device: &Device,
+    ) -> BunsenResult<Arc<WhisperBundle>> {
+        Ok(self.load(spec, cache, device)?.handle)
     }
 }
 
@@ -76,12 +76,12 @@ impl Deferred<WhisperConstruct> {
     ///
     /// # Errors
     /// As [`load`](Self::load).
-    pub fn load_bundle<B: Backend>(
+    pub fn load_bundle(
         &self,
         cache: &PretrainedCache,
-        device: &B::Device,
-    ) -> BunsenResult<Arc<WhisperBundle<B>>> {
-        Ok(self.load::<B>(cache, device)?.handle)
+        device: &Device,
+    ) -> BunsenResult<Arc<WhisperBundle>> {
+        Ok(self.load(cache, device)?.handle)
     }
 }
 
@@ -410,9 +410,8 @@ mod hub_tests {
             },
         },
         support::testing::{
-            CpuBackend,
             assert_tensors_close,
-            default_device,
+            cpu_device,
         },
     };
 
@@ -423,7 +422,7 @@ mod hub_tests {
     /// two readers.
     #[test]
     fn test_hf_whisper_tiny_is_openai_tiny() {
-        let device = default_device();
+        let device = cpu_device();
         let cache = PretrainedCache::new(PretrainedCacheOptions::default()).unwrap();
         let factory = default_whisper_factory().unwrap();
 
@@ -433,7 +432,7 @@ mod hub_tests {
         assert_eq!(checkpoint.file, "model.safetensors");
         assert!(checkpoint.is_pinned(), "pinned by the hub's listing");
 
-        let loaded = model.load::<CpuBackend>(&cache, &device).unwrap();
+        let loaded = model.load(&cache, &device).unwrap();
         assert!(matches!(
             loaded.resources.get(CHECKPOINT).unwrap().provenance,
             Provenance::Cached | Provenance::Downloaded
@@ -453,10 +452,8 @@ mod hub_tests {
         assert!(hf.layout.ids().is_multilingual());
         assert_eq!(hf.ranks.as_ref().map(|r| r.len()), Some(50257));
 
-        let openai = factory
-            .load_bundle::<CpuBackend>("openai/tiny", &cache, &device)
-            .unwrap();
-        let close = |a: Tensor<CpuBackend, 2>, b: Tensor<CpuBackend, 2>| {
+        let openai = factory.load_bundle("openai/tiny", &cache, &device).unwrap();
+        let close = |a: Tensor<2>, b: Tensor<2>| {
             assert_tensors_close(&a, &b, Tolerance::<f32>::default());
         };
         close(

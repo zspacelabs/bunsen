@@ -15,9 +15,6 @@ tracking and re-injecting drift.
   helpers), `RelaxationParam`, the `LbmTables` lattice constants, the
   `SPEED_OF_SOUND` constant, and `macroscopic_momentum` for deriving velocity
   from the distribution tensor.
-- `bunsen::burner::tensor::TensorDataView` — ergonomic multi-dimensional
-  indexing into `TensorData` (`expect_index_view`, `[&[y, x, c]]`) used by the
-  renderer.
 - `bunsen::support::geometry::GridShape2D` — the `--grid-shape` argument,
   parsed from `WIDTH,HEIGHT` or a single `SIZE`.
 
@@ -26,13 +23,11 @@ It demonstrates a more involved physics kit driven through Burn tensor slicing
 
 ## Running the Example
 
-Select `BACKEND` from:
-
-* `wgpu` - web-gpu backend.
-* `cuda` - nvidia backend.
-* `metal` - apple backend.
-* `flex` - cpu backend.
+Pick the device at run time with `--device` (`auto`, `cuda`, `metal`,
+`vulkan`, `wgpu`, `flex`) and `--device-index`. A backend is available when
+the example is built with its feature (`cuda`, `metal`, `vulkan`, `wgpu`);
+`flex`, the CPU, always is, and `auto` takes the first accelerator built in.
 
 ```bash
-$ cargo run --release -p lbm2d_vis --features BACKEND
+$ cargo run --release -p lbm2d_vis --features wgpu -- --device wgpu
 ```

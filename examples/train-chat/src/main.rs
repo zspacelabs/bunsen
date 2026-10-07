@@ -14,7 +14,7 @@ use bunsen::{
             reflection::XmlModuleTree,
         },
         optim::{
-            GroupOptimizerAdaptor2,
+            GroupOptimizerPlan,
             OptimizerGroup,
         },
     },
@@ -26,6 +26,13 @@ use bunsen::{
         datasets::NANOCHAT_SHARD_SETS,
     },
     public::hashbrown::HashSet,
+};
+use bunsen_app::{
+    device::{
+        DeviceArgs,
+        DevicePrefs,
+    },
+    shards::ShardArgs,
 };
 use bunsen_arrow_dataloaders::{
     dataloaders::chat::ChatDataLoader,
@@ -46,11 +53,9 @@ use burn::{
         MuonConfig,
         decay::WeightDecayConfig,
     },
-    prelude::Backend,
-    record::CompactRecorder,
     tensor::{
+        Device,
         Tensor,
-        backend::AutodiffBackend,
         s,
     },
     train::{
@@ -67,7 +72,6 @@ use burn::{
     },
 };
 use clap::Parser;
-use clap_common::shards::ShardArgs;
 use num_traits::Pow;
 use rand::{
     SeedableRng,
@@ -170,6 +174,10 @@ pub struct Args {
     /// Directory to save the artifacts.
     #[arg(long, default_value = "/tmp/chat")]
     pub artifact_dir: String,
+
+    /// The device to train on.
+    #[command(flatten)]
+    pub device: DeviceArgs,
 }
 
 fn ensure_artifact_dir(artifact_dir: &str) -> anyhow::Result<()> {
@@ -181,29 +189,10 @@ fn ensure_artifact_dir(artifact_dir: &str) -> anyhow::Result<()> {
 fn main() -> anyhow::Result<()> {
     let args = Args::parse();
 
-    cfg_select! {
-        feature = "cuda" => {
-            type B = burn::backend::Cuda;
-            println!("Using Cuda backend.");
-            run::<burn::backend::Autodiff<B>>(&args)
-        }
-        feature = "metal" => {
-            type B = burn::backend::Metal;
-            println!("Using Metal backend.");
-            run::<burn::backend::Autodiff<B>>(&args)
-        }
-        feature = "wgpu" => {
-            type B = burn::backend::Wgpu;
-            println!("Using Wgpu backend.");
-            run::<burn::backend::Autodiff<B>>(&args)
-        }
-        _ => {
-            compile_error!("No backend feature selected");
-        }
-    }
+    run(&args)
 }
 
-fn run<B: AutodiffBackend>(args: &Args) -> anyhow::Result<()> {
+fn run(args: &Args) -> anyhow::Result<()> {
     type T = u32;
 
     println!("{:#?}", args);
@@ -212,7 +201,11 @@ fn run<B: AutodiffBackend>(args: &Args) -> anyhow::Result<()> {
     let artifact_dir: &str = args.artifact_dir.as_ref();
     ensure_artifact_dir(artifact_dir)?;
 
-    let device: B::Device = Default::default();
+    // Training records gradients: autodiff before the model and inputs.
+    let device: Device = args
+        .device
+        .init(&DevicePrefs::training())
+        .map_err(anyhow::Error::msg)?;
 
     let shard_cache = BunsenDiskCache::default();
     let shard_paths = args.shards.fetch_paths(
@@ -264,7 +257,7 @@ fn run<B: AutodiffBackend>(args: &Args) -> anyhow::Result<()> {
         .with_n_layer(args.n_layer)
         .with_vocab_size(vocab_size);
 
-    let gpt: NanoChatGpt<B> = gpt_config.init(&device);
+    let gpt: NanoChatGpt = gpt_config.init(&device);
 
     let host = GptHost { gpt };
 
@@ -275,7 +268,7 @@ fn run<B: AutodiffBackend>(args: &Args) -> anyhow::Result<()> {
         ..Default::default()
     };
 
-    let training_data_loader: ChatDataLoader<B> = ChatDataLoader::new(
+    let training_data_loader: ChatDataLoader = ChatDataLoader::new(
         training_paths,
         Some(Arc::new(Mutex::new(StdRng::seed_from_u64(0)))),
         &device,
@@ -283,7 +276,7 @@ fn run<B: AutodiffBackend>(args: &Args) -> anyhow::Result<()> {
         dl_config.clone(),
     );
 
-    let validation_data_loader: ChatDataLoader<B::InnerBackend> =
+    let validation_data_loader: ChatDataLoader =
         ChatDataLoader::new(validation_paths, None, &device, tok.clone(), dl_config);
 
     let training = SupervisedTraining::new(
@@ -294,7 +287,7 @@ fn run<B: AutodiffBackend>(args: &Args) -> anyhow::Result<()> {
     .grads_accumulation(args.grads_accumulation)
     .num_epochs(args.num_epochs)
     .metrics((LossMetric::new(), LearningRateMetric::new()))
-    .with_file_checkpointer(CompactRecorder::new())
+    .with_default_checkpointers()
     .summary();
 
     let ParamGroups {
@@ -320,86 +313,91 @@ fn run<B: AutodiffBackend>(args: &Args) -> anyhow::Result<()> {
 
     // TODO: per-group GradientClipping.
 
-    // `new` checks that the groups partition the model's float parameters;
-    // `ParamGroups::select`'s remnant group covers whatever the others don't.
-    let optimizer = GroupOptimizerAdaptor2::new(
+    // `try_new` checks that the groups partition the model's float
+    // parameters; `ParamGroups::select`'s remnant group covers whatever the
+    // others don't.
+    let plan = GroupOptimizerPlan::try_new(
         &host,
         vec![
-            OptimizerGroup::from_adaptor(
+            OptimizerGroup::new(
                 lm_head_params,
-                &AdamWConfig::new()
+                AdamWConfig::new()
                     .with_beta_1(0.8)
                     .with_beta_2(0.96)
                     .with_epsilon(1e-10)
                     .with_weight_decay(0.01)
-                    .init::<B, GptHost<B>>(),
+                    .build(),
             )
             .with_lr_selector(move |lr| lr * lm_head_lr),
-            OptimizerGroup::from_adaptor(
+            OptimizerGroup::new(
                 embedding_params,
-                &AdamWConfig::new()
+                AdamWConfig::new()
                     .with_beta_1(0.8)
                     .with_beta_2(0.995)
                     .with_epsilon(1e-10)
                     .with_weight_decay(0.001)
-                    .init::<B, GptHost<B>>(),
+                    .build(),
             )
             .with_lr_selector(move |lr| lr * embedding_lr),
-            OptimizerGroup::from_adaptor(
+            OptimizerGroup::new(
                 remnant_params,
-                &AdamWConfig::new()
+                AdamWConfig::new()
                     .with_beta_1(0.8)
                     .with_beta_2(0.96)
                     .with_epsilon(1e-10)
                     .with_weight_decay(0.01)
-                    .init::<B, GptHost<B>>(),
+                    .build(),
             )
             .with_lr_selector(move |lr| lr * scalar_lr),
-        ],
-        vec![
-            OptimizerGroup::from_adaptor(
+            OptimizerGroup::new(
                 matrix_params,
-                &MuonConfig::new()
+                MuonConfig::new()
                     // .with_adjust_lr_fn(AdjustLrFn::MatchRmsAdamW)
                     .with_weight_decay(Some(WeightDecayConfig {
                         penalty: args.weight_decay,
                     }))
-                    .init::<B, GptHost<B>>(),
+                    .build(),
             )
             .with_lr_selector(move |lr| lr * matrix_lr),
         ],
     )?;
 
-    let result = training.launch(Learner::new(host, optimizer, warmup_scheduler));
+    let result = training.launch(Learner::new(
+        host,
+        plan.optimizer(),
+        plan.lr_scheduler(warmup_scheduler),
+    ));
+    if let Some(error) = result.error {
+        anyhow::bail!("training failed: {error}");
+    }
 
     result
         .model
-        .save_file(format!("{artifact_dir}/model"), &CompactRecorder::new())
-        .expect("Trained model should be saved successfully");
+        .save_file(format!("{artifact_dir}/model.bpk"))?;
 
     Ok(())
 }
 
 #[derive(Module, Debug)]
-pub struct GptHost<B: Backend> {
-    pub gpt: NanoChatGpt<B>,
+pub struct GptHost {
+    pub gpt: NanoChatGpt,
 }
 
-impl<B: Backend> GptHost<B> {
+impl GptHost {
     fn loss_step(
         &self,
-        input: Tensor<B, 2, burn::prelude::Int>,
-    ) -> ClassificationOutput<B> {
-        let inputs: Tensor<B, 2, burn::prelude::Int> = input.clone().slice(s![.., ..-1]);
-        let targets: Tensor<B, 2, burn::prelude::Int> = input.slice(s![.., 1..]);
+        input: Tensor<2, burn::prelude::Int>,
+    ) -> ClassificationOutput {
+        let inputs: Tensor<2, burn::prelude::Int> = input.clone().slice(s![.., ..-1]);
+        let targets: Tensor<2, burn::prelude::Int> = input.slice(s![.., 1..]);
 
         let mut kv_cache = None;
 
         // Logits.
-        let outputs: Tensor<B, 3> = self.gpt.forward(inputs, &mut kv_cache);
+        let outputs: Tensor<3> = self.gpt.forward(inputs, &mut kv_cache);
 
-        let output_flatten: Tensor<B, 2> = outputs.flatten(0, 1);
-        let targets_flatten: Tensor<B, 1, burn::prelude::Int> = targets.flatten(0, 1);
+        let output_flatten: Tensor<2> = outputs.flatten(0, 1);
+        let targets_flatten: Tensor<1, burn::prelude::Int> = targets.flatten(0, 1);
 
         let loss = CrossEntropyLossConfig::new()
             .init(&output_flatten.device())
@@ -413,9 +411,9 @@ impl<B: Backend> GptHost<B> {
     }
 }
 
-impl<B: AutodiffBackend> TrainStep for GptHost<B> {
-    type Input = Tensor<B, 2, burn::prelude::Int>;
-    type Output = ClassificationOutput<B>;
+impl TrainStep for GptHost {
+    type Input = Tensor<2, burn::prelude::Int>;
+    type Output = ClassificationOutput;
 
     fn step(
         &self,
@@ -428,9 +426,9 @@ impl<B: AutodiffBackend> TrainStep for GptHost<B> {
     }
 }
 
-impl<B: Backend> InferenceStep for GptHost<B> {
-    type Input = Tensor<B, 2, burn::prelude::Int>;
-    type Output = ClassificationOutput<B>;
+impl InferenceStep for GptHost {
+    type Input = Tensor<2, burn::prelude::Int>;
+    type Output = ClassificationOutput;
 
     fn step(
         &self,
@@ -466,7 +464,7 @@ impl ParamGroups {
     /// the `gpt` field is `GptHost/NanoChatGpt`. `h` is a `Vec` of
     /// `NanoChatGptBlock`, whose `Linear`s sit in `attn` and `mlp`, hence
     /// `//Linear`. Stacked predicates (`[a][b]`) mean "a and b".
-    pub fn select<B: Backend>(host: &GptHost<B>) -> anyhow::Result<Self> {
+    pub fn select(host: &GptHost) -> anyhow::Result<Self> {
         let mut mtree = XmlModuleTree::build(host);
         let mut select = |expr: &str| -> anyhow::Result<HashSet<ParamId>> {
             Ok(mtree.select_param_ids(expr)?.into_iter().collect())
@@ -499,23 +497,19 @@ impl ParamGroups {
 
 #[cfg(test)]
 mod tests {
-    use bunsen::support::testing::{
-        CpuBackend,
-        default_device,
-    };
 
     use super::*;
 
     /// A `GptHost` small enough to build in milliseconds.
-    fn tiny_host() -> GptHost<CpuBackend> {
-        let gpt: NanoChatGpt<CpuBackend> = NanoChatGptContractConfig::new()
+    fn tiny_host() -> GptHost {
+        let gpt: NanoChatGpt = NanoChatGptContractConfig::new()
             .with_vocab_size(32)
             .with_n_layer(2)
             .with_n_head(2)
             .with_n_kv_head(2)
             .with_n_embed(8)
             .with_init_seq_len(16)
-            .init(&default_device());
+            .init(&bunsen::support::testing::cpu_device());
         GptHost { gpt }
     }
 

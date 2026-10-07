@@ -91,8 +91,10 @@ jobs:
       # included, and an `actions/cache` over an `OUT_DIR` path goes stale as
       # soon as the hash in that path changes.
 
+      # An explicit list rather than `--all-features`: `cuda` pulls in an
+      # LLVM-based compiler toolchain, and `metal` builds only on macOS.
       - name: Docs
-        run: cargo doc --no-deps --all-features
+        run: cargo doc --no-deps --features download,indicatif,gpu-tests,wgpu,vulkan
 
       # The step above documents the whole workspace, so Cargo unifies features
       # across members and a link can resolve there that breaks for `bunsen`
@@ -108,8 +110,13 @@ jobs:
       - name: Docs (default features)
         run: cargo doc -p bunsen --no-deps
 
+      # The runner has no GPU. `BURN_DEVICE` pins burn's default device, and
+      # with it `performance_device()`, to the CPU, whatever backend features
+      # the workspace build unifies in.
       - name: Build and Test
         run: cargo test --features download,indicatif
+        env:
+          BURN_DEVICE: flex
 
       - name: No default features build.
         run: cargo test -p bunsen --no-default-features

@@ -1,6 +1,5 @@
 use burn::{
     Tensor,
-    prelude::Backend,
     tensor::DType::F32,
 };
 
@@ -28,19 +27,19 @@ impl RmsNormOptions {
     }
 
     /// Applies root-mean-square norm.
-    pub fn norm<B: Backend, const R: usize>(
+    pub fn norm<const R: usize>(
         &self,
-        x: Tensor<B, R>,
-    ) -> Tensor<B, R> {
+        x: Tensor<R>,
+    ) -> Tensor<R> {
         rms_norm(x, self)
     }
 }
 
 /// Applies root-mean-square norm.
-pub fn rms_norm<B: Backend, const R: usize>(
-    x: Tensor<B, R>,
+pub fn rms_norm<const R: usize>(
+    x: Tensor<R>,
     options: &RmsNormOptions,
-) -> Tensor<B, R> {
+) -> Tensor<R> {
     let eps: f32 = options.eps;
     let dtype = x.dtype();
 
@@ -67,18 +66,16 @@ mod tests {
     use super::*;
     use crate::support::testing::{
         DeviceMemoryGuard,
-        PerformanceBackend,
-        default_device,
+        performance_device,
     };
 
     #[test]
     #[serial]
     fn test_rms_norm() {
-        type B = PerformanceBackend;
-        let device = default_device();
-        let _memory = DeviceMemoryGuard::<B>::new(&device);
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
 
-        let x: Tensor<B, 3> = Tensor::random([2, 3, 4], Distribution::Default, &device);
+        let x: Tensor<3> = Tensor::random([2, 3, 4], Distribution::Default, &device);
         let options = RmsNormOptions::default();
 
         let y = rms_norm(x.clone(), &options);

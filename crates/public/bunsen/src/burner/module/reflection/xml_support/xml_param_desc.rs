@@ -1,4 +1,7 @@
-use std::str::FromStr;
+use std::{
+    fmt::Display,
+    str::FromStr,
+};
 
 use burn::{
     module::ParamId,
@@ -36,8 +39,10 @@ use crate::{
     },
     errors::{
         BunsenError,
+        BunsenErrorKind,
         BunsenResult,
         LookupError,
+        ParseError,
         ResultContext,
     },
 };
@@ -47,8 +52,9 @@ use crate::{
 /// # Errors
 /// - [`Lookup`](crate::errors::BunsenErrorKind::Lookup), with a [`LookupError`]
 ///   cause, if the node lacks an attribute;
-/// - [`Internal`](crate::errors::BunsenErrorKind::Internal) if its `dtype` or
-///   `shape` attribute does not parse: module reflection writes them itself.
+/// - [`Internal`](crate::errors::BunsenErrorKind::Internal) if its `param_id`,
+///   `kind`, `dtype` or `shape` attribute does not parse, or `kind` disagrees
+///   with `dtype`: module reflection writes them itself.
 pub fn node_to_tensor_param_desc(
     xot: &xot::Xot,
     node: xot::Node,
@@ -76,14 +82,39 @@ pub fn node_to_tensor_param_desc(
             .context(format!("<{}>", names::PARAM_ELEM)))
     }
 
-    // TODO: Extract, real errors.
-    let param_id: ParamId =
-        ParamId::deserialize(&get_attr(&attrs, param_id_nid, names::PARAM_ID_ATTR)?);
-    let kind = TensorKindDesc::from_str(&get_attr(&attrs, kind_nid, names::KIND_ATTR)?).unwrap();
+    fn parse_attr<T>(
+        attrs: &Attributes,
+        nid: NameId,
+        attr: &str,
+    ) -> BunsenResult<T>
+    where
+        T: FromStr,
+        T::Err: Display,
+    {
+        let val = get_attr(attrs, nid, attr)?;
+        val.parse().map_err(|e: T::Err| {
+            BunsenError::from_cause(
+                BunsenErrorKind::Internal,
+                ParseError::new(format!("<{}> {attr} attribute", names::PARAM_ELEM))
+                    .input(&val)
+                    .because(e),
+            )
+        })
+    }
+
+    let param_id: ParamId = parse_attr(&attrs, param_id_nid, names::PARAM_ID_ATTR)?;
+    let kind: TensorKindDesc = parse_attr(&attrs, kind_nid, names::KIND_ATTR)?;
     let dtype = dtype_from_str(&get_attr(&attrs, dtype_nid, names::DTYPE_ATTR)?)
         .as_internal()
         .with_context(|| format!("<{}> {} attribute", names::PARAM_ELEM, names::DTYPE_ATTR))?;
-    assert_eq!(kind, dtype.into());
+    if kind != TensorKindDesc::from(dtype) {
+        return Err(BunsenError::internal(format!(
+            "<{}> {} attribute {kind} does not match {} attribute {dtype:?}",
+            names::PARAM_ELEM,
+            names::KIND_ATTR,
+            names::DTYPE_ATTR,
+        )));
+    }
 
     let shape: Shape = shape_from_xml_attr(&get_attr(&attrs, shape_nid, names::SHAPE_ATTR)?)
         .as_internal()
@@ -129,4 +160,46 @@ pub fn tensor_param_desc_to_attributes(
     );
 
     Ok(node)
+}
+
+#[cfg(test)]
+mod tests {
+    use burn::tensor::DType;
+
+    use super::*;
+    use crate::errors::BunsenErrorKind;
+
+    fn param_node(
+        xot: &mut xot::Xot,
+        param_id: &str,
+    ) -> Node {
+        let desc = ParamDesc::new(
+            ParamId::new(),
+            TensorDesc::new(DType::F32, Shape::new([2, 3])),
+        );
+        let node = tensor_param_desc_to_node(xot, &desc).unwrap();
+        let param_id_nid = xot.add_name(PARAM_ID_ATTR);
+        xot.set_attribute(node, param_id_nid, param_id);
+        node
+    }
+
+    #[test]
+    fn test_round_trip() {
+        let mut xot = xot::Xot::new();
+        let desc = ParamDesc::new(
+            ParamId::new(),
+            TensorDesc::new(DType::F32, Shape::new([2, 3])),
+        );
+        let node = tensor_param_desc_to_node(&mut xot, &desc).unwrap();
+        assert_eq!(node_to_tensor_param_desc(&xot, node).unwrap(), desc);
+    }
+
+    #[test]
+    fn test_bad_param_id_is_internal() {
+        let mut xot = xot::Xot::new();
+        let node = param_node(&mut xot, "not a param id!");
+        let err = node_to_tensor_param_desc(&xot, node).unwrap_err();
+        assert_eq!(err.kind(), BunsenErrorKind::Internal);
+        assert!(err.to_string().contains("param_id"), "{err}");
+    }
 }

@@ -2,7 +2,7 @@
 
 use std::collections::BTreeMap;
 
-use burn::prelude::Backend;
+use burn::tensor::Device;
 
 use super::{
     CacheStatus,
@@ -125,15 +125,15 @@ impl<H: Construct> Deferred<H> {
     /// model. The model and its files are the caller's input: an
     /// [`Illegal`](crate::errors::BunsenErrorKind::Illegal) error they cause
     /// is re-marked [`Policy`](crate::errors::BunsenErrorKind::Policy).
-    pub fn load<B: Backend>(
+    pub fn load(
         &self,
         cache: &PretrainedCache,
-        device: &B::Device,
-    ) -> BunsenResult<Loaded<H::Built<B>>> {
-        let load = || -> BunsenResult<Loaded<H::Built<B>>> {
+        device: &Device,
+    ) -> BunsenResult<Loaded<H::Built>> {
+        let load = || -> BunsenResult<Loaded<H::Built>> {
             let planned = self.hook.plan(&self.model, cache)?;
             let resources = cache.load(H::KIT, &planned)?;
-            let handle = self.hook.construct::<B>(&self.model, &resources, device)?;
+            let handle = self.hook.construct(&self.model, &resources, device)?;
             Ok(Loaded {
                 name: resources.map.name.clone(),
                 handle,
@@ -167,10 +167,7 @@ mod tests {
             BunsenErrorKind,
             testing::ErrorMatcher,
         },
-        support::testing::{
-            CpuBackend,
-            default_device,
-        },
+        support::testing::cpu_device,
     };
 
     fn offline_cache(dir: &std::path::Path) -> PretrainedCache {
@@ -226,7 +223,7 @@ mod tests {
         assert_eq!(given.id(), spec);
         assert_eq!(given.status(&cache)["checkpoint"], CacheStatus::LocalDir);
         assert_eq!(given.plan(&cache).unwrap(), given.to_map());
-        let loaded = given.load::<CpuBackend>(&cache, &default_device()).unwrap();
+        let loaded = given.load(&cache, &cpu_device()).unwrap();
         assert_eq!(*loaded.handle, file);
         assert_eq!(loaded.name, spec);
         assert_eq!(
@@ -241,7 +238,7 @@ mod tests {
         ErrorMatcher::kind(BunsenErrorKind::Policy)
             .frame_contains("loading kit \"well-known:a/small\"")
             .message_contains("the cache is offline")
-            .assert_err(&named.load::<CpuBackend>(&cache, &default_device()));
+            .assert_err(&named.load(&cache, &cpu_device()));
     }
 
     /// An overlay replaces by key and keeps the hook the model was given.
@@ -258,7 +255,7 @@ mod tests {
             .unwrap();
         assert_eq!(model.id(), "well-known:a/small");
         assert_eq!(model.to_map().get("checkpoint").unwrap().file, "other.pt");
-        let loaded = model.load::<CpuBackend>(&cache, &default_device()).unwrap();
+        let loaded = model.load(&cache, &cpu_device()).unwrap();
         assert_eq!(*loaded.handle, other);
         assert_eq!(loaded.name, "well-known:a/small");
     }

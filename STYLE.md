@@ -128,7 +128,7 @@ These are **not** tensor shapes — leave them as written:
 
 - Coordinate / value tuples and pairs: `(y, x)`, `(k, v)`,
   `(density, velocity)`, `(height, width)` tuples.
-- Rust type code spans: `&[usize; D]`, `Param<Tensor<B, R, K>>`.
+- Rust type code spans: `&[usize; D]`, `Param<Tensor<R, K>>`.
 - Half-open ranges and indexing: `[start, end)`, `env[$VAR]`.
 - Intra-doc link syntax: `[text](url)`.
 
@@ -181,9 +181,9 @@ is what lets `to_device` reach the tensors. Hold non-learnable tensors bare,
 not as `Param`.
 
 * `#[derive(Module, Debug)]`, without `Clone`: the derive provides `Clone`.
-* A held config is `#[module(skip)]`. Only fields whose type does not mention
-  `B` can be skipped; a type that must hold a backend-generic non-`Module`
-  (a boxed policy) is a plain struct with `Module`-typed tensor state inside.
+* A held config, or any other value object, is `#[module(skip)]`: the derive
+  treats every field that is not a primitive as a sub-module, so a field that
+  is not a `Module` must be skipped. A `Param` field cannot be.
 * Bare tensors are not written to records, are skipped by `ModuleMapper`
   passes (dtype casts), and do not appear in reflection. Say so on the type.
 
@@ -236,6 +236,8 @@ not: dev-dependencies and crate-private test helpers.
 * `fetch` — the program may reach the network at run time (`cache` alone is local).
 * `onnx_gen` — generate reference models from an ONNX graph.
 * `checkpoint` — fetch pretrained weights.
+* `tui` — burn's terminal training dashboard; on by default in the training
+  examples.
 
 These names are **reserved** across the workspace. No crate is obliged to
 offer one; a crate that offers one means this, and nothing else. Most crates
@@ -253,17 +255,28 @@ A backend feature enables the backend in **`bunsen`**, not only in `burn`:
 ```text
 prefer:  wgpu = ["bunsen/wgpu"]                (a test picks the backend)
          wgpu = ["burn/wgpu", "bunsen/wgpu"]   (and `burn` is used directly)
-not:     wgpu = ["burn/wgpu"]                  (`PerformanceBackend` is Flex)
+not:     wgpu = ["burn/wgpu"]                  (`performance_device()` is Flex)
 ```
 
-Only `bunsen/<backend>` moves `bunsen::support::testing::PerformanceBackend`.
+Only `bunsen/<backend>` moves `bunsen::support::testing::performance_device()`.
 Its `cfg_select!` falls through to `Flex`, a CPU backend, when no backend
-feature reaches `bunsen` — so a test written against `PerformanceBackend`
+feature reaches `bunsen` — so a test written against `performance_device()`
 still compiles and still passes, having quietly measured the CPU.
 
 `flex` names that fallback rather than an accelerator, and is exempt from the
-prohibition above: an example that wants to run without hardware carries it in
-`default`.
+prohibition above.
+
+An example binary does not use `performance_device()`: it picks its device
+and precision at run time, with `bunsen_app::device::DeviceArgs` (`--device`,
+`--precision`, `--float-dtype`), from the preferences it states in a
+`DevicePrefs`. `bunsen-app` always has the CPU, and offers an accelerator only
+when it was built with that backend, so an example's backend features (and the
+training examples' `tui`) forward to it and to nothing else:
+
+```text
+prefer:  wgpu = ["bunsen-app/wgpu"]
+not:     wgpu = ["burn/wgpu", "bunsen-app/wgpu"]   (bunsen-app already enables it)
+```
 
 ### GPU tests
 

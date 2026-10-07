@@ -4,7 +4,6 @@ use std::collections::HashMap;
 
 use burn::{
     Tensor,
-    prelude::Backend,
     tensor::activation::log_softmax,
 };
 
@@ -124,7 +123,7 @@ impl WhisperBeamSearchDecoder {
     }
 }
 
-impl<B: Backend> TokenDecoder<B> for WhisperBeamSearchDecoder {
+impl TokenDecoder for WhisperBeamSearchDecoder {
     fn group_size(&self) -> usize {
         self.k
     }
@@ -136,7 +135,7 @@ impl<B: Backend> TokenDecoder<B> for WhisperBeamSearchDecoder {
     fn update(
         &mut self,
         tokens: &mut Vec<Vec<i64>>,
-        logits: Tensor<B, 2>,
+        logits: Tensor<2>,
         sum_logprobs: &mut [f32],
         reorder: &mut dyn FnMut(&[usize]),
     ) -> (Vec<i64>, bool) {
@@ -154,8 +153,8 @@ impl<B: Backend> TokenDecoder<B> for WhisperBeamSearchDecoder {
 
         // Each row's k + 1 best next tokens, with their log probabilities.
         let (values, indices) = log_softmax(logits, 1).topk_with_indices(k + 1, 1);
-        let values: Vec<f32> = values.into_data().convert::<f32>().to_vec().unwrap();
-        let indices: Vec<i64> = indices.into_data().convert::<i64>().to_vec().unwrap();
+        let values: Vec<f32> = values.into_data().try_into_vec_as::<f32>().unwrap();
+        let indices: Vec<i64> = indices.into_data().try_into_vec_as::<i64>().unwrap();
 
         let mut next: Vec<Vec<i64>> = Vec::with_capacity(rows);
         let mut next_sums: Vec<f32> = Vec::with_capacity(rows);
@@ -280,19 +279,21 @@ impl<B: Backend> TokenDecoder<B> for WhisperBeamSearchDecoder {
 
 #[cfg(test)]
 mod tests {
-    use burn::prelude::TensorData;
+    use burn::{
+        prelude::TensorData,
+        tensor::Device,
+    };
 
     use super::*;
     use crate::support::testing::{
         DeviceMemoryGuard,
-        PerformanceBackend,
-        default_device,
+        performance_device,
     };
 
-    fn logits<B: Backend>(
+    fn logits(
         rows: &[&[f32]],
-        device: &B::Device,
-    ) -> Tensor<B, 2> {
+        device: &Device,
+    ) -> Tensor<2> {
         let vocab = rows[0].len();
         let flat: Vec<f32> = rows.iter().flat_map(|r| r.iter().copied()).collect();
         Tensor::from_data(TensorData::new(flat, [rows.len(), vocab]), device)
@@ -307,9 +308,8 @@ mod tests {
     #[test]
     #[serial_test::serial]
     fn test_first_step_deduplicates() {
-        type B = PerformanceBackend;
-        let device = default_device();
-        let _memory = DeviceMemoryGuard::<B>::new(&device);
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
 
         let mut decoder = WhisperBeamSearchDecoder::new(3, EOT, None);
         let mut tokens = vec![vec![7]; 3];
@@ -319,10 +319,10 @@ mod tests {
 
         // Vocabulary of 5; token 4 best, then 3, then 2.
         let row: &[f32] = &[-9.0, -9.0, 1.0, 2.0, 3.0];
-        let (feed, done) = TokenDecoder::<B>::update(
+        let (feed, done) = TokenDecoder::update(
             &mut decoder,
             &mut tokens,
-            logits::<B>(&[row, row, row], &device),
+            logits(&[row, row, row], &device),
             &mut sums,
             &mut reorder,
         );
@@ -340,9 +340,8 @@ mod tests {
     #[test]
     #[serial_test::serial]
     fn test_finished_set_and_patience() {
-        type B = PerformanceBackend;
-        let device = default_device();
-        let _memory = DeviceMemoryGuard::<B>::new(&device);
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
         let mut decoder = WhisperBeamSearchDecoder::new(2, EOT, None);
         assert_eq!(decoder.beam_size(), 2);
         assert_eq!(decoder.max_candidates(), 2);
@@ -352,10 +351,10 @@ mod tests {
 
         // Best is the stop token, then 3, then 2.
         let row: &[f32] = &[3.0, -9.0, 1.0, 2.0];
-        let (feed, done) = TokenDecoder::<B>::update(
+        let (feed, done) = TokenDecoder::update(
             &mut decoder,
             &mut tokens,
-            logits::<B>(&[row, row], &device),
+            logits(&[row, row], &device),
             &mut sums,
             &mut reorder,
         );
@@ -364,10 +363,10 @@ mod tests {
         assert!(!done, "one finished, two wanted");
 
         // Both live beams end now: the set fills and the search completes.
-        let (_, done) = TokenDecoder::<B>::update(
+        let (_, done) = TokenDecoder::update(
             &mut decoder,
             &mut tokens,
-            logits::<B>(&[row, row], &device),
+            logits(&[row, row], &device),
             &mut sums,
             &mut reorder,
         );
@@ -375,7 +374,7 @@ mod tests {
 
         // Finalize strips the prompt and the stop token; the best finished
         // candidate is the one that ended first.
-        let out = TokenDecoder::<B>::finalize(&mut decoder, tokens, sums, 1);
+        let out = TokenDecoder::finalize(&mut decoder, tokens, sums, 1);
         assert_eq!(out.len(), 1);
         assert_eq!(out[0].len(), 2);
         assert_eq!(out[0][0].0, Vec::<i64>::new());
@@ -388,9 +387,8 @@ mod tests {
     #[test]
     #[serial_test::serial]
     fn test_patience_and_finalize_fill() {
-        type B = PerformanceBackend;
-        let device = default_device();
-        let _memory = DeviceMemoryGuard::<B>::new(&device);
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
         let mut decoder = WhisperBeamSearchDecoder::new(2, EOT, Some(2.0));
         assert_eq!(decoder.max_candidates(), 4);
         let mut tokens = vec![vec![7]; 2];
@@ -399,17 +397,17 @@ mod tests {
 
         // Nothing ends.
         let row: &[f32] = &[-9.0, -9.0, 1.0, 2.0];
-        let (_, done) = TokenDecoder::<B>::update(
+        let (_, done) = TokenDecoder::update(
             &mut decoder,
             &mut tokens,
-            logits::<B>(&[row, row], &device),
+            logits(&[row, row], &device),
             &mut sums,
             &mut reorder,
         );
         assert!(!done);
         assert_eq!(tokens, vec![vec![7, 3], vec![7, 2]]);
 
-        let out = TokenDecoder::<B>::finalize(&mut decoder, tokens, sums, 1);
+        let out = TokenDecoder::finalize(&mut decoder, tokens, sums, 1);
         assert_eq!(
             out[0].len(),
             2,
@@ -424,9 +422,8 @@ mod tests {
     #[test]
     #[serial_test::serial]
     fn test_groups_are_independent() {
-        type B = PerformanceBackend;
-        let device = default_device();
-        let _memory = DeviceMemoryGuard::<B>::new(&device);
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
         let mut decoder = WhisperBeamSearchDecoder::new(2, EOT, None);
         let mut tokens = vec![vec![7]; 4];
         let mut sums = vec![0.0; 4];
@@ -435,10 +432,10 @@ mod tests {
 
         let a: &[f32] = &[-9.0, -9.0, 1.0, 2.0];
         let b: &[f32] = &[-9.0, 2.0, 1.0, -9.0];
-        let (feed, _) = TokenDecoder::<B>::update(
+        let (feed, _) = TokenDecoder::update(
             &mut decoder,
             &mut tokens,
-            logits::<B>(&[a, a, b, b], &device),
+            logits(&[a, a, b, b], &device),
             &mut sums,
             &mut reorder,
         );

@@ -2,13 +2,17 @@
 
 This demonstrate real-time volumetric simulations, using "Conway's Game of Life".
 
-Select `BACKEND` from:
+Pick the device at run time with `--device` (`auto`, `cuda`, `metal`,
+`vulkan`, `wgpu`, `flex`) and `--device-index`. A backend is available when
+the example is built with its feature, `BACKEND` below, one of:
 
 * `cuda` - nvidia backend.
 * `metal` - apple backend.
 * `vulkan` - vulkan backend.
 * `wgpu` - web-gpu backend.
-* `flex` - cpu backend.
+
+`flex`, the CPU, is always available, and `auto` (the default) takes the first
+accelerator built in.
 
 ## Sub-Commands
 

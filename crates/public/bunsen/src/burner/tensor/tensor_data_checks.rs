@@ -95,11 +95,11 @@ impl TensorDataCheckExt for TensorData {
         other: &TensorData,
         strict: bool,
     ) -> BunsenResult<()> {
-        if strict && self.dtype != other.dtype {
+        if strict && self.dtype() != other.dtype() {
             return Err(dtype_mismatch(self, other));
         }
 
-        match self.dtype {
+        match self.dtype() {
             DType::F64 => self.try_assert_eq_elem::<f64>(other),
             DType::F32 | DType::Flex32 => self.try_assert_eq_elem::<f32>(other),
             DType::F16 => self.try_assert_eq_elem::<f16>(other),
@@ -118,19 +118,22 @@ impl TensorDataCheckExt for TensorData {
             DType::QFloat(q) => {
                 // Strict or not, it doesn't make sense to compare quantized
                 // data to not quantized data for equality
-                let q_other = if let DType::QFloat(q_other) = other.dtype {
+                let q_other = if let DType::QFloat(q_other) = other.dtype() {
                     q_other
                 } else {
                     return Err(ValueMismatch::Quantization {
                         actual: format!("{q:?}"),
-                        expected: format!("not quantized ({:?})", other.dtype),
+                        expected: format!("not quantized ({:?})", other.dtype()),
                     }
                     .into());
                 };
 
                 // Data equality mostly depends on input quantization type, but
-                // we also check level
-                if q.value == q_other.value && q.level == q_other.level {
+                // we also check the scale layout
+                if q.value == q_other.value
+                    && q.block_size() == q_other.block_size()
+                    && q.scale_dtype() == q_other.scale_dtype()
+                {
                     self.try_assert_eq_elem::<i8>(other)
                 } else {
                     Err(ValueMismatch::Quantization {
@@ -148,7 +151,7 @@ impl TensorDataCheckExt for TensorData {
         &self,
         other: &Self,
     ) -> BunsenResult<()> {
-        if self.shape != other.shape {
+        if self.shape() != other.shape() {
             return Err(shape_mismatch(self, other));
         }
 
@@ -175,10 +178,10 @@ impl TensorDataCheckExt for TensorData {
         tolerance: Tolerance<F>,
         strict: bool,
     ) -> BunsenResult<()> {
-        if strict && self.dtype != other.dtype {
+        if strict && self.dtype() != other.dtype() {
             return Err(dtype_mismatch(self, other));
         }
-        if self.shape != other.shape {
+        if self.shape() != other.shape() {
             return Err(shape_mismatch(self, other));
         }
 
@@ -227,8 +230,8 @@ fn dtype_mismatch(
     expected: &TensorData,
 ) -> BunsenError {
     ValueMismatch::DType {
-        actual: format!("{:?}", actual.dtype),
-        expected: format!("{:?}", expected.dtype),
+        actual: format!("{:?}", actual.dtype()),
+        expected: format!("{:?}", expected.dtype()),
     }
     .into()
 }
@@ -240,8 +243,8 @@ fn shape_mismatch(
     expected: &TensorData,
 ) -> BunsenError {
     ValueMismatch::Shape {
-        actual: actual.shape.to_vec(),
-        expected: expected.shape.to_vec(),
+        actual: actual.shape().to_vec(),
+        expected: expected.shape().to_vec(),
     }
     .into()
 }

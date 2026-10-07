@@ -2,10 +2,7 @@
 
 use burn::{
     Tensor,
-    prelude::{
-        Backend,
-        Bool,
-    },
+    prelude::Bool,
 };
 
 /// Computes spherical solid reflection updates.
@@ -17,7 +14,7 @@ use burn::{
 ///
 /// # Returns
 /// - `[H, W, VY=3, VX=3]` distribution.
-pub fn spherical_reflection<B: Backend>(dist: Tensor<B, 4>) -> Tensor<B, 4> {
+pub fn spherical_reflection(dist: Tensor<4>) -> Tensor<4> {
     dist.flip([2, 3])
 }
 
@@ -33,11 +30,11 @@ pub fn spherical_reflection<B: Backend>(dist: Tensor<B, 4>) -> Tensor<B, 4> {
 ///
 /// # Returns
 /// - `[H, W, VY=3, VX=3]` distribution.
-pub fn with_spherical_reflection<B: Backend>(
-    pre_dist: Tensor<B, 4>,
-    naive_dist: Tensor<B, 4>,
-    solid_mask: Tensor<B, 2, Bool>,
-) -> Tensor<B, 4> {
+pub fn with_spherical_reflection(
+    pre_dist: Tensor<4>,
+    naive_dist: Tensor<4>,
+    solid_mask: Tensor<2, Bool>,
+) -> Tensor<4> {
     naive_dist.mask_where(
         solid_mask.unsqueeze_dims::<4>(&[-1, -1]),
         spherical_reflection(pre_dist),

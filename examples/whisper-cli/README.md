@@ -50,22 +50,20 @@ driver and a `models` subcommand; the [model index](#models) and the name-to-mod
 
 ## The backend
 
-The example computes on `bunsen::support::testing::PerformanceBackend`: the backend bunsen's own compute-heavy tests run
-on. This crate does not choose it. **bunsen's backend feature** does, at build time, so the flag that picks the backend
-for `cargo test` picks it here too, and what the example runs on is what the tests ran on.
+The model runs on the device `--device` names, chosen at run time; `--device-index` picks which device of that
+backend, the backend's default when omitted. A backend is offered only when the binary was built with its feature:
 
-| build with                           | backend                     |
-|--------------------------------------|-----------------------------|
-| `--features bunsen/cuda`             | `burn::backend::Cuda`       |
-| `--features bunsen/metal`            | `burn::backend::Metal`      |
-| `--features bunsen/vulkan`           | `burn::backend::Vulkan`     |
-| `--features bunsen/wgpu`             | `burn::backend::Wgpu`       |
-| `--features bunsen/flex`, or nothing | `burn::backend::Flex` (CPU) |
+| `--device` | needs                     | runs on                                                   |
+|------------|---------------------------|-----------------------------------------------------------|
+| `auto`     | —                         | the first of `cuda`, `metal`, `vulkan`, `wgpu` built in; else `flex` |
+| `cuda`     | `--features cuda`         | CUDA                                                      |
+| `metal`    | `--features metal`        | Metal, through wgpu                                       |
+| `vulkan`   | `--features vulkan`       | Vulkan, through wgpu                                      |
+| `wgpu`     | `--features wgpu`         | wgpu, on whichever graphics API it settles on             |
+| `flex`     | —                         | the CPU                                                   |
 
-When several are on, the first of `cuda`, `metal`, `vulkan`, `wgpu` wins; with none, it falls back to `Flex`, on the
-CPU. The `dependency/feature` form of `--features` works from any package
-in the workspace, so `cargo run -p whisper-cli --features bunsen/wgpu`
-from the root and `cargo run --features bunsen/wgpu` from this directory are the same build.
+`auto` is the default, so a build with one backend feature runs on it with no flag, and a build with none runs on the
+CPU. Naming a backend the binary was not built with is an error that says which feature to rebuild with.
 
 ## Running the example
 
@@ -74,7 +72,7 @@ without the network, populate the cache first: `models fetch openai/base`, or po
 out as the cache (the layout is under [Models](#models)).
 
 ```bash
-$ cargo run --release -p whisper-cli --features bunsen/wgpu -- \
+$ cargo run --release -p whisper-cli --features wgpu -- \
    transcribe --model openai/tiny.en --timestamps /path/to/clip.wav
 ```
 
@@ -85,14 +83,14 @@ $ cargo run --release -p whisper-cli --features bunsen/wgpu -- \
 distributions name it `alsa-lib-devel` or `alsa-lib`).
 
 ```bash
-$ cargo run --release -p whisper-cli --features bunsen/wgpu -- live --list-devices
+$ cargo run --release -p whisper-cli --features wgpu -- live --list-devices
 default: default  Default Audio Device
   pipewire  PipeWire Sound Server: 2 ch, 44100 Hz, f32
   default  Default ALSA Output (currently PipeWire Media Server): 2 ch, 44100 Hz, f32
   hw:CARD=Audio,DEV=0  Aorus Master Main Audio, USB Audio: 2 ch, 192000 Hz, i32
   ...
 
-$ cargo run --release -p whisper-cli --features bunsen/wgpu -- live --model openai/tiny.en
+$ cargo run --release -p whisper-cli --features wgpu -- live --model openai/tiny.en
 listening on Default Audio Device; Ctrl-C to stop
 The world needs opportunities for new leaders and new ideas.
 ```
@@ -112,8 +110,8 @@ the region so far every 600 ms of speech, marked `~` in the log.
 
 Live options:
 
-- `--device` — the input device, by a case-insensitive substring of its id or name as `--list-devices` prints them
-  (`--device pipewire`, `--device hw:CARD=Audio`); the host's default input device when omitted.
+- `--input-device` — the input device, by a case-insensitive substring of its id or name as `--list-devices` prints
+  them (`--input-device pipewire`, `--input-device hw:CARD=Audio`); the host's default input device when omitted.
 - `--list-devices` — print the input devices that open, with their default configuration, and exit. Loads nothing.
 - `--seconds` — stop after this much audio; on Ctrl-C when omitted.
 
@@ -283,7 +281,7 @@ rm ST-AEDS-20180100_1-OS.tgz
 ### Running a small benchmark
 
 ```terminaloutput
-$ cargo run --release -p whisper-cli --features bunsen/wgpu -- transcribe  --print-filename $DATA_DIR/SLR45/f0001_us_f0001_0000{1,2,3,4,5}.wav
+$ cargo run --release -p whisper-cli --features wgpu -- transcribe  --print-filename $DATA_DIR/SLR45/f0001_us_f0001_0000{1,2,3,4,5}.wav
 ...
 INFO model: 80 n_mels, vocabulary 51865, d_model 512, 6 + 6 layers
 INFO language: detected from the first window

@@ -2,14 +2,14 @@
 //!
 //! Serializable, reference-free descriptions of `burn` tensors, parameters,
 //! and comparison tolerances. A descriptor is a plain value: it carries a
-//! tensor's metadata without its data, its backend, or the `Tensor<B, R, K>`
+//! tensor's metadata without its data, its backend, or the `Tensor<R, K>`
 //! generics, so code that is not generic over a tensor type can still name,
 //! store, and compare tensors.
 //!
 //! ## How they relate
 //!
 //! - [`TensorKindDesc`] names a tensor kind (`Bool`, `Float`, `Int`) as a
-//!   value; [`ParamKindBinding`] maps `burn`'s kind marker types to it.
+//!   value; [`TensorKindDesc::for_kind`] maps `burn`'s kind marker types to it.
 //! - [`TensorRankType`] is the slot type of a tensor: kind, dtype, and rank,
 //!   without a shape.
 //! - [`TensorDesc`] is kind, dtype, and the full
@@ -18,7 +18,7 @@
 //! - [`ParamDesc<T>`](ParamDesc) pairs a descriptor with the
 //!   [`ParamId`](burn::module::ParamId) of the parameter it describes, and
 //!   derefs to the descriptor. [`TensorParamDesc`] is `ParamDesc<TensorDesc>`,
-//!   built `From` a `&Param<Tensor<B, R, K>>`.
+//!   built `From` a `&Param<Tensor<R, K>>`.
 //! - [`ToleranceDesc`] describes an approximate comparison: a
 //!   [`TolerancePolicy`] (which [`Tolerance`](burn::tensor::Tolerance) rule)
 //!   plus the float type the rule resolves at.

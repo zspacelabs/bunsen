@@ -55,7 +55,10 @@
 //!     let data =
 //!         batch[0].maybe_get("data").unwrap().as_ref::<TensorData>()?;
 //!     // [height, width, channels]
-//!     assert_eq!([data.shape[0], data.shape[1], data.shape[2]], [4, 8, 3]);
+//!     assert_eq!(
+//!         [data.shape()[0], data.shape()[1], data.shape()[2]],
+//!         [4, 8, 3]
+//!     );
 //!     Ok(())
 //! }
 //! ```
@@ -74,11 +77,9 @@ use bunsen_firehose::{
     define_firehose_operator,
 };
 use burn::{
-    prelude::{
-        Backend,
-        Tensor,
-    },
+    prelude::Tensor,
     tensor::{
+        Device,
         TensorCreationOptions,
         TensorData,
     },
@@ -127,7 +128,7 @@ pub fn stack_tensor_data_column(
 
     let item_shape = batch[0]
         .expect_get_ref::<TensorData>(column_name)
-        .shape
+        .shape()
         .clone();
     let stack_shape = [batch.len(), item_shape[0], item_shape[1], item_shape[2]];
 
@@ -160,10 +161,10 @@ pub fn stack_tensor_data_column(
 /// # Returns
 ///
 /// A tensor representation of the image with shape `[height, width, channels]`.
-pub fn image_to_f32_tensor<B: Backend>(
+pub fn image_to_f32_tensor(
     image: &DynamicImage,
-    device: &B::Device,
-) -> Tensor<B, 3> {
+    device: &Device,
+) -> Tensor<3> {
     let height = image.height() as usize;
     let width = image.width() as usize;
     let colors = image.color().channel_count() as usize;

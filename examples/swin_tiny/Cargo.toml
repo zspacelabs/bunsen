@@ -11,14 +11,22 @@ workspace = true
 
 
 [features]
-default = []
-wgpu = ["burn/wgpu"]
-cuda = ["burn/cuda"]
-metal = ["burn/metal"]
-
+default = ["tui"]
+## burn's terminal dashboard for training metrics, when stdout is a terminal.
+tui = ["bunsen-app/tui"]
+## Make `--device cuda` available.
+cuda = ["bunsen-app/cuda"]
+## Make `--device metal` available.
+metal = ["bunsen-app/metal"]
+## Make `--device vulkan` available.
+vulkan = ["bunsen-app/vulkan"]
+## Make `--device wgpu` available.
+wgpu = ["bunsen-app/wgpu"]
 
 [dependencies]
-burn = { workspace = true, features = ["train", "fusion", "autotune", "vision", "dataset", "flex"] }
+# `--device`.
+bunsen-app = { path = "../../crates/dev/bunsen-app" }
+burn = { workspace = true, features = ["train", "fusion", "autotune", "vision", "dataset"] }
 bunsen = { path = "../../crates/public/bunsen" }
 bunsen-firehose = { path = "../../crates/public/bunsen-firehose" }
 bunsen-firehose-image = { path = "../../crates/public/bunsen-firehose-image" }

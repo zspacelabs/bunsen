@@ -8,7 +8,7 @@ use burn::{
         activation::ActivationConfig,
         norm::NormalizationConfig,
     },
-    prelude::Backend,
+    tensor::Device,
 };
 
 use crate::{
@@ -216,18 +216,15 @@ pub trait ConvSeq2dMeta {
 ///         ConvSeq2dMeta,
 ///     },
 ///     burner::module::ModuleInit,
-///     support::testing::default_device,
+///     support::testing::cpu_device,
 /// };
-/// use burn::{
-///     backend::Flex,
-///     nn::{
-///         PaddingConfig2d,
-///         activation::ActivationConfig,
-///         conv::Conv2dConfig,
-///     },
+/// use burn::nn::{
+///     PaddingConfig2d,
+///     activation::ActivationConfig,
+///     conv::Conv2dConfig,
 /// };
 ///
-/// let device = default_device();
+/// let device = cpu_device();
 ///
 /// let config = ConvSeq2dConfig::new(vec![
 ///     ConvBlock2dConfig::new(
@@ -251,7 +248,7 @@ pub trait ConvSeq2dMeta {
 /// );
 ///
 /// // `try_init` builds and validates the sequence.
-/// let seq: ConvSeq2d<Flex> = config.try_init(&device).unwrap();
+/// let seq: ConvSeq2d = config.try_init(&device).unwrap();
 /// ```
 #[derive(Config, Debug)]
 pub struct ConvSeq2dConfig {
@@ -300,11 +297,11 @@ impl ConvSeq2dConfig {
     }
 }
 
-impl<B: Backend> ModuleInit<B, ConvSeq2d<B>> for ConvSeq2dConfig {
+impl ModuleInit<ConvSeq2d> for ConvSeq2dConfig {
     fn try_init(
         &self,
-        device: &B::Device,
-    ) -> BunsenResult<ConvSeq2d<B>> {
+        device: &Device,
+    ) -> BunsenResult<ConvSeq2d> {
         let blocks = self
             .blocks
             .iter()
@@ -329,7 +326,7 @@ impl<B: Backend> ModuleInit<B, ConvSeq2d<B>> for ConvSeq2dConfig {
 /// [`try_init`](ModuleInit::try_init), then running a forward pass:
 ///
 /// ```rust,no_run
-/// use bunsen::support::testing::default_device;
+/// use bunsen::support::testing::cpu_device;
 /// use bunsen::{
 ///     blocks::conv::{
 ///         ConvBlock2dConfig,
@@ -341,7 +338,6 @@ impl<B: Backend> ModuleInit<B, ConvSeq2d<B>> for ConvSeq2dConfig {
 /// };
 /// use burn::{
 ///     Tensor,
-///     backend::Flex,
 ///     nn::{
 ///         PaddingConfig2d,
 ///         conv::Conv2dConfig,
@@ -349,11 +345,11 @@ impl<B: Backend> ModuleInit<B, ConvSeq2d<B>> for ConvSeq2dConfig {
 ///     tensor::Distribution,
 /// };
 ///
-/// let device = default_device();
+/// let device = cpu_device();
 ///
 /// // Two stride-2 down-sampling blocks (3x3 kernel, "same" padding), each
 /// // halving the resolution. `try_init` builds and validates the sequence.
-/// let seq: ConvSeq2d<Flex> = ConvSeq2dConfig::new(vec![
+/// let seq: ConvSeq2d = ConvSeq2dConfig::new(vec![
 ///     ConvBlock2dConfig::new(
 ///         Conv2dConfig::new([3, 64], [3, 3])
 ///             .with_padding(PaddingConfig2d::Explicit(1, 1, 1, 1))
@@ -371,17 +367,17 @@ impl<B: Backend> ModuleInit<B, ConvSeq2d<B>> for ConvSeq2dConfig {
 /// // [batch, 3, 64, 64] -> [batch, 128, 16, 16]; predicted by `try_output_shape`.
 /// assert_eq!(seq.try_output_shape([2, 3, 64, 64]).unwrap(), [2, 128, 16, 16]);
 ///
-/// let input = Tensor::<Flex, 4>::random([2, 3, 64, 64], Distribution::Default, &device);
+/// let input = Tensor::<4>::random([2, 3, 64, 64], Distribution::Default, &device);
 /// let output = seq.forward(input);
 /// assert_eq!(output.dims(), [2, 128, 16, 16]);
 /// ```
 #[derive(Module, Debug)]
-pub struct ConvSeq2d<B: Backend> {
+pub struct ConvSeq2d {
     /// The internal [`ConvBlock2d`] modules.
-    pub blocks: Vec<ConvBlock2d<B>>,
+    pub blocks: Vec<ConvBlock2d>,
 }
 
-impl<B: Backend> ConvSeq2dMeta for ConvSeq2d<B> {
+impl ConvSeq2dMeta for ConvSeq2d {
     fn block_metas(&self) -> Vec<&dyn ConvBlock2dMeta> {
         self.blocks
             .iter()
@@ -390,7 +386,7 @@ impl<B: Backend> ConvSeq2dMeta for ConvSeq2d<B> {
     }
 }
 
-impl<B: Backend> ConvSeq2d<B> {
+impl ConvSeq2d {
     /// Creates a new [`ConvSeq2d`] module.
     ///
     /// # Errors
@@ -398,7 +394,7 @@ impl<B: Backend> ConvSeq2d<B> {
     /// [`Illegal`](crate::errors::BunsenErrorKind::Illegal) if the blocks do
     /// not form a legal sequence; see
     /// [`ConvSeq2dMeta::validate`].
-    pub fn try_new(blocks: Vec<ConvBlock2d<B>>) -> BunsenResult<Self> {
+    pub fn try_new(blocks: Vec<ConvBlock2d>) -> BunsenResult<Self> {
         let seq = Self { blocks };
         seq.validate()?;
         Ok(seq)
@@ -417,8 +413,8 @@ impl<B: Backend> ConvSeq2d<B> {
     /// [`ConvSeq2dMeta::try_output_shape`].
     pub fn forward(
         &self,
-        input: Tensor<B, 4>,
-    ) -> Tensor<B, 4> {
+        input: Tensor<4>,
+    ) -> Tensor<4> {
         let mut output = input;
         for block in &self.blocks {
             output = block.forward(output);
@@ -430,7 +426,6 @@ impl<B: Backend> ConvSeq2d<B> {
 #[cfg(test)]
 mod tests {
     use burn::{
-        backend::Autodiff,
         nn::{
             PaddingConfig2d,
             activation::ActivationConfig,
@@ -448,14 +443,8 @@ mod tests {
                 predicate,
             },
         },
-        support::testing::{
-            CpuBackend,
-            default_device,
-        },
+        support::testing::cpu_device,
     };
-
-    type I = CpuBackend;
-    type B = Autodiff<I>;
 
     /// Builds a "same"-padded `ConvBlock2dConfig` (`out = in / stride` per
     /// dim).
@@ -479,8 +468,8 @@ mod tests {
         in_channels: usize,
         out_channels: usize,
         stride: usize,
-    ) -> ConvBlock2d<B> {
-        block_config(in_channels, out_channels, stride).init(&Default::default())
+    ) -> ConvBlock2d {
+        block_config(in_channels, out_channels, stride).init(&cpu_device())
     }
 
     #[test]
@@ -489,7 +478,7 @@ mod tests {
             .cause(predicate("empty blocks", |e: &ConstraintError| {
                 e.rule == Rule::ZeroOrEmpty
             }));
-        empty.assert_err(&ConvSeq2d::<B>::try_new(vec![]));
+        empty.assert_err(&ConvSeq2d::try_new(vec![]));
 
         // The config-level meta validates the same way.
         empty.assert_err(&ConvSeq2dConfig::new(vec![]).validate());
@@ -506,9 +495,9 @@ mod tests {
         chain.assert_err(&ConvSeq2d::try_new(blocks));
 
         // The config rejects it at init.
-        let result: BunsenResult<ConvSeq2d<B>> =
+        let result: BunsenResult<ConvSeq2d> =
             ConvSeq2dConfig::new(vec![block_config(2, 4, 1), block_config(8, 16, 1)])
-                .try_init(&Default::default());
+                .try_init(&cpu_device());
         chain.assert_err(&result);
     }
 
@@ -535,7 +524,7 @@ mod tests {
             [1, 8, 4, 4]
         );
 
-        let seq: ConvSeq2d<B> = config.init(&Default::default());
+        let seq: ConvSeq2d = config.init(&cpu_device());
         assert_eq!(seq.in_channels(), config.in_channels());
         assert_eq!(seq.out_channels(), config.out_channels());
         assert_eq!(seq.stride(), config.stride());
@@ -561,7 +550,7 @@ mod tests {
 
     #[test]
     fn test_output_resolution_dilated() {
-        let device = default_device();
+        let device = cpu_device().autodiff();
         // Valid-padded, dilated block: out = in - dilation * (kernel - 1).
         let dilated = ConvBlock2dConfig::new(
             Conv2dConfig::new([2, 4], [3, 3])
@@ -579,17 +568,17 @@ mod tests {
         assert_eq!(seq.try_output_resolution([10, 12]).unwrap(), [6, 8]);
         assert_eq!(seq.try_output_shape([1, 2, 10, 12]).unwrap(), [1, 4, 6, 8]);
 
-        let input = Tensor::<B, 4>::random([1, 2, 10, 12], Distribution::Default, &device);
+        let input = Tensor::<4>::random([1, 2, 10, 12], Distribution::Default, &device);
         assert_eq!(seq.forward(input).dims(), [1, 4, 6, 8]);
     }
 
     #[test]
     fn test_output_shape_matches_forward() {
-        let device = default_device();
+        let device = cpu_device().autodiff();
         let seq = ConvSeq2d::try_new(vec![block(2, 4, 2), block(4, 8, 2)]).unwrap();
 
         let batch_size = 3;
-        let input = Tensor::<B, 4>::random([batch_size, 2, 16, 16], Distribution::Default, &device);
+        let input = Tensor::<4>::random([batch_size, 2, 16, 16], Distribution::Default, &device);
 
         let predicted = seq.try_output_shape([batch_size, 2, 16, 16]).unwrap();
         let actual = seq.forward(input).dims();
@@ -606,11 +595,11 @@ mod tests {
 
     #[test]
     fn test_forward_matches_sequential() {
-        let device = default_device();
+        let device = cpu_device().autodiff();
         let blocks = vec![block(2, 4, 2), block(4, 8, 1)];
         let seq = ConvSeq2d::try_new(blocks).unwrap();
 
-        let input = Tensor::<B, 4>::random([2, 2, 8, 8], Distribution::Default, &device);
+        let input = Tensor::<4>::random([2, 2, 8, 8], Distribution::Default, &device);
 
         let output = seq.forward(input.clone());
         let expected = {

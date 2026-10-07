@@ -1,6 +1,5 @@
 use burn::{
     Tensor,
-    prelude::Backend,
     tensor::DType,
 };
 
@@ -12,21 +11,21 @@ use crate::burner::module::HasDType;
 /// one of these a step at a time; cross-attention builds one per layer and
 /// reuses it untouched.
 #[derive(Clone, Debug)]
-pub struct AttnKvPair<B: Backend> {
+pub struct AttnKvPair {
     /// `[batch, heads, seq, d_k]` keys.
-    pub key: Tensor<B, 4>,
+    pub key: Tensor<4>,
 
     /// `[batch, heads, seq, d_k]` values.
-    pub value: Tensor<B, 4>,
+    pub value: Tensor<4>,
 }
 
-impl<B: Backend> HasDType for AttnKvPair<B> {
+impl HasDType for AttnKvPair {
     fn dtype(&self) -> DType {
         self.key.dtype()
     }
 }
 
-impl<B: Backend> AttnKvPair<B> {
+impl AttnKvPair {
     /// The number of cached positions.
     pub fn seq_len(&self) -> usize {
         self.key.dims()[2]

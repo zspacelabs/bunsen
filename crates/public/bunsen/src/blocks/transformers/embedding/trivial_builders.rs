@@ -4,9 +4,9 @@ use burn::{
     module::Param,
     nn::Embedding,
     tensor::{
+        Device,
         Int,
         Tensor,
-        backend::Backend,
     },
 };
 
@@ -26,12 +26,12 @@ use burn::{
 /// # Returns
 ///
 /// An [`Embedding`] with a `[n, d]` weight.
-pub fn iota_embedding<B: Backend>(
+pub fn iota_embedding(
     n: usize,
     d: usize,
-    device: &B::Device,
-) -> Embedding<B> {
-    let weight = Tensor::<B, 1, Int>::arange(0..(n * d) as i64, device)
+    device: &Device,
+) -> Embedding {
+    let weight = Tensor::<1, Int>::arange(0..(n * d) as i64, device)
         .float()
         .reshape([n, d]);
     Embedding {
@@ -56,12 +56,12 @@ pub fn iota_embedding<B: Backend>(
 /// An [`Embedding`] with a `[n, n]` identity weight.
 ///
 /// [`unembed`]: crate::ops::embedding::unembed
-pub fn identity_embedding<B: Backend>(
+pub fn identity_embedding(
     n: usize,
-    device: &B::Device,
-) -> Embedding<B> {
+    device: &Device,
+) -> Embedding {
     Embedding {
-        weight: Param::from_tensor(Tensor::<B, 2>::eye(n, device)),
+        weight: Param::from_tensor(Tensor::<2>::eye(n, device)),
     }
 }
 
@@ -70,25 +70,23 @@ mod tests {
     use super::*;
     use crate::support::testing::{
         DeviceMemoryGuard,
-        PerformanceBackend,
-        default_device,
+        performance_device,
     };
 
     #[test]
     #[serial_test::serial]
     fn test_iota_embedding() {
-        type B = PerformanceBackend;
-        let device = default_device();
-        let _memory = DeviceMemoryGuard::<B>::new(&device);
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
         let n = 3;
         let d = 4;
-        let emb = iota_embedding::<PerformanceBackend>(n, d, &device);
+        let emb = iota_embedding(n, d, &device);
 
         let weight = emb.weight.val();
         let data = weight.to_data();
 
         // Verify shape
-        assert_eq!(data.shape, [n, d].into());
+        assert_eq!(data.shape(), &[n, d].into());
 
         // Verify values: weight[i, j] = i * d + j
         for i in 0..n {
@@ -103,17 +101,16 @@ mod tests {
     #[test]
     #[serial_test::serial]
     fn test_identity_embedding() {
-        type B = PerformanceBackend;
-        let device = default_device();
-        let _memory = DeviceMemoryGuard::<B>::new(&device);
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
         let n = 5;
-        let emb = identity_embedding::<PerformanceBackend>(n, &device);
+        let emb = identity_embedding(n, &device);
 
         let weight = emb.weight.val();
         let data = weight.to_data();
 
         // Verify shape
-        assert_eq!(data.shape, [n, n].into());
+        assert_eq!(data.shape(), &[n, n].into());
 
         // Verify identity matrix: 1.0 on diagonal, 0.0 elsewhere
         for i in 0..n {

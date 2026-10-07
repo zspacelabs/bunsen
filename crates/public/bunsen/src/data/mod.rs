@@ -45,9 +45,9 @@
 //!   │     per resource: the cache path, else a local dir (used in
 //!   │     place) or bundled bytes (written in), else its URLs,
 //!   │     fetched together under the FetchPolicy [fetch]
-//!   │   H::construct(ref, loaded, device) -> Arc<H::Built<B>>
+//!   │   H::construct(ref, loaded, device) -> Arc<H::Built>
 //!   ▼
-//! Loaded<H::Built<B>>: name, handle (an Arc), resources
+//! Loaded<H::Built>: name, handle (an Arc), resources
 //! ```
 //!
 //! - **Spec to row.** [`PretrainedFactory::resolve`] offers a spec to its
@@ -96,8 +96,8 @@
 //! | `cache` | yes, through `store` | the [`cache`] module; [`PretrainedCache`], [`PretrainedFactory`], [`Deferred`], [`Construct`], [`Loaded`], [`LoadedResources`]; [`ShardSet`]. All local. |
 //! | `fetch` | no | the network at run time: `fetch_file`, `fetch_many` and its `FetchPolicy`, the URL sources of [`PretrainedCache`], the download in `ShardSet::fetch`, and the [`HfProvider`] listing. Without it, a file that only a URL can supply is an [`Unsupported`](crate::errors::BunsenErrorKind::Unsupported) error. |
 //! | `indicatif` | no | implies `fetch`: a byte progress bar per transfer (`IndicatifObserver`, in the default observer stack). |
-//! | `store_safetensors` | yes | [`SafetensorsCheckpoint`], the reader for `hf:` rows. `store_pytorch` (also default) is what kits read `.pt` checkpoints with, and `store_burnpack` (also default) what Silero reads its burnpack with. |
-//! | `silero-weights` | no | implies `store_burnpack`: `bundled:silero/vad`, the Silero burnpack, linked into the binary. |
+//! | `store_safetensors` | yes | [`SafetensorsCheckpoint`], the reader for `hf:` rows. `store_pytorch` (also default) is what kits read `.pt` checkpoints with, and `store` (implied by both) is what Silero reads its burnpack with. |
+//! | `silero-weights` | no | implies `store`: `bundled:silero/vad`, the Silero burnpack, linked into the binary. |
 //! | `whisper-weights` | no | `bundled:openai/base`, served in place from `bunsen-bundled-whisper`'s build directory. **The build reaches the network** on a cold cache. |
 //!
 //! `download` is a conventional name (see `STYLE.md`), not a bunsen

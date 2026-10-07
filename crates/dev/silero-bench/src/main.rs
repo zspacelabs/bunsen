@@ -14,10 +14,7 @@ use bunsen::{
     },
     support::{
         audio::load_audio_mono_sr,
-        testing::{
-            PerformanceBackend,
-            backend_device,
-        },
+        testing::performance_device,
     },
 };
 use burn::{
@@ -26,8 +23,6 @@ use burn::{
     tensor::Tolerance,
 };
 use clap::Parser;
-
-type B = PerformanceBackend;
 
 /// Silero VAD Benchmark tool.
 #[derive(Parser, Debug)]
@@ -51,11 +46,11 @@ fn main() -> BunsenResult<()> {
     println!("* {:#?}", args);
 
     println!("\n> Loading models");
-    let device = backend_device::<B>();
+    let device = performance_device();
     println!("* device: {:?}", device);
 
     println!("* SileroVad");
-    let vad: SileroVad<B> = SileroVadCollection::load_pretrained(&device)?
+    let vad: SileroVad = SileroVadCollection::load_pretrained(&device)?
         .try_branch(args.sample_rate)?
         .clone();
 
@@ -67,7 +62,7 @@ fn main() -> BunsenResult<()> {
     println!("* {} samples", wav_vec.len());
 
     // [steps, 1, samples=chunk_size]
-    let chunk_seq: Tensor<B, 3> = {
+    let chunk_seq: Tensor<3> = {
         // Pad the audio to the chunk size.
         let tail_len = wav_vec.len() % chunk_size;
         if tail_len != 0 {
@@ -76,7 +71,7 @@ fn main() -> BunsenResult<()> {
         }
 
         // Convert to tensor.
-        let samples = Tensor::<B, 1>::from_floats(wav_vec.as_slice(), &device);
+        let samples = Tensor::<1>::from_floats(wav_vec.as_slice(), &device);
 
         // Chunk the audio into chunks of size `chunk_size`.
         samples.reshape([-1, 1, chunk_size as isize])
@@ -95,7 +90,7 @@ fn main() -> BunsenResult<()> {
         "{:0.4?}",
         chunk_probs
             .clone()
-            .to_vec::<f32>()
+            .try_to_vec_as::<f32>()
             .map_err(|e| BunsenError::illegal("the probabilities are not f32").with_cause(e))?
     );
 

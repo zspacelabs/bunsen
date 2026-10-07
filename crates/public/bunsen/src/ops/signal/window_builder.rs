@@ -1,9 +1,6 @@
 use burn::{
     Tensor,
-    prelude::{
-        Backend,
-        TensorData,
-    },
+    prelude::TensorData,
     tensor::TensorCreationOptions,
 };
 
@@ -16,11 +13,11 @@ pub trait SamplingWindowBuilder {
     ) -> Vec<f64>;
 
     /// Materialize a tensor window of width `win_len`.
-    fn to_tensor_window<B: Backend>(
+    fn to_tensor_window(
         &self,
         size: usize,
-        options: impl Into<TensorCreationOptions<B>>,
-    ) -> Tensor<B, 1> {
+        options: impl Into<TensorCreationOptions>,
+    ) -> Tensor<1> {
         Tensor::from_data(
             TensorData::from(self.to_vec_window(size).as_slice()),
             options,

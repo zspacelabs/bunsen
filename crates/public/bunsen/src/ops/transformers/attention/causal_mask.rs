@@ -2,19 +2,17 @@
 
 use burn::{
     Tensor,
-    prelude::{
-        Backend,
-        Bool,
-    },
+    prelude::Bool,
+    tensor::Device,
 };
 
 /// Generates a Bool causal mask `[1, seq_len, n_past + seq_len]`.
 /// `true` = masked (future positions blocked), `false` = attend.
-pub fn causal_mask<B: Backend>(
+pub fn causal_mask(
     seq_len: usize,
     n_past: usize,
-    device: &B::Device,
-) -> Tensor<B, 3, Bool> {
+    device: &Device,
+) -> Tensor<3, Bool> {
     let total = n_past + seq_len;
-    Tensor::<B, 2, Bool>::tril_mask([seq_len, total], n_past as i64, device).unsqueeze::<3>()
+    Tensor::<2, Bool>::tril_mask([seq_len, total], n_past as i64, device).unsqueeze::<3>()
 }

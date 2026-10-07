@@ -9,20 +9,16 @@ pub fn first_use() {
             MlpConfig,
         },
         prelude::*,
-        support::testing::default_device,
+        support::testing::cpu_device,
     };
-    use burn::{
-        backend::Flex,
-        tensor::Tensor,
-    };
+    use burn::tensor::Tensor;
 
-    type B = Flex;
-    let device = default_device();
+    let device = cpu_device();
 
-    // `init` comes from `ModuleInit`; the binding's type picks the backend.
-    let mlp: Mlp<B> = MlpConfig::new(16).init(&device);
+    // `init` comes from `ModuleInit`; the binding's type names the module.
+    let mlp: Mlp = MlpConfig::new(16).init(&device);
 
-    let x = Tensor::<B, 3>::zeros([2, 5, 16], &device);
+    let x = Tensor::<3>::zeros([2, 5, 16], &device);
     let y = mlp.forward(x);
 
     // Check the output's shape, and name its dimensions while doing it.

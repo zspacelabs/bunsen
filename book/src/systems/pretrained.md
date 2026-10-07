@@ -145,15 +145,12 @@ caller's resource wins by key. whisper-cli's `--vocab` flag works this way.
 
 ## PyTorch checkpoints
 
-Some checkpoints need repair on the way in. PyTorch may save a weight as a
-transposed view of another tensor, and `burn-store`'s PyTorch reader reads
-the raw storage as if it were row-major, which scrambles a non-square
-weight. [`bunsen::burner::store`] attaches the repair
-to a built module's parameters, so it runs only as the weights cross the
-store boundary.
-[`FixPytorchLoadMappers`](bunsen::burner::store::FixPytorchLoadMappers)
-walks a module tree and attaches it wherever it is needed, and Whisper's
-loader applies it before reading an OpenAI checkpoint.
+An OpenAI `.pt` checkpoint is read through burn-store's PyTorch reader,
+behind the `store_pytorch` feature, and a Hugging Face safetensors repo
+through its safetensors reader, behind `store_safetensors`
+([features](../organization/features.md)). The PyTorch reader honours each
+tensor's strides, so a weight that PyTorch saved as a transposed view of
+another tensor loads as the weight it is.
 
 ## The operational view
 

@@ -4,7 +4,6 @@ use burn::{
         dataset::vision::{
             Annotation,
             ImageDatasetItem,
-            PixelDepth,
         },
     },
     prelude::*,
@@ -26,15 +25,15 @@ const HEIGHT: usize = 256;
 /// # Example
 ///
 /// ```rust, ignore
-/// let multi_hot = multi_hot::<B>(&[2, 5, 8], 10, &device);
+/// let multi_hot = multi_hot(&[2, 5, 8], 10, &device);
 /// println!("{}", multi_hot.to_data());
 /// // [0, 0, 1, 0, 0, 1, 0, 0, 1, 0]
 /// ```
-pub fn multi_hot<B: Backend>(
+pub fn multi_hot(
     indices: &[usize],
     num_classes: usize,
-    device: &B::Device,
-) -> Tensor<B, 1, Int> {
+    device: &Device,
+) -> Tensor<1, Int> {
     Tensor::zeros(Shape::new([num_classes]), device).scatter(
         0,
         Tensor::from_ints(
@@ -54,16 +53,16 @@ pub fn multi_hot<B: Backend>(
 /// are fine-tuning from `ImageNet` pre-trained weights and the model expects
 /// the data to be in this normalized range.
 #[derive(Clone)]
-pub struct Normalizer<B: Backend> {
-    pub mean: Tensor<B, 4>,
-    pub std: Tensor<B, 4>,
+pub struct Normalizer {
+    pub mean: Tensor<4>,
+    pub std: Tensor<4>,
 }
 
-impl<B: Backend> Normalizer<B> {
+impl Normalizer {
     /// Creates a new normalizer.
-    pub fn new(device: &Device<B>) -> Self {
-        let mean = Tensor::<B, 1>::from_floats(MEAN, device).reshape([1, 3, 1, 1]);
-        let std = Tensor::<B, 1>::from_floats(STD, device).reshape([1, 3, 1, 1]);
+    pub fn new(device: &Device) -> Self {
+        let mean = Tensor::<1>::from_floats(MEAN, device).reshape([1, 3, 1, 1]);
+        let std = Tensor::<1>::from_floats(STD, device).reshape([1, 3, 1, 1]);
         Self { mean, std }
     }
 
@@ -76,15 +75,15 @@ impl<B: Backend> Normalizer<B> {
     /// `input = (input - mean) / std`
     pub fn normalize(
         &self,
-        input: Tensor<B, 4>,
-    ) -> Tensor<B, 4> {
+        input: Tensor<4>,
+    ) -> Tensor<4> {
         (input - self.mean.clone()) / self.std.clone()
     }
 
     /// Returns a new normalizer on the given device.
     pub fn to_device(
         &self,
-        device: &B::Device,
+        device: &Device,
     ) -> Self {
         Self {
             mean: self.mean.clone().to_device(device),
@@ -94,36 +93,33 @@ impl<B: Backend> Normalizer<B> {
 }
 
 #[derive(Clone)]
-pub struct ClassificationBatcher<B: Backend> {
-    normalizer: Normalizer<B>,
+pub struct ClassificationBatcher {
+    normalizer: Normalizer,
 }
 
 #[derive(Clone, Debug)]
-pub struct ClassificationBatch<B: Backend> {
-    pub images: Tensor<B, 4>,
-    pub targets: Tensor<B, 2, Int>,
+pub struct ClassificationBatch {
+    pub images: Tensor<4>,
+    pub targets: Tensor<2, Int>,
 }
 
-impl<B: Backend> ClassificationBatcher<B> {
-    pub fn new(device: B::Device) -> Self {
+impl ClassificationBatcher {
+    pub fn new(device: Device) -> Self {
         Self {
-            normalizer: Normalizer::<B>::new(&device),
+            normalizer: Normalizer::new(&device),
         }
     }
 }
 
-impl<B: Backend> Batcher<B, ImageDatasetItem, ClassificationBatch<B>> for ClassificationBatcher<B> {
+impl Batcher<ImageDatasetItem, ClassificationBatch> for ClassificationBatcher {
     fn batch(
         &self,
         items: Vec<ImageDatasetItem>,
-        device: &B::Device,
-    ) -> ClassificationBatch<B> {
+        device: &Device,
+    ) -> ClassificationBatch {
         fn image_as_vec_u8(item: ImageDatasetItem) -> Vec<u8> {
-            // Convert Vec<PixelDepth> to Vec<u8> (Planet images are u8)
-            item.image
-                .into_iter()
-                .map(|p: PixelDepth| -> u8 { p.try_into().unwrap() })
-                .collect::<Vec<u8>>()
+            // Planet images are u8.
+            Vec::<u8>::try_from(item.image).unwrap()
         }
 
         let targets = items
@@ -142,7 +138,7 @@ impl<B: Backend> Batcher<B, ImageDatasetItem, ClassificationBatch<B>> for Classi
         let images = items
             .into_iter()
             .map(|item| TensorData::new(image_as_vec_u8(item), Shape::new([HEIGHT, WIDTH, 3])))
-            .map(|data| Tensor::<B, 3>::from_data(data.convert::<B::FloatElem>(), device))
+            .map(|data| Tensor::<3>::from_data(data, device))
             .map(|tensor| tensor.permute([2, 0, 1]) / 255) // normalize between [0, 1]
             .collect();
 

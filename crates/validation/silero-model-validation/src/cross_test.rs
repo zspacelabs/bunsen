@@ -18,13 +18,11 @@ mod tests {
             SileroVadContextConfig,
             SileroVadMeta,
         },
-        prelude::*,
         support::{
             audio::load_audio_mono_sr,
             testing::{
                 DeviceMemoryGuard,
-                PerformanceBackend,
-                default_device,
+                performance_device,
             },
         },
     };
@@ -34,7 +32,6 @@ mod tests {
         tensor::{
             Distribution,
             Tolerance,
-            backend::BackendTypes,
         },
     };
 
@@ -43,16 +40,14 @@ mod tests {
     #[test]
     #[serial_test::serial]
     fn test_reference_model_forward_cross_test() {
-        type B = PerformanceBackend;
-        type F = <B as BackendTypes>::FloatElem;
+        type F = f32;
 
-        let device = default_device();
-        let _memory = DeviceMemoryGuard::<B>::new(&device);
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
 
-        let sc: SileroVadCollection<B> =
-            SileroVadCollection::load_pretrained(&device).ok_or_panic();
+        let sc: SileroVadCollection = SileroVadCollection::load_pretrained(&device).ok_or_panic();
 
-        let r_mod: ReferenceModel<B> = ReferenceModel::load_pretrained(&device);
+        let r_mod: ReferenceModel = ReferenceModel::load_pretrained(&device);
 
         let batch = 8;
 
@@ -64,7 +59,7 @@ mod tests {
             }
 
             let input =
-                Tensor::<B, 2>::random([batch, vad.chunk_size()], Distribution::Default, &device);
+                Tensor::<2>::random([batch, vad.chunk_size()], Distribution::Default, &device);
             let state = vad.init_state(batch, &device);
 
             // ([batch], [2, batch, d_hidden])
@@ -95,16 +90,15 @@ mod tests {
     #[test]
     #[serial_test::serial]
     fn test_context_matches_upstream_wrapper() -> Result<(), Box<dyn std::error::Error>> {
-        type B = PerformanceBackend;
-        type F = <B as BackendTypes>::FloatElem;
+        type F = f32;
 
         let wav_path = concat!(env!("CARGO_MANIFEST_DIR"), "/testdata/test.wav");
 
-        let device = default_device();
-        let _memory = DeviceMemoryGuard::<B>::new(&device);
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
 
-        let sc: SileroVadCollection<B> = SileroVadCollection::load_pretrained(&device)?;
-        let r_mod: ReferenceModel<B> = ReferenceModel::load_pretrained(&device);
+        let sc: SileroVadCollection = SileroVadCollection::load_pretrained(&device)?;
+        let r_mod: ReferenceModel = ReferenceModel::load_pretrained(&device);
 
         // The recording is 16 kHz. For the 8 kHz branch, each pair of
         // samples is averaged into one: a crude low-pass and decimation, but
@@ -124,8 +118,8 @@ mod tests {
             let steps = wav.len() / chunk;
 
             // [steps, 1, chunk]
-            let chunks: Tensor<B, 3> =
-                Tensor::<B, 1>::from_floats(wav.as_slice(), &device).reshape([steps, 1, chunk]);
+            let chunks: Tensor<3> =
+                Tensor::<1>::from_floats(wav.as_slice(), &device).reshape([steps, 1, chunk]);
 
             // [steps, 1]
             let (probs, context) = vad.context_forward_sequence(
@@ -134,7 +128,7 @@ mod tests {
             );
 
             // Upstream's wrapper, a chunk at a time.
-            let mut tail = Tensor::<B, 2>::zeros([1, upstream_context], &device);
+            let mut tail = Tensor::<2>::zeros([1, upstream_context], &device);
             let mut state = vad.init_state(1, &device);
             let mut expected = Vec::with_capacity(steps);
             for step in 0..steps {
@@ -175,18 +169,17 @@ mod tests {
         let expected_path = concat!(env!("CARGO_MANIFEST_DIR"), "/testdata/test.json");
         let sample_rate = 16000;
 
-        type B = PerformanceBackend;
-        let device = default_device();
-        let _memory = DeviceMemoryGuard::<B>::new(&device);
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
 
-        let vad: SileroVad<B> = SileroVadCollection::load_pretrained(&device)?
+        let vad: SileroVad = SileroVadCollection::load_pretrained(&device)?
             .try_branch(sample_rate)?
             .clone();
 
         let mut wav_vec = load_audio_mono_sr(wav_path, sample_rate)?;
 
         // [steps, 1, samples=chunk_size]
-        let chunk_seq: Tensor<B, 3> = {
+        let chunk_seq: Tensor<3> = {
             let chunk_size = vad.chunk_size();
 
             // Pad the audio to the chunk size.
@@ -197,7 +190,7 @@ mod tests {
             }
 
             // Convert to tensor.
-            let samples = Tensor::<B, 1>::from_floats(wav_vec.as_slice(), &device);
+            let samples = Tensor::<1>::from_floats(wav_vec.as_slice(), &device);
 
             // Chunk the audio into chunks of size `chunk_size`.
             samples.reshape([-1, 1, chunk_size as isize])

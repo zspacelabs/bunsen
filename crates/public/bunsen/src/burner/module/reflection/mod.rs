@@ -39,7 +39,7 @@
 //! ```
 //!
 //! **The element name is the module's *type* name, and the field name is
-//! `@name`.** A field `gpt: NanoChatGpt<B>` is `<NanoChatGpt name="gpt">`.
+//! `@name`.** A field `gpt: NanoChatGpt` is `<NanoChatGpt name="gpt">`.
 //! Select it with `NanoChatGpt` or `*[@name='gpt']`, never with `gpt`. A path
 //! that names a field as an element matches nothing, and an empty selection
 //! is not an error. When a query comes back empty, print the dump and read
@@ -62,6 +62,9 @@
 //!   visitor enters a module's first field, so a module with no visited fields
 //!   at all (`Relu`) has no element of its own. A module whose fields hold no
 //!   parameters (plain tensors) is an empty element.
+//! - The tree holds tensor parameters only. Flags (`Param<Flag>`, such as a
+//!   `Dropout`'s training switch) are not shown, so a module whose only visited
+//!   field is a flag (`<Dropout name="dropout">`) is an empty element too.
 //! - Children are in field declaration order. Prefer sets (`HashSet<ParamId>`)
 //!   to relying on that order.
 //!
@@ -102,7 +105,6 @@
 //!         Linear,
 //!         LinearConfig,
 //!     },
-//!     prelude::Backend,
 //!     tensor::Shape,
 //! };
 //!
@@ -124,18 +126,17 @@
 //!     },
 //! };
 //!
-//! use bunsen::support::testing::default_device;
-//! type B = bunsen::support::testing::CpuBackend;
-//! let device = default_device();
+//! use bunsen::support::testing::cpu_device;
+//! let device = cpu_device();
 //!
 //! // Create a Linear module, with a bias:
-//! // * `weight` - `Param<Tensor<B, 2>>` [d_input, d_output].
-//! // * `bias` - `Option<Param<Tensor<B, 1>>>` [d_output].
+//! // * `weight` - `Param<Tensor<2>>` [d_input, d_output].
+//! // * `bias` - `Option<Param<Tensor<1>>>` [d_output].
 //! let d_input = 2;
 //! let d_output = 3;
-//! let module: Linear<B> = LinearConfig::new(d_input, d_output).init(&device);
+//! let module: Linear = LinearConfig::new(d_input, d_output).init(&device);
 //!
-//! // [`TensorParamDesc`] can describe a `Param<Tensor<B, R, K>>`:
+//! // [`TensorParamDesc`] can describe a `Param<Tensor<R, K>>`:
 //! let weight_desc: TensorParamDesc = TensorParamDesc::from(&module.weight);
 //! let bias_ref = module.bias.as_ref().unwrap();
 //! let bias_desc: TensorParamDesc = TensorParamDesc::from(bias_ref);
@@ -495,11 +496,11 @@
 //!
 //! // Many structural builtin components are also Modules.
 //! let module = (
-//!     LinearConfig::new(2, 3).init::<B>(&device),
-//!     [LinearConfig::new(4, 5).init::<B>(&device)],
+//!     LinearConfig::new(2, 3).init(&device),
+//!     [LinearConfig::new(4, 5).init(&device)],
 //!     vec![
-//!         LinearConfig::new(6, 7).init::<B>(&device),
-//!         LinearConfig::new(8, 9).init::<B>(&device),
+//!         LinearConfig::new(6, 7).init(&device),
+//!         LinearConfig::new(8, 9).init(&device),
 //!     ],
 //! );
 //! let expected_dtype = module.0.weight.dtype();

@@ -1,6 +1,6 @@
 use burn::{
     module::Module,
-    prelude::Backend,
+    tensor::Device,
 };
 
 use crate::errors::{
@@ -13,16 +13,16 @@ use crate::errors::{
 ///
 /// A config is plain, serializable data (a `#[derive(Config)]` struct); the
 /// module it builds owns the tensors. The config implements
-/// `ModuleInit<B, M>` once for each module type `M` it builds, generic over
-/// the backend `B`, so one config builds its module on any backend.
+/// `ModuleInit<M>` once for each module type `M` it builds, and builds it on
+/// whatever device it is given.
 ///
 /// The trait is in [`crate::prelude`]. Bring it into scope there, or from
 /// `bunsen::burner::module`, to call `.init(&device)` on a bunsen config.
 ///
 /// # Calling it
 ///
-/// `B` and `M` are parameters of the trait, and a device does not name its
-/// backend, so the module type comes from the binding:
+/// `M` is a parameter of the trait, and a device does not name a module type,
+/// so the module type comes from the binding:
 ///
 /// ```
 /// # use bunsen::{
@@ -31,12 +31,11 @@ use crate::errors::{
 /// #         MlpConfig,
 /// #     },
 /// #     prelude::*,
-/// #     support::testing::default_device,
+/// #     support::testing::cpu_device,
 /// # };
-/// # type B = burn::backend::Flex;
-/// # let device = default_device();
+/// # let device = cpu_device();
 /// # let config = MlpConfig::new(16);
-/// let mlp: Mlp<B> = config.init(&device);
+/// let mlp: Mlp = config.init(&device);
 /// ```
 ///
 /// # Why it is fallible
@@ -80,17 +79,16 @@ use crate::errors::{
 /// use bunsen::{
 ///     errors::ConstraintError,
 ///     prelude::*,
-///     support::testing::default_device,
+///     support::testing::cpu_device,
 /// };
 /// use burn::{
-///     backend::Flex,
 ///     config::Config,
 ///     module::Module,
 ///     nn::{
 ///         Linear,
 ///         LinearConfig,
 ///     },
-///     prelude::Backend,
+///     tensor::Device,
 /// };
 ///
 /// /// The narrow view shared by [`SquareConfig`] and [`Square`].
@@ -112,11 +110,11 @@ use crate::errors::{
 ///     }
 /// }
 ///
-/// impl<B: Backend> ModuleInit<B, Square<B>> for SquareConfig {
+/// impl ModuleInit<Square> for SquareConfig {
 ///     fn try_init(
 ///         &self,
-///         device: &B::Device,
-///     ) -> BunsenResult<Square<B>> {
+///         device: &Device,
+///     ) -> BunsenResult<Square> {
 ///         if self.width == 0 {
 ///             return Err(ConstraintError::zero_or_empty(
 ///                 "SquareConfig",
@@ -132,26 +130,25 @@ use crate::errors::{
 ///
 /// /// A square linear projection.
 /// #[derive(Module, Debug)]
-/// pub struct Square<B: Backend> {
-///     proj: Linear<B>,
+/// pub struct Square {
+///     proj: Linear,
 /// }
 ///
-/// impl<B: Backend> SquareMeta for Square<B> {
+/// impl SquareMeta for Square {
 ///     fn width(&self) -> usize {
 ///         self.proj.weight.dims()[0]
 ///     }
 /// }
 ///
-/// let device = default_device();
+/// let device = cpu_device();
 /// let config = SquareConfig::new(8);
 ///
-/// // The binding names the module, and so the backend.
-/// let square: Square<Flex> = config.init(&device);
+/// // The binding names the module.
+/// let square: Square = config.init(&device);
 /// assert_eq!(square.width(), config.width());
 ///
 /// // A bad config is an error from `try_init`, and a panic from `init`.
-/// let bad: BunsenResult<Square<Flex>> =
-///     SquareConfig::new(0).try_init(&device);
+/// let bad: BunsenResult<Square> = SquareConfig::new(0).try_init(&device);
 /// assert_eq!(bad.unwrap_err().kind(), BunsenErrorKind::Illegal);
 /// ```
 ///
@@ -198,17 +195,16 @@ use crate::errors::{
 /// use bunsen::{
 ///     errors::ConstraintError,
 ///     prelude::*,
-///     support::testing::default_device,
+///     support::testing::cpu_device,
 /// };
 /// use burn::{
-///     backend::Flex,
 ///     config::Config,
 ///     module::Module,
 ///     nn::{
 ///         Linear,
 ///         LinearConfig,
 ///     },
-///     prelude::Backend,
+///     tensor::Device,
 /// };
 ///
 /// /// The narrow view shared by [`TowerStructureConfig`] and [`Tower`].
@@ -273,11 +269,11 @@ use crate::errors::{
 ///     }
 /// }
 ///
-/// impl<B: Backend> ModuleInit<B, Tower<B>> for TowerStructureConfig {
+/// impl ModuleInit<Tower> for TowerStructureConfig {
 ///     fn try_init(
 ///         &self,
-///         device: &B::Device,
-///     ) -> BunsenResult<Tower<B>> {
+///         device: &Device,
+///     ) -> BunsenResult<Tower> {
 ///         Ok(Tower {
 ///             layers: self.layers.iter().map(|c| c.init(device)).collect(),
 ///         })
@@ -286,32 +282,32 @@ use crate::errors::{
 ///
 /// /// A stack of narrowing linear layers.
 /// #[derive(Module, Debug)]
-/// pub struct Tower<B: Backend> {
-///     layers: Vec<Linear<B>>,
+/// pub struct Tower {
+///     layers: Vec<Linear>,
 /// }
 ///
-/// impl<B: Backend> TowerMeta for Tower<B> {
+/// impl TowerMeta for Tower {
 ///     fn widths(&self) -> Vec<usize> {
 ///         self.layers.iter().map(|l| l.weight.dims()[1]).collect()
 ///     }
 /// }
 ///
-/// let device = default_device();
+/// let device = cpu_device();
 /// let policy = TowerContractConfig::new(64, 3);
 ///
 /// // Pathway 1: lower to the structure, then build it.
 /// let structure = policy.to_structure();
 /// assert_eq!(structure.widths(), vec![32, 16, 8]);
-/// let lowered: Tower<Flex> = structure.init(&device);
+/// let lowered: Tower = structure.init(&device);
 ///
 /// // Pathway 2: build from the policy; `init` comes from the blanket impl.
-/// let direct: Tower<Flex> = policy.init(&device);
+/// let direct: Tower = policy.init(&device);
 ///
 /// assert_eq!(direct.widths(), lowered.widths());
 /// assert_eq!(direct.widths(), structure.widths());
 ///
 /// // A bad policy fails in `try_to_structure`; `try_init` passes it on.
-/// let bad: BunsenResult<Tower<Flex>> =
+/// let bad: BunsenResult<Tower> =
 ///     TowerContractConfig::new(64, 0).try_init(&device);
 /// assert_eq!(
 ///     bad.unwrap_err().to_string(),
@@ -347,19 +343,19 @@ use crate::errors::{
 /// [`to_stft`]: crate::kits::speech::silero_vad::blocks::SileroVadSignalConfig::to_stft
 /// [`SwinTransformerV2ContractConfig`]: crate::kits::images::swin::v2::SwinTransformerV2ContractConfig
 /// [style-module-design]: https://github.com/zspacelabs/bunsen/blob/main/STYLE.md#module-design
-pub trait ModuleInit<B: Backend, M: Module<B>> {
+pub trait ModuleInit<M: Module> {
     /// Builds the module on `device`, or reports why the config cannot build
     /// it.
     fn try_init(
         &self,
-        device: &B::Device,
+        device: &Device,
     ) -> BunsenResult<M>;
 
     /// Builds the module on `device`, panicking with the error's message if
     /// [`try_init`](Self::try_init) fails.
     fn init(
         &self,
-        device: &B::Device,
+        device: &Device,
     ) -> M {
         self.try_init(device).ok_or_panic()
     }

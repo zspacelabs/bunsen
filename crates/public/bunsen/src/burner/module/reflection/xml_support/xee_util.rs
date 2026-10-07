@@ -143,14 +143,11 @@ mod tests {
                 predicate,
             },
         },
-        support::testing::{
-            CpuBackend,
-            default_device,
-        },
+        support::testing::cpu_device,
     };
 
     fn linear_tree() -> XmlModuleTree {
-        let module: Linear<CpuBackend> = LinearConfig::new(2, 3).init(&default_device());
+        let module: Linear = LinearConfig::new(2, 3).init(&cpu_device());
         XmlModuleTree::build(&module)
     }
 

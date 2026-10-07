@@ -5,8 +5,6 @@ use std::{
     sync::Arc,
 };
 
-use burn::prelude::Backend;
-
 use crate::{
     errors::{
         BunsenResult,
@@ -48,9 +46,9 @@ use crate::{
 /// result: the layout needs no file, and a driver over it emits ids and
 /// applies no suppress list.
 #[derive(Debug)]
-pub struct WhisperBundle<B: Backend> {
+pub struct WhisperBundle {
     /// The model.
-    pub model: Whisper<B>,
+    pub model: Whisper,
 
     /// The token layout the model's vocabulary follows.
     pub layout: WhisperTokenLayout,
@@ -60,11 +58,11 @@ pub struct WhisperBundle<B: Backend> {
     pub ranks: Option<TiktokenRanks>,
 }
 
-impl<B: Backend> WhisperBundle<B> {
+impl WhisperBundle {
     /// A bundle over a model with an explicit token layout, and no
     /// vocabulary.
     pub fn new(
-        model: Whisper<B>,
+        model: Whisper,
         layout: WhisperTokenLayout,
     ) -> Self {
         Self {
@@ -81,7 +79,7 @@ impl<B: Backend> WhisperBundle<B> {
     /// [`Illegal`](crate::errors::BunsenErrorKind::Illegal), with a
     /// [`ConstraintError`] cause, if the vocabulary size is not a Whisper
     /// layout. A caller that loaded the model from a checkpoint re-marks it.
-    pub fn from_model(model: Whisper<B>) -> BunsenResult<Self> {
+    pub fn from_model(model: Whisper) -> BunsenResult<Self> {
         let layout = model.token_layout().policy_for_vocab(model.vocab_size())?;
         Ok(Self::new(model, layout))
     }
@@ -128,9 +126,9 @@ impl<B: Backend> WhisperBundle<B> {
 
     /// Upstream's default logit filters over the vocabulary: the blank and
     /// the non-speech suppress list. None without a vocabulary.
-    pub fn default_filters(&self) -> Vec<Arc<dyn LogitFilter<B>>> {
+    pub fn default_filters(&self) -> Vec<Arc<dyn LogitFilter>> {
         match &self.ranks {
-            Some(ranks) => default_filters::<B>(ranks, self.layout.ids()),
+            Some(ranks) => default_filters(ranks, self.layout.ids()),
             None => Vec::new(),
         }
     }
@@ -150,7 +148,7 @@ impl<B: Backend> WhisperBundle<B> {
     }
 }
 
-impl<B: Backend> fmt::Display for WhisperBundle<B> {
+impl fmt::Display for WhisperBundle {
     /// One line of what was loaded: `80 mels, vocabulary 51865, d_model
     /// 512, 6 + 6 layers, 50257 ranks`, or `ids only` in place of the
     /// ranks for a bundle without a vocabulary.
@@ -187,17 +185,14 @@ mod tests {
             WhisperGeometry,
             blocks::WhisperTokenLayoutConfig,
         },
-        support::testing::{
-            CpuBackend,
-            default_device,
-        },
+        support::testing::cpu_device,
     };
 
     /// A model with a 64-id vocabulary, which is not a Whisper layout.
-    fn tiny_model() -> Whisper<CpuBackend> {
+    fn tiny_model() -> Whisper {
         WhisperGeometry::openai(8, 64, 64, 1, 1)
             .to_api_config()
-            .try_init(&default_device())
+            .try_init(&cpu_device())
             .unwrap()
     }
 

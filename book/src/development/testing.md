@@ -1,36 +1,39 @@
 # Testing and backends
 
-This page covers how bunsen's tests choose a backend and a device, how they
+This page covers how bunsen's tests choose a device, how they
 keep an accelerator's memory in check, and how they compare numbers that no
 two backends compute identically. The helpers are in
 [`bunsen::support::testing`], behind the `testing`
 feature.
 
-## Two test backends
+## Two test devices
 
-bunsen's tests run on one of two backend aliases rather than on a named
-burn backend:
+bunsen's tests take their device from one of two functions rather than
+naming a burn backend:
 
-- [`CpuBackend`](bunsen::support::testing::CpuBackend) is burn's `Flex`, a
+- [`cpu_device`](bunsen::support::testing::cpu_device) is burn's `Flex`, a
   CPU backend. Tests of logic, shapes and plumbing use it: it starts at once
   and needs no hardware.
-- [`PerformanceBackend`](bunsen::support::testing::PerformanceBackend) is
-  the accelerator, chosen at build time by a backend feature on **bunsen**
-  (`wgpu`, `vulkan`, `cuda`, `metal`). Tests that load a real model or
-  exercise a real kernel use it, and so do the GPU benchmarks and
-  whisper-cli.
+- [`performance_device`](bunsen::support::testing::performance_device) is
+  the accelerator, chosen by a backend feature on **bunsen** (`cuda`,
+  `metal`, `vulkan`, `wgpu`, in that order of preference), or by
+  `BURN_DEVICE` in the environment. Tests that load a real model or exercise
+  a real kernel use it, and so do the GPU benchmarks.
+
+A test that trains calls `.autodiff()` on the device before it builds its
+module and inputs.
 
 ### The silent CPU fallback
 
-When no backend feature reaches bunsen, `PerformanceBackend` falls back to
-the CPU. Nothing fails. The tests compile, run and pass, having measured
-the CPU. A plain `cargo test` says nothing about a GPU, and an audit of
-`CpuBackend` against `PerformanceBackend` compares the CPU with itself.
+When no backend feature reaches bunsen, `performance_device()` is the CPU.
+Nothing fails. The tests compile, run and pass, having measured the CPU. A
+plain `cargo test` says nothing about a GPU, and an audit of `cpu_device()`
+against `performance_device()` compares the CPU with itself.
 
 **Always test with a backend feature**, such as `--features wgpu`. A crate
-whose own backend features should move `PerformanceBackend` must forward
+whose own backend features should move `performance_device()` must forward
 them to bunsen (`wgpu = ["bunsen/wgpu"]`); enabling only `burn/wgpu` leaves
-it on the CPU. [`PerformanceBackend`](bunsen::support::testing::PerformanceBackend#the-cpu-fallback-is-silent)
+it on the CPU. [`performance_device`](bunsen::support::testing::performance_device#the-cpu-fallback-is-silent)
 documents the selection order and the fallback, and STYLE.md's
 [Backend selection](https://github.com/zspacelabs/bunsen/blob/main/STYLE.md#backend-selection)
 has the rule.
@@ -50,14 +53,6 @@ feature says *which* accelerator runs them. Pass both. Gate such a test on
 `feature = "gpu-tests"`, never on "some backend feature is on", which would
 leave no way to have one without the other
 ([GPU tests](https://github.com/zspacelabs/bunsen/blob/main/STYLE.md#gpu-tests)).
-
-## Devices
-
-[`default_device`](bunsen::support::testing::default_device) and
-[`backend_device`](bunsen::support::testing::backend_device) return one
-device per device type, created on first use and shared by the whole test
-process. A harness that needs a particular device pins it once with
-[`set_default_device`](bunsen::support::testing::set_default_device).
 
 ## Inputs that agree across backends
 
@@ -90,7 +85,7 @@ Two backends rarely compute a float result bit for bit alike: they reduce in
 different orders, and some accelerator kernels trade precision for speed. A
 test that runs on whichever backend a developer builds therefore compares
 computed values within a tolerance.
-[`support::testing`](bunsen::support::testing#test-backends) states the rule
+[`support::testing`](bunsen::support::testing#test-devices) states the rule
 and has the assertions that apply it.
 
 Set a tolerance from measurement, not by guessing. Run on each backend you

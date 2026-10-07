@@ -15,18 +15,18 @@ The criterion benches live in
 | `contracts` | shape-contract unpacks, asserts and periodic asserts ([cost](bunsen::contracts#cost)) | the host |
 | `drop_block` | 2D DropBlock over a small image batch | the CPU backend, always |
 | `math` | [`maybe_iroot`](bunsen::support::math::maybe_iroot) against a floating-point reference | the host |
-| `lbm` | the D2Q9 lattice-Boltzmann collision, streaming and update steps, in `f32` and `f64` | `PerformanceBackend` |
-| `whisper_decode` | the Whisper encoder and decode loop at `base.en`'s shapes, with random weights, cold and warm | `PerformanceBackend` |
+| `lbm` | the D2Q9 lattice-Boltzmann collision, streaming and update steps, in `f32` and `f64` | `performance_device()` |
+| `whisper_decode` | the Whisper encoder and decode loop at `base.en`'s shapes, with random weights, cold and warm | `performance_device()` |
 
 Outside the benches:
 
 - [`silero-bench`](https://github.com/zspacelabs/bunsen/tree/main/crates/dev/silero-bench)
   runs a mono WAV file through Silero VAD's streaming context on
-  `PerformanceBackend`, prints the per-chunk speech probabilities, and
+  `performance_device()`, prints the per-chunk speech probabilities, and
   optionally checks them against an expected JSON file.
 - [`conway`](https://github.com/zspacelabs/bunsen/tree/main/examples/conway)'s
   `benchmark` subcommand reports the sustained steps per second of the 2D or
-  3D Game of Life on the backend it was built for. It measures the tensor
+  3D Game of Life on the device `--device` selects. It measures the tensor
   kernels behind the simulation kits.
 - [whisper-cli](https://github.com/zspacelabs/bunsen/blob/main/examples/whisper-cli/README.md#benchmarks)'s
   `transcribe` reports, over a set of files, the mean audio length, the mean
@@ -55,15 +55,17 @@ to optimize, and know which one a number is.
 ## Always pass a backend
 
 A benchmark on
-[`PerformanceBackend`](bunsen::support::testing::PerformanceBackend)
+[`performance_device`](bunsen::support::testing::performance_device)
 measures whatever bunsen's backend feature selected, and without one that is
 the CPU. It doesn't fail; it reports CPU numbers
 ([Testing and backends](./testing.md#the-silent-cpu-fallback)). Pass the
 backend explicitly: `--features wgpu`, or another backend, for bunsen's own
 benches, and `--features bunsen/wgpu` for a binary that reaches
-`PerformanceBackend` through bunsen, such as whisper-cli. `conway` picks its
-backend with its own features, and defaults to the CPU. The examples'
-READMEs and the `whisper_decode` bench's docs give exact commands.
+`performance_device()` through bunsen, such as silero-bench. The examples,
+whisper-cli and `conway` among them, pick their device at run time with
+`--device`; a backend is selectable only when the example was built with its
+feature, and without one `auto` is the CPU. The examples' READMEs and the
+`whisper_decode` bench's docs give exact commands.
 
 Benches build optimized already. Run the binaries with `--release` too: the
 work is inside burn's kernels, and an unoptimized build measures the wrong

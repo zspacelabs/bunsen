@@ -25,7 +25,7 @@
 //!
 //! Unlike Whisper, nothing here is fetched: the graph is committed in
 //! `bunsen-bundled-silero` and the weights ship with it. So a backend feature
-//! is all this crate takes, and it is worth passing: `PerformanceBackend`
+//! is all this crate takes, and it is worth passing: `performance_device()`
 //! falls through to `Flex` when none reaches `bunsen`, and the cross-checks
 //! are compiled either way. A run without one does not fail — it quietly
 //! measures the CPU and passes, which is not worth the wall clock.
@@ -38,7 +38,7 @@ pub mod reference {
     pub use bunsen_bundled_silero::onnx_gen::*;
 
     /// Reference ONNX Model.
-    pub type ReferenceModel<B> = Model<B>;
+    pub type ReferenceModel = Model;
 }
 
 mod cross_test;

@@ -29,6 +29,10 @@ use bunsen::{
         },
     },
 };
+use bunsen_app::device::{
+    DeviceArgs,
+    DevicePrefs,
+};
 use burn::{
     config::Config,
     data::{
@@ -61,11 +65,7 @@ use burn::{
         Int,
         Tensor,
     },
-    record::CompactRecorder,
-    tensor::backend::{
-        AutodiffBackend,
-        Backend,
-    },
+    tensor::Device,
     train::{
         InferenceStep,
         Learner,
@@ -79,22 +79,11 @@ use burn::{
             HammingScore,
             LearningRateMetric,
             LossMetric,
-            MetricDefinition,
             store::{
                 Aggregate,
                 Direction,
                 Split,
             },
-        },
-        renderer::{
-            EvaluationName,
-            EvaluationProgress,
-            MetricState,
-            MetricsRenderer,
-            MetricsRendererEvaluation,
-            MetricsRendererTraining,
-            ProgressType,
-            TrainingProgress,
         },
     },
 };
@@ -147,12 +136,12 @@ pub struct Args {
     #[arg(long, default_value = "/tmp/resnet_finetune")]
     pub artifact_dir: String,
 
-    /// Use half precision for training.
-    #[arg(long, default_value = "false")]
-    pub half_precision: bool,
+    /// The device to train on.
+    #[command(flatten)]
+    pub device: DeviceArgs,
 
     /// Batch size for processing
-    #[arg(short, long, default_value_t = 100)]
+    #[arg(short, long, default_value_t = 32)]
     pub batch_size: usize,
 
     /// Grads accumulation size for processing
@@ -245,45 +234,7 @@ fn main() -> anyhow::Result<()> {
 
     let _source_tree = download();
 
-    if args.half_precision {
-        cfg_select! {
-            feature = "cuda" => {
-                type B = burn::backend::Cuda<burn::tensor::bf16>;
-            }
-            feature = "metal" => {
-                type B = burn::backend::Metal<burn::tensor::bf16>;
-            }
-            feature = "vulkan" => {
-                type B = burn::backend::Vulkan<burn::tensor::bf16>;
-            }
-            feature = "wgpu" => {
-                type B = burn::backend::Wgpu<burn::tensor::bf16>;
-            }
-            _ => {
-                type B = burn::backend::Flex;
-            }
-        }
-        train::<burn::backend::Autodiff<B>>(&args)
-    } else {
-        cfg_select! {
-            feature = "cuda" => {
-                type B = burn::backend::Cuda;
-            }
-            feature = "metal" => {
-                type B = burn::backend::Metal;
-            }
-            feature = "wgpu" => {
-                type B = burn::backend::Wgpu;
-            }
-            feature = "vulkan" => {
-                type B = burn::backend::Vulkan;
-            }
-            _ => {
-                type B = burn::backend::Flex;
-            }
-        }
-        train::<burn::backend::Autodiff<B>>(&args)
-    }
+    train(&args)
 }
 
 fn ensure_artifact_dir(artifact_dir: &str) -> anyhow::Result<()> {
@@ -293,8 +244,13 @@ fn ensure_artifact_dir(artifact_dir: &str) -> anyhow::Result<()> {
 }
 
 #[must_use]
-pub fn train<B: AutodiffBackend>(args: &Args) -> anyhow::Result<()> {
-    let device: B::Device = Default::default();
+pub fn train(args: &Args) -> anyhow::Result<()> {
+    // f32 unless `--precision half` (bf16, where the backend trains in it
+    // well); autodiff before the model and inputs.
+    let device: Device = args
+        .device
+        .init(&DevicePrefs::training())
+        .map_err(anyhow::Error::msg)?;
 
     let factory = default_resnet_factory()?;
 
@@ -325,7 +281,7 @@ pub fn train<B: AutodiffBackend>(args: &Args) -> anyhow::Result<()> {
     let artifact_dir: &str = args.artifact_dir.as_ref();
     ensure_artifact_dir(artifact_dir)?;
 
-    B::seed(&device, args.seed);
+    device.seed(args.seed);
 
     let mut resnet_config = prefab.to_config();
 
@@ -348,7 +304,7 @@ pub fn train<B: AutodiffBackend>(args: &Args) -> anyhow::Result<()> {
         }
     }
 
-    let model: ResNet<B> = resnet_config.clone().try_init(&device)?;
+    let model: ResNet = resnet_config.clone().try_init(&device)?;
 
     let old_float_type = model.output_fc.weight.dtype();
 
@@ -357,10 +313,10 @@ pub fn train<B: AutodiffBackend>(args: &Args) -> anyhow::Result<()> {
     // the checkpoint is read into that model.
     model_ref.hook = model_ref.hook.with_config(resnet_config.clone());
     let loaded = model_ref
-        .load::<B>(&cache, &device)
+        .load(&cache, &device)
         .context("Failed to load pretrained weights")?;
 
-    let mut model: ResNet<B> = Arc::unwrap_or_clone(loaded.handle)
+    let mut model: ResNet = Arc::unwrap_or_clone(loaded.handle)
         .map(&mut DTypeMapper::new(old_float_type))
         .with_classes(CLASSES.len())
         .with_stochastic_drop_block(args.drop_block_prob)
@@ -370,7 +326,7 @@ pub fn train<B: AutodiffBackend>(args: &Args) -> anyhow::Result<()> {
         model = model.freeze_layers();
     }
 
-    let host: Host<B> = Host {
+    let host: Host = Host {
         smoothing: args.smoothing,
         resnet: model,
     };
@@ -398,8 +354,8 @@ pub fn train<B: AutodiffBackend>(args: &Args) -> anyhow::Result<()> {
     .expect("Config should be saved successfully");
 
     // Dataloaders
-    let batcher_train = ClassificationBatcher::<B>::new(device.clone());
-    let batcher_valid = ClassificationBatcher::<B::InnerBackend>::new(device.clone());
+    let batcher_train = ClassificationBatcher::new(device.clone());
+    let batcher_valid = ClassificationBatcher::new(device.clone());
 
     let (train, valid) =
         ImageFolderDataset::planet_train_val_split(args.train_percentage, args.seed)?;
@@ -434,53 +390,6 @@ pub fn train<B: AutodiffBackend>(args: &Args) -> anyhow::Result<()> {
 
     let now: Instant;
     {
-        /*
-        // Learner config
-        let mut learner_config = LearnerBuilder::new(artifact_dir)
-            .metric_train_numeric(HammingScore::new())
-            .metric_valid_numeric(HammingScore::new())
-            .metric_train_numeric(LossMetric::new())
-            .metric_valid_numeric(LossMetric::new())
-            .metric_train(CudaMetric::new())
-            .metric_valid(CudaMetric::new())
-            .metric_train_numeric(CpuUse::new())
-            .metric_valid_numeric(CpuUse::new())
-            .metric_train_numeric(CpuMemory::new())
-            .metric_valid_numeric(CpuMemory::new())
-            .metric_train_numeric(LearningRateMetric::new())
-            .with_file_checkpointer(CompactRecorder::new())
-            .grads_accumulation(args.grads_accumulation)
-            .num_epochs(args.num_epochs)
-            .summary();
-        /*
-        .renderer(CustomRenderer {})
-        .with_application_logger(None)
-         */
-
-        if args.patience > 0 {
-            learner_config = learner_config.early_stopping(MetricEarlyStoppingStrategy::new(
-                &LossMetric::<B>::new(),
-                Aggregate::Mean,
-                Direction::Lowest,
-                Split::Valid,
-                StoppingCondition::NoImprovementSince {
-                    n_epochs: args.patience,
-                },
-            ));
-        }
-
-        let learner = learner_config.build(
-            host,
-            optimizer,
-            lr_scheduler,
-            LearningStrategy::SingleDevice(device.clone()),
-        );
-
-        // Training
-        now = Instant::now();
-        let result = learner.fit(dataloader_train, dataloader_test);
-         */
-
         let training = SupervisedTraining::new(artifact_dir, dataloader_train, dataloader_test)
             .metrics((
                 HammingScore::new(),
@@ -488,9 +397,9 @@ pub fn train<B: AutodiffBackend>(args: &Args) -> anyhow::Result<()> {
                 // CudaMetric::new(), ??
                 LearningRateMetric::new(),
             ))
-            .with_file_checkpointer(CompactRecorder::new())
+            .with_default_checkpointers()
             .early_stopping(MetricEarlyStoppingStrategy::new(
-                &LossMetric::<B>::new(),
+                &LossMetric::new(),
                 Aggregate::Mean,
                 Direction::Lowest,
                 Split::Valid,
@@ -504,12 +413,14 @@ pub fn train<B: AutodiffBackend>(args: &Args) -> anyhow::Result<()> {
 
         now = Instant::now();
         let result = training.launch(Learner::new(host, optimizer, lr_scheduler));
+        if let Some(error) = result.error {
+            anyhow::bail!("training failed: {error}");
+        }
 
         result
             .model
             .resnet
-            .save_file(format!("{artifact_dir}/model"), &CompactRecorder::new())
-            .expect("Trained model should be saved successfully");
+            .save_file(format!("{artifact_dir}/model.bpk"))?;
     }
     let elapsed = now.elapsed().as_secs();
     println!("Training completed in {}m{}s", (elapsed / 60), elapsed % 60);
@@ -519,94 +430,33 @@ pub fn train<B: AutodiffBackend>(args: &Args) -> anyhow::Result<()> {
     Ok(())
 }
 
-struct CustomRenderer {}
-
-impl MetricsRendererTraining for CustomRenderer {
-    fn update_train(
-        &mut self,
-        _state: MetricState,
-    ) {
-    }
-
-    fn update_valid(
-        &mut self,
-        _state: MetricState,
-    ) {
-    }
-
-    fn render_train(
-        &mut self,
-        item: TrainingProgress,
-        _: Vec<ProgressType>,
-    ) {
-        dbg!(item);
-    }
-
-    fn render_valid(
-        &mut self,
-        item: TrainingProgress,
-        _: Vec<ProgressType>,
-    ) {
-        dbg!(item);
-    }
-}
-
-impl MetricsRenderer for CustomRenderer {
-    fn manual_close(&mut self) {
-        // Nothing to do.
-    }
-
-    fn register_metric(
-        &mut self,
-        _definition: MetricDefinition,
-    ) {
-    }
-}
-
-impl MetricsRendererEvaluation for CustomRenderer {
-    fn update_test(
-        &mut self,
-        _name: EvaluationName,
-        _state: MetricState,
-    ) {
-    }
-
-    fn render_test(
-        &mut self,
-        item: EvaluationProgress,
-        _: Vec<ProgressType>,
-    ) {
-        dbg!(item);
-    }
-}
-
 #[derive(Module, Debug)]
-pub struct Host<B: Backend> {
+pub struct Host {
     pub smoothing: Option<f32>,
 
-    pub resnet: ResNet<B>,
+    pub resnet: ResNet,
 }
 
-pub trait MultiLabelClassification<B: Backend> {
+pub trait MultiLabelClassification {
     fn forward_classification(
         &self,
-        images: Tensor<B, 4>,
-        targets: Tensor<B, 2, Int>,
-    ) -> MultiLabelClassificationOutput<B>;
+        images: Tensor<4>,
+        targets: Tensor<2, Int>,
+    ) -> MultiLabelClassificationOutput;
 }
 
-impl<B: Backend> MultiLabelClassification<B> for Host<B> {
+impl MultiLabelClassification for Host {
     fn forward_classification(
         &self,
-        images: Tensor<B, 4>,
-        targets: Tensor<B, 2, Int>,
-    ) -> MultiLabelClassificationOutput<B> {
+        images: Tensor<4>,
+        targets: Tensor<2, Int>,
+    ) -> MultiLabelClassificationOutput {
         let device = images.device();
         let output = self.resnet.forward(images);
 
         let mut loss_cfg = BinaryCrossEntropyLossConfig::new().with_logits(true);
 
-        if B::ad_enabled(&device) {
+        if device.is_autodiff() {
             loss_cfg = loss_cfg.with_smoothing(self.smoothing);
         }
 
@@ -618,9 +468,9 @@ impl<B: Backend> MultiLabelClassification<B> for Host<B> {
     }
 }
 
-impl<B: AutodiffBackend> TrainStep for Host<B> {
-    type Input = ClassificationBatch<B>;
-    type Output = MultiLabelClassificationOutput<B>;
+impl TrainStep for Host {
+    type Input = ClassificationBatch;
+    type Output = MultiLabelClassificationOutput;
 
     fn step(
         &self,
@@ -632,9 +482,9 @@ impl<B: AutodiffBackend> TrainStep for Host<B> {
     }
 }
 
-impl<B: Backend> InferenceStep for Host<B> {
-    type Input = ClassificationBatch<B>;
-    type Output = MultiLabelClassificationOutput<B>;
+impl InferenceStep for Host {
+    type Input = ClassificationBatch;
+    type Output = MultiLabelClassificationOutput;
 
     fn step(
         &self,

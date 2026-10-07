@@ -6,11 +6,9 @@ use std::sync::{
 use bunsen::{
     data::cache::BunsenDiskCache,
     kits::gpts::nanochat::datasets::NANOCHAT_SHARD_SETS,
-    support::testing::{
-        PerformanceBackend,
-        backend_device,
-    },
+    support::testing::performance_device,
 };
+use bunsen_app::shards::ShardArgs;
 use bunsen_arrow_dataloaders::{
     dataloaders::chat::ChatDataLoader,
     tokens::{
@@ -19,7 +17,6 @@ use bunsen_arrow_dataloaders::{
     },
 };
 use clap::Parser;
-use clap_common::shards::ShardArgs;
 use rand::{
     SeedableRng,
     rngs::StdRng,
@@ -129,11 +126,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         eos: vec![],
     };
 
-    type B = PerformanceBackend;
+    let device = performance_device();
 
-    let device = backend_device::<B>();
-
-    let data_loader: ChatDataLoader<B> = ChatDataLoader::new(
+    let data_loader: ChatDataLoader = ChatDataLoader::new(
         shard_paths,
         Some(Arc::new(Mutex::new(StdRng::seed_from_u64(0)))),
         &device,
@@ -152,6 +147,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut last_idx = 0;
     let t0 = std::time::Instant::now();
     for (idx, tensor) in dl_iter.enumerate() {
+        let tensor = tensor?;
         assert_eq!(&tensor.dims(), &shape);
         last_idx = idx;
     }

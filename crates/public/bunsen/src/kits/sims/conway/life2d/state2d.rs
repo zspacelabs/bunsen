@@ -3,12 +3,14 @@ use burn::{
     config::Config,
     module::Module,
     prelude::{
-        Backend,
         Bool,
         Int,
         SliceArg,
     },
-    tensor::Slice,
+    tensor::{
+        Device,
+        Slice,
+    },
 };
 
 use crate::{
@@ -42,13 +44,13 @@ pub struct ConwayLife2DConfig {
 
 impl ConwayLife2DConfig {
     /// Initializes an all-dead [`ConwayLife2DState`] on `device`.
-    pub fn init<B: Backend>(
+    pub fn init(
         self,
-        device: &B::Device,
-    ) -> ConwayLife2DState<B> {
+        device: &Device,
+    ) -> ConwayLife2DState {
         ConwayLife2DState {
             shape: self.shape,
-            state: Tensor::<B, 2, Int>::zeros(self.shape.as_height_width(), device).bool(),
+            state: Tensor::<2, Int>::zeros(self.shape.as_height_width(), device).bool(),
         }
     }
 }
@@ -70,16 +72,17 @@ impl ConwayLife2DConfig {
 ///
 /// Built by [`ConwayLife2DConfig`].
 #[derive(Module, Debug)]
-pub struct ConwayLife2DState<B: Backend> {
+pub struct ConwayLife2DState {
     /// The shape of the board.
+    #[module(skip)]
     pub shape: GridShape2D,
 
     /// The current state of the board.
-    pub state: Tensor<B, 2, Bool>,
+    pub state: Tensor<2, Bool>,
 }
 
-impl<B: Backend> ConwaySim<B> for ConwayLife2DState<B> {
-    fn device(&self) -> B::Device {
+impl ConwaySim for ConwayLife2DState {
+    fn device(&self) -> Device {
         self.state.device()
     }
 
@@ -104,7 +107,7 @@ impl<B: Backend> ConwaySim<B> for ConwayLife2DState<B> {
     }
 }
 
-impl<B: Backend> ConwayLife2DState<B> {
+impl ConwayLife2DState {
     /// Reads a slice of the current board state.
     pub fn read_slice<R>(
         &self,
@@ -143,7 +146,7 @@ impl<B: Backend> ConwayLife2DState<B> {
             }
         }
 
-        let data = Tensor::<B, 1, Int>::from_ints(block.as_slice(), &self.device())
+        let data = Tensor::<1, Int>::from_ints(block.as_slice(), &self.device())
             .bool()
             .reshape([h, w]);
 
@@ -168,8 +171,7 @@ mod tests {
         },
         support::testing::{
             DeviceMemoryGuard,
-            PerformanceBackend,
-            default_device,
+            performance_device,
         },
     };
 
@@ -203,12 +205,11 @@ mod tests {
     #[test]
     #[serial]
     fn test_step_after_write_slice_wraps() {
-        type B = PerformanceBackend;
-        let device = default_device();
-        let _memory = DeviceMemoryGuard::<B>::new(&device);
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
 
         // A 7x7 board: a 5x5 torus in rows and columns 1..6.
-        let mut life: ConwayLife2DState<B> =
+        let mut life: ConwayLife2DState =
             ConwayLife2DConfig::new(GridShape2D::square(7)).init(&device);
         life.write_slice(s![1, 1..4], vec![vec![true, true, true]]);
         let seed = life.read_slice(s![1..6, 1..6]);
@@ -227,12 +228,11 @@ mod tests {
     #[test]
     #[serial]
     fn test_step_after_fuzz_wraps() {
-        type B = PerformanceBackend;
-        let device = default_device();
-        let _memory = DeviceMemoryGuard::<B>::new(&device);
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
 
         // A 9x12 board: a 7x10 torus in rows 1..8, columns 1..11.
-        let mut life: ConwayLife2DState<B> = ConwayLife2DConfig::new(GridShape2D {
+        let mut life: ConwayLife2DState = ConwayLife2DConfig::new(GridShape2D {
             width: 12,
             height: 9,
         })
@@ -250,12 +250,11 @@ mod tests {
     #[test]
     #[serial]
     fn test_fuzz_flips_each_hit_cell() {
-        type B = PerformanceBackend;
-        let device = default_device();
-        let _memory = DeviceMemoryGuard::<B>::new(&device);
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
 
         // A 7x7 board: a 5x5 torus with live and dead cells.
-        let mut life: ConwayLife2DState<B> =
+        let mut life: ConwayLife2DState =
             ConwayLife2DConfig::new(GridShape2D::square(7)).init(&device);
         life.write_slice(
             s![1..3, 1..4],
@@ -279,21 +278,18 @@ mod tests {
     #[test]
     #[serial]
     fn test_module_reaches_the_board() {
-        type B = PerformanceBackend;
-        let device = default_device();
-        let _memory = DeviceMemoryGuard::<B>::new(&device);
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
 
-        let life: ConwayLife2DState<B> =
-            ConwayLife2DConfig::new(GridShape2D::square(5)).init(&device);
+        let life: ConwayLife2DState = ConwayLife2DConfig::new(GridShape2D::square(5)).init(&device);
         assert_eq!(life.devices(), vec![device]);
     }
 
     #[test]
     #[serial]
     fn test_smoke() {
-        type B = PerformanceBackend;
-        let device = default_device();
-        let _memory = DeviceMemoryGuard::<B>::new(&device);
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
 
         let steps = 100;
         let grid_size = 20;
@@ -301,7 +297,7 @@ mod tests {
         let config = ConwayLife2DConfig {
             shape: GridShape2D::square(grid_size),
         };
-        let mut game: ConwayLife2DState<B> = config.init(&device);
+        let mut game: ConwayLife2DState = config.init(&device);
         game.fuzz(0.05);
 
         for _ in 0..steps {
@@ -312,13 +308,12 @@ mod tests {
     #[test]
     #[serial]
     fn test_logic() {
-        type B = PerformanceBackend;
-        let device = default_device();
-        let _memory = DeviceMemoryGuard::<B>::new(&device);
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
         let config = ConwayLife2DConfig {
             shape: GridShape2D::square(5),
         };
-        let mut conway: ConwayLife2DState<B> = config.init(&device);
+        let mut conway: ConwayLife2DState = config.init(&device);
 
         assert_eq!(
             conway.read_slice(s![1..3, 1..3]),

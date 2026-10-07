@@ -1,6 +1,5 @@
 use burn::{
     Tensor,
-    prelude::Backend,
     tensor::Distribution,
 };
 
@@ -22,10 +21,10 @@ use burn::{
 /// # Panics
 ///
 /// If `prob` is not in `[0, 1]`.
-pub fn dropout<B: Backend, const D: usize>(
+pub fn dropout<const D: usize>(
     prob: f64,
-    input: Tensor<B, D>,
-) -> Tensor<B, D> {
+    input: Tensor<D>,
+) -> Tensor<D> {
     if prob == 0.0 {
         return input;
     }
@@ -45,10 +44,7 @@ pub fn dropout<B: Backend, const D: usize>(
 
 #[cfg(test)]
 mod tests {
-    use burn::{
-        prelude::ElementConversion,
-        tensor::Distribution,
-    };
+    use burn::tensor::Distribution;
     use serial_test::serial;
 
     use super::*;
@@ -56,18 +52,16 @@ mod tests {
         ops::drop::dropout,
         support::testing::{
             DeviceMemoryGuard,
-            PerformanceBackend,
-            default_device,
+            performance_device,
         },
     };
 
     #[test]
     #[serial]
     fn dropout_prob_0_should_return_input() {
-        type B = PerformanceBackend;
-        let device = default_device();
-        let _memory = DeviceMemoryGuard::<B>::new(&device);
-        let input = Tensor::<B, 2>::random([10, 3], Distribution::Default, &device);
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
+        let input = Tensor::<2>::random([10, 3], Distribution::Default, &device);
 
         let output = dropout(0., input.clone());
 
@@ -77,10 +71,9 @@ mod tests {
     #[test]
     #[serial]
     fn dropout_prob_1_should_return_zeros() {
-        type B = PerformanceBackend;
-        let device = default_device();
-        let _memory = DeviceMemoryGuard::<B>::new(&device);
-        let input = Tensor::<B, 2>::random([10, 3], Distribution::Default, &device);
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
+        let input = Tensor::<2>::random([10, 3], Distribution::Default, &device);
 
         let output = dropout(1., input.clone());
 
@@ -92,12 +85,11 @@ mod tests {
     #[test]
     #[serial]
     fn dropout_rates_stochastic_test() {
-        type B = PerformanceBackend;
-        let device = default_device();
-        let _memory = DeviceMemoryGuard::<B>::new(&device);
-        B::seed(&device, 0);
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
+        device.seed(0);
 
-        let input = Tensor::<B, 2>::ones([10, 10], &device);
+        let input = Tensor::<2>::ones([10, 10], &device);
         let num_elem = input.shape().num_elements();
 
         let prob = 0.25;
@@ -106,20 +98,13 @@ mod tests {
         let prob_keep = 1.0 - prob;
         let keep_value = 1.0 / prob_keep;
 
-        let drop_count: f32 = output
-            .clone()
-            .equal_elem(0.0)
-            .float()
-            .sum()
-            .into_scalar()
-            .elem();
+        let drop_count: f32 = output.clone().equal_elem(0.0).float().sum().into_scalar();
         let keep_count: f32 = output
             .clone()
             .equal_elem(keep_value)
             .float()
             .sum()
-            .into_scalar()
-            .elem();
+            .into_scalar();
 
         assert_eq!(keep_count, num_elem as f32 - drop_count);
 
@@ -131,11 +116,10 @@ mod tests {
     #[serial]
     #[should_panic = "Dropout probability should be between 0 and 1,"]
     fn dropout_prob_invalid() {
-        type B = PerformanceBackend;
-        let device = default_device();
-        let _memory = DeviceMemoryGuard::<B>::new(&device);
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
 
-        let input = Tensor::<B, 1>::ones([10], &device);
+        let input = Tensor::<1>::ones([10], &device);
         let _ = dropout(-10., input);
     }
 }

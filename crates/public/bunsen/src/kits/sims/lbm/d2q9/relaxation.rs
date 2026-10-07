@@ -1,8 +1,10 @@
 //! # Thermal Relaxation
 use burn::{
     Tensor,
-    prelude::Backend,
-    tensor::DType,
+    tensor::{
+        DType,
+        Device,
+    },
 };
 use serde::{
     Deserialize,
@@ -36,12 +38,12 @@ use crate::errors::{
 /// # Returns
 ///
 /// The `[H, W, VY=3, VX=3]` relaxed sum.
-pub fn relaxed_sum<B: Backend, S: Into<OmegaSource<B>>>(
-    dist_a: Tensor<B, 4>,
-    dist_b: Tensor<B, 4>,
+pub fn relaxed_sum<S: Into<OmegaSource>>(
+    dist_a: Tensor<4>,
+    dist_b: Tensor<4>,
     relaxation: S,
     correction: Option<f64>,
-) -> Tensor<B, 4> {
+) -> Tensor<4> {
     let omega = relaxation
         .into()
         .omega(&dist_a.device(), dist_a.dtype())
@@ -52,39 +54,41 @@ pub fn relaxed_sum<B: Backend, S: Into<OmegaSource<B>>>(
 }
 
 /// Omegas for the BGK collision operator.
-pub enum OmegaSource<B: Backend> {
+// An argument type, built through `Into` for one call and dropped; boxing the
+// tensor would cost an allocation per step to save stack it never occupies.
+#[allow(clippy::large_enum_variant)]
+pub enum OmegaSource {
     /// Scalar relaxation frequency.
     Relaxation(RelaxationParam),
 
     /// Tensor relaxation frequency.
-    Omega(Tensor<B, 2>),
+    Omega(Tensor<2>),
 }
 
-impl<B: Backend> OmegaSource<B> {
+impl OmegaSource {
     /// Returns the omega tensor.
     pub fn omega(
         &self,
-        device: &B::Device,
+        device: &Device,
         dtype: DType,
-    ) -> Tensor<B, 2> {
+    ) -> Tensor<2> {
         match self {
             OmegaSource::Relaxation(relaxation) => {
-                Tensor::<B, 1>::from_data([relaxation.as_omega_value()], (device, dtype))
-                    .unsqueeze()
+                Tensor::<1>::from_data([relaxation.as_omega_value()], (device, dtype)).unsqueeze()
             }
             OmegaSource::Omega(omega) => omega.clone().to_device(device).cast(dtype),
         }
     }
 }
 
-impl<B: Backend> From<RelaxationParam> for OmegaSource<B> {
+impl From<RelaxationParam> for OmegaSource {
     fn from(val: RelaxationParam) -> Self {
         OmegaSource::Relaxation(val)
     }
 }
 
-impl<B: Backend> From<Tensor<B, 2>> for OmegaSource<B> {
-    fn from(val: Tensor<B, 2>) -> Self {
+impl From<Tensor<2>> for OmegaSource {
+    fn from(val: Tensor<2>) -> Self {
         OmegaSource::Omega(val)
     }
 }
@@ -162,8 +166,7 @@ mod tests {
         },
         support::testing::{
             DeviceMemoryGuard,
-            PerformanceBackend,
-            default_device,
+            performance_device,
         },
     };
 
@@ -216,16 +219,15 @@ mod tests {
     #[test]
     #[serial]
     fn test_omega_source_from_relaxation() {
-        type B = PerformanceBackend;
-        let device = default_device();
-        let _memory = DeviceMemoryGuard::<B>::new(&device);
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
 
         let relaxation = RelaxationParam::Omega(1.0);
-        let omega_source: OmegaSource<B> = relaxation.into();
+        let omega_source: OmegaSource = relaxation.into();
         let omega = omega_source.omega(&device, DType::F32);
 
         omega.to_data().assert_eq(
-            &Tensor::<B, 2>::from_data([[relaxation.as_omega_value()]], &device).to_data(),
+            &Tensor::<2>::from_data([[relaxation.as_omega_value()]], &device).to_data(),
             false,
         );
     }

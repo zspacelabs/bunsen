@@ -4,7 +4,6 @@ use burn::{
     config::Config,
     module::Module,
     nn::{
-        LinearLayout,
         PaddingConfig1d,
         activation::ActivationConfig,
         conv::{
@@ -13,11 +12,11 @@ use burn::{
         },
     },
     prelude::{
-        Backend,
         Tensor,
         s,
     },
     tensor::{
+        Device,
         activation::{
             relu,
             sigmoid,
@@ -51,7 +50,6 @@ use crate::{
         WithOkOrPanic,
     },
     kits::speech::silero_vad::blocks::context::SileroVadContext,
-    prelude::TensorOpExt,
 };
 
 /// [`SileroVad`] Signal Config: the top policy of `SileroVad`'s Stacked
@@ -219,7 +217,7 @@ impl ToStructureConfig for SileroVadStftConfig {
                 .with_padding(PaddingConfig1d::Valid)
                 .with_bias(false),
             encoder: encoder_config(self.n_freq, self.d_hidden, self.d_bottleneck),
-            lstm: FusedLstmConfig::new(self.d_hidden).with_layout(LinearLayout::Col),
+            lstm: FusedLstmConfig::new(self.d_hidden),
             decoder: Conv1dConfig::new(self.d_hidden, 1, 1)
                 .with_padding(PaddingConfig1d::Valid)
                 .with_bias(true),
@@ -422,11 +420,11 @@ impl SileroVadStructureConfig {
     }
 }
 
-impl<B: Backend> ModuleInit<B, SileroVad<B>> for SileroVadStructureConfig {
+impl ModuleInit<SileroVad> for SileroVadStructureConfig {
     fn try_init(
         &self,
-        device: &B::Device,
-    ) -> BunsenResult<SileroVad<B>> {
+        device: &Device,
+    ) -> BunsenResult<SileroVad> {
         self.validate()?;
         Ok(SileroVad {
             sample_rate: self.sample_rate,
@@ -493,24 +491,24 @@ impl<B: Backend> ModuleInit<B, SileroVad<B>> for SileroVadStructureConfig {
 /// `silero-model-validation` crate. On the burn CUDA backend alone the model
 /// diverges from those golden tests, which points at a backend bug.
 #[derive(Module, Debug)]
-pub struct SileroVad<B: Backend> {
+pub struct SileroVad {
     sample_rate: usize,
     input_pad: usize,
 
     /// The STFT analysis conv.
-    pub stft: Conv1d<B>,
+    pub stft: Conv1d,
 
     /// The `ReLU` conv encoder.
-    pub encoder: ConvSeq1d<B>,
+    pub encoder: ConvSeq1d,
 
     /// The lstm.
-    pub lstm: FusedLstm<B>,
+    pub lstm: FusedLstm,
 
     /// The `1x1` output-head conv.
-    pub decoder: Conv1d<B>,
+    pub decoder: Conv1d,
 }
 
-impl<B: Backend> SileroVadMeta for SileroVad<B> {
+impl SileroVadMeta for SileroVad {
     fn sample_rate(&self) -> usize {
         self.sample_rate
     }
@@ -540,13 +538,13 @@ impl<B: Backend> SileroVadMeta for SileroVad<B> {
     }
 }
 
-impl<B: Backend> SileroVad<B> {
+impl SileroVad {
     /// Allocates a zeroed recurrent state of shape `[2, batch, d_hidden]`.
     pub fn init_state(
         &self,
         batch: usize,
-        device: &B::Device,
-    ) -> Tensor<B, 3> {
+        device: &Device,
+    ) -> Tensor<3> {
         Tensor::zeros([2, batch, self.d_hidden()], device)
     }
 
@@ -562,8 +560,8 @@ impl<B: Backend> SileroVad<B> {
         &self,
         batch: usize,
         context_size: usize,
-        device: &B::Device,
-    ) -> SileroVadContext<B> {
+        device: &Device,
+    ) -> SileroVadContext {
         assert_context_size(context_size);
         SileroVadContext {
             sample_rate: self.sample_rate(),
@@ -590,9 +588,9 @@ impl<B: Backend> SileroVad<B> {
     /// samples wide (built by hand: its constructors refuse one).
     pub fn context_forward_sequence(
         &self,
-        chunk_seq: Tensor<B, 3>,
-        context: SileroVadContext<B>,
-    ) -> (Tensor<B, 2>, SileroVadContext<B>) {
+        chunk_seq: Tensor<3>,
+        context: SileroVadContext,
+    ) -> (Tensor<2>, SileroVadContext) {
         let SileroVadContext {
             sample_rate,
             context,
@@ -632,10 +630,10 @@ impl<B: Backend> SileroVad<B> {
         assert_context_size(context_size);
 
         // [1, batch, context_size]
-        let context: Tensor<B, 3> = context.unsqueeze_dim(0);
+        let context: Tensor<3> = context.unsqueeze_dim(0);
 
         // [steps, batch, context_size]
-        let context: Tensor<B, 3> = if steps <= 1 {
+        let context: Tensor<3> = if steps <= 1 {
             context
         } else {
             let tails = chunk_seq
@@ -645,7 +643,7 @@ impl<B: Backend> SileroVad<B> {
         };
 
         // [steps, batch, context_size + samples]
-        let ext_chunk_seq: Tensor<B, 3> = Tensor::cat(vec![context, chunk_seq.clone()], 2);
+        let ext_chunk_seq: Tensor<3> = Tensor::cat(vec![context, chunk_seq.clone()], 2);
         let context = ext_chunk_seq
             .clone()
             .slice(s![-1, .., -(context_size as isize)..])
@@ -680,9 +678,9 @@ impl<B: Backend> SileroVad<B> {
     /// samples wide (built by hand: its constructors refuse one).
     pub fn context_forward(
         &self,
-        chunk: Tensor<B, 2>,
-        context: SileroVadContext<B>,
-    ) -> (Tensor<B, 1>, SileroVadContext<B>) {
+        chunk: Tensor<2>,
+        context: SileroVadContext,
+    ) -> (Tensor<1>, SileroVadContext) {
         let SileroVadContext {
             sample_rate,
             context,
@@ -751,9 +749,9 @@ impl<B: Backend> SileroVad<B> {
     /// * `state`: `[2, batch, d_hidden]`
     pub fn forward_sequence(
         &self,
-        chunk_seq: Tensor<B, 3>,
-        state: Tensor<B, 3>,
-    ) -> (Tensor<B, 2>, Tensor<B, 3>) {
+        chunk_seq: Tensor<3>,
+        state: Tensor<3>,
+    ) -> (Tensor<2>, Tensor<3>) {
         cfg_select! {
             any(test, debug_assertions) => {
                 let [steps, batch] = crate::contracts::unpack_shape_contract!(
@@ -801,7 +799,7 @@ impl<B: Backend> SileroVad<B> {
         }
 
         // [steps, batch, d_hidden]
-        let seq_hidden: Tensor<B, 3> = if B::ad_enabled(&seq_features.device()) {
+        let seq_hidden: Tensor<3> = if seq_features.device().is_autodiff() {
             // Differentiable Sequence.
             let mut seq_hidden = Tensor::zeros_like(&seq_features);
             process_steps!(mut seq_hidden)
@@ -842,9 +840,9 @@ impl<B: Backend> SileroVad<B> {
     /// * `state`: `[2, batch, d_hidden]`
     pub fn forward(
         &self,
-        chunk: Tensor<B, 2>,
-        state: Tensor<B, 3>,
-    ) -> (Tensor<B, 1>, Tensor<B, 3>) {
+        chunk: Tensor<2>,
+        state: Tensor<3>,
+    ) -> (Tensor<1>, Tensor<3>) {
         #[cfg(any(test, debug_assertions))]
         {
             let [batch] =
@@ -882,15 +880,15 @@ impl<B: Backend> SileroVad<B> {
     /// `[batch, d_hidden]` feature frames (the encoder output at frame 0).
     pub fn frame_features(
         &self,
-        input: Tensor<B, 2>,
-    ) -> Tensor<B, 2> {
+        input: Tensor<2>,
+    ) -> Tensor<2> {
         #[cfg(any(test, debug_assertions))]
         let [batch] =
             crate::contracts::unpack_shape_contract!(["batch", "samples"], &input, &["batch"]);
 
         // Reflect-pad, then add the channel axis.
         // [batch, 1, samples + pad]
-        let x: Tensor<B, 3> = input
+        let x: Tensor<3> = input
             .pad([(0, self.input_pad)], PadMode::Reflect)
             .unsqueeze_dim::<3>(1);
 
@@ -925,16 +923,16 @@ impl<B: Backend> SileroVad<B> {
 
     /// Splits a packed `[2, batch, d_hidden]` state into `(hidden, cell)`.
     /// Of shape `[batch, d_hidden]`.
-    pub fn unpack_state(state: Tensor<B, 3>) -> (Tensor<B, 2>, Tensor<B, 2>) {
+    pub fn unpack_state(state: Tensor<3>) -> (Tensor<2>, Tensor<2>) {
         let [hidden, cell] = state.chunk(2, 0).try_into().unwrap();
         (hidden.squeeze_dim::<2>(0), cell.squeeze_dim::<2>(0))
     }
 
     /// Stacks `(hidden, cell)` into a packed `[2, batch, d_hidden]` state.
     pub fn pack_state(
-        hidden: Tensor<B, 2>,
-        cell: Tensor<B, 2>,
-    ) -> Tensor<B, 3> {
+        hidden: Tensor<2>,
+        cell: Tensor<2>,
+    ) -> Tensor<3> {
         Tensor::stack(vec![hidden, cell], 0)
     }
 
@@ -951,10 +949,10 @@ impl<B: Backend> SileroVad<B> {
     /// The `(hidden, cell)` next states, each `[batch, d_hidden]`.
     pub fn lstm_step(
         &self,
-        features: Tensor<B, 2>,
-        hidden: Tensor<B, 2>,
-        cell: Tensor<B, 2>,
-    ) -> (Tensor<B, 2>, Tensor<B, 2>) {
+        features: Tensor<2>,
+        hidden: Tensor<2>,
+        cell: Tensor<2>,
+    ) -> (Tensor<2>, Tensor<2>) {
         self.lstm.step(features, hidden, cell)
     }
 
@@ -969,9 +967,9 @@ impl<B: Backend> SileroVad<B> {
     /// `[batch]` speech probabilities in `[0, 1]`.
     pub fn output_head(
         &self,
-        hidden: Tensor<B, 2>,
-    ) -> Tensor<B, 1> {
-        let x: Tensor<B, 3> = hidden.unsqueeze_dim::<3>(2);
+        hidden: Tensor<2>,
+    ) -> Tensor<1> {
+        let x: Tensor<3> = hidden.unsqueeze_dim::<3>(2);
         let x = relu(x);
         let x = self.decoder.forward(x);
         let x = sigmoid(x);
@@ -996,7 +994,6 @@ mod tests {
     use burn::tensor::{
         Distribution,
         Tolerance,
-        backend::BackendTypes,
     };
 
     use super::*;
@@ -1008,12 +1005,9 @@ mod tests {
         prelude::*,
         support::testing::{
             DeviceMemoryGuard,
-            PerformanceBackend,
-            default_device,
+            performance_device,
         },
     };
-
-    type B = PerformanceBackend;
 
     #[test]
     fn test_config_meta() {
@@ -1171,8 +1165,8 @@ mod tests {
     #[test]
     #[serial_test::serial]
     fn test_config_meta_matches_module() {
-        let device = default_device();
-        let _memory = DeviceMemoryGuard::<B>::new(&device);
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
 
         for (cfg, n_freq, chunk_size) in [
             (
@@ -1189,7 +1183,7 @@ mod tests {
             assert_eq!(cfg.chunk_size(), chunk_size);
             assert_eq!(cfg.n_freq(), n_freq);
 
-            let model: SileroVad<B> = cfg.init(&device);
+            let model: SileroVad = cfg.init(&device);
             assert_eq!(model.sample_rate(), cfg.sample_rate());
             assert_eq!(model.chunk_size(), cfg.chunk_size());
             assert_eq!(model.d_hidden(), cfg.d_hidden());
@@ -1222,8 +1216,8 @@ mod tests {
     #[test]
     #[serial_test::serial]
     fn test_policy_pathways_agree() {
-        let device = default_device();
-        let _memory = DeviceMemoryGuard::<B>::new(&device);
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
 
         // The signal policy, at a non-standard rate and widths.
         let signal = SileroVadSignalConfig::new(4000, 33)
@@ -1233,8 +1227,8 @@ mod tests {
         assert_eq!(structure.stft_stride(), 32);
         assert_eq!(structure.chunk_size(), 128);
 
-        let lowered: SileroVad<B> = structure.init(&device);
-        let direct: SileroVad<B> = signal.init(&device);
+        let lowered: SileroVad = structure.init(&device);
+        let direct: SileroVad = signal.init(&device);
         assert_meta_agrees(&direct, &lowered);
         assert_meta_agrees(&direct, &structure);
 
@@ -1246,8 +1240,8 @@ mod tests {
         assert_eq!(structure.stft_stride(), 24);
         assert_eq!(structure.chunk_size(), 96);
 
-        let lowered: SileroVad<B> = structure.init(&device);
-        let direct: SileroVad<B> = stft.init(&device);
+        let lowered: SileroVad = structure.init(&device);
+        let direct: SileroVad = stft.init(&device);
         assert_meta_agrees(&direct, &lowered);
         assert_meta_agrees(&direct, &structure);
     }
@@ -1255,19 +1249,19 @@ mod tests {
     #[test]
     #[serial_test::serial]
     fn test_forward_shapes_and_range() {
-        let device = default_device();
-        let _memory = DeviceMemoryGuard::<B>::new(&device);
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
 
         for cfg in [
             SileroVadSignalConfig::standard_16khz().to_structure(),
             SileroVadSignalConfig::standard_8khz().to_structure(),
         ] {
-            let model: SileroVad<B> = cfg.init(&device);
+            let model: SileroVad = cfg.init(&device);
             let batch = 3;
 
             let context = 64;
 
-            let input = Tensor::<B, 2>::random(
+            let input = Tensor::<2>::random(
                 [batch, context + model.chunk_size()],
                 Distribution::Default,
                 &device,
@@ -1280,7 +1274,7 @@ mod tests {
             assert_eq!(next_state.dims(), [2, batch, 128]);
 
             // Probabilities are sigmoid outputs in [0, 1].
-            let probs: Vec<f32> = prob.into_data().to_vec().unwrap();
+            let probs: Vec<f32> = prob.into_data().try_into_vec_as().unwrap();
             assert!(probs.iter().all(|&p| (0.0..=1.0).contains(&p)));
         }
     }
@@ -1288,8 +1282,8 @@ mod tests {
     #[test]
     #[serial_test::serial]
     fn test_forward_sequence_shapes() {
-        let device = default_device();
-        let _memory = DeviceMemoryGuard::<B>::new(&device);
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
 
         let batch = 8;
         let steps = 5;
@@ -1299,7 +1293,7 @@ mod tests {
             SileroVadSignalConfig::standard_16khz().to_structure(),
             SileroVadSignalConfig::standard_8khz().to_structure(),
         ] {
-            let model: SileroVad<B> = cfg.init(&device);
+            let model: SileroVad = cfg.init(&device);
             let input = Tensor::random(
                 [steps, batch, context + model.chunk_size()],
                 Distribution::Default,
@@ -1314,14 +1308,12 @@ mod tests {
         }
     }
 
-    fn check_sequence_matches_stepwise<B: Backend, F>()
-    where
-        F: num_traits::Float + burn::tensor::Element,
-    {
+    fn check_sequence_matches_stepwise(device: &Device) {
+        type F = f32;
+        let device = device.clone();
         // Streaming a single stream must match looping the single-step forward
         // while carrying state.
-        let device = default_device();
-        let model: SileroVad<B> = SileroVadSignalConfig::standard_16khz()
+        let model: SileroVad = SileroVadSignalConfig::standard_16khz()
             .to_structure()
             .init(&device);
 
@@ -1349,7 +1341,7 @@ mod tests {
             state = next_state;
             step_probs.push(prob);
         }
-        let step_probs: Tensor<B, 2> = Tensor::stack(step_probs, 0);
+        let step_probs: Tensor<2> = Tensor::stack(step_probs, 0);
 
         let tol = Tolerance::<F>::default();
         seq_probs
@@ -1363,22 +1355,20 @@ mod tests {
     #[test]
     #[serial_test::serial]
     fn test_sequence_matches_stepwise_no_ad() {
-        type F = <B as BackendTypes>::FloatElem;
-        check_sequence_matches_stepwise::<B, F>();
+        check_sequence_matches_stepwise(&performance_device());
     }
 
     #[test]
     #[serial_test::serial]
     fn test_sequence_matches_stepwise_autodiff() {
-        type F = <B as BackendTypes>::FloatElem;
-        check_sequence_matches_stepwise::<burn::backend::Autodiff<B>, F>();
+        check_sequence_matches_stepwise(&performance_device().autodiff());
     }
 
     /// A context of width 0, built by hand: `init_context` refuses one.
     fn zero_width_context(
-        model: &SileroVad<B>,
-        device: &<B as BackendTypes>::Device,
-    ) -> SileroVadContext<B> {
+        model: &SileroVad,
+        device: &Device,
+    ) -> SileroVadContext {
         SileroVadContext {
             sample_rate: model.sample_rate(),
             context: Tensor::zeros([1, 0], device),
@@ -1393,8 +1383,8 @@ mod tests {
     #[serial_test::serial]
     #[should_panic(expected = "context_size above 0")]
     fn test_init_context_refuses_zero_width() {
-        let device = default_device();
-        let model: SileroVad<B> = SileroVadSignalConfig::standard_16khz()
+        let device = performance_device();
+        let model: SileroVad = SileroVadSignalConfig::standard_16khz()
             .to_structure()
             .init(&device);
         let _context = model.init_context(1, 0, &device);
@@ -1406,8 +1396,8 @@ mod tests {
     #[serial_test::serial]
     #[should_panic(expected = "context_size above 0")]
     fn test_context_forward_refuses_a_zero_width_context() {
-        let device = default_device();
-        let model: SileroVad<B> = SileroVadSignalConfig::standard_16khz()
+        let device = performance_device();
+        let model: SileroVad = SileroVadSignalConfig::standard_16khz()
             .to_structure()
             .init(&device);
         let chunk = Tensor::random([1, model.chunk_size()], Distribution::Default, &device);
@@ -1420,8 +1410,8 @@ mod tests {
     #[serial_test::serial]
     #[should_panic(expected = "context_size above 0")]
     fn test_context_forward_sequence_refuses_a_zero_width_context() {
-        let device = default_device();
-        let model: SileroVad<B> = SileroVadSignalConfig::standard_16khz()
+        let device = performance_device();
+        let model: SileroVad = SileroVadSignalConfig::standard_16khz()
             .to_structure()
             .init(&device);
         let chunks = Tensor::random([2, 1, model.chunk_size()], Distribution::Default, &device);

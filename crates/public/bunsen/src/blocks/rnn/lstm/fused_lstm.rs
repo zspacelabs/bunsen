@@ -6,10 +6,12 @@ use burn::{
         Linear,
         LinearConfig,
     },
-    prelude::Backend,
-    tensor::activation::{
-        sigmoid,
-        tanh,
+    tensor::{
+        Device,
+        activation::{
+            sigmoid,
+            tanh,
+        },
     },
 };
 
@@ -52,11 +54,11 @@ impl FusedLstmMeta for FusedLstmConfig {
     }
 }
 
-impl<B: Backend> ModuleInit<B, FusedLstm<B>> for FusedLstmConfig {
+impl ModuleInit<FusedLstm> for FusedLstmConfig {
     fn try_init(
         &self,
-        device: &B::Device,
-    ) -> crate::errors::BunsenResult<FusedLstm<B>> {
+        device: &Device,
+    ) -> crate::errors::BunsenResult<FusedLstm> {
         let cfg: LinearConfig = self.clone().into();
         Ok(FusedLstm {
             features: cfg.init(device),
@@ -74,21 +76,21 @@ impl<B: Backend> ModuleInit<B, FusedLstm<B>> for FusedLstmConfig {
 /// Built by [`FusedLstmConfig`].
 /// Implements [`FusedLstmMeta`].
 #[derive(Module, Debug)]
-pub struct FusedLstm<B: Backend> {
+pub struct FusedLstm {
     /// The LSTM input (feature -> gates) projection.
-    pub features: Linear<B>,
+    pub features: Linear,
 
     /// The LSTM recurrent (hidden -> gates) projection.
-    pub hidden: Linear<B>,
+    pub hidden: Linear,
 }
 
-impl<B: Backend> FusedLstmMeta for FusedLstm<B> {
+impl FusedLstmMeta for FusedLstm {
     fn d_model(&self) -> usize {
         self.features.weight.dims()[0]
     }
 }
 
-impl<B: Backend> FusedLstm<B> {
+impl FusedLstm {
     /// Runs one LSTM step.
     ///
     /// # Arguments
@@ -102,10 +104,10 @@ impl<B: Backend> FusedLstm<B> {
     /// The `(hidden, cell)` next states, each `[batch, d_model]`.
     pub fn step(
         &self,
-        features: Tensor<B, 2>,
-        hidden: Tensor<B, 2>,
-        cell: Tensor<B, 2>,
-    ) -> (Tensor<B, 2>, Tensor<B, 2>) {
+        features: Tensor<2>,
+        hidden: Tensor<2>,
+        cell: Tensor<2>,
+    ) -> (Tensor<2>, Tensor<2>) {
         #[cfg(any(test, debug_assertions))]
         use crate::contracts::{
             assert_shape_contract_periodically,

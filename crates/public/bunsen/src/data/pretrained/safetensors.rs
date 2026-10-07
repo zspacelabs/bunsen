@@ -12,8 +12,7 @@ use std::{
     },
 };
 
-use burn::prelude::Backend;
-use burn_store::{
+use burn::store::{
     ModuleSnapshot,
     SafetensorsStore,
     SafetensorsStoreError,
@@ -333,7 +332,7 @@ impl SafetensorsCheckpoint {
     /// tensor whose shape does not fit its parameter say.
     /// [`InvalidResource`](BunsenErrorKind::InvalidResource) naming the
     /// parameters no shard held, listed in the details.
-    pub fn load_into<B: Backend, M: ModuleSnapshot<B>>(
+    pub fn load_into<M: ModuleSnapshot>(
         &self,
         module: &mut M,
         configure: impl Fn(SafetensorsStore) -> SafetensorsStore,

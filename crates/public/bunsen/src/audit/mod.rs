@@ -29,8 +29,9 @@
 //! * **Stream**: the events of one run, in order. A stream can live in memory
 //!   ([`AuditStreamRecorder`] / [`AuditStreamVerifier`]) or on disk as a CBOR
 //!   [`AuditStreamFile`].
-//! * **Body**: an [`AuditBody`] is the code under test, generic over the
-//!   backend, so a harness can run it once to record and once to verify.
+//! * **Body**: an [`AuditBody`] is the code under test, run on a device the
+//!   harness supplies, so a harness can run it once to record and once to
+//!   verify.
 //! * **Baseline**: a stream stored on disk, under a location the call site
 //!   chooses with [`ReportsOptions`]. [`audit_baseline`] records it on the
 //!   first run and verifies against it after that.
@@ -58,84 +59,71 @@
 //!
 //! ## Write a body
 //!
-//! A closure cannot be generic over the backend, so a body is a type with a
-//! generic `run`. Put checkpoints wherever an intermediate value is worth
-//! pinning down. Inputs must be the same on every backend; use
-//! [`seeded_tensor`](crate::support::testing::seeded_tensor) rather than
-//! `Tensor::random`.
+//! A body is the code under test, run on whichever device the harness hands
+//! it. A function or closure taking `(&mut AuditProbe, &Device)` is one; a
+//! type implementing [`AuditBody`] is another. Put checkpoints wherever an
+//! intermediate value is worth pinning down. Inputs must be the same on every
+//! backend; use [`seeded_tensor`](crate::support::testing::seeded_tensor)
+//! rather than `Tensor::random`.
 //!
 //! ```
 //! # #[cfg(feature = "audit")] {
 //! use bunsen::{
-//!     audit::{
-//!         AuditBody,
-//!         AuditProbe,
-//!     },
+//!     audit::AuditProbe,
 //!     burner::descriptors::TolerancePolicy,
 //!     errors::BunsenResult,
 //!     support::testing::seeded_tensor,
 //! };
-//! use burn::{
-//!     prelude::Backend,
-//!     tensor::Distribution,
+//! use burn::tensor::{
+//!     Device,
+//!     Distribution,
 //! };
 //!
-//! struct Softmax;
+//! fn softmax(
+//!     probe: &mut AuditProbe<'_>,
+//!     device: &Device,
+//! ) -> BunsenResult<()> {
+//!     let x = seeded_tensor::<2>(7, [4, 8], Distribution::Default, device);
+//!     // Uploaded host values: bit-identical everywhere.
+//!     probe.assert_eq_as::<f32>("x", &x)?;
 //!
-//! impl AuditBody for Softmax {
-//!     fn run<B: Backend>(
-//!         &self,
-//!         probe: &mut AuditProbe<'_>,
-//!         device: &B::Device,
-//!     ) -> BunsenResult<()> {
-//!         let x =
-//!             seeded_tensor::<B, 2>(7, [4, 8], Distribution::Default, device);
-//!         // Uploaded host values: bit-identical everywhere.
-//!         probe.assert_eq_as::<f32>("x", &x)?;
-//!
-//!         // Computed values: close, not identical, across backends.
-//!         let y = burn::tensor::activation::softmax(x, 1);
-//!         probe.assert_approx_eq_as::<f32>(
-//!             "softmax(x)",
-//!             &y,
-//!             TolerancePolicy::Balanced,
-//!         )?;
-//!         Ok(())
-//!     }
+//!     // Computed values: close, not identical, across backends.
+//!     let y = burn::tensor::activation::softmax(x, 1);
+//!     probe.assert_approx_eq_as::<f32>(
+//!         "softmax(x)",
+//!         &y,
+//!         TolerancePolicy::Balanced,
+//!     )?;
+//!     Ok(())
 //! }
 //! # }
 //! ```
 //!
 //! ## Compare two backends
 //!
-//! [`audit_across`] runs the body on the reference backend `R`, recording,
-//! then on the target backend `T`, verifying. Nothing touches the disk.
+//! [`audit_across`] runs the body on the `reference` device, recording, then
+//! on the `target` device, verifying. Nothing touches the disk.
 //!
-//! [`PerformanceBackend`](crate::support::testing::PerformanceBackend) is the
+//! [`performance_device`](crate::support::testing::performance_device) is the
 //! CPU unless a backend feature is on, so the example below compares the CPU
 //! with itself in a bare `cargo test`. Run it with a backend feature (e.g.
 //! `--features wgpu`) for the comparison to mean anything; see
-//! [Test backends](crate::support::testing#test-backends).
+//! [Test devices](crate::support::testing#test-devices).
 //!
 //! ```
 //! # #[cfg(feature = "audit")] {
-//! # use bunsen::{audit::{AuditBody, AuditProbe}, errors::BunsenResult};
-//! # use burn::prelude::Backend;
-//! # struct Softmax;
-//! # impl AuditBody for Softmax {
-//! #     fn run<B: Backend>(&self, _: &mut AuditProbe<'_>, _: &B::Device) -> BunsenResult<()> {
-//! #         Ok(())
-//! #     }
-//! # }
+//! # use bunsen::{audit::AuditProbe, errors::BunsenResult};
+//! # use burn::tensor::Device;
+//! # fn softmax(_: &mut AuditProbe<'_>, _: &Device) -> BunsenResult<()> { Ok(()) }
 //! use bunsen::{
 //!     audit::audit_across,
 //!     support::testing::{
-//!         CpuBackend,
-//!         PerformanceBackend,
+//!         cpu_device,
+//!         performance_device,
 //!     },
 //! };
 //!
-//! audit_across::<CpuBackend, PerformanceBackend>(&Softmax).unwrap();
+//! audit_across(&cpu_device(), &performance_device(), &softmax).unwrap();
 //! # }
 //! ```
 //!
@@ -146,32 +134,28 @@
 //!
 //! ```
 //! # #[cfg(feature = "audit")] {
-//! # use bunsen::{audit::{AuditBody, AuditProbe}, errors::BunsenResult};
-//! # use burn::prelude::Backend;
-//! # struct Softmax;
-//! # impl AuditBody for Softmax {
-//! #     fn run<B: Backend>(&self, _: &mut AuditProbe<'_>, _: &B::Device) -> BunsenResult<()> {
-//! #         Ok(())
-//! #     }
-//! # }
+//! # use bunsen::{audit::AuditProbe, errors::BunsenResult};
+//! # use burn::tensor::Device;
+//! # fn softmax(_: &mut AuditProbe<'_>, _: &Device) -> BunsenResult<()> { Ok(()) }
 //! use bunsen::{
 //!     audit::{
 //!         BaselineOutcome,
 //!         audit_baseline,
 //!         reports::ReportsOptions,
 //!     },
-//!     support::testing::CpuBackend,
+//!     support::testing::performance_device,
 //! };
 //!
 //! let dir = tempfile::tempdir().unwrap();
 //! let options = ReportsOptions::new(dir.path());
+//! let device = performance_device();
 //!
 //! // No baseline yet: this run is recorded.
-//! let first = audit_baseline::<CpuBackend>(&options, "softmax", &Softmax).unwrap();
+//! let first = audit_baseline(&options, &device, "softmax", &softmax).unwrap();
 //! assert!(matches!(first, BaselineOutcome::Recorded(_)));
 //!
-//! // From now on, runs are verified against it.
-//! let second = audit_baseline::<CpuBackend>(&options, "softmax", &Softmax).unwrap();
+//! // From here on, runs are verified against it.
+//! let second = audit_baseline(&options, &device, "softmax", &softmax).unwrap();
 //! assert!(matches!(second, BaselineOutcome::Verified(_)));
 //! # }
 //! ```
@@ -189,15 +173,12 @@
 //!         AuditProbe,
 //!         AuditStreamRecorder,
 //!     },
-//!     support::testing::{
-//!         CpuBackend,
-//!         backend_device,
-//!     },
+//!     support::testing::cpu_device,
 //! };
 //! use burn::prelude::Tensor;
 //!
-//! let device = backend_device::<CpuBackend>();
-//! let x: Tensor<CpuBackend, 1> = Tensor::arange(0..8, &device).float();
+//! let device = cpu_device();
+//! let x: Tensor<1> = Tensor::arange(0..8, &device).float();
 //!
 //! let mut recorder = AuditStreamRecorder::default();
 //! {
@@ -225,14 +206,14 @@
 //! [`SeriesReport::write_report`](reports::SeriesReport::write_report)
 //! take a [`ReportsOptions`], and [`audit_baseline_at`] takes a path.
 //!
-//! A baseline named `name` for backend `B` is stored at
+//! A baseline named `name`, run on `device`, is stored at
 //!
 //! ```text
 //! {root}/{backend_label}/{name}.cbor
 //! ```
 //!
-//! where [`backend_label`](reports::backend_label) is
-//! `B::name(device)` made path-safe (`cubecl<wgpu<spirv>>` becomes
+//! where [`backend_label`](reports::backend_label) is the name of the
+//! backend behind `device`, made path-safe (`cubecl<wgpu<spirv>>` becomes
 //! `cubecl_wgpu_spirv`). Baselines are per backend: a CPU baseline never
 //! verifies a GPU run. To compare backends with each other, use
 //! [`audit_across`]. `name` may contain `/` to group baselines, but must be
@@ -383,7 +364,7 @@
 //! ## Features
 //!
 //! The whole module is behind the `audit` feature. It turns on `testing`,
-//! which provides the test backends and
+//! which provides the test devices and
 //! [`seeded_tensor`](crate::support::testing::seeded_tensor) (and brings in
 //! `rand`), and it brings in `ciborium` for the stream files.
 //!

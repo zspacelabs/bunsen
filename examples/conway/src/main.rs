@@ -5,12 +5,17 @@ pub mod sim;
 
 use bunsen::{
     errors::BunsenResult,
-    prelude::{
-        TensorElemOpExt,
-        TensorOpExt,
-    },
+    prelude::TensorOpExt,
 };
-use burn::prelude::Backend;
+use bunsen_app::device::{
+    DeviceArgs,
+    DevicePrefs,
+    Precision,
+};
+use burn::tensor::{
+    Device,
+    IntDType,
+};
 use clap::Parser;
 use piston::{
     EventLoop,
@@ -22,6 +27,10 @@ use piston::{
 #[derive(Parser, Debug)]
 #[command(long_about = None)]
 pub struct Args {
+    /// The device to simulate on.
+    #[command(flatten)]
+    pub device: DeviceArgs,
+
     #[clap(subcommand)]
     pub command: Commands,
 }
@@ -36,41 +45,28 @@ pub enum Commands {
 }
 
 impl Commands {
-    pub fn run<B: Backend>(&self) -> BunsenResult<()> {
+    pub fn run(
+        &self,
+        device: &Device,
+    ) -> BunsenResult<()> {
         match self {
-            Commands::Visual(cmd) => cmd.run::<B>(),
-            Commands::Benchmark(cmd) => cmd.run::<B>(),
+            Commands::Visual(cmd) => cmd.run(device),
+            Commands::Benchmark(cmd) => cmd.run(device),
         }
     }
 }
 
 fn main() -> BunsenResult<()> {
     let args = Args::parse();
-    cfg_select! {
-        feature = "cuda" => {
-            eprintln!("CUDA enabled");
-            type B = burn::backend::Cuda<burn::tensor::f16, i8>;
-        }
-        feature = "metal" => {
-            eprintln!("Metal enabled");
-            type B = burn::backend::Metal<burn::tensor::f16, i8>;
-        }
-        feature = "vulkan" => {
-            eprintln!("Vulkan enabled");
-            type B = burn::backend::Vulkan<burn::tensor::f16, i8>;
-        }
-        feature = "wgpu" => {
-            eprintln!("WGPU enabled");
-            type B = burn::backend::Wgpu<burn::tensor::f16>;
-        }
-        feature = "flex" => {
-            eprintln!("Flex enabled");
-            type B = burn::backend::Flex;
-        }
-        _ => {
-            compile_error!("No backend selected");
-        }
-    }
 
-    args.command.run::<B>()
+    // The boards are 0/1 cells: any half-precision float, and the narrowest
+    // int the backend has.
+    let prefs = DevicePrefs::new()
+        .with_precision(Precision::AnyHalf)
+        .with_half(Precision::AnyHalf)
+        .with_ints([IntDType::I8, IntDType::I32]);
+    let device = args.device.init(&prefs).unwrap_or_else(|e| panic!("{e}"));
+    eprintln!("{}", bunsen_app::device::describe(&device));
+
+    args.command.run(&device)
 }

@@ -1,124 +1,139 @@
-#![allow(unused_imports)]
 use std::{
-    collections::BTreeMap,
-    marker::PhantomData,
+    borrow::Cow,
+    fmt,
     sync::Arc,
 };
 
 use burn::{
-    Tensor,
-    grad_clipping::GradientClipping,
     module::{
-        AutodiffModule,
         Module,
-        ModuleMapper,
         ModuleVisitor,
         Param,
+        ParamGroup,
         ParamId,
     },
     optim::{
-        GradientsParams,
         LearningRate,
-        MultiGradientsParams,
+        ModuleOptimizer,
         Optimizer,
-        SimpleOptimizer,
-        adaptor::{
-            GradAdaptor,
-            OptimizerAdaptor,
-        },
-        record::AdaptorRecord,
+        grad_clipping::GradientClipping,
+        lr_scheduler::module_lr_scheduler::ModuleLrScheduler,
     },
-    prelude::{
-        Backend,
+    tensor::{
         Device,
-    },
-    record::{
-        PrecisionSettings,
-        Record,
-    },
-    tensor::backend::{
-        AutodiffBackend,
-        BackendTypes,
+        Tensor,
     },
 };
 use hashbrown::{
     HashMap,
     HashSet,
 };
-use serde::{
-    Deserialize,
-    Serialize,
+
+use crate::{
+    burner::optim::{
+        FixedLrSelector,
+        FrozenOptimizer,
+        LrSelector,
+        SelectedLr,
+    },
+    errors::{
+        BunsenError,
+        BunsenErrorKind,
+        BunsenResult,
+        Detailed,
+        WithOkOrPanic,
+    },
 };
 
-use crate::burner::optim::{
-    FixedLrSelector,
-    FrozenOptimizer,
-    lr_selectors::LrSelector,
-};
+/// Adds a group to a [`ModuleOptimizer`], with the group's optimizer, whose
+/// type it erases.
+type AddGroup =
+    dyn Fn(ModuleOptimizer, ParamGroup, Option<GradientClipping>) -> ModuleOptimizer + Send + Sync;
 
-/// One parameter group: a set of [`ParamId`]s, the optimizer instance that
-/// steps them, and an optional [`LrSelector`].
+/// One parameter group: a set of [`ParamId`]s, the optimizer that steps
+/// them, and optionally an [`LrSelector`] and a [`GradientClipping`].
 ///
-/// Build one with [`OptimizerGroup::from_adaptor`] (or
-/// [`OptimizerGroup::new`]), usually from a `ParamId` set selected with
-/// [`XmlModuleTree`](crate::burner::module::reflection::XmlModuleTree). Pass
-/// the module and the groups to a `GroupOptimizerAdaptorN::new` (e.g.
-/// [`GroupOptimizerAdaptor2::new`]), one `Vec` of groups per optimizer type.
-/// [`OptimizerGroup::frozen`] builds a group whose parameters are never
-/// moved.
-/// See the [module docs](crate::burner::optim) for the lifecycle.
+/// Build one with [`OptimizerGroup::new`], from a `ParamId` set (selected
+/// with [`XmlModuleTree`](crate::burner::module::reflection::XmlModuleTree),
+/// a visitor, or by hand) and any `burn` [`Optimizer`], such as
+/// `AdamWConfig::new().build()`. [`OptimizerGroup::frozen`] builds a group
+/// whose parameters are never moved. Pass the groups, with the module they
+/// were selected from, to [`GroupOptimizerPlan::try_new`].
+///
+/// The optimizer's type is erased, so groups of different optimizer types
+/// go in one `Vec`. See the [module docs](crate::burner::optim) for the
+/// lifecycle.
 #[derive(Clone)]
-pub struct OptimizerGroup<B, O>
-where
-    B: AutodiffBackend,
-    O: SimpleOptimizer<B::InnerBackend>,
-{
-    /// The Parameters assigned to this group.
-    pub params: HashSet<ParamId>,
-
-    /// The optimizer instance assigned to this group.
-    pub optim: O,
-
-    /// Learning rate mapping function.
-    pub lr_selector: Option<Arc<dyn LrSelector>>,
-
-    phantom: PhantomData<B>,
+pub struct OptimizerGroup {
+    params: HashSet<ParamId>,
+    optimizer_name: &'static str,
+    add: Arc<AddGroup>,
+    lr_selector: Option<Arc<dyn LrSelector>>,
+    grad_clipping: Option<GradientClipping>,
 }
 
-impl<B, O> OptimizerGroup<B, O>
-where
-    B: AutodiffBackend,
-    O: SimpleOptimizer<B::InnerBackend>,
-{
+impl fmt::Debug for OptimizerGroup {
+    fn fmt(
+        &self,
+        f: &mut fmt::Formatter<'_>,
+    ) -> fmt::Result {
+        f.debug_struct("OptimizerGroup")
+            .field("params", &self.params.len())
+            .field("optimizer", &self.optimizer_name)
+            .field("lr_selector", &self.lr_selector.is_some())
+            .field("grad_clipping", &self.grad_clipping.is_some())
+            .finish()
+    }
+}
+
+impl OptimizerGroup {
     /// Creates a group of `params`, stepped by `optim`, at the global
-    /// learning rate.
-    pub fn new(
-        params: HashSet<ParamId>,
+    /// learning rate and without gradient clipping.
+    ///
+    /// `optim` is a `burn` [`Optimizer`]: what a config's `build()` returns,
+    /// e.g. `AdamWConfig::new().build()`.
+    pub fn new<O, I>(
+        params: I,
         optim: O,
-    ) -> Self {
+    ) -> Self
+    where
+        O: Optimizer,
+        I: IntoIterator<Item = ParamId>,
+    {
         Self {
-            params,
-            optim,
+            params: params.into_iter().collect(),
+            optimizer_name: std::any::type_name::<O>(),
+            add: Arc::new(move |module_optim, group, grad_clipping| {
+                module_optim.with_group(group, optim.clone(), grad_clipping)
+            }),
             lr_selector: None,
-            phantom: PhantomData,
+            grad_clipping: None,
         }
     }
 
-    /// Creates a group of `params`, stepped by a clone of the optimizer
-    /// inside `adaptor`, at the global learning rate.
+    /// Creates a frozen group: its `params` are never moved.
     ///
-    /// `adaptor` is what a `burn` optimizer config's `init()` returns, e.g.
-    /// `AdamWConfig::new().init::<B, M>()`. Only its optimizer is used; its
-    /// gradient clipping and state are not.
-    pub fn from_adaptor<M, I>(
-        params: I,
-        adaptor: &OptimizerAdaptor<O, M, B>,
-    ) -> Self
+    /// The group's optimizer is [`FrozenOptimizer`]. The parameters count as
+    /// assigned, so this is how to leave parameters fixed on purpose rather
+    /// than out of every group. Their gradients are still computed and then
+    /// dropped; [`Module::freeze_group`] is the cheaper path, which computes
+    /// none (see [`FrozenOptimizer`]). The two compose: freeze the module, and
+    /// put the parameters in a frozen group so the plan accepts them.
+    pub fn frozen<I>(params: I) -> Self
     where
         I: IntoIterator<Item = ParamId>,
-        M: AutodiffModule<B>,
     {
-        Self::new(params.into_iter().collect(), adaptor.optim().clone())
+        Self::new(params, FrozenOptimizer)
+    }
+
+    /// Returns the group's parameters.
+    pub fn params(&self) -> &HashSet<ParamId> {
+        &self.params
+    }
+
+    /// Returns the type name of the group's optimizer.
+    pub fn optimizer_name(&self) -> &'static str {
+        self.optimizer_name
     }
 
     /// Returns this group's learning rate: `global` mapped through the
@@ -129,7 +144,7 @@ where
     ) -> LearningRate {
         self.lr_selector
             .as_ref()
-            .map(|lr_fn| lr_fn.select(global))
+            .map(|selector| selector.select(global))
             .unwrap_or(global)
     }
 
@@ -161,171 +176,47 @@ where
     ) -> Self {
         self.with_lr_selector(FixedLrSelector::new(lr))
     }
-}
 
-impl<B> OptimizerGroup<B, FrozenOptimizer>
-where
-    B: AutodiffBackend,
-{
-    /// Creates a frozen group: its `params` are never moved.
+    /// Returns the group's gradient clipping.
+    pub fn grad_clipping(&self) -> Option<&GradientClipping> {
+        self.grad_clipping.as_ref()
+    }
+
+    /// Sets the group's gradient clipping.
     ///
-    /// The group's optimizer is [`FrozenOptimizer`]. The parameters count as
-    /// assigned, so this is how to leave parameters fixed on purpose rather
-    /// than out of every group.
-    pub fn frozen<I>(params: I) -> Self
-    where
-        I: IntoIterator<Item = ParamId>,
-    {
-        Self::new(params.into_iter().collect(), FrozenOptimizer)
-    }
-}
-
-/// The state of an [`OptimizerGroup`]: its optimizer's state for each
-/// parameter, keyed by `ParamId`.
-///
-/// A parameter whose optimizer keeps no state (a [`FrozenOptimizer`], or one
-/// not stepped yet) has no entry. Saved, the keys are `ParamId`s in `burn`'s
-/// serialized form ([`ParamId::serialize`]), as in a module record.
-#[derive(Clone)]
-pub struct OptimizerGroupRecord<O, B>
-where
-    B: AutodiffBackend,
-    O: SimpleOptimizer<B::InnerBackend>,
-{
-    /// The optimizer states for each parameter in the group.
-    pub param_map: HashMap<ParamId, AdaptorRecord<O, B>>,
-}
-
-impl<O, B> Record<B> for OptimizerGroupRecord<O, B>
-where
-    B: AutodiffBackend,
-    O: SimpleOptimizer<B::InnerBackend>,
-{
-    type Item<S2: PrecisionSettings> = Vec<(String, <AdaptorRecord<O, B> as Record<B>>::Item<S2>)>;
-
-    fn into_item<S2: PrecisionSettings>(self) -> Self::Item<S2> {
-        self.param_map
-            .into_iter()
-            .map(|(k, v)| (k.serialize(), v.into_item::<S2>()))
-            .collect()
-    }
-
-    /// # Panics
-    /// If a key is not a serialized `ParamId` ([`ParamId::deserialize`]).
-    fn from_item<S2: PrecisionSettings>(
-        item: Self::Item<S2>,
-        device: &B::Device,
+    /// It applies to each parameter's gradient on its own, before the
+    /// group's step: a norm clip bounds each tensor's norm, not a global
+    /// norm.
+    pub fn with_grad_clipping(
+        mut self,
+        grad_clipping: GradientClipping,
     ) -> Self {
-        Self {
-            param_map: item
-                .into_iter()
-                .map(|(k, v)| {
-                    (
-                        ParamId::deserialize(&k),
-                        AdaptorRecord::from_item::<S2>(v, device),
-                    )
-                })
-                .collect(),
-        }
+        self.grad_clipping = Some(grad_clipping);
+        self
     }
 }
 
-/// The record of a `GroupOptimizerAdaptorN` (e.g.
-/// [`GroupOptimizerAdaptor2`]): which group steps each parameter, and each
-/// group's state.
+/// The cause of the error [`GroupOptimizerPlan::try_new`] returns: the groups
+/// are not a partition of the module's float parameters.
 ///
-/// `G` is a tuple with one `Vec<OptimizerGroupRecord<Oi, B>>` per optimizer
-/// type, one entry per group, in the order `new` took them.
-///
-/// `ParamId`s persist across a checkpoint: `Module::load_record` gives each
-/// parameter the id saved in the module record. The adaptor's `load_record`
-/// restores `dispatch`, so a resumed adaptor knows the ids of the restored
-/// model, though it was built over a fresh model with fresh ids. See
-/// [resuming](crate::burner::optim#resuming-from-a-checkpoint).
-#[derive(Clone)]
-pub struct GroupOptimizerAdaptorRecord<G> {
-    /// Each parameter's group, as `(optimizer type, group index)`, both from
-    /// 0: the position of the group's `Vec` among the arguments to `new`,
-    /// and of the group in that `Vec`.
-    pub dispatch: HashMap<ParamId, (usize, usize)>,
-
-    /// The groups' states: one `Vec<OptimizerGroupRecord<Oi, B>>` per
-    /// optimizer type, one entry per group.
-    pub groups: G,
-}
-
-/// The saved form of a [`GroupOptimizerAdaptorRecord`]: `dispatch` is keyed
-/// by `ParamId`s in `burn`'s serialized form ([`ParamId::serialize`]), as in
-/// a module record.
-#[derive(Clone, Serialize, Deserialize)]
-pub struct GroupOptimizerAdaptorRecordItem<G> {
-    /// Each serialized `ParamId`'s `(optimizer type, group index)`.
-    pub dispatch: BTreeMap<String, (usize, usize)>,
-
-    /// The groups' saved states.
-    pub groups: G,
-}
-
-impl<B, G> Record<B> for GroupOptimizerAdaptorRecord<G>
-where
-    B: Backend,
-    G: Record<B>,
-{
-    type Item<S: PrecisionSettings> = GroupOptimizerAdaptorRecordItem<G::Item<S>>;
-
-    fn into_item<S: PrecisionSettings>(self) -> Self::Item<S> {
-        GroupOptimizerAdaptorRecordItem {
-            dispatch: self
-                .dispatch
-                .into_iter()
-                .map(|(id, position)| (id.serialize(), position))
-                .collect(),
-            groups: self.groups.into_item(),
-        }
-    }
-
-    /// # Panics
-    /// If a `dispatch` key is not a serialized `ParamId`
-    /// ([`ParamId::deserialize`]).
-    fn from_item<S: PrecisionSettings>(
-        item: Self::Item<S>,
-        device: &B::Device,
-    ) -> Self {
-        Self {
-            dispatch: item
-                .dispatch
-                .into_iter()
-                .map(|(id, position)| (ParamId::deserialize(&id), position))
-                .collect(),
-            groups: G::from_item(item.groups, device),
-        }
-    }
-}
-
-/// Error from `GroupOptimizerAdaptorN::new`, for every `N`
-/// ([`GroupOptimizerAdaptor1::new`] through
-/// [`GroupOptimizerAdaptor7::new`]): the groups are not a partition of the
-/// module's float parameters. `new_with_policy` returns it too, but under
-/// [`UnknownParamPolicy::Warn`] or [`Freeze`](UnknownParamPolicy::Freeze)
-/// never as [`UnassignedParamIds`](Self::UnassignedParamIds).
-#[derive(Debug, thiserror::Error)]
+/// It converts to a [`BunsenError`] of kind
+/// [`Illegal`](BunsenErrorKind::Illegal).
+#[derive(Debug, Clone, thiserror::Error)]
 pub enum GroupOptimizerError {
-    /// A `ParamId` was assigned to more than one optimizer group.
+    /// A `ParamId` is in more than one optimizer group.
     ///
-    /// Positions are `(optimizer type, group index)`: the position of the
-    /// group's `Vec` among the arguments to `new`, and of the group in that
-    /// `Vec`, both from 0.
+    /// Groups are numbered by their position in the `Vec` passed to
+    /// [`GroupOptimizerPlan::try_new`], from 0.
     #[error(
-        "parameter {param_id} is in more than one optimizer group: \
-         {first:?} and {second:?}, as (optimizer type, group index)"
+        "parameter {param_id} is in more than one optimizer group: groups {first} and {second}"
     )]
     DuplicateParamId {
-        /// The `ParamId` of the conflicting assignment.
+        /// The `ParamId` two groups claim.
         param_id: ParamId,
-        /// (optimizer type, group index) of the first group that claims it.
-        first: (usize, usize),
-        /// (optimizer type, group index) of the second group that claims it.
-        second: (usize, usize),
+        /// The index of the first group that claims it.
+        first: usize,
+        /// The index of the second group that claims it.
+        second: usize,
     },
 
     /// Float parameters of the module are in no optimizer group, so they
@@ -333,732 +224,422 @@ pub enum GroupOptimizerError {
     ///
     /// Returned under [`UnknownParamPolicy::Panic`], the default. Every
     /// float parameter must then be in a group, including one that gets no
-    /// gradient today (such a parameter is not stepped, whatever its group).
-    /// Put parameters to keep fixed in a frozen group
+    /// gradient (such a parameter is not stepped, whatever its group). Put
+    /// parameters to keep fixed in a frozen group
     /// ([`OptimizerGroup::frozen`]), and collect the parameters no other group
     /// claims into a remnant group to cover the rest of the module.
     #[error(
         "{} float parameter(s) of the module are in no optimizer group, \
-         and would never be stepped: {}",
-        .param_ids.len(),
-        join_param_ids(.param_ids)
+         and would never be stepped",
+        .params.len()
     )]
     UnassignedParamIds {
-        /// The unassigned `ParamId`s, in the order the module visits them.
-        param_ids: Vec<ParamId>,
+        /// Each unassigned parameter's `ParamId` and module path, in the
+        /// order the module visits them.
+        params: Vec<(ParamId, String)>,
+    },
+
+    /// Two float parameters at the same module path are in different
+    /// groups.
+    ///
+    /// The plan keys its groups by module path, so it cannot tell the two
+    /// apart. This happens only under a `Module` impl that visits two
+    /// parameters without entering a module between them.
+    #[error(
+        "two float parameters at module path {path:?} are in different \
+         optimizer groups: groups {first} and {second}"
+    )]
+    SharedPath {
+        /// The module path the two parameters share.
+        path: String,
+        /// The index of the group of the first parameter at `path`.
+        first: usize,
+        /// The index of the group of the second parameter at `path`.
+        second: usize,
     },
 }
 
-/// A `GroupOptimizerError` is
-/// [`Illegal`](crate::errors::BunsenErrorKind::Illegal): the groups a caller
-/// passed are not a partition of the module's float parameters.
-impl From<GroupOptimizerError> for crate::errors::BunsenError {
-    #[track_caller]
-    fn from(error: GroupOptimizerError) -> Self {
-        crate::errors::BunsenError::from_cause(crate::errors::BunsenErrorKind::Illegal, error)
+impl Detailed for GroupOptimizerError {
+    fn details(&self) -> Option<Cow<'_, str>> {
+        match self {
+            Self::UnassignedParamIds { params } => Some(Cow::Owned(
+                params
+                    .iter()
+                    .map(|(id, path)| format!("{path} ({id})"))
+                    .collect::<Vec<_>>()
+                    .join("\n"),
+            )),
+            _ => None,
+        }
     }
 }
 
-fn join_param_ids(param_ids: &[ParamId]) -> String {
-    param_ids
-        .iter()
-        .map(ToString::to_string)
-        .collect::<Vec<_>>()
-        .join(", ")
+impl From<GroupOptimizerError> for BunsenError {
+    #[track_caller]
+    fn from(error: GroupOptimizerError) -> Self {
+        BunsenError::from_detailed(BunsenErrorKind::Illegal, error)
+    }
 }
 
-/// What a `GroupOptimizerAdaptorN` does with a float parameter that is in no
+/// What a [`GroupOptimizerPlan`] does with a float parameter that is in no
 /// group.
 ///
 /// There are two cases, and the policy governs both:
 ///
-/// - at `new`, a float parameter of the module that no group claims;
-/// - at `step`, a float parameter whose `ParamId` the adaptor doesn't know.
-///   That happens when the module changed after `new` (surgery, a fresh head),
-///   when `Module::load_record` gave its parameters a record's ids but the
-///   adaptor didn't load the optimizer record saved with it, or when `step`
-///   gets a different module than `new` did.
+/// - at [`GroupOptimizerPlan::try_new`], a float parameter of the module that
+///   no group claims;
+/// - at `step`, a float parameter whose module path no group of the plan holds.
+///   That happens when the module changed after the plan was built (surgery, a
+///   head under a new field), or when `step` gets a different module.
 ///
-/// The adaptor never steps such a parameter, and its gradient is dropped;
-/// the policy decides whether that is an error. `new` uses the default,
-/// [`Panic`](Self::Panic); `new_with_policy` (e.g.
-/// [`GroupOptimizerAdaptor2::new_with_policy`]) takes one. To keep
-/// parameters fixed on purpose, put them in a frozen group
-/// ([`OptimizerGroup::frozen`]) rather than loosening the policy.
+/// The second case is the [`ModuleOptimizer`]'s fallback, the optimizer of
+/// the parameters no group matches: this policy picks it.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
 pub enum UnknownParamPolicy {
-    /// Fail. `new` returns [`GroupOptimizerError::UnassignedParamIds`].
-    /// `step`, which can't return an error, panics before it steps anything,
-    /// naming the unknown `ParamId`s.
+    /// Fail. `try_new` returns [`GroupOptimizerError::UnassignedParamIds`].
+    /// `step` panics on the first such parameter it reaches, naming its rank
+    /// and shape; parameters it reached before are already stepped.
     #[default]
     Panic,
 
-    /// Log a warning, through the `log` crate, the first time each unknown
-    /// `ParamId` is seen (at `new` or at `step`), then leave the parameter
-    /// unchanged.
-    Warn,
-
-    /// Leave the parameter unchanged, silently.
+    /// Leave the parameter unchanged, silently: the fallback is
+    /// [`FrozenOptimizer`].
     Freeze,
 }
 
-/// Collects the `ParamId`s of a module's float parameters, in visiting
-/// order.
-struct FloatParamIds(Vec<ParamId>);
+/// The fallback optimizer under [`UnknownParamPolicy::Panic`]: its `step`
+/// panics.
+///
+/// A [`ModuleOptimizer`]'s optimizer is not given the `ParamId` it steps, so
+/// the message names the rank and shape.
+#[derive(Clone, Copy, Debug)]
+struct UnknownParamPanic;
 
-impl<B: Backend> ModuleVisitor<B> for FloatParamIds {
+impl Optimizer for UnknownParamPanic {
+    type State<const D: usize> = ();
+
+    fn step<const D: usize>(
+        &self,
+        _lr: LearningRate,
+        tensor: Tensor<D>,
+        _grad: Tensor<D>,
+        _state: Option<Self::State<D>>,
+    ) -> (Tensor<D>, Option<Self::State<D>>) {
+        panic!(
+            "a float parameter of rank {D} and shape {:?} is in no group of the \
+             GroupOptimizerPlan that built this optimizer (UnknownParamPolicy::Panic); \
+             build the plan over the module that is stepped, after any surgery",
+            tensor.dims()
+        )
+    }
+
+    fn to_device<const D: usize>(
+        state: Self::State<D>,
+        _device: &Device,
+    ) -> Self::State<D> {
+        state
+    }
+}
+
+/// Collects each float parameter of a module with its module path, in
+/// visiting order.
+///
+/// The path is the names of the modules entered, joined with `.`: the
+/// convention [`ModuleOptimizer`] and [`ParamGroup`] match paths by.
+#[derive(Default)]
+struct FloatParamPaths {
+    path: Vec<String>,
+    params: Vec<(ParamId, String)>,
+}
+
+impl ModuleVisitor for FloatParamPaths {
+    fn enter_module(
+        &mut self,
+        name: &str,
+        _container_type: &str,
+    ) {
+        self.path.push(name.to_string());
+    }
+
+    fn exit_module(
+        &mut self,
+        _name: &str,
+        _container_type: &str,
+    ) {
+        self.path.pop();
+    }
+
     fn visit_float<const D: usize>(
         &mut self,
-        param: &Param<Tensor<B, D>>,
+        param: &Param<Tensor<D>>,
     ) {
-        self.0.push(param.id);
+        self.params.push((param.id, self.path.join(".")));
     }
 }
 
-/// Lists the float parameters of `module` that are not in `dispatch`, in
-/// visiting order.
-fn unassigned_float_params<B, M>(
-    module: &M,
-    dispatch: &HashMap<ParamId, (usize, usize)>,
-) -> Vec<ParamId>
-where
-    B: Backend,
-    M: Module<B>,
-{
-    let mut float_params = FloatParamIds(Vec::new());
-    module.visit(&mut float_params);
-
-    float_params
-        .0
-        .into_iter()
-        .filter(|id| !dispatch.contains_key(id))
-        .collect()
+/// A group of a [`GroupOptimizerPlan`]: the [`OptimizerGroup`], and the
+/// [`ParamGroup`] of the module paths of its parameters.
+#[derive(Clone, Debug)]
+struct PlannedGroup {
+    group: OptimizerGroup,
+    paths: ParamGroup,
 }
 
-/// Applies `policy`, for `adaptor`'s `new`, to the module's float parameters
-/// in no group.
+/// Several optimizers, and several learning rates, over one module: a
+/// builder for `burn`'s [`ModuleOptimizer`] and [`ModuleLrScheduler`].
 ///
-/// Under [`UnknownParamPolicy::Warn`], the warned ids go into `warned`.
-fn admit_unassigned(
-    adaptor: &str,
+/// [`try_new`](Self::try_new) takes the module and its [`OptimizerGroup`]s,
+/// checks that the groups partition the module's float parameters, and keys
+/// each group by the module paths of its parameters. Then
+/// [`optimizer`](Self::optimizer) builds the [`ModuleOptimizer`] and
+/// [`lr_scheduler`](Self::lr_scheduler) the [`ModuleLrScheduler`]: what a
+/// [`Learner`](burn::train::Learner) takes, or what a loop of your own steps.
+///
+/// Groups are selected by `ParamId` and kept by path, because paths survive a
+/// checkpoint and the ids a plan was built from do not have to: a resumed run
+/// builds a fresh model, with fresh ids, and loading the model record brings
+/// back the saved ids. Path-keyed groups match both. See the
+/// [module docs](crate::burner::optim) for the lifecycle.
+#[derive(Clone, Debug)]
+pub struct GroupOptimizerPlan {
+    groups: Vec<PlannedGroup>,
     policy: UnknownParamPolicy,
-    unassigned: Vec<ParamId>,
-    warned: &mut HashSet<ParamId>,
-) -> Result<(), GroupOptimizerError> {
-    if unassigned.is_empty() {
-        return Ok(());
+}
+
+impl GroupOptimizerPlan {
+    /// Plans `groups` over `module`, under the default
+    /// [`UnknownParamPolicy`], `Panic`.
+    ///
+    /// See [`try_new_with_policy`](Self::try_new_with_policy), and the
+    /// [`try_x` / `x` convention](crate::errors#convention-try_x-and-x).
+    ///
+    /// # Errors
+    /// `Illegal`, with a [`GroupOptimizerError`] cause:
+    /// [`DuplicateParamId`](GroupOptimizerError::DuplicateParamId) when two
+    /// groups claim a `ParamId`,
+    /// [`UnassignedParamIds`](GroupOptimizerError::UnassignedParamIds) when a
+    /// float parameter of `module` is in no group, and
+    /// [`SharedPath`](GroupOptimizerError::SharedPath) when two groups hold
+    /// parameters at one module path.
+    pub fn try_new<M>(
+        module: &M,
+        groups: Vec<OptimizerGroup>,
+    ) -> BunsenResult<Self>
+    where
+        M: Module,
+    {
+        Self::try_new_with_policy(module, groups, UnknownParamPolicy::default())
     }
-    match policy {
-        UnknownParamPolicy::Panic => Err(GroupOptimizerError::UnassignedParamIds {
-            param_ids: unassigned,
-        }),
-        UnknownParamPolicy::Warn => {
-            warn_unknown(adaptor, "new", &unassigned, warned);
-            Ok(())
+
+    /// Plans `groups` over `module`, under the default
+    /// [`UnknownParamPolicy`], `Panic`.
+    ///
+    /// The panicking twin of [`try_new`](Self::try_new).
+    ///
+    /// # Panics
+    /// With the report of the error `try_new` returns.
+    pub fn new<M>(
+        module: &M,
+        groups: Vec<OptimizerGroup>,
+    ) -> Self
+    where
+        M: Module,
+    {
+        Self::try_new(module, groups).ok_or_panic()
+    }
+
+    /// Plans `groups` over `module`, under `policy`.
+    ///
+    /// Groups are numbered by their position in `groups`, from 0, in errors
+    /// and in [`groups`](Self::groups).
+    ///
+    /// - A `ParamId` in two groups is an error.
+    /// - A float parameter of `module` in no group is an error under
+    ///   [`UnknownParamPolicy::Panic`], and is left unchanged under `Freeze`.
+    /// - A `ParamId` that is not a float parameter of `module` (an int or bool
+    ///   parameter, or one of another module) is ignored: it has no path in
+    ///   `module`. An empty group is not an error.
+    ///
+    /// Follows the [`try_x` / `x`
+    /// convention](crate::errors#convention-try_x-and-x).
+    ///
+    /// # Errors
+    /// `Illegal`, with a [`GroupOptimizerError`] cause:
+    /// [`DuplicateParamId`](GroupOptimizerError::DuplicateParamId) when two
+    /// groups claim a `ParamId`,
+    /// [`UnassignedParamIds`](GroupOptimizerError::UnassignedParamIds) when a
+    /// float parameter of `module` is in no group under `Panic`, and
+    /// [`SharedPath`](GroupOptimizerError::SharedPath) when two groups hold
+    /// parameters at one module path.
+    pub fn try_new_with_policy<M>(
+        module: &M,
+        groups: Vec<OptimizerGroup>,
+        policy: UnknownParamPolicy,
+    ) -> BunsenResult<Self>
+    where
+        M: Module,
+    {
+        let mut owner: HashMap<ParamId, usize> = HashMap::new();
+        for (index, group) in groups.iter().enumerate() {
+            for &param_id in &group.params {
+                if let Some(&first) = owner.get(&param_id) {
+                    return Err(GroupOptimizerError::DuplicateParamId {
+                        param_id,
+                        first,
+                        second: index,
+                    }
+                    .into());
+                }
+                owner.insert(param_id, index);
+            }
         }
-        UnknownParamPolicy::Freeze => Ok(()),
-    }
-}
 
-/// Applies `policy`, for `adaptor`'s `step`, to the float parameters of
-/// `module` that are not in `dispatch`.
-///
-/// # Panics
-/// Under [`UnknownParamPolicy::Panic`], if there are any.
-fn check_step_params<B, M>(
-    adaptor: &str,
-    policy: UnknownParamPolicy,
-    module: &M,
-    dispatch: &HashMap<ParamId, (usize, usize)>,
-    warned: &mut HashSet<ParamId>,
-) where
-    B: Backend,
-    M: Module<B>,
-{
-    if policy == UnknownParamPolicy::Freeze {
-        return;
-    }
-    let unknown = unassigned_float_params(module, dispatch);
-    if unknown.is_empty() {
-        return;
-    }
-    match policy {
-        UnknownParamPolicy::Panic => panic!(
-            "{adaptor}::step: {} float parameter(s) of the module are in no \
-             optimizer group, and would never be stepped: {}. The module changed \
-             after `new` (surgery, a new head, or a module record loaded without \
-             the optimizer record saved with it; `load_record` takes the record's \
-             ids), or is not the module `new` was given. Build the groups from \
-             this module, load the optimizer record that matches the module \
-             record, or pass an `UnknownParamPolicy` to `new_with_policy`.",
-            unknown.len(),
-            join_param_ids(&unknown),
-        ),
-        UnknownParamPolicy::Warn => warn_unknown(adaptor, "step", &unknown, warned),
-        UnknownParamPolicy::Freeze => {}
-    }
-}
+        let mut visitor = FloatParamPaths::default();
+        module.visit(&mut visitor);
 
-/// Logs one warning naming the ids in `unknown` not yet in `warned`, and adds
-/// them to it; logs nothing if there are none.
-fn warn_unknown(
-    adaptor: &str,
-    site: &str,
-    unknown: &[ParamId],
-    warned: &mut HashSet<ParamId>,
-) {
-    let fresh: Vec<ParamId> = unknown
-        .iter()
-        .copied()
-        .filter(|id| warned.insert(*id))
-        .collect();
-    if !fresh.is_empty() {
-        log::warn!(
-            "{adaptor}::{site}: {} float parameter(s) of the module are in no \
-             optimizer group, and are left unchanged \
-             (`UnknownParamPolicy::Warn`; each is reported once): {}",
-            fresh.len(),
-            join_param_ids(&fresh),
-        );
+        let mut paths: Vec<Vec<String>> = vec![Vec::new(); groups.len()];
+        let mut path_owner: HashMap<&str, usize> = HashMap::new();
+        let mut unassigned: Vec<(ParamId, String)> = Vec::new();
+        for (param_id, path) in &visitor.params {
+            let Some(&index) = owner.get(param_id) else {
+                if !unassigned.iter().any(|(id, _)| id == param_id) {
+                    unassigned.push((*param_id, path.clone()));
+                }
+                continue;
+            };
+            match path_owner.get(path.as_str()) {
+                Some(&first) if first != index => {
+                    return Err(GroupOptimizerError::SharedPath {
+                        path: path.clone(),
+                        first,
+                        second: index,
+                    }
+                    .into());
+                }
+                Some(_) => {}
+                None => {
+                    path_owner.insert(path.as_str(), index);
+                    paths[index].push(path.clone());
+                }
+            }
+        }
+
+        if policy == UnknownParamPolicy::Panic && !unassigned.is_empty() {
+            return Err(GroupOptimizerError::UnassignedParamIds { params: unassigned }.into());
+        }
+
+        let groups = groups
+            .into_iter()
+            .zip(paths)
+            .map(|(group, paths)| PlannedGroup {
+                group,
+                paths: ParamGroup::from_paths(paths),
+            })
+            .collect();
+
+        Ok(Self { groups, policy })
     }
-}
 
-/// Checks, for `adaptor`'s `load_record`, that a record's groups fit the
-/// adaptor's: the same number of groups of each optimizer type, every
-/// restored position in range, and no `ParamId` the adaptor knows in another
-/// group.
-///
-/// `record_groups` and `groups` count the groups of each optimizer type, in
-/// the record and in the adaptor. `restored` is the record's dispatch map,
-/// and `built` the adaptor's.
-///
-/// # Panics
-/// At the first check that fails, naming the mismatch.
-fn check_loaded_groups(
-    adaptor: &str,
-    record_groups: &[usize],
-    groups: &[usize],
-    restored: &HashMap<ParamId, (usize, usize)>,
-    built: &HashMap<ParamId, (usize, usize)>,
-) {
-    assert!(
-        record_groups == groups,
-        "{adaptor}::load_record: the record has {record_groups:?} group(s) of \
-         each optimizer type, and this adaptor has {groups:?}. Load a record into \
-         an adaptor built with the same groups, in the same order.",
-    );
+    /// Plans `groups` over `module`, under `policy`.
+    ///
+    /// The panicking twin of
+    /// [`try_new_with_policy`](Self::try_new_with_policy).
+    ///
+    /// # Panics
+    /// With the report of the error `try_new_with_policy` returns.
+    pub fn new_with_policy<M>(
+        module: &M,
+        groups: Vec<OptimizerGroup>,
+        policy: UnknownParamPolicy,
+    ) -> Self
+    where
+        M: Module,
+    {
+        Self::try_new_with_policy(module, groups, policy).ok_or_panic()
+    }
 
-    let mut out_of_range: Vec<_> = restored
-        .iter()
-        .filter(|(_, (type_tag, idx))| groups.get(*type_tag).is_none_or(|count| idx >= count))
-        .map(|(&id, &position)| (id, position))
-        .collect();
-    out_of_range.sort_by_key(|&(id, position)| (position, id));
-    assert!(
-        out_of_range.is_empty(),
-        "{adaptor}::load_record: the record puts {} parameter(s) in groups this \
-         adaptor doesn't have, as (optimizer type, group index); it has \
-         {groups:?} group(s) of each optimizer type: {}",
-        out_of_range.len(),
-        out_of_range
-            .iter()
-            .map(|(id, position)| format!("{id} at {position:?}"))
-            .collect::<Vec<_>>()
-            .join(", "),
-    );
+    /// Returns the plan's [`UnknownParamPolicy`].
+    pub fn policy(&self) -> UnknownParamPolicy {
+        self.policy
+    }
 
-    let mut moved: Vec<_> = restored
-        .iter()
-        .filter_map(|(&id, &saved)| {
-            built
-                .get(&id)
-                .filter(|&&position| position != saved)
-                .map(|&position| (id, saved, position))
+    /// Returns each group, in order, with the [`ParamGroup`] of the module
+    /// paths of its parameters.
+    ///
+    /// The `ParamGroup` serves `burn`'s group APIs, such as
+    /// [`Module::freeze_group`].
+    pub fn groups(&self) -> impl ExactSizeIterator<Item = (&OptimizerGroup, &ParamGroup)> {
+        self.groups.iter().map(|g| (&g.group, &g.paths))
+    }
+
+    /// Builds the [`ModuleOptimizer`]: each group's optimizer and gradient
+    /// clipping over the group's paths, after a fallback for the parameters
+    /// no group holds, which the [`UnknownParamPolicy`] picks.
+    ///
+    /// Build it from the same plan, or from a plan built the same way, to
+    /// load an optimizer record: its states are matched to groups by the
+    /// module path saved with each.
+    pub fn optimizer(&self) -> ModuleOptimizer {
+        let fallback: ModuleOptimizer = match self.policy {
+            UnknownParamPolicy::Panic => UnknownParamPanic.into(),
+            UnknownParamPolicy::Freeze => FrozenOptimizer.into(),
+        };
+        self.groups.iter().fold(fallback, |optim, g| {
+            (g.group.add)(optim, g.paths.clone(), g.group.grad_clipping.clone())
         })
-        .collect();
-    moved.sort_by_key(|&(id, saved, _)| (saved, id));
-    assert!(
-        moved.is_empty(),
-        "{adaptor}::load_record: the record puts {} parameter(s) in other groups \
-         than this adaptor does, as (optimizer type, group index): {}. Build the \
-         adaptor with the groups the record was saved with.",
-        moved.len(),
-        moved
-            .iter()
-            .map(|(id, saved, position)| format!("{id} at {saved:?}, not {position:?}"))
-            .collect::<Vec<_>>()
-            .join(", "),
-    );
-}
-
-/// Execute a single optimizer step for one parameter, managing record
-/// load/store.
-///
-/// Factored out to avoid duplicating the record-management logic per type arm.
-#[inline(always)]
-fn step_group<B, O, const D: usize>(
-    optim: &O,
-    records: &mut HashMap<ParamId, AdaptorRecord<O, B>>,
-    id: ParamId,
-    tensor: Tensor<B::InnerBackend, D>,
-    grad: Tensor<B::InnerBackend, D>,
-    device: &<<B as AutodiffBackend>::InnerBackend as BackendTypes>::Device,
-    lr: LearningRate,
-) -> Tensor<B::InnerBackend, D>
-where
-    B: AutodiffBackend,
-    O: SimpleOptimizer<B::InnerBackend>,
-{
-    let (key, record) = records.remove_entry(&id).unzip();
-    let state = record.map(|r| O::to_device(r.into_state(), device));
-
-    let (tensor, state) = optim.step(lr, tensor, grad, state);
-
-    if let Some(state) = state {
-        records.insert(key.unwrap_or(id), AdaptorRecord::from_state(state));
     }
 
-    tensor
+    /// Builds the [`ModuleLrScheduler`] over the global schedule `base`.
+    ///
+    /// `base` is what a `burn` scheduler config's `init()` returns, or any
+    /// [`LrScheduler`](burn::optim::lr_scheduler::LrScheduler), including a
+    /// constant `LearningRate`. Groups without an [`LrSelector`] follow it.
+    /// Each group with one follows a [`SelectedLr`] over its own clone of
+    /// `base`; the clones step in lockstep.
+    ///
+    /// The scheduler's record holds one entry per scheduler, matched by
+    /// position on load: build the resumed scheduler from a plan with the
+    /// same groups, in the same order, over the same base.
+    pub fn lr_scheduler(
+        &self,
+        base: impl Into<ModuleLrScheduler>,
+    ) -> ModuleLrScheduler {
+        let base = base.into();
+        self.groups
+            .iter()
+            .fold(base.clone(), |scheduler, g| match &g.group.lr_selector {
+                Some(selector) => scheduler.with_group(
+                    g.paths.clone(),
+                    SelectedLr::new(base.clone(), selector.clone()),
+                ),
+                None => scheduler,
+            })
+    }
 }
-
-// ---------------------------------------------------------------------------
-// Macro
-// ---------------------------------------------------------------------------
-
-/// Defines a `GroupOptimizerAdaptorN` and its associated mapper for N
-/// `SimpleOptimizer` types.
-///
-/// # Usage
-///
-/// ```ignore
-/// define_group_optimizer_adaptor!(2, [(O1, 0), (O2, 1)]);
-/// define_group_optimizer_adaptor!(3, [(O1, 0), (O2, 1), (O3, 2)]);
-/// ```
-///
-/// Each invocation generates:
-/// - `GroupOptimizerAdaptorN<O1, ..., ON, M, B>` — the adaptor struct
-/// - the `Optimizer<M, B>` impl; its `Record` is a tuple with one
-///   `Vec<OptimizerGroupRecord<Oi, B>>` per optimizer type
-macro_rules! define_group_optimizer_adaptor {
-    ($N:tt, [$(($O:ident, $idx:tt)),+ $(,)?]) => {
-        paste::paste! {
-            #[doc = concat!(
-                "An [`Optimizer`] over [`OptimizerGroup`]s of ",
-                $N,
-                " optimizer type(s): `new` takes one `Vec` of groups per type.\n\n",
-                "Each parameter is stepped by the group that claims it. `new` ",
-                "checks that every float parameter of the module is in exactly ",
-                "one group, and `step` that it knows every float parameter of the ",
-                "module it is given; the [`UnknownParamPolicy`] decides what a ",
-                "parameter in no group does. See the ",
-                "[module docs](crate::burner::optim) for the lifecycle and an example.",
-                "\n\n# Panics\n\n",
-                "- `step` panics, under [`UnknownParamPolicy::Panic`] (the default), ",
-                "when the module has a float parameter whose `ParamId` is in no group.\n",
-                "- `load_record` panics when the record's groups don't fit the ",
-                "adaptor's; see [resuming]",
-                "(crate::burner::optim#resuming-from-a-checkpoint).",
-            )]
-            #[derive(Clone)]
-            pub struct [<GroupOptimizerAdaptor $N>]<$($O,)+ M, B>
-            where
-                $( $O: SimpleOptimizer<B::InnerBackend>, )+
-                M: AutodiffModule<B>,
-                B: AutodiffBackend,
-            {
-                $( [<groups_ $idx>]: Vec<OptimizerGroup<B, $O>>, )+
-
-                /// `ParamId` → (`type_tag`, `group_index`); saved in the
-                /// record, and restored by `load_record`.
-                dispatch: HashMap<ParamId, (usize, usize)>,
-
-                unknown_param_policy: UnknownParamPolicy,
-
-                /// The unknown `ParamId`s already logged under
-                /// [`UnknownParamPolicy::Warn`].
-                warned_param_ids: HashSet<ParamId>,
-
-                records: ( $( Vec<OptimizerGroupRecord<$O, B>>, )+ ),
-
-                grad_clipping: Option<GradientClipping>,
-                _module: PhantomData<M>,
-            }
-
-            impl<$($O,)+ M, B> [<GroupOptimizerAdaptor $N>]<$($O,)+ M, B>
-            where
-                $( $O: SimpleOptimizer<B::InnerBackend>, )+
-                M: AutodiffModule<B>,
-                B: AutodiffBackend,
-            {
-                /// Builds the adaptor for `module` from one `Vec` of groups
-                /// per optimizer type, in type-parameter order, under the
-                /// default [`UnknownParamPolicy::Panic`].
-                ///
-                /// `module` is only read, to list its float parameters; pass
-                /// the module you will step.
-                ///
-                /// # Errors
-                /// - [`GroupOptimizerError::DuplicateParamId`] if a `ParamId`
-                ///   appears in more than one group, of the same type or not.
-                /// - [`GroupOptimizerError::UnassignedParamIds`] if a float
-                ///   parameter of `module` is in no group.
-                #[allow(clippy::too_many_arguments)]
-                pub fn new(
-                    module: &M,
-                    $( [<groups_ $idx>]: Vec<OptimizerGroup<B, $O>>, )+
-                ) -> Result<Self, GroupOptimizerError> {
-                    Self::new_with_policy(
-                        module,
-                        UnknownParamPolicy::default(),
-                        $( [<groups_ $idx>], )+
-                    )
-                }
-
-                /// Builds the adaptor like `new`, with `policy` for float
-                /// parameters in no group, at `new` and at every `step`.
-                ///
-                /// # Errors
-                /// - [`GroupOptimizerError::DuplicateParamId`] if a `ParamId`
-                ///   appears in more than one group, of the same type or not.
-                /// - [`GroupOptimizerError::UnassignedParamIds`] if a float
-                ///   parameter of `module` is in no group and `policy` is
-                ///   [`UnknownParamPolicy::Panic`]. Under
-                ///   [`Warn`](UnknownParamPolicy::Warn), `new_with_policy`
-                ///   logs those parameters and accepts the module; under
-                ///   [`Freeze`](UnknownParamPolicy::Freeze), it accepts it.
-                #[allow(clippy::too_many_arguments)]
-                pub fn new_with_policy(
-                    module: &M,
-                    policy: UnknownParamPolicy,
-                    $( [<groups_ $idx>]: Vec<OptimizerGroup<B, $O>>, )+
-                ) -> Result<Self, GroupOptimizerError> {
-                    let mut dispatch = HashMap::new();
-
-                    $(
-                        for (group_idx, group) in [<groups_ $idx>].iter().enumerate() {
-                            for &param_id in &group.params {
-                                if let Some(&first) = dispatch.get(&param_id) {
-                                    return Err(GroupOptimizerError::DuplicateParamId {
-                                        param_id,
-                                        first,
-                                        second: ($idx, group_idx),
-                                    });
-                                }
-                                dispatch.insert(param_id, ($idx, group_idx));
-                            }
-                        }
-                    )+
-
-                    let mut warned_param_ids = HashSet::new();
-                    admit_unassigned(
-                        stringify!([<GroupOptimizerAdaptor $N>]),
-                        policy,
-                        unassigned_float_params(module, &dispatch),
-                        &mut warned_param_ids,
-                    )?;
-
-                    let records = (
-                        $(
-                            vec![
-                                OptimizerGroupRecord {
-                                    param_map: HashMap::new()
-                                };
-                                [<groups_ $idx>].len()
-                            ],
-                        )+
-                    );
-
-                    Ok(Self {
-                        $( [<groups_ $idx>], )+
-                        dispatch,
-                        unknown_param_policy: policy,
-                        warned_param_ids,
-                        records,
-                        grad_clipping: None,
-                        _module: PhantomData,
-                    })
-                }
-
-                /// Sets the gradient clipping, applied to each parameter's
-                /// gradient on its own before its group's step.
-                pub fn with_grad_clipping(
-                    mut self,
-                    grad_clipping: GradientClipping,
-                ) -> Self {
-                    self.grad_clipping = Some(grad_clipping);
-                    self
-                }
-
-                fn step_common(
-                    &mut self,
-                    lr: LearningRate,
-                    module: M,
-                    mut grads: GradAdaptor,
-                ) -> M {
-                    check_step_params(
-                        stringify!([<GroupOptimizerAdaptor $N>]),
-                        self.unknown_param_policy,
-                        &module,
-                        &self.dispatch,
-                        &mut self.warned_param_ids,
-                    );
-
-                    module.map(&mut [<GroupOptimizerMapper $N>] {
-                        $( [<groups_ $idx>]: &self.[<groups_ $idx>], )+
-                        dispatch: &self.dispatch,
-                        $( [<records_ $idx>]: &mut self.records.$idx, )+
-                        grads: &mut grads,
-                        global_lr: lr,
-                        grad_clipping: self.grad_clipping.as_ref(),
-                    })
-                }
-            }
-
-            impl<$($O,)+ M, B> Optimizer<M, B>
-                for [<GroupOptimizerAdaptor $N>]<$($O,)+ M, B>
-            where
-                $( $O: SimpleOptimizer<B::InnerBackend>, )+
-                M: AutodiffModule<B>,
-                B: AutodiffBackend,
-            {
-                #[allow(clippy::type_complexity)]
-                type Record = GroupOptimizerAdaptorRecord<(
-                    $( Vec<OptimizerGroupRecord<$O, B>>, )+
-                )>;
-
-                fn step(
-                    &mut self,
-                    lr: LearningRate,
-                    module: M,
-                    grads: GradientsParams,
-                ) -> M {
-                    self.step_common(lr, module, grads.into())
-                }
-
-                fn step_multi(
-                    &mut self,
-                    lr: LearningRate,
-                    module: M,
-                    grads: MultiGradientsParams,
-                ) -> M {
-                    self.step_common(lr, module, grads.into())
-                }
-
-                fn to_record(&self) -> Self::Record {
-                    GroupOptimizerAdaptorRecord {
-                        dispatch: self.dispatch.clone(),
-                        groups: self.records.clone(),
-                    }
-                }
-
-                /// Restores the groups' states, and which group steps each
-                /// parameter, from `record`.
-                ///
-                /// The record's assignment of parameters to groups replaces
-                /// the one `new` built, so the adaptor knows the `ParamId`s
-                /// that `Module::load_record` restores from the same
-                /// checkpoint. Each group keeps its optimizer and learning
-                /// rate from `new`. A float parameter the record doesn't
-                /// name (a head added since) falls under the
-                /// [`UnknownParamPolicy`] at `step`.
-                ///
-                /// # Panics
-                /// If the record's groups don't fit this adaptor's: another
-                /// number of groups of some optimizer type, a parameter in a
-                /// group this adaptor doesn't have, or a parameter this
-                /// adaptor knows in another group.
-                fn load_record(
-                    mut self,
-                    record: Self::Record,
-                ) -> Self {
-                    let GroupOptimizerAdaptorRecord { dispatch, groups } = record;
-                    check_loaded_groups(
-                        stringify!([<GroupOptimizerAdaptor $N>]),
-                        &[ $( groups.$idx.len(), )+ ],
-                        &[ $( self.[<groups_ $idx>].len(), )+ ],
-                        &dispatch,
-                        &self.dispatch,
-                    );
-
-                    // Each group's `params` follow the restored assignment.
-                    $(
-                        for group in &mut self.[<groups_ $idx>] {
-                            group.params.clear();
-                        }
-                    )+
-                    for (&id, &(type_tag, idx)) in &dispatch {
-                        match type_tag {
-                            $(
-                                $idx => {
-                                    self.[<groups_ $idx>][idx].params.insert(id);
-                                }
-                            )+
-                            _ => unreachable!("`check_loaded_groups` checked the type tags"),
-                        }
-                    }
-
-                    self.dispatch = dispatch;
-                    self.records = groups;
-                    self
-                }
-            }
-
-            #[doc = concat!(
-                "[`ModuleMapper`] that steps parameters for [`GroupOptimizerAdaptor",
-                $N,
-                "`].",
-            )]
-            struct [<GroupOptimizerMapper $N>]<'a, B, $($O,)+>
-            where
-                B: AutodiffBackend,
-                $( $O: SimpleOptimizer<B::InnerBackend>, )+
-            {
-                $( [<groups_ $idx>]: &'a Vec<OptimizerGroup<B, $O>>, )+
-
-                dispatch: &'a HashMap<ParamId, (usize, usize)>,
-
-                $( [<records_ $idx>]: &'a mut Vec<OptimizerGroupRecord<$O, B>>, )+
-
-                grads: &'a mut GradAdaptor,
-
-                global_lr: LearningRate,
-
-                grad_clipping: Option<&'a GradientClipping>,
-            }
-
-            impl<B, $($O,)+> ModuleMapper<B>
-                for [<GroupOptimizerMapper $N>]<'_, B, $($O,)+>
-            where
-                B: AutodiffBackend,
-                $( $O: SimpleOptimizer<B::InnerBackend>, )+
-            {
-                fn map_float<const D: usize>(
-                    &mut self,
-                    param: Param<Tensor<B, D>>,
-                ) -> Param<Tensor<B, D>> {
-                    let (id, tensor, mapper) = param.consume();
-
-                    let Some((grad, device)) =
-                        self.grads.remove::<B::InnerBackend, D>(id)
-                    else {
-                        return Param::from_mapped_value(id, tensor, mapper);
-                    };
-
-                    // In no group: `check_step_params` has already applied
-                    // the `UnknownParamPolicy`, so leave it unchanged.
-                    let Some(&(type_tag, idx)) = self.dispatch.get(&id) else {
-                        return Param::from_mapped_value(id, tensor, mapper);
-                    };
-
-                    let is_require_grad = tensor.is_require_grad();
-
-                    let tensor = if tensor.device() != device {
-                        tensor.to_device(&device)
-                    } else {
-                        tensor
-                    };
-
-                    let grad = if let Some(clipping) = self.grad_clipping {
-                        clipping.clip_gradient(grad)
-                    } else {
-                        grad
-                    };
-
-                    let tensor = match type_tag {
-                        $(
-                            $idx => {
-                                let group = &self.[<groups_ $idx>][idx];
-                                let lr = group.lr(self.global_lr);
-
-                                step_group::<B, $O, D>(
-                                    &group.optim,
-                                    &mut self.[<records_ $idx>][idx].param_map,
-                                    id,
-                                    tensor.inner(),
-                                    grad,
-                                    &device,
-                                    lr,
-                                )
-                            },
-                        )+
-                        _ => unreachable!(
-                            concat!(
-                                stringify!([<GroupOptimizerAdaptor $N>]),
-                                " only has type tags 0..",
-                                $N,
-                            )
-                        ),
-                    };
-
-                    let mut tensor = Tensor::from_inner(tensor);
-                    if is_require_grad {
-                        tensor = tensor.require_grad();
-                    }
-
-                    Param::from_mapped_value(id, tensor, mapper)
-                }
-            }
-
-        } // paste!
-    };
-}
-
-// ---------------------------------------------------------------------------
-// Instantiations
-// ---------------------------------------------------------------------------
-
-define_group_optimizer_adaptor!(1, [(O1, 0)]);
-define_group_optimizer_adaptor!(2, [(O1, 0), (O2, 1)]);
-define_group_optimizer_adaptor!(3, [(O1, 0), (O2, 1), (O3, 2)]);
-define_group_optimizer_adaptor!(4, [(O1, 0), (O2, 1), (O3, 2), (O4, 3)]);
-define_group_optimizer_adaptor!(5, [(O1, 0), (O2, 1), (O3, 2), (O4, 3), (O5, 4)]);
-define_group_optimizer_adaptor!(6, [(O1, 0), (O2, 1), (O3, 2), (O4, 3), (O5, 4), (O6, 5)]);
-define_group_optimizer_adaptor!(
-    7,
-    [
-        (O1, 0),
-        (O2, 1),
-        (O3, 2),
-        (O4, 3),
-        (O5, 4),
-        (O6, 5),
-        (O7, 6)
-    ]
-);
 
 #[cfg(test)]
 mod tests {
-    use std::{
-        sync::{
-            Mutex,
-            Once,
-        },
-        thread::{
-            self,
-            ThreadId,
-        },
+    use std::panic::{
+        AssertUnwindSafe,
+        catch_unwind,
     };
 
     use burn::{
-        backend::Autodiff,
         nn::{
             Linear,
             LinearConfig,
         },
         optim::{
-            AdamW,
             AdamWConfig,
-            Sgd,
+            GradientsParams,
+            MuonConfig,
             SgdConfig,
+            lr_scheduler::linear::LinearLrSchedulerConfig,
         },
-        record::{
-            BinBytesRecorder,
-            FullPrecisionSettings,
-            NamedMpkBytesRecorder,
-            NamedMpkFileRecorder,
-            Recorder,
+        tensor::{
+            TensorData,
+            Tolerance,
         },
-        tensor::TensorData,
         train::{
             InferenceStep,
             Learner,
@@ -1075,734 +656,434 @@ mod tests {
     };
 
     use super::*;
-    use crate::support::testing::{
-        CpuBackend,
-        default_device,
+    use crate::{
+        errors::testing::{
+            ErrorMatcher,
+            predicate,
+        },
+        support::testing::cpu_device,
     };
 
-    type B = Autodiff<CpuBackend>;
-    type Net = (Linear<B>, Linear<B>);
-    type SgdO = Sgd<CpuBackend>;
+    #[derive(Module, Debug)]
+    struct Net {
+        body: Linear,
+        head: Linear,
+    }
+
+    fn device() -> Device {
+        cpu_device().autodiff()
+    }
 
     fn net() -> Net {
-        let device = default_device();
-        (
-            LinearConfig::new(3, 3).init(&device),
-            LinearConfig::new(3, 2).init(&device),
-        )
+        let device = device();
+        Net {
+            body: LinearConfig::new(3, 3).init(&device),
+            head: LinearConfig::new(3, 2).init(&device),
+        }
     }
 
-    fn sgd() -> OptimizerAdaptor<SgdO, Net, B> {
-        SgdConfig::new().init()
+    fn bias(linear: &Linear) -> ParamId {
+        linear.bias.as_ref().unwrap().id
     }
 
-    fn adamw() -> OptimizerAdaptor<AdamW, Net, B> {
-        AdamWConfig::new().init()
-    }
-
-    /// `[weight_0, bias_0, weight_1, bias_1]`.
+    /// `[body.weight, body.bias, head.weight, head.bias]`.
     fn ids(net: &Net) -> [ParamId; 4] {
         [
-            net.0.weight.id,
-            net.0.bias.as_ref().unwrap().id,
-            net.1.weight.id,
-            net.1.bias.as_ref().unwrap().id,
+            net.body.weight.id,
+            bias(&net.body),
+            net.head.weight.id,
+            bias(&net.head),
         ]
     }
 
-    /// `[weight_0, bias_0, weight_1, bias_1]`.
+    /// `[body.weight, body.bias, head.weight, head.bias]`.
     fn values(net: &Net) -> [TensorData; 4] {
         [
-            net.0.weight.val().into_data(),
-            net.0.bias.as_ref().unwrap().val().into_data(),
-            net.1.weight.val().into_data(),
-            net.1.bias.as_ref().unwrap().val().into_data(),
+            net.body.weight.val().into_data(),
+            net.body.bias.as_ref().unwrap().val().into_data(),
+            net.head.weight.val().into_data(),
+            net.head.bias.as_ref().unwrap().val().into_data(),
         ]
     }
 
     /// Gradients of one backward pass; every parameter gets one.
     fn grads(net: &Net) -> GradientsParams {
-        let x = Tensor::<B, 2>::ones([2, 3], &default_device());
-        let loss = net.1.forward(net.0.forward(x)).sum();
+        let x = Tensor::<2>::ones([2, 3], &device());
+        let loss = net.head.forward(net.body.forward(x)).sum();
         GradientsParams::from_grads(loss.backward(), net)
     }
 
-    /// `old` with its head replaced by a fresh one, whose `ParamId`s are new.
-    fn with_fresh_head(old: Net) -> Net {
-        (old.0, net().1)
+    /// SGD for the weights, `AdamW` for the biases.
+    fn sgd_adamw(net: &Net) -> Vec<OptimizerGroup> {
+        let [w0, b0, w1, b1] = ids(net);
+        vec![
+            OptimizerGroup::new([w0, w1], SgdConfig::new().build()),
+            OptimizerGroup::new([b0, b1], AdamWConfig::new().build()),
+        ]
     }
 
-    /// The warnings this module logs, with the thread that logged each.
-    static WARNINGS: Mutex<Vec<(ThreadId, String)>> = Mutex::new(Vec::new());
-
-    /// A `log` logger that keeps this module's warnings in [`WARNINGS`].
-    struct WarningLogger;
-
-    impl log::Log for WarningLogger {
-        fn enabled(
-            &self,
-            metadata: &log::Metadata,
-        ) -> bool {
-            metadata.level() <= log::Level::Warn
-                && Some(metadata.target()) == module_path!().strip_suffix("::tests")
-        }
-
-        fn log(
-            &self,
-            record: &log::Record,
-        ) {
-            if self.enabled(record.metadata()) {
-                WARNINGS
-                    .lock()
-                    .unwrap()
-                    .push((thread::current().id(), record.args().to_string()));
-            }
-        }
-
-        fn flush(&self) {}
-    }
-
-    /// The warnings this module logged on this thread since
-    /// [`Warnings::start`].
-    ///
-    /// Tests run in parallel, so each reads only its own thread's warnings.
-    struct Warnings {
-        thread: ThreadId,
-        from: usize,
-    }
-
-    impl Warnings {
-        /// Installs [`WarningLogger`], once per test binary, and starts here.
-        fn start() -> Self {
-            static INSTALL: Once = Once::new();
-            INSTALL.call_once(|| {
-                log::set_logger(&WarningLogger)
-                    .expect("nothing else in these tests sets a `log` logger");
-                log::set_max_level(log::LevelFilter::Warn);
-            });
-            Self {
-                thread: thread::current().id(),
-                from: WARNINGS.lock().unwrap().len(),
-            }
-        }
-
-        fn messages(&self) -> Vec<String> {
-            WARNINGS.lock().unwrap()[self.from..]
-                .iter()
-                .filter(|(thread, _)| *thread == self.thread)
-                .map(|(_, msg)| msg.clone())
-                .collect()
-        }
+    fn assert_close(
+        a: &TensorData,
+        b: &TensorData,
+    ) {
+        a.assert_approx_eq::<f32>(b, Tolerance::absolute(1e-6));
     }
 
     #[test]
-    fn test_new_rejects_duplicate_param_ids() {
+    fn test_float_param_paths_match_the_module_optimizer() {
+        let net = net();
+        let mut visitor = FloatParamPaths::default();
+        net.visit(&mut visitor);
+
+        let paths: Vec<&str> = visitor.params.iter().map(|(_, p)| p.as_str()).collect();
+        assert_eq!(
+            paths,
+            ["body.weight", "body.bias", "head.weight", "head.bias"]
+        );
+        let visited: Vec<ParamId> = visitor.params.iter().map(|(id, _)| *id).collect();
+        assert_eq!(visited, ids(&net));
+    }
+
+    #[test]
+    fn test_try_new_rejects_duplicate_param_ids() {
         let net = net();
         let [w0, b0, w1, b1] = ids(&net);
-
-        // Disjoint groups are accepted.
-        assert!(
-            GroupOptimizerAdaptor2::<SgdO, AdamW, Net, B>::new(
-                &net,
-                vec![OptimizerGroup::from_adaptor([w0, w1], &sgd())],
-                vec![OptimizerGroup::from_adaptor([b0, b1], &adamw())],
-            )
-            .is_ok()
-        );
-
-        // Across optimizer types.
-        let err = GroupOptimizerAdaptor2::<SgdO, AdamW, Net, B>::new(
-            &net,
-            vec![OptimizerGroup::from_adaptor([w0, w1], &sgd())],
-            vec![OptimizerGroup::from_adaptor([b0, b1, w1], &adamw())],
-        )
-        .err()
-        .unwrap();
-        let GroupOptimizerError::DuplicateParamId {
-            param_id,
-            first,
-            second,
-        } = &err
-        else {
-            panic!("expected DuplicateParamId, got {err:?}");
-        };
-        assert_eq!((*param_id, *first, *second), (w1, (0, 0), (1, 0)));
-        assert!(err.to_string().contains(&w1.to_string()), "{err}");
-
-        // Within one optimizer type.
-        let err = GroupOptimizerAdaptor1::<SgdO, Net, B>::new(
+        let result = GroupOptimizerPlan::try_new(
             &net,
             vec![
-                OptimizerGroup::from_adaptor([w0, b0, w1, b1], &sgd()),
-                OptimizerGroup::from_adaptor([w0], &sgd()),
+                OptimizerGroup::new([w0, w1], SgdConfig::new().build()),
+                OptimizerGroup::new([b0, b1], SgdConfig::new().build()),
+                OptimizerGroup::new([w1], AdamWConfig::new().build()),
             ],
-        )
-        .err()
-        .unwrap();
-        assert!(matches!(
-            err,
-            GroupOptimizerError::DuplicateParamId {
-                first: (0, 0),
-                second: (0, 1),
-                ..
-            }
-        ));
-    }
-
-    #[test]
-    fn test_new_rejects_unassigned_params() {
-        let net = net();
-        let [w0, b0, w1, b1] = ids(&net);
-
-        // `b0` and `b1` are in no group.
-        let err = GroupOptimizerAdaptor2::<SgdO, AdamW, Net, B>::new(
-            &net,
-            vec![OptimizerGroup::from_adaptor([w0, w1], &sgd())],
-            vec![],
-        )
-        .err()
-        .unwrap();
-        let GroupOptimizerError::UnassignedParamIds { param_ids } = &err else {
-            panic!("expected UnassignedParamIds, got {err:?}");
-        };
-        // In the order the module visits them.
-        assert_eq!(param_ids, &[b0, b1]);
-        let msg = err.to_string();
-        assert!(msg.contains(&format!("{b0}, {b1}")), "{msg}");
-
-        // `new` is `new_with_policy` under the default policy, `Panic`.
-        assert_eq!(UnknownParamPolicy::default(), UnknownParamPolicy::Panic);
-        assert!(matches!(
-            GroupOptimizerAdaptor1::<SgdO, Net, B>::new_with_policy(
-                &net,
-                UnknownParamPolicy::Panic,
-                vec![OptimizerGroup::from_adaptor([w0, w1], &sgd())],
-            ),
-            Err(GroupOptimizerError::UnassignedParamIds { .. })
-        ));
-
-        // Empty groups are allowed, as long as every parameter has a group.
-        assert!(
-            GroupOptimizerAdaptor2::<SgdO, AdamW, Net, B>::new(
-                &net,
-                vec![
-                    OptimizerGroup::from_adaptor([w0, w1, b0, b1], &sgd()),
-                    OptimizerGroup::from_adaptor([], &sgd()),
-                ],
-                vec![],
-            )
-            .is_ok()
         );
+
+        ErrorMatcher::kind(BunsenErrorKind::Illegal)
+            .cause(predicate(
+                "w1 in groups 0 and 2",
+                move |e: &GroupOptimizerError| {
+                    matches!(
+                        e,
+                        GroupOptimizerError::DuplicateParamId {
+                            param_id,
+                            first: 0,
+                            second: 2,
+                        } if *param_id == w1
+                    )
+                },
+            ))
+            .assert_err(&result);
     }
 
     #[test]
-    fn test_new_warn_accepts_unassigned_params() {
-        let warnings = Warnings::start();
-        let net = net();
-        let [w0, b0, w1, b1] = ids(&net);
-        let before = values(&net);
-
-        // `b0` and `b1` are in no group.
-        let mut optim = GroupOptimizerAdaptor1::<SgdO, Net, B>::new_with_policy(
-            &net,
-            UnknownParamPolicy::Warn,
-            vec![OptimizerGroup::from_adaptor([w0, w1], &sgd())],
-        )
-        .unwrap();
-        let logged = warnings.messages();
-        assert_eq!(logged.len(), 1, "{logged:?}");
-        assert!(
-            logged[0].contains("GroupOptimizerAdaptor1::new"),
-            "{logged:?}"
-        );
-        assert!(logged[0].contains(&format!("{b0}, {b1}")), "{logged:?}");
-        assert!(!logged[0].contains(&w0.to_string()), "{logged:?}");
-
-        // `step` leaves them unchanged, and doesn't warn about them again.
-        let grads = grads(&net);
-        let net = optim.step(0.1, net, grads);
-        let after = values(&net);
-        assert_ne!(after[0], before[0]);
-        assert_eq!(after[1], before[1]);
-        assert_ne!(after[2], before[2]);
-        assert_eq!(after[3], before[3]);
-        assert_eq!(warnings.messages().len(), 1);
-    }
-
-    #[test]
-    fn test_new_freeze_accepts_unassigned_params() {
-        let warnings = Warnings::start();
+    fn test_try_new_rejects_unassigned_params() {
         let net = net();
         let [w0, _, w1, _] = ids(&net);
-        let before = values(&net);
-
-        // `b0` and `b1` are in no group.
-        let mut optim = GroupOptimizerAdaptor1::<SgdO, Net, B>::new_with_policy(
+        let result = GroupOptimizerPlan::try_new(
             &net,
+            vec![OptimizerGroup::new([w0, w1], SgdConfig::new().build())],
+        );
+
+        let expected = vec![
+            (bias(&net.body), "body.bias".to_string()),
+            (bias(&net.head), "head.bias".to_string()),
+        ];
+        ErrorMatcher::kind(BunsenErrorKind::Illegal)
+            .message_contains("2 float parameter(s)")
+            .details_contains("head.bias")
+            .cause(predicate(
+                "the two biases, with their paths",
+                move |e: &GroupOptimizerError| {
+                    matches!(
+                        e,
+                        GroupOptimizerError::UnassignedParamIds { params } if *params == expected
+                    )
+                },
+            ))
+            .assert_err(&result);
+    }
+
+    #[test]
+    #[should_panic(expected = "in no optimizer group")]
+    fn test_new_panics_on_unassigned_params() {
+        let net = net();
+        GroupOptimizerPlan::new(&net, vec![]);
+    }
+
+    #[test]
+    fn test_freeze_accepts_and_freezes_unassigned_params() {
+        let net = net();
+        let [w0, _, w1, _] = ids(&net);
+        let plan = GroupOptimizerPlan::try_new_with_policy(
+            &net,
+            vec![OptimizerGroup::new([w0, w1], SgdConfig::new().build())],
             UnknownParamPolicy::Freeze,
-            vec![OptimizerGroup::from_adaptor([w0, w1], &sgd())],
         )
         .unwrap();
+        assert_eq!(plan.policy(), UnknownParamPolicy::Freeze);
 
+        let before = values(&net);
         let grads = grads(&net);
-        let net = optim.step(0.1, net, grads);
-        let after = values(&net);
+        let after = values(&plan.optimizer().step(0.1, net, grads));
+
         assert_ne!(after[0], before[0]);
         assert_eq!(after[1], before[1]);
         assert_ne!(after[2], before[2]);
         assert_eq!(after[3], before[3]);
-        assert_eq!(warnings.messages(), Vec::<String>::new());
     }
 
     #[test]
-    fn test_step_updates_every_group() {
+    fn test_try_new_ignores_ids_outside_the_module() {
         let net = net();
-        let [w0, b0, w1, b1] = ids(&net);
-        let before = values(&net);
+        let other = self::net();
+        let mut groups = sgd_adamw(&net);
+        groups.push(OptimizerGroup::new(ids(&other), SgdConfig::new().build()));
 
-        let mut optim = GroupOptimizerAdaptor2::<SgdO, AdamW, Net, B>::new(
-            &net,
-            vec![OptimizerGroup::from_adaptor([w0, w1], &sgd())],
-            vec![OptimizerGroup::from_adaptor([b0, b1], &adamw())],
-        )
-        .unwrap();
-
-        let grads = grads(&net);
-        let net = optim.step(0.1, net, grads);
-        let after = values(&net);
-
-        for (i, (a, b)) in after.iter().zip(&before).enumerate() {
-            assert_ne!(a, b, "parameter {i} was not stepped");
-        }
+        let plan = GroupOptimizerPlan::try_new(&net, groups).unwrap();
+        assert_eq!(plan.groups().len(), 3);
+        let (group, paths) = plan.groups().nth(2).unwrap();
+        assert_eq!(group.params().len(), 4);
+        assert!(!paths.matches(&ids(&other)[0], Some("body.weight")));
     }
 
     #[test]
-    fn test_step_uses_each_groups_lr() {
+    fn test_groups_are_keyed_by_path() {
+        let net = net();
+        let plan = GroupOptimizerPlan::new(&net, sgd_adamw(&net));
+        let fresh = ParamId::new();
+
+        let groups: Vec<_> = plan.groups().collect();
+        assert!(groups[0].1.matches(&fresh, Some("body.weight")));
+        assert!(groups[0].1.matches(&fresh, Some("head.weight")));
+        assert!(!groups[0].1.matches(&net.body.weight.id, Some("body.bias")));
+        assert!(groups[1].1.matches(&fresh, Some("head.bias")));
+        assert_eq!(
+            groups[1].0.optimizer_name(),
+            std::any::type_name::<burn::optim::AdamW>()
+        );
+    }
+
+    /// One step of `optim` over `ids` alone, every other parameter frozen.
+    fn step_alone<O: Optimizer>(
+        net: &Net,
+        ids: Vec<ParamId>,
+        optim: O,
+    ) -> [TensorData; 4] {
+        let mut optim = ModuleOptimizer::from(FrozenOptimizer).with_group(
+            ParamGroup::from_ids(ids),
+            optim,
+            None,
+        );
+        let grads = grads(net);
+        values(&optim.step(0.1, net.clone(), grads))
+    }
+
+    #[test]
+    fn test_step_updates_every_group_with_mixed_optimizer_types() {
         let net = net();
         let [w0, b0, w1, b1] = ids(&net);
-        let [w0_before, b0_before, w1_before, _] = values(&net);
-
-        // Plain SGD at a fixed rate of 0 does not move, whatever the global
-        // rate.
-        let mut optim = GroupOptimizerAdaptor1::<SgdO, Net, B>::new(
+        let plan = GroupOptimizerPlan::new(
             &net,
             vec![
-                OptimizerGroup::from_adaptor([w0, b0], &sgd()).with_fixed_lr(0.0),
-                OptimizerGroup::from_adaptor([w1, b1], &sgd()),
+                OptimizerGroup::new([w0, w1], MuonConfig::new().build()),
+                OptimizerGroup::new([b0], AdamWConfig::new().build()),
+                OptimizerGroup::new([b1], SgdConfig::new().build()),
             ],
-        )
-        .unwrap();
+        );
 
-        let grads = grads(&net);
-        let net = optim.step(0.1, net, grads);
-        let [w0_after, b0_after, w1_after, _] = values(&net);
-
-        assert_eq!(w0_after, w0_before);
-        assert_eq!(b0_after, b0_before);
-        assert_ne!(w1_after, w1_before);
-    }
-
-    /// The text of a caught panic.
-    fn panic_message(payload: &(dyn std::any::Any + Send)) -> String {
-        payload
-            .downcast_ref::<String>()
-            .cloned()
-            .or_else(|| payload.downcast_ref::<&str>().map(|s| s.to_string()))
-            .unwrap_or_default()
-    }
-
-    #[test]
-    fn test_step_panics_on_unknown_params() {
-        let known = net();
-        let mut optim = GroupOptimizerAdaptor1::<SgdO, Net, B>::new(
-            &known,
-            vec![OptimizerGroup::from_adaptor(ids(&known), &sgd())],
-        )
-        .unwrap();
-
-        // A second `Net` has fresh `ParamId`s, none of them known to `optim`,
-        // and a gradient for each.
-        let other = net();
-        let other_ids = ids(&other);
-        let before = values(&other);
-        let grads = grads(&other);
-        let stepped = std::panic::catch_unwind(std::panic::AssertUnwindSafe(move || {
-            optim.step(0.1, other, grads)
-        }));
-
-        let payload = match stepped {
-            Ok(other) => panic!(
-                "step returned; were the unknown parameters left unchanged? {}",
-                values(&other) == before
-            ),
-            Err(payload) => payload,
-        };
-        let msg = panic_message(payload.as_ref());
-        for id in other_ids {
-            assert!(msg.contains(&id.to_string()), "{msg}");
+        let before = values(&net);
+        let step_grads = grads(&net);
+        let after = values(&plan.optimizer().step(0.1, net.clone(), step_grads));
+        for (a, b) in after.iter().zip(&before) {
+            assert_ne!(a, b);
         }
-    }
 
-    #[test]
-    fn test_step_warn_logs_each_unknown_param_once() {
-        let warnings = Warnings::start();
-        let known = net();
-        let mut optim = GroupOptimizerAdaptor1::<SgdO, Net, B>::new_with_policy(
-            &known,
-            UnknownParamPolicy::Warn,
-            vec![OptimizerGroup::from_adaptor(ids(&known), &sgd())],
-        )
-        .unwrap();
-        assert_eq!(warnings.messages(), Vec::<String>::new());
-
-        // Surgery: the head's weight and bias are new to `optim`.
-        let module = with_fresh_head(known);
-        let [w0, _, head_w, head_b] = ids(&module);
-        let before = values(&module);
-        let module_grads = grads(&module);
-        let module = optim.step(0.1, module, module_grads);
-        let after = values(&module);
-        assert_ne!(after[0], before[0]);
-        assert_ne!(after[1], before[1]);
-        assert_eq!(after[2], before[2]);
-        assert_eq!(after[3], before[3]);
-
-        let logged = warnings.messages();
-        assert_eq!(logged.len(), 1, "{logged:?}");
-        assert!(
-            logged[0].contains("GroupOptimizerAdaptor1::step"),
-            "{logged:?}"
-        );
-        assert!(
-            logged[0].contains(&format!("{head_w}, {head_b}")),
-            "{logged:?}"
-        );
-        assert!(!logged[0].contains(&w0.to_string()), "{logged:?}");
-
-        // Stepping again doesn't repeat it.
-        let module_grads = grads(&module);
-        let module = optim.step(0.1, module, module_grads);
-        assert_eq!(warnings.messages().len(), 1);
-
-        // Another new head is reported, alone.
-        let module = with_fresh_head(module);
-        let [_, _, head_w2, head_b2] = ids(&module);
-        let module_grads = grads(&module);
-        optim.step(0.1, module, module_grads);
-        let logged = warnings.messages();
-        assert_eq!(logged.len(), 2, "{logged:?}");
-        assert!(
-            logged[1].contains(&format!("{head_w2}, {head_b2}")),
-            "{logged:?}"
-        );
-        assert!(!logged[1].contains(&head_w.to_string()), "{logged:?}");
-    }
-
-    #[test]
-    fn test_step_freeze_leaves_unknown_params_unchanged() {
-        let warnings = Warnings::start();
-        let known = net();
-        let mut optim = GroupOptimizerAdaptor1::<SgdO, Net, B>::new_with_policy(
-            &known,
-            UnknownParamPolicy::Freeze,
-            vec![OptimizerGroup::from_adaptor(ids(&known), &sgd())],
-        )
-        .unwrap();
-
-        // Surgery: the head's weight and bias are new to `optim`.
-        let module = with_fresh_head(known);
-        let before = values(&module);
-        let module_grads = grads(&module);
-        let module = optim.step(0.1, module, module_grads);
-        let after = values(&module);
-        assert_ne!(after[0], before[0]);
-        assert_ne!(after[1], before[1]);
-        assert_eq!(after[2], before[2]);
-        assert_eq!(after[3], before[3]);
-        assert_eq!(warnings.messages(), Vec::<String>::new());
+        // Each group steps as its optimizer alone would.
+        let muon = step_alone(&net, vec![w0, w1], MuonConfig::new().build());
+        let adamw = step_alone(&net, vec![b0], AdamWConfig::new().build());
+        let sgd = step_alone(&net, vec![b1], SgdConfig::new().build());
+        assert_close(&after[0], &muon[0]);
+        assert_close(&after[2], &muon[2]);
+        assert_close(&after[1], &adamw[1]);
+        assert_close(&after[3], &sgd[3]);
     }
 
     #[test]
     fn test_frozen_group_is_not_stepped() {
         let net = net();
         let [w0, b0, w1, b1] = ids(&net);
-        let before = values(&net);
-
-        // The head is frozen. A frozen group counts as assigned.
-        let mut optim = GroupOptimizerAdaptor2::<SgdO, FrozenOptimizer, Net, B>::new(
-            &net,
-            vec![OptimizerGroup::from_adaptor([w0, b0], &sgd())],
-            vec![OptimizerGroup::frozen([w1, b1])],
-        )
-        .unwrap();
-
-        let grads = grads(&net);
-        let net = optim.step(0.1, net, grads);
-        let after = values(&net);
-        assert_ne!(after[0], before[0]);
-        assert_ne!(after[1], before[1]);
-        assert_eq!(after[2], before[2]);
-        assert_eq!(after[3], before[3]);
-
-        // It keeps no state.
-        let (_, frozen) = optim.to_record().groups;
-        assert!(frozen[0].param_map.is_empty());
-    }
-
-    type SgdAdamW = GroupOptimizerAdaptor2<SgdO, AdamW, Net, B>;
-
-    /// SGD for the weights, `AdamW` for the biases.
-    fn sgd_adamw(net: &Net) -> SgdAdamW {
-        let [w0, b0, w1, b1] = ids(net);
-        SgdAdamW::new(
-            net,
-            vec![OptimizerGroup::from_adaptor([w0, w1], &sgd())],
-            vec![OptimizerGroup::from_adaptor([b0, b1], &adamw())],
-        )
-        .unwrap()
-    }
-
-    /// One step of `optim` on `net`, with the gradients of [`grads`].
-    fn step<O: Optimizer<Net, B>>(
-        optim: &mut O,
-        net: Net,
-    ) -> Net {
-        let grads = grads(&net);
-        optim.step(0.1, net, grads)
-    }
-
-    /// `record`, saved to bytes by `recorder` and loaded back.
-    fn round_trip<Rec, R>(
-        recorder: &Rec,
-        record: R,
-    ) -> R
-    where
-        Rec: Recorder<B, RecordArgs = (), RecordOutput = Vec<u8>, LoadArgs = Vec<u8>>,
-        R: Record<B>,
-    {
-        let bytes = recorder.record(record, ()).unwrap();
-        recorder.load(bytes, &default_device()).unwrap()
-    }
-
-    /// A model record and an optimizer record, saved together.
-    type Checkpoint = (
-        <Net as Module<B>>::Record,
-        <SgdAdamW as Optimizer<Net, B>>::Record,
-    );
-
-    /// Checkpoints a run, resumes it on a fresh model and adaptor from what
-    /// `save_load` gives back, and checks that the resumed step is the step
-    /// the first run takes next.
-    fn assert_resumes(save_load: impl FnOnce(Checkpoint) -> Checkpoint) {
-        // The first run: a step, then a checkpoint.
-        let net1 = net();
-        let mut optim1 = sgd_adamw(&net1);
-        let net1 = step(&mut optim1, net1);
-        let ids1 = ids(&net1);
-        let checkpoint = save_load((net1.clone().into_record(), optim1.to_record()));
-
-        // The first run's next step uses `AdamW`'s state: with a fresh
-        // state, the first bias would move differently.
-        let expected = values(&step(&mut optim1, net1.clone()));
-        let fresh = values(&step(&mut sgd_adamw(&net1), net1));
-        assert_ne!(fresh[1], expected[1]);
-
-        // The resumed run, in a `Learner`'s order: a fresh model, with fresh
-        // `ParamId`s, and an adaptor over it; then the checkpoint is loaded
-        // into both.
-        let net2 = net();
-        let optim2 = sgd_adamw(&net2);
-        let (model_record, optim_record) = checkpoint;
-        let net2 = net2.load_record(model_record);
-        assert_eq!(ids(&net2), ids1, "the model record restores the ids");
-        let mut optim2 = optim2.load_record(optim_record);
-
-        // `AdamW`'s state is back, under the biases' ids.
-        let (_, adamw_groups) = optim2.to_record().groups;
-        let mut state_ids: Vec<ParamId> = adamw_groups[0].param_map.keys().copied().collect();
-        state_ids.sort();
-        let mut bias_ids = vec![ids1[1], ids1[3]];
-        bias_ids.sort();
-        assert_eq!(state_ids, bias_ids);
-
-        // Each parameter is stepped by its group's optimizer, from its
-        // saved state.
-        assert_eq!(values(&step(&mut optim2, net2)), expected);
-    }
-
-    #[test]
-    fn test_load_record_resumes_a_fresh_model() {
-        assert_resumes(|checkpoint| checkpoint);
-    }
-
-    #[test]
-    fn test_load_record_resumes_through_a_recorder() {
-        assert_resumes(|checkpoint| {
-            round_trip(
-                &NamedMpkBytesRecorder::<FullPrecisionSettings>::default(),
-                checkpoint,
-            )
-        });
-        assert_resumes(|checkpoint| {
-            round_trip(
-                &BinBytesRecorder::<FullPrecisionSettings>::default(),
-                checkpoint,
-            )
-        });
-    }
-
-    #[test]
-    fn test_group_record_keeps_param_ids_through_a_recorder() {
-        let device = default_device();
-        let adamw = adamw();
-        let state = |value: f32| {
-            let tensor = Tensor::<CpuBackend, 1>::full([2], value, &device);
-            let (_, state) = SimpleOptimizer::<CpuBackend>::step(
-                adamw.optim(),
-                0.1,
-                tensor.clone(),
-                tensor,
-                None,
-            );
-            AdaptorRecord::<AdamW, B>::from_state(state.unwrap())
-        };
-        let [a, b] = [ParamId::new(), ParamId::new()];
-        let record = OptimizerGroupRecord::<AdamW, B> {
-            param_map: [(a, state(1.0)), (b, state(2.0))].into_iter().collect(),
-        };
-
-        let restored = round_trip(
-            &NamedMpkBytesRecorder::<FullPrecisionSettings>::default(),
-            record,
-        );
-        let mut restored_ids: Vec<ParamId> = restored.param_map.keys().copied().collect();
-        restored_ids.sort();
-        let mut saved_ids = vec![a, b];
-        saved_ids.sort();
-        assert_eq!(restored_ids, saved_ids);
-    }
-
-    /// The text of the panic `f` raises.
-    fn panic_text(f: impl FnOnce()) -> String {
-        let payload = std::panic::catch_unwind(std::panic::AssertUnwindSafe(f))
-            .expect_err("expected a panic");
-        panic_message(payload.as_ref())
-    }
-
-    #[test]
-    fn test_load_record_panics_on_other_groups() {
-        let net = net();
-        let [w0, b0, w1, b1] = ids(&net);
-        let record = sgd_adamw(&net).to_record();
-
-        // Another number of groups of one optimizer type.
-        let split = SgdAdamW::new(
+        let plan = GroupOptimizerPlan::new(
             &net,
             vec![
-                OptimizerGroup::from_adaptor([w0], &sgd()),
-                OptimizerGroup::from_adaptor([w1], &sgd()),
+                OptimizerGroup::new([w0, w1], SgdConfig::new().build()),
+                OptimizerGroup::frozen([b0, b1]),
             ],
-            vec![OptimizerGroup::from_adaptor([b0, b1], &adamw())],
-        )
-        .unwrap();
-        let msg = panic_text(|| {
-            split.load_record(record.clone());
-        });
-        assert!(
-            msg.contains("the record has [1, 1] group(s)")
-                && msg.contains("this adaptor has [2, 1]"),
-            "{msg}"
         );
 
-        // A parameter in a group, or of an optimizer type, the adaptor
-        // doesn't have.
-        for position in [(0, 1), (2, 0)] {
-            let mut bad = record.clone();
-            bad.dispatch.insert(w0, position);
-            let msg = panic_text(|| {
-                sgd_adamw(&net).load_record(bad);
-            });
-            assert!(
-                msg.contains("in groups this adaptor doesn't have")
-                    && msg.contains(&format!("{w0} at {position:?}")),
-                "{msg}"
-            );
-        }
+        let before = values(&net);
+        let grads = grads(&net);
+        let after = values(&plan.optimizer().step(0.1, net, grads));
 
-        // Parameters the adaptor knows, in other groups.
-        let swapped = SgdAdamW::new(
-            &net,
-            vec![OptimizerGroup::from_adaptor([w0, b1], &sgd())],
-            vec![OptimizerGroup::from_adaptor([b0, w1], &adamw())],
-        )
-        .unwrap();
-        let msg = panic_text(|| {
-            swapped.load_record(record.clone());
-        });
-        assert!(msg.contains("2 parameter(s) in other groups"), "{msg}");
-        assert!(
-            msg.contains(&format!("{w1} at (0, 0), not (1, 0)")),
-            "{msg}"
-        );
-        assert!(
-            msg.contains(&format!("{b1} at (1, 0), not (0, 0)")),
-            "{msg}"
-        );
-
-        // The groups the record was saved with take it.
-        sgd_adamw(&net).load_record(record);
-    }
-
-    #[test]
-    fn test_load_record_keeps_the_unknown_param_policy() {
-        // The first run's checkpoint.
-        let net1 = net();
-        let mut optim1 = sgd_adamw(&net1);
-        let net1 = step(&mut optim1, net1);
-
-        // A resumed run under `policy`, then a fresh head, whose ids the
-        // record doesn't name.
-        let resume = |policy| {
-            let net2 = net();
-            let [w0, b0, w1, b1] = ids(&net2);
-            let optim2 = SgdAdamW::new_with_policy(
-                &net2,
-                policy,
-                vec![OptimizerGroup::from_adaptor([w0, w1], &sgd())],
-                vec![OptimizerGroup::from_adaptor([b0, b1], &adamw())],
-            )
-            .unwrap();
-            (
-                with_fresh_head(net2.load_record(net1.clone().into_record())),
-                optim2.load_record(optim1.to_record()),
-            )
-        };
-
-        let (module, mut optim) = resume(UnknownParamPolicy::Panic);
-        let [_, _, head_w, head_b] = ids(&module);
-        let msg = panic_text(move || {
-            step(&mut optim, module);
-        });
-        assert!(msg.contains(&format!("{head_w}, {head_b}")), "{msg}");
-
-        let (module, mut optim) = resume(UnknownParamPolicy::Freeze);
-        let before = values(&module);
-        let after = values(&step(&mut optim, module));
         assert_ne!(after[0], before[0]);
-        assert_ne!(after[1], before[1]);
-        assert_eq!(after[2], before[2]);
+        assert_eq!(after[1], before[1]);
+        assert_ne!(after[2], before[2]);
         assert_eq!(after[3], before[3]);
     }
 
-    /// [`Net`] as a struct, for a `Learner`: its train step is one backward
-    /// pass of [`grads`]' loss.
-    #[derive(Module, Debug)]
-    struct LearnerNet<B: Backend> {
-        body: Linear<B>,
-        head: Linear<B>,
+    #[test]
+    fn test_step_panics_on_params_outside_the_plan() {
+        let net = net();
+        let plan = GroupOptimizerPlan::new(&net, sgd_adamw(&net));
+
+        // A model whose head sits under another field: no group holds its
+        // paths.
+        #[derive(Module, Debug)]
+        struct Renamed {
+            body: Linear,
+            other: Linear,
+        }
+        let renamed = Renamed {
+            body: net.body,
+            other: net.head,
+        };
+        let x = Tensor::<2>::ones([2, 3], &device());
+        let loss = renamed.other.forward(renamed.body.forward(x)).sum();
+        let grads = GradientsParams::from_grads(loss.backward(), &renamed);
+
+        let mut optim = plan.optimizer();
+        let panic = catch_unwind(AssertUnwindSafe(|| optim.step(0.1, renamed, grads)))
+            .expect_err("a parameter outside the plan should panic");
+        let message = panic.downcast_ref::<String>().cloned().unwrap_or_default();
+        assert!(message.contains("UnknownParamPolicy::Panic"), "{message}");
     }
 
-    impl<B: AutodiffBackend> TrainStep for LearnerNet<B> {
+    #[test]
+    fn test_lr_scheduler_selects_each_groups_lr() {
+        let net = net();
+        let [w0, b0, w1, b1] = ids(&net);
+        let plan = GroupOptimizerPlan::new(
+            &net,
+            vec![
+                OptimizerGroup::new([w0, w1], SgdConfig::new().build()),
+                OptimizerGroup::new([b0], SgdConfig::new().build())
+                    .with_lr_selector(|lr: LearningRate| lr * 0.5),
+                OptimizerGroup::new([b1], SgdConfig::new().build()).with_fixed_lr(0.03),
+            ],
+        );
+
+        // 1.0 → 0.0 over 4 steps: 1.0, 0.75, ...
+        let base = LinearLrSchedulerConfig::new(1.0, 0.0, 4).init().unwrap();
+        let mut scheduler = plan.lr_scheduler(base);
+        scheduler.step();
+        let lr = scheduler.step();
+
+        let id = ParamId::new();
+        assert_eq!(lr.lr_from_param(id, Some("body.weight")), 0.75);
+        assert_eq!(lr.lr_from_param(id, Some("head.weight")), 0.75);
+        assert_eq!(lr.lr_from_param(id, Some("body.bias")), 0.375);
+        assert_eq!(lr.lr_from_param(id, Some("head.bias")), 0.03);
+    }
+
+    #[test]
+    fn test_step_uses_each_groups_lr() {
+        // SGD moves a parameter by exactly `lr * grad`, so two copies of one
+        // model, stepped at rates 0.1 and 0.05, show the group's rate.
+        let net = net();
+        let [w0, b0, w1, b1] = ids(&net);
+        let plan = GroupOptimizerPlan::new(
+            &net,
+            vec![
+                OptimizerGroup::new([w0, w1, b1], SgdConfig::new().build()),
+                OptimizerGroup::new([b0], SgdConfig::new().build())
+                    .with_lr_selector(|lr: LearningRate| lr * 0.5),
+            ],
+        );
+        let mut scheduler = plan.lr_scheduler(0.1);
+
+        let before = values(&net);
+        let step_grads = grads(&net);
+        let body_bias_grad = step_grads.get::<1>(b0).unwrap().into_data();
+        let after = values(&plan.optimizer().step(scheduler.step(), net, step_grads));
+
+        let delta: Vec<f32> = before[1]
+            .iter::<f32>()
+            .zip(after[1].iter::<f32>())
+            .map(|(b, a)| b - a)
+            .collect();
+        let expected: Vec<f32> = body_bias_grad.iter::<f32>().map(|g| g * 0.05).collect();
+        assert_close(
+            &TensorData::from(delta.as_slice()),
+            &TensorData::from(expected.as_slice()),
+        );
+    }
+
+    /// The resume path: a run saves the model and optimizer records; a
+    /// resumed run builds a fresh model (fresh `ParamId`s) and a plan over
+    /// it, loads both records, and steps exactly as the first run would
+    /// have.
+    #[test]
+    fn test_optimizer_record_resumes_on_a_fresh_model() {
+        let new_plan = |net: &Net| GroupOptimizerPlan::new(net, sgd_adamw(net));
+
+        // The first run: two steps, a checkpoint, then its next step.
+        let mut net = net();
+        let mut optim = new_plan(&net).optimizer();
+        for _ in 0..2 {
+            let grads = grads(&net);
+            net = optim.step(0.1, net, grads);
+        }
+        let model_bytes = net.clone().into_record().into_bytes().unwrap();
+        let optim_bytes = optim.into_bytes().unwrap();
+        let step_grads = grads(&net);
+        let expected = values(&optim.step(0.1, net, step_grads));
+
+        // The resumed run: a fresh model, whose ids differ, and a plan over
+        // it.
+        let fresh = self::net();
+        let mut resumed_optim = new_plan(&fresh).optimizer();
+        let fresh_ids = ids(&fresh);
+        let resumed =
+            fresh.load_record(burn::store::ModuleRecord::from_bytes(model_bytes).unwrap());
+        assert_ne!(ids(&resumed), fresh_ids);
+        resumed_optim = resumed_optim.from_bytes(optim_bytes).unwrap();
+
+        let step_grads = grads(&resumed);
+        let actual = values(&resumed_optim.step(0.1, resumed, step_grads));
+        for (a, e) in actual.iter().zip(&expected) {
+            assert_close(a, e);
+        }
+    }
+
+    /// Without the record, `AdamW` restarts its moments, and the step
+    /// differs: the round trip above carries the per-group state.
+    #[test]
+    fn test_fresh_optimizer_state_differs_from_resumed() {
+        let mut net = net();
+        let mut optim = GroupOptimizerPlan::new(&net, sgd_adamw(&net)).optimizer();
+        for _ in 0..2 {
+            let grads = grads(&net);
+            net = optim.step(0.1, net, grads);
+        }
+        let mut fresh_optim = GroupOptimizerPlan::new(&net, sgd_adamw(&net)).optimizer();
+
+        let grads_a = grads(&net);
+        let grads_b = grads(&net);
+        let continued = values(&optim.step(0.1, net.clone(), grads_a));
+        let restarted = values(&fresh_optim.step(0.1, net, grads_b));
+
+        // The SGD weights agree; the `AdamW` biases do not.
+        assert_close(&continued[0], &restarted[0]);
+        assert_ne!(continued[1], restarted[1]);
+    }
+
+    /// [`Net`] for a `Learner`: its train step is one backward pass of
+    /// [`grads`]' loss.
+    #[derive(Module, Debug)]
+    struct LearnerNet {
+        body: Linear,
+        head: Linear,
+    }
+
+    impl TrainStep for LearnerNet {
         type Input = ();
         type Output = ();
 
@@ -1810,13 +1091,13 @@ mod tests {
             &self,
             _item: (),
         ) -> TrainOutput<()> {
-            let x = Tensor::<B, 2>::ones([2, 3], &self.body.weight.device());
+            let x = Tensor::<2>::ones([2, 3], &self.body.weight.device());
             let loss = self.head.forward(self.body.forward(x)).sum();
             TrainOutput::new(self, loss.backward(), ())
         }
     }
 
-    impl<B: Backend> InferenceStep for LearnerNet<B> {
+    impl InferenceStep for LearnerNet {
         type Input = ();
         type Output = ();
 
@@ -1827,32 +1108,35 @@ mod tests {
         }
     }
 
+    /// A `Learner` takes the plan's optimizer and scheduler, and resumes
+    /// them from a checkpoint saved by an earlier run, over a fresh model.
     #[test]
     fn test_learner_resumes_from_a_checkpoint() {
-        type Optim = GroupOptimizerAdaptor2<SgdO, AdamW, LearnerNet<B>, B>;
-
-        let device = default_device();
-        let new_net = || LearnerNet::<B> {
+        let device = device();
+        let new_net = || LearnerNet {
             body: LinearConfig::new(3, 3).init(&device),
             head: LinearConfig::new(3, 2).init(&device),
         };
-        // SGD for the weights, `AdamW` for the biases.
-        let new_optim = |net: &LearnerNet<B>| -> Optim {
-            let bias = |linear: &Linear<B>| linear.bias.as_ref().unwrap().id;
-            Optim::new(
+        // SGD for the weights, `AdamW` at half the rate for the biases.
+        let new_plan = |net: &LearnerNet| {
+            let bias = |linear: &Linear| linear.bias.as_ref().unwrap().id;
+            GroupOptimizerPlan::new(
                 net,
-                vec![OptimizerGroup::from_adaptor(
-                    [net.body.weight.id, net.head.weight.id],
-                    &SgdConfig::new().init::<B, LearnerNet<B>>(),
-                )],
-                vec![OptimizerGroup::from_adaptor(
-                    [bias(&net.body), bias(&net.head)],
-                    &AdamWConfig::new().init::<B, LearnerNet<B>>(),
-                )],
+                vec![
+                    OptimizerGroup::new(
+                        [net.body.weight.id, net.head.weight.id],
+                        SgdConfig::new().build(),
+                    ),
+                    OptimizerGroup::new(
+                        [bias(&net.body), bias(&net.head)],
+                        AdamWConfig::new().build(),
+                    )
+                    .with_lr_selector(|lr: LearningRate| lr * 0.5),
+                ],
             )
-            .unwrap()
         };
-        let values = |net: &LearnerNet<B>| {
+        let schedule = || LinearLrSchedulerConfig::new(0.4, 0.1, 3).init().unwrap();
+        let values = |net: &LearnerNet| {
             [&net.body, &net.head].map(|linear| {
                 (
                     linear.weight.val().into_data(),
@@ -1862,36 +1146,42 @@ mod tests {
         };
 
         let dir = tempfile::tempdir().unwrap();
-        let recorder = NamedMpkFileRecorder::<FullPrecisionSettings>::new();
-        let model_files = FileCheckpointer::new(recorder.clone(), dir.path(), "model");
-        let optim_files = FileCheckpointer::new(recorder.clone(), dir.path(), "optim");
-        let scheduler_files = FileCheckpointer::new(recorder, dir.path(), "scheduler");
+        let model_files = FileCheckpointer::new(dir.path(), "model");
+        let optim_files = FileCheckpointer::new(dir.path(), "optim");
+        let scheduler_files = FileCheckpointer::new(dir.path(), "scheduler");
 
         // The first run: a step, a checkpoint at epoch 1, then its next step.
         let net = new_net();
-        let mut optim = new_optim(&net);
+        let plan = new_plan(&net);
+        let mut optim = plan.optimizer();
+        let mut scheduler = plan.lr_scheduler(schedule());
         let grads = TrainStep::step(&net, ()).grads;
-        let net = optim.step(0.1, net, grads);
-        Checkpointer::<_, B>::save(&model_files, 1, net.clone().into_record()).unwrap();
-        Checkpointer::<_, B>::save(&optim_files, 1, optim.to_record()).unwrap();
-        Checkpointer::<(), B>::save(&scheduler_files, 1, ()).unwrap();
+        let net = optim.step(scheduler.step(), net, grads);
+        model_files.save(1, net.clone().into_record()).unwrap();
+        optim_files.save(1, optim.to_record()).unwrap();
+        scheduler_files.save(1, scheduler.to_record()).unwrap();
         let grads = TrainStep::step(&net, ()).grads;
-        let expected = values(&optim.step(0.1, net, grads));
+        let expected = values(&optim.step(scheduler.step(), net, grads));
 
-        // The resumed run: a fresh model and adaptor in a `Learner`, restored
-        // by `load_checkpoint`, which a `Learner` resuming at epoch 1 calls.
+        // The resumed run: a fresh model and plan in a `Learner`, restored by
+        // `load_checkpoint`, which a `Learner` resuming at epoch 1 calls.
         let net = new_net();
-        let learner = Learner::new(net.clone(), new_optim(&net), 0.1);
+        let plan = new_plan(&net);
+        let learner = Learner::new(net, plan.optimizer(), plan.lr_scheduler(schedule()));
         let checkpointer = LearningCheckpointer::new(
             AsyncCheckpointer::new(model_files),
             AsyncCheckpointer::new(optim_files),
             AsyncCheckpointer::new(scheduler_files),
             Box::new(KeepLastNCheckpoints::new(1)),
         );
-        let mut learner = checkpointer.load_checkpoint(learner, &device, 1);
+        let mut learner = checkpointer.load_checkpoint(learner, 1);
         learner.lr_step();
         let output = learner.train_step(());
         learner.optimizer_step(output.grads);
-        assert_eq!(values(&learner.model()), expected);
+
+        for (actual, expected) in values(&learner.model()).iter().zip(&expected) {
+            assert_close(&actual.0, &expected.0);
+            assert_close(&actual.1, &expected.1);
+        }
     }
 }
