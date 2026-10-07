@@ -78,6 +78,7 @@
 //!         pretrained::default_whisper_factory,
 //!     },
 //! };
+//! use burn::tensor::Device;
 //!
 //! /// The named model as a driver on `device`, with the defaults: the
 //! /// language detected from the first window, a transcription, greedy,
@@ -189,6 +190,7 @@
 //!         },
 //!     },
 //! };
+//! use burn::tensor::Device;
 //!
 //! /// A checkpoint on disk: a given map, read by the reader its file
 //! /// calls for, with the vocabulary its layout selects.

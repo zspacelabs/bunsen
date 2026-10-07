@@ -1,6 +1,6 @@
 [package]
 name = "burn_bug_repro"
-description = "Backend-generic reproductions of defects in burn and its ecosystem, and pins on the current behaviour."
+description = "Reproductions of defects in burn and its ecosystem, and pins on the current behaviour."
 publish = false
 
 authors.workspace = true

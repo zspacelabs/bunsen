@@ -15,7 +15,7 @@ pub fn first_use() {
 
     let device = cpu_device();
 
-    // `init` comes from `ModuleInit`; the binding's type picks the backend.
+    // `init` comes from `ModuleInit`; the binding's type names the module.
     let mlp: Mlp = MlpConfig::new(16).init(&device);
 
     let x = Tensor::<3>::zeros([2, 5, 16], &device);

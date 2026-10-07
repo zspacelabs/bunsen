@@ -69,7 +69,8 @@ record, `ModuleMapper` passes skip it, and reflection does not see it, so
 say so on the type. A config that the module keeps is a `#[module(skip)]`
 field with an accessor, as in
 [`PerceptiveAudioConverter::options`](bunsen::ops::signal::perceptive_audio::PerceptiveAudioConverter::options).
-Only a field whose type does not mention `B` can be skipped.
+The derive treats every field that is not a primitive as a sub-module, so
+any other value object the module holds is skipped too.
 
 **The agreement test.** A family's tests build a module from a config that
 is non-default in every field, then assert that the config and the module
@@ -172,9 +173,9 @@ sites that build with `.init(&device)` keep working, because the policy gets
 
 ## Pitfalls
 
-- **`init` needs the module type.** A device does not name its backend, so
-  `config.init(&device)` needs a binding such as `let m: Foo<B> = ...`, or
-  inference fails.
+- **`init` needs the module type.** `ModuleInit` is generic over the module
+  it builds, so where nothing else pins that type, `config.init(&device)`
+  needs a binding such as `let m: Foo = ...`, or inference fails.
 - **A bare tensor is not loaded.** A fixed table held as a bare tensor is not
   in the record, so `init` must recompute it. A load never restores it.
 - **Don't override a policy's `init`.** The E0119 error you get when you try

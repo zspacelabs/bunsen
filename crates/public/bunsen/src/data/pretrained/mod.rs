@@ -130,6 +130,7 @@
 //!         sys_at,
 //!     },
 //! };
+//! use burn::tensor::Device;
 //!
 //! /// The toy kit's hook: it builds the text of the `text` resource.
 //! struct Greeting;

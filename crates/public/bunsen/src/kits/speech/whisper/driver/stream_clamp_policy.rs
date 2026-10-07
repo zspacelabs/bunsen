@@ -149,6 +149,10 @@ impl StreamClampPolicy for RunningMaxClamp {
         &mut self,
         frames: Tensor<3>,
     ) {
+        // An empty arrival carries no maximum.
+        if frames.dims()[1] == 0 {
+            return;
+        }
         let arriving = row_max(frames);
         self.seen = Some(match self.seen.take() {
             Some(seen) => seen.max_pair(arriving),
@@ -216,6 +220,18 @@ mod tests {
         assert_close_to_vec(&to_vec(policy.reference(quiet)), &[7.0, 5.0], 1e-12);
         let loud = frames([-10.0, -10.0, -10.0, -10.0, 9.0, -10.0, -10.0, -10.0]);
         assert_close_to_vec(&to_vec(policy.reference(loud)), &[7.0, 9.0], 1e-12);
+    }
+
+    /// A chunk with no frames leaves the running maximum alone.
+    #[test]
+    fn test_max_seen_ignores_an_empty_chunk() {
+        let mut policy = RunningMaxClamp::new();
+        policy.observe(Tensor::zeros([2, 0, 2], &cpu_device()));
+        assert!(policy.seen().is_none());
+
+        policy.observe(frames([0.0, -3.0, -1.0, -20.0, 5.0, 4.0, -9.0, 1.0]));
+        policy.observe(Tensor::zeros([2, 0, 2], &cpu_device()));
+        assert_close_to_vec(&to_vec(policy.seen().unwrap().clone()), &[0.0, 5.0], 1e-12);
     }
 
     /// With nothing observed, `MaxSeen` is `PerWindow`.

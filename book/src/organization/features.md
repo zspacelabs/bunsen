@@ -9,14 +9,14 @@ chapter.
 
 ## Which backend?
 
-`wgpu`, `vulkan`, `cuda`, `metal` and `flex` select a burn backend for bunsen's
-own use: they decide what
-[`PerformanceBackend`](bunsen::support::testing::PerformanceBackend) names,
-which is the backend bunsen's tests and examples run on. Your own code can use
-any burn backend with bunsen whatever these say; the features only matter for
-what bunsen itself instantiates.
+`wgpu`, `vulkan`, `cuda`, `metal` and `flex` compile a burn backend into
+bunsen's build. The accelerators decide what
+[`performance_device`](bunsen::support::testing::performance_device)
+returns, which is the device bunsen's tests and benchmarks run on. Your own
+code can run bunsen on any device that burn was built with, whatever these
+say; the features only matter for the device bunsen itself picks.
 
-Without a backend feature, `PerformanceBackend` falls back to the CPU. A plain
+Without a backend feature, `performance_device()` is the CPU. A plain
 `cargo test` therefore passes while testing nothing on a GPU; see
 [Testing and backends](../development/testing.md).
 
@@ -33,8 +33,9 @@ need:
 - `testing` and `audit`: the test support in
   [`support::testing`](bunsen::support::testing) and the
   [audit probes](../development/audit.md).
-- `store`, `store_pytorch` and `store_safetensors`: reading
-  PyTorch checkpoints, safetensors and burnpacks through burn-store.
+- `store`, `store_pytorch` and `store_safetensors`: reading burnpacks,
+  PyTorch checkpoints and safetensors through burn-store. `store` includes
+  burnpack; the other two turn on burn's `pytorch` and `safetensors`.
 
 The crate docs say which are on by default. `default-features = false` plus
 the features you use gives the smallest build; the no-default-features

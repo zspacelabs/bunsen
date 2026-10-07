@@ -24,12 +24,12 @@ cargo test --release -p whisper-model-validation \
 ```
 
 **`gpu-tests` compiles every test that loads a model**, `download` fetches
-what they compare against, and a backend feature (`wgpu`, `cuda`, or `metal`)
+what they compare against, and a backend feature (`wgpu`, `vulkan`, `cuda`, or `metal`)
 says what they run on. None is inferred from the others, so all three are
 passed. With `download,gpu-tests` the suite is twelve tests; with either alone
 it is the three fixture-integrity checks, which load no model.
 
-**Pass a backend deliberately.** `PerformanceBackend` falls through to `Flex`
+**Pass a backend deliberately.** `performance_device()` falls through to `Flex`
 when none reaches `bunsen`, so a run without one does not fail — it quietly
 measures the CPU and passes, which is not worth the wall clock.
 

@@ -16,8 +16,8 @@ use crate::kits::speech::whisper::decode::TokenDecoder;
 /// Greedy search through the [`TokenDecoder`] seam: one row per audio, the
 /// argmax every step; or, above temperature zero, a sample from the softmax
 /// of the logits over the temperature, drawn by the Gumbel-max trick on the
-/// backend's own random numbers (so `B::seed` makes it repeatable), with
-/// `group` independent trajectories per audio for the ranker to choose
+/// backend's own random numbers (so `device.seed(..)` makes it repeatable),
+/// with `group` independent trajectories per audio for the ranker to choose
 /// among: upstream's `best_of`.
 ///
 /// Rows finish independently: a row that emits `<|endoftext|>` stops

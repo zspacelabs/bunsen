@@ -48,6 +48,7 @@
 //!     },
 //! };
 //! use burn::tensor::{
+//!     Device,
 //!     ElementConversion,
 //!     Tensor,
 //! };

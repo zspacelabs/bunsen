@@ -41,7 +41,7 @@ python3 tools/check_hidden_module_docs.py crates    # module docs must render
 cargo test --workspace                              # the tests, on the CPU
 ```
 
-A plain `cargo test` runs on the CPU: bunsen's tests compute on its `PerformanceBackend`, which needs a backend
+A plain `cargo test` runs on the CPU: bunsen's tests compute on `performance_device()`, which needs a backend
 feature to leave the CPU. Test a change that touches tensor code with one too, such as
 `cargo test -p bunsen --features wgpu`; the book's
 [Testing and backends](https://zspacelabs.ai/bunsen/book/development/testing.html) explains why. Run

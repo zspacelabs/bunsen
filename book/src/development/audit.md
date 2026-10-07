@@ -26,8 +26,9 @@ does: a unit test of the cases you can derive by hand, or a
 
 ## Writing a body
 
-The code under test is an [`AuditBody`](bunsen::audit::AuditBody), generic
-over the backend so a harness can run it twice. It takes an
+The code under test is an [`AuditBody`](bunsen::audit::AuditBody), often a
+closure, that a harness runs twice, each time on a device it supplies. It
+takes an
 [`AuditProbe`](bunsen::audit::AuditProbe) and calls a checkpoint wherever an
 intermediate value is worth pinning down. Three choices decide whether the
 audit means anything:
@@ -52,11 +53,11 @@ only repeat it.
 ## Across backends
 
 [`audit_across`](bunsen::audit::audit_across) runs a body on a reference
-backend, recording, then on a target backend, verifying, all in memory. The
-usual pair is [`CpuBackend`](bunsen::support::testing::CpuBackend) as the
+device, recording, then on a target device, verifying, all in memory. The
+usual pair is [`cpu_device`](bunsen::support::testing::cpu_device) as the
 reference and
-[`PerformanceBackend`](bunsen::support::testing::PerformanceBackend) as the
-target. Build with a backend feature: without one, `PerformanceBackend` is
+[`performance_device`](bunsen::support::testing::performance_device) as the
+target. Build with a backend feature: without one, `performance_device()` is
 the CPU as well, and the audit compares the CPU with itself
 ([the silent CPU fallback](./testing.md#the-silent-cpu-fallback)).
 

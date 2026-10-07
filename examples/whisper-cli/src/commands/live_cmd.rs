@@ -95,7 +95,7 @@ pub struct LiveCmd {
     /// name (see `--list-devices`); the host's default input device when
     /// omitted.
     #[arg(long)]
-    device: Option<String>,
+    input_device: Option<String>,
 
     /// List the input devices, id and name, and exit. Loads nothing.
     #[arg(long)]
@@ -231,14 +231,14 @@ impl LiveCmd {
         Ok(())
     }
 
-    /// `--device`, or the host's default input device.
+    /// `--input-device`, or the host's default input device.
     fn pick_device(
         &self,
         host: &Host,
     ) -> BunsenResult<Device> {
-        match &self.device {
+        match &self.input_device {
             None => host.default_input_device().ok_or_else(|| {
-                BunsenError::policy("no default input device; name one with --device")
+                BunsenError::policy("no default input device; name one with --input-device")
             }),
             Some(want) => {
                 let needle = want.to_lowercase();

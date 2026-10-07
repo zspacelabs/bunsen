@@ -15,11 +15,8 @@
 //! - [`ModuleInit`] and [`ToStructureConfig`], so `config.init(&device)` and
 //!   `policy.to_structure()` resolve on bunsen configs;
 //! - everything in [`crate::burner::tensor`]: the `Tensor` and `TensorData`
-//!   extension traits (`TensorOpExt`, `TensorElemOpExt`, `TensorOrderedOpExt`,
-//!   `TensorIntOpExt`, `TensorBoolOpExt`, `TensorDataViewExt`,
-//!   `TensorDataToVecAsExt`, `TensorDataCheckExt`), the `TensorDataView` and
-//!   `TensorDataViewMut` views, `device_float_dtype`, and the `dynamic`
-//!   submodule;
+//!   extension traits (`TensorOpExt`, `TensorOrderedOpExt`, `TensorBoolOpExt`,
+//!   `TensorDataCheckExt`), `device_float_dtype`, and the `dynamic` submodule;
 //! - everything in [`crate::contracts`]: `ShapeContract` and the shape contract
 //!   macros, such as `shape_contract!` and `assert_shape_contract!`;
 //! - from [`crate::errors`]: `BunsenError`, `BunsenErrorKind`, `BunsenResult`,

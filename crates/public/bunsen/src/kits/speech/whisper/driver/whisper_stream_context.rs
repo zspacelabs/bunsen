@@ -174,11 +174,10 @@ pub fn advance_ready(
 /// policy's, the voice-activity model's) lives on the device; everything
 /// else is host-side bookkeeping, small enough to snapshot.
 ///
-/// Not itself a `Module`, deliberately: `burn`'s derive treats every field
-/// whose type mentions `B` as a module, `#[module(skip)]` or not, and
-/// carries a skipped generic unchanged into the autodiff inner module, so
-/// neither a boxed policy nor a policy type parameter survives it. The
-/// policy stays behind its trait, boxed, and the context is `Clone + Debug`.
+/// Not itself a `Module`: it is one stream's working state, holding a clone
+/// of the driver (whose model is shared) and its clamp policy boxed behind
+/// the policy trait, not a tree of parameters to map, move or record. The
+/// context is `Clone + Debug`.
 #[derive(Clone, Debug)]
 pub struct WhisperStreamContext {
     driver: WhisperStreamDriver,

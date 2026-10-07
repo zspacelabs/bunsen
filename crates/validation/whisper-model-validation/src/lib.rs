@@ -24,7 +24,7 @@
 //! None is inferred from the others. With `download,gpu-tests` the suite is
 //! twelve tests; with either alone it is the three fixture-integrity checks.
 //!
-//! Pass a backend deliberately. `PerformanceBackend` falls through to `Flex`
+//! Pass a backend deliberately. `performance_device()` falls through to `Flex`
 //! when none reaches `bunsen`, so a run without one does not fail — it
 //! quietly measures the CPU and passes. `--release` matters for the same
 //! reason: the work is inside `burn`'s kernels, not in this crate.
@@ -64,7 +64,6 @@ use burn::tensor::Device;
 #[cfg(feature = "download")]
 pub mod reference {
     pub use bunsen_bundled_whisper::onnx_gen::*;
-    use burn::tensor::Device;
 }
 
 /// Whisper's fixed analysis window: 30 s at 16 kHz, 3000 mel frames.

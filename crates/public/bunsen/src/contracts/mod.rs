@@ -89,7 +89,6 @@
 //!     unpack_shape_contract,
 //! };
 //! use burn::prelude::Tensor;
-//! # use bunsen::support::testing::CpuBackend;
 //!
 //! /// Splits an image into square windows.
 //! ///

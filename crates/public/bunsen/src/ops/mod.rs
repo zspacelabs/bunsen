@@ -41,10 +41,11 @@
 //! Many ops take their settings as one small value object rather than a list
 //! of arguments. A value object is `Clone`, comparable and serializable, so it
 //! can be a field of a `#[derive(Config)]` struct and is saved with the
-//! config. With a `ModuleDisplay` impl it can also be a field of a
-//! `#[derive(Module)]` struct, and prints with the model. Either way the same
-//! value is passed straight to the op. The in-tree chain nests four deep,
-//! `ClampOp` ⊂ `NoiseConfig` ⊂ `DropBlockOptions` ⊂ `DropBlock2dConfig`:
+//! config. As a `#[module(skip)]` field it can also be held by a
+//! `#[derive(Module)]` struct, and prints with the model through its `Debug`.
+//! Either way the same value is passed straight to the op. The in-tree chain
+//! nests four deep, `ClampOp` ⊂ `NoiseConfig` ⊂ `DropBlockOptions` ⊂
+//! `DropBlock2dConfig`:
 //!
 //! - [`ClampOp`](clamp::ClampOp): an optional min and max;
 //! - [`NoiseConfig`](noise::NoiseConfig): a `Distribution` plus an optional
@@ -53,7 +54,7 @@
 //!   plus an optional `NoiseConfig` to refill dropped regions;
 //! - [`DropBlock2dConfig`]: the block's `Config`, whose one field is a
 //!   `DropBlockOptions` (`#[config(default = "DropBlockOptions::default()")]`),
-//!   and which [`DropBlock2d`] keeps as a module field.
+//!   and which [`DropBlock2d`] keeps as a skipped module field.
 //!
 //! Two styles coexist. `ClampOp`, `NoiseConfig` and `DropBlockOptions` derive
 //! `serde` and implement `ModuleDisplay` by hand

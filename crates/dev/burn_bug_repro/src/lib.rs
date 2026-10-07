@@ -1,11 +1,11 @@
 //! # Reproductions of defects in `burn` and its ecosystem.
 //!
-//! A home for backend-generic harnesses that pin bugs living outside bunsen.
-//! Each is written so the behaviour under test rests only on public API,
-//! keeping the reproduction portable: taking one upstream should mean swapping
-//! the test helpers, not rewriting the test. A module may also pin bunsen's own
-//! workaround for the defect, which is not portable and does not travel with
-//! it.
+//! A home for harnesses, run on any device, that pin bugs living outside
+//! bunsen. Each is written so the behaviour under test rests only on public
+//! API, keeping the reproduction portable: taking one upstream should mean
+//! swapping the test helpers, not rewriting the test. A module may also pin
+//! bunsen's own workaround for the defect, which is not portable and does not
+//! travel with it.
 //!
 //! Each module documents one defect, and carries two kinds of test:
 //!

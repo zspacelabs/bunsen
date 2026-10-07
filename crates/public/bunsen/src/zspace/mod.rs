@@ -32,9 +32,7 @@
 //!   [`DynTensor`](crate::burner::tensor::dynamic::DynTensor)'s slicing calls
 //!   it.
 //! - **Raveling.** [`ravel_dims`] and [`ravel_shape`] turn a coordinate tuple
-//!   into a row-major offset;
-//!   [`TensorDataView`](crate::burner::tensor::TensorDataView) indexes with
-//!   them.
+//!   into a row-major offset.
 
 mod bounds;
 mod check_slices_bounds;

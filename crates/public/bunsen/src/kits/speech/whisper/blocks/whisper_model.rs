@@ -554,11 +554,9 @@ mod tests {
 
         let device = cpu_device();
 
-        // `Param::clone` on a *lazily* initialized parameter clones the
-        // initializer rather than the value, and a random initializer then
-        // gives the clone different weights — two models, not one model at
-        // two precisions. Mapping onto the dtype it already has forces
-        // every parameter first, which is what makes the clone a copy.
+        // `half` is a clone of `full`, cast to f16. Cloning a lazily
+        // initialized `Param` shares its initialization, so the clone holds
+        // the same weights: one model at two precisions, not two models.
         let full: Whisper = WhisperApiConfig::new(8, 32, 64, 16, 1, 12, 1)
             .try_init(&device)
             .unwrap()

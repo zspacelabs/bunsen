@@ -13,16 +13,16 @@ use crate::errors::{
 ///
 /// A config is plain, serializable data (a `#[derive(Config)]` struct); the
 /// module it builds owns the tensors. The config implements
-/// `ModuleInit<M>` once for each module type `M` it builds, generic over
-/// the backend `B`, so one config builds its module on any backend.
+/// `ModuleInit<M>` once for each module type `M` it builds, and builds it on
+/// whatever device it is given.
 ///
 /// The trait is in [`crate::prelude`]. Bring it into scope there, or from
 /// `bunsen::burner::module`, to call `.init(&device)` on a bunsen config.
 ///
 /// # Calling it
 ///
-/// `B` and `M` are parameters of the trait, and a device does not name its
-/// backend, so the module type comes from the binding:
+/// `M` is a parameter of the trait, and a device does not name a module type,
+/// so the module type comes from the binding:
 ///
 /// ```
 /// # use bunsen::{
@@ -88,6 +88,7 @@ use crate::errors::{
 ///         Linear,
 ///         LinearConfig,
 ///     },
+///     tensor::Device,
 /// };
 ///
 /// /// The narrow view shared by [`SquareConfig`] and [`Square`].
@@ -142,7 +143,7 @@ use crate::errors::{
 /// let device = cpu_device();
 /// let config = SquareConfig::new(8);
 ///
-/// // The binding names the module, and so the backend.
+/// // The binding names the module.
 /// let square: Square = config.init(&device);
 /// assert_eq!(square.width(), config.width());
 ///
@@ -203,6 +204,7 @@ use crate::errors::{
 ///         Linear,
 ///         LinearConfig,
 ///     },
+///     tensor::Device,
 /// };
 ///
 /// /// The narrow view shared by [`TowerStructureConfig`] and [`Tower`].

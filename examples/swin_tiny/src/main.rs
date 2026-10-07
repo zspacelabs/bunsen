@@ -300,7 +300,7 @@ pub fn backend_main(args: &Args) -> anyhow::Result<()> {
                 firehose_env.clone(),
             )?),
             Arc::new(InputAdapter::new(schema.clone())),
-            Arc::new(OutputAdapter::default()),
+            Arc::new(OutputAdapter),
         );
 
         let mut builder = DataLoaderBuilder::new(batcher).batch_size(args.batch_size);
@@ -330,7 +330,7 @@ pub fn backend_main(args: &Args) -> anyhow::Result<()> {
                 firehose_env.clone(),
             )?),
             Arc::new(InputAdapter::new(schema.clone())),
-            Arc::new(OutputAdapter::default()),
+            Arc::new(OutputAdapter),
         );
 
         let mut builder = DataLoaderBuilder::new(batcher).batch_size(args.batch_size);

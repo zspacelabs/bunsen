@@ -4,7 +4,6 @@ use burn::{
     config::Config,
     module::Module,
     nn::{
-        LinearLayout,
         PaddingConfig1d,
         activation::ActivationConfig,
         conv::{
@@ -218,7 +217,7 @@ impl ToStructureConfig for SileroVadStftConfig {
                 .with_padding(PaddingConfig1d::Valid)
                 .with_bias(false),
             encoder: encoder_config(self.n_freq, self.d_hidden, self.d_bottleneck),
-            lstm: FusedLstmConfig::new(self.d_hidden).with_layout(LinearLayout::Col),
+            lstm: FusedLstmConfig::new(self.d_hidden),
             decoder: Conv1dConfig::new(self.d_hidden, 1, 1)
                 .with_padding(PaddingConfig1d::Valid)
                 .with_bias(true),

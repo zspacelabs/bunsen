@@ -14,8 +14,8 @@ description = "bunsen is a batteries included common library for burn"
 
 # docs.rs builds this feature list, not `all-features`: `whisper-weights`
 # makes `bunsen-bundled-whisper`'s build script download ~145 MB, and docs.rs
-# builds have no network. The backends only change which backend
-# `support::testing::PerformanceBackend` names. The book's API links resolve
+# builds have no network. The backends only change which device
+# `support::testing::performance_device()` returns. The book's API links resolve
 # against this same list (`book/book.toml`, `build.docs-rs`), and so do CI's
 # isolated doc build and `cargo make doc`. docs.rs sets `--cfg docsrs`
 # itself, so there are no `rustdoc-args` here.
@@ -52,6 +52,7 @@ harness = false
 # audit probes (`audit`) are opt-in, because they pull in a CPU backend,
 # audio decoding, a tokenizer and the tracing-test stack.
 default = [
+    "reflection",
     "train",
     "store_pytorch",
     "store_safetensors",
@@ -177,38 +178,39 @@ whisper-weights = [
 ]
 
 ## Enable the cuda backend in the bunsen build.
-## This will impact the bunsen::support::testing::PerformanceBackend choice.
+## This will impact the bunsen::support::testing::performance_device() choice.
 ## Dependents which enable backends for burn without enabling them for bunsen
 ## can still use those backends with bunsen; only bunsen-specific features will
 ## be disabled.
 cuda = ["burn/cuda"]
 ## Enable the metal backend in the bunsen build.
-## This will impact the bunsen::support::testing::PerformanceBackend choice.
+## This will impact the bunsen::support::testing::performance_device() choice.
 ## Dependents which enable backends for burn without enabling them for bunsen
 ## can still use those backends with bunsen; only bunsen-specific features will
 ## be disabled.
 metal = ["burn/metal"]
 ## Enable the vulkan backend in the bunsen build.
-## This will impact the bunsen::support::testing::PerformanceBackend choice.
+## This will impact the bunsen::support::testing::performance_device() choice.
 ## Dependents which enable backends for burn without enabling them for bunsen
 ## can still use those backends with bunsen; only bunsen-specific features will
 ## be disabled.
 vulkan = ["burn/vulkan"]
 ## Enable the wgpu backend in the bunsen build.
-## This will impact the bunsen::support::testing::PerformanceBackend choice.
+## This will impact the bunsen::support::testing::performance_device() choice.
 ## Dependents which enable backends for burn without enabling them for bunsen
 ## can still use those backends with bunsen; only bunsen-specific features will
 ## be disabled.
 wgpu = ["burn/wgpu"]
 ## Enable the flex backend in the bunsen build.
-## This will impact the bunsen::support::testing::PerformanceBackend choice.
+## This is bunsen::support::testing::cpu_device(), and the
+## performance_device() fallback when no accelerator feature is on.
 ## Dependents which enable backends for burn without enabling them for bunsen
 ## can still use those backends with bunsen; only bunsen-specific features will
 ## be disabled.
 flex = ["burn/flex"]
 
 
-## Test support: `support::testing` (test backends and devices, seeded
+## Test support: `support::testing` (test devices, seeded
 ## tensors, device memory, assertion helpers), with the `audio`, `tokenizer`
 ## and `flex` features it needs. Not a default; bunsen's own tests turn it on
 ## through a dev-dependency on bunsen itself.

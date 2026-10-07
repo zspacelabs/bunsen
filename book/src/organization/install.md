@@ -31,14 +31,16 @@ Three things to notice, each with its own chapter:
 
 - `MlpConfig::init` comes from
   [`ModuleInit`](bunsen::burner::module::ModuleInit), which
-  [`bunsen::prelude`] brings into scope, and the binding's type
-  (`Mlp<B>`) chooses the backend. See
+  [`bunsen::prelude`] brings into scope, and the binding's type (`Mlp`)
+  names the module it builds. See
   [Module design conventions](../systems/conventions.md).
 - [`unpack_shape_contract!`](bunsen::contracts#macros-and-methods) both
   checks the shape and names its dimensions. See
   [Shape contracts](../systems/contracts.md).
-- The device comes from bunsen's test support, which caches one device per
-  backend. Your own code can create devices however burn allows. See
+- The device comes from bunsen's test support:
+  [`cpu_device`](bunsen::support::testing::cpu_device) is burn's CPU
+  backend. Your own code can create devices however burn allows, such as
+  `Device::default()`, which follows the backends compiled in. See
   [Testing and backends](../development/testing.md).
 
 ## Next

@@ -44,7 +44,7 @@ impl ConwayLife3DConfig {
         device: &Device,
     ) -> ConwayLife3DState {
         ConwayLife3DState {
-            state: Tensor::<3, Int>::zeros(&self.shape, device).bool(),
+            state: Tensor::<3, Int>::zeros(self.shape, device).bool(),
             rules: self.rules.clone(),
         }
     }

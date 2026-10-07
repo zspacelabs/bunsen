@@ -816,7 +816,7 @@ mod tests {
 
     /// Batched analysis agrees with analyzing each row on its own.
     ///
-    /// Runs on `PerformanceBackend`, not the module's `CpuBackend`: a
+    /// Runs on `performance_device()`, not the module's `cpu_device()`: a
     /// batching fault in the framing beneath `stft` would live in a `CubeCL`
     /// kernel and show only for rows after the first. `samples` is ragged,
     /// the shape that leaves an uncovered tail for the framing to mishandle.

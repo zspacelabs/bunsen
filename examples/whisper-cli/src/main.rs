@@ -38,3 +38,17 @@ impl Commands {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use clap::CommandFactory;
+
+    use super::*;
+
+    /// The flags of every subcommand are well formed; in particular, no two
+    /// flattened argument groups claim the same long name.
+    #[test]
+    fn test_cli_is_well_formed() {
+        Args::command().debug_assert();
+    }
+}
