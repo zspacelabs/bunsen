@@ -19,7 +19,10 @@ wordchipper-cli-util = { workspace = true }
 burn = { workspace = true, features = ["train", "fusion", "autotune"] }
 
 [features]
-default = []
+default = ["tui"]
+## burn's terminal dashboard for training metrics, when stdout is a terminal;
+## plain text logs otherwise, or without this feature.
+tui = ["burn/tui"]
 cuda = ["burn/cuda", "clap-common/cuda"]
 wgpu = ["burn/wgpu", "clap-common/wgpu"]
 metal = ["burn/metal", "clap-common/metal"]

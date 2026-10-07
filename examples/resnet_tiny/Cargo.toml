@@ -10,7 +10,10 @@ repository.workspace = true
 workspace = true
 
 [features]
-default = []
+default = ["tui"]
+## burn's terminal dashboard for training metrics, when stdout is a terminal;
+## plain text logs otherwise, or without this feature.
+tui = ["burn/tui"]
 wgpu = ["burn/wgpu", "clap-common/wgpu"]
 cuda = ["burn/cuda", "clap-common/cuda"]
 metal = ["burn/metal", "clap-common/metal"]

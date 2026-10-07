@@ -26,7 +26,10 @@ serde = { workspace = true, features = ["std", "derive"] }
 tar = { workspace = true }
 
 [features]
-default = []
+default = ["tui"]
+## burn's terminal dashboard for training metrics, when stdout is a terminal;
+## plain text logs otherwise, or without this feature.
+tui = ["burn/tui"]
 wgpu = ["burn/wgpu", "clap-common/wgpu"]
 vulkan = ["burn/vulkan", "clap-common/vulkan"]
 cuda = ["burn/cuda", "clap-common/cuda"]

@@ -236,6 +236,8 @@ not: dev-dependencies and crate-private test helpers.
 * `fetch` — the program may reach the network at run time (`cache` alone is local).
 * `onnx_gen` — generate reference models from an ONNX graph.
 * `checkpoint` — fetch pretrained weights.
+* `tui` — burn's terminal training dashboard; on by default in the training
+  examples.
 
 These names are **reserved** across the workspace. No crate is obliged to
 offer one; a crate that offers one means this, and nothing else. Most crates

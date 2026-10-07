@@ -148,7 +148,7 @@ pub struct Args {
     pub device: DeviceArgs,
 
     /// Batch size for processing
-    #[arg(short, long, default_value_t = 100)]
+    #[arg(short, long, default_value_t = 32)]
     pub batch_size: usize,
 
     /// Grads accumulation size for processing
