@@ -1487,6 +1487,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "bunsen-asr"
+version = "0.38.0"
+dependencies = [
+ "bunsen",
+ "bunsen-app",
+ "burn",
+ "clap",
+ "log",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "bunsen-bundled-parakeet"
 version = "0.38.0"
 dependencies = [
@@ -8378,19 +8391,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "67eabc2ef2a60eb7faa00097bd1ffdb5bd28e62bf39990626a582201b7a754e5"
 dependencies = [
  "siphasher",
-]
-
-[[package]]
-name = "phonon-cli"
-version = "0.38.0"
-dependencies = [
- "bunsen",
- "bunsen-app",
- "burn",
- "clap",
- "log",
- "serde",
- "serde_json",
 ]
 
 [[package]]

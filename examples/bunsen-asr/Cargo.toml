@@ -1,6 +1,6 @@
 [package]
-name = "phonon-cli"
-description = "Transcribes speech with FermionResearch's Phonon models on bunsen: Phonon-2 (Parakeet TDT) by default, and Phonon-1 (Qwen3-ASR)."
+name = "bunsen-asr"
+description = "Speech to text on bunsen, one subcommand per model family: Parakeet TDT (FermionResearch's Phonon-2 by default), Qwen3-ASR (Phonon-1), and Whisper."
 publish = false
 authors.workspace = true
 edition.workspace = true
@@ -10,7 +10,7 @@ repository.workspace = true
 license.workspace = true
 
 [[bin]]
-name = "phonon"
+name = "bunsen-asr"
 path = "src/main.rs"
 
 [lints]
@@ -34,8 +34,11 @@ burn = { workspace = true }
 # `fermion` reads the Phonon archives; `indicatif` puts bunsen's progress bar
 # on every weights transfer.
 bunsen = { path = "../../crates/public/bunsen", features = [
+    "store",
     "store_safetensors",
+    "store_pytorch",
     "audio",
+    "tokenizer",
     "fermion",
     "indicatif",
 ] }

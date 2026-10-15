@@ -14,6 +14,10 @@ choose a device; each example's own README says how to run it.
 - [`resnet_tiny`](resnet_tiny): trains a ResNet on CINIC-10 through a firehose image pipeline, optionally from a
   pretrained checkpoint. Uses `kits::images::resnet`, `data::pretrained::PretrainedCache`, `burner::module`
   (`ToStructureConfig`, `ModuleInit`, `DTypeMapper`), `bunsen-firehose` and `bunsen-firehose-image`.
+- [`bunsen-asr`](bunsen-asr): speech to text, one subcommand per model family (`parakeet`, `qwen3-asr`,
+  `whisper`), each with its own `list` and `transcribe`; named models (`FermionResearch`'s Phonon builds by
+  default) and `hf:org/repo`. Uses `kits::speech::{parakeet, qwen3_asr, whisper}` and their `pretrained`
+  factories, `kits::speech::silero_vad`, and `data::pretrained`.
 - [`swin_tiny`](swin_tiny): trains a Swin Transformer V2 on CINIC-10 with DropBlock, sharing `resnet_tiny`'s
   pipeline. Uses `kits::images::swin::v2`, `blocks::images::drop::drop_block`, `bunsen-firehose` and
   `bunsen-firehose-image`.

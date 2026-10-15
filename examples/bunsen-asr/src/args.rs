@@ -1,4 +1,4 @@
-//! Arguments shared by the commands.
+//! Arguments every command shares.
 use std::path::PathBuf;
 
 use bunsen::{
@@ -18,22 +18,17 @@ use bunsen::{
 use bunsen_app::device::BackendArgs;
 use burn::tensor::Device;
 
-use crate::transcriber::{
-    DEFAULT_MODEL,
-    Transcriber,
-};
-
 /// Where fetched weights live, and whether fetching is allowed.
 #[derive(clap::Args, Debug)]
 pub struct WeightsCacheArgs {
     /// Directory for fetched weights; `$BUNSEN_CACHE_DIR`, then the
     /// platform's cache directory, when omitted.
     #[arg(long)]
-    cache_dir: Option<PathBuf>,
+    pub cache_dir: Option<PathBuf>,
 
     /// Never reach the network: a model not already local is an error.
     #[arg(long)]
-    offline: bool,
+    pub offline: bool,
 }
 
 impl WeightsCacheArgs {
@@ -47,39 +42,20 @@ impl WeightsCacheArgs {
     }
 }
 
-/// Which model, on which device.
+/// The device to run on.
 #[derive(clap::Args, Debug)]
-pub struct ModelArgs {
-    /// The model, by name: `models list` shows them. Phonon-2
-    /// (`fermion/phonon-2`) and Phonon-1 (`fermion/phonon-1`, `-micro`,
-    /// `-big`) are `FermionResearch`'s.
-    #[arg(long, default_value = DEFAULT_MODEL)]
-    pub model: String,
-
-    #[clap(flatten)]
-    pub cache: WeightsCacheArgs,
-
-    /// The device to run the model on.
+pub struct DeviceArgs {
     #[command(flatten)]
-    device: BackendArgs,
+    backend: BackendArgs,
 }
 
-impl ModelArgs {
+impl DeviceArgs {
     /// The device `--device` names.
     ///
     /// # Errors
     /// [`Unsupported`](bunsen::errors::BunsenErrorKind::Unsupported) when that
     /// backend is not compiled in.
     pub fn device(&self) -> BunsenResult<Device> {
-        self.device.init().map_err(BunsenError::unsupported)
-    }
-
-    /// Loads `--model` through the cache, from whichever kit knows it.
-    pub fn load(
-        &self,
-        device: &Device,
-    ) -> BunsenResult<Transcriber> {
-        let cache = self.cache.init()?;
-        Transcriber::load(&self.model, &cache, device)
+        self.backend.init().map_err(BunsenError::unsupported)
     }
 }

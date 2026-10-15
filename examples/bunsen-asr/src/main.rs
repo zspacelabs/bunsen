@@ -1,40 +1,72 @@
-//! `phonon`: speech to text with `FermionResearch`'s Phonon models on
-//! bunsen: Phonon-2 (Parakeet TDT) by default, and Phonon-1 (Qwen3-ASR).
+//! `bunsen-asr`: speech to text on bunsen, one subcommand per model family:
+//! `bunsen-asr <parakeet|qwen3-asr|whisper> <list|transcribe> [FLAGS]`.
 
 use bunsen::errors::BunsenResult;
 use clap::Parser;
 
 mod args;
-mod models_cmd;
+mod family;
+mod list_cmd;
 mod transcribe_cmd;
-mod transcriber;
+mod whisper;
+
+use family::Family;
 
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
 struct Args {
     #[clap(subcommand)]
-    pub command: Commands,
+    family: FamilyCmd,
 }
 
-fn main() -> BunsenResult<()> {
-    Args::parse().command.run()
+/// The model families, each with its own `list` and `transcribe`.
+#[derive(clap::Subcommand, Debug)]
+enum FamilyCmd {
+    /// NVIDIA's Parakeet TDT: `FermionResearch`'s Phonon-2 by default.
+    Parakeet(KitCmd<transcribe_cmd::ParakeetFlags>),
+
+    /// Qwen's Qwen3-ASR: `FermionResearch`'s Phonon-1 by default.
+    #[command(name = "qwen3-asr")]
+    Qwen3Asr(KitCmd<transcribe_cmd::Qwen3AsrFlags>),
+
+    /// `OpenAI`'s Whisper: `openai/base` by default.
+    Whisper(KitCmd<whisper::WhisperFlags>),
+}
+
+/// One family's commands; `F` is its own transcription flags.
+#[derive(clap::Args, Debug)]
+struct KitCmd<F: clap::Args> {
+    #[command(subcommand)]
+    action: Action<F>,
 }
 
 #[derive(clap::Subcommand, Debug)]
-enum Commands {
-    /// Transcribe audio files.
-    Transcribe(transcribe_cmd::TranscribeCmd),
+enum Action<F: clap::Args> {
+    /// List the models `--model` can name, their licences and files, and
+    /// whether each file is cached.
+    List(list_cmd::ListCmd),
 
-    /// List and fetch the models `--model` can name.
-    Models(models_cmd::ModelsCmd),
+    /// Transcribe audio files.
+    Transcribe(transcribe_cmd::TranscribeCmd<F>),
 }
 
-impl Commands {
-    fn run(&self) -> BunsenResult<()> {
-        match self {
-            Commands::Transcribe(cmd) => cmd.run(),
-            Commands::Models(cmd) => cmd.run(),
+impl<F: clap::Args + transcribe_cmd::FamilyFlags> KitCmd<F> {
+    fn run(
+        &self,
+        family: Family,
+    ) -> BunsenResult<()> {
+        match &self.action {
+            Action::List(list) => list.run(family),
+            Action::Transcribe(transcribe) => transcribe.run(family),
         }
+    }
+}
+
+fn main() -> BunsenResult<()> {
+    match &Args::parse().family {
+        FamilyCmd::Parakeet(cmd) => cmd.run(Family::Parakeet),
+        FamilyCmd::Qwen3Asr(cmd) => cmd.run(Family::Qwen3Asr),
+        FamilyCmd::Whisper(cmd) => cmd.run(Family::Whisper),
     }
 }
 
@@ -48,5 +80,56 @@ mod tests {
     #[test]
     fn test_cli_is_well_formed() {
         Args::command().debug_assert();
+    }
+
+    /// Each family parses its own `list` and `transcribe`.
+    #[test]
+    fn test_families_parse() {
+        for family in ["parakeet", "qwen3-asr", "whisper"] {
+            Args::try_parse_from(["bunsen-asr", family, "list"]).unwrap();
+            Args::try_parse_from(["bunsen-asr", family, "transcribe", "a.wav"]).unwrap();
+        }
+        assert!(Args::try_parse_from(["bunsen-asr", "silero", "list"]).is_err());
+        // Each family's flags are its own.
+        Args::try_parse_from([
+            "bunsen-asr",
+            "parakeet",
+            "transcribe",
+            "--batch",
+            "2",
+            "a.wav",
+        ])
+        .unwrap();
+        Args::try_parse_from([
+            "bunsen-asr",
+            "whisper",
+            "transcribe",
+            "--language",
+            "en",
+            "a.wav",
+        ])
+        .unwrap();
+        assert!(
+            Args::try_parse_from([
+                "bunsen-asr",
+                "qwen3-asr",
+                "transcribe",
+                "--batch",
+                "2",
+                "a.wav"
+            ])
+            .is_err()
+        );
+        assert!(
+            Args::try_parse_from([
+                "bunsen-asr",
+                "parakeet",
+                "transcribe",
+                "--language",
+                "en",
+                "a.wav"
+            ])
+            .is_err()
+        );
     }
 }

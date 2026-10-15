@@ -92,7 +92,7 @@
 //! | Driver, context | none | [`WhisperStreamDriver`](speech::whisper::driver::WhisperStreamDriver), [`WhisperStreamContext`](speech::whisper::driver::WhisperStreamContext) | [`SileroVadContext`](speech::silero_vad::SileroVadContext) | none; [`TdtPredictionState`](speech::parakeet::blocks::TdtPredictionState) per decode | none; a [`KVCache`](crate::ops::transformers::attention::KVCache) per decode |
 //! | Bundled crate | none | `bunsen-bundled-whisper` (`whisper-weights`) | `bunsen-bundled-silero` (`silero-weights`) | `bunsen-bundled-parakeet` (validation only) | `bunsen-bundled-qwen3-asr` (validation only) |
 //! | Validation crate | none | `whisper-model-validation` | `silero-model-validation` | `parakeet-model-validation` | `qwen3-asr-model-validation` |
-//! | Example | `examples/resnet_finetune`, `examples/resnet_tiny` | `examples/whisper-cli` | `examples/whisper-cli`, as the VAD gate | `examples/phonon-cli` | `examples/phonon-cli` |
+//! | Example | `examples/resnet_finetune`, `examples/resnet_tiny` | `examples/whisper-cli` | `examples/whisper-cli`, as the VAD gate | `examples/bunsen-asr` | `examples/bunsen-asr` |
 //!
 //! The other kits have a model or a simulation state, its configs, and an
 //! example, and no prefabs or weights. Swin is Stacked
