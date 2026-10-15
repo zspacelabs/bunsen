@@ -19,7 +19,10 @@ use burn::{
 };
 
 use super::{
+    Qwen3AsrBundle,
+    Qwen3AsrFrontEndConfig,
     Qwen3AsrGreedyDecoderConfig,
+    Qwen3AsrPromptConfig,
     blocks::{
         Qwen3Asr,
         Qwen3AsrAudioEncoderConfig,
@@ -195,4 +198,57 @@ fn test_toy_cached_decode_matches_uncached() {
             Tensor::<2, Int>::from_data(TensorData::new(vec![token as i64], [1, 1]), &toy.device);
         embeds = Tensor::cat(vec![embeds, lm.embed(next)], 1);
     }
+}
+
+/// A vocabulary spelling each of the toy's 50 ids as ` t<id>`.
+fn toy_vocab() -> crate::kits::tokens::ByteLevelVocabulary {
+    let entries: Vec<String> = (0..50).map(|k| format!("\"Ġt{k}\": {k}")).collect();
+    crate::kits::tokens::ByteLevelVocabulary::from_vocab_json(
+        &format!("{{{}}}", entries.join(", ")),
+        None,
+    )
+    .unwrap()
+}
+
+/// The bundle runs the toy end to end, from samples to a parsed transcript;
+/// a long recording is the concatenation of its windows' transcriptions.
+#[test]
+fn test_toy_bundle() {
+    let toy = Toy::load();
+    let device = toy.device.clone();
+    let bundle = Qwen3AsrBundle {
+        model: toy.model,
+        front_end: Qwen3AsrFrontEndConfig::new()
+            .with_n_mels(16)
+            .with_min_seconds(1)
+            .init(&device),
+        vocab: toy_vocab(),
+        prompt: Qwen3AsrPromptConfig::new()
+            .with_prefix(vec![1, 2])
+            .with_suffix(vec![3, 4])
+            .with_text_token(5),
+        decoder: Qwen3AsrGreedyDecoderConfig::new()
+            .with_max_new_tokens(4)
+            .with_eos(vec![6]),
+    };
+    let samples: Vec<f32> = (0..40_000)
+        .map(|k| 0.1 * ((k as f32) * 0.05).sin())
+        .collect();
+
+    let one = bundle.transcribe(&samples[..16_000], &device).unwrap();
+    assert!(!one.tokens.is_empty() && one.tokens.len() <= 4);
+    let expected = bundle
+        .prompt
+        .parse(one.tokens.clone(), &[6], &bundle.vocab)
+        .unwrap();
+    assert_eq!(one, expected);
+
+    let long = bundle.transcribe_long(&samples, 16_000, &device).unwrap();
+    let windows = crate::ops::signal::quiet_cuts(&samples, 16_000, 160);
+    assert!(windows.len() >= 3);
+    let mut tokens = Vec::new();
+    for (a, b) in windows {
+        tokens.extend(bundle.transcribe(&samples[a..b], &device).unwrap().tokens);
+    }
+    assert_eq!(long.tokens, tokens);
 }
