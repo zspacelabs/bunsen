@@ -1,0 +1,39 @@
+[package]
+name = "bunsen-bundled-parakeet"
+description = "Bunsen bundled Parakeet TDT assets: fetches the ONNX export of NVIDIA's parakeet-tdt-0.6b-v3 at build time, digest-pinned, and generates Rust reference models from it. Hosts none."
+publish = false
+
+authors.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+version.workspace = true
+repository.workspace = true
+license.workspace = true
+
+[dependencies]
+burn = { workspace = true, features = ["store"] }
+burn-store = { workspace = true, features = ["std"] }
+document-features = { workspace = true }
+
+[build-dependencies]
+sha2 = { workspace = true }
+ureq = { workspace = true }
+burn-onnx = { workspace = true, optional = true }
+
+[lints]
+workspace = true
+
+[features]
+## Nothing by default: building this crate as a workspace member fetches
+## nothing. `parakeet-model-validation/download` turns on `onnx_gen`.
+default = []
+
+## Fetch the `istupakov/parakeet-tdt-0.6b-v3-onnx` export of NVIDIA's
+## `parakeet-tdt-0.6b-v3` (~2.5 GB) and generate Rust models from it, in
+## `crate::onnx_gen`.
+##
+## This is the *reference implementation*: it exists so
+## `parakeet-model-validation` has something with independent provenance to
+## disagree with. The export is a conversion of NVIDIA's NeMo checkpoint, so it
+## carries NVIDIA's base weights, not a derivative's.
+onnx_gen = ["dep:burn-onnx"]
