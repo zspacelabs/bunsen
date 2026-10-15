@@ -34,6 +34,12 @@ Every fetched asset is pinned to a SHA-256, written beside its URL in the
 build script and re-verified on every build. A file that changes upstream is
 a build error, not a silently different model.
 
+The build scripts fetch through the `bunsen-fetch` crate's `Asset`, and
+bunsen's disk cache fetches through the same crate at run time: one
+implementation of the streamed, hashed, renamed-into-place transfer, and one
+statement of the pretrained cache layout, so what a build lays out is what the
+cache reads.
+
 An environment variable can point the build at a local file instead:
 `WHISPER_BASE_PT` and its siblings, listed in the Whisper validation
 [README](https://github.com/zspacelabs/bunsen/blob/main/crates/validation/whisper-model-validation/README.md#running-it).
@@ -48,12 +54,12 @@ unpublishable. A crate unpacked from crates.io must not write into the
 registry either. The cost is that `cargo clean` discards the assets along
 with everything else.
 
-## The two bundled crates
+## The bundled crates
 
 Shipping a model with a build doesn't need a special kind of source. It
 needs a cache directory that is already full
 ([bundling](../systems/pretrained.md#bundling-is-a-populated-cache-directory)).
-The two bundled crates show the two forms:
+The two published bundled crates show the two forms:
 
 - [`bunsen_bundled_whisper`] hosts nothing. Its
   build script fetches Whisper's `base` checkpoint, the vocabularies and,
@@ -67,6 +73,10 @@ The two bundled crates show the two forms:
   graph to a burnpack that is linked into the binary. The burnpack's digest
   is computed at build time, and the Silero kit's `bundled:silero/vad` row
   is pinned to it.
+
+`bunsen-bundled-parakeet` and `bunsen-bundled-qwen3-asr` take the Whisper
+form for their validation crates only: they fetch the Phonon checkpoints, the
+base models and the ONNX references, and are not published.
 
 A deployment does the same thing at install time: fill the runtime cache
 ahead of time, and the program never needs `fetch`.

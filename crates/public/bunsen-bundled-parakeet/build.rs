@@ -11,13 +11,13 @@
 //!
 //! Fetching, pinning and the `PHONON_2_ARCHIVE`, `PARAKEET_SAFETENSORS`,
 //! `PARAKEET_TOKENIZER`, `PARAKEET_ONNX_ENCODER`, `PARAKEET_ONNX_ENCODER_DATA`
-//! and `PARAKEET_ONNX_DECODER_JOINT` overrides follow `bunsen-asset-fetch`'s
+//! and `PARAKEET_ONNX_DECODER_JOINT` overrides follow `bunsen-fetch`'s
 //! rules.
 
 // Each feature uses its own constants; the rest are dead in that build.
 #![allow(unused)]
 
-use bunsen_asset_fetch::{
+use bunsen_fetch::{
     Asset,
     out_dir,
     place_file,
@@ -146,7 +146,7 @@ fn generate_reference() {
     let local = |asset: &Asset, name: &str| {
         let dest = out.join(name);
         let found = asset.resolve(&dest);
-        place_file(&found, &dest);
+        place_file(&found, &dest).unwrap_or_else(|e| panic!("{e}"));
         dest
     };
     local(&ENCODER_DATA, "encoder-model.onnx.data");

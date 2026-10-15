@@ -1,0 +1,35 @@
+[package]
+name = "bunsen-fetch"
+description = "Bunsen's file fetching: stream a URL to disk, hashed as it lands and pinned to a SHA-256, report the transfer to observers, place the file where it belongs, and lay pinned files out as a pretrained cache. Used by bunsen's cache at run time and by its bundled-asset crates' build scripts."
+publish = true
+
+authors.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+version.workspace = true
+repository.workspace = true
+license.workspace = true
+
+[dependencies]
+document-features = { workspace = true }
+sha2 = { workspace = true }
+ureq = { workspace = true, optional = true }
+
+[dev-dependencies]
+tempfile = { workspace = true }
+
+[lints]
+workspace = true
+
+[features]
+## Nothing by default: digests, file placement, the cache layout and the
+## transfer observers, none of which reach the network.
+default = []
+
+## Reach the network: `fetch_file`, `fetch_verified`, and the build-script
+## `Asset`.
+fetch = ["dep:ureq"]
+
+## Test support for crates built on this one: a recording observer,
+## loopback HTTP servers (with `fetch`), and a known digest, in `testing`.
+testing = []

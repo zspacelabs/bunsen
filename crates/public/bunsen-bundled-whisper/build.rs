@@ -18,7 +18,9 @@
 //!   `cache/` beside the manifest is not an option, and `cargo clean` does cost
 //!   a re-download. The override variables below are the way around that.
 //! * Every asset is pinned to a SHA-256 and re-verified on each build. A cached
-//!   copy that fails is deleted and re-fetched once.
+//!   copy that fails is deleted and re-fetched once. `bunsen-fetch`'s `Asset`
+//!   does the fetching, pinning and overriding, as it does for every bundled
+//!   crate.
 //! * `WHISPER_BASE_PT`, `WHISPER_MULTILINGUAL_TIKTOKEN`,
 //!   `WHISPER_GPT2_TIKTOKEN`, `WHISPER_ONNX_ENCODER` and `WHISPER_ONNX_DECODER`
 //!   point the build at local files instead, for working offline or against a
@@ -35,20 +37,12 @@
 // build. Enumerating `cfg` on every item would be noisier than this.
 #![allow(unused)]
 
-use std::{
-    env,
-    fs,
-    io,
-    io::Read,
-    path::{
-        Path,
-        PathBuf,
-    },
-};
+use std::path::PathBuf;
 
-use sha2::{
-    Digest,
-    Sha256,
+use bunsen_fetch::{
+    Asset,
+    out_dir,
+    pretrained_cache_path,
 };
 
 /// `OpenAI`'s multilingual `base.pt`.
@@ -114,11 +108,6 @@ const DECODER_SHA256: &str = "70d26763610c0d6bb407373b7f30d415252ee470e62a0f816c
 
 /// Local name for the fetched decoder graph.
 const DECODER_FILE: &str = "whisper_base_decoder.onnx";
-
-/// The root segment of the pretrained cache layout,
-/// `pretrained/<kit>/<namespace>/<sha256>/<file>`, as
-/// `bunsen::data::pretrained::PretrainedCache` roots a resource.
-const PRETRAINED_DIR: &str = "pretrained";
 
 /// The Whisper kit's segment of the layout: `WHISPER_KIT` in bunsen.
 const WHISPER_KIT: &str = "whisper";
@@ -209,7 +198,7 @@ fn generate_reference() {
     // differs from the Silero weights, which are small enough to inline.
     println!(
         "cargo:rustc-env=WHISPER_ONNX_OUT_DIR={}",
-        env::var("OUT_DIR").unwrap()
+        out_dir().display()
     );
 
     for (var, url, sha, file) in [
@@ -243,7 +232,7 @@ fn generate_reference() {
 /// from crates.io must not write into `~/.cargo/registry`. The cost is that
 /// `cargo clean` discards the assets along with everything else.
 fn cache_dir() -> PathBuf {
-    PathBuf::from(env::var_os("OUT_DIR").expect("cargo sets OUT_DIR for build scripts"))
+    out_dir()
 }
 
 /// Where a pretrained asset lands: `OUT_DIR` laid out as a pretrained cache,
@@ -254,164 +243,21 @@ fn cache_path(
     sha256: &str,
     file: &str,
 ) -> PathBuf {
-    cache_dir()
-        .join(PRETRAINED_DIR)
-        .join(WHISPER_KIT)
-        .join(OPENAI_NAMESPACE)
-        .join(sha256)
-        .join(file)
+    pretrained_cache_path(&cache_dir(), WHISPER_KIT, OPENAI_NAMESPACE, sha256, file)
 }
 
-/// Returns a path to an asset, honouring an override or fetching it.
-///
-/// # Arguments
-/// * `override_var`: env var naming a local file to use instead. A
-///   caller-supplied file is deliberately **not** digest-pinned — the point of
-///   the override is to try something else. One that happens to be the pinned
-///   asset is laid out at `dest` as well, so a cache rooted at `OUT_DIR` hits
-///   it; one that is not stays where it is.
+/// A path to an asset: its override, or `dest`, fetched and verified if it
+/// is not already there, by `bunsen_fetch`'s [`Asset`] rules.
 fn resolve_asset(
     override_var: &str,
     url: &str,
     sha256: &str,
-    dest: &Path,
+    dest: &std::path::Path,
 ) -> PathBuf {
-    if let Some(local) = env::var_os(override_var) {
-        let path = PathBuf::from(local);
-        assert!(
-            path.is_file(),
-            "{override_var} is set but not a file: {}",
-            path.display(),
-        );
-        return match digest_of(&path) {
-            Ok(found) if found == sha256 => {
-                place(&path, dest);
-                dest.to_path_buf()
-            }
-            Ok(found) => {
-                println!(
-                    "cargo:warning={override_var}: {} has digest {found}, not {sha256}; used in \
-                     place, and not laid out in the cache dir",
-                    path.display()
-                );
-                path
-            }
-            Err(e) => {
-                println!(
-                    "cargo:warning={override_var}: cannot read {}: {e}; used in place",
-                    path.display()
-                );
-                path
-            }
-        };
+    Asset {
+        override_var,
+        url,
+        sha256,
     }
-
-    fetch_verified(url, sha256, dest)
-}
-
-/// Puts `src` at `dest`: a symlink where the platform has them, else a copy.
-fn place(
-    src: &Path,
-    dest: &Path,
-) {
-    if let Some(parent) = dest.parent() {
-        fs::create_dir_all(parent).expect("create the cache layout");
-    }
-    if dest.exists() || dest.symlink_metadata().is_ok() {
-        fs::remove_file(dest).expect("replace the laid-out asset");
-    }
-    #[cfg(unix)]
-    if std::os::unix::fs::symlink(src, dest).is_ok() {
-        return;
-    }
-    fs::copy(src, dest)
-        .unwrap_or_else(|e| panic!("placing {} at {}: {e}", src.display(), dest.display()));
-}
-
-/// Ensures `dest` holds the asset at `url` with the given digest.
-///
-/// A cache entry whose digest does not match is treated as corrupt: it is
-/// removed and fetched once more, and a second failure is fatal.
-fn fetch_verified(
-    url: &str,
-    sha256: &str,
-    dest: &Path,
-) -> PathBuf {
-    if dest.is_file() {
-        match digest_of(dest) {
-            Ok(found) if found == sha256 => return dest.to_path_buf(),
-            Ok(found) => {
-                println!(
-                    "cargo:warning=cached {} has digest {found}, refetching",
-                    dest.display()
-                );
-                let _ = fs::remove_file(dest);
-            }
-            Err(e) => {
-                println!(
-                    "cargo:warning=cannot read cached {}: {e}, refetching",
-                    dest.display()
-                );
-                let _ = fs::remove_file(dest);
-            }
-        }
-    }
-
-    println!("cargo:warning=fetching {url}");
-    download(url, dest).unwrap_or_else(|e| panic!("fetching {url}: {e}"));
-
-    let found = digest_of(dest).expect("digest the freshly fetched asset");
-    assert_eq!(
-        found, sha256,
-        "{url} has digest {found}, expected {sha256}. The upstream asset \
-         changed, or the transfer was corrupt.",
-    );
-
-    dest.to_path_buf()
-}
-
-/// Streams `url` to `dest`, via a temporary file so an interrupted transfer
-/// cannot leave a truncated asset in the cache.
-fn download(
-    url: &str,
-    dest: &Path,
-) -> Result<(), Box<dyn std::error::Error>> {
-    if let Some(parent) = dest.parent() {
-        fs::create_dir_all(parent)?;
-    }
-    let tmp = dest.with_extension("partial");
-
-    let mut response = ureq::get(url).call()?;
-    let mut reader = response.body_mut().as_reader();
-    let mut file = fs::File::create(&tmp)?;
-    io::copy(&mut reader, &mut file)?;
-    drop(file);
-
-    fs::rename(&tmp, dest)?;
-    Ok(())
-}
-
-/// The lowercase hex SHA-256 of a file.
-///
-/// Read in chunks rather than with `io::copy`: `sha2` 0.11 dropped the
-/// `io::Write` impl on its hashers, and `digest` 0.11 has no feature to bring
-/// it back. Chunking also keeps a 145 MB asset off the heap.
-fn digest_of(path: &Path) -> io::Result<String> {
-    let mut file = fs::File::open(path)?;
-    let mut hasher = Sha256::new();
-    let mut buf = [0u8; 64 * 1024];
-
-    loop {
-        let read = file.read(&mut buf)?;
-        if read == 0 {
-            break;
-        }
-        hasher.update(&buf[..read]);
-    }
-
-    Ok(hasher
-        .finalize()
-        .iter()
-        .map(|b| format!("{b:02x}"))
-        .collect())
+    .resolve(dest)
 }

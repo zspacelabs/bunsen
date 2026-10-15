@@ -2,16 +2,8 @@
 
 use std::{
     fs,
-    io::{
-        self,
-        Read,
-    },
+    io,
     path::Path,
-};
-
-use sha2::{
-    Digest,
-    Sha256,
 };
 
 use crate::errors::{
@@ -59,42 +51,7 @@ pub fn verify_sha256(
     }
 }
 
-/// A reader that digests what passes through it, so a transfer is hashed as
-/// it lands rather than read back afterwards.
-pub struct HashingReader<R> {
-    inner: R,
-    hasher: Sha256,
-}
-
-impl<R: Read> HashingReader<R> {
-    /// Hashes everything read through `inner`.
-    pub fn new(inner: R) -> Self {
-        Self {
-            inner,
-            hasher: Sha256::new(),
-        }
-    }
-
-    /// The lowercase hex SHA-256 of everything read so far.
-    pub fn hex_digest(self) -> String {
-        self.hasher
-            .finalize()
-            .iter()
-            .map(|b| format!("{b:02x}"))
-            .collect()
-    }
-}
-
-impl<R: Read> Read for HashingReader<R> {
-    fn read(
-        &mut self,
-        buf: &mut [u8],
-    ) -> io::Result<usize> {
-        let n = self.inner.read(buf)?;
-        self.hasher.update(&buf[..n]);
-        Ok(n)
-    }
-}
+pub use bunsen_fetch::HashingReader;
 
 #[cfg(test)]
 mod tests {

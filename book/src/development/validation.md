@@ -26,7 +26,7 @@ loads. Whisper's is a conversion of OpenAI's `base` checkpoint, so the two
 agree only if bunsen's loader and its forward pass are both right.
 
 The reference lives with the validation crate, or with the
-[bundled-asset crate](./assets.md#the-two-bundled-crates) that supplies it,
+[bundled-asset crate](./assets.md#the-bundled-crates) that supplies it,
 and never in `bunsen`. It exists to be disagreed with, and shipping it would
 put a second implementation of the model on the public surface.
 

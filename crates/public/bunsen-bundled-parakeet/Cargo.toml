@@ -16,7 +16,7 @@ burn-store = { workspace = true, features = ["std"] }
 document-features = { workspace = true }
 
 [build-dependencies]
-bunsen-asset-fetch = { path = "../bunsen-asset-fetch" }
+bunsen-fetch = { path = "../bunsen-fetch", features = ["fetch"] }
 burn-onnx = { workspace = true, optional = true }
 
 [lints]

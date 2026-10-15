@@ -5,6 +5,10 @@
 //! [`TransferObserver`] stack every transfer is reported to. All of that is
 //! local; reaching the network is the `fetch` feature.
 //!
+//! The mechanics are the `bunsen-fetch` crate's, which the bundled-asset
+//! crates' build scripts fetch with too; this module sorts its failures into
+//! bunsen's error kinds and carries the observers on the cache's options.
+//!
 //! ## Where files land
 //!
 //! A [`BunsenDiskCache`] has two roots: a cache directory, for files that

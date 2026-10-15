@@ -1,11 +1,10 @@
 //! Files: naming and placing files in the cache.
 
-use std::{
-    fs,
-    path::{
-        Path,
-        PathBuf,
-    },
+use std::path::Path;
+
+pub use bunsen_fetch::{
+    file_name_from_url,
+    partial_path,
 };
 
 use crate::errors::{
@@ -14,28 +13,6 @@ use crate::errors::{
     ResultContext,
     sys_at,
 };
-
-/// `<dest>.partial`, keeping every dot of the name (`tiny.en.pt.partial`).
-///
-/// # Panics
-/// If `dest` has no file name.
-pub fn partial_path(dest: &Path) -> PathBuf {
-    let mut name = dest
-        .file_name()
-        .expect("a cache path has a file name")
-        .to_os_string();
-    name.push(".partial");
-    dest.with_file_name(name)
-}
-
-/// The file a URL names: its last path segment, before any query or
-/// fragment. `None` when the URL has no path or its path ends in `/`.
-pub fn file_name_from_url(url: &str) -> Option<&str> {
-    let path = url.split(['?', '#']).next().unwrap_or(url);
-    let path = path.split_once("://").map_or(path, |(_, rest)| rest);
-    let (_, name) = path.rsplit_once('/')?;
-    (!name.is_empty()).then_some(name)
-}
 
 /// Puts a verified file at `dest` without copying 3 GB where a link will
 /// do: a symlink where the platform has them, then a hard link, then a copy.
@@ -51,29 +28,30 @@ pub fn link_or_copy(
     src: &Path,
     dest: &Path,
 ) -> BunsenResult<()> {
-    let Some(parent) = dest.parent() else {
+    if dest.parent().is_none() {
         return Err(BunsenError::illegal(format!(
             "{}: not a file path",
             dest.display()
         )));
-    };
-    fs::create_dir_all(parent).map_err(sys_at("create directory", parent))?;
-
-    #[cfg(unix)]
-    if std::os::unix::fs::symlink(src, dest).is_ok() {
-        return Ok(());
     }
-    if fs::hard_link(src, dest).is_ok() {
-        return Ok(());
-    }
-    fs::copy(src, dest)
-        .map(|_| ())
-        .map_err(sys_at("copy", src))
+    bunsen_fetch::link_or_copy(src, dest)
+        .map_err(io_at)
         .with_context(|| format!("placing {}", dest.display()))
+}
+
+/// A local-disk failure from `bunsen_fetch`, sorted by its `io::Error` and
+/// naming its path (see [`sys_at`]).
+pub(crate) fn io_at(e: bunsen_fetch::IoAt) -> BunsenError {
+    sys_at(e.op, &e.path)(e.source)
 }
 
 #[cfg(test)]
 mod tests {
+    use std::{
+        fs,
+        path::PathBuf,
+    };
+
     use super::*;
     use crate::errors::{
         BunsenErrorKind,

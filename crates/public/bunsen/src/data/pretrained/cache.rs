@@ -11,6 +11,12 @@ use std::{
     },
 };
 
+/// The directory under the cache dir that holds a pretrained's resources:
+/// `<cache>/pretrained/<kit>/<namespace>/<sha256>/<file>`.
+///
+/// `bunsen_fetch`'s, so the bundled-asset build scripts, which lay files out
+/// with `bunsen_fetch::pretrained_cache_path`, write where this cache reads.
+pub use bunsen_fetch::PRETRAINED_DIR;
 use sha2::{
     Digest,
     Sha256,
@@ -48,10 +54,6 @@ use crate::{
     },
     errors::Multiple,
 };
-
-/// The directory under the cache dir that holds a pretrained's resources:
-/// `<cache>/pretrained/<kit>/<namespace>/<sha256>/<file>`.
-pub const PRETRAINED_DIR: &str = "pretrained";
 
 /// Options for [`PretrainedCache`], which [`PretrainedCache::new`] opens a
 /// cache with.
@@ -931,6 +933,17 @@ mod tests {
                 .join("prov")
                 .join(ABC_SHA256)
                 .join("abc.bin")
+        );
+        // Where a bundled-asset build script lays the same file out.
+        assert_eq!(
+            cache.resource_path("kit", &pinned),
+            bunsen_fetch::pretrained_cache_path(
+                cache.cache_dir(),
+                "kit",
+                "prov",
+                ABC_SHA256,
+                "abc.bin"
+            )
         );
 
         let unpinned = res("abc", None, vec![url("https://a.example/abc.bin")]);

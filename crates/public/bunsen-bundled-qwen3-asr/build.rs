@@ -12,13 +12,13 @@
 //! `PHONON_1_BIG_ARCHIVE`, `QWEN3_ASR_SAFETENSORS`, `QWEN3_ASR_TOKENIZER`,
 //! `QWEN3_ASR_ONNX_ENCODER`,
 //! `QWEN3_ASR_ONNX_EMBED`, `QWEN3_ASR_ONNX_DECODER` and
-//! `QWEN3_ASR_ONNX_DECODER_DATA` overrides follow `bunsen-asset-fetch`'s
+//! `QWEN3_ASR_ONNX_DECODER_DATA` overrides follow `bunsen-fetch`'s
 //! rules.
 
 // Each feature uses its own constants; the rest are dead in that build.
 #![allow(unused)]
 
-use bunsen_asset_fetch::{
+use bunsen_fetch::{
     Asset,
     out_dir,
     place_file,
@@ -185,7 +185,7 @@ fn generate_reference() {
     let local = |asset: &Asset, name: &str| {
         let dest = out.join(name);
         let found = asset.resolve(&dest);
-        place_file(&found, &dest);
+        place_file(&found, &dest).unwrap_or_else(|e| panic!("{e}"));
         dest
     };
     local(&DECODER_DATA, "decoder.onnx_data");

@@ -78,6 +78,11 @@ release = true
 version_group = "bunsen"
 
 [[package]]
+name = "bunsen-fetch"
+release = true
+version_group = "bunsen"
+
+[[package]]
 name = "bunsen-bundled-silero"
 release = true
 version_group = "bunsen"

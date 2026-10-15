@@ -2,25 +2,14 @@
 
 use std::{
     fmt,
-    fs,
-    io::{
-        self,
-        Read,
-        Write,
-    },
     path::Path,
     sync::Arc,
     time::Duration,
 };
 
 use super::{
-    HashingReader,
-    TransferDesc,
     TransferObserver,
-    TransferOutcome,
-    TransferProgress,
-    TransferProgressStack,
-    partial_path,
+    files::io_at,
 };
 use crate::errors::{
     BunsenError,
@@ -30,7 +19,6 @@ use crate::errors::{
     DigestOrigin,
     LookupError,
     LookupProblem,
-    sys_at,
 };
 
 /// Why a fetch from a URL failed: the cause of the errors [`fetch_file`]
@@ -56,7 +44,7 @@ use crate::errors::{
 ///
 /// A failure of the local disk under a transfer (the `.partial`, its
 /// directory, the rename) is not a fetch failure: it is sorted by its
-/// `io::Error`, with the local path, through [`sys_at`].
+/// `io::Error`, with the local path, through [`sys_at`](crate::errors::sys_at).
 #[non_exhaustive]
 #[derive(Clone, Debug)]
 pub enum FetchFailure {
@@ -178,10 +166,10 @@ impl From<FetchFailure> for BunsenError {
 /// reporting to `observers`.
 ///
 /// The bytes are hashed as they land, in `<dest>.partial`
-/// ([`partial_path`]), and renamed into place only once they check out. A
-/// pinned file (`Some`) must match its digest; every file must match the
-/// `Content-Length` when the server sent one. Nothing is left at `dest` or
-/// beside it when either check fails, so an interrupted or corrupt
+/// ([`partial_path`](super::partial_path)), and renamed into place only once
+/// they check out. A pinned file (`Some`) must match its digest; every file
+/// must match the `Content-Length` when the server sent one. Nothing is left at
+/// `dest` or beside it when either check fails, so an interrupted or corrupt
 /// transfer never leaves a trusted-looking file at `dest`.
 ///
 /// The transfer is reported to every observer: `begin` once the response
@@ -204,7 +192,8 @@ impl From<FetchFailure> for BunsenError {
 ///   mismatch ([`FetchFailure::Digest`]; nothing is left at `dest`) or any
 ///   other status.
 /// - A failure of the local disk is sorted by its `io::Error` and names the
-///   local path (see [`sys_at`]): usually [`Sys`](BunsenErrorKind::Sys).
+///   local path (see [`sys_at`](crate::errors::sys_at)): usually
+///   [`Sys`](BunsenErrorKind::Sys).
 /// - [`Illegal`](BunsenErrorKind::Illegal) if `dest` is not a file path, or
 ///   `url` is not a URL.
 pub fn fetch_file(
@@ -213,107 +202,7 @@ pub fn fetch_file(
     sha256: Option<&str>,
     observers: &[Arc<dyn TransferObserver>],
 ) -> BunsenResult<()> {
-    let (Some(parent), Some(_)) = (dest.parent(), dest.file_name()) else {
-        return Err(BunsenError::illegal(format!(
-            "{}: not a file path",
-            dest.display()
-        )));
-    };
-    // The request first, the slot second: a URL that answers with an error
-    // status (a repo that is not there) leaves no directory behind.
-    let mut response = match ureq::get(url)
-        .config()
-        .http_status_as_error(false)
-        .build()
-        .call()
-    {
-        Ok(response) => response,
-        Err(e @ ureq::Error::BadUri(_)) => {
-            return Err(BunsenError::illegal(format!("{url}: not a URL")).with_cause(e));
-        }
-        Err(e) => {
-            return Err(FetchFailure::Transport {
-                url: url.to_string(),
-                source: Arc::new(e),
-            }
-            .into());
-        }
-    };
-    let status = response.status().as_u16();
-    if status >= 400 {
-        let retry_after = response
-            .headers()
-            .get("retry-after")
-            .and_then(|v| v.to_str().ok())
-            .and_then(|v| v.trim().parse::<u64>().ok())
-            .map(Duration::from_secs);
-        return Err(FetchFailure::Status {
-            url: url.to_string(),
-            status,
-            retry_after,
-        }
-        .into());
-    }
-    let total = response.body().content_length();
-    fs::create_dir_all(parent).map_err(sys_at("create directory", parent))?;
-    let partial = partial_path(dest);
-    let progress = TransferProgressStack::begin(
-        observers,
-        &TransferDesc {
-            source: url,
-            dest,
-            total,
-        },
-    );
-
-    let mut reader = HashingReader::new(ProgressReader::new(
-        response.body_mut().as_reader(),
-        &progress,
-    ));
-    let received = match copy_body(&mut reader, &partial, url) {
-        Ok(received) => received,
-        Err(e) => {
-            let _ = fs::remove_file(&partial);
-            return Err(fail(&progress, e));
-        }
-    };
-    if let Some(expected) = total
-        && expected != received
-    {
-        let _ = fs::remove_file(&partial);
-        return Err(fail(
-            &progress,
-            FetchFailure::ShortTransfer {
-                url: url.to_string(),
-                received,
-                expected,
-            }
-            .into(),
-        ));
-    }
-
-    let found = reader.hex_digest();
-    if let Some(expected) = sha256
-        && expected != found
-    {
-        let _ = fs::remove_file(&partial);
-        let mismatch = DigestMismatch::new(
-            dest.display().to_string(),
-            DigestOrigin::Download {
-                url: url.to_string(),
-            },
-            expected,
-            found,
-        );
-        return Err(fail(&progress, FetchFailure::Digest(mismatch).into()));
-    }
-
-    if let Err(e) = fs::rename(&partial, dest) {
-        let _ = fs::remove_file(&partial);
-        return Err(fail(&progress, sys_at("rename", &partial)(e)));
-    }
-    progress.finish(TransferOutcome::Complete);
-    Ok(())
+    bunsen_fetch::fetch_file(url, dest, sha256, observers).map_err(fetch_error)
 }
 
 /// [`fetch_file`] with a required digest.
@@ -329,97 +218,81 @@ pub fn fetch_verified(
     fetch_file(url, dest, Some(sha256), observers)
 }
 
-/// Copies the response body from `reader` into a new file at `partial`, and
-/// syncs it; the byte count.
-///
-/// A read is the network side, a [`FetchFailure::Transport`] for `url`; a
-/// create, write or sync is the local disk, sorted by [`sys_at`] on
-/// `partial`.
-fn copy_body(
-    reader: &mut impl Read,
-    partial: &Path,
-    url: &str,
-) -> BunsenResult<u64> {
-    let mut file = fs::File::create(partial).map_err(sys_at("create", partial))?;
-    let mut buf = vec![0u8; 64 * 1024];
-    let mut received = 0u64;
-    loop {
-        let n = match reader.read(&mut buf) {
-            Ok(0) => break,
-            Ok(n) => n,
-            Err(e) if e.kind() == io::ErrorKind::Interrupted => continue,
-            Err(e) => {
-                return Err(FetchFailure::Transport {
-                    url: url.to_string(),
-                    source: Arc::new(ureq::Error::from(e)),
-                }
-                .into());
-            }
-        };
-        file.write_all(&buf[..n])
-            .map_err(sys_at("write", partial))?;
-        received += n as u64;
-    }
-    file.sync_all().map_err(sys_at("sync", partial))?;
-    Ok(received)
-}
-
-/// Finishes `progress` as failed with `error`'s message, and returns the
-/// error.
-fn fail(
-    progress: &TransferProgressStack,
-    error: BunsenError,
-) -> BunsenError {
-    progress.finish(TransferOutcome::Failed(&error.to_string()));
-    error
-}
-
-/// A reader that reports its running byte count to a transfer's sink.
-struct ProgressReader<'a, R> {
-    inner: R,
-    position: u64,
-    progress: &'a dyn TransferProgress,
-}
-
-impl<'a, R: Read> ProgressReader<'a, R> {
-    fn new(
-        inner: R,
-        progress: &'a dyn TransferProgress,
-    ) -> Self {
-        Self {
-            inner,
-            position: 0,
-            progress,
+/// A `bunsen_fetch` failure, sorted into bunsen's kinds: the network side
+/// through [`FetchFailure`], the local disk through
+/// [`sys_at`](crate::errors::sys_at).
+fn fetch_error(e: bunsen_fetch::FetchError) -> BunsenError {
+    use bunsen_fetch::{
+        FetchError,
+        FetchFailure as Leaf,
+    };
+    match e {
+        FetchError::Failure(Leaf::Status {
+            url,
+            status,
+            retry_after,
+        }) => FetchFailure::Status {
+            url,
+            status,
+            retry_after,
         }
-    }
-}
-
-impl<R: Read> Read for ProgressReader<'_, R> {
-    fn read(
-        &mut self,
-        buf: &mut [u8],
-    ) -> io::Result<usize> {
-        let n = self.inner.read(buf)?;
-        self.position += n as u64;
-        self.progress.position(self.position);
-        Ok(n)
+        .into(),
+        FetchError::Failure(Leaf::Transport { url, source }) => {
+            FetchFailure::Transport { url, source }.into()
+        }
+        FetchError::Failure(Leaf::ShortTransfer {
+            url,
+            received,
+            expected,
+        }) => FetchFailure::ShortTransfer {
+            url,
+            received,
+            expected,
+        }
+        .into(),
+        FetchError::Failure(Leaf::Digest {
+            url,
+            dest,
+            expected,
+            found,
+        }) => FetchFailure::Digest(DigestMismatch::new(
+            dest.display().to_string(),
+            DigestOrigin::Download { url },
+            expected,
+            found,
+        ))
+        .into(),
+        FetchError::Io(io) => io_at(io),
+        FetchError::NotAFilePath(dest) => {
+            BunsenError::illegal(format!("{}: not a file path", dest.display()))
+        }
+        FetchError::BadUrl { url, source } => {
+            BunsenError::illegal(format!("{url}: not a URL")).with_cause(source)
+        }
+        other => BunsenError::invalid_resource(other.to_string()),
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use std::path::Path;
+    use std::{
+        fs,
+        path::Path,
+    };
 
     use super::*;
     use crate::{
-        data::cache::testing::{
-            ABC_SHA256,
-            CacheProgressEvent,
-            RecordingObserver,
-            refused_url,
-            serve_once,
-            serve_once_declaring,
-            serve_status,
+        data::cache::{
+            partial_path,
+            testing::{
+                ABC_SHA256,
+                CacheProgressEvent,
+                RecordingObserver,
+                refused_url,
+                serve_once,
+                serve_once_declaring,
+                serve_status,
+            },
         },
         errors::testing::{
             ErrorMatcher,

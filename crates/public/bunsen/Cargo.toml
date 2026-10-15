@@ -115,6 +115,7 @@ train = [
 ## that is `fetch`.
 cache = [
     "std",
+    "dep:bunsen-fetch",
     "dep:directories-next",
     "dep:sha2",
 ]
@@ -125,6 +126,7 @@ cache = [
 ## switch is `download`.
 fetch = [
     "cache",
+    "bunsen-fetch/fetch",
     "dep:ureq",
 ]
 
@@ -251,6 +253,7 @@ bunsen-bundled-whisper = { version = "0.38.0",
     path = "../bunsen-bundled-whisper",
     optional = true
 }
+bunsen-fetch = { version = "0.38.0", path = "../bunsen-fetch", optional = true }
 
 
 tracing = { workspace = true, optional = true }
@@ -311,6 +314,7 @@ wordchipper = { workspace = true, default-features = false, optional = true }
 # targets build without them, and a test that needs a default feature
 # carries a `cfg(feature = ...)` gate for it.
 bunsen = { path = ".", default-features = false, features = ["testing", "audit"] }
+bunsen-fetch = { path = "../bunsen-fetch", features = ["testing"] }
 burn = { workspace = true, features = ["autodiff"] }
 serde = { workspace = true }
 serde_json = { workspace = true }

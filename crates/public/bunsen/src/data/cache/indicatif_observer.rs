@@ -89,16 +89,19 @@ impl TransferObserver for IndicatifObserver {
         &self,
         desc: &TransferDesc<'_>,
     ) -> Box<dyn TransferProgress> {
-        Box::new(self.bar(desc))
+        Box::new(BarProgress(self.bar(desc)))
     }
 }
 
-impl TransferProgress for ProgressBar {
+/// One transfer's bar, as its [`TransferProgress`] handle.
+struct BarProgress(ProgressBar);
+
+impl TransferProgress for BarProgress {
     fn position(
         &self,
         bytes: u64,
     ) {
-        self.set_position(bytes);
+        self.0.set_position(bytes);
     }
 
     fn finish(
@@ -106,9 +109,10 @@ impl TransferProgress for ProgressBar {
         outcome: TransferOutcome<'_>,
     ) {
         match outcome {
-            TransferOutcome::Complete => self.finish_and_clear(),
+            TransferOutcome::Complete => self.0.finish_and_clear(),
             TransferOutcome::Failed(message) => {
-                self.abandon_with_message(format!("{} failed: {message}", self.message()));
+                self.0
+                    .abandon_with_message(format!("{} failed: {message}", self.0.message()));
             }
         }
     }
@@ -136,12 +140,12 @@ mod tests {
         assert_eq!(bar.length(), Some(100));
         assert_eq!(bar.message(), "model.bin");
 
-        // `ProgressBar` has inherent `position`/`finish`; go through the
-        // trait, as the stack does.
-        TransferProgress::position(&bar, 40);
+        // Through the handle, as the stack drives it.
+        let handle = BarProgress(bar.clone());
+        handle.position(40);
         assert_eq!(bar.position(), 40);
 
-        TransferProgress::finish(&bar, TransferOutcome::Complete);
+        handle.finish(TransferOutcome::Complete);
         assert!(bar.is_finished());
     }
 
@@ -158,8 +162,9 @@ mod tests {
         let bar = observer.bar(&desc);
         assert_eq!(bar.length(), None);
 
-        TransferProgress::position(&bar, 7);
-        TransferProgress::finish(&bar, TransferOutcome::Failed("sha256 mismatch"));
+        let handle = BarProgress(bar.clone());
+        handle.position(7);
+        handle.finish(TransferOutcome::Failed("sha256 mismatch"));
         assert!(bar.is_finished());
         assert_eq!(bar.message(), "stream.bin failed: sha256 mismatch");
     }
