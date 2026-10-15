@@ -1,55 +1,35 @@
-//! Bunsen `silero_vad` bundled model assets: Silero VAD's pretrained
-//! weights, linked into the binary.
+//! Bunsen `silero_vad` bundled model assets.
 //!
-//! The crate ships Silero's ONNX graph, `onnx/silero_vad_op18_ifless.onnx`
-//! (2.8 MB, from [`snakers4/silero-vad`](https://github.com/snakers4/silero-vad),
-//! MIT). Its build script converts the graph to a burnpack with
-//! `burn-onnx`, offline: unlike `bunsen-bundled-whisper`, nothing is
-//! fetched, and no feature is needed. The burnpack lands in `OUT_DIR` and is
-//! linked in as [`BURNPACK_WEIGHTS`]. One burnpack holds both of the model's
-//! sample-rate branches, 16 kHz and 8 kHz.
+//! **This crate hosts nothing.** It *fetches* Silero VAD's files from a
+//! pinned revision of [`snakers4/silero-vad`](https://github.com/snakers4/silero-vad)
+//! (MIT) at build time, pins each to a SHA-256, and keeps them in
+//! `OUT_DIR`, each behind its own feature:
 //!
-//! The burnpack is this build's artifact, not upstream's, so the build also
-//! hashes it, as [`BURNPACK_SHA256`]. bunsen's `silero-weights` feature
-//! pulls this crate in, and bunsen's Silero kit serves the bytes as the
-//! `bundled:silero/vad` row, pinned to that digest. The pretrained cache
-//! writes them under `<cache>/pretrained/silero_vad/bunsen/<sha256>/` on
-//! first use, so a rebuilt burnpack with different bytes gets its own slot.
+//! | Item | Feature | What it is |
+//! |---|---|---|
+//! | `cache_dir()`, `silero_vad_16k_safetensors()` | `checkpoint` | upstream's 16 kHz `silero_vad_16k.safetensors`, laid out as a pretrained cache |
+//! | `onnx_gen::{Model, burnpack_path}` | `onnx_gen` | the reference model `burn-onnx` generates from upstream's `silero_vad_op18_ifless.onnx`, and its burnpack |
 //!
-//! ## The reference model: `onnx_gen`
+//! The checkpoint is laid out as a **pretrained cache**,
+//! `pretrained/silero_vad/silero/<sha256>/<file>`, which is how bunsen's
+//! `data::pretrained::PretrainedCache` roots a resource: a cache pointed at
+//! `cache_dir()`, offline, resolves `silero/vad-16k` without knowing it was
+//! bundled. bunsen's `silero-weights` feature turns on `checkpoint`.
 //!
-//! `burn-onnx` also generates a Rust model from the graph. The `onnx_gen`
-//! feature compiles it in as the `onnx_gen` module, whose
-//! `Model::load_pretrained` reads [`BURNPACK_WEIGHTS`]. It is a direct
-//! transliteration of the graph, so `silero-model-validation` checks
-//! bunsen's hand-written Silero VAD against it. The burnpack is generated
-//! either way; the feature decides only whether the generated model is
-//! compiled. It is off by default; docs.rs builds the crate with it, so the
-//! module is in the API docs.
+//! The reference is a direct transliteration of the graph, both sample-rate
+//! branches, so `silero-model-validation` checks bunsen's hand-written Silero
+//! VAD against it.
+//!
+//! `SILERO_VAD_16K_SAFETENSORS` and `SILERO_VAD_ONNX` name local copies
+//! instead: a file that is the pinned asset is laid out where the download
+//! would have gone, and any other is used where it is, with a warning.
 //!
 //! ## Crate Features
 #![doc = document_features::document_features!()]
 
 extern crate alloc;
 
-/// The pretrained burnpack: both sample-rate branches, 16 kHz and 8 kHz,
-/// generated from the ONNX graph when the crate was built.
-pub const BURNPACK_WEIGHTS: &[u8] =
-    include_bytes!(concat!(env!("OUT_DIR"), "/silero_vad_op18_ifless.bpk"));
-
-/// The burnpack's file name: what a pretrained resource calls it.
-pub const BURNPACK_FILE: &str = "silero_vad_op18_ifless.bpk";
-
-/// SHA-256 of [`BURNPACK_WEIGHTS`], computed when the crate was built.
-///
-/// The burnpack is generated from the ONNX graph by `burn-onnx`, so its
-/// digest is this build's rather than upstream's; bunsen's Silero kit pins
-/// its `bundled:silero/vad` row to it, so a rebuilt burnpack is cached in
-/// its own slot.
-pub const BURNPACK_SHA256: &str = env!("SILERO_BURNPACK_SHA256");
-
-/// `OUT_DIR` laid out as a pretrained cache, holding upstream's
-/// `silero_vad_16k.safetensors`: the root a
+/// `OUT_DIR` laid out as a pretrained cache: the root a
 /// `bunsen::data::pretrained::PretrainedCache` is pointed at to resolve
 /// `silero/vad-16k` offline.
 #[cfg(feature = "checkpoint")]
@@ -64,24 +44,33 @@ pub fn silero_vad_16k_safetensors() -> &'static std::path::Path {
     std::path::Path::new(env!("SILERO_VAD_16K_SAFETENSORS_PATH"))
 }
 
-/// [`BURNPACK_WEIGHTS`], copied into burn's [`Bytes`](burn::tensor::Bytes).
-pub fn burnpack_as_burn_bytes() -> burn::tensor::Bytes {
-    burn::tensor::Bytes::from_bytes_vec(BURNPACK_WEIGHTS.to_vec())
-}
-
+/// The reference model `burn-onnx` generates from upstream's
+/// `silero_vad_op18_ifless.onnx`.
 #[cfg(feature = "onnx_gen")]
 pub mod onnx_gen {
-    #![allow(clippy::type_complexity)]
-    //! The Rust model `burn-onnx` generates from the ONNX graph: the
-    //! reference bunsen's Silero VAD is validated against.
-    use super::*;
+    use burn::prelude::*;
 
-    include!(concat!(env!("OUT_DIR"), "/silero_vad_op18_ifless.rs"));
+    /// The burnpack `burn-onnx` generated from the graph, both sample-rate
+    /// branches: what [`Model::load_pretrained`] reads, and what bunsen's
+    /// burnpack loaders read to run bunsen's Silero VAD on the reference's
+    /// weights.
+    pub fn burnpack_path() -> std::path::PathBuf {
+        std::path::Path::new(env!("SILERO_ONNX_OUT_DIR")).join("silero_vad_op18_ifless.bpk")
+    }
+
+    // Machine-generated: not held to this crate's lint bar.
+    #[allow(warnings, clippy::all)]
+    mod generated {
+        use super::*;
+
+        include!(concat!(env!("OUT_DIR"), "/silero_vad_op18_ifless.rs"));
+    }
+    pub use generated::Model;
 
     impl Model {
-        /// Load the pretrained model.
+        /// Loads the reference model from the generated burnpack.
         pub fn load_pretrained(device: &Device) -> Model {
-            Model::from_bytes(burnpack_as_burn_bytes(), device)
+            Model::from_file(burnpack_path(), device)
         }
     }
 }

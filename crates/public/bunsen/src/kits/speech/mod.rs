@@ -36,7 +36,7 @@
 //! [`default_whisper_factory`](whisper::pretrained::default_whisper_factory)
 //! (named, bundled and Hugging Face checkpoints) or
 //! [`default_silero_factory`](silero_vad::pretrained::default_silero_factory)
-//! (one bundled row, with the `silero-weights` feature). Whisper's text
+//! (upstream's 16 kHz safetensors, `silero/vad-16k`). Whisper's text
 //! comes through the shared [`Detokenizer`](crate::kits::tokens::Detokenizer)
 //! seam in [`kits::tokens`](crate::kits::tokens); its ids need no tokenizer.
 //!

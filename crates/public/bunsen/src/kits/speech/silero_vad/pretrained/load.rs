@@ -30,29 +30,30 @@ use crate::{
 
 #[cfg(feature = "silero-weights")]
 mod with_weights {
-    use bunsen_bundled_silero::burnpack_as_burn_bytes;
-
     use super::*;
 
     impl SileroVad {
-        /// Load the pretrained 16khz model.
+        /// Load the 16khz model from upstream's `silero_vad_16k.safetensors`,
+        /// as `bunsen-bundled-silero` fetched it at build time.
+        ///
+        /// # Errors
+        /// As [`load_16khz_from_safetensors_file`](Self::load_16khz_from_safetensors_file).
         pub fn load_16khz_pretrained(device: &Device) -> BunsenResult<Self> {
-            Self::load_16khz_from_burnpack_bytes(burnpack_as_burn_bytes(), device)
-        }
-
-        /// Load the pretrained 8khz model.
-        pub fn load_8khz_pretrained(device: &Device) -> BunsenResult<Self> {
-            Self::load_8khz_from_burnpack_bytes(burnpack_as_burn_bytes(), device)
+            Self::load_16khz_from_safetensors_file(
+                bunsen_bundled_silero::silero_vad_16k_safetensors(),
+                device,
+            )
         }
     }
 
     impl SileroVadCollection {
-        /// Load the standard 16khz/8khz pretrained models.
+        /// The pretrained collection: the 16khz model, from upstream's
+        /// safetensors as `bunsen-bundled-silero` fetched it.
+        ///
+        /// # Errors
+        /// As [`SileroVad::load_16khz_pretrained`].
         pub fn load_pretrained(device: &Device) -> BunsenResult<Self> {
-            Ok(Self::new_common_collection(
-                SileroVad::load_16khz_pretrained(device)?,
-                SileroVad::load_8khz_pretrained(device)?,
-            ))
+            Ok(Self::from_16khz(SileroVad::load_16khz_pretrained(device)?))
         }
     }
 }

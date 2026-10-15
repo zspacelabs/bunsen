@@ -33,8 +33,8 @@ const PRESET: PresetEmissionPolicy = PresetEmissionPolicy::Offline;
 /// The checkpoint and the `.tiktoken` vocabulary that matches it come
 /// through bunsen's pretrained cache, fetched on first use or found where
 /// a deployment put them; the vocabulary is what gives text rather than
-/// ids and upstream's default suppress list. `silero-weights` bundles the
-/// VAD the real-time presets need.
+/// ids and upstream's default suppress list. The VAD the real-time presets
+/// need, `silero/vad-16k`, comes through the same cache.
 /// The device is `--device`, from the backends compiled in (`--features
 /// wgpu`; see the README).
 #[derive(clap::Args, Debug)]

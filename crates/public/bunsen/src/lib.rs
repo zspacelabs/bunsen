@@ -85,9 +85,10 @@
 //!
 //! `bunsen-firehose` and `bunsen-firehose-image` (a data-processing pipeline),
 //! `bunsen-arrow-dataloaders` (preview: Parquet shards to training batches),
-//! `bunsen-bundled-silero` and `bunsen-bundled-whisper` (model assets behind
-//! the `*-weights` features), and `bunsen-contracts-macros` (the proc macro
-//! behind [`contracts`]). The book's
+//! `bunsen-bundled-silero` and `bunsen-bundled-whisper` (model assets fetched
+//! at build time behind the `*-weights` features), `bunsen-fetch` (the
+//! fetching they and the cache share), and `bunsen-contracts-macros` (the proc
+//! macro behind [`contracts`]). The book's
 //! [workspace](https://zspacelabs.ai/bunsen/book/organization/workspace.html)
 //! page maps them.
 //!

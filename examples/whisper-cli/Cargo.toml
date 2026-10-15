@@ -27,13 +27,14 @@ burn = { workspace = true }
 # through this crate's backend features (`wgpu`, `vulkan`, `metal`, `cuda`);
 # the CPU is always there.
 #
-# `silero-weights` bundles the VAD the real-time presets need.
-# `indicatif` puts bunsen's progress bar on every weights transfer.
+# The VAD the real-time presets need, `silero/vad-16k`, comes through the
+# same cache as the weights. `indicatif` puts bunsen's progress bar on every
+# weights transfer.
 bunsen = { path = "../../crates/public/bunsen", features = [
     "store",
     "audio",
     "tokenizer",
-    "silero-weights",
+    "store_safetensors",
     "indicatif",
 ] }
 

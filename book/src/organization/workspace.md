@@ -21,7 +21,7 @@ by release-plz ([Releasing](../development/release.md)).
 |---|---|
 | [`bunsen`] | The library: contracts, ops, blocks, kits, the pretrained-model machinery, audits. Most users depend on this alone. See [the bunsen crate](./crate.md). |
 | [`bunsen-contracts-macros`](https://github.com/zspacelabs/bunsen/tree/main/crates/public/bunsen-contracts-macros) | The proc macro behind [`shape_contract!`](bunsen::contracts#macros-and-methods). Never a direct dependency; `bunsen` re-exports it. |
-| [`bunsen-bundled-silero`](bunsen_bundled_silero) | Silero VAD's pretrained weights, generated at build time from a committed ONNX graph. Pulled in by `bunsen`'s `silero-weights` feature. |
+| [`bunsen-bundled-silero`](bunsen_bundled_silero) | Silero VAD's 16 kHz checkpoint and, for validation, its ONNX graph and the reference model generated from it, fetched and digest-pinned at build time. Pulled in by `silero-weights`. Hosts no files itself. |
 | [`bunsen-bundled-whisper`](bunsen_bundled_whisper) | Whisper's `base` checkpoint and tokenizer vocabularies, fetched and digest-pinned at build time and laid out as a pretrained cache. Pulled in by `whisper-weights`. Hosts no files itself. |
 | [`bunsen-firehose`](bunsen_firehose) | A column-oriented data-processing pipeline that feeds burn's `Batcher`. Independent of `bunsen`. See [Firehose](../systems/firehose.md). |
 | [`bunsen-firehose-image`](bunsen_firehose_image) | Image operators for firehose: loading, augmentation, conversion to tensor data. |

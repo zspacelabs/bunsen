@@ -83,8 +83,7 @@
 //! A bundle takes one of two forms:
 //!
 //! - Bytes linked into the binary are a [`Source::Bundled`], written into the
-//!   cache under their digest on first use. `bunsen-bundled-silero` ships its
-//!   burnpack this way, as `bundled:silero/vad`.
+//!   cache under their digest on first use.
 //! - Files fetched at build time are a populated cache directory.
 //!   `bunsen-bundled-whisper` lays its `OUT_DIR` out in this layout, so a
 //!   [`PretrainedCache`] rooted there finds the files without knowing they were

@@ -6,34 +6,33 @@
 //! disagreement is a bunsen bug rather than a framework difference.
 //!
 //! ```sh
-//! cargo test --release -p silero-model-validation --features wgpu
+//! cargo test --release -p silero-model-validation --features download,wgpu
 //! ```
 //!
 //! ## Why the reference is not in `bunsen`
 //!
-//! It used to be, as `kits::speech::silero_vad::reference`. A generated
-//! transliteration of a graph is validation machinery — it exists to be
-//! disagreed with — and shipping it in the library put a second, redundant
-//! Silero implementation on the public surface.
+//! A generated transliteration of a graph is validation machinery: it exists
+//! to be disagreed with, and shipping it would put a second, redundant Silero
+//! implementation on the public surface. Nothing of Silero's ships with
+//! bunsen at all: `bunsen-bundled-silero` fetches the graph and upstream's
+//! safetensors at build time, under this crate's **`download`** feature.
 //!
-//! The *weights* are a different matter and stayed put:
-//! `bunsen_bundled_silero::silero::BURNPACK_WEIGHTS` is what
-//! `SileroVadCollection::load_pretrained` loads, so `bunsen` still depends on
-//! that crate. Only the reference *model* moved here.
+//! ## What is compared
 //!
-//! ## A backend, not a checkpoint
+//! - bunsen's Silero VAD, read from the burnpack `burn-onnx` generates from the
+//!   graph, against the generated reference: both sample-rate branches, on
+//!   random input and on a real recording through the streaming context, and
+//!   against a committed golden trace.
+//! - `silero/vad-16k`, upstream's own safetensors loaded by name, against the
+//!   golden trace: a sibling checkpoint of the graph's, so held to its speech
+//!   decisions within a measured margin rather than to its numbers.
 //!
-//! Unlike Whisper, nothing here is fetched: the graph is committed in
-//! `bunsen-bundled-silero` and the weights ship with it. So a backend feature
-//! is all this crate takes, and it is worth passing: `performance_device()`
-//! falls through to `Flex` when none reaches `bunsen`, and the cross-checks
-//! are compiled either way. A run without one does not fail — it quietly
-//! measures the CPU and passes, which is not worth the wall clock.
-//!
-//! Nothing here enforces that. These cross-checks predate the `gpu-tests`
-//! convention (see `STYLE.md`) and are not yet gated by it.
+//! A backend feature says what they run on: `performance_device()` falls
+//! through to `Flex` when none reaches `bunsen`. These cross-checks predate
+//! the `gpu-tests` convention (see `STYLE.md`) and are not yet gated by it.
 
 /// The reference model, generated from the upstream ONNX graph.
+#[cfg(feature = "download")]
 pub mod reference {
     pub use bunsen_bundled_silero::onnx_gen::*;
 
@@ -41,4 +40,5 @@ pub mod reference {
     pub type ReferenceModel = Model;
 }
 
+#[cfg(feature = "download")]
 mod cross_test;

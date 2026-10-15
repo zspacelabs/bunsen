@@ -14,8 +14,7 @@ checkpoints.
 [`default_whisper_factory`](bunsen::kits::speech::whisper::pretrained::default_whisper_factory)
 is the full one: a compiled-in table, a bundled row, and Hugging Face repos.
 [`default_silero_factory`](bunsen::kits::speech::silero_vad::pretrained::default_silero_factory)
-is bundled-only: one row whose bytes are linked into the binary by the
-`silero-weights` feature.
+is the smallest: one compiled-in row, upstream's 16 kHz checkpoint.
 
 ## The pathway
 
@@ -115,8 +114,7 @@ and a `PretrainedCache` rooted there finds them without knowing they were
 bundled. An offline deployment does the same thing at install time: fill a
 cache directory ahead of time, and point the cache at it.
 
-The other form links the bytes into the binary.
-[`bunsen_bundled_silero`]'s burnpack is a
+The other form links the bytes into the binary: a
 [`Source::Bundled`](bunsen::data::pretrained::Source::Bundled), checked
 against its digest and written into the cache on first use. Both forms are
 described under

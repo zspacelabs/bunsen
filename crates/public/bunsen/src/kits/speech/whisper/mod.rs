@@ -232,14 +232,15 @@
 //! }
 //!
 //! /// Conservative real time: decodes on speech endpoints as well as full
-//! /// windows, with the bundled Silero model as the voice-activity gate.
+//! /// windows, with upstream's 16 kHz Silero model as the voice-activity
+//! /// gate.
 //! fn conservative_driver(
 //!     bundle: Arc<WhisperBundle>,
 //!     cache: &PretrainedCache,
 //!     device: &Device,
 //! ) -> BunsenResult<WhisperStreamDriver> {
 //!     let vad = default_silero_factory()?
-//!         .load("bundled:silero/vad", cache, device)?
+//!         .load("silero/vad-16k", cache, device)?
 //!         .handle;
 //!     // The 16 kHz branch, and the filter's 16 kHz defaults: the model's
 //!     // rate.

@@ -218,9 +218,9 @@ pub struct WhisperDriverArgs {
     /// a draft), `conservative` (speech regions as well; every commit is
     /// final, and with `--timestamps` a decode's unfinished tail is also
     /// printed as a draft), or `responsive` (conservative, plus a draft
-    /// every 600 ms of speech). The last two load the bundled VAD. Each
-    /// command has its own default: `offline` for `transcribe`,
-    /// `conservative` for `live`.
+    /// every 600 ms of speech). The last two load the VAD, `silero/vad-16k`,
+    /// through the cache. Each command has its own default: `offline` for
+    /// `transcribe`, `conservative` for `live`.
     #[arg(
         long,
         value_name = "offline|conservative|responsive",
@@ -301,8 +301,8 @@ impl WhisperDriverArgs {
     /// the driver's rate, rounded up to the driver's grain.
     ///
     /// The grain is a whole number of mel hops, encoder grid steps and, when
-    /// a VAD is attached, its chunks (2560 samples at 16 kHz with the
-    /// bundled VAD; 320 without), so a push leaves nothing staged behind
+    /// a VAD is attached, its chunks (2560 samples at 16 kHz with Silero's;
+    /// 320 without), so a push leaves nothing staged behind
     /// it and every push has the same shape: the front end, the gate and
     /// the autotuned kernels behind them see one size, not a drift of
     /// remainders.
@@ -367,10 +367,10 @@ impl WhisperDriverArgs {
             .as_policy()?;
 
         if preset != PresetEmissionPolicy::Offline {
-            // The bundled burnpack, through the same cache as the weights:
-            // written in from the binary on first use, cached after.
+            // Upstream's 16 kHz Silero VAD, through the same cache as the
+            // weights: fetched on first use, cached after.
             let vad = default_silero_factory()?
-                .load("bundled:silero/vad", &cache, device)?
+                .load("silero/vad-16k", &cache, device)?
                 .handle;
             driver = driver.with_vad(vad.expect_branch(16000).clone(), Default::default())?;
         }

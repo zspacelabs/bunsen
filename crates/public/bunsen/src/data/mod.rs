@@ -86,8 +86,8 @@
 //!   `torchvision` and `timm` checkpoints, each row naming its prefab.
 //! - [`default_whisper_factory`] is the full one: the well-known table, the
 //!   bundled row with `whisper-weights`, then `hf:org/repo`.
-//! - [`default_silero_factory`] is bundled-only: one row, linked into the
-//!   binary with `silero-weights`, and no providers without it.
+//! - [`default_silero_factory`] has one well-known row, `silero/vad-16k`,
+//!   upstream's safetensors.
 //!
 //! ## Features
 //!
@@ -96,8 +96,8 @@
 //! | `cache` | yes, through `store` | the [`cache`] module; [`PretrainedCache`], [`PretrainedFactory`], [`Deferred`], [`Construct`], [`Loaded`], [`LoadedResources`]; [`ShardSet`]. All local. |
 //! | `fetch` | no | the network at run time: `fetch_file`, `fetch_many` and its `FetchPolicy`, the URL sources of [`PretrainedCache`], the download in `ShardSet::fetch`, and the [`HfProvider`] listing. Without it, a file that only a URL can supply is an [`Unsupported`](crate::errors::BunsenErrorKind::Unsupported) error. |
 //! | `indicatif` | no | implies `fetch`: a byte progress bar per transfer (`IndicatifObserver`, in the default observer stack). |
-//! | `store_safetensors` | yes | [`SafetensorsCheckpoint`], the reader for `hf:` rows. `store_pytorch` (also default) is what kits read `.pt` checkpoints with, and `store` (implied by both) is what Silero reads its burnpack with. |
-//! | `silero-weights` | no | implies `store`: `bundled:silero/vad`, the Silero burnpack, linked into the binary. |
+//! | `store_safetensors` | yes | [`SafetensorsCheckpoint`], the reader for `hf:` rows. `store_pytorch` (also default) is what kits read `.pt` checkpoints with, and `store` (implied by both) is what a burnpack is read with. |
+//! | `silero-weights` | no | `silero/vad-16k`'s file in `bunsen-bundled-silero`'s build directory, laid out as a cache root, and the `load_pretrained` shortcuts that read it. **The build reaches the network** on a cold cache. |
 //! | `whisper-weights` | no | `bundled:openai/base`, served in place from `bunsen-bundled-whisper`'s build directory. **The build reaches the network** on a cold cache. |
 //!
 //! `download` is a conventional name (see `STYLE.md`), not a bunsen

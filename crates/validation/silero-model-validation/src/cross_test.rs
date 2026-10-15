@@ -38,7 +38,16 @@ mod tests {
         },
     };
 
-    use crate::reference::ReferenceModel;
+    use crate::reference::{
+        ReferenceModel,
+        burnpack_path,
+    };
+
+    /// bunsen's Silero VAD on the graph's weights: both branches, from the
+    /// burnpack `burn-onnx` generated alongside the reference.
+    fn graph_collection(device: &burn::tensor::Device) -> BunsenResult<SileroVadCollection> {
+        SileroVadCollection::load_from_burnpack_file(burnpack_path(), device)
+    }
 
     #[test]
     #[serial_test::serial]
@@ -48,7 +57,7 @@ mod tests {
         let device = performance_device();
         let _memory = DeviceMemoryGuard::new(&device);
 
-        let sc: SileroVadCollection = SileroVadCollection::load_pretrained(&device).ok_or_panic();
+        let sc: SileroVadCollection = graph_collection(&device).ok_or_panic();
 
         let r_mod: ReferenceModel = ReferenceModel::load_pretrained(&device);
 
@@ -100,7 +109,7 @@ mod tests {
         let device = performance_device();
         let _memory = DeviceMemoryGuard::new(&device);
 
-        let sc: SileroVadCollection = SileroVadCollection::load_pretrained(&device)?;
+        let sc: SileroVadCollection = graph_collection(&device)?;
         let r_mod: ReferenceModel = ReferenceModel::load_pretrained(&device);
 
         // The recording is 16 kHz. For the 8 kHz branch, each pair of
@@ -175,9 +184,7 @@ mod tests {
         let device = performance_device();
         let _memory = DeviceMemoryGuard::new(&device);
 
-        let vad: SileroVad = SileroVadCollection::load_pretrained(&device)?
-            .try_branch(sample_rate)?
-            .clone();
+        let vad: SileroVad = graph_collection(&device)?.try_branch(sample_rate)?.clone();
 
         let mut wav_vec = load_audio_mono_sr(wav_path, sample_rate)?;
 
@@ -222,7 +229,6 @@ mod tests {
     /// the reference and the bundled burnpack come from, not the same
     /// weights: on a real recording it makes the graph's speech decisions,
     /// chunk for chunk, within the margins measured below.
-    #[cfg(feature = "download")]
     #[test]
     #[serial_test::serial]
     fn test_upstream_safetensors_decides_as_the_graph() -> Result<(), Box<dyn std::error::Error>> {

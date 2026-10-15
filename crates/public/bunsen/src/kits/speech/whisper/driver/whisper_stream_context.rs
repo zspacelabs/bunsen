@@ -601,7 +601,11 @@ impl WhisperStreamContext {
     // ---- scheduling --------------------------------------------------
 
     /// With endpoints on, drops full windows that hold no speech: nothing
-    /// closed inside them, and nothing open in them.
+    /// closed inside them, and nothing open in them. An open region counts
+    /// from where it will start once closed: its onset less the start pad,
+    /// snapped down onto the encoder grid, so the window holding the pad is
+    /// kept. A window is judged only once the VAD has ruled a start pad past
+    /// its end: an onset there would pad back into it.
     fn skip_silence(&mut self) {
         let width = self.driver.window_frames();
         let hop = self.hop();
@@ -614,8 +618,14 @@ impl WhisperStreamContext {
                 return;
             }
             let (from, to) = (self.seek * hop, (self.seek + width) * hop);
+            if vad.filter.sample_count() < to + vad.pad {
+                return;
+            }
             let closed_in = vad.regions.iter().any(|r| r.end > from && r.start < to);
-            let open_in = vad.filter.open_since().is_some_and(|s| s < to);
+            let open_in = vad
+                .filter
+                .open_since()
+                .is_some_and(|s| vad.padded_start(s) < to);
             if closed_in || open_in {
                 return;
             }
@@ -657,7 +667,11 @@ impl WhisperStreamContext {
             if self.driver.config().emission.triggers.window_full && self.pending_frames() >= width
             {
                 let to = (self.seek + width) * hop;
-                if vad.filter.open_since().is_some_and(|s| s < to) {
+                if vad
+                    .filter
+                    .open_since()
+                    .is_some_and(|s| vad.padded_start(s) < to)
+                {
                     return Some(Due {
                         start: self.seek,
                         count: width,
@@ -1006,6 +1020,18 @@ impl WhisperStreamContext {
 }
 
 impl VoiceActivity {
+    /// Where a region with onset `onset` starts once closed: the start pad
+    /// back from the onset, no earlier than the previous region's end,
+    /// snapped down onto the encoder grid ([`enqueue`](Self::enqueue)'s
+    /// start).
+    fn padded_start(
+        &self,
+        onset: usize,
+    ) -> usize {
+        let start = onset.saturating_sub(self.pad).max(self.last_end);
+        (start / self.grid * self.grid).max(self.last_end)
+    }
+
     /// Pads a raw region as far as the stream allows, snaps it outward onto
     /// the encoder grid, and queues it.
     ///
@@ -2204,7 +2230,11 @@ mod tests {
 
             let mismatch =
                 ErrorMatcher::kind(BunsenErrorKind::Illegal).has_cause::<ConstraintError>();
-            let eight = SileroVad::load_8khz_pretrained(&device).unwrap();
+            // The rate check reads the model's geometry, not its weights.
+            let eight: SileroVad = crate::burner::module::ModuleInit::init(
+                &crate::kits::speech::silero_vad::SileroVadSignalConfig::standard_8khz(),
+                &device,
+            );
             mismatch.assert_err(&driver().with_vad(eight, filter()));
 
             let vad = SileroVad::load_16khz_pretrained(&device).unwrap();
@@ -2263,9 +2293,9 @@ mod tests {
             }
             emissions.extend(ctx.end_read().unwrap());
 
-            // (0, 16352) and (29728, 56800) from the gate's golden test,
+            // (0, 16864) and (29728, 57312) from the gate's golden test,
             // snapped outward onto the 320-sample grid.
-            let expected = [(0usize, 16_640usize), (29_440, 56_960)];
+            let expected = [(0usize, 16_960usize), (29_440, 57_600)];
             let window = driver.window_frames() as f64 * driver.audio_converter().hop() as f64
                 / driver.sample_rate() as f64;
             let close = |a: f64, b: f64| (a - b).abs() < 1e-9;
@@ -2294,8 +2324,8 @@ mod tests {
             assert!(!ctx.is_speaking());
             assert_eq!(
                 emissions.len(),
-                (104_usize).div_ceil(16) + (172_usize).div_ceil(16),
-                "a window at a time over 104 and 172 frames",
+                (106_usize).div_ceil(16) + (176_usize).div_ceil(16),
+                "a window at a time over 106 and 176 frames",
             );
         }
 
@@ -2316,7 +2346,7 @@ mod tests {
 
             let window = driver.window_frames() as f64 * driver.audio_converter().hop() as f64
                 / driver.sample_rate() as f64;
-            let (gap_start, gap_end) = (16_640.0 / RATE as f64, 29_440.0 / RATE as f64);
+            let (gap_start, gap_end) = (16_960.0 / RATE as f64, 29_440.0 / RATE as f64);
             let mut covered_to = 0.0_f64;
             for e in &emissions {
                 let s = e.segment();
@@ -2334,7 +2364,7 @@ mod tests {
                 covered_to = s.end;
             }
             assert!(
-                (covered_to - 56_960.0 / RATE as f64).abs() < 1e-9,
+                (covered_to - 57_600.0 / RATE as f64).abs() < 1e-9,
                 "covered to {covered_to}\n{emissions:#?}"
             );
             assert_eq!(ctx.regions_pending(), 0);

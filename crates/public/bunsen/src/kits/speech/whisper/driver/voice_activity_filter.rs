@@ -709,9 +709,9 @@ mod tests {
             let config = &VoiceActivityFilterConfig::fast_whisper_burn();
             let quick = config.speech_regions(&probs, total);
             assert_eq!(total, 64_000, "4.0 s at 16 kHz");
-            // "...the highest mountain?" to 1.02 s, the pause, then
+            // "...the highest mountain?" to 1.05 s, the pause, then
             // "Why, thirty-five years ago..." from 1.86 s.
-            assert_eq!(quick, regions(&[(0, 16_352), (29_728, 56_800)]));
+            assert_eq!(quick, regions(&[(0, 16_864), (29_728, 57_312)]));
 
             let config = &VoiceActivityFilterConfig::new();
             let patient = config.speech_regions(&probs, total);

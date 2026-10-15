@@ -38,9 +38,9 @@ driver and a `models` subcommand; the [model index](#models) and the name-to-mod
 - `data::pretrained::PretrainedCache` over `data::cache::BunsenDiskCache` — the cache directory (`--cache-dir`,
   `$BUNSEN_CACHE_DIR`, the platform's cache dir), and the digest-pinned resolve of every resource through it
   (`--offline`, `--upstream-cache-dir`).
-- `silero-weights` — `bundled:silero/vad`, the voice-activity model the `conservative` and `responsive` presets
-  gate on, loaded through `kits::speech::silero_vad::pretrained::default_silero_factory()` into the same cache as
-  the weights.
+- `silero/vad-16k` — upstream's 16 kHz Silero VAD, the voice-activity model the `conservative` and `responsive`
+  presets gate on, loaded through `kits::speech::silero_vad::pretrained::default_silero_factory()` into the same cache
+  as the weights, fetched on first use.
 - `kits::speech::whisper::driver` — `WhisperStreamDriverConfig`, `WhisperStreamContext`: the stream driver, with its
   emission presets, the timestamp seek loop, beams, per-stream language detection, and the fallback ladder behind
   flags. `live` anchors the context's `StreamClock` at each push's capture time (`anchor_write_read`), so segment
@@ -129,7 +129,7 @@ Decode options (shared by `transcribe` and `live`):
 
 - `--chunk-ms` — milliseconds of audio per push: how `transcribe` feeds a file, and how `live` batches the capture
   callbacks (default `1000` for `transcribe`, `250` for `live`). Rounded up to the driver's grain: whole mel hops,
-  encoder grid steps and VAD chunks, 2560 samples at 16 kHz with the bundled VAD, 320 without.
+  encoder grid steps and VAD chunks, 2560 samples at 16 kHz with Silero's VAD, 320 without.
 - `--language` — a Whisper language code; detected from the first window when omitted. `--task` — `transcribe` (default)
   or `translate`, to English.
 - `--timestamps` — emit timestamp tokens and split segments on them, seeking to the last closed timestamp as upstream's
@@ -141,8 +141,8 @@ Decode options (shared by `transcribe` and `live`):
   `--fallback false` for temperature zero alone.
 - `--preset` — `offline` (whole windows, never a draft), `conservative` (speech regions as well; every commit is
   final, and with `--timestamps` a decode's unfinished tail is also printed as a draft), `responsive` (conservative,
-  plus a draft every 600 ms of speech). The last two load the bundled VAD. The default is `offline`
-  for `transcribe` and `conservative` for `live`.
+  plus a draft every 600 ms of speech). The last two load the VAD, `silero/vad-16k`, through the cache. The default
+  is `offline` for `transcribe` and `conservative` for `live`.
 - `--ids` — print each segment's ids beside its text.
 
 `transcribe` adds `--print-filename`, `--strip-filename` and `--print-index`, for a run over many files.

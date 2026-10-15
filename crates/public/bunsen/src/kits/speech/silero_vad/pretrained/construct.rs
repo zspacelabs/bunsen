@@ -153,11 +153,14 @@ mod tests {
                 .reader,
             SileroReader::Safetensors
         );
-        #[cfg(feature = "silero-weights")]
+        // A burnpack given by path: unlabeled, read as a burnpack.
+        let mut burnpack = crate::data::pretrained::ResourceMap::new("a burnpack");
+        burnpack.insert(crate::data::pretrained::Resource::given(
+            BURNPACK,
+            "/models/silero_vad.bpk",
+        ));
         assert_eq!(
-            SileroConstruct::for_map(&super::super::BUNDLED_BURNPACK.to_map())
-                .unwrap()
-                .reader,
+            SileroConstruct::for_map(&burnpack).unwrap().reader,
             SileroReader::Burnpack
         );
     }

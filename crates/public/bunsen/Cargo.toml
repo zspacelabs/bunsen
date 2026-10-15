@@ -13,14 +13,14 @@ documentation = "https://docs.rs/bunsen/latest/"
 description = "bunsen is a batteries included common library for burn"
 
 # docs.rs builds this feature list, not `all-features`: `whisper-weights`
-# makes `bunsen-bundled-whisper`'s build script download ~145 MB, and docs.rs
-# builds have no network. The backends only change which device
+# and `silero-weights` make the bundled crates' build scripts download their
+# checkpoints, and docs.rs builds have no network. The backends only change which device
 # `support::testing::performance_device()` returns. The book's API links resolve
 # against this same list (`book/book.toml`, `build.docs-rs`), and so do CI's
 # isolated doc build and `cargo make doc`. docs.rs sets `--cfg docsrs`
 # itself, so there are no `rustdoc-args` here.
 [package.metadata.docs.rs]
-features = ["fetch", "indicatif", "silero-weights", "testing", "audit"]
+features = ["fetch", "indicatif", "testing", "audit"]
 
 [lints]
 workspace = true
@@ -160,10 +160,20 @@ tokenizer = [
     "dep:wordchipper",
 ]
 
-## Include the silero-vad pretrained weights in the build.
+## Make `bunsen-bundled-silero`'s pretrained cache directory available: it
+## fetches upstream's `silero_vad_16k.safetensors` at build time,
+## digest-pinned, and lays it out as a `PretrainedCache` root, where
+## `silero/vad-16k` resolves offline. bunsen's own tests read it; the
+## `SileroVad::load_16khz_pretrained` and
+## `SileroVadCollection::load_pretrained` shortcuts are this file.
+##
+## **This makes the build reach the network** on a cold cache (1.2 MB); see
+## `bunsen-bundled-silero`.
 silero-weights = [
     "store",
+    "store_safetensors",
     "dep:bunsen-bundled-silero",
+    "bunsen-bundled-silero/checkpoint",
 ]
 
 ## Make `bunsen-bundled-whisper`'s pretrained cache directory available: it

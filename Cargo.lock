@@ -1517,7 +1517,6 @@ dependencies = [
  "burn-onnx",
  "burn-store",
  "document-features",
- "sha2 0.11.0",
 ]
 
 [[package]]

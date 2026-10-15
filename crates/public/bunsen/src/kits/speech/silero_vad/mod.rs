@@ -13,10 +13,9 @@
 //! - [`pretrained`] (features `store` and `cache`, both default): how the
 //!   weights arrive.
 //!   [`default_silero_factory`](pretrained::default_silero_factory) is the
-//!   index: with the `silero-weights` feature, one row, `bundled:silero/vad`,
-//!   the burnpack linked into the binary and written into the cache under its
-//!   digest on first use. The loaders in [`pretrained::load`] read the same
-//!   bytes with no cache at all, for a binary that wants nothing else.
+//!   index: one row, `silero/vad-16k`, upstream's 16 kHz safetensors, fetched
+//!   into the cache on first use. The loaders in [`pretrained::load`] read a
+//!   file with no cache at all, for a binary that wants nothing else.
 //!
 //! The ONNX reference this was transliterated from, and the cross-checks
 //! against it, live in the `silero-model-validation` crate. There is
@@ -26,11 +25,11 @@
 //! # Example
 //!
 //! The default pathway, over any backend: a cache, the factory, the
-//! collection by name, the branch for the stream's rate, and a context fed
-//! chunk by chunk.
+//! collection by name, the branch for the stream's rate (16 kHz), and a
+//! context fed chunk by chunk.
 //!
 //! ```rust,no_run
-//! # #[cfg(all(feature = "store", feature = "cache"))] {
+//! # #[cfg(all(feature = "store_safetensors", feature = "cache"))] {
 //! use std::sync::Arc;
 //!
 //! use bunsen::{
@@ -53,12 +52,12 @@
 //!     Tensor,
 //! };
 //!
-//! /// The bundled model, both rates, on `device`: from the cache, or
-//! /// written into it from the binary on first use.
+//! /// Upstream's 16 kHz model on `device`: from the cache, or fetched into
+//! /// it on first use.
 //! fn load_vad(device: &Device) -> BunsenResult<Arc<SileroVadCollection>> {
 //!     let cache = PretrainedCache::new(PretrainedCacheOptions::default())?;
 //!     Ok(default_silero_factory()?
-//!         .load("bundled:silero/vad", &cache, device)?
+//!         .load("silero/vad-16k", &cache, device)?
 //!         .handle)
 //! }
 //!

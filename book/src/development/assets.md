@@ -59,24 +59,21 @@ with everything else.
 Shipping a model with a build doesn't need a special kind of source. It
 needs a cache directory that is already full
 ([bundling](../systems/pretrained.md#bundling-is-a-populated-cache-directory)).
-The two published bundled crates show the two forms:
+Every bundled crate hosts nothing: its build script fetches the files, pins
+each one, and lays them out in `OUT_DIR` as a pretrained cache. A cache rooted
+there finds them offline without knowing they were bundled.
 
-- [`bunsen_bundled_whisper`] hosts nothing. Its
-  build script fetches Whisper's `base` checkpoint, the vocabularies and,
-  for validation, the ONNX reference; pins each one; and lays them out in
-  `OUT_DIR` as a pretrained cache. A cache rooted there finds them offline
-  without knowing they were bundled. bunsen's `whisper-weights` feature
-  pulls this crate in, so that feature makes the build reach the network on
-  a cold cache.
-- [`bunsen_bundled_silero`] needs no network.
-  Silero's ONNX graph ships in the crate, and its build script converts the
-  graph to a burnpack that is linked into the binary. The burnpack's digest
-  is computed at build time, and the Silero kit's `bundled:silero/vad` row
-  is pinned to it.
+- [`bunsen_bundled_whisper`] fetches Whisper's `base` checkpoint, the
+  vocabularies and, for validation, the ONNX reference. bunsen's
+  `whisper-weights` feature pulls it in.
+- [`bunsen_bundled_silero`] fetches upstream's 16 kHz Silero VAD
+  checkpoint and, for validation, its ONNX graph, from which the reference
+  model is generated. bunsen's `silero-weights` feature pulls it in.
+- `bunsen-bundled-parakeet` and `bunsen-bundled-qwen3-asr` fetch the Phonon
+  checkpoints, the base models and the ONNX references for their validation
+  crates only, and are not published.
 
-`bunsen-bundled-parakeet` and `bunsen-bundled-qwen3-asr` take the Whisper
-form for their validation crates only: they fetch the Phonon checkpoints, the
-base models and the ONNX references, and are not published.
+So a `*-weights` feature makes the build reach the network on a cold cache.
 
 A deployment does the same thing at install time: fill the runtime cache
 ahead of time, and the program never needs `fetch`.
