@@ -1,17 +1,14 @@
 //! `phonon models`.
-use bunsen::{
-    errors::BunsenResult,
-    kits::speech::parakeet::pretrained::{
-        PARAKEET_KIT,
-        default_parakeet_factory,
-    },
-};
+use bunsen::errors::BunsenResult;
 use bunsen_app::logging::{
     LogArgs,
     LogLevelNum,
 };
 
-use crate::args::WeightsCacheArgs;
+use crate::{
+    args::WeightsCacheArgs,
+    transcriber::Kit,
+};
 
 /// Lists and fetches the models `--model` can name.
 #[derive(clap::Args, Debug)]
@@ -43,32 +40,46 @@ impl ModelsCmd {
     pub fn run(&self) -> BunsenResult<()> {
         self.logging.init(Some(LogLevelNum::Info))?;
         let cache = self.cache.init()?;
-        let factory = default_parakeet_factory()?;
         match &self.action {
             ModelsAction::List => {
                 println!("cache: {}", cache.cache_dir().display());
-                for (provider, row) in factory.list() {
-                    println!();
-                    println!("{provider}:{}", row.name);
-                    println!("  {}", row.description);
-                    if !row.aliases.is_empty() {
-                        println!("  aliases: {}", row.aliases.join(", "));
-                    }
-                    for (key, r) in &row.resources.resources {
-                        println!(
-                            "  {key}: {} ({}) [{}]",
-                            r.file,
-                            r.kind.as_deref().unwrap_or("unlabeled"),
-                            cache.status(PARAKEET_KIT, r)
-                        );
+                for kit in Kit::ALL {
+                    for (provider, row) in kit.list()? {
+                        println!();
+                        println!("{provider}:{}", row.name);
+                        println!("  {}", row.description);
+                        if !row.aliases.is_empty() {
+                            println!("  aliases: {}", row.aliases.join(", "));
+                        }
+                        for (key, r) in &row.resources.resources {
+                            println!(
+                                "  {key}: {} ({}) [{}]",
+                                r.file,
+                                r.kind.as_deref().unwrap_or("unlabeled"),
+                                cache.status(kit.cache_kit(), r)
+                            );
+                        }
                     }
                 }
                 Ok(())
             }
             ModelsAction::Fetch { names } => {
                 for name in names {
-                    let model = factory.resolve(name, &cache)?;
-                    let loaded = cache.load(PARAKEET_KIT, &model.to_map())?;
+                    let (kit, _) = Kit::of(name)?;
+                    let map = match kit {
+                        Kit::Parakeet => {
+                            bunsen::kits::speech::parakeet::pretrained::default_parakeet_factory()?
+                                .resolve(name, &cache)?
+                                .to_map()
+                        }
+                        Kit::Qwen3Asr => {
+                            bunsen::kits::speech::qwen3_asr::pretrained::default_qwen3_asr_factory(
+                            )?
+                            .resolve(name, &cache)?
+                            .to_map()
+                        }
+                    };
+                    let loaded = cache.load(kit.cache_kit(), &map)?;
                     for (key, part) in &loaded.parts {
                         println!(
                             "{name} {key}: {} ({})",

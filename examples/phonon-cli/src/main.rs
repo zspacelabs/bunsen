@@ -1,5 +1,5 @@
-//! `phonon`: speech to text with Parakeet TDT models on bunsen,
-//! `FermionResearch`'s Phonon-2 by default.
+//! `phonon`: speech to text with `FermionResearch`'s Phonon models on
+//! bunsen: Phonon-2 (Parakeet TDT) by default, and Phonon-1 (Qwen3-ASR).
 
 use bunsen::errors::BunsenResult;
 use clap::Parser;
@@ -7,6 +7,7 @@ use clap::Parser;
 mod args;
 mod models_cmd;
 mod transcribe_cmd;
+mod transcriber;
 
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]

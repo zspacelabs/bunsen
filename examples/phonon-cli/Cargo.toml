@@ -1,6 +1,6 @@
 [package]
 name = "phonon-cli"
-description = "Transcribes speech with Parakeet TDT models, FermionResearch's Phonon-2 by default, on bunsen."
+description = "Transcribes speech with FermionResearch's Phonon models on bunsen: Phonon-2 (Parakeet TDT) by default, and Phonon-1 (Qwen3-ASR)."
 publish = false
 authors.workspace = true
 edition.workspace = true
@@ -31,7 +31,7 @@ burn = { workspace = true }
 # The backend is chosen at run time with `--device`, from those compiled in
 # through this crate's backend features; the CPU is always there.
 #
-# `fermion` reads Phonon-2's archive; `indicatif` puts bunsen's progress bar
+# `fermion` reads the Phonon archives; `indicatif` puts bunsen's progress bar
 # on every weights transfer.
 bunsen = { path = "../../crates/public/bunsen", features = [
     "store_safetensors",

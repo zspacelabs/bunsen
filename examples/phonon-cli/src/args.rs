@@ -1,8 +1,5 @@
 //! Arguments shared by the commands.
-use std::{
-    path::PathBuf,
-    sync::Arc,
-};
+use std::path::PathBuf;
 
 use bunsen::{
     data::{
@@ -17,16 +14,14 @@ use bunsen::{
         BunsenResult,
         ResultContext,
     },
-    kits::speech::parakeet::{
-        ParakeetBundle,
-        pretrained::{
-            DEFAULT_PARAKEET_MODEL,
-            default_parakeet_factory,
-        },
-    },
 };
 use bunsen_app::device::BackendArgs;
 use burn::tensor::Device;
+
+use crate::transcriber::{
+    DEFAULT_MODEL,
+    Transcriber,
+};
 
 /// Where fetched weights live, and whether fetching is allowed.
 #[derive(clap::Args, Debug)]
@@ -55,8 +50,10 @@ impl WeightsCacheArgs {
 /// Which model, on which device.
 #[derive(clap::Args, Debug)]
 pub struct ModelArgs {
-    /// The model, by name: `models list` shows them.
-    #[arg(long, default_value = DEFAULT_PARAKEET_MODEL)]
+    /// The model, by name: `models list` shows them. Phonon-2
+    /// (`fermion/phonon-2`) and Phonon-1 (`fermion/phonon-1`, `-micro`,
+    /// `-big`) are `FermionResearch`'s.
+    #[arg(long, default_value = DEFAULT_MODEL)]
     pub model: String,
 
     #[clap(flatten)]
@@ -77,12 +74,12 @@ impl ModelArgs {
         self.device.init().map_err(BunsenError::unsupported)
     }
 
-    /// Loads `--model` through the cache.
-    pub fn load_bundle(
+    /// Loads `--model` through the cache, from whichever kit knows it.
+    pub fn load(
         &self,
         device: &Device,
-    ) -> BunsenResult<Arc<ParakeetBundle>> {
+    ) -> BunsenResult<Transcriber> {
         let cache = self.cache.init()?;
-        default_parakeet_factory()?.load_bundle(&self.model, &cache, device)
+        Transcriber::load(&self.model, &cache, device)
     }
 }
