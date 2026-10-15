@@ -26,6 +26,15 @@
 //! cross-attention) and you want KV-cached decoding without replacing the
 //! module.
 //!
+//! ## Relative positions
+//!
+//! [`rel_position_table`] and [`rel_shift`] are the two pieces of
+//! Transformer-XL relative-position attention that are not weights: the
+//! sinusoidal table of relative positions, and the shift that aligns
+//! query-by-position scores into query-by-key scores. The Conformer's
+//! [`RelPosSelfAttention`](crate::blocks::conformer::RelPosSelfAttention)
+//! block is built on them.
+//!
 //! ## Two caches
 //!
 //! Both caches are *injected*: the caller builds one per decode and passes
@@ -80,10 +89,12 @@ mod attend;
 mod attn_kv_pair;
 mod causal_mask;
 mod kv_cache;
+mod rel_pos;
 mod sdpa;
 
 pub use attend::*;
 pub use attn_kv_pair::*;
 pub use causal_mask::*;
 pub use kv_cache::*;
+pub use rel_pos::*;
 pub use sdpa::*;

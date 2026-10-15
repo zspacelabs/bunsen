@@ -40,6 +40,9 @@
 //!
 //! ## Map of the module
 //!
+//! - [`conformer`]: the `FastConformer` encoder and its parts:
+//!   relative-position self-attention, the convolution and feed-forward
+//!   modules, the Conformer block, and depthwise-striding subsampling.
 //! - [`conv`]: conv / norm / activation blocks, in 1D and 2D (`ConvBlock1d`,
 //!   `ConvBlock2d`), and sequences of them (`ConvSeq1d`, `ConvSeq2d`).
 //! - [`images`]: vision blocks.
@@ -65,6 +68,7 @@
 //! [`KVCache`]: crate::ops::transformers::attention::KVCache
 //! [`ModuleInit`]: crate::burner::module::ModuleInit
 
+pub mod conformer;
 pub mod conv;
 pub mod images;
 pub mod rnn;
