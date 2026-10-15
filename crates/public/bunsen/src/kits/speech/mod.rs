@@ -1,12 +1,14 @@
 //! # Speech models
 //!
-//! Three kits that work on audio, and the way two of them connect:
+//! Four kits that work on audio, and the way two of them connect:
 //!
 //! - [`whisper`]: `OpenAI`'s Whisper, speech to text. The model, an index of
 //!   pretrained checkpoints, the decoders, and a stream driver that turns audio
 //!   written in chunks into timed transcript events.
 //! - [`parakeet`]: NVIDIA's Parakeet TDT, speech to text: a `FastConformer`
 //!   encoder and a token-and-duration transducer.
+//! - [`qwen3_asr`]: Qwen's Qwen3-ASR, speech to text: a Whisper-style audio
+//!   encoder feeding a Qwen3 language model.
 //! - [`silero_vad`]: the Silero voice-activity detector. A small recurrent
 //!   model that gives, per chunk of audio, the probability that it holds
 //!   speech.
@@ -57,6 +59,7 @@
 //! policy, and voice-activity regions as sub-streams.
 
 pub mod parakeet;
+pub mod qwen3_asr;
 pub mod silero_vad;
 
 pub mod whisper;

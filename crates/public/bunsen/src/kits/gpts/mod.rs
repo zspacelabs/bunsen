@@ -10,6 +10,8 @@
 //!
 //! - [`nanochat`]: a port of the GPT in karpathy's nanochat, and the corpus it
 //!   trains on. Work in progress.
+//! - [`qwen3`]: the Qwen3 decoder, the text model of
+//!   [`speech::qwen3_asr`](crate::kits::speech::qwen3_asr).
 //!
 //! Tokenizers and training loops are not part of a kit:
 //! `examples/train-chat` brings its own (a `wordchipper` tokenizer, burn's
@@ -17,3 +19,4 @@
 //! [`NanoChatGpt`](nanochat::NanoChatGpt).
 
 pub mod nanochat;
+pub mod qwen3;

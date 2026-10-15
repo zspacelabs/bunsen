@@ -19,6 +19,10 @@
 //! special-token splitter — is `wordchipper`'s whole job, and a kit that needs
 //! it should use that crate directly.
 //!
+//! [`ByteLevelVocabulary`] reads the other common spelling of a byte-level
+//! vocabulary, `transformers`' `vocab.json` / `tokenizer.json` (GPT-2's, and
+//! Qwen's), into the same `{ id -> bytes }` table.
+//!
 //! # Whisper-specific helpers
 //!
 //! [`SYMBOLS`], [`MISCELLANEOUS`], [`non_speech_tokens`] and
@@ -39,7 +43,9 @@ mod wordchipper;
 #[cfg(feature = "tokenizer")]
 pub use wordchipper::WordchipperDetokenizer;
 
+mod byte_level;
 mod tiktoken_util;
+pub use byte_level::*;
 pub use tiktoken_util::*;
 
 /// Turns token ids into text.
