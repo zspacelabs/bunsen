@@ -16,15 +16,20 @@ workspace = true
 [features]
 default = []
 
-## Fetch the reference graphs and generate the models from them.
+## Fetch the reference graphs and generate the models from them, and pull in
+## the checkpoints compared against them: NVIDIA's `parakeet-tdt-0.6b-v3`,
+## whose weights the graphs carry, and `FermionResearch`'s Phonon-2.
 ##
 ## **Off by default.** Enabling this makes `bunsen-bundled-parakeet`'s build
-## reach the network on a cold cache (~2.5 GB), which a plain
+## reach the network on a cold cache (~5 GB), which a plain
 ## `cargo build --workspace` must never do. Every asset is verified against a
 ## pinned SHA-256, so a warm build is offline and reproducible.
 download = [
+    "bunsen/fermion",
     "dep:bunsen-bundled-parakeet",
     "bunsen-bundled-parakeet/onnx_gen",
+    "bunsen-bundled-parakeet/checkpoint",
+    "bunsen-bundled-parakeet/base_checkpoint",
 ]
 
 ## Compile every test that loads a model.

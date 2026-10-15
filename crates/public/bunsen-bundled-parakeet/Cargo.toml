@@ -1,6 +1,6 @@
 [package]
 name = "bunsen-bundled-parakeet"
-description = "Bunsen bundled Parakeet TDT assets: fetches the ONNX export of NVIDIA's parakeet-tdt-0.6b-v3 at build time, digest-pinned, and generates Rust reference models from it. Hosts none."
+description = "Bunsen bundled Parakeet TDT assets: fetches FermionResearch's Phonon-2, NVIDIA's parakeet-tdt-0.6b-v3 and its ONNX export at build time, digest-pinned, each behind a feature, and generates Rust reference models from the export. Hosts none."
 publish = false
 
 authors.workspace = true
@@ -25,8 +25,24 @@ workspace = true
 
 [features]
 ## Nothing by default: building this crate as a workspace member fetches
-## nothing. `parakeet-model-validation/download` turns on `onnx_gen`.
+## nothing. `parakeet-model-validation/download` turns on every feature.
 default = []
+
+## Fetch `FermionResearch`'s Phonon-2 archive (`phonon-2.bps.tar.zst`,
+## 164 MB), laid out under `cache_dir()`.
+##
+## A bunsen pretrained cache rooted at that directory resolves
+## `fermion/phonon-2` from it, offline.
+checkpoint = []
+
+## Fetch NVIDIA's `parakeet-tdt-0.6b-v3` as `transformers` ships it
+## (`model.safetensors`, 2.5 GB, and `tokenizer.json`), laid out under
+## `cache_dir()`.
+##
+## A bunsen pretrained cache rooted at that directory resolves
+## `nvidia/parakeet-tdt-0.6b-v3` from it, offline. These are the weights the
+## `onnx_gen` reference carries.
+base_checkpoint = []
 
 ## Fetch the `istupakov/parakeet-tdt-0.6b-v3-onnx` export of NVIDIA's
 ## `parakeet-tdt-0.6b-v3` (~2.5 GB) and generate Rust models from it, in

@@ -1,6 +1,9 @@
 //! Fetches the Parakeet TDT assets.
 //!
-//! One set, behind its feature: `onnx_gen` is the `istupakov` ONNX export of
+//! Three sets, each behind its own feature: `checkpoint` is
+//! `FermionResearch`'s Phonon-2 archive, `base_checkpoint` is NVIDIA's
+//! `parakeet-tdt-0.6b-v3` as `transformers` ships it, both laid out as a
+//! bunsen pretrained cache, and `onnx_gen` is the `istupakov` ONNX export of
 //! NVIDIA's `parakeet-tdt-0.6b-v3` that `parakeet-model-validation` compares
 //! bunsen against: its encoder graph and its prediction-and-joint graph. The
 //! export's feature-extractor graph (`nemo128.onnx`) is not generated:
@@ -13,7 +16,8 @@
 //! * Assets land in `OUT_DIR`, the one directory a build script may write to.
 //! * Every asset is pinned to a SHA-256 and re-verified on each build. A cached
 //!   copy that fails is deleted and re-fetched once.
-//! * `PARAKEET_ONNX_ENCODER`, `PARAKEET_ONNX_ENCODER_DATA` and
+//! * `PHONON_2_ARCHIVE`, `PARAKEET_SAFETENSORS`, `PARAKEET_TOKENIZER`,
+//!   `PARAKEET_ONNX_ENCODER`, `PARAKEET_ONNX_ENCODER_DATA` and
 //!   `PARAKEET_ONNX_DECODER_JOINT` point the build at local files instead, for
 //!   working offline or against a different export. An override that is the
 //!   pinned file is laid out where the download would have gone; one that is
@@ -86,16 +90,102 @@ const DECODER_JOINT: Asset = Asset {
     local: "parakeet_decoder_joint.onnx",
 };
 
+/// The root segment of the pretrained cache layout,
+/// `pretrained/<kit>/<namespace>/<sha256>/<file>`.
+const PRETRAINED_DIR: &str = "pretrained";
+
+/// The Parakeet kit's segment of the layout: `PARAKEET_KIT` in bunsen.
+const PARAKEET_KIT: &str = "parakeet";
+
+/// A pretrained asset: an [`Asset`] fetched from its own URL into the cache
+/// layout under `namespace`, and the compile-time variable naming its path.
+struct Pretrained {
+    asset: Asset,
+    url: &'static str,
+    namespace: &'static str,
+    path_var: &'static str,
+}
+
+/// `FermionResearch/Phonon-2`'s archive, at the revision bunsen's
+/// `fermion/phonon-2` row pins.
+const PHONON_2: Pretrained = Pretrained {
+    asset: Asset {
+        override_var: "PHONON_2_ARCHIVE",
+        remote: "phonon-2.bps.tar.zst",
+        sha256: "98125795b6dda72f5c6eee9ba33d19815df65dcb18b50a357bf9f73c9935309e",
+        local: "phonon-2.bps.tar.zst",
+    },
+    url: "https://huggingface.co/FermionResearch/Phonon-2/resolve/7e153e4054c0a10db6d47d6fff5c062d4c77c154/phonon-2.bps.tar.zst",
+    namespace: "fermion",
+    path_var: "PHONON_2_ARCHIVE_PATH",
+};
+
+/// `nvidia/parakeet-tdt-0.6b-v3`'s checkpoint, at the revision bunsen's
+/// `nvidia/parakeet-tdt-0.6b-v3` row pins.
+const BASE_SAFETENSORS: Pretrained = Pretrained {
+    asset: Asset {
+        override_var: "PARAKEET_SAFETENSORS",
+        remote: "model.safetensors",
+        sha256: "3a2026366188c8c68598edbbff92f8d11590a08e0ae2e6775544e7b07d6a5e11",
+        local: "model.safetensors",
+    },
+    url: "https://huggingface.co/nvidia/parakeet-tdt-0.6b-v3/resolve/541d1f99c6b0c3cd0b11a95167540bb8edefd82b/model.safetensors",
+    namespace: "nvidia",
+    path_var: "PARAKEET_SAFETENSORS_PATH",
+};
+
+/// `nvidia/parakeet-tdt-0.6b-v3`'s vocabulary.
+const BASE_TOKENIZER: Pretrained = Pretrained {
+    asset: Asset {
+        override_var: "PARAKEET_TOKENIZER",
+        remote: "tokenizer.json",
+        sha256: "bd321b096832a3f270bd3b2a88823957920f1a5c5ada71114a26ea729d0cbe91",
+        local: "tokenizer.json",
+    },
+    url: "https://huggingface.co/nvidia/parakeet-tdt-0.6b-v3/resolve/541d1f99c6b0c3cd0b11a95167540bb8edefd82b/tokenizer.json",
+    namespace: "nvidia",
+    path_var: "PARAKEET_TOKENIZER_PATH",
+};
+
 fn main() {
     println!("cargo:rerun-if-changed=build.rs");
     for asset in [&ENCODER, &ENCODER_DATA, &DECODER_JOINT] {
         println!("cargo:rerun-if-env-changed={}", asset.override_var);
+    }
+    for p in [&PHONON_2, &BASE_SAFETENSORS, &BASE_TOKENIZER] {
+        println!("cargo:rerun-if-env-changed={}", p.asset.override_var);
+    }
+    println!(
+        "cargo:rustc-env=PARAKEET_CACHE_DIR={}",
+        cache_dir().display()
+    );
+
+    #[cfg(feature = "checkpoint")]
+    fetch_pretrained(&PHONON_2);
+
+    #[cfg(feature = "base_checkpoint")]
+    for p in [&BASE_SAFETENSORS, &BASE_TOKENIZER] {
+        fetch_pretrained(p);
     }
 
     // `cfg` rather than a `CARGO_FEATURE_*` lookup: `burn_onnx` is an
     // optional build-dependency, so without the feature it is not linked.
     #[cfg(feature = "onnx_gen")]
     generate_reference();
+}
+
+/// Fetches a pretrained asset into the cache layout,
+/// `pretrained/parakeet/<namespace>/<sha256>/<file>`, and names its path as
+/// a compile-time variable.
+fn fetch_pretrained(p: &Pretrained) {
+    let dest = cache_dir()
+        .join(PRETRAINED_DIR)
+        .join(PARAKEET_KIT)
+        .join(p.namespace)
+        .join(p.asset.sha256)
+        .join(p.asset.local);
+    let path = resolve_to(&p.asset, p.url, &dest);
+    println!("cargo:rustc-env={}={}", p.path_var, path.display());
 }
 
 /// Fetches the ONNX export and generates Rust models from it.
@@ -144,7 +234,17 @@ fn cache_dir() -> PathBuf {
 /// asset is laid out where the download would have gone; one that is not
 /// stays where it is.
 fn resolve_asset(asset: &Asset) -> PathBuf {
-    let dest = cache_dir().join(asset.local);
+    let url = format!("{ONNX_BASE_URL}/{}", asset.remote);
+    resolve_to(asset, &url, &cache_dir().join(asset.local))
+}
+
+/// [`resolve_asset`], from `url` to `dest`.
+fn resolve_to(
+    asset: &Asset,
+    url: &str,
+    dest: &Path,
+) -> PathBuf {
+    let dest = dest.to_path_buf();
     let override_var = asset.override_var;
     if let Some(local) = env::var_os(override_var) {
         let path = PathBuf::from(local);
@@ -176,8 +276,7 @@ fn resolve_asset(asset: &Asset) -> PathBuf {
         };
     }
 
-    let url = format!("{ONNX_BASE_URL}/{}", asset.remote);
-    fetch_verified(&url, asset.sha256, &dest)
+    fetch_verified(url, asset.sha256, &dest)
 }
 
 /// Puts `src` at `dest`: a symlink where the platform has them, else a copy.

@@ -288,9 +288,101 @@ pub fn synthetic_waveform(
     Tensor::from_data(TensorData::new(data, [1, n_samples]), device)
 }
 
+/// The pretrained cache the checkpoints come through.
+///
+/// Under `download`, it is rooted at `bunsen-bundled-parakeet`'s directory,
+/// which its build laid out as one, and offline: nothing is fetched at run
+/// time. Routing the checkpoints through the library's own factory is also
+/// what this crate is validating. Without `download` it is the default
+/// cache, which fetches on first use.
+pub fn weights_cache() -> bunsen::data::pretrained::PretrainedCache {
+    use bunsen::data::pretrained::{
+        PretrainedCache,
+        PretrainedCacheOptions,
+    };
+    #[cfg(feature = "download")]
+    let options = PretrainedCacheOptions::default()
+        .with_disk(
+            bunsen::data::cache::BunsenDiskCacheOptions::default()
+                .with_cache_dir(Some(bunsen_bundled_parakeet::cache_dir().to_path_buf())),
+        )
+        .with_offline(true);
+    #[cfg(not(feature = "download"))]
+    let options = PretrainedCacheOptions::default();
+    PretrainedCache::new(options).expect("open the pretrained cache")
+}
+
+/// A Parakeet pretrained by name, through bunsen's factory and
+/// [`weights_cache`].
+pub fn load_bundle(
+    name: &str,
+    device: &Device,
+) -> std::sync::Arc<bunsen::kits::speech::parakeet::ParakeetBundle> {
+    bunsen::kits::speech::parakeet::pretrained::default_parakeet_factory()
+        .expect("the parakeet factory")
+        .load_bundle(name, &weights_cache(), device)
+        .unwrap_or_else(|e| panic!("load {name}: {e}"))
+}
+
+/// A clip from `whisper-model-validation`'s speech fixtures, at 16 kHz.
+pub fn speech_clip(name: &str) -> Vec<f32> {
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../whisper-model-validation/testdata")
+        .join(name);
+    bunsen::support::audio::load_audio_mono_sr(&path, 16000)
+        .unwrap_or_else(|e| panic!("load {}: {e}", path.display()))
+}
+
+/// The ground-truth transcript of a clip from `whisper-model-validation`'s
+/// speech fixtures.
+pub fn speech_transcript(name: &str) -> String {
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../whisper-model-validation/testdata")
+        .join(name)
+        .with_extension("txt");
+    std::fs::read_to_string(&path).unwrap_or_else(|e| panic!("read {}: {e}", path.display()))
+}
+
+/// `testdata/phonon2_jfk_moon.json`: Phonon-2's own reference path
+/// (`transformers`) on `jfk_moon.mp3`, written by
+/// `tools/gen_phonon2_fixture.py`.
+#[derive(Debug, Deserialize)]
+pub struct Phonon2Reference {
+    /// The clip.
+    pub clip: String,
+
+    /// The transcript `transformers` decodes.
+    pub text: String,
+
+    /// The emitted tokens, blanks dropped.
+    pub ids: Vec<usize>,
+
+    /// The encoder frame each token was emitted at.
+    pub frames: Vec<usize>,
+}
+
+/// Reads `testdata/phonon2_jfk_moon.json`.
+pub fn phonon2_reference() -> Phonon2Reference {
+    let path = concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/testdata/phonon2_jfk_moon.json"
+    );
+    let text = std::fs::read_to_string(path).expect("read the phonon-2 fixture");
+    serde_json::from_str(&text).expect("parse the phonon-2 fixture")
+}
+
 /// The generated reference models, held to the onnxruntime fixture.
 #[cfg(all(test, feature = "download", feature = "gpu-tests"))]
 mod reference_tests;
+
+/// bunsen's Parakeet, stage by stage, against the generated reference.
+#[cfg(all(test, feature = "download", feature = "gpu-tests"))]
+mod staged;
+
+/// Transcriptions of real speech: bunsen against the references and the
+/// ground truth.
+#[cfg(all(test, feature = "download", feature = "gpu-tests"))]
+mod speech;
 
 #[cfg(test)]
 mod tests {
@@ -322,6 +414,13 @@ mod tests {
             assert!(step.duration_argmax < N_DURATIONS);
             assert_eq!(step.output_states_1.shape, [2, 1, D_PRED]);
         }
+
+        let phonon = phonon2_reference();
+        assert_eq!(phonon.clip, fixture.speech.clip);
+        assert_eq!(phonon.ids.len(), phonon.frames.len());
+        assert!(phonon.ids.iter().all(|&id| id < BLANK));
+        assert!(phonon.frames.windows(2).all(|w| w[0] <= w[1]));
+        assert!(phonon.text.starts_with("the moon."));
 
         let speech = &fixture.speech;
         assert!(!speech.ids.is_empty());
