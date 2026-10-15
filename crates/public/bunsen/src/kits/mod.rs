@@ -16,10 +16,12 @@
 //! | [`images::resnet`] | `ResNet` image classifiers, with 14 torchvision and `timm` checkpoints by name. |
 //! | [`images::swin::v2`] | Swin Transformer V2 image classifiers: configs and model, no pretrained weights. |
 //! | [`gpts::nanochat`] | A port of karpathy's nanochat GPT, and the corpus it trains on. Work in progress. |
+//! | [`gpts::qwen3`] | The Qwen3 decoder: the text model of [`speech::qwen3_asr`], no weights of its own. |
 //! | [`sims::conway`] | Conway's Game of Life on toroidal 2D and 3D boards. |
 //! | [`sims::lbm`] | A D2Q9 lattice-Boltzmann fluid, with a mass correction. |
 //! | [`speech::whisper`] | `OpenAI`'s Whisper: the model, a pretrained index, decoders, and a stream driver. |
 //! | [`speech::parakeet`] | NVIDIA's Parakeet TDT: the model, a pretrained index (`FermionResearch`'s Phonon-2 by default), and greedy decoding. |
+//! | [`speech::qwen3_asr`] | Qwen's Qwen3-ASR: the model, a pretrained index (`FermionResearch`'s Phonon-1 by default), the prompt, and greedy decoding. |
 //! | [`speech::silero_vad`] | The Silero voice-activity detector, with weights a build can bundle. |
 //! | [`tokens`] | Not a model: the ids-to-text seam the model kits share. |
 //!
@@ -76,21 +78,21 @@
 //! resources are, how a factory dispatches a spec, and how the cache
 //! fetches and pins files. A kit contributes tables and a hook.
 //!
-//! The three kits that load weights, piece by piece:
+//! The kits that load weights, piece by piece:
 //!
-//! | Piece | `ResNet` | Whisper | Silero VAD | Parakeet |
-//! |---|---|---|---|---|
-//! | Configs | [`ResNetContractConfig`](images::resnet::ResNetContractConfig) -> [`ResNetStructureConfig`](images::resnet::ResNetStructureConfig) | [`WhisperApiConfig`](speech::whisper::WhisperApiConfig) -> [`WhisperStructureConfig`](speech::whisper::WhisperStructureConfig) | [`SileroVadSignalConfig`](speech::silero_vad::SileroVadSignalConfig) -> [`SileroVadStftConfig`](speech::silero_vad::SileroVadStftConfig) -> [`SileroVadStructureConfig`](speech::silero_vad::SileroVadStructureConfig) | [`ParakeetTdtConfig`](speech::parakeet::ParakeetTdtConfig) |
-//! | Prefab map | [`RESNET_PREFABS`](images::resnet::pretrained::RESNET_PREFABS) | [`WHISPER_PREFABS`](speech::whisper::pretrained::WHISPER_PREFABS) | none | none |
-//! | Table | [`WELL_KNOWN_TABLE`](images::resnet::pretrained::WELL_KNOWN_TABLE) | [`WELL_KNOWN_TABLE`](speech::whisper::pretrained::WELL_KNOWN_TABLE), a bundled table, and `hf:` | a bundled table | [`WELL_KNOWN_TABLE`](speech::parakeet::pretrained::WELL_KNOWN_TABLE) |
-//! | Providers | [`default_resnet_providers`](images::resnet::pretrained::default_resnet_providers) | [`default_whisper_providers`](speech::whisper::pretrained::default_whisper_providers) | [`default_silero_providers`](speech::silero_vad::pretrained::default_silero_providers) | [`default_parakeet_providers`](speech::parakeet::pretrained::default_parakeet_providers) |
-//! | Hook | [`ResNetConstruct`](images::resnet::pretrained::ResNetConstruct) | [`WhisperConstruct`](speech::whisper::pretrained::WhisperConstruct) | [`SileroConstruct`](speech::silero_vad::pretrained::SileroConstruct) | [`ParakeetConstruct`](speech::parakeet::pretrained::ParakeetConstruct) |
-//! | Factory | [`default_resnet_factory`](images::resnet::pretrained::default_resnet_factory) | [`default_whisper_factory`](speech::whisper::pretrained::default_whisper_factory) | [`default_silero_factory`](speech::silero_vad::pretrained::default_silero_factory) | [`default_parakeet_factory`](speech::parakeet::pretrained::default_parakeet_factory) |
-//! | Built | [`ResNet`](images::resnet::ResNet) | [`WhisperBundle`](speech::whisper::driver::WhisperBundle): model, token layout, vocabulary | [`SileroVadCollection`](speech::silero_vad::SileroVadCollection): one model per sample rate | [`ParakeetBundle`](speech::parakeet::ParakeetBundle): model, front end, vocabulary |
-//! | Driver, context | none | [`WhisperStreamDriver`](speech::whisper::driver::WhisperStreamDriver), [`WhisperStreamContext`](speech::whisper::driver::WhisperStreamContext) | [`SileroVadContext`](speech::silero_vad::SileroVadContext) | none; [`TdtPredictionState`](speech::parakeet::blocks::TdtPredictionState) per decode |
-//! | Bundled crate | none | `bunsen-bundled-whisper` (`whisper-weights`) | `bunsen-bundled-silero` (`silero-weights`) | `bunsen-bundled-parakeet` (validation only) |
-//! | Validation crate | none | `whisper-model-validation` | `silero-model-validation` | `parakeet-model-validation` |
-//! | Example | `examples/resnet_finetune`, `examples/resnet_tiny` | `examples/whisper-cli` | `examples/whisper-cli`, as the VAD gate | `examples/phonon-cli` |
+//! | Piece | `ResNet` | Whisper | Silero VAD | Parakeet | Qwen3-ASR |
+//! |---|---|---|---|---|---|
+//! | Configs | [`ResNetContractConfig`](images::resnet::ResNetContractConfig) -> [`ResNetStructureConfig`](images::resnet::ResNetStructureConfig) | [`WhisperApiConfig`](speech::whisper::WhisperApiConfig) -> [`WhisperStructureConfig`](speech::whisper::WhisperStructureConfig) | [`SileroVadSignalConfig`](speech::silero_vad::SileroVadSignalConfig) -> [`SileroVadStftConfig`](speech::silero_vad::SileroVadStftConfig) -> [`SileroVadStructureConfig`](speech::silero_vad::SileroVadStructureConfig) | [`ParakeetTdtConfig`](speech::parakeet::ParakeetTdtConfig) | [`Qwen3AsrConfig`](speech::qwen3_asr::Qwen3AsrConfig) |
+//! | Prefab map | [`RESNET_PREFABS`](images::resnet::pretrained::RESNET_PREFABS) | [`WHISPER_PREFABS`](speech::whisper::pretrained::WHISPER_PREFABS) | none | none | [`QWEN3_ASR_PREFABS`](speech::qwen3_asr::pretrained::QWEN3_ASR_PREFABS) |
+//! | Table | [`WELL_KNOWN_TABLE`](images::resnet::pretrained::WELL_KNOWN_TABLE) | [`WELL_KNOWN_TABLE`](speech::whisper::pretrained::WELL_KNOWN_TABLE), a bundled table, and `hf:` | a bundled table | [`WELL_KNOWN_TABLE`](speech::parakeet::pretrained::WELL_KNOWN_TABLE) | [`WELL_KNOWN_TABLE`](speech::qwen3_asr::pretrained::WELL_KNOWN_TABLE) |
+//! | Providers | [`default_resnet_providers`](images::resnet::pretrained::default_resnet_providers) | [`default_whisper_providers`](speech::whisper::pretrained::default_whisper_providers) | [`default_silero_providers`](speech::silero_vad::pretrained::default_silero_providers) | [`default_parakeet_providers`](speech::parakeet::pretrained::default_parakeet_providers) | [`default_qwen3_asr_providers`](speech::qwen3_asr::pretrained::default_qwen3_asr_providers) |
+//! | Hook | [`ResNetConstruct`](images::resnet::pretrained::ResNetConstruct) | [`WhisperConstruct`](speech::whisper::pretrained::WhisperConstruct) | [`SileroConstruct`](speech::silero_vad::pretrained::SileroConstruct) | [`ParakeetConstruct`](speech::parakeet::pretrained::ParakeetConstruct) | [`Qwen3AsrConstruct`](speech::qwen3_asr::pretrained::Qwen3AsrConstruct) |
+//! | Factory | [`default_resnet_factory`](images::resnet::pretrained::default_resnet_factory) | [`default_whisper_factory`](speech::whisper::pretrained::default_whisper_factory) | [`default_silero_factory`](speech::silero_vad::pretrained::default_silero_factory) | [`default_parakeet_factory`](speech::parakeet::pretrained::default_parakeet_factory) | [`default_qwen3_asr_factory`](speech::qwen3_asr::pretrained::default_qwen3_asr_factory) |
+//! | Built | [`ResNet`](images::resnet::ResNet) | [`WhisperBundle`](speech::whisper::driver::WhisperBundle): model, token layout, vocabulary | [`SileroVadCollection`](speech::silero_vad::SileroVadCollection): one model per sample rate | [`ParakeetBundle`](speech::parakeet::ParakeetBundle): model, front end, vocabulary | [`Qwen3AsrBundle`](speech::qwen3_asr::Qwen3AsrBundle): model, front end, vocabulary, prompt, decoder |
+//! | Driver, context | none | [`WhisperStreamDriver`](speech::whisper::driver::WhisperStreamDriver), [`WhisperStreamContext`](speech::whisper::driver::WhisperStreamContext) | [`SileroVadContext`](speech::silero_vad::SileroVadContext) | none; [`TdtPredictionState`](speech::parakeet::blocks::TdtPredictionState) per decode | none; a [`KVCache`](crate::ops::transformers::attention::KVCache) per decode |
+//! | Bundled crate | none | `bunsen-bundled-whisper` (`whisper-weights`) | `bunsen-bundled-silero` (`silero-weights`) | `bunsen-bundled-parakeet` (validation only) | `bunsen-bundled-qwen3-asr` (validation only) |
+//! | Validation crate | none | `whisper-model-validation` | `silero-model-validation` | `parakeet-model-validation` | `qwen3-asr-model-validation` |
+//! | Example | `examples/resnet_finetune`, `examples/resnet_tiny` | `examples/whisper-cli` | `examples/whisper-cli`, as the VAD gate | `examples/phonon-cli` | `examples/phonon-cli` |
 //!
 //! The other kits have a model or a simulation state, its configs, and an
 //! example, and no prefabs or weights. Swin is Stacked
