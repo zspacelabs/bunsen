@@ -1,10 +1,19 @@
 //! Loading `transformers`-named tensors into a [`ParakeetTdt`].
 use burn::store::burn_pack::Tensor as PackTensor;
 
-use super::blocks::ParakeetTdt;
+use super::blocks::{
+    ParakeetTdt,
+    ParakeetTdtConfig,
+};
 use crate::{
-    blocks::conformer::DwStridingSubsamplingMeta,
+    blocks::conformer::{
+        ConformerBlockConfig,
+        ConformerEncoderConfig,
+        DwStridingSubsamplingConfig,
+        DwStridingSubsamplingMeta,
+    },
     data::pretrained::{
+        HfConfigJson,
         NamedTensorsApplied,
         apply_named_tensors,
     },
@@ -89,6 +98,65 @@ pub fn load_hf_tensors(
     apply_named_tensors(model, tensors, |name| hf_to_bunsen_path(name, n_stages))
 }
 
+/// The [`ParakeetTdtConfig`] of a `transformers` `ParakeetForTDT`
+/// `config.json`: what an `hf:` repo's geometry is.
+///
+/// The encoder's sizes, the prediction network's width and depth, the
+/// vocabulary and the durations come from the file. What bunsen's model fixes
+/// is checked: a TDT model (`model_type` `parakeet_tdt`), 128 mel bins (the
+/// front end's), and depthwise-striding subsampling of kernel 3 and stride 2.
+///
+/// # Errors
+/// [`InvalidResource`](crate::errors::BunsenErrorKind::InvalidResource),
+/// naming the field, when the file lacks one or does not parse;
+/// [`Unsupported`](crate::errors::BunsenErrorKind::Unsupported), naming the
+/// field and its value, for a model bunsen's Parakeet is not (a CTC model,
+/// another subsampling).
+pub fn parakeet_config_from_hf(json: &str) -> BunsenResult<ParakeetTdtConfig> {
+    let c = HfConfigJson::parse(json)?;
+    c.expect_str("model_type", "parakeet_tdt")?;
+    let e = c.section("encoder_config")?;
+    e.expect_eq("num_mel_bins", e.usize("num_mel_bins")?, 128)?;
+    e.expect_eq(
+        "subsampling_conv_kernel_size",
+        e.usize("subsampling_conv_kernel_size")?,
+        3,
+    )?;
+    e.expect_eq(
+        "subsampling_conv_stride",
+        e.usize("subsampling_conv_stride")?,
+        2,
+    )?;
+    let factor = e.usize("subsampling_factor")?;
+    if !factor.is_power_of_two() || factor < 2 {
+        return Err(crate::errors::BunsenError::unsupported(format!(
+            "config.json: `encoder_config.subsampling_factor` is {factor}, not a power of two"
+        )));
+    }
+    let d_model = e.usize("hidden_size")?;
+    let encoder = ConformerEncoderConfig::new(
+        DwStridingSubsamplingConfig::new(128, e.usize("subsampling_conv_channels")?, d_model)
+            .with_n_stages(factor.trailing_zeros() as usize),
+        ConformerBlockConfig::new(
+            d_model,
+            e.usize("num_attention_heads")?,
+            e.usize("intermediate_size")?,
+            e.usize("conv_kernel_size")?,
+        )
+        .with_bias(e.bool_or("attention_bias", true)?)
+        .with_conv_bias(e.bool_or("convolution_bias", true)?),
+        e.usize("num_hidden_layers")?,
+    )
+    .with_scale_input(e.bool_or("scale_input", false)?);
+    Ok(ParakeetTdtConfig::new(
+        encoder,
+        c.usize("vocab_size")?,
+        c.usize("decoder_hidden_size")?,
+    )
+    .with_n_pred_layers(c.usize("num_decoder_layers")?)
+    .with_durations(c.usizes("durations")?))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -167,5 +235,34 @@ mod tests {
         ] {
             assert_eq!(hf_to_bunsen_path(hf, 3).as_deref(), bunsen, "{hf}");
         }
+    }
+
+    /// `nvidia/parakeet-tdt-0.6b-v3`'s `config.json` is the built-in
+    /// geometry; a CTC model's is refused by its `model_type`.
+    #[test]
+    fn test_parakeet_config_from_hf() {
+        const V3: &str = r#"{"architectures": ["ParakeetForTDT"], "blank_token_id": 8192,
+            "decoder_hidden_size": 640, "durations": [0, 1, 2, 3, 4],
+            "encoder_config": {"attention_bias": false, "conv_kernel_size": 9,
+                "convolution_bias": false, "hidden_size": 1024, "intermediate_size": 4096,
+                "model_type": "parakeet_encoder", "num_attention_heads": 8,
+                "num_hidden_layers": 24, "num_mel_bins": 128, "scale_input": false,
+                "subsampling_conv_channels": 256, "subsampling_conv_kernel_size": 3,
+                "subsampling_conv_stride": 2, "subsampling_factor": 8},
+            "model_type": "parakeet_tdt", "num_decoder_layers": 2, "vocab_size": 8193}"#;
+        let config = parakeet_config_from_hf(V3).unwrap();
+        assert_eq!(
+            format!("{config:?}"),
+            format!("{:?}", ParakeetTdtConfig::tdt_0_6b_v3())
+        );
+
+        let ctc = V3.replace("parakeet_tdt", "parakeet_ctc");
+        crate::errors::testing::ErrorMatcher::kind(crate::errors::BunsenErrorKind::Unsupported)
+            .message_contains("`model_type`")
+            .assert_err(&parakeet_config_from_hf(&ctc));
+        let mels = V3.replace("\"num_mel_bins\": 128", "\"num_mel_bins\": 80");
+        crate::errors::testing::ErrorMatcher::kind(crate::errors::BunsenErrorKind::Unsupported)
+            .message_contains("`encoder_config.num_mel_bins` is 80")
+            .assert_err(&parakeet_config_from_hf(&mels));
     }
 }

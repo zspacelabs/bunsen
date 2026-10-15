@@ -120,6 +120,11 @@ impl Qwen3AsrAudioEncoderConfig {
         Self::new(128, 896, 14, 3584, 18, 480)
     }
 
+    /// `Qwen3-ASR-1.7B`'s audio tower.
+    pub fn qwen3_asr_1_7b() -> Self {
+        Self::new(128, 1024, 16, 4096, 24, 480)
+    }
+
     /// The frequency bins left after the stem.
     pub fn freq_out(&self) -> usize {
         post_conv_len(self.n_mels)

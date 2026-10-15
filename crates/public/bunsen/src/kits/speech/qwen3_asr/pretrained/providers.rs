@@ -6,6 +6,7 @@ use burn::tensor::Device;
 use super::Qwen3AsrConstruct;
 use crate::{
     data::pretrained::{
+        HfProvider,
         PretrainedCache,
         PretrainedFactory,
         PretrainedProvider,
@@ -42,12 +43,14 @@ pub const SAFETENSORS: &str = "safetensors";
 /// The `kind` of a `transformers` `tokenizer.json` vocabulary.
 pub const TOKENIZER_JSON: &str = "tokenizer.json";
 
-/// The prefab every row instantiates.
+/// The prefab the 0.6B rows instantiate.
 const PREFAB: &str = "qwen3-asr-0.6b";
 
 const FERMION_ORIGIN: &str = "https://github.com/fermionresearch/phonon";
 
 const QWEN_ORIGIN: &str = "https://huggingface.co/Qwen/Qwen3-ASR-0.6B-hf";
+
+const QWEN_1_7B_ORIGIN: &str = "https://huggingface.co/Qwen/Qwen3-ASR-1.7B-hf";
 
 /// One Phonon-1 archive, at a fixed revision of its repo.
 macro_rules! phonon_1_archive {
@@ -155,6 +158,44 @@ static PHONON_1_BIG: StaticPretrained<'static> = StaticPretrained {
     maps: &[&PHONON_1_BIG_ARCHIVE],
 };
 
+/// `Qwen/Qwen3-ASR-1.7B-hf`'s checkpoint and tokenizer, at a fixed revision.
+pub static QWEN3_ASR_1_7B_FILES: StaticResourceMap<'static> = StaticResourceMap {
+    name: "qwen/qwen3-asr-1.7b",
+    description: "Qwen3-ASR-1.7B: model.safetensors (bf16) and tokenizer.json",
+    license: Some("Apache-2.0"),
+    origin: Some(QWEN_1_7B_ORIGIN),
+    namespace: "qwen",
+    bases: &[StaticBase::Url(
+        "https://huggingface.co/Qwen/Qwen3-ASR-1.7B-hf/resolve/bcd2b5b7f32b480ab5790554cfa8347f246a14f3",
+    )],
+    resources: &[
+        StaticResource {
+            key: CHECKPOINT,
+            file: "model.safetensors",
+            sha256: Some("2db53c7d81bd9b8cbc6a074e89be2c968a0d373fb4ee68bb1b1e14f7042dfee1"),
+            kind: Some(SAFETENSORS),
+            sources: &[],
+        },
+        StaticResource {
+            key: VOCABULARY,
+            file: "tokenizer.json",
+            sha256: Some("fe1fad59be22a41ee293363fcf95fdedbc7c93f3b49270b1d2e18bd1399a7a05"),
+            kind: Some(TOKENIZER_JSON),
+            sources: &[],
+        },
+    ],
+};
+
+static QWEN3_ASR_1_7B: StaticPretrained<'static> = StaticPretrained {
+    name: "qwen3-asr-1.7b",
+    aliases: &[],
+    description: "Qwen3-ASR-1.7B: 2.0 B parameters, bf16, 30 languages",
+    license: Some("Apache-2.0"),
+    origin: Some(QWEN_1_7B_ORIGIN),
+    prefab: Some("qwen3-asr-1.7b"),
+    maps: &[&QWEN3_ASR_1_7B_FILES],
+};
+
 static QWEN3_ASR_0_6B: StaticPretrained<'static> = StaticPretrained {
     name: "qwen3-asr-0.6b",
     aliases: &[],
@@ -180,7 +221,7 @@ pub static QWEN: StaticPretrainedGroup<'static> = StaticPretrainedGroup {
     description: "Qwen's Qwen3-ASR speech recognizers, as transformers ships them",
     license: Some("Apache-2.0"),
     origin: Some(QWEN_ORIGIN),
-    items: &[&QWEN3_ASR_0_6B],
+    items: &[&QWEN3_ASR_0_6B, &QWEN3_ASR_1_7B],
 };
 
 /// The Qwen3-ASR checkpoints bunsen knows by name, behind the [`WELL_KNOWN`]
@@ -195,9 +236,19 @@ pub static WELL_KNOWN_TABLE: StaticPretrainedTable<'static> = StaticPretrainedTa
 /// The name [`default_qwen3_asr_factory`] loads when a caller names none.
 pub const DEFAULT_QWEN3_ASR_MODEL: &str = "fermion/phonon-1";
 
-/// Qwen3-ASR's compiled-in providers, in search order: the well-known table.
+/// Qwen3-ASR's compiled-in providers, in search order: the well-known table,
+/// then `hf:org/repo`, a Hugging Face repo in `transformers`' layout (its
+/// safetensors checkpoint, one file or shards, its `config.json`, and its
+/// `tokenizer.json` as the vocabulary).
 pub fn default_qwen3_asr_providers() -> Vec<Arc<dyn PretrainedProvider>> {
-    vec![Arc::new(WELL_KNOWN_TABLE.to_table())]
+    vec![
+        Arc::new(WELL_KNOWN_TABLE.to_table()),
+        Arc::new(
+            HfProvider::new()
+                .with_checkpoint_key(CHECKPOINT)
+                .with_extra_file(VOCABULARY, "tokenizer.json", TOKENIZER_JSON),
+        ),
+    ]
 }
 
 /// Qwen3-ASR's factory over [`default_qwen3_asr_providers`], building
@@ -242,6 +293,7 @@ mod tests {
             &PHONON_1_MICRO_ARCHIVE,
             &PHONON_1_BIG_ARCHIVE,
             &QWEN3_ASR_0_6B_FILES,
+            &QWEN3_ASR_1_7B_FILES,
         ] {
             let map = map.to_map();
             map.validate().unwrap();
@@ -259,7 +311,16 @@ mod tests {
                 "well-known:fermion/phonon-1-micro",
                 "well-known:fermion/phonon-1-big",
                 "well-known:qwen/qwen3-asr-0.6b",
+                "well-known:qwen/qwen3-asr-1.7b",
             ]
+        );
+        assert_eq!(
+            factory
+                .providers()
+                .iter()
+                .map(|p| p.name())
+                .collect::<Vec<_>>(),
+            ["well-known", "hf"]
         );
         for spec in [
             DEFAULT_QWEN3_ASR_MODEL,
@@ -276,6 +337,7 @@ mod tests {
             ("phonon-1-micro", "fermion/phonon-1-micro"),
             ("phonon-1-big", "fermion/phonon-1-big"),
             ("qwen3-asr-0.6b", "qwen/qwen3-asr-0.6b"),
+            ("qwen3-asr-1.7b", "qwen/qwen3-asr-1.7b"),
         ] {
             let (_, row) = factory.lookup(spec).unwrap();
             assert_eq!(row.name, name);

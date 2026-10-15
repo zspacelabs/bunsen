@@ -1,13 +1,7 @@
 //! # Constructing a Qwen3-ASR pretrained
 use std::sync::Arc;
 
-use burn::{
-    store::{
-        ModuleStore,
-        SafetensorsStore,
-    },
-    tensor::Device,
-};
+use burn::tensor::Device;
 
 use super::{
     CHECKPOINT,
@@ -21,10 +15,13 @@ use super::{
 use crate::{
     burner::module::ModuleInit,
     data::pretrained::{
+        CONFIG,
         Construct,
         LoadedResources,
         PretrainedRef,
         ResourceMap,
+        SAFETENSORS_INDEX,
+        SafetensorsCheckpoint,
     },
     errors::{
         BunsenError,
@@ -36,7 +33,11 @@ use crate::{
             Qwen3Asr,
             Qwen3AsrBundle,
             Qwen3AsrConfig,
-            weights::load_hf_tensors,
+            Qwen3AsrFrontEndConfig,
+            weights::{
+                load_hf_tensors,
+                qwen3_asr_config_from_hf,
+            },
         },
         tokens::ByteLevelVocabulary,
     },
@@ -67,7 +68,7 @@ impl Qwen3AsrReader {
             Some(PHONON_ARCHIVE) => Err(BunsenError::unsupported(
                 "a Phonon archive needs bunsen's `fermion` feature",
             )),
-            Some(SAFETENSORS) => Ok(Self::Safetensors),
+            Some(SAFETENSORS | SAFETENSORS_INDEX) => Ok(Self::Safetensors),
             other => Err(BunsenError::unsupported(format!(
                 "no Qwen3-ASR reader for a checkpoint of kind {other:?}"
             ))),
@@ -79,10 +80,11 @@ impl Qwen3AsrReader {
         self,
         loaded: &LoadedResources,
     ) -> BunsenResult<(Vec<burn::store::burn_pack::Tensor>, ByteLevelVocabulary)> {
-        let checkpoint = loaded.expect(CHECKPOINT)?;
         match self {
             #[cfg(feature = "fermion")]
-            Self::PhononArchive => crate::kits::speech::qwen3_asr::read_phonon1_archive(checkpoint),
+            Self::PhononArchive => {
+                crate::kits::speech::qwen3_asr::read_phonon1_archive(loaded.expect(CHECKPOINT)?)
+            }
             #[cfg(not(feature = "fermion"))]
             Self::PhononArchive => Err(BunsenError::unsupported(
                 "a Phonon archive needs bunsen's `fermion` feature",
@@ -92,16 +94,7 @@ impl Qwen3AsrReader {
                 let json = std::fs::read_to_string(tokenizer).map_err(sys_at("read", tokenizer))?;
                 let vocab = ByteLevelVocabulary::from_tokenizer_json(&json)
                     .map_err(|e| e.context(tokenizer.display()))?;
-                let tensors = SafetensorsStore::from_file(checkpoint)
-                    .get_all_tensors()
-                    .map_err(|e| {
-                        BunsenError::invalid_resource("the store refused the checkpoint")
-                            .with_cause(e)
-                            .context(checkpoint.display())
-                    })?
-                    .values()
-                    .cloned()
-                    .collect();
+                let tensors = SafetensorsCheckpoint::from_loaded(loaded, CHECKPOINT)?.tensors()?;
                 Ok((tensors, vocab))
             }
         }
@@ -109,10 +102,11 @@ impl Qwen3AsrReader {
 }
 
 /// How a Qwen3-ASR pretrained is built: its checkpoint read by the
-/// [`Qwen3AsrReader`] its `kind` names, into the geometry of the prefab its
-/// row names (`qwen3-asr-0.6b` when it names none), in the device's float
-/// dtype, with its vocabulary, behind the default front end, prompt and
-/// decoder.
+/// [`Qwen3AsrReader`] its `kind` names, into the geometry its `config.json`
+/// gives ([`qwen3_asr_config_from_hf`]), or else the prefab its row names
+/// (`qwen3-asr-0.6b` when it names none), in the device's float dtype, with
+/// its vocabulary, behind a front end of the model's mel count and the
+/// default prompt and decoder.
 ///
 /// The [`Construct`] hook for the Qwen3-ASR kit.
 /// [`default_qwen3_asr_factory`](super::default_qwen3_asr_factory) attaches
@@ -131,7 +125,11 @@ impl Construct for Qwen3AsrConstruct {
     /// The hook for the checkpoint's `kind`; a Safetensors checkpoint must
     /// come with a `tokenizer.json` vocabulary.
     fn for_map(map: &ResourceMap) -> BunsenResult<Self> {
-        let checkpoint = map.try_get(CHECKPOINT)?;
+        let index = format!("{CHECKPOINT}.index");
+        let checkpoint = match map.get(&index) {
+            Some(index) => index,
+            None => map.try_get(CHECKPOINT)?,
+        };
         let reader = Qwen3AsrReader::for_kind(checkpoint.kind.as_deref())?;
         if reader == Qwen3AsrReader::Safetensors {
             let vocab = map.try_get(VOCABULARY)?;
@@ -152,12 +150,26 @@ impl Construct for Qwen3AsrConstruct {
         device: &Device,
     ) -> BunsenResult<Arc<Qwen3AsrBundle>> {
         let (tensors, vocab) = self.reader.read(loaded)?;
-        let config = model
-            .prefab(&QWEN3_ASR_PREFABS)
-            .map_or_else(Qwen3AsrConfig::qwen3_asr_0_6b, |p| p.to_config());
+        let config = match loaded.get(CONFIG) {
+            Some(part) => {
+                let json =
+                    std::fs::read_to_string(&part.path).map_err(sys_at("read", &part.path))?;
+                qwen3_asr_config_from_hf(&json).map_err(|e| e.context(part.path.display()))?
+            }
+            None => model
+                .prefab(&QWEN3_ASR_PREFABS)
+                .map_or_else(Qwen3AsrConfig::qwen3_asr_0_6b, |p| p.to_config()),
+        };
+        let n_mels = config.audio.n_mels;
         let mut asr: Qwen3Asr = config.try_init(device)?;
         load_hf_tensors(&mut asr, tensors)?;
-        Ok(Arc::new(Qwen3AsrBundle::new(asr, vocab, device)?))
+        let mut bundle = Qwen3AsrBundle::new(asr, vocab, device)?;
+        if n_mels != bundle.front_end.config.n_mels {
+            bundle.front_end = Qwen3AsrFrontEndConfig::new()
+                .with_n_mels(n_mels)
+                .try_init(device)?;
+        }
+        Ok(Arc::new(bundle))
     }
 }
 

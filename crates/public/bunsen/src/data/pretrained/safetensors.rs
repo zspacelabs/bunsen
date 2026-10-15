@@ -320,6 +320,30 @@ impl SafetensorsCheckpoint {
         Ok(merged)
     }
 
+    /// Every tensor of every shard, in shard order: for a kit that applies
+    /// them itself, through
+    /// [`apply_named_tensors`](super::apply_named_tensors), say.
+    ///
+    /// # Errors
+    /// [`Sys`](BunsenErrorKind::Sys) when a shard cannot be read;
+    /// [`InvalidResource`](BunsenErrorKind::InvalidResource), with the
+    /// store's error, for a shard the store refuses.
+    pub fn tensors(&self) -> BunsenResult<Vec<burn::store::burn_pack::Tensor>> {
+        use burn::store::ModuleStore;
+
+        let mut out = Vec::new();
+        for shard in &self.shards {
+            let tensors = SafetensorsStore::from_file(shard.clone())
+                .get_all_tensors()
+                .map_err(|e| store_error(shard, e))?
+                .values()
+                .cloned()
+                .collect::<Vec<_>>();
+            out.extend(tensors);
+        }
+        Ok(out)
+    }
+
     /// Loads every shard into `module`, each through a store `configure`
     /// sets up from the bare one (the kit's name remaps and adapter), and
     /// checks that every parameter of the module was found in some shard.

@@ -206,6 +206,24 @@ pub struct HfProvider {
 
     /// The key the checkpoint goes under: the kit's.
     pub checkpoint_key: String,
+
+    /// The other files a row carries when the repo has them, beyond the
+    /// checkpoint and `config.json`: a kit's vocabulary, say.
+    pub extra_files: Vec<HfExtraFile>,
+}
+
+/// A file an [`HfProvider`] row carries when the repo has it: under `key`,
+/// labelled `kind` for the kit's reader.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct HfExtraFile {
+    /// The resource key.
+    pub key: String,
+
+    /// The file's path in the repo: `tokenizer.json`.
+    pub path: String,
+
+    /// The resource's `kind`.
+    pub kind: String,
 }
 
 impl Default for HfProvider {
@@ -222,6 +240,7 @@ impl HfProvider {
             origin: HF_ORIGIN.to_string(),
             revision: HF_MAIN.to_string(),
             checkpoint_key: DEFAULT_CHECKPOINT_KEY.to_string(),
+            extra_files: Vec::new(),
         }
     }
 
@@ -258,6 +277,22 @@ impl HfProvider {
         key: impl Into<String>,
     ) -> Self {
         self.checkpoint_key = key.into();
+        self
+    }
+
+    /// Rows carry `path` under `key`, labelled `kind`, when the repo has
+    /// it: `with_extra_file("vocabulary", "tokenizer.json", "tokenizer.json")`.
+    pub fn with_extra_file(
+        mut self,
+        key: impl Into<String>,
+        path: impl Into<String>,
+        kind: impl Into<String>,
+    ) -> Self {
+        self.extra_files.push(HfExtraFile {
+            key: key.into(),
+            path: path.into(),
+            kind: kind.into(),
+        });
         self
     }
 
@@ -351,7 +386,8 @@ impl HfProvider {
 
     /// The row for `name` from the repo's file listing: the safetensors
     /// checkpoint, one file or the index and every shard, pinned by the
-    /// hub's LFS digests, and `config.json` when there is one.
+    /// hub's LFS digests, `config.json` when there is one, and each of the
+    /// [`extra_files`](Self::extra_files) the repo has.
     ///
     /// # Errors
     /// As [`split`](Self::split) for a malformed ref.
@@ -449,13 +485,24 @@ impl HfProvider {
             ))
             .context(format!("{}:{name}", self.name)));
         }
-        let mut with_config = "";
+        let mut with: Vec<&str> = Vec::new();
         if let Some(config) = file(HF_CONFIG_FILE) {
             resources.insert(self.resource(org, repo, CONFIG, config, "json"));
-            with_config = ", with config.json";
+            with.push(HF_CONFIG_FILE);
         }
+        for extra in &self.extra_files {
+            if let Some(entry) = file(&extra.path) {
+                resources.insert(self.resource(org, repo, &extra.key, entry, &extra.kind));
+                with.push(&extra.path);
+            }
+        }
+        let with = if with.is_empty() {
+            String::new()
+        } else {
+            format!(", with {}", with.join(" and "))
+        };
         let description = format!(
-            "{org}/{repo} on Hugging Face at {}: {what}{with_config}",
+            "{org}/{repo} on Hugging Face at {}: {what}{with}",
             self.revision
         );
         resources.description.clone_from(&description);
@@ -676,6 +723,30 @@ mod tests {
         assert_eq!(config.file, "config.json");
         assert_eq!(config.sha256, None);
         assert_eq!(config.kind.as_deref(), Some("json"));
+    }
+
+    /// An extra file rides along under its key and kind, pinned when the
+    /// hub pins it; one the repo lacks is simply absent.
+    #[test]
+    fn test_extra_files_ride_along() {
+        let hf = HfProvider::new()
+            .with_extra_file("vocabulary", "tokenizer.json", "tokenizer.json")
+            .with_extra_file("merges", "merges.txt", "text");
+        let listing = vec![
+            entry("config.json", 1983, None),
+            entry("model.safetensors", 151_061_672, Some(TINY_SHA)),
+            entry("tokenizer.json", 2_480_466, Some(SHARD_1)),
+        ];
+        let row = hf.row_from_listing("org/asr", &listing).unwrap();
+        assert_eq!(row.resources.keys(), ["checkpoint", "config", "vocabulary"]);
+        let vocab = row.resources.get("vocabulary").unwrap();
+        assert_eq!(vocab.file, "tokenizer.json");
+        assert_eq!(vocab.kind.as_deref(), Some("tokenizer.json"));
+        assert_eq!(vocab.sha256.as_deref(), Some(SHARD_1));
+        assert_eq!(
+            row.description,
+            "org/asr on Hugging Face at main: model.safetensors, 151.1 MB, with config.json and tokenizer.json"
+        );
     }
 
     /// A sharded repo: the index and every shard, in shard order, under

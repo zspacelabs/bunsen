@@ -259,6 +259,7 @@ mod factory;
 #[cfg(feature = "store")]
 pub mod fermion;
 mod hf;
+mod hf_config;
 #[cfg(feature = "cache")]
 mod loaded;
 pub mod mlx;
@@ -282,6 +283,7 @@ pub use deferred::*;
 #[cfg(feature = "cache")]
 pub use factory::*;
 pub use hf::*;
+pub use hf_config::*;
 #[cfg(feature = "cache")]
 pub use loaded::*;
 pub use prefabs::*;

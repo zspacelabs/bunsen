@@ -6,6 +6,7 @@ use burn::tensor::Device;
 use super::ParakeetConstruct;
 use crate::{
     data::pretrained::{
+        HfProvider,
         PretrainedCache,
         PretrainedFactory,
         PretrainedProvider,
@@ -144,9 +145,19 @@ pub static WELL_KNOWN_TABLE: StaticPretrainedTable<'static> = StaticPretrainedTa
 /// The name [`default_parakeet_factory`] loads when a caller names none.
 pub const DEFAULT_PARAKEET_MODEL: &str = "fermion/phonon-2";
 
-/// Parakeet's compiled-in providers, in search order: the well-known table.
+/// Parakeet's compiled-in providers, in search order: the well-known table,
+/// then `hf:org/repo`, a Hugging Face repo in `transformers`' layout (its
+/// safetensors checkpoint, one file or shards, its `config.json`, and its
+/// `tokenizer.json` as the vocabulary).
 pub fn default_parakeet_providers() -> Vec<Arc<dyn PretrainedProvider>> {
-    vec![Arc::new(WELL_KNOWN_TABLE.to_table())]
+    vec![
+        Arc::new(WELL_KNOWN_TABLE.to_table()),
+        Arc::new(
+            HfProvider::new()
+                .with_checkpoint_key(CHECKPOINT)
+                .with_extra_file(VOCABULARY, "tokenizer.json", TOKENIZER_JSON),
+        ),
+    ]
 }
 
 /// Parakeet's factory over [`default_parakeet_providers`], building through
@@ -201,6 +212,14 @@ mod tests {
                 "well-known:fermion/phonon-2",
                 "well-known:nvidia/parakeet-tdt-0.6b-v3"
             ]
+        );
+        assert_eq!(
+            factory
+                .providers()
+                .iter()
+                .map(|p| p.name())
+                .collect::<Vec<_>>(),
+            ["well-known", "hf"]
         );
         for spec in [
             DEFAULT_PARAKEET_MODEL,

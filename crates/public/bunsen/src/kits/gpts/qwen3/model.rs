@@ -106,6 +106,11 @@ impl Qwen3Config {
         Self::new(151_936, 1024, 28, 16, 8, 128, 3072)
     }
 
+    /// `Qwen3-1.7B`'s geometry: the text model of `Qwen3-ASR-1.7B`.
+    pub fn qwen3_1_7b() -> Self {
+        Self::new(151_936, 2048, 28, 16, 8, 128, 6144)
+    }
+
     /// The rotary embedding for `seq_len` positions.
     pub fn rotary(
         &self,

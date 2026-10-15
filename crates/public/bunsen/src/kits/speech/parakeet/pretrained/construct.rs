@@ -1,13 +1,7 @@
 //! # Constructing a Parakeet pretrained
 use std::sync::Arc;
 
-use burn::{
-    store::{
-        ModuleStore,
-        SafetensorsStore,
-    },
-    tensor::Device,
-};
+use burn::tensor::Device;
 
 use super::{
     CHECKPOINT,
@@ -20,10 +14,13 @@ use super::{
 use crate::{
     burner::module::ModuleInit,
     data::pretrained::{
+        CONFIG,
         Construct,
         LoadedResources,
         PretrainedRef,
         ResourceMap,
+        SAFETENSORS_INDEX,
+        SafetensorsCheckpoint,
     },
     errors::{
         BunsenError,
@@ -35,7 +32,10 @@ use crate::{
         ParakeetTdt,
         ParakeetTdtConfig,
         ParakeetVocabulary,
-        weights::load_hf_tensors,
+        weights::{
+            load_hf_tensors,
+            parakeet_config_from_hf,
+        },
     },
 };
 
@@ -46,8 +46,9 @@ pub enum ParakeetReader {
     /// vocabulary in one file. Needs the `fermion` feature.
     PhononArchive,
 
-    /// A `transformers` `model.safetensors` ([`SAFETENSORS`]), with its
-    /// vocabulary under [`VOCABULARY`] as a `tokenizer.json`.
+    /// A `transformers` safetensors checkpoint ([`SAFETENSORS`], or the
+    /// index of a sharded one, [`SAFETENSORS_INDEX`]), with its vocabulary
+    /// under [`VOCABULARY`] as a `tokenizer.json`.
     Safetensors,
 }
 
@@ -64,7 +65,7 @@ impl ParakeetReader {
             Some(PHONON_ARCHIVE) => Err(BunsenError::unsupported(
                 "a Phonon archive needs bunsen's `fermion` feature",
             )),
-            Some(SAFETENSORS) => Ok(Self::Safetensors),
+            Some(SAFETENSORS | SAFETENSORS_INDEX) => Ok(Self::Safetensors),
             other => Err(BunsenError::unsupported(format!(
                 "no Parakeet reader for a checkpoint of kind {other:?}"
             ))),
@@ -76,10 +77,11 @@ impl ParakeetReader {
         self,
         loaded: &LoadedResources,
     ) -> BunsenResult<(Vec<burn::store::burn_pack::Tensor>, ParakeetVocabulary)> {
-        let checkpoint = loaded.expect(CHECKPOINT)?;
         match self {
             #[cfg(feature = "fermion")]
-            Self::PhononArchive => crate::kits::speech::parakeet::read_phonon2_archive(checkpoint),
+            Self::PhononArchive => {
+                crate::kits::speech::parakeet::read_phonon2_archive(loaded.expect(CHECKPOINT)?)
+            }
             #[cfg(not(feature = "fermion"))]
             Self::PhononArchive => Err(BunsenError::unsupported(
                 "a Phonon archive needs bunsen's `fermion` feature",
@@ -89,16 +91,7 @@ impl ParakeetReader {
                 let json = std::fs::read_to_string(tokenizer).map_err(sys_at("read", tokenizer))?;
                 let vocab = ParakeetVocabulary::from_tokenizer_json(&json)
                     .map_err(|e| e.context(tokenizer.display()))?;
-                let tensors = SafetensorsStore::from_file(checkpoint)
-                    .get_all_tensors()
-                    .map_err(|e| {
-                        BunsenError::invalid_resource("the store refused the checkpoint")
-                            .with_cause(e)
-                            .context(checkpoint.display())
-                    })?
-                    .values()
-                    .cloned()
-                    .collect();
+                let tensors = SafetensorsCheckpoint::from_loaded(loaded, CHECKPOINT)?.tensors()?;
                 Ok((tensors, vocab))
             }
         }
@@ -106,8 +99,9 @@ impl ParakeetReader {
 }
 
 /// How a Parakeet pretrained is built: its checkpoint read by the
-/// [`ParakeetReader`] its `kind` names, into a `parakeet-tdt-0.6b-v3`-shaped
-/// model, with its vocabulary, behind the default front end.
+/// [`ParakeetReader`] its `kind` names, into the geometry its `config.json`
+/// gives ([`parakeet_config_from_hf`]; `parakeet-tdt-0.6b-v3`'s when the map
+/// has none), with its vocabulary, behind the default front end.
 ///
 /// The [`Construct`] hook for the Parakeet kit.
 /// [`default_parakeet_factory`](super::default_parakeet_factory) attaches
@@ -123,10 +117,15 @@ impl Construct for ParakeetConstruct {
 
     const KIT: &'static str = PARAKEET_KIT;
 
-    /// The hook for the checkpoint's `kind`; a Safetensors checkpoint must
-    /// come with a `tokenizer.json` vocabulary.
+    /// The hook for the checkpoint's `kind`, one file or a sharded one's
+    /// index; a Safetensors checkpoint must come with a `tokenizer.json`
+    /// vocabulary.
     fn for_map(map: &ResourceMap) -> BunsenResult<Self> {
-        let checkpoint = map.try_get(CHECKPOINT)?;
+        let index = format!("{CHECKPOINT}.index");
+        let checkpoint = match map.get(&index) {
+            Some(index) => index,
+            None => map.try_get(CHECKPOINT)?,
+        };
         let reader = ParakeetReader::for_kind(checkpoint.kind.as_deref())?;
         if reader == ParakeetReader::Safetensors {
             let vocab = map.try_get(VOCABULARY)?;
@@ -147,7 +146,15 @@ impl Construct for ParakeetConstruct {
         device: &Device,
     ) -> BunsenResult<Arc<ParakeetBundle>> {
         let (tensors, vocab) = self.reader.read(loaded)?;
-        let mut model: ParakeetTdt = ParakeetTdtConfig::tdt_0_6b_v3().try_init(device)?;
+        let config = match loaded.get(CONFIG) {
+            Some(part) => {
+                let json =
+                    std::fs::read_to_string(&part.path).map_err(sys_at("read", &part.path))?;
+                parakeet_config_from_hf(&json).map_err(|e| e.context(part.path.display()))?
+            }
+            None => ParakeetTdtConfig::tdt_0_6b_v3(),
+        };
+        let mut model: ParakeetTdt = config.try_init(device)?;
         load_hf_tensors(&mut model, tensors)?;
         Ok(Arc::new(ParakeetBundle::new(model, vocab, device)?))
     }

@@ -72,6 +72,14 @@ impl Qwen3AsrConfig {
             Qwen3Config::qwen3_0_6b(),
         )
     }
+
+    /// `Qwen/Qwen3-ASR-1.7B`.
+    pub fn qwen3_asr_1_7b() -> Self {
+        Self::new(
+            Qwen3AsrAudioEncoderConfig::qwen3_asr_1_7b(),
+            Qwen3Config::qwen3_1_7b(),
+        )
+    }
 }
 
 impl Qwen3AsrMeta for Qwen3AsrConfig {
