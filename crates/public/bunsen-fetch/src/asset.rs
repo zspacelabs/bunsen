@@ -6,13 +6,35 @@ use std::{
         Path,
         PathBuf,
     },
+    thread,
+    time::Duration,
 };
 
 use crate::{
+    FetchError,
+    FetchFailure,
     fetch_verified,
     replace_with_link,
     sha256_of,
 };
+
+/// How many times [`Asset::resolve`] tries a download that fails on the way.
+const ATTEMPTS: u32 = 3;
+
+/// Whether a fetch failure may pass on a retry: a dropped or refused
+/// connection, a body cut short, or a server asking for time (`408`, `429`,
+/// `5xx`). A wrong digest, a missing file or a local-disk failure will not.
+fn is_transient(e: &FetchError) -> bool {
+    match e {
+        FetchError::Failure(
+            FetchFailure::Transport { .. } | FetchFailure::ShortTransfer { .. },
+        ) => true,
+        FetchError::Failure(FetchFailure::Status { status, .. }) => {
+            matches!(status, 408 | 429 | 500..=599)
+        }
+        _ => false,
+    }
+}
 
 /// One pinned file a build script needs.
 ///
@@ -24,6 +46,9 @@ use crate::{
 /// * Assets land in `OUT_DIR`, the one directory a build script may write to.
 /// * Every asset is pinned to a SHA-256 and re-verified on each build. A cached
 ///   copy that fails is deleted and re-fetched once.
+/// * A download that fails on the way (a dropped connection, a body cut short,
+///   a server asking for time) is tried again, up to three times in all, with a
+///   cargo warning each time.
 /// * An environment variable may name a local copy instead. A copy that is the
 ///   pinned file is laid out where the download would have gone (a symlink on
 ///   Unix, a copy elsewhere); any other file is used where it is, with a cargo
@@ -120,8 +145,19 @@ impl Asset<'_> {
             let _ = fs::remove_file(dest);
         }
         println!("cargo:warning=fetching {}", self.url);
-        fetch_verified(self.url, dest, self.sha256, &[])
-            .unwrap_or_else(|e| panic!("fetching {}: {e}", self.url));
+        for attempt in 1..=ATTEMPTS {
+            match fetch_verified(self.url, dest, self.sha256, &[]) {
+                Ok(()) => break,
+                Err(e) if attempt < ATTEMPTS && is_transient(&e) => {
+                    println!(
+                        "cargo:warning=fetching {} (attempt {attempt} of {ATTEMPTS}): {e}; retrying",
+                        self.url
+                    );
+                    thread::sleep(Duration::from_secs(2 << attempt));
+                }
+                Err(e) => panic!("fetching {}: {e}", self.url),
+            }
+        }
         dest.to_path_buf()
     }
 }
@@ -132,4 +168,47 @@ impl Asset<'_> {
 /// Outside a build script, where cargo does not set it.
 pub fn out_dir() -> PathBuf {
     PathBuf::from(env::var_os("OUT_DIR").expect("cargo sets OUT_DIR for build scripts"))
+}
+
+#[cfg(test)]
+mod tests {
+    use std::sync::Arc;
+
+    use super::*;
+
+    /// A transport failure, a short body and a busy server are retried; a
+    /// wrong digest and a missing file are not.
+    #[test]
+    fn test_is_transient() {
+        let url = "https://h.example/f".to_string();
+        let status = |status| {
+            FetchError::Failure(FetchFailure::Status {
+                url: url.clone(),
+                status,
+                retry_after: None,
+            })
+        };
+        assert!(is_transient(&status(503)));
+        assert!(is_transient(&status(429)));
+        assert!(!is_transient(&status(404)));
+        assert!(is_transient(&FetchError::Failure(
+            FetchFailure::ShortTransfer {
+                url: url.clone(),
+                received: 1,
+                expected: 2,
+            }
+        )));
+        assert!(is_transient(&FetchError::Failure(
+            FetchFailure::Transport {
+                url: url.clone(),
+                source: Arc::new(ureq::Error::ConnectionFailed),
+            }
+        )));
+        assert!(!is_transient(&FetchError::Failure(FetchFailure::Digest {
+            url,
+            dest: PathBuf::from("f"),
+            expected: "a".into(),
+            found: "b".into(),
+        })));
+    }
 }
