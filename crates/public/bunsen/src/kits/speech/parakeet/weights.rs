@@ -94,8 +94,7 @@ pub struct HfTensorsApplied {
 ///
 /// The names are rewritten by [`hf_to_bunsen_path`], and the tensors adapted
 /// by [`PyTorchToBurnAdapter`]: linear weights transposed, normalization
-/// parameters renamed. Any float dtype is accepted; each is cast to its
-/// parameter's.
+/// parameters renamed.
 ///
 /// # Errors
 /// [`InvalidResource`](crate::errors::BunsenErrorKind::InvalidResource) when
