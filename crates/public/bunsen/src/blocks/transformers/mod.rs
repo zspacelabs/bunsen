@@ -10,13 +10,18 @@
 //!   position embedding tables as a module, and two fixture embeddings for
 //!   tests, [`iota_embedding`](embedding::iota_embedding) and
 //!   [`identity_embedding`](embedding::identity_embedding).
+//! - [`encoder_block`]: the pre-norm encoder layer of Whisper's and Qwen3-ASR's
+//!   audio encoders,
+//!   [`ResidualEncoderAttentionBlock`](encoder_block::ResidualEncoderAttentionBlock).
 //! - [`mlp`]: [`Mlp`](mlp::Mlp), the position-wise feed-forward block (expand,
-//!   activate, project back), and [`layer_norm_mlp`](mlp::layer_norm_mlp),
-//!   which runs it after a `LayerNorm`.
+//!   activate, project back), [`layer_norm_mlp`](mlp::layer_norm_mlp), which
+//!   runs it after a `LayerNorm`, and [`GatedMlp`](mlp::GatedMlp), the `SwiGLU`
+//!   feed-forward.
 //!
 //! The operations these layers call, and the key/value cache state, are in
 //! [`crate::ops::transformers`].
 
 pub mod attention;
 pub mod embedding;
+pub mod encoder_block;
 pub mod mlp;

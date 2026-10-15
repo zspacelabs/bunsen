@@ -76,6 +76,46 @@ pub struct CausalSelfAttentionConfig {
     /// This normalization will be adapted to the appropriate feature count.
     #[config(default = "NormalizationConfig::Rms(RmsNormConfig::new(0))")]
     pub norm: NormalizationConfig,
+
+    /// The width of each head; `None` is `n_embed / n_head`.
+    ///
+    /// A model whose heads are wider or narrower than that (Qwen3's are 128
+    /// over 16 heads of a 1024-wide model) names it here; the query and
+    /// output projections then map `n_embed` to and from `n_head * head_dim`.
+    #[config(default = "None")]
+    pub head_dim: Option<usize>,
+
+    /// Whether the query/key normalization applies before or after the
+    /// rotary embedding.
+    #[config(default = "QkNormPlacement::AfterRope")]
+    pub qk_norm: QkNormPlacement,
+}
+
+/// Where [`CausalSelfAttention`] normalizes its queries and keys, relative to
+/// the rotary embedding.
+#[derive(Config, Debug, Copy, PartialEq, Eq)]
+pub enum QkNormPlacement {
+    /// Rotate, then normalize: `nanochat`'s order.
+    AfterRope,
+
+    /// Normalize, then rotate: Qwen3's order.
+    BeforeRope,
+}
+
+impl QkNormPlacement {
+    /// Normalizes and rotates `x`, a `[B, T, H, D]` query or key, in this
+    /// order.
+    pub fn apply(
+        self,
+        x: Tensor<4>,
+        norm: &Normalization,
+        r_emb: &RotaryEmbedding,
+    ) -> Tensor<4> {
+        match self {
+            Self::AfterRope => norm.forward(r_emb.apply(x)),
+            Self::BeforeRope => r_emb.apply(norm.forward(x)),
+        }
+    }
 }
 
 impl CausalSelfAttentionMeta for CausalSelfAttentionConfig {
@@ -90,6 +130,10 @@ impl CausalSelfAttentionMeta for CausalSelfAttentionConfig {
     fn n_kv_head(&self) -> usize {
         self.n_kv_head
     }
+
+    fn head_dim(&self) -> usize {
+        self.head_dim.unwrap_or(self.n_embed / self.n_head.max(1))
+    }
 }
 
 impl CausalSelfAttentionConfig {
@@ -101,13 +145,13 @@ impl CausalSelfAttentionConfig {
             self.n_head
         );
         assert!(
-            self.n_embed.is_multiple_of(self.n_head),
+            self.head_dim.is_some() || self.n_embed.is_multiple_of(self.n_head),
             "n_embed ({}) must be multiple of n_head ({})",
             self.n_embed,
             self.n_head
         );
         assert!(
-            self.n_embed.is_multiple_of(self.n_kv_head),
+            self.head_dim.is_some() || self.n_embed.is_multiple_of(self.n_kv_head),
             "n_embed ({}) must be multiple of n_kv_head ({})",
             self.n_embed,
             self.n_kv_head
@@ -146,6 +190,7 @@ impl CausalSelfAttentionConfig {
         Ok(CausalSelfAttention {
             layer_index,
             head_dim,
+            qk_norm: self.qk_norm,
             c_q: LinearConfig::new(self.n_embed, self.n_head * head_dim)
                 .with_bias(false)
                 .init(device),
@@ -165,7 +210,7 @@ impl CausalSelfAttentionConfig {
             c_v: LinearConfig::new(self.n_embed, self.n_kv_head * head_dim)
                 .with_bias(false)
                 .init(device),
-            c_proj: LinearConfig::new(self.n_embed, self.n_embed)
+            c_proj: LinearConfig::new(self.n_head * head_dim, self.n_embed)
                 .with_bias(false)
                 .init(device),
         })
@@ -198,6 +243,10 @@ pub struct CausalSelfAttention {
 
     /// Head Dimension.
     pub head_dim: usize,
+
+    /// Where the query/key normalization applies.
+    #[module(skip)]
+    pub qk_norm: QkNormPlacement,
 
     /// Query Linear.
     pub c_q: Linear,
@@ -263,16 +312,14 @@ impl CausalSelfAttention {
             .c_q
             .forward(input.clone())
             .reshape([b, t_q, self.n_head(), self.head_dim()]);
-        let q = r_emb.apply(q);
-        let q = self.q_norm.forward(q);
+        let q = self.qk_norm.apply(q, &self.q_norm, r_emb);
         let q = q.swap_dims(1, 2);
 
         let k =
             self.c_k
                 .forward(input.clone())
                 .reshape([b, t_q, self.n_kv_head(), self.head_dim()]);
-        let k = r_emb.apply(k);
-        let k = self.k_norm.forward(k);
+        let k = self.qk_norm.apply(k, &self.k_norm, r_emb);
         let k = k.swap_dims(1, 2);
 
         let v = self
@@ -321,7 +368,11 @@ impl CausalSelfAttention {
 
         let y = scaled_dot_product_attention(q, k, v, None, attn_mask, cfg)
             .swap_dims(1, 2)
-            .reshape([b as i32, t_q as i32, self.n_embed() as i32]);
+            .reshape([
+                b as i32,
+                t_q as i32,
+                (self.n_head() * self.head_dim()) as i32,
+            ]);
 
         let y = self.c_proj.forward(y);
 
@@ -447,5 +498,30 @@ mod tests {
             Tolerance::default(),
         );
         assert_tensors_close(&chunk, &full.slice(s![.., prefix..]), Tolerance::default());
+    }
+
+    /// Heads wider than `n_embed / n_head` project to and from
+    /// `n_head * head_dim`; either norm placement keeps the shape.
+    #[test]
+    fn test_explicit_head_dim() {
+        use crate::{
+            blocks::transformers::embedding::RotaryEmbeddingConfig,
+            burner::module::ModuleInit,
+            support::testing::cpu_device,
+        };
+        let device = cpu_device();
+        for placement in [QkNormPlacement::AfterRope, QkNormPlacement::BeforeRope] {
+            let cfg = CausalSelfAttentionConfig::new(2, 1, 12)
+                .with_head_dim(Some(8))
+                .with_qk_norm(placement);
+            assert_eq!(cfg.head_dim(), 8);
+            let attn = cfg.init(0, &device);
+            assert_eq!(attn.n_head(), 2);
+            assert_eq!(attn.n_kv_head(), 1);
+            assert_eq!(attn.c_proj.weight.dims(), [16, 12]);
+            let r_emb = RotaryEmbeddingConfig::new(5, 8).init(&device);
+            let y = attn.forward(Tensor::zeros([2, 5, 12], &device), &r_emb, &mut None);
+            assert_eq!(y.dims(), [2, 5, 12]);
+        }
     }
 }

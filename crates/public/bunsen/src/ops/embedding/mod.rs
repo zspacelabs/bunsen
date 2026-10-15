@@ -10,6 +10,8 @@
 //!   that embedding's bare `[n_vocab, d_model]` weight.
 //! - [`inverse_frequency_table`] and [`positional_frequency_table`] build the
 //!   rotary position embedding (`RoPE`) angle tables.
+//! - [`sinusoid_table`] builds the sinusoidal position table of Whisper-style
+//!   audio encoders.
 //!
 //! burn's [`Embedding`] module is the lookup; these are the operations around
 //! it. The embedding *modules* bunsen adds (`RotaryEmbedding`, which caches
@@ -20,6 +22,8 @@
 
 mod inverse;
 mod rotary_tables;
+mod sinusoids;
 
 pub use inverse::*;
 pub use rotary_tables::*;
+pub use sinusoids::*;

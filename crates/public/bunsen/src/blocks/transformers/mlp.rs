@@ -183,6 +183,113 @@ impl Mlp {
     }
 }
 
+/// Common meta for [`GatedMlp`] and [`GatedMlpConfig`].
+pub trait GatedMlpMeta {
+    /// The input and output width.
+    fn n_embed(&self) -> usize;
+
+    /// The hidden width.
+    fn d_ff(&self) -> usize;
+}
+
+/// Config for [`GatedMlp`].
+///
+/// Implements [`GatedMlpMeta`].
+#[derive(Config, Debug)]
+pub struct GatedMlpConfig {
+    /// The input and output width.
+    pub n_embed: usize,
+
+    /// The hidden width.
+    pub d_ff: usize,
+
+    /// Whether the three projections carry a bias.
+    #[config(default = "false")]
+    pub bias: bool,
+}
+
+impl GatedMlpMeta for GatedMlpConfig {
+    fn n_embed(&self) -> usize {
+        self.n_embed
+    }
+
+    fn d_ff(&self) -> usize {
+        self.d_ff
+    }
+}
+
+impl ModuleInit<GatedMlp> for GatedMlpConfig {
+    fn try_init(
+        &self,
+        device: &Device,
+    ) -> BunsenResult<GatedMlp> {
+        let linear = |i, o| LinearConfig::new(i, o).with_bias(self.bias).init(device);
+        Ok(GatedMlp {
+            gate_proj: linear(self.n_embed, self.d_ff),
+            up_proj: linear(self.n_embed, self.d_ff),
+            down_proj: linear(self.d_ff, self.n_embed),
+        })
+    }
+}
+
+/// The `SwiGLU` feed-forward block (Shazeer 2020): `down(silu(gate(x)) *
+/// up(x))`, the feed-forward of Llama, Qwen and their kin.
+///
+/// The fields carry the names `transformers` gives them.
+///
+/// Built by [`GatedMlpConfig`].
+/// Implements [`GatedMlpMeta`].
+#[derive(Module, Debug)]
+pub struct GatedMlp {
+    /// `n_embed -> d_ff`, the gate.
+    pub gate_proj: Linear,
+
+    /// `n_embed -> d_ff`.
+    pub up_proj: Linear,
+
+    /// `d_ff -> n_embed`.
+    pub down_proj: Linear,
+}
+
+impl GatedMlpMeta for GatedMlp {
+    fn n_embed(&self) -> usize {
+        self.gate_proj.weight.dims()[0]
+    }
+
+    fn d_ff(&self) -> usize {
+        self.gate_proj.weight.dims()[1]
+    }
+}
+
+impl GatedMlp {
+    /// Applies the block.
+    ///
+    /// # Arguments
+    /// * `x` - `[batch, seq, n_embed]`.
+    ///
+    /// # Returns
+    /// `[batch, seq, n_embed]`.
+    pub fn forward(
+        &self,
+        x: Tensor<3>,
+    ) -> Tensor<3> {
+        let [batch, seq] = crate::contracts::unpack_shape_contract!(
+            ["batch", "seq", "n_embed"],
+            &x.dims(),
+            &["batch", "seq"],
+            &[("n_embed", self.n_embed())]
+        );
+        let gate = burn::tensor::activation::silu(self.gate_proj.forward(x.clone()));
+        let y = self.down_proj.forward(gate * self.up_proj.forward(x));
+        crate::contracts::assert_shape_contract_periodically!(
+            ["batch", "seq", "n_embed"],
+            &y.dims(),
+            &[("batch", batch), ("seq", seq), ("n_embed", self.n_embed())]
+        );
+        y
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use burn::tensor::Distribution;
@@ -264,5 +371,18 @@ mod tests {
                 output.to_data().assert_eq(&x.to_data(), true);
             }
         }
+    }
+
+    #[test]
+    fn test_gated_mlp() {
+        use crate::support::testing::cpu_device;
+        let config = GatedMlpConfig::new(6, 10).with_bias(true);
+        let mlp: GatedMlp = config.init(&cpu_device());
+        assert_eq!(mlp.n_embed(), config.n_embed());
+        assert_eq!(mlp.d_ff(), config.d_ff());
+        assert!(mlp.up_proj.bias.is_some());
+        // silu(0) = 0, so a zero input gives the down projection's bias.
+        let y = mlp.forward(Tensor::zeros([2, 3, 6], &cpu_device()));
+        assert_eq!(y.dims(), [2, 3, 6]);
     }
 }

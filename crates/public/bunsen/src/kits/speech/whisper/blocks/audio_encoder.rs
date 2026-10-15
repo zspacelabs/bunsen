@@ -22,22 +22,24 @@ use burn::{
 
 use super::WHISPER_DEFAULT_D_MODEL;
 use crate::{
-    blocks::conv::{
-        ConvBlock1dConfig,
-        ConvSeq1d,
-        ConvSeq1dConfig,
-        ConvSeq1dMeta,
+    blocks::{
+        conv::{
+            ConvBlock1dConfig,
+            ConvSeq1d,
+            ConvSeq1dConfig,
+            ConvSeq1dMeta,
+        },
+        transformers::encoder_block::{
+            ResidualEncoderAttentionBlock,
+            ResidualEncoderAttentionBlockConfig,
+            ResidualEncoderAttentionBlockMeta,
+        },
     },
     burner::module::{
         HasDType,
         ModuleInit,
     },
     errors::BunsenResult,
-    kits::speech::whisper::blocks::{
-        ResidualEncoderAttentionBlock,
-        ResidualEncoderAttentionBlockConfig,
-        ResidualEncoderAttentionBlockMeta,
-    },
 };
 
 /// The conv head's stride: it halves the mel sequence, so one encoder

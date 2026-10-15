@@ -46,6 +46,49 @@ pub struct RotaryEmbeddingConfig {
     /// Base.
     #[config(default = 10000)]
     pub base: usize,
+
+    /// The rotation's sign convention.
+    #[config(default = "RotaryDirection::Reverse")]
+    pub direction: RotaryDirection,
+}
+
+/// The sign convention of a rotary embedding: which way each pair of head
+/// dimensions turns with position.
+///
+/// The two halves of a head, `x1` and `x2`, are a pair per frequency. A
+/// checkpoint is trained under one convention; applying the other rotates
+/// every position backwards.
+#[derive(Config, Copy, Debug, PartialEq, Eq)]
+pub enum RotaryDirection {
+    /// `y1 = x1 cos + x2 sin`, `y2 = x2 cos - x1 sin`: `nanochat`'s.
+    Reverse,
+
+    /// `y1 = x1 cos - x2 sin`, `y2 = x2 cos + x1 sin`: the `RoFormer`
+    /// convention, `transformers`' `rotate_half` (Llama, Qwen).
+    Forward,
+}
+
+impl RotaryDirection {
+    /// Rotates the halves `x1` and `x2` of `[B, T, H, D/2]` by angles whose
+    /// `cos` and `sin` are given, returning the rotated halves.
+    pub fn rotate(
+        self,
+        x1: Tensor<4>,
+        x2: Tensor<4>,
+        cos: Tensor<4>,
+        sin: Tensor<4>,
+    ) -> (Tensor<4>, Tensor<4>) {
+        match self {
+            Self::Reverse => (
+                x1.clone() * cos.clone() + x2.clone() * sin.clone(),
+                x2 * cos - x1 * sin,
+            ),
+            Self::Forward => (
+                x1.clone() * cos.clone() - x2.clone() * sin.clone(),
+                x2 * cos + x1 * sin,
+            ),
+        }
+    }
 }
 
 impl RotaryEmbeddingMeta for RotaryEmbeddingConfig {
@@ -97,6 +140,7 @@ impl ModuleInit<RotaryEmbedding> for RotaryEmbeddingConfig {
 
         Ok(RotaryEmbedding {
             head_dim: self.head_dim,
+            direction: self.direction,
             cos,
             sin,
         })
@@ -118,6 +162,10 @@ impl ModuleInit<RotaryEmbedding> for RotaryEmbeddingConfig {
 pub struct RotaryEmbedding {
     /// Head Dimension, D
     pub head_dim: usize,
+
+    /// The rotation's sign convention.
+    #[module(skip)]
+    pub direction: RotaryDirection,
 
     /// a `[1, T, 1, D/2]` tensor.
     pub cos: Tensor<4>,
@@ -162,6 +210,7 @@ impl RotaryEmbedding {
     ) -> Self {
         Self {
             head_dim: self.head_dim,
+            direction: self.direction,
             cos: self.cos.clone().slice_dim(1, range.clone()),
             sin: self.sin.clone().slice_dim(1, range),
         }
@@ -190,8 +239,9 @@ impl RotaryEmbedding {
         let x1 = input.clone().slice_dim(3, s![..pivot]);
         let x2 = input.clone().slice_dim(3, s![pivot..]);
 
-        let y1 = x1.clone() * self.cos.clone() + x2.clone() * self.sin.clone();
-        let y2 = x1 * (-self.sin.clone()) + x2 * self.cos.clone();
+        let (y1, y2) = self
+            .direction
+            .rotate(x1, x2, self.cos.clone(), self.sin.clone());
 
         let output = Tensor::cat(vec![y1, y2], 3);
 
@@ -295,5 +345,33 @@ mod tests {
         expected
             .to_data()
             .assert_approx_eq(&output.to_data(), Tolerance::<f32>::default());
+    }
+
+    /// At position 1 the first frequency is one radian: `Forward` turns
+    /// `(1, 0)` to `(cos 1, sin 1)`, `Reverse` to `(cos 1, -sin 1)`.
+    #[test]
+    fn test_directions() {
+        use crate::support::testing::cpu_device;
+        let device = cpu_device();
+        let x = Tensor::<4>::from_data([[[[0.0f32, 0.0]]], [[[1.0, 0.0]]]], &device)
+            .reshape([1, 2, 1, 2]);
+        for (direction, sign) in [
+            (RotaryDirection::Forward, 1.0f32),
+            (RotaryDirection::Reverse, -1.0),
+        ] {
+            let re: RotaryEmbedding = RotaryEmbeddingConfig::new(2, 2)
+                .with_direction(direction)
+                .init(&device);
+            let y: Vec<f32> = re
+                .apply(x.clone())
+                .into_data()
+                .try_into_vec_as::<f32>()
+                .unwrap();
+            assert!((y[2] - 1f32.cos()).abs() < 1e-6, "{direction:?}: {y:?}");
+            assert!(
+                (y[3] - sign * 1f32.sin()).abs() < 1e-6,
+                "{direction:?}: {y:?}"
+            );
+        }
     }
 }

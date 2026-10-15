@@ -1,3 +1,4 @@
+//! The pre-norm transformer encoder block.
 use burn::{
     Tensor,
     config::Config,
@@ -14,7 +15,6 @@ use burn::{
     tensor::Device,
 };
 
-use super::WHISPER_DEFAULT_D_MODEL;
 use crate::{
     blocks::transformers::mlp::{
         Mlp,
@@ -45,12 +45,22 @@ pub struct ResidualEncoderAttentionBlockConfig {
     pub d_model: usize,
 
     /// Head Dimensionality.
-    #[config(defaul_value = "WHISPER_DEFAULT_D_MODEL")]
+    #[config(default = "64")]
     pub d_head: usize,
 
     /// Dropout.
     #[config(default = "0.0")]
     pub dropout: f64,
+
+    /// The MLP's hidden width over `d_model`.
+    #[config(default = "4")]
+    pub expansion_factor: usize,
+
+    /// Whether the key projection carries a bias. Whisper's does not;
+    /// Qwen3-ASR's audio encoder's does. The query, value, output and MLP
+    /// projections always do.
+    #[config(default = "false")]
+    pub key_bias: bool,
 }
 
 impl ResidualEncoderAttentionBlockMeta for ResidualEncoderAttentionBlockConfig {
@@ -76,14 +86,17 @@ impl ModuleInit<ResidualEncoderAttentionBlock> for ResidualEncoderAttentionBlock
             MultiHeadAttentionConfig::new(self.d_model, self.n_heads()).with_dropout(self.dropout);
         let ln_cfg = LayerNormConfig::new(self.d_model);
 
-        // Whisper doesn't use a key bias;
-        // MHA doesn't let us configure this.
+        // burn's `MultiHeadAttention` gives every projection a bias; a block
+        // without a key bias drops it.
         let mut attn = mha_cfg.init(device);
-        attn.key.bias = None;
+        if !self.key_bias {
+            attn.key.bias = None;
+        }
 
         // Whisper's MLP projections carry a bias, and it runs
         // `Linear -> GELU -> Linear`; the `MlpConfig` default is ReLU.
         let mlp: Mlp = MlpConfig::new(self.d_model)
+            .with_expansion_factor(self.expansion_factor)
             .with_activation(ActivationConfig::Gelu)
             .with_bias(true)
             .try_init(device)?;
@@ -97,11 +110,12 @@ impl ModuleInit<ResidualEncoderAttentionBlock> for ResidualEncoderAttentionBlock
     }
 }
 
-/// Residual Encoder Attention Block for Whisper.
+/// Residual Encoder Attention Block: a pre-norm transformer encoder layer.
 ///
-/// One Whisper encoder layer: pre-norm multi-head self-attention followed by a
-/// pre-norm MLP, each wrapped in a residual connection. Stacked inside the
-/// Whisper audio encoder.
+/// Pre-norm multi-head self-attention followed by a pre-norm GELU MLP, each
+/// wrapped in a residual connection. The encoder layer of Whisper's audio
+/// encoder, and of Qwen3-ASR's (which adds a key bias and attends within
+/// windows, through [`forward_masked`](Self::forward_masked)).
 ///
 /// Built by [`ResidualEncoderAttentionBlockConfig`].
 #[derive(Module, Debug)]
@@ -145,7 +159,21 @@ impl ResidualEncoderAttentionBlock {
         &self,
         x: Tensor<3>,
     ) -> Tensor<3> {
-        let self_attn = layer_norm_self_attn(&self.attn_ln, &self.attn, x.clone(), None);
+        self.forward_masked(x, None)
+    }
+
+    /// [`forward`](Self::forward), attending only where `mask` allows.
+    ///
+    /// # Arguments
+    /// * `x` - `[batch, seq, d_model]`.
+    /// * `mask` - `[batch, seq, seq]` (or `[1, seq, seq]`), true where query
+    ///   `i` may **not** attend to key `j`; `None` attends everywhere.
+    pub fn forward_masked(
+        &self,
+        x: Tensor<3>,
+        mask: Option<Tensor<3, burn::prelude::Bool>>,
+    ) -> Tensor<3> {
+        let self_attn = layer_norm_self_attn(&self.attn_ln, &self.attn, x.clone(), mask);
         let x = x + self_attn.context;
 
         let mlp = layer_norm_mlp(&self.mlp_ln, &self.mlp, x.clone());
