@@ -79,7 +79,7 @@ impl ParakeetReader {
         let checkpoint = loaded.expect(CHECKPOINT)?;
         match self {
             #[cfg(feature = "fermion")]
-            Self::PhononArchive => crate::kits::speech::parakeet::read_phonon_archive(checkpoint),
+            Self::PhononArchive => crate::kits::speech::parakeet::read_phonon2_archive(checkpoint),
             #[cfg(not(feature = "fermion"))]
             Self::PhononArchive => Err(BunsenError::unsupported(
                 "a Phonon archive needs bunsen's `fermion` feature",

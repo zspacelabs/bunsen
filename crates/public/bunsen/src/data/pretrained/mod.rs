@@ -13,6 +13,12 @@
 //! [`Loaded`]. The rows, maps, resources, prefabs and providers are plain
 //! data and are always here.
 //!
+//! A hook reads its checkpoint's own format with the readers here: the
+//! safetensors checkpoint and header ([`SafetensorsCheckpoint`]), MLX's
+//! affine-quantized tensors ([`mlx`]), `FermionResearch`'s Phonon formats
+//! ([`fermion`]), and [`apply_named_tensors`], which loads any of them into a
+//! module under a kit's name map.
+//!
 //! ## Prefabs, rows and resources
 //!
 //! Three things are kept apart, because they vary independently:
@@ -241,6 +247,8 @@
 //! and
 //! [`default_silero_factory`](crate::kits::speech::silero_vad::pretrained::default_silero_factory).
 
+#[cfg(feature = "store")]
+mod apply_named;
 #[cfg(feature = "cache")]
 mod cache;
 #[cfg(feature = "cache")]
@@ -249,9 +257,12 @@ mod construct;
 mod deferred;
 #[cfg(feature = "cache")]
 mod factory;
+#[cfg(feature = "store")]
+pub mod fermion;
 mod hf;
 #[cfg(feature = "cache")]
 mod loaded;
+pub mod mlx;
 mod prefabs;
 mod pretrained_ref;
 mod providers;
@@ -261,6 +272,8 @@ mod rows;
 #[cfg(feature = "store_safetensors")]
 mod safetensors;
 
+#[cfg(feature = "store")]
+pub use apply_named::*;
 #[cfg(feature = "cache")]
 pub use cache::*;
 #[cfg(feature = "cache")]

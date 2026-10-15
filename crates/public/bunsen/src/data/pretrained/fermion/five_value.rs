@@ -18,11 +18,11 @@ use crate::errors::{
 };
 
 /// The container format this reads.
-pub const FERMION_FORMAT: &str = "fermion-five-value-parakeet-v1";
+pub const FIVE_VALUE_FORMAT: &str = "fermion-five-value-parakeet-v1";
 
 /// How one record is stored.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum FermionRecordKind {
+pub enum FiveValueRecordKind {
     /// A matrix over a five-value alphabet per row, `{0, ±lo, ±hi}`: base-3
     /// sign codes packed five to a byte, one bit per non-zero choosing `hi`
     /// over `lo`, then the rows' `lo` and `hi` as fp16.
@@ -37,7 +37,7 @@ pub enum FermionRecordKind {
     Fp16,
 }
 
-impl FermionRecordKind {
+impl FiveValueRecordKind {
     /// The kind a header spells `k`.
     fn parse(k: &str) -> Option<Self> {
         match k {
@@ -85,19 +85,20 @@ struct Header {
 }
 
 /// Reads a `fermion-five-value-parakeet-v1` container
-/// ([`read_fermion_bytes`]) from a file.
+/// ([`read_five_value_bytes`]) from a file.
 ///
 /// # Errors
 /// An `io::Error` sorted by [`sys_at`], naming the path, for a file that
-/// cannot be read; otherwise as [`read_fermion_bytes`], under a frame naming
+/// cannot be read; otherwise as [`read_five_value_bytes`], under a frame naming
 /// the path.
-pub fn read_fermion_container(path: &Path) -> BunsenResult<Vec<PackTensor>> {
+pub fn read_five_value_container(path: &Path) -> BunsenResult<Vec<PackTensor>> {
     let bytes = std::fs::read(path).map_err(sys_at("read", path))?;
-    read_fermion_bytes(&bytes).map_err(|e| e.context(path.display()))
+    read_five_value_bytes(&bytes).map_err(|e| e.context(path.display()))
 }
 
 /// Reads a `fermion-five-value-parakeet-v1` container: the format
-/// `FermionResearch`'s Phonon-2 ships its Parakeet TDT weights in.
+/// `FermionResearch`'s Phonon-2 ships its Parakeet TDT weights in, inside a
+/// Phonon archive (`PhononArchive`, feature `fermion`).
 ///
 /// The layout is an 8-byte little-endian header length, a JSON header
 /// `{format, index: [{n, k, shape, b}]}`, and each record's `b` bytes in
@@ -112,7 +113,7 @@ pub fn read_fermion_container(path: &Path) -> BunsenResult<Vec<PackTensor>> {
 /// bytes that are not such a container: a short or malformed header, another
 /// format, an unknown record kind, a record whose length does not fit its
 /// shape, or trailing bytes.
-pub fn read_fermion_bytes(bytes: &[u8]) -> BunsenResult<Vec<PackTensor>> {
+pub fn read_five_value_bytes(bytes: &[u8]) -> BunsenResult<Vec<PackTensor>> {
     let bad = |why: String| BunsenError::invalid_resource(format!("a fermion container: {why}"));
     let len = bytes
         .get(..8)
@@ -123,9 +124,9 @@ pub fn read_fermion_bytes(bytes: &[u8]) -> BunsenResult<Vec<PackTensor>> {
         .ok_or_else(|| bad(format!("a header of {len} bytes past the end")))?;
     let header: Header = serde_json::from_slice(header)
         .map_err(|e| BunsenError::invalid_resource("a fermion container header").with_cause(e))?;
-    if header.format != FERMION_FORMAT {
+    if header.format != FIVE_VALUE_FORMAT {
         return Err(bad(format!(
-            "format `{}`, not `{FERMION_FORMAT}`",
+            "format `{}`, not `{FIVE_VALUE_FORMAT}`",
             header.format
         )));
     }
@@ -133,7 +134,7 @@ pub fn read_fermion_bytes(bytes: &[u8]) -> BunsenResult<Vec<PackTensor>> {
     let mut offset = 8 + len;
     let mut tensors = Vec::with_capacity(header.index.len());
     for entry in header.index {
-        let kind = FermionRecordKind::parse(&entry.k)
+        let kind = FiveValueRecordKind::parse(&entry.k)
             .ok_or_else(|| bad(format!("`{}` has unknown kind `{}`", entry.n, entry.k)))?;
         let blob = bytes
             .get(offset..offset.saturating_add(entry.b))
@@ -159,11 +160,11 @@ pub fn read_fermion_bytes(bytes: &[u8]) -> BunsenResult<Vec<PackTensor>> {
 /// The state-dict name and shape of a record.
 fn hf_name_and_shape(
     name: &str,
-    kind: FermionRecordKind,
+    kind: FiveValueRecordKind,
     mut shape: Vec<usize>,
 ) -> (String, Vec<usize>) {
     let name = match kind {
-        FermionRecordKind::FiveValue => format!("{name}.weight"),
+        FiveValueRecordKind::FiveValue => format!("{name}.weight"),
         _ => name.to_string(),
     };
     if shape.len() == 2
@@ -296,7 +297,7 @@ mod tests {
 
     fn testdata(file: &str) -> std::path::PathBuf {
         Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("testdata/parakeet")
+            .join("testdata/fermion")
             .join(file)
     }
 
@@ -310,8 +311,8 @@ mod tests {
             SafetensorsStore,
         };
 
-        let tensors = read_fermion_container(&testdata("toy.fermion")).unwrap();
-        let mut store = SafetensorsStore::from_file(testdata("toy_fermion.safetensors"));
+        let tensors = read_five_value_container(&testdata("five_value.fermion")).unwrap();
+        let mut store = SafetensorsStore::from_file(testdata("five_value.safetensors"));
         let expected = store.get_all_tensors().unwrap().clone();
         assert_eq!(tensors.len(), expected.len());
 
@@ -338,19 +339,19 @@ mod tests {
 
     #[test]
     fn test_refuses_malformed_containers() {
-        let good = std::fs::read(testdata("toy.fermion")).unwrap();
-        assert!(read_fermion_bytes(&good).is_ok());
-        assert!(read_fermion_bytes(&good[..4]).is_err());
-        assert!(read_fermion_bytes(&good[..good.len() - 1]).is_err());
+        let good = std::fs::read(testdata("five_value.fermion")).unwrap();
+        assert!(read_five_value_bytes(&good).is_ok());
+        assert!(read_five_value_bytes(&good[..4]).is_err());
+        assert!(read_five_value_bytes(&good[..good.len() - 1]).is_err());
         let mut trailing = good.clone();
         trailing.push(0);
-        assert!(read_fermion_bytes(&trailing).is_err());
+        assert!(read_five_value_bytes(&trailing).is_err());
         let mut other = good.clone();
         let at = good
-            .windows(FERMION_FORMAT.len())
-            .position(|w| w == FERMION_FORMAT.as_bytes())
+            .windows(FIVE_VALUE_FORMAT.len())
+            .position(|w| w == FIVE_VALUE_FORMAT.as_bytes())
             .unwrap();
-        other[at + FERMION_FORMAT.len() - 1] = b'9';
-        assert!(read_fermion_bytes(&other).is_err());
+        other[at + FIVE_VALUE_FORMAT.len() - 1] = b'9';
+        assert!(read_five_value_bytes(&other).is_err());
     }
 }

@@ -14,15 +14,13 @@
 //!   [`TdtHypothesis`] tokens with their frames.
 //! - [`ParakeetVocabulary`]: the `SentencePiece` pieces, as a
 //!   [`Detokenizer`](crate::kits::tokens::Detokenizer) and as transcripts.
-//! - [`read_fermion_container`] (feature `store`): the
-//!   `fermion-five-value-parakeet-v1` container `FermionResearch`'s Phonon-2
-//!   ships in, expanded to `transformers`-named f32 tensors.
 //! - [`ParakeetBundle`]: a loaded model with its front end and vocabulary, and
 //!   [`transcribe`](ParakeetBundle::transcribe).
 //! - [`pretrained`] (features `store_safetensors` and `cache`): the index of
 //!   named checkpoints, `fermion/phonon-2` the default, and the factory that
-//!   loads one into a bundle. `read_phonon_archive` (feature `fermion`) reads
-//!   Phonon-2's archive.
+//!   loads one into a bundle. `read_phonon2_archive` (feature `fermion`) reads
+//!   Phonon-2's archive through the shared
+//!   [`fermion`](crate::data::pretrained::fermion) readers.
 //! - [`weights`] (feature `store`): loading tensors named as `transformers`'
 //!   `ParakeetForTDT` state dict, the names every Parakeet checkpoint format
 //!   here is read under.
@@ -33,16 +31,12 @@ pub mod blocks;
 mod archive;
 mod bundle;
 mod decode;
-#[cfg(feature = "store")]
-mod fermion;
 mod front_end;
 mod vocab;
 #[cfg(feature = "fermion")]
 pub use archive::*;
 pub use bundle::*;
 pub use decode::*;
-#[cfg(feature = "store")]
-pub use fermion::*;
 pub use front_end::*;
 pub use vocab::*;
 

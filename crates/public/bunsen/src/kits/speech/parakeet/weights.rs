@@ -1,17 +1,14 @@
 //! Loading `transformers`-named tensors into a [`ParakeetTdt`].
-use burn::store::{
-    ModuleSnapshot,
-    PyTorchToBurnAdapter,
-    burn_pack::Tensor as PackTensor,
-};
+use burn::store::burn_pack::Tensor as PackTensor;
 
 use super::blocks::ParakeetTdt;
 use crate::{
     blocks::conformer::DwStridingSubsamplingMeta,
-    errors::{
-        BunsenError,
-        BunsenResult,
+    data::pretrained::{
+        NamedTensorsApplied,
+        apply_named_tensors,
     },
+    errors::BunsenResult,
 };
 
 /// The bunsen module path of one `transformers` `ParakeetForTDT` state-dict
@@ -23,7 +20,7 @@ use crate::{
 /// convolutions and activations) maps onto the stem and the stages.
 ///
 /// Normalization parameters keep their `weight` / `bias` spellings, which
-/// [`PyTorchToBurnAdapter`] resolves to `gamma` / `beta`.
+/// [`apply_named_tensors`] resolves to `gamma` / `beta`.
 pub fn hf_to_bunsen_path(
     name: &str,
     n_stages: usize,
@@ -79,73 +76,17 @@ pub fn hf_to_bunsen_path(
     Some(path)
 }
 
-/// What [`load_hf_tensors`] did.
-#[derive(Clone, Debug, Default)]
-pub struct HfTensorsApplied {
-    /// The module paths loaded.
-    pub applied: Vec<String>,
-
-    /// The source names that matched no parameter.
-    pub unused: Vec<String>,
-}
-
 /// Loads tensors named as `transformers`' `ParakeetForTDT` state dict into
-/// `model`.
-///
-/// The names are rewritten by [`hf_to_bunsen_path`], and the tensors adapted
-/// by [`PyTorchToBurnAdapter`]: linear weights transposed, normalization
-/// parameters renamed.
+/// `model`: [`apply_named_tensors`] under [`hf_to_bunsen_path`].
 ///
 /// # Errors
-/// [`InvalidResource`](crate::errors::BunsenErrorKind::InvalidResource) when
-/// a tensor does not fit its parameter, or when a parameter of the model was
-/// not among the tensors; the details list them.
+/// As [`apply_named_tensors`].
 pub fn load_hf_tensors(
     model: &mut ParakeetTdt,
     tensors: impl IntoIterator<Item = PackTensor>,
-) -> BunsenResult<HfTensorsApplied> {
+) -> BunsenResult<NamedTensorsApplied> {
     let n_stages = model.encoder.subsampling.n_stages();
-    let mut renamed = Vec::new();
-    let mut dropped = Vec::new();
-    for mut tensor in tensors {
-        match hf_to_bunsen_path(&tensor.name, n_stages) {
-            Some(path) => {
-                tensor.name = path;
-                renamed.push(tensor);
-            }
-            None => dropped.push(tensor.name),
-        }
-    }
-
-    let result = model.apply(renamed, None, Some(Box::new(PyTorchToBurnAdapter)), true);
-    if !result.errors.is_empty() {
-        let details: Vec<String> = result.errors.iter().map(|e| format!("{e:?}")).collect();
-        return Err(BunsenError::invalid_resource(format!(
-            "{} tensors do not fit the model",
-            details.len()
-        ))
-        .with_details(details.join("\n")));
-    }
-    if !result.missing.is_empty() {
-        let missing: Vec<&str> = result.missing.iter().map(|(p, _)| p.as_str()).collect();
-        return Err(BunsenError::invalid_resource(format!(
-            "the tensors lack {} of the model's parameters: {}",
-            missing.len(),
-            missing
-                .iter()
-                .take(8)
-                .copied()
-                .collect::<Vec<_>>()
-                .join(", ")
-        ))
-        .with_details(missing.join("\n")));
-    }
-    let mut unused = result.unused;
-    unused.extend(dropped);
-    Ok(HfTensorsApplied {
-        applied: result.applied,
-        unused,
-    })
+    apply_named_tensors(model, tensors, |name| hf_to_bunsen_path(name, n_stages))
 }
 
 #[cfg(test)]
