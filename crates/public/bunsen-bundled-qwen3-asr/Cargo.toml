@@ -1,0 +1,36 @@
+[package]
+name = "bunsen-bundled-qwen3-asr"
+description = "Bunsen bundled Qwen3-ASR assets: fetches FermionResearch's Phonon-1 builds, Qwen's Qwen3-ASR-0.6B and an ONNX export of it at build time, digest-pinned, each behind a feature, and generates Rust reference models from the export. Hosts none."
+publish = false
+
+authors.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+version.workspace = true
+repository.workspace = true
+license.workspace = true
+
+[dependencies]
+burn = { workspace = true, features = ["store"] }
+burn-store = { workspace = true, features = ["std"] }
+document-features = { workspace = true }
+
+[build-dependencies]
+bunsen-asset-fetch = { path = "../bunsen-asset-fetch" }
+burn-onnx = { workspace = true, optional = true }
+
+[lints]
+workspace = true
+
+[features]
+## Nothing by default: building this crate as a workspace member fetches
+## nothing. `qwen3-asr-model-validation/download` turns on every feature.
+default = []
+
+## Fetch the `OpenVoiceOS/qwen3-asr-0.6b-onnx` export of `Qwen3-ASR-0.6B`
+## (~3.8 GB) and generate Rust models from it, in `crate::onnx_gen`.
+##
+## This is the *reference implementation*: it exists so
+## `qwen3-asr-model-validation` has something with independent provenance to
+## disagree with. The export carries Qwen's base weights.
+onnx_gen = ["dep:burn-onnx"]

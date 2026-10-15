@@ -1486,15 +1486,33 @@ dependencies = [
 ]
 
 [[package]]
+name = "bunsen-asset-fetch"
+version = "0.38.0"
+dependencies = [
+ "sha2 0.11.0",
+ "ureq 3.4.2",
+]
+
+[[package]]
 name = "bunsen-bundled-parakeet"
 version = "0.38.0"
 dependencies = [
+ "bunsen-asset-fetch",
  "burn",
  "burn-onnx",
  "burn-store",
  "document-features",
- "sha2 0.11.0",
- "ureq 3.4.2",
+]
+
+[[package]]
+name = "bunsen-bundled-qwen3-asr"
+version = "0.38.0"
+dependencies = [
+ "bunsen-asset-fetch",
+ "burn",
+ "burn-onnx",
+ "burn-store",
+ "document-features",
 ]
 
 [[package]]
@@ -9060,6 +9078,18 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1fbf4db142a473a8d80c26bbf18454ed458bf8d26c8219c331daecfdbd079001"
 dependencies = [
  "proc-macro2",
+]
+
+[[package]]
+name = "qwen3-asr-model-validation"
+version = "0.38.0"
+dependencies = [
+ "bunsen",
+ "bunsen-bundled-qwen3-asr",
+ "burn",
+ "serde",
+ "serde_json",
+ "serial_test",
 ]
 
 [[package]]

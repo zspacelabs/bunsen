@@ -1,0 +1,18 @@
+[package]
+name = "bunsen-asset-fetch"
+description = "Build-script support for bunsen's bundled-asset crates: fetch a file, pin it to a SHA-256, honour a local override, and lay it out where the build wants it."
+publish = false
+
+authors.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+version.workspace = true
+repository.workspace = true
+license.workspace = true
+
+[dependencies]
+sha2 = { workspace = true }
+ureq = { workspace = true }
+
+[lints]
+workspace = true

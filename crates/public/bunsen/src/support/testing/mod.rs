@@ -67,6 +67,9 @@
 //! - [`assert_tensor_close_to_vec`]: a tensor against a row-major host buffer
 //!   of `f64`, within a `Tolerance`.
 //! - [`assert_close_to_vec`]: two host slices, within an absolute tolerance.
+//! - [`TensorRecord`]: a reference tensor recorded compactly (shape, sums,
+//!   strided samples) by a reference implementation, and
+//!   [`assert_matches`](TensorRecord::assert_matches) against it.
 //!
 //! # Speech
 //!
@@ -102,8 +105,10 @@ mod common_assertions;
 mod common_devices;
 mod device_memory;
 mod seeded;
+mod tensor_record;
 
 pub use common_assertions::*;
 pub use common_devices::*;
 pub use device_memory::*;
 pub use seeded::*;
+pub use tensor_record::*;
