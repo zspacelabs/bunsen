@@ -25,6 +25,88 @@ pub const BURNPACK_KIND: &str = "burnpack";
 /// conversion is bunsen's.
 pub const BUNSEN_NAMESPACE: &str = "bunsen";
 
+/// The key of the checkpoint in a Silero resource map of upstream's files.
+pub const CHECKPOINT: &str = "checkpoint";
+
+/// The `kind` label of a `PyTorch` state dict as safetensors: upstream's
+/// `silero_vad_16k.safetensors`.
+pub const SAFETENSORS_KIND: &str = "safetensors";
+
+/// The namespace upstream's files are cached under.
+pub const SILERO_NAMESPACE: &str = "silero";
+
+#[cfg(feature = "store_safetensors")]
+const SILERO_ORIGIN: &str = "https://github.com/snakers4/silero-vad";
+
+#[cfg(feature = "store_safetensors")]
+mod upstream {
+    use super::{
+        CHECKPOINT,
+        SAFETENSORS_KIND,
+        SILERO_NAMESPACE,
+        SILERO_ORIGIN,
+    };
+    use crate::data::pretrained::{
+        StaticBase,
+        StaticPretrained,
+        StaticPretrainedGroup,
+        StaticPretrainedTable,
+        StaticResource,
+        StaticResourceMap,
+        WELL_KNOWN,
+    };
+
+    /// Upstream's `silero_vad_16k.safetensors`, the 16 kHz model's state
+    /// dict, at a fixed revision of `snakers4/silero-vad`.
+    pub static SILERO_VAD_16K_FILES: StaticResourceMap<'static> = StaticResourceMap {
+        name: "silero/vad-16k",
+        description: "Silero VAD's 16 kHz model, upstream's safetensors (f32)",
+        license: Some("MIT"),
+        origin: Some(SILERO_ORIGIN),
+        namespace: SILERO_NAMESPACE,
+        bases: &[StaticBase::Url(
+            "https://raw.githubusercontent.com/snakers4/silero-vad/fb7d7c7f5df63235f0afd037d8397593829aeb41/src/silero_vad/data",
+        )],
+        resources: &[StaticResource {
+            key: CHECKPOINT,
+            file: "silero_vad_16k.safetensors",
+            sha256: Some("c59271c284ae9c8335d795d60e0bfdb71aaaceec578d9bd9ffc1b8153c319ea1"),
+            kind: Some(SAFETENSORS_KIND),
+            sources: &[],
+        }],
+    };
+
+    static VAD_16K: StaticPretrained<'static> = StaticPretrained {
+        name: "vad-16k",
+        aliases: &[],
+        description: "Silero VAD, the 16 kHz model, from upstream's safetensors (1.2 MB)",
+        license: Some("MIT"),
+        origin: Some(SILERO_ORIGIN),
+        prefab: None,
+        maps: &[&SILERO_VAD_16K_FILES],
+    };
+
+    /// `snakers4/silero-vad`'s own files.
+    pub static SILERO_UPSTREAM: StaticPretrainedGroup<'static> = StaticPretrainedGroup {
+        name: "silero",
+        description: "snakers4/silero-vad, as upstream publishes it",
+        license: Some("MIT"),
+        origin: Some(SILERO_ORIGIN),
+        items: &[&VAD_16K],
+    };
+
+    /// The Silero checkpoints bunsen fetches by name, behind the
+    /// [`WELL_KNOWN`] provider: `well-known:silero/vad-16k`.
+    pub static WELL_KNOWN_TABLE: StaticPretrainedTable<'static> = StaticPretrainedTable {
+        name: WELL_KNOWN,
+        description: "the Silero VAD checkpoints bunsen fetches by name",
+        groups: &[&SILERO_UPSTREAM],
+    };
+}
+
+#[cfg(feature = "store_safetensors")]
+pub use upstream::*;
+
 #[cfg(feature = "silero-weights")]
 mod bundled {
     use super::{
@@ -93,32 +175,35 @@ mod bundled {
 #[cfg(feature = "silero-weights")]
 pub use bundled::*;
 
-/// Silero's compiled-in providers, in search order: the bundled table with
-/// the `silero-weights` feature, nothing without.
+/// Silero's compiled-in providers, in search order: the well-known table
+/// (with `store_safetensors`), then the bundled table (with
+/// `silero-weights`).
 ///
-/// One row, `bundled:silero/vad`: the Silero VAD graph, both sample-rate
-/// branches, as the burnpack `bunsen-bundled-silero` generates from the
-/// ONNX export and links into the binary. It has no URL: the burnpack is
-/// bunsen's build artifact, pinned to the digest that build computed, and
-/// written into the cache from the binary on first use.
+/// - `well-known:silero/vad-16k`: upstream's `silero_vad_16k.safetensors`, the
+///   16 kHz model, fetched from a pinned revision of `snakers4/silero-vad`.
+/// - `bundled:silero/vad`: the Silero VAD graph, both sample-rate branches, as
+///   the burnpack `bunsen-bundled-silero` generates from the ONNX export and
+///   links into the binary. It has no URL: the burnpack is bunsen's build
+///   artifact, pinned to the digest that build computed, and written into the
+///   cache from the binary on first use.
 pub fn default_silero_providers() -> Vec<Arc<dyn PretrainedProvider>> {
-    #[cfg(feature = "silero-weights")]
-    {
-        vec![Arc::new(BUNDLED_TABLE.to_table())]
-    }
-    #[cfg(not(feature = "silero-weights"))]
-    {
-        Vec::new()
-    }
+    let providers: Vec<Arc<dyn PretrainedProvider>> = vec![
+        #[cfg(feature = "store_safetensors")]
+        Arc::new(WELL_KNOWN_TABLE.to_table()),
+        #[cfg(feature = "silero-weights")]
+        Arc::new(BUNDLED_TABLE.to_table()),
+    ];
+    providers
 }
 
 /// Silero's factory: [`default_silero_providers`] behind
 /// [`SileroConstruct`].
 ///
-/// The index a caller holds: `load("bundled:silero/vad", ..)` gives the
-/// [`SileroVadCollection`](crate::kits::speech::silero_vad::SileroVadCollection).
-/// Without the `silero-weights` feature it has no providers, and every
-/// name is not found.
+/// The index a caller holds: `load("silero/vad-16k", ..)` or
+/// `load("bundled:silero/vad", ..)` gives the
+/// [`SileroVadCollection`](crate::kits::speech::silero_vad::SileroVadCollection):
+/// the 16 kHz branch from upstream's safetensors, or both branches from the
+/// bundled burnpack.
 ///
 /// # Errors
 /// As [`PretrainedFactory::with_providers`], if two of the defaults share a
@@ -135,15 +220,41 @@ mod tests {
         testing::ErrorMatcher,
     };
 
-    /// Without the bundle there is nothing to list and nothing answers.
-    #[cfg(not(feature = "silero-weights"))]
+    /// Without the bundle, only upstream's row is listed, and the bundle's
+    /// name is not found.
+    #[cfg(all(feature = "store_safetensors", not(feature = "silero-weights")))]
     #[test]
-    fn test_without_the_bundle_the_factory_is_empty() {
+    fn test_without_the_bundle_only_upstream_is_listed() {
         let factory = default_silero_factory().unwrap();
         assert_eq!(factory.kit(), SILERO_KIT);
-        assert!(factory.providers().is_empty());
-        assert!(factory.ids().is_empty());
+        assert_eq!(factory.ids(), ["well-known:silero/vad-16k"]);
         ErrorMatcher::kind(BunsenErrorKind::Lookup).assert_err(&factory.lookup("vad"));
+    }
+
+    /// Upstream's row is pinned to one URL, and answers by its qualified and
+    /// short names.
+    #[cfg(feature = "store_safetensors")]
+    #[test]
+    fn test_the_upstream_row_is_pinned_and_named() {
+        let map = SILERO_VAD_16K_FILES.to_map();
+        map.validate().unwrap();
+        let r = map.get(CHECKPOINT).unwrap();
+        assert!(r.is_pinned());
+        assert_eq!(
+            r.urls(),
+            [
+                "https://raw.githubusercontent.com/snakers4/silero-vad/fb7d7c7f5df63235f0afd037d8397593829aeb41/src/silero_vad/data/silero_vad_16k.safetensors"
+            ]
+        );
+
+        let factory = default_silero_factory().unwrap();
+        for spec in ["well-known:silero/vad-16k", "silero/vad-16k", "vad-16k"] {
+            assert_eq!(
+                factory.lookup(spec).unwrap().1.name,
+                "silero/vad-16k",
+                "{spec}"
+            );
+        }
     }
 
     /// The bundled row is pinned to the build's digest, has the bytes, and
@@ -169,7 +280,10 @@ mod tests {
 
         let factory = default_silero_factory().unwrap();
         assert_eq!(factory.kit(), SILERO_KIT);
-        assert_eq!(factory.ids(), ["bundled:silero/vad"]);
+        assert_eq!(
+            factory.ids(),
+            ["well-known:silero/vad-16k", "bundled:silero/vad"]
+        );
         assert_eq!(factory.provider(BUNDLED).unwrap().name(), "bundled");
         for spec in ["bundled:silero/vad", "silero/vad", "vad"] {
             assert_eq!(factory.lookup(spec).unwrap().1.name, "silero/vad", "{spec}");

@@ -27,12 +27,20 @@ document-features = { workspace = true }
 # committed ONNX graph whether or not the generated Rust model is wanted,
 # and hashes what it generated.
 burn-onnx = { workspace = true }
+bunsen-fetch = { version = "0.38.0", path = "../bunsen-fetch", features = ["fetch"], optional = true }
 sha2 = { workspace = true }
 
 [lints]
 workspace = true
 
 [features]
+## Fetch upstream's `silero_vad_16k.safetensors` (1.2 MB, the 16 kHz
+## model's state dict) into `cache_dir()`, laid out as a bunsen pretrained
+## cache: a cache rooted there resolves `silero/vad-16k` offline. Reaches
+## the network on a cold build; `SILERO_VAD_16K_SAFETENSORS` names a local
+## copy instead.
+checkpoint = ["dep:bunsen-fetch"]
+
 ## Expose the ONNX-generated reference model in `crate::onnx_gen`.
 ##
 ## The weights are generated from the ONNX graph either way; this only

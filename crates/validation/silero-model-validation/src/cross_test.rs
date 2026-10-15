@@ -6,7 +6,10 @@
 //! through the streaming context at both rates and steps the reference the
 //! way upstream's `OnnxWrapper` does. `test_golden_context` runs a real
 //! recording through the streaming context and pins the per-chunk
-//! probabilities.
+//! probabilities. With `download`,
+//! `test_upstream_safetensors_matches_the_reference` holds the `silero/vad-16k`
+//! row, upstream's own safetensors, to the reference, to the bundled burnpack,
+//! and to the golden trace.
 
 #[cfg(test)]
 mod tests {
@@ -211,6 +214,78 @@ mod tests {
 
         chunk_probs.assert_approx_eq(&expected, Tolerance::<f32>::default());
 
+        Ok(())
+    }
+
+    /// `silero/vad-16k`, upstream's `silero_vad_16k.safetensors` loaded
+    /// through the factory from an offline cache, is a sibling of the graph
+    /// the reference and the bundled burnpack come from, not the same
+    /// weights: on a real recording it makes the graph's speech decisions,
+    /// chunk for chunk, within the margins measured below.
+    #[cfg(feature = "download")]
+    #[test]
+    #[serial_test::serial]
+    fn test_upstream_safetensors_decides_as_the_graph() -> Result<(), Box<dyn std::error::Error>> {
+        use bunsen::{
+            data::{
+                cache::BunsenDiskCacheOptions,
+                pretrained::{
+                    PretrainedCache,
+                    PretrainedCacheOptions,
+                },
+            },
+            kits::speech::silero_vad::pretrained::default_silero_factory,
+        };
+
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
+        let cache = PretrainedCache::new(
+            PretrainedCacheOptions::default()
+                .with_disk(
+                    BunsenDiskCacheOptions::default()
+                        .with_cache_dir(Some(bunsen_bundled_silero::cache_dir().to_path_buf())),
+                )
+                .with_offline(true),
+        )?;
+        let upstream = default_silero_factory()?
+            .load("silero/vad-16k", &cache, &device)?
+            .handle;
+        assert_eq!(upstream.branches.len(), 1);
+        let vad = upstream.try_branch(16000)?;
+
+        let wav_path = concat!(env!("CARGO_MANIFEST_DIR"), "/testdata/test.wav");
+        let expected_path = concat!(env!("CARGO_MANIFEST_DIR"), "/testdata/test.json");
+        let mut wav = load_audio_mono_sr(wav_path, 16000)?;
+        let chunk = vad.chunk_size();
+        wav.resize(wav.len().div_ceil(chunk) * chunk, 0.0);
+        let chunks =
+            Tensor::<1>::from_floats(wav.as_slice(), &device).reshape([-1, 1, chunk as isize]);
+        let (probs, _) = vad.context_forward_sequence(
+            chunks,
+            SileroVadContextConfig::new(16000).init(vad, &device),
+        );
+        let probs: Vec<f32> = probs.squeeze_dim::<1>(1).into_data().try_into_vec_as()?;
+        let golden: Vec<f32> = serde_json::from_reader(std::fs::File::open(expected_path)?)?;
+        assert_eq!(probs.len(), golden.len());
+
+        let max_diff = probs
+            .iter()
+            .zip(&golden)
+            .map(|(a, b)| (a - b).abs())
+            .fold(0.0f32, f32::max);
+        let disagree = probs
+            .iter()
+            .zip(&golden)
+            .filter(|(a, b)| (**a > 0.5) != (**b > 0.5))
+            .count();
+        eprintln!(
+            "upstream safetensors vs the graph: {disagree} of {} chunks decided differently, max |dp| {max_diff:.4}",
+            probs.len()
+        );
+        // Measured on wgpu: 14 of 1875 chunks, max |dp| 0.4529, at decision
+        // boundaries: the weights differ (their correlation with the graph's is
+        // 0.90 to 0.997), the architecture does not.
+        assert!(disagree <= 28, "{disagree} of {} chunks", probs.len());
         Ok(())
     }
 }

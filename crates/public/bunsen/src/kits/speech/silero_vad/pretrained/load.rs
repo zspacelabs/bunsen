@@ -244,3 +244,191 @@ impl SileroVadCollection {
         ))
     }
 }
+
+/// The bunsen module path of one tensor of upstream's
+/// `silero_vad_16k.safetensors`, the 16 kHz model's `PyTorch` state dict, or
+/// `None` for a name the model has no parameter for.
+///
+/// | upstream | bunsen |
+/// |---|---|
+/// | `stft_conv` | `stft` |
+/// | `conv1` … `conv4` | `encoder.blocks.0` … `3.conv` |
+/// | `lstm_cell.{weight,bias}_ih` | `lstm.features.{weight,bias}` |
+/// | `lstm_cell.{weight,bias}_hh` | `lstm.hidden.{weight,bias}` |
+/// | `final_conv` | `decoder` |
+pub fn upstream_to_bunsen_path(name: &str) -> Option<String> {
+    let (module, param) = name.rsplit_once('.')?;
+    let path = match module {
+        "stft_conv" => "stft".to_string(),
+        "final_conv" => "decoder".to_string(),
+        "lstm_cell" => {
+            let (param, side) = param.rsplit_once('_')?;
+            let linear = match side {
+                "ih" => "features",
+                "hh" => "hidden",
+                _ => return None,
+            };
+            return Some(format!("lstm.{linear}.{param}"));
+        }
+        conv => {
+            let n: usize = conv.strip_prefix("conv")?.parse().ok()?;
+            format!("encoder.blocks.{}.conv", n.checked_sub(1)?)
+        }
+    };
+    Some(format!("{path}.{param}"))
+}
+
+#[cfg(feature = "store_safetensors")]
+impl SileroVad {
+    /// Load the 16khz model from tensors named as upstream's
+    /// `silero_vad_16k.safetensors` names them ([`upstream_to_bunsen_path`]).
+    ///
+    /// # Errors
+    /// As [`apply_named_tensors`](crate::data::pretrained::apply_named_tensors):
+    /// [`InvalidResource`](crate::errors::BunsenErrorKind::InvalidResource)
+    /// when a tensor does not fit, or a parameter is missing.
+    pub fn load_16khz_from_upstream_tensors(
+        tensors: impl IntoIterator<Item = burn::store::burn_pack::Tensor>,
+        device: &Device,
+    ) -> BunsenResult<Self> {
+        let mut vad: Self = SileroVadSignalConfig::standard_16khz().try_init(device)?;
+        crate::data::pretrained::apply_named_tensors(&mut vad, tensors, upstream_to_bunsen_path)?;
+        Ok(vad)
+    }
+
+    /// Load the 16khz model from upstream's `silero_vad_16k.safetensors`.
+    ///
+    /// # Errors
+    /// [`InvalidResource`](crate::errors::BunsenErrorKind::InvalidResource)
+    /// when the file is not a safetensors file; otherwise as
+    /// [`load_16khz_from_upstream_tensors`](Self::load_16khz_from_upstream_tensors),
+    /// under a frame naming the file.
+    pub fn load_16khz_from_safetensors_file(
+        path: impl AsRef<Path>,
+        device: &Device,
+    ) -> BunsenResult<Self> {
+        use burn::store::{
+            ModuleStore,
+            SafetensorsStore,
+        };
+
+        let path = path.as_ref();
+        let read = || -> BunsenResult<Self> {
+            std::fs::metadata(path).map_err(sys_at("open", path))?;
+            let tensors: Vec<_> = SafetensorsStore::from_file(path)
+                .get_all_tensors()
+                .map_err(|e| {
+                    BunsenError::invalid_resource("the store refused the checkpoint").with_cause(e)
+                })?
+                .values()
+                .cloned()
+                .collect();
+            Self::load_16khz_from_upstream_tensors(tensors, device)
+        };
+        read().with_context(|| format!("loading {}", path.display()))
+    }
+}
+
+impl SileroVadCollection {
+    /// A collection of one 16khz model: what upstream's
+    /// `silero_vad_16k.safetensors` holds.
+    pub fn from_16khz(vad_16: SileroVad) -> Self {
+        Self {
+            branches: vec![(16000, vad_16)],
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_upstream_to_bunsen_path() {
+        for (upstream, bunsen) in [
+            ("stft_conv.weight", Some("stft.weight")),
+            ("conv1.weight", Some("encoder.blocks.0.conv.weight")),
+            ("conv4.bias", Some("encoder.blocks.3.conv.bias")),
+            ("lstm_cell.weight_ih", Some("lstm.features.weight")),
+            ("lstm_cell.bias_ih", Some("lstm.features.bias")),
+            ("lstm_cell.weight_hh", Some("lstm.hidden.weight")),
+            ("lstm_cell.bias_hh", Some("lstm.hidden.bias")),
+            ("final_conv.bias", Some("decoder.bias")),
+            ("conv0.weight", None),
+            ("lstm_cell.weight_xx", None),
+            ("unknown", None),
+        ] {
+            assert_eq!(
+                upstream_to_bunsen_path(upstream).as_deref(),
+                bunsen,
+                "{upstream}"
+            );
+        }
+    }
+
+    /// A state dict with upstream's names and shapes loads into every
+    /// parameter, the LSTM's linears transposed as `PyTorch`'s are.
+    #[cfg(feature = "store_safetensors")]
+    #[test]
+    fn test_load_upstream_tensors() {
+        use burn::{
+            prelude::TensorData,
+            store::bridge,
+        };
+
+        use crate::support::testing::cpu_device;
+
+        let shapes: [(&str, &[usize]); 15] = [
+            ("stft_conv.weight", &[258, 1, 256]),
+            ("conv1.weight", &[128, 129, 3]),
+            ("conv1.bias", &[128]),
+            ("conv2.weight", &[64, 128, 3]),
+            ("conv2.bias", &[64]),
+            ("conv3.weight", &[64, 64, 3]),
+            ("conv3.bias", &[64]),
+            ("conv4.weight", &[128, 64, 3]),
+            ("conv4.bias", &[128]),
+            ("lstm_cell.weight_ih", &[512, 128]),
+            ("lstm_cell.weight_hh", &[512, 128]),
+            ("lstm_cell.bias_ih", &[512]),
+            ("lstm_cell.bias_hh", &[512]),
+            ("final_conv.weight", &[1, 128, 1]),
+            ("final_conv.bias", &[1]),
+        ];
+        let tensors = shapes.iter().map(|(name, shape)| {
+            let n: usize = shape.iter().product();
+            let values: Vec<f32> = (0..n).map(|k| k as f32 / n as f32).collect();
+            bridge::from_data(
+                TensorData::new(values, shape.to_vec()),
+                name.to_string(),
+                None,
+            )
+        });
+        let vad = SileroVad::load_16khz_from_upstream_tensors(tensors, &cpu_device()).unwrap();
+
+        // `weight_ih[1, 0]` is the 128th value; burn's linear holds its
+        // transpose.
+        let w: Vec<f32> = vad
+            .lstm
+            .features
+            .weight
+            .val()
+            .slice([0..1, 1..2])
+            .into_data()
+            .try_into_vec_as()
+            .unwrap();
+        let n = 512 * 128;
+        assert_eq!(w, [128.0 / n as f32]);
+        let b: Vec<f32> = vad
+            .decoder
+            .bias
+            .as_ref()
+            .unwrap()
+            .val()
+            .into_data()
+            .try_into_vec_as()
+            .unwrap();
+        assert_eq!(b, [0.0]);
+        assert_eq!(SileroVadCollection::from_16khz(vad).branches.len(), 1);
+    }
+}

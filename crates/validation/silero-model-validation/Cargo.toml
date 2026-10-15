@@ -16,6 +16,11 @@ workspace = true
 [features]
 default = []
 
+## Fetch upstream's `silero_vad_16k.safetensors` (1.2 MB) at build time, and
+## hold the `silero/vad-16k` row loaded from it to the reference. Off by
+## default: a plain build never reaches the network.
+download = ["bunsen-bundled-silero/checkpoint"]
+
 ## Run the validation on `wgpu`. The usual choice.
 wgpu = ["bunsen/wgpu"]
 
@@ -29,7 +34,7 @@ metal = ["bunsen/metal"]
 
 [dependencies]
 burn = { workspace = true }
-bunsen = { path = "../../public/bunsen", features = ["testing", "silero-weights"] }
+bunsen = { path = "../../public/bunsen", features = ["testing", "silero-weights", "cache"] }
 bunsen-bundled-silero = {
     path = "../../public/bunsen-bundled-silero",
     features = ["onnx_gen"]

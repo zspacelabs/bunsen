@@ -48,6 +48,22 @@ pub const BURNPACK_FILE: &str = "silero_vad_op18_ifless.bpk";
 /// its own slot.
 pub const BURNPACK_SHA256: &str = env!("SILERO_BURNPACK_SHA256");
 
+/// `OUT_DIR` laid out as a pretrained cache, holding upstream's
+/// `silero_vad_16k.safetensors`: the root a
+/// `bunsen::data::pretrained::PretrainedCache` is pointed at to resolve
+/// `silero/vad-16k` offline.
+#[cfg(feature = "checkpoint")]
+pub fn cache_dir() -> &'static std::path::Path {
+    std::path::Path::new(env!("SILERO_CACHE_DIR"))
+}
+
+/// The fetched `silero_vad_16k.safetensors`: the digest-pinned download, or
+/// whatever `SILERO_VAD_16K_SAFETENSORS` pointed at.
+#[cfg(feature = "checkpoint")]
+pub fn silero_vad_16k_safetensors() -> &'static std::path::Path {
+    std::path::Path::new(env!("SILERO_VAD_16K_SAFETENSORS_PATH"))
+}
+
 /// [`BURNPACK_WEIGHTS`], copied into burn's [`Bytes`](burn::tensor::Bytes).
 pub fn burnpack_as_burn_bytes() -> burn::tensor::Bytes {
     burn::tensor::Bytes::from_bytes_vec(BURNPACK_WEIGHTS.to_vec())

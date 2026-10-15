@@ -1,11 +1,18 @@
 //! # Pretrained Silero VAD models
 //!
-//! [`default_silero_factory`] is the index: with the `silero-weights`
-//! feature, one row, `bundled:silero/vad`, the burnpack linked into the
-//! binary, and nothing without it. [`SileroConstruct`] reads a burnpack
-//! into a [`SileroVadCollection`](super::SileroVadCollection), both
-//! branches. The loaders in [`load`] read the bytes directly, with no
-//! cache, and stay for a binary that wants nothing else.
+//! [`default_silero_factory`] is the index:
+//!
+//! - `well-known:silero/vad-16k` (with `store_safetensors`): upstream's
+//!   `silero_vad_16k.safetensors`, the 16 kHz model, fetched from a pinned
+//!   revision of `snakers4/silero-vad` (1.2 MB, MIT);
+//! - `bundled:silero/vad` (with `silero-weights`): the burnpack linked into the
+//!   binary, both sample-rate branches.
+//!
+//! [`SileroConstruct`] reads either into a
+//! [`SileroVadCollection`](super::SileroVadCollection): the 16 kHz branch
+//! from the safetensors, both from the burnpack. The loaders in [`load`]
+//! read the files or bytes directly, with no cache, and stay for a binary
+//! that wants nothing else.
 //!
 //! The whole module needs the `store` and `cache` features, both
 //! default. The kit has no prefab map.
