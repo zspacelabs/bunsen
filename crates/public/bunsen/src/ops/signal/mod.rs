@@ -36,6 +36,8 @@
 //!   picks one as a config value.
 //! - **Log-mel.** [`perceptive_audio`] converts waveforms to log-mel
 //!   spectrograms (Whisper's front end; defaults reproduce `librosa`).
+//! - **Long audio.** [`quiet_cuts`] cuts a long recording into bounded windows
+//!   at its quietest points, for models that take bounded utterances.
 //! - **Testing.** The `testing` submodule (with the `testing` feature) has
 //!   assertions for window builders.
 //!
@@ -53,11 +55,13 @@ pub mod perceptive_audio;
 pub mod testing;
 
 mod cosine_window;
+mod quiet_cuts;
 mod sliding_stft;
 mod stft_window;
 mod window_builder;
 
 pub use cosine_window::*;
+pub use quiet_cuts::*;
 pub use sliding_stft::*;
 pub use stft_window::*;
 pub use window_builder::*;

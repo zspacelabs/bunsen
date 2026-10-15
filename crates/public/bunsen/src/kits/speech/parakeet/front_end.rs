@@ -7,17 +7,19 @@ use burn::{
 };
 
 use crate::{
-    blocks::conformer::time_mask,
     burner::module::ModuleInit,
     errors::BunsenResult,
-    ops::signal::{
-        StftWindowConfig,
-        perceptive_audio::{
-            PaddingMode,
-            PerceptiveAudioConverter,
-            PerceptiveAudioConverterMeta,
-            PerceptiveAudioConverterOptions,
+    ops::{
+        signal::{
+            StftWindowConfig,
+            perceptive_audio::{
+                PaddingMode,
+                PerceptiveAudioConverter,
+                PerceptiveAudioConverterMeta,
+                PerceptiveAudioConverterOptions,
+            },
         },
+        transformers::attention::length_mask,
     },
 };
 
@@ -202,7 +204,7 @@ impl ParakeetFrontEnd {
         } else {
             waveforms
         };
-        let x = x * time_mask(&lengths, samples, &device).float();
+        let x = x * length_mask(&lengths, samples, &device).float();
 
         // Centre the frames: half a window of zeros on each side.
         let half = self.config.win_length / 2;
@@ -222,7 +224,7 @@ impl ParakeetFrontEnd {
         // Per-feature normalization over each item's valid frames.
         let [_, frames, n_mels] = logmel.dims();
         let frame_lengths: Vec<usize> = lengths.iter().map(|&n| self.frame_len(n)).collect();
-        let valid = time_mask(&frame_lengths, frames, &device)
+        let valid = length_mask(&frame_lengths, frames, &device)
             .float()
             .reshape([batch, frames, 1]);
         let counts: Vec<f32> = frame_lengths.iter().map(|&n| n as f32).collect();

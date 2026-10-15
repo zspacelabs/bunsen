@@ -16,11 +16,13 @@ use super::{
     ConformerConvolutionConfig,
     ConformerFeedForward,
     ConformerFeedForwardConfig,
-    RelPosSelfAttention,
-    RelPosSelfAttentionConfig,
-    RelPosSelfAttentionMeta,
 };
 use crate::{
+    blocks::transformers::attention::rel_pos::{
+        RelPosSelfAttention,
+        RelPosSelfAttentionConfig,
+        RelPosSelfAttentionMeta,
+    },
     burner::module::ModuleInit,
     errors::BunsenResult,
 };

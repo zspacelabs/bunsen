@@ -1,5 +1,9 @@
 //! # Attention blocks
 //!
+//! [`rel_pos::RelPosSelfAttention`] is Transformer-XL relative-position
+//! self-attention, the Conformer's; the rest of this page is about the
+//! causal stack.
+//!
 //! [`CausalSelfAttention`] is bunsen's own multi-head causal self-attention
 //! layer, the one the [`NanoChatGpt`] kit stacks. It is a part of a module
 //! tree, built once per layer. The operations it calls and the cache state it
@@ -75,3 +79,4 @@
 //! [`NanoChatGpt::new_kv_cache`]: crate::kits::gpts::nanochat::NanoChatGpt::new_kv_cache
 
 pub mod csa;
+pub mod rel_pos;

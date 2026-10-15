@@ -9,10 +9,6 @@ use burn::{
         PaddingConfig2d,
         conv::Conv2dConfig,
     },
-    prelude::{
-        Bool,
-        Int,
-    },
     tensor::Device,
 };
 
@@ -27,6 +23,7 @@ use crate::{
         ConstraintError,
         Rule,
     },
+    ops::transformers::attention::length_mask,
 };
 
 /// Common meta for [`DwStridingSubsampling`] and
@@ -223,7 +220,7 @@ impl DwStridingSubsampling {
         };
         let masked = |x: Tensor<4>, lengths: &[usize]| {
             let t = x.dims()[2];
-            x * time_mask(lengths, t, &device)
+            x * length_mask(lengths, t, &device)
                 .float()
                 .reshape([batch as i32, 1, t as i32, 1])
         };
@@ -244,22 +241,6 @@ impl DwStridingSubsampling {
         let x = x.swap_dims(1, 2).reshape([batch, t, c * f]);
         (self.linear.forward(x), lengths)
     }
-}
-
-/// `[batch, time]`: true at `j < lengths[b]`.
-pub fn time_mask(
-    lengths: &[usize],
-    time: usize,
-    device: &Device,
-) -> Tensor<2, Bool> {
-    let lens: Vec<i64> = lengths.iter().map(|&l| l as i64).collect();
-    let lens = Tensor::<1, Int>::from_data(
-        burn::prelude::TensorData::new(lens, [lengths.len()]),
-        device,
-    );
-    Tensor::<1, Int>::arange(0..time as i64, device)
-        .unsqueeze_dim::<2>(0)
-        .lower(lens.unsqueeze_dim::<2>(1))
 }
 
 #[cfg(test)]
@@ -287,12 +268,5 @@ mod tests {
             module.forward(Tensor::zeros([2, 24, 53], &cpu_device()), Some(&[53, 37]));
         assert_eq!(y.dims(), [2, 7, 16]);
         assert_eq!(lengths, [7, 5]);
-    }
-
-    #[test]
-    fn test_time_mask() {
-        let mask = time_mask(&[3, 1], 4, &cpu_device());
-        let values: Vec<bool> = mask.into_data().iter::<bool>().collect();
-        assert_eq!(values, [true, true, true, false, true, false, false, false]);
     }
 }

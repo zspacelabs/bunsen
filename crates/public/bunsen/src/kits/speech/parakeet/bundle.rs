@@ -168,7 +168,7 @@ impl ParakeetBundle {
             "max_window shorter than six frames"
         );
         assert!(batch > 0, "batch is 0");
-        let windows = quiet_cuts(samples, max_window, frame);
+        let windows = crate::ops::signal::quiet_cuts(samples, max_window, frame);
 
         let mut joined = TdtHypothesis::default();
         let mut texts = Vec::new();
@@ -234,60 +234,9 @@ impl ParakeetBundle {
     }
 }
 
-/// Cuts `samples` into windows of at most `max_window` samples, each cut on
-/// a multiple of `frame` at the frame of least energy in the window's last
-/// sixth.
-fn quiet_cuts(
-    samples: &[f32],
-    max_window: usize,
-    frame: usize,
-) -> Vec<(usize, usize)> {
-    let max_window = max_window / frame * frame;
-    let search = (max_window / 6 / frame).max(1) * frame;
-    let mut cuts = Vec::new();
-    let mut start = 0;
-    while samples.len() - start > max_window {
-        let end = start + max_window;
-        let cut = (end - search..end)
-            .step_by(frame)
-            .min_by(|&a, &b| {
-                let energy =
-                    |at: usize| -> f32 { samples[at..at + frame].iter().map(|x| x * x).sum() };
-                energy(a).total_cmp(&energy(b))
-            })
-            .map(|at| at + frame)
-            .unwrap_or(end);
-        cuts.push((start, cut));
-        start = cut;
-    }
-    cuts.push((start, samples.len()));
-    cuts
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    /// Windows tile the signal, each cut on a frame boundary at most
-    /// `max_window` long, and a cut lands in the silence when there is one.
-    #[test]
-    fn test_quiet_cuts() {
-        let frame = 10;
-        let mut samples = vec![1.0f32; 1000];
-        samples[540..550].fill(0.0);
-        let cuts = quiet_cuts(&samples, 600, frame);
-        assert_eq!(cuts.first().unwrap().0, 0);
-        assert_eq!(cuts.last().unwrap().1, 1000);
-        for w in cuts.windows(2) {
-            assert_eq!(w[0].1, w[1].0);
-        }
-        for &(a, b) in &cuts {
-            assert!(b - a <= 600);
-            assert_eq!(a % frame, 0);
-        }
-        assert_eq!(cuts[0], (0, 550));
-        assert_eq!(quiet_cuts(&samples[..300], 600, frame), [(0, 300)]);
-    }
 
     #[test]
     fn test_words() {

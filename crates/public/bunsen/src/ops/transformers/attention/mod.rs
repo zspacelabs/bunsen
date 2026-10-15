@@ -32,8 +32,12 @@
 //! Transformer-XL relative-position attention that are not weights: the
 //! sinusoidal table of relative positions, and the shift that aligns
 //! query-by-position scores into query-by-key scores. The Conformer's
-//! [`RelPosSelfAttention`](crate::blocks::conformer::RelPosSelfAttention)
+//! [`RelPosSelfAttention`](crate::blocks::transformers::attention::rel_pos::RelPosSelfAttention)
 //! block is built on them.
+//!
+//! [`length_mask`] is the `[batch, time]` validity mask of a padded batch;
+//! [`window_block_mask`] is the `[n, n]` mask of block-diagonal (windowed)
+//! self-attention.
 //!
 //! ## Two caches
 //!
@@ -89,6 +93,7 @@ mod attend;
 mod attn_kv_pair;
 mod causal_mask;
 mod kv_cache;
+mod length_mask;
 mod rel_pos;
 mod sdpa;
 
@@ -96,5 +101,6 @@ pub use attend::*;
 pub use attn_kv_pair::*;
 pub use causal_mask::*;
 pub use kv_cache::*;
+pub use length_mask::*;
 pub use rel_pos::*;
 pub use sdpa::*;

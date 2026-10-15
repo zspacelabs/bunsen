@@ -309,15 +309,17 @@ impl Qwen3AsrAudioEncoder {
     }
 
     /// `[1, n, n]`: true where frames `i` and `j` are in different attention
-    /// windows.
+    /// windows; [`window_block_mask`] over
+    /// [`window_frames`](Qwen3AsrAudioEncoderMeta::window_frames).
+    ///
+    /// [`window_block_mask`]: crate::ops::transformers::attention::window_block_mask
     pub fn window_mask(
         &self,
         n: usize,
         device: &Device,
     ) -> Tensor<3, Bool> {
-        let w = self.window_frames();
-        let data: Vec<bool> = (0..n * n).map(|k| (k / n) / w != (k % n) / w).collect();
-        Tensor::from_data(TensorData::new(data, [1, n, n]), device)
+        crate::ops::transformers::attention::window_block_mask(n, self.window_frames(), device)
+            .unsqueeze_dim(0)
     }
 
     /// Encodes one utterance.

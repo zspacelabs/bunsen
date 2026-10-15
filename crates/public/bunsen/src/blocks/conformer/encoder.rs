@@ -12,7 +12,6 @@ use super::{
     DwStridingSubsampling,
     DwStridingSubsamplingConfig,
     DwStridingSubsamplingMeta,
-    time_mask,
 };
 use crate::{
     burner::module::ModuleInit,
@@ -21,7 +20,10 @@ use crate::{
         ConstraintError,
         Rule,
     },
-    ops::transformers::attention::rel_position_table,
+    ops::transformers::attention::{
+        length_mask,
+        rel_position_table,
+    },
 };
 
 /// Common meta for [`ConformerEncoder`] and [`ConformerEncoderConfig`].
@@ -165,7 +167,7 @@ impl ConformerEncoder {
         let [_, time, d_model] = x.dims();
         let device = x.device();
         let positions = rel_position_table(time, d_model, &device);
-        let valid = padded.then(|| time_mask(&lengths, time, &device));
+        let valid = padded.then(|| length_mask(&lengths, time, &device));
         for layer in &self.layers {
             x = layer.forward(x, positions.clone(), valid.clone());
         }
