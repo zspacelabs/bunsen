@@ -16,19 +16,31 @@
 //!   decoder; [`transcribe`](Qwen3AsrBundle::transcribe) one utterance, or
 //!   [`transcribe_long`](Qwen3AsrBundle::transcribe_long) any recording in
 //!   windows.
+//! - `read_phonon1_archive` (feature `fermion`): a Phonon-1 archive's weights,
+//!   expanded to dense `transformers`-named tensors, and its vocabulary.
+//! - [`pretrained`] (features `store_safetensors` and `cache`): the named
+//!   checkpoints, `fermion/phonon-1` the default, and the factory that loads
+//!   one into a bundle.
 //! - [`weights`] (feature `store`): loading tensors named as `transformers`'
 //!   `Qwen3ASRForConditionalGeneration` state dict.
 
 pub mod blocks;
 
+#[cfg(feature = "fermion")]
+mod archive;
 mod bundle;
 mod decode;
 mod front_end;
 mod prompt;
+#[cfg(feature = "fermion")]
+pub use archive::*;
 pub use bundle::*;
 pub use decode::*;
 pub use front_end::*;
 pub use prompt::*;
+
+#[cfg(all(feature = "store_safetensors", feature = "cache"))]
+pub mod pretrained;
 
 #[cfg(feature = "store")]
 pub mod weights;

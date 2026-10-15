@@ -213,9 +213,71 @@ pub fn window_bias(
     Tensor::from_data(TensorData::new(data, [1, 1, n, n]), device)
 }
 
+/// A pretrained cache over the bundled checkpoints, offline.
+///
+/// Without `download` there are none: an ordinary cache, which the tests
+/// that need it are not compiled without.
+pub fn weights_cache() -> bunsen::data::pretrained::PretrainedCache {
+    use bunsen::data::pretrained::{
+        PretrainedCache,
+        PretrainedCacheOptions,
+    };
+    #[cfg(feature = "download")]
+    let options = PretrainedCacheOptions::default()
+        .with_disk(
+            bunsen::data::cache::BunsenDiskCacheOptions::default()
+                .with_cache_dir(Some(bunsen_bundled_qwen3_asr::cache_dir().to_path_buf())),
+        )
+        .with_offline(true);
+    #[cfg(not(feature = "download"))]
+    let options = PretrainedCacheOptions::default();
+    PretrainedCache::new(options).expect("open the pretrained cache")
+}
+
+/// A Qwen3-ASR pretrained by name, through bunsen's factory and
+/// [`weights_cache`].
+pub fn load_bundle(
+    name: &str,
+    device: &Device,
+) -> std::sync::Arc<bunsen::kits::speech::qwen3_asr::Qwen3AsrBundle> {
+    bunsen::kits::speech::qwen3_asr::pretrained::default_qwen3_asr_factory()
+        .expect("the qwen3-asr factory")
+        .load_bundle(name, &weights_cache(), device)
+        .unwrap_or_else(|e| panic!("load {name}: {e}"))
+}
+
+/// A clip from `whisper-model-validation`'s speech fixtures, at 16 kHz.
+pub fn speech_clip(name: &str) -> Vec<f32> {
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../whisper-model-validation/testdata")
+        .join(name);
+    bunsen::support::audio::load_audio_mono_sr(&path, 16000)
+        .unwrap_or_else(|e| panic!("load {}: {e}", path.display()))
+}
+
+/// The ground-truth transcript of a clip from `whisper-model-validation`'s
+/// speech fixtures.
+pub fn speech_transcript(name: &str) -> String {
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../whisper-model-validation/testdata")
+        .join(name)
+        .with_extension("txt");
+    std::fs::read_to_string(&path).unwrap_or_else(|e| panic!("read {}: {e}", path.display()))
+}
+
 /// The generated reference models, held to the onnxruntime fixture.
 #[cfg(all(test, feature = "download", feature = "gpu-tests"))]
 mod reference_tests;
+
+/// bunsen's Qwen3-ASR, stage by stage, on the base weights, against the
+/// onnxruntime fixture.
+#[cfg(all(test, feature = "download", feature = "gpu-tests"))]
+mod staged;
+
+/// Transcriptions of real speech: bunsen against `transformers` and the
+/// ground truth.
+#[cfg(all(test, feature = "download", feature = "gpu-tests"))]
+mod speech;
 
 #[cfg(test)]
 mod tests {

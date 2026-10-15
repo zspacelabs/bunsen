@@ -16,15 +16,20 @@ workspace = true
 [features]
 default = []
 
-## Fetch the reference graphs and generate the models from them.
+## Fetch the reference graphs and generate the models from them, and fetch
+## the checkpoints compared against them: Qwen's `Qwen3-ASR-0.6B` and
+## `FermionResearch`'s three Phonon-1 builds.
 ##
 ## **Off by default.** Enabling this makes `bunsen-bundled-qwen3-asr`'s build
-## reach the network on a cold cache (~3.8 GB), which a plain
+## reach the network on a cold cache (~6.7 GB), which a plain
 ## `cargo build --workspace` must never do. Every asset is verified against a
 ## pinned SHA-256, so a warm build is offline and reproducible.
 download = [
     "dep:bunsen-bundled-qwen3-asr",
     "bunsen-bundled-qwen3-asr/onnx_gen",
+    "bunsen-bundled-qwen3-asr/checkpoint",
+    "bunsen-bundled-qwen3-asr/variant_checkpoints",
+    "bunsen-bundled-qwen3-asr/base_checkpoint",
 ]
 
 ## Compile every test that loads a model.
@@ -48,7 +53,7 @@ metal = ["bunsen/metal"]
 
 [dependencies]
 burn = { workspace = true }
-bunsen = { path = "../../public/bunsen", features = ["testing"] }
+bunsen = { path = "../../public/bunsen", features = ["testing", "fermion", "cache"] }
 bunsen-bundled-qwen3-asr = {
     path = "../../public/bunsen-bundled-qwen3-asr",
     optional = true

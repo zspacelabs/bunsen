@@ -27,6 +27,20 @@ workspace = true
 ## nothing. `qwen3-asr-model-validation/download` turns on every feature.
 default = []
 
+## Fetch `FermionResearch`'s Phonon-1 archive (415 MB), laid out under
+## `cache_dir()`: a bunsen pretrained cache rooted there resolves
+## `fermion/phonon-1` from it, offline.
+checkpoint = []
+
+## Fetch Phonon-1-Micro (285 MB) and Phonon-1-Big (581 MB), laid out under
+## `cache_dir()`. Independent of `checkpoint`.
+variant_checkpoints = []
+
+## Fetch Qwen's `Qwen3-ASR-0.6B-hf` `model.safetensors` (1.6 GB) and
+## `tokenizer.json`, laid out under `cache_dir()`: a bunsen pretrained cache
+## rooted there resolves `qwen/qwen3-asr-0.6b` from it, offline.
+base_checkpoint = []
+
 ## Fetch the `OpenVoiceOS/qwen3-asr-0.6b-onnx` export of `Qwen3-ASR-0.6B`
 ## (~3.8 GB) and generate Rust models from it, in `crate::onnx_gen`.
 ##
