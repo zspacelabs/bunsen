@@ -10,14 +10,22 @@
 //!   [`ConformerEncoder`](crate::blocks::conformer::ConformerEncoder).
 //! - [`ParakeetFrontEnd`]: the feature extractor, waveforms to normalized
 //!   log-mels, built from a [`ParakeetFrontEndConfig`].
+//! - [`TdtGreedyDecoder`]: greedy decoding of the transducer, batched, to
+//!   [`TdtHypothesis`] tokens with their frames.
+//! - [`ParakeetVocabulary`]: the `SentencePiece` pieces, as a
+//!   [`Detokenizer`](crate::kits::tokens::Detokenizer) and as transcripts.
 //! - [`weights`] (feature `store`): loading tensors named as `transformers`'
 //!   `ParakeetForTDT` state dict, the names every Parakeet checkpoint format
 //!   here is read under.
 
 pub mod blocks;
 
+mod decode;
 mod front_end;
+mod vocab;
+pub use decode::*;
 pub use front_end::*;
+pub use vocab::*;
 
 #[cfg(feature = "store")]
 pub mod weights;

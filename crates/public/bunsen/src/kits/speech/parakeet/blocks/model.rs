@@ -149,7 +149,8 @@ impl ModuleInit<ParakeetTdt> for ParakeetTdtConfig {
 /// The encoder runs once over the features; then a decode alternates the
 /// [`TdtPredictionNetwork`] over the tokens emitted so far and the
 /// [`TdtJoint`] over one encoder frame, which scores the next token (or the
-/// blank) and how many frames to advance.
+/// blank) and how many frames to advance:
+/// [`TdtGreedyDecoder`](crate::kits::speech::parakeet::TdtGreedyDecoder).
 ///
 /// The fields carry the names `transformers`' `ParakeetForTDT` gives them.
 ///
@@ -224,7 +225,7 @@ mod tests {
     use crate::support::testing::cpu_device;
 
     /// A toy config, non-default in every field the meta reads.
-    pub(crate) fn toy_config() -> ParakeetTdtConfig {
+    fn toy_config() -> ParakeetTdtConfig {
         ParakeetTdtConfig::new(
             ConformerEncoderConfig::new(
                 DwStridingSubsamplingConfig::new(24, 4, 16),
