@@ -17,8 +17,8 @@ pub struct ClockAnchor {
 /// A stream's map from sample index to media time.
 ///
 /// Sorted `(sample, time)` [anchors](ClockAnchor) plus a sample rate. Every
-/// [`WhisperStreamContext`](super::WhisperStreamContext) carries one,
-/// given to [`new_context`](super::WhisperStreamDriver::new_context), which
+/// [`WhisperStreamContext`](crate::kits::speech::whisper::driver::WhisperStreamContext) carries one,
+/// given to [`new_context`](crate::kits::speech::whisper::driver::WhisperStreamDriver::new_context), which
 /// requires it to run at the model's rate; every segment the context emits
 /// is timed through it. A bare stream gets [`uniform`](Self::uniform), one
 /// anchor at `(0, 0.0)`, which reproduces upstream's arithmetic from its

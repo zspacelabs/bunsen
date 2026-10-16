@@ -21,7 +21,7 @@ use bunsen::{
         BunsenError,
         BunsenResult,
     },
-    kits::speech::whisper::driver::PresetEmissionPolicy,
+    kits::speech::asr_driver::PresetEmissionPolicy,
 };
 use bunsen_app::logging::{
     LogArgs,

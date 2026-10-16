@@ -15,6 +15,14 @@ use crate::{
         ResultContext,
     },
     kits::speech::{
+        asr_driver::{
+            CommitRule,
+            SpeechRegion,
+            StreamClock,
+            TranscriptEvent,
+            TranscriptSegment,
+            VoiceActivityFilter,
+        },
         silero_vad::{
             SileroVadContext,
             SileroVadContextConfig,
@@ -29,19 +37,11 @@ use crate::{
                 decode_with_fallback,
             },
             driver::{
-                CommitRule,
-                SpeechRegion,
                 StreamClampPolicy,
-                StreamClock,
-                VoiceActivityFilter,
                 WhisperStreamDriver,
                 support::{
                     frame_ring::FrameRing,
                     segments::split_window,
-                },
-                transcript::{
-                    TranscriptEvent,
-                    TranscriptSegment,
                 },
             },
         },
@@ -1070,22 +1070,26 @@ mod tests {
             testing::ErrorMatcher,
         },
         kits::{
-            speech::whisper::{
-                Whisper,
-                blocks::WhisperApiConfig,
-                decode::GreedyDecodeConfig,
-                driver::{
+            speech::{
+                asr_driver::{
                     DecodeTriggers,
                     EmissionPolicy,
-                    PerWindow,
-                    RunningMaxClamp,
-                    WhisperSpecialIds,
-                    WhisperTokenLayout,
-                    support::drop_last_frame,
-                    whisper_stream_context::advance_ready,
-                    whisper_stream_driver::WhisperStreamDriverConfig,
                 },
-                logit_filters::LogitFilter,
+                whisper::{
+                    Whisper,
+                    blocks::WhisperApiConfig,
+                    decode::GreedyDecodeConfig,
+                    driver::{
+                        PerWindow,
+                        RunningMaxClamp,
+                        WhisperSpecialIds,
+                        WhisperTokenLayout,
+                        support::drop_last_frame,
+                        whisper_stream_context::advance_ready,
+                        whisper_stream_driver::WhisperStreamDriverConfig,
+                    },
+                    logit_filters::LogitFilter,
+                },
             },
             tokens::Detokenizer,
         },
@@ -2172,12 +2176,8 @@ mod tests {
                 tensor::device_float_dtype,
             },
             kits::speech::{
+                asr_driver::VoiceActivityFilterConfig,
                 silero_vad::SileroVad,
-                whisper::driver::{
-                    CommitRule,
-                    DecodeTriggers,
-                    VoiceActivityFilterConfig,
-                },
             },
             support::{
                 audio::load_audio_mono_sr,

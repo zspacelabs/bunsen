@@ -20,7 +20,9 @@
 //! - [`logit_filters`]: what the decode may and may not emit.
 //! - [`driver`]: [`WhisperStreamDriver`](driver::WhisperStreamDriver) over a
 //!   bundle, and the [context](driver::WhisperStreamContext) it opens on a
-//!   stream: samples in, [`TranscriptEvent`](driver::TranscriptEvent)s out.
+//!   stream: samples in,
+//!   [`TranscriptEvent`](crate::kits::speech::asr_driver::TranscriptEvent)s
+//!   out.
 //!
 //! # Lifecycle
 //!
@@ -34,15 +36,15 @@
 //!    the model, its token layout and its vocabulary.
 //! 4. A [`WhisperStreamDriverConfig`](driver::WhisperStreamDriverConfig):
 //!    language, task, timestamps, search, and the
-//!    [`EmissionPolicy`](driver::EmissionPolicy).
+//!    [`EmissionPolicy`](crate::kits::speech::asr_driver::EmissionPolicy).
 //! 5. A [`WhisperStreamDriver`](driver::WhisperStreamDriver) over the bundle,
 //!    from [`init_from_bundle`](driver::WhisperStreamDriverConfig::init_from_bundle):
 //!    shared, and never mutated.
 //! 6. A [`WhisperStreamContext`](driver::WhisperStreamContext) per stream, from
 //!    [`new_context`](driver::WhisperStreamDriver::new_context): all of that
 //!    stream's state.
-//! 7. [`TranscriptEvent`](driver::TranscriptEvent)s, from
-//!    [`write_read`](driver::WhisperStreamContext::write_read) as samples
+//! 7. [`TranscriptEvent`](crate::kits::speech::asr_driver::TranscriptEvent)s,
+//!    from [`write_read`](driver::WhisperStreamContext::write_read) as samples
 //!    arrive and [`end_read`](driver::WhisperStreamContext::end_read) at the
 //!    end.
 //!
@@ -67,15 +69,19 @@
 //!         PretrainedCacheOptions,
 //!     },
 //!     errors::BunsenResult,
-//!     kits::speech::whisper::{
-//!         driver::{
-//!             RunningMaxClamp,
+//!     kits::speech::{
+//!         asr_driver::{
 //!             StreamClock,
 //!             TranscriptSegment,
-//!             WhisperStreamDriver,
-//!             WhisperStreamDriverConfig,
 //!         },
-//!         pretrained::default_whisper_factory,
+//!         whisper::{
+//!             driver::{
+//!                 RunningMaxClamp,
+//!                 WhisperStreamDriver,
+//!                 WhisperStreamDriverConfig,
+//!             },
+//!             pretrained::default_whisper_factory,
+//!         },
 //!     },
 //! };
 //! use burn::tensor::Device;
@@ -172,11 +178,13 @@
 //!     },
 //!     errors::BunsenResult,
 //!     kits::speech::{
+//!         asr_driver::{
+//!             EmissionPolicy,
+//!             VoiceActivityFilterConfig,
+//!         },
 //!         silero_vad::pretrained::default_silero_factory,
 //!         whisper::{
 //!             driver::{
-//!                 EmissionPolicy,
-//!                 VoiceActivityFilterConfig,
 //!                 WhisperBundle,
 //!                 WhisperStreamDriver,
 //!                 WhisperStreamDriverConfig,

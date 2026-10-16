@@ -25,6 +25,11 @@ use bunsen::{
         ResultContext,
     },
     kits::speech::{
+        asr_driver::{
+            PresetEmissionPolicy,
+            StreamClock,
+            TranscriptEvent,
+        },
         silero_vad::{
             SileroVadMeta,
             pretrained::default_silero_factory,
@@ -32,10 +37,7 @@ use bunsen::{
         whisper::{
             WhisperFallbackConfig,
             driver::{
-                PresetEmissionPolicy,
                 RunningMaxClamp,
-                StreamClock,
-                TranscriptEvent,
                 WhisperBundle,
                 WhisperStreamContext,
                 WhisperStreamDriver,

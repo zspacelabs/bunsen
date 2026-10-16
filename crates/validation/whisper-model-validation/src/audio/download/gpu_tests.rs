@@ -1,22 +1,24 @@
 use std::sync::Arc;
 
 use bunsen::{
-    kits::speech::whisper::{
-        DecodeConfig,
-        GreedyDecodeConfig,
-        Whisper,
-        driver::{
-            RunningMaxClamp,
-            StreamClock,
-            WhisperStreamDriverConfig,
-            WhisperTask,
+    kits::speech::{
+        asr_driver::StreamClock,
+        whisper::{
+            DecodeConfig,
+            GreedyDecodeConfig,
+            Whisper,
+            driver::{
+                RunningMaxClamp,
+                WhisperStreamDriverConfig,
+                WhisperTask,
+            },
+            logit_filters::{
+                ApplyTimestampRules,
+                LogitFilter,
+                default_filters,
+            },
+            split_mel_windows,
         },
-        logit_filters::{
-            ApplyTimestampRules,
-            LogitFilter,
-            default_filters,
-        },
-        split_mel_windows,
     },
     support::testing::{
         DeviceMemoryGuard,

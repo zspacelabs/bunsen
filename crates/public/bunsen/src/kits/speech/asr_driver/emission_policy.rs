@@ -58,7 +58,7 @@ pub struct DecodeTriggers {
 
     /// Decode when the voice-activity gate closes a region. Needs a
     /// voice-activity model on the driver
-    /// ([`with_vad`](super::WhisperStreamDriver::with_vad)).
+    /// ([`with_vad`](crate::kits::speech::whisper::driver::WhisperStreamDriver::with_vad)).
     #[config(default = "false")]
     pub endpoint: bool,
 
@@ -68,7 +68,7 @@ pub struct DecodeTriggers {
     /// Whether speech is in progress is the voice-activity gate's to say,
     /// and the gate runs only under `endpoint`, so this trigger needs it:
     /// without it no draft could ever be made, and building a driver
-    /// ([`init_from_bundle`](super::WhisperStreamDriverConfig::init_from_bundle))
+    /// ([`init_from_bundle`](crate::kits::speech::whisper::driver::WhisperStreamDriverConfig::init_from_bundle))
     /// fails with
     /// [`Illegal`](crate::errors::BunsenErrorKind::Illegal).
     #[config(default = "None")]
@@ -78,7 +78,7 @@ pub struct DecodeTriggers {
 /// When a decode's output becomes final.
 ///
 /// Without timestamps every rule commits a decode whole. With them
-/// ([`timestamps`](super::WhisperStreamDriverConfig::timestamps)), a
+/// ([`timestamps`](crate::kits::speech::whisper::driver::WhisperStreamDriverConfig::timestamps)), a
 /// decode is split on its timestamps, the closed segments commit, and the
 /// seek pointer advances to the last closed timestamp; the rules differ in
 /// what becomes of the unfinished tail after it.
@@ -99,7 +99,7 @@ pub enum CommitRule {
     /// rule under which a provisional decode becomes load-bearing.
     ///
     /// Not implemented: building a driver under it
-    /// ([`init_from_bundle`](super::WhisperStreamDriverConfig::init_from_bundle))
+    /// ([`init_from_bundle`](crate::kits::speech::whisper::driver::WhisperStreamDriverConfig::init_from_bundle))
     /// fails with
     /// [`Unsupported`](crate::errors::BunsenErrorKind::Unsupported).
     Agreement {
@@ -113,7 +113,7 @@ pub enum CommitRule {
 /// Two axes, and two output variants,
 /// [`Committed`](super::TranscriptEvent::Committed) and
 /// [`Draft`](super::TranscriptEvent::Draft). The policy is part of the
-/// [`WhisperStreamDriverConfig`](super::WhisperStreamDriverConfig), so the
+/// [`WhisperStreamDriverConfig`](crate::kits::speech::whisper::driver::WhisperStreamDriverConfig), so the
 /// driver is configured, never forked. The presets are its three
 /// deployment targets; anything else is a custom pairing. The
 /// [`driver`](super) module docs explain the semantics.

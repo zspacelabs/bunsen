@@ -8,7 +8,7 @@ use std::{
 
 use bunsen::{
     errors::BunsenResult,
-    kits::speech::whisper::driver::PresetEmissionPolicy,
+    kits::speech::asr_driver::PresetEmissionPolicy,
     support::audio::load_audio_mono_sr,
 };
 use bunsen_app::logging::{

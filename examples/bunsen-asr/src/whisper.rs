@@ -8,6 +8,10 @@ use bunsen::{
         ResultContext,
     },
     kits::speech::{
+        asr_driver::{
+            PresetEmissionPolicy,
+            StreamClock,
+        },
         silero_vad::{
             SileroVadMeta,
             pretrained::default_silero_factory,
@@ -15,9 +19,7 @@ use bunsen::{
         whisper::{
             WhisperFallbackConfig,
             driver::{
-                PresetEmissionPolicy,
                 RunningMaxClamp,
-                StreamClock,
                 WhisperBundle,
                 WhisperStreamDriver,
                 WhisperStreamDriverConfig,

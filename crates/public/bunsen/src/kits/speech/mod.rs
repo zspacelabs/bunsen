@@ -1,6 +1,8 @@
 //! # Speech models
 //!
-//! Four kits that work on audio, and the way two of them connect:
+//! Four kits that work on audio, the way two of them connect, and
+//! [`asr_driver`], the parts of a speech-to-text stream driver that do not
+//! depend on the model:
 //!
 //! - [`whisper`]: `OpenAI`'s Whisper, speech to text. The model, an index of
 //!   pretrained checkpoints, the decoders, and a stream driver that turns audio
@@ -17,15 +19,15 @@
 //!
 //! Silero is the voice-activity gate of the Whisper stream driver. The
 //! real-time emission presets
-//! ([`conservative`](whisper::driver::EmissionPolicy::conservative) and
-//! [`responsive`](whisper::driver::EmissionPolicy::responsive)) decode at
+//! ([`conservative`](asr_driver::EmissionPolicy::conservative) and
+//! [`responsive`](asr_driver::EmissionPolicy::responsive)) decode at
 //! the end of each speech region, so their driver needs a
 //! [`SileroVad`](silero_vad::SileroVad), attached with
 //! [`with_vad`](whisper::driver::WhisperStreamDriver::with_vad) together
 //! with a
-//! [`VoiceActivityFilterConfig`](whisper::driver::VoiceActivityFilterConfig)
+//! [`VoiceActivityFilterConfig`](asr_driver::VoiceActivityFilterConfig)
 //! that turns the model's probabilities into
-//! [`SpeechRegion`](whisper::driver::SpeechRegion)s. Each stream then runs
+//! [`SpeechRegion`](asr_driver::SpeechRegion)s. Each stream then runs
 //! Silero in its own context, decodes each closed region as a unit of its
 //! own, and skips windows of silence. The offline preset needs no gate.
 //!
@@ -58,6 +60,7 @@
 //! `write_read` fold, the emission policy, the stream clock, the clamp
 //! policy, and voice-activity regions as sub-streams.
 
+pub mod asr_driver;
 pub mod parakeet;
 pub mod qwen3_asr;
 pub mod silero_vad;

@@ -1,10 +1,11 @@
 //! The Whisper stream driver: audio pushed in chunks, timed transcript out.
 //!
 //! What a caller touches lives here: the driver and its config, the stream
-//! context, the emission policy and what it emits, the clock, the clamp
-//! policies, the voice-activity filter and its regions, the bundle, and the
-//! token layout. [`support`] holds the internals underneath, and nothing in
-//! it is part of the driver's API.
+//! context, the clamp policies, the bundle, and the token layout. The parts
+//! that do not depend on Whisper (the emission policy and what it emits, the
+//! clock, the voice-activity filter and its regions) live in
+//! [`asr_driver`](crate::kits::speech::asr_driver). [`support`] holds the
+//! internals underneath, and nothing in it is part of the driver's API.
 //!
 //! # Driver and context
 //!
@@ -33,8 +34,9 @@
 //! One driver serves three deployments, configured rather than forked:
 //! server-batch offline inference; conservative real time, for a
 //! programmatic consumer; and best-effort real time, for a human reading
-//! during the utterance. The three [`EmissionPolicy`] presets are those
-//! three.
+//! during the utterance. The three
+//! [`EmissionPolicy`](crate::kits::speech::asr_driver::EmissionPolicy) presets
+//! are those three.
 //!
 //! # Lifecycle
 //!
@@ -43,16 +45,19 @@
 //!    and a [`PretrainedCache`](crate::data::pretrained::PretrainedCache), or
 //!    over a model already in hand.
 //! 2. A [`WhisperStreamDriverConfig`] (language, task, timestamps, search,
-//!    [`EmissionPolicy`], fallback ladder), built into a driver over the bundle
-//!    by [`init_from_bundle`](WhisperStreamDriverConfig::init_from_bundle).
+//!    [`EmissionPolicy`](crate::kits::speech::asr_driver::EmissionPolicy),
+//!    fallback ladder), built into a driver over the bundle by
+//!    [`init_from_bundle`](WhisperStreamDriverConfig::init_from_bundle).
 //!    [`with_vad`](WhisperStreamDriver::with_vad) attaches a voice-activity
 //!    model, which the real-time presets need.
 //! 3. One context per stream, from
 //!    [`new_context`](WhisperStreamDriver::new_context), given the stream's
-//!    [`StreamClock`] and a [`StreamClampPolicy`].
+//!    [`StreamClock`](crate::kits::speech::asr_driver::StreamClock) and a
+//!    [`StreamClampPolicy`].
 //! 4. Samples in through [`write_read`](WhisperStreamContext::write_read),
-//!    [`TranscriptEvent`]s out; [`end_read`](WhisperStreamContext::end_read)
-//!    ends the stream and decodes what is left.
+//!    [`TranscriptEvent`](crate::kits::speech::asr_driver::TranscriptEvent)s
+//!    out; [`end_read`](WhisperStreamContext::end_read) ends the stream and
+//!    decodes what is left.
 //!
 //! # The `write_read` fold
 //!
@@ -79,12 +84,16 @@
 //!
 //! # Emission: commit and draft
 //!
-//! The policy has two axes, [`DecodeTriggers`] (when a decode runs) and a
-//! [`CommitRule`] (when its output is final), and the output has two
-//! variants, [`Committed`](TranscriptEvent::Committed) and
-//! [`Draft`](TranscriptEvent::Draft). **A `window_full` or `endpoint`
-//! decode commits, per the commit rule; an `interval` decode drafts.** What
-//! the three deployments differ by falls out of those two sentences.
+//! The policy has two axes,
+//! [`DecodeTriggers`](crate::kits::speech::asr_driver::DecodeTriggers) (when a
+//! decode runs) and a
+//! [`CommitRule`](crate::kits::speech::asr_driver::CommitRule) (when its output
+//! is final), and the output has two
+//! variants, [`Committed`](crate::kits::speech::asr_driver::TranscriptEvent::Committed) and
+//! [`Draft`](crate::kits::speech::asr_driver::TranscriptEvent::Draft). **A
+//! `window_full` or `endpoint` decode commits, per the commit rule; an
+//! `interval` decode drafts.** What the three deployments differ by falls out
+//! of those two sentences.
 //!
 //! A draft covers the audio after the last commit and replaces the previous
 //! draft whole, so there is no retraction protocol, no sequence numbers,
@@ -92,9 +101,9 @@
 //!
 //! | Preset | Triggers | Commit rule | Drafts |
 //! |---|---|---|---|
-//! | [`offline`](EmissionPolicy::offline) | `window_full` | `Complete` | never |
-//! | [`conservative`](EmissionPolicy::conservative) | `window_full`, `endpoint` | `LastTimestamp` | with timestamps on, a decode's unfinished tail |
-//! | [`responsive`](EmissionPolicy::responsive) | `window_full`, `endpoint`, `interval` (600 ms) | `LastTimestamp` | as conservative, plus one per interval of speech |
+//! | [`offline`](crate::kits::speech::asr_driver::EmissionPolicy::offline) | `window_full` | `Complete` | never |
+//! | [`conservative`](crate::kits::speech::asr_driver::EmissionPolicy::conservative) | `window_full`, `endpoint` | `LastTimestamp` | with timestamps on, a decode's unfinished tail |
+//! | [`responsive`](crate::kits::speech::asr_driver::EmissionPolicy::responsive) | `window_full`, `endpoint`, `interval` (600 ms) | `LastTimestamp` | as conservative, plus one per interval of speech |
 //!
 //! ## What a decode may touch
 //!
@@ -113,9 +122,11 @@
 //!
 //! # The stream clock
 //!
-//! Every context carries a [`StreamClock`]: sorted `(sample, time)` anchors
-//! and a sample rate, mapping a sample index to media time. A bare stream
-//! gets [`StreamClock::uniform`], one anchor at `(0, 0.0)`, which
+//! Every context carries a
+//! [`StreamClock`](crate::kits::speech::asr_driver::StreamClock): sorted
+//! `(sample, time)` anchors and a sample rate, mapping a sample index to media
+//! time. A bare stream
+//! gets [`StreamClock::uniform`](crate::kits::speech::asr_driver::StreamClock::uniform), one anchor at `(0, 0.0)`, which
 //! reproduces exactly the arithmetic upstream does from its seek pointer.
 //! Everything richer (a capture callback's timestamp, a container's
 //! presentation time, a dropped buffer becoming a new anchor rather than a
@@ -160,9 +171,10 @@
 //!
 //! Under a policy with the `endpoint` trigger, the context runs the
 //! attached voice-activity model over every chunk, and a
-//! [`VoiceActivityFilter`] (from the driver's [`VoiceActivityFilterConfig`])
-//! turns its speech probabilities into [`SpeechRegion`]s. A region the
-//! filter closes is padded, snapped outward onto the encoder grid so that
+//! [`VoiceActivityFilter`](crate::kits::speech::asr_driver::VoiceActivityFilter) (from the driver's [`VoiceActivityFilterConfig`](crate::kits::speech::asr_driver::VoiceActivityFilterConfig))
+//! turns its speech probabilities into
+//! [`SpeechRegion`](crate::kits::speech::asr_driver::SpeechRegion)s. A region
+//! the filter closes is padded, snapped outward onto the encoder grid so that
 //! its edges fall on timestamp positions, and becomes a decode unit of its
 //! own: its frames are cut from the ring, decoded a window at a time, and
 //! committed with times off the parent stream's clock. That is
@@ -173,30 +185,21 @@
 //! model.
 //!
 //! A caller that decodes regions as streams of their own, say from the
-//! whole-clip [`speech_regions`](VoiceActivityFilterConfig::speech_regions),
+//! whole-clip
+//! [`speech_regions`](crate::kits::speech::asr_driver::VoiceActivityFilterConfig::speech_regions),
 //! opens a context per region with the region's
-//! [`clock`](SpeechRegion::clock): the parent's, sliced, so the region's
-//! times stay absolute.
+//! [`clock`](crate::kits::speech::asr_driver::SpeechRegion::clock): the
+//! parent's, sliced, so the region's times stay absolute.
 
 pub mod support;
 
-mod emission_policy;
-mod speech_region;
 mod stream_clamp_policy;
-mod stream_clock;
-mod transcript;
-mod voice_activity_filter;
 mod whisper_bundle;
 mod whisper_stream_context;
 mod whisper_stream_driver;
 mod whisper_token_layout;
 
-pub use emission_policy::*;
-pub use speech_region::*;
 pub use stream_clamp_policy::*;
-pub use stream_clock::*;
-pub use transcript::*;
-pub use voice_activity_filter::*;
 pub use whisper_bundle::*;
 pub use whisper_stream_context::*;
 pub use whisper_stream_driver::*;

@@ -15,6 +15,12 @@ use crate::{
     },
     kits::{
         speech::{
+            asr_driver::{
+                CommitRule,
+                EmissionPolicy,
+                StreamClock,
+                VoiceActivityFilterConfig,
+            },
             silero_vad::{
                 SileroVad,
                 SileroVadMeta,
@@ -29,11 +35,7 @@ use crate::{
                     WhisperFrontEndConfig,
                 },
                 driver::{
-                    CommitRule,
-                    EmissionPolicy,
                     StreamClampPolicy,
-                    StreamClock,
-                    VoiceActivityFilterConfig,
                     WhisperBundle,
                     WhisperStreamContext,
                     WhisperTask,

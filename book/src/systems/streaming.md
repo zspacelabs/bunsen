@@ -118,7 +118,7 @@ The driver serves three deployments, and it is configured for each, never
 forked: server-batch offline inference; conservative real time, for a
 program that consumes the transcript; and best-effort real time, for a
 person reading along during the utterance. The three
-[`EmissionPolicy`](bunsen::kits::speech::whisper::driver::EmissionPolicy)
+[`EmissionPolicy`](bunsen::kits::speech::asr_driver::EmissionPolicy)
 presets are those three deployments.
 
 ### The `write_read` fold
@@ -136,9 +136,9 @@ the seek pointer, the prompt carry, the detected language and the clock
 
 ### Emission: commit and draft
 
-The policy has two axes: [`DecodeTriggers`](bunsen::kits::speech::whisper::driver::DecodeTriggers),
+The policy has two axes: [`DecodeTriggers`](bunsen::kits::speech::asr_driver::DecodeTriggers),
 which says when a decode runs, and a
-[`CommitRule`](bunsen::kits::speech::whisper::driver::CommitRule), which
+[`CommitRule`](bunsen::kits::speech::asr_driver::CommitRule), which
 says when its output is final. A decode triggered by a full window or by
 the end of a speech region commits. A decode triggered by the interval
 timer drafts.
@@ -147,7 +147,7 @@ Drafts are opt-in, per policy. `offline` never drafts. `conservative`
 drafts only the unfinished tail of a timestamped decode, before that tail
 is decoded again with more audio. `responsive` adds a draft every 600 ms of
 speech. A consumer that wants final text only keeps the
-[`Committed`](bunsen::kits::speech::whisper::driver::TranscriptEvent::Committed)
+[`Committed`](bunsen::kits::speech::asr_driver::TranscriptEvent::Committed)
 events. A draft covers the audio after the last commit and replaces the
 previous draft whole, so there is no retraction protocol.
 
@@ -163,7 +163,7 @@ lists each preset's triggers, commit rule and drafts.
 ### The stream clock
 
 Every context carries a
-[`StreamClock`](bunsen::kits::speech::whisper::driver::StreamClock): anchors
+[`StreamClock`](bunsen::kits::speech::asr_driver::StreamClock): anchors
 that map a sample index to media time. A bare stream gets one anchor at
 zero, which reproduces upstream's arithmetic exactly. A capture timestamp, a
 container's presentation time, or a dropped buffer is one more anchor. The
@@ -193,9 +193,9 @@ The real-time presets decode at the end of each speech region, so they need
 a voice-activity model, attached with
 [`with_vad`](bunsen::kits::speech::whisper::driver::WhisperStreamDriver::with_vad).
 Each stream then runs Silero in a Silero context of its own. A
-[`VoiceActivityFilterConfig`](bunsen::kits::speech::whisper::driver::VoiceActivityFilterConfig)
+[`VoiceActivityFilterConfig`](bunsen::kits::speech::asr_driver::VoiceActivityFilterConfig)
 turns Silero's probabilities into
-[`SpeechRegion`](bunsen::kits::speech::whisper::driver::SpeechRegion)s.
+[`SpeechRegion`](bunsen::kits::speech::asr_driver::SpeechRegion)s.
 A closed region is decoded as a unit of its own, with times taken off the
 parent stream's clock, and a full window of silence is skipped instead of
 decoded. That gives a region the behaviour of a stream without a second
@@ -204,10 +204,10 @@ stream object
 
 ### Known gaps
 
-- [`CommitRule::Agreement`](bunsen::kits::speech::whisper::driver::CommitRule::Agreement)
+- [`CommitRule::Agreement`](bunsen::kits::speech::asr_driver::CommitRule::Agreement)
   is not implemented yet: building a driver under it fails with
   an [`Unsupported`](bunsen::errors::BunsenErrorKind::Unsupported) error.
 - The `interval` trigger drafts only while the voice-activity gate says
   speech is in progress, and that gate runs only under `endpoint`
-  ([`DecodeTriggers`](bunsen::kits::speech::whisper::driver::DecodeTriggers)),
+  ([`DecodeTriggers`](bunsen::kits::speech::asr_driver::DecodeTriggers)),
   so a driver with `interval` and without `endpoint` fails to build.

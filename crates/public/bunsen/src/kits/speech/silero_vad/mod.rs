@@ -104,7 +104,7 @@
 //!
 //! The Whisper stream driver's real-time emission presets take the model
 //! the same way, and turn its probabilities into speech regions through a
-//! [`VoiceActivityFilterConfig`](crate::kits::speech::whisper::driver::VoiceActivityFilterConfig),
+//! [`VoiceActivityFilterConfig`](crate::kits::speech::asr_driver::VoiceActivityFilterConfig),
 //! attached with
 //! [`with_vad`](crate::kits::speech::whisper::driver::WhisperStreamDriver::with_vad):
 //! the 16 kHz branch, cloned out of the collection. The Whisper kit's

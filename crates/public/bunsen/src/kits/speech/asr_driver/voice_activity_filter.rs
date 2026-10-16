@@ -1,6 +1,6 @@
 use burn::config::Config;
 
-use crate::kits::speech::whisper::driver::{
+use crate::kits::speech::asr_driver::{
     SpeechRegion,
     pad_regions,
 };

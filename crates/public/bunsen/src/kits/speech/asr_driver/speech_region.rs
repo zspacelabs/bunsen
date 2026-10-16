@@ -1,4 +1,4 @@
-use crate::kits::speech::whisper::driver::StreamClock;
+use crate::kits::speech::asr_driver::StreamClock;
 
 /// A half-open span of samples, `start..end`, in the stream's own sample
 /// index.
