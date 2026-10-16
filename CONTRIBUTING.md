@@ -58,17 +58,18 @@ Four jobs, each step commented in the workflow:
 - **Format:** `cargo +nightly fmt -- --check`.
 - **Clippy:** the hidden-module-docs check, then `cargo clippy --no-deps -- -D warnings` over the whole workspace.
 - **Book:** `mdbook build book` with `CI` set, so every API link in the book must resolve.
-- **CI:** the API docs three ways (the workspace with `--all-features`; `bunsen` alone with the feature list docs.rs
-  uses, which `cargo make doc-docsrs` reproduces; `bunsen` with its default features), then
-  `cargo test --features download,indicatif` over the workspace, `cargo test -p bunsen --no-default-features`,
+- **CI:** the API docs three ways (the workspace with an explicit feature list; `bunsen` alone with the feature list
+  docs.rs uses, which `cargo make doc-docsrs` reproduces; `bunsen` with its default features), then
+  `cargo test --features indicatif,bunsen/whisper-weights` over the workspace, `cargo test -p bunsen --no-default-features`,
   `cargo check -p bunsen --no-default-features` with no features, then with `--features cache` and with
   `--features train`, and one `cargo check --manifest-path` per published crate.
 
 The repeated builds are on purpose: Cargo unifies features across the crates in one command, so a crate that forgets
 a feature still builds in the workspace and fails for its users. The book's
-[Development setup and CI](https://zspacelabs.ai/bunsen/book/development/setup.html) explains each configuration. The
-`download` feature lets build scripts fetch assets (about 435 MB for Whisper's), so a cold run of that test step takes
-a while.
+[Development setup and CI](https://zspacelabs.ai/bunsen/book/development/setup.html) explains each configuration. Build
+scripts fetch the assets bunsen's own tests read, Silero's and Whisper's weights (about 150 MB), on every CI run. CI
+never turns on the validation crates' `download` feature, which fetches many GB of checkpoints and reference exports;
+those suites run by hand, on a GPU.
 
 ## Commit messages
 

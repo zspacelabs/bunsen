@@ -6,7 +6,7 @@
 //! disagreement is a bunsen bug rather than a framework difference.
 //!
 //! ```sh
-//! cargo test --release -p silero-model-validation --features download,wgpu
+//! cargo test --release -p silero-model-validation --features download,gpu-tests,wgpu
 //! ```
 //!
 //! ## Why the reference is not in `bunsen`
@@ -27,9 +27,9 @@
 //!   golden trace: a sibling checkpoint of the graph's, so held to its speech
 //!   decisions within a measured margin rather than to its numbers.
 //!
-//! A backend feature says what they run on: `performance_device()` falls
-//! through to `Flex` when none reaches `bunsen`. These cross-checks predate
-//! the `gpu-tests` convention (see `STYLE.md`) and are not yet gated by it.
+//! The cross-checks compile under `download` and `gpu-tests` together (see
+//! `STYLE.md`), and a backend feature says what they run on:
+//! `performance_device()` falls through to `Flex` when none reaches `bunsen`.
 
 /// The reference model, generated from the upstream ONNX graph.
 #[cfg(feature = "download")]
@@ -40,5 +40,5 @@ pub mod reference {
     pub type ReferenceModel = Model;
 }
 
-#[cfg(feature = "download")]
+#[cfg(all(feature = "download", feature = "gpu-tests"))]
 mod cross_test;

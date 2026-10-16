@@ -17,14 +17,19 @@ workspace = true
 default = []
 
 ## Fetch upstream's ONNX graph (2.8 MB) and `silero_vad_16k.safetensors`
-## (1.2 MB) at build time, generate the reference model from the graph, and
-## compile every cross-check. **Off by default**: a plain build never reaches
-## the network.
+## (1.2 MB) at build time, and generate the reference model from the graph.
+## **Off by default**: a plain build never reaches the network.
 download = [
     "dep:bunsen-bundled-silero",
     "bunsen-bundled-silero/onnx_gen",
     "bunsen-bundled-silero/checkpoint",
 ]
+
+## Compile the cross-checks, which load the models.
+##
+## Needs `download` too, for the assets they compare; without both, the crate
+## has no tests.
+gpu-tests = []
 
 ## Run the validation on `wgpu`. The usual choice.
 wgpu = ["bunsen/wgpu"]

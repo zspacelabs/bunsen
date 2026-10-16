@@ -80,12 +80,16 @@ ahead of time, and the program never needs `fetch`.
 
 ## Why CI doesn't cache them
 
-A cold CI run fetches the Whisper assets again, and that is deliberate.
-CI's Rust cache prunes the workspace's own crates from `target/` before it
-saves, so the assets don't ride along. Asking it to keep workspace crates
-would cache the workspace's build output too, test binaries included. A
-separate cache over an `OUT_DIR` path goes stale as soon as the hash in that
+Every CI run fetches the assets bunsen's own tests read again, and that is
+deliberate. CI caches compiled units, not `target/`, so cargo runs every
+build script on every run, and a build script's fetch is not a compiled unit.
+A separate cache over an `OUT_DIR` path goes stale as soon as the hash in that
 path changes, which every toolchain or lockfile update does.
+
+It is affordable because CI fetches only those: Silero's weights and
+Whisper's `base` checkpoint and vocabularies, about 150 MB. CI never turns on
+`download`, whose checkpoints and reference exports run to many GB; the
+validation suites that need them run by hand.
 
 So don't add a cache step for them. To avoid the download locally, point the
 override variables at copies you already have.

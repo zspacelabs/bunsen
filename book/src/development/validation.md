@@ -89,7 +89,8 @@ The Whisper suite takes three features, and none implies another:
 `download` fetches the assets it compares against, `gpu-tests` compiles the
 tests that load a model, and a backend feature says what they run on.
 Without `gpu-tests` only its fixture-integrity checks run, and that is all of
-it that CI runs. The full suite is run by hand, in release mode, with a
+it that CI runs: CI turns on neither `download` nor `gpu-tests` for any
+validation crate. The full suite is run by hand, in release mode, with a
 backend; the
 [README](https://github.com/zspacelabs/bunsen/blob/main/crates/validation/whisper-model-validation/README.md#running-it)
 has the command. Without a backend feature the suite still passes, having

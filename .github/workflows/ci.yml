@@ -137,16 +137,22 @@ jobs:
 
       # kache caches what rustc writes, not what a build script does: cargo
       # runs a build script whenever `target/` has no record of it, which is
-      # every run, since `target/` is not cached. So `bunsen-bundled-whisper`'s
-      # build script fetches its ~435 MB of assets into its `OUT_DIR` each run
-      # (STYLE.md, "Fetched assets live in `OUT_DIR`"). That is accepted rather
-      # than cached: an `actions/cache` over an `OUT_DIR` path goes stale as
-      # soon as the hash in that path changes.
+      # every run, since `target/` is not cached. So every asset a build
+      # script fetches is fetched again each run (STYLE.md, "Fetched assets
+      # live in `OUT_DIR`"), and CI fetches only what bunsen's own tests read:
+      # Silero's weights (through `silero-bench`) and Whisper's `base`
+      # checkpoint and vocabularies (`bunsen/whisper-weights`), about 150 MB.
+      #
+      # CI never turns on `download`. That is the validation crates' switch,
+      # and it fetches every checkpoint and ONNX export they compare against,
+      # many GB, and generates the reference models from the exports; their
+      # suites run by hand, on a GPU (STYLE.md, "Network access").
 
       # An explicit list rather than `--all-features`: `cuda` pulls in an
-      # LLVM-based compiler toolchain, and `metal` builds only on macOS.
+      # LLVM-based compiler toolchain, `metal` builds only on macOS, and
+      # `download` is left to the validation runs.
       - name: Docs
-        run: cargo doc --no-deps --features download,indicatif,gpu-tests,wgpu,vulkan
+        run: cargo doc --no-deps --features indicatif,gpu-tests,wgpu,vulkan
 
       # The step above documents the whole workspace, so Cargo unifies features
       # across members and a link can resolve there that breaks for `bunsen`
@@ -166,7 +172,7 @@ jobs:
       # with it `performance_device()`, to the CPU, whatever backend features
       # the workspace build unifies in.
       - name: Build and Test
-        run: cargo test --features download,indicatif
+        run: cargo test --features indicatif,bunsen/whisper-weights
         env:
           BURN_DEVICE: flex
 

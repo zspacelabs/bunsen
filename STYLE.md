@@ -312,6 +312,11 @@ variable points the build at a local file instead. A crate that exists to
 bundle an asset (`bunsen-bundled-whisper`) still fetches only under the
 feature that names the asset, never by default.
 
+CI never turns on `download`. A unit test reads only small assets, through a
+`bunsen` feature that names them (`silero-weights`, `whisper-weights`); the
+checkpoints and exports a validation crate compares against are many GB, and
+its suite is run by hand, with `download`, `gpu-tests` and a backend.
+
 ### Fetched assets live in `OUT_DIR`
 
 A fetched asset lands in the build script's `OUT_DIR`, never beside the
@@ -342,7 +347,8 @@ the way to supply a local copy instead.
 Do not add a cache step for them. CI caches `~/.cargo` (rust-cache) and
 compiled units (kache), never `target/`, so cargo runs every build script on
 every run and the assets do not ride along; kache caches what rustc writes, not
-what a build script fetches. A separate `actions/cache` over an `OUT_DIR` path
+what a build script fetches. That is affordable because CI fetches only the
+unit tests' small assets. A separate `actions/cache` over an `OUT_DIR` path
 goes stale the moment the hash in that path changes, which every toolchain or
 lockfile update does.
 
