@@ -12,6 +12,7 @@ use burn::{
 };
 
 use crate::{
+    blocks::conv::ConvSeq1d,
     burner::module::ModuleInit,
     errors::{
         BunsenError,
@@ -130,14 +131,14 @@ impl SileroVad {
     /// The key remapping for the 16khz model.
     pub fn pretrained_16khz_remapper() -> KeyRemapper {
         KeyRemapper::from_patterns(vec![
-            ("conv1d37", "stft"),
-            ("conv1d38", "encoder.blocks.0.conv"),
-            ("conv1d39", "encoder.blocks.1.conv"),
-            ("conv1d40", "encoder.blocks.2.conv"),
-            ("conv1d41", "encoder.blocks.3.conv"),
-            ("linear13", "lstm.hidden"),
-            ("linear14", "lstm.features"),
-            ("conv1d42", "decoder"),
+            ("conv1d37", "stft".to_string()),
+            ("conv1d38", ConvSeq1d::block_conv_path("encoder", 0)),
+            ("conv1d39", ConvSeq1d::block_conv_path("encoder", 1)),
+            ("conv1d40", ConvSeq1d::block_conv_path("encoder", 2)),
+            ("conv1d41", ConvSeq1d::block_conv_path("encoder", 3)),
+            ("linear13", "lstm.hidden".to_string()),
+            ("linear14", "lstm.features".to_string()),
+            ("conv1d42", "decoder".to_string()),
         ])
         .ok_or_panic()
     }
@@ -145,14 +146,14 @@ impl SileroVad {
     /// The key remapping for the 8khz model.
     pub fn pretrained_8khz_remapper() -> KeyRemapper {
         KeyRemapper::from_patterns(vec![
-            ("conv1d43", "stft"),
-            ("conv1d44", "encoder.blocks.0.conv"),
-            ("conv1d45", "encoder.blocks.1.conv"),
-            ("conv1d46", "encoder.blocks.2.conv"),
-            ("conv1d47", "encoder.blocks.3.conv"),
-            ("linear15", "lstm.hidden"),
-            ("linear16", "lstm.features"),
-            ("conv1d48", "decoder"),
+            ("conv1d43", "stft".to_string()),
+            ("conv1d44", ConvSeq1d::block_conv_path("encoder", 0)),
+            ("conv1d45", ConvSeq1d::block_conv_path("encoder", 1)),
+            ("conv1d46", ConvSeq1d::block_conv_path("encoder", 2)),
+            ("conv1d47", ConvSeq1d::block_conv_path("encoder", 3)),
+            ("linear15", "lstm.hidden".to_string()),
+            ("linear16", "lstm.features".to_string()),
+            ("conv1d48", "decoder".to_string()),
         ])
         .ok_or_panic()
     }

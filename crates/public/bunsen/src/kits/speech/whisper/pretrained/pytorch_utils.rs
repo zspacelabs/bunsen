@@ -16,6 +16,7 @@ use burn::{
 };
 
 use crate::{
+    blocks::conv::ConvSeq1d,
     burner::module::ModuleInit,
     errors::{
         BunsenError,
@@ -123,8 +124,14 @@ impl PytorchWhisperScanner {
             .map_indices_contiguous(false)
             // PyTorch's 1-based `conv1`/`conv2` map to the 0-based
             // `ConvSeq1d` blocks of the encoder head.
-            .with_key_remapping(r"encoder\.conv1\.", "encoder.head.blocks.0.conv.")
-            .with_key_remapping(r"encoder\.conv2\.", "encoder.head.blocks.1.conv.")
+            .with_key_remapping(
+                r"encoder\.conv1\.",
+                format!("{}.", ConvSeq1d::block_conv_path("encoder.head", 0)),
+            )
+            .with_key_remapping(
+                r"encoder\.conv2\.",
+                format!("{}.", ConvSeq1d::block_conv_path("encoder.head", 1)),
+            )
             .with_key_remapping(r"\.attn\.out", ".attn.output")
             .with_key_remapping(r"\.cross_attn\.out", ".cross_attn.output")
             .with_key_remapping(r"\.mlp\.2", ".mlp.linear2")

@@ -8,6 +8,7 @@ use super::blocks::{
     Qwen3AsrConfig,
 };
 use crate::{
+    blocks::conv::ConvSeq2d,
     data::pretrained::{
         HfConfigJson,
         NamedTensorsApplied,
@@ -38,9 +39,6 @@ pub fn hf_to_bunsen_path(name: &str) -> Option<String> {
         (".final_layer_norm.", ".mlp_ln."),
         (".fc1.", ".mlp.linear1."),
         (".fc2.", ".mlp.linear2."),
-        (".conv2d1.", ".conv2d1.conv."),
-        (".conv2d2.", ".conv2d2.conv."),
-        (".conv2d3.", ".conv2d3.conv."),
     ];
     const TEXT_RENAMES: &[(&str, &str)] = &[
         // The text model's attention is the shared causal self-attention.
@@ -49,6 +47,14 @@ pub fn hf_to_bunsen_path(name: &str) -> Option<String> {
         (".self_attn.v_proj.", ".self_attn.c_v."),
         (".self_attn.o_proj.", ".self_attn.c_proj."),
     ];
+    // The stem's 1-based `conv2d{n}` are the 0-based blocks of a `ConvSeq2d`.
+    if let Some(rest) = name.strip_prefix("audio_tower.conv2d")
+        && let Some((n, param)) = rest.split_once('.')
+        && let Ok(n @ 1..) = n.parse::<usize>()
+    {
+        let conv = ConvSeq2d::block_conv_path("audio_tower.stem", n - 1);
+        return Some(format!("{conv}.{param}"));
+    }
     let renames = if name.starts_with("audio_tower.") {
         RENAMES
     } else if name.starts_with("language_model.") {
@@ -169,7 +175,11 @@ mod tests {
         for (hf, bunsen) in [
             (
                 "model.audio_tower.conv2d1.weight",
-                Some("audio_tower.conv2d1.conv.weight"),
+                Some("audio_tower.stem.blocks.0.conv.weight"),
+            ),
+            (
+                "model.audio_tower.conv2d3.bias",
+                Some("audio_tower.stem.blocks.2.conv.bias"),
             ),
             (
                 "model.audio_tower.conv_out.weight",

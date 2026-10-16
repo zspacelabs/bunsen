@@ -26,8 +26,9 @@ use burn::{
 use crate::{
     blocks::{
         conv::{
-            ConvBlock2d,
             ConvBlock2dConfig,
+            ConvSeq2d,
+            ConvSeq2dConfig,
         },
         transformers::encoder_block::{
             ResidualEncoderAttentionBlock,
@@ -161,7 +162,6 @@ impl ModuleInit<Qwen3AsrAudioEncoder> for Qwen3AsrAudioEncoderConfig {
                     .with_padding(PaddingConfig2d::Explicit(1, 1, 1, 1)),
             )
             .with_act(Some(ActivationConfig::Gelu))
-            .try_init(device)
         };
         let layers = (0..self.n_layers)
             .map(|_| {
@@ -173,9 +173,12 @@ impl ModuleInit<Qwen3AsrAudioEncoder> for Qwen3AsrAudioEncoderConfig {
             })
             .collect::<BunsenResult<_>>()?;
         Ok(Qwen3AsrAudioEncoder {
-            conv2d1: conv(1)?,
-            conv2d2: conv(self.conv_channels)?,
-            conv2d3: conv(self.conv_channels)?,
+            stem: ConvSeq2dConfig::new(vec![
+                conv(1),
+                conv(self.conv_channels),
+                conv(self.conv_channels),
+            ])
+            .try_init(device)?,
             conv_out: LinearConfig::new(self.conv_channels * self.freq_out(), self.d_model)
                 .with_bias(false)
                 .init(device),
@@ -197,20 +200,17 @@ impl ModuleInit<Qwen3AsrAudioEncoder> for Qwen3AsrAudioEncoderConfig {
 /// over it in windows of `n_window_infer / (2 * n_window)` chunks, never
 /// across a window's edge. A final normalization closes it.
 ///
-/// The fields carry the names `transformers`' `Qwen3ASREncoder` gives them.
+/// The fields carry the names `transformers`' `Qwen3ASREncoder` gives them,
+/// but for the convolution stem: its `conv2d1`, `conv2d2` and `conv2d3` are
+/// the blocks of [`stem`](Self::stem).
 ///
 /// Built by [`Qwen3AsrAudioEncoderConfig`].
 /// Implements [`Qwen3AsrAudioEncoderMeta`].
 #[derive(Module, Debug)]
 pub struct Qwen3AsrAudioEncoder {
-    /// `1 -> conv_channels`, kernel 3, stride 2, then GELU.
-    pub conv2d1: ConvBlock2d,
-
-    /// `conv_channels -> conv_channels`, kernel 3, stride 2, then GELU.
-    pub conv2d2: ConvBlock2d,
-
-    /// `conv_channels -> conv_channels`, kernel 3, stride 2, then GELU.
-    pub conv2d3: ConvBlock2d,
+    /// Three convolutions, kernel 3, stride 2, each then GELU:
+    /// `1 -> conv_channels -> conv_channels -> conv_channels`.
+    pub stem: ConvSeq2d,
 
     /// `conv_channels * freq_out -> d_model`, no bias.
     pub conv_out: Linear,
@@ -286,9 +286,7 @@ impl Qwen3AsrAudioEncoder {
             .reshape([n_mels, chunks, chunk])
             .swap_dims(0, 1)
             .unsqueeze_dim::<4>(1);
-        let x = self
-            .conv2d3
-            .forward(self.conv2d2.forward(self.conv2d1.forward(x)));
+        let x = self.stem.forward(x);
         let [_, c, f, t] = x.dims();
         let x = x.permute([0, 3, 1, 2]).reshape([chunks, t, c * f]);
         let x = self.conv_out.forward(x)

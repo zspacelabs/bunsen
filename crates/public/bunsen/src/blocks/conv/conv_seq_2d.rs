@@ -400,6 +400,27 @@ impl ConvSeq2d {
         Ok(seq)
     }
 
+    /// The module path of block `index`'s convolution, for a sequence at
+    /// `seq_path`: `{seq_path}.blocks.{index}.conv`.
+    ///
+    /// Checkpoints name a stack of convolutions flatly (`conv1`, `conv2`, ...);
+    /// a loader maps each of them onto this path.
+    ///
+    /// ```
+    /// use bunsen::blocks::conv::ConvSeq2d;
+    ///
+    /// assert_eq!(
+    ///     ConvSeq2d::block_conv_path("encoder.stem", 1),
+    ///     "encoder.stem.blocks.1.conv"
+    /// );
+    /// ```
+    pub fn block_conv_path(
+        seq_path: &str,
+        index: usize,
+    ) -> String {
+        format!("{seq_path}.blocks.{index}.conv")
+    }
+
     /// Performs a forward pass through the sequence of [`ConvBlock2d`] modules.
     ///
     /// # Arguments
