@@ -16,12 +16,14 @@
 //! built on them.
 
 mod emission_policy;
+mod level;
 mod speech_region;
 mod stream_clock;
 mod transcript;
 mod voice_activity_filter;
 
 pub use emission_policy::*;
+pub use level::*;
 pub use speech_region::*;
 pub use stream_clock::*;
 pub use transcript::*;
