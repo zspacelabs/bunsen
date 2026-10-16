@@ -164,9 +164,11 @@ fn normalize(
 ///   window is at most [`window_frames`](AsrEngine::window_frames), 60 s by
 ///   default ([`with_window_seconds`](Self::with_window_seconds)).
 /// - **Decode:** the encoder and the greedy transducer decode, batched across
-///   requests. The tokens carry their encoder frames; a window the core cut at
-///   its full length commits up to the start of its last word, which is decoded
-///   again with the audio after it. Any other window is committed whole.
+///   requests. The tokens carry their encoder frames, and each word is a
+///   segment, timed from the frame its first token is emitted on. A window the
+///   core cut at its full length commits the words before a pause in its last
+///   third, and the rest is decoded again with the audio after it. Any other
+///   window is committed whole.
 ///
 /// A stream's last frame is the one centred past its end, which the
 /// extractor counts as padding, and goes.
@@ -264,11 +266,59 @@ impl ParakeetEngine {
         (cut > 0).then_some((cut, k))
     }
 
-    /// Lays a hypothesis out for the core.
+    /// The words of the hypothesis' tokens `[0, count)`, each a segment: from
+    /// the encoder frame its first token is emitted on to where its last
+    /// token ends, but no later than the next word's emission or `limit`.
     ///
-    /// A window of `window_frames` was cut by length: it commits up to its
-    /// [`cut`](Self::cut), and what follows is the tail. Any other window,
-    /// or one without a cut, is one segment.
+    /// A word opens on a piece with the word mark; tokens before the first
+    /// such piece are a word of their own.
+    fn words(
+        &self,
+        hypothesis: &TdtHypothesis,
+        count: usize,
+        limit: usize,
+    ) -> Vec<TimedTokens> {
+        let subsampling = self.bundle.model.subsampling_factor();
+        let vocab = &self.bundle.vocab;
+        let h = hypothesis;
+        let mut opens: Vec<usize> = (0..count)
+            .filter(|&k| {
+                k == 0
+                    || vocab
+                        .piece(h.tokens[k])
+                        .is_some_and(|p| p.starts_with(WORD_MARK))
+            })
+            .collect();
+        opens.push(count);
+        opens
+            .windows(2)
+            .map(|w| {
+                let (first, next) = (w[0], w[1]);
+                let last = next - 1;
+                let start = (h.frames[first] * subsampling).min(limit);
+                let bound = if next < count {
+                    (h.frames[next] * subsampling).min(limit)
+                } else {
+                    limit
+                };
+                let end = ((h.frames[last] + h.durations[last].max(1)) * subsampling)
+                    .min(bound)
+                    .max(start);
+                TimedTokens {
+                    start,
+                    end,
+                    tokens: h.tokens[first..next].iter().map(|&t| t as i64).collect(),
+                }
+            })
+            .collect()
+    }
+
+    /// Lays a hypothesis out for the core: a segment per word.
+    ///
+    /// A window of `window_frames` was cut by length: it commits the words
+    /// before its [`cut`](Self::cut), and what follows is the tail. Any other
+    /// window, or one without a cut, commits every word. A window with no
+    /// tokens is skipped.
     fn lay_out(
         &self,
         hypothesis: TdtHypothesis,
@@ -278,23 +328,17 @@ impl ParakeetEngine {
         let cut = (frames >= self.window_frames)
             .then(|| self.cut(&hypothesis, frames))
             .flatten();
-        let Some((cut, k)) = cut else {
-            return WindowDecode::whole(frames, tokens, ());
-        };
+        let (advance, count) = cut.unwrap_or((frames, tokens.len()));
         WindowDecode {
-            segments: vec![TimedTokens {
-                start: 0,
-                end: cut,
-                tokens: tokens[..k].to_vec(),
-            }],
-            tail: Some(TimedTokens {
+            segments: self.words(&hypothesis, count, advance),
+            tail: cut.map(|(cut, k)| TimedTokens {
                 start: cut,
                 end: frames,
                 tokens: tokens[k..].to_vec(),
             }),
+            skip: tokens.is_empty(),
             tokens,
-            skip: false,
-            advance: cut,
+            advance,
             carry: (),
         }
     }
@@ -542,17 +586,25 @@ mod tests {
 
         // "the moon why we go", in encoder frames of 8: the last third opens
         // at frame 133 / 8. "why" follows the widest pause there, frames 7 to
-        // 18, so the cut is at 12.
+        // 18, so the cut is at 12. Each word before it is a segment, from
+        // its first token's frame to the end of its last.
         let spread = hypothesis(vec![1, 2, 3, 5, 6, 7], vec![2, 5, 6, 18, 20, 23]);
         let decode = engine.lay_out(spread, full);
         assert_eq!(decode.tokens, [1, 2, 3, 5, 6, 7]);
         assert_eq!(
             decode.segments,
-            [TimedTokens {
-                start: 0,
-                end: 96,
-                tokens: vec![1, 2, 3],
-            }]
+            [
+                TimedTokens {
+                    start: 16,
+                    end: 24,
+                    tokens: vec![1],
+                },
+                TimedTokens {
+                    start: 40,
+                    end: 56,
+                    tokens: vec![2, 3],
+                },
+            ]
         );
         assert_eq!(
             decode.tail,
@@ -568,17 +620,40 @@ mod tests {
         // where "why" ends at frame 6.
         let words = hypothesis(vec![1, 2, 3, 4, 5, 6, 8], vec![0, 2, 3, 3, 5, 7, 8]);
         let decode = engine.lay_out(words.clone(), full);
-        assert_eq!(decode.segments[0].tokens, [1, 2, 3, 4, 5]);
-        assert_eq!(decode.segments[0].end, 48);
+        let spans = |d: &WindowDecode<()>| {
+            d.segments
+                .iter()
+                .map(|s| (s.start, s.end, s.tokens.clone()))
+                .collect::<Vec<_>>()
+        };
+        assert_eq!(
+            spans(&decode),
+            [(0, 8, vec![1]), (16, 32, vec![2, 3, 4]), (40, 48, vec![5]),]
+        );
         assert_eq!(decode.tail.as_ref().unwrap().tokens, [6, 8]);
         assert_eq!(decode.advance, 48);
 
+        // Uncut, every word commits; the last ends a frame past its last
+        // token.
         let short = engine.lay_out(words, full - 1);
-        assert_eq!(short.segments.len(), 1);
+        assert_eq!(short.segments.len(), 4);
+        assert_eq!(short.segments[3].tokens, [6, 8]);
+        assert_eq!((short.segments[3].start, short.segments[3].end), (56, 72));
         assert_eq!((short.advance, short.tail), (full - 1, None));
 
+        // A word whose last token ends past the next word's emission ends
+        // there.
+        let mut overlap = hypothesis(vec![1, 5], vec![2, 3]);
+        overlap.durations = vec![4, 1];
+        let decode = engine.lay_out(overlap, full - 1);
+        assert_eq!(spans(&decode)[0], (16, 24, vec![1]));
+
         let one_word = engine.lay_out(hypothesis(vec![2, 3], vec![4, 5]), full);
+        assert_eq!(spans(&one_word), [(32, 48, vec![2, 3])]);
         assert_eq!((one_word.advance, one_word.tail), (full, None));
+
+        let silent = engine.lay_out(hypothesis(vec![], vec![]), full - 1);
+        assert!(silent.skip && silent.segments.is_empty());
 
         assert_eq!(engine.text(&[5, 6]).unwrap().as_deref(), Some("why we"));
         assert!(engine.text(&[-1]).is_err());

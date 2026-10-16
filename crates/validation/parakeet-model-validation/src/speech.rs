@@ -205,11 +205,11 @@ fn test_bunsen_phonon2_transcribes_like_its_reference() {
 
 /// The clip through bunsen's Parakeet stream driver, fed in 0.1 s pieces
 /// under the offline policy, with windows of at most `window_seconds`: the
-/// committed ids and text.
+/// committed ids, the text, and each word with its start and end in seconds.
 fn stream(
     bundle: std::sync::Arc<ParakeetBundle>,
     window_seconds: f64,
-) -> (Vec<usize>, String) {
+) -> (Vec<usize>, String, Vec<(String, f64, f64)>) {
     use bunsen::kits::speech::{
         asr_driver::{
             EmissionPolicy,
@@ -236,23 +236,27 @@ fn stream(
     }
     events.extend(stream.end_read().unwrap());
 
-    let (mut ids, mut texts) = (Vec::new(), Vec::new());
+    let (mut ids, mut words) = (Vec::new(), Vec::new());
     for event in events {
         let TranscriptEvent::Committed(segment) = event else {
             panic!("the offline policy only commits: {event:?}");
         };
-        eprintln!(
-            "{:.2}-{:.2}s: {:?}",
-            segment.start, segment.end, segment.text
-        );
         ids.extend(segment.tokens.iter().map(|&t| t as usize));
-        texts.push(segment.text.expect("the engine has a vocabulary"));
+        let text = segment.text.expect("the engine has a vocabulary");
+        words.push((text.trim().to_string(), segment.start, segment.end));
     }
-    (ids, texts.join(" "))
+    let text = words
+        .iter()
+        .map(|(w, ..)| w.as_str())
+        .collect::<Vec<_>>()
+        .join(" ");
+    (ids, text, words)
 }
 
 /// The stream driver, its window longer than the clip, decodes what the
-/// reference decodes: one window, the one-shot extractor's features.
+/// reference decodes: one window, the one-shot extractor's features. Its
+/// segments are the one-shot transcript's words, starting where they start
+/// and ending no later.
 #[test]
 #[serial_test::serial]
 fn test_bunsen_stream_driver_transcribes_like_the_reference() {
@@ -262,8 +266,31 @@ fn test_bunsen_stream_driver_transcribes_like_the_reference() {
     let bundle = load_bundle("nvidia/parakeet-tdt-0.6b-v3", &device);
     let reference_text = bundle.vocab.transcript(&fixture.ids).unwrap();
 
-    let (ids, text) = stream(bundle, 60.0);
+    let one_shot = transcribe(&bundle, &device)
+        .words(&bundle.vocab, bundle.frame_seconds())
+        .unwrap();
+    let (ids, text, words) = stream(bundle, 60.0);
     report_ids("bunsen stream driver vs onnxruntime", &ids, &fixture.ids);
+    assert_eq!(words.len(), one_shot.len());
+    let mut shortened = 0;
+    for ((word, start, end), expected) in words.iter().zip(&one_shot) {
+        assert_eq!(word, expected.text.trim());
+        assert!(
+            (start - expected.start).abs() < 1e-6,
+            "{word}: {start} vs {}",
+            expected.start
+        );
+        assert!(
+            *start <= *end && *end <= expected.end + 1e-6,
+            "{word}: ends {end} vs {}",
+            expected.end
+        );
+        shortened += usize::from(*end < expected.end - 1e-6);
+    }
+    eprintln!(
+        "{} words, {shortened} ending at the next word's start",
+        words.len()
+    );
     let against_reference = wer(&text, &reference_text);
     let against_truth = wer(&text, &speech_transcript(CLIP));
     eprintln!("driver: {text}");
@@ -291,7 +318,7 @@ fn test_bunsen_stream_driver_cuts_windows_at_pauses() {
     let bundle = load_bundle("nvidia/parakeet-tdt-0.6b-v3", &device);
     let reference_text = bundle.vocab.transcript(&fixture.ids).unwrap();
 
-    let (_, text) = stream(bundle, 20.0);
+    let (_, text, _) = stream(bundle, 20.0);
     let against_reference = wer(&text, &reference_text);
     let against_truth = wer(&text, &speech_transcript(CLIP));
     eprintln!("driver, 20 s windows: {text}");

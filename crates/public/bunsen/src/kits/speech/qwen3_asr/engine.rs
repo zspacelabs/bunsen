@@ -43,7 +43,9 @@ pub type Qwen3AsrStreamContext = AsrStreamContext<Qwen3AsrEngine>;
 ///   packaged per window as its front end packages an utterance: floored 8 dB
 ///   under the window's [`MaxLevel`], scaled, and padded with silence to the
 ///   front end's 30 s. A window is at most
-///   [`MAX_WINDOW_SECONDS`](Qwen3AsrBundle::MAX_WINDOW_SECONDS) of frames.
+///   [`MAX_WINDOW_SECONDS`](Qwen3AsrBundle::MAX_WINDOW_SECONDS) of frames by
+///   default, and never more
+///   ([`with_window_seconds`](Self::with_window_seconds)).
 /// - **Decode:** [`transcribe_features`](Qwen3AsrBundle::transcribe_features),
 ///   one window at a time: the greedy decoder takes one prompt. A reply's
 ///   transcript is one segment over the whole window; Qwen3-ASR has no
@@ -59,14 +61,44 @@ pub type Qwen3AsrStreamContext = AsrStreamContext<Qwen3AsrEngine>;
 #[derive(Clone, Debug)]
 pub struct Qwen3AsrEngine {
     bundle: Arc<Qwen3AsrBundle>,
+    window_frames: usize,
     device: Device,
 }
 
 impl Qwen3AsrEngine {
-    /// The engine of `bundle`, on the model's device.
+    /// The engine of `bundle`, on the model's device, with windows of at most
+    /// [`MAX_WINDOW_SECONDS`](Qwen3AsrBundle::MAX_WINDOW_SECONDS).
     pub fn new(bundle: Arc<Qwen3AsrBundle>) -> Self {
         let device = bundle.model.devices()[0].clone();
-        Self { bundle, device }
+        let window_frames = bundle.max_window() / bundle.front_end.hop();
+        Self {
+            bundle,
+            window_frames,
+            device,
+        }
+    }
+
+    /// The engine with windows of at most `seconds`, rounded down to whole
+    /// frames.
+    ///
+    /// # Panics
+    /// If that is under one frame, or over
+    /// [`MAX_WINDOW_SECONDS`](Qwen3AsrBundle::MAX_WINDOW_SECONDS), the most
+    /// the model was trained on.
+    pub fn with_window_seconds(
+        mut self,
+        seconds: f64,
+    ) -> Self {
+        let front_end = &self.bundle.front_end;
+        let frames = (seconds * front_end.sample_rate() as f64 / front_end.hop() as f64) as usize;
+        let most = self.bundle.max_window() / front_end.hop();
+        assert!(
+            frames > 0 && frames <= most,
+            "a window of {seconds} s is under one frame or over {} s",
+            Qwen3AsrBundle::MAX_WINDOW_SECONDS
+        );
+        self.window_frames = frames;
+        self
     }
 
     /// The bundle.
@@ -171,7 +203,7 @@ impl AsrEngine for Qwen3AsrEngine {
     }
 
     fn window_frames(&self) -> usize {
-        self.bundle.max_window() / self.hop()
+        self.window_frames
     }
 
     fn grid_frames(&self) -> usize {
@@ -309,6 +341,27 @@ mod tests {
                 .with_max_new_tokens(3)
                 .with_eos(eos),
         }
+    }
+
+    /// A window is set in seconds, rounded down to whole frames, and never
+    /// past the model's range.
+    #[test]
+    fn test_window_seconds() {
+        let device = performance_device();
+        let engine = Qwen3AsrEngine::new(Arc::new(toy_bundle(4, vec![5], &device)));
+        assert_eq!(engine.window_frames(), 3000);
+        assert_eq!(
+            engine.clone().with_window_seconds(12.345).window_frames(),
+            1234
+        );
+        assert_eq!(engine.with_window_seconds(30.0).window_frames(), 3000);
+    }
+
+    #[test]
+    #[should_panic(expected = "over 30 s")]
+    fn test_window_past_the_range_panics() {
+        let device = performance_device();
+        Qwen3AsrEngine::new(Arc::new(toy_bundle(4, vec![5], &device))).with_window_seconds(30.5);
     }
 
     /// A 440 Hz tone under a sine envelope, silent at both ends.
