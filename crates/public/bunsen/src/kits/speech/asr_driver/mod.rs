@@ -1,30 +1,57 @@
 //! # ASR stream driving: the parts that do not depend on the model
 //!
-//! The pieces a speech-to-text stream driver is built from, whatever model
-//! it drives:
+//! A stream driver turns audio, written in pieces as it arrives, into timed
+//! transcript events. Everything about that which does not depend on the
+//! model lives here; a model plugs in as an [`AsrEngine`].
 //!
+//! - [`AsrStreamDriver`] and [`AsrStreamContext`]: the shared, immutable half
+//!   of a transcription and one stream in progress. The context buffers the
+//!   engine's features, runs the voice-activity gate, skips silence, decides
+//!   when to decode, commits and drafts, and places what it emits on the
+//!   stream's clock; [`advance_ready`] batches the decodes of many streams
+//!   through one engine.
+//! - [`AsrEngine`]: what a model gives the core: its streaming features
+//!   ([`StreamingFeatures`]), the decode of a window ([`DecodeRequest`] to
+//!   [`WindowDecode`]), its text, and any per-stream carry.
 //! - [`TranscriptSegment`] and [`TranscriptEvent`]: what a driver emits, a
 //!   committed segment or a draft one.
 //! - [`EmissionPolicy`]: when a driver decodes ([`DecodeTriggers`]) and what it
 //!   commits ([`CommitRule`]), with presets for the three deployments (offline,
 //!   conservative real time, responsive real time).
 //! - [`StreamClock`]: a stream's sample index to media time.
-//! - [`VoiceActivityFilter`]: a voice-activity model's per-chunk probabilities
-//!   to [`SpeechRegion`]s.
+//! - [`VoiceActivityModel`] and [`VoiceActivityFilter`]: per-chunk speech
+//!   probabilities, and the gate that turns them into [`SpeechRegion`]s.
+//!   [`SileroVad`](crate::kits::speech::silero_vad::SileroVad) is a model.
+//! - [`LevelPolicy`] and [`LevelStatistic`]: what a window's features are
+//!   scaled against, the window's own frames or everything the stream has seen,
+//!   summarized as the model needs ([`MaxLevel`], [`MomentsLevel`]).
+//!
+//! [`support`] holds the internals underneath; nothing in it is part of the
+//! API.
 //!
 //! [`whisper::driver`](crate::kits::speech::whisper::driver) is a driver
-//! built on them.
+//! built on these parts.
+
+pub mod support;
 
 mod emission_policy;
+mod engine;
 mod level;
 mod speech_region;
 mod stream_clock;
+mod stream_context;
+mod stream_driver;
 mod transcript;
 mod voice_activity_filter;
+mod voice_activity_model;
 
 pub use emission_policy::*;
+pub use engine::*;
 pub use level::*;
 pub use speech_region::*;
 pub use stream_clock::*;
+pub use stream_context::*;
+pub use stream_driver::*;
 pub use transcript::*;
 pub use voice_activity_filter::*;
+pub use voice_activity_model::*;

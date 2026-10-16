@@ -1,4 +1,4 @@
-//! A sliding buffer of log-mel frames.
+//! A sliding buffer of feature frames.
 
 use std::marker::PhantomData;
 
@@ -20,7 +20,7 @@ use burn::Tensor;
 /// reads it.
 #[derive(Clone, Debug)]
 pub(crate) struct FrameRing {
-    /// `[1, capacity, n_mels]`; `None` until the first push.
+    /// `[1, capacity, features]`; `None` until the first push.
     buf: Option<Tensor<3>>,
 
     /// The buffer index of the first live frame.
@@ -49,12 +49,12 @@ impl FrameRing {
         self.len
     }
 
-    /// Appends `[1, count, n_mels]` frames after the last live frame.
+    /// Appends `[1, count, features]` frames after the last live frame.
     pub(crate) fn push(
         &mut self,
         frames: Tensor<3>,
     ) {
-        let [_, count, n_mels] = frames.dims();
+        let [_, count, features] = frames.dims();
         if count == 0 {
             return;
         }
@@ -67,12 +67,12 @@ impl FrameRing {
             } else {
                 (capacity * 2).max(needed).max(self.min_capacity)
             };
-            self.reallocate(capacity, n_mels, &frames);
+            self.reallocate(capacity, features, &frames);
         }
 
         let at = self.head + self.len;
         let buf = self.buf.take().expect("reallocate made a buffer");
-        self.buf = Some(buf.slice_assign([0..1, at..at + count, 0..n_mels], frames));
+        self.buf = Some(buf.slice_assign([0..1, at..at + count, 0..features], frames));
         self.len += count;
     }
 
@@ -95,7 +95,8 @@ impl FrameRing {
         self.len -= count.min(self.len);
     }
 
-    /// The live frames `start .. start + count`, joined: `[1, count, n_mels]`.
+    /// The live frames `start .. start + count`, joined: `[1, count,
+    /// features]`.
     ///
     /// [`frame_window`](Self::frame_window) as one tensor. While the window
     /// is one piece, this is a view of the buffer, not a copy. Drop it before
@@ -142,14 +143,14 @@ impl FrameRing {
     fn reallocate(
         &mut self,
         capacity: usize,
-        n_mels: usize,
+        features: usize,
         source: &Tensor<3>,
     ) {
-        let fresh = Tensor::empty([1, capacity, n_mels], (&source.device(), source.dtype()));
+        let fresh = Tensor::empty([1, capacity, features], (&source.device(), source.dtype()));
         self.buf = Some(match self.buf.take() {
             Some(old) if self.len > 0 => {
                 let kept = old.slice_dim(1, self.head..self.head + self.len);
-                fresh.slice_assign([0..1, 0..self.len, 0..n_mels], kept)
+                fresh.slice_assign([0..1, 0..self.len, 0..features], kept)
             }
             _ => fresh,
         });
@@ -158,7 +159,7 @@ impl FrameRing {
 }
 
 /// Some live frames of a [`FrameRing`]: the pieces of the buffer they lie
-/// in, in order, each `[1, frames, n_mels]`.
+/// in, in order, each `[1, frames, features]`.
 ///
 /// The pieces agree in every dim but the frames, so they join along dim 1.
 /// The ring never wraps today, so there is one piece; a caller that walks
@@ -178,15 +179,15 @@ impl FrameWindow<'_> {
     /// If there are no pieces, or a piece disagrees with the first in a dim
     /// other than the frames.
     fn new(pieces: Vec<Tensor<3>>) -> Self {
-        let [batch, _, n_mels] = pieces
+        let [batch, _, features] = pieces
             .first()
             .expect("a window has at least one piece")
             .dims();
         for piece in &pieces[1..] {
             let [b, _, m] = piece.dims();
             assert!(
-                b == batch && m == n_mels,
-                "piece [{b}, _, {m}] does not join [{batch}, _, {n_mels}]",
+                b == batch && m == features,
+                "piece [{b}, _, {m}] does not join [{batch}, _, {features}]",
             );
         }
         Self {

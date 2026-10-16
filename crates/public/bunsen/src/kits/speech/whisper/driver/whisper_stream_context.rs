@@ -22,6 +22,7 @@ use crate::{
             TranscriptEvent,
             TranscriptSegment,
             VoiceActivityFilter,
+            support::frame_ring::FrameRing,
         },
         silero_vad::{
             SileroVadContext,
@@ -39,10 +40,7 @@ use crate::{
             driver::{
                 StreamClampPolicy,
                 WhisperStreamDriver,
-                support::{
-                    frame_ring::FrameRing,
-                    segments::split_window,
-                },
+                support::segments::split_window,
             },
         },
     },
