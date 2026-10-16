@@ -265,6 +265,10 @@ pub fn speech_transcript(name: &str) -> String {
     std::fs::read_to_string(&path).unwrap_or_else(|e| panic!("read {}: {e}", path.display()))
 }
 
+/// Where the decoder's attention falls while it writes each word.
+#[cfg(all(test, feature = "download", feature = "gpu-tests"))]
+mod alignment;
+
 /// The generated reference models, held to the onnxruntime fixture.
 #[cfg(all(test, feature = "download", feature = "gpu-tests"))]
 mod reference_tests;

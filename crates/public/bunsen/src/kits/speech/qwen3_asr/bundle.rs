@@ -112,6 +112,59 @@ impl Qwen3AsrBundle {
         self.prompt.parse(tokens, &self.decoder.eos, &self.vocab)
     }
 
+    /// How each token of a reply attended to the utterance's audio: the
+    /// decoder's attention weights from the position that predicts the token
+    /// onto the audio placeholders, one per encoder frame.
+    ///
+    /// One uncached pass over the prompt and the reply, the reply's tokens
+    /// fed as the greedy decode fed them; the decode itself is not rerun.
+    ///
+    /// # Arguments
+    /// * `features`, `valid` - as
+    ///   [`transcribe_features`](Self::transcribe_features) took them.
+    /// * `reply` - the tokens the decode generated for them.
+    /// * `layers` - the decoder layers, by index.
+    ///
+    /// # Returns
+    /// For each of `layers`, `[n_heads, reply.len(), n_audio]`; row `k` is
+    /// the distribution token `k` was predicted under, restricted to the
+    /// audio (its sum is the attention the audio received).
+    ///
+    /// # Errors
+    /// As [`Qwen3Asr::prompt_embeds`].
+    ///
+    /// # Panics
+    /// If `reply` is empty, or a layer index is past the last layer.
+    pub fn audio_attention(
+        &self,
+        features: Tensor<2>,
+        valid: usize,
+        reply: &[usize],
+        layers: &[usize],
+    ) -> BunsenResult<Vec<Tensor<3>>> {
+        assert!(!reply.is_empty(), "an empty reply attends to nothing");
+        let audio = self.model.encode_audio(features, valid);
+        let n_audio = self.model.audio_tower.output_len(valid);
+        let mut ids = self.prompt.prompt(n_audio, self.model.audio_token());
+        let prompt_len = ids.len();
+        ids.extend_from_slice(&reply[..reply.len() - 1]);
+        let embeds = self.model.prompt_embeds(&ids, audio)?;
+        let lm = &self.model.language_model;
+        let r_emb = lm.rotary(ids.len(), &embeds.device());
+        let audio_at = self.prompt.prefix.len();
+        Ok(lm
+            .attention_weights(
+                embeds,
+                &r_emb,
+                layers,
+                prompt_len - 1..prompt_len - 1 + reply.len(),
+                audio_at..audio_at + n_audio,
+            )
+            .into_iter()
+            .map(|w| w.squeeze_dim(0))
+            .collect())
+    }
+
     /// Transcribes one waveform of any length, in windows of at most
     /// `max_window` samples.
     ///

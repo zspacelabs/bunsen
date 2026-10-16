@@ -252,3 +252,72 @@ fn test_toy_bundle() {
     }
     assert_eq!(long.tokens, tokens);
 }
+
+/// A reply's attention onto the audio comes from the positions that predict
+/// it: an uncached pass over the prompt and the reply predicts the reply, and
+/// each row is part of a distribution.
+#[test]
+fn test_toy_audio_attention() {
+    use super::blocks::{
+        Qwen3AsrAudioEncoderMeta,
+        Qwen3AsrMeta,
+    };
+
+    let toy = Toy::load();
+    let device = toy.device.clone();
+    let bundle = Qwen3AsrBundle {
+        model: toy.model,
+        front_end: Qwen3AsrFrontEndConfig::new()
+            .with_n_mels(16)
+            .with_min_seconds(1)
+            .init(&device),
+        vocab: toy_vocab(),
+        prompt: Qwen3AsrPromptConfig::new()
+            .with_prefix(vec![1, 2])
+            .with_suffix(vec![3, 4])
+            .with_text_token(5),
+        decoder: Qwen3AsrGreedyDecoderConfig::new()
+            .with_max_new_tokens(4)
+            .with_eos(vec![6]),
+    };
+    let samples: Vec<f32> = (0..16_000)
+        .map(|k| 0.1 * ((k as f32) * 0.05).sin())
+        .collect();
+    let (features, valid) = bundle.front_end.forward(&samples, &device).unwrap();
+    let reply = bundle
+        .transcribe_features(features.clone(), valid)
+        .unwrap()
+        .tokens;
+    let n_audio = bundle.model.audio_tower.output_len(valid);
+
+    let layers = [1, 0];
+    let weights = bundle
+        .audio_attention(features.clone(), valid, &reply, &layers)
+        .unwrap();
+    assert_eq!(weights.len(), 2);
+    for w in &weights {
+        assert_eq!(w.dims()[1..], [reply.len(), n_audio]);
+        let sums: Vec<f32> = w.clone().sum_dim(2).into_data().try_to_vec().unwrap();
+        assert!(
+            sums.iter().all(|&m| (0.0..=1.0 + 1e-5).contains(&m)),
+            "{sums:?}"
+        );
+    }
+
+    let audio = bundle.model.encode_audio(features, valid);
+    let mut ids = bundle.prompt.prompt(n_audio, bundle.model.audio_token());
+    let rows = ids.len() - 1;
+    ids.extend_from_slice(&reply[..reply.len() - 1]);
+    let logits = bundle
+        .model
+        .forward_logits(bundle.model.prompt_embeds(&ids, audio).unwrap());
+    let predicted: Vec<i64> = logits
+        .slice_dim(1, rows..rows + reply.len())
+        .argmax(2)
+        .into_data()
+        .convert::<i64>()
+        .try_to_vec()
+        .unwrap();
+    let reply: Vec<i64> = reply.iter().map(|&t| t as i64).collect();
+    assert_eq!(predicted, reply);
+}

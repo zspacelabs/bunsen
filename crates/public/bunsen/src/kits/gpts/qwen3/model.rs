@@ -1,4 +1,6 @@
 //! The Qwen3 decoder.
+use std::ops::Range;
+
 use burn::{
     Tensor,
     config::Config,
@@ -12,7 +14,10 @@ use burn::{
             RmsNormConfig,
         },
     },
-    prelude::Int,
+    prelude::{
+        Int,
+        s,
+    },
     tensor::Device,
 };
 
@@ -364,6 +369,58 @@ impl Qwen3Model {
         y
     }
 
+    /// The attention weights of an uncached pass over `embeds`, at `layers`,
+    /// each cut to the queries `rows` and the keys `cols`.
+    ///
+    /// # Arguments
+    /// * `embeds` - `[batch, seq, d_model]`, at positions `0..seq`.
+    /// * `r_emb` - a rotary embedding covering `seq` positions.
+    /// * `layers` - the layers, by index, in the order returned.
+    /// * `rows`, `cols` - the query and key positions kept.
+    ///
+    /// # Returns
+    /// For each of `layers`, `[batch, n_heads, rows.len(), cols.len()]`.
+    ///
+    /// # Panics
+    /// If a layer index is past the last layer.
+    pub fn attention_weights(
+        &self,
+        embeds: Tensor<3>,
+        r_emb: &RotaryEmbedding,
+        layers: &[usize],
+        rows: Range<usize>,
+        cols: Range<usize>,
+    ) -> Vec<Tensor<4>> {
+        let [_, seq] = crate::contracts::unpack_shape_contract!(
+            ["batch", "seq", "d_model"],
+            &embeds.dims(),
+            &["batch", "seq"],
+            &[("d_model", self.d_model())]
+        );
+        assert!(
+            layers.iter().all(|&l| l < self.layers.len()),
+            "layers {layers:?} of {}",
+            self.layers.len()
+        );
+        let r_emb = r_emb.clip_range(0..seq);
+        let deepest = layers.iter().copied().max().map_or(0, |l| l + 1);
+        let mut weights: Vec<Option<Tensor<4>>> = vec![None; layers.len()];
+        let mut x = embeds;
+        for (index, layer) in self.layers.iter().enumerate().take(deepest) {
+            for (slot, _) in layers.iter().enumerate().filter(|&(_, &l)| l == index) {
+                let w = layer
+                    .self_attn
+                    .attention_weights(layer.input_layernorm.forward(x.clone()), &r_emb);
+                weights[slot] = Some(w.slice(s![.., .., rows.clone(), cols.clone()]));
+            }
+            x = layer.forward(x, &r_emb, &mut None);
+        }
+        weights
+            .into_iter()
+            .map(|w| w.expect("every layer visited"))
+            .collect()
+    }
+
     /// The tied head: logits over the vocabulary.
     ///
     /// # Arguments
@@ -432,6 +489,43 @@ mod tests {
         stepped.to_data_as::<f32>().assert_approx_eq::<f32>(
             &whole.to_data_as::<f32>(),
             burn::tensor::Tolerance::rel_abs(1e-4, 1e-5),
+        );
+    }
+
+    /// The weights at a layer are its attention's over that layer's input,
+    /// cut to the rows and columns asked for, in the order asked for.
+    #[test]
+    fn test_attention_weights() {
+        let device = cpu_device();
+        let model: Qwen3Model = Qwen3Config::new(40, 12, 3, 3, 1, 6, 20).init(&device);
+        let embeds = model.embed(Tensor::<2, Int>::from_data([[1, 5, 7, 2, 9]], &device));
+        let r_emb = model.rotary(5, &device);
+
+        let weights = model.attention_weights(embeds.clone(), &r_emb, &[1, 0], 2..5, 0..3);
+        assert_eq!(weights.len(), 2);
+        assert_eq!(weights[0].dims(), [1, 3, 3, 3]);
+
+        let first = &model.layers[0];
+        let x0 = embeds.clone();
+        let expected0 = first
+            .self_attn
+            .attention_weights(first.input_layernorm.forward(x0.clone()), &r_emb)
+            .slice(s![.., .., 2..5, 0..3]);
+        let second = &model.layers[1];
+        let x1 = first.forward(x0, &r_emb, &mut None);
+        let expected1 = second
+            .self_attn
+            .attention_weights(second.input_layernorm.forward(x1), &r_emb)
+            .slice(s![.., .., 2..5, 0..3]);
+        crate::support::testing::assert_tensors_close(
+            &weights[0],
+            &expected1,
+            burn::tensor::Tolerance::default(),
+        );
+        crate::support::testing::assert_tensors_close(
+            &weights[1],
+            &expected0,
+            burn::tensor::Tolerance::default(),
         );
     }
 }

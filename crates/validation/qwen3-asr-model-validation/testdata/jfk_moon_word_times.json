@@ -1,0 +1,591 @@
+{
+ "source": "nvidia/parakeet-tdt-0.6b-v3 (ids identical to the ONNX export on this clip), one window, through bunsen's stream driver: `bunsen-asr parakeet transcribe --model nvidia/parakeet-tdt-0.6b-v3 --json`",
+ "clip": "jfk_moon.mp3",
+ "words": [
+  {
+   "word": "the",
+   "start": 0.32,
+   "end": 0.56
+  },
+  {
+   "word": "moon.",
+   "start": 0.56,
+   "end": 1.36
+  },
+  {
+   "word": "Why",
+   "start": 1.36,
+   "end": 1.92
+  },
+  {
+   "word": "choose",
+   "start": 1.92,
+   "end": 2.4
+  },
+  {
+   "word": "this",
+   "start": 2.4,
+   "end": 2.64
+  },
+  {
+   "word": "as",
+   "start": 2.64,
+   "end": 2.96
+  },
+  {
+   "word": "our",
+   "start": 2.96,
+   "end": 3.2
+  },
+  {
+   "word": "goal?",
+   "start": 3.2,
+   "end": 4.16
+  },
+  {
+   "word": "And",
+   "start": 4.16,
+   "end": 4.48
+  },
+  {
+   "word": "they",
+   "start": 4.48,
+   "end": 4.8
+  },
+  {
+   "word": "may",
+   "start": 4.8,
+   "end": 5.04
+  },
+  {
+   "word": "well",
+   "start": 5.04,
+   "end": 5.36
+  },
+  {
+   "word": "ask",
+   "start": 5.36,
+   "end": 5.92
+  },
+  {
+   "word": "why",
+   "start": 6.24,
+   "end": 6.64
+  },
+  {
+   "word": "climb",
+   "start": 6.64,
+   "end": 7.04
+  },
+  {
+   "word": "the",
+   "start": 7.04,
+   "end": 7.2
+  },
+  {
+   "word": "highest",
+   "start": 7.2,
+   "end": 7.68
+  },
+  {
+   "word": "mountain?",
+   "start": 7.68,
+   "end": 8.72
+  },
+  {
+   "word": "Why",
+   "start": 8.72,
+   "end": 9.04
+  },
+  {
+   "word": "thirty",
+   "start": 9.28,
+   "end": 9.52
+  },
+  {
+   "word": "five",
+   "start": 9.6,
+   "end": 9.84
+  },
+  {
+   "word": "years",
+   "start": 9.84,
+   "end": 10.16
+  },
+  {
+   "word": "ago",
+   "start": 10.16,
+   "end": 10.64
+  },
+  {
+   "word": "fly",
+   "start": 10.88,
+   "end": 11.36
+  },
+  {
+   "word": "the",
+   "start": 11.36,
+   "end": 11.52
+  },
+  {
+   "word": "Atlantic?",
+   "start": 11.52,
+   "end": 12.48
+  },
+  {
+   "word": "Why",
+   "start": 12.48,
+   "end": 12.8
+  },
+  {
+   "word": "does",
+   "start": 12.8,
+   "end": 13.04
+  },
+  {
+   "word": "Rice",
+   "start": 13.04,
+   "end": 13.44
+  },
+  {
+   "word": "play",
+   "start": 13.6,
+   "end": 13.92
+  },
+  {
+   "word": "Texas?",
+   "start": 13.92,
+   "end": 14.88
+  },
+  {
+   "word": "We",
+   "start": 14.88,
+   "end": 15.2
+  },
+  {
+   "word": "choose",
+   "start": 15.2,
+   "end": 15.52
+  },
+  {
+   "word": "to",
+   "start": 15.52,
+   "end": 15.68
+  },
+  {
+   "word": "go",
+   "start": 15.68,
+   "end": 15.84
+  },
+  {
+   "word": "to",
+   "start": 15.84,
+   "end": 16.08
+  },
+  {
+   "word": "the",
+   "start": 16.08,
+   "end": 16.32
+  },
+  {
+   "word": "moon.",
+   "start": 16.32,
+   "end": 17.44
+  },
+  {
+   "word": "We",
+   "start": 17.44,
+   "end": 17.76
+  },
+  {
+   "word": "choose",
+   "start": 17.76,
+   "end": 18.16
+  },
+  {
+   "word": "to",
+   "start": 18.16,
+   "end": 18.32
+  },
+  {
+   "word": "go",
+   "start": 18.32,
+   "end": 18.48
+  },
+  {
+   "word": "to",
+   "start": 18.48,
+   "end": 18.64
+  },
+  {
+   "word": "the",
+   "start": 18.64,
+   "end": 18.88
+  },
+  {
+   "word": "moon.",
+   "start": 18.88,
+   "end": 25.28
+  },
+  {
+   "word": "We",
+   "start": 25.28,
+   "end": 25.6
+  },
+  {
+   "word": "choose",
+   "start": 25.76,
+   "end": 26.24
+  },
+  {
+   "word": "to",
+   "start": 26.24,
+   "end": 26.4
+  },
+  {
+   "word": "go",
+   "start": 26.4,
+   "end": 26.56
+  },
+  {
+   "word": "to",
+   "start": 26.56,
+   "end": 26.72
+  },
+  {
+   "word": "the",
+   "start": 26.72,
+   "end": 26.96
+  },
+  {
+   "word": "moon",
+   "start": 26.96,
+   "end": 27.28
+  },
+  {
+   "word": "in",
+   "start": 27.28,
+   "end": 27.52
+  },
+  {
+   "word": "this",
+   "start": 27.52,
+   "end": 27.76
+  },
+  {
+   "word": "decade",
+   "start": 27.76,
+   "end": 28.24
+  },
+  {
+   "word": "and",
+   "start": 28.24,
+   "end": 28.48
+  },
+  {
+   "word": "do",
+   "start": 28.48,
+   "end": 28.64
+  },
+  {
+   "word": "the",
+   "start": 28.64,
+   "end": 28.88
+  },
+  {
+   "word": "other",
+   "start": 28.88,
+   "end": 29.12
+  },
+  {
+   "word": "things.",
+   "start": 29.12,
+   "end": 29.84
+  },
+  {
+   "word": "Not",
+   "start": 29.84,
+   "end": 30.32
+  },
+  {
+   "word": "because",
+   "start": 30.32,
+   "end": 30.64
+  },
+  {
+   "word": "they",
+   "start": 30.64,
+   "end": 30.88
+  },
+  {
+   "word": "are",
+   "start": 30.88,
+   "end": 31.12
+  },
+  {
+   "word": "easy",
+   "start": 31.12,
+   "end": 31.52
+  },
+  {
+   "word": "but",
+   "start": 31.76,
+   "end": 32.0
+  },
+  {
+   "word": "because",
+   "start": 32.0,
+   "end": 32.32
+  },
+  {
+   "word": "they",
+   "start": 32.32,
+   "end": 32.56
+  },
+  {
+   "word": "are",
+   "start": 32.56,
+   "end": 32.88
+  },
+  {
+   "word": "hard.",
+   "start": 32.88,
+   "end": 33.76
+  },
+  {
+   "word": "Because",
+   "start": 33.76,
+   "end": 34.32
+  },
+  {
+   "word": "that",
+   "start": 34.32,
+   "end": 34.64
+  },
+  {
+   "word": "goal",
+   "start": 34.64,
+   "end": 35.28
+  },
+  {
+   "word": "will",
+   "start": 35.6,
+   "end": 35.92
+  },
+  {
+   "word": "serve",
+   "start": 35.92,
+   "end": 36.48
+  },
+  {
+   "word": "to",
+   "start": 36.48,
+   "end": 36.72
+  },
+  {
+   "word": "organize",
+   "start": 36.72,
+   "end": 37.28
+  },
+  {
+   "word": "and",
+   "start": 37.28,
+   "end": 37.44
+  },
+  {
+   "word": "measure",
+   "start": 37.44,
+   "end": 38.0
+  },
+  {
+   "word": "the",
+   "start": 38.0,
+   "end": 38.32
+  },
+  {
+   "word": "best",
+   "start": 38.32,
+   "end": 38.64
+  },
+  {
+   "word": "of",
+   "start": 38.8,
+   "end": 39.12
+  },
+  {
+   "word": "our",
+   "start": 39.12,
+   "end": 39.36
+  },
+  {
+   "word": "energies",
+   "start": 39.36,
+   "end": 39.84
+  },
+  {
+   "word": "and",
+   "start": 39.84,
+   "end": 40.08
+  },
+  {
+   "word": "skills.",
+   "start": 40.08,
+   "end": 41.12
+  },
+  {
+   "word": "Because",
+   "start": 41.12,
+   "end": 41.6
+  },
+  {
+   "word": "that",
+   "start": 41.6,
+   "end": 41.92
+  },
+  {
+   "word": "challenge",
+   "start": 41.92,
+   "end": 42.48
+  },
+  {
+   "word": "is",
+   "start": 42.48,
+   "end": 42.72
+  },
+  {
+   "word": "one",
+   "start": 42.72,
+   "end": 42.88
+  },
+  {
+   "word": "that",
+   "start": 42.88,
+   "end": 43.04
+  },
+  {
+   "word": "we're",
+   "start": 43.04,
+   "end": 43.44
+  },
+  {
+   "word": "willing",
+   "start": 43.44,
+   "end": 43.76
+  },
+  {
+   "word": "to",
+   "start": 43.76,
+   "end": 44.0
+  },
+  {
+   "word": "accept",
+   "start": 44.0,
+   "end": 44.72
+  },
+  {
+   "word": "one",
+   "start": 44.96,
+   "end": 45.28
+  },
+  {
+   "word": "we",
+   "start": 45.28,
+   "end": 45.52
+  },
+  {
+   "word": "are",
+   "start": 45.52,
+   "end": 45.68
+  },
+  {
+   "word": "unwilling",
+   "start": 45.68,
+   "end": 46.32
+  },
+  {
+   "word": "to",
+   "start": 46.32,
+   "end": 46.56
+  },
+  {
+   "word": "postpone",
+   "start": 46.56,
+   "end": 47.36
+  },
+  {
+   "word": "and",
+   "start": 47.6,
+   "end": 47.92
+  },
+  {
+   "word": "one",
+   "start": 47.92,
+   "end": 48.16
+  },
+  {
+   "word": "we",
+   "start": 48.16,
+   "end": 48.4
+  },
+  {
+   "word": "intend",
+   "start": 48.4,
+   "end": 48.8
+  },
+  {
+   "word": "to",
+   "start": 48.8,
+   "end": 49.04
+  },
+  {
+   "word": "win",
+   "start": 49.04,
+   "end": 49.44
+  },
+  {
+   "word": "and",
+   "start": 49.52,
+   "end": 49.76
+  },
+  {
+   "word": "the",
+   "start": 49.76,
+   "end": 49.92
+  },
+  {
+   "word": "others",
+   "start": 49.92,
+   "end": 50.24
+  },
+  {
+   "word": "too.",
+   "start": 50.48,
+   "end": 57.92
+  },
+  {
+   "word": "It",
+   "start": 57.92,
+   "end": 58.24
+  },
+  {
+   "word": "is",
+   "start": 58.24,
+   "end": 58.48
+  },
+  {
+   "word": "for",
+   "start": 58.48,
+   "end": 58.8
+  },
+  {
+   "word": "these",
+   "start": 58.8,
+   "end": 58.96
+  },
+  {
+   "word": "reasons",
+   "start": 58.96,
+   "end": 59.52
+  }
+ ]
+}

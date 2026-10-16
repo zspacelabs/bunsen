@@ -35,6 +35,7 @@ use crate::{
         KVCache,
         ScaledDotProductAttentionConfig,
         scaled_dot_product_attention,
+        sdpa_attn_weight,
     },
 };
 
@@ -286,6 +287,73 @@ impl CausalSelfAttentionMeta for CausalSelfAttention {
 }
 
 impl CausalSelfAttention {
+    /// The queries and keys of `input`: projected, normalized and rotated.
+    ///
+    /// # Arguments
+    /// - `input`: a `[B, T, D]` sequence.
+    /// - `r_emb`: a rotary embedding with len ``T``.
+    ///
+    /// # Returns
+    /// - `[B, H_q, T, head_dim]` queries and `[B, H_kv, T, head_dim]` keys.
+    fn queries_keys(
+        &self,
+        input: Tensor<3>,
+        r_emb: &RotaryEmbedding,
+    ) -> (Tensor<4>, Tensor<4>) {
+        let [b, t] = unpack_shape_contract!(["B", "T", "D"], &input.dims(), &["B", "T"]);
+        let q = self
+            .c_q
+            .forward(input.clone())
+            .reshape([b, t, self.n_head(), self.head_dim()]);
+        let q = self.qk_norm.apply(q, &self.q_norm, r_emb).swap_dims(1, 2);
+        let k = self
+            .c_k
+            .forward(input)
+            .reshape([b, t, self.n_kv_head(), self.head_dim()]);
+        let k = self.qk_norm.apply(k, &self.k_norm, r_emb).swap_dims(1, 2);
+        (q, k)
+    }
+
+    /// The attention weights an uncached [`forward`](Self::forward) of
+    /// `input` applies: per query head, `softmax(q k^T / sqrt(head_dim))`
+    /// over the keys at and before each query.
+    ///
+    /// # Arguments
+    /// - `input`: a `[B, T, D]` sequence.
+    /// - `r_emb`: a rotary embedding with len ``T``.
+    ///
+    /// # Returns
+    /// - `[B, H_q, T, T]`, each row a distribution over the keys; zero above
+    ///   the diagonal.
+    pub fn attention_weights(
+        &self,
+        input: Tensor<3>,
+        r_emb: &RotaryEmbedding,
+    ) -> Tensor<4> {
+        let [b, t] = unpack_shape_contract!(
+            ["B", "T", "D"],
+            &input.dims(),
+            &["B", "T"],
+            &[("D", self.n_embed())]
+        );
+        let (q, k) = self.queries_keys(input, r_emb);
+        let weights = sdpa_attn_weight(
+            q,
+            k,
+            None,
+            None,
+            ScaledDotProductAttentionConfig::new()
+                .with_is_causal(true)
+                .with_enable_gqa(self.gqa_enabled()),
+        );
+        assert_shape_contract_periodically!(
+            ["B", "H", "T", "T"],
+            &weights.dims(),
+            &[("B", b), ("H", self.n_head()), ("T", t)]
+        );
+        weights
+    }
+
     /// Forward Pass.
     ///
     /// # Arguments
@@ -308,19 +376,7 @@ impl CausalSelfAttention {
             &[("D", self.n_embed())]
         );
 
-        let q = self
-            .c_q
-            .forward(input.clone())
-            .reshape([b, t_q, self.n_head(), self.head_dim()]);
-        let q = self.qk_norm.apply(q, &self.q_norm, r_emb);
-        let q = q.swap_dims(1, 2);
-
-        let k =
-            self.c_k
-                .forward(input.clone())
-                .reshape([b, t_q, self.n_kv_head(), self.head_dim()]);
-        let k = self.qk_norm.apply(k, &self.k_norm, r_emb);
-        let k = k.swap_dims(1, 2);
+        let (q, k) = self.queries_keys(input.clone(), r_emb);
 
         let v = self
             .c_v
@@ -456,6 +512,43 @@ mod tests {
             &output.dims(),
             &[("B", batch), ("T", seq_len), ("D", n_embed)]
         );
+    }
+
+    /// The weights are what the forward pass applies: each row a causal
+    /// distribution, and the values they weigh, projected, the output.
+    #[test]
+    fn test_attention_weights_are_the_forwards() {
+        let device = cpu_device();
+        let (batch, seq_len, n_embed, n_head, n_kv_head) = (2, 6, 32, 4, 2);
+        let csa: CausalSelfAttention =
+            CausalSelfAttentionConfig::new(n_head, n_kv_head, n_embed).init(0, &device);
+        let head_dim = csa.head_dim();
+        let r_emb: RotaryEmbedding = RotaryEmbeddingConfig::new(seq_len, head_dim).init(&device);
+        let input: Tensor<3> =
+            Tensor::random([batch, seq_len, n_embed], Distribution::Default, &device);
+
+        let weights = csa.attention_weights(input.clone(), &r_emb);
+        assert_eq!(weights.dims(), [batch, n_head, seq_len, seq_len]);
+        let sums = weights.clone().sum_dim(3);
+        assert_tensors_close(&sums, &Tensor::ones_like(&sums), Tolerance::default());
+        let upper = weights.clone().triu(1).abs().max().into_scalar::<f32>();
+        assert_eq!(upper, 0.0);
+
+        let v = csa
+            .c_v
+            .forward(input.clone())
+            .reshape([batch, seq_len, n_kv_head, head_dim])
+            .swap_dims(1, 2);
+        let v = crate::ops::repeat::repeat_interleave::<4, 5, _>(v, n_head / n_kv_head, 1);
+        let applied = csa
+            .c_proj
+            .forward(weights.matmul(v).swap_dims(1, 2).reshape([
+                batch,
+                seq_len,
+                n_head * head_dim,
+            ]));
+        let forward = csa.forward(input, &r_emb, &mut None);
+        assert_tensors_close(&applied, &forward, Tolerance::default());
     }
 
     /// A chunk of several new tokens after a cached prefix attends as the
