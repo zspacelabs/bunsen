@@ -32,9 +32,20 @@ jobs:
       # `whisper-cli live` captures through `cpal`, whose Linux backend
       # links ALSA.
       - run: sudo apt-get update && sudo apt-get install -y libasound2-dev
-      # Clippy compiles the whole dependency graph; without this it starts
-      # cold on every run.
+      # The caches as in the `test` job, which explains them. Clippy compiles
+      # the whole dependency graph; kache keeps it under a key prefix of its
+      # own, because clippy's outputs are check-only metadata the `test` job
+      # cannot use.
       - uses: Swatinem/rust-cache@v2
+        with:
+          prefix-key: v1-rust
+          cache-targets: false
+      - uses: kunobi-ninja/kache-action@ad7317540dcdd71c904f7a60a87b620a0c0e67ed # v1
+        with:
+          version: 1.2.1
+          cache-key-prefix: kache2-clippy
+          cache-executables: true
+          pr-comment: false
       - run: cargo clippy --no-deps -- -D warnings
 
   book:
@@ -44,8 +55,19 @@ jobs:
       - uses: actions/checkout@v4
       - run: rustup toolchain install stable --profile minimal
       # mdbook-rustdoc-links runs `cargo doc` and `cargo check` on the crates
-      # the book links into (`book/book.toml`).
+      # the book links into (`book/book.toml`). The caches as in the `test`
+      # job, which explains them, under a kache key prefix of its own;
+      # `book.yml` restores this job's store.
       - uses: Swatinem/rust-cache@v2
+        with:
+          prefix-key: v1-rust
+          cache-targets: false
+      - uses: kunobi-ninja/kache-action@ad7317540dcdd71c904f7a60a87b620a0c0e67ed # v1
+        with:
+          version: 1.2.1
+          cache-key-prefix: kache2-book
+          cache-executables: true
+          pr-comment: false
       # Keep these versions in step with `Makefile.toml`'s `ensure-mdbook-*`.
       - uses: taiki-e/install-action@v2
         with:
@@ -59,6 +81,10 @@ jobs:
   test:
     name: CI
     runs-on: ubuntu-latest
+    # kache posts its cache report as one PR comment, updated in place.
+    permissions:
+      contents: read
+      pull-requests: write
 
     steps:
       # Checkout comes first: the cache keys below hash files in the tree, and
@@ -76,19 +102,45 @@ jobs:
       - name: Install ALSA headers
         run: sudo apt-get update && sudo apt-get install -y libasound2-dev
 
-      # Covers `~/.cargo` and `target/`, keyed on the lockfile and the
-      # toolchain. This is the only cargo cache: a hand-rolled `actions/cache`
-      # over the same paths fights it, and caching `~/.cargo/bin` can shadow
-      # the toolchain the previous step just installed.
+      # Two caches, split by what they hold:
+      #
+      # - rust-cache keeps `~/.cargo` only (`cache-targets: false`): the
+      #   registry and the downloaded crate sources, so cargo does not fetch
+      #   them each run. It is the only cache of those paths: a hand-rolled
+      #   `actions/cache` over them fights it, and caching `~/.cargo/bin` can
+      #   shadow the toolchain the previous step just installed.
+      # - kache (https://github.com/kunobi-ninja/kache), as RUSTC_WRAPPER,
+      #   keeps every compiled unit, dependencies included, in its store,
+      #   which it saves to the GitHub Actions cache. `cache-executables`
+      #   keeps proc-macros and build-script binaries too, so that they and
+      #   every crate built with them are not rebuilt each run.
+      #
+      # kache's store key holds its version and the Cargo.lock hash. An
+      # Actions cache entry is immutable, so the store is written once per
+      # lockfile: right for dependencies, which change only with it; the
+      # workspace crates in it are those of the first run on that lockfile.
+      # On a new lockfile it starts from the newest older store. The action
+      # skips itself, and the build runs uncached, if it cannot fetch kache.
       - name: Rust Cache
         uses: Swatinem/rust-cache@v2
+        with:
+          prefix-key: v1-rust
+          cache-targets: false
 
-      # `bunsen-bundled-whisper`'s build script fetches ~435 MB of assets into
-      # its `OUT_DIR` (STYLE.md, "Fetched assets live in `OUT_DIR`"). rust-cache
-      # prunes workspace crates before saving, so a cold run fetches them again.
-      # That is accepted rather than cached: `cache-workspace-crates: true`
-      # would also cache the workspace's own build artifacts, test binaries
-      # included, and an `actions/cache` over an `OUT_DIR` path goes stale as
+      - name: kache
+        uses: kunobi-ninja/kache-action@ad7317540dcdd71c904f7a60a87b620a0c0e67ed # v1
+        with:
+          version: 1.2.1
+          cache-key-prefix: kache2-test
+          cache-executables: true
+          pr-comment: true
+
+      # kache caches what rustc writes, not what a build script does: cargo
+      # runs a build script whenever `target/` has no record of it, which is
+      # every run, since `target/` is not cached. So `bunsen-bundled-whisper`'s
+      # build script fetches its ~435 MB of assets into its `OUT_DIR` each run
+      # (STYLE.md, "Fetched assets live in `OUT_DIR`"). That is accepted rather
+      # than cached: an `actions/cache` over an `OUT_DIR` path goes stale as
       # soon as the hash in that path changes.
 
       # An explicit list rather than `--all-features`: `cuda` pulls in an
@@ -145,3 +197,10 @@ jobs:
           for manifest in crates/public/*/Cargo.toml; do
             cargo check --manifest-path "$manifest" --lib
           done
+
+      # The disk left after the build, with kache's store beside `target/`.
+      - name: Disk after the build
+        if: always()
+        run: |
+          df -h /
+          du -sh target ~/.cache/kache 2>/dev/null || true

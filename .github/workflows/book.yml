@@ -60,8 +60,20 @@ jobs:
           ref: ${{ inputs.ref }}
       - run: rustup toolchain install stable --profile minimal
       # mdbook-rustdoc-links runs `cargo doc` and `cargo check` on the crates
-      # the book links into (`book/book.toml`).
+      # the book links into (`book/book.toml`). The caches as in ci.yml's
+      # `book` job, whose kache store this restores without saving: the job
+      # runs on `main` after a release, and that job keeps the store current.
       - uses: Swatinem/rust-cache@v2
+        with:
+          prefix-key: v1-rust
+          cache-targets: false
+      - uses: kunobi-ninja/kache-action@ad7317540dcdd71c904f7a60a87b620a0c0e67ed # v1
+        with:
+          version: 1.2.1
+          cache-key-prefix: kache2-book
+          cache-executables: true
+          save-cache: false
+          pr-comment: false
       # Keep these versions in step with ci.yml and `Makefile.toml`'s
       # `ensure-mdbook-*`.
       - uses: taiki-e/install-action@v2

@@ -339,10 +339,12 @@ from crates.io must not write into `~/.cargo/registry` either. The cost is that
 fetches them again. The override variables (`WHISPER_BASE_PT` and friends) are
 the way to supply a local copy instead.
 
-Do not add a cache step for them. `Swatinem/rust-cache` prunes workspace crates
-from `target/` before it saves, so the assets do not ride along; a separate
-`actions/cache` over an `OUT_DIR` path goes stale the moment the hash in that
-path changes, which every toolchain or lockfile update does.
+Do not add a cache step for them. CI caches `~/.cargo` (rust-cache) and
+compiled units (kache), never `target/`, so cargo runs every build script on
+every run and the assets do not ride along; kache caches what rustc writes, not
+what a build script fetches. A separate `actions/cache` over an `OUT_DIR` path
+goes stale the moment the hash in that path changes, which every toolchain or
+lockfile update does.
 
 ### Model assets
 
