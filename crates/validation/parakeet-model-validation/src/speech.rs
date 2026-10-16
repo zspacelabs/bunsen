@@ -202,3 +202,107 @@ fn test_bunsen_phonon2_transcribes_like_its_reference() {
         "WER vs the transcript {against_truth}"
     );
 }
+
+/// The clip through bunsen's Parakeet stream driver, fed in 0.1 s pieces
+/// under the offline policy, with windows of at most `window_seconds`: the
+/// committed ids and text.
+fn stream(
+    bundle: std::sync::Arc<ParakeetBundle>,
+    window_seconds: f64,
+) -> (Vec<usize>, String) {
+    use bunsen::kits::speech::{
+        asr_driver::{
+            EmissionPolicy,
+            LevelPolicy,
+            StreamClock,
+            TranscriptEvent,
+        },
+        parakeet::{
+            ParakeetEngine,
+            ParakeetStreamDriver,
+        },
+    };
+
+    let rate = bundle.front_end.sample_rate();
+    let engine = ParakeetEngine::new(bundle).with_window_seconds(window_seconds);
+    let driver = ParakeetStreamDriver::new(engine, EmissionPolicy::offline()).unwrap();
+    let mut stream = driver
+        .new_context(StreamClock::uniform(rate), LevelPolicy::PerWindow)
+        .unwrap();
+    let samples = speech_clip(CLIP);
+    let mut events = Vec::new();
+    for piece in samples.chunks(rate / 10) {
+        events.extend(stream.write_read(piece).unwrap());
+    }
+    events.extend(stream.end_read().unwrap());
+
+    let (mut ids, mut texts) = (Vec::new(), Vec::new());
+    for event in events {
+        let TranscriptEvent::Committed(segment) = event else {
+            panic!("the offline policy only commits: {event:?}");
+        };
+        eprintln!(
+            "{:.2}-{:.2}s: {:?}",
+            segment.start, segment.end, segment.text
+        );
+        ids.extend(segment.tokens.iter().map(|&t| t as usize));
+        texts.push(segment.text.expect("the engine has a vocabulary"));
+    }
+    (ids, texts.join(" "))
+}
+
+/// The stream driver, its window longer than the clip, decodes what the
+/// reference decodes: one window, the one-shot extractor's features.
+#[test]
+#[serial_test::serial]
+fn test_bunsen_stream_driver_transcribes_like_the_reference() {
+    let device = performance_device();
+    let _memory = DeviceMemoryGuard::new(&device);
+    let fixture = onnx_reference().speech;
+    let bundle = load_bundle("nvidia/parakeet-tdt-0.6b-v3", &device);
+    let reference_text = bundle.vocab.transcript(&fixture.ids).unwrap();
+
+    let (ids, text) = stream(bundle, 60.0);
+    report_ids("bunsen stream driver vs onnxruntime", &ids, &fixture.ids);
+    let against_reference = wer(&text, &reference_text);
+    let against_truth = wer(&text, &speech_transcript(CLIP));
+    eprintln!("driver: {text}");
+    eprintln!("WER vs onnxruntime {against_reference:.4}, vs transcript {against_truth:.4}");
+    // Measured on wgpu: 0.0 (ids identical) and 0.0342.
+    assert!(
+        against_reference <= 0.0,
+        "WER vs the reference {against_reference}"
+    );
+    assert!(
+        against_truth <= 0.04,
+        "WER vs the transcript {against_truth}"
+    );
+}
+
+/// The stream driver, in 20 s windows, each committed up to a pause between
+/// words and the rest decoded again with the next: the transcript stays as
+/// close to the truth as the whole clip's.
+#[test]
+#[serial_test::serial]
+fn test_bunsen_stream_driver_cuts_windows_at_pauses() {
+    let device = performance_device();
+    let _memory = DeviceMemoryGuard::new(&device);
+    let fixture = onnx_reference().speech;
+    let bundle = load_bundle("nvidia/parakeet-tdt-0.6b-v3", &device);
+    let reference_text = bundle.vocab.transcript(&fixture.ids).unwrap();
+
+    let (_, text) = stream(bundle, 20.0);
+    let against_reference = wer(&text, &reference_text);
+    let against_truth = wer(&text, &speech_transcript(CLIP));
+    eprintln!("driver, 20 s windows: {text}");
+    eprintln!("WER vs onnxruntime {against_reference:.4}, vs transcript {against_truth:.4}");
+    // Measured on wgpu: 0.0256 (one word lost at a cut) and 0.0342.
+    assert!(
+        against_reference <= 0.05,
+        "WER vs the reference {against_reference}"
+    );
+    assert!(
+        against_truth <= 0.05,
+        "WER vs the transcript {against_truth}"
+    );
+}

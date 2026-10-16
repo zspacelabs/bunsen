@@ -107,6 +107,10 @@ another, driven by a
 [`Qwen3AsrStreamDriver`](bunsen::kits::speech::qwen3_asr::Qwen3AsrStreamDriver)
 under the same policies. Qwen3-ASR has no timestamps, so it commits each
 window whole.
+[`ParakeetEngine`](bunsen::kits::speech::parakeet::ParakeetEngine) is a
+third: its transducer times every token, so a window cut at its full length
+commits up to a pause between words, and the rest is decoded again with the
+audio after it.
 
 ### Driver and context
 

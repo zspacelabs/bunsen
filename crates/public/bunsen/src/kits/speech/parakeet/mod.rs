@@ -16,6 +16,11 @@
 //!   [`Detokenizer`](crate::kits::tokens::Detokenizer) and as transcripts.
 //! - [`ParakeetBundle`]: a loaded model with its front end and vocabulary, and
 //!   [`transcribe`](ParakeetBundle::transcribe).
+//! - [`ParakeetEngine`]: a bundle as the
+//!   [`asr_driver`](crate::kits::speech::asr_driver) core's engine, over
+//!   [`ParakeetFeatures`], its front end streamed; a [`ParakeetStreamDriver`]
+//!   streams audio through it, under any
+//!   [`EmissionPolicy`](crate::kits::speech::asr_driver::EmissionPolicy).
 //! - [`pretrained`] (features `store_safetensors` and `cache`): the index of
 //!   named checkpoints, `fermion/phonon-2` the default, and the factory that
 //!   loads one into a bundle. `read_phonon2_archive` (feature `fermion`) reads
@@ -31,12 +36,14 @@ pub mod blocks;
 mod archive;
 mod bundle;
 mod decode;
+mod engine;
 mod front_end;
 mod vocab;
 #[cfg(feature = "fermion")]
 pub use archive::*;
 pub use bundle::*;
 pub use decode::*;
+pub use engine::*;
 pub use front_end::*;
 pub use vocab::*;
 
