@@ -146,6 +146,16 @@ impl<E: AsrEngine> AsrStreamDriver<E> {
         &self.engine
     }
 
+    /// The driver with its engine replaced by `f` of it: for a builder of a
+    /// concrete engine's settings.
+    pub fn map_engine(
+        mut self,
+        f: impl FnOnce(E) -> E,
+    ) -> Self {
+        self.engine = f(self.engine);
+        self
+    }
+
     /// The emission policy.
     pub fn emission(&self) -> &EmissionPolicy {
         &self.emission

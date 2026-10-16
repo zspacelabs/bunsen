@@ -26,18 +26,15 @@ use bunsen::{
     },
     kits::speech::{
         asr_driver::{
+            LevelPolicy,
             PresetEmissionPolicy,
             StreamClock,
             TranscriptEvent,
         },
-        silero_vad::{
-            SileroVadMeta,
-            pretrained::default_silero_factory,
-        },
+        silero_vad::pretrained::default_silero_factory,
         whisper::{
             WhisperFallbackConfig,
             driver::{
-                RunningMaxClamp,
                 WhisperBundle,
                 WhisperStreamContext,
                 WhisperStreamDriver,
@@ -315,7 +312,7 @@ impl WhisperDriverArgs {
     ) -> usize {
         let want = (self.chunk_ms.unwrap_or(default_ms) * driver.sample_rate() / 1000).max(1);
         let mut grain = lcm(driver.audio_converter().hop(), driver.encoder_grid());
-        if let Some(vad) = driver.silero_vad_model() {
+        if let Some(vad) = driver.vad() {
             grain = lcm(grain, vad.chunk_size());
         }
         want.div_ceil(grain) * grain
@@ -374,7 +371,10 @@ impl WhisperDriverArgs {
             let vad = default_silero_factory()?
                 .load("silero/vad-16k", &cache, device)?
                 .handle;
-            driver = driver.with_vad(vad.expect_branch(16000).clone(), Default::default())?;
+            driver = driver.with_vad(
+                Arc::new(vad.expect_branch(16000).clone()),
+                Default::default(),
+            )?;
         }
 
         if driver.detects_language() {
@@ -398,7 +398,7 @@ impl WhisperDriverArgs {
     ) -> BunsenResult<TranscriptStream> {
         let ctx = driver.new_context(
             StreamClock::uniform(driver.sample_rate()),
-            RunningMaxClamp::new(),
+            LevelPolicy::Running,
         )?;
         Ok(TranscriptStream {
             ctx,

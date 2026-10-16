@@ -71,12 +71,12 @@
 //!     errors::BunsenResult,
 //!     kits::speech::{
 //!         asr_driver::{
+//!             LevelPolicy,
 //!             StreamClock,
 //!             TranscriptSegment,
 //!         },
 //!         whisper::{
 //!             driver::{
-//!                 RunningMaxClamp,
 //!                 WhisperStreamDriver,
 //!                 WhisperStreamDriverConfig,
 //!             },
@@ -113,10 +113,11 @@
 //!     samples: &[f32],
 //! ) -> BunsenResult<Vec<TranscriptSegment>> {
 //!     // A bare stream: a clock from zero at the model's rate, and the
-//!     // running maximum as each window's dynamic-range reference.
+//!     // running level (the loudest heard so far) as each window's
+//!     // dynamic-range reference.
 //!     let mut ctx = driver.new_context(
 //!         StreamClock::uniform(driver.sample_rate()),
-//!         RunningMaxClamp::new(),
+//!         LevelPolicy::Running,
 //!     )?;
 //!
 //!     let mut segments = Vec::new();
@@ -256,7 +257,7 @@
 //!         .with_emission(EmissionPolicy::conservative())
 //!         .init_from_bundle(bundle, device)?
 //!         .with_vad(
-//!             vad.expect_branch(16_000).clone(),
+//!             Arc::new(vad.expect_branch(16_000).clone()),
 //!             VoiceActivityFilterConfig::default(),
 //!         )
 //! }

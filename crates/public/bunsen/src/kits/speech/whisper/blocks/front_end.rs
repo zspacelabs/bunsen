@@ -13,10 +13,12 @@ use crate::{
         BunsenResult,
         ConstraintError,
     },
-    kits::speech::whisper::driver::{
-        PerWindow,
-        StreamClampPolicy,
-        support::drop_last_frame,
+    kits::speech::{
+        asr_driver::{
+            LevelStatistic,
+            MaxLevel,
+        },
+        whisper::driver::support::drop_last_frame,
     },
     ops::signal::perceptive_audio::{
         AffineCompress,
@@ -157,7 +159,8 @@ impl WhisperFrontEndConfig {
     /// Floors every value at `range_clamp_db` below its row's `reference`,
     /// applies the `(log + 4) / 4` affine tail, and transposes to the
     /// encoder's channels-first layout. Where the reference comes from is a
-    /// [`StreamClampPolicy`]'s decision; this only applies it.
+    /// stream's [`LevelPolicy`](crate::kits::speech::asr_driver::LevelPolicy)
+    /// decision; this only applies it.
     ///
     /// # Arguments
     /// * `window` - `[batch, frames, n_mels]` log-mels.
@@ -193,15 +196,15 @@ impl WhisperFrontEndConfig {
     /// Packages a joined log-mel spectrogram into encoder input, whole.
     ///
     /// [`drop_last_frame`], then [`package_window`](Self::package_window)
-    /// against each row's own maximum ([`PerWindow`]) &mdash; which, when the
+    /// against each row's own maximum ([`MaxLevel`]) &mdash; which, when the
     /// window is the whole clip, is upstream's
     /// `maximum(log_spec, log_spec.max() - 8.0)` exactly.
     ///
     /// Apply this **once**, to the whole spectrogram. The reference reduces
     /// over what it is given, so packaging each streamed chunk separately
     /// would floor every chunk against its own maximum and match nothing. A
-    /// stream that cannot wait for the whole clip packages per window with a
-    /// [`StreamClampPolicy`] instead.
+    /// stream that cannot wait for the whole clip packages per window under a
+    /// [`LevelPolicy`](crate::kits::speech::asr_driver::LevelPolicy) instead.
     ///
     /// # Arguments
     /// * `joined` - `[batch, frames, n_mels]`, the concatenated output of a
@@ -220,7 +223,7 @@ impl WhisperFrontEndConfig {
         joined: Tensor<3>,
     ) -> Tensor<3> {
         let window = drop_last_frame(joined);
-        let reference = PerWindow.reference(window.clone());
+        let reference = MaxLevel::of(window.clone()).max;
         self.package_window(window, reference)
     }
 }
@@ -491,7 +494,7 @@ mod tests {
         let whole = package_mels(joined.clone());
 
         let window = drop_last_frame(joined);
-        let split = package_window(window.clone(), PerWindow.reference(window));
+        let split = package_window(window.clone(), MaxLevel::of(window).max);
 
         assert_eq!(split.dims(), [batch, n_mels, frames - 1]);
         split.to_data().assert_eq(&whole.to_data(), true);

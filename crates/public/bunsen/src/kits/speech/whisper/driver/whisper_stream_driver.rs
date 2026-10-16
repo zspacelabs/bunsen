@@ -1,3 +1,5 @@
+//! # The Whisper stream driver: the core's driver over a Whisper engine.
+
 use std::sync::Arc;
 
 use burn::{
@@ -11,19 +13,12 @@ use crate::{
         BunsenError,
         BunsenResult,
         ConstraintError,
-        Rule,
     },
     kits::{
         speech::{
             asr_driver::{
-                CommitRule,
+                AsrStreamDriver,
                 EmissionPolicy,
-                StreamClock,
-                VoiceActivityFilterConfig,
-            },
-            silero_vad::{
-                SileroVad,
-                SileroVadMeta,
             },
             whisper::{
                 DecodeConfig,
@@ -35,9 +30,7 @@ use crate::{
                     WhisperFrontEndConfig,
                 },
                 driver::{
-                    StreamClampPolicy,
                     WhisperBundle,
-                    WhisperStreamContext,
                     WhisperTask,
                     WhisperTokenLayout,
                 },
@@ -64,7 +57,7 @@ use crate::{
 /// over a bare model with [`init`](Self::init), or over a model and an
 /// explicit token layout with [`init_with_layout`](Self::init_with_layout).
 /// The driver keeps a copy of this config, and opens a
-/// [`WhisperStreamContext`] per stream with
+/// [`WhisperStreamContext`](super::WhisperStreamContext) per stream with
 /// [`new_context`](WhisperStreamDriver::new_context).
 #[derive(Config, Debug)]
 pub struct WhisperStreamDriverConfig {
@@ -192,7 +185,8 @@ impl WhisperStreamDriverConfig {
     /// - [`Lookup`](crate::errors::BunsenErrorKind::Lookup) if the language is
     ///   not one the layout has (see [`WhisperTokenLayout::sot_sequence`]).
     /// - [`Unsupported`](crate::errors::BunsenErrorKind::Unsupported) for
-    ///   [`CommitRule::Agreement`], which is not implemented.
+    ///   [`CommitRule::Agreement`](crate::kits::speech::asr_driver::CommitRule::Agreement),
+    ///   which is not implemented.
     /// - As [`WhisperFrontEndConfig::try_init_audio_converter`] for the model's
     ///   front end.
     pub fn init_from_bundle(
@@ -229,34 +223,6 @@ impl WhisperStreamDriverConfig {
         }
 
         const OWNER: &str = "WhisperStreamDriverConfig";
-        let triggers = &self.emission.triggers;
-        if !triggers.window_full && !triggers.endpoint {
-            return Err(BunsenError::illegal(
-                "WhisperStreamDriverConfig.emission.triggers: with neither the window_full nor \
-                 the endpoint trigger nothing would ever decode",
-            ));
-        }
-        if triggers.interval.is_some_and(|i| i.is_zero()) {
-            return Err(BunsenError::from(ConstraintError::zero_or_empty(
-                OWNER,
-                "emission.triggers.interval",
-            ))
-            .with_details("an interval of zero would draft on every push"));
-        }
-        if triggers.interval.is_some() && !triggers.endpoint {
-            return Err(BunsenError::illegal(
-                "WhisperStreamDriverConfig.emission.triggers: the interval trigger drafts only \
-                 while speech is in progress, which only the endpoint trigger's voice-activity \
-                 gate tracks; turn endpoint on as well",
-            ));
-        }
-        if let CommitRule::Agreement { .. } = self.emission.commit {
-            return Err(BunsenError::unsupported(
-                "WhisperStreamDriverConfig.emission.commit: the Agreement commit rule is not \
-                 implemented; use Complete or LastTimestamp",
-            ));
-        }
-
         if self.beam_size == 0 {
             return Err(ConstraintError::zero_or_empty(OWNER, "beam_size").into());
         }
@@ -294,152 +260,64 @@ impl WhisperStreamDriverConfig {
         #[cfg(not(feature = "tokenizer"))]
         let detokenizer: Option<Arc<dyn Detokenizer>> = None;
 
-        Ok(WhisperStreamDriver {
+        let engine = WhisperEngine {
             config: self.clone(),
             bundle,
             audio_converter,
-            vad_model: None,
             prompt,
             task,
             max_initial_timestamp_index,
             filters,
-            va_filter: None,
             detokenizer,
-        })
+        };
+        AsrStreamDriver::new(engine, self.emission.clone())
     }
 }
 
-/// The shared, immutable half of a transcription: what every stream needs
-/// and none of them mutates.
+/// The Whisper stream driver: the shared, immutable half of a
+/// transcription, the core's [`AsrStreamDriver`] over a [`WhisperEngine`].
 ///
 /// Built by [`WhisperStreamDriverConfig`]
 /// ([`init_from_bundle`](WhisperStreamDriverConfig::init_from_bundle) and
 /// its siblings), then optionally given a voice-activity model with
-/// [`with_vad`](Self::with_vad). Opens streams with
-/// [`new_context`](Self::new_context): each [`WhisperStreamContext`] holds
-/// a clone of the driver, which is cheap (the bundle is an `Arc`, and
-/// tensors are shared), and all the state of its stream. So one driver
-/// serves any number of streams in one process, and
-/// [`advance_ready`](super::advance_ready) batches their decodes.
+/// [`with_vad`](AsrStreamDriver::with_vad). Opens streams with
+/// [`new_context`](AsrStreamDriver::new_context); each
+/// [`WhisperStreamContext`](super::WhisperStreamContext) holds a clone of
+/// the driver, which is cheap (the bundle is an `Arc`, and tensors are
+/// shared), so one driver serves any number of streams in one process and
+/// [`advance_ready`](crate::kits::speech::asr_driver::advance_ready) batches
+/// their decodes.
+pub type WhisperStreamDriver = AsrStreamDriver<WhisperEngine>;
+
+/// Whisper as an [`AsrEngine`](crate::kits::speech::asr_driver::AsrEngine):
+/// the model and its token layout (a [`WhisperBundle`] behind an `Arc`),
+/// the mel front end, the logit filters, the decode settings and the
+/// detokenizer.
+///
+/// The engine streams log-mels a hop at a time, floors each window against
+/// a [`MaxLevel`](crate::kits::speech::asr_driver::MaxLevel), decodes up
+/// the fallback ladder, splits a timestamped decode into segments, carries
+/// the transcript's tail into the next prompt, and detects a stream's
+/// language from its first committed window.
 #[derive(Clone, Debug)]
-pub struct WhisperStreamDriver {
-    config: WhisperStreamDriverConfig,
-
-    audio_converter: PerceptiveAudioConverter,
-
+pub struct WhisperEngine {
+    pub(super) config: WhisperStreamDriverConfig,
+    pub(super) audio_converter: PerceptiveAudioConverter,
     /// The model, its layout and its vocabulary, shared.
-    bundle: Arc<WhisperBundle>,
-
-    /// The voice-activity model, when one was attached.
-    vad_model: Option<SileroVad>,
-    va_filter: Option<VoiceActivityFilterConfig>,
-
+    pub(super) bundle: Arc<WhisperBundle>,
     /// The sot sequence every window's decode opens with; empty when the
     /// language is detected per stream.
-    prompt: Vec<i64>,
-
+    pub(super) prompt: Vec<i64>,
     /// The task token's meaning; `None` for an English-only layout.
-    task: Option<WhisperTask>,
-
-    max_initial_timestamp_index: Option<usize>,
-
+    pub(super) task: Option<WhisperTask>,
+    pub(super) max_initial_timestamp_index: Option<usize>,
     /// Applied to the logits every step, in order: the caller's, then the
     /// timestamp rules when timestamps are on.
-    filters: Vec<Arc<dyn LogitFilter>>,
-
-    detokenizer: Option<Arc<dyn Detokenizer>>,
+    pub(super) filters: Vec<Arc<dyn LogitFilter>>,
+    pub(super) detokenizer: Option<Arc<dyn Detokenizer>>,
 }
 
-impl WhisperStreamDriver {
-    /// Attaches a detokenizer, so emissions carry text as well as ids.
-    pub fn with_detokenizer(
-        mut self,
-        detokenizer: Arc<dyn Detokenizer>,
-    ) -> Self {
-        self.detokenizer = Some(detokenizer);
-        self
-    }
-
-    /// Sets the logit filters every decode applies, in order, replacing
-    /// any set before.
-    pub fn with_logit_filters(
-        mut self,
-        filters: Vec<Arc<dyn LogitFilter>>,
-    ) -> Self {
-        self.filters = filters;
-        if self.config.timestamps {
-            self.filters.push(Arc::new(ApplyTimestampRules::new(
-                self.bundle.layout.ids(),
-                self.max_initial_timestamp_index,
-            )));
-        }
-        self
-    }
-
-    /// Attaches a voice-activity model and the filter that turns its
-    /// probabilities into regions.
-    ///
-    /// Needed by any emission policy with the `endpoint` trigger; ignored by
-    /// one without.
-    ///
-    /// # Errors
-    /// [`Illegal`](crate::errors::BunsenErrorKind::Illegal), with a
-    /// [`ConstraintError`] cause, if the model or the filter runs at a rate
-    /// other than this driver's model, or the filter's chunk is not the
-    /// model's.
-    pub fn with_vad(
-        mut self,
-        vad: SileroVad,
-        filter: VoiceActivityFilterConfig,
-    ) -> BunsenResult<Self> {
-        self.check_vad(&vad, &filter)?;
-        self.vad_model = Some(vad);
-        self.va_filter = Some(filter);
-        Ok(self)
-    }
-
-    /// The model and the filter must agree with the driver on the rate, and
-    /// with each other on the chunk.
-    fn check_vad(
-        &self,
-        vad: &SileroVad,
-        filter: &VoiceActivityFilterConfig,
-    ) -> BunsenResult<()> {
-        const OWNER: &str = "WhisperStreamDriver::with_vad";
-        let must_equal = |lhs: (&str, usize), rhs: (&str, usize)| -> BunsenError {
-            ConstraintError::new(
-                OWNER,
-                "",
-                Rule::Relation {
-                    lhs: (lhs.0.into(), lhs.1.to_string()),
-                    op: "==",
-                    rhs: (rhs.0.into(), rhs.1.to_string()),
-                },
-            )
-            .into()
-        };
-        let rate = self.sample_rate();
-        if vad.sample_rate() != rate {
-            return Err(must_equal(
-                ("vad.sample_rate()", vad.sample_rate()),
-                ("the driver's sample_rate()", rate),
-            ));
-        }
-        if filter.sample_rate != rate {
-            return Err(must_equal(
-                ("filter.sample_rate", filter.sample_rate),
-                ("the driver's sample_rate()", rate),
-            ));
-        }
-        if filter.samples_per_chunk != vad.chunk_size() {
-            return Err(must_equal(
-                ("filter.samples_per_chunk", filter.samples_per_chunk),
-                ("vad.chunk_size()", vad.chunk_size()),
-            ));
-        }
-        Ok(())
-    }
-
+impl WhisperEngine {
     /// The driver configuration.
     pub fn config(&self) -> &WhisperStreamDriverConfig {
         &self.config
@@ -458,16 +336,6 @@ impl WhisperStreamDriver {
     /// The mel front end.
     pub fn audio_converter(&self) -> &PerceptiveAudioConverter {
         &self.audio_converter
-    }
-
-    /// The voice-activity model, if one was attached.
-    pub fn silero_vad_model(&self) -> Option<&SileroVad> {
-        self.vad_model.as_ref()
-    }
-
-    /// The filter config, if a VAD is attached.
-    pub fn va_filter_config(&self) -> Option<VoiceActivityFilterConfig> {
-        self.va_filter.clone()
     }
 
     /// The token layout, derived from the model.
@@ -498,6 +366,9 @@ impl WhisperStreamDriver {
 
     /// The sot sequence for `language`, under this driver's task and
     /// timestamp setting.
+    ///
+    /// # Errors
+    /// As [`WhisperTokenLayout::sot_sequence`].
     pub fn sot_sequence(
         &self,
         language: Option<&str>,
@@ -527,16 +398,6 @@ impl WhisperStreamDriver {
             .with_no_speech_token(Some(ids.no_speech))
     }
 
-    /// The draft interval in samples of media time, when the policy has
-    /// one.
-    pub fn interval_samples(&self) -> Option<usize> {
-        self.config
-            .emission
-            .triggers
-            .interval
-            .map(|i| (i.as_secs_f64() * self.sample_rate() as f64).round() as usize)
-    }
-
     /// The detokenizer, if one was attached.
     pub fn detokenizer(&self) -> Option<&Arc<dyn Detokenizer>> {
         self.detokenizer.as_ref()
@@ -545,12 +406,6 @@ impl WhisperStreamDriver {
     /// Frames per decode window: the model's audio context.
     pub fn window_frames(&self) -> usize {
         self.bundle.model.max_audio_ctx()
-    }
-
-    /// The sample rate the model's front end runs at, in Hz. The stream's
-    /// clock must run at it too.
-    pub fn sample_rate(&self) -> usize {
-        self.bundle.model.sample_rate()
     }
 
     /// The audio front end the model's log-mels are computed with.
@@ -569,50 +424,109 @@ impl WhisperStreamDriver {
     pub fn devices(&self) -> Vec<Device> {
         self.bundle.model.devices()
     }
+}
 
-    /// Opens a stream.
-    ///
-    /// # Arguments
-    /// * `clock` - the stream's sample-to-time map. A bare stream gets
-    ///   [`StreamClock::uniform`] at [`sample_rate`](Self::sample_rate).
-    /// * `clamp` - where each window's dynamic-range reference comes from: a
-    ///   concrete policy, or a `Box<dyn StreamClampPolicy>` chosen at run time.
-    ///
-    /// # Errors
-    /// [`Illegal`](crate::errors::BunsenErrorKind::Illegal) if the clock
-    /// does not run at the model's [`sample_rate`](Self::sample_rate) (with
-    /// a [`ConstraintError`] cause), or if the emission policy wants
-    /// endpoints and no VAD was attached.
-    pub fn new_context<C: StreamClampPolicy + 'static>(
+impl AsrStreamDriver<WhisperEngine> {
+    /// The driver configuration.
+    pub fn config(&self) -> &WhisperStreamDriverConfig {
+        self.engine().config()
+    }
+
+    /// The bundle: the model, its layout and its vocabulary.
+    pub fn bundle(&self) -> &Arc<WhisperBundle> {
+        self.engine().bundle()
+    }
+
+    /// The model.
+    pub fn whisper_model(&self) -> &Whisper {
+        self.engine().whisper_model()
+    }
+
+    /// The mel front end.
+    pub fn audio_converter(&self) -> &PerceptiveAudioConverter {
+        self.engine().audio_converter()
+    }
+
+    /// The token layout, derived from the model.
+    pub fn token_layout(&self) -> &WhisperTokenLayout {
+        self.engine().token_layout()
+    }
+
+    /// The sot sequence every window's decode opens with.
+    pub fn prompt(&self) -> &[i64] {
+        self.engine().prompt()
+    }
+
+    /// The logit filters every decode applies.
+    pub fn filters(&self) -> &[Arc<dyn LogitFilter>] {
+        self.engine().filters()
+    }
+
+    /// Whether streams detect their language, from their first committed
+    /// window.
+    pub fn detects_language(&self) -> bool {
+        self.engine().detects_language()
+    }
+
+    /// Audio frames per timestamp index: two.
+    pub fn frames_per_timestamp(&self) -> usize {
+        self.engine().frames_per_timestamp()
+    }
+
+    /// The decode of one window under this driver, given its prompt.
+    pub fn decode_config(
         &self,
-        clock: StreamClock,
-        clamp: C,
-    ) -> BunsenResult<WhisperStreamContext> {
-        if clock.rate() != self.sample_rate() {
-            return Err(ConstraintError::new(
-                "WhisperStreamDriver::new_context",
-                "",
-                Rule::Relation {
-                    lhs: ("clock.rate()".into(), clock.rate().to_string()),
-                    op: "==",
-                    rhs: (
-                        "the model's sample_rate()".into(),
-                        self.sample_rate().to_string(),
-                    ),
-                },
-            )
-            .into());
-        }
-        if self.config.emission.triggers.endpoint && self.vad_model.is_none() {
-            return Err(BunsenError::illegal(
-                "the endpoint trigger needs a voice-activity model; attach one with with_vad",
-            ));
-        }
+        prompt: Vec<i64>,
+    ) -> DecodeConfig {
+        self.engine().decode_config(prompt)
+    }
 
-        Ok(WhisperStreamContext::init(
-            self.clone(),
-            clock,
-            Box::new(clamp),
-        ))
+    /// Frames per decode window: the model's audio context.
+    pub fn window_frames(&self) -> usize {
+        self.engine().window_frames()
+    }
+
+    /// The audio front end the model's log-mels are computed with.
+    pub fn front_end(&self) -> &WhisperFrontEndConfig {
+        self.engine().front_end()
+    }
+
+    /// The devices the model lives on.
+    pub fn devices(&self) -> Vec<Device> {
+        self.engine().devices()
+    }
+
+    /// The encoder grid in samples: one timestamp step. 320 at 16 kHz.
+    pub fn encoder_grid(&self) -> usize {
+        self.engine().encoder_grid()
+    }
+
+    /// Attaches a detokenizer, so emissions carry text as well as ids.
+    pub fn with_detokenizer(
+        self,
+        detokenizer: Arc<dyn Detokenizer>,
+    ) -> Self {
+        self.map_engine(|mut engine| {
+            engine.detokenizer = Some(detokenizer);
+            engine
+        })
+    }
+
+    /// Sets the logit filters every decode applies, in order, replacing
+    /// any set before.
+    pub fn with_logit_filters(
+        self,
+        filters: Vec<Arc<dyn LogitFilter>>,
+    ) -> Self {
+        self.map_engine(|mut engine| {
+            engine.filters = filters;
+            if engine.config.timestamps {
+                engine.filters.push(Arc::new(ApplyTimestampRules::new(
+                    engine.bundle.layout.ids(),
+                    engine.max_initial_timestamp_index,
+                )));
+            }
+            engine
+        })
     }
 }

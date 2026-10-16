@@ -2,13 +2,15 @@ use std::sync::Arc;
 
 use bunsen::{
     kits::speech::{
-        asr_driver::StreamClock,
+        asr_driver::{
+            LevelPolicy,
+            StreamClock,
+        },
         whisper::{
             DecodeConfig,
             GreedyDecodeConfig,
             Whisper,
             driver::{
-                RunningMaxClamp,
                 WhisperStreamDriverConfig,
                 WhisperTask,
             },
@@ -521,7 +523,7 @@ fn test_bunsen_driver_transcribes_like_openai() {
     for fixture in FIXTURES {
         let reference = Reference::load(fixture.name);
         let mut ctx = driver
-            .new_context(StreamClock::uniform(SAMPLE_RATE), RunningMaxClamp::new())
+            .new_context(StreamClock::uniform(SAMPLE_RATE), LevelPolicy::Running)
             .expect("a stream at the model's rate");
         let mut emissions = ctx
             .write_read(&samples(fixture.name))

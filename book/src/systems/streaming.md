@@ -106,9 +106,9 @@ model if one is attached. A
 [`WhisperStreamContext`](bunsen::kits::speech::whisper::driver::WhisperStreamContext)
 is one stream in progress, and it is the only stateful type: the front
 end's carry, the frames not yet decoded, the committed transcript, the
-stream's clock, its clamp policy and its voice-activity state. One driver
+stream's clock, its level and its voice-activity state. One driver
 serves any number of contexts, and
-[`advance_ready`](bunsen::kits::speech::whisper::driver::advance_ready)
+[`advance_ready`](bunsen::kits::speech::asr_driver::advance_ready)
 batches the decodes of many contexts through the one model
 ([driver and context](bunsen::kits::speech::whisper::driver#driver-and-context)).
 
@@ -171,21 +171,23 @@ bare case is the general case with one anchor, so the general case costs
 nothing extra
 ([the stream clock](bunsen::kits::speech::whisper::driver#the-stream-clock)).
 
-### The clamp policy is an injected object
+### The level is the stream's policy
 
 Whisper floors its log-mels a fixed distance below a reference maximum, and
 upstream takes that maximum over the whole clip. A stream cannot see the
-whole clip, so where the reference comes from is a policy, and the policy
-is an object the caller hands to each context
-([`StreamClampPolicy`](bunsen::kits::speech::whisper::driver::StreamClampPolicy)),
-not a variant the driver knows about. The context offers every new frame to
-the policy, and asks it for a reference just before a window is packaged.
-[`RunningMaxClamp`](bunsen::kits::speech::whisper::driver::RunningMaxClamp)
+whole clip, so where the reference comes from is the stream's
+[`LevelPolicy`](bunsen::kits::speech::asr_driver::LevelPolicy), given to
+each context when it opens and shared by every model on the driver core.
+The context offers every new frame to its level, and asks it for a reference
+just before a window is packaged.
+[`Running`](bunsen::kits::speech::asr_driver::LevelPolicy::Running)
 gives upstream's whole-clip behaviour, a running maximum, or a per-region
 one, depending on how the context is fed.
-[`PerWindow`](bunsen::kits::speech::whisper::driver::PerWindow) floors each
-window on its own
-([the clamp policy](bunsen::kits::speech::whisper::driver#the-clamp-policy)).
+[`PerWindow`](bunsen::kits::speech::asr_driver::LevelPolicy::PerWindow)
+floors each window on its own. What the level summarizes is the model's:
+Whisper's is a maximum
+([`MaxLevel`](bunsen::kits::speech::asr_driver::MaxLevel))
+([the level](bunsen::kits::speech::whisper::driver#the-level-where-the-clamps-reference-comes-from)).
 
 ### Voice-activity regions as sub-streams
 
