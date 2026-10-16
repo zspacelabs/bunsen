@@ -1,5 +1,8 @@
 //! A loaded Qwen3-ASR model, with what it needs to transcribe.
-use burn::tensor::Device;
+use burn::{
+    Tensor,
+    tensor::Device,
+};
 
 use super::{
     Qwen3AsrFrontEnd,
@@ -84,6 +87,23 @@ impl Qwen3AsrBundle {
         device: &Device,
     ) -> BunsenResult<Qwen3AsrTranscript> {
         let (features, valid) = self.front_end.forward(samples, device)?;
+        self.transcribe_features(features, valid)
+    }
+
+    /// Transcribes one utterance's features, greedily.
+    ///
+    /// # Arguments
+    /// * `features` - `[n_mels, frames]`, as the front end packages them.
+    /// * `valid` - the frames the encoder reads; past them, to the end of the
+    ///   last chunk, is padding the encoder's stem sees.
+    ///
+    /// # Errors
+    /// As [`transcribe`](Self::transcribe), less the front end's.
+    pub fn transcribe_features(
+        &self,
+        features: Tensor<2>,
+        valid: usize,
+    ) -> BunsenResult<Qwen3AsrTranscript> {
         let audio = self.model.encode_audio(features, valid);
         let n_audio = self.model.audio_tower.output_len(valid);
         let ids = self.prompt.prompt(n_audio, self.model.audio_token());

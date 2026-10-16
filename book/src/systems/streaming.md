@@ -96,6 +96,18 @@ The Whisper driver turns audio written in chunks into timed transcript
 events. It is the principle applied at the scale of a whole pipeline, and
 its design is documented in [`whisper::driver`](bunsen::kits::speech::whisper::driver).
 
+Most of it does not depend on Whisper. The buffering, the voice-activity
+gate, the decision of when to decode and what to commit, the clock and the
+batching live in [`asr_driver`](bunsen::kits::speech::asr_driver), and a
+model plugs in as an [`AsrEngine`](bunsen::kits::speech::asr_driver::AsrEngine):
+its streaming features, the decode of one window, and its text. Whisper is one
+engine;
+[`Qwen3AsrEngine`](bunsen::kits::speech::qwen3_asr::Qwen3AsrEngine) is
+another, driven by a
+[`Qwen3AsrStreamDriver`](bunsen::kits::speech::qwen3_asr::Qwen3AsrStreamDriver)
+under the same policies. Qwen3-ASR has no timestamps, so it commits each
+window whole.
+
 ### Driver and context
 
 A transcription splits in two. The

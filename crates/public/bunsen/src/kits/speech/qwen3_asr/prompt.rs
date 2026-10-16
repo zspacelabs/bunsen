@@ -72,10 +72,29 @@ impl Qwen3AsrPromptConfig {
         ids
     }
 
-    /// Parses a reply: `language <name>`, the text token, the transcript.
+    /// Splits a reply into its header, `language <name>`, and its
+    /// transcript, the ids on either side of the text token.
     ///
-    /// The tokens from the first of `eos` on are not text. A reply without
-    /// the text token is all transcript, with no language.
+    /// The tokens from the first of `eos` on are neither. A reply without
+    /// the text token is all transcript, with no header.
+    pub fn split_reply<'a>(
+        &self,
+        tokens: &'a [usize],
+        eos: &[usize],
+    ) -> (Option<&'a [usize]>, &'a [usize]) {
+        let end = tokens
+            .iter()
+            .position(|t| eos.contains(t))
+            .unwrap_or(tokens.len());
+        let reply = &tokens[..end];
+        match reply.iter().position(|&t| t == self.text_token) {
+            Some(at) => (Some(&reply[..at]), &reply[at + 1..]),
+            None => (None, reply),
+        }
+    }
+
+    /// Parses a reply: `language <name>`, the text token, the transcript
+    /// ([`split_reply`](Self::split_reply)).
     ///
     /// # Errors
     /// [`InvalidResource`](crate::errors::BunsenErrorKind::InvalidResource)
@@ -86,28 +105,22 @@ impl Qwen3AsrPromptConfig {
         eos: &[usize],
         vocab: &ByteLevelVocabulary,
     ) -> BunsenResult<Qwen3AsrTranscript> {
-        let end = tokens
-            .iter()
-            .position(|t| eos.contains(t))
-            .unwrap_or(tokens.len());
-        let reply = &tokens[..end];
-        let (language, text) = match reply.iter().position(|&t| t == self.text_token) {
-            Some(at) => {
-                let header = vocab.text(&reply[..at])?;
-                let language = header
-                    .trim()
-                    .strip_prefix("language")
-                    .map(str::trim)
-                    .filter(|l| !l.is_empty() && !l.eq_ignore_ascii_case("none"))
-                    .map(String::from);
-                (language, vocab.text(&reply[at + 1..])?)
-            }
-            None => (None, vocab.text(reply)?),
+        let (header, text) = self.split_reply(&tokens, eos);
+        let language = match header {
+            Some(header) => vocab
+                .text(header)?
+                .trim()
+                .strip_prefix("language")
+                .map(str::trim)
+                .filter(|l| !l.is_empty() && !l.eq_ignore_ascii_case("none"))
+                .map(String::from),
+            None => None,
         };
+        let text = vocab.text(text)?.trim().to_string();
         Ok(Qwen3AsrTranscript {
             tokens,
             language,
-            text: text.trim().to_string(),
+            text,
         })
     }
 }
@@ -156,5 +169,21 @@ mod tests {
         assert_eq!(t.text, "And so");
 
         assert!(config.parse(vec![5, 40], &[6], &vocab).is_err());
+    }
+
+    #[test]
+    fn test_split_reply() {
+        let config = Qwen3AsrPromptConfig::new().with_text_token(5);
+        let tokens = [0, 1, 5, 3, 4, 6, 9];
+        assert_eq!(
+            config.split_reply(&tokens, &[6]),
+            (Some(&tokens[..2]), &tokens[3..5])
+        );
+        assert_eq!(
+            config.split_reply(&[0, 5, 6], &[6]),
+            (Some(&[0][..]), &[][..])
+        );
+        assert_eq!(config.split_reply(&[3, 4], &[6]), (None, &[3, 4][..]));
+        assert_eq!(config.split_reply(&[6, 5, 3], &[6]), (None, &[][..]));
     }
 }

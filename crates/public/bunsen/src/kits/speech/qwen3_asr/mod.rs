@@ -16,6 +16,10 @@
 //!   decoder; [`transcribe`](Qwen3AsrBundle::transcribe) one utterance, or
 //!   [`transcribe_long`](Qwen3AsrBundle::transcribe_long) any recording in
 //!   windows.
+//! - [`Qwen3AsrEngine`]: a bundle as the
+//!   [`asr_driver`](crate::kits::speech::asr_driver) core's engine; a
+//!   [`Qwen3AsrStreamDriver`] streams audio through it, under any
+//!   [`EmissionPolicy`](crate::kits::speech::asr_driver::EmissionPolicy).
 //! - `read_phonon1_archive` (feature `fermion`): a Phonon-1 archive's weights,
 //!   expanded to dense `transformers`-named tensors, and its vocabulary.
 //! - [`pretrained`] (features `store_safetensors` and `cache`): the named
@@ -30,12 +34,14 @@ pub mod blocks;
 mod archive;
 mod bundle;
 mod decode;
+mod engine;
 mod front_end;
 mod prompt;
 #[cfg(feature = "fermion")]
 pub use archive::*;
 pub use bundle::*;
 pub use decode::*;
+pub use engine::*;
 pub use front_end::*;
 pub use prompt::*;
 

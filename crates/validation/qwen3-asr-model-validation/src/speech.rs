@@ -138,3 +138,71 @@ fn test_bunsen_phonon1_big_transcribes_like_transformers() {
     assert!(reference <= 0.0, "WER vs transformers {reference}");
     assert!(truth <= 0.07, "WER vs the transcript {truth}");
 }
+
+/// The stream driver, fed the clip in 0.1 s pieces under the offline policy,
+/// decodes the fixture's two windows as the bundle does: its windows are
+/// the same 30 s, and its features differ from the one-shot extractor's
+/// only at the windows' edges.
+#[test]
+#[serial_test::serial]
+fn test_bunsen_stream_driver_transcribes_like_transformers() {
+    use bunsen::kits::speech::{
+        asr_driver::{
+            EmissionPolicy,
+            LevelPolicy,
+            StreamClock,
+            TranscriptEvent,
+        },
+        qwen3_asr::{
+            Qwen3AsrEngine,
+            Qwen3AsrStreamDriver,
+        },
+    };
+
+    let device = performance_device();
+    let _memory = DeviceMemoryGuard::new(&device);
+    let bundle = load_bundle("qwen/qwen3-asr-0.6b", &device);
+    let rate = bundle.front_end.sample_rate();
+    let driver =
+        Qwen3AsrStreamDriver::new(Qwen3AsrEngine::new(bundle), EmissionPolicy::offline()).unwrap();
+    let mut stream = driver
+        .new_context(StreamClock::uniform(rate), LevelPolicy::PerWindow)
+        .unwrap();
+
+    let samples = speech_clip(CLIP);
+    let mut events = Vec::new();
+    for piece in samples.chunks(rate / 10) {
+        events.extend(stream.write_read(piece).unwrap());
+    }
+    events.extend(stream.end_read().unwrap());
+
+    let fixture = &speech_reference().base;
+    let mut texts = Vec::new();
+    for event in &events {
+        let TranscriptEvent::Committed(segment) = event else {
+            panic!("the offline policy only commits: {event:?}");
+        };
+        eprintln!(
+            "{:.2}-{:.2}s: {:?}",
+            segment.start, segment.end, segment.text
+        );
+        texts.push(segment.text.clone().expect("the engine has a vocabulary"));
+    }
+    assert_eq!(texts.len(), fixture.len(), "one segment per window");
+    assert_eq!(stream.language(), Some("English"));
+
+    let text = texts.join(" ");
+    let against_reference = wer(&text, &reference_text(fixture));
+    let against_truth = wer(&text, &speech_transcript(CLIP));
+    eprintln!("driver: {text}");
+    eprintln!("WER vs transformers {against_reference:.4}, vs transcript {against_truth:.4}");
+    // Measured on wgpu: 0.0 and 0.0085, the bundle's own.
+    assert!(
+        against_reference <= 0.0,
+        "WER vs transformers {against_reference}"
+    );
+    assert!(
+        against_truth <= 0.02,
+        "WER vs the transcript {against_truth}"
+    );
+}
