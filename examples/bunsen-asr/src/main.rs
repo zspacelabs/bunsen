@@ -7,6 +7,9 @@ use clap::Parser;
 mod args;
 mod family;
 mod list_cmd;
+mod parakeet;
+mod qwen3_asr;
+mod stream;
 mod transcribe_cmd;
 mod whisper;
 
@@ -23,11 +26,11 @@ struct Args {
 #[derive(clap::Subcommand, Debug)]
 enum FamilyCmd {
     /// NVIDIA's Parakeet TDT: `FermionResearch`'s Phonon-2 by default.
-    Parakeet(KitCmd<transcribe_cmd::ParakeetFlags>),
+    Parakeet(KitCmd<parakeet::ParakeetFlags>),
 
     /// Qwen's Qwen3-ASR: `FermionResearch`'s Phonon-1 by default.
     #[command(name = "qwen3-asr")]
-    Qwen3Asr(KitCmd<transcribe_cmd::Qwen3AsrFlags>),
+    Qwen3Asr(KitCmd<qwen3_asr::Qwen3AsrFlags>),
 
     /// `OpenAI`'s Whisper: `openai/base` by default.
     Whisper(KitCmd<whisper::WhisperFlags>),
@@ -90,13 +93,25 @@ mod tests {
             Args::try_parse_from(["bunsen-asr", family, "transcribe", "a.wav"]).unwrap();
         }
         assert!(Args::try_parse_from(["bunsen-asr", "silero", "list"]).is_err());
+        // Every family takes a preset.
+        for family in ["parakeet", "qwen3-asr", "whisper"] {
+            Args::try_parse_from([
+                "bunsen-asr",
+                family,
+                "transcribe",
+                "--preset",
+                "conservative",
+                "a.wav",
+            ])
+            .unwrap();
+        }
         // Each family's flags are its own.
         Args::try_parse_from([
             "bunsen-asr",
             "parakeet",
             "transcribe",
-            "--batch",
-            "2",
+            "--window-seconds",
+            "20",
             "a.wav",
         ])
         .unwrap();
@@ -112,7 +127,7 @@ mod tests {
         assert!(
             Args::try_parse_from([
                 "bunsen-asr",
-                "qwen3-asr",
+                "parakeet",
                 "transcribe",
                 "--batch",
                 "2",

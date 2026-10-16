@@ -1,18 +1,14 @@
 //! `bunsen-asr <family> transcribe`.
 use std::{
     path::PathBuf,
-    time::Instant,
+    time::{
+        Duration,
+        Instant,
+    },
 };
 
 use bunsen::{
     errors::BunsenResult,
-    kits::speech::{
-        parakeet::ParakeetFrontEndMeta,
-        qwen3_asr::{
-            Qwen3AsrBundle,
-            Qwen3AsrFrontEndMeta,
-        },
-    },
     support::audio::load_audio_mono_sr,
 };
 use bunsen_app::logging::{
@@ -30,6 +26,15 @@ use crate::{
         Family,
         Loaded,
     },
+    parakeet::{
+        self,
+        ParakeetFlags,
+    },
+    qwen3_asr::{
+        self,
+        Qwen3AsrFlags,
+    },
+    stream::Preset,
     whisper,
 };
 
@@ -57,33 +62,10 @@ impl FamilyFlags for whisper::WhisperFlags {
     }
 }
 
-/// Parakeet's own transcription flags.
-#[derive(clap::Args, Debug)]
-pub struct ParakeetFlags {
-    /// The longest stretch of audio the encoder sees at once, in seconds;
-    /// longer recordings are cut at quiet points.
-    #[arg(long, default_value_t = 60.0)]
-    pub window_seconds: f64,
-
-    /// Windows transcribed at once.
-    #[arg(long, default_value_t = 4)]
-    pub batch: usize,
-}
-
 impl FamilyFlags for ParakeetFlags {
     fn parakeet(&self) -> Option<&ParakeetFlags> {
         Some(self)
     }
-}
-
-/// Qwen3-ASR's own transcription flags.
-#[derive(clap::Args, Debug)]
-pub struct Qwen3AsrFlags {
-    /// The longest stretch of audio the model sees at once, in seconds;
-    /// longer recordings are cut at quiet points. 30 is the most it was
-    /// trained on.
-    #[arg(long, default_value_t = Qwen3AsrBundle::MAX_WINDOW_SECONDS as f64)]
-    pub window_seconds: f64,
 }
 
 impl FamilyFlags for Qwen3AsrFlags {
@@ -94,9 +76,11 @@ impl FamilyFlags for Qwen3AsrFlags {
 
 /// Transcribes audio files.
 ///
-/// Each file is decoded at the model's rate (16 kHz, mono). `--model` names
-/// a row of `list`, or `hf:org/repo` for a Hugging Face repo in
-/// `transformers`' layout; the model's info card is logged at `INFO` (`-v`).
+/// Each file is decoded at the model's rate (16 kHz, mono) and streamed
+/// through the family's stream driver, about a second a push. `--model`
+/// names a row of `list`, or `hf:org/repo` for a Hugging Face repo in
+/// `transformers`' layout; the model's info card, and after each transcript
+/// how long it took, are logged at `INFO` (`-v`).
 #[derive(clap::Args, Debug)]
 pub struct TranscribeCmd<F: clap::Args> {
     #[clap(flatten)]
@@ -112,6 +96,10 @@ pub struct TranscribeCmd<F: clap::Args> {
 
     #[clap(flatten)]
     pub device: DeviceArgs,
+
+    /// When to decode.
+    #[arg(long, value_enum, default_value_t = Preset::Offline)]
+    pub preset: Preset,
 
     /// Print one JSON object per file: the text, the language when the model
     /// names one, each word with its start and end in seconds when the model
@@ -171,6 +159,34 @@ struct JsonTranscript<'a> {
     transcript: &'a Transcript,
 }
 
+/// A family's stream driver; Whisper's, much the largest, boxed.
+enum Driver {
+    Parakeet(bunsen::kits::speech::parakeet::ParakeetStreamDriver),
+    Qwen3Asr(bunsen::kits::speech::qwen3_asr::Qwen3AsrStreamDriver),
+    Whisper(Box<bunsen::kits::speech::whisper::driver::WhisperStreamDriver>),
+}
+
+impl Driver {
+    fn sample_rate(&self) -> usize {
+        match self {
+            Driver::Parakeet(d) => d.sample_rate(),
+            Driver::Qwen3Asr(d) => d.sample_rate(),
+            Driver::Whisper(d) => d.sample_rate(),
+        }
+    }
+
+    fn transcribe(
+        &self,
+        samples: &[f32],
+    ) -> BunsenResult<Transcript> {
+        match self {
+            Driver::Parakeet(d) => parakeet::transcribe(d, samples),
+            Driver::Qwen3Asr(d) => qwen3_asr::transcribe(d, samples),
+            Driver::Whisper(d) => whisper::transcribe(d, samples),
+        }
+    }
+}
+
 impl<F: clap::Args + FamilyFlags> TranscribeCmd<F> {
     pub fn run(
         &self,
@@ -182,68 +198,39 @@ impl<F: clap::Args + FamilyFlags> TranscribeCmd<F> {
         let model = self.model.as_deref().unwrap_or(family.default_model());
         let loaded = family.load(model, &cache, &device)?;
 
-        let whisper_driver = match (&loaded, self.flags.whisper()) {
-            (Loaded::Whisper(bundle), Some(flags)) => {
-                Some(whisper::driver(bundle.clone(), flags, &cache, &device)?)
-            }
-            _ => None,
+        let flags = &self.flags;
+        let preset = self.preset;
+        let driver = match loaded {
+            Loaded::Parakeet(bundle) => Driver::Parakeet(parakeet::driver(
+                bundle,
+                flags.parakeet().expect("Parakeet's flags"),
+                preset,
+                &cache,
+                &device,
+            )?),
+            Loaded::Qwen3Asr(bundle) => Driver::Qwen3Asr(qwen3_asr::driver(
+                bundle,
+                flags.qwen3_asr().expect("Qwen3-ASR's flags"),
+                preset,
+                &cache,
+                &device,
+            )?),
+            Loaded::Whisper(bundle) => Driver::Whisper(Box::new(whisper::driver(
+                bundle,
+                flags.whisper().expect("Whisper's flags"),
+                preset,
+                &cache,
+                &device,
+            )?)),
         };
-        let rate = match &loaded {
-            Loaded::Parakeet(b) => b.front_end.sample_rate(),
-            Loaded::Qwen3Asr(b) => b.front_end.sample_rate(),
-            Loaded::Whisper(_) => whisper_driver
-                .as_ref()
-                .expect("a Whisper driver for a Whisper model")
-                .sample_rate(),
-        };
+        let rate = driver.sample_rate();
 
+        let (mut audio, mut busy) = (0.0, Duration::ZERO);
         for path in &self.files {
             let samples = load_audio_mono_sr(path, rate)?;
             let t0 = Instant::now();
-            let transcript = match &loaded {
-                Loaded::Parakeet(b) => {
-                    let flags = self.flags.parakeet().expect("Parakeet's flags");
-                    let window = (flags.window_seconds * rate as f64) as usize;
-                    let t = b.transcribe_long(&samples, window, flags.batch, &device)?;
-                    let words = t
-                        .words(&b.vocab, b.frame_seconds())?
-                        .into_iter()
-                        .map(|w| Word {
-                            word: w.text,
-                            start: millis(w.start),
-                            end: millis(w.end),
-                        })
-                        .collect();
-                    Transcript {
-                        text: t.text,
-                        language: None,
-                        words: Some(words),
-                        segments: None,
-                    }
-                }
-                Loaded::Qwen3Asr(b) => {
-                    let flags = self.flags.qwen3_asr().expect("Qwen3-ASR's flags");
-                    let window = (flags.window_seconds * rate as f64) as usize;
-                    let t = b.transcribe_long(&samples, window, &device)?;
-                    Transcript {
-                        text: t.text,
-                        language: t.language,
-                        words: None,
-                        segments: None,
-                    }
-                }
-                Loaded::Whisper(_) => whisper::transcribe(
-                    whisper_driver.as_ref().expect("a Whisper driver"),
-                    &samples,
-                )?,
-            };
+            let transcript = driver.transcribe(&samples)?;
             let elapsed = t0.elapsed();
-            let seconds = samples.len() as f64 / rate as f64;
-            log::info!(
-                "{}: {seconds:.1} s of audio in {elapsed:.2?} ({:.1}x realtime)",
-                path.display(),
-                seconds / elapsed.as_secs_f64()
-            );
 
             if self.json {
                 let json = JsonTranscript {
@@ -257,12 +244,28 @@ impl<F: clap::Args + FamilyFlags> TranscribeCmd<F> {
             } else {
                 println!("{}", transcript.text);
             }
+
+            let seconds = samples.len() as f64 / rate as f64;
+            log::info!(
+                "{}: {seconds:.1} s of audio in {elapsed:.2?} ({:.1}x realtime)",
+                path.display(),
+                seconds / elapsed.as_secs_f64()
+            );
+            audio += seconds;
+            busy += elapsed;
+        }
+        if self.files.len() > 1 {
+            log::info!(
+                "{} files: {audio:.1} s of audio in {busy:.2?} ({:.1}x realtime)",
+                self.files.len(),
+                audio / busy.as_secs_f64()
+            );
         }
         Ok(())
     }
 }
 
 /// Seconds, rounded to the millisecond.
-fn millis(seconds: f64) -> f64 {
+pub fn millis(seconds: f64) -> f64 {
     (seconds * 1000.0).round() / 1000.0
 }

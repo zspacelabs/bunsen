@@ -22,16 +22,21 @@ also takes `hf:org/repo`, a Hugging Face repo in `transformers`' layout, whose `
 `transcribe` loads `--model` (the family's default unless named) through bunsen's pretrained cache, fetching it on
 first use, logs its info card (name, licence, origin, every file and where it came from) at `INFO` (`-v`), and prints
 each file's text, or with `--json` one object per file: the text, the language when the model names one (Qwen3-ASR,
-Whisper), each word's start and end in seconds (Parakeet), and each segment's (Whisper). Audio is read at the model's
-rate, 16 kHz mono.
+Whisper), each word's start and end in seconds (Parakeet), and each segment's (Whisper). After each file it logs how
+long the transcription took at `INFO`, and after several, the total. Audio is read at the model's rate, 16 kHz mono,
+and streamed through the family's stream driver (bunsen's `asr_driver`), about a second a push.
+
+`--preset` says when the driver decodes, for every family: `offline` (the default) decodes whole windows, one after
+another; `conservative` also finds speech regions with Silero's VAD (`silero/vad-16k`, through the same cache) and
+decodes each as it ends, so silence is never decoded.
 
 | Family | Flags of its own |
 |---|---|
-| `parakeet` | `--window-seconds` (60): longer recordings are cut at quiet points; `--batch` (4): windows at once |
-| `qwen3-asr` | `--window-seconds` (30, the most Qwen3-ASR was trained on) |
-| `whisper` | `--language` (detected when omitted), `--task` (`transcribe`, `translate`), `--preset` (`offline`, `conservative`: speech regions found by Silero's VAD, `silero/vad-16k`), `--beam-size` (5) |
+| `parakeet` | `--window-seconds` (60): a full window is committed up to a pause between words, and the rest decoded again with the audio after it |
+| `qwen3-asr` | `--window-seconds` (30, the most Qwen3-ASR was trained on): a full window is cut at the quietest point of its last third |
+| `whisper` | `--language` (detected when omitted), `--task` (`transcribe`, `translate`), `--beam-size` (5) |
 
-Every command takes `--cache-dir`, `--offline`, `--device` (from the backends compiled in: `--features wgpu`, `vulkan`,
+`transcribe` takes `--preset`; every command takes `--cache-dir`, `--offline`, `--device` (from the backends compiled in: `--features wgpu`, `vulkan`,
 `metal`, `cuda`; the CPU is always there) and `-v`/`-q`.
 
 | model | | licence |

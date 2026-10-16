@@ -8,12 +8,7 @@ use bunsen::{
         ResultContext,
     },
     kits::speech::{
-        asr_driver::{
-            LevelPolicy,
-            PresetEmissionPolicy,
-            StreamClock,
-        },
-        silero_vad::pretrained::default_silero_factory,
+        asr_driver::LevelPolicy,
         whisper::{
             WhisperFallbackConfig,
             driver::{
@@ -24,25 +19,19 @@ use bunsen::{
             },
         },
     },
-    ops::signal::perceptive_audio::PerceptiveAudioConverterMeta,
 };
 use burn::tensor::Device;
 
-use crate::transcribe_cmd::{
-    Segment,
-    Transcript,
+use crate::{
+    stream::{
+        self,
+        Preset,
+    },
+    transcribe_cmd::{
+        Segment,
+        Transcript,
+    },
 };
-
-/// When the driver decodes.
-#[derive(clap::ValueEnum, Clone, Copy, Debug, PartialEq, Eq)]
-pub enum Preset {
-    /// Whole windows, one after another.
-    Offline,
-
-    /// Speech regions as well, found by Silero's VAD (`silero/vad-16k`,
-    /// through the same cache): silence is never decoded.
-    Conservative,
-}
 
 /// What Whisper emits.
 #[derive(clap::ValueEnum, Clone, Copy, Debug, PartialEq, Eq)]
@@ -66,20 +55,16 @@ pub struct WhisperFlags {
     #[arg(long, value_enum, default_value_t = Task::Transcribe)]
     pub task: Task,
 
-    /// When to decode.
-    #[arg(long, value_enum, default_value_t = Preset::Offline)]
-    pub preset: Preset,
-
     /// Beams in the search; 1 is greedy.
     #[arg(long, default_value_t = 5)]
     pub beam_size: usize,
 }
 
-/// The driver for `bundle` under `flags`, with Silero's VAD attached under
-/// the conservative preset.
+/// The driver for `bundle` under `flags` and `preset`.
 pub fn driver(
     bundle: Arc<WhisperBundle>,
     flags: &WhisperFlags,
+    preset: Preset,
     cache: &PretrainedCache,
     device: &Device,
 ) -> BunsenResult<WhisperStreamDriver> {
@@ -87,15 +72,11 @@ pub fn driver(
     if !multilingual && flags.language.is_some() {
         log::warn!("English-only checkpoint: --language and --task do not apply");
     }
-    let preset = match flags.preset {
-        Preset::Offline => PresetEmissionPolicy::Offline,
-        Preset::Conservative => PresetEmissionPolicy::Conservative,
-    };
     let task = match flags.task {
         Task::Transcribe => WhisperTask::Transcribe,
         Task::Translate => WhisperTask::Translate,
     };
-    let mut driver: WhisperStreamDriver = WhisperStreamDriverConfig::new()
+    let driver: WhisperStreamDriver = WhisperStreamDriverConfig::new()
         .with_language(if multilingual {
             flags.language.clone()
         } else {
@@ -108,16 +89,7 @@ pub fn driver(
         .init_from_bundle(bundle, device)
         // The settings come from the command line.
         .as_policy()?;
-    if preset != PresetEmissionPolicy::Offline {
-        let vad = default_silero_factory()?
-            .load("silero/vad-16k", cache, device)?
-            .handle;
-        driver = driver.with_vad(
-            Arc::new(vad.expect_branch(16000).clone()),
-            Default::default(),
-        )?;
-    }
-    Ok(driver)
+    stream::with_vad(driver, preset, cache, device)
 }
 
 /// Transcribes one recording through `driver`.
@@ -125,71 +97,19 @@ pub fn transcribe(
     driver: &WhisperStreamDriver,
     samples: &[f32],
 ) -> BunsenResult<Transcript> {
-    let mut ctx = driver.new_context(
-        StreamClock::uniform(driver.sample_rate()),
-        LevelPolicy::Running,
-    )?;
-    let mut events = Vec::new();
-    // About a second of audio a push, a whole number of the driver's grain:
-    // its mel hop, its encoder grid and the VAD's chunk, so a push leaves
-    // nothing staged behind it.
-    let mut grain = lcm(driver.audio_converter().hop(), driver.encoder_grid());
-    if let Some(vad) = driver.vad() {
-        grain = lcm(grain, vad.chunk_size());
-    }
-    let chunk = driver.sample_rate().div_ceil(grain) * grain;
-    for block in samples.chunks(chunk) {
-        events.extend(ctx.write_read(block)?);
-    }
-    events.extend(ctx.end_read()?);
-
-    let segments: Vec<Segment> = events
+    let (committed, ctx) = stream::stream(driver, samples, LevelPolicy::Running)?;
+    let segments = committed
         .iter()
-        .filter(|e| e.is_committed())
-        .map(|e| {
-            let s = e.segment();
-            Segment {
-                start: s.start,
-                end: s.end,
-                text: s.text.as_deref().unwrap_or("").trim().to_string(),
-            }
+        .map(|s| Segment {
+            start: s.start,
+            end: s.end,
+            text: s.text.as_deref().unwrap_or("").trim().to_string(),
         })
         .collect();
-    let text = segments
-        .iter()
-        .map(|s| s.text.as_str())
-        .filter(|t| !t.is_empty())
-        .collect::<Vec<_>>()
-        .join(" ");
     Ok(Transcript {
-        text,
+        text: stream::join_text(&committed),
         language: ctx.language().map(String::from),
         words: None,
         segments: Some(segments),
     })
-}
-
-fn gcd(
-    a: usize,
-    b: usize,
-) -> usize {
-    if b == 0 { a } else { gcd(b, a % b) }
-}
-
-fn lcm(
-    a: usize,
-    b: usize,
-) -> usize {
-    a / gcd(a, b) * b
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_lcm() {
-        assert_eq!(lcm(160, 320), 320);
-        assert_eq!(lcm(320, 512), 2560);
-    }
 }
