@@ -11,7 +11,8 @@
 //!   stream's clock; [`advance_ready`] batches the decodes of many streams
 //!   through one engine.
 //! - [`AsrEngine`]: what a model gives the core: its streaming features
-//!   ([`StreamingFeatures`]), the decode of a window ([`DecodeRequest`] to
+//!   ([`StreamingFeatures`]; [`LogMelFeatures`] streams the log-mels the
+//!   Whisper family reads), the decode of a window ([`DecodeRequest`] to
 //!   [`WindowDecode`]), its text, and any per-stream carry.
 //! - [`TranscriptSegment`] and [`TranscriptEvent`]: what a driver emits, a
 //!   committed segment or a draft one.
@@ -37,6 +38,7 @@ pub mod support;
 mod emission_policy;
 mod engine;
 mod level;
+mod log_mel_features;
 mod speech_region;
 mod stream_clock;
 mod stream_context;
@@ -48,6 +50,7 @@ mod voice_activity_model;
 pub use emission_policy::*;
 pub use engine::*;
 pub use level::*;
+pub use log_mel_features::*;
 pub use speech_region::*;
 pub use stream_clock::*;
 pub use stream_context::*;

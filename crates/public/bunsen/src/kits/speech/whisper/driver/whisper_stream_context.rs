@@ -1,23 +1,16 @@
 //! # Whisper as the core's engine, and its stream context.
 
-use burn::{
-    Tensor,
-    prelude::TensorData,
-    tensor::Device,
-};
+use burn::Tensor;
 
 use crate::{
-    errors::{
-        BunsenResult,
-        ResultContext,
-    },
+    errors::BunsenResult,
     kits::speech::{
         asr_driver::{
             AsrEngine,
             AsrStreamContext,
             DecodeRequest,
+            LogMelFeatures,
             MaxLevel,
-            StreamingFeatures,
             TimedTokens,
             WindowDecode,
         },
@@ -35,11 +28,7 @@ use crate::{
             },
         },
     },
-    ops::signal::perceptive_audio::{
-        PerceptiveAudioConversionContext,
-        PerceptiveAudioConverter,
-        PerceptiveAudioConverterMeta,
-    },
+    ops::signal::perceptive_audio::PerceptiveAudioConverterMeta,
 };
 
 /// One Whisper stream: the core's [`AsrStreamContext`] over a
@@ -92,94 +81,6 @@ pub struct WhisperCarry {
 
     /// The language the decode detected, when the stream had none.
     pub detected: Option<String>,
-}
-
-/// Whisper's streaming log-mel front end: whole hops of samples through the
-/// mel converter's context.
-///
-/// The first chunk must be long enough to produce a frame under the start
-/// padding, so it waits for a window's worth of samples; after that a hop at
-/// a time is enough. Finishing pads whatever remains with silence up to that
-/// minimum, as upstream pads a clip; a stream that never received a sample
-/// finishes with nothing.
-#[derive(Clone, Debug)]
-pub struct WhisperFeatures {
-    converter: PerceptiveAudioConverter,
-
-    /// The converter's streaming state; `None` once finished.
-    context: Option<PerceptiveAudioConversionContext>,
-
-    /// Samples not yet a whole hop.
-    staging: Vec<f32>,
-
-    device: Device,
-}
-
-impl WhisperFeatures {
-    /// Moves whole hops from staging into the converter.
-    fn drain(
-        &mut self,
-        flushing: bool,
-    ) -> BunsenResult<Option<Tensor<3>>> {
-        let (hop, n_fft) = (self.converter.hop(), self.converter.n_fft());
-        let first = self
-            .context
-            .as_ref()
-            .is_some_and(|ctx| ctx.carry().is_none());
-        let minimum = if first {
-            n_fft.div_ceil(hop) * hop
-        } else {
-            hop
-        };
-
-        let mut whole = self.staging.len() / hop * hop;
-        if flushing {
-            if self.staging.is_empty() {
-                return Ok(None);
-            }
-            whole = self.staging.len().div_ceil(hop).max(minimum / hop) * hop;
-            self.staging.resize(whole, 0.0);
-        } else if whole < minimum {
-            return Ok(None);
-        }
-
-        // `from_data` converts to the device's float dtype, so the samples
-        // go up as they are.
-        let chunk: Vec<f32> = self.staging.drain(..whole).collect();
-        let waves: Tensor<2> = Tensor::from_data(TensorData::new(chunk, [1, whole]), &self.device);
-
-        let ctx = self
-            .context
-            .take()
-            .expect("the front end is open until the input ends");
-        // The context built the chunk to the front end's grid, so a refusal
-        // is the context's own fault.
-        let (frames, ctx) = ctx.transform(waves).as_internal()?;
-        self.context = Some(ctx);
-        Ok(Some(frames))
-    }
-}
-
-impl StreamingFeatures for WhisperFeatures {
-    fn push(
-        &mut self,
-        samples: &[f32],
-    ) -> BunsenResult<Option<Tensor<3>>> {
-        self.staging.extend_from_slice(samples);
-        self.drain(false)
-    }
-
-    fn finish(&mut self) -> BunsenResult<Option<Tensor<3>>> {
-        if self.context.is_none() {
-            return Ok(None);
-        }
-        let drained = self.drain(true)?;
-        let tail = self.context.take().and_then(|mel| mel.finish());
-        Ok(match (drained, tail) {
-            (Some(a), Some(b)) => Some(Tensor::cat(vec![a, b], 1)),
-            (a, b) => a.or(b),
-        })
-    }
 }
 
 /// One request, packaged: what it decodes under, and its window.
@@ -384,7 +285,7 @@ impl WhisperEngine {
 
 impl AsrEngine for WhisperEngine {
     type Carry = WhisperCarry;
-    type Features = WhisperFeatures;
+    type Features = LogMelFeatures;
     type Level = MaxLevel;
     type StreamState = WhisperStreamState;
 
@@ -410,13 +311,11 @@ impl AsrEngine for WhisperEngine {
         1
     }
 
-    fn new_features(&self) -> BunsenResult<WhisperFeatures> {
-        Ok(WhisperFeatures {
-            converter: self.audio_converter.clone(),
-            context: Some(self.audio_converter.new_context(1)),
-            staging: Vec::new(),
-            device: self.devices()[0].clone(),
-        })
+    fn new_features(&self) -> BunsenResult<LogMelFeatures> {
+        Ok(LogMelFeatures::new(
+            self.audio_converter.clone(),
+            self.devices()[0].clone(),
+        ))
     }
 
     fn new_stream_state(&self) -> WhisperStreamState {
@@ -512,7 +411,10 @@ impl AsrEngine for WhisperEngine {
 mod tests {
     use std::sync::Arc;
 
-    use burn::tensor::Device;
+    use burn::{
+        prelude::TensorData,
+        tensor::Device,
+    };
     use serial_test::serial;
 
     use super::*;
