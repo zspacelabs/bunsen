@@ -196,6 +196,19 @@ impl TdtPredictionNetwork {
     ) -> (Tensor<2>, TdtPredictionState) {
         let [batch] = tokens.dims();
         let d = self.d_pred();
+        #[cfg(any(debug_assertions, test))]
+        for s in [&state.hidden, &state.cell] {
+            crate::contracts::assert_shape_contract_periodically!(
+                ["n_layers", "batch", "d_pred"],
+                &s.dims(),
+                &[
+                    ("n_layers", self.n_layers()),
+                    ("batch", batch),
+                    ("d_pred", d)
+                ],
+            );
+        }
+
         let mut x = self
             .embedding
             .forward(tokens.unsqueeze_dim::<2>(1))
@@ -222,7 +235,16 @@ impl TdtPredictionNetwork {
             hidden: Tensor::cat(hidden, 0),
             cell: Tensor::cat(cell, 0),
         };
-        (self.projector.forward(x), state)
+        let y = self.projector.forward(x);
+
+        #[cfg(any(debug_assertions, test))]
+        crate::contracts::assert_shape_contract_periodically!(
+            ["batch", "d_pred"],
+            &y.dims(),
+            &[("batch", batch), ("d_pred", d)],
+        );
+
+        (y, state)
     }
 
     /// Runs the network over whole token sequences from a zero state.
@@ -245,7 +267,16 @@ impl TdtPredictionNetwork {
             state = next;
             outputs.push(y.unsqueeze_dim::<3>(1));
         }
-        Tensor::cat(outputs, 1)
+        let y = Tensor::cat(outputs, 1);
+
+        #[cfg(any(debug_assertions, test))]
+        crate::contracts::assert_shape_contract_periodically!(
+            ["batch", "len", "d_pred"],
+            &y.dims(),
+            &[("batch", batch), ("len", len), ("d_pred", self.d_pred())],
+        );
+
+        y
     }
 }
 

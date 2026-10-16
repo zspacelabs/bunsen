@@ -139,13 +139,42 @@ impl ConformerConvolution {
         x: Tensor<3>,
         valid: Option<Tensor<2, Bool>>,
     ) -> Tensor<3> {
+        #[cfg(any(debug_assertions, test))]
+        let [batch, time] = crate::contracts::unpack_shape_contract!(
+            ["batch", "time", "d_model"],
+            &x.dims(),
+            &["batch", "time"],
+            &[("d_model", self.d_model())],
+        );
+        #[cfg(any(debug_assertions, test))]
+        if let Some(valid) = &valid {
+            crate::contracts::assert_shape_contract_periodically!(
+                ["batch", "time"],
+                &valid.dims(),
+                &[("batch", batch), ("time", time)],
+            );
+        }
+
         let x = glu(self.pointwise_conv1.forward(x.swap_dims(1, 2)), 1);
         let x = match valid {
             Some(valid) => x.mask_fill(valid.bool_not().unsqueeze_dim::<3>(1), 0.0),
             None => x,
         };
         let x = self.depthwise.map_forward(x, silu);
-        self.pointwise_conv2.forward(x).swap_dims(1, 2)
+        let y = self.pointwise_conv2.forward(x).swap_dims(1, 2);
+
+        #[cfg(any(debug_assertions, test))]
+        crate::contracts::assert_shape_contract_periodically!(
+            ["batch", "time", "d_model"],
+            &y.dims(),
+            &[
+                ("batch", batch),
+                ("time", time),
+                ("d_model", self.d_model())
+            ],
+        );
+
+        y
     }
 }
 

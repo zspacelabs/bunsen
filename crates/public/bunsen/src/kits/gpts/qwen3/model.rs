@@ -305,7 +305,20 @@ impl Qwen3Model {
         &self,
         tokens: Tensor<2, Int>,
     ) -> Tensor<3> {
-        self.embed_tokens.forward(tokens)
+        #[cfg(any(debug_assertions, test))]
+        let [batch, seq] =
+            crate::contracts::unpack_shape_contract!(["batch", "seq"], &tokens.dims());
+
+        let y = self.embed_tokens.forward(tokens);
+
+        #[cfg(any(debug_assertions, test))]
+        crate::contracts::assert_shape_contract_periodically!(
+            ["batch", "seq", "d_model"],
+            &y.dims(),
+            &[("batch", batch), ("seq", seq), ("d_model", self.d_model())],
+        );
+
+        y
     }
 
     /// Runs the decoder over embeddings at positions `start..start + seq`,
@@ -325,7 +338,7 @@ impl Qwen3Model {
         r_emb: &RotaryEmbedding,
         mut kv_cache: Option<&mut KVCache>,
     ) -> Tensor<3> {
-        let [_, seq] = crate::contracts::unpack_shape_contract!(
+        let [batch, seq] = crate::contracts::unpack_shape_contract!(
             ["batch", "seq", "d_model"],
             &embeds.dims(),
             &["batch", "seq"],
@@ -337,7 +350,18 @@ impl Qwen3Model {
         for layer in &self.layers {
             x = layer.forward(x, &r_emb, &mut kv_cache);
         }
-        self.norm.forward(x)
+        let y = self.norm.forward(x);
+
+        #[cfg(any(debug_assertions, test))]
+        crate::contracts::assert_shape_contract_periodically!(
+            ["batch", "seq", "d_model"],
+            &y.dims(),
+            &[("batch", batch), ("seq", seq), ("d_model", self.d_model())],
+        );
+        #[cfg(not(any(debug_assertions, test)))]
+        let _ = batch;
+
+        y
     }
 
     /// The tied head: logits over the vocabulary.
@@ -352,7 +376,24 @@ impl Qwen3Model {
         &self,
         hidden: Tensor<3>,
     ) -> Tensor<3> {
-        unembed(&self.embed_tokens, hidden)
+        #[cfg(any(debug_assertions, test))]
+        let [batch, seq] = crate::contracts::unpack_shape_contract!(
+            ["batch", "seq", "d_model"],
+            &hidden.dims(),
+            &["batch", "seq"],
+            &[("d_model", self.d_model())],
+        );
+
+        let y = unembed(&self.embed_tokens, hidden);
+
+        #[cfg(any(debug_assertions, test))]
+        crate::contracts::assert_shape_contract_periodically!(
+            ["batch", "seq", "n_vocab"],
+            &y.dims(),
+            &[("batch", batch), ("seq", seq), ("n_vocab", self.n_vocab())],
+        );
+
+        y
     }
 }
 

@@ -117,7 +117,25 @@ impl TdtJoint {
         encoder: Tensor<D>,
         prediction: Tensor<D>,
     ) -> Tensor<D> {
-        self.head.forward(relu(encoder + prediction))
+        #[cfg(any(debug_assertions, test))]
+        for x in [&encoder, &prediction] {
+            crate::contracts::assert_shape_contract_periodically!(
+                [..., "d_joint"],
+                &x.dims(),
+                &[("d_joint", self.d_joint())],
+            );
+        }
+
+        let y = self.head.forward(relu(encoder + prediction));
+
+        #[cfg(any(debug_assertions, test))]
+        crate::contracts::assert_shape_contract_periodically!(
+            [..., "n_vocab" + "n_durations"],
+            &y.dims(),
+            &[("n_vocab", self.n_vocab()), ("n_durations", self.n_durations())],
+        );
+
+        y
     }
 }
 

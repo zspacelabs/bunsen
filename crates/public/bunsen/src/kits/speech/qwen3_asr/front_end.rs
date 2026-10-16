@@ -158,7 +158,13 @@ impl Qwen3AsrFrontEnd {
             None => mels,
         };
         let features = self.config.whisper.package_mels(joined);
-        let [_, n_mels, frames] = features.dims();
+        let [frames] = crate::contracts::unpack_shape_contract!(
+            [1, "n_mels", "frames"],
+            &features.dims(),
+            &["frames"],
+            &[("n_mels", self.n_mels())],
+        );
+        let n_mels = self.n_mels();
         let valid = self.valid_frames(samples.len()).min(frames);
         Ok((features.reshape([n_mels, frames]), valid))
     }

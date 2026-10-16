@@ -237,9 +237,33 @@ impl DwStridingSubsampling {
             x = masked(stage.pointwise.forward(x), &lengths);
         }
 
+        #[cfg(any(debug_assertions, test))]
+        crate::contracts::assert_shape_contract_periodically!(
+            ["batch", "channels", "time", "n_freq"],
+            &x.dims(),
+            &[
+                ("batch", batch),
+                ("channels", self.channels()),
+                ("time", self.output_len(time)),
+                ("n_freq", self.n_freq_out()),
+            ],
+        );
         let [_, c, t, f] = x.dims();
         let x = x.swap_dims(1, 2).reshape([batch, t, c * f]);
-        (self.linear.forward(x), lengths)
+        let y = self.linear.forward(x);
+
+        #[cfg(any(debug_assertions, test))]
+        crate::contracts::assert_shape_contract_periodically!(
+            ["batch", "time", "d_model"],
+            &y.dims(),
+            &[
+                ("batch", batch),
+                ("time", self.output_len(time)),
+                ("d_model", self.d_model()),
+            ],
+        );
+
+        (y, lengths)
     }
 }
 

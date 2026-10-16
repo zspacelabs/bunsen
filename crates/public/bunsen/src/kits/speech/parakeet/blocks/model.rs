@@ -214,8 +214,28 @@ impl ParakeetTdt {
         features: Tensor<3>,
         lengths: Option<&[usize]>,
     ) -> (Tensor<3>, Vec<usize>) {
+        #[cfg(any(debug_assertions, test))]
+        let [batch, time] = crate::contracts::unpack_shape_contract!(
+            ["batch", "n_mels", "time"],
+            &features.dims(),
+            &["batch", "time"],
+        );
+
         let (x, lengths) = self.encoder.forward(features, lengths);
-        (self.encoder_projector.forward(x), lengths)
+        let y = self.encoder_projector.forward(x);
+
+        #[cfg(any(debug_assertions, test))]
+        crate::contracts::assert_shape_contract_periodically!(
+            ["batch", "time", "d_pred"],
+            &y.dims(),
+            &[
+                ("batch", batch),
+                ("time", self.encoder.output_len(time)),
+                ("d_pred", self.d_pred()),
+            ],
+        );
+
+        (y, lengths)
     }
 }
 

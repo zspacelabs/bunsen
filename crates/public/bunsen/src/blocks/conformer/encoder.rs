@@ -159,6 +159,13 @@ impl ConformerEncoder {
         features: Tensor<3>,
         lengths: Option<&[usize]>,
     ) -> (Tensor<3>, Vec<usize>) {
+        #[cfg(any(debug_assertions, test))]
+        let [batch, time_in] = crate::contracts::unpack_shape_contract!(
+            ["batch", "n_mels", "time"],
+            &features.dims(),
+            &["batch", "time"],
+        );
+
         let padded = lengths.is_some();
         let (mut x, lengths) = self.subsampling.forward(features, lengths);
         if self.scale_input {
@@ -171,6 +178,18 @@ impl ConformerEncoder {
         for layer in &self.layers {
             x = layer.forward(x, positions.clone(), valid.clone());
         }
+
+        #[cfg(any(debug_assertions, test))]
+        crate::contracts::assert_shape_contract_periodically!(
+            ["batch", "time", "d_model"],
+            &x.dims(),
+            &[
+                ("batch", batch),
+                ("time", self.output_len(time_in)),
+                ("d_model", self.d_model()),
+            ],
+        );
+
         (x, lengths)
     }
 }

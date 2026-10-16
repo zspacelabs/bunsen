@@ -174,6 +174,28 @@ impl ConformerBlock {
         positions: Tensor<3>,
         valid: Option<Tensor<2, Bool>>,
     ) -> Tensor<3> {
+        #[cfg(any(debug_assertions, test))]
+        let [batch, time] = crate::contracts::unpack_shape_contract!(
+            ["batch", "time", "d_model"],
+            &x.dims(),
+            &["batch", "time"],
+            &[("d_model", self.d_model())],
+        );
+        #[cfg(any(debug_assertions, test))]
+        crate::contracts::assert_shape_contract_periodically!(
+            [1, 2 * "time" - 1, "d_model"],
+            &positions.dims(),
+            &[("time", time), ("d_model", self.d_model())],
+        );
+        #[cfg(any(debug_assertions, test))]
+        if let Some(valid) = &valid {
+            crate::contracts::assert_shape_contract_periodically!(
+                ["batch", "time"],
+                &valid.dims(),
+                &[("batch", batch), ("time", time)],
+            );
+        }
+
         let x = x.clone()
             + self
                 .feed_forward1
@@ -189,7 +211,20 @@ impl ConformerBlock {
                 .feed_forward2
                 .forward(self.norm_feed_forward2.forward(x))
                 .mul_scalar(0.5);
-        self.norm_out.forward(x)
+        let y = self.norm_out.forward(x);
+
+        #[cfg(any(debug_assertions, test))]
+        crate::contracts::assert_shape_contract_periodically!(
+            ["batch", "time", "d_model"],
+            &y.dims(),
+            &[
+                ("batch", batch),
+                ("time", time),
+                ("d_model", self.d_model())
+            ],
+        );
+
+        y
     }
 }
 

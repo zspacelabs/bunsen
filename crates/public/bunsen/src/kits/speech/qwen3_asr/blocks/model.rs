@@ -198,6 +198,12 @@ impl Qwen3Asr {
         audio: Tensor<2>,
     ) -> BunsenResult<Tensor<3>> {
         let n = audio.dims()[0];
+        #[cfg(any(debug_assertions, test))]
+        crate::contracts::assert_shape_contract!(
+            ["n", "d_text"],
+            &audio.dims(),
+            &[("d_text", self.d_text())],
+        );
         let placeholders = ids.iter().filter(|&&t| t == self.audio_token).count();
         if placeholders != n {
             return Err(BunsenError::illegal(format!(
@@ -235,7 +241,16 @@ impl Qwen3Asr {
             }
             start = end;
         }
-        Ok(Tensor::cat(parts, 1))
+        let embeds = Tensor::cat(parts, 1);
+
+        #[cfg(any(debug_assertions, test))]
+        crate::contracts::assert_shape_contract!(
+            [1, "seq", "d_text"],
+            &embeds.dims(),
+            &[("seq", ids.len()), ("d_text", self.d_text())],
+        );
+
+        Ok(embeds)
     }
 
     /// Logits for every position of a prompt, without a cache.
@@ -250,10 +265,24 @@ impl Qwen3Asr {
         &self,
         embeds: Tensor<3>,
     ) -> Tensor<3> {
-        let seq = embeds.dims()[1];
+        let [seq] = crate::contracts::unpack_shape_contract!(
+            [1, "seq", "d_text"],
+            &embeds.dims(),
+            &["seq"],
+            &[("d_text", self.d_text())],
+        );
         let r_emb = self.language_model.rotary(seq, &embeds.device());
         let hidden = self.language_model.forward_hidden(embeds, &r_emb, None);
-        self.language_model.logits(hidden)
+        let logits = self.language_model.logits(hidden);
+
+        #[cfg(any(debug_assertions, test))]
+        crate::contracts::assert_shape_contract_periodically!(
+            [1, "seq", "n_vocab"],
+            &logits.dims(),
+            &[("seq", seq), ("n_vocab", self.n_vocab())],
+        );
+
+        logits
     }
 }
 

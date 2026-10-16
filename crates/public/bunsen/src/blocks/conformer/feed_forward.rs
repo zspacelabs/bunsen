@@ -110,7 +110,28 @@ impl ConformerFeedForward {
         &self,
         x: Tensor<3>,
     ) -> Tensor<3> {
-        self.linear2.forward(silu(self.linear1.forward(x)))
+        #[cfg(any(debug_assertions, test))]
+        let [batch, time] = crate::contracts::unpack_shape_contract!(
+            ["batch", "time", "d_model"],
+            &x.dims(),
+            &["batch", "time"],
+            &[("d_model", self.d_model())],
+        );
+
+        let y = self.linear2.forward(silu(self.linear1.forward(x)));
+
+        #[cfg(any(debug_assertions, test))]
+        crate::contracts::assert_shape_contract_periodically!(
+            ["batch", "time", "d_model"],
+            &y.dims(),
+            &[
+                ("batch", batch),
+                ("time", time),
+                ("d_model", self.d_model())
+            ],
+        );
+
+        y
     }
 }
 

@@ -222,7 +222,7 @@ impl ParakeetFrontEnd {
         let logmel = mel.add_scalar(self.config.log_guard).log();
 
         // Per-feature normalization over each item's valid frames.
-        let [_, frames, n_mels] = logmel.dims();
+        let [_, frames, _] = logmel.dims();
         let frame_lengths: Vec<usize> = lengths.iter().map(|&n| self.frame_len(n)).collect();
         let valid = length_mask(&frame_lengths, frames, &device)
             .float()
@@ -234,9 +234,20 @@ impl ParakeetFrontEnd {
         let variance = centered.clone().powi_scalar(2).sum_dim(1) / (counts - 1.0).clamp_min(1.0);
         let std = variance.sqrt().add_scalar(self.config.norm_epsilon);
         let features = (centered / std) * valid;
+        let features = features.swap_dims(1, 2);
 
-        debug_assert_eq!(n_mels, self.n_mels());
-        (features.swap_dims(1, 2), frame_lengths)
+        #[cfg(any(debug_assertions, test))]
+        crate::contracts::assert_shape_contract_periodically!(
+            ["batch", "n_mels", "frames"],
+            &features.dims(),
+            &[
+                ("batch", batch),
+                ("n_mels", self.n_mels()),
+                ("frames", samples / self.hop() + 1),
+            ],
+        );
+
+        (features, frame_lengths)
     }
 }
 

@@ -184,7 +184,27 @@ impl RelPosSelfAttention {
         positions: Tensor<3>,
         valid: Option<Tensor<2, Bool>>,
     ) -> Tensor<3> {
-        let [batch, time, d_model] = x.dims();
+        let [batch, time] = crate::contracts::unpack_shape_contract!(
+            ["batch", "time", "d_model"],
+            &x.dims(),
+            &["batch", "time"],
+            &[("d_model", self.d_model())],
+        );
+        #[cfg(any(debug_assertions, test))]
+        crate::contracts::assert_shape_contract_periodically!(
+            [1, 2 * "time" - 1, "d_model"],
+            &positions.dims(),
+            &[("time", time), ("d_model", self.d_model())],
+        );
+        #[cfg(any(debug_assertions, test))]
+        if let Some(valid) = &valid {
+            crate::contracts::assert_shape_contract_periodically!(
+                ["batch", "time"],
+                &valid.dims(),
+                &[("batch", batch), ("time", time)],
+            );
+        }
+        let d_model = self.d_model();
         let (h, dk) = (self.n_heads, self.d_head());
         let heads = |t: Tensor<3>| {
             t.reshape([batch as i32, -1, h as i32, dk as i32])
@@ -216,7 +236,16 @@ impl RelPosSelfAttention {
             .matmul(v)
             .swap_dims(1, 2)
             .reshape([batch, time, d_model]);
-        self.output.forward(context)
+        let y = self.output.forward(context);
+
+        #[cfg(any(debug_assertions, test))]
+        crate::contracts::assert_shape_contract_periodically!(
+            ["batch", "time", "d_model"],
+            &y.dims(),
+            &[("batch", batch), ("time", time), ("d_model", d_model)],
+        );
+
+        y
     }
 }
 
