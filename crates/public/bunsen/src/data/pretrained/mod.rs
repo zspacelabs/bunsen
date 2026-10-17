@@ -79,6 +79,9 @@
 //! [trust model](PretrainedCache#trust-model)). The cache looks there
 //! before it tries any of a resource's sources (the
 //! [source order](PretrainedCache#source-order)).
+//! [`cached_files`](PretrainedCache::cached_files) lists what a cache holds,
+//! a [`CachedFile`] each, by kit and namespace ([`CacheSelector`]), and
+//! [`remove_cached`](PretrainedCache::remove_cached) clears them.
 //!
 //! A bundle takes one of two forms:
 //!
@@ -251,6 +254,8 @@ mod apply_named;
 #[cfg(feature = "cache")]
 mod cache;
 #[cfg(feature = "cache")]
+mod cached_files;
+#[cfg(feature = "cache")]
 mod construct;
 #[cfg(feature = "cache")]
 mod deferred;
@@ -276,6 +281,8 @@ mod safetensors;
 pub use apply_named::*;
 #[cfg(feature = "cache")]
 pub use cache::*;
+#[cfg(feature = "cache")]
+pub use cached_files::*;
 #[cfg(feature = "cache")]
 pub use construct::*;
 #[cfg(feature = "cache")]
