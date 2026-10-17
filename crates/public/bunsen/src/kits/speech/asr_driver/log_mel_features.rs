@@ -171,7 +171,7 @@ mod tests {
             assert_eq!(parts.dims(), whole.dims(), "piece {piece}");
             parts
                 .to_data()
-                .assert_approx_eq::<f32>(&whole.to_data(), Tolerance::absolute(1e-5));
+                .assert_approx_eq::<f32>(&whole.to_data(), Tolerance::default());
         }
     }
 
