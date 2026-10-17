@@ -1,6 +1,6 @@
 [package]
 name = "bunsen-app"
-description = "Shared command-line plumbing for bunsen's example binaries: device and precision selection, logging, shard selection."
+description = "Shared command-line plumbing for bunsen's example binaries: device and precision selection, logging, shard selection, the weights cache's flags and commands."
 authors.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -11,11 +11,14 @@ publish = false
 
 [dependencies]
 burn = { workspace = true, features = ["std", "flex"] }
-bunsen = { path = "../../public/bunsen", features = ["std", "testing", "fetch"] }
+bunsen = { path = "../../public/bunsen", features = ["std", "testing", "fetch", "cache"] }
 
 clap = { workspace = true, features = ["derive"] }
 stderrlog = { workspace = true }
 log = { workspace = true }
+
+[dev-dependencies]
+tempfile = { workspace = true }
 
 [features]
 ## Make `--device cuda` available.
