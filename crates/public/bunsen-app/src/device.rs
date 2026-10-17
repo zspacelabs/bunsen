@@ -32,7 +32,14 @@
 //! ([`Device::supports_dtype`]). `--float-dtype` overrides the table with an
 //! exact dtype, and is an error where the device does not support it.
 
-use burn::tensor::{DType, Device, DeviceConfig, DeviceError, FloatDType, IntDType};
+use burn::tensor::{
+    DType,
+    Device,
+    DeviceConfig,
+    DeviceError,
+    FloatDType,
+    IntDType,
+};
 
 /// A backend to run on.
 #[derive(clap::ValueEnum, Clone, Copy, Debug, Default, PartialEq, Eq)]

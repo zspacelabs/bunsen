@@ -1,4 +1,7 @@
-use bunsen::errors::{BunsenError, BunsenResult};
+use bunsen::errors::{
+    BunsenError,
+    BunsenResult,
+};
 pub use stderrlog::LogLevelNum;
 use stderrlog::Timestamp;
 
