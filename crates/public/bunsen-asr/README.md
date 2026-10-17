@@ -57,7 +57,11 @@ cargo run --release -p bunsen-asr -- whisper live --list-devices
 |---|---|
 | `parakeet` | `--window-seconds` (60): a full window is committed up to a pause between words, and the rest decoded again with the audio after it |
 | `qwen3-asr` | `--window-seconds` (30, the most Qwen3-ASR was trained on): a full window is cut at the quietest point of its last third |
-| `whisper` | `--language` (detected when omitted), `--task` (`transcribe`, `translate`), `--beam-size` (5) |
+| `whisper` | `--language` (detected when omitted), `--task` (`transcribe`, `translate`), `--beam-size` (5), `--timestamps` (split segments on timestamp tokens), `--max-tokens` (224 a window), `--prompt-carry` (`true`: prompt each window with the transcript so far), `--fallback` (`true`: upstream's temperature ladder), `--vocab` (a vocabulary file in place of the layout's), `--upstream-cache-dir` (`openai-whisper`'s download cache, used in place; `~/.cache/whisper`); `--model` also takes a checkpoint's path |
+
+`bunsen-asr whisper inspect NAME|PATH` scans a Whisper checkpoint and checks it against its prefab (its resources and
+where each stands, the geometry it promised, and the one its shapes say); `bunsen-asr whisper prefabs` lists the
+geometries. Neither needs a backend.
 
 `bunsen-asr cache` manages the weights cache every family loads through (`bunsen_app::cache`):
 

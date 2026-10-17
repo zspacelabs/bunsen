@@ -8,7 +8,14 @@ use std::{
 };
 
 use bunsen::{
-    errors::BunsenResult,
+    data::pretrained::{
+        PretrainedCache,
+        PretrainedCacheOptions,
+    },
+    errors::{
+        BunsenResult,
+        ResultContext,
+    },
     support::audio::load_audio_mono_sr,
 };
 use bunsen_app::{
@@ -46,6 +53,17 @@ pub trait FamilyFlags: std::fmt::Debug {
     fn whisper(&self) -> Option<&whisper::WhisperFlags> {
         None
     }
+
+    /// The cache options these flags call for, over `options`.
+    fn cache_options(
+        &self,
+        options: PretrainedCacheOptions,
+    ) -> PretrainedCacheOptions {
+        match self.whisper() {
+            Some(whisper) => whisper.cache_options(options),
+            None => options,
+        }
+    }
 }
 
 impl FamilyFlags for whisper::WhisperFlags {
@@ -79,7 +97,7 @@ pub struct TranscribeCmd<F: clap::Args> {
     pub logging: LogArgs,
 
     /// The model, by name: `list` shows them; the family's default when
-    /// omitted.
+    /// omitted. Whisper also takes a checkpoint's path.
     #[arg(long)]
     pub model: Option<String>,
 
@@ -163,9 +181,11 @@ impl<F: clap::Args + FamilyFlags> TranscribeCmd<F> {
     ) -> BunsenResult<()> {
         self.logging.init(Some(LogLevelNum::Warn))?;
         let device = self.device.device()?;
-        let cache = self.cache.init()?;
+        // The options come from the command line.
+        let cache =
+            PretrainedCache::new(self.flags.cache_options(self.cache.options())).as_policy()?;
         let model = self.model.as_deref().unwrap_or(family.default_model());
-        let loaded = family.load(model, &cache, &device)?;
+        let loaded = family.load(model, &self.flags, &cache, &device)?;
 
         let driver = Driver::build(loaded, &self.flags, self.preset, &cache, &device)?;
         let rate = driver.sample_rate();

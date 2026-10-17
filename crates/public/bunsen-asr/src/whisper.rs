@@ -1,8 +1,19 @@
 //! Transcribing with Whisper: the bundle through a stream driver.
-use std::sync::Arc;
+use std::{
+    path::{
+        Path,
+        PathBuf,
+    },
+    sync::Arc,
+};
 
 use bunsen::{
-    data::pretrained::PretrainedCache,
+    data::pretrained::{
+        Deferred,
+        PretrainedCache,
+        PretrainedCacheOptions,
+        ResourceMap,
+    },
     errors::{
         BunsenResult,
         ResultContext,
@@ -16,6 +27,13 @@ use bunsen::{
                 WhisperStreamDriver,
                 WhisperStreamDriverConfig,
                 WhisperTask,
+            },
+            pretrained::{
+                CHECKPOINT,
+                OPENAI_LOCAL_DIR,
+                VOCABULARY,
+                WhisperConstruct,
+                default_whisper_factory,
             },
         },
     },
@@ -58,6 +76,76 @@ pub struct WhisperFlags {
     /// Beams in the search; 1 is greedy.
     #[arg(long, default_value_t = 5)]
     pub beam_size: usize,
+
+    /// Emit timestamp tokens and split segments on them, seeking to the
+    /// last closed timestamp, as upstream's `transcribe()` does.
+    #[arg(long)]
+    pub timestamps: bool,
+
+    /// Cap on generated tokens per window.
+    #[arg(long, default_value_t = 224)]
+    pub max_tokens: usize,
+
+    /// Prompt each window with the transcript so far.
+    #[arg(long, action = clap::ArgAction::Set, default_value_t = true)]
+    pub prompt_carry: bool,
+
+    /// Climb upstream's temperature ladder when a window's decode fails its
+    /// thresholds; with `false`, temperature zero alone.
+    #[arg(long, action = clap::ArgAction::Set, default_value_t = true)]
+    pub fallback: bool,
+
+    /// A vocabulary file (`multilingual.tiktoken`, `gpt2.tiktoken`) in place
+    /// of the one the checkpoint's layout selects; trusted as given.
+    #[arg(long)]
+    pub vocab: Option<PathBuf>,
+
+    /// `openai-whisper`'s download cache, whose files are used in place;
+    /// `~/.cache/whisper` when omitted.
+    #[arg(long)]
+    pub upstream_cache_dir: Option<PathBuf>,
+}
+
+impl WhisperFlags {
+    /// `options`, with `--upstream-cache-dir` as `openai-whisper`'s cache.
+    pub fn cache_options(
+        &self,
+        options: PretrainedCacheOptions,
+    ) -> PretrainedCacheOptions {
+        match &self.upstream_cache_dir {
+            Some(dir) => options.with_local_dir(OPENAI_LOCAL_DIR, dir.clone()),
+            None => options,
+        }
+    }
+}
+
+/// What `--model` names: a checkpoint on disk, as a one-resource map under
+/// [`CHECKPOINT`] (its vocabulary the one its layout selects), or a row of
+/// the Whisper factory; `--vocab` over either.
+///
+/// # Errors
+/// [`Policy`](bunsen::errors::BunsenErrorKind::Policy) when the factory
+/// does not have the name, or the map cannot take the vocabulary: `spec`
+/// and `--vocab` come from the command line.
+pub fn resolve(
+    spec: &str,
+    flags: Option<&WhisperFlags>,
+    cache: &PretrainedCache,
+) -> BunsenResult<Deferred<WhisperConstruct>> {
+    let path = Path::new(spec);
+    let mut model = if path.is_file() {
+        Deferred::from_map(ResourceMap::given(spec, CHECKPOINT, path)).as_policy()?
+    } else {
+        default_whisper_factory()?
+            .resolve(spec, cache)
+            .as_policy()?
+    };
+    if let Some(vocab) = flags.and_then(|f| f.vocab.as_ref()) {
+        model = model
+            .with_overlay(ResourceMap::given("--vocab", VOCABULARY, vocab))
+            .as_policy()?;
+    }
+    Ok(model)
 }
 
 /// The driver for `bundle` under `flags` and `preset`.
@@ -83,9 +171,16 @@ pub fn driver(
             None
         })
         .with_task(task)
+        .with_timestamps(flags.timestamps)
         .with_beam_size(flags.beam_size)
+        .with_max_tokens(flags.max_tokens)
+        .with_condition_on_previous_text(flags.prompt_carry)
         .with_emission(preset.into())
-        .with_fallback(WhisperFallbackConfig::upstream())
+        .with_fallback(if flags.fallback {
+            WhisperFallbackConfig::upstream()
+        } else {
+            WhisperFallbackConfig::new()
+        })
         .init_from_bundle(bundle, device)
         // The settings come from the command line.
         .as_policy()?;

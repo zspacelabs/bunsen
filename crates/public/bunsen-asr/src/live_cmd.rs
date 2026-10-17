@@ -22,9 +22,11 @@ use std::{
 };
 
 use bunsen::{
+    data::pretrained::PretrainedCache,
     errors::{
         BunsenError,
         BunsenResult,
+        ResultContext,
     },
     kits::speech::asr_driver::TranscriptEvent,
 };
@@ -92,7 +94,7 @@ pub struct LiveCmd<F: clap::Args> {
     pub logging: LogArgs,
 
     /// The model, by name: `list` shows them; the family's default when
-    /// omitted.
+    /// omitted. Whisper also takes a checkpoint's path.
     #[arg(long)]
     pub model: Option<String>,
 
@@ -153,9 +155,11 @@ impl<F: clap::Args + FamilyFlags> LiveCmd<F> {
         let input_name = device_name(&input);
 
         let device = self.device.device()?;
-        let cache = self.cache.init()?;
+        // The options come from the command line.
+        let cache =
+            PretrainedCache::new(self.flags.cache_options(self.cache.options())).as_policy()?;
         let model = self.model.as_deref().unwrap_or(family.default_model());
-        let loaded = family.load(model, &cache, &device)?;
+        let loaded = family.load(model, &self.flags, &cache, &device)?;
         let driver = Driver::build(loaded, &self.flags, self.preset, &cache, &device)?;
         let model_rate = driver.sample_rate();
         let chunk = driver.push_samples(self.chunk_ms);

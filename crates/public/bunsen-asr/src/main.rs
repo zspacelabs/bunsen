@@ -1,6 +1,7 @@
 //! `bunsen-asr`: speech to text on bunsen, one subcommand per model family:
 //! `bunsen-asr <parakeet|qwen3-asr|whisper> <list|fetch|transcribe|live>
-//! [FLAGS]`, and `bunsen-asr cache <path|list|clear>` for the weights cache.
+//! [FLAGS]` (and `whisper inspect|prefabs`), and `bunsen-asr cache
+//! <path|list|clear>` for the weights cache.
 
 use bunsen::errors::BunsenResult;
 use clap::Parser;
@@ -19,6 +20,7 @@ mod resample;
 mod stream;
 mod transcribe_cmd;
 mod whisper;
+mod whisper_models;
 
 use family::Family;
 
@@ -40,7 +42,7 @@ enum FamilyCmd {
     Qwen3Asr(KitCmd<qwen3_asr::Qwen3AsrFlags>),
 
     /// `OpenAI`'s Whisper: `openai/base` by default.
-    Whisper(KitCmd<whisper::WhisperFlags>),
+    Whisper(WhisperCmd),
 
     /// The weights cache every family loads through: where it is, what it
     /// holds (by kit: `parakeet`, `qwen3-asr`, `whisper`, `silero_vad`), and
@@ -53,6 +55,35 @@ enum FamilyCmd {
 struct KitCmd<F: clap::Args> {
     #[command(subcommand)]
     action: Action<F>,
+}
+
+/// Whisper's commands: every family's, and its own.
+#[derive(clap::Args, Debug)]
+struct WhisperCmd {
+    #[command(subcommand)]
+    action: WhisperAction,
+}
+
+#[derive(clap::Subcommand, Debug)]
+enum WhisperAction {
+    #[command(flatten)]
+    Kit(Action<whisper::WhisperFlags>),
+
+    /// Scan a checkpoint and check it against its prefab.
+    Inspect(whisper_models::InspectCmd),
+
+    /// List the prefabs: the geometries, without weights.
+    Prefabs(whisper_models::PrefabsCmd),
+}
+
+impl WhisperCmd {
+    fn run(&self) -> BunsenResult<()> {
+        match &self.action {
+            WhisperAction::Kit(action) => action.run(Family::Whisper),
+            WhisperAction::Inspect(inspect) => inspect.run(),
+            WhisperAction::Prefabs(prefabs) => prefabs.run(),
+        }
+    }
 }
 
 #[derive(clap::Subcommand, Debug)]
@@ -77,7 +108,16 @@ impl<F: clap::Args + transcribe_cmd::FamilyFlags> KitCmd<F> {
         &self,
         family: Family,
     ) -> BunsenResult<()> {
-        match &self.action {
+        self.action.run(family)
+    }
+}
+
+impl<F: clap::Args + transcribe_cmd::FamilyFlags> Action<F> {
+    fn run(
+        &self,
+        family: Family,
+    ) -> BunsenResult<()> {
+        match self {
             Action::List(list) => list.run(family),
             Action::Fetch(fetch) => fetch.run(family),
             Action::Transcribe(transcribe) => transcribe.run(family),
@@ -91,7 +131,7 @@ fn main() -> BunsenResult<()> {
     match &Args::parse().family {
         FamilyCmd::Parakeet(cmd) => cmd.run(Family::Parakeet),
         FamilyCmd::Qwen3Asr(cmd) => cmd.run(Family::Qwen3Asr),
-        FamilyCmd::Whisper(cmd) => cmd.run(Family::Whisper),
+        FamilyCmd::Whisper(cmd) => cmd.run(),
         FamilyCmd::Cache(cmd) => cmd.run(),
     }
 }
@@ -116,6 +156,41 @@ mod tests {
             Args::try_parse_from(["bunsen-asr", family, "transcribe", "a.wav"]).unwrap();
         }
         assert!(Args::try_parse_from(["bunsen-asr", "silero", "list"]).is_err());
+        // Whisper's own: its decode flags, a checkpoint path, inspect and
+        // prefabs.
+        Args::try_parse_from([
+            "bunsen-asr",
+            "whisper",
+            "transcribe",
+            "--timestamps",
+            "--max-tokens",
+            "100",
+            "--prompt-carry",
+            "false",
+            "--fallback",
+            "false",
+            "--vocab",
+            "v.tiktoken",
+            "--upstream-cache-dir",
+            "/tmp/w",
+            "--model",
+            "ckpt.pt",
+            "a.wav",
+        ])
+        .unwrap();
+        Args::try_parse_from(["bunsen-asr", "whisper", "inspect", "openai/tiny"]).unwrap();
+        Args::try_parse_from(["bunsen-asr", "whisper", "prefabs"]).unwrap();
+        assert!(Args::try_parse_from(["bunsen-asr", "parakeet", "inspect", "x"]).is_err());
+        assert!(
+            Args::try_parse_from([
+                "bunsen-asr",
+                "parakeet",
+                "transcribe",
+                "--timestamps",
+                "a.wav"
+            ])
+            .is_err()
+        );
         // Every family fetches, at least one name.
         for family in ["parakeet", "qwen3-asr", "whisper"] {
             Args::try_parse_from(["bunsen-asr", family, "fetch", "--verify", "a", "b"]).unwrap();

@@ -10,6 +10,7 @@ use bunsen::{
         cache::verify_sha256,
         pretrained::{
             Construct,
+            Deferred,
             Pretrained,
             PretrainedCache,
             PretrainedFactory,
@@ -46,6 +47,11 @@ use bunsen::{
     },
 };
 use burn::tensor::Device;
+
+use crate::{
+    transcribe_cmd::FamilyFlags,
+    whisper,
+};
 
 /// A model family: one kit, its factory, and its default model.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -132,29 +138,29 @@ impl Family {
         })
     }
 
-    /// Loads `spec` through `cache`, and logs its info card at `INFO`.
-    pub fn load(
+    /// Loads `spec` through `cache`, and logs its info card at `INFO`:
+    /// a row of the family's factory, or for Whisper a checkpoint's path,
+    /// with `flags`' `--vocab` over it.
+    pub fn load<F: FamilyFlags>(
         self,
         spec: &str,
+        flags: &F,
         cache: &PretrainedCache,
         device: &Device,
     ) -> BunsenResult<Loaded> {
         Ok(match self {
             Family::Parakeet => Loaded::Parakeet(load_logged(
-                default_parakeet_factory()?,
-                spec,
+                default_parakeet_factory()?.resolve(spec, cache)?,
                 cache,
                 device,
             )?),
             Family::Qwen3Asr => Loaded::Qwen3Asr(load_logged(
-                default_qwen3_asr_factory()?,
-                spec,
+                default_qwen3_asr_factory()?.resolve(spec, cache)?,
                 cache,
                 device,
             )?),
             Family::Whisper => Loaded::Whisper(load_logged(
-                default_whisper_factory()?,
-                spec,
+                whisper::resolve(spec, flags.whisper(), cache)?,
                 cache,
                 device,
             )?),
@@ -232,13 +238,11 @@ fn fetch_with<H: Construct>(
 /// Resolves and loads `spec`, logging what it is and where its files came
 /// from: the model's info card.
 fn load_logged<H: Construct>(
-    factory: PretrainedFactory<H>,
-    spec: &str,
+    deferred: Deferred<H>,
     cache: &PretrainedCache,
     device: &Device,
 ) -> BunsenResult<Arc<H::Built>> {
     let t0 = Instant::now();
-    let deferred = factory.resolve(spec, cache)?;
     let loaded = deferred.load(cache, device)?;
     log::info!("model: {}", deferred.id());
     if let Some((_, row)) = deferred.model.named() {
