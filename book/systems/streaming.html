@@ -35,7 +35,7 @@
             const path_to_root = "../";
             const default_light_theme = "rust";
             const default_dark_theme = "ayu";
-            window.path_to_searchindex_js = "../searchindex-28f6e83b.js";
+            window.path_to_searchindex_js = "../searchindex-b798e791.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-52d38e2f.js"></script>
@@ -189,7 +189,7 @@ the principle behind all of them, then the pattern that follows from it, and
 ends with the Whisper stream driver, the largest system built on it.</p>
 <h2 id="the-principle-state-is-injected"><a class="header" href="#the-principle-state-is-injected">The principle: state is injected</a></h2>
 <p><strong>Cache and stream state is injected, never owned by the model.</strong> The rule
-is defined in <a href="https://docs.rs/bunsen/0.38.0/bunsen/ops/index.html#ops-and-blocks" title="mod bunsen::ops"><code>bunsen::ops</code></a>: the model is
+is defined in <a href="https://docs.rs/bunsen/0.39.0/bunsen/ops/index.html#ops-and-blocks" title="mod bunsen::ops"><code>bunsen::ops</code></a>: the model is
 immutable once it is built or loaded, and the state of one stream or one
 decode lives in a value the caller holds and passes in.</p>
 <p>The payoff is that one model serves several streams, or several caches, in
@@ -203,7 +203,7 @@ op, not a block, even when blocks use it
 (<a href="./ops-and-blocks.html">Ops, blocks and burn extensions</a>).</p>
 <h2 id="the-pattern"><a class="header" href="#the-pattern">The pattern</a></h2>
 <p>Each stateful system splits three ways, as
-<a href="https://docs.rs/bunsen/0.38.0/bunsen/ops/signal/index.html#config-coefficients-stream-context" title="mod bunsen::ops::signal"><code>bunsen::ops::signal</code></a>
+<a href="https://docs.rs/bunsen/0.39.0/bunsen/ops/signal/index.html#config-coefficients-stream-context" title="mod bunsen::ops::signal"><code>bunsen::ops::signal</code></a>
 spells out for the audio front ends:</p>
 <ol>
 <li>A <strong>config</strong>, which builds the module.</li>
@@ -216,29 +216,29 @@ and passed back in on every call.</li>
 </ol>
 <p>The pairs in the tree:</p>
 <ul>
-<li><a href="https://docs.rs/bunsen/0.38.0/bunsen/ops/signal/sliding_stft/struct.SlidingStft.html" title="struct bunsen::ops::signal::sliding_stft::SlidingStft"><code>SlidingStft</code></a> and
-<a href="https://docs.rs/bunsen/0.38.0/bunsen/ops/signal/sliding_stft/struct.SlidingStftContext.html" title="struct bunsen::ops::signal::sliding_stft::SlidingStftContext"><code>SlidingStftContext</code></a>: an STFT
+<li><a href="https://docs.rs/bunsen/0.39.0/bunsen/ops/signal/sliding_stft/struct.SlidingStft.html" title="struct bunsen::ops::signal::sliding_stft::SlidingStft"><code>SlidingStft</code></a> and
+<a href="https://docs.rs/bunsen/0.39.0/bunsen/ops/signal/sliding_stft/struct.SlidingStftContext.html" title="struct bunsen::ops::signal::sliding_stft::SlidingStftContext"><code>SlidingStftContext</code></a>: an STFT
 over a stream of samples.</li>
-<li><a href="https://docs.rs/bunsen/0.38.0/bunsen/ops/signal/perceptive_audio/perceptive_audio_converter/struct.PerceptiveAudioConverter.html" title="struct bunsen::ops::signal::perceptive_audio::perceptive_audio_converter::PerceptiveAudioConverter"><code>PerceptiveAudioConverter</code></a>
+<li><a href="https://docs.rs/bunsen/0.39.0/bunsen/ops/signal/perceptive_audio/perceptive_audio_converter/struct.PerceptiveAudioConverter.html" title="struct bunsen::ops::signal::perceptive_audio::perceptive_audio_converter::PerceptiveAudioConverter"><code>PerceptiveAudioConverter</code></a>
 and
-<a href="https://docs.rs/bunsen/0.38.0/bunsen/ops/signal/perceptive_audio/perceptive_audio_context/struct.PerceptiveAudioConversionContext.html" title="struct bunsen::ops::signal::perceptive_audio::perceptive_audio_context::PerceptiveAudioConversionContext"><code>PerceptiveAudioConversionContext</code></a>:
+<a href="https://docs.rs/bunsen/0.39.0/bunsen/ops/signal/perceptive_audio/perceptive_audio_context/struct.PerceptiveAudioConversionContext.html" title="struct bunsen::ops::signal::perceptive_audio::perceptive_audio_context::PerceptiveAudioConversionContext"><code>PerceptiveAudioConversionContext</code></a>:
 waveform to log-mel, Whisper’s front end.</li>
-<li><a href="https://docs.rs/bunsen/0.38.0/bunsen/blocks/transformers/attention/csa/struct.CausalSelfAttention.html" title="struct bunsen::blocks::transformers::attention::csa::CausalSelfAttention"><code>CausalSelfAttention</code></a>
-and <a href="https://docs.rs/bunsen/0.38.0/bunsen/ops/transformers/attention/kv_cache/struct.KVCache.html" title="struct bunsen::ops::transformers::attention::kv_cache::KVCache"><code>KVCache</code></a>: one
+<li><a href="https://docs.rs/bunsen/0.39.0/bunsen/blocks/transformers/attention/csa/struct.CausalSelfAttention.html" title="struct bunsen::blocks::transformers::attention::csa::CausalSelfAttention"><code>CausalSelfAttention</code></a>
+and <a href="https://docs.rs/bunsen/0.39.0/bunsen/ops/transformers/attention/kv_cache/struct.KVCache.html" title="struct bunsen::ops::transformers::attention::kv_cache::KVCache"><code>KVCache</code></a>: one
 multi-layer cache per decode, shared by every layer of the model
-(<a href="https://docs.rs/bunsen/0.38.0/bunsen/blocks/transformers/attention/index.html#kv-cache-decode-modes" title="mod bunsen::blocks::transformers::attention">decode modes</a>).</li>
-<li><a href="https://docs.rs/bunsen/0.38.0/bunsen/kits/speech/silero_vad/blocks/module/struct.SileroVad.html" title="struct bunsen::kits::speech::silero_vad::blocks::module::SileroVad"><code>SileroVad</code></a> and
-<a href="https://docs.rs/bunsen/0.38.0/bunsen/kits/speech/silero_vad/blocks/context/struct.SileroVadContext.html" title="struct bunsen::kits::speech::silero_vad::blocks::context::SileroVadContext"><code>SileroVadContext</code></a>:
+(<a href="https://docs.rs/bunsen/0.39.0/bunsen/blocks/transformers/attention/index.html#kv-cache-decode-modes" title="mod bunsen::blocks::transformers::attention">decode modes</a>).</li>
+<li><a href="https://docs.rs/bunsen/0.39.0/bunsen/kits/speech/silero_vad/blocks/module/struct.SileroVad.html" title="struct bunsen::kits::speech::silero_vad::blocks::module::SileroVad"><code>SileroVad</code></a> and
+<a href="https://docs.rs/bunsen/0.39.0/bunsen/kits/speech/silero_vad/blocks/context/struct.SileroVadContext.html" title="struct bunsen::kits::speech::silero_vad::blocks::context::SileroVadContext"><code>SileroVadContext</code></a>:
 the recurrent state and the tail of the last chunk
-(<a href="https://docs.rs/bunsen/0.38.0/bunsen/kits/speech/silero_vad/blocks/module/struct.SileroVad.html#streams" title="struct bunsen::kits::speech::silero_vad::blocks::module::SileroVad">streams</a>).</li>
-<li><a href="https://docs.rs/bunsen/0.38.0/bunsen/kits/speech/whisper/driver/whisper_stream_driver/struct.WhisperStreamDriver.html" title="struct bunsen::kits::speech::whisper::driver::whisper_stream_driver::WhisperStreamDriver"><code>WhisperStreamDriver</code></a>
+(<a href="https://docs.rs/bunsen/0.39.0/bunsen/kits/speech/silero_vad/blocks/module/struct.SileroVad.html#streams" title="struct bunsen::kits::speech::silero_vad::blocks::module::SileroVad">streams</a>).</li>
+<li><a href="https://docs.rs/bunsen/0.39.0/bunsen/kits/speech/whisper/driver/whisper_stream_driver/type.WhisperStreamDriver.html" title="type bunsen::kits::speech::whisper::driver::whisper_stream_driver::WhisperStreamDriver"><code>WhisperStreamDriver</code></a>
 and
-<a href="https://docs.rs/bunsen/0.38.0/bunsen/kits/speech/whisper/driver/whisper_stream_context/struct.WhisperStreamContext.html" title="struct bunsen::kits::speech::whisper::driver::whisper_stream_context::WhisperStreamContext"><code>WhisperStreamContext</code></a>:
+<a href="https://docs.rs/bunsen/0.39.0/bunsen/kits/speech/whisper/driver/whisper_stream_context/type.WhisperStreamContext.html" title="type bunsen::kits::speech::whisper::driver::whisper_stream_context::WhisperStreamContext"><code>WhisperStreamContext</code></a>:
 a whole transcription, including the front-end and voice-activity
 contexts of one stream.</li>
 </ul>
 <p>The speech kits’
-<a href="https://docs.rs/bunsen/0.38.0/bunsen/kits/speech/index.html#stream-state-is-injected" title="mod bunsen::kits::speech">table of pairs</a> adds
+<a href="https://docs.rs/bunsen/0.39.0/bunsen/kits/speech/index.html#stream-state-is-injected" title="mod bunsen::kits::speech">table of pairs</a> adds
 Whisper’s text-decoder cache.</p>
 <h3 id="chunking-must-not-be-observable"><a class="header" href="#chunking-must-not-be-observable">Chunking must not be observable</a></h3>
 <p>A context’s job is to carry what a stream has not finished with, so that
@@ -248,46 +248,61 @@ exactly the frames one call would. This guarantee shapes the APIs. Whisper’s �
 clamp is a step the caller applies to a finished spectrogram, not an option
 on the converter: a clamp relative to a maximum reduces over whatever it is
 given, so inside a streaming converter it would make the chunking visible
-(<a href="https://docs.rs/bunsen/0.38.0/bunsen/ops/signal/perceptive_audio/index.html#dynamic-range-packaging-is-the-callers-step" title="mod bunsen::ops::signal::perceptive_audio">why</a>).</p>
+(<a href="https://docs.rs/bunsen/0.39.0/bunsen/ops/signal/perceptive_audio/index.html#dynamic-range-packaging-is-the-callers-step" title="mod bunsen::ops::signal::perceptive_audio">why</a>).</p>
 <h3 id="constructor-names-vary"><a class="header" href="#constructor-names-vary">Constructor names vary</a></h3>
 <p>The pattern is consistent, but the names of the methods that open a context
 are not, yet. A context comes from
-<a href="https://docs.rs/bunsen/0.38.0/bunsen/ops/signal/sliding_stft/struct.SlidingStft.html#method.init_state" title="method bunsen::ops::signal::sliding_stft::SlidingStft::init_state"><code>SlidingStft::init_state</code></a>,
-<a href="https://docs.rs/bunsen/0.38.0/bunsen/ops/signal/perceptive_audio/perceptive_audio_converter/struct.PerceptiveAudioConverter.html#method.new_context" title="method bunsen::ops::signal::perceptive_audio::perceptive_audio_converter::PerceptiveAudioConverter::new_context"><code>PerceptiveAudioConverter::new_context</code></a>,
-<a href="https://docs.rs/bunsen/0.38.0/bunsen/kits/speech/whisper/driver/whisper_stream_driver/struct.WhisperStreamDriver.html#method.new_context" title="method bunsen::kits::speech::whisper::driver::whisper_stream_driver::WhisperStreamDriver::new_context"><code>WhisperStreamDriver::new_context</code></a>,
-<a href="https://docs.rs/bunsen/0.38.0/bunsen/kits/gpts/nanochat/blocks/model/struct.NanoChatGpt.html#method.new_kv_cache" title="method bunsen::kits::gpts::nanochat::blocks::model::NanoChatGpt::new_kv_cache"><code>NanoChatGpt::new_kv_cache</code></a>,
-<a href="https://docs.rs/bunsen/0.38.0/bunsen/ops/transformers/attention/kv_cache/struct.KVCacheConfig.html#method.init" title="method bunsen::ops::transformers::attention::kv_cache::KVCacheConfig::init"><code>KVCacheConfig::init</code></a>
+<a href="https://docs.rs/bunsen/0.39.0/bunsen/ops/signal/sliding_stft/struct.SlidingStft.html#method.init_state" title="method bunsen::ops::signal::sliding_stft::SlidingStft::init_state"><code>SlidingStft::init_state</code></a>,
+<a href="https://docs.rs/bunsen/0.39.0/bunsen/ops/signal/perceptive_audio/perceptive_audio_converter/struct.PerceptiveAudioConverter.html#method.new_context" title="method bunsen::ops::signal::perceptive_audio::perceptive_audio_converter::PerceptiveAudioConverter::new_context"><code>PerceptiveAudioConverter::new_context</code></a>,
+<a href="https://docs.rs/bunsen/0.39.0/bunsen/kits/speech/asr_driver/stream_driver/struct.AsrStreamDriver.html#method.new_context" title="method bunsen::kits::speech::asr_driver::stream_driver::AsrStreamDriver::new_context"><code>WhisperStreamDriver::new_context</code></a>,
+<a href="https://docs.rs/bunsen/0.39.0/bunsen/kits/gpts/nanochat/blocks/model/struct.NanoChatGpt.html#method.new_kv_cache" title="method bunsen::kits::gpts::nanochat::blocks::model::NanoChatGpt::new_kv_cache"><code>NanoChatGpt::new_kv_cache</code></a>,
+<a href="https://docs.rs/bunsen/0.39.0/bunsen/ops/transformers/attention/kv_cache/struct.KVCacheConfig.html#method.init" title="method bunsen::ops::transformers::attention::kv_cache::KVCacheConfig::init"><code>KVCacheConfig::init</code></a>
 (which takes no device), or
-<a href="https://docs.rs/bunsen/0.38.0/bunsen/kits/speech/silero_vad/blocks/context/struct.SileroVadContextConfig.html#method.init" title="method bunsen::kits::speech::silero_vad::blocks::context::SileroVadContextConfig::init"><code>SileroVadContextConfig::init</code></a>
+<a href="https://docs.rs/bunsen/0.39.0/bunsen/kits/speech/silero_vad/blocks/context/struct.SileroVadContextConfig.html#method.init" title="method bunsen::kits::speech::silero_vad::blocks::context::SileroVadContextConfig::init"><code>SileroVadContextConfig::init</code></a>
 (which takes the model it serves). Look on the module first, then on a
 context config.</p>
 <h2 id="the-whisper-stream-driver"><a class="header" href="#the-whisper-stream-driver">The Whisper stream driver</a></h2>
 <p>The Whisper driver turns audio written in chunks into timed transcript
 events. It is the principle applied at the scale of a whole pipeline, and
-its design is documented in <a href="https://docs.rs/bunsen/0.38.0/bunsen/kits/speech/whisper/driver/index.html" title="mod bunsen::kits::speech::whisper::driver"><code>whisper::driver</code></a>.</p>
+its design is documented in <a href="https://docs.rs/bunsen/0.39.0/bunsen/kits/speech/whisper/driver/index.html" title="mod bunsen::kits::speech::whisper::driver"><code>whisper::driver</code></a>.</p>
+<p>Most of it does not depend on Whisper. The buffering, the voice-activity
+gate, the decision of when to decode and what to commit, the clock and the
+batching live in <a href="https://docs.rs/bunsen/0.39.0/bunsen/kits/speech/asr_driver/index.html" title="mod bunsen::kits::speech::asr_driver"><code>asr_driver</code></a>, and a
+model plugs in as an <a href="https://docs.rs/bunsen/0.39.0/bunsen/kits/speech/asr_driver/engine/trait.AsrEngine.html" title="trait bunsen::kits::speech::asr_driver::engine::AsrEngine"><code>AsrEngine</code></a>:
+its streaming features, the decode of one window, and its text. Whisper is one
+engine;
+<a href="https://docs.rs/bunsen/0.39.0/bunsen/kits/speech/qwen3_asr/engine/struct.Qwen3AsrEngine.html" title="struct bunsen::kits::speech::qwen3_asr::engine::Qwen3AsrEngine"><code>Qwen3AsrEngine</code></a> is
+another, driven by a
+<a href="https://docs.rs/bunsen/0.39.0/bunsen/kits/speech/qwen3_asr/engine/type.Qwen3AsrStreamDriver.html" title="type bunsen::kits::speech::qwen3_asr::engine::Qwen3AsrStreamDriver"><code>Qwen3AsrStreamDriver</code></a>
+under the same policies. Qwen3-ASR has no timestamps, so it commits each
+window whole.
+<a href="https://docs.rs/bunsen/0.39.0/bunsen/kits/speech/parakeet/engine/struct.ParakeetEngine.html" title="struct bunsen::kits::speech::parakeet::engine::ParakeetEngine"><code>ParakeetEngine</code></a> is a
+third: its transducer times every token, so a window cut at its full length
+commits up to a pause between words, and the rest is decoded again with the
+audio after it.</p>
 <h3 id="driver-and-context"><a class="header" href="#driver-and-context">Driver and context</a></h3>
 <p>A transcription splits in two. The
-<a href="https://docs.rs/bunsen/0.38.0/bunsen/kits/speech/whisper/driver/whisper_stream_driver/struct.WhisperStreamDriver.html" title="struct bunsen::kits::speech::whisper::driver::whisper_stream_driver::WhisperStreamDriver"><code>WhisperStreamDriver</code></a>
+<a href="https://docs.rs/bunsen/0.39.0/bunsen/kits/speech/whisper/driver/whisper_stream_driver/type.WhisperStreamDriver.html" title="type bunsen::kits::speech::whisper::driver::whisper_stream_driver::WhisperStreamDriver"><code>WhisperStreamDriver</code></a>
 is the shared, immutable half: the model and its token layout, the mel
 front end, the logit filters, the decode settings, and the voice-activity
 model if one is attached. A
-<a href="https://docs.rs/bunsen/0.38.0/bunsen/kits/speech/whisper/driver/whisper_stream_context/struct.WhisperStreamContext.html" title="struct bunsen::kits::speech::whisper::driver::whisper_stream_context::WhisperStreamContext"><code>WhisperStreamContext</code></a>
+<a href="https://docs.rs/bunsen/0.39.0/bunsen/kits/speech/whisper/driver/whisper_stream_context/type.WhisperStreamContext.html" title="type bunsen::kits::speech::whisper::driver::whisper_stream_context::WhisperStreamContext"><code>WhisperStreamContext</code></a>
 is one stream in progress, and it is the only stateful type: the front
 end’s carry, the frames not yet decoded, the committed transcript, the
-stream’s clock, its clamp policy and its voice-activity state. One driver
+stream’s clock, its level and its voice-activity state. One driver
 serves any number of contexts, and
-<a href="https://docs.rs/bunsen/0.38.0/bunsen/kits/speech/whisper/driver/whisper_stream_context/fn.advance_ready.html" title="fn bunsen::kits::speech::whisper::driver::whisper_stream_context::advance_ready"><code>advance_ready</code></a>
+<a href="https://docs.rs/bunsen/0.39.0/bunsen/kits/speech/asr_driver/stream_context/fn.advance_ready.html" title="fn bunsen::kits::speech::asr_driver::stream_context::advance_ready"><code>advance_ready</code></a>
 batches the decodes of many contexts through the one model
-(<a href="https://docs.rs/bunsen/0.38.0/bunsen/kits/speech/whisper/driver/index.html#driver-and-context" title="mod bunsen::kits::speech::whisper::driver">driver and context</a>).</p>
+(<a href="https://docs.rs/bunsen/0.39.0/bunsen/kits/speech/whisper/driver/index.html#driver-and-context" title="mod bunsen::kits::speech::whisper::driver">driver and context</a>).</p>
 <h3 id="one-driver-three-deployments"><a class="header" href="#one-driver-three-deployments">One driver, three deployments</a></h3>
 <p>The driver serves three deployments, and it is configured for each, never
 forked: server-batch offline inference; conservative real time, for a
 program that consumes the transcript; and best-effort real time, for a
 person reading along during the utterance. The three
-<a href="https://docs.rs/bunsen/0.38.0/bunsen/kits/speech/whisper/driver/emission_policy/struct.EmissionPolicy.html" title="struct bunsen::kits::speech::whisper::driver::emission_policy::EmissionPolicy"><code>EmissionPolicy</code></a>
+<a href="https://docs.rs/bunsen/0.39.0/bunsen/kits/speech/asr_driver/emission_policy/struct.EmissionPolicy.html" title="struct bunsen::kits::speech::asr_driver::emission_policy::EmissionPolicy"><code>EmissionPolicy</code></a>
 presets are those three deployments.</p>
 <h3 id="the-write_read-fold"><a class="header" href="#the-write_read-fold">The <code>write_read</code> fold</a></h3>
-<p><a href="https://docs.rs/bunsen/0.38.0/bunsen/kits/speech/whisper/driver/whisper_stream_context/struct.WhisperStreamContext.html#method.write_read" title="method bunsen::kits::speech::whisper::driver::whisper_stream_context::WhisperStreamContext::write_read"><code>write_read</code></a>
+<p><a href="https://docs.rs/bunsen/0.39.0/bunsen/kits/speech/asr_driver/stream_context/struct.AsrStreamContext.html#method.write_read" title="method bunsen::kits::speech::asr_driver::stream_context::AsrStreamContext::write_read"><code>write_read</code></a>
 has two halves. <code>write</code> takes samples in any buffer size, moves whole hops
 through the mel front end, and runs the voice-activity model. <code>read</code> runs
 every decode the emission policy says is due. They are separate so that a
@@ -295,11 +310,11 @@ batch of streams can be written one at a time and then read together.</p>
 <p>No decode state crosses a window boundary: each decode opens its own
 text-decoder cache. What carries from one window to the next is host-side:
 the seek pointer, the prompt carry, the detected language and the clock
-(<a href="https://docs.rs/bunsen/0.38.0/bunsen/kits/speech/whisper/driver/index.html#the-write_read-fold" title="mod bunsen::kits::speech::whisper::driver">the fold</a>).</p>
+(<a href="https://docs.rs/bunsen/0.39.0/bunsen/kits/speech/whisper/driver/index.html#the-write_read-fold" title="mod bunsen::kits::speech::whisper::driver">the fold</a>).</p>
 <h3 id="emission-commit-and-draft"><a class="header" href="#emission-commit-and-draft">Emission: commit and draft</a></h3>
-<p>The policy has two axes: <a href="https://docs.rs/bunsen/0.38.0/bunsen/kits/speech/whisper/driver/emission_policy/struct.DecodeTriggers.html" title="struct bunsen::kits::speech::whisper::driver::emission_policy::DecodeTriggers"><code>DecodeTriggers</code></a>,
+<p>The policy has two axes: <a href="https://docs.rs/bunsen/0.39.0/bunsen/kits/speech/asr_driver/emission_policy/struct.DecodeTriggers.html" title="struct bunsen::kits::speech::asr_driver::emission_policy::DecodeTriggers"><code>DecodeTriggers</code></a>,
 which says when a decode runs, and a
-<a href="https://docs.rs/bunsen/0.38.0/bunsen/kits/speech/whisper/driver/emission_policy/enum.CommitRule.html" title="enum bunsen::kits::speech::whisper::driver::emission_policy::CommitRule"><code>CommitRule</code></a>, which
+<a href="https://docs.rs/bunsen/0.39.0/bunsen/kits/speech/asr_driver/emission_policy/enum.CommitRule.html" title="enum bunsen::kits::speech::asr_driver::emission_policy::CommitRule"><code>CommitRule</code></a>, which
 says when its output is final. A decode triggered by a full window or by
 the end of a speech region commits. A decode triggered by the interval
 timer drafts.</p>
@@ -307,7 +322,7 @@ timer drafts.</p>
 drafts only the unfinished tail of a timestamped decode, before that tail
 is decoded again with more audio. <code>responsive</code> adds a draft every 600 ms of
 speech. A consumer that wants final text only keeps the
-<a href="https://docs.rs/bunsen/0.38.0/bunsen/kits/speech/whisper/driver/transcript/enum.TranscriptEvent.html#variant.Committed" title="variant bunsen::kits::speech::whisper::driver::transcript::TranscriptEvent::Committed"><code>Committed</code></a>
+<a href="https://docs.rs/bunsen/0.39.0/bunsen/kits/speech/asr_driver/transcript/enum.TranscriptEvent.html#variant.Committed" title="variant bunsen::kits::speech::asr_driver::transcript::TranscriptEvent::Committed"><code>Committed</code></a>
 events. A draft covers the audio after the last commit and replaces the
 previous draft whole, so there is no retraction protocol.</p>
 <p>A draft is the same decode as a commit, not a second code path. A decode
@@ -315,53 +330,55 @@ reads the context through <code>&amp;self</code>, and only a commit moves the st
 <code>responsive</code> commits exactly what <code>conservative</code> commits on the same audio.
 That holds with language detection too: only a commit fixes a stream’s
 language
-(<a href="https://docs.rs/bunsen/0.38.0/bunsen/kits/speech/whisper/driver/index.html#what-a-decode-may-touch" title="mod bunsen::kits::speech::whisper::driver">what a decode may touch</a>).
-The <a href="https://docs.rs/bunsen/0.38.0/bunsen/kits/speech/whisper/driver/index.html#emission-commit-and-draft" title="mod bunsen::kits::speech::whisper::driver">preset table</a>
+(<a href="https://docs.rs/bunsen/0.39.0/bunsen/kits/speech/whisper/driver/index.html#what-a-decode-may-touch" title="mod bunsen::kits::speech::whisper::driver">what a decode may touch</a>).
+The <a href="https://docs.rs/bunsen/0.39.0/bunsen/kits/speech/whisper/driver/index.html#emission-commit-and-draft" title="mod bunsen::kits::speech::whisper::driver">preset table</a>
 lists each preset’s triggers, commit rule and drafts.</p>
 <h3 id="the-stream-clock"><a class="header" href="#the-stream-clock">The stream clock</a></h3>
 <p>Every context carries a
-<a href="https://docs.rs/bunsen/0.38.0/bunsen/kits/speech/whisper/driver/stream_clock/struct.StreamClock.html" title="struct bunsen::kits::speech::whisper::driver::stream_clock::StreamClock"><code>StreamClock</code></a>: anchors
+<a href="https://docs.rs/bunsen/0.39.0/bunsen/kits/speech/asr_driver/stream_clock/struct.StreamClock.html" title="struct bunsen::kits::speech::asr_driver::stream_clock::StreamClock"><code>StreamClock</code></a>: anchors
 that map a sample index to media time. A bare stream gets one anchor at
 zero, which reproduces upstream’s arithmetic exactly. A capture timestamp, a
 container’s presentation time, or a dropped buffer is one more anchor. The
 bare case is the general case with one anchor, so the general case costs
 nothing extra
-(<a href="https://docs.rs/bunsen/0.38.0/bunsen/kits/speech/whisper/driver/index.html#the-stream-clock" title="mod bunsen::kits::speech::whisper::driver">the stream clock</a>).</p>
-<h3 id="the-clamp-policy-is-an-injected-object"><a class="header" href="#the-clamp-policy-is-an-injected-object">The clamp policy is an injected object</a></h3>
+(<a href="https://docs.rs/bunsen/0.39.0/bunsen/kits/speech/whisper/driver/index.html#the-stream-clock" title="mod bunsen::kits::speech::whisper::driver">the stream clock</a>).</p>
+<h3 id="the-level-is-the-streams-policy"><a class="header" href="#the-level-is-the-streams-policy">The level is the stream’s policy</a></h3>
 <p>Whisper floors its log-mels a fixed distance below a reference maximum, and
 upstream takes that maximum over the whole clip. A stream cannot see the
-whole clip, so where the reference comes from is a policy, and the policy
-is an object the caller hands to each context
-(<a href="https://docs.rs/bunsen/0.38.0/bunsen/kits/speech/whisper/driver/stream_clamp_policy/trait.StreamClampPolicy.html" title="trait bunsen::kits::speech::whisper::driver::stream_clamp_policy::StreamClampPolicy"><code>StreamClampPolicy</code></a>),
-not a variant the driver knows about. The context offers every new frame to
-the policy, and asks it for a reference just before a window is packaged.
-<a href="https://docs.rs/bunsen/0.38.0/bunsen/kits/speech/whisper/driver/stream_clamp_policy/struct.RunningMaxClamp.html" title="struct bunsen::kits::speech::whisper::driver::stream_clamp_policy::RunningMaxClamp"><code>RunningMaxClamp</code></a>
+whole clip, so where the reference comes from is the stream’s
+<a href="https://docs.rs/bunsen/0.39.0/bunsen/kits/speech/asr_driver/level/enum.LevelPolicy.html" title="enum bunsen::kits::speech::asr_driver::level::LevelPolicy"><code>LevelPolicy</code></a>, given to
+each context when it opens and shared by every model on the driver core.
+The context offers every new frame to its level, and asks it for a reference
+just before a window is packaged.
+<a href="https://docs.rs/bunsen/0.39.0/bunsen/kits/speech/asr_driver/level/enum.LevelPolicy.html#variant.Running" title="variant bunsen::kits::speech::asr_driver::level::LevelPolicy::Running"><code>Running</code></a>
 gives upstream’s whole-clip behaviour, a running maximum, or a per-region
 one, depending on how the context is fed.
-<a href="https://docs.rs/bunsen/0.38.0/bunsen/kits/speech/whisper/driver/stream_clamp_policy/struct.PerWindow.html" title="struct bunsen::kits::speech::whisper::driver::stream_clamp_policy::PerWindow"><code>PerWindow</code></a> floors each
-window on its own
-(<a href="https://docs.rs/bunsen/0.38.0/bunsen/kits/speech/whisper/driver/index.html#the-clamp-policy" title="mod bunsen::kits::speech::whisper::driver">the clamp policy</a>).</p>
+<a href="https://docs.rs/bunsen/0.39.0/bunsen/kits/speech/asr_driver/level/enum.LevelPolicy.html#variant.PerWindow" title="variant bunsen::kits::speech::asr_driver::level::LevelPolicy::PerWindow"><code>PerWindow</code></a>
+floors each window on its own. What the level summarizes is the model’s:
+Whisper’s is a maximum
+(<a href="https://docs.rs/bunsen/0.39.0/bunsen/kits/speech/asr_driver/level/struct.MaxLevel.html" title="struct bunsen::kits::speech::asr_driver::level::MaxLevel"><code>MaxLevel</code></a>)
+(<a href="https://docs.rs/bunsen/0.39.0/bunsen/kits/speech/whisper/driver/index.html#the-level-where-the-clamps-reference-comes-from" title="mod bunsen::kits::speech::whisper::driver">the level</a>).</p>
 <h3 id="voice-activity-regions-as-sub-streams"><a class="header" href="#voice-activity-regions-as-sub-streams">Voice-activity regions as sub-streams</a></h3>
 <p>The real-time presets decode at the end of each speech region, so they need
 a voice-activity model, attached with
-<a href="https://docs.rs/bunsen/0.38.0/bunsen/kits/speech/whisper/driver/whisper_stream_driver/struct.WhisperStreamDriver.html#method.with_vad" title="method bunsen::kits::speech::whisper::driver::whisper_stream_driver::WhisperStreamDriver::with_vad"><code>with_vad</code></a>.
+<a href="https://docs.rs/bunsen/0.39.0/bunsen/kits/speech/asr_driver/stream_driver/struct.AsrStreamDriver.html#method.with_vad" title="method bunsen::kits::speech::asr_driver::stream_driver::AsrStreamDriver::with_vad"><code>with_vad</code></a>.
 Each stream then runs Silero in a Silero context of its own. A
-<a href="https://docs.rs/bunsen/0.38.0/bunsen/kits/speech/whisper/driver/voice_activity_filter/struct.VoiceActivityFilterConfig.html" title="struct bunsen::kits::speech::whisper::driver::voice_activity_filter::VoiceActivityFilterConfig"><code>VoiceActivityFilterConfig</code></a>
+<a href="https://docs.rs/bunsen/0.39.0/bunsen/kits/speech/asr_driver/voice_activity_filter/struct.VoiceActivityFilterConfig.html" title="struct bunsen::kits::speech::asr_driver::voice_activity_filter::VoiceActivityFilterConfig"><code>VoiceActivityFilterConfig</code></a>
 turns Silero’s probabilities into
-<a href="https://docs.rs/bunsen/0.38.0/bunsen/kits/speech/whisper/driver/speech_region/struct.SpeechRegion.html" title="struct bunsen::kits::speech::whisper::driver::speech_region::SpeechRegion"><code>SpeechRegion</code></a>s.
+<a href="https://docs.rs/bunsen/0.39.0/bunsen/kits/speech/asr_driver/speech_region/struct.SpeechRegion.html" title="struct bunsen::kits::speech::asr_driver::speech_region::SpeechRegion"><code>SpeechRegion</code></a>s.
 A closed region is decoded as a unit of its own, with times taken off the
 parent stream’s clock, and a full window of silence is skipped instead of
 decoded. That gives a region the behaviour of a stream without a second
 stream object
-(<a href="https://docs.rs/bunsen/0.38.0/bunsen/kits/speech/whisper/driver/index.html#voice-activity-regions-as-sub-streams" title="mod bunsen::kits::speech::whisper::driver">regions as sub-streams</a>).</p>
+(<a href="https://docs.rs/bunsen/0.39.0/bunsen/kits/speech/whisper/driver/index.html#voice-activity-regions-as-sub-streams" title="mod bunsen::kits::speech::whisper::driver">regions as sub-streams</a>).</p>
 <h3 id="known-gaps"><a class="header" href="#known-gaps">Known gaps</a></h3>
 <ul>
-<li><a href="https://docs.rs/bunsen/0.38.0/bunsen/kits/speech/whisper/driver/emission_policy/enum.CommitRule.html#variant.Agreement" title="variant bunsen::kits::speech::whisper::driver::emission_policy::CommitRule::Agreement"><code>CommitRule::Agreement</code></a>
+<li><a href="https://docs.rs/bunsen/0.39.0/bunsen/kits/speech/asr_driver/emission_policy/enum.CommitRule.html#variant.Agreement" title="variant bunsen::kits::speech::asr_driver::emission_policy::CommitRule::Agreement"><code>CommitRule::Agreement</code></a>
 is not implemented yet: building a driver under it fails with
-an <a href="https://docs.rs/bunsen/0.38.0/bunsen/errors/kind/enum.BunsenErrorKind.html#variant.Unsupported" title="variant bunsen::errors::kind::BunsenErrorKind::Unsupported"><code>Unsupported</code></a> error.</li>
+an <a href="https://docs.rs/bunsen/0.39.0/bunsen/errors/kind/enum.BunsenErrorKind.html#variant.Unsupported" title="variant bunsen::errors::kind::BunsenErrorKind::Unsupported"><code>Unsupported</code></a> error.</li>
 <li>The <code>interval</code> trigger drafts only while the voice-activity gate says
 speech is in progress, and that gate runs only under <code>endpoint</code>
-(<a href="https://docs.rs/bunsen/0.38.0/bunsen/kits/speech/whisper/driver/emission_policy/struct.DecodeTriggers.html" title="struct bunsen::kits::speech::whisper::driver::emission_policy::DecodeTriggers"><code>DecodeTriggers</code></a>),
+(<a href="https://docs.rs/bunsen/0.39.0/bunsen/kits/speech/asr_driver/emission_policy/struct.DecodeTriggers.html" title="struct bunsen::kits::speech::asr_driver::emission_policy::DecodeTriggers"><code>DecodeTriggers</code></a>),
 so a driver with <code>interval</code> and without <code>endpoint</code> fails to build.</li>
 </ul>
 

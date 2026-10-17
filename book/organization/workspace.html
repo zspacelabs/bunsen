@@ -35,7 +35,7 @@
             const path_to_root = "../";
             const default_light_theme = "rust";
             const default_dark_theme = "ayu";
-            window.path_to_searchindex_js = "../searchindex-28f6e83b.js";
+            window.path_to_searchindex_js = "../searchindex-b798e791.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-52d38e2f.js"></script>
@@ -186,27 +186,31 @@
 under <code>crates/public</code> are published; everything else exists to build,
 check, validate or demonstrate them.</p>
 <pre><code class="language-text">crates/public/      the published crates (released together, one version)
-crates/dev/         development tooling: upstream bug repros, shared CLI code, benches
+crates/dev/         development tooling: upstream bug repros, benches
 crates/validation/  cross-checks of bunsen models against reference implementations
 examples/           runnable programs, one per kit or system
 tools/              one-shot fixture generators and repo checks (Python, stdlib-first)
 </code></pre>
 <h2 id="published-crates"><a class="header" href="#published-crates">Published crates</a></h2>
 <p>All published crates share the workspace version and are released together
-by release-plz (<a href="../development/release.html">Releasing</a>).</p>
+by release-plz (<a href="../development/release.html">Releasing</a>), except
+<code>bunsen-bundled-parakeet</code> and <code>bunsen-bundled-qwen3-asr</code>, which fetch the
+checkpoints the validation crates check against and are not published.</p>
 <div class="table-wrapper">
 <table>
 <thead>
 <tr><th>Crate</th><th>What it is</th></tr>
 </thead>
 <tbody>
-<tr><td><a href="https://docs.rs/bunsen/0.38.0/bunsen/index.html" title="mod bunsen"><code>bunsen</code></a></td><td>The library: contracts, ops, blocks, kits, the pretrained-model machinery, audits. Most users depend on this alone. See <a href="./crate.html">the bunsen crate</a>.</td></tr>
-<tr><td><a href="https://github.com/zspacelabs/bunsen/tree/main/crates/public/bunsen-contracts-macros"><code>bunsen-contracts-macros</code></a></td><td>The proc macro behind <a href="https://docs.rs/bunsen/0.38.0/bunsen/contracts/index.html#macros-and-methods" title="mod bunsen::contracts"><code>shape_contract!</code></a>. Never a direct dependency; <code>bunsen</code> re-exports it.</td></tr>
-<tr><td><a href="https://docs.rs/bunsen-bundled-silero/0.38.0/bunsen_bundled_silero/index.html" title="mod bunsen_bundled_silero"><code>bunsen-bundled-silero</code></a></td><td>Silero VAD’s pretrained weights, generated at build time from a committed ONNX graph. Pulled in by <code>bunsen</code>’s <code>silero-weights</code> feature.</td></tr>
-<tr><td><a href="https://docs.rs/bunsen-bundled-whisper/0.38.0/bunsen_bundled_whisper/index.html" title="mod bunsen_bundled_whisper"><code>bunsen-bundled-whisper</code></a></td><td>Whisper’s <code>base</code> checkpoint and tokenizer vocabularies, fetched and digest-pinned at build time and laid out as a pretrained cache. Pulled in by <code>whisper-weights</code>. Hosts no files itself.</td></tr>
-<tr><td><a href="https://docs.rs/bunsen-firehose/0.38.0/bunsen_firehose/index.html" title="mod bunsen_firehose"><code>bunsen-firehose</code></a></td><td>A column-oriented data-processing pipeline that feeds burn’s <code>Batcher</code>. Independent of <code>bunsen</code>. See <a href="../systems/firehose.html">Firehose</a>.</td></tr>
-<tr><td><a href="https://docs.rs/bunsen-firehose-image/0.38.0/bunsen_firehose_image/index.html" title="mod bunsen_firehose_image"><code>bunsen-firehose-image</code></a></td><td>Image operators for firehose: loading, augmentation, conversion to tensor data.</td></tr>
-<tr><td><a href="https://docs.rs/bunsen-arrow-dataloaders/0.38.0/bunsen_arrow_dataloaders/index.html" title="mod bunsen_arrow_dataloaders"><code>bunsen-arrow-dataloaders</code></a></td><td><em>Preview.</em> Parquet shards to tokenized training batches, for language-model training. See <a href="../systems/shards.html">Shard sets</a>.</td></tr>
+<tr><td><a href="https://docs.rs/bunsen/0.39.0/bunsen/index.html" title="mod bunsen"><code>bunsen</code></a></td><td>The library: contracts, ops, blocks, kits, the pretrained-model machinery, audits. Most users depend on this alone. See <a href="./crate.html">the bunsen crate</a>.</td></tr>
+<tr><td><a href="https://github.com/zspacelabs/bunsen/tree/main/crates/public/bunsen-contracts-macros"><code>bunsen-contracts-macros</code></a></td><td>The proc macro behind <a href="https://docs.rs/bunsen/0.39.0/bunsen/contracts/index.html#macros-and-methods" title="mod bunsen::contracts"><code>shape_contract!</code></a>. Never a direct dependency; <code>bunsen</code> re-exports it.</td></tr>
+<tr><td><a href="https://docs.rs/bunsen-bundled-silero/0.39.0/bunsen_bundled_silero/index.html" title="mod bunsen_bundled_silero"><code>bunsen-bundled-silero</code></a></td><td>Silero VAD’s 16 kHz checkpoint and, for validation, its ONNX graph and the reference model generated from it, fetched and digest-pinned at build time. Pulled in by <code>silero-weights</code>. Hosts no files itself.</td></tr>
+<tr><td><a href="https://docs.rs/bunsen-bundled-whisper/0.39.0/bunsen_bundled_whisper/index.html" title="mod bunsen_bundled_whisper"><code>bunsen-bundled-whisper</code></a></td><td>Whisper’s <code>base</code> checkpoint and tokenizer vocabularies, fetched and digest-pinned at build time and laid out as a pretrained cache. Pulled in by <code>whisper-weights</code>. Hosts no files itself.</td></tr>
+<tr><td><a href="https://docs.rs/bunsen-firehose/0.39.0/bunsen_firehose/index.html" title="mod bunsen_firehose"><code>bunsen-firehose</code></a></td><td>A column-oriented data-processing pipeline that feeds burn’s <code>Batcher</code>. Independent of <code>bunsen</code>. See <a href="../systems/firehose.html">Firehose</a>.</td></tr>
+<tr><td><a href="https://docs.rs/bunsen-firehose-image/0.39.0/bunsen_firehose_image/index.html" title="mod bunsen_firehose_image"><code>bunsen-firehose-image</code></a></td><td>Image operators for firehose: loading, augmentation, conversion to tensor data.</td></tr>
+<tr><td><a href="https://docs.rs/bunsen-arrow-dataloaders/0.39.0/bunsen_arrow_dataloaders/index.html" title="mod bunsen_arrow_dataloaders"><code>bunsen-arrow-dataloaders</code></a></td><td><em>Preview.</em> Parquet shards to tokenized training batches, for language-model training. See <a href="../systems/shards.html">Shard sets</a>.</td></tr>
+<tr><td><a href="https://github.com/zspacelabs/bunsen/tree/main/crates/public/bunsen-app"><code>bunsen-app</code></a></td><td>Shared command-line plumbing for bunsen’s binaries: device and precision flags, logging, shard selection, and the weights cache’s flags and <code>cache</code> commands. The examples and <code>bunsen-asr</code> are built on it.</td></tr>
+<tr><td><a href="https://github.com/zspacelabs/bunsen/tree/main/crates/public/bunsen-asr"><code>bunsen-asr</code></a></td><td>A binary, <code>cargo install bunsen-asr</code>: speech to text with Parakeet, Qwen3-ASR or Whisper, each through its <a href="../systems/streaming.html">stream driver</a>, and <code>bunsen-asr cache</code> over the weights cache.</td></tr>
 </tbody>
 </table>
 </div>
@@ -221,7 +225,6 @@ explains the scheme.</p>
 </thead>
 <tbody>
 <tr><td><a href="https://github.com/zspacelabs/bunsen/tree/main/crates/dev/burn_bug_repro"><code>burn_bug_repro</code></a></td><td>Reproductions of defects in burn and its ecosystem, each paired with a pin on today’s behaviour. See <a href="../development/repros.html">Upstream bug reproductions</a>.</td></tr>
-<tr><td><a href="https://github.com/zspacelabs/bunsen/tree/main/crates/dev/bunsen-app"><code>bunsen-app</code></a></td><td>Shared command-line plumbing (logging, device selection, shard selection, fetch policy) for the examples.</td></tr>
 <tr><td><a href="https://github.com/zspacelabs/bunsen/tree/main/crates/dev/silero-bench"><code>silero-bench</code></a></td><td>A benchmark CLI for Silero VAD. See <a href="../development/benchmarks.html">Benchmarks</a>.</td></tr>
 </tbody>
 </table>

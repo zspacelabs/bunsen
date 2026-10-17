@@ -35,7 +35,7 @@
             const path_to_root = "";
             const default_light_theme = "rust";
             const default_dark_theme = "ayu";
-            window.path_to_searchindex_js = "searchindex-28f6e83b.js";
+            window.path_to_searchindex_js = "searchindex-b798e791.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="toc-52d38e2f.js"></script>
@@ -182,13 +182,19 @@
                     <main>
                         <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.4/dist/katex.min.css">
 <h1 id="introduction"><a class="header" href="#introduction">Introduction</a></h1>
-<p><code>bunsen</code> is a <em>batteries-included</em> community standard library for the
-<a href="https://burn.dev"><code>burn</code></a> tensor framework. It collects the reusable
-modules, tensor operations, shape contracts, pretrained-model machinery and
-module-lifecycle utilities that fall outside <code>burn</code>’s core but that anyone
-building real models on top of it ends up needing.</p>
+<h2 id="bunsen---tackling-tomorrows-burn-problems-today"><a class="header" href="#bunsen---tackling-tomorrows-burn-problems-today">bunsen - tackling tomorrow’s burn problems today!</a></h2>
+<p>The <a href="https://burn.dev">burn</a> team is working hard to give us a stable long term foundation
+for developing high-performance and maintainable tensor programming in
+Rust; The “in Rust” aspect requires a degree of type and runtime R&amp;D research
+and that requires a conservative posture to api extension.</p>
+<p><code>bunsen</code> provides a “batteries included” complementary community standard library
+for research extensions to <code>burn</code>; ideas which are useful enough
+to collect into one place, document, and build upon; but front-run
+the <code>burn</code> interface frontier.
+Every idea in <code>bunsen</code> seeks to either be refined and ported into <code>burn</code>,
+or supplanted by the eventual <code>burn</code> solution to that problem.</p>
 <h2 id="this-book-and-the-api-docs"><a class="header" href="#this-book-and-the-api-docs">This book and the API docs</a></h2>
-<p>The <a href="https://docs.rs/bunsen/0.38.0/bunsen/index.html" title="mod bunsen">API docs</a> answer <em>what is this type, and how do I call it?</em>
+<p>The <a href="https://docs.rs/bunsen/0.39.0/bunsen/index.html" title="mod bunsen">API docs</a> answer <em>what is this type, and how do I call it?</em>
 This book answers <em>how is bunsen put together, why is it built that way, and
 how do we work on it?</em> The two are deliberately split:</p>
 <ul>

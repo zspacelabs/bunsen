@@ -35,7 +35,7 @@
             const path_to_root = "../";
             const default_light_theme = "rust";
             const default_dark_theme = "ayu";
-            window.path_to_searchindex_js = "../searchindex-28f6e83b.js";
+            window.path_to_searchindex_js = "../searchindex-b798e791.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-52d38e2f.js"></script>
@@ -187,7 +187,7 @@
 </code></pre>
 <p>bunsen is versioned on its own semver line, released by release-plz; its
 version is <em>not</em> tied to burn’s. Each release builds against one burn
-version, and bunsen re-exports it as <a href="https://docs.rs/bunsen/0.38.0/bunsen/public/index.html" title="mod bunsen::public"><code>bunsen::public::burn</code></a>,
+version, and bunsen re-exports it as <a href="https://docs.rs/bunsen/0.39.0/bunsen/public/index.html" title="mod bunsen::public"><code>bunsen::public::burn</code></a>,
 so you can use the same burn without pinning it twice. bunsen requires a
 recent stable Rust; its minimum supported version is the <code>rust-version</code> on its
 crates.io page.</p>
@@ -222,15 +222,15 @@ of the workspace, so it can’t drift from the API:</p>
 <p>Three things to notice, each with its own chapter:</p>
 <ul>
 <li><code>MlpConfig::init</code> comes from
-<a href="https://docs.rs/bunsen/0.38.0/bunsen/burner/module/module_init/trait.ModuleInit.html" title="trait bunsen::burner::module::module_init::ModuleInit"><code>ModuleInit</code></a>, which
-<a href="https://docs.rs/bunsen/0.38.0/bunsen/prelude/index.html" title="mod bunsen::prelude"><code>bunsen::prelude</code></a> brings into scope, and the binding’s type (<code>Mlp</code>)
+<a href="https://docs.rs/bunsen/0.39.0/bunsen/burner/module/module_init/trait.ModuleInit.html" title="trait bunsen::burner::module::module_init::ModuleInit"><code>ModuleInit</code></a>, which
+<a href="https://docs.rs/bunsen/0.39.0/bunsen/prelude/index.html" title="mod bunsen::prelude"><code>bunsen::prelude</code></a> brings into scope, and the binding’s type (<code>Mlp</code>)
 names the module it builds. See
 <a href="../systems/conventions.html">Module design conventions</a>.</li>
-<li><a href="https://docs.rs/bunsen/0.38.0/bunsen/contracts/index.html#macros-and-methods" title="mod bunsen::contracts"><code>unpack_shape_contract!</code></a> both
+<li><a href="https://docs.rs/bunsen/0.39.0/bunsen/contracts/index.html#macros-and-methods" title="mod bunsen::contracts"><code>unpack_shape_contract!</code></a> both
 checks the shape and names its dimensions. See
 <a href="../systems/contracts.html">Shape contracts</a>.</li>
 <li>The device comes from bunsen’s test support:
-<a href="https://docs.rs/bunsen/0.38.0/bunsen/support/testing/common_devices/fn.cpu_device.html" title="fn bunsen::support::testing::common_devices::cpu_device"><code>cpu_device</code></a> is burn’s CPU
+<a href="https://docs.rs/bunsen/0.39.0/bunsen/support/testing/common_devices/fn.cpu_device.html" title="fn bunsen::support::testing::common_devices::cpu_device"><code>cpu_device</code></a> is burn’s CPU
 backend. Your own code can create devices however burn allows, such as
 <code>Device::default()</code>, which follows the backends compiled in. See
 <a href="../development/testing.html">Testing and backends</a>.</li>
@@ -239,7 +239,7 @@ backend. Your own code can create devices however burn allows, such as
 <ul>
 <li><a href="./crate.html">The bunsen crate</a>: what’s in the library, and where things go.</li>
 <li><a href="./kits.html">Kits</a>: whole models you can load by name.</li>
-<li>The <a href="https://docs.rs/bunsen/0.38.0/bunsen/index.html" title="mod bunsen">API docs</a> for everything else.</li>
+<li>The <a href="https://docs.rs/bunsen/0.39.0/bunsen/index.html" title="mod bunsen">API docs</a> for everything else.</li>
 </ul>
 
                     </main>

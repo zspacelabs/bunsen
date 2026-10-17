@@ -35,7 +35,7 @@
             const path_to_root = "../";
             const default_light_theme = "rust";
             const default_dark_theme = "ayu";
-            window.path_to_searchindex_js = "../searchindex-28f6e83b.js";
+            window.path_to_searchindex_js = "../searchindex-b798e791.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-52d38e2f.js"></script>
@@ -203,7 +203,7 @@ frameworks. The export has to be the same model as the checkpoint bunsen
 loads. Whisper’s is a conversion of OpenAI’s <code>base</code> checkpoint, so the two
 agree only if bunsen’s loader and its forward pass are both right.</p>
 <p>The reference lives with the validation crate, or with the
-<a href="./assets.html#the-two-bundled-crates">bundled-asset crate</a> that supplies it,
+<a href="./assets.html#the-bundled-crates">bundled-asset crate</a> that supplies it,
 and never in <code>bunsen</code>. It exists to be disagreed with, and shipping it would
 put a second implementation of the model on the public surface.</p>
 <h2 id="staged-then-composed"><a class="header" href="#staged-then-composed">Staged, then composed</a></h2>
@@ -254,7 +254,8 @@ listing at a pinned revision and writes the digest table that a
 <code>download</code> fetches the assets it compares against, <code>gpu-tests</code> compiles the
 tests that load a model, and a backend feature says what they run on.
 Without <code>gpu-tests</code> only its fixture-integrity checks run, and that is all of
-it that CI runs. The full suite is run by hand, in release mode, with a
+it that CI runs: CI turns on neither <code>download</code> nor <code>gpu-tests</code> for any
+validation crate. The full suite is run by hand, in release mode, with a
 backend; the
 <a href="https://github.com/zspacelabs/bunsen/blob/main/crates/validation/whisper-model-validation/README.md#running-it">README</a>
 has the command. Without a backend feature the suite still passes, having

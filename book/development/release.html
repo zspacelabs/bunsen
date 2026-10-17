@@ -35,7 +35,7 @@
             const path_to_root = "../";
             const default_light_theme = "rust";
             const default_dark_theme = "ayu";
-            window.path_to_searchindex_js = "../searchindex-28f6e83b.js";
+            window.path_to_searchindex_js = "../searchindex-b798e791.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-52d38e2f.js"></script>
@@ -198,14 +198,14 @@ A version bump says something about bunsen’s API, and nothing about which
 burn release it builds against. release-plz runs <code>cargo-semver-checks</code>, so
 an API break gets a breaking bump even when its commit didn’t say so.</p>
 <h2 id="the-book"><a class="header" href="#the-book">The book</a></h2>
-<p>The published book is built by hand after a release, with
-<code>cargo make book-release</code>. That build points every API link at docs.rs,
-pinned to the version just released. So it is built from the release, not
-from <code>main</code>, and only once docs.rs has built that version; until then the
-pinned links are dead. CI builds and checks the book on every pull request,
-but only this step publishes it. The steps are in <code>CONTRIBUTING.md</code>’s
-release section, and <a href="./docs.html#building-the-book">Writing documentation</a>
-covers the other book tasks.</p>
+<p>The release workflow publishes the book after every release, to GitHub
+Pages. The build points every API link at docs.rs, pinned to the version
+just released, so it is built from the release, not from <code>main</code>, and the
+pinned links are dead until docs.rs has built that version. CI builds and
+checks the book on every pull request, but only a release publishes it.
+<code>CONTRIBUTING.md</code>’s release section says how to republish by hand, and
+<a href="./docs.html#building-the-book">Writing documentation</a> covers the other book
+tasks.</p>
 
                     </main>
 

@@ -35,7 +35,7 @@
             const path_to_root = "../";
             const default_light_theme = "rust";
             const default_dark_theme = "ayu";
-            window.path_to_searchindex_js = "../searchindex-28f6e83b.js";
+            window.path_to_searchindex_js = "../searchindex-b798e791.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-52d38e2f.js"></script>
@@ -289,14 +289,14 @@ tools on first use, at the versions CI uses:</p>
 <tr><td><code>cargo make book</code></td><td>builds the book against the local API docs; an unresolved API link is a warning</td></tr>
 <tr><td><code>cargo make book-check</code></td><td>the same build CI runs: an unresolved API link is an error</td></tr>
 <tr><td><code>cargo make book-serve</code></td><td>serves the book locally, rebuilding as you edit</td></tr>
-<tr><td><code>cargo make book-release</code></td><td>builds the book for publishing, with API links pinned to this release on docs.rs</td></tr>
+<tr><td><code>cargo make book-release</code></td><td>the publishing build: API links pinned to this release on docs.rs</td></tr>
 </tbody>
 </table>
 </div>
 <p>Run <code>book-check</code> before pushing a change that touches the book or renames
 anything public. The build runs <code>cargo doc</code> itself, so the first run is
-slow. <code>book-release</code> is part of a release, not of everyday work
-(<a href="./release.html">Releasing</a>).</p>
+slow. The release workflow makes the <code>book-release</code> build and publishes
+it (<a href="./release.html">Releasing</a>); run it locally only to preview that.</p>
 <h2 id="writing-a-page"><a class="header" href="#writing-a-page">Writing a page</a></h2>
 <p>Open each page with a sentence or two on what it covers. Say what a thing is
 for and when to reach for it, and stop when the <em>why</em> is told: one good

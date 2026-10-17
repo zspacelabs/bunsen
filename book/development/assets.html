@@ -35,7 +35,7 @@
             const path_to_root = "../";
             const default_light_theme = "rust";
             const default_dark_theme = "ayu";
-            window.path_to_searchindex_js = "../searchindex-28f6e83b.js";
+            window.path_to_searchindex_js = "../searchindex-b798e791.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-52d38e2f.js"></script>
@@ -190,7 +190,7 @@ rules are what they are. The rules themselves are in STYLE.md’s
 and
 <a href="https://github.com/zspacelabs/bunsen/blob/main/STYLE.md#fetched-assets-live-in-out_dir">Fetched assets live in <code>OUT_DIR</code></a>;
 the features that carry them are listed in
-<a href="https://docs.rs/bunsen/0.38.0/bunsen/data/index.html#features" title="mod bunsen::data"><code>bunsen::data</code></a>.</p>
+<a href="https://docs.rs/bunsen/0.39.0/bunsen/data/index.html#features" title="mod bunsen::data"><code>bunsen::data</code></a>.</p>
 <h2 id="build-time-and-run-time"><a class="header" href="#build-time-and-run-time">Build time and run time</a></h2>
 <p>There are two switches, and neither implies the other:</p>
 <ul>
@@ -211,6 +211,11 @@ models by name wants <code>fetch</code>.</p>
 <p>Every fetched asset is pinned to a SHA-256, written beside its URL in the
 build script and re-verified on every build. A file that changes upstream is
 a build error, not a silently different model.</p>
+<p>The build scripts fetch through the <code>bunsen-fetch</code> crate’s <code>Asset</code>, and
+bunsen’s disk cache fetches through the same crate at run time: one
+implementation of the streamed, hashed, renamed-into-place transfer, and one
+statement of the pretrained cache layout, so what a build lays out is what the
+cache reads.</p>
 <p>An environment variable can point the build at a local file instead:
 <code>WHISPER_BASE_PT</code> and its siblings, listed in the Whisper validation
 <a href="https://github.com/zspacelabs/bunsen/blob/main/crates/validation/whisper-model-validation/README.md#running-it">README</a>.
@@ -222,34 +227,37 @@ the package, so an asset cache beside the manifest would make the crate
 unpublishable. A crate unpacked from crates.io must not write into the
 registry either. The cost is that <code>cargo clean</code> discards the assets along
 with everything else.</p>
-<h2 id="the-two-bundled-crates"><a class="header" href="#the-two-bundled-crates">The two bundled crates</a></h2>
+<h2 id="the-bundled-crates"><a class="header" href="#the-bundled-crates">The bundled crates</a></h2>
 <p>Shipping a model with a build doesn’t need a special kind of source. It
 needs a cache directory that is already full
 (<a href="../systems/pretrained.html#bundling-is-a-populated-cache-directory">bundling</a>).
-The two bundled crates show the two forms:</p>
+Every bundled crate hosts nothing: its build script fetches the files, pins
+each one, and lays them out in <code>OUT_DIR</code> as a pretrained cache. A cache rooted
+there finds them offline without knowing they were bundled.</p>
 <ul>
-<li><a href="https://docs.rs/bunsen-bundled-whisper/0.38.0/bunsen_bundled_whisper/index.html" title="mod bunsen_bundled_whisper"><code>bunsen_bundled_whisper</code></a> hosts nothing. Its
-build script fetches Whisper’s <code>base</code> checkpoint, the vocabularies and,
-for validation, the ONNX reference; pins each one; and lays them out in
-<code>OUT_DIR</code> as a pretrained cache. A cache rooted there finds them offline
-without knowing they were bundled. bunsen’s <code>whisper-weights</code> feature
-pulls this crate in, so that feature makes the build reach the network on
-a cold cache.</li>
-<li><a href="https://docs.rs/bunsen-bundled-silero/0.38.0/bunsen_bundled_silero/index.html" title="mod bunsen_bundled_silero"><code>bunsen_bundled_silero</code></a> needs no network.
-Silero’s ONNX graph ships in the crate, and its build script converts the
-graph to a burnpack that is linked into the binary. The burnpack’s digest
-is computed at build time, and the Silero kit’s <code>bundled:silero/vad</code> row
-is pinned to it.</li>
+<li><a href="https://docs.rs/bunsen-bundled-whisper/0.39.0/bunsen_bundled_whisper/index.html" title="mod bunsen_bundled_whisper"><code>bunsen_bundled_whisper</code></a> fetches Whisper’s <code>base</code> checkpoint, the
+vocabularies and, for validation, the ONNX reference. bunsen’s
+<code>whisper-weights</code> feature pulls it in.</li>
+<li><a href="https://docs.rs/bunsen-bundled-silero/0.39.0/bunsen_bundled_silero/index.html" title="mod bunsen_bundled_silero"><code>bunsen_bundled_silero</code></a> fetches upstream’s 16 kHz Silero VAD
+checkpoint and, for validation, its ONNX graph, from which the reference
+model is generated. bunsen’s <code>silero-weights</code> feature pulls it in.</li>
+<li><code>bunsen-bundled-parakeet</code> and <code>bunsen-bundled-qwen3-asr</code> fetch the Phonon
+checkpoints, the base models and the ONNX references for their validation
+crates only, and are not published.</li>
 </ul>
+<p>So a <code>*-weights</code> feature makes the build reach the network on a cold cache.</p>
 <p>A deployment does the same thing at install time: fill the runtime cache
 ahead of time, and the program never needs <code>fetch</code>.</p>
 <h2 id="why-ci-doesnt-cache-them"><a class="header" href="#why-ci-doesnt-cache-them">Why CI doesn’t cache them</a></h2>
-<p>A cold CI run fetches the Whisper assets again, and that is deliberate.
-CI’s Rust cache prunes the workspace’s own crates from <code>target/</code> before it
-saves, so the assets don’t ride along. Asking it to keep workspace crates
-would cache the workspace’s build output too, test binaries included. A
-separate cache over an <code>OUT_DIR</code> path goes stale as soon as the hash in that
+<p>Every CI run fetches the assets bunsen’s own tests read again, and that is
+deliberate. CI caches compiled units, not <code>target/</code>, so cargo runs every
+build script on every run, and a build script’s fetch is not a compiled unit.
+A separate cache over an <code>OUT_DIR</code> path goes stale as soon as the hash in that
 path changes, which every toolchain or lockfile update does.</p>
+<p>It is affordable because CI fetches only those: Silero’s weights and
+Whisper’s <code>base</code> checkpoint and vocabularies, about 150 MB. CI never turns on
+<code>download</code>, whose checkpoints and reference exports run to many GB; the
+validation suites that need them run by hand.</p>
 <p>So don’t add a cache step for them. To avoid the download locally, point the
 override variables at copies you already have.</p>
 
