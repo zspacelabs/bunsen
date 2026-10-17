@@ -11,6 +11,7 @@ use std::collections::BTreeMap;
 
 use bunsen::{
     kits::speech::qwen3_asr::{
+        QWEN3_ASR_0_6B_ALIGNMENT_HEADS,
         Qwen3AsrBundle,
         Qwen3AsrFrontEndMeta,
     },
@@ -90,58 +91,6 @@ fn lcs_pairs(
     out
 }
 
-/// Seconds into the window of encoder frame `f`: a 1 s chunk of 100 mel
-/// frames yields 13, each eight mel frames on from the last.
-fn frame_seconds(f: usize) -> f64 {
-    (f / FRAMES_PER_CHUNK) as f64 + ((f % FRAMES_PER_CHUNK) * 8 + 4) as f64 / 100.0
-}
-
-/// Monotonic alignment of rows to columns through `score` (`rows x cols`,
-/// higher is better): the first column each row is aligned to.
-fn dtw_starts(
-    score: &[f64],
-    rows: usize,
-    cols: usize,
-) -> Vec<usize> {
-    let inf = f64::INFINITY;
-    let mut cost = vec![inf; (rows + 1) * (cols + 1)];
-    let mut step = vec![0u8; (rows + 1) * (cols + 1)];
-    let at = |i: usize, j: usize| i * (cols + 1) + j;
-    cost[0] = 0.0;
-    for i in 1..=rows {
-        for j in 1..=cols {
-            let (diag, up, left) = (
-                cost[at(i - 1, j - 1)],
-                cost[at(i - 1, j)],
-                cost[at(i, j - 1)],
-            );
-            let (best, s) = if diag <= up && diag <= left {
-                (diag, 0)
-            } else if up <= left {
-                (up, 1)
-            } else {
-                (left, 2)
-            };
-            cost[at(i, j)] = best - score[(i - 1) * cols + (j - 1)];
-            step[at(i, j)] = s;
-        }
-    }
-    let mut starts = vec![0; rows];
-    let (mut i, mut j) = (rows, cols);
-    while i > 0 && j > 0 {
-        starts[i - 1] = j - 1;
-        match step[at(i, j)] {
-            0 => {
-                i -= 1;
-                j -= 1;
-            }
-            1 => i -= 1,
-            _ => j -= 1,
-        }
-    }
-    starts
-}
-
 /// One window, decoded, with every layer's attention onto its audio.
 struct Window {
     /// The window's start in the clip, in seconds.
@@ -154,6 +103,12 @@ struct Window {
     rows: Vec<usize>,
     /// The words: each its first token's index into `rows`, and its text.
     words: Vec<(usize, String)>,
+    /// Seconds into the window of each encoder frame: the middle of the
+    /// mel frames it starts on.
+    seconds: Vec<f64>,
+    /// [`Qwen3AsrBundle::token_frames`] under
+    /// [`QWEN3_ASR_0_6B_ALIGNMENT_HEADS`]: a frame per transcript token.
+    aligned: Vec<usize>,
 }
 
 fn decode_window(
@@ -171,7 +126,10 @@ fn decode_window(
         .tokens;
     let layers: Vec<usize> = (0..bundle.model.language_model.layers.len()).collect();
     let attention = bundle
-        .audio_attention(features, valid, &reply, &layers)
+        .audio_attention(features.clone(), valid, &reply, &layers)
+        .unwrap();
+    let aligned_reply = bundle
+        .token_frames(features, valid, &reply, &QWEN3_ASR_0_6B_ALIGNMENT_HEADS)
         .unwrap();
     let [heads, _, n_audio] = attention[0].dims();
     let weights = attention
@@ -193,6 +151,10 @@ fn decode_window(
             _ => words.push((k, piece.trim().to_string())),
         }
     }
+    let seconds = (0..n_audio)
+        .map(|f| (bundle.encoder_frame_mel(f) + 4) as f64 / 100.0)
+        .collect();
+    let aligned = rows.iter().map(|&r| aligned_reply[r]).collect();
     Window {
         offset: start as f64,
         weights,
@@ -200,6 +162,8 @@ fn decode_window(
         n_audio,
         rows,
         words,
+        seconds,
+        aligned,
     }
 }
 
@@ -246,49 +210,20 @@ fn word_starts(
     window
         .words
         .iter()
-        .map(|&(k, _)| window.offset + frame_seconds(frames[k]))
+        .map(|&(k, _)| window.offset + window.seconds[frames[k]])
         .collect()
 }
 
-/// The heads whose attention times words best on the base model, by
-/// [`test_measure_attention_alignment`]'s ranking: `(layer, head)`.
-const HEADS: [(usize, usize); 8] = [
-    (25, 10),
-    (18, 5),
-    (22, 7),
-    (23, 14),
-    (25, 5),
-    (24, 15),
-    (16, 14),
-    (19, 5),
-];
-
-/// The words' errors when `heads`' rows, each renormalized over the audio,
-/// are averaged and aligned to the audio monotonically.
+/// The words' errors under [`Qwen3AsrBundle::token_frames`] with
+/// [`QWEN3_ASR_0_6B_ALIGNMENT_HEADS`].
 fn aligned_errors(
     windows: &[Window],
-    heads: &[(usize, usize)],
     reference: &WordTimes,
 ) -> Vec<f64> {
-    let mut all = Vec::new();
-    for w in windows {
-        let tokens = w.weights[0].len() / (w.heads * w.n_audio);
-        let rows = w.rows.len();
-        let mut score = vec![0.0f64; rows * w.n_audio];
-        for &(layer, head) in heads {
-            for (i, &r) in w.rows.iter().enumerate() {
-                let row = &w.weights[layer]
-                    [(head * tokens + r) * w.n_audio..(head * tokens + r + 1) * w.n_audio];
-                let sum: f32 = row.iter().sum();
-                for (j, &x) in row.iter().enumerate() {
-                    score[i * w.n_audio + j] += (x / sum.max(1e-9)) as f64 / heads.len() as f64;
-                }
-            }
-        }
-        let frames = dtw_starts(&score, rows, w.n_audio);
-        all.extend(errors(w, &word_starts(w, &frames), reference));
-    }
-    all
+    windows
+        .iter()
+        .flat_map(|w| errors(w, &word_starts(w, &w.aligned), reference))
+        .collect()
 }
 
 /// Reports `errors` under `label`, and holds them to the gate: 90% of the
@@ -317,10 +252,14 @@ fn report_and_gate(
     );
 }
 
-/// Scores every head of the base model, and holds [`HEADS`] to the gate.
+/// Scores every head of the base model, and holds
+/// [`QWEN3_ASR_0_6B_ALIGNMENT_HEADS`], the best eight of them, to the gate.
 ///
 /// Measured on wgpu: a dozen heads in layers 16 to 26 put 90% of the words
-/// within 0.20 s; [`HEADS`] averaged, 0.24 s, 83 of 114 within 0.16 s.
+/// within 0.20 s of Parakeet's (by the frame each attends to most); the eight
+/// aligned together, at their peaks, 0.20 s too, 90 of 114 within 0.16 s, a
+/// steady 0.12 s after Parakeet. Phonon-1: 0.20 s, 96 of 113; -micro 0.20 s,
+/// 99 of 112; -big 0.20 s, 93 of 115.
 #[test]
 #[serial_test::serial]
 fn test_measure_attention_alignment() {
@@ -367,11 +306,7 @@ fn test_measure_attention_alignment() {
         eprintln!("  ({layer:2}, {head:2}): {spread:.3} {bias:+.3} {n}");
     }
 
-    report_and_gate(
-        "base, HEADS",
-        &aligned_errors(&windows, &HEADS, &reference),
-        100,
-    );
+    report_and_gate("base", &aligned_errors(&windows, &reference), 100);
 }
 
 /// Phonon-1's builds re-pack the base model's weights, and its heads time
@@ -393,7 +328,7 @@ fn test_phonon1_builds_align_on_the_base_heads() {
             .iter()
             .map(|&w| decode_window(&bundle, &samples, w, &device))
             .collect();
-        report_and_gate(name, &aligned_errors(&windows, &HEADS, &reference), 100);
+        report_and_gate(name, &aligned_errors(&windows, &reference), 100);
     }
 }
 
@@ -404,15 +339,4 @@ fn test_lcs_pairs() {
         lcs_pairs(&s(&["a", "b", "c", "d"]), &s(&["a", "x", "c", "d"])),
         [(0, 0), (2, 2), (3, 3)]
     );
-}
-
-#[test]
-fn test_dtw_starts() {
-    // Three rows, each peaked on its own column, in order.
-    let score = [
-        1.0, 0.0, 0.0, 0.0, //
-        0.0, 0.0, 1.0, 0.0, //
-        0.0, 0.0, 0.0, 1.0,
-    ];
-    assert_eq!(dtw_starts(&score, 3, 4), [0, 2, 3]);
 }

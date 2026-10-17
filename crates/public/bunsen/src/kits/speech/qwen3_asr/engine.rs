@@ -25,8 +25,12 @@ use crate::{
         LogMelFeatures,
         MaxLevel,
         WindowDecode,
+        quiet_cut,
     },
 };
+
+/// The mel frames a full window's quiet cut must be quiet over: 90 ms.
+const QUIET_SPAN_FRAMES: usize = 9;
 
 /// The stream driver of a Qwen3-ASR model: the core's [`AsrStreamDriver`]
 /// over a [`Qwen3AsrEngine`].
@@ -48,10 +52,16 @@ pub type Qwen3AsrStreamContext = AsrStreamContext<Qwen3AsrEngine>;
 ///   ([`with_window_seconds`](Self::with_window_seconds)).
 /// - **Decode:** [`transcribe_features`](Qwen3AsrBundle::transcribe_features),
 ///   one window at a time: the greedy decoder takes one prompt. A reply's
-///   transcript is one segment over the whole window; Qwen3-ASR has no
+///   transcript is one segment over the window decoded; Qwen3-ASR has no
 ///   timestamps, so a window is committed whole, and the grid speech regions
 ///   snap to is one frame. A reply with no transcript (`language None`, for
 ///   audio without speech) skips its window.
+/// - **Cuts:** a window the core cut at its full length is cut again before it
+///   is decoded, at its quietest 90 ms in its last third by mean log-mel
+///   ([`quiet_cut`]), and the stream moves on from there: a window that ends
+///   inside a word loses or repeats it, and the model was seen to repeat
+///   phrases decoding audio past a pause.
+///   [`with_quiet_cut`](Self::with_quiet_cut) turns this off.
 /// - **Carry:** the language, the first a committed reply names.
 ///
 /// A stream's last frame is the end padding's, and goes, as the front end's
@@ -62,20 +72,33 @@ pub type Qwen3AsrStreamContext = AsrStreamContext<Qwen3AsrEngine>;
 pub struct Qwen3AsrEngine {
     bundle: Arc<Qwen3AsrBundle>,
     window_frames: usize,
+    quiet_cut: bool,
     device: Device,
 }
 
 impl Qwen3AsrEngine {
     /// The engine of `bundle`, on the model's device, with windows of at most
-    /// [`MAX_WINDOW_SECONDS`](Qwen3AsrBundle::MAX_WINDOW_SECONDS).
+    /// [`MAX_WINDOW_SECONDS`](Qwen3AsrBundle::MAX_WINDOW_SECONDS), each full
+    /// one cut at a quiet point.
     pub fn new(bundle: Arc<Qwen3AsrBundle>) -> Self {
         let device = bundle.model.devices()[0].clone();
         let window_frames = bundle.max_window() / bundle.front_end.hop();
         Self {
             bundle,
             window_frames,
+            quiet_cut: true,
             device,
         }
+    }
+
+    /// The engine with a full window cut at its quietest point before it is
+    /// decoded (`true`, the default), or decoded and committed whole.
+    pub fn with_quiet_cut(
+        mut self,
+        on: bool,
+    ) -> Self {
+        self.quiet_cut = on;
+        self
     }
 
     /// The engine with windows of at most `seconds`, rounded down to whole
@@ -234,8 +257,21 @@ impl AsrEngine for Qwen3AsrEngine {
         requests
             .into_iter()
             .map(|request| {
-                let frames = request.window.dims()[1];
-                let features = self.package(request.window, &request.level);
+                let mut window = request.window;
+                let mut frames = window.dims()[1];
+                if self.quiet_cut && frames >= self.window_frames {
+                    let loudness: Vec<f32> = window
+                        .clone()
+                        .mean_dim(2)
+                        .reshape([frames])
+                        .into_data()
+                        .convert::<f32>()
+                        .try_to_vec()
+                        .expect("f32 data");
+                    frames = quiet_cut(&loudness, QUIET_SPAN_FRAMES).max(1);
+                    window = window.slice_dim(1, 0..frames);
+                }
+                let features = self.package(window, &request.level);
                 let reply = self.bundle.transcribe_features(features, frames)?;
                 Ok(self.lay_out(reply, frames))
             })
@@ -495,5 +531,46 @@ mod tests {
         assert!((segment.end - 2.5).abs() < 0.011, "{}", segment.end);
         assert_eq!(segment.text, driver.engine().text(&segment.tokens).unwrap());
         assert_eq!(stream.language(), None);
+    }
+
+    /// A full window is decoded up to its quietest stretch in its last
+    /// third, and the stream moves on from there; turned off, it is decoded
+    /// whole.
+    #[test]
+    fn test_full_windows_are_cut_quiet() {
+        let device = performance_device();
+        // A tone, silent from 0.8 s to 0.9 s, then sounding again to 1.6 s.
+        let mut samples = tone(1.6);
+        samples[12_800..14_400].fill(0.0);
+        let commits = |engine: Qwen3AsrEngine| {
+            let driver = Qwen3AsrStreamDriver::new(engine, EmissionPolicy::offline()).unwrap();
+            let mut stream = driver
+                .new_context(StreamClock::uniform(16_000), LevelPolicy::PerWindow)
+                .unwrap();
+            let mut events = Vec::new();
+            for piece in samples.chunks(1_000) {
+                events.extend(stream.write_read(piece).unwrap());
+            }
+            events.extend(stream.end_read().unwrap());
+            events
+                .into_iter()
+                .map(|e| {
+                    let TranscriptEvent::Committed(segment) = e else {
+                        panic!("the offline policy only commits: {e:?}");
+                    };
+                    (segment.start, segment.end)
+                })
+                .collect::<Vec<_>>()
+        };
+        let engine = Qwen3AsrEngine::new(Arc::new(toy_bundle(VOCAB, Vec::new(), &device)))
+            .with_window_seconds(1.0);
+
+        let cut = commits(engine.clone());
+        assert!(cut.len() >= 2, "{cut:?}");
+        assert!((0.8..=0.9).contains(&cut[0].1), "{cut:?}");
+        assert_eq!(cut[1].0, cut[0].1);
+
+        let whole = commits(engine.with_quiet_cut(false));
+        assert!((whole[0].1 - 1.0).abs() < 1e-9, "{whole:?}");
     }
 }

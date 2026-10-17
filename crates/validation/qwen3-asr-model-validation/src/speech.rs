@@ -163,8 +163,10 @@ fn test_bunsen_stream_driver_transcribes_like_transformers() {
     let _memory = DeviceMemoryGuard::new(&device);
     let bundle = load_bundle("qwen/qwen3-asr-0.6b", &device);
     let rate = bundle.front_end.sample_rate();
-    let driver =
-        Qwen3AsrStreamDriver::new(Qwen3AsrEngine::new(bundle), EmissionPolicy::offline()).unwrap();
+    // Without the quiet cut, a full window is decoded whole: the fixture's
+    // windows.
+    let engine = Qwen3AsrEngine::new(bundle).with_quiet_cut(false);
+    let driver = Qwen3AsrStreamDriver::new(engine, EmissionPolicy::offline()).unwrap();
     let mut stream = driver
         .new_context(StreamClock::uniform(rate), LevelPolicy::PerWindow)
         .unwrap();
@@ -205,4 +207,82 @@ fn test_bunsen_stream_driver_transcribes_like_transformers() {
         against_truth <= 0.02,
         "WER vs the transcript {against_truth}"
     );
+}
+
+/// The clip through bunsen's Qwen3-ASR stream driver, fed in 0.1 s pieces
+/// under the offline policy: each full 30 s window is cut at its quietest
+/// stretch in its last third, decoded up to there, and the stream moves on
+/// from the cut.
+///
+/// # Returns
+/// The committed texts, joined.
+fn stream_quiet_cut(name: &str) -> String {
+    use bunsen::kits::speech::{
+        asr_driver::{
+            EmissionPolicy,
+            LevelPolicy,
+            StreamClock,
+            TranscriptEvent,
+        },
+        qwen3_asr::{
+            Qwen3AsrEngine,
+            Qwen3AsrStreamDriver,
+        },
+    };
+
+    let device = performance_device();
+    let _memory = DeviceMemoryGuard::new(&device);
+    let bundle = load_bundle(name, &device);
+    let rate = bundle.front_end.sample_rate();
+    let engine = Qwen3AsrEngine::new(bundle);
+    let driver = Qwen3AsrStreamDriver::new(engine, EmissionPolicy::offline()).unwrap();
+    let mut stream = driver
+        .new_context(StreamClock::uniform(rate), LevelPolicy::PerWindow)
+        .unwrap();
+    let samples = speech_clip(CLIP);
+    let mut events = Vec::new();
+    for piece in samples.chunks(rate / 10) {
+        events.extend(stream.write_read(piece).unwrap());
+    }
+    events.extend(stream.end_read().unwrap());
+
+    let mut texts = Vec::new();
+    for event in &events {
+        let TranscriptEvent::Committed(segment) = event else {
+            panic!("the offline policy only commits: {event:?}");
+        };
+        eprintln!(
+            "{name} {:.2}-{:.2}s: {:?}",
+            segment.start, segment.end, segment.text
+        );
+        texts.push(segment.text.clone().expect("the engine has a vocabulary"));
+    }
+    texts.join(" ")
+}
+
+/// Cut quiet, the windows neither lose nor repeat words at the cuts: the
+/// clip says "we choose to go to the moon" three times (Phonon-1 says it a
+/// fourth time decoding the first 30 s whole), and the transcript is at
+/// least as close to the truth as the fixed windows'.
+///
+/// Measured on wgpu: WER 0.0 (base) and 0.0171 (Phonon-1), the phrase
+/// three times each.
+#[test]
+#[serial_test::serial]
+fn test_bunsen_stream_driver_cuts_full_windows_quiet() {
+    for name in ["qwen/qwen3-asr-0.6b", "fermion/phonon-1"] {
+        let text = stream_quiet_cut(name);
+        let against_truth = wer(&text, &speech_transcript(CLIP));
+        let phrase = normalize_transcript(&text)
+            .join(" ")
+            .matches("we choose to go to the moon")
+            .count();
+        eprintln!("{name}: {text}");
+        eprintln!("{name}: WER vs transcript {against_truth:.4}, the phrase {phrase} times");
+        assert_eq!(phrase, 3, "{name}: {text}");
+        assert!(
+            against_truth <= 0.03,
+            "{name}: WER vs the transcript {against_truth}"
+        );
+    }
 }

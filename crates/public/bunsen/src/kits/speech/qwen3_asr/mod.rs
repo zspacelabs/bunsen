@@ -16,6 +16,9 @@
 //!   decoder; [`transcribe`](Qwen3AsrBundle::transcribe) one utterance, or
 //!   [`transcribe_long`](Qwen3AsrBundle::transcribe_long) any recording in
 //!   windows.
+//! - [`token_frames`](Qwen3AsrBundle::token_frames): when each reply token is
+//!   spoken, from the decoder's attention onto the audio, under the heads that
+//!   follow the speech ([`QWEN3_ASR_0_6B_ALIGNMENT_HEADS`]).
 //! - [`Qwen3AsrEngine`]: a bundle as the
 //!   [`asr_driver`](crate::kits::speech::asr_driver) core's engine; a
 //!   [`Qwen3AsrStreamDriver`] streams audio through it, under any
@@ -30,6 +33,7 @@
 
 pub mod blocks;
 
+mod alignment;
 #[cfg(feature = "fermion")]
 mod archive;
 mod bundle;
@@ -37,6 +41,7 @@ mod decode;
 mod engine;
 mod front_end;
 mod prompt;
+pub use alignment::*;
 #[cfg(feature = "fermion")]
 pub use archive::*;
 pub use bundle::*;

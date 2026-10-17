@@ -31,6 +31,9 @@ use crate::{
         StreamingFeatures,
         TimedTokens,
         WindowDecode,
+        WordSpan,
+        pause_cut,
+        word_segments,
     },
     ops::signal::perceptive_audio::PerceptiveAudioConverterMeta,
 };
@@ -221,67 +224,18 @@ impl ParakeetEngine {
         &self.bundle
     }
 
-    /// Where a window cut by length is committed to, in frames, and the
-    /// first token past it.
-    ///
-    /// The window may end inside a word, and a window opening on a word's
-    /// onset loses the word, so the cut goes in the widest pause between two
-    /// words in the window's last third: midway between where the earlier
-    /// word's last token ends and the later word's first token is emitted.
-    /// Without a pause there, before the last word.
-    fn cut(
+    /// The hypothesis' words, in frames of the window: a word opens on a
+    /// piece with the word mark (tokens before the first such piece are a
+    /// word of their own), starts on the encoder frame its first token is
+    /// emitted on, and ends where its last token ends.
+    fn spans(
         &self,
         hypothesis: &TdtHypothesis,
-        frames: usize,
-    ) -> Option<(usize, usize)> {
+    ) -> Vec<WordSpan> {
         let subsampling = self.bundle.model.subsampling_factor();
         let vocab = &self.bundle.vocab;
         let h = hypothesis;
-        let words: Vec<usize> = (1..h.tokens.len())
-            .filter(|&k| {
-                vocab
-                    .piece(h.tokens[k])
-                    .is_some_and(|p| p.starts_with(WORD_MARK))
-            })
-            .collect();
-        let pause = |k: usize| {
-            let end = h.frames[k - 1] + h.durations[k - 1].max(1);
-            (h.frames[k].saturating_sub(end), end)
-        };
-        let late = frames * 2 / 3;
-        // `max_by_key` keeps the last of equals: the latest widest pause.
-        let (k, _, mid) = words
-            .iter()
-            .map(|&k| {
-                let (gap, end) = pause(k);
-                (k, gap, end + gap / 2)
-            })
-            .filter(|&(k, gap, _)| gap > 0 && h.frames[k] * subsampling >= late)
-            .max_by_key(|&(_, gap, _)| gap)
-            .or_else(|| {
-                let &k = words.last()?;
-                Some((k, 0, pause(k).1))
-            })?;
-        let cut = (mid * subsampling).min(frames);
-        (cut > 0).then_some((cut, k))
-    }
-
-    /// The words of the hypothesis' tokens `[0, count)`, each a segment: from
-    /// the encoder frame its first token is emitted on to where its last
-    /// token ends, but no later than the next word's emission or `limit`.
-    ///
-    /// A word opens on a piece with the word mark; tokens before the first
-    /// such piece are a word of their own.
-    fn words(
-        &self,
-        hypothesis: &TdtHypothesis,
-        count: usize,
-        limit: usize,
-    ) -> Vec<TimedTokens> {
-        let subsampling = self.bundle.model.subsampling_factor();
-        let vocab = &self.bundle.vocab;
-        let h = hypothesis;
-        let mut opens: Vec<usize> = (0..count)
+        let opens: Vec<usize> = (0..h.tokens.len())
             .filter(|&k| {
                 k == 0
                     || vocab
@@ -289,25 +243,15 @@ impl ParakeetEngine {
                         .is_some_and(|p| p.starts_with(WORD_MARK))
             })
             .collect();
-        opens.push(count);
         opens
-            .windows(2)
-            .map(|w| {
-                let (first, next) = (w[0], w[1]);
-                let last = next - 1;
-                let start = (h.frames[first] * subsampling).min(limit);
-                let bound = if next < count {
-                    (h.frames[next] * subsampling).min(limit)
-                } else {
-                    limit
-                };
-                let end = ((h.frames[last] + h.durations[last].max(1)) * subsampling)
-                    .min(bound)
-                    .max(start);
-                TimedTokens {
-                    start,
-                    end,
-                    tokens: h.tokens[first..next].iter().map(|&t| t as i64).collect(),
+            .iter()
+            .enumerate()
+            .map(|(i, &first)| {
+                let last = opens.get(i + 1).map_or(h.tokens.len(), |&next| next) - 1;
+                WordSpan {
+                    first_token: first,
+                    start: h.frames[first] * subsampling,
+                    end: (h.frames[last] + h.durations[last].max(1)) * subsampling,
                 }
             })
             .collect()
@@ -316,25 +260,28 @@ impl ParakeetEngine {
     /// Lays a hypothesis out for the core: a segment per word.
     ///
     /// A window of `window_frames` was cut by length: it commits the words
-    /// before its [`cut`](Self::cut), and what follows is the tail. Any other
-    /// window, or one without a cut, commits every word. A window with no
-    /// tokens is skipped.
+    /// before its [`pause_cut`], on the encoder grid, and what follows is the
+    /// tail. Any other window, or one without a cut, commits every word. A
+    /// window with no tokens is skipped.
     fn lay_out(
         &self,
         hypothesis: TdtHypothesis,
         frames: usize,
     ) -> WindowDecode<()> {
         let tokens: Vec<i64> = hypothesis.tokens.iter().map(|&t| t as i64).collect();
+        let words = self.spans(&hypothesis);
+        let grid = self.bundle.model.subsampling_factor();
         let cut = (frames >= self.window_frames)
-            .then(|| self.cut(&hypothesis, frames))
+            .then(|| pause_cut(&words, frames, grid))
             .flatten();
-        let (advance, count) = cut.unwrap_or((frames, tokens.len()));
+        let (advance, count) = cut.unwrap_or((frames, words.len()));
+        let committed = words.get(count).map_or(tokens.len(), |w| w.first_token);
         WindowDecode {
-            segments: self.words(&hypothesis, count, advance),
-            tail: cut.map(|(cut, k)| TimedTokens {
+            segments: word_segments(&words[..count], &tokens[..committed], advance),
+            tail: cut.map(|(cut, _)| TimedTokens {
                 start: cut,
                 end: frames,
-                tokens: tokens[k..].to_vec(),
+                tokens: tokens[committed..].to_vec(),
             }),
             skip: tokens.is_empty(),
             tokens,

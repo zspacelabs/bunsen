@@ -23,6 +23,10 @@
 //! - [`VoiceActivityModel`] and [`VoiceActivityFilter`]: per-chunk speech
 //!   probabilities, and the gate that turns them into [`SpeechRegion`]s.
 //!   [`SileroVad`](crate::kits::speech::silero_vad::SileroVad) is a model.
+//! - Cutting a full window: an engine that times its words places the cut
+//!   between two [`WordSpan`]s ([`pause_cut`]) and makes each a segment
+//!   ([`word_segments`]); one that cannot cuts at the window's quietest stretch
+//!   before decoding it ([`quiet_cut`]).
 //! - [`LevelPolicy`] and [`LevelStatistic`]: what a window's features are
 //!   scaled against, the window's own frames or everything the stream has seen,
 //!   summarized as the model needs ([`MaxLevel`], [`MomentsLevel`]).
@@ -39,6 +43,7 @@ mod emission_policy;
 mod engine;
 mod level;
 mod log_mel_features;
+mod quiet_cut;
 mod speech_region;
 mod stream_clock;
 mod stream_context;
@@ -46,11 +51,13 @@ mod stream_driver;
 mod transcript;
 mod voice_activity_filter;
 mod voice_activity_model;
+mod word_spans;
 
 pub use emission_policy::*;
 pub use engine::*;
 pub use level::*;
 pub use log_mel_features::*;
+pub use quiet_cut::*;
 pub use speech_region::*;
 pub use stream_clock::*;
 pub use stream_context::*;
@@ -58,3 +65,4 @@ pub use stream_driver::*;
 pub use transcript::*;
 pub use voice_activity_filter::*;
 pub use voice_activity_model::*;
+pub use word_spans::*;
