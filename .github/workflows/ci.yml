@@ -6,6 +6,13 @@ on:
   pull_request:
     branches: [ "main" ]
 
+# A push to a pull request cancels that pull request's run still in
+# progress; each push to main runs in a group of its own, and is never
+# cancelled.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: true
+
 env:
   CARGO_TERM_COLOR: always
 
@@ -40,12 +47,14 @@ jobs:
         with:
           prefix-key: v1-rust
           cache-targets: false
+          save-if: ${{ github.ref == 'refs/heads/main' }}
       - uses: kunobi-ninja/kache-action@ad7317540dcdd71c904f7a60a87b620a0c0e67ed # v1
         with:
           version: 1.2.1
           cache-key-prefix: kache2-clippy
           cache-executables: true
           pr-comment: false
+          save-cache: ${{ github.ref == 'refs/heads/main' }}
       - run: cargo clippy --no-deps -- -D warnings
 
   book:
@@ -62,12 +71,14 @@ jobs:
         with:
           prefix-key: v1-rust
           cache-targets: false
+          save-if: ${{ github.ref == 'refs/heads/main' }}
       - uses: kunobi-ninja/kache-action@ad7317540dcdd71c904f7a60a87b620a0c0e67ed # v1
         with:
           version: 1.2.1
           cache-key-prefix: kache2-book
           cache-executables: true
           pr-comment: false
+          save-cache: ${{ github.ref == 'refs/heads/main' }}
       # Keep these versions in step with `Makefile.toml`'s `ensure-mdbook-*`.
       - uses: taiki-e/install-action@v2
         with:
@@ -121,11 +132,19 @@ jobs:
       # workspace crates in it are those of the first run on that lockfile.
       # On a new lockfile it starts from the newest older store. The action
       # skips itself, and the build runs uncached, if it cannot fetch kache.
+      #
+      # Only pushes to main save either cache; pull requests restore them.
+      # A pull request's run can restore only caches saved from its own
+      # branch or from main, and the repository's caches share 10 GB, the
+      # least recently used evicted first: stores saved from several open
+      # pull requests (about 4.5 GB each, across the jobs) would evict
+      # main's, and each other's.
       - name: Rust Cache
         uses: Swatinem/rust-cache@v2
         with:
           prefix-key: v1-rust
           cache-targets: false
+          save-if: ${{ github.ref == 'refs/heads/main' }}
 
       - name: kache
         uses: kunobi-ninja/kache-action@ad7317540dcdd71c904f7a60a87b620a0c0e67ed # v1
@@ -134,6 +153,7 @@ jobs:
           cache-key-prefix: kache2-test
           cache-executables: true
           pr-comment: true
+          save-cache: ${{ github.ref == 'refs/heads/main' }}
 
       # kache caches what rustc writes, not what a build script does: cargo
       # runs a build script whenever `target/` has no record of it, which is
