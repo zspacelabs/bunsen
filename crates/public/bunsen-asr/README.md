@@ -4,9 +4,9 @@
 its own `list` and `transcribe` and only the flags that apply to it:
 
 ```sh
-bunsen-asr parakeet  (list|transcribe|live) [FLAGS]   # NVIDIA's Parakeet TDT; FermionResearch's Phonon-2 by default
-bunsen-asr qwen3-asr (list|transcribe|live) [FLAGS]   # Qwen's Qwen3-ASR; FermionResearch's Phonon-1 by default
-bunsen-asr whisper   (list|transcribe|live) [FLAGS]   # OpenAI's Whisper; openai/base by default
+bunsen-asr parakeet  (list|fetch|transcribe|live) [FLAGS]   # NVIDIA's Parakeet TDT; FermionResearch's Phonon-2 by default
+bunsen-asr qwen3-asr (list|fetch|transcribe|live) [FLAGS]   # Qwen's Qwen3-ASR; FermionResearch's Phonon-1 by default
+bunsen-asr whisper   (list|fetch|transcribe|live) [FLAGS]   # OpenAI's Whisper; openai/base by default
 ```
 
 ```sh
@@ -25,6 +25,8 @@ bunsen-asr parakeet transcribe recording.wav
 
 `list` shows the family's named models, with each one's licence, its files, and whether each is cached; every family
 also takes `hf:org/repo`, a Hugging Face repo in `transformers`' layout, whose `config.json` gives the geometry.
+`fetch NAME...` brings every file of the named models into the cache and prints where each one is (`--verify`
+re-hashes each pinned file): a deployment that runs `--offline` fills its cache this way ahead of time.
 
 `transcribe` loads `--model` (the family's default unless named) through bunsen's pretrained cache, fetching it on
 first use, logs its info card (name, licence, origin, every file and where it came from) at `INFO` (`-v`), and prints

@@ -1,6 +1,6 @@
 //! `bunsen-asr`: speech to text on bunsen, one subcommand per model family:
-//! `bunsen-asr <parakeet|qwen3-asr|whisper> <list|transcribe|live> [FLAGS]`,
-//! and `bunsen-asr cache <path|list|clear>` for the weights cache.
+//! `bunsen-asr <parakeet|qwen3-asr|whisper> <list|fetch|transcribe|live>
+//! [FLAGS]`, and `bunsen-asr cache <path|list|clear>` for the weights cache.
 
 use bunsen::errors::BunsenResult;
 use clap::Parser;
@@ -8,6 +8,7 @@ use clap::Parser;
 mod args;
 mod driver;
 mod family;
+mod fetch_cmd;
 mod list_cmd;
 #[cfg(feature = "live")]
 mod live_cmd;
@@ -60,6 +61,9 @@ enum Action<F: clap::Args> {
     /// whether each file is cached.
     List(list_cmd::ListCmd),
 
+    /// Bring every file of the named models into the weights cache.
+    Fetch(fetch_cmd::FetchCmd),
+
     /// Transcribe audio files.
     Transcribe(transcribe_cmd::TranscribeCmd<F>),
 
@@ -75,6 +79,7 @@ impl<F: clap::Args + transcribe_cmd::FamilyFlags> KitCmd<F> {
     ) -> BunsenResult<()> {
         match &self.action {
             Action::List(list) => list.run(family),
+            Action::Fetch(fetch) => fetch.run(family),
             Action::Transcribe(transcribe) => transcribe.run(family),
             #[cfg(feature = "live")]
             Action::Live(live) => live.run(family),
@@ -111,6 +116,11 @@ mod tests {
             Args::try_parse_from(["bunsen-asr", family, "transcribe", "a.wav"]).unwrap();
         }
         assert!(Args::try_parse_from(["bunsen-asr", "silero", "list"]).is_err());
+        // Every family fetches, at least one name.
+        for family in ["parakeet", "qwen3-asr", "whisper"] {
+            Args::try_parse_from(["bunsen-asr", family, "fetch", "--verify", "a", "b"]).unwrap();
+            assert!(Args::try_parse_from(["bunsen-asr", family, "fetch"]).is_err());
+        }
         // The weights cache's commands.
         for action in [
             &["path"][..],
