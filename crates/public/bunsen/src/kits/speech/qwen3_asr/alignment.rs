@@ -1,16 +1,4 @@
 //! Timing a Qwen3-ASR reply from its decoder's attention onto the audio.
-//!
-//! Qwen3-ASR does not time its output, but each reply token is predicted
-//! under self-attention that reaches the window's audio placeholders, one per
-//! encoder frame, and some heads follow the speech as the reply is written:
-//! the frame such a head attends to most is near where the token's word is
-//! spoken. Averaged over a few such heads and aligned monotonically, the
-//! attention times each token to within an encoder frame or two, a steady
-//! lag after the word starts.
-//!
-//! The heads are a property of the checkpoint, measured against a timed
-//! reference (`qwen3-asr-model-validation`'s `alignment` tests, against
-//! Parakeet's word times).
 use burn::Tensor;
 
 use super::{
@@ -131,6 +119,17 @@ impl Qwen3AsrBundle {
     /// of [`audio_attention`](Self::audio_attention), each renormalized over
     /// the audio, averaged, aligned to the audio monotonically, and each
     /// token at its peak within its stretch ([`monotonic_peaks`]).
+    ///
+    /// Qwen3-ASR does not time its output, but each reply token is predicted
+    /// under self-attention that reaches the window's audio placeholders, one
+    /// per encoder frame, and some heads follow the speech as the reply is
+    /// written: the frame such a head attends to most is near where the
+    /// token's word is spoken. Averaged over a few such heads and aligned
+    /// monotonically, the attention times each token to within an encoder
+    /// frame or two, a steady lag after the word starts. The heads are a
+    /// property of the checkpoint, measured against a timed reference
+    /// (`qwen3-asr-model-validation`'s `alignment` tests, against Parakeet's
+    /// word times).
     ///
     /// # Arguments
     /// * `features`, `valid` - as

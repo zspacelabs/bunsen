@@ -1,5 +1,4 @@
-//! Timed words of a decode: where a full window is cut, and each word as a
-//! segment.
+//! Timed words: a full window's cut between them, and each as a segment.
 
 use crate::kits::speech::asr_driver::TimedTokens;
 
