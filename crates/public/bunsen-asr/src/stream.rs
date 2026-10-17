@@ -30,6 +30,11 @@ pub enum Preset {
     /// Speech regions as well, found by Silero's VAD (`silero/vad-16k`,
     /// through the same cache): silence is never decoded.
     Conservative,
+
+    /// Conservative, plus a draft of the speech so far every 600 ms of it:
+    /// `live` shows the drafts as they come; `transcribe` prints only what
+    /// is committed.
+    Responsive,
 }
 
 impl From<Preset> for EmissionPolicy {
@@ -37,6 +42,7 @@ impl From<Preset> for EmissionPolicy {
         match preset {
             Preset::Offline => PresetEmissionPolicy::Offline,
             Preset::Conservative => PresetEmissionPolicy::Conservative,
+            Preset::Responsive => PresetEmissionPolicy::Responsive,
         }
         .into()
     }
@@ -62,7 +68,26 @@ pub fn with_vad<E: AsrEngine>(
     )
 }
 
-/// Streams one recording through a new context of `driver`.
+/// Samples per push of `ms` milliseconds of audio, rounded up to a whole
+/// number of the driver's grain (its grid and the VAD's chunk), so a push
+/// leaves nothing staged behind it; at least one grain.
+pub fn push_samples<E: AsrEngine>(
+    driver: &AsrStreamDriver<E>,
+    ms: usize,
+) -> usize {
+    let mut grain = driver.grid_samples();
+    if let Some(vad) = driver.vad() {
+        grain = lcm(grain, vad.chunk_size());
+    }
+    (ms * driver.sample_rate())
+        .div_ceil(1000)
+        .div_ceil(grain)
+        .max(1)
+        * grain
+}
+
+/// Streams one recording through a new context of `driver`, `chunk`
+/// samples a push.
 ///
 /// # Returns
 /// The committed segments, in order, and the finished context.
@@ -70,15 +95,9 @@ pub fn stream<E: AsrEngine>(
     driver: &AsrStreamDriver<E>,
     samples: &[f32],
     level: LevelPolicy,
+    chunk: usize,
 ) -> BunsenResult<(Vec<TranscriptSegment>, AsrStreamContext<E>)> {
     let mut ctx = driver.new_context(StreamClock::uniform(driver.sample_rate()), level)?;
-    // About a second of audio a push, a whole number of the driver's grain:
-    // its grid and the VAD's chunk, so a push leaves nothing staged behind it.
-    let mut grain = driver.grid_samples();
-    if let Some(vad) = driver.vad() {
-        grain = lcm(grain, vad.chunk_size());
-    }
-    let chunk = driver.sample_rate().div_ceil(grain) * grain;
 
     let mut segments = Vec::new();
     let mut keep = |events: Vec<TranscriptEvent>| {

@@ -22,6 +22,10 @@ path = "src/main.rs"
 workspace = true
 
 [features]
+default = ["live"]
+## `<family> live`: the microphone through the host's audio API (`cpal`;
+## on Linux it links ALSA, `libasound2-dev`), and Ctrl-C as a clean stop.
+live = ["dep:cpal", "dep:ctrlc"]
 ## Make `--device cuda` available.
 cuda = ["bunsen-app/cuda"]
 ## Make `--device metal` available.
@@ -49,6 +53,8 @@ bunsen = { version = "0.38.0", path = "../bunsen", features = [
 ] }
 bunsen-app = { version = "0.38.0", path = "../bunsen-app" }
 clap = { workspace = true, features = ["derive"] }
+cpal = { workspace = true, optional = true }
+ctrlc = { workspace = true, optional = true }
 log = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }

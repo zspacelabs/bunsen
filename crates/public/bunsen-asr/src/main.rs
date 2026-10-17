@@ -1,15 +1,20 @@
 //! `bunsen-asr`: speech to text on bunsen, one subcommand per model family:
-//! `bunsen-asr <parakeet|qwen3-asr|whisper> <list|transcribe> [FLAGS]`, and
-//! `bunsen-asr cache <path|list|clear>` for the weights cache.
+//! `bunsen-asr <parakeet|qwen3-asr|whisper> <list|transcribe|live> [FLAGS]`,
+//! and `bunsen-asr cache <path|list|clear>` for the weights cache.
 
 use bunsen::errors::BunsenResult;
 use clap::Parser;
 
 mod args;
+mod driver;
 mod family;
 mod list_cmd;
+#[cfg(feature = "live")]
+mod live_cmd;
 mod parakeet;
 mod qwen3_asr;
+#[cfg(feature = "live")]
+mod resample;
 mod stream;
 mod transcribe_cmd;
 mod whisper;
@@ -57,6 +62,10 @@ enum Action<F: clap::Args> {
 
     /// Transcribe audio files.
     Transcribe(transcribe_cmd::TranscribeCmd<F>),
+
+    /// Transcribe the microphone, as it speaks.
+    #[cfg(feature = "live")]
+    Live(live_cmd::LiveCmd<F>),
 }
 
 impl<F: clap::Args + transcribe_cmd::FamilyFlags> KitCmd<F> {
@@ -67,6 +76,8 @@ impl<F: clap::Args + transcribe_cmd::FamilyFlags> KitCmd<F> {
         match &self.action {
             Action::List(list) => list.run(family),
             Action::Transcribe(transcribe) => transcribe.run(family),
+            #[cfg(feature = "live")]
+            Action::Live(live) => live.run(family),
         }
     }
 }
@@ -109,6 +120,22 @@ mod tests {
             let mut argv = vec!["bunsen-asr", "cache", "--cache-dir", "/tmp/c"];
             argv.extend_from_slice(action);
             Args::try_parse_from(argv).unwrap();
+        }
+        // Every family listens live, under any preset.
+        #[cfg(feature = "live")]
+        for family in ["parakeet", "qwen3-asr", "whisper"] {
+            Args::try_parse_from([
+                "bunsen-asr",
+                family,
+                "live",
+                "--preset",
+                "responsive",
+                "--chunk-ms",
+                "100",
+                "--seconds",
+                "5",
+            ])
+            .unwrap();
         }
         // Every family takes a preset.
         for family in ["parakeet", "qwen3-asr", "whisper"] {

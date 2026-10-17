@@ -92,12 +92,17 @@ pub fn driver(
     stream::with_vad(driver, preset, cache, device)
 }
 
+/// What each window's features are scaled against: each window floored against
+/// the loudest the stream has been.
+pub const LEVEL: LevelPolicy = LevelPolicy::Running;
+
 /// Transcribes one recording through `driver`.
 pub fn transcribe(
     driver: &WhisperStreamDriver,
     samples: &[f32],
+    chunk: usize,
 ) -> BunsenResult<Transcript> {
-    let (committed, ctx) = stream::stream(driver, samples, LevelPolicy::Running)?;
+    let (committed, ctx) = stream::stream(driver, samples, LEVEL, chunk)?;
     let segments = committed
         .iter()
         .map(|s| Segment {

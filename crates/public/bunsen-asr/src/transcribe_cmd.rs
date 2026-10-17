@@ -22,18 +22,10 @@ use serde::Serialize;
 
 use crate::{
     args::DeviceArgs,
-    family::{
-        Family,
-        Loaded,
-    },
-    parakeet::{
-        self,
-        ParakeetFlags,
-    },
-    qwen3_asr::{
-        self,
-        Qwen3AsrFlags,
-    },
+    driver::Driver,
+    family::Family,
+    parakeet::ParakeetFlags,
+    qwen3_asr::Qwen3AsrFlags,
     stream::Preset,
     whisper,
 };
@@ -101,6 +93,11 @@ pub struct TranscribeCmd<F: clap::Args> {
     #[arg(long, value_enum, default_value_t = Preset::Offline)]
     pub preset: Preset,
 
+    /// Milliseconds of audio per push: each file is fed to the driver as a
+    /// live loop would feed it, in pieces of this.
+    #[arg(long, default_value_t = 1000)]
+    pub chunk_ms: usize,
+
     /// Print one JSON object per file: the text, the language when the model
     /// names one, each word with its start and end in seconds when the model
     /// times words, and each segment when it emits segments.
@@ -159,34 +156,6 @@ struct JsonTranscript<'a> {
     transcript: &'a Transcript,
 }
 
-/// A family's stream driver; Whisper's, much the largest, boxed.
-enum Driver {
-    Parakeet(bunsen::kits::speech::parakeet::ParakeetStreamDriver),
-    Qwen3Asr(bunsen::kits::speech::qwen3_asr::Qwen3AsrStreamDriver),
-    Whisper(Box<bunsen::kits::speech::whisper::driver::WhisperStreamDriver>),
-}
-
-impl Driver {
-    fn sample_rate(&self) -> usize {
-        match self {
-            Driver::Parakeet(d) => d.sample_rate(),
-            Driver::Qwen3Asr(d) => d.sample_rate(),
-            Driver::Whisper(d) => d.sample_rate(),
-        }
-    }
-
-    fn transcribe(
-        &self,
-        samples: &[f32],
-    ) -> BunsenResult<Transcript> {
-        match self {
-            Driver::Parakeet(d) => parakeet::transcribe(d, samples),
-            Driver::Qwen3Asr(d) => qwen3_asr::transcribe(d, samples),
-            Driver::Whisper(d) => whisper::transcribe(d, samples),
-        }
-    }
-}
-
 impl<F: clap::Args + FamilyFlags> TranscribeCmd<F> {
     pub fn run(
         &self,
@@ -198,38 +167,15 @@ impl<F: clap::Args + FamilyFlags> TranscribeCmd<F> {
         let model = self.model.as_deref().unwrap_or(family.default_model());
         let loaded = family.load(model, &cache, &device)?;
 
-        let flags = &self.flags;
-        let preset = self.preset;
-        let driver = match loaded {
-            Loaded::Parakeet(bundle) => Driver::Parakeet(parakeet::driver(
-                bundle,
-                flags.parakeet().expect("Parakeet's flags"),
-                preset,
-                &cache,
-                &device,
-            )?),
-            Loaded::Qwen3Asr(bundle) => Driver::Qwen3Asr(qwen3_asr::driver(
-                bundle,
-                flags.qwen3_asr().expect("Qwen3-ASR's flags"),
-                preset,
-                &cache,
-                &device,
-            )?),
-            Loaded::Whisper(bundle) => Driver::Whisper(Box::new(whisper::driver(
-                bundle,
-                flags.whisper().expect("Whisper's flags"),
-                preset,
-                &cache,
-                &device,
-            )?)),
-        };
+        let driver = Driver::build(loaded, &self.flags, self.preset, &cache, &device)?;
         let rate = driver.sample_rate();
+        let chunk = driver.push_samples(self.chunk_ms);
 
         let (mut audio, mut busy) = (0.0, Duration::ZERO);
         for path in &self.files {
             let samples = load_audio_mono_sr(path, rate)?;
             let t0 = Instant::now();
-            let transcript = driver.transcribe(&samples)?;
+            let transcript = driver.transcribe(&samples, chunk)?;
             let elapsed = t0.elapsed();
 
             if self.json {

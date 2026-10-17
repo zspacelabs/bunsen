@@ -4,9 +4,9 @@
 its own `list` and `transcribe` and only the flags that apply to it:
 
 ```sh
-bunsen-asr parakeet  (list|transcribe) [FLAGS]   # NVIDIA's Parakeet TDT; FermionResearch's Phonon-2 by default
-bunsen-asr qwen3-asr (list|transcribe) [FLAGS]   # Qwen's Qwen3-ASR; FermionResearch's Phonon-1 by default
-bunsen-asr whisper   (list|transcribe) [FLAGS]   # OpenAI's Whisper; openai/base by default
+bunsen-asr parakeet  (list|transcribe|live) [FLAGS]   # NVIDIA's Parakeet TDT; FermionResearch's Phonon-2 by default
+bunsen-asr qwen3-asr (list|transcribe|live) [FLAGS]   # Qwen's Qwen3-ASR; FermionResearch's Phonon-1 by default
+bunsen-asr whisper   (list|transcribe|live) [FLAGS]   # OpenAI's Whisper; openai/base by default
 ```
 
 ```sh
@@ -35,7 +35,21 @@ and streamed through the family's stream driver (bunsen's `asr_driver`), about a
 
 `--preset` says when the driver decodes, for every family: `offline` (the default) decodes whole windows, one after
 another; `conservative` also finds speech regions with Silero's VAD (`silero/vad-16k`, through the same cache) and
-decodes each as it ends, so silence is never decoded.
+decodes each as it ends, so silence is never decoded; `responsive` adds a draft of the speech so far every 600 ms of
+it, which `live` shows. `--chunk-ms` (1000) is how much audio each push carries.
+
+`live` transcribes the microphone as it speaks, through the same driver: the host's default input device, or
+`--input-device` (a substring of an id or name from `--list-devices`), opened at the model's rate when it offers that
+and resampled otherwise. Each decode's committed text is a line on stdout; under `--preset responsive` the draft of the
+speech so far is on stderr, redrawn in place on a terminal. `--preset` defaults to `conservative` here, `--chunk-ms`
+to 250; `--seconds` stops after that much audio, Ctrl-C otherwise, and either way the speech past the last commit is
+decoded before the process exits. The default `live` feature builds it: it captures through `cpal`, which on Linux
+links ALSA (`libasound2-dev`); `--no-default-features` builds without it.
+
+```sh
+cargo run --release -p bunsen-asr --features wgpu -- parakeet live --preset responsive
+cargo run --release -p bunsen-asr -- whisper live --list-devices
+```
 
 | Family | Flags of its own |
 |---|---|

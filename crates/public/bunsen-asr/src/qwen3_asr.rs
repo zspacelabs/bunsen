@@ -65,13 +65,17 @@ pub fn driver(
     stream::with_vad(driver, preset, cache, device)
 }
 
+/// What each window's features are scaled against: each window packaged as the
+/// front end packages a whole utterance.
+pub const LEVEL: LevelPolicy = LevelPolicy::PerWindow;
+
 /// Transcribes one recording through `driver`.
 pub fn transcribe(
     driver: &Qwen3AsrStreamDriver,
     samples: &[f32],
+    chunk: usize,
 ) -> BunsenResult<Transcript> {
-    // Each window is packaged as the front end packages a whole utterance.
-    let (segments, ctx) = stream::stream(driver, samples, LevelPolicy::PerWindow)?;
+    let (segments, ctx) = stream::stream(driver, samples, LEVEL, chunk)?;
     Ok(Transcript {
         text: stream::join_text(&segments),
         language: ctx.language().map(String::from),

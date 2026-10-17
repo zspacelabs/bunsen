@@ -64,14 +64,18 @@ pub fn driver(
     stream::with_vad(driver, preset, cache, device)
 }
 
+/// What each window's features are scaled against: each window normalized as
+/// the extractor normalizes a whole item.
+pub const LEVEL: LevelPolicy = LevelPolicy::PerWindow;
+
 /// Transcribes one recording through `driver`: each committed segment is a
 /// word.
 pub fn transcribe(
     driver: &ParakeetStreamDriver,
     samples: &[f32],
+    chunk: usize,
 ) -> BunsenResult<Transcript> {
-    // Each window is normalized as the extractor normalizes a whole item.
-    let (segments, _) = stream::stream(driver, samples, LevelPolicy::PerWindow)?;
+    let (segments, _) = stream::stream(driver, samples, LEVEL, chunk)?;
     let words = segments
         .iter()
         .filter_map(|s| {

@@ -1495,6 +1495,8 @@ dependencies = [
  "bunsen-app",
  "burn",
  "clap",
+ "cpal",
+ "ctrlc",
  "log",
  "serde",
  "serde_json",
