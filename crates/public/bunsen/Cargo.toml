@@ -252,18 +252,18 @@ audit = [
 ]
 
 [dependencies]
-bunsen-contracts-macros = { version = "0.38.0", path = "../bunsen-contracts-macros" }
+bunsen-contracts-macros = { version = "0.39.0", path = "../bunsen-contracts-macros" }
 
-bunsen-bundled-silero = { version = "0.38.0",
+bunsen-bundled-silero = { version = "0.39.0",
     path = "../bunsen-bundled-silero",
     optional = true
 }
 
-bunsen-bundled-whisper = { version = "0.38.0",
+bunsen-bundled-whisper = { version = "0.39.0",
     path = "../bunsen-bundled-whisper",
     optional = true
 }
-bunsen-fetch = { version = "0.38.0", path = "../bunsen-fetch", optional = true }
+bunsen-fetch = { version = "0.39.0", path = "../bunsen-fetch", optional = true }
 
 
 tracing = { workspace = true, optional = true }

@@ -7,6 +7,16 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.39.0](https://github.com/zspacelabs/bunsen/compare/bunsen-bundled-silero-v0.38.0...bunsen-bundled-silero-v0.39.0) - 2026-10-17
+
+### Added
+
+- *(silero-vad)* load upstream's silero_vad_16k.safetensors by name ([#264](https://github.com/zspacelabs/bunsen/pull/264))
+
+### Other
+
+- *(silero-vad)* [**breaking**] ship no Silero weights; upstream's safetensors is the model ([#265](https://github.com/zspacelabs/bunsen/pull/265))
+
 ## [0.38.0](https://github.com/zspacelabs/bunsen/compare/bunsen-bundled-silero-v0.37.0...bunsen-bundled-silero-v0.38.0) - 2026-10-07
 
 ### Added

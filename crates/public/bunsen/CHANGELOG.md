@@ -5,6 +5,50 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and this project adheres
 to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.39.0](https://github.com/zspacelabs/bunsen/compare/bunsen-v0.38.0...bunsen-v0.39.0) - 2026-10-17
+
+### Added
+
+- [**breaking**] whisper-cli is retired; bunsen-asr covers it ([#295](https://github.com/zspacelabs/bunsen/pull/295))
+- [**breaking**] publish bunsen-app and bunsen-asr ([#291](https://github.com/zspacelabs/bunsen/pull/291))
+- *(pretrained)* list and remove what a pretrained cache holds ([#287](https://github.com/zspacelabs/bunsen/pull/287))
+- *(qwen3_asr)* a full Qwen3-ASR window is cut at its quietest stretch before decoding ([#283](https://github.com/zspacelabs/bunsen/pull/283))
+- *(qwen3_asr)* a reply's attention onto its audio, and the heads that time words ([#282](https://github.com/zspacelabs/bunsen/pull/282))
+- *(asr_driver)* Parakeet commits a segment per word; Qwen3-ASR's window is settable ([#281](https://github.com/zspacelabs/bunsen/pull/281))
+- *(parakeet)* Parakeet streams through the asr_driver core ([#279](https://github.com/zspacelabs/bunsen/pull/279))
+- *(qwen3_asr)* Qwen3-ASR streams through the asr_driver core ([#278](https://github.com/zspacelabs/bunsen/pull/278))
+- *(asr_driver)* the stream driver core and the engine trait ([#275](https://github.com/zspacelabs/bunsen/pull/275))
+- *(asr_driver)* a level policy shared by every model's front end ([#274](https://github.com/zspacelabs/bunsen/pull/274))
+- *(contracts)* shape contracts on the Conformer, Parakeet and Qwen3 bodies ([#269](https://github.com/zspacelabs/bunsen/pull/269))
+- *(bunsen-asr)* one speech-to-text CLI, a subcommand per model family ([#267](https://github.com/zspacelabs/bunsen/pull/267))
+- *(asr)* `hf:` loaders for Parakeet and Qwen3-ASR, geometry from config.json ([#266](https://github.com/zspacelabs/bunsen/pull/266))
+- *(silero-vad)* load upstream's silero_vad_16k.safetensors by name ([#264](https://github.com/zspacelabs/bunsen/pull/264))
+- *(qwen3-asr)* pretrained Phonon-1 and Qwen3-ASR-0.6B, held to transformers ([#260](https://github.com/zspacelabs/bunsen/pull/260))
+- *(qwen3-asr)* the prompt, transcript parsing and Qwen3AsrBundle ([#259](https://github.com/zspacelabs/bunsen/pull/259))
+- *(qwen3-asr)* the Qwen3 decoder and the Qwen3-ASR model ([#257](https://github.com/zspacelabs/bunsen/pull/257))
+- *(blocks)* share attention, encoder and feed-forward blocks across kits ([#256](https://github.com/zspacelabs/bunsen/pull/256))
+- *(pretrained)* shared readers for FermionResearch's formats and MLX affine tensors ([#255](https://github.com/zspacelabs/bunsen/pull/255))
+- *(qwen3-asr)* ONNX reference for Qwen3-ASR, held to onnxruntime ([#254](https://github.com/zspacelabs/bunsen/pull/254))
+- *(phonon-cli)* `phonon`, speech to text with Parakeet TDT models ([#252](https://github.com/zspacelabs/bunsen/pull/252))
+- *(parakeet)* Phonon-2 and parakeet-tdt-0.6b-v3 pretrained, held to their references ([#251](https://github.com/zspacelabs/bunsen/pull/251))
+- *(parakeet)* greedy TDT decoding and the piece vocabulary ([#250](https://github.com/zspacelabs/bunsen/pull/250))
+- *(parakeet)* the Parakeet feature extractor ([#249](https://github.com/zspacelabs/bunsen/pull/249))
+- *(parakeet)* FastConformer blocks and the Parakeet TDT model ([#248](https://github.com/zspacelabs/bunsen/pull/248))
+
+### Other
+
+- *(lstm)* remove ExtLstmState and related utilities, pending upstream adoption ([#297](https://github.com/zspacelabs/bunsen/pull/297))
+- *(asr_driver)* Whisper's streaming log-mels are asr_driver::LogMelFeatures ([#277](https://github.com/zspacelabs/bunsen/pull/277))
+- *(whisper)* [**breaking**] the Whisper stream driver runs on the asr_driver core ([#276](https://github.com/zspacelabs/bunsen/pull/276))
+- *(speech)* [**breaking**] lift the model-independent driver parts into kits::speech::asr_driver ([#272](https://github.com/zspacelabs/bunsen/pull/272))
+- *(qwen3-asr)* the audio encoder's convolution stem is a ConvSeq2d ([#270](https://github.com/zspacelabs/bunsen/pull/270))
+- *(silero-vad)* [**breaking**] ship no Silero weights; upstream's safetensors is the model ([#265](https://github.com/zspacelabs/bunsen/pull/265))
+- *(fetch)* one fetch implementation for the cache and the build scripts ([#263](https://github.com/zspacelabs/bunsen/pull/263))
+- *(kits)* list the Qwen3 and Qwen3-ASR kits in the kit index and the anatomy table ([#262](https://github.com/zspacelabs/bunsen/pull/262))
+- *(blocks)* promote shared attention, mask and long-audio pieces ([#258](https://github.com/zspacelabs/bunsen/pull/258))
+- *(whisper)* keep the stream's log-mels in a frame ring ([#246](https://github.com/zspacelabs/bunsen/pull/246))
+- Intro Blurb ([#244](https://github.com/zspacelabs/bunsen/pull/244))
+
 ## [0.38.0](https://github.com/zspacelabs/bunsen/compare/bunsen-v0.37.0...bunsen-v0.38.0) - 2026-10-07
 
 ### Added
