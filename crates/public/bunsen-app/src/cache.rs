@@ -5,32 +5,17 @@
 //! weights, and mounts [`CacheCommand`] as a `cache` subcommand:
 //! `cache path`, `cache list [KIT[/NAMESPACE]]`, and
 //! `cache clear [KIT[/NAMESPACE]] [--partial] [--yes]`.
-use std::{
-    io::Write,
-    path::PathBuf,
-};
+use std::{io::Write, path::PathBuf};
 
 use bunsen::{
     data::{
         cache::BunsenDiskCacheOptions,
-        pretrained::{
-            CacheSelector,
-            CachedFile,
-            PretrainedCache,
-            PretrainedCacheOptions,
-        },
+        pretrained::{CacheSelector, CachedFile, PretrainedCache, PretrainedCacheOptions},
     },
-    errors::{
-        BunsenResult,
-        ResultContext,
-        sys_at,
-    },
+    errors::{BunsenResult, ResultContext, sys_at},
 };
 
-use crate::logging::{
-    LogArgs,
-    LogLevelNum,
-};
+use crate::logging::{LogArgs, LogLevelNum};
 
 /// Where fetched weights live, and whether fetching is allowed.
 #[derive(clap::Args, Clone, Debug, Default)]

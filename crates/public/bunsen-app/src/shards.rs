@@ -4,21 +4,10 @@ use std::path::PathBuf;
 
 use bunsen::{
     data::{
-        cache::{
-            BunsenDiskCache,
-            FetchPolicy,
-            OnFailure,
-        },
-        shards::{
-            ShardId,
-            ShardSet,
-            ShardSetDescriptor,
-        },
+        cache::{BunsenDiskCache, FetchPolicy, OnFailure},
+        shards::{ShardId, ShardSet, ShardSetDescriptor},
     },
-    errors::{
-        BunsenResult,
-        ResultContext,
-    },
+    errors::{BunsenResult, ResultContext},
 };
 use burn::tensor::Slice;
 

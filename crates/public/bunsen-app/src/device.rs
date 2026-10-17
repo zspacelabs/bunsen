@@ -32,14 +32,7 @@
 //! ([`Device::supports_dtype`]). `--float-dtype` overrides the table with an
 //! exact dtype, and is an error where the device does not support it.
 
-use burn::tensor::{
-    DType,
-    Device,
-    DeviceConfig,
-    DeviceError,
-    FloatDType,
-    IntDType,
-};
+use burn::tensor::{DType, Device, DeviceConfig, DeviceError, FloatDType, IntDType};
 
 /// A backend to run on.
 #[derive(clap::ValueEnum, Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -50,15 +43,19 @@ pub enum DeviceChoice {
     Auto,
 
     /// CUDA.
+    #[cfg(feature = "cuda")]
     Cuda,
 
     /// Metal, through wgpu.
+    #[cfg(feature = "metal")]
     Metal,
 
     /// Vulkan, through wgpu.
+    #[cfg(feature = "vulkan")]
     Vulkan,
 
     /// wgpu, on whichever graphics API it settles on.
+    #[cfg(feature = "wgpu")]
     Wgpu,
 
     /// The CPU backend.
@@ -80,17 +77,17 @@ pub struct BackendArgs {
 impl BackendArgs {
     /// The backend `auto` resolves to in this build.
     pub fn auto_choice() -> DeviceChoice {
-        if cfg!(feature = "cuda") {
-            DeviceChoice::Cuda
-        } else if cfg!(feature = "metal") {
-            DeviceChoice::Metal
-        } else if cfg!(feature = "vulkan") {
-            DeviceChoice::Vulkan
-        } else if cfg!(feature = "wgpu") {
-            DeviceChoice::Wgpu
-        } else {
-            DeviceChoice::Flex
-        }
+        let accelerators: &[DeviceChoice] = &[
+            #[cfg(feature = "cuda")]
+            DeviceChoice::Cuda,
+            #[cfg(feature = "metal")]
+            DeviceChoice::Metal,
+            #[cfg(feature = "vulkan")]
+            DeviceChoice::Vulkan,
+            #[cfg(feature = "wgpu")]
+            DeviceChoice::Wgpu,
+        ];
+        accelerators.first().copied().unwrap_or(DeviceChoice::Flex)
     }
 
     /// The selected backend, with `auto` resolved.
@@ -103,44 +100,26 @@ impl BackendArgs {
 
     /// Builds the selected device, with the backend's default dtypes.
     ///
+    /// Only compiled-in backends are [`DeviceChoice`] variants, so this does
+    /// not fail; it returns a `Result` for the backends that someday might.
+    ///
     /// # Errors
-    /// When the selected backend's feature is not compiled in.
+    /// None at present.
     pub fn init(&self) -> Result<Device, String> {
         #[allow(unused_variables)]
         let index = self.device_index;
-        let not_built = |name: &str| {
-            Err(format!(
-                "the `{name}` backend is not compiled in; rebuild with `--features {name}`"
-            ))
-        };
-        match self.choice() {
+        Ok(match self.choice() {
             DeviceChoice::Auto => unreachable!("resolved by `choice`"),
-            DeviceChoice::Flex => Ok(Device::flex()),
-            DeviceChoice::Cuda => {
-                #[cfg(feature = "cuda")]
-                return Ok(Device::cuda(index.unwrap_or(0)));
-                #[cfg(not(feature = "cuda"))]
-                not_built("cuda")
-            }
-            DeviceChoice::Metal => {
-                #[cfg(feature = "metal")]
-                return Ok(Device::metal(wgpu_kind(index)));
-                #[cfg(not(feature = "metal"))]
-                not_built("metal")
-            }
-            DeviceChoice::Vulkan => {
-                #[cfg(feature = "vulkan")]
-                return Ok(Device::vulkan(wgpu_kind(index)));
-                #[cfg(not(feature = "vulkan"))]
-                not_built("vulkan")
-            }
-            DeviceChoice::Wgpu => {
-                #[cfg(feature = "wgpu")]
-                return Ok(Device::wgpu(wgpu_kind(index)));
-                #[cfg(not(feature = "wgpu"))]
-                not_built("wgpu")
-            }
-        }
+            DeviceChoice::Flex => Device::flex(),
+            #[cfg(feature = "cuda")]
+            DeviceChoice::Cuda => Device::cuda(index.unwrap_or(0)),
+            #[cfg(feature = "metal")]
+            DeviceChoice::Metal => Device::metal(wgpu_kind(index)),
+            #[cfg(feature = "vulkan")]
+            DeviceChoice::Vulkan => Device::vulkan(wgpu_kind(index)),
+            #[cfg(feature = "wgpu")]
+            DeviceChoice::Wgpu => Device::wgpu(wgpu_kind(index)),
+        })
     }
 }
 
@@ -341,9 +320,22 @@ pub fn resolve_precision(
 
     let wanted = match (precision, backend) {
         (Precision::Full, _) | (_, Flex) => F32,
-        (Precision::BF16Half, Cuda | Metal) => BF16,
-        (Precision::BF16Half, Vulkan | Wgpu) => F32,
-        (Precision::AnyHalf, Cuda | Metal | Vulkan | Wgpu) => F16,
+        #[cfg(feature = "cuda")]
+        (Precision::BF16Half, Cuda) => BF16,
+        #[cfg(feature = "metal")]
+        (Precision::BF16Half, Metal) => BF16,
+        #[cfg(feature = "vulkan")]
+        (Precision::BF16Half, Vulkan) => F32,
+        #[cfg(feature = "wgpu")]
+        (Precision::BF16Half, Wgpu) => F32,
+        #[cfg(feature = "cuda")]
+        (Precision::AnyHalf, Cuda) => F16,
+        #[cfg(feature = "metal")]
+        (Precision::AnyHalf, Metal) => F16,
+        #[cfg(feature = "vulkan")]
+        (Precision::AnyHalf, Vulkan) => F16,
+        #[cfg(feature = "wgpu")]
+        (Precision::AnyHalf, Wgpu) => F16,
         (_, Auto) => unreachable!("resolved before the table"),
     };
     if supports(wanted.into()) { wanted } else { F32 }
@@ -483,16 +475,25 @@ mod tests {
         use Precision::*;
 
         let cases = [
+            #[cfg(feature = "cuda")]
             (Full, Cuda, F32),
             (Full, Flex, F32),
+            #[cfg(feature = "cuda")]
             (BF16Half, Cuda, BF16),
+            #[cfg(feature = "metal")]
             (BF16Half, Metal, BF16),
+            #[cfg(feature = "vulkan")]
             (BF16Half, Vulkan, F32),
+            #[cfg(feature = "wgpu")]
             (BF16Half, Wgpu, F32),
             (BF16Half, Flex, F32),
+            #[cfg(feature = "cuda")]
             (AnyHalf, Cuda, F16),
+            #[cfg(feature = "metal")]
             (AnyHalf, Metal, F16),
+            #[cfg(feature = "vulkan")]
             (AnyHalf, Vulkan, F16),
+            #[cfg(feature = "wgpu")]
             (AnyHalf, Wgpu, F16),
             (AnyHalf, Flex, F32),
         ];
@@ -506,6 +507,7 @@ mod tests {
     }
 
     /// A half the device does not support falls back to f32.
+    #[cfg(feature = "metal")]
     #[test]
     fn test_unsupported_half_falls_back() {
         assert_eq!(
@@ -514,6 +516,7 @@ mod tests {
         );
     }
 
+    #[cfg(feature = "cuda")]
     #[test]
     fn test_flags_choose_the_intent() {
         let prefs = DevicePrefs::new()
@@ -548,7 +551,7 @@ mod tests {
             float_dtype: Some(FloatChoice::Bf16),
             ..args
         };
-        let err = resolve_config(&args, &prefs, DeviceChoice::Wgpu, no_bf16).unwrap_err();
+        let err = resolve_config(&args, &prefs, DeviceChoice::Flex, no_bf16).unwrap_err();
         assert!(err.contains("BF16"), "{err}");
     }
 
@@ -560,7 +563,7 @@ mod tests {
             resolve_config(
                 &PrecisionArgs::default(),
                 &prefs,
-                DeviceChoice::Cuda,
+                DeviceChoice::Flex,
                 supports,
             )
             .unwrap()
@@ -572,7 +575,7 @@ mod tests {
             resolve_config(
                 &PrecisionArgs::default(),
                 &DevicePrefs::new(),
-                DeviceChoice::Cuda,
+                DeviceChoice::Flex,
                 all
             )
             .unwrap()
