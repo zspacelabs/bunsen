@@ -1,17 +1,22 @@
 [package]
 name = "bunsen-app"
-description = "Shared command-line plumbing for bunsen's example binaries: device and precision selection, logging, shard selection, the weights cache's flags and commands."
+description = "Shared command-line plumbing for bunsen's binaries: device and precision selection, logging, shard selection, and the weights cache's flags and commands."
 authors.workspace = true
 edition.workspace = true
 rust-version.workspace = true
 version.workspace = true
 repository.workspace = true
 license.workspace = true
-publish = false
+homepage = "https://zspacelabs.ai/bunsen/book/"
+documentation = "https://docs.rs/bunsen-app/latest/"
+readme = "README.md"
+keywords = ["burn", "cli", "clap", "bunsen"]
+categories = ["command-line-interface"]
+publish = true
 
 [dependencies]
 burn = { workspace = true, features = ["std", "flex"] }
-bunsen = { path = "../../public/bunsen", features = ["std", "testing", "fetch", "cache"] }
+bunsen = { version = "0.38.0", path = "../bunsen", features = ["std", "testing", "fetch", "cache"] }
 
 clap = { workspace = true, features = ["derive"] }
 stderrlog = { workspace = true }

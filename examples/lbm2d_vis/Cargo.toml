@@ -22,7 +22,7 @@ wgpu = ["bunsen-app/wgpu"]
 burn = { workspace = true, features = ["fusion"] }
 bunsen = { path = "../../crates/public/bunsen" }
 # `--device`.
-bunsen-app = { path = "../../crates/dev/bunsen-app" }
+bunsen-app = { path = "../../crates/public/bunsen-app" }
 
 clap = { workspace = true, features = ["derive"] }
 indicatif = { workspace = true }

@@ -1,6 +1,6 @@
 # bunsen-asr
 
-`bunsen-asr`: speech to text on [bunsen](../../crates/public/bunsen), one subcommand per model family, each with
+`bunsen-asr`: speech to text on [bunsen](https://crates.io/crates/bunsen), one subcommand per model family, each with
 its own `list` and `transcribe` and only the flags that apply to it:
 
 ```sh
@@ -14,6 +14,13 @@ cargo run --release -p bunsen-asr --features wgpu -- parakeet transcribe recordi
 cargo run --release -p bunsen-asr --features wgpu -- qwen3-asr transcribe --model qwen/qwen3-asr-1.7b --json recording.wav
 cargo run --release -p bunsen-asr --features wgpu -- whisper transcribe --preset conservative --language en recording.wav
 cargo run --release -p bunsen-asr -- qwen3-asr list
+```
+
+Installed from crates.io, with the GPU backends you want (the CPU is always there):
+
+```sh
+cargo install bunsen-asr --features wgpu
+bunsen-asr parakeet transcribe recording.wav
 ```
 
 `list` shows the family's named models, with each one's licence, its files, and whether each is cached; every family

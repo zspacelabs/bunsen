@@ -1,5 +1,4 @@
-//! Arguments every command shares; the weights cache's are
-//! [`bunsen_app::cache::WeightsCacheArgs`].
+//! Arguments every command shares, but the weights cache's.
 use bunsen::errors::{
     BunsenError,
     BunsenResult,

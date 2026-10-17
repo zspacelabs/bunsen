@@ -91,3 +91,13 @@ version_group = "bunsen"
 name = "bunsen-bundled-whisper"
 release = true
 version_group = "bunsen"
+
+[[package]]
+name = "bunsen-app"
+release = true
+version_group = "bunsen"
+
+[[package]]
+name = "bunsen-asr"
+release = true
+version_group = "bunsen"

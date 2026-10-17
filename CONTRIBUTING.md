@@ -101,16 +101,22 @@ hand. Configuration lives in [`release-plz.toml`](release-plz.toml); the automat
 
 ### What gets released
 
-The seven published crates, the ones in `crates/public/`, are versioned in **lockstep**: they share one version
+The ten published crates, in `crates/public/`, are versioned in **lockstep**: they share one version
 (`version_group = "bunsen"` in `release-plz.toml`, matching `version.workspace = true` in the root `Cargo.toml`):
 
 - `bunsen`
 - `bunsen-contracts-macros`
+- `bunsen-fetch`
 - `bunsen-firehose`
 - `bunsen-firehose-image`
 - `bunsen-arrow-dataloaders`
 - `bunsen-bundled-silero`
 - `bunsen-bundled-whisper`
+- `bunsen-app`
+- `bunsen-asr` (a binary: `cargo install bunsen-asr`)
+
+`bunsen-bundled-parakeet` and `bunsen-bundled-qwen3-asr` live in `crates/public/` too, but are not published
+(`publish = false`): they fetch the checkpoints the validation crates check against.
 
 Nothing else is released: release-plz is opt-in (`release = false` for the workspace, `release = true` per crate), so
 the examples and the `crates/dev` and `crates/validation` crates stay out.

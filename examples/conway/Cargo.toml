@@ -24,7 +24,7 @@ burn = { workspace = true, features = ["fusion", "autotune"] }
 bunsen = { path = "../../crates/public/bunsen" }
 
 log = { workspace = true }
-bunsen-app = { path = "../../crates/dev/bunsen-app" }
+bunsen-app = { path = "../../crates/public/bunsen-app" }
 clap = { workspace = true, features = ["derive"] }
 
 indicatif = { workspace = true }

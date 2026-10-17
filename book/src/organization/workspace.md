@@ -6,7 +6,7 @@ check, validate or demonstrate them.
 
 ```text
 crates/public/      the published crates (released together, one version)
-crates/dev/         development tooling: upstream bug repros, shared CLI code, benches
+crates/dev/         development tooling: upstream bug repros, benches
 crates/validation/  cross-checks of bunsen models against reference implementations
 examples/           runnable programs, one per kit or system
 tools/              one-shot fixture generators and repo checks (Python, stdlib-first)
@@ -15,7 +15,9 @@ tools/              one-shot fixture generators and repo checks (Python, stdlib-
 ## Published crates
 
 All published crates share the workspace version and are released together
-by release-plz ([Releasing](../development/release.md)).
+by release-plz ([Releasing](../development/release.md)), except
+`bunsen-bundled-parakeet` and `bunsen-bundled-qwen3-asr`, which fetch the
+checkpoints the validation crates check against and are not published.
 
 | Crate | What it is |
 |---|---|
@@ -26,6 +28,8 @@ by release-plz ([Releasing](../development/release.md)).
 | [`bunsen-firehose`](bunsen_firehose) | A column-oriented data-processing pipeline that feeds burn's `Batcher`. Independent of `bunsen`. See [Firehose](../systems/firehose.md). |
 | [`bunsen-firehose-image`](bunsen_firehose_image) | Image operators for firehose: loading, augmentation, conversion to tensor data. |
 | [`bunsen-arrow-dataloaders`](bunsen_arrow_dataloaders) | *Preview.* Parquet shards to tokenized training batches, for language-model training. See [Shard sets](../systems/shards.md). |
+| [`bunsen-app`](https://github.com/zspacelabs/bunsen/tree/main/crates/public/bunsen-app) | Shared command-line plumbing for bunsen's binaries: device and precision flags, logging, shard selection, and the weights cache's flags and `cache` commands. The examples and `bunsen-asr` are built on it. |
+| [`bunsen-asr`](https://github.com/zspacelabs/bunsen/tree/main/crates/public/bunsen-asr) | A binary, `cargo install bunsen-asr`: speech to text with Parakeet, Qwen3-ASR or Whisper, each through its [stream driver](../systems/streaming.md), and `bunsen-asr cache` over the weights cache. |
 
 The two `bundled` crates are how bunsen ships model assets without making
 every build download them; [Assets, bundling and the network](../development/assets.md)
@@ -36,7 +40,6 @@ explains the scheme.
 | Crate | Role |
 |---|---|
 | [`burn_bug_repro`](https://github.com/zspacelabs/bunsen/tree/main/crates/dev/burn_bug_repro) | Reproductions of defects in burn and its ecosystem, each paired with a pin on today's behaviour. See [Upstream bug reproductions](../development/repros.md). |
-| [`bunsen-app`](https://github.com/zspacelabs/bunsen/tree/main/crates/dev/bunsen-app) | Shared command-line plumbing (logging, device selection, shard selection, fetch policy) for the examples. |
 | [`silero-bench`](https://github.com/zspacelabs/bunsen/tree/main/crates/dev/silero-bench) | A benchmark CLI for Silero VAD. See [Benchmarks](../development/benchmarks.md). |
 
 ## Validation crates

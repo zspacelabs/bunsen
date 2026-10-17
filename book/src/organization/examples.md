@@ -5,6 +5,10 @@ or a system end to end, and its README says which bunsen features it uses
 and how to run it. They are not published, and they are where a change to a
 public API is felt first, so CI builds all of them.
 
+Speech to text across model families is [`bunsen-asr`](https://github.com/zspacelabs/bunsen/tree/main/crates/public/bunsen-asr),
+a published binary rather than an example; it is built on the same
+`bunsen-app` plumbing.
+
 | Example | What it shows |
 |---|---|
 | [`whisper-cli`](https://github.com/zspacelabs/bunsen/tree/main/examples/whisper-cli) | Speech to text through the Whisper stream driver: a file, a file pushed in chunks as a live loop would, or the microphone. Its `models` subcommand is the operational view of [pretrained models](../systems/pretrained.md): list, fetch and inspect named checkpoints. |

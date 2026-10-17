@@ -25,7 +25,7 @@ wgpu = ["bunsen-app/wgpu"]
 
 [dependencies]
 # `--device`.
-bunsen-app = { path = "../../crates/dev/bunsen-app" }
+bunsen-app = { path = "../../crates/public/bunsen-app" }
 burn = { workspace = true, features = ["train", "fusion", "autotune", "vision", "dataset"] }
 bunsen = { path = "../../crates/public/bunsen" }
 bunsen-firehose = { path = "../../crates/public/bunsen-firehose" }

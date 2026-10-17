@@ -39,7 +39,7 @@ bunsen = { path = "../../crates/public/bunsen", features = [
 ] }
 
 clap = { workspace = true, features = ["derive"] }
-bunsen-app = { path = "../../crates/dev/bunsen-app" }
+bunsen-app = { path = "../../crates/public/bunsen-app" }
 log = { workspace = true }
 
 # `live`: the microphone through the host's audio API, and Ctrl-C as a

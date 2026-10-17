@@ -218,10 +218,15 @@ jobs:
       # `bunsen-firehose` relied on `bunsen` enabling `burn/std` and failed to
       # publish at v0.31.0. One `cargo check` per crate reproduces the isolated
       # resolution; several `-p` flags in one invocation would unify again.
+      # A crate with a library checks it; `bunsen-asr` is binaries only.
       - name: Published crates build in isolation
         run: |
           for manifest in crates/public/*/Cargo.toml; do
-            cargo check --manifest-path "$manifest" --lib
+            if [ -f "$(dirname "$manifest")/src/lib.rs" ]; then
+              cargo check --manifest-path "$manifest" --lib
+            else
+              cargo check --manifest-path "$manifest" --bins
+            fi
           done
 
       # The disk left after the build, with kache's store beside `target/`.
