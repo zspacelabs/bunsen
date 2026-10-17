@@ -13,7 +13,7 @@ use crate::errors::{
 
 /// Converts a string to a [`DType`].
 ///
-/// Attempts to parse the format produced by [`Display`](std::fmt::Display).
+/// Attempts to parse the format produced by [`Display`](core::fmt::Display).
 ///
 /// A bare `"QFloat"` parses as [`DType::QFloat`] with the default
 /// [`QuantScheme`]; a `QFloat(..)` with a scheme does not parse.

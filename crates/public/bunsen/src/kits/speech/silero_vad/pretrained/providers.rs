@@ -1,6 +1,6 @@
 //! # Silero VAD pretrained providers
 
-use std::sync::Arc;
+use alloc::sync::Arc;
 
 use crate::{
     data::pretrained::{

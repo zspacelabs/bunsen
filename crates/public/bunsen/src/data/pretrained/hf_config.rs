@@ -191,7 +191,7 @@ impl HfConfigJson {
     /// # Errors
     /// [`Unsupported`](crate::errors::BunsenErrorKind::Unsupported), naming
     /// the field and both values, when they differ.
-    pub fn expect_eq<T: PartialEq + std::fmt::Debug>(
+    pub fn expect_eq<T: PartialEq + core::fmt::Debug>(
         &self,
         name: &str,
         found: T,

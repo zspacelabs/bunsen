@@ -1,6 +1,6 @@
 //! # The Whisper stream driver: the core's driver over a Whisper engine.
 
-use std::sync::Arc;
+use alloc::sync::Arc;
 
 use burn::{
     config::Config,

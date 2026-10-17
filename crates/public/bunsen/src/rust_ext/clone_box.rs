@@ -1,5 +1,5 @@
 //! # `CloneBox`
-use std::{
+use core::{
     any::Any,
     fmt::Debug,
 };

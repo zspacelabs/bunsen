@@ -94,7 +94,7 @@
 //!
 //! ## Crate Features
 #![doc = document_features::document_features!()]
-
+#![cfg_attr(not(feature = "std"), no_std)]
 extern crate alloc;
 extern crate core;
 

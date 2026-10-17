@@ -1,7 +1,5 @@
-use std::{
-    collections::HashSet,
-    sync::Arc,
-};
+use alloc::sync::Arc;
+use std::collections::HashSet;
 
 use burn::{
     Tensor,
@@ -146,7 +144,7 @@ impl DynTensorEnv {
                 "tensor {name:?} (rank={}, kind={:?}) is not a Tensor<_, {D}, {}>",
                 dt.rank(),
                 dt.kind(),
-                std::any::type_name::<K>(),
+                core::any::type_name::<K>(),
             )
         })
     }

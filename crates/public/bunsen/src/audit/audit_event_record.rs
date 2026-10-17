@@ -1,7 +1,5 @@
-use std::{
-    collections::BTreeMap,
-    time::SystemTime,
-};
+use alloc::collections::BTreeMap;
+use std::time::SystemTime;
 
 use burn::prelude::TensorData;
 use serde::{

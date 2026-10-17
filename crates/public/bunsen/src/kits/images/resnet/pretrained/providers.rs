@@ -1,7 +1,9 @@
 //! # `ResNet` pretrained providers
 
-use alloc::vec;
-use std::sync::Arc;
+use alloc::{
+    sync::Arc,
+    vec,
+};
 
 use crate::data::pretrained::{
     PretrainedProvider,

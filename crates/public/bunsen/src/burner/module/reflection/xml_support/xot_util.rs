@@ -7,7 +7,7 @@ use xot::{
 pub fn pretty_print_node(
     xot: &Xot,
     node: Node,
-) -> Result<(), Box<dyn std::error::Error>> {
+) -> Result<(), Box<dyn core::error::Error>> {
     println!(
         "{}",
         xot.serialize_xml_string(

@@ -1,6 +1,6 @@
 //! # Ranking: which finished candidate a decode returns.
 
-use std::fmt::Debug;
+use core::fmt::Debug;
 
 /// Picks one candidate per audio.
 ///

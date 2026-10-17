@@ -33,7 +33,7 @@
 //!
 //! [`WhisperTokenLayout`]: crate::kits::speech::whisper::driver::WhisperTokenLayout
 
-use std::fmt::Debug;
+use core::fmt::Debug;
 
 use crate::errors::BunsenResult;
 
@@ -80,7 +80,7 @@ pub trait Detokenizer: Send + Sync + Debug {
 
 #[cfg(test)]
 mod tests {
-    use std::sync::Arc;
+    use alloc::sync::Arc;
 
     use super::*;
 

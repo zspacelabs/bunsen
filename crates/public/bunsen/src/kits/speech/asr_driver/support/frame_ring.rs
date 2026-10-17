@@ -1,6 +1,6 @@
 //! A sliding buffer of feature frames.
 
-use std::marker::PhantomData;
+use core::marker::PhantomData;
 
 use burn::Tensor;
 

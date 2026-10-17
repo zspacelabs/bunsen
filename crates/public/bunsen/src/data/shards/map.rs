@@ -1,6 +1,6 @@
 //! Shard-set maps: named collections of shard sets.
 
-use std::collections::BTreeMap;
+use alloc::collections::BTreeMap;
 
 use super::{
     ShardSetDescriptor,

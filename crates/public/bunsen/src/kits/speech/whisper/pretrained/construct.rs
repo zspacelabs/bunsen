@@ -1,9 +1,9 @@
 //! # Constructing a Whisper pretrained
 
-use std::{
+use alloc::sync::Arc;
+use core::{
     error::Error,
     fmt,
-    sync::Arc,
 };
 
 use burn::tensor::Device;

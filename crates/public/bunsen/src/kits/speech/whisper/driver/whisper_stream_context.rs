@@ -409,7 +409,7 @@ impl AsrEngine for WhisperEngine {
 
 #[cfg(test)]
 mod tests {
-    use std::sync::Arc;
+    use alloc::sync::Arc;
 
     use burn::{
         prelude::TensorData,
@@ -527,9 +527,9 @@ mod tests {
             .map(|i| {
                 let t = i as f32 / RATE as f32;
                 let envelope = (-(t - peak_at).powi(2) * 20.0).exp();
-                let tone = 0.6 * envelope * (2.0 * std::f32::consts::PI * tone_hz * t).sin();
+                let tone = 0.6 * envelope * (2.0 * core::f32::consts::PI * tone_hz * t).sin();
                 let chirp =
-                    0.2 * (2.0 * std::f32::consts::PI * (3_100.0 * t + 800.0 * t * t)).sin();
+                    0.2 * (2.0 * core::f32::consts::PI * (3_100.0 * t + 800.0 * t * t)).sin();
                 let noise = 0.05 * (((i * 7919) % 1000) as f32 / 500.0 - 1.0);
                 tone + chirp + noise
             })
@@ -1440,7 +1440,7 @@ mod tests {
         let device = performance_device();
         let refused = config(false)
             .with_emission(EmissionPolicy::new(
-                DecodeTriggers::new().with_interval(Some(std::time::Duration::from_millis(50))),
+                DecodeTriggers::new().with_interval(Some(core::time::Duration::from_millis(50))),
                 CommitRule::LastTimestamp,
             ))
             .init_with_layout(
@@ -1497,7 +1497,7 @@ mod tests {
                     .with_emission(EmissionPolicy::new(
                         DecodeTriggers::new()
                             .with_endpoint(true)
-                            .with_interval(Some(std::time::Duration::ZERO)),
+                            .with_interval(Some(core::time::Duration::ZERO)),
                         CommitRule::Complete,
                     ))
                     .init_with_layout(tiny_model_on(&device), policy.clone(), &device),
@@ -1760,7 +1760,7 @@ mod tests {
             let policy = EmissionPolicy::new(
                 DecodeTriggers::new()
                     .with_endpoint(true)
-                    .with_interval(Some(std::time::Duration::from_millis(50))),
+                    .with_interval(Some(core::time::Duration::from_millis(50))),
                 CommitRule::LastTimestamp,
             );
             config(false)
@@ -1976,7 +1976,7 @@ mod tests {
             let responsive = EmissionPolicy::new(
                 DecodeTriggers::new()
                     .with_endpoint(true)
-                    .with_interval(Some(std::time::Duration::from_millis(50))),
+                    .with_interval(Some(core::time::Duration::from_millis(50))),
                 CommitRule::LastTimestamp,
             );
             let driver = detecting_driver(&device, responsive);

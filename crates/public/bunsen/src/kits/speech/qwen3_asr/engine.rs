@@ -1,5 +1,5 @@
 //! Qwen3-ASR as the stream driver core's engine.
-use std::sync::Arc;
+use alloc::sync::Arc;
 
 use burn::{
     Tensor,
@@ -406,8 +406,8 @@ mod tests {
         (0..n)
             .map(|i| {
                 let t = i as f32 / n as f32;
-                (std::f32::consts::PI * t).sin()
-                    * (2.0 * std::f32::consts::PI * 440.0 * i as f32 / 16_000.0).sin()
+                (core::f32::consts::PI * t).sin()
+                    * (2.0 * core::f32::consts::PI * 440.0 * i as f32 / 16_000.0).sin()
                     * 0.5
             })
             .collect()

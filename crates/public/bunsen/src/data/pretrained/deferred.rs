@@ -1,6 +1,6 @@
 //! Deferred models: a resolved ref and its hook, not yet loaded.
 
-use std::collections::BTreeMap;
+use alloc::collections::BTreeMap;
 
 use burn::tensor::Device;
 

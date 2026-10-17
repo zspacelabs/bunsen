@@ -1,9 +1,7 @@
 //! Shard-set descriptors: what a shard set is.
 
-use std::{
-    collections::BTreeSet,
-    fmt,
-};
+use alloc::collections::BTreeSet;
+use core::fmt;
 
 use burn::tensor::Slice;
 use serde::{
