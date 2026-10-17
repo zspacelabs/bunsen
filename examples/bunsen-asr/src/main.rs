@@ -1,5 +1,6 @@
 //! `bunsen-asr`: speech to text on bunsen, one subcommand per model family:
-//! `bunsen-asr <parakeet|qwen3-asr|whisper> <list|transcribe> [FLAGS]`.
+//! `bunsen-asr <parakeet|qwen3-asr|whisper> <list|transcribe> [FLAGS]`, and
+//! `bunsen-asr cache <path|list|clear>` for the weights cache.
 
 use bunsen::errors::BunsenResult;
 use clap::Parser;
@@ -34,6 +35,11 @@ enum FamilyCmd {
 
     /// `OpenAI`'s Whisper: `openai/base` by default.
     Whisper(KitCmd<whisper::WhisperFlags>),
+
+    /// The weights cache every family loads through: where it is, what it
+    /// holds (by kit: `parakeet`, `qwen3-asr`, `whisper`, `silero_vad`), and
+    /// clearing it.
+    Cache(bunsen_app::cache::CacheCommand),
 }
 
 /// One family's commands; `F` is its own transcription flags.
@@ -70,6 +76,7 @@ fn main() -> BunsenResult<()> {
         FamilyCmd::Parakeet(cmd) => cmd.run(Family::Parakeet),
         FamilyCmd::Qwen3Asr(cmd) => cmd.run(Family::Qwen3Asr),
         FamilyCmd::Whisper(cmd) => cmd.run(Family::Whisper),
+        FamilyCmd::Cache(cmd) => cmd.run(),
     }
 }
 
@@ -93,6 +100,16 @@ mod tests {
             Args::try_parse_from(["bunsen-asr", family, "transcribe", "a.wav"]).unwrap();
         }
         assert!(Args::try_parse_from(["bunsen-asr", "silero", "list"]).is_err());
+        // The weights cache's commands.
+        for action in [
+            &["path"][..],
+            &["list", "whisper"],
+            &["clear", "qwen3-asr/fermion", "--yes"],
+        ] {
+            let mut argv = vec!["bunsen-asr", "cache", "--cache-dir", "/tmp/c"];
+            argv.extend_from_slice(action);
+            Args::try_parse_from(argv).unwrap();
+        }
         // Every family takes a preset.
         for family in ["parakeet", "qwen3-asr", "whisper"] {
             Args::try_parse_from([

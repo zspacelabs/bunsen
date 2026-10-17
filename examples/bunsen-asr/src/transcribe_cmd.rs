@@ -11,17 +11,17 @@ use bunsen::{
     errors::BunsenResult,
     support::audio::load_audio_mono_sr,
 };
-use bunsen_app::logging::{
-    LogArgs,
-    LogLevelNum,
+use bunsen_app::{
+    cache::WeightsCacheArgs,
+    logging::{
+        LogArgs,
+        LogLevelNum,
+    },
 };
 use serde::Serialize;
 
 use crate::{
-    args::{
-        DeviceArgs,
-        WeightsCacheArgs,
-    },
+    args::DeviceArgs,
     family::{
         Family,
         Loaded,

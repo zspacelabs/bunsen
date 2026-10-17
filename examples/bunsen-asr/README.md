@@ -36,6 +36,17 @@ decodes each as it ends, so silence is never decoded.
 | `qwen3-asr` | `--window-seconds` (30, the most Qwen3-ASR was trained on): a full window is cut at the quietest point of its last third |
 | `whisper` | `--language` (detected when omitted), `--task` (`transcribe`, `translate`), `--beam-size` (5) |
 
+`bunsen-asr cache` manages the weights cache every family loads through (`bunsen_app::cache`):
+
+```sh
+bunsen-asr cache path                         # the cache directory
+bunsen-asr cache list [KIT[/NAMESPACE]]       # each file's kit, namespace, size and pin, then the total
+bunsen-asr cache clear [KIT[/NAMESPACE]] [--partial] [--yes]
+```
+
+The kits are `parakeet`, `qwen3-asr`, `whisper` and `silero_vad` (the VAD the `conservative` preset loads).
+`clear` without `--yes` only lists what it would remove; `--partial` selects unfinished downloads.
+
 `transcribe` takes `--preset`; every command takes `--cache-dir`, `--offline`, `--device` (from the backends compiled in: `--features wgpu`, `vulkan`,
 `metal`, `cuda`; the CPU is always there) and `-v`/`-q`.
 

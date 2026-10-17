@@ -1,14 +1,14 @@
 //! `bunsen-asr <family> list`.
 use bunsen::errors::BunsenResult;
-use bunsen_app::logging::{
-    LogArgs,
-    LogLevelNum,
+use bunsen_app::{
+    cache::WeightsCacheArgs,
+    logging::{
+        LogArgs,
+        LogLevelNum,
+    },
 };
 
-use crate::{
-    args::WeightsCacheArgs,
-    family::Family,
-};
+use crate::family::Family;
 
 /// Lists the models `--model` can name, their licences and files, and
 /// whether each file is cached.
