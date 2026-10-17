@@ -24,7 +24,10 @@ use crate::{
         self,
         Preset,
     },
-    transcribe_cmd::Transcript,
+    transcribe_cmd::{
+        Segment,
+        Transcript,
+    },
 };
 
 /// Qwen3-ASR's own transcription flags.
@@ -80,6 +83,17 @@ pub fn transcribe(
         text: stream::join_text(&segments),
         language: ctx.language().map(String::from),
         words: None,
-        segments: None,
+        // A committed span each: a window, cut quiet when it was full.
+        segments: Some(
+            segments
+                .iter()
+                .map(|s| Segment {
+                    start: s.start,
+                    end: s.end,
+                    text: s.text.as_deref().unwrap_or("").trim().to_string(),
+                    tokens: s.tokens.clone(),
+                })
+                .collect(),
+        ),
     })
 }

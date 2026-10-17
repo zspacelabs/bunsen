@@ -144,8 +144,8 @@ pub struct Transcript {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub words: Option<Vec<Word>>,
 
-    /// Each segment with its start and end in seconds, if the model emits
-    /// segments.
+    /// Each segment with its start and end in seconds, and its token ids,
+    /// if the model emits segments.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub segments: Option<Vec<Segment>>,
 }
@@ -156,6 +156,8 @@ pub struct Word {
     pub word: String,
     pub start: f64,
     pub end: f64,
+    /// The token ids the model decoded it as.
+    pub tokens: Vec<i64>,
 }
 
 /// A timed segment.
@@ -164,6 +166,8 @@ pub struct Segment {
     pub start: f64,
     pub end: f64,
     pub text: String,
+    /// The token ids the model decoded it as.
+    pub tokens: Vec<i64>,
 }
 
 /// One file, as `--json` prints it.

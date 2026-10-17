@@ -36,7 +36,7 @@ jobs:
       - name: Module docs must render
         run: python3 tools/check_hidden_module_docs.py crates
       - run: rustup toolchain install stable --profile minimal --component clippy
-      # `whisper-cli live` captures through `cpal`, whose Linux backend
+      # `bunsen-asr live` captures through `cpal`, whose Linux backend
       # links ALSA.
       - run: sudo apt-get update && sudo apt-get install -y libasound2-dev
       # The caches as in the `test` job, which explains them. Clippy compiles
@@ -108,7 +108,7 @@ jobs:
       - name: Install Toolchain
         run: rustup toolchain install stable --profile minimal
 
-      # `whisper-cli live` captures through `cpal`, whose Linux backend
+      # `bunsen-asr live` captures through `cpal`, whose Linux backend
       # links ALSA.
       - name: Install ALSA headers
         run: sudo apt-get update && sudo apt-get install -y libasound2-dev

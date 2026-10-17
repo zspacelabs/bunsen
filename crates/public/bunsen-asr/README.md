@@ -31,7 +31,8 @@ re-hashes each pinned file): a deployment that runs `--offline` fills its cache 
 `transcribe` loads `--model` (the family's default unless named) through bunsen's pretrained cache, fetching it on
 first use, logs its info card (name, licence, origin, every file and where it came from) at `INFO` (`-v`), and prints
 each file's text, or with `--json` one object per file: the text, the language when the model names one (Qwen3-ASR,
-Whisper), each word's start and end in seconds (Parakeet), and each segment's (Whisper). After each file it logs how
+Whisper), each word's start and end in seconds (Parakeet), and each segment's (Whisper; Qwen3-ASR's are its committed
+windows), every word and segment with the token ids it was decoded as. After each file it logs how
 long the transcription took at `INFO`, and after several, the total. Audio is read at the model's rate, 16 kHz mono,
 and streamed through the family's stream driver (bunsen's `asr_driver`), about a second a push.
 
@@ -74,7 +75,7 @@ bunsen-asr cache clear [KIT[/NAMESPACE]] [--partial] [--yes]
 The kits are `parakeet`, `qwen3-asr`, `whisper` and `silero_vad` (the VAD the `conservative` preset loads).
 `clear` without `--yes` only lists what it would remove; `--partial` selects unfinished downloads.
 
-`transcribe` takes `--preset`; every command takes `--cache-dir`, `--offline`, `--device` (from the backends compiled in: `--features wgpu`, `vulkan`,
+`transcribe` and `live` take `--preset` and `--chunk-ms`; every command takes `--cache-dir`, `--offline`, `--device` (from the backends compiled in: `--features wgpu`, `vulkan`,
 `metal`, `cuda`; the CPU is always there) and `-v`/`-q`.
 
 | model | | licence |
@@ -84,3 +85,44 @@ The kits are `parakeet`, `qwen3-asr`, `whisper` and `silero_vad` (the VAD the `c
 | `qwen3-asr`: `fermion/phonon-1` | 415 MB, `Qwen3-ASR-0.6B` re-packed, 30 languages; `-micro` (285 MB) and `-big` (581 MB) builds | Apache-2.0 |
 | `qwen3-asr`: `qwen/qwen3-asr-0.6b`, `qwen/qwen3-asr-1.7b` | 1.6 and 4.1 GB, Qwen's base models | Apache-2.0 |
 | `whisper`: `openai/*` | every `openai-whisper` checkpoint, `tiny` to `large-v3-turbo` | MIT |
+
+## Whisper models
+
+Whisper's index keeps three things apart, because they vary independently:
+
+- A **prefab** is a public configuration: a geometry with no weights (`n_mels`, vocabulary size, `d_model`, layer
+  counts), upstream's `ModelDimensions` typed in, so a name means a shape before anything is fetched. The vocabulary
+  size is part of it: `tiny.en` (51864) and `tiny` (51865) are different prefabs; `large-v3` has 128 mels and a
+  hundredth language; `large-v3-turbo` a four-layer decoder. `bunsen-asr whisper prefabs` lists them.
+- A **pretrained** is a row: a name and its aliases (`large` is `large-v3`, `turbo` is `large-v3-turbo`), the prefab
+  it instantiates, and its resources. An `openai` row is two, `checkpoint` and the `vocabulary` its token layout
+  selects; the two `.tiktoken` vocabularies are shared by the twelve checkpoints.
+- A **resource** is one file, pinned to a SHA-256 and reachable from its sources in order: for a checkpoint,
+  `openai-whisper`'s `~/.cache/whisper` (`--upstream-cache-dir`), whose file is used in place, then upstream's
+  digest-addressed URL, streamed to a `.partial`, hashed as it lands, and renamed into place only on a match.
+
+Fetched files live at `<cache>/pretrained/whisper/<namespace>/<sha256>/<file>`: the digest in the path is the pin, so
+a file there is trusted without re-hashing, and a directory laid out this way is the cache (`fetch` fills one ahead
+of time for a deployment that runs `--offline`). `hf:openai/whisper-large-v3` is a Hugging Face repo's safetensors
+checkpoint at `main`, sharded or not, each file pinned by the digest the hub's listing carries; its vocabulary is the
+one its layout selects, as for a checkpoint's path.
+
+`bunsen-asr whisper inspect NAME|PATH` prints a model's resources and where each stands, the prefab it promised, and
+the geometry its checkpoint's shapes say; on a path, which prefab, if any, that geometry is, and which vocabulary its
+layout selects; on a name whose checkpoint does not scan as its prefab, the mismatch. `transcribe` makes the same
+check before it reads any tensors. The index is bunsen's (`kits::speech::whisper::pretrained`), and this binary keeps
+none of its own.
+
+## Benchmarks
+
+At `-v`, `transcribe` logs each file's audio length, how long it took and the realtime factor, then the totals over
+the files. Over a few utterances of [SLR45](https://www.openslr.org/45/):
+
+```sh
+cd "$DATA_DIR" && mkdir -p SLR45 && cd SLR45
+wget https://openslr.trmal.net/resources/45/ST-AEDS-20180100_1-OS.tgz && tar xzf ST-AEDS-20180100_1-OS.tgz
+cargo run --release -p bunsen-asr --features wgpu -- whisper transcribe -v --json "$DATA_DIR"/SLR45/f0001_us_f0001_0000{1,2,3,4,5}.wav
+```
+
+`$DATA_DIR/SLR45/text.txt` holds the transcripts. The pushes are sized to the stream driver's grain, so the
+autotuned kernels see one shape; the first file of a run pays for the tuning.

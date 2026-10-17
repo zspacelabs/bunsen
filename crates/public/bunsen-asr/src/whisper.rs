@@ -204,6 +204,7 @@ pub fn transcribe(
             start: s.start,
             end: s.end,
             text: s.text.as_deref().unwrap_or("").trim().to_string(),
+            tokens: s.tokens.clone(),
         })
         .collect();
     Ok(Transcript {

@@ -23,6 +23,3 @@ than an example.
   selected by module-tree reflection. Uses `kits::gpts::nanochat` and its `datasets`, `data::shards`,
   `data::cache::BunsenDiskCache`, `burner::module::reflection::XmlModuleTree`, `burner::optim` and
   `bunsen-arrow-dataloaders`.
-- [`whisper-cli`](whisper-cli): transcribes a file or the microphone through the Whisper stream driver, with the
-  model named as `openai-whisper` names it, and a `models` subcommand that lists, fetches and inspects models.
-  Uses `kits::speech::whisper` (`pretrained`, `driver`), `kits::speech::silero_vad` and `data::pretrained`.

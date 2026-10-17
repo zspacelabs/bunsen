@@ -84,6 +84,7 @@ pub fn transcribe(
                 word: text.to_string(),
                 start: millis(s.start),
                 end: millis(s.end),
+                tokens: s.tokens.clone(),
             })
         })
         .collect();

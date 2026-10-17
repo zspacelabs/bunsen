@@ -16,7 +16,7 @@ open an [issue](https://github.com/zspacelabs/bunsen/issues) first. Code and doc
 - **Nightly `rustfmt`.** [`rustfmt.toml`](rustfmt.toml) uses unstable options, so format with `cargo +nightly fmt`.
   Stable `rustfmt` ignores those options and reformats the whole tree.
 - **ALSA headers, on Linux:** `libasound2-dev` on Debian and Ubuntu (`alsa-lib-devel` or `alsa-lib` elsewhere).
-  `whisper-cli live` captures audio through `cpal`, which links ALSA, and clippy and the tests build every workspace
+  `bunsen-asr live` captures audio through `cpal`, which links ALSA, and clippy and the tests build every workspace
   member.
 - **[cargo-make](https://github.com/sagiegurari/cargo-make)**, which runs the tasks in [`Makefile.toml`](Makefile.toml).
 - **The mdbook tools**, for the book: `cargo make setup` installs mdbook and its plugins at the versions CI uses.

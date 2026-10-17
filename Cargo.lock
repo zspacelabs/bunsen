@@ -12678,19 +12678,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "whisper-cli"
-version = "0.38.0"
-dependencies = [
- "bunsen",
- "bunsen-app",
- "burn",
- "clap",
- "cpal",
- "ctrlc",
- "log",
-]
-
-[[package]]
 name = "whisper-model-validation"
 version = "0.38.0"
 dependencies = [
