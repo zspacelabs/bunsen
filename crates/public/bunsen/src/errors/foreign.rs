@@ -2,6 +2,7 @@
 
 use alloc::{
     format,
+    string::ToString,
     sync::Arc,
 };
 use core::panic::Location;

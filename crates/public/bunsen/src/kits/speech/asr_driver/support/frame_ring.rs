@@ -1,6 +1,10 @@
 //! A sliding buffer of feature frames.
 
-use std::marker::PhantomData;
+use alloc::{
+    vec,
+    vec::Vec,
+};
+use core::marker::PhantomData;
 
 use burn::Tensor;
 

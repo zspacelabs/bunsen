@@ -1,4 +1,6 @@
 //! Validity and window masks.
+use alloc::vec::Vec;
+
 use burn::{
     Tensor,
     prelude::{

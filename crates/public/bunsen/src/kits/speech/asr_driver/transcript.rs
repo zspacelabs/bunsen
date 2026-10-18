@@ -1,3 +1,7 @@
+use alloc::{
+    string::String,
+    vec::Vec,
+};
 /// A span of transcript with its place in media time.
 #[derive(Debug, Clone, PartialEq)]
 pub struct TranscriptSegment {

@@ -1,6 +1,15 @@
 //! # Whisper's token layout, as ids.
 
-use std::sync::Arc;
+use alloc::{
+    format,
+    string::{
+        String,
+        ToString,
+    },
+    sync::Arc,
+    vec,
+    vec::Vec,
+};
 
 use crate::{
     errors::{

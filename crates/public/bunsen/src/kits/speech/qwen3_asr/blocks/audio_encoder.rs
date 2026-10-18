@@ -1,4 +1,9 @@
 //! The Qwen3-ASR audio encoder.
+use alloc::{
+    vec,
+    vec::Vec,
+};
+
 use burn::{
     Tensor,
     config::Config,

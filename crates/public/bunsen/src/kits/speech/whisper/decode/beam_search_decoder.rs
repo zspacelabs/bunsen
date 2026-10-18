@@ -1,11 +1,15 @@
 //! # Beam search, as upstream does it.
 
-use std::collections::HashMap;
+use alloc::{
+    vec,
+    vec::Vec,
+};
 
 use burn::{
     Tensor,
     tensor::activation::log_softmax,
 };
+use hashbrown::HashMap;
 
 use crate::kits::speech::whisper::decode::TokenDecoder;
 

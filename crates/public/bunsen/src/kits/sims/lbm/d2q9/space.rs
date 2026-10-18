@@ -5,12 +5,9 @@ use burn::{
     prelude::Int,
     tensor::{
         DType,
-        DType::F32,
         Device,
     },
 };
-
-use crate::contracts::unpack_shape_contract;
 
 /// D2Q9 Direction Indices
 ///
@@ -126,10 +123,15 @@ impl LbmTables {
 ///
 /// - `label`: the label to use.
 /// - `dist`: the dist to print.
+#[cfg(feature = "std")]
 pub fn dbg_dist(
     label: &str,
     dist: Tensor<4>,
 ) {
+    use burn::tensor::DType::F32;
+
+    use crate::contracts::unpack_shape_contract;
+
     let [height, width] = unpack_shape_contract!(
         ["h", "w", "vy", "vx"],
         dist.shape().as_slice(),

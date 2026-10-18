@@ -1,6 +1,12 @@
 //! Mel scale and triangular filterbank.
 
-use std::ops::Range;
+use alloc::{
+    format,
+    string::ToString,
+    vec,
+    vec::Vec,
+};
+use core::ops::Range;
 
 use burn::config::Config;
 

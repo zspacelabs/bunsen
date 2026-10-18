@@ -1,5 +1,7 @@
 //! # GPT Block
 
+use alloc::string::ToString;
+
 use burn::{
     Tensor,
     config::Config,

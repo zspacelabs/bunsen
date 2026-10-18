@@ -352,6 +352,7 @@ impl LayerBlockMeta for LayerBlock {
 
 impl LayerBlock {
     /// Debug print.
+    #[cfg(feature = "std")]
     pub fn debug_print(&self) {
         println!("## LayerBlock: len={}", self.len());
         for (idx, block) in self.blocks.iter().enumerate() {

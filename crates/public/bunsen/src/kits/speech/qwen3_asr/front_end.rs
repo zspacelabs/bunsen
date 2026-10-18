@@ -1,4 +1,6 @@
 //! The Qwen3-ASR feature extractor.
+use alloc::vec;
+
 use burn::{
     Tensor,
     config::Config,

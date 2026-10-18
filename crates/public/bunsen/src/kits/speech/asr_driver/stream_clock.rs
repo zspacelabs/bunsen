@@ -1,5 +1,11 @@
 //! # The stream clock: sample index to media time.
 
+use alloc::{
+    format,
+    vec,
+    vec::Vec,
+};
+
 use crate::errors::{
     BunsenError,
     BunsenResult,

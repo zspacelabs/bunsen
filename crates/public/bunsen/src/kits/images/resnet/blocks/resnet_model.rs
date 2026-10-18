@@ -1,6 +1,7 @@
 //! # `ResNet` Core Model
 
 use alloc::{
+    format,
     vec,
     vec::Vec,
 };
@@ -515,6 +516,7 @@ impl ResNetMeta for ResNet {
 
 impl ResNet {
     /// Debug Printout.
+    #[cfg(feature = "std")]
     pub fn debug_print(&self) {
         for (idx, layer) in self.layers.iter().enumerate() {
             println!(

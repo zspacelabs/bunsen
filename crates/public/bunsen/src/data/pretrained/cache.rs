@@ -1,8 +1,8 @@
 //! The pretrained cache: digest-pinned resources under the disk cache.
 
+use alloc::collections::BTreeMap;
+use core::fmt;
 use std::{
-    collections::BTreeMap,
-    fmt,
     fs,
     io::Write,
     path::{

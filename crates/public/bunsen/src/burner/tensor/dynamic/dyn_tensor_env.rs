@@ -1,7 +1,12 @@
-use std::{
-    collections::HashSet,
+use alloc::{
+    string::{
+        String,
+        ToString,
+    },
     sync::Arc,
 };
+#[cfg(feature = "std")]
+use std::collections::HashSet;
 
 use burn::{
     Tensor,
@@ -41,6 +46,7 @@ impl DynTensorEnv {
     /// Get the keys of the tensors in the environment.
     ///
     /// This is a copy of the keys of the tensors in the environment.
+    #[cfg(feature = "std")]
     pub fn keys(&self) -> HashSet<String> {
         self.iter().map(|r| r.key().clone()).collect()
     }
@@ -146,7 +152,7 @@ impl DynTensorEnv {
                 "tensor {name:?} (rank={}, kind={:?}) is not a Tensor<_, {D}, {}>",
                 dt.rank(),
                 dt.kind(),
-                std::any::type_name::<K>(),
+                core::any::type_name::<K>(),
             )
         })
     }

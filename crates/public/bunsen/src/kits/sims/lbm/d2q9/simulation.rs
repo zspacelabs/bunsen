@@ -1,6 +1,8 @@
 #![allow(dead_code)]
 //! # LBM D2Q9 World Module
 
+use alloc::format;
+
 use burn::{
     Tensor,
     config::Config,

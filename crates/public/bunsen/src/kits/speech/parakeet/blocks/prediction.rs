@@ -1,4 +1,6 @@
 //! The TDT prediction network.
+use alloc::vec::Vec;
+
 use burn::{
     Tensor,
     config::Config,

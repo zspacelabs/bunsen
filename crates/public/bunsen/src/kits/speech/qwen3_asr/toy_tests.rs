@@ -5,7 +5,7 @@
 //! float64 (`tools/gen_qwen3_asr_toy_fixtures.py`). The weights load through
 //! [`load_hf_tensors`], so the loader is under test too.
 
-use std::collections::BTreeMap;
+use alloc::collections::BTreeMap;
 
 use burn::{
     prelude::*,

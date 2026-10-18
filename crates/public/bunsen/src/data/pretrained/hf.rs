@@ -7,6 +7,7 @@ use alloc::{
         String,
         ToString,
     },
+    vec,
     vec::Vec,
 };
 

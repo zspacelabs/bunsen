@@ -1,9 +1,11 @@
 //! # The Whisper bundle
 
-use std::{
-    fmt,
+use alloc::{
+    string::ToString,
     sync::Arc,
+    vec::Vec,
 };
+use core::fmt;
 
 use crate::{
     errors::{

@@ -1,4 +1,6 @@
 //! # Patch Merging
+use alloc::format;
+
 use burn::{
     config::Config,
     module::Module,

@@ -1,5 +1,6 @@
 //! Pretrained references: what a spec resolved to.
 
+use alloc::string::String;
 use core::fmt::Debug;
 
 use burn::config::Config;

@@ -1,5 +1,10 @@
 //! # Silero VAD model.
 
+use alloc::{
+    string::ToString,
+    vec,
+};
+
 use burn::{
     config::Config,
     module::Module,

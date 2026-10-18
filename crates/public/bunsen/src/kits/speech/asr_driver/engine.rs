@@ -1,6 +1,11 @@
 //! # The engine: what a model gives the stream driver core.
 
-use std::fmt::Debug;
+use alloc::{
+    string::String,
+    vec,
+    vec::Vec,
+};
+use core::fmt::Debug;
 
 use burn::Tensor;
 

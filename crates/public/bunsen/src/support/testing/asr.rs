@@ -52,7 +52,7 @@ pub fn word_error_rate(
             let cost = usize::from(refr != hyp);
             cur[h + 1] = (prev[h] + cost).min(prev[h + 1] + 1).min(cur[h] + 1);
         }
-        std::mem::swap(&mut prev, &mut cur);
+        core::mem::swap(&mut prev, &mut cur);
     }
 
     prev[hypothesis.len()] as f64 / reference.len() as f64

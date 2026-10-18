@@ -1,5 +1,7 @@
 //! # GPT Module
 
+use alloc::vec::Vec;
+
 use burn::{
     Tensor,
     module::Module,

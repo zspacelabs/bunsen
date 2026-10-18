@@ -1,6 +1,6 @@
 //! # The level policy: what a window's features are scaled against.
 
-use std::fmt::Debug;
+use core::fmt::Debug;
 
 use burn::Tensor;
 
@@ -249,7 +249,7 @@ mod tests {
         let clip = seeded_tensor(7, [2, 23, 5], Distribution::Normal(1.0, 3.0), &device);
         let cuts = [0, 1, 8, 9, 17, 23];
 
-        let parts = |range: std::ops::Range<usize>| clip.clone().slice_dim(1, range);
+        let parts = |range: core::ops::Range<usize>| clip.clone().slice_dim(1, range);
         let whole_max = MaxLevel::of(clip.clone());
         let whole_moments = MomentsLevel::of(clip.clone());
 

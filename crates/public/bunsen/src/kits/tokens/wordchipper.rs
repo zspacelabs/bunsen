@@ -1,11 +1,9 @@
 //! The `wordchipper`-backed [`Detokenizer`].
 
-use std::{
-    fmt::{
-        self,
-        Debug,
-    },
-    sync::Arc,
+use alloc::sync::Arc;
+use core::fmt::{
+    self,
+    Debug,
 };
 
 use wordchipper::{
@@ -91,7 +89,7 @@ impl<T: TokenType> WordchipperDetokenizer<T> {
                     "WordchipperDetokenizer",
                     "spans",
                     format!("token id {id}"),
-                    format!("the range of {}", std::any::type_name::<T>()),
+                    format!("the range of {}", core::any::type_name::<T>()),
                 )
             })?;
             table.insert(token, bytes);
@@ -118,7 +116,7 @@ impl<T: TokenType> Debug for WordchipperDetokenizer<T> {
         f: &mut fmt::Formatter<'_>,
     ) -> fmt::Result {
         f.debug_struct("WordchipperDetokenizer")
-            .field("token_type", &std::any::type_name::<T>())
+            .field("token_type", &core::any::type_name::<T>())
             .field("vocab_size", &self.vocab_size)
             .finish_non_exhaustive()
     }

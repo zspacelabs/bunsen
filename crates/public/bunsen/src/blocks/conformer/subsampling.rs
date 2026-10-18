@@ -1,4 +1,9 @@
 //! The `FastConformer`'s depthwise-striding subsampling.
+use alloc::{
+    vec,
+    vec::Vec,
+};
+
 use burn::{
     Tensor,
     config::Config,

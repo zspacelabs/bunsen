@@ -1,3 +1,5 @@
+use alloc::vec::Vec;
+
 use burn::config::Config;
 
 use crate::kits::speech::asr_driver::{

@@ -13,6 +13,7 @@ use core::{
     error::Error,
     fmt,
 };
+#[cfg(feature = "std")]
 use std::path::Path;
 
 use crate::errors::{
@@ -190,6 +191,7 @@ impl LookupError {
     }
 
     /// The file at `path` did not resolve, for `problem`.
+    #[cfg(feature = "std")]
     pub fn path(
         path: impl AsRef<Path>,
         problem: LookupProblem,

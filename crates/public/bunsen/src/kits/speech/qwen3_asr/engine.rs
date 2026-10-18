@@ -1,5 +1,11 @@
 //! Qwen3-ASR as the stream driver core's engine.
-use std::sync::Arc;
+use alloc::{
+    format,
+    string::String,
+    sync::Arc,
+    vec,
+    vec::Vec,
+};
 
 use burn::{
     Tensor,
@@ -314,6 +320,8 @@ impl AsrStreamContext<Qwen3AsrEngine> {
 
 #[cfg(test)]
 mod tests {
+    use core::f32::consts::PI;
+
     use super::*;
     use crate::{
         burner::module::ModuleInit,
@@ -406,9 +414,7 @@ mod tests {
         (0..n)
             .map(|i| {
                 let t = i as f32 / n as f32;
-                (std::f32::consts::PI * t).sin()
-                    * (2.0 * std::f32::consts::PI * 440.0 * i as f32 / 16_000.0).sin()
-                    * 0.5
+                (PI * t).sin() * (2.0 * PI * 440.0 * i as f32 / 16_000.0).sin() * 0.5
             })
             .collect()
     }

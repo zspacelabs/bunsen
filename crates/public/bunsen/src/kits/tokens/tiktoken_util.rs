@@ -1,16 +1,24 @@
 //! # The `.tiktoken` rank file.
 
+use alloc::{
+    format,
+    string::ToString,
+    vec,
+    vec::Vec,
+};
+#[cfg(feature = "std")]
 use std::{
     collections::HashMap,
     path::Path,
 };
 
+#[cfg(feature = "std")]
+use crate::errors::sys_at;
 use crate::errors::{
     BunsenError,
     BunsenErrorKind,
     BunsenResult,
     ParseError,
-    sys_at,
 };
 
 /// The base vocabulary of a `.tiktoken` file: rank to bytes.
@@ -59,18 +67,18 @@ impl TiktokenRanks {
     /// [`ParseError`]'s `at`.
     fn parse_from(
         text: &str,
-        origin: Option<&Path>,
+        origin: Option<&dyn core::fmt::Display>,
     ) -> BunsenResult<Self> {
         let invalid =
             |error: ParseError| BunsenError::from_cause(BunsenErrorKind::InvalidResource, error);
         // `<path>:<line>`, or `line <line>` for text with no path.
         let at_line = |number: usize| match origin {
-            Some(path) => format!("{}:{number}", path.display()),
+            Some(path) => format!("{path}:{number}"),
             None => format!("line {number}"),
         };
         // The file as a whole, for a fault no one line holds.
         let in_file = |error: ParseError| match origin {
-            Some(path) => error.at(path.display()),
+            Some(path) => error.at(path.to_string()),
             None => error,
         };
 
@@ -157,10 +165,11 @@ impl TiktokenRanks {
     /// missing or unreadable; another I/O failure by its kind (see
     /// [`sys_at`]); or whatever [`parse`](Self::parse) reports, with the
     /// path in each [`ParseError`]'s `at`.
+    #[cfg(feature = "std")]
     pub fn load(path: impl AsRef<Path>) -> BunsenResult<Self> {
         let path = path.as_ref();
         let text = std::fs::read_to_string(path).map_err(sys_at("read", path))?;
-        Self::parse_from(&text, Some(path))
+        Self::parse_from(&text, Some(&path.display()))
     }
 
     /// The number of ranks; the first special id in a layout built on this
@@ -292,6 +301,7 @@ pub const MISCELLANEOUS: &[&str] = &[
 ];
 
 /// The rank file as `{ bytes -> id }`.
+#[cfg(feature = "std")]
 pub fn lookup(ranks: &TiktokenRanks) -> HashMap<&[u8], i64> {
     ranks
         .iter()
@@ -300,10 +310,20 @@ pub fn lookup(ranks: &TiktokenRanks) -> HashMap<&[u8], i64> {
         .collect()
 }
 
+/// The rank file as `{ bytes -> id }`, in a `hashbrown` map: what the
+/// suppression helpers search, with or without `std`.
+fn rank_table(ranks: &TiktokenRanks) -> hashbrown::HashMap<&[u8], i64> {
+    ranks
+        .iter()
+        .enumerate()
+        .map(|(id, bytes)| (bytes, i64::try_from(id).expect("a rank fits in i64")))
+        .collect()
+}
+
 /// The id of the longest prefix of `bytes` that is a token: what byte-level
 /// BPE emits first for a string that is not itself a token.
 fn first_token(
-    table: &HashMap<&[u8], i64>,
+    table: &hashbrown::HashMap<&[u8], i64>,
     bytes: &[u8],
 ) -> Option<i64> {
     (1..=bytes.len())
@@ -318,7 +338,7 @@ fn first_token(
 /// Whisper-specific: the base of the Whisper kit's
 /// [`default_suppress_tokens`](crate::kits::speech::whisper::logit_filters::default_suppress_tokens).
 pub fn non_speech_tokens(ranks: &TiktokenRanks) -> Vec<i64> {
-    let table = lookup(ranks);
+    let table = rank_table(ranks);
     let mut ids: Vec<i64> = [" -", " '"]
         .iter()
         .filter_map(|s| table.get(s.as_bytes()).copied())
@@ -350,7 +370,7 @@ pub fn non_speech_tokens(ranks: &TiktokenRanks) -> Vec<i64> {
 /// [`SuppressBlank`](crate::kits::speech::whisper::logit_filters::SuppressBlank)
 /// suppresses at the first step.
 pub fn blank_token(ranks: &TiktokenRanks) -> Option<i64> {
-    lookup(ranks).get(b" ".as_slice()).copied()
+    rank_table(ranks).get(b" ".as_slice()).copied()
 }
 
 #[cfg(test)]

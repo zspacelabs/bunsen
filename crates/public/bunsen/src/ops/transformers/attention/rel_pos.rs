@@ -1,4 +1,9 @@
 //! Relative-position attention operations.
+use alloc::{
+    vec,
+    vec::Vec,
+};
+
 use burn::{
     Tensor,
     prelude::TensorData,

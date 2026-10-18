@@ -1,5 +1,9 @@
 //! The Qwen3 decoder.
-use std::ops::Range;
+use alloc::{
+    vec,
+    vec::Vec,
+};
+use core::ops::Range;
 
 use burn::{
     Tensor,

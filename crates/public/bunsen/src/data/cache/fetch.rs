@@ -1,11 +1,11 @@
 //! Fetch: a URL streamed into the cache, hashed as it lands.
 
-use std::{
+use alloc::sync::Arc;
+use core::{
     fmt,
-    path::Path,
-    sync::Arc,
     time::Duration,
 };
+use std::path::Path;
 
 use super::{
     TransferObserver,

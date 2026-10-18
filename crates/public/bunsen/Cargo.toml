@@ -106,7 +106,6 @@ fermion = [
 train = [
     "std",
     "burn/train",
-    "dep:hashbrown",
 ]
 
 ## Enable the disk cache: where files land (`BunsenDiskCache` and its paths),
@@ -273,7 +272,7 @@ tracing-subscriber = { workspace = true, optional = true }
 burn = { workspace = true, features = ["linalg", "signal"] }
 
 # burner-locked public deps:
-hashbrown = { workspace = true, optional = true }
+hashbrown = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
 ciborium = { workspace = true, optional = true }

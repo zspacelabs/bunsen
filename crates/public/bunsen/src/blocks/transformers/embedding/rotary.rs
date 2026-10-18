@@ -1,6 +1,7 @@
 //! # Rotary Embedding
 
-use std::ops::Range;
+use alloc::vec;
+use core::ops::Range;
 
 use burn::{
     Tensor,

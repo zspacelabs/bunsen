@@ -1,5 +1,10 @@
 //! # Padded splitting.
 
+use alloc::{
+    vec,
+    vec::Vec,
+};
+
 use burn::{
     Tensor,
     tensor::AsIndex,

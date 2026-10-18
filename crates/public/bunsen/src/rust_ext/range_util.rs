@@ -1,6 +1,6 @@
 //! # Range utilities
 
-use std::ops::Range;
+use core::ops::Range;
 
 /// Converts a `usize` range to an `i32` range.
 ///

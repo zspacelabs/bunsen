@@ -1,4 +1,9 @@
 //! A loaded Qwen3-ASR model, with what it needs to transcribe.
+use alloc::{
+    string::String,
+    vec::Vec,
+};
+
 use burn::{
     Tensor,
     tensor::Device,

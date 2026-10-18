@@ -1,5 +1,10 @@
 //! Sliding-window STFT analysis.
 
+use alloc::{
+    string::ToString,
+    vec,
+};
+
 use burn::{
     prelude::*,
     tensor::{

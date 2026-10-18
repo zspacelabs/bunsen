@@ -1,4 +1,9 @@
 //! Greedy decoding of a Qwen3-ASR prompt.
+use alloc::{
+    vec,
+    vec::Vec,
+};
+
 use burn::{
     Tensor,
     config::Config,

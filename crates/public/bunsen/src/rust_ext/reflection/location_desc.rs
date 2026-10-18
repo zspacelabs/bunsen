@@ -1,5 +1,11 @@
-use core::fmt::Display;
-use std::panic::Location;
+use alloc::string::{
+    String,
+    ToString,
+};
+use core::{
+    fmt::Display,
+    panic::Location,
+};
 
 use serde::{
     Deserialize,
@@ -32,8 +38,8 @@ impl From<&Location<'_>> for LocationDesc {
 impl Display for LocationDesc {
     fn fmt(
         &self,
-        f: &mut std::fmt::Formatter<'_>,
-    ) -> std::fmt::Result {
+        f: &mut core::fmt::Formatter<'_>,
+    ) -> core::fmt::Result {
         write!(f, "{}:{}:{}", self.filename, self.line, self.col)
     }
 }

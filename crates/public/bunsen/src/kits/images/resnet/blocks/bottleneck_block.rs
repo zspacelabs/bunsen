@@ -430,6 +430,7 @@ impl BottleneckBlockMeta for BottleneckBlock {
 
 impl BottleneckBlock {
     /// Debug Print.
+    #[cfg(feature = "std")]
     pub fn debug_print(&self) {
         eprintln!("#### BottleneckBlock");
         if self.downsample.is_some() {

@@ -1,5 +1,10 @@
+use alloc::{
+    boxed::Box,
+    sync::Arc,
+    vec,
+    vec::Vec,
+};
 use core::fmt::Debug;
-use std::sync::Arc;
 
 use burn::{
     Tensor,

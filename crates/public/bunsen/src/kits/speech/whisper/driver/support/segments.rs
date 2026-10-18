@@ -1,5 +1,10 @@
 //! # Segments: what a timestamped decode says about time.
 
+use alloc::{
+    vec,
+    vec::Vec,
+};
+
 use crate::kits::speech::whisper::driver::whisper_token_layout::WhisperSpecialIds;
 
 /// A segment of a decoded unit, in frames relative to the unit's start.

@@ -1,5 +1,7 @@
 //! # The audio front end a checkpoint was trained with.
 
+use alloc::format;
+
 use burn::{
     Tensor,
     config::Config,

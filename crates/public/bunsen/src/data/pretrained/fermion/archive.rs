@@ -1,6 +1,6 @@
 //! The `phonon-byteplane-tar-zstd-v1` archive.
+use alloc::collections::BTreeMap;
 use std::{
-    collections::BTreeMap,
     io::Read,
     path::Path,
 };

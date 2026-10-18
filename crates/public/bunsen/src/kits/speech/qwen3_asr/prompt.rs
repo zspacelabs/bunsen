@@ -1,4 +1,12 @@
 //! Qwen3-ASR's chat prompt, and parsing its reply.
+use alloc::{
+    string::{
+        String,
+        ToString,
+    },
+    vec::Vec,
+};
+
 use burn::config::Config;
 
 use crate::{
@@ -67,7 +75,7 @@ impl Qwen3AsrPromptConfig {
     ) -> Vec<usize> {
         let mut ids = Vec::with_capacity(self.prefix.len() + n_audio + self.suffix.len());
         ids.extend_from_slice(&self.prefix);
-        ids.extend(std::iter::repeat_n(audio_token, n_audio));
+        ids.extend(core::iter::repeat_n(audio_token, n_audio));
         ids.extend_from_slice(&self.suffix);
         ids
     }

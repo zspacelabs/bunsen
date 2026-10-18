@@ -3,6 +3,8 @@
 //! [`RelPosSelfAttention`], Transformer-XL's, built by
 //! [`RelPosSelfAttentionConfig`]; the attention of the
 //! [`ConformerBlock`](crate::blocks::conformer::ConformerBlock).
+use alloc::format;
+
 use burn::{
     Tensor,
     config::Config,

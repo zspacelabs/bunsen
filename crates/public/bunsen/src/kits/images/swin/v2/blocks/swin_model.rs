@@ -1,6 +1,9 @@
 //! # Top-Level Swin Transformer v2 model components.
 
-use alloc::vec::Vec;
+use alloc::{
+    format,
+    vec::Vec,
+};
 
 use burn::{
     config::Config,

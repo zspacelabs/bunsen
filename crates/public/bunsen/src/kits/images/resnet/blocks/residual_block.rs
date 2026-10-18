@@ -307,6 +307,7 @@ impl ResidualBlockMeta for ResidualBlock {
 
 impl ResidualBlock {
     /// Debug print.
+    #[cfg(feature = "std")]
     pub fn debug_print(&self) {
         match self {
             Self::Basic(block) => block.debug_print(),

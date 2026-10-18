@@ -1,9 +1,7 @@
 //! # Whisper pretrained providers
 
-use std::{
-    path::PathBuf,
-    sync::Arc,
-};
+use alloc::sync::Arc;
+use std::path::PathBuf;
 
 use crate::{
     data::pretrained::{
@@ -366,7 +364,7 @@ mod tests {
             let mut names: Vec<&str> = group
                 .items
                 .iter()
-                .flat_map(|p| std::iter::once(p.name).chain(p.aliases.iter().copied()))
+                .flat_map(|p| core::iter::once(p.name).chain(p.aliases.iter().copied()))
                 .collect();
             let n = names.len();
             names.sort_unstable();
