@@ -1,4 +1,12 @@
 //! Qwen3-ASR's chat prompt, and parsing its reply.
+use alloc::{
+    string::{
+        String,
+        ToString,
+    },
+    vec::Vec,
+};
+
 use burn::config::Config;
 
 use crate::{

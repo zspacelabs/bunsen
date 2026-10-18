@@ -1,11 +1,17 @@
 //! # Fallback: the temperature ladder and its thresholds.
 
-use std::io::Write;
+use alloc::{
+    string::String,
+    vec,
+    vec::Vec,
+};
 
 use burn::config::Config;
 use flate2::{
+    Compress,
     Compression,
-    write::ZlibEncoder,
+    FlushCompress,
+    Status,
 };
 
 use crate::kits::speech::whisper::decode::{
@@ -156,9 +162,20 @@ impl WhisperFallbackConfig {
 /// upstream.
 pub fn compression_ratio(text: &str) -> f64 {
     let bytes = text.as_bytes();
-    let mut encoder = ZlibEncoder::new(Vec::new(), Compression::default());
-    encoder.write_all(bytes).expect("writing to a vector");
-    let compressed = encoder.finish().expect("finishing a vector");
+    // `Compress` rather than `ZlibEncoder`: the same stream, without
+    // `std::io::Write`.
+    let mut compress = Compress::new(Compression::default(), true);
+    let mut compressed = Vec::with_capacity(bytes.len() / 2 + 64);
+    loop {
+        let consumed = usize::try_from(compress.total_in()).expect("fits in usize");
+        match compress
+            .compress_vec(&bytes[consumed..], &mut compressed, FlushCompress::Finish)
+            .expect("compressing into a vector")
+        {
+            Status::StreamEnd => break,
+            Status::Ok | Status::BufError => compressed.reserve(compressed.capacity().max(64)),
+        }
+    }
     bytes.len() as f64 / compressed.len() as f64
 }
 
@@ -320,6 +337,27 @@ mod tests {
         let la = compression_ratio(&"la ".repeat(20));
         assert!((la - 60.0 / 14.0).abs() < 0.3, "{la}");
         assert!(la > 2.4, "{la}");
+    }
+
+    /// `Compress` writes the stream `ZlibEncoder` does, so the ratio is the
+    /// same; the incompressible text outgrows the first buffer.
+    #[test]
+    fn test_compression_ratio_matches_zlib_encoder() {
+        use std::io::Write;
+
+        let mut state = 0x2545_f491_u32;
+        let noise: String = (0..20_000)
+            .map(|_| {
+                state = state.wrapping_mul(1_664_525).wrapping_add(1_013_904_223);
+                char::from(b' ' + u8::try_from(state >> 26).unwrap())
+            })
+            .collect();
+        for text in ["", "la la la", &" Thank you.".repeat(8), &noise] {
+            let mut encoder = flate2::write::ZlibEncoder::new(Vec::new(), Compression::default());
+            encoder.write_all(text.as_bytes()).unwrap();
+            let expected = text.len() as f64 / encoder.finish().unwrap().len() as f64;
+            assert_eq!(compression_ratio(text), expected, "{} bytes", text.len());
+        }
     }
 
     /// A rung above zero samples: beam and patience off, best_of on.

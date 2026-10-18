@@ -33,6 +33,7 @@
 //!
 //! [`WhisperTokenLayout`]: crate::kits::speech::whisper::driver::WhisperTokenLayout
 
+use alloc::string::String;
 use core::fmt::Debug;
 
 use crate::errors::BunsenResult;

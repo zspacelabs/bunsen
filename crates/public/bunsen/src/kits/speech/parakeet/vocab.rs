@@ -1,4 +1,14 @@
 //! The Parakeet vocabulary.
+use alloc::{
+    format,
+    string::{
+        String,
+        ToString,
+    },
+    vec,
+    vec::Vec,
+};
+
 use crate::{
     errors::{
         BunsenError,

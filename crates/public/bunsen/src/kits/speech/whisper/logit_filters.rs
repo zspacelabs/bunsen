@@ -12,7 +12,11 @@
 //! object, so a caller's own rule is one more implementor, set with
 //! [`with_logit_filters`](crate::kits::speech::whisper::driver::WhisperStreamDriver::with_logit_filters).
 
-use alloc::sync::Arc;
+use alloc::{
+    sync::Arc,
+    vec,
+    vec::Vec,
+};
 use core::{
     fmt::Debug,
     ops::Range,

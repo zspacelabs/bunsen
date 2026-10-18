@@ -1,5 +1,10 @@
 //! # Greedy search, expressed through the search seam.
 
+use alloc::{
+    vec,
+    vec::Vec,
+};
+
 use burn::{
     Tensor,
     prelude::Int,

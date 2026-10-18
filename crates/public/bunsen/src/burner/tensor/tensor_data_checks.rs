@@ -1,3 +1,9 @@
+use alloc::{
+    format,
+    string::String,
+    vec::Vec,
+};
+
 use burn::{
     prelude::TensorData,
     tensor::{

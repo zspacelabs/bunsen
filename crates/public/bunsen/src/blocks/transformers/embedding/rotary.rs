@@ -1,5 +1,6 @@
 //! # Rotary Embedding
 
+use alloc::vec;
 use core::ops::Range;
 
 use burn::{

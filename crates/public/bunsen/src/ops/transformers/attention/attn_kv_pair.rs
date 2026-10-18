@@ -1,3 +1,5 @@
+use alloc::vec;
+
 use burn::{
     Tensor,
     tensor::DType,

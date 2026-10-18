@@ -1,6 +1,10 @@
 //! # The Whisper bundle
 
-use alloc::sync::Arc;
+use alloc::{
+    string::ToString,
+    sync::Arc,
+    vec::Vec,
+};
 use core::fmt;
 
 use crate::{

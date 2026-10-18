@@ -263,16 +263,23 @@ mod deferred;
 mod factory;
 #[cfg(feature = "store")]
 pub mod fermion;
+#[cfg(feature = "std")]
 mod hf;
+#[cfg(feature = "std")]
 mod hf_config;
 #[cfg(feature = "cache")]
 mod loaded;
 pub mod mlx;
 mod prefabs;
+#[cfg(feature = "std")]
 mod pretrained_ref;
+#[cfg(feature = "std")]
 mod providers;
+#[cfg(feature = "std")]
 mod resource;
+#[cfg(feature = "std")]
 mod resource_map;
+#[cfg(feature = "std")]
 mod rows;
 #[cfg(feature = "store_safetensors")]
 mod safetensors;
@@ -289,15 +296,22 @@ pub use construct::*;
 pub use deferred::*;
 #[cfg(feature = "cache")]
 pub use factory::*;
+#[cfg(feature = "std")]
 pub use hf::*;
+#[cfg(feature = "std")]
 pub use hf_config::*;
 #[cfg(feature = "cache")]
 pub use loaded::*;
 pub use prefabs::*;
+#[cfg(feature = "std")]
 pub use pretrained_ref::*;
+#[cfg(feature = "std")]
 pub use providers::*;
+#[cfg(feature = "std")]
 pub use resource::*;
+#[cfg(feature = "std")]
 pub use resource_map::*;
+#[cfg(feature = "std")]
 pub use rows::*;
 #[cfg(feature = "store_safetensors")]
 pub use safetensors::*;

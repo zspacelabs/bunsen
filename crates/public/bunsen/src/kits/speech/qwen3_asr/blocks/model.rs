@@ -1,4 +1,9 @@
 //! The Qwen3-ASR model.
+use alloc::{
+    format,
+    vec::Vec,
+};
+
 use burn::{
     Tensor,
     config::Config,

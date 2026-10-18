@@ -89,6 +89,7 @@
 //! ```
 
 pub mod blocks;
+#[cfg(feature = "std")]
 pub mod datasets;
 
 pub use blocks::model::*;

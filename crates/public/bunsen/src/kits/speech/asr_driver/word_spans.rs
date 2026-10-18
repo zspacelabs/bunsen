@@ -1,5 +1,7 @@
 //! Timed words: a full window's cut between them, and each as a segment.
 
+use alloc::vec::Vec;
+
 use crate::kits::speech::asr_driver::TimedTokens;
 
 /// A word of a decode: its first token, and the frames it spans in the

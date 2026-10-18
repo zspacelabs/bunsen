@@ -1,4 +1,9 @@
 //! Timing a Qwen3-ASR reply from its decoder's attention onto the audio.
+use alloc::{
+    vec,
+    vec::Vec,
+};
+
 use burn::Tensor;
 
 use super::{

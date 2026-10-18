@@ -1,5 +1,10 @@
 //! # Streamed log-mels: the front end Whisper-family engines share.
 
+use alloc::{
+    vec,
+    vec::Vec,
+};
+
 use burn::{
     Tensor,
     prelude::TensorData,

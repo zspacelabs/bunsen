@@ -1,5 +1,7 @@
 //! `ConvBlock1d`: a conv/norm/activation block.
 
+use alloc::format;
+
 use burn::{
     config::Config,
     module::Module,

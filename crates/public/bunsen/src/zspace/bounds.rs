@@ -1,4 +1,5 @@
 //! The z-space partial order, and point-in-box checks.
+use alloc::format;
 use core::{
     cmp::Ordering,
     fmt::Debug,

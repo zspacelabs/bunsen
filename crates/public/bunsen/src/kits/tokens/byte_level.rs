@@ -1,5 +1,13 @@
 //! Byte-level BPE vocabularies, as `transformers` stores them.
-use alloc::collections::BTreeMap;
+use alloc::{
+    collections::BTreeMap,
+    format,
+    string::{
+        String,
+        ToString,
+    },
+    vec::Vec,
+};
 
 use crate::errors::{
     BunsenError,

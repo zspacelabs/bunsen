@@ -1,5 +1,11 @@
 //! Waveform to log-mel conversion.
 
+use alloc::{
+    string::ToString,
+    vec,
+    vec::Vec,
+};
+
 use burn::{
     Tensor,
     config::Config,

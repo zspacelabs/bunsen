@@ -1,3 +1,5 @@
+use alloc::format;
+
 use burn::tensor::{
     BoolStore,
     DType,

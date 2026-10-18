@@ -1,6 +1,11 @@
 //! # The Whisper stream driver: the core's driver over a Whisper engine.
 
-use alloc::sync::Arc;
+use alloc::{
+    format,
+    string::String,
+    sync::Arc,
+    vec::Vec,
+};
 
 use burn::{
     config::Config,

@@ -1,5 +1,9 @@
 //! A sliding buffer of feature frames.
 
+use alloc::{
+    vec,
+    vec::Vec,
+};
 use core::marker::PhantomData;
 
 use burn::Tensor;

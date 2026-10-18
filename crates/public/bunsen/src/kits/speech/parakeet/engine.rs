@@ -1,5 +1,12 @@
 //! Parakeet as the stream driver core's engine.
-use alloc::sync::Arc;
+use alloc::{
+    format,
+    string::String,
+    sync::Arc,
+    vec,
+    vec::Vec,
+};
+use core::iter::repeat_n;
 
 use burn::{
     Tensor,
@@ -128,7 +135,7 @@ impl StreamingFeatures for ParakeetFeatures {
         }
         self.finished = true;
         let half = self.front_end.config.win_length / 2;
-        self.pending.extend(core::iter::repeat_n(0.0, half));
+        self.pending.extend(repeat_n(0.0, half));
         Ok(self.frames())
     }
 }
@@ -399,6 +406,8 @@ impl AsrEngine for ParakeetEngine {
 
 #[cfg(test)]
 mod tests {
+    use core::f32::consts::PI;
+
     use super::*;
     use crate::{
         blocks::conformer::{
@@ -465,10 +474,8 @@ mod tests {
         (0..samples)
             .map(|i| {
                 let t = i as f32 / samples as f32;
-                let s = 2.0 * core::f32::consts::PI * i as f32 / 16_000.0;
-                (core::f32::consts::PI * t).sin()
-                    * ((440.0 * s).sin() + 0.3 * (1_730.0 * s).sin())
-                    * 0.4
+                let s = 2.0 * PI * i as f32 / 16_000.0;
+                (PI * t).sin() * ((440.0 * s).sin() + 0.3 * (1_730.0 * s).sin()) * 0.4
             })
             .collect()
     }

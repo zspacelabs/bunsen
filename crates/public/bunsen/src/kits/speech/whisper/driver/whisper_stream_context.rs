@@ -1,5 +1,14 @@
 //! # Whisper as the core's engine, and its stream context.
 
+use alloc::{
+    string::{
+        String,
+        ToString,
+    },
+    vec,
+    vec::Vec,
+};
+
 use burn::Tensor;
 
 use crate::{
@@ -410,6 +419,7 @@ impl AsrEngine for WhisperEngine {
 #[cfg(test)]
 mod tests {
     use alloc::sync::Arc;
+    use core::time::Duration;
 
     use burn::{
         prelude::TensorData,
@@ -1440,7 +1450,7 @@ mod tests {
         let device = performance_device();
         let refused = config(false)
             .with_emission(EmissionPolicy::new(
-                DecodeTriggers::new().with_interval(Some(core::time::Duration::from_millis(50))),
+                DecodeTriggers::new().with_interval(Some(Duration::from_millis(50))),
                 CommitRule::LastTimestamp,
             ))
             .init_with_layout(
@@ -1497,7 +1507,7 @@ mod tests {
                     .with_emission(EmissionPolicy::new(
                         DecodeTriggers::new()
                             .with_endpoint(true)
-                            .with_interval(Some(core::time::Duration::ZERO)),
+                            .with_interval(Some(Duration::ZERO)),
                         CommitRule::Complete,
                     ))
                     .init_with_layout(tiny_model_on(&device), policy.clone(), &device),
@@ -1760,7 +1770,7 @@ mod tests {
             let policy = EmissionPolicy::new(
                 DecodeTriggers::new()
                     .with_endpoint(true)
-                    .with_interval(Some(core::time::Duration::from_millis(50))),
+                    .with_interval(Some(Duration::from_millis(50))),
                 CommitRule::LastTimestamp,
             );
             config(false)
@@ -1976,7 +1986,7 @@ mod tests {
             let responsive = EmissionPolicy::new(
                 DecodeTriggers::new()
                     .with_endpoint(true)
-                    .with_interval(Some(core::time::Duration::from_millis(50))),
+                    .with_interval(Some(Duration::from_millis(50))),
                 CommitRule::LastTimestamp,
             );
             let driver = detecting_driver(&device, responsive);

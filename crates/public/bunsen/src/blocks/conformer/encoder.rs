@@ -1,4 +1,9 @@
 //! The `FastConformer` encoder.
+use alloc::{
+    string::ToString,
+    vec::Vec,
+};
+
 use burn::{
     Tensor,
     config::Config,

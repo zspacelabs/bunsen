@@ -1,6 +1,11 @@
 //! # The stream context: one stream in progress.
 
-use alloc::collections::VecDeque;
+use alloc::{
+    boxed::Box,
+    collections::VecDeque,
+    vec,
+    vec::Vec,
+};
 
 use burn::Tensor;
 

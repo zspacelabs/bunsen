@@ -1,4 +1,10 @@
 //! A loaded Parakeet model, with what it needs to transcribe.
+use alloc::{
+    string::String,
+    vec,
+    vec::Vec,
+};
+
 use burn::{
     Tensor,
     tensor::Device,

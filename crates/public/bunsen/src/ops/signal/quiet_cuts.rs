@@ -1,5 +1,6 @@
 //! Cutting long audio at quiet points.
 
+use alloc::vec::Vec;
 /// Cuts `samples` into consecutive windows of at most `max_window` samples,
 /// each cut at the quietest `align`-sample block of its window's last sixth.
 ///

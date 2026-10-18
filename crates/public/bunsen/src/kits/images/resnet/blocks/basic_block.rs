@@ -343,6 +343,7 @@ impl BasicBlockMeta for BasicBlock {
 
 impl BasicBlock {
     /// Debug Print.
+    #[cfg(feature = "std")]
     pub fn debug_print(&self) {
         println!("#### BasicBlock");
         if self.downsample.is_some() {

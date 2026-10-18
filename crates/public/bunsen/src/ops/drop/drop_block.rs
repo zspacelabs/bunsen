@@ -1,3 +1,4 @@
+use alloc::format;
 use core::ops::Range;
 
 use burn::{

@@ -1,5 +1,6 @@
 //! # Ranking: which finished candidate a decode returns.
 
+use alloc::vec::Vec;
 use core::fmt::Debug;
 
 /// Picks one candidate per audio.

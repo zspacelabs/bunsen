@@ -1,3 +1,7 @@
+use alloc::string::{
+    String,
+    ToString,
+};
 use core::{
     fmt::Display,
     panic::Location,

@@ -146,4 +146,5 @@ pub mod cache;
 
 pub mod pretrained;
 
+#[cfg(feature = "std")]
 pub mod shards;

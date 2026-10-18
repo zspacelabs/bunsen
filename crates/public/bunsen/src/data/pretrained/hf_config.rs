@@ -1,4 +1,13 @@
 //! Reading a `transformers` `config.json`.
+use alloc::{
+    format,
+    string::{
+        String,
+        ToString,
+    },
+    vec::Vec,
+};
+
 use serde_json::Value;
 
 use crate::errors::{

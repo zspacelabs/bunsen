@@ -1,4 +1,11 @@
-use alloc::sync::Arc;
+use alloc::{
+    string::{
+        String,
+        ToString,
+    },
+    sync::Arc,
+};
+#[cfg(feature = "std")]
 use std::collections::HashSet;
 
 use burn::{
@@ -39,6 +46,7 @@ impl DynTensorEnv {
     /// Get the keys of the tensors in the environment.
     ///
     /// This is a copy of the keys of the tensors in the environment.
+    #[cfg(feature = "std")]
     pub fn keys(&self) -> HashSet<String> {
         self.iter().map(|r| r.key().clone()).collect()
     }

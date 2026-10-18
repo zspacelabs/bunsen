@@ -1,5 +1,14 @@
 //! # The token layout a checkpoint's vocabulary follows.
 
+use alloc::{
+    format,
+    string::{
+        String,
+        ToString,
+    },
+    vec::Vec,
+};
+
 use burn::config::Config;
 
 use crate::errors::{

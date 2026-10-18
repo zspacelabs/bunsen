@@ -1,5 +1,10 @@
 //! Streaming waveform to log-mel conversion.
 
+use alloc::{
+    format,
+    vec,
+};
+
 use burn::{
     Tensor,
     config::Config,

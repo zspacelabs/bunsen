@@ -1,5 +1,6 @@
 //! Where to cut a full window that its engine cannot time.
 
+use alloc::vec::Vec;
 /// Where a window cut by length is cut before it is decoded, for an engine
 /// that cannot time its words: the middle of its quietest `span`-frame
 /// stretch, by mean `loudness`, of those whose middle is in the window's last

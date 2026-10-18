@@ -1,4 +1,6 @@
 //! Slice utility functions.
+use alloc::vec::Vec;
+
 use burn::{
     Tensor,
     prelude::{

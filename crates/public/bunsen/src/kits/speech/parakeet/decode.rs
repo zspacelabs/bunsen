@@ -1,4 +1,9 @@
 //! Greedy token-and-duration transducer decoding.
+use alloc::{
+    vec,
+    vec::Vec,
+};
+
 use burn::{
     Tensor,
     config::Config,

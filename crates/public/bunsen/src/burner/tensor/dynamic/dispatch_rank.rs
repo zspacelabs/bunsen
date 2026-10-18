@@ -1,3 +1,5 @@
+use alloc::format;
+
 use crate::errors::{
     BunsenError,
     BunsenResult,

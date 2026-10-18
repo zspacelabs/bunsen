@@ -1,5 +1,11 @@
 //! # `ConvSeq1d` - sequence of [`ConvBlock1d`].
 
+use alloc::{
+    format,
+    string::String,
+    vec::Vec,
+};
+
 use burn::{
     Tensor,
     config::Config,

@@ -1,4 +1,10 @@
 //! MLX's affine-quantized tensors.
+use alloc::{
+    format,
+    string::String,
+    vec::Vec,
+};
+
 use crate::errors::{
     BunsenError,
     BunsenResult,
