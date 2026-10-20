@@ -305,7 +305,7 @@ impl<H: Construct> PretrainedFactory<H> {
         let defered = resolve().as_policy()?;
 
         if log::log_enabled!(Level::Info) {
-            log::info!("Resolved pretrained model: {}\n{:#?}", spec, &defered.model);
+            log::info!("Resolved pretrained model: {}\n{:#?}", spec, defered.model);
         }
 
         Ok(defered)

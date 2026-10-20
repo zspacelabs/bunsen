@@ -8,7 +8,15 @@ use bunsen::{
     kits::gpts::nanochat::datasets::NANOCHAT_SHARD_SETS,
     support::testing::performance_device,
 };
-use bunsen_app::shards::ShardArgs;
+use bunsen_app::{
+    logging::{
+        self,
+        LevelFilter,
+        LogArgs,
+        LogPolicy,
+    },
+    shards::ShardArgs,
+};
 use bunsen_arrow_dataloaders::{
     dataloaders::chat::ChatDataLoader,
     tokens::{
@@ -27,7 +35,6 @@ use wordchipper::{
     VocabIndex,
     disk_cache::WordchipperDiskCache,
 };
-use wordchipper_cli_util::logging::LogArgs;
 
 #[derive(Debug, Clone, clap::Args)]
 pub struct TokenBatchOptionsArgs {
@@ -79,8 +86,10 @@ pub struct Args {
 }
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
+    logging::add_target_prefix(env!("CARGO_CRATE_NAME"));
     let args = Args::parse();
-    args.logging.setup_logging(3).unwrap();
+    args.logging
+        .init(LogPolicy::new(LevelFilter::Info, LevelFilter::Info))?;
 
     log::info!("ARGS: {:#?}", args);
 

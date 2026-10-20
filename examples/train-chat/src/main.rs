@@ -38,6 +38,7 @@ use bunsen_app::{
         DeviceArgs,
         DevicePrefs,
     },
+    logging::LogArgs,
     shards::ShardArgs,
 };
 use bunsen_arrow_dataloaders::{
@@ -88,7 +89,6 @@ use wordchipper::{
     VocabIndex,
     disk_cache::WordchipperDiskCache,
 };
-use wordchipper_cli_util::logging::LogArgs;
 
 #[derive(Debug, Clone, clap::Args)]
 pub struct TokenBatchOptionsArgs {
