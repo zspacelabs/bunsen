@@ -74,10 +74,12 @@ Python, and the reference is not a build or test dependency.
 Regenerating a fixture is a deliberate manual step, never part of CI. Each
 fixture script's docstring pins the tool versions it was run with and says
 how to set up its environment. The scripts run the reference on the CPU,
-because a fixture only has to be correct, and a CPU run is deterministic. Where the inputs came
-from, and under what licence, is recorded in the `testdata/` READMEs, such
-as
-[Whisper's speech fixtures](https://github.com/zspacelabs/bunsen/blob/main/crates/validation/whisper-model-validation/testdata/README.md).
+because a fixture only has to be correct, and a CPU run is deterministic. The audio the
+tests read is collected in one dev crate, `bunsen-test-audio`, whose
+[README](https://github.com/zspacelabs/bunsen/blob/main/crates/dev/bunsen-test-audio/testdata/README.md)
+records where each clip came from and under what licence; a fixture that is a
+model's output on a clip stays in the `testdata/` of that model's validation
+crate.
 
 The same pattern pins data. `tools/gen_shard_digests.py` reads a dataset's
 listing at a pinned revision and writes the digest table that a

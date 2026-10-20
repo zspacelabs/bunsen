@@ -104,7 +104,7 @@ mod tests {
     fn test_context_matches_upstream_wrapper() -> Result<(), Box<dyn std::error::Error>> {
         type F = f32;
 
-        let wav_path = concat!(env!("CARGO_MANIFEST_DIR"), "/testdata/test.wav");
+        let wav_path = bunsen_test_audio::SILERO_VAD_TEST.path();
 
         let device = performance_device();
         let _memory = DeviceMemoryGuard::new(&device);
@@ -116,7 +116,7 @@ mod tests {
         // samples is averaged into one: a crude low-pass and decimation, but
         // both implementations see the same samples, which is all this
         // comparison needs.
-        let wav_16k = load_audio_mono_sr(wav_path, 16000)?;
+        let wav_16k = load_audio_mono_sr(&wav_path, 16000)?;
         let wav_8k: Vec<f32> = wav_16k
             .chunks_exact(2)
             .map(|pair| (pair[0] + pair[1]) / 2.0)
@@ -177,7 +177,7 @@ mod tests {
         #[cfg(feature = "cuda")]
         eprintln!("This test is known to fail on the CUDA backend.\n");
 
-        let wav_path = concat!(env!("CARGO_MANIFEST_DIR"), "/testdata/test.wav");
+        let wav_path = bunsen_test_audio::SILERO_VAD_TEST.path();
         let expected_path = concat!(env!("CARGO_MANIFEST_DIR"), "/testdata/test.json");
         let sample_rate = 16000;
 
@@ -186,7 +186,7 @@ mod tests {
 
         let vad: SileroVad = graph_collection(&device)?.try_branch(sample_rate)?.clone();
 
-        let mut wav_vec = load_audio_mono_sr(wav_path, sample_rate)?;
+        let mut wav_vec = load_audio_mono_sr(&wav_path, sample_rate)?;
 
         // [steps, 1, samples=chunk_size]
         let chunk_seq: Tensor<3> = {
@@ -259,9 +259,9 @@ mod tests {
         assert_eq!(upstream.branches.len(), 1);
         let vad = upstream.try_branch(16000)?;
 
-        let wav_path = concat!(env!("CARGO_MANIFEST_DIR"), "/testdata/test.wav");
+        let wav_path = bunsen_test_audio::SILERO_VAD_TEST.path();
         let expected_path = concat!(env!("CARGO_MANIFEST_DIR"), "/testdata/test.json");
-        let mut wav = load_audio_mono_sr(wav_path, 16000)?;
+        let mut wav = load_audio_mono_sr(&wav_path, 16000)?;
         let chunk = vad.chunk_size();
         wav.resize(wav.len().div_ceil(chunk) * chunk, 0.0);
         let chunks =

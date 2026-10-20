@@ -1,0 +1,70 @@
+# Test audio
+
+The audio clips the workspace's tests, validation suites and fixture scripts read. `src/lib.rs` names each one as an
+`AudioFixture` (its rate, duration, licence and SHA-256), and its tests hold every file to its pin.
+
+Every clip here is redistributable under bunsen's own MIT/Apache-2.0 terms, or needs no licence at all. A clip under
+a copyleft or non-commercial licence does not belong here. A Creative Commons BY-SA speech sample was considered and
+rejected on those grounds.
+
+| file | | |
+|---|---|---|
+| `jfk_moon.mp3` | 60.0 s, 16 kHz mono, LAME 48 kbps | "We choose to go to the Moon", live, with hall noise and applause |
+| `jfk_moon.txt` | | **ground truth** for `jfk_moon.mp3`: what a person hears |
+| `jfk_moon_4s.mp3` | 4.0 s, 16 kHz mono, LAME 48 kbps | speech with a one-second pause |
+| `tone.wav` | 0.5 s, 16 kHz mono, 16-bit PCM | a synthetic tone, 8000 samples exactly |
+| `tone.mp3` | 0.5 s, 16 kHz mono, LAME 48 kbps | the same tone |
+| `silero_vad_test.wav` | 60.0 s, 16 kHz mono, 16-bit PCM | silero-vad's own test recording |
+
+Fixtures that are a model's output on these clips live with the validation crate of the model that made them:
+`openai-whisper`'s decodes of `jfk_moon.mp3` with `whisper-model-validation`, the `transformers` and onnxruntime
+decodes with the Parakeet and Qwen3-ASR validation crates, and Silero's reference probabilities with
+`silero-model-validation`.
+
+## Provenance
+
+### `jfk_moon.mp3`
+
+- Source: [Jfk rice university we choose to go to the moon.ogg](https://commons.wikimedia.org/wiki/File:Jfk_rice_university_we_choose_to_go_to_the_moon.ogg),
+  retrieved from Wikimedia Commons on 2026-08-28
+- Author: John F. Kennedy, address at Rice University, 1962-09-12
+- Credit: John F. Kennedy Presidential Library & Museum
+- Licence: public domain (work of the U.S. federal government)
+- Transcode: `-ss 503 -t 60 -ac 1 -ar 16000 -c:a libmp3lame -b:a 48k` (from 44.1 kHz stereo Vorbis), not
+  bit-identical to the source
+
+The source is the complete 17.7-minute address, ~17 MB. Only the 60 s from 08:23 to 09:23 is kept: the "why climb the
+highest mountain" series through the end of the famous passage. That offset is also chosen so the 30 s window boundary
+falls on "not because they are easy": a greedy decode is sensitive to where a window lands, and this cut decodes
+cleanly on both sides of it.
+
+`jfk_moon.txt` is the transcript of those 60 s, as a person hears them.
+
+### `jfk_moon_4s.mp3`
+
+Seconds 7.0 to 11.0 of `jfk_moon.mp3`. The cut holds the end of "why climb the highest mountain?", about a second of
+pause, and "Why, thirty-five years ago, fly the Atlantic?", so a voice-activity gate with a short silence threshold
+finds two regions and a patient one finds one.
+
+```sh
+ffmpeg -i jfk_moon.mp3 -ss 7.0 -t 4.0 -ac 1 -ar 16000 -c:a libmp3lame -b:a 48k jfk_moon_4s.mp3
+```
+
+### `tone.wav`, `tone.mp3`
+
+Synthetic on purpose: a format test does not need real audio, and a tone carries no licence or provenance question.
+
+```sh
+ffmpeg -f lavfi -i "sine=frequency=440:sample_rate=16000:duration=0.5" \
+  -af "volume=0.6" -ac 1 -ar 16000 -c:a pcm_s16le tone.wav
+ffmpeg -i tone.wav -c:a libmp3lame -b:a 48k -ac 1 -ar 16000 tone.mp3
+```
+
+The mp3 decodes to slightly more than 8000 samples: gapless playback trims the encoder delay, but mp3 frames in blocks
+of 576 samples, so the tail rounds up.
+
+### `silero_vad_test.wav`
+
+- Source: [snakers4/silero-vad](https://github.com/snakers4/silero-vad) `tests/data/test.wav`, at commit
+  `fbddc91a5d51f5f448f9c158b327ddf75b9355ad` (git blob `0b1b64ecd9b316445e06cfd5b6b709b0e5fcf18f`, byte-identical)
+- Licence: MIT (silero-vad)

@@ -1162,6 +1162,7 @@ dependencies = [
  "bunsen-bundled-whisper",
  "bunsen-contracts-macros",
  "bunsen-fetch",
+ "bunsen-test-audio",
  "burn",
  "ciborium",
  "crc",
@@ -1338,6 +1339,13 @@ dependencies = [
  "serde_json",
  "serial_test",
  "tempfile",
+]
+
+[[package]]
+name = "bunsen-test-audio"
+version = "0.39.0"
+dependencies = [
+ "sha2 0.11.0",
 ]
 
 [[package]]
@@ -7931,6 +7939,7 @@ version = "0.39.0"
 dependencies = [
  "bunsen",
  "bunsen-bundled-parakeet",
+ "bunsen-test-audio",
  "burn",
  "serde",
  "serde_json",
@@ -8833,6 +8842,7 @@ version = "0.39.0"
 dependencies = [
  "bunsen",
  "bunsen-bundled-qwen3-asr",
+ "bunsen-test-audio",
  "burn",
  "serde",
  "serde_json",
@@ -10186,6 +10196,7 @@ version = "0.39.0"
 dependencies = [
  "bunsen",
  "bunsen-bundled-silero",
+ "bunsen-test-audio",
  "burn",
  "serde_json",
  "serial_test",
@@ -12398,6 +12409,7 @@ version = "0.39.0"
 dependencies = [
  "bunsen",
  "bunsen-bundled-whisper",
+ "bunsen-test-audio",
  "burn",
  "serde",
  "serde_json",

@@ -147,7 +147,7 @@ pub struct DecoderJointStep {
 /// A greedy TDT decode of a clip.
 #[derive(Debug, Deserialize)]
 pub struct SpeechRecord {
-    /// The clip, under `whisper-model-validation/testdata/`.
+    /// The clip's file name in `bunsen-test-audio`.
     pub clip: String,
 
     /// The clip's length, in samples.
@@ -247,23 +247,22 @@ pub fn load_bundle(
         .unwrap_or_else(|e| panic!("load {name}: {e}"))
 }
 
-/// A clip from `whisper-model-validation`'s speech fixtures, at 16 kHz.
+/// A clip from `bunsen-test-audio`, by file name, at 16 kHz.
 pub fn speech_clip(name: &str) -> Vec<f32> {
-    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("../whisper-model-validation/testdata")
-        .join(name);
+    let path = bunsen_test_audio::by_file(name).path();
     bunsen::support::audio::load_audio_mono_sr(&path, 16000)
         .unwrap_or_else(|e| panic!("load {}: {e}", path.display()))
 }
 
-/// The ground-truth transcript of a clip from `whisper-model-validation`'s
-/// speech fixtures.
+/// The ground-truth transcript of a clip from `bunsen-test-audio`, by file
+/// name.
+///
+/// # Panics
+/// If the clip has no transcript.
 pub fn speech_transcript(name: &str) -> String {
-    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("../whisper-model-validation/testdata")
-        .join(name)
-        .with_extension("txt");
-    std::fs::read_to_string(&path).unwrap_or_else(|e| panic!("read {}: {e}", path.display()))
+    bunsen_test_audio::by_file(name)
+        .transcript()
+        .unwrap_or_else(|| panic!("{name} has no transcript"))
 }
 
 /// `testdata/phonon2_jfk_moon.json`: Phonon-2's own reference path

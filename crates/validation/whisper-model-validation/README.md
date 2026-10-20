@@ -74,10 +74,12 @@ The argmax test is separate on purpose: logits span a wide range over 51865
 classes, so an elementwise tolerance can pass while the argmax differs — and
 the argmax is the only thing a decoder is actually judged on.
 
-`audio` runs the composition over `testdata/`, and judges it the way a
-transcription is judged — word error rate against a ground-truth transcript,
-with a per-fixture ceiling. See [`testdata/README.md`](testdata/README.md) for
-the fixtures, the measured rates, and how to regenerate them.
+`audio` runs the composition over the clips in
+[`bunsen-test-audio`](../../dev/bunsen-test-audio/testdata/README.md), and
+judges it the way a transcription is judged — word error rate against a
+ground-truth transcript, with a per-fixture ceiling. See
+[`testdata/README.md`](testdata/README.md) for the `openai-whisper`
+references, the measured rates, and how to regenerate them.
 
 This is the layer that catches what the staged tests let through: each stage can
 agree inside tolerance while the composition diverges, because a greedy argmax

@@ -166,8 +166,11 @@ pub mod audio;
 
 /// A fixture, and the accuracy it is held to.
 pub struct Fixture {
-    /// Basename under `testdata/`, without extension.
+    /// The basename of its reference, `testdata/{name}.reference.json`.
     pub name: &'static str,
+
+    /// The clip, and its ground-truth transcript.
+    pub clip: bunsen_test_audio::AudioFixture,
 
     /// Expected number of 30 s windows, as a cheap shape check.
     pub windows: usize,

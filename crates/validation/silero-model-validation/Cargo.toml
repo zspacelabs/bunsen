@@ -48,5 +48,6 @@ bunsen = { path = "../../public/bunsen", features = ["testing", "cache"] }
 bunsen-bundled-silero = { path = "../../public/bunsen-bundled-silero", optional = true }
 
 [dev-dependencies]
+bunsen-test-audio = { path = "../../dev/bunsen-test-audio" }
 serde_json = { workspace = true }
 serial_test = { workspace = true }

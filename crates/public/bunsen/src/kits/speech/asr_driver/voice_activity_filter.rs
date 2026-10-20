@@ -676,13 +676,10 @@ mod tests {
         fn probabilities() -> (Vec<f32>, usize) {
             let device = cpu_device();
             let vad = SileroVad::load_16khz_pretrained(&device).unwrap();
-            let path = concat!(
-                env!("CARGO_MANIFEST_DIR"),
-                "/testdata/audio/jfk_moon_4s.mp3"
-            );
+            let path = bunsen_test_audio::JFK_MOON_4S.path();
             let sample_rate: usize = 16_000;
 
-            let mut wav = load_audio_mono_sr(path, sample_rate).unwrap();
+            let mut wav = load_audio_mono_sr(&path, sample_rate).unwrap();
             let total = wav.len() as usize;
 
             let chunk = vad.chunk_size();

@@ -120,11 +120,8 @@ mod tests {
     fn test_silero_streams_as_one_call() {
         let model = SileroVad::load_16khz_pretrained(&cpu_device()).unwrap();
         let chunk = VoiceActivityModel::chunk_size(&model);
-        let path = concat!(
-            env!("CARGO_MANIFEST_DIR"),
-            "/testdata/audio/jfk_moon_4s.mp3"
-        );
-        let mut samples = load_audio_mono_sr(path, 16_000).unwrap();
+        let path = bunsen_test_audio::JFK_MOON_4S.path();
+        let mut samples = load_audio_mono_sr(&path, 16_000).unwrap();
         samples.truncate(samples.len() / chunk * chunk);
 
         let whole = model.new_stream().probabilities(samples.clone());

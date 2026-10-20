@@ -326,6 +326,9 @@ wordchipper = { workspace = true, default-features = false, optional = true }
 # carries a `cfg(feature = ...)` gate for it.
 bunsen = { path = ".", default-features = false, features = ["testing", "audit"] }
 bunsen-fetch = { path = "../bunsen-fetch", features = ["testing"] }
+# The audio the tests read. Path only: an unpublished dev-dependency is
+# dropped from the published manifest.
+bunsen-test-audio = { path = "../../dev/bunsen-test-audio" }
 burn = { workspace = true, features = ["autodiff"] }
 serde = { workspace = true }
 serde_json = { workspace = true }

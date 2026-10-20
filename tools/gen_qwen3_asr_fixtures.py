@@ -29,7 +29,7 @@ Outputs, under `crates/validation/qwen3-asr-model-validation/testdata/`:
     the embedding over a few ids, and the decoder's prefill then one step. Each output is
     recorded as its `shape`, `sum`, `abs_sum` and a strided sample.
 `jfk_moon.json`
-    Greedy transcriptions of `whisper-model-validation`'s `jfk_moon.mp3`, as two 30 s
+    Greedy transcriptions of `bunsen-test-audio`'s `jfk_moon.mp3`, as two 30 s
     utterances (`WINDOWS`; Phonon-1 is built for utterances of at most 30 s), by
     `transformers`' `Qwen3ASRForConditionalGeneration`, on the CPU in float32: `base` from
     the -hf weights, and one entry per Phonon-1 profile from that archive expanded to dense
@@ -52,7 +52,7 @@ from safetensors import safe_open
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 OUT = ROOT / "crates/validation/qwen3-asr-model-validation/testdata"
-CLIP = ROOT / "crates/validation/whisper-model-validation/testdata/jfk_moon.mp3"
+CLIP = ROOT / "crates/dev/bunsen-test-audio/testdata/jfk_moon.mp3"
 
 N_MELS = 128
 CHUNK = 100
