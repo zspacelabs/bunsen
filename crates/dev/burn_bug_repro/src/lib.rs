@@ -37,4 +37,5 @@
 //! off rather than reporting a fix that has not happened. The CPU-correctness
 //! checks still run.
 
+pub mod empty_reshape;
 pub mod unfold;

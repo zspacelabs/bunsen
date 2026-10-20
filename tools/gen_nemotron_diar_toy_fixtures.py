@@ -22,15 +22,22 @@ reference's answer to float32 rounding.
 
 The model is run stage by stage on whole inputs of one item each (no chunking,
 no speaker cache), at two lengths: one a multiple of the stacking factor and
-one not, which the stacking pads.
+one not, which the stacking pads. Then once more through transformers'
+offline mode, which splits a long input into chunks with look-ahead and runs
+the Arrival-Order Speaker Cache over them, at a small geometry that compresses
+the cache many times (`STREAMING`); transformers' offline mode is NeMo's sync
+streaming, the partial last chunk included.
 
 Outputs, under `crates/public/bunsen/testdata/sortformer/`:
 
 `nemotron_toy.safetensors`
     `weights.*`: the toy's state dict under transformers' names.
     `io.{case}.*`: per case, the mels in and every stage out (see `STAGES`).
+    `io.stream.{mels, probs}`: the long input, and the offline mode's 10 ms
+    probabilities over it.
 `nemotron_toy.json`
-    The toy's config, and the cases' lengths.
+    The toy's config, the cases' lengths, the streaming geometry, and how many
+    times the cache was compressed.
 """
 
 import json
@@ -40,12 +47,18 @@ import numpy as np
 import torch
 from safetensors.torch import save_file
 from transformers import Nemotron3DiarizationConfig, Nemotron3DiarizationForAudioFrameClassification
+from transformers.models.nemotron3_diarization import modeling_nemotron3_diarization as nm
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 OUT = ROOT / "crates/public/bunsen/testdata/sortformer"
 
 N_MELS = 24
 CASES = {"even": 40, "ragged": 37}
+
+# The speaker cache's geometry, in encoder frames.
+STREAMING = dict(chunk_length=3, chunk_right_context=1, fifo_length=6, speaker_cache_update_period=4,
+                 speaker_cache_length=12, speaker_cache_silence_frames_per_speaker=1)
+STREAM_FRAMES = 301
 
 CONFIG = dict(
     audio_config=dict(
@@ -60,7 +73,18 @@ CONFIG = dict(
         rope_parameters={"rope_type": "default", "rope_theta": 10000.0},
     ),
     head_config=dict(hidden_size=8, num_speakers=3, audio_hidden_size=16, subsampling_factor=8),
-    streaming_config=dict(num_speakers=3, subsampling_factor=8),
+    streaming_config=dict(
+        num_speakers=3,
+        subsampling_factor=8,
+        fifo_length=STREAMING["fifo_length"],
+        speaker_cache_update_period=STREAMING["speaker_cache_update_period"],
+        speaker_cache_length=STREAMING["speaker_cache_length"],
+        speaker_cache_silence_frames_per_speaker=STREAMING["speaker_cache_silence_frames_per_speaker"],
+    ),
+    chunk_length=STREAMING["chunk_length"],
+    chunk_right_context=STREAMING["chunk_right_context"],
+    fifo_length=STREAMING["fifo_length"],
+    speaker_cache_update_period=STREAMING["speaker_cache_update_period"],
 )
 
 # Stage outputs recorded per case:
@@ -126,9 +150,33 @@ def main() -> None:
             for name, t in stages.items():
                 tensors[f"io.{case}.{name}"] = t.float().contiguous()
 
+        # The offline mode: chunks, look-ahead, the speaker cache.
+        compressions = []
+        compress = nm.Nemotron3DiarizationSpeakerCache._compress
+
+        def counting(self, embeds, probs, silence):
+            compressions.append(int(embeds.shape[1]))
+            return compress(self, embeds, probs, silence)
+
+        nm.Nemotron3DiarizationSpeakerCache._compress = counting
+        x = mels(STREAM_FRAMES, seed=20)
+        probs = model(input_features=x).logits.sigmoid()
+        nm.Nemotron3DiarizationSpeakerCache._compress = compress
+        assert probs.shape[1] == STREAM_FRAMES
+        tensors["io.stream.mels"] = x.float().contiguous()
+        tensors["io.stream.probs"] = probs.float().contiguous()
+
     save_file(tensors, OUT / "nemotron_toy.safetensors")
     (OUT / "nemotron_toy.json").write_text(
-        json.dumps({"config": CONFIG, "cases": CASES}, indent=1) + "\n"
+        json.dumps(
+            {
+                "config": CONFIG,
+                "cases": CASES,
+                "streaming": dict(STREAMING, frames=STREAM_FRAMES, compressions=compressions),
+            },
+            indent=1,
+        )
+        + "\n"
     )
     print("wrote", OUT)
 
