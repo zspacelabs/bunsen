@@ -45,6 +45,9 @@
 //!   modules, the Conformer block, and depthwise-striding subsampling.
 //! - [`conv`]: conv / norm / activation blocks, in 1D and 2D (`ConvBlock1d`,
 //!   `ConvBlock2d`), and sequences of them (`ConvSeq1d`, `ConvSeq2d`).
+//! - [`frame_rate`]: changing a sequence's frame rate by a whole factor:
+//!   `FeatureStacking` (frames stacked and projected) and `SubpixelUpsample1d`
+//!   (a sub-pixel convolution).
 //! - [`images`]: vision blocks.
 //!   - [`images::drop`]: structured drop layers, `DropBlock2d` and `DropPath`,
 //!     and the drop-path rate tables.
@@ -70,6 +73,7 @@
 
 pub mod conformer;
 pub mod conv;
+pub mod frame_rate;
 pub mod images;
 pub mod rnn;
 pub mod transformers;
