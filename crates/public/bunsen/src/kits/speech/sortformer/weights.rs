@@ -1,13 +1,20 @@
 //! Loading `transformers`-named tensors into a [`Sortformer`].
 use burn::store::burn_pack::Tensor as PackTensor;
 
-use super::blocks::Sortformer;
+use super::blocks::{
+    NemotronDiarizationConfig,
+    Sortformer,
+};
 use crate::{
     data::pretrained::{
+        HfConfigJson,
         NamedTensorsApplied,
         apply_named_tensors,
     },
-    errors::BunsenResult,
+    errors::{
+        BunsenError,
+        BunsenResult,
+    },
 };
 
 /// The bunsen module path of one `transformers`
@@ -70,6 +77,63 @@ pub fn load_nemotron_hf_tensors(
     apply_named_tensors(model, tensors, nemotron_hf_to_bunsen_path)
 }
 
+/// The [`NemotronDiarizationConfig`] of a `transformers`
+/// `Nemotron3DiarizationForAudioFrameClassification` `config.json`: what an
+/// `hf:` repo's geometry is.
+///
+/// The encoder's and the head's sizes come from the file. What bunsen's model
+/// fixes is checked: the model type, a GELU feed-forward of a whole multiple
+/// of the width, rotary embeddings over the whole head, an integer base, and
+/// the head reading the encoder's width at the encoder's subsampling.
+///
+/// # Errors
+/// [`InvalidResource`](crate::errors::BunsenErrorKind::InvalidResource),
+/// naming the field, when the file lacks one or does not parse;
+/// [`Unsupported`](crate::errors::BunsenErrorKind::Unsupported), naming the
+/// field and its value, for a model bunsen's Sortformer is not.
+pub fn nemotron_config_from_hf(json: &str) -> BunsenResult<NemotronDiarizationConfig> {
+    let c = HfConfigJson::parse(json)?;
+    c.expect_str("model_type", "nemotron3_diarization")?;
+    let a = c.section("audio_config")?;
+    a.expect_str("hidden_act", "gelu")?;
+    let d_model = a.usize("hidden_size")?;
+    let intermediate = a.usize("intermediate_size")?;
+    if d_model == 0 || !intermediate.is_multiple_of(d_model) {
+        return Err(BunsenError::unsupported(format!(
+            "config.json: `audio_config.intermediate_size` {intermediate} is not a whole \
+             multiple of `hidden_size` {d_model}"
+        )));
+    }
+    let rope = a.section("rope_parameters")?;
+    a.expect_eq(
+        "partial_rotary_factor",
+        a.f64("partial_rotary_factor")?,
+        1.0,
+    )?;
+    let theta = rope.f64("rope_theta")?;
+    if theta.fract() != 0.0 || theta < 1.0 {
+        return Err(BunsenError::unsupported(format!(
+            "config.json: `audio_config.rope_parameters.rope_theta` {theta} is not a whole number"
+        )));
+    }
+    let factor = a.usize("subsampling_factor")?;
+
+    let h = c.section("head_config")?;
+    h.expect_eq("audio_hidden_size", h.usize("audio_hidden_size")?, d_model)?;
+    h.expect_eq("subsampling_factor", h.usize("subsampling_factor")?, factor)?;
+
+    Ok(NemotronDiarizationConfig::new()
+        .with_n_mels(a.usize("num_mel_bins")?)
+        .with_d_model(d_model)
+        .with_n_layers(a.usize("num_hidden_layers")?)
+        .with_n_heads(a.usize("num_attention_heads")?)
+        .with_ff_expansion(intermediate / d_model)
+        .with_subsampling_factor(factor)
+        .with_rope_base(theta as usize)
+        .with_d_hidden(h.usize("hidden_size")?)
+        .with_n_speakers(h.usize("num_speakers")?))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -111,5 +175,30 @@ mod tests {
             nemotron_hf_to_bunsen_path("model.audio_tower.rotary_emb.inv_freq"),
             None
         );
+    }
+
+    /// `Nemotron-3-Diarization`'s own `config.json` is its geometry.
+    #[test]
+    fn test_nemotron_config_from_hf() {
+        let json = include_str!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/testdata/sortformer/nemotron_config.json"
+        ));
+        let config = nemotron_config_from_hf(json).unwrap();
+        let want = NemotronDiarizationConfig::nemotron_3_diarization();
+        assert_eq!(config.n_mels, want.n_mels);
+        assert_eq!(config.d_model, want.d_model);
+        assert_eq!(config.n_layers, want.n_layers);
+        assert_eq!(config.n_heads, want.n_heads);
+        assert_eq!(config.ff_expansion, want.ff_expansion);
+        assert_eq!(config.subsampling_factor, want.subsampling_factor);
+        assert_eq!(config.rope_base, want.rope_base);
+        assert_eq!(config.d_hidden, want.d_hidden);
+        assert_eq!(config.n_speakers, want.n_speakers);
+
+        let other = json.replace("\"nemotron3_diarization\"", "\"something_else\"");
+        assert!(nemotron_config_from_hf(&other).is_err());
+        let relu = json.replace("\"gelu\"", "\"relu\"");
+        assert!(nemotron_config_from_hf(&relu).is_err());
     }
 }

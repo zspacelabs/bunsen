@@ -1,0 +1,54 @@
+{
+  "architectures": [
+    "Nemotron3DiarizationForAudioFrameClassification"
+  ],
+  "audio_config": {
+    "attention_dropout": 0.0,
+    "hidden_act": "gelu",
+    "hidden_size": 512,
+    "initializer_range": 0.02,
+    "intermediate_size": 2048,
+    "max_position_embeddings": 5000,
+    "model_type": "nemotron3_diarization_audio",
+    "num_attention_heads": 8,
+    "num_hidden_layers": 31,
+    "num_key_value_heads": 8,
+    "num_mel_bins": 128,
+    "partial_rotary_factor": 1.0,
+    "rope_parameters": {
+      "partial_rotary_factor": 1.0,
+      "rope_theta": 10000.0,
+      "rope_type": "default"
+    },
+    "subsampling_factor": 8
+  },
+  "chunk_length": 340,
+  "chunk_right_context": 40,
+  "dtype": "float32",
+  "fifo_length": 40,
+  "head_config": {
+    "audio_hidden_size": 512,
+    "hidden_size": 192,
+    "model_type": "",
+    "num_speakers": 8,
+    "subsampling_factor": 8
+  },
+  "initializer_range": 0.02,
+  "model_type": "nemotron3_diarization",
+  "speaker_cache_update_period": 300,
+  "streaming_config": {
+    "fifo_length": 264,
+    "latest_frames_score_boost": 0.05,
+    "min_positive_scores_rate": 0.5,
+    "model_type": "",
+    "num_speakers": 8,
+    "prediction_score_threshold": 0.25,
+    "speaker_cache_length": 264,
+    "speaker_cache_silence_frames_per_speaker": 1,
+    "speaker_cache_update_period": 222,
+    "strong_boost_rate": 0.75,
+    "subsampling_factor": 8,
+    "weak_boost_rate": 1.5
+  },
+  "transformers_version": "5.18.0.dev0"
+}
