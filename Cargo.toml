@@ -43,7 +43,7 @@ debug-assertions = true
 
 [workspace.dependencies]
 log = { version = "0.4.34", default-features = false }
-stderrlog = { version = "0.6.0" }
+env_logger = { version = "0.11.11" }
 
 # `default-features = false` at the root so that a member may opt out: bunsen
 # uses only the decode path and does not want the downloader, TLS or rayon.
@@ -146,4 +146,3 @@ csv = "1.4.0"
 flate2 = "1.1.10"
 tar = "0.4.46"
 ruzstd = "0.9.1"
-

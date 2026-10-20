@@ -23,7 +23,10 @@ use bunsen::{
     },
     zspace::ravel_dims,
 };
-use bunsen_app::logging::LogArgs;
+use bunsen_app::logging::{
+    LogArgs,
+    LogPolicy,
+};
 use burn::{
     backend::flex::ops::unary::log,
     prelude::TensorData,
@@ -80,7 +83,7 @@ impl VisualCmd {
     ) -> BunsenResult<()> {
         let device = device.clone();
 
-        self.logging.init(None)?;
+        self.logging.init(LogPolicy::default())?;
         log::info!("Running Conway's Game of Life simulation...");
         log::info!("{self:#?}");
 

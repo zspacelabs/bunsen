@@ -252,6 +252,7 @@ audit = [
 ]
 
 [dependencies]
+log = { workspace = true }
 bunsen-contracts-macros = { version = "0.39.0", path = "../bunsen-contracts-macros" }
 
 bunsen-bundled-silero = { version = "0.39.0",

@@ -57,6 +57,7 @@ impl Commands {
 }
 
 fn main() -> BunsenResult<()> {
+    bunsen_app::logging::add_target_prefix(env!("CARGO_CRATE_NAME"));
     let args = Args::parse();
 
     // The boards are 0/1 cells: any half-precision float, and the narrowest

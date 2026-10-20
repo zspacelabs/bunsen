@@ -21,8 +21,9 @@ use bunsen::{
 use bunsen_app::{
     cache::WeightsCacheArgs,
     logging::{
+        LevelFilter,
         LogArgs,
-        LogLevelNum,
+        LogPolicy,
     },
 };
 use serde::Serialize;
@@ -183,7 +184,8 @@ impl<F: clap::Args + FamilyFlags> TranscribeCmd<F> {
         &self,
         family: Family,
     ) -> BunsenResult<()> {
-        self.logging.init(Some(LogLevelNum::Warn))?;
+        self.logging
+            .init(LogPolicy::new(LevelFilter::Warn, LevelFilter::Warn))?;
         let device = self.device.device()?;
         // The options come from the command line.
         let cache =

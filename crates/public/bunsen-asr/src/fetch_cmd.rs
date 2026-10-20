@@ -3,8 +3,9 @@ use bunsen::errors::BunsenResult;
 use bunsen_app::{
     cache::WeightsCacheArgs,
     logging::{
+        LevelFilter,
         LogArgs,
-        LogLevelNum,
+        LogPolicy,
     },
 };
 
@@ -35,7 +36,8 @@ impl FetchCmd {
         &self,
         family: Family,
     ) -> BunsenResult<()> {
-        self.logging.init(Some(LogLevelNum::Warn))?;
+        self.logging
+            .init(LogPolicy::new(LevelFilter::Warn, LevelFilter::Warn))?;
         let cache = self.cache.init()?;
         family.fetch(
             &self.names,
