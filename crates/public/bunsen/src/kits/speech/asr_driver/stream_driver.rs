@@ -9,20 +9,25 @@ use crate::{
         ConstraintError,
         Rule,
     },
-    kits::speech::asr_driver::{
-        AsrEngine,
-        AsrStreamContext,
-        CommitRule,
-        EmissionPolicy,
-        LevelPolicy,
-        StreamClock,
-        VoiceActivityFilterConfig,
-        VoiceActivityModel,
+    kits::speech::{
+        asr_driver::{
+            AsrEngine,
+            AsrStreamContext,
+            CommitRule,
+            EmissionPolicy,
+            LevelPolicy,
+            SpeakerAttribution,
+            StreamClock,
+            VoiceActivityFilterConfig,
+            VoiceActivityModel,
+        },
+        diarization::SpeakerActivityModel,
     },
 };
 
 /// The shared, immutable half of a transcription: an [`AsrEngine`], the
-/// [`EmissionPolicy`], and the voice-activity model when one is attached.
+/// [`EmissionPolicy`], and the voice-activity model and the diarizer when
+/// they are attached.
 ///
 /// Opens [`AsrStreamContext`]s, one per stream, each holding a clone of the
 /// driver; the clone is cheap when the engine's model is shared. So one
@@ -35,6 +40,18 @@ pub struct AsrStreamDriver<E: AsrEngine> {
     emission: EmissionPolicy,
     vad: Option<Arc<dyn VoiceActivityModel>>,
     va_filter: Option<VoiceActivityFilterConfig>,
+    speakers: Option<SpeakerAttachment>,
+}
+
+/// A diarizer attached to a driver, and the rule that attributes segments
+/// from its activity.
+#[derive(Clone, Debug)]
+pub struct SpeakerAttachment {
+    /// The diarizer.
+    pub model: Arc<dyn SpeakerActivityModel>,
+
+    /// The attribution rule.
+    pub attribution: Arc<dyn SpeakerAttribution>,
 }
 
 impl<E: AsrEngine> AsrStreamDriver<E> {
@@ -57,6 +74,7 @@ impl<E: AsrEngine> AsrStreamDriver<E> {
             emission,
             vad: None,
             va_filter: None,
+            speakers: None,
         })
     }
 
@@ -139,6 +157,50 @@ impl<E: AsrEngine> AsrStreamDriver<E> {
             ));
         }
         Ok(())
+    }
+
+    /// Attaches a diarizer, and the rule that attributes each emitted segment
+    /// to one of its speakers.
+    ///
+    /// Each stream then runs the diarizer in a stream of its own, and every
+    /// segment the driver emits carries a
+    /// [`speaker`](crate::kits::speech::asr_driver::TranscriptSegment::speaker).
+    /// A committed segment waits until the diarizer has finalized the frames
+    /// it covers, so it is attributed from final activity; a draft is
+    /// attributed from what the diarizer has finalized so far.
+    ///
+    /// # Errors
+    /// [`Illegal`](crate::errors::BunsenErrorKind::Illegal), with a
+    /// [`ConstraintError`] cause, if the diarizer runs at a rate other than
+    /// the engine's.
+    pub fn with_speakers(
+        mut self,
+        model: Arc<dyn SpeakerActivityModel>,
+        attribution: Arc<dyn SpeakerAttribution>,
+    ) -> BunsenResult<Self> {
+        let rate = self.sample_rate();
+        if model.sample_rate() != rate {
+            return Err(ConstraintError::new(
+                "AsrStreamDriver::with_speakers",
+                "",
+                Rule::Relation {
+                    lhs: (
+                        "model.sample_rate()".into(),
+                        model.sample_rate().to_string(),
+                    ),
+                    op: "==",
+                    rhs: ("the driver's sample_rate()".into(), rate.to_string()),
+                },
+            )
+            .into());
+        }
+        self.speakers = Some(SpeakerAttachment { model, attribution });
+        Ok(self)
+    }
+
+    /// The diarizer and its attribution rule, if one was attached.
+    pub fn speakers(&self) -> Option<&SpeakerAttachment> {
+        self.speakers.as_ref()
     }
 
     /// The engine.

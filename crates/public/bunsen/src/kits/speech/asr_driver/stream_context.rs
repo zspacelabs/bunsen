@@ -1,6 +1,9 @@
 //! # The stream context: one stream in progress.
 
-use std::collections::VecDeque;
+use std::{
+    collections::VecDeque,
+    sync::Arc,
+};
 
 use burn::Tensor;
 
@@ -9,22 +12,29 @@ use crate::{
         BunsenError,
         BunsenResult,
     },
-    kits::speech::asr_driver::{
-        AsrEngine,
-        AsrStreamDriver,
-        CommitRule,
-        DecodeRequest,
-        LevelPolicy,
-        LevelTracker,
-        SpeechRegion,
-        StreamClock,
-        StreamingFeatures,
-        TranscriptEvent,
-        TranscriptSegment,
-        VoiceActivityFilter,
-        VoiceActivityStream,
-        WindowDecode,
-        support::frame_ring::FrameRing,
+    kits::speech::{
+        asr_driver::{
+            AsrEngine,
+            AsrStreamDriver,
+            CommitRule,
+            DecodeRequest,
+            LevelPolicy,
+            LevelTracker,
+            SpeakerAttribution,
+            SpeechRegion,
+            StreamClock,
+            StreamingFeatures,
+            TranscriptEvent,
+            TranscriptSegment,
+            VoiceActivityFilter,
+            VoiceActivityStream,
+            WindowDecode,
+            support::frame_ring::FrameRing,
+        },
+        diarization::{
+            SpeakerActivity,
+            SpeakerActivityStream,
+        },
     },
 };
 
@@ -62,6 +72,9 @@ pub fn advance_ready<E: AsrEngine>(
             }
         }
         if due.is_empty() {
+            for (i, ctx) in contexts.iter_mut().enumerate() {
+                out[i].extend(ctx.release());
+            }
             return Ok(out);
         }
 
@@ -74,7 +87,8 @@ pub fn advance_ready<E: AsrEngine>(
         for ((i, unit, draft), decode) in due.into_iter().zip(decodes) {
             let ctx = &mut contexts[i];
             if draft {
-                out[i].push(ctx.draft_from(unit, decode)?);
+                let event = ctx.draft_from(unit, decode)?;
+                out[i].extend(event);
             } else {
                 out[i].extend(ctx.commit_due(unit, decode)?);
             }
@@ -130,8 +144,39 @@ pub struct AsrStreamContext<E: AsrEngine> {
     /// endpoints.
     vad: Option<VoiceActivity>,
 
+    /// Speaker activity, when the driver has a diarizer.
+    speakers: Option<SpeakerTimeline>,
+
     finished: bool,
 }
+
+/// The speaker half of a stream: the diarizer's state, the activity it has
+/// finalized, and the events waiting for it.
+#[derive(Clone, Debug)]
+struct SpeakerTimeline {
+    stream: Box<dyn SpeakerActivityStream>,
+
+    attribution: Arc<dyn SpeakerAttribution>,
+
+    /// Finalized frames, from a margin before the oldest stretch that may
+    /// still be attributed.
+    activity: SpeakerActivity,
+
+    /// The diarizer's input has ended: every frame is final.
+    finished: bool,
+
+    /// Committed segments, oldest first, each with its stream samples,
+    /// waiting for the diarizer to finalize the frames they cover.
+    held: VecDeque<(usize, usize, TranscriptEvent)>,
+
+    /// The latest draft produced while commits were held: it follows them
+    /// out.
+    held_draft: Option<(usize, usize, TranscriptEvent)>,
+}
+
+/// Frames kept before the oldest stretch still to be attributed, for a rule
+/// that reads a little before a segment's start.
+const SPEAKER_MARGIN_FRAMES: usize = 8;
 
 /// The voice-activity half of a stream: the model's state, the filter, and
 /// the regions it has closed but the decode has not yet consumed.
@@ -202,6 +247,22 @@ impl<E: AsrEngine> AsrStreamContext<E> {
             _ => None,
         };
 
+        let speakers = match driver.speakers() {
+            Some(attachment) => Some(SpeakerTimeline {
+                stream: attachment.model.new_stream()?,
+                attribution: attachment.attribution.clone(),
+                activity: SpeakerActivity::empty(
+                    0,
+                    attachment.model.frame_samples(),
+                    attachment.model.max_speakers(),
+                ),
+                finished: false,
+                held: VecDeque::new(),
+                held_draft: None,
+            }),
+            None => None,
+        };
+
         // Two windows: a full window can wait for its decode while the next
         // one fills, before the ring compacts.
         let frames = FrameRing::new(2 * engine.window_frames());
@@ -217,6 +278,7 @@ impl<E: AsrEngine> AsrStreamContext<E> {
             transcript: Vec::new(),
             last_draft: 0,
             vad,
+            speakers,
             finished: false,
             driver,
         })
@@ -278,6 +340,17 @@ impl<E: AsrEngine> AsrStreamContext<E> {
     /// Closed regions not yet decoded.
     pub fn regions_pending(&self) -> usize {
         self.vad.as_ref().map_or(0, |v| v.regions.len())
+    }
+
+    /// The diarizer's finalized activity, when the driver has one: from a
+    /// few frames before the oldest stretch still to be attributed.
+    pub fn speaker_activity(&self) -> Option<&SpeakerActivity> {
+        self.speakers.as_ref().map(|t| &t.activity)
+    }
+
+    /// Committed segments waiting for the diarizer to cover them.
+    pub fn held_segments(&self) -> usize {
+        self.speakers.as_ref().map_or(0, |t| t.held.len())
     }
 
     /// Whether [`end_read`](Self::end_read) or [`end_input`](Self::end_input)
@@ -350,11 +423,20 @@ impl<E: AsrEngine> AsrStreamContext<E> {
             self.ingest(frames);
         }
         self.run_vad(false);
+        if let Some(timeline) = &mut self.speakers {
+            let frames = timeline.stream.push(samples)?;
+            timeline.activity.append(frames)?;
+        }
         Ok(())
     }
 
     /// Runs every decode that is due, and returns what it emitted: each
     /// decode's events in order, then an `interval` draft if one is due.
+    ///
+    /// With a diarizer, a committed segment comes out once the diarizer has
+    /// finalized the frames it covers, which may be a later `read`; events
+    /// keep their order, and a draft produced behind held commits follows
+    /// them out, replacing any earlier one.
     ///
     /// # Errors
     /// As the engine's decode, and its text.
@@ -370,8 +452,9 @@ impl<E: AsrEngine> AsrStreamContext<E> {
         }
         if let Some(unit) = self.draft_unit() {
             let decode = self.decode_one(unit, true)?;
-            out.push(self.draft_from(unit, decode)?);
+            out.extend(self.draft_from(unit, decode)?);
         }
+        out.extend(self.release());
         Ok(out)
     }
 
@@ -408,6 +491,11 @@ impl<E: AsrEngine> AsrStreamContext<E> {
             .drop_back(self.driver.engine().end_frames_dropped());
 
         self.run_vad(true);
+        if let Some(timeline) = &mut self.speakers {
+            let frames = timeline.stream.finish()?;
+            timeline.activity.append(frames)?;
+            timeline.finished = true;
+        }
         Ok(())
     }
 
@@ -573,12 +661,17 @@ impl<E: AsrEngine> AsrStreamContext<E> {
         draft: bool,
     ) -> DecodeRequest<'_, E> {
         let window = self.frames.window(unit.start - self.origin, unit.count);
+        let hop = self.hop();
         DecodeRequest {
             state: &self.state,
             transcript: &self.transcript,
             level: self.level.reference(window.clone()),
             window,
             draft,
+            speakers: self.speakers.as_ref().map(|t| {
+                t.activity
+                    .window(unit.start * hop, (unit.start + unit.count) * hop)
+            }),
         }
     }
 
@@ -617,25 +710,19 @@ impl<E: AsrEngine> AsrStreamContext<E> {
             self.seek = unit.start + unit.count;
         } else {
             for segment in decode.segments {
-                let emission = self.segment_at(
-                    unit.start + segment.start,
-                    unit.start + segment.end,
-                    segment.tokens,
-                )?;
+                let (start, end) = (unit.start + segment.start, unit.start + segment.end);
+                let emission = self.segment_at(start, end, segment.tokens)?;
                 self.transcript.extend_from_slice(&emission.tokens);
-                out.push(TranscriptEvent::Committed(emission));
+                out.push((start * hop, end * hop, TranscriptEvent::Committed(emission)));
             }
             if let Some(tail) = decode.tail
                 && self.driver.emission().commit == CommitRule::LastTimestamp
                 // A tail opening past the unit's audio covers nothing yet.
                 && tail.start < unit.count
             {
-                let draft = self.segment_at(
-                    unit.start + tail.start,
-                    unit.start + unit.count,
-                    tail.tokens,
-                )?;
-                out.push(TranscriptEvent::Draft(draft));
+                let (start, end) = (unit.start + tail.start, unit.start + unit.count);
+                let draft = self.segment_at(start, end, tail.tokens)?;
+                out.push((start * hop, end * hop, TranscriptEvent::Draft(draft)));
             }
             // Always forward, never past the unit.
             self.seek = unit.start + decode.advance.clamp(1, unit.count);
@@ -655,24 +742,83 @@ impl<E: AsrEngine> AsrStreamContext<E> {
             }
         }
 
-        Ok(out)
+        Ok(self.route(out))
     }
 
     /// Emits a decode of a draft unit as a draft: on the clock, with text
     /// when the engine can say, and touching nothing but the draft pacing.
     /// It covers all audio since the last commit and supersedes the previous
     /// draft whole.
+    ///
+    /// With a diarizer and commits held, the draft is held behind them.
     fn draft_from(
         &mut self,
         unit: Due,
         decode: WindowDecode<E::Carry>,
-    ) -> BunsenResult<TranscriptEvent> {
+    ) -> BunsenResult<Vec<TranscriptEvent>> {
         self.last_draft = self.samples_seen;
-        Ok(TranscriptEvent::Draft(self.segment_at(
-            unit.start,
-            unit.start + unit.count,
-            decode.tokens,
-        )?))
+        let hop = self.hop();
+        let (start, end) = (unit.start, unit.start + unit.count);
+        let draft = TranscriptEvent::Draft(self.segment_at(start, end, decode.tokens)?);
+        Ok(self.route(vec![(start * hop, end * hop, draft)]))
+    }
+
+    /// Events on their way out, each with the stream samples it covers.
+    ///
+    /// Without a diarizer they go out as they are. With one, every commit is
+    /// held until [`release`](Self::release) finds the diarizer has covered
+    /// it, and a draft goes out at once, attributed from what the diarizer
+    /// has finalized, unless commits are held: then it waits behind them.
+    fn route(
+        &mut self,
+        events: Vec<(usize, usize, TranscriptEvent)>,
+    ) -> Vec<TranscriptEvent> {
+        let Some(timeline) = &mut self.speakers else {
+            return events.into_iter().map(|(_, _, e)| e).collect();
+        };
+        let mut out = Vec::new();
+        for (start, end, event) in events {
+            match event {
+                TranscriptEvent::Committed(_) => timeline.held.push_back((start, end, event)),
+                TranscriptEvent::Draft(_) if timeline.held.is_empty() => {
+                    out.push(timeline.attribute(start, end, event))
+                }
+                TranscriptEvent::Draft(_) => timeline.held_draft = Some((start, end, event)),
+            }
+        }
+        out.extend(self.release());
+        out
+    }
+
+    /// The held events the diarizer now covers, attributed, in order; the
+    /// held draft once no commit is ahead of it. Trims the activity behind
+    /// what is still to be attributed.
+    fn release(&mut self) -> Vec<TranscriptEvent> {
+        let seek = self.seek * self.hop();
+        let Some(timeline) = &mut self.speakers else {
+            return Vec::new();
+        };
+        let mut out = Vec::new();
+        while let Some(&(_, end, _)) = timeline.held.front() {
+            if !timeline.finished && timeline.activity.end() < end {
+                break;
+            }
+            let (start, end, event) = timeline.held.pop_front().expect("present");
+            out.push(timeline.attribute(start, end, event));
+        }
+        if timeline.held.is_empty()
+            && let Some((start, end, event)) = timeline.held_draft.take()
+        {
+            out.push(timeline.attribute(start, end, event));
+        }
+
+        let oldest = timeline
+            .held
+            .front()
+            .map_or(seek, |&(start, _, _)| start.min(seek));
+        let margin = SPEAKER_MARGIN_FRAMES * timeline.activity.frame_samples;
+        timeline.activity.drop_before(oldest.saturating_sub(margin));
+        out
     }
 
     /// A segment over stream frames `[start, end)`, timed through the clock,
@@ -689,6 +835,7 @@ impl<E: AsrEngine> AsrStreamContext<E> {
             end: self.clock.time_at(end * hop),
             text: self.driver.engine().text(&tokens)?,
             tokens,
+            speaker: None,
         })
     }
 
@@ -696,6 +843,23 @@ impl<E: AsrEngine> AsrStreamContext<E> {
     fn drop_before_seek(&mut self) {
         self.frames.drop_front(self.seek - self.origin);
         self.origin = self.seek;
+    }
+}
+
+impl SpeakerTimeline {
+    /// `event` with its segment attributed over stream samples
+    /// `[start, end)`.
+    fn attribute(
+        &self,
+        start: usize,
+        end: usize,
+        mut event: TranscriptEvent,
+    ) -> TranscriptEvent {
+        let speaker = self.attribution.attribute(&self.activity, start, end);
+        match &mut event {
+            TranscriptEvent::Committed(s) | TranscriptEvent::Draft(s) => s.speaker = speaker,
+        }
+        event
     }
 }
 
@@ -756,14 +920,17 @@ mod tests {
             BunsenErrorKind,
             testing::ErrorMatcher,
         },
-        kits::speech::asr_driver::{
-            DecodeTriggers,
-            EmissionPolicy,
-            MaxLevel,
-            StreamingFeatures,
-            TimedTokens,
-            VoiceActivityFilterConfig,
-            VoiceActivityModel,
+        kits::speech::{
+            asr_driver::{
+                DecodeTriggers,
+                EmissionPolicy,
+                MaxLevel,
+                StreamingFeatures,
+                TimedTokens,
+                VoiceActivityFilterConfig,
+                VoiceActivityModel,
+            },
+            diarization::SpeakerActivityModel,
         },
         support::testing::cpu_device,
     };
@@ -1234,6 +1401,300 @@ mod tests {
         };
         assert!((level(LevelPolicy::PerWindow) - 0.2).abs() < 1e-6);
         assert!((level(LevelPolicy::Running) - 0.9).abs() < 1e-6);
+    }
+
+    /// A diarizer that knows who speaks when: speaker 0 before sample
+    /// `switch`, speaker 1 from it, in frames of `FRAME` samples, each
+    /// finalized `LATENCY` samples after its end.
+    #[derive(Clone, Debug)]
+    struct ScriptedDiarizer {
+        switch: usize,
+    }
+
+    const FRAME: usize = 4;
+    const LATENCY: usize = 30;
+
+    #[derive(Clone, Debug)]
+    struct ScriptedStream {
+        switch: usize,
+        seen: usize,
+        emitted: usize,
+    }
+
+    impl ScriptedStream {
+        /// Frames `[emitted, upto)`.
+        fn frames(
+            &mut self,
+            upto: usize,
+        ) -> SpeakerActivity {
+            let start = self.emitted * FRAME;
+            let mut probs = Vec::new();
+            for f in self.emitted..upto {
+                let first = f * FRAME >= self.switch;
+                probs.extend(if first { [0.05, 0.9] } else { [0.9, 0.05] });
+            }
+            self.emitted = upto.max(self.emitted);
+            SpeakerActivity::try_new(start, FRAME, 2, probs).unwrap()
+        }
+    }
+
+    impl SpeakerActivityModel for ScriptedDiarizer {
+        fn sample_rate(&self) -> usize {
+            RATE
+        }
+
+        fn frame_samples(&self) -> usize {
+            FRAME
+        }
+
+        fn max_speakers(&self) -> usize {
+            2
+        }
+
+        fn new_stream(&self) -> BunsenResult<Box<dyn SpeakerActivityStream>> {
+            Ok(Box::new(ScriptedStream {
+                switch: self.switch,
+                seen: 0,
+                emitted: 0,
+            }))
+        }
+    }
+
+    impl SpeakerActivityStream for ScriptedStream {
+        fn push(
+            &mut self,
+            samples: &[f32],
+        ) -> BunsenResult<SpeakerActivity> {
+            self.seen += samples.len();
+            let upto = self.seen.saturating_sub(LATENCY) / FRAME;
+            Ok(self.frames(upto))
+        }
+
+        fn finish(&mut self) -> BunsenResult<SpeakerActivity> {
+            let upto = self.seen.div_ceil(FRAME);
+            Ok(self.frames(upto))
+        }
+    }
+
+    fn with_speakers(
+        driver: AsrStreamDriver<ToyEngine>,
+        switch: usize,
+    ) -> AsrStreamDriver<ToyEngine> {
+        driver
+            .with_speakers(
+                Arc::new(ScriptedDiarizer { switch }),
+                Arc::new(crate::kits::speech::asr_driver::MeanActivity::default()),
+            )
+            .unwrap()
+    }
+
+    /// The segments without their speakers.
+    fn unlabelled(events: &[TranscriptEvent]) -> Vec<TranscriptEvent> {
+        events
+            .iter()
+            .cloned()
+            .map(|mut e| {
+                match &mut e {
+                    TranscriptEvent::Committed(s) | TranscriptEvent::Draft(s) => s.speaker = None,
+                }
+                e
+            })
+            .collect()
+    }
+
+    /// Every segment carries the speaker of the audio it covers, and the
+    /// transcript is the one the driver makes without a diarizer.
+    #[test]
+    fn test_speakers_label_every_segment() {
+        let samples = ramp(96);
+        // Segments of 3 frames, 6 samples: the switch falls on a boundary.
+        let plain = driver(ToyEngine::new(Some(3)), EmissionPolicy::offline());
+        let labelled = with_speakers(plain.clone(), 48);
+
+        let want = run(&mut open(&plain), &samples, &[7]);
+        let got = run(&mut open(&labelled), &samples, &[7]);
+        assert_eq!(unlabelled(&got), want);
+
+        let segments = committed(&got);
+        assert!(!segments.is_empty());
+        for s in &segments {
+            let speaker = s.speaker.expect("labelled").index;
+            let mid = 0.5 * (s.start + s.end) * RATE as f64;
+            assert_eq!(speaker, usize::from(mid >= 48.0), "{s:?}");
+        }
+    }
+
+    /// A commit waits until the diarizer covers it, and only then comes
+    /// out, attributed from final activity; however the audio is chunked,
+    /// the events are the same.
+    #[test]
+    fn test_commits_wait_for_the_diarizer() {
+        let samples = ramp(120);
+        let labelled = with_speakers(
+            driver(ToyEngine::new(Some(3)), EmissionPolicy::offline()),
+            40,
+        );
+
+        let whole = run(&mut open(&labelled), &samples, &[samples.len()]);
+        for sizes in [&[1][..], &[5, 3], &[16]] {
+            let mut ctx = open(&labelled);
+            let mut events = Vec::new();
+            let mut held_at_some_point = false;
+            let mut at = 0;
+            for &size in sizes.iter().cycle() {
+                if at >= samples.len() {
+                    break;
+                }
+                let end = (at + size).min(samples.len());
+                for e in ctx.write_read(&samples[at..end]).unwrap() {
+                    if e.is_committed() {
+                        // Out only once covered: its end is finalized.
+                        let covered = ctx.speaker_activity().unwrap().end() as f64 / RATE as f64;
+                        assert!(e.segment().end <= covered + 1e-9 || ctx.is_finished());
+                    }
+                    events.push(e);
+                }
+                held_at_some_point |= ctx.held_segments() > 0;
+                at = end;
+            }
+            events.extend(ctx.end_read().unwrap());
+            assert_eq!(ctx.held_segments(), 0);
+            assert!(held_at_some_point, "{sizes:?}");
+            assert_eq!(events, whole, "{sizes:?}");
+        }
+    }
+
+    /// With a diarizer, drafts still never change commits.
+    #[test]
+    fn test_drafts_never_change_labelled_commits() {
+        let samples = speech();
+        let conservative = with_speakers(
+            driver(ToyEngine::new(None), EmissionPolicy::conservative()),
+            100,
+        );
+        let responsive = with_speakers(
+            driver(
+                ToyEngine::new(None),
+                EmissionPolicy {
+                    triggers: DecodeTriggers::new()
+                        .with_endpoint(true)
+                        .with_interval(Some(Duration::from_millis(60))),
+                    ..EmissionPolicy::conservative()
+                },
+            ),
+            100,
+        );
+        for sizes in [&[4][..], &[6, 2]] {
+            let quiet = run(&mut open(&conservative), &samples, sizes);
+            let loud = run(&mut open(&responsive), &samples, sizes);
+            assert_eq!(committed(&loud), committed(&quiet), "{sizes:?}");
+            assert!(loud.iter().any(|e| !e.is_committed()), "{sizes:?}");
+            assert!(committed(&loud).iter().all(|s| s.speaker.is_some()));
+        }
+    }
+
+    /// Batched across streams with a diarizer, each stream gets what its own
+    /// reads give.
+    #[test]
+    fn test_advance_ready_matches_solo_with_speakers() {
+        let streams = [speech(), ramp(70)];
+        let driver = with_speakers(
+            driver(ToyEngine::new(Some(3)), EmissionPolicy::conservative()),
+            60,
+        );
+        let solo: Vec<Vec<TranscriptEvent>> = streams
+            .iter()
+            .map(|s| run(&mut open(&driver), s, &[10]))
+            .collect();
+
+        let mut contexts: Vec<_> = streams.iter().map(|_| open(&driver)).collect();
+        let mut batched: Vec<Vec<TranscriptEvent>> = vec![Vec::new(); streams.len()];
+        let longest = streams.iter().map(Vec::len).max().unwrap();
+        for at in (0..longest).step_by(10) {
+            for (ctx, s) in contexts.iter_mut().zip(&streams) {
+                if at < s.len() {
+                    ctx.write(&s[at..(at + 10).min(s.len())]).unwrap();
+                }
+            }
+            for (i, events) in advance_ready(&driver, &mut contexts)
+                .unwrap()
+                .into_iter()
+                .enumerate()
+            {
+                batched[i].extend(events);
+            }
+        }
+        for ctx in contexts.iter_mut() {
+            ctx.end_input().unwrap();
+        }
+        for (i, events) in advance_ready(&driver, &mut contexts)
+            .unwrap()
+            .into_iter()
+            .enumerate()
+        {
+            batched[i].extend(events);
+        }
+        assert_eq!(batched, solo);
+    }
+
+    /// The engine sees the window's activity; the activity is trimmed behind
+    /// what is still to be attributed.
+    #[test]
+    fn test_requests_carry_the_window_activity() {
+        let labelled = with_speakers(driver(ToyEngine::new(None), EmissionPolicy::offline()), 40);
+        let mut ctx = open(&labelled);
+        ctx.write(&ramp(64)).unwrap();
+        let unit = ctx.next_due().expect("a full window");
+        let request = ctx.request(unit, false);
+        let activity = request.speakers.expect("a diarizer is attached");
+        assert_eq!(activity.start, unit.start * HOP / FRAME * FRAME);
+        assert!(activity.end() <= (unit.start + unit.count) * HOP + FRAME);
+
+        let plain = driver(ToyEngine::new(None), EmissionPolicy::offline());
+        let mut ctx = open(&plain);
+        ctx.write(&ramp(64)).unwrap();
+        let unit = ctx.next_due().unwrap();
+        assert!(ctx.request(unit, false).speakers.is_none());
+
+        // After a long stream, only a margin before the seek is kept.
+        let mut ctx = open(&labelled);
+        run(&mut ctx, &ramp(400), &[16]);
+        let activity = ctx.speaker_activity().unwrap();
+        assert!(
+            activity.frames() <= SPEAKER_MARGIN_FRAMES + 1,
+            "{}",
+            activity.frames()
+        );
+    }
+
+    #[test]
+    fn test_speakers_must_share_the_rate() {
+        #[derive(Debug)]
+        struct Elsewhere;
+        impl SpeakerActivityModel for Elsewhere {
+            fn sample_rate(&self) -> usize {
+                RATE * 2
+            }
+
+            fn frame_samples(&self) -> usize {
+                FRAME
+            }
+
+            fn max_speakers(&self) -> usize {
+                2
+            }
+
+            fn new_stream(&self) -> BunsenResult<Box<dyn SpeakerActivityStream>> {
+                unreachable!()
+            }
+        }
+        let driver = driver(ToyEngine::new(None), EmissionPolicy::offline());
+        ErrorMatcher::kind(BunsenErrorKind::Illegal)
+            .message_contains("sample_rate")
+            .assert_err(&driver.with_speakers(
+                Arc::new(Elsewhere),
+                Arc::new(crate::kits::speech::asr_driver::MeanActivity::default()),
+            ));
     }
 
     #[test]

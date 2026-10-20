@@ -6,7 +6,10 @@ use burn::Tensor;
 
 use crate::{
     errors::BunsenResult,
-    kits::speech::asr_driver::LevelStatistic,
+    kits::speech::{
+        asr_driver::LevelStatistic,
+        diarization::SpeakerActivity,
+    },
 };
 
 /// A speech-to-text model, as an
@@ -147,6 +150,11 @@ pub struct DecodeRequest<'a, E: AsrEngine> {
 
     /// A provisional decode, emitted as a draft and never committed.
     pub draft: bool,
+
+    /// The diarizer's activity over the window, as far as it has finalized
+    /// it, when the driver has one: for an engine that places its cuts at
+    /// speaker turns. The core attributes every segment either way.
+    pub speakers: Option<SpeakerActivity>,
 }
 
 /// Ids over a run of frames, relative to the start of their window.
