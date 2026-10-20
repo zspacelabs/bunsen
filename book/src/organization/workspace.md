@@ -16,8 +16,9 @@ tools/              one-shot fixture generators and repo checks (Python, stdlib-
 
 All published crates share the workspace version and are released together
 by release-plz ([Releasing](../development/release.md)), except
-`bunsen-bundled-parakeet` and `bunsen-bundled-qwen3-asr`, which fetch the
-checkpoints the validation crates check against and are not published.
+`bunsen-bundled-parakeet`, `bunsen-bundled-qwen3-asr` and
+`bunsen-bundled-sortformer`, which fetch the checkpoints the validation crates
+check against and are not published.
 
 | Crate | What it is |
 |---|---|
@@ -47,6 +48,7 @@ explains the scheme.
 
 | Crate | Validates |
 |---|---|
+| [`sortformer-model-validation`](https://github.com/zspacelabs/bunsen/tree/main/crates/validation/sortformer-model-validation) | Sortformer diarization against an ONNX export of the same checkpoint, held itself to onnxruntime's run of the published graph. |
 | [`silero-model-validation`](https://github.com/zspacelabs/bunsen/tree/main/crates/validation/silero-model-validation) | Silero VAD against the ONNX graph it was transliterated from, and against a committed golden trace. |
 | [`whisper-model-validation`](https://github.com/zspacelabs/bunsen/tree/main/crates/validation/whisper-model-validation) | Whisper against an ONNX export, stage by stage, and against `openai-whisper`'s own decode of real speech. |
 

@@ -1,0 +1,48 @@
+[package]
+name = "bunsen-bundled-sortformer"
+description = "Bunsen bundled Sortformer diarization assets: fetches NVIDIA's Nemotron-3-Diarization checkpoint and an ONNX export of it at build time, digest-pinned, each behind a feature, and generates a Rust reference model from the export. Hosts none."
+publish = false
+
+authors.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+version.workspace = true
+repository.workspace = true
+license.workspace = true
+
+[dependencies]
+burn = { workspace = true, features = ["store"] }
+burn-store = { workspace = true, features = ["std"] }
+document-features = { workspace = true }
+
+[build-dependencies]
+bunsen-fetch = { path = "../bunsen-fetch", features = ["fetch"] }
+burn-onnx = { workspace = true, optional = true }
+onnx-ir = { workspace = true, optional = true }
+
+[lints]
+workspace = true
+
+[features]
+## Nothing by default: building this crate as a workspace member fetches
+## nothing. `sortformer-model-validation/download` turns on every feature.
+default = []
+
+## Fetch NVIDIA's `Nemotron-3-Diarization` as `transformers` ships it
+## (`model.safetensors`, 397 MB, and `config.json`), laid out under
+## `cache_dir()`.
+##
+## A bunsen pretrained cache rooted at that directory resolves
+## `nvidia/nemotron-3-diarization` from it, offline. These are the weights the
+## `onnx_gen` reference carries.
+checkpoint_nemotron = []
+
+## Fetch `altunenes/parakeet-rs`'s ONNX export of NVIDIA's
+## `Nemotron-3-Diarization` (401 MB), rewrite the two constructs `burn-onnx`
+## cannot import, and generate a Rust model from it, in `crate::onnx_gen`.
+##
+## This is the *reference implementation*: it exists so
+## `sortformer-model-validation` has something with independent provenance to
+## disagree with. The export carries the weights of NVIDIA's checkpoint
+## exactly.
+onnx_gen = ["dep:burn-onnx", "dep:onnx-ir"]
