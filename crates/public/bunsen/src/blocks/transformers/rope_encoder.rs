@@ -34,10 +34,7 @@ use crate::{
         },
     },
     burner::module::ModuleInit,
-    contracts::{
-        assert_shape_contract_periodically,
-        unpack_shape_contract,
-    },
+    contracts::unpack_shape_contract,
     errors::BunsenResult,
     ops::transformers::attention::length_mask,
 };
@@ -311,8 +308,10 @@ impl RopeTransformerEncoder {
         }
         let y = self.final_norm.forward(x);
 
+        #[cfg(not(any(debug_assertions, test)))]
+        let _ = batch;
         #[cfg(any(debug_assertions, test))]
-        assert_shape_contract_periodically!(
+        crate::contracts::assert_shape_contract_periodically!(
             ["batch", "time", "d_model"],
             &y.dims(),
             &[
