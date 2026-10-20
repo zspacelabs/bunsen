@@ -7,6 +7,8 @@ use bunsen::errors::BunsenResult;
 use clap::Parser;
 
 mod args;
+#[cfg(feature = "live")]
+mod capture;
 mod driver;
 mod family;
 mod fetch_cmd;
