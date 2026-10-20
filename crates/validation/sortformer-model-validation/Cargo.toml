@@ -18,10 +18,11 @@ default = []
 
 ## Fetch the reference graph and generate the model from it, and pull in the
 ## checkpoint compared against it: NVIDIA's `Nemotron-3-Diarization`, whose
-## weights the graph carries.
+## weights the graph carries; and the speech recognizers diarized
+## transcription is scored with (Phonon-2, Phonon-1, Whisper `base`).
 ##
 ## **Off by default.** Enabling this makes `bunsen-bundled-sortformer`'s build
-## reach the network on a cold cache (~800 MB), which a plain
+## reach the network on a cold cache (~1.6 GB), which a plain
 ## `cargo build --workspace` must never do. Every asset is verified against a
 ## pinned SHA-256, so a warm build is offline and reproducible.
 download = [
@@ -29,6 +30,15 @@ download = [
     "bunsen-bundled-sortformer/onnx_gen",
     "bunsen-bundled-sortformer/checkpoint_nemotron",
     "bunsen-test-audio/ami",
+    "bunsen/fermion",
+    "bunsen/whisper-weights",
+    "dep:bunsen-bundled-parakeet",
+    "bunsen-bundled-parakeet/checkpoint",
+    "dep:bunsen-bundled-qwen3-asr",
+    "bunsen-bundled-qwen3-asr/checkpoint",
+    "dep:bunsen-bundled-whisper",
+    "bunsen-bundled-whisper/checkpoint",
+    "bunsen-bundled-whisper/vocab",
 ]
 
 ## Compile every test that loads a model.
@@ -55,6 +65,18 @@ burn = { workspace = true }
 bunsen = { path = "../../public/bunsen", features = ["testing"] }
 bunsen-bundled-sortformer = {
     path = "../../public/bunsen-bundled-sortformer",
+    optional = true
+}
+bunsen-bundled-parakeet = {
+    path = "../../public/bunsen-bundled-parakeet",
+    optional = true
+}
+bunsen-bundled-qwen3-asr = {
+    path = "../../public/bunsen-bundled-qwen3-asr",
+    optional = true
+}
+bunsen-bundled-whisper = {
+    path = "../../public/bunsen-bundled-whisper",
     optional = true
 }
 bunsen-test-audio = { path = "../../dev/bunsen-test-audio" }
