@@ -24,6 +24,10 @@ use bunsen_app::{
 use crate::{
     args::DeviceArgs,
     capture::CaptureArgs,
+    diarize::{
+        SpeakerArgs,
+        speaker_name,
+    },
     driver::{
         Driver,
         Stream,
@@ -79,6 +83,9 @@ pub struct LiveCmd<F: clap::Args> {
     pub flags: F,
 
     #[clap(flatten)]
+    pub speakers: SpeakerArgs,
+
+    #[clap(flatten)]
     pub capture: CaptureArgs,
 }
 
@@ -99,7 +106,9 @@ impl<F: clap::Args + FamilyFlags> LiveCmd<F> {
             PretrainedCache::new(self.flags.cache_options(self.cache.options())).as_policy()?;
         let model = self.model.as_deref().unwrap_or(family.default_model());
         let loaded = family.load(model, &self.flags, &cache, &device)?;
-        let driver = Driver::build(loaded, &self.flags, self.preset, &cache, &device)?;
+        let speakers = self.speakers.diarizer(&cache, &device)?;
+        let diarized = speakers.is_some();
+        let driver = Driver::build(loaded, &self.flags, self.preset, speakers, &cache, &device)?;
         let rate = driver.sample_rate();
         let chunk = driver.push_samples(self.chunk_ms);
         log::debug!(
@@ -108,7 +117,7 @@ impl<F: clap::Args + FamilyFlags> LiveCmd<F> {
         );
 
         let mut stream = driver.open()?;
-        let mut printer = Printer::new();
+        let mut printer = Printer::new(diarized);
         capture.run(rate, chunk, |samples, time| {
             let events = push(&mut stream, samples, time)?;
             printer.report(&stream, &events);
@@ -145,18 +154,29 @@ fn push(
 /// stdout (Parakeet commits a segment per word, so a decode's words share a
 /// line); the latest draft on stderr, redrawn in place on a terminal and a
 /// line of its own, marked `~`, otherwise.
+///
+/// Diarized, a decode's text is a line per speaker, and a line whose speaker
+/// is not the previous line's opens with `[speaker_k]` (`[?]` for nobody).
 struct Printer {
     terminal: bool,
     draft_shown: bool,
     announced: bool,
+
+    /// Whether segments carry speakers.
+    diarized: bool,
+
+    /// The speaker of the last line printed, once one is.
+    last_speaker: Option<Option<usize>>,
 }
 
 impl Printer {
-    fn new() -> Self {
+    fn new(diarized: bool) -> Self {
         Self {
             terminal: std::io::stderr().is_terminal(),
             draft_shown: false,
             announced: false,
+            diarized,
+            last_speaker: None,
         }
     }
 
@@ -184,13 +204,59 @@ impl Printer {
                 last.segment().end
             );
         }
-        if !text.is_empty() {
+        if self.diarized {
+            let lines = self.speaker_lines(&committed);
+            if !lines.is_empty() {
+                self.clear_draft();
+                for line in lines {
+                    println!("{line}");
+                }
+            }
+        } else if !text.is_empty() {
             self.clear_draft();
             println!("{}", text.join(" "));
         }
         if let Some(draft) = events.iter().rev().find(|e| !e.is_committed()) {
             self.show_draft(draft.segment().text.as_deref().unwrap_or("").trim());
         }
+    }
+
+    /// The committed segments' text as lines, one per run of a speaker, each
+    /// prefixed when its speaker is not the previous line's.
+    fn speaker_lines(
+        &mut self,
+        committed: &[&TranscriptEvent],
+    ) -> Vec<String> {
+        let mut runs: Vec<(Option<usize>, Vec<&str>)> = Vec::new();
+        for event in committed {
+            let segment = event.segment();
+            let Some(text) = segment
+                .text
+                .as_deref()
+                .map(str::trim)
+                .filter(|t| !t.is_empty())
+            else {
+                continue;
+            };
+            let speaker = segment.speaker.map(|label| label.index);
+            match runs.last_mut() {
+                Some((s, words)) if *s == speaker => words.push(text),
+                _ => runs.push((speaker, vec![text])),
+            }
+        }
+        runs.into_iter()
+            .map(|(speaker, words)| {
+                let text = words.join(" ");
+                let line = if self.last_speaker == Some(speaker) {
+                    text
+                } else {
+                    let name = speaker.map_or("?".to_string(), speaker_name);
+                    format!("[{name}] {text}")
+                };
+                self.last_speaker = Some(speaker);
+                line
+            })
+            .collect()
     }
 
     fn show_draft(
@@ -215,5 +281,52 @@ impl Printer {
             let _ = std::io::stderr().flush();
             self.draft_shown = false;
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use bunsen::kits::speech::asr_driver::{
+        SpeakerLabel,
+        TranscriptSegment,
+    };
+
+    use super::*;
+
+    fn committed(
+        text: &str,
+        speaker: Option<usize>,
+    ) -> TranscriptEvent {
+        TranscriptEvent::Committed(TranscriptSegment {
+            start: 0.0,
+            end: 0.0,
+            tokens: Vec::new(),
+            text: Some(text.to_string()),
+            speaker: speaker.map(|index| SpeakerLabel {
+                index,
+                confidence: 0.9,
+            }),
+        })
+    }
+
+    /// A line per run of a speaker; the prefix only where the speaker
+    /// changes, across decodes too.
+    #[test]
+    fn test_speaker_lines() {
+        let mut printer = Printer::new(true);
+        let first = [
+            committed("hello", Some(0)),
+            committed("there", Some(0)),
+            committed(" ", Some(1)),
+            committed("hi", Some(1)),
+        ];
+        let refs: Vec<&TranscriptEvent> = first.iter().collect();
+        assert_eq!(
+            printer.speaker_lines(&refs),
+            ["[speaker_0] hello there", "[speaker_1] hi"]
+        );
+        let second = [committed("again", Some(1)), committed("um", None)];
+        let refs: Vec<&TranscriptEvent> = second.iter().collect();
+        assert_eq!(printer.speaker_lines(&refs), ["again", "[?] um"]);
     }
 }

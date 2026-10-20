@@ -48,6 +48,8 @@ use crate::{
     transcribe_cmd::{
         Segment,
         Transcript,
+        segment_speaker,
+        speaker_turns,
     },
 };
 
@@ -205,10 +207,12 @@ pub fn transcribe(
             end: s.end,
             text: s.text.as_deref().unwrap_or("").trim().to_string(),
             tokens: s.tokens.clone(),
+            speaker: segment_speaker(s),
         })
         .collect();
     Ok(Transcript {
         text: stream::join_text(&committed),
+        turns: driver.speakers().map(|_| speaker_turns(&committed)),
         language: ctx.language().map(String::from),
         words: None,
         segments: Some(segments),
