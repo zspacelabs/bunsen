@@ -127,6 +127,13 @@ bunsen has two attention stacks, and both are deliberate:
   when the model is built on burn's module: a ported checkpoint in that
   layout, or encoder-decoder cross-attention.
 
+An encoder's attention is neither: it decodes nothing, so it carries no
+cache.
+[`RelPosSelfAttention`](bunsen::blocks::transformers::attention::rel_pos::RelPosSelfAttention)
+(the Conformer's) and
+[`RopeSelfAttention`](bunsen::blocks::transformers::attention::rope::RopeSelfAttention)
+(bidirectional, with rotary embeddings) are blocks of their own.
+
 [The ops attention docs](bunsen::ops::transformers::attention#two-attention-stacks)
 say when to use which, and
 [two caches](bunsen::ops::transformers::attention#two-caches) compares
