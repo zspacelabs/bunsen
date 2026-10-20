@@ -8,7 +8,10 @@ use burn::{
 };
 
 use crate::{
-    burner::module::ModuleInit,
+    burner::{
+        module::ModuleInit,
+        tensor::round_to_bf16,
+    },
     errors::BunsenResult,
     kits::speech::asr_driver::StreamingFeatures,
     ops::{
@@ -171,31 +174,6 @@ impl NemoMelFrontEndConfig {
             .with_start_padding(PaddingMode::Zero)
             .with_end_padding(PaddingMode::Zero)
     }
-}
-
-/// Each value rounded to the nearest `bf16` (ties to even), on the host:
-/// `bf16` itself need not exist on the device.
-fn round_to_bf16<const D: usize>(x: Tensor<D>) -> Tensor<D> {
-    let device = x.device();
-    let shape = x.dims();
-    let values: Vec<f32> = x
-        .into_data()
-        .try_into_vec_as::<f32>()
-        .expect("read back f32 values")
-        .into_iter()
-        .map(bf16_round)
-        .collect();
-    Tensor::from_data(TensorData::new(values, shape), &device)
-}
-
-/// `x` rounded to the nearest `bf16`, ties to even.
-fn bf16_round(x: f32) -> f32 {
-    if !x.is_finite() {
-        return x;
-    }
-    let bits = x.to_bits();
-    let round = 0x7FFF + ((bits >> 16) & 1);
-    f32::from_bits(bits.wrapping_add(round) & 0xFFFF_0000)
 }
 
 impl ModuleInit<NemoMelFrontEnd> for NemoMelFrontEndConfig {
@@ -453,7 +431,10 @@ impl StreamingFeatures for NemoMelFeatures {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::support::testing::cpu_device;
+    use crate::{
+        burner::tensor::bf16_round,
+        support::testing::cpu_device,
+    };
 
     #[test]
     fn test_meta() {
@@ -477,22 +458,6 @@ mod tests {
         assert!(config.normalize.is_frame_local());
         assert!(config.bf16_tables);
         assert_eq!(config.n_mels, 128);
-    }
-
-    /// Rounding to `bf16` keeps 8 significant bits, ties to even, and leaves
-    /// a value that is already `bf16` alone.
-    #[test]
-    fn test_bf16_round() {
-        assert_eq!(bf16_round(1.0), 1.0);
-        assert_eq!(bf16_round(0.0), 0.0);
-        // 1 + 2^-8 is halfway between 1 and 1 + 2^-7: to even, 1.
-        assert_eq!(bf16_round(1.0 + 2f32.powi(-8)), 1.0);
-        // 1 + 3 * 2^-8 is halfway between 1 + 2^-7 and 1 + 2^-6: to even.
-        assert_eq!(bf16_round(1.0 + 3.0 * 2f32.powi(-8)), 1.0 + 2f32.powi(-6));
-        assert_eq!(bf16_round(1.0 + 2f32.powi(-7)), 1.0 + 2f32.powi(-7));
-        let x = 0.123_456_7f32;
-        assert_eq!(bf16_round(bf16_round(x)), bf16_round(x));
-        assert!((bf16_round(x) - x).abs() <= x * 2f32.powi(-8));
     }
 
     /// With `bf16_tables`, the window and the filterbank are the `bf16`

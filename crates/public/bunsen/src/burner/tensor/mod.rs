@@ -53,6 +53,10 @@
 //! dtype a module's interface speaks when its parameters were loaded at
 //! some other precision.
 //!
+//! [`bf16_round`] and [`round_to_bf16`] — values rounded to `bf16`
+//! precision and kept in `f32`, on the host: what a table stored in `bf16` and
+//! computed with in `f32` holds.
+//!
 //! ## Dynamic Tensors
 //!
 //! [`dynamic`] wraps a `Tensor<R, K>` of any rank and kind as a
@@ -64,10 +68,12 @@
 
 pub mod dynamic;
 
+mod bf16;
 mod float_dtype;
 mod tensor_data_checks;
 mod tensor_op_ext;
 
+pub use bf16::*;
 pub use float_dtype::*;
 pub use tensor_data_checks::*;
 pub use tensor_op_ext::*;
