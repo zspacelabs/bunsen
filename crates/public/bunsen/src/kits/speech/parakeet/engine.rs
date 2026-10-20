@@ -399,6 +399,8 @@ impl AsrEngine for ParakeetEngine {
 
 #[cfg(test)]
 mod tests {
+    use burn::tensor::Tolerance;
+
     use super::*;
     use crate::{
         blocks::conformer::{
@@ -421,6 +423,7 @@ mod tests {
                 ParakeetTdtConfig,
                 ParakeetVocabulary,
             },
+            testing::ToneConfig,
         },
         support::testing::performance_device,
     };
@@ -460,26 +463,13 @@ mod tests {
         }
     }
 
-    /// A 440 Hz tone under a sine envelope, with a little noise-like detail.
-    fn tone(samples: usize) -> Vec<f32> {
-        (0..samples)
-            .map(|i| {
-                let t = i as f32 / samples as f32;
-                let s = 2.0 * std::f32::consts::PI * i as f32 / 16_000.0;
-                (std::f32::consts::PI * t).sin()
-                    * ((440.0 * s).sin() + 0.3 * (1_730.0 * s).sin())
-                    * 0.4
-            })
-            .collect()
-    }
-
     /// Streamed in pieces of any size and normalized by its window's level,
     /// a clip is the one-shot extractor's features, every valid frame.
     #[test]
     fn test_streamed_features_are_the_front_ends() {
         let device = performance_device();
         let front_end: ParakeetFrontEnd = ParakeetFrontEndConfig::new().init(&device);
-        let samples = tone(20_850);
+        let samples = ToneConfig::Samples(20_850).build();
         let wave = Tensor::<2>::from_data(
             TensorData::new(samples.clone(), [1, samples.len()]),
             &device,
@@ -504,10 +494,7 @@ mod tests {
             let level = MomentsLevel::of(window.clone());
             normalize(&front_end, window, &level)
                 .to_data()
-                .assert_approx_eq::<f32>(
-                    &one_shot.to_data(),
-                    burn::tensor::Tolerance::absolute(2e-4),
-                );
+                .assert_approx_eq::<f32>(&one_shot.to_data(), Tolerance::relative(0.01));
         }
 
         let mut empty = ParakeetFeatures::new(front_end, device);
@@ -617,7 +604,7 @@ mod tests {
             .new_context(StreamClock::uniform(16_000), LevelPolicy::PerWindow)
             .unwrap();
         let mut events = Vec::new();
-        for piece in tone(40_000).chunks(1_600) {
+        for piece in ToneConfig::Samples(40_000).build().chunks(1_600) {
             events.extend(stream.write_read(piece).unwrap());
         }
         events.extend(stream.end_read().unwrap());

@@ -339,6 +339,7 @@ mod tests {
                         Qwen3AsrConfig,
                     },
                 },
+                testing::ToneConfig,
             },
             tokens::ByteLevelVocabulary,
         },
@@ -400,19 +401,6 @@ mod tests {
         Qwen3AsrEngine::new(Arc::new(toy_bundle(4, vec![5], &device))).with_window_seconds(30.5);
     }
 
-    /// A 440 Hz tone under a sine envelope, silent at both ends.
-    fn tone(seconds: f32) -> Vec<f32> {
-        let n = (seconds * 16_000.0) as usize;
-        (0..n)
-            .map(|i| {
-                let t = i as f32 / n as f32;
-                (std::f32::consts::PI * t).sin()
-                    * (2.0 * std::f32::consts::PI * 440.0 * i as f32 / 16_000.0).sin()
-                    * 0.5
-            })
-            .collect()
-    }
-
     /// A streamed window, packaged, is the front end's one-shot features,
     /// padding included, but for the frames either side of the stream's
     /// end, where streaming reflects and the one-shot extractor pads with
@@ -422,7 +410,11 @@ mod tests {
         let device = performance_device();
         let engine = Qwen3AsrEngine::new(Arc::new(toy_bundle(4, vec![5], &device)));
         assert_eq!(engine.window_frames(), 3000);
-        let samples = tone(2.0);
+        let samples = ToneConfig::Duration {
+            seconds: 2.0,
+            hz: 16_000.0,
+        }
+        .build();
 
         let (one_shot, valid) = engine
             .bundle()
@@ -516,7 +508,11 @@ mod tests {
             .new_context(StreamClock::uniform(16_000), LevelPolicy::PerWindow)
             .unwrap();
 
-        let samples = tone(2.5);
+        let samples = ToneConfig::Duration {
+            seconds: 2.5,
+            hz: 16_000.0,
+        }
+        .build();
         let mut events = Vec::new();
         for piece in samples.chunks(1_000) {
             events.extend(stream.write_read(piece).unwrap());
@@ -540,7 +536,11 @@ mod tests {
     fn test_full_windows_are_cut_quiet() {
         let device = performance_device();
         // A tone, silent from 0.8 s to 0.9 s, then sounding again to 1.6 s.
-        let mut samples = tone(1.6);
+        let mut samples = ToneConfig::Duration {
+            seconds: 1.6,
+            hz: 16_000.0,
+        }
+        .build();
         samples[12_800..14_400].fill(0.0);
         let commits = |engine: Qwen3AsrEngine| {
             let driver = Qwen3AsrStreamDriver::new(engine, EmissionPolicy::offline()).unwrap();
