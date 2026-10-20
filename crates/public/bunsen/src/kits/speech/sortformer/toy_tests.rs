@@ -20,6 +20,8 @@ use burn::{
 };
 
 use super::{
+    SortformerMelStream,
+    SortformerStreamingConfig,
     blocks::{
         NemotronDiarizationConfig,
         Sortformer,
@@ -140,4 +142,97 @@ fn test_silence_embedding_loads() {
     let silence = toy.model.silence.as_ref().expect("a learned silence").val();
     assert_eq!(silence.dims(), [16]);
     assert!(silence.abs().sum().into_scalar::<f32>() > 0.0);
+}
+
+/// Streamed through the speaker cache, at a geometry that compresses it five
+/// times, in pieces of any size: every output frame is what `transformers`'
+/// offline mode (`NeMo`'s sync streaming) gives the whole input.
+#[test]
+#[serial_test::serial]
+fn test_streaming_matches_transformers() {
+    let toy = Toy::load();
+    let model = std::sync::Arc::new(toy.model.clone());
+    let mels: Tensor<3> = toy.get("stream.mels");
+    let want: Tensor<3> = toy.get("stream.probs");
+    let [_, frames, n_mels] = mels.dims();
+    let mels: Tensor<2> = mels.reshape([frames, n_mels]);
+    let config = SortformerStreamingConfig::new(3, 1, 6, 12, 4);
+
+    for pieces in [&[frames][..], &[1][..], &[5, 13, 2][..], &[24][..]] {
+        let mut stream = SortformerMelStream::new(model.clone(), config.clone()).unwrap();
+        let mut got = Vec::new();
+        let mut at = 0;
+        for &n in pieces.iter().cycle() {
+            if at >= frames {
+                break;
+            }
+            let end = (at + n).min(frames);
+            got.extend(stream.push(mels.clone().slice_dim(0, at..end)).unwrap());
+            at = end;
+        }
+        got.extend(stream.finish().unwrap());
+        assert_eq!(stream.cache().compressions(), 5, "{pieces:?}");
+
+        let got = Tensor::<3>::from_data(TensorData::new(got, [1, frames, 3]), &toy.device);
+        assert_close(&format!("streamed in {pieces:?}"), got, want.clone());
+    }
+}
+
+/// Over samples, through `NeMo`'s mel front end streamed, the activity is the
+/// one-shot front end's mels through the mel stream, however the samples are
+/// split, and its frames are 10 ms, contiguous from sample 0.
+#[test]
+#[serial_test::serial]
+fn test_sample_stream_is_the_mel_stream() {
+    use crate::kits::speech::{
+        diarization::SpeakerActivityStream,
+        nemo::NemoMelFrontEndConfig,
+    };
+
+    let toy = Toy::load();
+    let model = std::sync::Arc::new(toy.model.clone());
+    let config = SortformerStreamingConfig::new(3, 1, 6, 12, 4);
+    let front_end: crate::kits::speech::nemo::NemoMelFrontEnd =
+        NemoMelFrontEndConfig::nemotron_diarization()
+            .with_n_mels(24)
+            .init(&toy.device);
+
+    let samples: Vec<f32> = (0..16_000 * 2 + 777)
+        .map(|n| {
+            let t = n as f32 / 16_000.0;
+            0.3 * (2.0 * std::f32::consts::PI * 300.0 * t).sin()
+                + 0.05 * (((n * 7919) % 1009) as f32 / 504.5 - 1.0)
+        })
+        .collect();
+
+    let (mels, lengths) = front_end.forward(
+        Tensor::from_data(
+            TensorData::new(samples.clone(), [1, samples.len()]),
+            &toy.device,
+        ),
+        None,
+    );
+    let mels: Tensor<2> = mels
+        .swap_dims(1, 2)
+        .slice_dim(1, 0..lengths[0])
+        .squeeze_dim(0);
+    let mut one_shot = SortformerMelStream::new(model.clone(), config.clone()).unwrap();
+    let mut want = one_shot.push(mels).unwrap();
+    want.extend(one_shot.finish().unwrap());
+    assert_eq!(want.len(), lengths[0] * 3);
+
+    for piece in [samples.len(), 160, 1234] {
+        let mut stream =
+            super::SortformerStream::new(model.clone(), front_end.clone(), config.clone()).unwrap();
+        let mut activity = crate::kits::speech::diarization::SpeakerActivity::empty(0, 160, 3);
+        for chunk in samples.chunks(piece) {
+            activity.append(stream.push(chunk).unwrap()).unwrap();
+        }
+        activity.append(stream.finish().unwrap()).unwrap();
+        assert_eq!(activity.start, 0);
+        assert_eq!(activity.frames(), lengths[0], "{piece}");
+        let got = Tensor::<1>::from_floats(activity.probs.as_slice(), &toy.device);
+        let want = Tensor::<1>::from_floats(want.as_slice(), &toy.device);
+        assert_close(&format!("pieces of {piece}"), got, want);
+    }
 }

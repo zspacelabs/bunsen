@@ -23,11 +23,35 @@
   },
   "streaming_config": {
    "num_speakers": 3,
-   "subsampling_factor": 8
-  }
+   "subsampling_factor": 8,
+   "fifo_length": 6,
+   "speaker_cache_update_period": 4,
+   "speaker_cache_length": 12,
+   "speaker_cache_silence_frames_per_speaker": 1
+  },
+  "chunk_length": 3,
+  "chunk_right_context": 1,
+  "fifo_length": 6,
+  "speaker_cache_update_period": 4
  },
  "cases": {
   "even": 40,
   "ragged": 37
+ },
+ "streaming": {
+  "chunk_length": 3,
+  "chunk_right_context": 1,
+  "fifo_length": 6,
+  "speaker_cache_update_period": 4,
+  "speaker_cache_length": 12,
+  "speaker_cache_silence_frames_per_speaker": 1,
+  "frames": 301,
+  "compressions": [
+   16,
+   16,
+   16,
+   16,
+   16
+  ]
  }
 }
