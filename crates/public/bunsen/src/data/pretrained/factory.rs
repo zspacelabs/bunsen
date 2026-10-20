@@ -11,6 +11,7 @@ use alloc::{
 use core::marker::PhantomData;
 
 use burn::tensor::Device;
+use log::Level;
 
 #[cfg(doc)]
 use super::ResourceMap;
@@ -300,7 +301,14 @@ impl<H: Construct> PretrainedFactory<H> {
                 pretrained,
             })
         };
-        resolve().as_policy()
+
+        let defered = resolve().as_policy()?;
+
+        if log::log_enabled!(Level::Info) {
+            log::info!("Resolved pretrained model: {}\n{:#?}", spec, defered.model);
+        }
+
+        Ok(defered)
     }
 
     /// A name to what the kit builds: [`resolve`](Self::resolve), then

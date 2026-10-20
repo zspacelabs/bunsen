@@ -28,8 +28,9 @@ use bunsen::{
 };
 
 use crate::logging::{
+    LevelFilter,
     LogArgs,
-    LogLevelNum,
+    LogPolicy,
 };
 
 /// Where fetched weights live, and whether fetching is allowed.
@@ -107,7 +108,8 @@ pub enum CacheAction {
 impl CacheCommand {
     /// Runs the command, writing to stdout.
     pub fn run(&self) -> BunsenResult<()> {
-        self.logging.init(Some(LogLevelNum::Warn))?;
+        self.logging
+            .init(LogPolicy::new(LevelFilter::Warn, LevelFilter::Warn))?;
         let cache = self.cache.init()?;
         self.action.run(&cache, &mut std::io::stdout().lock())
     }

@@ -128,6 +128,7 @@ impl<F: clap::Args + transcribe_cmd::FamilyFlags> Action<F> {
 }
 
 fn main() -> BunsenResult<()> {
+    bunsen_app::logging::add_target_prefix(env!("CARGO_CRATE_NAME"));
     match &Args::parse().family {
         FamilyCmd::Parakeet(cmd) => cmd.run(Family::Parakeet),
         FamilyCmd::Qwen3Asr(cmd) => cmd.run(Family::Qwen3Asr),

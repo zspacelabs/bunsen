@@ -33,8 +33,9 @@ use bunsen::{
 use bunsen_app::{
     cache::WeightsCacheArgs,
     logging::{
+        LevelFilter,
         LogArgs,
-        LogLevelNum,
+        LogPolicy,
     },
 };
 use cpal::{
@@ -146,7 +147,8 @@ impl<F: clap::Args + FamilyFlags> LiveCmd<F> {
         &self,
         family: Family,
     ) -> BunsenResult<()> {
-        self.logging.init(Some(LogLevelNum::Warn))?;
+        self.logging
+            .init(LogPolicy::new(LevelFilter::Warn, LevelFilter::Warn))?;
         let host = cpal::default_host();
         if self.list_devices {
             return list_devices(&host);

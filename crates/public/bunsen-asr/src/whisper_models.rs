@@ -23,8 +23,9 @@ use bunsen::{
 use bunsen_app::{
     cache::WeightsCacheArgs,
     logging::{
+        LevelFilter,
         LogArgs,
-        LogLevelNum,
+        LogPolicy,
     },
 };
 
@@ -54,7 +55,8 @@ pub struct PrefabsCmd {
 
 impl PrefabsCmd {
     pub fn run(&self) -> BunsenResult<()> {
-        self.logging.init(Some(LogLevelNum::Warn))?;
+        self.logging
+            .init(LogPolicy::new(LevelFilter::Warn, LevelFilter::Warn))?;
         println!("{}: {}", WHISPER_PREFABS.name, WHISPER_PREFABS.description);
         println!(
             "  NAME             MELS  VOCAB D_MODEL HEADS  ENC  DEC AUDIO_CTX TEXT_CTX  DESCRIPTION"
@@ -87,7 +89,8 @@ fn layout_of(cfg: &WhisperApiConfig) -> BunsenResult<WhisperSpecialIds> {
 
 impl InspectCmd {
     pub fn run(&self) -> BunsenResult<()> {
-        self.logging.init(Some(LogLevelNum::Warn))?;
+        self.logging
+            .init(LogPolicy::new(LevelFilter::Warn, LevelFilter::Warn))?;
         let cache: PretrainedCache = self.cache.init()?;
         let model = whisper::resolve(&self.name, None, &cache)?;
         println!("model: {}", model.id());

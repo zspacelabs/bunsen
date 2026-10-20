@@ -21,7 +21,10 @@ use bunsen::{
     },
     support::geometry::GridShape2D,
 };
-use bunsen_app::logging::LogArgs;
+use bunsen_app::logging::{
+    LogArgs,
+    LogPolicy,
+};
 use burn::tensor::Device;
 use clap::Parser;
 use indicatif::ProgressBar;
@@ -66,7 +69,7 @@ impl BenchmarkCmd {
         device: &Device,
     ) -> BunsenResult<()> {
         let device = device.clone();
-        self.logging.init(None)?;
+        self.logging.init(LogPolicy::default())?;
 
         match self.dims {
             2 => self.run2d(&device),

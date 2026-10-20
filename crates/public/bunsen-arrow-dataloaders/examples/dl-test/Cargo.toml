@@ -12,10 +12,8 @@ bunsen = { path = "../../../bunsen" }
 bunsen-arrow-dataloaders = { path = "../.." }
 bunsen-app = { path = "../../../bunsen-app" }
 wordchipper = { workspace = true, features = ["client"] }
-wordchipper-cli-util = { workspace = true }
 
 rand = { workspace = true }
-burn = { workspace = true }
 log = { workspace = true }
 clap = { workspace = true, features = ["derive"] }
 

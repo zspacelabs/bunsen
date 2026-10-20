@@ -3,8 +3,9 @@ use bunsen::errors::BunsenResult;
 use bunsen_app::{
     cache::WeightsCacheArgs,
     logging::{
+        LevelFilter,
         LogArgs,
-        LogLevelNum,
+        LogPolicy,
     },
 };
 
@@ -26,7 +27,8 @@ impl ListCmd {
         &self,
         family: Family,
     ) -> BunsenResult<()> {
-        self.logging.init(Some(LogLevelNum::Info))?;
+        self.logging
+            .init(LogPolicy::new(LevelFilter::Info, LevelFilter::Info))?;
         let cache = self.cache.init()?;
         let listing = family.listing()?;
         println!(
