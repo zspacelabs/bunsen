@@ -69,6 +69,7 @@
 
 pub mod asr_driver;
 pub mod diarization;
+pub mod nemo;
 pub mod parakeet;
 pub mod qwen3_asr;
 pub mod silero_vad;

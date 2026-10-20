@@ -4,12 +4,12 @@ use std::sync::Arc;
 use burn::{
     Tensor,
     module::Module,
-    prelude::TensorData,
     tensor::Device,
 };
 
 use super::{
     ParakeetBundle,
+    ParakeetFeatures,
     ParakeetFrontEnd,
     ParakeetFrontEndMeta,
     ParakeetTdtMeta,
@@ -28,14 +28,12 @@ use crate::{
         AsrStreamDriver,
         DecodeRequest,
         MomentsLevel,
-        StreamingFeatures,
         TimedTokens,
         WindowDecode,
         WordSpan,
         pause_cut,
         word_segments,
     },
-    ops::signal::perceptive_audio::PerceptiveAudioConverterMeta,
 };
 
 /// The stream driver of a Parakeet model: the core's [`AsrStreamDriver`]
@@ -45,93 +43,6 @@ pub type ParakeetStreamDriver = AsrStreamDriver<ParakeetEngine>;
 /// One Parakeet stream: the core's [`AsrStreamContext`] over a
 /// [`ParakeetEngine`].
 pub type ParakeetStreamContext = AsrStreamContext<ParakeetEngine>;
-
-/// Parakeet's front end, streamed: pre-emphasis carried across pushes, the
-/// frames centred with half a window of zeros at each end, and
-/// `ln(mel + 2^-24)` per frame, before normalization.
-///
-/// Normalization is the level's: an engine scales a window by its
-/// [`MomentsLevel`] when it decodes it. Every frame is the one-shot
-/// extractor's, the last included: its end padding is zeros, as the
-/// extractor's is.
-#[derive(Clone, Debug)]
-pub struct ParakeetFeatures {
-    front_end: ParakeetFrontEnd,
-
-    /// The last sample pushed, for pre-emphasis; `None` before the first.
-    last: Option<f32>,
-
-    /// Pre-emphasized, centred samples not yet consumed by a frame.
-    pending: Vec<f32>,
-
-    /// Set once the input ends.
-    finished: bool,
-
-    device: Device,
-}
-
-impl ParakeetFeatures {
-    /// A stream through `front_end`, whose frames are built on `device`.
-    pub fn new(
-        front_end: ParakeetFrontEnd,
-        device: Device,
-    ) -> Self {
-        let half = front_end.config.win_length / 2;
-        Self {
-            front_end,
-            last: None,
-            pending: vec![0.0; half],
-            finished: false,
-            device,
-        }
-    }
-
-    /// The frames whose windows `pending` fills, consumed.
-    fn frames(&mut self) -> Option<Tensor<3>> {
-        let converter = &self.front_end.converter;
-        let (n_fft, hop) = (converter.n_fft(), converter.hop());
-        if self.pending.len() < n_fft {
-            return None;
-        }
-        let count = (self.pending.len() - n_fft) / hop + 1;
-        let span = (count - 1) * hop + n_fft;
-        let x = Tensor::<2>::from_data(
-            TensorData::new(self.pending[..span].to_vec(), [1, span]),
-            &self.device,
-        );
-        self.pending.drain(..count * hop);
-        let mel = converter.mel(converter.spectrum(converter.frame(x)));
-        Some(mel.add_scalar(self.front_end.config.log_guard).log())
-    }
-}
-
-impl StreamingFeatures for ParakeetFeatures {
-    fn push(
-        &mut self,
-        samples: &[f32],
-    ) -> BunsenResult<Option<Tensor<3>>> {
-        let a = self.front_end.config.preemphasis as f32;
-        for &x in samples {
-            self.pending.push(match self.last {
-                Some(last) => x - a * last,
-                None => x,
-            });
-            self.last = Some(x);
-        }
-        Ok(self.frames())
-    }
-
-    fn finish(&mut self) -> BunsenResult<Option<Tensor<3>>> {
-        if self.finished || self.last.is_none() {
-            self.finished = true;
-            return Ok(None);
-        }
-        self.finished = true;
-        let half = self.front_end.config.win_length / 2;
-        self.pending.extend(std::iter::repeat_n(0.0, half));
-        Ok(self.frames())
-    }
-}
 
 /// Normalizes a window of [`ParakeetFeatures`] frames by its level, per mel
 /// channel, as `front_end` normalizes an item.
@@ -399,7 +310,10 @@ impl AsrEngine for ParakeetEngine {
 
 #[cfg(test)]
 mod tests {
-    use burn::tensor::Tolerance;
+    use burn::{
+        prelude::TensorData,
+        tensor::Tolerance,
+    };
 
     use super::*;
     use crate::{
@@ -415,6 +329,7 @@ mod tests {
                 LevelPolicy,
                 LevelStatistic,
                 StreamClock,
+                StreamingFeatures,
                 TranscriptEvent,
             },
             parakeet::{
