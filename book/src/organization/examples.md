@@ -7,8 +7,9 @@ public API is felt first, so CI builds all of them.
 
 Speech to text is [`bunsen-asr`](https://github.com/zspacelabs/bunsen/tree/main/crates/public/bunsen-asr),
 a published binary rather than an example: files or the microphone, through
-the Parakeet, Qwen3-ASR and Whisper stream drivers, with commands that fetch
-and inspect models and manage the weights cache. It is built on the same
+the Parakeet, Qwen3-ASR and Whisper stream drivers, and who spoke when
+through the Sortformer diarizer, with commands that fetch and inspect models
+and manage the weights cache. It is built on the same
 `bunsen-app` plumbing.
 
 | Example | What it shows |

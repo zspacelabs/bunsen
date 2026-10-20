@@ -1,4 +1,4 @@
-//! `bunsen-asr <family> list`.
+//! `bunsen-asr <family|diarize> list`.
 use bunsen::errors::BunsenResult;
 use bunsen_app::{
     cache::WeightsCacheArgs,
@@ -9,7 +9,7 @@ use bunsen_app::{
     },
 };
 
-use crate::family::Family;
+use crate::family::Kit;
 
 /// Lists the models `--model` can name, their licences and files, and
 /// whether each file is cached.
@@ -25,19 +25,19 @@ pub struct ListCmd {
 impl ListCmd {
     pub fn run(
         &self,
-        family: Family,
+        kit: Kit,
     ) -> BunsenResult<()> {
         self.logging
             .init(LogPolicy::new(LevelFilter::Info, LevelFilter::Info))?;
         let cache = self.cache.init()?;
-        let listing = family.listing()?;
+        let listing = kit.listing()?;
         println!(
             "{} models; cache: {}",
-            family.name(),
+            kit.name(),
             cache.cache_dir().display()
         );
         for (provider, row) in listing.rows {
-            let default = if row.name == family.default_model() {
+            let default = if row.name == kit.default_model() {
                 " (default)"
             } else {
                 ""
@@ -54,7 +54,7 @@ impl ListCmd {
                     "  {key}: {} ({}) [{}]",
                     r.file,
                     r.kind.as_deref().unwrap_or("unlabeled"),
-                    cache.status(family.cache_kit(), r)
+                    cache.status(kit.cache_kit(), r)
                 );
             }
         }

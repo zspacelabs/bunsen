@@ -1,4 +1,4 @@
-//! `bunsen-asr <family> fetch`.
+//! `bunsen-asr <family|diarize> fetch`.
 use bunsen::errors::BunsenResult;
 use bunsen_app::{
     cache::WeightsCacheArgs,
@@ -9,7 +9,7 @@ use bunsen_app::{
     },
 };
 
-use crate::family::Family;
+use crate::family::Kit;
 
 /// Brings every file of the named models into the weights cache, fetching
 /// what is not local, and prints where each one is: a deployment that
@@ -34,12 +34,12 @@ pub struct FetchCmd {
 impl FetchCmd {
     pub fn run(
         &self,
-        family: Family,
+        kit: Kit,
     ) -> BunsenResult<()> {
         self.logging
             .init(LogPolicy::new(LevelFilter::Warn, LevelFilter::Warn))?;
         let cache = self.cache.init()?;
-        family.fetch(
+        kit.fetch(
             &self.names,
             &cache,
             self.verify,

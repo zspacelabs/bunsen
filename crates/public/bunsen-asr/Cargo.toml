@@ -1,6 +1,6 @@
 [package]
 name = "bunsen-asr"
-description = "Speech to text on bunsen, one subcommand per model family: Parakeet TDT (FermionResearch's Phonon-2 by default), Qwen3-ASR (Phonon-1), and Whisper."
+description = "Speech to text on bunsen, one subcommand per model family: Parakeet TDT (FermionResearch's Phonon-2 by default), Qwen3-ASR (Phonon-1), and Whisper; and who spoke when, through NVIDIA's Sortformer diarizer."
 publish = true
 authors.workspace = true
 edition.workspace = true
@@ -11,7 +11,7 @@ license.workspace = true
 homepage = "https://zspacelabs.ai/bunsen/book/"
 documentation = "https://docs.rs/bunsen-asr/latest/"
 readme = "README.md"
-keywords = ["speech-recognition", "transcription", "whisper", "parakeet", "burn"]
+keywords = ["speech-recognition", "transcription", "diarization", "whisper", "burn"]
 categories = ["command-line-utilities", "multimedia::audio", "science"]
 
 [[bin]]
