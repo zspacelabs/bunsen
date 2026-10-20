@@ -1,6 +1,6 @@
 //! # Speech models
 //!
-//! Four kits that work on audio, the way two of them connect,
+//! Five kits that work on audio, the way two of them connect,
 //! [`asr_driver`], the parts of a speech-to-text stream driver that do not
 //! depend on the model, and [`diarization`], the parts of a diarizer that do
 //! not:
@@ -12,6 +12,8 @@
 //!   encoder and a token-and-duration transducer.
 //! - [`qwen3_asr`]: Qwen's Qwen3-ASR, speech to text: a Whisper-style audio
 //!   encoder feeding a Qwen3 language model.
+//! - [`sortformer`]: NVIDIA's Sortformer, speaker diarization: per-frame
+//!   activity of each speaker, in the order they first speak.
 //! - [`silero_vad`]: the Silero voice-activity detector. A small recurrent
 //!   model that gives, per chunk of audio, the probability that it holds
 //!   speech.
@@ -73,6 +75,7 @@ pub mod nemo;
 pub mod parakeet;
 pub mod qwen3_asr;
 pub mod silero_vad;
+pub mod sortformer;
 
 pub mod whisper;
 

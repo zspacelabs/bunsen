@@ -21,6 +21,7 @@
 //! | [`sims::lbm`] | A D2Q9 lattice-Boltzmann fluid, with a mass correction. |
 //! | [`speech::whisper`] | `OpenAI`'s Whisper: the model, a pretrained index, decoders, and a stream driver. |
 //! | [`speech::parakeet`] | NVIDIA's Parakeet TDT: the model, a pretrained index (`FermionResearch`'s Phonon-2 by default), and greedy decoding. |
+//! | [`speech::sortformer`] | NVIDIA's Sortformer speaker diarizers (`Nemotron-3-Diarization`): the model, its encoder split for a speaker cache, and loading `transformers`-named weights. |
 //! | [`speech::qwen3_asr`] | Qwen's Qwen3-ASR: the model, a pretrained index (`FermionResearch`'s Phonon-1 by default), the prompt, and greedy decoding. |
 //! | [`speech::silero_vad`] | The Silero voice-activity detector, with weights a build can bundle. |
 //! | [`tokens`] | Not a model: the ids-to-text seam the model kits share. |
