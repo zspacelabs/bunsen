@@ -66,3 +66,6 @@ pub mod qwen3_asr;
 pub mod silero_vad;
 
 pub mod whisper;
+
+#[cfg(feature = "testing")]
+pub mod testing;
