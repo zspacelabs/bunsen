@@ -14,7 +14,8 @@ Pinned versions used to produce the committed fixtures:
 Everything runs on the CPU, deliberately: the fixture only has to be correct,
 and a CPU run is deterministic.
 
-One output per clip, under `crates/validation/whisper-model-validation/testdata/`:
+One output per clip in `CLIPS` (under `crates/dev/bunsen-test-audio/testdata/`),
+under `crates/validation/whisper-model-validation/testdata/`:
 
 `{clip}.reference.json`
     What `openai-whisper` itself decodes for the clip, several ways, all from
@@ -55,6 +56,7 @@ import whisper.tokenizer
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 OUT = ROOT / "crates/validation/whisper-model-validation/testdata"
+CLIPS = [ROOT / "crates/dev/bunsen-test-audio/testdata/jfk_moon.mp3"]
 
 SR = 16000
 N_SAMPLES = 30 * SR
@@ -179,7 +181,7 @@ def write_reference(model, clip):
 
 def main():
     model = whisper.load_model(MODEL, device="cpu")
-    for clip in sorted(OUT.glob("*.mp3")):
+    for clip in CLIPS:
         print(f"\n{clip.name}")
         write_reference(model, clip)
 

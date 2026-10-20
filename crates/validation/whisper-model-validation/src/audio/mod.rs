@@ -3,8 +3,9 @@
 //! [`staged`](super::staged) feeds each stage synthetic input, which isolates
 //! it but says nothing about the pipeline a user drives. This runs the whole
 //! thing — mp3, mel front end, encoder, KV-cached decoder, greedy search —
-//! over `testdata/`, and judges it the way a transcription is judged: **word
-//! error rate against a ground-truth transcript**.
+//! over the clips `bunsen-test-audio` commits, against their `openai-whisper`
+//! references in `testdata/`, and judges it the way a transcription is
+//! judged: **word error rate against a ground-truth transcript**.
 //!
 //! ## What is asserted
 //!
@@ -86,6 +87,7 @@ use super::*;
 /// matmul may need it raised; that is what the knob is for.
 pub const FIXTURES: &[Fixture] = &[Fixture {
     name: "jfk_moon",
+    clip: bunsen_test_audio::JFK_MOON,
     windows: 2,
     max_wer: 0.10,
     max_reference_wer: 0.0,
@@ -226,9 +228,19 @@ fn join_windows(windows: &[ReferenceWindow]) -> String {
 /// Leading and trailing `...` mark that the clip is cut from a longer
 /// recording; they are not words and must not count as errors.
 fn transcript(name: &str) -> String {
-    std::fs::read_to_string(testdata(&format!("{name}.txt")))
-        .expect("the transcript failed to read")
+    clip(name)
+        .transcript()
+        .expect("the clip has a transcript")
         .replace("...", " ")
+}
+
+/// The clip of the fixture named `name`.
+fn clip(name: &str) -> bunsen_test_audio::AudioFixture {
+    FIXTURES
+        .iter()
+        .find(|f| f.name == name)
+        .unwrap_or_else(|| panic!("no fixture named {name}"))
+        .clip
 }
 
 /// The multilingual vocabulary, for turning ids into text.
@@ -272,7 +284,7 @@ fn vocab() -> Vocab {
 
 /// A fixture's samples, decoded from mp3.
 fn samples(name: &str) -> Vec<f32> {
-    bunsen::support::audio::load_audio_mono_sr(testdata(&format!("{name}.mp3")), SAMPLE_RATE)
+    bunsen::support::audio::load_audio_mono_sr(clip(name).path(), SAMPLE_RATE)
         .unwrap_or_else(|e| panic!("{name}: {e}"))
 }
 

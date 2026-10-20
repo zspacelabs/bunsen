@@ -54,6 +54,7 @@ metal = ["bunsen/metal"]
 [dependencies]
 burn = { workspace = true }
 bunsen = { path = "../../public/bunsen", features = ["testing", "fermion", "cache"] }
+bunsen-test-audio = { path = "../../dev/bunsen-test-audio" }
 bunsen-bundled-qwen3-asr = {
     path = "../../public/bunsen-bundled-qwen3-asr",
     optional = true

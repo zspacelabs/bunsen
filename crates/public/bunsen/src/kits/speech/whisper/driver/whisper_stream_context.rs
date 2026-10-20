@@ -1558,11 +1558,8 @@ mod tests {
         /// regions from the gate's own test hold here too.
 
         fn speech() -> Vec<f32> {
-            let path = concat!(
-                env!("CARGO_MANIFEST_DIR"),
-                "/testdata/audio/jfk_moon_4s.mp3"
-            );
-            load_audio_mono_sr(path, RATE).unwrap()
+            let path = bunsen_test_audio::JFK_MOON_4S.path();
+            load_audio_mono_sr(&path, RATE).unwrap()
         }
 
         fn conservative_driver(device: &Device) -> WhisperStreamDriver {

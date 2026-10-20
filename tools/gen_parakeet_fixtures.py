@@ -26,7 +26,7 @@ One output, `crates/validation/parakeet-model-validation/testdata/onnx_reference
     output tensor is recorded as its `shape`, `sum`, `abs_sum`, and a
     `stride`-subsampled `samples` of its row-major flattening.
 `speech`
-    A greedy TDT decode of `whisper-model-validation`'s `jfk_moon.mp3`
+    A greedy TDT decode of `bunsen-test-audio`'s `jfk_moon.mp3`
     (60 s; the speech fixtures are shared, not copied): token `ids` (blanks
     dropped) and the encoder frame each was emitted at.
 """
@@ -41,7 +41,7 @@ import soundfile as sf
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 OUT = ROOT / "crates/validation/parakeet-model-validation/testdata/onnx_reference.json"
-CLIP = ROOT / "crates/validation/whisper-model-validation/testdata/jfk_moon.mp3"
+CLIP = ROOT / "crates/dev/bunsen-test-audio/testdata/jfk_moon.mp3"
 
 N_MELS = 128
 D_ENC = 1024

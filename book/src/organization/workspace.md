@@ -6,7 +6,7 @@ check, validate or demonstrate them.
 
 ```text
 crates/public/      the published crates (released together, one version)
-crates/dev/         development tooling: upstream bug repros, benches
+crates/dev/         development tooling: upstream bug repros, benches, test audio
 crates/validation/  cross-checks of bunsen models against reference implementations
 examples/           runnable programs, one per kit or system
 tools/              one-shot fixture generators and repo checks (Python, stdlib-first)
@@ -41,6 +41,7 @@ explains the scheme.
 |---|---|
 | [`burn_bug_repro`](https://github.com/zspacelabs/bunsen/tree/main/crates/dev/burn_bug_repro) | Reproductions of defects in burn and its ecosystem, each paired with a pin on today's behaviour. See [Upstream bug reproductions](../development/repros.md). |
 | [`silero-bench`](https://github.com/zspacelabs/bunsen/tree/main/crates/dev/silero-bench) | A benchmark CLI for Silero VAD. See [Benchmarks](../development/benchmarks.md). |
+| [`bunsen-test-audio`](https://github.com/zspacelabs/bunsen/tree/main/crates/dev/bunsen-test-audio) | The audio clips the tests, the validation suites and the fixture scripts read, with their provenance and ground truth. A leaf crate, so `bunsen` takes it as a dev-dependency. |
 
 ## Validation crates
 

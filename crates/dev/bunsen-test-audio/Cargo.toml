@@ -1,0 +1,17 @@
+[package]
+name = "bunsen-test-audio"
+description = "The audio the workspace's tests and validation suites read: committed clips with their provenance and ground truth. A leaf: it does not depend on bunsen."
+publish = false
+
+authors.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+version.workspace = true
+repository.workspace = true
+license.workspace = true
+
+[lints]
+workspace = true
+
+[dev-dependencies]
+sha2 = { workspace = true }

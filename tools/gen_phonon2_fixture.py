@@ -25,7 +25,7 @@ behind `ParakeetProcessor`, on the CPU in float32.
 
 One output, `crates/validation/parakeet-model-validation/testdata/phonon2_jfk_moon.json`:
 the `text`, the emitted token `ids` (blanks dropped), and the encoder `frames`
-each was emitted at, for `whisper-model-validation`'s `jfk_moon.mp3`.
+each was emitted at, for `bunsen-test-audio`'s `jfk_moon.mp3`.
 """
 
 import importlib.util
@@ -38,7 +38,7 @@ import soundfile as sf
 import torch
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
-CLIP = ROOT / "crates/validation/whisper-model-validation/testdata/jfk_moon.mp3"
+CLIP = ROOT / "crates/dev/bunsen-test-audio/testdata/jfk_moon.mp3"
 OUT = ROOT / "crates/validation/parakeet-model-validation/testdata/phonon2_jfk_moon.json"
 
 

@@ -1,17 +1,14 @@
 # Speech fixtures
 
-Spoken audio with ground-truth transcripts, used by
-this crate's `audio` module.
+What `openai-whisper` decodes for the spoken clips this crate's `audio`
+module transcribes. The clips themselves, their ground-truth transcripts and
+their provenance are in
+[`bunsen-test-audio`](../../../dev/bunsen-test-audio/testdata/README.md):
+`jfk_moon.mp3` and `jfk_moon.txt`.
 
-Clips are **16 kHz mono mp3**, which is what Whisper consumes and what
-`support::audio::load_audio_mono_sr` requires — it decodes, it does not
-resample or downmix. The source was not in that form; see *Provenance*.
-
-| file | | |
-|---|---|---|
-| `jfk_moon.mp3` | 60.0 s | "We choose to go to the Moon", live, with hall noise and applause |
-| `jfk_moon.txt` | | **ground truth** — what a person hears |
-| `jfk_moon.reference.json` | | what `openai-whisper` decodes, several ways |
+| file | |
+|---|---|
+| `jfk_moon.reference.json` | what `openai-whisper` decodes for `jfk_moon.mp3`, several ways |
 
 The reference holds four decodes of the clip from the same model, and the
 token layout they were made with (`vocab_size`, the `prompt`, `eot`, ...):
@@ -102,23 +99,6 @@ The fixture-integrity checks need no model and run in a plain `cargo test`.
 
 ## Provenance
 
-Everything here must be redistributable under bunsen's own MIT/Apache-2.0
-terms: `testdata/` is included in the published crate, so a fixture under a
-copyleft or non-commercial licence would ship with it. A Creative Commons
-BY-SA sample was considered for this directory and rejected on those grounds.
-
-### `jfk_moon.mp3`
-
-- Source: [Jfk rice university we choose to go to the moon.ogg](https://commons.wikimedia.org/wiki/File:Jfk_rice_university_we_choose_to_go_to_the_moon.ogg),
-  retrieved from Wikimedia Commons on 2026-08-28
-- Author: John F. Kennedy, address at Rice University, 1962-09-12
-- Credit: John F. Kennedy Presidential Library & Museum
-- Licence: public domain (work of the U.S. federal government)
-- Transcode: `-ss 503 -t 60 -ac 1 -ar 16000 -c:a libmp3lame -b:a 48k`
-  (from 44.1 kHz stereo Vorbis) — not bit-identical to the source
-
-The source is the complete 17.7-minute address, ~17 MB. Only the 60 s from
-08:23 to 09:23 is kept: the "why climb the highest mountain" series through
-the end of the famous passage. That offset is also chosen so the 30 s window
-boundary falls on "not because they are easy" — a greedy decode is sensitive
-to where a window lands, and this cut decodes cleanly on both sides of it.
+The references are `openai-whisper`'s output, written by
+`tools/gen_speech_fixtures.py`; the clips' provenance is in
+[`bunsen-test-audio`](../../../dev/bunsen-test-audio/testdata/README.md#provenance).

@@ -272,9 +272,15 @@ mod tests {
         testing::ErrorMatcher,
     };
 
-    /// A short synthetic tone, in both formats. See `testdata/audio/README.md`.
-    const WAV: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/testdata/audio/tone.wav");
-    const MP3: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/testdata/audio/tone.mp3");
+    /// A short synthetic tone, in both formats: `bunsen-test-audio`'s
+    /// `tone.wav` and `tone.mp3`.
+    fn wav() -> std::path::PathBuf {
+        bunsen_test_audio::TONE_WAV.path()
+    }
+
+    fn mp3() -> std::path::PathBuf {
+        bunsen_test_audio::TONE_MP3.path()
+    }
 
     /// 0.5 s at 16 kHz.
     const EXPECTED: usize = 8_000;
@@ -282,19 +288,19 @@ mod tests {
     /// The rate a WAV declares is checked, not assumed.
     #[test]
     fn test_load_audio_mono_sr_wav() {
-        let samples = load_audio_mono_sr(WAV, 16000).unwrap();
+        let samples = load_audio_mono_sr(wav(), 16000).unwrap();
         assert_eq!(samples.len(), EXPECTED);
 
         // A sample-rate mismatch is an error, not a silent resample.
         ErrorMatcher::kind(BunsenErrorKind::InvalidResource)
             .message_contains("tone.wav: the sample rate is 16000; it must be 8000")
-            .assert_err(&load_audio_mono_sr(WAV, 8000));
+            .assert_err(&load_audio_mono_sr(wav(), 8000));
     }
 
     /// mp3 goes through a different decoder than WAV, so it gets its own case.
     #[test]
     fn test_load_audio_mono_sr_mp3() {
-        let samples = load_audio_mono_sr(MP3, 16000).unwrap();
+        let samples = load_audio_mono_sr(mp3(), 16000).unwrap();
 
         // Gapless trims the encoder delay, but mp3 still frames in blocks of
         // 576 samples, so the tail is padded out to a whole frame.
@@ -317,14 +323,14 @@ mod tests {
         // A sample-rate mismatch is an error, not a silent resample.
         ErrorMatcher::kind(BunsenErrorKind::InvalidResource)
             .message_contains("tone.mp3: the sample rate is 16000; it must be 44100")
-            .assert_err(&load_audio_mono_sr(MP3, 44100));
+            .assert_err(&load_audio_mono_sr(mp3(), 44100));
     }
 
     /// A missing file is a `Lookup` naming the path, in both decoders.
     #[test]
     fn test_missing_file_is_a_lookup() {
         for name in ["no-such-file.wav", "no-such-file.mp3"] {
-            let path = concat!(env!("CARGO_MANIFEST_DIR"), "/testdata/audio/").to_string() + name;
+            let path = bunsen_test_audio::testdata_dir().join(name);
             ErrorMatcher::kind(BunsenErrorKind::Lookup)
                 .message_contains(name)
                 .has_cause::<LookupError>()
@@ -352,8 +358,8 @@ mod tests {
     /// channel, mis-scaled, or returned garbage would fail it.
     #[test]
     fn test_wav_and_mp3_carry_the_same_tone() {
-        let wav = load_audio_mono_sr(WAV, 16000).unwrap();
-        let mp3 = load_audio_mono_sr(MP3, 16000).unwrap();
+        let wav = load_audio_mono_sr(wav(), 16000).unwrap();
+        let mp3 = load_audio_mono_sr(mp3(), 16000).unwrap();
 
         let rms =
             |x: &[f32]| (x.iter().map(|v| (v * v) as f64).sum::<f64>() / x.len() as f64).sqrt();
