@@ -14,6 +14,7 @@ use bunsen::{
     kits::speech::{
         diarization::{
             RttmSegment,
+            SpeakerActivityModel,
             SpeakerTurn,
             TurnFilterConfig,
         },
@@ -161,20 +162,77 @@ impl DiarizerArgs {
     /// Loads the model through `cache`, logging its info card.
     ///
     /// # Errors
-    /// As the factory resolving the name, and the load.
+    /// As [`load_bundle`].
     pub fn load(
         &self,
         cache: &PretrainedCache,
         device: &Device,
     ) -> BunsenResult<Arc<SortformerBundle>> {
-        let model = self.model.as_deref().unwrap_or(DEFAULT_SORTFORMER_MODEL);
-        let bundle = load_logged(
-            default_sortformer_factory()?.resolve(model, cache)?,
+        load_bundle(
+            self.model.as_deref().unwrap_or(DEFAULT_SORTFORMER_MODEL),
             cache,
             device,
-        )?;
-        log::info!("  {bundle}");
-        Ok(bundle)
+        )
+    }
+}
+
+/// Loads diarizer `model` through `cache`, logging its info card.
+///
+/// # Errors
+/// As the factory resolving the name, and the load.
+pub fn load_bundle(
+    model: &str,
+    cache: &PretrainedCache,
+    device: &Device,
+) -> BunsenResult<Arc<SortformerBundle>> {
+    let bundle = load_logged(
+        default_sortformer_factory()?.resolve(model, cache)?,
+        cache,
+        device,
+    )?;
+    log::info!("  {bundle}");
+    Ok(bundle)
+}
+
+/// A speech recognizer's diarizer: `--diarize` on every family's
+/// `transcribe` and `live`.
+#[derive(clap::Args, Debug)]
+pub struct SpeakerArgs {
+    /// Label each word or segment with its speaker, through a diarizer:
+    /// `--diarize` alone for `nvidia/nemotron-3-diarization`, `--diarize=MODEL`
+    /// for another (`diarize list` shows them).
+    #[arg(
+        long,
+        value_name = "MODEL",
+        num_args = 0..=1,
+        require_equals = true,
+        default_missing_value = DEFAULT_SORTFORMER_MODEL
+    )]
+    pub diarize: Option<String>,
+
+    /// How far behind the audio the diarizer runs; a decode waits for it.
+    #[arg(long, value_enum, default_value_t)]
+    pub diarize_latency: Latency,
+}
+
+impl SpeakerArgs {
+    /// The diarizer `--diarize` names, loaded through `cache`; `None`
+    /// without the flag. The recognizers see only the trait object.
+    ///
+    /// # Errors
+    /// As [`load_bundle`]; as the latency preset against the model.
+    pub fn diarizer(
+        &self,
+        cache: &PretrainedCache,
+        device: &Device,
+    ) -> BunsenResult<Option<Arc<dyn SpeakerActivityModel>>> {
+        let Some(model) = &self.diarize else {
+            return Ok(None);
+        };
+        let bundle = load_bundle(model, cache, device)?;
+        Ok(Some(Arc::new(
+            bundle.diarizer(self.diarize_latency.into())?,
+        )))
     }
 }
 
@@ -228,7 +286,7 @@ struct JsonDiarization {
 }
 
 /// A speaker's name, as `NeMo` and the RTTM output name it.
-fn speaker_name(index: usize) -> String {
+pub fn speaker_name(index: usize) -> String {
     format!("speaker_{index}")
 }
 
@@ -243,7 +301,7 @@ fn text_line(turn: &SpeakerTurn) -> String {
 }
 
 /// The recording id `--rttm` gives `path`: its stem.
-fn recording_id(path: &Path) -> String {
+pub fn recording_id(path: &Path) -> String {
     path.file_stem()
         .map(|s| s.to_string_lossy().into_owned())
         .unwrap_or_else(|| path.display().to_string())
@@ -383,10 +441,7 @@ pub struct LiveCmd {
 #[cfg(feature = "live")]
 impl LiveCmd {
     pub fn run(&self) -> BunsenResult<()> {
-        use bunsen::kits::speech::diarization::{
-            SpeakerActivityModel,
-            SpeakerActivityStream,
-        };
+        use bunsen::kits::speech::diarization::SpeakerActivityStream;
 
         self.logging
             .init(LogPolicy::new(LevelFilter::Warn, LevelFilter::Warn))?;

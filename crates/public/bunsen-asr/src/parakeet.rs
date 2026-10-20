@@ -27,6 +27,8 @@ use crate::{
         Transcript,
         Word,
         millis,
+        segment_speaker,
+        speaker_turns,
     },
 };
 
@@ -85,11 +87,13 @@ pub fn transcribe(
                 start: millis(s.start),
                 end: millis(s.end),
                 tokens: s.tokens.clone(),
+                speaker: segment_speaker(s),
             })
         })
         .collect();
     Ok(Transcript {
         text: stream::join_text(&segments),
+        turns: driver.speakers().map(|_| speaker_turns(&segments)),
         language: None,
         words: Some(words),
         segments: None,

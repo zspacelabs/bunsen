@@ -27,6 +27,8 @@ use crate::{
     transcribe_cmd::{
         Segment,
         Transcript,
+        segment_speaker,
+        speaker_turns,
     },
 };
 
@@ -81,6 +83,7 @@ pub fn transcribe(
     let (segments, ctx) = stream::stream(driver, samples, LEVEL, chunk)?;
     Ok(Transcript {
         text: stream::join_text(&segments),
+        turns: driver.speakers().map(|_| speaker_turns(&segments)),
         language: ctx.language().map(String::from),
         words: None,
         // A committed span each: a window, cut quiet when it was full.
@@ -92,6 +95,7 @@ pub fn transcribe(
                     end: s.end,
                     text: s.text.as_deref().unwrap_or("").trim().to_string(),
                     tokens: s.tokens.clone(),
+                    speaker: segment_speaker(s),
                 })
                 .collect(),
         ),

@@ -69,6 +69,20 @@ cargo run --release -p bunsen-asr --features wgpu -- diarize run --latency offli
 cargo run --release -p bunsen-asr --features wgpu -- diarize run --rttm meeting.wav > meeting.rttm
 ```
 
+`--diarize` on any family's `transcribe` or `live` says who said what: the diarizer (`--diarize` alone for
+`nvidia/nemotron-3-diarization`, `--diarize=MODEL` for another) runs beside the recognizer, through the stream
+driver's speaker seam, and labels each word (Parakeet) or segment with its speaker. Qwen3-ASR and Whisper also cut
+their windows at speaker turns, so a segment is one speaker's. The text is printed a line per turn, `[speaker_k] text`
+(`[?]` where the diarizer heard nobody); `live` prefixes a line only where the speaker changes. `--json` adds each
+word's or segment's `speaker`, and the `turns`: each speaker's runs with their start, end and text. `transcribe
+--rttm` prints the turns as NIST RTTM. `--diarize-latency` picks the diarizer's streaming preset, as `diarize
+--latency` does; a decode waits until the diarizer has caught up with it.
+
+```sh
+cargo run --release -p bunsen-asr --features wgpu -- parakeet live --diarize
+cargo run --release -p bunsen-asr --features wgpu -- qwen3-asr transcribe --diarize --json meeting.wav
+```
+
 | Family | Flags of its own |
 |---|---|
 | `parakeet` | `--window-seconds` (60): a full window is committed up to a pause between words, and the rest decoded again with the audio after it |

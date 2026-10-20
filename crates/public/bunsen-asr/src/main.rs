@@ -75,7 +75,7 @@ struct WhisperCmd {
 #[derive(clap::Subcommand, Debug)]
 enum WhisperAction {
     #[command(flatten)]
-    Kit(Action<whisper::WhisperFlags>),
+    Kit(Box<Action<whisper::WhisperFlags>>),
 
     /// Scan a checkpoint and check it against its prefab.
     Inspect(whisper_models::InspectCmd),
@@ -193,6 +193,32 @@ mod tests {
         );
         assert!(Args::try_parse_from(["bunsen-asr", "diarize", "run"]).is_err());
         assert!(Args::try_parse_from(["bunsen-asr", "diarize", "transcribe", "a.wav"]).is_err());
+        // Every family diarizes: `--diarize` alone is the default model, and
+        // never takes the file that follows it.
+        for family in ["parakeet", "qwen3-asr", "whisper"] {
+            let Args { family: parsed } =
+                Args::try_parse_from(["bunsen-asr", family, "transcribe", "--diarize", "a.wav"])
+                    .unwrap();
+            let debug = format!("{parsed:?}");
+            assert!(debug.contains("nvidia/nemotron-3-diarization"), "{debug}");
+            assert!(debug.contains("\"a.wav\""), "{debug}");
+            Args::try_parse_from([
+                "bunsen-asr",
+                family,
+                "transcribe",
+                "--diarize=hf:org/repo",
+                "--diarize-latency",
+                "ultra-low",
+                "--rttm",
+                "a.wav",
+            ])
+            .unwrap();
+            assert!(
+                Args::try_parse_from(["bunsen-asr", family, "transcribe", "--rttm", "a.wav"])
+                    .is_err(),
+                "{family}: --rttm without --diarize"
+            );
+        }
         // Whisper's own: its decode flags, a checkpoint path, inspect and
         // prefabs.
         Args::try_parse_from([

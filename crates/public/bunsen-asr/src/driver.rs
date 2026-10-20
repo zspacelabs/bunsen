@@ -1,4 +1,6 @@
 //! A family's stream driver, and one stream through it.
+use std::sync::Arc;
+
 #[cfg(feature = "live")]
 use bunsen::kits::speech::{
     asr_driver::{
@@ -13,6 +15,7 @@ use bunsen::{
     data::pretrained::PretrainedCache,
     errors::BunsenResult,
     kits::speech::{
+        diarization::SpeakerActivityModel,
         parakeet::ParakeetStreamDriver,
         qwen3_asr::Qwen3AsrStreamDriver,
         whisper::driver::WhisperStreamDriver,
@@ -44,7 +47,8 @@ pub enum Driver {
 
 impl Driver {
     /// The driver for `loaded` under its family's `flags` and `preset`, with
-    /// Silero's VAD attached when the preset finds speech regions.
+    /// Silero's VAD attached when the preset finds speech regions, and
+    /// `speakers` when there is a diarizer.
     ///
     /// # Panics
     /// If `flags` are not `loaded`'s family's.
@@ -52,30 +56,40 @@ impl Driver {
         loaded: Loaded,
         flags: &F,
         preset: Preset,
+        speakers: Option<Arc<dyn SpeakerActivityModel>>,
         cache: &PretrainedCache,
         device: &Device,
     ) -> BunsenResult<Self> {
         Ok(match loaded {
-            Loaded::Parakeet(bundle) => Driver::Parakeet(parakeet::driver(
-                bundle,
-                flags.parakeet().expect("Parakeet's flags"),
-                preset,
-                cache,
-                device,
+            Loaded::Parakeet(bundle) => Driver::Parakeet(stream::with_speakers(
+                parakeet::driver(
+                    bundle,
+                    flags.parakeet().expect("Parakeet's flags"),
+                    preset,
+                    cache,
+                    device,
+                )?,
+                speakers,
             )?),
-            Loaded::Qwen3Asr(bundle) => Driver::Qwen3Asr(qwen3_asr::driver(
-                bundle,
-                flags.qwen3_asr().expect("Qwen3-ASR's flags"),
-                preset,
-                cache,
-                device,
+            Loaded::Qwen3Asr(bundle) => Driver::Qwen3Asr(stream::with_speakers(
+                qwen3_asr::driver(
+                    bundle,
+                    flags.qwen3_asr().expect("Qwen3-ASR's flags"),
+                    preset,
+                    cache,
+                    device,
+                )?,
+                speakers,
             )?),
-            Loaded::Whisper(bundle) => Driver::Whisper(Box::new(whisper::driver(
-                bundle,
-                flags.whisper().expect("Whisper's flags"),
-                preset,
-                cache,
-                device,
+            Loaded::Whisper(bundle) => Driver::Whisper(Box::new(stream::with_speakers(
+                whisper::driver(
+                    bundle,
+                    flags.whisper().expect("Whisper's flags"),
+                    preset,
+                    cache,
+                    device,
+                )?,
+                speakers,
             )?)),
         })
     }

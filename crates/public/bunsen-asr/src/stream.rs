@@ -11,11 +11,13 @@ use bunsen::{
             AsrStreamDriver,
             EmissionPolicy,
             LevelPolicy,
+            MeanActivity,
             PresetEmissionPolicy,
             StreamClock,
             TranscriptEvent,
             TranscriptSegment,
         },
+        diarization::SpeakerActivityModel,
         silero_vad::pretrained::default_silero_factory,
     },
 };
@@ -66,6 +68,18 @@ pub fn with_vad<E: AsrEngine>(
         Arc::new(vad.expect_branch(rate).clone()),
         Default::default(),
     )
+}
+
+/// `driver`, with `speakers` attached when there is one: each segment is
+/// attributed by its mean activity, `NeMo`'s word rule.
+pub fn with_speakers<E: AsrEngine>(
+    driver: AsrStreamDriver<E>,
+    speakers: Option<Arc<dyn SpeakerActivityModel>>,
+) -> BunsenResult<AsrStreamDriver<E>> {
+    match speakers {
+        Some(model) => driver.with_speakers(model, Arc::new(MeanActivity::default())),
+        None => Ok(driver),
+    }
 }
 
 /// Samples per push of `ms` milliseconds of audio, rounded up to a whole
