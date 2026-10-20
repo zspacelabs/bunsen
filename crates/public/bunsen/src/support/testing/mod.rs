@@ -75,6 +75,9 @@
 //!
 //! [`asr`] scores speech recognition: [`asr::text_error_rate`] is the word
 //! error rate between two transcripts, after a light normalization.
+//! [`diarization`] scores speaker diarization:
+//! [`diarization::diarization_error`] is the diarization error rate between
+//! two sets of speaker turns.
 //!
 //! # Example
 //!
@@ -100,6 +103,7 @@
 //! assert_tensors_close(&y, &x, Tolerance::default());
 //! ```
 pub mod asr;
+pub mod diarization;
 
 mod common_assertions;
 mod common_devices;

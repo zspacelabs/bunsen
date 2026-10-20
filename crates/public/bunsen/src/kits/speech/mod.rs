@@ -1,8 +1,9 @@
 //! # Speech models
 //!
-//! Four kits that work on audio, the way two of them connect, and
+//! Four kits that work on audio, the way two of them connect,
 //! [`asr_driver`], the parts of a speech-to-text stream driver that do not
-//! depend on the model:
+//! depend on the model, and [`diarization`], the parts of a diarizer that do
+//! not:
 //!
 //! - [`whisper`]: `OpenAI`'s Whisper, speech to text. The model, an index of
 //!   pretrained checkpoints, the decoders, and a stream driver that turns audio
@@ -61,6 +62,7 @@
 //! policy, and voice-activity regions as sub-streams.
 
 pub mod asr_driver;
+pub mod diarization;
 pub mod parakeet;
 pub mod qwen3_asr;
 pub mod silero_vad;
