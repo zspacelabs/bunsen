@@ -155,6 +155,7 @@ mod tests {
             end: 0.0,
             tokens: Vec::new(),
             text: text.map(String::from),
+            speaker: None,
         };
         let segments = [
             segment(Some(" the")),

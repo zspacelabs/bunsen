@@ -1,3 +1,5 @@
+use crate::kits::speech::asr_driver::SpeakerLabel;
+
 /// A span of transcript with its place in media time.
 #[derive(Debug, Clone, PartialEq)]
 pub struct TranscriptSegment {
@@ -14,6 +16,10 @@ pub struct TranscriptSegment {
 
     /// The text of the text tokens, when the driver has a detokenizer.
     pub text: Option<String>,
+
+    /// Who spoke it, when the driver has a diarizer
+    /// ([`with_speakers`](crate::kits::speech::asr_driver::AsrStreamDriver::with_speakers)).
+    pub speaker: Option<SpeakerLabel>,
 }
 
 /// A tagged transcript emission.
@@ -52,6 +58,7 @@ mod tests {
             end: 2.0,
             tokens: vec![1, 2],
             text: None,
+            speaker: None,
         };
         let committed = TranscriptEvent::Committed(segment.clone());
         let draft = TranscriptEvent::Draft(segment.clone());

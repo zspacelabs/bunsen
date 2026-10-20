@@ -136,6 +136,26 @@ impl SpeakerActivity {
         Ok(())
     }
 
+    /// The frames that overlap stream samples `[start, end)`.
+    pub fn window(
+        &self,
+        start: usize,
+        end: usize,
+    ) -> SpeakerActivity {
+        let f = self.frame_samples;
+        let last = end
+            .saturating_sub(self.start)
+            .div_ceil(f)
+            .min(self.frames());
+        let first = (start.saturating_sub(self.start) / f).min(last);
+        Self {
+            start: self.start + first * f,
+            frame_samples: f,
+            n_speakers: self.n_speakers,
+            probs: self.probs[first * self.n_speakers..last * self.n_speakers].to_vec(),
+        }
+    }
+
     /// Drops every frame that ends at or before stream sample `sample`.
     pub fn drop_before(
         &mut self,
@@ -176,7 +196,8 @@ pub trait SpeakerActivityModel: Debug + Send + Sync {
 /// are.
 pub trait SpeakerActivityStream: Debug + Send + Sync + DynClone {
     /// Takes samples in, following the samples of the previous call, and
-    /// returns the frames they finalize.
+    /// returns the frames they finalize, scored over the model's
+    /// [`max_speakers`](SpeakerActivityModel::max_speakers).
     ///
     /// A frame is final once the model has seen all the audio it looks at:
     /// a diarizer with right context finalizes a frame some samples after
@@ -241,6 +262,17 @@ mod tests {
         assert!(a.append(other).is_err());
         a.append(SpeakerActivity::empty(99, 10, 2)).unwrap();
         assert_eq!(a.frames(), 3);
+    }
+
+    #[test]
+    fn test_window_takes_the_overlapping_frames() {
+        let a = activity(30, 4);
+        let w = a.window(45, 52);
+        assert_eq!(w.start, 40);
+        assert_eq!(w.frames(), 2);
+        assert_eq!(w.frame(0), a.frame(1));
+        assert!(a.window(70, 90).is_empty());
+        assert_eq!(a.window(0, 1000), a);
     }
 
     #[test]

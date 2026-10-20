@@ -220,6 +220,29 @@ decoded. That gives a region the behaviour of a stream without a second
 stream object
 ([regions as sub-streams](bunsen::kits::speech::whisper::driver#voice-activity-regions-as-sub-streams)).
 
+### Speakers
+
+A driver can carry a diarizer as well as a voice-activity model, attached
+with
+[`with_speakers`](bunsen::kits::speech::asr_driver::AsrStreamDriver::with_speakers).
+The driver knows it only as a
+[`SpeakerActivityModel`](bunsen::kits::speech::diarization::SpeakerActivityModel),
+per-frame speaker probabilities, so any diarizer serves any engine. Each
+stream runs it in a stream of its own, and every segment the driver emits is
+attributed to a speaker by a
+[`SpeakerAttribution`](bunsen::kits::speech::asr_driver::SpeakerAttribution)
+rule, such as `NeMo`'s
+[`MeanActivity`](bunsen::kits::speech::asr_driver::MeanActivity).
+
+A diarizer finalizes a frame only after some look-ahead, so a committed
+segment is held until the frames it covers are final, and only then emitted,
+attributed from final activity; events keep their order. A draft is
+attributed from what the diarizer has finalized so far. The engine sees the
+window's activity in its decode request too, for an engine that places its
+cuts at speaker turns. Turns on their own, without transcription, come from a
+[`TurnFilter`](bunsen::kits::speech::diarization::TurnFilter) over the
+diarizer's activity.
+
 ### Known gaps
 
 - [`CommitRule::Agreement`](bunsen::kits::speech::asr_driver::CommitRule::Agreement)

@@ -32,6 +32,12 @@
 //! Silero in its own context, decodes each closed region as a unit of its
 //! own, and skips windows of silence. The offline preset needs no gate.
 //!
+//! A diarizer attaches to any of the stream drivers the same way, with
+//! [`with_speakers`](asr_driver::AsrStreamDriver::with_speakers): any
+//! [`SpeakerActivityModel`](diarization::SpeakerActivityModel), and an
+//! [`SpeakerAttribution`](asr_driver::SpeakerAttribution) rule that gives
+//! every emitted segment a speaker.
+//!
 //! Both kits load the same way, through the data layer's
 //! [`pretrained`](crate::data::pretrained) machinery: a
 //! [`PretrainedCache`](crate::data::pretrained::PretrainedCache) and a
