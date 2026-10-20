@@ -1357,6 +1357,7 @@ dependencies = [
 name = "bunsen-test-audio"
 version = "0.39.0"
 dependencies = [
+ "bunsen-fetch",
  "sha2 0.11.0",
 ]
 
@@ -10342,6 +10343,7 @@ version = "0.39.0"
 dependencies = [
  "bunsen",
  "bunsen-bundled-sortformer",
+ "bunsen-test-audio",
  "burn",
  "serde",
  "serde_json",

@@ -50,6 +50,12 @@ pub mod reference {
 #[cfg(all(test, feature = "download", feature = "gpu-tests"))]
 mod reference_tests;
 
+#[cfg(all(test, feature = "download", feature = "gpu-tests"))]
+mod staged;
+
+#[cfg(all(test, feature = "download", feature = "gpu-tests"))]
+mod speech;
+
 /// The mel channel count of `Nemotron-3-Diarization`.
 pub const N_MELS: usize = 128;
 
@@ -170,6 +176,87 @@ pub fn graph_length(
     )
 }
 
+/// `testdata/ami_reference.json`: `NeMo`'s own diarization of
+/// `bunsen-test-audio`'s AMI excerpt (`tools/gen_sortformer_ami_fixture.py`).
+#[derive(Debug, Deserialize)]
+pub struct AmiReference {
+    /// The checkpoint the reference ran.
+    pub source: String,
+
+    /// The clip.
+    pub clip: String,
+
+    /// Per latency preset.
+    pub presets: std::collections::BTreeMap<String, AmiPreset>,
+}
+
+/// `NeMo`'s run of one preset.
+#[derive(Debug, Deserialize)]
+pub struct AmiPreset {
+    /// The 10 ms speaker probabilities, `[1, frames, 8]`.
+    pub probs: TensorRecord,
+
+    /// md-eval's scores of the unfiltered turns against the RTTM, collar
+    /// 0.25 s, overlap scored.
+    pub der: DerRecord,
+}
+
+/// A diarization error rate and its parts, as fractions of the scored
+/// reference speech.
+#[derive(Debug, Deserialize)]
+pub struct DerRecord {
+    /// The error rate.
+    pub der: f64,
+
+    /// Speaker confusion.
+    pub confusion: f64,
+
+    /// False alarm.
+    pub false_alarm: f64,
+
+    /// Missed speech.
+    pub missed: f64,
+}
+
+/// The fixture `NeMo` wrote: see [`AmiReference`].
+pub fn ami_reference() -> AmiReference {
+    let path = concat!(env!("CARGO_MANIFEST_DIR"), "/testdata/ami_reference.json");
+    let text = std::fs::read_to_string(path).expect("read the AMI reference fixture");
+    serde_json::from_str(&text).expect("parse the AMI reference fixture")
+}
+
+/// The pretrained cache the checkpoint comes through.
+///
+/// Under `download`, it is rooted at `bunsen-bundled-sortformer`'s directory,
+/// which its build laid out as one, and offline: nothing is fetched at run
+/// time. Routing the checkpoint through the library's own factory is also
+/// what this crate is validating.
+#[cfg(feature = "download")]
+pub fn weights_cache() -> bunsen::data::pretrained::PretrainedCache {
+    use bunsen::data::pretrained::{
+        PretrainedCache,
+        PretrainedCacheOptions,
+    };
+    let options = PretrainedCacheOptions::default()
+        .with_disk(
+            bunsen::data::cache::BunsenDiskCacheOptions::default()
+                .with_cache_dir(Some(bunsen_bundled_sortformer::cache_dir().to_path_buf())),
+        )
+        .with_offline(true);
+    PretrainedCache::new(options).expect("open the pretrained cache")
+}
+
+/// `Nemotron-3-Diarization`, through bunsen's factory and [`weights_cache`].
+#[cfg(feature = "download")]
+pub fn load_bundle(
+    device: &Device
+) -> std::sync::Arc<bunsen::kits::speech::sortformer::SortformerBundle> {
+    bunsen::kits::speech::sortformer::pretrained::default_sortformer_factory()
+        .expect("the sortformer factory")
+        .load_bundle("nvidia/nemotron-3-diarization", &weights_cache(), device)
+        .unwrap_or_else(|e| panic!("load Nemotron-3-Diarization: {e}"))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -206,6 +293,21 @@ mod tests {
                     .all(|p| (0.0..=1.0).contains(p))
             );
             assert!(step.preds_hires.samples.iter().any(|&p| p > 0.5));
+        }
+    }
+
+    /// The AMI reference covers the presets the speech tests run, at the
+    /// clip's 6000 frames of 10 ms.
+    #[test]
+    fn test_ami_reference_is_well_formed() {
+        let fixture = ami_reference();
+        assert!(fixture.source.contains("f667ed73"));
+        assert_eq!(fixture.clip, "ami_en2002d_2132.wav");
+        for name in ["low_latency", "offline"] {
+            let preset = &fixture.presets[name];
+            assert_eq!(preset.probs.shape, [1, 6000, N_SPEAKERS]);
+            assert_eq!(preset.probs.samples.len(), preset.probs.expected_samples());
+            assert!((0.0..1.0).contains(&preset.der.der));
         }
     }
 
