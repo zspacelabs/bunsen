@@ -30,7 +30,7 @@ use crate::{
             SubpixelUpsample1dConfig,
             SubpixelUpsample1dMeta,
         },
-        transformers::rope_encoder::{
+        transformers::encoders::rope::{
             RopeEncoderBlockConfig,
             RopeTransformerEncoderConfig,
         },

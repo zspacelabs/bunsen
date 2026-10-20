@@ -30,7 +30,7 @@ use crate::{
             ConvSeq2d,
             ConvSeq2dConfig,
         },
-        transformers::encoder_block::{
+        transformers::encoders::residual::{
             ResidualEncoderAttentionBlock,
             ResidualEncoderAttentionBlockConfig,
         },

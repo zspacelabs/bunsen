@@ -13,7 +13,7 @@ use crate::{
             FeatureStackingConfig,
             FeatureStackingMeta,
         },
-        transformers::rope_encoder::{
+        transformers::encoders::rope::{
             RopeTransformerEncoder,
             RopeTransformerEncoderConfig,
             RopeTransformerEncoderMeta,
