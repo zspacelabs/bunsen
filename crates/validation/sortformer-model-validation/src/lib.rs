@@ -56,6 +56,9 @@ mod staged;
 #[cfg(all(test, feature = "download", feature = "gpu-tests"))]
 mod speech;
 
+#[cfg(all(test, feature = "download", feature = "gpu-tests"))]
+mod asr;
+
 /// The mel channel count of `Nemotron-3-Diarization`.
 pub const N_MELS: usize = 128;
 
@@ -233,6 +236,12 @@ pub fn ami_reference() -> AmiReference {
 /// what this crate is validating.
 #[cfg(feature = "download")]
 pub fn weights_cache() -> bunsen::data::pretrained::PretrainedCache {
+    cache_at(bunsen_bundled_sortformer::cache_dir())
+}
+
+/// An offline pretrained cache rooted at a bundled crate's directory.
+#[cfg(feature = "download")]
+pub fn cache_at(dir: &std::path::Path) -> bunsen::data::pretrained::PretrainedCache {
     use bunsen::data::pretrained::{
         PretrainedCache,
         PretrainedCacheOptions,
@@ -240,7 +249,7 @@ pub fn weights_cache() -> bunsen::data::pretrained::PretrainedCache {
     let options = PretrainedCacheOptions::default()
         .with_disk(
             bunsen::data::cache::BunsenDiskCacheOptions::default()
-                .with_cache_dir(Some(bunsen_bundled_sortformer::cache_dir().to_path_buf())),
+                .with_cache_dir(Some(dir.to_path_buf())),
         )
         .with_offline(true);
     PretrainedCache::new(options).expect("open the pretrained cache")

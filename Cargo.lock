@@ -10342,7 +10342,10 @@ name = "sortformer-model-validation"
 version = "0.39.0"
 dependencies = [
  "bunsen",
+ "bunsen-bundled-parakeet",
+ "bunsen-bundled-qwen3-asr",
  "bunsen-bundled-sortformer",
+ "bunsen-bundled-whisper",
  "bunsen-test-audio",
  "burn",
  "serde",
