@@ -8,12 +8,9 @@ use burn::{
 };
 
 use super::SortformerStreamingConfig;
-use crate::{
-    contracts::assert_shape_contract_periodically,
-    errors::{
-        BunsenError,
-        BunsenResult,
-    },
+use crate::errors::{
+    BunsenError,
+    BunsenResult,
 };
 
 /// One stream's Arrival-Order Speaker Cache and FIFO, between steps.
@@ -171,7 +168,7 @@ impl SpeakerCache {
 
         #[cfg(any(debug_assertions, test))]
         if let Some(embeds) = &self.embeds {
-            assert_shape_contract_periodically!(
+            crate::contracts::assert_shape_contract_periodically!(
                 ["frames", "d_model"],
                 &embeds.dims(),
                 &[

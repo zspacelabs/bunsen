@@ -15,10 +15,7 @@ use burn::{
 
 use crate::{
     burner::module::ModuleInit,
-    contracts::{
-        assert_shape_contract_periodically,
-        unpack_shape_contract,
-    },
+    contracts::unpack_shape_contract,
     errors::{
         BunsenResult,
         ConstraintError,
@@ -140,7 +137,7 @@ impl SubpixelUpsample1d {
             .reshape([batch, time * self.factor, d_model]);
 
         #[cfg(any(debug_assertions, test))]
-        assert_shape_contract_periodically!(
+        crate::contracts::assert_shape_contract_periodically!(
             ["batch", "time" * "factor", "d_model"],
             &y.dims(),
             &[

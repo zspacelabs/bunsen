@@ -12,10 +12,7 @@ use burn::{
 
 use crate::{
     burner::module::ModuleInit,
-    contracts::{
-        assert_shape_contract_periodically,
-        unpack_shape_contract,
-    },
+    contracts::unpack_shape_contract,
     errors::{
         BunsenResult,
         ConstraintError,
@@ -168,7 +165,7 @@ impl FeatureStacking {
             .forward(x.reshape([batch, groups, self.factor * d_input]));
 
         #[cfg(any(debug_assertions, test))]
-        assert_shape_contract_periodically!(
+        crate::contracts::assert_shape_contract_periodically!(
             ["batch", "groups", "d_output"],
             &y.dims(),
             &[

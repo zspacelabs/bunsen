@@ -25,10 +25,7 @@ use crate::{
         RotaryEmbeddingMeta,
     },
     burner::module::ModuleInit,
-    contracts::{
-        assert_shape_contract_periodically,
-        unpack_shape_contract,
-    },
+    contracts::unpack_shape_contract,
     errors::{
         BunsenResult,
         ConstraintError,
@@ -180,13 +177,13 @@ impl RopeSelfAttention {
         );
         #[cfg(any(debug_assertions, test))]
         {
-            assert_shape_contract_periodically!(
+            crate::contracts::assert_shape_contract_periodically!(
                 [1, "time", 1, "half_head"],
                 &rope.cos.dims(),
                 &[("time", time), ("half_head", self.head_dim() / 2)],
             );
             if let Some(valid) = &valid {
-                assert_shape_contract_periodically!(
+                crate::contracts::assert_shape_contract_periodically!(
                     ["batch", "time"],
                     &valid.dims(),
                     &[("batch", batch), ("time", time)],
@@ -221,7 +218,7 @@ impl RopeSelfAttention {
         let y = self.output.forward(y);
 
         #[cfg(any(debug_assertions, test))]
-        assert_shape_contract_periodically!(
+        crate::contracts::assert_shape_contract_periodically!(
             ["batch", "time", "d_model"],
             &y.dims(),
             &[

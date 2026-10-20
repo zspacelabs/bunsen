@@ -41,7 +41,6 @@ use crate::{
     },
     contracts::{
         assert_shape_contract,
-        assert_shape_contract_periodically,
         unpack_shape_contract,
     },
     errors::{
@@ -407,7 +406,7 @@ impl Sortformer {
 
         #[cfg(any(debug_assertions, test))]
         {
-            assert_shape_contract_periodically!(
+            crate::contracts::assert_shape_contract_periodically!(
                 ["batch", "frames" * "up", "speakers"],
                 &output.dims(),
                 &[
@@ -417,7 +416,7 @@ impl Sortformer {
                     ("speakers", self.n_speakers())
                 ],
             );
-            assert_shape_contract_periodically!(
+            crate::contracts::assert_shape_contract_periodically!(
                 ["batch", "frames", "speakers"],
                 &encoder_rate.dims(),
                 &[
