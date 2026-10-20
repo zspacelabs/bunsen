@@ -30,7 +30,7 @@ check against and are not published.
 | [`bunsen-firehose-image`](bunsen_firehose_image) | Image operators for firehose: loading, augmentation, conversion to tensor data. |
 | [`bunsen-arrow-dataloaders`](bunsen_arrow_dataloaders) | *Preview.* Parquet shards to tokenized training batches, for language-model training. See [Shard sets](../systems/shards.md). |
 | [`bunsen-app`](https://github.com/zspacelabs/bunsen/tree/main/crates/public/bunsen-app) | Shared command-line plumbing for bunsen's binaries: device and precision flags, logging, shard selection, and the weights cache's flags and `cache` commands. The examples and `bunsen-asr` are built on it. |
-| [`bunsen-asr`](https://github.com/zspacelabs/bunsen/tree/main/crates/public/bunsen-asr) | A binary, `cargo install bunsen-asr`: speech to text with Parakeet, Qwen3-ASR or Whisper, each through its [stream driver](../systems/streaming.md), and `bunsen-asr cache` over the weights cache. |
+| [`bunsen-asr`](https://github.com/zspacelabs/bunsen/tree/main/crates/public/bunsen-asr) | A binary, `cargo install bunsen-asr`: speech to text with Parakeet, Qwen3-ASR or Whisper, each through its [stream driver](../systems/streaming.md); speaker diarization with Sortformer; and `bunsen-asr cache` over the weights cache. |
 
 The two `bundled` crates are how bunsen ships model assets without making
 every build download them; [Assets, bundling and the network](../development/assets.md)

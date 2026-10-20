@@ -7,6 +7,7 @@ its own `list` and `transcribe` and only the flags that apply to it:
 bunsen-asr parakeet  (list|fetch|transcribe|live) [FLAGS]   # NVIDIA's Parakeet TDT; FermionResearch's Phonon-2 by default
 bunsen-asr qwen3-asr (list|fetch|transcribe|live) [FLAGS]   # Qwen's Qwen3-ASR; FermionResearch's Phonon-1 by default
 bunsen-asr whisper   (list|fetch|transcribe|live) [FLAGS]   # OpenAI's Whisper; openai/base by default
+bunsen-asr diarize   (list|fetch|run|live)        [FLAGS]   # who spoke when: NVIDIA's Nemotron-3-Diarization
 ```
 
 ```sh
@@ -54,6 +55,20 @@ cargo run --release -p bunsen-asr --features wgpu -- parakeet live --preset resp
 cargo run --release -p bunsen-asr -- whisper live --list-devices
 ```
 
+`diarize` says who spoke when, through NVIDIA's Sortformer (`nvidia/nemotron-3-diarization`, up to 8 speakers, 10 ms
+frames). `diarize run FILE...` prints each file's speaker turns as lines of `{start} {end} speaker_{k}` in seconds,
+speakers numbered in the order they first speak; `--rttm` prints NIST RTTM instead (the file's stem as its recording
+id), and `--json` one object per file, its turns and each speaker's total. `diarize live` prints each turn as it
+closes, from the microphone, opened as the families' `live` opens it. `--latency` picks the streaming preset: `low`
+(1.04 s, the default), `very-low` (0.64 s), `ultra-low` (0.32 s), or `offline` (30.4 s chunks, the most accurate on
+files). `--postprocess` picks how activity becomes turns: `none` (thresholds of 0.5, the default), or NeMo's tuned
+`dihard3` or `callhome` parameters. `list` and `fetch` work as for the families.
+
+```sh
+cargo run --release -p bunsen-asr --features wgpu -- diarize run --latency offline meeting.wav
+cargo run --release -p bunsen-asr --features wgpu -- diarize run --rttm meeting.wav > meeting.rttm
+```
+
 | Family | Flags of its own |
 |---|---|
 | `parakeet` | `--window-seconds` (60): a full window is committed up to a pause between words, and the rest decoded again with the audio after it |
@@ -72,10 +87,11 @@ bunsen-asr cache list [KIT[/NAMESPACE]]       # each file's kit, namespace, size
 bunsen-asr cache clear [KIT[/NAMESPACE]] [--partial] [--yes]
 ```
 
-The kits are `parakeet`, `qwen3-asr`, `whisper` and `silero_vad` (the VAD the `conservative` preset loads).
+The kits are `parakeet`, `qwen3-asr`, `whisper`, `sortformer` (the diarizer) and `silero_vad` (the VAD the
+`conservative` preset loads).
 `clear` without `--yes` only lists what it would remove; `--partial` selects unfinished downloads.
 
-`transcribe` and `live` take `--preset` and `--chunk-ms`; every command takes `--cache-dir`, `--offline`, `--device` (from the backends compiled in: `--features wgpu`, `vulkan`,
+`transcribe` and `live` take `--preset` and `--chunk-ms` (`diarize live` takes `--chunk-ms`); every command takes `--cache-dir`, `--offline`, `--device` (from the backends compiled in: `--features wgpu`, `vulkan`,
 `metal`, `cuda`; the CPU is always there) and `-v`/`-q`.
 
 | model | | licence |
@@ -85,6 +101,7 @@ The kits are `parakeet`, `qwen3-asr`, `whisper` and `silero_vad` (the VAD the `c
 | `qwen3-asr`: `fermion/phonon-1` | 415 MB, `Qwen3-ASR-0.6B` re-packed, 30 languages; `-micro` (285 MB) and `-big` (581 MB) builds | Apache-2.0 |
 | `qwen3-asr`: `qwen/qwen3-asr-0.6b`, `qwen/qwen3-asr-1.7b` | 1.6 and 4.1 GB, Qwen's base models | Apache-2.0 |
 | `whisper`: `openai/*` | every `openai-whisper` checkpoint, `tiny` to `large-v3-turbo` | MIT |
+| `diarize`: `nvidia/nemotron-3-diarization` | 397 MB, NVIDIA's streaming Sortformer, up to 8 speakers | OpenMDW-1.1 |
 
 ## Whisper models
 

@@ -1,4 +1,4 @@
-//! The model families, and loading one of their models with its info card.
+//! The model families and kits, and loading a model with its info card.
 use std::{
     io::Write,
     sync::Arc,
@@ -37,6 +37,11 @@ use bunsen::{
                 default_qwen3_asr_factory,
             },
         },
+        sortformer::pretrained::{
+            DEFAULT_SORTFORMER_MODEL,
+            SORTFORMER_KIT,
+            default_sortformer_factory,
+        },
         whisper::{
             driver::WhisperBundle,
             pretrained::{
@@ -64,6 +69,23 @@ pub enum Family {
 
     /// `OpenAI`'s Whisper.
     Whisper,
+}
+
+/// What `list` and `fetch` serve: a speech recognizer's family, or the
+/// diarizer.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Kit {
+    /// A speech recognizer's family.
+    Asr(Family),
+
+    /// The speaker diarizer: Sortformer.
+    Diarizer,
+}
+
+impl From<Family> for Kit {
+    fn from(family: Family) -> Self {
+        Kit::Asr(family)
+    }
 }
 
 /// What a family's factory offers: its listed rows, with their providers,
@@ -118,26 +140,6 @@ impl Family {
         }
     }
 
-    /// What the family's factory offers.
-    pub fn listing(self) -> BunsenResult<Listing> {
-        fn split<H: Construct>(factory: PretrainedFactory<H>) -> Listing {
-            let rows = factory.list();
-            let listed: Vec<&str> = rows.iter().map(|(p, _)| p.as_str()).collect();
-            let unlisted = factory
-                .providers()
-                .iter()
-                .map(|p| p.name().to_string())
-                .filter(|p| !listed.contains(&p.as_str()))
-                .collect();
-            Listing { rows, unlisted }
-        }
-        Ok(match self {
-            Family::Parakeet => split(default_parakeet_factory()?),
-            Family::Qwen3Asr => split(default_qwen3_asr_factory()?),
-            Family::Whisper => split(default_whisper_factory()?),
-        })
-    }
-
     /// Loads `spec` through `cache`, and logs its info card at `INFO`:
     /// a row of the family's factory, or for Whisper a checkpoint's path,
     /// with `flags`' `--vocab` over it.
@@ -168,7 +170,52 @@ impl Family {
     }
 }
 
-impl Family {
+impl Kit {
+    /// The kit's command name.
+    pub fn name(self) -> &'static str {
+        match self {
+            Kit::Asr(family) => family.name(),
+            Kit::Diarizer => "diarize",
+        }
+    }
+
+    /// The model `--model` names when it is not given.
+    pub fn default_model(self) -> &'static str {
+        match self {
+            Kit::Asr(family) => family.default_model(),
+            Kit::Diarizer => DEFAULT_SORTFORMER_MODEL,
+        }
+    }
+
+    /// The kit's segment of the pretrained cache.
+    pub fn cache_kit(self) -> &'static str {
+        match self {
+            Kit::Asr(family) => family.cache_kit(),
+            Kit::Diarizer => SORTFORMER_KIT,
+        }
+    }
+
+    /// What the kit's factory offers.
+    pub fn listing(self) -> BunsenResult<Listing> {
+        fn split<H: Construct>(factory: PretrainedFactory<H>) -> Listing {
+            let rows = factory.list();
+            let listed: Vec<&str> = rows.iter().map(|(p, _)| p.as_str()).collect();
+            let unlisted = factory
+                .providers()
+                .iter()
+                .map(|p| p.name().to_string())
+                .filter(|p| !listed.contains(&p.as_str()))
+                .collect();
+            Listing { rows, unlisted }
+        }
+        Ok(match self {
+            Kit::Asr(Family::Parakeet) => split(default_parakeet_factory()?),
+            Kit::Asr(Family::Qwen3Asr) => split(default_qwen3_asr_factory()?),
+            Kit::Asr(Family::Whisper) => split(default_whisper_factory()?),
+            Kit::Diarizer => split(default_sortformer_factory()?),
+        })
+    }
+
     /// Brings every resource of each of `names` into `cache`, fetching what
     /// is not local, and writes where each one is to `out`.
     ///
@@ -177,7 +224,7 @@ impl Family {
     ///   included.
     ///
     /// # Errors
-    /// As the family's factory resolving a name, its plan, and the cache's
+    /// As the kit's factory resolving a name, its plan, and the cache's
     /// load; [`DigestMismatch`](bunsen::errors::DigestMismatch) when a file
     /// verified does not hash to its pin.
     pub fn fetch(
@@ -188,14 +235,21 @@ impl Family {
         out: &mut impl Write,
     ) -> BunsenResult<()> {
         match self {
-            Family::Parakeet => fetch_with(default_parakeet_factory()?, names, cache, verify, out),
-            Family::Qwen3Asr => fetch_with(default_qwen3_asr_factory()?, names, cache, verify, out),
-            Family::Whisper => fetch_with(default_whisper_factory()?, names, cache, verify, out),
+            Kit::Asr(Family::Parakeet) => {
+                fetch_with(default_parakeet_factory()?, names, cache, verify, out)
+            }
+            Kit::Asr(Family::Qwen3Asr) => {
+                fetch_with(default_qwen3_asr_factory()?, names, cache, verify, out)
+            }
+            Kit::Asr(Family::Whisper) => {
+                fetch_with(default_whisper_factory()?, names, cache, verify, out)
+            }
+            Kit::Diarizer => fetch_with(default_sortformer_factory()?, names, cache, verify, out),
         }
     }
 }
 
-/// [`Family::fetch`] through one family's factory: each name's plan (a
+/// [`Kit::fetch`] through one kit's factory: each name's plan (a
 /// path's vocabulary is the one its checkpoint's layout selects, and a
 /// name's checkpoint must scan as its prefab), then every resource of it.
 fn fetch_with<H: Construct>(
@@ -237,7 +291,7 @@ fn fetch_with<H: Construct>(
 
 /// Resolves and loads `spec`, logging what it is and where its files came
 /// from: the model's info card.
-fn load_logged<H: Construct>(
+pub fn load_logged<H: Construct>(
     deferred: Deferred<H>,
     cache: &PretrainedCache,
     device: &Device,
@@ -279,11 +333,16 @@ mod tests {
         .init()
         .unwrap();
         let mut out = Vec::new();
-        for family in [Family::Parakeet, Family::Qwen3Asr, Family::Whisper] {
-            let unknown = family.fetch(&["no/such-model".into()], &cache, false, &mut out);
-            assert!(unknown.is_err(), "{}", family.name());
-            let known = family.fetch(&[family.default_model().into()], &cache, false, &mut out);
-            assert!(known.is_err(), "{} fetched offline", family.name());
+        for kit in [
+            Kit::Asr(Family::Parakeet),
+            Kit::Asr(Family::Qwen3Asr),
+            Kit::Asr(Family::Whisper),
+            Kit::Diarizer,
+        ] {
+            let unknown = kit.fetch(&["no/such-model".into()], &cache, false, &mut out);
+            assert!(unknown.is_err(), "{}", kit.name());
+            let known = kit.fetch(&[kit.default_model().into()], &cache, false, &mut out);
+            assert!(known.is_err(), "{} fetched offline", kit.name());
         }
         assert!(cache.cached_files(&Default::default()).unwrap().is_empty());
     }

@@ -1,6 +1,7 @@
 //! `bunsen-asr`: speech to text on bunsen, one subcommand per model family:
 //! `bunsen-asr <parakeet|qwen3-asr|whisper> <list|fetch|transcribe|live>
-//! [FLAGS]` (and `whisper inspect|prefabs`), and `bunsen-asr cache
+//! [FLAGS]` (and `whisper inspect|prefabs`), `bunsen-asr diarize
+//! <list|fetch|run|live>` for who spoke when, and `bunsen-asr cache
 //! <path|list|clear>` for the weights cache.
 
 use bunsen::errors::BunsenResult;
@@ -9,6 +10,7 @@ use clap::Parser;
 mod args;
 #[cfg(feature = "live")]
 mod capture;
+mod diarize;
 mod driver;
 mod family;
 mod fetch_cmd;
@@ -46,9 +48,13 @@ enum FamilyCmd {
     /// `OpenAI`'s Whisper: `openai/base` by default.
     Whisper(WhisperCmd),
 
+    /// NVIDIA's Sortformer, who spoke when: `nvidia/nemotron-3-diarization`
+    /// by default.
+    Diarize(diarize::DiarizeCmd),
+
     /// The weights cache every family loads through: where it is, what it
-    /// holds (by kit: `parakeet`, `qwen3-asr`, `whisper`, `silero_vad`), and
-    /// clearing it.
+    /// holds (by kit: `parakeet`, `qwen3-asr`, `whisper`, `sortformer`,
+    /// `silero_vad`), and clearing it.
     Cache(bunsen_app::cache::CacheCommand),
 }
 
@@ -120,8 +126,8 @@ impl<F: clap::Args + transcribe_cmd::FamilyFlags> Action<F> {
         family: Family,
     ) -> BunsenResult<()> {
         match self {
-            Action::List(list) => list.run(family),
-            Action::Fetch(fetch) => fetch.run(family),
+            Action::List(list) => list.run(family.into()),
+            Action::Fetch(fetch) => fetch.run(family.into()),
             Action::Transcribe(transcribe) => transcribe.run(family),
             #[cfg(feature = "live")]
             Action::Live(live) => live.run(family),
@@ -135,6 +141,7 @@ fn main() -> BunsenResult<()> {
         FamilyCmd::Parakeet(cmd) => cmd.run(Family::Parakeet),
         FamilyCmd::Qwen3Asr(cmd) => cmd.run(Family::Qwen3Asr),
         FamilyCmd::Whisper(cmd) => cmd.run(),
+        FamilyCmd::Diarize(cmd) => cmd.run(),
         FamilyCmd::Cache(cmd) => cmd.run(),
     }
 }
@@ -159,6 +166,33 @@ mod tests {
             Args::try_parse_from(["bunsen-asr", family, "transcribe", "a.wav"]).unwrap();
         }
         assert!(Args::try_parse_from(["bunsen-asr", "silero", "list"]).is_err());
+        // The diarizer: its presets and its outputs, one at a time.
+        Args::try_parse_from(["bunsen-asr", "diarize", "list"]).unwrap();
+        Args::try_parse_from([
+            "bunsen-asr",
+            "diarize",
+            "fetch",
+            "nvidia/nemotron-3-diarization",
+        ])
+        .unwrap();
+        Args::try_parse_from([
+            "bunsen-asr",
+            "diarize",
+            "run",
+            "--latency",
+            "very-low",
+            "--postprocess",
+            "dihard3",
+            "--rttm",
+            "a.wav",
+        ])
+        .unwrap();
+        assert!(
+            Args::try_parse_from(["bunsen-asr", "diarize", "run", "--rttm", "--json", "a.wav"])
+                .is_err()
+        );
+        assert!(Args::try_parse_from(["bunsen-asr", "diarize", "run"]).is_err());
+        assert!(Args::try_parse_from(["bunsen-asr", "diarize", "transcribe", "a.wav"]).is_err());
         // Whisper's own: its decode flags, a checkpoint path, inspect and
         // prefabs.
         Args::try_parse_from([
