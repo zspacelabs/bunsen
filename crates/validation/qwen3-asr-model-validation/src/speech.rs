@@ -6,13 +6,15 @@
 //! last digits and the text barely move.
 
 use bunsen::{
-    kits::speech::qwen3_asr::Qwen3AsrFrontEndMeta,
-    support::testing::{
-        DeviceMemoryGuard,
-        asr::{
+    kits::speech::{
+        qwen3_asr::Qwen3AsrFrontEndMeta,
+        testing::wer::{
             normalize_transcript,
             word_error_rate,
         },
+    },
+    support::testing::{
+        DeviceMemoryGuard,
         performance_device,
     },
 };

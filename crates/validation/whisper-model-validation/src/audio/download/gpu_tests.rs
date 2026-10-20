@@ -6,6 +6,7 @@ use bunsen::{
             LevelPolicy,
             StreamClock,
         },
+        testing::wer::text_error_rate,
         whisper::{
             DecodeConfig,
             GreedyDecodeConfig,
@@ -24,7 +25,6 @@ use bunsen::{
     },
     support::testing::{
         DeviceMemoryGuard,
-        asr::text_error_rate,
         performance_device,
     },
 };

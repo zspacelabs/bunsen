@@ -13,6 +13,7 @@ use crate::{
             MaxLevel,
             TimedTokens,
             WindowDecode,
+            speaker_cut,
         },
         whisper::{
             blocks::WhisperMeta,
@@ -174,8 +175,23 @@ impl WhisperEngine {
         &self,
         request: &DecodeRequest<'_, Self>,
     ) -> Packaged {
-        let count = request.window.dims()[1];
-        let window = self.package_padded(request.window.clone(), &request.level);
+        let mut count = request.window.dims()[1];
+        if let (Some(config), Some(activity)) = (&self.config.speaker_cut, &request.speakers)
+            && let Some(cut) = speaker_cut(
+                activity,
+                request.start,
+                self.hop(),
+                count,
+                self.sample_rate(),
+                config,
+            )
+        {
+            count = cut;
+        }
+        let window = self.package_padded(
+            request.window.clone().slice_dim(1, 0..count),
+            &request.level,
+        );
         let detected = self.undetected_language(request.state, &window);
         let language = detected.as_deref().or(request.state.language.as_deref());
         Packaged {
@@ -2049,5 +2065,84 @@ mod tests {
             assert_eq!(emissions.len(), 25);
             assert_eq!(ctx.regions_pending(), 0);
         }
+    }
+
+    /// With a diarizer, a window is cut where the speaker changes before it
+    /// is decoded, and each segment is the one speaker's; with the cut off,
+    /// the window is decoded to its full length.
+    #[test]
+    #[serial]
+    fn test_windows_are_cut_at_speaker_turns() {
+        use crate::kits::speech::{
+            asr_driver::{
+                MeanActivity,
+                SpeakerCutConfig,
+            },
+            testing::ScriptedDiarizer,
+        };
+
+        let device = performance_device();
+        // The tiny model's window is 16 frames, 0.16 s: a turn at 0.11 s,
+        // past a minimum of 0.05 s, ends the first one.
+        let cut = Some(
+            SpeakerCutConfig::new()
+                .with_min_window_seconds(0.05)
+                .with_min_turn_seconds(0.02),
+        );
+        let diarizer = Arc::new(ScriptedDiarizer {
+            sample_rate: RATE,
+            frame_samples: 160,
+            n_speakers: 2,
+            latency: 800,
+            script: vec![(0, Some(0)), (1_760, Some(1))],
+        });
+        let first_segment = |speaker_cut: Option<SpeakerCutConfig>| {
+            let driver = config(false)
+                .with_speaker_cut(speaker_cut)
+                .init_with_layout(
+                    tiny_model_on(&device),
+                    WhisperTokenLayout::new(tiny_layout()),
+                    &device,
+                )
+                .unwrap()
+                .with_logit_filters(decisive())
+                .with_speakers(diarizer.clone(), Arc::new(MeanActivity::default()))
+                .unwrap();
+            let events = run_clip_events(&driver, &clip());
+            let first = events
+                .iter()
+                .find(|e| e.is_committed())
+                .expect("a commit")
+                .segment()
+                .clone();
+            let second = events
+                .iter()
+                .filter(|e| e.is_committed())
+                .nth(1)
+                .expect("a second commit")
+                .segment()
+                .clone();
+            (first, second)
+        };
+
+        let (first, second) = first_segment(cut);
+        assert!((first.end - 0.11).abs() < 1e-9, "{first:?}");
+        assert_eq!(first.speaker.map(|l| l.index), Some(0));
+        assert_eq!(second.start, first.end);
+        assert_eq!(second.speaker.map(|l| l.index), Some(1));
+
+        let (whole, _) = first_segment(None);
+        assert!((whole.end - 0.16).abs() < 1e-9, "{whole:?}");
+    }
+
+    /// Pushes a clip through a fresh context and flushes it.
+    fn run_clip_events(
+        driver: &WhisperStreamDriver,
+        audio: &[f32],
+    ) -> Vec<TranscriptEvent> {
+        let mut ctx = driver.new_context(clock(), LevelPolicy::PerWindow).unwrap();
+        let mut events = ctx.write_read(audio).unwrap();
+        events.extend(ctx.end_read().unwrap());
+        events
     }
 }

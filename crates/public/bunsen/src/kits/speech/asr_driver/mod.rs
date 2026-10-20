@@ -32,7 +32,8 @@
 //!   [`SpeakerActivityModel`](crate::kits::speech::diarization::SpeakerActivityModel)),
 //!   every segment is attributed to a speaker ([`SpeakerLabel`]) by a
 //!   [`SpeakerAttribution`] rule: [`MeanActivity`], `NeMo`'s, or
-//!   [`TurnOverlap`].
+//!   [`TurnOverlap`]. An engine that decodes windows whole can cut them at a
+//!   change of speaker first ([`speaker_cut`]).
 //! - [`LevelPolicy`] and [`LevelStatistic`]: what a window's features are
 //!   scaled against, the window's own frames or everything the stream has seen,
 //!   summarized as the model needs ([`MaxLevel`], [`MomentsLevel`]).
@@ -51,6 +52,7 @@ mod level;
 mod log_mel_features;
 mod quiet_cut;
 mod speaker_attribution;
+mod speaker_cut;
 mod speech_region;
 mod stream_clock;
 mod stream_context;
@@ -66,6 +68,7 @@ pub use level::*;
 pub use log_mel_features::*;
 pub use quiet_cut::*;
 pub use speaker_attribution::*;
+pub use speaker_cut::*;
 pub use speech_region::*;
 pub use stream_clock::*;
 pub use stream_context::*;

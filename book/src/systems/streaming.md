@@ -234,12 +234,15 @@ attributed to a speaker by a
 rule, such as `NeMo`'s
 [`MeanActivity`](bunsen::kits::speech::asr_driver::MeanActivity).
 
-A diarizer finalizes a frame only after some look-ahead, so a committed
-segment is held until the frames it covers are final, and only then emitted,
-attributed from final activity; events keep their order. A draft is
-attributed from what the diarizer has finalized so far. The engine sees the
-window's activity in its decode request too, for an engine that places its
-cuts at speaker turns. Turns on their own, without transcription, come from a
+A diarizer finalizes a frame only after some look-ahead, so a unit is
+decoded only once the diarizer has finalized all of its audio: its commits
+are attributed from final activity, and an engine that reads the activity
+sees all of it, however the audio was chunked. A draft is attributed from
+what the diarizer has finalized so far. The engine sees the window's activity
+in its decode request, and one that decodes windows whole cuts them at a
+change of speaker first
+([`speaker_cut`](bunsen::kits::speech::asr_driver::speaker_cut)), so a
+window is one speaker's as far as the turns go. Turns on their own, without transcription, come from a
 [`TurnFilter`](bunsen::kits::speech::diarization::TurnFilter) over the
 diarizer's activity.
 

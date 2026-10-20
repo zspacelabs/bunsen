@@ -98,7 +98,7 @@ by the token it picks, and across tens of thousands of logits a tolerance
 can pass while the argmax differs, so check the choice separately. Across a
 whole transcript, compare text rather than token ids: one flipped token
 cascades through the rest of the decode while the text barely moves.
-[`support::testing::asr`](bunsen::support::testing::asr) has the word error
+[`kits::speech::testing::wer`](bunsen::kits::speech::testing::wer) has the word error
 rate that bunsen's speech tests are judged by.
 
 ## Untrained toy models
