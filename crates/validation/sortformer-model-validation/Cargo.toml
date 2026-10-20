@@ -28,6 +28,7 @@ download = [
     "dep:bunsen-bundled-sortformer",
     "bunsen-bundled-sortformer/onnx_gen",
     "bunsen-bundled-sortformer/checkpoint_nemotron",
+    "bunsen-test-audio/ami",
 ]
 
 ## Compile every test that loads a model.
@@ -56,6 +57,7 @@ bunsen-bundled-sortformer = {
     path = "../../public/bunsen-bundled-sortformer",
     optional = true
 }
+bunsen-test-audio = { path = "../../dev/bunsen-test-audio" }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
 

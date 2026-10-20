@@ -13,5 +13,18 @@ license.workspace = true
 [lints]
 workspace = true
 
+[features]
+## Nothing by default: building this crate fetches nothing.
+default = []
+
+## Fetch a 60 s excerpt of the AMI Meeting Corpus (meeting EN2002d,
+## Mix-Headset, 1.9 MB of 16 kHz PCM) with its speaker reference (RTTM) and
+## its transcript by speaker, digest-pinned: `AMI_EN2002D_2132`. For the
+## diarization validation; CI never turns it on.
+ami = ["dep:bunsen-fetch"]
+
+[build-dependencies]
+bunsen-fetch = { path = "../../public/bunsen-fetch", features = ["fetch"], optional = true }
+
 [dev-dependencies]
 sha2 = { workspace = true }

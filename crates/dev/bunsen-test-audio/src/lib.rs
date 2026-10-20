@@ -155,6 +155,64 @@ pub const SILERO_VAD_TEST: AudioFixture = AudioFixture {
     transcript_file: None,
 };
 
+/// A fetched recording with a speaker reference: the clip, its RTTM, and its
+/// transcript by speaker.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct DiarizationFixture {
+    /// The clip.
+    pub audio: &'static str,
+
+    /// The speaker reference, NIST RTTM.
+    pub rttm: &'static str,
+
+    /// The transcript by speaker, JSON: `[{speaker, start_time, end_time,
+    /// words}]`.
+    pub transcript: &'static str,
+
+    /// The sample rate, in Hz.
+    pub sample_rate: usize,
+
+    /// The duration, in seconds.
+    pub seconds: f64,
+
+    /// The licences.
+    pub licence: &'static str,
+}
+
+impl DiarizationFixture {
+    /// The clip's path.
+    pub fn audio_path(&self) -> &'static Path {
+        Path::new(self.audio)
+    }
+
+    /// The speaker reference's path.
+    pub fn rttm_path(&self) -> &'static Path {
+        Path::new(self.rttm)
+    }
+
+    /// The transcript's path.
+    pub fn transcript_path(&self) -> &'static Path {
+        Path::new(self.transcript)
+    }
+}
+
+/// 60 s of meeting `EN2002d` of the AMI Meeting Corpus (Mix-Headset, from
+/// 2132.5 s), 16 kHz mono PCM, as `NVIDIA/NeMo-Speech.cpp`'s test files cut
+/// it: three speakers taking turns with brief overlap, and a fourth saying a
+/// few words. Its RTTM is the word-aligned reference of `BUTSpeechFIT`'s
+/// AMI-diarization-setup, its transcript the AMI manual word annotations.
+///
+/// Fetched by the `ami` feature; `testdata/README.md` has the provenance.
+#[cfg(feature = "ami")]
+pub const AMI_EN2002D_2132: DiarizationFixture = DiarizationFixture {
+    audio: env!("AMI_EN2002D_2132_WAV"),
+    rttm: env!("AMI_EN2002D_2132_RTTM"),
+    transcript: env!("AMI_EN2002D_2132_JSON"),
+    sample_rate: 16_000,
+    seconds: 60.0,
+    licence: "CC BY 4.0 (AMI Meeting Corpus); the RTTM Apache-2.0 (AMI-diarization-setup)",
+};
+
 /// Every committed clip.
 pub const ALL: &[AudioFixture] = &[JFK_MOON, JFK_MOON_4S, TONE_WAV, TONE_MP3, SILERO_VAD_TEST];
 

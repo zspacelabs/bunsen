@@ -21,6 +21,26 @@ Fixtures that are a model's output on these clips live with the validation crate
 decodes with the Parakeet and Qwen3-ASR validation crates, and Silero's reference probabilities with
 `silero-model-validation`.
 
+## Fetched
+
+Recordings too large to commit are fetched by a feature, digest-pinned, into the build directory:
+
+| feature | fixture | | licence |
+|---|---|---|---|
+| `ami` | `AMI_EN2002D_2132` | 60 s of AMI meeting EN2002d, 16 kHz mono PCM, with its speaker RTTM and transcript | CC BY 4.0; the RTTM Apache-2.0 |
+
+### `AMI_EN2002D_2132`
+
+- Source: [`NVIDIA/NeMo-Speech.cpp`](https://github.com/NVIDIA/NeMo-Speech.cpp) `test_files/diar/` at commit
+  `2bdfb03b38d5e3b0fa55aeb91a079a9f57385373` (Apache-2.0 repository): `ami_en2002d_2132.{wav,rttm,json}`
+- Audio: meeting EN2002d of the [AMI Meeting Corpus](https://groups.inf.ed.ac.uk/ami/corpus/), Mix-Headset, from
+  2132.5 s, unmodified 16 kHz mono PCM. Licence:
+  [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/); attribution: the AMI Meeting Corpus.
+- RTTM: cut from the word-aligned `only_words` reference of
+  [BUTSpeechFIT/AMI-diarization-setup](https://github.com/BUTSpeechFIT/AMI-diarization-setup) (Apache-2.0), times
+  relative to the excerpt.
+- Transcript: the AMI manual word annotations for the excerpt (CC BY 4.0).
+
 ## Provenance
 
 ### `jfk_moon.mp3`
