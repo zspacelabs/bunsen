@@ -29,7 +29,7 @@ use crate::{
             ConvSeq1dConfig,
             ConvSeq1dMeta,
         },
-        transformers::encoder_block::{
+        transformers::encoders::residual::{
             ResidualEncoderAttentionBlock,
             ResidualEncoderAttentionBlockConfig,
             ResidualEncoderAttentionBlockMeta,
