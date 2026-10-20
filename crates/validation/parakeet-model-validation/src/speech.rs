@@ -5,17 +5,19 @@
 //! digits and the text barely move.
 
 use bunsen::{
-    kits::speech::parakeet::{
-        ParakeetBundle,
-        ParakeetFrontEndMeta,
-        pretrained::DEFAULT_PARAKEET_MODEL,
-    },
-    support::testing::{
-        DeviceMemoryGuard,
-        asr::{
+    kits::speech::{
+        parakeet::{
+            ParakeetBundle,
+            ParakeetFrontEndMeta,
+            pretrained::DEFAULT_PARAKEET_MODEL,
+        },
+        testing::wer::{
             normalize_transcript,
             word_error_rate,
         },
+    },
+    support::testing::{
+        DeviceMemoryGuard,
         performance_device,
     },
 };

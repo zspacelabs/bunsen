@@ -19,6 +19,7 @@ use crate::{
             asr_driver::{
                 AsrStreamDriver,
                 EmissionPolicy,
+                SpeakerCutConfig,
             },
             whisper::{
                 DecodeConfig,
@@ -118,6 +119,14 @@ pub struct WhisperStreamDriverConfig {
     /// attached with [`with_vad`](WhisperStreamDriver::with_vad).
     #[config(default = "EmissionPolicy::offline()")]
     pub emission: EmissionPolicy,
+
+    /// With a diarizer attached, a window is cut at a change of speaker
+    /// before it is decoded
+    /// ([`speaker_cut`](crate::kits::speech::asr_driver::speaker_cut)), so a
+    /// segment is one speaker's as far as the turns go; `None` decodes
+    /// windows as the emission policy cuts them.
+    #[config(default = "Some(SpeakerCutConfig::new())")]
+    pub speaker_cut: Option<SpeakerCutConfig>,
 
     /// The temperature ladder and its thresholds. The default ladder is
     /// temperature zero alone; [`WhisperFallbackConfig::upstream`] is

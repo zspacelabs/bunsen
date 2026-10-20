@@ -577,13 +577,28 @@ impl<E: AsrEngine> AsrStreamContext<E> {
         }
     }
 
-    /// The next decode unit, if one is due.
+    /// The next decode unit, if one is due: [`unit_due`](Self::unit_due),
+    /// held while a diarizer has not yet finalized the unit's audio (the
+    /// input's end excepted), so an engine that reads the activity sees all
+    /// of it, however the audio was chunked.
+    fn next_due(&self) -> Option<Due> {
+        let unit = self.unit_due()?;
+        if let Some(timeline) = &self.speakers
+            && !timeline.finished
+            && timeline.activity.end() < (unit.start + unit.count) * self.hop()
+        {
+            return None;
+        }
+        Some(unit)
+    }
+
+    /// The next decode unit by the emission policy alone.
     ///
     /// With endpoints on: the oldest closed region reaching past the seek
     /// pointer, a window at a time; else a full window, only while speech
     /// is in progress inside it. Without: a full window, and at the end of
     /// input whatever remains.
-    fn next_due(&self) -> Option<Due> {
+    fn unit_due(&self) -> Option<Due> {
         let width = self.window_frames();
         let hop = self.hop();
         let available = self.frames_seen();
@@ -665,6 +680,7 @@ impl<E: AsrEngine> AsrStreamContext<E> {
         DecodeRequest {
             state: &self.state,
             transcript: &self.transcript,
+            start: unit.start * hop,
             level: self.level.reference(window.clone()),
             window,
             draft,
@@ -931,6 +947,7 @@ mod tests {
                 VoiceActivityModel,
             },
             diarization::SpeakerActivityModel,
+            testing::ScriptedDiarizer,
         },
         support::testing::cpu_device,
     };
@@ -1403,78 +1420,8 @@ mod tests {
         assert!((level(LevelPolicy::Running) - 0.9).abs() < 1e-6);
     }
 
-    /// A diarizer that knows who speaks when: speaker 0 before sample
-    /// `switch`, speaker 1 from it, in frames of `FRAME` samples, each
-    /// finalized `LATENCY` samples after its end.
-    #[derive(Clone, Debug)]
-    struct ScriptedDiarizer {
-        switch: usize,
-    }
-
     const FRAME: usize = 4;
     const LATENCY: usize = 30;
-
-    #[derive(Clone, Debug)]
-    struct ScriptedStream {
-        switch: usize,
-        seen: usize,
-        emitted: usize,
-    }
-
-    impl ScriptedStream {
-        /// Frames `[emitted, upto)`.
-        fn frames(
-            &mut self,
-            upto: usize,
-        ) -> SpeakerActivity {
-            let start = self.emitted * FRAME;
-            let mut probs = Vec::new();
-            for f in self.emitted..upto {
-                let first = f * FRAME >= self.switch;
-                probs.extend(if first { [0.05, 0.9] } else { [0.9, 0.05] });
-            }
-            self.emitted = upto.max(self.emitted);
-            SpeakerActivity::try_new(start, FRAME, 2, probs).unwrap()
-        }
-    }
-
-    impl SpeakerActivityModel for ScriptedDiarizer {
-        fn sample_rate(&self) -> usize {
-            RATE
-        }
-
-        fn frame_samples(&self) -> usize {
-            FRAME
-        }
-
-        fn max_speakers(&self) -> usize {
-            2
-        }
-
-        fn new_stream(&self) -> BunsenResult<Box<dyn SpeakerActivityStream>> {
-            Ok(Box::new(ScriptedStream {
-                switch: self.switch,
-                seen: 0,
-                emitted: 0,
-            }))
-        }
-    }
-
-    impl SpeakerActivityStream for ScriptedStream {
-        fn push(
-            &mut self,
-            samples: &[f32],
-        ) -> BunsenResult<SpeakerActivity> {
-            self.seen += samples.len();
-            let upto = self.seen.saturating_sub(LATENCY) / FRAME;
-            Ok(self.frames(upto))
-        }
-
-        fn finish(&mut self) -> BunsenResult<SpeakerActivity> {
-            let upto = self.seen.div_ceil(FRAME);
-            Ok(self.frames(upto))
-        }
-    }
 
     fn with_speakers(
         driver: AsrStreamDriver<ToyEngine>,
@@ -1482,7 +1429,13 @@ mod tests {
     ) -> AsrStreamDriver<ToyEngine> {
         driver
             .with_speakers(
-                Arc::new(ScriptedDiarizer { switch }),
+                Arc::new(ScriptedDiarizer {
+                    sample_rate: RATE,
+                    frame_samples: FRAME,
+                    n_speakers: 2,
+                    latency: LATENCY,
+                    script: vec![(0, Some(0)), (switch, Some(1))],
+                }),
                 Arc::new(crate::kits::speech::asr_driver::MeanActivity::default()),
             )
             .unwrap()
@@ -1524,11 +1477,11 @@ mod tests {
         }
     }
 
-    /// A commit waits until the diarizer covers it, and only then comes
-    /// out, attributed from final activity; however the audio is chunked,
-    /// the events are the same.
+    /// A unit waits to be decoded until the diarizer has finalized its audio,
+    /// so every commit comes out attributed from final activity; however the
+    /// audio is chunked, the events are the same.
     #[test]
-    fn test_commits_wait_for_the_diarizer() {
+    fn test_decodes_wait_for_the_diarizer() {
         let samples = ramp(120);
         let labelled = with_speakers(
             driver(ToyEngine::new(Some(3)), EmissionPolicy::offline()),
@@ -1539,7 +1492,7 @@ mod tests {
         for sizes in [&[1][..], &[5, 3], &[16]] {
             let mut ctx = open(&labelled);
             let mut events = Vec::new();
-            let mut held_at_some_point = false;
+            let mut waited = false;
             let mut at = 0;
             for &size in sizes.iter().cycle() {
                 if at >= samples.len() {
@@ -1548,18 +1501,18 @@ mod tests {
                 let end = (at + size).min(samples.len());
                 for e in ctx.write_read(&samples[at..end]).unwrap() {
                     if e.is_committed() {
-                        // Out only once covered: its end is finalized.
                         let covered = ctx.speaker_activity().unwrap().end() as f64 / RATE as f64;
-                        assert!(e.segment().end <= covered + 1e-9 || ctx.is_finished());
+                        assert!(e.segment().end <= covered + 1e-9);
                     }
                     events.push(e);
                 }
-                held_at_some_point |= ctx.held_segments() > 0;
+                // A full window is pending, and not yet decoded.
+                waited |= ctx.pending_frames() >= WIDTH;
                 at = end;
             }
             events.extend(ctx.end_read().unwrap());
             assert_eq!(ctx.held_segments(), 0);
-            assert!(held_at_some_point, "{sizes:?}");
+            assert!(waited, "{sizes:?}");
             assert_eq!(events, whole, "{sizes:?}");
         }
     }

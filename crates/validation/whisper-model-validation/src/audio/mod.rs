@@ -35,15 +35,18 @@ use bunsen::{
         ModuleInit,
     },
     kits::{
-        speech::whisper::{
-            Whisper,
-            WhisperMeta,
-            blocks::WhisperFrontEndConfig,
-            driver::{
-                WhisperTask,
-                WhisperTokenLayout,
+        speech::{
+            testing::wer::text_error_rate,
+            whisper::{
+                Whisper,
+                WhisperMeta,
+                blocks::WhisperFrontEndConfig,
+                driver::{
+                    WhisperTask,
+                    WhisperTokenLayout,
+                },
+                pretrained::WhisperVocabulary,
             },
-            pretrained::WhisperVocabulary,
         },
         tokens::{
             Detokenizer,
@@ -52,7 +55,6 @@ use bunsen::{
         },
     },
     ops::signal::perceptive_audio::PerceptiveAudioConverter,
-    support::testing::asr::text_error_rate,
 };
 use burn::{
     Tensor,

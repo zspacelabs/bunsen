@@ -7,7 +7,7 @@ commit and the tool versions):
   post-processing gives them (`binarization_vectorized`, then `filtering`) under each `TurnFilterConfig` preset and
   two more configs. `kits::speech::diarization::turns`'s tests hold `TurnFilterConfig::turns` to them.
 - `der`: seeded reference and hypothesis turns, and NeMo's md-eval scores of them (DER, confusion, false alarm, miss),
-  with and without a collar and with and without overlap scored. `support::testing::diarization`'s tests hold
+  with and without a collar and with and without overlap scored. `kits::speech::testing::der`'s tests hold
   `diarization_error` to them.
 
 Every value is synthetic: no recording, no licence question.

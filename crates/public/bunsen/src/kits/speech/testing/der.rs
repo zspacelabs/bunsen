@@ -2,8 +2,10 @@
 //!
 //! A diarizer names its speakers by its own indices, a reference by whatever
 //! its annotators wrote, so the two are compared under the one-to-one mapping
-//! of names that makes them agree for longest, as NIST's `md-eval` and
-//! `pyannote.metrics` compare them.
+//! of names that makes them agree longest, as NIST's `md-eval` and
+//! `pyannote.metrics` compare them. A speaker-attributed transcript is scored
+//! by words instead:
+//! [`cp_word_error_rate`](crate::kits::speech::testing::wer::cp_word_error_rate).
 
 use crate::kits::speech::diarization::RttmSegment;
 

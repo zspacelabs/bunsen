@@ -12,12 +12,12 @@ use bunsen::{
             TurnFilterConfig,
         },
         sortformer::SortformerStreamingConfig,
+        testing::der::diarization_error,
     },
     support::{
         audio::load_audio_mono_sr,
         testing::{
             DeviceMemoryGuard,
-            diarization::diarization_error,
             performance_device,
         },
     },

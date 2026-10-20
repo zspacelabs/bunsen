@@ -24,8 +24,10 @@ use crate::{
         DecodeRequest,
         LogMelFeatures,
         MaxLevel,
+        SpeakerCutConfig,
         WindowDecode,
         quiet_cut,
+        speaker_cut,
     },
 };
 
@@ -61,7 +63,11 @@ pub type Qwen3AsrStreamContext = AsrStreamContext<Qwen3AsrEngine>;
 ///   ([`quiet_cut`]), and the stream moves on from there: a window that ends
 ///   inside a word loses or repeats it, and the model was seen to repeat
 ///   phrases decoding audio past a pause.
-///   [`with_quiet_cut`](Self::with_quiet_cut) turns this off.
+///   [`with_quiet_cut`](Self::with_quiet_cut) turns this off. With a diarizer
+///   attached, any window is first cut at a change of speaker
+///   ([`speaker_cut`]), so a window, committed whole, is one speaker's as far
+///   as the turns go; [`with_speaker_cut`](Self::with_speaker_cut) sets or
+///   turns off the thresholds.
 /// - **Carry:** the language, the first a committed reply names.
 ///
 /// A stream's last frame is the end padding's, and goes, as the front end's
@@ -73,6 +79,7 @@ pub struct Qwen3AsrEngine {
     bundle: Arc<Qwen3AsrBundle>,
     window_frames: usize,
     quiet_cut: bool,
+    speaker_cut: Option<SpeakerCutConfig>,
     device: Device,
 }
 
@@ -87,8 +94,20 @@ impl Qwen3AsrEngine {
             bundle,
             window_frames,
             quiet_cut: true,
+            speaker_cut: Some(SpeakerCutConfig::new()),
             device,
         }
+    }
+
+    /// The engine with a window cut at a change of speaker before it is
+    /// decoded, when a diarizer is attached (the default thresholds), or
+    /// `None` to decode windows as the core and the quiet cut cut them.
+    pub fn with_speaker_cut(
+        mut self,
+        config: Option<SpeakerCutConfig>,
+    ) -> Self {
+        self.speaker_cut = config;
+        self
     }
 
     /// The engine with a full window cut at its quietest point before it is
@@ -259,7 +278,21 @@ impl AsrEngine for Qwen3AsrEngine {
             .map(|request| {
                 let mut window = request.window;
                 let mut frames = window.dims()[1];
-                if self.quiet_cut && frames >= self.window_frames {
+                let turn = match (&self.speaker_cut, &request.speakers) {
+                    (Some(config), Some(activity)) => speaker_cut(
+                        activity,
+                        request.start,
+                        self.hop(),
+                        frames,
+                        self.sample_rate(),
+                        config,
+                    ),
+                    _ => None,
+                };
+                if let Some(cut) = turn {
+                    frames = cut;
+                    window = window.slice_dim(1, 0..frames);
+                } else if self.quiet_cut && frames >= self.window_frames {
                     let loudness: Vec<f32> = window
                         .clone()
                         .mean_dim(2)
@@ -572,5 +605,76 @@ mod tests {
 
         let whole = commits(engine.with_quiet_cut(false));
         assert!((whole[0].1 - 1.0).abs() < 1e-9, "{whole:?}");
+    }
+
+    /// With a diarizer, a window is cut where the speaker changes, past the
+    /// minimum, and each segment is the one speaker's; turned off, or with
+    /// the turn before the minimum, the window is decoded whole.
+    #[test]
+    fn test_windows_are_cut_at_speaker_turns() {
+        use crate::kits::speech::{
+            asr_driver::{
+                MeanActivity,
+                SpeakerCutConfig,
+            },
+            testing::ScriptedDiarizer,
+        };
+
+        let device = performance_device();
+        let samples = ToneConfig::Duration {
+            seconds: 4.0,
+            hz: 16_000.0,
+        }
+        .build();
+        let diarizer = Arc::new(ScriptedDiarizer {
+            sample_rate: 16_000,
+            frame_samples: 160,
+            n_speakers: 2,
+            latency: 3_200,
+            script: vec![(0, Some(0)), (24_000, Some(1))],
+        });
+        let commits = |engine: Qwen3AsrEngine| {
+            let driver = Qwen3AsrStreamDriver::new(engine, EmissionPolicy::offline())
+                .unwrap()
+                .with_speakers(diarizer.clone(), Arc::new(MeanActivity::default()))
+                .unwrap();
+            let mut stream = driver
+                .new_context(StreamClock::uniform(16_000), LevelPolicy::PerWindow)
+                .unwrap();
+            let mut events = Vec::new();
+            for piece in samples.chunks(1_000) {
+                events.extend(stream.write_read(piece).unwrap());
+            }
+            events.extend(stream.end_read().unwrap());
+            events
+                .into_iter()
+                .map(|e| {
+                    let s = e.segment().clone();
+                    (s.start, s.end, s.speaker.map(|l| l.index))
+                })
+                .collect::<Vec<_>>()
+        };
+        let engine = Qwen3AsrEngine::new(Arc::new(toy_bundle(VOCAB, Vec::new(), &device)));
+
+        let cut = commits(
+            engine
+                .clone()
+                .with_speaker_cut(Some(SpeakerCutConfig::new().with_min_window_seconds(1.0))),
+        );
+        assert_eq!(cut.len(), 2, "{cut:?}");
+        assert_eq!((cut[0].0, cut[0].2), (0.0, Some(0)));
+        assert!((cut[0].1 - 1.5).abs() < 1e-9, "{cut:?}");
+        assert_eq!((cut[1].0, cut[1].2), (cut[0].1, Some(1)));
+
+        let whole = commits(engine.clone().with_speaker_cut(None));
+        assert_eq!(whole.len(), 1, "{whole:?}");
+
+        // The default minimum is 2 s: a turn at 1.5 s does not cut.
+        let late = commits(engine);
+        assert_eq!(
+            late.len(),
+            1,
+            "a turn before the minimum does not cut: {late:?}"
+        );
     }
 }

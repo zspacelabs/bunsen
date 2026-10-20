@@ -140,6 +140,9 @@ pub struct DecodeRequest<'a, E: AsrEngine> {
     /// Every id the stream has committed.
     pub transcript: &'a [i64],
 
+    /// The stream sample the window's first frame starts at.
+    pub start: usize,
+
     /// `[1, frames, features]`, at most
     /// [`window_frames`](AsrEngine::window_frames).
     pub window: Tensor<3>,
@@ -151,9 +154,13 @@ pub struct DecodeRequest<'a, E: AsrEngine> {
     /// A provisional decode, emitted as a draft and never committed.
     pub draft: bool,
 
-    /// The diarizer's activity over the window, as far as it has finalized
-    /// it, when the driver has one: for an engine that places its cuts at
-    /// speaker turns. The core attributes every segment either way.
+    /// The diarizer's activity over the window, when the driver has one: for
+    /// an engine that places its cuts at speaker turns
+    /// ([`speaker_cut`](crate::kits::speech::asr_driver::speaker_cut)). A
+    /// commit's window is decoded once the diarizer has finalized all of it,
+    /// so a cut does not depend on how the audio was chunked; a draft's
+    /// covers what the diarizer has finalized so far. The core attributes
+    /// every segment either way.
     pub speakers: Option<SpeakerActivity>,
 }
 
