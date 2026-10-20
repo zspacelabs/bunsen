@@ -89,10 +89,10 @@ impl ModuleInit<SubpixelUpsample1d> for SubpixelUpsample1dConfig {
     }
 }
 
-/// Upsamples a sequence by `factor`: a same-length convolution to `factor *
-/// d_model` channels, then each frame's channels split into `factor`
-/// consecutive frames, sub-frame `j` taking channels `j * d_model .. (j + 1)
-/// * d_model`.
+/// Upsamples a sequence by `factor`: a same-length convolution to
+/// `factor * d_model` channels, then each frame's channels split into
+/// `factor` consecutive frames, sub-frame `j` taking channels
+/// `j * d_model..(j + 1) * d_model`.
 ///
 /// Built by [`SubpixelUpsample1dConfig`].
 /// Implements [`SubpixelUpsample1dMeta`].
