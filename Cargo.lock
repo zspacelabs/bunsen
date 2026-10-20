@@ -1278,6 +1278,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "bunsen-bundled-sortformer"
+version = "0.39.0"
+dependencies = [
+ "bunsen-fetch",
+ "burn",
+ "burn-onnx",
+ "burn-store",
+ "document-features",
+ "onnx-ir",
+]
+
+[[package]]
 name = "bunsen-bundled-whisper"
 version = "0.39.0"
 dependencies = [
@@ -10323,6 +10335,18 @@ name = "softaes"
 version = "0.1.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c4fdfe13e1c42e45f497416afb8dc4e783bf0e25b7be9077c1c77c5fb14cb998"
+
+[[package]]
+name = "sortformer-model-validation"
+version = "0.39.0"
+dependencies = [
+ "bunsen",
+ "bunsen-bundled-sortformer",
+ "burn",
+ "serde",
+ "serde_json",
+ "serial_test",
+]
 
 [[package]]
 name = "spanned_error_message"

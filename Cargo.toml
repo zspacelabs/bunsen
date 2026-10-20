@@ -53,6 +53,9 @@ wordchipper = { version = "0.9.2", default-features = false }
 rand = "0.10.3"
 burn = { version = "0.22.0", default-features = false }
 burn-onnx = "0.22.0"
+# The ONNX protos `burn-onnx` reads, for build scripts that rewrite a graph
+# before generating from it.
+onnx-ir = "0.22.0"
 burn-store = { version = "0.22.0", default-features = false }
 
 # Burn coupled-dependencies
