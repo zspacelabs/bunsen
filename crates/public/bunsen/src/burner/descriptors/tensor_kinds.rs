@@ -70,11 +70,16 @@ impl From<Kind> for TensorKindDesc {
     }
 }
 
+/// The kind of tensor a dtype is stored in: signed and unsigned integers are
+/// both [`Int`](TensorKindDesc::Int).
+///
+/// # Panics
+/// For a dtype of no kind here (a quantized float).
 impl From<DType> for TensorKindDesc {
     fn from(dtype: DType) -> Self {
         if dtype.is_float() {
             TensorKindDesc::Float
-        } else if dtype.is_int() {
+        } else if dtype.is_int() || dtype.is_uint() {
             TensorKindDesc::Int
         } else if dtype.is_bool() {
             TensorKindDesc::Bool
@@ -134,5 +139,12 @@ mod tests {
         );
         assert_eq!(TensorKindDesc::from(DType::F64), TensorKindDesc::Float);
         assert_eq!(TensorKindDesc::from(DType::I64), TensorKindDesc::Int);
+        for dtype in [DType::U8, DType::U16, DType::U32, DType::U64] {
+            assert_eq!(
+                TensorKindDesc::from(dtype),
+                TensorKindDesc::Int,
+                "{dtype:?}"
+            );
+        }
     }
 }
