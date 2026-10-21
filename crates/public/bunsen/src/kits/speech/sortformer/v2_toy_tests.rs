@@ -22,6 +22,9 @@ use burn::{
 use serde::Deserialize;
 
 use super::{
+    SilenceFill,
+    SortformerMelStream,
+    SortformerStreamingConfig,
     blocks::{
         Sortformer,
         SortformerV2Config,
@@ -50,6 +53,41 @@ fn toy_config() -> SortformerV2Config {
         .with_n_speakers(3)
 }
 
+/// `v2_toy.json`'s streamed case.
+#[derive(Debug, Deserialize)]
+struct Stream {
+    mel_frames: usize,
+    geometry: Geometry,
+    compressions: usize,
+    silent_frames: usize,
+}
+
+/// `NeMo`'s `sortformer_modules` geometry.
+#[derive(Debug, Deserialize)]
+struct Geometry {
+    spkcache_len: usize,
+    fifo_len: usize,
+    chunk_len: usize,
+    spkcache_update_period: usize,
+    spkcache_sil_frames_per_spk: usize,
+    chunk_left_context: usize,
+    chunk_right_context: usize,
+}
+
+impl Geometry {
+    fn config(&self) -> SortformerStreamingConfig {
+        SortformerStreamingConfig::new(
+            self.chunk_len,
+            self.chunk_right_context,
+            self.fifo_len,
+            self.spkcache_len,
+            self.spkcache_update_period,
+        )
+        .with_left_context(self.chunk_left_context)
+        .with_silence_frames_per_speaker(self.spkcache_sil_frames_per_spk)
+    }
+}
+
 /// `v2_toy.json`'s lengths of one case.
 #[derive(Debug, Deserialize)]
 struct Case {
@@ -61,6 +99,7 @@ struct Toy {
     model: Sortformer,
     io: BTreeMap<String, PackTensor>,
     cases: BTreeMap<String, Case>,
+    stream: Stream,
     device: Device,
 }
 
@@ -102,15 +141,15 @@ impl Toy {
         #[derive(Deserialize)]
         struct Meta {
             cases: BTreeMap<String, Case>,
+            stream: Stream,
         }
         let meta = std::fs::read_to_string(format!("{dir}/v2_toy.json")).expect("read v2_toy.json");
-        let cases = serde_json::from_str::<Meta>(&meta)
-            .expect("parse v2_toy.json")
-            .cases;
+        let meta = serde_json::from_str::<Meta>(&meta).expect("parse v2_toy.json");
         Self {
             model,
             io,
-            cases,
+            cases: meta.cases,
+            stream: meta.stream,
             device,
         }
     }
@@ -215,5 +254,55 @@ fn test_stages_match_nemo() {
         let frames = probs.dims()[1];
         let full = vec![frames; enc.len()];
         assert_close(&io("probs"), probs, toy.get(&io("probs")), &full);
+    }
+}
+
+/// The model streamed through the speaker cache is `NeMo`'s sync streaming,
+/// however the mels are split: the probabilities, the compressions, and the
+/// silent frames the running-mean silence fill took in.
+#[test]
+#[serial_test::serial]
+fn test_streaming_matches_nemo() {
+    let toy = Toy::load();
+    let model = std::sync::Arc::new(toy.model);
+    let mels: Tensor<3> = {
+        let data = bridge::to_data(&toy.io["stream.mels"]).unwrap();
+        Tensor::from_data(data, &toy.device)
+    };
+    let want: Tensor<3> = {
+        let data = bridge::to_data(&toy.io["stream.probs"]).unwrap();
+        Tensor::from_data(data, &toy.device)
+    };
+    let frames = toy.stream.mel_frames;
+    assert_eq!(mels.dims(), [1, frames, 24]);
+    let mels = mels.squeeze_dim::<2>(0);
+
+    for piece in [frames, 37, 1] {
+        let mut stream =
+            SortformerMelStream::new(model.clone(), toy.stream.geometry.config()).unwrap();
+        let mut out = Vec::new();
+        let mut at = 0;
+        while at < frames {
+            let next = (at + piece).min(frames);
+            out.extend(stream.push(mels.clone().slice_dim(0, at..next)).unwrap());
+            at = next;
+        }
+        out.extend(stream.finish().unwrap());
+
+        let got = Tensor::<1>::from_data(out.as_slice(), &toy.device).reshape(want.dims());
+        got.into_data()
+            .assert_approx_eq::<f32>(&want.clone().into_data(), Tolerance::rel_abs(1e-4, 1e-4));
+        assert_eq!(
+            stream.cache().compressions(),
+            toy.stream.compressions,
+            "{piece}-frame pieces: compressions"
+        );
+        let SilenceFill::RunningMean { frames: silent, .. } = stream.cache().silence() else {
+            panic!("v2 fills its silence slots with a running mean")
+        };
+        assert_eq!(
+            *silent, toy.stream.silent_frames,
+            "{piece}-frame pieces: silent frames"
+        );
     }
 }

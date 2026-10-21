@@ -7,6 +7,7 @@ use burn::{
 };
 
 use super::{
+    SilenceFill,
     SortformerStreamingConfig,
     SpeakerCache,
     blocks::{
@@ -35,14 +36,16 @@ use crate::{
 };
 
 /// A Sortformer over a stream of mel frames: the model run a chunk at a time
-/// with its look-ahead, against a [`SpeakerCache`], `NeMo`'s streaming.
+/// with its context, against a [`SpeakerCache`], `NeMo`'s sync streaming.
 ///
-/// Mel frames go in through [`push`](Self::push) in pieces of any size; each
-/// whole stack of `subsampling_factor` becomes an encoder frame, and once a
-/// chunk and its look-ahead are pending a step runs and its chunk's frames
-/// come out, final. [`finish`](Self::finish) runs what is left: the last
-/// stack zero-padded, the last chunks with what look-ahead there is. However
-/// the frames are split across calls, the output is the same.
+/// Mel frames go in through [`push`](Self::push) in pieces of any size. Each
+/// step covers `chunk_len` encoder frames of mels; once those and the
+/// look-ahead's are in, the step pre-encodes its window (the left context's
+/// mels, the chunk's, the look-ahead's), runs the model over the cache, the
+/// FIFO and that window, and its chunk's frames come out, final.
+/// [`finish`](Self::finish) runs what is left, the last chunks with what
+/// look-ahead there is. However the frames are split across calls, the output
+/// is the same.
 ///
 /// The output is at the model's output rate: one frame per
 /// `subsampling_factor / output_upsampling` mel frames.
@@ -50,16 +53,17 @@ use crate::{
 pub struct SortformerMelStream {
     model: Arc<Sortformer>,
 
-    /// The silence slots' fill: the model's learned silence embedding.
-    silence: Tensor<1>,
-
     cache: SpeakerCache,
 
-    /// Mel frames not yet stacked, `[frames, n_mels]`.
+    /// Mel frames from `mels_start` on, `[frames, n_mels]`: the next step's
+    /// left context and everything after.
     mels: Option<Tensor<2>>,
 
-    /// Encoder frames not yet stepped past, `[frames, d_model]`.
-    pending: Option<Tensor<2>>,
+    /// The stream's mel frame `mels` starts at.
+    mels_start: usize,
+
+    /// The mel frame the next step's chunk starts at.
+    next_chunk: usize,
 
     /// Mel frames taken in.
     mel_frames: usize,
@@ -71,33 +75,28 @@ pub struct SortformerMelStream {
 }
 
 impl SortformerMelStream {
-    /// A stream through `model` under `config`.
+    /// A stream through `model` under `config`. The cache's silence slots
+    /// hold the model's learned silence embedding when it has one
+    /// (`Nemotron-3-Diarization`), and a running mean of the silent frames
+    /// otherwise (Sortformer v2).
     ///
     /// # Errors
-    /// As [`SortformerStreamingConfig::check`];
-    /// [`Unsupported`](crate::errors::BunsenErrorKind::Unsupported) for a model
-    /// without a learned silence embedding.
+    /// As [`SortformerStreamingConfig::check`].
     pub fn new(
         model: Arc<Sortformer>,
         config: SortformerStreamingConfig,
     ) -> BunsenResult<Self> {
-        let silence = model
-            .silence
-            .as_ref()
-            .ok_or_else(|| {
-                BunsenError::unsupported(
-                    "a streamed Sortformer needs a learned silence embedding to fill its cache's \
-                     silence slots",
-                )
-            })?
-            .val();
-        let cache = SpeakerCache::new(config, model.n_speakers())?;
+        let silence = match &model.silence {
+            Some(silence) => SilenceFill::Learned(silence.val()),
+            None => SilenceFill::running_mean(model.d_model(), &model.projection.weight.device()),
+        };
+        let cache = SpeakerCache::new(config, model.n_speakers(), silence)?;
         Ok(Self {
             model,
-            silence,
             cache,
             mels: None,
-            pending: None,
+            mels_start: 0,
+            next_chunk: 0,
             mel_frames: 0,
             emitted: 0,
             finished: false,
@@ -151,18 +150,19 @@ impl SortformerMelStream {
         }
         self.mel_frames += frames;
         self.mels = cat_present(self.mels.take(), Some(mels));
-        self.stack(false);
 
         let c = self.cache.config().clone();
+        let factor = self.model.subsampling_factor();
+        let (chunk, look_ahead) = (c.chunk_len * factor, c.right_context * factor);
         let mut out = Vec::new();
-        while self.pending_frames() >= c.chunk_len + c.right_context {
-            out.extend(self.step(c.chunk_len, c.right_context)?);
+        while self.next_chunk + chunk + look_ahead <= self.mel_frames {
+            out.extend(self.step(self.next_chunk + chunk, look_ahead)?);
         }
         Ok(out)
     }
 
-    /// Ends the input, and returns the output frames left: the last stack
-    /// zero-padded, the last chunks run with what look-ahead there is, and
+    /// Ends the input, and returns the output frames left: the last chunks
+    /// run with what look-ahead there is, the last partial stack padded, and
     /// the output cut at the last mel frame.
     ///
     /// Idempotent.
@@ -174,14 +174,14 @@ impl SortformerMelStream {
             return Ok(Vec::new());
         }
         self.finished = true;
-        self.stack(true);
 
         let c = self.cache.config().clone();
+        let factor = self.model.subsampling_factor();
         let mut out = Vec::new();
-        while self.pending_frames() > 0 {
-            let chunk = c.chunk_len.min(self.pending_frames());
-            let look_ahead = c.right_context.min(self.pending_frames() - chunk);
-            out.extend(self.step(chunk, look_ahead)?);
+        while self.next_chunk < self.mel_frames {
+            let end = (self.next_chunk + c.chunk_len * factor).min(self.mel_frames);
+            let look_ahead = (c.right_context * factor).min(self.mel_frames - end);
+            out.extend(self.step(end, look_ahead)?);
         }
 
         // The output ends with the last mel frame, not with its stack.
@@ -198,70 +198,83 @@ impl SortformerMelStream {
         self.emitted
     }
 
-    fn pending_frames(&self) -> usize {
-        self.pending.as_ref().map_or(0, |p| p.dims()[0])
-    }
-
-    /// Stacks the whole groups of mel frames into encoder frames; with
-    /// `last`, the remainder too, zero-padded.
-    fn stack(
-        &mut self,
-        last: bool,
-    ) {
-        let Some(mels) = self.mels.take() else {
-            return;
-        };
-        let factor = self.model.subsampling_factor();
-        let n = mels.dims()[0];
-        let whole = if last { n } else { n / factor * factor };
-        if whole < n {
-            self.mels = Some(mels.clone().slice_dim(0, whole..n));
-        }
-        if whole == 0 {
-            return;
-        }
-        let (embs, _) = self
-            .model
-            .pre_encode(mels.slice_dim(0, 0..whole).unsqueeze_dim(0), None);
-        let embs = embs.squeeze_dim(0);
-        self.pending = cat_present(self.pending.take(), Some(embs));
-    }
-
-    /// One step: the cache, the FIFO, a chunk of `chunk` encoder frames and
-    /// `look_ahead` more; the chunk's output out, the chunk into the FIFO.
+    /// One step, `NeMo`'s `forward_streaming_step`: the chunk's mels
+    /// `[next_chunk, end)` with up to the configured left context before them
+    /// and `look_ahead` mels after, pre-encoded together; the model over the
+    /// cache, the FIFO and that window; the chunk's output out, its
+    /// embeddings into the FIFO.
     fn step(
         &mut self,
-        chunk: usize,
+        end: usize,
         look_ahead: usize,
     ) -> BunsenResult<Vec<f32>> {
-        let pending = self.pending.take().expect("frames are pending");
-        let n = pending.dims()[0];
-        let input = pending.clone().slice_dim(0, 0..chunk + look_ahead);
-        let chunk_embs = pending.clone().slice_dim(0, 0..chunk);
-        self.pending = (chunk < n).then(|| pending.slice_dim(0, chunk..n));
+        let factor = self.model.subsampling_factor();
+        let left_context = self.cache.config().left_context * factor;
+        let start = self.next_chunk;
+        let left = left_context.min(start);
+        let mels = self.mels.clone().expect("mel frames are pending");
+        let window = mels.slice_dim(
+            0,
+            start - left - self.mels_start..end + look_ahead - self.mels_start,
+        );
+        let (embs, _) = self.model.pre_encode(window.unsqueeze_dim(0), None);
+        let embs = embs.squeeze_dim::<2>(0);
+        let n_embs = embs.dims()[0];
+        // `NeMo`'s `lc_enc` and `rc_enc`.
+        let (left_enc, right_enc) = (
+            (left as f64 / factor as f64).round() as usize,
+            look_ahead.div_ceil(factor),
+        );
+        let chunk = n_embs - left_enc - right_enc;
+        let chunk_embs = embs.clone().slice_dim(0, left_enc..left_enc + chunk);
 
         let cached = self.cache.cached();
         let n_cached = cached.as_ref().map_or(0, |c| c.dims()[0]);
-        let input = cat_present(cached, Some(input)).expect("the chunk is present");
+        let input = cat_present(cached, Some(embs)).expect("the window is present");
         let probs = self.model.forward_pre_encoded(input.unsqueeze_dim(0), None);
 
         let up = self.model.output_upsampling();
         let s = self.model.n_speakers();
+        let first = n_cached + left_enc;
         let out: Vec<f32> = probs
             .output
-            .slice_dim(1, n_cached * up..(n_cached + chunk) * up)
+            .slice_dim(1, first * up..(first + chunk) * up)
             .into_data()
             .try_into_vec_as::<f32>()
             .expect("read back f32 probabilities");
-        let step: Vec<f32> = probs
-            .encoder_rate
-            .into_data()
-            .try_into_vec_as::<f32>()
-            .expect("read back f32 probabilities");
-        self.cache.update(&step, chunk_embs, &self.silence)?;
+        // The cache scores the cached frames and the chunk's, its context's
+        // left out.
+        let step: Vec<f32> = Tensor::cat(
+            vec![
+                probs.encoder_rate.clone().slice_dim(1, 0..n_cached),
+                probs.encoder_rate.slice_dim(1, first..first + chunk),
+            ],
+            1,
+        )
+        .into_data()
+        .try_into_vec_as::<f32>()
+        .expect("read back f32 probabilities");
+        self.cache.update(&step, chunk_embs)?;
         self.emitted += out.len() / s;
+
+        // Keep what the next step's left context needs, and after.
+        self.next_chunk = end;
+        let keep_from = end.saturating_sub(left_context).max(self.mels_start);
+        let n_mels = mels_len(&self.mels);
+        self.mels = (keep_from - self.mels_start < n_mels).then(|| {
+            self.mels
+                .take()
+                .expect("mel frames are pending")
+                .slice_dim(0, keep_from - self.mels_start..n_mels)
+        });
+        self.mels_start = keep_from;
         Ok(out)
     }
+}
+
+/// The frames `mels` holds.
+fn mels_len(mels: &Option<Tensor<2>>) -> usize {
+    mels.as_ref().map_or(0, |m| m.dims()[0])
 }
 
 /// A Sortformer over a stream of samples: `NeMo`'s mel front end, streamed,

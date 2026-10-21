@@ -19,12 +19,21 @@ width 16, dw_striding x8 with 4 channels, conv kernel 3, xscaling; a
 projection to 8; a 2-layer post-LN Transformer of width 8, 2 heads, inner 16,
 ReLU; 3 speakers; 24 mels). Its weights are drawn in float32 and the model is
 run on the CPU in float64, so every recorded value is the reference's answer to
-weights bunsen holds exactly.
+weights bunsen holds exactly. The head's output layer is calibrated on the
+stream input (`calibrate`) so that each speaker is active some of the time and
+the toy is sometimes silent: what the running-mean silence fill needs.
 
 Each case runs NeMo's offline path stage by stage, on mels given directly (the
 front end is held to NeMo on its own): `encoder.pre_encode`, the encoder past it
 (`bypass_pre_encode`), `encoder_proj`, the Transformer under its length mask,
 and the head's sigmoid, times the mask.
+
+Then a long input streams through NeMo's sync `forward_streaming` (the
+Arrival-Order Speaker Cache, `streaming_update`) at the toy's geometry: cache
+12, FIFO 6, chunks of 3 with 1 frame of left context and 1 of look-ahead, update
+period 4, 1 silence slot per speaker, the silence slots filled with the running
+mean of the silent frames the FIFO pops. The generator counts the cache's
+compressions and the silent frames the mean takes in.
 
 Outputs, under `crates/public/bunsen/testdata/sortformer/`:
 
@@ -34,8 +43,11 @@ Outputs, under `crates/public/bunsen/testdata/sortformer/`:
     `hidden_to_spks`).
     `io.{case}.*`: per case, `mels [B, T, 24]` in, and `pre_encoded`,
     `encoded`, `projected`, `transformed`, `probs` out, each `[B, T', *]`.
+    `io.stream.{mels, probs}`: the long input `[1, T, 24]` and the streamed
+    probabilities `[1, T', 3]`.
 `v2_toy.json`
-    The cases' lengths, in mel frames and in encoder frames.
+    The cases' lengths, in mel frames and in encoder frames; the streaming
+    geometry, and the compressions and silent frames it saw.
 """
 
 import json
@@ -47,15 +59,43 @@ from omegaconf import OmegaConf
 from safetensors.torch import save_file
 
 from nemo.collections.asr.models import SortformerEncLabelModel
+from nemo.collections.asr.modules import sortformer_modules as sm
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 OUT = ROOT / "crates/public/bunsen/testdata/sortformer"
 
 N_MELS, N_SPK = 24, 3
 
+# Each speaker's logits over the stream input, once the head is calibrated:
+# centred here, with this spread, so the toy both speaks and falls silent.
+LOGIT_CENTER, LOGIT_STD = -3.0, 3.0
+
 # Mel lengths per item: one a multiple of the subsampling, one not, and a
 # padded batch of two.
 CASES = {"even": [40], "ragged": [37], "batch": [40, 29]}
+
+# The streamed input's mel frames: not a whole number of chunks.
+STREAM_FRAMES = 413
+STREAMING = dict(spkcache_len=12, fifo_len=6, chunk_len=3, spkcache_update_period=4,
+                 spkcache_sil_frames_per_spk=1, chunk_left_context=1, chunk_right_context=1)
+
+COUNTS = {"compressions": 0, "silent_frames": 0}
+_compress = sm.SortformerModules._compress_spkcache
+_silence = sm.SortformerModules._get_silence_profile
+
+
+def _counting_compress(self, emb_seq, preds, mean_sil_emb, permute_spk=False):
+    COUNTS["compressions"] += 1
+    return _compress(self, emb_seq, preds, mean_sil_emb, permute_spk)
+
+
+def _counting_silence(self, mean_sil_emb, n_sil_frames, emb_seq, preds):
+    COUNTS["silent_frames"] += int((preds.sum(dim=2) < self.sil_threshold).sum())
+    return _silence(self, mean_sil_emb, n_sil_frames, emb_seq, preds)
+
+
+sm.SortformerModules._compress_spkcache = _counting_compress
+sm.SortformerModules._get_silence_profile = _counting_silence
 
 CONFIG = dict(
     sample_rate=16000,
@@ -107,14 +147,31 @@ def build(seed: int) -> SortformerEncLabelModel:
                 for d in p.shape[2:]:
                     fan_in *= d
                 p.copy_(torch.randn_like(p) / np.sqrt(fan_in))
-        model.sortformer_modules.single_hidden_to_spks.weight.mul_(3.0)
-        model.sortformer_modules.single_hidden_to_spks.bias.add_(0.7)
         for name, b in model.named_buffers():
             if name.endswith("running_mean"):
                 b.copy_(0.3 * torch.randn_like(b))
             elif name.endswith("running_var"):
                 b.copy_(0.5 + torch.rand_like(b))
-    return model.double()
+    return model
+
+
+def calibrate(model: SortformerEncLabelModel, x: torch.Tensor) -> None:
+    """Rescales each speaker's row of the head's output layer, and shifts its
+    bias, so that speaker's logits over `x` (offline) centre at `LOGIT_CENTER`
+    with a standard deviation of `LOGIT_STD`; then rounds the layer to
+    float32."""
+    head = model.sortformer_modules.single_hidden_to_spks
+    with torch.no_grad():
+        lengths = torch.tensor([x.shape[1]])
+        pre, pre_lengths = model.encoder.pre_encode(x=x, lengths=lengths)
+        emb, emb_lengths = model.frontend_encoder(
+            processed_signal=pre, processed_signal_length=pre_lengths, bypass_pre_encode=True
+        )
+        _, logits, _ = model.forward_infer(emb, emb_lengths, return_logits=True)
+        gain = LOGIT_STD / logits[0].std(dim=0)
+        center = logits[0].median(dim=0).values
+        head.bias.copy_(((head.bias - center) * gain + LOGIT_CENTER).float().double())
+        head.weight.copy_((head.weight * gain[:, None]).float().double())
 
 
 def mels(lengths: list, seed: int) -> torch.Tensor:
@@ -142,7 +199,9 @@ def stages(model: SortformerEncLabelModel, x: torch.Tensor, lengths: torch.Tenso
 
 
 def main() -> None:
-    model = build(seed=11)
+    model = build(seed=11).double()
+    stream_mels = mels([STREAM_FRAMES], seed=99)
+    calibrate(model, stream_mels)
     tensors = {f"weights.{k}": v.float().contiguous() for k, v in model.state_dict().items()}
     for name, v in model.state_dict().items():
         if v.dtype == torch.int64:
@@ -156,6 +215,21 @@ def main() -> None:
             tensors[f"io.{case}.{name}"] = t.float().contiguous()
         meta["cases"][case] = {"mel_lengths": lengths, "encoder_lengths": enc_lengths}
         print(f"{case}: mels {list(x.shape)} -> probs {list(out['probs'].shape)}, lengths {enc_lengths}")
+
+    m = model.sortformer_modules
+    for key, value in STREAMING.items():
+        setattr(m, key, value)
+    model.streaming_mode, model.async_streaming = True, False
+    x = stream_mels
+    with torch.no_grad():
+        probs = model.forward_streaming(
+            processed_signal=x.transpose(1, 2), processed_signal_length=torch.tensor([STREAM_FRAMES])
+        )
+    tensors["io.stream.mels"] = x.float().contiguous()
+    tensors["io.stream.probs"] = probs.float().contiguous()
+    meta["stream"] = {"mel_frames": STREAM_FRAMES, "geometry": STREAMING, **COUNTS}
+    print(f"stream: mels {list(x.shape)} -> probs {list(probs.shape)}, {COUNTS}, "
+          f"speech frames {int((probs > 0.5).any(dim=2).sum())}")
 
     OUT.mkdir(parents=True, exist_ok=True)
     save_file(tensors, OUT / "v2_toy.safetensors")
