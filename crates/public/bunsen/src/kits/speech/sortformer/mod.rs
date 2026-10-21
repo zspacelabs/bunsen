@@ -3,13 +3,14 @@
 //! NVIDIA's Sortformer speaker diarizers: audio to per-frame, per-speaker
 //! activity, speakers numbered in the order the model first hears them.
 //! `Nemotron-3-Diarization` (8 speakers, 10 ms output) is the reference
-//! checkpoint.
+//! checkpoint; the streaming Sortformer v2 and v2.1 (4 speakers, 80 ms
+//! output) are built by the same model.
 //!
 //! - [`blocks`]: the model, [`Sortformer`], built from a
 //!   [`SortformerStructureConfig`] or a policy that lowers to it
-//!   ([`NemotronDiarizationConfig`]); its encoder splits as `NeMo` streams it,
-//!   into [`pre_encode`](Sortformer::pre_encode) and
-//!   [`forward_pre_encoded`](Sortformer::forward_pre_encoded).
+//!   ([`NemotronDiarizationConfig`], [`SortformerV2Config`]); its encoder
+//!   splits as `NeMo` streams it, into [`pre_encode`](Sortformer::pre_encode)
+//!   and [`forward_pre_encoded`](Sortformer::forward_pre_encoded).
 //! - [`SortformerStreamingConfig`]: the chunks, the look-ahead, and the
 //!   Arrival-Order Speaker Cache's geometry and scoring, with the model cards'
 //!   latency presets.
@@ -26,7 +27,8 @@
 //!   named checkpoints, `nvidia/nemotron-3-diarization` the default, `hf:`
 //!   repos, and the factory that loads one into a bundle.
 //! - [`weights`] (feature `store`): loading tensors named as `transformers`'
-//!   `Nemotron3DiarizationForAudioFrameClassification` state dict.
+//!   `Nemotron3DiarizationForAudioFrameClassification` state dict, or as a
+//!   Sortformer v2 `.nemo`'s.
 //!
 //! Its front end is `NeMo`'s mel front end,
 //! [`NemoMelFrontEndConfig::nemotron_diarization`](crate::kits::speech::nemo::NemoMelFrontEndConfig::nemotron_diarization).
@@ -51,10 +53,14 @@ pub mod weights;
 #[cfg(all(test, feature = "store_safetensors"))]
 mod toy_tests;
 
+#[cfg(all(test, feature = "store_safetensors"))]
+mod v2_toy_tests;
+
 #[doc(inline)]
 pub use blocks::{
     NemotronDiarizationConfig,
     Sortformer,
     SortformerMeta,
     SortformerStructureConfig,
+    SortformerV2Config,
 };

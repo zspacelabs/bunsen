@@ -1,9 +1,10 @@
-//! Loading `transformers`-named tensors into a [`Sortformer`].
+//! Loading `transformers`- and `NeMo`-named tensors into a [`Sortformer`].
 use burn::store::burn_pack::Tensor as PackTensor;
 
 use super::blocks::{
     NemotronDiarizationConfig,
     Sortformer,
+    SortformerMeta,
 };
 use crate::{
     data::pretrained::{
@@ -14,6 +15,10 @@ use crate::{
     errors::{
         BunsenError,
         BunsenResult,
+    },
+    kits::speech::nemo::{
+        nemo_conformer_to_bunsen_path,
+        nemo_transformer_to_bunsen_path,
     },
 };
 
@@ -75,6 +80,49 @@ pub fn load_nemotron_hf_tensors(
     tensors: impl IntoIterator<Item = PackTensor>,
 ) -> BunsenResult<NamedTensorsApplied> {
     apply_named_tensors(model, tensors, nemotron_hf_to_bunsen_path)
+}
+
+/// The bunsen module path of one `NeMo` `SortformerEncLabelModel` state-dict
+/// name in Sortformer v2's layout (a `FastConformer`, `encoder_proj`, a
+/// `transformer_encoder`, the speaker head), or `None` for an entry the model
+/// has no parameter for: `num_batches_tracked`, the featurizer's tables,
+/// and the unused `hidden_to_spks`.
+///
+/// `n_stages` is the encoder's subsampling stage count
+/// ([`nemo_conformer_to_bunsen_path`]).
+pub fn sortformer_v2_nemo_to_bunsen_path(
+    name: &str,
+    n_stages: usize,
+) -> Option<String> {
+    if let Some(rest) = name.strip_prefix("encoder.") {
+        return nemo_conformer_to_bunsen_path(rest, n_stages).map(|p| format!("encoder.{p}"));
+    }
+    if let Some(rest) = name.strip_prefix("transformer_encoder.") {
+        return nemo_transformer_to_bunsen_path(rest).map(|p| format!("transformer.{p}"));
+    }
+    const PREFIXES: &[(&str, &str)] = &[
+        ("sortformer_modules.encoder_proj.", "projection."),
+        ("sortformer_modules.first_hidden_to_hidden.", "head.dense."),
+        ("sortformer_modules.single_hidden_to_spks.", "head.out."),
+    ];
+    let (from, to) = PREFIXES.iter().find(|(from, _)| name.starts_with(from))?;
+    Some(format!("{to}{}", &name[from.len()..]))
+}
+
+/// Loads tensors named as a `NeMo` Sortformer v2 state dict (a `.nemo`'s
+/// `model_weights.ckpt`) into `model`: [`apply_named_tensors`] under
+/// [`sortformer_v2_nemo_to_bunsen_path`], at `model`'s subsampling.
+///
+/// # Errors
+/// As [`apply_named_tensors`].
+pub fn load_sortformer_v2_nemo_tensors(
+    model: &mut Sortformer,
+    tensors: impl IntoIterator<Item = PackTensor>,
+) -> BunsenResult<NamedTensorsApplied> {
+    let n_stages = model.subsampling_factor().trailing_zeros() as usize;
+    apply_named_tensors(model, tensors, |name| {
+        sortformer_v2_nemo_to_bunsen_path(name, n_stages)
+    })
 }
 
 /// The [`NemotronDiarizationConfig`] of a `transformers`
@@ -175,6 +223,45 @@ mod tests {
             nemotron_hf_to_bunsen_path("model.audio_tower.rotary_emb.inv_freq"),
             None
         );
+    }
+
+    #[test]
+    fn test_v2_paths() {
+        for (nemo, bunsen) in [
+            (
+                "encoder.pre_encode.conv.0.weight",
+                Some("encoder.subsampling.stem.conv.weight"),
+            ),
+            (
+                "encoder.layers.16.self_attn.linear_q.bias",
+                Some("encoder.layers.16.self_attn.query.bias"),
+            ),
+            ("encoder.layers.0.conv.batch_norm.num_batches_tracked", None),
+            (
+                "transformer_encoder.layers.17.first_sub_layer.out_projection.weight",
+                Some("transformer.layers.17.attn.output.weight"),
+            ),
+            (
+                "sortformer_modules.encoder_proj.weight",
+                Some("projection.weight"),
+            ),
+            (
+                "sortformer_modules.first_hidden_to_hidden.bias",
+                Some("head.dense.bias"),
+            ),
+            (
+                "sortformer_modules.single_hidden_to_spks.weight",
+                Some("head.out.weight"),
+            ),
+            ("sortformer_modules.hidden_to_spks.weight", None),
+            ("preprocessor.featurizer.fb", None),
+        ] {
+            assert_eq!(
+                sortformer_v2_nemo_to_bunsen_path(nemo, 3).as_deref(),
+                bunsen,
+                "{nemo}"
+            );
+        }
     }
 
     /// `Nemotron-3-Diarization`'s own `config.json` is its geometry.

@@ -8,3 +8,7 @@
 - `nemotron_config.json`: NVIDIA's `Nemotron-3-Diarization` `config.json` at revision `f667ed73` (sha256
   `dd795ec0...`), unchanged. OpenMDW-1.1: its terms allow redistribution with the licence and notices retained. The
   config parser's test reads it.
+- `v2_toy.safetensors`, `v2_toy.json`: a tiny seeded `NeMo` `SortformerEncLabelModel` in Sortformer v2's layout
+  (random weights, no checkpoint) under `NeMo`'s state-dict names, and its answers in float64, stage by stage: at a
+  length the subsampling fills, one it pads, and a padded batch of two. Written once by
+  `tools/gen_sortformer_v2_toy_fixtures.py`, whose docstring pins the versions. Synthetic: no licence question.

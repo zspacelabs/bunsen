@@ -9,6 +9,7 @@ use burn::{
     nn::{
         Linear,
         LinearConfig,
+        activation::ActivationConfig,
     },
     tensor::Device,
 };
@@ -21,18 +22,31 @@ use super::{
     SortformerHead,
     SortformerHeadConfig,
     SortformerHeadMeta,
+    SortformerTransformer,
+    SortformerTransformerConfig,
 };
 use crate::{
     blocks::{
+        conformer::{
+            ConformerBlockConfig,
+            ConformerEncoderConfig,
+            DwStridingSubsamplingConfig,
+        },
         frame_rate::{
             FeatureStackingConfig,
             SubpixelUpsample1d,
             SubpixelUpsample1dConfig,
             SubpixelUpsample1dMeta,
         },
-        transformers::encoders::rope::{
-            RopeEncoderBlockConfig,
-            RopeTransformerEncoderConfig,
+        transformers::encoders::{
+            residual::{
+                NormPlacement,
+                ResidualEncoderAttentionBlockConfig,
+            },
+            rope::{
+                RopeEncoderBlockConfig,
+                RopeTransformerEncoderConfig,
+            },
         },
     },
     burner::module::{
@@ -84,6 +98,11 @@ pub struct SortformerStructureConfig {
     /// The head; the encoder's output is projected to its width.
     pub head: SortformerHeadConfig,
 
+    /// A transformer over the projected frames, at the head's width, when
+    /// set.
+    #[config(default = "None")]
+    pub transformer: Option<SortformerTransformerConfig>,
+
     /// Upsamples the projected frames before the head, when set; its width
     /// is the head's.
     #[config(default = "None")]
@@ -127,6 +146,23 @@ impl ModuleInit<Sortformer> for SortformerStructureConfig {
         device: &Device,
     ) -> BunsenResult<Sortformer> {
         let (d_model, d_hidden) = (self.d_model(), self.d_hidden());
+        if let Some(transformer) = &self.transformer
+            && transformer.d_model() != d_hidden
+        {
+            return Err(ConstraintError::new(
+                "SortformerStructureConfig",
+                "",
+                Rule::Relation {
+                    lhs: (
+                        "transformer.d_model()".into(),
+                        transformer.d_model().to_string(),
+                    ),
+                    op: "==",
+                    rhs: ("head.d_hidden".into(), d_hidden.to_string()),
+                },
+            )
+            .into());
+        }
         if let Some(upsample) = &self.upsample
             && upsample.d_model != d_hidden
         {
@@ -144,6 +180,11 @@ impl ModuleInit<Sortformer> for SortformerStructureConfig {
         Ok(Sortformer {
             encoder: self.encoder.try_init(device)?,
             projection: LinearConfig::new(d_model, d_hidden).init(device),
+            transformer: self
+                .transformer
+                .as_ref()
+                .map(|t| t.try_init(device))
+                .transpose()?,
             upsample: self
                 .upsample
                 .as_ref()
@@ -261,6 +302,146 @@ impl ToStructureConfig for NemotronDiarizationConfig {
     }
 }
 
+/// `NVIDIA`'s streaming Sortformer v2 family: a `FastConformer` (depthwise
+/// striding, Conformer blocks, input scaling), a projection, a post-norm
+/// `ReLU` transformer at the head's width, and the speaker head, at the
+/// encoder's frame rate; no learned silence embedding. The defaults are
+/// `diar_streaming_sortformer_4spk-v2`'s, which v2.1 shares.
+///
+/// Implements [`SortformerMeta`]; lowers to [`SortformerStructureConfig`].
+#[derive(Config, Debug)]
+pub struct SortformerV2Config {
+    /// The mel channels.
+    #[config(default = "128")]
+    pub n_mels: usize,
+
+    /// The encoder's width.
+    #[config(default = "512")]
+    pub d_model: usize,
+
+    /// The Conformer blocks.
+    #[config(default = "17")]
+    pub n_layers: usize,
+
+    /// The Conformer's attention heads.
+    #[config(default = "8")]
+    pub n_heads: usize,
+
+    /// The Conformer's feed-forward width over `d_model`.
+    #[config(default = "4")]
+    pub ff_expansion: usize,
+
+    /// The mel frames per encoder frame: a power of two.
+    #[config(default = "8")]
+    pub subsampling_factor: usize,
+
+    /// The subsampling's convolution channels.
+    #[config(default = "256")]
+    pub subsampling_channels: usize,
+
+    /// The Conformer's depthwise convolution kernel.
+    #[config(default = "9")]
+    pub conv_kernel_size: usize,
+
+    /// The head's width, and the transformer's.
+    #[config(default = "192")]
+    pub d_hidden: usize,
+
+    /// The transformer's layers.
+    #[config(default = "18")]
+    pub transformer_layers: usize,
+
+    /// The transformer's attention heads.
+    #[config(default = "8")]
+    pub transformer_heads: usize,
+
+    /// The transformer's feed-forward width over `d_hidden`.
+    #[config(default = "4")]
+    pub transformer_ff_expansion: usize,
+
+    /// The speakers.
+    #[config(default = "4")]
+    pub n_speakers: usize,
+}
+
+impl SortformerV2Config {
+    /// `diar_streaming_sortformer_4spk-v2` and `-v2.1`: the defaults.
+    pub fn diar_streaming_sortformer_4spk_v2() -> Self {
+        Self::new()
+    }
+}
+
+impl SortformerMeta for SortformerV2Config {
+    fn n_mels(&self) -> usize {
+        self.n_mels
+    }
+
+    fn d_model(&self) -> usize {
+        self.d_model
+    }
+
+    fn d_hidden(&self) -> usize {
+        self.d_hidden
+    }
+
+    fn n_speakers(&self) -> usize {
+        self.n_speakers
+    }
+
+    fn subsampling_factor(&self) -> usize {
+        self.subsampling_factor
+    }
+
+    fn output_upsampling(&self) -> usize {
+        1
+    }
+}
+
+impl ToStructureConfig for SortformerV2Config {
+    type Structure = SortformerStructureConfig;
+
+    fn try_to_structure(&self) -> BunsenResult<SortformerStructureConfig> {
+        let factor = self.subsampling_factor;
+        if factor < 2 || !factor.is_power_of_two() {
+            return Err(ConstraintError::new(
+                "SortformerV2Config",
+                "subsampling_factor",
+                Rule::OutOfRange {
+                    value: factor.to_string(),
+                    range: "a power of two, >= 2".into(),
+                },
+            )
+            .into());
+        }
+        let encoder = ConformerEncoderConfig::new(
+            DwStridingSubsamplingConfig::new(self.n_mels, self.subsampling_channels, self.d_model)
+                .with_n_stages(factor.trailing_zeros() as usize),
+            ConformerBlockConfig::new(
+                self.d_model,
+                self.n_heads,
+                self.d_model * self.ff_expansion,
+                self.conv_kernel_size,
+            ),
+            self.n_layers,
+        )
+        .with_scale_input(true);
+        let block = ResidualEncoderAttentionBlockConfig::new(self.d_hidden)
+            .with_d_head(self.d_hidden / self.transformer_heads.max(1))
+            .with_expansion_factor(self.transformer_ff_expansion)
+            .with_key_bias(true)
+            .with_norm_placement(NormPlacement::Post)
+            .with_activation(ActivationConfig::Relu);
+        Ok(SortformerStructureConfig::new(
+            SortformerEncoderConfig::FastConformer(encoder),
+            SortformerHeadConfig::new(self.d_hidden, self.n_speakers),
+        )
+        .with_transformer(Some(SortformerTransformerConfig::new(
+            block,
+            self.transformer_layers,
+        ))))
+    }
+}
+
 /// A Sortformer's speaker activity: sigmoid probabilities per speaker, at the
 /// output's frame rate and at the encoder's.
 #[derive(Clone, Debug)]
@@ -275,8 +456,9 @@ pub struct SpeakerProbs {
 }
 
 /// NVIDIA's Sortformer speaker diarizer: an encoder over mels, a projection to
-/// the head's width, optionally a sub-pixel upsample back to the mel frame
-/// rate, and a head scoring each speaker per frame, sigmoid.
+/// the head's width, optionally a transformer at that width and a sub-pixel
+/// upsample back to the mel frame rate, and a head scoring each speaker per
+/// frame, sigmoid.
 ///
 /// Speakers are numbered in the order the model first hears them. The model
 /// holds no stream state: a speaker cache over [`pre_encode`]'s embeddings is
@@ -286,7 +468,7 @@ pub struct SpeakerProbs {
 /// [`forward_pre_encoded`]: Self::forward_pre_encoded
 ///
 /// Built by [`SortformerStructureConfig`], or a policy that lowers to it
-/// ([`NemotronDiarizationConfig`]).
+/// ([`NemotronDiarizationConfig`], [`SortformerV2Config`]).
 /// Implements [`SortformerMeta`].
 #[derive(Module, Debug)]
 pub struct Sortformer {
@@ -295,6 +477,9 @@ pub struct Sortformer {
 
     /// `[d_model] -> [d_hidden]`.
     pub projection: Linear,
+
+    /// The transformer over the projected frames, if any.
+    pub transformer: Option<SortformerTransformer>,
 
     /// The upsample back to the mel frame rate, if any.
     pub upsample: Option<SubpixelUpsample1d>,
@@ -358,8 +543,8 @@ impl Sortformer {
     }
 
     /// The speaker activity of pre-encode embeddings: the encoder layers, the
-    /// projection, the upsample, the head, sigmoid; zero past each item's
-    /// length.
+    /// projection, the transformer, the upsample, the head, sigmoid; zero past
+    /// each item's length.
     ///
     /// # Arguments
     /// * `embs` - `[batch, frames, d_model]`, a speaker cache's frames and a
@@ -382,6 +567,10 @@ impl Sortformer {
 
         let x = self.encoder.forward_pre_encoded(embs, lengths);
         let x = self.projection.forward(x);
+        let x = match &self.transformer {
+            Some(transformer) => transformer.forward(x, lengths),
+            None => x,
+        };
         let x = match &self.upsample {
             Some(upsample) => upsample.forward(x),
             None => x,

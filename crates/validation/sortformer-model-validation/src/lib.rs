@@ -59,6 +59,9 @@ mod speech;
 #[cfg(all(test, feature = "download", feature = "gpu-tests"))]
 mod asr;
 
+#[cfg(all(test, feature = "download"))]
+mod v2_checkpoints;
+
 /// The mel channel count of `Nemotron-3-Diarization`.
 pub const N_MELS: usize = 128;
 

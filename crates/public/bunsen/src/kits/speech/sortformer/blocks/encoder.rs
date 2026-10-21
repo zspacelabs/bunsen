@@ -8,6 +8,12 @@ use burn::{
 
 use crate::{
     blocks::{
+        conformer::{
+            ConformerEncoder,
+            ConformerEncoderConfig,
+            ConformerEncoderMeta,
+            DwStridingSubsamplingMeta,
+        },
         frame_rate::{
             FeatureStacking,
             FeatureStackingConfig,
@@ -47,24 +53,31 @@ pub enum SortformerEncoderConfig {
     /// Feature stacking, then a pre-norm transformer with rotary attention:
     /// `Nemotron-3-Diarization`'s.
     Rope(RopeSortformerEncoderConfig),
+
+    /// A `FastConformer`: depthwise-striding subsampling, then Conformer
+    /// blocks. Sortformer v2's and v2.1's.
+    FastConformer(ConformerEncoderConfig),
 }
 
 impl SortformerEncoderMeta for SortformerEncoderConfig {
     fn n_mels(&self) -> usize {
         match self {
             Self::Rope(c) => c.stacking.d_input,
+            Self::FastConformer(c) => c.subsampling.n_mels,
         }
     }
 
     fn d_model(&self) -> usize {
         match self {
             Self::Rope(c) => c.encoder.d_model(),
+            Self::FastConformer(c) => c.d_model(),
         }
     }
 
     fn subsampling_factor(&self) -> usize {
         match self {
             Self::Rope(c) => c.stacking.factor,
+            Self::FastConformer(c) => c.subsampling_factor(),
         }
     }
 }
@@ -76,6 +89,7 @@ impl ModuleInit<SortformerEncoder> for SortformerEncoderConfig {
     ) -> BunsenResult<SortformerEncoder> {
         Ok(match self {
             Self::Rope(c) => SortformerEncoder::Rope(c.try_init(device)?),
+            Self::FastConformer(c) => SortformerEncoder::FastConformer(c.try_init(device)?),
         })
     }
 }
@@ -95,24 +109,31 @@ impl ModuleInit<SortformerEncoder> for SortformerEncoderConfig {
 pub enum SortformerEncoder {
     /// Feature stacking, then a pre-norm transformer with rotary attention.
     Rope(RopeSortformerEncoder),
+
+    /// A `FastConformer`: its subsampling is the pre-encode, and its input
+    /// scaling, position table and blocks the encoder layers.
+    FastConformer(ConformerEncoder),
 }
 
 impl SortformerEncoderMeta for SortformerEncoder {
     fn n_mels(&self) -> usize {
         match self {
             Self::Rope(e) => e.stacking.d_input(),
+            Self::FastConformer(e) => e.subsampling.n_mels(),
         }
     }
 
     fn d_model(&self) -> usize {
         match self {
             Self::Rope(e) => e.encoder.d_model(),
+            Self::FastConformer(e) => e.d_model(),
         }
     }
 
     fn subsampling_factor(&self) -> usize {
         match self {
             Self::Rope(e) => e.stacking.factor(),
+            Self::FastConformer(e) => e.subsampling_factor(),
         }
     }
 }
@@ -135,6 +156,8 @@ impl SortformerEncoder {
     ) -> (Tensor<3>, Vec<usize>) {
         match self {
             Self::Rope(e) => e.stacking.forward(mels, lengths),
+            // The Conformer reads `[batch, n_mels, time]`.
+            Self::FastConformer(e) => e.pre_encode(mels.swap_dims(1, 2), lengths),
         }
     }
 
@@ -154,6 +177,7 @@ impl SortformerEncoder {
     ) -> Tensor<3> {
         match self {
             Self::Rope(e) => e.encoder.forward(embs, lengths),
+            Self::FastConformer(e) => e.forward_pre_encoded(embs, lengths),
         }
     }
 }
