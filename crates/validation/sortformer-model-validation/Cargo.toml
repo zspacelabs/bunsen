@@ -62,7 +62,7 @@ metal = ["bunsen/metal"]
 
 [dependencies]
 burn = { workspace = true }
-bunsen = { path = "../../public/bunsen", features = ["testing"] }
+bunsen = { path = "../../public/bunsen", features = ["testing", "nemo"] }
 bunsen-bundled-sortformer = {
     path = "../../public/bunsen-bundled-sortformer",
     optional = true

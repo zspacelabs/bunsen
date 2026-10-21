@@ -93,6 +93,15 @@ store_safetensors = [
     "burn/safetensors",
 ]
 
+## Read NVIDIA `NeMo`'s `.nemo` checkpoints: a tar of the model's YAML config
+## (through `serde-saphyr`, pure Rust) and its `PyTorch` state dict (through
+## the burn-store's `PyTorch` reader).
+nemo = [
+    "store_pytorch",
+    "dep:tar",
+    "dep:serde-saphyr",
+]
+
 ## Read `FermionResearch`'s Phonon archives (`.bps.tar.zst`): the
 ## `fermion/phonon-2` Parakeet TDT checkpoint. Pure Rust: `ruzstd` and
 ## `tar`.
@@ -295,6 +304,7 @@ dashmap = { workspace = true }
 
 ruzstd = { workspace = true, optional = true }
 tar = { workspace = true, optional = true }
+serde-saphyr = { workspace = true, optional = true }
 
 time = { workspace = true, features = ["formatting", "macros", "local-offset"] }
 
