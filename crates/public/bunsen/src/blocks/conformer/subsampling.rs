@@ -29,6 +29,9 @@ use crate::{
 /// Common meta for [`DwStridingSubsampling`] and
 /// [`DwStridingSubsamplingConfig`].
 pub trait DwStridingSubsamplingMeta {
+    /// The mel channels it reads.
+    fn n_mels(&self) -> usize;
+
     /// The convolution channel count.
     fn channels(&self) -> usize;
 
@@ -78,6 +81,10 @@ pub struct DwStridingSubsamplingConfig {
 }
 
 impl DwStridingSubsamplingMeta for DwStridingSubsamplingConfig {
+    fn n_mels(&self) -> usize {
+        self.n_mels
+    }
+
     fn channels(&self) -> usize {
         self.channels
     }
@@ -130,6 +137,7 @@ impl ModuleInit<DwStridingSubsampling> for DwStridingSubsamplingConfig {
             stem,
             stages,
             linear: LinearConfig::new(c * self.n_freq_out(), self.d_model).init(device),
+            n_mels: self.n_mels,
         })
     }
 }
@@ -169,9 +177,17 @@ pub struct DwStridingSubsampling {
 
     /// `channels * n_freq_out -> d_model`.
     pub linear: Linear,
+
+    /// The mel channels it reads: what `n_freq_out` rounds up from.
+    #[module(skip)]
+    pub n_mels: usize,
 }
 
 impl DwStridingSubsamplingMeta for DwStridingSubsampling {
+    fn n_mels(&self) -> usize {
+        self.n_mels
+    }
+
     fn channels(&self) -> usize {
         self.stem.conv.weight.dims()[0]
     }
@@ -283,6 +299,8 @@ mod tests {
         assert_eq!(config.output_len(0), 0);
 
         let module: DwStridingSubsampling = config.init(&cpu_device());
+        assert_eq!(module.n_mels(), 24);
+        assert_eq!(module.n_mels(), config.n_mels());
         assert_eq!(module.channels(), config.channels());
         assert_eq!(module.d_model(), config.d_model());
         assert_eq!(module.n_stages(), config.n_stages());

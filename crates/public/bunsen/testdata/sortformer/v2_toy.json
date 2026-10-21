@@ -1,0 +1,32 @@
+{
+ "cases": {
+  "batch": {
+   "encoder_lengths": [
+    5,
+    4
+   ],
+   "mel_lengths": [
+    40,
+    29
+   ]
+  },
+  "even": {
+   "encoder_lengths": [
+    5
+   ],
+   "mel_lengths": [
+    40
+   ]
+  },
+  "ragged": {
+   "encoder_lengths": [
+    5
+   ],
+   "mel_lengths": [
+    37
+   ]
+  }
+ },
+ "runtime": "nemo_toolkit 3.1.0+6f558408d, torch 2.14.1+cpu",
+ "source": "tools/gen_sortformer_v2_toy_fixtures.py: SortformerEncLabelModel(seed 11), float64"
+}
