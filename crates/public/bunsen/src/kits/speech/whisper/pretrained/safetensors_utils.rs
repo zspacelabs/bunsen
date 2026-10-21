@@ -202,7 +202,10 @@ impl SafetensorsWhisperScanner {
         let cfg = self.scan_cfg(checkpoint)?;
         let mut module: Whisper = cfg.try_init(device)?;
         checkpoint.load_into(&mut module, |store| {
-            let mut store = store.with_from_adapter(PyTorchToBurnAdapter);
+            // Paths name modules, not the variants of the norm enums.
+            let mut store = store
+                .with_from_adapter(PyTorchToBurnAdapter)
+                .skip_enum_variants(true);
             for (from, to) in HF_TO_BUNSEN {
                 store = store.with_key_remapping(*from, *to);
             }
@@ -253,8 +256,9 @@ mod tests {
         path: &Path,
         only: Option<&str>,
     ) {
-        let mut store =
-            SafetensorsStore::from_file(path.to_path_buf()).with_to_adapter(BurnToPyTorchAdapter);
+        let mut store = SafetensorsStore::from_file(path.to_path_buf())
+            .with_to_adapter(BurnToPyTorchAdapter)
+            .skip_enum_variants(true);
         if let Some(pattern) = only {
             store = store.with_regex(pattern);
         }

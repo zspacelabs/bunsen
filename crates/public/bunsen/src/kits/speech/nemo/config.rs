@@ -426,13 +426,15 @@ pub struct NemoTransformerEncoderConfig {
     #[serde(default = "defaults::relu")]
     pub hidden_act: String,
 
-    /// Whether each layer normalizes before its sublayers.
-    #[serde(default)]
-    pub pre_ln: bool,
+    /// Whether each layer normalizes before its sublayers, rather than after
+    /// each residual sum (`pre_ln`).
+    #[serde(default, rename = "pre_ln")]
+    pub pre_norm: bool,
 
-    /// Whether a pre-norm stack ends with a norm.
-    #[serde(default = "defaults::truth")]
-    pub pre_ln_final_layer_norm: bool,
+    /// Whether a pre-norm stack normalizes once more after its last layer
+    /// (`pre_ln_final_layer_norm`); a post-norm stack never does.
+    #[serde(default = "defaults::truth", rename = "pre_ln_final_layer_norm")]
+    pub final_post_norm: bool,
 
     /// Whether attention is causal.
     #[serde(default)]
@@ -488,7 +490,7 @@ impl NemoTransformerEncoderConfig {
             .with_d_head(d / heads)
             .with_expansion_factor(self.inner_size / d)
             .with_key_bias(true)
-            .with_norm(if self.pre_ln {
+            .with_norm_placement(if self.pre_norm {
                 NormPlacement::Pre
             } else {
                 NormPlacement::Post
@@ -497,9 +499,10 @@ impl NemoTransformerEncoderConfig {
     }
 
     /// Whether the stack ends with a norm: `NeMo` adds it only to a pre-norm
-    /// stack (`pre_ln` and `pre_ln_final_layer_norm`).
+    /// stack ([`pre_norm`](Self::pre_norm) and
+    /// [`final_post_norm`](Self::final_post_norm)).
     pub fn final_norm(&self) -> bool {
-        self.pre_ln && self.pre_ln_final_layer_norm
+        self.pre_norm && self.final_post_norm
     }
 }
 

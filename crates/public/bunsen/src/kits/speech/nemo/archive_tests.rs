@@ -75,7 +75,8 @@ fn test_config_sections() {
     assert_eq!(config.encoder.subsampling_conv_channels, 4);
     assert_eq!(config.encoder.att_context_size, [-1, -1]);
     assert_eq!(config.transformer_encoder.hidden_act, "relu");
-    assert!(!config.transformer_encoder.pre_ln);
+    assert!(!config.transformer_encoder.pre_norm);
+    assert!(config.transformer_encoder.final_post_norm);
     assert!(!config.transformer_encoder.final_norm());
 }
 
@@ -113,7 +114,7 @@ fn test_bunsen_configs() {
     let block = config.transformer_encoder.block().unwrap();
     assert_eq!((block.d_model, block.n_heads()), (8, 2));
     assert_eq!(block.expansion_factor, 2);
-    assert_eq!(block.norm(), NormPlacement::Post);
+    assert_eq!(block.norm_placement(), NormPlacement::Post);
     assert!(block.key_bias);
 }
 
