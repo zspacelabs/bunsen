@@ -13,7 +13,8 @@
 //!   [`identity_embedding`](embedding::identity_embedding).
 //! - [`encoders`]: bidirectional encoder layers and encoders:
 //!   [`ResidualEncoderAttentionBlock`](encoders::residual::ResidualEncoderAttentionBlock),
-//!   the pre-norm layer of Whisper's and Qwen3-ASR's audio encoders, and
+//!   the pre- or post-norm layer of Whisper's, Qwen3-ASR's and Sortformer v2's
+//!   encoders, and
 //!   [`RopeTransformerEncoder`](encoders::rope::RopeTransformerEncoder), a
 //!   pre-norm encoder with rotary attention, `Nemotron-3-Diarization`'s.
 //! - [`mlp`]: [`Mlp`](mlp::Mlp), the position-wise feed-forward block (expand,
