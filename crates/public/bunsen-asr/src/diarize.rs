@@ -20,7 +20,7 @@ use bunsen::{
         },
         sortformer::{
             SortformerBundle,
-            SortformerStreamingConfig,
+            SortformerLatency,
             pretrained::{
                 DEFAULT_SORTFORMER_MODEL,
                 default_sortformer_factory,
@@ -89,30 +89,35 @@ impl DiarizeCmd {
     }
 }
 
-/// How far behind the audio the diarizer runs: the streaming presets.
+/// How far behind the audio the diarizer runs: the model's streaming preset
+/// at that latency. Not every model has every one.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, clap::ValueEnum)]
 pub enum Latency {
-    /// 1.04 s: chunks of 9 frames with 4 of look-ahead.
+    /// 0.32 s.
+    UltraLow,
+
+    /// 0.64 s (Nemotron-3-Diarization).
+    VeryLow,
+
+    /// 1.04 s.
     #[default]
     Low,
 
-    /// 0.64 s: chunks of 6 with 2.
-    VeryLow,
+    /// 10 s (Sortformer v2).
+    High,
 
-    /// 0.32 s: chunks of 3 with 1.
-    UltraLow,
-
-    /// 30.4 s: chunks of 340 with 40; the most accurate, for files.
+    /// 30.4 s: the most accurate, for files.
     Offline,
 }
 
-impl From<Latency> for SortformerStreamingConfig {
+impl From<Latency> for SortformerLatency {
     fn from(latency: Latency) -> Self {
         match latency {
-            Latency::Low => Self::nemotron_low_latency(),
-            Latency::VeryLow => Self::nemotron_very_low_latency(),
-            Latency::UltraLow => Self::nemotron_ultra_low_latency(),
-            Latency::Offline => Self::nemotron_offline(),
+            Latency::UltraLow => Self::UltraLow,
+            Latency::VeryLow => Self::VeryLow,
+            Latency::Low => Self::Low,
+            Latency::High => Self::High,
+            Latency::Offline => Self::Offline,
         }
     }
 }
@@ -231,7 +236,7 @@ impl SpeakerArgs {
         };
         let bundle = load_bundle(model, cache, device)?;
         Ok(Some(Arc::new(
-            bundle.diarizer(self.diarize_latency.into())?,
+            bundle.diarizer(bundle.preset(self.diarize_latency.into())?)?,
         )))
     }
 }
@@ -361,7 +366,7 @@ impl RunCmd {
         let device = self.device.device()?;
         let cache = self.cache.init()?;
         let bundle = self.diarizer.load(&cache, &device)?;
-        let streaming: SortformerStreamingConfig = self.diarizer.latency.into();
+        let streaming = bundle.preset(self.diarizer.latency.into())?;
         let filter: TurnFilterConfig = self.diarizer.postprocess.into();
         let rate = bundle.sample_rate();
 
@@ -451,7 +456,7 @@ impl LiveCmd {
         let device = self.device.device()?;
         let cache = self.cache.init()?;
         let bundle = self.diarizer.load(&cache, &device)?;
-        let diarizer = bundle.diarizer(self.diarizer.latency.into())?;
+        let diarizer = bundle.diarizer(bundle.preset(self.diarizer.latency.into())?)?;
         let rate = bundle.sample_rate();
         let frame_seconds =
             bunsen::kits::speech::diarization::SpeakerActivityModel::frame_samples(&diarizer)
@@ -526,10 +531,18 @@ mod tests {
     /// Every preset maps to its config.
     #[test]
     fn test_presets() {
-        let low: SortformerStreamingConfig = Latency::Low.into();
-        assert_eq!(low.latency_frames(), 13);
-        let offline: SortformerStreamingConfig = Latency::Offline.into();
-        assert_eq!(offline.latency_frames(), 380);
+        assert_eq!(
+            SortformerLatency::from(Latency::Low),
+            SortformerLatency::Low
+        );
+        assert_eq!(
+            SortformerLatency::from(Latency::High),
+            SortformerLatency::High
+        );
+        assert_eq!(
+            SortformerLatency::from(Latency::default()),
+            SortformerLatency::default()
+        );
         assert_eq!(
             TurnFilterConfig::from(Postprocess::None),
             TurnFilterConfig::none()

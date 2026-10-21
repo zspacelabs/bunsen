@@ -4,6 +4,8 @@ use std::sync::Arc;
 use burn::tensor::Device;
 
 use super::{
+    SortformerFamily,
+    SortformerLatency,
     SortformerStream,
     SortformerStreamingConfig,
     blocks::{
@@ -13,7 +15,11 @@ use super::{
 };
 use crate::{
     burner::module::ModuleInit,
-    errors::BunsenResult,
+    errors::{
+        BunsenResult,
+        ConstraintError,
+        Rule,
+    },
     kits::speech::{
         diarization::{
             SpeakerActivity,
@@ -34,7 +40,8 @@ use crate::{
 /// pretrained loads to, and everything diarization needs.
 ///
 /// [`diarizer`](Self::diarizer) makes it a [`SpeakerActivityModel`] under a
-/// streaming preset, which a stream driver attaches with
+/// streaming config (its family's [`preset`](Self::preset), say), which a
+/// stream driver attaches with
 /// [`with_speakers`](crate::kits::speech::asr_driver::AsrStreamDriver::with_speakers);
 /// [`diarize`](Self::diarize) runs a whole recording.
 ///
@@ -47,26 +54,53 @@ pub struct SortformerBundle {
 
     /// The mel front end the model was trained behind.
     pub front_end: NemoMelFrontEnd,
+
+    /// The family the model is of: whose streaming presets it runs under.
+    pub family: SortformerFamily,
 }
 
 impl SortformerBundle {
-    /// A bundle of `model` behind `NeMo`'s front end, at the model's mel
-    /// count: Nemotron-3-Diarization's front end (no normalization, bf16
-    /// tables).
+    /// A bundle of `model`, of `family`, behind the front end `front_end`
+    /// configures.
     ///
     /// # Errors
-    /// As the front end's construction.
+    /// [`Illegal`](crate::errors::BunsenErrorKind::Illegal), with a
+    /// [`ConstraintError`] cause, when the front end's mel count is not the
+    /// model's; as the front end's construction.
     pub fn new(
         model: Sortformer,
+        family: SortformerFamily,
+        front_end: &NemoMelFrontEndConfig,
         device: &Device,
     ) -> BunsenResult<Self> {
-        let front_end = NemoMelFrontEndConfig::nemotron_diarization()
-            .with_n_mels(model.n_mels())
-            .try_init(device)?;
+        if front_end.n_mels() != model.n_mels() {
+            return Err(ConstraintError::new(
+                "SortformerBundle",
+                "front_end",
+                Rule::Relation {
+                    lhs: ("front_end.n_mels".into(), front_end.n_mels().to_string()),
+                    op: "==",
+                    rhs: ("model.n_mels()".into(), model.n_mels().to_string()),
+                },
+            )
+            .into());
+        }
         Ok(Self {
             model: Arc::new(model),
-            front_end,
+            front_end: front_end.try_init(device)?,
+            family,
         })
+    }
+
+    /// The family's streaming preset at `latency`.
+    ///
+    /// # Errors
+    /// As [`SortformerFamily::preset`].
+    pub fn preset(
+        &self,
+        latency: SortformerLatency,
+    ) -> BunsenResult<SortformerStreamingConfig> {
+        self.family.preset(latency)
     }
 
     /// The sample rate, in Hz.
@@ -120,7 +154,8 @@ impl std::fmt::Display for SortformerBundle {
         let m = &self.model;
         write!(
             f,
-            "Sortformer: {} speakers, {} mels, {}-wide encoder, {} ms frames",
+            "{}: {} speakers, {} mels, {}-wide encoder, {} ms frames",
+            self.family,
             m.n_speakers(),
             m.n_mels(),
             m.d_model(),
@@ -208,7 +243,13 @@ mod tests {
             .with_d_hidden(8)
             .with_n_speakers(3)
             .init(&cpu_device());
-        SortformerBundle::new(model, &cpu_device()).unwrap()
+        SortformerBundle::new(
+            model,
+            SortformerFamily::Nemotron,
+            &NemoMelFrontEndConfig::nemotron_diarization().with_n_mels(24),
+            &cpu_device(),
+        )
+        .unwrap()
     }
 
     #[test]
@@ -246,5 +287,28 @@ mod tests {
             )
             .unwrap();
         assert!(turns.iter().all(|t| t.end <= 1.0 + 1e-9));
+    }
+
+    /// The presets are the family's; the front end must read the model's
+    /// mels.
+    #[test]
+    fn test_family_and_front_end() {
+        let bundle = bundle();
+        assert!(bundle.to_string().starts_with("Nemotron-3-Diarization: "));
+        assert_eq!(
+            bundle.preset(SortformerLatency::Low).unwrap(),
+            SortformerStreamingConfig::nemotron_low_latency()
+        );
+        assert!(bundle.preset(SortformerLatency::High).is_err());
+
+        let model = Arc::try_unwrap(bundle.model).unwrap();
+        let err = SortformerBundle::new(
+            model,
+            SortformerFamily::Nemotron,
+            &NemoMelFrontEndConfig::nemotron_diarization(),
+            &cpu_device(),
+        )
+        .unwrap_err();
+        assert!(err.to_string().contains("front_end.n_mels"), "{err}");
     }
 }
