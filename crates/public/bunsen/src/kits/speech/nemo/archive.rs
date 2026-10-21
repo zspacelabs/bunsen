@@ -142,6 +142,29 @@ impl NemoArchive {
         std::fs::rename(&partial, dest).map_err(sys_at("rename", dest))
     }
 
+    /// Calls `f` with the state dict, read ([`read_nemo_weights`]) from a
+    /// copy extracted to a fresh temporary directory, which is removed once
+    /// `f` returns: the tensors read their bytes from the copy, so `f` is
+    /// where they are applied.
+    ///
+    /// # Errors
+    /// [`Sys`](crate::errors::BunsenErrorKind::Sys) when the temporary
+    /// directory cannot be made; as
+    /// [`extract_weights`](Self::extract_weights), [`read_nemo_weights`],
+    /// and `f`.
+    pub fn with_weights<R>(
+        &self,
+        f: impl FnOnce(Vec<PackTensor>) -> BunsenResult<R>,
+    ) -> BunsenResult<R> {
+        let dir = tempfile::Builder::new()
+            .prefix("bunsen-nemo-")
+            .tempdir()
+            .map_err(|e| BunsenError::sys("create a temporary directory").with_cause(e))?;
+        let ckpt = dir.path().join(NEMO_WEIGHTS_MEMBER);
+        self.extract_weights(&ckpt)?;
+        f(read_nemo_weights(&ckpt)?)
+    }
+
     /// The config of a plain (not gzipped) archive from a prefix of its
     /// bytes: what a range request for the start of a `.nemo` returns, so a
     /// geometry can be read before the weights download. `NeMo` writes the

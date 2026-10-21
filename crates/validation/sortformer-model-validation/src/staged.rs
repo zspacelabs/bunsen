@@ -1,5 +1,7 @@
-//! bunsen's Sortformer against the generated reference, one streaming step on
-//! synthetic input and identical weights (`Nemotron-3-Diarization`).
+//! bunsen's Sortformer against the references, one streaming step on
+//! synthetic input and identical weights: `Nemotron-3-Diarization` against
+//! the generated reference, Sortformer v2.1 against onnxruntime's record of
+//! its export.
 
 use bunsen::support::testing::{
     DeviceMemoryGuard,
@@ -66,4 +68,68 @@ fn test_bunsen_step_matches_reference() {
         eprintln!("{what}: 10 ms probabilities max diff {d:.3e}");
         assert!(d < TOLERANCE, "{what}: 10 ms probabilities off by {d}");
     }
+}
+
+/// bunsen's Sortformer v2.1, loaded from NVIDIA's `.nemo` through the
+/// factory, steps as onnxruntime ran `Scrybl`'s export of it: the chunk's
+/// pre-encode embeddings, and the speaker probabilities over the cache, the
+/// FIFO and the chunk.
+///
+/// As for Nemotron, only the steps whose cache and FIFO are wholly valid
+/// are compared (the `reference` tests cover the others); one of them has
+/// neither. Measured on wgpu, the worst sample is off by 7.2e-7 (`preds`)
+/// and 1.6e-4 (`chunk_pre_encode_embs`, which run to the hundreds).
+#[test]
+#[serial_test::serial]
+fn test_bunsen_v2_1_step_matches_reference() {
+    use bunsen::kits::speech::sortformer::{
+        SortformerFamily,
+        SortformerMeta,
+    };
+
+    let device = performance_device();
+    let _memory = DeviceMemoryGuard::new(&device);
+    let bundle = load_named_bundle("sortformer-v2.1", &device);
+    assert_eq!(bundle.family, SortformerFamily::SortformerV2);
+    let model = &bundle.model;
+    assert_eq!(model.n_speakers(), V2_N_SPEAKERS);
+
+    let mut compared = 0;
+    for step in onnx_reference().v2_1 {
+        if step.spkcache_valid != step.spkcache_frames || step.fifo_valid != step.fifo_frames {
+            continue;
+        }
+        let what = format!(
+            "v2.1, {} mel frames, cache {}, fifo {}",
+            step.mel_frames, step.spkcache_frames, step.fifo_frames
+        );
+        let (embs, lengths) = model.pre_encode(synthetic_chunk(step.mel_frames, &device), None);
+        assert_eq!(
+            lengths.iter().map(|&l| l as i64).collect::<Vec<_>>(),
+            step.chunk_pre_encode_lengths,
+            "{what}: lengths"
+        );
+        let embs_error = step.chunk_pre_encode_embs.assert_matches(
+            &format!("{what}: chunk_pre_encode_embs"),
+            embs.clone(),
+            1e-3,
+            1e-3,
+        );
+
+        // A part with no frames is left out: a zero-length tensor is never
+        // built.
+        let parts: Vec<Tensor<3>> = [(step.spkcache_frames, 1), (step.fifo_frames, 2)]
+            .into_iter()
+            .filter(|&(frames, _)| frames > 0)
+            .map(|(frames, salt)| synthetic_embeddings(frames, salt, &device))
+            .chain([embs])
+            .collect();
+        let probs = model.forward_pre_encoded(Tensor::cat(parts, 1), None);
+        let preds_error =
+            step.preds
+                .assert_matches(&format!("{what}: preds"), probs.encoder_rate, 1e-3, 1e-4);
+        eprintln!("{what}: preds {preds_error}, embeddings {embs_error}");
+        compared += 1;
+    }
+    assert_eq!(compared, 2);
 }

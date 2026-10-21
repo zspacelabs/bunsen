@@ -49,6 +49,7 @@ bunsen = { version = "0.39.0", path = "../bunsen", features = [
     "audio",
     "tokenizer",
     "fermion",
+    "nemo",
     "indicatif",
 ] }
 bunsen-app = { version = "0.39.0", path = "../bunsen-app" }
