@@ -75,8 +75,8 @@ fn test_config_sections() {
     assert_eq!(config.encoder.subsampling_conv_channels, 4);
     assert_eq!(config.encoder.att_context_size, [-1, -1]);
     assert_eq!(config.transformer_encoder.hidden_act, "relu");
-    assert!(!config.transformer_encoder.pre_norm);
-    assert!(config.transformer_encoder.final_post_norm);
+    assert!(!config.transformer_encoder.pre_ln);
+    assert!(config.transformer_encoder.pre_ln_final_layer_norm);
     assert!(!config.transformer_encoder.final_norm());
 }
 

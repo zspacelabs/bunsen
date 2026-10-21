@@ -14,7 +14,9 @@
 //!   state dict, and `parse_nemo_yaml` the config, into typed sections
 //!   (`NemoPreprocessorConfig`, `NemoConformerEncoderConfig`,
 //!   `NemoTransformerEncoderConfig`) that give the bunsen configs they
-//!   describe.
+//!   describe. A section's fields are its YAML keys, spelled as `NeMo` spells
+//!   them, so a field greps to `NeMo`'s source and to a `.nemo`'s config;
+//!   bunsen's own names start in the configs a section gives.
 //! - [`nemo_conformer_to_bunsen_path`] and [`nemo_transformer_to_bunsen_path`]:
 //!   `NeMo`'s state-dict names as bunsen's module paths.
 //!
