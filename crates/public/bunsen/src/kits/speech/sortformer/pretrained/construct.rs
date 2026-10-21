@@ -25,13 +25,17 @@ use crate::{
         BunsenResult,
         sys_at,
     },
-    kits::speech::sortformer::{
-        NemotronDiarizationConfig,
-        Sortformer,
-        SortformerBundle,
-        weights::{
-            load_nemotron_hf_tensors,
-            nemotron_config_from_hf,
+    kits::speech::{
+        nemo::NemoMelFrontEndConfig,
+        sortformer::{
+            NemotronDiarizationConfig,
+            Sortformer,
+            SortformerBundle,
+            SortformerFamily,
+            weights::{
+                load_nemotron_hf_tensors,
+                nemotron_config_from_hf,
+            },
         },
     },
 };
@@ -105,7 +109,13 @@ impl Construct for SortformerConstruct {
         let tensors = SafetensorsCheckpoint::from_loaded(loaded, CHECKPOINT)?.tensors()?;
         let mut model: Sortformer = config.try_init(device)?;
         load_nemotron_hf_tensors(&mut model, tensors)?;
-        Ok(Arc::new(SortformerBundle::new(model, device)?))
+        let front_end = NemoMelFrontEndConfig::nemotron_diarization().with_n_mels(config.n_mels);
+        Ok(Arc::new(SortformerBundle::new(
+            model,
+            SortformerFamily::Nemotron,
+            &front_end,
+            device,
+        )?))
     }
 }
 

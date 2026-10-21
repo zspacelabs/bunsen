@@ -2,6 +2,7 @@
 use burn::config::Config;
 
 use crate::errors::{
+    BunsenError,
     BunsenResult,
     ConstraintError,
     Rule,
@@ -193,6 +194,144 @@ impl SortformerStreamingConfig {
     }
 }
 
+/// How far behind the audio a Sortformer runs: the latencies its model
+/// card's streaming presets come in. A family has a preset for some of them
+/// ([`SortformerFamily::preset`]).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+pub enum SortformerLatency {
+    /// 0.32 s.
+    UltraLow,
+
+    /// 0.64 s.
+    VeryLow,
+
+    /// 1.04 s: every family has it.
+    #[default]
+    Low,
+
+    /// 10 s.
+    High,
+
+    /// 30.4 s: the most accurate, for files.
+    Offline,
+}
+
+impl SortformerLatency {
+    /// Every latency, lowest first.
+    pub const ALL: [Self; 5] = [
+        Self::UltraLow,
+        Self::VeryLow,
+        Self::Low,
+        Self::High,
+        Self::Offline,
+    ];
+}
+
+impl std::fmt::Display for SortformerLatency {
+    fn fmt(
+        &self,
+        f: &mut std::fmt::Formatter<'_>,
+    ) -> std::fmt::Result {
+        f.write_str(match self {
+            Self::UltraLow => "ultra-low",
+            Self::VeryLow => "very-low",
+            Self::Low => "low",
+            Self::High => "high",
+            Self::Offline => "offline",
+        })
+    }
+}
+
+/// The Sortformer families, each with its model card's streaming presets.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum SortformerFamily {
+    /// `Nemotron-3-Diarization`.
+    Nemotron,
+
+    /// The streaming Sortformer v2 and v2.1.
+    SortformerV2,
+}
+
+impl SortformerFamily {
+    /// The family's preset at `latency`, if its model card has one:
+    ///
+    /// | latency | `Nemotron` | `SortformerV2` |
+    /// |---|---|---|
+    /// | ultra-low | [`nemotron_ultra_low_latency`] | [`sortformer_v2_ultra_low_latency`] |
+    /// | very-low | [`nemotron_very_low_latency`] | |
+    /// | low | [`nemotron_low_latency`] | [`sortformer_v2_low_latency`] |
+    /// | high | | [`sortformer_v2_high_latency`] |
+    /// | offline | [`nemotron_offline`] | [`sortformer_v2_very_high_latency`] |
+    ///
+    /// [`nemotron_ultra_low_latency`]: SortformerStreamingConfig::nemotron_ultra_low_latency
+    /// [`nemotron_very_low_latency`]: SortformerStreamingConfig::nemotron_very_low_latency
+    /// [`nemotron_low_latency`]: SortformerStreamingConfig::nemotron_low_latency
+    /// [`nemotron_offline`]: SortformerStreamingConfig::nemotron_offline
+    /// [`sortformer_v2_ultra_low_latency`]: SortformerStreamingConfig::sortformer_v2_ultra_low_latency
+    /// [`sortformer_v2_low_latency`]: SortformerStreamingConfig::sortformer_v2_low_latency
+    /// [`sortformer_v2_high_latency`]: SortformerStreamingConfig::sortformer_v2_high_latency
+    /// [`sortformer_v2_very_high_latency`]: SortformerStreamingConfig::sortformer_v2_very_high_latency
+    ///
+    /// # Errors
+    /// [`Unsupported`](crate::errors::BunsenErrorKind::Unsupported), naming
+    /// the latencies the family has, when it has none at `latency`.
+    pub fn preset(
+        self,
+        latency: SortformerLatency,
+    ) -> BunsenResult<SortformerStreamingConfig> {
+        self.lookup(latency).ok_or_else(|| {
+            let has = self
+                .latencies()
+                .iter()
+                .map(ToString::to_string)
+                .collect::<Vec<_>>()
+                .join(", ");
+            BunsenError::unsupported(format!(
+                "{self} has no {latency}-latency preset; it has {has}"
+            ))
+        })
+    }
+
+    /// The latencies the family has a preset for, lowest first.
+    pub fn latencies(self) -> Vec<SortformerLatency> {
+        SortformerLatency::ALL
+            .into_iter()
+            .filter(|&l| self.lookup(l).is_some())
+            .collect()
+    }
+
+    fn lookup(
+        self,
+        latency: SortformerLatency,
+    ) -> Option<SortformerStreamingConfig> {
+        use SortformerLatency as L;
+        type C = SortformerStreamingConfig;
+        match (self, latency) {
+            (Self::Nemotron, L::UltraLow) => Some(C::nemotron_ultra_low_latency()),
+            (Self::Nemotron, L::VeryLow) => Some(C::nemotron_very_low_latency()),
+            (Self::Nemotron, L::Low) => Some(C::nemotron_low_latency()),
+            (Self::Nemotron, L::Offline) => Some(C::nemotron_offline()),
+            (Self::SortformerV2, L::UltraLow) => Some(C::sortformer_v2_ultra_low_latency()),
+            (Self::SortformerV2, L::Low) => Some(C::sortformer_v2_low_latency()),
+            (Self::SortformerV2, L::High) => Some(C::sortformer_v2_high_latency()),
+            (Self::SortformerV2, L::Offline) => Some(C::sortformer_v2_very_high_latency()),
+            (Self::Nemotron, L::High) | (Self::SortformerV2, L::VeryLow) => None,
+        }
+    }
+}
+
+impl std::fmt::Display for SortformerFamily {
+    fn fmt(
+        &self,
+        f: &mut std::fmt::Formatter<'_>,
+    ) -> std::fmt::Result {
+        f.write_str(match self {
+            Self::Nemotron => "Nemotron-3-Diarization",
+            Self::SortformerV2 => "Sortformer v2",
+        })
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -241,6 +380,46 @@ mod tests {
             assert_eq!(preset.latency_frames(), latency);
             assert_eq!(preset.left_context, 1);
             assert_eq!(preset.speaker_budget(4), 44);
+        }
+    }
+
+    /// Each family's presets are its model card's, at the latency each
+    /// names; one it lacks is refused, naming those it has.
+    #[test]
+    fn test_family_presets() {
+        use SortformerLatency as L;
+        type C = SortformerStreamingConfig;
+        let nemotron = SortformerFamily::Nemotron;
+        assert_eq!(
+            nemotron.latencies(),
+            [L::UltraLow, L::VeryLow, L::Low, L::Offline]
+        );
+        assert_eq!(nemotron.preset(L::Low).unwrap(), C::nemotron_low_latency());
+        assert_eq!(nemotron.preset(L::Offline).unwrap(), C::nemotron_offline());
+        let err = nemotron.preset(L::High).unwrap_err();
+        assert!(
+            err.to_string()
+                .contains("no high-latency preset; it has ultra-low, very-low, low, offline"),
+            "{err}"
+        );
+
+        let v2 = SortformerFamily::SortformerV2;
+        assert_eq!(v2.latencies(), [L::UltraLow, L::Low, L::High, L::Offline]);
+        assert_eq!(v2.preset(L::High).unwrap(), C::sortformer_v2_high_latency());
+        assert_eq!(
+            v2.preset(L::Offline).unwrap(),
+            C::sortformer_v2_very_high_latency()
+        );
+        assert!(v2.preset(L::VeryLow).is_err());
+
+        // A latency is the same wall time in every family that has it.
+        for latency in L::ALL {
+            let frames: Vec<usize> = [nemotron, v2]
+                .into_iter()
+                .filter_map(|f| f.preset(latency).ok())
+                .map(|c| c.latency_frames())
+                .collect();
+            assert!(frames.windows(2).all(|w| w[0] == w[1]), "{latency}");
         }
     }
 
