@@ -58,7 +58,8 @@ fn expect_target(
 }
 
 /// A `preprocessor` section: `AudioToMelSpectrogramPreprocessor`'s
-/// arguments, each defaulting as `NeMo`'s constructor defaults it.
+/// arguments, named as `NeMo` names them and each defaulting as its
+/// constructor defaults it.
 #[derive(Clone, Debug, Deserialize, PartialEq)]
 pub struct NemoPreprocessorConfig {
     /// The class `NeMo` instantiates.
@@ -209,7 +210,8 @@ impl NemoPreprocessorConfig {
 }
 
 /// An `encoder` section for `ConformerEncoder`: the `FastConformer`'s
-/// arguments, each defaulting as `NeMo`'s constructor defaults it.
+/// arguments, named as `NeMo` names them and each defaulting as its
+/// constructor defaults it.
 #[derive(Clone, Debug, Deserialize, PartialEq)]
 pub struct NemoConformerEncoderConfig {
     /// The class `NeMo` instantiates.
@@ -402,7 +404,8 @@ impl NemoConformerEncoderConfig {
 
 /// A `transformer_encoder` section for `NeMo`'s
 /// `transformer.transformer_encoders.TransformerEncoder`: the arguments,
-/// each defaulting as `NeMo`'s constructor defaults it.
+/// named as `NeMo` names them and each defaulting as its constructor defaults
+/// it.
 #[derive(Clone, Debug, Deserialize, PartialEq)]
 pub struct NemoTransformerEncoderConfig {
     /// The class `NeMo` instantiates.
@@ -426,11 +429,13 @@ pub struct NemoTransformerEncoderConfig {
     #[serde(default = "defaults::relu")]
     pub hidden_act: String,
 
-    /// Whether each layer normalizes before its sublayers.
+    /// Whether each layer normalizes before its sublayers, rather than after
+    /// each residual sum: [`NormPlacement::Pre`] or [`NormPlacement::Post`].
     #[serde(default)]
     pub pre_ln: bool,
 
-    /// Whether a pre-norm stack ends with a norm.
+    /// Whether a pre-norm stack normalizes once more after its last layer;
+    /// a post-norm stack never does.
     #[serde(default = "defaults::truth")]
     pub pre_ln_final_layer_norm: bool,
 
@@ -488,7 +493,7 @@ impl NemoTransformerEncoderConfig {
             .with_d_head(d / heads)
             .with_expansion_factor(self.inner_size / d)
             .with_key_bias(true)
-            .with_norm(if self.pre_ln {
+            .with_norm_placement(if self.pre_ln {
                 NormPlacement::Pre
             } else {
                 NormPlacement::Post
@@ -497,7 +502,8 @@ impl NemoTransformerEncoderConfig {
     }
 
     /// Whether the stack ends with a norm: `NeMo` adds it only to a pre-norm
-    /// stack (`pre_ln` and `pre_ln_final_layer_norm`).
+    /// stack ([`pre_ln`](Self::pre_ln) and
+    /// [`pre_ln_final_layer_norm`](Self::pre_ln_final_layer_norm)).
     pub fn final_norm(&self) -> bool {
         self.pre_ln && self.pre_ln_final_layer_norm
     }
