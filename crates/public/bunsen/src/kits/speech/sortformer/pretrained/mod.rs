@@ -19,8 +19,11 @@
 //!   `.nemo` whose config gives the model and its front end. Needs the `nemo`
 //!   feature.
 //! - `hf:org/repo`: a repo in `transformers`' `Nemotron3Diarization` layout,
-//!   whose `config.json` gives the geometry; it is read before the checkpoint
-//!   is fetched, so a repo of another model is refused first.
+//!   whose `config.json` gives the geometry, or one holding a Sortformer v2
+//!   `.nemo` alone (`hf:nvidia/diar_streaming_sortformer_4spk-v2.1`), whose own
+//!   config does. Either config is read before the checkpoint is fetched (a
+//!   `.nemo`'s from the archive's head, by a range request), so a repo of
+//!   another model is refused first.
 //!
 //! A bundle's [`family`](super::SortformerBundle::family) names the
 //! streaming presets it runs under.

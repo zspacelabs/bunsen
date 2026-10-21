@@ -174,7 +174,11 @@ fn missing_shards(
 /// resource, or the index and every shard, under the kit's checkpoint key:
 /// `checkpoint`, or `checkpoint.index` and `checkpoint.00001`, and so on.
 /// Each is labelled [`SAFETENSORS`] or [`SAFETENSORS_INDEX`] for the kit's
-/// reader. `config.json` rides along as `config` when the repo has one.
+/// reader. A kit whose checkpoints may also come as one archive
+/// ([`with_archive_checkpoint`](Self::with_archive_checkpoint): a `.nemo`)
+/// gets that file instead from a repo with no safetensors checkpoint,
+/// labelled as it asks. `config.json` rides along as `config` when the repo
+/// has one.
 /// Anything else in the repo (other frameworks' weights, tokenizer files)
 /// is not a resource: a kit reads what it knows.
 ///
@@ -210,6 +214,22 @@ pub struct HfProvider {
     /// The other files a row carries when the repo has them, beyond the
     /// checkpoint and `config.json`: a kit's vocabulary, say.
     pub extra_files: Vec<HfExtraFile>,
+
+    /// The one-file checkpoints a repo without a safetensors checkpoint may
+    /// hold instead, in preference order: a `.nemo`, say.
+    pub archive_checkpoints: Vec<HfArchiveCheckpoint>,
+}
+
+/// A one-file checkpoint an [`HfProvider`] row takes when the repo has no
+/// safetensors checkpoint: the repo's one file ending in `extension`,
+/// labelled `kind` for the kit's reader.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct HfArchiveCheckpoint {
+    /// The file name's ending: `.nemo`.
+    pub extension: String,
+
+    /// The resource's `kind`.
+    pub kind: String,
 }
 
 /// A file an [`HfProvider`] row carries when the repo has it: under `key`,
@@ -241,6 +261,7 @@ impl HfProvider {
             revision: HF_MAIN.to_string(),
             checkpoint_key: DEFAULT_CHECKPOINT_KEY.to_string(),
             extra_files: Vec::new(),
+            archive_checkpoints: Vec::new(),
         }
     }
 
@@ -291,6 +312,21 @@ impl HfProvider {
         self.extra_files.push(HfExtraFile {
             key: key.into(),
             path: path.into(),
+            kind: kind.into(),
+        });
+        self
+    }
+
+    /// A repo without a safetensors checkpoint may hold one file ending in
+    /// `extension` instead, its checkpoint, labelled `kind`:
+    /// `with_archive_checkpoint(".nemo", "nemo")`.
+    pub fn with_archive_checkpoint(
+        mut self,
+        extension: impl Into<String>,
+        kind: impl Into<String>,
+    ) -> Self {
+        self.archive_checkpoints.push(HfArchiveCheckpoint {
+            extension: extension.into(),
             kind: kind.into(),
         });
         self
@@ -385,17 +421,19 @@ impl HfProvider {
     }
 
     /// The row for `name` from the repo's file listing: the safetensors
-    /// checkpoint, one file or the index and every shard, pinned by the
-    /// hub's LFS digests, `config.json` when there is one, and each of the
-    /// [`extra_files`](Self::extra_files) the repo has.
+    /// checkpoint, one file or the index and every shard, or else the first
+    /// of the [`archive_checkpoints`](Self::archive_checkpoints) the repo
+    /// holds, pinned by the hub's LFS digests; `config.json` when there is
+    /// one, and each of the [`extra_files`](Self::extra_files) the repo has.
     ///
     /// # Errors
     /// As [`split`](Self::split) for a malformed ref.
     /// [`InvalidResource`](BunsenErrorKind::InvalidResource), under a frame
     /// naming the ref, when the listing has neither [`HF_SINGLE_FILE`] nor
-    /// [`HF_INDEX_FILE`] with a complete set of shards, naming what it has
-    /// instead, and the shards a set of one `N` lacks: the repo is not the
-    /// checkpoint a ref names.
+    /// [`HF_INDEX_FILE`] with a complete set of shards, nor an archive
+    /// checkpoint, naming what it has instead, and the shards a set of one
+    /// `N` lacks: the repo is not the checkpoint a ref names. So too when it
+    /// holds two files of an archive checkpoint's ending.
     pub fn row_from_listing(
         &self,
         name: &str,
@@ -461,6 +499,9 @@ impl HfProvider {
                 ));
             }
             what = format!("{} shards, {}", shards.len(), megabytes(total));
+        } else if let Some((archive, kind)) = self.archive_checkpoint(name, &files)? {
+            resources.insert(self.resource(org, repo, key, archive, kind));
+            what = format!("{}, {}", archive.path, megabytes(archive.size));
         } else {
             let weights: Vec<&str> = files
                 .iter()
@@ -472,10 +513,16 @@ impl HfProvider {
                         || p.ends_with(".msgpack")
                         || p.ends_with(".pt")
                         || p.ends_with(".gguf")
+                        || p.ends_with(".nemo")
                 })
                 .collect();
+            let archives: String = self
+                .archive_checkpoints
+                .iter()
+                .map(|a| format!(", or one *{}", a.extension))
+                .collect();
             return Err(BunsenError::invalid_resource(format!(
-                "no {HF_SINGLE_FILE} or {HF_INDEX_FILE} at {}; the repo has: {}",
+                "no {HF_SINGLE_FILE} or {HF_INDEX_FILE}{archives} at {}; the repo has: {}",
                 self.revision,
                 if weights.is_empty() {
                     "no weights".to_string()
@@ -515,6 +562,42 @@ impl HfProvider {
             prefab: None,
             resources,
         })
+    }
+
+    /// The first of [`archive_checkpoints`](Self::archive_checkpoints) the
+    /// repo holds, with its kind.
+    ///
+    /// # Errors
+    /// [`InvalidResource`](BunsenErrorKind::InvalidResource), under a frame
+    /// naming the ref, naming them, when the repo holds more than one file
+    /// of that ending: which is the checkpoint is not the provider's guess.
+    fn archive_checkpoint<'e>(
+        &'e self,
+        name: &str,
+        files: &[&'e HfTreeEntry],
+    ) -> BunsenResult<Option<(&'e HfTreeEntry, &'e str)>> {
+        for archive in &self.archive_checkpoints {
+            let found: Vec<&HfTreeEntry> = files
+                .iter()
+                .copied()
+                .filter(|e| e.path.ends_with(&archive.extension))
+                .collect();
+            match found.as_slice() {
+                [] => continue,
+                [one] => return Ok(Some((one, archive.kind.as_str()))),
+                many => {
+                    let names: Vec<&str> = many.iter().map(|e| e.path.as_str()).collect();
+                    return Err(BunsenError::invalid_resource(format!(
+                        "{} {} files, and no way to tell the checkpoint: {}",
+                        many.len(),
+                        archive.extension,
+                        names.join(", ")
+                    ))
+                    .context(format!("{}:{name}", self.name)));
+                }
+            }
+        }
+        Ok(None)
     }
 
     /// The repo's file listing, through the cache: fetched once under
@@ -861,6 +944,63 @@ mod tests {
         assert!(hf.ids().is_empty());
         assert!(!hf.answers_bare_names());
         assert_eq!(hf.origin(), Some("https://huggingface.co"));
+    }
+
+    /// A repo with no safetensors checkpoint gives its one archive
+    /// checkpoint, under the checkpoint key and the archive's kind; two of
+    /// one ending are refused, naming them; a provider that asks for none
+    /// refuses the repo, naming the archive among its weights.
+    #[test]
+    fn test_an_archive_checkpoint_stands_in() {
+        let hf = HfProvider::new().with_archive_checkpoint(".nemo", "nemo");
+        let listing = vec![
+            entry(".gitattributes", 1438, None),
+            entry("README.md", 10, None),
+            entry(
+                "diar_streaming_sortformer_4spk-v2.nemo",
+                471_367_680,
+                Some(TINY_SHA),
+            ),
+        ];
+        let row = hf
+            .row_from_listing("nvidia/diar_streaming_sortformer_4spk-v2", &listing)
+            .unwrap();
+        row.resources.validate().unwrap();
+        assert_eq!(row.resources.keys(), ["checkpoint"]);
+        let checkpoint = row.resources.get("checkpoint").unwrap();
+        assert_eq!(checkpoint.file, "diar_streaming_sortformer_4spk-v2.nemo");
+        assert_eq!(checkpoint.kind.as_deref(), Some("nemo"));
+        assert_eq!(checkpoint.sha256.as_deref(), Some(TINY_SHA));
+        assert!(
+            row.description
+                .ends_with(": diar_streaming_sortformer_4spk-v2.nemo, 471.4 MB"),
+            "{}",
+            row.description
+        );
+
+        // A safetensors checkpoint is preferred.
+        let mut both = listing.clone();
+        both.push(entry("model.safetensors", 10, Some(SHARD_1)));
+        let row = hf.row_from_listing("org/repo", &both).unwrap();
+        assert_eq!(
+            row.resources.get("checkpoint").unwrap().kind.as_deref(),
+            Some("safetensors")
+        );
+
+        let mut two = listing.clone();
+        two.push(entry("other.nemo", 10, Some(SHARD_1)));
+        ErrorMatcher::kind(BunsenErrorKind::InvalidResource)
+            .message_contains("2 .nemo files")
+            .message_contains("other.nemo")
+            .frame_contains("hf:org/repo")
+            .assert_err(&hf.row_from_listing("org/repo", &two));
+
+        ErrorMatcher::kind(BunsenErrorKind::InvalidResource)
+            .message_contains("the repo has: diar_streaming_sortformer_4spk-v2.nemo")
+            .assert_err(&HfProvider::new().row_from_listing("org/repo", &listing));
+        ErrorMatcher::kind(BunsenErrorKind::InvalidResource)
+            .message_contains("or one *.nemo at main; the repo has: no weights")
+            .assert_err(&hf.row_from_listing("org/repo", &listing[..2]));
     }
 
     /// The URLs: a file at a revision, and the listing.

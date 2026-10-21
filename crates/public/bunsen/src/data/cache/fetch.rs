@@ -218,6 +218,19 @@ pub fn fetch_verified(
     fetch_file(url, dest, Some(sha256), observers)
 }
 
+/// The first `len` bytes of `url`, or all of it when it is shorter, by a
+/// range request: a file's header, read before the file is fetched. Nothing
+/// is written, and no observer is told.
+///
+/// # Errors
+/// As [`fetch_file`], for the network side and a bad URL.
+pub fn fetch_prefix(
+    url: &str,
+    len: u64,
+) -> BunsenResult<Vec<u8>> {
+    bunsen_fetch::fetch_prefix(url, len).map_err(fetch_error)
+}
+
 /// A `bunsen_fetch` failure, sorted into bunsen's kinds: the network side
 /// through [`FetchFailure`], the local disk through
 /// [`sys_at`](crate::errors::sys_at).
@@ -291,6 +304,7 @@ mod tests {
                 refused_url,
                 serve_once,
                 serve_once_declaring,
+                serve_ranges,
                 serve_status,
             },
         },
@@ -517,5 +531,14 @@ mod tests {
             observer.events().last(),
             Some(CacheProgressEvent::Finish(Err(_)))
         ));
+    }
+
+    /// A prefix is the file's first bytes; a missing file is a `Lookup`.
+    #[test]
+    fn test_fetch_prefix() {
+        let url = serve_ranges("f.bin", b"abcdef", 1);
+        assert_eq!(fetch_prefix(&url, 4).unwrap(), b"abcd");
+        ErrorMatcher::kind(BunsenErrorKind::Lookup)
+            .assert_err(&fetch_prefix(&serve_status("f.bin", 404), 4));
     }
 }

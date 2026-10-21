@@ -207,6 +207,16 @@ pub mod testing {
             serve(name, body, body.len(), failures, 1, 200)
         }
 
+        /// [`serve_n`], honouring a `Range: bytes=a-b` request with a `206`
+        /// of those bytes: a hub that serves a file's header alone.
+        pub fn serve_ranges(
+            name: &str,
+            body: &'static [u8],
+            n: usize,
+        ) -> String {
+            serve_with(name, body, body.len(), 0, n, 200, true)
+        }
+
         /// A URL for `name` on a loopback port nothing listens on.
         pub fn refused_url(name: &str) -> String {
             let listener = TcpListener::bind("127.0.0.1:0").unwrap();
@@ -226,9 +236,6 @@ pub mod testing {
             serve(name, body, declared, 0, 1, 200)
         }
 
-        /// The server behind the helpers above: drops `failures` connections,
-        /// then answers `n` with `status`, declaring `declared` bytes and
-        /// sending `body`.
         fn serve(
             name: &str,
             body: &'static [u8],
@@ -236,6 +243,22 @@ pub mod testing {
             failures: usize,
             n: usize,
             status: u16,
+        ) -> String {
+            serve_with(name, body, declared, failures, n, status, false)
+        }
+
+        /// The server behind the helpers above: drops `failures` connections,
+        /// then answers `n` with `status`, declaring `declared` bytes and
+        /// sending `body`; with `ranges`, a request for a range is answered
+        /// `206` with that slice of `body`.
+        fn serve_with(
+            name: &str,
+            body: &'static [u8],
+            declared: usize,
+            failures: usize,
+            n: usize,
+            status: u16,
+            ranges: bool,
         ) -> String {
             let listener = TcpListener::bind("127.0.0.1:0").unwrap();
             let url = format!("http://{}/{name}", listener.local_addr().unwrap());
@@ -259,8 +282,14 @@ pub mod testing {
                             break;
                         }
                     }
+                    let range = ranges.then(|| requested_range(&head, body.len())).flatten();
+                    let (status, declared, body) = match range {
+                        Some((from, to)) => (206, to - from, &body[from..to]),
+                        None => (status, declared, body),
+                    };
                     let reason = match status {
                         200 => "OK",
+                        206 => "Partial Content",
                         401 => "Unauthorized",
                         404 => "Not Found",
                         _ => "Status",
@@ -269,11 +298,30 @@ pub mod testing {
                         "HTTP/1.1 {status} {reason}\r\nContent-Length: {declared}\r\nConnection: close\r\n\r\n"
                     );
                     stream.write_all(response.as_bytes()).unwrap();
-                    stream.write_all(body).unwrap();
-                    stream.flush().unwrap();
+                    // A client that has read what it asked for may hang up.
+                    let _ = stream.write_all(body);
+                    let _ = stream.flush();
                 }
             });
             url
+        }
+
+        /// The `[from, to)` a request head's `Range: bytes=a-b` asks for,
+        /// clipped to `len`.
+        fn requested_range(
+            head: &[u8],
+            len: usize,
+        ) -> Option<(usize, usize)> {
+            let head = String::from_utf8_lossy(head).to_ascii_lowercase();
+            let spec = head
+                .lines()
+                .find_map(|l| l.strip_prefix("range: bytes="))?
+                .trim()
+                .to_string();
+            let (a, b) = spec.split_once('-')?;
+            let from: usize = a.parse().ok()?;
+            let to = b.parse::<usize>().ok()?.saturating_add(1).min(len);
+            (from < to).then_some((from, to))
         }
     }
     #[cfg(feature = "fetch")]
