@@ -1,6 +1,6 @@
 [package]
 name = "sortformer-model-validation"
-description = "Validates bunsen's Sortformer diarization against pretrained references: an ONNX export, and onnxruntime's own run of it. Fetches its model assets; hosts none."
+description = "Validates bunsen's Sortformer diarization against pretrained references: ONNX exports of Nemotron-3-Diarization and Sortformer v2.1, and onnxruntime's own runs of them. Fetches its model assets; hosts none."
 publish = false
 
 authors.workspace = true
@@ -16,19 +16,23 @@ workspace = true
 [features]
 default = []
 
-## Fetch the reference graph and generate the model from it, and pull in the
-## checkpoint compared against it: NVIDIA's `Nemotron-3-Diarization`, whose
-## weights the graph carries; and the speech recognizers diarized
-## transcription is scored with (Phonon-2, Phonon-1, Whisper `base`).
+## Fetch the reference graphs and generate the models from them, and pull in
+## the checkpoints compared against them: NVIDIA's `Nemotron-3-Diarization`
+## and streaming Sortformer v2 and v2.1, whose weights the graphs carry; and
+## the speech recognizers diarized transcription is scored with (Phonon-2,
+## Phonon-1, Whisper `base`).
 ##
 ## **Off by default.** Enabling this makes `bunsen-bundled-sortformer`'s build
-## reach the network on a cold cache (~1.6 GB), which a plain
+## reach the network on a cold cache (~3 GB), which a plain
 ## `cargo build --workspace` must never do. Every asset is verified against a
 ## pinned SHA-256, so a warm build is offline and reproducible.
 download = [
     "dep:bunsen-bundled-sortformer",
     "bunsen-bundled-sortformer/onnx_gen",
     "bunsen-bundled-sortformer/checkpoint_nemotron",
+    "bunsen-bundled-sortformer/onnx_gen_v2_1",
+    "bunsen-bundled-sortformer/checkpoint_v2",
+    "bunsen-bundled-sortformer/checkpoint_v2_1",
     "bunsen-test-audio/ami",
     "bunsen/fermion",
     "bunsen/whisper-weights",

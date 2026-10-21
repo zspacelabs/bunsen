@@ -89,6 +89,50 @@ pub struct OnnxReference {
 
     /// The Nemotron streaming step, at each geometry.
     pub nemotron: Vec<StepRecord>,
+
+    /// The v2.1 export and revision.
+    pub v2_1_source: String,
+
+    /// The v2.1 streaming step, at each geometry.
+    pub v2_1: Vec<V21StepRecord>,
+}
+
+/// The v2.1 speakers: 4.
+pub const V2_N_SPEAKERS: usize = 4;
+
+/// One v2.1 streaming step on synthetic input.
+#[derive(Debug, Deserialize)]
+pub struct V21StepRecord {
+    /// The chunk's length, in mel frames.
+    pub mel_frames: usize,
+
+    /// The speaker cache's allocated frames.
+    pub spkcache_frames: usize,
+
+    /// The speaker cache's valid frames.
+    pub spkcache_valid: usize,
+
+    /// The FIFO's allocated frames.
+    pub fifo_frames: usize,
+
+    /// The FIFO's valid frames.
+    pub fifo_valid: usize,
+
+    /// `spkcache_fifo_chunk_preds [1, C+F+T/8, 4]`, the 80 ms predictions.
+    pub preds: TensorRecord,
+
+    /// `chunk_pre_encode_embs [1, T/8, 512]`.
+    pub chunk_pre_encode_embs: TensorRecord,
+
+    /// `chunk_pre_encode_lengths [1]`.
+    pub chunk_pre_encode_lengths: Vec<i64>,
+}
+
+impl V21StepRecord {
+    /// The 80 ms frames the predictions cover, as allocated.
+    pub fn output_frames(&self) -> usize {
+        self.spkcache_frames + self.fifo_frames + self.mel_frames.div_ceil(SUBSAMPLING)
+    }
 }
 
 /// One streaming step on synthetic input.
@@ -302,6 +346,32 @@ mod tests {
                     .all(|p| (0.0..=1.0).contains(p))
             );
             assert!(step.preds_hires.samples.iter().any(|&p| p > 0.5));
+        }
+    }
+
+    /// The v2.1 records cover the Nemotron geometries and a first step,
+    /// with an empty cache and FIFO.
+    #[test]
+    fn test_v2_1_fixture_is_well_formed() {
+        let fixture = onnx_reference();
+        assert!(fixture.v2_1_source.starts_with("Scrybl/"));
+        assert!(fixture.v2_1_source.contains("3be92087"));
+        assert_eq!(fixture.v2_1.len(), 3);
+        assert!(
+            fixture
+                .v2_1
+                .iter()
+                .any(|s| s.spkcache_frames == 0 && s.fifo_frames == 0)
+        );
+        for step in &fixture.v2_1 {
+            assert_eq!(step.preds.shape, [1, step.output_frames(), V2_N_SPEAKERS]);
+            let te = step.mel_frames.div_ceil(SUBSAMPLING);
+            assert_eq!(step.chunk_pre_encode_embs.shape, [1, te, D_ENC]);
+            assert_eq!(step.chunk_pre_encode_lengths, [te as i64]);
+            for record in [&step.preds, &step.chunk_pre_encode_embs] {
+                assert_eq!(record.samples.len(), record.expected_samples());
+            }
+            assert!(step.preds.samples.iter().all(|p| (0.0..=1.0).contains(p)));
         }
     }
 

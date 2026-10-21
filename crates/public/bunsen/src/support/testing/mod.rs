@@ -68,8 +68,10 @@
 //!   of `f64`, within a `Tolerance`.
 //! - [`assert_close_to_vec`]: two host slices, within an absolute tolerance.
 //! - [`TensorRecord`]: a reference tensor recorded compactly (shape, sums,
-//!   strided samples) by a reference implementation, and
-//!   [`assert_matches`](TensorRecord::assert_matches) against it.
+//!   strided samples) by a reference implementation,
+//!   [`assert_matches`](TensorRecord::assert_matches) against it, and
+//!   [`max_abs_error`](TensorRecord::max_abs_error), the worst sample's
+//!   distance, which `assert_matches` also returns for a test to report.
 //!
 //! # Speech
 //!

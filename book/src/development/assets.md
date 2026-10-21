@@ -72,9 +72,10 @@ there finds them offline without knowing they were bundled.
 - `bunsen-bundled-parakeet` and `bunsen-bundled-qwen3-asr` fetch the Phonon
   checkpoints, the base models and the ONNX references for their validation
   crates only, and are not published.
-- `bunsen-bundled-sortformer` fetches NVIDIA's `Nemotron-3-Diarization` and an
-  ONNX export of it, which its build script rewrites where `burn-onnx` cannot
-  import it, for its validation crate only, and is not published.
+- `bunsen-bundled-sortformer` fetches NVIDIA's `Nemotron-3-Diarization` and
+  streaming Sortformer v2 and v2.1 checkpoints, and ONNX exports of Nemotron
+  (which its build script rewrites where `burn-onnx` cannot import it) and of
+  v2.1, for its validation crate only, and is not published.
 
 So a `*-weights` feature makes the build reach the network on a cold cache.
 
