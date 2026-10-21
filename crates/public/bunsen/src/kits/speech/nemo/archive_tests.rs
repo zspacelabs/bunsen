@@ -312,6 +312,46 @@ fn test_config_from_prefix() {
     assert_eq!(NemoArchive::config_from_prefix(&[]), None);
 }
 
+/// An archive of `members`, in order, as `NeMo` names them.
+fn tar_of(members: &[(&str, &[u8])]) -> Vec<u8> {
+    let mut tar = tar::Builder::new(Vec::new());
+    for (name, bytes) in members {
+        let mut header = tar::Header::new_gnu();
+        header.set_size(bytes.len() as u64);
+        header.set_mode(0o644);
+        header.set_cksum();
+        tar.append_data(&mut header, format!("./{name}"), *bytes)
+            .unwrap();
+    }
+    tar.into_inner().unwrap()
+}
+
+/// Members before the config (a tokenizer's files) are passed over while
+/// the prefix holds them; weights before it end the search.
+#[test]
+fn test_config_from_prefix_past_other_members() {
+    let yaml = "target: x\n";
+    let vocab = vec![b'v'; 3000];
+    let bytes = tar_of(&[
+        ("vocab.txt", &vocab),
+        (NEMO_CONFIG_MEMBER, yaml.as_bytes()),
+        (NEMO_WEIGHTS_MEMBER, &[0u8; 1024]),
+    ]);
+    // Each member is a 512-byte header and its data, padded to 512.
+    let end = 512 + 3072 + 512 + yaml.len();
+    assert_eq!(
+        NemoArchive::config_from_prefix(&bytes[..end]).as_deref(),
+        Some(yaml)
+    );
+    assert_eq!(NemoArchive::config_from_prefix(&bytes[..2048]), None);
+
+    let weights_first = tar_of(&[
+        (NEMO_WEIGHTS_MEMBER, &[0u8; 1024]),
+        (NEMO_CONFIG_MEMBER, yaml.as_bytes()),
+    ]);
+    assert_eq!(NemoArchive::config_from_prefix(&weights_first), None);
+}
+
 /// A file that is not a `.nemo`, or lacks a member, is refused.
 #[test]
 fn test_not_an_archive() {

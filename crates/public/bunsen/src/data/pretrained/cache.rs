@@ -226,6 +226,49 @@ fn remote_keys(remote: &[RemotePart]) -> String {
         .join(", ")
 }
 
+/// A resource only a URL can supply, asked of an offline cache.
+fn offline(
+    dest: &Path,
+    res: &Resource,
+) -> BunsenError {
+    BunsenError::policy(format!(
+        "not in the cache ({}), and the cache is offline",
+        dest.display()
+    ))
+    .context(&res.key)
+}
+
+/// The first `len` bytes of the first of `urls` that answers.
+#[cfg(feature = "fetch")]
+fn fetch_prefix(
+    _dest: &Path,
+    urls: &[String],
+    len: u64,
+) -> BunsenResult<Vec<u8>> {
+    let mut last = None;
+    for url in urls {
+        match crate::data::cache::fetch_prefix(url, len) {
+            Ok(prefix) => return Ok(prefix),
+            Err(e) => last = Some(e),
+        }
+    }
+    Err(last.unwrap_or_else(|| BunsenError::illegal("a remote resource with no URL")))
+}
+
+/// Without the `fetch` feature there is no network: not local is
+/// unsupported.
+#[cfg(not(feature = "fetch"))]
+fn fetch_prefix(
+    dest: &Path,
+    _urls: &[String],
+    _len: u64,
+) -> BunsenResult<Vec<u8>> {
+    Err(BunsenError::unsupported(format!(
+        "{}: not local, and fetching needs the `fetch` feature",
+        dest.display()
+    )))
+}
+
 /// Digest-pinned resources under the disk cache's cache directory: where a
 /// [`ResourceMap`]'s files are brought local.
 ///
@@ -450,14 +493,51 @@ impl PretrainedCache {
             Local::Found(found) => Ok(found),
             Local::Remote { dest, urls } => {
                 if self.offline {
-                    return Err(BunsenError::policy(format!(
-                        "not in the cache ({}), and the cache is offline",
-                        dest.display()
-                    ))
-                    .context(&res.key));
+                    return Err(offline(&dest, res));
                 }
                 let urls: Vec<&str> = urls.iter().map(String::as_str).collect();
                 self.download(dest, &urls, res.sha256.as_deref())
+            }
+        }
+    }
+
+    /// The first `len` bytes of a resource, or all of it when it is
+    /// shorter, without bringing the rest local: what a hook reads a file's
+    /// header from before the file is fetched.
+    ///
+    /// A resource [`resolve`](Self::resolve) finds locally is read from its
+    /// file. Otherwise its URLs are asked in order for the prefix alone (a
+    /// range request), and the first that answers gives it. Nothing is
+    /// written to the cache, and the prefix is not checked against the
+    /// resource's digest, which pins the whole file.
+    ///
+    /// # Errors
+    /// As [`resolve`](Self::resolve) for the local lookup, an offline cache,
+    /// and a build without the `fetch` feature; the last URL's failure when
+    /// none answers; a file-system failure through [`sys_at`].
+    pub fn read_prefix(
+        &self,
+        kit: &str,
+        res: &Resource,
+        len: u64,
+    ) -> BunsenResult<Vec<u8>> {
+        match self.resolve_local(kit, res)? {
+            Local::Found(found) => {
+                use std::io::Read;
+                let path = &found.path;
+                let mut prefix = Vec::new();
+                fs::File::open(path)
+                    .map_err(sys_at("open", path))?
+                    .take(len)
+                    .read_to_end(&mut prefix)
+                    .map_err(sys_at("read", path))?;
+                Ok(prefix)
+            }
+            Local::Remote { dest, urls } => {
+                if self.offline {
+                    return Err(offline(&dest, res));
+                }
+                fetch_prefix(&dest, &urls, len).map_err(|e| e.context(&res.key))
             }
         }
     }
@@ -797,6 +877,42 @@ mod tests {
         Source::LocalDir {
             name: "up".to_string(),
             dir: Some(dir.to_path_buf()),
+        }
+    }
+
+    /// A prefix of a local file is read from it; a remote one, asked of its
+    /// URLs in order, lands nothing in the cache; an offline cache refuses
+    /// a remote one.
+    #[test]
+    fn test_read_prefix() {
+        let dir = tempfile::tempdir().unwrap();
+        let up = dir.path().join("up");
+        fs::create_dir_all(&up).unwrap();
+        fs::write(up.join("local.bin"), b"abcdef").unwrap();
+        let local = res("local", None, vec![local_dir(&up)]);
+        let cache = cache_in(dir.path(), true);
+        assert_eq!(cache.read_prefix("kit", &local, 4).unwrap(), b"abcd");
+        assert_eq!(cache.read_prefix("kit", &local, 64).unwrap(), b"abcdef");
+
+        let remote = res("remote", None, vec![url("http://h.invalid/remote.bin")]);
+        ErrorMatcher::kind(BunsenErrorKind::Policy)
+            .assert_err(&cache.read_prefix("kit", &remote, 4));
+
+        #[cfg(feature = "fetch")]
+        {
+            use crate::data::cache::testing::serve_ranges;
+            let cache = cache_in(dir.path(), false);
+            let remote = res(
+                "remote",
+                Some(ABC_SHA256),
+                vec![
+                    url(&refused_url("remote.bin")),
+                    url(&serve_ranges("remote.bin", b"abc", 1)),
+                ],
+            );
+            assert_eq!(cache.read_prefix("kit", &remote, 2).unwrap(), b"ab");
+            assert!(!cache.resource_path("kit", &remote).exists());
+            assert_eq!(cache.status("kit", &remote), CacheStatus::Remote);
         }
     }
 

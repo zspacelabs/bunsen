@@ -168,13 +168,14 @@ impl NemoArchive {
     /// The config of a plain (not gzipped) archive from a prefix of its
     /// bytes: what a range request for the start of a `.nemo` returns, so a
     /// geometry can be read before the weights download. `NeMo` writes the
-    /// config first; only directory entries (and the PAX headers Python's
-    /// `tarfile` writes before each member) may come before it.
+    /// config before the weights; directory entries, the PAX headers
+    /// Python's `tarfile` writes before each member, and other members (a
+    /// tokenizer's files) may come before it.
     ///
     /// # Returns
-    /// `None` when the prefix ends before the config does, or the first file
-    /// in it is another member, or the archive is gzipped: the whole archive
-    /// is then needed.
+    /// `None` when the prefix ends before the config does, or the weights
+    /// come first, or the archive is gzipped: the whole archive is then
+    /// needed.
     pub fn config_from_prefix(prefix: &[u8]) -> Option<String> {
         if is_gzip(prefix) {
             return None;
@@ -185,14 +186,17 @@ impl NemoArchive {
             if entry.header().entry_type().is_dir() {
                 continue;
             }
-            let path = entry.path().ok()?;
-            if member_name(&path)? != NEMO_CONFIG_MEMBER {
-                return None;
+            let name = member_name(&entry.path().ok()?).map(str::to_string);
+            match name.as_deref() {
+                Some(NEMO_CONFIG_MEMBER) => {
+                    let size = usize::try_from(entry.size()).ok()?;
+                    let mut text = String::with_capacity(size);
+                    entry.read_to_string(&mut text).ok()?;
+                    return (text.len() == size).then_some(text);
+                }
+                Some(NEMO_WEIGHTS_MEMBER) => return None,
+                _ => continue,
             }
-            let size = usize::try_from(entry.size()).ok()?;
-            let mut text = String::with_capacity(size);
-            entry.read_to_string(&mut text).ok()?;
-            return (text.len() == size).then_some(text);
         }
         None
     }

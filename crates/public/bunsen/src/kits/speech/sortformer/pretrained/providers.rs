@@ -158,11 +158,16 @@ pub const DEFAULT_SORTFORMER_MODEL: &str = "nvidia/nemotron-3-diarization";
 
 /// Sortformer's compiled-in providers, in search order: the well-known table,
 /// then `hf:org/repo`, a Hugging Face repo in `transformers`' layout (its
-/// safetensors checkpoint, one file or shards, and its `config.json`).
+/// safetensors checkpoint, one file or shards, and its `config.json`), or one
+/// holding a `NeMo` `.nemo` alone.
 pub fn default_sortformer_providers() -> Vec<Arc<dyn PretrainedProvider>> {
     vec![
         Arc::new(WELL_KNOWN_TABLE.to_table()),
-        Arc::new(HfProvider::new().with_checkpoint_key(CHECKPOINT)),
+        Arc::new(
+            HfProvider::new()
+                .with_checkpoint_key(CHECKPOINT)
+                .with_archive_checkpoint(".nemo", NEMO),
+        ),
     ]
 }
 

@@ -223,42 +223,7 @@ pub fn fetch_file(
     };
     // The request first, the slot second: a URL that answers with an error
     // status (a repo that is not there) leaves no directory behind.
-    let mut response = match ureq::get(url)
-        .config()
-        .http_status_as_error(false)
-        .build()
-        .call()
-    {
-        Ok(response) => response,
-        Err(source @ ureq::Error::BadUri(_)) => {
-            return Err(FetchError::BadUrl {
-                url: url.to_string(),
-                source,
-            });
-        }
-        Err(e) => {
-            return Err(FetchFailure::Transport {
-                url: url.to_string(),
-                source: Arc::new(e),
-            }
-            .into());
-        }
-    };
-    let status = response.status().as_u16();
-    if status >= 400 {
-        let retry_after = response
-            .headers()
-            .get("retry-after")
-            .and_then(|v| v.to_str().ok())
-            .and_then(|v| v.trim().parse::<u64>().ok())
-            .map(Duration::from_secs);
-        return Err(FetchFailure::Status {
-            url: url.to_string(),
-            status,
-            retry_after,
-        }
-        .into());
-    }
+    let mut response = get(url, None)?;
     let total = response.body().content_length();
     fs::create_dir_all(parent).map_err(IoAt::at("create directory", parent))?;
     let partial = partial_path(dest);
@@ -314,6 +279,83 @@ pub fn fetch_file(
     }
     progress.finish(TransferOutcome::Complete);
     Ok(())
+}
+
+/// The first `len` bytes of `url`, or all of it when it is shorter: what a
+/// reader of a file's header asks for before fetching the whole file.
+///
+/// The request asks for the range `bytes=0-{len - 1}`. A server that
+/// honours it answers `206` with those bytes; one that ignores it answers
+/// `200` with the whole body, of which only `len` bytes are read before the
+/// connection is dropped. Nothing is written to disk and no observer is
+/// told: a prefix is a few kilobytes.
+///
+/// # Errors
+/// [`FetchError::Failure`] for the network side, and
+/// [`FetchError::BadUrl`], as [`fetch_file`].
+pub fn fetch_prefix(
+    url: &str,
+    len: u64,
+) -> Result<Vec<u8>, FetchError> {
+    if len == 0 {
+        return Ok(Vec::new());
+    }
+    let mut response = get(url, Some(len))?;
+    let mut prefix = Vec::new();
+    response
+        .body_mut()
+        .as_reader()
+        .take(len)
+        .read_to_end(&mut prefix)
+        .map_err(|e| FetchFailure::Transport {
+            url: url.to_string(),
+            source: Arc::new(ureq::Error::from(e)),
+        })?;
+    Ok(prefix)
+}
+
+/// A `GET` of `url`, of its first `prefix` bytes when set, up to its
+/// response headers: an error status is a [`FetchFailure::Status`].
+fn get(
+    url: &str,
+    prefix: Option<u64>,
+) -> Result<ureq::http::Response<ureq::Body>, FetchError> {
+    let mut request = ureq::get(url);
+    if let Some(len) = prefix {
+        request = request.header("Range", format!("bytes=0-{}", len - 1));
+    }
+    let response = match request.config().http_status_as_error(false).build().call() {
+        Ok(response) => response,
+        Err(source @ ureq::Error::BadUri(_)) => {
+            return Err(FetchError::BadUrl {
+                url: url.to_string(),
+                source,
+            });
+        }
+        Err(e) => {
+            return Err(FetchFailure::Transport {
+                url: url.to_string(),
+                source: Arc::new(e),
+            }
+            .into());
+        }
+    };
+    let status = response.status().as_u16();
+    if status >= 400 {
+        let retry_after = response
+            .headers()
+            .get("retry-after")
+            .and_then(|v| v.to_str().ok())
+            .and_then(|v| v.trim().parse::<u64>().ok())
+            .map(Duration::from_secs);
+        return Err(FetchFailure::Status {
+            url: url.to_string(),
+            status,
+            retry_after,
+        }
+        .into());
+    }
+    Ok(response)
 }
 
 /// [`fetch_file`] with a required digest.
@@ -403,6 +445,7 @@ mod tests {
         refused_url,
         serve_once,
         serve_once_declaring,
+        serve_ranges,
         serve_status,
     };
 
@@ -483,6 +526,32 @@ mod tests {
         assert!(matches!(
             fetch_file("http://127.0.0.1:1/x", Path::new("/"), None, &[]).unwrap_err(),
             FetchError::NotAFilePath(_)
+        ));
+    }
+
+    /// A prefix is the file's first bytes, whether the server honours the
+    /// range or sends the whole file; all of a shorter file; nothing,
+    /// without a request, for none.
+    #[test]
+    fn test_fetch_prefix() {
+        let url = serve_ranges("f.bin", b"abcdefgh", 2);
+        assert_eq!(fetch_prefix(&url, 3).unwrap(), b"abc");
+        assert_eq!(fetch_prefix(&url, 64).unwrap(), b"abcdefgh");
+        let url = serve_once("f.bin", b"abcdefgh");
+        assert_eq!(fetch_prefix(&url, 3).unwrap(), b"abc");
+        assert!(fetch_prefix(&refused_url("f.bin"), 0).unwrap().is_empty());
+
+        let err = fetch_prefix(&serve_status("f.bin", 404), 3).unwrap_err();
+        assert!(
+            matches!(
+                err,
+                FetchError::Failure(FetchFailure::Status { status: 404, .. })
+            ),
+            "{err}"
+        );
+        assert!(matches!(
+            fetch_prefix(&refused_url("f.bin"), 3).unwrap_err(),
+            FetchError::Failure(FetchFailure::Transport { .. })
         ));
     }
 }

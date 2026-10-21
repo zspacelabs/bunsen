@@ -25,9 +25,11 @@ bunsen-asr parakeet transcribe recording.wav
 ```
 
 `list` shows the family's named models, with each one's licence, its files, and whether each is cached; every family
-also takes `hf:org/repo`, a Hugging Face repo in `transformers`' layout, whose `config.json` gives the geometry.
-`fetch NAME...` brings every file of the named models into the cache and prints where each one is (`--verify`
-re-hashes each pinned file): a deployment that runs `--offline` fills its cache this way ahead of time.
+also takes `hf:org/repo`, a Hugging Face repo in `transformers`' layout, whose `config.json` gives the geometry;
+`diarize` also takes one holding a Sortformer v2 `.nemo` alone, whose own config does
+(`hf:nvidia/diar_streaming_sortformer_4spk-v2.1`), read from the archive's head before the archive is fetched. `fetch
+NAME...` brings every file of the named models into the cache and prints where each one is (`--verify` re-hashes each
+pinned file): a deployment that runs `--offline` fills its cache this way ahead of time.
 
 `transcribe` loads `--model` (the family's default unless named) through bunsen's pretrained cache, fetching it on
 first use, logs its info card (name, licence, origin, every file and where it came from) at `INFO` (`-v`), and prints

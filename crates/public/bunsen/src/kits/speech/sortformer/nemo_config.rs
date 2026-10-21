@@ -17,6 +17,7 @@ use crate::{
         NemoMelFrontEndConfig,
         NemoPreprocessorConfig,
         NemoTransformerEncoderConfig,
+        parse_nemo_yaml,
     },
 };
 
@@ -55,6 +56,19 @@ pub struct NemoSortformerConfig {
 
     /// The projection, the head, and the streaming defaults.
     pub sortformer_modules: NemoSortformerModulesConfig,
+}
+
+/// Checks the model class is [`SORTFORMER_TARGET`].
+fn expect_model(target: &str) -> BunsenResult<()> {
+    if target == SORTFORMER_TARGET || target.ends_with(&format!(".{SORTFORMER_TARGET}")) {
+        Ok(())
+    } else {
+        Err(unsupported(
+            "target",
+            target,
+            &format!("not {SORTFORMER_TARGET}"),
+        ))
+    }
 }
 
 /// A `sortformer_modules` section: `SortformerModules`' arguments that shape
@@ -99,6 +113,22 @@ pub struct NemoSortformerModulesConfig {
 }
 
 impl NemoSortformerConfig {
+    /// Parses a `.nemo`'s config, its model class first: a config of another
+    /// model is refused naming its class, not the first section it lacks.
+    ///
+    /// # Errors
+    /// [`Unsupported`](crate::errors::BunsenErrorKind::Unsupported), naming
+    /// the class, for another model; as [`parse_nemo_yaml`] for text that
+    /// is not YAML or lacks a section.
+    pub fn from_yaml(yaml: &str) -> BunsenResult<Self> {
+        #[derive(Deserialize)]
+        struct Target {
+            target: String,
+        }
+        expect_model(&parse_nemo_yaml::<Target>(yaml)?.target)?;
+        parse_nemo_yaml(yaml)
+    }
+
     /// The [`SortformerStructureConfig`] the config describes: a
     /// `FastConformer` (the `encoder` section), `encoder_proj`, the
     /// transformer (the `transformer_encoder` section), and the speaker head,
@@ -114,15 +144,7 @@ impl NemoSortformerConfig {
     /// with a norm, an upsampled output, a learned silence embedding, or an
     /// activity head.
     pub fn structure(&self) -> BunsenResult<SortformerStructureConfig> {
-        if self.target != SORTFORMER_TARGET
-            && !self.target.ends_with(&format!(".{SORTFORMER_TARGET}"))
-        {
-            return Err(unsupported(
-                "target",
-                &self.target,
-                &format!("not {SORTFORMER_TARGET}"),
-            ));
-        }
+        expect_model(&self.target)?;
         let modules = &self.sortformer_modules;
         if !modules.target.ends_with("SortformerModules") {
             return Err(unsupported(
@@ -245,7 +267,6 @@ mod tests {
             nemo::{
                 FeatureNormalization,
                 NemoArchive,
-                parse_nemo_yaml,
             },
             sortformer::SortformerV2Config,
         },
@@ -293,6 +314,28 @@ mod tests {
         assert_eq!(front_end.n_mels, 24);
         assert_eq!(front_end.normalize, FeatureNormalization::None);
         assert!(!front_end.bf16_tables);
+    }
+
+    /// A config of another model is refused naming its class, before the
+    /// sections it lacks; one that is not YAML is an invalid resource.
+    #[test]
+    fn test_from_yaml() {
+        assert_eq!(
+            NemoSortformerConfig::from_yaml(&toy_yaml()).unwrap(),
+            parse_nemo_yaml::<NemoSortformerConfig>(&toy_yaml()).unwrap()
+        );
+        let err = NemoSortformerConfig::from_yaml(
+            "target: nemo.collections.asr.models.rnnt_bpe_models.EncDecRNNTBPEModel\n",
+        )
+        .unwrap_err();
+        assert_eq!(err.kind(), BunsenErrorKind::Unsupported, "{err}");
+        assert!(err.to_string().contains("EncDecRNNTBPEModel"), "{err}");
+        assert_eq!(
+            NemoSortformerConfig::from_yaml("target: [")
+                .unwrap_err()
+                .kind(),
+            BunsenErrorKind::InvalidResource
+        );
     }
 
     /// A model bunsen's Sortformer is not is refused, naming the field.
