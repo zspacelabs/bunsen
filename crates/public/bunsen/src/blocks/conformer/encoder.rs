@@ -144,7 +144,8 @@ impl ConformerEncoder {
         self.subsampling.output_len(len)
     }
 
-    /// Encodes features.
+    /// Encodes features: [`pre_encode`](Self::pre_encode), then
+    /// [`forward_pre_encoded`](Self::forward_pre_encoded).
     ///
     /// # Arguments
     /// * `features` - `[batch, n_mels, time]`.
@@ -159,6 +160,30 @@ impl ConformerEncoder {
         features: Tensor<3>,
         lengths: Option<&[usize]>,
     ) -> (Tensor<3>, Vec<usize>) {
+        let padded = lengths.is_some();
+        let (x, lengths) = self.pre_encode(features, lengths);
+        let x = self.forward_pre_encoded(x, padded.then_some(lengths.as_slice()));
+        (x, lengths)
+    }
+
+    /// The subsampling front alone: the pre-encode embeddings, before the
+    /// input scaling and the position table. A caller that edits the frame
+    /// sequence between the two halves (a streaming cache splicing in earlier
+    /// frames) runs this and then
+    /// [`forward_pre_encoded`](Self::forward_pre_encoded).
+    ///
+    /// # Arguments
+    /// * `features` - `[batch, n_mels, time]`.
+    /// * `lengths` - each item's valid frame count; `None` means every item
+    ///   fills `time`.
+    ///
+    /// # Returns
+    /// `[batch, output_len(time), d_model]`, and each item's output length.
+    pub fn pre_encode(
+        &self,
+        features: Tensor<3>,
+        lengths: Option<&[usize]>,
+    ) -> (Tensor<3>, Vec<usize>) {
         #[cfg(any(debug_assertions, test))]
         let [batch, time_in] = crate::contracts::unpack_shape_contract!(
             ["batch", "n_mels", "time"],
@@ -166,18 +191,7 @@ impl ConformerEncoder {
             &["batch", "time"],
         );
 
-        let padded = lengths.is_some();
-        let (mut x, lengths) = self.subsampling.forward(features, lengths);
-        if self.scale_input {
-            x = x.mul_scalar((self.d_model() as f64).sqrt());
-        }
-        let [_, time, d_model] = x.dims();
-        let device = x.device();
-        let positions = rel_position_table(time, d_model, &device);
-        let valid = padded.then(|| length_mask(&lengths, time, &device));
-        for layer in &self.layers {
-            x = layer.forward(x, positions.clone(), valid.clone());
-        }
+        let (x, lengths) = self.subsampling.forward(features, lengths);
 
         #[cfg(any(debug_assertions, test))]
         crate::contracts::assert_shape_contract_periodically!(
@@ -191,6 +205,58 @@ impl ConformerEncoder {
         );
 
         (x, lengths)
+    }
+
+    /// The encoder past its subsampling: the input scaling (when the encoder
+    /// scales), the relative-position table over the frames given, and the
+    /// Conformer blocks.
+    ///
+    /// # Arguments
+    /// * `x` - `[batch, frames, d_model]` pre-encode embeddings, as
+    ///   [`pre_encode`](Self::pre_encode) gives them.
+    /// * `lengths` - each item's valid frame count; `None` means every item
+    ///   fills `frames`.
+    ///
+    /// # Returns
+    /// `[batch, frames, d_model]`. Frames past an item's length hold values
+    /// that mean nothing.
+    pub fn forward_pre_encoded(
+        &self,
+        x: Tensor<3>,
+        lengths: Option<&[usize]>,
+    ) -> Tensor<3> {
+        let [batch, frames] = crate::contracts::unpack_shape_contract!(
+            ["batch", "frames", "d_model"],
+            &x.dims(),
+            &["batch", "frames"],
+            &[("d_model", self.d_model())],
+        );
+
+        let mut x = x;
+        if self.scale_input {
+            x = x.mul_scalar((self.d_model() as f64).sqrt());
+        }
+        let device = x.device();
+        let positions = rel_position_table(frames, self.d_model(), &device);
+        let valid = lengths.map(|lengths| length_mask(lengths, frames, &device));
+        for layer in &self.layers {
+            x = layer.forward(x, positions.clone(), valid.clone());
+        }
+
+        #[cfg(any(debug_assertions, test))]
+        crate::contracts::assert_shape_contract_periodically!(
+            ["batch", "frames", "d_model"],
+            &x.dims(),
+            &[
+                ("batch", batch),
+                ("frames", frames),
+                ("d_model", self.d_model()),
+            ],
+        );
+        #[cfg(not(any(debug_assertions, test)))]
+        let _ = batch;
+
+        x
     }
 }
 
@@ -214,6 +280,69 @@ mod tests {
         let (y, lengths) = module.forward(Tensor::zeros([1, 24, 20], &cpu_device()), None);
         assert_eq!(y.dims(), [1, 3, 16]);
         assert_eq!(lengths, [3]);
+    }
+
+    /// A small encoder that scales its input, as Sortformer v2's does.
+    fn scaling_encoder() -> ConformerEncoder {
+        ConformerEncoderConfig::new(
+            DwStridingSubsamplingConfig::new(24, 4, 16),
+            ConformerBlockConfig::new(16, 2, 32, 5),
+            2,
+        )
+        .with_scale_input(true)
+        .init(&cpu_device())
+    }
+
+    /// `forward` is exactly `pre_encode` then `forward_pre_encoded`, with and
+    /// without lengths; the pre-encode is the subsampling alone, the scaling
+    /// left to the second half.
+    #[test]
+    fn test_split_composes() {
+        use burn::tensor::Distribution;
+        let device = cpu_device();
+        let encoder = scaling_encoder();
+        let features = Tensor::<3>::random([2, 24, 40], Distribution::Default, &device);
+
+        let (whole, whole_lengths) = encoder.forward(features.clone(), None);
+        let (embs, lengths) = encoder.pre_encode(features.clone(), None);
+        assert_eq!(lengths, whole_lengths);
+        let (subsampled, _) = encoder.subsampling.forward(features.clone(), None);
+        embs.to_data().assert_eq(&subsampled.to_data(), true);
+        encoder
+            .forward_pre_encoded(embs, None)
+            .to_data()
+            .assert_eq(&whole.to_data(), true);
+
+        let given = [40, 26];
+        let (whole, whole_lengths) = encoder.forward(features.clone(), Some(&given));
+        let (embs, lengths) = encoder.pre_encode(features, Some(&given));
+        assert_eq!(lengths, whole_lengths);
+        assert_eq!(lengths, [encoder.output_len(40), encoder.output_len(26)]);
+        encoder
+            .forward_pre_encoded(embs, Some(&lengths))
+            .to_data()
+            .assert_eq(&whole.to_data(), true);
+    }
+
+    /// The length mask survives the split: a short item's valid frames,
+    /// batched behind a longer one and masked, are what it gives alone.
+    #[test]
+    fn test_split_masks_padding() {
+        use burn::tensor::{
+            Distribution,
+            Tolerance,
+        };
+        let device = cpu_device();
+        let encoder = scaling_encoder();
+        let embs = Tensor::<3>::random([2, 10, 16], Distribution::Default, &device);
+        let lengths = [10, 6];
+
+        let batched = encoder.forward_pre_encoded(embs.clone(), Some(&lengths));
+        let alone = encoder.forward_pre_encoded(embs.slice([1..2, 0..6]), None);
+        batched
+            .slice([1..2, 0..6])
+            .to_data()
+            .assert_approx_eq::<f32>(&alone.to_data(), Tolerance::absolute(1e-5));
     }
 
     #[test]
