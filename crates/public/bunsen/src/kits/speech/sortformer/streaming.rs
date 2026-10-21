@@ -21,6 +21,9 @@ use crate::errors::{
 /// `latest_boost`), grouped by speaker in arrival order, chronological within
 /// a speaker, with `silence_frames_per_speaker` silence slots each.
 ///
+/// A step also re-encodes `left_context` frames before its chunk, as context
+/// only: they neither come out nor join the FIFO again.
+///
 /// The latency is `(chunk_len + right_context)` encoder frames. The presets
 /// are the model cards' tables.
 #[derive(Config, Debug, PartialEq)]
@@ -30,6 +33,10 @@ pub struct SortformerStreamingConfig {
 
     /// The look-ahead each step sees past its chunk.
     pub right_context: usize,
+
+    /// The frames before its chunk each step re-encodes, as context.
+    #[config(default = "0")]
+    pub left_context: usize,
 
     /// The FIFO's capacity.
     pub fifo_len: usize,
@@ -64,6 +71,12 @@ pub struct SortformerStreamingConfig {
     /// speech frames ineligible.
     #[config(default = "0.5")]
     pub min_pos_scores_rate: f64,
+
+    /// A frame whose speaker probabilities sum below this is silent: what a
+    /// running-mean silence fill takes in
+    /// ([`SilenceFill::RunningMean`](super::SilenceFill::RunningMean)).
+    #[config(default = "0.2")]
+    pub silence_threshold: f64,
 }
 
 impl SortformerStreamingConfig {
@@ -87,6 +100,43 @@ impl SortformerStreamingConfig {
     /// frames of look-ahead, 30.4 s.
     pub fn nemotron_offline() -> Self {
         Self::new(340, 40, 40, 264, 300)
+    }
+
+    /// A streaming Sortformer v2 or v2.1 preset: one frame of left context,
+    /// three silence slots per speaker, a cache of 188.
+    fn v2(
+        chunk_len: usize,
+        right_context: usize,
+        fifo_len: usize,
+        update_period: usize,
+    ) -> Self {
+        Self::new(chunk_len, right_context, fifo_len, 188, update_period)
+            .with_left_context(1)
+            .with_silence_frames_per_speaker(3)
+    }
+
+    /// Sortformer v2's very-high-latency preset: chunks of 340 with 40 frames
+    /// of look-ahead, 30.4 s; the most accurate, for files.
+    pub fn sortformer_v2_very_high_latency() -> Self {
+        Self::v2(340, 40, 40, 300)
+    }
+
+    /// Sortformer v2's high-latency preset: chunks of 124 with 1 frame of
+    /// look-ahead, 10 s.
+    pub fn sortformer_v2_high_latency() -> Self {
+        Self::v2(124, 1, 124, 124)
+    }
+
+    /// Sortformer v2's low-latency preset: chunks of 6 with 7 frames of
+    /// look-ahead, 1.04 s.
+    pub fn sortformer_v2_low_latency() -> Self {
+        Self::v2(6, 7, 188, 144)
+    }
+
+    /// Sortformer v2's ultra-low-latency preset: chunks of 3 with 1 frame of
+    /// look-ahead, 0.32 s.
+    pub fn sortformer_v2_ultra_low_latency() -> Self {
+        Self::v2(3, 1, 188, 144)
     }
 
     /// The latency, in encoder frames: a chunk and its look-ahead.
@@ -164,6 +214,34 @@ mod tests {
             SortformerStreamingConfig::nemotron_offline().latency_frames(),
             380
         );
+        assert_eq!(
+            SortformerStreamingConfig::nemotron_low_latency().left_context,
+            0
+        );
+    }
+
+    /// The v2 presets: the model card's latencies, one frame of left
+    /// context, and budgets of 44 frames per speaker of 4.
+    #[test]
+    fn test_v2_presets() {
+        let presets = [
+            (
+                SortformerStreamingConfig::sortformer_v2_very_high_latency(),
+                380,
+            ),
+            (SortformerStreamingConfig::sortformer_v2_high_latency(), 125),
+            (SortformerStreamingConfig::sortformer_v2_low_latency(), 13),
+            (
+                SortformerStreamingConfig::sortformer_v2_ultra_low_latency(),
+                4,
+            ),
+        ];
+        for (preset, latency) in presets {
+            preset.check(4).unwrap();
+            assert_eq!(preset.latency_frames(), latency);
+            assert_eq!(preset.left_context, 1);
+            assert_eq!(preset.speaker_budget(4), 44);
+        }
     }
 
     #[test]

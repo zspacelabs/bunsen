@@ -5,6 +5,7 @@ use burn::{
         Int,
         TensorData,
     },
+    tensor::Device,
 };
 
 use super::SortformerStreamingConfig;
@@ -12,6 +13,84 @@ use crate::errors::{
     BunsenError,
     BunsenResult,
 };
+
+/// What a compressed cache's silence slots hold.
+#[derive(Clone, Debug)]
+pub enum SilenceFill {
+    /// A learned embedding, `[d_model]`: `Nemotron-3-Diarization`'s.
+    Learned(Tensor<1>),
+
+    /// The running mean of the silent frames the FIFO has moved to the cache
+    /// (those whose speaker probabilities sum below
+    /// [`silence_threshold`](SortformerStreamingConfig::silence_threshold)),
+    /// zero before the first: Sortformer v2's.
+    RunningMean {
+        /// `[d_model]`.
+        mean: Tensor<1>,
+
+        /// The silent frames it is the mean of.
+        frames: usize,
+    },
+}
+
+impl SilenceFill {
+    /// A running mean of `d_model` values, not yet of any frame.
+    pub fn running_mean(
+        d_model: usize,
+        device: &Device,
+    ) -> Self {
+        Self::RunningMean {
+            mean: Tensor::zeros([d_model], device),
+            frames: 0,
+        }
+    }
+
+    /// The embedding the silence slots hold, `[d_model]`.
+    pub fn embedding(&self) -> &Tensor<1> {
+        match self {
+            Self::Learned(e) => e,
+            Self::RunningMean { mean, .. } => mean,
+        }
+    }
+
+    /// Takes the silent frames among `embeds` into a running mean; a learned
+    /// fill is left as it is.
+    ///
+    /// # Arguments
+    /// * `embeds` - `[frames, d_model]`.
+    /// * `probs` - `frames * n_speakers`, frame-major.
+    fn take_in(
+        &mut self,
+        embeds: &Tensor<2>,
+        probs: &[f32],
+        n_speakers: usize,
+        threshold: f32,
+    ) {
+        let Self::RunningMean { mean, frames } = self else {
+            return;
+        };
+        let silent: Vec<i64> = probs
+            .chunks_exact(n_speakers)
+            .enumerate()
+            .filter(|(_, row)| row.iter().sum::<f32>() < threshold)
+            .map(|(f, _)| f as i64)
+            .collect();
+        if silent.is_empty() {
+            return;
+        }
+        let device = embeds.device();
+        let count = silent.len();
+        let indices = Tensor::<1, Int>::from_data(TensorData::new(silent, [count]), &device);
+        let sum = embeds
+            .clone()
+            .select(0, indices)
+            .sum_dim(0)
+            .squeeze_dim::<1>(0);
+        let total = *frames + count;
+        *mean = (mean.clone().mul_scalar(*frames as f64) + sum).div_scalar(total as f64);
+        *frames = total;
+    }
+}
 
 /// One stream's Arrival-Order Speaker Cache and FIFO, between steps.
 ///
@@ -28,6 +107,9 @@ pub struct SpeakerCache {
     config: SortformerStreamingConfig,
     n_speakers: usize,
 
+    /// What a compression's silence slots hold.
+    silence: SilenceFill,
+
     /// `[cache_frames, d_model]`.
     embeds: Option<Tensor<2>>,
 
@@ -43,18 +125,20 @@ pub struct SpeakerCache {
 }
 
 impl SpeakerCache {
-    /// An empty cache.
+    /// An empty cache, its silence slots filled by `silence`.
     ///
     /// # Errors
     /// As [`SortformerStreamingConfig::check`].
     pub fn new(
         config: SortformerStreamingConfig,
         n_speakers: usize,
+        silence: SilenceFill,
     ) -> BunsenResult<Self> {
         config.check(n_speakers)?;
         Ok(Self {
             config,
             n_speakers,
+            silence,
             embeds: None,
             probs: Vec::new(),
             compressed: false,
@@ -66,6 +150,11 @@ impl SpeakerCache {
     /// The config.
     pub fn config(&self) -> &SortformerStreamingConfig {
         &self.config
+    }
+
+    /// What the silence slots hold.
+    pub fn silence(&self) -> &SilenceFill {
+        &self.silence
     }
 
     /// The frames in the cache.
@@ -97,15 +186,15 @@ impl SpeakerCache {
     }
 
     /// Records a step: the chunk joins the FIFO, an overflowing FIFO moves its
-    /// oldest frames to the cache, and an overflowing cache is compressed.
+    /// oldest frames to the cache (a running-mean silence fill taking in the
+    /// silent ones), and an overflowing cache is compressed.
     ///
     /// # Arguments
     /// * `step_probs` - the step's speaker probabilities at the encoder rate,
     ///   `(cached + chunk + look-ahead) * n_speakers`, frame-major, over the
     ///   frames it ran on: [`cached`](Self::cached)'s, then the chunk's.
-    /// * `chunk` - `[chunk_frames, d_model]`, the chunk's embeddings, its
-    ///   look-ahead excluded.
-    /// * `silence` - `[d_model]`, what a compressed cache's silence slots hold.
+    /// * `chunk` - `[chunk_frames, d_model]`, the chunk's embeddings, its left
+    ///   context and look-ahead excluded.
     ///
     /// # Errors
     /// [`Illegal`](crate::errors::BunsenErrorKind::Illegal) if `step_probs`
@@ -114,7 +203,6 @@ impl SpeakerCache {
         &mut self,
         step_probs: &[f32],
         chunk: Tensor<2>,
-        silence: &Tensor<1>,
     ) -> BunsenResult<()> {
         let s = self.n_speakers;
         let (n_cache, n_fifo) = (self.cache_frames(), self.fifo_frames());
@@ -147,16 +235,20 @@ impl SpeakerCache {
             step_probs[..n_cache * s].to_vec()
         };
         probs.extend_from_slice(&fifo_probs[..popped * s]);
-        let embeds = cat_present(
-            self.embeds.take(),
-            Some(fifo.clone().slice_dim(0, 0..popped)),
-        )
-        .expect("the popped frames are present");
+        let popped_embeds = fifo.clone().slice_dim(0, 0..popped);
+        self.silence.take_in(
+            &popped_embeds,
+            &fifo_probs[..popped * s],
+            s,
+            self.config.silence_threshold as f32,
+        );
+        let embeds = cat_present(self.embeds.take(), Some(popped_embeds))
+            .expect("the popped frames are present");
         self.fifo = (popped < n_fifo).then(|| fifo.slice_dim(0, popped..n_fifo));
 
         let n = embeds.dims()[0];
         if n > self.config.spkcache_len {
-            let (embeds, probs) = self.compress(embeds, &probs, silence);
+            let (embeds, probs) = self.compress(embeds, &probs);
             self.embeds = Some(embeds);
             self.probs = probs;
             self.compressed = true;
@@ -173,7 +265,7 @@ impl SpeakerCache {
                 &embeds.dims(),
                 &[
                     ("frames", self.probs.len() / s),
-                    ("d_model", silence.dims()[0])
+                    ("d_model", self.silence.embedding().dims()[0])
                 ],
             );
         }
@@ -203,7 +295,6 @@ impl SpeakerCache {
         &self,
         embeds: Tensor<2>,
         probs: &[f32],
-        silence: &Tensor<1>,
     ) -> (Tensor<2>, Vec<f32>) {
         let s = self.n_speakers;
         let n = probs.len() / s;
@@ -217,7 +308,8 @@ impl SpeakerCache {
             ),
             &device,
         );
-        let table = Tensor::cat(vec![embeds, silence.clone().unsqueeze_dim(0)], 0);
+        let silence = self.silence.embedding().clone();
+        let table = Tensor::cat(vec![embeds, silence.unsqueeze_dim(0)], 0);
         let embeds = table.select(0, indices);
 
         let mut kept = Vec::with_capacity(selected.len() * s);
@@ -342,6 +434,10 @@ mod tests {
         SortformerStreamingConfig::new(3, 1, 6, 12, 4)
     }
 
+    fn learned() -> SilenceFill {
+        SilenceFill::Learned(Tensor::zeros([2], &cpu_device()))
+    }
+
     fn frames(
         n: usize,
         from: f32,
@@ -354,22 +450,15 @@ mod tests {
     /// period.
     #[test]
     fn test_fifo_overflows_into_the_cache() {
-        let mut cache = SpeakerCache::new(config(), 3).unwrap();
-        let silence = Tensor::<1>::zeros([2], &cpu_device());
+        let mut cache = SpeakerCache::new(config(), 3, learned()).unwrap();
         assert!(cache.cached().is_none());
 
-        cache
-            .update(&[0.1; 3 * 3], frames(3, 0.0), &silence)
-            .unwrap();
+        cache.update(&[0.1; 3 * 3], frames(3, 0.0)).unwrap();
         assert_eq!((cache.cache_frames(), cache.fifo_frames()), (0, 3));
-        cache
-            .update(&[0.1; 6 * 3], frames(3, 10.0), &silence)
-            .unwrap();
+        cache.update(&[0.1; 6 * 3], frames(3, 10.0)).unwrap();
         assert_eq!((cache.cache_frames(), cache.fifo_frames()), (0, 6));
         // 9 frames: 3 over, the update period of 4 moves.
-        cache
-            .update(&[0.1; 9 * 3], frames(3, 20.0), &silence)
-            .unwrap();
+        cache.update(&[0.1; 9 * 3], frames(3, 20.0)).unwrap();
         assert_eq!((cache.cache_frames(), cache.fifo_frames()), (4, 5));
         assert!(!cache.is_compressed());
         let cached = cache.cached().unwrap();
@@ -382,7 +471,39 @@ mod tests {
             .unwrap();
         assert_eq!(first, [0.0, 1.0]);
 
-        assert!(cache.update(&[0.1; 2], frames(1, 0.0), &silence).is_err());
+        assert!(cache.update(&[0.1; 2], frames(1, 0.0)).is_err());
+    }
+
+    /// A running mean takes in the silent frames the FIFO pops, and only
+    /// those: frames whose probabilities sum below the threshold.
+    #[test]
+    fn test_running_mean_takes_in_popped_silence() {
+        let mut cache =
+            SpeakerCache::new(config(), 3, SilenceFill::running_mean(2, &cpu_device())).unwrap();
+        // 9 frames, the first 4 of which pop: frames 0 and 2 silent
+        // (0.05 * 3 = 0.15 < 0.2), 1 and 3 speech.
+        let mut probs = Vec::new();
+        for f in 0..9 {
+            probs.extend(if f % 2 == 0 {
+                [0.05; 3]
+            } else {
+                [0.9, 0.05, 0.05]
+            });
+        }
+        cache.update(&probs[..3 * 3], frames(3, 0.0)).unwrap();
+        cache.update(&probs[..6 * 3], frames(3, 10.0)).unwrap();
+        let SilenceFill::RunningMean { frames: n, .. } = cache.silence() else {
+            panic!("a running mean")
+        };
+        assert_eq!(*n, 0);
+        cache.update(&probs, frames(3, 20.0)).unwrap();
+        let SilenceFill::RunningMean { mean, frames: n } = cache.silence() else {
+            panic!("a running mean")
+        };
+        assert_eq!(*n, 2);
+        // Frames 0 ([0, 1]) and 2 ([4, 5]): the mean is [2, 3].
+        let mean: Vec<f32> = mean.clone().into_data().try_into_vec_as().unwrap();
+        assert_eq!(mean, [2.0, 3.0]);
     }
 
     /// A compression keeps the cache's capacity, groups frames by speaker
@@ -391,7 +512,7 @@ mod tests {
     #[test]
     fn test_compression_groups_by_speaker() {
         let c = config();
-        let cache = SpeakerCache::new(c.clone(), 3).unwrap();
+        let cache = SpeakerCache::new(c.clone(), 3, learned()).unwrap();
         // 16 frames: speaker 0 talks in 0..6, speaker 1 in 6..12, nobody after.
         let mut probs = Vec::new();
         for f in 0..16 {
@@ -420,7 +541,7 @@ mod tests {
     /// Ties go to the earlier frame, on every backend.
     #[test]
     fn test_ties_are_deterministic() {
-        let cache = SpeakerCache::new(config(), 3).unwrap();
+        let cache = SpeakerCache::new(config(), 3, learned()).unwrap();
         let probs: Vec<f32> = (0..16).flat_map(|_| [0.9f32, 0.1, 0.1]).collect();
         let a = cache.select(&probs, 16);
         assert_eq!(a, cache.select(&probs, 16));
