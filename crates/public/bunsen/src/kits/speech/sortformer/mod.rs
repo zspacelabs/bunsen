@@ -31,9 +31,13 @@
 //! - [`weights`] (feature `store`): loading tensors named as `transformers`'
 //!   `Nemotron3DiarizationForAudioFrameClassification` state dict, or as a
 //!   Sortformer v2 `.nemo`'s.
+//! - `NemoSortformerConfig` (feature `nemo`): a Sortformer `.nemo`'s config,
+//!   which gives the model's [`SortformerStructureConfig`] and its front end's
+//!   config.
 //!
-//! Its front end is `NeMo`'s mel front end,
-//! [`NemoMelFrontEndConfig::nemotron_diarization`](crate::kits::speech::nemo::NemoMelFrontEndConfig::nemotron_diarization).
+//! Its front end is `NeMo`'s mel front end:
+//! [`NemoMelFrontEndConfig::nemotron_diarization`](crate::kits::speech::nemo::NemoMelFrontEndConfig::nemotron_diarization)
+//! for Nemotron, a `.nemo`'s `preprocessor` section for v2.
 
 pub mod blocks;
 
@@ -51,6 +55,11 @@ pub mod pretrained;
 
 #[cfg(feature = "store")]
 pub mod weights;
+
+#[cfg(feature = "nemo")]
+mod nemo_config;
+#[cfg(feature = "nemo")]
+pub use nemo_config::*;
 
 #[cfg(all(test, feature = "store_safetensors"))]
 mod toy_tests;
