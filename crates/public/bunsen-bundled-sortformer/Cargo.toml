@@ -1,6 +1,6 @@
 [package]
 name = "bunsen-bundled-sortformer"
-description = "Bunsen bundled Sortformer diarization assets: fetches NVIDIA's Nemotron-3-Diarization checkpoint and an ONNX export of it at build time, digest-pinned, each behind a feature, and generates a Rust reference model from the export. Hosts none."
+description = "Bunsen bundled Sortformer diarization assets: fetches NVIDIA's Nemotron-3-Diarization and streaming Sortformer v2 and v2.1 checkpoints, and ONNX exports of Nemotron and v2.1, at build time, digest-pinned, each behind a feature, and generates Rust reference models from the exports. Hosts none."
 publish = false
 
 authors.workspace = true
@@ -46,3 +46,18 @@ checkpoint_nemotron = []
 ## disagree with. The export carries the weights of NVIDIA's checkpoint
 ## exactly.
 onnx_gen = ["dep:burn-onnx", "dep:onnx-ir"]
+
+## Fetch NVIDIA's streaming Sortformer v2 (`diar_streaming_sortformer_4spk-v2`)
+## `.nemo` (471 MB), laid out under `cache_dir()`. CC-BY-4.0.
+checkpoint_v2 = []
+
+## Fetch NVIDIA's streaming Sortformer v2.1
+## (`diar_streaming_sortformer_4spk-v2.1`) `.nemo` (471 MB), laid out under
+## `cache_dir()`: the weights the `onnx_gen_v2_1` reference carries. NVIDIA
+## Open Model License.
+checkpoint_v2_1 = []
+
+## Fetch `Scrybl`'s ONNX export of NVIDIA's streaming Sortformer v2.1 (492 MB,
+## `NeMo`'s own export at opset 17) and generate a Rust model from it, in
+## `crate::onnx_gen`: the v2 family's *reference implementation*.
+onnx_gen_v2_1 = ["dep:burn-onnx"]

@@ -5,13 +5,16 @@ Run once; commit the output. Regenerating is not part of CI.
 
     python3 -m venv /tmp/sfvenv
     /tmp/sfvenv/bin/pip install onnxruntime numpy
-    /tmp/sfvenv/bin/python tools/gen_sortformer_fixtures.py NEMOTRON_ONNX
+    /tmp/sfvenv/bin/python tools/gen_sortformer_fixtures.py NEMOTRON_ONNX V2_1_ONNX
 
 `NEMOTRON_ONNX` is `altunenes/parakeet-rs`'s
 `nemotron-3-diarization/nemotron3_diar_v3.onnx` at revision
 4d2a8bc71f5c896ec40faa59732e6716295edaf2 (sha256 915e4fa2...): the file
 `bunsen-bundled-sortformer` fetches, before its build rewrites it for
-`burn-onnx`.
+`burn-onnx`. `V2_1_ONNX` is `Scrybl/diar_streaming_sortformer_4spk-v2.1`'s
+`diar_streaming_sortformer_4spk-v2.1.onnx` at revision
+3be92087de17e4e9063c9cfabc104f9809b2d037 (sha256 0182539a...), which the
+crate imports as published.
 
 Pinned versions used to produce the committed fixture:
     onnxruntime 1.31.0, numpy 2.5.4
@@ -29,6 +32,10 @@ One output, `crates/validation/sortformer-model-validation/testdata/onnx_referen
     below their allocated frames), so the graph's concat-and-pad path runs.
     Each output tensor is recorded as its `shape`, `sum`, `abs_sum`, and a
     `stride`-subsampled `samples` of its row-major flattening.
+`v2_1`
+    The v2.1 step on the same inputs, at the same geometries and a third with
+    an empty speaker cache and FIFO (a stream's first step): its 80 ms
+    predictions and the chunk's pre-encode embeddings.
 """
 
 import json
@@ -47,6 +54,7 @@ D_ENC = 512
 # (mel frames, cache frames, cache valid, fifo frames, fifo valid); the Rust
 # side uses the same constants.
 GEOMETRIES = [(112, 24, 20, 16, 10), (64, 8, 8, 4, 4)]
+V2_1_GEOMETRIES = GEOMETRIES + [(64, 0, 0, 0, 0)]
 
 # About this many samples per recorded tensor.
 N_RECORDED = 2048
@@ -83,24 +91,55 @@ def record(x: np.ndarray) -> dict:
     }
 
 
-def main(onnx: pathlib.Path) -> None:
+def session(onnx: pathlib.Path) -> ort.InferenceSession:
     options = ort.SessionOptions()
     options.graph_optimization_level = ort.GraphOptimizationLevel.ORT_DISABLE_ALL
-    session = ort.InferenceSession(str(onnx), options, providers=["CPUExecutionProvider"])
+    return ort.InferenceSession(str(onnx), options, providers=["CPUExecutionProvider"])
+
+
+def inputs(mels: int, cache: int, cache_valid: int, fifo: int, fifo_valid: int) -> dict:
+    i64 = lambda v: np.array([v], np.int64)
+    return {
+        "chunk": synthetic_chunk(mels),
+        "chunk_lengths": i64(mels),
+        "spkcache": synthetic_embeddings(cache, 1),
+        "spkcache_lengths": i64(cache_valid),
+        "fifo": synthetic_embeddings(fifo, 2),
+        "fifo_lengths": i64(fifo_valid),
+    }
+
+
+def geometry(mels: int, cache: int, cache_valid: int, fifo: int, fifo_valid: int) -> dict:
+    return {
+        "mel_frames": mels,
+        "spkcache_frames": cache,
+        "spkcache_valid": cache_valid,
+        "fifo_frames": fifo,
+        "fifo_valid": fifo_valid,
+    }
+
+
+def v2_1_steps(onnx: pathlib.Path) -> list:
+    graph = session(onnx)
+    steps = []
+    for g in V2_1_GEOMETRIES:
+        preds, embs, emb_lens = graph.run(None, inputs(*g))
+        steps.append(geometry(*g) | {
+            "preds": record(preds),
+            "chunk_pre_encode_embs": record(embs),
+            "chunk_pre_encode_lengths": [int(v) for v in emb_lens],
+        })
+        print(f"v2.1 mels {g[0]} cache {g[1]}: preds {preds.shape} max {preds.max():.3f}")
+    return steps
+
+
+def main(onnx: pathlib.Path, v2_1: pathlib.Path) -> None:
+    session_ = session(onnx)
 
     steps = []
     for mels, cache, cache_valid, fifo, fifo_valid in GEOMETRIES:
-        i64 = lambda v: np.array([v], np.int64)
-        preds, hires, embs, emb_lens = session.run(
-            None,
-            {
-                "chunk": synthetic_chunk(mels),
-                "chunk_lengths": i64(mels),
-                "spkcache": synthetic_embeddings(cache, 1),
-                "spkcache_lengths": i64(cache_valid),
-                "fifo": synthetic_embeddings(fifo, 2),
-                "fifo_lengths": i64(fifo_valid),
-            },
+        preds, hires, embs, emb_lens = session_.run(
+            None, inputs(mels, cache, cache_valid, fifo, fifo_valid)
         )
         steps.append({
             "mel_frames": mels,
@@ -121,9 +160,12 @@ def main(onnx: pathlib.Path) -> None:
                   "/nemotron-3-diarization/nemotron3_diar_v3.onnx",
         "runtime": f"onnxruntime {ort.__version__}",
         "nemotron": steps,
+        "v2_1_source": "Scrybl/diar_streaming_sortformer_4spk-v2.1@3be92087de17e4e9063c9cfabc104f9809b2d037"
+                       "/diar_streaming_sortformer_4spk-v2.1.onnx",
+        "v2_1": v2_1_steps(v2_1),
     }) + "\n")
     print(f"wrote {OUT}")
 
 
 if __name__ == "__main__":
-    main(pathlib.Path(sys.argv[1]))
+    main(pathlib.Path(sys.argv[1]), pathlib.Path(sys.argv[2]))

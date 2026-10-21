@@ -1,14 +1,15 @@
 //! Bunsen Sortformer bundled model assets.
 //!
-//! **This crate hosts nothing.** NVIDIA's `Nemotron-3-Diarization` is 397 MB
-//! and its ONNX export as much again, far too large to commit, so this crate
-//! *fetches* them, pins each file to a SHA-256, and keeps them in `OUT_DIR`.
+//! **This crate hosts nothing.** NVIDIA's `Nemotron-3-Diarization` is 397 MB,
+//! the streaming Sortformer v2 and v2.1 `.nemo`s 471 MB each, and the ONNX
+//! exports as much again, far too large to commit, so this crate *fetches*
+//! them, pins each file to a SHA-256, and keeps them in `OUT_DIR`.
 //!
 //! The pretrained assets are laid out in `OUT_DIR` as a **pretrained
 //! cache**, `pretrained/sortformer/<namespace>/<sha256>/<file>`, which is how
 //! bunsen's `data::pretrained::PretrainedCache` roots a resource. A cache
-//! pointed at `cache_dir()`, offline, hits `nvidia/nemotron-3-diarization`
-//! without knowing it was bundled.
+//! pointed at `cache_dir()`, offline, hits the bundled models without knowing
+//! they were bundled.
 //!
 //! ## What it exposes
 //!
@@ -16,9 +17,12 @@
 //!
 //! | Item | Feature | What it is |
 //! |---|---|---|
-//! | `cache_dir()` | `checkpoint_nemotron` | `OUT_DIR`, laid out as a pretrained cache |
+//! | `cache_dir()` | any `checkpoint_*` | `OUT_DIR`, laid out as a pretrained cache |
 //! | `nemotron_safetensors()`, `nemotron_config()` | `checkpoint_nemotron` | `Nemotron-3-Diarization`'s `model.safetensors` and `config.json` |
-//! | `onnx_gen::NemotronDiarizationModel` | `onnx_gen` | the reference model generated from `altunenes/parakeet-rs`'s export |
+//! | `v2_nemo()` | `checkpoint_v2` | `diar_streaming_sortformer_4spk-v2.nemo` |
+//! | `v2_1_nemo()` | `checkpoint_v2_1` | `diar_streaming_sortformer_4spk-v2.1.nemo` |
+//! | `onnx_gen::NemotronDiarizationModel` | `onnx_gen` | the reference model generated from `altunenes/parakeet-rs`'s Nemotron export |
+//! | `onnx_gen::SortformerV21Model` | `onnx_gen_v2_1` | the reference model generated from `Scrybl`'s v2.1 export |
 //!
 //! ## Using local copies: the `SORTFORMER_*` variables
 //!
@@ -32,6 +36,9 @@
 //! | `SORTFORMER_NEMOTRON_SAFETENSORS` | `model.safetensors`, behind `nemotron_safetensors()` |
 //! | `SORTFORMER_NEMOTRON_CONFIG` | `config.json`, behind `nemotron_config()` |
 //! | `SORTFORMER_ONNX_NEMOTRON` | `nemotron3_diar_v3.onnx`, behind `onnx_gen::NemotronDiarizationModel` |
+//! | `SORTFORMER_V2_NEMO` | the v2 `.nemo`, behind `v2_nemo()` |
+//! | `SORTFORMER_V2_1_NEMO` | the v2.1 `.nemo`, behind `v2_1_nemo()` |
+//! | `SORTFORMER_ONNX_V2_1` | `diar_streaming_sortformer_4spk-v2.1.onnx`, behind `onnx_gen::SortformerV21Model` |
 //!
 //! The variable must name a file, or the build fails. Nothing is downloaded
 //! for that asset. A file that is the pinned asset is put where the download
@@ -45,7 +52,11 @@
 /// `bunsen::data::pretrained::PretrainedCache` is pointed at to read the
 /// bundled assets. A cache that fetches other models into it will change it,
 /// so a test wants it offline.
-#[cfg(feature = "checkpoint_nemotron")]
+#[cfg(any(
+    feature = "checkpoint_nemotron",
+    feature = "checkpoint_v2",
+    feature = "checkpoint_v2_1"
+))]
 pub fn cache_dir() -> &'static std::path::Path {
     std::path::Path::new(env!("SORTFORMER_CACHE_DIR"))
 }
@@ -69,12 +80,32 @@ pub fn nemotron_config() -> &'static std::path::Path {
     std::path::Path::new(env!("SORTFORMER_NEMOTRON_CONFIG_PATH"))
 }
 
-/// The ONNX-generated reference model.
+/// The fetched `.nemo` of NVIDIA's streaming Sortformer v2
+/// (`diar_streaming_sortformer_4spk-v2`).
 ///
-/// A transliteration of `altunenes/parakeet-rs`'s export of NVIDIA's
-/// `Nemotron-3-Diarization`: one streaming step, `NeMo`'s `forward_for_export`
-/// with the 10 ms predictions added. The speaker cache and FIFO are the
-/// caller's to keep, as in `NeMo`.
+/// Resolved at build time, as [`nemotron_safetensors`] is
+/// (`SORTFORMER_V2_NEMO`).
+#[cfg(feature = "checkpoint_v2")]
+pub fn v2_nemo() -> &'static std::path::Path {
+    std::path::Path::new(env!("SORTFORMER_V2_NEMO_PATH"))
+}
+
+/// The fetched `.nemo` of NVIDIA's streaming Sortformer v2.1
+/// (`diar_streaming_sortformer_4spk-v2.1`).
+///
+/// Resolved at build time, as [`nemotron_safetensors`] is
+/// (`SORTFORMER_V2_1_NEMO`).
+#[cfg(feature = "checkpoint_v2_1")]
+pub fn v2_1_nemo() -> &'static std::path::Path {
+    std::path::Path::new(env!("SORTFORMER_V2_1_NEMO_PATH"))
+}
+
+/// The ONNX-generated reference models.
+///
+/// `NemotronDiarizationModel` (feature `onnx_gen`): a transliteration of
+/// `altunenes/parakeet-rs`'s export of NVIDIA's `Nemotron-3-Diarization`: one
+/// streaming step, `NeMo`'s `forward_for_export` with the 10 ms predictions
+/// added. The speaker cache and FIFO are the caller's to keep, as in `NeMo`.
 ///
 /// | Inputs | Outputs |
 /// |---|---|
@@ -87,8 +118,20 @@ pub fn nemotron_config() -> &'static std::path::Path {
 /// The cache and FIFO must each hold at least one frame: the generated model
 /// cannot run an empty one, as a stream's first step would.
 ///
+/// `SortformerV21Model` (feature `onnx_gen_v2_1`): a transliteration of
+/// `Scrybl`'s export of NVIDIA's streaming Sortformer v2.1, `NeMo`'s own
+/// `forward_for_export` step at opset 17.
+///
+/// | Inputs | Outputs |
+/// |---|---|
+/// | `chunk [B, T, 128]`, `chunk_lengths [1]`, `spkcache [B, C, 512]`, `spkcache_lengths [1]`, `fifo [B, F, 512]`, `fifo_lengths [1]` | `spkcache_fifo_chunk_preds [B, C+F+T/8, 4]` (80 ms), `chunk_pre_encode_embs [B, T/8, 512]`, `chunk_pre_encode_lengths [1]` |
+///
+/// The lengths are `i64`, as for Nemotron's. Batch norm is folded into the
+/// convolutions, so the graph's weights compare to the checkpoint's only
+/// after folding; its outputs compare directly.
+///
 /// Weights are loaded from `OUT_DIR` at run time rather than embedded.
-#[cfg(feature = "onnx_gen")]
+#[cfg(any(feature = "onnx_gen", feature = "onnx_gen_v2_1"))]
 pub mod onnx_gen {
     use burn::prelude::*;
 
@@ -99,6 +142,7 @@ pub mod onnx_gen {
 
     /// The reference Nemotron diarization step.
     // Machine-generated: not held to this crate's lint bar.
+    #[cfg(feature = "onnx_gen")]
     #[allow(warnings, clippy::all)]
     mod nemotron {
         use super::*;
@@ -112,16 +156,42 @@ pub mod onnx_gen {
             }
         }
     }
+    #[cfg(feature = "onnx_gen")]
     pub use nemotron::Model as NemotronDiarizationModel;
+
+    /// The reference Sortformer v2.1 step.
+    // Machine-generated: not held to this crate's lint bar.
+    #[cfg(feature = "onnx_gen_v2_1")]
+    #[allow(warnings, clippy::all)]
+    mod v2_1 {
+        use super::*;
+
+        include!(concat!(env!("OUT_DIR"), "/sortformer_v2_1.rs"));
+
+        impl Model {
+            /// Loads the reference step from the generated weights.
+            pub fn load_pretrained(device: &Device) -> Self {
+                Self::from_file(out_dir().join("sortformer_v2_1.bpk"), device)
+            }
+        }
+    }
+    #[cfg(feature = "onnx_gen_v2_1")]
+    pub use v2_1::Model as SortformerV21Model;
 }
 
 #[cfg(test)]
 mod tests {
     /// Without a feature the crate is deliberately empty; this documents that
     /// rather than leaving a suite that silently has nothing in it.
-    #[cfg(not(any(feature = "checkpoint_nemotron", feature = "onnx_gen")))]
+    #[cfg(not(any(
+        feature = "checkpoint_nemotron",
+        feature = "checkpoint_v2",
+        feature = "checkpoint_v2_1",
+        feature = "onnx_gen",
+        feature = "onnx_gen_v2_1"
+    )))]
     #[test]
-    #[ignore = "no assets fetched; rerun with --features checkpoint_nemotron and/or onnx_gen"]
+    #[ignore = "no assets fetched; rerun with a checkpoint_* or onnx_gen* feature"]
     fn test_assets_need_a_feature() {}
 
     /// Every pretrained asset sits in the cache layout under the root the
@@ -131,6 +201,18 @@ mod tests {
     fn test_assets_are_laid_out_as_a_pretrained_cache() {
         let root = super::cache_dir().join("pretrained").join("sortformer");
         for path in [super::nemotron_safetensors(), super::nemotron_config()] {
+            assert!(path.is_file(), "{} is missing", path.display());
+            let rel = path.strip_prefix(root.join("nvidia")).unwrap();
+            assert_eq!(rel.components().count(), 2, "{}", path.display());
+        }
+    }
+
+    /// The `.nemo`s sit in the same layout.
+    #[cfg(all(feature = "checkpoint_v2", feature = "checkpoint_v2_1"))]
+    #[test]
+    fn test_nemos_are_laid_out_as_a_pretrained_cache() {
+        let root = super::cache_dir().join("pretrained").join("sortformer");
+        for path in [super::v2_nemo(), super::v2_1_nemo()] {
             assert!(path.is_file(), "{} is missing", path.display());
             let rel = path.strip_prefix(root.join("nvidia")).unwrap();
             assert_eq!(rel.components().count(), 2, "{}", path.display());
