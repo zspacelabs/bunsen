@@ -278,6 +278,42 @@ pub fn ami_reference() -> AmiReference {
     serde_json::from_str(&text).expect("parse the AMI reference fixture")
 }
 
+/// `testdata/ami_reference_v2.json`: `NeMo`'s own diarization of the AMI
+/// excerpt by the streaming Sortformer v2 and v2.1
+/// (`tools/gen_sortformer_v2_ami_fixture.py`).
+#[derive(Debug, Deserialize)]
+pub struct AmiReferenceV2 {
+    /// The runtime that computed it.
+    pub runtime: String,
+
+    /// The clip.
+    pub clip: String,
+
+    /// Per model: `v2`, `v2_1`.
+    pub models: std::collections::BTreeMap<String, AmiModel>,
+}
+
+/// `NeMo`'s runs of one model.
+#[derive(Debug, Deserialize)]
+pub struct AmiModel {
+    /// The checkpoint.
+    pub source: String,
+
+    /// Per latency preset; each preset's `probs` are the 80 ms
+    /// probabilities, `[1, frames, 4]`.
+    pub presets: std::collections::BTreeMap<String, AmiPreset>,
+}
+
+/// The fixture `NeMo` wrote: see [`AmiReferenceV2`].
+pub fn ami_reference_v2() -> AmiReferenceV2 {
+    let path = concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/testdata/ami_reference_v2.json"
+    );
+    let text = std::fs::read_to_string(path).expect("read the v2 AMI reference fixture");
+    serde_json::from_str(&text).expect("parse the v2 AMI reference fixture")
+}
+
 /// The pretrained cache the checkpoint comes through.
 ///
 /// Under `download`, it is rooted at `bunsen-bundled-sortformer`'s directory,
@@ -403,6 +439,24 @@ mod tests {
             assert_eq!(preset.probs.shape, [1, 6000, N_SPEAKERS]);
             assert_eq!(preset.probs.samples.len(), preset.probs.expected_samples());
             assert!((0.0..1.0).contains(&preset.der.der));
+        }
+    }
+
+    /// The v2 AMI reference covers both models at the presets the speech
+    /// tests run, at the clip's 750 frames of 80 ms.
+    #[test]
+    fn test_ami_reference_v2_is_well_formed() {
+        let fixture = ami_reference_v2();
+        assert_eq!(fixture.clip, "ami_en2002d_2132.wav");
+        for (model, revision) in [("v2", "84edd514"), ("v2_1", "cd03eee9")] {
+            let runs = &fixture.models[model];
+            assert!(runs.source.contains(revision), "{}", runs.source);
+            for name in ["low_latency", "very_high_latency"] {
+                let preset = &runs.presets[name];
+                assert_eq!(preset.probs.shape, [1, 750, V2_N_SPEAKERS]);
+                assert_eq!(preset.probs.samples.len(), preset.probs.expected_samples());
+                assert!((0.0..1.0).contains(&preset.der.der));
+            }
         }
     }
 

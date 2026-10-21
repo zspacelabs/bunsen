@@ -86,8 +86,8 @@ fn no_nemo_feature() -> BunsenError {
 /// checkpoint's `kind` names:
 ///
 /// - a `.nemo`: the model and its front end from the archive's config
-///   ([`NemoSortformerConfig`](crate::kits::speech::sortformer::NemoSortformerConfig)),
-///   the weights from its state dict; a [`SortformerFamily::SortformerV2`].
+///   (`NemoSortformerConfig`, feature `nemo`), the weights from its state dict;
+///   a [`SortformerFamily::SortformerV2`].
 /// - a `transformers` safetensors checkpoint (one file, or a sharded one's
 ///   index): the geometry its `config.json` gives (Nemotron-3-Diarization's
 ///   when the map has none), behind Nemotron's front end; a
