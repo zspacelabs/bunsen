@@ -95,11 +95,13 @@ store_safetensors = [
 
 ## Read NVIDIA `NeMo`'s `.nemo` checkpoints: a tar of the model's YAML config
 ## (through `serde-saphyr`, pure Rust) and its `PyTorch` state dict (through
-## the burn-store's `PyTorch` reader).
+## the burn-store's `PyTorch` reader, from a copy extracted to a temporary
+## directory).
 nemo = [
     "store_pytorch",
     "dep:tar",
     "dep:serde-saphyr",
+    "dep:tempfile",
 ]
 
 ## Read `FermionResearch`'s Phonon archives (`.bps.tar.zst`): the
@@ -305,6 +307,7 @@ dashmap = { workspace = true }
 ruzstd = { workspace = true, optional = true }
 tar = { workspace = true, optional = true }
 serde-saphyr = { workspace = true, optional = true }
+tempfile = { workspace = true, optional = true }
 
 time = { workspace = true, features = ["formatting", "macros", "local-offset"] }
 

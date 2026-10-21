@@ -55,13 +55,15 @@ cargo run --release -p bunsen-asr --features wgpu -- parakeet live --preset resp
 cargo run --release -p bunsen-asr -- whisper live --list-devices
 ```
 
-`diarize` says who spoke when, through NVIDIA's Sortformer (`nvidia/nemotron-3-diarization`, up to 8 speakers, 10 ms
-frames). `diarize run FILE...` prints each file's speaker turns as lines of `{start} {end} speaker_{k}` in seconds,
-speakers numbered in the order they first speak; `--rttm` prints NIST RTTM instead (the file's stem as its recording
-id), and `--json` one object per file, its turns and each speaker's total. `diarize live` prints each turn as it
-closes, from the microphone, opened as the families' `live` opens it. `--latency` picks the model's streaming preset: `low`
-(1.04 s, the default), `ultra-low` (0.32 s), `offline` (30.4 s chunks, the most accurate on files), and the presets
-only one family has, `very-low` (0.64 s, Nemotron-3-Diarization) and `high` (10 s, Sortformer v2). `--postprocess` picks how activity becomes turns: `none` (thresholds of 0.5, the default), or NeMo's tuned
+`diarize` says who spoke when, through NVIDIA's Sortformer diarizers: `nvidia/nemotron-3-diarization` (up to 8 speakers,
+10 ms frames, the default), or the streaming Sortformer v2 and v2.1 (`--model sortformer-v2`, `--model sortformer-v2.1`;
+up to 4 speakers, 80 ms frames). `diarize run FILE...` prints each file's speaker turns as lines of `{start} {end}
+speaker_{k}` in seconds, speakers numbered in the order they first speak; `--rttm` prints NIST RTTM instead (the file's
+stem as its recording id), and `--json` one object per file, its turns and each speaker's total. `diarize live` prints
+each turn as it closes, from the microphone, opened as the families' `live` opens it. `--latency` picks the model's
+streaming preset: `low` (1.04 s, the default), `ultra-low` (0.32 s), `offline` (30.4 s chunks, the most accurate on
+files), and the presets only one family has, `very-low` (0.64 s, Nemotron-3-Diarization) and `high` (10 s, Sortformer
+v2). `--postprocess` picks how activity becomes turns: `none` (thresholds of 0.5, the default), or NeMo's tuned
 `dihard3` or `callhome` parameters. `list` and `fetch` work as for the families.
 
 ```sh

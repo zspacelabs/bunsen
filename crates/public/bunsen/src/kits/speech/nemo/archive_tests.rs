@@ -196,6 +196,32 @@ fn test_weights_match_the_manifest() {
     }
 }
 
+/// `with_weights` hands `f` the state dict `extract_weights` and
+/// `read_nemo_weights` give, every value readable inside `f`, and returns
+/// what `f` does, its error too.
+#[test]
+fn test_with_weights() {
+    use burn::store::bridge::to_data;
+    let want: Vec<(String, burn::tensor::TensorData)> = weights()
+        .iter()
+        .map(|t| (t.name.clone(), to_data(t).unwrap()))
+        .collect();
+    let got = toy()
+        .with_weights(|tensors| {
+            Ok(tensors
+                .iter()
+                .map(|t| (t.name.clone(), to_data(t).unwrap()))
+                .collect::<Vec<_>>())
+        })
+        .unwrap();
+    assert_eq!(got, want);
+
+    let err = toy()
+        .with_weights(|_| Err::<(), _>(crate::errors::BunsenError::illegal("no")))
+        .unwrap_err();
+    assert_eq!(err.kind(), BunsenErrorKind::Illegal);
+}
+
 /// The encoder's entries load into a bunsen `ConformerEncoder` built from
 /// the config, filling every parameter; only the batch-norm counters are
 /// left over.
