@@ -2,8 +2,9 @@
 //!
 //! Five kits that work on audio, the way two of them connect,
 //! [`asr_driver`], the parts of a speech-to-text stream driver that do not
-//! depend on the model, and [`diarization`], the parts of a diarizer that do
-//! not:
+//! depend on the model, [`diarization`], the parts of a diarizer that do
+//! not, and [`nemo`], the parts NVIDIA's `NeMo` models share (the mel front
+//! end, `.nemo` checkpoints):
 //!
 //! - [`whisper`]: `OpenAI`'s Whisper, speech to text. The model, an index of
 //!   pretrained checkpoints, the decoders, and a stream driver that turns audio
@@ -13,7 +14,9 @@
 //! - [`qwen3_asr`]: Qwen's Qwen3-ASR, speech to text: a Whisper-style audio
 //!   encoder feeding a Qwen3 language model.
 //! - [`sortformer`]: NVIDIA's Sortformer, speaker diarization: per-frame
-//!   activity of each speaker, in the order they first speak.
+//!   activity of each speaker, in the order they first speak, streamed through
+//!   a speaker cache. `Nemotron-3-Diarization` and the streaming Sortformer v2
+//!   and v2.1.
 //! - [`silero_vad`]: the Silero voice-activity detector. A small recurrent
 //!   model that gives, per chunk of audio, the probability that it holds
 //!   speech.

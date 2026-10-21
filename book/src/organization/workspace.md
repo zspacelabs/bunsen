@@ -48,7 +48,7 @@ explains the scheme.
 
 | Crate | Validates |
 |---|---|
-| [`sortformer-model-validation`](https://github.com/zspacelabs/bunsen/tree/main/crates/validation/sortformer-model-validation) | Sortformer diarization against an ONNX export of the same checkpoint, held itself to onnxruntime's run of the published graph. |
+| [`sortformer-model-validation`](https://github.com/zspacelabs/bunsen/tree/main/crates/validation/sortformer-model-validation) | Sortformer diarization against ONNX exports of the same checkpoints (`Nemotron-3-Diarization`, Sortformer v2.1), each held itself to onnxruntime's run of the published graph, and against `NeMo`'s own diarization of an AMI excerpt by each model. |
 | [`silero-model-validation`](https://github.com/zspacelabs/bunsen/tree/main/crates/validation/silero-model-validation) | Silero VAD against the ONNX graph it was transliterated from, and against a committed golden trace. |
 | [`whisper-model-validation`](https://github.com/zspacelabs/bunsen/tree/main/crates/validation/whisper-model-validation) | Whisper against an ONNX export, stage by stage, and against `openai-whisper`'s own decode of real speech. |
 
