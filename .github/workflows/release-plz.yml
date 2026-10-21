@@ -100,5 +100,12 @@ jobs:
         with:
           command: release-pr
         env:
+          # The semver check builds bunsen's rustdoc with every feature, and
+          # through `cuda` cubecl's LLVM bundler downloads and checksums a whole
+          # LLVM install, unlocked, which fails intermittently. Rustdoc needs no
+          # LLVM: `tracel-llvm-bundler` and `cubecl-llvm` skip it under
+          # `DOCS_RS`, as docs.rs builds them. Only this job: `release`
+          # publishes, and `cargo publish` verifies with a real build.
+          DOCS_RS: "1"
           GITHUB_TOKEN: ${{ secrets.RELEASE_PLZ_WORKFLOW || secrets.GITHUB_TOKEN }}
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
