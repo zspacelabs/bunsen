@@ -81,16 +81,14 @@ impl ModuleInit<ResidualDecoderAttentionBlock> for ResidualDecoderAttentionBlock
         &self,
         device: &Device,
     ) -> BunsenResult<ResidualDecoderAttentionBlock> {
-        let mha_cfg =
-            MultiHeadAttentionConfig::new(self.d_model, self.n_heads()).with_dropout(self.dropout);
+        // Whisper's attention has no key bias.
+        let mha_cfg = MultiHeadAttentionConfig::new(self.d_model, self.n_heads())
+            .with_dropout(self.dropout)
+            .with_key_bias(false);
         let ln_cfg = LayerNormConfig::new(self.d_model);
 
-        // Whisper doesn't use a key bias;
-        // MHA doesn't let us configure this.
-        let mut attn = mha_cfg.init(device);
-        let mut cross_attn = mha_cfg.init(device);
-        attn.key.bias = None;
-        cross_attn.key.bias = None;
+        let attn = mha_cfg.init(device);
+        let cross_attn = mha_cfg.init(device);
 
         // Whisper's MLP projections carry a bias, and it runs
         // `Linear -> GELU -> Linear`; the `MlpConfig` default is ReLU.
@@ -323,6 +321,13 @@ mod tests {
 
         assert_eq!(block.d_model(), d_model);
         assert_eq!(block.n_heads(), n_heads);
+        // Whisper's attention has no key bias; every other projection has one.
+        for attn in [&block.attn, &block.cross_attn] {
+            assert!(attn.key.bias.is_none());
+            assert!(attn.query.bias.is_some());
+            assert!(attn.value.bias.is_some());
+            assert!(attn.output.bias.is_some());
+        }
 
         let batch = 2;
         let seq_len = 10;
