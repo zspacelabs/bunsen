@@ -118,20 +118,16 @@ impl ModuleInit<ResidualEncoderAttentionBlock> for ResidualEncoderAttentionBlock
         &self,
         device: &Device,
     ) -> crate::errors::BunsenResult<ResidualEncoderAttentionBlock> {
-        let mha_cfg =
-            MultiHeadAttentionConfig::new(self.d_model, self.n_heads()).with_dropout(self.dropout);
+        let mha_cfg = MultiHeadAttentionConfig::new(self.d_model, self.n_heads())
+            .with_dropout(self.dropout)
+            .with_key_bias(self.key_bias);
         let norm = || {
             self.norm
                 .as_ref()
                 .map(|n| n.clone().with_num_features(self.d_model).init(device))
         };
 
-        // burn's `MultiHeadAttention` gives every projection a bias; a block
-        // without a key bias drops it.
-        let mut attn = mha_cfg.init(device);
-        if !self.key_bias {
-            attn.key.bias = None;
-        }
+        let attn = mha_cfg.init(device);
 
         // The MLP projections carry a bias: `Linear -> act -> Linear`.
         let mlp: Mlp = MlpConfig::new(self.d_model)
