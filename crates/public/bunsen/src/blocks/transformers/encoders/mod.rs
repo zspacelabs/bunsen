@@ -18,8 +18,19 @@
 //!   [`ConformerEncoder`](conformer::ConformerEncoder): depthwise-striding
 //!   subsampling, then [`ConformerBlock`](conformer::ConformerBlock)s, each two
 //!   half-step feed-forwards around relative-position attention and a
-//!   convolution module. Parakeet's and Sortformer v2's.
+//!   convolution module. Parakeet's and Sortformer v2's. Its block stack, past
+//!   the subsampling, is
+//!   [`ConformerTransformer`](conformer::ConformerTransformer).
+//!
+//! [`EncoderTransformer`] is any of the three stacks, chosen by config
+//! ([`EncoderTransformerConfig`]): each keeps the frame rate and runs
+//! `[batch, frames, d_model]` to the same, padding masked by each item's
+//! length, so a model whose stack is a choice holds one field of this type.
 
 pub mod conformer;
 pub mod residual;
 pub mod rope;
+
+mod encoder_transformer;
+
+pub use encoder_transformer::*;

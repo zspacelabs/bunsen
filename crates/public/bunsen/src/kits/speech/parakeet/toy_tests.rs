@@ -162,7 +162,7 @@ fn test_toy_subsampling() {
 fn test_toy_block_modules() {
     let toy = Toy::load();
     let x: Tensor<3> = toy.io("subsampling");
-    let layer = &toy.model.encoder.layers[0];
+    let layer = &toy.model.encoder.transformer.layers[0];
     let positions = rel_position_table(OUT_LENGTHS[0], 16, &toy.device);
 
     let ff1 = layer

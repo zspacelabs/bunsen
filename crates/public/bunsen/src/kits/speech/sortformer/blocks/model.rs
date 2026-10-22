@@ -42,6 +42,7 @@ use crate::{
                 ResidualEncoderAttentionBlockConfig,
                 ResidualEncoderTransformer,
                 ResidualEncoderTransformerConfig,
+                ResidualEncoderTransformerMeta,
             },
             rope::{
                 RopeEncoderBlockConfig,

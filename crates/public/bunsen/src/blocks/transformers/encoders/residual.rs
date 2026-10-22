@@ -270,10 +270,23 @@ pub struct ResidualEncoderTransformerConfig {
     pub n_layers: usize,
 }
 
-impl ResidualEncoderTransformerConfig {
+/// Common meta for [`ResidualEncoderTransformer`] and
+/// [`ResidualEncoderTransformerConfig`].
+pub trait ResidualEncoderTransformerMeta {
     /// The width it reads and writes.
-    pub fn d_model(&self) -> usize {
+    fn d_model(&self) -> usize;
+
+    /// The number of layers.
+    fn n_layers(&self) -> usize;
+}
+
+impl ResidualEncoderTransformerMeta for ResidualEncoderTransformerConfig {
+    fn d_model(&self) -> usize {
         self.block.d_model()
+    }
+
+    fn n_layers(&self) -> usize {
+        self.n_layers
     }
 }
 
@@ -299,18 +312,24 @@ impl ModuleInit<ResidualEncoderTransformer> for ResidualEncoderTransformerConfig
 /// padding mask this matches).
 ///
 /// Built by [`ResidualEncoderTransformerConfig`].
+/// Implements [`ResidualEncoderTransformerMeta`].
 #[derive(Module, Debug)]
 pub struct ResidualEncoderTransformer {
     /// The layers.
     pub layers: Vec<ResidualEncoderAttentionBlock>,
 }
 
-impl ResidualEncoderTransformer {
-    /// The width it reads and writes.
-    pub fn d_model(&self) -> usize {
+impl ResidualEncoderTransformerMeta for ResidualEncoderTransformer {
+    fn d_model(&self) -> usize {
         self.layers.first().map_or(0, |l| l.d_model())
     }
 
+    fn n_layers(&self) -> usize {
+        self.layers.len()
+    }
+}
+
+impl ResidualEncoderTransformer {
     /// Runs the layers.
     ///
     /// # Arguments

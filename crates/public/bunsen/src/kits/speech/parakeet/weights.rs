@@ -157,32 +157,32 @@ mod tests {
             ),
             (
                 "encoder.layers.3.self_attn.q_proj.weight",
-                Some("encoder.layers.3.self_attn.query.weight"),
+                Some("encoder.transformer.layers.3.self_attn.query.weight"),
             ),
             (
                 "encoder.layers.3.self_attn.relative_k_proj.weight",
-                Some("encoder.layers.3.self_attn.pos.weight"),
+                Some("encoder.transformer.layers.3.self_attn.pos.weight"),
             ),
             (
                 "encoder.layers.3.self_attn.bias_u",
-                Some("encoder.layers.3.self_attn.pos_bias_u"),
+                Some("encoder.transformer.layers.3.self_attn.pos_bias_u"),
             ),
             (
                 "encoder.layers.3.conv.depthwise_conv.weight",
-                Some("encoder.layers.3.conv.depthwise.conv.weight"),
+                Some("encoder.transformer.layers.3.conv.depthwise.conv.weight"),
             ),
             (
                 "encoder.layers.3.conv.norm.running_var",
-                Some("encoder.layers.3.conv.depthwise.norm.running_var"),
+                Some("encoder.transformer.layers.3.conv.depthwise.norm.running_var"),
             ),
             ("encoder.layers.3.conv.norm.num_batches_tracked", None),
             (
                 "encoder.layers.3.conv.pointwise_conv1.weight",
-                Some("encoder.layers.3.conv.pointwise_conv1.weight"),
+                Some("encoder.transformer.layers.3.conv.pointwise_conv1.weight"),
             ),
             (
                 "encoder.layers.3.norm_out.weight",
-                Some("encoder.layers.3.norm_out.weight"),
+                Some("encoder.transformer.layers.3.norm_out.weight"),
             ),
             (
                 "decoder.lstm.weight_ih_l1",

@@ -9,6 +9,9 @@ use burn::{
 use super::{
     ConformerBlock,
     ConformerBlockConfig,
+    ConformerTransformer,
+    ConformerTransformerConfig,
+    ConformerTransformerMeta,
     DwStridingSubsampling,
     DwStridingSubsamplingConfig,
     DwStridingSubsamplingMeta,
@@ -22,10 +25,6 @@ use crate::{
         BunsenResult,
         ConstraintError,
         Rule,
-    },
-    ops::transformers::attention::{
-        length_mask,
-        rel_position_table,
     },
 };
 
@@ -75,6 +74,15 @@ impl ConformerEncoderMeta for ConformerEncoderConfig {
     }
 }
 
+impl ConformerEncoderConfig {
+    /// The stack's config: `n_layers` of `block`, scaled as `scale_input`
+    /// says.
+    pub fn transformer(&self) -> ConformerTransformerConfig {
+        ConformerTransformerConfig::new(self.block.clone(), self.n_layers)
+            .with_scale_input(self.scale_input)
+    }
+}
+
 impl ModuleInit<ConformerEncoder> for ConformerEncoderConfig {
     fn try_init(
         &self,
@@ -97,16 +105,14 @@ impl ModuleInit<ConformerEncoder> for ConformerEncoderConfig {
         }
         Ok(ConformerEncoder {
             subsampling: self.subsampling.try_init(device)?,
-            layers: (0..self.n_layers)
-                .map(|_| self.block.try_init(device))
-                .collect::<BunsenResult<_>>()?,
-            scale_input: self.scale_input,
+            transformer: self.transformer().try_init(device)?,
         })
     }
 }
 
-/// The `FastConformer` encoder: [`DwStridingSubsampling`], then a stack of
-/// [`ConformerBlock`]s sharing one relative-position table.
+/// The `FastConformer` encoder: [`DwStridingSubsampling`], then a
+/// [`ConformerTransformer`], the stack of [`ConformerBlock`]s sharing one
+/// relative-position table.
 ///
 /// This is the encoder of NVIDIA's Parakeet and Canary models.
 ///
@@ -117,11 +123,8 @@ pub struct ConformerEncoder {
     /// Subsamples the features and projects them to `d_model`.
     pub subsampling: DwStridingSubsampling,
 
-    /// The Conformer blocks.
-    pub layers: Vec<ConformerBlock>,
-
-    /// Whether the subsampled input is scaled by `sqrt(d_model)`.
-    pub scale_input: bool,
+    /// The blocks, past the subsampling.
+    pub transformer: ConformerTransformer,
 }
 
 impl ConformerEncoderMeta for ConformerEncoder {
@@ -130,7 +133,7 @@ impl ConformerEncoderMeta for ConformerEncoder {
     }
 
     fn n_layers(&self) -> usize {
-        self.layers.len()
+        self.transformer.n_layers()
     }
 
     fn subsampling_factor(&self) -> usize {
@@ -228,38 +231,7 @@ impl ConformerEncoder {
         x: Tensor<3>,
         lengths: Option<&[usize]>,
     ) -> Tensor<3> {
-        let [batch, frames] = crate::contracts::unpack_shape_contract!(
-            ["batch", "frames", "d_model"],
-            &x.dims(),
-            &["batch", "frames"],
-            &[("d_model", self.d_model())],
-        );
-
-        let mut x = x;
-        if self.scale_input {
-            x = x.mul_scalar((self.d_model() as f64).sqrt());
-        }
-        let device = x.device();
-        let positions = rel_position_table(frames, self.d_model(), &device);
-        let valid = lengths.map(|lengths| length_mask(lengths, frames, &device));
-        for layer in &self.layers {
-            x = layer.forward(x, positions.clone(), valid.clone());
-        }
-
-        #[cfg(any(debug_assertions, test))]
-        crate::contracts::assert_shape_contract_periodically!(
-            ["batch", "frames", "d_model"],
-            &x.dims(),
-            &[
-                ("batch", batch),
-                ("frames", frames),
-                ("d_model", self.d_model()),
-            ],
-        );
-        #[cfg(not(any(debug_assertions, test)))]
-        let _ = batch;
-
-        x
+        self.transformer.forward(x, lengths)
     }
 }
 
@@ -277,7 +249,11 @@ impl ConformerEncoder {
                 "subsampling.",
                 DwStridingSubsampling::transformers_rekey(n_stages),
             )
-            .mount_indexed("layers.", "layers.", ConformerBlock::transformers_rekey())
+            .mount_indexed(
+                "layers.",
+                "transformer.layers.",
+                ConformerBlock::transformers_rekey(),
+            )
     }
 
     /// Its tensors as `NeMo`'s `ConformerEncoder` names them, relative to it:
@@ -293,7 +269,11 @@ impl ConformerEncoder {
                 "subsampling.",
                 DwStridingSubsampling::nemo_rekey(n_stages),
             )
-            .mount_indexed("layers.", "layers.", ConformerBlock::nemo_rekey())
+            .mount_indexed(
+                "layers.",
+                "transformer.layers.",
+                ConformerBlock::nemo_rekey(),
+            )
     }
 }
 
@@ -422,20 +402,20 @@ mod tests {
             ("pre_encode.out.weight", Some("subsampling.linear.weight")),
             (
                 "layers.3.self_attn.linear_pos.weight",
-                Some("layers.3.self_attn.pos.weight"),
+                Some("transformer.layers.3.self_attn.pos.weight"),
             ),
             (
                 "layers.0.self_attn.pos_bias_u",
-                Some("layers.0.self_attn.pos_bias_u"),
+                Some("transformer.layers.0.self_attn.pos_bias_u"),
             ),
             (
                 "layers.1.conv.batch_norm.running_var",
-                Some("layers.1.conv.depthwise.norm.running_var"),
+                Some("transformer.layers.1.conv.depthwise.norm.running_var"),
             ),
             ("layers.1.conv.batch_norm.num_batches_tracked", None),
             (
                 "layers.0.norm_feed_forward1.weight",
-                Some("layers.0.norm_feed_forward1.weight"),
+                Some("transformer.layers.0.norm_feed_forward1.weight"),
             ),
             ("pos_enc.pe", None),
         ] {
