@@ -155,18 +155,11 @@ jobs:
           pr-comment: true
           save-cache: ${{ github.ref == 'refs/heads/main' }}
 
-      # kache caches what rustc writes, not what a build script does: cargo
-      # runs a build script whenever `target/` has no record of it, which is
-      # every run, since `target/` is not cached. So every asset a build
-      # script fetches is fetched again each run (STYLE.md, "Fetched assets
-      # live in `OUT_DIR`"), and CI fetches only what bunsen's own tests read:
-      # Silero's weights (through `silero-bench`) and Whisper's `base`
-      # checkpoint and vocabularies (`bunsen/whisper-weights`), about 150 MB.
-      #
-      # CI never turns on `download`. That is the validation crates' switch,
-      # and it fetches every checkpoint and ONNX export they compare against,
-      # many GB, and generates the reference models from the exports; their
-      # suites run by hand, on a GPU (STYLE.md, "Network access").
+      # No build script here reaches the network: the bundled crates' asset
+      # features are reached only through the validation crates' `weights`
+      # and `download`, which this workflow never turns on. The cheap
+      # validation suites run in `validation.yml`; the rest run by hand, on a
+      # GPU (STYLE.md, "Network access").
 
       # An explicit list rather than `--all-features`: `cuda` pulls in an
       # LLVM-based compiler toolchain, `metal` builds only on macOS, and
@@ -192,7 +185,7 @@ jobs:
       # with it `performance_device()`, to the CPU, whatever backend features
       # the workspace build unifies in.
       - name: Build and Test
-        run: cargo test --features indicatif,bunsen/whisper-weights
+        run: cargo test --features indicatif
         env:
           BURN_DEVICE: flex
 

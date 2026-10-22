@@ -12,12 +12,10 @@ homepage = "https://zspacelabs.ai/bunsen/book/"
 documentation = "https://docs.rs/bunsen/latest/"
 description = "bunsen is a batteries included common library for burn"
 
-# docs.rs builds this feature list, not `all-features`: `whisper-weights`
-# and `silero-weights` make the bundled crates' build scripts download their
-# checkpoints, and docs.rs builds have no network. The backends only change which device
-# `support::testing::performance_device()` returns. The book's API links resolve
-# against this same list (`book/book.toml`, `build.docs-rs`), and so do CI's
-# isolated doc build and `cargo make doc`. docs.rs sets `--cfg docsrs`
+# docs.rs builds this feature list, not `all-features`: the backends only
+# change which device `support::testing::performance_device()` returns. The
+# book's API links resolve against this same list (`book/book.toml`,
+# `build.docs-rs`), and so do CI's isolated doc build and `cargo make doc`. docs.rs sets `--cfg docsrs`
 # itself, so there are no `rustdoc-args` here.
 [package.metadata.docs.rs]
 features = ["fetch", "indicatif", "testing", "audit"]
@@ -171,42 +169,6 @@ tokenizer = [
     "dep:wordchipper",
 ]
 
-## Make `bunsen-bundled-silero`'s pretrained cache directory available: it
-## fetches upstream's `silero_vad_16k.safetensors` at build time,
-## digest-pinned, and lays it out as a `PretrainedCache` root, where
-## `silero/vad-16k` resolves offline. bunsen's own tests read it; the
-## `SileroVad::load_16khz_pretrained` and
-## `SileroVadCollection::load_pretrained` shortcuts are this file.
-##
-## **This makes the build reach the network** on a cold cache (1.2 MB); see
-## `bunsen-bundled-silero`.
-silero-weights = [
-    "store",
-    "store_safetensors",
-    "dep:bunsen-bundled-silero",
-    "bunsen-bundled-silero/checkpoint",
-]
-
-## Make `bunsen-bundled-whisper`'s pretrained cache directory available: it
-## fetches `OpenAI`'s `base` checkpoint and the two `.tiktoken` vocabularies
-## at build time, digest-pinned, and lays them out as a `PretrainedCache`
-## root. bunsen's own tests point a cache at it, offline. Nothing in the
-## Whisper kit's tables depends on this: bundling is a populated cache
-## directory, not a kind of source, and a deployment populates the runtime
-## cache the same way (`bunsen-asr family <family> fetch`).
-##
-## **This makes the build reach the network** on a cold cache: unlike Silero's,
-## Whisper's weights are 145 MB and are fetched rather than committed. Every
-## asset is digest-pinned and cached, so a warm build is offline; see
-## `bunsen-bundled-whisper`.
-whisper-weights = [
-    "store",
-    "store_pytorch",
-    "dep:bunsen-bundled-whisper",
-    "bunsen-bundled-whisper/checkpoint",
-    "bunsen-bundled-whisper/vocab",
-]
-
 ## Enable the cuda backend in the bunsen build.
 ## This will impact the bunsen::support::testing::performance_device() choice.
 ## Dependents which enable backends for burn without enabling them for bunsen
@@ -266,15 +228,6 @@ audit = [
 log = { workspace = true }
 bunsen-contracts-macros = { version = "0.39.0", path = "../bunsen-contracts-macros" }
 
-bunsen-bundled-silero = { version = "0.39.0",
-    path = "../bunsen-bundled-silero",
-    optional = true
-}
-
-bunsen-bundled-whisper = { version = "0.39.0",
-    path = "../bunsen-bundled-whisper",
-    optional = true
-}
 bunsen-fetch = { version = "0.39.0", path = "../bunsen-fetch", optional = true }
 
 

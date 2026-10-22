@@ -1,0 +1,41 @@
+name: Validation
+
+# The validation suites cheap enough for a CPU runner: Silero's checks on
+# upstream's checkpoint (1.2 MB), and the Whisper kit's pretrained pathway on
+# `base.pt` and its vocabularies (~150 MB). Their build scripts fetch those
+# assets, so they never run on a pull request: weekly, and by hand. The ONNX
+# cross-checks and the multi-GB families run by hand, on a GPU (STYLE.md,
+# "Network access").
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "17 6 * * 1"
+
+env:
+  CARGO_TERM_COLOR: always
+  # The runner has no GPU: pin burn's default device, and with it
+  # `performance_device()`, to the CPU.
+  BURN_DEVICE: flex
+
+jobs:
+  cpu:
+    name: CPU validation
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Toolchain
+        run: rustup toolchain install stable --profile minimal
+
+      # `~/.cargo` only, read from the `test` job's entries; see `ci.yml`.
+      - uses: Swatinem/rust-cache@v2
+        with:
+          prefix-key: v1-rust
+          cache-targets: false
+          save-if: false
+
+      - name: Silero
+        run: cargo test -p silero-model-validation --features weights
+
+      - name: Whisper
+        run: cargo test -p whisper-model-validation --features weights

@@ -14,8 +14,8 @@ feature, and none is on by default, so a plain build fetches nothing:
 - `onnx_gen`: the `onnx-community/whisper-base` ONNX export, and the Rust models generated from it, the reference
   that bunsen's Whisper implementation is validated against.
 
-Depend on it through `bunsen`'s `whisper-weights` feature, which turns on `checkpoint` and `vocab` and serves them as
-the `bundled:openai/base` pretrained model. A build without the network can point the `WHISPER_*` environment
+`whisper-model-validation` depends on it, under its `weights` and `download` features; a `PretrainedCache` rooted at
+`cache_dir()` resolves `openai/base` from it, offline. A build without the network can point the `WHISPER_*` environment
 variables at local copies; the API docs list them.
 
 - [API docs](https://docs.rs/bunsen-bundled-whisper/latest/bunsen_bundled_whisper/).

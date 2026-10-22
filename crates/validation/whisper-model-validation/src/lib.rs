@@ -8,21 +8,30 @@
 //! ## This crate hosts nothing, and generates nothing
 //!
 //! Both sides of the comparison come from `bunsen-bundled-whisper`: the
-//! checkpoint through `bunsen/whisper-weights`, and the generated reference
-//! through its `onnx_gen` feature. That crate fetches ~435 MB of assets, pins
-//! each to a SHA-256, and caches them — all under the **`download`** feature,
-//! which is off by default so an ordinary `cargo build --workspace` never
-//! reaches the network.
+//! checkpoint and vocabularies through its `checkpoint` and `vocab`
+//! features, and the generated reference through its `onnx_gen` feature.
+//! That crate fetches ~435 MB of assets, pins each to a SHA-256, and caches
+//! them — all under this crate's **`download`** feature, which is off by
+//! default so an ordinary `cargo build --workspace` never reaches the
+//! network.
 //!
 //! ```sh
 //! cargo test --release -p whisper-model-validation \
 //!   --features download,gpu-tests,wgpu
 //! ```
 //!
+//! **`weights`** is the cheap half of `download`: the checkpoint and
+//! vocabularies alone (~150 MB), and the `bundled` checks of the kit's
+//! pretrained pathway on them, which run on the CPU:
+//!
+//! ```sh
+//! cargo test -p whisper-model-validation --features weights
+//! ```
+//!
 //! `gpu-tests` compiles every test that loads a model, `download` fetches
 //! what they compare against, and a backend feature says what they run on.
-//! None is inferred from the others. With `download,gpu-tests` the suite is
-//! twelve tests; with either alone it is the three fixture-integrity checks.
+//! None is inferred from the others. Without `gpu-tests` the suite is the
+//! fixture-integrity checks, plus the `weights` checks when `download` is on.
 //!
 //! Pass a backend deliberately. `performance_device()` falls through to `Flex`
 //! when none reaches `bunsen`, so a run without one does not fail — it
@@ -47,6 +56,8 @@
 //!   disagreement cannot be inherited from upstream.
 //! * `audio` runs the composition over real speech and judges it by word error
 //!   rate against a ground-truth transcript.
+//! * `bundled` runs the kit's pretrained pathway, vocabularies and hook on the
+//!   real files, under `weights`.
 //!
 //! `onnx-community/whisper-base` is a conversion of `OpenAI`'s multilingual
 //! `base.pt`, so the two agree only if bunsen's loader and forward pass are
@@ -71,24 +82,24 @@ pub const N_FRAMES: usize = 3000;
 
 /// The pretrained cache the checkpoint and its vocabulary come through.
 ///
-/// Under `download`, it is rooted at `bunsen-bundled-whisper`'s directory,
+/// Under `weights`, it is rooted at `bunsen-bundled-whisper`'s directory,
 /// which its build laid out as one, and offline: nothing is fetched at run
 /// time and nothing is written there. Routing the assets through the
 /// library's own cache is also what this crate is validating. Without
-/// `download` it is the default cache, which fetches on first use.
+/// `weights` it is the default cache, which fetches on first use.
 pub fn weights_cache() -> bunsen::data::pretrained::PretrainedCache {
     use bunsen::data::pretrained::{
         PretrainedCache,
         PretrainedCacheOptions,
     };
-    #[cfg(feature = "download")]
+    #[cfg(feature = "weights")]
     let options = PretrainedCacheOptions::default()
         .with_disk(
             bunsen::data::cache::BunsenDiskCacheOptions::default()
                 .with_cache_dir(Some(bunsen_bundled_whisper::cache_dir().to_path_buf())),
         )
         .with_offline(true);
-    #[cfg(not(feature = "download"))]
+    #[cfg(not(feature = "weights"))]
     let options = PretrainedCacheOptions::default();
     PretrainedCache::new(options).expect("open the pretrained cache")
 }
@@ -163,6 +174,10 @@ pub mod staged;
 /// End-to-end validation over the committed speech fixtures.
 #[cfg(test)]
 pub mod audio;
+
+/// The kit's pretrained pathway on the real files.
+#[cfg(all(test, feature = "weights"))]
+mod bundled;
 
 /// A fixture, and the accuracy it is held to.
 pub struct Fixture {

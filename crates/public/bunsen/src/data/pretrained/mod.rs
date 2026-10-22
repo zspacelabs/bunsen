@@ -60,8 +60,8 @@
 //!   [`PretrainedTable`] of [`PretrainedGroup`]s. `well-known:openai/tiny` is
 //!   the `tiny` row of the `openai` group; a bare `openai/tiny`, or `tiny`,
 //!   finds it too.
-//! - `bundled:` ([`BUNDLED`]) holds the rows a build ships with: a table a kit
-//!   registers under its `*-weights` feature.
+//! - `bundled:` ([`BUNDLED`]) holds the rows a build ships with: a table a
+//!   caller registers over files it lays out or bytes it links in.
 //! - `hf:` ([`HF`]) is an [`HfProvider`]: a Hugging Face repo, by `org/repo`.
 //!   It lists nothing and never answers a bare name.
 //!
@@ -90,7 +90,8 @@
 //! - Files fetched at build time are a populated cache directory.
 //!   `bunsen-bundled-whisper` lays its `OUT_DIR` out in this layout, so a
 //!   [`PretrainedCache`] rooted there finds the files without knowing they were
-//!   bundled. (Its `bundled:openai/base` row serves the same files in place, as
+//!   bundled. (`whisper-model-validation` also registers a
+//!   `bundled:openai/base` row over the same files, served in place as
 //!   local-dir sources.)
 //!
 //! The second form is the general one: bundling a fetched asset means

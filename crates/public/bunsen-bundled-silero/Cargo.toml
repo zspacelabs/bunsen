@@ -24,7 +24,7 @@ workspace = true
 
 [features]
 ## Nothing by default: building this crate as a workspace member fetches
-## nothing. `bunsen/silero-weights` turns on `checkpoint`;
+## nothing. `silero-model-validation/weights` turns on `checkpoint`;
 ## `silero-model-validation/download` turns on both.
 default = []
 

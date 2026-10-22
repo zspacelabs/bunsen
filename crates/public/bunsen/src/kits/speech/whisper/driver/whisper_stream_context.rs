@@ -1544,10 +1544,9 @@ mod tests {
             .assert_err(&driver.new_context(StreamClock::uniform(8_000), LevelPolicy::PerWindow));
     }
 
-    /// Against the real voice-activity model: regions become segments in
-    /// the parent stream's frame of reference, and silence is never
-    /// decoded.
-    #[cfg(feature = "silero-weights")]
+    /// Against Silero's recorded probabilities over a real clip: regions
+    /// become segments in the parent stream's frame of reference, and
+    /// silence is never decoded.
     mod voice_activity {
         use burn::module::Module;
 
@@ -1563,6 +1562,7 @@ mod tests {
                     VoiceActivityFilterConfig,
                 },
                 silero_vad::SileroVad,
+                testing::RecordedVoiceActivity,
             },
             support::{
                 audio::load_audio_mono_sr,
@@ -1570,16 +1570,16 @@ mod tests {
             },
         };
 
-        /// Silero and the tiny model on the CPU backend, so the golden
-        /// regions from the gate's own test hold here too.
-
+        /// The clip Silero's recording is of; the tiny model runs on the CPU
+        /// backend. The golden regions from the gate's own test hold here
+        /// too.
         fn speech() -> Vec<f32> {
             let path = bunsen_test_audio::JFK_MOON_4S.path();
             load_audio_mono_sr(&path, RATE).unwrap()
         }
 
         fn conservative_driver(device: &Device) -> WhisperStreamDriver {
-            let vad = SileroVad::load_16khz_pretrained(device).unwrap();
+            let vad = RecordedVoiceActivity::silero_jfk_moon_4s();
             config(false)
                 .with_emission(EmissionPolicy::conservative())
                 .init_with_layout(
@@ -1622,7 +1622,7 @@ mod tests {
             );
             mismatch.assert_err(&driver().with_vad(Arc::new(eight), filter()));
 
-            let vad = SileroVad::load_16khz_pretrained(&device).unwrap();
+            let vad = RecordedVoiceActivity::silero_jfk_moon_4s();
             mismatch.assert_err(
                 &driver().with_vad(Arc::new(vad.clone()), filter().with_sample_rate(8_000)),
             );
@@ -1646,7 +1646,7 @@ mod tests {
         #[serial]
         fn test_regions_become_segments_on_the_parent_clock() {
             let device = cpu_device();
-            let vad = SileroVad::load_16khz_pretrained(&device).unwrap();
+            let vad = RecordedVoiceActivity::silero_jfk_moon_4s();
             let regions_only = EmissionPolicy::new(
                 DecodeTriggers::new()
                     .with_window_full(false)
@@ -1768,7 +1768,7 @@ mod tests {
         /// could draft. Its decode is scripted so the pin is about
         /// scheduling, not the untrained model.
         fn responsive_driver(device: &Device) -> WhisperStreamDriver {
-            let vad = SileroVad::load_16khz_pretrained(device).unwrap();
+            let vad = RecordedVoiceActivity::silero_jfk_moon_4s();
             let scripted: Arc<dyn LogitFilter> = Arc::new(Script(vec![3, 1, 4, 1]));
             let policy = EmissionPolicy::new(
                 DecodeTriggers::new()
@@ -1949,7 +1949,7 @@ mod tests {
             let cross = &mut model.decoder.blocks[0].cross_attn.output;
             cross.weight = cross.weight.clone().map(|w| w * 300.0);
 
-            let vad = SileroVad::load_16khz_pretrained(device).unwrap();
+            let vad = RecordedVoiceActivity::silero_jfk_moon_4s();
             let scripted: Arc<dyn LogitFilter> = Arc::new(ByLanguage(ids));
             WhisperStreamDriverConfig::new()
                 .with_max_tokens(4)
@@ -2042,7 +2042,7 @@ mod tests {
         #[serial]
         fn test_offline_ignores_the_vad() {
             let device = cpu_device();
-            let vad = SileroVad::load_16khz_pretrained(&device).unwrap();
+            let vad = RecordedVoiceActivity::silero_jfk_moon_4s();
             let driver = config(false)
                 .init_with_layout(
                     tiny_model_on(&device),

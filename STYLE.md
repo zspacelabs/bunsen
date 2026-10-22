@@ -233,6 +233,8 @@ not: dev-dependencies and crate-private test helpers.
 * `wgpu`, `cuda`, `metal` — select an accelerator backend.
 * `gpu-tests` — compile the tests that need one.
 * `download` — the build may reach the network.
+* `weights` — the build may fetch a validation crate's checkpoints, but not
+  its reference graphs: the cheap half of `download`.
 * `fetch` — the program may reach the network at run time (`cache` alone is local).
 * `onnx_gen` — generate reference models from an ONNX graph.
 * `checkpoint` — fetch pretrained weights.
@@ -312,10 +314,18 @@ variable points the build at a local file instead. A crate that exists to
 bundle an asset (`bunsen-bundled-whisper`) still fetches only under the
 feature that names the asset, never by default.
 
-CI never turns on `download`. A unit test reads only small assets, through a
-`bunsen` feature that names them (`silero-weights`, `whisper-weights`); the
-checkpoints and exports a validation crate compares against are many GB, and
-its suite is run by hand, with `download`, `gpu-tests` and a backend.
+No `bunsen` feature reaches the network at build time, and a kit's tests
+read no fetched asset. A test that needs what a real model does replays a
+committed recording of it (`RecordedVoiceActivity`), and the validation crate
+holds the recording to the model. Everything that reads a fetched checkpoint
+lives in a validation crate (`crates/validation/*`).
+
+A validation crate offers `weights`, the checkpoints alone, for the checks
+that need no reference graph, and `download`, which adds the reference
+graphs. CI never turns on either on a pull request: `validation.yml` runs the
+cheap `weights` suites weekly, on the CPU, and the rest are run by hand
+(`cargo make validate-<model>`), with `download`, `gpu-tests` and a
+backend.
 
 ### Fetched assets live in `OUT_DIR`
 
@@ -347,8 +357,8 @@ the way to supply a local copy instead.
 Do not add a cache step for them. CI caches `~/.cargo` (rust-cache) and
 compiled units (kache), never `target/`, so cargo runs every build script on
 every run and the assets do not ride along; kache caches what rustc writes, not
-what a build script fetches. That is affordable because CI fetches only the
-unit tests' small assets. A separate `actions/cache` over an `OUT_DIR` path
+what a build script fetches. That is affordable because the pull-request jobs
+fetch nothing, and the weekly validation job only ~150 MB. A separate `actions/cache` over an `OUT_DIR` path
 goes stale the moment the hash in that path changes, which every toolchain or
 lockfile update does.
 

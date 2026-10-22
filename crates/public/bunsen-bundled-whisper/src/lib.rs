@@ -12,9 +12,9 @@
 //! `data::pretrained::PretrainedCache` roots a resource. A cache pointed at
 //! `cache_dir()`, offline, hits `openai/base` and both vocabularies without
 //! knowing they were bundled: bundling is a populated cache directory, not a
-//! kind of source. bunsen's own tests and `whisper-model-validation` do
-//! exactly that. bunsen's Whisper kit also lists the same files as
-//! `bundled:openai/base`, a row served in place from here.
+//! kind of source. `whisper-model-validation` does exactly that, and also
+//! registers the same files as `bundled:openai/base`, a row served in place
+//! from here.
 //!
 //! ## What it exposes
 //!

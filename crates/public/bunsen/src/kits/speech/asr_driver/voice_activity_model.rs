@@ -106,19 +106,27 @@ impl VoiceActivityStream for SileroVadStream {
     }
 }
 
-#[cfg(all(test, feature = "silero-weights"))]
+#[cfg(test)]
 mod tests {
     use super::*;
-    use crate::support::{
-        audio::load_audio_mono_sr,
-        testing::cpu_device,
+    use crate::{
+        burner::module::ModuleInit,
+        kits::speech::silero_vad::SileroVadSignalConfig,
+        support::{
+            audio::load_audio_mono_sr,
+            testing::cpu_device,
+        },
     };
 
     /// Streamed in two calls, Silero's probabilities are those of one call
-    /// over the same chunks.
+    /// over the same chunks. A property of the stream, not of the weights,
+    /// so an untrained model shows it; `silero-model-validation` checks
+    /// upstream's.
     #[test]
     fn test_silero_streams_as_one_call() {
-        let model = SileroVad::load_16khz_pretrained(&cpu_device()).unwrap();
+        let device = cpu_device();
+        device.seed(7);
+        let model: SileroVad = SileroVadSignalConfig::standard_16khz().init(&device);
         let chunk = VoiceActivityModel::chunk_size(&model);
         let path = bunsen_test_audio::JFK_MOON_4S.path();
         let mut samples = load_audio_mono_sr(&path, 16_000).unwrap();
@@ -136,6 +144,5 @@ mod tests {
         for (a, b) in parts.iter().zip(&whole) {
             assert!((a - b).abs() < 1e-5, "{a} != {b}");
         }
-        assert!(whole.iter().any(|&p| p > 0.5));
     }
 }

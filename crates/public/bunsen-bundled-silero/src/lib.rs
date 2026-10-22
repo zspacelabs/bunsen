@@ -14,7 +14,8 @@
 //! `pretrained/silero_vad/silero/<sha256>/<file>`, which is how bunsen's
 //! `data::pretrained::PretrainedCache` roots a resource: a cache pointed at
 //! `cache_dir()`, offline, resolves `silero/vad-16k` without knowing it was
-//! bundled. bunsen's `silero-weights` feature turns on `checkpoint`.
+//! bundled. `silero-model-validation`'s `weights` feature turns on
+//! `checkpoint`.
 //!
 //! The reference is a direct transliteration of the graph, both sample-rate
 //! branches, so `silero-model-validation` checks bunsen's hand-written Silero

@@ -84,8 +84,8 @@
 //!
 //! - [`default_resnet_factory`] is the simple case: a well-known table of
 //!   `torchvision` and `timm` checkpoints, each row naming its prefab.
-//! - [`default_whisper_factory`] is the full one: the well-known table, the
-//!   bundled row with `whisper-weights`, then `hf:org/repo`.
+//! - [`default_whisper_factory`] is the full one: the well-known table, then
+//!   `hf:org/repo`.
 //! - [`default_silero_factory`] has one well-known row, `silero/vad-16k`,
 //!   upstream's safetensors.
 //!
@@ -97,14 +97,12 @@
 //! | `fetch` | no | the network at run time: `fetch_file`, `fetch_many` and its `FetchPolicy`, the URL sources of [`PretrainedCache`], the download in `ShardSet::fetch`, and the [`HfProvider`] listing. Without it, a file that only a URL can supply is an [`Unsupported`](crate::errors::BunsenErrorKind::Unsupported) error. |
 //! | `indicatif` | no | implies `fetch`: a byte progress bar per transfer (`IndicatifObserver`, in the default observer stack). |
 //! | `store_safetensors` | yes | [`SafetensorsCheckpoint`], the reader for `hf:` rows. `store_pytorch` (also default) is what kits read `.pt` checkpoints with, and `store` (implied by both) is what a burnpack is read with. |
-//! | `silero-weights` | no | `silero/vad-16k`'s file in `bunsen-bundled-silero`'s build directory, laid out as a cache root, and the `load_pretrained` shortcuts that read it. **The build reaches the network** on a cold cache. |
-//! | `whisper-weights` | no | `bundled:openai/base`, served in place from `bunsen-bundled-whisper`'s build directory. **The build reaches the network** on a cold cache. |
 //!
-//! `download` is a conventional name (see `STYLE.md`), not a bunsen
-//! feature: it means "the build may reach the network". A crate that
-//! offers it turns on the asset features, as `whisper-model-validation`'s
-//! `download` turns on `whisper-weights`. `fetch` is the run-time
-//! counterpart, and neither implies the other.
+//! No bunsen feature reaches the network at build time. `download` is a
+//! conventional name (see `STYLE.md`), not a bunsen feature: it means "the
+//! build may reach the network", and only the validation crates offer it,
+//! turning on the `bunsen-bundled-*` crates' asset features. `fetch` is the
+//! run-time counterpart, and neither implies the other.
 //!
 //! [`BunsenDiskCache`]: cache::BunsenDiskCache
 //! [`Construct`]: pretrained::Construct

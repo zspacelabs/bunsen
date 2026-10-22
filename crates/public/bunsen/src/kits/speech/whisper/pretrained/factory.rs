@@ -128,9 +128,8 @@ mod tests {
     }
 
     /// The default factory is the well-known table, serving the kit, with
-    /// every id qualified and upstream's aliases honoured; the bundled
-    /// table joins it with the feature, after it; Hugging Face is last,
-    /// and lists nothing.
+    /// every id qualified and upstream's aliases honoured, then Hugging
+    /// Face, which lists nothing.
     #[test]
     fn test_the_defaults_register() {
         let factory = default_whisper_factory().unwrap();
@@ -140,14 +139,8 @@ mod tests {
         assert_eq!(factory.provider(WELL_KNOWN).unwrap().ids().len(), 12);
         assert_eq!(factory.providers().last().unwrap().name(), "hf");
         assert!(factory.provider("hf").unwrap().ids().is_empty());
-        if cfg!(feature = "whisper-weights") {
-            assert_eq!(factory.providers().len(), 3);
-            assert_eq!(factory.providers()[1].name(), "bundled");
-            assert_eq!(factory.ids().len(), 13);
-        } else {
-            assert_eq!(factory.providers().len(), 2);
-            assert_eq!(factory.ids().len(), 12);
-        }
+        assert_eq!(factory.providers().len(), 2);
+        assert_eq!(factory.ids().len(), 12);
 
         let (provider, large) = factory.lookup("large").unwrap();
         assert_eq!(provider, "well-known");
@@ -290,97 +283,6 @@ mod tests {
             &default_whisper_factory()
                 .unwrap()
                 .with_providers(default_whisper_providers()),
-        );
-    }
-
-    /// `bundled:openai/base` is the bundle's files, used in place from a
-    /// cache that has nothing: both parts local dir, nothing written; and
-    /// a bare `openai/base` still means the well-known row.
-    #[cfg(feature = "whisper-weights")]
-    #[test]
-    fn test_the_bundled_provider_serves_openai_base_in_place() {
-        use crate::{
-            data::pretrained::{
-                BUNDLED,
-                CacheStatus,
-                Provenance,
-            },
-            kits::speech::whisper::pretrained::{
-                BASE_CHECKPOINT,
-                VOCABULARY,
-            },
-        };
-        let dir = tempfile::tempdir().unwrap();
-        let cache = offline_cache_in(dir.path());
-        let factory = default_whisper_factory().unwrap();
-        let bundled = factory.provider(BUNDLED).unwrap();
-        assert_eq!(bundled.ids(), ["bundled:openai/base"]);
-        assert_eq!(bundled.license(), None);
-
-        let model = factory.resolve("bundled:openai/base", &cache).unwrap();
-        assert_eq!(model.id(), "bundled:openai/base");
-        let status = model.status(&cache);
-        assert_eq!(status[CHECKPOINT], CacheStatus::LocalDir);
-        assert_eq!(status[VOCABULARY], CacheStatus::LocalDir);
-        let map = model.to_map();
-        assert_eq!(
-            map.get(CHECKPOINT).unwrap().sha256,
-            BASE_CHECKPOINT.to_map().get(CHECKPOINT).unwrap().sha256,
-            "the same file, pinned the same"
-        );
-
-        let loaded = cache.load(WHISPER_KIT, &map).unwrap();
-        for (key, part) in loaded.iter() {
-            assert_eq!(part.provenance, Provenance::LocalDir, "{key}");
-        }
-        assert_eq!(
-            loaded.expect(CHECKPOINT).unwrap(),
-            bunsen_bundled_whisper::base_pt()
-        );
-        assert_eq!(
-            loaded.expect(VOCABULARY).unwrap(),
-            bunsen_bundled_whisper::multilingual_tiktoken()
-        );
-        assert!(!dir.path().join("cache").exists(), "nothing was written");
-
-        assert_eq!(
-            factory.resolve("openai/base", &cache).unwrap().id(),
-            "well-known:openai/base"
-        );
-    }
-
-    /// A cache rooted at the bundle's directory, offline, has `openai/base`
-    /// whole: both resources cached, nothing fetched, nothing written.
-    #[cfg(feature = "whisper-weights")]
-    #[test]
-    fn test_the_bundle_serves_openai_base() {
-        use crate::{
-            data::pretrained::{
-                CacheStatus,
-                Provenance,
-            },
-            kits::speech::whisper::pretrained::{
-                VOCABULARY,
-                testing::offline_cache,
-            },
-        };
-        let cache = offline_cache();
-        let factory = default_whisper_factory().unwrap();
-        let model = factory.resolve("openai/base", &cache).unwrap();
-        assert_eq!(model.id(), "well-known:openai/base");
-        let status = model.status(&cache);
-        assert_eq!(status[CHECKPOINT], CacheStatus::Cached);
-        assert_eq!(status[VOCABULARY], CacheStatus::Cached);
-
-        let loaded = cache.load(WHISPER_KIT, &model.to_map()).unwrap();
-        assert_eq!(loaded.map.name, "well-known:openai/base");
-        for (key, part) in loaded.iter() {
-            assert_eq!(part.provenance, Provenance::Cached, "{key}");
-            assert!(part.path.starts_with(bunsen_bundled_whisper::cache_dir()));
-        }
-        assert_eq!(
-            loaded.expect(CHECKPOINT).unwrap(),
-            bunsen_bundled_whisper::base_pt()
         );
     }
 }

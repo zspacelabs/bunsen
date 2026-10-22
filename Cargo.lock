@@ -1175,8 +1175,6 @@ version = "0.39.0"
 dependencies = [
  "assert_float_eq",
  "bunsen",
- "bunsen-bundled-silero",
- "bunsen-bundled-whisper",
  "bunsen-contracts-macros",
  "bunsen-fetch",
  "bunsen-test-audio",
@@ -12495,6 +12493,7 @@ dependencies = [
  "serde",
  "serde_json",
  "serial_test",
+ "tempfile",
 ]
 
 [[package]]
