@@ -1,4 +1,4 @@
-//! `bunsen-asr <family|diarize> list`.
+//! `bunsen-asr family <family> list` and `bunsen-asr diarize list`.
 use bunsen::errors::BunsenResult;
 use bunsen_app::{
     cache::WeightsCacheArgs,

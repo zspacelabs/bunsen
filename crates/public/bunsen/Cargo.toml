@@ -193,7 +193,7 @@ silero-weights = [
 ## root. bunsen's own tests point a cache at it, offline. Nothing in the
 ## Whisper kit's tables depends on this: bundling is a populated cache
 ## directory, not a kind of source, and a deployment populates the runtime
-## cache the same way (`bunsen-asr <family> fetch`).
+## cache the same way (`bunsen-asr family <family> fetch`).
 ##
 ## **This makes the build reach the network** on a cold cache: unlike Silero's,
 ## Whisper's weights are 145 MB and are fetched rather than committed. Every

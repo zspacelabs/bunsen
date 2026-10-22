@@ -50,6 +50,9 @@ impl From<Preset> for EmissionPolicy {
     }
 }
 
+/// The VAD the presets that find speech regions load.
+pub const VAD_MODEL: &str = "silero/vad-16k";
+
 /// `driver`, with Silero's VAD attached when `preset` finds speech regions.
 pub fn with_vad<E: AsrEngine>(
     driver: AsrStreamDriver<E>,
@@ -61,7 +64,7 @@ pub fn with_vad<E: AsrEngine>(
         return Ok(driver);
     }
     let vad = default_silero_factory()?
-        .load("silero/vad-16k", cache, device)?
+        .load(VAD_MODEL, cache, device)?
         .handle;
     let rate = driver.sample_rate();
     driver.with_vad(

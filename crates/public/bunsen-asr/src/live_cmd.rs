@@ -1,4 +1,5 @@
-//! `bunsen-asr <family> live`.
+//! `bunsen-asr family <family> live`, and what `bunsen-asr live` shares
+//! with it.
 use std::io::{
     IsTerminal,
     Write,
@@ -55,19 +56,10 @@ const DRAFT_CHARS: usize = 100;
 /// exits.
 #[derive(clap::Args, Debug)]
 pub struct LiveCmd<F: clap::Args> {
-    #[clap(flatten)]
-    pub logging: LogArgs,
-
     /// The model, by name: `list` shows them; the family's default when
     /// omitted. Whisper also takes a checkpoint's path.
     #[arg(long)]
     pub model: Option<String>,
-
-    #[clap(flatten)]
-    pub cache: WeightsCacheArgs,
-
-    #[clap(flatten)]
-    pub device: DeviceArgs,
 
     /// When to decode: a microphone has no end, so by default each speech
     /// region is decoded as it closes.
@@ -83,6 +75,23 @@ pub struct LiveCmd<F: clap::Args> {
     pub flags: F,
 
     #[clap(flatten)]
+    pub io: LiveIo,
+}
+
+/// What `live` listens to and runs on, whichever model it runs: the options
+/// a family's command and a profile's share.
+#[derive(clap::Args, Debug)]
+pub struct LiveIo {
+    #[clap(flatten)]
+    pub logging: LogArgs,
+
+    #[clap(flatten)]
+    pub cache: WeightsCacheArgs,
+
+    #[clap(flatten)]
+    pub device: DeviceArgs,
+
+    #[clap(flatten)]
     pub speakers: SpeakerArgs,
 
     #[clap(flatten)]
@@ -94,23 +103,43 @@ impl<F: clap::Args + FamilyFlags> LiveCmd<F> {
         &self,
         family: Family,
     ) -> BunsenResult<()> {
+        self.io.init_logging()?;
+        let model = self.model.as_deref().unwrap_or(family.default_model());
+        self.io
+            .run(family, model, &self.flags, self.preset, self.chunk_ms)
+    }
+}
+
+impl LiveIo {
+    /// Logs as `-v`/`-q` say, warnings by default.
+    pub fn init_logging(&self) -> BunsenResult<()> {
         self.logging
-            .init(LogPolicy::new(LevelFilter::Warn, LevelFilter::Warn))?;
+            .init(LogPolicy::new(LevelFilter::Warn, LevelFilter::Warn))
+    }
+
+    /// Transcribes the microphone with `model` of `family` under `flags`,
+    /// `preset` and pushes of `chunk_ms`.
+    pub fn run<F: FamilyFlags>(
+        &self,
+        family: Family,
+        model: &str,
+        flags: &F,
+        preset: Preset,
+        chunk_ms: usize,
+    ) -> BunsenResult<()> {
         let Some(capture) = self.capture.open()? else {
             return Ok(());
         };
 
         let device = self.device.device()?;
         // The options come from the command line.
-        let cache =
-            PretrainedCache::new(self.flags.cache_options(self.cache.options())).as_policy()?;
-        let model = self.model.as_deref().unwrap_or(family.default_model());
-        let loaded = family.load(model, &self.flags, &cache, &device)?;
+        let cache = PretrainedCache::new(flags.cache_options(self.cache.options())).as_policy()?;
+        let loaded = family.load(model, flags, &cache, &device)?;
         let speakers = self.speakers.diarizer(&cache, &device)?;
         let diarized = speakers.is_some();
-        let driver = Driver::build(loaded, &self.flags, self.preset, speakers, &cache, &device)?;
+        let driver = Driver::build(loaded, flags, preset, speakers, &cache, &device)?;
         let rate = driver.sample_rate();
-        let chunk = driver.push_samples(self.chunk_ms);
+        let chunk = driver.push_samples(chunk_ms);
         log::debug!(
             "push: {chunk} samples ({:.0} ms)",
             chunk as f64 * 1000.0 / rate as f64

@@ -96,7 +96,7 @@
 //! The second form is the general one: bundling a fetched asset means
 //! populating a cache directory, not adding a kind of source. A deployment
 //! that has to run offline does the same thing at install time: it fills
-//! the cache directory ahead of time (`bunsen-asr <family> fetch`) and
+//! the cache directory ahead of time (`bunsen-asr family <family> fetch`) and
 //! points the cache at it.
 //!
 //! ## Example
