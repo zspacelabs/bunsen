@@ -7,6 +7,7 @@ it is for, and `bunsen-asr` picks the family, the model and its settings, for fi
 ```sh
 bunsen-asr transcribe [--profile en] [FLAGS] FILE...   # audio files
 bunsen-asr live       [--profile en] [FLAGS]           # the microphone, as it speaks
+bunsen-asr live       [--speech S] [--task T] [--quality Q] [FLAGS]   # or by what is needed
 bunsen-asr profiles   (list|show|fetch)                # what each profile is for, and what it runs
 ```
 
@@ -14,6 +15,7 @@ bunsen-asr profiles   (list|show|fetch)                # what each profile is fo
 cargo run --release -p bunsen-asr --features wgpu -- transcribe recording.wav
 cargo run --release -p bunsen-asr --features wgpu -- transcribe --profile multi --json recording.wav
 cargo run --release -p bunsen-asr --features wgpu -- live --profile translate-en
+cargo run --release -p bunsen-asr --features wgpu -- transcribe --speech multi --quality fast recording.wav
 ```
 
 | profile | for | `transcribe` runs | `live` runs |
@@ -27,6 +29,19 @@ command lines that name the profile do not. `profiles show [NAME...]` prints eac
 command it runs, `-v` logs it before a run, and `transcribe --json` records `profile` and `recipe` (family, model,
 preset, flags) with each transcript. `profiles fetch NAME...` brings every file a profile runs into the cache, as
 `family <family> fetch` does for a model.
+
+Each profile is a point in a table of what is needed: `--speech` (`en`, `multi`) x `--task` (`transcribe`, `translate`)
+x `--quality` (`fast`, `balanced`, `good`), with a recipe for `transcribe` and one for `live` where a model was seen to
+do the job. `en` is `en`/`transcribe`/`balanced`, `multi` is `multi`/`transcribe`/`balanced`, and `translate-en` is
+`multi`/`translate`/`balanced`. A point with no recipe falls through to the nearest that has one (another quality, a
+better before a worse; then `multi` for `en`), logged at `INFO`.
+
+- Without `--profile`, the three flags choose the point, over `default`'s; `--task translate` alone means `multi`
+  speech. `--json` records the point as the profile (`multi/transcribe/fast`).
+- With `--profile`, the profile's model is kept, and the flags may only adjust it: `--quality` moves along the
+  profile's row, `--task` is set on a model that takes a task (Whisper's `--task`; an `--opt` still wins), and
+  `--speech` must be one the profile hears (`multi` hears English). Anything else is an error:
+  `--profile multi --task translate` fails, as Qwen3-ASR cannot translate.
 
 A profile's run takes every flag below that is not a family's own (`--json`, `--rttm`, `--diarize`, `--device`, the
 cache's and `live`'s capture flags), and:
@@ -47,7 +62,7 @@ apply to it:
 
 ```sh
 bunsen-asr family parakeet  (list|fetch|transcribe|live) [FLAGS]   # NVIDIA's Parakeet TDT; FermionResearch's Phonon-2 by default
-bunsen-asr family qwen3-asr (list|fetch|transcribe|live) [FLAGS]   # Qwen's Qwen3-ASR; FermionResearch's Phonon-1 by default
+bunsen-asr family qwen3-asr (list|fetch|transcribe|live) [FLAGS]   # Qwen's Qwen3-ASR; FermionResearch's Phonon-1 (English) by default
 bunsen-asr family whisper   (list|fetch|transcribe|live) [FLAGS]   # OpenAI's Whisper; openai/base by default
 bunsen-asr diarize          (list|fetch|run|live)        [FLAGS]   # who spoke when: NVIDIA's Nemotron-3-Diarization
 ```
