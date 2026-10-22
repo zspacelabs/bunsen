@@ -12,9 +12,10 @@
 //! providers. First the well-known table, [`WELL_KNOWN_TABLE`], whose rows
 //! name their prefab in [`QWEN3_ASR_PREFABS`]:
 //!
-//! - `fermion/phonon-1` (`phonon-1`): `FermionResearch`'s Phonon-1, its text
-//!   decoder in a five-symbol code and its audio tower 6-bit, as one 415 MB
-//!   archive. The default.
+//! - `fermion/phonon-1` (`phonon-1`): `FermionResearch`'s Phonon-1, an
+//!   English fine-tune of `Qwen3-ASR-0.6B` (other speech comes out as broken
+//!   English), its text decoder in a five-symbol code and its audio tower
+//!   6-bit, as one 415 MB archive. The default.
 //! - `fermion/phonon-1-micro` (`phonon-1-micro`): the 285 MB build, its audio
 //!   tower and embedding 4-bit.
 //! - `fermion/phonon-1-big` (`phonon-1-big`): the 581 MB build, its audio tower

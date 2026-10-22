@@ -365,7 +365,7 @@ mod tests {
             assert!(text.contains(profile.live.model), "{text}");
         }
         assert!(
-            text.contains("  live:       qwen3-asr fermion/phonon-1\n"),
+            text.contains("  live:       qwen3-asr qwen/qwen3-asr-0.6b\n"),
             "{text}"
         );
     }

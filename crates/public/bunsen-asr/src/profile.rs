@@ -131,17 +131,17 @@ pub const PROFILES: &[Profile] = &[
     Profile {
         name: "multi",
         aliases: &[],
-        description: "Any of 30 languages, found from the speech: Qwen's Qwen3-ASR, as FermionResearch's Phonon-1",
+        description: "Any of 30 languages, found from the speech: Qwen's Qwen3-ASR (1.7B; 0.6B live)",
         offline: Recipe {
             family: Family::Qwen3Asr,
-            model: "fermion/phonon-1-big",
+            model: "qwen/qwen3-asr-1.7b",
             preset: Preset::Offline,
             chunk_ms: 1000,
             flags: &[],
         },
         live: Recipe {
             family: Family::Qwen3Asr,
-            model: "fermion/phonon-1",
+            model: "qwen/qwen3-asr-0.6b",
             preset: Preset::Conservative,
             chunk_ms: 250,
             flags: &[],
@@ -654,7 +654,7 @@ mod tests {
         let r = resolve("multi", Mode::Offline, None, &["model=fermion/phonon-1"]).unwrap();
         assert_eq!(r.model, "fermion/phonon-1");
         let r = resolve("multi", Mode::Offline, None, &["whisper.model=openai/tiny"]).unwrap();
-        assert_eq!(r.model, "fermion/phonon-1-big");
+        assert_eq!(r.model, "qwen/qwen3-asr-1.7b");
     }
 
     #[test]

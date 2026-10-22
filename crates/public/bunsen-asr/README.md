@@ -19,7 +19,7 @@ cargo run --release -p bunsen-asr --features wgpu -- live --profile translate-en
 | profile | for | `transcribe` runs | `live` runs |
 |---|---|---|---|
 | `en` (`default`) | English, each word timed | `parakeet` `fermion/phonon-2` | `parakeet` `fermion/phonon-2`, `conservative` |
-| `multi` | any of 30 languages, found from the speech | `qwen3-asr` `fermion/phonon-1-big` | `qwen3-asr` `fermion/phonon-1`, `conservative` |
+| `multi` | any of 30 languages, found from the speech | `qwen3-asr` `qwen/qwen3-asr-1.7b` | `qwen3-asr` `qwen/qwen3-asr-0.6b`, `conservative` |
 | `translate-en` | any of Whisper's languages, as English text | `whisper` `openai/large-v3`, `--task translate` | `whisper` `openai/small`, `--task translate --beam-size 1`, `conservative` |
 
 The profiles are this binary's, and improve with it: when a better model arrives, a profile's row changes, and the
@@ -158,8 +158,8 @@ The kits are `parakeet`, `qwen3-asr`, `whisper`, `sortformer` (the diarizer) and
 |---|---|---|
 | `parakeet`: `fermion/phonon-2` | 164 MB, `parakeet-tdt-0.6b-v3` with a five-value encoder, English | CC-BY-4.0 |
 | `parakeet`: `nvidia/parakeet-tdt-0.6b-v3` | 2.5 GB, NVIDIA's base model, 25 European languages | CC-BY-4.0 |
-| `qwen3-asr`: `fermion/phonon-1` | 415 MB, `Qwen3-ASR-0.6B` re-packed, 30 languages; `-micro` (285 MB) and `-big` (581 MB) builds | Apache-2.0 |
-| `qwen3-asr`: `qwen/qwen3-asr-0.6b`, `qwen/qwen3-asr-1.7b` | 1.6 and 4.1 GB, Qwen's base models | Apache-2.0 |
+| `qwen3-asr`: `fermion/phonon-1` | 415 MB, `Qwen3-ASR-0.6B` fine-tuned for English (other speech comes out as broken English); `-micro` (285 MB) and `-big` (581 MB) builds | Apache-2.0 |
+| `qwen3-asr`: `qwen/qwen3-asr-0.6b`, `qwen/qwen3-asr-1.7b` | 1.6 and 4.1 GB, Qwen's base models, 30 languages | Apache-2.0 |
 | `whisper`: `openai/*` | every `openai-whisper` checkpoint, `tiny` to `large-v3-turbo` | MIT |
 | `diarize`: `nvidia/nemotron-3-diarization` | 397 MB, NVIDIA's streaming Sortformer, up to 8 speakers | OpenMDW-1.1 |
 
