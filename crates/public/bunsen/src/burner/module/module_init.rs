@@ -321,7 +321,7 @@ use crate::errors::{
 /// `try_init`) instead of this trait:
 ///
 /// - a layer built for its place in a stack:
-///   [`CausalSelfAttentionConfig::init`] and [`NanoChatGptBlockConfig::init`]
+///   [`CausalSelfAttentionConfig::init`] and [`CausalDecoderBlockConfig::init`]
 ///   take a `layer_index`;
 /// - per-stream state that serves a model rather than standing alone:
 ///   [`KVCacheConfig::init`] takes no device, and
@@ -330,7 +330,7 @@ use crate::errors::{
 ///   initial density `rho`.
 ///
 /// [`CausalSelfAttentionConfig::init`]: crate::blocks::transformers::attention::csa::CausalSelfAttentionConfig::init
-/// [`NanoChatGptBlockConfig::init`]: crate::kits::gpts::nanochat::blocks::NanoChatGptBlockConfig::init
+/// [`CausalDecoderBlockConfig::init`]: crate::blocks::transformers::decoders::causal::CausalDecoderBlockConfig::init
 /// [`KVCacheConfig::init`]: crate::ops::transformers::attention::KVCacheConfig::init
 /// [`SileroVadContextConfig::init`]: crate::kits::speech::silero_vad::blocks::SileroVadContextConfig::init
 /// [`LBMD2Q9Config::init`]: crate::kits::sims::lbm::d2q9::LBMD2Q9Config::init

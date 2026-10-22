@@ -473,7 +473,7 @@ impl ParamGroups {
     ///
     /// Element names are module *type* names, and field names are `@name`:
     /// the `gpt` field is `GptHost/NanoChatGpt`. `h` is a `Vec` of
-    /// `NanoChatGptBlock`, whose `Linear`s sit in `attn` and `mlp`, hence
+    /// `CausalDecoderBlock`, whose `Linear`s sit in `attn` and `mlp`, hence
     /// `//Linear`. Stacked predicates (`[a][b]`) mean "a and b".
     pub fn select(host: &GptHost) -> BunsenResult<Self> {
         let mut mtree = XmlModuleTree::build(host);

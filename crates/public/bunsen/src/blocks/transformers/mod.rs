@@ -30,6 +30,9 @@
 //!   the `FastConformer`, Parakeet's and Sortformer v2's.
 //!   [`EncoderTransformer`](encoders::EncoderTransformer) is any of their
 //!   stacks, chosen by config.
+//! - [`decoders`]: causal decoder layers:
+//!   [`CausalDecoderBlock`](decoders::causal::CausalDecoderBlock), the
+//!   decoder-only layer, nanochat's and Qwen3's by config.
 //! - [`mlp`]: [`Mlp`](mlp::Mlp), the position-wise feed-forward block (expand,
 //!   activate, project back), [`layer_norm_mlp`](mlp::layer_norm_mlp), which
 //!   runs it after a `LayerNorm`, and [`GatedMlp`](mlp::GatedMlp), the `SwiGLU`
@@ -39,6 +42,7 @@
 //! [`crate::ops::transformers`].
 
 pub mod attention;
+pub mod decoders;
 pub mod embedding;
 pub mod encoders;
 pub mod mlp;

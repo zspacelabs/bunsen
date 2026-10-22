@@ -1,4 +1,6 @@
 //! Loading `transformers`-named tensors into a [`Qwen3Asr`].
+use std::sync::LazyLock;
+
 use burn::store::burn_pack::Tensor as PackTensor;
 
 use super::blocks::{
@@ -8,7 +10,11 @@ use super::blocks::{
     Qwen3AsrConfig,
 };
 use crate::{
-    blocks::conv::ConvSeq2d,
+    blocks::{
+        conv::ConvSeq2d,
+        transformers::decoders::causal::CausalDecoderBlock,
+    },
+    burner::module::Rekey,
     data::pretrained::{
         HfConfigJson,
         NamedTensorsApplied,
@@ -40,13 +46,17 @@ pub fn hf_to_bunsen_path(name: &str) -> Option<String> {
         (".fc1.", ".mlp.linear1."),
         (".fc2.", ".mlp.linear2."),
     ];
-    const TEXT_RENAMES: &[(&str, &str)] = &[
-        // The text model's attention is the shared causal self-attention.
-        (".self_attn.q_proj.", ".self_attn.c_q."),
-        (".self_attn.k_proj.", ".self_attn.c_k."),
-        (".self_attn.v_proj.", ".self_attn.c_v."),
-        (".self_attn.o_proj.", ".self_attn.c_proj."),
-    ];
+    // The text model's layers are the shared causal decoder layer's.
+    static TEXT_LAYERS: LazyLock<Rekey> = LazyLock::new(|| {
+        Rekey::drop_rest().mount_indexed(
+            "language_model.layers.",
+            "language_model.layers.",
+            CausalDecoderBlock::transformers_rekey(),
+        )
+    });
+    if name.starts_with("language_model.layers.") {
+        return TEXT_LAYERS.apply(name);
+    }
     // The stem's 1-based `conv2d{n}` are the 0-based blocks of a `ConvSeq2d`.
     if let Some(rest) = name.strip_prefix("audio_tower.conv2d")
         && let Some((n, param)) = rest.split_once('.')
@@ -57,8 +67,6 @@ pub fn hf_to_bunsen_path(name: &str) -> Option<String> {
     }
     let renames = if name.starts_with("audio_tower.") {
         RENAMES
-    } else if name.starts_with("language_model.") {
-        TEXT_RENAMES
     } else {
         &[]
     };
@@ -211,11 +219,11 @@ mod tests {
             ),
             (
                 "model.language_model.layers.0.self_attn.o_proj.weight",
-                Some("language_model.layers.0.self_attn.c_proj.weight"),
+                Some("language_model.layers.0.attn.c_proj.weight"),
             ),
             (
                 "model.language_model.layers.0.self_attn.q_norm.weight",
-                Some("language_model.layers.0.self_attn.q_norm.weight"),
+                Some("language_model.layers.0.attn.q_norm.weight"),
             ),
             (
                 "model.language_model.layers.0.mlp.gate_proj.weight",
