@@ -12,6 +12,12 @@
 //! - [`rope`]: a pre-norm encoder with rotary attention,
 //!   [`RopeTransformerEncoder`](rope::RopeTransformerEncoder), over
 //!   [`RopeEncoderBlock`](rope::RopeEncoderBlock)s: `Nemotron-3-Diarization`'s.
+//! - [`conformer`]: the `FastConformer` encoder,
+//!   [`ConformerEncoder`](conformer::ConformerEncoder): depthwise-striding
+//!   subsampling, then [`ConformerBlock`](conformer::ConformerBlock)s, each two
+//!   half-step feed-forwards around relative-position attention and a
+//!   convolution module. Parakeet's and Sortformer v2's.
 
+pub mod conformer;
 pub mod residual;
 pub mod rope;

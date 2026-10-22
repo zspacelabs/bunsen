@@ -40,9 +40,6 @@
 //!
 //! ## Map of the module
 //!
-//! - [`conformer`]: the `FastConformer` encoder and its parts:
-//!   relative-position self-attention, the convolution and feed-forward
-//!   modules, the Conformer block, and depthwise-striding subsampling.
 //! - [`conv`]: conv / norm / activation blocks, in 1D and 2D (`ConvBlock1d`,
 //!   `ConvBlock2d`), and sequences of them (`ConvSeq1d`, `ConvSeq2d`).
 //! - [`frame_rate`]: changing a sequence's frame rate by a whole factor:
@@ -57,12 +54,19 @@
 //!     "SAME" padding.
 //! - [`rnn`]: recurrent blocks: `FusedLstm`, a single-step LSTM with fused
 //!   gates, and its state type.
-//! - [`transformers`]: transformer blocks.
+//! - [`transformers`]: transformer blocks: the parts, and the layers and stacks
+//!   assembled from them.
 //!   - [`transformers::attention`]: `CausalSelfAttention`, with QK-norm, rotary
-//!     embeddings, grouped-query attention and an optional KV cache.
+//!     embeddings, grouped-query attention and an optional KV cache; and the
+//!     encoders' bidirectional attentions, relative-position and rotary.
 //!   - [`transformers::embedding`]: `RotaryEmbedding`, and fixture embeddings
 //!     for tests.
-//!   - [`transformers::mlp`]: `Mlp`, the transformer feed-forward block.
+//!   - [`transformers::mlp`]: `Mlp` and `GatedMlp`, the transformer
+//!     feed-forward blocks.
+//!   - [`transformers::encoders`]: bidirectional encoder layers and stacks: the
+//!     residual layer, the rotary encoder, and the `FastConformer` encoder with
+//!     its relative-position attention, convolution and feed-forward modules
+//!     and depthwise-striding subsampling.
 //!
 //! See the per-item rustdoc for shape contracts, defaults, and the papers each
 //! block implements.
@@ -71,7 +75,6 @@
 //! [`KVCache`]: crate::ops::transformers::attention::KVCache
 //! [`ModuleInit`]: crate::burner::module::ModuleInit
 
-pub mod conformer;
 pub mod conv;
 pub mod frame_rate;
 pub mod images;

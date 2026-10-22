@@ -6,7 +6,7 @@ use super::blocks::{
     ParakeetTdtConfig,
 };
 use crate::{
-    blocks::conformer::{
+    blocks::transformers::encoders::conformer::{
         ConformerBlockConfig,
         ConformerEncoderConfig,
         DwStridingSubsamplingConfig,

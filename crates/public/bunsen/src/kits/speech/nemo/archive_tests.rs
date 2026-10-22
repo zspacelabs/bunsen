@@ -9,9 +9,9 @@ use serde::Deserialize;
 
 use super::*;
 use crate::{
-    blocks::{
+    blocks::transformers::encoders::{
         conformer::ConformerEncoder,
-        transformers::encoders::residual::ResidualEncoderAttentionBlock,
+        residual::ResidualEncoderAttentionBlock,
     },
     burner::module::ModuleInit,
     data::pretrained::apply_named_tensors,
@@ -84,9 +84,9 @@ fn test_config_sections() {
 #[test]
 fn test_bunsen_configs() {
     use crate::{
-        blocks::{
+        blocks::transformers::encoders::{
             conformer::ConformerEncoderMeta,
-            transformers::encoders::residual::{
+            residual::{
                 NormPlacement,
                 ResidualEncoderAttentionBlockMeta,
             },

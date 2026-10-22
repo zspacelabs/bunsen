@@ -2,7 +2,7 @@
 //! two networks.
 //!
 //! [`ParakeetTdtConfig`] builds a [`ParakeetTdt`]: a
-//! [`ConformerEncoder`](crate::blocks::conformer::ConformerEncoder) with an
+//! [`ConformerEncoder`](crate::blocks::transformers::encoders::conformer::ConformerEncoder) with an
 //! encoder projection, a [`TdtPredictionNetwork`] and a [`TdtJoint`]. Both
 //! answer [`ParakeetTdtMeta`]. The prediction network's recurrent state is a
 //! [`TdtPredictionState`] the caller opens per decode, never on the model.

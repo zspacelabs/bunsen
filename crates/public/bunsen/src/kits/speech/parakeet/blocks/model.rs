@@ -17,7 +17,7 @@ use super::{
     TdtPredictionNetworkConfig,
 };
 use crate::{
-    blocks::conformer::{
+    blocks::transformers::encoders::conformer::{
         ConformerBlockConfig,
         ConformerEncoder,
         ConformerEncoderConfig,

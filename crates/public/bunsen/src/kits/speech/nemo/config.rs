@@ -7,13 +7,13 @@ use super::{
     NemoMelFrontEndConfig,
 };
 use crate::{
-    blocks::{
+    blocks::transformers::encoders::{
         conformer::{
             ConformerBlockConfig,
             ConformerEncoderConfig,
             DwStridingSubsamplingConfig,
         },
-        transformers::encoders::residual::{
+        residual::{
             NormPlacement,
             ResidualEncoderAttentionBlockConfig,
         },
