@@ -17,7 +17,10 @@ use crate::{
         ConvBlock2d,
         ConvBlock2dConfig,
     },
-    burner::module::ModuleInit,
+    burner::module::{
+        ModuleInit,
+        Rekey,
+    },
     errors::{
         BunsenResult,
         ConstraintError,
@@ -280,6 +283,60 @@ impl DwStridingSubsampling {
         );
 
         (y, lengths)
+    }
+}
+
+/// The stem or stage module a flat `ModuleList` index names, under
+/// [`DwStridingSubsampling`]'s layout: `0` is the stem's convolution; from
+/// `2`, each stage is a depthwise convolution, a pointwise convolution and an
+/// activation, in threes. `None` for an activation, or past the stages.
+fn dw_striding_module(
+    k: usize,
+    n_stages: usize,
+) -> Option<String> {
+    match k {
+        0 => Some("stem.conv".to_string()),
+        k if k >= 2 && (k - 2) / 3 + 1 < n_stages => match (k - 2) % 3 {
+            0 => Some(format!("stages.{}.depthwise.conv", (k - 2) / 3)),
+            1 => Some(format!("stages.{}.pointwise.conv", (k - 2) / 3)),
+            _ => None,
+        },
+        _ => None,
+    }
+}
+
+/// `{prefix}{k}.{param}`, a flat `ModuleList`'s entry, to its module's path.
+fn dw_striding_list(
+    prefix: &'static str,
+    n_stages: usize,
+) -> Rekey {
+    Rekey::keep_rest().custom(move |name| {
+        let (k, param) = name.strip_prefix(prefix)?.split_once('.')?;
+        let module = k.parse().ok().and_then(|k| dw_striding_module(k, n_stages));
+        Some(module.map(|module| format!("{module}.{param}")))
+    })
+}
+
+impl DwStridingSubsampling {
+    /// Its tensors as `transformers`' `ParakeetEncoderSubsampling` names them,
+    /// relative to it: the flat `layers.{k}` onto the stem and the stages,
+    /// everything else as it is.
+    ///
+    /// `n_stages` is the subsampling's stage count, which fixes the layout.
+    pub fn transformers_rekey(n_stages: usize) -> Rekey {
+        dw_striding_list("layers.", n_stages)
+    }
+
+    /// Its tensors as `NeMo`'s `ConvSubsampling` (`pre_encode`) names them,
+    /// relative to it: the flat `conv.{k}` onto the stem and the stages, and
+    /// `out` the projection. Anything else is dropped.
+    ///
+    /// `n_stages` is the subsampling's stage count, which fixes the layout.
+    pub fn nemo_rekey(n_stages: usize) -> Rekey {
+        let conv = dw_striding_list("conv.", n_stages);
+        Rekey::drop_rest()
+            .custom(move |name| name.starts_with("conv.").then(|| conv.apply(name)))
+            .rename("out.", "linear.")
     }
 }
 

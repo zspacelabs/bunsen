@@ -17,8 +17,11 @@
 //!   describe. A section's fields are its YAML keys, spelled as `NeMo` spells
 //!   them, so a field greps to `NeMo`'s source and to a `.nemo`'s config;
 //!   bunsen's own names start in the configs a section gives.
-//! - [`nemo_conformer_to_bunsen_path`] and [`nemo_transformer_to_bunsen_path`]:
-//!   `NeMo`'s state-dict names as bunsen's module paths.
+//! - `NeMo`'s state-dict names as bunsen's module paths are the blocks' own
+//!   maps:
+//!   [`ConformerEncoder::nemo_rekey`](crate::blocks::transformers::encoders::conformer::ConformerEncoder::nemo_rekey)
+//!   and
+//!   [`ResidualEncoderTransformer::nemo_rekey`](crate::blocks::transformers::encoders::residual::ResidualEncoderTransformer::nemo_rekey).
 //!
 //! The `.nemo` fixture in `testdata/nemo/` is a toy Sortformer v2 that `NeMo`
 //! saved itself, written by `tools/gen_nemo_fixtures.py`.
@@ -28,7 +31,6 @@ mod archive;
 #[cfg(feature = "nemo")]
 mod config;
 mod front_end;
-mod renames;
 
 #[cfg(all(test, feature = "nemo"))]
 mod archive_tests;
@@ -38,4 +40,3 @@ pub use archive::*;
 #[cfg(feature = "nemo")]
 pub use config::*;
 pub use front_end::*;
-pub use renames::*;
