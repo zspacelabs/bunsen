@@ -75,19 +75,265 @@ pub struct Recipe {
     pub flags: &'static [(&'static str, &'static str)],
 }
 
-/// A named, semantic choice of model: a recipe for files, one for the
-/// microphone.
+/// What the speech is: the table's language axis.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, clap::ValueEnum)]
+pub enum Speech {
+    /// English.
+    En,
+
+    /// Any language a model finds from the speech; English among them.
+    Multi,
+}
+
+/// What to make of the speech.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, clap::ValueEnum)]
+pub enum Task {
+    /// Text in the language spoken.
+    Transcribe,
+
+    /// English text.
+    Translate,
+}
+
+/// How much compute to spend on it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, clap::ValueEnum)]
+pub enum Quality {
+    Fast,
+    Balanced,
+    Good,
+}
+
+impl Quality {
+    /// This, then the others nearest first, a better one before a worse.
+    fn nearest(self) -> [Quality; 3] {
+        match self {
+            Quality::Fast => [Quality::Fast, Quality::Balanced, Quality::Good],
+            Quality::Balanced => [Quality::Balanced, Quality::Good, Quality::Fast],
+            Quality::Good => [Quality::Good, Quality::Balanced, Quality::Fast],
+        }
+    }
+}
+
+/// A point in the table: what the speech is, what to make of it, how much
+/// to spend.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct Need {
+    pub speech: Speech,
+    pub task: Task,
+    pub quality: Quality,
+}
+
+impl fmt::Display for Need {
+    fn fmt(
+        &self,
+        f: &mut fmt::Formatter<'_>,
+    ) -> fmt::Result {
+        use clap::ValueEnum;
+        let name = |v: Option<clap::builder::PossibleValue>| {
+            v.expect("no variant is skipped").get_name().to_string()
+        };
+        write!(
+            f,
+            "{}/{}/{}",
+            name(self.speech.to_possible_value()),
+            name(self.task.to_possible_value()),
+            name(self.quality.to_possible_value())
+        )
+    }
+}
+
+impl Need {
+    /// The points that can stand in for this one, nearest first, this one
+    /// first: another quality before other speech, as a multilingual model
+    /// also hears English; English translated to English is transcribed.
+    fn candidates(self) -> Vec<Need> {
+        let speeches: &[Speech] = match self.speech {
+            Speech::En => &[Speech::En, Speech::Multi],
+            Speech::Multi => &[Speech::Multi],
+        };
+        let mut out = Vec::new();
+        for &speech in speeches {
+            let tasks: &[Task] = match (speech, self.task) {
+                (Speech::En, Task::Translate) => &[Task::Translate, Task::Transcribe],
+                (_, task) => &[task],
+            };
+            for &task in tasks {
+                for quality in self.quality.nearest() {
+                    out.push(Need {
+                        speech,
+                        task,
+                        quality,
+                    });
+                }
+            }
+        }
+        out
+    }
+}
+
+/// One cell of the table: what runs for a need, in a mode.
+#[derive(Clone, Copy, Debug)]
+pub struct Cell {
+    pub need: Need,
+    pub mode: Mode,
+    pub recipe: Recipe,
+}
+
+/// A recipe for files: whole windows, a second of audio per push.
+const fn offline(
+    family: Family,
+    model: &'static str,
+    flags: &'static [(&'static str, &'static str)],
+) -> Recipe {
+    Recipe {
+        family,
+        model,
+        preset: Preset::Offline,
+        chunk_ms: 1000,
+        flags,
+    }
+}
+
+/// A recipe for the microphone: speech regions, a quarter second per push.
+const fn live(
+    family: Family,
+    model: &'static str,
+    flags: &'static [(&'static str, &'static str)],
+) -> Recipe {
+    Recipe {
+        family,
+        model,
+        preset: Preset::Conservative,
+        chunk_ms: 250,
+        flags,
+    }
+}
+
+const fn cell(
+    speech: Speech,
+    task: Task,
+    quality: Quality,
+    mode: Mode,
+    recipe: Recipe,
+) -> Cell {
+    Cell {
+        need: Need {
+            speech,
+            task,
+            quality,
+        },
+        mode,
+        recipe,
+    }
+}
+
+/// The table: a cell where a model was seen to do the job; a need without
+/// one falls through to the nearest that has one ([`pick`]).
+///
+/// Every speech and task reaches a cell: `multi` `transcribe` and `multi`
+/// `translate` each have a `balanced` cell in each mode.
+pub const TABLE: &[Cell] = {
+    use Family::*;
+    use Mode::{
+        Live,
+        Offline,
+    };
+    use Quality::*;
+    use Speech::*;
+    use Task::*;
+    &[
+        // Parakeet TDT, as Phonon-2: each word timed.
+        cell(
+            En,
+            Transcribe,
+            Balanced,
+            Offline,
+            offline(Parakeet, "fermion/phonon-2", &[]),
+        ),
+        cell(
+            En,
+            Transcribe,
+            Balanced,
+            Live,
+            live(Parakeet, "fermion/phonon-2", &[]),
+        ),
+        // Qwen3-ASR: 30 languages. Phonon-1 is an English fine-tune, and
+        // writes other speech as broken English. 1.7B is about 2.5x 0.6B's
+        // time, too slow to be seen keeping up live.
+        cell(
+            Multi,
+            Transcribe,
+            Fast,
+            Offline,
+            offline(Qwen3Asr, "qwen/qwen3-asr-0.6b", &[]),
+        ),
+        cell(
+            Multi,
+            Transcribe,
+            Balanced,
+            Offline,
+            offline(Qwen3Asr, "qwen/qwen3-asr-1.7b", &[]),
+        ),
+        cell(
+            Multi,
+            Transcribe,
+            Balanced,
+            Live,
+            live(Qwen3Asr, "qwen/qwen3-asr-0.6b", &[]),
+        ),
+        // Whisper alone translates (large-v3-turbo was not trained to).
+        cell(
+            Multi,
+            Translate,
+            Balanced,
+            Offline,
+            offline(
+                Whisper,
+                "openai/large-v3",
+                &[("task", "translate"), ("beam-size", "5")],
+            ),
+        ),
+        cell(
+            Multi,
+            Translate,
+            Balanced,
+            Live,
+            live(
+                Whisper,
+                "openai/small",
+                &[("task", "translate"), ("beam-size", "1")],
+            ),
+        ),
+    ]
+};
+
+/// The cell for `need` in `mode`, and, when it is not `need`'s own, a note
+/// of what stood in.
+pub fn pick(
+    need: Need,
+    mode: Mode,
+) -> (&'static Cell, Option<String>) {
+    for candidate in need.candidates() {
+        if let Some(cell) = TABLE.iter().find(|c| c.need == candidate && c.mode == mode) {
+            let note = (candidate != need).then(|| {
+                format!(
+                    "no {} recipe for {need}: {candidate} stands in",
+                    mode.command()
+                )
+            });
+            return (cell, note);
+        }
+    }
+    unreachable!("every speech and task reaches a balanced cell; see TABLE")
+}
+
+/// A named, semantic choice of model: a point in the [`TABLE`].
 #[derive(Clone, Copy, Debug)]
 pub struct Profile {
     pub name: &'static str,
     pub aliases: &'static [&'static str],
     pub description: &'static str,
-
-    /// What `transcribe` runs.
-    pub offline: Recipe,
-
-    /// What `live` runs.
-    pub live: Recipe,
+    pub need: Need,
 }
 
 impl Profile {
@@ -95,11 +341,8 @@ impl Profile {
     pub fn recipe(
         &self,
         mode: Mode,
-    ) -> &Recipe {
-        match mode {
-            Mode::Offline => &self.offline,
-            Mode::Live => &self.live,
-        }
+    ) -> &'static Recipe {
+        &pick(self.need, mode).0.recipe
     }
 }
 
@@ -107,44 +350,26 @@ impl Profile {
 /// means can change too.
 pub const DEFAULT_PROFILE: &str = "default";
 
-/// The profiles.
+/// The profiles: names for the points of the table people ask for.
 pub const PROFILES: &[Profile] = &[
     Profile {
         name: "en",
         aliases: &[DEFAULT_PROFILE],
         description: "English: NVIDIA's Parakeet TDT, as FermionResearch's Phonon-2; each word timed",
-        offline: Recipe {
-            family: Family::Parakeet,
-            model: "fermion/phonon-2",
-            preset: Preset::Offline,
-            chunk_ms: 1000,
-            flags: &[],
-        },
-        live: Recipe {
-            family: Family::Parakeet,
-            model: "fermion/phonon-2",
-            preset: Preset::Conservative,
-            chunk_ms: 250,
-            flags: &[],
+        need: Need {
+            speech: Speech::En,
+            task: Task::Transcribe,
+            quality: Quality::Balanced,
         },
     },
     Profile {
         name: "multi",
         aliases: &[],
         description: "Any of 30 languages, found from the speech: Qwen's Qwen3-ASR (1.7B; 0.6B live)",
-        offline: Recipe {
-            family: Family::Qwen3Asr,
-            model: "qwen/qwen3-asr-1.7b",
-            preset: Preset::Offline,
-            chunk_ms: 1000,
-            flags: &[],
-        },
-        live: Recipe {
-            family: Family::Qwen3Asr,
-            model: "qwen/qwen3-asr-0.6b",
-            preset: Preset::Conservative,
-            chunk_ms: 250,
-            flags: &[],
+        need: Need {
+            speech: Speech::Multi,
+            task: Task::Transcribe,
+            quality: Quality::Balanced,
         },
     },
     Profile {
@@ -152,19 +377,10 @@ pub const PROFILES: &[Profile] = &[
         aliases: &[],
         description: "Any of Whisper's languages, translated to English text: OpenAI's Whisper \
                       (large-v3-turbo was not trained to translate)",
-        offline: Recipe {
-            family: Family::Whisper,
-            model: "openai/large-v3",
-            preset: Preset::Offline,
-            chunk_ms: 1000,
-            flags: &[("task", "translate"), ("beam-size", "5")],
-        },
-        live: Recipe {
-            family: Family::Whisper,
-            model: "openai/small",
-            preset: Preset::Conservative,
-            chunk_ms: 250,
-            flags: &[("task", "translate"), ("beam-size", "1")],
+        need: Need {
+            speech: Speech::Multi,
+            task: Task::Translate,
+            quality: Quality::Balanced,
         },
     },
 ];
@@ -288,8 +504,9 @@ struct FlagsOnly<F: clap::Args> {
 /// A profile's recipe, with the command line's choices over it: what runs.
 #[derive(Clone, Debug)]
 pub struct Resolved {
-    /// The profile's name, not the alias it was named by.
-    pub profile: &'static str,
+    /// The profile's name, not the alias it was named by; or the need the
+    /// table was asked for (`multi/translate/fast`).
+    pub profile: String,
     pub mode: Mode,
     pub family: Family,
     pub model: String,
@@ -315,14 +532,14 @@ impl Recipe {
     /// `false`: they come from the command line.
     pub fn resolve(
         &self,
-        profile: &'static str,
+        profile: &str,
         mode: Mode,
         language: Option<&str>,
         opts: &[Opt],
     ) -> BunsenResult<Resolved> {
         let family = self.family.name();
         let mut resolved = Resolved {
-            profile,
+            profile: profile.to_string(),
             mode,
             family: self.family,
             model: self.model.to_string(),
@@ -463,7 +680,7 @@ impl Resolved {
     /// What `--json` records of this: the profile, and what it ran.
     pub fn stamp(&self) -> Stamp {
         Stamp {
-            profile: self.profile.to_string(),
+            profile: self.profile.clone(),
             recipe: RecipeStamp {
                 family: self.family.name().to_string(),
                 model: self.model.clone(),
@@ -563,6 +780,55 @@ mod tests {
         assert_eq!(unique.len(), names.len(), "{names:?}");
         assert_eq!(lookup(DEFAULT_PROFILE).unwrap().name, "en");
         assert!(lookup("klingon").is_err());
+    }
+
+    /// Every need reaches a cell in each mode; a profile is its own cell,
+    /// and a missing cell falls through to the nearest.
+    #[test]
+    fn test_pick() {
+        use clap::ValueEnum;
+        for &speech in Speech::value_variants() {
+            for &task in Task::value_variants() {
+                for &quality in Quality::value_variants() {
+                    for mode in [Mode::Offline, Mode::Live] {
+                        let need = Need {
+                            speech,
+                            task,
+                            quality,
+                        };
+                        let (cell, note) = pick(need, mode);
+                        assert_eq!(cell.mode, mode);
+                        assert_eq!(note.is_none(), cell.need == need);
+                    }
+                }
+            }
+        }
+        for profile in PROFILES {
+            for mode in [Mode::Offline, Mode::Live] {
+                let (cell, note) = pick(profile.need, mode);
+                assert_eq!(note, None, "{} {mode:?}", profile.name);
+                assert_eq!(cell.need, profile.need);
+            }
+        }
+
+        let need = |speech, task, quality| Need {
+            speech,
+            task,
+            quality,
+        };
+        // A better quality before a worse.
+        let (cell, _) = pick(
+            need(Speech::Multi, Task::Transcribe, Quality::Good),
+            Mode::Live,
+        );
+        assert_eq!(cell.recipe.model, "qwen/qwen3-asr-0.6b");
+        // English translated to English is transcribed.
+        let (cell, note) = pick(
+            need(Speech::En, Task::Translate, Quality::Fast),
+            Mode::Offline,
+        );
+        assert_eq!(cell.recipe.model, "fermion/phonon-2");
+        assert!(note.is_some());
     }
 
     #[test]

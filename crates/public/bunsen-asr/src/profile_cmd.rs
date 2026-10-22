@@ -4,6 +4,7 @@ use std::io::Write;
 
 use bunsen::{
     errors::{
+        BunsenError,
         BunsenResult,
         sys_at,
     },
@@ -30,11 +31,16 @@ use crate::{
     profile::{
         DEFAULT_PROFILE,
         Mode,
+        Need,
         Opt,
         PROFILES,
         Profile,
+        Quality,
         Resolved,
+        Speech,
+        Task,
         lookup,
+        pick,
         shell_line,
     },
     qwen3_asr::Qwen3AsrFlags,
@@ -50,9 +56,28 @@ use crate::{
 #[derive(clap::Args, Debug)]
 pub struct ProfileArgs {
     /// The profile, by name or alias: `profiles` lists them, and what each
-    /// runs.
-    #[arg(long, default_value = DEFAULT_PROFILE)]
-    pub profile: String,
+    /// runs. Without it, `--speech`, `--task` and `--quality` choose the
+    /// model, over `default`'s; with it, they may only adjust it.
+    #[arg(long)]
+    pub profile: Option<String>,
+
+    /// What the speech is. Without `--profile`, in place of `default`'s
+    /// (`multi` with `--task translate`); with it, only as the profile
+    /// already hears it (`multi` hears English).
+    #[arg(long, value_enum)]
+    pub speech: Option<Speech>,
+
+    /// What to make of the speech. Without `--profile`, in place of
+    /// `default`'s; with it, set on a model that takes a task (Whisper's
+    /// `--task`), and an error on one that does not.
+    #[arg(long, value_enum)]
+    pub task: Option<Task>,
+
+    /// How much compute to spend, in place of the profile's. A quality the
+    /// table has no model for falls through to the nearest that has one,
+    /// logged at `INFO`.
+    #[arg(long, value_enum)]
+    pub quality: Option<Quality>,
 
     /// The spoken language (`en`, `de`, ...), for a model that can be told
     /// it (Whisper); one that finds the language itself goes on doing so.
@@ -77,22 +102,96 @@ pub struct ProfileArgs {
 }
 
 impl ProfileArgs {
-    /// The profile's `mode` recipe with the command line over it, logged at
-    /// `INFO` as the family command it runs.
+    /// The profile's name and need, `--quality` over it, and an `--opt`
+    /// setting `--task` on its model, when it is named; otherwise the need
+    /// the axis flags ask for, over `default`'s, named for itself.
     ///
     /// # Errors
-    /// As [`lookup`] and [`Recipe::resolve`](crate::profile::Recipe::resolve).
+    /// As [`lookup`];
+    /// [`Policy`](bunsen::errors::BunsenErrorKind::Policy) when the profile
+    /// does not hear `--speech`, or its model in `mode` cannot do `--task`.
+    fn need(
+        &self,
+        mode: Mode,
+    ) -> BunsenResult<(String, Need, Option<Opt>)> {
+        let Some(name) = &self.profile else {
+            let base = lookup(DEFAULT_PROFILE)?.need;
+            let task = self.task.unwrap_or(base.task);
+            let need = Need {
+                // English speech, translated to English, is only transcribed.
+                speech: self.speech.unwrap_or(match task {
+                    Task::Translate => Speech::Multi,
+                    Task::Transcribe => base.speech,
+                }),
+                task,
+                quality: self.quality.unwrap_or(base.quality),
+            };
+            let name = if self.speech.is_none() && self.task.is_none() && self.quality.is_none() {
+                lookup(DEFAULT_PROFILE)?.name.to_string()
+            } else {
+                need.to_string()
+            };
+            return Ok((name, need, None));
+        };
+        let profile = lookup(name)?;
+        let need = Need {
+            quality: self.quality.unwrap_or(profile.need.quality),
+            ..profile.need
+        };
+        if let Some(speech) = self.speech
+            && speech != need.speech
+            && need.speech != Speech::Multi
+        {
+            return Err(BunsenError::policy(format!(
+                "profile {} hears {}; --speech {} needs another profile, or none",
+                profile.name,
+                value_name(need.speech),
+                value_name(speech)
+            )));
+        }
+        let task = match self.task {
+            Some(task) if task != need.task => {
+                let family = pick(need, mode).0.recipe.family;
+                if family != Family::Whisper {
+                    let task = value_name(task);
+                    return Err(BunsenError::policy(format!(
+                        "profile {} runs {}, which cannot {task}; --task {task} needs another \
+                         profile, or none",
+                        profile.name,
+                        family.name()
+                    )));
+                }
+                Some(Opt {
+                    family: Some(family),
+                    key: "task".to_string(),
+                    value: value_name(task),
+                })
+            }
+            _ => None,
+        };
+        Ok((profile.name.to_string(), need, task))
+    }
+
+    /// The `mode` recipe of the profile, or of the table's cell for the
+    /// need the axis flags ask for, with the command line over it (an
+    /// `--opt` last), logged at `INFO` as the family command it runs.
+    ///
+    /// # Errors
+    /// As [`need`](Self::need) and
+    /// [`Recipe::resolve`](crate::profile::Recipe::resolve).
     pub fn resolve(
         &self,
         mode: Mode,
     ) -> BunsenResult<Resolved> {
-        let profile = lookup(&self.profile)?;
-        let mut resolved = profile.recipe(mode).resolve(
-            profile.name,
-            mode,
-            self.language.as_deref(),
-            &self.opts,
-        )?;
+        let (name, need, task) = self.need(mode)?;
+        let (cell, note) = pick(need, mode);
+        if let Some(note) = note {
+            log::info!("{note}");
+        }
+        let opts: Vec<Opt> = task.into_iter().chain(self.opts.iter().cloned()).collect();
+        let mut resolved = cell
+            .recipe
+            .resolve(&name, mode, self.language.as_deref(), &opts)?;
         if let Some(preset) = self.preset {
             resolved.preset = preset;
         }
@@ -101,11 +200,20 @@ impl ProfileArgs {
         }
         log::info!(
             "profile {}: {}",
-            profile.name,
+            resolved.profile,
             shell_line(&resolved.command_line()?)
         );
         Ok(resolved)
     }
+}
+
+/// The name a `--speech`, `--task` or `--quality` value is given by.
+fn value_name(value: impl clap::ValueEnum) -> String {
+    value
+        .to_possible_value()
+        .expect("no variant is skipped")
+        .get_name()
+        .to_string()
 }
 
 /// `$body` with `$flags` the resolved family's own flags, parsed.
@@ -325,7 +433,7 @@ impl FetchCmd {
         let mut vad = false;
         for name in &self.names {
             let profile = lookup(name)?;
-            for recipe in [&profile.offline, &profile.live] {
+            for recipe in [Mode::Offline, Mode::Live].map(|m| profile.recipe(m)) {
                 if !models.contains(&(recipe.family, recipe.model)) {
                     models.push((recipe.family, recipe.model));
                 }
@@ -351,7 +459,92 @@ impl FetchCmd {
 
 #[cfg(test)]
 mod tests {
+    use clap::Parser;
+
     use super::*;
+
+    #[derive(Parser, Debug)]
+    #[command(no_binary_name = true)]
+    struct Line {
+        #[command(flatten)]
+        args: ProfileArgs,
+    }
+
+    fn resolve(
+        line: &[&str],
+        mode: Mode,
+    ) -> BunsenResult<Resolved> {
+        Line::try_parse_from(line).unwrap().args.resolve(mode)
+    }
+
+    /// Without `--profile`, the axis flags pick from the table, over the
+    /// default profile's need. With it, the profile's model is kept: they
+    /// adjust it, or fail.
+    #[test]
+    fn test_need_flags() {
+        let r = resolve(&[], Mode::Offline).unwrap();
+        assert_eq!(
+            (r.profile.as_str(), r.model.as_str()),
+            ("en", "fermion/phonon-2")
+        );
+
+        // Translating is of speech that is not English.
+        let r = resolve(&["--task", "translate"], Mode::Live).unwrap();
+        assert_eq!(r.profile, "multi/translate/balanced");
+        assert_eq!(r.model, "openai/small");
+
+        let r = resolve(&["--speech", "multi", "--quality", "fast"], Mode::Offline).unwrap();
+        assert_eq!(r.profile, "multi/transcribe/fast");
+        assert_eq!(r.model, "qwen/qwen3-asr-0.6b");
+
+        // No `fast` live cell: `balanced` stands in.
+        let r = resolve(&["--speech", "multi", "--quality", "fast"], Mode::Live).unwrap();
+        assert_eq!(r.model, "qwen/qwen3-asr-0.6b");
+        assert_eq!(r.preset, Preset::Conservative);
+
+        // `--quality` moves along the profile's row.
+        let r = resolve(&["--profile", "multi", "--quality", "fast"], Mode::Offline).unwrap();
+        assert_eq!(
+            (r.profile.as_str(), r.model.as_str()),
+            ("multi", "qwen/qwen3-asr-0.6b")
+        );
+
+        // `--task` sets Whisper's task; a user's `--opt` still wins.
+        let r = resolve(
+            &["--profile", "translate-en", "--task", "transcribe"],
+            Mode::Live,
+        )
+        .unwrap();
+        assert_eq!(r.model, "openai/small");
+        assert_eq!(
+            r.parse_flags::<WhisperFlags>().unwrap().task,
+            crate::whisper::Task::Transcribe
+        );
+        let r = resolve(
+            &[
+                "--profile",
+                "translate-en",
+                "--task",
+                "transcribe",
+                "--opt",
+                "task=translate",
+            ],
+            Mode::Live,
+        )
+        .unwrap();
+        assert_eq!(
+            r.parse_flags::<WhisperFlags>().unwrap().task,
+            crate::whisper::Task::Translate
+        );
+        // A task the profile already does is no change.
+        assert!(resolve(&["--profile", "multi", "--task", "transcribe"], Mode::Live).is_ok());
+        // Qwen3-ASR cannot translate.
+        assert!(resolve(&["--profile", "multi", "--task", "translate"], Mode::Live).is_err());
+
+        // `multi` hears English; `en` hears nothing else.
+        assert!(resolve(&["--profile", "multi", "--speech", "en"], Mode::Live).is_ok());
+        assert!(resolve(&["--profile", "en", "--speech", "multi"], Mode::Live).is_err());
+    }
 
     /// Every profile is listed, with both recipes.
     #[test]
@@ -361,8 +554,9 @@ mod tests {
         let text = String::from_utf8(out).unwrap();
         assert!(text.starts_with("en (default)\n"), "{text}");
         for profile in PROFILES {
-            assert!(text.contains(profile.offline.model), "{text}");
-            assert!(text.contains(profile.live.model), "{text}");
+            for mode in [Mode::Offline, Mode::Live] {
+                assert!(text.contains(profile.recipe(mode).model), "{text}");
+            }
         }
         assert!(
             text.contains("  live:       qwen3-asr qwen/qwen3-asr-0.6b\n"),
