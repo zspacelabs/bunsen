@@ -87,19 +87,19 @@ impl ModuleInit<ConformerBlock> for ConformerBlockConfig {
                 .try_init(device)
         };
         Ok(ConformerBlock {
-            norm_feed_forward1: norm(),
+            feed_forward1_norm: norm(),
             feed_forward1: ff()?,
-            norm_self_att: norm(),
-            self_attn: RelPosSelfAttentionConfig::new(self.d_model, self.n_heads)
+            attn_norm: norm(),
+            attn: RelPosSelfAttentionConfig::new(self.d_model, self.n_heads)
                 .with_bias(self.bias)
                 .try_init(device)?,
-            norm_conv: norm(),
+            conv_norm: norm(),
             conv: ConformerConvolutionConfig::new(self.d_model, self.conv_kernel_size)
                 .with_bias(self.conv_bias)
                 .try_init(device)?,
-            norm_feed_forward2: norm(),
+            feed_forward2_norm: norm(),
             feed_forward2: ff()?,
-            norm_out: norm(),
+            out_norm: norm(),
         })
     }
 }
@@ -111,7 +111,7 @@ impl ModuleInit<ConformerBlock> for ConformerBlockConfig {
 ///
 /// ```text
 /// x = x + ff1(norm(x)) / 2
-/// x = x + self_attn(norm(x))
+/// x = x + attn(norm(x))
 /// x = x + conv(norm(x))
 /// x = x + ff2(norm(x)) / 2
 /// y = norm(x)
@@ -122,40 +122,40 @@ impl ModuleInit<ConformerBlock> for ConformerBlockConfig {
 #[derive(Module, Debug)]
 pub struct ConformerBlock {
     /// The first feed-forward module's normalization.
-    pub norm_feed_forward1: LayerNorm,
+    pub feed_forward1_norm: LayerNorm,
 
     /// The first feed-forward module.
     pub feed_forward1: ConformerFeedForward,
 
     /// The attention's normalization.
-    pub norm_self_att: LayerNorm,
+    pub attn_norm: LayerNorm,
 
     /// Relative-position self-attention.
-    pub self_attn: RelPosSelfAttention,
+    pub attn: RelPosSelfAttention,
 
     /// The convolution module's normalization.
-    pub norm_conv: LayerNorm,
+    pub conv_norm: LayerNorm,
 
     /// The convolution module.
     pub conv: ConformerConvolution,
 
     /// The second feed-forward module's normalization.
-    pub norm_feed_forward2: LayerNorm,
+    pub feed_forward2_norm: LayerNorm,
 
     /// The second feed-forward module.
     pub feed_forward2: ConformerFeedForward,
 
     /// The final normalization.
-    pub norm_out: LayerNorm,
+    pub out_norm: LayerNorm,
 }
 
 impl ConformerBlockMeta for ConformerBlock {
     fn d_model(&self) -> usize {
-        self.self_attn.d_model()
+        self.attn.d_model()
     }
 
     fn n_heads(&self) -> usize {
-        self.self_attn.n_heads()
+        self.attn.n_heads()
     }
 }
 
@@ -202,19 +202,19 @@ impl ConformerBlock {
         let x = x.clone()
             + self
                 .feed_forward1
-                .forward(self.norm_feed_forward1.forward(x))
+                .forward(self.feed_forward1_norm.forward(x))
                 .mul_scalar(0.5);
         let x = x.clone()
             + self
-                .self_attn
-                .forward(self.norm_self_att.forward(x), positions, valid.clone());
-        let x = x.clone() + self.conv.forward(self.norm_conv.forward(x), valid);
+                .attn
+                .forward(self.attn_norm.forward(x), positions, valid.clone());
+        let x = x.clone() + self.conv.forward(self.conv_norm.forward(x), valid);
         let x = x.clone()
             + self
                 .feed_forward2
-                .forward(self.norm_feed_forward2.forward(x))
+                .forward(self.feed_forward2_norm.forward(x))
                 .mul_scalar(0.5);
-        let y = self.norm_out.forward(x);
+        let y = self.out_norm.forward(x);
 
         #[cfg(any(debug_assertions, test))]
         crate::contracts::assert_shape_contract_periodically!(
@@ -233,34 +233,47 @@ impl ConformerBlock {
 
 impl ConformerBlock {
     /// Its tensors as `transformers`' `ParakeetEncoderBlock` names them,
-    /// relative to it: the attention's projections and positional biases, and
-    /// the convolution module's depthwise convolution and norm, renamed;
-    /// everything else as it is.
+    /// relative to it: the attention's projections and positional biases, the
+    /// convolution module's depthwise convolution and norm, and the
+    /// sublayers' norms, renamed; everything else as it is.
     pub fn transformers_rekey() -> Rekey {
         Rekey::keep_rest()
-            .rename("self_attn.q_proj.", "self_attn.query.")
-            .rename("self_attn.k_proj.", "self_attn.key.")
-            .rename("self_attn.v_proj.", "self_attn.value.")
-            .rename("self_attn.o_proj.", "self_attn.output.")
-            .rename("self_attn.relative_k_proj.", "self_attn.pos.")
-            .exact("self_attn.bias_u", "self_attn.pos_bias_u")
-            .exact("self_attn.bias_v", "self_attn.pos_bias_v")
+            .rename("self_attn.q_proj.", "attn.query.")
+            .rename("self_attn.k_proj.", "attn.key.")
+            .rename("self_attn.v_proj.", "attn.value.")
+            .rename("self_attn.o_proj.", "attn.output.")
+            .rename("self_attn.relative_k_proj.", "attn.pos.")
+            .exact("self_attn.bias_u", "attn.pos_bias_u")
+            .exact("self_attn.bias_v", "attn.pos_bias_v")
             .rename("conv.depthwise_conv.", "conv.depthwise.conv.")
             .rename("conv.norm.", "conv.depthwise.norm.")
+            .rename("norm_feed_forward1.", "feed_forward1_norm.")
+            .rename("norm_self_att.", "attn_norm.")
+            .rename("norm_conv.", "conv_norm.")
+            .rename("norm_feed_forward2.", "feed_forward2_norm.")
+            .rename("norm_out.", "out_norm.")
+            .rename("self_attn.", "attn.")
     }
 
     /// Its tensors as `NeMo`'s `ConformerLayer` names them, relative to it:
-    /// the attention's projections and the convolution module's depthwise
-    /// convolution and batch norm, renamed; everything else as it is.
+    /// the attention's projections, the convolution module's depthwise
+    /// convolution and batch norm, and the sublayers' norms, renamed;
+    /// everything else as it is.
     pub fn nemo_rekey() -> Rekey {
         Rekey::keep_rest()
-            .rename("self_attn.linear_q.", "self_attn.query.")
-            .rename("self_attn.linear_k.", "self_attn.key.")
-            .rename("self_attn.linear_v.", "self_attn.value.")
-            .rename("self_attn.linear_out.", "self_attn.output.")
-            .rename("self_attn.linear_pos.", "self_attn.pos.")
+            .rename("self_attn.linear_q.", "attn.query.")
+            .rename("self_attn.linear_k.", "attn.key.")
+            .rename("self_attn.linear_v.", "attn.value.")
+            .rename("self_attn.linear_out.", "attn.output.")
+            .rename("self_attn.linear_pos.", "attn.pos.")
             .rename("conv.depthwise_conv.", "conv.depthwise.conv.")
             .rename("conv.batch_norm.", "conv.depthwise.norm.")
+            .rename("norm_feed_forward1.", "feed_forward1_norm.")
+            .rename("norm_self_att.", "attn_norm.")
+            .rename("norm_conv.", "conv_norm.")
+            .rename("norm_feed_forward2.", "feed_forward2_norm.")
+            .rename("norm_out.", "out_norm.")
+            .rename("self_attn.", "attn.")
     }
 }
 

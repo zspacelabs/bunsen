@@ -276,11 +276,11 @@ mod tests {
             ("pre_encode.out.weight", Some("subsampling.linear.weight")),
             (
                 "layers.3.self_attn.linear_pos.weight",
-                Some("transformer.layers.3.self_attn.pos.weight"),
+                Some("transformer.layers.3.attn.pos.weight"),
             ),
             (
                 "layers.0.self_attn.pos_bias_u",
-                Some("transformer.layers.0.self_attn.pos_bias_u"),
+                Some("transformer.layers.0.attn.pos_bias_u"),
             ),
             (
                 "layers.1.conv.batch_norm.running_var",
@@ -289,7 +289,7 @@ mod tests {
             ("layers.1.conv.batch_norm.num_batches_tracked", None),
             (
                 "layers.0.norm_feed_forward1.weight",
-                Some("transformer.layers.0.norm_feed_forward1.weight"),
+                Some("transformer.layers.0.feed_forward1_norm.weight"),
             ),
             ("pos_enc.pe", None),
         ] {

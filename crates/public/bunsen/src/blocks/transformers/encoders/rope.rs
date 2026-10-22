@@ -103,11 +103,11 @@ impl ModuleInit<RopeEncoderBlock> for RopeEncoderBlockConfig {
                 .init(device)
         };
         Ok(RopeEncoderBlock {
-            norm1: norm(),
+            attn_norm: norm(),
             attn: RopeSelfAttentionConfig::new(self.d_model, self.n_heads)
                 .with_qkv_bias(self.qkv_bias)
                 .try_init(device)?,
-            norm2: norm(),
+            mlp_norm: norm(),
             mlp: MlpConfig::new(self.d_model)
                 .with_expansion_factor(self.ff_expansion)
                 .with_activation(ActivationConfig::Gelu)
@@ -117,21 +117,21 @@ impl ModuleInit<RopeEncoderBlock> for RopeEncoderBlockConfig {
     }
 }
 
-/// A pre-norm encoder layer with rotary attention: `x + attn(norm1(x))`, then
-/// `x + mlp(norm2(x))`, the feed-forward `Linear -> GELU -> Linear`.
+/// A pre-norm encoder layer with rotary attention: `x + attn(attn_norm(x))`,
+/// then `x + mlp(mlp_norm(x))`, the feed-forward `Linear -> GELU -> Linear`.
 ///
 /// Built by [`RopeEncoderBlockConfig`].
 /// Implements [`RopeEncoderBlockMeta`].
 #[derive(Module, Debug)]
 pub struct RopeEncoderBlock {
     /// The attention's normalization.
-    pub norm1: LayerNorm,
+    pub attn_norm: LayerNorm,
 
     /// The attention.
     pub attn: RopeSelfAttention,
 
     /// The feed-forward's normalization.
-    pub norm2: LayerNorm,
+    pub mlp_norm: LayerNorm,
 
     /// The feed-forward.
     pub mlp: Mlp,
@@ -167,8 +167,8 @@ impl RopeEncoderBlock {
         rope: &crate::blocks::transformers::embedding::RotaryEmbedding,
         valid: Option<Tensor<2, burn::prelude::Bool>>,
     ) -> Tensor<3> {
-        let x = x.clone() + self.attn.forward(self.norm1.forward(x), rope, valid);
-        x.clone() + self.mlp.forward(self.norm2.forward(x))
+        let x = x.clone() + self.attn.forward(self.attn_norm.forward(x), rope, valid);
+        x.clone() + self.mlp.forward(self.mlp_norm.forward(x))
     }
 }
 
@@ -334,8 +334,8 @@ impl RopeEncoderBlock {
     /// dropped.
     pub fn transformers_rekey() -> Rekey {
         Rekey::drop_rest()
-            .rename("layer_norm1.", "norm1.")
-            .rename("layer_norm2.", "norm2.")
+            .rename("layer_norm1.", "attn_norm.")
+            .rename("layer_norm2.", "mlp_norm.")
             .rename("self_attn.q_proj.", "attn.query.")
             .rename("self_attn.k_proj.", "attn.key.")
             .rename("self_attn.v_proj.", "attn.value.")
@@ -416,8 +416,8 @@ mod tests {
             let attended = want.clone()
                 + layer
                     .attn
-                    .forward(layer.norm1.forward(want.clone()), &rope, None);
-            want = attended.clone() + layer.mlp.forward(layer.norm2.forward(attended));
+                    .forward(layer.attn_norm.forward(want.clone()), &rope, None);
+            want = attended.clone() + layer.mlp.forward(layer.mlp_norm.forward(attended));
         }
         let want = module.final_norm.forward(want);
         got.into_data()
