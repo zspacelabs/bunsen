@@ -26,8 +26,8 @@
 //!   [`ResidualEncoderTransformer`](encoders::residual::ResidualEncoderTransformer);
 //!   [`RopeTransformerEncoder`](encoders::rope::RopeTransformerEncoder), a
 //!   pre-norm encoder with rotary attention, `Nemotron-3-Diarization`'s; and
-//!   [`ConformerEncoder`](encoders::conformer::ConformerEncoder), the
-//!   `FastConformer`, Parakeet's and Sortformer v2's.
+//!   [`ConformerEncoderConfig`](encoders::conformer::ConformerEncoderConfig),
+//!   the `FastConformer`, Parakeet's and Sortformer v2's.
 //!   [`EncoderTransformer`](encoders::EncoderTransformer) is any of their
 //!   stacks, chosen by config.
 //! - [`mlp`]: [`Mlp`](mlp::Mlp), the position-wise feed-forward block (expand,

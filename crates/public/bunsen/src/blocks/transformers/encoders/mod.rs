@@ -15,11 +15,11 @@
 //!   [`RopeTransformerEncoder`](rope::RopeTransformerEncoder), over
 //!   [`RopeEncoderBlock`](rope::RopeEncoderBlock)s: `Nemotron-3-Diarization`'s.
 //! - [`conformer`]: the `FastConformer` encoder,
-//!   [`ConformerEncoder`](conformer::ConformerEncoder): depthwise-striding
-//!   subsampling, then [`ConformerBlock`](conformer::ConformerBlock)s, each two
-//!   half-step feed-forwards around relative-position attention and a
-//!   convolution module. Parakeet's and Sortformer v2's. Its block stack, past
-//!   the subsampling, is
+//!   [`ConformerEncoderConfig`](conformer::ConformerEncoderConfig), a policy
+//!   for a [`SubsampledEncoder`]: depthwise-striding subsampling, then
+//!   [`ConformerBlock`](conformer::ConformerBlock)s, each two half-step
+//!   feed-forwards around relative-position attention and a convolution module.
+//!   Parakeet's and Sortformer v2's. Its block stack, past the subsampling, is
 //!   [`ConformerTransformer`](conformer::ConformerTransformer).
 //!
 //! [`EncoderTransformer`] is any of the three stacks, chosen by config

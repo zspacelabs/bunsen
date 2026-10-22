@@ -8,7 +8,7 @@ use super::blocks::{
 };
 use crate::{
     blocks::transformers::encoders::{
-        conformer::ConformerEncoder,
+        conformer::ConformerEncoderConfig,
         residual::ResidualEncoderTransformer,
         rope::RopeTransformerEncoder,
     },
@@ -65,7 +65,7 @@ pub fn load_nemotron_hf_tensors(
 
 /// `NeMo` `SortformerEncLabelModel` state-dict names, in Sortformer v2's
 /// layout, onto a [`Sortformer`]'s module paths: the `FastConformer` by
-/// [`ConformerEncoder::nemo_rekey`], the `transformer_encoder` by
+/// [`ConformerEncoderConfig::nemo_rekey`], the `transformer_encoder` by
 /// [`ResidualEncoderTransformer::nemo_rekey`], the projection and head by
 /// prefix. Anything else is dropped: `num_batches_tracked`, the
 /// featurizer's tables, and the unused `hidden_to_spks`.
@@ -76,7 +76,7 @@ pub fn sortformer_v2_nemo_rekey(n_stages: usize) -> Rekey {
         .mount(
             "encoder.",
             "encoder.",
-            ConformerEncoder::nemo_rekey(n_stages),
+            ConformerEncoderConfig::nemo_rekey(n_stages),
         )
         .mount(
             "transformer_encoder.",

@@ -19,7 +19,7 @@
 //!   bunsen's own names start in the configs a section gives.
 //! - `NeMo`'s state-dict names as bunsen's module paths are the blocks' own
 //!   maps:
-//!   [`ConformerEncoder::nemo_rekey`](crate::blocks::transformers::encoders::conformer::ConformerEncoder::nemo_rekey)
+//!   [`ConformerEncoderConfig::nemo_rekey`](crate::blocks::transformers::encoders::conformer::ConformerEncoderConfig::nemo_rekey)
 //!   and
 //!   [`ResidualEncoderTransformer::nemo_rekey`](crate::blocks::transformers::encoders::residual::ResidualEncoderTransformer::nemo_rekey).
 //!
