@@ -131,7 +131,7 @@ pub static QWEN3_ASR_0_6B_FILES: StaticResourceMap<'static> = StaticResourceMap 
 static PHONON_1: StaticPretrained<'static> = StaticPretrained {
     name: "phonon-1",
     aliases: &[],
-    description: "Phonon-1: Qwen3-ASR-0.6B re-packed, 415 MB, 30 languages",
+    description: "Phonon-1: Qwen3-ASR-0.6B fine-tuned for English, re-packed, 415 MB",
     license: Some("Apache-2.0"),
     origin: Some("https://huggingface.co/FermionResearch/Phonon-1"),
     prefab: Some(PREFAB),
@@ -141,7 +141,7 @@ static PHONON_1: StaticPretrained<'static> = StaticPretrained {
 static PHONON_1_MICRO: StaticPretrained<'static> = StaticPretrained {
     name: "phonon-1-micro",
     aliases: &[],
-    description: "Phonon-1-Micro: Qwen3-ASR-0.6B re-packed, 285 MB, 30 languages",
+    description: "Phonon-1-Micro: Qwen3-ASR-0.6B fine-tuned for English, re-packed, 285 MB",
     license: Some("Apache-2.0"),
     origin: Some("https://huggingface.co/FermionResearch/Phonon-1-Micro"),
     prefab: Some(PREFAB),
@@ -151,7 +151,7 @@ static PHONON_1_MICRO: StaticPretrained<'static> = StaticPretrained {
 static PHONON_1_BIG: StaticPretrained<'static> = StaticPretrained {
     name: "phonon-1-big",
     aliases: &[],
-    description: "Phonon-1-Big: Qwen3-ASR-0.6B re-packed, 581 MB, 30 languages",
+    description: "Phonon-1-Big: Qwen3-ASR-0.6B fine-tuned for English, re-packed, 581 MB",
     license: Some("Apache-2.0"),
     origin: Some("https://huggingface.co/FermionResearch/Phonon-1-Big"),
     prefab: Some(PREFAB),

@@ -139,7 +139,7 @@ fetched. The cache then brings the files local. Finally the hook's
 model from them. Before loading, a caller can lay its own resources over
 the row's with
 [`with_overlay`](bunsen::data::pretrained::Deferred::with_overlay), where the
-caller's resource wins by key. `bunsen-asr whisper`'s `--vocab` flag works this way.
+caller's resource wins by key. `bunsen-asr family whisper`'s `--vocab` flag works this way.
 
 ## PyTorch checkpoints
 
@@ -154,8 +154,8 @@ another tensor loads as the weight it is.
 
 `bunsen-asr` shows the machinery from the outside. Each family's `list`
 shows its rows and where each one's files stand, and its `fetch` brings a
-model's resources local; `bunsen-asr whisper inspect` checks a checkpoint
-against its prefab, and `bunsen-asr whisper prefabs` lists the geometries;
-`bunsen-asr cache` lists and clears what the cache holds. Its
+model's resources local; `bunsen-asr family whisper inspect` checks a
+checkpoint against its prefab, and `bunsen-asr family whisper prefabs` lists
+the geometries; `bunsen-asr cache` lists and clears what the cache holds. Its
 [README](https://github.com/zspacelabs/bunsen/blob/main/crates/public/bunsen-asr/README.md#whisper-models)
 explains Whisper's index.

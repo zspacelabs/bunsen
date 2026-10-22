@@ -55,7 +55,7 @@
 //!
 //! # Example
 //!
-//! The default pathway, as `bunsen-asr whisper` walks it, over any
+//! The default pathway, as `bunsen-asr family whisper` walks it, over any
 //! backend: a cache, the factory, a bundle by name, a driver over it, and a
 //! context fed a stream. The first run fetches `openai/base` (145 MB,
 //! digest-checked) and its vocabulary into the cache; later runs find them

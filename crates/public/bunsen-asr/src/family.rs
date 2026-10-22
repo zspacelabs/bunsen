@@ -113,6 +113,14 @@ pub enum Loaded {
 }
 
 impl Family {
+    /// Every family.
+    pub const ALL: [Family; 3] = [Family::Parakeet, Family::Qwen3Asr, Family::Whisper];
+
+    /// The family whose command name is `name`.
+    pub fn from_name(name: &str) -> Option<Family> {
+        Family::ALL.into_iter().find(|f| f.name() == name)
+    }
+
     /// The family's command name.
     pub fn name(self) -> &'static str {
         match self {
@@ -252,7 +260,7 @@ impl Kit {
 /// [`Kit::fetch`] through one kit's factory: each name's plan (a
 /// path's vocabulary is the one its checkpoint's layout selects, and a
 /// name's checkpoint must scan as its prefab), then every resource of it.
-fn fetch_with<H: Construct>(
+pub fn fetch_with<H: Construct>(
     factory: PretrainedFactory<H>,
     names: &[String],
     cache: &PretrainedCache,

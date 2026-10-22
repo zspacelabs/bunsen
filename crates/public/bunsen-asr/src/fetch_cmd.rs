@@ -1,4 +1,4 @@
-//! `bunsen-asr <family|diarize> fetch`.
+//! `bunsen-asr family <family> fetch` and `bunsen-asr diarize fetch`.
 use bunsen::errors::BunsenResult;
 use bunsen_app::{
     cache::WeightsCacheArgs,
