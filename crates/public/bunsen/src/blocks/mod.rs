@@ -42,9 +42,12 @@
 //!
 //! - [`conv`]: conv / norm / activation blocks, in 1D and 2D (`ConvBlock1d`,
 //!   `ConvBlock2d`), and sequences of them (`ConvSeq1d`, `ConvSeq2d`).
-//! - [`frame_rate`]: changing a sequence's frame rate by a whole factor:
-//!   `FeatureStacking` (frames stacked and projected) and `SubpixelUpsample1d`
-//!   (a sub-pixel convolution).
+//! - [`signals`]: learned layers over a signal's time axis, the counterpart of
+//!   [`ops::signal`](crate::ops::signal)'s fixed front ends: the frame-rate
+//!   changes `FeatureStacking` (frames stacked and projected),
+//!   `DwStridingSubsampling` (the `FastConformer`'s strided convolutions) and
+//!   `SubpixelUpsample1d` (a sub-pixel convolution), and `Subsampling`, an
+//!   encoder front end chosen by config.
 //! - [`images`]: vision blocks.
 //!   - [`images::drop`]: structured drop layers, `DropBlock2d` and `DropPath`,
 //!     and the drop-path rate tables.
@@ -78,8 +81,8 @@
 //! [`ModuleInit`]: crate::burner::module::ModuleInit
 
 pub mod conv;
-pub mod frame_rate;
 pub mod images;
 pub mod layout;
 pub mod rnn;
+pub mod signals;
 pub mod transformers;

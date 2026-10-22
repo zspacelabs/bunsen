@@ -8,12 +8,12 @@ use super::blocks::{
 use crate::{
     blocks::{
         rnn::lstm::FusedLstm,
+        signals::DwStridingSubsamplingConfig,
         transformers::encoders::{
             SubsampledEncoderMeta,
             conformer::{
                 ConformerBlockConfig,
                 ConformerEncoderConfig,
-                DwStridingSubsamplingConfig,
             },
         },
     },

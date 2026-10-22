@@ -17,14 +17,16 @@ use super::{
     TdtPredictionNetworkConfig,
 };
 use crate::{
-    blocks::transformers::encoders::{
-        SubsampledEncoder,
-        SubsampledEncoderMeta,
-        conformer::{
-            ConformerBlockConfig,
-            ConformerEncoderConfig,
-            ConformerEncoderMeta,
-            DwStridingSubsamplingConfig,
+    blocks::{
+        signals::DwStridingSubsamplingConfig,
+        transformers::encoders::{
+            SubsampledEncoder,
+            SubsampledEncoderMeta,
+            conformer::{
+                ConformerBlockConfig,
+                ConformerEncoderConfig,
+                ConformerEncoderMeta,
+            },
         },
     },
     burner::module::ModuleInit,

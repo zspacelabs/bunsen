@@ -188,10 +188,12 @@ impl TdtGreedyDecoder {
 mod tests {
     use super::*;
     use crate::{
-        blocks::transformers::encoders::conformer::{
-            ConformerBlockConfig,
-            ConformerEncoderConfig,
-            DwStridingSubsamplingConfig,
+        blocks::{
+            signals::DwStridingSubsamplingConfig,
+            transformers::encoders::conformer::{
+                ConformerBlockConfig,
+                ConformerEncoderConfig,
+            },
         },
         burner::module::ModuleInit,
         kits::speech::parakeet::blocks::ParakeetTdtConfig,

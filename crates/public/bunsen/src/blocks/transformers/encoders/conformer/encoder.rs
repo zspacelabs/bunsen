@@ -5,14 +5,16 @@ use super::{
     ConformerBlock,
     ConformerBlockConfig,
     ConformerTransformerConfig,
-    DwStridingSubsampling,
-    DwStridingSubsamplingConfig,
-    DwStridingSubsamplingMeta,
 };
 use crate::{
-    blocks::transformers::encoders::{
-        SubsampledEncoderConfig,
-        SubsamplingConfig,
+    blocks::{
+        signals::{
+            DwStridingSubsampling,
+            DwStridingSubsamplingConfig,
+            DwStridingSubsamplingMeta,
+            SubsamplingConfig,
+        },
+        transformers::encoders::SubsampledEncoderConfig,
     },
     burner::module::{
         Rekey,

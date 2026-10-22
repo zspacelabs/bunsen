@@ -26,12 +26,14 @@ use super::{
     weights::load_hf_tensors,
 };
 use crate::{
-    blocks::transformers::encoders::{
-        EncoderTransformer,
-        conformer::{
-            ConformerBlockConfig,
-            ConformerEncoderConfig,
-            DwStridingSubsamplingConfig,
+    blocks::{
+        signals::DwStridingSubsamplingConfig,
+        transformers::encoders::{
+            EncoderTransformer,
+            conformer::{
+                ConformerBlockConfig,
+                ConformerEncoderConfig,
+            },
         },
     },
     burner::module::ModuleInit,
