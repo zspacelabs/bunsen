@@ -224,6 +224,7 @@ mod tests {
     /// Each variant is its stack: the same meta, and the same output as the
     /// stack run directly, padding masked alike.
     #[test]
+    #[serial_test::serial]
     fn test_each_variant_is_its_stack() {
         let device = cpu_device();
         for config in configs() {
@@ -248,6 +249,7 @@ mod tests {
     /// With variants skipped, as bunsen's loaders skip them, a variant's
     /// tensor paths are its stack's; a native record would name the variant.
     #[test]
+    #[serial_test::serial]
     #[cfg(feature = "store")]
     fn test_the_variant_is_not_in_the_loaded_paths() {
         use burn::store::ModuleSnapshot;

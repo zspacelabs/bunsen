@@ -553,6 +553,9 @@ mod tests {
         type F = f32;
 
         let device = cpu_device();
+        // Seeded, so the weights and input, and so the agreement measured
+        // below, do not depend on what ran on the device before.
+        device.seed(3);
 
         // `half` is a clone of `full`, cast to f16. Cloning a lazily
         // initialized `Param` shares its initialization, so the clone holds

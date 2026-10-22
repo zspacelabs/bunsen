@@ -8,22 +8,25 @@ use super::blocks::{
 use crate::{
     blocks::{
         rnn::lstm::FusedLstm,
-        signals::DwStridingSubsamplingConfig,
-        transformers::encoders::{
-            SubsampledEncoderMeta,
-            conformer::{
-                ConformerBlockConfig,
-                ConformerEncoderConfig,
-            },
+        signals::{
+            DwStridingSubsamplingConfig,
+            DwStridingSubsamplingMeta,
+        },
+        transformers::encoders::conformer::{
+            ConformerBlockConfig,
+            ConformerEncoderConfig,
         },
     },
     burner::module::Rekey,
     data::pretrained::{
         HfConfigJson,
         NamedTensorsApplied,
-        apply_named_tensors,
+        apply_rekeyed_tensors,
     },
-    errors::BunsenResult,
+    errors::{
+        BunsenError,
+        BunsenResult,
+    },
 };
 
 /// `transformers`' `ParakeetForTDT` state-dict names onto a
@@ -32,17 +35,18 @@ use crate::{
 /// `nn.LSTM` by [`FusedLstm::torch_stack_rekey`], the batch-norm counters
 /// dropped, and everything else as it is.
 ///
-/// `n_stages` is the encoder's subsampling stage count.
+/// `striding` is the encoder's subsampling, a config or a built module: its
+/// stage count and flatten order fix its map.
 ///
 /// Normalization parameters keep their `weight` / `bias` spellings, which
-/// [`apply_named_tensors`] resolves to `gamma` / `beta`.
-pub fn hf_rekey(n_stages: usize) -> Rekey {
+/// [`apply_rekeyed_tensors`] resolves to `gamma` / `beta`.
+pub fn hf_rekey(striding: &impl DwStridingSubsamplingMeta) -> Rekey {
     Rekey::keep_rest()
         .drop_suffix(".num_batches_tracked")
         .mount(
             "encoder.",
             "encoder.",
-            ConformerEncoderConfig::transformers_rekey(n_stages),
+            ConformerEncoderConfig::transformers_rekey(striding),
         )
         .mount(
             "decoder.lstm.",
@@ -53,17 +57,22 @@ pub fn hf_rekey(n_stages: usize) -> Rekey {
 }
 
 /// Loads tensors named as `transformers`' `ParakeetForTDT` state dict into
-/// `model`: [`apply_named_tensors`] under [`hf_rekey`].
+/// `model`: [`apply_rekeyed_tensors`] under [`hf_rekey`], at `model`'s
+/// subsampling.
 ///
 /// # Errors
-/// As [`apply_named_tensors`].
+/// As [`apply_rekeyed_tensors`];
+/// [`InvalidResource`](crate::errors::BunsenErrorKind::InvalidResource) when
+/// `model`'s encoder does not subsample by depthwise striding.
 pub fn load_hf_tensors(
     model: &mut ParakeetTdt,
     tensors: impl IntoIterator<Item = PackTensor>,
 ) -> BunsenResult<NamedTensorsApplied> {
-    // Each stage halves the frame rate.
-    let n_stages = model.encoder.subsampling_factor().trailing_zeros() as usize;
-    apply_named_tensors(model, tensors, hf_rekey(n_stages).as_fn())
+    let striding = model.encoder.subsampling.dw_striding().ok_or_else(|| {
+        BunsenError::invalid_resource("a Parakeet encoder subsamples by depthwise striding")
+    })?;
+    let rekey = hf_rekey(striding);
+    apply_rekeyed_tensors(model, tensors, &rekey)
 }
 
 /// The [`ParakeetTdtConfig`] of a `transformers` `ParakeetForTDT`
@@ -201,7 +210,13 @@ mod tests {
             ("joint.head.weight", Some("joint.head.weight")),
             ("encoder_projector.weight", Some("encoder_projector.weight")),
         ] {
-            assert_eq!(hf_rekey(3).apply(hf).as_deref(), bunsen, "{hf}");
+            assert_eq!(
+                hf_rekey(&DwStridingSubsamplingConfig::new(128, 256, 1024))
+                    .apply(hf)
+                    .as_deref(),
+                bunsen,
+                "{hf}"
+            );
         }
     }
 

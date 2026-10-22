@@ -9,7 +9,6 @@ use super::{
 use crate::{
     blocks::{
         signals::{
-            DwStridingSubsampling,
             DwStridingSubsamplingConfig,
             DwStridingSubsamplingMeta,
             SubsamplingConfig,
@@ -35,7 +34,8 @@ pub trait ConformerEncoderMeta {
     fn subsampling_factor(&self) -> usize;
 }
 
-/// The `FastConformer` encoder, as a policy: [`DwStridingSubsampling`] (8x
+/// The `FastConformer` encoder, as a policy:
+/// [`DwStridingSubsampling`](crate::blocks::signals::DwStridingSubsampling) (8x
 /// over time by default), then a
 /// [`ConformerTransformer`](super::ConformerTransformer), the stack of
 /// [`ConformerBlock`]s sharing one relative-position table. It lowers to a
@@ -88,16 +88,20 @@ impl ConformerEncoderConfig {
 
     /// A `FastConformer`'s tensors as `transformers`' `ParakeetEncoder` names
     /// them, onto the `SubsampledEncoder` this builds: the subsampling's and
-    /// each block's maps ([`DwStridingSubsampling::transformers_rekey`],
+    /// each block's maps
+    /// ([`DwStridingSubsamplingMeta::transformers_rekey`],
     /// [`ConformerBlock::transformers_rekey`]) mounted where they sit, and
     /// the batch-norm counters dropped.
-    pub fn transformers_rekey(n_stages: usize) -> Rekey {
+    ///
+    /// `striding` is the subsampling the tensors load into, a config or a
+    /// built module: its stage count and flatten order fix its map.
+    pub fn transformers_rekey(striding: &impl DwStridingSubsamplingMeta) -> Rekey {
         Rekey::keep_rest()
             .drop_suffix(".num_batches_tracked")
             .mount(
                 "subsampling.",
                 "subsampling.",
-                DwStridingSubsampling::transformers_rekey(n_stages),
+                striding.transformers_rekey(),
             )
             .mount_indexed(
                 "layers.",
@@ -109,17 +113,16 @@ impl ConformerEncoderConfig {
     /// A `FastConformer`'s tensors as `NeMo`'s `ConformerEncoder` names them,
     /// onto the `SubsampledEncoder` this builds:
     /// the subsampling's and each block's maps
-    /// ([`DwStridingSubsampling::nemo_rekey`], [`ConformerBlock::nemo_rekey`])
-    /// mounted where they sit. The batch-norm counters, and anything else, are
-    /// dropped.
-    pub fn nemo_rekey(n_stages: usize) -> Rekey {
+    /// ([`DwStridingSubsamplingMeta::nemo_rekey`],
+    /// [`ConformerBlock::nemo_rekey`]) mounted where they sit. The batch-norm
+    /// counters, and anything else, are dropped.
+    ///
+    /// `striding` is the subsampling the tensors load into, a config or a
+    /// built module: its stage count and flatten order fix its map.
+    pub fn nemo_rekey(striding: &impl DwStridingSubsamplingMeta) -> Rekey {
         Rekey::drop_rest()
             .drop_suffix(".num_batches_tracked")
-            .mount(
-                "pre_encode.",
-                "subsampling.",
-                DwStridingSubsampling::nemo_rekey(n_stages),
-            )
+            .mount("pre_encode.", "subsampling.", striding.nemo_rekey())
             .mount_indexed(
                 "layers.",
                 "transformer.layers.",
@@ -291,7 +294,9 @@ mod tests {
             ("pos_enc.pe", None),
         ] {
             assert_eq!(
-                ConformerEncoderConfig::nemo_rekey(3).apply(nemo).as_deref(),
+                ConformerEncoderConfig::nemo_rekey(&DwStridingSubsamplingConfig::new(80, 4, 16))
+                    .apply(nemo)
+                    .as_deref(),
                 bunsen,
                 "{nemo}"
             );

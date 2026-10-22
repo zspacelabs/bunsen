@@ -235,13 +235,15 @@ fn test_with_weights() {
 fn test_conformer_loads() {
     let config: ToyConfig = toy().config().unwrap();
     let conformer = config.encoder.conformer().unwrap();
-    let n_stages = conformer.subsampling.n_stages;
     let mut encoder: SubsampledEncoder = conformer.init(&cpu_device());
     let tensors = weights()
         .into_iter()
         .filter(|t| t.name.starts_with("encoder."));
-    let rekey =
-        Rekey::drop_rest().mount("encoder.", "", ConformerEncoderConfig::nemo_rekey(n_stages));
+    let rekey = Rekey::drop_rest().mount(
+        "encoder.",
+        "",
+        ConformerEncoderConfig::nemo_rekey(&conformer.subsampling),
+    );
     let applied = apply_named_tensors(&mut encoder, tensors, rekey.as_fn()).unwrap();
     assert!(!applied.applied.is_empty());
     assert!(
@@ -252,6 +254,58 @@ fn test_conformer_loads() {
         "{:?}",
         applied.unused
     );
+}
+
+/// A block's layout choice and its loading consequence, together: the same
+/// `NeMo` checkpoint loads into an encoder that flattens its subsampling
+/// frequencies-outer, the projection's weight permuted by the map, and it
+/// encodes exactly as the one that flattens as `NeMo` does.
+#[test]
+#[serial_test::serial]
+fn test_conformer_loads_in_either_flatten_order() {
+    use burn::{
+        Tensor,
+        tensor::{
+            Distribution,
+            Tolerance,
+        },
+    };
+
+    use crate::{
+        blocks::signals::FlattenOrder,
+        data::pretrained::apply_rekeyed_tensors,
+    };
+
+    let device = cpu_device();
+    let config: ToyConfig = toy().config().unwrap();
+    let load = |flatten: FlattenOrder| {
+        let mut conformer = config.encoder.conformer().unwrap();
+        conformer.subsampling.flatten = flatten;
+        let mut encoder: SubsampledEncoder = conformer.init(&device);
+        let rekey = Rekey::drop_rest().mount(
+            "encoder.",
+            "",
+            ConformerEncoderConfig::nemo_rekey(&conformer.subsampling),
+        );
+        let tensors = weights()
+            .into_iter()
+            .filter(|t| t.name.starts_with("encoder."));
+        apply_rekeyed_tensors(&mut encoder, tensors, &rekey).unwrap();
+        (conformer, encoder)
+    };
+    let (conformer, upstream) = load(FlattenOrder::ChannelsFreqs);
+    let (_, flipped) = load(FlattenOrder::FreqsChannels);
+
+    let mels = Tensor::<3>::random(
+        [2, conformer.subsampling.n_mels, 40],
+        Distribution::Default,
+        &device,
+    );
+    let (want, want_lengths) = upstream.forward(mels.clone(), Some(&[40, 27]));
+    let (got, got_lengths) = flipped.forward(mels, Some(&[40, 27]));
+    assert_eq!(got_lengths, want_lengths);
+    got.to_data()
+        .assert_approx_eq::<f32>(&want.to_data(), Tolerance::absolute(1e-5));
 }
 
 /// The transformer's entries load into a stack of residual blocks built

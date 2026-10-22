@@ -4,19 +4,24 @@ use burn::store::burn_pack::Tensor as PackTensor;
 use super::blocks::{
     NemotronDiarizationConfig,
     Sortformer,
-    SortformerMeta,
 };
 use crate::{
-    blocks::transformers::encoders::{
-        conformer::ConformerEncoderConfig,
-        residual::ResidualEncoderTransformer,
-        rope::RopeTransformerEncoder,
+    blocks::{
+        signals::{
+            DwStridingSubsamplingMeta,
+            FeatureStackingMeta,
+        },
+        transformers::encoders::{
+            conformer::ConformerEncoderConfig,
+            residual::ResidualEncoderTransformer,
+            rope::RopeTransformerEncoder,
+        },
     },
     burner::module::Rekey,
     data::pretrained::{
         HfConfigJson,
         NamedTensorsApplied,
-        apply_named_tensors,
+        apply_rekeyed_tensors,
     },
     errors::{
         BunsenError,
@@ -26,18 +31,22 @@ use crate::{
 
 /// `transformers`' `Nemotron3DiarizationForAudioFrameClassification`
 /// state-dict names onto a [`Sortformer`]'s module paths: the audio tower's
-/// feature-stacking projection, its encoder by
+/// embedder by [`FeatureStackingMeta::transformers_rekey`], its encoder by
 /// [`RopeTransformerEncoder::transformers_rekey`], the projection, upsample
 /// and head by prefix. Anything else is dropped.
 ///
+/// `stacking` is the encoder's front end, a config or a built module: its
+/// stack order fixes its map.
+///
 /// Normalization parameters keep their `weight` / `bias` spellings, which
-/// [`apply_named_tensors`] resolves to `gamma` / `beta`.
-pub fn nemotron_hf_rekey() -> Rekey {
+/// [`apply_rekeyed_tensors`] resolves to `gamma` / `beta`.
+pub fn nemotron_hf_rekey(stacking: &impl FeatureStackingMeta) -> Rekey {
     Rekey::drop_rest()
         .exact("silence_embeds", "silence")
-        .rename(
-            "model.audio_tower.embedder.projection.",
-            "encoder.subsampling.projection.",
+        .mount(
+            "model.audio_tower.embedder.",
+            "encoder.subsampling.",
+            stacking.transformers_rekey(),
         )
         .mount(
             "model.audio_tower.",
@@ -52,15 +61,22 @@ pub fn nemotron_hf_rekey() -> Rekey {
 
 /// Loads tensors named as `transformers`'
 /// `Nemotron3DiarizationForAudioFrameClassification` state dict into
-/// `model`: [`apply_named_tensors`] under [`nemotron_hf_rekey`].
+/// `model`: [`apply_rekeyed_tensors`] under [`nemotron_hf_rekey`], at
+/// `model`'s front end.
 ///
 /// # Errors
-/// As [`apply_named_tensors`].
+/// As [`apply_rekeyed_tensors`];
+/// [`InvalidResource`](crate::errors::BunsenErrorKind::InvalidResource) when
+/// `model`'s encoder does not subsample by feature stacking.
 pub fn load_nemotron_hf_tensors(
     model: &mut Sortformer,
     tensors: impl IntoIterator<Item = PackTensor>,
 ) -> BunsenResult<NamedTensorsApplied> {
-    apply_named_tensors(model, tensors, nemotron_hf_rekey().as_fn())
+    let stacking = model.encoder.subsampling.stacking().ok_or_else(|| {
+        BunsenError::invalid_resource("a Nemotron encoder subsamples by feature stacking")
+    })?;
+    let rekey = nemotron_hf_rekey(stacking);
+    apply_rekeyed_tensors(model, tensors, &rekey)
 }
 
 /// `NeMo` `SortformerEncLabelModel` state-dict names, in Sortformer v2's
@@ -70,13 +86,14 @@ pub fn load_nemotron_hf_tensors(
 /// prefix. Anything else is dropped: `num_batches_tracked`, the
 /// featurizer's tables, and the unused `hidden_to_spks`.
 ///
-/// `n_stages` is the encoder's subsampling stage count.
-pub fn sortformer_v2_nemo_rekey(n_stages: usize) -> Rekey {
+/// `striding` is the encoder's subsampling, a config or a built module: its
+/// stage count and flatten order fix its map.
+pub fn sortformer_v2_nemo_rekey(striding: &impl DwStridingSubsamplingMeta) -> Rekey {
     Rekey::drop_rest()
         .mount(
             "encoder.",
             "encoder.",
-            ConformerEncoderConfig::nemo_rekey(n_stages),
+            ConformerEncoderConfig::nemo_rekey(striding),
         )
         .mount(
             "transformer_encoder.",
@@ -89,17 +106,22 @@ pub fn sortformer_v2_nemo_rekey(n_stages: usize) -> Rekey {
 }
 
 /// Loads tensors named as a `NeMo` Sortformer v2 state dict (a `.nemo`'s
-/// `model_weights.ckpt`) into `model`: [`apply_named_tensors`] under
+/// `model_weights.ckpt`) into `model`: [`apply_rekeyed_tensors`] under
 /// [`sortformer_v2_nemo_rekey`], at `model`'s subsampling.
 ///
 /// # Errors
-/// As [`apply_named_tensors`].
+/// As [`apply_rekeyed_tensors`];
+/// [`InvalidResource`](crate::errors::BunsenErrorKind::InvalidResource) when
+/// `model`'s encoder does not subsample by depthwise striding.
 pub fn load_sortformer_v2_nemo_tensors(
     model: &mut Sortformer,
     tensors: impl IntoIterator<Item = PackTensor>,
 ) -> BunsenResult<NamedTensorsApplied> {
-    let n_stages = model.subsampling_factor().trailing_zeros() as usize;
-    apply_named_tensors(model, tensors, sortformer_v2_nemo_rekey(n_stages).as_fn())
+    let striding = model.encoder.subsampling.dw_striding().ok_or_else(|| {
+        BunsenError::invalid_resource("a Sortformer v2 encoder subsamples by depthwise striding")
+    })?;
+    let rekey = sortformer_v2_nemo_rekey(striding);
+    apply_rekeyed_tensors(model, tensors, &rekey)
 }
 
 /// The [`NemotronDiarizationConfig`] of a `transformers`
@@ -191,13 +213,20 @@ mod tests {
             ("classifier.out_proj.bias", "head.out.bias"),
         ] {
             assert_eq!(
-                nemotron_hf_rekey().apply(hf).as_deref(),
+                nemotron_hf_rekey(&crate::blocks::signals::FeatureStackingConfig::new(
+                    128, 512
+                ))
+                .apply(hf)
+                .as_deref(),
                 Some(bunsen),
                 "{hf}"
             );
         }
         assert_eq!(
-            nemotron_hf_rekey().apply("model.audio_tower.rotary_emb.inv_freq"),
+            nemotron_hf_rekey(&crate::blocks::signals::FeatureStackingConfig::new(
+                128, 512
+            ))
+            .apply("model.audio_tower.rotary_emb.inv_freq"),
             None
         );
     }
@@ -234,7 +263,11 @@ mod tests {
             ("preprocessor.featurizer.fb", None),
         ] {
             assert_eq!(
-                sortformer_v2_nemo_rekey(3).apply(nemo).as_deref(),
+                sortformer_v2_nemo_rekey(
+                    &crate::blocks::signals::DwStridingSubsamplingConfig::new(128, 256, 512)
+                )
+                .apply(nemo)
+                .as_deref(),
                 bunsen,
                 "{nemo}"
             );

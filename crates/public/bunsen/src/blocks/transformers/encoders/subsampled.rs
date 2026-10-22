@@ -260,6 +260,7 @@ mod tests {
     /// The front end and the stack, in order; and a caller feeding the
     /// other layout gets the same answer through the layout's permute.
     #[test]
+    #[serial_test::serial]
     fn test_layout_bridges_the_callers_order() {
         let device = cpu_device();
         device.seed(5);
@@ -285,6 +286,7 @@ mod tests {
     /// front end's under `subsampling.` and the stack's under
     /// `transformer.`; the layout is not among them.
     #[test]
+    #[serial_test::serial]
     #[cfg(feature = "store")]
     fn test_paths() {
         use burn::store::ModuleSnapshot;
@@ -314,6 +316,7 @@ mod tests {
 
     /// A front end and a stack of different widths are refused.
     #[test]
+    #[serial_test::serial]
     fn test_widths_must_agree() {
         let config = SubsampledEncoderConfig::new(
             SubsamplingConfig::Stacking(FeatureStackingConfig::new(6, 16).with_factor(2)),

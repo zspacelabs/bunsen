@@ -17,7 +17,9 @@
 //! safetensors checkpoint and header ([`SafetensorsCheckpoint`]), MLX's
 //! affine-quantized tensors ([`mlx`]), `FermionResearch`'s Phonon formats
 //! ([`fermion`]), and [`apply_named_tensors`], which loads any of them into a
-//! module under a kit's name map.
+//! module under a kit's name map, or [`apply_rekeyed_tensors`], under a
+//! [`Rekey`](crate::burner::module::Rekey) whose targets may also change a
+//! tensor's data on the way.
 //!
 //! ## Prefabs, rows and resources
 //!

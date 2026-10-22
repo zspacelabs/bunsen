@@ -151,6 +151,22 @@ impl SubsamplingMeta for Subsampling {
 }
 
 impl Subsampling {
+    /// The depthwise striding, when that is the front end.
+    pub fn dw_striding(&self) -> Option<&DwStridingSubsampling> {
+        match self {
+            Self::DwStriding(m) => Some(m),
+            _ => None,
+        }
+    }
+
+    /// The feature stacking, when that is the front end.
+    pub fn stacking(&self) -> Option<&FeatureStacking> {
+        match self {
+            Self::Stacking(m) => Some(m),
+            _ => None,
+        }
+    }
+
     /// Subsamples `x`, in this variant's own input layout.
     ///
     /// # Arguments
