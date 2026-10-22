@@ -97,8 +97,13 @@ it that pull-request CI runs: it turns on none of `weights`, `download` and
 `weights` is the cheap half of `download`, the checkpoints without the
 reference graphs, and compiles the checks that need only them: the Whisper
 kit's pretrained pathway on `base.pt`, and Silero's recorded probabilities
-held to upstream's model. They run on the CPU, as `cargo make validate-cpu`,
-and weekly in `validation.yml`.
+held to upstream's model. They run on the CPU, as `cargo make validate-cpu`.
+
+`validation.yml` runs Silero's and Whisper's whole suites, ONNX cross-checks
+included, on the CPU (`cargo make validate-ci`), over about 440 MB of assets it
+caches by digest ([Assets](./assets.md#how-ci-caches-them)). It runs only when
+asked: from the Actions tab, or for a pull request with the `validate` label,
+then on every push while the label stays.
 
 `cargo make validate-<model>` (`silero`, `whisper`, `parakeet`, `qwen3-asr`,
 `sortformer`, or `all`) runs a model's whole suite, in release mode, on

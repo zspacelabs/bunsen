@@ -14,7 +14,8 @@
 //! - [`pretrained_cache_path`]: where bunsen's pretrained cache keeps a pinned
 //!   file.
 //! - `Asset` (feature `fetch`): a pinned file a build script needs, fetched
-//!   into `OUT_DIR` or taken from a local override.
+//!   into `OUT_DIR` or taken from a local override, and kept by digest in
+//!   `BUNSEN_ASSET_CACHE` when that names a directory.
 //!
 //! Errors are plain: an [`IoAt`] names the local operation and path, and a
 //! `FetchError` the network side. bunsen sorts both into its own error

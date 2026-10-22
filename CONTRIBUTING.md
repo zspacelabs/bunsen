@@ -66,9 +66,10 @@ Four jobs, each step commented in the workflow:
 
 The repeated builds are on purpose: Cargo unifies features across the crates in one command, so a crate that forgets
 a feature still builds in the workspace and fails for its users. The book's
-[Development setup and CI](https://zspacelabs.ai/bunsen/book/development/setup.html) explains each configuration. No
-build script fetches anything on a pull request. The validation crates' cheap `weights` suites (about 150 MB of
-checkpoints, on the CPU) run weekly in `validation.yml`, or as `cargo make validate-cpu`; their `download` suites, many
+[Development setup and CI](https://zspacelabs.ai/bunsen/book/development/setup.html) explains each configuration. By
+default no build script fetches anything. The validation crates' cheap `weights` suites (about 150 MB of
+checkpoints, on the CPU) run as `cargo make validate-cpu`. `validation.yml` runs Silero's and Whisper's whole suites on the
+CPU only when asked, from the Actions tab or for a PR labelled `validate`; the other `download` suites, many
 GB of checkpoints and reference exports, run by hand on a GPU, as `cargo make validate-<model>`.
 
 ## Commit messages
