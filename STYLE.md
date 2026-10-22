@@ -441,6 +441,16 @@ The `Workspace` configs are the merge bar; the `bunsen` configs are the fast
 loop, and skip the chain so an edit-test cycle is one build. Flip the
 checkbox on the config, not the chain, to change that for a run.
 
+**Exercise** (folder `Exercise`) runs `bunsen-asr` end to end on a local
+GPU, through `cargo make` (`tools/exercise_asr.py`): not tests, and not part
+of the merge bar, so they carry no `Pre-Test Group`. One per backend, since the
+backend is required:
+
+| config | command |
+|---|---|
+| `Exercise Defaults (wgpu\|vulkan\|cuda\|metal)` | `cargo make exercise-defaults <backend>` |
+| `Exercise All (wgpu\|vulkan\|cuda\|metal)` | `cargo make exercise-all <backend>` |
+
 The Cargo template (`_template__of_Cargo.xml`) carries `Pre-Test Group`
 enabled, so a configuration created in the IDE — a gutter run-point
 included — inherits the chain. A new fast-loop config disables it on the
@@ -452,8 +462,9 @@ config.
   before-launch list. Never attach a step directly to a test configuration;
   the test configs reference the group and nothing else.
 * **Names say the tier.** Steps are `<Verb> (single-step)`; tests are
-  `Test <scope>` with the backend in parentheses; the group is the group.
-  `folderName` groups them in the IDE (`Steps`, `Workspace`, `bunsen`).
+  `Test <scope>` and exercises `Exercise <set>`, with the backend in
+  parentheses; the group is the group. `folderName` groups them in the IDE
+  (`Steps`, `Workspace`, `bunsen`, `Exercise`).
 * **Features live on the command line**, not the config: `requiredFeatures`
   is `false` on every test config. Backend and switch names follow the
   [cargo features](#cargo-features) chapter — `download` for the network,

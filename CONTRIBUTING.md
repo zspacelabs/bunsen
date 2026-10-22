@@ -99,6 +99,29 @@ suites are too large for a CI runner; run them on a GPU before merging a change 
 to a directory to keep the assets across `cargo clean` and toolchain updates, or point a crate's override variables
 (`WHISPER_BASE_PT` and friends) at copies you already have.
 
+### Exercising the ASR kits on a GPU
+
+Before merging a change to a speech kit, run `bunsen-asr` itself over a real clip on your accelerator. This is not a
+test and never runs in CI: it builds `bunsen-asr` in release mode for one backend, runs each case over
+`bunsen-test-audio`'s `jfk_moon.mp3`, scores each transcript against the clip's reference, and fails a case that errors,
+prints nothing, or scores over a loose word error rate. The backend is required:
+
+```sh
+cargo make exercise-defaults metal              # each kit with its default model
+cargo make exercise-all cuda                    # every model every family lists
+cargo make exercise-all wgpu --only whisper     # a subset, by case name
+```
+
+| Task | Runs | Fetches |
+|---|---|---|
+| `exercise-defaults` | each family's default model, each profile, Silero's VAD gate, a diarized transcript, the diarizer | what those use, ~8 GB cold |
+| `exercise-all` | every model `bunsen-asr family <family> list` and `diarize list` name, read when it runs | every one of them, tens of GB cold |
+
+The models land in the weights cache, so a second run fetches nothing. `tools/exercise_asr.toml` holds the default
+cases; add one there when a kit gains a mode worth exercising. The run writes a report to
+`target/exercise/<set>-<backend>.json`, with each case's time, score and transcript. The IDE's `Exercise` folder has
+both tasks for each backend.
+
 ## Commit messages
 
 Releases are automated by [release-plz](https://release-plz.dev), which builds changelogs from the commit history, so

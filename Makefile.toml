@@ -129,6 +129,32 @@ dependencies = [
     "validate-sortformer",
 ]
 
+# ── exercise ──────────────────────────────────────────────────────────────────
+#
+# `bunsen-asr`, built in release mode for one GPU backend, over a real clip:
+# what a user runs, end to end, rather than a test. For a local machine with an
+# accelerator, never CI: `exercise-all` fetches every model into the weights
+# cache (tens of GB). The backend is required, as the task's argument:
+#
+#   cargo make exercise-defaults metal
+#   cargo make exercise-all cuda --only whisper
+#
+# `tools/exercise_asr.toml` holds the default-model cases; `tools/exercise_asr.py`
+# runs them, scores each transcript against the clip's, and writes a report to
+# `target/exercise/`.
+
+[tasks.exercise-defaults]
+description = "Every ASR kit with its default model, on BACKEND (wgpu, vulkan, cuda, metal): each family, profile, the VAD gate, the diarizer"
+workspace = false
+command = "python3"
+args = ["tools/exercise_asr.py", "defaults", "${@}"]
+
+[tasks.exercise-all]
+description = "Every model every ASR family and the diarizer list, on BACKEND (wgpu, vulkan, cuda, metal); fetches tens of GB"
+workspace = false
+command = "python3"
+args = ["tools/exercise_asr.py", "all", "${@}"]
+
 # ── convenience composites ────────────────────────────────────────────────────
 
 [tasks.fix]

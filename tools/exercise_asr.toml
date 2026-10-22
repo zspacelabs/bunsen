@@ -1,0 +1,74 @@
+# What `tools/exercise_asr.py` runs: `bunsen-asr`, built for one GPU backend,
+# over a real clip, one command line per case.
+#
+# `defaults` is every kit with its default model, as a user meets it: each
+# family, each profile, Silero's VAD gate, and the diarizer. `all` is every
+# model every family and the diarizer list, read from `list` when it runs,
+# so a new row is exercised without an edit here.
+
+# The clip every case transcribes or diarizes, and its reference transcript,
+# from the repository root.
+clip = "crates/dev/bunsen-test-audio/testdata/jfk_moon.mp3"
+transcript = "crates/dev/bunsen-test-audio/testdata/jfk_moon.txt"
+
+# A transcript further than this from the reference fails its case. Loose on
+# purpose: it catches a model that loads and emits nonsense, not one a point
+# or two worse. Numbers are normalized (`35` is `thirty-five`) before scoring.
+max_wer = 0.35
+
+# The families `all` lists, and the diarizer, by their `bunsen-asr` commands.
+families = ["parakeet", "qwen3-asr", "whisper"]
+
+# `kind` says what the output is: `text`, scored against the transcript, or
+# `turns`, checked for at least one speaker turn. `args` follow
+# `bunsen-asr`; `--json`, `--quiet` and the clip are added.
+
+[[defaults]]
+name = "parakeet (default model)"
+kind = "text"
+args = ["family", "parakeet", "transcribe"]
+
+[[defaults]]
+name = "qwen3-asr (default model)"
+kind = "text"
+args = ["family", "qwen3-asr", "transcribe"]
+
+[[defaults]]
+name = "whisper (default model)"
+kind = "text"
+args = ["family", "whisper", "transcribe"]
+
+[[defaults]]
+name = "whisper, Silero VAD gate"
+kind = "text"
+args = ["family", "whisper", "transcribe", "--preset", "conservative"]
+
+[[defaults]]
+name = "parakeet, Silero VAD gate"
+kind = "text"
+args = ["family", "parakeet", "transcribe", "--preset", "conservative"]
+
+[[defaults]]
+name = "profile en"
+kind = "text"
+args = ["transcribe", "--profile", "en"]
+
+[[defaults]]
+name = "profile multi"
+kind = "text"
+args = ["transcribe", "--profile", "multi"]
+
+[[defaults]]
+name = "profile translate-en"
+kind = "text"
+args = ["transcribe", "--profile", "translate-en"]
+
+[[defaults]]
+name = "profile en, diarized"
+kind = "text"
+args = ["transcribe", "--profile", "en", "--diarize"]
+
+[[defaults]]
+name = "diarize (default model)"
+kind = "turns"
+args = ["diarize", "run"]
