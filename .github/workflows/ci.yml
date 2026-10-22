@@ -157,9 +157,9 @@ jobs:
 
       # No build script here reaches the network: the bundled crates' asset
       # features are reached only through the validation crates' `weights`
-      # and `download`, which this workflow never turns on. The cheap
-      # validation suites run in `validation.yml`; the rest run by hand, on a
-      # GPU (STYLE.md, "Network access").
+      # and `download`, which this workflow never turns on. Silero's and
+      # Whisper's suites run in `validation.yml`, when asked; the rest run by
+      # hand, on a GPU (STYLE.md, "Network access").
 
       # An explicit list rather than `--all-features`: `cuda` pulls in an
       # LLVM-based compiler toolchain, `metal` builds only on macOS, and

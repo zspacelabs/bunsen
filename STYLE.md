@@ -322,9 +322,10 @@ lives in a validation crate (`crates/validation/*`).
 
 A validation crate offers `weights`, the checkpoints alone, for the checks
 that need no reference graph, and `download`, which adds the reference
-graphs. CI never turns on either on a pull request: `validation.yml` runs the
-cheap `weights` suites weekly, on the CPU, and the rest are run by hand
-(`cargo make validate-<model>`), with `download`, `gpu-tests` and a
+graphs. CI never turns on either by default. `validation.yml` runs
+Silero's and Whisper's whole suites on the CPU only when asked: from the
+Actions tab, or for a pull request with the `validate` label. The rest are run
+by hand (`cargo make validate-<model>`), with `download`, `gpu-tests` and a
 backend.
 
 ### Fetched assets live in `OUT_DIR`
@@ -354,13 +355,19 @@ from crates.io must not write into `~/.cargo/registry` either. The cost is that
 fetches them again. The override variables (`WHISPER_BASE_PT` and friends) are
 the way to supply a local copy instead.
 
-Do not add a cache step for them. CI caches `~/.cargo` (rust-cache) and
-compiled units (kache), never `target/`, so cargo runs every build script on
-every run and the assets do not ride along; kache caches what rustc writes, not
-what a build script fetches. That is affordable because the pull-request jobs
-fetch nothing, and the weekly validation job only ~150 MB. A separate `actions/cache` over an `OUT_DIR` path
-goes stale the moment the hash in that path changes, which every toolchain or
-lockfile update does.
+Never cache an `OUT_DIR` path. CI caches `~/.cargo` (rust-cache) and compiled
+units (kache), never `target/`, so cargo runs every build script on every run
+and the assets do not ride along; kache caches what rustc writes, not what a
+build script fetches. An `actions/cache` over an `OUT_DIR` path goes stale the
+moment the hash in that path changes, which every toolchain or lockfile update
+does.
+
+Cache assets by their digest instead. `BUNSEN_ASSET_CACHE` names a directory
+that `bunsen_fetch::Asset::resolve` keeps every fetched file in, as
+`<sha256>`, and takes a pinned file from before fetching it, verified as
+always. Its paths never move, so `validation.yml` caches it under a key that
+hashes the pins, and prunes what is no longer pinned before it saves. Unset,
+nothing outside `OUT_DIR` is read or written.
 
 ### Model assets
 

@@ -85,19 +85,22 @@ against the model.
 A deployment does the same thing at install time: fill the runtime cache
 ahead of time, and the program never needs `fetch`.
 
-## Why CI doesn't cache them
+## How CI caches them
 
-Every validation run in CI fetches its assets again, and that is
-deliberate. CI caches compiled units, not `target/`, so cargo runs every
-build script on every run, and a build script's fetch is not a compiled unit.
-A separate cache over an `OUT_DIR` path goes stale as soon as the hash in that
-path changes, which every toolchain or lockfile update does.
+CI caches compiled units, not `target/`, so cargo runs every build script on
+every run, and a build script's fetch is not a compiled unit. A cache over an
+`OUT_DIR` path would go stale as soon as the hash in that path changes, which
+every toolchain or lockfile update does.
 
-It is affordable because the pull-request jobs fetch nothing, and the weekly
-validation job (`validation.yml`) only Silero's weights and Whisper's `base`
-checkpoint and vocabularies, about 150 MB, under the validation crates'
-`weights`. CI never turns on `download`, whose checkpoints and reference
-exports run to many GB; the validation suites that need them run by hand.
+So assets are cached by digest instead. `BUNSEN_ASSET_CACHE` names a
+directory every build script keeps what it fetches in, as `<sha256>`, and
+takes a pinned file from before fetching it, verified as any asset is. Its
+paths never move. The pull-request jobs fetch nothing at all; `validation.yml`,
+which runs only when asked (from the Actions tab, or for a pull request with
+the `validate` label), runs Silero's and Whisper's whole suites on the CPU over
+about 440 MB of assets, and caches that directory under a key that hashes the
+pins. The other families' assets run to GBs; their suites run by hand.
 
-So don't add a cache step for them. To avoid the download locally, point the
-override variables at copies you already have.
+Locally, set `BUNSEN_ASSET_CACHE` to keep assets across `cargo clean` and
+toolchain updates, or point the override variables at copies you already
+have.

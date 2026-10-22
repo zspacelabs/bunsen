@@ -67,9 +67,13 @@ args = ["test", "--workspace"]
 # asked for by name.
 #
 # `validate-cpu` is the cheap half, the checks on the checkpoints alone (~150
-# MB), on the CPU; `validation.yml` runs it weekly. `validate-<model>` is a
-# model's whole suite, ONNX reference included (GBs on a cold cache), on
+# MB), on the CPU. `validate-ci` is what `validation.yml` runs when asked:
+# Silero's and Whisper's whole suites, on the CPU (~440 MB). `validate-<model>`
+# is a model's whole suite, ONNX reference included (GBs on a cold cache), on
 # `VALIDATION_BACKEND` (default `wgpu`; or `vulkan`, `cuda`, `metal`).
+#
+# `BUNSEN_ASSET_CACHE`, set to a directory, keeps every fetched asset there by
+# its digest, so a `cargo clean` or a new toolchain does not fetch it again.
 
 [tasks.validate-cpu]
 description = "Validation on the checkpoints alone, on the CPU (fetches ~150 MB)"
@@ -78,6 +82,15 @@ env = { BURN_DEVICE = "flex" }
 script = '''
 cargo test -p silero-model-validation --features weights
 cargo test -p whisper-model-validation --features weights
+'''
+
+[tasks.validate-ci]
+description = "Silero's and Whisper's whole suites on the CPU, as validation.yml runs them (fetches ~440 MB)"
+workspace = false
+env = { BURN_DEVICE = "flex" }
+script = '''
+cargo test --release -p silero-model-validation --features download,gpu-tests
+cargo test --release -p whisper-model-validation --features download,gpu-tests
 '''
 
 [tasks.validate-silero]

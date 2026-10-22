@@ -14,9 +14,20 @@ use crate::{
     FetchError,
     FetchFailure,
     fetch_verified,
+    place_file,
     replace_with_link,
     sha256_of,
 };
+
+/// The environment variable naming a directory of assets kept across builds,
+/// each under its SHA-256: [`Asset::resolve`] takes a pinned file from there
+/// before fetching it, and leaves one there after.
+///
+/// Unset, nothing outside `OUT_DIR` is read or written. For CI, which keeps
+/// the directory in its own cache: a path in it never changes with the
+/// toolchain or the lockfile, as an `OUT_DIR` path does, and a file in it is
+/// verified against its pin before it is used, as every asset is.
+pub const BUNSEN_ASSET_CACHE: &str = "BUNSEN_ASSET_CACHE";
 
 /// How many times [`Asset::resolve`] tries a download that fails on the way.
 const ATTEMPTS: u32 = 3;
@@ -53,6 +64,9 @@ fn is_transient(e: &FetchError) -> bool {
 ///   pinned file is laid out where the download would have gone (a symlink on
 ///   Unix, a copy elsewhere); any other file is used where it is, with a cargo
 ///   warning.
+/// * [`BUNSEN_ASSET_CACHE`] may name a directory of assets kept by digest: a
+///   pinned file there is placed in `OUT_DIR` instead of fetched, and a file
+///   fetched, or found in `OUT_DIR`, is kept there.
 ///
 /// ```no_run
 /// use bunsen_fetch::{
@@ -98,6 +112,17 @@ impl Asset<'_> {
         &self,
         dest: &Path,
     ) -> PathBuf {
+        println!("cargo:rerun-if-env-changed={BUNSEN_ASSET_CACHE}");
+        let shared = env::var_os(BUNSEN_ASSET_CACHE).map(PathBuf::from);
+        self.resolve_with(dest, shared.as_deref())
+    }
+
+    /// [`resolve`](Self::resolve), with the asset cache, if any, given.
+    fn resolve_with(
+        &self,
+        dest: &Path,
+        shared: Option<&Path>,
+    ) -> PathBuf {
         let var = self.override_var;
         println!("cargo:rerun-if-env-changed={var}");
         if let Some(local) = env::var_os(var) {
@@ -130,9 +155,13 @@ impl Asset<'_> {
             };
         }
 
+        let kept = shared.map(|dir| dir.join(self.sha256));
         if dest.is_file() {
             match sha256_of(dest) {
-                Ok(found) if found == self.sha256 => return dest.to_path_buf(),
+                Ok(found) if found == self.sha256 => {
+                    self.keep(dest, kept.as_deref());
+                    return dest.to_path_buf();
+                }
                 Ok(found) => println!(
                     "cargo:warning=cached {} has digest {found}, refetching",
                     dest.display()
@@ -143,6 +172,25 @@ impl Asset<'_> {
                 ),
             }
             let _ = fs::remove_file(dest);
+        }
+        if let Some(kept) = &kept
+            && kept.is_file()
+        {
+            match sha256_of(kept) {
+                Ok(found) if found == self.sha256 => {
+                    // A real file, not a link: `onnx-ir` refuses a graph's
+                    // external data that resolves outside its directory.
+                    place_file(kept, dest).unwrap_or_else(|e| panic!("{e}"));
+                    return dest.to_path_buf();
+                }
+                _ => {
+                    println!(
+                        "cargo:warning={BUNSEN_ASSET_CACHE}: {} is not the pinned file, refetching",
+                        kept.display()
+                    );
+                    let _ = fs::remove_file(kept);
+                }
+            }
         }
         println!("cargo:warning=fetching {}", self.url);
         for attempt in 1..=ATTEMPTS {
@@ -158,7 +206,30 @@ impl Asset<'_> {
                 Err(e) => panic!("fetching {}: {e}", self.url),
             }
         }
+        self.keep(dest, kept.as_deref());
         dest.to_path_buf()
+    }
+
+    /// Keeps the verified file at `dest` in the asset cache as `kept`, when
+    /// there is one and it does not hold it yet. A failure costs only a fetch
+    /// next time, so it warns rather than failing the build.
+    fn keep(
+        &self,
+        dest: &Path,
+        kept: Option<&Path>,
+    ) {
+        let Some(kept) = kept else {
+            return;
+        };
+        if kept.is_file() {
+            return;
+        }
+        if let Err(e) = place_file(dest, kept) {
+            println!(
+                "cargo:warning={BUNSEN_ASSET_CACHE}: cannot keep {}: {e}",
+                dest.display()
+            );
+        }
     }
 }
 
@@ -175,6 +246,67 @@ mod tests {
     use std::sync::Arc;
 
     use super::*;
+
+    /// A fetched asset is kept in the asset cache under its digest, and a
+    /// later build with an empty `OUT_DIR` takes it from there, with no
+    /// server to fetch from; a cached file that is not the pin is refetched.
+    #[test]
+    fn test_the_asset_cache_keeps_and_serves() {
+        use crate::testing::{
+            ABC_SHA256,
+            serve_n,
+        };
+
+        let dir = tempfile::tempdir().unwrap();
+        let shared = dir.path().join("assets");
+        let url = serve_n("abc", b"abc", 2);
+        let asset = Asset {
+            override_var: "BUNSEN_FETCH_TEST_UNSET",
+            url: &url,
+            sha256: ABC_SHA256,
+        };
+
+        let first = dir.path().join("out1/abc");
+        assert_eq!(asset.resolve_with(&first, Some(&shared)), first);
+        let kept = shared.join(ABC_SHA256);
+        assert_eq!(fs::read(&kept).unwrap(), b"abc");
+
+        let unreachable = Asset {
+            url: "http://127.0.0.1:9/abc",
+            ..asset
+        };
+        let second = dir.path().join("out2/abc");
+        assert_eq!(unreachable.resolve_with(&second, Some(&shared)), second);
+        assert_eq!(fs::read(&second).unwrap(), b"abc");
+        assert!(!second.is_symlink(), "a real file, for onnx-ir");
+
+        fs::remove_file(&kept).unwrap();
+        fs::write(&kept, b"xyz").unwrap();
+        let third = dir.path().join("out3/abc");
+        assert_eq!(asset.resolve_with(&third, Some(&shared)), third);
+        assert_eq!(fs::read(&third).unwrap(), b"abc");
+        assert_eq!(fs::read(&kept).unwrap(), b"abc", "kept again, verified");
+    }
+
+    /// A file already in `OUT_DIR` is kept too, so a warm local build fills an
+    /// asset cache it is first pointed at.
+    #[test]
+    fn test_a_verified_out_dir_file_is_kept() {
+        use crate::testing::ABC_SHA256;
+
+        let dir = tempfile::tempdir().unwrap();
+        let dest = dir.path().join("out/abc");
+        fs::create_dir_all(dest.parent().unwrap()).unwrap();
+        fs::write(&dest, b"abc").unwrap();
+        let shared = dir.path().join("assets");
+        let asset = Asset {
+            override_var: "BUNSEN_FETCH_TEST_UNSET",
+            url: "http://127.0.0.1:9/abc",
+            sha256: ABC_SHA256,
+        };
+        assert_eq!(asset.resolve_with(&dest, Some(&shared)), dest);
+        assert_eq!(fs::read(shared.join(ABC_SHA256)).unwrap(), b"abc");
+    }
 
     /// A transport failure, a short body and a busy server are retried; a
     /// wrong digest and a missing file are not.

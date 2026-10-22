@@ -38,7 +38,7 @@ cargo test -p whisper-model-validation --features weights
 vocabularies alone, and the checks that need only them (`bundled`): the
 Whisper kit's pretrained pathway, vocabularies and hook on the real files,
 which used to run inside `bunsen` under its removed `whisper-weights` feature.
-`validation.yml` runs them weekly; `cargo make validate-cpu` runs them here.
+`cargo make validate-cpu` runs them; `validation.yml`, when asked, runs the whole suite on the CPU.
 
 **Pass a backend deliberately.** `performance_device()` falls through to `Flex`
 when none reaches `bunsen`, so a run without one does not fail — it quietly
