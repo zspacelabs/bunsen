@@ -365,6 +365,23 @@ impl ResidualEncoderTransformer {
 }
 
 impl ResidualEncoderAttentionBlock {
+    /// Its tensors as a `transformers` Whisper-style encoder layer names them
+    /// (Whisper's, Qwen3-ASR's audio tower's), relative to it: `self_attn`'s
+    /// `{q,k,v,out}_proj` the attention, `self_attn_layer_norm` and
+    /// `final_layer_norm` the norms, `fc{1,2}` the MLP; everything else as it
+    /// is.
+    pub fn transformers_rekey() -> Rekey {
+        Rekey::keep_rest()
+            .rename("self_attn.q_proj.", "attn.query.")
+            .rename("self_attn.k_proj.", "attn.key.")
+            .rename("self_attn.v_proj.", "attn.value.")
+            .rename("self_attn.out_proj.", "attn.output.")
+            .rename("self_attn_layer_norm.", "attn_norm.")
+            .rename("final_layer_norm.", "mlp_norm.")
+            .rename("fc1.", "mlp.linear1.")
+            .rename("fc2.", "mlp.linear2.")
+    }
+
     /// Its tensors as a `NeMo` `transformer_encoders.TransformerEncoder`
     /// layer names them, relative to it: `first_sub_layer` the attention,
     /// `second_sub_layer` the MLP, `layer_norm_{1,2}` their norms. Anything
