@@ -41,71 +41,10 @@ impl WhisperVocabulary {
     }
 }
 
-/// Test support: the bundled files, through a cache rooted at the bundle's
-/// directory, offline.
-///
-/// `bunsen-bundled-whisper` lays its build output out as a pretrained
-/// cache, so a cache pointed at it finds every bundled asset `Cached`:
-/// nothing is fetched, nothing is written. Reachable as
-/// `crate::kits::speech::whisper::pretrained::testing::*`.
-#[cfg(all(test, feature = "whisper-weights"))]
-pub(crate) mod testing {
-    use std::path::PathBuf;
-
-    use super::*;
-    use crate::{
-        data::{
-            cache::BunsenDiskCacheOptions,
-            pretrained::PretrainedCacheOptions,
-        },
-        kits::speech::whisper::driver::WhisperSpecialIds,
-    };
-
-    /// A cache rooted at the bundle's directory, offline.
-    pub fn offline_cache() -> PretrainedCache {
-        PretrainedCache::new(
-            PretrainedCacheOptions::default()
-                .with_disk(
-                    BunsenDiskCacheOptions::default()
-                        .with_cache_dir(Some(bunsen_bundled_whisper::cache_dir().to_path_buf()))
-                        .without_transfer_observers(),
-                )
-                .with_offline(true),
-        )
-        .unwrap()
-    }
-
-    /// The bundled rank file a layout selects.
-    pub fn bundled_vocabulary_path(ids: &WhisperSpecialIds) -> PathBuf {
-        let map = WhisperVocabulary::for_layout(ids).map().to_map();
-        offline_cache()
-            .resolve(WHISPER_KIT, map.try_get(VOCABULARY).unwrap())
-            .unwrap()
-            .path
-    }
-
-    /// The bundled rank file a layout selects, parsed.
-    pub fn bundled_vocabulary(ids: &WhisperSpecialIds) -> TiktokenRanks {
-        WhisperVocabulary::for_layout(ids)
-            .load(&offline_cache())
-            .unwrap()
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::kits::speech::whisper::pretrained::OPENAI_VOCABULARIES_MAPS;
-
-    #[cfg(feature = "whisper-weights")]
-    fn ids_of(prefab: &str) -> crate::kits::speech::whisper::driver::WhisperSpecialIds {
-        use crate::kits::speech::whisper::pretrained::WHISPER_PREFABS;
-        let cfg = WHISPER_PREFABS.expect_lookup_prefab(prefab).to_config();
-        *cfg.token_layout
-            .policy_for_vocab(cfg.vocab_size)
-            .unwrap()
-            .ids()
-    }
 
     /// Both maps fetch from the pinned commit, by the file's own name.
     #[test]
@@ -118,47 +57,6 @@ mod tests {
                 assert!(url.contains(OPENAI_VOCAB_REVISION), "{url}");
                 assert!(url.ends_with(&format!("/{}", r.file)), "{url}");
             }
-        }
-    }
-
-    /// With the bundle, both rank files resolve offline from its
-    /// directory and parse to the layout's base rank count.
-    #[cfg(feature = "whisper-weights")]
-    #[test]
-    fn test_bundled_vocabularies_resolve_offline() {
-        use crate::{
-            data::pretrained::{
-                CacheStatus,
-                Provenance,
-            },
-            kits::speech::whisper::pretrained::testing::{
-                bundled_vocabulary_path,
-                offline_cache,
-            },
-        };
-        let cache = offline_cache();
-        for prefab in ["tiny", "tiny.en"] {
-            let ids = ids_of(prefab);
-            let vocabulary = WhisperVocabulary::for_layout(&ids);
-            let map = vocabulary.map().to_map();
-            let r = map.try_get(VOCABULARY).unwrap();
-            assert_eq!(
-                cache.status(WHISPER_KIT, r),
-                CacheStatus::Cached,
-                "{prefab}"
-            );
-            let resolved = cache.resolve(WHISPER_KIT, r).unwrap();
-            assert_eq!(resolved.provenance, Provenance::Cached);
-            assert_eq!(resolved.path, bundled_vocabulary_path(&ids));
-            assert!(
-                resolved
-                    .path
-                    .starts_with(bunsen_bundled_whisper::cache_dir())
-            );
-            let ranks = vocabulary.load(&cache).unwrap();
-            // The layout's first special id is the rank count: 50257 for
-            // `multilingual.tiktoken`, 50256 for `gpt2.tiktoken`.
-            assert_eq!(ranks.len(), ids.n_base, "{prefab}");
         }
     }
 }

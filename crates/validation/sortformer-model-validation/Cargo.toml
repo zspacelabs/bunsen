@@ -35,7 +35,6 @@ download = [
     "bunsen-bundled-sortformer/checkpoint_v2_1",
     "bunsen-test-audio/ami",
     "bunsen/fermion",
-    "bunsen/whisper-weights",
     "dep:bunsen-bundled-parakeet",
     "bunsen-bundled-parakeet/checkpoint",
     "dep:bunsen-bundled-qwen3-asr",

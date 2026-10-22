@@ -30,6 +30,23 @@
 //! The cross-checks compile under `download` and `gpu-tests` together (see
 //! `STYLE.md`), and a backend feature says what they run on:
 //! `performance_device()` falls through to `Flex` when none reaches `bunsen`.
+//!
+//! ## On upstream's checkpoint alone
+//!
+//! **`weights`**, the cheap half of `download`, fetches only
+//! `silero_vad_16k.safetensors` and compiles the checks that need no graph,
+//! on the CPU (`upstream`):
+//!
+//! ```sh
+//! cargo test -p silero-model-validation --features weights
+//! ```
+//!
+//! - The recording the kits replay in place of a model,
+//!   `RecordedVoiceActivity::silero_jfk_moon_4s`
+//!   (`bunsen/testdata/silero/jfk_moon_4s.json`), is still what upstream's
+//!   model says. `write_the_kits_recording`, run by name, rewrites it.
+//! - Silero's stream, in pieces, is the stream in one call.
+//! - `silero/vad-16k` loads through the factory from the bundled cache.
 
 /// The reference model, generated from the upstream ONNX graph.
 #[cfg(feature = "download")]
@@ -42,3 +59,6 @@ pub mod reference {
 
 #[cfg(all(feature = "download", feature = "gpu-tests"))]
 mod cross_test;
+
+#[cfg(all(test, feature = "weights"))]
+mod upstream;

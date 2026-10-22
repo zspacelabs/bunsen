@@ -64,11 +64,10 @@ each one, and lays them out in `OUT_DIR` as a pretrained cache. A cache rooted
 there finds them offline without knowing they were bundled.
 
 - [`bunsen_bundled_whisper`] fetches Whisper's `base` checkpoint, the
-  vocabularies and, for validation, the ONNX reference. bunsen's
-  `whisper-weights` feature pulls it in.
+  vocabularies and the ONNX reference, for `whisper-model-validation`.
 - [`bunsen_bundled_silero`] fetches upstream's 16 kHz Silero VAD
-  checkpoint and, for validation, its ONNX graph, from which the reference
-  model is generated. bunsen's `silero-weights` feature pulls it in.
+  checkpoint and its ONNX graph, from which the reference model is
+  generated, for `silero-model-validation`.
 - `bunsen-bundled-parakeet` and `bunsen-bundled-qwen3-asr` fetch the Phonon
   checkpoints, the base models and the ONNX references for their validation
   crates only, and are not published.
@@ -77,23 +76,28 @@ there finds them offline without knowing they were bundled.
   (which its build script rewrites where `burn-onnx` cannot import it) and of
   v2.1, for its validation crate only, and is not published.
 
-So a `*-weights` feature makes the build reach the network on a cold cache.
+Only the validation crates depend on them, through their `weights` and
+`download` features, so no other build reaches the network. bunsen's own tests
+read no fetched asset: where a test needs what a real model does, it replays
+a committed recording of it, and the validation crate checks the recording
+against the model.
 
 A deployment does the same thing at install time: fill the runtime cache
 ahead of time, and the program never needs `fetch`.
 
 ## Why CI doesn't cache them
 
-Every CI run fetches the assets bunsen's own tests read again, and that is
+Every validation run in CI fetches its assets again, and that is
 deliberate. CI caches compiled units, not `target/`, so cargo runs every
 build script on every run, and a build script's fetch is not a compiled unit.
 A separate cache over an `OUT_DIR` path goes stale as soon as the hash in that
 path changes, which every toolchain or lockfile update does.
 
-It is affordable because CI fetches only those: Silero's weights and
-Whisper's `base` checkpoint and vocabularies, about 150 MB. CI never turns on
-`download`, whose checkpoints and reference exports run to many GB; the
-validation suites that need them run by hand.
+It is affordable because the pull-request jobs fetch nothing, and the weekly
+validation job (`validation.yml`) only Silero's weights and Whisper's `base`
+checkpoint and vocabularies, about 150 MB, under the validation crates'
+`weights`. CI never turns on `download`, whose checkpoints and reference
+exports run to many GB; the validation suites that need them run by hand.
 
 So don't add a cache step for them. To avoid the download locally, point the
 override variables at copies you already have.

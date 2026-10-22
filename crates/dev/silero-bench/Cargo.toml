@@ -14,8 +14,9 @@ clap = { workspace = true, features = ["derive"] }
 
 serde_json = { workspace = true }
 burn = { workspace = true, features = ["fusion", "autotune"] }
-# `silero-weights` supplies `SileroVadCollection::load_pretrained`.
-bunsen = { path = "../../public/bunsen", features = ["testing", "silero-weights"] }
+# `fetch`: the run fetches `silero/vad-16k` (1.2 MB) into the default
+# pretrained cache on first use, never the build.
+bunsen = { path = "../../public/bunsen", features = ["testing", "fetch"] }
 
 [lints]
 workspace = true

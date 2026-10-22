@@ -48,11 +48,11 @@ on builds cleanly in the workspace, and fails `cargo publish`.
 So the test job builds the code several ways, each standing in for a real
 consumer:
 
-- **The workspace, with `indicatif` and `bunsen/whisper-weights`.**
-  Everything, with the tests, the run-time network code, and the small
-  build-time fetches bunsen's own tests read ([Assets](./assets.md)). Not
-  `download`: the validation crates' assets are many GB, and their suites
-  run by hand ([Validation](./validation.md#running-validation)).
+- **The workspace, with `indicatif`.** Everything, with the tests and the
+  run-time network code. No build script fetches anything
+  ([Assets](./assets.md)): the validation crates' `weights` and `download`
+  stay off, and their suites run weekly or by hand
+  ([Validation](./validation.md#running-validation)).
 - **`bunsen` with no default features.** A user who writes
   `default-features = false` and adds back only what they use.
   The tests run this way with only the test support (`testing` and

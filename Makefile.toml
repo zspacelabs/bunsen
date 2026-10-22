@@ -59,6 +59,63 @@ workspace = false
 command = "cargo"
 args = ["test", "--workspace"]
 
+# ── validation ────────────────────────────────────────────────────────────────
+#
+# The validation crates (`crates/validation/*`) cross-check each model against
+# its reference. None of this runs in `ci` or `test`: their build scripts fetch
+# the assets they compare (STYLE.md, "Network access"), so each run here is
+# asked for by name.
+#
+# `validate-cpu` is the cheap half, the checks on the checkpoints alone (~150
+# MB), on the CPU; `validation.yml` runs it weekly. `validate-<model>` is a
+# model's whole suite, ONNX reference included (GBs on a cold cache), on
+# `VALIDATION_BACKEND` (default `wgpu`; or `vulkan`, `cuda`, `metal`).
+
+[tasks.validate-cpu]
+description = "Validation on the checkpoints alone, on the CPU (fetches ~150 MB)"
+workspace = false
+env = { BURN_DEVICE = "flex" }
+script = '''
+cargo test -p silero-model-validation --features weights
+cargo test -p whisper-model-validation --features weights
+'''
+
+[tasks.validate-silero]
+description = "Silero VAD's whole validation suite (fetches ~4 MB)"
+workspace = false
+script = "cargo test --release -p silero-model-validation --features download,gpu-tests,${VALIDATION_BACKEND:-wgpu}"
+
+[tasks.validate-whisper]
+description = "Whisper's whole validation suite (fetches ~435 MB)"
+workspace = false
+script = "cargo test --release -p whisper-model-validation --features download,gpu-tests,${VALIDATION_BACKEND:-wgpu}"
+
+[tasks.validate-parakeet]
+description = "Parakeet's whole validation suite (fetches ~5 GB)"
+workspace = false
+script = "cargo test --release -p parakeet-model-validation --features download,gpu-tests,${VALIDATION_BACKEND:-wgpu}"
+
+[tasks.validate-qwen3-asr]
+description = "Qwen3-ASR's whole validation suite (fetches ~6.7 GB)"
+workspace = false
+script = "cargo test --release -p qwen3-asr-model-validation --features download,gpu-tests,${VALIDATION_BACKEND:-wgpu}"
+
+[tasks.validate-sortformer]
+description = "Sortformer's whole validation suite (fetches ~3 GB, and the ASR checkpoints it scores with)"
+workspace = false
+script = "cargo test --release -p sortformer-model-validation --features download,gpu-tests,${VALIDATION_BACKEND:-wgpu}"
+
+[tasks.validate-all]
+description = "Every model's whole validation suite (fetches ~16 GB on a cold cache)"
+workspace = false
+dependencies = [
+    "validate-silero",
+    "validate-whisper",
+    "validate-parakeet",
+    "validate-qwen3-asr",
+    "validate-sortformer",
+]
+
 # ── convenience composites ────────────────────────────────────────────────────
 
 [tasks.fix]

@@ -29,36 +29,6 @@ use crate::{
     },
 };
 
-#[cfg(feature = "silero-weights")]
-mod with_weights {
-    use super::*;
-
-    impl SileroVad {
-        /// Load the 16khz model from upstream's `silero_vad_16k.safetensors`,
-        /// as `bunsen-bundled-silero` fetched it at build time.
-        ///
-        /// # Errors
-        /// As [`load_16khz_from_safetensors_file`](Self::load_16khz_from_safetensors_file).
-        pub fn load_16khz_pretrained(device: &Device) -> BunsenResult<Self> {
-            Self::load_16khz_from_safetensors_file(
-                bunsen_bundled_silero::silero_vad_16k_safetensors(),
-                device,
-            )
-        }
-    }
-
-    impl SileroVadCollection {
-        /// The pretrained collection: the 16khz model, from upstream's
-        /// safetensors as `bunsen-bundled-silero` fetched it.
-        ///
-        /// # Errors
-        /// As [`SileroVad::load_16khz_pretrained`].
-        pub fn load_pretrained(device: &Device) -> BunsenResult<Self> {
-            Ok(Self::from_16khz(SileroVad::load_16khz_pretrained(device)?))
-        }
-    }
-}
-
 impl SileroVad {
     /// Load the 16khz model from pretrained burnpack bytes.
     /// Uses the upstream `silero_vad` keying.

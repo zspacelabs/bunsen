@@ -212,65 +212,19 @@ pub static WELL_KNOWN_TABLE: StaticPretrainedTable<'static> = StaticPretrainedTa
     groups: &[&OPENAI],
 };
 
-/// The rows `bunsen-bundled-whisper` ships, behind the
-/// [`BUNDLED`](crate::data::pretrained::BUNDLED) provider:
-/// `bundled:openai/base`, the same files as `well-known:openai/base`,
-/// served in place from the bundle's build directory rather than fetched.
-///
-/// # Panics
-/// If the `base` row no longer has the resources the bundle ships; the
-/// tests pin that it does.
-#[cfg(feature = "whisper-weights")]
-pub fn bundled_whisper_table() -> crate::data::pretrained::PretrainedTable {
-    use crate::{
-        data::pretrained::{
-            BUNDLED,
-            PretrainedGroup,
-            PretrainedTable,
-        },
-        kits::speech::whisper::pretrained::VOCABULARY,
-    };
-
-    let mut base = BASE.to_pretrained();
-    base.resources = base
-        .resources
-        .with_local_files(
-            BUNDLED,
-            &[
-                (CHECKPOINT, bunsen_bundled_whisper::base_pt()),
-                (VOCABULARY, bunsen_bundled_whisper::multilingual_tiktoken()),
-            ],
-        )
-        .unwrap_or_else(|e| panic!("{e}"));
-    PretrainedTable {
-        name: BUNDLED.to_string(),
-        description: "the Whisper assets bunsen-bundled-whisper ships, used in place".to_string(),
-        groups: vec![PretrainedGroup {
-            name: OPENAI.name.to_string(),
-            description: OPENAI.description.to_string(),
-            license: OPENAI.license.map(str::to_string),
-            origin: OPENAI.origin.map(str::to_string),
-            items: vec![base],
-        }],
-    }
-}
-
 /// Whisper's compiled-in providers, in search order: the well-known table,
-/// then, with the `whisper-weights` feature, the bundled one, then Hugging
-/// Face, which answers only `hf:org/repo`, through the cache, and lists
-/// nothing.
+/// then Hugging Face, which answers only `hf:org/repo`, through the cache,
+/// and lists nothing.
 ///
 /// The data layer's [`HfProvider`] serves the last: a repo's
 /// `transformers` safetensors checkpoint, one file or shards, under
 /// [`CHECKPOINT`]. The factory over these is
 /// [`default_whisper_factory`](super::default_whisper_factory).
 pub fn default_whisper_providers() -> Vec<Arc<dyn PretrainedProvider>> {
-    let mut providers: Vec<Arc<dyn PretrainedProvider>> =
-        vec![Arc::new(WELL_KNOWN_TABLE.to_table())];
-    #[cfg(feature = "whisper-weights")]
-    providers.push(Arc::new(bundled_whisper_table()));
-    providers.push(Arc::new(HfProvider::new().with_checkpoint_key(CHECKPOINT)));
-    providers
+    vec![
+        Arc::new(WELL_KNOWN_TABLE.to_table()),
+        Arc::new(HfProvider::new().with_checkpoint_key(CHECKPOINT)),
+    ]
 }
 
 #[cfg(test)]

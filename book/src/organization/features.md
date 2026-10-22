@@ -50,10 +50,8 @@ Two separate switches, never on by default:
   [disk cache](bunsen::data::cache). Without it, everything works from files
   already in the cache. `indicatif` adds a progress bar.
 - **Build-time network** is the `download` convention: a build script may
-  fetch assets. bunsen itself has no `download` feature; the asset crates do,
-  through bunsen's `*-weights` features. `silero-weights` fetches upstream's
-  16 kHz Silero VAD checkpoint, and `whisper-weights` Whisper's `base`
-  checkpoint, at build time, digest-pinned.
+  fetch assets. No bunsen feature does; only the validation crates' `weights`
+  and `download` turn on the bundled crates' fetches, digest-pinned.
 
 [Assets, bundling and the network](../development/assets.md) explains the
 scheme, and why bundled weights are "a populated cache directory".
@@ -61,7 +59,7 @@ scheme, and why bundled weights are "a populated cache directory".
 ## What does docs.rs show?
 
 docs.rs builds bunsen with an explicit feature list (`fetch`, `indicatif`,
-`testing`, `audit`), not `all-features`, because the `*-weights` features
-would need the network at build time. Items behind a
+`testing`, `audit`), not `all-features`, which would turn on every backend.
+Items behind a
 feature carry a badge saying which one. This book's API links are resolved
 against the same list, so a link that works here works on docs.rs.

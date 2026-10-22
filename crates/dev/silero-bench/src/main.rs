@@ -1,4 +1,8 @@
 use bunsen::{
+    data::pretrained::{
+        PretrainedCache,
+        PretrainedCacheOptions,
+    },
     errors::{
         BunsenError,
         BunsenErrorKind,
@@ -8,9 +12,9 @@ use bunsen::{
     },
     kits::speech::silero_vad::{
         SileroVad,
-        SileroVadCollection,
         SileroVadContextConfig,
         SileroVadMeta,
+        pretrained::default_silero_factory,
     },
     support::{
         audio::load_audio_mono_sr,
@@ -50,7 +54,10 @@ fn main() -> BunsenResult<()> {
     println!("* device: {:?}", device);
 
     println!("* SileroVad");
-    let vad: SileroVad = SileroVadCollection::load_pretrained(&device)?
+    let cache = PretrainedCache::new(PretrainedCacheOptions::default())?;
+    let vad: SileroVad = default_silero_factory()?
+        .load("silero/vad-16k", &cache, &device)?
+        .handle
         .try_branch(args.sample_rate)?
         .clone();
 

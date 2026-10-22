@@ -10,11 +10,10 @@
 //!   the part a checkpoint fixes).
 //! - [`pretrained`]: names to loaded models.
 //!   [`default_whisper_factory`](pretrained::default_whisper_factory) is the
-//!   index: `openai/base`, `large`, `well-known:openai/tiny.en`,
-//!   `hf:openai/whisper-large-v3` for a Hugging Face repo, and
-//!   `bundled:openai/base` when the weights are built in. It resolves a name to
-//!   a [`WhisperBundle`](driver::WhisperBundle): the model at the precision it
-//!   ships in, its token layout, and its vocabulary.
+//!   index: `openai/base`, `large`, `well-known:openai/tiny.en`, and
+//!   `hf:openai/whisper-large-v3` for a Hugging Face repo. It resolves a name
+//!   to a [`WhisperBundle`](driver::WhisperBundle): the model at the precision
+//!   it ships in, its token layout, and its vocabulary.
 //! - [`decode`]: one window of audio to tokens, with upstream's temperature
 //!   fallback.
 //! - [`logit_filters`]: what the decode may and may not emit.

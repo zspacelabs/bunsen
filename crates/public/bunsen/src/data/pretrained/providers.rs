@@ -28,12 +28,11 @@ use crate::errors::BunsenResult;
 pub const WELL_KNOWN: &str = "well-known";
 
 /// The name of the provider whose rows a build ships with:
-/// `bundled:openai/base`. A kit registers one under its `*-weights`
-/// feature, after [`WELL_KNOWN`] when it has both, so that a bare name means
-/// the same row with the feature or without. A bundled row is served from
-/// the bundle rather than fetched: in place from files the build laid out
-/// (`bundled:openai/base`, the same files as `well-known:openai/base`), or
-/// from bytes linked into the binary
+/// `bundled:openai/base`. A caller registers one after [`WELL_KNOWN`], so
+/// that a bare name means the same row with it or without. A bundled row is
+/// served from the bundle rather than fetched: in place from files the build
+/// laid out (`bundled:openai/base`, the same files as
+/// `well-known:openai/base`), or from bytes linked into the binary
 /// ([`Source::Bundled`](super::Source::Bundled)).
 pub const BUNDLED: &str = "bundled";
 

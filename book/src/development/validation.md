@@ -91,9 +91,18 @@ The Whisper suite takes three features, and none implies another:
 `download` fetches the assets it compares against, `gpu-tests` compiles the
 tests that load a model, and a backend feature says what they run on.
 Without `gpu-tests` only its fixture-integrity checks run, and that is all of
-it that CI runs: CI turns on neither `download` nor `gpu-tests` for any
-validation crate. The full suite is run by hand, in release mode, with a
-backend; the
+it that pull-request CI runs: it turns on none of `weights`, `download` and
+`gpu-tests` for any validation crate.
+
+`weights` is the cheap half of `download`, the checkpoints without the
+reference graphs, and compiles the checks that need only them: the Whisper
+kit's pretrained pathway on `base.pt`, and Silero's recorded probabilities
+held to upstream's model. They run on the CPU, as `cargo make validate-cpu`,
+and weekly in `validation.yml`.
+
+`cargo make validate-<model>` (`silero`, `whisper`, `parakeet`, `qwen3-asr`,
+`sortformer`, or `all`) runs a model's whole suite, in release mode, on
+`VALIDATION_BACKEND` (default `wgpu`). The
 [README](https://github.com/zspacelabs/bunsen/blob/main/crates/validation/whisper-model-validation/README.md#running-it)
 has the command. Without a backend feature the suite still passes, having
 measured the CPU ([Testing and backends](./testing.md#the-silent-cpu-fallback)).

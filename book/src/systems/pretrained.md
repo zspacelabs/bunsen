@@ -12,7 +12,7 @@ The kits show three sizes of the same machinery.
 is the simple case: one compiled-in table of `torchvision` and `timm`
 checkpoints.
 [`default_whisper_factory`](bunsen::kits::speech::whisper::pretrained::default_whisper_factory)
-is the full one: a compiled-in table, a bundled row, and Hugging Face repos.
+is the full one: a compiled-in table, and Hugging Face repos.
 [`default_silero_factory`](bunsen::kits::speech::silero_vad::pretrained::default_silero_factory)
 is the smallest: one compiled-in row, upstream's 16 kHz checkpoint.
 
@@ -64,7 +64,7 @@ resources](bunsen::data::pretrained#prefabs-rows-and-resources)).
 A [`PretrainedProvider`](bunsen::data::pretrained::PretrainedProvider) is a
 namespace of rows: the `provider` in `provider:ref`. Three are in use.
 `well-known:` holds the compiled-in rows. `bundled:` holds the rows a build
-ships with, registered under a kit's `*-weights` feature. `hf:`, an
+ships with, a table its caller registers. `hf:`, an
 [`HfProvider`](bunsen::data::pretrained::HfProvider), is a Hugging Face repo,
 by `org/repo`.
 

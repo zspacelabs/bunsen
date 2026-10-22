@@ -17,25 +17,30 @@ workspace = true
 [features]
 default = []
 
-## Fetch the reference graphs, generate the models from them, and pull in the
-## checkpoint they are compared against.
+## Fetch `OpenAI`'s `base.pt` and both `.tiktoken` vocabularies (~150 MB) at
+## build time, through `bunsen-bundled-whisper`, and compile the checks that
+## need only them: the kit's pretrained pathway on real files (`bundled`).
+## They load at most one model, so they run on the CPU.
 ##
-## **Off by default.** Enabling this makes both this crate's `build.rs` and
-## `bunsen-bundled-whisper`' reach the network on a cold cache, which a
-## plain `cargo build --workspace` must never do. Every asset is cached under
-## `cache/` and verified against a pinned SHA-256, so a warm build is offline
-## and reproducible.
-##
-## The checkpoint and the vocabularies arrive as `bunsen-bundled-whisper`'s
+## **Off by default.** The assets arrive as `bunsen-bundled-whisper`'s
 ## directory, laid out as bunsen's pretrained cache; `weights_cache()` roots
 ## the cache there, offline, so routing them through the library's own cache
-## is also what this crate is validating. `bunsen/whisper-weights` comes
-## along so bunsen's bundle-dependent tests are built in the same run.
-download = [
-    "bunsen/whisper-weights",
+## is also what this crate is validating.
+weights = [
     "dep:bunsen-bundled-whisper",
     "bunsen-bundled-whisper/checkpoint",
     "bunsen-bundled-whisper/vocab",
+]
+
+## `weights`, and fetch the reference graphs and generate the models from
+## them (~435 MB in all).
+##
+## **Off by default.** Enabling this makes `bunsen-bundled-whisper`'s build
+## reach the network on a cold cache, which a plain `cargo build --workspace`
+## must never do. Every asset is verified against a pinned SHA-256, so a warm
+## build is offline and reproducible.
+download = [
+    "weights",
     "bunsen-bundled-whisper/onnx_gen",
 ]
 
@@ -45,9 +50,8 @@ download = [
 ## *whether* those tests are built, a backend feature selects *which*
 ## accelerator runs them, and both are passed.
 ##
-## Needs `download` too, for the assets they compare. With both, the suite is
-## twelve tests; with either alone it is the three fixture-integrity checks,
-## which load no model.
+## Needs `download` too, for the assets they compare. Without it, the suite
+## is the fixture-integrity checks, which load no model.
 gpu-tests = []
 
 ## Run the cross-check on `wgpu`. The usual choice.
@@ -76,3 +80,4 @@ serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
 
 serial_test = { workspace = true }
+tempfile = { workspace = true }

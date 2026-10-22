@@ -15,9 +15,6 @@
 //!   `well-known:openai/base`, `openai/base`, or `base`. Its one group,
 //!   [`OPENAI`], is upstream's `_MODELS`, with upstream's aliases (`large`,
 //!   `turbo`).
-//! - With the `whisper-weights` feature, the bundled table:
-//!   `bundled:openai/base`, served in place from `bunsen-bundled-whisper`'s
-//!   build directory.
 //! - The data layer's [`HfProvider`](crate::data::pretrained::HfProvider):
 //!   `hf:openai/whisper-large-v3` for a Hugging Face repo, its safetensors
 //!   checkpoint under [`CHECKPOINT`]. It lists nothing.

@@ -24,8 +24,8 @@ check against and are not published.
 |---|---|
 | [`bunsen`] | The library: contracts, ops, blocks, kits, the pretrained-model machinery, audits. Most users depend on this alone. See [the bunsen crate](./crate.md). |
 | [`bunsen-contracts-macros`](https://github.com/zspacelabs/bunsen/tree/main/crates/public/bunsen-contracts-macros) | The proc macro behind [`shape_contract!`](bunsen::contracts#macros-and-methods). Never a direct dependency; `bunsen` re-exports it. |
-| [`bunsen-bundled-silero`](bunsen_bundled_silero) | Silero VAD's 16 kHz checkpoint and, for validation, its ONNX graph and the reference model generated from it, fetched and digest-pinned at build time. Pulled in by `silero-weights`. Hosts no files itself. |
-| [`bunsen-bundled-whisper`](bunsen_bundled_whisper) | Whisper's `base` checkpoint and tokenizer vocabularies, fetched and digest-pinned at build time and laid out as a pretrained cache. Pulled in by `whisper-weights`. Hosts no files itself. |
+| [`bunsen-bundled-silero`](bunsen_bundled_silero) | Silero VAD's 16 kHz checkpoint and, for validation, its ONNX graph and the reference model generated from it, fetched and digest-pinned at build time, for `silero-model-validation`. Hosts no files itself. |
+| [`bunsen-bundled-whisper`](bunsen_bundled_whisper) | Whisper's `base` checkpoint and tokenizer vocabularies, fetched and digest-pinned at build time and laid out as a pretrained cache, for `whisper-model-validation`. Hosts no files itself. |
 | [`bunsen-firehose`](bunsen_firehose) | A column-oriented data-processing pipeline that feeds burn's `Batcher`. Independent of `bunsen`. See [Firehose](../systems/firehose.md). |
 | [`bunsen-firehose-image`](bunsen_firehose_image) | Image operators for firehose: loading, augmentation, conversion to tensor data. |
 | [`bunsen-arrow-dataloaders`](bunsen_arrow_dataloaders) | *Preview.* Parquet shards to tokenized training batches, for language-model training. See [Shard sets](../systems/shards.md). |

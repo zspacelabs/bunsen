@@ -649,54 +649,19 @@ mod tests {
         assert_eq!(raw, regions(&[(1536, 13824)]));
     }
 
-    /// Against the real front end: Silero over four seconds of the moon
-    /// speech, cut to hold a one-second pause. The quick tuning splits at the
-    /// pause; the default tuning, with two seconds of patience, does not.
-    #[cfg(feature = "silero-weights")]
+    /// Against the real front end: Silero's recorded probabilities over four
+    /// seconds of the moon speech, cut to hold a one-second pause. The quick
+    /// tuning splits at the pause; the default tuning, with two seconds of
+    /// patience, does not.
     mod silero {
-        use burn::{
-            Tensor,
-            prelude::TensorData,
-        };
-
         use super::*;
-        use crate::{
-            kits::speech::silero_vad::{
-                SileroVad,
-                SileroVadContextConfig,
-                SileroVadMeta,
-            },
-            support::{
-                audio::load_audio_mono_sr,
-                testing::cpu_device,
-            },
-        };
+        use crate::kits::speech::testing::RecordedVoiceActivity;
 
-        /// Silero's probabilities for the clip, one per chunk.
+        /// Silero's probabilities for the clip, one per chunk, and its length.
         fn probabilities() -> (Vec<f32>, usize) {
-            let device = cpu_device();
-            let vad = SileroVad::load_16khz_pretrained(&device).unwrap();
-            let path = bunsen_test_audio::JFK_MOON_4S.path();
-            let sample_rate: usize = 16_000;
-
-            let mut wav = load_audio_mono_sr(&path, sample_rate).unwrap();
-            let total = wav.len() as usize;
-
-            let chunk = vad.chunk_size();
-            assert_eq!(chunk as usize, 512);
-            let tail = wav.len() % chunk;
-            if tail != 0 {
-                wav.resize(wav.len() + chunk - tail, 0.0);
-            }
-            let steps = wav.len() / chunk;
-            let chunks: Tensor<3> =
-                Tensor::from_data(TensorData::new(wav, [steps, 1, chunk]), &device);
-
-            let context = SileroVadContextConfig::new(sample_rate).init(&vad, &device);
-            let (probs, _) = vad.context_forward_sequence(chunks, context);
-            let probs: Vec<f32> = probs.to_data().try_into_vec_as::<f32>().unwrap();
-            assert_eq!(probs.len(), steps);
-            (probs, total)
+            let recording = RecordedVoiceActivity::silero_jfk_moon_4s();
+            assert_eq!(recording.chunk_size, 512);
+            (recording.probabilities, recording.samples)
         }
 
         #[test]

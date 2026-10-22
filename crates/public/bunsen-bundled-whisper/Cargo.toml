@@ -24,15 +24,15 @@ workspace = true
 
 [features]
 ## Nothing by default: building this crate as a workspace member fetches
-## nothing. `bunsen/whisper-weights` turns on `checkpoint` and `vocab`;
-## `whisper-model-validation/download` turns on `onnx_gen`.
+## nothing. `whisper-model-validation/weights` turns on `checkpoint` and
+## `vocab`; `whisper-model-validation/download` turns on `onnx_gen` too.
 default = []
 
 ## Fetch `OpenAI`'s multilingual "base.pt", laid out under `cache_dir()`.
 ##
 ## A bunsen pretrained cache rooted at that directory resolves `openai/base`
-## from it, offline; `bunsen/whisper-weights` makes it available to bunsen's
-## tests.
+## from it, offline; `whisper-model-validation` checks the Whisper kit's
+## pretrained pathway on it.
 checkpoint = []
 
 ## Fetch Whisper's two `.tiktoken` rank files and expose them as

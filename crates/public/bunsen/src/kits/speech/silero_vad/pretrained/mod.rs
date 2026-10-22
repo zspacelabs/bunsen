@@ -9,9 +9,7 @@
 //! [`SileroVadCollection`](super::SileroVadCollection) of the 16 kHz branch.
 //! A resource map of a burnpack (both branches, keyed as `burn-onnx` names
 //! the ONNX graph's nodes) reads too. The loaders in [`load`] read files or
-//! bytes directly, with no cache; with `silero-weights`, the
-//! `load_pretrained` shortcuts read the checkpoint `bunsen-bundled-silero`
-//! fetched at build time.
+//! bytes directly, with no cache.
 //!
 //! The whole module needs the `store` and `cache` features, both
 //! default. The kit has no prefab map.
@@ -20,7 +18,5 @@ mod construct;
 pub mod load;
 mod providers;
 
-#[cfg(feature = "silero-weights")]
-pub use bunsen_bundled_silero as bundled;
 pub use construct::*;
 pub use providers::*;

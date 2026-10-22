@@ -29,9 +29,10 @@
 //!   accessor knows it.
 //!
 //! **No feature is on by default**, so building this crate as a workspace
-//! member fetches nothing. `bunsen/whisper-weights` turns on `checkpoint` and
-//! `vocab` (145 MB into a fresh `OUT_DIR`); `whisper-model-validation/download`
-//! turns on `onnx_gen`. `WHISPER_BASE_PT` points at a local copy.
+//! member fetches nothing. `whisper-model-validation/weights` turns on
+//! `checkpoint` and `vocab` (145 MB into a fresh `OUT_DIR`);
+//! `whisper-model-validation/download` turns on `onnx_gen` too.
+//! `WHISPER_BASE_PT` points at a local copy.
 
 // Each feature uses its own constants and helpers; the rest are dead in that
 // build. Enumerating `cfg` on every item would be noisier than this.

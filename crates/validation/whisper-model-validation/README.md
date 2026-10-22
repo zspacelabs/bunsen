@@ -26,8 +26,19 @@ cargo test --release -p whisper-model-validation \
 **`gpu-tests` compiles every test that loads a model**, `download` fetches
 what they compare against, and a backend feature (`wgpu`, `vulkan`, `cuda`, or `metal`)
 says what they run on. None is inferred from the others, so all three are
-passed. With `download,gpu-tests` the suite is twelve tests; with either alone
-it is the three fixture-integrity checks, which load no model.
+passed. Without `gpu-tests` the suite is the fixture-integrity checks, which
+load no model, plus the `weights` checks below when `download` is on.
+
+```sh
+# ~150 MB: base.pt and the vocabularies, no ONNX export. On the CPU.
+cargo test -p whisper-model-validation --features weights
+```
+
+**`weights` is the cheap half of `download`**: the checkpoint and the
+vocabularies alone, and the checks that need only them (`bundled`): the
+Whisper kit's pretrained pathway, vocabularies and hook on the real files,
+which used to run inside `bunsen` under its removed `whisper-weights` feature.
+`validation.yml` runs them weekly; `cargo make validate-cpu` runs them here.
 
 **Pass a backend deliberately.** `performance_device()` falls through to `Flex`
 when none reaches `bunsen`, so a run without one does not fail — it quietly
