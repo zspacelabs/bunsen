@@ -26,11 +26,19 @@
 //! ([`EncoderTransformerConfig`]): each keeps the frame rate and runs
 //! `[batch, frames, d_model]` to the same, padding masked by each item's
 //! length, so a model whose stack is a choice holds one field of this type.
+//!
+//! [`SubsampledEncoder`] is a speech encoder's shape: a front end that
+//! changes the frame rate ([`Subsampling`]: feature stacking, or the
+//! `FastConformer`'s depthwise striding), then an `EncoderTransformer`, with
+//! an [`AxisOrder`](crate::blocks::layout::AxisOrder) bridging the caller's
+//! layout to the front end's.
 
 pub mod conformer;
 pub mod residual;
 pub mod rope;
 
 mod encoder_transformer;
+mod subsampled;
 
 pub use encoder_transformer::*;
+pub use subsampled::*;

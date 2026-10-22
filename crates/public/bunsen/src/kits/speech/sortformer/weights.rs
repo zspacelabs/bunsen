@@ -37,11 +37,11 @@ pub fn nemotron_hf_rekey() -> Rekey {
         .exact("silence_embeds", "silence")
         .rename(
             "model.audio_tower.embedder.projection.",
-            "encoder.stacking.projection.",
+            "encoder.subsampling.projection.",
         )
         .mount(
             "model.audio_tower.",
-            "encoder.encoder.",
+            "encoder.transformer.",
             RopeTransformerEncoder::transformers_rekey(),
         )
         .rename("model.proj.", "projection.")
@@ -169,23 +169,23 @@ mod tests {
             ("silence_embeds", "silence"),
             (
                 "model.audio_tower.embedder.projection.weight",
-                "encoder.stacking.projection.weight",
+                "encoder.subsampling.projection.weight",
             ),
             (
                 "model.audio_tower.input_layer_norm.bias",
-                "encoder.encoder.embed_norm.bias",
+                "encoder.transformer.embed_norm.bias",
             ),
             (
                 "model.audio_tower.layer_norm.weight",
-                "encoder.encoder.final_norm.weight",
+                "encoder.transformer.final_norm.weight",
             ),
             (
                 "model.audio_tower.layers.30.self_attn.o_proj.bias",
-                "encoder.encoder.layers.30.attn.output.bias",
+                "encoder.transformer.layers.30.attn.output.bias",
             ),
             (
                 "model.audio_tower.layers.0.mlp.fc2.weight",
-                "encoder.encoder.layers.0.mlp.linear2.weight",
+                "encoder.transformer.layers.0.mlp.linear2.weight",
             ),
             ("model.upsampler.conv.weight", "upsample.conv.weight"),
             ("classifier.out_proj.bias", "head.out.bias"),
