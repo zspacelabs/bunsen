@@ -22,8 +22,10 @@
 //! - [`encoders`]: bidirectional encoder layers and encoders:
 //!   [`ResidualEncoderAttentionBlock`](encoders::residual::ResidualEncoderAttentionBlock),
 //!   the pre- or post-norm layer of Whisper's, Qwen3-ASR's and Sortformer v2's
-//!   encoders; [`RopeTransformerEncoder`](encoders::rope::RopeTransformerEncoder),
-//!   a pre-norm encoder with rotary attention, `Nemotron-3-Diarization`'s; and
+//!   encoders, and its stack,
+//!   [`ResidualEncoderTransformer`](encoders::residual::ResidualEncoderTransformer);
+//!   [`RopeTransformerEncoder`](encoders::rope::RopeTransformerEncoder), a
+//!   pre-norm encoder with rotary attention, `Nemotron-3-Diarization`'s; and
 //!   [`ConformerEncoder`](encoders::conformer::ConformerEncoder), the
 //!   `FastConformer`, Parakeet's and Sortformer v2's.
 //! - [`mlp`]: [`Mlp`](mlp::Mlp), the position-wise feed-forward block (expand,

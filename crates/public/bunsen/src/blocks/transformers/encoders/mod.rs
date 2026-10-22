@@ -8,7 +8,9 @@
 //!   [`ResidualEncoderAttentionBlock`](residual::ResidualEncoderAttentionBlock)
 //!   ([`NormPlacement`](residual::NormPlacement)): pre-norm, the encoder layer
 //!   of Whisper's and Qwen3-ASR's audio encoders; post-norm, of Sortformer v2's
-//!   transformer.
+//!   transformer. And the stack of them,
+//!   [`ResidualEncoderTransformer`](residual::ResidualEncoderTransformer),
+//!   which masks padding as keys: Sortformer v2's transformer.
 //! - [`rope`]: a pre-norm encoder with rotary attention,
 //!   [`RopeTransformerEncoder`](rope::RopeTransformerEncoder), over
 //!   [`RopeEncoderBlock`](rope::RopeEncoderBlock)s: `Nemotron-3-Diarization`'s.

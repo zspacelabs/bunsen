@@ -22,8 +22,6 @@ use super::{
     SortformerHead,
     SortformerHeadConfig,
     SortformerHeadMeta,
-    SortformerTransformer,
-    SortformerTransformerConfig,
 };
 use crate::{
     blocks::{
@@ -42,6 +40,8 @@ use crate::{
             residual::{
                 NormPlacement,
                 ResidualEncoderAttentionBlockConfig,
+                ResidualEncoderTransformer,
+                ResidualEncoderTransformerConfig,
             },
             rope::{
                 RopeEncoderBlockConfig,
@@ -101,7 +101,7 @@ pub struct SortformerStructureConfig {
     /// A transformer over the projected frames, at the head's width, when
     /// set.
     #[config(default = "None")]
-    pub transformer: Option<SortformerTransformerConfig>,
+    pub transformer: Option<ResidualEncoderTransformerConfig>,
 
     /// Upsamples the projected frames before the head, when set; its width
     /// is the head's.
@@ -435,7 +435,7 @@ impl ToStructureConfig for SortformerV2Config {
             SortformerEncoderConfig::FastConformer(encoder),
             SortformerHeadConfig::new(self.d_hidden, self.n_speakers),
         )
-        .with_transformer(Some(SortformerTransformerConfig::new(
+        .with_transformer(Some(ResidualEncoderTransformerConfig::new(
             block,
             self.transformer_layers,
         ))))
@@ -479,7 +479,7 @@ pub struct Sortformer {
     pub projection: Linear,
 
     /// The transformer over the projected frames, if any.
-    pub transformer: Option<SortformerTransformer>,
+    pub transformer: Option<ResidualEncoderTransformer>,
 
     /// The upsample back to the mel frame rate, if any.
     pub upsample: Option<SubpixelUpsample1d>,

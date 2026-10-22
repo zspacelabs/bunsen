@@ -5,9 +5,9 @@ use super::blocks::{
     SortformerEncoderConfig,
     SortformerHeadConfig,
     SortformerStructureConfig,
-    SortformerTransformerConfig,
 };
 use crate::{
+    blocks::transformers::encoders::residual::ResidualEncoderTransformerConfig,
     errors::{
         BunsenError,
         BunsenResult,
@@ -220,7 +220,7 @@ impl NemoSortformerConfig {
             SortformerEncoderConfig::FastConformer(encoder.conformer()?),
             SortformerHeadConfig::new(modules.tf_d_model, modules.num_spks),
         )
-        .with_transformer(Some(SortformerTransformerConfig::new(
+        .with_transformer(Some(ResidualEncoderTransformerConfig::new(
             transformer.block()?,
             transformer.num_layers,
         ))))
