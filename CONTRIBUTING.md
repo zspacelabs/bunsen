@@ -66,11 +66,38 @@ Four jobs, each step commented in the workflow:
 
 The repeated builds are on purpose: Cargo unifies features across the crates in one command, so a crate that forgets
 a feature still builds in the workspace and fails for its users. The book's
-[Development setup and CI](https://zspacelabs.ai/bunsen/book/development/setup.html) explains each configuration. By
-default no build script fetches anything. The validation crates' cheap `weights` suites (about 150 MB of
-checkpoints, on the CPU) run as `cargo make validate-cpu`. `validation.yml` runs Silero's and Whisper's whole suites on the
-CPU only when asked, from the Actions tab or for a PR labelled `validate`; the other `download` suites, many
-GB of checkpoints and reference exports, run by hand on a GPU, as `cargo make validate-<model>`.
+[Development setup and CI](https://zspacelabs.ai/bunsen/book/development/setup.html) explains each configuration. None
+of these jobs fetches a model: the model validation suites run only when asked ([Model validation](#model-validation)).
+
+### Model validation
+
+The validation crates (`crates/validation/*`) hold each speech model to an independent reference: a Rust model
+generated from upstream's ONNX export, and upstream's own checkpoints. Their build scripts fetch those assets, digest-pinned,
+so nothing runs them by default.
+
+**On a pull request**, add the `validate` label to run `validation.yml`: Silero's and Whisper's whole suites, ONNX
+cross-checks included, on the CPU, over about 440 MB of assets. It runs when the label is added and again on every push
+while it stays; remove the label to stop. Use it for a change that can move a model's numbers: the speech kits, the ops
+and blocks under them, the pretrained loaders, `bunsen-fetch`, or a `bunsen-bundled-*` crate. It can also be run from the
+Actions tab (`workflow_dispatch`), on any branch.
+
+The job caches its assets by digest (`BUNSEN_ASSET_CACHE`; STYLE.md, "Fetched assets live in `OUT_DIR`"), under a key
+that hashes the bundled crates' pins. A pull request's run sees the cache `main` saved, and saves its own only for
+itself, so after a pin changes on `main`, run the workflow once on `main` from the Actions tab to seed it for everyone.
+
+**Locally**, through `cargo make`:
+
+| Task | Runs | Fetches (cold) |
+|---|---|---|
+| `validate-cpu` | the checks on the checkpoints alone (`weights`), on the CPU | ~150 MB |
+| `validate-ci` | what `validation.yml` runs: Silero's and Whisper's whole suites, on the CPU | ~440 MB |
+| `validate-<model>` | one model's whole suite, in release mode, on `VALIDATION_BACKEND` (default `wgpu`) | 4 MB to ~7 GB |
+| `validate-all` | every model's whole suite | ~16 GB |
+
+`<model>` is `silero`, `whisper`, `parakeet`, `qwen3-asr` or `sortformer`. Parakeet's, Qwen3-ASR's and Sortformer's
+suites are too large for a CI runner; run them on a GPU before merging a change to those kits. Set `BUNSEN_ASSET_CACHE`
+to a directory to keep the assets across `cargo clean` and toolchain updates, or point a crate's override variables
+(`WHISPER_BASE_PT` and friends) at copies you already have.
 
 ## Commit messages
 
