@@ -1,5 +1,4 @@
-//! `bunsen-asr family whisper inspect` and `bunsen-asr family whisper
-//! prefabs`.
+//! `bunsen-asr family whisper inspect` and `family whisper prefabs`.
 use bunsen::{
     data::pretrained::PretrainedCache,
     errors::{

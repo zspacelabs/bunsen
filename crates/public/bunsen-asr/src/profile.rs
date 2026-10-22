@@ -1,16 +1,5 @@
-//! Profiles: speech to text by what it is for (`en`, `multi`,
-//! `translate-en`), not by which model does it.
-//!
-//! A profile is two recipes, one for files (`transcribe`) and one for the
-//! microphone (`live`); a recipe is a family, a model, a preset, and the
-//! family's own flags, as the family's command line would give them. The
-//! table is this binary's: when a better model arrives, a row changes, and
-//! the command lines that name the profile do not.
-//!
-//! The flags are kept as the family command's long flags and parsed by the
-//! family's own `clap` struct, so the profiles hold no second copy of any
-//! family's options, and a recipe is always a command `bunsen-asr family`
-//! runs.
+//! Profiles: speech to text by what it is for, not by which model does it.
+
 use std::{
     collections::BTreeMap,
     fmt,
@@ -58,6 +47,10 @@ impl Mode {
 
 /// One way to run a family: what `bunsen-asr family <family> transcribe|live`
 /// would be given.
+///
+/// The flags are kept as the family command's long flags and parsed by the
+/// family's own `clap` struct, so no second copy of any family's options
+/// lives here, and a recipe is always a command `bunsen-asr family` runs.
 #[derive(Clone, Copy, Debug)]
 pub struct Recipe {
     pub family: Family,
@@ -328,6 +321,11 @@ pub fn pick(
 }
 
 /// A named, semantic choice of model: a point in the [`TABLE`].
+///
+/// A profile names what the speech is for (`en`, `multi`, `translate-en`),
+/// with one recipe for files (`transcribe`) and one for the microphone
+/// (`live`). The table is this binary's: when a better model arrives, a row
+/// changes, and the command lines that name the profile do not.
 #[derive(Clone, Copy, Debug)]
 pub struct Profile {
     pub name: &'static str,

@@ -1,5 +1,4 @@
-//! `bunsen-asr family <family> transcribe`, and what `bunsen-asr transcribe`
-//! shares with it.
+//! `bunsen-asr family <family> transcribe`, and what `transcribe` shares.
 use std::{
     path::PathBuf,
     time::{

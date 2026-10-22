@@ -1,5 +1,4 @@
-//! `bunsen-asr family <family> live`, and what `bunsen-asr live` shares
-//! with it.
+//! `bunsen-asr family <family> live`, and what `bunsen-asr live` shares.
 use std::io::{
     IsTerminal,
     Write,

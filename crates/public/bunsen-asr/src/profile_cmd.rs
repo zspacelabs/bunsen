@@ -1,5 +1,4 @@
-//! `bunsen-asr transcribe`, `bunsen-asr live` and `bunsen-asr profiles`:
-//! speech to text by profile.
+//! `bunsen-asr transcribe`, `live` and `profiles`: speech to text by profile.
 use std::io::Write;
 
 use bunsen::{
