@@ -17,9 +17,15 @@ use crate::{
         ConvBlock2d,
         ConvBlock2dConfig,
     },
-    burner::module::{
-        ModuleInit,
-        Rekey,
+    burner::{
+        module::{
+            ModuleInit,
+            Rekey,
+        },
+        tensor::{
+            permute_data,
+            reshape_data,
+        },
     },
     errors::{
         BunsenResult,
@@ -29,8 +35,25 @@ use crate::{
     ops::transformers::attention::length_mask,
 };
 
+/// How [`DwStridingSubsampling`] flattens its last convolution's output,
+/// `[channels, n_freq]` per frame, into the vector its projection reads.
+///
+/// A layout choice with a loading consequence: the projection's weight
+/// columns follow the flatten, so a checkpoint flattened the other way loads
+/// through its key map's transform ([`DwStridingSubsamplingMeta::nemo_rekey`],
+/// [`transformers_rekey`](DwStridingSubsamplingMeta::transformers_rekey)).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub enum FlattenOrder {
+    /// Channels outer, frequencies inner: `NeMo`'s and `transformers'`.
+    #[default]
+    ChannelsFreqs,
+
+    /// Frequencies outer, channels inner.
+    FreqsChannels,
+}
+
 /// Common meta for [`DwStridingSubsampling`] and
-/// [`DwStridingSubsamplingConfig`].
+/// [`DwStridingSubsamplingConfig`], and the key maps that follow from it.
 pub trait DwStridingSubsamplingMeta {
     /// The mel channels it reads.
     fn n_mels(&self) -> usize;
@@ -62,6 +85,52 @@ pub trait DwStridingSubsamplingMeta {
 
     /// The frequency bins left after subsampling.
     fn n_freq_out(&self) -> usize;
+
+    /// How the last convolution's output is flattened for the projection.
+    fn flatten(&self) -> FlattenOrder;
+
+    /// Its tensors as `transformers`' `ParakeetEncoderSubsampling` names them,
+    /// relative to it: the flat `layers.{k}` onto the stem and the stages,
+    /// everything else as it is; and the projection's weight permuted when
+    /// this flattens otherwise than `transformers` does.
+    fn transformers_rekey(&self) -> Rekey {
+        reflatten(self, dw_striding_list("layers.", self.n_stages()))
+    }
+
+    /// Its tensors as `NeMo`'s `ConvSubsampling` (`pre_encode`) names them,
+    /// relative to it: the flat `conv.{k}` onto the stem and the stages, and
+    /// `out` the projection, its weight permuted when this flattens otherwise
+    /// than `NeMo` does. Anything else is dropped.
+    fn nemo_rekey(&self) -> Rekey {
+        let conv = dw_striding_list("conv.", self.n_stages());
+        reflatten(
+            self,
+            Rekey::drop_rest()
+                .custom(move |name| name.starts_with("conv.").then(|| conv.apply(name)))
+                .rename("out.", "linear."),
+        )
+    }
+}
+
+/// `rekey`, and, when `meta` flattens otherwise than the checkpoints bunsen
+/// reads (channels outer), the projection's weight permuted to match: in
+/// `PyTorch`'s `[out, in]`, `[d_model, channels * n_freq]` to
+/// `[d_model, n_freq * channels]`.
+fn reflatten<M: DwStridingSubsamplingMeta + ?Sized>(
+    meta: &M,
+    rekey: Rekey,
+) -> Rekey {
+    match meta.flatten() {
+        FlattenOrder::ChannelsFreqs => rekey,
+        FlattenOrder::FreqsChannels => {
+            let (c, f) = (meta.channels(), meta.n_freq_out());
+            rekey.transform("linear.weight", move |data| {
+                let d = data.shape().num_elements() / (c * f);
+                let data = reshape_data(data, vec![d, c, f]);
+                reshape_data(permute_data(data, &[0, 2, 1]), vec![d, f * c])
+            })
+        }
+    }
 }
 
 /// Config for [`DwStridingSubsampling`].
@@ -81,6 +150,10 @@ pub struct DwStridingSubsamplingConfig {
     /// The number of strided stages: 3 for 8x subsampling.
     #[config(default = "3")]
     pub n_stages: usize,
+
+    /// How the last convolution's output is flattened for the projection.
+    #[config(default = "FlattenOrder::ChannelsFreqs")]
+    pub flatten: FlattenOrder,
 }
 
 impl DwStridingSubsamplingMeta for DwStridingSubsamplingConfig {
@@ -102,6 +175,10 @@ impl DwStridingSubsamplingMeta for DwStridingSubsamplingConfig {
 
     fn n_freq_out(&self) -> usize {
         self.output_len(self.n_mels)
+    }
+
+    fn flatten(&self) -> FlattenOrder {
+        self.flatten
     }
 }
 
@@ -141,6 +218,7 @@ impl ModuleInit<DwStridingSubsampling> for DwStridingSubsamplingConfig {
             stages,
             linear: LinearConfig::new(c * self.n_freq_out(), self.d_model).init(device),
             n_mels: self.n_mels,
+            flatten: self.flatten,
         })
     }
 }
@@ -184,6 +262,10 @@ pub struct DwStridingSubsampling {
     /// The mel channels it reads: what `n_freq_out` rounds up from.
     #[module(skip)]
     pub n_mels: usize,
+
+    /// How the last convolution's output is flattened for the projection.
+    #[module(skip)]
+    pub flatten: FlattenOrder,
 }
 
 impl DwStridingSubsamplingMeta for DwStridingSubsampling {
@@ -205,6 +287,10 @@ impl DwStridingSubsamplingMeta for DwStridingSubsampling {
 
     fn n_freq_out(&self) -> usize {
         self.linear.weight.dims()[0] / self.channels()
+    }
+
+    fn flatten(&self) -> FlattenOrder {
+        self.flatten
     }
 }
 
@@ -268,7 +354,10 @@ impl DwStridingSubsampling {
             ],
         );
         let [_, c, t, f] = x.dims();
-        let x = x.swap_dims(1, 2).reshape([batch, t, c * f]);
+        let x = match self.flatten {
+            FlattenOrder::ChannelsFreqs => x.swap_dims(1, 2).reshape([batch, t, c * f]),
+            FlattenOrder::FreqsChannels => x.permute([0, 2, 3, 1]).reshape([batch, t, f * c]),
+        };
         let y = self.linear.forward(x);
 
         #[cfg(any(debug_assertions, test))]
@@ -315,29 +404,6 @@ fn dw_striding_list(
         let module = k.parse().ok().and_then(|k| dw_striding_module(k, n_stages));
         Some(module.map(|module| format!("{module}.{param}")))
     })
-}
-
-impl DwStridingSubsampling {
-    /// Its tensors as `transformers`' `ParakeetEncoderSubsampling` names them,
-    /// relative to it: the flat `layers.{k}` onto the stem and the stages,
-    /// everything else as it is.
-    ///
-    /// `n_stages` is the subsampling's stage count, which fixes the layout.
-    pub fn transformers_rekey(n_stages: usize) -> Rekey {
-        dw_striding_list("layers.", n_stages)
-    }
-
-    /// Its tensors as `NeMo`'s `ConvSubsampling` (`pre_encode`) names them,
-    /// relative to it: the flat `conv.{k}` onto the stem and the stages, and
-    /// `out` the projection. Anything else is dropped.
-    ///
-    /// `n_stages` is the subsampling's stage count, which fixes the layout.
-    pub fn nemo_rekey(n_stages: usize) -> Rekey {
-        let conv = dw_striding_list("conv.", n_stages);
-        Rekey::drop_rest()
-            .custom(move |name| name.starts_with("conv.").then(|| conv.apply(name)))
-            .rename("out.", "linear.")
-    }
 }
 
 #[cfg(test)]
