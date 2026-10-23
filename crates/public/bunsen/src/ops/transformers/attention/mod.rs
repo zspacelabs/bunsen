@@ -9,11 +9,11 @@
 //!
 //! bunsen has two attention stacks, and this module serves both.
 //!
-//! - **Over burn's `MultiHeadAttention`** (the Whisper kit):
-//!   [`layer_norm_self_attn`] and [`layer_norm_cross_attn`], their
-//!   `_w_kv_cache` variants, [`attend_q_kv_mask`] and [`causal_mask`], over a
-//!   [`KVCache`]. The model keeps burn's module, so its weights, loading and
-//!   any cross-checks are unchanged; only the forward path differs.
+//! - **Over burn's `MultiHeadAttention`** (the Whisper kit): [`norm_self_attn`]
+//!   and [`norm_cross_attn`], their `_w_kv_cache` variants,
+//!   [`attend_q_kv_mask`] and [`causal_mask`], over a [`KVCache`]. The model
+//!   keeps burn's module, so its weights, loading and any cross-checks are
+//!   unchanged; only the forward path differs.
 //! - **bunsen's [`CausalSelfAttention`]** block (the `NanoChat` and Qwen3 GPT
 //!   kits): its own bias-free projections, QK-norm, rotary embeddings and
 //!   grouped-query attention, computed with [`scaled_dot_product_attention`]
@@ -72,7 +72,7 @@
 //! The arithmetic mirrors `MultiHeadAttention::forward` exactly — the same
 //! `1/sqrt(d_k)` scaling, the same `min_float` mask fill, the same
 //! `quiet_softmax` switch — so a cached decode reproduces an uncached one.
-//! `layer_norm_self_attn_w_kv_cache`'s contract test is what holds that true.
+//! `norm_self_attn_w_kv_cache`'s contract test is what holds that true.
 //!
 //! Note this path deliberately omits the attention-score dropout that
 //! `MultiHeadAttention::attn_scores` applies: caching is an inference concern,

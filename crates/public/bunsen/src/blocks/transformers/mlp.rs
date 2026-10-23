@@ -5,13 +5,13 @@ use burn::{
     config::Config,
     module::Module,
     nn::{
-        LayerNorm,
         Linear,
         LinearConfig,
         activation::{
             Activation,
             ActivationConfig,
         },
+        norm::Normalization,
     },
     prelude::Tensor,
     tensor::Device,
@@ -22,21 +22,21 @@ use crate::{
     errors::BunsenResult,
 };
 
-/// Computes layer normalized mlp.
+/// Computes a normalized MLP: `mlp(norm(x))`.
 ///
 /// # Arguments
-/// * `layer_norm` - `LayerNorm`.
+/// * `norm` - the sublayer's [`Normalization`].
 /// * `mlp` - `Mlp`.
 /// * `x` - `[batch, seq_len, n_states]` input.
 ///
 /// # Returns
 /// `[batch, seq_len, n_states]`
-pub fn layer_norm_mlp(
-    layer_norm: &LayerNorm,
+pub fn norm_mlp(
+    norm: &Normalization,
     mlp: &Mlp,
     x: Tensor<3>,
 ) -> Tensor<3> {
-    mlp.forward(layer_norm.forward(x))
+    mlp.forward(norm.forward(x))
 }
 
 /// Common meta for [`Mlp`] and [`MlpConfig`].
@@ -345,7 +345,7 @@ impl ModuleInit<FeedForward> for FeedForwardConfig {
 
 /// A transformer layer's position-wise feed-forward, whichever its config
 /// chose: the generic sublayer a layer holds, as
-/// [`Normalization`](burn::nn::norm::Normalization) is for a norm. The variant
+/// [`Normalization`] is for a norm. The variant
 /// is not part of its tensors' paths for the loaders bunsen uses.
 ///
 /// Built by [`FeedForwardConfig`].

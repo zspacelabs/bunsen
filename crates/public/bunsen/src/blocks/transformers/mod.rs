@@ -36,9 +36,8 @@
 //!   [`CrossDecoderBlock`](decoders::cross::CrossDecoderBlock), the
 //!   encoder-decoder layer with cross-attention, Whisper's.
 //! - [`mlp`]: [`Mlp`](mlp::Mlp), the position-wise feed-forward block (expand,
-//!   activate, project back), [`layer_norm_mlp`](mlp::layer_norm_mlp), which
-//!   runs it after a `LayerNorm`, and [`GatedMlp`](mlp::GatedMlp), the `SwiGLU`
-//!   feed-forward.
+//!   activate, project back), [`norm_mlp`](mlp::norm_mlp), which runs it after
+//!   a `LayerNorm`, and [`GatedMlp`](mlp::GatedMlp), the `SwiGLU` feed-forward.
 //!
 //! The operations these layers call, and the key/value cache state, are in
 //! [`crate::ops::transformers`].

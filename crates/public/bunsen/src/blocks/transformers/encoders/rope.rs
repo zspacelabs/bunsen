@@ -1,18 +1,22 @@
 //! # A pre-norm transformer encoder with rotary position embeddings.
 //!
-//! [`RopeTransformerEncoder`]: a `LayerNorm` over the input, a stack of
-//! [`RopeEncoderBlock`]s sharing one rotary table over the whole input, and a
-//! final `LayerNorm`. The encoder of NVIDIA's `Nemotron-3-Diarization`
-//! (`NeMo`'s `TransformerEncoder` with `rope` and `pre_block_norm`).
+//! [`RopeTransformerEncoder`]: a norm over the input (a `LayerNorm` by
+//! default), a stack of [`RopeEncoderBlock`]s sharing one rotary table over
+//! the whole input, and a final norm. The encoder of NVIDIA's
+//! `Nemotron-3-Diarization` (`NeMo`'s `TransformerEncoder` with `rope` and
+//! `pre_block_norm`).
 
 use burn::{
     Tensor,
     config::Config,
     module::Module,
     nn::{
-        LayerNorm,
         LayerNormConfig,
         activation::ActivationConfig,
+        norm::{
+            Normalization,
+            NormalizationConfig,
+        },
     },
     tensor::Device,
 };
@@ -66,9 +70,11 @@ pub struct RopeEncoderBlockConfig {
     #[config(default = "4")]
     pub ff_expansion: usize,
 
-    /// The `LayerNorm` epsilon.
-    #[config(default = "1e-5")]
-    pub norm_eps: f64,
+    /// The normalization before each sublayer, and the encoder's over its
+    /// input and output, sized to `d_model` whatever feature count it names:
+    /// a `LayerNorm` (epsilon `1e-5`) by default, `NeMo`'s.
+    #[config(default = "NormalizationConfig::Layer(LayerNormConfig::new(0))")]
+    pub norm: NormalizationConfig,
 
     /// Whether the query, key and value projections carry a bias.
     #[config(default = "false")]
@@ -95,8 +101,9 @@ impl ModuleInit<RopeEncoderBlock> for RopeEncoderBlockConfig {
         device: &Device,
     ) -> BunsenResult<RopeEncoderBlock> {
         let norm = || {
-            LayerNormConfig::new(self.d_model)
-                .with_epsilon(self.norm_eps)
+            self.norm
+                .clone()
+                .with_num_features(self.d_model)
                 .init(device)
         };
         Ok(RopeEncoderBlock {
@@ -122,13 +129,13 @@ impl ModuleInit<RopeEncoderBlock> for RopeEncoderBlockConfig {
 #[derive(Module, Debug)]
 pub struct RopeEncoderBlock {
     /// The attention's normalization.
-    pub attn_norm: LayerNorm,
+    pub attn_norm: Normalization,
 
     /// The attention.
     pub attn: RopeSelfAttention,
 
     /// The feed-forward's normalization.
-    pub mlp_norm: LayerNorm,
+    pub mlp_norm: Normalization,
 
     /// The feed-forward.
     pub mlp: Mlp,
@@ -218,8 +225,10 @@ impl ModuleInit<RopeTransformerEncoder> for RopeTransformerEncoderConfig {
         device: &Device,
     ) -> BunsenResult<RopeTransformerEncoder> {
         let norm = || {
-            LayerNormConfig::new(self.block.d_model)
-                .with_epsilon(self.block.norm_eps)
+            self.block
+                .norm
+                .clone()
+                .with_num_features(self.block.d_model)
                 .init(device)
         };
         Ok(RopeTransformerEncoder {
@@ -228,14 +237,15 @@ impl ModuleInit<RopeTransformerEncoder> for RopeTransformerEncoderConfig {
                 .map(|_| self.block.try_init(device))
                 .collect::<BunsenResult<_>>()?,
             final_norm: norm(),
+            d_model: self.block.d_model,
             rope_base: self.rope_base,
         })
     }
 }
 
-/// A pre-norm transformer encoder with rotary position embeddings: a
-/// `LayerNorm` over the input, the [`RopeEncoderBlock`]s, and a final
-/// `LayerNorm`.
+/// A pre-norm transformer encoder with rotary position embeddings: a norm
+/// over the input, the [`RopeEncoderBlock`]s, and a final norm, each its
+/// block config's ([`RopeEncoderBlockConfig::norm`]).
 ///
 /// The rotary table runs over positions `0..time` of the whole input, in the
 /// `transformers` (`rotate_half`) convention.
@@ -245,13 +255,17 @@ impl ModuleInit<RopeTransformerEncoder> for RopeTransformerEncoderConfig {
 #[derive(Module, Debug)]
 pub struct RopeTransformerEncoder {
     /// The input's normalization.
-    pub embed_norm: LayerNorm,
+    pub embed_norm: Normalization,
 
     /// The layers.
     pub layers: Vec<RopeEncoderBlock>,
 
     /// The output's normalization.
-    pub final_norm: LayerNorm,
+    pub final_norm: Normalization,
+
+    /// The model width.
+    #[module(skip)]
+    pub d_model: usize,
 
     /// The rotary embedding's base.
     #[module(skip)]
@@ -260,7 +274,7 @@ pub struct RopeTransformerEncoder {
 
 impl RopeTransformerEncoderMeta for RopeTransformerEncoder {
     fn d_model(&self) -> usize {
-        self.embed_norm.gamma.dims()[0]
+        self.d_model
     }
 
     fn n_layers(&self) -> usize {
