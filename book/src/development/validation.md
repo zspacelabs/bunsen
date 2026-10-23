@@ -100,7 +100,7 @@ kit's pretrained pathway on `base.pt`, and Silero's recorded probabilities
 held to upstream's model. They run on the CPU, as `cargo make validate-cpu`.
 
 `validation.yml` runs Silero's and Whisper's whole suites, ONNX cross-checks
-included, on the CPU (`cargo make validate-ci`), over about 440 MB of assets it
+included, on the CPU (`cargo make validate-ci`), over about 730 MB of assets it
 caches by digest ([Assets](./assets.md#how-ci-caches-them)). It runs only when
 asked: from the Actions tab, or for a pull request with the `validate` label,
 then on every push while the label stays.

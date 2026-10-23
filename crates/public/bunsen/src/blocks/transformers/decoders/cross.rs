@@ -19,12 +19,18 @@ use burn::{
 };
 
 use crate::{
-    blocks::transformers::mlp::{
-        Mlp,
-        MlpConfig,
-        layer_norm_mlp,
+    blocks::transformers::{
+        encoders::residual::ResidualEncoderAttentionBlock,
+        mlp::{
+            Mlp,
+            MlpConfig,
+            layer_norm_mlp,
+        },
     },
-    burner::module::ModuleInit,
+    burner::module::{
+        ModuleInit,
+        Rekey,
+    },
     errors::BunsenResult,
     ops::transformers::attention::{
         KVCache,
@@ -290,6 +296,21 @@ impl CrossDecoderBlock {
         xa: Tensor<3>,
     ) -> (Tensor<4>, Tensor<4>) {
         project_kv(&self.cross_attn, xa)
+    }
+
+    /// `transformers`' Whisper decoder layer names onto this block's,
+    /// relative to it: `encoder_attn`'s `{q,k,v,out}_proj` the
+    /// cross-attention and `encoder_attn_layer_norm` its norm; the rest as
+    /// an encoder layer's
+    /// ([`ResidualEncoderAttentionBlock::whisper_hf_rekey`]).
+    pub fn whisper_hf_rekey() -> Rekey {
+        Rekey::keep_rest()
+            .rename("encoder_attn.q_proj.", "cross_attn.query.")
+            .rename("encoder_attn.k_proj.", "cross_attn.key.")
+            .rename("encoder_attn.v_proj.", "cross_attn.value.")
+            .rename("encoder_attn.out_proj.", "cross_attn.output.")
+            .rename("encoder_attn_layer_norm.", "cross_attn_norm.")
+            .mount("", "", ResidualEncoderAttentionBlock::whisper_hf_rekey())
     }
 }
 

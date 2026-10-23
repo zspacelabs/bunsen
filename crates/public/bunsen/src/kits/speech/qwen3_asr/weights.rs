@@ -8,7 +8,10 @@ use super::blocks::{
     Qwen3AsrConfig,
 };
 use crate::{
-    blocks::conv::ConvSeq2d,
+    blocks::{
+        conv::ConvSeq2d,
+        transformers::encoders::residual::ResidualEncoderAttentionBlock,
+    },
     burner::module::Rekey,
     data::pretrained::{
         HfConfigJson,
@@ -21,24 +24,6 @@ use crate::{
         Qwen3Meta,
     },
 };
-
-/// `transformers`' Whisper-style audio encoder layer names (Qwen3-ASR's
-/// audio tower's) onto a
-/// [`ResidualEncoderAttentionBlock`](crate::blocks::transformers::encoders::residual::ResidualEncoderAttentionBlock)'s,
-/// relative to it: `self_attn`'s `{q,k,v,out}_proj` the attention,
-/// `self_attn_layer_norm` and `final_layer_norm` the norms, `fc{1,2}` the
-/// MLP; everything else as it is.
-pub fn audio_layer_rekey() -> Rekey {
-    Rekey::keep_rest()
-        .rename("self_attn.q_proj.", "attn.query.")
-        .rename("self_attn.k_proj.", "attn.key.")
-        .rename("self_attn.v_proj.", "attn.value.")
-        .rename("self_attn.out_proj.", "attn.output.")
-        .rename("self_attn_layer_norm.", "attn_norm.")
-        .rename("final_layer_norm.", "mlp_norm.")
-        .rename("fc1.", "mlp.linear1.")
-        .rename("fc2.", "mlp.linear2.")
-}
 
 /// `transformers`' Qwen3 decoder layer names onto a
 /// [`CausalDecoderBlock`](crate::blocks::transformers::decoders::causal::CausalDecoderBlock)'s,
@@ -60,10 +45,10 @@ pub fn text_layer_rekey() -> Rekey {
 /// `transformers`' `Qwen3ASRForConditionalGeneration` state-dict names onto
 /// a [`Qwen3Asr`]'s module paths: under `model.`, the audio tower's 1-based
 /// `conv2d{n}` onto its stem's 0-based `ConvSeq2d` blocks, its layers by
-/// [`audio_layer_rekey`], the text model's layers by [`text_layer_rekey`],
-/// and everything else
-/// as it is. Anything outside `model.` (the tied `lm_head.weight`) is
-/// dropped.
+/// `transformers`' Whisper layer names
+/// ([`ResidualEncoderAttentionBlock::whisper_hf_rekey`]), the text model's
+/// layers by [`text_layer_rekey`], and everything else as it is. Anything
+/// outside `model.` (the tied `lm_head.weight`) is dropped.
 ///
 /// Normalization parameters keep their `weight` / `bias` spellings, which
 /// [`apply_rekeyed_tensors_as`] resolves to `gamma` / `beta`.
@@ -87,7 +72,7 @@ pub fn hf_rekey() -> Rekey {
             .mount_indexed(
                 "audio_tower.layers.",
                 "audio_tower.layers.",
-                audio_layer_rekey(),
+                ResidualEncoderAttentionBlock::whisper_hf_rekey(),
             )
             .mount_indexed(
                 "language_model.layers.",

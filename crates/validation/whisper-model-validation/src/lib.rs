@@ -10,7 +10,7 @@
 //! Both sides of the comparison come from `bunsen-bundled-whisper`: the
 //! checkpoint and vocabularies through its `checkpoint` and `vocab`
 //! features, and the generated reference through its `onnx_gen` feature.
-//! That crate fetches ~435 MB of assets, pins each to a SHA-256, and caches
+//! That crate fetches ~725 MB of assets, pins each to a SHA-256, and caches
 //! them — all under this crate's **`download`** feature, which is off by
 //! default so an ordinary `cargo build --workspace` never reaches the
 //! network.
@@ -57,7 +57,9 @@
 //! * `audio` runs the composition over real speech and judges it by word error
 //!   rate against a ground-truth transcript.
 //! * `bundled` runs the kit's pretrained pathway, vocabularies and hook on the
-//!   real files, under `weights`.
+//!   real files, under `weights`; and, under `hf-weights`, holds the
+//!   `transformers` loader on `openai/whisper-base`'s `model.safetensors` to
+//!   `base.pt`.
 //!
 //! `onnx-community/whisper-base` is a conversion of `OpenAI`'s multilingual
 //! `base.pt`, so the two agree only if bunsen's loader and forward pass are

@@ -24,6 +24,7 @@
 //! |---|---|---|
 //! | `cache_dir()` | `checkpoint` or `vocab` | `OUT_DIR`, laid out as a pretrained cache |
 //! | `base_pt()` | `checkpoint` | `OpenAI`'s multilingual `base.pt` |
+//! | `base_safetensors()` | `hf_checkpoint` | the same weights, `transformers`' `openai/whisper-base` `model.safetensors` |
 //! | `multilingual_tiktoken()` | `vocab` | the multilingual checkpoints' base vocabulary |
 //! | `gpt2_tiktoken()` | `vocab` | the English-only (`*.en`) checkpoints' base vocabulary |
 //! | `onnx_gen::{EncoderModel, DecoderModel}` | `onnx_gen` | reference models generated from `onnx-community/whisper-base` |
@@ -38,6 +39,7 @@
 //! | Variable | Feature | Replaces |
 //! |---|---|---|
 //! | `WHISPER_BASE_PT` | `checkpoint` | `base.pt`, behind `base_pt()` |
+//! | `WHISPER_BASE_SAFETENSORS` | `hf_checkpoint` | `model.safetensors`, behind `base_safetensors()` |
 //! | `WHISPER_MULTILINGUAL_TIKTOKEN` | `vocab` | `multilingual.tiktoken`, behind `multilingual_tiktoken()` |
 //! | `WHISPER_GPT2_TIKTOKEN` | `vocab` | `gpt2.tiktoken`, behind `gpt2_tiktoken()` |
 //! | `WHISPER_ONNX_ENCODER` | `onnx_gen` | the encoder graph (`encoder_model.onnx`), behind `onnx_gen::EncoderModel` |
@@ -106,6 +108,20 @@ pub fn cache_dir() -> &'static std::path::Path {
 #[cfg(feature = "checkpoint")]
 pub fn base_pt() -> &'static std::path::Path {
     std::path::Path::new(env!("WHISPER_BASE_PT_PATH"))
+}
+
+/// The fetched `model.safetensors` of `openai/whisper-base`: `transformers`'
+/// conversion of [`base_pt`], the same weights under `transformers`' names.
+///
+/// Resolved at build time — the digest-pinned download, or whatever
+/// `WHISPER_BASE_SAFETENSORS` pointed at. It is not laid out as a pretrained
+/// cache; it is read as a file.
+///
+/// # Panics
+/// Never at run time: a missing asset fails the build, as for `base_pt()`.
+#[cfg(feature = "hf_checkpoint")]
+pub fn base_safetensors() -> &'static std::path::Path {
+    std::path::Path::new(env!("WHISPER_BASE_SAFETENSORS_PATH"))
 }
 
 /// The fetched `multilingual.tiktoken`: the base vocabulary of every

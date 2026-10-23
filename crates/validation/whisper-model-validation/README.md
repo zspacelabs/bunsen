@@ -18,7 +18,7 @@ deliberate: the path under test is then the one users take.
 ## Running it
 
 ```sh
-# ~435 MB of assets on a cold cache, fetched by the bundle's build script.
+# ~725 MB of assets on a cold cache, fetched by the bundle's build script.
 cargo test --release -p whisper-model-validation \
   --features download,gpu-tests,wgpu
 ```
@@ -38,6 +38,15 @@ cargo test -p whisper-model-validation --features weights
 vocabularies alone, and the checks that need only them (`bundled`): the
 Whisper kit's pretrained pathway, vocabularies and hook on the real files,
 which used to run inside `bunsen` under its removed `whisper-weights` feature.
+
+```sh
+# ~440 MB: the above, and openai/whisper-base's model.safetensors. On the CPU.
+cargo test -p whisper-model-validation --features hf-weights
+```
+
+**`hf-weights`** adds `transformers`' `model.safetensors` of the same
+model, and `bundled::hf`: through the kit's `transformers` loader it is
+`base.pt`, every parameter exactly (as `f32`: `base.pt` stores `f16`). `download` includes it.
 `cargo make validate-cpu` runs them; `validation.yml`, when asked, runs the whole suite on the CPU.
 
 **Pass a backend deliberately.** `performance_device()` falls through to `Flex`

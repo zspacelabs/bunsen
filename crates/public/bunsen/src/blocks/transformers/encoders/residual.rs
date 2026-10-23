@@ -25,7 +25,10 @@ use crate::{
         Mlp,
         MlpConfig,
     },
-    burner::module::ModuleInit,
+    burner::module::{
+        ModuleInit,
+        Rekey,
+    },
     contracts::unpack_shape_contract,
     errors::BunsenResult,
     ops::transformers::attention::length_mask,
@@ -358,6 +361,25 @@ impl ResidualEncoderTransformer {
         self.layers
             .iter()
             .fold(x, |x, layer| layer.forward_masked(x, mask.clone()))
+    }
+}
+
+impl ResidualEncoderAttentionBlock {
+    /// `transformers`' Whisper encoder layer names (Whisper's own, and
+    /// Qwen3-ASR's audio tower's) onto this block's, relative to it:
+    /// `self_attn`'s `{q,k,v,out}_proj` the attention,
+    /// `self_attn_layer_norm` and `final_layer_norm` the norms, `fc{1,2}`
+    /// the MLP; everything else as it is.
+    pub fn whisper_hf_rekey() -> Rekey {
+        Rekey::keep_rest()
+            .rename("self_attn.q_proj.", "attn.query.")
+            .rename("self_attn.k_proj.", "attn.key.")
+            .rename("self_attn.v_proj.", "attn.value.")
+            .rename("self_attn.out_proj.", "attn.output.")
+            .rename("self_attn_layer_norm.", "attn_norm.")
+            .rename("final_layer_norm.", "mlp_norm.")
+            .rename("fc1.", "mlp.linear1.")
+            .rename("fc2.", "mlp.linear2.")
     }
 }
 

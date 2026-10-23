@@ -1,8 +1,9 @@
 //! Fetches the pretrained Whisper assets.
 //!
-//! Three independent sets, each behind its own feature: `checkpoint` is the
-//! `base.pt` bunsen loads, `vocab` is the pair of `.tiktoken` rank files its
-//! tokenizer reads, and `onnx_gen` is the `onnx-community` export that
+//! Four independent sets, each behind its own feature: `checkpoint` is the
+//! `base.pt` bunsen loads, `hf_checkpoint` the same weights as
+//! `transformers` names them, `vocab` is the pair of `.tiktoken` rank files
+//! its tokenizer reads, and `onnx_gen` is the `onnx-community` export that
 //! `whisper-model-validation` compares it against. None implies another.
 //!
 //! Cargo places no restriction on network access in a build script, but a
@@ -21,12 +22,12 @@
 //!   copy that fails is deleted and re-fetched once. `bunsen-fetch`'s `Asset`
 //!   does the fetching, pinning and overriding, as it does for every bundled
 //!   crate.
-//! * `WHISPER_BASE_PT`, `WHISPER_MULTILINGUAL_TIKTOKEN`,
-//!   `WHISPER_GPT2_TIKTOKEN`, `WHISPER_ONNX_ENCODER` and `WHISPER_ONNX_DECODER`
-//!   point the build at local files instead, for working offline or against a
-//!   different export. A pretrained override that is the pinned file is laid
-//!   out in the cache too; one that is not is used where it is, and only its
-//!   accessor knows it.
+//! * `WHISPER_BASE_PT`, `WHISPER_BASE_SAFETENSORS`,
+//!   `WHISPER_MULTILINGUAL_TIKTOKEN`, `WHISPER_GPT2_TIKTOKEN`,
+//!   `WHISPER_ONNX_ENCODER` and `WHISPER_ONNX_DECODER` point the build at local
+//!   files instead, for working offline or against a different export. A
+//!   pretrained override that is the pinned file is laid out in the cache too;
+//!   one that is not is used where it is, and only its accessor knows it.
 //!
 //! **No feature is on by default**, so building this crate as a workspace
 //! member fetches nothing. `whisper-model-validation/weights` turns on
@@ -87,6 +88,21 @@ const GPT2_TIKTOKEN_SHA256: &str =
 /// Local name for the fetched English-only rank file.
 const GPT2_TIKTOKEN_FILE: &str = "gpt2.tiktoken";
 
+/// `transformers`' conversion of `OpenAI`'s multilingual base checkpoint,
+/// `openai/whisper-base`'s `model.safetensors`, pinned to a commit.
+///
+/// The same weights as [`BASE_URL`]'s under `transformers`' names, which is
+/// what lets `whisper-model-validation` check the kit's `transformers` loader
+/// against its `.pt` one.
+const BASE_SAFETENSORS_URL: &str = "https://huggingface.co/openai/whisper-base/resolve/e37978b90ca9030d5170a5c07aadb050351a65bb/model.safetensors";
+
+/// SHA-256 of [`BASE_SAFETENSORS_URL`]'s payload.
+const BASE_SAFETENSORS_SHA256: &str =
+    "07cadb9f25677c8d50df603e66a98fbd842cce45047139baeb16e6219a1e807b";
+
+/// Local name for the fetched `transformers` checkpoint.
+const BASE_SAFETENSORS_FILE: &str = "whisper-base.safetensors";
+
 /// The encoder graph, exported by the `onnx-community` mirror of
 /// `openai/whisper-base`.
 const ENCODER_URL: &str =
@@ -119,6 +135,7 @@ const OPENAI_NAMESPACE: &str = "openai";
 fn main() {
     println!("cargo:rerun-if-changed=build.rs");
     println!("cargo:rerun-if-env-changed=WHISPER_BASE_PT");
+    println!("cargo:rerun-if-env-changed=WHISPER_BASE_SAFETENSORS");
     println!("cargo:rerun-if-env-changed=WHISPER_MULTILINGUAL_TIKTOKEN");
     println!("cargo:rerun-if-env-changed=WHISPER_GPT2_TIKTOKEN");
     println!("cargo:rerun-if-env-changed=WHISPER_ONNX_ENCODER");
@@ -143,6 +160,9 @@ fn main() {
     #[cfg(feature = "vocab")]
     fetch_vocab();
 
+    #[cfg(feature = "hf_checkpoint")]
+    fetch_hf_checkpoint();
+
     #[cfg(feature = "onnx_gen")]
     generate_reference();
 }
@@ -159,6 +179,23 @@ fn fetch_checkpoint() {
     );
     println!(
         "cargo:rustc-env=WHISPER_BASE_PT_PATH={}",
+        checkpoint.display()
+    );
+}
+
+/// Fetches `openai/whisper-base`'s `model.safetensors` and names it as a
+/// compile-time constant. It is not laid out as a cache: the kit's `hf:`
+/// rows are served by Hugging Face's cache, not bunsen's.
+#[cfg(feature = "hf_checkpoint")]
+fn fetch_hf_checkpoint() {
+    let checkpoint = resolve_asset(
+        "WHISPER_BASE_SAFETENSORS",
+        BASE_SAFETENSORS_URL,
+        BASE_SAFETENSORS_SHA256,
+        &cache_dir().join(BASE_SAFETENSORS_FILE),
+    );
+    println!(
+        "cargo:rustc-env=WHISPER_BASE_SAFETENSORS_PATH={}",
         checkpoint.display()
     );
 }

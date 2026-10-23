@@ -2,13 +2,25 @@
 
 use burn::{
     config::Config,
-    store::PyTorchToBurnAdapter,
     tensor::Device,
 };
 
 use crate::{
-    burner::module::ModuleInit,
-    data::pretrained::SafetensorsCheckpoint,
+    blocks::{
+        conv::ConvSeq1d,
+        transformers::{
+            decoders::cross::CrossDecoderBlock,
+            encoders::residual::ResidualEncoderAttentionBlock,
+        },
+    },
+    burner::module::{
+        ModuleInit,
+        Rekey,
+    },
+    data::pretrained::{
+        SafetensorsCheckpoint,
+        apply_rekeyed_tensors,
+    },
     errors::{
         BunsenError,
         BunsenResult,
@@ -23,65 +35,48 @@ use crate::{
     },
 };
 
-/// The key remappings from `transformers`' Whisper names to bunsen's, in
-/// the order they apply.
+/// `transformers`' `WhisperForConditionalGeneration` state-dict names onto
+/// a [`Whisper`]'s module paths: under `model.`, the layers by their blocks'
+/// maps ([`ResidualEncoderAttentionBlock::whisper_hf_rekey`],
+/// [`CrossDecoderBlock::whisper_hf_rekey`]), `layers.N` as `blocks.N`; the
+/// two convolutions the encoder head's blocks; the positional tables
+/// without their `.weight`; `embed_tokens` the token embedding; the final
+/// norms `ln_post` and `ln`; everything else as it is. Anything outside
+/// `model.` (a tied `proj_out.weight`) is dropped.
 ///
-/// `layers.N` is `blocks.N`; `self_attn.{q,k,v,out}_proj` is
-/// `attn.{query,key,value,output}` and `encoder_attn` is `cross_attn`; the
-/// three layer norms are `attn_norm`, `cross_attn_norm` and `mlp_norm`; `fc1`
-/// and `fc2` are `mlp.linear1` and `mlp.linear2`; the two convolutions
-/// are the encoder head's blocks; the positional tables lose their
-/// `.weight`; the final norms are `ln_post` and `ln`; and the `model.`
-/// prefix goes.
-pub const HF_TO_BUNSEN: &[(&str, &str)] = &[
-    (r"^model\.", ""),
-    (r"^encoder\.conv1\.", "encoder.head.blocks.0.conv."),
-    (r"^encoder\.conv2\.", "encoder.head.blocks.1.conv."),
-    (r"\.embed_positions\.weight$", ".positional_embedding"),
-    (r"\.embed_tokens\.", ".token_embedding."),
-    (r"\.layers\.(\d+)\.", ".blocks.$1."),
-    (r"\.self_attn\.q_proj\.", ".attn.query."),
-    (r"\.self_attn\.k_proj\.", ".attn.key."),
-    (r"\.self_attn\.v_proj\.", ".attn.value."),
-    (r"\.self_attn\.out_proj\.", ".attn.output."),
-    (r"\.encoder_attn\.q_proj\.", ".cross_attn.query."),
-    (r"\.encoder_attn\.k_proj\.", ".cross_attn.key."),
-    (r"\.encoder_attn\.v_proj\.", ".cross_attn.value."),
-    (r"\.encoder_attn\.out_proj\.", ".cross_attn.output."),
-    (r"\.self_attn_layer_norm\.", ".attn_norm."),
-    (r"\.encoder_attn_layer_norm\.", ".cross_attn_norm."),
-    (r"\.final_layer_norm\.", ".mlp_norm."),
-    (r"\.fc1\.", ".mlp.linear1."),
-    (r"\.fc2\.", ".mlp.linear2."),
-    (r"^encoder\.layer_norm\.", "encoder.ln_post."),
-    (r"^decoder\.layer_norm\.", "decoder.ln."),
-];
-
-/// The key remappings from bunsen's names to `transformers`': the inverse
-/// of [`HF_TO_BUNSEN`], for writing a file in that layout.
-pub const BUNSEN_TO_HF: &[(&str, &str)] = &[
-    (r"^encoder\.head\.blocks\.0\.conv\.", "encoder.conv1."),
-    (r"^encoder\.head\.blocks\.1\.conv\.", "encoder.conv2."),
-    (r"\.positional_embedding$", ".embed_positions.weight"),
-    (r"\.token_embedding\.", ".embed_tokens."),
-    (r"\.blocks\.(\d+)\.", ".layers.$1."),
-    (r"\.attn\.query\.", ".self_attn.q_proj."),
-    (r"\.attn\.key\.", ".self_attn.k_proj."),
-    (r"\.attn\.value\.", ".self_attn.v_proj."),
-    (r"\.attn\.output\.", ".self_attn.out_proj."),
-    (r"\.cross_attn\.query\.", ".encoder_attn.q_proj."),
-    (r"\.cross_attn\.key\.", ".encoder_attn.k_proj."),
-    (r"\.cross_attn\.value\.", ".encoder_attn.v_proj."),
-    (r"\.cross_attn\.output\.", ".encoder_attn.out_proj."),
-    (r"\.attn_norm\.", ".self_attn_layer_norm."),
-    (r"\.cross_attn_norm\.", ".encoder_attn_layer_norm."),
-    (r"\.mlp_norm\.", ".final_layer_norm."),
-    (r"\.mlp\.linear1\.", ".fc1."),
-    (r"\.mlp\.linear2\.", ".fc2."),
-    (r"^encoder\.ln_post\.", "encoder.layer_norm."),
-    (r"^decoder\.ln\.", "decoder.layer_norm."),
-    (r"^", "model."),
-];
+/// Normalization parameters keep their `weight` / `bias` spellings, which
+/// [`apply_rekeyed_tensors`] resolves to `gamma` / `beta`.
+pub fn hf_rekey() -> Rekey {
+    let conv = |n| format!("{}.", ConvSeq1d::block_conv_path("encoder.head", n));
+    Rekey::drop_rest().mount(
+        "model.",
+        "",
+        Rekey::keep_rest()
+            .rename("encoder.conv1.", conv(0))
+            .rename("encoder.conv2.", conv(1))
+            .exact(
+                "encoder.embed_positions.weight",
+                "encoder.positional_embedding",
+            )
+            .exact(
+                "decoder.embed_positions.weight",
+                "decoder.positional_embedding",
+            )
+            .rename("decoder.embed_tokens.", "decoder.token_embedding.")
+            .mount_indexed(
+                "encoder.layers.",
+                "encoder.blocks.",
+                ResidualEncoderAttentionBlock::whisper_hf_rekey(),
+            )
+            .mount_indexed(
+                "decoder.layers.",
+                "decoder.blocks.",
+                CrossDecoderBlock::whisper_hf_rekey(),
+            )
+            .rename("encoder.layer_norm.", "encoder.ln_post.")
+            .rename("decoder.layer_norm.", "decoder.ln."),
+    )
+}
 
 /// Reads a `transformers` Whisper checkpoint: `model.safetensors`, or its
 /// shards.
@@ -94,7 +89,7 @@ pub const BUNSEN_TO_HF: &[(&str, &str)] = &[
 /// reads that layout: the geometry from the files' headers alone
 /// ([`scan_cfg`](Self::scan_cfg)), the weights through the generic
 /// [`SafetensorsCheckpoint`] with the names mapped to bunsen's
-/// ([`HF_TO_BUNSEN`]). The tied output projection, when a repo carries it,
+/// ([`hf_rekey`]). The tied output projection, when a repo carries it,
 /// is left unused: bunsen's decoder projects through its token embedding,
 /// as upstream's does.
 ///
@@ -192,8 +187,8 @@ impl SafetensorsWhisperScanner {
     /// Loads a checkpoint into a model at the precision the files store.
     ///
     /// # Errors
-    /// As [`scan_cfg`](Self::scan_cfg) and
-    /// [`SafetensorsCheckpoint::load_into`].
+    /// As [`scan_cfg`](Self::scan_cfg),
+    /// [`SafetensorsCheckpoint::tensors`] and [`apply_rekeyed_tensors`].
     pub fn load(
         &self,
         checkpoint: &SafetensorsCheckpoint,
@@ -201,16 +196,7 @@ impl SafetensorsWhisperScanner {
     ) -> BunsenResult<(Whisper, WhisperApiConfig)> {
         let cfg = self.scan_cfg(checkpoint)?;
         let mut module: Whisper = cfg.try_init(device)?;
-        checkpoint.load_into(&mut module, |store| {
-            // Paths name modules, not the variants of the norm enums.
-            let mut store = store
-                .with_from_adapter(PyTorchToBurnAdapter)
-                .skip_enum_variants(true);
-            for (from, to) in HF_TO_BUNSEN {
-                store = store.with_key_remapping(*from, *to);
-            }
-            store
-        })?;
+        apply_rekeyed_tensors(&mut module, checkpoint.tensors()?, &hf_rekey())?;
         Ok((module, cfg))
     }
 }
@@ -238,6 +224,32 @@ mod tests {
         kits::speech::whisper::WhisperMeta,
         support::testing::cpu_device,
     };
+
+    /// The key remappings from bunsen's names to `transformers`': the inverse
+    /// of [`hf_rekey`], for writing a file in that layout.
+    const BUNSEN_TO_HF: &[(&str, &str)] = &[
+        (r"^encoder\.head\.blocks\.0\.conv\.", "encoder.conv1."),
+        (r"^encoder\.head\.blocks\.1\.conv\.", "encoder.conv2."),
+        (r"\.positional_embedding$", ".embed_positions.weight"),
+        (r"\.token_embedding\.", ".embed_tokens."),
+        (r"\.blocks\.(\d+)\.", ".layers.$1."),
+        (r"\.attn\.query\.", ".self_attn.q_proj."),
+        (r"\.attn\.key\.", ".self_attn.k_proj."),
+        (r"\.attn\.value\.", ".self_attn.v_proj."),
+        (r"\.attn\.output\.", ".self_attn.out_proj."),
+        (r"\.cross_attn\.query\.", ".encoder_attn.q_proj."),
+        (r"\.cross_attn\.key\.", ".encoder_attn.k_proj."),
+        (r"\.cross_attn\.value\.", ".encoder_attn.v_proj."),
+        (r"\.cross_attn\.output\.", ".encoder_attn.out_proj."),
+        (r"\.attn_norm\.", ".self_attn_layer_norm."),
+        (r"\.cross_attn_norm\.", ".encoder_attn_layer_norm."),
+        (r"\.mlp_norm\.", ".final_layer_norm."),
+        (r"\.mlp\.linear1\.", ".fc1."),
+        (r"\.mlp\.linear2\.", ".fc2."),
+        (r"^encoder\.ln_post\.", "encoder.layer_norm."),
+        (r"^decoder\.ln\.", "decoder.layer_norm."),
+        (r"^", "model."),
+    ];
 
     /// Eight-wide heads over a 16-wide model, which the scanner must be
     /// told: a checkpoint does not record its head size.
@@ -297,6 +309,71 @@ mod tests {
             a.decoder.token_embedding.weight.val(),
             b.decoder.token_embedding.weight.val(),
         );
+    }
+
+    /// `transformers`' names onto bunsen's, one of each kind; a tied
+    /// output projection is dropped.
+    #[test]
+    fn test_hf_rekey() {
+        let rekey = hf_rekey();
+        for (hf, bunsen) in [
+            (
+                "model.encoder.conv1.weight",
+                Some("encoder.head.blocks.0.conv.weight"),
+            ),
+            (
+                "model.encoder.conv2.bias",
+                Some("encoder.head.blocks.1.conv.bias"),
+            ),
+            (
+                "model.encoder.embed_positions.weight",
+                Some("encoder.positional_embedding"),
+            ),
+            (
+                "model.decoder.embed_positions.weight",
+                Some("decoder.positional_embedding"),
+            ),
+            (
+                "model.decoder.embed_tokens.weight",
+                Some("decoder.token_embedding.weight"),
+            ),
+            (
+                "model.encoder.layers.3.self_attn.out_proj.weight",
+                Some("encoder.blocks.3.attn.output.weight"),
+            ),
+            (
+                "model.encoder.layers.3.self_attn_layer_norm.bias",
+                Some("encoder.blocks.3.attn_norm.bias"),
+            ),
+            (
+                "model.decoder.layers.1.self_attn.k_proj.weight",
+                Some("decoder.blocks.1.attn.key.weight"),
+            ),
+            (
+                "model.decoder.layers.1.encoder_attn.q_proj.bias",
+                Some("decoder.blocks.1.cross_attn.query.bias"),
+            ),
+            (
+                "model.decoder.layers.1.encoder_attn_layer_norm.weight",
+                Some("decoder.blocks.1.cross_attn_norm.weight"),
+            ),
+            (
+                "model.decoder.layers.1.final_layer_norm.weight",
+                Some("decoder.blocks.1.mlp_norm.weight"),
+            ),
+            (
+                "model.decoder.layers.1.fc1.weight",
+                Some("decoder.blocks.1.mlp.linear1.weight"),
+            ),
+            (
+                "model.encoder.layer_norm.weight",
+                Some("encoder.ln_post.weight"),
+            ),
+            ("model.decoder.layer_norm.bias", Some("decoder.ln.bias")),
+            ("proj_out.weight", None),
+        ] {
+            assert_eq!(rekey.apply(hf).as_deref(), bunsen, "{hf}");
+        }
     }
 
     /// A toy model written in `transformers`' layout comes back with the

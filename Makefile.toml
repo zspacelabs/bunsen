@@ -68,7 +68,7 @@ args = ["test", "--workspace"]
 #
 # `validate-cpu` is the cheap half, the checks on the checkpoints alone (~150
 # MB), on the CPU. `validate-ci` is what `validation.yml` runs when asked:
-# Silero's and Whisper's whole suites, on the CPU (~440 MB). `validate-<model>`
+# Silero's and Whisper's whole suites, on the CPU (~730 MB). `validate-<model>`
 # is a model's whole suite, ONNX reference included (GBs on a cold cache), on
 # `VALIDATION_BACKEND` (default `wgpu`; or `vulkan`, `cuda`, `metal`).
 #
@@ -85,7 +85,7 @@ cargo test -p whisper-model-validation --features weights
 '''
 
 [tasks.validate-ci]
-description = "Silero's and Whisper's whole suites on the CPU, as validation.yml runs them (fetches ~440 MB)"
+description = "Silero's and Whisper's whole suites on the CPU, as validation.yml runs them (fetches ~730 MB)"
 workspace = false
 env = { BURN_DEVICE = "flex" }
 script = '''
@@ -99,7 +99,7 @@ workspace = false
 script = "cargo test --release -p silero-model-validation --features download,gpu-tests,${VALIDATION_BACKEND:-wgpu}"
 
 [tasks.validate-whisper]
-description = "Whisper's whole validation suite (fetches ~435 MB)"
+description = "Whisper's whole validation suite (fetches ~725 MB)"
 workspace = false
 script = "cargo test --release -p whisper-model-validation --features download,gpu-tests,${VALIDATION_BACKEND:-wgpu}"
 

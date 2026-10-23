@@ -76,7 +76,7 @@ generated from upstream's ONNX export, and upstream's own checkpoints. Their bui
 so nothing runs them by default.
 
 **On a pull request**, add the `validate` label to run `validation.yml`: Silero's and Whisper's whole suites, ONNX
-cross-checks included, on the CPU, over about 440 MB of assets. It runs when the label is added and again on every push
+cross-checks included, on the CPU, over about 730 MB of assets. It runs when the label is added and again on every push
 while it stays; remove the label to stop. Use it for a change that can move a model's numbers: the speech kits, the ops
 and blocks under them, the pretrained loaders, `bunsen-fetch`, or a `bunsen-bundled-*` crate. It can also be run from the
 Actions tab (`workflow_dispatch`), on any branch.
@@ -90,7 +90,7 @@ itself, so after a pin changes on `main`, run the workflow once on `main` from t
 | Task | Runs | Fetches (cold) |
 |---|---|---|
 | `validate-cpu` | the checks on the checkpoints alone (`weights`), on the CPU | ~150 MB |
-| `validate-ci` | what `validation.yml` runs: Silero's and Whisper's whole suites, on the CPU | ~440 MB |
+| `validate-ci` | what `validation.yml` runs: Silero's and Whisper's whole suites, on the CPU | ~730 MB |
 | `validate-<model>` | one model's whole suite, in release mode, on `VALIDATION_BACKEND` (default `wgpu`) | 4 MB to ~7 GB |
 | `validate-all` | every model's whole suite | ~16 GB |
 
