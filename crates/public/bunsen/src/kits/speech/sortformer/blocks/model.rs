@@ -21,22 +21,22 @@ use super::{
 };
 use crate::{
     blocks::{
-        frame_rate::{
+        layout::AxisOrder,
+        signals::{
+            DwStridingSubsamplingConfig,
             FeatureStackingConfig,
             SubpixelUpsample1d,
             SubpixelUpsample1dConfig,
             SubpixelUpsample1dMeta,
+            SubsamplingConfig,
         },
-        layout::AxisOrder,
         transformers::encoders::{
             SubsampledEncoder,
             SubsampledEncoderConfig,
             SubsampledEncoderMeta,
-            SubsamplingConfig,
             conformer::{
                 ConformerBlockConfig,
                 ConformerEncoderConfig,
-                DwStridingSubsamplingConfig,
             },
             residual::{
                 NormPlacement,
