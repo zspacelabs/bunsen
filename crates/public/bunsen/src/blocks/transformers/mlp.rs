@@ -1,4 +1,5 @@
-//! GPT Block MLP
+//! Transformer feed-forwards: [`Mlp`], [`GatedMlp`], and [`FeedForward`],
+//! either one chosen by config.
 
 use burn::{
     config::Config,
@@ -287,6 +288,102 @@ impl GatedMlp {
             &[("batch", batch), ("seq", seq), ("n_embed", self.n_embed())]
         );
         y
+    }
+}
+
+/// Common meta for [`FeedForward`] and [`FeedForwardConfig`].
+pub trait FeedForwardMeta {
+    /// The input and output width.
+    fn n_embed(&self) -> usize;
+}
+
+/// Config for [`FeedForward`]: which position-wise feed-forward, and its
+/// config.
+///
+/// Implements [`FeedForwardMeta`].
+#[derive(Config, Debug)]
+pub enum FeedForwardConfig {
+    /// [`Mlp`]: expand, activate, project back.
+    Mlp(MlpConfig),
+
+    /// [`GatedMlp`]: the `SwiGLU` feed-forward.
+    Gated(GatedMlpConfig),
+}
+
+impl From<MlpConfig> for FeedForwardConfig {
+    fn from(config: MlpConfig) -> Self {
+        Self::Mlp(config)
+    }
+}
+
+impl From<GatedMlpConfig> for FeedForwardConfig {
+    fn from(config: GatedMlpConfig) -> Self {
+        Self::Gated(config)
+    }
+}
+
+impl FeedForwardMeta for FeedForwardConfig {
+    fn n_embed(&self) -> usize {
+        match self {
+            Self::Mlp(c) => MlpMeta::n_embed(c),
+            Self::Gated(c) => GatedMlpMeta::n_embed(c),
+        }
+    }
+}
+
+impl ModuleInit<FeedForward> for FeedForwardConfig {
+    fn try_init(
+        &self,
+        device: &Device,
+    ) -> BunsenResult<FeedForward> {
+        Ok(match self {
+            Self::Mlp(c) => FeedForward::Mlp(c.try_init(device)?),
+            Self::Gated(c) => FeedForward::Gated(c.try_init(device)?),
+        })
+    }
+}
+
+/// A transformer layer's position-wise feed-forward, whichever its config
+/// chose: the generic sublayer a layer holds, as
+/// [`Normalization`](burn::nn::norm::Normalization) is for a norm. The variant
+/// is not part of its tensors' paths for the loaders bunsen uses.
+///
+/// Built by [`FeedForwardConfig`].
+/// Implements [`FeedForwardMeta`].
+#[derive(Module, Debug)]
+pub enum FeedForward {
+    /// [`Mlp`].
+    Mlp(Mlp),
+
+    /// [`GatedMlp`].
+    Gated(GatedMlp),
+}
+
+impl FeedForwardMeta for FeedForward {
+    fn n_embed(&self) -> usize {
+        match self {
+            Self::Mlp(m) => MlpMeta::n_embed(m),
+            Self::Gated(m) => GatedMlpMeta::n_embed(m),
+        }
+    }
+}
+
+impl FeedForward {
+    /// The feed-forward, position by position.
+    ///
+    /// # Arguments
+    /// * `x` - `[batch, seq_len, n_embed]`.
+    ///
+    /// # Returns
+    /// `[batch, seq_len, n_embed]`.
+    pub fn forward(
+        &self,
+        x: Tensor<3>,
+    ) -> Tensor<3> {
+        match self {
+            Self::Mlp(m) => m.forward(x),
+            Self::Gated(m) => m.forward(x),
+        }
     }
 }
 

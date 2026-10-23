@@ -28,6 +28,10 @@ use crate::{
             CausalSelfAttentionConfig,
             CausalSelfAttentionMeta,
         },
+        decoders::causal::{
+            CausalDecoderBlock,
+            CausalDecoderBlockConfig,
+        },
         embedding::{
             RotaryEmbedding,
             RotaryEmbeddingConfig,
@@ -44,10 +48,6 @@ use crate::{
         unpack_shape_contract,
     },
     errors::BunsenResult,
-    kits::gpts::nanochat::blocks::{
-        NanoChatGptBlock,
-        NanoChatGptBlockConfig,
-    },
     ops::{
         norm::{
             RmsNormOptions,
@@ -170,15 +170,16 @@ impl NanoChatGptMeta for NanoChatGptContractConfig {
 }
 
 impl NanoChatGptContractConfig {
-    /// Builds the [`NanoChatGptBlockConfig`] for this config.
-    pub fn block_config(&self) -> NanoChatGptBlockConfig {
-        NanoChatGptBlockConfig::new(
+    /// Builds the [`CausalDecoderBlockConfig`] for this config.
+    pub fn block_config(&self) -> CausalDecoderBlockConfig {
+        CausalDecoderBlockConfig::new(
             CausalSelfAttentionConfig::new(self.n_head, self.n_kv_head, self.n_embed)
                 .with_norm(self.norm.clone()),
             MlpConfig::new(self.n_embed)
                 .with_expansion_factor(self.expansion_factor)
                 .with_activation(self.activation.clone())
-                .with_act_exponent(Some(2.0)),
+                .with_act_exponent(Some(2.0))
+                .into(),
         )
         .with_norm(self.norm.clone())
     }
@@ -215,7 +216,7 @@ pub struct NanoChatGptStructureConfig {
     pub wte: EmbeddingConfig,
 
     /// The main transformer block sequence.
-    pub h: Vec<NanoChatGptBlockConfig>,
+    pub h: Vec<CausalDecoderBlockConfig>,
 
     /// The config for the final linear layer.
     pub lm_head: LinearConfig,
@@ -280,7 +281,7 @@ impl ModuleInit<NanoChatGpt> for NanoChatGptStructureConfig {
                 .iter()
                 .enumerate()
                 .map(|(layer_idx, c)| c.try_init(layer_idx, device))
-                .collect::<BunsenResult<Vec<NanoChatGptBlock>>>()?,
+                .collect::<BunsenResult<Vec<CausalDecoderBlock>>>()?,
             h_norm: self.norm.clone().with_num_features(n_embed).init(device),
             lm_head: self.lm_head.init(device),
             r_emb: self.r_emb.try_init(device)?,
@@ -294,7 +295,7 @@ impl ModuleInit<NanoChatGpt> for NanoChatGptStructureConfig {
 ///
 /// A decoder-only transformer: token embedding, normalized by a
 /// parameter-free [`rms_norm`] as upstream's is, a stack of
-/// [`NanoChatGptBlock`] layers, a final normalization, and a linear head,
+/// [`CausalDecoderBlock`] layers, a final normalization, and a linear head,
 /// not tied to the embedding, producing softcapped vocabulary logits.
 /// The normalized embedding starts the residual stream, and each block adds
 /// its attention and MLP updates to it.
@@ -306,7 +307,7 @@ impl ModuleInit<NanoChatGpt> for NanoChatGptStructureConfig {
 #[derive(Module, Debug)]
 pub struct NanoChatGpt {
     wte: Embedding,
-    h: Vec<NanoChatGptBlock>,
+    h: Vec<CausalDecoderBlock>,
     h_norm: Normalization,
     lm_head: Linear,
     r_emb: RotaryEmbedding,
