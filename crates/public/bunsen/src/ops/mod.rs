@@ -109,7 +109,7 @@
 //! ### Transformers
 //! - [`transformers`]: [`attention`](transformers::attention), scaled
 //!   dot-product attention, attention over burn's `MultiHeadAttention` weights,
-//!   and the two key/value caches (`KVCache`, `AttnKvPair`).
+//!   and the key/value cache every decoder uses (`KVCache`).
 //!
 //! ### Signal processing
 //! - [`signal`]: sliding-window STFT, analysis windows, and waveform-to-log-mel

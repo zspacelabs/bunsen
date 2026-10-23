@@ -19,7 +19,8 @@
 //! derives in samples or ids comes from those two, not from constants.
 //!
 //! The text decoder's incremental decode keeps its state in a
-//! [`TextDecoderCache`] the caller opens per decode, never on the model.
+//! [`KVCache`](crate::ops::transformers::attention::KVCache) the caller opens
+//! per decode ([`TextDecoder::new_cache`]), never on the model.
 
 /// Default Whisper Head Dimensionality.
 pub const WHISPER_DEFAULT_D_MODEL: usize = 64;

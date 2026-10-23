@@ -25,12 +25,12 @@ use crate::{
     burner::module::ModuleInit,
     errors::BunsenResult,
     ops::transformers::attention::{
-        AttnKvPair,
+        KVCache,
         layer_norm_cross_attn,
-        layer_norm_cross_attn_w_kv_cache_grouped,
+        layer_norm_cross_attn_w_kv_cache,
         layer_norm_self_attn,
         layer_norm_self_attn_w_kv_cache,
-        project_kv_pair,
+        project_kv,
     },
 };
 
@@ -212,23 +212,25 @@ impl ResidualDecoderAttentionBlock {
         }
     }
 
-    /// Forward pass against a key/value cache.
+    /// Forward pass against a decode's [`KVCache`].
     ///
     /// Unlike [`forward`](Self::forward), `x` is only the **new** token(s):
     /// the cache holds the projected keys and values for everything before,
     /// so this projects and scores only what is new.
     ///
-    /// Cross-attention does no work beyond the query — `cross_kv` is built
-    /// once per decode from the encoder output, which over 1500 encoder frames
-    /// is the bulk of what caching saves.
+    /// Cross-attention does no work beyond the query: its keys and values
+    /// are projected once per decode from the encoder output
+    /// ([`cross_kv`](Self::cross_kv), set in the cache), which over 1500
+    /// encoder frames is the bulk of what caching saves. When the cache's
+    /// [`group`](KVCache::group) is above one, `group` rows of `x` share each
+    /// encoder row (`row = encoder_row * group + member`): a beam search's
+    /// beams attend to their audio's one projection rather than a copy each.
     ///
     /// # Arguments
-    /// * `x` : `[batch, seq_new, d_model]` — the new step(s) only.
+    /// * `x` : `[batch, seq_new, d_model]`, the new step(s) only.
     /// * `mask` : optional `[batch, seq_new, seq_past + seq_new]`. A single new
     ///   token needs none: it may attend to all of its history.
-    /// * `self_kv` : grown in place; `None` at the start of a stream.
-    /// * `cross_kv` : from [`build_cross_kv`](Self::build_cross_kv), reused
-    ///   every step.
+    /// * `cache`, `layer` : the decode's cache, and this block's layer in it.
     ///
     /// # Returns
     /// `[batch, seq_new, d_model]`.
@@ -236,56 +238,47 @@ impl ResidualDecoderAttentionBlock {
         &self,
         x: Tensor<3>,
         mask: Option<Tensor<3, Bool>>,
-        self_kv: &mut Option<AttnKvPair>,
-        cross_kv: &AttnKvPair,
-    ) -> Tensor<3> {
-        self.forward_w_kv_cache_grouped(x, mask, self_kv, cross_kv, 1)
-    }
-
-    /// [`forward_w_kv_cache`](Self::forward_w_kv_cache) with the
-    /// cross-attention cache shared by `group` rows of `x` per cached row
-    /// (`row = cached_row * group + member`): a beam search's beams attend
-    /// to their audio's one projection rather than a copy each.
-    pub fn forward_w_kv_cache_grouped(
-        &self,
-        x: Tensor<3>,
-        mask: Option<Tensor<3, Bool>>,
-        self_kv: &mut Option<AttnKvPair>,
-        cross_kv: &AttnKvPair,
-        group: usize,
+        cache: &mut KVCache,
+        layer: usize,
     ) -> Tensor<3> {
         let x = x.clone().add(layer_norm_self_attn_w_kv_cache(
             &self.attn_norm,
             &self.attn,
             x,
             mask,
-            self_kv,
+            cache,
+            layer,
         ));
 
-        let x = x.clone().add(layer_norm_cross_attn_w_kv_cache_grouped(
+        let x = x.clone().add(layer_norm_cross_attn_w_kv_cache(
             &self.cross_attn_norm,
             &self.cross_attn,
             x,
-            cross_kv,
-            group,
+            cache,
+            layer,
         ));
 
         let mlp = layer_norm_mlp(&self.mlp_norm, &self.mlp, x.clone());
         x + mlp
     }
 
-    /// Projects the encoder output into this block's cross-attention cache.
+    /// Projects the encoder output into this block's cross-attention keys and
+    /// values, for the decode's cache
+    /// ([`set_cross_kv`](KVCache::set_cross_kv)).
     ///
     /// Call once per decode; the result is valid for every step against the
     /// same `xa`.
     ///
     /// # Arguments
     /// * `xa` : `[batch, cross_len, d_model]` encoder output.
-    pub fn build_cross_kv(
+    ///
+    /// # Returns
+    /// The `[batch, heads, cross_len, d_k]` keys and values.
+    pub fn cross_kv(
         &self,
         xa: Tensor<3>,
-    ) -> AttnKvPair {
-        project_kv_pair(&self.cross_attn, xa)
+    ) -> (Tensor<4>, Tensor<4>) {
+        project_kv(&self.cross_attn, xa)
     }
 }
 

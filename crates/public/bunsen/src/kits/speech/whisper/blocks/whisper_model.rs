@@ -526,9 +526,9 @@ mod tests {
         // Both caches are the model's, including from features a caller
         // widened behind the model's back.
         let cache = half.decoder.new_cache(xa.clone());
-        assert_eq!(cache.dtype(), DType::F16, "cross-attention cache");
+        assert_eq!(cache.dtype(), Some(DType::F16), "cross-attention cache");
         let widened = half.decoder.new_cache(xa.cast(float));
-        assert_eq!(widened.dtype(), DType::F16, "and from f32 features");
+        assert_eq!(widened.dtype(), Some(DType::F16), "and from f32 features");
 
         let mut cache = cache;
         assert_eq!(

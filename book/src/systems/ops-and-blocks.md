@@ -117,15 +117,18 @@ bunsen has two attention stacks, and both are deliberate:
 
 - **bunsen's own
   [`CausalSelfAttention`](bunsen::blocks::transformers::attention::csa::CausalSelfAttention)**
-  block (the NanoChat GPT kit) has its own projections, QK-norm, rotary
-  embeddings and grouped-query attention, over a preallocated multi-layer
-  `KVCache`. Use it for a decoder-only model whose layers you define.
+  block (the NanoChat and Qwen3 GPT kits) has its own projections, QK-norm,
+  rotary embeddings and grouped-query attention. Use it for a decoder-only
+  model whose layers you define.
 - **Functions over burn's `MultiHeadAttention`** (the Whisper kit) keep
   burn's module, so its weights, its checkpoint loading and any
-  cross-checks are unchanged, and add KV-cached decoding with a per-layer
-  [`AttnKvPair`](bunsen::ops::transformers::attention::AttnKvPair). Use them
-  when the model is built on burn's module: a ported checkpoint in that
-  layout, or encoder-decoder cross-attention.
+  cross-checks are unchanged, and add KV-cached decoding, cross-attention
+  included. Use them when the model is built on burn's module: a ported
+  checkpoint in that layout, or encoder-decoder cross-attention.
+
+Both decode through one
+[`KVCache`](bunsen::ops::transformers::attention::KVCache), which a model
+hands out sized for itself.
 
 An encoder's attention is neither: it decodes nothing, so it carries no
 cache.
@@ -136,5 +139,5 @@ cache.
 
 [The ops attention docs](bunsen::ops::transformers::attention#two-attention-stacks)
 say when to use which, and
-[two caches](bunsen::ops::transformers::attention#two-caches) compares
-`KVCache` with `AttnKvPair`.
+[the cache](bunsen::ops::transformers::attention#the-cache) describes
+`KVCache`.

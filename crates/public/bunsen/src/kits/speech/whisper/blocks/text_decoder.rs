@@ -18,7 +18,6 @@ use burn::{
         Device,
         Distribution,
         Int,
-        TensorData,
     },
 };
 
@@ -40,7 +39,9 @@ use crate::{
     ops::{
         embedding::unembed,
         transformers::attention::{
-            AttnKvPair,
+            KVCache,
+            KVCacheConfig,
+            KVCacheModel,
             causal_mask,
         },
     },
@@ -62,6 +63,35 @@ pub trait TextDecoderMeta {
 
     /// Returns the number of layers.
     fn n_layers(&self) -> usize;
+}
+
+/// The [`KVCacheConfig`] a Whisper text decoder of `meta`'s geometry decodes
+/// with: its heads, head width and layer count, pre-sized to the whole text
+/// context and capped there, since no decode may run past it.
+fn kv_cache_config(meta: &impl TextDecoderMeta) -> KVCacheConfig {
+    KVCacheConfig::new(
+        1,
+        meta.n_heads(),
+        meta.max_context(),
+        meta.d_model() / meta.n_heads(),
+        meta.n_layers(),
+    )
+    .with_max_seq_len(Some(meta.max_context()))
+}
+
+impl KVCacheModel for TextDecoderConfig {
+    fn kv_cache_config(&self) -> KVCacheConfig {
+        kv_cache_config(self)
+    }
+}
+
+/// [`new_cache`](TextDecoder::new_cache) builds the decode's cache with the
+/// encoder's cross-attention keys and values set; this gives its geometry and
+/// sizing.
+impl KVCacheModel for TextDecoder {
+    fn kv_cache_config(&self) -> KVCacheConfig {
+        kv_cache_config(self)
+    }
 }
 
 /// Config for [`TextDecoder`].
@@ -244,10 +274,14 @@ impl TextDecoder {
         }
     }
 
-    /// Opens an incremental decode cache against a fixed encoder output.
+    /// Opens an incremental decode's [`KVCache`] against a fixed encoder
+    /// output.
     ///
-    /// Projects the cross-attention keys and values for every block up front;
-    /// they are reused unchanged for the whole decode.
+    /// Projects the cross-attention keys and values for every block up front
+    /// ([`set_cross_kv`](KVCache::set_cross_kv)); they are reused unchanged
+    /// for the whole decode. The cache is sized as
+    /// [`kv_cache_config`](KVCacheModel::kv_cache_config) says, at a row per
+    /// row of `xa`.
     ///
     /// # Arguments
     /// * `xa`: `[batch, cross_len, d_model]` encoder output, in any float
@@ -255,7 +289,7 @@ impl TextDecoder {
     pub fn new_cache(
         &self,
         xa: Tensor<3>,
-    ) -> TextDecoderCache {
+    ) -> KVCache {
         self.new_cache_grouped(xa, 1)
     }
 
@@ -263,8 +297,8 @@ impl TextDecoder {
     /// audio: the cross-attention projections are built once per row of
     /// `xa`, and a forward over `xa.batch * group` token rows, laid out
     /// `row = audio * group + member`, attends each member to its audio's
-    /// projection. The self-attention cache is at the full row count, and
-    /// [`TextDecoderCache::reorder`] permutes it as ever.
+    /// projection ([`KVCache::group`]). The self-attention history is at the
+    /// full row count, and [`KVCache::reorder`] picks its rows as ever.
     ///
     /// This is what a beam search wants: its beams share their audio's
     /// cross-attention, which is the bulk of the cache, and the copy per
@@ -273,39 +307,39 @@ impl TextDecoder {
         &self,
         xa: Tensor<3>,
         group: usize,
-    ) -> TextDecoderCache {
+    ) -> KVCache {
         assert!(group >= 1, "at least one row per audio");
 
-        // The cross-attention cache is the bulk of the decode's state and is
-        // scored against this decoder's weights on every step, so it is
-        // built in the decoder's precision whatever the caller handed in.
+        // The cross-attention keys and values are the bulk of the decode's
+        // state and are scored against this decoder's weights on every step,
+        // so they are built in the decoder's precision whatever the caller
+        // handed in.
         let xa = xa.cast(self.dtype());
 
-        TextDecoderCache {
-            self_kv: self.blocks.iter().map(|_| None).collect(),
-            cross_kv: self
-                .blocks
-                .iter()
-                .map(|block| block.build_cross_kv(xa.clone()))
-                .collect(),
-            group,
-            pos: 0,
+        let mut cache = self
+            .kv_cache_config()
+            .with_batch_size(xa.dims()[0] * group)
+            .init();
+        for (layer, block) in self.blocks.iter().enumerate() {
+            let (k, v) = block.cross_kv(xa.clone());
+            cache.set_cross_kv(layer, k, v);
         }
+        cache
     }
 
-    /// Forward pass over the next token(s), against a key/value cache.
+    /// Forward pass over the next token(s), against a decode's [`KVCache`].
     ///
     /// Pass only the **new** tokens: the cache holds everything before them.
     /// Decoding a sequence a token at a time through this gives the same
     /// logits as one [`forward`](Self::forward) over the whole sequence, at a
-    /// fraction of the work — the encoder-derived cross-attention keys and
+    /// fraction of the work: the encoder-derived cross-attention keys and
     /// values are projected once by [`new_cache`](Self::new_cache), and
     /// self-attention scores only the new queries.
     ///
-    /// The positional embedding is taken from
-    /// [`cache.pos()`](TextDecoderCache::pos) rather than from zero, and the
-    /// causal mask spans `[seq_new, pos + seq_new]`. A single new token needs
-    /// no mask at all, since it may attend to all of its history.
+    /// The positional embedding is taken from [`cache.pos()`](KVCache::pos)
+    /// rather than from zero, and the causal mask spans
+    /// `[seq_new, pos + seq_new]`. A single new token needs no mask at all,
+    /// since it may attend to all of its history.
     ///
     /// # Arguments
     /// * `x`: `[batch, seq_new]` the next token(s).
@@ -313,21 +347,22 @@ impl TextDecoder {
     ///   output, so it is not passed again.
     ///
     /// # Returns
-    /// `[batch, seq_new, n_vocab]` — logits for the new token(s) only, in
+    /// `[batch, seq_new, n_vocab]`: logits for the new token(s) only, in
     /// the backend's default float, as [`forward`](Self::forward).
     pub fn forward_cached(
         &self,
         x: Tensor<2, Int>,
-        cache: &mut TextDecoderCache,
+        cache: &mut KVCache,
     ) -> Tensor<3> {
+        use crate::ops::transformers::attention::KVCacheMeta;
         assert_eq!(
-            cache.n_layers(),
+            cache.num_layers(),
             self.blocks.len(),
             "cache was built for a different decoder",
         );
 
         let seq_new = x.dims()[1];
-        let past = cache.pos;
+        let past = cache.pos();
         assert!(
             past + seq_new <= self.max_context(),
             "Token sequence length {} must not exceed {}.",
@@ -345,17 +380,10 @@ impl TextDecoder {
             None
         };
 
-        for (i, block) in self.blocks.iter().enumerate() {
-            h = block.forward_w_kv_cache_grouped(
-                h,
-                mask.clone(),
-                &mut cache.self_kv[i],
-                &cache.cross_kv[i],
-                cache.group,
-            );
+        // The cache's position advances once the last block has written.
+        for (layer, block) in self.blocks.iter().enumerate() {
+            h = block.forward_w_kv_cache(h, mask.clone(), cache, layer);
         }
-
-        cache.pos += seq_new;
 
         {
             let dtype = device_float_dtype(&h.device());
@@ -386,110 +414,9 @@ impl TextDecoder {
     }
 }
 
-/// Per-layer key/value caches for incremental decoding.
-///
-/// Built by [`TextDecoder::new_cache`] against a fixed encoder output. Holds,
-/// per block, the growing self-attention cache and the fixed cross-attention
-/// one, plus how many tokens have been consumed — which is what offsets the
-/// positional embedding.
-///
-/// Deliberately **not** a `Module`: this is per-stream decode state and holds
-/// no parameters.
-pub struct TextDecoderCache {
-    /// Self-attention keys and values, grown one step at a time.
-    self_kv: Vec<Option<AttnKvPair>>,
-
-    /// Cross-attention keys and values, projected once from the encoder
-    /// output. This is the bulk of what the cache saves: over 1500 encoder
-    /// frames, per layer, per token.
-    cross_kv: Vec<AttnKvPair>,
-
-    /// Decode rows per cross-attention row; one unless the cache is shared
-    /// by a group, as by a beam search's beams.
-    group: usize,
-
-    /// Tokens consumed so far.
-    pos: usize,
-}
-
-impl HasDType for TextDecoderCache {
-    fn dtype(&self) -> DType {
-        self.cross_kv[0].dtype()
-    }
-}
-
-impl TextDecoderCache {
-    /// The number of tokens consumed so far.
-    pub fn pos(&self) -> usize {
-        self.pos
-    }
-
-    /// Decode rows per cross-attention row.
-    pub fn group(&self) -> usize {
-        self.group
-    }
-
-    /// The number of blocks this cache covers.
-    pub fn n_layers(&self) -> usize {
-        self.cross_kv.len()
-    }
-
-    /// Drops the decoded history, keeping the cross-attention projections.
-    ///
-    /// Use this to decode a second sequence against the same audio without
-    /// re-projecting the encoder output.
-    pub fn reset(&mut self) {
-        for kv in &mut self.self_kv {
-            *kv = None;
-        }
-        self.pos = 0;
-    }
-
-    /// Permutes the rows of the self-attention cache: row `r` becomes what
-    /// row `sources[r]` was. A source may appear more than once, which
-    /// duplicates that row; that is how a beam search branches.
-    ///
-    /// The cross-attention cache is left alone. Its rows are identical across
-    /// the beams of one audio, so permuting them within a group would be a
-    /// no-op that copies the bulk of the cache for nothing; a permutation
-    /// that crossed audio groups would be a caller error.
-    ///
-    /// # Panics
-    /// If `sources` is not one entry per cached row.
-    pub fn reorder(
-        &mut self,
-        sources: &[usize],
-    ) {
-        let Some(first) = self.self_kv.iter().flatten().next() else {
-            return;
-        };
-        assert_eq!(
-            sources.len(),
-            first.batch_size(),
-            "one source row per cached row",
-        );
-        if sources.iter().enumerate().all(|(r, &s)| r == s) {
-            return;
-        }
-
-        let device = first.key.device();
-        let indices: Tensor<1, Int> = Tensor::from_data(
-            TensorData::new(
-                sources.iter().map(|&s| s as i64).collect::<Vec<_>>(),
-                [sources.len()],
-            ),
-            &device,
-        );
-
-        for kv in self.self_kv.iter_mut().flatten() {
-            kv.key = kv.key.clone().select(0, indices.clone());
-            kv.value = kv.value.clone().select(0, indices.clone());
-        }
-    }
-}
-
 #[cfg(test)]
 mod tests {
+    use burn::tensor::TensorData;
     use serial_test::serial;
 
     use super::*;
@@ -679,9 +606,10 @@ mod tests {
         assert_eq!(xa.dtype(), float);
 
         let mut cache = decoder.new_cache(xa);
-        assert_eq!(cache.dtype(), DType::F16, "cross-attention cache");
-        for kv in &cache.cross_kv {
-            assert_eq!(kv.dtype(), DType::F16);
+        assert_eq!(cache.dtype(), Some(DType::F16), "cross-attention cache");
+        for layer in 0..decoder.n_layers() {
+            let (k, v) = cache.cross_kv(layer).expect("set");
+            assert_eq!((k.dtype(), v.dtype()), (DType::F16, DType::F16));
         }
 
         let tokens: Tensor<2, Int> =
@@ -689,10 +617,8 @@ mod tests {
         let logits = decoder.forward_cached(tokens, &mut cache);
 
         assert_eq!(logits.dtype(), float, "logits are the interface's");
-        assert!(cache.self_kv.iter().any(|kv| kv.is_some()));
-        for kv in cache.self_kv.iter().flatten() {
-            assert_eq!(kv.dtype(), DType::F16, "self-attention cache");
-        }
+        assert_eq!(cache.pos(), 2);
+        assert_eq!(cache.dtype(), Some(DType::F16), "self-attention cache");
     }
 
     /// `reset` rewinds the decode while keeping the encoder projections, so a
