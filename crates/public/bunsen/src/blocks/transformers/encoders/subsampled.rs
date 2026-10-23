@@ -391,12 +391,9 @@ impl SubsampledEncoder {
 
 #[cfg(test)]
 mod tests {
-    use burn::{
-        store::ModuleSnapshot,
-        tensor::{
-            Distribution,
-            Tolerance,
-        },
+    use burn::tensor::{
+        Distribution,
+        Tolerance,
     };
 
     use super::*;
@@ -452,7 +449,10 @@ mod tests {
     /// front end's under `subsampling.` and the stack's under
     /// `transformer.`; the layout is not among them.
     #[test]
+    #[cfg(feature = "store")]
     fn test_paths() {
+        use burn::store::ModuleSnapshot;
+
         let device = cpu_device();
         let stacking = SubsampledEncoderConfig::new(
             SubsamplingConfig::Stacking(FeatureStackingConfig::new(6, 8).with_factor(2)),
