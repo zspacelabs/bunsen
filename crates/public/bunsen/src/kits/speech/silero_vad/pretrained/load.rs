@@ -230,7 +230,7 @@ impl SileroVadCollection {
 /// | upstream | bunsen |
 /// |---|---|
 /// | `stft_conv` | `stft` |
-/// | `conv1` … `conv4` | `encoder.blocks.0` … `3.conv` |
+/// | `conv1` … `conv4` | `encoder.blocks.0` … `3.conv`, by [`ConvSeq1d::one_based_rekey`] |
 /// | `lstm_cell` (an `nn.LSTMCell`) | `lstm`, by [`FusedLstm::torch_cell_rekey`] |
 /// | `final_conv` | `decoder` |
 pub fn upstream_rekey() -> Rekey {
@@ -238,15 +238,7 @@ pub fn upstream_rekey() -> Rekey {
         .rename("stft_conv.", "stft.")
         .rename("final_conv.", "decoder.")
         .mount("lstm_cell.", "lstm.", FusedLstm::torch_cell_rekey())
-        .custom(|name| {
-            // `conv{n}`, 1-based, onto the encoder's 0-based blocks.
-            let (conv, param) = name.split_once('.')?;
-            let n: usize = conv.strip_prefix("conv")?.parse().ok()?;
-            Some(
-                n.checked_sub(1)
-                    .map(|k| format!("{}.{param}", ConvSeq1d::block_conv_path("encoder", k))),
-            )
-        })
+        .mount("conv", "encoder.", ConvSeq1d::one_based_rekey())
 }
 
 #[cfg(feature = "store_safetensors")]

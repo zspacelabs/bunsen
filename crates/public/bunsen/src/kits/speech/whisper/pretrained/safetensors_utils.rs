@@ -39,7 +39,8 @@ use crate::{
 /// a [`Whisper`]'s module paths: under `model.`, the layers by their blocks'
 /// maps ([`ResidualEncoderAttentionBlock::whisper_hf_rekey`],
 /// [`CrossDecoderBlock::whisper_hf_rekey`]), `layers.N` as `blocks.N`; the
-/// two convolutions the encoder head's blocks; the positional tables
+/// two convolutions, `conv1` and `conv2`, the encoder head's blocks
+/// ([`ConvSeq1d::one_based_rekey`]); the positional tables
 /// without their `.weight`; `embed_tokens` the token embedding; the final
 /// norms `ln_post` and `ln`; everything else as it is. Anything outside
 /// `model.` (a tied `proj_out.weight`) is dropped.
@@ -47,13 +48,15 @@ use crate::{
 /// Normalization parameters keep their `weight` / `bias` spellings, which
 /// [`apply_rekeyed_tensors`] resolves to `gamma` / `beta`.
 pub fn hf_rekey() -> Rekey {
-    let conv = |n| format!("{}.", ConvSeq1d::block_conv_path("encoder.head", n));
     Rekey::drop_rest().mount(
         "model.",
         "",
         Rekey::keep_rest()
-            .rename("encoder.conv1.", conv(0))
-            .rename("encoder.conv2.", conv(1))
+            .mount(
+                "encoder.conv",
+                "encoder.head.",
+                ConvSeq1d::one_based_rekey(),
+            )
             .exact(
                 "encoder.embed_positions.weight",
                 "encoder.positional_embedding",
