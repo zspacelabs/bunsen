@@ -7,6 +7,12 @@ to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [0.40.0](https://github.com/zspacelabs/bunsen/compare/bunsen-bundled-silero-v0.39.0...bunsen-bundled-silero-v0.40.0) - 2026-10-23
+
+### Other
+
+- *(speech)* [**breaking**] no build fetches by default; the bundled-weight checks move to the validation crates ([#345](https://github.com/zspacelabs/bunsen/pull/345))
+
 ## [0.39.0](https://github.com/zspacelabs/bunsen/compare/bunsen-bundled-silero-v0.38.0...bunsen-bundled-silero-v0.39.0) - 2026-10-17
 
 ### Added

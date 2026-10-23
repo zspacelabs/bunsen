@@ -16,7 +16,7 @@ publish = true
 
 [dependencies]
 burn = { workspace = true, features = ["std", "flex"] }
-bunsen = { version = "0.39.0", path = "../bunsen", features = ["std", "testing", "fetch", "cache"] }
+bunsen = { version = "0.40.0", path = "../bunsen", features = ["std", "testing", "fetch", "cache"] }
 
 clap = { workspace = true, features = ["derive"] }
 env_logger = { workspace = true }

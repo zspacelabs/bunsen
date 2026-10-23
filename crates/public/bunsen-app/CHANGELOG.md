@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.40.0](https://github.com/zspacelabs/bunsen/compare/bunsen-app-v0.39.0...bunsen-app-v0.40.0) - 2026-10-23
+
+### Fixed
+
+- *(asr)* exit with the device idle: `burner::device::DeviceSession`, opened through `bunsen-app` ([#363](https://github.com/zspacelabs/bunsen/pull/363))
+
+### Other
+
+- *(logging)* replace `stderrlog` with `env_logger`, add custom logging policies ([#303](https://github.com/zspacelabs/bunsen/pull/303))
+
 ## [0.39.0](https://github.com/zspacelabs/bunsen/compare/bunsen-app-v0.38.0...bunsen-app-v0.39.0) - 2026-10-17
 
 ### Added
