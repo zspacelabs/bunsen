@@ -1,0 +1,22 @@
+[package]
+name = "burn-exit-race-repro"
+description = "Reproduction: exiting with work queued on a burn wgpu device segfaults in NVIDIA's Vulkan driver."
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+# Standalone: builds with only `burn`, outside bunsen's workspace.
+[workspace]
+
+[features]
+default = []
+vulkan = ["burn/vulkan"]
+wgpu = ["burn/wgpu"]
+cuda = ["burn/cuda"]
+metal = ["burn/metal"]
+
+[dependencies]
+burn = { version = "0.22.0", default-features = false, features = ["std", "flex"] }
+
+[profile.release]
+debug = 1

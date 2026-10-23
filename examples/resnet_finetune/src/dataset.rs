@@ -121,7 +121,8 @@ impl PlanetLoader for ImageFolderDataset {
                     root.join("train")
                         .join(item.image_name)
                         .with_extension("jpg"),
-                    // Multiple labels per image (e.g., ["haze", "primary", "water"])
+                    // Multiple labels per image (e.g., ["haze", "primary",
+                    // "water"])
                     tags,
                 ))
             })

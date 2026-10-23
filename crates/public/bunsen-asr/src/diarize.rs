@@ -363,7 +363,7 @@ impl RunCmd {
     pub fn run(&self) -> BunsenResult<()> {
         self.logging
             .init(LogPolicy::new(LevelFilter::Warn, LevelFilter::Warn))?;
-        let device = self.device.device()?;
+        let device = self.device.open()?;
         let cache = self.cache.init()?;
         let bundle = self.diarizer.load(&cache, &device)?;
         let streaming = bundle.preset(self.diarizer.latency.into())?;
@@ -453,7 +453,7 @@ impl LiveCmd {
         let Some(capture) = self.capture.open()? else {
             return Ok(());
         };
-        let device = self.device.device()?;
+        let device = self.device.open()?;
         let cache = self.cache.init()?;
         let bundle = self.diarizer.load(&cache, &device)?;
         let diarizer = bundle.diarizer(bundle.preset(self.diarizer.latency.into())?)?;
