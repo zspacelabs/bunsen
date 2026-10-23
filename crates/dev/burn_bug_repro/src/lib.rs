@@ -47,5 +47,7 @@
 //!   `bunsen::burner::device::DeviceSession`. It doesn't reproduce the crash
 //!   yet; see its README.
 
+pub mod contiguous_gap;
+pub mod contiguous_keep_remap;
 pub mod empty_reshape;
 pub mod unfold;
