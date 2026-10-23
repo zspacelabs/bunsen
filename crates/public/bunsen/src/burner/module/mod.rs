@@ -19,6 +19,9 @@
 //!   (`model.map(&mut DTypeMapper::new(DType::F16))`).
 //! - [`reflection`] &mdash; (feature `reflection`) a queryable XML view of a
 //!   built module tree, for selecting parameters with `XPath`.
+//! - [`Rekey`] &mdash; a checkpoint's tensor names to a module's paths, built
+//!   from rules: a kit routes a checkpoint's prefixes onto its model's fields
+//!   and mounts each block's own map for the checkpoint's format there.
 //!
 //! `ModuleInit` and `ToStructureConfig` are also in [`crate::prelude`].
 
@@ -27,10 +30,12 @@ pub mod reflection;
 
 mod has_dtype;
 mod module_init;
+mod rekey;
 mod to_structure_config;
 mod type_mapper;
 
 pub use has_dtype::*;
 pub use module_init::*;
+pub use rekey::*;
 pub use to_structure_config::*;
 pub use type_mapper::*;

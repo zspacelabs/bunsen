@@ -14,7 +14,10 @@ use super::{
     DwStridingSubsamplingMeta,
 };
 use crate::{
-    burner::module::ModuleInit,
+    burner::module::{
+        ModuleInit,
+        Rekey,
+    },
     errors::{
         BunsenResult,
         ConstraintError,
@@ -260,6 +263,40 @@ impl ConformerEncoder {
     }
 }
 
+impl ConformerEncoder {
+    /// Its tensors as `transformers`' `ParakeetEncoder` names them, relative
+    /// to it: the subsampling's and each block's maps
+    /// ([`DwStridingSubsampling::transformers_rekey`],
+    /// [`ConformerBlock::transformers_rekey`]) mounted where they sit, and
+    /// the batch-norm counters dropped.
+    pub fn transformers_rekey(n_stages: usize) -> Rekey {
+        Rekey::keep_rest()
+            .drop_suffix(".num_batches_tracked")
+            .mount(
+                "subsampling.",
+                "subsampling.",
+                DwStridingSubsampling::transformers_rekey(n_stages),
+            )
+            .mount_indexed("layers.", "layers.", ConformerBlock::transformers_rekey())
+    }
+
+    /// Its tensors as `NeMo`'s `ConformerEncoder` names them, relative to it:
+    /// the subsampling's and each block's maps
+    /// ([`DwStridingSubsampling::nemo_rekey`], [`ConformerBlock::nemo_rekey`])
+    /// mounted where they sit. The batch-norm counters, and anything else, are
+    /// dropped.
+    pub fn nemo_rekey(n_stages: usize) -> Rekey {
+        Rekey::drop_rest()
+            .drop_suffix(".num_batches_tracked")
+            .mount(
+                "pre_encode.",
+                "subsampling.",
+                DwStridingSubsampling::nemo_rekey(n_stages),
+            )
+            .mount_indexed("layers.", "layers.", ConformerBlock::nemo_rekey())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -353,5 +390,60 @@ mod tests {
             2,
         );
         assert!(ModuleInit::<ConformerEncoder>::try_init(&config, &cpu_device()).is_err());
+    }
+
+    /// `NeMo`'s `ConformerEncoder` names, the subsampling's flat `conv`
+    /// list and every block's renames among them.
+    #[test]
+    fn test_nemo_rekey() {
+        for (nemo, bunsen) in [
+            (
+                "pre_encode.conv.0.weight",
+                Some("subsampling.stem.conv.weight"),
+            ),
+            (
+                "pre_encode.conv.2.bias",
+                Some("subsampling.stages.0.depthwise.conv.bias"),
+            ),
+            (
+                "pre_encode.conv.3.weight",
+                Some("subsampling.stages.0.pointwise.conv.weight"),
+            ),
+            (
+                "pre_encode.conv.5.weight",
+                Some("subsampling.stages.1.depthwise.conv.weight"),
+            ),
+            (
+                "pre_encode.conv.6.bias",
+                Some("subsampling.stages.1.pointwise.conv.bias"),
+            ),
+            ("pre_encode.conv.4.weight", None),
+            ("pre_encode.conv.8.weight", None),
+            ("pre_encode.out.weight", Some("subsampling.linear.weight")),
+            (
+                "layers.3.self_attn.linear_pos.weight",
+                Some("layers.3.self_attn.pos.weight"),
+            ),
+            (
+                "layers.0.self_attn.pos_bias_u",
+                Some("layers.0.self_attn.pos_bias_u"),
+            ),
+            (
+                "layers.1.conv.batch_norm.running_var",
+                Some("layers.1.conv.depthwise.norm.running_var"),
+            ),
+            ("layers.1.conv.batch_norm.num_batches_tracked", None),
+            (
+                "layers.0.norm_feed_forward1.weight",
+                Some("layers.0.norm_feed_forward1.weight"),
+            ),
+            ("pos_enc.pe", None),
+        ] {
+            assert_eq!(
+                ConformerEncoder::nemo_rekey(3).apply(nemo).as_deref(),
+                bunsen,
+                "{nemo}"
+            );
+        }
     }
 }

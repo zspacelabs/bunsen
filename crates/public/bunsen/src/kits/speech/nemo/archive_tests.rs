@@ -4,16 +4,21 @@ use std::{
     path::PathBuf,
 };
 
-use burn::module::Module;
 use serde::Deserialize;
 
 use super::*;
 use crate::{
     blocks::transformers::encoders::{
         conformer::ConformerEncoder,
-        residual::ResidualEncoderAttentionBlock,
+        residual::{
+            ResidualEncoderTransformer,
+            ResidualEncoderTransformerConfig,
+        },
     },
-    burner::module::ModuleInit,
+    burner::module::{
+        ModuleInit,
+        Rekey,
+    },
     data::pretrained::apply_named_tensors,
     errors::BunsenErrorKind,
     support::testing::cpu_device,
@@ -234,10 +239,8 @@ fn test_conformer_loads() {
     let tensors = weights()
         .into_iter()
         .filter(|t| t.name.starts_with("encoder."));
-    let applied = apply_named_tensors(&mut encoder, tensors, |name| {
-        nemo_conformer_to_bunsen_path(name.strip_prefix("encoder.")?, n_stages)
-    })
-    .unwrap();
+    let rekey = Rekey::drop_rest().mount("encoder.", "", ConformerEncoder::nemo_rekey(n_stages));
+    let applied = apply_named_tensors(&mut encoder, tensors, rekey.as_fn()).unwrap();
     assert!(!applied.applied.is_empty());
     assert!(
         applied
@@ -253,25 +256,20 @@ fn test_conformer_loads() {
 /// from the config, filling every parameter.
 #[test]
 fn test_transformer_loads() {
-    #[derive(Module, Debug)]
-    struct Stack {
-        layers: Vec<ResidualEncoderAttentionBlock>,
-    }
     let config: ToyConfig = toy().config().unwrap();
     let block = config.transformer_encoder.block().unwrap();
-    let device = cpu_device();
-    let mut stack = Stack {
-        layers: (0..config.transformer_encoder.num_layers)
-            .map(|_| block.try_init(&device).unwrap())
-            .collect(),
-    };
+    let mut stack: ResidualEncoderTransformer =
+        ResidualEncoderTransformerConfig::new(block, config.transformer_encoder.num_layers)
+            .init(&cpu_device());
     let tensors = weights()
         .into_iter()
         .filter(|t| t.name.starts_with("transformer_encoder."));
-    let applied = apply_named_tensors(&mut stack, tensors, |name| {
-        nemo_transformer_to_bunsen_path(name.strip_prefix("transformer_encoder.")?)
-    })
-    .unwrap();
+    let rekey = Rekey::drop_rest().mount(
+        "transformer_encoder.",
+        "",
+        ResidualEncoderTransformer::nemo_rekey(),
+    );
+    let applied = apply_named_tensors(&mut stack, tensors, rekey.as_fn()).unwrap();
     assert!(applied.unused.is_empty(), "{:?}", applied.unused);
 }
 

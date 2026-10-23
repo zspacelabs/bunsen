@@ -7,6 +7,12 @@ use super::blocks::{
     SortformerMeta,
 };
 use crate::{
+    blocks::transformers::encoders::{
+        conformer::ConformerEncoder,
+        residual::ResidualEncoderTransformer,
+        rope::RopeTransformerEncoder,
+    },
+    burner::module::Rekey,
     data::pretrained::{
         HfConfigJson,
         NamedTensorsApplied,
@@ -16,62 +22,37 @@ use crate::{
         BunsenError,
         BunsenResult,
     },
-    kits::speech::nemo::{
-        nemo_conformer_to_bunsen_path,
-        nemo_transformer_to_bunsen_path,
-    },
 };
 
-/// The bunsen module path of one `transformers`
-/// `Nemotron3DiarizationForAudioFrameClassification` state-dict name.
+/// `transformers`' `Nemotron3DiarizationForAudioFrameClassification`
+/// state-dict names onto a [`Sortformer`]'s module paths: the audio tower's
+/// feature-stacking projection, its encoder by
+/// [`RopeTransformerEncoder::transformers_rekey`], the projection, upsample
+/// and head by prefix. Anything else is dropped.
 ///
 /// Normalization parameters keep their `weight` / `bias` spellings, which
 /// [`apply_named_tensors`] resolves to `gamma` / `beta`.
-pub fn nemotron_hf_to_bunsen_path(name: &str) -> Option<String> {
-    if name == "silence_embeds" {
-        return Some("silence".into());
-    }
-    if let Some(rest) = name.strip_prefix("model.audio_tower.") {
-        if let Some(rest) = rest.strip_prefix("embedder.projection.") {
-            return Some(format!("encoder.stacking.projection.{rest}"));
-        }
-        if let Some(rest) = rest.strip_prefix("input_layer_norm.") {
-            return Some(format!("encoder.encoder.embed_norm.{rest}"));
-        }
-        if let Some(rest) = rest.strip_prefix("layer_norm.") {
-            return Some(format!("encoder.encoder.final_norm.{rest}"));
-        }
-        let rest = rest.strip_prefix("layers.")?;
-        let (layer, rest) = rest.split_once('.')?;
-        const RENAMES: &[(&str, &str)] = &[
-            ("layer_norm1.", "norm1."),
-            ("layer_norm2.", "norm2."),
-            ("self_attn.q_proj.", "attn.query."),
-            ("self_attn.k_proj.", "attn.key."),
-            ("self_attn.v_proj.", "attn.value."),
-            ("self_attn.o_proj.", "attn.output."),
-            ("mlp.fc1.", "mlp.linear1."),
-            ("mlp.fc2.", "mlp.linear2."),
-        ];
-        let (from, to) = RENAMES.iter().find(|(from, _)| rest.starts_with(from))?;
-        return Some(format!(
-            "encoder.encoder.layers.{layer}.{to}{}",
-            &rest[from.len()..]
-        ));
-    }
-    const PREFIXES: &[(&str, &str)] = &[
-        ("model.proj.", "projection."),
-        ("model.upsampler.conv.", "upsample.conv."),
-        ("classifier.dense.", "head.dense."),
-        ("classifier.out_proj.", "head.out."),
-    ];
-    let (from, to) = PREFIXES.iter().find(|(from, _)| name.starts_with(from))?;
-    Some(format!("{to}{}", &name[from.len()..]))
+pub fn nemotron_hf_rekey() -> Rekey {
+    Rekey::drop_rest()
+        .exact("silence_embeds", "silence")
+        .rename(
+            "model.audio_tower.embedder.projection.",
+            "encoder.stacking.projection.",
+        )
+        .mount(
+            "model.audio_tower.",
+            "encoder.encoder.",
+            RopeTransformerEncoder::transformers_rekey(),
+        )
+        .rename("model.proj.", "projection.")
+        .rename("model.upsampler.conv.", "upsample.conv.")
+        .rename("classifier.dense.", "head.dense.")
+        .rename("classifier.out_proj.", "head.out.")
 }
 
 /// Loads tensors named as `transformers`'
 /// `Nemotron3DiarizationForAudioFrameClassification` state dict into
-/// `model`: [`apply_named_tensors`] under [`nemotron_hf_to_bunsen_path`].
+/// `model`: [`apply_named_tensors`] under [`nemotron_hf_rekey`].
 ///
 /// # Errors
 /// As [`apply_named_tensors`].
@@ -79,39 +60,37 @@ pub fn load_nemotron_hf_tensors(
     model: &mut Sortformer,
     tensors: impl IntoIterator<Item = PackTensor>,
 ) -> BunsenResult<NamedTensorsApplied> {
-    apply_named_tensors(model, tensors, nemotron_hf_to_bunsen_path)
+    apply_named_tensors(model, tensors, nemotron_hf_rekey().as_fn())
 }
 
-/// The bunsen module path of one `NeMo` `SortformerEncLabelModel` state-dict
-/// name in Sortformer v2's layout (a `FastConformer`, `encoder_proj`, a
-/// `transformer_encoder`, the speaker head), or `None` for an entry the model
-/// has no parameter for: `num_batches_tracked`, the featurizer's tables,
-/// and the unused `hidden_to_spks`.
+/// `NeMo` `SortformerEncLabelModel` state-dict names, in Sortformer v2's
+/// layout, onto a [`Sortformer`]'s module paths: the `FastConformer` by
+/// [`ConformerEncoder::nemo_rekey`], the `transformer_encoder` by
+/// [`ResidualEncoderTransformer::nemo_rekey`], the projection and head by
+/// prefix. Anything else is dropped: `num_batches_tracked`, the
+/// featurizer's tables, and the unused `hidden_to_spks`.
 ///
-/// `n_stages` is the encoder's subsampling stage count
-/// ([`nemo_conformer_to_bunsen_path`]).
-pub fn sortformer_v2_nemo_to_bunsen_path(
-    name: &str,
-    n_stages: usize,
-) -> Option<String> {
-    if let Some(rest) = name.strip_prefix("encoder.") {
-        return nemo_conformer_to_bunsen_path(rest, n_stages).map(|p| format!("encoder.{p}"));
-    }
-    if let Some(rest) = name.strip_prefix("transformer_encoder.") {
-        return nemo_transformer_to_bunsen_path(rest).map(|p| format!("transformer.{p}"));
-    }
-    const PREFIXES: &[(&str, &str)] = &[
-        ("sortformer_modules.encoder_proj.", "projection."),
-        ("sortformer_modules.first_hidden_to_hidden.", "head.dense."),
-        ("sortformer_modules.single_hidden_to_spks.", "head.out."),
-    ];
-    let (from, to) = PREFIXES.iter().find(|(from, _)| name.starts_with(from))?;
-    Some(format!("{to}{}", &name[from.len()..]))
+/// `n_stages` is the encoder's subsampling stage count.
+pub fn sortformer_v2_nemo_rekey(n_stages: usize) -> Rekey {
+    Rekey::drop_rest()
+        .mount(
+            "encoder.",
+            "encoder.",
+            ConformerEncoder::nemo_rekey(n_stages),
+        )
+        .mount(
+            "transformer_encoder.",
+            "transformer.",
+            ResidualEncoderTransformer::nemo_rekey(),
+        )
+        .rename("sortformer_modules.encoder_proj.", "projection.")
+        .rename("sortformer_modules.first_hidden_to_hidden.", "head.dense.")
+        .rename("sortformer_modules.single_hidden_to_spks.", "head.out.")
 }
 
 /// Loads tensors named as a `NeMo` Sortformer v2 state dict (a `.nemo`'s
 /// `model_weights.ckpt`) into `model`: [`apply_named_tensors`] under
-/// [`sortformer_v2_nemo_to_bunsen_path`], at `model`'s subsampling.
+/// [`sortformer_v2_nemo_rekey`], at `model`'s subsampling.
 ///
 /// # Errors
 /// As [`apply_named_tensors`].
@@ -120,9 +99,7 @@ pub fn load_sortformer_v2_nemo_tensors(
     tensors: impl IntoIterator<Item = PackTensor>,
 ) -> BunsenResult<NamedTensorsApplied> {
     let n_stages = model.subsampling_factor().trailing_zeros() as usize;
-    apply_named_tensors(model, tensors, |name| {
-        sortformer_v2_nemo_to_bunsen_path(name, n_stages)
-    })
+    apply_named_tensors(model, tensors, sortformer_v2_nemo_rekey(n_stages).as_fn())
 }
 
 /// The [`NemotronDiarizationConfig`] of a `transformers`
@@ -214,13 +191,13 @@ mod tests {
             ("classifier.out_proj.bias", "head.out.bias"),
         ] {
             assert_eq!(
-                nemotron_hf_to_bunsen_path(hf).as_deref(),
+                nemotron_hf_rekey().apply(hf).as_deref(),
                 Some(bunsen),
                 "{hf}"
             );
         }
         assert_eq!(
-            nemotron_hf_to_bunsen_path("model.audio_tower.rotary_emb.inv_freq"),
+            nemotron_hf_rekey().apply("model.audio_tower.rotary_emb.inv_freq"),
             None
         );
     }
@@ -257,7 +234,7 @@ mod tests {
             ("preprocessor.featurizer.fb", None),
         ] {
             assert_eq!(
-                sortformer_v2_nemo_to_bunsen_path(nemo, 3).as_deref(),
+                sortformer_v2_nemo_rekey(3).apply(nemo).as_deref(),
                 bunsen,
                 "{nemo}"
             );

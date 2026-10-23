@@ -23,7 +23,10 @@ use crate::{
         RelPosSelfAttentionConfig,
         RelPosSelfAttentionMeta,
     },
-    burner::module::ModuleInit,
+    burner::module::{
+        ModuleInit,
+        Rekey,
+    },
     errors::BunsenResult,
 };
 
@@ -225,6 +228,39 @@ impl ConformerBlock {
         );
 
         y
+    }
+}
+
+impl ConformerBlock {
+    /// Its tensors as `transformers`' `ParakeetEncoderBlock` names them,
+    /// relative to it: the attention's projections and positional biases, and
+    /// the convolution module's depthwise convolution and norm, renamed;
+    /// everything else as it is.
+    pub fn transformers_rekey() -> Rekey {
+        Rekey::keep_rest()
+            .rename("self_attn.q_proj.", "self_attn.query.")
+            .rename("self_attn.k_proj.", "self_attn.key.")
+            .rename("self_attn.v_proj.", "self_attn.value.")
+            .rename("self_attn.o_proj.", "self_attn.output.")
+            .rename("self_attn.relative_k_proj.", "self_attn.pos.")
+            .exact("self_attn.bias_u", "self_attn.pos_bias_u")
+            .exact("self_attn.bias_v", "self_attn.pos_bias_v")
+            .rename("conv.depthwise_conv.", "conv.depthwise.conv.")
+            .rename("conv.norm.", "conv.depthwise.norm.")
+    }
+
+    /// Its tensors as `NeMo`'s `ConformerLayer` names them, relative to it:
+    /// the attention's projections and the convolution module's depthwise
+    /// convolution and batch norm, renamed; everything else as it is.
+    pub fn nemo_rekey() -> Rekey {
+        Rekey::keep_rest()
+            .rename("self_attn.linear_q.", "self_attn.query.")
+            .rename("self_attn.linear_k.", "self_attn.key.")
+            .rename("self_attn.linear_v.", "self_attn.value.")
+            .rename("self_attn.linear_out.", "self_attn.output.")
+            .rename("self_attn.linear_pos.", "self_attn.pos.")
+            .rename("conv.depthwise_conv.", "conv.depthwise.conv.")
+            .rename("conv.batch_norm.", "conv.depthwise.norm.")
     }
 }
 
