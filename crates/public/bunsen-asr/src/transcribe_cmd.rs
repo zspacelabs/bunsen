@@ -16,10 +16,7 @@ use bunsen::{
         BunsenResult,
         ResultContext,
     },
-    kits::speech::{
-        asr_driver::TranscriptSegment,
-        diarization::RttmSegment,
-    },
+    kits::speech::asr_driver::TranscriptSegment,
     support::audio::load_audio_mono_sr,
 };
 use bunsen_app::{
@@ -36,13 +33,18 @@ use crate::{
     args::DeviceArgs,
     diarize::{
         SpeakerArgs,
-        recording_id,
         speaker_name,
     },
     driver::Driver,
     family::Family,
     parakeet::ParakeetFlags,
     profile::Stamp,
+    publish::{
+        Clock,
+        Event,
+        PublishArgs,
+        statements,
+    },
     qwen3_asr::Qwen3AsrFlags,
     stream::Preset,
     whisper,
@@ -138,17 +140,8 @@ pub struct TranscribeIo {
     #[clap(flatten)]
     pub device: DeviceArgs,
 
-    /// Print one JSON object per file: the text, the language when the model
-    /// names one, each word with its start and end in seconds when the model
-    /// times words, and each segment when it emits segments; under
-    /// `--diarize`, each word's or segment's speaker, and the turns.
-    #[arg(long)]
-    pub json: bool,
-
-    /// Print NIST RTTM: a `SPEAKER` line per turn, the file's stem as its
-    /// recording id. Needs `--diarize`.
-    #[arg(long, requires = "diarize", conflicts_with = "json")]
-    pub rttm: bool,
+    #[clap(flatten)]
+    pub publish: PublishArgs,
 
     #[clap(flatten)]
     pub speakers: SpeakerArgs,
@@ -255,21 +248,6 @@ pub fn speaker_turns(segments: &[TranscriptSegment]) -> Vec<Turn> {
     turns
 }
 
-/// A turn as a text line: `[speaker_k] text`, `[?]` for nobody.
-pub fn turn_line(turn: &Turn) -> String {
-    format!("[{}] {}", turn.speaker.as_deref().unwrap_or("?"), turn.text)
-}
-
-/// One file, as `--json` prints it.
-#[derive(Serialize)]
-struct JsonTranscript<'a> {
-    file: String,
-    #[serde(flatten)]
-    stamp: Option<&'a Stamp>,
-    #[serde(flatten)]
-    transcript: &'a Transcript,
-}
-
 impl<F: clap::Args + FamilyFlags> TranscribeCmd<F> {
     pub fn run(
         &self,
@@ -290,7 +268,8 @@ impl TranscribeIo {
     }
 
     /// Transcribes the files with `model` of `family` under `flags`, `preset`
-    /// and pushes of `chunk_ms`; `--json` adds `stamp`, what chose them.
+    /// and pushes of `chunk_ms`, publishing each file's statements, then its
+    /// transcript with `stamp`, what chose them.
     pub fn run<F: FamilyFlags>(
         &self,
         family: Family,
@@ -300,6 +279,11 @@ impl TranscribeIo {
         chunk_ms: usize,
         stamp: Option<&Stamp>,
     ) -> BunsenResult<()> {
+        // The targets open first: a bad config, or a broker, fails before
+        // the model loads.
+        let mut publisher = self
+            .publish
+            .init(Clock::Offset, self.speakers.diarize.is_some())?;
         let device = self.device.open()?;
         // The options come from the command line.
         let cache = PretrainedCache::new(flags.cache_options(self.cache.options())).as_policy()?;
@@ -314,40 +298,21 @@ impl TranscribeIo {
         for path in &self.files {
             let samples = load_audio_mono_sr(path, rate)?;
             let t0 = Instant::now();
-            let transcript = driver.transcribe(&samples, chunk)?;
+            let (transcript, segments) = driver.transcribe(&samples, chunk)?;
             let elapsed = t0.elapsed();
 
-            if self.json {
-                let json = JsonTranscript {
-                    file: path.display().to_string(),
-                    stamp,
-                    transcript: &transcript,
-                };
-                println!(
-                    "{}",
-                    serde_json::to_string(&json).expect("a transcript serializes")
-                );
-            } else if self.rttm {
-                let id = recording_id(path);
-                for turn in transcript.turns.iter().flatten() {
-                    if let Some(speaker) = &turn.speaker {
-                        let segment = RttmSegment {
-                            file: id.clone(),
-                            channel: 1,
-                            start: turn.start,
-                            duration: turn.end - turn.start,
-                            speaker: speaker.clone(),
-                        };
-                        println!("{segment}");
-                    }
-                }
-            } else if let Some(turns) = &transcript.turns {
-                for turn in turns {
-                    println!("{}", turn_line(turn));
-                }
-            } else {
-                println!("{}", transcript.text);
+            let file = path.display().to_string();
+            for statement in statements(&segments) {
+                publisher.push(&Event::Statement {
+                    file: Some(&file),
+                    statement: &statement,
+                })?;
             }
+            publisher.push(&Event::Transcript {
+                file: &file,
+                stamp,
+                transcript: &transcript,
+            })?;
 
             let seconds = samples.len() as f64 / rate as f64;
             log::info!(
@@ -365,7 +330,7 @@ impl TranscribeIo {
                 audio / busy.as_secs_f64()
             );
         }
-        Ok(())
+        publisher.finish()
     }
 }
 
@@ -408,10 +373,17 @@ mod tests {
             segment("hi", 2.0, Some(1)),
             segment("um", 3.0, None),
         ]);
-        let lines: Vec<String> = turns.iter().map(turn_line).collect();
+        let lines: Vec<(Option<&str>, &str)> = turns
+            .iter()
+            .map(|t| (t.speaker.as_deref(), t.text.as_str()))
+            .collect();
         assert_eq!(
             lines,
-            ["[speaker_0] hello there", "[speaker_1] hi", "[?] um"]
+            [
+                (Some("speaker_0"), "hello there"),
+                (Some("speaker_1"), "hi"),
+                (None, "um")
+            ]
         );
         assert_eq!((turns[0].start, turns[0].end), (0.0, 1.5));
     }

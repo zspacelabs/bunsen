@@ -15,6 +15,7 @@ use bunsen::{
     data::pretrained::PretrainedCache,
     errors::BunsenResult,
     kits::speech::{
+        asr_driver::TranscriptSegment,
         diarization::SpeakerActivityModel,
         parakeet::ParakeetStreamDriver,
         qwen3_asr::Qwen3AsrStreamDriver,
@@ -115,12 +116,13 @@ impl Driver {
         }
     }
 
-    /// Transcribes one recording, `chunk` samples a push.
+    /// Transcribes one recording, `chunk` samples a push; the transcript,
+    /// and the committed segments it was made of.
     pub fn transcribe(
         &self,
         samples: &[f32],
         chunk: usize,
-    ) -> BunsenResult<Transcript> {
+    ) -> BunsenResult<(Transcript, Vec<TranscriptSegment>)> {
         match self {
             Driver::Parakeet(d) => parakeet::transcribe(d, samples, chunk),
             Driver::Qwen3Asr(d) => qwen3_asr::transcribe(d, samples, chunk),

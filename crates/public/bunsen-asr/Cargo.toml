@@ -26,6 +26,11 @@ default = ["live"]
 ## `<family> live`: the microphone through the host's audio API (`cpal`;
 ## on Linux it links ALSA, `libasound2-dev`), and Ctrl-C as a clean stop.
 live = ["dep:cpal", "dep:ctrlc"]
+## `--publish` to a `webhook` target: each record POSTed as JSON (`ureq`).
+webhook = ["dep:ureq"]
+## `--publish` to an `mqtt` target: each record published to a broker
+## (`rumqttc`, plain TCP).
+mqtt = ["dep:rumqttc"]
 ## Make `--device cuda` available.
 cuda = ["bunsen-app/cuda"]
 ## Make `--device metal` available.
@@ -57,8 +62,12 @@ clap = { workspace = true, features = ["derive"] }
 cpal = { workspace = true, optional = true }
 ctrlc = { workspace = true, optional = true }
 log = { workspace = true }
+rumqttc = { version = "0.25.1", default-features = false, optional = true }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
+serde-saphyr = { workspace = true }
+time = { workspace = true }
+ureq = { workspace = true, optional = true }
 
 [dev-dependencies]
 tempfile = { workspace = true }

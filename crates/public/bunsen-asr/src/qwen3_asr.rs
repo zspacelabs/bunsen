@@ -8,7 +8,10 @@ use bunsen::{
         BunsenResult,
     },
     kits::speech::{
-        asr_driver::LevelPolicy,
+        asr_driver::{
+            LevelPolicy,
+            TranscriptSegment,
+        },
         qwen3_asr::{
             Qwen3AsrBundle,
             Qwen3AsrEngine,
@@ -79,9 +82,9 @@ pub fn transcribe(
     driver: &Qwen3AsrStreamDriver,
     samples: &[f32],
     chunk: usize,
-) -> BunsenResult<Transcript> {
+) -> BunsenResult<(Transcript, Vec<TranscriptSegment>)> {
     let (segments, ctx) = stream::stream(driver, samples, LEVEL, chunk)?;
-    Ok(Transcript {
+    let transcript = Transcript {
         text: stream::join_text(&segments),
         turns: driver.speakers().map(|_| speaker_turns(&segments)),
         language: ctx.language().map(String::from),
@@ -99,5 +102,6 @@ pub fn transcribe(
                 })
                 .collect(),
         ),
-    })
+    };
+    Ok((transcript, segments))
 }

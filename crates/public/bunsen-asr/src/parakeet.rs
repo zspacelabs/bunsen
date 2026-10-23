@@ -8,7 +8,10 @@ use bunsen::{
         BunsenResult,
     },
     kits::speech::{
-        asr_driver::LevelPolicy,
+        asr_driver::{
+            LevelPolicy,
+            TranscriptSegment,
+        },
         parakeet::{
             ParakeetBundle,
             ParakeetEngine,
@@ -76,7 +79,7 @@ pub fn transcribe(
     driver: &ParakeetStreamDriver,
     samples: &[f32],
     chunk: usize,
-) -> BunsenResult<Transcript> {
+) -> BunsenResult<(Transcript, Vec<TranscriptSegment>)> {
     let (segments, _) = stream::stream(driver, samples, LEVEL, chunk)?;
     let words = segments
         .iter()
@@ -91,11 +94,12 @@ pub fn transcribe(
             })
         })
         .collect();
-    Ok(Transcript {
+    let transcript = Transcript {
         text: stream::join_text(&segments),
         turns: driver.speakers().map(|_| speaker_turns(&segments)),
         language: None,
         words: Some(words),
         segments: None,
-    })
+    };
+    Ok((transcript, segments))
 }
