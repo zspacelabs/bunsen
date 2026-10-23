@@ -28,6 +28,8 @@
 //!   pre-norm encoder with rotary attention, `Nemotron-3-Diarization`'s; and
 //!   [`ConformerEncoder`](encoders::conformer::ConformerEncoder), the
 //!   `FastConformer`, Parakeet's and Sortformer v2's.
+//!   [`EncoderTransformer`](encoders::EncoderTransformer) is any of their
+//!   stacks, chosen by config.
 //! - [`mlp`]: [`Mlp`](mlp::Mlp), the position-wise feed-forward block (expand,
 //!   activate, project back), [`layer_norm_mlp`](mlp::layer_norm_mlp), which
 //!   runs it after a `LayerNorm`, and [`GatedMlp`](mlp::GatedMlp), the `SwiGLU`
