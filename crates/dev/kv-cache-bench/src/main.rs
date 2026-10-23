@@ -11,7 +11,21 @@
 //!   `slice_assign` updates in place; if a backend copies, it copies every
 //!   layer's storage on every write.
 //! - `per-layer`: per-layer preallocated key and value tensors, written by
-//!   `slice_assign`: the fallback if the single buffer copies.
+//!   `slice_assign` on a clone of the buffer, so the write always sees a second
+//!   reference.
+//! - `per-layer-inplace`: the same, written through [`Tensor::inplace`], so
+//!   nothing else references the buffer while it is written, and the backend
+//!   may reuse it.
+//! - `multi-layer`: `KVCache`'s scheme rebuilt here, so its writes can be
+//!   checked: one `[layers, 2, batch, heads, seq, head_dim]` buffer, taken out
+//!   of its slot to be written, handing out views of each layer's history.
+//!
+//! Each write to a preallocated buffer first asks [`Tensor::can_mut`] whether
+//! the buffer is uniquely owned, so the backend may write it in place; the
+//! "in-place writes" column counts the writes that were, and
+//! `--require-in-place` panics on the first that isn't. (`concat` writes
+//! nothing in place; `KVCache` keeps its buffer private, which is what
+//! `multi-layer` is for.)
 //!
 //! Each step appends one position to every layer, attends over the layer's
 //! history (scores, softmax, values), feeds the result to the next layer, and
@@ -55,8 +69,12 @@ enum Strategy {
     Concat,
     /// The shared multi-layer `KVCache`.
     KvCache,
-    /// Per-layer preallocated buffers, written by `slice_assign`.
+    /// Per-layer preallocated buffers, written by `slice_assign` on a clone.
     PerLayer,
+    /// Per-layer preallocated buffers, written through `Tensor::inplace`.
+    PerLayerInplace,
+    /// `KVCache`'s single multi-layer buffer, rebuilt with the check.
+    MultiLayer,
 }
 
 /// Times decode-shaped KV cache growth.
@@ -66,7 +84,7 @@ struct Args {
     backend: BackendArgs,
 
     /// The strategies to time.
-    #[arg(long, value_enum, value_delimiter = ',', default_values_t = [Strategy::Concat, Strategy::KvCache, Strategy::PerLayer])]
+    #[arg(long, value_enum, value_delimiter = ',', default_values_t = [Strategy::Concat, Strategy::KvCache, Strategy::PerLayer, Strategy::PerLayerInplace, Strategy::MultiLayer])]
     strategies: Vec<Strategy>,
 
     /// Batch sizes to time (a beam search's beams are its batch).
@@ -92,6 +110,11 @@ struct Args {
     /// Timed repetitions, after one untimed warm-up.
     #[arg(long, default_value_t = 3)]
     reps: usize,
+
+    /// Panic on the first preallocated write whose buffer isn't uniquely
+    /// owned (`Tensor::can_mut` false), rather than counting it.
+    #[arg(long)]
+    require_in_place: bool,
 }
 
 /// One timed run.
@@ -101,6 +124,8 @@ struct Run {
     steps: Vec<Duration>,
     peak_in_use: Option<u64>,
     peak_reserved: Option<u64>,
+    /// `(in place, checked)` writes; `None` for a strategy that isn't checked.
+    in_place: Option<(u64, u64)>,
 }
 
 impl Run {
@@ -120,6 +145,33 @@ impl Run {
     }
 }
 
+/// Counts the preallocated writes whose buffer [`Tensor::can_mut`] says is
+/// uniquely owned.
+struct InPlace {
+    require: bool,
+    in_place: u64,
+    checked: u64,
+}
+
+impl InPlace {
+    /// Notes a write to `buffer`, before it happens.
+    fn check<const D: usize>(
+        &mut self,
+        what: &str,
+        buffer: &Tensor<D>,
+    ) {
+        self.checked += 1;
+        if buffer.can_mut() {
+            self.in_place += 1;
+        } else if self.require {
+            panic!(
+                "{what}: write {} would copy: the buffer has another reference",
+                self.checked
+            );
+        }
+    }
+}
+
 /// The history store a strategy grows.
 enum History {
     Concat(Vec<Option<AttnKvPair>>),
@@ -127,6 +179,12 @@ enum History {
     PerLayer {
         keys: Vec<Tensor<4>>,
         values: Vec<Tensor<4>>,
+        pos: usize,
+        inplace: bool,
+    },
+    MultiLayer {
+        buffer: Option<Tensor<6>>,
+        layers: usize,
         pos: usize,
     },
 }
@@ -145,7 +203,7 @@ impl History {
                     .with_max_seq_len(Some(args.steps))
                     .init(),
             ),
-            Strategy::PerLayer => {
+            Strategy::PerLayer | Strategy::PerLayerInplace => {
                 let shape = [batch, args.heads, args.steps, args.head_dim];
                 Self::PerLayer {
                     keys: (0..args.layers)
@@ -155,8 +213,17 @@ impl History {
                         .map(|_| Tensor::zeros(shape, device))
                         .collect(),
                     pos: 0,
+                    inplace: strategy == Strategy::PerLayerInplace,
                 }
             }
+            Strategy::MultiLayer => Self::MultiLayer {
+                buffer: Some(Tensor::zeros(
+                    [args.layers, 2, batch, args.heads, args.steps, args.head_dim],
+                    device,
+                )),
+                layers: args.layers,
+                pos: 0,
+            },
         }
     }
 
@@ -166,6 +233,7 @@ impl History {
         layer: usize,
         k: Tensor<4>,
         v: Tensor<4>,
+        check: &mut InPlace,
     ) -> (Tensor<4>, Tensor<4>) {
         match self {
             Self::Concat(pairs) => {
@@ -179,19 +247,62 @@ impl History {
                 out
             }
             Self::KvCache(cache) => cache.insert_kv(layer, k, v),
-            Self::PerLayer { keys, values, pos } => {
+            Self::PerLayer {
+                keys,
+                values,
+                pos,
+                inplace,
+            } => {
                 let t = *pos;
-                let key = keys[layer].clone().slice_assign(s![.., .., t..t + 1], k);
-                let value = values[layer].clone().slice_assign(s![.., .., t..t + 1], v);
-                keys[layer] = key.clone();
-                values[layer] = value.clone();
+                if *inplace {
+                    keys[layer].inplace(|key| {
+                        check.check("per-layer-inplace key", &key);
+                        key.slice_assign(s![.., .., t..t + 1], k)
+                    });
+                    values[layer].inplace(|value| {
+                        check.check("per-layer-inplace value", &value);
+                        value.slice_assign(s![.., .., t..t + 1], v)
+                    });
+                } else {
+                    let key = keys[layer].clone();
+                    check.check("per-layer key", &key);
+                    keys[layer] = key.slice_assign(s![.., .., t..t + 1], k);
+                    let value = values[layer].clone();
+                    check.check("per-layer value", &value);
+                    values[layer] = value.slice_assign(s![.., .., t..t + 1], v);
+                }
                 if layer + 1 == keys.len() {
                     *pos = t + 1;
                 }
                 (
-                    key.slice(s![.., .., ..t + 1]),
-                    value.slice(s![.., .., ..t + 1]),
+                    keys[layer].clone().slice(s![.., .., ..t + 1]),
+                    values[layer].clone().slice(s![.., .., ..t + 1]),
                 )
+            }
+            Self::MultiLayer {
+                buffer,
+                layers,
+                pos,
+            } => {
+                let t = *pos;
+                let mut b = buffer.take().expect("the buffer is in its slot");
+                check.check("multi-layer", &b);
+                b = b.slice_assign(s![layer, 0, .., .., t..t + 1], k.unsqueeze());
+                check.check("multi-layer", &b);
+                b = b.slice_assign(s![layer, 1, .., .., t..t + 1], v.unsqueeze());
+                let key = b
+                    .clone()
+                    .slice(s![layer, 0, .., .., ..t + 1])
+                    .squeeze_dims::<4>(&[0, 1]);
+                let value = b
+                    .clone()
+                    .slice(s![layer, 1, .., .., ..t + 1])
+                    .squeeze_dims::<4>(&[0, 1]);
+                *buffer = Some(b);
+                if layer + 1 == *layers {
+                    *pos = t + 1;
+                }
+                (key, value)
             }
         }
     }
@@ -206,6 +317,11 @@ fn run(
     let scale = (args.head_dim as f64).sqrt().recip();
     let step = [batch, args.heads, 1, args.head_dim];
     let mut history = History::new(strategy, args, batch, device);
+    let mut check = InPlace {
+        require: args.require_in_place,
+        in_place: 0,
+        checked: 0,
+    };
     let usage = || device.memory_pool_usage();
     let (mut peak_in_use, mut peak_reserved) = (None::<u64>, None::<u64>);
     let mut steps = Vec::with_capacity(args.steps);
@@ -216,7 +332,7 @@ fn run(
     for _ in 0..args.steps {
         let ts = Instant::now();
         for layer in 0..args.layers {
-            let (k, v) = history.insert(layer, x.clone(), x.clone() * 0.5);
+            let (k, v) = history.insert(layer, x.clone(), x.clone() * 0.5, &mut check);
             let scores = x.clone().matmul(k.swap_dims(2, 3)) * scale;
             x = softmax(scores, 3).matmul(v);
         }
@@ -237,6 +353,7 @@ fn run(
         steps,
         peak_in_use,
         peak_reserved,
+        in_place: (check.checked > 0).then_some((check.in_place, check.checked)),
     }
 }
 
@@ -259,9 +376,9 @@ fn main() {
         args.steps
     );
     println!(
-        "| strategy | batch | total ms | ms/step | first quarter ms/step | last quarter ms/step | last / first | peak in use MiB | peak reserved MiB |"
+        "| strategy | batch | total ms | ms/step | first quarter ms/step | last quarter ms/step | last / first | peak in use MiB | peak reserved MiB | in-place writes |"
     );
-    println!("|---|---|---|---|---|---|---|---|---|");
+    println!("|---|---|---|---|---|---|---|---|---|---|");
     for &batch in &args.batches {
         for &strategy in &args.strategies {
             run(strategy, &args, batch, &device);
@@ -274,12 +391,16 @@ fn main() {
                 .expect("at least one repetition");
             let (first, last) = (best.ms_per_step(0.0, 0.25), best.ms_per_step(0.75, 1.0));
             println!(
-                "| {strategy:?} | {batch} | {:.1} | {:.3} | {first:.3} | {last:.3} | {:.2} | {} | {} |",
+                "| {strategy:?} | {batch} | {:.1} | {:.3} | {first:.3} | {last:.3} | {:.2} | {} | {} | {} |",
                 best.elapsed.as_secs_f64() * 1000.0,
                 best.elapsed.as_secs_f64() * 1000.0 / args.steps as f64,
                 last / first,
                 mib(best.peak_in_use),
                 mib(best.peak_reserved),
+                best.in_place.map_or("-".to_string(), |(n, of)| format!(
+                    "{:.0}% ({n} of {of})",
+                    100.0 * n as f64 / of as f64
+                )),
             );
         }
     }
