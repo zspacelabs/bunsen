@@ -994,13 +994,22 @@ mod tests {
         }
     }
 
-    /// The backend names burn's dispatch reports, as seen on Metal and the
-    /// CPU, with and without fusion.
+    /// The backend names burn 0.22's dispatch reports, as seen on the CPU,
+    /// Metal, Vulkan and CUDA, with and without fusion.
     #[test]
     fn test_backend_stack_parses_backend_names() {
         let parse = BackendStack::parse;
         let stack = |fused, runtime| BackendStack { fused, runtime };
         assert_eq!(parse("dispatch<flex>"), stack(false, Runtime::Other));
+        assert_eq!(
+            parse("dispatch<cubecl<wgpu<spirv>>>"),
+            stack(false, Runtime::Wgpu)
+        );
+        assert_eq!(
+            parse("dispatch<fusion<cubecl<wgpu<spirv>>>>"),
+            stack(true, Runtime::Wgpu)
+        );
+        assert_eq!(parse("dispatch<cubecl<cuda>>"), stack(false, Runtime::Cuda));
         assert_eq!(
             parse("dispatch<cubecl<wgpu<msl>>>"),
             stack(false, Runtime::Wgpu)
