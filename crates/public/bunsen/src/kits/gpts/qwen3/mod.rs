@@ -9,11 +9,11 @@
 //! [`GatedMlp`](crate::blocks::transformers::mlp::GatedMlp) and
 //! [`RotaryEmbedding`](crate::blocks::transformers::embedding::RotaryEmbedding),
 //! and decodes through a
-//! [`KVCache`](crate::ops::transformers::attention::`KVCache`).
+//! [`KVCache`](crate::ops::transformers::attention::KVCache).
 //!
 //! It is the text model of
 //! [`kits::speech::qwen3_asr`](crate::kits::speech::qwen3_asr).
 
-mod model;
+pub mod blocks;
 
-pub use model::*;
+pub use blocks::model::*;
