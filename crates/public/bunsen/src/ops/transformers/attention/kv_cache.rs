@@ -125,10 +125,12 @@ impl KVCacheStorage {
     /// | Fusion | Runtime | Storage |
     /// |---|---|---|
     /// | off | any | [`PerLayer`](Self::PerLayer): 13% to 1.9x faster than concatenation, with up to half the memory |
-    /// | on | wgpu (Vulkan, Metal, WebGPU) | [`Concat`](Self::Concat): fusion makes in-place writes 25-30% slower |
+    /// | on | wgpu (Vulkan, Metal, WebGPU) | [`Concat`](Self::Concat): fusion makes in-place writes 24-29% slower on Vulkan |
     /// | on | CUDA | [`PerLayer`](Self::PerLayer) |
     ///
-    /// Anything else (another runtime, the CPU) gets
+    /// Metal and WebGPU are cubecl's wgpu runtime too, so they take Vulkan's
+    /// row: fused Metal's own measurements varied more between runs than the
+    /// storages differed. Anything else (another runtime, the CPU) gets
     /// [`PerLayer`](Self::PerLayer), the best across everything measured.
     ///
     /// Both facts come from the device, not from bunsen's build: whether
