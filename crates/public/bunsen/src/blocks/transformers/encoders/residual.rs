@@ -25,10 +25,7 @@ use crate::{
         Mlp,
         MlpConfig,
     },
-    burner::module::{
-        ModuleInit,
-        Rekey,
-    },
+    burner::module::ModuleInit,
     contracts::unpack_shape_contract,
     errors::BunsenResult,
     ops::transformers::attention::length_mask,
@@ -364,55 +361,6 @@ impl ResidualEncoderTransformer {
     }
 }
 
-impl ResidualEncoderAttentionBlock {
-    /// Its tensors as a `transformers` Whisper-style encoder layer names them
-    /// (Whisper's, Qwen3-ASR's audio tower's), relative to it: `self_attn`'s
-    /// `{q,k,v,out}_proj` the attention, `self_attn_layer_norm` and
-    /// `final_layer_norm` the norms, `fc{1,2}` the MLP; everything else as it
-    /// is.
-    pub fn transformers_rekey() -> Rekey {
-        Rekey::keep_rest()
-            .rename("self_attn.q_proj.", "attn.query.")
-            .rename("self_attn.k_proj.", "attn.key.")
-            .rename("self_attn.v_proj.", "attn.value.")
-            .rename("self_attn.out_proj.", "attn.output.")
-            .rename("self_attn_layer_norm.", "attn_norm.")
-            .rename("final_layer_norm.", "mlp_norm.")
-            .rename("fc1.", "mlp.linear1.")
-            .rename("fc2.", "mlp.linear2.")
-    }
-
-    /// Its tensors as a `NeMo` `transformer_encoders.TransformerEncoder`
-    /// layer names them, relative to it: `first_sub_layer` the attention,
-    /// `second_sub_layer` the MLP, `layer_norm_{1,2}` their norms. Anything
-    /// else is dropped.
-    pub fn nemo_rekey() -> Rekey {
-        Rekey::drop_rest()
-            .rename("first_sub_layer.query_net.", "attn.query.")
-            .rename("first_sub_layer.key_net.", "attn.key.")
-            .rename("first_sub_layer.value_net.", "attn.value.")
-            .rename("first_sub_layer.out_projection.", "attn.output.")
-            .rename("second_sub_layer.dense_in.", "mlp.linear1.")
-            .rename("second_sub_layer.dense_out.", "mlp.linear2.")
-            .rename("layer_norm_1.", "attn_norm.")
-            .rename("layer_norm_2.", "mlp_norm.")
-    }
-}
-
-impl ResidualEncoderTransformer {
-    /// Its tensors as `NeMo`'s `transformer_encoders.TransformerEncoder` names
-    /// them, relative to it: each `layers.{n}` by
-    /// [`ResidualEncoderAttentionBlock::nemo_rekey`]. Anything else is
-    /// dropped.
-    pub fn nemo_rekey() -> Rekey {
-        Rekey::drop_rest().mount_indexed(
-            "layers.",
-            "layers.",
-            ResidualEncoderAttentionBlock::nemo_rekey(),
-        )
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use burn::{
@@ -608,32 +556,5 @@ mod tests {
             .slice([1..2, 0..4])
             .to_data()
             .assert_approx_eq::<f32>(&alone.to_data(), Tolerance::absolute(1e-5));
-    }
-
-    /// `NeMo`'s `TransformerEncoder` names, layer by layer.
-    #[test]
-    fn test_transformer_nemo_rekey() {
-        assert_eq!(
-            ResidualEncoderTransformer::nemo_rekey()
-                .apply("layers.17.first_sub_layer.key_net.bias")
-                .as_deref(),
-            Some("layers.17.attn.key.bias")
-        );
-        assert_eq!(
-            ResidualEncoderTransformer::nemo_rekey()
-                .apply("layers.0.second_sub_layer.dense_out.weight")
-                .as_deref(),
-            Some("layers.0.mlp.linear2.weight")
-        );
-        assert_eq!(
-            ResidualEncoderTransformer::nemo_rekey()
-                .apply("layers.2.layer_norm_2.bias")
-                .as_deref(),
-            Some("layers.2.mlp_norm.bias")
-        );
-        assert_eq!(
-            ResidualEncoderTransformer::nemo_rekey().apply("final_layer_norm.weight"),
-            None
-        );
     }
 }

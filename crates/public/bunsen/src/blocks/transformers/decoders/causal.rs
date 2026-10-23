@@ -26,10 +26,7 @@ use crate::{
             FeedForwardMeta,
         },
     },
-    burner::module::{
-        ModuleInit,
-        Rekey,
-    },
+    burner::module::ModuleInit,
     errors::{
         BunsenResult,
         ConstraintError,
@@ -170,24 +167,6 @@ impl CausalDecoderBlock {
     }
 }
 
-impl CausalDecoderBlock {
-    /// Its tensors as a `transformers` decoder layer names them (Qwen3's,
-    /// Llama's), relative to it: `input_layernorm` the attention's norm,
-    /// `post_attention_layernorm` the feed-forward's, `self_attn`'s
-    /// `{q,k,v,o}_proj` the attention's projections and its `{q,k}_norm` its
-    /// QK-norms, and the `SwiGLU`'s projections as they are.
-    pub fn transformers_rekey() -> Rekey {
-        Rekey::keep_rest()
-            .rename("input_layernorm.", "attn_norm.")
-            .rename("post_attention_layernorm.", "mlp_norm.")
-            .rename("self_attn.q_proj.", "attn.c_q.")
-            .rename("self_attn.k_proj.", "attn.c_k.")
-            .rename("self_attn.v_proj.", "attn.c_v.")
-            .rename("self_attn.o_proj.", "attn.c_proj.")
-            .rename("self_attn.", "attn.")
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use burn::{
@@ -310,25 +289,5 @@ mod tests {
         block.attn.c_proj.weight = Param::from_tensor(block.attn.c_proj.weight.val().zeros_like());
         let output = block.forward(input.clone(), &r_emb, &mut None);
         assert_tensors_close(&output, &input, Tolerance::default());
-    }
-
-    /// `transformers`' decoder-layer names, onto the block's own.
-    #[test]
-    fn test_transformers_rekey() {
-        let rekey = CausalDecoderBlock::transformers_rekey();
-        for (hf, bunsen) in [
-            ("input_layernorm.weight", "attn_norm.weight"),
-            ("post_attention_layernorm.weight", "mlp_norm.weight"),
-            ("self_attn.q_proj.weight", "attn.c_q.weight"),
-            ("self_attn.k_proj.weight", "attn.c_k.weight"),
-            ("self_attn.v_proj.weight", "attn.c_v.weight"),
-            ("self_attn.o_proj.weight", "attn.c_proj.weight"),
-            ("self_attn.q_norm.weight", "attn.q_norm.weight"),
-            ("self_attn.k_norm.weight", "attn.k_norm.weight"),
-            ("mlp.gate_proj.weight", "mlp.gate_proj.weight"),
-            ("mlp.down_proj.weight", "mlp.down_proj.weight"),
-        ] {
-            assert_eq!(rekey.apply(hf).as_deref(), Some(bunsen), "{hf}");
-        }
     }
 }

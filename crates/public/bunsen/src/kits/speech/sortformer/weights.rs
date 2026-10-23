@@ -6,16 +6,10 @@ use super::blocks::{
     Sortformer,
 };
 use crate::{
-    blocks::{
-        signals::{
-            DwStridingSubsamplingMeta,
-            FeatureStackingMeta,
-        },
-        transformers::encoders::{
-            conformer::ConformerEncoderConfig,
-            residual::ResidualEncoderTransformer,
-            rope::RopeTransformerEncoder,
-        },
+    blocks::signals::{
+        DwStridingSubsamplingMeta,
+        FeatureStackingMeta,
+        StackOrder,
     },
     burner::module::Rekey,
     data::pretrained::{
@@ -27,13 +21,57 @@ use crate::{
         BunsenError,
         BunsenResult,
     },
+    kits::speech::nemo::{
+        conformer_encoder_rekey,
+        transformer_encoder_rekey,
+    },
 };
+
+/// `transformers`' `Nemotron3DiarizationEmbedder` names onto a
+/// [`FeatureStacking`](crate::blocks::signals::FeatureStacking)'s, relative
+/// to it: `projection.*`, its weight permuted when `stacking` stacks
+/// otherwise than `transformers` does (frames outer). Anything else is
+/// dropped.
+pub fn embedder_rekey(stacking: &impl FeatureStackingMeta) -> Rekey {
+    stacking.restack_from(
+        StackOrder::FramesFeatures,
+        Rekey::drop_rest().rename("projection.", "projection."),
+    )
+}
+
+/// `transformers`' `Nemotron3DiarizationEncoderLayer` names onto a
+/// [`RopeEncoderBlock`](crate::blocks::transformers::encoders::rope::RopeEncoderBlock)'s,
+/// relative to it: `layer_norm{1,2}` its norms, `self_attn`'s
+/// `{q,k,v,o}_proj` the attention, `mlp.fc{1,2}` the MLP. Anything else is
+/// dropped.
+pub fn encoder_layer_rekey() -> Rekey {
+    Rekey::drop_rest()
+        .rename("layer_norm1.", "attn_norm.")
+        .rename("layer_norm2.", "mlp_norm.")
+        .rename("self_attn.q_proj.", "attn.query.")
+        .rename("self_attn.k_proj.", "attn.key.")
+        .rename("self_attn.v_proj.", "attn.value.")
+        .rename("self_attn.o_proj.", "attn.output.")
+        .rename("mlp.fc1.", "mlp.linear1.")
+        .rename("mlp.fc2.", "mlp.linear2.")
+}
+
+/// `transformers`' `Nemotron3DiarizationEncoder` names onto a
+/// [`RopeTransformerEncoder`](crate::blocks::transformers::encoders::rope::RopeTransformerEncoder)'s,
+/// relative to it: `input_layer_norm` the embedding norm, `layer_norm` the
+/// final one, each `layers.{n}` by [`encoder_layer_rekey`]. Anything else
+/// (the rotary table's `inv_freq`, a buffer) is dropped.
+pub fn encoder_rekey() -> Rekey {
+    Rekey::drop_rest()
+        .rename("input_layer_norm.", "embed_norm.")
+        .rename("layer_norm.", "final_norm.")
+        .mount_indexed("layers.", "layers.", encoder_layer_rekey())
+}
 
 /// `transformers`' `Nemotron3DiarizationForAudioFrameClassification`
 /// state-dict names onto a [`Sortformer`]'s module paths: the audio tower's
-/// embedder by [`FeatureStackingMeta::transformers_rekey`], its encoder by
-/// [`RopeTransformerEncoder::transformers_rekey`], the projection, upsample
-/// and head by prefix. Anything else is dropped.
+/// embedder by [`embedder_rekey`], its encoder by [`encoder_rekey`], the
+/// projection, upsample and head by prefix. Anything else is dropped.
 ///
 /// `stacking` is the encoder's front end, a config or a built module: its
 /// stack order fixes its map.
@@ -46,12 +84,12 @@ pub fn nemotron_hf_rekey(stacking: &impl FeatureStackingMeta) -> Rekey {
         .mount(
             "model.audio_tower.embedder.",
             "encoder.subsampling.",
-            stacking.transformers_rekey(),
+            embedder_rekey(stacking),
         )
         .mount(
             "model.audio_tower.",
             "encoder.transformer.",
-            RopeTransformerEncoder::transformers_rekey(),
+            encoder_rekey(),
         )
         .rename("model.proj.", "projection.")
         .rename("model.upsampler.conv.", "upsample.conv.")
@@ -81,8 +119,8 @@ pub fn load_nemotron_hf_tensors(
 
 /// `NeMo` `SortformerEncLabelModel` state-dict names, in Sortformer v2's
 /// layout, onto a [`Sortformer`]'s module paths: the `FastConformer` by
-/// [`ConformerEncoderConfig::nemo_rekey`], the `transformer_encoder` by
-/// [`ResidualEncoderTransformer::nemo_rekey`], the projection and head by
+/// [`conformer_encoder_rekey`], the `transformer_encoder` by
+/// [`transformer_encoder_rekey`], the projection and head by
 /// prefix. Anything else is dropped: `num_batches_tracked`, the
 /// featurizer's tables, and the unused `hidden_to_spks`.
 ///
@@ -90,15 +128,11 @@ pub fn load_nemotron_hf_tensors(
 /// stage count and flatten order fix its map.
 pub fn sortformer_v2_nemo_rekey(striding: &impl DwStridingSubsamplingMeta) -> Rekey {
     Rekey::drop_rest()
-        .mount(
-            "encoder.",
-            "encoder.",
-            ConformerEncoderConfig::nemo_rekey(striding),
-        )
+        .mount("encoder.", "encoder.", conformer_encoder_rekey(striding))
         .mount(
             "transformer_encoder.",
             "transformer.",
-            ResidualEncoderTransformer::nemo_rekey(),
+            transformer_encoder_rekey(),
         )
         .rename("sortformer_modules.encoder_proj.", "projection.")
         .rename("sortformer_modules.first_hidden_to_hidden.", "head.dense.")

@@ -183,10 +183,8 @@ impl ModuleInit<Qwen3Model> for Qwen3Config {
 /// Its own fields carry the names `transformers`' `Qwen3Model` gives them;
 /// its layers are the generic
 /// [`CausalDecoderBlock`](crate::blocks::transformers::decoders::causal::CausalDecoderBlock)
-/// (RMS norms, a `SwiGLU`, QK-norm before the rotary embedding), whose
-/// `transformers` names
-/// [`CausalDecoderBlock::transformers_rekey`](crate::blocks::transformers::decoders::causal::CausalDecoderBlock::transformers_rekey)
-/// maps.
+/// (RMS norms, a `SwiGLU`, QK-norm before the rotary embedding), onto which
+/// Qwen3-ASR's loader maps the `transformers` names.
 ///
 /// Built by [`Qwen3Config`].
 /// Implements [`Qwen3Meta`].

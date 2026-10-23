@@ -40,11 +40,11 @@ use crate::{
 ///
 /// A layout choice with a loading consequence: the projection's weight
 /// columns follow the flatten, so a checkpoint flattened the other way loads
-/// through its key map's transform ([`DwStridingSubsamplingMeta::nemo_rekey`],
-/// [`transformers_rekey`](DwStridingSubsamplingMeta::transformers_rekey)).
+/// through a key map that permutes them
+/// ([`DwStridingSubsamplingMeta::reflatten_from`]).
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum FlattenOrder {
-    /// Channels outer, frequencies inner: `NeMo`'s and `transformers'`.
+    /// Channels outer, frequencies inner.
     #[default]
     ChannelsFreqs,
 
@@ -53,7 +53,8 @@ pub enum FlattenOrder {
 }
 
 /// Common meta for [`DwStridingSubsampling`] and
-/// [`DwStridingSubsamplingConfig`], and the key maps that follow from it.
+/// [`DwStridingSubsamplingConfig`], and the key-map helpers that follow from
+/// it.
 pub trait DwStridingSubsamplingMeta {
     /// The mel channels it reads.
     fn n_mels(&self) -> usize;
@@ -89,47 +90,46 @@ pub trait DwStridingSubsamplingMeta {
     /// How the last convolution's output is flattened for the projection.
     fn flatten(&self) -> FlattenOrder;
 
-    /// Its tensors as `transformers`' `ParakeetEncoderSubsampling` names them,
-    /// relative to it: the flat `layers.{k}` onto the stem and the stages,
-    /// everything else as it is; and the projection's weight permuted when
-    /// this flattens otherwise than `transformers` does.
-    fn transformers_rekey(&self) -> Rekey {
-        reflatten(self, dw_striding_list("layers.", self.n_stages()))
+    /// A flat list of its layers' tensors, `{prefix}{k}.*` as a `PyTorch`
+    /// `nn.Sequential` of them indexes them, onto its module paths, relative
+    /// to it: `0` the stem's convolution, then each stage's depthwise and
+    /// pointwise convolutions, the activations between them counted. An
+    /// activation's index, or one past the stages, is dropped; anything else
+    /// is kept as it is.
+    fn sequential_rekey(
+        &self,
+        prefix: &'static str,
+    ) -> Rekey {
+        let n_stages = self.n_stages();
+        Rekey::keep_rest().custom(move |name| {
+            let (k, param) = name.strip_prefix(prefix)?.split_once('.')?;
+            let module = k.parse().ok().and_then(|k| dw_striding_module(k, n_stages));
+            Some(module.map(|module| format!("{module}.{param}")))
+        })
     }
 
-    /// Its tensors as `NeMo`'s `ConvSubsampling` (`pre_encode`) names them,
-    /// relative to it: the flat `conv.{k}` onto the stem and the stages, and
-    /// `out` the projection, its weight permuted when this flattens otherwise
-    /// than `NeMo` does. Anything else is dropped.
-    fn nemo_rekey(&self) -> Rekey {
-        let conv = dw_striding_list("conv.", self.n_stages());
-        reflatten(
-            self,
-            Rekey::drop_rest()
-                .custom(move |name| name.starts_with("conv.").then(|| conv.apply(name)))
-                .rename("out.", "linear."),
-        )
-    }
-}
-
-/// `rekey`, and, when `meta` flattens otherwise than the checkpoints bunsen
-/// reads (channels outer), the projection's weight permuted to match: in
-/// `PyTorch`'s `[out, in]`, `[d_model, channels * n_freq]` to
-/// `[d_model, n_freq * channels]`.
-fn reflatten<M: DwStridingSubsamplingMeta + ?Sized>(
-    meta: &M,
-    rekey: Rekey,
-) -> Rekey {
-    match meta.flatten() {
-        FlattenOrder::ChannelsFreqs => rekey,
-        FlattenOrder::FreqsChannels => {
-            let (c, f) = (meta.channels(), meta.n_freq_out());
-            rekey.transform("linear.weight", move |data| {
-                let d = data.shape().num_elements() / (c * f);
-                let data = reshape_data(data, vec![d, c, f]);
-                reshape_data(permute_data(data, &[0, 2, 1]), vec![d, f * c])
-            })
+    /// `rekey`, and, when `from`, the order a checkpoint flattens in, is not
+    /// this one's, the projection's weight (`linear.weight`) permuted to
+    /// match: in `PyTorch`'s `[out, in]`, `[d_model, a * b]` to
+    /// `[d_model, b * a]`.
+    fn reflatten_from(
+        &self,
+        from: FlattenOrder,
+        rekey: Rekey,
+    ) -> Rekey {
+        if from == self.flatten() {
+            return rekey;
         }
+        let (c, f) = (self.channels(), self.n_freq_out());
+        let (a, b) = match from {
+            FlattenOrder::ChannelsFreqs => (c, f),
+            FlattenOrder::FreqsChannels => (f, c),
+        };
+        rekey.transform("linear.weight", move |data| {
+            let d = data.shape().num_elements() / (a * b);
+            let data = reshape_data(data, vec![d, a, b]);
+            reshape_data(permute_data(data, &[0, 2, 1]), vec![d, b * a])
+        })
     }
 }
 
@@ -392,18 +392,6 @@ fn dw_striding_module(
         },
         _ => None,
     }
-}
-
-/// `{prefix}{k}.{param}`, a flat `ModuleList`'s entry, to its module's path.
-fn dw_striding_list(
-    prefix: &'static str,
-    n_stages: usize,
-) -> Rekey {
-    Rekey::keep_rest().custom(move |name| {
-        let (k, param) = name.strip_prefix(prefix)?.split_once('.')?;
-        let module = k.parse().ok().and_then(|k| dw_striding_module(k, n_stages));
-        Some(module.map(|module| format!("{module}.{param}")))
-    })
 }
 
 #[cfg(test)]
