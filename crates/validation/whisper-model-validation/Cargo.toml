@@ -57,7 +57,7 @@ gpu-tests = []
 ## Run the cross-check on `wgpu`. The usual choice.
 wgpu = ["bunsen/wgpu"]
 
-## Run the cross-check on `wgpu`. The usual choice.
+## Run the cross-check on Vulkan.
 vulkan = ["bunsen/vulkan"]
 
 ## Run the cross-check on CUDA.
