@@ -1,7 +1,3 @@
-//! The kit's `transformers` loader on a real checkpoint:
-//! `openai/whisper-base`'s `model.safetensors` is `transformers`' conversion
-//! of `base.pt`, so it loads into the same model, weight for weight.
-
 use bunsen::{
     data::pretrained::SafetensorsCheckpoint,
     kits::speech::whisper::pretrained::{
@@ -15,9 +11,10 @@ use burn::store::{
     bridge,
 };
 
-/// `model.safetensors`, through the `transformers` loader, is `base.pt`
-/// through the `.pt` loader: the same geometry, and every parameter the
-/// same value, exactly.
+/// `openai/whisper-base`'s `model.safetensors` is `transformers`' conversion
+/// of `base.pt`, so through the kit's `transformers` loader it is `base.pt`
+/// through the `.pt` loader: the same geometry, and every parameter the same
+/// value, exactly.
 #[test]
 fn test_the_transformers_checkpoint_is_base_pt() {
     let device = cpu_device();
