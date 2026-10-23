@@ -1,6 +1,4 @@
 //! Loading `transformers`-named tensors into a [`Qwen3Asr`].
-use std::sync::LazyLock;
-
 use burn::store::burn_pack::Tensor as PackTensor;
 
 use super::blocks::{
@@ -12,13 +10,16 @@ use super::blocks::{
 use crate::{
     blocks::{
         conv::ConvSeq2d,
-        transformers::decoders::causal::CausalDecoderBlock,
+        transformers::{
+            decoders::causal::CausalDecoderBlock,
+            encoders::residual::ResidualEncoderAttentionBlock,
+        },
     },
     burner::module::Rekey,
     data::pretrained::{
         HfConfigJson,
         NamedTensorsApplied,
-        apply_named_tensors_as,
+        apply_rekeyed_tensors_as,
     },
     errors::BunsenResult,
     kits::gpts::qwen3::{
@@ -27,73 +28,60 @@ use crate::{
     },
 };
 
-/// The bunsen module path of one `transformers`
-/// `Qwen3ASRForConditionalGeneration` state-dict name, or `None` for an entry
-/// that is not a parameter of its own (the tied `lm_head.weight`).
+/// `transformers`' `Qwen3ASRForConditionalGeneration` state-dict names onto
+/// a [`Qwen3Asr`]'s module paths: under `model.`, the audio tower's 1-based
+/// `conv2d{n}` onto its stem's 0-based `ConvSeq2d` blocks, its layers by
+/// [`ResidualEncoderAttentionBlock::transformers_rekey`], the text model's
+/// layers by [`CausalDecoderBlock::transformers_rekey`], and everything else
+/// as it is. Anything outside `model.` (the tied `lm_head.weight`) is
+/// dropped.
 ///
 /// Normalization parameters keep their `weight` / `bias` spellings, which
-/// [`apply_named_tensors_as`] resolves to `gamma` / `beta`.
-pub fn hf_to_bunsen_path(name: &str) -> Option<String> {
-    let name = name.strip_prefix("model.")?;
-    const RENAMES: &[(&str, &str)] = &[
-        // The audio tower's layers are the shared encoder block's.
-        (".self_attn.q_proj.", ".attn.query."),
-        (".self_attn.k_proj.", ".attn.key."),
-        (".self_attn.v_proj.", ".attn.value."),
-        (".self_attn.out_proj.", ".attn.output."),
-        (".self_attn_layer_norm.", ".attn_norm."),
-        (".final_layer_norm.", ".mlp_norm."),
-        (".fc1.", ".mlp.linear1."),
-        (".fc2.", ".mlp.linear2."),
-    ];
-    // The text model's layers are the shared causal decoder layer's.
-    static TEXT_LAYERS: LazyLock<Rekey> = LazyLock::new(|| {
-        Rekey::drop_rest().mount_indexed(
-            "language_model.layers.",
-            "language_model.layers.",
-            CausalDecoderBlock::transformers_rekey(),
-        )
-    });
-    if name.starts_with("language_model.layers.") {
-        return TEXT_LAYERS.apply(name);
-    }
-    // The stem's 1-based `conv2d{n}` are the 0-based blocks of a `ConvSeq2d`.
-    if let Some(rest) = name.strip_prefix("audio_tower.conv2d")
-        && let Some((n, param)) = rest.split_once('.')
-        && let Ok(n @ 1..) = n.parse::<usize>()
-    {
+/// [`apply_rekeyed_tensors_as`] resolves to `gamma` / `beta`.
+pub fn hf_rekey() -> Rekey {
+    let stem = Rekey::drop_rest().custom(|name| {
+        let (n, param) = name.split_once('.')?;
+        let n: usize = n.parse().ok().filter(|&n| n >= 1)?;
         let conv = ConvSeq2d::block_conv_path("audio_tower.stem", n - 1);
-        return Some(format!("{conv}.{param}"));
-    }
-    let renames = if name.starts_with("audio_tower.") {
-        RENAMES
-    } else {
-        &[]
-    };
-    let mut path = name.to_string();
-    for (from, to) in renames {
-        if path.contains(from) {
-            path = path.replacen(from, to, 1);
-            break;
-        }
-    }
-    Some(path)
+        Some(Some(format!("{conv}.{param}")))
+    });
+    Rekey::drop_rest().mount(
+        "model.",
+        "",
+        Rekey::keep_rest()
+            .custom(move |name| {
+                // A name that is not a stem convolution's is left to the
+                // next rule, as it is.
+                let rest = name.strip_prefix("audio_tower.conv2d")?;
+                stem.target(rest).map(|t| Some(t.path))
+            })
+            .mount_indexed(
+                "audio_tower.layers.",
+                "audio_tower.layers.",
+                ResidualEncoderAttentionBlock::transformers_rekey(),
+            )
+            .mount_indexed(
+                "language_model.layers.",
+                "language_model.layers.",
+                CausalDecoderBlock::transformers_rekey(),
+            ),
+    )
 }
 
 /// Loads tensors named as `transformers`' `Qwen3ASRForConditionalGeneration`
-/// state dict into `model`: [`apply_named_tensors_as`] under
-/// [`hf_to_bunsen_path`], every floating tensor cast to the dtype `model` was
+/// state dict into `model`: [`apply_rekeyed_tensors_as`] under
+/// [`hf_rekey`], every floating tensor cast to the dtype `model` was
 /// built in. The checkpoints ship `bf16`, which not every backend computes
 /// in.
 ///
 /// # Errors
-/// As [`apply_named_tensors_as`].
+/// As [`apply_rekeyed_tensors_as`].
 pub fn load_hf_tensors(
     model: &mut Qwen3Asr,
     tensors: impl IntoIterator<Item = PackTensor>,
 ) -> BunsenResult<NamedTensorsApplied> {
     let dtype = model.multi_modal_projector.linear_2.weight.val().dtype();
-    apply_named_tensors_as(model, tensors, hf_to_bunsen_path, Some(dtype))
+    apply_rekeyed_tensors_as(model, tensors, &hf_rekey(), Some(dtype))
 }
 
 /// The [`Qwen3AsrConfig`] of a `transformers`
@@ -179,7 +167,8 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_hf_to_bunsen_path() {
+    fn test_hf_rekey() {
+        let rekey = hf_rekey();
         for (hf, bunsen) in [
             (
                 "model.audio_tower.conv2d1.weight",
@@ -235,7 +224,7 @@ mod tests {
             ),
             ("lm_head.weight", None),
         ] {
-            assert_eq!(hf_to_bunsen_path(hf).as_deref(), bunsen, "{hf}");
+            assert_eq!(rekey.apply(hf).as_deref(), bunsen, "{hf}");
         }
     }
 
