@@ -17,12 +17,15 @@ use super::{
     TdtPredictionNetworkConfig,
 };
 use crate::{
-    blocks::transformers::encoders::conformer::{
-        ConformerBlockConfig,
-        ConformerEncoder,
-        ConformerEncoderConfig,
-        ConformerEncoderMeta,
-        DwStridingSubsamplingConfig,
+    blocks::transformers::encoders::{
+        SubsampledEncoder,
+        SubsampledEncoderMeta,
+        conformer::{
+            ConformerBlockConfig,
+            ConformerEncoderConfig,
+            ConformerEncoderMeta,
+            DwStridingSubsamplingConfig,
+        },
     },
     burner::module::ModuleInit,
     errors::{
@@ -159,7 +162,7 @@ impl ModuleInit<ParakeetTdt> for ParakeetTdtConfig {
 #[derive(Module, Debug)]
 pub struct ParakeetTdt {
     /// The `FastConformer` encoder.
-    pub encoder: ConformerEncoder,
+    pub encoder: SubsampledEncoder,
 
     /// `d_model -> d_pred`: encoder frames into the joint's space.
     pub encoder_projector: Linear,

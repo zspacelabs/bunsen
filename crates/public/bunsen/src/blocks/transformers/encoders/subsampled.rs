@@ -19,7 +19,6 @@ use crate::{
             EncoderTransformerConfig,
             EncoderTransformerMeta,
             conformer::{
-                ConformerEncoderConfig,
                 DwStridingSubsampling,
                 DwStridingSubsamplingConfig,
                 DwStridingSubsamplingMeta,
@@ -234,18 +233,6 @@ impl SubsampledEncoderMeta for SubsampledEncoderConfig {
 
     fn n_layers(&self) -> usize {
         self.transformer.n_layers()
-    }
-}
-
-impl From<ConformerEncoderConfig> for SubsampledEncoderConfig {
-    /// The `FastConformer` as a subsampled encoder: its depthwise striding,
-    /// then its [`ConformerTransformer`](super::conformer::ConformerTransformer),
-    /// fed the striding's own `[batch, n_mels, time]`.
-    fn from(config: ConformerEncoderConfig) -> Self {
-        Self::new(
-            SubsamplingConfig::DwStriding(config.subsampling.clone()),
-            config.transformer().into(),
-        )
     }
 }
 

@@ -8,12 +8,13 @@ use super::blocks::{
 use crate::{
     blocks::{
         rnn::lstm::FusedLstm,
-        transformers::encoders::conformer::{
-            ConformerBlockConfig,
-            ConformerEncoder,
-            ConformerEncoderConfig,
-            DwStridingSubsamplingConfig,
-            DwStridingSubsamplingMeta,
+        transformers::encoders::{
+            SubsampledEncoderMeta,
+            conformer::{
+                ConformerBlockConfig,
+                ConformerEncoderConfig,
+                DwStridingSubsamplingConfig,
+            },
         },
     },
     burner::module::Rekey,
@@ -27,7 +28,7 @@ use crate::{
 
 /// `transformers`' `ParakeetForTDT` state-dict names onto a
 /// [`ParakeetTdt`]'s module paths: the encoder by
-/// [`ConformerEncoder::transformers_rekey`], the prediction network's
+/// [`ConformerEncoderConfig::transformers_rekey`], the prediction network's
 /// `nn.LSTM` by [`FusedLstm::torch_stack_rekey`], the batch-norm counters
 /// dropped, and everything else as it is.
 ///
@@ -41,7 +42,7 @@ pub fn hf_rekey(n_stages: usize) -> Rekey {
         .mount(
             "encoder.",
             "encoder.",
-            ConformerEncoder::transformers_rekey(n_stages),
+            ConformerEncoderConfig::transformers_rekey(n_stages),
         )
         .mount(
             "decoder.lstm.",
@@ -60,7 +61,8 @@ pub fn load_hf_tensors(
     model: &mut ParakeetTdt,
     tensors: impl IntoIterator<Item = PackTensor>,
 ) -> BunsenResult<NamedTensorsApplied> {
-    let n_stages = model.encoder.subsampling.n_stages();
+    // Each stage halves the frame rate.
+    let n_stages = model.encoder.subsampling_factor().trailing_zeros() as usize;
     apply_named_tensors(model, tensors, hf_rekey(n_stages).as_fn())
 }
 

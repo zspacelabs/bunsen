@@ -440,7 +440,7 @@ impl ToStructureConfig for SortformerV2Config {
         Ok(SortformerStructureConfig::new(
             // Fed `[batch, time, n_mels]`; the striding reads `[batch, n_mels,
             // time]`.
-            SubsampledEncoderConfig::from(encoder).with_layout(AxisOrder::SWAP_IN),
+            encoder.try_to_structure()?.with_layout(AxisOrder::SWAP_IN),
             SortformerHeadConfig::new(self.d_hidden, self.n_speakers),
         )
         .with_transformer(Some(ResidualEncoderTransformerConfig::new(

@@ -7,7 +7,10 @@
 //!
 //! - [`blocks`]: the model, [`ParakeetTdt`], built from a
 //!   [`ParakeetTdtConfig`]; its encoder is the shared
-//!   [`ConformerEncoder`](crate::blocks::transformers::encoders::conformer::ConformerEncoder).
+//!   [`SubsampledEncoder`](crate::blocks::transformers::encoders::SubsampledEncoder)
+//!   a
+//!   [`ConformerEncoderConfig`](crate::blocks::transformers::encoders::conformer::ConformerEncoderConfig)
+//!   builds.
 //! - [`ParakeetFrontEnd`]: the feature extractor, waveforms to normalized
 //!   log-mels, built from a [`ParakeetFrontEndConfig`]: `NeMo`'s
 //!   [`NemoMelFrontEnd`](crate::kits::speech::nemo::NemoMelFrontEnd) under its

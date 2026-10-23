@@ -4,9 +4,11 @@
 //! (Rybakov et al. 2023), the encoder of NVIDIA's Parakeet and Canary speech
 //! models:
 //!
-//! - [`ConformerEncoder`]: [`DwStridingSubsampling`] (8x over time by default),
-//!   then a [`ConformerTransformer`]: the stack of [`ConformerBlock`]s sharing
-//!   one relative-position table.
+//! - [`ConformerEncoderConfig`]: the encoder, as a policy that lowers to a
+//!   [`SubsampledEncoderConfig`](crate::blocks::transformers::encoders::SubsampledEncoderConfig):
+//!   [`DwStridingSubsampling`] (8x over time by default), then a
+//!   [`ConformerTransformer`]: the stack of [`ConformerBlock`]s sharing one
+//!   relative-position table.
 //! - [`ConformerBlock`]: two half-step [`ConformerFeedForward`] modules around
 //!   [`RelPosSelfAttention`](crate::blocks::transformers::attention::rel_pos::RelPosSelfAttention)
 //!   and a [`ConformerConvolution`], each pre-normalized and residual.

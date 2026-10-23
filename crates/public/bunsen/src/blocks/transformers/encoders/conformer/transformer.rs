@@ -76,7 +76,8 @@ impl ModuleInit<ConformerTransformer> for ConformerTransformerConfig {
 /// The Conformer's stack: [`ConformerBlock`]s sharing one relative-position
 /// table over the frames given, after an optional input scaling. The frame
 /// rate in is the frame rate out; a subsampling front, if any, runs before
-/// (as [`ConformerEncoder`](super::ConformerEncoder) runs one).
+/// (as a [`ConformerEncoderConfig`](super::ConformerEncoderConfig)'s encoder
+/// runs one).
 ///
 /// Built by [`ConformerTransformerConfig`].
 /// Implements [`ConformerTransformerMeta`].

@@ -8,11 +8,9 @@ use super::blocks::{
 use crate::{
     blocks::{
         layout::AxisOrder,
-        transformers::encoders::{
-            SubsampledEncoderConfig,
-            residual::ResidualEncoderTransformerConfig,
-        },
+        transformers::encoders::residual::ResidualEncoderTransformerConfig,
     },
+    burner::module::ToStructureConfig,
     errors::{
         BunsenError,
         BunsenResult,
@@ -222,7 +220,10 @@ impl NemoSortformerConfig {
             ));
         }
         Ok(SortformerStructureConfig::new(
-            SubsampledEncoderConfig::from(encoder.conformer()?).with_layout(AxisOrder::SWAP_IN),
+            encoder
+                .conformer()?
+                .try_to_structure()?
+                .with_layout(AxisOrder::SWAP_IN),
             SortformerHeadConfig::new(modules.tf_d_model, modules.num_spks),
         )
         .with_transformer(Some(ResidualEncoderTransformerConfig::new(

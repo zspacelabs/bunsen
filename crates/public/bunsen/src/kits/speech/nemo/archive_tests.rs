@@ -9,7 +9,8 @@ use serde::Deserialize;
 use super::*;
 use crate::{
     blocks::transformers::encoders::{
-        conformer::ConformerEncoder,
+        SubsampledEncoder,
+        conformer::ConformerEncoderConfig,
         residual::{
             ResidualEncoderTransformer,
             ResidualEncoderTransformerConfig,
@@ -227,7 +228,7 @@ fn test_with_weights() {
     assert_eq!(err.kind(), BunsenErrorKind::Illegal);
 }
 
-/// The encoder's entries load into a bunsen `ConformerEncoder` built from
+/// The encoder's entries load into the bunsen `SubsampledEncoder` built from
 /// the config, filling every parameter; only the batch-norm counters are
 /// left over.
 #[test]
@@ -235,11 +236,12 @@ fn test_conformer_loads() {
     let config: ToyConfig = toy().config().unwrap();
     let conformer = config.encoder.conformer().unwrap();
     let n_stages = conformer.subsampling.n_stages;
-    let mut encoder: ConformerEncoder = conformer.init(&cpu_device());
+    let mut encoder: SubsampledEncoder = conformer.init(&cpu_device());
     let tensors = weights()
         .into_iter()
         .filter(|t| t.name.starts_with("encoder."));
-    let rekey = Rekey::drop_rest().mount("encoder.", "", ConformerEncoder::nemo_rekey(n_stages));
+    let rekey =
+        Rekey::drop_rest().mount("encoder.", "", ConformerEncoderConfig::nemo_rekey(n_stages));
     let applied = apply_named_tensors(&mut encoder, tensors, rekey.as_fn()).unwrap();
     assert!(!applied.applied.is_empty());
     assert!(

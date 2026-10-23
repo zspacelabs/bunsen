@@ -1,34 +1,27 @@
 //! The `FastConformer` encoder.
-use burn::{
-    Tensor,
-    config::Config,
-    module::Module,
-    tensor::Device,
-};
+use burn::config::Config;
 
 use super::{
     ConformerBlock,
     ConformerBlockConfig,
-    ConformerTransformer,
     ConformerTransformerConfig,
-    ConformerTransformerMeta,
     DwStridingSubsampling,
     DwStridingSubsamplingConfig,
     DwStridingSubsamplingMeta,
 };
 use crate::{
+    blocks::transformers::encoders::{
+        SubsampledEncoderConfig,
+        SubsamplingConfig,
+    },
     burner::module::{
-        ModuleInit,
         Rekey,
+        ToStructureConfig,
     },
-    errors::{
-        BunsenResult,
-        ConstraintError,
-        Rule,
-    },
+    errors::BunsenResult,
 };
 
-/// Common meta for [`ConformerEncoder`] and [`ConformerEncoderConfig`].
+/// Common meta for [`ConformerEncoderConfig`].
 pub trait ConformerEncoderMeta {
     /// The model width.
     fn d_model(&self) -> usize;
@@ -40,7 +33,16 @@ pub trait ConformerEncoderMeta {
     fn subsampling_factor(&self) -> usize;
 }
 
-/// Config for [`ConformerEncoder`].
+/// The `FastConformer` encoder, as a policy: [`DwStridingSubsampling`] (8x
+/// over time by default), then a
+/// [`ConformerTransformer`](super::ConformerTransformer), the stack of
+/// [`ConformerBlock`]s sharing one relative-position table. It lowers to a
+/// [`SubsampledEncoderConfig`], and builds a
+/// [`SubsampledEncoder`](crate::blocks::transformers::encoders::SubsampledEncoder) fed the
+/// striding's own `[batch, n_mels, time]`.
+///
+/// This is the encoder of NVIDIA's Parakeet and Canary models, and of
+/// Sortformer v2's.
 ///
 /// Implements [`ConformerEncoderMeta`].
 #[derive(Config, Debug)]
@@ -81,164 +83,10 @@ impl ConformerEncoderConfig {
         ConformerTransformerConfig::new(self.block.clone(), self.n_layers)
             .with_scale_input(self.scale_input)
     }
-}
 
-impl ModuleInit<ConformerEncoder> for ConformerEncoderConfig {
-    fn try_init(
-        &self,
-        device: &Device,
-    ) -> BunsenResult<ConformerEncoder> {
-        if self.subsampling.d_model != self.block.d_model {
-            return Err(ConstraintError::new(
-                "ConformerEncoderConfig",
-                "",
-                Rule::Relation {
-                    lhs: (
-                        "subsampling.d_model".into(),
-                        self.subsampling.d_model.to_string(),
-                    ),
-                    op: "==",
-                    rhs: ("block.d_model".into(), self.block.d_model.to_string()),
-                },
-            )
-            .into());
-        }
-        Ok(ConformerEncoder {
-            subsampling: self.subsampling.try_init(device)?,
-            transformer: self.transformer().try_init(device)?,
-        })
-    }
-}
-
-/// The `FastConformer` encoder: [`DwStridingSubsampling`], then a
-/// [`ConformerTransformer`], the stack of [`ConformerBlock`]s sharing one
-/// relative-position table.
-///
-/// This is the encoder of NVIDIA's Parakeet and Canary models.
-///
-/// Built by [`ConformerEncoderConfig`].
-/// Implements [`ConformerEncoderMeta`].
-#[derive(Module, Debug)]
-pub struct ConformerEncoder {
-    /// Subsamples the features and projects them to `d_model`.
-    pub subsampling: DwStridingSubsampling,
-
-    /// The blocks, past the subsampling.
-    pub transformer: ConformerTransformer,
-}
-
-impl ConformerEncoderMeta for ConformerEncoder {
-    fn d_model(&self) -> usize {
-        self.subsampling.d_model()
-    }
-
-    fn n_layers(&self) -> usize {
-        self.transformer.n_layers()
-    }
-
-    fn subsampling_factor(&self) -> usize {
-        self.subsampling.factor()
-    }
-}
-
-impl ConformerEncoder {
-    /// The encoder's output length for `len` input frames.
-    pub fn output_len(
-        &self,
-        len: usize,
-    ) -> usize {
-        self.subsampling.output_len(len)
-    }
-
-    /// Encodes features: [`pre_encode`](Self::pre_encode), then
-    /// [`forward_pre_encoded`](Self::forward_pre_encoded).
-    ///
-    /// # Arguments
-    /// * `features` - `[batch, n_mels, time]`.
-    /// * `lengths` - each item's valid frame count; `None` means every item
-    ///   fills `time`.
-    ///
-    /// # Returns
-    /// `[batch, output_len(time), d_model]`, and each item's output length.
-    /// Frames past an item's length hold values that mean nothing.
-    pub fn forward(
-        &self,
-        features: Tensor<3>,
-        lengths: Option<&[usize]>,
-    ) -> (Tensor<3>, Vec<usize>) {
-        let padded = lengths.is_some();
-        let (x, lengths) = self.pre_encode(features, lengths);
-        let x = self.forward_pre_encoded(x, padded.then_some(lengths.as_slice()));
-        (x, lengths)
-    }
-
-    /// The subsampling front alone: the pre-encode embeddings, before the
-    /// input scaling and the position table. A caller that edits the frame
-    /// sequence between the two halves (a streaming cache splicing in earlier
-    /// frames) runs this and then
-    /// [`forward_pre_encoded`](Self::forward_pre_encoded).
-    ///
-    /// # Arguments
-    /// * `features` - `[batch, n_mels, time]`.
-    /// * `lengths` - each item's valid frame count; `None` means every item
-    ///   fills `time`.
-    ///
-    /// # Returns
-    /// `[batch, output_len(time), d_model]`, and each item's output length.
-    pub fn pre_encode(
-        &self,
-        features: Tensor<3>,
-        lengths: Option<&[usize]>,
-    ) -> (Tensor<3>, Vec<usize>) {
-        #[cfg(any(debug_assertions, test))]
-        let [batch, time_in] = crate::contracts::unpack_shape_contract!(
-            ["batch", "n_mels", "time"],
-            &features.dims(),
-            &["batch", "time"],
-        );
-
-        let (x, lengths) = self.subsampling.forward(features, lengths);
-
-        #[cfg(any(debug_assertions, test))]
-        crate::contracts::assert_shape_contract_periodically!(
-            ["batch", "time", "d_model"],
-            &x.dims(),
-            &[
-                ("batch", batch),
-                ("time", self.output_len(time_in)),
-                ("d_model", self.d_model()),
-            ],
-        );
-
-        (x, lengths)
-    }
-
-    /// The encoder past its subsampling: the input scaling (when the encoder
-    /// scales), the relative-position table over the frames given, and the
-    /// Conformer blocks.
-    ///
-    /// # Arguments
-    /// * `x` - `[batch, frames, d_model]` pre-encode embeddings, as
-    ///   [`pre_encode`](Self::pre_encode) gives them.
-    /// * `lengths` - each item's valid frame count; `None` means every item
-    ///   fills `frames`.
-    ///
-    /// # Returns
-    /// `[batch, frames, d_model]`. Frames past an item's length hold values
-    /// that mean nothing.
-    pub fn forward_pre_encoded(
-        &self,
-        x: Tensor<3>,
-        lengths: Option<&[usize]>,
-    ) -> Tensor<3> {
-        self.transformer.forward(x, lengths)
-    }
-}
-
-impl ConformerEncoder {
-    /// Its tensors as `transformers`' `ParakeetEncoder` names them, relative
-    /// to it: the subsampling's and each block's maps
-    /// ([`DwStridingSubsampling::transformers_rekey`],
+    /// A `FastConformer`'s tensors as `transformers`' `ParakeetEncoder` names
+    /// them, onto the `SubsampledEncoder` this builds: the subsampling's and
+    /// each block's maps ([`DwStridingSubsampling::transformers_rekey`],
     /// [`ConformerBlock::transformers_rekey`]) mounted where they sit, and
     /// the batch-norm counters dropped.
     pub fn transformers_rekey(n_stages: usize) -> Rekey {
@@ -256,7 +104,8 @@ impl ConformerEncoder {
             )
     }
 
-    /// Its tensors as `NeMo`'s `ConformerEncoder` names them, relative to it:
+    /// A `FastConformer`'s tensors as `NeMo`'s `ConformerEncoder` names them,
+    /// onto the `SubsampledEncoder` this builds:
     /// the subsampling's and each block's maps
     /// ([`DwStridingSubsampling::nemo_rekey`], [`ConformerBlock::nemo_rekey`])
     /// mounted where they sit. The batch-norm counters, and anything else, are
@@ -277,10 +126,30 @@ impl ConformerEncoder {
     }
 }
 
+impl ToStructureConfig for ConformerEncoderConfig {
+    type Structure = SubsampledEncoderConfig;
+
+    fn try_to_structure(&self) -> BunsenResult<SubsampledEncoderConfig> {
+        Ok(SubsampledEncoderConfig::new(
+            SubsamplingConfig::DwStriding(self.subsampling.clone()),
+            self.transformer().into(),
+        ))
+    }
+}
+
 #[cfg(test)]
 mod tests {
+    use burn::Tensor;
+
     use super::*;
-    use crate::support::testing::cpu_device;
+    use crate::{
+        blocks::transformers::encoders::{
+            SubsampledEncoder,
+            SubsampledEncoderMeta,
+        },
+        burner::module::ModuleInit,
+        support::testing::cpu_device,
+    };
 
     #[test]
     fn test_meta() {
@@ -289,7 +158,7 @@ mod tests {
             ConformerBlockConfig::new(16, 2, 32, 5),
             2,
         );
-        let module: ConformerEncoder = config.init(&cpu_device());
+        let module: SubsampledEncoder = config.init(&cpu_device());
         assert_eq!(module.d_model(), config.d_model());
         assert_eq!(module.n_layers(), config.n_layers());
         assert_eq!(module.subsampling_factor(), config.subsampling_factor());
@@ -300,7 +169,7 @@ mod tests {
     }
 
     /// A small encoder that scales its input, as Sortformer v2's does.
-    fn scaling_encoder() -> ConformerEncoder {
+    fn scaling_encoder() -> SubsampledEncoder {
         ConformerEncoderConfig::new(
             DwStridingSubsamplingConfig::new(24, 4, 16),
             ConformerBlockConfig::new(16, 2, 32, 5),
@@ -369,7 +238,7 @@ mod tests {
             ConformerBlockConfig::new(16, 2, 32, 5),
             2,
         );
-        assert!(ModuleInit::<ConformerEncoder>::try_init(&config, &cpu_device()).is_err());
+        assert!(ModuleInit::<SubsampledEncoder>::try_init(&config, &cpu_device()).is_err());
     }
 
     /// `NeMo`'s `ConformerEncoder` names, the subsampling's flat `conv`
@@ -420,7 +289,7 @@ mod tests {
             ("pos_enc.pe", None),
         ] {
             assert_eq!(
-                ConformerEncoder::nemo_rekey(3).apply(nemo).as_deref(),
+                ConformerEncoderConfig::nemo_rekey(3).apply(nemo).as_deref(),
                 bunsen,
                 "{nemo}"
             );
