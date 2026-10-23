@@ -98,7 +98,7 @@ takes a pinned file from before fetching it, verified as any asset is. Its
 paths never move. The pull-request jobs fetch nothing at all; `validation.yml`,
 which runs only when asked (from the Actions tab, or for a pull request with
 the `validate` label), runs Silero's and Whisper's whole suites on the CPU over
-about 440 MB of assets, and caches that directory under a key that hashes the
+about 730 MB of assets, and caches that directory under a key that hashes the
 pins. The other families' assets run to GBs; their suites run by hand.
 
 Locally, set `BUNSEN_ASSET_CACHE` to keep assets across `cargo clean` and

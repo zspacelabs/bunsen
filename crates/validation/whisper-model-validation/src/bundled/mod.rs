@@ -15,6 +15,9 @@
 //! * `cache`: the bundle's directory is a pretrained cache of the kit's own
 //!   maps, and a table of local files serves `openai/base` in place.
 //! * `construct`: the kit's hook plans, scans and builds a real checkpoint.
+//! * `hf`, under `hf-weights`: `transformers`' `model.safetensors` of the same
+//!   model, through the kit's `transformers` loader, is `base.pt`, weight for
+//!   weight.
 
 use std::{
     path::PathBuf,
@@ -52,6 +55,8 @@ use bunsen::{
 
 mod cache;
 mod construct;
+#[cfg(feature = "hf-weights")]
+mod hf;
 mod vocabulary;
 
 /// A cache rooted at the bundle's directory, offline.

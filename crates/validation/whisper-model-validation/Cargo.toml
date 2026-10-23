@@ -32,15 +32,23 @@ weights = [
     "bunsen-bundled-whisper/vocab",
 ]
 
-## `weights`, and fetch the reference graphs and generate the models from
-## them (~435 MB in all).
+## `weights`, and fetch `openai/whisper-base`'s `model.safetensors`
+## (~290 MB), and compile the check of the kit's `transformers` loader on
+## it against `base.pt` (`bundled::hf`). It loads two models on the CPU.
+hf-weights = [
+    "weights",
+    "bunsen-bundled-whisper/hf_checkpoint",
+]
+
+## `hf-weights`, and fetch the reference graphs and generate the models from
+## them (~725 MB in all).
 ##
 ## **Off by default.** Enabling this makes `bunsen-bundled-whisper`'s build
 ## reach the network on a cold cache, which a plain `cargo build --workspace`
 ## must never do. Every asset is verified against a pinned SHA-256, so a warm
 ## build is offline and reproducible.
 download = [
-    "weights",
+    "hf-weights",
     "bunsen-bundled-whisper/onnx_gen",
 ]
 

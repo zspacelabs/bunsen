@@ -16,7 +16,7 @@ Nothing here runs by default: a plain `cargo build --workspace` or
 | command | what it runs |
 |---|---|
 | `cargo make validate-cpu` | the `weights` checks, on the CPU (~150 MB) |
-| `cargo make validate-ci` | Silero's and Whisper's whole suites, on the CPU (~440 MB); `validation.yml` runs this when asked: from the Actions tab, or for a PR labelled `validate` |
+| `cargo make validate-ci` | Silero's and Whisper's whole suites, on the CPU (~730 MB); `validation.yml` runs this when asked: from the Actions tab, or for a PR labelled `validate` |
 | `cargo make validate-<model>` | one model's whole suite, in release mode, on `VALIDATION_BACKEND` (default `wgpu`) |
 | `cargo make validate-all` | every model's whole suite (~16 GB on a cold cache) |
 

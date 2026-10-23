@@ -1,7 +1,7 @@
 name: Validation
 
 # Silero's and Whisper's whole validation suites, ONNX cross-checks included,
-# on the CPU: the models small enough for a runner (~440 MB of assets, all
+# on the CPU: the models small enough for a runner (~730 MB of assets, all
 # cached between runs). The other families' assets run to GBs; they run by
 # hand, on a GPU (STYLE.md, "Network access").
 #
