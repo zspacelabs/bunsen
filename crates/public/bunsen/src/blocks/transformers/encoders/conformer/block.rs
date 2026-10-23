@@ -23,10 +23,7 @@ use crate::{
         RelPosSelfAttentionConfig,
         RelPosSelfAttentionMeta,
     },
-    burner::module::{
-        ModuleInit,
-        Rekey,
-    },
+    burner::module::ModuleInit,
     errors::BunsenResult,
 };
 
@@ -228,52 +225,6 @@ impl ConformerBlock {
         );
 
         y
-    }
-}
-
-impl ConformerBlock {
-    /// Its tensors as `transformers`' `ParakeetEncoderBlock` names them,
-    /// relative to it: the attention's projections and positional biases, the
-    /// convolution module's depthwise convolution and norm, and the
-    /// sublayers' norms, renamed; everything else as it is.
-    pub fn transformers_rekey() -> Rekey {
-        Rekey::keep_rest()
-            .rename("self_attn.q_proj.", "attn.query.")
-            .rename("self_attn.k_proj.", "attn.key.")
-            .rename("self_attn.v_proj.", "attn.value.")
-            .rename("self_attn.o_proj.", "attn.output.")
-            .rename("self_attn.relative_k_proj.", "attn.pos.")
-            .exact("self_attn.bias_u", "attn.pos_bias_u")
-            .exact("self_attn.bias_v", "attn.pos_bias_v")
-            .rename("conv.depthwise_conv.", "conv.depthwise.conv.")
-            .rename("conv.norm.", "conv.depthwise.norm.")
-            .rename("norm_feed_forward1.", "feed_forward1_norm.")
-            .rename("norm_self_att.", "attn_norm.")
-            .rename("norm_conv.", "conv_norm.")
-            .rename("norm_feed_forward2.", "feed_forward2_norm.")
-            .rename("norm_out.", "out_norm.")
-            .rename("self_attn.", "attn.")
-    }
-
-    /// Its tensors as `NeMo`'s `ConformerLayer` names them, relative to it:
-    /// the attention's projections, the convolution module's depthwise
-    /// convolution and batch norm, and the sublayers' norms, renamed;
-    /// everything else as it is.
-    pub fn nemo_rekey() -> Rekey {
-        Rekey::keep_rest()
-            .rename("self_attn.linear_q.", "attn.query.")
-            .rename("self_attn.linear_k.", "attn.key.")
-            .rename("self_attn.linear_v.", "attn.value.")
-            .rename("self_attn.linear_out.", "attn.output.")
-            .rename("self_attn.linear_pos.", "attn.pos.")
-            .rename("conv.depthwise_conv.", "conv.depthwise.conv.")
-            .rename("conv.batch_norm.", "conv.depthwise.norm.")
-            .rename("norm_feed_forward1.", "feed_forward1_norm.")
-            .rename("norm_self_att.", "attn_norm.")
-            .rename("norm_conv.", "conv_norm.")
-            .rename("norm_feed_forward2.", "feed_forward2_norm.")
-            .rename("norm_out.", "out_norm.")
-            .rename("self_attn.", "attn.")
     }
 }
 

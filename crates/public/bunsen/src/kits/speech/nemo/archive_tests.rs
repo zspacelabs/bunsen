@@ -10,7 +10,6 @@ use super::*;
 use crate::{
     blocks::transformers::encoders::{
         SubsampledEncoder,
-        conformer::ConformerEncoderConfig,
         residual::{
             ResidualEncoderTransformer,
             ResidualEncoderTransformerConfig,
@@ -242,7 +241,7 @@ fn test_conformer_loads() {
     let rekey = Rekey::drop_rest().mount(
         "encoder.",
         "",
-        ConformerEncoderConfig::nemo_rekey(&conformer.subsampling),
+        conformer_encoder_rekey(&conformer.subsampling),
     );
     let applied = apply_named_tensors(&mut encoder, tensors, rekey.as_fn()).unwrap();
     assert!(!applied.applied.is_empty());
@@ -285,7 +284,7 @@ fn test_conformer_loads_in_either_flatten_order() {
         let rekey = Rekey::drop_rest().mount(
             "encoder.",
             "",
-            ConformerEncoderConfig::nemo_rekey(&conformer.subsampling),
+            conformer_encoder_rekey(&conformer.subsampling),
         );
         let tensors = weights()
             .into_iter()
@@ -320,11 +319,7 @@ fn test_transformer_loads() {
     let tensors = weights()
         .into_iter()
         .filter(|t| t.name.starts_with("transformer_encoder."));
-    let rekey = Rekey::drop_rest().mount(
-        "transformer_encoder.",
-        "",
-        ResidualEncoderTransformer::nemo_rekey(),
-    );
+    let rekey = Rekey::drop_rest().mount("transformer_encoder.", "", transformer_encoder_rekey());
     let applied = apply_named_tensors(&mut stack, tensors, rekey.as_fn()).unwrap();
     assert!(applied.unused.is_empty(), "{:?}", applied.unused);
 }

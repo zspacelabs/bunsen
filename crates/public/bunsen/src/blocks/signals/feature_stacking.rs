@@ -33,11 +33,10 @@ use crate::{
 ///
 /// A layout choice with a loading consequence: the projection's weight
 /// columns follow it, so a checkpoint stacked the other way loads through
-/// its key map's transform ([`FeatureStackingMeta::transformers_rekey`]).
+/// a key map that permutes them ([`FeatureStackingMeta::restack_from`]).
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum StackOrder {
-    /// Frames outer, features inner (`[f0 | f1 | ...]`): `NeMo`'s and
-    /// `transformers'`.
+    /// Frames outer, features inner (`[f0 | f1 | ...]`).
     #[default]
     FramesFeatures,
 
@@ -46,7 +45,7 @@ pub enum StackOrder {
 }
 
 /// Common meta for [`FeatureStacking`] and [`FeatureStackingConfig`], and
-/// the key map that follows from it.
+/// the key-map helper that follows from it.
 pub trait FeatureStackingMeta {
     /// The input frame's width.
     fn d_input(&self) -> usize;
@@ -68,25 +67,28 @@ pub trait FeatureStackingMeta {
     /// How a group's frames are laid side by side.
     fn order(&self) -> StackOrder;
 
-    /// Its tensors as `transformers` names them, relative to it
-    /// (`projection.*`, as `Nemotron3DiarizationEmbedder` has them), the
-    /// projection's weight permuted when this stacks otherwise than
-    /// `transformers` does. Anything else is dropped.
-    fn transformers_rekey(&self) -> Rekey {
-        let rekey = Rekey::drop_rest().rename("projection.", "projection.");
-        match self.order() {
-            StackOrder::FramesFeatures => rekey,
-            StackOrder::FeaturesFrames => {
-                let (k, d) = (self.factor(), self.d_input());
-                // In `PyTorch`'s `[out, in]`: `[d_output, factor * d_input]`
-                // to `[d_output, d_input * factor]`.
-                rekey.transform("projection.weight", move |data| {
-                    let out = data.shape().num_elements() / (k * d);
-                    let data = reshape_data(data, vec![out, k, d]);
-                    reshape_data(permute_data(data, &[0, 2, 1]), vec![out, d * k])
-                })
-            }
+    /// `rekey`, and, when `from`, the order a checkpoint stacks in, is not
+    /// this one's, the projection's weight (`projection.weight`) permuted to
+    /// match: in `PyTorch`'s `[out, in]`, `[d_output, a * b]` to
+    /// `[d_output, b * a]`.
+    fn restack_from(
+        &self,
+        from: StackOrder,
+        rekey: Rekey,
+    ) -> Rekey {
+        if from == self.order() {
+            return rekey;
         }
+        let (k, d) = (self.factor(), self.d_input());
+        let (a, b) = match from {
+            StackOrder::FramesFeatures => (k, d),
+            StackOrder::FeaturesFrames => (d, k),
+        };
+        rekey.transform("projection.weight", move |data| {
+            let out = data.shape().num_elements() / (a * b);
+            let data = reshape_data(data, vec![out, a, b]);
+            reshape_data(permute_data(data, &[0, 2, 1]), vec![out, b * a])
+        })
     }
 }
 

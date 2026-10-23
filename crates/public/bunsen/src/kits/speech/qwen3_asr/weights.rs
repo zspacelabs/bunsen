@@ -8,13 +8,7 @@ use super::blocks::{
     Qwen3AsrConfig,
 };
 use crate::{
-    blocks::{
-        conv::ConvSeq2d,
-        transformers::{
-            decoders::causal::CausalDecoderBlock,
-            encoders::residual::ResidualEncoderAttentionBlock,
-        },
-    },
+    blocks::conv::ConvSeq2d,
     burner::module::Rekey,
     data::pretrained::{
         HfConfigJson,
@@ -28,11 +22,46 @@ use crate::{
     },
 };
 
+/// `transformers`' Whisper-style audio encoder layer names (Qwen3-ASR's
+/// audio tower's) onto a
+/// [`ResidualEncoderAttentionBlock`](crate::blocks::transformers::encoders::residual::ResidualEncoderAttentionBlock)'s,
+/// relative to it: `self_attn`'s `{q,k,v,out}_proj` the attention,
+/// `self_attn_layer_norm` and `final_layer_norm` the norms, `fc{1,2}` the
+/// MLP; everything else as it is.
+pub fn audio_layer_rekey() -> Rekey {
+    Rekey::keep_rest()
+        .rename("self_attn.q_proj.", "attn.query.")
+        .rename("self_attn.k_proj.", "attn.key.")
+        .rename("self_attn.v_proj.", "attn.value.")
+        .rename("self_attn.out_proj.", "attn.output.")
+        .rename("self_attn_layer_norm.", "attn_norm.")
+        .rename("final_layer_norm.", "mlp_norm.")
+        .rename("fc1.", "mlp.linear1.")
+        .rename("fc2.", "mlp.linear2.")
+}
+
+/// `transformers`' Qwen3 decoder layer names onto a
+/// [`CausalDecoderBlock`](crate::blocks::transformers::decoders::causal::CausalDecoderBlock)'s,
+/// relative to it: `input_layernorm` the attention's norm,
+/// `post_attention_layernorm` the feed-forward's, `self_attn`'s
+/// `{q,k,v,o}_proj` the attention's projections and its `{q,k}_norm` its
+/// QK-norms, and the `SwiGLU`'s projections as they are.
+pub fn text_layer_rekey() -> Rekey {
+    Rekey::keep_rest()
+        .rename("input_layernorm.", "attn_norm.")
+        .rename("post_attention_layernorm.", "mlp_norm.")
+        .rename("self_attn.q_proj.", "attn.c_q.")
+        .rename("self_attn.k_proj.", "attn.c_k.")
+        .rename("self_attn.v_proj.", "attn.c_v.")
+        .rename("self_attn.o_proj.", "attn.c_proj.")
+        .rename("self_attn.", "attn.")
+}
+
 /// `transformers`' `Qwen3ASRForConditionalGeneration` state-dict names onto
 /// a [`Qwen3Asr`]'s module paths: under `model.`, the audio tower's 1-based
 /// `conv2d{n}` onto its stem's 0-based `ConvSeq2d` blocks, its layers by
-/// [`ResidualEncoderAttentionBlock::transformers_rekey`], the text model's
-/// layers by [`CausalDecoderBlock::transformers_rekey`], and everything else
+/// [`audio_layer_rekey`], the text model's layers by [`text_layer_rekey`],
+/// and everything else
 /// as it is. Anything outside `model.` (the tied `lm_head.weight`) is
 /// dropped.
 ///
@@ -58,12 +87,12 @@ pub fn hf_rekey() -> Rekey {
             .mount_indexed(
                 "audio_tower.layers.",
                 "audio_tower.layers.",
-                ResidualEncoderAttentionBlock::transformers_rekey(),
+                audio_layer_rekey(),
             )
             .mount_indexed(
                 "language_model.layers.",
                 "language_model.layers.",
-                CausalDecoderBlock::transformers_rekey(),
+                text_layer_rekey(),
             ),
     )
 }
@@ -165,6 +194,26 @@ pub fn qwen3_asr_config_from_hf(json: &str) -> BunsenResult<Qwen3AsrConfig> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// `transformers`' Qwen3 decoder-layer names, onto the block's own.
+    #[test]
+    fn test_text_layer_rekey() {
+        let rekey = text_layer_rekey();
+        for (hf, bunsen) in [
+            ("input_layernorm.weight", "attn_norm.weight"),
+            ("post_attention_layernorm.weight", "mlp_norm.weight"),
+            ("self_attn.q_proj.weight", "attn.c_q.weight"),
+            ("self_attn.k_proj.weight", "attn.c_k.weight"),
+            ("self_attn.v_proj.weight", "attn.c_v.weight"),
+            ("self_attn.o_proj.weight", "attn.c_proj.weight"),
+            ("self_attn.q_norm.weight", "attn.q_norm.weight"),
+            ("self_attn.k_norm.weight", "attn.k_norm.weight"),
+            ("mlp.gate_proj.weight", "mlp.gate_proj.weight"),
+            ("mlp.down_proj.weight", "mlp.down_proj.weight"),
+        ] {
+            assert_eq!(rekey.apply(hf).as_deref(), Some(bunsen), "{hf}");
+        }
+    }
 
     #[test]
     fn test_hf_rekey() {

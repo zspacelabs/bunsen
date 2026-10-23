@@ -2,7 +2,6 @@
 use burn::config::Config;
 
 use super::{
-    ConformerBlock,
     ConformerBlockConfig,
     ConformerTransformerConfig,
 };
@@ -15,10 +14,7 @@ use crate::{
         },
         transformers::encoders::SubsampledEncoderConfig,
     },
-    burner::module::{
-        Rekey,
-        ToStructureConfig,
-    },
+    burner::module::ToStructureConfig,
     errors::BunsenResult,
 };
 
@@ -38,8 +34,8 @@ pub trait ConformerEncoderMeta {
 /// [`DwStridingSubsampling`](crate::blocks::signals::DwStridingSubsampling) (8x
 /// over time by default), then a
 /// [`ConformerTransformer`](super::ConformerTransformer), the stack of
-/// [`ConformerBlock`]s sharing one relative-position table. It lowers to a
-/// [`SubsampledEncoderConfig`], and builds a
+/// [`ConformerBlock`](super::ConformerBlock)s sharing one relative-position
+/// table. It lowers to a [`SubsampledEncoderConfig`], and builds a
 /// [`SubsampledEncoder`](crate::blocks::transformers::encoders::SubsampledEncoder) fed the
 /// striding's own `[batch, n_mels, time]`.
 ///
@@ -84,50 +80,6 @@ impl ConformerEncoderConfig {
     pub fn transformer(&self) -> ConformerTransformerConfig {
         ConformerTransformerConfig::new(self.block.clone(), self.n_layers)
             .with_scale_input(self.scale_input)
-    }
-
-    /// A `FastConformer`'s tensors as `transformers`' `ParakeetEncoder` names
-    /// them, onto the `SubsampledEncoder` this builds: the subsampling's and
-    /// each block's maps
-    /// ([`DwStridingSubsamplingMeta::transformers_rekey`],
-    /// [`ConformerBlock::transformers_rekey`]) mounted where they sit, and
-    /// the batch-norm counters dropped.
-    ///
-    /// `striding` is the subsampling the tensors load into, a config or a
-    /// built module: its stage count and flatten order fix its map.
-    pub fn transformers_rekey(striding: &impl DwStridingSubsamplingMeta) -> Rekey {
-        Rekey::keep_rest()
-            .drop_suffix(".num_batches_tracked")
-            .mount(
-                "subsampling.",
-                "subsampling.",
-                striding.transformers_rekey(),
-            )
-            .mount_indexed(
-                "layers.",
-                "transformer.layers.",
-                ConformerBlock::transformers_rekey(),
-            )
-    }
-
-    /// A `FastConformer`'s tensors as `NeMo`'s `ConformerEncoder` names them,
-    /// onto the `SubsampledEncoder` this builds:
-    /// the subsampling's and each block's maps
-    /// ([`DwStridingSubsamplingMeta::nemo_rekey`],
-    /// [`ConformerBlock::nemo_rekey`]) mounted where they sit. The batch-norm
-    /// counters, and anything else, are dropped.
-    ///
-    /// `striding` is the subsampling the tensors load into, a config or a
-    /// built module: its stage count and flatten order fix its map.
-    pub fn nemo_rekey(striding: &impl DwStridingSubsamplingMeta) -> Rekey {
-        Rekey::drop_rest()
-            .drop_suffix(".num_batches_tracked")
-            .mount("pre_encode.", "subsampling.", striding.nemo_rekey())
-            .mount_indexed(
-                "layers.",
-                "transformer.layers.",
-                ConformerBlock::nemo_rekey(),
-            )
     }
 }
 
@@ -244,62 +196,5 @@ mod tests {
             2,
         );
         assert!(ModuleInit::<SubsampledEncoder>::try_init(&config, &cpu_device()).is_err());
-    }
-
-    /// `NeMo`'s `ConformerEncoder` names, the subsampling's flat `conv`
-    /// list and every block's renames among them.
-    #[test]
-    fn test_nemo_rekey() {
-        for (nemo, bunsen) in [
-            (
-                "pre_encode.conv.0.weight",
-                Some("subsampling.stem.conv.weight"),
-            ),
-            (
-                "pre_encode.conv.2.bias",
-                Some("subsampling.stages.0.depthwise.conv.bias"),
-            ),
-            (
-                "pre_encode.conv.3.weight",
-                Some("subsampling.stages.0.pointwise.conv.weight"),
-            ),
-            (
-                "pre_encode.conv.5.weight",
-                Some("subsampling.stages.1.depthwise.conv.weight"),
-            ),
-            (
-                "pre_encode.conv.6.bias",
-                Some("subsampling.stages.1.pointwise.conv.bias"),
-            ),
-            ("pre_encode.conv.4.weight", None),
-            ("pre_encode.conv.8.weight", None),
-            ("pre_encode.out.weight", Some("subsampling.linear.weight")),
-            (
-                "layers.3.self_attn.linear_pos.weight",
-                Some("transformer.layers.3.attn.pos.weight"),
-            ),
-            (
-                "layers.0.self_attn.pos_bias_u",
-                Some("transformer.layers.0.attn.pos_bias_u"),
-            ),
-            (
-                "layers.1.conv.batch_norm.running_var",
-                Some("transformer.layers.1.conv.depthwise.norm.running_var"),
-            ),
-            ("layers.1.conv.batch_norm.num_batches_tracked", None),
-            (
-                "layers.0.norm_feed_forward1.weight",
-                Some("transformer.layers.0.feed_forward1_norm.weight"),
-            ),
-            ("pos_enc.pe", None),
-        ] {
-            assert_eq!(
-                ConformerEncoderConfig::nemo_rekey(&DwStridingSubsamplingConfig::new(80, 4, 16))
-                    .apply(nemo)
-                    .as_deref(),
-                bunsen,
-                "{nemo}"
-            );
-        }
     }
 }

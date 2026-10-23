@@ -12,10 +12,7 @@ use super::{
     ConformerBlockMeta,
 };
 use crate::{
-    burner::module::{
-        ModuleInit,
-        Rekey,
-    },
+    burner::module::ModuleInit,
     errors::BunsenResult,
     ops::transformers::attention::{
         length_mask,
@@ -146,19 +143,5 @@ impl ConformerTransformer {
         let _ = batch;
 
         x
-    }
-
-    /// Its tensors as `transformers`' `ParakeetEncoder` names its blocks,
-    /// relative to it: each `layers.{n}` by
-    /// [`ConformerBlock::transformers_rekey`].
-    pub fn transformers_rekey() -> Rekey {
-        Rekey::keep_rest().mount_indexed("layers.", "layers.", ConformerBlock::transformers_rekey())
-    }
-
-    /// Its tensors as `NeMo`'s `ConformerEncoder` names its blocks, relative
-    /// to it: each `layers.{n}` by [`ConformerBlock::nemo_rekey`]. Anything
-    /// else is dropped.
-    pub fn nemo_rekey() -> Rekey {
-        Rekey::drop_rest().mount_indexed("layers.", "layers.", ConformerBlock::nemo_rekey())
     }
 }

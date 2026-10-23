@@ -33,10 +33,7 @@ use crate::{
             MlpConfig,
         },
     },
-    burner::module::{
-        ModuleInit,
-        Rekey,
-    },
+    burner::module::ModuleInit,
     contracts::unpack_shape_contract,
     errors::BunsenResult,
     ops::transformers::attention::length_mask,
@@ -324,38 +321,6 @@ impl RopeTransformerEncoder {
             ],
         );
         y
-    }
-}
-
-impl RopeEncoderBlock {
-    /// Its tensors as `transformers`' `Nemotron3DiarizationEncoderLayer`
-    /// names them, relative to it: `layer_norm{1,2}` its norms, `self_attn`'s
-    /// `{q,k,v,o}_proj` the attention, `mlp.fc{1,2}` the MLP. Anything else is
-    /// dropped.
-    pub fn transformers_rekey() -> Rekey {
-        Rekey::drop_rest()
-            .rename("layer_norm1.", "attn_norm.")
-            .rename("layer_norm2.", "mlp_norm.")
-            .rename("self_attn.q_proj.", "attn.query.")
-            .rename("self_attn.k_proj.", "attn.key.")
-            .rename("self_attn.v_proj.", "attn.value.")
-            .rename("self_attn.o_proj.", "attn.output.")
-            .rename("mlp.fc1.", "mlp.linear1.")
-            .rename("mlp.fc2.", "mlp.linear2.")
-    }
-}
-
-impl RopeTransformerEncoder {
-    /// Its tensors as `transformers`' `Nemotron3DiarizationEncoder` names
-    /// them, relative to it: `input_layer_norm` the embedding norm,
-    /// `layer_norm` the final one, each `layers.{n}` by
-    /// [`RopeEncoderBlock::transformers_rekey`]. Anything else (the rotary
-    /// table's `inv_freq`, a buffer) is dropped.
-    pub fn transformers_rekey() -> Rekey {
-        Rekey::drop_rest()
-            .rename("input_layer_norm.", "embed_norm.")
-            .rename("layer_norm.", "final_norm.")
-            .mount_indexed("layers.", "layers.", RopeEncoderBlock::transformers_rekey())
     }
 }
 
