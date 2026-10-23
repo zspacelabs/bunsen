@@ -50,6 +50,7 @@
       <sourceFolder url="file://$MODULE_DIR$/crates/dev/bunsen-test-audio/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/crates/public/bunsen-bundled-sortformer/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/crates/validation/sortformer-model-validation/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/crates/dev/kv-cache-bench/src" isTestSource="false" />
       <excludeFolder url="file://$MODULE_DIR$/crates/public/bunsen/target" />
       <excludeFolder url="file://$MODULE_DIR$/target" />
       <excludeFolder url="file://$MODULE_DIR$/demos/bimm/crates/bimm/target" />
