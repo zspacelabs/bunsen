@@ -35,7 +35,7 @@
             const path_to_root = "../../";
             const default_light_theme = "rust";
             const default_dark_theme = "ayu";
-            window.path_to_searchindex_js = "../../searchindex-b798e791.js";
+            window.path_to_searchindex_js = "../../searchindex-27e02a36.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../../toc-52d38e2f.js"></script>
@@ -192,7 +192,7 @@ chapter is about that code.</p>
 <ul>
 <li>the <strong>kind</strong>, which it shares with every other consumer;</li>
 <li>a <strong>cause type</strong> it knows, which it reaches with
-<a href="https://docs.rs/bunsen/0.39.0/bunsen/errors/bunsen_error/struct.BunsenError.html#method.find" title="method bunsen::errors::bunsen_error::BunsenError::find"><code>find</code></a>. <code>find</code> walks the cause chain
+<a href="https://docs.rs/bunsen/0.40.0/bunsen/errors/bunsen_error/struct.BunsenError.html#method.find" title="method bunsen::errors::bunsen_error::BunsenError::find"><code>find</code></a>. <code>find</code> walks the cause chain
 and returns the first error of the requested type.</li>
 </ul>
 <p>The kind keeps the ontology small. Generic consumers never see a
@@ -202,7 +202,7 @@ specialist a precise vocabulary that only it reads.</p>
 <h2 id="the-caches-mirror-loop"><a class="header" href="#the-caches-mirror-loop">The cache’s mirror loop</a></h2>
 <p>The cache fetches a file from one or more URLs. Each failure is a
 <code>BunsenError</code> whose cause is the cache’s own
-<a href="https://docs.rs/bunsen/0.39.0/bunsen/data/cache/fetch/enum.FetchFailure.html" title="enum bunsen::data::cache::fetch::FetchFailure"><code>FetchFailure</code></a>, and the loop reads kind
+<a href="https://docs.rs/bunsen/0.40.0/bunsen/data/cache/fetch/enum.FetchFailure.html" title="enum bunsen::data::cache::fetch::FetchFailure"><code>FetchFailure</code></a>, and the loop reads kind
 and cause together:</p>
 <ul>
 <li>An <code>Unavailable</code> failure, such as a timeout, a server error or a
@@ -229,19 +229,19 @@ the code that uses it:</p>
 which picks the kind from the variant in one place. A site cannot then
 build an error whose kind and cause disagree, and <code>?</code> works.</li>
 <li><strong>It prints once.</strong> The <code>From</code> impl builds the error with
-<a href="https://docs.rs/bunsen/0.39.0/bunsen/errors/bunsen_error/struct.BunsenError.html#method.from_cause" title="associated function bunsen::errors::bunsen_error::BunsenError::from_cause"><code>from_cause</code></a>, so the cause’s
+<a href="https://docs.rs/bunsen/0.40.0/bunsen/errors/bunsen_error/struct.BunsenError.html#method.from_cause" title="associated function bunsen::errors::bunsen_error::BunsenError::from_cause"><code>from_cause</code></a>, so the cause’s
 text becomes the message and is not repeated in the report. A cause with
 more to say than one line implements
-<a href="https://docs.rs/bunsen/0.39.0/bunsen/errors/detailed/trait.Detailed.html" title="trait bunsen::errors::detailed::Detailed"><code>Detailed</code></a>.</li>
+<a href="https://docs.rs/bunsen/0.40.0/bunsen/errors/detailed/trait.Detailed.html" title="trait bunsen::errors::detailed::Detailed"><code>Detailed</code></a>.</li>
 <li><strong>It is public, <code>#[non_exhaustive]</code>, and documented</strong> in the <code># Errors</code>
 sections of the functions that return it, so callers can find it.</li>
 </ul>
-<p>The shared cause types in <a href="https://docs.rs/bunsen/0.39.0/bunsen/errors/index.html" title="mod bunsen::errors"><code>bunsen::errors</code></a>, such as
-<a href="https://docs.rs/bunsen/0.39.0/bunsen/errors/lookup_error/struct.LookupError.html" title="struct bunsen::errors::lookup_error::LookupError"><code>LookupError</code></a> and
-<a href="https://docs.rs/bunsen/0.39.0/bunsen/errors/digest_mismatch/struct.DigestMismatch.html" title="struct bunsen::errors::digest_mismatch::DigestMismatch"><code>DigestMismatch</code></a>, follow the same rules.</p>
+<p>The shared cause types in <a href="https://docs.rs/bunsen/0.40.0/bunsen/errors/index.html" title="mod bunsen::errors"><code>bunsen::errors</code></a>, such as
+<a href="https://docs.rs/bunsen/0.40.0/bunsen/errors/lookup_error/struct.LookupError.html" title="struct bunsen::errors::lookup_error::LookupError"><code>LookupError</code></a> and
+<a href="https://docs.rs/bunsen/0.40.0/bunsen/errors/digest_mismatch/struct.DigestMismatch.html" title="struct bunsen::errors::digest_mismatch::DigestMismatch"><code>DigestMismatch</code></a>, follow the same rules.</p>
 <h2 id="aggregates"><a class="header" href="#aggregates">Aggregates</a></h2>
 <p>A batch reports its failures as one error with a
-<a href="https://docs.rs/bunsen/0.39.0/bunsen/errors/multiple/struct.Multiple.html" title="struct bunsen::errors::multiple::Multiple"><code>Multiple</code></a> cause, whose members are the
+<a href="https://docs.rs/bunsen/0.40.0/bunsen/errors/multiple/struct.Multiple.html" title="struct bunsen::errors::multiple::Multiple"><code>Multiple</code></a> cause, whose members are the
 <code>BunsenError</code>s themselves, each labelled. The aggregate’s kind is derived
 from the members. A specialist reads each member’s kind and cause, for
 example to retry only the parts of a batch that can succeed.</p>

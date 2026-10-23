@@ -35,7 +35,7 @@
             const path_to_root = "../";
             const default_light_theme = "rust";
             const default_dark_theme = "ayu";
-            window.path_to_searchindex_js = "../searchindex-b798e791.js";
+            window.path_to_searchindex_js = "../searchindex-27e02a36.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-52d38e2f.js"></script>
@@ -187,8 +187,8 @@ a narrow trait that both of them answer. This chapter explains
 why the parts are shaped as they are, and how to choose between the two
 config shapes, Simple and Stacked. What the shapes are and how they work is
 defined, with a compiled example of each, in
-<a href="https://docs.rs/bunsen/0.39.0/bunsen/burner/module/module_init/trait.ModuleInit.html#two-config-shapes" title="trait bunsen::burner::module::module_init::ModuleInit"><code>ModuleInit</code></a> and
-<a href="https://docs.rs/bunsen/0.39.0/bunsen/burner/module/to_structure_config/trait.ToStructureConfig.html" title="trait bunsen::burner::module::to_structure_config::ToStructureConfig"><code>ToStructureConfig</code></a>. What the
+<a href="https://docs.rs/bunsen/0.40.0/bunsen/burner/module/module_init/trait.ModuleInit.html#two-config-shapes" title="trait bunsen::burner::module::module_init::ModuleInit"><code>ModuleInit</code></a> and
+<a href="https://docs.rs/bunsen/0.40.0/bunsen/burner/module/to_structure_config/trait.ToStructureConfig.html" title="trait bunsen::burner::module::to_structure_config::ToStructureConfig"><code>ToStructureConfig</code></a>. What the
 author of a family must do (naming, promotion, the required tests) is set by
 <a href="https://github.com/zspacelabs/bunsen/blob/main/STYLE.md#module-design">STYLE.md, “Module design”</a>.</p>
 <h2 id="why-conventions-at-all"><a class="header" href="#why-conventions-at-all">Why conventions at all</a></h2>
@@ -215,27 +215,27 @@ two places, and the copies can disagree. Instead, the family defines a trait
 that holds only the values a caller or a test needs to read back. Both the
 config and the module implement it, and the module answers from its live
 tensor shapes. Code that holds either form can ask the same question.</p>
-<p><strong><a href="https://docs.rs/bunsen/0.39.0/bunsen/burner/module/module_init/trait.ModuleInit.html" title="trait bunsen::burner::module::module_init::ModuleInit"><code>ModuleInit</code></a>, with a fallible
+<p><strong><a href="https://docs.rs/bunsen/0.40.0/bunsen/burner/module/module_init/trait.ModuleInit.html" title="trait bunsen::burner::module::module_init::ModuleInit"><code>ModuleInit</code></a>, with a fallible
 <code>try_init</code>.</strong> A config is data. It is deserialized, assembled by loaders,
 and edited by users. A config whose fields disagree is an input error to
 report, not a bug, so <code>try_init</code> returns an error and <code>init</code> is the
 panicking convenience
-(<a href="https://docs.rs/bunsen/0.39.0/bunsen/burner/module/module_init/trait.ModuleInit.html#why-it-is-fallible" title="trait bunsen::burner::module::module_init::ModuleInit">why it is fallible</a>).
-The trait is in <a href="https://docs.rs/bunsen/0.39.0/bunsen/prelude/index.html" title="mod bunsen::prelude"><code>bunsen::prelude</code></a>. The module type comes
+(<a href="https://docs.rs/bunsen/0.40.0/bunsen/burner/module/module_init/trait.ModuleInit.html#why-it-is-fallible" title="trait bunsen::burner::module::module_init::ModuleInit">why it is fallible</a>).
+The trait is in <a href="https://docs.rs/bunsen/0.40.0/bunsen/prelude/index.html" title="mod bunsen::prelude"><code>bunsen::prelude</code></a>. The module type comes
 from the binding, not from the device
-(<a href="https://docs.rs/bunsen/0.39.0/bunsen/burner/module/module_init/trait.ModuleInit.html#calling-it" title="trait bunsen::burner::module::module_init::ModuleInit">calling it</a>). A few configs
+(<a href="https://docs.rs/bunsen/0.40.0/bunsen/burner/module/module_init/trait.ModuleInit.html#calling-it" title="trait bunsen::burner::module::module_init::ModuleInit">calling it</a>). A few configs
 need more than a device to build their module, and keep an inherent <code>init</code>
 instead
-(<a href="https://docs.rs/bunsen/0.39.0/bunsen/burner/module/module_init/trait.ModuleInit.html#hand-written-init" title="trait bunsen::burner::module::module_init::ModuleInit">hand-written <code>init</code></a>).</p>
+(<a href="https://docs.rs/bunsen/0.40.0/bunsen/burner/module/module_init/trait.ModuleInit.html#hand-written-init" title="trait bunsen::burner::module::module_init::ModuleInit">hand-written <code>init</code></a>).</p>
 <p><strong><code>try_x</code> and <code>x</code>.</strong> The same pairing runs through the whole crate. <code>try_x</code>
-returns a <a href="https://docs.rs/bunsen/0.39.0/bunsen/errors/bunsen_error/type.BunsenResult.html" title="type bunsen::errors::bunsen_error::BunsenResult"><code>BunsenResult</code></a>, and <code>x</code> (or
+returns a <a href="https://docs.rs/bunsen/0.40.0/bunsen/errors/bunsen_error/type.BunsenResult.html" title="type bunsen::errors::bunsen_error::BunsenResult"><code>BunsenResult</code></a>, and <code>x</code> (or
 <code>expect_x</code>) panics through
-<a href="https://docs.rs/bunsen/0.39.0/bunsen/errors/result_ext/trait.WithOkOrPanic.html" title="trait bunsen::errors::result_ext::WithOkOrPanic"><code>WithOkOrPanic</code></a>. Input that can be wrong is
-reported as an error of the <a href="https://docs.rs/bunsen/0.39.0/bunsen/errors/kind/enum.BunsenErrorKind.html" title="enum bunsen::errors::kind::BunsenErrorKind">kind</a> it is,
+<a href="https://docs.rs/bunsen/0.40.0/bunsen/errors/result_ext/trait.WithOkOrPanic.html" title="trait bunsen::errors::result_ext::WithOkOrPanic"><code>WithOkOrPanic</code></a>. Input that can be wrong is
+reported as an error of the <a href="https://docs.rs/bunsen/0.40.0/bunsen/errors/kind/enum.BunsenErrorKind.html" title="enum bunsen::errors::kind::BunsenErrorKind">kind</a> it is,
 not as a panic: a config that breaks its own documented rule is <code>Illegal</code>,
 and the same config read from a file is <code>Policy</code>
-(<a href="https://docs.rs/bunsen/0.39.0/bunsen/errors/index.html#convention-try_x-and-x" title="mod bunsen::errors">the convention</a>,
-<a href="https://docs.rs/bunsen/0.39.0/bunsen/errors/index.html#which-kind" title="mod bunsen::errors">which kind</a>; see also <a href="./errors.html">Errors</a>).</p>
+(<a href="https://docs.rs/bunsen/0.40.0/bunsen/errors/index.html#convention-try_x-and-x" title="mod bunsen::errors">the convention</a>,
+<a href="https://docs.rs/bunsen/0.40.0/bunsen/errors/index.html#which-kind" title="mod bunsen::errors">which kind</a>; see also <a href="./errors.html">Errors</a>).</p>
 <p><strong>Modules over bare tensors.</strong> A type that owns a tensor derives <code>Module</code>
 even when nothing in it is learnable. <code>Module</code> is burn’s traversal trait,
 and deriving it is what lets <code>to_device</code> reach the tensors. Hold fixed
@@ -243,7 +243,7 @@ tables as bare tensors, not as <code>Param</code>s. A bare tensor is not written
 record, <code>ModuleMapper</code> passes skip it, and reflection does not see it, so
 say so on the type. A config that the module keeps is a <code>#[module(skip)]</code>
 field with an accessor, as in
-<a href="https://docs.rs/bunsen/0.39.0/bunsen/ops/signal/perceptive_audio/perceptive_audio_converter/struct.PerceptiveAudioConverter.html#method.options" title="method bunsen::ops::signal::perceptive_audio::perceptive_audio_converter::PerceptiveAudioConverter::options"><code>PerceptiveAudioConverter::options</code></a>.
+<a href="https://docs.rs/bunsen/0.40.0/bunsen/ops/signal/perceptive_audio/perceptive_audio_converter/struct.PerceptiveAudioConverter.html#method.options" title="method bunsen::ops::signal::perceptive_audio::perceptive_audio_converter::PerceptiveAudioConverter::options"><code>PerceptiveAudioConverter::options</code></a>.
 The derive treats every field that is not a primitive as a sub-module, so
 any other value object the module holds is skipped too.</p>
 <p><strong>The agreement test.</strong> A family’s tests build a module from a config that
@@ -257,11 +257,11 @@ then changes one place.</p>
 <p><code>FooConfig</code> builds <code>Foo</code> and implements <code>ModuleInit</code> itself. Both implement
 <code>FooMeta</code>. This is the shape for a module whose user-facing knobs are the
 parameters its implementation needs.</p>
-<p>In the crate, <a href="https://docs.rs/bunsen/0.39.0/bunsen/blocks/transformers/mlp/struct.MlpConfig.html" title="struct bunsen::blocks::transformers::mlp::MlpConfig"><code>MlpConfig</code></a>
-builds <a href="https://docs.rs/bunsen/0.39.0/bunsen/blocks/transformers/mlp/struct.Mlp.html" title="struct bunsen::blocks::transformers::mlp::Mlp"><code>Mlp</code></a>, and
-<a href="https://docs.rs/bunsen/0.39.0/bunsen/ops/signal/sliding_stft/struct.SlidingStftConfig.html" title="struct bunsen::ops::signal::sliding_stft::SlidingStftConfig"><code>SlidingStftConfig</code></a> builds
-<a href="https://docs.rs/bunsen/0.39.0/bunsen/ops/signal/sliding_stft/struct.SlidingStft.html" title="struct bunsen::ops::signal::sliding_stft::SlidingStft"><code>SlidingStft</code></a>. The compiled toy is
-<a href="https://docs.rs/bunsen/0.39.0/bunsen/burner/module/module_init/trait.ModuleInit.html#simple-config" title="trait bunsen::burner::module::module_init::ModuleInit"><code>ModuleInit</code>’s Simple Config example</a>.</p>
+<p>In the crate, <a href="https://docs.rs/bunsen/0.40.0/bunsen/blocks/transformers/mlp/struct.MlpConfig.html" title="struct bunsen::blocks::transformers::mlp::MlpConfig"><code>MlpConfig</code></a>
+builds <a href="https://docs.rs/bunsen/0.40.0/bunsen/blocks/transformers/mlp/struct.Mlp.html" title="struct bunsen::blocks::transformers::mlp::Mlp"><code>Mlp</code></a>, and
+<a href="https://docs.rs/bunsen/0.40.0/bunsen/ops/signal/sliding_stft/struct.SlidingStftConfig.html" title="struct bunsen::ops::signal::sliding_stft::SlidingStftConfig"><code>SlidingStftConfig</code></a> builds
+<a href="https://docs.rs/bunsen/0.40.0/bunsen/ops/signal/sliding_stft/struct.SlidingStft.html" title="struct bunsen::ops::signal::sliding_stft::SlidingStft"><code>SlidingStft</code></a>. The compiled toy is
+<a href="https://docs.rs/bunsen/0.40.0/bunsen/burner/module/module_init/trait.ModuleInit.html#simple-config" title="trait bunsen::burner::module::module_init::ModuleInit"><code>ModuleInit</code>’s Simple Config example</a>.</p>
 <h2 id="stacked-config"><a class="header" href="#stacked-config">Stacked Config</a></h2>
 <p>A module’s parameter list grows in two unrelated directions. The knobs that
 describe what the module is for, such as “12 layers, 768 wide”, are few and
@@ -282,12 +282,12 @@ shape. “Contract” here names the user-facing knobs; it has nothing to do
 with <a href="./contracts.html">shape contracts</a>. Several policies may build the
 same structure, or refine one another.</li>
 <li><strong>A policy implements
-<a href="https://docs.rs/bunsen/0.39.0/bunsen/burner/module/to_structure_config/trait.ToStructureConfig.html" title="trait bunsen::burner::module::to_structure_config::ToStructureConfig"><code>ToStructureConfig</code></a></strong>, and
+<a href="https://docs.rs/bunsen/0.40.0/bunsen/burner/module/to_structure_config/trait.ToStructureConfig.html" title="trait bunsen::burner::module::to_structure_config::ToStructureConfig"><code>ToStructureConfig</code></a></strong>, and
 gets <code>ModuleInit</code> from that trait’s blanket impl. If a policy also
 implements <code>ModuleInit</code> itself, the compiler rejects it (E0119). That is
 deliberate: <code>policy.init(&amp;device)</code> and <code>policy.to_structure().init(&amp;device)</code>
 run the same code, so they cannot drift apart
-(<a href="https://docs.rs/bunsen/0.39.0/bunsen/burner/module/to_structure_config/trait.ToStructureConfig.html#init-for-free" title="trait bunsen::burner::module::to_structure_config::ToStructureConfig"><code>init</code> for free</a>).
+(<a href="https://docs.rs/bunsen/0.40.0/bunsen/burner/module/to_structure_config/trait.ToStructureConfig.html#init-for-free" title="trait bunsen::burner::module::to_structure_config::ToStructureConfig"><code>init</code> for free</a>).
 Per-policy logic, including validation, goes in <code>try_to_structure</code>.</li>
 <li><strong><code>FooMeta</code></strong> is required on the structure config and the module, and
 optional on the policies.</li>
@@ -296,31 +296,31 @@ optional on the policies.</li>
 tree before building it, as a loader overriding one layer would. A caller
 that only has the knobs builds straight from the policy. Each Stacked family
 has a test that the two pathways build modules that agree. The compiled toy
-is <a href="https://docs.rs/bunsen/0.39.0/bunsen/burner/module/module_init/trait.ModuleInit.html#stacked-config" title="trait bunsen::burner::module::module_init::ModuleInit"><code>ModuleInit</code>’s Stacked Config example</a>.</p>
+is <a href="https://docs.rs/bunsen/0.40.0/bunsen/burner/module/module_init/trait.ModuleInit.html#stacked-config" title="trait bunsen::burner::module::module_init::ModuleInit"><code>ModuleInit</code>’s Stacked Config example</a>.</p>
 <p>The crate’s Stacked families show the variations:</p>
 <ul>
 <li><strong>ResNet</strong> has one policy,
-<a href="https://docs.rs/bunsen/0.39.0/bunsen/kits/images/resnet/blocks/resnet_model/struct.ResNetContractConfig.html" title="struct bunsen::kits::images::resnet::blocks::resnet_model::ResNetContractConfig"><code>ResNetContractConfig</code></a>,
-over <a href="https://docs.rs/bunsen/0.39.0/bunsen/kits/images/resnet/blocks/resnet_model/struct.ResNetStructureConfig.html" title="struct bunsen::kits::images::resnet::blocks::resnet_model::ResNetStructureConfig"><code>ResNetStructureConfig</code></a>.
+<a href="https://docs.rs/bunsen/0.40.0/bunsen/kits/images/resnet/blocks/resnet_model/struct.ResNetContractConfig.html" title="struct bunsen::kits::images::resnet::blocks::resnet_model::ResNetContractConfig"><code>ResNetContractConfig</code></a>,
+over <a href="https://docs.rs/bunsen/0.40.0/bunsen/kits/images/resnet/blocks/resnet_model/struct.ResNetStructureConfig.html" title="struct bunsen::kits::images::resnet::blocks::resnet_model::ResNetStructureConfig"><code>ResNetStructureConfig</code></a>.
 Inside it,
-<a href="https://docs.rs/bunsen/0.39.0/bunsen/kits/images/resnet/blocks/residual_block/enum.ResidualBlockStructureConfig.html" title="enum bunsen::kits::images::resnet::blocks::residual_block::ResidualBlockStructureConfig"><code>ResidualBlockStructureConfig</code></a>
+<a href="https://docs.rs/bunsen/0.40.0/bunsen/kits/images/resnet/blocks/residual_block/enum.ResidualBlockStructureConfig.html" title="enum bunsen::kits::images::resnet::blocks::residual_block::ResidualBlockStructureConfig"><code>ResidualBlockStructureConfig</code></a>
 is an enum. That makes it one contract with two implementations (basic and
 bottleneck), and the enum, not its callers, dispatches each method to the
 variant it holds.</li>
 <li><strong>Silero VAD</strong> has two chained policies.
-<a href="https://docs.rs/bunsen/0.39.0/bunsen/kits/speech/silero_vad/blocks/module/struct.SileroVadSignalConfig.html" title="struct bunsen::kits::speech::silero_vad::blocks::module::SileroVadSignalConfig"><code>SileroVadSignalConfig</code></a>
+<a href="https://docs.rs/bunsen/0.40.0/bunsen/kits/speech/silero_vad/blocks/module/struct.SileroVadSignalConfig.html" title="struct bunsen::kits::speech::silero_vad::blocks::module::SileroVadSignalConfig"><code>SileroVadSignalConfig</code></a>
 refines into
-<a href="https://docs.rs/bunsen/0.39.0/bunsen/kits/speech/silero_vad/blocks/module/struct.SileroVadStftConfig.html" title="struct bunsen::kits::speech::silero_vad::blocks::module::SileroVadStftConfig"><code>SileroVadStftConfig</code></a>
+<a href="https://docs.rs/bunsen/0.40.0/bunsen/kits/speech/silero_vad/blocks/module/struct.SileroVadStftConfig.html" title="struct bunsen::kits::speech::silero_vad::blocks::module::SileroVadStftConfig"><code>SileroVadStftConfig</code></a>
 through an inherent
-<a href="https://docs.rs/bunsen/0.39.0/bunsen/kits/speech/silero_vad/blocks/module/struct.SileroVadSignalConfig.html#method.to_stft" title="method bunsen::kits::speech::silero_vad::blocks::module::SileroVadSignalConfig::to_stft"><code>to_stft</code></a>,
+<a href="https://docs.rs/bunsen/0.40.0/bunsen/kits/speech/silero_vad/blocks/module/struct.SileroVadSignalConfig.html#method.to_stft" title="method bunsen::kits::speech::silero_vad::blocks::module::SileroVadSignalConfig::to_stft"><code>to_stft</code></a>,
 and both lower straight to
-<a href="https://docs.rs/bunsen/0.39.0/bunsen/kits/speech/silero_vad/blocks/module/struct.SileroVadStructureConfig.html" title="struct bunsen::kits::speech::silero_vad::blocks::module::SileroVadStructureConfig"><code>SileroVadStructureConfig</code></a>.</li>
+<a href="https://docs.rs/bunsen/0.40.0/bunsen/kits/speech/silero_vad/blocks/module/struct.SileroVadStructureConfig.html" title="struct bunsen::kits::speech::silero_vad::blocks::module::SileroVadStructureConfig"><code>SileroVadStructureConfig</code></a>.</li>
 <li><strong>Whisper</strong> has
-<a href="https://docs.rs/bunsen/0.39.0/bunsen/kits/speech/whisper/blocks/whisper_model/struct.WhisperApiConfig.html" title="struct bunsen::kits::speech::whisper::blocks::whisper_model::WhisperApiConfig"><code>WhisperApiConfig</code></a>
+<a href="https://docs.rs/bunsen/0.40.0/bunsen/kits/speech/whisper/blocks/whisper_model/struct.WhisperApiConfig.html" title="struct bunsen::kits::speech::whisper::blocks::whisper_model::WhisperApiConfig"><code>WhisperApiConfig</code></a>
 over
-<a href="https://docs.rs/bunsen/0.39.0/bunsen/kits/speech/whisper/blocks/whisper_model/struct.WhisperStructureConfig.html" title="struct bunsen::kits::speech::whisper::blocks::whisper_model::WhisperStructureConfig"><code>WhisperStructureConfig</code></a>.</li>
+<a href="https://docs.rs/bunsen/0.40.0/bunsen/kits/speech/whisper/blocks/whisper_model/struct.WhisperStructureConfig.html" title="struct bunsen::kits::speech::whisper::blocks::whisper_model::WhisperStructureConfig"><code>WhisperStructureConfig</code></a>.</li>
 <li><strong>Swin Transformer V2</strong> has a fallible lowering.
-<a href="https://docs.rs/bunsen/0.39.0/bunsen/kits/images/swin/v2/blocks/swin_model/struct.SwinTransformerV2ContractConfig.html" title="struct bunsen::kits::images::swin::v2::blocks::swin_model::SwinTransformerV2ContractConfig"><code>SwinTransformerV2ContractConfig</code></a>
+<a href="https://docs.rs/bunsen/0.40.0/bunsen/kits/images/swin/v2/blocks/swin_model/struct.SwinTransformerV2ContractConfig.html" title="struct bunsen::kits::images::swin::v2::blocks::swin_model::SwinTransformerV2ContractConfig"><code>SwinTransformerV2ContractConfig</code></a>
 checks that its stages fit the input and the window, so <code>try_init</code> on a
 bad policy returns an error instead of panicking.</li>
 </ul>

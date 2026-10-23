@@ -35,7 +35,7 @@
             const path_to_root = "../";
             const default_light_theme = "rust";
             const default_dark_theme = "ayu";
-            window.path_to_searchindex_js = "../searchindex-b798e791.js";
+            window.path_to_searchindex_js = "../searchindex-27e02a36.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-52d38e2f.js"></script>
@@ -186,7 +186,7 @@
 that reads like the shape in the docs. This chapter explains why bunsen
 checks shapes this way, where contracts go, how to choose what a check
 costs, and how to read a failure. The pattern language, the solver and the
-macros are documented in <a href="https://docs.rs/bunsen/0.39.0/bunsen/contracts/index.html" title="mod bunsen::contracts"><code>bunsen::contracts</code></a>.</p>
+macros are documented in <a href="https://docs.rs/bunsen/0.40.0/bunsen/contracts/index.html" title="mod bunsen::contracts"><code>bunsen::contracts</code></a>.</p>
 <h2 id="why-contracts"><a class="header" href="#why-contracts">Why contracts</a></h2>
 <p>Shape errors in tensor code are hard to diagnose. A reshape that almost
 works produces a tensor with the wrong meaning, not an error. An off-by-one
@@ -212,7 +212,7 @@ brackets, such as <code>[batch, h_wins*size, w_wins*size, channels]</code>. A co
 for that tensor uses the same names and the same arithmetic, one term per
 dimension. A reader can then check the docs against the code at a glance,
 and the contract enforces what the docs promise.
-<a href="https://docs.rs/bunsen/0.39.0/bunsen/contracts/index.html#contracts-read-like-the-docs" title="mod bunsen::contracts">The module docs</a> have a
+<a href="https://docs.rs/bunsen/0.40.0/bunsen/contracts/index.html#contracts-read-like-the-docs" title="mod bunsen::contracts">The module docs</a> have a
 compiled example of the correspondence.</p>
 <p>A contract’s names are its own: <code>"batch"</code> in one function has nothing to do
 with <code>"batch"</code> in another. What makes a contract readable is matching the
@@ -229,17 +229,17 @@ promises but does not otherwise read, usually periodically.</li>
 </ol>
 <p>Pass a tensor’s shape as <code>&amp;x.dims()</code>, which the check borrows, rather than
 <code>&amp;x</code>, which copies the shape on every call
-(<a href="https://docs.rs/bunsen/0.39.0/bunsen/contracts/index.html#passing-shapes" title="mod bunsen::contracts">passing shapes</a>). The solver walks the
+(<a href="https://docs.rs/bunsen/0.40.0/bunsen/contracts/index.html#passing-shapes" title="mod bunsen::contracts">passing shapes</a>). The solver walks the
 shape left to right and can solve for one unknown per dimension, so a
 dimension like <code>"h_wins" * "window"</code> needs <code>window</code> bound by the caller or
-by an earlier term (<a href="https://docs.rs/bunsen/0.39.0/bunsen/contracts/shape_contracts/struct.ShapeContract.html#matching" title="struct bunsen::contracts::shape_contracts::ShapeContract">matching</a>).</p>
+by an earlier term (<a href="https://docs.rs/bunsen/0.40.0/bunsen/contracts/shape_contracts/struct.ShapeContract.html#matching" title="struct bunsen::contracts::shape_contracts::ShapeContract">matching</a>).</p>
 <h2 id="choosing-a-cost-model"><a class="header" href="#choosing-a-cost-model">Choosing a cost model</a></h2>
 <p>Contracts are meant to stay on in release builds. A contract that is too
 slow to leave on only catches the bugs its author already hit in tests. The
 pattern is parsed at compile time and kept in a <code>static</code>, so a check is one
 pass over the dimensions, but it still does some work: it allocates a small
 scratch vector, and it formats a message on failure. The
-<a href="https://docs.rs/bunsen/0.39.0/bunsen/contracts/index.html#cost" title="mod bunsen::contracts">cost section</a> has the benchmark command and
+<a href="https://docs.rs/bunsen/0.40.0/bunsen/contracts/index.html#cost" title="mod bunsen::contracts">cost section</a> has the benchmark command and
 indicative numbers.</p>
 <p>When a check sits on a hot path, there are two ways to lower its cost, and a
 function often uses both:</p>
@@ -249,8 +249,8 @@ function often uses both:</p>
 <tr><th>Strategy</th><th>Debug builds</th><th>Release builds</th><th>Use when</th></tr>
 </thead>
 <tbody>
-<tr><td><a href="https://docs.rs/bunsen/0.39.0/bunsen/contracts/index.html#macros-and-methods" title="mod bunsen::contracts"><code>assert_shape_contract!</code></a> / <a href="https://docs.rs/bunsen/0.39.0/bunsen/contracts/index.html#macros-and-methods" title="mod bunsen::contracts"><code>unpack_shape_contract!</code></a></td><td>every call</td><td>every call</td><td>The path is cold or runs once per batch, or you want the failure in production.</td></tr>
-<tr><td><a href="https://docs.rs/bunsen/0.39.0/bunsen/contracts/index.html#macros-and-methods" title="mod bunsen::contracts"><code>assert_shape_contract_periodically!</code></a></td><td>sampled</td><td>sampled</td><td>The path is hot, but you still want some coverage in production.</td></tr>
+<tr><td><a href="https://docs.rs/bunsen/0.40.0/bunsen/contracts/index.html#macros-and-methods" title="mod bunsen::contracts"><code>assert_shape_contract!</code></a> / <a href="https://docs.rs/bunsen/0.40.0/bunsen/contracts/index.html#macros-and-methods" title="mod bunsen::contracts"><code>unpack_shape_contract!</code></a></td><td>every call</td><td>every call</td><td>The path is cold or runs once per batch, or you want the failure in production.</td></tr>
+<tr><td><a href="https://docs.rs/bunsen/0.40.0/bunsen/contracts/index.html#macros-and-methods" title="mod bunsen::contracts"><code>assert_shape_contract_periodically!</code></a></td><td>sampled</td><td>sampled</td><td>The path is hot, but you still want some coverage in production.</td></tr>
 <tr><td>Either, under <code>#[cfg(debug_assertions)]</code></td><td>as above</td><td>removed</td><td>The check is a developer aid only, or you measured a cost you can’t afford.</td></tr>
 </tbody>
 </table>
@@ -258,7 +258,7 @@ function often uses both:</p>
 <p>The periodic form runs the first few calls, then doubles the gap between
 checks until it reaches one call in a thousand. The schedule is per call
 site
-(<a href="https://docs.rs/bunsen/0.39.0/bunsen/contracts/index.html#macros-and-methods" title="mod bunsen::contracts"><code>run_periodically!</code></a>). An unpack
+(<a href="https://docs.rs/bunsen/0.40.0/bunsen/contracts/index.html#macros-and-methods" title="mod bunsen::contracts"><code>run_periodically!</code></a>). An unpack
 cannot be sampled, because the function needs its values on every call.
 Sample the asserts on intermediates and outputs instead.</p>
 <p>The default is no <code>#[cfg]</code>. Reach for <code>#[cfg(debug_assertions)]</code> only after
@@ -272,10 +272,10 @@ depends on a debug-only binding.</li>
 <li><strong>Periodic and gated combine.</strong> A periodic assert inside a gated block
 still keeps debug builds and test runs fast.</li>
 </ul>
-<p><a href="https://docs.rs/bunsen/0.39.0/bunsen/kits/sims/conway/ops/advance/fn.next_interior_3d.html" title="fn bunsen::kits::sims::conway::ops::advance::next_interior_3d"><code>next_interior_3d</code></a> is a
+<p><a href="https://docs.rs/bunsen/0.40.0/bunsen/kits/sims/conway/ops/advance/fn.next_interior_3d.html" title="fn bunsen::kits::sims::conway::ops::advance::next_interior_3d"><code>next_interior_3d</code></a> is a
 small example: a gated unpack of its input and a gated periodic assert of
 its shrunken output. The ResNet blocks, such as
-<a href="https://docs.rs/bunsen/0.39.0/bunsen/kits/images/resnet/blocks/layer_block/struct.LayerBlock.html#method.forward" title="method bunsen::kits::images::resnet::blocks::layer_block::LayerBlock::forward"><code>LayerBlock::forward</code></a>,
+<a href="https://docs.rs/bunsen/0.40.0/bunsen/kits/images/resnet/blocks/layer_block/struct.LayerBlock.html#method.forward" title="method bunsen::kits::images::resnet::blocks::layer_block::LayerBlock::forward"><code>LayerBlock::forward</code></a>,
 use the same pattern.</p>
 <h2 id="reading-a-failure"><a class="header" href="#reading-a-failure">Reading a failure</a></h2>
 <p>A failure message opens with the code that called the check. The next line
@@ -284,24 +284,24 @@ and why. Then come the actual shape, the whole contract, and every value
 bound when the match stopped, including the values the match itself bound on
 the way. Read the failing term first, then the bindings: they show what the
 solver believed when it gave up.
-<a href="https://docs.rs/bunsen/0.39.0/bunsen/contracts/shape_contracts/struct.ShapeContract.html#error-messages" title="struct bunsen::contracts::shape_contracts::ShapeContract"><code>ShapeContract</code>’s error messages</a>
+<a href="https://docs.rs/bunsen/0.40.0/bunsen/contracts/shape_contracts/struct.ShapeContract.html#error-messages" title="struct bunsen::contracts::shape_contracts::ShapeContract"><code>ShapeContract</code>’s error messages</a>
 describe each part and each reason.</p>
 <p>All the macros panic on a mismatch. To get the failure as a value, for
 example to report a bad input as an error, define the contract with
-<a href="https://docs.rs/bunsen/0.39.0/bunsen/contracts/index.html#macros-and-methods" title="mod bunsen::contracts"><code>shape_contract!</code></a> and call
-<a href="https://docs.rs/bunsen/0.39.0/bunsen/contracts/shape_contracts/struct.ShapeContract.html#method.try_unpack_shape" title="method bunsen::contracts::shape_contracts::ShapeContract::try_unpack_shape"><code>try_unpack_shape</code></a> or
-<a href="https://docs.rs/bunsen/0.39.0/bunsen/contracts/shape_contracts/struct.ShapeContract.html#method.try_assert_shape" title="method bunsen::contracts::shape_contracts::ShapeContract::try_assert_shape"><code>try_assert_shape</code></a>.
+<a href="https://docs.rs/bunsen/0.40.0/bunsen/contracts/index.html#macros-and-methods" title="mod bunsen::contracts"><code>shape_contract!</code></a> and call
+<a href="https://docs.rs/bunsen/0.40.0/bunsen/contracts/shape_contracts/struct.ShapeContract.html#method.try_unpack_shape" title="method bunsen::contracts::shape_contracts::ShapeContract::try_unpack_shape"><code>try_unpack_shape</code></a> or
+<a href="https://docs.rs/bunsen/0.40.0/bunsen/contracts/shape_contracts/struct.ShapeContract.html#method.try_assert_shape" title="method bunsen::contracts::shape_contracts::ShapeContract::try_assert_shape"><code>try_assert_shape</code></a>.
 Their <code># Errors</code> sections say what they report, and <code>try_unpack_shape</code>’s
 <code># Panics</code> says what still panics.</p>
 <h2 id="reference"><a class="header" href="#reference">Reference</a></h2>
 <ul>
-<li><a href="https://docs.rs/bunsen/0.39.0/bunsen/contracts/index.html#how-the-types-relate" title="mod bunsen::contracts">How the types relate</a> and
-<a href="https://docs.rs/bunsen/0.39.0/bunsen/contracts/index.html#macros-and-methods" title="mod bunsen::contracts">macros and methods</a>: the module
+<li><a href="https://docs.rs/bunsen/0.40.0/bunsen/contracts/index.html#how-the-types-relate" title="mod bunsen::contracts">How the types relate</a> and
+<a href="https://docs.rs/bunsen/0.40.0/bunsen/contracts/index.html#macros-and-methods" title="mod bunsen::contracts">macros and methods</a>: the module
 overview.</li>
-<li><a href="https://docs.rs/bunsen/0.39.0/bunsen/contracts/index.html#macros-and-methods" title="mod bunsen::contracts">The pattern language</a>:
+<li><a href="https://docs.rs/bunsen/0.40.0/bunsen/contracts/index.html#macros-and-methods" title="mod bunsen::contracts">The pattern language</a>:
 terms, labels, params, constants and the grammar.</li>
-<li><a href="https://docs.rs/bunsen/0.39.0/bunsen/contracts/shape_contracts/struct.ShapeContract.html#matching" title="struct bunsen::contracts::shape_contracts::ShapeContract">Matching</a>: the solver’s rules.</li>
-<li><a href="https://docs.rs/bunsen/0.39.0/bunsen/contracts/shape_view/struct.ShapeView.html" title="struct bunsen::contracts::shape_view::ShapeView"><code>ShapeView</code></a>: every accepted shape form and
+<li><a href="https://docs.rs/bunsen/0.40.0/bunsen/contracts/shape_contracts/struct.ShapeContract.html#matching" title="struct bunsen::contracts::shape_contracts::ShapeContract">Matching</a>: the solver’s rules.</li>
+<li><a href="https://docs.rs/bunsen/0.40.0/bunsen/contracts/shape_view/struct.ShapeView.html" title="struct bunsen::contracts::shape_view::ShapeView"><code>ShapeView</code></a>: every accepted shape form and
 what each one costs.</li>
 </ul>
 

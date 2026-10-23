@@ -35,7 +35,7 @@
             const path_to_root = "../";
             const default_light_theme = "rust";
             const default_dark_theme = "ayu";
-            window.path_to_searchindex_js = "../searchindex-b798e791.js";
+            window.path_to_searchindex_js = "../searchindex-27e02a36.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-52d38e2f.js"></script>
@@ -185,8 +185,8 @@
 <p>An audit records what a computation produced at named checkpoints, then
 checks that another run produces the same thing. This page is about when to
 reach for one and how to make it trustworthy.
-<a href="https://docs.rs/bunsen/0.39.0/bunsen/audit/index.html" title="mod bunsen::audit"><code>bunsen::audit</code></a> documents the probes, the harnesses and the
-stream format, starting with a <a href="https://docs.rs/bunsen/0.39.0/bunsen/audit/index.html#quick-start" title="mod bunsen::audit">quick start</a>.</p>
+<a href="https://docs.rs/bunsen/0.40.0/bunsen/audit/index.html" title="mod bunsen::audit"><code>bunsen::audit</code></a> documents the probes, the harnesses and the
+stream format, starting with a <a href="https://docs.rs/bunsen/0.40.0/bunsen/audit/index.html#quick-start" title="mod bunsen::audit">quick start</a>.</p>
 <h2 id="when-an-audit-beats-a-unit-test"><a class="header" href="#when-an-audit-beats-a-unit-test">When an audit beats a unit test</a></h2>
 <p>A unit test asserts what a value <em>should</em> be, so its author has to know the
 right answer. For a lot of numerical code nobody can write it down: a
@@ -204,54 +204,54 @@ runs against it.</li>
 does: a unit test of the cases you can derive by hand, or a
 <a href="./validation.html">validation</a> against an independent implementation.</p>
 <h2 id="writing-a-body"><a class="header" href="#writing-a-body">Writing a body</a></h2>
-<p>The code under test is an <a href="https://docs.rs/bunsen/0.39.0/bunsen/audit/audit_body/trait.AuditBody.html" title="trait bunsen::audit::audit_body::AuditBody"><code>AuditBody</code></a>, often a
+<p>The code under test is an <a href="https://docs.rs/bunsen/0.40.0/bunsen/audit/audit_body/trait.AuditBody.html" title="trait bunsen::audit::audit_body::AuditBody"><code>AuditBody</code></a>, often a
 closure, that a harness runs twice, each time on a device it supplies. It
 takes an
-<a href="https://docs.rs/bunsen/0.39.0/bunsen/audit/audit_probe/struct.AuditProbe.html" title="struct bunsen::audit::audit_probe::AuditProbe"><code>AuditProbe</code></a> and calls a checkpoint wherever an
+<a href="https://docs.rs/bunsen/0.40.0/bunsen/audit/audit_probe/struct.AuditProbe.html" title="struct bunsen::audit::audit_probe::AuditProbe"><code>AuditProbe</code></a> and calls a checkpoint wherever an
 intermediate value is worth pinning down. Three choices decide whether the
 audit means anything:</p>
 <ul>
 <li><strong>Inputs.</strong> Make them with
-<a href="https://docs.rs/bunsen/0.39.0/bunsen/support/testing/seeded/fn.seeded_tensor.html" title="fn bunsen::support::testing::seeded::seeded_tensor"><code>seeded_tensor</code></a>, not
+<a href="https://docs.rs/bunsen/0.40.0/bunsen/support/testing/seeded/fn.seeded_tensor.html" title="fn bunsen::support::testing::seeded::seeded_tensor"><code>seeded_tensor</code></a>, not
 <code>Tensor::random</code>, or the two runs start from different data.</li>
 <li><strong>Exact or approximate.</strong> Check exactly what was uploaded, copied or
 rearranged, and check within a tolerance what was computed
-(<a href="https://docs.rs/bunsen/0.39.0/bunsen/audit/index.html#choosing-a-checkpoint" title="mod bunsen::audit">choosing a checkpoint</a>). The
+(<a href="https://docs.rs/bunsen/0.40.0/bunsen/audit/index.html#choosing-a-checkpoint" title="mod bunsen::audit">choosing a checkpoint</a>). The
 tolerance is recorded with the event, so a verifying run can’t quietly
 loosen it.</li>
 <li><strong>Order.</strong> Checkpoints match by position, not by label, so keep the
 sequence deterministic: no checkpoint inside a loop whose trip count
 depends on the backend
-(<a href="https://docs.rs/bunsen/0.39.0/bunsen/audit/index.html#how-events-match" title="mod bunsen::audit">how events match</a>).</li>
+(<a href="https://docs.rs/bunsen/0.40.0/bunsen/audit/index.html#how-events-match" title="mod bunsen::audit">how events match</a>).</li>
 </ul>
 <p>Checkpoints return errors rather than panicking. Stop the body at the first
 <code>Err</code>: the first divergence is the one worth reading, and later checkpoints
 only repeat it.</p>
 <h2 id="across-backends"><a class="header" href="#across-backends">Across backends</a></h2>
-<p><a href="https://docs.rs/bunsen/0.39.0/bunsen/audit/audit_body/fn.audit_across.html" title="fn bunsen::audit::audit_body::audit_across"><code>audit_across</code></a> runs a body on a reference
+<p><a href="https://docs.rs/bunsen/0.40.0/bunsen/audit/audit_body/fn.audit_across.html" title="fn bunsen::audit::audit_body::audit_across"><code>audit_across</code></a> runs a body on a reference
 device, recording, then on a target device, verifying, all in memory. The
-usual pair is <a href="https://docs.rs/bunsen/0.39.0/bunsen/support/testing/common_devices/fn.cpu_device.html" title="fn bunsen::support::testing::common_devices::cpu_device"><code>cpu_device</code></a> as the
+usual pair is <a href="https://docs.rs/bunsen/0.40.0/bunsen/support/testing/common_devices/fn.cpu_device.html" title="fn bunsen::support::testing::common_devices::cpu_device"><code>cpu_device</code></a> as the
 reference and
-<a href="https://docs.rs/bunsen/0.39.0/bunsen/support/testing/common_devices/fn.performance_device.html" title="fn bunsen::support::testing::common_devices::performance_device"><code>performance_device</code></a> as the
+<a href="https://docs.rs/bunsen/0.40.0/bunsen/support/testing/common_devices/fn.performance_device.html" title="fn bunsen::support::testing::common_devices::performance_device"><code>performance_device</code></a> as the
 target. Build with a backend feature: without one, <code>performance_device()</code> is
 the CPU as well, and the audit compares the CPU with itself
 (<a href="./testing.html#the-silent-cpu-fallback">the silent CPU fallback</a>).</p>
 <h2 id="baselines"><a class="header" href="#baselines">Baselines</a></h2>
-<p><a href="https://docs.rs/bunsen/0.39.0/bunsen/audit/audit_body/fn.audit_baseline.html" title="fn bunsen::audit::audit_body::audit_baseline"><code>audit_baseline</code></a> compares a run with a
+<p><a href="https://docs.rs/bunsen/0.40.0/bunsen/audit/audit_body/fn.audit_baseline.html" title="fn bunsen::audit::audit_body::audit_baseline"><code>audit_baseline</code></a> compares a run with a
 stream stored on disk. Baselines are per backend: a CPU baseline never
 verifies a GPU run. Use <code>audit_across</code> to compare backends, and a baseline to
 catch change over time.</p>
 <p>The library never chooses where baselines live. The call site does, and a
 repository writes one constructor for its default location
-(<a href="https://docs.rs/bunsen/0.39.0/bunsen/audit/index.html#where-baselines-live" title="mod bunsen::audit">where baselines live</a>). Keep them
+(<a href="https://docs.rs/bunsen/0.40.0/bunsen/audit/index.html#where-baselines-live" title="mod bunsen::audit">where baselines live</a>). Keep them
 under the build directory to keep them out of git, or in the source tree to
 check them in.</p>
-<p><a href="https://docs.rs/bunsen/0.39.0/bunsen/audit/reports/enum.BaselineMode.html" title="enum bunsen::audit::reports::BaselineMode"><code>BaselineMode</code></a> says what a run does
+<p><a href="https://docs.rs/bunsen/0.40.0/bunsen/audit/reports/enum.BaselineMode.html" title="enum bunsen::audit::reports::BaselineMode"><code>BaselineMode</code></a> says what a run does
 with a stored baseline. The default records a missing baseline and verifies
 an existing one, which suits a developer’s machine. Use <code>Record</code> to accept an
 intended change, and <code>Verify</code> in CI, so that a missing baseline is an error
 rather than silently becoming the new truth
-(<a href="https://docs.rs/bunsen/0.39.0/bunsen/audit/index.html#record-or-verify" title="mod bunsen::audit">record or verify</a>).</p>
+(<a href="https://docs.rs/bunsen/0.40.0/bunsen/audit/index.html#record-or-verify" title="mod bunsen::audit">record or verify</a>).</p>
 <h2 id="shapes-and-values"><a class="header" href="#shapes-and-values">Shapes and values</a></h2>
 <p>Audits are one half of how bunsen checks itself. The other half is
 <a href="../systems/contracts.html">shape contracts</a>. A contract checks, on every

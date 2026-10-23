@@ -35,7 +35,7 @@
             const path_to_root = "../";
             const default_light_theme = "rust";
             const default_dark_theme = "ayu";
-            window.path_to_searchindex_js = "../searchindex-b798e791.js";
+            window.path_to_searchindex_js = "../searchindex-27e02a36.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-52d38e2f.js"></script>
@@ -229,11 +229,11 @@ on builds cleanly in the workspace, and fails <code>cargo publish</code>.</p>
 <p>So the test job builds the code several ways, each standing in for a real
 consumer:</p>
 <ul>
-<li><strong>The workspace, with <code>indicatif</code> and <code>bunsen/whisper-weights</code>.</strong>
-Everything, with the tests, the run-time network code, and the small
-build-time fetches bunsen’s own tests read (<a href="./assets.html">Assets</a>). Not
-<code>download</code>: the validation crates’ assets are many GB, and their suites
-run by hand (<a href="./validation.html#running-validation">Validation</a>).</li>
+<li><strong>The workspace, with <code>indicatif</code>.</strong> Everything, with the tests and the
+run-time network code. No build script fetches anything
+(<a href="./assets.html">Assets</a>): the validation crates’ <code>weights</code> and <code>download</code>
+stay off, and their suites run when asked
+(<a href="./validation.html#running-validation">Validation</a>).</li>
 <li><strong><code>bunsen</code> with no default features.</strong> A user who writes
 <code>default-features = false</code> and adds back only what they use.
 The tests run this way with only the test support (<code>testing</code> and

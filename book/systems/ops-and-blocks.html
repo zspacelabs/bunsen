@@ -35,7 +35,7 @@
             const path_to_root = "../";
             const default_light_theme = "rust";
             const default_dark_theme = "ayu";
-            window.path_to_searchindex_js = "../searchindex-b798e791.js";
+            window.path_to_searchindex_js = "../searchindex-27e02a36.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-52d38e2f.js"></script>
@@ -183,12 +183,12 @@
                         <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.4/dist/katex.min.css">
 <h1 id="ops-blocks-and-burn-extensions"><a class="header" href="#ops-blocks-and-burn-extensions">Ops, blocks and burn extensions</a></h1>
 <p>bunsen’s reusable tensor code lives in three places:
-<a href="https://docs.rs/bunsen/0.39.0/bunsen/ops/index.html" title="mod bunsen::ops"><code>bunsen::ops</code></a>, <a href="https://docs.rs/bunsen/0.39.0/bunsen/blocks/index.html" title="mod bunsen::blocks"><code>bunsen::blocks</code></a>, and the
-tensor extension traits in <a href="https://docs.rs/bunsen/0.39.0/bunsen/burner/tensor/index.html" title="mod bunsen::burner::tensor"><code>bunsen::burner::tensor</code></a>.
+<a href="https://docs.rs/bunsen/0.40.0/bunsen/ops/index.html" title="mod bunsen::ops"><code>bunsen::ops</code></a>, <a href="https://docs.rs/bunsen/0.40.0/bunsen/blocks/index.html" title="mod bunsen::blocks"><code>bunsen::blocks</code></a>, and the
+tensor extension traits in <a href="https://docs.rs/bunsen/0.40.0/bunsen/burner/tensor/index.html" title="mod bunsen::burner::tensor"><code>bunsen::burner::tensor</code></a>.
 This chapter explains how they divide the work, so that you know where to
 look for something and where new code belongs. Each module’s own docs carry
-its map: <a href="https://docs.rs/bunsen/0.39.0/bunsen/ops/index.html#map-of-the-module" title="mod bunsen::ops">ops</a>,
-<a href="https://docs.rs/bunsen/0.39.0/bunsen/blocks/index.html#map-of-the-module" title="mod bunsen::blocks">blocks</a>.</p>
+its map: <a href="https://docs.rs/bunsen/0.40.0/bunsen/ops/index.html#map-of-the-module" title="mod bunsen::ops">ops</a>,
+<a href="https://docs.rs/bunsen/0.40.0/bunsen/blocks/index.html#map-of-the-module" title="mod bunsen::blocks">blocks</a>.</p>
 <h2 id="the-rule-what-a-thing-is-for"><a class="header" href="#the-rule-what-a-thing-is-for">The rule: what a thing is for</a></h2>
 <ul>
 <li><strong>Blocks</strong> are <code>torch.nn</code>-like components, meant to be used as <code>Module</code>
@@ -197,28 +197,28 @@ roots or as parts of a module tree.</li>
 machinery, but only to hold cached tables or state.</li>
 </ul>
 <p>The rule asks what a type is <em>for</em>, not whether it owns parameters or is a
-pure function. <a href="https://docs.rs/bunsen/0.39.0/bunsen/ops/signal/sliding_stft/struct.SlidingStft.html" title="struct bunsen::ops::signal::sliding_stft::SlidingStft"><code>SlidingStft</code></a> is
+pure function. <a href="https://docs.rs/bunsen/0.40.0/bunsen/ops/signal/sliding_stft/struct.SlidingStft.html" title="struct bunsen::ops::signal::sliding_stft::SlidingStft"><code>SlidingStft</code></a> is
 a <code>Module</code> that holds a fixed analysis window and learns nothing.
-<a href="https://docs.rs/bunsen/0.39.0/bunsen/blocks/images/drop/drop_path/struct.DropPath.html" title="struct bunsen::blocks::images::drop::drop_path::DropPath"><code>DropPath</code></a> owns no
+<a href="https://docs.rs/bunsen/0.40.0/bunsen/blocks/images/drop/drop_path/struct.DropPath.html" title="struct bunsen::blocks::images::drop::drop_path::DropPath"><code>DropPath</code></a> owns no
 parameters but sits in a model as a layer.
-<a href="https://docs.rs/bunsen/0.39.0/bunsen/ops/transformers/attention/kv_cache/struct.KVCache.html" title="struct bunsen::ops::transformers::attention::kv_cache::KVCache"><code>KVCache</code></a> is a <code>Module</code> over
+<a href="https://docs.rs/bunsen/0.40.0/bunsen/ops/transformers/attention/kv_cache/struct.KVCache.html" title="struct bunsen::ops::transformers::attention::kv_cache::KVCache"><code>KVCache</code></a> is a <code>Module</code> over
 a bare tensor that holds per-decode state. Asking “would you put this in a
 module tree as a layer?” places each of these exactly once: <code>DropPath</code> is a
 block, and the STFT and the cache are ops.</p>
 <p>The dependency runs one way: blocks import ops, and ops never import blocks.
 A block is typically “these parameters, plus these ops, called in order”.
-For example, <a href="https://docs.rs/bunsen/0.39.0/bunsen/blocks/images/drop/drop_block/struct.DropBlock2d.html" title="struct bunsen::blocks::images::drop::drop_block::DropBlock2d"><code>DropBlock2d</code></a>
+For example, <a href="https://docs.rs/bunsen/0.40.0/bunsen/blocks/images/drop/drop_block/struct.DropBlock2d.html" title="struct bunsen::blocks::images::drop::drop_block::DropBlock2d"><code>DropBlock2d</code></a>
 holds its settings and calls
-<a href="https://docs.rs/bunsen/0.39.0/bunsen/ops/drop/drop_block/fn.drop_block_2d.html" title="fn bunsen::ops::drop::drop_block::drop_block_2d"><code>drop_block_2d</code></a> while training. Keeping
+<a href="https://docs.rs/bunsen/0.40.0/bunsen/ops/drop/drop_block/fn.drop_block_2d.html" title="fn bunsen::ops::drop::drop_block::drop_block_2d"><code>drop_block_2d</code></a> while training. Keeping
 the operation separate means the math is tested on its own, and the block’s
 tests only have to show that it is wired correctly.</p>
-<p>The rule is defined in <a href="https://docs.rs/bunsen/0.39.0/bunsen/ops/index.html#ops-and-blocks" title="mod bunsen::ops"><code>bunsen::ops</code></a>.</p>
+<p>The rule is defined in <a href="https://docs.rs/bunsen/0.40.0/bunsen/ops/index.html#ops-and-blocks" title="mod bunsen::ops"><code>bunsen::ops</code></a>.</p>
 <h2 id="caches-and-stream-state-are-ops"><a class="header" href="#caches-and-stream-state-are-ops">Caches and stream state are ops</a></h2>
 <p>Cache and stream state is <em>injected</em>. The caller builds it and passes it in,
 and the model never owns it, so one model can serve several caches or
 streams in one process. That is why <code>KVCache</code> is an op, not a block, even
 though attention blocks use it:
-<a href="https://docs.rs/bunsen/0.39.0/bunsen/blocks/transformers/attention/csa/struct.CausalSelfAttention.html#method.forward" title="method bunsen::blocks::transformers::attention::csa::CausalSelfAttention::forward"><code>CausalSelfAttention::forward</code></a>
+<a href="https://docs.rs/bunsen/0.40.0/bunsen/blocks/transformers/attention/csa/struct.CausalSelfAttention.html#method.forward" title="method bunsen::blocks::transformers::attention::csa::CausalSelfAttention::forward"><code>CausalSelfAttention::forward</code></a>
 takes the cache as an argument and does not hold it. The same split, an
 immutable module plus a per-stream context, runs through the signal front
 ends and the speech kits. <a href="./streaming.html">Stateless modules and streaming
@@ -227,17 +227,17 @@ contexts</a> covers the pattern.</p>
 <p>Two places hold tensor helpers, and the split is about how the helper reads
 at the call site:</p>
 <ul>
-<li><strong><a href="https://docs.rs/bunsen/0.39.0/bunsen/burner/tensor/index.html" title="mod bunsen::burner::tensor"><code>burner::tensor</code></a></strong> holds extension traits:
+<li><strong><a href="https://docs.rs/bunsen/0.40.0/bunsen/burner/tensor/index.html" title="mod bunsen::burner::tensor"><code>burner::tensor</code></a></strong> holds extension traits:
 small, general methods that read as if they were burn’s own, such as
-<a href="https://docs.rs/bunsen/0.39.0/bunsen/burner/tensor/tensor_op_ext/trait.TensorBoolOpExt.html#tymethod.count_dim" title="method bunsen::burner::tensor::tensor_op_ext::TensorBoolOpExt::count_dim"><code>count_dim</code></a>,
-<a href="https://docs.rs/bunsen/0.39.0/bunsen/burner/tensor/tensor_op_ext/trait.TensorOrderedOpExt.html#tymethod.in_range" title="method bunsen::burner::tensor::tensor_op_ext::TensorOrderedOpExt::in_range"><code>in_range</code></a> or
-<a href="https://docs.rs/bunsen/0.39.0/bunsen/burner/tensor/tensor_op_ext/trait.TensorOpExt.html#tymethod.replace_with" title="method bunsen::burner::tensor::tensor_op_ext::TensorOpExt::replace_with"><code>replace_with</code></a>.
-<a href="https://docs.rs/bunsen/0.39.0/bunsen/prelude/index.html" title="mod bunsen::prelude"><code>bunsen::prelude</code></a> brings them into scope.</li>
+<a href="https://docs.rs/bunsen/0.40.0/bunsen/burner/tensor/tensor_op_ext/trait.TensorBoolOpExt.html#tymethod.count_dim" title="method bunsen::burner::tensor::tensor_op_ext::TensorBoolOpExt::count_dim"><code>count_dim</code></a>,
+<a href="https://docs.rs/bunsen/0.40.0/bunsen/burner/tensor/tensor_op_ext/trait.TensorOrderedOpExt.html#tymethod.in_range" title="method bunsen::burner::tensor::tensor_op_ext::TensorOrderedOpExt::in_range"><code>in_range</code></a> or
+<a href="https://docs.rs/bunsen/0.40.0/bunsen/burner/tensor/tensor_op_ext/trait.TensorOpExt.html#tymethod.replace_with" title="method bunsen::burner::tensor::tensor_op_ext::TensorOpExt::replace_with"><code>replace_with</code></a>.
+<a href="https://docs.rs/bunsen/0.40.0/bunsen/prelude/index.html" title="mod bunsen::prelude"><code>bunsen::prelude</code></a> brings them into scope.</li>
 <li><strong><code>ops</code></strong> holds free functions: operations you would name as a step in a
 model, often with settings of their own, such as
-<a href="https://docs.rs/bunsen/0.39.0/bunsen/ops/norm/rms_norm_impl/fn.rms_norm.html" title="fn bunsen::ops::norm::rms_norm_impl::rms_norm"><code>rms_norm</code></a>,
-<a href="https://docs.rs/bunsen/0.39.0/bunsen/ops/transformers/attention/sdpa/fn.scaled_dot_product_attention.html" title="fn bunsen::ops::transformers::attention::sdpa::scaled_dot_product_attention"><code>scaled_dot_product_attention</code></a>
-or <a href="https://docs.rs/bunsen/0.39.0/bunsen/ops/repeat/fn.repeat_interleave.html" title="fn bunsen::ops::repeat::repeat_interleave"><code>repeat_interleave</code></a>.</li>
+<a href="https://docs.rs/bunsen/0.40.0/bunsen/ops/norm/rms_norm_impl/fn.rms_norm.html" title="fn bunsen::ops::norm::rms_norm_impl::rms_norm"><code>rms_norm</code></a>,
+<a href="https://docs.rs/bunsen/0.40.0/bunsen/ops/transformers/attention/sdpa/fn.scaled_dot_product_attention.html" title="fn bunsen::ops::transformers::attention::sdpa::scaled_dot_product_attention"><code>scaled_dot_product_attention</code></a>
+or <a href="https://docs.rs/bunsen/0.40.0/bunsen/ops/repeat/fn.repeat_interleave.html" title="fn bunsen::ops::repeat::repeat_interleave"><code>repeat_interleave</code></a>.</li>
 </ul>
 <h2 id="value-objects-as-configuration"><a class="header" href="#value-objects-as-configuration">Value objects as configuration</a></h2>
 <p>When an op has settings worth naming, they form one small value object:
@@ -246,18 +246,18 @@ configuration. A config embeds it as a field rather than copying its fields,
 and passes it straight to the op. The in-tree chain nests four deep:</p>
 <pre><code class="language-text">ClampOp ⊂ NoiseConfig ⊂ DropBlockOptions ⊂ DropBlock2dConfig
 </code></pre>
-<p><a href="https://docs.rs/bunsen/0.39.0/bunsen/ops/clamp/struct.ClampOp.html" title="struct bunsen::ops::clamp::ClampOp"><code>ClampOp</code></a> is an optional min and max.
-<a href="https://docs.rs/bunsen/0.39.0/bunsen/ops/noise/struct.NoiseConfig.html" title="struct bunsen::ops::noise::NoiseConfig"><code>NoiseConfig</code></a> is a distribution plus an
+<p><a href="https://docs.rs/bunsen/0.40.0/bunsen/ops/clamp/struct.ClampOp.html" title="struct bunsen::ops::clamp::ClampOp"><code>ClampOp</code></a> is an optional min and max.
+<a href="https://docs.rs/bunsen/0.40.0/bunsen/ops/noise/struct.NoiseConfig.html" title="struct bunsen::ops::noise::NoiseConfig"><code>NoiseConfig</code></a> is a distribution plus an
 optional clamp.
-<a href="https://docs.rs/bunsen/0.39.0/bunsen/ops/drop/drop_block/struct.DropBlockOptions.html" title="struct bunsen::ops::drop::drop_block::DropBlockOptions"><code>DropBlockOptions</code></a> holds the
+<a href="https://docs.rs/bunsen/0.40.0/bunsen/ops/drop/drop_block/struct.DropBlockOptions.html" title="struct bunsen::ops::drop::drop_block::DropBlockOptions"><code>DropBlockOptions</code></a> holds the
 <code>DropBlock</code> settings plus an optional noise fill. And
-<a href="https://docs.rs/bunsen/0.39.0/bunsen/blocks/images/drop/drop_block/struct.DropBlock2dConfig.html" title="struct bunsen::blocks::images::drop::drop_block::DropBlock2dConfig"><code>DropBlock2dConfig</code></a>’s
+<a href="https://docs.rs/bunsen/0.40.0/bunsen/blocks/images/drop/drop_block/struct.DropBlock2dConfig.html" title="struct bunsen::blocks::images::drop::drop_block::DropBlock2dConfig"><code>DropBlock2dConfig</code></a>’s
 one field is a <code>DropBlockOptions</code>.</p>
 <p>The payoff is that a setting added to an op reaches every config that
 embeds it, with no fields to keep in sync, and the whole chain is saved with
 the config. The implementation styles and names are mixed today (<code>*Op</code>,
 <code>*Config</code>, <code>*Options</code>); the
-<a href="https://docs.rs/bunsen/0.39.0/bunsen/ops/index.html#value-objects-as-configuration" title="mod bunsen::ops">module docs</a> list which is which.</p>
+<a href="https://docs.rs/bunsen/0.40.0/bunsen/ops/index.html#value-objects-as-configuration" title="mod bunsen::ops">module docs</a> list which is which.</p>
 <h2 id="where-blocks-come-from"><a class="header" href="#where-blocks-come-from">Where blocks come from</a></h2>
 <p><code>blocks</code> is a curated catalog, not a comprehensive one. A block lands there
 in one of three ways:</p>
@@ -267,12 +267,12 @@ burn form so that every kit can use it. <code>DropBlock2d</code> and <code>DropP
 the DropBlock and stochastic-depth regularizers, the latter after
 <code>timm</code>’s.</li>
 <li><strong>A part shared by kits.</strong> A layer that a second kit needs moves out of
-the first one. <a href="https://docs.rs/bunsen/0.39.0/bunsen/blocks/conv/conv_block_1d/struct.ConvBlock1d.html" title="struct bunsen::blocks::conv::conv_block_1d::ConvBlock1d"><code>ConvBlock1d</code></a> and
-<a href="https://docs.rs/bunsen/0.39.0/bunsen/blocks/conv/conv_seq_1d/struct.ConvSeq1d.html" title="struct bunsen::blocks::conv::conv_seq_1d::ConvSeq1d"><code>ConvSeq1d</code></a> serve both Whisper and
-Silero VAD, and <a href="https://docs.rs/bunsen/0.39.0/bunsen/blocks/transformers/mlp/struct.Mlp.html" title="struct bunsen::blocks::transformers::mlp::Mlp"><code>Mlp</code></a> serves
+the first one. <a href="https://docs.rs/bunsen/0.40.0/bunsen/blocks/conv/conv_block_1d/struct.ConvBlock1d.html" title="struct bunsen::blocks::conv::conv_block_1d::ConvBlock1d"><code>ConvBlock1d</code></a> and
+<a href="https://docs.rs/bunsen/0.40.0/bunsen/blocks/conv/conv_seq_1d/struct.ConvSeq1d.html" title="struct bunsen::blocks::conv::conv_seq_1d::ConvSeq1d"><code>ConvSeq1d</code></a> serve both Whisper and
+Silero VAD, and <a href="https://docs.rs/bunsen/0.40.0/bunsen/blocks/transformers/mlp/struct.Mlp.html" title="struct bunsen::blocks::transformers::mlp::Mlp"><code>Mlp</code></a> serves
 both Whisper and NanoChat.</li>
 <li><strong>A gap in burn.</strong> burn ships a sequence-level <code>Lstm</code>.
-<a href="https://docs.rs/bunsen/0.39.0/bunsen/blocks/rnn/lstm/fused_lstm/struct.FusedLstm.html" title="struct bunsen::blocks::rnn::lstm::fused_lstm::FusedLstm"><code>FusedLstm</code></a> is what a streaming
+<a href="https://docs.rs/bunsen/0.40.0/bunsen/blocks/rnn/lstm/fused_lstm/struct.FusedLstm.html" title="struct bunsen::blocks::rnn::lstm::fused_lstm::FusedLstm"><code>FusedLstm</code></a> is what a streaming
 model needs instead: one step at a time, with the caller carrying the
 state.</li>
 </ol>
@@ -282,21 +282,29 @@ follows the <a href="./conventions.html">module design conventions</a>.</p>
 <p>bunsen has two attention stacks, and both are deliberate:</p>
 <ul>
 <li><strong>bunsen’s own
-<a href="https://docs.rs/bunsen/0.39.0/bunsen/blocks/transformers/attention/csa/struct.CausalSelfAttention.html" title="struct bunsen::blocks::transformers::attention::csa::CausalSelfAttention"><code>CausalSelfAttention</code></a></strong>
-block (the NanoChat GPT kit) has its own projections, QK-norm, rotary
-embeddings and grouped-query attention, over a preallocated multi-layer
-<code>KVCache</code>. Use it for a decoder-only model whose layers you define.</li>
+<a href="https://docs.rs/bunsen/0.40.0/bunsen/blocks/transformers/attention/csa/struct.CausalSelfAttention.html" title="struct bunsen::blocks::transformers::attention::csa::CausalSelfAttention"><code>CausalSelfAttention</code></a></strong>
+block (the NanoChat and Qwen3 GPT kits) has its own projections, QK-norm,
+rotary embeddings and grouped-query attention. Use it for a decoder-only
+model whose layers you define.</li>
 <li><strong>Functions over burn’s <code>MultiHeadAttention</code></strong> (the Whisper kit) keep
 burn’s module, so its weights, its checkpoint loading and any
-cross-checks are unchanged, and add KV-cached decoding with a per-layer
-<a href="https://docs.rs/bunsen/0.39.0/bunsen/ops/transformers/attention/attn_kv_pair/struct.AttnKvPair.html" title="struct bunsen::ops::transformers::attention::attn_kv_pair::AttnKvPair"><code>AttnKvPair</code></a>. Use them
-when the model is built on burn’s module: a ported checkpoint in that
-layout, or encoder-decoder cross-attention.</li>
+cross-checks are unchanged, and add KV-cached decoding, cross-attention
+included. Use them when the model is built on burn’s module: a ported
+checkpoint in that layout, or encoder-decoder cross-attention.</li>
 </ul>
-<p><a href="https://docs.rs/bunsen/0.39.0/bunsen/ops/transformers/attention/index.html#two-attention-stacks" title="mod bunsen::ops::transformers::attention">The ops attention docs</a>
+<p>Both decode through one
+<a href="https://docs.rs/bunsen/0.40.0/bunsen/ops/transformers/attention/kv_cache/struct.KVCache.html" title="struct bunsen::ops::transformers::attention::kv_cache::KVCache"><code>KVCache</code></a>, which a model
+hands out sized for itself.</p>
+<p>An encoder’s attention is neither: it decodes nothing, so it carries no
+cache.
+<a href="https://docs.rs/bunsen/0.40.0/bunsen/blocks/transformers/attention/rel_pos/struct.RelPosSelfAttention.html" title="struct bunsen::blocks::transformers::attention::rel_pos::RelPosSelfAttention"><code>RelPosSelfAttention</code></a>
+(the Conformer’s) and
+<a href="https://docs.rs/bunsen/0.40.0/bunsen/blocks/transformers/attention/rope/struct.RopeSelfAttention.html" title="struct bunsen::blocks::transformers::attention::rope::RopeSelfAttention"><code>RopeSelfAttention</code></a>
+(bidirectional, with rotary embeddings) are blocks of their own.</p>
+<p><a href="https://docs.rs/bunsen/0.40.0/bunsen/ops/transformers/attention/index.html#two-attention-stacks" title="mod bunsen::ops::transformers::attention">The ops attention docs</a>
 say when to use which, and
-<a href="https://docs.rs/bunsen/0.39.0/bunsen/ops/transformers/attention/index.html#two-caches" title="mod bunsen::ops::transformers::attention">two caches</a> compares
-<code>KVCache</code> with <code>AttnKvPair</code>.</p>
+<a href="https://docs.rs/bunsen/0.40.0/bunsen/ops/transformers/attention/index.html#the-cache" title="mod bunsen::ops::transformers::attention">the cache</a> describes
+<code>KVCache</code>.</p>
 
                     </main>
 

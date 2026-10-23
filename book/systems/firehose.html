@@ -35,7 +35,7 @@
             const path_to_root = "../";
             const default_light_theme = "rust";
             const default_dark_theme = "ayu";
-            window.path_to_searchindex_js = "../searchindex-b798e791.js";
+            window.path_to_searchindex_js = "../searchindex-27e02a36.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-52d38e2f.js"></script>
@@ -185,12 +185,12 @@
 <p><code>bunsen-firehose</code> is a column-oriented data pipeline for feeding burn
 models, and <code>bunsen-firehose-image</code> is its set of image operators. This
 chapter is orientation only; the crate docs are the reference:
-<a href="https://docs.rs/bunsen-firehose/0.39.0/bunsen_firehose/index.html" title="mod bunsen_firehose"><code>bunsen_firehose</code></a> and
-<a href="https://docs.rs/bunsen-firehose-image/0.39.0/bunsen_firehose_image/index.html" title="mod bunsen_firehose_image"><code>bunsen_firehose_image</code></a>.</p>
+<a href="https://docs.rs/bunsen-firehose/0.40.0/bunsen_firehose/index.html" title="mod bunsen_firehose"><code>bunsen_firehose</code></a> and
+<a href="https://docs.rs/bunsen-firehose-image/0.40.0/bunsen_firehose_image/index.html" title="mod bunsen_firehose_image"><code>bunsen_firehose_image</code></a>.</p>
 <p>A firehose pipeline is declared, not hand-wired. A
-<a href="https://docs.rs/bunsen-firehose/0.39.0/bunsen_firehose/core/schema/struct.FirehoseTableSchema.html" title="struct bunsen_firehose::core::schema::FirehoseTableSchema"><code>FirehoseTableSchema</code></a>
+<a href="https://docs.rs/bunsen-firehose/0.40.0/bunsen_firehose/core/schema/struct.FirehoseTableSchema.html" title="struct bunsen_firehose::core::schema::FirehoseTableSchema"><code>FirehoseTableSchema</code></a>
 lists typed columns, and a
-<a href="https://docs.rs/bunsen-firehose/0.39.0/bunsen_firehose/core/schema/struct.BuildPlan.html" title="struct bunsen_firehose::core::schema::BuildPlan"><code>BuildPlan</code></a> says how a derived
+<a href="https://docs.rs/bunsen-firehose/0.40.0/bunsen_firehose/core/schema/struct.BuildPlan.html" title="struct bunsen_firehose::core::schema::BuildPlan"><code>BuildPlan</code></a> says how a derived
 column is computed from others by a named operator, built from a
 serializable config. Planning a column checks the operator’s parameter
 types against the schema, so a pipeline such as “load the image at this
@@ -198,14 +198,14 @@ path, resize it, augment it, turn it into tensor data” is checked when it
 is put together, not when the first batch fails. An executor then runs each
 batch of rows through the plans in dependency order.</p>
 <p>Operators register themselves globally when their crate is linked, and
-<a href="https://docs.rs/bunsen-firehose/0.39.0/bunsen_firehose/ops/fn.init_default_operator_environment.html" title="fn bunsen_firehose::ops::init_default_operator_environment"><code>init_default_operator_environment</code></a>
+<a href="https://docs.rs/bunsen-firehose/0.40.0/bunsen_firehose/ops/fn.init_default_operator_environment.html" title="fn bunsen_firehose::ops::init_default_operator_environment"><code>init_default_operator_environment</code></a>
 collects every registration. A crate publishes operators just by being a
 dependency: that is how <code>bunsen-firehose-image</code> adds image
-<a href="https://docs.rs/bunsen-firehose-image/0.39.0/bunsen_firehose_image/loader/index.html" title="mod bunsen_firehose_image::loader">loading</a>,
-seeded <a href="https://docs.rs/bunsen-firehose-image/0.39.0/bunsen_firehose_image/augmentation/index.html" title="mod bunsen_firehose_image::augmentation">augmentation</a> and
-<a href="https://docs.rs/bunsen-firehose-image/0.39.0/bunsen_firehose_image/burn_support/index.html" title="mod bunsen_firehose_image::burn_support">conversion to tensor data</a>. The bridge
+<a href="https://docs.rs/bunsen-firehose-image/0.40.0/bunsen_firehose_image/loader/index.html" title="mod bunsen_firehose_image::loader">loading</a>,
+seeded <a href="https://docs.rs/bunsen-firehose-image/0.40.0/bunsen_firehose_image/augmentation/index.html" title="mod bunsen_firehose_image::augmentation">augmentation</a> and
+<a href="https://docs.rs/bunsen-firehose-image/0.40.0/bunsen_firehose_image/burn_support/index.html" title="mod bunsen_firehose_image::burn_support">conversion to tensor data</a>. The bridge
 to burn is
-<a href="https://docs.rs/bunsen-firehose/0.39.0/bunsen_firehose/burn_support/batcher/struct.FirehoseExecutorBatcher.html" title="struct bunsen_firehose::burn_support::batcher::FirehoseExecutorBatcher"><code>FirehoseExecutorBatcher</code></a>,
+<a href="https://docs.rs/bunsen-firehose/0.40.0/bunsen_firehose/burn_support/batcher/struct.FirehoseExecutorBatcher.html" title="struct bunsen_firehose::burn_support::batcher::FirehoseExecutorBatcher"><code>FirehoseExecutorBatcher</code></a>,
 a burn <code>Batcher</code> that runs the executor over each batch and hands the
 tensors to burn’s data loader.</p>
 <p>Firehose is independent of <code>bunsen</code>, so it works with any burn model. The

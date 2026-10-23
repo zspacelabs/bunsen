@@ -35,7 +35,7 @@
             const path_to_root = "../";
             const default_light_theme = "rust";
             const default_dark_theme = "ayu";
-            window.path_to_searchindex_js = "../searchindex-b798e791.js";
+            window.path_to_searchindex_js = "../searchindex-27e02a36.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-52d38e2f.js"></script>
@@ -185,16 +185,16 @@
 <p>This chapter covers how a name such as <code>tiny</code> or <code>hf:openai/whisper-tiny</code>
 becomes a loaded model: what a name means, who answers it, where the files
 land, and why bunsen trusts them once they are there. The reference is
-<a href="https://docs.rs/bunsen/0.39.0/bunsen/data/index.html" title="mod bunsen::data"><code>bunsen::data</code></a>, whose
-<a href="https://docs.rs/bunsen/0.39.0/bunsen/data/index.html#lifecycle" title="mod bunsen::data">lifecycle diagram</a> links every step, and
-<a href="https://docs.rs/bunsen/0.39.0/bunsen/data/pretrained/index.html" title="mod bunsen::data::pretrained"><code>bunsen::data::pretrained</code></a>.</p>
+<a href="https://docs.rs/bunsen/0.40.0/bunsen/data/index.html" title="mod bunsen::data"><code>bunsen::data</code></a>, whose
+<a href="https://docs.rs/bunsen/0.40.0/bunsen/data/index.html#lifecycle" title="mod bunsen::data">lifecycle diagram</a> links every step, and
+<a href="https://docs.rs/bunsen/0.40.0/bunsen/data/pretrained/index.html" title="mod bunsen::data::pretrained"><code>bunsen::data::pretrained</code></a>.</p>
 <p>The kits show three sizes of the same machinery.
-<a href="https://docs.rs/bunsen/0.39.0/bunsen/kits/images/resnet/pretrained/factory/fn.default_resnet_factory.html" title="fn bunsen::kits::images::resnet::pretrained::factory::default_resnet_factory"><code>default_resnet_factory</code></a>
+<a href="https://docs.rs/bunsen/0.40.0/bunsen/kits/images/resnet/pretrained/factory/fn.default_resnet_factory.html" title="fn bunsen::kits::images::resnet::pretrained::factory::default_resnet_factory"><code>default_resnet_factory</code></a>
 is the simple case: one compiled-in table of <code>torchvision</code> and <code>timm</code>
 checkpoints.
-<a href="https://docs.rs/bunsen/0.39.0/bunsen/kits/speech/whisper/pretrained/factory/fn.default_whisper_factory.html" title="fn bunsen::kits::speech::whisper::pretrained::factory::default_whisper_factory"><code>default_whisper_factory</code></a>
-is the full one: a compiled-in table, a bundled row, and Hugging Face repos.
-<a href="https://docs.rs/bunsen/0.39.0/bunsen/kits/speech/silero_vad/pretrained/providers/fn.default_silero_factory.html" title="fn bunsen::kits::speech::silero_vad::pretrained::providers::default_silero_factory"><code>default_silero_factory</code></a>
+<a href="https://docs.rs/bunsen/0.40.0/bunsen/kits/speech/whisper/pretrained/factory/fn.default_whisper_factory.html" title="fn bunsen::kits::speech::whisper::pretrained::factory::default_whisper_factory"><code>default_whisper_factory</code></a>
+is the full one: a compiled-in table, and Hugging Face repos.
+<a href="https://docs.rs/bunsen/0.40.0/bunsen/kits/speech/silero_vad/pretrained/providers/fn.default_silero_factory.html" title="fn bunsen::kits::speech::silero_vad::pretrained::providers::default_silero_factory"><code>default_silero_factory</code></a>
 is the smallest: one compiled-in row, upstream’s 16 kHz checkpoint.</p>
 <h2 id="the-pathway"><a class="header" href="#the-pathway">The pathway</a></h2>
 <pre><code class="language-text">spec ("tiny", "hf:org/repo")
@@ -208,22 +208,22 @@ deferred model
   ▼
 loaded model, behind an Arc
 </code></pre>
-<p>A <a href="https://docs.rs/bunsen/0.39.0/bunsen/data/pretrained/factory/struct.PretrainedFactory.html" title="struct bunsen::data::pretrained::factory::PretrainedFactory"><code>PretrainedFactory</code></a> is the
+<p>A <a href="https://docs.rs/bunsen/0.40.0/bunsen/data/pretrained/factory/struct.PretrainedFactory.html" title="struct bunsen::data::pretrained::factory::PretrainedFactory"><code>PretrainedFactory</code></a> is the
 one object a caller holds for a kit, and its
-<a href="https://docs.rs/bunsen/0.39.0/bunsen/data/pretrained/factory/struct.PretrainedFactory.html#method.load" title="method bunsen::data::pretrained::factory::PretrainedFactory::load"><code>load</code></a> runs the whole
+<a href="https://docs.rs/bunsen/0.40.0/bunsen/data/pretrained/factory/struct.PretrainedFactory.html#method.load" title="method bunsen::data::pretrained::factory::PretrainedFactory::load"><code>load</code></a> runs the whole
 pathway. A file on disk does not go through the factory at all: it is a
-given map (<a href="https://docs.rs/bunsen/0.39.0/bunsen/data/pretrained/resource_map/struct.ResourceMap.html#method.given" title="associated function bunsen::data::pretrained::resource_map::ResourceMap::given"><code>ResourceMap::given</code></a>),
+given map (<a href="https://docs.rs/bunsen/0.40.0/bunsen/data/pretrained/resource_map/struct.ResourceMap.html#method.given" title="associated function bunsen::data::pretrained::resource_map::ResourceMap::given"><code>ResourceMap::given</code></a>),
 loaded the same way from the deferred step on.</p>
 <h2 id="prefabs-rows-and-resources"><a class="header" href="#prefabs-rows-and-resources">Prefabs, rows and resources</a></h2>
 <p>Three things are kept apart, because they vary independently:</p>
 <ul>
 <li>A <strong>prefab</strong> is a geometry by name, with no weights, so a name means a
 shape before anything is fetched. A kit keeps its prefabs in a
-<a href="https://docs.rs/bunsen/0.39.0/bunsen/data/pretrained/prefabs/struct.StaticPreFabMap.html" title="struct bunsen::data::pretrained::prefabs::StaticPreFabMap"><code>StaticPreFabMap</code></a>.</li>
-<li>A <strong>row</strong>, a <a href="https://docs.rs/bunsen/0.39.0/bunsen/data/pretrained/rows/struct.Pretrained.html" title="struct bunsen::data::pretrained::rows::Pretrained"><code>Pretrained</code></a>, is a
+<a href="https://docs.rs/bunsen/0.40.0/bunsen/data/pretrained/prefabs/struct.StaticPreFabMap.html" title="struct bunsen::data::pretrained::prefabs::StaticPreFabMap"><code>StaticPreFabMap</code></a>.</li>
+<li>A <strong>row</strong>, a <a href="https://docs.rs/bunsen/0.40.0/bunsen/data/pretrained/rows/struct.Pretrained.html" title="struct bunsen::data::pretrained::rows::Pretrained"><code>Pretrained</code></a>, is a
 name in a provider, with its aliases, the prefab it instantiates, and the
 resource maps it is made of.</li>
-<li>A <strong>resource</strong>, a <a href="https://docs.rs/bunsen/0.39.0/bunsen/data/pretrained/resource/struct.Resource.html" title="struct bunsen::data::pretrained::resource::Resource"><code>Resource</code></a>, is one
+<li>A <strong>resource</strong>, a <a href="https://docs.rs/bunsen/0.40.0/bunsen/data/pretrained/resource/struct.Resource.html" title="struct bunsen::data::pretrained::resource::Resource"><code>Resource</code></a>, is one
 file: the key the kit reads it by, the SHA-256 that pins it, a <code>kind</code>
 label, and the places it can be had from, in order.</li>
 </ul>
@@ -231,14 +231,14 @@ label, and the places it can be had from, in order.</li>
 Whisper’s two vocabulary files serve its twelve checkpoints, each as a
 resource map of its own that the rows reference. Rows, maps and resources
 know nothing about how a model is built: that is the kit’s business. They
-are plain serde data, so a manifest can carry them (<a href="https://docs.rs/bunsen/0.39.0/bunsen/data/pretrained/index.html#prefabs-rows-and-resources" title="mod bunsen::data::pretrained">prefabs, rows and
+are plain serde data, so a manifest can carry them (<a href="https://docs.rs/bunsen/0.40.0/bunsen/data/pretrained/index.html#prefabs-rows-and-resources" title="mod bunsen::data::pretrained">prefabs, rows and
 resources</a>).</p>
 <h2 id="providers"><a class="header" href="#providers">Providers</a></h2>
-<p>A <a href="https://docs.rs/bunsen/0.39.0/bunsen/data/pretrained/providers/trait.PretrainedProvider.html" title="trait bunsen::data::pretrained::providers::PretrainedProvider"><code>PretrainedProvider</code></a> is a
+<p>A <a href="https://docs.rs/bunsen/0.40.0/bunsen/data/pretrained/providers/trait.PretrainedProvider.html" title="trait bunsen::data::pretrained::providers::PretrainedProvider"><code>PretrainedProvider</code></a> is a
 namespace of rows: the <code>provider</code> in <code>provider:ref</code>. Three are in use.
 <code>well-known:</code> holds the compiled-in rows. <code>bundled:</code> holds the rows a build
-ships with, registered under a kit’s <code>*-weights</code> feature. <code>hf:</code>, an
-<a href="https://docs.rs/bunsen/0.39.0/bunsen/data/pretrained/hf/struct.HfProvider.html" title="struct bunsen::data::pretrained::hf::HfProvider"><code>HfProvider</code></a>, is a Hugging Face repo,
+ships with, a table its caller registers. <code>hf:</code>, an
+<a href="https://docs.rs/bunsen/0.40.0/bunsen/data/pretrained/hf/struct.HfProvider.html" title="struct bunsen::data::pretrained::hf::HfProvider"><code>HfProvider</code></a>, is a Hugging Face repo,
 by <code>org/repo</code>.</p>
 <p>A factory holds a kit’s providers in search order. A spec whose prefix
 names a registered provider goes to that provider, and nowhere else. Any
@@ -249,59 +249,59 @@ The two kinds of “no” are kept distinct. A provider that doesn’t have the
 row says so (<code>Ok(None)</code>), and the search moves on. A provider that fails
 returns an error, and the error aborts the lookup, because a hub that cannot
 be reached is not the same as a hub that has no such row
-(<a href="https://docs.rs/bunsen/0.39.0/bunsen/data/pretrained/factory/struct.PretrainedFactory.html#dispatch" title="struct bunsen::data::pretrained::factory::PretrainedFactory">dispatch</a>).</p>
+(<a href="https://docs.rs/bunsen/0.40.0/bunsen/data/pretrained/factory/struct.PretrainedFactory.html#dispatch" title="struct bunsen::data::pretrained::factory::PretrainedFactory">dispatch</a>).</p>
 <p>There is no process-wide registry. Each kit ships a
 <code>default_{kit}_factory()</code>, and a caller that wants another provider adds it
-to that factory (<a href="https://docs.rs/bunsen/0.39.0/bunsen/data/pretrained/factory/struct.PretrainedFactory.html#no-registry" title="struct bunsen::data::pretrained::factory::PretrainedFactory">no registry</a>).</p>
+to that factory (<a href="https://docs.rs/bunsen/0.40.0/bunsen/data/pretrained/factory/struct.PretrainedFactory.html#no-registry" title="struct bunsen::data::pretrained::factory::PretrainedFactory">no registry</a>).</p>
 <h2 id="the-cache-and-its-trust-model"><a class="header" href="#the-cache-and-its-trust-model">The cache and its trust model</a></h2>
-<p>A <a href="https://docs.rs/bunsen/0.39.0/bunsen/data/pretrained/cache/struct.PretrainedCache.html" title="struct bunsen::data::pretrained::cache::PretrainedCache"><code>PretrainedCache</code></a> keeps each
+<p>A <a href="https://docs.rs/bunsen/0.40.0/bunsen/data/pretrained/cache/struct.PretrainedCache.html" title="struct bunsen::data::pretrained::cache::PretrainedCache"><code>PretrainedCache</code></a> keeps each
 pinned file at <code>&lt;cache&gt;/pretrained/&lt;kit&gt;/&lt;namespace&gt;/&lt;sha256&gt;/&lt;file&gt;</code>. <strong>The
 digest in the path is the pin.</strong> A file there was verified when it was
 written, so later runs trust it without re-hashing gigabytes, and a model
 whose pin changes can never collide with a stale copy. The cache trusts the
 path whoever wrote it: a download, bundled bytes, or a build script or a
 deployment that laid the directory out ahead of time
-(<a href="https://docs.rs/bunsen/0.39.0/bunsen/data/pretrained/cache/struct.PretrainedCache.html#trust-model" title="struct bunsen::data::pretrained::cache::PretrainedCache">trust model</a>).</p>
+(<a href="https://docs.rs/bunsen/0.40.0/bunsen/data/pretrained/cache/struct.PretrainedCache.html#trust-model" title="struct bunsen::data::pretrained::cache::PretrainedCache">trust model</a>).</p>
 <p>The cache looks at that path first, then at a resource’s local sources, and
 only then at its URLs
-(<a href="https://docs.rs/bunsen/0.39.0/bunsen/data/pretrained/cache/struct.PretrainedCache.html#source-order" title="struct bunsen::data::pretrained::cache::PretrainedCache">source order</a>). A
+(<a href="https://docs.rs/bunsen/0.40.0/bunsen/data/pretrained/cache/struct.PretrainedCache.html#source-order" title="struct bunsen::data::pretrained::cache::PretrainedCache">source order</a>). A
 local directory, such as <code>openai-whisper</code>’s own cache, is a “trust me”
 source: its file is used in place and hashed only when the cache’s options
 ask for verification. Nothing is linked or copied into the cache, and only
 a download or bundled bytes write there. Downloads need the <code>fetch</code> feature.
 Without it, or on an offline cache, a file that only a URL can supply is
-reported as not found (<a href="https://docs.rs/bunsen/0.39.0/bunsen/data/index.html#features" title="mod bunsen::data">features</a>).</p>
+reported as not found (<a href="https://docs.rs/bunsen/0.40.0/bunsen/data/index.html#features" title="mod bunsen::data">features</a>).</p>
 <h2 id="bundling-is-a-populated-cache-directory"><a class="header" href="#bundling-is-a-populated-cache-directory">Bundling is a populated cache directory</a></h2>
 <p>Because the cache trusts its layout, shipping a model with a build does not
 need a special kind of source. It needs a cache directory that is already
-full. <a href="https://docs.rs/bunsen-bundled-whisper/0.39.0/bunsen_bundled_whisper/index.html" title="mod bunsen_bundled_whisper"><code>bunsen_bundled_whisper</code></a> fetches Whisper’s
+full. <a href="https://docs.rs/bunsen-bundled-whisper/0.40.0/bunsen_bundled_whisper/index.html" title="mod bunsen_bundled_whisper"><code>bunsen_bundled_whisper</code></a> fetches Whisper’s
 <code>base</code> files at build time into its build directory, laid out as a cache,
 and a <code>PretrainedCache</code> rooted there finds them without knowing they were
 bundled. An offline deployment does the same thing at install time: fill a
 cache directory ahead of time, and point the cache at it.</p>
 <p>The other form links the bytes into the binary: a
-<a href="https://docs.rs/bunsen/0.39.0/bunsen/data/pretrained/resource/enum.Source.html#variant.Bundled" title="variant bunsen::data::pretrained::resource::Source::Bundled"><code>Source::Bundled</code></a>, checked
+<a href="https://docs.rs/bunsen/0.40.0/bunsen/data/pretrained/resource/enum.Source.html#variant.Bundled" title="variant bunsen::data::pretrained::resource::Source::Bundled"><code>Source::Bundled</code></a>, checked
 against its digest and written into the cache on first use. Both forms are
 described under
-<a href="https://docs.rs/bunsen/0.39.0/bunsen/data/pretrained/index.html#the-cache-and-bundles" title="mod bunsen::data::pretrained">the cache and bundles</a>.</p>
+<a href="https://docs.rs/bunsen/0.40.0/bunsen/data/pretrained/index.html#the-cache-and-bundles" title="mod bunsen::data::pretrained">the cache and bundles</a>.</p>
 <h2 id="deferred-models-and-the-kits-hook"><a class="header" href="#deferred-models-and-the-kits-hook">Deferred models and the kit’s hook</a></h2>
 <p>What a name resolves to is a
-<a href="https://docs.rs/bunsen/0.39.0/bunsen/data/pretrained/deferred/struct.Deferred.html" title="struct bunsen::data::pretrained::deferred::Deferred"><code>Deferred</code></a> model: the row’s map, plus
-the kit’s <a href="https://docs.rs/bunsen/0.39.0/bunsen/data/pretrained/construct/trait.Construct.html" title="trait bunsen::data::pretrained::construct::Construct"><code>Construct</code></a> hook. The hook
+<a href="https://docs.rs/bunsen/0.40.0/bunsen/data/pretrained/deferred/struct.Deferred.html" title="struct bunsen::data::pretrained::deferred::Deferred"><code>Deferred</code></a> model: the row’s map, plus
+the kit’s <a href="https://docs.rs/bunsen/0.40.0/bunsen/data/pretrained/construct/trait.Construct.html" title="trait bunsen::data::pretrained::construct::Construct"><code>Construct</code></a> hook. The hook
 is chosen for the map by
-<a href="https://docs.rs/bunsen/0.39.0/bunsen/data/pretrained/construct/trait.Construct.html#tymethod.for_map" title="associated function bunsen::data::pretrained::construct::Construct::for_map"><code>for_map</code></a>, from the
+<a href="https://docs.rs/bunsen/0.40.0/bunsen/data/pretrained/construct/trait.Construct.html#tymethod.for_map" title="associated function bunsen::data::pretrained::construct::Construct::for_map"><code>for_map</code></a>, from the
 resources’ <code>kind</code>s, because rows from different providers can need
 different readers: an OpenAI <code>.pt</code> checkpoint and a Hugging Face safetensors
 repo are both Whisper, read two ways.</p>
 <p>Loading runs three steps. The hook’s
-<a href="https://docs.rs/bunsen/0.39.0/bunsen/data/pretrained/construct/trait.Construct.html#method.plan" title="method bunsen::data::pretrained::construct::Construct::plan"><code>plan</code></a> completes the map and
+<a href="https://docs.rs/bunsen/0.40.0/bunsen/data/pretrained/construct/trait.Construct.html#method.plan" title="method bunsen::data::pretrained::construct::Construct::plan"><code>plan</code></a> completes the map and
 checks what the row promises, such as its prefab, before any bytes are
 fetched. The cache then brings the files local. Finally the hook’s
-<a href="https://docs.rs/bunsen/0.39.0/bunsen/data/pretrained/construct/trait.Construct.html#tymethod.construct" title="method bunsen::data::pretrained::construct::Construct::construct"><code>construct</code></a> builds the
+<a href="https://docs.rs/bunsen/0.40.0/bunsen/data/pretrained/construct/trait.Construct.html#tymethod.construct" title="method bunsen::data::pretrained::construct::Construct::construct"><code>construct</code></a> builds the
 model from them. Before loading, a caller can lay its own resources over
 the row’s with
-<a href="https://docs.rs/bunsen/0.39.0/bunsen/data/pretrained/deferred/struct.Deferred.html#method.with_overlay" title="method bunsen::data::pretrained::deferred::Deferred::with_overlay"><code>with_overlay</code></a>, where the
-caller’s resource wins by key. <code>bunsen-asr whisper</code>’s <code>--vocab</code> flag works this way.</p>
+<a href="https://docs.rs/bunsen/0.40.0/bunsen/data/pretrained/deferred/struct.Deferred.html#method.with_overlay" title="method bunsen::data::pretrained::deferred::Deferred::with_overlay"><code>with_overlay</code></a>, where the
+caller’s resource wins by key. <code>bunsen-asr family whisper</code>’s <code>--vocab</code> flag works this way.</p>
 <h2 id="pytorch-checkpoints"><a class="header" href="#pytorch-checkpoints">PyTorch checkpoints</a></h2>
 <p>An OpenAI <code>.pt</code> checkpoint is read through burn-store’s PyTorch reader,
 behind the <code>store_pytorch</code> feature, and a Hugging Face safetensors repo
@@ -312,9 +312,9 @@ another tensor loads as the weight it is.</p>
 <h2 id="the-operational-view"><a class="header" href="#the-operational-view">The operational view</a></h2>
 <p><code>bunsen-asr</code> shows the machinery from the outside. Each family’s <code>list</code>
 shows its rows and where each one’s files stand, and its <code>fetch</code> brings a
-model’s resources local; <code>bunsen-asr whisper inspect</code> checks a checkpoint
-against its prefab, and <code>bunsen-asr whisper prefabs</code> lists the geometries;
-<code>bunsen-asr cache</code> lists and clears what the cache holds. Its
+model’s resources local; <code>bunsen-asr family whisper inspect</code> checks a
+checkpoint against its prefab, and <code>bunsen-asr family whisper prefabs</code> lists
+the geometries; <code>bunsen-asr cache</code> lists and clears what the cache holds. Its
 <a href="https://github.com/zspacelabs/bunsen/blob/main/crates/public/bunsen-asr/README.md#whisper-models">README</a>
 explains Whisper’s index.</p>
 

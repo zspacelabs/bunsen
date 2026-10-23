@@ -35,7 +35,7 @@
             const path_to_root = "../";
             const default_light_theme = "rust";
             const default_dark_theme = "ayu";
-            window.path_to_searchindex_js = "../searchindex-b798e791.js";
+            window.path_to_searchindex_js = "../searchindex-27e02a36.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-52d38e2f.js"></script>
@@ -190,7 +190,7 @@ rules are what they are. The rules themselves are in STYLE.md’s
 and
 <a href="https://github.com/zspacelabs/bunsen/blob/main/STYLE.md#fetched-assets-live-in-out_dir">Fetched assets live in <code>OUT_DIR</code></a>;
 the features that carry them are listed in
-<a href="https://docs.rs/bunsen/0.39.0/bunsen/data/index.html#features" title="mod bunsen::data"><code>bunsen::data</code></a>.</p>
+<a href="https://docs.rs/bunsen/0.40.0/bunsen/data/index.html#features" title="mod bunsen::data"><code>bunsen::data</code></a>.</p>
 <h2 id="build-time-and-run-time"><a class="header" href="#build-time-and-run-time">Build time and run time</a></h2>
 <p>There are two switches, and neither implies the other:</p>
 <ul>
@@ -235,31 +235,42 @@ Every bundled crate hosts nothing: its build script fetches the files, pins
 each one, and lays them out in <code>OUT_DIR</code> as a pretrained cache. A cache rooted
 there finds them offline without knowing they were bundled.</p>
 <ul>
-<li><a href="https://docs.rs/bunsen-bundled-whisper/0.39.0/bunsen_bundled_whisper/index.html" title="mod bunsen_bundled_whisper"><code>bunsen_bundled_whisper</code></a> fetches Whisper’s <code>base</code> checkpoint, the
-vocabularies and, for validation, the ONNX reference. bunsen’s
-<code>whisper-weights</code> feature pulls it in.</li>
-<li><a href="https://docs.rs/bunsen-bundled-silero/0.39.0/bunsen_bundled_silero/index.html" title="mod bunsen_bundled_silero"><code>bunsen_bundled_silero</code></a> fetches upstream’s 16 kHz Silero VAD
-checkpoint and, for validation, its ONNX graph, from which the reference
-model is generated. bunsen’s <code>silero-weights</code> feature pulls it in.</li>
+<li><a href="https://docs.rs/bunsen-bundled-whisper/0.40.0/bunsen_bundled_whisper/index.html" title="mod bunsen_bundled_whisper"><code>bunsen_bundled_whisper</code></a> fetches Whisper’s <code>base</code> checkpoint, the
+vocabularies and the ONNX reference, for <code>whisper-model-validation</code>.</li>
+<li><a href="https://docs.rs/bunsen-bundled-silero/0.40.0/bunsen_bundled_silero/index.html" title="mod bunsen_bundled_silero"><code>bunsen_bundled_silero</code></a> fetches upstream’s 16 kHz Silero VAD
+checkpoint and its ONNX graph, from which the reference model is
+generated, for <code>silero-model-validation</code>.</li>
 <li><code>bunsen-bundled-parakeet</code> and <code>bunsen-bundled-qwen3-asr</code> fetch the Phonon
 checkpoints, the base models and the ONNX references for their validation
 crates only, and are not published.</li>
+<li><code>bunsen-bundled-sortformer</code> fetches NVIDIA’s <code>Nemotron-3-Diarization</code> and
+streaming Sortformer v2 and v2.1 checkpoints, and ONNX exports of Nemotron
+(which its build script rewrites where <code>burn-onnx</code> cannot import it) and of
+v2.1, for its validation crate only, and is not published.</li>
 </ul>
-<p>So a <code>*-weights</code> feature makes the build reach the network on a cold cache.</p>
+<p>Only the validation crates depend on them, through their <code>weights</code> and
+<code>download</code> features, so no other build reaches the network. bunsen’s own tests
+read no fetched asset: where a test needs what a real model does, it replays
+a committed recording of it, and the validation crate checks the recording
+against the model.</p>
 <p>A deployment does the same thing at install time: fill the runtime cache
 ahead of time, and the program never needs <code>fetch</code>.</p>
-<h2 id="why-ci-doesnt-cache-them"><a class="header" href="#why-ci-doesnt-cache-them">Why CI doesn’t cache them</a></h2>
-<p>Every CI run fetches the assets bunsen’s own tests read again, and that is
-deliberate. CI caches compiled units, not <code>target/</code>, so cargo runs every
-build script on every run, and a build script’s fetch is not a compiled unit.
-A separate cache over an <code>OUT_DIR</code> path goes stale as soon as the hash in that
-path changes, which every toolchain or lockfile update does.</p>
-<p>It is affordable because CI fetches only those: Silero’s weights and
-Whisper’s <code>base</code> checkpoint and vocabularies, about 150 MB. CI never turns on
-<code>download</code>, whose checkpoints and reference exports run to many GB; the
-validation suites that need them run by hand.</p>
-<p>So don’t add a cache step for them. To avoid the download locally, point the
-override variables at copies you already have.</p>
+<h2 id="how-ci-caches-them"><a class="header" href="#how-ci-caches-them">How CI caches them</a></h2>
+<p>CI caches compiled units, not <code>target/</code>, so cargo runs every build script on
+every run, and a build script’s fetch is not a compiled unit. A cache over an
+<code>OUT_DIR</code> path would go stale as soon as the hash in that path changes, which
+every toolchain or lockfile update does.</p>
+<p>So assets are cached by digest instead. <code>BUNSEN_ASSET_CACHE</code> names a
+directory every build script keeps what it fetches in, as <code>&lt;sha256&gt;</code>, and
+takes a pinned file from before fetching it, verified as any asset is. Its
+paths never move. The pull-request jobs fetch nothing at all; <code>validation.yml</code>,
+which runs only when asked (from the Actions tab, or for a pull request with
+the <code>validate</code> label), runs Silero’s and Whisper’s whole suites on the CPU over
+about 730 MB of assets, and caches that directory under a key that hashes the
+pins. The other families’ assets run to GBs; their suites run by hand.</p>
+<p>Locally, set <code>BUNSEN_ASSET_CACHE</code> to keep assets across <code>cargo clean</code> and
+toolchain updates, or point the override variables at copies you already
+have.</p>
 
                     </main>
 

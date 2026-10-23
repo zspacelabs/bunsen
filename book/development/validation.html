@@ -35,7 +35,7 @@
             const path_to_root = "../";
             const default_light_theme = "rust";
             const default_dark_theme = "ayu";
-            window.path_to_searchindex_js = "../searchindex-b798e791.js";
+            window.path_to_searchindex_js = "../searchindex-27e02a36.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-52d38e2f.js"></script>
@@ -242,10 +242,12 @@ Python, and the reference is not a build or test dependency.</p>
 <p>Regenerating a fixture is a deliberate manual step, never part of CI. Each
 fixture script’s docstring pins the tool versions it was run with and says
 how to set up its environment. The scripts run the reference on the CPU,
-because a fixture only has to be correct, and a CPU run is deterministic. Where the inputs came
-from, and under what licence, is recorded in the <code>testdata/</code> READMEs, such
-as
-<a href="https://github.com/zspacelabs/bunsen/blob/main/crates/validation/whisper-model-validation/testdata/README.md">Whisper’s speech fixtures</a>.</p>
+because a fixture only has to be correct, and a CPU run is deterministic. The audio the
+tests read is collected in one dev crate, <code>bunsen-test-audio</code>, whose
+<a href="https://github.com/zspacelabs/bunsen/blob/main/crates/dev/bunsen-test-audio/testdata/README.md">README</a>
+records where each clip came from and under what licence; a fixture that is a
+model’s output on a clip stays in the <code>testdata/</code> of that model’s validation
+crate.</p>
 <p>The same pattern pins data. <code>tools/gen_shard_digests.py</code> reads a dataset’s
 listing at a pinned revision and writes the digest table that a
 <a href="../systems/shards.html">shard set</a> verifies against.</p>
@@ -254,9 +256,20 @@ listing at a pinned revision and writes the digest table that a
 <code>download</code> fetches the assets it compares against, <code>gpu-tests</code> compiles the
 tests that load a model, and a backend feature says what they run on.
 Without <code>gpu-tests</code> only its fixture-integrity checks run, and that is all of
-it that CI runs: CI turns on neither <code>download</code> nor <code>gpu-tests</code> for any
-validation crate. The full suite is run by hand, in release mode, with a
-backend; the
+it that pull-request CI runs: it turns on none of <code>weights</code>, <code>download</code> and
+<code>gpu-tests</code> for any validation crate.</p>
+<p><code>weights</code> is the cheap half of <code>download</code>, the checkpoints without the
+reference graphs, and compiles the checks that need only them: the Whisper
+kit’s pretrained pathway on <code>base.pt</code>, and Silero’s recorded probabilities
+held to upstream’s model. They run on the CPU, as <code>cargo make validate-cpu</code>.</p>
+<p><code>validation.yml</code> runs Silero’s and Whisper’s whole suites, ONNX cross-checks
+included, on the CPU (<code>cargo make validate-ci</code>), over about 730 MB of assets it
+caches by digest (<a href="./assets.html#how-ci-caches-them">Assets</a>). It runs only when
+asked: from the Actions tab, or for a pull request with the <code>validate</code> label,
+then on every push while the label stays.</p>
+<p><code>cargo make validate-&lt;model&gt;</code> (<code>silero</code>, <code>whisper</code>, <code>parakeet</code>, <code>qwen3-asr</code>,
+<code>sortformer</code>, or <code>all</code>) runs a model’s whole suite, in release mode, on
+<code>VALIDATION_BACKEND</code> (default <code>wgpu</code>). The
 <a href="https://github.com/zspacelabs/bunsen/blob/main/crates/validation/whisper-model-validation/README.md#running-it">README</a>
 has the command. Without a backend feature the suite still passes, having
 measured the CPU (<a href="./testing.html#the-silent-cpu-fallback">Testing and backends</a>).</p>

@@ -35,7 +35,7 @@
             const path_to_root = "../";
             const default_light_theme = "rust";
             const default_dark_theme = "ayu";
-            window.path_to_searchindex_js = "../searchindex-b798e791.js";
+            window.path_to_searchindex_js = "../searchindex-27e02a36.js";
         </script>
         <!-- Start loading toc.js asap -->
         <script src="../toc-52d38e2f.js"></script>
@@ -195,9 +195,9 @@ benchmarks print their own.</p>
 <tr><th>Bench</th><th>Measures</th><th>Runs on</th></tr>
 </thead>
 <tbody>
-<tr><td><code>contracts</code></td><td>shape-contract unpacks, asserts and periodic asserts (<a href="https://docs.rs/bunsen/0.39.0/bunsen/contracts/index.html#cost" title="mod bunsen::contracts">cost</a>)</td><td>the host</td></tr>
+<tr><td><code>contracts</code></td><td>shape-contract unpacks, asserts and periodic asserts (<a href="https://docs.rs/bunsen/0.40.0/bunsen/contracts/index.html#cost" title="mod bunsen::contracts">cost</a>)</td><td>the host</td></tr>
 <tr><td><code>drop_block</code></td><td>2D DropBlock over a small image batch</td><td>the CPU backend, always</td></tr>
-<tr><td><code>math</code></td><td><a href="https://docs.rs/bunsen/0.39.0/bunsen/support/math/iroot/fn.maybe_iroot.html" title="fn bunsen::support::math::iroot::maybe_iroot"><code>maybe_iroot</code></a> against a floating-point reference</td><td>the host</td></tr>
+<tr><td><code>math</code></td><td><a href="https://docs.rs/bunsen/0.40.0/bunsen/support/math/iroot/fn.maybe_iroot.html" title="fn bunsen::support::math::iroot::maybe_iroot"><code>maybe_iroot</code></a> against a floating-point reference</td><td>the host</td></tr>
 <tr><td><code>lbm</code></td><td>the D2Q9 lattice-Boltzmann collision, streaming and update steps, in <code>f32</code> and <code>f64</code></td><td><code>performance_device()</code></td></tr>
 <tr><td><code>whisper_decode</code></td><td>the Whisper encoder and decode loop at <code>base.en</code>’s shapes, with random weights, cold and warm</td><td><code>performance_device()</code></td></tr>
 </tbody>
@@ -238,7 +238,7 @@ the kernel.</li>
 </ul>
 <h2 id="always-pass-a-backend"><a class="header" href="#always-pass-a-backend">Always pass a backend</a></h2>
 <p>A benchmark on
-<a href="https://docs.rs/bunsen/0.39.0/bunsen/support/testing/common_devices/fn.performance_device.html" title="fn bunsen::support::testing::common_devices::performance_device"><code>performance_device</code></a>
+<a href="https://docs.rs/bunsen/0.40.0/bunsen/support/testing/common_devices/fn.performance_device.html" title="fn bunsen::support::testing::common_devices::performance_device"><code>performance_device</code></a>
 measures whatever bunsen’s backend feature selected, and without one that is
 the CPU. It doesn’t fail; it reports CPU numbers
 (<a href="./testing.html#the-silent-cpu-fallback">Testing and backends</a>). Pass the
