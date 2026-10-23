@@ -1179,6 +1179,8 @@ dependencies = [
  "bunsen-fetch",
  "bunsen-test-audio",
  "burn",
+ "burn-backend",
+ "burn-dispatch",
  "ciborium",
  "crc",
  "criterion",
