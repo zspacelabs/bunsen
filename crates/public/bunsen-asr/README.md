@@ -165,11 +165,11 @@ targets:
   - type: log                       # a JSON line per record, at `level` under `target`
     level: info
     target: bunsen_asr::transcript
-  - type: webhook                   # each record POSTed as JSON (--features webhook)
+  - type: webhook                   # each record POSTed as JSON (the `webhook` feature)
     url: https://example.com/hook
     headers: {Authorization: Bearer TOKEN}
     events: [statement]
-  - type: mqtt                      # each record published to {prefix}/{event} (--features mqtt)
+  - type: mqtt                      # each record published to {prefix}/{event} (the `mqtt` feature)
     broker: mqtt://broker.lan:1883  # plain TCP; 1883 by default
     prefix: bunsen-asr/room-1
     qos: 1                          # 0, 1 (the default) or 2
@@ -179,7 +179,7 @@ targets:
 ```
 
 ```sh
-cargo run --release -p bunsen-asr --features wgpu,mqtt -- live --diarize \
+cargo run --release -p bunsen-asr --features wgpu -- live --diarize \
   --publish '[{type: stdout}, {type: mqtt, broker: broker.lan, prefix: office/asr}]'
 ```
 
@@ -201,7 +201,8 @@ under `--diarize`, it is wrapped under its speaker (`null` where the diarizer he
 - `events` (all): the records a target takes, of `statement`, `draft` and `transcript`. Text shows statements, and on
   stdout drafts on stderr; RTTM shows the statements with a speaker.
 
-A local write that fails ends the run. A network target delivers from a thread of its own, so a slow one never holds
+The default `webhook` and `mqtt` features build the network targets (through `ureq` and `rumqttc`); a build without
+them refuses a config that names one. A local write that fails ends the run. A network target delivers from a thread of its own, so a slow one never holds
 the audio up: a failed POST, or a publish while the broker is gone (`rumqttc` reconnects), is logged and the next
 record tried, and at the end each waits for what is queued (MQTT up to 5 s for the broker's acknowledgements). The
 log is filtered as every log is: `RUST_LOG=bunsen_asr::transcript=info` shows a `log` target's records alone.

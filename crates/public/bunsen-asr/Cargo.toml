@@ -22,7 +22,7 @@ path = "src/main.rs"
 workspace = true
 
 [features]
-default = ["live"]
+default = ["live", "webhook", "mqtt"]
 ## `<family> live`: the microphone through the host's audio API (`cpal`;
 ## on Linux it links ALSA, `libasound2-dev`), and Ctrl-C as a clean stop.
 live = ["dep:cpal", "dep:ctrlc"]
