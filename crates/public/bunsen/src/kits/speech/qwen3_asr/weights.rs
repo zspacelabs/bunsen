@@ -44,7 +44,8 @@ pub fn text_layer_rekey() -> Rekey {
 
 /// `transformers`' `Qwen3ASRForConditionalGeneration` state-dict names onto
 /// a [`Qwen3Asr`]'s module paths: under `model.`, the audio tower's 1-based
-/// `conv2d{n}` onto its stem's 0-based `ConvSeq2d` blocks, its layers by
+/// `conv2d{n}` onto its stem's 0-based `ConvSeq2d` blocks
+/// ([`ConvSeq2d::one_based_rekey`]), its layers by
 /// `transformers`' Whisper layer names
 /// ([`ResidualEncoderAttentionBlock::whisper_hf_rekey`]), the text model's
 /// layers by [`text_layer_rekey`], and everything else as it is. Anything
@@ -53,22 +54,15 @@ pub fn text_layer_rekey() -> Rekey {
 /// Normalization parameters keep their `weight` / `bias` spellings, which
 /// [`apply_rekeyed_tensors_as`] resolves to `gamma` / `beta`.
 pub fn hf_rekey() -> Rekey {
-    let stem = Rekey::drop_rest().custom(|name| {
-        let (n, param) = name.split_once('.')?;
-        let n: usize = n.parse().ok().filter(|&n| n >= 1)?;
-        let conv = ConvSeq2d::block_conv_path("audio_tower.stem", n - 1);
-        Some(Some(format!("{conv}.{param}")))
-    });
     Rekey::drop_rest().mount(
         "model.",
         "",
         Rekey::keep_rest()
-            .custom(move |name| {
-                // A name that is not a stem convolution's is left to the
-                // next rule, as it is.
-                let rest = name.strip_prefix("audio_tower.conv2d")?;
-                stem.target(rest).map(|t| Some(t.path))
-            })
+            .mount(
+                "audio_tower.conv2d",
+                "audio_tower.stem.",
+                ConvSeq2d::one_based_rekey(),
+            )
             .mount_indexed(
                 "audio_tower.layers.",
                 "audio_tower.layers.",

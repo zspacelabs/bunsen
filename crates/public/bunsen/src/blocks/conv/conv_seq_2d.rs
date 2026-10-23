@@ -17,7 +17,10 @@ use crate::{
         ConvBlock2dConfig,
         ConvBlock2dMeta,
     },
-    burner::module::ModuleInit,
+    burner::module::{
+        ModuleInit,
+        Rekey,
+    },
     errors::{
         BunsenError,
         BunsenResult,
@@ -419,6 +422,45 @@ impl ConvSeq2d {
         index: usize,
     ) -> String {
         format!("{seq_path}.blocks.{index}.conv")
+    }
+
+    /// A checkpoint's flatly named, 1-based convolutions, relative to their
+    /// shared name prefix, onto a sequence of these, relative to it:
+    /// `{n}.{rest}` is block `n - 1`'s `conv.{rest}`, and `0.{rest}` is
+    /// dropped.
+    ///
+    /// Mounted under that prefix (`conv` for `conv1`, `conv2`, ...), it puts
+    /// them wherever the sequence sits. A name under the prefix that is not
+    /// numbered (`conv_out`) is not the sequence's, and goes on to the
+    /// enclosing map's next rule ([`Rekey::pass_rest`]).
+    ///
+    /// ```
+    /// use bunsen::{
+    ///     blocks::conv::ConvSeq2d,
+    ///     burner::module::Rekey,
+    /// };
+    ///
+    /// let rekey = Rekey::keep_rest().mount(
+    ///     "conv",
+    ///     "encoder.stem.",
+    ///     ConvSeq2d::one_based_rekey(),
+    /// );
+    /// assert_eq!(
+    ///     rekey.apply("conv2.weight").as_deref(),
+    ///     Some("encoder.stem.blocks.1.conv.weight")
+    /// );
+    /// assert_eq!(rekey.apply("conv0.weight"), None);
+    /// assert_eq!(
+    ///     rekey.apply("conv_out.weight").as_deref(),
+    ///     Some("conv_out.weight")
+    /// );
+    /// ```
+    pub fn one_based_rekey() -> Rekey {
+        Rekey::pass_rest().custom(|name| {
+            let (n, rest) = name.split_once('.')?;
+            let n: usize = n.parse().ok()?;
+            Some(n.checked_sub(1).map(|k| format!("blocks.{k}.conv.{rest}")))
+        })
     }
 
     /// Performs a forward pass through the sequence of [`ConvBlock2d`] modules.
