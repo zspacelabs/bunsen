@@ -266,7 +266,10 @@ mod tests {
                     .0
                     .parse()
                     .ok()?;
-                Some(k.is_multiple_of(2).then(|| format!("stages.{}.conv", k / 2)))
+                Some(
+                    k.is_multiple_of(2)
+                        .then(|| format!("stages.{}.conv", k / 2)),
+                )
             })
             .rename("conv.", "kept.");
         assert_eq!(
