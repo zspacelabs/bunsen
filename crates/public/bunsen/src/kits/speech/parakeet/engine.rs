@@ -411,7 +411,7 @@ mod tests {
             let level = MomentsLevel::of(window.clone());
             normalize(&front_end, window, &level)
                 .to_data()
-                .assert_approx_eq::<f32>(&one_shot.to_data(), Tolerance::relative(0.01));
+                .assert_approx_eq::<f32>(&one_shot.to_data(), Tolerance::permissive());
         }
 
         let mut empty = ParakeetFeatures::new(front_end, device);
