@@ -5,6 +5,75 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and this project adheres
 to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.40.0](https://github.com/zspacelabs/bunsen/compare/bunsen-v0.39.0...bunsen-v0.40.0) - 2026-10-23
+
+### Added
+
+- *(rekey)* [**breaking**] `Indices`, how `mount_indexed_with` numbers a stack; `Rekey::plan_for` sees the module; ResNet loads through `ResNet::torchvision_rekey` ([#380](https://github.com/zspacelabs/bunsen/pull/380))
+- *(rekey)* `Rekey::plan` resolves a whole checkpoint's names; `apply_rekeyed_tensors` refuses a plan that cannot load as written ([#378](https://github.com/zspacelabs/bunsen/pull/378))
+- *(conv)* `ConvSeq{1,2}d::one_based_rekey`, a checkpoint's `conv1`, `conv2`, ... onto a sequence's blocks ([#377](https://github.com/zspacelabs/bunsen/pull/377))
+- *(attention)* `KVCache` holds cross-attention keys and values, shared by a `group`, and `reorder`s its history ([#368](https://github.com/zspacelabs/bunsen/pull/368))
+- *(attention)* [**breaking**] `KVCacheStorage`, the KV cache stores its history as its config's policy says ([#365](https://github.com/zspacelabs/bunsen/pull/365))
+- *(attention)* [**breaking**] `KVCacheModel`, a model hands out its own `KVCacheConfig` ([#364](https://github.com/zspacelabs/bunsen/pull/364))
+- *(blocks)* [**breaking**] `CausalDecoderBlock`, the generic decoder-only layer; NanoChat's and Qwen3's layers are one ([#358](https://github.com/zspacelabs/bunsen/pull/358))
+- *(blocks)* [**breaking**] layout orders are block config, and a block's key map permutes a weight to match ([#357](https://github.com/zspacelabs/bunsen/pull/357))
+- *(blocks)* [**breaking**] `SubsampledEncoder`, a front end then an encoder stack, with `AxisOrder` at its boundary; Sortformer's encoder is one ([#354](https://github.com/zspacelabs/bunsen/pull/354))
+- *(blocks)* [**breaking**] `EncoderTransformer`, any encoder stack chosen by config; the Conformer's stack is its own type ([#352](https://github.com/zspacelabs/bunsen/pull/352))
+- *(bunsen-asr)* [**breaking**] profiles, speech to text by what it is for; the families under `family` ([#344](https://github.com/zspacelabs/bunsen/pull/344))
+- *(sortformer)* `hf:` repos that hold a `.nemo`, their config read first ([#339](https://github.com/zspacelabs/bunsen/pull/339))
+- *(sortformer)* the streaming Sortformer v2 and v2.1 as well-known rows ([#338](https://github.com/zspacelabs/bunsen/pull/338))
+- *(sortformer)* a Sortformer `.nemo`'s config, as bunsen's ([#336](https://github.com/zspacelabs/bunsen/pull/336))
+- *(sortformer)* streaming presets by family and latency ([#335](https://github.com/zspacelabs/bunsen/pull/335))
+- *(sortformer)* stream Sortformer v2, held to NeMo's sync streaming ([#333](https://github.com/zspacelabs/bunsen/pull/333))
+- *(sortformer)* the Sortformer v2 model, held to NeMo on a toy ([#332](https://github.com/zspacelabs/bunsen/pull/332))
+- *(blocks)* the residual encoder block's norm is an optional NormalizationConfig ([#331](https://github.com/zspacelabs/bunsen/pull/331))
+- *(speech)* read `.nemo` checkpoints, their configs, and NeMo's names ([#329](https://github.com/zspacelabs/bunsen/pull/329))
+- *(blocks)* post-norm and a configurable activation in the residual encoder block ([#327](https://github.com/zspacelabs/bunsen/pull/327))
+- *(blocks)* ConformerEncoder splits at its subsampling ([#326](https://github.com/zspacelabs/bunsen/pull/326))
+- *(speech)* engines cut windows at speaker turns; speech scoring in kits::speech::testing ([#318](https://github.com/zspacelabs/bunsen/pull/318))
+- *(sortformer)* pretrained Nemotron-3-Diarization, the bundle, and the diarizer ([#315](https://github.com/zspacelabs/bunsen/pull/315))
+- *(sortformer)* stream a Sortformer through the Arrival-Order Speaker Cache ([#314](https://github.com/zspacelabs/bunsen/pull/314))
+- *(sortformer)* the Sortformer kit's model, held to transformers' Nemotron-3-Diarization ([#313](https://github.com/zspacelabs/bunsen/pull/313))
+- *(blocks)* `blocks::frame_rate`, FeatureStacking and a sub-pixel upsample ([#312](https://github.com/zspacelabs/bunsen/pull/312))
+- *(blocks)* bidirectional rotary self-attention and a pre-norm RoPE encoder ([#311](https://github.com/zspacelabs/bunsen/pull/311))
+- *(speech)* `kits::speech::nemo`, NeMo's mel front end, shared by Parakeet and Sortformer ([#310](https://github.com/zspacelabs/bunsen/pull/310))
+- *(speech)* attach a diarizer to the ASR stream driver ([#308](https://github.com/zspacelabs/bunsen/pull/308))
+- *(speech)* diarization's model-independent parts: activity, turns, RTTM, DER ([#306](https://github.com/zspacelabs/bunsen/pull/306))
+- *(speech)* add `ToneConfig` for test tone generation and refactor usage across engines ([#304](https://github.com/zspacelabs/bunsen/pull/304))
+
+### Fixed
+
+- *(rekey)* `mount_indexed` claims only a decimal index; `Rekey::pass_rest`, a map that claims only what its rules claim ([#376](https://github.com/zspacelabs/bunsen/pull/376))
+- *(asr)* exit with the device idle: `burner::device::DeviceSession`, opened through `bunsen-app` ([#363](https://github.com/zspacelabs/bunsen/pull/363))
+- *(descriptors)* unsigned dtypes are Int tensors in TensorKindDesc::from ([#316](https://github.com/zspacelabs/bunsen/pull/316))
+
+### Other
+
+- *(transformers)* [**breaking**] the remaining layers take `Normalization`; `norm_self_attn` and friends take any norm ([#390](https://github.com/zspacelabs/bunsen/pull/390))
+- *(parakeet)* streamed features match the one-shot front end within `Tolerance::permissive` ([#375](https://github.com/zspacelabs/bunsen/pull/375))
+- *(whisper)* [**breaking**] Whisper's `transformers` loader is a `Rekey` over its blocks' maps ([#373](https://github.com/zspacelabs/bunsen/pull/373))
+- *(silero)* [**breaking**] Silero's upstream safetensors loader is a `Rekey`; `FusedLstm::torch_cell_rekey` ([#372](https://github.com/zspacelabs/bunsen/pull/372))
+- *(qwen3)* the Qwen3 model's blocks move into `qwen3::blocks` ([#371](https://github.com/zspacelabs/bunsen/pull/371))
+- *(blocks)* [**breaking**] `decoders::cross::CrossDecoderBlock`, the encoder-decoder layer; Whisper's `ResidualDecoderAttentionBlock` retires ([#370](https://github.com/zspacelabs/bunsen/pull/370))
+- *(whisper)* [**breaking**] Whisper decodes through the shared `KVCache`; `TextDecoderCache` and `AttnKvPair` retire ([#369](https://github.com/zspacelabs/bunsen/pull/369))
+- *(kits)* [**breaking**] a family's checkpoint names map in its kit; blocks keep the shared key-map machinery ([#362](https://github.com/zspacelabs/bunsen/pull/362))
+- *(speech)* [**breaking**] Qwen3-ASR's loader is a `Rekey`; the residual encoder block owns its `transformers` names ([#360](https://github.com/zspacelabs/bunsen/pull/360))
+- *(blocks)* [**breaking**] the encoder and decoder layers name their fields by role ([#359](https://github.com/zspacelabs/bunsen/pull/359))
+- *(blocks)* [**breaking**] `blocks::frame_rate` is `blocks::signals`, home of the encoder front ends ([#356](https://github.com/zspacelabs/bunsen/pull/356))
+- *(blocks)* [**breaking**] the FastConformer is a policy for a `SubsampledEncoder`; `ConformerEncoder` is no longer a type ([#355](https://github.com/zspacelabs/bunsen/pull/355))
+- *(blocks)* [**breaking**] `Rekey`, checkpoint names onto module paths by composed rules; blocks own their maps ([#351](https://github.com/zspacelabs/bunsen/pull/351))
+- *(blocks)* [**breaking**] Sortformer's transformer is the generic `ResidualEncoderTransformer` ([#350](https://github.com/zspacelabs/bunsen/pull/350))
+- *(blocks)* [**breaking**] the Conformer is a transformer encoder: `blocks::conformer` moves to `blocks::transformers::encoders::conformer` ([#349](https://github.com/zspacelabs/bunsen/pull/349))
+- *(speech)* [**breaking**] no build fetches by default; the bundled-weight checks move to the validation crates ([#345](https://github.com/zspacelabs/bunsen/pull/345))
+- *(blocks)* attention without a key bias through `with_key_bias(false)` ([#342](https://github.com/zspacelabs/bunsen/pull/342))
+- *(speech)* the Sortformer v2 rows across the kits index, the book, and the dev crates ([#341](https://github.com/zspacelabs/bunsen/pull/341))
+- *(sortformer)* Sortformer v2 and v2.1 diarize AMI as NeMo does ([#340](https://github.com/zspacelabs/bunsen/pull/340))
+- *(sortformer)* a Sortformer v2.1 ONNX reference, held to onnxruntime ([#330](https://github.com/zspacelabs/bunsen/pull/330))
+- *(blocks)* [**breaking**] encoder layers under `blocks::transformers::encoders` ([#325](https://github.com/zspacelabs/bunsen/pull/325))
+- *(burner)* bf16 rounding lives in burner::tensor ([#320](https://github.com/zspacelabs/bunsen/pull/320))
+- collect the test audio into the bunsen-test-audio dev crate ([#305](https://github.com/zspacelabs/bunsen/pull/305))
+- *(logging)* replace `stderrlog` with `env_logger`, add custom logging policies ([#303](https://github.com/zspacelabs/bunsen/pull/303))
+
 ## [0.39.0](https://github.com/zspacelabs/bunsen/compare/bunsen-v0.38.0...bunsen-v0.39.0) - 2026-10-17
 
 ### Added

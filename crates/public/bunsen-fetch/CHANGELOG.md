@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.40.0](https://github.com/zspacelabs/bunsen/compare/bunsen-fetch-v0.39.0...bunsen-fetch-v0.40.0) - 2026-10-23
+
+### Added
+
+- *(sortformer)* `hf:` repos that hold a `.nemo`, their config read first ([#339](https://github.com/zspacelabs/bunsen/pull/339))
+
+### Other
+
+- *(validation)* Silero's and Whisper's whole suites on the CPU, when asked, over a digest-keyed asset cache ([#346](https://github.com/zspacelabs/bunsen/pull/346))
+
 ## [0.39.0](https://github.com/zspacelabs/bunsen/compare/bunsen-fetch-v0.38.0...bunsen-fetch-v0.39.0) - 2026-10-17
 
 ### Fixed

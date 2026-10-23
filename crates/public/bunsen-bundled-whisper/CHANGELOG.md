@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.40.0](https://github.com/zspacelabs/bunsen/compare/bunsen-bundled-whisper-v0.39.0...bunsen-bundled-whisper-v0.40.0) - 2026-10-23
+
+### Other
+
+- *(whisper)* [**breaking**] Whisper's `transformers` loader is a `Rekey` over its blocks' maps ([#373](https://github.com/zspacelabs/bunsen/pull/373))
+- *(speech)* [**breaking**] no build fetches by default; the bundled-weight checks move to the validation crates ([#345](https://github.com/zspacelabs/bunsen/pull/345))
+
 ## [0.39.0](https://github.com/zspacelabs/bunsen/compare/bunsen-bundled-whisper-v0.38.0...bunsen-bundled-whisper-v0.39.0) - 2026-10-17
 
 ### Other
