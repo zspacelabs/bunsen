@@ -123,8 +123,9 @@ pub fn apply_named_tensors_as<M: ModuleSnapshot>(
 /// A transformed tensor is read whole at that point; the others stay as
 /// lazy as their source.
 ///
-/// The map is planned over every name first ([`Rekey::plan`]), and a plan
-/// that cannot load as written is refused before any tensor is read.
+/// The map is planned over every name first, seeing the module's own paths
+/// ([`Rekey::plan_for`]), and a plan that cannot load as written is refused
+/// before any tensor is read.
 ///
 /// # Errors
 /// As [`apply_named_tensors`];
@@ -151,7 +152,12 @@ pub fn apply_rekeyed_tensors_as<M: ModuleSnapshot>(
     float_dtype: Option<DType>,
 ) -> BunsenResult<NamedTensorsApplied> {
     let tensors: Vec<PackTensor> = tensors.into_iter().collect();
-    let plan = rekey.plan(tensors.iter().map(|t| t.name.as_str()));
+    let module_paths = module
+        .collect(None, None, true)
+        .into_iter()
+        .map(|t| t.name)
+        .collect();
+    let plan = rekey.plan_for(tensors.iter().map(|t| t.name.as_str()), &module_paths);
     plan.check()?;
     let mut placed = Vec::new();
     let mut dropped = Vec::new();
