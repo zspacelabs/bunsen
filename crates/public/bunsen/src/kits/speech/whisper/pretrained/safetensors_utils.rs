@@ -28,7 +28,7 @@ use crate::{
 ///
 /// `layers.N` is `blocks.N`; `self_attn.{q,k,v,out}_proj` is
 /// `attn.{query,key,value,output}` and `encoder_attn` is `cross_attn`; the
-/// three layer norms are `attn_ln`, `cross_attn_ln` and `mlp_ln`; `fc1`
+/// three layer norms are `attn_norm`, `cross_attn_norm` and `mlp_norm`; `fc1`
 /// and `fc2` are `mlp.linear1` and `mlp.linear2`; the two convolutions
 /// are the encoder head's blocks; the positional tables lose their
 /// `.weight`; the final norms are `ln_post` and `ln`; and the `model.`
@@ -48,9 +48,9 @@ pub const HF_TO_BUNSEN: &[(&str, &str)] = &[
     (r"\.encoder_attn\.k_proj\.", ".cross_attn.key."),
     (r"\.encoder_attn\.v_proj\.", ".cross_attn.value."),
     (r"\.encoder_attn\.out_proj\.", ".cross_attn.output."),
-    (r"\.self_attn_layer_norm\.", ".attn_ln."),
-    (r"\.encoder_attn_layer_norm\.", ".cross_attn_ln."),
-    (r"\.final_layer_norm\.", ".mlp_ln."),
+    (r"\.self_attn_layer_norm\.", ".attn_norm."),
+    (r"\.encoder_attn_layer_norm\.", ".cross_attn_norm."),
+    (r"\.final_layer_norm\.", ".mlp_norm."),
     (r"\.fc1\.", ".mlp.linear1."),
     (r"\.fc2\.", ".mlp.linear2."),
     (r"^encoder\.layer_norm\.", "encoder.ln_post."),
@@ -73,9 +73,9 @@ pub const BUNSEN_TO_HF: &[(&str, &str)] = &[
     (r"\.cross_attn\.key\.", ".encoder_attn.k_proj."),
     (r"\.cross_attn\.value\.", ".encoder_attn.v_proj."),
     (r"\.cross_attn\.output\.", ".encoder_attn.out_proj."),
-    (r"\.attn_ln\.", ".self_attn_layer_norm."),
-    (r"\.cross_attn_ln\.", ".encoder_attn_layer_norm."),
-    (r"\.mlp_ln\.", ".final_layer_norm."),
+    (r"\.attn_norm\.", ".self_attn_layer_norm."),
+    (r"\.cross_attn_norm\.", ".encoder_attn_layer_norm."),
+    (r"\.mlp_norm\.", ".final_layer_norm."),
     (r"\.mlp\.linear1\.", ".fc1."),
     (r"\.mlp\.linear2\.", ".fc2."),
     (r"^encoder\.ln_post\.", "encoder.layer_norm."),

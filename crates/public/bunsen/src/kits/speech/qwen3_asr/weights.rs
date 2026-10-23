@@ -41,8 +41,8 @@ pub fn hf_to_bunsen_path(name: &str) -> Option<String> {
         (".self_attn.k_proj.", ".attn.key."),
         (".self_attn.v_proj.", ".attn.value."),
         (".self_attn.out_proj.", ".attn.output."),
-        (".self_attn_layer_norm.", ".attn_ln."),
-        (".final_layer_norm.", ".mlp_ln."),
+        (".self_attn_layer_norm.", ".attn_norm."),
+        (".final_layer_norm.", ".mlp_norm."),
         (".fc1.", ".mlp.linear1."),
         (".fc2.", ".mlp.linear2."),
     ];
@@ -203,7 +203,7 @@ mod tests {
             ),
             (
                 "model.audio_tower.layers.3.final_layer_norm.weight",
-                Some("audio_tower.layers.3.mlp_ln.weight"),
+                Some("audio_tower.layers.3.mlp_norm.weight"),
             ),
             (
                 "model.audio_tower.layers.3.fc2.bias",

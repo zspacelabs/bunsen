@@ -168,15 +168,15 @@ mod tests {
             ),
             (
                 "encoder.layers.3.self_attn.q_proj.weight",
-                Some("encoder.transformer.layers.3.self_attn.query.weight"),
+                Some("encoder.transformer.layers.3.attn.query.weight"),
             ),
             (
                 "encoder.layers.3.self_attn.relative_k_proj.weight",
-                Some("encoder.transformer.layers.3.self_attn.pos.weight"),
+                Some("encoder.transformer.layers.3.attn.pos.weight"),
             ),
             (
                 "encoder.layers.3.self_attn.bias_u",
-                Some("encoder.transformer.layers.3.self_attn.pos_bias_u"),
+                Some("encoder.transformer.layers.3.attn.pos_bias_u"),
             ),
             (
                 "encoder.layers.3.conv.depthwise_conv.weight",
@@ -193,7 +193,7 @@ mod tests {
             ),
             (
                 "encoder.layers.3.norm_out.weight",
-                Some("encoder.transformer.layers.3.norm_out.weight"),
+                Some("encoder.transformer.layers.3.out_norm.weight"),
             ),
             (
                 "decoder.lstm.weight_ih_l1",

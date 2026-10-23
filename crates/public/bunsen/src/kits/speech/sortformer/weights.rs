@@ -240,7 +240,7 @@ mod tests {
             ),
             (
                 "encoder.layers.16.self_attn.linear_q.bias",
-                Some("encoder.transformer.layers.16.self_attn.query.bias"),
+                Some("encoder.transformer.layers.16.attn.query.bias"),
             ),
             ("encoder.layers.0.conv.batch_norm.num_batches_tracked", None),
             (

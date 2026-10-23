@@ -144,9 +144,9 @@ impl ModuleInit<ResidualEncoderAttentionBlock> for ResidualEncoderAttentionBlock
             .try_init(device)?;
 
         Ok(ResidualEncoderAttentionBlock {
-            attn_ln: norm(),
+            attn_norm: norm(),
             attn,
-            mlp_ln: norm(),
+            mlp_norm: norm(),
             mlp,
             norm_placement: self.norm_placement,
         })
@@ -168,13 +168,13 @@ impl ModuleInit<ResidualEncoderAttentionBlock> for ResidualEncoderAttentionBlock
 #[derive(Module, Debug)]
 pub struct ResidualEncoderAttentionBlock {
     /// Attention normalization, when the block normalizes.
-    pub attn_ln: Option<Normalization>,
+    pub attn_norm: Option<Normalization>,
 
     /// Attention.
     pub attn: MultiHeadAttention,
 
     /// MLP normalization, when the block normalizes.
-    pub mlp_ln: Option<Normalization>,
+    pub mlp_norm: Option<Normalization>,
 
     /// MLP.
     pub mlp: Mlp,
@@ -249,12 +249,12 @@ impl ResidualEncoderAttentionBlock {
         };
         match self.norm_placement {
             NormPlacement::Pre => {
-                let x = x.clone() + attend(normalize(&self.attn_ln, x));
-                x.clone() + self.mlp.forward(normalize(&self.mlp_ln, x))
+                let x = x.clone() + attend(normalize(&self.attn_norm, x));
+                x.clone() + self.mlp.forward(normalize(&self.mlp_norm, x))
             }
             NormPlacement::Post => {
-                let x = normalize(&self.attn_ln, x.clone() + attend(x));
-                normalize(&self.mlp_ln, x.clone() + self.mlp.forward(x))
+                let x = normalize(&self.attn_norm, x.clone() + attend(x));
+                normalize(&self.mlp_norm, x.clone() + self.mlp.forward(x))
             }
         }
     }
@@ -377,8 +377,8 @@ impl ResidualEncoderAttentionBlock {
             .rename("first_sub_layer.out_projection.", "attn.output.")
             .rename("second_sub_layer.dense_in.", "mlp.linear1.")
             .rename("second_sub_layer.dense_out.", "mlp.linear2.")
-            .rename("layer_norm_1.", "attn_ln.")
-            .rename("layer_norm_2.", "mlp_ln.")
+            .rename("layer_norm_1.", "attn_norm.")
+            .rename("layer_norm_2.", "mlp_norm.")
     }
 }
 
@@ -436,8 +436,8 @@ mod tests {
         assert!(!cfg.key_bias);
         let block: ResidualEncoderAttentionBlock = cfg.init(&crate::support::testing::cpu_device());
         assert_eq!(block.norm_placement(), NormPlacement::Pre);
-        assert_eq!(layer_norm(&block.attn_ln).gamma.dims(), [64]);
-        assert_eq!(layer_norm(&block.mlp_ln).gamma.dims(), [64]);
+        assert_eq!(layer_norm(&block.attn_norm).gamma.dims(), [64]);
+        assert_eq!(layer_norm(&block.mlp_norm).gamma.dims(), [64]);
         assert!(block.attn.key.bias.is_none());
     }
 
@@ -451,7 +451,7 @@ mod tests {
             .with_d_head(8)
             .with_norm(Some(RmsNormConfig::new(0).into()))
             .init(&device);
-        match &rms.attn_ln {
+        match &rms.attn_norm {
             Some(Normalization::Rms(norm)) => assert_eq!(norm.gamma.dims(), [32]),
             other => panic!("not an RmsNorm: {other:?}"),
         }
@@ -463,7 +463,7 @@ mod tests {
                 .with_norm(None)
                 .with_norm_placement(placement)
                 .init(&device);
-            assert!(block.attn_ln.is_none() && block.mlp_ln.is_none());
+            assert!(block.attn_norm.is_none() && block.mlp_norm.is_none());
             assert!(block.num_params() < rms.num_params());
 
             let expected = {
@@ -500,8 +500,8 @@ mod tests {
                 .attn
                 .forward(MhaInput::self_attn(x.clone()).mask_attn(mask))
                 .context;
-            let x = layer_norm(&block.attn_ln).forward(x + context);
-            layer_norm(&block.mlp_ln).forward(x.clone() + block.mlp.forward(x))
+            let x = layer_norm(&block.attn_norm).forward(x + context);
+            layer_norm(&block.mlp_norm).forward(x.clone() + block.mlp.forward(x))
         };
         output
             .into_data()
@@ -538,10 +538,10 @@ mod tests {
 
         let expected = {
             let self_attn =
-                layer_norm_self_attn(layer_norm(&block.attn_ln), &block.attn, x.clone(), None);
+                layer_norm_self_attn(layer_norm(&block.attn_norm), &block.attn, x.clone(), None);
             let x = x + self_attn.context;
 
-            let mlp = layer_norm_mlp(layer_norm(&block.mlp_ln), &block.mlp, x.clone());
+            let mlp = layer_norm_mlp(layer_norm(&block.mlp_norm), &block.mlp, x.clone());
             x + mlp
         };
 
@@ -612,7 +612,7 @@ mod tests {
             ResidualEncoderTransformer::nemo_rekey()
                 .apply("layers.2.layer_norm_2.bias")
                 .as_deref(),
-            Some("layers.2.mlp_ln.bias")
+            Some("layers.2.mlp_norm.bias")
         );
         assert_eq!(
             ResidualEncoderTransformer::nemo_rekey().apply("final_layer_norm.weight"),

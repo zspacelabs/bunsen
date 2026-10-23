@@ -175,15 +175,15 @@ fn test_toy_block_modules() {
 
     let ff1 = layer
         .feed_forward1
-        .forward(layer.norm_feed_forward1.forward(x.clone()));
+        .forward(layer.feed_forward1_norm.forward(x.clone()));
     assert_close("feed_forward1", ff1, toy.io("block.ff1"));
 
     let attn = layer
-        .self_attn
-        .forward(layer.norm_self_att.forward(x.clone()), positions, None);
+        .attn
+        .forward(layer.attn_norm.forward(x.clone()), positions, None);
     assert_close("self_attn", attn, toy.io("block.attn"));
 
-    let conv = layer.conv.forward(layer.norm_conv.forward(x), None);
+    let conv = layer.conv.forward(layer.conv_norm.forward(x), None);
     assert_close("conv", conv, toy.io("block.conv"));
 }
 

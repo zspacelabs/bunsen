@@ -98,11 +98,11 @@ impl ModuleInit<ResidualDecoderAttentionBlock> for ResidualDecoderAttentionBlock
             .try_init(device)?;
 
         Ok(ResidualDecoderAttentionBlock {
-            attn_ln: ln_cfg.init(device),
+            attn_norm: ln_cfg.init(device),
             attn,
-            cross_attn_ln: ln_cfg.init(device),
+            cross_attn_norm: ln_cfg.init(device),
             cross_attn,
-            mlp_ln: ln_cfg.init(device),
+            mlp_norm: ln_cfg.init(device),
             mlp,
         })
     }
@@ -119,19 +119,19 @@ impl ModuleInit<ResidualDecoderAttentionBlock> for ResidualDecoderAttentionBlock
 #[derive(Module, Debug)]
 pub struct ResidualDecoderAttentionBlock {
     /// Attention Normalization.
-    pub attn_ln: LayerNorm,
+    pub attn_norm: LayerNorm,
 
     /// Attention.
     pub attn: MultiHeadAttention,
 
     /// Cross Attention Normalization.
-    pub cross_attn_ln: LayerNorm,
+    pub cross_attn_norm: LayerNorm,
 
     /// Cross Attention.
     pub cross_attn: MultiHeadAttention,
 
     /// MLP Normalization.
-    pub mlp_ln: LayerNorm,
+    pub mlp_norm: LayerNorm,
 
     /// MLP.
     pub mlp: Mlp,
@@ -196,14 +196,14 @@ impl ResidualDecoderAttentionBlock {
         xa: Tensor<3>,
         mask: Option<Tensor<3, Bool>>,
     ) -> DecodeRecord {
-        let self_attn = layer_norm_self_attn(&self.attn_ln, &self.attn, x.clone(), mask);
+        let self_attn = layer_norm_self_attn(&self.attn_norm, &self.attn, x.clone(), mask);
         let x = x + self_attn.context;
 
         let cross_attn =
-            layer_norm_cross_attn(&self.cross_attn_ln, &self.cross_attn, x.clone(), xa);
+            layer_norm_cross_attn(&self.cross_attn_norm, &self.cross_attn, x.clone(), xa);
         let x = x + cross_attn.context;
 
-        let mlp = layer_norm_mlp(&self.mlp_ln, &self.mlp, x.clone());
+        let mlp = layer_norm_mlp(&self.mlp_norm, &self.mlp, x.clone());
         let x = x + mlp;
 
         DecodeRecord {
@@ -255,7 +255,7 @@ impl ResidualDecoderAttentionBlock {
         group: usize,
     ) -> Tensor<3> {
         let x = x.clone().add(layer_norm_self_attn_w_kv_cache(
-            &self.attn_ln,
+            &self.attn_norm,
             &self.attn,
             x,
             mask,
@@ -263,14 +263,14 @@ impl ResidualDecoderAttentionBlock {
         ));
 
         let x = x.clone().add(layer_norm_cross_attn_w_kv_cache_grouped(
-            &self.cross_attn_ln,
+            &self.cross_attn_norm,
             &self.cross_attn,
             x,
             cross_kv,
             group,
         ));
 
-        let mlp = layer_norm_mlp(&self.mlp_ln, &self.mlp, x.clone());
+        let mlp = layer_norm_mlp(&self.mlp_norm, &self.mlp, x.clone());
         x + mlp
     }
 
@@ -347,19 +347,23 @@ mod tests {
         assert_eq!(result.seq_len(), seq_len);
 
         let expected = {
-            let self_attn =
-                layer_norm_self_attn(&block.attn_ln, &block.attn, x.clone(), mask.clone().into());
+            let self_attn = layer_norm_self_attn(
+                &block.attn_norm,
+                &block.attn,
+                x.clone(),
+                mask.clone().into(),
+            );
             let x = x + self_attn.context;
 
             let cross_attn = layer_norm_cross_attn(
-                &block.cross_attn_ln,
+                &block.cross_attn_norm,
                 &block.cross_attn,
                 x.clone(),
                 xa.clone(),
             );
             let x = x + cross_attn.context;
 
-            let mlp = layer_norm_mlp(&block.mlp_ln, &block.mlp, x.clone());
+            let mlp = layer_norm_mlp(&block.mlp_norm, &block.mlp, x.clone());
             let x = x + mlp;
 
             DecodeRecord {
