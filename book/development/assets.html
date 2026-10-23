@@ -190,7 +190,7 @@ rules are what they are. The rules themselves are in STYLE.md’s
 and
 <a href="https://github.com/zspacelabs/bunsen/blob/main/STYLE.md#fetched-assets-live-in-out_dir">Fetched assets live in <code>OUT_DIR</code></a>;
 the features that carry them are listed in
-<a href="https://docs.rs/bunsen/0.40.0/bunsen/data/index.html#features" title="mod bunsen::data"><code>bunsen::data</code></a>.</p>
+<a href="https://docs.rs/bunsen/0.41.0/bunsen/data/index.html#features" title="mod bunsen::data"><code>bunsen::data</code></a>.</p>
 <h2 id="build-time-and-run-time"><a class="header" href="#build-time-and-run-time">Build time and run time</a></h2>
 <p>There are two switches, and neither implies the other:</p>
 <ul>
@@ -235,9 +235,9 @@ Every bundled crate hosts nothing: its build script fetches the files, pins
 each one, and lays them out in <code>OUT_DIR</code> as a pretrained cache. A cache rooted
 there finds them offline without knowing they were bundled.</p>
 <ul>
-<li><a href="https://docs.rs/bunsen-bundled-whisper/0.40.0/bunsen_bundled_whisper/index.html" title="mod bunsen_bundled_whisper"><code>bunsen_bundled_whisper</code></a> fetches Whisper’s <code>base</code> checkpoint, the
+<li><a href="https://docs.rs/bunsen-bundled-whisper/0.41.0/bunsen_bundled_whisper/index.html" title="mod bunsen_bundled_whisper"><code>bunsen_bundled_whisper</code></a> fetches Whisper’s <code>base</code> checkpoint, the
 vocabularies and the ONNX reference, for <code>whisper-model-validation</code>.</li>
-<li><a href="https://docs.rs/bunsen-bundled-silero/0.40.0/bunsen_bundled_silero/index.html" title="mod bunsen_bundled_silero"><code>bunsen_bundled_silero</code></a> fetches upstream’s 16 kHz Silero VAD
+<li><a href="https://docs.rs/bunsen-bundled-silero/0.41.0/bunsen_bundled_silero/index.html" title="mod bunsen_bundled_silero"><code>bunsen_bundled_silero</code></a> fetches upstream’s 16 kHz Silero VAD
 checkpoint and its ONNX graph, from which the reference model is
 generated, for <code>silero-model-validation</code>.</li>
 <li><code>bunsen-bundled-parakeet</code> and <code>bunsen-bundled-qwen3-asr</code> fetch the Phonon

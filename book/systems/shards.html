@@ -185,8 +185,8 @@
 <p>A language model trains on a corpus too large to fetch at once, published as
 many numbered files. This chapter covers how bunsen names, pins and fetches
 those files, and where they go next. The reference is
-<a href="https://docs.rs/bunsen/0.40.0/bunsen/data/shards/index.html" title="mod bunsen::data::shards"><code>bunsen::data::shards</code></a>, whose
-<a href="https://docs.rs/bunsen/0.40.0/bunsen/data/shards/index.html#lifecycle" title="mod bunsen::data::shards">lifecycle</a> links every step.</p>
+<a href="https://docs.rs/bunsen/0.41.0/bunsen/data/shards/index.html" title="mod bunsen::data::shards"><code>bunsen::data::shards</code></a>, whose
+<a href="https://docs.rs/bunsen/0.41.0/bunsen/data/shards/index.html#lifecycle" title="mod bunsen::data::shards">lifecycle</a> links every step.</p>
 <h2 id="the-pathway"><a class="header" href="#the-pathway">The pathway</a></h2>
 <pre><code class="language-text">a kit's shard set table      names its sets, compiled in
   │  look up, select a range of shards
@@ -199,14 +199,14 @@ shard paths
   ▼
 a data loader                bunsen-arrow-dataloaders, in train-chat
 </code></pre>
-<p>A <a href="https://docs.rs/bunsen/0.40.0/bunsen/data/shards/descriptor/struct.ShardSetDescriptor.html" title="struct bunsen::data::shards::descriptor::ShardSetDescriptor"><code>ShardSetDescriptor</code></a> says
+<p>A <a href="https://docs.rs/bunsen/0.41.0/bunsen/data/shards/descriptor/struct.ShardSetDescriptor.html" title="struct bunsen::data::shards::descriptor::ShardSetDescriptor"><code>ShardSetDescriptor</code></a> says
 what a set is: its name, the base URLs its files come from, how they are
 named and numbered, and whether they are pinned. It is plain data, and it
 follows the same split as <a href="./pretrained.html">pretrained models</a>: a static
 twin for tables compiled into a kit, such as
-<a href="https://docs.rs/bunsen/0.40.0/bunsen/kits/gpts/nanochat/datasets/index.html" title="mod bunsen::kits::gpts::nanochat::datasets">NanoChat’s corpus</a>, and an owned
+<a href="https://docs.rs/bunsen/0.41.0/bunsen/kits/gpts/nanochat/datasets/index.html" title="mod bunsen::kits::gpts::nanochat::datasets">NanoChat’s corpus</a>, and an owned
 twin for a set built at run time. A
-<a href="https://docs.rs/bunsen/0.40.0/bunsen/data/shards/set/struct.ShardSet.html" title="struct bunsen::data::shards::set::ShardSet"><code>ShardSet</code></a> binds a descriptor to a
+<a href="https://docs.rs/bunsen/0.41.0/bunsen/data/shards/set/struct.ShardSet.html" title="struct bunsen::data::shards::set::ShardSet"><code>ShardSet</code></a> binds a descriptor to a
 directory, the disk cache’s or one the caller gives, and brings shards in.
 Binding needs the <code>cache</code> feature; downloading needs <code>fetch</code>. Without
 <code>fetch</code>, a set works from shards that are already on disk.</p>
@@ -223,15 +223,15 @@ fixture generators, the script is run once by hand and its output committed
 <p>bunsen’s part ends with a list of local paths. Reading them is a data
 loader’s job, and the loader that reads NanoChat’s Parquet shards is a
 separate crate,
-<a href="https://docs.rs/bunsen-arrow-dataloaders/0.40.0/bunsen_arrow_dataloaders/index.html" title="mod bunsen_arrow_dataloaders"><code>bunsen_arrow_dataloaders</code></a>, a preview that does
+<a href="https://docs.rs/bunsen-arrow-dataloaders/0.41.0/bunsen_arrow_dataloaders/index.html" title="mod bunsen_arrow_dataloaders"><code>bunsen_arrow_dataloaders</code></a>, a preview that does
 not depend on bunsen. Its
-<a href="https://docs.rs/bunsen-arrow-dataloaders/0.40.0/bunsen_arrow_dataloaders/dataloaders/chat/struct.ChatDataLoader.html" title="struct bunsen_arrow_dataloaders::dataloaders::chat::ChatDataLoader"><code>ChatDataLoader</code></a>
+<a href="https://docs.rs/bunsen-arrow-dataloaders/0.41.0/bunsen_arrow_dataloaders/dataloaders/chat/struct.ChatDataLoader.html" title="struct bunsen_arrow_dataloaders::dataloaders::chat::ChatDataLoader"><code>ChatDataLoader</code></a>
 streams the shards through text selection, tokenization and packing into
 fixed-shape blocks of token ids, with an optional shuffle
-(<a href="https://docs.rs/bunsen-arrow-dataloaders/0.40.0/bunsen_arrow_dataloaders/dataloaders/chat/index.html#pipeline-overview" title="mod bunsen_arrow_dataloaders::dataloaders::chat">pipeline overview</a>).</p>
+(<a href="https://docs.rs/bunsen-arrow-dataloaders/0.41.0/bunsen_arrow_dataloaders/dataloaders/chat/index.html#pipeline-overview" title="mod bunsen_arrow_dataloaders::dataloaders::chat">pipeline overview</a>).</p>
 <p>A selection of shards can also become a
-<a href="https://docs.rs/bunsen/0.40.0/bunsen/data/pretrained/resource_map/struct.ResourceMap.html" title="struct bunsen::data::pretrained::resource_map::ResourceMap"><code>ResourceMap</code></a>, through
-<a href="https://docs.rs/bunsen/0.40.0/bunsen/data/shards/descriptor/struct.ShardSetDescriptor.html#method.to_resource_map" title="method bunsen::data::shards::descriptor::ShardSetDescriptor::to_resource_map"><code>to_resource_map</code></a>,
+<a href="https://docs.rs/bunsen/0.41.0/bunsen/data/pretrained/resource_map/struct.ResourceMap.html" title="struct bunsen::data::pretrained::resource_map::ResourceMap"><code>ResourceMap</code></a>, through
+<a href="https://docs.rs/bunsen/0.41.0/bunsen/data/shards/descriptor/struct.ShardSetDescriptor.html#method.to_resource_map" title="method bunsen::data::shards::descriptor::ShardSetDescriptor::to_resource_map"><code>to_resource_map</code></a>,
 for a pretrained row that includes a shard set.</p>
 <h2 id="end-to-end-train-chat"><a class="header" href="#end-to-end-train-chat">End to end: train-chat</a></h2>
 <p><a href="https://github.com/zspacelabs/bunsen/tree/main/examples/train-chat"><code>examples/train-chat</code></a>

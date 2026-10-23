@@ -186,23 +186,23 @@
 application, a training script, a kit that uses another subsystem, a test.</p>
 <h2 id="react-to-the-kind"><a class="header" href="#react-to-the-kind">React to the kind</a></h2>
 <p>A consumer that is not a specialist reads one thing, the
-<a href="https://docs.rs/bunsen/0.40.0/bunsen/errors/kind/enum.BunsenErrorKind.html" title="enum bunsen::errors::kind::BunsenErrorKind">kind</a>, and has a small, fixed set of
+<a href="https://docs.rs/bunsen/0.41.0/bunsen/errors/kind/enum.BunsenErrorKind.html" title="enum bunsen::errors::kind::BunsenErrorKind">kind</a>, and has a small, fixed set of
 reactions to choose from:</p>
 <ul>
 <li><strong>A bug, <code>Illegal</code> or <code>Internal</code>.</strong>
-<a href="https://docs.rs/bunsen/0.40.0/bunsen/errors/kind/enum.BunsenErrorKind.html#method.is_bug" title="method bunsen::errors::kind::BunsenErrorKind::is_bug"><code>is_bug</code></a> is true. Escalate it.
+<a href="https://docs.rs/bunsen/0.41.0/bunsen/errors/kind/enum.BunsenErrorKind.html#method.is_bug" title="method bunsen::errors::kind::BunsenErrorKind::is_bug"><code>is_bug</code></a> is true. Escalate it.
 A script panics. A long-running service logs the report and fails the one
 request or graph, not the process. <code>Illegal</code> means the calling code broke a
 documented rule. <code>Internal</code> means bunsen broke its own, and is worth an
 issue.</li>
 <li><strong>Retry, <code>Unavailable</code>.</strong>
-<a href="https://docs.rs/bunsen/0.40.0/bunsen/errors/kind/enum.BunsenErrorKind.html#method.is_retryable" title="method bunsen::errors::kind::BunsenErrorKind::is_retryable"><code>is_retryable</code></a> is true for
+<a href="https://docs.rs/bunsen/0.41.0/bunsen/errors/kind/enum.BunsenErrorKind.html#method.is_retryable" title="method bunsen::errors::kind::BunsenErrorKind::is_retryable"><code>is_retryable</code></a> is true for
 this kind only. Back off and try again, within a budget. No other kind
 improves with time, so retrying any other kind only delays the same
 failure.</li>
 <li><strong>Fall back, <code>Lookup</code>.</strong> A key did not resolve. Try the next source, or
 tell the person which keys exist. The
-<a href="https://docs.rs/bunsen/0.40.0/bunsen/errors/lookup_error/struct.LookupError.html" title="struct bunsen::errors::lookup_error::LookupError"><code>LookupError</code></a> cause carries the candidates.</li>
+<a href="https://docs.rs/bunsen/0.41.0/bunsen/errors/lookup_error/struct.LookupError.html" title="struct bunsen::errors::lookup_error::LookupError"><code>LookupError</code></a> cause carries the candidates.</li>
 <li><strong>Fix the settings, <code>Policy</code>.</strong> The request is misconfigured: a config
 breaks a rule, downloads are turned off, values do not match a baseline.
 Tell the person which setting to change.</li>
@@ -225,7 +225,7 @@ typed cause. Reading causes is the subject of the
 <ul>
 <li><strong><code>Display</code> (<code>{}</code>)</strong> is one line: the frames of context, outermost first,
 then the message. Use it in log lines and status text.</li>
-<li><strong>The report</strong> (<a href="https://docs.rs/bunsen/0.40.0/bunsen/errors/bunsen_error/struct.BunsenError.html#method.report" title="method bunsen::errors::bunsen_error::BunsenError::report"><code>report</code></a>, <code>{:#}</code>,
+<li><strong>The report</strong> (<a href="https://docs.rs/bunsen/0.41.0/bunsen/errors/bunsen_error/struct.BunsenError.html#method.report" title="method bunsen::errors::bunsen_error::BunsenError::report"><code>report</code></a>, <code>{:#}</code>,
 or <code>Debug</code>) is the whole story: the kind, the message and where it was
 built, the details, each frame with its source location, the cause chain,
 and a backtrace for a bug. Print it wherever a person will debug the
@@ -233,10 +233,10 @@ failure.</li>
 </ul>
 <p><code>main() -&gt; BunsenResult&lt;()&gt;</code> prints the report on failure, because Rust
 prints a returned error’s <code>Debug</code>. So does
-<a href="https://docs.rs/bunsen/0.40.0/bunsen/errors/result_ext/trait.WithOkOrPanic.html#tymethod.ok_or_panic" title="method bunsen::errors::result_ext::WithOkOrPanic::ok_or_panic"><code>ok_or_panic</code></a>.</p>
+<a href="https://docs.rs/bunsen/0.41.0/bunsen/errors/result_ext/trait.WithOkOrPanic.html#tymethod.ok_or_panic" title="method bunsen::errors::result_ext::WithOkOrPanic::ok_or_panic"><code>ok_or_panic</code></a>.</p>
 <h2 id="try_x-or-x"><a class="header" href="#try_x-or-x"><code>try_x</code> or <code>x</code></a></h2>
 <p>Bunsen’s fallible operations come in pairs
-(<a href="https://docs.rs/bunsen/0.40.0/bunsen/errors/index.html#convention-try_x-and-x" title="mod bunsen::errors">the convention</a>): <code>try_x</code> returns a
+(<a href="https://docs.rs/bunsen/0.41.0/bunsen/errors/index.html#convention-try_x-and-x" title="mod bunsen::errors">the convention</a>): <code>try_x</code> returns a
 <code>BunsenResult</code>, and <code>x</code> panics with the report. Call <code>x</code> when the input is
 yours and known to be good, or when nothing above you could recover anyway.
 Call <code>try_x</code> when the input comes from outside the program, and when you are
@@ -244,7 +244,7 @@ a service that must outlive one bad request.</p>
 <h2 id="pass-it-up-with-context"><a class="header" href="#pass-it-up-with-context">Pass it up with context</a></h2>
 <p>A consumer is usually also a layer that the error passes through on its way
 to someone else. Add what you know with
-<a href="https://docs.rs/bunsen/0.40.0/bunsen/errors/result_ext/trait.ResultContext.html" title="trait bunsen::errors::result_ext::ResultContext"><code>ResultContext</code></a>: <code>.context("loading the corpus")</code>, or <code>.with_context(|| ..)</code> to build the text only on failure. This
+<a href="https://docs.rs/bunsen/0.41.0/bunsen/errors/result_ext/trait.ResultContext.html" title="trait bunsen::errors::result_ext::ResultContext"><code>ResultContext</code></a>: <code>.context("loading the corpus")</code>, or <code>.with_context(|| ..)</code> to build the text only on failure. This
 costs nothing on success, and does not change the kind or the cause.</p>
 <p>Two situations call for more than context, because you know something about
 the <em>blame</em> that the code below you could not:</p>
@@ -252,16 +252,16 @@ the <em>blame</em> that the code below you could not:</p>
 <li>You passed values you read from outside the program, such as a config
 file or a command line, and got an <code>Illegal</code> back. The rule that broke is
 the input’s fault, so re-mark it with
-<a href="https://docs.rs/bunsen/0.40.0/bunsen/errors/result_ext/trait.ResultContext.html#tymethod.as_policy" title="method bunsen::errors::result_ext::ResultContext::as_policy"><code>as_policy</code></a>.</li>
+<a href="https://docs.rs/bunsen/0.41.0/bunsen/errors/result_ext/trait.ResultContext.html#tymethod.as_policy" title="method bunsen::errors::result_ext::ResultContext::as_policy"><code>as_policy</code></a>.</li>
 <li>You passed a name your own code chose, and got a <code>Lookup</code> back. That is a
 bug on your side, so re-mark it with
-<a href="https://docs.rs/bunsen/0.40.0/bunsen/errors/result_ext/trait.ResultContext.html#tymethod.as_illegal" title="method bunsen::errors::result_ext::ResultContext::as_illegal"><code>as_illegal</code></a>.</li>
+<a href="https://docs.rs/bunsen/0.41.0/bunsen/errors/result_ext/trait.ResultContext.html#tymethod.as_illegal" title="method bunsen::errors::result_ext::ResultContext::as_illegal"><code>as_illegal</code></a>.</li>
 </ul>
-<p>The <a href="https://docs.rs/bunsen/0.40.0/bunsen/errors/index.html#re-marking" title="mod bunsen::errors">re-marking rules</a> keep a bunsen bug from
+<p>The <a href="https://docs.rs/bunsen/0.41.0/bunsen/errors/index.html#re-marking" title="mod bunsen::errors">re-marking rules</a> keep a bunsen bug from
 ever becoming the caller’s fault.</p>
 <h2 id="testing-what-you-got"><a class="header" href="#testing-what-you-got">Testing what you got</a></h2>
 <p>A test that expects a failure checks the parts it is about, with
-<a href="https://docs.rs/bunsen/0.40.0/bunsen/errors/testing/error_matcher/struct.ErrorMatcher.html" title="struct bunsen::errors::testing::error_matcher::ErrorMatcher"><code>ErrorMatcher</code></a> (feature
+<a href="https://docs.rs/bunsen/0.41.0/bunsen/errors/testing/error_matcher/struct.ErrorMatcher.html" title="struct bunsen::errors::testing::error_matcher::ErrorMatcher"><code>ErrorMatcher</code></a> (feature
 <code>testing</code>): the kind, and perhaps a phrase of the message or a typed cause.
 A test that pins the whole message breaks every time a word changes.
 <code>BunsenError</code> is not <code>PartialEq</code> for that reason.</p>

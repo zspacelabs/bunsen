@@ -186,8 +186,8 @@
 configs, the weights it can load and a program that runs it, or a simulation
 you can step. Where <a href="../systems/ops-and-blocks.html">blocks and ops</a> are parts,
 a kit is what the parts are for.</p>
-<p>The <a href="https://docs.rs/bunsen/0.40.0/bunsen/kits/index.html#the-kits" title="mod bunsen::kits"><code>bunsen::kits</code></a> docs list the kits, and describe
-the <a href="https://docs.rs/bunsen/0.40.0/bunsen/kits/index.html#anatomy-of-a-kit" title="mod bunsen::kits">anatomy of a kit</a> piece by piece, with a
+<p>The <a href="https://docs.rs/bunsen/0.41.0/bunsen/kits/index.html#the-kits" title="mod bunsen::kits"><code>bunsen::kits</code></a> docs list the kits, and describe
+the <a href="https://docs.rs/bunsen/0.41.0/bunsen/kits/index.html#anatomy-of-a-kit" title="mod bunsen::kits">anatomy of a kit</a> piece by piece, with a
 table of how the ResNet, Whisper and Silero kits fill each piece in. This
 page explains why kits are shaped that way, and what building one involves.</p>
 <h2 id="why-a-shared-shape"><a class="header" href="#why-a-shared-shape">Why a shared shape</a></h2>
@@ -199,7 +199,7 @@ appears:</p>
 <code>openai/base.en</code> and get a model. A prefab map names geometries; a
 pretrained table names checkpoints; a factory turns either name into a
 loaded module. The machinery is shared and lives in
-<a href="https://docs.rs/bunsen/0.40.0/bunsen/data/pretrained/index.html" title="mod bunsen::data::pretrained"><code>bunsen::data::pretrained</code></a>. A kit contributes
+<a href="https://docs.rs/bunsen/0.41.0/bunsen/data/pretrained/index.html" title="mod bunsen::data::pretrained"><code>bunsen::data::pretrained</code></a>. A kit contributes
 tables and a <code>Construct</code> hook, not a loader of its own. See
 <a href="../systems/pretrained.html">Files, caches and pretrained models</a>.</li>
 <li><strong>Configuring it.</strong> A kit’s configs follow the Simple or Stacked shape from
@@ -230,10 +230,10 @@ parity with an upstream implementation.</li>
 <code>ops</code>.</li>
 </ol>
 <p>The kit’s module docs carry its lifecycle and an example; the
-<a href="https://docs.rs/bunsen/0.40.0/bunsen/kits/index.html#the-kits" title="mod bunsen::kits"><code>bunsen::kits</code></a> table gains a row. This book doesn’t
+<a href="https://docs.rs/bunsen/0.41.0/bunsen/kits/index.html#the-kits" title="mod bunsen::kits"><code>bunsen::kits</code></a> table gains a row. This book doesn’t
 need to change unless the kit brings a new cross-cutting system.</p>
 <p>Kits evolve faster than the rest of the crate while their domains are being
-filled in; see <a href="https://docs.rs/bunsen/0.40.0/bunsen/kits/index.html#stability" title="mod bunsen::kits"><code>bunsen::kits</code></a> on stability.</p>
+filled in; see <a href="https://docs.rs/bunsen/0.41.0/bunsen/kits/index.html#stability" title="mod bunsen::kits"><code>bunsen::kits</code></a> on stability.</p>
 
                     </main>
 

@@ -187,8 +187,8 @@ handles this in two pieces that compose. Reflection selects parameters by
 where they sit in the model, and the group optimizers step each selection
 with its own optimizer and learning rate. This chapter explains how the two
 fit together and where they bite. The reference is
-<a href="https://docs.rs/bunsen/0.40.0/bunsen/burner/module/reflection/index.html" title="mod bunsen::burner::module::reflection"><code>bunsen::burner::module::reflection</code></a>
-and <a href="https://docs.rs/bunsen/0.40.0/bunsen/burner/optim/index.html" title="mod bunsen::burner::optim"><code>bunsen::burner::optim</code></a>.</p>
+<a href="https://docs.rs/bunsen/0.41.0/bunsen/burner/module/reflection/index.html" title="mod bunsen::burner::module::reflection"><code>bunsen::burner::module::reflection</code></a>
+and <a href="https://docs.rs/bunsen/0.41.0/bunsen/burner/optim/index.html" title="mod bunsen::burner::optim"><code>bunsen::burner::optim</code></a>.</p>
 <h2 id="why"><a class="header" href="#why">Why</a></h2>
 <p>A burn optimizer steps every parameter of a module with one rule. Real
 recipes want more than that:</p>
@@ -205,7 +205,7 @@ sub-modules, but it has no structure you can query at run time, so without
 help each grouping is a hand-written <code>ModuleVisitor</code>. Reflection builds that
 structure once, as a document, and the groups are queries against it.</p>
 <h2 id="the-model-as-an-xml-document"><a class="header" href="#the-model-as-an-xml-document">The model as an XML document</a></h2>
-<p><a href="https://docs.rs/bunsen/0.40.0/bunsen/burner/module/reflection/xml_module_tree/struct.XmlModuleTree.html" title="struct bunsen::burner::module::reflection::xml_module_tree::XmlModuleTree"><code>XmlModuleTree</code></a> mirrors
+<p><a href="https://docs.rs/bunsen/0.41.0/bunsen/burner/module/reflection/xml_module_tree/struct.XmlModuleTree.html" title="struct bunsen::burner::module::reflection::xml_module_tree::XmlModuleTree"><code>XmlModuleTree</code></a> mirrors
 a built module as an XML document, and you select from it with XPath.
 <strong>The element name is the module’s type name, and the field name is the
 <code>@name</code> attribute.</strong> A field <code>gpt: NanoChatGpt</code> is the element
@@ -214,9 +214,9 @@ a built module as an XML document, and you select from it with XPath.
 <code>Linear</code> under the field <code>h</code>” is a short path:
 <code>*[@name='h']//Linear/*[@name='weight'][@rank=2]</code>. A selection returns
 burn <code>ParamId</code>s, which are what an optimizer group is made of.</p>
-<p><a href="https://docs.rs/bunsen/0.40.0/bunsen/burner/module/reflection/index.html#the-document" title="mod bunsen::burner::module::reflection">The document</a> covers the
+<p><a href="https://docs.rs/bunsen/0.41.0/bunsen/burner/module/reflection/index.html#the-document" title="mod bunsen::burner::module::reflection">The document</a> covers the
 rest of the mapping (enums, containers, empty modules), and the
-<a href="https://docs.rs/bunsen/0.40.0/bunsen/burner/module/reflection/index.html#xpath-crib" title="mod bunsen::burner::module::reflection">XPath crib</a> covers the few
+<a href="https://docs.rs/bunsen/0.41.0/bunsen/burner/module/reflection/index.html#xpath-crib" title="mod bunsen::burner::module::reflection">XPath crib</a> covers the few
 XPath forms you need.</p>
 <h2 id="the-pattern"><a class="header" href="#the-pattern">The pattern</a></h2>
 <ol>
@@ -224,13 +224,13 @@ XPath forms you need.</p>
 <li>Select each group’s <code>ParamId</code>s with a query, by structure.</li>
 <li>Gather every parameter that no group claimed into a remnant group, and
 check that no group is empty.</li>
-<li>Wrap each set in an <a href="https://docs.rs/bunsen/0.40.0/bunsen/burner/optim/group_optimizer/struct.OptimizerGroup.html" title="struct bunsen::burner::optim::group_optimizer::OptimizerGroup"><code>OptimizerGroup</code></a>
+<li>Wrap each set in an <a href="https://docs.rs/bunsen/0.41.0/bunsen/burner/optim/group_optimizer/struct.OptimizerGroup.html" title="struct bunsen::burner::optim::group_optimizer::OptimizerGroup"><code>OptimizerGroup</code></a>
 with its optimizer (any burn optimizer, such as
 <code>AdamWConfig::new().build()</code>) and, if it needs them, a learning-rate rule
-(<a href="https://docs.rs/bunsen/0.40.0/bunsen/burner/optim/lr_selectors/trait.LrSelector.html" title="trait bunsen::burner::optim::lr_selectors::LrSelector"><code>LrSelector</code></a>) and a gradient
+(<a href="https://docs.rs/bunsen/0.41.0/bunsen/burner/optim/lr_selectors/trait.LrSelector.html" title="trait bunsen::burner::optim::lr_selectors::LrSelector"><code>LrSelector</code></a>) and a gradient
 clipping.</li>
 <li>Plan the module and the groups with
-<a href="https://docs.rs/bunsen/0.40.0/bunsen/burner/optim/group_optimizer/struct.GroupOptimizerPlan.html#method.try_new" title="associated function bunsen::burner::optim::group_optimizer::GroupOptimizerPlan::try_new"><code>GroupOptimizerPlan::try_new</code></a>.</li>
+<a href="https://docs.rs/bunsen/0.41.0/bunsen/burner/optim/group_optimizer/struct.GroupOptimizerPlan.html#method.try_new" title="associated function bunsen::burner::optim::group_optimizer::GroupOptimizerPlan::try_new"><code>GroupOptimizerPlan::try_new</code></a>.</li>
 <li>Build burn’s <code>ModuleOptimizer</code> with <code>plan.optimizer()</code> and its
 <code>ModuleLrScheduler</code> with <code>plan.lr_scheduler(schedule)</code>, and hand both to
 a <code>Learner</code>, or step them in your own loop.</li>
@@ -239,18 +239,18 @@ a <code>Learner</code>, or step them in your own loop.</li>
 <code>ModuleOptimizer</code> erases the type. The plan checks that the groups
 partition the module’s float parameters. It rejects a parameter that two
 groups claim
-(<a href="https://docs.rs/bunsen/0.40.0/bunsen/burner/optim/group_optimizer/enum.GroupOptimizerError.html#variant.DuplicateParamId" title="variant bunsen::burner::optim::group_optimizer::GroupOptimizerError::DuplicateParamId"><code>DuplicateParamId</code></a>),
+(<a href="https://docs.rs/bunsen/0.41.0/bunsen/burner/optim/group_optimizer/enum.GroupOptimizerError.html#variant.DuplicateParamId" title="variant bunsen::burner::optim::group_optimizer::GroupOptimizerError::DuplicateParamId"><code>DuplicateParamId</code></a>),
 so nothing is stepped twice, and a float parameter that no group claims
-(<a href="https://docs.rs/bunsen/0.40.0/bunsen/burner/optim/group_optimizer/enum.GroupOptimizerError.html#variant.UnassignedParamIds" title="variant bunsen::burner::optim::group_optimizer::GroupOptimizerError::UnassignedParamIds"><code>UnassignedParamIds</code></a>,
+(<a href="https://docs.rs/bunsen/0.41.0/bunsen/burner/optim/group_optimizer/enum.GroupOptimizerError.html#variant.UnassignedParamIds" title="variant bunsen::burner::optim::group_optimizer::GroupOptimizerError::UnassignedParamIds"><code>UnassignedParamIds</code></a>,
 listing each one’s module path), so nothing is silently left out. To keep
 parameters fixed on purpose, put them in a frozen group
-(<a href="https://docs.rs/bunsen/0.40.0/bunsen/burner/optim/group_optimizer/struct.OptimizerGroup.html#method.frozen" title="associated function bunsen::burner::optim::group_optimizer::OptimizerGroup::frozen"><code>OptimizerGroup::frozen</code></a>),
+(<a href="https://docs.rs/bunsen/0.41.0/bunsen/burner/optim/group_optimizer/struct.OptimizerGroup.html#method.frozen" title="associated function bunsen::burner::optim::group_optimizer::OptimizerGroup::frozen"><code>OptimizerGroup::frozen</code></a>),
 whose optimizer never moves them. A group’s learning rate is a function of
 the scheduled rate, so one schedule drives every group and each group shapes
 its own rate.</p>
 <p>The module docs have a compiled example
-(<a href="https://docs.rs/bunsen/0.40.0/bunsen/burner/optim/index.html#example" title="mod bunsen::burner::optim">optim</a>) and a full
-<a href="https://docs.rs/bunsen/0.40.0/bunsen/burner/optim/index.html#lifecycle" title="mod bunsen::burner::optim">lifecycle</a>.
+(<a href="https://docs.rs/bunsen/0.41.0/bunsen/burner/optim/index.html#example" title="mod bunsen::burner::optim">optim</a>) and a full
+<a href="https://docs.rs/bunsen/0.41.0/bunsen/burner/optim/index.html#lifecycle" title="mod bunsen::burner::optim">lifecycle</a>.
 <a href="https://github.com/zspacelabs/bunsen/blob/main/examples/train-chat/src/main.rs"><code>examples/train-chat</code></a>
 is the full-size case: <code>ParamGroups::select</code> carves a <code>NanoChatGpt</code> into
 matrix, embedding, <code>lm_head</code> and remnant groups for Muon and three AdamW
@@ -270,14 +270,14 @@ it was meant to claim, with the remnant’s settings. Renaming a field or a
 type elsewhere in the model can do this to a query that used to work.
 Assert that every group is non-empty. When a query comes back empty, print
 the document with
-<a href="https://docs.rs/bunsen/0.40.0/bunsen/burner/module/reflection/xml_module_tree/struct.XmlModuleTree.html#method.to_xml" title="method bunsen::burner::module::reflection::xml_module_tree::XmlModuleTree::to_xml"><code>to_xml</code></a> and
+<a href="https://docs.rs/bunsen/0.41.0/bunsen/burner/module/reflection/xml_module_tree/struct.XmlModuleTree.html#method.to_xml" title="method bunsen::burner::module::reflection::xml_module_tree::XmlModuleTree::to_xml"><code>to_xml</code></a> and
 read the names off it.</p>
 <p><strong><code>[a][b]</code>, not <code>[a,b]</code>.</strong> In XPath a comma builds a sequence, not a
 conjunction. <code>*[@name='weight', @rank=2]</code> parses, so building the query
 succeeds. It fails with a type error only when it is evaluated, and over an
 empty selection it is never evaluated at all, so a wrong path in front of it
 hides the mistake. Stack the predicates, <code>[@name='weight'][@rank=2]</code>, or use
-<code>and</code> (<a href="https://docs.rs/bunsen/0.40.0/bunsen/burner/module/reflection/index.html#xpath-crib" title="mod bunsen::burner::module::reflection">XPath crib</a>).</p>
+<code>and</code> (<a href="https://docs.rs/bunsen/0.41.0/bunsen/burner/module/reflection/index.html#xpath-crib" title="mod bunsen::burner::module::reflection">XPath crib</a>).</p>
 <p><strong>The plan holds paths, not ids.</strong> Groups are selected by <code>ParamId</code>, but
 the plan keys each group by the module paths of its parameters, such as
 <code>gpt.h.0.attn.c_q.weight</code>. A model with the same structure is stepped the
@@ -286,7 +286,7 @@ as a head added under a new field after the plan was built, goes to the
 fallback optimizer. By default that fallback panics at <code>step</code>, naming the
 parameter’s rank and shape, rather than train part of the model in silence.
 Plan the groups after surgery. An
-<a href="https://docs.rs/bunsen/0.40.0/bunsen/burner/optim/group_optimizer/enum.UnknownParamPolicy.html" title="enum bunsen::burner::optim::group_optimizer::UnknownParamPolicy"><code>UnknownParamPolicy</code></a> of
+<a href="https://docs.rs/bunsen/0.41.0/bunsen/burner/optim/group_optimizer/enum.UnknownParamPolicy.html" title="enum bunsen::burner::optim::group_optimizer::UnknownParamPolicy"><code>UnknownParamPolicy</code></a> of
 <code>Freeze</code> accepts unclaimed parameters at <code>try_new</code> and leaves them unchanged
 at <code>step</code>. To keep parameters fixed on purpose, use a frozen group instead.</p>
 <p><strong>Resuming builds the same plan over a fresh model.</strong> Ids persist across a
@@ -299,7 +299,7 @@ loads the model record and the optimizer record; a <code>Learner</code> resuming
 checkpoint does the loading for you. The scheduler’s record is matched by
 position, so build the resumed scheduler from a plan with the same groups,
 in the same order, over the same schedule
-(<a href="https://docs.rs/bunsen/0.40.0/bunsen/burner/optim/index.html#resuming-from-a-checkpoint" title="mod bunsen::burner::optim">resuming</a>).</p>
+(<a href="https://docs.rs/bunsen/0.41.0/bunsen/burner/optim/index.html#resuming-from-a-checkpoint" title="mod bunsen::burner::optim">resuming</a>).</p>
 
                     </main>
 

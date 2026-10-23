@@ -183,8 +183,8 @@
                         <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.4/dist/katex.min.css">
 <h1 id="errors"><a class="header" href="#errors">Errors</a></h1>
 <p>Every fallible bunsen function returns a
-<a href="https://docs.rs/bunsen/0.40.0/bunsen/errors/bunsen_error/type.BunsenResult.html" title="type bunsen::errors::bunsen_error::BunsenResult"><code>BunsenResult</code></a>, and every failure is a
-<a href="https://docs.rs/bunsen/0.40.0/bunsen/errors/bunsen_error/struct.BunsenError.html" title="struct bunsen::errors::bunsen_error::BunsenError"><code>BunsenError</code></a>. This section explains how the
+<a href="https://docs.rs/bunsen/0.41.0/bunsen/errors/bunsen_error/type.BunsenResult.html" title="type bunsen::errors::bunsen_error::BunsenResult"><code>BunsenResult</code></a>, and every failure is a
+<a href="https://docs.rs/bunsen/0.41.0/bunsen/errors/bunsen_error/struct.BunsenError.html" title="struct bunsen::errors::bunsen_error::BunsenError"><code>BunsenError</code></a>. This section explains how the
 error is shaped and why, from three points of view, one per chapter:</p>
 <ul>
 <li><a href="./errors/consumers.html">Consuming errors</a>: code that calls bunsen and
@@ -198,11 +198,11 @@ strategy of their own, such as the cache that tries another mirror. They
 need typed facts that generic code never reads.</li>
 </ul>
 <p>The reference for all of it, with compiled examples, is the
-<a href="https://docs.rs/bunsen/0.40.0/bunsen/errors/index.html" title="mod bunsen::errors"><code>bunsen::errors</code></a> module docs.</p>
+<a href="https://docs.rs/bunsen/0.41.0/bunsen/errors/index.html" title="mod bunsen::errors"><code>bunsen::errors</code></a> module docs.</p>
 <h2 id="the-shape-of-an-error"><a class="header" href="#the-shape-of-an-error">The shape of an error</a></h2>
 <p>An error has five parts:</p>
 <ul>
-<li>a <strong>kind</strong>, a <a href="https://docs.rs/bunsen/0.40.0/bunsen/errors/kind/enum.BunsenErrorKind.html" title="enum bunsen::errors::kind::BunsenErrorKind"><code>BunsenErrorKind</code></a>, which
+<li>a <strong>kind</strong>, a <a href="https://docs.rs/bunsen/0.41.0/bunsen/errors/kind/enum.BunsenErrorKind.html" title="enum bunsen::errors::kind::BunsenErrorKind"><code>BunsenErrorKind</code></a>, which
 says what a generic consumer should do;</li>
 <li>a one-line <strong>message</strong>, which says what went wrong;</li>
 <li>optional multi-line <strong>details</strong>, the evidence: a diff, a dump, a list;</li>

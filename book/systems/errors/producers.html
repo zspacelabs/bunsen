@@ -185,11 +185,11 @@
 <p>This chapter is for code that builds errors: any fallible function in bunsen,
 or in a crate built on it that returns <code>BunsenResult</code>. What each constructor
 and cause type does is in the
-<a href="https://docs.rs/bunsen/0.40.0/bunsen/errors/index.html#building-an-error" title="mod bunsen::errors"><code>bunsen::errors</code></a> docs. This chapter is
+<a href="https://docs.rs/bunsen/0.41.0/bunsen/errors/index.html#building-an-error" title="mod bunsen::errors"><code>bunsen::errors</code></a> docs. This chapter is
 about the decisions those calls encode.</p>
 <h2 id="choose-the-kind-by-who-has-to-change"><a class="header" href="#choose-the-kind-by-who-has-to-change">Choose the kind by who has to change</a></h2>
 <p>The kind answers one question: who or what has to change for the operation
-to succeed? The <a href="https://docs.rs/bunsen/0.40.0/bunsen/errors/index.html#which-kind" title="mod bunsen::errors"><code>errors</code> docs</a> ask it as an
+to succeed? The <a href="https://docs.rs/bunsen/0.41.0/bunsen/errors/index.html#which-kind" title="mod bunsen::errors"><code>errors</code> docs</a> ask it as an
 ordered list:</p>
 <ol>
 <li>If the <strong>code</strong> has to change, the kind is <code>Illegal</code>, or <code>Internal</code> when
@@ -222,7 +222,7 @@ the answer depends on the caller.</p>
 <h2 id="one-line-then-the-evidence"><a class="header" href="#one-line-then-the-evidence">One line, then the evidence</a></h2>
 <p>A message is one line, written for a person: what went wrong, naming the
 thing it went wrong with. Evidence goes in the
-<a href="https://docs.rs/bunsen/0.40.0/bunsen/errors/bunsen_error/struct.BunsenError.html#method.with_details" title="method bunsen::errors::bunsen_error::BunsenError::with_details">details</a>: the values that
+<a href="https://docs.rs/bunsen/0.41.0/bunsen/errors/bunsen_error/struct.BunsenError.html#method.with_details" title="method bunsen::errors::bunsen_error::BunsenError::with_details">details</a>: the values that
 differ, the config that was rejected, the shards that are missing. Details
 print only in the report.</p>
 <p>This split keeps log lines readable and test expectations stable. A
@@ -232,18 +232,18 @@ print only in the report.</p>
 the text:</p>
 <ul>
 <li>A check that a value breaks is a
-<a href="https://docs.rs/bunsen/0.40.0/bunsen/errors/constraint_error/struct.ConstraintError.html" title="struct bunsen::errors::constraint_error::ConstraintError"><code>ConstraintError</code></a>: the owner, the field,
-and the <a href="https://docs.rs/bunsen/0.40.0/bunsen/errors/constraint_error/enum.Rule.html" title="enum bunsen::errors::constraint_error::Rule"><code>Rule</code></a>.</li>
+<a href="https://docs.rs/bunsen/0.41.0/bunsen/errors/constraint_error/struct.ConstraintError.html" title="struct bunsen::errors::constraint_error::ConstraintError"><code>ConstraintError</code></a>: the owner, the field,
+and the <a href="https://docs.rs/bunsen/0.41.0/bunsen/errors/constraint_error/enum.Rule.html" title="enum bunsen::errors::constraint_error::Rule"><code>Rule</code></a>.</li>
 <li>A name that is not in a table is a
-<a href="https://docs.rs/bunsen/0.40.0/bunsen/errors/lookup_error/struct.LookupError.html" title="struct bunsen::errors::lookup_error::LookupError"><code>LookupError</code></a>, with the names there are.
+<a href="https://docs.rs/bunsen/0.41.0/bunsen/errors/lookup_error/struct.LookupError.html" title="struct bunsen::errors::lookup_error::LookupError"><code>LookupError</code></a>, with the names there are.
 The four “no such X; there are: …” messages in the crate all come from
 it.</li>
-<li>Text that did not parse is a <a href="https://docs.rs/bunsen/0.40.0/bunsen/errors/parse_error/struct.ParseError.html" title="struct bunsen::errors::parse_error::ParseError"><code>ParseError</code></a>,
+<li>Text that did not parse is a <a href="https://docs.rs/bunsen/0.41.0/bunsen/errors/parse_error/struct.ParseError.html" title="struct bunsen::errors::parse_error::ParseError"><code>ParseError</code></a>,
 and the site chooses the kind by where the text came from: outside data
 gives <code>InvalidResource</code>, a request gives <code>Policy</code>, and the program’s own
 text gives <code>Illegal</code>.</li>
 <li>A foreign error stays the cause. Do not format it into the message. An
-<code>io::Error</code> goes through <a href="https://docs.rs/bunsen/0.40.0/bunsen/errors/foreign/fn.sys_at.html" title="fn bunsen::errors::foreign::sys_at"><code>sys_at</code></a>, which also
+<code>io::Error</code> goes through <a href="https://docs.rs/bunsen/0.41.0/bunsen/errors/foreign/fn.sys_at.html" title="fn bunsen::errors::foreign::sys_at"><code>sys_at</code></a>, which also
 names the path. There is deliberately no <code>From&lt;io::Error&gt;</code>, because a bare
 <code>?</code> could not say which file failed.</li>
 </ul>
@@ -251,7 +251,7 @@ names the path. There is deliberately no <code>From&lt;io::Error&gt;</code>, bec
 own cause type. The <a href="./handlers.html">complex handlers</a> chapter covers that.</p>
 <h2 id="add-context-do-not-re-wrap"><a class="header" href="#add-context-do-not-re-wrap">Add context; do not re-wrap</a></h2>
 <p>A function that calls another and passes its error up adds a frame with
-<a href="https://docs.rs/bunsen/0.40.0/bunsen/errors/result_ext/trait.ResultContext.html" title="trait bunsen::errors::result_ext::ResultContext"><code>ResultContext</code></a>. It never rebuilds the
+<a href="https://docs.rs/bunsen/0.41.0/bunsen/errors/result_ext/trait.ResultContext.html" title="trait bunsen::errors::result_ext::ResultContext"><code>ResultContext</code></a>. It never rebuilds the
 error with a longer message. Rebuilding loses the kind, unless every
 variant is copied by hand, and loses the cause in any case. A specialist
 further up then cannot find what it is looking for.</p>
@@ -261,7 +261,7 @@ and the cause type where a caller may want it.
 <a href="https://github.com/zspacelabs/bunsen/blob/main/STYLE.md#errors-try_x-and-x">STYLE.md</a>
 sets the rule. Its <code>x</code> twin panics with the report.</p>
 <p>Each kind a function documents gets a test that names it, with
-<a href="https://docs.rs/bunsen/0.40.0/bunsen/errors/testing/error_matcher/struct.ErrorMatcher.html" title="struct bunsen::errors::testing::error_matcher::ErrorMatcher"><code>ErrorMatcher</code></a>: the kind, plus the
+<a href="https://docs.rs/bunsen/0.41.0/bunsen/errors/testing/error_matcher/struct.ErrorMatcher.html" title="struct bunsen::errors::testing::error_matcher::ErrorMatcher"><code>ErrorMatcher</code></a>: the kind, plus the
 one phrase or cause field the test is about.</p>
 
                     </main>

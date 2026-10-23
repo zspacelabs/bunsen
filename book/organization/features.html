@@ -183,7 +183,7 @@
                         <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.4/dist/katex.min.css">
 <h1 id="features-backends-and-the-network"><a class="header" href="#features-backends-and-the-network">Features, backends and the network</a></h1>
 <p>bunsen’s cargo features fall into a few families, and each family answers a
-different question about your build. The <a href="https://docs.rs/bunsen/0.40.0/bunsen/index.html#crate-features" title="mod bunsen">crate docs</a>
+different question about your build. The <a href="https://docs.rs/bunsen/0.41.0/bunsen/index.html#crate-features" title="mod bunsen">crate docs</a>
 render every feature with its own description; this page explains how to
 choose among them. The naming rules behind them are in STYLE.md’s
 <a href="https://github.com/zspacelabs/bunsen/blob/main/STYLE.md#cargo-features">cargo features</a>
@@ -191,7 +191,7 @@ chapter.</p>
 <h2 id="which-backend"><a class="header" href="#which-backend">Which backend?</a></h2>
 <p><code>wgpu</code>, <code>vulkan</code>, <code>cuda</code>, <code>metal</code> and <code>flex</code> compile a burn backend into
 bunsen’s build. The accelerators decide what
-<a href="https://docs.rs/bunsen/0.40.0/bunsen/support/testing/common_devices/fn.performance_device.html" title="fn bunsen::support::testing::common_devices::performance_device"><code>performance_device</code></a>
+<a href="https://docs.rs/bunsen/0.41.0/bunsen/support/testing/common_devices/fn.performance_device.html" title="fn bunsen::support::testing::common_devices::performance_device"><code>performance_device</code></a>
 returns, which is the device bunsen’s tests and benchmarks run on. Your own
 code can run bunsen on any device that burn was built with, whatever these
 say; the features only matter for the device bunsen itself picks.</p>
@@ -208,7 +208,7 @@ need:</p>
 <li><code>audio</code> and <code>tokenizer</code>: audio file decoding, and turning token ids into
 text, for the speech kits.</li>
 <li><code>testing</code> and <code>audit</code>: the test support in
-<a href="https://docs.rs/bunsen/0.40.0/bunsen/support/testing/index.html" title="mod bunsen::support::testing"><code>support::testing</code></a> and the
+<a href="https://docs.rs/bunsen/0.41.0/bunsen/support/testing/index.html" title="mod bunsen::support::testing"><code>support::testing</code></a> and the
 <a href="../development/audit.html">audit probes</a>.</li>
 <li><code>store</code>, <code>store_pytorch</code> and <code>store_safetensors</code>: reading burnpacks,
 PyTorch checkpoints and safetensors through burn-store. <code>store</code> includes
@@ -222,7 +222,7 @@ configuration is checked in CI, so it always builds.</p>
 <ul>
 <li><strong><code>fetch</code></strong>: the program may reach the network <em>at run time</em>, to fetch
 pretrained weights or dataset shards into the
-<a href="https://docs.rs/bunsen/0.40.0/bunsen/data/cache/index.html" title="mod bunsen::data::cache">disk cache</a>. Without it, everything works from files
+<a href="https://docs.rs/bunsen/0.41.0/bunsen/data/cache/index.html" title="mod bunsen::data::cache">disk cache</a>. Without it, everything works from files
 already in the cache. <code>indicatif</code> adds a progress bar.</li>
 <li><strong>Build-time network</strong> is the <code>download</code> convention: a build script may
 fetch assets. No bunsen feature does; only the validation crates’ <code>weights</code>
