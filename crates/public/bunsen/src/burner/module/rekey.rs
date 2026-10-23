@@ -21,8 +21,10 @@ use burn::tensor::TensorData;
 /// [`apply`](Self::apply) tries the rules in order, and the first that
 /// claims a name decides it: a path, or `None` to drop the tensor (a buffer
 /// the module has no parameter for). A name no rule claims takes the
-/// fallback: kept as it is ([`keep_rest`](Self::keep_rest)), or dropped
-/// ([`drop_rest`](Self::drop_rest)).
+/// fallback: kept as it is ([`keep_rest`](Self::keep_rest)), dropped
+/// ([`drop_rest`](Self::drop_rest)), or, for a mounted map, handed back to
+/// the map it is mounted in, as if the mount had not claimed it
+/// ([`pass_rest`](Self::pass_rest)).
 ///
 /// A map can also say how a tensor's data changes on the way
 /// ([`transform`](Self::transform)): for a weight whose axes follow a layout
@@ -61,7 +63,15 @@ use burn::tensor::TensorData;
 pub struct Rekey {
     rules: Vec<Rule>,
     transforms: Vec<(String, TensorTransform)>,
-    keep_unclaimed: bool,
+    unclaimed: Unclaimed,
+}
+
+/// What a [`Rekey`] does with a name none of its rules claims.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Unclaimed {
+    Keep,
+    Drop,
+    Pass,
 }
 
 /// What a [`Rekey::custom`] rule says of a name.
@@ -145,15 +155,16 @@ impl Rule {
             Rule::Rename(from, to) => name
                 .strip_prefix(from.as_str())
                 .map(|rest| Some(plain(format!("{to}{rest}")))),
-            Rule::Mount(from, to, sub) => name
-                .strip_prefix(from.as_str())
-                .map(|rest| sub.target(rest).map(|t| prefixed(to, t))),
+            Rule::Mount(from, to, sub) => sub
+                .claim(name.strip_prefix(from.as_str())?)
+                .map(|t| t.map(|t| prefixed(to, t))),
             Rule::MountIndexed(from, to, sub) => {
                 let (index, rest) = name.strip_prefix(from.as_str())?.split_once('.')?;
-                Some(
-                    sub.target(rest)
-                        .map(|t| prefixed(&format!("{to}{index}."), t)),
-                )
+                if index.is_empty() || !index.bytes().all(|b| b.is_ascii_digit()) {
+                    return None;
+                }
+                sub.claim(rest)
+                    .map(|t| t.map(|t| prefixed(&format!("{to}{index}."), t)))
             }
             Rule::Custom(f) => f(name).map(|path| path.map(plain)),
         }
@@ -167,7 +178,7 @@ impl Rekey {
         Self {
             rules: Vec::new(),
             transforms: Vec::new(),
-            keep_unclaimed: true,
+            unclaimed: Unclaimed::Keep,
         }
     }
 
@@ -177,7 +188,20 @@ impl Rekey {
         Self {
             rules: Vec::new(),
             transforms: Vec::new(),
-            keep_unclaimed: false,
+            unclaimed: Unclaimed::Drop,
+        }
+    }
+
+    /// A map that claims only what its rules claim: mounted, a name none of
+    /// them claims goes back to the enclosing map's next rule, as if the
+    /// mount had not matched; for a component whose names share a prefix
+    /// with others it does not own (`conv1`, `conv2` beside `conv_out`). At
+    /// the top of a map, an unclaimed name is dropped.
+    pub fn pass_rest() -> Self {
+        Self {
+            rules: Vec::new(),
+            transforms: Vec::new(),
+            unclaimed: Unclaimed::Pass,
         }
     }
 
@@ -228,7 +252,8 @@ impl Rekey {
     }
 
     /// [`mount`](Self::mount) for a stack: `{from}{i}.{rest}` maps to
-    /// `{to}{i}.{sub(rest)}`, the layer index carried across.
+    /// `{to}{i}.{sub(rest)}`, the layer index carried across. Only a decimal
+    /// index is claimed; `{from}norm.{rest}` is left to the next rule.
     pub fn mount_indexed(
         self,
         from: impl Into<String>,
@@ -267,20 +292,43 @@ impl Rekey {
         &self,
         name: &str,
     ) -> Option<Target> {
-        let target = self
+        self.claim(name).flatten()
+    }
+
+    /// `None` when this map does not claim `name` (only a
+    /// [`pass_rest`](Self::pass_rest) map leaves one unclaimed); `Some(target)`
+    /// when it does, `target` being `None` for a dropped tensor.
+    fn claim(
+        &self,
+        name: &str,
+    ) -> Option<Option<Target>> {
+        let claimed = self
             .rules
             .iter()
             .find_map(|rule| rule.claim(name))
-            .unwrap_or_else(|| self.keep_unclaimed.then(|| plain(name.to_string())))?;
+            .or_else(|| match self.unclaimed {
+                Unclaimed::Keep => Some(Some(plain(name.to_string()))),
+                Unclaimed::Drop => Some(None),
+                Unclaimed::Pass => None,
+            })?;
+        Some(claimed.map(|target| self.with_own_transform(target)))
+    }
+
+    /// `target`, with this map's transform for its path composed after any
+    /// it already carries.
+    fn with_own_transform(
+        &self,
+        target: Target,
+    ) -> Target {
         let own = self
             .transforms
             .iter()
             .find(|(path, _)| *path == target.path)
             .map(|(_, f)| f.clone());
-        Some(Target {
+        Target {
             transform: compose(target.transform, own),
             path: target.path,
-        })
+        }
     }
 
     /// The module path `name` loads into, or `None` to drop it.
@@ -306,7 +354,7 @@ impl fmt::Debug for Rekey {
         f.debug_struct("Rekey")
             .field("rules", &self.rules.len())
             .field("transforms", &self.transforms.len())
-            .field("keep_unclaimed", &self.keep_unclaimed)
+            .field("unclaimed", &self.unclaimed)
             .finish()
     }
 }
@@ -352,6 +400,48 @@ mod tests {
         );
         assert_eq!(model.apply("tower.layers.11.other.bias"), None);
         assert_eq!(model.apply("head.weight").as_deref(), Some("head.weight"));
+    }
+
+    /// `mount_indexed` claims only a decimal index; anything else under its
+    /// prefix is left to the next rule.
+    #[test]
+    fn test_mount_indexed_claims_only_indices() {
+        let rekey = Rekey::keep_rest()
+            .mount_indexed("layers.", "blocks.", Rekey::keep_rest())
+            .rename("layers.", "stack.");
+        assert_eq!(rekey.apply("layers.12.w").as_deref(), Some("blocks.12.w"));
+        assert_eq!(
+            rekey.apply("layers.norm.weight").as_deref(),
+            Some("stack.norm.weight")
+        );
+        assert_eq!(rekey.apply("layers..w").as_deref(), Some("stack..w"));
+        assert_eq!(rekey.apply("layers.3").as_deref(), Some("stack.3"));
+    }
+
+    /// A mounted `pass_rest` map hands back what it does not claim, to the
+    /// enclosing map's next rule; what it drops stays dropped; at the top it
+    /// drops what it does not claim.
+    #[test]
+    fn test_pass_rest() {
+        let numbered = Rekey::pass_rest()
+            .custom(|name| {
+                let (n, rest) = name.split_once('.')?;
+                let n: usize = n.parse().ok()?;
+                Some((n > 0).then(|| format!("blocks.{}.{rest}", n - 1)))
+            })
+            .transform("blocks.0.weight", |data| data);
+        let model = Rekey::keep_rest().mount("conv", "head.", numbered.clone());
+        assert_eq!(
+            model.apply("conv1.weight").as_deref(),
+            Some("head.blocks.0.weight")
+        );
+        assert!(model.target("conv1.weight").unwrap().transform.is_some());
+        assert_eq!(model.apply("conv0.weight"), None);
+        assert_eq!(
+            model.apply("conv_out.weight").as_deref(),
+            Some("conv_out.weight")
+        );
+        assert_eq!(numbered.apply("x.weight"), None);
     }
 
     /// A custom rule may pass a name on, drop it, or map it.
