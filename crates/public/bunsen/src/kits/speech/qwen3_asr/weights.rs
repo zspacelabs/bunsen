@@ -9,10 +9,11 @@ use super::blocks::{
 };
 use crate::{
     blocks::conv::ConvSeq2d,
+    burner::module::Rekey,
     data::pretrained::{
         HfConfigJson,
         NamedTensorsApplied,
-        apply_named_tensors_as,
+        apply_rekeyed_tensors_as,
     },
     errors::BunsenResult,
     kits::gpts::qwen3::{
@@ -21,71 +22,95 @@ use crate::{
     },
 };
 
-/// The bunsen module path of one `transformers`
-/// `Qwen3ASRForConditionalGeneration` state-dict name, or `None` for an entry
-/// that is not a parameter of its own (the tied `lm_head.weight`).
+/// `transformers`' Whisper-style audio encoder layer names (Qwen3-ASR's
+/// audio tower's) onto a
+/// [`ResidualEncoderAttentionBlock`](crate::blocks::transformers::encoders::residual::ResidualEncoderAttentionBlock)'s,
+/// relative to it: `self_attn`'s `{q,k,v,out}_proj` the attention,
+/// `self_attn_layer_norm` and `final_layer_norm` the norms, `fc{1,2}` the
+/// MLP; everything else as it is.
+pub fn audio_layer_rekey() -> Rekey {
+    Rekey::keep_rest()
+        .rename("self_attn.q_proj.", "attn.query.")
+        .rename("self_attn.k_proj.", "attn.key.")
+        .rename("self_attn.v_proj.", "attn.value.")
+        .rename("self_attn.out_proj.", "attn.output.")
+        .rename("self_attn_layer_norm.", "attn_norm.")
+        .rename("final_layer_norm.", "mlp_norm.")
+        .rename("fc1.", "mlp.linear1.")
+        .rename("fc2.", "mlp.linear2.")
+}
+
+/// `transformers`' Qwen3 decoder layer names onto a
+/// [`CausalDecoderBlock`](crate::blocks::transformers::decoders::causal::CausalDecoderBlock)'s,
+/// relative to it: `input_layernorm` the attention's norm,
+/// `post_attention_layernorm` the feed-forward's, `self_attn`'s
+/// `{q,k,v,o}_proj` the attention's projections and its `{q,k}_norm` its
+/// QK-norms, and the `SwiGLU`'s projections as they are.
+pub fn text_layer_rekey() -> Rekey {
+    Rekey::keep_rest()
+        .rename("input_layernorm.", "attn_norm.")
+        .rename("post_attention_layernorm.", "mlp_norm.")
+        .rename("self_attn.q_proj.", "attn.c_q.")
+        .rename("self_attn.k_proj.", "attn.c_k.")
+        .rename("self_attn.v_proj.", "attn.c_v.")
+        .rename("self_attn.o_proj.", "attn.c_proj.")
+        .rename("self_attn.", "attn.")
+}
+
+/// `transformers`' `Qwen3ASRForConditionalGeneration` state-dict names onto
+/// a [`Qwen3Asr`]'s module paths: under `model.`, the audio tower's 1-based
+/// `conv2d{n}` onto its stem's 0-based `ConvSeq2d` blocks, its layers by
+/// [`audio_layer_rekey`], the text model's layers by [`text_layer_rekey`],
+/// and everything else
+/// as it is. Anything outside `model.` (the tied `lm_head.weight`) is
+/// dropped.
 ///
 /// Normalization parameters keep their `weight` / `bias` spellings, which
-/// [`apply_named_tensors_as`] resolves to `gamma` / `beta`.
-pub fn hf_to_bunsen_path(name: &str) -> Option<String> {
-    let name = name.strip_prefix("model.")?;
-    const RENAMES: &[(&str, &str)] = &[
-        // The audio tower's layers are the shared encoder block's.
-        (".self_attn.q_proj.", ".attn.query."),
-        (".self_attn.k_proj.", ".attn.key."),
-        (".self_attn.v_proj.", ".attn.value."),
-        (".self_attn.out_proj.", ".attn.output."),
-        (".self_attn_layer_norm.", ".attn_ln."),
-        (".final_layer_norm.", ".mlp_ln."),
-        (".fc1.", ".mlp.linear1."),
-        (".fc2.", ".mlp.linear2."),
-    ];
-    const TEXT_RENAMES: &[(&str, &str)] = &[
-        // The text model's attention is the shared causal self-attention.
-        (".self_attn.q_proj.", ".self_attn.c_q."),
-        (".self_attn.k_proj.", ".self_attn.c_k."),
-        (".self_attn.v_proj.", ".self_attn.c_v."),
-        (".self_attn.o_proj.", ".self_attn.c_proj."),
-    ];
-    // The stem's 1-based `conv2d{n}` are the 0-based blocks of a `ConvSeq2d`.
-    if let Some(rest) = name.strip_prefix("audio_tower.conv2d")
-        && let Some((n, param)) = rest.split_once('.')
-        && let Ok(n @ 1..) = n.parse::<usize>()
-    {
+/// [`apply_rekeyed_tensors_as`] resolves to `gamma` / `beta`.
+pub fn hf_rekey() -> Rekey {
+    let stem = Rekey::drop_rest().custom(|name| {
+        let (n, param) = name.split_once('.')?;
+        let n: usize = n.parse().ok().filter(|&n| n >= 1)?;
         let conv = ConvSeq2d::block_conv_path("audio_tower.stem", n - 1);
-        return Some(format!("{conv}.{param}"));
-    }
-    let renames = if name.starts_with("audio_tower.") {
-        RENAMES
-    } else if name.starts_with("language_model.") {
-        TEXT_RENAMES
-    } else {
-        &[]
-    };
-    let mut path = name.to_string();
-    for (from, to) in renames {
-        if path.contains(from) {
-            path = path.replacen(from, to, 1);
-            break;
-        }
-    }
-    Some(path)
+        Some(Some(format!("{conv}.{param}")))
+    });
+    Rekey::drop_rest().mount(
+        "model.",
+        "",
+        Rekey::keep_rest()
+            .custom(move |name| {
+                // A name that is not a stem convolution's is left to the
+                // next rule, as it is.
+                let rest = name.strip_prefix("audio_tower.conv2d")?;
+                stem.target(rest).map(|t| Some(t.path))
+            })
+            .mount_indexed(
+                "audio_tower.layers.",
+                "audio_tower.layers.",
+                audio_layer_rekey(),
+            )
+            .mount_indexed(
+                "language_model.layers.",
+                "language_model.layers.",
+                text_layer_rekey(),
+            ),
+    )
 }
 
 /// Loads tensors named as `transformers`' `Qwen3ASRForConditionalGeneration`
-/// state dict into `model`: [`apply_named_tensors_as`] under
-/// [`hf_to_bunsen_path`], every floating tensor cast to the dtype `model` was
+/// state dict into `model`: [`apply_rekeyed_tensors_as`] under
+/// [`hf_rekey`], every floating tensor cast to the dtype `model` was
 /// built in. The checkpoints ship `bf16`, which not every backend computes
 /// in.
 ///
 /// # Errors
-/// As [`apply_named_tensors_as`].
+/// As [`apply_rekeyed_tensors_as`].
 pub fn load_hf_tensors(
     model: &mut Qwen3Asr,
     tensors: impl IntoIterator<Item = PackTensor>,
 ) -> BunsenResult<NamedTensorsApplied> {
     let dtype = model.multi_modal_projector.linear_2.weight.val().dtype();
-    apply_named_tensors_as(model, tensors, hf_to_bunsen_path, Some(dtype))
+    apply_rekeyed_tensors_as(model, tensors, &hf_rekey(), Some(dtype))
 }
 
 /// The [`Qwen3AsrConfig`] of a `transformers`
@@ -170,8 +195,29 @@ pub fn qwen3_asr_config_from_hf(json: &str) -> BunsenResult<Qwen3AsrConfig> {
 mod tests {
     use super::*;
 
+    /// `transformers`' Qwen3 decoder-layer names, onto the block's own.
     #[test]
-    fn test_hf_to_bunsen_path() {
+    fn test_text_layer_rekey() {
+        let rekey = text_layer_rekey();
+        for (hf, bunsen) in [
+            ("input_layernorm.weight", "attn_norm.weight"),
+            ("post_attention_layernorm.weight", "mlp_norm.weight"),
+            ("self_attn.q_proj.weight", "attn.c_q.weight"),
+            ("self_attn.k_proj.weight", "attn.c_k.weight"),
+            ("self_attn.v_proj.weight", "attn.c_v.weight"),
+            ("self_attn.o_proj.weight", "attn.c_proj.weight"),
+            ("self_attn.q_norm.weight", "attn.q_norm.weight"),
+            ("self_attn.k_norm.weight", "attn.k_norm.weight"),
+            ("mlp.gate_proj.weight", "mlp.gate_proj.weight"),
+            ("mlp.down_proj.weight", "mlp.down_proj.weight"),
+        ] {
+            assert_eq!(rekey.apply(hf).as_deref(), Some(bunsen), "{hf}");
+        }
+    }
+
+    #[test]
+    fn test_hf_rekey() {
+        let rekey = hf_rekey();
         for (hf, bunsen) in [
             (
                 "model.audio_tower.conv2d1.weight",
@@ -195,7 +241,7 @@ mod tests {
             ),
             (
                 "model.audio_tower.layers.3.final_layer_norm.weight",
-                Some("audio_tower.layers.3.mlp_ln.weight"),
+                Some("audio_tower.layers.3.mlp_norm.weight"),
             ),
             (
                 "model.audio_tower.layers.3.fc2.bias",
@@ -211,11 +257,11 @@ mod tests {
             ),
             (
                 "model.language_model.layers.0.self_attn.o_proj.weight",
-                Some("language_model.layers.0.self_attn.c_proj.weight"),
+                Some("language_model.layers.0.attn.c_proj.weight"),
             ),
             (
                 "model.language_model.layers.0.self_attn.q_norm.weight",
-                Some("language_model.layers.0.self_attn.q_norm.weight"),
+                Some("language_model.layers.0.attn.q_norm.weight"),
             ),
             (
                 "model.language_model.layers.0.mlp.gate_proj.weight",
@@ -227,7 +273,7 @@ mod tests {
             ),
             ("lm_head.weight", None),
         ] {
-            assert_eq!(hf_to_bunsen_path(hf).as_deref(), bunsen, "{hf}");
+            assert_eq!(rekey.apply(hf).as_deref(), bunsen, "{hf}");
         }
     }
 

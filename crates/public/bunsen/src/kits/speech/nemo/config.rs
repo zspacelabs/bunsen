@@ -8,14 +8,16 @@ use super::{
 };
 use crate::{
     blocks::{
-        conformer::{
-            ConformerBlockConfig,
-            ConformerEncoderConfig,
-            DwStridingSubsamplingConfig,
-        },
-        transformers::encoders::residual::{
-            NormPlacement,
-            ResidualEncoderAttentionBlockConfig,
+        signals::DwStridingSubsamplingConfig,
+        transformers::encoders::{
+            conformer::{
+                ConformerBlockConfig,
+                ConformerEncoderConfig,
+            },
+            residual::{
+                NormPlacement,
+                ResidualEncoderAttentionBlockConfig,
+            },
         },
     },
     errors::{

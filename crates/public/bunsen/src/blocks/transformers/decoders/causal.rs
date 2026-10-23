@@ -1,4 +1,4 @@
-//! # GPT Block
+//! The causal decoder layer.
 
 use burn::{
     Tensor,
@@ -21,9 +21,9 @@ use crate::{
         },
         embedding::RotaryEmbedding,
         mlp::{
-            Mlp,
-            MlpConfig,
-            MlpMeta,
+            FeedForward,
+            FeedForwardConfig,
+            FeedForwardMeta,
         },
     },
     burner::module::ModuleInit,
@@ -36,54 +36,54 @@ use crate::{
     ops::transformers::attention::KVCache,
 };
 
-/// Common meta for [`NanoChatGptBlock`] and [`NanoChatGptBlockConfig`].
-pub trait NanoChatGptBlockMeta {
+/// Common meta for [`CausalDecoderBlock`] and [`CausalDecoderBlockConfig`].
+pub trait CausalDecoderBlockMeta {
     /// Returns the size of the input and output.
     fn n_embed(&self) -> usize;
 }
 
-/// Config for [`NanoChatGptBlock`].
+/// Config for [`CausalDecoderBlock`].
 #[derive(Config, Debug)]
-pub struct NanoChatGptBlockConfig {
+pub struct CausalDecoderBlockConfig {
     /// Causal Self-Attention Config.
     pub attn: CausalSelfAttentionConfig,
 
-    /// MLP Config.
-    pub mlp: MlpConfig,
+    /// The feed-forward's config.
+    pub mlp: FeedForwardConfig,
 
-    /// Attention Normalization.
-    /// This normalization will be adapted to the appropriate feature count.
+    /// The normalization before each sublayer, adapted to the width (its
+    /// feature count is set at init).
     #[config(default = "NormalizationConfig::Rms(RmsNormConfig::new(0))")]
     pub norm: NormalizationConfig,
 }
 
-impl NanoChatGptBlockMeta for NanoChatGptBlockConfig {
+impl CausalDecoderBlockMeta for CausalDecoderBlockConfig {
     fn n_embed(&self) -> usize {
         self.attn.n_embed()
     }
 }
 
-impl NanoChatGptBlockConfig {
-    /// Initializes a [`NanoChatGptBlock`].
+impl CausalDecoderBlockConfig {
+    /// Initializes a [`CausalDecoderBlock`].
     ///
     /// Panics on errors.
     pub fn init(
         &self,
         layer_index: usize,
         device: &Device,
-    ) -> NanoChatGptBlock {
+    ) -> CausalDecoderBlock {
         self.try_init(layer_index, device).ok_or_panic()
     }
 
-    /// Initializes a [`NanoChatGptBlock`].
+    /// Initializes a [`CausalDecoderBlock`].
     pub fn try_init(
         &self,
         layer_index: usize,
         device: &Device,
-    ) -> BunsenResult<NanoChatGptBlock> {
+    ) -> BunsenResult<CausalDecoderBlock> {
         if self.attn.n_embed() != self.mlp.n_embed() {
             return Err(ConstraintError::new(
-                "NanoChatGptBlockConfig",
+                "CausalDecoderBlockConfig",
                 "",
                 Rule::Relation {
                     lhs: ("attn.n_embed".into(), self.attn.n_embed().to_string()),
@@ -95,47 +95,50 @@ impl NanoChatGptBlockConfig {
         }
 
         let n_embed = self.n_embed();
-        Ok(NanoChatGptBlock {
-            input_norm: self.norm.clone().with_num_features(n_embed).init(device),
-            attn: self.attn.try_init(layer_index, device)?,
+        Ok(CausalDecoderBlock {
             attn_norm: self.norm.clone().with_num_features(n_embed).init(device),
+            attn: self.attn.try_init(layer_index, device)?,
+            mlp_norm: self.norm.clone().with_num_features(n_embed).init(device),
             mlp: self.mlp.try_init(device)?,
         })
     }
 }
 
-/// A single nanoChat GPT transformer block.
+/// The decoder-only transformer layer: pre-normalized causal
+/// self-attention, then a pre-normalized feed-forward, each residual:
+/// `x = x + attn(attn_norm(x)); x = x + mlp(mlp_norm(x))`.
 ///
-/// A pre-norm residual block, as upstream nanochat's `Block`: the causal
-/// self-attention and then the MLP each read a normalized copy of the
-/// residual stream, and add their output back to it:
-/// `x = x + attn(norm(x)); x = x + mlp(norm(x))`. Used as the repeated unit
-/// inside [`NanoChatGpt`](super::NanoChatGpt), which chains the blocks.
+/// What tells its users apart is config: the norm ([`Normalization`]), the
+/// feed-forward ([`FeedForward`]: an `Mlp` or a gated `SwiGLU`), and the
+/// attention's own options (grouped-query heads, QK-norm and where it sits).
+/// RMS norms, a `ReLU`² `Mlp` and QK-norm after the rotary embedding, it is
+/// nanochat's `Block`; RMS norms, a `SwiGLU` and QK-norm before it, Qwen3's
+/// decoder layer.
 ///
-/// Built by [`NanoChatGptBlockConfig`], whose `init` also takes the block's
+/// Built by [`CausalDecoderBlockConfig`], whose `init` also takes the block's
 /// layer index: its slot in a shared [`KVCache`].
 #[derive(Module, Debug)]
-pub struct NanoChatGptBlock {
-    /// Normalization of the attention's input.
-    pub input_norm: Normalization,
+pub struct CausalDecoderBlock {
+    /// The attention's input normalization.
+    pub attn_norm: Normalization,
 
     /// Attention.
     pub attn: CausalSelfAttention,
 
-    /// Normalization of the MLP's input.
-    pub attn_norm: Normalization,
+    /// The feed-forward's input normalization.
+    pub mlp_norm: Normalization,
 
-    /// MLP.
-    pub mlp: Mlp,
+    /// The feed-forward.
+    pub mlp: FeedForward,
 }
 
-impl NanoChatGptBlockMeta for NanoChatGptBlock {
+impl CausalDecoderBlockMeta for CausalDecoderBlock {
     fn n_embed(&self) -> usize {
         self.attn.n_embed()
     }
 }
 
-impl NanoChatGptBlock {
+impl CausalDecoderBlock {
     /// Forward Pass.
     ///
     /// # Usage Note
@@ -148,8 +151,8 @@ impl NanoChatGptBlock {
     /// - `kv_cache`: optional KV cache.
     ///
     /// # Returns
-    /// - the `[B, T, D]` block output: `input` plus the attention and MLP
-    ///   updates.
+    /// - the `[B, T, D]` block output: `input` plus the attention and
+    ///   feed-forward updates.
     pub fn forward(
         &self,
         input: Tensor<3>,
@@ -159,8 +162,8 @@ impl NanoChatGptBlock {
         let x = input.clone()
             + self
                 .attn
-                .forward(self.input_norm.forward(input), r_emb, kv_cache);
-        x.clone() + self.mlp.forward(self.attn_norm.forward(x))
+                .forward(self.attn_norm.forward(input), r_emb, kv_cache);
+        x.clone() + self.mlp.forward(self.mlp_norm.forward(x))
     }
 }
 
@@ -177,7 +180,10 @@ mod tests {
 
     use super::*;
     use crate::{
-        blocks::transformers::embedding::RotaryEmbeddingConfig,
+        blocks::transformers::{
+            embedding::RotaryEmbeddingConfig,
+            mlp::MlpConfig,
+        },
         contracts::assert_shape_contract,
         support::testing::{
             DeviceMemoryGuard,
@@ -197,19 +203,19 @@ mod tests {
         let n_head = 128;
         let n_kv_head = 64;
 
-        let config = NanoChatGptBlockConfig::new(
+        let config = CausalDecoderBlockConfig::new(
             CausalSelfAttentionConfig::new(n_head, n_kv_head, n_embed),
-            MlpConfig::new(n_embed).with_act_exponent(Some(2.0)),
+            MlpConfig::new(n_embed).with_act_exponent(Some(2.0)).into(),
         );
         assert_eq!(config.n_embed(), n_embed);
         assert_eq!(config.attn.n_embed(), n_embed);
         assert_eq!(config.attn.n_head(), n_head);
         assert_eq!(config.attn.n_kv_head(), n_kv_head);
 
-        assert_eq!(config.mlp.n_embed(), n_embed);
+        assert_eq!(FeedForwardMeta::n_embed(&config.mlp), n_embed);
 
         let layer_index = 12;
-        let block: NanoChatGptBlock = config.init(layer_index, &device);
+        let block: CausalDecoderBlock = config.init(layer_index, &device);
 
         assert_eq!(block.n_embed(), n_embed);
     }
@@ -228,12 +234,12 @@ mod tests {
         let n_kv_head = 64;
         let layer_index = 12;
 
-        let config = NanoChatGptBlockConfig::new(
+        let config = CausalDecoderBlockConfig::new(
             CausalSelfAttentionConfig::new(n_head, n_kv_head, n_embed),
-            MlpConfig::new(n_embed).with_act_exponent(Some(2.0)),
+            MlpConfig::new(n_embed).with_act_exponent(Some(2.0)).into(),
         );
 
-        let block: NanoChatGptBlock = config.init(layer_index, &device);
+        let block: CausalDecoderBlock = config.init(layer_index, &device);
 
         let input = Tensor::random([batch, seq_len, n_embed], Distribution::Default, &device);
 
@@ -248,8 +254,8 @@ mod tests {
         );
     }
 
-    /// The block adds each sub-layer's output back to its input, as upstream
-    /// nanochat's `x = x + attn(norm(x)); x = x + mlp(norm(x))` does.
+    /// The block adds each sub-layer's output back to its input:
+    /// `x = x + attn(attn_norm(x)); x = x + mlp(mlp_norm(x))`.
     #[test]
     #[serial]
     fn test_gpt_block_adds_sublayers_to_residual() {
@@ -257,21 +263,24 @@ mod tests {
         let _memory = DeviceMemoryGuard::new(&device);
 
         let [batch, seq_len, n_embed] = [2, 5, 32];
-        let config = NanoChatGptBlockConfig::new(
+        let config = CausalDecoderBlockConfig::new(
             CausalSelfAttentionConfig::new(4, 2, n_embed),
-            MlpConfig::new(n_embed).with_act_exponent(Some(2.0)),
+            MlpConfig::new(n_embed).with_act_exponent(Some(2.0)).into(),
         );
-        let mut block: NanoChatGptBlock = config.init(0, &device);
+        let mut block: CausalDecoderBlock = config.init(0, &device);
         let r_emb = RotaryEmbeddingConfig::new(seq_len, block.attn.head_dim()).init(&device);
         let input =
             seeded_tensor::<3>(1, [batch, seq_len, n_embed], Distribution::Default, &device);
 
         // With the MLP's output projection zeroed, the block is
         // `x + attn(norm(x))`.
-        block.mlp.linear2.weight = Param::from_tensor(block.mlp.linear2.weight.val().zeros_like());
+        let FeedForward::Mlp(mlp) = &mut block.mlp else {
+            panic!("an Mlp feed-forward");
+        };
+        mlp.linear2.weight = Param::from_tensor(mlp.linear2.weight.val().zeros_like());
         let attn = block
             .attn
-            .forward(block.input_norm.forward(input.clone()), &r_emb, &mut None);
+            .forward(block.attn_norm.forward(input.clone()), &r_emb, &mut None);
         let output = block.forward(input.clone(), &r_emb, &mut None);
         assert_tensors_close(&output, &(input.clone() + attn), Tolerance::default());
 

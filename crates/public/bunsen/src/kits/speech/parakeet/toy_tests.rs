@@ -26,10 +26,15 @@ use super::{
     weights::load_hf_tensors,
 };
 use crate::{
-    blocks::conformer::{
-        ConformerBlockConfig,
-        ConformerEncoderConfig,
-        DwStridingSubsamplingConfig,
+    blocks::{
+        signals::DwStridingSubsamplingConfig,
+        transformers::encoders::{
+            EncoderTransformer,
+            conformer::{
+                ConformerBlockConfig,
+                ConformerEncoderConfig,
+            },
+        },
     },
     burner::module::ModuleInit,
     ops::transformers::attention::rel_position_table,
@@ -162,20 +167,23 @@ fn test_toy_subsampling() {
 fn test_toy_block_modules() {
     let toy = Toy::load();
     let x: Tensor<3> = toy.io("subsampling");
-    let layer = &toy.model.encoder.layers[0];
+    let EncoderTransformer::Conformer(stack) = &toy.model.encoder.transformer else {
+        panic!("a FastConformer's stack is a Conformer's");
+    };
+    let layer = &stack.layers[0];
     let positions = rel_position_table(OUT_LENGTHS[0], 16, &toy.device);
 
     let ff1 = layer
         .feed_forward1
-        .forward(layer.norm_feed_forward1.forward(x.clone()));
+        .forward(layer.feed_forward1_norm.forward(x.clone()));
     assert_close("feed_forward1", ff1, toy.io("block.ff1"));
 
     let attn = layer
-        .self_attn
-        .forward(layer.norm_self_att.forward(x.clone()), positions, None);
+        .attn
+        .forward(layer.attn_norm.forward(x.clone()), positions, None);
     assert_close("self_attn", attn, toy.io("block.attn"));
 
-    let conv = layer.conv.forward(layer.norm_conv.forward(x), None);
+    let conv = layer.conv.forward(layer.conv_norm.forward(x), None);
     assert_close("conv", conv, toy.io("block.conv"));
 }
 

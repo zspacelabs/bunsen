@@ -20,7 +20,7 @@
 //!    activation, the norm, the logit softcap, and the sequence lengths.
 //! 2. [`to_structure`](crate::burner::module::ToStructureConfig::to_structure)
 //!    unrolls it into a [`NanoChatGptStructureConfig`]: the token embedding,
-//!    one [`NanoChatGptBlockConfig`](blocks::NanoChatGptBlockConfig) per layer,
+//!    one [`CausalDecoderBlockConfig`](crate::blocks::transformers::decoders::causal::CausalDecoderBlockConfig) per layer,
 //!    the head, and the rotary-embedding table.
 //! 3. `init` builds the [`NanoChatGpt`]: from the structure, or from the policy
 //!    in one step through the blanket

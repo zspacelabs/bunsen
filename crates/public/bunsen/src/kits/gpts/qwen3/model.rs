@@ -24,19 +24,19 @@ use burn::{
 use crate::{
     blocks::transformers::{
         attention::csa::{
-            CausalSelfAttention,
             CausalSelfAttentionConfig,
             QkNormPlacement,
+        },
+        decoders::causal::{
+            CausalDecoderBlock,
+            CausalDecoderBlockConfig,
         },
         embedding::{
             RotaryDirection,
             RotaryEmbedding,
             RotaryEmbeddingConfig,
         },
-        mlp::{
-            GatedMlp,
-            GatedMlpConfig,
-        },
+        mlp::GatedMlpConfig,
     },
     burner::module::ModuleInit,
     errors::BunsenResult,
@@ -157,20 +157,15 @@ impl ModuleInit<Qwen3Model> for Qwen3Config {
         let norm = |n| RmsNormConfig::new(n).with_epsilon(self.rms_eps);
         let layers = (0..self.n_layers)
             .map(|i| {
-                Ok(Qwen3Layer {
-                    input_layernorm: norm(self.d_model).init(device),
-                    self_attn: CausalSelfAttentionConfig::new(
-                        self.n_heads,
-                        self.n_kv_heads,
-                        self.d_model,
-                    )
-                    .with_head_dim(Some(self.head_dim))
-                    .with_norm(NormalizationConfig::Rms(norm(self.head_dim)))
-                    .with_qk_norm(QkNormPlacement::BeforeRope)
-                    .try_init(i, device)?,
-                    post_attention_layernorm: norm(self.d_model).init(device),
-                    mlp: GatedMlpConfig::new(self.d_model, self.d_ff).try_init(device)?,
-                })
+                CausalDecoderBlockConfig::new(
+                    CausalSelfAttentionConfig::new(self.n_heads, self.n_kv_heads, self.d_model)
+                        .with_head_dim(Some(self.head_dim))
+                        .with_norm(NormalizationConfig::Rms(norm(self.head_dim)))
+                        .with_qk_norm(QkNormPlacement::BeforeRope),
+                    GatedMlpConfig::new(self.d_model, self.d_ff).into(),
+                )
+                .with_norm(NormalizationConfig::Rms(norm(0)))
+                .try_init(i, device)
             })
             .collect::<BunsenResult<_>>()?;
         Ok(Qwen3Model {
@@ -182,52 +177,14 @@ impl ModuleInit<Qwen3Model> for Qwen3Config {
     }
 }
 
-/// One Qwen3 decoder layer: pre-normalized causal self-attention, then a
-/// pre-normalized `SwiGLU` feed-forward, each residual.
-#[derive(Module, Debug)]
-pub struct Qwen3Layer {
-    /// The attention's normalization.
-    pub input_layernorm: RmsNorm,
-
-    /// Causal self-attention: grouped-query, its queries and keys
-    /// RMS-normalized per head before the rotary embedding.
-    pub self_attn: CausalSelfAttention,
-
-    /// The feed-forward's normalization.
-    pub post_attention_layernorm: RmsNorm,
-
-    /// The `SwiGLU` feed-forward.
-    pub mlp: GatedMlp,
-}
-
-impl Qwen3Layer {
-    /// Applies the layer.
-    ///
-    /// # Arguments
-    /// * `x` - `[batch, seq, d_model]`.
-    /// * `r_emb` - the rotary embedding of the `seq` positions.
-    /// * `kv_cache` - the decode's cache, when there is one.
-    ///
-    /// # Returns
-    /// `[batch, seq, d_model]`.
-    pub fn forward(
-        &self,
-        x: Tensor<3>,
-        r_emb: &RotaryEmbedding,
-        kv_cache: &mut Option<&mut KVCache>,
-    ) -> Tensor<3> {
-        let x = x.clone()
-            + self
-                .self_attn
-                .forward(self.input_layernorm.forward(x), r_emb, kv_cache);
-        x.clone() + self.mlp.forward(self.post_attention_layernorm.forward(x))
-    }
-}
-
 /// The Qwen3 decoder-only language model (Qwen team 2025), with its head
 /// tied to its embedding: the text model of Qwen3-ASR.
 ///
-/// The fields carry the names `transformers`' `Qwen3Model` gives them.
+/// Its own fields carry the names `transformers`' `Qwen3Model` gives them;
+/// its layers are the generic
+/// [`CausalDecoderBlock`](crate::blocks::transformers::decoders::causal::CausalDecoderBlock)
+/// (RMS norms, a `SwiGLU`, QK-norm before the rotary embedding), onto which
+/// Qwen3-ASR's loader maps the `transformers` names.
 ///
 /// Built by [`Qwen3Config`].
 /// Implements [`Qwen3Meta`].
@@ -237,7 +194,7 @@ pub struct Qwen3Model {
     pub embed_tokens: Embedding,
 
     /// The decoder layers.
-    pub layers: Vec<Qwen3Layer>,
+    pub layers: Vec<CausalDecoderBlock>,
 
     /// The final normalization.
     pub norm: RmsNorm,
@@ -261,11 +218,11 @@ impl Qwen3Meta for Qwen3Model {
 
     fn n_kv_heads(&self) -> usize {
         use crate::blocks::transformers::attention::csa::CausalSelfAttentionMeta;
-        self.layers[0].self_attn.n_kv_head()
+        self.layers[0].attn.n_kv_head()
     }
 
     fn head_dim(&self) -> usize {
-        self.layers[0].self_attn.head_dim
+        self.layers[0].attn.head_dim
     }
 }
 
@@ -409,8 +366,8 @@ impl Qwen3Model {
         for (index, layer) in self.layers.iter().enumerate().take(deepest) {
             for (slot, _) in layers.iter().enumerate().filter(|&(_, &l)| l == index) {
                 let w = layer
-                    .self_attn
-                    .attention_weights(layer.input_layernorm.forward(x.clone()), &r_emb);
+                    .attn
+                    .attention_weights(layer.attn_norm.forward(x.clone()), &r_emb);
                 weights[slot] = Some(w.slice(s![.., .., rows.clone(), cols.clone()]));
             }
             x = layer.forward(x, &r_emb, &mut None);
@@ -475,7 +432,7 @@ mod tests {
         assert_eq!(model.n_kv_heads(), config.n_kv_heads());
         assert_eq!(model.head_dim(), config.head_dim());
         assert_eq!(model.rope_theta, config.rope_theta);
-        assert_eq!(model.layers[0].self_attn.c_q.weight.dims(), [12, 18]);
+        assert_eq!(model.layers[0].attn.c_q.weight.dims(), [12, 18]);
 
         let tokens = Tensor::<2, Int>::from_data([[1, 5, 7, 2, 9]], &device);
         let embeds = model.embed(tokens);
@@ -508,14 +465,14 @@ mod tests {
         let first = &model.layers[0];
         let x0 = embeds.clone();
         let expected0 = first
-            .self_attn
-            .attention_weights(first.input_layernorm.forward(x0.clone()), &r_emb)
+            .attn
+            .attention_weights(first.attn_norm.forward(x0.clone()), &r_emb)
             .slice(s![.., .., 2..5, 0..3]);
         let second = &model.layers[1];
         let x1 = first.forward(x0, &r_emb, &mut None);
         let expected1 = second
-            .self_attn
-            .attention_weights(second.input_layernorm.forward(x1), &r_emb)
+            .attn
+            .attention_weights(second.attn_norm.forward(x1), &r_emb)
             .slice(s![.., .., 2..5, 0..3]);
         crate::support::testing::assert_tensors_close(
             &weights[0],

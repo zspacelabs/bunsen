@@ -135,7 +135,10 @@ impl PytorchWhisperScanner {
             .with_key_remapping(r"\.attn\.out", ".attn.output")
             .with_key_remapping(r"\.cross_attn\.out", ".cross_attn.output")
             .with_key_remapping(r"\.mlp\.2", ".mlp.linear2")
-            .with_key_remapping(r"\.mlp\.0", ".mlp.linear1");
+            .with_key_remapping(r"\.mlp\.0", ".mlp.linear1")
+            .with_key_remapping(r"\.attn_ln\.", ".attn_norm.")
+            .with_key_remapping(r"\.cross_attn_ln\.", ".cross_attn_norm.")
+            .with_key_remapping(r"\.mlp_ln\.", ".mlp_norm.");
 
         let store = match &self.top_level_key {
             Some(k) => store.with_top_level_key(k),

@@ -15,33 +15,35 @@ use burn::{
 };
 
 use super::{
-    RopeSortformerEncoderConfig,
-    SortformerEncoder,
-    SortformerEncoderConfig,
-    SortformerEncoderMeta,
     SortformerHead,
     SortformerHeadConfig,
     SortformerHeadMeta,
-    SortformerTransformer,
-    SortformerTransformerConfig,
 };
 use crate::{
     blocks::{
-        conformer::{
-            ConformerBlockConfig,
-            ConformerEncoderConfig,
+        layout::AxisOrder,
+        signals::{
             DwStridingSubsamplingConfig,
-        },
-        frame_rate::{
             FeatureStackingConfig,
             SubpixelUpsample1d,
             SubpixelUpsample1dConfig,
             SubpixelUpsample1dMeta,
+            SubsamplingConfig,
         },
         transformers::encoders::{
+            SubsampledEncoder,
+            SubsampledEncoderConfig,
+            SubsampledEncoderMeta,
+            conformer::{
+                ConformerBlockConfig,
+                ConformerEncoderConfig,
+            },
             residual::{
                 NormPlacement,
                 ResidualEncoderAttentionBlockConfig,
+                ResidualEncoderTransformer,
+                ResidualEncoderTransformerConfig,
+                ResidualEncoderTransformerMeta,
             },
             rope::{
                 RopeEncoderBlockConfig,
@@ -93,7 +95,7 @@ pub trait SortformerMeta {
 #[derive(Config, Debug)]
 pub struct SortformerStructureConfig {
     /// The encoder: pre-encode, then the encoder layers.
-    pub encoder: SortformerEncoderConfig,
+    pub encoder: SubsampledEncoderConfig,
 
     /// The head; the encoder's output is projected to its width.
     pub head: SortformerHeadConfig,
@@ -101,7 +103,7 @@ pub struct SortformerStructureConfig {
     /// A transformer over the projected frames, at the head's width, when
     /// set.
     #[config(default = "None")]
-    pub transformer: Option<SortformerTransformerConfig>,
+    pub transformer: Option<ResidualEncoderTransformerConfig>,
 
     /// Upsamples the projected frames before the head, when set; its width
     /// is the head's.
@@ -281,18 +283,22 @@ impl ToStructureConfig for NemotronDiarizationConfig {
     type Structure = SortformerStructureConfig;
 
     fn try_to_structure(&self) -> BunsenResult<SortformerStructureConfig> {
-        let encoder = RopeSortformerEncoderConfig::new(
-            FeatureStackingConfig::new(self.n_mels, self.d_model)
-                .with_factor(self.subsampling_factor),
+        // Fed `[batch, time, n_mels]`, the stacking's own layout.
+        let encoder = SubsampledEncoderConfig::new(
+            SubsamplingConfig::Stacking(
+                FeatureStackingConfig::new(self.n_mels, self.d_model)
+                    .with_factor(self.subsampling_factor),
+            ),
             RopeTransformerEncoderConfig::new(
                 RopeEncoderBlockConfig::new(self.d_model, self.n_heads)
                     .with_ff_expansion(self.ff_expansion),
                 self.n_layers,
             )
-            .with_rope_base(self.rope_base),
+            .with_rope_base(self.rope_base)
+            .into(),
         );
         Ok(SortformerStructureConfig::new(
-            SortformerEncoderConfig::Rope(encoder),
+            encoder,
             SortformerHeadConfig::new(self.d_hidden, self.n_speakers),
         )
         .with_upsample(Some(
@@ -432,10 +438,12 @@ impl ToStructureConfig for SortformerV2Config {
             .with_norm_placement(NormPlacement::Post)
             .with_activation(ActivationConfig::Relu);
         Ok(SortformerStructureConfig::new(
-            SortformerEncoderConfig::FastConformer(encoder),
+            // Fed `[batch, time, n_mels]`; the striding reads `[batch, n_mels,
+            // time]`.
+            encoder.try_to_structure()?.with_layout(AxisOrder::SWAP_IN),
             SortformerHeadConfig::new(self.d_hidden, self.n_speakers),
         )
-        .with_transformer(Some(SortformerTransformerConfig::new(
+        .with_transformer(Some(ResidualEncoderTransformerConfig::new(
             block,
             self.transformer_layers,
         ))))
@@ -473,13 +481,13 @@ pub struct SpeakerProbs {
 #[derive(Module, Debug)]
 pub struct Sortformer {
     /// The encoder.
-    pub encoder: SortformerEncoder,
+    pub encoder: SubsampledEncoder,
 
     /// `[d_model] -> [d_hidden]`.
     pub projection: Linear,
 
     /// The transformer over the projected frames, if any.
-    pub transformer: Option<SortformerTransformer>,
+    pub transformer: Option<ResidualEncoderTransformer>,
 
     /// The upsample back to the mel frame rate, if any.
     pub upsample: Option<SubpixelUpsample1d>,

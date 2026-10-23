@@ -2,7 +2,9 @@
 //!
 //! Extension traits that add utility methods to [`burn::Tensor`] and
 //! [`burn::tensor::TensorData`], and
-//! type- and rank-erased tensors in [`dynamic`]. Importing the traits (e.g. via
+//! type- and rank-erased tensors in [`dynamic`]; and [`permute_data`] and
+//! [`reshape_data`], which rearrange a `TensorData` on the host, for a
+//! weight's layout at load time. Importing the traits (e.g. via
 //! `use bunsen::burner::tensor::*;`, or [`crate::prelude`], which re-exports
 //! this module) makes the methods available directly on `Tensor` and
 //! `TensorData` values.
@@ -71,9 +73,11 @@ pub mod dynamic;
 mod bf16;
 mod float_dtype;
 mod tensor_data_checks;
+mod tensor_data_layout;
 mod tensor_op_ext;
 
 pub use bf16::*;
 pub use float_dtype::*;
 pub use tensor_data_checks::*;
+pub use tensor_data_layout::*;
 pub use tensor_op_ext::*;

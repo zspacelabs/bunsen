@@ -236,3 +236,57 @@ fn test_sample_stream_is_the_mel_stream() {
         assert_close(&format!("pieces of {piece}"), got, want);
     }
 }
+
+/// A block's layout choice and its loading consequence, together: the toy's
+/// `transformers` weights load into a model whose stacking lays features
+/// outer, the projection's weight permuted by the map, and it embeds exactly
+/// as the one that stacks as `transformers` does.
+#[test]
+#[serial_test::serial]
+fn test_loads_in_either_stack_order() {
+    use burn::tensor::{
+        Distribution,
+        Tolerance,
+    };
+
+    use crate::{
+        blocks::signals::{
+            StackOrder,
+            SubsamplingConfig,
+        },
+        burner::module::ToStructureConfig,
+    };
+
+    let upstream = Toy::load();
+    let mut structure = toy_config().to_structure();
+    match &mut structure.encoder.subsampling {
+        SubsamplingConfig::Stacking(stacking) => stacking.order = StackOrder::FeaturesFrames,
+        other => panic!("Nemotron's front end stacks, not {other:?}"),
+    }
+    let mut flipped: Sortformer = structure.init(&upstream.device);
+    let weights: Vec<PackTensor> = {
+        let path = concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/testdata/sortformer/nemotron_toy.safetensors"
+        );
+        SafetensorsStore::from_file(path)
+            .get_all_tensors()
+            .expect("read the toy fixture")
+            .clone()
+            .into_iter()
+            .filter_map(|(name, mut tensor)| {
+                let rest = name.strip_prefix("weights.")?.to_string();
+                tensor.name = rest;
+                Some(tensor)
+            })
+            .collect()
+    };
+    load_nemotron_hf_tensors(&mut flipped, weights).expect("load the toy weights");
+
+    let mels = Tensor::<3>::random([2, 37, 24], Distribution::Default, &upstream.device);
+    let (want, want_lengths) = upstream.model.pre_encode(mels.clone(), Some(&[37, 21]));
+    let (got, got_lengths) = flipped.pre_encode(mels, Some(&[37, 21]));
+    assert_eq!(got_lengths, want_lengths);
+    got.to_data()
+        .assert_approx_eq::<f32>(&want.to_data(), Tolerance::absolute(1e-5));
+}

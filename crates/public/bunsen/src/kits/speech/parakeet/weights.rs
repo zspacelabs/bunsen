@@ -6,96 +6,119 @@ use super::blocks::{
     ParakeetTdtConfig,
 };
 use crate::{
-    blocks::conformer::{
-        ConformerBlockConfig,
-        ConformerEncoderConfig,
-        DwStridingSubsamplingConfig,
-        DwStridingSubsamplingMeta,
+    blocks::{
+        rnn::lstm::FusedLstm,
+        signals::{
+            DwStridingSubsamplingConfig,
+            DwStridingSubsamplingMeta,
+            FlattenOrder,
+        },
+        transformers::encoders::conformer::{
+            ConformerBlockConfig,
+            ConformerEncoderConfig,
+        },
     },
+    burner::module::Rekey,
     data::pretrained::{
         HfConfigJson,
         NamedTensorsApplied,
-        apply_named_tensors,
+        apply_rekeyed_tensors,
     },
-    errors::BunsenResult,
+    errors::{
+        BunsenError,
+        BunsenResult,
+    },
 };
 
-/// The bunsen module path of one `transformers` `ParakeetForTDT` state-dict
-/// name, or `None` for an entry that is not a parameter
-/// (`num_batches_tracked`).
+/// `transformers`' `ParakeetEncoderSubsampling` names onto a
+/// [`DwStridingSubsampling`](crate::blocks::signals::DwStridingSubsampling)'s,
+/// relative to it: the flat `layers.{k}` by
+/// [`sequential_rekey`](DwStridingSubsamplingMeta::sequential_rekey),
+/// everything else as it is, and the projection's weight permuted when
+/// `striding` flattens otherwise than `transformers` does (channels outer).
+pub fn subsampling_rekey(striding: &impl DwStridingSubsamplingMeta) -> Rekey {
+    striding.reflatten_from(
+        FlattenOrder::ChannelsFreqs,
+        striding.sequential_rekey("layers."),
+    )
+}
+
+/// `transformers`' `ParakeetEncoderBlock` names onto a
+/// [`ConformerBlock`](crate::blocks::transformers::encoders::conformer::ConformerBlock)'s,
+/// relative to it: the attention's projections and positional biases, the
+/// convolution module's depthwise convolution and norm, and the sublayers'
+/// norms, renamed; everything else as it is.
+pub fn encoder_block_rekey() -> Rekey {
+    Rekey::keep_rest()
+        .rename("self_attn.q_proj.", "attn.query.")
+        .rename("self_attn.k_proj.", "attn.key.")
+        .rename("self_attn.v_proj.", "attn.value.")
+        .rename("self_attn.o_proj.", "attn.output.")
+        .rename("self_attn.relative_k_proj.", "attn.pos.")
+        .exact("self_attn.bias_u", "attn.pos_bias_u")
+        .exact("self_attn.bias_v", "attn.pos_bias_v")
+        .rename("conv.depthwise_conv.", "conv.depthwise.conv.")
+        .rename("conv.norm.", "conv.depthwise.norm.")
+        .rename("norm_feed_forward1.", "feed_forward1_norm.")
+        .rename("norm_self_att.", "attn_norm.")
+        .rename("norm_conv.", "conv_norm.")
+        .rename("norm_feed_forward2.", "feed_forward2_norm.")
+        .rename("norm_out.", "out_norm.")
+        .rename("self_attn.", "attn.")
+}
+
+/// `transformers`' `ParakeetEncoder` names onto the
+/// [`SubsampledEncoder`](crate::blocks::transformers::encoders::SubsampledEncoder)
+/// a [`ConformerEncoderConfig`] builds: [`subsampling_rekey`] and
+/// [`encoder_block_rekey`] mounted where they sit, the batch-norm counters
+/// dropped, and everything else as it is.
+pub fn encoder_rekey(striding: &impl DwStridingSubsamplingMeta) -> Rekey {
+    Rekey::keep_rest()
+        .drop_suffix(".num_batches_tracked")
+        .mount("subsampling.", "subsampling.", subsampling_rekey(striding))
+        .mount_indexed("layers.", "transformer.layers.", encoder_block_rekey())
+}
+
+/// `transformers`' `ParakeetForTDT` state-dict names onto a
+/// [`ParakeetTdt`]'s module paths: the encoder by [`encoder_rekey`], the
+/// prediction network's
+/// `nn.LSTM` by [`FusedLstm::torch_stack_rekey`], the batch-norm counters
+/// dropped, and everything else as it is.
 ///
-/// `n_stages` is the subsampling's stage count, which fixes how
-/// `encoder.subsampling.layers.{k}` (`transformers`' flat `ModuleList` of
-/// convolutions and activations) maps onto the stem and the stages.
+/// `striding` is the encoder's subsampling, a config or a built module: its
+/// stage count and flatten order fix its map.
 ///
 /// Normalization parameters keep their `weight` / `bias` spellings, which
-/// [`apply_named_tensors`] resolves to `gamma` / `beta`.
-pub fn hf_to_bunsen_path(
-    name: &str,
-    n_stages: usize,
-) -> Option<String> {
-    if name.ends_with(".num_batches_tracked") {
-        return None;
-    }
-    if let Some(rest) = name.strip_prefix("encoder.subsampling.layers.") {
-        let (k, param) = rest.split_once('.')?;
-        let k: usize = k.parse().ok()?;
-        let module = match k {
-            0 => "stem.conv".to_string(),
-            k if k >= 2 && (k - 2) / 3 + 1 < n_stages => match (k - 2) % 3 {
-                0 => format!("stages.{}.depthwise.conv", (k - 2) / 3),
-                1 => format!("stages.{}.pointwise.conv", (k - 2) / 3),
-                _ => return None,
-            },
-            _ => return None,
-        };
-        return Some(format!("encoder.subsampling.{module}.{param}"));
-    }
-    if let Some(rest) = name.strip_prefix("decoder.lstm.") {
-        let (param, layer) = rest.rsplit_once("_l")?;
-        let (proj, kind) = match param {
-            "weight_ih" => ("features", "weight"),
-            "weight_hh" => ("hidden", "weight"),
-            "bias_ih" => ("features", "bias"),
-            "bias_hh" => ("hidden", "bias"),
-            _ => return None,
-        };
-        return Some(format!("decoder.lstm.{layer}.{proj}.{kind}"));
-    }
-
-    const RENAMES: &[(&str, &str)] = &[
-        (".self_attn.q_proj.", ".self_attn.query."),
-        (".self_attn.k_proj.", ".self_attn.key."),
-        (".self_attn.v_proj.", ".self_attn.value."),
-        (".self_attn.o_proj.", ".self_attn.output."),
-        (".self_attn.relative_k_proj.", ".self_attn.pos."),
-        (".self_attn.bias_u", ".self_attn.pos_bias_u"),
-        (".self_attn.bias_v", ".self_attn.pos_bias_v"),
-        (".conv.depthwise_conv.", ".conv.depthwise.conv."),
-        (".conv.norm.", ".conv.depthwise.norm."),
-        ("decoder.decoder_projector.", "decoder.projector."),
-    ];
-    let mut path = name.to_string();
-    for (from, to) in RENAMES {
-        if path.contains(from) {
-            path = path.replacen(from, to, 1);
-            break;
-        }
-    }
-    Some(path)
+/// [`apply_rekeyed_tensors`] resolves to `gamma` / `beta`.
+pub fn hf_rekey(striding: &impl DwStridingSubsamplingMeta) -> Rekey {
+    Rekey::keep_rest()
+        .drop_suffix(".num_batches_tracked")
+        .mount("encoder.", "encoder.", encoder_rekey(striding))
+        .mount(
+            "decoder.lstm.",
+            "decoder.lstm.",
+            FusedLstm::torch_stack_rekey(),
+        )
+        .rename("decoder.decoder_projector.", "decoder.projector.")
 }
 
 /// Loads tensors named as `transformers`' `ParakeetForTDT` state dict into
-/// `model`: [`apply_named_tensors`] under [`hf_to_bunsen_path`].
+/// `model`: [`apply_rekeyed_tensors`] under [`hf_rekey`], at `model`'s
+/// subsampling.
 ///
 /// # Errors
-/// As [`apply_named_tensors`].
+/// As [`apply_rekeyed_tensors`];
+/// [`InvalidResource`](crate::errors::BunsenErrorKind::InvalidResource) when
+/// `model`'s encoder does not subsample by depthwise striding.
 pub fn load_hf_tensors(
     model: &mut ParakeetTdt,
     tensors: impl IntoIterator<Item = PackTensor>,
 ) -> BunsenResult<NamedTensorsApplied> {
-    let n_stages = model.encoder.subsampling.n_stages();
-    apply_named_tensors(model, tensors, |name| hf_to_bunsen_path(name, n_stages))
+    let striding = model.encoder.subsampling.dw_striding().ok_or_else(|| {
+        BunsenError::invalid_resource("a Parakeet encoder subsamples by depthwise striding")
+    })?;
+    let rekey = hf_rekey(striding);
+    apply_rekeyed_tensors(model, tensors, &rekey)
 }
 
 /// The [`ParakeetTdtConfig`] of a `transformers` `ParakeetForTDT`
@@ -162,7 +185,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_hf_to_bunsen_path() {
+    fn test_hf_rekey() {
         for (hf, bunsen) in [
             (
                 "encoder.subsampling.layers.0.weight",
@@ -191,32 +214,32 @@ mod tests {
             ),
             (
                 "encoder.layers.3.self_attn.q_proj.weight",
-                Some("encoder.layers.3.self_attn.query.weight"),
+                Some("encoder.transformer.layers.3.attn.query.weight"),
             ),
             (
                 "encoder.layers.3.self_attn.relative_k_proj.weight",
-                Some("encoder.layers.3.self_attn.pos.weight"),
+                Some("encoder.transformer.layers.3.attn.pos.weight"),
             ),
             (
                 "encoder.layers.3.self_attn.bias_u",
-                Some("encoder.layers.3.self_attn.pos_bias_u"),
+                Some("encoder.transformer.layers.3.attn.pos_bias_u"),
             ),
             (
                 "encoder.layers.3.conv.depthwise_conv.weight",
-                Some("encoder.layers.3.conv.depthwise.conv.weight"),
+                Some("encoder.transformer.layers.3.conv.depthwise.conv.weight"),
             ),
             (
                 "encoder.layers.3.conv.norm.running_var",
-                Some("encoder.layers.3.conv.depthwise.norm.running_var"),
+                Some("encoder.transformer.layers.3.conv.depthwise.norm.running_var"),
             ),
             ("encoder.layers.3.conv.norm.num_batches_tracked", None),
             (
                 "encoder.layers.3.conv.pointwise_conv1.weight",
-                Some("encoder.layers.3.conv.pointwise_conv1.weight"),
+                Some("encoder.transformer.layers.3.conv.pointwise_conv1.weight"),
             ),
             (
                 "encoder.layers.3.norm_out.weight",
-                Some("encoder.layers.3.norm_out.weight"),
+                Some("encoder.transformer.layers.3.out_norm.weight"),
             ),
             (
                 "decoder.lstm.weight_ih_l1",
@@ -233,7 +256,13 @@ mod tests {
             ("joint.head.weight", Some("joint.head.weight")),
             ("encoder_projector.weight", Some("encoder_projector.weight")),
         ] {
-            assert_eq!(hf_to_bunsen_path(hf, 3).as_deref(), bunsen, "{hf}");
+            assert_eq!(
+                hf_rekey(&DwStridingSubsamplingConfig::new(128, 256, 1024))
+                    .apply(hf)
+                    .as_deref(),
+                bunsen,
+                "{hf}"
+            );
         }
     }
 

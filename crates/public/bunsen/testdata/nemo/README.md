@@ -21,4 +21,4 @@ its state dict (dtype, shape, the sum of its values). Synthetic weights: no lice
 
 `kits::speech::nemo`'s archive tests (feature `nemo`) read its config into typed sections, extract and read its state
 dict through the burn-store's `PyTorch` reader against the manifest, and load its encoder and transformer into bunsen's
-blocks under the `NeMo` renames.
+blocks under the kit's `NeMo` maps (`conformer_encoder_rekey`, `transformer_encoder_rekey`).

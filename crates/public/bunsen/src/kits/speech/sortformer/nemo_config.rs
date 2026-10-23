@@ -2,12 +2,15 @@
 use serde::Deserialize;
 
 use super::blocks::{
-    SortformerEncoderConfig,
     SortformerHeadConfig,
     SortformerStructureConfig,
-    SortformerTransformerConfig,
 };
 use crate::{
+    blocks::{
+        layout::AxisOrder,
+        transformers::encoders::residual::ResidualEncoderTransformerConfig,
+    },
+    burner::module::ToStructureConfig,
     errors::{
         BunsenError,
         BunsenResult,
@@ -217,10 +220,13 @@ impl NemoSortformerConfig {
             ));
         }
         Ok(SortformerStructureConfig::new(
-            SortformerEncoderConfig::FastConformer(encoder.conformer()?),
+            encoder
+                .conformer()?
+                .try_to_structure()?
+                .with_layout(AxisOrder::SWAP_IN),
             SortformerHeadConfig::new(modules.tf_d_model, modules.num_spks),
         )
-        .with_transformer(Some(SortformerTransformerConfig::new(
+        .with_transformer(Some(ResidualEncoderTransformerConfig::new(
             transformer.block()?,
             transformer.num_layers,
         ))))

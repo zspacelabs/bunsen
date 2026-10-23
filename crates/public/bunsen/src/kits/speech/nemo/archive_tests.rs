@@ -4,16 +4,21 @@ use std::{
     path::PathBuf,
 };
 
-use burn::module::Module;
 use serde::Deserialize;
 
 use super::*;
 use crate::{
-    blocks::{
-        conformer::ConformerEncoder,
-        transformers::encoders::residual::ResidualEncoderAttentionBlock,
+    blocks::transformers::encoders::{
+        SubsampledEncoder,
+        residual::{
+            ResidualEncoderTransformer,
+            ResidualEncoderTransformerConfig,
+        },
     },
-    burner::module::ModuleInit,
+    burner::module::{
+        ModuleInit,
+        Rekey,
+    },
     data::pretrained::apply_named_tensors,
     errors::BunsenErrorKind,
     support::testing::cpu_device,
@@ -84,9 +89,9 @@ fn test_config_sections() {
 #[test]
 fn test_bunsen_configs() {
     use crate::{
-        blocks::{
+        blocks::transformers::encoders::{
             conformer::ConformerEncoderMeta,
-            transformers::encoders::residual::{
+            residual::{
                 NormPlacement,
                 ResidualEncoderAttentionBlockMeta,
             },
@@ -222,22 +227,23 @@ fn test_with_weights() {
     assert_eq!(err.kind(), BunsenErrorKind::Illegal);
 }
 
-/// The encoder's entries load into a bunsen `ConformerEncoder` built from
+/// The encoder's entries load into the bunsen `SubsampledEncoder` built from
 /// the config, filling every parameter; only the batch-norm counters are
 /// left over.
 #[test]
 fn test_conformer_loads() {
     let config: ToyConfig = toy().config().unwrap();
     let conformer = config.encoder.conformer().unwrap();
-    let n_stages = conformer.subsampling.n_stages;
-    let mut encoder: ConformerEncoder = conformer.init(&cpu_device());
+    let mut encoder: SubsampledEncoder = conformer.init(&cpu_device());
     let tensors = weights()
         .into_iter()
         .filter(|t| t.name.starts_with("encoder."));
-    let applied = apply_named_tensors(&mut encoder, tensors, |name| {
-        nemo_conformer_to_bunsen_path(name.strip_prefix("encoder.")?, n_stages)
-    })
-    .unwrap();
+    let rekey = Rekey::drop_rest().mount(
+        "encoder.",
+        "",
+        conformer_encoder_rekey(&conformer.subsampling),
+    );
+    let applied = apply_named_tensors(&mut encoder, tensors, rekey.as_fn()).unwrap();
     assert!(!applied.applied.is_empty());
     assert!(
         applied
@@ -249,29 +255,72 @@ fn test_conformer_loads() {
     );
 }
 
+/// A block's layout choice and its loading consequence, together: the same
+/// `NeMo` checkpoint loads into an encoder that flattens its subsampling
+/// frequencies-outer, the projection's weight permuted by the map, and it
+/// encodes exactly as the one that flattens as `NeMo` does.
+#[test]
+#[serial_test::serial]
+fn test_conformer_loads_in_either_flatten_order() {
+    use burn::{
+        Tensor,
+        tensor::{
+            Distribution,
+            Tolerance,
+        },
+    };
+
+    use crate::{
+        blocks::signals::FlattenOrder,
+        data::pretrained::apply_rekeyed_tensors,
+    };
+
+    let device = cpu_device();
+    let config: ToyConfig = toy().config().unwrap();
+    let load = |flatten: FlattenOrder| {
+        let mut conformer = config.encoder.conformer().unwrap();
+        conformer.subsampling.flatten = flatten;
+        let mut encoder: SubsampledEncoder = conformer.init(&device);
+        let rekey = Rekey::drop_rest().mount(
+            "encoder.",
+            "",
+            conformer_encoder_rekey(&conformer.subsampling),
+        );
+        let tensors = weights()
+            .into_iter()
+            .filter(|t| t.name.starts_with("encoder."));
+        apply_rekeyed_tensors(&mut encoder, tensors, &rekey).unwrap();
+        (conformer, encoder)
+    };
+    let (conformer, upstream) = load(FlattenOrder::ChannelsFreqs);
+    let (_, flipped) = load(FlattenOrder::FreqsChannels);
+
+    let mels = Tensor::<3>::random(
+        [2, conformer.subsampling.n_mels, 40],
+        Distribution::Default,
+        &device,
+    );
+    let (want, want_lengths) = upstream.forward(mels.clone(), Some(&[40, 27]));
+    let (got, got_lengths) = flipped.forward(mels, Some(&[40, 27]));
+    assert_eq!(got_lengths, want_lengths);
+    got.to_data()
+        .assert_approx_eq::<f32>(&want.to_data(), Tolerance::absolute(1e-5));
+}
+
 /// The transformer's entries load into a stack of residual blocks built
 /// from the config, filling every parameter.
 #[test]
 fn test_transformer_loads() {
-    #[derive(Module, Debug)]
-    struct Stack {
-        layers: Vec<ResidualEncoderAttentionBlock>,
-    }
     let config: ToyConfig = toy().config().unwrap();
     let block = config.transformer_encoder.block().unwrap();
-    let device = cpu_device();
-    let mut stack = Stack {
-        layers: (0..config.transformer_encoder.num_layers)
-            .map(|_| block.try_init(&device).unwrap())
-            .collect(),
-    };
+    let mut stack: ResidualEncoderTransformer =
+        ResidualEncoderTransformerConfig::new(block, config.transformer_encoder.num_layers)
+            .init(&cpu_device());
     let tensors = weights()
         .into_iter()
         .filter(|t| t.name.starts_with("transformer_encoder."));
-    let applied = apply_named_tensors(&mut stack, tensors, |name| {
-        nemo_transformer_to_bunsen_path(name.strip_prefix("transformer_encoder.")?)
-    })
-    .unwrap();
+    let rekey = Rekey::drop_rest().mount("transformer_encoder.", "", transformer_encoder_rekey());
+    let applied = apply_named_tensors(&mut stack, tensors, rekey.as_fn()).unwrap();
     assert!(applied.unused.is_empty(), "{:?}", applied.unused);
 }
 

@@ -15,7 +15,10 @@ use burn::{
     },
 };
 
-use crate::burner::module::ModuleInit;
+use crate::burner::module::{
+    ModuleInit,
+    Rekey,
+};
 
 /// Common meta for [`FusedLstm`] and [`FusedLstmConfig`].
 pub trait FusedLstmMeta {
@@ -163,5 +166,25 @@ impl FusedLstm {
         let cell = forget_values * cell + input_values * candidate_cell_values;
         let hidden = output_values * tanh(cell.clone());
         (hidden, cell)
+    }
+}
+
+impl FusedLstm {
+    /// A `PyTorch` `nn.LSTM`'s tensors, relative to it, onto a stack of
+    /// these (`Vec<FusedLstm>`, one per layer): `{weight,bias}_ih_l{n}` is
+    /// layer `n`'s `features`, `{weight,bias}_hh_l{n}` its `hidden`. Anything
+    /// else is dropped.
+    pub fn torch_stack_rekey() -> Rekey {
+        Rekey::drop_rest().custom(|name| {
+            let (param, layer) = name.rsplit_once("_l")?;
+            let (proj, kind) = match param {
+                "weight_ih" => ("features", "weight"),
+                "weight_hh" => ("hidden", "weight"),
+                "bias_ih" => ("features", "bias"),
+                "bias_hh" => ("hidden", "bias"),
+                _ => return None,
+            };
+            Some(Some(format!("{layer}.{proj}.{kind}")))
+        })
     }
 }

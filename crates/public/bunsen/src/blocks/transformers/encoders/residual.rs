@@ -1,4 +1,5 @@
-//! The transformer encoder block, pre- or post-norm.
+//! The residual transformer encoder: its block, pre- or post-norm, and a stack
+//! of them.
 use burn::{
     Tensor,
     config::Config,
@@ -25,6 +26,9 @@ use crate::{
         MlpConfig,
     },
     burner::module::ModuleInit,
+    contracts::unpack_shape_contract,
+    errors::BunsenResult,
+    ops::transformers::attention::length_mask,
 };
 
 /// Where a [`ResidualEncoderAttentionBlock`] normalizes, around each of its
@@ -137,9 +141,9 @@ impl ModuleInit<ResidualEncoderAttentionBlock> for ResidualEncoderAttentionBlock
             .try_init(device)?;
 
         Ok(ResidualEncoderAttentionBlock {
-            attn_ln: norm(),
+            attn_norm: norm(),
             attn,
-            mlp_ln: norm(),
+            mlp_norm: norm(),
             mlp,
             norm_placement: self.norm_placement,
         })
@@ -161,13 +165,13 @@ impl ModuleInit<ResidualEncoderAttentionBlock> for ResidualEncoderAttentionBlock
 #[derive(Module, Debug)]
 pub struct ResidualEncoderAttentionBlock {
     /// Attention normalization, when the block normalizes.
-    pub attn_ln: Option<Normalization>,
+    pub attn_norm: Option<Normalization>,
 
     /// Attention.
     pub attn: MultiHeadAttention,
 
     /// MLP normalization, when the block normalizes.
-    pub mlp_ln: Option<Normalization>,
+    pub mlp_norm: Option<Normalization>,
 
     /// MLP.
     pub mlp: Mlp,
@@ -242,14 +246,118 @@ impl ResidualEncoderAttentionBlock {
         };
         match self.norm_placement {
             NormPlacement::Pre => {
-                let x = x.clone() + attend(normalize(&self.attn_ln, x));
-                x.clone() + self.mlp.forward(normalize(&self.mlp_ln, x))
+                let x = x.clone() + attend(normalize(&self.attn_norm, x));
+                x.clone() + self.mlp.forward(normalize(&self.mlp_norm, x))
             }
             NormPlacement::Post => {
-                let x = normalize(&self.attn_ln, x.clone() + attend(x));
-                normalize(&self.mlp_ln, x.clone() + self.mlp.forward(x))
+                let x = normalize(&self.attn_norm, x.clone() + attend(x));
+                normalize(&self.mlp_norm, x.clone() + self.mlp.forward(x))
             }
         }
+    }
+}
+
+/// Config for [`ResidualEncoderTransformer`]: `n_layers` of one block.
+#[derive(Config, Debug)]
+pub struct ResidualEncoderTransformerConfig {
+    /// Every layer's block.
+    pub block: ResidualEncoderAttentionBlockConfig,
+
+    /// The layers.
+    pub n_layers: usize,
+}
+
+/// Common meta for [`ResidualEncoderTransformer`] and
+/// [`ResidualEncoderTransformerConfig`].
+pub trait ResidualEncoderTransformerMeta {
+    /// The width it reads and writes.
+    fn d_model(&self) -> usize;
+
+    /// The number of layers.
+    fn n_layers(&self) -> usize;
+}
+
+impl ResidualEncoderTransformerMeta for ResidualEncoderTransformerConfig {
+    fn d_model(&self) -> usize {
+        self.block.d_model()
+    }
+
+    fn n_layers(&self) -> usize {
+        self.n_layers
+    }
+}
+
+impl ModuleInit<ResidualEncoderTransformer> for ResidualEncoderTransformerConfig {
+    fn try_init(
+        &self,
+        device: &Device,
+    ) -> BunsenResult<ResidualEncoderTransformer> {
+        Ok(ResidualEncoderTransformer {
+            layers: (0..self.n_layers)
+                .map(|_| self.block.try_init(device))
+                .collect::<BunsenResult<_>>()?,
+        })
+    }
+}
+
+/// A stack of [`ResidualEncoderAttentionBlock`]s, without position
+/// embeddings: a model that wants them adds them to the input. Padding
+/// frames, past each item's length, are masked out as keys.
+///
+/// Post-norm with a `ReLU` MLP and a key bias, it is Sortformer v2's
+/// transformer (`NeMo`'s `transformer_encoders.TransformerEncoder`, whose
+/// padding mask this matches).
+///
+/// Built by [`ResidualEncoderTransformerConfig`].
+/// Implements [`ResidualEncoderTransformerMeta`].
+#[derive(Module, Debug)]
+pub struct ResidualEncoderTransformer {
+    /// The layers.
+    pub layers: Vec<ResidualEncoderAttentionBlock>,
+}
+
+impl ResidualEncoderTransformerMeta for ResidualEncoderTransformer {
+    fn d_model(&self) -> usize {
+        self.layers.first().map_or(0, |l| l.d_model())
+    }
+
+    fn n_layers(&self) -> usize {
+        self.layers.len()
+    }
+}
+
+impl ResidualEncoderTransformer {
+    /// Runs the layers.
+    ///
+    /// # Arguments
+    /// * `x` - `[batch, frames, d_model]`.
+    /// * `lengths` - each item's valid frame count; `None` means every item
+    ///   fills `frames`.
+    ///
+    /// # Returns
+    /// `[batch, frames, d_model]`. Frames past an item's length hold values
+    /// that mean nothing.
+    pub fn forward(
+        &self,
+        x: Tensor<3>,
+        lengths: Option<&[usize]>,
+    ) -> Tensor<3> {
+        let [batch, frames] = unpack_shape_contract!(
+            ["batch", "frames", "d_model"],
+            &x.dims(),
+            &["batch", "frames"],
+            &[("d_model", self.d_model())],
+        );
+        // `[batch, frames, frames]`, true where key `j` is padding.
+        let mask = lengths.map(|lengths| {
+            length_mask(lengths, frames, &x.device())
+                .bool_not()
+                .unsqueeze_dim::<3>(1)
+                .expand([batch, frames, frames])
+        });
+        self.layers
+            .iter()
+            .fold(x, |x, layer| layer.forward_masked(x, mask.clone()))
     }
 }
 
@@ -257,7 +365,10 @@ impl ResidualEncoderAttentionBlock {
 mod tests {
     use burn::{
         prelude::Shape,
-        tensor::Distribution,
+        tensor::{
+            Distribution,
+            Tolerance,
+        },
     };
 
     use super::*;
@@ -265,7 +376,10 @@ mod tests {
         blocks::transformers::mlp::layer_norm_mlp,
         contracts::assert_shape_contract,
         ops::transformers::attention::layer_norm_self_attn,
-        support::testing::DeviceMemoryGuard,
+        support::testing::{
+            DeviceMemoryGuard,
+            cpu_device,
+        },
     };
 
     /// The `LayerNorm` inside a block's norm.
@@ -287,8 +401,8 @@ mod tests {
         assert!(!cfg.key_bias);
         let block: ResidualEncoderAttentionBlock = cfg.init(&crate::support::testing::cpu_device());
         assert_eq!(block.norm_placement(), NormPlacement::Pre);
-        assert_eq!(layer_norm(&block.attn_ln).gamma.dims(), [64]);
-        assert_eq!(layer_norm(&block.mlp_ln).gamma.dims(), [64]);
+        assert_eq!(layer_norm(&block.attn_norm).gamma.dims(), [64]);
+        assert_eq!(layer_norm(&block.mlp_norm).gamma.dims(), [64]);
         assert!(block.attn.key.bias.is_none());
     }
 
@@ -302,7 +416,7 @@ mod tests {
             .with_d_head(8)
             .with_norm(Some(RmsNormConfig::new(0).into()))
             .init(&device);
-        match &rms.attn_ln {
+        match &rms.attn_norm {
             Some(Normalization::Rms(norm)) => assert_eq!(norm.gamma.dims(), [32]),
             other => panic!("not an RmsNorm: {other:?}"),
         }
@@ -314,7 +428,7 @@ mod tests {
                 .with_norm(None)
                 .with_norm_placement(placement)
                 .init(&device);
-            assert!(block.attn_ln.is_none() && block.mlp_ln.is_none());
+            assert!(block.attn_norm.is_none() && block.mlp_norm.is_none());
             assert!(block.num_params() < rms.num_params());
 
             let expected = {
@@ -351,8 +465,8 @@ mod tests {
                 .attn
                 .forward(MhaInput::self_attn(x.clone()).mask_attn(mask))
                 .context;
-            let x = layer_norm(&block.attn_ln).forward(x + context);
-            layer_norm(&block.mlp_ln).forward(x.clone() + block.mlp.forward(x))
+            let x = layer_norm(&block.attn_norm).forward(x + context);
+            layer_norm(&block.mlp_norm).forward(x.clone() + block.mlp.forward(x))
         };
         output
             .into_data()
@@ -389,10 +503,10 @@ mod tests {
 
         let expected = {
             let self_attn =
-                layer_norm_self_attn(layer_norm(&block.attn_ln), &block.attn, x.clone(), None);
+                layer_norm_self_attn(layer_norm(&block.attn_norm), &block.attn, x.clone(), None);
             let x = x + self_attn.context;
 
-            let mlp = layer_norm_mlp(layer_norm(&block.mlp_ln), &block.mlp, x.clone());
+            let mlp = layer_norm_mlp(layer_norm(&block.mlp_norm), &block.mlp, x.clone());
             x + mlp
         };
 
@@ -406,5 +520,41 @@ mod tests {
             &output,
             &[("batch", batch), ("seq_len", seq_len), ("d_model", d_model),],
         );
+    }
+
+    fn toy_transformer() -> ResidualEncoderTransformer {
+        ResidualEncoderTransformerConfig::new(
+            ResidualEncoderAttentionBlockConfig::new(8)
+                .with_d_head(4)
+                .with_key_bias(true)
+                .with_norm_placement(NormPlacement::Post),
+            2,
+        )
+        .init(&cpu_device())
+    }
+
+    /// Each layer runs in turn, and padding is masked out as keys: a short
+    /// item's valid frames, batched behind a longer one, are what it gives
+    /// alone.
+    #[test]
+    fn test_transformer_layers_and_padding() {
+        let device = cpu_device();
+        let model = toy_transformer();
+        assert_eq!(model.layers.len(), 2);
+        assert_eq!(model.d_model(), 8);
+
+        let x = Tensor::<3>::random([2, 6, 8], Distribution::Default, &device);
+        let whole = model.forward(x.clone(), None);
+        let by_hand = model.layers[1].forward(model.layers[0].forward(x.clone()));
+        whole
+            .to_data()
+            .assert_approx_eq::<f32>(&by_hand.to_data(), Tolerance::absolute(1e-6));
+
+        let batched = model.forward(x.clone(), Some(&[6, 4]));
+        let alone = model.forward(x.slice([1..2, 0..4]), None);
+        batched
+            .slice([1..2, 0..4])
+            .to_data()
+            .assert_approx_eq::<f32>(&alone.to_data(), Tolerance::absolute(1e-5));
     }
 }

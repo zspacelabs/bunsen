@@ -17,7 +17,16 @@ use crate::{
         ConvBlock2d,
         ConvBlock2dConfig,
     },
-    burner::module::ModuleInit,
+    burner::{
+        module::{
+            ModuleInit,
+            Rekey,
+        },
+        tensor::{
+            permute_data,
+            reshape_data,
+        },
+    },
     errors::{
         BunsenResult,
         ConstraintError,
@@ -26,8 +35,26 @@ use crate::{
     ops::transformers::attention::length_mask,
 };
 
+/// How [`DwStridingSubsampling`] flattens its last convolution's output,
+/// `[channels, n_freq]` per frame, into the vector its projection reads.
+///
+/// A layout choice with a loading consequence: the projection's weight
+/// columns follow the flatten, so a checkpoint flattened the other way loads
+/// through a key map that permutes them
+/// ([`DwStridingSubsamplingMeta::reflatten_from`]).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub enum FlattenOrder {
+    /// Channels outer, frequencies inner.
+    #[default]
+    ChannelsFreqs,
+
+    /// Frequencies outer, channels inner.
+    FreqsChannels,
+}
+
 /// Common meta for [`DwStridingSubsampling`] and
-/// [`DwStridingSubsamplingConfig`].
+/// [`DwStridingSubsamplingConfig`], and the key-map helpers that follow from
+/// it.
 pub trait DwStridingSubsamplingMeta {
     /// The mel channels it reads.
     fn n_mels(&self) -> usize;
@@ -59,6 +86,51 @@ pub trait DwStridingSubsamplingMeta {
 
     /// The frequency bins left after subsampling.
     fn n_freq_out(&self) -> usize;
+
+    /// How the last convolution's output is flattened for the projection.
+    fn flatten(&self) -> FlattenOrder;
+
+    /// A flat list of its layers' tensors, `{prefix}{k}.*` as a `PyTorch`
+    /// `nn.Sequential` of them indexes them, onto its module paths, relative
+    /// to it: `0` the stem's convolution, then each stage's depthwise and
+    /// pointwise convolutions, the activations between them counted. An
+    /// activation's index, or one past the stages, is dropped; anything else
+    /// is kept as it is.
+    fn sequential_rekey(
+        &self,
+        prefix: &'static str,
+    ) -> Rekey {
+        let n_stages = self.n_stages();
+        Rekey::keep_rest().custom(move |name| {
+            let (k, param) = name.strip_prefix(prefix)?.split_once('.')?;
+            let module = k.parse().ok().and_then(|k| dw_striding_module(k, n_stages));
+            Some(module.map(|module| format!("{module}.{param}")))
+        })
+    }
+
+    /// `rekey`, and, when `from`, the order a checkpoint flattens in, is not
+    /// this one's, the projection's weight (`linear.weight`) permuted to
+    /// match: in `PyTorch`'s `[out, in]`, `[d_model, a * b]` to
+    /// `[d_model, b * a]`.
+    fn reflatten_from(
+        &self,
+        from: FlattenOrder,
+        rekey: Rekey,
+    ) -> Rekey {
+        if from == self.flatten() {
+            return rekey;
+        }
+        let (c, f) = (self.channels(), self.n_freq_out());
+        let (a, b) = match from {
+            FlattenOrder::ChannelsFreqs => (c, f),
+            FlattenOrder::FreqsChannels => (f, c),
+        };
+        rekey.transform("linear.weight", move |data| {
+            let d = data.shape().num_elements() / (a * b);
+            let data = reshape_data(data, vec![d, a, b]);
+            reshape_data(permute_data(data, &[0, 2, 1]), vec![d, b * a])
+        })
+    }
 }
 
 /// Config for [`DwStridingSubsampling`].
@@ -78,6 +150,10 @@ pub struct DwStridingSubsamplingConfig {
     /// The number of strided stages: 3 for 8x subsampling.
     #[config(default = "3")]
     pub n_stages: usize,
+
+    /// How the last convolution's output is flattened for the projection.
+    #[config(default = "FlattenOrder::ChannelsFreqs")]
+    pub flatten: FlattenOrder,
 }
 
 impl DwStridingSubsamplingMeta for DwStridingSubsamplingConfig {
@@ -99,6 +175,10 @@ impl DwStridingSubsamplingMeta for DwStridingSubsamplingConfig {
 
     fn n_freq_out(&self) -> usize {
         self.output_len(self.n_mels)
+    }
+
+    fn flatten(&self) -> FlattenOrder {
+        self.flatten
     }
 }
 
@@ -138,6 +218,7 @@ impl ModuleInit<DwStridingSubsampling> for DwStridingSubsamplingConfig {
             stages,
             linear: LinearConfig::new(c * self.n_freq_out(), self.d_model).init(device),
             n_mels: self.n_mels,
+            flatten: self.flatten,
         })
     }
 }
@@ -181,6 +262,10 @@ pub struct DwStridingSubsampling {
     /// The mel channels it reads: what `n_freq_out` rounds up from.
     #[module(skip)]
     pub n_mels: usize,
+
+    /// How the last convolution's output is flattened for the projection.
+    #[module(skip)]
+    pub flatten: FlattenOrder,
 }
 
 impl DwStridingSubsamplingMeta for DwStridingSubsampling {
@@ -202,6 +287,10 @@ impl DwStridingSubsamplingMeta for DwStridingSubsampling {
 
     fn n_freq_out(&self) -> usize {
         self.linear.weight.dims()[0] / self.channels()
+    }
+
+    fn flatten(&self) -> FlattenOrder {
+        self.flatten
     }
 }
 
@@ -265,7 +354,10 @@ impl DwStridingSubsampling {
             ],
         );
         let [_, c, t, f] = x.dims();
-        let x = x.swap_dims(1, 2).reshape([batch, t, c * f]);
+        let x = match self.flatten {
+            FlattenOrder::ChannelsFreqs => x.swap_dims(1, 2).reshape([batch, t, c * f]),
+            FlattenOrder::FreqsChannels => x.permute([0, 2, 3, 1]).reshape([batch, t, f * c]),
+        };
         let y = self.linear.forward(x);
 
         #[cfg(any(debug_assertions, test))]
@@ -280,6 +372,25 @@ impl DwStridingSubsampling {
         );
 
         (y, lengths)
+    }
+}
+
+/// The stem or stage module a flat `ModuleList` index names, under
+/// [`DwStridingSubsampling`]'s layout: `0` is the stem's convolution; from
+/// `2`, each stage is a depthwise convolution, a pointwise convolution and an
+/// activation, in threes. `None` for an activation, or past the stages.
+fn dw_striding_module(
+    k: usize,
+    n_stages: usize,
+) -> Option<String> {
+    match k {
+        0 => Some("stem.conv".to_string()),
+        k if k >= 2 && (k - 2) / 3 + 1 < n_stages => match (k - 2) % 3 {
+            0 => Some(format!("stages.{}.depthwise.conv", (k - 2) / 3)),
+            1 => Some(format!("stages.{}.pointwise.conv", (k - 2) / 3)),
+            _ => None,
+        },
+        _ => None,
     }
 }
 

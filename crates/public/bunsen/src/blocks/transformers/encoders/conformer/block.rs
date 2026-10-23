@@ -84,19 +84,19 @@ impl ModuleInit<ConformerBlock> for ConformerBlockConfig {
                 .try_init(device)
         };
         Ok(ConformerBlock {
-            norm_feed_forward1: norm(),
+            feed_forward1_norm: norm(),
             feed_forward1: ff()?,
-            norm_self_att: norm(),
-            self_attn: RelPosSelfAttentionConfig::new(self.d_model, self.n_heads)
+            attn_norm: norm(),
+            attn: RelPosSelfAttentionConfig::new(self.d_model, self.n_heads)
                 .with_bias(self.bias)
                 .try_init(device)?,
-            norm_conv: norm(),
+            conv_norm: norm(),
             conv: ConformerConvolutionConfig::new(self.d_model, self.conv_kernel_size)
                 .with_bias(self.conv_bias)
                 .try_init(device)?,
-            norm_feed_forward2: norm(),
+            feed_forward2_norm: norm(),
             feed_forward2: ff()?,
-            norm_out: norm(),
+            out_norm: norm(),
         })
     }
 }
@@ -108,7 +108,7 @@ impl ModuleInit<ConformerBlock> for ConformerBlockConfig {
 ///
 /// ```text
 /// x = x + ff1(norm(x)) / 2
-/// x = x + self_attn(norm(x))
+/// x = x + attn(norm(x))
 /// x = x + conv(norm(x))
 /// x = x + ff2(norm(x)) / 2
 /// y = norm(x)
@@ -119,40 +119,40 @@ impl ModuleInit<ConformerBlock> for ConformerBlockConfig {
 #[derive(Module, Debug)]
 pub struct ConformerBlock {
     /// The first feed-forward module's normalization.
-    pub norm_feed_forward1: LayerNorm,
+    pub feed_forward1_norm: LayerNorm,
 
     /// The first feed-forward module.
     pub feed_forward1: ConformerFeedForward,
 
     /// The attention's normalization.
-    pub norm_self_att: LayerNorm,
+    pub attn_norm: LayerNorm,
 
     /// Relative-position self-attention.
-    pub self_attn: RelPosSelfAttention,
+    pub attn: RelPosSelfAttention,
 
     /// The convolution module's normalization.
-    pub norm_conv: LayerNorm,
+    pub conv_norm: LayerNorm,
 
     /// The convolution module.
     pub conv: ConformerConvolution,
 
     /// The second feed-forward module's normalization.
-    pub norm_feed_forward2: LayerNorm,
+    pub feed_forward2_norm: LayerNorm,
 
     /// The second feed-forward module.
     pub feed_forward2: ConformerFeedForward,
 
     /// The final normalization.
-    pub norm_out: LayerNorm,
+    pub out_norm: LayerNorm,
 }
 
 impl ConformerBlockMeta for ConformerBlock {
     fn d_model(&self) -> usize {
-        self.self_attn.d_model()
+        self.attn.d_model()
     }
 
     fn n_heads(&self) -> usize {
-        self.self_attn.n_heads()
+        self.attn.n_heads()
     }
 }
 
@@ -199,19 +199,19 @@ impl ConformerBlock {
         let x = x.clone()
             + self
                 .feed_forward1
-                .forward(self.norm_feed_forward1.forward(x))
+                .forward(self.feed_forward1_norm.forward(x))
                 .mul_scalar(0.5);
         let x = x.clone()
             + self
-                .self_attn
-                .forward(self.norm_self_att.forward(x), positions, valid.clone());
-        let x = x.clone() + self.conv.forward(self.norm_conv.forward(x), valid);
+                .attn
+                .forward(self.attn_norm.forward(x), positions, valid.clone());
+        let x = x.clone() + self.conv.forward(self.conv_norm.forward(x), valid);
         let x = x.clone()
             + self
                 .feed_forward2
-                .forward(self.norm_feed_forward2.forward(x))
+                .forward(self.feed_forward2_norm.forward(x))
                 .mul_scalar(0.5);
-        let y = self.norm_out.forward(x);
+        let y = self.out_norm.forward(x);
 
         #[cfg(any(debug_assertions, test))]
         crate::contracts::assert_shape_contract_periodically!(

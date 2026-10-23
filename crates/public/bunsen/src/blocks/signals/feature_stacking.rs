@@ -11,7 +11,16 @@ use burn::{
 };
 
 use crate::{
-    burner::module::ModuleInit,
+    burner::{
+        module::{
+            ModuleInit,
+            Rekey,
+        },
+        tensor::{
+            permute_data,
+            reshape_data,
+        },
+    },
     contracts::unpack_shape_contract,
     errors::{
         BunsenResult,
@@ -19,7 +28,24 @@ use crate::{
     },
 };
 
-/// Common meta for [`FeatureStacking`] and [`FeatureStackingConfig`].
+/// How [`FeatureStacking`] lays a group's frames side by side for its
+/// projection.
+///
+/// A layout choice with a loading consequence: the projection's weight
+/// columns follow it, so a checkpoint stacked the other way loads through
+/// a key map that permutes them ([`FeatureStackingMeta::restack_from`]).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub enum StackOrder {
+    /// Frames outer, features inner (`[f0 | f1 | ...]`).
+    #[default]
+    FramesFeatures,
+
+    /// Features outer, frames inner.
+    FeaturesFrames,
+}
+
+/// Common meta for [`FeatureStacking`] and [`FeatureStackingConfig`], and
+/// the key-map helper that follows from it.
 pub trait FeatureStackingMeta {
     /// The input frame's width.
     fn d_input(&self) -> usize;
@@ -36,6 +62,33 @@ pub trait FeatureStackingMeta {
         len: usize,
     ) -> usize {
         len.div_ceil(self.factor())
+    }
+
+    /// How a group's frames are laid side by side.
+    fn order(&self) -> StackOrder;
+
+    /// `rekey`, and, when `from`, the order a checkpoint stacks in, is not
+    /// this one's, the projection's weight (`projection.weight`) permuted to
+    /// match: in `PyTorch`'s `[out, in]`, `[d_output, a * b]` to
+    /// `[d_output, b * a]`.
+    fn restack_from(
+        &self,
+        from: StackOrder,
+        rekey: Rekey,
+    ) -> Rekey {
+        if from == self.order() {
+            return rekey;
+        }
+        let (k, d) = (self.factor(), self.d_input());
+        let (a, b) = match from {
+            StackOrder::FramesFeatures => (k, d),
+            StackOrder::FeaturesFrames => (d, k),
+        };
+        rekey.transform("projection.weight", move |data| {
+            let out = data.shape().num_elements() / (a * b);
+            let data = reshape_data(data, vec![out, a, b]);
+            reshape_data(permute_data(data, &[0, 2, 1]), vec![out, b * a])
+        })
     }
 }
 
@@ -57,6 +110,10 @@ pub struct FeatureStackingConfig {
     /// Whether the projection carries a bias.
     #[config(default = "false")]
     pub bias: bool,
+
+    /// How a group's frames are laid side by side.
+    #[config(default = "StackOrder::FramesFeatures")]
+    pub order: StackOrder,
 }
 
 impl FeatureStackingMeta for FeatureStackingConfig {
@@ -70,6 +127,10 @@ impl FeatureStackingMeta for FeatureStackingConfig {
 
     fn factor(&self) -> usize {
         self.factor
+    }
+
+    fn order(&self) -> StackOrder {
+        self.order
     }
 }
 
@@ -92,6 +153,7 @@ impl ModuleInit<FeatureStacking> for FeatureStackingConfig {
                 .with_bias(self.bias)
                 .init(device),
             factor: self.factor,
+            order: self.order,
         })
     }
 }
@@ -112,6 +174,10 @@ pub struct FeatureStacking {
 
     /// The frames stacked into one.
     pub factor: usize,
+
+    /// How a group's frames are laid side by side.
+    #[module(skip)]
+    pub order: StackOrder,
 }
 
 impl FeatureStackingMeta for FeatureStacking {
@@ -125,6 +191,10 @@ impl FeatureStackingMeta for FeatureStacking {
 
     fn factor(&self) -> usize {
         self.factor
+    }
+
+    fn order(&self) -> StackOrder {
+        self.order
     }
 }
 
@@ -160,9 +230,14 @@ impl FeatureStacking {
         } else {
             x
         };
-        let y = self
-            .projection
-            .forward(x.reshape([batch, groups, self.factor * d_input]));
+        let x = match self.order {
+            StackOrder::FramesFeatures => x.reshape([batch, groups, self.factor * d_input]),
+            StackOrder::FeaturesFrames => x
+                .reshape([batch, groups, self.factor, d_input])
+                .swap_dims(2, 3)
+                .reshape([batch, groups, d_input * self.factor]),
+        };
+        let y = self.projection.forward(x);
 
         #[cfg(any(debug_assertions, test))]
         crate::contracts::assert_shape_contract_periodically!(
