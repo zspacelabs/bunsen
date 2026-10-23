@@ -31,9 +31,13 @@
 //! [`NanoChatGptMeta`] reads the geometry back from all three forms.
 //!
 //! The KV cache is injected state: the model never owns one.
-//! [`new_kv_cache`](NanoChatGpt::new_kv_cache) builds a
-//! [`KVCache`](crate::ops::transformers::attention::KVCache) sized for the
-//! model, and the caller passes it to each `forward` of one decode. Every
+//! The model (and its configs) implement
+//! [`KVCacheModel`](crate::ops::transformers::attention::KVCacheModel):
+//! [`new_kv_cache`](crate::ops::transformers::attention::KVCacheModel::new_kv_cache)
+//! builds a [`KVCache`](crate::ops::transformers::attention::KVCache) sized
+//! for the model (`init_seq_len` positions up front, capped at the rotary
+//! table's `max_seq_len`), and the caller passes it to each `forward` of one
+//! decode. Every
 //! layer appends its keys and values to it, and a step's positions start
 //! where the cache's position stands, so one model can run several decodes
 //! at once. Training passes no cache, and runs the whole sequence in one
@@ -58,6 +62,7 @@
 //!         NanoChatGpt,
 //!         NanoChatGptContractConfig,
 //!     },
+//!     ops::transformers::attention::KVCacheModel,
 //!     support::testing::cpu_device,
 //! };
 //! use burn::prelude::{

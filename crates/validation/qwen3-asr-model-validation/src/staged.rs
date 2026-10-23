@@ -1,9 +1,12 @@
 //! bunsen's Qwen3-ASR on the base weights, stage by stage, against
 //! onnxruntime's run of the export on the same synthetic input.
 
-use bunsen::support::testing::{
-    DeviceMemoryGuard,
-    performance_device,
+use bunsen::{
+    ops::transformers::attention::KVCacheModel,
+    support::testing::{
+        DeviceMemoryGuard,
+        performance_device,
+    },
 };
 
 use super::*;
@@ -49,7 +52,7 @@ fn test_bunsen_text_matches_onnxruntime() {
     let decoder = &fixture.decoder;
     let seq = decoder.seq;
     let r_emb = lm.rotary(seq + 1, &device);
-    let mut cache = lm.new_cache(1, seq + 1);
+    let mut cache = lm.kv_cache_config().with_seq_len(seq + 1).init();
     let hidden = lm.forward_hidden(synthetic_embeds(seq, 0, &device), &r_emb, Some(&mut cache));
     decoder
         .prefill_logits

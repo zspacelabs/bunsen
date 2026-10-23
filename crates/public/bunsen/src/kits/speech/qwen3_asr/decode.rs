@@ -9,6 +9,7 @@ use burn::{
 };
 
 use super::blocks::Qwen3Asr;
+use crate::ops::transformers::attention::KVCacheModel;
 
 /// `Qwen3-ASR-0.6B`'s end tokens: `<|endoftext|>` and `<|im_end|>`.
 pub const QWEN3_ASR_EOS: [usize; 2] = [151_643, 151_645];
@@ -68,7 +69,12 @@ impl Qwen3AsrGreedyDecoder {
         let seq = embeds.dims()[1];
         let total = seq + self.config.max_new_tokens;
         let r_emb = lm.rotary(total, &device);
-        let mut cache = lm.new_cache(1, total);
+        // The rotary table holds `total` positions, so the cache does too.
+        let mut cache = lm
+            .kv_cache_config()
+            .with_seq_len(total)
+            .with_max_seq_len(Some(total))
+            .init();
 
         let argmax_last = |hidden: Tensor<3>| -> usize {
             let n = hidden.dims()[1];

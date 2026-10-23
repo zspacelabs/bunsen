@@ -56,9 +56,45 @@ use crate::{
         transformers::attention::{
             KVCache,
             KVCacheConfig,
+            KVCacheModel,
         },
     },
 };
+
+/// The [`KVCacheConfig`] a `NanoChat` model of `meta`'s geometry decodes with:
+/// its KV heads, head width and layer count, `init_seq_len` positions up
+/// front, capped at `max_seq_len` (the rotary table's length).
+fn kv_cache_config(meta: &impl NanoChatGptMeta) -> KVCacheConfig {
+    KVCacheConfig::new(
+        1,
+        meta.n_kv_head(),
+        meta.init_seq_len(),
+        meta.head_dim(),
+        meta.n_layer(),
+    )
+    .with_max_seq_len(Some(meta.max_seq_len()))
+}
+
+impl KVCacheModel for NanoChatGptContractConfig {
+    fn kv_cache_config(&self) -> KVCacheConfig {
+        kv_cache_config(self)
+    }
+}
+
+impl KVCacheModel for NanoChatGptStructureConfig {
+    fn kv_cache_config(&self) -> KVCacheConfig {
+        kv_cache_config(self)
+    }
+}
+
+/// A decode's cache is injected state: the caller holds the one
+/// [`new_kv_cache`](KVCacheModel::new_kv_cache) builds and passes it to each
+/// [`forward`](NanoChatGpt::forward), and the model never owns one.
+impl KVCacheModel for NanoChatGpt {
+    fn kv_cache_config(&self) -> KVCacheConfig {
+        kv_cache_config(self)
+    }
+}
 
 /// Common meta for [`NanoChatGpt`], [`NanoChatGptStructureConfig`], and
 /// [`NanoChatGptContractConfig`].
@@ -300,7 +336,8 @@ impl ModuleInit<NanoChatGpt> for NanoChatGptStructureConfig {
 /// The normalized embedding starts the residual stream, and each block adds
 /// its attention and MLP updates to it.
 /// Incremental decoding takes a [`KVCache`] the caller holds, from
-/// [`new_kv_cache`](Self::new_kv_cache).
+/// [`new_kv_cache`](KVCacheModel::new_kv_cache) (it implements
+/// [`KVCacheModel`], as its configs do).
 ///
 /// Built by [`NanoChatGptContractConfig`] (high-level) or
 /// [`NanoChatGptStructureConfig`].
@@ -403,30 +440,6 @@ impl NanoChatGpt {
             &[("B", b), ("T", t), ("V", self.wte.weight.dims()[0])]
         );
         logits
-    }
-
-    /// Allocates a new, empty [`KVCache`] for one decode.
-    ///
-    /// The cache is sized for this model: its KV heads, head width and layer
-    /// count, with room for `init_seq_len` positions before it grows. It is
-    /// injected state: the caller holds it and passes it to each
-    /// [`forward`](Self::forward) of the decode, and the model never owns
-    /// one.
-    ///
-    /// # Arguments
-    /// - `batch_size`: the batch size.
-    pub fn new_kv_cache(
-        &self,
-        batch_size: usize,
-    ) -> KVCache {
-        KVCacheConfig {
-            batch_size,
-            num_heads: self.n_kv_head(),
-            seq_len: self.init_seq_len(),
-            head_dim: self.head_dim(),
-            num_layers: self.n_layer(),
-        }
-        .init()
     }
 
     /// Calculates the estimated FLOPs per token for the model.

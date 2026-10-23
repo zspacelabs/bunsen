@@ -45,9 +45,41 @@ use crate::{
         transformers::attention::{
             KVCache,
             KVCacheConfig,
+            KVCacheModel,
         },
     },
 };
+
+/// The positions a Qwen3 cache allocates up front by default: one growth
+/// chunk. Qwen3 builds its rotary tables to order, so it has no positional cap
+/// of its own; a caller that knows a decode's length sizes (and caps) the
+/// cache to it.
+pub const QWEN3_KV_CACHE_PRE_SIZE: usize = 1024;
+
+/// The [`KVCacheConfig`] a Qwen3 model of `meta`'s geometry decodes with: its
+/// KV heads, head width and layer count, [`QWEN3_KV_CACHE_PRE_SIZE`]
+/// positions up front, uncapped.
+fn kv_cache_config(meta: &impl Qwen3Meta) -> KVCacheConfig {
+    KVCacheConfig::new(
+        1,
+        meta.n_kv_heads(),
+        QWEN3_KV_CACHE_PRE_SIZE,
+        meta.head_dim(),
+        meta.n_layers(),
+    )
+}
+
+impl KVCacheModel for Qwen3Config {
+    fn kv_cache_config(&self) -> KVCacheConfig {
+        kv_cache_config(self)
+    }
+}
+
+impl KVCacheModel for Qwen3Model {
+    fn kv_cache_config(&self) -> KVCacheConfig {
+        kv_cache_config(self)
+    }
+}
 
 /// Common meta for [`Qwen3Model`] and [`Qwen3Config`].
 pub trait Qwen3Meta {
@@ -239,23 +271,6 @@ impl Qwen3Model {
             .init(device)
     }
 
-    /// A cache for `batch` decodes of up to `seq_len` positions; it grows past
-    /// that.
-    pub fn new_cache(
-        &self,
-        batch: usize,
-        seq_len: usize,
-    ) -> KVCache {
-        KVCacheConfig::new(
-            batch,
-            self.n_kv_heads(),
-            seq_len,
-            self.head_dim(),
-            self.n_layers(),
-        )
-        .init()
-    }
-
     /// Embeds tokens.
     ///
     /// # Arguments
@@ -438,7 +453,7 @@ mod tests {
         let embeds = model.embed(tokens);
         let r_emb = model.rotary(8, &device);
         let whole = model.forward_hidden(embeds.clone(), &r_emb, None);
-        let mut cache = model.new_cache(1, 8);
+        let mut cache = model.kv_cache_config().with_seq_len(8).init();
         let head =
             model.forward_hidden(embeds.clone().slice_dim(1, 0..3), &r_emb, Some(&mut cache));
         let tail = model.forward_hidden(embeds.slice_dim(1, 3..5), &r_emb, Some(&mut cache));
