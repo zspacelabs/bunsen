@@ -52,6 +52,8 @@
 //!     embedding.
 //!   - [`images::pool`]: `AvgPool2dSame`, average pooling with TensorFlow-style
 //!     "SAME" padding.
+//! - [`layout`]: `AxisOrder`, the axis permutes a block applies at its
+//!   boundary, so a caller's activation layout and the block's need not agree.
 //! - [`rnn`]: recurrent blocks: `FusedLstm`, a single-step LSTM with fused
 //!   gates, and its state type.
 //! - [`transformers`]: transformer blocks: the parts, and the layers and stacks
@@ -78,5 +80,6 @@
 pub mod conv;
 pub mod frame_rate;
 pub mod images;
+pub mod layout;
 pub mod rnn;
 pub mod transformers;

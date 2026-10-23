@@ -15,10 +15,6 @@ use burn::{
 };
 
 use super::{
-    RopeSortformerEncoderConfig,
-    SortformerEncoder,
-    SortformerEncoderConfig,
-    SortformerEncoderMeta,
     SortformerHead,
     SortformerHeadConfig,
     SortformerHeadMeta,
@@ -31,7 +27,12 @@ use crate::{
             SubpixelUpsample1dConfig,
             SubpixelUpsample1dMeta,
         },
+        layout::AxisOrder,
         transformers::encoders::{
+            SubsampledEncoder,
+            SubsampledEncoderConfig,
+            SubsampledEncoderMeta,
+            SubsamplingConfig,
             conformer::{
                 ConformerBlockConfig,
                 ConformerEncoderConfig,
@@ -94,7 +95,7 @@ pub trait SortformerMeta {
 #[derive(Config, Debug)]
 pub struct SortformerStructureConfig {
     /// The encoder: pre-encode, then the encoder layers.
-    pub encoder: SortformerEncoderConfig,
+    pub encoder: SubsampledEncoderConfig,
 
     /// The head; the encoder's output is projected to its width.
     pub head: SortformerHeadConfig,
@@ -282,18 +283,22 @@ impl ToStructureConfig for NemotronDiarizationConfig {
     type Structure = SortformerStructureConfig;
 
     fn try_to_structure(&self) -> BunsenResult<SortformerStructureConfig> {
-        let encoder = RopeSortformerEncoderConfig::new(
-            FeatureStackingConfig::new(self.n_mels, self.d_model)
-                .with_factor(self.subsampling_factor),
+        // Fed `[batch, time, n_mels]`, the stacking's own layout.
+        let encoder = SubsampledEncoderConfig::new(
+            SubsamplingConfig::Stacking(
+                FeatureStackingConfig::new(self.n_mels, self.d_model)
+                    .with_factor(self.subsampling_factor),
+            ),
             RopeTransformerEncoderConfig::new(
                 RopeEncoderBlockConfig::new(self.d_model, self.n_heads)
                     .with_ff_expansion(self.ff_expansion),
                 self.n_layers,
             )
-            .with_rope_base(self.rope_base),
+            .with_rope_base(self.rope_base)
+            .into(),
         );
         Ok(SortformerStructureConfig::new(
-            SortformerEncoderConfig::Rope(encoder),
+            encoder,
             SortformerHeadConfig::new(self.d_hidden, self.n_speakers),
         )
         .with_upsample(Some(
@@ -433,7 +438,9 @@ impl ToStructureConfig for SortformerV2Config {
             .with_norm_placement(NormPlacement::Post)
             .with_activation(ActivationConfig::Relu);
         Ok(SortformerStructureConfig::new(
-            SortformerEncoderConfig::FastConformer(encoder),
+            // Fed `[batch, time, n_mels]`; the striding reads `[batch, n_mels,
+            // time]`.
+            SubsampledEncoderConfig::from(encoder).with_layout(AxisOrder::SWAP_IN),
             SortformerHeadConfig::new(self.d_hidden, self.n_speakers),
         )
         .with_transformer(Some(ResidualEncoderTransformerConfig::new(
@@ -474,7 +481,7 @@ pub struct SpeakerProbs {
 #[derive(Module, Debug)]
 pub struct Sortformer {
     /// The encoder.
-    pub encoder: SortformerEncoder,
+    pub encoder: SubsampledEncoder,
 
     /// `[d_model] -> [d_hidden]`.
     pub projection: Linear,
