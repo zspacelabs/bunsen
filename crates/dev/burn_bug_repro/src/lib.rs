@@ -36,6 +36,16 @@
 //! which is *correct* for the `unfold` defect, so the behaviour pin is gated
 //! off rather than reporting a fix that has not happened. The CPU-correctness
 //! checks still run.
+//!
+//! ## Standalone reproductions
+//!
+//! A defect that a test harness can't show, such as one that kills the
+//! process, gets its own package beside this crate, depending only on `burn`:
+//!
+//! - `exit_race/`: exiting with work queued on a wgpu device (`vulkan`, `wgpu`)
+//!   segfaults inside NVIDIA's Vulkan driver; bunsen's workaround is
+//!   `bunsen::burner::device::DeviceSession`. It doesn't reproduce the crash
+//!   yet; see its README.
 
 pub mod empty_reshape;
 pub mod unfold;
