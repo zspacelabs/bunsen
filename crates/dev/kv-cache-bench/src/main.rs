@@ -133,8 +133,9 @@ struct Args {
     #[arg(long, default_value_t = 448)]
     steps: usize,
 
-    /// Timed repetitions, after one untimed warm-up.
-    #[arg(long, default_value_t = 3)]
+    /// Timed repetitions of each configuration, after one untimed warm-up;
+    /// round-robin across configurations, and reported by their median.
+    #[arg(long, default_value_t = 5)]
     reps: usize,
 
     /// Panic on the first preallocated write whose buffer isn't uniquely
@@ -413,38 +414,52 @@ fn main() {
         args.steps
     );
     println!(
-        "| strategy | sync | batch | total ms | ms/step | first quarter ms/step | last quarter ms/step | last / first | peak in use MiB | peak reserved MiB | in-place writes |"
+        "| strategy | sync | batch | median ms | range ms (spread) | ms/step | first quarter ms/step | last quarter ms/step | last / first | peak in use MiB | peak reserved MiB | in-place writes |"
     );
-    println!("|---|---|---|---|---|---|---|---|---|---|---|");
+    println!("|---|---|---|---|---|---|---|---|---|---|---|---|");
     for &batch in &args.batches {
-        for &strategy in &args.strategies {
-            for &sync in &args.sync_modes {
-                run(strategy, sync, &args, batch, &device);
-                let runs: Vec<Run> = (0..args.reps)
-                    .map(|_| run(strategy, sync, &args, batch, &device))
-                    .collect();
-                let best = runs
-                    .iter()
-                    .min_by_key(|r| r.elapsed)
-                    .expect("at least one repetition");
-                let (first, last) = (best.ms_per_step(0.0, 0.25), best.ms_per_step(0.75, 1.0));
-                println!(
-                    "| {} | {sync:?} | {batch} | {:.1} | {:.3} | {first:.3} | {last:.3} | {:.2} | {} | {} | {} |",
-                    match (strategy, best.storage) {
-                        (Strategy::Auto, Some(storage)) => format!("Auto ({storage:?})"),
-                        _ => format!("{strategy:?}"),
-                    },
-                    best.elapsed.as_secs_f64() * 1000.0,
-                    best.elapsed.as_secs_f64() * 1000.0 / args.steps as f64,
-                    last / first,
-                    mib(best.peak_in_use),
-                    mib(best.peak_reserved),
-                    best.in_place.map_or("-".to_string(), |(n, of)| format!(
-                        "{:.0}% ({n} of {of})",
-                        100.0 * n as f64 / of as f64
-                    )),
-                );
+        let configs: Vec<(Strategy, SyncMode)> = args
+            .strategies
+            .iter()
+            .flat_map(|&strategy| args.sync_modes.iter().map(move |&sync| (strategy, sync)))
+            .collect();
+        // One warm-up each, then the repetitions round-robin, each round
+        // starting one configuration later, so order and warm-up effects
+        // spread evenly rather than favouring whichever runs first.
+        for &(strategy, sync) in &configs {
+            run(strategy, sync, &args, batch, &device);
+        }
+        let mut runs: Vec<Vec<Run>> = configs.iter().map(|_| Vec::new()).collect();
+        for rep in 0..args.reps {
+            for i in 0..configs.len() {
+                let c = (i + rep) % configs.len();
+                let (strategy, sync) = configs[c];
+                runs[c].push(run(strategy, sync, &args, batch, &device));
             }
+        }
+        for (&(strategy, sync), mut runs) in configs.iter().zip(runs) {
+            runs.sort_by_key(|r| r.elapsed);
+            let ms = |r: &Run| r.elapsed.as_secs_f64() * 1000.0;
+            let median = &runs[runs.len() / 2];
+            let (min, max) = (ms(&runs[0]), ms(&runs[runs.len() - 1]));
+            let (first, last) = (median.ms_per_step(0.0, 0.25), median.ms_per_step(0.75, 1.0));
+            println!(
+                "| {} | {sync:?} | {batch} | {:.1} | {min:.1}-{max:.1} ({:.0}%) | {:.3} | {first:.3} | {last:.3} | {:.2} | {} | {} | {} |",
+                match (strategy, median.storage) {
+                    (Strategy::Auto, Some(storage)) => format!("Auto ({storage:?})"),
+                    _ => format!("{strategy:?}"),
+                },
+                ms(median),
+                100.0 * (max - min) / ms(median),
+                ms(median) / args.steps as f64,
+                last / first,
+                mib(median.peak_in_use),
+                mib(median.peak_reserved),
+                median.in_place.map_or("-".to_string(), |(n, of)| format!(
+                    "{:.0}% ({n} of {of})",
+                    100.0 * n as f64 / of as f64
+                )),
+            );
         }
     }
 }
