@@ -1,4 +1,5 @@
-//! The transformer encoder block, pre- or post-norm.
+//! The residual transformer encoder: its block, pre- or post-norm, and a stack
+//! of them.
 use burn::{
     Tensor,
     config::Config,
@@ -25,6 +26,9 @@ use crate::{
         MlpConfig,
     },
     burner::module::ModuleInit,
+    contracts::unpack_shape_contract,
+    errors::BunsenResult,
+    ops::transformers::attention::length_mask,
 };
 
 /// Where a [`ResidualEncoderAttentionBlock`] normalizes, around each of its
@@ -253,11 +257,99 @@ impl ResidualEncoderAttentionBlock {
     }
 }
 
+/// Config for [`ResidualEncoderTransformer`]: `n_layers` of one block.
+#[derive(Config, Debug)]
+pub struct ResidualEncoderTransformerConfig {
+    /// Every layer's block.
+    pub block: ResidualEncoderAttentionBlockConfig,
+
+    /// The layers.
+    pub n_layers: usize,
+}
+
+impl ResidualEncoderTransformerConfig {
+    /// The width it reads and writes.
+    pub fn d_model(&self) -> usize {
+        self.block.d_model()
+    }
+}
+
+impl ModuleInit<ResidualEncoderTransformer> for ResidualEncoderTransformerConfig {
+    fn try_init(
+        &self,
+        device: &Device,
+    ) -> BunsenResult<ResidualEncoderTransformer> {
+        Ok(ResidualEncoderTransformer {
+            layers: (0..self.n_layers)
+                .map(|_| self.block.try_init(device))
+                .collect::<BunsenResult<_>>()?,
+        })
+    }
+}
+
+/// A stack of [`ResidualEncoderAttentionBlock`]s, without position
+/// embeddings: a model that wants them adds them to the input. Padding
+/// frames, past each item's length, are masked out as keys.
+///
+/// Post-norm with a `ReLU` MLP and a key bias, it is Sortformer v2's
+/// transformer (`NeMo`'s `transformer_encoders.TransformerEncoder`, whose
+/// padding mask this matches).
+///
+/// Built by [`ResidualEncoderTransformerConfig`].
+#[derive(Module, Debug)]
+pub struct ResidualEncoderTransformer {
+    /// The layers.
+    pub layers: Vec<ResidualEncoderAttentionBlock>,
+}
+
+impl ResidualEncoderTransformer {
+    /// The width it reads and writes.
+    pub fn d_model(&self) -> usize {
+        self.layers.first().map_or(0, |l| l.d_model())
+    }
+
+    /// Runs the layers.
+    ///
+    /// # Arguments
+    /// * `x` - `[batch, frames, d_model]`.
+    /// * `lengths` - each item's valid frame count; `None` means every item
+    ///   fills `frames`.
+    ///
+    /// # Returns
+    /// `[batch, frames, d_model]`. Frames past an item's length hold values
+    /// that mean nothing.
+    pub fn forward(
+        &self,
+        x: Tensor<3>,
+        lengths: Option<&[usize]>,
+    ) -> Tensor<3> {
+        let [batch, frames] = unpack_shape_contract!(
+            ["batch", "frames", "d_model"],
+            &x.dims(),
+            &["batch", "frames"],
+            &[("d_model", self.d_model())],
+        );
+        // `[batch, frames, frames]`, true where key `j` is padding.
+        let mask = lengths.map(|lengths| {
+            length_mask(lengths, frames, &x.device())
+                .bool_not()
+                .unsqueeze_dim::<3>(1)
+                .expand([batch, frames, frames])
+        });
+        self.layers
+            .iter()
+            .fold(x, |x, layer| layer.forward_masked(x, mask.clone()))
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use burn::{
         prelude::Shape,
-        tensor::Distribution,
+        tensor::{
+            Distribution,
+            Tolerance,
+        },
     };
 
     use super::*;
@@ -265,7 +357,10 @@ mod tests {
         blocks::transformers::mlp::layer_norm_mlp,
         contracts::assert_shape_contract,
         ops::transformers::attention::layer_norm_self_attn,
-        support::testing::DeviceMemoryGuard,
+        support::testing::{
+            DeviceMemoryGuard,
+            cpu_device,
+        },
     };
 
     /// The `LayerNorm` inside a block's norm.
@@ -406,5 +501,41 @@ mod tests {
             &output,
             &[("batch", batch), ("seq_len", seq_len), ("d_model", d_model),],
         );
+    }
+
+    fn toy_transformer() -> ResidualEncoderTransformer {
+        ResidualEncoderTransformerConfig::new(
+            ResidualEncoderAttentionBlockConfig::new(8)
+                .with_d_head(4)
+                .with_key_bias(true)
+                .with_norm_placement(NormPlacement::Post),
+            2,
+        )
+        .init(&cpu_device())
+    }
+
+    /// Each layer runs in turn, and padding is masked out as keys: a short
+    /// item's valid frames, batched behind a longer one, are what it gives
+    /// alone.
+    #[test]
+    fn test_transformer_layers_and_padding() {
+        let device = cpu_device();
+        let model = toy_transformer();
+        assert_eq!(model.layers.len(), 2);
+        assert_eq!(model.d_model(), 8);
+
+        let x = Tensor::<3>::random([2, 6, 8], Distribution::Default, &device);
+        let whole = model.forward(x.clone(), None);
+        let by_hand = model.layers[1].forward(model.layers[0].forward(x.clone()));
+        whole
+            .to_data()
+            .assert_approx_eq::<f32>(&by_hand.to_data(), Tolerance::absolute(1e-6));
+
+        let batched = model.forward(x.clone(), Some(&[6, 4]));
+        let alone = model.forward(x.slice([1..2, 0..4]), None);
+        batched
+            .slice([1..2, 0..4])
+            .to_data()
+            .assert_approx_eq::<f32>(&alone.to_data(), Tolerance::absolute(1e-5));
     }
 }
