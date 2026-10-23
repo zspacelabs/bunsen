@@ -63,6 +63,17 @@ use clap::{
 };
 
 /// How a layer's history grows.
+/// What runs on the device before each layer's write.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, ValueEnum)]
+enum SyncMode {
+    /// Nothing: queued work may still hold the buffer's handle.
+    None,
+    /// `Device::sync`: wait for queued work, so it drops its handles.
+    Sync,
+    /// `Device::flush`: hand queued work to the device, without waiting.
+    Flush,
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq, ValueEnum)]
 enum Strategy {
     /// `AttnKvPair::concat`, one `Tensor::cat` per layer per step.
@@ -115,6 +126,11 @@ struct Args {
     /// owned (`Tensor::can_mut` false), rather than counting it.
     #[arg(long)]
     require_in_place: bool,
+
+    /// What runs before each layer's write: queued work can hold a buffer's
+    /// handle, and so make the write copy.
+    #[arg(long, value_enum, value_delimiter = ',', default_values_t = [SyncMode::None])]
+    sync_modes: Vec<SyncMode>,
 }
 
 /// One timed run.
@@ -310,6 +326,7 @@ impl History {
 
 fn run(
     strategy: Strategy,
+    sync: SyncMode,
     args: &Args,
     batch: usize,
     device: &Device,
@@ -332,7 +349,13 @@ fn run(
     for _ in 0..args.steps {
         let ts = Instant::now();
         for layer in 0..args.layers {
-            let (k, v) = history.insert(layer, x.clone(), x.clone() * 0.5, &mut check);
+            let (k, v) = (x.clone(), x.clone() * 0.5);
+            match sync {
+                SyncMode::None => {}
+                SyncMode::Sync => device.sync().expect("the device syncs"),
+                SyncMode::Flush => device.flush().expect("the device flushes"),
+            }
+            let (k, v) = history.insert(layer, k, v, &mut check);
             let scores = x.clone().matmul(k.swap_dims(2, 3)) * scale;
             x = softmax(scores, 3).matmul(v);
         }
@@ -376,32 +399,34 @@ fn main() {
         args.steps
     );
     println!(
-        "| strategy | batch | total ms | ms/step | first quarter ms/step | last quarter ms/step | last / first | peak in use MiB | peak reserved MiB | in-place writes |"
+        "| strategy | sync | batch | total ms | ms/step | first quarter ms/step | last quarter ms/step | last / first | peak in use MiB | peak reserved MiB | in-place writes |"
     );
-    println!("|---|---|---|---|---|---|---|---|---|---|");
+    println!("|---|---|---|---|---|---|---|---|---|---|---|");
     for &batch in &args.batches {
         for &strategy in &args.strategies {
-            run(strategy, &args, batch, &device);
-            let runs: Vec<Run> = (0..args.reps)
-                .map(|_| run(strategy, &args, batch, &device))
-                .collect();
-            let best = runs
-                .iter()
-                .min_by_key(|r| r.elapsed)
-                .expect("at least one repetition");
-            let (first, last) = (best.ms_per_step(0.0, 0.25), best.ms_per_step(0.75, 1.0));
-            println!(
-                "| {strategy:?} | {batch} | {:.1} | {:.3} | {first:.3} | {last:.3} | {:.2} | {} | {} | {} |",
-                best.elapsed.as_secs_f64() * 1000.0,
-                best.elapsed.as_secs_f64() * 1000.0 / args.steps as f64,
-                last / first,
-                mib(best.peak_in_use),
-                mib(best.peak_reserved),
-                best.in_place.map_or("-".to_string(), |(n, of)| format!(
-                    "{:.0}% ({n} of {of})",
-                    100.0 * n as f64 / of as f64
-                )),
-            );
+            for &sync in &args.sync_modes {
+                run(strategy, sync, &args, batch, &device);
+                let runs: Vec<Run> = (0..args.reps)
+                    .map(|_| run(strategy, sync, &args, batch, &device))
+                    .collect();
+                let best = runs
+                    .iter()
+                    .min_by_key(|r| r.elapsed)
+                    .expect("at least one repetition");
+                let (first, last) = (best.ms_per_step(0.0, 0.25), best.ms_per_step(0.75, 1.0));
+                println!(
+                    "| {strategy:?} | {sync:?} | {batch} | {:.1} | {:.3} | {first:.3} | {last:.3} | {:.2} | {} | {} | {} |",
+                    best.elapsed.as_secs_f64() * 1000.0,
+                    best.elapsed.as_secs_f64() * 1000.0 / args.steps as f64,
+                    last / first,
+                    mib(best.peak_in_use),
+                    mib(best.peak_reserved),
+                    best.in_place.map_or("-".to_string(), |(n, of)| format!(
+                        "{:.0}% ({n} of {of})",
+                        100.0 * n as f64 / of as f64
+                    )),
+                );
+            }
         }
     }
 }
