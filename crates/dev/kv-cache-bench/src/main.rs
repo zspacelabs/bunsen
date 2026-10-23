@@ -1,31 +1,29 @@
 //! # KV cache growth benchmark
 //!
-//! Times a decode-shaped loop under three ways of growing a self-attention
-//! KV cache, to decide how bunsen's unified cache should store its history:
+//! Times a decode-shaped loop under each way of storing a self-attention KV
+//! cache's history: how [`KVCacheStorage::auto_for`]'s table is measured,
+//! and how it is retuned as machines and burn change.
 //!
-//! - `concat`: Whisper's today: each layer's [`AttnKvPair`] grows by
-//!   [`concat`](AttnKvPair::concat), one `Tensor::cat` per step, so it copies
-//!   the whole history every step.
-//! - `kv-cache`: the shared [`KVCache`]: one preallocated `[layers, 2, batch,
-//!   heads, seq, head_dim]` tensor, written by `slice_assign`. Cheap only if
-//!   `slice_assign` updates in place; if a backend copies, it copies every
-//!   layer's storage on every write.
-//! - `per-layer`: per-layer preallocated key and value tensors, written by
-//!   `slice_assign` on a clone of the buffer, so the write always sees a second
-//!   reference.
-//! - `per-layer-inplace`: the same, written through [`Tensor::inplace`], so
-//!   nothing else references the buffer while it is written, and the backend
-//!   may reuse it.
-//! - `multi-layer`: `KVCache`'s scheme rebuilt here, so its writes can be
-//!   checked: one `[layers, 2, batch, heads, seq, head_dim]` buffer, taken out
-//!   of its slot to be written, handing out views of each layer's history.
+//! The library's own [`KVCache`], pinned to each storage:
 //!
-//! Each write to a preallocated buffer first asks [`Tensor::can_mut`] whether
-//! the buffer is uniquely owned, so the backend may write it in place; the
-//! "in-place writes" column counts the writes that were, and
-//! `--require-in-place` panics on the first that isn't. (`concat` writes
-//! nothing in place; `KVCache` keeps its buffer private, which is what
-//! `multi-layer` is for.)
+//! - `auto`: [`KVCacheStorage::Auto`], whatever it resolves to here.
+//! - `concat`: [`KVCacheStorage::Concat`], one `Tensor::cat` per layer per
+//!   step; it copies the history every step.
+//! - `per-layer`: [`KVCacheStorage::PerLayer`], per-layer preallocated buffers,
+//!   written in place.
+//! - `multi-layer`: [`KVCacheStorage::MultiLayer`], one preallocated `[layers,
+//!   2, batch, heads, seq, head_dim]` buffer.
+//!
+//! And this benchmark's own copies, whose writes it can check (the
+//! library's buffers are private): before each write to a preallocated
+//! buffer, [`Tensor::can_mut`] says whether the buffer is uniquely owned, so
+//! the backend may write it in place; the "in-place writes" column counts the
+//! writes that were, and `--require-in-place` panics on the first that isn't.
+//!
+//! - `checked-per-layer`: `per-layer`, written through [`Tensor::inplace`].
+//! - `checked-per-layer-clone`: the same, written on a `clone()` of the buffer,
+//!   which keeps a second reference alive and forces a copy.
+//! - `checked-multi-layer`: `multi-layer`'s scheme.
 //!
 //! Each step appends one position to every layer, attends over the layer's
 //! history (scores, softmax, values), feeds the result to the next layer, and
@@ -43,9 +41,9 @@ use std::time::{
 };
 
 use bunsen::ops::transformers::attention::{
-    AttnKvPair,
     KVCache,
     KVCacheConfig,
+    KVCacheStorage,
 };
 use bunsen_app::device::BackendArgs;
 use burn::{
@@ -76,16 +74,33 @@ enum SyncMode {
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, ValueEnum)]
 enum Strategy {
-    /// `AttnKvPair::concat`, one `Tensor::cat` per layer per step.
+    /// The library's `KVCache`, `KVCacheStorage::Auto`.
+    Auto,
+    /// The library's `KVCache`, `KVCacheStorage::Concat`.
     Concat,
-    /// The shared multi-layer `KVCache`.
-    KvCache,
-    /// Per-layer preallocated buffers, written by `slice_assign` on a clone.
+    /// The library's `KVCache`, `KVCacheStorage::PerLayer`.
     PerLayer,
-    /// Per-layer preallocated buffers, written through `Tensor::inplace`.
-    PerLayerInplace,
-    /// `KVCache`'s single multi-layer buffer, rebuilt with the check.
+    /// The library's `KVCache`, `KVCacheStorage::MultiLayer`.
     MultiLayer,
+    /// Per-layer buffers, written through `Tensor::inplace`, checked.
+    CheckedPerLayer,
+    /// Per-layer buffers, written on a clone, checked.
+    CheckedPerLayerClone,
+    /// The single multi-layer buffer, checked.
+    CheckedMultiLayer,
+}
+
+impl Strategy {
+    /// The library storage this strategy pins, if it's the library's cache.
+    fn storage(self) -> Option<KVCacheStorage> {
+        match self {
+            Self::Auto => Some(KVCacheStorage::Auto),
+            Self::Concat => Some(KVCacheStorage::Concat),
+            Self::PerLayer => Some(KVCacheStorage::PerLayer),
+            Self::MultiLayer => Some(KVCacheStorage::MultiLayer),
+            _ => None,
+        }
+    }
 }
 
 /// Times decode-shaped KV cache growth.
@@ -95,7 +110,7 @@ struct Args {
     backend: BackendArgs,
 
     /// The strategies to time.
-    #[arg(long, value_enum, value_delimiter = ',', default_values_t = [Strategy::Concat, Strategy::KvCache, Strategy::PerLayer, Strategy::PerLayerInplace, Strategy::MultiLayer])]
+    #[arg(long, value_enum, value_delimiter = ',', default_values_t = [Strategy::Auto, Strategy::Concat, Strategy::PerLayer, Strategy::MultiLayer, Strategy::CheckedPerLayer, Strategy::CheckedPerLayerClone, Strategy::CheckedMultiLayer])]
     strategies: Vec<Strategy>,
 
     /// Batch sizes to time (a beam search's beams are its batch).
@@ -142,6 +157,8 @@ struct Run {
     peak_reserved: Option<u64>,
     /// `(in place, checked)` writes; `None` for a strategy that isn't checked.
     in_place: Option<(u64, u64)>,
+    /// The library cache's storage, as it resolved.
+    storage: Option<KVCacheStorage>,
 }
 
 impl Run {
@@ -190,7 +207,6 @@ impl InPlace {
 
 /// The history store a strategy grows.
 enum History {
-    Concat(Vec<Option<AttnKvPair>>),
     KvCache(KVCache),
     PerLayer {
         keys: Vec<Tensor<4>>,
@@ -212,14 +228,16 @@ impl History {
         batch: usize,
         device: &Device,
     ) -> Self {
-        match strategy {
-            Strategy::Concat => Self::Concat(vec![None; args.layers]),
-            Strategy::KvCache => Self::KvCache(
+        if let Some(storage) = strategy.storage() {
+            return Self::KvCache(
                 KVCacheConfig::new(batch, args.heads, args.steps, args.head_dim, args.layers)
                     .with_max_seq_len(Some(args.steps))
+                    .with_storage(storage)
                     .init(),
-            ),
-            Strategy::PerLayer | Strategy::PerLayerInplace => {
+            );
+        }
+        match strategy {
+            Strategy::CheckedPerLayer | Strategy::CheckedPerLayerClone => {
                 let shape = [batch, args.heads, args.steps, args.head_dim];
                 Self::PerLayer {
                     keys: (0..args.layers)
@@ -229,10 +247,10 @@ impl History {
                         .map(|_| Tensor::zeros(shape, device))
                         .collect(),
                     pos: 0,
-                    inplace: strategy == Strategy::PerLayerInplace,
+                    inplace: strategy == Strategy::CheckedPerLayer,
                 }
             }
-            Strategy::MultiLayer => Self::MultiLayer {
+            Strategy::CheckedMultiLayer => Self::MultiLayer {
                 buffer: Some(Tensor::zeros(
                     [args.layers, 2, batch, args.heads, args.steps, args.head_dim],
                     device,
@@ -240,6 +258,7 @@ impl History {
                 layers: args.layers,
                 pos: 0,
             },
+            _ => unreachable!("the library's strategies return above"),
         }
     }
 
@@ -252,16 +271,6 @@ impl History {
         check: &mut InPlace,
     ) -> (Tensor<4>, Tensor<4>) {
         match self {
-            Self::Concat(pairs) => {
-                let step = AttnKvPair { key: k, value: v };
-                let grown = match pairs[layer].take() {
-                    Some(pair) => pair.concat(step),
-                    None => step,
-                };
-                let out = (grown.key.clone(), grown.value.clone());
-                pairs[layer] = Some(grown);
-                out
-            }
             Self::KvCache(cache) => cache.insert_kv(layer, k, v),
             Self::PerLayer {
                 keys,
@@ -369,6 +378,10 @@ fn run(
     }
     device.sync().expect("the device syncs");
     let elapsed = t0.elapsed();
+    let storage = match &history {
+        History::KvCache(cache) => Some(cache.storage()),
+        _ => None,
+    };
     drop(history);
     device.memory_cleanup();
     Run {
@@ -377,6 +390,7 @@ fn run(
         peak_in_use,
         peak_reserved,
         in_place: (check.checked > 0).then_some((check.in_place, check.checked)),
+        storage,
     }
 }
 
@@ -390,9 +404,9 @@ fn main() {
     let args = Args::parse();
     let device = args.backend.open().unwrap_or_else(|e| panic!("{e}"));
     println!(
-        "device {:?}, fusion {}, {} layers x {} heads x {} head_dim, {} steps",
+        "device {:?}, Auto is {:?}, {} layers x {} heads x {} head_dim, {} steps",
         *device,
-        cfg!(feature = "fusion"),
+        KVCacheStorage::auto_for(&device),
         args.layers,
         args.heads,
         args.head_dim,
@@ -415,7 +429,11 @@ fn main() {
                     .expect("at least one repetition");
                 let (first, last) = (best.ms_per_step(0.0, 0.25), best.ms_per_step(0.75, 1.0));
                 println!(
-                    "| {strategy:?} | {sync:?} | {batch} | {:.1} | {:.3} | {first:.3} | {last:.3} | {:.2} | {} | {} | {} |",
+                    "| {} | {sync:?} | {batch} | {:.1} | {:.3} | {first:.3} | {last:.3} | {:.2} | {} | {} | {} |",
+                    match (strategy, best.storage) {
+                        (Strategy::Auto, Some(storage)) => format!("Auto ({storage:?})"),
+                        _ => format!("{strategy:?}"),
+                    },
                     best.elapsed.as_secs_f64() * 1000.0,
                     best.elapsed.as_secs_f64() * 1000.0 / args.steps as f64,
                     last / first,
