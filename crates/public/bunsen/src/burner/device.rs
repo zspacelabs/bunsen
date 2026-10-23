@@ -30,10 +30,7 @@
 
 use std::ops::Deref;
 
-use burn::tensor::{
-    Device,
-    TensorCreationOptions,
-};
+use burn::tensor::Device;
 
 use crate::errors::{
     BunsenError,
@@ -43,8 +40,10 @@ use crate::errors::{
 /// A [`Device`] that waits for its queued work to finish when dropped.
 ///
 /// Dereferences to the device, so `&session` passes where a `&Device` is
-/// taken, and converts to [`TensorCreationOptions`] as a `&Device` does, so
-/// tensor constructors take it too. Dropping it waits for the device
+/// taken. A tensor constructor, generic over what converts to its options,
+/// takes `&*session` or [`session.device()`](Self::device): a second
+/// conversion beside `&Device`'s would make `&Default::default()` ambiguous
+/// for every caller. Dropping it waits for the device
 /// ([`Device::sync`]) and logs a failure as a warning; [`close`](Self::close)
 /// waits and returns the failure instead. See the [module docs](self) for why.
 #[derive(Debug)]
@@ -93,12 +92,6 @@ impl From<Device> for DeviceSession {
     }
 }
 
-impl From<&DeviceSession> for TensorCreationOptions {
-    fn from(session: &DeviceSession) -> Self {
-        session.device().into()
-    }
-}
-
 impl Drop for DeviceSession {
     fn drop(&mut self) {
         if let Some(device) = self.device.take()
@@ -126,7 +119,7 @@ mod tests {
     #[test]
     fn test_close_waits_for_queued_work() {
         let device = DeviceSession::new(cpu_device());
-        let x = Tensor::<2>::ones([4, 4], &device);
+        let x = Tensor::<2>::ones([4, 4], &*device);
         let y = x.clone().matmul(x);
         drop(y);
         device.close().unwrap();
@@ -135,7 +128,7 @@ mod tests {
     #[test]
     fn test_drop_waits_without_panicking() {
         let device: DeviceSession = cpu_device().into();
-        let _x = Tensor::<1>::zeros([8], &device);
+        let _x = Tensor::<1>::zeros([8], device.device());
     }
 
     #[test]
