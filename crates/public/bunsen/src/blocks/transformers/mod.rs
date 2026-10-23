@@ -32,7 +32,9 @@
 //!   stacks, chosen by config.
 //! - [`decoders`]: causal decoder layers:
 //!   [`CausalDecoderBlock`](decoders::causal::CausalDecoderBlock), the
-//!   decoder-only layer, nanochat's and Qwen3's by config.
+//!   decoder-only layer, nanochat's and Qwen3's by config; and
+//!   [`CrossDecoderBlock`](decoders::cross::CrossDecoderBlock), the
+//!   encoder-decoder layer with cross-attention, Whisper's.
 //! - [`mlp`]: [`Mlp`](mlp::Mlp), the position-wise feed-forward block (expand,
 //!   activate, project back), [`layer_norm_mlp`](mlp::layer_norm_mlp), which
 //!   runs it after a `LayerNorm`, and [`GatedMlp`](mlp::GatedMlp), the `SwiGLU`
