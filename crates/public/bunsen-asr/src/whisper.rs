@@ -19,7 +19,10 @@ use bunsen::{
         ResultContext,
     },
     kits::speech::{
-        asr_driver::LevelPolicy,
+        asr_driver::{
+            LevelPolicy,
+            TranscriptSegment,
+        },
         whisper::{
             WhisperFallbackConfig,
             driver::{
@@ -198,7 +201,7 @@ pub fn transcribe(
     driver: &WhisperStreamDriver,
     samples: &[f32],
     chunk: usize,
-) -> BunsenResult<Transcript> {
+) -> BunsenResult<(Transcript, Vec<TranscriptSegment>)> {
     let (committed, ctx) = stream::stream(driver, samples, LEVEL, chunk)?;
     let segments = committed
         .iter()
@@ -210,11 +213,12 @@ pub fn transcribe(
             speaker: segment_speaker(s),
         })
         .collect();
-    Ok(Transcript {
+    let transcript = Transcript {
         text: stream::join_text(&committed),
         turns: driver.speakers().map(|_| speaker_turns(&committed)),
         language: ctx.language().map(String::from),
         words: None,
         segments: Some(segments),
-    })
+    };
+    Ok((transcript, committed))
 }

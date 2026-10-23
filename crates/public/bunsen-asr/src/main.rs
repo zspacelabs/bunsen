@@ -23,6 +23,7 @@ mod live_cmd;
 mod parakeet;
 mod profile;
 mod profile_cmd;
+mod publish;
 mod qwen3_asr;
 #[cfg(feature = "live")]
 mod resample;
