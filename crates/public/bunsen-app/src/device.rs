@@ -13,6 +13,15 @@
 //! [`DeviceArgs`] flattens both, and [`DeviceArgs::init`] builds the device
 //! from them and the program's [`DevicePrefs`].
 //!
+//! # Exiting with the device idle
+//!
+//! A program should hold its device as a [`DeviceSession`], made before
+//! anything that puts work on it: [`BackendArgs::open`] and
+//! [`DeviceArgs::open`] build one. It waits for the device's queued work when
+//! it goes away, so the process exits with the device idle; on NVIDIA's
+//! Vulkan driver, exiting with the wgpu runtime's device thread still busy
+//! crashes the process after its output is written.
+//!
 //! # Precision
 //!
 //! "Half precision" is two questions. *Which* 16-bit float: `bf16` keeps
@@ -32,6 +41,7 @@
 //! ([`Device::supports_dtype`]). `--float-dtype` overrides the table with an
 //! exact dtype, and is an error where the device does not support it.
 
+pub use bunsen::burner::device::DeviceSession;
 use burn::tensor::{
     DType,
     Device,
@@ -127,6 +137,15 @@ impl BackendArgs {
             #[cfg(feature = "wgpu")]
             DeviceChoice::Wgpu => Device::wgpu(wgpu_kind(index)),
         })
+    }
+
+    /// [`init`](Self::init)'s device, as a [`DeviceSession`]: hold it for as
+    /// long as the device is used, made before anything that uses it.
+    ///
+    /// # Errors
+    /// As [`init`](Self::init).
+    pub fn open(&self) -> Result<DeviceSession, String> {
+        self.init().map(DeviceSession::new)
     }
 }
 
@@ -444,6 +463,18 @@ impl DeviceArgs {
         };
         log::info!("{}", describe(&device));
         Ok(device)
+    }
+
+    /// [`init`](Self::init)'s device, as a [`DeviceSession`]: hold it for as
+    /// long as the device is used, made before anything that uses it.
+    ///
+    /// # Errors
+    /// As [`init`](Self::init).
+    pub fn open(
+        &self,
+        prefs: &DevicePrefs,
+    ) -> Result<DeviceSession, String> {
+        self.init(prefs).map(DeviceSession::new)
     }
 }
 

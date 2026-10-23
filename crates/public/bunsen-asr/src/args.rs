@@ -3,8 +3,10 @@ use bunsen::errors::{
     BunsenError,
     BunsenResult,
 };
-use bunsen_app::device::BackendArgs;
-use burn::tensor::Device;
+use bunsen_app::device::{
+    BackendArgs,
+    DeviceSession,
+};
 
 /// The device to run on.
 #[derive(clap::Args, Debug)]
@@ -14,12 +16,13 @@ pub struct DeviceArgs {
 }
 
 impl DeviceArgs {
-    /// The device `--device` names.
+    /// The device `--device` names, as a [`DeviceSession`]: a command opens
+    /// it first, so it goes last, and the process exits with the device idle.
     ///
     /// # Errors
     /// [`Unsupported`](bunsen::errors::BunsenErrorKind::Unsupported) when that
     /// backend is not compiled in.
-    pub fn device(&self) -> BunsenResult<Device> {
-        self.backend.init().map_err(BunsenError::unsupported)
+    pub fn open(&self) -> BunsenResult<DeviceSession> {
+        self.backend.open().map_err(BunsenError::unsupported)
     }
 }

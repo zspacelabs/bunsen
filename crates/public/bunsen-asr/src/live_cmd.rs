@@ -130,7 +130,7 @@ impl LiveIo {
             return Ok(());
         };
 
-        let device = self.device.device()?;
+        let device = self.device.open()?;
         // The options come from the command line.
         let cache = PretrainedCache::new(flags.cache_options(self.cache.options())).as_policy()?;
         let loaded = family.load(model, flags, &cache, &device)?;

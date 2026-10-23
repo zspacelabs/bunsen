@@ -23,6 +23,10 @@
 //!   Config → Module step that bunsen's configs implement, and
 //!   [`module::ToStructureConfig`] lowers a policy config to its structure
 //!   config. Both are in [`crate::prelude`];
+//! - **exit cleanly** from a program that uses a device &mdash;
+//!   [`device::DeviceSession`] waits for the device's queued work before the
+//!   process's exit handlers run, which the wgpu backends need on NVIDIA's
+//!   Vulkan driver;
 //! - **carry tensor metadata** in non-generic code paths &mdash;
 //!   [`descriptors::TensorParamDesc`] captures the metadata of any
 //!   `Param<Tensor<R, K>>` (its `ParamId`, `Shape`, rank, dtype, kind) without
@@ -35,6 +39,9 @@
 //!
 //! ## Map of the module
 //!
+//! - [`device`] &mdash; [`DeviceSession`](device::DeviceSession), a device that
+//!   waits for its queued work when it goes away, so a program exits with its
+//!   device idle.
 //! - [`descriptors`] &mdash; serializable, generics-free descriptors of
 //!   tensors, parameters, and comparison tolerances: the vocabulary that
 //!   reflection, audit, and [`tensor::dynamic`] use to describe tensors.
@@ -75,6 +82,7 @@
 //!   dimensions (negative indexing supported).
 
 pub mod descriptors;
+pub mod device;
 pub mod distribution;
 pub mod module;
 
