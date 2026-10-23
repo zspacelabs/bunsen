@@ -2,6 +2,8 @@
 use std::{
     collections::{
         BTreeMap,
+        BTreeSet,
+        HashMap,
         HashSet,
     },
     fmt,
@@ -83,6 +85,29 @@ enum Unclaimed {
     Pass,
 }
 
+/// How a [`Rekey::mount_indexed_with`] numbers the stack it mounts: how a
+/// checkpoint's index `i` under the mount becomes the module's.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Indices {
+    /// The module's `i`: the checkpoint numbers the stack as the module does.
+    AsIs,
+
+    /// The module's `i - first`: the checkpoint counts from `first`
+    /// (torchvision's `layer1` … `layer4`, a stack of `conv1`, `conv2`). An
+    /// index below `first` is dropped.
+    From(usize),
+
+    /// Matched to the module's own indices under the mount, once the map
+    /// sees both ([`Rekey::plan_for`]): when every index the checkpoint has
+    /// is one the module has, each is kept, so a missing entry stays missing;
+    /// otherwise, when the two have as many indices, the checkpoint's are
+    /// laid onto the module's in order (an `nn.Sequential` whose
+    /// parameter-free entries leave gaps: `0, 2, 4` onto `0, 1, 2`); anything
+    /// else is a conflict the plan refuses. Without the module's paths
+    /// ([`Rekey::target`]), as [`AsIs`](Self::AsIs).
+    Module,
+}
+
 /// What a [`Rekey::custom`] rule says of a name.
 pub type Claim = Option<Option<String>>;
 
@@ -130,18 +155,35 @@ pub struct RekeyPlan {
     /// or for a part this checkpoint lacks. A mount that claimed nothing is
     /// listed alone, not its map's rules.
     pub unused_rules: Vec<String>,
+
+    /// [`Indices::Module`] stacks whose indices could not be matched to the
+    /// module's, each with both sets; their names are dropped. Only a plan
+    /// that sees the module ([`Rekey::plan_for`]) has any.
+    pub index_conflicts: Vec<String>,
+
+    /// Names whose target lies under no module of the model, with that
+    /// target: kept as they are by a map, or mapped onto a part the model
+    /// does not have. Only a plan that sees the module
+    /// ([`Rekey::plan_for`]) has any; they are reported, not refused (the
+    /// store reports them unused).
+    pub unknown_paths: Vec<(String, String)>,
 }
 
 impl RekeyPlan {
     /// Refuses a plan that cannot load as written: two names onto one path,
-    /// or a transform no name reaches. Unused rules are not refused; a
+    /// a transform no name reaches, or a stack whose indices do not match
+    /// the module's. Unused rules and unknown paths are not refused; a
     /// block's map may cover parts a checkpoint lacks.
     ///
     /// # Errors
     /// [`InvalidResource`](crate::errors::BunsenErrorKind::InvalidResource)
-    /// naming the collisions and orphaned transforms, listed in the details.
+    /// naming the collisions, orphaned transforms and index conflicts,
+    /// listed in the details.
     pub fn check(&self) -> BunsenResult<()> {
-        if self.collisions.is_empty() && self.orphan_transforms.is_empty() {
+        if self.collisions.is_empty()
+            && self.orphan_transforms.is_empty()
+            && self.index_conflicts.is_empty()
+        {
             return Ok(());
         }
         let mut details: Vec<String> = self
@@ -154,11 +196,17 @@ impl RekeyPlan {
                 .iter()
                 .map(|path| format!("transform for {path}: no name loads there")),
         );
+        details.extend(
+            self.index_conflicts
+                .iter()
+                .map(|conflict| format!("indices: {conflict}")),
+        );
         Err(BunsenError::invalid_resource(format!(
-            "the key map loads {} paths from more than one name, and has {} transforms no name \
-             reaches",
+            "the key map loads {} paths from more than one name, has {} transforms no name \
+             reaches, and {} stacks whose indices do not match the module's",
             self.collisions.len(),
-            self.orphan_transforms.len()
+            self.orphan_transforms.len(),
+            self.index_conflicts.len()
         ))
         .with_details(details.join("\n")))
     }
@@ -199,7 +247,7 @@ enum Rule {
     Exact(String, String),
     Rename(String, String),
     Mount(String, String, Rekey),
-    MountIndexed(String, String, Rekey),
+    MountIndexed(String, String, Indices, Rekey),
     Custom(Arc<dyn Fn(&str) -> Claim + Send + Sync>),
 }
 
@@ -209,6 +257,61 @@ enum Rule {
 struct Trace {
     rules: HashSet<usize>,
     transforms: HashSet<usize>,
+}
+
+/// A stack's key in a plan: its rule, by address, and the checkpoint-side
+/// prefix it sits under (an enclosing stack's index included).
+type StackKey = (usize, String);
+
+/// What a claim carries down the map: the trace, and, for
+/// [`Indices::Module`], the module's paths, the indices each stack saw
+/// (from a first pass over the names), and the index maps made from them.
+#[derive(Default)]
+struct Cx<'a> {
+    trace: Trace,
+    module: Option<&'a BTreeSet<String>>,
+    seen: BTreeMap<StackKey, BTreeSet<usize>>,
+    resolving: bool,
+    index_maps: HashMap<StackKey, Option<BTreeMap<usize, usize>>>,
+    index_conflicts: BTreeSet<String>,
+}
+
+impl Cx<'_> {
+    /// The module index of a [`Indices::Module`] stack's checkpoint index
+    /// `index`, the stack keyed by `key` and mounted at the module path
+    /// `to`: `None` to drop the name, the stack's indices matching none of
+    /// the module's.
+    fn module_index(
+        &mut self,
+        key: &StackKey,
+        to: &str,
+        index: usize,
+    ) -> Option<usize> {
+        let (Some(module), true) = (self.module, self.resolving) else {
+            return Some(index);
+        };
+        if !self.index_maps.contains_key(key) {
+            let seen = self.seen.get(key).cloned().unwrap_or_default();
+            let theirs: BTreeSet<usize> = module
+                .range(to.to_string()..)
+                .take_while(|path| path.starts_with(to))
+                .filter_map(|path| path[to.len()..].split_once('.')?.0.parse().ok())
+                .collect();
+            let map = if seen.is_subset(&theirs) {
+                Some(seen.iter().map(|&i| (i, i)).collect())
+            } else if seen.len() == theirs.len() {
+                Some(seen.iter().copied().zip(theirs.iter().copied()).collect())
+            } else {
+                self.index_conflicts.insert(format!(
+                    "{}N.: the checkpoint has {seen:?}, the module ({to}N.) {theirs:?}",
+                    key.1
+                ));
+                None
+            };
+            self.index_maps.insert(key.clone(), map);
+        }
+        self.index_maps[key].as_ref()?.get(&index).copied()
+    }
 }
 
 fn rule_addr(rule: &Rule) -> usize {
@@ -227,17 +330,26 @@ impl Rule {
             Rule::Exact(from, to) => format!("exact({from:?} -> {to:?})"),
             Rule::Rename(from, to) => format!("rename({from:?} -> {to:?})"),
             Rule::Mount(from, to, _) => format!("mount({from:?} -> {to:?})"),
-            Rule::MountIndexed(from, to, _) => format!("mount_indexed({from:?} -> {to:?})"),
+            Rule::MountIndexed(from, to, Indices::AsIs, _) => {
+                format!("mount_indexed({from:?} -> {to:?})")
+            }
+            Rule::MountIndexed(from, to, indices, _) => {
+                format!("mount_indexed({from:?} -> {to:?}, {indices:?})")
+            }
             Rule::Custom(_) => "custom".to_string(),
         }
     }
 
     /// `None` when the rule does not claim `name`; `Some(target)` when it
-    /// does, `target` being `None` for a dropped tensor.
+    /// does, `target` being `None` for a dropped tensor. `from_prefix` and
+    /// `to_prefix` are where the enclosing mounts put the map this rule is
+    /// in, on the checkpoint's side and the module's.
     fn claim(
         &self,
         name: &str,
-        trace: &mut Trace,
+        from_prefix: &str,
+        to_prefix: &str,
+        cx: &mut Cx,
     ) -> Option<Option<Target>> {
         match self {
             Rule::DropSuffix(suffix) => name.ends_with(suffix.as_str()).then_some(None),
@@ -246,15 +358,39 @@ impl Rule {
                 .strip_prefix(from.as_str())
                 .map(|rest| Some(plain(format!("{to}{rest}")))),
             Rule::Mount(from, to, sub) => sub
-                .claim(name.strip_prefix(from.as_str())?, trace)
+                .claim(
+                    name.strip_prefix(from.as_str())?,
+                    &format!("{from_prefix}{from}"),
+                    &format!("{to_prefix}{to}"),
+                    cx,
+                )
                 .map(|t| t.map(|t| prefixed(to, t))),
-            Rule::MountIndexed(from, to, sub) => {
-                let (index, rest) = name.strip_prefix(from.as_str())?.split_once('.')?;
-                if index.is_empty() || !index.bytes().all(|b| b.is_ascii_digit()) {
+            Rule::MountIndexed(from, to, indices, sub) => {
+                let (digits, rest) = name.strip_prefix(from.as_str())?.split_once('.')?;
+                if digits.is_empty() || !digits.bytes().all(|b| b.is_ascii_digit()) {
                     return None;
                 }
-                sub.claim(rest, trace)
-                    .map(|t| t.map(|t| prefixed(&format!("{to}{index}."), t)))
+                let index: usize = digits.parse().ok()?;
+                let key = (rule_addr(self), format!("{from_prefix}{from}"));
+                cx.seen.entry(key.clone()).or_default().insert(index);
+                let mapped = match indices {
+                    Indices::AsIs => Some(index),
+                    Indices::From(first) => index.checked_sub(*first),
+                    Indices::Module => cx.module_index(&key, &format!("{to_prefix}{to}"), index),
+                };
+                let Some(mapped) = mapped else {
+                    // Claimed, and dropped: below the stack's first index, or
+                    // matching none of the module's.
+                    return Some(None);
+                };
+                let to = format!("{to}{mapped}.");
+                sub.claim(
+                    rest,
+                    &format!("{from_prefix}{from}{digits}."),
+                    &format!("{to_prefix}{to}"),
+                    cx,
+                )
+                .map(|t| t.map(|t| prefixed(&to, t)))
             }
             Rule::Custom(f) => f(name).map(|path| path.map(plain)),
         }
@@ -350,7 +486,40 @@ impl Rekey {
         to: impl Into<String>,
         sub: Rekey,
     ) -> Self {
-        self.with(Rule::MountIndexed(from.into(), to.into(), sub))
+        self.mount_indexed_with(from, to, Indices::AsIs, sub)
+    }
+
+    /// [`mount_indexed`](Self::mount_indexed), the checkpoint's index `i`
+    /// becoming the module's as `indices` says: `{from}{i}.{rest}` maps to
+    /// `{to}{j}.{sub(rest)}`.
+    ///
+    /// ```rust
+    /// use bunsen::burner::module::{
+    ///     Indices,
+    ///     Rekey,
+    /// };
+    ///
+    /// // torchvision's `layer1` … `layer4` onto `layers.0` … `layers.3`.
+    /// let rekey = Rekey::drop_rest().mount_indexed_with(
+    ///     "layer",
+    ///     "layers.",
+    ///     Indices::From(1),
+    ///     Rekey::keep_rest(),
+    /// );
+    /// assert_eq!(
+    ///     rekey.apply("layer1.0.conv1.weight").as_deref(),
+    ///     Some("layers.0.0.conv1.weight")
+    /// );
+    /// assert_eq!(rekey.apply("layer0.0.conv1.weight"), None);
+    /// ```
+    pub fn mount_indexed_with(
+        self,
+        from: impl Into<String>,
+        to: impl Into<String>,
+        indices: Indices,
+        sub: Rekey,
+    ) -> Self {
+        self.with(Rule::MountIndexed(from.into(), to.into(), indices, sub))
     }
 
     /// A rule the others cannot say: `f` returns `None` to leave a name to
@@ -382,7 +551,7 @@ impl Rekey {
         &self,
         name: &str,
     ) -> Option<Target> {
-        self.claim(name, &mut Trace::default()).flatten()
+        self.claim(name, "", "", &mut Cx::default()).flatten()
     }
 
     /// `None` when this map does not claim `name` (only a
@@ -391,14 +560,16 @@ impl Rekey {
     fn claim(
         &self,
         name: &str,
-        trace: &mut Trace,
+        from_prefix: &str,
+        to_prefix: &str,
+        cx: &mut Cx,
     ) -> Option<Option<Target>> {
         let claimed = self
             .rules
             .iter()
             .find_map(|rule| {
-                let claim = rule.claim(name, trace)?;
-                trace.rules.insert(rule_addr(rule));
+                let claim = rule.claim(name, from_prefix, to_prefix, cx)?;
+                cx.trace.rules.insert(rule_addr(rule));
                 Some(claim)
             })
             .or_else(|| match self.unclaimed {
@@ -406,7 +577,7 @@ impl Rekey {
                 Unclaimed::Drop => Some(None),
                 Unclaimed::Pass => None,
             })?;
-        Some(claimed.map(|target| self.with_own_transform(target, trace)))
+        Some(claimed.map(|target| self.with_own_transform(target, &mut cx.trace)))
     }
 
     /// `target`, with this map's transform for its path composed after any
@@ -463,15 +634,102 @@ impl Rekey {
         &self,
         names: impl IntoIterator<Item = S>,
     ) -> RekeyPlan {
-        let mut trace = Trace::default();
+        self.plan_in(names, None)
+    }
+
+    /// [`plan`](Self::plan), seeing the module the names load into, by its
+    /// parameter paths: [`Indices::Module`] stacks are matched to the
+    /// module's indices, and the plan reports the names whose target lies
+    /// under no module of the model
+    /// ([`unknown_paths`](RekeyPlan::unknown_paths)). A path's last segment
+    /// is not compared (a norm's `weight` loads as `gamma`).
+    ///
+    /// ```rust
+    /// use std::collections::BTreeSet;
+    ///
+    /// use bunsen::burner::module::{
+    ///     Indices,
+    ///     Rekey,
+    /// };
+    ///
+    /// // An `nn.Sequential` whose `ReLU`s sat at 1 and 3.
+    /// let rekey = Rekey::keep_rest().mount_indexed_with(
+    ///     "fc.",
+    ///     "fc.",
+    ///     Indices::Module,
+    ///     Rekey::keep_rest(),
+    /// );
+    /// let module: BTreeSet<String> =
+    ///     ["fc.0.weight", "fc.1.weight", "fc.2.weight"]
+    ///         .map(String::from)
+    ///         .into();
+    /// let plan =
+    ///     rekey.plan_for(["fc.0.weight", "fc.2.weight", "fc.4.weight"], &module);
+    /// let paths: Vec<_> = plan
+    ///     .targets
+    ///     .iter()
+    ///     .map(|(_, t)| t.as_ref().unwrap().path.as_str())
+    ///     .collect();
+    /// assert_eq!(paths, ["fc.0.weight", "fc.1.weight", "fc.2.weight"]);
+    ///
+    /// // A missing entry stays missing.
+    /// let plan = rekey.plan_for(["fc.0.weight", "fc.2.weight"], &module);
+    /// assert_eq!(plan.targets[1].1.as_ref().unwrap().path, "fc.2.weight");
+    /// ```
+    pub fn plan_for<S: AsRef<str>>(
+        &self,
+        names: impl IntoIterator<Item = S>,
+        module_paths: &BTreeSet<String>,
+    ) -> RekeyPlan {
+        self.plan_in(names, Some(module_paths))
+    }
+
+    fn plan_in<S: AsRef<str>>(
+        &self,
+        names: impl IntoIterator<Item = S>,
+        module: Option<&BTreeSet<String>>,
+    ) -> RekeyPlan {
+        let names: Vec<String> = names.into_iter().map(|n| n.as_ref().to_string()).collect();
+        let mut cx = Cx {
+            module,
+            ..Cx::default()
+        };
+        if module.is_some() {
+            // Which indices each stack sees depends only on the names, not on
+            // how any stack maps them: a first pass collects them.
+            for name in &names {
+                self.claim(name, "", "", &mut cx);
+            }
+            cx.trace = Trace::default();
+            cx.resolving = true;
+        }
         let targets: Vec<(String, Option<Target>)> = names
             .into_iter()
             .map(|name| {
-                let name = name.as_ref().to_string();
-                let target = self.claim(&name, &mut trace).flatten();
+                let target = self.claim(&name, "", "", &mut cx).flatten();
                 (name, target)
             })
             .collect();
+        let trace = std::mem::take(&mut cx.trace);
+        let index_conflicts = cx.index_conflicts.into_iter().collect();
+
+        let unknown_paths = match module {
+            None => Vec::new(),
+            Some(module) => {
+                let parents: BTreeSet<&str> = module
+                    .iter()
+                    .flat_map(|path| path.match_indices('.').map(move |(i, _)| &path[..i]))
+                    .collect();
+                targets
+                    .iter()
+                    .filter_map(|(name, target)| {
+                        let path = &target.as_ref()?.path;
+                        let parent = path.rsplit_once('.').map_or("", |(p, _)| p);
+                        (!parents.contains(parent)).then(|| (name.clone(), path.clone()))
+                    })
+                    .collect()
+            }
+        };
 
         let mut by_path: BTreeMap<&str, Vec<String>> = BTreeMap::new();
         for (name, target) in &targets {
@@ -493,6 +751,8 @@ impl Rekey {
             collisions,
             orphan_transforms,
             unused_rules,
+            index_conflicts,
+            unknown_paths,
         }
     }
 
@@ -530,7 +790,7 @@ impl Rekey {
                     rules,
                     transforms,
                 ),
-                Rule::MountIndexed(from, to, sub) => sub.unused(
+                Rule::MountIndexed(from, to, _, sub) => sub.unused(
                     trace,
                     &format!("{from_prefix}{from}N."),
                     &format!("{to_prefix}{to}N."),
@@ -696,6 +956,78 @@ mod tests {
         let clean = Rekey::keep_rest().rename("a.", "b.").plan(["a.w", "c.w"]);
         assert!(clean.collisions.is_empty() && clean.unused_rules.is_empty());
         clean.check().unwrap();
+    }
+
+    /// `Indices::Module` matches each stack instance on its own, inside a
+    /// stack numbered from 1: a gapped inner stack is laid onto the module's
+    /// indices, a complete one kept, a mismatched one refused; without the
+    /// module it is `AsIs`. A target under no module is reported.
+    #[test]
+    fn test_module_indices() {
+        let inner = Rekey::keep_rest().mount_indexed_with(
+            "seq.",
+            "seq.",
+            Indices::Module,
+            Rekey::keep_rest(),
+        );
+        let rekey =
+            Rekey::keep_rest().mount_indexed_with("stage", "stages.", Indices::From(1), inner);
+        let module: BTreeSet<String> = [
+            "stages.0.seq.0.w",
+            "stages.0.seq.1.w",
+            "stages.1.seq.0.w",
+            "stages.1.seq.1.w",
+            "stages.2.seq.0.w",
+            "head.w",
+        ]
+        .map(String::from)
+        .into();
+        let names = [
+            // Stage 1: `nn.Sequential` gaps, onto 0, 1.
+            "stage1.seq.0.w",
+            "stage1.seq.2.w",
+            // Stage 2: already the module's.
+            "stage2.seq.0.w",
+            "stage2.seq.1.w",
+            // Stage 3: two entries where the module has one.
+            "stage3.seq.0.w",
+            "stage3.seq.3.w",
+            "tail.w",
+        ];
+        let plan = rekey.plan_for(names, &module);
+        let paths: Vec<Option<&str>> = plan
+            .targets
+            .iter()
+            .map(|(_, t)| t.as_ref().map(|t| t.path.as_str()))
+            .collect();
+        assert_eq!(
+            paths,
+            [
+                Some("stages.0.seq.0.w"),
+                Some("stages.0.seq.1.w"),
+                Some("stages.1.seq.0.w"),
+                Some("stages.1.seq.1.w"),
+                None,
+                None,
+                Some("tail.w"),
+            ]
+        );
+        assert_eq!(
+            plan.index_conflicts,
+            ["stage3.seq.N.: the checkpoint has {0, 3}, the module (stages.2.seq.N.) {0}"]
+        );
+        assert_eq!(
+            plan.unknown_paths,
+            [("tail.w".to_string(), "tail.w".to_string())]
+        );
+        assert!(plan.check().is_err());
+
+        // Without the module, `Module` is `AsIs`.
+        assert_eq!(
+            rekey.apply("stage1.seq.2.w").as_deref(),
+            Some("stages.0.seq.2.w")
+        );
+        assert_eq!(rekey.plan(names).index_conflicts, Vec::<String>::new());
     }
 
     /// A custom rule may pass a name on, drop it, or map it.

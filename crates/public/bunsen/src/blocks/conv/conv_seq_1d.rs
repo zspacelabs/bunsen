@@ -18,6 +18,7 @@ use crate::{
         ConvBlock1dMeta,
     },
     burner::module::{
+        Indices,
         ModuleInit,
         Rekey,
     },
@@ -457,11 +458,12 @@ impl ConvSeq1d {
     /// );
     /// ```
     pub fn one_based_rekey() -> Rekey {
-        Rekey::pass_rest().custom(|name| {
-            let (n, rest) = name.split_once('.')?;
-            let n: usize = n.parse().ok()?;
-            Some(n.checked_sub(1).map(|k| format!("blocks.{k}.conv.{rest}")))
-        })
+        Rekey::pass_rest().mount_indexed_with(
+            "",
+            "blocks.",
+            Indices::From(1),
+            Rekey::keep_rest().rename("", "conv."),
+        )
     }
 
     /// Performs a forward pass through the sequence of [`ConvBlock1d`] modules.

@@ -35,7 +35,9 @@ use crate::{
         ConvBlock2dConfig,
     },
     burner::module::{
+        Indices,
         ModuleInit,
+        Rekey,
         ToStructureConfig,
     },
     errors::{
@@ -550,7 +552,51 @@ impl ResNet {
         self.output_fc.forward(x)
     }
 
-    /// Loads weights from a `PyTorch` weights path.
+    /// torchvision's `ResNet` state-dict names (timm's are the same) onto a
+    /// [`ResNet`]'s module paths.
+    ///
+    /// | torchvision | bunsen |
+    /// |---|---|
+    /// | `conv1`, `bn1` | `input_cb.conv`, `input_cb.norm` |
+    /// | `layer1` … `layer4` | `layers.0` … `layers.3`, each block `N` as `blocks.N` |
+    /// | a block's `conv{k}`, `bn{k}` | its `cb{k}.conv`, `cb{k}.norm` |
+    /// | a block's `downsample.0`, `downsample.1` | its `downsample.conv`, `downsample.norm` |
+    /// | `fc` | `output_fc` |
+    ///
+    /// Batch-norm counters (`num_batches_tracked`) are dropped; anything else
+    /// is kept as it is, for the load to report.
+    ///
+    /// ```rust
+    /// use bunsen::kits::images::resnet::ResNet;
+    ///
+    /// let rekey = ResNet::torchvision_rekey();
+    /// assert_eq!(
+    ///     rekey.apply("layer1.0.bn2.running_var").as_deref(),
+    ///     Some("layers.0.blocks.0.cb2.norm.running_var")
+    /// );
+    /// ```
+    pub fn torchvision_rekey() -> Rekey {
+        let conv_block = |part: &'static str| Rekey::keep_rest().rename("", part);
+        let block = Rekey::keep_rest()
+            .mount_indexed("conv", "cb", conv_block("conv."))
+            .mount_indexed("bn", "cb", conv_block("norm."))
+            .rename("downsample.0.", "downsample.conv.")
+            .rename("downsample.1.", "downsample.norm.");
+        Rekey::keep_rest()
+            .drop_suffix(".num_batches_tracked")
+            .rename("conv1.", "input_cb.conv.")
+            .rename("bn1.", "input_cb.norm.")
+            .rename("fc.", "output_fc.")
+            .mount_indexed_with(
+                "layer",
+                "layers.",
+                Indices::From(1),
+                Rekey::keep_rest().mount_indexed("", "blocks.", block),
+            )
+    }
+
+    /// Loads weights from a `PyTorch` weights path, named as torchvision's
+    /// ([`torchvision_rekey`](Self::torchvision_rekey)).
     ///
     /// # Errors
     ///
@@ -559,14 +605,16 @@ impl ResNet {
     /// I/O failures by their kind.
     /// [`InvalidResource`](crate::errors::BunsenErrorKind::InvalidResource),
     /// with the [`PytorchStoreError`](burn::store::PytorchStoreError) as its
-    /// cause, if the checkpoint does not load into the model.
+    /// cause, if the file is not a `PyTorch` checkpoint; otherwise as
+    /// [`apply_rekeyed_tensors`](crate::data::pretrained::apply_rekeyed_tensors),
+    /// if the checkpoint does not load into the model.
     #[cfg(feature = "store_pytorch")]
     pub fn load_pytorch_weights(
         mut self,
         path: impl Into<std::path::PathBuf>,
     ) -> BunsenResult<Self> {
         use burn::store::{
-            ModuleSnapshot,
+            ModuleStore,
             PytorchStore,
             PytorchStoreError,
             pytorch::PytorchError,
@@ -575,29 +623,30 @@ impl ResNet {
         use crate::errors::sys_at;
 
         let path = path.into();
-        let mut store = PytorchStore::from_file(path.clone())
-            .skip_enum_variants(true)
-            .with_key_remapping(r"bn(\d+)\.weight", "bn$1.gamma")
-            .with_key_remapping(r"bn(\d+)\.bias", "bn$1.beta")
-            .with_key_remapping(r"^conv1\.", "input_cb.conv.")
-            .with_key_remapping(r"^bn1\.", "input_cb.norm.")
-            .with_key_remapping(r"bn(\d+)\.", "cb$1.norm.")
-            .with_key_remapping(r"conv(\d+)\.", "cb$1.conv.")
-            .with_key_remapping(r"downsample\.0\.", "downsample.conv.")
-            .with_key_remapping(r"downsample\.1\.", "downsample.norm.")
-            .with_key_remapping(r"fc\.", "output_fc.")
-            .with_key_remapping(r"layer(\d+)\.", "layers.$1.blocks.");
-
-        self.load_from(&mut store).map_err(|e| match e {
-            PytorchStoreError::Io(io) | PytorchStoreError::Reader(PytorchError::Io(io)) => {
-                sys_at("read", &path)(io)
-            }
-            e => BunsenError::invalid_resource(format!(
-                "cannot load PyTorch weights from {}",
-                path.display()
-            ))
-            .with_cause(e),
-        })?;
+        // The names are mapped by `torchvision_rekey`, whose indices are the
+        // checkpoint's own: the store does not renumber them.
+        let tensors: Vec<_> = PytorchStore::from_file(path.clone())
+            .map_indices_contiguous(false)
+            .get_all_tensors()
+            .map_err(|e| match e {
+                PytorchStoreError::Io(io) | PytorchStoreError::Reader(PytorchError::Io(io)) => {
+                    sys_at("read", &path)(io)
+                }
+                e => BunsenError::invalid_resource(format!(
+                    "cannot read PyTorch weights from {}",
+                    path.display()
+                ))
+                .with_cause(e),
+            })?
+            .values()
+            .cloned()
+            .collect();
+        crate::data::pretrained::apply_rekeyed_tensors(
+            &mut self,
+            tensors,
+            &Self::torchvision_rekey(),
+        )
+        .with_context(|| format!("loading {}", path.display()))?;
 
         Ok(self)
     }
@@ -1123,5 +1172,39 @@ mod tests {
             .with_stem_width(8)
             .to_structure()
             .with_standard_drop_block_prob(0.1);
+    }
+
+    /// torchvision's names onto bunsen's, one of each kind: the stem, a
+    /// basic block's and a bottleneck's convolutions and norms, a
+    /// downsample, the head; the counters dropped.
+    #[test]
+    fn test_torchvision_rekey() {
+        let rekey = ResNet::torchvision_rekey();
+        for (torchvision, bunsen) in [
+            ("conv1.weight", Some("input_cb.conv.weight")),
+            ("bn1.running_mean", Some("input_cb.norm.running_mean")),
+            ("bn1.num_batches_tracked", None),
+            (
+                "layer1.0.conv1.weight",
+                Some("layers.0.blocks.0.cb1.conv.weight"),
+            ),
+            ("layer1.1.bn2.bias", Some("layers.0.blocks.1.cb2.norm.bias")),
+            (
+                "layer4.2.conv3.weight",
+                Some("layers.3.blocks.2.cb3.conv.weight"),
+            ),
+            (
+                "layer2.0.downsample.0.weight",
+                Some("layers.1.blocks.0.downsample.conv.weight"),
+            ),
+            (
+                "layer2.0.downsample.1.running_var",
+                Some("layers.1.blocks.0.downsample.norm.running_var"),
+            ),
+            ("layer3.5.bn3.num_batches_tracked", None),
+            ("fc.weight", Some("output_fc.weight")),
+        ] {
+            assert_eq!(rekey.apply(torchvision).as_deref(), bunsen, "{torchvision}");
+        }
     }
 }
