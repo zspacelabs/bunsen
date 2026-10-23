@@ -194,12 +194,9 @@ impl EncoderTransformer {
 
 #[cfg(test)]
 mod tests {
-    use burn::{
-        store::ModuleSnapshot,
-        tensor::{
-            Distribution,
-            Tolerance,
-        },
+    use burn::tensor::{
+        Distribution,
+        Tolerance,
     };
 
     use super::*;
@@ -251,7 +248,10 @@ mod tests {
     /// With variants skipped, as bunsen's loaders skip them, a variant's
     /// tensor paths are its stack's; a native record would name the variant.
     #[test]
+    #[cfg(feature = "store")]
     fn test_the_variant_is_not_in_the_loaded_paths() {
+        use burn::store::ModuleSnapshot;
+
         let device = cpu_device();
         for config in configs() {
             let encoder: EncoderTransformer = config.init(&device);
