@@ -8,6 +8,8 @@ use burn::{
     tensor::{
         DType,
         Device,
+        Int,
+        TensorData,
     },
 };
 
@@ -315,6 +317,9 @@ impl KVCacheConfig {
             resolved: None,
             keys: vec![None; self.num_layers],
             values: vec![None; self.num_layers],
+            cross_keys: vec![None; self.num_layers],
+            cross_values: vec![None; self.num_layers],
+            group: 1,
         }
     }
 }
@@ -327,6 +332,15 @@ impl KVCacheConfig {
 /// cache serves a whole stack of layers. [`reset`](KVCache::reset) rewinds the
 /// position without freeing the storage, and [`prefill`](KVCache::prefill)
 /// seeds an empty cache from another one, broadcasting a batch of 1.
+/// [`reorder`](KVCache::reorder) picks the history's batch rows, as a beam
+/// search does when it branches.
+///
+/// An encoder-decoder also keeps each layer's cross-attention keys and values
+/// here: projected once from the encoder output, set by
+/// [`set_cross_kv`](KVCache::set_cross_kv), and never grown. They may be
+/// shared by a [`group`](KVCache::group) of decode rows per encoder row (a
+/// beam search's beams, `row = encoder_row * group + member`), so the bulk of
+/// the cache isn't repeated per beam. `reset` and `reorder` leave them alone.
 ///
 /// How it stores the history is its config's [`KVCacheStorage`] policy,
 /// resolved on the first write, on the device of the first keys
@@ -373,6 +387,15 @@ pub struct KVCache {
     keys: Vec<Option<Tensor<4>>>,
     /// As `keys`, for the values.
     values: Vec<Option<Tensor<4>>>,
+
+    /// Each layer's cross-attention keys, set once by
+    /// [`set_cross_kv`](KVCache::set_cross_kv) and never grown:
+    /// `[batch / group, heads, cross_len, head_dim]`.
+    cross_keys: Vec<Option<Tensor<4>>>,
+    /// As `cross_keys`, for the values.
+    cross_values: Vec<Option<Tensor<4>>>,
+    /// Decode rows per cross-attention row.
+    group: usize,
 }
 
 impl KVCacheMeta for KVCache {
@@ -408,7 +431,9 @@ impl KVCacheMeta for KVCache {
 impl KVCache {
     /// Resets the current position.
     ///
-    /// Does not drop/re-allocate the cache.
+    /// Does not drop/re-allocate the cache, and keeps the cross-attention
+    /// keys and values, so a second sequence decodes against the same encoder
+    /// output without projecting it again.
     pub fn reset(&mut self) {
         self.pos = 0;
     }
@@ -423,6 +448,133 @@ impl KVCache {
     /// told it the device.
     pub fn storage(&self) -> KVCacheStorage {
         self.resolved.unwrap_or(self.storage)
+    }
+
+    /// Decode rows per cross-attention row: one, unless the cross-attention
+    /// keys and values are shared by a group (as a beam search's beams share
+    /// their audio's).
+    pub fn group(&self) -> usize {
+        self.group
+    }
+
+    /// Sets `layer`'s cross-attention keys and values, projected once from
+    /// the encoder output: `[batch / group, heads, cross_len, head_dim]`,
+    /// where `group` is how many decode rows share each encoder row. Every
+    /// layer's must agree on it.
+    ///
+    /// # Panics
+    /// When the heads or head width aren't the cache's, `k` and `v` differ in
+    /// shape, the cache's batch isn't a whole multiple of `k`'s, or another
+    /// layer was set with a different group.
+    pub fn set_cross_kv(
+        &mut self,
+        layer: usize,
+        k: Tensor<4>,
+        v: Tensor<4>,
+    ) {
+        let [rows, heads, _, head_dim] = k.dims();
+        assert_eq!(
+            k.dims(),
+            v.dims(),
+            "cross-attention keys and values differ in shape"
+        );
+        assert_eq!(
+            (heads, head_dim),
+            (self.num_heads, self.head_dim),
+            "cross-attention heads and head width are the cache's"
+        );
+        assert!(
+            rows > 0 && self.batch_size.is_multiple_of(rows),
+            "the cache's batch ({}) is not a whole multiple of the cross-attention rows ({rows})",
+            self.batch_size
+        );
+        let group = self.batch_size / rows;
+        let others_set = self
+            .cross_keys
+            .iter()
+            .enumerate()
+            .any(|(l, c)| l != layer && c.is_some());
+        if others_set {
+            assert_eq!(
+                group, self.group,
+                "every layer's cross-attention shares one group"
+            );
+        }
+        self.group = group;
+        self.cross_keys[layer] = Some(k);
+        self.cross_values[layer] = Some(v);
+    }
+
+    /// `layer`'s cross-attention keys and values, if set:
+    /// `[batch / group, heads, cross_len, head_dim]`.
+    pub fn cross_kv(
+        &self,
+        layer: usize,
+    ) -> Option<(Tensor<4>, Tensor<4>)> {
+        Some((
+            self.cross_keys[layer].clone()?,
+            self.cross_values[layer].clone()?,
+        ))
+    }
+
+    /// The dtype the cache holds, once anything is in it.
+    pub fn dtype(&self) -> Option<DType> {
+        let tensor = self
+            .cross_keys
+            .iter()
+            .chain(&self.keys)
+            .flatten()
+            .next()
+            .map(Tensor::dtype);
+        tensor.or_else(|| self.cache.as_ref().map(Tensor::dtype))
+    }
+
+    /// Picks the history's batch rows: row `r` becomes what row `sources[r]`
+    /// was. A source may appear more than once, which duplicates its row;
+    /// that is how a beam search branches.
+    ///
+    /// The cross-attention keys and values are left alone: they are shared
+    /// within a group, so reordering within one is a no-op, and a reorder
+    /// across groups is the caller's error.
+    ///
+    /// # Panics
+    /// If `sources` is not one entry per batch row, or names a row past it.
+    pub fn reorder(
+        &mut self,
+        sources: &[usize],
+    ) {
+        assert_eq!(
+            sources.len(),
+            self.batch_size,
+            "one source row per batch row"
+        );
+        assert!(
+            sources.iter().all(|&s| s < self.batch_size),
+            "a source row past the batch"
+        );
+        if !self.is_allocated() || sources.iter().enumerate().all(|(r, &s)| r == s) {
+            return;
+        }
+        let device = match (&self.cache, self.keys.iter().flatten().next()) {
+            (Some(cache), _) => cache.device(),
+            (None, Some(key)) => key.device(),
+            (None, None) => return,
+        };
+        let indices: Tensor<1, Int> = Tensor::from_data(
+            TensorData::new(
+                sources.iter().map(|&s| s as i64).collect::<Vec<_>>(),
+                [sources.len()],
+            ),
+            &device,
+        );
+        if let Some(cache) = self.cache.take() {
+            self.cache = Some(cache.select(2, indices.clone()));
+        }
+        for slot in self.keys.iter_mut().chain(self.values.iter_mut()) {
+            if let Some(history) = slot.take() {
+                *slot = Some(history.select(0, indices.clone()));
+            }
+        }
     }
 
     /// Whether any storage is allocated.
@@ -994,6 +1146,135 @@ mod tests {
                 v.assert_eq(want_v, true);
             }
         }
+    }
+
+    /// The cross-attention store: set per layer, its group taken from the
+    /// batches, read back unchanged, and kept through `reset` and `reorder`.
+    #[test]
+    #[serial]
+    fn test_cross_kv_is_set_once_and_kept() {
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
+        let [heads, head_dim, layers, cross_len] = [2, 4, 2, 5];
+        for storage in STORAGES {
+            let mut cache = KVCacheConfig::new(6, heads, 4, head_dim, layers)
+                .with_storage(storage)
+                .init();
+            assert_eq!(cache.group(), 1);
+            assert!(cache.cross_kv(0).is_none());
+            assert_eq!(cache.dtype(), None);
+
+            let cross: Vec<(Tensor<4>, Tensor<4>)> = (0..layers)
+                .map(|layer| {
+                    let seed = 100 + 2 * layer as u64;
+                    let shape = [2, heads, cross_len, head_dim];
+                    (
+                        seeded_tensor::<4>(seed, shape, Distribution::Default, &device),
+                        seeded_tensor::<4>(seed + 1, shape, Distribution::Default, &device),
+                    )
+                })
+                .collect();
+            for (layer, (k, v)) in cross.iter().enumerate() {
+                cache.set_cross_kv(layer, k.clone(), v.clone());
+            }
+            assert_eq!(cache.group(), 3, "6 decode rows over 2 encoder rows");
+            assert!(cache.dtype().is_some());
+
+            fill(&mut cache, 2, &device);
+            cache.reorder(&[5, 4, 3, 2, 1, 0]);
+            cache.reset();
+            for (layer, (k, v)) in cross.iter().enumerate() {
+                let (got_k, got_v) = cache.cross_kv(layer).expect("set");
+                got_k.into_data().assert_eq(&k.clone().into_data(), true);
+                got_v.into_data().assert_eq(&v.clone().into_data(), true);
+            }
+        }
+    }
+
+    #[test]
+    #[should_panic(expected = "not a whole multiple")]
+    fn test_cross_kv_rows_must_divide_the_batch() {
+        let device = cpu_device();
+        let mut cache = KVCacheConfig::new(5, 2, 4, 4, 1).init();
+        cache.set_cross_kv(
+            0,
+            Tensor::zeros([2, 2, 3, 4], &device),
+            Tensor::zeros([2, 2, 3, 4], &device),
+        );
+    }
+
+    #[test]
+    #[should_panic(expected = "shares one group")]
+    fn test_cross_kv_layers_share_a_group() {
+        let device = cpu_device();
+        let mut cache = KVCacheConfig::new(4, 2, 4, 4, 2).init();
+        cache.set_cross_kv(
+            0,
+            Tensor::zeros([2, 2, 3, 4], &device),
+            Tensor::zeros([2, 2, 3, 4], &device),
+        );
+        cache.set_cross_kv(
+            1,
+            Tensor::zeros([1, 2, 3, 4], &device),
+            Tensor::zeros([1, 2, 3, 4], &device),
+        );
+    }
+
+    /// `reorder` picks the history's rows, duplicates included, in every
+    /// storage, and later steps append to the reordered rows.
+    #[test]
+    #[serial]
+    fn test_reorder_picks_history_rows() {
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
+        let [batch, heads, head_dim, layers] = [3, 2, 4, 2];
+        let sources = [2, 0, 2];
+        let indices = Tensor::<1, Int>::from_data([2i64, 0, 2], &device);
+        for storage in STORAGES {
+            let mut cache = KVCacheConfig::new(batch, heads, 2, head_dim, layers)
+                .with_chunk_size(2)
+                .with_storage(storage)
+                .init();
+            // 3 positions: past the pre-size, so the buffers have grown.
+            let before: Vec<(Tensor<4>, Tensor<4>)> = (0..layers)
+                .map(|layer| {
+                    let shape = [batch, heads, 3, head_dim];
+                    let seed = 2 * layer as u64;
+                    let k = seeded_tensor::<4>(seed, shape, Distribution::Default, &device);
+                    let v = seeded_tensor::<4>(seed + 1, shape, Distribution::Default, &device);
+                    cache.insert_kv(layer, k.clone(), v.clone());
+                    (k, v)
+                })
+                .collect();
+
+            cache.reorder(&sources);
+            assert_eq!(cache.pos(), 3);
+
+            for (layer, (k, v)) in before.into_iter().enumerate() {
+                let step = [batch, heads, 1, head_dim];
+                let (k_all, v_all) = cache.insert_kv(
+                    layer,
+                    Tensor::zeros(step, &device),
+                    Tensor::zeros(step, &device),
+                );
+                assert_eq!(k_all.dims(), [batch, heads, 4, head_dim], "{storage:?}");
+                k_all
+                    .slice(s![.., .., ..3])
+                    .into_data()
+                    .assert_eq(&k.select(0, indices.clone()).into_data(), true);
+                v_all
+                    .slice(s![.., .., ..3])
+                    .into_data()
+                    .assert_eq(&v.select(0, indices.clone()).into_data(), true);
+            }
+        }
+    }
+
+    #[test]
+    #[should_panic(expected = "one source row per batch row")]
+    fn test_reorder_takes_one_source_per_row() {
+        let mut cache = KVCacheConfig::new(3, 2, 4, 4, 1).init();
+        cache.reorder(&[0, 1]);
     }
 
     /// The backend names burn 0.22's dispatch reports, as seen on the CPU,
