@@ -11,14 +11,13 @@
 //!
 //! - **Over burn's `MultiHeadAttention`** (the Whisper kit):
 //!   [`layer_norm_self_attn`] and [`layer_norm_cross_attn`], their
-//!   `_w_kv_cache` variants, [`attend_q_kv_mask`] and [`causal_mask`], with a
-//!   per-layer [`AttnKvPair`] cache. The model keeps burn's module, so its
-//!   weights, loading and any cross-checks are unchanged; only the forward path
-//!   differs.
-//! - **bunsen's [`CausalSelfAttention`]** block (the `NanoChat` GPT kit): its
-//!   own bias-free projections, QK-norm, rotary embeddings and grouped-query
-//!   attention, computed with [`scaled_dot_product_attention`] over a
-//!   preallocated multi-layer [`KVCache`].
+//!   `_w_kv_cache` variants, [`attend_q_kv_mask`] and [`causal_mask`], over a
+//!   [`KVCache`]. The model keeps burn's module, so its weights, loading and
+//!   any cross-checks are unchanged; only the forward path differs.
+//! - **bunsen's [`CausalSelfAttention`]** block (the `NanoChat` and Qwen3 GPT
+//!   kits): its own bias-free projections, QK-norm, rotary embeddings and
+//!   grouped-query attention, computed with [`scaled_dot_product_attention`]
+//!   over a [`KVCache`].
 //!
 //! Use `CausalSelfAttention` for a decoder-only model whose layers you
 //! define. Use the `MultiHeadAttention` functions when the model is built on
@@ -39,28 +38,21 @@
 //! [`window_block_mask`] is the `[n, n]` mask of block-diagonal (windowed)
 //! self-attention.
 //!
-//! ## Two caches
+//! ## The cache
 //!
-//! Both caches are *injected*: the caller builds one per decode and passes
-//! it in, and the model never owns it, so one model can run several decodes
-//! in the same process.
+//! Every decoder decodes through one [`KVCache`], and it is *injected*: the
+//! caller builds one per decode and passes it in, and the model never owns
+//! it, so one model can run several decodes in the same process. A model
+//! hands out one sized for it ([`KVCacheModel`]).
 //!
-//! [`KVCache`] is a preallocated *multi-layer* cache: a single
-//! `[layers, kv, batch, heads, seq, d_k]` tensor, grown in chunks. Its
-//! geometry (layer count, head count, head dimension, batch size, and an
-//! initial sequence length) is declared up front in a [`KVCacheConfig`].
+//! It holds each layer's self-attention history, stored as its config's
+//! [`KVCacheStorage`] policy says, and, for an encoder-decoder, each layer's
+//! cross-attention keys and values: projected once from the encoder output
+//! ([`project_kv`]), set once, and shared by a group of decode rows (a beam
+//! search's beams) rather than repeated per row.
 //! [`insert_kv`](KVCache::insert_kv) appends one layer's keys and values and
 //! returns that layer's full history; the position advances after the last
-//! layer. It is a `Module` over a bare tensor: state, not parameters.
-//!
-//! [`AttnKvPair`] is a plain per-layer value over burn's
-//! [`MultiHeadAttention`] weights. It declares no geometry, and it also covers
-//! a case `KVCache` does not model: cross-attention keys and values, projected
-//! once from the encoder output and then reused unchanged rather than grown.
-//!
-//! Reach for `KVCache` when the geometry is known up front and the allocation
-//! matters; reach for `AttnKvPair` when the attention is burn's own and the
-//! cache is per-layer.
+//! layer. It is a `Module` over bare tensors: state, not parameters.
 //!
 //! ## Why not `MhaCache`
 //!
@@ -90,7 +82,6 @@
 //! [`CausalSelfAttention`]: crate::blocks::transformers::attention::csa::CausalSelfAttention
 
 mod attend;
-mod attn_kv_pair;
 mod causal_mask;
 mod kv_cache;
 mod length_mask;
@@ -98,7 +89,6 @@ mod rel_pos;
 mod sdpa;
 
 pub use attend::*;
-pub use attn_kv_pair::*;
 pub use causal_mask::*;
 pub use kv_cache::*;
 pub use length_mask::*;

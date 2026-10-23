@@ -64,7 +64,7 @@
 //! | Shared, immutable | Per stream or per decode |
 //! |---|---|
 //! | [`SileroVad`](silero_vad::SileroVad) | [`SileroVadContext`](silero_vad::SileroVadContext): the last chunk's tail and the recurrent state |
-//! | [`TextDecoder`](whisper::blocks::TextDecoder) | [`TextDecoderCache`](whisper::blocks::TextDecoderCache): one decode's keys and values |
+//! | [`TextDecoder`](whisper::blocks::TextDecoder) | [`KVCache`](crate::ops::transformers::attention::KVCache): one decode's keys and values, self- and cross-attention |
 //! | [`PerceptiveAudioConverter`](crate::ops::signal::perceptive_audio::PerceptiveAudioConverter) | [`PerceptiveAudioConversionContext`](crate::ops::signal::perceptive_audio::PerceptiveAudioConversionContext): the mel front end's carry |
 //! | [`WhisperStreamDriver`](whisper::driver::WhisperStreamDriver) | [`WhisperStreamContext`](whisper::driver::WhisperStreamContext): everything above, for one transcription |
 //!

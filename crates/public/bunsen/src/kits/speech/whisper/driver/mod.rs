@@ -32,7 +32,7 @@
 //! the mel converter and its
 //! [`PerceptiveAudioConversionContext`](crate::ops::signal::perceptive_audio::PerceptiveAudioConversionContext),
 //! and the text decoder and the
-//! [`TextDecoderCache`](crate::kits::speech::whisper::blocks::TextDecoderCache)
+//! [`KVCache`](crate::ops::transformers::attention::KVCache)
 //! each decode opens.
 //!
 //! One driver serves three deployments, configured rather than forked:

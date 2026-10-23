@@ -352,9 +352,10 @@ impl KVCacheConfig {
 /// The cache is injected state: the caller builds one per decode and passes
 /// it to the model's forward, so one model can run several decodes at once.
 /// It is a `Module` over bare tensors, not parameters.
-/// [`CausalSelfAttention`] is its consumer;
-/// [`ops::transformers::attention`](crate::ops::transformers::attention)
-/// compares it with the per-layer [`AttnKvPair`](super::AttnKvPair).
+/// [`CausalSelfAttention`] and the `MultiHeadAttention` functions
+/// ([`layer_norm_self_attn_w_kv_cache`](super::layer_norm_self_attn_w_kv_cache),
+/// [`layer_norm_cross_attn_w_kv_cache`](super::layer_norm_cross_attn_w_kv_cache))
+/// are its consumers.
 ///
 /// Built by [`KVCacheConfig`], whose `init` takes no device; a model hands
 /// out its own through [`KVCacheModel`].
