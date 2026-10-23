@@ -236,6 +236,12 @@ tracing-test = { workspace = true, optional = true }
 tracing-subscriber = { workspace = true, optional = true }
 
 burn = { workspace = true, features = ["linalg", "signal"] }
+# `Backend::name` of a device's dispatch backend, which names the backend stack
+# (`dispatch<fusion<cubecl<...>>>`): how bunsen sees whether burn's fusion is
+# on, however a dependent enabled it. burn keeps `Dispatch` out of its own API;
+# these are the versions burn uses, so cargo unifies them.
+burn-backend = { version = "0.22.0", default-features = false }
+burn-dispatch = { version = "0.22.0", default-features = false }
 
 # burner-locked public deps:
 hashbrown = { workspace = true, optional = true }
