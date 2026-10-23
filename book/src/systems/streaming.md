@@ -83,7 +83,7 @@ are not, yet. A context comes from
 [`SlidingStft::init_state`](bunsen::ops::signal::SlidingStft::init_state),
 [`PerceptiveAudioConverter::new_context`](bunsen::ops::signal::perceptive_audio::PerceptiveAudioConverter::new_context),
 [`WhisperStreamDriver::new_context`](bunsen::kits::speech::whisper::driver::WhisperStreamDriver::new_context),
-[`NanoChatGpt::new_kv_cache`](bunsen::kits::gpts::nanochat::NanoChatGpt::new_kv_cache),
+[`KVCacheModel::new_kv_cache`](bunsen::ops::transformers::attention::KVCacheModel::new_kv_cache) (a model's),
 [`KVCacheConfig::init`](bunsen::ops::transformers::attention::KVCacheConfig::init)
 (which takes no device), or
 [`SileroVadContextConfig::init`](bunsen::kits::speech::silero_vad::SileroVadContextConfig::init)

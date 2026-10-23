@@ -32,11 +32,51 @@ pub trait KVCacheMeta {
 
     /// Number of layers.
     fn num_layers(&self) -> usize;
+
+    /// The positions the storage grows by when a step runs past its end.
+    fn chunk_size(&self) -> usize;
+
+    /// The most positions the cache may hold, if it is capped.
+    fn max_seq_len(&self) -> Option<usize>;
+}
+
+/// A model, or its config, that decodes through a [`KVCache`], and knows the
+/// cache it needs.
+///
+/// The model gives the cache's geometry (layers, KV heads, head width) and
+/// its sizing: a default pre-size, and a cap where the model has a hard
+/// positional limit. A caller asks the model for a cache rather than
+/// assembling one, and overrides what it knows better on the config:
+///
+/// ```rust,ignore
+/// let mut cache = model.new_kv_cache(batch);
+/// // Or, knowing the decode's length:
+/// let mut cache = model.kv_cache_config().with_batch_size(batch).with_seq_len(n).init();
+/// ```
+///
+/// A model's config implements it too, so a cache can be sized (or its
+/// memory estimated) before the model is built.
+pub trait KVCacheModel {
+    /// The config of a cache for this model, at batch 1: its geometry, its
+    /// default pre-size, and its cap.
+    fn kv_cache_config(&self) -> KVCacheConfig;
+
+    /// A cache for `batch_size` decodes, sized as
+    /// [`kv_cache_config`](Self::kv_cache_config) says.
+    fn new_kv_cache(
+        &self,
+        batch_size: usize,
+    ) -> KVCache {
+        self.kv_cache_config().with_batch_size(batch_size).init()
+    }
 }
 
 /// Config for [`KVCache`].
 ///
-/// Declares the cache geometry up front. Implements [`KVCacheMeta`].
+/// Declares the cache geometry up front, and its sizing: `seq_len` positions
+/// allocated on first use, grown by `chunk_size` positions as a decode runs
+/// past them, up to `max_seq_len` when the cache is capped. Implements
+/// [`KVCacheMeta`]. A model hands out its own, through [`KVCacheModel`].
 #[derive(Config, Debug)]
 pub struct KVCacheConfig {
     /// Configured batch size.
@@ -53,6 +93,18 @@ pub struct KVCacheConfig {
 
     /// Number of layers.
     pub num_layers: usize,
+
+    /// The positions the storage grows by when a step runs past its end.
+    #[config(default = "1024")]
+    pub chunk_size: usize,
+
+    /// The most positions the cache may hold; uncapped when `None`.
+    ///
+    /// Growth stops at the cap, and a step past it panics: for a model with
+    /// a hard positional limit, running past it is a bug, not a reason to
+    /// reallocate.
+    #[config(default = "None")]
+    pub max_seq_len: Option<usize>,
 }
 
 impl KVCacheConfig {
@@ -62,6 +114,14 @@ impl KVCacheConfig {
         batch_size: usize,
     ) -> Self {
         Self { batch_size, ..self }
+    }
+
+    /// Sets the `seq_len`, the positions allocated up front.
+    pub fn with_seq_len(
+        self,
+        seq_len: usize,
+    ) -> Self {
+        Self { seq_len, ..self }
     }
 }
 
@@ -85,11 +145,33 @@ impl KVCacheMeta for KVCacheConfig {
     fn num_layers(&self) -> usize {
         self.num_layers
     }
+
+    fn chunk_size(&self) -> usize {
+        self.chunk_size
+    }
+
+    fn max_seq_len(&self) -> Option<usize> {
+        self.max_seq_len
+    }
 }
 
 impl KVCacheConfig {
     /// Initializes a [`KVCache`].
+    ///
+    /// # Panics
+    /// When `chunk_size` is 0, or `seq_len` exceeds `max_seq_len`.
     pub fn init(self) -> KVCache {
+        assert!(
+            self.chunk_size > 0,
+            "a KV cache's chunk_size must be positive"
+        );
+        if let Some(max) = self.max_seq_len {
+            assert!(
+                self.seq_len <= max,
+                "a KV cache's seq_len ({}) exceeds its max_seq_len ({max})",
+                self.seq_len
+            );
+        }
         KVCache {
             batch_size: self.batch_size,
             num_heads: self.num_heads,
@@ -98,8 +180,9 @@ impl KVCacheConfig {
             num_layers: self.num_layers,
             pos: 0,
             cache: None,
-            chunk_size: 1024,
+            chunk_size: self.chunk_size,
             extra_chunks: 1,
+            max_seq_len: self.max_seq_len,
         }
     }
 }
@@ -108,8 +191,8 @@ impl KVCacheConfig {
 ///
 /// One `[layers, 2, batch, heads, seq, head_dim]` tensor holds the keys and
 /// values of every layer. It is allocated on first use, on the device of the
-/// first keys, and grows in 1024-position chunks when a step runs past its
-/// end.
+/// first keys, and grows in chunks (`chunk_size` positions, 1024 by default)
+/// when a step runs past its end, up to its `max_seq_len` when it is capped.
 ///
 /// Each layer writes its step with [`insert_kv`](KVCache::insert_kv), which
 /// returns that layer's whole `(k, v)` history. The shared position
@@ -125,7 +208,8 @@ impl KVCacheConfig {
 /// [`ops::transformers::attention`](crate::ops::transformers::attention)
 /// compares it with the per-layer [`AttnKvPair`](super::AttnKvPair).
 ///
-/// Built by [`KVCacheConfig`], whose `init` takes no device.
+/// Built by [`KVCacheConfig`], whose `init` takes no device; a model hands
+/// out its own through [`KVCacheModel`].
 ///
 /// [`CausalSelfAttention`]: crate::blocks::transformers::attention::csa::CausalSelfAttention
 #[derive(Module, Debug)]
@@ -138,6 +222,7 @@ pub struct KVCache {
 
     chunk_size: usize,
     extra_chunks: usize,
+    max_seq_len: Option<usize>,
 
     pos: usize,
     cache: Option<Tensor<6>>,
@@ -162,6 +247,14 @@ impl KVCacheMeta for KVCache {
 
     fn num_layers(&self) -> usize {
         self.num_layers
+    }
+
+    fn chunk_size(&self) -> usize {
+        self.chunk_size
+    }
+
+    fn max_seq_len(&self) -> Option<usize> {
+        self.max_seq_len
     }
 }
 
@@ -243,6 +336,9 @@ impl KVCache {
     ///
     /// # Returns
     /// - the extended (k, v) `[B, H_kv, T, D]` pair.
+    ///
+    /// # Panics
+    /// When the step would take the cache past its `max_seq_len`.
     pub fn insert_kv(
         &mut self,
         layer_idx: usize,
@@ -282,6 +378,12 @@ impl KVCache {
 
         let t0 = self.pos;
         let t1 = t0 + t_add;
+        if let Some(max) = self.max_seq_len {
+            assert!(
+                t1 <= max,
+                "a KV cache step past its max_seq_len: {t0} + {t_add} > {max}"
+            );
+        }
 
         // Grow the cache if needed.
         let cached_size = cache.dims()[4];
@@ -341,12 +443,17 @@ impl KVCache {
         .cast(dtype)
     }
 
-    /// Computes the target allocation size for a given required size.
+    /// Computes the target allocation size for a given required size: whole
+    /// chunks, with spare ones, but never past `max_seq_len`.
     pub fn allocation_size(
         &self,
         required_size: usize,
     ) -> usize {
-        (required_size.div_ceil(self.chunk_size) + self.extra_chunks) * self.chunk_size
+        let size = (required_size.div_ceil(self.chunk_size) + self.extra_chunks) * self.chunk_size;
+        match self.max_seq_len {
+            Some(max) => size.min(max).max(required_size),
+            None => size,
+        }
     }
 }
 
@@ -449,5 +556,81 @@ mod tests {
     #[serial]
     fn test_prefill_from_full_cache() {
         check_prefill(5, 5);
+    }
+
+    #[test]
+    fn test_config_sizing() {
+        let config = KVCacheConfig::new(1, 2, 16, 4, 3);
+        assert_eq!(config.chunk_size(), 1024);
+        assert_eq!(config.max_seq_len(), None);
+
+        let config = config
+            .with_batch_size(5)
+            .with_seq_len(32)
+            .with_chunk_size(8)
+            .with_max_seq_len(Some(40));
+        let cache = config.init();
+        assert_eq!(cache.batch_size(), 5);
+        assert_eq!(cache.seq_len(), 32);
+        assert_eq!(cache.chunk_size(), 8);
+        assert_eq!(cache.max_seq_len(), Some(40));
+
+        // Whole chunks, a spare one, and never past the cap.
+        assert_eq!(cache.allocation_size(33), 40);
+        assert_eq!(cache.allocation_size(17), 32);
+        let uncapped = KVCacheConfig::new(1, 2, 16, 4, 3).with_chunk_size(8).init();
+        assert_eq!(uncapped.allocation_size(33), 48);
+    }
+
+    #[test]
+    #[should_panic(expected = "exceeds its max_seq_len")]
+    fn test_config_rejects_a_pre_size_past_its_cap() {
+        KVCacheConfig::new(1, 2, 16, 4, 3)
+            .with_max_seq_len(Some(8))
+            .init();
+    }
+
+    /// A capped cache grows to its cap, and no further: a decode may fill it
+    /// exactly.
+    #[test]
+    #[serial]
+    fn test_growth_stops_at_the_cap() {
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
+        let mut cache = KVCacheConfig::new(1, 2, 2, 4, 2)
+            .with_chunk_size(4)
+            .with_max_seq_len(Some(6))
+            .init();
+        fill(&mut cache, 4, &device);
+        fill(&mut cache, 2, &device);
+        assert_eq!(cache.pos(), 6);
+        assert_eq!(cache.cache.as_ref().unwrap().dims()[4], 6);
+    }
+
+    #[test]
+    #[serial]
+    #[should_panic(expected = "past its max_seq_len")]
+    fn test_a_step_past_the_cap_panics() {
+        let device = performance_device();
+        let mut cache = KVCacheConfig::new(1, 2, 2, 4, 2)
+            .with_max_seq_len(Some(4))
+            .init();
+        fill(&mut cache, 3, &device);
+        fill(&mut cache, 2, &device);
+    }
+
+    #[test]
+    fn test_a_model_hands_out_its_cache() {
+        struct Model;
+        impl KVCacheModel for Model {
+            fn kv_cache_config(&self) -> KVCacheConfig {
+                KVCacheConfig::new(1, 2, 16, 4, 3).with_max_seq_len(Some(64))
+            }
+        }
+        let cache = Model.new_kv_cache(7);
+        assert_eq!(cache.batch_size(), 7);
+        assert_eq!(cache.num_layers(), 3);
+        assert_eq!(cache.seq_len(), 16);
+        assert_eq!(cache.max_seq_len(), Some(64));
     }
 }

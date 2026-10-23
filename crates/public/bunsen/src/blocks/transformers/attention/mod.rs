@@ -35,7 +35,8 @@
 //!
 //! [`forward`](csa::CausalSelfAttention::forward) takes
 //! `kv_cache: &mut Option<&mut KVCache>`. The cache is injected: the
-//! caller owns it (for example from [`NanoChatGpt::new_kv_cache`]), so one
+//! caller owns it (for example from a model's
+//! [`KVCacheModel::new_kv_cache`]), so one
 //! model can run several decodes at once.
 //!
 //! - `None`: no cache. The input is the whole sequence, attended causally; a
@@ -77,7 +78,7 @@
 //! [`MultiHeadAttention`]: burn::nn::attention::MultiHeadAttention
 //! [`ModuleInit`]: crate::burner::module::ModuleInit
 //! [`NanoChatGpt`]: crate::kits::gpts::nanochat::NanoChatGpt
-//! [`NanoChatGpt::new_kv_cache`]: crate::kits::gpts::nanochat::NanoChatGpt::new_kv_cache
+//! [`KVCacheModel::new_kv_cache`]: crate::ops::transformers::attention::KVCacheModel::new_kv_cache
 
 pub mod csa;
 pub mod rel_pos;
