@@ -1,14 +1,14 @@
-//! Multihead Layer Normalized Attention Utilities.
+//! Multihead normalized attention utilities.
 
 use burn::{
     Tensor,
     nn::{
-        LayerNorm,
         attention::{
             MhaInput,
             MhaOutput,
             MultiHeadAttention,
         },
+        norm::Normalization,
     },
     prelude::Bool,
     tensor::activation::{
@@ -18,6 +18,20 @@ use burn::{
 };
 
 use super::KVCache;
+
+/// Asserts that `norm` normalizes `d_model` features, when it counts any
+/// (an [`Identity`](Normalization::Identity) norm counts none).
+#[cfg(any(debug_assertions, test))]
+fn assert_norm_width(
+    norm: &Normalization,
+    d_model: usize,
+) {
+    let features = norm.num_features();
+    assert!(
+        features == 0 || features == d_model,
+        "norm features ({features}) != d_model ({d_model})",
+    );
+}
 
 /// Projects `[batch, seq, d_model]` into head-split keys and values:
 /// `[batch, heads, seq, d_k]` each.
@@ -46,10 +60,10 @@ pub fn split_heads(
     x.reshape([batch, seq, mha.n_heads, mha.d_k])
         .swap_dims(1, 2)
 }
-/// Computes layer normalized self-attn.
+/// Computes normalized self-attention: `attn(norm(x))`.
 ///
 /// # Arguments
-/// * `layer_norm` - `LayerNorm`.
+/// * `norm` - the sublayer's [`Normalization`].
 /// * `mh_attn` - `MultiHeadAttention`.
 /// * `x` - `[batch, seq_len, d_model]` input.
 /// * `mask` - Optional `[batch, seq_len, seq_len]` attention mask.
@@ -58,8 +72,8 @@ pub fn split_heads(
 /// The [`MhaOutput`]:
 /// * `context` : `[batch, seq_len, d_model]`.
 /// * `weights` : `[batch, n_heads, seq_len, seq_len]`.
-pub fn layer_norm_self_attn(
-    layer_norm: &LayerNorm,
+pub fn norm_self_attn(
+    norm: &Normalization,
     mh_attn: &MultiHeadAttention,
     x: Tensor<3>,
     mask: Option<Tensor<3, Bool>>,
@@ -68,12 +82,7 @@ pub fn layer_norm_self_attn(
     {
         use crate::contracts::*;
         let d_model = mh_attn.d_model;
-        assert_eq!(
-            d_model,
-            layer_norm.gamma.dims()[0],
-            "layer_norm dims ({}) != d_model ({d_model})",
-            layer_norm.gamma.dims()[0],
-        );
+        assert_norm_width(norm, d_model);
 
         let [batch, seq_len] = unpack_shape_contract!(
             ["batch", "seq_len", "d_model"],
@@ -98,7 +107,7 @@ pub fn layer_norm_self_attn(
         }
     }
 
-    let input = MhaInput::self_attn(layer_norm.forward(x));
+    let input = MhaInput::self_attn(norm.forward(x));
     let input = match mask {
         Some(mask) => input.mask_attn(mask),
         None => input,
@@ -106,10 +115,10 @@ pub fn layer_norm_self_attn(
     mh_attn.forward(input)
 }
 
-/// Computes layer normalized cross-attn.
+/// Computes normalized cross-attention: `attn(norm(x), xa)`.
 ///
 /// # Arguments
-/// * `layer_norm` - `LayerNorm`.
+/// * `norm` - the sublayer's [`Normalization`].
 /// * `mh_attn` - `MultiHeadAttention`.
 /// * `x` - `[batch, seq_len, d_model]` input.
 /// * `xa` - `[batch, cross_len, d_model]` cross-attention input.
@@ -121,8 +130,8 @@ pub fn layer_norm_self_attn(
 /// The [`MhaOutput`]:
 /// * `context` : `[batch, seq_len, d_model]`.
 /// * `weights` : `[batch, n_heads, seq_len, cross_len]`.
-pub fn layer_norm_cross_attn(
-    layer_norm: &LayerNorm,
+pub fn norm_cross_attn(
+    norm: &Normalization,
     mh_attn: &MultiHeadAttention,
     x: Tensor<3>,
     xa: Tensor<3>,
@@ -131,12 +140,7 @@ pub fn layer_norm_cross_attn(
     {
         crate::contracts::define_shape_contract!(CONTRACT, ["batch", "seq_len", "d_model"]);
         let d_model = mh_attn.d_model;
-        assert_eq!(
-            d_model,
-            layer_norm.gamma.dims()[0],
-            "layer_norm dims ({}) != d_model ({d_model})",
-            layer_norm.gamma.dims()[0],
-        );
+        assert_norm_width(norm, d_model);
 
         let [batch, _seq_len] =
             CONTRACT.unpack_shape(&x, &["batch", "seq_len"], &[("d_model", d_model)]);
@@ -147,7 +151,7 @@ pub fn layer_norm_cross_attn(
         CONTRACT.assert_shape(&xa, &[("batch", batch), ("d_model", d_model)]);
     };
 
-    mh_attn.forward(MhaInput::new(layer_norm.forward(x.clone()), xa.clone(), xa))
+    mh_attn.forward(MhaInput::new(norm.forward(x.clone()), xa.clone(), xa))
 }
 
 /// Scaled dot-product attention over head-split tensors, then the output
@@ -193,7 +197,7 @@ pub fn attend_q_kv_mask(
     mha.output.forward(context)
 }
 
-/// Layer-normed self-attention over a decode's [`KVCache`].
+/// Normalized self-attention over a decode's [`KVCache`].
 ///
 /// Writes this step's keys and values into `cache` at `layer`, and attends
 /// over the layer's whole history. Unlike the uncached path, `x` is only the
@@ -208,8 +212,8 @@ pub fn attend_q_kv_mask(
 ///
 /// # Returns
 /// `[batch, seq_new, d_model]`.
-pub fn layer_norm_self_attn_w_kv_cache(
-    layer_norm: &LayerNorm,
+pub fn norm_self_attn_w_kv_cache(
+    norm: &Normalization,
     mha: &MultiHeadAttention,
     x: Tensor<3>,
     mask: Option<Tensor<3, Bool>>,
@@ -223,7 +227,7 @@ pub fn layer_norm_self_attn_w_kv_cache(
         &[("d_model", mha.d_model)],
     );
 
-    let normed = layer_norm.forward(x);
+    let normed = norm.forward(x);
 
     let q = split_heads(mha, mha.query.forward(normed.clone()));
     let (k, v) = project_kv(mha, normed);
@@ -232,7 +236,7 @@ pub fn layer_norm_self_attn_w_kv_cache(
     attend_q_kv_mask(mha, q, k, v, mask)
 }
 
-/// Layer-normed cross-attention against a decode's [`KVCache`]: the
+/// Normalized cross-attention against a decode's [`KVCache`]: the
 /// cross-attention keys and values set at `layer`
 /// ([`set_cross_kv`](KVCache::set_cross_kv)).
 ///
@@ -258,8 +262,8 @@ pub fn layer_norm_self_attn_w_kv_cache(
 /// # Panics
 /// When `layer`'s cross-attention keys and values aren't set, or `x`'s rows
 /// aren't `group` per encoder row.
-pub fn layer_norm_cross_attn_w_kv_cache(
-    layer_norm: &LayerNorm,
+pub fn norm_cross_attn_w_kv_cache(
+    norm: &Normalization,
     mha: &MultiHeadAttention,
     x: Tensor<3>,
     cache: &KVCache,
@@ -284,7 +288,7 @@ pub fn layer_norm_cross_attn_w_kv_cache(
         "query rows ({rows}) are not {group} per encoder row ({encoded})",
     );
 
-    let q = split_heads(mha, mha.query.forward(layer_norm.forward(x)));
+    let q = split_heads(mha, mha.query.forward(norm.forward(x)));
     if group == 1 {
         return attend_q_kv_mask(mha, q, k, v, None);
     }
@@ -340,12 +344,12 @@ mod tests {
         let (seq_len, cross_len) = (3, 17);
 
         let attn = MultiHeadAttentionConfig::new(d_model, n_heads).init(&device);
-        let ln = LayerNormConfig::new(d_model).init(&device);
+        let ln = Normalization::Layer(LayerNormConfig::new(d_model).init(&device));
 
         let x = Tensor::<3>::random([batch, seq_len, d_model], Distribution::Default, &device);
         let xa = Tensor::<3>::random([batch, cross_len, d_model], Distribution::Default, &device);
 
-        let out = layer_norm_cross_attn(&ln, &attn, x, xa);
+        let out = norm_cross_attn(&ln, &attn, x, xa);
 
         // The output follows the query, and the weights span query x cross.
         assert_eq!(out.context.dims(), [batch, seq_len, d_model]);
@@ -360,11 +364,11 @@ mod tests {
         let (batch, d_model, n_heads, seq_len) = (1, 16, 2, 5);
 
         let attn = MultiHeadAttentionConfig::new(d_model, n_heads).init(&device);
-        let ln = LayerNormConfig::new(d_model).init(&device);
+        let ln = Normalization::Layer(LayerNormConfig::new(d_model).init(&device));
 
         let x = Tensor::<3>::random([batch, seq_len, d_model], Distribution::Default, &device);
 
-        let out = layer_norm_cross_attn(&ln, &attn, x.clone(), x);
+        let out = norm_cross_attn(&ln, &attn, x.clone(), x);
         assert_eq!(out.context.dims(), [batch, seq_len, d_model]);
     }
 
@@ -376,12 +380,12 @@ mod tests {
         let (batch, d_model, n_heads) = (1, 16, 2);
 
         let attn = MultiHeadAttentionConfig::new(d_model, n_heads).init(&device);
-        let ln = LayerNormConfig::new(d_model).init(&device);
+        let ln = Normalization::Layer(LayerNormConfig::new(d_model).init(&device));
 
         let x = Tensor::<3>::random([batch, 4, d_model], Distribution::Default, &device);
         let xa = Tensor::<3>::random([batch, 9, d_model * 2], Distribution::Default, &device);
 
-        layer_norm_cross_attn(&ln, &attn, x, xa);
+        norm_cross_attn(&ln, &attn, x, xa);
     }
 
     /// A single-layer [`KVCache`] for `mha`, `batch` rows.
@@ -405,7 +409,7 @@ mod tests {
         let (batch, d_model, n_heads, seq) = (2, 32, 4, 5);
 
         let mha = MultiHeadAttentionConfig::new(d_model, n_heads).init(&device);
-        let ln = LayerNormConfig::new(d_model).init(&device);
+        let ln = Normalization::Layer(LayerNormConfig::new(d_model).init(&device));
 
         let x = Tensor::<3>::random([batch, seq, d_model], Distribution::Default, &device);
 
@@ -420,7 +424,7 @@ mod tests {
         let mut steps = Vec::with_capacity(seq);
         for t in 0..seq {
             let step = x.clone().slice_dim(1, t as isize..(t + 1) as isize);
-            steps.push(layer_norm_self_attn_w_kv_cache(
+            steps.push(norm_self_attn_w_kv_cache(
                 &ln, &mha, step, None, &mut cache, 0,
             ));
         }
@@ -441,13 +445,13 @@ mod tests {
         let (batch, d_model, n_heads, seq) = (1, 32, 4, 6);
 
         let mha = MultiHeadAttentionConfig::new(d_model, n_heads).init(&device);
-        let ln = LayerNormConfig::new(d_model).init(&device);
+        let ln = Normalization::Layer(LayerNormConfig::new(d_model).init(&device));
         let x = Tensor::<3>::random([batch, seq, d_model], Distribution::Default, &device);
 
         // Prefill 4, then step the last 2.
         let split = 4;
         let mut cache = cache_for(&mha, batch, seq);
-        let prefill = layer_norm_self_attn_w_kv_cache(
+        let prefill = norm_self_attn_w_kv_cache(
             &ln,
             &mha,
             x.clone().slice_dim(1, 0..split as isize),
@@ -458,7 +462,7 @@ mod tests {
         let mut parts = vec![prefill];
         for t in split..seq {
             let step = x.clone().slice_dim(1, t as isize..(t + 1) as isize);
-            parts.push(layer_norm_self_attn_w_kv_cache(
+            parts.push(norm_self_attn_w_kv_cache(
                 &ln, &mha, step, None, &mut cache, 0,
             ));
         }
@@ -466,7 +470,7 @@ mod tests {
 
         // All in one go.
         let mut cache2 = cache_for(&mha, batch, seq);
-        let at_once = layer_norm_self_attn_w_kv_cache(
+        let at_once = norm_self_attn_w_kv_cache(
             &ln,
             &mha,
             x,
@@ -490,7 +494,7 @@ mod tests {
         let (seq, cross_len) = (3, 17);
 
         let mha = MultiHeadAttentionConfig::new(d_model, n_heads).init(&device);
-        let ln = LayerNormConfig::new(d_model).init(&device);
+        let ln = Normalization::Layer(LayerNormConfig::new(d_model).init(&device));
 
         let x = Tensor::<3>::random([batch, seq, d_model], Distribution::Default, &device);
         let xa = Tensor::<3>::random([batch, cross_len, d_model], Distribution::Default, &device);
@@ -504,7 +508,7 @@ mod tests {
         let mut cache = cache_for(&mha, batch, seq);
         cache.set_cross_kv(0, k, v);
 
-        let cached = layer_norm_cross_attn_w_kv_cache(&ln, &mha, x, &cache, 0);
+        let cached = norm_cross_attn_w_kv_cache(&ln, &mha, x, &cache, 0);
 
         cached
             .to_data_as::<F>()
@@ -520,7 +524,7 @@ mod tests {
         let rows = audio * group;
 
         let mha = MultiHeadAttentionConfig::new(d_model, n_heads).init(&device);
-        let ln = LayerNormConfig::new(d_model).init(&device);
+        let ln = Normalization::Layer(LayerNormConfig::new(d_model).init(&device));
         let x = Tensor::<3>::random([rows, seq, d_model], Distribution::Default, &device);
         let xa = Tensor::<3>::random([audio, cross_len, d_model], Distribution::Default, &device);
 
@@ -541,8 +545,8 @@ mod tests {
         repeated.set_cross_kv(0, k, v);
         assert_eq!(repeated.group(), 1);
 
-        let a = layer_norm_cross_attn_w_kv_cache(&ln, &mha, x.clone(), &shared, 0);
-        let b = layer_norm_cross_attn_w_kv_cache(&ln, &mha, x, &repeated, 0);
+        let a = norm_cross_attn_w_kv_cache(&ln, &mha, x.clone(), &shared, 0);
+        let b = norm_cross_attn_w_kv_cache(&ln, &mha, x, &repeated, 0);
         a.to_data_as::<F>()
             .assert_approx_eq::<F>(&b.to_data_as::<F>(), Tolerance::permissive());
     }

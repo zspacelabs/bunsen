@@ -6,12 +6,15 @@ use burn::{
     config::Config,
     module::Module,
     nn::{
-        LayerNorm,
         LayerNormConfig,
         activation::ActivationConfig,
         attention::{
             MultiHeadAttention,
             MultiHeadAttentionConfig,
+        },
+        norm::{
+            Normalization,
+            NormalizationConfig,
         },
     },
     prelude::Bool,
@@ -24,7 +27,7 @@ use crate::{
         mlp::{
             Mlp,
             MlpConfig,
-            layer_norm_mlp,
+            norm_mlp,
         },
     },
     burner::module::{
@@ -34,10 +37,10 @@ use crate::{
     errors::BunsenResult,
     ops::transformers::attention::{
         KVCache,
-        layer_norm_cross_attn,
-        layer_norm_cross_attn_w_kv_cache,
-        layer_norm_self_attn,
-        layer_norm_self_attn_w_kv_cache,
+        norm_cross_attn,
+        norm_cross_attn_w_kv_cache,
+        norm_self_attn,
+        norm_self_attn_w_kv_cache,
         project_kv,
     },
 };
@@ -68,6 +71,11 @@ pub struct CrossDecoderBlockConfig {
     /// Dropout.
     #[config(default = "0.0")]
     pub dropout: f64,
+
+    /// The normalization before each sublayer, sized to `d_model` whatever
+    /// feature count it names: a `LayerNorm` by default, Whisper's.
+    #[config(default = "NormalizationConfig::Layer(LayerNormConfig::new(0))")]
+    pub norm: NormalizationConfig,
 }
 
 impl CrossDecoderBlockMeta for CrossDecoderBlockConfig {
@@ -93,7 +101,12 @@ impl ModuleInit<CrossDecoderBlock> for CrossDecoderBlockConfig {
         let mha_cfg = MultiHeadAttentionConfig::new(self.d_model, self.n_heads())
             .with_dropout(self.dropout)
             .with_key_bias(false);
-        let ln_cfg = LayerNormConfig::new(self.d_model);
+        let norm = || {
+            self.norm
+                .clone()
+                .with_num_features(self.d_model)
+                .init(device)
+        };
 
         let attn = mha_cfg.init(device);
         let cross_attn = mha_cfg.init(device);
@@ -106,11 +119,11 @@ impl ModuleInit<CrossDecoderBlock> for CrossDecoderBlockConfig {
             .try_init(device)?;
 
         Ok(CrossDecoderBlock {
-            attn_norm: ln_cfg.init(device),
+            attn_norm: norm(),
             attn,
-            cross_attn_norm: ln_cfg.init(device),
+            cross_attn_norm: norm(),
             cross_attn,
-            mlp_norm: ln_cfg.init(device),
+            mlp_norm: norm(),
             mlp,
         })
     }
@@ -121,8 +134,9 @@ impl ModuleInit<CrossDecoderBlock> for CrossDecoderBlockConfig {
 /// wrapped in a residual connection.
 ///
 /// Whisper's text decoder is a stack of these. The attention is burn's
-/// [`MultiHeadAttention`] (without a key bias), and the norms are
-/// `LayerNorm`s: what the ported checkpoints hold. The fields are named by
+/// [`MultiHeadAttention`] (without a key bias), and the norms are any
+/// [`Normalization`], `LayerNorm`s by default: what the ported checkpoints
+/// hold. The fields are named by
 /// role: `attn_norm`, `attn`, `cross_attn_norm`, `cross_attn`, `mlp_norm`,
 /// `mlp`.
 ///
@@ -135,19 +149,19 @@ impl ModuleInit<CrossDecoderBlock> for CrossDecoderBlockConfig {
 #[derive(Module, Debug)]
 pub struct CrossDecoderBlock {
     /// Attention Normalization.
-    pub attn_norm: LayerNorm,
+    pub attn_norm: Normalization,
 
     /// Attention.
     pub attn: MultiHeadAttention,
 
     /// Cross Attention Normalization.
-    pub cross_attn_norm: LayerNorm,
+    pub cross_attn_norm: Normalization,
 
     /// Cross Attention.
     pub cross_attn: MultiHeadAttention,
 
     /// MLP Normalization.
-    pub mlp_norm: LayerNorm,
+    pub mlp_norm: Normalization,
 
     /// MLP.
     pub mlp: Mlp,
@@ -213,14 +227,13 @@ impl CrossDecoderBlock {
         xa: Tensor<3>,
         mask: Option<Tensor<3, Bool>>,
     ) -> CrossDecoderRecord {
-        let self_attn = layer_norm_self_attn(&self.attn_norm, &self.attn, x.clone(), mask);
+        let self_attn = norm_self_attn(&self.attn_norm, &self.attn, x.clone(), mask);
         let x = x + self_attn.context;
 
-        let cross_attn =
-            layer_norm_cross_attn(&self.cross_attn_norm, &self.cross_attn, x.clone(), xa);
+        let cross_attn = norm_cross_attn(&self.cross_attn_norm, &self.cross_attn, x.clone(), xa);
         let x = x + cross_attn.context;
 
-        let mlp = layer_norm_mlp(&self.mlp_norm, &self.mlp, x.clone());
+        let mlp = norm_mlp(&self.mlp_norm, &self.mlp, x.clone());
         let x = x + mlp;
 
         CrossDecoderRecord {
@@ -258,7 +271,7 @@ impl CrossDecoderBlock {
         cache: &mut KVCache,
         layer: usize,
     ) -> Tensor<3> {
-        let x = x.clone().add(layer_norm_self_attn_w_kv_cache(
+        let x = x.clone().add(norm_self_attn_w_kv_cache(
             &self.attn_norm,
             &self.attn,
             x,
@@ -267,7 +280,7 @@ impl CrossDecoderBlock {
             layer,
         ));
 
-        let x = x.clone().add(layer_norm_cross_attn_w_kv_cache(
+        let x = x.clone().add(norm_cross_attn_w_kv_cache(
             &self.cross_attn_norm,
             &self.cross_attn,
             x,
@@ -275,7 +288,7 @@ impl CrossDecoderBlock {
             layer,
         ));
 
-        let mlp = layer_norm_mlp(&self.mlp_norm, &self.mlp, x.clone());
+        let mlp = norm_mlp(&self.mlp_norm, &self.mlp, x.clone());
         x + mlp
     }
 
@@ -372,7 +385,7 @@ mod tests {
         assert_eq!(result.seq_len(), seq_len);
 
         let expected = {
-            let self_attn = layer_norm_self_attn(
+            let self_attn = norm_self_attn(
                 &block.attn_norm,
                 &block.attn,
                 x.clone(),
@@ -380,7 +393,7 @@ mod tests {
             );
             let x = x + self_attn.context;
 
-            let cross_attn = layer_norm_cross_attn(
+            let cross_attn = norm_cross_attn(
                 &block.cross_attn_norm,
                 &block.cross_attn,
                 x.clone(),
@@ -388,7 +401,7 @@ mod tests {
             );
             let x = x + cross_attn.context;
 
-            let mlp = layer_norm_mlp(&block.mlp_norm, &block.mlp, x.clone());
+            let mlp = norm_mlp(&block.mlp_norm, &block.mlp, x.clone());
             let x = x + mlp;
 
             CrossDecoderRecord {

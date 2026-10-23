@@ -395,9 +395,9 @@ mod tests {
 
     use super::*;
     use crate::{
-        blocks::transformers::mlp::layer_norm_mlp,
+        blocks::transformers::mlp::norm_mlp,
         contracts::assert_shape_contract,
-        ops::transformers::attention::layer_norm_self_attn,
+        ops::transformers::attention::norm_self_attn,
         support::testing::{
             DeviceMemoryGuard,
             cpu_device,
@@ -524,11 +524,15 @@ mod tests {
         let output = block.forward(x.clone());
 
         let expected = {
-            let self_attn =
-                layer_norm_self_attn(layer_norm(&block.attn_norm), &block.attn, x.clone(), None);
+            let self_attn = norm_self_attn(
+                block.attn_norm.as_ref().unwrap(),
+                &block.attn,
+                x.clone(),
+                None,
+            );
             let x = x + self_attn.context;
 
-            let mlp = layer_norm_mlp(layer_norm(&block.mlp_norm), &block.mlp, x.clone());
+            let mlp = norm_mlp(block.mlp_norm.as_ref().unwrap(), &block.mlp, x.clone());
             x + mlp
         };
 
