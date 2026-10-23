@@ -37,7 +37,7 @@ pub enum SileroReader {
 
     /// Upstream's 16 kHz state dict under [`CHECKPOINT`]
     /// ([`SAFETENSORS_KIND`]), read through
-    /// [`upstream_to_bunsen_path`](super::load::upstream_to_bunsen_path).
+    /// [`upstream_rekey`](super::load::upstream_rekey).
     /// Needs the `store_safetensors` feature.
     Safetensors,
 }

@@ -12,8 +12,14 @@ use burn::{
 };
 
 use crate::{
-    blocks::conv::ConvSeq1d,
-    burner::module::ModuleInit,
+    blocks::{
+        conv::ConvSeq1d,
+        rnn::lstm::FusedLstm,
+    },
+    burner::module::{
+        ModuleInit,
+        Rekey,
+    },
     errors::{
         BunsenError,
         BunsenErrorKind,
@@ -217,46 +223,39 @@ impl SileroVadCollection {
     }
 }
 
-/// The bunsen module path of one tensor of upstream's
-/// `silero_vad_16k.safetensors`, the 16 kHz model's `PyTorch` state dict, or
-/// `None` for a name the model has no parameter for.
+/// Upstream's `silero_vad_16k.safetensors` names (the 16 kHz model's
+/// `PyTorch` state dict) onto a [`SileroVad`]'s module paths; anything else
+/// is dropped.
 ///
 /// | upstream | bunsen |
 /// |---|---|
 /// | `stft_conv` | `stft` |
 /// | `conv1` … `conv4` | `encoder.blocks.0` … `3.conv` |
-/// | `lstm_cell.{weight,bias}_ih` | `lstm.features.{weight,bias}` |
-/// | `lstm_cell.{weight,bias}_hh` | `lstm.hidden.{weight,bias}` |
+/// | `lstm_cell` (an `nn.LSTMCell`) | `lstm`, by [`FusedLstm::torch_cell_rekey`] |
 /// | `final_conv` | `decoder` |
-pub fn upstream_to_bunsen_path(name: &str) -> Option<String> {
-    let (module, param) = name.rsplit_once('.')?;
-    let path = match module {
-        "stft_conv" => "stft".to_string(),
-        "final_conv" => "decoder".to_string(),
-        "lstm_cell" => {
-            let (param, side) = param.rsplit_once('_')?;
-            let linear = match side {
-                "ih" => "features",
-                "hh" => "hidden",
-                _ => return None,
-            };
-            return Some(format!("lstm.{linear}.{param}"));
-        }
-        conv => {
+pub fn upstream_rekey() -> Rekey {
+    Rekey::drop_rest()
+        .rename("stft_conv.", "stft.")
+        .rename("final_conv.", "decoder.")
+        .mount("lstm_cell.", "lstm.", FusedLstm::torch_cell_rekey())
+        .custom(|name| {
+            // `conv{n}`, 1-based, onto the encoder's 0-based blocks.
+            let (conv, param) = name.split_once('.')?;
             let n: usize = conv.strip_prefix("conv")?.parse().ok()?;
-            format!("encoder.blocks.{}.conv", n.checked_sub(1)?)
-        }
-    };
-    Some(format!("{path}.{param}"))
+            Some(
+                n.checked_sub(1)
+                    .map(|k| format!("{}.{param}", ConvSeq1d::block_conv_path("encoder", k))),
+            )
+        })
 }
 
 #[cfg(feature = "store_safetensors")]
 impl SileroVad {
     /// Load the 16khz model from tensors named as upstream's
-    /// `silero_vad_16k.safetensors` names them ([`upstream_to_bunsen_path`]).
+    /// `silero_vad_16k.safetensors` names them ([`upstream_rekey`]).
     ///
     /// # Errors
-    /// As [`apply_named_tensors`](crate::data::pretrained::apply_named_tensors):
+    /// As [`apply_rekeyed_tensors`](crate::data::pretrained::apply_rekeyed_tensors):
     /// [`InvalidResource`](crate::errors::BunsenErrorKind::InvalidResource)
     /// when a tensor does not fit, or a parameter is missing.
     pub fn load_16khz_from_upstream_tensors(
@@ -264,7 +263,7 @@ impl SileroVad {
         device: &Device,
     ) -> BunsenResult<Self> {
         let mut vad: Self = SileroVadSignalConfig::standard_16khz().try_init(device)?;
-        crate::data::pretrained::apply_named_tensors(&mut vad, tensors, upstream_to_bunsen_path)?;
+        crate::data::pretrained::apply_rekeyed_tensors(&mut vad, tensors, &upstream_rekey())?;
         Ok(vad)
     }
 
@@ -316,7 +315,8 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_upstream_to_bunsen_path() {
+    fn test_upstream_rekey() {
+        let rekey = upstream_rekey();
         for (upstream, bunsen) in [
             ("stft_conv.weight", Some("stft.weight")),
             ("conv1.weight", Some("encoder.blocks.0.conv.weight")),
@@ -328,13 +328,10 @@ mod tests {
             ("final_conv.bias", Some("decoder.bias")),
             ("conv0.weight", None),
             ("lstm_cell.weight_xx", None),
+            ("lstm_cell.weight_ih_l0", None),
             ("unknown", None),
         ] {
-            assert_eq!(
-                upstream_to_bunsen_path(upstream).as_deref(),
-                bunsen,
-                "{upstream}"
-            );
+            assert_eq!(rekey.apply(upstream).as_deref(), bunsen, "{upstream}");
         }
     }
 
