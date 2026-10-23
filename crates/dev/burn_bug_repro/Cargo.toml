@@ -26,7 +26,8 @@ cuda = ["burn/cuda", "bunsen/cuda"]
 metal = ["burn/metal", "bunsen/metal"]
 
 [dependencies]
-burn = { workspace = true }
+# `store`: the `burn-store` defects (`contiguous_gap`, `contiguous_keep_remap`).
+burn = { workspace = true, features = ["store"] }
 # Supplies `performance_device()`/`cpu_device()`, so the device selection
 # matches the rest of the workspace.
 bunsen = { path = "../../public/bunsen", features = ["testing"] }
