@@ -123,10 +123,14 @@ pub fn apply_named_tensors_as<M: ModuleSnapshot>(
 /// A transformed tensor is read whole at that point; the others stay as
 /// lazy as their source.
 ///
+/// The map is planned over every name first ([`Rekey::plan`]), and a plan
+/// that cannot load as written is refused before any tensor is read.
+///
 /// # Errors
 /// As [`apply_named_tensors`];
 /// [`InvalidResource`](crate::errors::BunsenErrorKind::InvalidResource) too
-/// when a transformed tensor's bytes cannot be read.
+/// as [`RekeyPlan::check`](crate::burner::module::RekeyPlan::check) refuses
+/// the plan, or when a transformed tensor's bytes cannot be read.
 pub fn apply_rekeyed_tensors<M: ModuleSnapshot>(
     module: &mut M,
     tensors: impl IntoIterator<Item = PackTensor>,
@@ -146,10 +150,13 @@ pub fn apply_rekeyed_tensors_as<M: ModuleSnapshot>(
     rekey: &Rekey,
     float_dtype: Option<DType>,
 ) -> BunsenResult<NamedTensorsApplied> {
+    let tensors: Vec<PackTensor> = tensors.into_iter().collect();
+    let plan = rekey.plan(tensors.iter().map(|t| t.name.as_str()));
+    plan.check()?;
     let mut placed = Vec::new();
     let mut dropped = Vec::new();
-    for mut tensor in tensors {
-        match rekey.target(&tensor.name) {
+    for (mut tensor, (_, target)) in tensors.into_iter().zip(plan.targets) {
+        match target {
             None => dropped.push(tensor.name),
             Some(Target {
                 path,

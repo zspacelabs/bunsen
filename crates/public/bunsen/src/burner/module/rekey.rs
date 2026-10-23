@@ -1,10 +1,19 @@
 //! Mapping a checkpoint's tensor names onto a module's paths.
 use std::{
+    collections::{
+        BTreeMap,
+        HashSet,
+    },
     fmt,
     sync::Arc,
 };
 
 use burn::tensor::TensorData;
+
+use crate::errors::{
+    BunsenError,
+    BunsenResult,
+};
 
 /// A map from a checkpoint's tensor names (a `transformers` or `NeMo` state
 /// dict's, say) to the module paths they load into, built from rules.
@@ -103,6 +112,58 @@ impl fmt::Debug for Target {
     }
 }
 
+/// A [`Rekey`] resolved over a whole checkpoint's names
+/// ([`Rekey::plan`]).
+#[derive(Debug)]
+pub struct RekeyPlan {
+    /// Each name, in order, and where it loads; `None` for a dropped name.
+    pub targets: Vec<(String, Option<Target>)>,
+
+    /// Each module path more than one name loads into, with those names.
+    pub collisions: Vec<(String, Vec<String>)>,
+
+    /// The module paths of transforms no name reached: a map that names a
+    /// path its own rules never produce.
+    pub orphan_transforms: Vec<String>,
+
+    /// Rules that claimed no name, as written: shadowed by an earlier rule,
+    /// or for a part this checkpoint lacks. A mount that claimed nothing is
+    /// listed alone, not its map's rules.
+    pub unused_rules: Vec<String>,
+}
+
+impl RekeyPlan {
+    /// Refuses a plan that cannot load as written: two names onto one path,
+    /// or a transform no name reaches. Unused rules are not refused; a
+    /// block's map may cover parts a checkpoint lacks.
+    ///
+    /// # Errors
+    /// [`InvalidResource`](crate::errors::BunsenErrorKind::InvalidResource)
+    /// naming the collisions and orphaned transforms, listed in the details.
+    pub fn check(&self) -> BunsenResult<()> {
+        if self.collisions.is_empty() && self.orphan_transforms.is_empty() {
+            return Ok(());
+        }
+        let mut details: Vec<String> = self
+            .collisions
+            .iter()
+            .map(|(path, names)| format!("{path} <- {}", names.join(", ")))
+            .collect();
+        details.extend(
+            self.orphan_transforms
+                .iter()
+                .map(|path| format!("transform for {path}: no name loads there")),
+        );
+        Err(BunsenError::invalid_resource(format!(
+            "the key map loads {} paths from more than one name, and has {} transforms no name \
+             reaches",
+            self.collisions.len(),
+            self.orphan_transforms.len()
+        ))
+        .with_details(details.join("\n")))
+    }
+}
+
 /// `first`, then `then`.
 fn compose(
     first: Option<TensorTransform>,
@@ -142,12 +203,41 @@ enum Rule {
     Custom(Arc<dyn Fn(&str) -> Claim + Send + Sync>),
 }
 
+/// The rules and transforms a set of names used, by address: what
+/// [`Rekey::plan`] reports the rest of.
+#[derive(Default)]
+struct Trace {
+    rules: HashSet<usize>,
+    transforms: HashSet<usize>,
+}
+
+fn rule_addr(rule: &Rule) -> usize {
+    std::ptr::from_ref(rule) as usize
+}
+
+fn transform_addr(f: &TensorTransform) -> usize {
+    Arc::as_ptr(f).cast::<()>() as usize
+}
+
 impl Rule {
+    /// The rule as it was written, for a report.
+    fn describe(&self) -> String {
+        match self {
+            Rule::DropSuffix(suffix) => format!("drop_suffix({suffix:?})"),
+            Rule::Exact(from, to) => format!("exact({from:?} -> {to:?})"),
+            Rule::Rename(from, to) => format!("rename({from:?} -> {to:?})"),
+            Rule::Mount(from, to, _) => format!("mount({from:?} -> {to:?})"),
+            Rule::MountIndexed(from, to, _) => format!("mount_indexed({from:?} -> {to:?})"),
+            Rule::Custom(_) => "custom".to_string(),
+        }
+    }
+
     /// `None` when the rule does not claim `name`; `Some(target)` when it
     /// does, `target` being `None` for a dropped tensor.
     fn claim(
         &self,
         name: &str,
+        trace: &mut Trace,
     ) -> Option<Option<Target>> {
         match self {
             Rule::DropSuffix(suffix) => name.ends_with(suffix.as_str()).then_some(None),
@@ -156,14 +246,14 @@ impl Rule {
                 .strip_prefix(from.as_str())
                 .map(|rest| Some(plain(format!("{to}{rest}")))),
             Rule::Mount(from, to, sub) => sub
-                .claim(name.strip_prefix(from.as_str())?)
+                .claim(name.strip_prefix(from.as_str())?, trace)
                 .map(|t| t.map(|t| prefixed(to, t))),
             Rule::MountIndexed(from, to, sub) => {
                 let (index, rest) = name.strip_prefix(from.as_str())?.split_once('.')?;
                 if index.is_empty() || !index.bytes().all(|b| b.is_ascii_digit()) {
                     return None;
                 }
-                sub.claim(rest)
+                sub.claim(rest, trace)
                     .map(|t| t.map(|t| prefixed(&format!("{to}{index}."), t)))
             }
             Rule::Custom(f) => f(name).map(|path| path.map(plain)),
@@ -292,7 +382,7 @@ impl Rekey {
         &self,
         name: &str,
     ) -> Option<Target> {
-        self.claim(name).flatten()
+        self.claim(name, &mut Trace::default()).flatten()
     }
 
     /// `None` when this map does not claim `name` (only a
@@ -301,17 +391,22 @@ impl Rekey {
     fn claim(
         &self,
         name: &str,
+        trace: &mut Trace,
     ) -> Option<Option<Target>> {
         let claimed = self
             .rules
             .iter()
-            .find_map(|rule| rule.claim(name))
+            .find_map(|rule| {
+                let claim = rule.claim(name, trace)?;
+                trace.rules.insert(rule_addr(rule));
+                Some(claim)
+            })
             .or_else(|| match self.unclaimed {
                 Unclaimed::Keep => Some(Some(plain(name.to_string()))),
                 Unclaimed::Drop => Some(None),
                 Unclaimed::Pass => None,
             })?;
-        Some(claimed.map(|target| self.with_own_transform(target)))
+        Some(claimed.map(|target| self.with_own_transform(target, trace)))
     }
 
     /// `target`, with this map's transform for its path composed after any
@@ -319,12 +414,16 @@ impl Rekey {
     fn with_own_transform(
         &self,
         target: Target,
+        trace: &mut Trace,
     ) -> Target {
         let own = self
             .transforms
             .iter()
             .find(|(path, _)| *path == target.path)
-            .map(|(_, f)| f.clone());
+            .map(|(_, f)| {
+                trace.transforms.insert(transform_addr(f));
+                f.clone()
+            });
         Target {
             transform: compose(target.transform, own),
             path: target.path,
@@ -337,6 +436,110 @@ impl Rekey {
         name: &str,
     ) -> Option<String> {
         self.target(name).map(|t| t.path)
+    }
+
+    /// The map resolved over a whole checkpoint's names: each name's target,
+    /// and what only the whole list shows (two names onto one path, a
+    /// transform no name reached, a rule that claimed nothing).
+    ///
+    /// ```rust
+    /// use bunsen::burner::module::Rekey;
+    ///
+    /// let rekey = Rekey::keep_rest().rename("model.", "").mount_indexed(
+    ///     "model.layers.",
+    ///     "blocks.",
+    ///     Rekey::keep_rest(),
+    /// );
+    /// let plan = rekey.plan(["model.layers.0.w", "layers.0.w"]);
+    /// // `rename("model.", "")` claims every `model.` name first.
+    /// assert_eq!(
+    ///     plan.unused_rules,
+    ///     ["mount_indexed(\"model.layers.\" -> \"blocks.\")"]
+    /// );
+    /// assert_eq!(plan.collisions.len(), 1);
+    /// assert!(plan.check().is_err());
+    /// ```
+    pub fn plan<S: AsRef<str>>(
+        &self,
+        names: impl IntoIterator<Item = S>,
+    ) -> RekeyPlan {
+        let mut trace = Trace::default();
+        let targets: Vec<(String, Option<Target>)> = names
+            .into_iter()
+            .map(|name| {
+                let name = name.as_ref().to_string();
+                let target = self.claim(&name, &mut trace).flatten();
+                (name, target)
+            })
+            .collect();
+
+        let mut by_path: BTreeMap<&str, Vec<String>> = BTreeMap::new();
+        for (name, target) in &targets {
+            if let Some(target) = target {
+                by_path.entry(&target.path).or_default().push(name.clone());
+            }
+        }
+        let collisions = by_path
+            .into_iter()
+            .filter(|(_, names)| names.len() > 1)
+            .map(|(path, names)| (path.to_string(), names))
+            .collect();
+
+        let mut unused_rules = Vec::new();
+        let mut orphan_transforms = Vec::new();
+        self.unused(&trace, "", "", &mut unused_rules, &mut orphan_transforms);
+        RekeyPlan {
+            targets,
+            collisions,
+            orphan_transforms,
+            unused_rules,
+        }
+    }
+
+    /// The rules and transforms of this map, and of the maps mounted by its
+    /// used mounts, that `trace` never saw: rules by their checkpoint-side
+    /// prefix (`from`), transforms by their module path (`to`).
+    fn unused(
+        &self,
+        trace: &Trace,
+        from_prefix: &str,
+        to_prefix: &str,
+        rules: &mut Vec<String>,
+        transforms: &mut Vec<String>,
+    ) {
+        for (path, f) in &self.transforms {
+            if !trace.transforms.contains(&transform_addr(f)) {
+                transforms.push(format!("{to_prefix}{path}"));
+            }
+        }
+        for rule in &self.rules {
+            if !trace.rules.contains(&rule_addr(rule)) {
+                let context = if from_prefix.is_empty() {
+                    String::new()
+                } else {
+                    format!("under {from_prefix:?}: ")
+                };
+                rules.push(format!("{context}{}", rule.describe()));
+                continue;
+            }
+            match rule {
+                Rule::Mount(from, to, sub) => sub.unused(
+                    trace,
+                    &format!("{from_prefix}{from}"),
+                    &format!("{to_prefix}{to}"),
+                    rules,
+                    transforms,
+                ),
+                Rule::MountIndexed(from, to, sub) => sub.unused(
+                    trace,
+                    &format!("{from_prefix}{from}N."),
+                    &format!("{to_prefix}{to}N."),
+                    rules,
+                    transforms,
+                ),
+                _ => {}
+            }
+        }
     }
 
     /// [`apply`](Self::apply) as a closure, for
@@ -442,6 +645,57 @@ mod tests {
             Some("conv_out.weight")
         );
         assert_eq!(numbered.apply("x.weight"), None);
+    }
+
+    /// A plan reports two names onto one path, a transform no name reaches,
+    /// and rules that claimed nothing, a used mount's by their prefix; a
+    /// transform reached through a mount is not an orphan.
+    #[test]
+    fn test_plan_reports() {
+        let block = Rekey::keep_rest()
+            .rename("fc1.", "mlp.linear1.")
+            .rename("fc2.", "mlp.linear2.")
+            .transform("mlp.linear1.weight", |data| data)
+            .transform("mlp.nothing.weight", |data| data);
+        let model = Rekey::drop_rest()
+            .mount_indexed("layers.", "blocks.", block)
+            .exact("head", "out.weight")
+            .exact("tied_head", "out.weight")
+            .mount("unused.", "never.", Rekey::keep_rest().rename("a.", "b."));
+        let plan = model.plan(["layers.0.fc1.weight", "head", "tied_head", "other"]);
+
+        assert_eq!(
+            plan.targets
+                .iter()
+                .map(|(n, t)| (n.as_str(), t.as_ref().map(|t| t.path.as_str())))
+                .collect::<Vec<_>>(),
+            [
+                ("layers.0.fc1.weight", Some("blocks.0.mlp.linear1.weight")),
+                ("head", Some("out.weight")),
+                ("tied_head", Some("out.weight")),
+                ("other", None),
+            ]
+        );
+        assert_eq!(
+            plan.collisions,
+            [(
+                "out.weight".to_string(),
+                vec!["head".to_string(), "tied_head".to_string()]
+            )]
+        );
+        assert_eq!(plan.orphan_transforms, ["blocks.N.mlp.nothing.weight"]);
+        assert_eq!(
+            plan.unused_rules,
+            [
+                "under \"layers.N.\": rename(\"fc2.\" -> \"mlp.linear2.\")",
+                "mount(\"unused.\" -> \"never.\")",
+            ]
+        );
+        assert!(plan.check().is_err());
+
+        let clean = Rekey::keep_rest().rename("a.", "b.").plan(["a.w", "c.w"]);
+        assert!(clean.collisions.is_empty() && clean.unused_rules.is_empty());
+        clean.check().unwrap();
     }
 
     /// A custom rule may pass a name on, drop it, or map it.
