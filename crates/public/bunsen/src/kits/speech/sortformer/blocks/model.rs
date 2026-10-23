@@ -27,11 +27,6 @@ use super::{
 };
 use crate::{
     blocks::{
-        conformer::{
-            ConformerBlockConfig,
-            ConformerEncoderConfig,
-            DwStridingSubsamplingConfig,
-        },
         frame_rate::{
             FeatureStackingConfig,
             SubpixelUpsample1d,
@@ -39,6 +34,11 @@ use crate::{
             SubpixelUpsample1dMeta,
         },
         transformers::encoders::{
+            conformer::{
+                ConformerBlockConfig,
+                ConformerEncoderConfig,
+                DwStridingSubsamplingConfig,
+            },
             residual::{
                 NormPlacement,
                 ResidualEncoderAttentionBlockConfig,

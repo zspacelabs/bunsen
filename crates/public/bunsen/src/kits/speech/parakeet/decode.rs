@@ -188,7 +188,7 @@ impl TdtGreedyDecoder {
 mod tests {
     use super::*;
     use crate::{
-        blocks::conformer::{
+        blocks::transformers::encoders::conformer::{
             ConformerBlockConfig,
             ConformerEncoderConfig,
             DwStridingSubsamplingConfig,

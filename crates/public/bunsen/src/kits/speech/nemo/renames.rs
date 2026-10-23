@@ -1,6 +1,6 @@
 //! `NeMo`'s state-dict names, as bunsen's module paths.
 
-/// The [`ConformerEncoder`](crate::blocks::conformer::ConformerEncoder) path
+/// The [`ConformerEncoder`](crate::blocks::transformers::encoders::conformer::ConformerEncoder) path
 /// of one `NeMo` `ConformerEncoder` state-dict name, relative to the encoder
 /// (a model's `encoder.` prefix taken off), or `None` for an entry that is not
 /// a parameter (`num_batches_tracked`) or not the encoder's.

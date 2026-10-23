@@ -26,7 +26,7 @@ use super::{
     weights::load_hf_tensors,
 };
 use crate::{
-    blocks::conformer::{
+    blocks::transformers::encoders::conformer::{
         ConformerBlockConfig,
         ConformerEncoderConfig,
         DwStridingSubsamplingConfig,

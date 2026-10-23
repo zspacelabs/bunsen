@@ -8,21 +8,23 @@ use burn::{
 
 use crate::{
     blocks::{
-        conformer::{
-            ConformerEncoder,
-            ConformerEncoderConfig,
-            ConformerEncoderMeta,
-            DwStridingSubsamplingMeta,
-        },
         frame_rate::{
             FeatureStacking,
             FeatureStackingConfig,
             FeatureStackingMeta,
         },
-        transformers::encoders::rope::{
-            RopeTransformerEncoder,
-            RopeTransformerEncoderConfig,
-            RopeTransformerEncoderMeta,
+        transformers::encoders::{
+            conformer::{
+                ConformerEncoder,
+                ConformerEncoderConfig,
+                ConformerEncoderMeta,
+                DwStridingSubsamplingMeta,
+            },
+            rope::{
+                RopeTransformerEncoder,
+                RopeTransformerEncoderConfig,
+                RopeTransformerEncoderMeta,
+            },
         },
     },
     burner::module::ModuleInit,
