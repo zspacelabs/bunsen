@@ -1,3 +1,6 @@
+//! An encoder-decoder's decoder layer: self-attention, cross-attention over
+//! the encoder output, and an MLP.
+
 use burn::{
     Tensor,
     config::Config,
@@ -15,7 +18,6 @@ use burn::{
     tensor::Device,
 };
 
-use super::WHISPER_DEFAULT_D_MODEL;
 use crate::{
     blocks::transformers::mlp::{
         Mlp,
@@ -34,9 +36,9 @@ use crate::{
     },
 };
 
-/// Common meta for [`ResidualDecoderAttentionBlock`] and
-/// [`ResidualDecoderAttentionBlockConfig`].
-pub trait ResidualDecoderAttentionBlockMeta {
+/// Common meta for [`CrossDecoderBlock`] and
+/// [`CrossDecoderBlockConfig`].
+pub trait CrossDecoderBlockMeta {
     /// Returns the embedding dimensionality.
     fn d_model(&self) -> usize;
 
@@ -47,14 +49,14 @@ pub trait ResidualDecoderAttentionBlockMeta {
     fn dropout(&self) -> f64;
 }
 
-/// Config for [`ResidualDecoderAttentionBlock`].
+/// Config for [`CrossDecoderBlock`].
 #[derive(Config, Debug)]
-pub struct ResidualDecoderAttentionBlockConfig {
+pub struct CrossDecoderBlockConfig {
     /// Returns the embedding dimensionality.
     pub d_model: usize,
 
-    /// Head Dimensionality.
-    #[config(defaul_value = "WHISPER_DEFAULT_D_MODEL")]
+    /// Head width.
+    #[config(default = "64")]
     pub d_head: usize,
 
     /// Dropout.
@@ -62,7 +64,7 @@ pub struct ResidualDecoderAttentionBlockConfig {
     pub dropout: f64,
 }
 
-impl ResidualDecoderAttentionBlockMeta for ResidualDecoderAttentionBlockConfig {
+impl CrossDecoderBlockMeta for CrossDecoderBlockConfig {
     fn d_model(&self) -> usize {
         self.d_model
     }
@@ -76,12 +78,12 @@ impl ResidualDecoderAttentionBlockMeta for ResidualDecoderAttentionBlockConfig {
     }
 }
 
-impl ModuleInit<ResidualDecoderAttentionBlock> for ResidualDecoderAttentionBlockConfig {
+impl ModuleInit<CrossDecoderBlock> for CrossDecoderBlockConfig {
     fn try_init(
         &self,
         device: &Device,
-    ) -> BunsenResult<ResidualDecoderAttentionBlock> {
-        // Whisper's attention has no key bias.
+    ) -> BunsenResult<CrossDecoderBlock> {
+        // Whisper's attention has no key bias; nor, by default, does this.
         let mha_cfg = MultiHeadAttentionConfig::new(self.d_model, self.n_heads())
             .with_dropout(self.dropout)
             .with_key_bias(false);
@@ -97,7 +99,7 @@ impl ModuleInit<ResidualDecoderAttentionBlock> for ResidualDecoderAttentionBlock
             .with_bias(true)
             .try_init(device)?;
 
-        Ok(ResidualDecoderAttentionBlock {
+        Ok(CrossDecoderBlock {
             attn_norm: ln_cfg.init(device),
             attn,
             cross_attn_norm: ln_cfg.init(device),
@@ -108,16 +110,24 @@ impl ModuleInit<ResidualDecoderAttentionBlock> for ResidualDecoderAttentionBlock
     }
 }
 
-/// Residual Decoder Attention Block for Whisper.
-///
-/// One Whisper decoder layer: pre-norm masked multi-head self-attention,
+/// An encoder-decoder's decoder layer: pre-norm masked self-attention,
 /// pre-norm cross-attention over the encoder output, and a pre-norm MLP, each
-/// wrapped in a residual connection. Stacked inside the Whisper text decoder,
-/// and also returns its cross-attention weights via [`DecodeRecord`].
+/// wrapped in a residual connection.
 ///
-/// Built by [`ResidualDecoderAttentionBlockConfig`].
+/// Whisper's text decoder is a stack of these. The attention is burn's
+/// [`MultiHeadAttention`] (without a key bias), and the norms are
+/// `LayerNorm`s: what the ported checkpoints hold. The fields are named by
+/// role: `attn_norm`, `attn`, `cross_attn_norm`, `cross_attn`, `mlp_norm`,
+/// `mlp`.
+///
+/// [`forward`](Self::forward) runs a whole sequence, and returns its
+/// cross-attention weights too ([`CrossDecoderRecord`]), which alignment needs;
+/// [`forward_w_kv_cache`](Self::forward_w_kv_cache) runs a decode's new tokens
+/// against its [`KVCache`].
+///
+/// Built by [`CrossDecoderBlockConfig`].
 #[derive(Module, Debug)]
-pub struct ResidualDecoderAttentionBlock {
+pub struct CrossDecoderBlock {
     /// Attention Normalization.
     pub attn_norm: LayerNorm,
 
@@ -137,7 +147,7 @@ pub struct ResidualDecoderAttentionBlock {
     pub mlp: Mlp,
 }
 
-impl ResidualDecoderAttentionBlockMeta for ResidualDecoderAttentionBlock {
+impl CrossDecoderBlockMeta for CrossDecoderBlock {
     fn d_model(&self) -> usize {
         self.attn.d_model
     }
@@ -151,9 +161,10 @@ impl ResidualDecoderAttentionBlockMeta for ResidualDecoderAttentionBlock {
     }
 }
 
-/// Decode record for [`ResidualDecoderAttentionBlock::forward`].
+/// What [`CrossDecoderBlock::forward`] returns: its output, and its
+/// cross-attention weights.
 #[derive(Debug, Clone)]
-pub struct DecodeRecord {
+pub struct CrossDecoderRecord {
     /// Block Output: `[batch, seq_len, d_model]`.
     pub output: Tensor<3>,
 
@@ -161,7 +172,7 @@ pub struct DecodeRecord {
     pub ca_weights: Tensor<4>,
 }
 
-impl DecodeRecord {
+impl CrossDecoderRecord {
     /// Returns the batch size.
     pub fn batch_size(&self) -> usize {
         self.output.shape()[0]
@@ -178,8 +189,8 @@ impl DecodeRecord {
     }
 }
 
-impl ResidualDecoderAttentionBlock {
-    /// Forward pass of the residual decoder attention block.
+impl CrossDecoderBlock {
+    /// Forward pass over a whole sequence.
     ///
     /// # Arguments
     /// * `x` : `[batch, seq_len, d_model]` input.
@@ -187,7 +198,7 @@ impl ResidualDecoderAttentionBlock {
     /// * `mask` : `[batch, seq_len, seq_len]` attention mask.
     ///
     /// # Returns
-    /// `DecodeRecord` - forward record.
+    /// `CrossDecoderRecord` - forward record.
     /// * `fr.output` : `[batch, seq_len, d_model]`.
     /// * `fr.ca_weights` : `[batch, n_heads, seq_len, seq_len]`.
     pub fn forward(
@@ -195,7 +206,7 @@ impl ResidualDecoderAttentionBlock {
         x: Tensor<3>,
         xa: Tensor<3>,
         mask: Option<Tensor<3, Bool>>,
-    ) -> DecodeRecord {
+    ) -> CrossDecoderRecord {
         let self_attn = layer_norm_self_attn(&self.attn_norm, &self.attn, x.clone(), mask);
         let x = x + self_attn.context;
 
@@ -206,7 +217,7 @@ impl ResidualDecoderAttentionBlock {
         let mlp = layer_norm_mlp(&self.mlp_norm, &self.mlp, x.clone());
         let x = x + mlp;
 
-        DecodeRecord {
+        CrossDecoderRecord {
             output: x,
             ca_weights: cross_attn.weights,
         }
@@ -297,20 +308,20 @@ mod tests {
 
     #[test]
     #[serial_test::serial]
-    fn test_residual_decoder_forward() {
+    fn test_cross_decoder_forward() {
         use crate::support::testing::performance_device;
         let device = performance_device();
         let _memory = DeviceMemoryGuard::new(&device);
 
         let d_model = 128;
 
-        let cfg = ResidualDecoderAttentionBlockConfig::new(d_model);
+        let cfg = CrossDecoderBlockConfig::new(d_model);
         let n_heads = cfg.n_heads();
 
         assert_eq!(cfg.d_model(), d_model);
         assert_eq!(cfg.n_heads(), n_heads);
 
-        let block: ResidualDecoderAttentionBlock = cfg.init(&device);
+        let block: CrossDecoderBlock = cfg.init(&device);
 
         assert_eq!(block.d_model(), d_model);
         assert_eq!(block.n_heads(), n_heads);
@@ -359,7 +370,7 @@ mod tests {
             let mlp = layer_norm_mlp(&block.mlp_norm, &block.mlp, x.clone());
             let x = x + mlp;
 
-            DecodeRecord {
+            CrossDecoderRecord {
                 output: x,
                 ca_weights: cross_attn.weights,
             }

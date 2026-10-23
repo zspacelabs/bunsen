@@ -23,6 +23,11 @@ use burn::{
 
 use super::WHISPER_DEFAULT_D_MODEL;
 use crate::{
+    blocks::transformers::decoders::cross::{
+        CrossDecoderBlock,
+        CrossDecoderBlockConfig,
+        CrossDecoderBlockMeta,
+    },
     burner::{
         module::{
             HasDType,
@@ -31,11 +36,6 @@ use crate::{
         tensor::device_float_dtype,
     },
     errors::BunsenResult,
-    kits::speech::whisper::blocks::{
-        ResidualDecoderAttentionBlock,
-        ResidualDecoderAttentionBlockConfig,
-        ResidualDecoderAttentionBlockMeta,
-    },
     ops::{
         embedding::unembed,
         transformers::attention::{
@@ -156,12 +156,12 @@ impl ModuleInit<TextDecoder> for TextDecoderConfig {
 
             blocks: (0..self.n_layers)
                 .map(|_| {
-                    ResidualDecoderAttentionBlockConfig::new(self.d_model)
+                    CrossDecoderBlockConfig::new(self.d_model)
                         .with_d_head(self.d_head)
                         .with_dropout(self.block_dropout)
                         .try_init(device)
                 })
-                .collect::<BunsenResult<Vec<ResidualDecoderAttentionBlock>>>()?,
+                .collect::<BunsenResult<Vec<CrossDecoderBlock>>>()?,
 
             ln: LayerNormConfig::new(self.d_model).init(device),
             // mask: Param::from_tensor(attn_decoder_mask(self.max_text_context, device)),
@@ -172,7 +172,7 @@ impl ModuleInit<TextDecoder> for TextDecoderConfig {
 /// Text decoder module for Whisper speech recognition model.
 ///
 /// Autoregressive token decoder: token plus positional embeddings, a stack of
-/// [`ResidualDecoderAttentionBlock`] layers (causally-masked self-attention and
+/// [`CrossDecoderBlock`] layers (causally-masked self-attention and
 /// cross-attention over the audio encoder output), a final layer norm, and an
 /// unembedding into vocabulary logits.
 ///
@@ -186,7 +186,7 @@ pub struct TextDecoder {
     pub positional_embedding: Param<Tensor<2>>,
 
     /// The decoder blocks.
-    pub blocks: Vec<ResidualDecoderAttentionBlock>,
+    pub blocks: Vec<CrossDecoderBlock>,
 
     /// The output layer norm.
     pub ln: LayerNorm,
