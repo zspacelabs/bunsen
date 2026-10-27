@@ -52,23 +52,42 @@ use crate::{
 };
 
 /// The profile, and what the command line changes of it.
+///
+/// How the flags choose, in order (the README has them as a table):
+///
+/// 1. `--language` implies `--speech`: `en` is `en`, any other code `multi`.
+///    `--speech en` with another language is an error.
+/// 2. Without `--profile`, each of `--speech`, `--task` and `--quality` not
+///    given is `default`'s, but `--task translate` makes the speech `multi`.
+///    With it, they are the profile's.
+/// 3. English speech translated to English is transcribed ([`Need::settled`]),
+///    logged at `INFO`.
+/// 4. Without `--profile`, the table's cell for that need runs. With it, the
+///    profile's recipe runs, at `--quality`; `--speech` must be one it hears
+///    (`multi` hears English), and a task not its own is set on its model
+///    (Whisper's `--task`) or is an error.
+///
+/// The task, unless a translating profile or `--task translate` asks
+/// otherwise, is `transcribe`; the need served, its task the one the model
+/// runs, is logged and recorded by `--json`.
 #[derive(clap::Args, Debug)]
 pub struct ProfileArgs {
     /// The profile, by name or alias: `profiles` lists them, and what each
-    /// runs. Without it, `--speech`, `--task` and `--quality` choose the
-    /// model, over `default`'s; with it, they may only adjust it.
+    /// runs. Without it, `--speech`, `--task`, `--quality` and `--language`
+    /// choose the model, over `default`'s; with it, they may only adjust it.
     #[arg(long)]
     pub profile: Option<String>,
 
-    /// What the speech is. Without `--profile`, in place of `default`'s
-    /// (`multi` with `--task translate`); with it, only as the profile
-    /// already hears it (`multi` hears English).
+    /// What the speech is; `--language` implies it. Without `--profile`, in
+    /// place of `default`'s (`multi` with `--task translate`); with it, only
+    /// as the profile already hears it (`multi` hears English).
     #[arg(long, value_enum)]
     pub speech: Option<Speech>,
 
-    /// What to make of the speech. Without `--profile`, in place of
-    /// `default`'s; with it, set on a model that takes a task (Whisper's
-    /// `--task`), and an error on one that does not.
+    /// What to make of the speech: `transcribe` unless the profile
+    /// translates. Without `--profile`, in place of `default`'s; with it,
+    /// set on a model that takes a task (Whisper's `--task`), and an error
+    /// on one that does not. English speech is transcribed either way.
     #[arg(long, value_enum)]
     pub task: Option<Task>,
 
@@ -78,7 +97,8 @@ pub struct ProfileArgs {
     #[arg(long, value_enum)]
     pub quality: Option<Quality>,
 
-    /// The spoken language (`en`, `de`, ...), for a model that can be told
+    /// The spoken language (`en`, `de`, ...): it implies `--speech` (`en`,
+    /// or `multi` for any other), and is given to a model that can be told
     /// it (Whisper); one that finds the language itself goes on doing so.
     #[arg(long)]
     pub language: Option<String>,
@@ -100,97 +120,180 @@ pub struct ProfileArgs {
     pub chunk_ms: Option<usize>,
 }
 
+/// What the command line asks of the table: a name for it, the need it is
+/// for, the cell's need, and the `--opt` that sets the task on its model.
+struct Asked {
+    /// The profile's name, or the need's.
+    name: String,
+
+    /// The need, [settled](Need::settled).
+    need: Need,
+
+    /// The need whose cell runs: the profile's, at the need's quality; or
+    /// the need itself.
+    cell: Need,
+
+    /// Whisper's `--task`, when the need's task is not the cell's.
+    task: Option<Opt>,
+}
+
 impl ProfileArgs {
-    /// The profile's name and need, `--quality` over it, and an `--opt`
-    /// setting `--task` on its model, when it is named; otherwise the need
-    /// the axis flags ask for, over `default`'s, named for itself.
+    /// `--speech`, or the speech `--language` implies: `en` for English,
+    /// `multi` for any other.
     ///
     /// # Errors
-    /// As [`lookup`];
+    /// [`Policy`](bunsen::errors::BunsenErrorKind::Policy) for `--speech
+    /// en` with a language that is not English.
+    fn speech(&self) -> BunsenResult<Option<Speech>> {
+        let implied = self.language.as_deref().map(|l| {
+            if l.eq_ignore_ascii_case("en") {
+                Speech::En
+            } else {
+                Speech::Multi
+            }
+        });
+        match (self.speech, implied) {
+            (Some(Speech::En), Some(Speech::Multi)) => Err(BunsenError::policy(format!(
+                "--speech en, but --language {} is not English",
+                self.language.as_deref().unwrap_or_default()
+            ))),
+            (Some(speech), _) => Ok(Some(speech)),
+            (None, implied) => Ok(implied),
+        }
+    }
+
+    /// The flag that set `speech`: `--speech`, or `--language`.
+    fn speech_flag(&self) -> String {
+        match (self.speech, &self.language) {
+            (Some(speech), _) => format!("--speech {}", value_name(speech)),
+            (None, Some(language)) => format!("--language {language}"),
+            (None, None) => unreachable!("no flag set the speech"),
+        }
+    }
+
+    /// What the flags ask of the table in `mode`, by the rules on
+    /// [`ProfileArgs`].
+    ///
+    /// # Errors
+    /// As [`lookup`] and [`speech`](Self::speech);
     /// [`Policy`](bunsen::errors::BunsenErrorKind::Policy) when the profile
-    /// does not hear `--speech`, or its model in `mode` cannot do `--task`.
-    fn need(
+    /// does not hear the speech, or its model in `mode` cannot do the task.
+    fn asked(
         &self,
         mode: Mode,
-    ) -> BunsenResult<(String, Need, Option<Opt>)> {
+    ) -> BunsenResult<Asked> {
+        let speech = self.speech()?;
+        let settle = |asked: Need| {
+            let need = asked.settled();
+            if need != asked {
+                log::info!("{asked}: English speech translated to English is transcribed");
+            }
+            need
+        };
         let Some(name) = &self.profile else {
-            let base = lookup(DEFAULT_PROFILE)?.need;
-            let task = self.task.unwrap_or(base.task);
-            let need = Need {
-                // English speech, translated to English, is only transcribed.
-                speech: self.speech.unwrap_or(match task {
+            let base = lookup(DEFAULT_PROFILE)?;
+            let task = self.task.unwrap_or(base.need.task);
+            let need = settle(Need {
+                speech: speech.unwrap_or(match task {
                     Task::Translate => Speech::Multi,
-                    Task::Transcribe => base.speech,
+                    Task::Transcribe => base.need.speech,
                 }),
                 task,
-                quality: self.quality.unwrap_or(base.quality),
-            };
-            let name = if self.speech.is_none() && self.task.is_none() && self.quality.is_none() {
-                lookup(DEFAULT_PROFILE)?.name.to_string()
-            } else {
-                need.to_string()
-            };
-            return Ok((name, need, None));
+                quality: self.quality.unwrap_or(base.need.quality),
+            });
+            let named = self.speech.is_some()
+                || self.task.is_some()
+                || self.quality.is_some()
+                || self.language.is_some();
+            return Ok(Asked {
+                name: if named {
+                    need.to_string()
+                } else {
+                    base.name.to_string()
+                },
+                need,
+                cell: need,
+                task: None,
+            });
         };
         let profile = lookup(name)?;
-        let need = Need {
-            quality: self.quality.unwrap_or(profile.need.quality),
-            ..profile.need
-        };
-        if let Some(speech) = self.speech
-            && speech != need.speech
-            && need.speech != Speech::Multi
+        if let Some(speech) = speech
+            && speech != profile.need.speech
+            && profile.need.speech != Speech::Multi
         {
             return Err(BunsenError::policy(format!(
-                "profile {} hears {}; --speech {} needs another profile, or none",
+                "profile {} hears {}; {} needs another profile, or none",
                 profile.name,
-                value_name(need.speech),
-                value_name(speech)
+                value_name(profile.need.speech),
+                self.speech_flag()
             )));
         }
-        let task = match self.task {
-            Some(task) if task != need.task => {
-                let family = pick(need, mode).0.recipe.family;
-                if family != Family::Whisper {
-                    let task = value_name(task);
-                    return Err(BunsenError::policy(format!(
-                        "profile {} runs {}, which cannot {task}; --task {task} needs another \
-                         profile, or none",
-                        profile.name,
-                        family.name()
-                    )));
-                }
-                Some(Opt {
-                    family: Some(family),
-                    key: "task".to_string(),
-                    value: value_name(task),
-                })
-            }
-            _ => None,
+        let quality = self.quality.unwrap_or(profile.need.quality);
+        let need = settle(Need {
+            speech: speech.unwrap_or(profile.need.speech),
+            task: self.task.unwrap_or(profile.need.task),
+            quality,
+        });
+        let cell = Need {
+            quality,
+            ..profile.need
         };
-        Ok((profile.name.to_string(), need, task))
+        let task = if need.task != cell.task {
+            let family = pick(cell, mode).0.recipe.family;
+            if family != Family::Whisper {
+                let task = value_name(need.task);
+                return Err(BunsenError::policy(format!(
+                    "profile {} runs {}, which cannot {task}; --task {task} needs another \
+                     profile, or none",
+                    profile.name,
+                    family.name()
+                )));
+            }
+            Some(Opt {
+                family: Some(family),
+                key: "task".to_string(),
+                value: value_name(need.task),
+            })
+        } else {
+            None
+        };
+        Ok(Asked {
+            name: profile.name.to_string(),
+            need,
+            cell,
+            task,
+        })
     }
 
     /// The `mode` recipe of the profile, or of the table's cell for the
     /// need the axis flags ask for, with the command line over it (an
-    /// `--opt` last), logged at `INFO` as the family command it runs.
+    /// `--opt` last), logged at `INFO` as the need it serves and the family
+    /// command it runs.
     ///
     /// # Errors
-    /// As [`need`](Self::need) and
+    /// As [`asked`](Self::asked) and
     /// [`Recipe::resolve`](crate::profile::Recipe::resolve).
     pub fn resolve(
         &self,
         mode: Mode,
     ) -> BunsenResult<Resolved> {
-        let (name, need, task) = self.need(mode)?;
-        let (cell, note) = pick(need, mode);
+        let asked = self.asked(mode)?;
+        let (cell, note) = pick(asked.cell, mode);
         if let Some(note) = note {
             log::info!("{note}");
         }
-        let opts: Vec<Opt> = task.into_iter().chain(self.opts.iter().cloned()).collect();
-        let mut resolved = cell
-            .recipe
-            .resolve(&name, mode, self.language.as_deref(), &opts)?;
+        let opts: Vec<Opt> = asked
+            .task
+            .into_iter()
+            .chain(self.opts.iter().cloned())
+            .collect();
+        let mut resolved = cell.recipe.resolve(
+            &asked.name,
+            asked.need,
+            mode,
+            self.language.as_deref(),
+            &opts,
+        )?;
         if let Some(preset) = self.preset {
             resolved.preset = preset;
         }
@@ -198,8 +301,9 @@ impl ProfileArgs {
             resolved.chunk_ms = chunk_ms;
         }
         log::info!(
-            "profile {}: {}",
+            "profile {} ({}): {}",
             resolved.profile,
+            resolved.need,
             shell_line(&resolved.command_line()?)
         );
         Ok(resolved)
@@ -387,9 +491,7 @@ impl ShowCmd {
             writeln!(out, "{}", title(profile)).map_err(w)?;
             writeln!(out, "  {}", profile.description).map_err(w)?;
             for mode in [Mode::Offline, Mode::Live] {
-                let resolved = profile
-                    .recipe(mode)
-                    .resolve(profile.name, mode, None, &[])?;
+                let resolved = profile.resolve(mode)?;
                 writeln!(
                     out,
                     "  {}: {}",
@@ -476,73 +578,351 @@ mod tests {
         Line::try_parse_from(line).unwrap().args.resolve(mode)
     }
 
-    /// Without `--profile`, the axis flags pick from the table, over the
-    /// default profile's need. With it, the profile's model is kept: they
-    /// adjust it, or fail.
+    /// What `line` runs in `mode`: the profile, the need served, the model,
+    /// and the task the model runs; the family's flags parse.
+    fn ran(
+        line: &[&str],
+        mode: Mode,
+    ) -> BunsenResult<(String, String, String, Task)> {
+        let r = resolve(line, mode)?;
+        with_flags!(r, _flags => ());
+        assert_eq!(r.need.task, r.task(), "{line:?}");
+        Ok((
+            r.profile.clone(),
+            r.need.to_string(),
+            r.model.clone(),
+            r.task(),
+        ))
+    }
+
+    /// Each rule on [`ProfileArgs`], line by line: the profile recorded, the
+    /// need served, the model, and the task it runs; or the error.
     #[test]
-    fn test_need_flags() {
-        let r = resolve(&[], Mode::Offline).unwrap();
-        assert_eq!(
-            (r.profile.as_str(), r.model.as_str()),
-            ("en", "fermion/phonon-2")
-        );
+    fn test_rules() {
+        use Mode::{
+            Live,
+            Offline,
+        };
+        use Task::{
+            Transcribe,
+            Translate,
+        };
+        const PHONON: &str = "fermion/phonon-2";
+        const QWEN: &str = "qwen/qwen3-asr-1.7b";
+        const QWEN_LIVE: &str = "qwen/qwen3-asr-0.6b";
+        const LARGE: &str = "openai/large-v3";
+        const SMALL: &str = "openai/small";
+        type Ran<'a> = Result<(&'a str, &'a str, &'a str, Task), &'a str>;
+        let rows: &[(&[&str], Mode, Ran)] = &[
+            // Nothing given: `default`, which transcribes.
+            (
+                &[],
+                Offline,
+                Ok(("en", "en/transcribe/balanced", PHONON, Transcribe)),
+            ),
+            (
+                &[],
+                Live,
+                Ok(("en", "en/transcribe/balanced", PHONON, Transcribe)),
+            ),
+            // 1. `--language` implies `--speech`.
+            (
+                &["--language", "de"],
+                Offline,
+                Ok((
+                    "multi/transcribe/balanced",
+                    "multi/transcribe/balanced",
+                    QWEN,
+                    Transcribe,
+                )),
+            ),
+            (
+                &["--language", "en"],
+                Offline,
+                Ok((
+                    "en/transcribe/balanced",
+                    "en/transcribe/balanced",
+                    PHONON,
+                    Transcribe,
+                )),
+            ),
+            (
+                &["--language", "de", "--task", "translate"],
+                Offline,
+                Ok((
+                    "multi/translate/balanced",
+                    "multi/translate/balanced",
+                    LARGE,
+                    Translate,
+                )),
+            ),
+            (
+                &["--speech", "multi", "--language", "en"],
+                Offline,
+                Ok((
+                    "multi/transcribe/balanced",
+                    "multi/transcribe/balanced",
+                    QWEN,
+                    Transcribe,
+                )),
+            ),
+            (
+                &["--speech", "en", "--language", "de"],
+                Offline,
+                Err("is not English"),
+            ),
+            // 2. Without `--profile`, `default`'s need under the flags given;
+            // `--task translate` makes the speech `multi`.
+            (
+                &["--task", "transcribe"],
+                Offline,
+                Ok((
+                    "en/transcribe/balanced",
+                    "en/transcribe/balanced",
+                    PHONON,
+                    Transcribe,
+                )),
+            ),
+            (
+                &["--task", "translate"],
+                Offline,
+                Ok((
+                    "multi/translate/balanced",
+                    "multi/translate/balanced",
+                    LARGE,
+                    Translate,
+                )),
+            ),
+            (
+                &["--task", "translate"],
+                Live,
+                Ok((
+                    "multi/translate/balanced",
+                    "multi/translate/balanced",
+                    SMALL,
+                    Translate,
+                )),
+            ),
+            (
+                &["--speech", "multi"],
+                Offline,
+                Ok((
+                    "multi/transcribe/balanced",
+                    "multi/transcribe/balanced",
+                    QWEN,
+                    Transcribe,
+                )),
+            ),
+            (
+                &["--speech", "multi", "--quality", "fast"],
+                Offline,
+                Ok((
+                    "multi/transcribe/fast",
+                    "multi/transcribe/fast",
+                    QWEN_LIVE,
+                    Transcribe,
+                )),
+            ),
+            // No `fast` live cell: `balanced` stands in.
+            (
+                &["--speech", "multi", "--quality", "fast"],
+                Live,
+                Ok((
+                    "multi/transcribe/fast",
+                    "multi/transcribe/fast",
+                    QWEN_LIVE,
+                    Transcribe,
+                )),
+            ),
+            // 3. English speech translated to English is transcribed.
+            (
+                &["--speech", "en", "--task", "translate"],
+                Offline,
+                Ok((
+                    "en/transcribe/balanced",
+                    "en/transcribe/balanced",
+                    PHONON,
+                    Transcribe,
+                )),
+            ),
+            (
+                &["--language", "en", "--task", "translate"],
+                Live,
+                Ok((
+                    "en/transcribe/balanced",
+                    "en/transcribe/balanced",
+                    PHONON,
+                    Transcribe,
+                )),
+            ),
+            (
+                &["--profile", "en", "--task", "translate"],
+                Offline,
+                Ok(("en", "en/transcribe/balanced", PHONON, Transcribe)),
+            ),
+            (
+                &["--profile", "translate-en", "--speech", "en"],
+                Offline,
+                Ok(("translate-en", "en/transcribe/balanced", LARGE, Transcribe)),
+            ),
+            (
+                &["--profile", "translate-en", "--language", "en"],
+                Live,
+                Ok(("translate-en", "en/transcribe/balanced", SMALL, Transcribe)),
+            ),
+            // 4. With `--profile`, its recipe runs, adjusted: `--quality` along
+            // its row,
+            (
+                &["--profile", "multi", "--quality", "fast"],
+                Offline,
+                Ok(("multi", "multi/transcribe/fast", QWEN_LIVE, Transcribe)),
+            ),
+            // `--speech` it hears,
+            (
+                &["--profile", "multi", "--speech", "en"],
+                Live,
+                Ok(("multi", "en/transcribe/balanced", QWEN_LIVE, Transcribe)),
+            ),
+            (
+                &["--profile", "multi", "--language", "de"],
+                Offline,
+                Ok(("multi", "multi/transcribe/balanced", QWEN, Transcribe)),
+            ),
+            (
+                &["--profile", "translate-en", "--language", "de"],
+                Offline,
+                Ok(("translate-en", "multi/translate/balanced", LARGE, Translate)),
+            ),
+            (
+                &["--profile", "en", "--speech", "multi"],
+                Live,
+                Err("profile en hears en"),
+            ),
+            (
+                &["--profile", "en", "--language", "de"],
+                Offline,
+                Err("--language de needs another profile"),
+            ),
+            // and a task set on Whisper, an `--opt` still winning.
+            (
+                &["--profile", "translate-en", "--task", "transcribe"],
+                Live,
+                Ok((
+                    "translate-en",
+                    "multi/transcribe/balanced",
+                    SMALL,
+                    Transcribe,
+                )),
+            ),
+            (
+                &[
+                    "--profile",
+                    "translate-en",
+                    "--task",
+                    "transcribe",
+                    "--opt",
+                    "task=translate",
+                ],
+                Live,
+                Ok(("translate-en", "multi/translate/balanced", SMALL, Translate)),
+            ),
+            (
+                &["--profile", "multi", "--task", "transcribe"],
+                Live,
+                Ok(("multi", "multi/transcribe/balanced", QWEN_LIVE, Transcribe)),
+            ),
+            (
+                &["--profile", "multi", "--task", "translate"],
+                Live,
+                Err("cannot translate"),
+            ),
+        ];
+        for (line, mode, expect) in rows {
+            let got = ran(line, *mode);
+            match (expect, got) {
+                (Ok((profile, need, model, task)), Ok(got)) => assert_eq!(
+                    (got.0.as_str(), got.1.as_str(), got.2.as_str(), got.3),
+                    (*profile, *need, *model, *task),
+                    "{line:?} {mode:?}"
+                ),
+                (Err(message), Err(e)) => {
+                    assert!(e.to_string().contains(message), "{line:?}: {e}")
+                }
+                (expect, got) => panic!("{line:?} {mode:?}: expected {expect:?}, got {got:?}"),
+            }
+        }
+    }
 
-        // Translating is of speech that is not English.
-        let r = resolve(&["--task", "translate"], Mode::Live).unwrap();
-        assert_eq!(r.profile, "multi/translate/balanced");
-        assert_eq!(r.model, "openai/small");
-
-        let r = resolve(&["--speech", "multi", "--quality", "fast"], Mode::Offline).unwrap();
-        assert_eq!(r.profile, "multi/transcribe/fast");
-        assert_eq!(r.model, "qwen/qwen3-asr-0.6b");
-
-        // No `fast` live cell: `balanced` stands in.
-        let r = resolve(&["--speech", "multi", "--quality", "fast"], Mode::Live).unwrap();
-        assert_eq!(r.model, "qwen/qwen3-asr-0.6b");
-        assert_eq!(r.preset, Preset::Conservative);
-
-        // `--quality` moves along the profile's row.
-        let r = resolve(&["--profile", "multi", "--quality", "fast"], Mode::Offline).unwrap();
-        assert_eq!(
-            (r.profile.as_str(), r.model.as_str()),
-            ("multi", "qwen/qwen3-asr-0.6b")
-        );
-
-        // `--task` sets Whisper's task; a user's `--opt` still wins.
-        let r = resolve(
-            &["--profile", "translate-en", "--task", "transcribe"],
-            Mode::Live,
-        )
-        .unwrap();
-        assert_eq!(r.model, "openai/small");
-        assert_eq!(
-            r.parse_flags::<WhisperFlags>().unwrap().task,
-            crate::whisper::Task::Transcribe
-        );
-        let r = resolve(
-            &[
-                "--profile",
-                "translate-en",
-                "--task",
-                "transcribe",
-                "--opt",
-                "task=translate",
-            ],
-            Mode::Live,
-        )
-        .unwrap();
-        assert_eq!(
-            r.parse_flags::<WhisperFlags>().unwrap().task,
-            crate::whisper::Task::Translate
-        );
-        // A task the profile already does is no change.
-        assert!(resolve(&["--profile", "multi", "--task", "transcribe"], Mode::Live).is_ok());
-        // Qwen3-ASR cannot translate.
-        assert!(resolve(&["--profile", "multi", "--task", "translate"], Mode::Live).is_err());
-
-        // `multi` hears English; `en` hears nothing else.
-        assert!(resolve(&["--profile", "multi", "--speech", "en"], Mode::Live).is_ok());
-        assert!(resolve(&["--profile", "en", "--speech", "multi"], Mode::Live).is_err());
+    /// Over every combination of `--profile`, `--speech`, `--task` and
+    /// `--language`, in each mode: the task is `transcribe` unless a
+    /// translating profile or `--task translate` asks otherwise, English
+    /// speech is transcribed, a language not English is never given to an
+    /// English model, and an error says what to change.
+    #[test]
+    fn test_rules_hold_everywhere() {
+        let mut ran_lines = 0;
+        for profile in [None, Some("en"), Some("multi"), Some("translate-en")] {
+            for speech in [None, Some("en"), Some("multi")] {
+                for task in [None, Some("transcribe"), Some("translate")] {
+                    for language in [None, Some("en"), Some("de")] {
+                        for mode in [Mode::Offline, Mode::Live] {
+                            let mut line = Vec::new();
+                            for (flag, value) in [
+                                ("--profile", profile),
+                                ("--speech", speech),
+                                ("--task", task),
+                                ("--language", language),
+                            ] {
+                                if let Some(value) = value {
+                                    line.extend([flag, value]);
+                                }
+                            }
+                            let r = match resolve(&line, mode) {
+                                Ok(r) => r,
+                                Err(e) => {
+                                    let e = e.to_string();
+                                    assert!(
+                                        e.contains("needs another profile")
+                                            || e.contains("is not English"),
+                                        "{line:?}: {e}"
+                                    );
+                                    continue;
+                                }
+                            };
+                            ran_lines += 1;
+                            // The speech, from the flags alone: `--speech`,
+                            // what `--language` implies, the profile's, or
+                            // `default`'s (`multi` to translate).
+                            let english = match (speech, language, profile) {
+                                (Some(speech), _, _) => speech == "en",
+                                (None, Some(language), _) => language == "en",
+                                (None, None, Some(profile)) => profile == "en",
+                                (None, None, None) => task != Some("translate"),
+                            };
+                            let asked = match (task, profile) {
+                                (Some(task), _) => task == "translate",
+                                (None, profile) => profile == Some("translate-en"),
+                            };
+                            let want = if asked && !english {
+                                Task::Translate
+                            } else {
+                                Task::Transcribe
+                            };
+                            assert_eq!(r.task(), want, "{line:?} {mode:?}");
+                            assert_eq!(r.need.task, want, "{line:?} {mode:?}");
+                            if language == Some("de") {
+                                assert_eq!(r.need.speech, Speech::Multi, "{line:?}");
+                                assert_ne!(r.family, Family::Parakeet, "{line:?}");
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        // 4 x 3 x 3 x 3 = 108 lines in each mode, which refuses the same 29:
+        // `--speech en --language de` (12), `en` asked for other speech (12),
+        // and `multi` asked to translate other speech (5).
+        assert_eq!(ran_lines, 2 * (108 - 29));
     }
 
     /// Every profile is listed, with both recipes.

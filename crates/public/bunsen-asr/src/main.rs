@@ -492,10 +492,7 @@ mod tests {
                 if mode == profile::Mode::Live {
                     continue;
                 }
-                let resolved = profile
-                    .recipe(mode)
-                    .resolve(profile.name, mode, None, &[])
-                    .unwrap();
+                let resolved = profile.resolve(mode).unwrap();
                 let mut line = resolved.command_line().unwrap();
                 if mode == profile::Mode::Offline {
                     line.push("a.wav".into());

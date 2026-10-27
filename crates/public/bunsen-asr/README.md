@@ -26,9 +26,10 @@ cargo run --release -p bunsen-asr --features wgpu -- transcribe --speech multi -
 
 The profiles are this binary's, and improve with it: when a better model arrives, a profile's row changes, and the
 command lines that name the profile do not. `profiles show [NAME...]` prints each recipe as the `bunsen-asr family`
-command it runs, `-v` logs it before a run, and `transcribe --json` records `profile` and `recipe` (family, model,
-preset, flags) with each transcript. `profiles fetch NAME...` brings every file a profile runs into the cache, as
-`family <family> fetch` does for a model.
+command it runs, `-v` logs it before a run, and `transcribe --json` records `profile`, `need` (the point served:
+`speech`, `task`, `quality`; its `task` is the one the model ran) and `recipe` (family, model, preset, flags) with each
+transcript. `profiles fetch NAME...` brings every file a profile runs into the cache, as `family <family> fetch` does
+for a model.
 
 Each profile is a point in a table of what is needed: `--speech` (`en`, `multi`) x `--task` (`transcribe`, `translate`)
 x `--quality` (`fast`, `balanced`, `good`), with a recipe for `transcribe` and one for `live` where a model was seen to
@@ -36,18 +37,40 @@ do the job. `en` is `en`/`transcribe`/`balanced`, `multi` is `multi`/`transcribe
 `multi`/`translate`/`balanced`. A point with no recipe falls through to the nearest that has one (another quality, a
 better before a worse; then `multi` for `en`), logged at `INFO`.
 
-- Without `--profile`, the three flags choose the point, over `default`'s; `--task translate` alone means `multi`
-  speech. `--json` records the point as the profile (`multi/transcribe/fast`).
-- With `--profile`, the profile's model is kept, and the flags may only adjust it: `--quality` moves along the
-  profile's row, `--task` is set on a model that takes a task (Whisper's `--task`; an `--opt` still wins), and
-  `--speech` must be one the profile hears (`multi` hears English). Anything else is an error:
-  `--profile multi --task translate` fails, as Qwen3-ASR cannot translate.
+The flags choose, in this order:
+
+1. **`--language` implies `--speech`**: `en` means `en` speech, any other code `multi`. `--speech en` with another
+   language is an error.
+2. **The point.** Without `--profile`, each of `--speech`, `--task` and `--quality` not given is `default`'s
+   (`en`/`transcribe`/`balanced`), except that `--task translate` makes the speech `multi`; `--json` records the point
+   as the profile (`multi/transcribe/fast`) whenever one of them, or `--language`, is given. With `--profile`, the
+   ones not given are the profile's.
+3. **English speech translated to English is transcribed**, logged at `INFO`: Whisper's output for it is its
+   transcript, so no cell translates English.
+4. **What runs.** Without `--profile`, the table's cell for the point. With it, the profile's recipe, and the flags
+   may only adjust it: `--quality` moves along the profile's row; `--speech` (or the speech `--language` implies) must
+   be one the profile hears (`multi` hears English); a task other than the profile's is set on a model that takes one
+   (Whisper's `--task`; an `--opt` still wins). Anything else is an error that names another profile, or none.
+
+So the task is `transcribe` unless `translate-en` or `--task translate` asks to translate speech that is not English.
+
+| command line | runs | task |
+|---|---|---|
+| (nothing) | `en`: Parakeet | transcribe |
+| `--language de` | `multi/transcribe/balanced`: Qwen3-ASR | transcribe |
+| `--task translate` | `multi/translate/balanced`: Whisper | translate |
+| `--speech en --task translate` | `en/transcribe/balanced`: Parakeet | transcribe |
+| `--profile translate-en --task transcribe` | `translate-en`: Whisper, `--task transcribe` | transcribe |
+| `--profile translate-en --speech en` | `translate-en`: Whisper, `--task transcribe` | transcribe |
+| `--profile en --task translate` | `en`: Parakeet | transcribe |
+| `--profile en --language de` | an error: `en` hears only English | |
+| `--profile multi --task translate` | an error: Qwen3-ASR cannot translate | |
 
 A profile's run takes every flag below that is not a family's own (`--publish`, `--json`, `--rttm`, `--diarize`,
 `--device`, the cache's and `live`'s capture flags), and:
 
-- `--language CODE`: the spoken language, for a model that can be told it (Whisper); one that finds the language itself
-  goes on doing so.
+- `--language CODE`: the spoken language. It implies `--speech` (above), and is given to a model that can be told it
+  (Whisper); one that finds the language itself goes on doing so.
 - `--preset` and `--chunk-ms`, in place of the profile's.
 - `--opt [FAMILY.]KEY[=VALUE]`, repeated: one of the family's own flags, without its `--` (`KEY` alone is `KEY=true`).
   With `FAMILY.` (`--opt whisper.beam-size=1`) it applies only while the profile runs that family and is logged as not
