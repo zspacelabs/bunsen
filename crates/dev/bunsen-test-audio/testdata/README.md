@@ -109,6 +109,8 @@ transcribe or to translate, each against a reference.
 - Licence: the recordings are public domain (LibriVox; it records only texts that are public domain in the USA). The
   Declaration is the United Nations' (General Assembly resolution 217 A (III), 1948), which may be reproduced
   without prior permission when distributed at no cost.
+- The ground-truth files quote the Declaration under that condition: this crate is not published (`publish = false`),
+  so they are distributed only with bunsen's repository, at no cost. A crate that is published must not carry them.
 - Transcode: each reading's LibriVox disclaimer is dropped; the cut starts at the title and ends in the pause after the
   first clause. Not bit-identical to the source.
 
