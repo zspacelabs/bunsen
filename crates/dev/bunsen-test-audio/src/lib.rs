@@ -59,6 +59,14 @@ pub struct AudioFixture {
     /// The file name of the ground-truth transcript (what a person hears), if
     /// the clip has one.
     pub transcript_file: Option<&'static str>,
+
+    /// The language spoken, as an ISO 639-1 code; `None` for a clip without
+    /// speech.
+    pub language: Option<&'static str>,
+
+    /// The file name of the ground truth for a translation of the speech to
+    /// English, if the clip has one: a clip not in English.
+    pub translation_file: Option<&'static str>,
 }
 
 impl AudioFixture {
@@ -77,11 +85,34 @@ impl AudioFixture {
     /// # Panics
     /// If the transcript is named but cannot be read.
     pub fn transcript(&self) -> Option<String> {
-        self.transcript_path().map(|p| {
-            std::fs::read_to_string(&p)
-                .unwrap_or_else(|e| panic!("read the transcript {}: {e}", p.display()))
-        })
+        self.transcript_path().map(|p| read_text(&p, "transcript"))
     }
+
+    /// The English translation's path, if the clip has one.
+    pub fn translation_path(&self) -> Option<PathBuf> {
+        self.translation_file.map(|f| testdata_dir().join(f))
+    }
+
+    /// The ground truth for a translation to English, if the clip has one.
+    ///
+    /// # Panics
+    /// If the translation is named but cannot be read.
+    pub fn translation(&self) -> Option<String> {
+        self.translation_path()
+            .map(|p| read_text(&p, "translation"))
+    }
+}
+
+/// The text file at `path`, a clip's `what`.
+///
+/// # Panics
+/// If it cannot be read.
+fn read_text(
+    path: &Path,
+    what: &str,
+) -> String {
+    std::fs::read_to_string(path)
+        .unwrap_or_else(|e| panic!("read the {what} {}: {e}", path.display()))
 }
 
 /// The directory the committed clips are in.
@@ -100,6 +131,8 @@ pub const JFK_MOON: AudioFixture = AudioFixture {
     licence: "public domain (work of the U.S. federal government)",
     sha256: "22c8682f71304713c08f5c7fe7a9228fc806ea822abc16eb5c178986506a8c0a",
     transcript_file: Some("jfk_moon.txt"),
+    language: Some("en"),
+    translation_file: None,
 };
 
 /// Seconds 7.0 to 11.0 of [`JFK_MOON`]: two phrases around a one-second
@@ -114,6 +147,8 @@ pub const JFK_MOON_4S: AudioFixture = AudioFixture {
     licence: "public domain (work of the U.S. federal government)",
     sha256: "948ab6418b8e38c991acaee9f152fef0fe3798d9c816ef91f34420d10fb923fd",
     transcript_file: None,
+    language: Some("en"),
+    translation_file: None,
 };
 
 /// A synthetic 440 Hz tone, 0.5 s: 8000 samples exactly, 16-bit PCM.
@@ -126,6 +161,8 @@ pub const TONE_WAV: AudioFixture = AudioFixture {
     licence: "none needed (synthetic)",
     sha256: "273f00149c8a92008d90b30865e76775a31162e5a0006591cc1d128a73e8528b",
     transcript_file: None,
+    language: None,
+    translation_file: None,
 };
 
 /// [`TONE_WAV`] as an mp3, LAME 48 kbps.
@@ -141,6 +178,8 @@ pub const TONE_MP3: AudioFixture = AudioFixture {
     licence: "none needed (synthetic)",
     sha256: "8e3ed9c49530690819023425f1e3249ebf60bd9cb8b1882e2ab4242bd8b60900",
     transcript_file: None,
+    language: None,
+    translation_file: None,
 };
 
 /// silero-vad's own test recording: 60 s of speech, 16-bit PCM.
@@ -153,7 +192,60 @@ pub const SILERO_VAD_TEST: AudioFixture = AudioFixture {
     licence: "MIT (silero-vad)",
     sha256: "89f17d9c94c4b31eb320f424628bcbc920abaddbee6e2760fd868bfb1d9a2e47",
     transcript_file: None,
+    language: Some("en"),
+    translation_file: None,
 };
+
+/// The Universal Declaration of Human Rights, read in German: the title, the
+/// preamble's heading and the start of its first clause, 22.2 s, under a
+/// steady hiss; with its transcript and an English translation.
+///
+/// [`UDHR_FR`] and [`UDHR_ES`] read the same passage, so a model's choice of
+/// language and of task (transcribe, or translate to English) is checked
+/// against one text.
+pub const UDHR_DE: AudioFixture = AudioFixture {
+    file: "udhr_de.mp3",
+    sample_rate: 16_000,
+    channels: 1,
+    seconds: 22.2,
+    description: "the Universal Declaration of Human Rights' preamble, read in German",
+    licence: "public domain (LibriVox)",
+    sha256: "e4dd638bc35f0fedbe72f73fb102268c33e33280b5686af7f2aedfec15db5355",
+    transcript_file: Some("udhr_de.txt"),
+    language: Some("de"),
+    translation_file: Some("udhr_de.en.txt"),
+};
+
+/// [`UDHR_DE`]'s passage, read in French, 20.0 s.
+pub const UDHR_FR: AudioFixture = AudioFixture {
+    file: "udhr_fr.mp3",
+    sample_rate: 16_000,
+    channels: 1,
+    seconds: 20.0,
+    description: "the Universal Declaration of Human Rights' preamble, read in French",
+    licence: "public domain (LibriVox)",
+    sha256: "ff35cd652373affd66e6beade08c2733947278c55a3c11d53c6a04d98fca1a67",
+    transcript_file: Some("udhr_fr.txt"),
+    language: Some("fr"),
+    translation_file: Some("udhr_fr.en.txt"),
+};
+
+/// [`UDHR_DE`]'s passage, read in Spanish, 27.6 s.
+pub const UDHR_ES: AudioFixture = AudioFixture {
+    file: "udhr_es.mp3",
+    sample_rate: 16_000,
+    channels: 1,
+    seconds: 27.6,
+    description: "the Universal Declaration of Human Rights' preamble, read in Spanish",
+    licence: "public domain (LibriVox)",
+    sha256: "fa69ba47953c38ea5cd063fec9563eff0d71af332edcdf6dd949afc507fec1ba",
+    transcript_file: Some("udhr_es.txt"),
+    language: Some("es"),
+    translation_file: Some("udhr_es.en.txt"),
+};
+
+/// The clips that read one text in several languages.
+pub const UDHR: &[AudioFixture] = &[UDHR_DE, UDHR_FR, UDHR_ES];
 
 /// A fetched recording with a speaker reference: the clip, its RTTM, and its
 /// transcript by speaker.
@@ -214,7 +306,16 @@ pub const AMI_EN2002D_2132: DiarizationFixture = DiarizationFixture {
 };
 
 /// Every committed clip.
-pub const ALL: &[AudioFixture] = &[JFK_MOON, JFK_MOON_4S, TONE_WAV, TONE_MP3, SILERO_VAD_TEST];
+pub const ALL: &[AudioFixture] = &[
+    JFK_MOON,
+    JFK_MOON_4S,
+    TONE_WAV,
+    TONE_MP3,
+    SILERO_VAD_TEST,
+    UDHR_DE,
+    UDHR_FR,
+    UDHR_ES,
+];
 
 /// The clip whose file is `file`, as a fixture that records the clip it was
 /// made from names it.
@@ -244,16 +345,45 @@ mod tests {
             .collect()
     }
 
-    /// Every clip is the file its pin names, and every named transcript
-    /// exists.
+    /// Every clip is the file its pin names, and every named transcript and
+    /// translation exists.
     #[test]
     fn test_every_clip_is_pinned() {
         for clip in ALL {
             assert_eq!(sha256_hex(&clip.path()), clip.sha256, "{}", clip.file);
-            if let Some(path) = clip.transcript_path() {
+            for path in [clip.transcript_path(), clip.translation_path()]
+                .into_iter()
+                .flatten()
+            {
                 assert!(path.is_file(), "{}", path.display());
             }
         }
+    }
+
+    /// A clip has a translation exactly when its speech is not English, and
+    /// the clips of one text each have a transcript and a translation, in
+    /// distinct languages.
+    #[test]
+    fn test_translations() {
+        for clip in ALL {
+            let foreign = clip.language.is_some_and(|l| l != "en");
+            assert_eq!(clip.translation_file.is_some(), foreign, "{}", clip.file);
+        }
+        let mut languages = Vec::new();
+        for clip in UDHR {
+            assert!(clip.transcript().is_some(), "{}", clip.file);
+            assert!(
+                clip.translation()
+                    .unwrap()
+                    .contains("Whereas recognition of the inherent dignity"),
+                "{}",
+                clip.file
+            );
+            languages.push(clip.language.unwrap());
+        }
+        languages.sort();
+        languages.dedup();
+        assert_eq!(languages.len(), UDHR.len());
     }
 
     /// The file names are distinct, and each finds its clip.
