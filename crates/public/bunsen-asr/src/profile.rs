@@ -69,7 +69,8 @@ pub struct Recipe {
 }
 
 /// What the speech is: the table's language axis.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, clap::ValueEnum)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, clap::ValueEnum, Serialize)]
+#[serde(rename_all = "lowercase")]
 pub enum Speech {
     /// English.
     En,
@@ -79,7 +80,8 @@ pub enum Speech {
 }
 
 /// What to make of the speech.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, clap::ValueEnum)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, clap::ValueEnum, Serialize)]
+#[serde(rename_all = "lowercase")]
 pub enum Task {
     /// Text in the language spoken.
     Transcribe,
@@ -89,7 +91,8 @@ pub enum Task {
 }
 
 /// How much compute to spend on it.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, clap::ValueEnum)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, clap::ValueEnum, Serialize)]
+#[serde(rename_all = "lowercase")]
 pub enum Quality {
     Fast,
     Balanced,
@@ -109,7 +112,7 @@ impl Quality {
 
 /// A point in the table: what the speech is, what to make of it, how much
 /// to spend.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
 pub struct Need {
     pub speech: Speech,
     pub task: Task,
@@ -136,9 +139,25 @@ impl fmt::Display for Need {
 }
 
 impl Need {
-    /// The points that can stand in for this one, nearest first, this one
-    /// first: another quality before other speech, as a multilingual model
-    /// also hears English; English translated to English is transcribed.
+    /// This need as it is served: English speech translated to English is
+    /// transcribed.
+    ///
+    /// Translating English to English is out of every model's training, and
+    /// Whisper's output for it is its transcript, so the table has no such
+    /// cell; a need for one is the `transcribe` need.
+    pub fn settled(self) -> Need {
+        match (self.speech, self.task) {
+            (Speech::En, Task::Translate) => Need {
+                task: Task::Transcribe,
+                ..self
+            },
+            _ => self,
+        }
+    }
+
+    /// The points that can stand in for this settled one, nearest first,
+    /// this one first: another quality before other speech, as a
+    /// multilingual model also hears English. The task is never changed.
     fn candidates(self) -> Vec<Need> {
         let speeches: &[Speech] = match self.speech {
             Speech::En => &[Speech::En, Speech::Multi],
@@ -146,18 +165,12 @@ impl Need {
         };
         let mut out = Vec::new();
         for &speech in speeches {
-            let tasks: &[Task] = match (speech, self.task) {
-                (Speech::En, Task::Translate) => &[Task::Translate, Task::Transcribe],
-                (_, task) => &[task],
-            };
-            for &task in tasks {
-                for quality in self.quality.nearest() {
-                    out.push(Need {
-                        speech,
-                        task,
-                        quality,
-                    });
-                }
+            for quality in self.quality.nearest() {
+                out.push(Need {
+                    speech,
+                    task: self.task,
+                    quality,
+                });
             }
         }
         out
@@ -300,13 +313,13 @@ pub const TABLE: &[Cell] = {
     ]
 };
 
-/// The cell for `need` in `mode`, and, when it is not `need`'s own, a note
-/// of what stood in.
+/// The cell for `need`, [settled](Need::settled), in `mode`, and, when it
+/// is not `need`'s own, a note of what stood in.
 pub fn pick(
     need: Need,
     mode: Mode,
 ) -> (&'static Cell, Option<String>) {
-    for candidate in need.candidates() {
+    for candidate in need.settled().candidates() {
         if let Some(cell) = TABLE.iter().find(|c| c.need == candidate && c.mode == mode) {
             let note = (candidate != need).then(|| {
                 format!(
@@ -341,6 +354,18 @@ impl Profile {
         mode: Mode,
     ) -> &'static Recipe {
         &pick(self.need, mode).0.recipe
+    }
+
+    /// The recipe `mode` runs, as it is, resolved.
+    ///
+    /// # Errors
+    /// As [`Recipe::resolve`].
+    pub fn resolve(
+        &self,
+        mode: Mode,
+    ) -> BunsenResult<Resolved> {
+        self.recipe(mode)
+            .resolve(self.name, self.need, mode, None, &[])
     }
 }
 
@@ -505,6 +530,11 @@ pub struct Resolved {
     /// The profile's name, not the alias it was named by; or the need the
     /// table was asked for (`multi/translate/fast`).
     pub profile: String,
+
+    /// The need it serves, [settled](Need::settled): its task is the one
+    /// the model runs, an `--opt task=` included.
+    pub need: Need,
+
     pub mode: Mode,
     pub family: Family,
     pub model: String,
@@ -516,12 +546,14 @@ pub struct Resolved {
 }
 
 impl Recipe {
-    /// This recipe of `profile`, with `language` and `opts` over it.
+    /// This recipe of `profile`, serving `need`, with `language` and `opts`
+    /// over it.
     ///
     /// `language` is Whisper's `--language`; a family that finds the
     /// language itself is logged, at `INFO`, as not taking it. An `opt` for
     /// another family is logged as not applied; one for this family, or for
-    /// none, replaces the recipe's value.
+    /// none, replaces the recipe's value. Whisper's `--task`, as it ends,
+    /// is the need's task; another family transcribes.
     ///
     /// # Errors
     /// [`Policy`](bunsen::errors::BunsenErrorKind::Policy) when an `opt`
@@ -531,6 +563,7 @@ impl Recipe {
     pub fn resolve(
         &self,
         profile: &str,
+        need: Need,
         mode: Mode,
         language: Option<&str>,
         opts: &[Opt],
@@ -538,6 +571,7 @@ impl Recipe {
         let family = self.family.name();
         let mut resolved = Resolved {
             profile: profile.to_string(),
+            need: need.settled(),
             mode,
             family: self.family,
             model: self.model.to_string(),
@@ -578,11 +612,26 @@ impl Recipe {
             }
         }
         resolved.argv()?;
+        resolved.need.task = resolved.task();
         Ok(resolved)
     }
 }
 
 impl Resolved {
+    /// The task the model runs: Whisper's `--task`, as its flags have it
+    /// (`transcribe` when they do not set it); another family transcribes.
+    pub fn task(&self) -> Task {
+        match self.family {
+            Family::Whisper => self
+                .flags
+                .iter()
+                .find(|(k, _)| k == "task")
+                .and_then(|(_, v)| <Task as clap::ValueEnum>::from_str(v, false).ok())
+                .unwrap_or(Task::Transcribe),
+            Family::Parakeet | Family::Qwen3Asr => Task::Transcribe,
+        }
+    }
+
     /// Sets the family flag `key`, in place when it is already set.
     fn set(
         &mut self,
@@ -675,10 +724,12 @@ impl Resolved {
         Ok(line)
     }
 
-    /// What `--json` records of this: the profile, and what it ran.
+    /// What `--json` records of this: the profile, the need it served, and
+    /// what it ran.
     pub fn stamp(&self) -> Stamp {
         Stamp {
             profile: self.profile.clone(),
+            need: self.need,
             recipe: RecipeStamp {
                 family: self.family.name().to_string(),
                 model: self.model.clone(),
@@ -721,6 +772,10 @@ pub fn shell_line(words: &[String]) -> String {
 #[derive(Clone, Debug, Serialize)]
 pub struct Stamp {
     pub profile: String,
+
+    /// The need served: its task is the one the model ran.
+    pub need: Need,
+
     pub recipe: RecipeStamp,
 }
 
@@ -752,7 +807,7 @@ mod tests {
         let opts: Vec<Opt> = opts.iter().map(|s| opt(s)).collect();
         profile
             .recipe(mode)
-            .resolve(profile.name, mode, language, &opts)
+            .resolve(profile.name, profile.need, mode, language, &opts)
     }
 
     /// Every recipe parses as its family's flags; the names and aliases are
@@ -936,5 +991,14 @@ mod tests {
         let stamp = serde_json::to_value(r.stamp()).unwrap();
         assert_eq!(stamp["recipe"]["flags"]["task"], "translate");
         assert_eq!(stamp["profile"], "translate-en");
+        assert_eq!(
+            stamp["need"],
+            serde_json::json!({"speech": "multi", "task": "translate", "quality": "balanced"})
+        );
+
+        // An `--opt` that changes Whisper's task changes the need served.
+        let r = resolve("translate-en", Mode::Live, None, &["task=transcribe"]).unwrap();
+        assert_eq!(r.need.task, Task::Transcribe);
+        assert_eq!(r.task(), Task::Transcribe);
     }
 }
