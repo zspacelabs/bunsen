@@ -15,6 +15,11 @@ rejected on those grounds.
 | `tone.wav` | 0.5 s, 16 kHz mono, 16-bit PCM | a synthetic tone, 8000 samples exactly |
 | `tone.mp3` | 0.5 s, 16 kHz mono, LAME 48 kbps | the same tone |
 | `silero_vad_test.wav` | 60.0 s, 16 kHz mono, 16-bit PCM | silero-vad's own test recording |
+| `udhr_de.mp3` | 22.2 s, 16 kHz mono, LAME 48 kbps | the Universal Declaration of Human Rights, read in German, with a steady hiss |
+| `udhr_fr.mp3` | 20.0 s, 16 kHz mono, LAME 48 kbps | the same passage, read in French |
+| `udhr_es.mp3` | 27.6 s, 16 kHz mono, LAME 48 kbps | the same passage, read in Spanish |
+| `udhr_{de,fr,es}.txt` | | **ground truth** for each: what a person hears, in the language spoken |
+| `udhr_{de,fr,es}.en.txt` | | **ground truth** for a translation of each to English |
 
 Fixtures that are a model's output on these clips live with the validation crate of the model that made them:
 `openai-whisper`'s decodes of `jfk_moon.mp3` with `whisper-model-validation`, the `transformers` and onnxruntime
@@ -88,3 +93,37 @@ of 576 samples, so the tail rounds up.
 - Source: [snakers4/silero-vad](https://github.com/snakers4/silero-vad) `tests/data/test.wav`, at commit
   `fbddc91a5d51f5f448f9c158b327ddf75b9355ad` (git blob `0b1b64ecd9b316445e06cfd5b6b709b0e5fcf18f`, byte-identical)
 - Licence: MIT (silero-vad)
+
+### `udhr_de.mp3`, `udhr_fr.mp3`, `udhr_es.mp3`
+
+The same passage in three languages: the title, the preamble's heading and its first clause, "Whereas recognition of
+the inherent dignity ...". One text read in several languages checks a model's choice of language and of task, to
+transcribe or to translate, each against a reference.
+
+- Source: LibriVox's [Universal Declaration of Human Rights, Volume
+  01](https://librivox.org/the-universal-declaration-of-human-rights-by-the-united-nations) (archive.org item
+  `universal_declaration_librivox`), retrieved on 2026-10-27, 64 kbps mp3 at 22.05 kHz:
+  - `udhr_de.mp3`: `human_rights_un_ger_robu_64kb.mp3`, read by Roman Buettner (stereo; a steady hiss under the voice)
+  - `udhr_fr.mp3`: `human_rights_un_frn_ezwa_64kb.mp3`, read by Ezwa
+  - `udhr_es.mp3`: `human_rights_un_spn_krs_64kb.mp3`, read by Karen Savage (stereo)
+- Licence: the recordings are public domain (LibriVox; it records only texts that are public domain in the USA). The
+  Declaration is the United Nations' (General Assembly resolution 217 A (III), 1948), which may be reproduced
+  without prior permission when distributed at no cost.
+- The ground-truth files quote the Declaration under that condition: this crate is not published (`publish = false`),
+  so they are distributed only with bunsen's repository, at no cost. A crate that is published must not carry them.
+- Transcode: each reading's LibriVox disclaimer is dropped; the cut starts at the title and ends in the pause after the
+  first clause. Not bit-identical to the source.
+
+```sh
+ffmpeg -i human_rights_un_ger_robu_64kb.mp3 -ss 23.0 -t 22.2 -ac 1 -ar 16000 -c:a libmp3lame -b:a 48k \
+  -map_metadata -1 udhr_de.mp3
+ffmpeg -i human_rights_un_frn_ezwa_64kb.mp3 -ss 17.3 -t 20.0 -ac 1 -ar 16000 -c:a libmp3lame -b:a 48k \
+  -map_metadata -1 udhr_fr.mp3
+ffmpeg -i human_rights_un_spn_krs_64kb.mp3 -ss 14.2 -t 27.6 -ac 1 -ar 16000 -c:a libmp3lame -b:a 48k \
+  -map_metadata -1 udhr_es.mp3
+```
+
+`udhr_{de,fr,es}.txt` are what a person hears: each reader's own title and resolution line, then the clause as the
+UN's text in that language has it. `udhr_{de,fr,es}.en.txt` are the same in English: the clause as the UN's English
+text has it, the title and resolution line translated word for word. The German reading's clause ends mid-sentence,
+at a comma, which its transcripts mark with `...`.
