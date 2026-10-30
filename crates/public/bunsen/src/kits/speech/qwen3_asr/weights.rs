@@ -12,7 +12,10 @@ use crate::{
         conv::ConvSeq2d,
         transformers::encoders::residual::ResidualEncoderAttentionBlock,
     },
-    burner::module::Rekey,
+    burner::{
+        module::Rekey,
+        tensor::param_float_dtype,
+    },
     data::pretrained::{
         HfConfigJson,
         NamedTensorsApplied,
@@ -65,8 +68,9 @@ pub fn hf_rekey() -> Rekey {
 /// Loads tensors named as `transformers`' `Qwen3ASRForConditionalGeneration`
 /// state dict into `model`: [`apply_rekeyed_tensors_as`] under
 /// [`hf_rekey`], every floating tensor cast to the dtype `model` was
-/// built in. The checkpoints ship `bf16`, which not every backend computes
-/// in.
+/// built in ([`param_float_dtype`], which leaves a freshly built model's
+/// lazy parameters uninitialized). The checkpoints ship `bf16`, which not
+/// every backend computes in.
 ///
 /// # Errors
 /// As [`apply_rekeyed_tensors_as`].
@@ -74,7 +78,7 @@ pub fn load_hf_tensors(
     model: &mut Qwen3Asr,
     tensors: impl IntoIterator<Item = PackTensor>,
 ) -> BunsenResult<NamedTensorsApplied> {
-    let dtype = model.multi_modal_projector.linear_2.weight.val().dtype();
+    let dtype = param_float_dtype(&model.multi_modal_projector.linear_2.weight);
     apply_rekeyed_tensors_as(model, tensors, &hf_rekey(), Some(dtype))
 }
 

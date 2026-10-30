@@ -53,7 +53,9 @@
 //! [`device_float_dtype`] — a device's default float `DType`: what an undtyped
 //! float tensor built on it gets, and so the
 //! dtype a module's interface speaks when its parameters were loaded at
-//! some other precision.
+//! some other precision. [`param_float_dtype`] — the dtype a parameter
+//! holds, a lazy one's without initializing it: what a loader casts a
+//! checkpoint's tensors to.
 //!
 //! [`bf16_round`] and [`round_to_bf16`] — values rounded to `bf16`
 //! precision and kept in `f32`, on the host: what a table stored in `bf16` and
