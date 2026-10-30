@@ -19,6 +19,9 @@
 //! - [`blocks`]: the model, built from a [`Qwen3Config`].
 //! - [`weights`] (feature `store`): loading tensors named as `transformers`'
 //!   `Qwen3ForCausalLM` state dict, and reading its `config.json`.
+//! - [`pretrained`] (features `store_safetensors` and `cache`): the named
+//!   checkpoints, `qwen/qwen3-0.6b` the default, and the factory that loads
+//!   one.
 //!
 //! A tokenizer, a chat template and a sampler are not part of the kit: what
 //! a caller decodes the model with is its own.
@@ -27,6 +30,9 @@ pub mod blocks;
 
 #[cfg(feature = "store")]
 pub mod weights;
+
+#[cfg(all(feature = "store_safetensors", feature = "cache"))]
+pub mod pretrained;
 
 pub use blocks::model::*;
 
