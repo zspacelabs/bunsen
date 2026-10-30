@@ -113,19 +113,25 @@ description = "Qwen3-ASR's whole validation suite (fetches ~6.7 GB)"
 workspace = false
 script = "cargo test --release -p qwen3-asr-model-validation --features download,gpu-tests,${VALIDATION_BACKEND:-wgpu}"
 
+[tasks.validate-qwen3]
+description = "Qwen3's whole validation suite (fetches ~24 GB)"
+workspace = false
+script = "cargo test --release -p qwen3-model-validation --features download,gpu-tests,${VALIDATION_BACKEND:-wgpu}"
+
 [tasks.validate-sortformer]
 description = "Sortformer's whole validation suite (fetches ~3 GB, and the ASR checkpoints it scores with)"
 workspace = false
 script = "cargo test --release -p sortformer-model-validation --features download,gpu-tests,${VALIDATION_BACKEND:-wgpu}"
 
 [tasks.validate-all]
-description = "Every model's whole validation suite (fetches ~16 GB on a cold cache)"
+description = "Every model's whole validation suite (fetches ~40 GB on a cold cache)"
 workspace = false
 dependencies = [
     "validate-silero",
     "validate-whisper",
     "validate-parakeet",
     "validate-qwen3-asr",
+    "validate-qwen3",
     "validate-sortformer",
 ]
 

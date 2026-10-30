@@ -36,8 +36,9 @@ pub fn text_layer_rekey() -> Rekey {
 /// [`Qwen3Model`]'s module paths: under `model.`, the layers by
 /// [`text_layer_rekey`], and the embedding and final norm as they are.
 /// Anything outside `model.` is dropped: the head is tied to the embedding,
-/// so a checkpoint's `lm_head.weight` is not read, as `transformers` does
-/// not read it under `tie_word_embeddings`.
+/// so a checkpoint's `lm_head.weight` (`Qwen3-0.6B` carries a copy of the
+/// embedding there) is not read, as `transformers` ties over it under
+/// `tie_word_embeddings`.
 ///
 /// Normalization parameters keep their `weight` spelling, which
 /// [`apply_rekeyed_tensors_as`] resolves to `gamma`.

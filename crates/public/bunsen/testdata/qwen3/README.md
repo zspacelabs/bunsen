@@ -8,7 +8,7 @@ from Qwen's repos (Apache-2.0), which the `hf:` config reader is tested on.
 
 | file | |
 |---|---|
-| `toy.safetensors` | the toy's weights (`model.*`, `transformers` names), a stale `lm_head.weight` a tied loader must not read, and inputs and outputs (`io.*`), float32 |
+| `toy.safetensors` | the toy's weights (`model.*`, `transformers` names), an `lm_head.weight` that is not the embedding, which a tied loader must not read, and inputs and outputs (`io.*`), float32 |
 | `toy.config.json` | the toy's `config.json` |
 | `qwen3-0.6b.config.json` | `Qwen/Qwen3-0.6B` at `c1899de289a04d12100db370d81485cdf75e47ca` |
 | `qwen3-0.6b-base.config.json` | `Qwen/Qwen3-0.6B-Base` at `da87bfb608c14b7cf20ba1ce41287e8de496c0cd` |
