@@ -52,7 +52,11 @@
 //! search's beams) rather than repeated per row.
 //! [`insert_kv`](KVCache::insert_kv) appends one layer's keys and values and
 //! returns that layer's full history; the position advances after the last
-//! layer. It is a `Module` over bare tensors: state, not parameters.
+//! layer. A decode moves the position back without reallocating:
+//! [`truncate`](KVCache::truncate) to keep a shared prefix,
+//! [`reset`](KVCache::reset) to start over; and
+//! [`reorder`](KVCache::reorder) permutes its rows as beams branch. It is a
+//! `Module` over bare tensors: state, not parameters.
 //!
 //! ## Why not `MhaCache`
 //!
