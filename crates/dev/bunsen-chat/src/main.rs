@@ -69,6 +69,10 @@ enum Command {
     /// Holds a conversation on stdin: `/reset` starts over, `/quit` (or end
     /// of input) leaves.
     Chat(ChatCmd),
+
+    /// The weights cache the checkpoints load through: where it is, what it
+    /// holds (Qwen3's files are the `qwen3` kit's), and clearing it.
+    Cache(bunsen_app::cache::CacheCommand),
 }
 
 #[derive(clap::Args, Debug)]
@@ -442,6 +446,7 @@ fn main() -> BunsenResult<()> {
         Command::Fetch(cmd) => fetch(&cmd),
         Command::Run(cmd) => run(&cmd),
         Command::Chat(cmd) => chat(&cmd),
+        Command::Cache(cmd) => cmd.run(),
     }
 }
 
