@@ -25,6 +25,7 @@
 //! | [`speech::qwen3_asr`] | Qwen's Qwen3-ASR: the model, a pretrained index (`FermionResearch`'s Phonon-1 by default), the prompt, and greedy decoding. |
 //! | [`speech::silero_vad`] | The Silero voice-activity detector, with weights a build can bundle. |
 //! | [`tokens`] | Not a model: the ids-to-text seam the model kits share. |
+//! | [`decoding`] | Not a model: the search machinery the decoding kits share: logit filters, greedy and beam search, sampling, ranking, and the temperature ladder. |
 //!
 //! The area modules, [`images`], [`gpts`], [`sims`] and [`speech`], group the
 //! kits by domain and say what the kits in each have in common.
@@ -105,9 +106,10 @@
 //! (`examples/train-chat`). The simulations step a state in place
 //! (`examples/conway`, `examples/lbm2d_vis`).
 //!
-//! Two seams are shared across kits:
-//! [`data::pretrained`](crate::data::pretrained) for loading, and
-//! [`tokens::Detokenizer`] for turning ids into text.
+//! Three seams are shared across kits:
+//! [`data::pretrained`](crate::data::pretrained) for loading,
+//! [`tokens::Detokenizer`] for turning ids into text, and
+//! [`decoding::TokenSearch`] for choosing them.
 //!
 //! # Stability
 //!
@@ -116,6 +118,7 @@
 //! filled in. Pin a specific `bunsen` version when you need a stable
 //! API.
 
+pub mod decoding;
 pub mod gpts;
 pub mod images;
 pub mod sims;

@@ -367,9 +367,9 @@ mod tests {
                 predicate,
             },
         },
-        kits::speech::whisper::logit_filters::{
-            LogitFilter,
-            SuppressBlank,
+        kits::{
+            decoding::LogitFilter,
+            speech::whisper::logit_filters::SuppressBlank,
         },
         support::testing::cpu_device,
     };

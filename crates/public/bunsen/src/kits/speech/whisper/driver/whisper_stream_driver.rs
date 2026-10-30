@@ -15,6 +15,10 @@ use crate::{
         ConstraintError,
     },
     kits::{
+        decoding::{
+            LogitFilter,
+            SearchConfig,
+        },
         speech::{
             asr_driver::{
                 AsrStreamDriver,
@@ -35,10 +39,7 @@ use crate::{
                     WhisperTask,
                     WhisperTokenLayout,
                 },
-                logit_filters::{
-                    ApplyTimestampRules,
-                    LogitFilter,
-                },
+                logit_filters::ApplyTimestampRules,
             },
         },
         tokens::Detokenizer,
@@ -94,19 +95,11 @@ pub struct WhisperStreamDriverConfig {
     #[config(default = "224")]
     pub max_tokens: usize,
 
-    /// Beams per window; one is greedy.
-    #[config(default = "1")]
-    pub beam_size: usize,
-
-    /// Finished candidates a beam search collects before stopping, as a
-    /// multiple of the beam size; `None` is one.
-    #[config(default = "None")]
-    pub patience: Option<f64>,
-
-    /// The exponent of the ranker's length penalty; `None` normalizes by
-    /// length.
-    #[config(default = "None")]
-    pub length_penalty: Option<f64>,
+    /// The search of each window: its beams, patience and ranking. Its
+    /// temperature and trajectories are each rung's of the
+    /// [`fallback`](Self::fallback) ladder.
+    #[config(default = "SearchConfig::new()")]
+    pub search: SearchConfig,
 
     /// Prompt each window with the tail of the transcript so far, after
     /// `<|startofprev|>`, as upstream's `condition_on_previous_text` does.
@@ -188,9 +181,10 @@ impl WhisperStreamDriverConfig {
     ///   [`WhisperBundle::validate`]), if a language or task is given for an
     ///   English-only layout, or if the configuration breaks a rule: no trigger
     ///   that decodes, a zero `interval`, the `interval` trigger without
-    ///   `endpoint` (which could never draft), a zero `beam_size` or `best_of`,
-    ///   no fallback temperature, or a `patience` that collects no candidates.
-    ///   A broken field rule carries a [`ConstraintError`].
+    ///   `endpoint` (which could never draft), a zero `search.beam_size` or
+    ///   `fallback.ladder.best_of`, no fallback temperature, or a
+    ///   `search.patience` that collects no candidates. A broken field rule
+    ///   carries a [`ConstraintError`].
     /// - [`Lookup`](crate::errors::BunsenErrorKind::Lookup) if the language is
     ///   not one the layout has (see [`WhisperTokenLayout::sot_sequence`]).
     /// - [`Unsupported`](crate::errors::BunsenErrorKind::Unsupported) for
@@ -232,26 +226,29 @@ impl WhisperStreamDriverConfig {
         }
 
         const OWNER: &str = "WhisperStreamDriverConfig";
-        if self.beam_size == 0 {
-            return Err(ConstraintError::zero_or_empty(OWNER, "beam_size").into());
+        let search = &self.search;
+        if search.beam_size == 0 {
+            return Err(ConstraintError::zero_or_empty(OWNER, "search.beam_size").into());
         }
-        if self.fallback.temperatures.is_empty() {
-            return Err(ConstraintError::zero_or_empty(OWNER, "fallback.temperatures").into());
+        if self.fallback.ladder.temperatures.is_empty() {
+            return Err(
+                ConstraintError::zero_or_empty(OWNER, "fallback.ladder.temperatures").into(),
+            );
         }
-        if self.fallback.best_of == Some(0) {
-            return Err(ConstraintError::zero_or_empty(OWNER, "fallback.best_of").into());
+        if self.fallback.ladder.best_of == Some(0) {
+            return Err(ConstraintError::zero_or_empty(OWNER, "fallback.ladder.best_of").into());
         }
-        if (self.beam_size as f64 * self.patience.unwrap_or(1.0)).round() < 1.0 {
+        if (search.beam_size as f64 * search.patience.unwrap_or(1.0)).round() < 1.0 {
             // `round(beam_size * patience) >= 1` is `patience >= 0.5 /
             // beam_size`.
             return Err(ConstraintError::out_of_range(
                 OWNER,
-                "patience",
-                self.patience.unwrap_or(1.0),
+                "search.patience",
+                search.patience.unwrap_or(1.0),
                 format!(
                     "[{}, ..) with {} beams, to collect a candidate",
-                    0.5 / self.beam_size as f64,
-                    self.beam_size,
+                    0.5 / search.beam_size as f64,
+                    search.beam_size,
                 ),
             )
             .into());
@@ -400,9 +397,7 @@ impl WhisperEngine {
         let ids = self.bundle.layout.ids();
         DecodeConfig::new(prompt, ids.eot)
             .with_max_tokens(self.config.max_tokens)
-            .with_beam_size(self.config.beam_size)
-            .with_patience(self.config.patience)
-            .with_length_penalty(self.config.length_penalty)
+            .with_search(self.config.search.clone())
             .with_sot_token(Some(ids.sot))
             .with_no_speech_token(Some(ids.no_speech))
     }

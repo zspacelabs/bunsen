@@ -1,4 +1,4 @@
-//! # Beam search, as upstream does it.
+//! Beam search, as `openai-whisper`'s `BeamSearchDecoder` does it.
 
 use std::collections::HashMap;
 
@@ -7,7 +7,7 @@ use burn::{
     tensor::activation::log_softmax,
 };
 
-use crate::kits::speech::whisper::decode::TokenDecoder;
+use super::TokenSearch;
 
 /// A finished set: insertion-ordered, unique by sequence, as a Python dict.
 #[derive(Debug, Clone, Default)]
@@ -54,38 +54,38 @@ impl Finished {
     }
 }
 
-/// Upstream's `BeamSearchDecoder`.
+/// Beam search, as `openai-whisper`'s `BeamSearchDecoder` runs it.
 ///
-/// Rows are laid out `row = audio_idx * k + beam_idx`, beam varying
+/// Rows are laid out `row = group_idx * k + beam_idx`, beam varying
 /// fastest. Every step, each beam proposes its `k + 1` best next tokens;
-/// the `k * (k + 1)` candidates of one audio are deduplicated **by full
+/// the `k * (k + 1)` candidates of one group are deduplicated **by full
 /// sequence** (at the first step every beam is the same prompt, and
 /// without this the beam would quietly collapse to width one while still
 /// paying for `k`), ranked by cumulative log probability, and the best `k`
-/// that did not end survive, with the self-attention cache permuted to
-/// follow them. A candidate that ended joins the audio's finished set,
+/// that did not end survive, with the cache permuted to follow them
+/// (`reorder`). A candidate that ended joins the group's finished set,
 /// which `patience` caps at `round(k * patience)`; the search completes
-/// when every audio's set is full.
+/// when every group's set is full.
 ///
-/// Log probabilities accumulate in `f32`, as upstream's do, so that a
+/// Log probabilities accumulate in `f32`, as `openai-whisper`'s do, so that a
 /// near-tie ranks the same way.
 ///
-/// [`DecodeConfig::init_decoder`](super::DecodeConfig::init_decoder) builds
+/// [`SearchConfig::init_search`](super::SearchConfig::init_search) builds
 /// one for a `beam_size` above one at temperature zero; the
-/// [`SequenceRanker`](super::SequenceRanker) then picks among each audio's
+/// [`SequenceRanker`](super::SequenceRanker) then picks among each group's
 /// finished set.
 #[derive(Debug, Clone)]
-pub struct WhisperBeamSearchDecoder {
+pub struct BeamSearch {
     k: usize,
     stop_token: i64,
     max_candidates: usize,
-    /// One per audio, once the first update has said how many there are.
+    /// One per group, once the first update has said how many there are.
     finished: Option<Vec<Finished>>,
 }
 
-impl WhisperBeamSearchDecoder {
+impl BeamSearch {
     /// # Arguments
-    /// * `beam_size` - beams per audio; at least 1.
+    /// * `beam_size` - beams per group; at least 1.
     /// * `eot` - the stop token.
     /// * `patience` - how many finished candidates to collect before stopping,
     ///   as a multiple of the beam size; `None` is 1.
@@ -112,18 +112,18 @@ impl WhisperBeamSearchDecoder {
         }
     }
 
-    /// Beams per audio.
+    /// Beams per group.
     pub fn beam_size(&self) -> usize {
         self.k
     }
 
-    /// Finished candidates collected per audio before the search stops.
+    /// Finished candidates collected per group before the search stops.
     pub fn max_candidates(&self) -> usize {
         self.max_candidates
     }
 }
 
-impl TokenDecoder for WhisperBeamSearchDecoder {
+impl TokenSearch for BeamSearch {
     fn group_size(&self) -> usize {
         self.k
     }
@@ -146,10 +146,10 @@ impl TokenDecoder for WhisperBeamSearchDecoder {
             0,
             "{rows} rows is not a whole number of {k}-beam groups"
         );
-        let n_audio = rows / k;
+        let n_groups = rows / k;
         let finished = self
             .finished
-            .get_or_insert_with(|| vec![Finished::default(); n_audio]);
+            .get_or_insert_with(|| vec![Finished::default(); n_groups]);
 
         // Each row's k + 1 best next tokens, with their log probabilities.
         let (values, indices) = log_softmax(logits, 1).topk_with_indices(k + 1, 1);
@@ -159,16 +159,16 @@ impl TokenDecoder for WhisperBeamSearchDecoder {
         let mut next: Vec<Vec<i64>> = Vec::with_capacity(rows);
         let mut next_sums: Vec<f32> = Vec::with_capacity(rows);
         let mut sources: Vec<usize> = Vec::with_capacity(rows);
-        let mut newly_finished: Vec<Finished> = Vec::with_capacity(n_audio);
+        let mut newly_finished: Vec<Finished> = Vec::with_capacity(n_groups);
 
-        for audio in 0..n_audio {
+        for group in 0..n_groups {
             // STEP 1: every candidate, deduplicated by full sequence. A
             // repeat keeps its first position and takes the later score and
             // source, as assigning into a dict does.
             let mut candidates: Vec<(Vec<i64>, f32, usize)> = Vec::with_capacity(k * (k + 1));
             let mut position: HashMap<Vec<i64>, usize> = HashMap::with_capacity(k * (k + 1));
             for beam in 0..k {
-                let row = audio * k + beam;
+                let row = group * k + beam;
                 for c in 0..=k {
                     let token = indices[row * (k + 1) + c];
                     let score = sum_logprobs[row] + values[row * (k + 1) + c];
@@ -208,7 +208,7 @@ impl TokenDecoder for WhisperBeamSearchDecoder {
                     }
                 }
             }
-            assert_eq!(saved, k, "fewer than {k} live candidates for audio {audio}");
+            assert_eq!(saved, k, "fewer than {k} live candidates for group {group}");
             newly_finished.push(done);
         }
 
@@ -216,7 +216,7 @@ impl TokenDecoder for WhisperBeamSearchDecoder {
         *tokens = next;
         sum_logprobs.copy_from_slice(&next_sums);
 
-        // Newly finished sequences join the audio's set, best first, until
+        // Newly finished sequences join the group's set, best first, until
         // it is full.
         for (previously, newly) in finished.iter_mut().zip(newly_finished) {
             let mut entries = newly.entries;
@@ -244,22 +244,22 @@ impl TokenDecoder for WhisperBeamSearchDecoder {
         prompt_len: usize,
     ) -> Vec<Vec<(Vec<i64>, f32)>> {
         let k = self.k;
-        let n_audio = tokens.len() / k;
+        let n_groups = tokens.len() / k;
         let mut finished = self
             .finished
             .take()
-            .unwrap_or_else(|| vec![Finished::default(); n_audio]);
+            .unwrap_or_else(|| vec![Finished::default(); n_groups]);
 
-        for (audio, set) in finished.iter_mut().enumerate() {
+        for (group, set) in finished.iter_mut().enumerate() {
             if set.len() < k {
                 // Not enough finished: take the live beams, best first,
                 // ended with the stop token.
                 let mut order: Vec<usize> = (0..k).collect();
                 order.sort_by(|&a, &b| {
-                    sum_logprobs[audio * k + b].total_cmp(&sum_logprobs[audio * k + a])
+                    sum_logprobs[group * k + b].total_cmp(&sum_logprobs[group * k + a])
                 });
                 for beam in order {
-                    let row = audio * k + beam;
+                    let row = group * k + beam;
                     let mut sequence = tokens[row].clone();
                     sequence.push(self.stop_token);
                     set.score_sequence(sequence, sum_logprobs[row]);
@@ -311,7 +311,7 @@ mod tests {
         let device = performance_device();
         let _memory = DeviceMemoryGuard::new(&device);
 
-        let mut decoder = WhisperBeamSearchDecoder::new(3, EOT, None);
+        let mut decoder = BeamSearch::new(3, EOT, None);
         let mut tokens = vec![vec![7]; 3];
         let mut sums = vec![0.0; 3];
         let mut sources = Vec::new();
@@ -319,7 +319,7 @@ mod tests {
 
         // Vocabulary of 5; token 4 best, then 3, then 2.
         let row: &[f32] = &[-9.0, -9.0, 1.0, 2.0, 3.0];
-        let (feed, done) = TokenDecoder::update(
+        let (feed, done) = TokenSearch::update(
             &mut decoder,
             &mut tokens,
             logits(&[row, row, row], &device),
@@ -342,7 +342,7 @@ mod tests {
     fn test_finished_set_and_patience() {
         let device = performance_device();
         let _memory = DeviceMemoryGuard::new(&device);
-        let mut decoder = WhisperBeamSearchDecoder::new(2, EOT, None);
+        let mut decoder = BeamSearch::new(2, EOT, None);
         assert_eq!(decoder.beam_size(), 2);
         assert_eq!(decoder.max_candidates(), 2);
         let mut tokens = vec![vec![7]; 2];
@@ -351,7 +351,7 @@ mod tests {
 
         // Best is the stop token, then 3, then 2.
         let row: &[f32] = &[3.0, -9.0, 1.0, 2.0];
-        let (feed, done) = TokenDecoder::update(
+        let (feed, done) = TokenSearch::update(
             &mut decoder,
             &mut tokens,
             logits(&[row, row], &device),
@@ -363,7 +363,7 @@ mod tests {
         assert!(!done, "one finished, two wanted");
 
         // Both live beams end now: the set fills and the search completes.
-        let (_, done) = TokenDecoder::update(
+        let (_, done) = TokenSearch::update(
             &mut decoder,
             &mut tokens,
             logits(&[row, row], &device),
@@ -374,7 +374,7 @@ mod tests {
 
         // Finalize strips the prompt and the stop token; the best finished
         // candidate is the one that ended first.
-        let out = TokenDecoder::finalize(&mut decoder, tokens, sums, 1);
+        let out = TokenSearch::finalize(&mut decoder, tokens, sums, 1);
         assert_eq!(out.len(), 1);
         assert_eq!(out[0].len(), 2);
         assert_eq!(out[0][0].0, Vec::<i64>::new());
@@ -389,7 +389,7 @@ mod tests {
     fn test_patience_and_finalize_fill() {
         let device = performance_device();
         let _memory = DeviceMemoryGuard::new(&device);
-        let mut decoder = WhisperBeamSearchDecoder::new(2, EOT, Some(2.0));
+        let mut decoder = BeamSearch::new(2, EOT, Some(2.0));
         assert_eq!(decoder.max_candidates(), 4);
         let mut tokens = vec![vec![7]; 2];
         let mut sums = vec![0.0; 2];
@@ -397,7 +397,7 @@ mod tests {
 
         // Nothing ends.
         let row: &[f32] = &[-9.0, -9.0, 1.0, 2.0];
-        let (_, done) = TokenDecoder::update(
+        let (_, done) = TokenSearch::update(
             &mut decoder,
             &mut tokens,
             logits(&[row, row], &device),
@@ -407,7 +407,7 @@ mod tests {
         assert!(!done);
         assert_eq!(tokens, vec![vec![7, 3], vec![7, 2]]);
 
-        let out = TokenDecoder::finalize(&mut decoder, tokens, sums, 1);
+        let out = TokenSearch::finalize(&mut decoder, tokens, sums, 1);
         assert_eq!(
             out[0].len(),
             2,
@@ -417,14 +417,14 @@ mod tests {
         assert_eq!(out[0][1].0, vec![2]);
     }
 
-    /// Two audios are independent groups: sources index the whole batch,
+    /// Two groups are independent: sources index the whole batch,
     /// and each group refills from its own candidates.
     #[test]
     #[serial_test::serial]
     fn test_groups_are_independent() {
         let device = performance_device();
         let _memory = DeviceMemoryGuard::new(&device);
-        let mut decoder = WhisperBeamSearchDecoder::new(2, EOT, None);
+        let mut decoder = BeamSearch::new(2, EOT, None);
         let mut tokens = vec![vec![7]; 4];
         let mut sums = vec![0.0; 4];
         let mut sources = Vec::new();
@@ -432,7 +432,7 @@ mod tests {
 
         let a: &[f32] = &[-9.0, -9.0, 1.0, 2.0];
         let b: &[f32] = &[-9.0, 2.0, 1.0, -9.0];
-        let (feed, _) = TokenDecoder::update(
+        let (feed, _) = TokenSearch::update(
             &mut decoder,
             &mut tokens,
             logits(&[a, a, b, b], &device),
@@ -446,6 +446,6 @@ mod tests {
     #[test]
     #[should_panic(expected = "invalid beam size")]
     fn test_rejects_zero_candidates() {
-        let _ = WhisperBeamSearchDecoder::new(1, EOT, Some(0.1));
+        let _ = BeamSearch::new(1, EOT, Some(0.1));
     }
 }

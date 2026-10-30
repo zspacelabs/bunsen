@@ -18,25 +18,28 @@ use bunsen::{
         BunsenResult,
         ResultContext,
     },
-    kits::speech::{
-        asr_driver::{
-            LevelPolicy,
-            TranscriptSegment,
-        },
-        whisper::{
-            WhisperFallbackConfig,
-            driver::{
-                WhisperBundle,
-                WhisperStreamDriver,
-                WhisperStreamDriverConfig,
-                WhisperTask,
+    kits::{
+        decoding::SearchConfig,
+        speech::{
+            asr_driver::{
+                LevelPolicy,
+                TranscriptSegment,
             },
-            pretrained::{
-                CHECKPOINT,
-                OPENAI_LOCAL_DIR,
-                VOCABULARY,
-                WhisperConstruct,
-                default_whisper_factory,
+            whisper::{
+                WhisperFallbackConfig,
+                driver::{
+                    WhisperBundle,
+                    WhisperStreamDriver,
+                    WhisperStreamDriverConfig,
+                    WhisperTask,
+                },
+                pretrained::{
+                    CHECKPOINT,
+                    OPENAI_LOCAL_DIR,
+                    VOCABULARY,
+                    WhisperConstruct,
+                    default_whisper_factory,
+                },
             },
         },
     },
@@ -177,7 +180,7 @@ pub fn driver(
         })
         .with_task(task)
         .with_timestamps(flags.timestamps)
-        .with_beam_size(flags.beam_size)
+        .with_search(SearchConfig::new().with_beam_size(flags.beam_size))
         .with_max_tokens(flags.max_tokens)
         .with_condition_on_previous_text(flags.prompt_carry)
         .with_emission(preset.into())

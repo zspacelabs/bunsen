@@ -1,26 +1,31 @@
 use std::sync::Arc;
 
 use bunsen::{
-    kits::speech::{
-        asr_driver::{
-            LevelPolicy,
-            StreamClock,
+    kits::{
+        decoding::{
+            LogitFilter,
+            SearchConfig,
         },
-        testing::wer::text_error_rate,
-        whisper::{
-            DecodeConfig,
-            GreedyDecodeConfig,
-            Whisper,
-            driver::{
-                WhisperStreamDriverConfig,
-                WhisperTask,
+        speech::{
+            asr_driver::{
+                LevelPolicy,
+                StreamClock,
             },
-            logit_filters::{
-                ApplyTimestampRules,
-                LogitFilter,
-                default_filters,
+            testing::wer::text_error_rate,
+            whisper::{
+                DecodeConfig,
+                GreedyDecodeConfig,
+                Whisper,
+                driver::{
+                    WhisperStreamDriverConfig,
+                    WhisperTask,
+                },
+                logit_filters::{
+                    ApplyTimestampRules,
+                    default_filters,
+                },
+                split_mel_windows,
             },
-            split_mel_windows,
         },
     },
     support::testing::{
@@ -413,7 +418,8 @@ fn test_bunsen_beam_agrees_with_openai_reference() {
 
     let table = vocab();
     let model = bunsen_model(&device);
-    let config = DecodeConfig::from(&decode_config(&table)).with_beam_size(5);
+    let config = DecodeConfig::from(&decode_config(&table))
+        .with_search(SearchConfig::new().with_beam_size(5));
     let filters = default_filters(&table.ranks, table.policy.ids());
 
     for fixture in FIXTURES {

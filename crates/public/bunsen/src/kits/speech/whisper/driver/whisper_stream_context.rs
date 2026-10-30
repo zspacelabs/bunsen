@@ -443,6 +443,10 @@ mod tests {
             testing::ErrorMatcher,
         },
         kits::{
+            decoding::{
+                LogitFilter,
+                TemperatureLadder,
+            },
             speech::{
                 asr_driver::{
                     CommitRule,
@@ -466,7 +470,6 @@ mod tests {
                         support::drop_last_frame,
                         whisper_stream_driver::WhisperStreamDriverConfig,
                     },
-                    logit_filters::LogitFilter,
                 },
             },
             tokens::Detokenizer,
@@ -1302,7 +1305,8 @@ mod tests {
 
         let hot = degenerate_driver(
             &device,
-            WhisperFallbackConfig::new().with_temperatures(vec![0.0, 0.8]),
+            WhisperFallbackConfig::new()
+                .with_ladder(TemperatureLadder::new().with_temperatures(vec![0.0, 0.8])),
         );
         let mut ctx = hot.new_context(clock(), LevelPolicy::PerWindow).unwrap();
         let mut reset = ctx.write_read(&audio).unwrap();
