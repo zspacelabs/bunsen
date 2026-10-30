@@ -33,7 +33,10 @@
 //! `bunsen-bundled-qwen3` rewrites them to standard ONNX first.
 //! `testdata/onnx_reference.json` records what onnxruntime computes for the
 //! *published* graph on fixed ids, and `testdata/transformers.json` what
-//! `transformers` decodes (`tools/gen_qwen3_fixtures.py` writes both). The
+//! `transformers` decodes (`tools/gen_qwen3_fixtures.py` writes both).
+//! `testdata/chat.json` records `transformers`' tokenizer and chat template
+//! on fixed texts and conversations (`tools/gen_qwen3_chat_fixtures.py`),
+//! which `bunsen-chat`'s are held to. The
 //! generated model is held to the first, so neither a defect in the rewrite
 //! nor one in the ONNX import can pass for a defect in bunsen.
 
@@ -159,6 +162,61 @@ pub fn transformers_reference() -> BTreeMap<String, GreedyRecord> {
     serde_json::from_str(&text).expect("parse the transformers fixture")
 }
 
+/// `testdata/chat.json`, by row: `transformers`' tokenizer and chat template
+/// on fixed texts and conversations.
+#[derive(Debug, Deserialize)]
+pub struct ChatRecord {
+    /// Texts, and the ids `transformers` encodes them to.
+    pub encode: Vec<EncodeCase>,
+    /// Conversations, under each setting, rendered and encoded.
+    pub templates: Vec<TemplateCase>,
+}
+
+/// One text and its ids.
+#[derive(Debug, Deserialize)]
+pub struct EncodeCase {
+    /// The text.
+    pub text: String,
+    /// Its ids, no special tokens added.
+    pub ids: Vec<i64>,
+}
+
+/// One conversation under one setting.
+#[derive(Debug, Deserialize)]
+pub struct TemplateCase {
+    /// The conversation's name.
+    pub name: String,
+    /// The conversation.
+    pub messages: Vec<MessageCase>,
+    /// Whether the assistant's next turn is opened.
+    pub add_generation_prompt: bool,
+    /// Qwen3's thinking switch; `None` when it was not passed.
+    pub enable_thinking: Option<bool>,
+    /// What `apply_chat_template` rendered.
+    pub text: String,
+    /// The text's ids.
+    pub ids: Vec<i64>,
+}
+
+/// One turn of a [`TemplateCase`].
+#[derive(Debug, Deserialize)]
+pub struct MessageCase {
+    /// The role.
+    pub role: String,
+    /// The content.
+    pub content: String,
+    /// An assistant's thinking, kept apart.
+    #[serde(default)]
+    pub reasoning_content: Option<String>,
+}
+
+/// Reads `testdata/chat.json`, by row.
+pub fn chat_reference() -> BTreeMap<String, ChatRecord> {
+    let path = concat!(env!("CARGO_MANIFEST_DIR"), "/testdata/chat.json");
+    let text = std::fs::read_to_string(path).expect("read the chat fixture");
+    serde_json::from_str(&text).expect("parse the chat fixture")
+}
+
 /// A pretrained cache over the bundled checkpoints, offline.
 ///
 /// Without `download` there are none: an ordinary cache, which the tests
@@ -246,6 +304,11 @@ mod reference_tests;
 #[cfg(all(test, feature = "download", feature = "gpu-tests"))]
 mod cross;
 
+/// `bunsen-chat`'s tokenizer and chat template against `transformers`'.
+/// Reads the bundled tokenizer files; loads no model.
+#[cfg(all(test, feature = "download"))]
+mod chat;
+
 /// bunsen's greedy decodes against `transformers`', for every row.
 #[cfg(all(test, feature = "download", feature = "gpu-tests"))]
 mod greedy;
@@ -292,5 +355,14 @@ mod tests {
             );
         }
         assert_eq!(greedy["qwen3-0.6b"].lm_head_vs_embed_max_abs, Some(0.0));
+
+        let chat = chat_reference();
+        assert_eq!(
+            chat.keys().map(String::as_str).collect::<Vec<_>>(),
+            ["qwen3-0.6b", "qwen3-4b-instruct-2507"]
+        );
+        for record in chat.values() {
+            assert!(!record.encode.is_empty() && !record.templates.is_empty());
+        }
     }
 }

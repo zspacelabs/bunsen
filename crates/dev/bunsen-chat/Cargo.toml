@@ -1,0 +1,30 @@
+[package]
+name = "bunsen-chat"
+description = "Chat with bunsen's Qwen3: the tokenizer, the chat template, and a streaming chat driver over the KV cache, as a library and a command line."
+publish = false
+
+authors.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+version.workspace = true
+repository.workspace = true
+license.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+burn = { workspace = true }
+bunsen = { path = "../../public/bunsen", features = ["store_safetensors", "cache"] }
+# Qwen3's added tokens are matched first, and the text between them is
+# NFC-normalized with the tables `transformers`' tokenizers use (Unicode
+# 9.0); wordchipper then encodes it under the checkpoint's pre-tokenizer.
+minijinja = { version = "2", features = ["json", "loop_controls"] }
+minijinja-contrib = { version = "2", features = ["pycompat"] }
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }
+unicode-normalization-alignments = "=0.1.12"
+wordchipper = { workspace = true, features = ["std", "fast-hash"] }
+
+[dev-dependencies]
+bunsen = { path = "../../public/bunsen", features = ["testing"] }
