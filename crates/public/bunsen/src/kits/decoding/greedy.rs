@@ -9,7 +9,10 @@ use burn::{
     },
 };
 
-use super::TokenSearch;
+use super::{
+    Candidate,
+    TokenSearch,
+};
 
 /// The argmax, one row per group; or sampling, `group` rows per group.
 ///
@@ -20,36 +23,38 @@ use super::TokenSearch;
 /// with `group` independent trajectories per group for the ranker to choose
 /// among: `openai-whisper`'s `best_of`.
 ///
-/// Rows finish independently: a row that emits the stop token stops
-/// contributing, but the batch keeps stepping until every row has finished
-/// or the cap is reached, so a finished row is fed a filler token whose
-/// output is discarded.
+/// Rows finish independently: a row that emits one of the stop tokens stops
+/// contributing, and its candidate records which one stopped it, but the batch
+/// keeps stepping until every row has finished or the cap is reached, so a
+/// finished row is fed a filler token whose output is discarded.
 /// A caller makes the filler a valid id (Whisper's decode feeds the first
 /// prompt token), because the stop token need not be a valid embedding
 /// index.
 #[derive(Debug, Clone)]
 pub struct GreedySearch {
-    eot: i64,
+    stops: Vec<i64>,
     filler: i64,
     temperature: f64,
     group: usize,
-    finished: Vec<bool>,
+    /// Per row, once the first update has said how many there are: `None`
+    /// while it runs, then the stop token that ended it.
+    stopped: Vec<Option<i64>>,
 }
 
 impl GreedySearch {
     /// # Arguments
-    /// * `eot` - the stop token.
+    /// * `stops` - the tokens that end a row.
     /// * `filler` - what a finished row is fed; must be a valid id.
     pub fn new(
-        eot: i64,
+        stops: impl IntoIterator<Item = i64>,
         filler: i64,
     ) -> Self {
         Self {
-            eot,
+            stops: stops.into_iter().collect(),
             filler,
             temperature: 0.0,
             group: 1,
-            finished: Vec::new(),
+            stopped: Vec::new(),
         }
     }
 
@@ -86,7 +91,7 @@ impl TokenSearch for GreedySearch {
     }
 
     fn reset(&mut self) {
-        self.finished.clear();
+        self.stopped.clear();
     }
 
     fn update(
@@ -97,8 +102,8 @@ impl TokenSearch for GreedySearch {
         _reorder: &mut dyn FnMut(&[usize]),
     ) -> (Vec<i64>, bool) {
         let [rows, _] = logits.dims();
-        if self.finished.len() != rows {
-            self.finished = vec![false; rows];
+        if self.stopped.len() != rows {
+            self.stopped = vec![None; rows];
         }
 
         let picked: Tensor<2, Int> = if self.temperature > 0.0 {
@@ -125,10 +130,10 @@ impl TokenSearch for GreedySearch {
         let mut feed = Vec::with_capacity(rows);
         for row in 0..rows {
             let token = chosen[row];
-            if self.finished[row] {
+            if self.stopped[row].is_some() {
                 feed.push(self.filler);
-            } else if token == self.eot {
-                self.finished[row] = true;
+            } else if self.stops.contains(&token) {
+                self.stopped[row] = Some(token);
                 feed.push(self.filler);
             } else {
                 tokens[row].push(token);
@@ -137,7 +142,7 @@ impl TokenSearch for GreedySearch {
             }
         }
 
-        let completed = self.finished.iter().all(|&done| done);
+        let completed = self.stopped.iter().all(Option::is_some);
         (feed, completed)
     }
 
@@ -146,12 +151,18 @@ impl TokenSearch for GreedySearch {
         tokens: Vec<Vec<i64>>,
         sum_logprobs: Vec<f32>,
         prompt_len: usize,
-    ) -> Vec<Vec<(Vec<i64>, f32)>> {
+    ) -> Vec<Vec<Candidate>> {
         let group = self.group.max(1);
+        let stopped = std::mem::take(&mut self.stopped);
         tokens
             .into_iter()
             .zip(sum_logprobs)
-            .map(|(sequence, logprob)| (sequence[prompt_len..].to_vec(), logprob))
+            .enumerate()
+            .map(|(row, (sequence, sum_logprob))| Candidate {
+                tokens: sequence[prompt_len..].to_vec(),
+                sum_logprob,
+                stop: stopped.get(row).copied().flatten(),
+            })
             .collect::<Vec<_>>()
             .chunks(group)
             .map(|group| group.to_vec())
@@ -177,7 +188,7 @@ mod tests {
     #[test]
     fn test_rows_finish_independently() {
         let eot = 3;
-        let mut decoder = GreedySearch::new(eot, 9);
+        let mut decoder = GreedySearch::new([eot], 9);
         let mut tokens = vec![vec![9, 9], vec![9, 9]];
         let mut sums = vec![0.0, 0.0];
         let mut reorders = 0;
@@ -214,11 +225,39 @@ mod tests {
 
         let out = TokenSearch::finalize(&mut decoder, tokens, sums, 2);
         assert_eq!(out[0].len(), 1);
-        assert_eq!(out[0][0].0, vec![1]);
-        assert_eq!(out[1][0].0, Vec::<i64>::new());
+        assert_eq!(out[0][0].tokens, vec![1]);
+        assert_eq!(out[1][0].tokens, Vec::<i64>::new());
+        assert_eq!(out[0][0].stop, Some(eot));
+        assert_eq!(out[1][0].tokens_with_stop(), vec![eot]);
 
         TokenSearch::reset(&mut decoder);
-        assert!(decoder.finished.is_empty());
+        assert!(decoder.stopped.is_empty());
+    }
+
+    /// Any of the stop tokens ends a row, and the candidate records which;
+    /// a row the budget cut records none.
+    #[test]
+    fn test_stop_sets() {
+        let mut decoder = GreedySearch::new([3, 2], 9);
+        let mut tokens = vec![vec![9], vec![9], vec![9]];
+        let mut sums = vec![0.0; 3];
+        let (_, done) = TokenSearch::update(
+            &mut decoder,
+            &mut tokens,
+            logits(&[
+                &[0.0, 0.0, 5.0, 0.0],
+                &[0.0, 0.0, 0.0, 5.0],
+                &[0.0, 5.0, 0.0, 0.0],
+            ]),
+            &mut sums,
+            &mut |_| {},
+        );
+        assert!(!done, "the last row runs on");
+        let stops: Vec<Option<i64>> = TokenSearch::finalize(&mut decoder, tokens, sums, 1)
+            .into_iter()
+            .map(|group| group[0].stop)
+            .collect();
+        assert_eq!(stops, [Some(2), Some(3), None]);
     }
 
     /// Sampling: a decisive distribution is picked every time, with the
@@ -226,7 +265,7 @@ mod tests {
     /// backend's random numbers, both ways over many draws.
     #[test]
     fn test_sampling() {
-        let mut decoder = GreedySearch::new(3, 9).with_temperature(0.5);
+        let mut decoder = GreedySearch::new([3], 9).with_temperature(0.5);
         assert_eq!(decoder.temperature(), 0.5);
         let mut reorder = |_: &[usize]| {};
 
@@ -273,7 +312,9 @@ mod tests {
     /// Trajectories per group come back grouped, in row order.
     #[test]
     fn test_group_finalize() {
-        let mut decoder = GreedySearch::new(3, 9).with_temperature(0.5).with_group(2);
+        let mut decoder = GreedySearch::new([3], 9)
+            .with_temperature(0.5)
+            .with_group(2);
         assert_eq!(TokenSearch::group_size(&decoder), 2);
         let out = TokenSearch::finalize(
             &mut decoder,
@@ -282,7 +323,19 @@ mod tests {
             1,
         );
         assert_eq!(out.len(), 2);
-        assert_eq!(out[0], vec![(vec![1], -1.0), (vec![2], -2.0)]);
-        assert_eq!(out[1], vec![(vec![1, 1], -3.0), (vec![], -4.0)]);
+        let summary = |group: &[Candidate]| -> Vec<(Vec<i64>, f32, Option<i64>)> {
+            group
+                .iter()
+                .map(|c| (c.tokens.clone(), c.sum_logprob, c.stop))
+                .collect()
+        };
+        assert_eq!(
+            summary(&out[0]),
+            vec![(vec![1], -1.0, None), (vec![2], -2.0, None)]
+        );
+        assert_eq!(
+            summary(&out[1]),
+            vec![(vec![1, 1], -3.0, None), (vec![], -4.0, None)]
+        );
     }
 }

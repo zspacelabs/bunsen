@@ -17,6 +17,10 @@
 //! [`kits::speech::qwen3_asr`](crate::kits::speech::qwen3_asr).
 //!
 //! - [`blocks`]: the model, built from a [`Qwen3Config`].
+//! - [`Qwen3DecodeState`]: a decode's cache and rotary table; the model is a
+//!   [`CachedStep`](crate::kits::decoding::CachedStep), so
+//!   [`decode_cached`](crate::kits::decoding::decode_cached) decodes it under
+//!   any search.
 //! - [`Qwen3Bundle`]: a model with the positions it was trained on and its
 //!   checkpoint's tokenizer and generation files, unread.
 //! - [`weights`] (feature `store`): loading tensors named as `transformers`'
@@ -25,13 +29,15 @@
 //!   checkpoints, `qwen/qwen3-0.6b` the default, and the factory that loads
 //!   one.
 //!
-//! A tokenizer, a chat template and a sampler are not part of the kit: what
-//! a caller decodes the model with is its own.
+//! A tokenizer and a chat template are not part of the kit; the searches are
+//! [`kits::decoding`](crate::kits::decoding)'s.
 
 pub mod blocks;
 
 mod bundle;
+mod decode;
 pub use bundle::*;
+pub use decode::*;
 
 #[cfg(feature = "store")]
 pub mod weights;

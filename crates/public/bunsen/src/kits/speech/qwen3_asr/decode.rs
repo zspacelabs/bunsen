@@ -2,14 +2,16 @@
 use burn::{
     Tensor,
     config::Config,
-    prelude::{
-        Int,
-        TensorData,
-    },
 };
 
 use super::blocks::Qwen3Asr;
-use crate::ops::transformers::attention::KVCacheModel;
+use crate::{
+    kits::decoding::{
+        GreedySearch,
+        decode_cached,
+    },
+    ops::transformers::attention::KVCacheStorage,
+};
 
 /// `Qwen3-ASR-0.6B`'s end tokens: `<|endoftext|>` and `<|im_end|>`.
 pub const QWEN3_ASR_EOS: [usize; 2] = [151_643, 151_645];
@@ -35,8 +37,9 @@ impl Qwen3AsrGreedyDecoderConfig {
     }
 }
 
-/// Greedy decoding of a prompt: a cached prefill, then one cached step per
-/// token, the argmax each time, until an end token or the budget.
+/// Greedy decoding of a prompt: a cached prefill, then
+/// [`decode_cached`] under a [`GreedySearch`] that stops on any of the end
+/// tokens, until one or the budget.
 ///
 /// Built by [`Qwen3AsrGreedyDecoderConfig`].
 #[derive(Clone, Debug)]
@@ -67,29 +70,26 @@ impl Qwen3AsrGreedyDecoder {
         let lm = &model.language_model;
         let device = embeds.device();
         let seq = embeds.dims()[1];
-        let total = seq + self.config.max_new_tokens;
-        let r_emb = lm.rotary(total, &device);
-        // The rotary table holds `total` positions, so the cache does too.
-        let mut cache = lm
-            .kv_cache_config()
-            .with_seq_len(total)
-            .with_max_seq_len(Some(total))
-            .init();
-
-        let argmax_last = |hidden: Tensor<3>| -> usize {
-            let n = hidden.dims()[1];
-            lm.logits(hidden.slice_dim(1, n - 1..n))
-                .argmax(2)
-                .into_scalar::<i64>() as usize
-        };
-        let mut token = argmax_last(lm.forward_hidden(embeds, &r_emb, Some(&mut cache)));
-        let mut out = vec![token];
-        while !self.config.eos.contains(&token) && out.len() < self.config.max_new_tokens {
-            let ids =
-                Tensor::<2, Int>::from_data(TensorData::new(vec![token as i64], [1, 1]), &device);
-            token = argmax_last(lm.forward_hidden(lm.embed(ids), &r_emb, Some(&mut cache)));
-            out.push(token);
-        }
-        out
+        let budget = self.config.max_new_tokens;
+        let mut state = lm.decode_state(1, seq + budget, KVCacheStorage::Auto, &device);
+        let first = lm.prefill(embeds, &mut state);
+        let stops: Vec<i64> = self.config.eos.iter().map(|&t| t as i64).collect();
+        // A finished row is fed a filler, which is never stepped for one row.
+        let filler = stops.first().copied().unwrap_or(0);
+        let mut search = GreedySearch::new(stops.iter().copied(), filler);
+        let out = decode_cached(
+            lm,
+            &mut state,
+            vec![Vec::new()],
+            first,
+            budget,
+            &mut search,
+            &[],
+        );
+        out[0][0]
+            .tokens_with_stop()
+            .into_iter()
+            .map(|t| t as usize)
+            .collect()
     }
 }
