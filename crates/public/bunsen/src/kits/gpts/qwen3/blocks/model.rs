@@ -148,6 +148,18 @@ impl Qwen3Config {
         Self::new(151_936, 2048, 28, 16, 8, 128, 6144)
     }
 
+    /// `Qwen3-4B`'s geometry: 36 layers of width 2560, 32 query and 8
+    /// key/value heads of width 128, and a 9728-wide feed-forward.
+    pub fn qwen3_4b() -> Self {
+        Self::new(151_936, 2560, 36, 32, 8, 128, 9728)
+    }
+
+    /// The geometry of `Qwen3-4B-Instruct-2507` and `Qwen3-4B-Thinking-2507`:
+    /// [`qwen3_4b`](Self::qwen3_4b)'s, with a rotary base of 5 * 10^6.
+    pub fn qwen3_4b_2507() -> Self {
+        Self::qwen3_4b().with_rope_theta(5_000_000)
+    }
+
     /// The rotary embedding for `seq_len` positions.
     pub fn rotary(
         &self,
@@ -210,13 +222,15 @@ impl ModuleInit<Qwen3Model> for Qwen3Config {
 }
 
 /// The Qwen3 decoder-only language model (Qwen team 2025), with its head
-/// tied to its embedding: the text model of Qwen3-ASR.
+/// tied to its embedding: the dense Qwen3 checkpoints up to 4B, and the text
+/// model of Qwen3-ASR.
 ///
 /// Its own fields carry the names `transformers`' `Qwen3Model` gives them;
 /// its layers are the generic
 /// [`CausalDecoderBlock`](crate::blocks::transformers::decoders::causal::CausalDecoderBlock)
 /// (RMS norms, a `SwiGLU`, QK-norm before the rotary embedding), onto which
-/// Qwen3-ASR's loader maps the `transformers` names.
+/// [`text_layer_rekey`](crate::kits::gpts::qwen3::weights::text_layer_rekey)
+/// maps the `transformers` names.
 ///
 /// Built by [`Qwen3Config`].
 /// Implements [`Qwen3Meta`].

@@ -20,27 +20,13 @@ use crate::{
     },
     errors::BunsenResult,
     kits::gpts::qwen3::{
-        Qwen3Config,
         Qwen3Meta,
+        weights::{
+            qwen3_config_from_hf_section,
+            text_layer_rekey,
+        },
     },
 };
-
-/// `transformers`' Qwen3 decoder layer names onto a
-/// [`CausalDecoderBlock`](crate::blocks::transformers::decoders::causal::CausalDecoderBlock)'s,
-/// relative to it: `input_layernorm` the attention's norm,
-/// `post_attention_layernorm` the feed-forward's, `self_attn`'s
-/// `{q,k,v,o}_proj` the attention's projections and its `{q,k}_norm` its
-/// QK-norms, and the `SwiGLU`'s projections as they are.
-pub fn text_layer_rekey() -> Rekey {
-    Rekey::keep_rest()
-        .rename("input_layernorm.", "attn_norm.")
-        .rename("post_attention_layernorm.", "mlp_norm.")
-        .rename("self_attn.q_proj.", "attn.c_q.")
-        .rename("self_attn.k_proj.", "attn.c_k.")
-        .rename("self_attn.v_proj.", "attn.c_v.")
-        .rename("self_attn.o_proj.", "attn.c_proj.")
-        .rename("self_attn.", "attn.")
-}
 
 /// `transformers`' `Qwen3ASRForConditionalGeneration` state-dict names onto
 /// a [`Qwen3Asr`]'s module paths: under `model.`, the audio tower's 1-based
@@ -100,9 +86,9 @@ pub fn load_hf_tensors(
 /// norm epsilon, the rotary base and the audio placeholder come from the
 /// file. What bunsen's model fixes is checked: a GELU audio tower with as
 /// many key/value heads as query heads, whose output is the text model's
-/// width; a Qwen3 text model with `SiLU`, no attention bias, full attention in
-/// every layer, the default rotary embedding, and its head tied to its
-/// embedding.
+/// width; and a text model as
+/// [`qwen3_config_from_hf_section`] checks it, its head tied unless the
+/// section or the file says otherwise.
 ///
 /// # Errors
 /// [`InvalidResource`](crate::errors::BunsenErrorKind::InvalidResource),
@@ -138,33 +124,10 @@ pub fn qwen3_asr_config_from_hf(json: &str) -> BunsenResult<Qwen3AsrConfig> {
         a.expect_eq("max_position_embeddings", positions, audio.chunk_out())?;
     }
 
-    let t = c.section("text_config")?;
-    t.expect_str("model_type", "qwen3")?;
-    t.expect_str("hidden_act", "silu")?;
-    t.expect_eq("attention_bias", t.bool_or("attention_bias", false)?, false)?;
-    let tied = t.bool_or(
-        "tie_word_embeddings",
+    let text = qwen3_config_from_hf_section(
+        &c.section("text_config")?,
         c.bool_or("tie_word_embeddings", true)?,
     )?;
-    t.expect_eq("tie_word_embeddings", tied, true)?;
-    if let Ok(rope) = t.section("rope_parameters") {
-        rope.expect_str("rope_type", "default")?;
-    }
-    let rope_theta = t
-        .section("rope_parameters")
-        .and_then(|rope| rope.f64("rope_theta"))
-        .or_else(|_| t.f64("rope_theta"))?;
-    let text = Qwen3Config::new(
-        t.usize("vocab_size")?,
-        t.usize("hidden_size")?,
-        t.usize("num_hidden_layers")?,
-        t.usize("num_attention_heads")?,
-        t.usize("num_key_value_heads")?,
-        t.usize("head_dim")?,
-        t.usize("intermediate_size")?,
-    )
-    .with_rms_eps(t.f64("rms_norm_eps")?)
-    .with_rope_theta(rope_theta as usize);
     a.expect_eq("output_dim", a.usize("output_dim")?, text.d_model())?;
 
     Ok(Qwen3AsrConfig::new(audio, text).with_audio_token(c.usize("audio_token_id")?))
@@ -173,26 +136,6 @@ pub fn qwen3_asr_config_from_hf(json: &str) -> BunsenResult<Qwen3AsrConfig> {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    /// `transformers`' Qwen3 decoder-layer names, onto the block's own.
-    #[test]
-    fn test_text_layer_rekey() {
-        let rekey = text_layer_rekey();
-        for (hf, bunsen) in [
-            ("input_layernorm.weight", "attn_norm.weight"),
-            ("post_attention_layernorm.weight", "mlp_norm.weight"),
-            ("self_attn.q_proj.weight", "attn.c_q.weight"),
-            ("self_attn.k_proj.weight", "attn.c_k.weight"),
-            ("self_attn.v_proj.weight", "attn.c_v.weight"),
-            ("self_attn.o_proj.weight", "attn.c_proj.weight"),
-            ("self_attn.q_norm.weight", "attn.q_norm.weight"),
-            ("self_attn.k_norm.weight", "attn.k_norm.weight"),
-            ("mlp.gate_proj.weight", "mlp.gate_proj.weight"),
-            ("mlp.down_proj.weight", "mlp.down_proj.weight"),
-        ] {
-            assert_eq!(rekey.apply(hf).as_deref(), Some(bunsen), "{hf}");
-        }
-    }
 
     #[test]
     fn test_hf_rekey() {

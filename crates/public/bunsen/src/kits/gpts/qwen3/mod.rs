@@ -11,9 +11,24 @@
 //! and decodes through a
 //! [`KVCache`](crate::ops::transformers::attention::KVCache).
 //!
-//! It is the text model of
+//! It is the model of the dense Qwen3 checkpoints up to 4B (`Qwen3-0.6B`,
+//! `Qwen3-1.7B`, `Qwen3-4B`, their `-Base` builds, and `Qwen3-4B`'s `2507`
+//! builds), whose heads are tied, and the text model of
 //! [`kits::speech::qwen3_asr`](crate::kits::speech::qwen3_asr).
+//!
+//! - [`blocks`]: the model, built from a [`Qwen3Config`].
+//! - [`weights`] (feature `store`): loading tensors named as `transformers`'
+//!   `Qwen3ForCausalLM` state dict, and reading its `config.json`.
+//!
+//! A tokenizer, a chat template and a sampler are not part of the kit: what
+//! a caller decodes the model with is its own.
 
 pub mod blocks;
 
+#[cfg(feature = "store")]
+pub mod weights;
+
 pub use blocks::model::*;
+
+#[cfg(all(test, feature = "store_safetensors"))]
+mod toy_tests;
