@@ -75,6 +75,10 @@ there finds them offline without knowing they were bundled.
   streaming Sortformer v2 and v2.1 checkpoints, and ONNX exports of Nemotron
   (which its build script rewrites where `burn-onnx` cannot import it) and of
   v2.1, for its validation crate only, and is not published.
+- `bunsen-bundled-qwen3` fetches Qwen's `Qwen3-0.6B`, `-1.7B`, `-4B` and
+  `-4B-Instruct-2507` checkpoints, and an ONNX export of `Qwen3-0.6B` (which
+  its build script rewrites where `burn-onnx` cannot import it), for its
+  validation crate only, and is not published.
 
 Only the validation crates depend on them, through their `weights` and
 `download` features, so no other build reaches the network. bunsen's own tests
