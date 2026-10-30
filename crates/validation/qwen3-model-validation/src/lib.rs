@@ -36,7 +36,9 @@
 //! `transformers` decodes (`tools/gen_qwen3_fixtures.py` writes both).
 //! `testdata/chat.json` records `transformers`' tokenizer and chat template
 //! on fixed texts and conversations (`tools/gen_qwen3_chat_fixtures.py`),
-//! which `bunsen-chat`'s are held to. The
+//! which `bunsen-chat`'s are held to, and `testdata/chat_replies.json` its
+//! greedy replies to multi-turn conversations, which `bunsen-chat`'s
+//! sessions are held to. The
 //! generated model is held to the first, so neither a defect in the rewrite
 //! nor one in the ONNX import can pass for a defect in bunsen.
 
@@ -217,6 +219,41 @@ pub fn chat_reference() -> BTreeMap<String, ChatRecord> {
     serde_json::from_str(&text).expect("parse the chat fixture")
 }
 
+/// One session of `testdata/chat_replies.json`.
+#[derive(Debug, Deserialize)]
+pub struct SessionRecord {
+    /// The session's name.
+    pub name: String,
+    /// Qwen3's thinking switch; `None` when it was not passed.
+    pub enable_thinking: Option<bool>,
+    /// The most tokens a reply generates.
+    pub budget: usize,
+    /// Each turn and `transformers`' reply.
+    pub replies: Vec<ReplyRecord>,
+}
+
+/// One turn of a [`SessionRecord`].
+#[derive(Debug, Deserialize)]
+pub struct ReplyRecord {
+    /// The user's message.
+    pub user: String,
+    /// The rendered conversation's ids.
+    pub prompt_ids: Vec<i64>,
+    /// The reply's ids, its stop token included.
+    pub ids: Vec<i64>,
+    /// The reply's text, without it.
+    pub text: String,
+    /// Each step's top-1 minus top-2 logit.
+    pub margins: Vec<f64>,
+}
+
+/// Reads `testdata/chat_replies.json`, by row.
+pub fn chat_replies_reference() -> BTreeMap<String, Vec<SessionRecord>> {
+    let path = concat!(env!("CARGO_MANIFEST_DIR"), "/testdata/chat_replies.json");
+    let text = std::fs::read_to_string(path).expect("read the chat replies fixture");
+    serde_json::from_str(&text).expect("parse the chat replies fixture")
+}
+
 /// A pretrained cache over the bundled checkpoints, offline.
 ///
 /// Without `download` there are none: an ordinary cache, which the tests
@@ -309,6 +346,10 @@ mod cross;
 #[cfg(all(test, feature = "download"))]
 mod chat;
 
+/// `bunsen-chat`'s sessions against `transformers`' greedy chat replies.
+#[cfg(all(test, feature = "download", feature = "gpu-tests"))]
+mod chat_session;
+
 /// bunsen's greedy decodes against `transformers`', for every row.
 #[cfg(all(test, feature = "download", feature = "gpu-tests"))]
 mod greedy;
@@ -363,6 +404,14 @@ mod tests {
         );
         for record in chat.values() {
             assert!(!record.encode.is_empty() && !record.templates.is_empty());
+        }
+        for (row, sessions) in chat_replies_reference() {
+            for session in sessions {
+                for reply in &session.replies {
+                    assert_eq!(reply.ids.len(), reply.margins.len(), "{row}");
+                    assert!(reply.ids.len() <= session.budget, "{row}");
+                }
+            }
         }
     }
 }
