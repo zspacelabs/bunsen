@@ -10,6 +10,14 @@
 //!   through [`decode_cached_observed`](bunsen::kits::decoding::decode_cached_observed),
 //!   and prefills only what the cache does not already hold.
 //! - [`GenerationDefaults`]: a checkpoint's stop tokens and sampling.
+//!
+//! The `bunsen-chat` binary runs them:
+//!
+//! ```text
+//! bunsen-chat list
+//! bunsen-chat run --device wgpu --no-think "What is the capital of France?"
+//! bunsen-chat chat --device wgpu --model qwen3-4b-instruct-2507 --stats
+//! ```
 //! - [`Qwen3Tokenizer`]: a checkpoint's tokenizer, text to ids and back, as
 //!   `transformers` encodes; a
 //!   [`Detokenizer`](bunsen::kits::tokens::Detokenizer).

@@ -1339,7 +1339,9 @@ name = "bunsen-chat"
 version = "0.41.0"
 dependencies = [
  "bunsen",
+ "bunsen-app",
  "burn",
+ "clap",
  "minijinja",
  "minijinja-contrib",
  "serde",
