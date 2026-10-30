@@ -11,7 +11,6 @@ use std::{
 use bunsen::{
     data::pretrained::PretrainedCache,
     errors::{
-        BunsenError,
         BunsenResult,
         sys_at,
     },
@@ -27,7 +26,12 @@ use bunsen::{
 };
 use bunsen_app::{
     cache::WeightsCacheArgs,
-    device::BackendArgs,
+    device::{
+        DeviceArgs,
+        DevicePrefs,
+        DeviceSession,
+        Precision,
+    },
     logging::{
         LevelFilter,
         LogArgs,
@@ -98,8 +102,10 @@ struct GenerateFlags {
     #[clap(flatten)]
     cache: WeightsCacheArgs,
 
+    /// The device, and the precision the model loads and runs in:
+    /// `--precision half` is f16 where the device runs it.
     #[clap(flatten)]
-    backend: BackendArgs,
+    device: DeviceArgs,
 
     /// The checkpoint: a name `list` shows, or `hf:org/repo`.
     #[arg(long, default_value = DEFAULT_QWEN3_MODEL)]
@@ -196,17 +202,13 @@ struct ChatCmd {
 
 impl GenerateFlags {
     /// Loads the checkpoint, and opens a session on it.
-    fn open(
-        &self
-    ) -> BunsenResult<(
-        bunsen_app::device::DeviceSession,
-        Arc<ChatModel>,
-        ChatSession,
-    )> {
+    fn open(&self) -> BunsenResult<(DeviceSession, Arc<ChatModel>, ChatSession)> {
         self.logging
             .init(LogPolicy::new(LevelFilter::Warn, LevelFilter::Warn))?;
         let cache = self.cache.init()?;
-        let device = self.backend.open().map_err(BunsenError::unsupported)?;
+        let device = self
+            .device
+            .open(&DevicePrefs::new().with_half(Precision::AnyHalf))?;
         if let Some(seed) = self.seed {
             device.seed(seed);
         }
@@ -243,7 +245,7 @@ impl GenerateFlags {
         &self,
         chat: &Arc<ChatModel>,
         config: ChatSessionConfig,
-        device: &bunsen_app::device::DeviceSession,
+        device: &DeviceSession,
     ) -> ChatSession {
         let mut session = chat.session(config, device);
         if let Some(system) = &self.system {
