@@ -22,7 +22,12 @@ use crate::{
         WELL_KNOWN,
     },
     errors::BunsenResult,
-    kits::gpts::qwen3::pretrained::Qwen3Pretrained,
+    kits::gpts::qwen3::{
+        GENERATION_CONFIG,
+        Qwen3Bundle,
+        TOKENIZER,
+        TOKENIZER_CONFIG,
+    },
 };
 
 /// The kit segment of a Qwen3 resource's path in the cache:
@@ -33,17 +38,6 @@ pub const QWEN3_KIT: &str = "qwen3";
 /// `model.safetensors`, or `checkpoint.index` and its shards
 /// `checkpoint.<n>`.
 pub const CHECKPOINT: &str = "checkpoint";
-
-/// The key of the tokenizer, `tokenizer.json`, in a Qwen3 resource map.
-pub const TOKENIZER: &str = "tokenizer";
-
-/// The key of the tokenizer's config, `tokenizer_config.json` (its added
-/// tokens and its chat template), in a Qwen3 resource map.
-pub const TOKENIZER_CONFIG: &str = "tokenizer_config";
-
-/// The key of the generation defaults, `generation_config.json` (the stop
-/// tokens and the sampling parameters), in a Qwen3 resource map.
-pub const GENERATION_CONFIG: &str = "generation_config";
 
 /// The `kind` of a `config.json`.
 pub const JSON: &str = "json";
@@ -688,9 +682,8 @@ pub fn default_qwen3_providers() -> Vec<Arc<dyn PretrainedProvider>> {
 /// Qwen3's factory over [`default_qwen3_providers`], building through
 /// [`Qwen3Construct`].
 ///
-/// [`load_pretrained`](PretrainedFactory::load_pretrained) with
-/// `"[provider:]name"` is the whole pathway from a name to a
-/// [`Qwen3Pretrained`].
+/// [`load_bundle`](PretrainedFactory::load_bundle) with `"[provider:]name"`
+/// is the whole pathway from a name to a [`Qwen3Bundle`].
 ///
 /// # Errors
 /// As [`PretrainedFactory::with_providers`], if two of the defaults share a
@@ -700,16 +693,16 @@ pub fn default_qwen3_factory() -> BunsenResult<PretrainedFactory<Qwen3Construct>
 }
 
 impl PretrainedFactory<Qwen3Construct> {
-    /// A name to a loaded model: [`load`](Self::load), keeping the handle.
+    /// A name to a bundle: [`load`](Self::load), keeping the handle.
     ///
     /// # Errors
     /// As [`load`](Self::load).
-    pub fn load_pretrained(
+    pub fn load_bundle(
         &self,
         spec: &str,
         cache: &PretrainedCache,
         device: &Device,
-    ) -> BunsenResult<Arc<Qwen3Pretrained>> {
+    ) -> BunsenResult<Arc<Qwen3Bundle>> {
         Ok(self.load(spec, cache, device)?.handle)
     }
 }

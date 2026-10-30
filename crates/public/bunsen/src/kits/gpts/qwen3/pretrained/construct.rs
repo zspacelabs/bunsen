@@ -1,18 +1,12 @@
 //! # Constructing a Qwen3 pretrained
-use std::{
-    path::Path,
-    sync::Arc,
-};
+use std::sync::Arc;
 
 use burn::tensor::Device;
 
 use super::{
     CHECKPOINT,
-    GENERATION_CONFIG,
     QWEN3_KIT,
     QWEN3_PREFABS,
-    TOKENIZER,
-    TOKENIZER_CONFIG,
 };
 use crate::{
     burner::module::ModuleInit,
@@ -33,7 +27,7 @@ use crate::{
         sys_at,
     },
     kits::gpts::qwen3::{
-        Qwen3Config,
+        Qwen3Bundle,
         Qwen3Model,
         weights::{
             load_hf_tensors,
@@ -42,60 +36,11 @@ use crate::{
     },
 };
 
-/// A loaded Qwen3 checkpoint: the model, the geometry it was built to, the
-/// positions it was trained on, and the checkpoint's other files, unread.
-///
-/// The kit reads only what builds the model. The tokenizer, its config (its
-/// added tokens and chat template) and the generation defaults are the
-/// caller's to read, through [`tokenizer`](Self::tokenizer),
-/// [`tokenizer_config`](Self::tokenizer_config) and
-/// [`generation_config`](Self::generation_config).
-#[derive(Debug)]
-pub struct Qwen3Pretrained {
-    /// The model, in the device's float dtype.
-    pub model: Qwen3Model,
-
-    /// The geometry the model was built to.
-    pub config: Qwen3Config,
-
-    /// The positions the checkpoint was trained on
-    /// (`max_position_embeddings`), when its `config.json` says.
-    pub max_positions: Option<usize>,
-
-    /// Every resource of the checkpoint, local.
-    pub resources: LoadedResources,
-}
-
-impl Qwen3Pretrained {
-    /// The local path of the resource called `key`, when the checkpoint has
-    /// it.
-    pub fn resource(
-        &self,
-        key: &str,
-    ) -> Option<&Path> {
-        self.resources.get(key).map(|part| part.path.as_path())
-    }
-
-    /// The `tokenizer.json`, under [`TOKENIZER`].
-    pub fn tokenizer(&self) -> Option<&Path> {
-        self.resource(TOKENIZER)
-    }
-
-    /// The `tokenizer_config.json`, under [`TOKENIZER_CONFIG`].
-    pub fn tokenizer_config(&self) -> Option<&Path> {
-        self.resource(TOKENIZER_CONFIG)
-    }
-
-    /// The `generation_config.json`, under [`GENERATION_CONFIG`].
-    pub fn generation_config(&self) -> Option<&Path> {
-        self.resource(GENERATION_CONFIG)
-    }
-}
-
 /// How a Qwen3 pretrained is built: its safetensors checkpoint (one file or
 /// shards) read into the geometry its `config.json` gives
 /// ([`qwen3_config_from_hf`]), or else the prefab its row names, in the
-/// device's float dtype.
+/// device's float dtype; bundled with the positions the `config.json` says it
+/// was trained on, and every file of the checkpoint by its key.
 ///
 /// The [`Construct`] hook for the Qwen3 kit.
 /// [`default_qwen3_factory`](super::default_qwen3_factory) attaches it; a
@@ -104,7 +49,7 @@ impl Qwen3Pretrained {
 pub struct Qwen3Construct;
 
 impl Construct for Qwen3Construct {
-    type Built = Qwen3Pretrained;
+    type Built = Qwen3Bundle;
 
     const KIT: &'static str = QWEN3_KIT;
 
@@ -128,7 +73,7 @@ impl Construct for Qwen3Construct {
         model: &PretrainedRef,
         loaded: &LoadedResources,
         device: &Device,
-    ) -> BunsenResult<Arc<Qwen3Pretrained>> {
+    ) -> BunsenResult<Arc<Qwen3Bundle>> {
         let (config, max_positions) = match loaded.get(CONFIG) {
             Some(part) => {
                 let json =
@@ -153,12 +98,11 @@ impl Construct for Qwen3Construct {
         let tensors = SafetensorsCheckpoint::from_loaded(loaded, CHECKPOINT)?.tensors()?;
         let mut qwen3: Qwen3Model = config.try_init(device)?;
         load_hf_tensors(&mut qwen3, tensors)?;
-        Ok(Arc::new(Qwen3Pretrained {
-            model: qwen3,
-            config,
-            max_positions,
-            resources: loaded.clone(),
-        }))
+        let mut bundle = Qwen3Bundle::new(qwen3).with_max_positions(max_positions);
+        for (key, part) in &loaded.parts {
+            bundle = bundle.with_file(key, &part.path);
+        }
+        Ok(Arc::new(bundle))
     }
 }
 

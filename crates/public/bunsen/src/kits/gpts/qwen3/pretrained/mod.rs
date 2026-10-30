@@ -1,7 +1,7 @@
 //! # Pretrained Qwen3 models
 //!
-//! From a model's name to a loaded [`Qwen3Pretrained`], through the data
-//! layer's pretrained machinery
+//! From a model's name to a loaded [`Qwen3Bundle`](super::Qwen3Bundle), through
+//! the data layer's pretrained machinery
 //! ([`data::pretrained`](crate::data::pretrained)). The whole module needs the
 //! `store_safetensors` and `cache` features.
 //!
@@ -32,7 +32,7 @@
 //!
 //! # Loading
 //!
-//! [`load_pretrained`](crate::data::pretrained::PretrainedFactory::load_pretrained)
+//! [`load_bundle`](crate::data::pretrained::PretrainedFactory::load_bundle)
 //! resolves a name to a deferred model carrying [`Qwen3Construct`], brings
 //! every file local through the cache, and reads the checkpoint into its
 //! geometry through [`load_hf_tensors`](super::weights::load_hf_tensors). The

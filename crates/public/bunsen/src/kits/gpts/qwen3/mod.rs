@@ -17,6 +17,8 @@
 //! [`kits::speech::qwen3_asr`](crate::kits::speech::qwen3_asr).
 //!
 //! - [`blocks`]: the model, built from a [`Qwen3Config`].
+//! - [`Qwen3Bundle`]: a model with the positions it was trained on and its
+//!   checkpoint's tokenizer and generation files, unread.
 //! - [`weights`] (feature `store`): loading tensors named as `transformers`'
 //!   `Qwen3ForCausalLM` state dict, and reading its `config.json`.
 //! - [`pretrained`] (features `store_safetensors` and `cache`): the named
@@ -27,6 +29,9 @@
 //! a caller decodes the model with is its own.
 
 pub mod blocks;
+
+mod bundle;
+pub use bundle::*;
 
 #[cfg(feature = "store")]
 pub mod weights;
