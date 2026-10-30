@@ -42,6 +42,10 @@
 //! exact dtype, and is an error where the device does not support it.
 
 pub use bunsen::burner::device::DeviceSession;
+use bunsen::errors::{
+    BunsenError,
+    BunsenResult,
+};
 use burn::tensor::{
     DType,
     Device,
@@ -121,8 +125,9 @@ impl BackendArgs {
     /// not fail; it returns a `Result` for the backends that someday might.
     ///
     /// # Errors
-    /// None at present.
-    pub fn init(&self) -> Result<Device, String> {
+    /// None at present; a backend that someday can fail to start reports
+    /// [`Unsupported`](bunsen::errors::BunsenErrorKind::Unsupported).
+    pub fn init(&self) -> BunsenResult<Device> {
         #[allow(unused_variables)]
         let index = self.device_index;
         Ok(match self.choice() {
@@ -144,7 +149,7 @@ impl BackendArgs {
     ///
     /// # Errors
     /// As [`init`](Self::init).
-    pub fn open(&self) -> Result<DeviceSession, String> {
+    pub fn open(&self) -> BunsenResult<DeviceSession> {
         self.init().map(DeviceSession::new)
     }
 }
@@ -370,19 +375,22 @@ pub fn resolve_precision(
 /// The device config the flags and preferences resolve to on a backend.
 ///
 /// # Errors
-/// When an exact `--float-dtype` or `--int-dtype` is one the device does not
+/// [`Unsupported`](bunsen::errors::BunsenErrorKind::Unsupported) when an
+/// exact `--float-dtype` or `--int-dtype` is one the device does not
 /// support.
 pub fn resolve_config(
     args: &PrecisionArgs,
     prefs: &DevicePrefs,
     backend: DeviceChoice,
     supports: impl Fn(DType) -> bool,
-) -> Result<DeviceConfig, String> {
+) -> BunsenResult<DeviceConfig> {
     let float = match args.float_dtype {
         Some(choice) => {
             let dtype = FloatDType::from(choice);
             if !supports(dtype.into()) {
-                return Err(format!("the {backend:?} device does not support {dtype:?}"));
+                return Err(BunsenError::unsupported(format!(
+                    "the {backend:?} device does not support {dtype:?}"
+                )));
             }
             dtype
         }
@@ -401,7 +409,9 @@ pub fn resolve_config(
         Some(choice) => {
             let dtype = IntDType::from(choice);
             if !supports(dtype.into()) {
-                return Err(format!("the {backend:?} device does not support {dtype:?}"));
+                return Err(BunsenError::unsupported(format!(
+                    "the {backend:?} device does not support {dtype:?}"
+                )));
             }
             config = config.int_dtype(dtype);
         }
@@ -436,12 +446,14 @@ impl DeviceArgs {
     /// for the dtypes the device already has.
     ///
     /// # Errors
-    /// When the backend is not compiled in, an exact dtype flag names a dtype
-    /// the device does not support, or the device already has other dtypes.
+    /// [`Unsupported`](bunsen::errors::BunsenErrorKind::Unsupported) when an
+    /// exact dtype flag names a dtype the device does not support;
+    /// [`Illegal`](bunsen::errors::BunsenErrorKind::Illegal) when the device
+    /// already has other dtypes.
     pub fn init(
         &self,
         prefs: &DevicePrefs,
-    ) -> Result<Device, String> {
+    ) -> BunsenResult<Device> {
         let mut device = self.backend.init()?;
         let config = resolve_config(&self.precision, prefs, self.backend.choice(), |dtype| {
             device.supports_dtype(dtype)
@@ -453,7 +465,7 @@ impl DeviceArgs {
             Err(DeviceError::AlreadyInitialized { .. })
                 if Some(device.settings().float_dtype) == float
                     && int.is_none_or(|int| device.settings().int_dtype == int) => {}
-            Err(e) => return Err(e.to_string()),
+            Err(e) => return Err(BunsenError::illegal(e.to_string())),
         }
 
         let device = if prefs.autodiff {
@@ -473,7 +485,7 @@ impl DeviceArgs {
     pub fn open(
         &self,
         prefs: &DevicePrefs,
-    ) -> Result<DeviceSession, String> {
+    ) -> BunsenResult<DeviceSession> {
         self.init(prefs).map(DeviceSession::new)
     }
 }
@@ -589,8 +601,9 @@ mod tests {
             float_dtype: Some(FloatChoice::Bf16),
             ..args
         };
-        let err = resolve_config(&args, &prefs, DeviceChoice::Flex, no_bf16).unwrap_err();
-        assert!(err.contains("BF16"), "{err}");
+        bunsen::errors::testing::ErrorMatcher::kind(bunsen::errors::BunsenErrorKind::Unsupported)
+            .message_contains("BF16")
+            .assert_err(&resolve_config(&args, &prefs, DeviceChoice::Flex, no_bf16));
     }
 
     #[test]

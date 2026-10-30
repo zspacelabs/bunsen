@@ -203,10 +203,7 @@ fn create_artifact_dir(artifact_dir: &str) {
 /// Train the model with the given configuration and devices.
 pub fn backend_main(args: &Args) -> BunsenResult<()> {
     // Training records gradients: autodiff before the model and inputs.
-    let device: Device = args
-        .device
-        .init(&DevicePrefs::training())
-        .map_err(BunsenError::unsupported)?;
+    let device: Device = args.device.init(&DevicePrefs::training())?;
 
     let h: usize = 32;
     let w: usize = 32;

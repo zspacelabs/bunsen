@@ -31,6 +31,7 @@ use bunsen::{
 };
 use bunsen_app::{
     cache::WeightsCacheArgs,
+    device::BackendArgs,
     logging::{
         LevelFilter,
         LogArgs,
@@ -43,7 +44,6 @@ use serde::Serialize;
 #[cfg(feature = "live")]
 use crate::capture::CaptureArgs;
 use crate::{
-    args::DeviceArgs,
     family::{
         Kit,
         load_logged,
@@ -349,7 +349,7 @@ pub struct RunCmd {
     pub cache: WeightsCacheArgs,
 
     #[clap(flatten)]
-    pub device: DeviceArgs,
+    pub device: BackendArgs,
 
     #[clap(flatten)]
     pub output: OutputArgs,
@@ -430,7 +430,7 @@ pub struct LiveCmd {
     pub cache: WeightsCacheArgs,
 
     #[clap(flatten)]
-    pub device: DeviceArgs,
+    pub device: BackendArgs,
 
     #[clap(flatten)]
     pub output: OutputArgs,

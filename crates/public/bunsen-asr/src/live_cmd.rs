@@ -12,6 +12,7 @@ use bunsen::{
 };
 use bunsen_app::{
     cache::WeightsCacheArgs,
+    device::BackendArgs,
     logging::{
         LevelFilter,
         LogArgs,
@@ -20,7 +21,6 @@ use bunsen_app::{
 };
 
 use crate::{
-    args::DeviceArgs,
     capture::CaptureArgs,
     diarize::SpeakerArgs,
     driver::{
@@ -89,7 +89,7 @@ pub struct LiveIo {
     pub cache: WeightsCacheArgs,
 
     #[clap(flatten)]
-    pub device: DeviceArgs,
+    pub device: BackendArgs,
 
     #[clap(flatten)]
     pub publish: PublishArgs,

@@ -252,10 +252,7 @@ fn ensure_artifact_dir(artifact_dir: &str) -> BunsenResult<()> {
 pub fn train(args: &Args) -> BunsenResult<()> {
     // f32 unless `--precision half` (bf16, where the backend trains in it
     // well); autodiff before the model and inputs.
-    let device: Device = args
-        .device
-        .init(&DevicePrefs::training())
-        .map_err(BunsenError::unsupported)?;
+    let device: Device = args.device.init(&DevicePrefs::training())?;
 
     let factory = default_resnet_factory()?;
 

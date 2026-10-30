@@ -224,7 +224,7 @@ pub fn backend_main(args: &Args) -> BunsenResult<()> {
     let prefs = DevicePrefs::training()
         .with_precision(Precision::BF16Half)
         .with_half(Precision::BF16Half);
-    let device: Device = args.device.init(&prefs).map_err(BunsenError::unsupported)?;
+    let device: Device = args.device.init(&prefs)?;
 
     let image_shape = ImageShape {
         height: 32,

@@ -21,6 +21,7 @@ use bunsen::{
 };
 use bunsen_app::{
     cache::WeightsCacheArgs,
+    device::BackendArgs,
     logging::{
         LevelFilter,
         LogArgs,
@@ -30,7 +31,6 @@ use bunsen_app::{
 use serde::Serialize;
 
 use crate::{
-    args::DeviceArgs,
     diarize::{
         SpeakerArgs,
         speaker_name,
@@ -138,7 +138,7 @@ pub struct TranscribeIo {
     pub cache: WeightsCacheArgs,
 
     #[clap(flatten)]
-    pub device: DeviceArgs,
+    pub device: BackendArgs,
 
     #[clap(flatten)]
     pub publish: PublishArgs,

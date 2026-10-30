@@ -208,10 +208,7 @@ fn run(args: &Args) -> BunsenResult<()> {
     ensure_artifact_dir(artifact_dir)?;
 
     // Training records gradients: autodiff before the model and inputs.
-    let device: Device = args
-        .device
-        .init(&DevicePrefs::training())
-        .map_err(BunsenError::unsupported)?;
+    let device: Device = args.device.init(&DevicePrefs::training())?;
 
     let shard_cache = BunsenDiskCache::default();
     let shard_paths = args.shards.fetch_paths(
