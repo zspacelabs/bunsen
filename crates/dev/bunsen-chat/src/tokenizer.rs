@@ -249,6 +249,14 @@ impl Qwen3Tokenizer {
             .map(|&(_, id)| id)
     }
 
+    /// Whether `id` is a token.
+    pub fn contains(
+        &self,
+        id: i64,
+    ) -> bool {
+        self.bytes.contains_key(&id)
+    }
+
     /// The token count, added tokens included.
     pub fn len(&self) -> usize {
         self.bytes.len()
