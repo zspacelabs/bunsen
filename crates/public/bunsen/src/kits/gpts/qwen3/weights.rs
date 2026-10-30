@@ -6,7 +6,10 @@ use super::{
     Qwen3Model,
 };
 use crate::{
-    burner::module::Rekey,
+    burner::{
+        module::Rekey,
+        tensor::param_float_dtype,
+    },
     data::pretrained::{
         HfConfigJson,
         NamedTensorsApplied,
@@ -52,8 +55,10 @@ pub fn hf_rekey() -> Rekey {
 
 /// Loads tensors named as `transformers`' `Qwen3ForCausalLM` state dict into
 /// `model`: [`apply_rekeyed_tensors_as`] under [`hf_rekey`], every floating
-/// tensor cast to the dtype `model` was built in. The checkpoints ship
-/// `bf16`, which not every backend computes in.
+/// tensor cast to the dtype `model` was built in
+/// ([`param_float_dtype`], which leaves a freshly built model's lazy
+/// parameters uninitialized). The checkpoints ship `bf16`, which not every
+/// backend computes in.
 ///
 /// # Errors
 /// As [`apply_rekeyed_tensors_as`].
@@ -61,7 +66,7 @@ pub fn load_hf_tensors(
     model: &mut Qwen3Model,
     tensors: impl IntoIterator<Item = PackTensor>,
 ) -> BunsenResult<NamedTensorsApplied> {
-    let dtype = model.embed_tokens.weight.val().dtype();
+    let dtype = param_float_dtype(&model.embed_tokens.weight);
     apply_rekeyed_tensors_as(model, tensors, &hf_rekey(), Some(dtype))
 }
 
