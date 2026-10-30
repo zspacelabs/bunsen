@@ -106,7 +106,7 @@ asked: from the Actions tab, or for a pull request with the `validate` label,
 then on every push while the label stays.
 
 `cargo make validate-<model>` (`silero`, `whisper`, `parakeet`, `qwen3-asr`,
-`sortformer`, or `all`) runs a model's whole suite, in release mode, on
+`qwen3`, `sortformer`, or `all`) runs a model's whole suite, in release mode, on
 `VALIDATION_BACKEND` (default `wgpu`). The
 [README](https://github.com/zspacelabs/bunsen/blob/main/crates/validation/whisper-model-validation/README.md#running-it)
 has the command. Without a backend feature the suite still passes, having

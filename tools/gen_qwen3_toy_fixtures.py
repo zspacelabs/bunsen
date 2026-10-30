@@ -21,7 +21,7 @@ Outputs, under `crates/public/bunsen/testdata/qwen3/`:
 `toy.safetensors`
     - `model.*`: the toy's weights under their state-dict names.
     - `lm_head.weight`: NOT the tied head but random values, as a checkpoint may carry a
-      stale copy of it. `transformers` does not read it under `tie_word_embeddings`; a
+      copy of it. `transformers` does not read it under `tie_word_embeddings`; a
       loader that did would not reproduce `io.logits`.
     - `io.*`: `input_ids` `[1, 7]`; the outputs of `transformers`' forward over them:
       `layer0` (the first decoder layer's output), `hidden` (after the final norm) and

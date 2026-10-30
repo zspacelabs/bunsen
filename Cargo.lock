@@ -8943,6 +8943,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "qwen3-model-validation"
+version = "0.41.0"
+dependencies = [
+ "bunsen",
+ "bunsen-bundled-qwen3",
+ "burn",
+ "serde",
+ "serde_json",
+ "serial_test",
+]
+
+[[package]]
 name = "r-efi"
 version = "5.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"

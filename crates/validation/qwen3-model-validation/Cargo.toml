@@ -1,0 +1,64 @@
+[package]
+name = "qwen3-model-validation"
+description = "Validates bunsen's Qwen3 against pretrained references: an ONNX export, onnxruntime's run of it, and transformers. Fetches its model assets; hosts none."
+publish = false
+
+authors.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+version.workspace = true
+repository.workspace = true
+license.workspace = true
+
+[lints]
+workspace = true
+
+[features]
+default = []
+
+## Fetch the reference graph and generate the model from it, and fetch the
+## checkpoints compared against it and against `transformers`: Qwen's
+## `Qwen3-0.6B`, `Qwen3-1.7B`, `Qwen3-4B` and `Qwen3-4B-Instruct-2507`.
+##
+## **Off by default.** Enabling this makes `bunsen-bundled-qwen3`'s build
+## reach the network on a cold cache (~24 GB), which a plain
+## `cargo build --workspace` must never do. Every asset is verified against a
+## pinned SHA-256, so a warm build is offline and reproducible.
+download = [
+    "dep:bunsen-bundled-qwen3",
+    "bunsen-bundled-qwen3/onnx_gen",
+    "bunsen-bundled-qwen3/checkpoint",
+    "bunsen-bundled-qwen3/large_checkpoints",
+]
+
+## Compile every test that loads a model.
+##
+## **Off by default**, and orthogonal to the backend features: this selects
+## *whether* those tests are built, a backend feature selects *which*
+## accelerator runs them, and both are passed. Needs `download` too.
+gpu-tests = []
+
+## Run the cross-check on `wgpu`. The usual choice.
+wgpu = ["bunsen/wgpu"]
+
+## Run the cross-check on Vulkan.
+vulkan = ["bunsen/vulkan"]
+
+## Run the cross-check on CUDA.
+cuda = ["bunsen/cuda"]
+
+## Run the cross-check on Metal.
+metal = ["bunsen/metal"]
+
+[dependencies]
+burn = { workspace = true }
+bunsen = { path = "../../public/bunsen", features = ["testing", "cache"] }
+bunsen-bundled-qwen3 = {
+    path = "../../public/bunsen-bundled-qwen3",
+    optional = true
+}
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }
+
+[dev-dependencies]
+serial_test = { workspace = true }

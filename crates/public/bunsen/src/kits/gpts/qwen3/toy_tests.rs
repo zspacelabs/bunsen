@@ -2,10 +2,10 @@
 //!
 //! `testdata/qwen3/toy.safetensors` holds a tiny seeded `Qwen3ForCausalLM`'s
 //! weights and its answers, computed in float64
-//! (`tools/gen_qwen3_toy_fixtures.py`), and a stale `lm_head.weight` that a
-//! tied loader must not read. The geometry comes from `toy.config.json`
-//! through [`qwen3_config_from_hf`], and the weights load through
-//! [`load_hf_tensors`], so the loader is under test too.
+//! (`tools/gen_qwen3_toy_fixtures.py`), and an `lm_head.weight` that is not the
+//! embedding, which a tied loader must not read. The geometry comes from
+//! `toy.config.json` through [`qwen3_config_from_hf`], and the weights load
+//! through [`load_hf_tensors`], so the loader is under test too.
 
 use std::collections::BTreeMap;
 
