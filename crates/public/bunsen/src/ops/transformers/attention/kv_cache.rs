@@ -439,6 +439,29 @@ impl KVCache {
         self.pos = 0;
     }
 
+    /// Rewinds to position `pos`: the history keeps its first `pos`
+    /// positions, and the next step writes at `pos`, as though nothing past
+    /// it had been written. A decode that changes its mind about a suffix
+    /// (a conversation whose next turn re-renders the end of the last one)
+    /// keeps the prefix it shares instead of running it again.
+    ///
+    /// [`reset`](Self::reset) is `truncate(0)`. As there, nothing is
+    /// reallocated, and the cross-attention keys and values are kept.
+    ///
+    /// # Panics
+    /// If `pos` is past the current position.
+    pub fn truncate(
+        &mut self,
+        pos: usize,
+    ) {
+        assert!(
+            pos <= self.pos,
+            "cannot truncate a KV cache at {} to {pos}",
+            self.pos
+        );
+        self.pos = pos;
+    }
+
     /// Returns the current position.
     pub fn pos(&self) -> usize {
         self.pos
@@ -998,6 +1021,45 @@ mod tests {
                 .into_data()
                 .assert_eq(&v.expand(history).into_data(), true);
         }
+    }
+
+    /// Under every storage, through growth: 6 positions written, truncated
+    /// to 2, then 3 more written, read back as the first 2 and the 3, the
+    /// 4 positions dropped gone.
+    #[test]
+    #[serial]
+    fn test_truncate() {
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
+        let [batch, num_heads, head_dim, num_layers] = [2, 2, 4, 2];
+        for storage in STORAGES {
+            let mut cache = KVCacheConfig::new(batch, num_heads, 4, head_dim, num_layers)
+                .with_chunk_size(2)
+                .with_storage(storage)
+                .init();
+            let first = fill(&mut cache, 6, &device);
+            cache.truncate(2);
+            assert_eq!(cache.pos(), 2, "{storage:?}");
+
+            let step = [batch, num_heads, 3, head_dim];
+            for (layer, (k, v)) in first.into_iter().enumerate() {
+                let k_new = Tensor::<4>::ones(step, &device) * (layer as f32 + 7.0);
+                let v_new = Tensor::<4>::ones(step, &device) * (layer as f32 + 9.0);
+                let (k_all, v_all) = cache.insert_kv(layer, k_new.clone(), v_new.clone());
+                let expected_k = Tensor::cat(vec![k.slice(s![.., .., ..2]), k_new], 2);
+                let expected_v = Tensor::cat(vec![v.slice(s![.., .., ..2]), v_new], 2);
+                k_all.into_data().assert_eq(&expected_k.into_data(), true);
+                v_all.into_data().assert_eq(&expected_v.into_data(), true);
+            }
+            assert_eq!(cache.pos(), 5, "{storage:?}");
+        }
+    }
+
+    #[test]
+    #[should_panic(expected = "cannot truncate")]
+    fn test_truncate_past_the_position_panics() {
+        let mut cache = KVCacheConfig::new(1, 1, 4, 2, 1).init();
+        cache.truncate(1);
     }
 
     /// The source's storage is longer than its position: 3 of 8 filled.
