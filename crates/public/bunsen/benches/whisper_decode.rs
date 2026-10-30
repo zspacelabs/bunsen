@@ -16,10 +16,13 @@ use std::time::Instant;
 
 use bunsen::{
     burner::module::ModuleInit,
-    kits::speech::whisper::{
-        DecodeConfig,
-        Whisper,
-        WhisperApiConfig,
+    kits::{
+        decoding::SearchConfig,
+        speech::whisper::{
+            DecodeConfig,
+            Whisper,
+            WhisperApiConfig,
+        },
     },
     support::testing::performance_device,
 };
@@ -67,7 +70,7 @@ fn bench_whisper_decode(c: &mut Criterion) {
     for (name, beam, batch, tokens, shared) in cases {
         let config = DecodeConfig::new(prompt.clone(), NEVER)
             .with_max_tokens(tokens)
-            .with_beam_size(beam)
+            .with_search(SearchConfig::new().with_beam_size(beam))
             .with_shared_cross_kv(shared);
         let features = if batch == 1 {
             xa.clone()

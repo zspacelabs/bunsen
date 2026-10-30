@@ -15,17 +15,19 @@ use burn::{
 };
 
 use crate::{
-    kits::speech::whisper::{
-        MaximumLikelihoodRanker,
-        SequenceRanker,
-        Whisper,
-        WhisperBeamSearchDecoder,
-        WhisperGreedyDecoder,
-        WhisperMeta,
-        driver::WhisperSpecialIds,
-        logit_filters::{
+    kits::{
+        decoding::{
             LogitFilter,
-            RestrictToLanguages,
+            MaximumLikelihoodRanker,
+            SearchConfig,
+            SequenceRanker,
+            TokenSearch,
+        },
+        speech::whisper::{
+            Whisper,
+            WhisperMeta,
+            driver::WhisperSpecialIds,
+            logit_filters::RestrictToLanguages,
         },
     },
     ops::{
@@ -50,51 +52,6 @@ pub fn split_mel_windows(
     split_padded(mels, window, 2)
 }
 
-/// The search: what the next token of every row is, given the logits.
-///
-/// Rows are laid out `row = audio * group_size + member`; a greedy search
-/// has one member per audio, a beam search `k`. The loop owns the tensors
-/// and the cache; the search owns the sequences' bookkeeping and tells the
-/// loop, through `reorder`, how to permute the self-attention cache when
-/// its members branch.
-pub trait TokenDecoder: Send + Debug {
-    /// Rows per audio.
-    fn group_size(&self) -> usize;
-
-    /// Forgets any state from a previous decode.
-    fn reset(&mut self);
-
-    /// Consumes one step of logits.
-    ///
-    /// # Arguments
-    /// * `tokens` - one sequence per row, prompt included; extended (or
-    ///   replaced, as beams branch) in place.
-    /// * `logits` - `[rows, vocab]`, the last position's, filtered.
-    /// * `sum_logprobs` - one cumulative log probability per row, updated in
-    ///   place.
-    /// * `reorder` - permutes the self-attention cache: row `r` becomes row
-    ///   `sources[r]`.
-    ///
-    /// # Returns
-    /// The token to feed each row next, and whether the search is complete.
-    fn update(
-        &mut self,
-        tokens: &mut Vec<Vec<i64>>,
-        logits: Tensor<2>,
-        sum_logprobs: &mut [f32],
-        reorder: &mut dyn FnMut(&[usize]),
-    ) -> (Vec<i64>, bool);
-
-    /// The finished candidates of every audio, each the generated ids after
-    /// `prompt_len` with no stop token, and its cumulative log probability.
-    fn finalize(
-        &mut self,
-        tokens: Vec<Vec<i64>>,
-        sum_logprobs: Vec<f32>,
-        prompt_len: usize,
-    ) -> Vec<Vec<(Vec<i64>, f32)>>;
-}
-
 /// Greedy decoding of one mel window.
 ///
 /// The prompt is what upstream calls the initial tokens: the SOT sequence
@@ -115,7 +72,7 @@ pub struct GreedyDecodeConfig {
 }
 
 /// Decoding of mel windows: the prompt, the stop token, the cap, and the
-/// width of the search.
+/// search.
 #[derive(Config, Debug)]
 pub struct DecodeConfig {
     /// The tokens fed before the first sampled one; at least one.
@@ -128,30 +85,9 @@ pub struct DecodeConfig {
     #[config(default = "224")]
     pub max_tokens: usize,
 
-    /// Beams per audio; one is greedy.
-    #[config(default = "1")]
-    pub beam_size: usize,
-
-    /// Finished candidates to collect before a beam search stops, as a
-    /// multiple of the beam size; `None` is one.
-    #[config(default = "None")]
-    pub patience: Option<f64>,
-
-    /// The exponent of the ranker's length penalty; `None` normalizes by
-    /// length.
-    #[config(default = "None")]
-    pub length_penalty: Option<f64>,
-
-    /// Sampling temperature; zero is the argmax. Above zero the search is
-    /// greedy sampling, `best_of` trajectories per audio, whatever
-    /// `beam_size` says.
-    #[config(default = "0.0")]
-    pub temperature: f64,
-
-    /// Independent sample trajectories per audio when `temperature` is
-    /// above zero; `None` is one.
-    #[config(default = "None")]
-    pub best_of: Option<usize>,
+    /// The search: beam width, temperature and trajectories, ranking.
+    #[config(default = "SearchConfig::new()")]
+    pub search: SearchConfig,
 
     /// `<|startoftranscript|>`, to find the position the no-speech
     /// probability is read at; with `no_speech_token`, enables the probe.
@@ -197,32 +133,16 @@ impl DecodedTokens {
 }
 
 impl DecodeConfig {
-    /// The search this config asks for: sampling above temperature zero,
-    /// else a beam search when `beam_size` is more than one, else the
-    /// argmax.
-    pub fn init_decoder(&self) -> Box<dyn TokenDecoder> {
-        if self.temperature > 0.0 {
-            Box::new(
-                WhisperGreedyDecoder::new(self.eot_token, self.prompt[0])
-                    .with_temperature(self.temperature)
-                    .with_group(self.best_of.unwrap_or(1)),
-            )
-        } else if self.beam_size == 1 {
-            Box::new(WhisperGreedyDecoder::new(self.eot_token, self.prompt[0]))
-        } else {
-            Box::new(WhisperBeamSearchDecoder::new(
-                self.beam_size,
-                self.eot_token,
-                self.patience,
-            ))
-        }
+    /// The search this config asks for ([`SearchConfig::init_search`]),
+    /// stopping at `<|endoftext|>` and feeding a finished row the first
+    /// prompt token.
+    pub fn init_decoder(&self) -> Box<dyn TokenSearch> {
+        self.search.init_search(self.eot_token, self.prompt[0])
     }
 
     /// The ranker this config asks for.
     pub fn init_ranker(&self) -> MaximumLikelihoodRanker {
-        MaximumLikelihoodRanker {
-            length_penalty: self.length_penalty,
-        }
+        self.search.init_ranker()
     }
 }
 
@@ -292,13 +212,13 @@ impl Whisper {
     }
 
     /// [`Self::decode_windows`] with an explicit search, whose group size
-    /// decides the width; the config's `beam_size` and `patience` are then
-    /// the search's own business.
+    /// decides the width; the config's `search` is then the given search's
+    /// own business.
     pub fn decode_windows_with(
         &self,
         mels: Tensor<3>,
         config: &DecodeConfig,
-        decoder: &mut dyn TokenDecoder,
+        decoder: &mut dyn TokenSearch,
         filters: &[Arc<dyn LogitFilter>],
     ) -> Vec<Vec<i64>> {
         let [n_audio, _, frames] = mels.dims();
@@ -347,7 +267,7 @@ impl Whisper {
         &self,
         xa: Tensor<3>,
         config: &DecodeConfig,
-        decoder: &mut dyn TokenDecoder,
+        decoder: &mut dyn TokenSearch,
         filters: &[Arc<dyn LogitFilter>],
     ) -> Vec<Vec<i64>> {
         self.search(xa, config, decoder, filters)
@@ -366,7 +286,7 @@ impl Whisper {
         &self,
         xa: Tensor<3>,
         config: &DecodeConfig,
-        decoder: &mut dyn TokenDecoder,
+        decoder: &mut dyn TokenSearch,
         filters: &[Arc<dyn LogitFilter>],
     ) -> Vec<DecodedTokens> {
         let n_audio = xa.dims()[0];
@@ -464,7 +384,7 @@ impl Whisper {
                     tokens,
                     sum_logprob,
                     no_speech_prob: no_speech.as_ref().map(|p| p[audio * k]),
-                    temperature: config.temperature,
+                    temperature: config.search.temperature,
                 }
             })
             .collect()
@@ -806,9 +726,12 @@ mod search_tests {
     use super::*;
     use crate::{
         burner::module::ModuleInit,
-        kits::speech::whisper::{
-            blocks::WhisperApiConfig,
-            logit_filters::SuppressTokens,
+        kits::{
+            decoding::{
+                BeamSearch,
+                SuppressTokens,
+            },
+            speech::whisper::blocks::WhisperApiConfig,
         },
         support::testing::{
             DeviceMemoryGuard,
@@ -853,7 +776,7 @@ mod search_tests {
             let config = DecodeConfig::new(vec![1, 2], EOT).with_max_tokens(max_tokens);
             let greedy = model.decode_windows(mels.clone(), &config, &[]);
 
-            let mut beam = WhisperBeamSearchDecoder::new(1, EOT, None);
+            let mut beam = BeamSearch::new(1, EOT, None);
             let wide = model.decode_windows_with(mels.clone(), &config, &mut beam, &[]);
             assert_eq!(wide, greedy, "beam of one at a cap of {max_tokens}");
             assert!(greedy.iter().all(|row| row.len() <= max_tokens));
@@ -872,8 +795,11 @@ mod search_tests {
 
         let config = DecodeConfig::new(vec![1, 2], EOT)
             .with_max_tokens(6)
-            .with_beam_size(3)
-            .with_patience(Some(2.0));
+            .with_search(
+                SearchConfig::new()
+                    .with_beam_size(3)
+                    .with_patience(Some(2.0)),
+            );
         let first = model.decode_windows(mels.clone(), &config, &[]);
         assert_eq!(first.len(), 2, "one answer per audio, not per beam");
         assert!(first.iter().all(|row| row.len() <= 6));
@@ -948,7 +874,7 @@ mod search_tests {
         let out = model.decode_windows(mels.clone(), &config, &only(&[7]));
         assert_eq!(out, vec![vec![7, 7, 7, 7]]);
 
-        let config = config.with_beam_size(2);
+        let config = config.with_search(SearchConfig::new().with_beam_size(2));
         let out = model.decode_windows(mels, &config, &only(&[7, 9]));
         assert_eq!(out[0].len(), 4);
         assert!(out[0].iter().all(|t| *t == 7 || *t == 9), "{out:?}");
@@ -969,8 +895,11 @@ mod search_tests {
         // 7 stands in for <|nospeech|>.
         let config = DecodeConfig::new(vec![1, 2], EOT)
             .with_max_tokens(4)
-            .with_temperature(0.7)
-            .with_best_of(Some(3))
+            .with_search(
+                SearchConfig::new()
+                    .with_temperature(0.7)
+                    .with_best_of(Some(3)),
+            )
             .with_sot_token(Some(1))
             .with_no_speech_token(Some(7));
 
@@ -1072,7 +1001,7 @@ mod search_tests {
         let mels = windows(2, &device);
         let base = DecodeConfig::new(vec![1, 2], EOT)
             .with_max_tokens(6)
-            .with_beam_size(3);
+            .with_search(SearchConfig::new().with_beam_size(3));
 
         let shared = model.decode_windows_full(mels.clone(), &base, &filters);
         let ground =

@@ -110,7 +110,7 @@ backend its forward pass varies from call to call by more than a near-tie.
 A test that needs a particular token sequence can't get it from the model.
 
 Such a test scripts the decode instead. A test-only
-[`LogitFilter`](bunsen::kits::speech::whisper::logit_filters::LogitFilter)
+[`LogitFilter`](bunsen::kits::decoding::LogitFilter)
 masks every logit except the scripted token for the current position, so
 the decode follows the script whatever the model computes. The test is then
 about what it set out to test, such as the stream driver's scheduling, seek

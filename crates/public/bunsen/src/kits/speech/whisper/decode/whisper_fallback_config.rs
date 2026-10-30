@@ -8,9 +8,12 @@ use flate2::{
     write::ZlibEncoder,
 };
 
-use crate::kits::speech::whisper::decode::{
-    DecodeConfig,
-    DecodedTokens,
+use crate::kits::{
+    decoding::TemperatureLadder,
+    speech::whisper::decode::{
+        DecodeConfig,
+        DecodedTokens,
+    },
 };
 
 /// The ladder and the thresholds that climb it.
@@ -26,18 +29,19 @@ use crate::kits::speech::whisper::decode::{
 /// above 0.5 also [resets the prompt carry](Self::resets_prompt), so a
 /// failure does not feed the next window.
 ///
-/// The ladder is [`decode_with_fallback`], a pure orchestration over a
-/// decode closure, so the policy is testable without a model. bunsen's
-/// default ladder is temperature zero alone: a stream driver re-decoding a
-/// window several times is a latency choice its deployment should make,
-/// not a default; [`upstream`](Self::upstream) is the full ladder. The
+/// The ladder is [`decode_with_fallback`], a
+/// [`TemperatureLadder`] climbed under these thresholds, a pure
+/// orchestration over a decode closure, so the policy is testable without a
+/// model. bunsen's default ladder is temperature zero alone: a stream driver
+/// re-decoding a window several times is a latency choice its deployment should
+/// make, not a default; [`upstream`](Self::upstream) is the full ladder. The
 /// Whisper stream driver takes one as its config's `fallback`.
 #[derive(Config, Debug, PartialEq)]
 pub struct WhisperFallbackConfig {
-    /// The temperatures tried in order; the first is the search proper,
-    /// the rest are sampling. Never empty.
-    #[config(default = "vec![0.0]")]
-    pub temperatures: Vec<f64>,
+    /// The temperatures tried in order, and the trajectories each sampling
+    /// rung draws.
+    #[config(default = "TemperatureLadder::new()")]
+    pub ladder: TemperatureLadder,
 
     /// A decode whose text compresses better than this is a repetition
     /// loop, and fails.
@@ -53,16 +57,12 @@ pub struct WhisperFallbackConfig {
     /// failure, and skipped.
     #[config(default = "Some(0.6)")]
     pub no_speech_threshold: Option<f64>,
-
-    /// Sample trajectories per audio above temperature zero; `None` is one.
-    #[config(default = "None")]
-    pub best_of: Option<usize>,
 }
 
 impl WhisperFallbackConfig {
     /// Upstream's defaults: the ladder `0, 0.2, ..., 1.0`.
     pub fn upstream() -> Self {
-        Self::new().with_temperatures(vec![0.0, 0.2, 0.4, 0.6, 0.8, 1.0])
+        Self::new().with_ladder(TemperatureLadder::whisper_upstream())
     }
 
     /// Whether a decode fails its thresholds and the next temperature
@@ -127,22 +127,17 @@ impl WhisperFallbackConfig {
         temperature > 0.5
     }
 
-    /// The config for one rung: above zero the beam is off and `best_of`
-    /// is on, as upstream drops `beam_size` and `patience` for sampling.
+    /// The config for one rung: its search is the ladder's rung of
+    /// `base`'s ([`TemperatureLadder::rung`]); above zero the beam is off and
+    /// `best_of` is on, as upstream drops `beam_size` and `patience` for
+    /// sampling.
     pub fn rung(
         &self,
         base: &DecodeConfig,
         temperature: f64,
     ) -> DecodeConfig {
-        let mut config = base.clone().with_temperature(temperature);
-        if temperature > 0.0 {
-            config.beam_size = 1;
-            config.patience = None;
-            config.best_of = self.best_of;
-        } else {
-            config.best_of = None;
-        }
-        config
+        base.clone()
+            .with_search(self.ladder.rung(&base.search, temperature))
     }
 }
 
@@ -182,36 +177,25 @@ pub fn decode_with_fallback(
     mut decode: impl FnMut(&DecodeConfig) -> DecodedTokens,
     text_of: impl Fn(&[i64]) -> Option<String>,
 ) -> DecodedTokens {
-    assert!(
-        !fallback.temperatures.is_empty(),
-        "the ladder has at least one rung"
-    );
-    let mut first = first;
-    let mut result = None;
-
-    for &temperature in &fallback.temperatures {
-        let decoded = match first.take() {
-            Some(given) => given,
-            None => decode(&fallback.rung(base, temperature)),
-        };
-        let ratio = text_of(&decoded.tokens).map(|t| compression_ratio(&t));
-        let needs = fallback.needs_fallback(
-            decoded.avg_logprob(),
-            ratio,
-            decoded.no_speech_prob.map(f64::from),
-        );
-        result = Some(decoded);
-        if !needs {
-            break;
-        }
-    }
-
-    result.expect("at least one rung ran")
+    fallback.ladder.climb(
+        &base.search,
+        first,
+        |search| decode(&base.clone().with_search(search.clone())),
+        |decoded| {
+            let ratio = text_of(&decoded.tokens).map(|t| compression_ratio(&t));
+            fallback.needs_fallback(
+                decoded.avg_logprob(),
+                ratio,
+                decoded.no_speech_prob.map(f64::from),
+            )
+        },
+    )
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::kits::decoding::SearchConfig;
 
     fn decoded(
         n: usize,
@@ -230,13 +214,13 @@ mod tests {
     #[test]
     fn test_defaults_and_upstream() {
         let ours = WhisperFallbackConfig::new();
-        assert_eq!(ours.temperatures, vec![0.0]);
+        assert_eq!(ours.ladder.temperatures, vec![0.0]);
         assert_eq!(ours.compression_ratio_threshold, Some(2.4));
         assert_eq!(ours.logprob_threshold, Some(-1.0));
         assert_eq!(ours.no_speech_threshold, Some(0.6));
-        assert_eq!(ours.best_of, None);
+        assert_eq!(ours.ladder.best_of, None);
         assert_eq!(
-            WhisperFallbackConfig::upstream().temperatures,
+            WhisperFallbackConfig::upstream().ladder.temperatures,
             vec![0.0, 0.2, 0.4, 0.6, 0.8, 1.0]
         );
     }
@@ -325,11 +309,14 @@ mod tests {
     /// A rung above zero samples: beam and patience off, best_of on.
     #[test]
     fn test_rung() {
-        let base = DecodeConfig::new(vec![1], 0)
-            .with_beam_size(5)
-            .with_patience(Some(2.0));
-        let f = WhisperFallbackConfig::new().with_best_of(Some(3));
-        let zero = f.rung(&base, 0.0);
+        let base = DecodeConfig::new(vec![1], 0).with_search(
+            SearchConfig::new()
+                .with_beam_size(5)
+                .with_patience(Some(2.0)),
+        );
+        let f = WhisperFallbackConfig::new()
+            .with_ladder(TemperatureLadder::new().with_best_of(Some(3)));
+        let zero = f.rung(&base, 0.0).search;
         assert_eq!(
             (
                 zero.beam_size,
@@ -339,7 +326,7 @@ mod tests {
             ),
             (5, Some(2.0), None, 0.0)
         );
-        let warm = f.rung(&base, 0.4);
+        let warm = f.rung(&base, 0.4).search;
         assert_eq!(
             (
                 warm.beam_size,
@@ -366,9 +353,13 @@ mod tests {
             &base,
             None,
             |c| {
-                ran.push(c.temperature);
-                let sum = if c.temperature < 0.4 { -20.0 } else { -1.0 };
-                decoded(4, sum, Some(0.1), c.temperature)
+                ran.push(c.search.temperature);
+                let sum = if c.search.temperature < 0.4 {
+                    -20.0
+                } else {
+                    -1.0
+                };
+                decoded(4, sum, Some(0.1), c.search.temperature)
             },
             |_| None,
         );
@@ -382,8 +373,8 @@ mod tests {
             &base,
             Some(decoded(4, -20.0, Some(0.1), 0.0)),
             |c| {
-                ran.push(c.temperature);
-                decoded(4, -1.0, Some(0.1), c.temperature)
+                ran.push(c.search.temperature);
+                decoded(4, -1.0, Some(0.1), c.search.temperature)
             },
             |_| None,
         );
@@ -395,7 +386,7 @@ mod tests {
             &f,
             &base,
             None,
-            |c| decoded(4, -20.0, Some(0.1), c.temperature),
+            |c| decoded(4, -20.0, Some(0.1), c.search.temperature),
             |_| None,
         );
         assert_eq!(out.temperature, 1.0);
@@ -407,8 +398,8 @@ mod tests {
             &base,
             None,
             |c| {
-                ran.push(c.temperature);
-                decoded(4, -0.1, Some(0.1), c.temperature)
+                ran.push(c.search.temperature);
+                decoded(4, -0.1, Some(0.1), c.search.temperature)
             },
             |ids| {
                 Some(if ids.len() == 4 {
@@ -428,8 +419,8 @@ mod tests {
             &base,
             None,
             |c| {
-                ran.push(c.temperature);
-                decoded(0, -3.0, Some(0.95), c.temperature)
+                ran.push(c.search.temperature);
+                decoded(0, -3.0, Some(0.95), c.search.temperature)
             },
             |_| None,
         );

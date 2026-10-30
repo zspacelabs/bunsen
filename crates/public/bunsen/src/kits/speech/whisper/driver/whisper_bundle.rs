@@ -12,6 +12,7 @@ use crate::{
         Rule,
     },
     kits::{
+        decoding::LogitFilter,
         speech::whisper::{
             Whisper,
             WhisperMeta,
@@ -20,10 +21,7 @@ use crate::{
                 TextDecoderMeta,
             },
             driver::WhisperTokenLayout,
-            logit_filters::{
-                LogitFilter,
-                default_filters,
-            },
+            logit_filters::default_filters,
         },
         tokens::TiktokenRanks,
     },
