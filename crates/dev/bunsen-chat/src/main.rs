@@ -107,7 +107,8 @@ struct GenerateFlags {
     cache: WeightsCacheArgs,
 
     /// The device, and the precision the model loads and runs in:
-    /// `--precision half` is f16 where the device runs it.
+    /// `--precision half` is bf16 where the device runs it (cuda, metal),
+    /// the dtype Qwen3 ships and was trained in; f16 overflows it.
     #[clap(flatten)]
     device: DeviceArgs,
 
@@ -212,7 +213,7 @@ impl GenerateFlags {
         let cache = self.cache.init()?;
         let device = self
             .device
-            .open(&DevicePrefs::new().with_half(Precision::AnyHalf))?;
+            .open(&DevicePrefs::new().with_half(Precision::BF16Half))?;
         if let Some(seed) = self.seed {
             device.seed(seed);
         }
@@ -284,7 +285,8 @@ impl GenerateFlags {
         if self.stats {
             let rate = |n: usize, t: std::time::Duration| n as f64 / t.as_secs_f64().max(1e-9);
             eprintln!(
-                "[prompt {} tokens, {} prefilled in {:.2} s ({:.0} tok/s); reply {} tokens in {:.2} s ({:.1} tok/s); {:?}]",
+                "[{:?}; prompt {} tokens, {} prefilled in {:.2} s ({:.0} tok/s); reply {} tokens in {:.2} s ({:.1} tok/s); {:?}]",
+                session.model().float_dtype(),
                 reply.prompt_tokens,
                 reply.prefilled_tokens,
                 reply.prefill_time.as_secs_f64(),
