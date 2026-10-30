@@ -1,5 +1,8 @@
 //! The cached decode loop.
-use std::sync::Arc;
+use std::{
+    ops::ControlFlow,
+    sync::Arc,
+};
 
 use burn::{
     Tensor,
@@ -79,6 +82,36 @@ pub fn decode_cached<M: CachedStep>(
     search: &mut dyn TokenSearch,
     filters: &[Arc<dyn LogitFilter>],
 ) -> Vec<Vec<Candidate>> {
+    decode_cached_observed(
+        model,
+        state,
+        prompts,
+        first_logits,
+        max_new_tokens,
+        search,
+        filters,
+        &mut |_| ControlFlow::Continue(()),
+    )
+}
+
+/// [`decode_cached`], showing `observe` every row's sequence (its prompt and
+/// the tokens chosen so far, no stop token) after each choice, before the
+/// model is stepped on it. `observe` breaking ends the decode there, as the
+/// budget would: what it was shown last is not stepped.
+///
+/// A caller streams a one-row decode's text this way, and stops it on a
+/// stop string.
+#[allow(clippy::too_many_arguments)]
+pub fn decode_cached_observed<M: CachedStep>(
+    model: &M,
+    state: &mut M::State,
+    prompts: Vec<Vec<i64>>,
+    first_logits: Tensor<2>,
+    max_new_tokens: usize,
+    search: &mut dyn TokenSearch,
+    filters: &[Arc<dyn LogitFilter>],
+    observe: &mut dyn FnMut(&[Vec<i64>]) -> ControlFlow<()>,
+) -> Vec<Vec<Candidate>> {
     let [rows, _] = first_logits.dims();
     assert_eq!(prompts.len(), rows, "one prompt per row of logits");
     let prompt_len = prompts.first().map_or(0, Vec::len);
@@ -100,7 +133,8 @@ pub fn decode_cached<M: CachedStep>(
             search.update(&mut tokens, logits, &mut sum_logprobs, &mut |sources| {
                 model.reorder(state, sources)
             });
-        if completed || step + 1 == max_new_tokens {
+        let observed = observe(&tokens);
+        if completed || observed.is_break() || step + 1 == max_new_tokens {
             break;
         }
         let ids = Tensor::<2, Int>::from_data(TensorData::new(feed, [rows, 1]), &device);
@@ -200,6 +234,36 @@ mod tests {
         assert_eq!(out[0][0].tokens, vec![2, 3]);
         assert_eq!(out[0][0].stop, None);
         assert_eq!(state, vec![vec![2]], "the last choice is not stepped");
+    }
+
+    /// The observer sees each choice, and can end the decode.
+    #[test]
+    fn test_observed() {
+        let model = Counter { vocab: 8 };
+        let mut state = vec![Vec::new()];
+        let mut search = GreedySearch::new([7], 0);
+        let mut seen = Vec::new();
+        let out = decode_cached_observed(
+            &model,
+            &mut state,
+            vec![vec![9]],
+            first(1, 2, 8),
+            16,
+            &mut search,
+            &[],
+            &mut |tokens| {
+                seen.push(tokens[0].clone());
+                if tokens[0].len() == 3 {
+                    ControlFlow::Break(())
+                } else {
+                    ControlFlow::Continue(())
+                }
+            },
+        );
+        assert_eq!(seen, [vec![9, 2], vec![9, 2, 3]]);
+        assert_eq!(out[0][0].tokens, vec![2, 3]);
+        assert_eq!(out[0][0].stop, None);
+        assert_eq!(state, vec![vec![2]], "what was seen last is not stepped");
     }
 
     /// Filters see the logits before the search does.
