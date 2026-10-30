@@ -47,14 +47,37 @@ pub trait TokenSearch: Send + Debug {
         reorder: &mut dyn FnMut(&[usize]),
     ) -> (Vec<i64>, bool);
 
-    /// The finished candidates of every group, each the generated ids after
-    /// `prompt_len` with no stop token, and its cumulative log probability.
+    /// The finished candidates of every group.
     fn finalize(
         &mut self,
         tokens: Vec<Vec<i64>>,
         sum_logprobs: Vec<f32>,
         prompt_len: usize,
-    ) -> Vec<Vec<(Vec<i64>, f32)>>;
+    ) -> Vec<Vec<Candidate>>;
+}
+
+/// One finished sequence of a search: what it generated, how probable that
+/// was, and what stopped it.
+#[derive(Clone, Debug, PartialEq)]
+pub struct Candidate {
+    /// The generated ids, after the prompt, without the stop token.
+    pub tokens: Vec<i64>,
+
+    /// The cumulative log probability of `tokens`.
+    pub sum_logprob: f32,
+
+    /// The stop token that ended the sequence; `None` when the decode's
+    /// budget did.
+    pub stop: Option<i64>,
+}
+
+impl Candidate {
+    /// The generated ids with the stop token that ended them, when one did.
+    pub fn tokens_with_stop(&self) -> Vec<i64> {
+        let mut out = self.tokens.clone();
+        out.extend(self.stop);
+        out
+    }
 }
 
 /// How a decode searches: the width of a beam search, or the temperature
@@ -97,24 +120,25 @@ impl SearchConfig {
     /// argmax.
     ///
     /// # Arguments
-    /// * `stop_token` - the token that ends a sequence.
+    /// * `stops` - the tokens that end a sequence.
     /// * `filler` - what a greedy search feeds a finished row; must be a valid
-    ///   id, which the stop token need not be.
+    ///   id, which a stop token need not be.
     pub fn init_search(
         &self,
-        stop_token: i64,
+        stops: &[i64],
         filler: i64,
     ) -> Box<dyn TokenSearch> {
+        let stops = stops.iter().copied();
         if self.temperature > 0.0 {
             Box::new(
-                GreedySearch::new(stop_token, filler)
+                GreedySearch::new(stops, filler)
                     .with_temperature(self.temperature)
                     .with_group(self.best_of.unwrap_or(1)),
             )
         } else if self.beam_size == 1 {
-            Box::new(GreedySearch::new(stop_token, filler))
+            Box::new(GreedySearch::new(stops, filler))
         } else {
-            Box::new(BeamSearch::new(self.beam_size, stop_token, self.patience))
+            Box::new(BeamSearch::new(self.beam_size, stops, self.patience))
         }
     }
 
@@ -156,18 +180,18 @@ mod tests {
             .with_beam_size(5)
             .with_patience(Some(2.0))
             .with_length_penalty(Some(0.6));
-        assert_eq!(base.init_search(9, 0).group_size(), 5);
+        assert_eq!(base.init_search(&[9], 0).group_size(), 5);
         assert_eq!(base.init_ranker().length_penalty, Some(0.6));
 
         let sampled = base.at_temperature(0.4, Some(3));
         assert_eq!(sampled.beam_size, 1);
         assert_eq!(sampled.patience, None);
         assert_eq!(sampled.best_of, Some(3));
-        assert_eq!(sampled.init_search(9, 0).group_size(), 3);
+        assert_eq!(sampled.init_search(&[9], 0).group_size(), 3);
 
         let searched = base.at_temperature(0.0, Some(3));
         assert_eq!(searched.beam_size, 5);
         assert_eq!(searched.best_of, None);
-        assert_eq!(SearchConfig::new().init_search(9, 0).group_size(), 1);
+        assert_eq!(SearchConfig::new().init_search(&[9], 0).group_size(), 1);
     }
 }

@@ -2,6 +2,8 @@
 
 use std::fmt::Debug;
 
+use super::Candidate;
+
 /// Picks one candidate per group.
 ///
 /// A beam search, or a sampled decode with several trajectories, ends with
@@ -9,12 +11,10 @@ use std::fmt::Debug;
 /// decode returns. `openai-whisper`'s is [`MaximumLikelihoodRanker`], the one
 /// [`SearchConfig::init_ranker`](super::SearchConfig::init_ranker) builds.
 pub trait SequenceRanker: Send + Sync + Debug {
-    /// The index of the winner among `candidates`, each a generated
-    /// sequence (prompt and stop token excluded) with its cumulative log
-    /// probability.
+    /// The index of the winner among `candidates`.
     fn rank(
         &self,
-        candidates: &[(Vec<i64>, f32)],
+        candidates: &[Candidate],
     ) -> usize;
 }
 
@@ -47,15 +47,15 @@ impl MaximumLikelihoodRanker {
 impl SequenceRanker for MaximumLikelihoodRanker {
     fn rank(
         &self,
-        candidates: &[(Vec<i64>, f32)],
+        candidates: &[Candidate],
     ) -> usize {
         assert!(!candidates.is_empty(), "nothing to rank");
 
         // The first of equals, as `argmax` picks.
         let mut best = 0;
         let mut best_score = f64::NEG_INFINITY;
-        for (i, (tokens, logprob)) in candidates.iter().enumerate() {
-            let score = f64::from(*logprob) / self.penalty(tokens.len());
+        for (i, candidate) in candidates.iter().enumerate() {
+            let score = f64::from(candidate.sum_logprob) / self.penalty(candidate.tokens.len());
             if score > best_score {
                 best = i;
                 best_score = score;
@@ -69,11 +69,22 @@ impl SequenceRanker for MaximumLikelihoodRanker {
 mod tests {
     use super::*;
 
+    fn c(
+        tokens: Vec<i64>,
+        sum_logprob: f32,
+    ) -> Candidate {
+        Candidate {
+            tokens,
+            sum_logprob,
+            stop: None,
+        }
+    }
+
     #[test]
     fn test_plain_normalization_prefers_probability_per_token() {
         let ranker = MaximumLikelihoodRanker::default();
         // -3 over 3 tokens is -1 each; -2.5 over 2 is -1.25 each.
-        let candidates = vec![(vec![1, 2, 3], -3.0), (vec![1, 2], -2.5)];
+        let candidates = vec![c(vec![1, 2, 3], -3.0), c(vec![1, 2], -2.5)];
         assert_eq!(ranker.rank(&candidates), 0);
         assert_eq!(ranker.penalty(3), 3.0);
     }
@@ -88,14 +99,14 @@ mod tests {
 
         // Under the NMT penalty a longer sequence is penalized more gently
         // than by its raw length, so the same pair flips.
-        let candidates = vec![(vec![1, 2, 3], -3.0), (vec![1, 2], -2.5)];
+        let candidates = vec![c(vec![1, 2, 3], -3.0), c(vec![1, 2], -2.5)];
         assert_eq!(ranker.rank(&candidates), 1);
     }
 
     #[test]
     fn test_first_of_equals() {
         let ranker = MaximumLikelihoodRanker::default();
-        let candidates = vec![(vec![1], -1.0), (vec![2], -1.0), (vec![3], -1.0)];
+        let candidates = vec![c(vec![1], -1.0), c(vec![2], -1.0), c(vec![3], -1.0)];
         assert_eq!(ranker.rank(&candidates), 0);
     }
 
@@ -105,7 +116,7 @@ mod tests {
     fn test_empty_candidate() {
         let ranker = MaximumLikelihoodRanker::default();
         // -0.0 / 0 is NaN, which never compares greater; -1 / 1 wins.
-        let candidates = vec![(vec![], -0.0), (vec![5], -1.0)];
+        let candidates = vec![c(vec![], -0.0), c(vec![5], -1.0)];
         assert_eq!(ranker.rank(&candidates), 1);
     }
 }

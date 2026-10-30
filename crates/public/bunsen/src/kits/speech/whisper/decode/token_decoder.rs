@@ -137,7 +137,7 @@ impl DecodeConfig {
     /// stopping at `<|endoftext|>` and feeding a finished row the first
     /// prompt token.
     pub fn init_decoder(&self) -> Box<dyn TokenSearch> {
-        self.search.init_search(self.eot_token, self.prompt[0])
+        self.search.init_search(&[self.eot_token], self.prompt[0])
     }
 
     /// The ranker this config asks for.
@@ -376,13 +376,13 @@ impl Whisper {
             .enumerate()
             .map(|(audio, candidates)| {
                 let best = ranker.rank(&candidates);
-                let (tokens, sum_logprob) = candidates
+                let candidate = candidates
                     .into_iter()
                     .nth(best)
                     .expect("the ranker picked a candidate");
                 DecodedTokens {
-                    tokens,
-                    sum_logprob,
+                    tokens: candidate.tokens,
+                    sum_logprob: candidate.sum_logprob,
                     no_speech_prob: no_speech.as_ref().map(|p| p[audio * k]),
                     temperature: config.search.temperature,
                 }
@@ -776,7 +776,7 @@ mod search_tests {
             let config = DecodeConfig::new(vec![1, 2], EOT).with_max_tokens(max_tokens);
             let greedy = model.decode_windows(mels.clone(), &config, &[]);
 
-            let mut beam = BeamSearch::new(1, EOT, None);
+            let mut beam = BeamSearch::new(1, [EOT], None);
             let wide = model.decode_windows_with(mels.clone(), &config, &mut beam, &[]);
             assert_eq!(wide, greedy, "beam of one at a cap of {max_tokens}");
             assert!(greedy.iter().all(|row| row.len() <= max_tokens));

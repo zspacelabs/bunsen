@@ -19,10 +19,13 @@
 //! - [`TemperatureLadder`]: re-decoding at higher temperatures until a model's
 //!   judge passes a result.
 //!
-//! [`speech::whisper::decode`](crate::kits::speech::whisper::decode) is a
-//! decode loop over these parts.
+//! [`speech::whisper::decode`](crate::kits::speech::whisper::decode) runs
+//! its own loop over these parts (its cache is grouped across beams);
+//! [`gpts::qwen3`](crate::kits::gpts::qwen3) is a [`CachedStep`], decoded by
+//! [`decode_cached`].
 
 mod beam;
+mod cached_decode;
 mod filters;
 mod greedy;
 mod ranker;
@@ -30,6 +33,7 @@ mod search;
 mod temperature;
 
 pub use beam::*;
+pub use cached_decode::*;
 pub use filters::*;
 pub use greedy::*;
 pub use ranker::*;

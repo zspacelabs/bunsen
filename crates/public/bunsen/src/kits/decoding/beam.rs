@@ -7,7 +7,10 @@ use burn::{
     tensor::activation::log_softmax,
 };
 
-use super::TokenSearch;
+use super::{
+    Candidate,
+    TokenSearch,
+};
 
 /// A finished set: insertion-ordered, unique by sequence, as a Python dict.
 #[derive(Debug, Clone, Default)]
@@ -35,20 +38,23 @@ impl Finished {
         }
     }
 
-    /// Clip the tails (`[offset..<EOT>]`) of sequences.
+    /// The candidates: each sequence's tail after `offset`, cut at its first
+    /// stop token, which the candidate records.
     fn clip_tails(
         &self,
         offset: usize,
-        stop_token: i64,
-    ) -> Vec<(Vec<i64>, f32)> {
+        stops: &[i64],
+    ) -> Vec<Candidate> {
         self.entries
             .iter()
             .map(|(sequence, score)| {
-                let end = sequence[offset..]
-                    .iter()
-                    .position(|&t| t == stop_token)
-                    .map_or(sequence.len(), |i| offset + i);
-                (sequence[offset..end].to_vec(), *score)
+                let tail = &sequence[offset..];
+                let end = tail.iter().position(|t| stops.contains(t));
+                Candidate {
+                    tokens: tail[..end.unwrap_or(tail.len())].to_vec(),
+                    sum_logprob: *score,
+                    stop: end.map(|i| tail[i]),
+                }
             })
             .collect()
     }
@@ -77,7 +83,7 @@ impl Finished {
 #[derive(Debug, Clone)]
 pub struct BeamSearch {
     k: usize,
-    stop_token: i64,
+    stops: Vec<i64>,
     max_candidates: usize,
     /// One per group, once the first update has said how many there are.
     finished: Option<Vec<Finished>>,
@@ -86,7 +92,7 @@ pub struct BeamSearch {
 impl BeamSearch {
     /// # Arguments
     /// * `beam_size` - beams per group; at least 1.
-    /// * `eot` - the stop token.
+    /// * `stops` - the tokens that end a beam.
     /// * `patience` - how many finished candidates to collect before stopping,
     ///   as a multiple of the beam size; `None` is 1.
     ///
@@ -94,7 +100,7 @@ impl BeamSearch {
     /// If `round(beam_size * patience)` is zero.
     pub fn new(
         beam_size: usize,
-        stop_token: i64,
+        stops: impl IntoIterator<Item = i64>,
         patience: Option<f64>,
     ) -> Self {
         assert!(beam_size >= 1, "a beam search needs at least one beam");
@@ -106,7 +112,7 @@ impl BeamSearch {
         );
         Self {
             k: beam_size,
-            stop_token,
+            stops: stops.into_iter().collect(),
             max_candidates,
             finished: None,
         }
@@ -196,7 +202,7 @@ impl TokenSearch for BeamSearch {
             let mut saved = 0;
             for &c in &order {
                 let (sequence, score, source) = &candidates[c];
-                if sequence.last() == Some(&self.stop_token) {
+                if sequence.last().is_some_and(|t| self.stops.contains(t)) {
                     done.score_sequence(sequence.clone(), *score);
                 } else {
                     next_sums.push(*score);
@@ -242,7 +248,7 @@ impl TokenSearch for BeamSearch {
         tokens: Vec<Vec<i64>>,
         sum_logprobs: Vec<f32>,
         prompt_len: usize,
-    ) -> Vec<Vec<(Vec<i64>, f32)>> {
+    ) -> Vec<Vec<Candidate>> {
         let k = self.k;
         let n_groups = tokens.len() / k;
         let mut finished = self
@@ -252,17 +258,15 @@ impl TokenSearch for BeamSearch {
 
         for (group, set) in finished.iter_mut().enumerate() {
             if set.len() < k {
-                // Not enough finished: take the live beams, best first,
-                // ended with the stop token.
+                // Not enough finished: take the live beams, best first, as
+                // the budget ended them: with no stop token.
                 let mut order: Vec<usize> = (0..k).collect();
                 order.sort_by(|&a, &b| {
                     sum_logprobs[group * k + b].total_cmp(&sum_logprobs[group * k + a])
                 });
                 for beam in order {
                     let row = group * k + beam;
-                    let mut sequence = tokens[row].clone();
-                    sequence.push(self.stop_token);
-                    set.score_sequence(sequence, sum_logprobs[row]);
+                    set.score_sequence(tokens[row].clone(), sum_logprobs[row]);
                     if set.len() >= k {
                         break;
                     }
@@ -272,7 +276,7 @@ impl TokenSearch for BeamSearch {
 
         finished
             .into_iter()
-            .map(|f| f.clip_tails(prompt_len, self.stop_token))
+            .map(|f| f.clip_tails(prompt_len, &self.stops))
             .collect()
     }
 }
@@ -311,7 +315,7 @@ mod tests {
         let device = performance_device();
         let _memory = DeviceMemoryGuard::new(&device);
 
-        let mut decoder = BeamSearch::new(3, EOT, None);
+        let mut decoder = BeamSearch::new(3, [EOT], None);
         let mut tokens = vec![vec![7]; 3];
         let mut sums = vec![0.0; 3];
         let mut sources = Vec::new();
@@ -342,7 +346,7 @@ mod tests {
     fn test_finished_set_and_patience() {
         let device = performance_device();
         let _memory = DeviceMemoryGuard::new(&device);
-        let mut decoder = BeamSearch::new(2, EOT, None);
+        let mut decoder = BeamSearch::new(2, [EOT], None);
         assert_eq!(decoder.beam_size(), 2);
         assert_eq!(decoder.max_candidates(), 2);
         let mut tokens = vec![vec![7]; 2];
@@ -372,14 +376,16 @@ mod tests {
         );
         assert!(done);
 
-        // Finalize strips the prompt and the stop token; the best finished
-        // candidate is the one that ended first.
+        // Finalize strips the prompt and the stop token, which each
+        // candidate records; the best finished candidate is the one that
+        // ended first.
         let out = TokenSearch::finalize(&mut decoder, tokens, sums, 1);
         assert_eq!(out.len(), 1);
         assert_eq!(out[0].len(), 2);
-        assert_eq!(out[0][0].0, Vec::<i64>::new());
-        assert_eq!(out[0][1].0, vec![3]);
-        assert!(out[0][0].1 > out[0][1].1);
+        assert_eq!(out[0][0].tokens, Vec::<i64>::new());
+        assert_eq!(out[0][1].tokens, vec![3]);
+        assert!(out[0][0].sum_logprob > out[0][1].sum_logprob);
+        assert!(out[0].iter().all(|c| c.stop == Some(EOT)));
     }
 
     /// With more patience the set is larger, and finalize fills a short
@@ -389,7 +395,7 @@ mod tests {
     fn test_patience_and_finalize_fill() {
         let device = performance_device();
         let _memory = DeviceMemoryGuard::new(&device);
-        let mut decoder = BeamSearch::new(2, EOT, Some(2.0));
+        let mut decoder = BeamSearch::new(2, [EOT], Some(2.0));
         assert_eq!(decoder.max_candidates(), 4);
         let mut tokens = vec![vec![7]; 2];
         let mut sums = vec![0.0; 2];
@@ -413,8 +419,12 @@ mod tests {
             2,
             "filled up to the beam size from live beams"
         );
-        assert_eq!(out[0][0].0, vec![3], "the better live beam first");
-        assert_eq!(out[0][1].0, vec![2]);
+        assert_eq!(out[0][0].tokens, vec![3], "the better live beam first");
+        assert_eq!(out[0][1].tokens, vec![2]);
+        assert!(
+            out[0].iter().all(|c| c.stop.is_none()),
+            "the budget, not a stop token, ended them"
+        );
     }
 
     /// Two groups are independent: sources index the whole batch,
@@ -424,7 +434,7 @@ mod tests {
     fn test_groups_are_independent() {
         let device = performance_device();
         let _memory = DeviceMemoryGuard::new(&device);
-        let mut decoder = BeamSearch::new(2, EOT, None);
+        let mut decoder = BeamSearch::new(2, [EOT], None);
         let mut tokens = vec![vec![7]; 4];
         let mut sums = vec![0.0; 4];
         let mut sources = Vec::new();
@@ -446,6 +456,6 @@ mod tests {
     #[test]
     #[should_panic(expected = "invalid beam size")]
     fn test_rejects_zero_candidates() {
-        let _ = BeamSearch::new(1, EOT, Some(0.1));
+        let _ = BeamSearch::new(1, [EOT], Some(0.1));
     }
 }
