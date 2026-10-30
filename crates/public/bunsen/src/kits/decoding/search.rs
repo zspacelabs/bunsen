@@ -1,5 +1,8 @@
 //! The search seam, and the value object that picks a search.
-use std::fmt::Debug;
+use std::{
+    fmt::Debug,
+    sync::Arc,
+};
 
 use burn::{
     Tensor,
@@ -9,7 +12,11 @@ use burn::{
 use super::{
     BeamSearch,
     GreedySearch,
+    LogitFilter,
     MaximumLikelihoodRanker,
+    MinP,
+    TopK,
+    TopP,
 };
 
 /// The search: what the next token of every row is, given the logits.
@@ -112,6 +119,21 @@ pub struct SearchConfig {
     /// above zero; `None` is one.
     #[config(default = "None")]
     pub best_of: Option<usize>,
+
+    /// Sampling keeps only each row's `top_k` most probable tokens
+    /// ([`TopK`]); `None` keeps every one.
+    #[config(default = "None")]
+    pub top_k: Option<usize>,
+
+    /// Sampling keeps only each row's nucleus of mass `top_p` ([`TopP`]);
+    /// `None` keeps every token.
+    #[config(default = "None")]
+    pub top_p: Option<f64>,
+
+    /// Sampling keeps only the tokens at least `min_p` times as probable as
+    /// the top one ([`MinP`]); `None` keeps every token.
+    #[config(default = "None")]
+    pub min_p: Option<f64>,
 }
 
 impl SearchConfig {
@@ -140,6 +162,29 @@ impl SearchConfig {
         } else {
             Box::new(BeamSearch::new(self.beam_size, stops, self.patience))
         }
+    }
+
+    /// The truncations sampling runs under: [`TopK`], then [`TopP`] and
+    /// [`MinP`] at the search's temperature, as configured, in the order
+    /// `transformers` applies them. None at temperature zero, where they
+    /// could not change the argmax. A decode applies them after its own
+    /// filters.
+    pub fn sampling_filters(&self) -> Vec<Arc<dyn LogitFilter>> {
+        let mut filters: Vec<Arc<dyn LogitFilter>> = Vec::new();
+        if self.temperature <= 0.0 {
+            return filters;
+        }
+        let temperature = self.temperature;
+        if let Some(k) = self.top_k {
+            filters.push(Arc::new(TopK { k }));
+        }
+        if let Some(p) = self.top_p {
+            filters.push(Arc::new(TopP { p, temperature }));
+        }
+        if let Some(p) = self.min_p {
+            filters.push(Arc::new(MinP { p, temperature }));
+        }
+        filters
     }
 
     /// The ranker this config asks for.
@@ -193,5 +238,21 @@ mod tests {
         assert_eq!(searched.beam_size, 5);
         assert_eq!(searched.best_of, None);
         assert_eq!(SearchConfig::new().init_search(&[9], 0).group_size(), 1);
+    }
+
+    #[test]
+    fn test_sampling_filters() {
+        let warm = SearchConfig::new()
+            .with_temperature(0.6)
+            .with_top_k(Some(20))
+            .with_top_p(Some(0.95));
+        assert_eq!(warm.sampling_filters().len(), 2);
+        assert!(
+            warm.clone()
+                .with_temperature(0.0)
+                .sampling_filters()
+                .is_empty()
+        );
+        assert!(SearchConfig::new().sampling_filters().is_empty());
     }
 }
