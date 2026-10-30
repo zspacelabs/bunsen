@@ -128,6 +128,12 @@ impl ChatModel {
         &self.defaults
     }
 
+    /// The float dtype the model's weights are held, and computed, in: the
+    /// device's default when it loaded.
+    pub fn float_dtype(&self) -> burn::tensor::DType {
+        bunsen::burner::tensor::param_float_dtype(&self.bundle.model.embed_tokens.weight)
+    }
+
     /// Opens a conversation under `config`, its cache on `device`.
     pub fn session(
         self: &Arc<Self>,
@@ -265,6 +271,11 @@ pub struct ChatSession {
 }
 
 impl ChatSession {
+    /// The chat this session holds a conversation with.
+    pub fn model(&self) -> &Arc<ChatModel> {
+        &self.model
+    }
+
     /// The conversation so far.
     pub fn messages(&self) -> &[ChatMessage] {
         &self.messages
