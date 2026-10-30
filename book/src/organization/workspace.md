@@ -16,8 +16,8 @@ tools/              one-shot fixture generators and repo checks (Python, stdlib-
 
 All published crates share the workspace version and are released together
 by release-plz ([Releasing](../development/release.md)), except
-`bunsen-bundled-parakeet`, `bunsen-bundled-qwen3-asr` and
-`bunsen-bundled-sortformer`, which fetch the checkpoints the validation crates
+`bunsen-bundled-parakeet`, `bunsen-bundled-qwen3`, `bunsen-bundled-qwen3-asr`
+and `bunsen-bundled-sortformer`, which fetch the checkpoints the validation crates
 check against and are not published.
 
 | Crate | What it is |

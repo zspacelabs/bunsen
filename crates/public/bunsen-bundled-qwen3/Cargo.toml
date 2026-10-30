@@ -1,0 +1,49 @@
+[package]
+name = "bunsen-bundled-qwen3"
+description = "Bunsen bundled Qwen3 assets: fetches Qwen's Qwen3-0.6B, -1.7B, -4B and -4B-Instruct-2507 and an ONNX export of Qwen3-0.6B at build time, digest-pinned, each behind a feature, and generates a Rust reference model from the export. Hosts none."
+publish = false
+
+authors.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+version.workspace = true
+repository.workspace = true
+license.workspace = true
+
+[dependencies]
+burn = { workspace = true, features = ["store"] }
+burn-store = { workspace = true, features = ["std"] }
+document-features = { workspace = true }
+
+[build-dependencies]
+bunsen-fetch = { path = "../bunsen-fetch", features = ["fetch"] }
+burn-onnx = { workspace = true, optional = true }
+onnx-ir = { workspace = true, optional = true }
+
+[lints]
+workspace = true
+
+[features]
+## Nothing by default: building this crate as a workspace member fetches
+## nothing. `qwen3-model-validation/download` turns on every feature.
+default = []
+
+## Fetch Qwen's `Qwen3-0.6B` (1.5 GB): its `model.safetensors`,
+## `config.json`, `tokenizer.json`, `tokenizer_config.json` and
+## `generation_config.json`, laid out under `cache_dir()`: a bunsen
+## pretrained cache rooted there resolves `qwen/qwen3-0.6b` from it, offline.
+checkpoint = []
+
+## Fetch `Qwen3-1.7B` (4.1 GB), `Qwen3-4B` (8.0 GB) and
+## `Qwen3-4B-Instruct-2507` (8.0 GB) the same way. Independent of
+## `checkpoint`.
+large_checkpoints = []
+
+## Fetch `onnx-community/Qwen3-0.6B-ONNX`'s fp32 export of `Qwen3-0.6B`
+## (2.4 GB), rewrite its onnxruntime ops to standard ONNX, and generate a
+## Rust model from it, in `crate::onnx_gen`.
+##
+## This is the *reference implementation*: it exists so
+## `qwen3-model-validation` has something with independent provenance to
+## disagree with.
+onnx_gen = ["dep:burn-onnx", "dep:onnx-ir"]

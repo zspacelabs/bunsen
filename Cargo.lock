@@ -1278,6 +1278,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "bunsen-bundled-qwen3"
+version = "0.41.0"
+dependencies = [
+ "bunsen-fetch",
+ "burn",
+ "burn-onnx",
+ "burn-store",
+ "document-features",
+ "onnx-ir",
+]
+
+[[package]]
 name = "bunsen-bundled-qwen3-asr"
 version = "0.41.0"
 dependencies = [

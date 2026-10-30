@@ -166,7 +166,7 @@ The ten published crates, in `crates/public/`, are versioned in **lockstep**: th
 - `bunsen-app`
 - `bunsen-asr` (a binary: `cargo install bunsen-asr`)
 
-`bunsen-bundled-parakeet`, `bunsen-bundled-qwen3-asr` and `bunsen-bundled-sortformer` live in `crates/public/` too, but
+`bunsen-bundled-parakeet`, `bunsen-bundled-qwen3`, `bunsen-bundled-qwen3-asr` and `bunsen-bundled-sortformer` live in `crates/public/` too, but
 are not published (`publish = false`): they fetch the checkpoints the validation crates check against.
 
 Nothing else is released: release-plz is opt-in (`release = false` for the workspace, `release = true` per crate), so
