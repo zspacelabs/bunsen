@@ -117,9 +117,9 @@ impl fmt::Display for StaticSource<'_> {
         f: &mut fmt::Formatter<'_>,
     ) -> fmt::Result {
         match self {
-            Self::Url(url) => write!(f, "url {url}"),
-            Self::LocalDir { name, .. } => write!(f, "local dir {name}"),
-            Self::Bundled(bytes) => write!(f, "bundled ({} bytes)", bytes.len()),
+            Self::Url(url) => write!(f, "url: {url}"),
+            Self::LocalDir { name, .. } => write!(f, "local_dir: {name}"),
+            Self::Bundled(bytes) => write!(f, "bundled: ({} bytes)", bytes.len()),
         }
     }
 }
@@ -217,13 +217,13 @@ impl fmt::Display for Source {
         f: &mut fmt::Formatter<'_>,
     ) -> fmt::Result {
         match self {
-            Self::Url(url) => write!(f, "url {url}"),
+            Self::Url(url) => write!(f, "url: {url}"),
             Self::LocalDir {
                 name,
                 dir: Some(dir),
-            } => write!(f, "local dir {name} ({})", dir.display()),
-            Self::LocalDir { name, dir: None } => write!(f, "local dir {name} (unresolved)"),
-            Self::Bundled(bytes) => write!(f, "bundled ({} bytes)", bytes.len()),
+            } => write!(f, "local_dir: {name} ({})", dir.display()),
+            Self::LocalDir { name, dir: None } => write!(f, "local_dir: {name} (unresolved)"),
+            Self::Bundled(bytes) => write!(f, "bundled: ({} bytes)", bytes.len()),
         }
     }
 }
@@ -273,8 +273,8 @@ impl fmt::Display for StaticBase<'_> {
         f: &mut fmt::Formatter<'_>,
     ) -> fmt::Result {
         match self {
-            Self::Url(url) => write!(f, "url {url}"),
-            Self::LocalDir { name, .. } => write!(f, "local dir {name}"),
+            Self::Url(url) => write!(f, "url: {url}"),
+            Self::LocalDir { name, .. } => write!(f, "local_dir: {name}"),
         }
     }
 }
@@ -544,11 +544,11 @@ mod tests {
         let shown: Vec<String> = sources.iter().map(|s| s.to_string()).collect();
         assert_eq!(
             shown,
-            ["local dir upstream", "url https://a.example/my_model.pt"]
+            ["local_dir: upstream", "url: https://a.example/my_model.pt"]
         );
         assert_eq!(
             sources[0].to_source().to_string(),
-            "local dir upstream (/home/someone/.cache/upstream)"
+            "local_dir: upstream (/home/someone/.cache/upstream)"
         );
         assert_eq!(
             sources[1].to_source(),
@@ -560,10 +560,10 @@ mod tests {
                 dir: None
             }
             .to_string(),
-            "local dir x (unresolved)"
+            "local_dir: x (unresolved)"
         );
         let bundled = StaticSource::Bundled(b"abc");
-        assert_eq!(bundled.to_string(), "bundled (3 bytes)");
+        assert_eq!(bundled.to_string(), "bundled: (3 bytes)");
         assert_eq!(format!("{bundled:?}"), "Bundled(3 bytes)");
         assert_eq!(bundled.to_source(), Source::Bundled(BundledBytes(b"abc")));
         assert_eq!(format!("{:?}", bundled.to_source()), "Bundled(3 bytes)");
@@ -572,7 +572,7 @@ mod tests {
             "in-binary bytes have no manifest form"
         );
         let bundled = StaticSource::Bundled(b"abc");
-        assert_eq!(bundled.to_string(), "bundled (3 bytes)");
+        assert_eq!(bundled.to_string(), "bundled: (3 bytes)");
         assert_eq!(format!("{bundled:?}"), "Bundled(3 bytes)");
         assert_eq!(bundled.to_source(), Source::Bundled(BundledBytes(b"abc")));
         assert_eq!(format!("{:?}", bundled.to_source()), "Bundled(3 bytes)");
@@ -666,8 +666,8 @@ mod tests {
                 dir: None,
             }
         );
-        assert_eq!(BASES[0].to_string(), "local dir upstream");
-        assert_eq!(BASES[1].to_string(), "url https://a.example/models/");
+        assert_eq!(BASES[0].to_string(), "local_dir: upstream");
+        assert_eq!(BASES[1].to_string(), "url: https://a.example/models/");
     }
 
     /// The owned twin carries the resource's own sources first, then the

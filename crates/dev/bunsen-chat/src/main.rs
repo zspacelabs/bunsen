@@ -76,8 +76,9 @@ struct Args {
 
 #[derive(clap::Subcommand, Debug)]
 enum Command {
-    /// The checkpoints bunsen knows by name, every family's, and what of
-    /// each is cached.
+    /// The checkpoints bunsen knows by name, every family's: each one's
+    /// origin, and each of its files' path in its repo and whether it is
+    /// cached.
     List(ListCmd),
 
     /// Brings every file of the named checkpoints into the weights cache;
@@ -142,7 +143,8 @@ struct KitCmd<F: clap::Args> {
 
 #[derive(clap::Subcommand, Debug)]
 enum Action<F: clap::Args> {
-    /// The family's checkpoints, and what of each is cached.
+    /// The family's checkpoints: each one's origin, and each of its files'
+    /// path in its repo and whether it is cached.
     List(ListCmd),
 
     /// Brings every file of the family's named checkpoints into the weights
@@ -289,6 +291,11 @@ struct ListCmd {
 
     #[clap(flatten)]
     cache: WeightsCacheArgs,
+
+    /// Also print each file's first source, where it is fetched from (as
+    /// `url: ...`).
+    #[arg(long)]
+    urls: bool,
 }
 
 #[derive(clap::Args, Debug)]
@@ -683,7 +690,7 @@ impl ThinkingFilter {
 }
 
 impl ListCmd {
-    /// Prints each of `families`' checkpoints, and what of each is cached.
+    /// Prints each of `families`' checkpoints, as [`print_row`] does.
     fn run(
         &self,
         families: &[Family],
@@ -695,9 +702,9 @@ impl ListCmd {
         for &family in families {
             let default = family.default_model();
             println!();
-            println!("{} checkpoints (the default: {default})", family.name());
+            println!("# {} checkpoints (the default: {default})", family.name());
             for (id, row) in family.rows()? {
-                print_row(&cache, family.cache_kit(), &id, &row, default);
+                print_row(&cache, family.cache_kit(), &id, &row, default, self.urls);
             }
             if family == Family::Qwen3 {
                 println!();
@@ -710,14 +717,26 @@ impl ListCmd {
     }
 }
 
-/// One row of `list`: its id, aliases, description, and each file's state
-/// in `cache`.
+/// One row of `list`: its id, aliases, description and origin, and each
+/// file's state in `cache` and path in its repo; under `urls`, its first
+/// source too.
+///
+/// ```text
+/// well-known:nanochat-students/rl-d20 (default)
+///   aliases: nanochat-d20-rl
+///   nanochat-students' d20 after its RL stage (step 650): upstream's 2025 model, 561M, chat
+///   origin: https://huggingface.co/nanochat-students/rl-d20
+///   checkpoint: [cached]
+///     path: model_000650.pt
+///     url: https://huggingface.co/nanochat-students/rl-d20/resolve/22fbb6a8.../model_000650.pt
+/// ```
 fn print_row(
     cache: &PretrainedCache,
     kit: &str,
     id: &str,
     row: &Pretrained,
     default: &str,
+    urls: bool,
 ) {
     let default = if row.name == default {
         " (default)"
@@ -730,8 +749,15 @@ fn print_row(
         println!("  aliases: {}", row.aliases.join(", "));
     }
     println!("  {}", row.description);
+    if let Some(origin) = &row.origin {
+        println!("  origin: {origin}");
+    }
     for (key, r) in &row.resources.resources {
-        println!("  {key}: {} [{}]", r.file, cache.status(kit, r));
+        println!("  {key}: [{}]", cache.status(kit, r));
+        println!("    path: {}", r.file);
+        if urls && !r.sources.is_empty() {
+            println!("    {}", r.sources[0]);
+        }
     }
 }
 

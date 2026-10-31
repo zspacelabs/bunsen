@@ -32,7 +32,7 @@
 //! bunsen-chat cache list qwen3
 //! bunsen-chat run --device wgpu --no-think "What is the capital of France?"
 //! bunsen-chat chat --device wgpu --model qwen3-4b-instruct-2507 --stats
-//! bunsen-chat family nanochat list
+//! bunsen-chat family nanochat list --urls
 //! bunsen-chat family nanochat chat --device cuda --precision half
 //! ```
 
