@@ -274,6 +274,8 @@ pub mod mlx;
 mod prefabs;
 mod pretrained_ref;
 mod providers;
+#[cfg(feature = "store_pytorch")]
+mod pytorch;
 mod resource;
 mod resource_map;
 mod rows;
@@ -299,6 +301,8 @@ pub use loaded::*;
 pub use prefabs::*;
 pub use pretrained_ref::*;
 pub use providers::*;
+#[cfg(feature = "store_pytorch")]
+pub use pytorch::*;
 pub use resource::*;
 pub use resource_map::*;
 pub use rows::*;

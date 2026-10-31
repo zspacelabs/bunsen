@@ -6,9 +6,12 @@
 //! attention, a squared-ReLU MLP, and softcapped logits. With it comes the
 //! corpus nanochat trains on, as a shard-set table.
 //!
-//! This is a work in progress. The model trains from scratch
-//! (`examples/train-chat`); there are no pretrained weights, and nothing reads
-//! upstream's checkpoints.
+//! The model trains from scratch (`examples/train-chat`), and loads
+//! upstream's own checkpoints, `model_<step>.pt` and `meta_<step>.json` as
+//! upstream's checkpoint manager writes them, through [`weights`]
+//! ([`load_pt_checkpoint`](weights::load_pt_checkpoint)): the meta's geometry,
+//! which of upstream's models the state dict is, and the weights through the
+//! burn-store's `PyTorch` reader.
 //!
 //! # Lifecycle
 //!
@@ -33,7 +36,8 @@
 //! # Upstream's two models
 //!
 //! The policy's defaults are upstream's model as of late 2025: an unbiased
-//! head, rotary base 10000, parameter-free norms with an explicit epsilon
+//! head, rotary base 10000 with its tables rounded to bf16 values (as
+//! upstream keeps them), norms with an explicit epsilon
 //! ([`norm_eps`](NanoChatGptContractConfig::norm_eps)). Upstream's 2026 model
 //! adds a set of options, each off by default and all on through
 //! [`with_upstream_2026`](NanoChatGptContractConfig::with_upstream_2026): the
@@ -111,5 +115,11 @@
 
 pub mod blocks;
 pub mod datasets;
+
+#[cfg(feature = "store_pytorch")]
+pub mod weights;
+
+#[cfg(all(test, feature = "store_pytorch", feature = "store_safetensors"))]
+mod toy_tests;
 
 pub use blocks::model::*;

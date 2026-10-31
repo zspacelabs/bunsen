@@ -10,6 +10,9 @@ use burn::{
     tensor::{
         DType,
         Device,
+        FloatDType,
+        bf16,
+        f16,
     },
 };
 
@@ -50,6 +53,13 @@ pub struct RotaryEmbeddingConfig {
     /// The rotation's sign convention.
     #[config(default = "RotaryDirection::Reverse")]
     pub direction: RotaryDirection,
+
+    /// Round the `cos` / `sin` tables to this dtype's precision (on the
+    /// host), keeping them in `f32`: for a model trained with tables kept in
+    /// a narrower dtype, as nanochat's 2025 model keeps them in bf16. `None`
+    /// keeps them exact; an `F32` or `F64` rounds nothing.
+    #[config(default = "None")]
+    pub round_tables_to: Option<FloatDType>,
 }
 
 /// The sign convention of a rotary embedding: which way each pair of head
@@ -123,15 +133,22 @@ impl ModuleInit<RotaryEmbedding> for RotaryEmbeddingConfig {
 
         // TODO: possibly down-cast to the smallest available dtype.
 
-        let cos = freq_matrix
-            .clone()
-            .cos()
+        let round = |t: Tensor<2>| match self.round_tables_to {
+            Some(FloatDType::BF16) => {
+                Tensor::from_data(t.into_data().convert::<bf16>().convert::<f32>(), device)
+            }
+            Some(FloatDType::F16) => {
+                Tensor::from_data(t.into_data().convert::<f16>().convert::<f32>(), device)
+            }
+            _ => t,
+        };
+
+        let cos = round(freq_matrix.clone().cos())
             .set_require_grad(false)
             .unsqueeze_dim::<3>(1)
             .unsqueeze_dim(0);
 
-        let sin = freq_matrix
-            .sin()
+        let sin = round(freq_matrix.sin())
             .set_require_grad(false)
             .unsqueeze_dim::<3>(1)
             .unsqueeze_dim(0);
@@ -277,6 +294,33 @@ mod tests {
             performance_device,
         },
     };
+
+    /// Rounded tables hold the exact tables' values rounded to bf16, still
+    /// as `f32`: within bf16's half-ulp, and each a bf16 value.
+    #[test]
+    #[serial]
+    fn test_tables_rounded_to_bf16() {
+        let device = performance_device();
+        let _memory = DeviceMemoryGuard::new(&device);
+
+        let exact: RotaryEmbedding = RotaryEmbeddingConfig::new(64, 16).init(&device);
+        let rounded: RotaryEmbedding = RotaryEmbeddingConfig::new(64, 16)
+            .with_round_tables_to(Some(FloatDType::BF16))
+            .init(&device);
+        assert_eq!(rounded.cos.dtype(), DType::F32);
+        for (e, r) in [(exact.cos, rounded.cos), (exact.sin, rounded.sin)] {
+            let e = e.into_data().try_to_vec::<f32>().unwrap();
+            let r = r.into_data().try_to_vec::<f32>().unwrap();
+            assert!(e != r, "rounding changed nothing");
+            for (e, r) in e.iter().zip(&r) {
+                assert_eq!(bf16::from_f32(*r).to_f32(), *r, "{r} is not a bf16 value");
+                assert!(
+                    (e - r).abs() <= e.abs() * 2f32.powi(-8) + 1e-30,
+                    "{e} -> {r}"
+                );
+            }
+        }
+    }
 
     #[test]
     #[serial]

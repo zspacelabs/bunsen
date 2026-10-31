@@ -600,12 +600,12 @@ impl ResNet {
     ///
     /// # Errors
     ///
-    /// [`Lookup`](crate::errors::BunsenErrorKind::Lookup) if the file is
-    /// missing or unreadable (see [`sys_at`](crate::errors::sys_at)); other
-    /// I/O failures by their kind.
-    /// [`InvalidResource`](crate::errors::BunsenErrorKind::InvalidResource),
-    /// with the [`PytorchStoreError`](burn::store::PytorchStoreError) as its
-    /// cause, if the file is not a `PyTorch` checkpoint; otherwise as
+    /// As [`read_pytorch_tensors`](crate::data::pretrained::read_pytorch_tensors)
+    /// reading the file: a missing or forbidden file is a
+    /// [`Lookup`](crate::errors::BunsenErrorKind::Lookup), a file that is not a
+    /// `PyTorch` checkpoint an
+    /// [`InvalidResource`](crate::errors::BunsenErrorKind::InvalidResource);
+    /// otherwise as
     /// [`apply_rekeyed_tensors`](crate::data::pretrained::apply_rekeyed_tensors),
     /// if the checkpoint does not load into the model.
     #[cfg(feature = "store_pytorch")]
@@ -613,34 +613,10 @@ impl ResNet {
         mut self,
         path: impl Into<std::path::PathBuf>,
     ) -> BunsenResult<Self> {
-        use burn::store::{
-            ModuleStore,
-            PytorchStore,
-            PytorchStoreError,
-            pytorch::PytorchError,
-        };
-
-        use crate::errors::sys_at;
-
         let path = path.into();
         // The names are mapped by `torchvision_rekey`, whose indices are the
-        // checkpoint's own: the store does not renumber them.
-        let tensors: Vec<_> = PytorchStore::from_file(path.clone())
-            .map_indices_contiguous(false)
-            .get_all_tensors()
-            .map_err(|e| match e {
-                PytorchStoreError::Io(io) | PytorchStoreError::Reader(PytorchError::Io(io)) => {
-                    sys_at("read", &path)(io)
-                }
-                e => BunsenError::invalid_resource(format!(
-                    "cannot read PyTorch weights from {}",
-                    path.display()
-                ))
-                .with_cause(e),
-            })?
-            .values()
-            .cloned()
-            .collect();
+        // checkpoint's own: the reader does not renumber them.
+        let tensors = crate::data::pretrained::read_pytorch_tensors(&path)?;
         crate::data::pretrained::apply_rekeyed_tensors(
             &mut self,
             tensors,

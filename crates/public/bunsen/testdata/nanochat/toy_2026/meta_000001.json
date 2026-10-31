@@ -1,0 +1,12 @@
+{
+  "step": 1,
+  "model_config": {
+    "sequence_len": 4,
+    "vocab_size": 60,
+    "n_layer": 3,
+    "n_head": 4,
+    "n_kv_head": 2,
+    "n_embd": 32,
+    "window_pattern": "SL"
+  }
+}

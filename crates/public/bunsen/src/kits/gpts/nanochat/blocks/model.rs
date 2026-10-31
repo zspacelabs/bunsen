@@ -26,6 +26,7 @@ use burn::{
     },
     tensor::{
         Device,
+        FloatDType,
         activation::sigmoid,
     },
 };
@@ -258,6 +259,12 @@ pub struct NanoChatGptContractConfig {
     #[config(default = "10000")]
     pub rope_base: usize,
 
+    /// Whether the rotary tables are rounded to bf16 values, as upstream's
+    /// 2025 model keeps them whatever it computes in (its checkpoints were
+    /// trained with them); its 2026 model builds them in the compute dtype.
+    #[config(default = "true")]
+    pub rope_bf16_tables: bool,
+
     /// Whether the head carries a bias. Upstream's has none.
     #[config(default = "false")]
     pub head_bias: bool,
@@ -332,7 +339,8 @@ impl NanoChatGptMeta for NanoChatGptContractConfig {
 
 impl NanoChatGptContractConfig {
     /// Upstream nanochat's 2026 model (`karpathy/nanochat` at `a3ca42a6`):
-    /// this config with rotary base 100000, the vocabulary padded to 64,
+    /// this config with rotary base 100000 and exact rotary tables, the
+    /// vocabulary padded to 64,
     /// the residual lambdas, the value embeddings, the smear over 24
     /// channels, the backout, a query/key gain of 1.2, and the windows of
     /// `window_pattern`.
@@ -341,6 +349,7 @@ impl NanoChatGptContractConfig {
         window_pattern: impl Into<String>,
     ) -> Self {
         self.with_rope_base(100000)
+            .with_rope_bf16_tables(false)
             .with_pad_vocab_to(Some(64))
             .with_residual_lambdas(true)
             .with_value_embeds(true)
@@ -402,7 +411,8 @@ impl ToStructureConfig for NanoChatGptContractConfig {
             h,
             lm_head: LinearConfig::new(self.n_embed, vocab).with_bias(self.head_bias),
             r_emb: RotaryEmbeddingConfig::new(self.max_seq_len(), self.head_dim())
-                .with_base(self.rope_base),
+                .with_base(self.rope_base)
+                .with_round_tables_to(self.rope_bf16_tables.then_some(FloatDType::BF16)),
             norm: self.norm.clone(),
             init_seq_len: self.init_seq_len,
             softcap: self.softcap,
@@ -659,6 +669,12 @@ impl NanoChatGptMeta for NanoChatGpt {
 }
 
 impl NanoChatGpt {
+    /// The token embedding: its parameter's dtype is the model's.
+    #[cfg(feature = "store_pytorch")]
+    pub(crate) fn wte(&self) -> &Embedding {
+        &self.wte
+    }
+
     /// Whether the embedding is smeared: then a cached step past the first
     /// position needs the token before it
     /// ([`forward_after`](Self::forward_after)).
@@ -725,6 +741,27 @@ impl NanoChatGpt {
         prev: Option<Tensor<2, Int>>,
         kv_cache: &mut Option<&mut KVCache>,
     ) -> Tensor<3> {
+        self.logits(self.hidden_after(idx, prev, kv_cache))
+    }
+
+    /// The head's input: the residual stream after the last block (the
+    /// backout taken), normalized. As
+    /// [`forward_after`](Self::forward_after) without the head.
+    ///
+    /// # Arguments
+    /// As [`forward_after`](Self::forward_after).
+    ///
+    /// # Returns
+    /// The `[B, T, D]` hidden states.
+    ///
+    /// # Panics
+    /// As [`forward_after`](Self::forward_after).
+    pub fn hidden_after(
+        &self,
+        idx: Tensor<2, Int>,
+        prev: Option<Tensor<2, Int>>,
+        kv_cache: &mut Option<&mut KVCache>,
+    ) -> Tensor<3> {
         let [b, t] = unpack_shape_contract!(["B", "T"], &idx.dims());
 
         let t0 = match kv_cache {
@@ -776,9 +813,35 @@ impl NanoChatGpt {
         if let (Some(lambda), Some(mid)) = (&self.backout_lambda, x_backout) {
             x = x - mid * lambda.val().unsqueeze::<3>();
         }
-        x = self.h_norm.forward(x);
+        let hidden = self.h_norm.forward(x);
+        assert_shape_contract_periodically!(
+            ["B", "T", "D"],
+            &hidden.dims(),
+            &[("B", b), ("T", t), ("D", self.n_embed())]
+        );
+        hidden
+    }
 
-        let logits = self.lm_head.forward(x);
+    /// The softcapped logits of `hidden`, the head's input
+    /// ([`hidden_after`](Self::hidden_after)): the head, sliced to
+    /// `vocab_size`, then `softcap * tanh(logits / softcap)`.
+    ///
+    /// # Arguments
+    /// - `hidden`: `[B, T, D]` hidden states.
+    ///
+    /// # Returns
+    /// The `[B, T, vocab_size]` logits.
+    pub fn logits(
+        &self,
+        hidden: Tensor<3>,
+    ) -> Tensor<3> {
+        let [b, t] = unpack_shape_contract!(
+            ["B", "T", "D"],
+            &hidden.dims(),
+            &["B", "T"],
+            &[("D", self.n_embed())]
+        );
+        let logits = self.lm_head.forward(hidden);
         let logits = if logits.dims()[2] == self.vocab_size {
             logits
         } else {
@@ -921,6 +984,7 @@ mod tests {
 
         let structure = NanoChatGptContractConfig::new().to_structure();
         assert_eq!(structure.r_emb.base, 10000);
+        assert_eq!(structure.r_emb.round_tables_to, Some(FloatDType::BF16));
         assert_eq!(structure.vocab_size, 50304);
     }
 
@@ -967,6 +1031,7 @@ mod tests {
         assert_eq!(policy.padded_vocab_size(), 64);
         let structure = policy.to_structure();
         assert_eq!(structure.r_emb.base, 100000);
+        assert_eq!(structure.r_emb.round_tables_to, None);
         assert_eq!(structure.wte.n_embedding, 64);
         assert_eq!(structure.vocab_size, 60);
         assert_eq!(
