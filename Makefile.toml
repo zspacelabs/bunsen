@@ -59,6 +59,16 @@ workspace = false
 command = "cargo"
 args = ["test", "--workspace"]
 
+[tasks.check-validation]
+description = "The validation workspace with its default features: format, clippy, tests (local only, never in CI)"
+workspace = false
+env = { BURN_DEVICE = "flex" }
+script = '''
+cargo +nightly fmt --manifest-path validation/Cargo.toml -- --check
+cargo clippy --manifest-path validation/Cargo.toml --no-deps -- -D warnings
+cargo test --manifest-path validation/Cargo.toml
+'''
+
 # ── validation ────────────────────────────────────────────────────────────────
 #
 # The validation crates (`validation/models/*`) cross-check each model against
