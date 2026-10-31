@@ -9,6 +9,7 @@ comes through a `bind-*-onnx` crate, fetched at build time and digest-pinned.
 ```text
 onnx/bind-{model}-onnx/            each model's checkpoints and ONNX export, and the reference generated from it
 onnx/rewrite-genai-onnx/           the onnxruntime-genai graph rewrite the bind crates' build scripts share
+assets/fetch-{model}/              a model's checkpoints when its reference is not an ONNX export
 models/{model}-model-validation/   each model's cross-checks
 tools/                             the fixture generators whose output lands in models/*/testdata
 ```
