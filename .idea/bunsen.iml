@@ -51,6 +51,15 @@
       <sourceFolder url="file://$MODULE_DIR$/validation/onnx/bind-sortformer-onnx/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/validation/models/sortformer-model-validation/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/crates/dev/kv-cache-bench/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/crates/dev/bunsen-chat/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/validation/assets/fetch-nanochat/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/validation/models/nanochat-model-validation/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/validation/models/nanochat-model-validation/tests" isTestSource="true" />
+      <sourceFolder url="file://$MODULE_DIR$/validation/models/qwen3-model-validation/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/validation/models/voxtral-model-validation/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/validation/onnx/bind-qwen3-onnx/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/validation/onnx/bind-voxtral-onnx/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/validation/onnx/rewrite-genai-onnx/src" isTestSource="false" />
       <excludeFolder url="file://$MODULE_DIR$/crates/public/bunsen/target" />
       <excludeFolder url="file://$MODULE_DIR$/target" />
       <excludeFolder url="file://$MODULE_DIR$/demos/bimm/crates/bimm/target" />
@@ -59,6 +68,7 @@
       <excludeFolder url="file://$MODULE_DIR$/demos/chat/target" />
       <excludeFolder url="file://$MODULE_DIR$/validation/models/silero-model-validation/target" />
       <excludeFolder url="file://$MODULE_DIR$/validation/models/whisper-model-validation/target" />
+      <excludeFolder url="file://$MODULE_DIR$/validation/target" />
     </content>
     <orderEntry type="inheritedJdk" />
     <orderEntry type="sourceFolder" forTests="false" />
