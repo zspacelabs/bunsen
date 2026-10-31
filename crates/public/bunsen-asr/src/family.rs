@@ -42,6 +42,14 @@ use bunsen::{
             SORTFORMER_KIT,
             default_sortformer_factory,
         },
+        voxtral::{
+            VoxtralBundle,
+            pretrained::{
+                DEFAULT_VOXTRAL_MODEL,
+                VOXTRAL_KIT,
+                default_voxtral_factory,
+            },
+        },
         whisper::{
             driver::WhisperBundle,
             pretrained::{
@@ -66,6 +74,9 @@ pub enum Family {
 
     /// Qwen's Qwen3-ASR.
     Qwen3Asr,
+
+    /// Mistral's Voxtral Realtime.
+    Voxtral,
 
     /// `OpenAI`'s Whisper.
     Whisper,
@@ -108,13 +119,21 @@ pub enum Loaded {
     /// A Qwen3-ASR bundle.
     Qwen3Asr(Arc<Qwen3AsrBundle>),
 
+    /// A Voxtral Realtime bundle.
+    Voxtral(Arc<VoxtralBundle>),
+
     /// A Whisper bundle, which `transcribe` drives through a stream driver.
     Whisper(Arc<WhisperBundle>),
 }
 
 impl Family {
     /// Every family.
-    pub const ALL: [Family; 3] = [Family::Parakeet, Family::Qwen3Asr, Family::Whisper];
+    pub const ALL: [Family; 4] = [
+        Family::Parakeet,
+        Family::Qwen3Asr,
+        Family::Voxtral,
+        Family::Whisper,
+    ];
 
     /// The family whose command name is `name`.
     pub fn from_name(name: &str) -> Option<Family> {
@@ -126,6 +145,7 @@ impl Family {
         match self {
             Family::Parakeet => "parakeet",
             Family::Qwen3Asr => "qwen3-asr",
+            Family::Voxtral => "voxtral",
             Family::Whisper => "whisper",
         }
     }
@@ -135,6 +155,7 @@ impl Family {
         match self {
             Family::Parakeet => DEFAULT_PARAKEET_MODEL,
             Family::Qwen3Asr => DEFAULT_QWEN3_ASR_MODEL,
+            Family::Voxtral => DEFAULT_VOXTRAL_MODEL,
             Family::Whisper => "openai/base",
         }
     }
@@ -144,6 +165,7 @@ impl Family {
         match self {
             Family::Parakeet => PARAKEET_KIT,
             Family::Qwen3Asr => QWEN3_ASR_KIT,
+            Family::Voxtral => VOXTRAL_KIT,
             Family::Whisper => WHISPER_KIT,
         }
     }
@@ -166,6 +188,11 @@ impl Family {
             )?),
             Family::Qwen3Asr => Loaded::Qwen3Asr(load_logged(
                 default_qwen3_asr_factory()?.resolve(spec, cache)?,
+                cache,
+                device,
+            )?),
+            Family::Voxtral => Loaded::Voxtral(load_logged(
+                default_voxtral_factory()?.resolve(spec, cache)?,
                 cache,
                 device,
             )?),
@@ -219,6 +246,7 @@ impl Kit {
         Ok(match self {
             Kit::Asr(Family::Parakeet) => split(default_parakeet_factory()?),
             Kit::Asr(Family::Qwen3Asr) => split(default_qwen3_asr_factory()?),
+            Kit::Asr(Family::Voxtral) => split(default_voxtral_factory()?),
             Kit::Asr(Family::Whisper) => split(default_whisper_factory()?),
             Kit::Diarizer => split(default_sortformer_factory()?),
         })
@@ -248,6 +276,9 @@ impl Kit {
             }
             Kit::Asr(Family::Qwen3Asr) => {
                 fetch_with(default_qwen3_asr_factory()?, names, cache, verify, out)
+            }
+            Kit::Asr(Family::Voxtral) => {
+                fetch_with(default_voxtral_factory()?, names, cache, verify, out)
             }
             Kit::Asr(Family::Whisper) => {
                 fetch_with(default_whisper_factory()?, names, cache, verify, out)
@@ -344,6 +375,7 @@ mod tests {
         for kit in [
             Kit::Asr(Family::Parakeet),
             Kit::Asr(Family::Qwen3Asr),
+            Kit::Asr(Family::Voxtral),
             Kit::Asr(Family::Whisper),
             Kit::Diarizer,
         ] {

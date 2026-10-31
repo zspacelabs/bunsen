@@ -86,6 +86,7 @@ apply to it:
 ```sh
 bunsen-asr family parakeet  (list|fetch|transcribe|live) [FLAGS]   # NVIDIA's Parakeet TDT; FermionResearch's Phonon-2 by default
 bunsen-asr family qwen3-asr (list|fetch|transcribe|live) [FLAGS]   # Qwen's Qwen3-ASR; FermionResearch's Phonon-1 (English) by default
+bunsen-asr family voxtral   (list|fetch|transcribe|live) [FLAGS]   # Mistral's Voxtral Realtime; Voxtral-Mini-4B-Realtime-2602 by default
 bunsen-asr family whisper   (list|fetch|transcribe|live) [FLAGS]   # OpenAI's Whisper; openai/base by default
 bunsen-asr diarize          (list|fetch|run|live)        [FLAGS]   # who spoke when: NVIDIA's Nemotron-3-Diarization
 ```
@@ -93,6 +94,7 @@ bunsen-asr diarize          (list|fetch|run|live)        [FLAGS]   # who spoke w
 ```sh
 cargo run --release -p bunsen-asr --features wgpu -- family parakeet transcribe recording.wav
 cargo run --release -p bunsen-asr --features wgpu -- family qwen3-asr transcribe --model qwen/qwen3-asr-1.7b --json recording.wav
+cargo run --release -p bunsen-asr --features wgpu -- family voxtral transcribe --delay-ms 960 --json recording.wav
 cargo run --release -p bunsen-asr --features wgpu -- family whisper transcribe --preset conservative --language en recording.wav
 cargo run --release -p bunsen-asr -- family qwen3-asr list
 ```
@@ -115,7 +117,7 @@ pinned file): a deployment that runs `--offline` fills its cache this way ahead 
 first use, logs its info card (name, licence, origin, every file and where it came from) at `INFO` (`-v`), and prints
 each file's text. `--json` prints JSON lines instead ([where the transcript goes](#where-the-transcript-goes)): each
 file's statements, then its `transcript`: the text, the language when the model names one (Qwen3-ASR, Whisper), each
-word's start and end in seconds (Parakeet), and each segment's (Whisper; Qwen3-ASR's are its committed windows), every
+word's start and end in seconds (Parakeet, Voxtral), and each segment's (Whisper; Qwen3-ASR's are its committed windows), every
 word and segment with the token ids it was decoded as. After each file it logs how
 long the transcription took at `INFO`, and after several, the total. Audio is read at the model's rate, 16 kHz mono,
 and streamed through the family's stream driver (bunsen's `asr_driver`), about a second a push.
@@ -234,6 +236,7 @@ log is filtered as every log is: `RUST_LOG=bunsen_asr::transcript=info` shows a 
 |---|---|
 | `parakeet` | `--window-seconds` (60): a full window is committed up to a pause between words, and the rest decoded again with the audio after it |
 | `qwen3-asr` | `--window-seconds` (30, the most Qwen3-ASR was trained on): a full window is cut at the quietest point of its last third |
+| `voxtral` | `--window-seconds` (30): a full window is committed up to a pause between words, and the rest decoded again with the audio after it; `--delay-ms` (the model's, 480): how far the transcript runs behind the audio, a multiple of 80 up to 1200, or 2400 |
 | `whisper` | `--language` (detected when omitted), `--task` (`transcribe`, `translate`), `--beam-size` (5), `--timestamps` (split segments on timestamp tokens), `--max-tokens` (224 a window), `--prompt-carry` (`true`: prompt each window with the transcript so far), `--fallback` (`true`: upstream's temperature ladder), `--vocab` (a vocabulary file in place of the layout's), `--upstream-cache-dir` (`openai-whisper`'s download cache, used in place; `~/.cache/whisper`); `--model` also takes a checkpoint's path |
 
 `bunsen-asr family whisper inspect NAME|PATH` scans a Whisper checkpoint and checks it against its prefab (its resources and

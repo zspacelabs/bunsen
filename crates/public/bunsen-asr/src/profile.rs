@@ -22,6 +22,7 @@ use crate::{
     parakeet::ParakeetFlags,
     qwen3_asr::Qwen3AsrFlags,
     stream::Preset,
+    voxtral::VoxtralFlags,
     whisper::WhisperFlags,
 };
 
@@ -485,6 +486,7 @@ fn family_args(family: Family) -> Vec<Arg> {
     let command = match family {
         Family::Parakeet => <ParakeetFlags as clap::Args>::augment_args(command),
         Family::Qwen3Asr => <Qwen3AsrFlags as clap::Args>::augment_args(command),
+        Family::Voxtral => <VoxtralFlags as clap::Args>::augment_args(command),
         Family::Whisper => <WhisperFlags as clap::Args>::augment_args(command),
     };
     command
@@ -628,7 +630,7 @@ impl Resolved {
                 .find(|(k, _)| k == "task")
                 .and_then(|(_, v)| <Task as clap::ValueEnum>::from_str(v, false).ok())
                 .unwrap_or(Task::Transcribe),
-            Family::Parakeet | Family::Qwen3Asr => Task::Transcribe,
+            Family::Parakeet | Family::Qwen3Asr | Family::Voxtral => Task::Transcribe,
         }
     }
 
@@ -823,6 +825,7 @@ mod tests {
                 match resolved.family {
                     Family::Parakeet => drop(resolved.parse_flags::<ParakeetFlags>().unwrap()),
                     Family::Qwen3Asr => drop(resolved.parse_flags::<Qwen3AsrFlags>().unwrap()),
+                    Family::Voxtral => drop(resolved.parse_flags::<VoxtralFlags>().unwrap()),
                     Family::Whisper => drop(resolved.parse_flags::<WhisperFlags>().unwrap()),
                 }
             }
