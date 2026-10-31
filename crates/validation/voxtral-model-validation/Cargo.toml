@@ -16,15 +16,18 @@ workspace = true
 [features]
 default = []
 
-## Fetch the reference graphs and generate the models from them.
+## Fetch the reference graphs and generate the models from them, and fetch
+## the checkpoint compared against them: Mistral's
+## `Voxtral-Mini-4B-Realtime-2602`.
 ##
 ## **Off by default.** Enabling this makes `bind-voxtral-onnx`'s build
-## reach the network on a cold cache (~19 GB), which a plain
+## reach the network on a cold cache (~28 GB), which a plain
 ## `cargo build --workspace` must never do. Every asset is verified against a
 ## pinned SHA-256, so a warm build is offline and reproducible.
 download = [
     "dep:bind-voxtral-onnx",
     "bind-voxtral-onnx/onnx_gen",
+    "bind-voxtral-onnx/checkpoint",
 ]
 
 ## Compile every test that loads a model.
@@ -48,7 +51,8 @@ metal = ["bunsen/metal"]
 
 [dependencies]
 burn = { workspace = true }
-bunsen = { path = "../../public/bunsen", features = ["testing"] }
+bunsen = { path = "../../public/bunsen", features = ["testing", "cache"] }
+bunsen-test-audio = { path = "../../dev/bunsen-test-audio" }
 bind-voxtral-onnx = {
     path = "../../onnx/bind-voxtral-onnx",
     optional = true
