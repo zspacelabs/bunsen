@@ -1,6 +1,6 @@
 [package]
 name = "bunsen-chat"
-description = "Chat with bunsen's Qwen3: the tokenizer, the chat template, and a streaming chat driver over the KV cache, as a library and a command line."
+description = "Chat with bunsen's Qwen3 or nanochat: each family's tokenizer and chat template or layout, and a streaming chat driver over the KV cache, as a library and a command line."
 publish = false
 
 authors.workspace = true

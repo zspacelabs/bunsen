@@ -1,4 +1,9 @@
 //! `bunsen-chat`: chat with a Qwen3 or nanochat checkpoint, on bunsen.
+//! `bunsen-chat <list|fetch|run|chat>` takes a checkpoint of any family, by
+//! its name; `bunsen-chat family <qwen3|nanochat> <list|fetch|run|chat>`
+//! runs one family's, its own default by default, with only the flags that
+//! apply to it; `bunsen-chat cache <path|list|clear>` manages the weights
+//! cache.
 use std::{
     io::{
         BufRead,
@@ -9,7 +14,12 @@ use std::{
 };
 
 use bunsen::{
-    data::pretrained::PretrainedCache,
+    data::pretrained::{
+        Construct,
+        Pretrained,
+        PretrainedCache,
+        PretrainedFactory,
+    },
     errors::{
         BunsenResult,
         sys_at,
@@ -66,24 +76,212 @@ struct Args {
 
 #[derive(clap::Subcommand, Debug)]
 enum Command {
-    /// The checkpoints bunsen knows by name, Qwen3's and nanochat's, and what
-    /// of each is cached.
+    /// The checkpoints bunsen knows by name, every family's: each one's
+    /// origin, and each of its files' path in its repo and whether it is
+    /// cached.
     List(ListCmd),
 
-    /// Brings every file of the named checkpoints into the weights cache.
+    /// Brings every file of the named checkpoints into the weights cache;
+    /// each name is its own family's.
     Fetch(FetchCmd),
 
-    /// Answers one prompt, from the command line or stdin.
-    Run(RunCmd),
+    /// Answers one prompt, from the command line or stdin, with the
+    /// checkpoint `--model` names, of whichever family.
+    Run(RunCmd<ThinkFlags>),
 
-    /// Holds a conversation on stdin: `/reset` starts over, `/quit` (or end
-    /// of input) leaves.
-    Chat(ChatCmd),
+    /// Holds a conversation on stdin, with the checkpoint `--model` names,
+    /// of whichever family: `/reset` starts over, `/quit` (or end of input)
+    /// leaves.
+    Chat(ChatCmd<ThinkFlags>),
+
+    /// The model families, each with its own `list`, `fetch`, `run` and
+    /// `chat`, its own default checkpoint, and only the flags that apply to
+    /// it.
+    Family(FamilyCmd),
 
     /// The weights cache the checkpoints load through: where it is, what it
     /// holds (Qwen3's files are the `qwen3` kit's, nanochat's the
     /// `nanochat` kit's), and clearing it.
     Cache(bunsen_app::cache::CacheCommand),
+}
+
+/// The model families' commands.
+#[derive(clap::Args, Debug)]
+struct FamilyCmd {
+    #[command(subcommand)]
+    family: FamilySub,
+}
+
+/// The model families, each with its own `list`, `fetch`, `run` and `chat`.
+#[derive(clap::Subcommand, Debug)]
+enum FamilySub {
+    /// Qwen's Qwen3: `qwen/qwen3-0.6b` by default, or any `hf:org/repo` in
+    /// its layout.
+    Qwen3(KitCmd<ThinkFlags>),
+
+    /// Andrej Karpathy's nanochat: community checkpoints of upstream's 2025
+    /// and 2026 models, `nanochat-students/rl-d20` by default.
+    #[command(name = "nanochat")]
+    NanoChat(KitCmd<NanoChatFlags>),
+}
+
+impl FamilyCmd {
+    fn run(&self) -> BunsenResult<()> {
+        match &self.family {
+            FamilySub::Qwen3(cmd) => cmd.action.run(Family::Qwen3),
+            FamilySub::NanoChat(cmd) => cmd.action.run(Family::NanoChat),
+        }
+    }
+}
+
+/// One family's commands; `F` is its own generation flags.
+#[derive(clap::Args, Debug)]
+struct KitCmd<F: clap::Args> {
+    #[command(subcommand)]
+    action: Action<F>,
+}
+
+#[derive(clap::Subcommand, Debug)]
+enum Action<F: clap::Args> {
+    /// The family's checkpoints: each one's origin, and each of its files'
+    /// path in its repo and whether it is cached.
+    List(ListCmd),
+
+    /// Brings every file of the family's named checkpoints into the weights
+    /// cache.
+    Fetch(FetchCmd),
+
+    /// Answers one prompt, from the command line or stdin.
+    Run(RunCmd<F>),
+
+    /// Holds a conversation on stdin: `/reset` starts over, `/quit` (or end
+    /// of input) leaves.
+    Chat(ChatCmd<F>),
+}
+
+impl<F: FamilyFlags> Action<F> {
+    fn run(
+        &self,
+        family: Family,
+    ) -> BunsenResult<()> {
+        match self {
+            Action::List(cmd) => cmd.run(&[family]),
+            Action::Fetch(cmd) => cmd.run(Some(family)),
+            Action::Run(cmd) => cmd.run(Some(family)),
+            Action::Chat(cmd) => cmd.run(Some(family)),
+        }
+    }
+}
+
+/// A model family: one kit, its factory, and its default checkpoint.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Family {
+    /// Qwen's Qwen3.
+    Qwen3,
+
+    /// Andrej Karpathy's nanochat.
+    NanoChat,
+}
+
+impl Family {
+    /// Every family.
+    const ALL: [Family; 2] = [Family::Qwen3, Family::NanoChat];
+
+    /// The family whose checkpoint `name` is: nanochat's when the nanochat
+    /// factory knows it, Qwen3's otherwise.
+    fn of(name: &str) -> BunsenResult<Family> {
+        Ok(if default_nanochat_factory()?.lookup(name).is_ok() {
+            Family::NanoChat
+        } else {
+            Family::Qwen3
+        })
+    }
+
+    /// The family's command name.
+    fn name(self) -> &'static str {
+        match self {
+            Family::Qwen3 => "qwen3",
+            Family::NanoChat => "nanochat",
+        }
+    }
+
+    /// The checkpoint `--model` names when it is not given.
+    fn default_model(self) -> &'static str {
+        match self {
+            Family::Qwen3 => DEFAULT_QWEN3_MODEL,
+            Family::NanoChat => DEFAULT_NANOCHAT_MODEL,
+        }
+    }
+
+    /// The kit's segment of the pretrained cache.
+    fn cache_kit(self) -> &'static str {
+        match self {
+            Family::Qwen3 => QWEN3_KIT,
+            Family::NanoChat => NANOCHAT_KIT,
+        }
+    }
+
+    /// The family's checkpoints by name: each row, by its id.
+    fn rows(self) -> BunsenResult<Vec<(String, Pretrained)>> {
+        fn rows_of<H: Construct>(
+            factory: &PretrainedFactory<H>
+        ) -> BunsenResult<Vec<(String, Pretrained)>> {
+            factory
+                .ids()
+                .into_iter()
+                .map(|id| Ok((id.clone(), factory.lookup(&id)?.1)))
+                .collect()
+        }
+        match self {
+            Family::Qwen3 => rows_of(&default_qwen3_factory()?),
+            Family::NanoChat => rows_of(&default_nanochat_factory()?),
+        }
+    }
+
+    /// Loads `name` on `device`, through `cache`.
+    fn load(
+        self,
+        name: &str,
+        cache: &PretrainedCache,
+        device: &DeviceSession,
+    ) -> BunsenResult<Chat> {
+        Ok(match self {
+            Family::Qwen3 => {
+                let bundle = default_qwen3_factory()?.load_bundle(name, cache, device)?;
+                Chat::Qwen3(Arc::new(ChatModel::from_bundle(bundle)?))
+            }
+            Family::NanoChat => {
+                let bundle = default_nanochat_factory()?.load_bundle(name, cache, device)?;
+                Chat::NanoChat(Arc::new(ChatModel::new(NanoChatChat::from_bundle(bundle)?)))
+            }
+        })
+    }
+
+    /// Brings every file of `name` into `cache`, and prints where each one
+    /// is.
+    fn fetch(
+        self,
+        name: &str,
+        cache: &PretrainedCache,
+    ) -> BunsenResult<()> {
+        let (id, loaded) = match self {
+            Family::Qwen3 => {
+                let model = default_qwen3_factory()?.resolve(name, cache)?;
+                let map = model.plan(cache)?;
+                (model.id(), cache.load(QWEN3_KIT, &map)?)
+            }
+            Family::NanoChat => {
+                let model = default_nanochat_factory()?.resolve(name, cache)?;
+                let map = model.plan(cache)?;
+                (model.id(), cache.load(NANOCHAT_KIT, &map)?)
+            }
+        };
+        println!("{id}:");
+        for (key, part) in loaded.iter() {
+            println!("  {key}: {}", part.path.display());
+        }
+        Ok(())
+    }
 }
 
 #[derive(clap::Args, Debug)]
@@ -93,6 +291,11 @@ struct ListCmd {
 
     #[clap(flatten)]
     cache: WeightsCacheArgs,
+
+    /// Also print each file's first source, where it is fetched from (as
+    /// `url: ...`).
+    #[arg(long)]
+    urls: bool,
 }
 
 #[derive(clap::Args, Debug)]
@@ -123,27 +326,15 @@ struct GenerateFlags {
     #[clap(flatten)]
     device: DeviceArgs,
 
-    /// The checkpoint: a name `list` shows (a nanochat one loads nanochat),
-    /// or `hf:org/repo`, a Qwen3.
-    #[arg(long, default_value = DEFAULT_QWEN3_MODEL)]
-    model: String,
+    /// The checkpoint: a name `list` shows, or `hf:org/repo`, a Qwen3. The
+    /// family's default when omitted; outside `family`, the name picks the
+    /// family, and Qwen3's default is the default.
+    #[arg(long)]
+    model: Option<String>,
 
     /// A system prompt.
     #[arg(long)]
     system: Option<String>,
-
-    /// Let the model think first (Qwen3's default; nanochat does not
-    /// think).
-    #[arg(long, conflicts_with = "no_think")]
-    think: bool,
-
-    /// Ask the model not to think.
-    #[arg(long)]
-    no_think: bool,
-
-    /// Show the model's thinking as it streams, not just its answer.
-    #[arg(long)]
-    show_thinking: bool,
 
     /// The most tokens a reply generates.
     #[arg(long, default_value_t = 1024)]
@@ -183,6 +374,56 @@ struct GenerateFlags {
     stats: bool,
 }
 
+/// A family's own generation flags.
+trait FamilyFlags: clap::Args + std::fmt::Debug {
+    /// Whether the model thinks first; `None` for the checkpoint's default.
+    fn thinking(&self) -> Option<bool> {
+        None
+    }
+
+    /// Whether a reply's thinking is hidden from the stream.
+    fn hide_thinking(&self) -> bool {
+        false
+    }
+}
+
+/// Thinking: Qwen3's own flags.
+#[derive(clap::Args, Debug)]
+struct ThinkFlags {
+    /// Let the model think first (Qwen3's default; nanochat does not
+    /// think).
+    #[arg(long, conflicts_with = "no_think")]
+    think: bool,
+
+    /// Ask the model not to think.
+    #[arg(long)]
+    no_think: bool,
+
+    /// Show the model's thinking as it streams, not just its answer.
+    #[arg(long)]
+    show_thinking: bool,
+}
+
+impl FamilyFlags for ThinkFlags {
+    fn thinking(&self) -> Option<bool> {
+        match (self.think, self.no_think) {
+            (true, _) => Some(true),
+            (_, true) => Some(false),
+            _ => None,
+        }
+    }
+
+    fn hide_thinking(&self) -> bool {
+        !self.show_thinking
+    }
+}
+
+/// nanochat's own flags: none; it does not think.
+#[derive(clap::Args, Debug)]
+struct NanoChatFlags {}
+
+impl FamilyFlags for NanoChatFlags {}
+
 /// `--kv-storage`.
 #[derive(clap::ValueEnum, Clone, Copy, Debug)]
 enum Storage {
@@ -204,18 +445,24 @@ impl Storage {
 }
 
 #[derive(clap::Args, Debug)]
-struct RunCmd {
+struct RunCmd<F: clap::Args> {
     #[clap(flatten)]
     flags: GenerateFlags,
+
+    #[clap(flatten)]
+    family: F,
 
     /// The prompt; stdin when omitted.
     prompt: Option<String>,
 }
 
 #[derive(clap::Args, Debug)]
-struct ChatCmd {
+struct ChatCmd<F: clap::Args> {
     #[clap(flatten)]
     flags: GenerateFlags,
+
+    #[clap(flatten)]
+    family: F,
 }
 
 /// A loaded chat, of whichever kit its checkpoint is.
@@ -224,15 +471,34 @@ enum Chat {
     NanoChat(Arc<ChatModel<NanoChatChat>>),
 }
 
-/// Whether `name` is a nanochat checkpoint's: a name the nanochat factory
-/// knows. Any other is a Qwen3's.
-fn is_nanochat(name: &str) -> BunsenResult<bool> {
-    Ok(default_nanochat_factory()?.lookup(name).is_ok())
-}
-
 impl GenerateFlags {
-    /// Opens the device, and loads the checkpoint on it.
-    fn load(&self) -> BunsenResult<(DeviceSession, Chat)> {
+    /// The checkpoint these flags name, and its family: `family`'s (its
+    /// default when `--model` is not given), or outside `family` the one
+    /// `--model` names.
+    fn checkpoint(
+        &self,
+        family: Option<Family>,
+    ) -> BunsenResult<(Family, String)> {
+        Ok(match family {
+            Some(family) => (
+                family,
+                self.model
+                    .clone()
+                    .unwrap_or_else(|| family.default_model().to_string()),
+            ),
+            None => {
+                let name = self.model.as_deref().unwrap_or(DEFAULT_QWEN3_MODEL);
+                (Family::of(name)?, name.to_string())
+            }
+        })
+    }
+
+    /// Opens the device, and loads the checkpoint on it: `family`'s, or
+    /// outside `family` whichever `--model` names.
+    fn load(
+        &self,
+        family: Option<Family>,
+    ) -> BunsenResult<(DeviceSession, Chat)> {
         self.logging
             .init(LogPolicy::new(LevelFilter::Warn, LevelFilter::Warn))?;
         let cache = self.cache.init()?;
@@ -242,20 +508,17 @@ impl GenerateFlags {
         if let Some(seed) = self.seed {
             device.seed(seed);
         }
-        let chat = if is_nanochat(&self.model)? {
-            let bundle = default_nanochat_factory()?.load_bundle(&self.model, &cache, &device)?;
-            Chat::NanoChat(Arc::new(ChatModel::new(NanoChatChat::from_bundle(bundle)?)))
-        } else {
-            let bundle = default_qwen3_factory()?.load_bundle(&self.model, &cache, &device)?;
-            Chat::Qwen3(Arc::new(ChatModel::from_bundle(bundle)?))
-        };
+        let (family, name) = self.checkpoint(family)?;
+        let chat = family.load(&name, &cache, &device)?;
         Ok((device, chat))
     }
 
-    /// The session config these flags give, over `chat`'s defaults.
+    /// The session config these flags and `family`'s give, over `chat`'s
+    /// defaults.
     fn config<B: ChatBackend>(
         &self,
         chat: &ChatModel<B>,
+        family: &impl FamilyFlags,
     ) -> ChatSessionConfig {
         let defaults = chat.defaults().search.clone();
         let search = if self.greedy {
@@ -268,14 +531,9 @@ impl GenerateFlags {
                 ..defaults
             }
         };
-        let thinking = match (self.think, self.no_think) {
-            (true, _) => Some(true),
-            (_, true) => Some(false),
-            _ => None,
-        };
         ChatSessionConfig::new()
             .with_max_new_tokens(self.max_new_tokens)
-            .with_enable_thinking(thinking)
+            .with_enable_thinking(family.thinking())
             .with_search(Some(search))
             .with_context(self.context)
             .with_storage(self.kv_storage.storage())
@@ -295,15 +553,16 @@ impl GenerateFlags {
         session
     }
 
-    /// Sends `user`, streaming the reply to stdout (its thinking only under
-    /// `--show-thinking`), and reports it under `--stats`.
+    /// Sends `user`, streaming the reply to stdout (its thinking only when
+    /// `family`'s flags show it), and reports it under `--stats`.
     fn reply<B: ChatBackend>(
         &self,
         session: &mut ChatSession<B>,
+        family: &impl FamilyFlags,
         user: &str,
     ) -> BunsenResult<ChatReply> {
         let mut out = std::io::stdout().lock();
-        let mut hidden = ThinkingFilter::new(!self.show_thinking);
+        let mut hidden = ThinkingFilter::new(family.hide_thinking());
         let mut failed = None;
         let reply = session.send(user, &mut |delta| {
             let shown = hidden.push(delta);
@@ -340,11 +599,12 @@ impl GenerateFlags {
     fn run_once<B: ChatBackend>(
         &self,
         chat: &Arc<ChatModel<B>>,
+        family: &impl FamilyFlags,
         device: &DeviceSession,
         prompt: &str,
     ) -> BunsenResult<()> {
-        let mut session = self.session(chat, self.config(chat), device);
-        self.reply(&mut session, prompt)?;
+        let mut session = self.session(chat, self.config(chat, family), device);
+        self.reply(&mut session, family, prompt)?;
         Ok(())
     }
 
@@ -352,9 +612,10 @@ impl GenerateFlags {
     fn converse<B: ChatBackend>(
         &self,
         chat: &Arc<ChatModel<B>>,
+        family: &impl FamilyFlags,
         device: &DeviceSession,
     ) -> BunsenResult<()> {
-        let config = self.config(chat);
+        let config = self.config(chat, family);
         let mut session = self.session(chat, config.clone(), device);
         let stdin = std::io::stdin();
         let mut lines = stdin.lock().lines();
@@ -370,7 +631,7 @@ impl GenerateFlags {
                     eprintln!("[a new conversation]");
                 }
                 user => {
-                    self.reply(&mut session, user)?;
+                    self.reply(&mut session, family, user)?;
                 }
             }
         }
@@ -428,40 +689,54 @@ impl ThinkingFilter {
     }
 }
 
-fn list(cmd: &ListCmd) -> BunsenResult<()> {
-    cmd.logging
-        .init(LogPolicy::new(LevelFilter::Info, LevelFilter::Info))?;
-    let cache = cmd.cache.init()?;
-    println!("cache: {}", cache.cache_dir().display());
-
-    let factory = default_qwen3_factory()?;
-    println!();
-    println!("qwen3 checkpoints (the default: {DEFAULT_QWEN3_MODEL})");
-    for id in factory.ids() {
-        let (_, row) = factory.lookup(&id)?;
-        print_row(&cache, QWEN3_KIT, &id, &row, DEFAULT_QWEN3_MODEL);
+impl ListCmd {
+    /// Prints each of `families`' checkpoints, as [`print_row`] does.
+    fn run(
+        &self,
+        families: &[Family],
+    ) -> BunsenResult<()> {
+        self.logging
+            .init(LogPolicy::new(LevelFilter::Info, LevelFilter::Info))?;
+        let cache = self.cache.init()?;
+        println!("cache: {}", cache.cache_dir().display());
+        for &family in families {
+            let default = family.default_model();
+            println!();
+            println!("# {} checkpoints (the default: {default})", family.name());
+            for (id, row) in family.rows()? {
+                print_row(&cache, family.cache_kit(), &id, &row, default, self.urls);
+            }
+            if family == Family::Qwen3 {
+                println!();
+                println!(
+                    "hf:org/repo: any Hugging Face repo in transformers' Qwen3ForCausalLM layout"
+                );
+            }
+        }
+        Ok(())
     }
-    println!();
-    println!("hf:org/repo: any Hugging Face repo in transformers' Qwen3ForCausalLM layout");
-
-    let factory = default_nanochat_factory()?;
-    println!();
-    println!("nanochat checkpoints");
-    for id in factory.ids() {
-        let (_, row) = factory.lookup(&id)?;
-        print_row(&cache, NANOCHAT_KIT, &id, &row, DEFAULT_NANOCHAT_MODEL);
-    }
-    Ok(())
 }
 
-/// One row of `list`: its id, aliases, description, and each file's state
-/// in `cache`.
+/// One row of `list`: its id, aliases, description and origin, and each
+/// file's state in `cache` and path in its repo; under `urls`, its first
+/// source too.
+///
+/// ```text
+/// well-known:nanochat-students/rl-d20 (default)
+///   aliases: nanochat-d20-rl
+///   nanochat-students' d20 after its RL stage (step 650): upstream's 2025 model, 561M, chat
+///   origin: https://huggingface.co/nanochat-students/rl-d20
+///   checkpoint: [cached]
+///     path: model_000650.pt
+///     url: https://huggingface.co/nanochat-students/rl-d20/resolve/22fbb6a8.../model_000650.pt
+/// ```
 fn print_row(
     cache: &PretrainedCache,
     kit: &str,
     id: &str,
-    row: &bunsen::data::pretrained::Pretrained,
+    row: &Pretrained,
     default: &str,
+    urls: bool,
 ) {
     let default = if row.name == default {
         " (default)"
@@ -474,69 +749,90 @@ fn print_row(
         println!("  aliases: {}", row.aliases.join(", "));
     }
     println!("  {}", row.description);
+    if let Some(origin) = &row.origin {
+        println!("  origin: {origin}");
+    }
     for (key, r) in &row.resources.resources {
-        println!("  {key}: {} [{}]", r.file, cache.status(kit, r));
+        println!("  {key}: [{}]", cache.status(kit, r));
+        println!("    path: {}", r.file);
+        if urls && !r.sources.is_empty() {
+            println!("    {}", r.sources[0]);
+        }
     }
 }
 
-fn fetch(cmd: &FetchCmd) -> BunsenResult<()> {
-    cmd.logging
-        .init(LogPolicy::new(LevelFilter::Warn, LevelFilter::Warn))?;
-    let cache = cmd.cache.init()?;
-    for name in &cmd.names {
-        let (id, loaded) = if is_nanochat(name)? {
-            let model = default_nanochat_factory()?.resolve(name, &cache)?;
-            let map = model.plan(&cache)?;
-            (model.id(), cache.load(NANOCHAT_KIT, &map)?)
-        } else {
-            let model = default_qwen3_factory()?.resolve(name, &cache)?;
-            let map = model.plan(&cache)?;
-            (model.id(), cache.load(QWEN3_KIT, &map)?)
+impl FetchCmd {
+    /// Fetches each name: `family`'s, or outside `family` its own family's.
+    fn run(
+        &self,
+        family: Option<Family>,
+    ) -> BunsenResult<()> {
+        self.logging
+            .init(LogPolicy::new(LevelFilter::Warn, LevelFilter::Warn))?;
+        let cache = self.cache.init()?;
+        for name in &self.names {
+            let family = match family {
+                Some(family) => family,
+                None => Family::of(name)?,
+            };
+            family.fetch(name, &cache)?;
+        }
+        Ok(())
+    }
+}
+
+impl<F: FamilyFlags> RunCmd<F> {
+    /// Answers the prompt with `family`'s checkpoint, or outside `family`
+    /// whichever `--model` names.
+    fn run(
+        &self,
+        family: Option<Family>,
+    ) -> BunsenResult<()> {
+        let prompt = match &self.prompt {
+            Some(prompt) => prompt.clone(),
+            None => {
+                let mut text = String::new();
+                std::io::stdin()
+                    .read_to_string(&mut text)
+                    .map_err(sys_at("read", "stdin"))?;
+                text
+            }
         };
-        println!("{id}:");
-        for (key, part) in loaded.iter() {
-            println!("  {key}: {}", part.path.display());
+        let prompt = prompt.trim_end();
+        let (device, chat) = self.flags.load(family)?;
+        match &chat {
+            Chat::Qwen3(chat) => self.flags.run_once(chat, &self.family, &device, prompt)?,
+            Chat::NanoChat(chat) => self.flags.run_once(chat, &self.family, &device, prompt)?,
         }
+        drop(chat);
+        device.close()
     }
-    Ok(())
 }
 
-fn run(cmd: &RunCmd) -> BunsenResult<()> {
-    let prompt = match &cmd.prompt {
-        Some(prompt) => prompt.clone(),
-        None => {
-            let mut text = String::new();
-            std::io::stdin()
-                .read_to_string(&mut text)
-                .map_err(sys_at("read", "stdin"))?;
-            text
+impl<F: FamilyFlags> ChatCmd<F> {
+    /// Holds a conversation with `family`'s checkpoint, or outside `family`
+    /// whichever `--model` names.
+    fn run(
+        &self,
+        family: Option<Family>,
+    ) -> BunsenResult<()> {
+        let (device, chat) = self.flags.load(family)?;
+        match &chat {
+            Chat::Qwen3(chat) => self.flags.converse(chat, &self.family, &device)?,
+            Chat::NanoChat(chat) => self.flags.converse(chat, &self.family, &device)?,
         }
-    };
-    let (device, chat) = cmd.flags.load()?;
-    match &chat {
-        Chat::Qwen3(chat) => cmd.flags.run_once(chat, &device, prompt.trim_end())?,
-        Chat::NanoChat(chat) => cmd.flags.run_once(chat, &device, prompt.trim_end())?,
+        drop(chat);
+        device.close()
     }
-    drop(chat);
-    device.close()
-}
-
-fn chat(cmd: &ChatCmd) -> BunsenResult<()> {
-    let (device, chat) = cmd.flags.load()?;
-    match &chat {
-        Chat::Qwen3(chat) => cmd.flags.converse(chat, &device)?,
-        Chat::NanoChat(chat) => cmd.flags.converse(chat, &device)?,
-    }
-    drop(chat);
-    device.close()
 }
 
 fn main() -> BunsenResult<()> {
     match Args::parse().command {
-        Command::List(cmd) => list(&cmd),
-        Command::Fetch(cmd) => fetch(&cmd),
-        Command::Run(cmd) => run(&cmd),
-        Command::Chat(cmd) => chat(&cmd),
+        Command::List(cmd) => cmd.run(&Family::ALL),
+        Command::Fetch(cmd) => cmd.run(None),
+        Command::Run(cmd) => cmd.run(None),
+        Command::Chat(cmd) => cmd.run(None),
+        Command::Family(cmd) => cmd.run(),
         Command::Cache(cmd) => cmd.run(),
     }
 }
@@ -566,5 +862,48 @@ mod tests {
     fn test_args() {
         use clap::CommandFactory;
         Args::command().debug_assert();
+    }
+
+    /// Thinking is Qwen3's: its family and the family-agnostic commands
+    /// take the flags, nanochat's does not.
+    #[test]
+    fn test_family_flags() {
+        let parse = |args: &[&str]| Args::try_parse_from([&["bunsen-chat"], args].concat());
+        assert!(parse(&["run", "--think", "hi"]).is_ok());
+        assert!(parse(&["family", "qwen3", "run", "--no-think", "hi"]).is_ok());
+        assert!(parse(&["family", "nanochat", "run", "hi"]).is_ok());
+        assert!(parse(&["family", "nanochat", "run", "--think", "hi"]).is_err());
+        assert!(parse(&["family", "nanochat", "chat", "--show-thinking"]).is_err());
+    }
+
+    /// Each family's default is its own; a nanochat name or alias is
+    /// nanochat's, and any other name Qwen3's.
+    #[test]
+    fn test_family_of() {
+        for family in Family::ALL {
+            assert_eq!(Family::of(family.default_model()).unwrap(), family);
+        }
+        assert_eq!(Family::of("nanochat-d20-rl").unwrap(), Family::NanoChat);
+        assert_eq!(Family::of("hf:Qwen/Qwen3-0.6B").unwrap(), Family::Qwen3);
+    }
+
+    /// In `family`, an omitted `--model` is the family's default; outside
+    /// it, Qwen3's.
+    #[test]
+    fn test_checkpoint() {
+        let Args {
+            command: Command::Run(cmd),
+        } = Args::try_parse_from(["bunsen-chat", "run", "hi"]).unwrap()
+        else {
+            unreachable!()
+        };
+        assert_eq!(
+            cmd.flags.checkpoint(None).unwrap(),
+            (Family::Qwen3, DEFAULT_QWEN3_MODEL.to_string())
+        );
+        assert_eq!(
+            cmd.flags.checkpoint(Some(Family::NanoChat)).unwrap(),
+            (Family::NanoChat, DEFAULT_NANOCHAT_MODEL.to_string())
+        );
     }
 }
