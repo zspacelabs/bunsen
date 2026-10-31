@@ -1,9 +1,7 @@
-//! `bunsen-chat`: chat with a Qwen3 or nanochat checkpoint, on bunsen.
-//! `bunsen-chat <list|fetch|run|chat>` takes a checkpoint of any family, by
-//! its name; `bunsen-chat family <qwen3|nanochat> <list|fetch|run|chat>`
-//! runs one family's, its own default by default, with only the flags that
-//! apply to it; `bunsen-chat cache <path|list|clear>` manages the weights
-//! cache.
+//! `bunsen-tool chat`: chat with a Qwen3 or nanochat checkpoint. `chat
+//! <list|fetch|run|chat>` takes a checkpoint of any family, by its name;
+//! `chat family <qwen3|nanochat> <list|fetch|run|chat>` runs one family's,
+//! its own default by default, with only the flags that apply to it.
 use std::{
     io::{
         BufRead,
@@ -55,7 +53,7 @@ use bunsen_app::{
         LogPolicy,
     },
 };
-use bunsen_chat::{
+use bunsen_tool::chat::{
     ChatBackend,
     ChatMessage,
     ChatModel,
@@ -65,11 +63,10 @@ use bunsen_chat::{
     NanoChatChat,
     Qwen3Chat,
 };
-use clap::Parser;
 
-#[derive(Parser, Debug)]
-#[command(author, version, about, long_about = None)]
-struct Args {
+/// `bunsen-tool chat`'s commands.
+#[derive(clap::Args, Debug)]
+pub struct ChatCmd {
     #[clap(subcommand)]
     command: Command,
 }
@@ -92,17 +89,12 @@ enum Command {
     /// Holds a conversation on stdin, with the checkpoint `--model` names,
     /// of whichever family: `/reset` starts over, `/quit` (or end of input)
     /// leaves.
-    Chat(ChatCmd<ThinkFlags>),
+    Chat(ConverseCmd<ThinkFlags>),
 
     /// The model families, each with its own `list`, `fetch`, `run` and
     /// `chat`, its own default checkpoint, and only the flags that apply to
     /// it.
     Family(FamilyCmd),
-
-    /// The weights cache the checkpoints load through: where it is, what it
-    /// holds (Qwen3's files are the `qwen3` kit's, nanochat's the
-    /// `nanochat` kit's), and clearing it.
-    Cache(bunsen_app::cache::CacheCommand),
 }
 
 /// The model families' commands.
@@ -156,7 +148,7 @@ enum Action<F: clap::Args> {
 
     /// Holds a conversation on stdin: `/reset` starts over, `/quit` (or end
     /// of input) leaves.
-    Chat(ChatCmd<F>),
+    Chat(ConverseCmd<F>),
 }
 
 impl<F: FamilyFlags> Action<F> {
@@ -457,7 +449,7 @@ struct RunCmd<F: clap::Args> {
 }
 
 #[derive(clap::Args, Debug)]
-struct ChatCmd<F: clap::Args> {
+struct ConverseCmd<F: clap::Args> {
     #[clap(flatten)]
     flags: GenerateFlags,
 
@@ -809,7 +801,7 @@ impl<F: FamilyFlags> RunCmd<F> {
     }
 }
 
-impl<F: FamilyFlags> ChatCmd<F> {
+impl<F: FamilyFlags> ConverseCmd<F> {
     /// Holds a conversation with `family`'s checkpoint, or outside `family`
     /// whichever `--model` names.
     fn run(
@@ -826,20 +818,30 @@ impl<F: FamilyFlags> ChatCmd<F> {
     }
 }
 
-fn main() -> BunsenResult<()> {
-    match Args::parse().command {
-        Command::List(cmd) => cmd.run(&Family::ALL),
-        Command::Fetch(cmd) => cmd.run(None),
-        Command::Run(cmd) => cmd.run(None),
-        Command::Chat(cmd) => cmd.run(None),
-        Command::Family(cmd) => cmd.run(),
-        Command::Cache(cmd) => cmd.run(),
+impl ChatCmd {
+    pub fn run(&self) -> BunsenResult<()> {
+        match &self.command {
+            Command::List(cmd) => cmd.run(&Family::ALL),
+            Command::Fetch(cmd) => cmd.run(None),
+            Command::Run(cmd) => cmd.run(None),
+            Command::Chat(cmd) => cmd.run(None),
+            Command::Family(cmd) => cmd.run(),
+        }
     }
 }
 
 #[cfg(test)]
 mod tests {
+    use clap::Parser;
+
     use super::*;
+
+    /// `chat`'s commands alone, as `bunsen-tool chat` parses them.
+    #[derive(clap::Parser, Debug)]
+    struct Args {
+        #[clap(subcommand)]
+        command: Command,
+    }
 
     #[test]
     fn test_thinking_filter() {
@@ -858,17 +860,11 @@ mod tests {
         assert_eq!(show.push("<think>x"), "<think>x");
     }
 
-    #[test]
-    fn test_args() {
-        use clap::CommandFactory;
-        Args::command().debug_assert();
-    }
-
     /// Thinking is Qwen3's: its family and the family-agnostic commands
     /// take the flags, nanochat's does not.
     #[test]
     fn test_family_flags() {
-        let parse = |args: &[&str]| Args::try_parse_from([&["bunsen-chat"], args].concat());
+        let parse = |args: &[&str]| Args::try_parse_from([&["chat"], args].concat());
         assert!(parse(&["run", "--think", "hi"]).is_ok());
         assert!(parse(&["family", "qwen3", "run", "--no-think", "hi"]).is_ok());
         assert!(parse(&["family", "nanochat", "run", "hi"]).is_ok());
@@ -893,7 +889,7 @@ mod tests {
     fn test_checkpoint() {
         let Args {
             command: Command::Run(cmd),
-        } = Args::try_parse_from(["bunsen-chat", "run", "hi"]).unwrap()
+        } = Args::try_parse_from(["chat", "run", "hi"]).unwrap()
         else {
             unreachable!()
         };

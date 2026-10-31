@@ -1,4 +1,4 @@
-//! `bunsen-chat`'s tokenizer and chat template against `transformers`'.
+//! `bunsen_tool::chat`'s tokenizer and chat template against `transformers`'.
 
 use std::path::PathBuf;
 
@@ -13,7 +13,7 @@ use bunsen::{
         },
     },
 };
-use bunsen_chat::{
+use bunsen_tool::chat::{
     ChatMessage,
     ChatTemplate,
     Qwen3Tokenizer,

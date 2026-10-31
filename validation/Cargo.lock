@@ -839,23 +839,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "bunsen-chat"
-version = "0.41.0"
-dependencies = [
- "bunsen",
- "bunsen-app",
- "burn",
- "clap",
- "minijinja",
- "minijinja-contrib",
- "serde",
- "serde-pickle",
- "serde_json",
- "unicode-normalization-alignments",
- "wordchipper",
-]
-
-[[package]]
 name = "bunsen-contracts-macros"
 version = "0.41.0"
 dependencies = [
@@ -878,6 +861,26 @@ name = "bunsen-test-audio"
 version = "0.41.0"
 dependencies = [
  "bunsen-fetch",
+]
+
+[[package]]
+name = "bunsen-tool"
+version = "0.41.0"
+dependencies = [
+ "bunsen",
+ "bunsen-app",
+ "burn",
+ "clap",
+ "log",
+ "minijinja",
+ "minijinja-contrib",
+ "serde",
+ "serde-pickle",
+ "serde-saphyr",
+ "serde_json",
+ "time",
+ "unicode-normalization-alignments",
+ "wordchipper",
 ]
 
 [[package]]
@@ -5383,7 +5386,7 @@ name = "nanochat-model-validation"
 version = "0.41.0"
 dependencies = [
  "bunsen",
- "bunsen-chat",
+ "bunsen-tool",
  "burn",
  "fetch-nanochat",
  "serde",
@@ -6420,7 +6423,7 @@ version = "0.41.0"
 dependencies = [
  "bind-qwen3-onnx",
  "bunsen",
- "bunsen-chat",
+ "bunsen-tool",
  "burn",
  "serde",
  "serde_json",

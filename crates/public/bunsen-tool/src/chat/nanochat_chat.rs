@@ -31,7 +31,7 @@ use burn::{
     },
 };
 
-use crate::{
+use crate::chat::{
     ChatBackend,
     ChatMessage,
     GenerationDefaults,

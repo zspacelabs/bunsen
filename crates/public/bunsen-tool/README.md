@@ -3,10 +3,12 @@
 `bunsen-tool`: [bunsen](https://crates.io/crates/bunsen)'s models on the command line, a branch for each kind of model:
 
 - `bunsen-tool asr`: speech to text, by profile or by model family, and who spoke when ([below](#asr-speech-to-text)).
+- `bunsen-tool chat`: chat with a Qwen3 or nanochat checkpoint ([below](#chat-qwen3-and-nanochat)).
 - `bunsen-tool cache <path|list|clear>`: the weights cache every command loads through, by kit.
 
 `bunsen-tool` replaces `bunsen-asr`, whose last release is 0.41.0: its commands are `bunsen-tool asr`'s, and its
-`cache` is `bunsen-tool cache`.
+`cache` is `bunsen-tool cache`. The chat driver under `bunsen-tool chat` is also this crate's library,
+[`bunsen_tool::chat`](https://docs.rs/bunsen-tool/latest/bunsen_tool/chat/).
 
 ## asr: speech to text
 
@@ -316,3 +318,37 @@ cargo run --release -p bunsen-tool --features wgpu -- asr family whisper transcr
 
 `$DATA_DIR/SLR45/text.txt` holds the transcripts. The pushes are sized to the stream driver's grain, so the
 autotuned kernels see one shape; the first file of a run pays for the tuning.
+
+## chat: Qwen3 and nanochat
+
+`bunsen-tool chat` answers one prompt (`run`) or holds a conversation on stdin (`chat`: `/reset` starts over, `/quit`
+or the end of input leaves), on the KV cache: each turn prefills only what the cache does not already hold.
+
+```sh
+bunsen-tool chat list [--urls]                       # every family's checkpoints, and what of each is cached
+bunsen-tool chat fetch NAME...                       # bring checkpoints into the cache
+bunsen-tool chat run  [--model NAME] [FLAGS] [PROMPT]   # one reply; the prompt from stdin when omitted
+bunsen-tool chat chat [--model NAME] [FLAGS]            # a conversation
+bunsen-tool chat family (qwen3|nanochat) (list|fetch|run|chat) [FLAGS]   # one family's, its own default by default
+```
+
+```sh
+cargo run --release -p bunsen-tool --features wgpu -- chat run --no-think "What is the capital of France?"
+cargo run --release -p bunsen-tool --features wgpu -- chat chat --model qwen3-4b-instruct-2507 --stats
+cargo run --release -p bunsen-tool --features wgpu -- chat family nanochat run "What is the capital of France?"
+cargo run --release -p bunsen-tool --features cuda -- chat family nanochat chat --device cuda --precision half
+```
+
+Outside `family`, the name `--model` gives picks the family, and Qwen3's default (`qwen/qwen3-0.6b`) is the default.
+The families:
+
+| family | checkpoints | default |
+|---|---|---|
+| `qwen3` | Qwen's Qwen3 by name, or `hf:org/repo`, any Hugging Face repo in `transformers`' `Qwen3ForCausalLM` layout | `qwen/qwen3-0.6b` |
+| `nanochat` | community checkpoints of upstream nanochat's 2025 and 2026 models (`nanochat-students/{base,mid,rl}-d20`, `nitishpandey04/nanochat-d18-{base,sft}`) | `nanochat-students/rl-d20` |
+
+Each family takes only the flags that apply to it: thinking (`--think`, `--no-think`, `--show-thinking`) is Qwen3's.
+Sampling follows the checkpoint's generation defaults; `--greedy`, `--temperature`, `--top-k`, `--top-p` and `--seed`
+override them. `--precision half` runs in bf16 where the device does (cuda, metal), the dtype Qwen3 ships and
+nanochat trains in; f16 overflows Qwen3. `--context` sizes the KV cache (the checkpoint's trained length by default),
+`--kv-storage` picks how it stores its history, and `--stats` prints each reply's token counts and speeds.

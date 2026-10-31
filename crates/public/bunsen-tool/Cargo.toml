@@ -1,6 +1,6 @@
 [package]
 name = "bunsen-tool"
-description = "bunsen's models on the command line. `bunsen-tool asr`: speech to text, by profile or with Parakeet TDT, Qwen3-ASR, Voxtral Realtime or Whisper, and who spoke when, through NVIDIA's Sortformer."
+description = "bunsen's models on the command line. `bunsen-tool asr`: speech to text, by profile or with Parakeet TDT, Qwen3-ASR, Voxtral Realtime or Whisper, and who spoke when, through NVIDIA's Sortformer; `bunsen-tool chat`: chat with Qwen3 or nanochat. The chat driver is also a library, `bunsen_tool::chat`."
 publish = true
 authors.workspace = true
 edition.workspace = true
@@ -11,7 +11,7 @@ license.workspace = true
 homepage = "https://zspacelabs.ai/bunsen/book/"
 documentation = "https://docs.rs/bunsen-tool/latest/"
 readme = "README.md"
-keywords = ["speech-recognition", "transcription", "diarization", "cli", "burn"]
+keywords = ["speech-recognition", "transcription", "chat", "cli", "burn"]
 categories = ["command-line-utilities", "multimedia::audio", "science"]
 
 [[bin]]
@@ -45,8 +45,8 @@ burn = { workspace = true }
 # The backend is chosen at run time with `--device`, from those compiled in
 # through this crate's backend features; the CPU is always there.
 #
-# `fermion` reads the Phonon archives; `indicatif` puts bunsen's progress bar
-# on every weights transfer.
+# `fermion` reads the Phonon archives; `cache` is the chat checkpoints'
+# loading; `indicatif` puts bunsen's progress bar on every weights transfer.
 bunsen = { version = "0.41.0", path = "../bunsen", features = [
     "store",
     "store_safetensors",
@@ -55,6 +55,7 @@ bunsen = { version = "0.41.0", path = "../bunsen", features = [
     "tokenizer",
     "fermion",
     "nemo",
+    "cache",
     "indicatif",
 ] }
 bunsen-app = { version = "0.41.0", path = "../bunsen-app" }
@@ -62,12 +63,23 @@ clap = { workspace = true, features = ["derive"] }
 cpal = { workspace = true, optional = true }
 ctrlc = { workspace = true, optional = true }
 log = { workspace = true }
+# Qwen3's chat template renders through `minijinja`, with Python's string
+# methods (`minijinja-contrib`'s `pycompat`).
+minijinja = { version = "2", features = ["json", "loop_controls"] }
+minijinja-contrib = { version = "2", features = ["pycompat"] }
 rumqttc = { version = "0.25.1", default-features = false, optional = true }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
+serde-pickle = { workspace = true }
 serde-saphyr = { workspace = true }
 time = { workspace = true }
+# Qwen3's added tokens are matched first, and the text between them is
+# NFC-normalized with the tables `transformers`' tokenizers use (Unicode
+# 9.0); wordchipper then encodes it under the checkpoint's pre-tokenizer.
+unicode-normalization-alignments = "=0.1.12"
 ureq = { workspace = true, optional = true }
+wordchipper = { workspace = true, features = ["std", "fast-hash"] }
 
 [dev-dependencies]
+bunsen = { path = "../bunsen", features = ["testing"] }
 tempfile = { workspace = true }

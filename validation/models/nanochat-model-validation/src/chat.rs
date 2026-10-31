@@ -1,10 +1,11 @@
-//! `bunsen-chat`'s nanochat tokenizer against upstream's `RustBPETokenizer`.
+//! `bunsen_tool::chat`'s nanochat tokenizer against upstream's
+//! `RustBPETokenizer`.
 
 use bunsen::kits::{
     gpts::nanochat::TOKENIZER,
     tokens::Detokenizer,
 };
-use bunsen_chat::{
+use bunsen_tool::chat::{
     ChatMessage,
     NanoChatLayout,
     NanoChatTokenizer,

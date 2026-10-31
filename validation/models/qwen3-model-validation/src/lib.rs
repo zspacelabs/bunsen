@@ -36,10 +36,10 @@
 //! `transformers` decodes (`validation/tools/gen_qwen3_fixtures.py` writes
 //! both). `testdata/chat.json` records `transformers`' tokenizer and chat
 //! template on fixed texts and conversations
-//! (`validation/tools/gen_qwen3_chat_fixtures.py`), which `bunsen-chat`'s are
-//! held to, and `testdata/chat_replies.json` its greedy replies to multi-turn
-//! conversations, which `bunsen-chat`'s sessions are held to. The
-//! generated model is held to the first, so neither a defect in the rewrite
+//! (`validation/tools/gen_qwen3_chat_fixtures.py`), which `bunsen_tool::chat`'s
+//! are held to, and `testdata/chat_replies.json` its greedy replies to
+//! multi-turn conversations, which `bunsen_tool::chat`'s sessions are held to.
+//! The generated model is held to the first, so neither a defect in the rewrite
 //! nor one in the ONNX import can pass for a defect in bunsen.
 
 #![cfg_attr(not(feature = "download"), allow(unused))]
@@ -341,12 +341,12 @@ mod reference_tests;
 #[cfg(all(test, feature = "download", feature = "gpu-tests"))]
 mod cross;
 
-/// `bunsen-chat`'s tokenizer and chat template against `transformers`'.
+/// `bunsen_tool::chat`'s tokenizer and chat template against `transformers`'.
 /// Reads the bundled tokenizer files; loads no model.
 #[cfg(all(test, feature = "download"))]
 mod chat;
 
-/// `bunsen-chat`'s sessions against `transformers`' greedy chat replies.
+/// `bunsen_tool::chat`'s sessions against `transformers`' greedy chat replies.
 #[cfg(all(test, feature = "download", feature = "gpu-tests"))]
 mod chat_session;
 

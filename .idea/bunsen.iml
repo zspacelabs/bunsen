@@ -51,7 +51,6 @@
       <sourceFolder url="file://$MODULE_DIR$/validation/onnx/bind-sortformer-onnx/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/validation/models/sortformer-model-validation/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/crates/dev/kv-cache-bench/src" isTestSource="false" />
-      <sourceFolder url="file://$MODULE_DIR$/crates/dev/bunsen-chat/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/validation/assets/fetch-nanochat/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/validation/models/nanochat-model-validation/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/validation/models/nanochat-model-validation/tests" isTestSource="true" />
