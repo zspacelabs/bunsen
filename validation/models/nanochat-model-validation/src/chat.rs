@@ -4,7 +4,11 @@ use bunsen::kits::{
     gpts::nanochat::TOKENIZER,
     tokens::Detokenizer,
 };
-use bunsen_chat::NanoChatTokenizer;
+use bunsen_chat::{
+    ChatMessage,
+    NanoChatLayout,
+    NanoChatTokenizer,
+};
 
 use super::*;
 
@@ -32,6 +36,35 @@ fn test_tokenizers_encode_as_upstream() {
         eprintln!(
             "{generation}: {} texts encode as upstream's",
             record.encode.len()
+        );
+    }
+}
+
+/// Each tokenizer's layout renders every fixture conversation to upstream's
+/// ids for the assistant's next turn: the system message folded, the
+/// markers, and a special token's spelling as text.
+#[test]
+fn test_conversations_render_as_upstream() {
+    for (generation, record) in chat_reference() {
+        let path = row_file(tokenizer_row(&generation), TOKENIZER);
+        let tok = NanoChatTokenizer::from_file(&path).unwrap_or_else(|e| panic!("{e}"));
+        let layout = NanoChatLayout::from_tokenizer(&tok).unwrap();
+        for case in &record.conversations {
+            let messages: Vec<ChatMessage> = case
+                .messages
+                .iter()
+                .map(|m| ChatMessage::new(m.role.clone(), m.content.clone()))
+                .collect();
+            assert_eq!(
+                layout.render(&tok, &messages).unwrap(),
+                case.ids,
+                "{generation}: {:?}",
+                case.messages
+            );
+        }
+        eprintln!(
+            "{generation}: {} conversations render as upstream's",
+            record.conversations.len()
         );
     }
 }
