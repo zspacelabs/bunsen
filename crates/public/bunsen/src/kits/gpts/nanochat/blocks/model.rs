@@ -210,7 +210,7 @@ impl NanoChatGptContractConfig {
     pub fn block_config(&self) -> CausalDecoderBlockConfig {
         CausalDecoderBlockConfig::new(
             CausalSelfAttentionConfig::new(self.n_head, self.n_kv_head, self.n_embed)
-                .with_norm(self.norm.clone()),
+                .with_norm(Some(self.norm.clone())),
             MlpConfig::new(self.n_embed)
                 .with_expansion_factor(self.expansion_factor)
                 .with_activation(self.activation.clone())
