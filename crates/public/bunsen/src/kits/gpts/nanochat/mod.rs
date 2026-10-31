@@ -63,6 +63,18 @@
 //! [`forward_after`](NanoChatGpt::forward_after): the model keeps no state of
 //! its own, so a decode the caller rewinds stays correct.
 //!
+//! # Pretrained models and decoding
+//!
+//! [`pretrained`] is an index of community checkpoints of both of
+//! upstream's models, `nanochat-students/rl-d20` by default, through
+//! [`default_nanochat_factory`](pretrained::default_nanochat_factory); a
+//! name loads to a [`NanoChatBundle`], the model with its meta and its
+//! tokenizer files. A decode runs through a [`NanoChatDecodeState`] (the KV
+//! cache, and each row's last token for the smear) and the shared
+//! [`decode_cached`](crate::kits::decoding::decode_cached) loop; the model is
+//! a [`CachedStep`](crate::kits::decoding::CachedStep). The tokenizer is not
+//! part of the kit.
+//!
 //! # Datasets
 //!
 //! [`datasets`] holds the corpus nanochat trains on as
@@ -116,8 +128,19 @@
 pub mod blocks;
 pub mod datasets;
 
+mod decode;
+pub use decode::*;
+
+#[cfg(feature = "store_pytorch")]
+mod bundle;
+#[cfg(feature = "store_pytorch")]
+pub use bundle::*;
+
 #[cfg(feature = "store_pytorch")]
 pub mod weights;
+
+#[cfg(all(feature = "store_pytorch", feature = "cache"))]
+pub mod pretrained;
 
 #[cfg(all(test, feature = "store_pytorch", feature = "store_safetensors"))]
 mod toy_tests;
