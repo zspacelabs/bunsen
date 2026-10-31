@@ -272,6 +272,66 @@ impl Detokenizer for NanoChatTokenizer {
 }
 
 #[cfg(test)]
+/// A pickle as `tiktoken` writes an `Encoding`: `STACK_GLOBAL
+/// tiktoken.core Encoding`, `NEWOBJ` on no arguments, then `BUILD` with
+/// its state; the 256 bytes, the merges to `hello` (`he`, `ll`, `hell`,
+/// `hello`), and nanochat's five layout tokens.
+pub(crate) fn toy_pickle() -> Vec<u8> {
+    let mut ranks = BTreeMap::new();
+    for b in 0..=255u8 {
+        ranks.insert(HashableValue::Bytes(vec![b]), Value::I64(b as i64));
+    }
+    for (rank, piece) in ["he", "ll", "hell", "hello"].iter().enumerate() {
+        ranks.insert(
+            HashableValue::Bytes(piece.as_bytes().to_vec()),
+            Value::I64(256 + rank as i64),
+        );
+    }
+    let mut specials = BTreeMap::new();
+    for (i, name) in [
+        "<|bos|>",
+        "<|user_start|>",
+        "<|user_end|>",
+        "<|assistant_start|>",
+        "<|assistant_end|>",
+    ]
+    .iter()
+    .enumerate()
+    {
+        specials.insert(
+            HashableValue::String(name.to_string()),
+            Value::I64(260 + i as i64),
+        );
+    }
+    let mut state = BTreeMap::new();
+    state.insert(
+        HashableValue::String("name".into()),
+        Value::String("toy".into()),
+    );
+    state.insert(
+        HashableValue::String("pat_str".into()),
+        Value::String(r"'(?i:[sdmt]|ll|ve|re)|[^\r\n\p{L}\p{N}]?+\p{L}+|\p{N}{1,2}| ?[^\s\p{L}\p{N}]++[\r\n]*|\s*[\r\n]|\s+(?!\S)|\s+".into()),
+    );
+    state.insert(
+        HashableValue::String("mergeable_ranks".into()),
+        Value::Dict(ranks),
+    );
+    state.insert(
+        HashableValue::String("special_tokens".into()),
+        Value::Dict(specials),
+    );
+    let state = serde_pickle::value_to_vec(&Value::Dict(state), Default::default()).unwrap();
+    // `PROTO 2`, the class, `NEWOBJ` on `()`, the state (its own `PROTO`
+    // and `STOP` stripped), `BUILD`, `STOP`.
+    let mut out = vec![0x80, 2];
+    out.extend_from_slice(b"ctiktoken.core\nEncoding\n");
+    out.extend_from_slice(b")\x81");
+    out.extend_from_slice(&state[2..state.len() - 1]);
+    out.extend_from_slice(b"b.");
+    out
+}
+
+#[cfg(test)]
 mod tests {
     use bunsen::errors::{
         BunsenErrorKind,
@@ -280,59 +340,10 @@ mod tests {
 
     use super::*;
 
-    /// A pickle as `tiktoken` writes an `Encoding`: `STACK_GLOBAL
-    /// tiktoken.core Encoding`, `NEWOBJ` on no arguments, then `BUILD` with
-    /// its state; the 256 bytes, the merges to `hello` (`he`, `ll`, `hell`,
-    /// `hello`), and two special tokens.
-    fn toy_pickle() -> Vec<u8> {
-        let mut ranks = BTreeMap::new();
-        for b in 0..=255u8 {
-            ranks.insert(HashableValue::Bytes(vec![b]), Value::I64(b as i64));
-        }
-        for (rank, piece) in ["he", "ll", "hell", "hello"].iter().enumerate() {
-            ranks.insert(
-                HashableValue::Bytes(piece.as_bytes().to_vec()),
-                Value::I64(256 + rank as i64),
-            );
-        }
-        let mut specials = BTreeMap::new();
-        specials.insert(HashableValue::String("<|bos|>".into()), Value::I64(260));
-        specials.insert(
-            HashableValue::String("<|user_start|>".into()),
-            Value::I64(261),
-        );
-        let mut state = BTreeMap::new();
-        state.insert(
-            HashableValue::String("name".into()),
-            Value::String("toy".into()),
-        );
-        state.insert(
-            HashableValue::String("pat_str".into()),
-            Value::String(r"'(?i:[sdmt]|ll|ve|re)|[^\r\n\p{L}\p{N}]?+\p{L}+|\p{N}{1,2}| ?[^\s\p{L}\p{N}]++[\r\n]*|\s*[\r\n]|\s+(?!\S)|\s+".into()),
-        );
-        state.insert(
-            HashableValue::String("mergeable_ranks".into()),
-            Value::Dict(ranks),
-        );
-        state.insert(
-            HashableValue::String("special_tokens".into()),
-            Value::Dict(specials),
-        );
-        let state = serde_pickle::value_to_vec(&Value::Dict(state), Default::default()).unwrap();
-        // `PROTO 2`, the class, `NEWOBJ` on `()`, the state (its own `PROTO`
-        // and `STOP` stripped), `BUILD`, `STOP`.
-        let mut out = vec![0x80, 2];
-        out.extend_from_slice(b"ctiktoken.core\nEncoding\n");
-        out.extend_from_slice(b")\x81");
-        out.extend_from_slice(&state[2..state.len() - 1]);
-        out.extend_from_slice(b"b.");
-        out
-    }
-
     #[test]
     fn test_encode_and_decode() {
         let tok = NanoChatTokenizer::from_pickle(&toy_pickle()).unwrap();
-        assert_eq!(tok.len(), 256 + 4 + 2);
+        assert_eq!(tok.len(), 256 + 4 + 5);
         assert_eq!(tok.special("<|bos|>"), Some(260));
         assert_eq!(tok.encode("hello").unwrap(), [259], "`hello` is one token");
         assert_eq!(tok.encode("hell").unwrap(), [258]);

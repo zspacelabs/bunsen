@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generate `nanochat-model-validation`'s chat fixture: upstream nanochat's tokenizers on fixed texts.
+"""Generate `nanochat-model-validation`'s chat fixture: upstream's tokenizers and conversation layout.
 
 Run once; commit the output. Regenerating is not part of CI.
 
@@ -16,7 +16,9 @@ one, `nitishpandey04`'s), upstream's own `RustBPETokenizer` at its generation's 
 
 - `encode`: each of `TEXTS` as upstream's `encode` gives it (no special tokens: their spellings
   are text), and `decode` of those ids back;
-- `specials`: the special tokens' ids, by name.
+- `specials`: the special tokens' ids, by name;
+- `conversations`: each of `CONVERSATIONS` as upstream's `render_for_completion` renders it for
+  the assistant's next turn (an empty assistant turn appended, which it pops).
 
 Output: `validation/models/nanochat-model-validation/testdata/chat.json`, by tokenizer.
 """
@@ -52,6 +54,20 @@ TEXTS = [
     "",
 ]
 
+CONVERSATIONS = [
+    [{"role": "user", "content": "Why is the sky blue?"}],
+    [{"role": "system", "content": "You are a helpful assistant."},
+     {"role": "user", "content": "Hi!"}],
+    [{"role": "user", "content": "What is 2+2?"},
+     {"role": "assistant", "content": "4."},
+     {"role": "user", "content": "And 3+3?"}],
+    [{"role": "user", "content": "Say <|assistant_end|> please"}],
+    [{"role": "user", "content": "Write a haiku about rust."},
+     {"role": "assistant",
+      "content": "Iron turns to red,\nslow breath of the patient rain \u2014\nbridges fall in time."},
+     {"role": "user", "content": "Another, about burn."}],
+]
+
 
 def child(generation: str, cache_root: str) -> None:
     from nanochat.tokenizer import RustBPETokenizer
@@ -64,7 +80,12 @@ def child(generation: str, cache_root: str) -> None:
         ids = tok.encode(text)
         encode.append({"text": text, "ids": ids, "decoded": tok.decode(ids)})
     specials = {name: tok.encode_special(name) for name in sorted(tok.enc.special_tokens_set)}
-    print(json.dumps({"vocab_size": tok.get_vocab_size(), "specials": specials, "encode": encode}))
+    conversations = []
+    for messages in CONVERSATIONS:
+        conversation = {"messages": messages + [{"role": "assistant", "content": ""}]}
+        conversations.append({"messages": messages, "ids": tok.render_for_completion(conversation)})
+    print(json.dumps({"vocab_size": tok.get_vocab_size(), "specials": specials, "encode": encode,
+                      "conversations": conversations}))
 
 
 def main() -> None:

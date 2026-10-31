@@ -29,6 +29,7 @@
 
 mod backend;
 mod generation;
+mod nanochat_layout;
 mod nanochat_tokenizer;
 mod session;
 mod template;
@@ -36,6 +37,7 @@ mod tokenizer;
 
 pub use backend::*;
 pub use generation::*;
+pub use nanochat_layout::*;
 pub use nanochat_tokenizer::*;
 pub use session::*;
 pub use template::*;
