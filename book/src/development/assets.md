@@ -85,6 +85,9 @@ published:
   and RMS-norm ops are onnxruntime's own, and
   [`rewrite-genai-onnx`](https://github.com/zspacelabs/bunsen/tree/main/crates/dev/rewrite-genai-onnx)
   rewrites them to standard ONNX before `burn-onnx` imports the graph.
+- `bind-voxtral-onnx` fetches the onnxruntime-genai export of Mistral's
+  `Voxtral-Mini-4B-Realtime-2602` (its audio encoder, decoder and token
+  embedding, 19 GB), rewritten the same way, for its validation crate.
 
 Only the validation crates depend on them, through their `weights` and
 `download` features, so no other build reaches the network. bunsen's own tests
