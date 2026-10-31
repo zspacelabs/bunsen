@@ -1,0 +1,17 @@
+[package]
+name = "rewrite-genai-onnx"
+description = "Rewrites onnxruntime-genai ONNX exports (their com.microsoft attention, rotary and RMS-norm ops) to standard ONNX that burn-onnx imports. A build-dependency of the bind-{model}-onnx crates."
+publish = false
+
+authors.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+version.workspace = true
+repository.workspace = true
+license.workspace = true
+
+[dependencies]
+onnx-ir = { workspace = true }
+
+[lints]
+workspace = true

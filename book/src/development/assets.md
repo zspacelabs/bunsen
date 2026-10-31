@@ -80,9 +80,11 @@ published:
   (which its build script rewrites where `burn-onnx` cannot import it) and of
   v2.1, for its validation crate.
 - `bind-qwen3-onnx` fetches Qwen's `Qwen3-0.6B`, `-1.7B`, `-4B` and
-  `-4B-Instruct-2507` checkpoints, and an ONNX export of `Qwen3-0.6B` (which
-  its build script rewrites where `burn-onnx` cannot import it), for its
-  validation crate.
+  `-4B-Instruct-2507` checkpoints, and an onnxruntime-genai export of
+  `Qwen3-0.6B`, for its validation crate. Such an export's attention, rotary
+  and RMS-norm ops are onnxruntime's own, and
+  [`rewrite-genai-onnx`](https://github.com/zspacelabs/bunsen/tree/main/crates/dev/rewrite-genai-onnx)
+  rewrites them to standard ONNX before `burn-onnx` imports the graph.
 
 Only the validation crates depend on them, through their `weights` and
 `download` features, so no other build reaches the network. bunsen's own tests

@@ -929,7 +929,7 @@ dependencies = [
  "burn-onnx",
  "burn-store",
  "document-features",
- "onnx-ir",
+ "rewrite-genai-onnx",
 ]
 
 [[package]]
@@ -9684,6 +9684,13 @@ dependencies = [
  "clap",
  "rand 0.10.3",
  "serde",
+]
+
+[[package]]
+name = "rewrite-genai-onnx"
+version = "0.41.0"
+dependencies = [
+ "onnx-ir",
 ]
 
 [[package]]
