@@ -1,6 +1,6 @@
 //! # Speech models
 //!
-//! Five kits that work on audio, the way two of them connect,
+//! Six kits that work on audio, the way two of them connect,
 //! [`asr_driver`], the parts of a speech-to-text stream driver that do not
 //! depend on the model, [`diarization`], the parts of a diarizer that do
 //! not, and [`nemo`], the parts NVIDIA's `NeMo` models share (the mel front
@@ -13,6 +13,9 @@
 //!   encoder and a token-and-duration transducer.
 //! - [`qwen3_asr`]: Qwen's Qwen3-ASR, speech to text: a Whisper-style audio
 //!   encoder feeding a Qwen3 language model.
+//! - [`voxtral`]: Mistral's Voxtral Realtime, streaming speech to text: a
+//!   causal audio encoder feeding a Mistral text model, one decoder step per 80
+//!   ms of audio.
 //! - [`sortformer`]: NVIDIA's Sortformer, speaker diarization: per-frame
 //!   activity of each speaker, in the order they first speak, streamed through
 //!   a speaker cache. `Nemotron-3-Diarization` and the streaming Sortformer v2
@@ -79,6 +82,7 @@ pub mod parakeet;
 pub mod qwen3_asr;
 pub mod silero_vad;
 pub mod sortformer;
+pub mod voxtral;
 
 pub mod whisper;
 
