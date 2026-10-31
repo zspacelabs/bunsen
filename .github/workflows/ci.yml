@@ -155,11 +155,10 @@ jobs:
           pr-comment: true
           save-cache: ${{ github.ref == 'refs/heads/main' }}
 
-      # No build script here reaches the network: the bundled crates' asset
-      # features are reached only through the validation crates' `weights`
-      # and `download`, which this workflow never turns on. Silero's and
-      # Whisper's suites run in `validation.yml`, when asked; the rest run by
-      # hand, on a GPU (STYLE.md, "Network access").
+      # No build script here reaches the network: the crates that fetch model
+      # assets are in the `validation/` workspace, which no job here builds.
+      # Silero's and Whisper's suites run in `validation.yml`, when asked; the
+      # rest run by hand, on a GPU (STYLE.md, "Network access").
 
       # An explicit list rather than `--all-features`: `cuda` pulls in an
       # LLVM-based compiler toolchain, and `metal` builds only on macOS.
