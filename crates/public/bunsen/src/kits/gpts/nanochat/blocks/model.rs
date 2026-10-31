@@ -675,6 +675,12 @@ impl NanoChatGpt {
         &self.wte
     }
 
+    /// The float dtype the model's weights are held, and computed, in: its
+    /// embedding's (without initializing a lazy parameter).
+    pub fn float_dtype(&self) -> burn::tensor::DType {
+        crate::burner::tensor::param_float_dtype(&self.wte.weight)
+    }
+
     /// Sets a smeared model's smear strength: tests of the smear set it away
     /// from its neutral initial value.
     #[cfg(test)]
