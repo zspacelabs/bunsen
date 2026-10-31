@@ -10,22 +10,25 @@
 //!
 //! ## This crate hosts nothing, and generates nothing
 //!
-//! The generated reference comes from `bind-qwen3-onnx`'s `onnx_gen`
-//! feature, and the checkpoints from its `checkpoint` and
-//! `large_checkpoints` features, which fetch their assets, pin each to a
-//! SHA-256, and cache them, all under the **`download`** feature, off by
-//! default so an ordinary `cargo build --workspace` never reaches the
-//! network.
+//! The checkpoints come through bunsen's own pinned rows, fetched at run time
+//! into the weights cache by the tests that read them (feature
+//! **`checkpoints`**). The generated reference comes from `bind-qwen3-onnx`'s
+//! `onnx_gen`, fetched and generated at build time (feature **`reference`**).
+//! Both are off by default, so a plain `cargo test` here reaches no network
+//! and runs the fixture-integrity checks alone.
+//!
+//! `validation/tools/validate.py` runs this crate under a profile, which
+//! chooses the models (`validation/models.yml`). Every test of a model has
+//! the model's id in its path (`greedy::qwen3_1_7b`,
+//! `cross::qwen3_0_6b::tracks_the_reference`), which is how a profile's
+//! filter keeps or drops it:
 //!
 //! ```sh
-//! cargo test --release -p qwen3-model-validation \
-//!   --features download,gpu-tests,wgpu
+//! python3 validation/tools/validate.py run --profile medium-core --crate qwen3
 //! ```
 //!
-//! `gpu-tests` compiles every test that loads a model, `download` fetches
-//! what they compare against, and a backend feature says what they run on.
-//! Without both `download` and `gpu-tests` the suite is the fixture-integrity
-//! checks, which load no model.
+//! `gpu-tests` compiles the tests that run a model on a backend, and a
+//! backend feature says which.
 //!
 //! ## The reference is itself checked
 //!
@@ -42,7 +45,7 @@
 //! The generated model is held to the first, so neither a defect in the rewrite
 //! nor one in the ONNX import can pass for a defect in bunsen.
 
-#![cfg_attr(not(feature = "download"), allow(unused))]
+#![cfg_attr(not(feature = "checkpoints"), allow(unused))]
 
 use std::collections::BTreeMap;
 
@@ -58,14 +61,14 @@ use burn::prelude::*;
 use serde::Deserialize;
 
 /// The reference model, generated from the rewritten export.
-#[cfg(feature = "download")]
+#[cfg(feature = "reference")]
 pub mod reference {
     pub use bind_qwen3_onnx::onnx_gen::*;
 }
 
-#[cfg(feature = "download")]
+#[cfg(feature = "reference")]
 mod reference_decode;
-#[cfg(feature = "download")]
+#[cfg(feature = "reference")]
 pub use reference_decode::*;
 
 /// `Qwen3-0.6B`'s layer count.
@@ -254,25 +257,18 @@ pub fn chat_replies_reference() -> BTreeMap<String, Vec<SessionRecord>> {
     serde_json::from_str(&text).expect("parse the chat replies fixture")
 }
 
-/// A pretrained cache over the bundled checkpoints, offline.
-///
-/// Without `download` there are none: an ordinary cache, which the tests
-/// that need it are not compiled without.
+/// The weights cache the tests load the checkpoints through: bunsen's own
+/// (`BUNSEN_CACHE_DIR`, or the user's cache directory), which fetches a
+/// pinned file the first time it is asked for; offline when
+/// `BUNSEN_VALIDATE_OFFLINE` is set, as after `validate.py fetch`.
 pub fn weights_cache() -> bunsen::data::pretrained::PretrainedCache {
     use bunsen::data::pretrained::{
         PretrainedCache,
         PretrainedCacheOptions,
     };
-    #[cfg(feature = "download")]
-    let options = PretrainedCacheOptions::default()
-        .with_disk(
-            bunsen::data::cache::BunsenDiskCacheOptions::default()
-                .with_cache_dir(Some(bind_qwen3_onnx::cache_dir().to_path_buf())),
-        )
-        .with_offline(true);
-    #[cfg(not(feature = "download"))]
-    let options = PretrainedCacheOptions::default();
-    PretrainedCache::new(options).expect("open the pretrained cache")
+    let offline = std::env::var_os("BUNSEN_VALIDATE_OFFLINE").is_some();
+    PretrainedCache::new(PretrainedCacheOptions::default().with_offline(offline))
+        .expect("open the pretrained cache")
 }
 
 /// A Qwen3 pretrained by name, through bunsen's factory and
@@ -333,25 +329,25 @@ pub fn argmax(logits: &Tensor<2>) -> i64 {
 }
 
 /// The generated model against onnxruntime's run of the published graph.
-#[cfg(all(test, feature = "download", feature = "gpu-tests"))]
+#[cfg(all(test, feature = "reference", feature = "gpu-tests"))]
 mod reference_tests;
 
 /// bunsen's `Qwen3-0.6B` against onnxruntime, and against the generated
 /// model over a long decode.
-#[cfg(all(test, feature = "download", feature = "gpu-tests"))]
+#[cfg(all(test, feature = "checkpoints", feature = "gpu-tests"))]
 mod cross;
 
 /// `bunsen_tool::chat`'s tokenizer and chat template against `transformers`'.
-/// Reads the bundled tokenizer files; loads no model.
-#[cfg(all(test, feature = "download"))]
+/// Fetches each row's tokenizer files alone; loads no model.
+#[cfg(all(test, feature = "checkpoints"))]
 mod chat;
 
 /// `bunsen_tool::chat`'s sessions against `transformers`' greedy chat replies.
-#[cfg(all(test, feature = "download", feature = "gpu-tests"))]
+#[cfg(all(test, feature = "checkpoints", feature = "gpu-tests"))]
 mod chat_session;
 
 /// bunsen's greedy decodes against `transformers`', for every row.
-#[cfg(all(test, feature = "download", feature = "gpu-tests"))]
+#[cfg(all(test, feature = "checkpoints", feature = "gpu-tests"))]
 mod greedy;
 
 #[cfg(test)]

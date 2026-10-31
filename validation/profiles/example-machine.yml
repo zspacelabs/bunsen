@@ -1,0 +1,10 @@
+# A machine's own profile, named by BUNSEN_VALIDATE_PROFILE (a path or a name
+# here) or `--profile`. This one: a 24 GB GPU with CUDA and room on disk for
+# the medium models, but not for Voxtral.
+extends: medium-core
+include:
+  - {crate: qwen3, model: qwen3-1.7b}   # one more geometry, while it is cheap
+deny:
+  - {crate: voxtral}
+dtypes: [f32, bf16]   # bf16 checks run on cuda alone
+backend: cuda

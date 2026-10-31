@@ -85,6 +85,20 @@ cargo test --manifest-path validation/Cargo.toml
 #
 # `BUNSEN_ASSET_CACHE`, set to a directory, keeps every fetched asset there by
 # its digest, so a `cargo clean` or a new toolchain does not fetch it again.
+#
+# `validate` runs the crates converted to `validation/models.yml` under a
+# profile (`VALIDATION_PROFILE`, else `BUNSEN_VALIDATE_PROFILE`, else
+# `small-core`): the models it chooses, their tests alone, through
+# `cargo nextest` (the validation workspace only). Their checkpoints are
+# fetched by the tests into the weights cache. `validation/README.md`,
+# "Choosing what to validate".
+
+[tasks.validate]
+description = "The converted validation crates under a profile (VALIDATION_PROFILE, default small-core)"
+workspace = false
+script = '''
+python3 validation/tools/validate.py run --profile "${VALIDATION_PROFILE:-${BUNSEN_VALIDATE_PROFILE:-small-core}}" ${VALIDATION_BACKEND:+--backend "$VALIDATION_BACKEND"}
+'''
 
 [tasks.validate-cpu]
 description = "Validation on the checkpoints alone, on the CPU (fetches ~150 MB)"
@@ -125,9 +139,9 @@ workspace = false
 script = "cargo test --manifest-path validation/Cargo.toml --release -p qwen3-asr-model-validation --features download,gpu-tests,${VALIDATION_BACKEND:-wgpu}"
 
 [tasks.validate-qwen3]
-description = "Qwen3's whole validation suite (fetches ~24 GB)"
+description = "Qwen3's whole validation suite, every model (fetches ~24 GB into the weights cache)"
 workspace = false
-script = "cargo test --manifest-path validation/Cargo.toml --release -p qwen3-model-validation --features download,gpu-tests,${VALIDATION_BACKEND:-wgpu}"
+script = "python3 validation/tools/validate.py run --crate qwen3 --profile large-all --backend ${VALIDATION_BACKEND:-wgpu}"
 
 [tasks.validate-sortformer]
 description = "Sortformer's whole validation suite (fetches ~3 GB, and the ASR checkpoints it scores with)"

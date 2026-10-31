@@ -25,19 +25,8 @@ workspace = true
 
 [features]
 ## Nothing by default: building this crate as a workspace member fetches
-## nothing. `qwen3-model-validation/download` turns on every feature.
+## nothing. `qwen3-model-validation/reference` turns on `onnx_gen`.
 default = []
-
-## Fetch Qwen's `Qwen3-0.6B` (1.5 GB): its `model.safetensors`,
-## `config.json`, `tokenizer.json`, `tokenizer_config.json` and
-## `generation_config.json`, laid out under `cache_dir()`: a bunsen
-## pretrained cache rooted there resolves `qwen/qwen3-0.6b` from it, offline.
-checkpoint = []
-
-## Fetch `Qwen3-1.7B` (4.1 GB), `Qwen3-4B` (8.0 GB) and
-## `Qwen3-4B-Instruct-2507` (8.0 GB) the same way. Independent of
-## `checkpoint`.
-large_checkpoints = []
 
 ## Fetch `onnx-community/Qwen3-0.6B-ONNX`'s fp32 export of `Qwen3-0.6B`
 ## (2.4 GB), rewrite its onnxruntime ops to standard ONNX, and generate a

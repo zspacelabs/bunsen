@@ -1,0 +1,4 @@
+# The representatives up to ~10 GB each.
+extends: small-core
+include:
+  - {size: medium, core: true}

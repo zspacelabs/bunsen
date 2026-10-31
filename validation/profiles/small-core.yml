@@ -1,0 +1,4 @@
+# The representatives that fetch up to ~1 GB each: every kit's architecture
+# variations that come small. The default profile.
+include:
+  - {size: small, core: true}

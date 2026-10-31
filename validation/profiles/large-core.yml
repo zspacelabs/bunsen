@@ -1,0 +1,4 @@
+# Every representative, the large ones included.
+extends: medium-core
+include:
+  - {size: large, core: true}
