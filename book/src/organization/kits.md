@@ -46,7 +46,7 @@ A new kit grows in roughly this order, and each step is useful on its own:
 2. **An example** under `examples/` that runs it end to end.
 3. **Names**: a prefab map, then pretrained rows and a `Construct` hook, and
    a `default_{kit}_factory()`, once there are weights to load.
-4. **A validation crate** under `crates/validation/`, once the kit claims
+4. **A validation crate** under `validation/models/`, once the kit claims
    parity with an upstream implementation.
 5. **Promotion**: a layer that a second kit needs moves out to `blocks` or
    `ops`.

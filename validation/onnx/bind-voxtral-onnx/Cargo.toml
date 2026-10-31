@@ -1,0 +1,45 @@
+[package]
+name = "bind-voxtral-onnx"
+description = "Voxtral Realtime validation assets: fetches Mistral's Voxtral-Mini-4B-Realtime-2602 and an ONNX export of it at build time, digest-pinned, each behind a feature, and generates Rust reference models from the export. Hosts none."
+publish = false
+
+authors.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+version.workspace = true
+repository.workspace = true
+license.workspace = true
+
+[dependencies]
+burn = { workspace = true, features = ["store"] }
+burn-store = { workspace = true, features = ["std"] }
+document-features = { workspace = true }
+
+[build-dependencies]
+bunsen-fetch = { path = "../../../crates/public/bunsen-fetch", features = ["fetch"] }
+burn-onnx = { workspace = true, optional = true }
+rewrite-genai-onnx = { path = "../rewrite-genai-onnx", optional = true }
+
+[lints]
+workspace = true
+
+[features]
+## Nothing by default: building this crate as a workspace member fetches
+## nothing. `voxtral-model-validation/download` turns on every feature.
+default = []
+
+## Fetch `mistralai/Voxtral-Mini-4B-Realtime-2602`'s `model.safetensors`
+## (8.9 GB) and `tekken.json`, laid out under `cache_dir()`: a bunsen
+## pretrained cache rooted there resolves
+## `mistralai/voxtral-mini-4b-realtime-2602` from it, offline.
+checkpoint = []
+
+## Fetch `onnx-community/Voxtral-Mini-4B-Realtime-2602-ONNX`'s fp32 export
+## (the audio encoder, 4.0 GB; the decoder, 13.8 GB; the token embedding,
+## 1.6 GB), rewrite its onnxruntime ops to standard ONNX, and generate Rust
+## models from it, in `crate::onnx_gen`.
+##
+## This is the *reference implementation*: it exists so
+## `voxtral-model-validation` has something with independent provenance to
+## disagree with.
+onnx_gen = ["dep:burn-onnx", "dep:rewrite-genai-onnx"]

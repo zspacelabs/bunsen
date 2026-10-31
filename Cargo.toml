@@ -9,14 +9,12 @@ members = [
     "crates/public/*/examples/*",
     # Development tooling: benchmarks, and reproductions of upstream defects.
     "crates/dev/*",
-    # The ONNX references the validation crates compare against: an upstream
-    # export, fetched, rewritten and generated into Rust, and the checkpoints.
-    "crates/onnx/*",
-    # Reference implementations and the cross-checks that step bunsen against
-    # them. Not part of a normal build.
-    "crates/validation/*",
     "examples/*",
 ]
+# The model validation crates and the ONNX references they check against: a
+# workspace of their own, so no command here builds them or fetches their
+# assets (`validation/README.md`).
+exclude = ["validation"]
 
 [workspace.package]
 authors = [
@@ -44,15 +42,6 @@ overflow-checks = true
 # Keep your `debug_assert!` macros working
 debug-assertions = true
 
-# Build scripts and proc macros, optimized in every profile: the ONNX binding
-# crates' build scripts digest and convert tens of GB of weights, which
-# unoptimized code (cargo's default here) does at a fiftieth of the speed.
-[profile.dev.build-override]
-opt-level = 3
-
-[profile.release.build-override]
-opt-level = 3
-
 [workspace.dependencies]
 log = { version = "0.4.34", default-features = false }
 env_logger = { version = "0.11.11" }
@@ -64,10 +53,6 @@ wordchipper = { version = "0.9.2", default-features = false }
 
 rand = "0.10.3"
 burn = { version = "0.22.0", default-features = false }
-burn-onnx = "0.22.0"
-# The ONNX protos `burn-onnx` reads, for build scripts that rewrite a graph
-# before generating from it.
-onnx-ir = "0.22.0"
 burn-store = { version = "0.22.0", default-features = false }
 
 # Burn coupled-dependencies

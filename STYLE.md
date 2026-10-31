@@ -318,7 +318,7 @@ No `bunsen` feature reaches the network at build time, and a kit's tests
 read no fetched asset. A test that needs what a real model does replays a
 committed recording of it (`RecordedVoiceActivity`), and the validation crate
 holds the recording to the model. Everything that reads a fetched checkpoint
-lives in a validation crate (`crates/validation/*`).
+lives in a validation crate (`validation/models/*`).
 
 A validation crate offers `weights`, the checkpoints alone, for the checks
 that need no reference graph, and `download`, which adds the reference
@@ -334,7 +334,7 @@ A fetched asset lands in the build script's `OUT_DIR`, never beside the
 manifest:
 
 ```text
-crates/onnx/bind-whisper-onnx/
+validation/onnx/bind-whisper-onnx/
     build.rs                                  the URLs and their pinned digests
 target/<profile>/build/bind-whisper-onnx-<hash>/out/
                                               what the digests name

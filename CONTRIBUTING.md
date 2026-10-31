@@ -71,7 +71,7 @@ of these jobs fetches a model: the model validation suites run only when asked (
 
 ### Model validation
 
-The validation crates (`crates/validation/*`) hold each speech model to an independent reference: a Rust model
+The validation crates (`validation/models/*`) hold each speech model to an independent reference: a Rust model
 generated from upstream's ONNX export, and upstream's own checkpoints. Their build scripts fetch those assets, digest-pinned,
 so nothing runs them by default.
 
@@ -165,11 +165,11 @@ The eight published crates, in `crates/public/`, are versioned in **lockstep**: 
 - `bunsen-asr` (a binary: `cargo install bunsen-asr`)
 
 The `bind-{model}-onnx` crates (`whisper`, `silero`, `parakeet`, `qwen3`, `qwen3-asr`, `sortformer`, `voxtral`), which fetch
-the checkpoints and reference graphs the validation crates check against, live in `crates/onnx/` and are not published
+the checkpoints and reference graphs the validation crates check against, live in `validation/onnx/` and are not published
 (`publish = false`).
 
 Nothing else is released: release-plz is opt-in (`release = false` for the workspace, `release = true` per crate), so
-the examples and the `crates/dev` and `crates/validation` crates stay out.
+the examples and the `crates/dev` and `validation/models` crates stay out.
 
 ### How a release happens
 

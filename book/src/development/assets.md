@@ -42,7 +42,7 @@ cache reads.
 
 An environment variable can point the build at a local file instead:
 `WHISPER_BASE_PT` and its siblings, listed in the Whisper validation
-[README](https://github.com/zspacelabs/bunsen/blob/main/crates/validation/whisper-model-validation/README.md#running-it).
+[README](https://github.com/zspacelabs/bunsen/blob/main/validation/models/whisper-model-validation/README.md#running-it).
 An override skips the pin, so use it for a copy you already trust.
 
 ## Why `OUT_DIR`
@@ -66,10 +66,10 @@ there finds them offline without knowing they were bundled.
 Each is a development crate, `crates/dev/bind-{model}-onnx`, and none is
 published:
 
-- [`bind-whisper-onnx`](https://github.com/zspacelabs/bunsen/tree/main/crates/onnx/bind-whisper-onnx)
+- [`bind-whisper-onnx`](https://github.com/zspacelabs/bunsen/tree/main/validation/onnx/bind-whisper-onnx)
   fetches Whisper's `base` checkpoint, the vocabularies and the ONNX
   reference, for `whisper-model-validation`.
-- [`bind-silero-onnx`](https://github.com/zspacelabs/bunsen/tree/main/crates/onnx/bind-silero-onnx)
+- [`bind-silero-onnx`](https://github.com/zspacelabs/bunsen/tree/main/validation/onnx/bind-silero-onnx)
   fetches upstream's 16 kHz Silero VAD checkpoint and its ONNX graph, from
   which the reference model is generated, for `silero-model-validation`.
 - `bind-parakeet-onnx` and `bind-qwen3-asr-onnx` fetch the Phonon
@@ -83,7 +83,7 @@ published:
   `-4B-Instruct-2507` checkpoints, and an onnxruntime-genai export of
   `Qwen3-0.6B`, for its validation crate. Such an export's attention, rotary
   and RMS-norm ops are onnxruntime's own, and
-  [`rewrite-genai-onnx`](https://github.com/zspacelabs/bunsen/tree/main/crates/dev/rewrite-genai-onnx)
+  [`rewrite-genai-onnx`](https://github.com/zspacelabs/bunsen/tree/main/validation/onnx/rewrite-genai-onnx)
   rewrites them to standard ONNX before `burn-onnx` imports the graph.
 - `bind-voxtral-onnx` fetches the onnxruntime-genai export of Mistral's
   `Voxtral-Mini-4B-Realtime-2602` (its audio encoder, decoder and token

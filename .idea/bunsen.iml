@@ -27,10 +27,10 @@
       <sourceFolder url="file://$MODULE_DIR$/crates/public/bunsen-arrow-dataloaders/examples" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/crates/public/bunsen-arrow-dataloaders/examples/dl-test/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/crates/public/bunsen-arrow-dataloaders/src" isTestSource="false" />
-      <sourceFolder url="file://$MODULE_DIR$/crates/onnx/bind-silero-onnx/src" isTestSource="false" />
-      <sourceFolder url="file://$MODULE_DIR$/crates/onnx/bind-whisper-onnx/src" isTestSource="false" />
-      <sourceFolder url="file://$MODULE_DIR$/crates/validation/silero-model-validation/src" isTestSource="false" />
-      <sourceFolder url="file://$MODULE_DIR$/crates/validation/whisper-model-validation/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/validation/onnx/bind-silero-onnx/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/validation/onnx/bind-whisper-onnx/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/validation/models/silero-model-validation/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/validation/models/whisper-model-validation/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/crates/dev/burn_bug_repro/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/examples/whisper-cli/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/crates/dev/burn-rmexp-dyntensor/src" isTestSource="false" />
@@ -40,16 +40,16 @@
       <sourceFolder url="file://$MODULE_DIR$/crates/dev/book-snippets/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/crates/public/bunsen-app/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/crates/public/bunsen-asr/src" isTestSource="false" />
-      <sourceFolder url="file://$MODULE_DIR$/crates/onnx/bind-parakeet-onnx/src" isTestSource="false" />
-      <sourceFolder url="file://$MODULE_DIR$/crates/onnx/bind-qwen3-asr-onnx/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/validation/onnx/bind-parakeet-onnx/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/validation/onnx/bind-qwen3-asr-onnx/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/crates/public/bunsen-fetch/src" isTestSource="false" />
-      <sourceFolder url="file://$MODULE_DIR$/crates/validation/parakeet-model-validation/src" isTestSource="false" />
-      <sourceFolder url="file://$MODULE_DIR$/crates/validation/qwen3-asr-model-validation/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/validation/models/parakeet-model-validation/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/validation/models/qwen3-asr-model-validation/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/examples/bunsen-asr/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/examples/phonon-cli/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/crates/dev/bunsen-test-audio/src" isTestSource="false" />
-      <sourceFolder url="file://$MODULE_DIR$/crates/onnx/bind-sortformer-onnx/src" isTestSource="false" />
-      <sourceFolder url="file://$MODULE_DIR$/crates/validation/sortformer-model-validation/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/validation/onnx/bind-sortformer-onnx/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/validation/models/sortformer-model-validation/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/crates/dev/kv-cache-bench/src" isTestSource="false" />
       <excludeFolder url="file://$MODULE_DIR$/crates/public/bunsen/target" />
       <excludeFolder url="file://$MODULE_DIR$/target" />
@@ -57,8 +57,8 @@
       <excludeFolder url="file://$MODULE_DIR$/demos/bimm/target" />
       <excludeFolder url="file://$MODULE_DIR$/demos/sims/target" />
       <excludeFolder url="file://$MODULE_DIR$/demos/chat/target" />
-      <excludeFolder url="file://$MODULE_DIR$/crates/validation/silero-model-validation/target" />
-      <excludeFolder url="file://$MODULE_DIR$/crates/validation/whisper-model-validation/target" />
+      <excludeFolder url="file://$MODULE_DIR$/validation/models/silero-model-validation/target" />
+      <excludeFolder url="file://$MODULE_DIR$/validation/models/whisper-model-validation/target" />
     </content>
     <orderEntry type="inheritedJdk" />
     <orderEntry type="sourceFolder" forTests="false" />

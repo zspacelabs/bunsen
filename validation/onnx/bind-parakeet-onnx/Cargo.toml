@@ -1,0 +1,54 @@
+[package]
+name = "bind-parakeet-onnx"
+description = "Bunsen bundled Parakeet TDT assets: fetches FermionResearch's Phonon-2, NVIDIA's parakeet-tdt-0.6b-v3 and its ONNX export at build time, digest-pinned, each behind a feature, and generates Rust reference models from the export. Hosts none."
+publish = false
+
+authors.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+version.workspace = true
+repository.workspace = true
+license.workspace = true
+
+[dependencies]
+burn = { workspace = true, features = ["store"] }
+burn-store = { workspace = true, features = ["std"] }
+document-features = { workspace = true }
+
+[build-dependencies]
+bunsen-fetch = { path = "../../../crates/public/bunsen-fetch", features = ["fetch"] }
+burn-onnx = { workspace = true, optional = true }
+
+[lints]
+workspace = true
+
+[features]
+## Nothing by default: building this crate as a workspace member fetches
+## nothing. `parakeet-model-validation/download` turns on every feature.
+default = []
+
+## Fetch `FermionResearch`'s Phonon-2 archive (`phonon-2.bps.tar.zst`,
+## 164 MB), laid out under `cache_dir()`.
+##
+## A bunsen pretrained cache rooted at that directory resolves
+## `fermion/phonon-2` from it, offline.
+checkpoint = []
+
+## Fetch NVIDIA's `parakeet-tdt-0.6b-v3` as `transformers` ships it
+## (`model.safetensors`, 2.5 GB, and `tokenizer.json`), laid out under
+## `cache_dir()`.
+##
+## A bunsen pretrained cache rooted at that directory resolves
+## `nvidia/parakeet-tdt-0.6b-v3` from it, offline. These are the weights the
+## `onnx_gen` reference carries.
+base_checkpoint = []
+
+## Fetch the `istupakov/parakeet-tdt-0.6b-v3-onnx` export of NVIDIA's
+## `parakeet-tdt-0.6b-v3` (~2.5 GB) and generate Rust models from it, in
+## `crate::onnx_gen`.
+##
+## This is the *reference implementation*: it exists so
+## `parakeet-model-validation` has something with independent provenance to
+## disagree with. The export is a conversion of NVIDIA's NeMo checkpoint, so it
+## carries NVIDIA's base weights, not a derivative's.
+onnx_gen = ["dep:burn-onnx"]
