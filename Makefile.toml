@@ -61,7 +61,7 @@ args = ["test", "--workspace"]
 
 # ── validation ────────────────────────────────────────────────────────────────
 #
-# The validation crates (`crates/validation/*`) cross-check each model against
+# The validation crates (`validation/models/*`) cross-check each model against
 # its reference. None of this runs in `ci` or `test`: their build scripts fetch
 # the assets they compare (STYLE.md, "Network access"), so each run here is
 # asked for by name.
@@ -80,8 +80,8 @@ description = "Validation on the checkpoints alone, on the CPU (fetches ~150 MB)
 workspace = false
 env = { BURN_DEVICE = "flex" }
 script = '''
-cargo test -p silero-model-validation --features weights
-cargo test -p whisper-model-validation --features weights
+cargo test --manifest-path validation/Cargo.toml -p silero-model-validation --features weights
+cargo test --manifest-path validation/Cargo.toml -p whisper-model-validation --features weights
 '''
 
 [tasks.validate-ci]
@@ -89,44 +89,44 @@ description = "Silero's and Whisper's whole suites on the CPU, as validation.yml
 workspace = false
 env = { BURN_DEVICE = "flex" }
 script = '''
-cargo test --release -p silero-model-validation --features download,gpu-tests
-cargo test --release -p whisper-model-validation --features download,gpu-tests
+cargo test --manifest-path validation/Cargo.toml --release -p silero-model-validation --features download,gpu-tests
+cargo test --manifest-path validation/Cargo.toml --release -p whisper-model-validation --features download,gpu-tests
 '''
 
 [tasks.validate-silero]
 description = "Silero VAD's whole validation suite (fetches ~4 MB)"
 workspace = false
-script = "cargo test --release -p silero-model-validation --features download,gpu-tests,${VALIDATION_BACKEND:-wgpu}"
+script = "cargo test --manifest-path validation/Cargo.toml --release -p silero-model-validation --features download,gpu-tests,${VALIDATION_BACKEND:-wgpu}"
 
 [tasks.validate-whisper]
 description = "Whisper's whole validation suite (fetches ~725 MB)"
 workspace = false
-script = "cargo test --release -p whisper-model-validation --features download,gpu-tests,${VALIDATION_BACKEND:-wgpu}"
+script = "cargo test --manifest-path validation/Cargo.toml --release -p whisper-model-validation --features download,gpu-tests,${VALIDATION_BACKEND:-wgpu}"
 
 [tasks.validate-parakeet]
 description = "Parakeet's whole validation suite (fetches ~5 GB)"
 workspace = false
-script = "cargo test --release -p parakeet-model-validation --features download,gpu-tests,${VALIDATION_BACKEND:-wgpu}"
+script = "cargo test --manifest-path validation/Cargo.toml --release -p parakeet-model-validation --features download,gpu-tests,${VALIDATION_BACKEND:-wgpu}"
 
 [tasks.validate-qwen3-asr]
 description = "Qwen3-ASR's whole validation suite (fetches ~6.7 GB)"
 workspace = false
-script = "cargo test --release -p qwen3-asr-model-validation --features download,gpu-tests,${VALIDATION_BACKEND:-wgpu}"
+script = "cargo test --manifest-path validation/Cargo.toml --release -p qwen3-asr-model-validation --features download,gpu-tests,${VALIDATION_BACKEND:-wgpu}"
 
 [tasks.validate-qwen3]
 description = "Qwen3's whole validation suite (fetches ~24 GB)"
 workspace = false
-script = "cargo test --release -p qwen3-model-validation --features download,gpu-tests,${VALIDATION_BACKEND:-wgpu}"
+script = "cargo test --manifest-path validation/Cargo.toml --release -p qwen3-model-validation --features download,gpu-tests,${VALIDATION_BACKEND:-wgpu}"
 
 [tasks.validate-sortformer]
 description = "Sortformer's whole validation suite (fetches ~3 GB, and the ASR checkpoints it scores with)"
 workspace = false
-script = "cargo test --release -p sortformer-model-validation --features download,gpu-tests,${VALIDATION_BACKEND:-wgpu}"
+script = "cargo test --manifest-path validation/Cargo.toml --release -p sortformer-model-validation --features download,gpu-tests,${VALIDATION_BACKEND:-wgpu}"
 
 [tasks.validate-voxtral]
 description = "Voxtral Realtime's whole validation suite (fetches ~28 GB)"
 workspace = false
-script = "cargo test --release -p voxtral-model-validation --features download,gpu-tests,${VALIDATION_BACKEND:-wgpu}"
+script = "cargo test --manifest-path validation/Cargo.toml --release -p voxtral-model-validation --features download,gpu-tests,${VALIDATION_BACKEND:-wgpu}"
 
 [tasks.validate-all]
 description = "Every model's whole validation suite (fetches ~60 GB on a cold cache)"

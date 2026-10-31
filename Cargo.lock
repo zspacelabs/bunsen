@@ -899,86 +899,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "bind-parakeet-onnx"
-version = "0.41.0"
-dependencies = [
- "bunsen-fetch",
- "burn",
- "burn-onnx",
- "burn-store",
- "document-features",
-]
-
-[[package]]
-name = "bind-qwen3-asr-onnx"
-version = "0.41.0"
-dependencies = [
- "bunsen-fetch",
- "burn",
- "burn-onnx",
- "burn-store",
- "document-features",
-]
-
-[[package]]
-name = "bind-qwen3-onnx"
-version = "0.41.0"
-dependencies = [
- "bunsen-fetch",
- "burn",
- "burn-onnx",
- "burn-store",
- "document-features",
- "rewrite-genai-onnx",
-]
-
-[[package]]
-name = "bind-silero-onnx"
-version = "0.41.0"
-dependencies = [
- "bunsen-fetch",
- "burn",
- "burn-onnx",
- "burn-store",
- "document-features",
-]
-
-[[package]]
-name = "bind-sortformer-onnx"
-version = "0.41.0"
-dependencies = [
- "bunsen-fetch",
- "burn",
- "burn-onnx",
- "burn-store",
- "document-features",
- "onnx-ir",
-]
-
-[[package]]
-name = "bind-voxtral-onnx"
-version = "0.41.0"
-dependencies = [
- "bunsen-fetch",
- "burn",
- "burn-onnx",
- "burn-store",
- "document-features",
- "rewrite-genai-onnx",
-]
-
-[[package]]
-name = "bind-whisper-onnx"
-version = "0.41.0"
-dependencies = [
- "bunsen-fetch",
- "burn",
- "burn-onnx",
- "burn-store",
- "document-features",
-]
-
-[[package]]
 name = "bindgen"
 version = "0.69.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1733,27 +1653,6 @@ dependencies = [
  "burn-core",
  "burn-linalg",
  "num-traits",
-]
-
-[[package]]
-name = "burn-onnx"
-version = "0.22.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5c83ad0957c8160303e453d7d6f015c603e7f8af0828835b52fd6f8301d6cc34"
-dependencies = [
- "burn",
- "burn-pack",
- "burn-store",
- "clap",
- "derive-new",
- "log",
- "onnx-ir",
- "proc-macro2",
- "quote",
- "rust-format",
- "syn 3.0.6",
- "tracing-core",
- "tracing-subscriber",
 ]
 
 [[package]]
@@ -7885,38 +7784,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "onnx-ir"
-version = "0.22.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5cc40d6d7a83df7fa1b40983d030c098a078275679ef342ce5c02eb4fd2b9d5e"
-dependencies = [
- "burn-tensor",
- "bytemuck",
- "bytes",
- "derive-new",
- "half",
- "log",
- "memmap2 0.9.11",
- "onnx-ir-derive",
- "protobuf",
- "protobuf-codegen",
- "regex 1.13.1",
- "serde",
- "strum 0.28.0",
-]
-
-[[package]]
-name = "onnx-ir-derive"
-version = "0.22.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ffa6fa24cb0de6a5fc9acf66917a482da5ebfca95eb1eaff010cd55aaf125685"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn 3.0.6",
-]
-
-[[package]]
 name = "oorandom"
 version = "11.1.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -8079,19 +7946,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6e6eb142958d64335fb0e345c5b9ead2ecd6fc438c307e9d7d3c4fd428dbaf12"
 dependencies = [
  "libm",
-]
-
-[[package]]
-name = "parakeet-model-validation"
-version = "0.41.0"
-dependencies = [
- "bind-parakeet-onnx",
- "bunsen",
- "bunsen-test-audio",
- "burn",
- "serde",
- "serde_json",
- "serial_test",
 ]
 
 [[package]]
@@ -8643,16 +8497,6 @@ checksum = "e8cf8e6a8aa66ce33f63993ffc4ea4271eb5b0530a9002db8455ea6050c77bfa"
 
 [[package]]
 name = "prettyplease"
-version = "0.1.25"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6c8646e95016a7a6c4adea95bafa8a16baab64b583356217f2c85db4a39d9a86"
-dependencies = [
- "proc-macro2",
- "syn 1.0.109",
-]
-
-[[package]]
-name = "prettyplease"
 version = "0.2.37"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "479ca8adacdd7ce8f1fb39ce9ecccbfe93a3f1344b3d0d97f20bc0196208f62b"
@@ -8798,58 +8642,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "protobuf"
-version = "3.7.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d65a1d4ddae7d8b5de68153b48f6aa3bba8cb002b243dbdbc55a5afbc98f99f4"
-dependencies = [
- "bytes",
- "once_cell",
- "protobuf-support",
- "thiserror 1.0.69",
-]
-
-[[package]]
-name = "protobuf-codegen"
-version = "3.7.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5d3976825c0014bbd2f3b34f0001876604fe87e0c86cd8fa54251530f1544ace"
-dependencies = [
- "anyhow",
- "once_cell",
- "protobuf",
- "protobuf-parse",
- "regex 1.13.1",
- "tempfile",
- "thiserror 1.0.69",
-]
-
-[[package]]
-name = "protobuf-parse"
-version = "3.7.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b4aeaa1f2460f1d348eeaeed86aea999ce98c1bded6f089ff8514c9d9dbdc973"
-dependencies = [
- "anyhow",
- "indexmap",
- "log",
- "protobuf",
- "protobuf-support",
- "tempfile",
- "thiserror 1.0.69",
- "which",
-]
-
-[[package]]
-name = "protobuf-support"
-version = "3.7.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3e36c2f31e0a47f9280fb347ef5e461ffcd2c52dd520d8e216b52f93b0b0d7d6"
-dependencies = [
- "thiserror 1.0.69",
-]
-
-[[package]]
 name = "psm"
 version = "0.1.32"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -8982,32 +8774,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1fbf4db142a473a8d80c26bbf18454ed458bf8d26c8219c331daecfdbd079001"
 dependencies = [
  "proc-macro2",
-]
-
-[[package]]
-name = "qwen3-asr-model-validation"
-version = "0.41.0"
-dependencies = [
- "bind-qwen3-asr-onnx",
- "bunsen",
- "bunsen-test-audio",
- "burn",
- "serde",
- "serde_json",
- "serial_test",
-]
-
-[[package]]
-name = "qwen3-model-validation"
-version = "0.41.0"
-dependencies = [
- "bind-qwen3-onnx",
- "bunsen",
- "bunsen-chat",
- "burn",
- "serde",
- "serde_json",
- "serial_test",
 ]
 
 [[package]]
@@ -9699,13 +9465,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "rewrite-genai-onnx"
-version = "0.41.0"
-dependencies = [
- "onnx-ir",
-]
-
-[[package]]
 name = "rgb"
 version = "0.8.53"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -9804,17 +9563,6 @@ dependencies = [
  "tokio",
  "tokio-stream",
  "tokio-util",
-]
-
-[[package]]
-name = "rust-format"
-version = "0.3.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "60e7c00b6c3bf5e38a880eec01d7e829d12ca682079f8238a464def3c4b31627"
-dependencies = [
- "prettyplease 0.1.25",
- "proc-macro2",
- "syn 1.0.109",
 ]
 
 [[package]]
@@ -10390,18 +10138,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "silero-model-validation"
-version = "0.41.0"
-dependencies = [
- "bind-silero-onnx",
- "bunsen",
- "bunsen-test-audio",
- "burn",
- "serde_json",
- "serial_test",
-]
-
-[[package]]
 name = "simd-adler32"
 version = "0.3.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -10522,23 +10258,6 @@ name = "softaes"
 version = "0.1.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c4fdfe13e1c42e45f497416afb8dc4e783bf0e25b7be9077c1c77c5fb14cb998"
-
-[[package]]
-name = "sortformer-model-validation"
-version = "0.41.0"
-dependencies = [
- "bind-parakeet-onnx",
- "bind-qwen3-asr-onnx",
- "bind-sortformer-onnx",
- "bind-whisper-onnx",
- "bunsen",
- "bunsen-test-audio",
- "burn",
- "serde",
- "serde_json",
- "serial_test",
- "tempfile",
-]
 
 [[package]]
 name = "spanned_error_message"
@@ -12139,19 +11858,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6a02e4885ed3bc0f2de90ea6dd45ebcbb66dacffe03547fadbb0eeae2770887d"
 
 [[package]]
-name = "voxtral-model-validation"
-version = "0.41.0"
-dependencies = [
- "bind-voxtral-onnx",
- "bunsen",
- "bunsen-test-audio",
- "burn",
- "serde",
- "serde_json",
- "serial_test",
-]
-
-[[package]]
 name = "vtparse"
 version = "0.6.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -12655,20 +12361,6 @@ dependencies = [
  "home",
  "once_cell",
  "rustix 0.38.44",
-]
-
-[[package]]
-name = "whisper-model-validation"
-version = "0.41.0"
-dependencies = [
- "bind-whisper-onnx",
- "bunsen",
- "bunsen-test-audio",
- "burn",
- "serde",
- "serde_json",
- "serial_test",
- "tempfile",
 ]
 
 [[package]]

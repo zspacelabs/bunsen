@@ -45,5 +45,9 @@ jobs:
       # `--release` is not optional: the work is inside burn's kernels, and a
       # debug GPU run is minutes per test rather than seconds.
       - name: Build and Test
-        run: cargo test --release --features wgpu,download,gpu-tests
+        run: cargo test --release --features wgpu
+
+      # The validation workspace's whole suites, assets fetched.
+      - name: Validate
+        run: cargo test --manifest-path validation/Cargo.toml --release --features wgpu,download,gpu-tests
 

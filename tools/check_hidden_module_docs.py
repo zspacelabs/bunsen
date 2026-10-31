@@ -99,4 +99,4 @@ def main(roots):
 
 
 if __name__ == "__main__":
-    sys.exit(main(sys.argv[1:] or ["crates"]))
+    sys.exit(main(sys.argv[1:] or ["crates", "validation"]))

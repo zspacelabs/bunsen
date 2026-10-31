@@ -1,0 +1,67 @@
+# The model validation crates and the ONNX references they check against, in a
+# workspace of their own: nothing the bunsen workspace runs builds them or
+# fetches their assets. See `README.md`.
+#
+# The crates here depend on bunsen's by path and inherit the package fields
+# and lints below, which mirror the root `Cargo.toml`'s; the versions of the
+# dependencies both workspaces share are kept in step with the root's.
+[workspace]
+resolver = "2"
+
+members = [
+    # Each model's upstream checkpoints and ONNX export, fetched and
+    # digest-pinned at build time, and the Rust models generated from the
+    # export; and the graph rewrite their build scripts share.
+    "onnx/*",
+    # Each model's cross-checks: bunsen's kit against the generated reference,
+    # and against upstream's own decodes.
+    "models/*",
+]
+
+[workspace.package]
+authors = [
+    "Crutcher Dunnavant <crutcher@zspacelabs.ai>",
+]
+edition = "2024"
+rust-version = "1.95"
+version = "0.41.0"
+repository = "https://github.com/zspacelabs/bunsen"
+license = "MIT or Apache-2.0"
+
+[workspace.lints.rust]
+warnings = "deny"
+exported_private_dependencies = "allow"
+
+[workspace.lints.clippy]
+doc_markdown = "warn"
+double_must_use = "allow"
+redundant_field_names = "allow"
+
+[profile.dev]
+opt-level = 1
+# Keep panics for math overflows active
+overflow-checks = true
+# Keep your `debug_assert!` macros working
+debug-assertions = true
+
+# Build scripts and proc macros, optimized in every profile: the ONNX binding
+# crates' build scripts digest and convert tens of GB of weights, which
+# unoptimized code (cargo's default here) does at a fiftieth of the speed.
+[profile.dev.build-override]
+opt-level = 3
+
+[profile.release.build-override]
+opt-level = 3
+
+[workspace.dependencies]
+burn = { version = "0.22.0", default-features = false }
+burn-onnx = "0.22.0"
+# The ONNX protos `burn-onnx` reads, for build scripts that rewrite a graph
+# before generating from it.
+onnx-ir = "0.22.0"
+burn-store = { version = "0.22.0", default-features = false }
+document-features = "0.2.12"
+serde = "1.0.229"
+serde_json = "1.0.151"
+serial_test = "4.0.1"
+tempfile = "3.27.0"

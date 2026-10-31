@@ -4,9 +4,9 @@ A kit that ports a published model makes a claim: it computes what the
 original computes. This page describes how bunsen tests that claim. The two
 validation crates are the worked examples, and their own docs carry the
 details and the commands:
-[`whisper-model-validation`](https://github.com/zspacelabs/bunsen/blob/main/crates/validation/whisper-model-validation/README.md)
+[`whisper-model-validation`](https://github.com/zspacelabs/bunsen/blob/main/validation/models/whisper-model-validation/README.md)
 and
-[`silero-model-validation`](https://github.com/zspacelabs/bunsen/blob/main/crates/validation/silero-model-validation/src/lib.rs).
+[`silero-model-validation`](https://github.com/zspacelabs/bunsen/blob/main/validation/models/silero-model-validation/src/lib.rs).
 
 ## Why unit tests are not enough
 
@@ -60,7 +60,7 @@ reduced-precision matmul drifts an order of magnitude further than wgpu. So
 a tolerance is measured on each backend and set with headroom over the
 worst. It is still far tighter than the error a real defect causes: a
 scrambled weight or a wrong activation is off by 100% or more
-([Tolerance](https://github.com/zspacelabs/bunsen/blob/main/crates/validation/whisper-model-validation/README.md#tolerance)).
+([Tolerance](https://github.com/zspacelabs/bunsen/blob/main/validation/models/whisper-model-validation/README.md#tolerance)).
 
 ## Fixtures generated once
 
@@ -108,14 +108,14 @@ then on every push while the label stays.
 `cargo make validate-<model>` (`silero`, `whisper`, `parakeet`, `qwen3-asr`,
 `qwen3`, `sortformer`, `voxtral`, or `all`) runs a model's whole suite, in release mode, on
 `VALIDATION_BACKEND` (default `wgpu`). The
-[README](https://github.com/zspacelabs/bunsen/blob/main/crates/validation/whisper-model-validation/README.md#running-it)
+[README](https://github.com/zspacelabs/bunsen/blob/main/validation/models/whisper-model-validation/README.md#running-it)
 has the command. Without a backend feature the suite still passes, having
 measured the CPU ([Testing and backends](./testing.md#the-silent-cpu-fallback)).
 
 ## Validating a new kit
 
 A kit that claims parity with an upstream implementation gets a crate under
-`crates/validation/`. Its reference and the checkpoint it is compared on
+`validation/models/`. Its reference and the checkpoint it is compared on
 come through a bundled-asset crate, digest-pinned
 ([Assets, bundling and the network](./assets.md)), and the crate tests in
 both layers: staged on synthetic input, composed on real input with a

@@ -74,7 +74,7 @@
 //!   unpublished: the checkpoints and reference graphs its validation crate
 //!   compares, fetched at build time and laid out as a pretrained cache, and
 //!   the reference model generated from the graphs.
-//! - **A validation crate.** Optional. A crate under `crates/validation` that
+//! - **A validation crate.** Optional. A crate under `validation/models` that
 //!   compares the kit's outputs with its upstream reference implementation.
 //! - **An example.** A runnable program under `examples/`.
 //!

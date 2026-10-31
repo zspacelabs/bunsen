@@ -1,0 +1,42 @@
+[package]
+name = "bind-silero-onnx"
+description = "Bunsen bundled Silero VAD assets: fetches upstream's 16 kHz checkpoint and, for validation, its ONNX graph at build time, digest-pinned, each behind a feature, and generates the reference model from the graph. Hosts none."
+publish = false
+
+authors.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+version.workspace = true
+repository.workspace = true
+license.workspace = true
+
+[dependencies]
+burn = { workspace = true, features = ["store"] }
+burn-store = { workspace = true, features = ["std"] }
+document-features = { workspace = true }
+
+[build-dependencies]
+burn-onnx = { workspace = true, optional = true }
+bunsen-fetch = { path = "../../../crates/public/bunsen-fetch", features = ["fetch"], optional = true }
+
+[lints]
+workspace = true
+
+[features]
+## Nothing by default: building this crate as a workspace member fetches
+## nothing. `silero-model-validation/weights` turns on `checkpoint`;
+## `silero-model-validation/download` turns on both.
+default = []
+
+## Fetch upstream's `silero_vad_16k.safetensors` (1.2 MB, the 16 kHz
+## model's state dict) into `cache_dir()`, laid out as a bunsen pretrained
+## cache: a cache rooted there resolves `silero/vad-16k` offline. Reaches
+## the network on a cold build; `SILERO_VAD_16K_SAFETENSORS` names a local
+## copy instead.
+checkpoint = ["dep:bunsen-fetch"]
+
+## Fetch upstream's `silero_vad_op18_ifless.onnx` (2.8 MB, both sample-rate
+## branches) and generate the Rust reference model and its burnpack from
+## it, in `crate::onnx_gen`. The reference `silero-model-validation` holds
+## bunsen's Silero VAD to; `SILERO_VAD_ONNX` names a local copy instead.
+onnx_gen = ["dep:burn-onnx", "dep:bunsen-fetch"]
