@@ -55,7 +55,7 @@ fn test_reference_encoder_runs() {
 ///
 /// The checkpoint is OpenAI's multilingual `base.pt`, which is what
 /// `onnx-community/whisper-base` was converted from. It comes from
-/// `bunsen-bundled-whisper`, which this crate's `download` feature pulls
+/// `bind-whisper-onnx`, which this crate's `download` feature pulls
 /// in, so this never skips.
 #[test]
 #[serial_test::serial]

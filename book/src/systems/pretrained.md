@@ -108,7 +108,8 @@ reported as not found ([features](bunsen::data#features)).
 
 Because the cache trusts its layout, shipping a model with a build does not
 need a special kind of source. It needs a cache directory that is already
-full. [`bunsen_bundled_whisper`] fetches Whisper's
+full. [`bind-whisper-onnx`](https://github.com/zspacelabs/bunsen/tree/main/crates/onnx/bind-whisper-onnx),
+the Whisper validation crate's asset crate, fetches Whisper's
 `base` files at build time into its build directory, laid out as a cache,
 and a `PretrainedCache` rooted there finds them without knowing they were
 bundled. An offline deployment does the same thing at install time: fill a

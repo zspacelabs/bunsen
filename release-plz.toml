@@ -83,16 +83,6 @@ release = true
 version_group = "bunsen"
 
 [[package]]
-name = "bunsen-bundled-silero"
-release = true
-version_group = "bunsen"
-
-[[package]]
-name = "bunsen-bundled-whisper"
-release = true
-version_group = "bunsen"
-
-[[package]]
 name = "bunsen-app"
 release = true
 version_group = "bunsen"

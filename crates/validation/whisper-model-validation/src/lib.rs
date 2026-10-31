@@ -7,7 +7,7 @@
 //!
 //! ## This crate hosts nothing, and generates nothing
 //!
-//! Both sides of the comparison come from `bunsen-bundled-whisper`: the
+//! Both sides of the comparison come from `bind-whisper-onnx`: the
 //! checkpoint and vocabularies through its `checkpoint` and `vocab`
 //! features, and the generated reference through its `onnx_gen` feature.
 //! That crate fetches ~725 MB of assets, pins each to a SHA-256, and caches
@@ -40,7 +40,7 @@
 //!
 //! `WHISPER_ONNX_ENCODER`, `WHISPER_ONNX_DECODER` and `WHISPER_BASE_PT` point
 //! the build at local files instead; they are read by
-//! `bunsen-bundled-whisper`' build script, not this crate's.
+//! `bind-whisper-onnx`' build script, not this crate's.
 //!
 //! ## Why an ONNX reference
 //!
@@ -70,13 +70,13 @@
 use burn::tensor::Device;
 /// The reference models, generated from the `onnx-community` export.
 ///
-/// These used to be generated here. They moved to `bunsen-bundled-whisper` so
+/// These used to be generated here. They moved to `bind-whisper-onnx` so
 /// that one crate owns every Whisper asset — the checkpoint bunsen loads and
 /// the export it is judged against — leaving this crate as only the
 /// comparison.
 #[cfg(feature = "download")]
 pub mod reference {
-    pub use bunsen_bundled_whisper::onnx_gen::*;
+    pub use bind_whisper_onnx::onnx_gen::*;
 }
 
 /// Whisper's fixed analysis window: 30 s at 16 kHz, 3000 mel frames.
@@ -84,7 +84,7 @@ pub const N_FRAMES: usize = 3000;
 
 /// The pretrained cache the checkpoint and its vocabulary come through.
 ///
-/// Under `weights`, it is rooted at `bunsen-bundled-whisper`'s directory,
+/// Under `weights`, it is rooted at `bind-whisper-onnx`'s directory,
 /// which its build laid out as one, and offline: nothing is fetched at run
 /// time and nothing is written there. Routing the assets through the
 /// library's own cache is also what this crate is validating. Without
@@ -98,7 +98,7 @@ pub fn weights_cache() -> bunsen::data::pretrained::PretrainedCache {
     let options = PretrainedCacheOptions::default()
         .with_disk(
             bunsen::data::cache::BunsenDiskCacheOptions::default()
-                .with_cache_dir(Some(bunsen_bundled_whisper::cache_dir().to_path_buf())),
+                .with_cache_dir(Some(bind_whisper_onnx::cache_dir().to_path_buf())),
         )
         .with_offline(true);
     #[cfg(not(feature = "weights"))]

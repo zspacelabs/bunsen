@@ -69,9 +69,10 @@
 //!   rule](crate::ops#ops-and-blocks)): the model is immutable, and the caller
 //!   creates a context or cache and passes it back in, so one loaded model
 //!   serves several streams at once.
-//! - **A bundled-asset crate.** Optional. The checkpoints and reference graphs
-//!   its validation crate compares, fetched at build time and laid out as a
-//!   pretrained cache.
+//! - **A bundled-asset crate.** Optional. `crates/dev/bind-{model}-onnx`,
+//!   unpublished: the checkpoints and reference graphs its validation crate
+//!   compares, fetched at build time and laid out as a pretrained cache, and
+//!   the reference model generated from the graphs.
 //! - **A validation crate.** Optional. A crate under `crates/validation` that
 //!   compares the kit's outputs with its upstream reference implementation.
 //! - **An example.** A runnable program under `examples/`.
@@ -93,7 +94,7 @@
 //! | Factory | [`default_resnet_factory`](images::resnet::pretrained::default_resnet_factory) | [`default_whisper_factory`](speech::whisper::pretrained::default_whisper_factory) | [`default_silero_factory`](speech::silero_vad::pretrained::default_silero_factory) | [`default_parakeet_factory`](speech::parakeet::pretrained::default_parakeet_factory) | [`default_qwen3_asr_factory`](speech::qwen3_asr::pretrained::default_qwen3_asr_factory) | [`default_sortformer_factory`](speech::sortformer::pretrained::default_sortformer_factory) | [`default_qwen3_factory`](gpts::qwen3::pretrained::default_qwen3_factory) |
 //! | Built | [`ResNet`](images::resnet::ResNet) | [`WhisperBundle`](speech::whisper::driver::WhisperBundle): model, token layout, vocabulary | [`SileroVadCollection`](speech::silero_vad::SileroVadCollection): one model per sample rate | [`ParakeetBundle`](speech::parakeet::ParakeetBundle): model, front end, vocabulary | [`Qwen3AsrBundle`](speech::qwen3_asr::Qwen3AsrBundle): model, front end, vocabulary, prompt, decoder | [`SortformerBundle`](speech::sortformer::SortformerBundle): model, front end | [`Qwen3Bundle`](gpts::qwen3::Qwen3Bundle): model, trained length, tokenizer and generation files |
 //! | Driver, context | none | [`WhisperStreamDriver`](speech::whisper::driver::WhisperStreamDriver), [`WhisperStreamContext`](speech::whisper::driver::WhisperStreamContext) | [`SileroVadContext`](speech::silero_vad::SileroVadContext) | [`ParakeetStreamDriver`](speech::parakeet::ParakeetStreamDriver), [`ParakeetStreamContext`](speech::parakeet::ParakeetStreamContext) | [`Qwen3AsrStreamDriver`](speech::qwen3_asr::Qwen3AsrStreamDriver), [`Qwen3AsrStreamContext`](speech::qwen3_asr::Qwen3AsrStreamContext) | [`SortformerDiarizer`](speech::sortformer::SortformerDiarizer), [`SortformerStream`](speech::sortformer::SortformerStream): a diarizer for any ASR stream driver | [`Qwen3DecodeState`](gpts::qwen3::Qwen3DecodeState) through [`decode_cached`](decoding::decode_cached); `bunsen-chat`'s `ChatSession` |
-//! | Bundled crate (validation only) | none | `bunsen-bundled-whisper` | `bunsen-bundled-silero` | `bunsen-bundled-parakeet` | `bunsen-bundled-qwen3-asr` | `bunsen-bundled-sortformer` | `bunsen-bundled-qwen3` |
+//! | Bundled crate (validation only) | none | `bind-whisper-onnx` | `bind-silero-onnx` | `bind-parakeet-onnx` | `bind-qwen3-asr-onnx` | `bind-sortformer-onnx` | `bind-qwen3-onnx` |
 //! | Validation crate | none | `whisper-model-validation` | `silero-model-validation` | `parakeet-model-validation` | `qwen3-asr-model-validation` | `sortformer-model-validation` | `qwen3-model-validation` |
 //! | Example | `examples/resnet_finetune`, `examples/resnet_tiny` | `bunsen-asr` | `bunsen-asr`, as the VAD gate | `bunsen-asr` | `bunsen-asr` | none | `bunsen-chat` |
 //!

@@ -62,7 +62,7 @@ jobs:
       - uses: actions/cache@v4
         with:
           path: ~/.cache/bunsen-assets
-          key: bunsen-assets-v1-${{ hashFiles('crates/public/bunsen-bundled-*/build.rs') }}
+          key: bunsen-assets-v1-${{ hashFiles('crates/onnx/bind-*-onnx/build.rs') }}
           restore-keys: bunsen-assets-v1-
 
       - name: Validate Silero and Whisper
@@ -74,7 +74,7 @@ jobs:
       # every file no build script pins, so the saved entry is only what is.
       - name: Prune unpinned assets
         run: |
-          pins=$(grep -ho '"[0-9a-f]\{64\}"' crates/public/bunsen-bundled-*/build.rs | tr -d '"' | sort -u)
+          pins=$(grep -ho '"[0-9a-f]\{64\}"' crates/onnx/bind-*-onnx/build.rs | tr -d '"' | sort -u)
           for f in "$BUNSEN_ASSET_CACHE"/*; do
             [ -e "$f" ] || continue
             grep -qx "$(basename "$f")" <<< "$pins" || { echo "pruning $(basename "$f")"; rm -f "$f"; }

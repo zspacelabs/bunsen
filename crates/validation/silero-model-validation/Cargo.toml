@@ -21,15 +21,15 @@ default = []
 ## stream, and the factory's pathway from a bundled cache. Cheap enough for
 ## the CPU. **Off by default**: a plain build never reaches the network.
 weights = [
-    "dep:bunsen-bundled-silero",
-    "bunsen-bundled-silero/checkpoint",
+    "dep:bind-silero-onnx",
+    "bind-silero-onnx/checkpoint",
 ]
 
 ## `weights`, and fetch upstream's ONNX graph (2.8 MB) and generate the
 ## reference model from it. **Off by default**.
 download = [
     "weights",
-    "bunsen-bundled-silero/onnx_gen",
+    "bind-silero-onnx/onnx_gen",
 ]
 
 ## Compile the cross-checks, which load the models.
@@ -55,7 +55,7 @@ metal = ["bunsen/metal"]
 [dependencies]
 burn = { workspace = true }
 bunsen = { path = "../../public/bunsen", features = ["testing", "cache"] }
-bunsen-bundled-silero = { path = "../../public/bunsen-bundled-silero", optional = true }
+bind-silero-onnx = { path = "../../onnx/bind-silero-onnx", optional = true }
 
 [dev-dependencies]
 bunsen-test-audio = { path = "../../dev/bunsen-test-audio" }

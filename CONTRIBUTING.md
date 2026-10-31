@@ -78,11 +78,11 @@ so nothing runs them by default.
 **On a pull request**, add the `validate` label to run `validation.yml`: Silero's and Whisper's whole suites, ONNX
 cross-checks included, on the CPU, over about 730 MB of assets. It runs when the label is added and again on every push
 while it stays; remove the label to stop. Use it for a change that can move a model's numbers: the speech kits, the ops
-and blocks under them, the pretrained loaders, `bunsen-fetch`, or a `bunsen-bundled-*` crate. It can also be run from the
+and blocks under them, the pretrained loaders, `bunsen-fetch`, or a `bind-*-onnx` crate. It can also be run from the
 Actions tab (`workflow_dispatch`), on any branch.
 
 The job caches its assets by digest (`BUNSEN_ASSET_CACHE`; STYLE.md, "Fetched assets live in `OUT_DIR`"), under a key
-that hashes the bundled crates' pins. A pull request's run sees the cache `main` saved, and saves its own only for
+that hashes the `bind-*-onnx` crates' pins. A pull request's run sees the cache `main` saved, and saves its own only for
 itself, so after a pin changes on `main`, run the workflow once on `main` from the Actions tab to seed it for everyone.
 
 **Locally**, through `cargo make`:
@@ -152,7 +152,7 @@ hand. Configuration lives in [`release-plz.toml`](release-plz.toml); the automat
 
 ### What gets released
 
-The ten published crates, in `crates/public/`, are versioned in **lockstep**: they share one version
+The eight published crates, in `crates/public/`, are versioned in **lockstep**: they share one version
 (`version_group = "bunsen"` in `release-plz.toml`, matching `version.workspace = true` in the root `Cargo.toml`):
 
 - `bunsen`
@@ -161,13 +161,12 @@ The ten published crates, in `crates/public/`, are versioned in **lockstep**: th
 - `bunsen-firehose`
 - `bunsen-firehose-image`
 - `bunsen-arrow-dataloaders`
-- `bunsen-bundled-silero`
-- `bunsen-bundled-whisper`
 - `bunsen-app`
 - `bunsen-asr` (a binary: `cargo install bunsen-asr`)
 
-`bunsen-bundled-parakeet`, `bunsen-bundled-qwen3`, `bunsen-bundled-qwen3-asr` and `bunsen-bundled-sortformer` live in `crates/public/` too, but
-are not published (`publish = false`): they fetch the checkpoints the validation crates check against.
+The `bind-{model}-onnx` crates (`whisper`, `silero`, `parakeet`, `qwen3`, `qwen3-asr`, `sortformer`), which fetch
+the checkpoints and reference graphs the validation crates check against, live in `crates/onnx/` and are not published
+(`publish = false`).
 
 Nothing else is released: release-plz is opt-in (`release = false` for the workspace, `release = true` per crate), so
 the examples and the `crates/dev` and `crates/validation` crates stay out.

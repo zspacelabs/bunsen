@@ -31,7 +31,7 @@ use super::{
 /// cached, at paths under it, and writes nothing.
 #[test]
 fn test_the_bundle_is_a_cache_of_these_maps() {
-    let root = bunsen_bundled_whisper::cache_dir();
+    let root = bind_whisper_onnx::cache_dir();
     let cache = offline_cache();
 
     for map in [&BASE_CHECKPOINT, &MULTILINGUAL_VOCABULARY, &GPT2_VOCABULARY] {
@@ -100,11 +100,11 @@ fn test_the_bundled_provider_serves_openai_base_in_place() {
     }
     assert_eq!(
         loaded.expect(CHECKPOINT).unwrap(),
-        bunsen_bundled_whisper::base_pt()
+        bind_whisper_onnx::base_pt()
     );
     assert_eq!(
         loaded.expect(VOCABULARY).unwrap(),
-        bunsen_bundled_whisper::multilingual_tiktoken()
+        bind_whisper_onnx::multilingual_tiktoken()
     );
     assert!(!dir.path().join("cache").exists(), "nothing was written");
 
@@ -130,10 +130,10 @@ fn test_the_bundle_serves_openai_base() {
     assert_eq!(loaded.map.name, "well-known:openai/base");
     for (key, part) in loaded.iter() {
         assert_eq!(part.provenance, Provenance::Cached, "{key}");
-        assert!(part.path.starts_with(bunsen_bundled_whisper::cache_dir()));
+        assert!(part.path.starts_with(bind_whisper_onnx::cache_dir()));
     }
     assert_eq!(
         loaded.expect(CHECKPOINT).unwrap(),
-        bunsen_bundled_whisper::base_pt()
+        bind_whisper_onnx::base_pt()
     );
 }

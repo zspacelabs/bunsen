@@ -1,7 +1,4 @@
-# bunsen-bundled-silero
-
-[![Crates.io Version](https://img.shields.io/crates/v/bunsen-bundled-silero)](https://crates.io/crates/bunsen-bundled-silero)
-[![docs.rs](https://img.shields.io/docsrs/bunsen-bundled-silero)](https://docs.rs/bunsen-bundled-silero/latest/bunsen_bundled_silero/)
+# bind-silero-onnx
 
 Silero VAD's files for [`bunsen`](https://crates.io/crates/bunsen)'s Silero voice-activity kit. **Hosts none**: its
 build script fetches them from a pinned revision of [`snakers4/silero-vad`](https://github.com/snakers4/silero-vad)
@@ -10,7 +7,6 @@ build script fetches them from a pinned revision of [`snakers4/silero-vad`](http
 `silero-model-validation`'s `weights` feature turns it on. `onnx_gen` fetches upstream's ONNX graph and generates the Rust reference model
 that bunsen's Silero implementation is validated against.
 
-- [API docs](https://docs.rs/bunsen-bundled-silero/latest/bunsen_bundled_silero/).
 - [Assets, bundling and the network](https://zspacelabs.ai/bunsen/book/development/assets.html), in the bunsen book:
   why bunsen bundles weights this way.
 

@@ -25,7 +25,7 @@ also carries `text_with_timestamps`, the `<|1.02|>` rendering, which pins the
 special-token spellings. The fixture-integrity check decodes every one of them
 and checks the segment times against the timestamp arithmetic.
 
-Ids become text through the vocabulary `bunsen-bundled-whisper` fetches
+Ids become text through the vocabulary `bind-whisper-onnx` fetches
 (`multilingual.tiktoken`, behind its `vocab` feature) and bunsen's own
 `.tiktoken` parser — the same path a user of the kit takes, so the
 fixture-integrity check exercises it too.

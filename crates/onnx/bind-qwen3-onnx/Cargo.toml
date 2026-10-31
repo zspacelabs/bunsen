@@ -1,5 +1,5 @@
 [package]
-name = "bunsen-bundled-qwen3"
+name = "bind-qwen3-onnx"
 description = "Bunsen bundled Qwen3 assets: fetches Qwen's Qwen3-0.6B, -1.7B, -4B and -4B-Instruct-2507 and an ONNX export of Qwen3-0.6B at build time, digest-pinned, each behind a feature, and generates a Rust reference model from the export. Hosts none."
 publish = false
 
@@ -16,7 +16,7 @@ burn-store = { workspace = true, features = ["std"] }
 document-features = { workspace = true }
 
 [build-dependencies]
-bunsen-fetch = { path = "../bunsen-fetch", features = ["fetch"] }
+bunsen-fetch = { path = "../../public/bunsen-fetch", features = ["fetch"] }
 burn-onnx = { workspace = true, optional = true }
 onnx-ir = { workspace = true, optional = true }
 

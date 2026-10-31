@@ -27,8 +27,8 @@
       <sourceFolder url="file://$MODULE_DIR$/crates/public/bunsen-arrow-dataloaders/examples" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/crates/public/bunsen-arrow-dataloaders/examples/dl-test/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/crates/public/bunsen-arrow-dataloaders/src" isTestSource="false" />
-      <sourceFolder url="file://$MODULE_DIR$/crates/public/bunsen-bundled-silero/src" isTestSource="false" />
-      <sourceFolder url="file://$MODULE_DIR$/crates/public/bunsen-bundled-whisper/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/crates/onnx/bind-silero-onnx/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/crates/onnx/bind-whisper-onnx/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/crates/validation/silero-model-validation/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/crates/validation/whisper-model-validation/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/crates/dev/burn_bug_repro/src" isTestSource="false" />
@@ -40,15 +40,15 @@
       <sourceFolder url="file://$MODULE_DIR$/crates/dev/book-snippets/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/crates/public/bunsen-app/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/crates/public/bunsen-asr/src" isTestSource="false" />
-      <sourceFolder url="file://$MODULE_DIR$/crates/public/bunsen-bundled-parakeet/src" isTestSource="false" />
-      <sourceFolder url="file://$MODULE_DIR$/crates/public/bunsen-bundled-qwen3-asr/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/crates/onnx/bind-parakeet-onnx/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/crates/onnx/bind-qwen3-asr-onnx/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/crates/public/bunsen-fetch/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/crates/validation/parakeet-model-validation/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/crates/validation/qwen3-asr-model-validation/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/examples/bunsen-asr/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/examples/phonon-cli/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/crates/dev/bunsen-test-audio/src" isTestSource="false" />
-      <sourceFolder url="file://$MODULE_DIR$/crates/public/bunsen-bundled-sortformer/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/crates/onnx/bind-sortformer-onnx/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/crates/validation/sortformer-model-validation/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/crates/dev/kv-cache-bench/src" isTestSource="false" />
       <excludeFolder url="file://$MODULE_DIR$/crates/public/bunsen/target" />

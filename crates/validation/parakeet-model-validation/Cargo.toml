@@ -20,16 +20,16 @@ default = []
 ## the checkpoints compared against them: NVIDIA's `parakeet-tdt-0.6b-v3`,
 ## whose weights the graphs carry, and `FermionResearch`'s Phonon-2.
 ##
-## **Off by default.** Enabling this makes `bunsen-bundled-parakeet`'s build
+## **Off by default.** Enabling this makes `bind-parakeet-onnx`'s build
 ## reach the network on a cold cache (~5 GB), which a plain
 ## `cargo build --workspace` must never do. Every asset is verified against a
 ## pinned SHA-256, so a warm build is offline and reproducible.
 download = [
     "bunsen/fermion",
-    "dep:bunsen-bundled-parakeet",
-    "bunsen-bundled-parakeet/onnx_gen",
-    "bunsen-bundled-parakeet/checkpoint",
-    "bunsen-bundled-parakeet/base_checkpoint",
+    "dep:bind-parakeet-onnx",
+    "bind-parakeet-onnx/onnx_gen",
+    "bind-parakeet-onnx/checkpoint",
+    "bind-parakeet-onnx/base_checkpoint",
 ]
 
 ## Compile every test that loads a model.
@@ -55,8 +55,8 @@ metal = ["bunsen/metal"]
 burn = { workspace = true }
 bunsen = { path = "../../public/bunsen", features = ["testing"] }
 bunsen-test-audio = { path = "../../dev/bunsen-test-audio" }
-bunsen-bundled-parakeet = {
-    path = "../../public/bunsen-bundled-parakeet",
+bind-parakeet-onnx = {
+    path = "../../onnx/bind-parakeet-onnx",
     optional = true
 }
 serde = { workspace = true, features = ["derive"] }

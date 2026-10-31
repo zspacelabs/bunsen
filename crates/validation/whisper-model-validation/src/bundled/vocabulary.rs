@@ -63,11 +63,7 @@ fn test_bundled_vocabularies_resolve_offline() {
         let resolved = cache.resolve(WHISPER_KIT, r).unwrap();
         assert_eq!(resolved.provenance, Provenance::Cached);
         assert_eq!(resolved.path, bundled_vocabulary_path(&ids));
-        assert!(
-            resolved
-                .path
-                .starts_with(bunsen_bundled_whisper::cache_dir())
-        );
+        assert!(resolved.path.starts_with(bind_whisper_onnx::cache_dir()));
         let ranks = vocabulary.load(&cache).unwrap();
         // The layout's first special id is the rank count: 50257 for
         // `multilingual.tiktoken`, 50256 for `gpt2.tiktoken`.

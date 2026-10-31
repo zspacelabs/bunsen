@@ -63,22 +63,26 @@ Every bundled crate hosts nothing: its build script fetches the files, pins
 each one, and lays them out in `OUT_DIR` as a pretrained cache. A cache rooted
 there finds them offline without knowing they were bundled.
 
-- [`bunsen_bundled_whisper`] fetches Whisper's `base` checkpoint, the
-  vocabularies and the ONNX reference, for `whisper-model-validation`.
-- [`bunsen_bundled_silero`] fetches upstream's 16 kHz Silero VAD
-  checkpoint and its ONNX graph, from which the reference model is
-  generated, for `silero-model-validation`.
-- `bunsen-bundled-parakeet` and `bunsen-bundled-qwen3-asr` fetch the Phonon
+Each is a development crate, `crates/dev/bind-{model}-onnx`, and none is
+published:
+
+- [`bind-whisper-onnx`](https://github.com/zspacelabs/bunsen/tree/main/crates/onnx/bind-whisper-onnx)
+  fetches Whisper's `base` checkpoint, the vocabularies and the ONNX
+  reference, for `whisper-model-validation`.
+- [`bind-silero-onnx`](https://github.com/zspacelabs/bunsen/tree/main/crates/onnx/bind-silero-onnx)
+  fetches upstream's 16 kHz Silero VAD checkpoint and its ONNX graph, from
+  which the reference model is generated, for `silero-model-validation`.
+- `bind-parakeet-onnx` and `bind-qwen3-asr-onnx` fetch the Phonon
   checkpoints, the base models and the ONNX references for their validation
-  crates only, and are not published.
-- `bunsen-bundled-sortformer` fetches NVIDIA's `Nemotron-3-Diarization` and
+  crates.
+- `bind-sortformer-onnx` fetches NVIDIA's `Nemotron-3-Diarization` and
   streaming Sortformer v2 and v2.1 checkpoints, and ONNX exports of Nemotron
   (which its build script rewrites where `burn-onnx` cannot import it) and of
-  v2.1, for its validation crate only, and is not published.
-- `bunsen-bundled-qwen3` fetches Qwen's `Qwen3-0.6B`, `-1.7B`, `-4B` and
+  v2.1, for its validation crate.
+- `bind-qwen3-onnx` fetches Qwen's `Qwen3-0.6B`, `-1.7B`, `-4B` and
   `-4B-Instruct-2507` checkpoints, and an ONNX export of `Qwen3-0.6B` (which
   its build script rewrites where `burn-onnx` cannot import it), for its
-  validation crate only, and is not published.
+  validation crate.
 
 Only the validation crates depend on them, through their `weights` and
 `download` features, so no other build reaches the network. bunsen's own tests

@@ -10,7 +10,7 @@
 //!
 //! ## This crate hosts nothing, and generates nothing
 //!
-//! The generated reference comes from `bunsen-bundled-qwen3`'s `onnx_gen`
+//! The generated reference comes from `bind-qwen3-onnx`'s `onnx_gen`
 //! feature, and the checkpoints from its `checkpoint` and
 //! `large_checkpoints` features, which fetch their assets, pin each to a
 //! SHA-256, and cache them, all under the **`download`** feature, off by
@@ -30,7 +30,7 @@
 //! ## The reference is itself checked
 //!
 //! The export uses onnxruntime-only ops that `burn-onnx` cannot import, so
-//! `bunsen-bundled-qwen3` rewrites them to standard ONNX first.
+//! `bind-qwen3-onnx` rewrites them to standard ONNX first.
 //! `testdata/onnx_reference.json` records what onnxruntime computes for the
 //! *published* graph on fixed ids, and `testdata/transformers.json` what
 //! `transformers` decodes (`tools/gen_qwen3_fixtures.py` writes both).
@@ -60,7 +60,7 @@ use serde::Deserialize;
 /// The reference model, generated from the rewritten export.
 #[cfg(feature = "download")]
 pub mod reference {
-    pub use bunsen_bundled_qwen3::onnx_gen::*;
+    pub use bind_qwen3_onnx::onnx_gen::*;
 }
 
 #[cfg(feature = "download")]
@@ -267,7 +267,7 @@ pub fn weights_cache() -> bunsen::data::pretrained::PretrainedCache {
     let options = PretrainedCacheOptions::default()
         .with_disk(
             bunsen::data::cache::BunsenDiskCacheOptions::default()
-                .with_cache_dir(Some(bunsen_bundled_qwen3::cache_dir().to_path_buf())),
+                .with_cache_dir(Some(bind_qwen3_onnx::cache_dir().to_path_buf())),
         )
         .with_offline(true);
     #[cfg(not(feature = "download"))]

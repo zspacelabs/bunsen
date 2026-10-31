@@ -10,7 +10,7 @@ Run once; commit the output. Regenerating is not part of CI.
 `ONNX_DIR` holds `istupakov/parakeet-tdt-0.6b-v3-onnx` at revision
 8f23f0c03c8761650bdb5b40aaf3e40d2c15f1ce (`nemo128.onnx`, `encoder-model.onnx`
 and its `.data`, `decoder_joint-model.onnx`): the files
-`bunsen-bundled-parakeet` fetches.
+`bind-parakeet-onnx` fetches.
 
 Pinned versions used to produce the committed fixture:
     onnxruntime 1.31.0, numpy 2.4.6, soundfile 0.13.1 (libsndfile 1.2.2)

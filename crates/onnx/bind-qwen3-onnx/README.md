@@ -1,4 +1,4 @@
-# bunsen-bundled-qwen3
+# bind-qwen3-onnx
 
 Qwen3 language-model assets for [`bunsen`](https://crates.io/crates/bunsen), fetched at build time.
 

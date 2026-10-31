@@ -9,7 +9,7 @@
 //!
 //! ## This crate hosts nothing, and generates nothing
 //!
-//! The generated reference comes from `bunsen-bundled-sortformer`'s
+//! The generated reference comes from `bind-sortformer-onnx`'s
 //! `onnx_gen` feature, which fetches the export, pins it to a SHA-256,
 //! rewrites the two constructs `burn-onnx` cannot import, and caches it, all
 //! under the **`download`** feature, which is off by default so an ordinary
@@ -28,7 +28,7 @@
 //! `SORTFORMER_ONNX_NEMOTRON`, `SORTFORMER_NEMOTRON_SAFETENSORS`,
 //! `SORTFORMER_NEMOTRON_CONFIG`, `SORTFORMER_ONNX_V2_1`, `SORTFORMER_V2_NEMO`
 //! and `SORTFORMER_V2_1_NEMO` point the build at local files instead; they
-//! are read by `bunsen-bundled-sortformer`'s build script, not this crate's.
+//! are read by `bind-sortformer-onnx`'s build script, not this crate's.
 //!
 //! ## The reference is itself checked
 //!
@@ -47,7 +47,7 @@ use serde::Deserialize;
 /// The reference model, generated from the `parakeet-rs` export.
 #[cfg(feature = "download")]
 pub mod reference {
-    pub use bunsen_bundled_sortformer::onnx_gen::*;
+    pub use bind_sortformer_onnx::onnx_gen::*;
 }
 
 #[cfg(all(test, feature = "download", feature = "gpu-tests"))]
@@ -316,13 +316,13 @@ pub fn ami_reference_v2() -> AmiReferenceV2 {
 
 /// The pretrained cache the checkpoint comes through.
 ///
-/// Under `download`, it is rooted at `bunsen-bundled-sortformer`'s directory,
+/// Under `download`, it is rooted at `bind-sortformer-onnx`'s directory,
 /// which its build laid out as one, and offline: nothing is fetched at run
 /// time. Routing the checkpoint through the library's own factory is also
 /// what this crate is validating.
 #[cfg(feature = "download")]
 pub fn weights_cache() -> bunsen::data::pretrained::PretrainedCache {
-    cache_at(bunsen_bundled_sortformer::cache_dir())
+    cache_at(bind_sortformer_onnx::cache_dir())
 }
 
 /// An offline pretrained cache rooted at a bundled crate's directory.

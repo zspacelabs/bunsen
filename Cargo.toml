@@ -9,6 +9,9 @@ members = [
     "crates/public/*/examples/*",
     # Development tooling: benchmarks, and reproductions of upstream defects.
     "crates/dev/*",
+    # The ONNX references the validation crates compare against: an upstream
+    # export, fetched, rewritten and generated into Rust, and the checkpoints.
+    "crates/onnx/*",
     # Reference implementations and the cross-checks that step bunsen against
     # them. Not part of a normal build.
     "crates/validation/*",

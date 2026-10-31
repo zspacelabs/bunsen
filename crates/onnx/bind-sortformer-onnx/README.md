@@ -1,4 +1,4 @@
-# bunsen-bundled-sortformer
+# bind-sortformer-onnx
 
 Sortformer speaker-diarization assets for [`bunsen`](https://crates.io/crates/bunsen), fetched at build time.
 
