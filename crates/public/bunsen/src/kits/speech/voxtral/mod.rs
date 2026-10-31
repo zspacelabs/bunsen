@@ -25,6 +25,9 @@
 //! - [`VoxtralBundle`]: a model with its front end, vocabulary
 //!   ([`TekkenVocabulary`](crate::kits::tokens::TekkenVocabulary)), layout and
 //!   decoder; [`transcribe`](VoxtralBundle::transcribe) one utterance.
+//! - [`pretrained`] (features `store_safetensors` and `cache`): the named
+//!   checkpoint, `mistralai/voxtral-mini-4b-realtime-2602` the default, `hf:`
+//!   repos, and the factory that loads one into a bundle.
 //! - [`weights`] (feature `store`): loading tensors named as the published
 //!   `model.safetensors` names them, and reading its `config.json`.
 
@@ -40,6 +43,9 @@ pub use decode::*;
 pub use front_end::*;
 pub use layout::*;
 pub use transcript::*;
+
+#[cfg(all(feature = "store_safetensors", feature = "cache"))]
+pub mod pretrained;
 
 #[cfg(feature = "store")]
 pub mod weights;
