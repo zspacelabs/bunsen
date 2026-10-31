@@ -1247,23 +1247,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "bunsen-chat"
-version = "0.41.0"
-dependencies = [
- "bunsen",
- "bunsen-app",
- "burn",
- "clap",
- "minijinja",
- "minijinja-contrib",
- "serde",
- "serde-pickle",
- "serde_json",
- "unicode-normalization-alignments",
- "wordchipper",
-]
-
-[[package]]
 name = "bunsen-contracts-macros"
 version = "0.41.0"
 dependencies = [
@@ -1335,13 +1318,18 @@ dependencies = [
  "cpal",
  "ctrlc",
  "log",
+ "minijinja",
+ "minijinja-contrib",
  "rumqttc",
  "serde",
+ "serde-pickle",
  "serde-saphyr",
  "serde_json",
  "tempfile",
  "time",
+ "unicode-normalization-alignments",
  "ureq 3.4.2",
+ "wordchipper",
 ]
 
 [[package]]

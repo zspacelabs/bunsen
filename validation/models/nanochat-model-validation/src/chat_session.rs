@@ -1,4 +1,5 @@
-//! `bunsen-chat`'s nanochat sessions against upstream's greedy chat replies.
+//! `bunsen_tool::chat`'s nanochat sessions against upstream's greedy chat
+//! replies.
 
 use std::sync::Arc;
 
@@ -9,7 +10,7 @@ use bunsen::{
         performance_device,
     },
 };
-use bunsen_chat::{
+use bunsen_tool::chat::{
     ChatModel,
     ChatSessionConfig,
     NanoChatChat,

@@ -1,5 +1,3 @@
-//! # bunsen-chat
-//!
 //! Chat with bunsen's Qwen3 ([`bunsen::kits::gpts::qwen3`]) or nanochat
 //! ([`bunsen::kits::gpts::nanochat`]): what turns a conversation into the ids
 //! the model reads and its ids back into text, and the driver that holds a
@@ -22,18 +20,18 @@
 //!   checkpoint's chat: its `tokenizer.pkl`, read through `serde_pickle`, and
 //!   upstream's conversation layout, each as upstream encodes and renders.
 //!
-//! The `bunsen-chat` binary runs them. Its `list`, `fetch`, `run` and `chat`
-//! take a checkpoint of any family by its name; `family qwen3` and `family
+//! `bunsen-tool chat` runs them. Its `list`, `fetch`, `run` and `chat` take
+//! a checkpoint of any family by its name; `family qwen3` and `family
 //! nanochat` have the same commands for one family, its own default by
 //! default, with only the flags that apply to it:
 //!
 //! ```text
-//! bunsen-chat list
-//! bunsen-chat cache list qwen3
-//! bunsen-chat run --device wgpu --no-think "What is the capital of France?"
-//! bunsen-chat chat --device wgpu --model qwen3-4b-instruct-2507 --stats
-//! bunsen-chat family nanochat list --urls
-//! bunsen-chat family nanochat chat --device cuda --precision half
+//! bunsen-tool chat list
+//! bunsen-tool cache list qwen3
+//! bunsen-tool chat run --device wgpu --no-think "What is the capital of France?"
+//! bunsen-tool chat chat --device wgpu --model qwen3-4b-instruct-2507 --stats
+//! bunsen-tool chat family nanochat list --urls
+//! bunsen-tool chat family nanochat chat --device cuda --precision half
 //! ```
 
 mod backend;

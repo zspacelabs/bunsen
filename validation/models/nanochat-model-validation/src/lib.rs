@@ -298,12 +298,12 @@ pub fn argmax(logits: &Tensor<2>) -> i64 {
     logits.clone().argmax(1).into_scalar::<i64>()
 }
 
-/// `bunsen-chat`'s nanochat tokenizer against upstream's. Reads the fetched
-/// tokenizer files; loads no model.
+/// `bunsen_tool::chat`'s nanochat tokenizer against upstream's. Reads the
+/// fetched tokenizer files; loads no model.
 #[cfg(all(test, feature = "download"))]
 mod chat;
 
-/// `bunsen-chat`'s sessions against upstream's greedy chat replies.
+/// `bunsen_tool::chat`'s sessions against upstream's greedy chat replies.
 #[cfg(all(test, feature = "download", feature = "gpu-tests"))]
 mod chat_session;
 

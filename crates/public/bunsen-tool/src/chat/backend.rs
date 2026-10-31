@@ -40,16 +40,16 @@ use burn::{
     },
 };
 
-use crate::{
+use crate::chat::{
     ChatMessage,
     ChatTemplate,
     GenerationDefaults,
     Qwen3Tokenizer,
 };
 
-/// A checkpoint a [`ChatModel`](crate::ChatModel) holds a conversation with:
-/// its model, as a cached step, and what turns a conversation into the ids
-/// it reads and its ids back into text.
+/// A checkpoint a [`ChatModel`](crate::chat::ChatModel) holds a conversation
+/// with: its model, as a cached step, and what turns a conversation into the
+/// ids it reads and its ids back into text.
 ///
 /// [`Qwen3Chat`] is Qwen3's.
 pub trait ChatBackend: Debug + Send + Sync + 'static {

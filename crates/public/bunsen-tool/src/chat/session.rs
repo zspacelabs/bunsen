@@ -34,7 +34,7 @@ use burn::{
     tensor::Device,
 };
 
-use crate::{
+use crate::chat::{
     ChatBackend,
     ChatMessage,
     GenerationDefaults,
@@ -402,7 +402,7 @@ mod tests {
     };
 
     use super::*;
-    use crate::tokenizer::toy_tokenizer_json;
+    use crate::chat::tokenizer::toy_tokenizer_json;
 
     /// A chat over an untrained toy Qwen3, with the toy tokenizer, a `ChatML`
     /// template, and greedy defaults, its files in `dir`.
@@ -437,7 +437,7 @@ mod tests {
     /// not hold.
     #[test]
     fn test_turns_stream_and_reuse_the_cache() {
-        let dir = std::env::temp_dir().join(format!("bunsen-chat-{}", std::process::id()));
+        let dir = std::env::temp_dir().join(format!("bunsen-tool-chat-{}", std::process::id()));
         std::fs::create_dir_all(&dir).unwrap();
         let chat = toy_chat(&dir);
         let config = ChatSessionConfig::new().with_max_new_tokens(6);
@@ -467,7 +467,8 @@ mod tests {
     /// A conversation that cannot fit is refused, and leaves no trace.
     #[test]
     fn test_overrun_is_refused() {
-        let dir = std::env::temp_dir().join(format!("bunsen-chat-overrun-{}", std::process::id()));
+        let dir =
+            std::env::temp_dir().join(format!("bunsen-tool-chat-overrun-{}", std::process::id()));
         std::fs::create_dir_all(&dir).unwrap();
         let chat = toy_chat(&dir);
         let config = ChatSessionConfig::new()

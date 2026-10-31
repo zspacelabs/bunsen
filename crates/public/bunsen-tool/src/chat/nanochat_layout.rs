@@ -4,7 +4,7 @@ use bunsen::errors::{
     BunsenResult,
 };
 
-use crate::{
+use crate::chat::{
     ChatMessage,
     NanoChatTokenizer,
 };
@@ -136,7 +136,7 @@ mod tests {
     };
 
     use super::*;
-    use crate::nanochat_tokenizer::toy_pickle;
+    use crate::chat::nanochat_tokenizer::toy_pickle;
 
     fn toy() -> (NanoChatTokenizer, NanoChatLayout) {
         let tok = NanoChatTokenizer::from_pickle(&toy_pickle()).unwrap();

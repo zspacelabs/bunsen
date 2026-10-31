@@ -1,7 +1,8 @@
 //! `bunsen-tool`: bunsen's models on the command line. `bunsen-tool asr`
 //! is speech to text, by profile or by model family, and who spoke when;
-//! `bunsen-tool cache <path|list|clear>` manages the weights cache every
-//! command loads through.
+//! `bunsen-tool chat` chats with a Qwen3 or nanochat checkpoint; `bunsen-tool
+//! cache <path|list|clear>` manages the weights cache every command loads
+//! through.
 
 use bunsen::errors::BunsenResult;
 use clap::Parser;
@@ -21,9 +22,14 @@ enum Command {
     /// family (`asr family`), and who spoke when (`asr diarize`).
     Asr(cli::asr::AsrCmd),
 
+    /// Chat with a Qwen3 or nanochat checkpoint: one prompt (`chat run`), a
+    /// conversation (`chat chat`), and the checkpoints (`chat list`, `chat
+    /// fetch`); `chat family` for one family's.
+    Chat(cli::chat::ChatCmd),
+
     /// The weights cache every command loads through: where it is, what it
     /// holds (by kit: `parakeet`, `qwen3-asr`, `voxtral`, `whisper`,
-    /// `sortformer`, `silero_vad`), and clearing it.
+    /// `sortformer`, `silero_vad`, `qwen3`, `nanochat`), and clearing it.
     Cache(bunsen_app::cache::CacheCommand),
 }
 
@@ -31,6 +37,7 @@ fn main() -> BunsenResult<()> {
     bunsen_app::logging::add_target_prefix(env!("CARGO_CRATE_NAME"));
     match &Args::parse().command {
         Command::Asr(cmd) => cmd.run(),
+        Command::Chat(cmd) => cmd.run(),
         Command::Cache(cmd) => cmd.run(),
     }
 }

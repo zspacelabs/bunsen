@@ -53,7 +53,8 @@ metal = ["bunsen/metal"]
 [dependencies]
 burn = { workspace = true }
 bunsen = { path = "../../../crates/public/bunsen", features = ["testing", "cache"] }
-bunsen-chat = { path = "../../../crates/dev/bunsen-chat" }
+# The chat driver, without the binary's audio capture and publish targets.
+bunsen-tool = { path = "../../../crates/public/bunsen-tool", default-features = false }
 bind-qwen3-onnx = {
     path = "../../onnx/bind-qwen3-onnx",
     optional = true
