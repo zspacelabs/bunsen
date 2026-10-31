@@ -675,6 +675,17 @@ impl NanoChatGpt {
         &self.wte
     }
 
+    /// Sets a smeared model's smear strength: tests of the smear set it away
+    /// from its neutral initial value.
+    #[cfg(test)]
+    pub(crate) fn set_smear_lambda_for_tests(
+        &mut self,
+        lambda: f32,
+        device: &Device,
+    ) {
+        self.smear_lambda = Some(Param::from_tensor(Tensor::from_floats([lambda], device)));
+    }
+
     /// Whether the embedding is smeared: then a cached step past the first
     /// position needs the token before it
     /// ([`forward_after`](Self::forward_after)).
