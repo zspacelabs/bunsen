@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.42.0](https://github.com/zspacelabs/bunsen/compare/bunsen-asr-v0.41.0...bunsen-asr-v0.42.0) - 2026-10-31
+
+### Added
+
+- *(bunsen-asr)* `family voxtral`, Mistral's Voxtral Realtime: transcribe, live, fetch and list ([#428](https://github.com/zspacelabs/bunsen/pull/428))
+
+### Fixed
+
+- *(bunsen-asr)* [**breaking**] `--language` implies `--speech`; English translated to English is transcribed on every path; `--json` records the need served ([#396](https://github.com/zspacelabs/bunsen/pull/396))
+
+### Other
+
+- *(bunsen-app)* [**breaking**] the device arguments report `BunsenError`s; `bunsen-asr`'s own `DeviceArgs` goes, and `bunsen-chat` takes the precision flags ([#413](https://github.com/zspacelabs/bunsen/pull/413))
+- *(decoding)* [**breaking**] `kits::decoding`, the search machinery Whisper's decode used, shared: logit filters, greedy and beam search, sampling, ranking, and the temperature ladder ([#404](https://github.com/zspacelabs/bunsen/pull/404))
+
 ## [0.41.0](https://github.com/zspacelabs/bunsen/compare/bunsen-asr-v0.40.0...bunsen-asr-v0.41.0) - 2026-10-23
 
 ### Added
