@@ -15,9 +15,7 @@ use bunsen::{
     },
     kits::{
         decoding::{
-            LogitFilter,
             SearchConfig,
-            SuppressTokens,
             decode_cached_observed,
         },
         gpts::{
@@ -26,112 +24,67 @@ use bunsen::{
                 StopStrings,
                 TextStream,
             },
-            qwen3::{
-                Qwen3Bundle,
-                Qwen3DecodeState,
-            },
+            qwen3::Qwen3Bundle,
         },
     },
     ops::transformers::attention::KVCacheStorage,
 };
 use burn::{
-    Tensor,
     config::Config,
-    prelude::{
-        Int,
-        TensorData,
-    },
     tensor::Device,
 };
 
 use crate::{
+    ChatBackend,
     ChatMessage,
-    ChatTemplate,
     GenerationDefaults,
-    Qwen3Tokenizer,
+    Qwen3Chat,
 };
 
 /// The positions a session's cache holds when neither its config nor the
 /// checkpoint says.
 pub const DEFAULT_CONTEXT: usize = 8192;
 
-/// A loaded Qwen3 with what a conversation needs around it: its tokenizer,
-/// chat template and generation defaults. The shared, immutable half of a
-/// chat: [`session`](Self::session) opens any number of [`ChatSession`]s
-/// over one.
-///
-/// A Qwen3's head is wider than its tokenizer (151936 rows, 151669 tokens);
-/// a reply never chooses an id the tokenizer cannot spell.
+/// A loaded checkpoint with what a conversation needs around it, its
+/// [`ChatBackend`] (Qwen3's, [`Qwen3Chat`], unless named): the shared,
+/// immutable half of a chat. [`session`](Self::session) opens any number of
+/// [`ChatSession`]s over one.
 #[derive(Debug)]
-pub struct ChatModel {
-    bundle: Arc<Qwen3Bundle>,
-    tokenizer: Arc<Qwen3Tokenizer>,
-    template: ChatTemplate,
-    defaults: GenerationDefaults,
-    unspelled: Arc<dyn LogitFilter>,
+pub struct ChatModel<B: ChatBackend = Qwen3Chat> {
+    backend: B,
 }
 
-impl ChatModel {
-    /// A chat over a loaded checkpoint, from the tokenizer, template and
-    /// generation files it carries.
+impl ChatModel<Qwen3Chat> {
+    /// A chat over a loaded Qwen3 checkpoint, from the tokenizer, template
+    /// and generation files it carries ([`Qwen3Chat::from_bundle`]).
     ///
     /// # Errors
-    /// [`InvalidResource`](bunsen::errors::BunsenErrorKind::InvalidResource)
-    /// when the checkpoint lacks `tokenizer.json`, `tokenizer_config.json`
-    /// or `generation_config.json`; as each file's reader.
+    /// As [`Qwen3Chat::from_bundle`].
     pub fn from_bundle(bundle: Arc<Qwen3Bundle>) -> BunsenResult<Self> {
-        let missing =
-            |what: &str| BunsenError::invalid_resource(format!("a checkpoint without {what}"));
-        let config = bundle
-            .tokenizer_config()
-            .ok_or_else(|| missing("tokenizer_config.json"))?;
-        let tokenizer = Qwen3Tokenizer::from_files(
-            bundle
-                .tokenizer()
-                .ok_or_else(|| missing("tokenizer.json"))?,
-            Some(config),
-        )?;
-        let template = ChatTemplate::from_file(config)?;
-        let defaults = GenerationDefaults::from_file(
-            bundle
-                .generation_config()
-                .ok_or_else(|| missing("generation_config.json"))?,
-        )?;
-        use bunsen::kits::gpts::qwen3::Qwen3Meta;
-        let unspelled = (0..bundle.model.n_vocab() as i64).filter(|&id| !tokenizer.contains(id));
-        Ok(Self {
-            unspelled: Arc::new(SuppressTokens::new(unspelled)),
-            bundle,
-            tokenizer: Arc::new(tokenizer),
-            template,
-            defaults,
-        })
+        Ok(Self::new(Qwen3Chat::from_bundle(bundle)?))
+    }
+}
+
+impl<B: ChatBackend> ChatModel<B> {
+    /// A chat over `backend`.
+    pub fn new(backend: B) -> Self {
+        Self { backend }
     }
 
-    /// The model and its files.
-    pub fn bundle(&self) -> &Arc<Qwen3Bundle> {
-        &self.bundle
-    }
-
-    /// The tokenizer.
-    pub fn tokenizer(&self) -> &Arc<Qwen3Tokenizer> {
-        &self.tokenizer
-    }
-
-    /// The chat template.
-    pub fn template(&self) -> &ChatTemplate {
-        &self.template
+    /// The checkpoint, and what reads and writes its ids.
+    pub fn backend(&self) -> &B {
+        &self.backend
     }
 
     /// The checkpoint's generation defaults.
     pub fn defaults(&self) -> &GenerationDefaults {
-        &self.defaults
+        self.backend.defaults()
     }
 
     /// The float dtype the model's weights are held, and computed, in: the
     /// device's default when it loaded.
     pub fn float_dtype(&self) -> burn::tensor::DType {
-        bunsen::burner::tensor::param_float_dtype(&self.bundle.model.embed_tokens.weight)
+        self.backend.float_dtype()
     }
 
     /// Opens a conversation under `config`, its cache on `device`.
@@ -139,15 +92,12 @@ impl ChatModel {
         self: &Arc<Self>,
         config: ChatSessionConfig,
         device: &Device,
-    ) -> ChatSession {
+    ) -> ChatSession<B> {
         let context = config
             .context
-            .or(self.bundle.max_positions)
+            .or(self.backend.trained_context())
             .unwrap_or(DEFAULT_CONTEXT);
-        let state = self
-            .bundle
-            .model
-            .decode_state(1, context, config.storage, device);
+        let state = self.backend.decode_state(context, config.storage, device);
         ChatSession {
             model: self.clone(),
             config,
@@ -260,19 +210,19 @@ impl ChatReply {
 /// ([`CachedHistory`]), so a turn's prefill is its new messages, and
 /// whatever of the last reply the template re-renders.
 #[derive(Debug)]
-pub struct ChatSession {
-    model: Arc<ChatModel>,
+pub struct ChatSession<B: ChatBackend = Qwen3Chat> {
+    model: Arc<ChatModel<B>>,
     config: ChatSessionConfig,
     context: usize,
     device: Device,
     messages: Vec<ChatMessage>,
-    state: Qwen3DecodeState,
+    state: B::State,
     history: CachedHistory,
 }
 
-impl ChatSession {
+impl<B: ChatBackend> ChatSession<B> {
     /// The chat this session holds a conversation with.
-    pub fn model(&self) -> &Arc<ChatModel> {
+    pub fn model(&self) -> &Arc<ChatModel<B>> {
         &self.model
     }
 
@@ -332,10 +282,8 @@ impl ChatSession {
         on_text: &mut dyn FnMut(&str),
     ) -> BunsenResult<ChatReply> {
         let chat = self.model.clone();
-        let text = chat
-            .template
-            .render(&self.messages, true, self.config.enable_thinking)?;
-        let prompt = chat.tokenizer.encode(&text)?;
+        let backend = &chat.backend;
+        let prompt = backend.render(&self.messages, self.config.enable_thinking)?;
         let budget = self.config.max_new_tokens;
         if prompt.len() + budget > self.context {
             return Err(BunsenError::policy(format!(
@@ -345,14 +293,11 @@ impl ChatSession {
             )));
         }
 
-        let model = &chat.bundle.model;
         let start = Instant::now();
-        let todo = self.history.rewind(&mut self.state.cache, &prompt).to_vec();
-        let ids = Tensor::<2, Int>::from_data(
-            TensorData::new(todo.clone(), [1, todo.len()]),
-            &self.device,
-        );
-        let first = model.prefill(model.embed(ids), &mut self.state);
+        let todo = backend
+            .rewind(&mut self.history, &mut self.state, &prompt, &self.device)
+            .to_vec();
+        let first = backend.prefill(&todo, &mut self.state, &self.device);
         self.history.extend(&todo);
         let prefill_time = start.elapsed();
 
@@ -360,19 +305,19 @@ impl ChatSession {
             .config
             .search
             .clone()
-            .unwrap_or_else(|| chat.defaults.search.clone());
-        let stops = &chat.defaults.stop_ids;
+            .unwrap_or_else(|| backend.defaults().search.clone());
+        let stops = &backend.defaults().stop_ids;
         let mut searcher = search.init_search(stops, stops[0]);
-        let mut filters = vec![chat.unspelled.clone()];
+        let mut filters = backend.filters();
         filters.extend(search.sampling_filters());
 
         let start = Instant::now();
-        let mut stream = TextStream::new(chat.tokenizer.clone());
+        let mut stream = TextStream::new(backend.detokenizer());
         let mut stop_strings = StopStrings::new(self.config.stop_strings.clone());
         let mut shown = String::new();
         let mut failed = None;
         let out = decode_cached_observed(
-            model,
+            backend.model(),
             &mut self.state,
             vec![Vec::new()],
             first,

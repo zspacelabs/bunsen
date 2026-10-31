@@ -6,7 +6,9 @@
 //!
 //! - [`ChatModel`] and [`ChatSession`]: the shared, immutable half of a chat (a
 //!   loaded checkpoint and its files) and one conversation (its messages and
-//!   the cache that holds them). [`send`](ChatSession::send) streams a reply
+//!   the cache that holds them), over a [`ChatBackend`]: the checkpoint's
+//!   model, and what turns a conversation into its ids and its ids into text
+//!   ([`Qwen3Chat`], Qwen3's). [`send`](ChatSession::send) streams a reply
 //!   through [`decode_cached_observed`](bunsen::kits::decoding::decode_cached_observed),
 //!   and prefills only what the cache does not already hold.
 //! - [`GenerationDefaults`]: a checkpoint's stop tokens and sampling.
@@ -25,11 +27,13 @@
 //! - [`ChatTemplate`] and [`ChatMessage`]: a checkpoint's chat template, a
 //!   conversation rendered as `transformers` renders it.
 
+mod backend;
 mod generation;
 mod session;
 mod template;
 mod tokenizer;
 
+pub use backend::*;
 pub use generation::*;
 pub use session::*;
 pub use template::*;
