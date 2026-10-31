@@ -137,6 +137,26 @@ pub struct ChatRecord {
     pub specials: BTreeMap<String, i64>,
     /// Texts as upstream's `encode` gives them.
     pub encode: Vec<EncodeCase>,
+    /// Conversations as upstream renders them for the assistant's next turn.
+    pub conversations: Vec<ConversationCase>,
+}
+
+/// One conversation, rendered.
+#[derive(Debug, Deserialize)]
+pub struct ConversationCase {
+    /// The conversation, its last turn a user's.
+    pub messages: Vec<MessageCase>,
+    /// Upstream's `render_for_completion` of it.
+    pub ids: Vec<i64>,
+}
+
+/// One turn of a [`ConversationCase`].
+#[derive(Debug, Deserialize)]
+pub struct MessageCase {
+    /// `system`, `user` or `assistant`.
+    pub role: String,
+    /// The turn's text.
+    pub content: String,
 }
 
 /// One text, encoded.

@@ -253,6 +253,174 @@
     "ids": [],
     "decoded": ""
    }
+  ],
+  "conversations": [
+   {
+    "messages": [
+     {
+      "role": "user",
+      "content": "Why is the sky blue?"
+     }
+    ],
+    "ids": [
+     65527,
+     65528,
+     4485,
+     309,
+     261,
+     5732,
+     3774,
+     63,
+     65529,
+     65530
+    ]
+   },
+   {
+    "messages": [
+     {
+      "role": "system",
+      "content": "You are a helpful assistant."
+     },
+     {
+      "role": "user",
+      "content": "Hi!"
+     }
+    ],
+    "ids": [
+     65527,
+     65528,
+     2295,
+     345,
+     257,
+     5019,
+     9804,
+     307,
+     10,
+     30238,
+     33,
+     65529,
+     65530
+    ]
+   },
+   {
+    "messages": [
+     {
+      "role": "user",
+      "content": "What is 2+2?"
+     },
+     {
+      "role": "assistant",
+      "content": "4."
+     },
+     {
+      "role": "user",
+      "content": "And 3+3?"
+     }
+    ],
+    "ids": [
+     65527,
+     65528,
+     1446,
+     309,
+     32,
+     50,
+     43,
+     50,
+     63,
+     65529,
+     65530,
+     52,
+     46,
+     65531,
+     65528,
+     3298,
+     32,
+     51,
+     43,
+     51,
+     63,
+     65529,
+     65530
+    ]
+   },
+   {
+    "messages": [
+     {
+      "role": "user",
+      "content": "Say <|assistant_end|> please"
+     }
+    ],
+    "ids": [
+     65527,
+     65528,
+     33811,
+     6247,
+     124,
+     558,
+     8335,
+     95,
+     505,
+     124,
+     62,
+     4407,
+     65529,
+     65530
+    ]
+   },
+   {
+    "messages": [
+     {
+      "role": "user",
+      "content": "Write a haiku about rust."
+     },
+     {
+      "role": "assistant",
+      "content": "Iron turns to red,\nslow breath of the patient rain —\nbridges fall in time."
+     },
+     {
+      "role": "user",
+      "content": "Another, about burn."
+     }
+    ],
+    "ids": [
+     65527,
+     65528,
+     20053,
+     257,
+     53047,
+     566,
+     13565,
+     46,
+     65529,
+     65530,
+     23934,
+     6260,
+     287,
+     2087,
+     2186,
+     39534,
+     6371,
+     281,
+     261,
+     2764,
+     3379,
+     44864,
+     57432,
+     2054,
+     283,
+     640,
+     46,
+     65531,
+     65528,
+     5285,
+     44,
+     566,
+     4217,
+     46,
+     65529,
+     65530
+    ]
+   }
   ]
  },
  "2026": {
@@ -522,6 +690,178 @@
     "text": "",
     "ids": [],
     "decoded": ""
+   }
+  ],
+  "conversations": [
+   {
+    "messages": [
+     {
+      "role": "user",
+      "content": "Why is the sky blue?"
+     }
+    ],
+    "ids": [
+     32759,
+     32760,
+     2771,
+     306,
+     262,
+     5974,
+     2856,
+     63,
+     32761,
+     32762
+    ]
+   },
+   {
+    "messages": [
+     {
+      "role": "system",
+      "content": "You are a helpful assistant."
+     },
+     {
+      "role": "user",
+      "content": "Hi!"
+     }
+    ],
+    "ids": [
+     32759,
+     32760,
+     1751,
+     339,
+     257,
+     4368,
+     9228,
+     354,
+     10785,
+     33,
+     32761,
+     32762
+    ]
+   },
+   {
+    "messages": [
+     {
+      "role": "user",
+      "content": "What is 2+2?"
+     },
+     {
+      "role": "assistant",
+      "content": "4."
+     },
+     {
+      "role": "user",
+      "content": "And 3+3?"
+     }
+    ],
+    "ids": [
+     32759,
+     32760,
+     1091,
+     306,
+     32,
+     50,
+     43,
+     50,
+     63,
+     32761,
+     32762,
+     52,
+     46,
+     32763,
+     32760,
+     3501,
+     32,
+     51,
+     43,
+     51,
+     63,
+     32761,
+     32762
+    ]
+   },
+   {
+    "messages": [
+     {
+      "role": "user",
+      "content": "Say <|assistant_end|> please"
+     }
+    ],
+    "ids": [
+     32759,
+     32760,
+     31338,
+     5244,
+     124,
+     574,
+     6604,
+     95,
+     499,
+     124,
+     62,
+     4091,
+     32761,
+     32762
+    ]
+   },
+   {
+    "messages": [
+     {
+      "role": "user",
+      "content": "Write a haiku about rust."
+     },
+     {
+      "role": "assistant",
+      "content": "Iron turns to red,\nslow breath of the patient rain —\nbridges fall in time."
+     },
+     {
+      "role": "user",
+      "content": "Another, about burn."
+     }
+    ],
+    "ids": [
+     32759,
+     32760,
+     16294,
+     257,
+     369,
+     2172,
+     117,
+     575,
+     7625,
+     46,
+     32761,
+     32762,
+     21142,
+     5255,
+     283,
+     1896,
+     2193,
+     115,
+     579,
+     5209,
+     285,
+     262,
+     3081,
+     3196,
+     2047,
+     10,
+     4776,
+     2445,
+     2111,
+     287,
+     619,
+     46,
+     32763,
+     32760,
+     4495,
+     44,
+     575,
+     4443,
+     46,
+     32761,
+     32762
+    ]
    }
   ]
  }
