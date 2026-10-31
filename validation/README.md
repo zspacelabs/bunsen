@@ -38,7 +38,7 @@ formatting check, by hand. Two features opt in, on each crate:
 | `cargo make validate-<model>` | one model's whole suite, in release mode, on `VALIDATION_BACKEND` (default `wgpu`) |
 | `cargo make validate-all` | every model's whole suite (~60 GB on a cold cache) |
 
-`<model>` is `silero`, `whisper`, `parakeet`, `qwen3-asr`, `qwen3`, `sortformer` or `voxtral`.
+`<model>` is `silero`, `whisper`, `parakeet`, `qwen3-asr`, `qwen3`, `sortformer`, `voxtral` or `nanochat`.
 
 bunsen's own tests read no fetched asset. A kit test that needs what a real
 model does replays a committed recording of it (for example

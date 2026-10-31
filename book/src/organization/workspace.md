@@ -59,10 +59,17 @@ Building it with its default features fetches nothing; `weights` and
 | [`rewrite-genai-onnx`](https://github.com/zspacelabs/bunsen/tree/main/validation/onnx/rewrite-genai-onnx) | Rewrites an onnxruntime-genai ONNX export's `com.microsoft` ops to standard ONNX, so `burn-onnx` imports it; the `bind-{model}-onnx` build scripts call it. |
 | `bind-{model}-onnx` ([`whisper`](https://github.com/zspacelabs/bunsen/tree/main/validation/onnx/bind-whisper-onnx), [`silero`](https://github.com/zspacelabs/bunsen/tree/main/validation/onnx/bind-silero-onnx), [`parakeet`](https://github.com/zspacelabs/bunsen/tree/main/validation/onnx/bind-parakeet-onnx), [`qwen3`](https://github.com/zspacelabs/bunsen/tree/main/validation/onnx/bind-qwen3-onnx), [`qwen3-asr`](https://github.com/zspacelabs/bunsen/tree/main/validation/onnx/bind-qwen3-asr-onnx), [`sortformer`](https://github.com/zspacelabs/bunsen/tree/main/validation/onnx/bind-sortformer-onnx), [`voxtral`](https://github.com/zspacelabs/bunsen/tree/main/validation/onnx/bind-voxtral-onnx)) | Each validation crate's assets: the checkpoints it compares, fetched and digest-pinned at build time and laid out as a pretrained cache, and the reference model `burn-onnx` generates from an upstream ONNX export. Host no files. See [Assets, bundling and the network](../development/assets.md#the-bundled-crates). |
 
+### Asset crates
+
+| Crate | Role |
+|---|---|
+| [`fetch-nanochat`](https://github.com/zspacelabs/bunsen/tree/main/validation/assets/fetch-nanochat) | The community nanochat checkpoints, upstream's own `.pt` files and tokenizers, fetched and digest-pinned at build time and laid out as a pretrained cache: a model whose reference is upstream's own code, not an ONNX export. |
+
 ### Validation crates
 
 | Crate | Validates |
 |---|---|
+| [`nanochat-model-validation`](https://github.com/zspacelabs/bunsen/tree/main/validation/models/nanochat-model-validation) | nanochat against upstream's own code at the pinned commit of each model, on the community d20 and d18 checkpoints: prefill logits and greedy decodes, in float32 and, on CUDA, in bf16. |
 | [`sortformer-model-validation`](https://github.com/zspacelabs/bunsen/tree/main/validation/models/sortformer-model-validation) | Sortformer diarization against ONNX exports of the same checkpoints (`Nemotron-3-Diarization`, Sortformer v2.1), each held itself to onnxruntime's run of the published graph, and against `NeMo`'s own diarization of an AMI excerpt by each model. |
 | [`silero-model-validation`](https://github.com/zspacelabs/bunsen/tree/main/validation/models/silero-model-validation) | Silero VAD against the ONNX graph it was transliterated from, and against a committed golden trace. |
 | [`whisper-model-validation`](https://github.com/zspacelabs/bunsen/tree/main/validation/models/whisper-model-validation) | Whisper against an ONNX export, stage by stage, and against `openai-whisper`'s own decode of real speech. |
