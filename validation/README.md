@@ -1,12 +1,29 @@
 # validation
 
-Expensive per-model validation crates: each holds one of bunsen's kits to an
-independent reference, a Rust model `burn-onnx` generates from upstream's
-ONNX export, and to upstream's own checkpoints. Every asset comes through a
-`bind-*-onnx` crate, fetched at build time and digest-pinned.
+A Cargo workspace of its own, apart from the bunsen workspace at the
+repository root, of expensive per-model validation crates: each holds one of
+bunsen's kits to an independent reference, a Rust model `burn-onnx` generates
+from upstream's ONNX export, and to upstream's own checkpoints. Every asset
+comes through a `bind-*-onnx` crate, fetched at build time and digest-pinned.
 
-Nothing here runs by default: a plain `cargo build --workspace` or
-`cargo test` fetches nothing. Two features opt in, on each crate:
+```text
+onnx/bind-{model}-onnx/            each model's checkpoints and ONNX export, and the reference generated from it
+onnx/rewrite-genai-onnx/           the onnxruntime-genai graph rewrite the bind crates' build scripts share
+models/{model}-model-validation/   each model's cross-checks
+tools/                             the fixture generators whose output lands in models/*/testdata
+```
+
+No command in the bunsen workspace builds anything here. Run a crate from
+this directory, or from the root with `--manifest-path validation/Cargo.toml`
+(the `cargo make` tasks below do). The crates depend on bunsen's by path;
+`Cargo.lock` here is this workspace's own, and must build bunsen's crates at
+the versions the root `Cargo.lock` has (`tools/check_validation_lock.py`,
+which prints the refresh when it fails).
+
+Nothing here fetches by default: `cargo test` here, with the default
+features, runs the fixture checks and fetches nothing. CI builds nothing
+here; `cargo make check-validation` runs those checks, with clippy and the
+formatting check, by hand. Two features opt in, on each crate:
 
 | feature | fetches | compiles |
 |---|---|---|

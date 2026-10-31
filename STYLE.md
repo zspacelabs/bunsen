@@ -312,13 +312,16 @@ asked for*, and leaves no way to have one without the other. A
 digest, re-verified on every build, and kept in `OUT_DIR`. An environment
 variable points the build at a local file instead. A crate that exists to
 bundle an asset (`bind-whisper-onnx`) still fetches only under the
-feature that names the asset, never by default.
+feature that names the asset, never by default, and lives in the validation
+workspace (`validation/onnx/`), which no command in the main workspace
+builds.
 
 No `bunsen` feature reaches the network at build time, and a kit's tests
 read no fetched asset. A test that needs what a real model does replays a
 committed recording of it (`RecordedVoiceActivity`), and the validation crate
 holds the recording to the model. Everything that reads a fetched checkpoint
-lives in a validation crate (`validation/models/*`).
+lives in a validation crate (`validation/models/*`), in the validation
+workspace.
 
 A validation crate offers `weights`, the checkpoints alone, for the checks
 that need no reference graph, and `download`, which adds the reference

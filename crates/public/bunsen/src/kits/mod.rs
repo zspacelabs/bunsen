@@ -70,12 +70,13 @@
 //!   rule](crate::ops#ops-and-blocks)): the model is immutable, and the caller
 //!   creates a context or cache and passes it back in, so one loaded model
 //!   serves several streams at once.
-//! - **A bundled-asset crate.** Optional. `crates/dev/bind-{model}-onnx`,
-//!   unpublished: the checkpoints and reference graphs its validation crate
-//!   compares, fetched at build time and laid out as a pretrained cache, and
-//!   the reference model generated from the graphs.
-//! - **A validation crate.** Optional. A crate under `validation/models` that
-//!   compares the kit's outputs with its upstream reference implementation.
+//! - **A bundled-asset crate.** Optional. `validation/onnx/bind-{model}-onnx`,
+//!   in the validation workspace, unpublished: the checkpoints and reference
+//!   graphs its validation crate compares, fetched at build time and laid out
+//!   as a pretrained cache, and the reference model generated from the graphs.
+//! - **A validation crate.** Optional. A crate under `validation/models`, in
+//!   the validation workspace, that compares the kit's outputs with its
+//!   upstream reference implementation.
 //! - **An example.** A runnable program under `examples/`.
 //!
 //! The machinery behind the prefab, the rows, the hook and the factory is
