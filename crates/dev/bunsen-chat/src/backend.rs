@@ -1,5 +1,4 @@
-//! The model a chat holds: what [`ChatSession`](crate::ChatSession) needs of
-//! a checkpoint, whichever kit it is.
+//! The model a chat holds, whichever kit it is.
 use std::{
     fmt::Debug,
     sync::Arc,
