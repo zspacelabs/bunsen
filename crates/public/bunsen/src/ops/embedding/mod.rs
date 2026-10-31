@@ -12,6 +12,8 @@
 //!   rotary position embedding (`RoPE`) angle tables.
 //! - [`sinusoid_table`] builds the sinusoidal position table of Whisper-style
 //!   audio encoders.
+//! - [`timestep_embedding`] embeds one scalar sinusoidally: a diffusion model's
+//!   timestep, Voxtral Realtime's delay.
 //!
 //! burn's [`Embedding`] module is the lookup; these are the operations around
 //! it. The embedding *modules* bunsen adds (`RotaryEmbedding`, which caches
@@ -23,7 +25,9 @@
 mod inverse;
 mod rotary_tables;
 mod sinusoids;
+mod timestep;
 
 pub use inverse::*;
 pub use rotary_tables::*;
 pub use sinusoids::*;
+pub use timestep::*;
