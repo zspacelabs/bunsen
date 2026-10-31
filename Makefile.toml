@@ -60,10 +60,11 @@ command = "cargo"
 args = ["test", "--workspace"]
 
 [tasks.check-validation]
-description = "The validation workspace with its default features: format, clippy, tests (local only, never in CI)"
+description = "The validation workspace with its default features: lock, format, clippy, tests (local only, never in CI)"
 workspace = false
 env = { BURN_DEVICE = "flex" }
 script = '''
+python3 tools/check_validation_lock.py
 cargo +nightly fmt --manifest-path validation/Cargo.toml -- --check
 cargo clippy --manifest-path validation/Cargo.toml --no-deps -- -D warnings
 cargo test --manifest-path validation/Cargo.toml

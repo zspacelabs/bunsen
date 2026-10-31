@@ -35,6 +35,12 @@ jobs:
       # invisible and rots unchecked (STYLE.md, "Module docs must render").
       - name: Module docs must render
         run: python3 tools/check_hidden_module_docs.py crates validation
+      # `validation/Cargo.lock` is the validation workspace's own: every
+      # package bunsen's crates reach in it must be the version `Cargo.lock`
+      # has, or the suites test a dependency set this workspace never builds.
+      # It reads the two lockfiles; nothing in `validation/` is built.
+      - name: Lockfiles agree
+        run: python3 tools/check_validation_lock.py
       - run: rustup toolchain install stable --profile minimal --component clippy
       # `bunsen-asr live` captures through `cpal`, whose Linux backend
       # links ALSA.
