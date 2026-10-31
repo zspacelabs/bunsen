@@ -65,6 +65,15 @@ pub const REWRITTEN_OPS: [&str; 4] = [
 ///    (inputs 7 and 8). The nodes that fed its own mask inputs are then dead,
 ///    and dropped.
 ///
+/// And one rewrite that is not of an op: every initializer and node output
+/// whose name holds a character other than ASCII letters, digits, `_`, `.`
+/// and `/` is renamed `rw/v{n}`, everywhere it is read. `onnx-ir` 0.22 turns
+/// a value's name into an identifier by dropping such characters, so two
+/// names that differ only in them become one value: the exports name their
+/// constants by value (`/model/constants/INT64/[-2]`, `.../[2]`), and a
+/// `Slice` reads `starts = [-2]` as `[2]`. The graph's own inputs and outputs
+/// keep their names.
+///
 /// The default opset is declared 23 (`Attention`'s), and `com.microsoft` is
 /// no longer imported; no other op the pinned exports use reads differently
 /// at 23.
@@ -214,6 +223,7 @@ pub fn rewrite_for_burn_onnx(
     graph.node = kept;
     graph.initializer.extend(out.initializers);
     graph.value_info.clear();
+    rename_unsafe_values(graph);
 
     model
         .opset_import
@@ -221,6 +231,50 @@ pub fn rewrite_for_burn_onnx(
     assert_eq!(model.opset_import.len(), 1, "one default opset");
     model.opset_import[0].version = 23;
     model.ir_version = 10;
+}
+
+/// Whether `onnx-ir` keeps every character of `name` when it makes an
+/// identifier of it.
+fn is_safe_name(name: &str) -> bool {
+    name.chars()
+        .all(|c| c.is_ascii_alphanumeric() || matches!(c, '_' | '.' | '/'))
+}
+
+/// Renames every initializer and node output with an unsafe name
+/// ([`is_safe_name`]) `rw/v{n}`, in every node that reads it; the graph's
+/// inputs and outputs keep their names.
+fn rename_unsafe_values(graph: &mut onnx_ir::GraphProto) {
+    let io: HashSet<String> = graph
+        .input
+        .iter()
+        .chain(graph.output.iter())
+        .map(|v| v.name.clone())
+        .collect();
+    let mut renames: HashMap<String, String> = HashMap::new();
+    let names: Vec<String> = graph
+        .initializer
+        .iter()
+        .map(|t| t.name.clone())
+        .chain(graph.node.iter().flat_map(|n| n.output.iter().cloned()))
+        .collect();
+    for name in names {
+        if !name.is_empty() && !is_safe_name(&name) && !io.contains(&name) {
+            let next = format!("rw/v{}", renames.len());
+            renames.entry(name).or_insert(next);
+        }
+    }
+    let rename = |name: &mut String| {
+        if let Some(new) = renames.get(name.as_str()) {
+            *name = new.clone();
+        }
+    };
+    for t in &mut graph.initializer {
+        rename(&mut t.name);
+    }
+    for n in &mut graph.node {
+        n.input.iter_mut().for_each(rename);
+        n.output.iter_mut().for_each(rename);
+    }
 }
 
 enum Attr {
@@ -741,6 +795,58 @@ mod tests {
         assert_eq!(ops.iter().filter(|o| **o == "Gather").count(), 2 * 2 + 2);
         assert_eq!(m.opset_import.len(), 1);
         assert_eq!(m.opset_import[0].version, 23);
+    }
+
+    /// Values named by their contents, which `onnx-ir` would merge, are
+    /// renamed apart, everywhere they are read; the graph's inputs and
+    /// outputs keep their names.
+    #[test]
+    fn test_renames_values_onnx_ir_would_merge() {
+        let mut m = genai_graph();
+        let g = m.graph.as_mut().unwrap();
+        for (name, value) in [("/c/INT64/[-2]", -2), ("/c/INT64/[2]", 2)] {
+            let mut t = TensorProto::new();
+            t.name = name.into();
+            t.data_type = INT64;
+            t.int64_data = vec![value];
+            g.initializer.push(t);
+        }
+        g.node.push(op(
+            "Slice",
+            "",
+            &["sum", "/c/INT64/[-2]", "/c/INT64/[2]"],
+            &["sliced [x]"],
+            vec![],
+        ));
+        g.node
+            .push(op("Identity", "", &["sliced [x]"], &["kept"], vec![]));
+        let mut v = ValueInfoProto::new();
+        v.name = "kept".into();
+        g.output.push(v);
+
+        rewrite_for_burn_onnx(&mut m, &COUNTS);
+        let g = m.graph.as_ref().unwrap();
+        let all_safe = g
+            .node
+            .iter()
+            .flat_map(|n| n.input.iter().chain(&n.output))
+            .chain(g.initializer.iter().map(|t| &t.name))
+            .filter(|n| !n.is_empty())
+            .all(|n| is_safe_name(n));
+        assert!(all_safe);
+        let slice = g.node.iter().find(|n| n.op_type == "Slice").unwrap();
+        assert_ne!(slice.input[1], slice.input[2]);
+        let value = |name: &str| {
+            g.initializer
+                .iter()
+                .find(|t| t.name == name)
+                .map(|t| t.int64_data.clone())
+        };
+        assert_eq!(value(&slice.input[1]), Some(vec![-2]));
+        assert_eq!(value(&slice.input[2]), Some(vec![2]));
+        let identity = g.node.iter().find(|n| n.op_type == "Identity").unwrap();
+        assert_eq!(identity.input[0], slice.output[0]);
+        assert_eq!(identity.output[0], "kept");
     }
 
     #[test]
