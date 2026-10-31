@@ -5,6 +5,7 @@ use burn::{
     config::Config,
     module::Module,
     nn::{
+        Initializer,
         Linear,
         LinearConfig,
         norm::{
@@ -112,6 +113,42 @@ pub struct CausalSelfAttentionConfig {
     /// back; `None` attends to every earlier position.
     #[config(default = "None")]
     pub sliding_window: Option<usize>,
+
+    /// A gain on the queries and keys after their normalization and
+    /// rotation: both are multiplied by it, sharpening every score by its
+    /// square. `None` multiplies by nothing.
+    ///
+    /// nanochat's 2026 layers use 1.2.
+    #[config(default = "None")]
+    pub qk_gain: Option<f64>,
+
+    /// A value residual: an embedding of the input tokens, gated per KV head
+    /// from the attention input, added to the values
+    /// ([`forward_with_value_embed`](CausalSelfAttention::forward_with_value_embed)).
+    /// `None` adds nothing, and builds no gate.
+    #[config(default = "None")]
+    pub value_residual: Option<ValueResidualConfig>,
+}
+
+/// Config of a [`CausalSelfAttention`]'s value residual, `ResFormer`'s in
+/// nanochat's 2026 form:
+///
+/// ```text
+/// v += gate_scale * sigmoid(gate(x[.., :gate_channels])) * ve
+/// ```
+///
+/// The gate is one scalar per KV head, read from the attention input's first
+/// `gate_channels` channels; `ve` is a `[B, T, n_kv_head * head_dim]` value
+/// embedding the caller supplies.
+#[derive(Config, Debug)]
+pub struct ValueResidualConfig {
+    /// How many of the attention input's leading channels the gate reads.
+    #[config(default = "12")]
+    pub gate_channels: usize,
+
+    /// The gate's range: `(0, gate_scale)`.
+    #[config(default = "3.0")]
+    pub gate_scale: f64,
 }
 
 /// Where [`CausalSelfAttention`] normalizes its queries and keys, relative to
@@ -210,6 +247,14 @@ impl CausalSelfAttentionConfig {
             self.sliding_window != Some(0),
             "sliding_window must be > 0 when set"
         );
+        if let Some(vr) = &self.value_residual {
+            assert!(
+                vr.gate_channels > 0 && vr.gate_channels <= self.n_embed,
+                "value_residual.gate_channels must be in 1..=n_embed ({}); got {}",
+                self.n_embed,
+                vr.gate_channels
+            );
+        }
     }
 }
 
@@ -241,6 +286,18 @@ impl CausalSelfAttentionConfig {
             k_norm: norm(),
             c_v: linear(self.n_embed, self.n_kv_head * head_dim, self.qkv_bias),
             c_proj: linear(self.n_head * head_dim, self.n_embed, self.output_bias),
+            qk_gain: self.qk_gain,
+            value_gate: self.value_residual.as_ref().map(|vr| {
+                // As upstream's init: a small positive gate, near half open.
+                LinearConfig::new(vr.gate_channels, self.n_kv_head)
+                    .with_bias(false)
+                    .with_initializer(Initializer::Uniform {
+                        min: 0.0,
+                        max: 0.02,
+                    })
+                    .init(device)
+            }),
+            value_gate_scale: self.value_residual.as_ref().map(|vr| vr.gate_scale),
         })
     }
 
@@ -258,8 +315,9 @@ impl CausalSelfAttentionConfig {
 ///
 /// Multi-head causal self-attention with rotary positional embeddings,
 /// optional Group Query Attention (fewer KV heads than query heads), optional
-/// per-head query/key normalization, optional projection biases, and an
-/// optional sliding window. Construct via
+/// per-head query/key normalization, optional projection biases, an
+/// optional sliding window, an optional query/key gain, and an optional
+/// gated value residual. Construct via
 /// [`CausalSelfAttentionConfig`] and `.init(layer_index, device)`, then call
 /// [`forward`](CausalSelfAttention::forward) with an input sequence, a
 /// [`RotaryEmbedding`], and an optional [`KVCache`].
@@ -298,6 +356,18 @@ pub struct CausalSelfAttention {
 
     /// Output Projection Linear.
     pub c_proj: Linear,
+
+    /// The gain on the normalized, rotated queries and keys, if any.
+    #[module(skip)]
+    pub qk_gain: Option<f64>,
+
+    /// The value residual's gate: the attention input's first channels to
+    /// one scalar per KV head. `None` without a value residual.
+    pub value_gate: Option<Linear>,
+
+    /// The value residual's gate range, `(0, value_gate_scale)`.
+    #[module(skip)]
+    pub value_gate_scale: Option<f64>,
 }
 
 impl CausalSelfAttentionMeta for CausalSelfAttention {
@@ -319,7 +389,8 @@ impl CausalSelfAttentionMeta for CausalSelfAttention {
 }
 
 impl CausalSelfAttention {
-    /// The queries and keys of `input`: projected, normalized and rotated.
+    /// The queries and keys of `input`: projected, normalized and rotated,
+    /// and scaled by the gain when there is one.
     ///
     /// # Arguments
     /// - `input`: a `[B, T, D]` sequence.
@@ -338,18 +409,75 @@ impl CausalSelfAttention {
             .forward(input.clone())
             .reshape([b, t, self.n_head(), self.head_dim()]);
         let q = self
-            .qk_norm
-            .apply(q, self.q_norm.as_ref(), r_emb)
+            .gained(self.qk_norm.apply(q, self.q_norm.as_ref(), r_emb))
             .swap_dims(1, 2);
         let k = self
             .c_k
             .forward(input)
             .reshape([b, t, self.n_kv_head(), self.head_dim()]);
         let k = self
-            .qk_norm
-            .apply(k, self.k_norm.as_ref(), r_emb)
+            .gained(self.qk_norm.apply(k, self.k_norm.as_ref(), r_emb))
             .swap_dims(1, 2);
         (q, k)
+    }
+
+    /// `x` times the query/key gain, or `x` without one.
+    fn gained(
+        &self,
+        x: Tensor<4>,
+    ) -> Tensor<4> {
+        match self.qk_gain {
+            Some(gain) => x.mul_scalar(gain),
+            None => x,
+        }
+    }
+
+    /// The values of `input`, `[B, H_kv, T, head_dim]`, with the value
+    /// residual added when there is one.
+    ///
+    /// # Panics
+    /// If `value_embed` is given to an attention without a value residual,
+    /// or withheld from one with a value residual.
+    fn values(
+        &self,
+        input: Tensor<3>,
+        value_embed: Option<Tensor<3>>,
+    ) -> Tensor<4> {
+        let [b, t] = unpack_shape_contract!(["B", "T", "D"], &input.dims(), &["B", "T"]);
+        let shape = [b, t, self.n_kv_head(), self.head_dim()];
+        let v = self.c_v.forward(input.clone()).reshape(shape);
+        let v = match (&self.value_gate, value_embed) {
+            (None, None) => v,
+            (Some(gate), Some(ve)) => {
+                assert_shape_contract_periodically!(
+                    ["B", "T", "V"],
+                    &ve.dims(),
+                    &[
+                        ("B", b),
+                        ("T", t),
+                        ("V", self.n_kv_head() * self.head_dim())
+                    ]
+                );
+                let channels = gate.weight.dims()[0];
+                let scale = self.value_gate_scale.unwrap_or(1.0);
+                // [B, T, H_kv, 1]: one gate per KV head.
+                let g = burn::tensor::activation::sigmoid(gate.forward(input.slice(s![
+                    ..,
+                    ..,
+                    ..channels
+                ])))
+                .mul_scalar(scale)
+                .unsqueeze_dim::<4>(3);
+                v + g * ve.reshape(shape)
+            }
+            (None, Some(_)) => {
+                panic!("a value embedding for an attention without a value residual")
+            }
+            (Some(_), None) => {
+                panic!("an attention with a value residual needs its value embedding")
+            }
+        };
+        v.swap_dims(1, 2)
     }
 
     /// The attention weights an uncached [`forward`](Self::forward) of
@@ -404,11 +532,41 @@ impl CausalSelfAttention {
     ///
     /// # Returns
     /// - `[B, T, D]` attention.
+    ///
+    /// # Panics
+    /// If the attention has a value residual: that needs
+    /// [`forward_with_value_embed`](Self::forward_with_value_embed).
     pub fn forward(
         &self,
         input: Tensor<3>,
         r_emb: &RotaryEmbedding,
         kv_cache: &mut Option<&mut KVCache>,
+    ) -> Tensor<3> {
+        self.forward_with_value_embed(input, r_emb, kv_cache, None)
+    }
+
+    /// Forward Pass, with the value embedding an attention with a value
+    /// residual adds to its values.
+    ///
+    /// # Arguments
+    /// - `input`: a `[B, T, D]` sequence.
+    /// - `r_emb`: a rotary embedding with len ``T``.
+    /// - `kv_cache`: optional KV cache.
+    /// - `value_embed`: the `[B, T, H_kv * head_dim]` value embedding of the
+    ///   input's tokens; `None` for an attention without a value residual.
+    ///
+    /// # Returns
+    /// - `[B, T, D]` attention.
+    ///
+    /// # Panics
+    /// If `value_embed` is given to an attention without a value residual,
+    /// or withheld from one with a value residual.
+    pub fn forward_with_value_embed(
+        &self,
+        input: Tensor<3>,
+        r_emb: &RotaryEmbedding,
+        kv_cache: &mut Option<&mut KVCache>,
+        value_embed: Option<Tensor<3>>,
     ) -> Tensor<3> {
         let [b, t_q] = unpack_shape_contract!(
             ["B", "T", "D"],
@@ -419,11 +577,7 @@ impl CausalSelfAttention {
 
         let (q, k) = self.queries_keys(input.clone(), r_emb);
 
-        let v = self
-            .c_v
-            .forward(input)
-            .reshape([b, t_q, self.n_kv_head(), self.head_dim()])
-            .swap_dims(1, 2);
+        let v = self.values(input, value_embed);
 
         // B, H_?, T, D
 
