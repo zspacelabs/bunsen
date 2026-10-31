@@ -12,6 +12,10 @@ Run once; commit the outputs. Regenerating is not part of CI.
     /tmp/ncvenv/bin/python validation/tools/gen_nanochat_fixtures.py fp32 \\
         /tmp/nanochat-2025 /tmp/nanochat-2026 CACHE_ROOT
 
+    # upstream's greedy chat replies, multi-turn, in float32 on the CPU:
+    /tmp/ncvenv/bin/python validation/tools/gen_nanochat_fixtures.py replies \\
+        /tmp/nanochat-2025 /tmp/nanochat-2026 CACHE_ROOT
+
     # bf16, on a CUDA device, from a venv with a CUDA torch wheel:
     /tmp/ncvenv-cuda/bin/python validation/tools/gen_nanochat_fixtures.py bf16 \\
         /tmp/nanochat-2025 /tmp/nanochat-2026 CACHE_ROOT
@@ -35,6 +39,14 @@ upstream's `engine.KVCache`, one token per step after the prompt's prefill.
 tables in bf16, as it keeps them). `bf16` runs on CUDA as upstream serves there: the 2025 model
 under `torch.amp.autocast(bfloat16)`, as its chat scripts run it, the 2026 one in its
 `COMPUTE_DTYPE`, bf16.
+
+`replies` holds a chat on each chat-tuned row (`REPLY_ROWS`) for each of `SESSIONS`: each user
+turn appended to the conversation, rendered by upstream's `render_for_completion`, and answered
+greedily through upstream's KV cache until `<|assistant_end|>` or `<|bos|>` (upstream's engine's
+stops) or `REPLY_TOKENS`; the reply's decoded text joins the conversation for the next turn.
+Output: `chat_replies.json`, by row, a list of sessions, each a list of turns: the `user` text,
+the `prompt_ids`, the reply's `ids` (its stop token last, when one ended it), its `text`, and each
+step's `margins`.
 
 Outputs, under `validation/models/nanochat-model-validation/testdata/`, `upstream.json` (fp32)
 or `upstream_bf16.json` (bf16): for each row, the `source`, the `prompt`, its `prompt_ids`, the
@@ -93,6 +105,13 @@ ROWS = {
 }
 COMMITS = {"2025": "a088b7a6", "2026": "a3ca42a6"}
 
+REPLY_ROWS = ["nanochat-students/rl-d20", "nitishpandey04/nanochat-d18-sft"]
+REPLY_TOKENS = 48
+SESSIONS = [
+    ["What is the capital of France?", "And what river runs through it?"],
+    ["Name three primary colors.", "Which of them is the warmest?"],
+]
+
 
 def record(x) -> dict:
     import numpy as np
@@ -118,12 +137,13 @@ def child(mode: str, generation: str, cache_root: str) -> None:
     from nanochat.tokenizer import RustBPETokenizer
 
     device = torch.device("cuda" if mode == "bf16" else "cpu")
+    rows = REPLY_ROWS if mode == "replies" else list(ROWS)
     autocast = (torch.amp.autocast(device_type="cuda", dtype=torch.bfloat16)
                 if mode == "bf16" and generation == "2025" else contextlib.nullcontext())
     fields = {f.name for f in dataclasses.fields(GPTConfig)}
     out = {}
     for row, (gen, namespace, files) in ROWS.items():
-        if gen != generation:
+        if gen != generation or row not in rows:
             continue
         path = lambda key: (pathlib.Path(cache_root) / "pretrained/nanochat" / namespace
                             / files[key][0] / files[key][1])
@@ -141,6 +161,10 @@ def child(mode: str, generation: str, cache_root: str) -> None:
         model.load_state_dict(state, strict=True, assign=True)
         model.eval()
         tok = RustBPETokenizer.from_directory(str(path("tokenizer").parent))
+        if mode == "replies":
+            out[row] = replies(model, tok, config, generation, device)
+            print(f"{row}: {[[t['text'] for t in s] for s in out[row]]!r}", file=sys.stderr)
+            continue
         prompt_ids = tok.encode(PROMPT, prepend="<|bos|>")
 
         head_dim = config.n_embd // config.n_head
@@ -173,11 +197,49 @@ def child(mode: str, generation: str, cache_root: str) -> None:
     print(json.dumps(out))
 
 
+def replies(model, tok, config, generation, device) -> list:
+    """Upstream's greedy multi-turn chats on one row: `SESSIONS`, turn by turn."""
+    import torch
+    from nanochat.engine import KVCache
+
+    stops = {tok.encode_special("<|assistant_end|>"), tok.get_bos_token_id()}
+    head_dim = config.n_embd // config.n_head
+    sessions = []
+    for users in SESSIONS:
+        messages, turns = [], []
+        for user in users:
+            messages.append({"role": "user", "content": user})
+            prompt_ids = tok.render_for_completion(
+                {"messages": messages + [{"role": "assistant", "content": ""}]})
+            cache_args = (1, config.n_kv_head, len(prompt_ids) + REPLY_TOKENS, head_dim,
+                          config.n_layer)
+            if generation == "2026":
+                cache_args += (device, torch.float32)
+            cache = KVCache(*cache_args)
+            ids, margins = [], []
+            with torch.no_grad():
+                logits = model(torch.tensor([prompt_ids], device=device), kv_cache=cache)[:, -1]
+                for _ in range(REPLY_TOKENS):
+                    top = torch.topk(logits.float(), 2, dim=-1)
+                    margins.append(float(top.values[0, 0] - top.values[0, 1]))
+                    nxt = int(top.indices[0, 0])
+                    ids.append(nxt)
+                    if nxt in stops:
+                        break
+                    logits = model(torch.tensor([[nxt]], device=device), kv_cache=cache)[:, -1]
+            text = tok.decode([i for i in ids if i not in stops])
+            turns.append({"user": user, "prompt_ids": prompt_ids, "ids": ids, "text": text,
+                          "margins": margins})
+            messages.append({"role": "assistant", "content": text})
+        sessions.append(turns)
+    return sessions
+
+
 def main() -> None:
     if sys.argv[1:2] == ["--child"]:
         child(*sys.argv[2:5])
         return
-    if len(sys.argv) != 5 or sys.argv[1] not in ("fp32", "bf16"):
+    if len(sys.argv) != 5 or sys.argv[1] not in ("fp32", "bf16", "replies"):
         sys.exit(__doc__)
     mode, checkouts, cache_root = sys.argv[1], dict(zip(COMMITS, sys.argv[2:4])), sys.argv[4]
     fixture = {}
@@ -192,7 +254,8 @@ def main() -> None:
     torch_version = fixture.pop("_torch")
     if mode == "bf16":
         fixture = {"torch": torch_version, "rows": fixture}
-    name = "upstream.json" if mode == "fp32" else "upstream_bf16.json"
+    name = {"fp32": "upstream.json", "bf16": "upstream_bf16.json",
+            "replies": "chat_replies.json"}[mode]
     OUT.mkdir(parents=True, exist_ok=True)
     (OUT / name).write_text(json.dumps(fixture, indent=1) + "\n")
     print(f"wrote {OUT / name}")
