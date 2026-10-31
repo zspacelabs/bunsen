@@ -41,6 +41,7 @@ minijinja = { version = "2", features = ["json", "loop_controls"] }
 minijinja-contrib = { version = "2", features = ["pycompat"] }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
+serde-pickle = { workspace = true }
 unicode-normalization-alignments = "=0.1.12"
 wordchipper = { workspace = true, features = ["std", "fast-hash"] }
 

@@ -1,0 +1,528 @@
+{
+ "2025": {
+  "vocab_size": 65536,
+  "specials": {
+   "<|assistant_end|>": 65531,
+   "<|assistant_start|>": 65530,
+   "<|bos|>": 65527,
+   "<|output_end|>": 65535,
+   "<|output_start|>": 65534,
+   "<|python_end|>": 65533,
+   "<|python_start|>": 65532,
+   "<|user_end|>": 65529,
+   "<|user_start|>": 65528
+  },
+  "encode": [
+   {
+    "text": "The lighthouse keeper climbed the stairs every evening, and",
+    "ids": [
+     449,
+     24509,
+     32405,
+     27066,
+     261,
+     20266,
+     937,
+     8619,
+     44,
+     288
+    ],
+    "decoded": "The lighthouse keeper climbed the stairs every evening, and"
+   },
+   {
+    "text": "Hello, world!",
+    "ids": [
+     28578,
+     44,
+     881,
+     33
+    ],
+    "decoded": "Hello, world!"
+   },
+   {
+    "text": "I'm sure they'll say it's what we've done, isn't it?",
+    "ids": [
+     73,
+     7597,
+     1967,
+     485,
+     4723,
+     1530,
+     356,
+     567,
+     724,
+     384,
+     5010,
+     2076,
+     44,
+     3385,
+     1382,
+     356,
+     63
+    ],
+    "decoded": "I'm sure they'll say it's what we've done, isn't it?"
+   },
+   {
+    "text": "Prices rose 1234567 percent in 2026; 3.14159 is pi.",
+    "ids": [
+     80,
+     20990,
+     7410,
+     32,
+     1036,
+     4204,
+     5155,
+     55,
+     1457,
+     283,
+     32,
+     496,
+     2947,
+     59,
+     32,
+     51,
+     46,
+     1334,
+     1093,
+     57,
+     309,
+     4323,
+     46
+    ],
+    "decoded": "Prices rose 1234567 percent in 2026; 3.14159 is pi."
+   },
+   {
+    "text": "def f(x):\n    return x ** 2  # square\n\n\nprint(f(12))",
+    "ids": [
+     18913,
+     278,
+     20311,
+     10820,
+     52727,
+     32,
+     2335,
+     3327,
+     42635,
+     32,
+     50,
+     32,
+     4387,
+     4516,
+     10,
+     10,
+     10,
+     7907,
+     48800,
+     40,
+     1036,
+     17346
+    ],
+    "decoded": "def f(x):\n    return x ** 2  # square\n\n\nprint(f(12))"
+   },
+   {
+    "text": "café naïve über été",
+    "ids": [
+     99,
+     1834,
+     2837,
+     52120,
+     61136,
+     583,
+     32,
+     55928
+    ],
+    "decoded": "café naïve über été"
+   },
+   {
+    "text": "你好，世界。日本語も。",
+    "ids": [
+     37724,
+     160,
+     229,
+     165,
+     189,
+     24149,
+     17013,
+     150,
+     231,
+     149,
+     140,
+     29168,
+     47178,
+     165,
+     29445,
+     172,
+     59818,
+     158,
+     17144,
+     130,
+     29168
+    ],
+    "decoded": "你好，世界。日本語も。"
+   },
+   {
+    "text": "emoji 😀🚀 and ❤️",
+    "ids": [
+     402,
+     51456,
+     48627,
+     128,
+     16248,
+     154,
+     128,
+     288,
+     5073,
+     157,
+     164,
+     44450
+    ],
+    "decoded": "emoji 😀🚀 and ❤️"
+   },
+   {
+    "text": "  leading spaces, trailing   \t\n\n  \n",
+    "ids": [
+     32,
+     3017,
+     6515,
+     44,
+     34739,
+     52727,
+     32,
+     9,
+     10,
+     10,
+     32,
+     12171
+    ],
+    "decoded": "  leading spaces, trailing   \t\n\n  \n"
+   },
+   {
+    "text": "<|bos|><|user_start|>a special token's spelling is text<|user_end|>",
+    "ids": [
+     60,
+     124,
+     41096,
+     124,
+     39038,
+     124,
+     15470,
+     95,
+     22791,
+     124,
+     62,
+     97,
+     1823,
+     21074,
+     567,
+     10194,
+     309,
+     1999,
+     60,
+     124,
+     15470,
+     95,
+     505,
+     124,
+     62
+    ],
+    "decoded": "<|bos|><|user_start|>a special token's spelling is text<|user_end|>"
+   },
+   {
+    "text": "supercalifragilisticexpialidocious antidisestablishmentarianism",
+    "ids": [
+     21847,
+     13896,
+     354,
+     6029,
+     300,
+     36712,
+     56783,
+     423,
+     318,
+     34508,
+     1402,
+     34734,
+     63293,
+     363,
+     41580
+    ],
+    "decoded": "supercalifragilisticexpialidocious antidisestablishmentarianism"
+   },
+   {
+    "text": "",
+    "ids": [],
+    "decoded": ""
+   }
+  ]
+ },
+ "2026": {
+  "vocab_size": 32768,
+  "specials": {
+   "<|assistant_end|>": 32763,
+   "<|assistant_start|>": 32762,
+   "<|bos|>": 32759,
+   "<|output_end|>": 32767,
+   "<|output_start|>": 32766,
+   "<|python_end|>": 32765,
+   "<|python_start|>": 32764,
+   "<|user_end|>": 32761,
+   "<|user_start|>": 32760
+  },
+  "encode": [
+   {
+    "text": "The lighthouse keeper climbed the stairs every evening, and",
+    "ids": [
+     483,
+     300,
+     29954,
+     774,
+     4752,
+     31582,
+     262,
+     17113,
+     858,
+     8611,
+     44,
+     288
+    ],
+    "decoded": "The lighthouse keeper climbed the stairs every evening, and"
+   },
+   {
+    "text": "Hello, world!",
+    "ids": [
+     14063,
+     44,
+     985,
+     33
+    ],
+    "decoded": "Hello, world!"
+   },
+   {
+    "text": "I'm sure they'll say it's what we've done, isn't it?",
+    "ids": [
+     73,
+     1652,
+     1333,
+     472,
+     1332,
+     1534,
+     338,
+     385,
+     687,
+     396,
+     1401,
+     1939,
+     44,
+     2334,
+     551,
+     338,
+     63
+    ],
+    "decoded": "I'm sure they'll say it's what we've done, isn't it?"
+   },
+   {
+    "text": "Prices rose 1234567 percent in 2026; 3.14159 is pi.",
+    "ids": [
+     80,
+     16444,
+     7772,
+     32,
+     1179,
+     5260,
+     6626,
+     55,
+     2093,
+     287,
+     32,
+     568,
+     3583,
+     59,
+     32,
+     51,
+     46,
+     1697,
+     1302,
+     57,
+     306,
+     22699,
+     46
+    ],
+    "decoded": "Prices rose 1234567 percent in 2026; 3.14159 is pi."
+   },
+   {
+    "text": "def f(x):\n    return x ** 2  # square\n\n\nprint(f(12))",
+    "ids": [
+     13248,
+     278,
+     14004,
+     12388,
+     6187,
+     3300,
+     3068,
+     6768,
+     32,
+     50,
+     32,
+     3737,
+     4541,
+     360,
+     10,
+     4809,
+     32677,
+     40,
+     1179,
+     14957
+    ],
+    "decoded": "def f(x):\n    return x ** 2  # square\n\n\nprint(f(12))"
+   },
+   {
+    "text": "café naïve über été",
+    "ids": [
+     99,
+     1649,
+     4051,
+     17464,
+     195,
+     175,
+     301,
+     7856,
+     188,
+     635,
+     32,
+     4051,
+     116,
+     4051
+    ],
+    "decoded": "café naïve über été"
+   },
+   {
+    "text": "你好，世界。日本語も。",
+    "ids": [
+     29324,
+     160,
+     229,
+     165,
+     189,
+     239,
+     188,
+     140,
+     16441,
+     150,
+     231,
+     149,
+     140,
+     24386,
+     230,
+     151,
+     165,
+     24907,
+     172,
+     232,
+     170,
+     158,
+     10600,
+     130,
+     24386
+    ],
+    "decoded": "你好，世界。日本語も。"
+   },
+   {
+    "text": "emoji 😀🚀 and ❤️",
+    "ids": [
+     405,
+     31662,
+     24432,
+     128,
+     6427,
+     154,
+     128,
+     288,
+     4223,
+     157,
+     164,
+     20477
+    ],
+    "decoded": "emoji 😀🚀 and ❤️"
+   },
+   {
+    "text": "  leading spaces, trailing   \t\n\n  \n",
+    "ids": [
+     32,
+     2857,
+     4971,
+     44,
+     26920,
+     6187,
+     9,
+     360,
+     1674,
+     10
+    ],
+    "decoded": "  leading spaces, trailing   \t\n\n  \n"
+   },
+   {
+    "text": "<|bos|><|user_start|>a special token's spelling is text<|user_end|>",
+    "ids": [
+     60,
+     124,
+     98,
+     399,
+     124,
+     5945,
+     124,
+     16517,
+     95,
+     17104,
+     124,
+     62,
+     97,
+     1634,
+     18540,
+     385,
+     16255,
+     306,
+     1241,
+     60,
+     124,
+     16517,
+     95,
+     499,
+     124,
+     62
+    ],
+    "decoded": "<|bos|><|user_start|>a special token's spelling is text<|user_end|>"
+   },
+   {
+    "text": "supercalifragilisticexpialidocious antidisestablishmentarianism",
+    "ids": [
+     21601,
+     7485,
+     345,
+     1910,
+     302,
+     400,
+     566,
+     21648,
+     418,
+     320,
+     436,
+     874,
+     1490,
+     320,
+     274,
+     350,
+     18552,
+     390,
+     3534,
+     1337
+    ],
+    "decoded": "supercalifragilisticexpialidocious antidisestablishmentarianism"
+   },
+   {
+    "text": "",
+    "ids": [],
+    "decoded": ""
+   }
+  ]
+ }
+}

@@ -127,6 +127,64 @@ pub fn upstream_bf16_reference() -> UpstreamBf16 {
     serde_json::from_str(&text).expect("parse the upstream bf16 fixture")
 }
 
+/// One tokenizer's entry in `testdata/chat.json`: upstream's tokenizer on
+/// fixed texts.
+#[derive(Debug, Deserialize)]
+pub struct ChatRecord {
+    /// The token count, special tokens included.
+    pub vocab_size: usize,
+    /// The special tokens' ids, by name.
+    pub specials: BTreeMap<String, i64>,
+    /// Texts as upstream's `encode` gives them.
+    pub encode: Vec<EncodeCase>,
+}
+
+/// One text, encoded.
+#[derive(Debug, Deserialize)]
+pub struct EncodeCase {
+    /// The text.
+    pub text: String,
+    /// Upstream's ids for it.
+    pub ids: Vec<i64>,
+    /// Upstream's `decode` of them.
+    pub decoded: String,
+}
+
+/// Reads `testdata/chat.json`, by tokenizer: `2025` (`nanochat-students`'
+/// rows) and `2026` (`nitishpandey04`'s).
+pub fn chat_reference() -> BTreeMap<String, ChatRecord> {
+    let path = concat!(env!("CARGO_MANIFEST_DIR"), "/testdata/chat.json");
+    let text = std::fs::read_to_string(path).expect("read the chat fixture");
+    serde_json::from_str(&text).expect("parse the chat fixture")
+}
+
+/// The row whose tokenizer is `generation`'s: `2025` or `2026`.
+pub fn tokenizer_row(generation: &str) -> &'static str {
+    match generation {
+        "2025" => "nanochat-students/rl-d20",
+        "2026" => "nitishpandey04/nanochat-d18-sft",
+        other => panic!("no tokenizer {other}"),
+    }
+}
+
+/// Where `row`'s file under `key` lives in [`weights_cache`], without
+/// loading the row.
+pub fn row_file(
+    row: &str,
+    key: &str,
+) -> std::path::PathBuf {
+    use bunsen::kits::gpts::nanochat::pretrained::{
+        NANOCHAT_KIT,
+        default_nanochat_factory,
+    };
+    let (_, found) = default_nanochat_factory()
+        .expect("the nanochat factory")
+        .lookup(row)
+        .unwrap_or_else(|e| panic!("{row}: {e}"));
+    let resource = found.resources.get(key).expect("the resource");
+    weights_cache().resource_path(NANOCHAT_KIT, resource)
+}
+
 /// A pretrained cache over the fetched checkpoints, offline.
 ///
 /// Without `download` there are none: an ordinary cache, which the tests
@@ -192,6 +250,11 @@ pub fn argmax(logits: &Tensor<2>) -> i64 {
     logits.clone().argmax(1).into_scalar::<i64>()
 }
 
+/// `bunsen-chat`'s nanochat tokenizer against upstream's. Reads the fetched
+/// tokenizer files; loads no model.
+#[cfg(all(test, feature = "download"))]
+mod chat;
+
 /// bunsen's greedy decodes against upstream's, for every row, in float32.
 #[cfg(all(test, feature = "download", feature = "gpu-tests"))]
 mod greedy;
@@ -231,5 +294,26 @@ mod tests {
             "the bf16 fixture ran on CUDA: {}",
             bf16.torch
         );
+
+        let chat = chat_reference();
+        assert_eq!(
+            chat.keys().map(String::as_str).collect::<Vec<_>>(),
+            ["2025", "2026"]
+        );
+        for (generation, record) in &chat {
+            assert_eq!(
+                record.vocab_size,
+                n_vocab(tokenizer_row(generation)),
+                "{generation}"
+            );
+            assert_eq!(record.specials.len(), 9, "{generation}");
+            assert_eq!(
+                record.specials["<|bos|>"],
+                fp32[tokenizer_row(generation)].prompt_ids[0]
+            );
+            for case in &record.encode {
+                assert_eq!(case.decoded, case.text, "{generation}: {:?}", case.text);
+            }
+        }
     }
 }
