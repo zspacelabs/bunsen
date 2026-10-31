@@ -207,6 +207,20 @@ pub struct GatedMlpConfig {
     /// Whether the three projections carry a bias.
     #[config(default = "false")]
     pub bias: bool,
+
+    /// Whether the down projection carries a bias; `None` follows `bias`.
+    ///
+    /// Voxtral Realtime's audio encoder biases only its down projection
+    /// (`Some(true)` without `bias`).
+    #[config(default = "None")]
+    pub down_bias: Option<bool>,
+}
+
+impl GatedMlpConfig {
+    /// Whether the down projection carries a bias: `down_bias`, else `bias`.
+    pub fn down_bias(&self) -> bool {
+        self.down_bias.unwrap_or(self.bias)
+    }
 }
 
 impl GatedMlpMeta for GatedMlpConfig {
@@ -224,11 +238,11 @@ impl ModuleInit<GatedMlp> for GatedMlpConfig {
         &self,
         device: &Device,
     ) -> BunsenResult<GatedMlp> {
-        let linear = |i, o| LinearConfig::new(i, o).with_bias(self.bias).init(device);
+        let linear = |i, o, bias| LinearConfig::new(i, o).with_bias(bias).init(device);
         Ok(GatedMlp {
-            gate_proj: linear(self.n_embed, self.d_ff),
-            up_proj: linear(self.n_embed, self.d_ff),
-            down_proj: linear(self.d_ff, self.n_embed),
+            gate_proj: linear(self.n_embed, self.d_ff, self.bias),
+            up_proj: linear(self.n_embed, self.d_ff, self.bias),
+            down_proj: linear(self.d_ff, self.n_embed, self.down_bias()),
         })
     }
 }
@@ -481,5 +495,35 @@ mod tests {
         // silu(0) = 0, so a zero input gives the down projection's bias.
         let y = mlp.forward(Tensor::zeros([2, 3, 6], &cpu_device()));
         assert_eq!(y.dims(), [2, 3, 6]);
+    }
+
+    /// The down projection's bias follows `bias` unless `down_bias` says
+    /// otherwise.
+    #[test]
+    fn test_gated_mlp_down_bias() {
+        use crate::support::testing::cpu_device;
+        let device = cpu_device();
+        let config = GatedMlpConfig::new(6, 10).with_down_bias(Some(true));
+        assert!(!config.bias);
+        assert!(config.down_bias());
+        let mlp: GatedMlp = config.init(&device);
+        assert!(mlp.gate_proj.bias.is_none());
+        assert!(mlp.up_proj.bias.is_none());
+        assert!(mlp.down_proj.bias.is_some());
+        // With no gate bias, a zero input is the down projection's bias.
+        let y = mlp.forward(Tensor::zeros([1, 2, 6], &device));
+        let bias = mlp.down_proj.bias.as_ref().unwrap().val();
+        crate::support::testing::assert_tensors_close(
+            &y,
+            &bias.unsqueeze_dims::<3>(&[0, 0]).repeat_dim(1, 2),
+            burn::tensor::Tolerance::default(),
+        );
+
+        let config = GatedMlpConfig::new(6, 10)
+            .with_bias(true)
+            .with_down_bias(Some(false));
+        let mlp: GatedMlp = config.init(&device);
+        assert!(mlp.gate_proj.bias.is_some());
+        assert!(mlp.down_proj.bias.is_none());
     }
 }

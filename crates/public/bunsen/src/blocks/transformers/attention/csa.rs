@@ -34,6 +34,7 @@ use crate::{
     ops::transformers::attention::{
         KVCache,
         ScaledDotProductAttentionConfig,
+        causal_window_visible,
         scaled_dot_product_attention,
         sdpa_attn_weight,
     },
@@ -73,10 +74,10 @@ pub struct CausalSelfAttentionConfig {
     /// Embedding Size.
     pub n_embed: usize,
 
-    /// Attention Normalization.
-    /// This normalization will be adapted to the appropriate feature count.
-    #[config(default = "NormalizationConfig::Rms(RmsNormConfig::new(0))")]
-    pub norm: NormalizationConfig,
+    /// The query/key normalization (QK-norm), sized to `head_dim` whatever
+    /// feature count it names; `None` normalizes nothing, and builds no norm.
+    #[config(default = "Some(NormalizationConfig::Rms(RmsNormConfig::new(0)))")]
+    pub norm: Option<NormalizationConfig>,
 
     /// The width of each head; `None` is `n_embed / n_head`.
     ///
@@ -90,6 +91,27 @@ pub struct CausalSelfAttentionConfig {
     /// rotary embedding.
     #[config(default = "QkNormPlacement::AfterRope")]
     pub qk_norm: QkNormPlacement,
+
+    /// Whether the query, key and value projections carry a bias.
+    #[config(default = "false")]
+    pub qkv_bias: bool,
+
+    /// Whether the key projection carries a bias; `None` follows `qkv_bias`.
+    ///
+    /// Whisper-family stacks bias their queries and values but not their
+    /// keys (`Some(false)` under a `qkv_bias`).
+    #[config(default = "None")]
+    pub key_bias: Option<bool>,
+
+    /// Whether the output projection carries a bias.
+    #[config(default = "false")]
+    pub output_bias: bool,
+
+    /// The sliding attention window, in positions: a query attends to itself
+    /// and to the `sliding_window - 1` positions before it, never further
+    /// back; `None` attends to every earlier position.
+    #[config(default = "None")]
+    pub sliding_window: Option<usize>,
 }
 
 /// Where [`CausalSelfAttention`] normalizes its queries and keys, relative to
@@ -105,13 +127,16 @@ pub enum QkNormPlacement {
 
 impl QkNormPlacement {
     /// Normalizes and rotates `x`, a `[B, T, H, D]` query or key, in this
-    /// order.
+    /// order; with no norm, only rotates it.
     pub fn apply(
         self,
         x: Tensor<4>,
-        norm: &Normalization,
+        norm: Option<&Normalization>,
         r_emb: &RotaryEmbedding,
     ) -> Tensor<4> {
+        let Some(norm) = norm else {
+            return r_emb.apply(x);
+        };
         match self {
             Self::AfterRope => norm.forward(r_emb.apply(x)),
             Self::BeforeRope => r_emb.apply(norm.forward(x)),
@@ -138,6 +163,12 @@ impl CausalSelfAttentionMeta for CausalSelfAttentionConfig {
 }
 
 impl CausalSelfAttentionConfig {
+    /// Whether the key projection carries a bias: `key_bias`, else
+    /// `qkv_bias`.
+    pub fn key_bias(&self) -> bool {
+        self.key_bias.unwrap_or(self.qkv_bias)
+    }
+
     /// Validate the config.
     pub fn validate(&self) {
         assert!(
@@ -175,6 +206,10 @@ impl CausalSelfAttentionConfig {
             self.n_head,
             self.n_kv_head
         );
+        assert!(
+            self.sliding_window != Some(0),
+            "sliding_window must be > 0 when set"
+        );
     }
 }
 
@@ -187,33 +222,25 @@ impl CausalSelfAttentionConfig {
     ) -> BunsenResult<CausalSelfAttention> {
         self.validate();
         let head_dim = self.head_dim();
+        let norm = || {
+            self.norm
+                .clone()
+                .map(|n| n.with_num_features(head_dim).init(device))
+        };
+        let linear =
+            |d_in, d_out, bias| LinearConfig::new(d_in, d_out).with_bias(bias).init(device);
 
         Ok(CausalSelfAttention {
             layer_index,
             head_dim,
             qk_norm: self.qk_norm,
-            c_q: LinearConfig::new(self.n_embed, self.n_head * head_dim)
-                .with_bias(false)
-                .init(device),
-            q_norm: self
-                .norm
-                .clone()
-                .with_num_features(self.head_dim())
-                .init(device),
-            c_k: LinearConfig::new(self.n_embed, self.n_kv_head * head_dim)
-                .with_bias(false)
-                .init(device),
-            k_norm: self
-                .norm
-                .clone()
-                .with_num_features(self.head_dim())
-                .init(device),
-            c_v: LinearConfig::new(self.n_embed, self.n_kv_head * head_dim)
-                .with_bias(false)
-                .init(device),
-            c_proj: LinearConfig::new(self.n_head * head_dim, self.n_embed)
-                .with_bias(false)
-                .init(device),
+            sliding_window: self.sliding_window,
+            c_q: linear(self.n_embed, self.n_head * head_dim, self.qkv_bias),
+            q_norm: norm(),
+            c_k: linear(self.n_embed, self.n_kv_head * head_dim, self.key_bias()),
+            k_norm: norm(),
+            c_v: linear(self.n_embed, self.n_kv_head * head_dim, self.qkv_bias),
+            c_proj: linear(self.n_head * head_dim, self.n_embed, self.output_bias),
         })
     }
 
@@ -230,8 +257,9 @@ impl CausalSelfAttentionConfig {
 /// Causal Self-Attention Module
 ///
 /// Multi-head causal self-attention with rotary positional embeddings,
-/// optional Group Query Attention (fewer KV heads than query heads), and
-/// per-head query/key normalization. Construct via
+/// optional Group Query Attention (fewer KV heads than query heads), optional
+/// per-head query/key normalization, optional projection biases, and an
+/// optional sliding window. Construct via
 /// [`CausalSelfAttentionConfig`] and `.init(layer_index, device)`, then call
 /// [`forward`](CausalSelfAttention::forward) with an input sequence, a
 /// [`RotaryEmbedding`], and an optional [`KVCache`].
@@ -249,17 +277,21 @@ pub struct CausalSelfAttention {
     #[module(skip)]
     pub qk_norm: QkNormPlacement,
 
+    /// The sliding attention window, in positions, if any.
+    #[module(skip)]
+    pub sliding_window: Option<usize>,
+
     /// Query Linear.
     pub c_q: Linear,
 
-    /// Query Normalization.
-    pub q_norm: Normalization,
+    /// Query Normalization; `None` without QK-norm.
+    pub q_norm: Option<Normalization>,
 
     /// Key Linear.
     pub c_k: Linear,
 
-    /// Key Normalization.
-    pub k_norm: Normalization,
+    /// Key Normalization; `None` without QK-norm.
+    pub k_norm: Option<Normalization>,
 
     /// Value Linear.
     pub c_v: Linear,
@@ -305,18 +337,25 @@ impl CausalSelfAttention {
             .c_q
             .forward(input.clone())
             .reshape([b, t, self.n_head(), self.head_dim()]);
-        let q = self.qk_norm.apply(q, &self.q_norm, r_emb).swap_dims(1, 2);
+        let q = self
+            .qk_norm
+            .apply(q, self.q_norm.as_ref(), r_emb)
+            .swap_dims(1, 2);
         let k = self
             .c_k
             .forward(input)
             .reshape([b, t, self.n_kv_head(), self.head_dim()]);
-        let k = self.qk_norm.apply(k, &self.k_norm, r_emb).swap_dims(1, 2);
+        let k = self
+            .qk_norm
+            .apply(k, self.k_norm.as_ref(), r_emb)
+            .swap_dims(1, 2);
         (q, k)
     }
 
     /// The attention weights an uncached [`forward`](Self::forward) of
     /// `input` applies: per query head, `softmax(q k^T / sqrt(head_dim))`
-    /// over the keys at and before each query.
+    /// over the keys at and before each query, within the sliding window when
+    /// there is one.
     ///
     /// # Arguments
     /// - `input`: a `[B, T, D]` sequence.
@@ -337,13 +376,15 @@ impl CausalSelfAttention {
             &[("D", self.n_embed())]
         );
         let (q, k) = self.queries_keys(input, r_emb);
+        let device = q.device();
+        let window = self.sliding_window.filter(|&w| w < t);
         let weights = sdpa_attn_weight(
             q,
             k,
             None,
-            None,
+            window.map(|w| causal_window_visible(t, t, Some(w), &device)),
             ScaledDotProductAttentionConfig::new()
-                .with_is_causal(true)
+                .with_is_causal(window.is_none())
                 .with_enable_gqa(self.gqa_enabled()),
         );
         assert_shape_contract_periodically!(
@@ -392,11 +433,24 @@ impl CausalSelfAttention {
         if let Some(kvc) = kv_cache {
             (k, v) = (*kvc).insert_kv(self.layer_index, k.clone(), v.clone());
         }
-        let t_kv = k.dims()[2];
+        let mut t_kv = k.dims()[2];
+
+        // The window binds only once there are more keys than it spans. One
+        // new token sees the window's last keys, which a slice keeps; anything
+        // else is masked.
+        let window = self.sliding_window.filter(|&w| w < t_kv);
+        if let (Some(w), 1) = (window, t_q) {
+            k = k.slice(s![.., .., t_kv - w..]);
+            v = v.slice(s![.., .., t_kv - w..]);
+            t_kv = w;
+        }
 
         let attn_mask: Option<Tensor<2, Bool>>;
         let is_causal: bool;
-        if kv_cache.is_none() || t_q == t_kv {
+        if let (Some(w), true) = (window, t_q > 1) {
+            attn_mask = Some(causal_window_visible(t_q, t_kv, Some(w), &q.device()));
+            is_causal = false;
+        } else if kv_cache.is_none() || t_q == t_kv {
             attn_mask = None;
             is_causal = true;
         } else if t_q == 1 {
@@ -616,5 +670,136 @@ mod tests {
             let y = attn.forward(Tensor::zeros([2, 5, 12], &device), &r_emb, &mut None);
             assert_eq!(y.dims(), [2, 5, 12]);
         }
+    }
+
+    /// A config non-default in every field, and the layer built from it,
+    /// answer the meta alike, and the layer builds what the config names.
+    #[test]
+    fn test_meta_and_options() {
+        let device = cpu_device();
+        let cfg = CausalSelfAttentionConfig::new(4, 2, 12)
+            .with_head_dim(Some(5))
+            .with_norm(None)
+            .with_qk_norm(QkNormPlacement::BeforeRope)
+            .with_qkv_bias(true)
+            .with_key_bias(Some(false))
+            .with_output_bias(true)
+            .with_sliding_window(Some(3));
+        let csa: CausalSelfAttention = cfg.init(1, &device);
+        assert_eq!(csa.n_embed(), cfg.n_embed());
+        assert_eq!(csa.n_head(), cfg.n_head());
+        assert_eq!(csa.n_kv_head(), cfg.n_kv_head());
+        assert_eq!(csa.head_dim(), cfg.head_dim());
+        assert_eq!(csa.qk_norm, cfg.qk_norm);
+        assert_eq!(csa.sliding_window, cfg.sliding_window);
+        assert!(csa.q_norm.is_none() && csa.k_norm.is_none());
+        assert!(csa.c_q.bias.is_some());
+        assert!(!cfg.key_bias());
+        assert!(csa.c_k.bias.is_none());
+        assert!(csa.c_v.bias.is_some());
+        assert!(csa.c_proj.bias.is_some());
+
+        let defaults: CausalSelfAttention =
+            CausalSelfAttentionConfig::new(4, 2, 12).init(0, &device);
+        assert!(defaults.q_norm.is_some() && defaults.k_norm.is_some());
+        for linear in [
+            &defaults.c_q,
+            &defaults.c_k,
+            &defaults.c_v,
+            &defaults.c_proj,
+        ] {
+            assert!(linear.bias.is_none());
+        }
+        assert_eq!(defaults.sliding_window, None);
+    }
+
+    fn windowed(window: usize) -> (CausalSelfAttention, RotaryEmbedding, Tensor<3>) {
+        let device = cpu_device();
+        let csa: CausalSelfAttention = CausalSelfAttentionConfig::new(4, 2, 16)
+            .with_norm(None)
+            .with_qkv_bias(true)
+            .with_key_bias(Some(false))
+            .with_output_bias(true)
+            .with_sliding_window(Some(window))
+            .init(0, &device);
+        let r_emb = RotaryEmbeddingConfig::new(9, csa.head_dim()).init(&device);
+        let input = seeded_tensor::<3>(7, [2, 9, 16], Distribution::Default, &device);
+        (csa, r_emb, input)
+    }
+
+    /// Under a sliding window, each query's output is the output an
+    /// unwindowed pass computes over only the window ending at it: the
+    /// window masks exactly the keys it should.
+    #[test]
+    fn test_sliding_window_is_the_window_alone() {
+        let window = 3;
+        let (csa, r_emb, input) = windowed(window);
+        let full = csa.forward(input.clone(), &r_emb, &mut None);
+
+        let mut unwindowed = csa.clone();
+        unwindowed.sliding_window = None;
+        for i in 0..9 {
+            let start = (i + 1usize).saturating_sub(window);
+            let alone = unwindowed.forward(
+                input.clone().slice(s![.., start..=i]),
+                &r_emb.clip_range(start..i + 1),
+                &mut None,
+            );
+            assert_tensors_close(
+                &full.clone().slice(s![.., i..=i]),
+                &alone.slice(s![.., i - start..=i - start]),
+                Tolerance::default(),
+            );
+        }
+
+        // The weights agree: zero outside the window, each row a
+        // distribution.
+        let weights = csa.attention_weights(input, &r_emb);
+        let sums = weights.clone().sum_dim(3);
+        assert_tensors_close(&sums, &Tensor::ones_like(&sums), Tolerance::default());
+        let outside = weights.clone().triu(1).abs().max().into_scalar::<f32>()
+            + weights
+                .tril(-(window as i64))
+                .abs()
+                .max()
+                .into_scalar::<f32>();
+        assert_eq!(outside, 0.0);
+    }
+
+    /// A windowed decode through the cache, one token at a time or a chunk
+    /// after a prefix, is the windowed uncached pass.
+    #[test]
+    fn test_sliding_window_through_the_cache() {
+        let (csa, r_emb, input) = windowed(3);
+        let full = csa.forward(input.clone(), &r_emb, &mut None);
+
+        let mut cache: KVCache = KVCacheConfig::new(2, 2, 9, csa.head_dim(), 1).init();
+        let steps: Vec<Tensor<3>> = (0..9)
+            .map(|i| {
+                csa.forward(
+                    input.clone().slice(s![.., i..=i]),
+                    &r_emb.clip_range(i..i + 1),
+                    &mut Some(&mut cache),
+                )
+            })
+            .collect();
+        assert_tensors_close(&Tensor::cat(steps, 1), &full, Tolerance::default());
+
+        let mut cache: KVCache = KVCacheConfig::new(2, 2, 9, csa.head_dim(), 1).init();
+        let head = csa.forward(
+            input.clone().slice(s![.., ..4]),
+            &r_emb.clip_range(0..4),
+            &mut Some(&mut cache),
+        );
+        let chunk = csa.forward(
+            input.slice(s![.., 4..]),
+            &r_emb.clip_range(4..9),
+            &mut Some(&mut cache),
+        );
+        assert_tensors_close(
+            &Tensor::cat(vec![head, chunk], 1),
+            &full,
+            Tolerance::default(),
+        );
     }
 }

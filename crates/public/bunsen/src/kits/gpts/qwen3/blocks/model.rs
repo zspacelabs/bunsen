@@ -204,7 +204,7 @@ impl ModuleInit<Qwen3Model> for Qwen3Config {
                 CausalDecoderBlockConfig::new(
                     CausalSelfAttentionConfig::new(self.n_heads, self.n_kv_heads, self.d_model)
                         .with_head_dim(Some(self.head_dim))
-                        .with_norm(NormalizationConfig::Rms(norm(self.head_dim)))
+                        .with_norm(Some(NormalizationConfig::Rms(norm(self.head_dim))))
                         .with_qk_norm(QkNormPlacement::BeforeRope),
                     GatedMlpConfig::new(self.d_model, self.d_ff).into(),
                 )
