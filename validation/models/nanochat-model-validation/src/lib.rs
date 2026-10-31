@@ -187,6 +187,34 @@ pub fn tokenizer_row(generation: &str) -> &'static str {
     }
 }
 
+/// The reply budget `testdata/chat_replies.json` was recorded with.
+pub const REPLY_TOKENS: usize = 48;
+
+/// One turn of a chat in `testdata/chat_replies.json`: upstream's greedy
+/// reply to a user turn, the conversation before it rendered for the
+/// assistant's next turn.
+#[derive(Debug, Deserialize)]
+pub struct ReplyRecord {
+    /// The user's turn.
+    pub user: String,
+    /// The conversation, rendered.
+    pub prompt_ids: Vec<i64>,
+    /// The reply's ids, its stop token last when one ended it.
+    pub ids: Vec<i64>,
+    /// The reply's text, its stop token left out.
+    pub text: String,
+    /// Each step's top-1 minus top-2 logit.
+    pub margins: Vec<f64>,
+}
+
+/// Reads `testdata/chat_replies.json`: by row, a list of chats, each a list
+/// of turns.
+pub fn chat_replies_reference() -> BTreeMap<String, Vec<Vec<ReplyRecord>>> {
+    let path = concat!(env!("CARGO_MANIFEST_DIR"), "/testdata/chat_replies.json");
+    let text = std::fs::read_to_string(path).expect("read the chat replies fixture");
+    serde_json::from_str(&text).expect("parse the chat replies fixture")
+}
+
 /// Where `row`'s file under `key` lives in [`weights_cache`], without
 /// loading the row.
 pub fn row_file(
@@ -275,6 +303,10 @@ pub fn argmax(logits: &Tensor<2>) -> i64 {
 #[cfg(all(test, feature = "download"))]
 mod chat;
 
+/// `bunsen-chat`'s sessions against upstream's greedy chat replies.
+#[cfg(all(test, feature = "download", feature = "gpu-tests"))]
+mod chat_session;
+
 /// bunsen's greedy decodes against upstream's, for every row, in float32.
 #[cfg(all(test, feature = "download", feature = "gpu-tests"))]
 mod greedy;
@@ -314,6 +346,27 @@ mod tests {
             "the bf16 fixture ran on CUDA: {}",
             bf16.torch
         );
+
+        let replies = chat_replies_reference();
+        assert_eq!(
+            replies.keys().map(String::as_str).collect::<Vec<_>>(),
+            [
+                "nanochat-students/rl-d20",
+                "nitishpandey04/nanochat-d18-sft"
+            ]
+        );
+        for (row, chats) in &replies {
+            for turns in chats {
+                for turn in turns {
+                    assert_eq!(turn.ids.len(), turn.margins.len(), "{row}");
+                    assert!(turn.ids.len() <= REPLY_TOKENS, "{row}");
+                    assert_eq!(
+                        turn.prompt_ids[0], fp32[row].prompt_ids[0],
+                        "{row}: <|bos|>"
+                    );
+                }
+            }
+        }
 
         let chat = chat_reference();
         assert_eq!(

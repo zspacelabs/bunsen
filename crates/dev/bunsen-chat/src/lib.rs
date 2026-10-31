@@ -1,8 +1,9 @@
 //! # bunsen-chat
 //!
-//! Chat with bunsen's Qwen3 ([`bunsen::kits::gpts::qwen3`]): what turns a
-//! conversation into the ids the model reads and its ids back into text, and
-//! the driver that holds a conversation on the KV cache.
+//! Chat with bunsen's Qwen3 ([`bunsen::kits::gpts::qwen3`]) or nanochat
+//! ([`bunsen::kits::gpts::nanochat`]): what turns a conversation into the ids
+//! the model reads and its ids back into text, and the driver that holds a
+//! conversation on the KV cache.
 //!
 //! - [`ChatModel`] and [`ChatSession`]: the shared, immutable half of a chat (a
 //!   loaded checkpoint and its files) and one conversation (its messages and
@@ -20,15 +21,20 @@
 //! bunsen-chat cache list qwen3
 //! bunsen-chat run --device wgpu --no-think "What is the capital of France?"
 //! bunsen-chat chat --device wgpu --model qwen3-4b-instruct-2507 --stats
+//! bunsen-chat chat --device cuda --precision half --model nanochat-d20-rl
 //! ```
 //! - [`Qwen3Tokenizer`]: a checkpoint's tokenizer, text to ids and back, as
 //!   `transformers` encodes; a
 //!   [`Detokenizer`](bunsen::kits::tokens::Detokenizer).
 //! - [`ChatTemplate`] and [`ChatMessage`]: a checkpoint's chat template, a
 //!   conversation rendered as `transformers` renders it.
+//! - [`NanoChatChat`], [`NanoChatTokenizer`] and [`NanoChatLayout`]: a nanochat
+//!   checkpoint's chat: its `tokenizer.pkl`, read through `serde_pickle`, and
+//!   upstream's conversation layout, each as upstream encodes and renders.
 
 mod backend;
 mod generation;
+mod nanochat_chat;
 mod nanochat_layout;
 mod nanochat_tokenizer;
 mod session;
@@ -37,6 +43,7 @@ mod tokenizer;
 
 pub use backend::*;
 pub use generation::*;
+pub use nanochat_chat::*;
 pub use nanochat_layout::*;
 pub use nanochat_tokenizer::*;
 pub use session::*;

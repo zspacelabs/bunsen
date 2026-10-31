@@ -1,4 +1,4 @@
-//! `bunsen-chat`: chat with a Qwen3 checkpoint, on bunsen.
+//! `bunsen-chat`: chat with a Qwen3 or nanochat checkpoint, on bunsen.
 use std::{
     io::{
         BufRead,
@@ -16,10 +16,17 @@ use bunsen::{
     },
     kits::{
         decoding::SearchConfig,
-        gpts::qwen3::pretrained::{
-            DEFAULT_QWEN3_MODEL,
-            QWEN3_KIT,
-            default_qwen3_factory,
+        gpts::{
+            nanochat::pretrained::{
+                DEFAULT_NANOCHAT_MODEL,
+                NANOCHAT_KIT,
+                default_nanochat_factory,
+            },
+            qwen3::pretrained::{
+                DEFAULT_QWEN3_MODEL,
+                QWEN3_KIT,
+                default_qwen3_factory,
+            },
         },
     },
     ops::transformers::attention::KVCacheStorage,
@@ -39,11 +46,14 @@ use bunsen_app::{
     },
 };
 use bunsen_chat::{
+    ChatBackend,
     ChatMessage,
     ChatModel,
     ChatReply,
     ChatSession,
     ChatSessionConfig,
+    NanoChatChat,
+    Qwen3Chat,
 };
 use clap::Parser;
 
@@ -56,8 +66,8 @@ struct Args {
 
 #[derive(clap::Subcommand, Debug)]
 enum Command {
-    /// The Qwen3 checkpoints bunsen knows by name, and what of each is
-    /// cached.
+    /// The checkpoints bunsen knows by name, Qwen3's and nanochat's, and what
+    /// of each is cached.
     List(ListCmd),
 
     /// Brings every file of the named checkpoints into the weights cache.
@@ -71,7 +81,8 @@ enum Command {
     Chat(ChatCmd),
 
     /// The weights cache the checkpoints load through: where it is, what it
-    /// holds (Qwen3's files are the `qwen3` kit's), and clearing it.
+    /// holds (Qwen3's files are the `qwen3` kit's, nanochat's the
+    /// `nanochat` kit's), and clearing it.
     Cache(bunsen_app::cache::CacheCommand),
 }
 
@@ -108,11 +119,12 @@ struct GenerateFlags {
 
     /// The device, and the precision the model loads and runs in:
     /// `--precision half` is bf16 where the device runs it (cuda, metal),
-    /// the dtype Qwen3 ships and was trained in; f16 overflows it.
+    /// the dtype Qwen3 ships and nanochat trains in; f16 overflows Qwen3.
     #[clap(flatten)]
     device: DeviceArgs,
 
-    /// The checkpoint: a name `list` shows, or `hf:org/repo`.
+    /// The checkpoint: a name `list` shows (a nanochat one loads nanochat),
+    /// or `hf:org/repo`, a Qwen3.
     #[arg(long, default_value = DEFAULT_QWEN3_MODEL)]
     model: String,
 
@@ -120,7 +132,8 @@ struct GenerateFlags {
     #[arg(long)]
     system: Option<String>,
 
-    /// Let the model think first (Qwen3's default).
+    /// Let the model think first (Qwen3's default; nanochat does not
+    /// think).
     #[arg(long, conflicts_with = "no_think")]
     think: bool,
 
@@ -205,9 +218,21 @@ struct ChatCmd {
     flags: GenerateFlags,
 }
 
+/// A loaded chat, of whichever kit its checkpoint is.
+enum Chat {
+    Qwen3(Arc<ChatModel<Qwen3Chat>>),
+    NanoChat(Arc<ChatModel<NanoChatChat>>),
+}
+
+/// Whether `name` is a nanochat checkpoint's: a name the nanochat factory
+/// knows. Any other is a Qwen3's.
+fn is_nanochat(name: &str) -> BunsenResult<bool> {
+    Ok(default_nanochat_factory()?.lookup(name).is_ok())
+}
+
 impl GenerateFlags {
-    /// Loads the checkpoint, and opens a session on it.
-    fn open(&self) -> BunsenResult<(DeviceSession, Arc<ChatModel>, ChatSession)> {
+    /// Opens the device, and loads the checkpoint on it.
+    fn load(&self) -> BunsenResult<(DeviceSession, Chat)> {
         self.logging
             .init(LogPolicy::new(LevelFilter::Warn, LevelFilter::Warn))?;
         let cache = self.cache.init()?;
@@ -217,8 +242,21 @@ impl GenerateFlags {
         if let Some(seed) = self.seed {
             device.seed(seed);
         }
-        let bundle = default_qwen3_factory()?.load_bundle(&self.model, &cache, &device)?;
-        let chat = Arc::new(ChatModel::from_bundle(bundle)?);
+        let chat = if is_nanochat(&self.model)? {
+            let bundle = default_nanochat_factory()?.load_bundle(&self.model, &cache, &device)?;
+            Chat::NanoChat(Arc::new(ChatModel::new(NanoChatChat::from_bundle(bundle)?)))
+        } else {
+            let bundle = default_qwen3_factory()?.load_bundle(&self.model, &cache, &device)?;
+            Chat::Qwen3(Arc::new(ChatModel::from_bundle(bundle)?))
+        };
+        Ok((device, chat))
+    }
+
+    /// The session config these flags give, over `chat`'s defaults.
+    fn config<B: ChatBackend>(
+        &self,
+        chat: &ChatModel<B>,
+    ) -> ChatSessionConfig {
         let defaults = chat.defaults().search.clone();
         let search = if self.greedy {
             SearchConfig::new()
@@ -235,23 +273,21 @@ impl GenerateFlags {
             (_, true) => Some(false),
             _ => None,
         };
-        let config = ChatSessionConfig::new()
+        ChatSessionConfig::new()
             .with_max_new_tokens(self.max_new_tokens)
             .with_enable_thinking(thinking)
             .with_search(Some(search))
             .with_context(self.context)
-            .with_storage(self.kv_storage.storage());
-        let session = self.session(&chat, config, &device);
-        Ok((device, chat, session))
+            .with_storage(self.kv_storage.storage())
     }
 
     /// A session over `chat`, opened with the system prompt.
-    fn session(
+    fn session<B: ChatBackend>(
         &self,
-        chat: &Arc<ChatModel>,
+        chat: &Arc<ChatModel<B>>,
         config: ChatSessionConfig,
         device: &DeviceSession,
-    ) -> ChatSession {
+    ) -> ChatSession<B> {
         let mut session = chat.session(config, device);
         if let Some(system) = &self.system {
             session.push(ChatMessage::system(system.clone()));
@@ -261,9 +297,9 @@ impl GenerateFlags {
 
     /// Sends `user`, streaming the reply to stdout (its thinking only under
     /// `--show-thinking`), and reports it under `--stats`.
-    fn reply(
+    fn reply<B: ChatBackend>(
         &self,
-        session: &mut ChatSession,
+        session: &mut ChatSession<B>,
         user: &str,
     ) -> BunsenResult<ChatReply> {
         let mut out = std::io::stdout().lock();
@@ -298,6 +334,47 @@ impl GenerateFlags {
             );
         }
         Ok(reply)
+    }
+
+    /// Answers `prompt`, once.
+    fn run_once<B: ChatBackend>(
+        &self,
+        chat: &Arc<ChatModel<B>>,
+        device: &DeviceSession,
+        prompt: &str,
+    ) -> BunsenResult<()> {
+        let mut session = self.session(chat, self.config(chat), device);
+        self.reply(&mut session, prompt)?;
+        Ok(())
+    }
+
+    /// Holds a conversation on stdin.
+    fn converse<B: ChatBackend>(
+        &self,
+        chat: &Arc<ChatModel<B>>,
+        device: &DeviceSession,
+    ) -> BunsenResult<()> {
+        let config = self.config(chat);
+        let mut session = self.session(chat, config.clone(), device);
+        let stdin = std::io::stdin();
+        let mut lines = stdin.lock().lines();
+        loop {
+            eprint!("> ");
+            let Some(line) = lines.next() else { break };
+            let line = line.map_err(sys_at("read", "stdin"))?;
+            match line.trim() {
+                "" => continue,
+                "/quit" => break,
+                "/reset" => {
+                    session = self.session(chat, config.clone(), device);
+                    eprintln!("[a new conversation]");
+                }
+                user => {
+                    self.reply(&mut session, user)?;
+                }
+            }
+        }
+        Ok(())
     }
 }
 
@@ -355,49 +432,73 @@ fn list(cmd: &ListCmd) -> BunsenResult<()> {
     cmd.logging
         .init(LogPolicy::new(LevelFilter::Info, LevelFilter::Info))?;
     let cache = cmd.cache.init()?;
+    println!("cache: {}", cache.cache_dir().display());
+
     let factory = default_qwen3_factory()?;
-    println!("qwen3 checkpoints; cache: {}", cache.cache_dir().display());
+    println!();
+    println!("qwen3 checkpoints (the default: {DEFAULT_QWEN3_MODEL})");
     for id in factory.ids() {
         let (_, row) = factory.lookup(&id)?;
-        let default = if row.name == DEFAULT_QWEN3_MODEL {
-            " (default)"
-        } else {
-            ""
-        };
-        println!();
-        println!("{id}{default}");
-        println!("  {}", row.description);
-        for (key, r) in &row.resources.resources {
-            println!("  {key}: {} [{}]", r.file, cache.status(QWEN3_KIT, r));
-        }
+        print_row(&cache, QWEN3_KIT, &id, &row, DEFAULT_QWEN3_MODEL);
     }
     println!();
     println!("hf:org/repo: any Hugging Face repo in transformers' Qwen3ForCausalLM layout");
+
+    let factory = default_nanochat_factory()?;
+    println!();
+    println!("nanochat checkpoints");
+    for id in factory.ids() {
+        let (_, row) = factory.lookup(&id)?;
+        print_row(&cache, NANOCHAT_KIT, &id, &row, DEFAULT_NANOCHAT_MODEL);
+    }
     Ok(())
+}
+
+/// One row of `list`: its id, aliases, description, and each file's state
+/// in `cache`.
+fn print_row(
+    cache: &PretrainedCache,
+    kit: &str,
+    id: &str,
+    row: &bunsen::data::pretrained::Pretrained,
+    default: &str,
+) {
+    let default = if row.name == default {
+        " (default)"
+    } else {
+        ""
+    };
+    println!();
+    println!("{id}{default}");
+    if !row.aliases.is_empty() {
+        println!("  aliases: {}", row.aliases.join(", "));
+    }
+    println!("  {}", row.description);
+    for (key, r) in &row.resources.resources {
+        println!("  {key}: {} [{}]", r.file, cache.status(kit, r));
+    }
 }
 
 fn fetch(cmd: &FetchCmd) -> BunsenResult<()> {
     cmd.logging
         .init(LogPolicy::new(LevelFilter::Warn, LevelFilter::Warn))?;
     let cache = cmd.cache.init()?;
-    let factory = default_qwen3_factory()?;
     for name in &cmd.names {
-        let model = factory.resolve(name, &cache)?;
-        let map = model.plan(&cache)?;
-        let loaded = load_all(&cache, &map)?;
-        println!("{}:", model.id());
+        let (id, loaded) = if is_nanochat(name)? {
+            let model = default_nanochat_factory()?.resolve(name, &cache)?;
+            let map = model.plan(&cache)?;
+            (model.id(), cache.load(NANOCHAT_KIT, &map)?)
+        } else {
+            let model = default_qwen3_factory()?.resolve(name, &cache)?;
+            let map = model.plan(&cache)?;
+            (model.id(), cache.load(QWEN3_KIT, &map)?)
+        };
+        println!("{id}:");
         for (key, part) in loaded.iter() {
             println!("  {key}: {}", part.path.display());
         }
     }
     Ok(())
-}
-
-fn load_all(
-    cache: &PretrainedCache,
-    map: &bunsen::data::pretrained::ResourceMap,
-) -> BunsenResult<bunsen::data::pretrained::LoadedResources> {
-    cache.load(QWEN3_KIT, map)
 }
 
 fn run(cmd: &RunCmd) -> BunsenResult<()> {
@@ -411,34 +512,22 @@ fn run(cmd: &RunCmd) -> BunsenResult<()> {
             text
         }
     };
-    let (device, _, mut session) = cmd.flags.open()?;
-    cmd.flags.reply(&mut session, prompt.trim_end())?;
-    drop(session);
+    let (device, chat) = cmd.flags.load()?;
+    match &chat {
+        Chat::Qwen3(chat) => cmd.flags.run_once(chat, &device, prompt.trim_end())?,
+        Chat::NanoChat(chat) => cmd.flags.run_once(chat, &device, prompt.trim_end())?,
+    }
+    drop(chat);
     device.close()
 }
 
 fn chat(cmd: &ChatCmd) -> BunsenResult<()> {
-    let (device, chat, mut session) = cmd.flags.open()?;
-    let config = session.config().clone();
-    let stdin = std::io::stdin();
-    let mut lines = stdin.lock().lines();
-    loop {
-        eprint!("> ");
-        let Some(line) = lines.next() else { break };
-        let line = line.map_err(sys_at("read", "stdin"))?;
-        match line.trim() {
-            "" => continue,
-            "/quit" => break,
-            "/reset" => {
-                session = cmd.flags.session(&chat, config.clone(), &device);
-                eprintln!("[a new conversation]");
-            }
-            user => {
-                cmd.flags.reply(&mut session, user)?;
-            }
-        }
+    let (device, chat) = cmd.flags.load()?;
+    match &chat {
+        Chat::Qwen3(chat) => cmd.flags.converse(chat, &device)?,
+        Chat::NanoChat(chat) => cmd.flags.converse(chat, &device)?,
     }
-    drop(session);
+    drop(chat);
     device.close()
 }
 
