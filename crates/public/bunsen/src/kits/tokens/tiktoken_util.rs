@@ -198,7 +198,7 @@ impl TiktokenRanks {
 /// Padding is optional, and an all-padding field decodes to nothing — that is
 /// how `multilingual.tiktoken` spells its empty token. A symbol outside the
 /// alphabet, or a length no encoding can produce, is `None`.
-fn lenient_decode_base64(field: &str) -> Option<Vec<u8>> {
+pub(crate) fn lenient_decode_base64(field: &str) -> Option<Vec<u8>> {
     let data = field.trim_end_matches('=');
     if data.len() % 4 == 1 {
         return None;

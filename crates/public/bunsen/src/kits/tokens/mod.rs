@@ -21,7 +21,8 @@
 //!
 //! [`ByteLevelVocabulary`] reads the other common spelling of a byte-level
 //! vocabulary, `transformers`' `vocab.json` / `tokenizer.json` (GPT-2's, and
-//! Qwen's), into the same `{ id -> bytes }` table.
+//! Qwen's), into the same `{ id -> bytes }` table, and
+//! [`TekkenVocabulary`] reads Mistral's, `tekken.json`.
 //!
 //! # Whisper-specific helpers
 //!
@@ -44,8 +45,10 @@ mod wordchipper;
 pub use wordchipper::WordchipperDetokenizer;
 
 mod byte_level;
+mod tekken;
 mod tiktoken_util;
 pub use byte_level::*;
+pub use tekken::*;
 pub use tiktoken_util::*;
 
 /// Turns token ids into text.
