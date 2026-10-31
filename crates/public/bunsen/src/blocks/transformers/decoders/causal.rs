@@ -41,6 +41,21 @@ use crate::{
     ops::transformers::attention::KVCache,
 };
 
+/// The side inputs of a [`CausalDecoderBlock`]'s
+/// [`forward_with`](CausalDecoderBlock::forward_with): each one only a block
+/// configured for it takes.
+#[derive(Debug, Default)]
+pub struct DecoderSideInputs {
+    /// The condition of a block with an
+    /// [`mlp_scale`](CausalDecoderBlock::mlp_scale): `[B, T, D]`, or one that
+    /// broadcasts to it.
+    pub cond: Option<Tensor<3>>,
+
+    /// The `[B, T, H_kv * head_dim]` value embedding of a block whose
+    /// attention has a value residual.
+    pub value_embed: Option<Tensor<3>>,
+}
+
 /// Common meta for [`CausalDecoderBlock`] and [`CausalDecoderBlockConfig`].
 pub trait CausalDecoderBlockMeta {
     /// Returns the size of the input and output.
@@ -227,10 +242,48 @@ impl CausalDecoderBlock {
         kv_cache: &mut Option<&mut KVCache>,
         cond: Option<Tensor<3>>,
     ) -> Tensor<3> {
+        self.forward_with(
+            input,
+            r_emb,
+            kv_cache,
+            DecoderSideInputs {
+                cond,
+                ..Default::default()
+            },
+        )
+    }
+
+    /// Forward Pass, with every side input a configured block takes.
+    ///
+    /// # Arguments
+    /// - `input`: a `[B, T, D]` input.
+    /// - `r_emb`: a `[1, T, 1, D/2]` embedding.
+    /// - `kv_cache`: optional KV cache.
+    /// - `sides`: the condition of a block with an
+    ///   [`mlp_scale`](Self::mlp_scale), and the value embedding of one whose
+    ///   attention has a value residual.
+    ///
+    /// # Returns
+    /// - the `[B, T, D]` block output.
+    ///
+    /// # Panics
+    /// If a side input is given to a block that does not take it, or withheld
+    /// from one that does.
+    pub fn forward_with(
+        &self,
+        input: Tensor<3>,
+        r_emb: &RotaryEmbedding,
+        kv_cache: &mut Option<&mut KVCache>,
+        sides: DecoderSideInputs,
+    ) -> Tensor<3> {
+        let DecoderSideInputs { cond, value_embed } = sides;
         let x = input.clone()
-            + self
-                .attn
-                .forward(self.attn_norm.forward(input), r_emb, kv_cache);
+            + self.attn.forward_with_value_embed(
+                self.attn_norm.forward(input),
+                r_emb,
+                kv_cache,
+                value_embed,
+            );
         let h = self.mlp_norm.forward(x.clone());
         let h = match (&self.mlp_scale, cond) {
             (None, None) => h,
