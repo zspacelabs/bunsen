@@ -9,8 +9,6 @@ use burn::{
         ModuleSnapshot,
         ModuleStore,
         PytorchStore,
-        PytorchStoreError,
-        pytorch::PytorchError,
     },
     tensor::Device,
 };
@@ -18,13 +16,10 @@ use burn::{
 use crate::{
     blocks::conv::ConvSeq1d,
     burner::module::ModuleInit,
+    data::pretrained::pytorch_store_error,
     errors::{
         BunsenError,
-        BunsenErrorKind,
         BunsenResult,
-        LookupError,
-        LookupProblem,
-        io_error_kind,
     },
     kits::speech::whisper::blocks::{
         AUDIO_ENCODER_STRIDE,
@@ -35,35 +30,6 @@ use crate::{
         WhisperTokenLayoutConfig,
     },
 };
-
-/// Sorts a [`PytorchStoreError`] from reading the checkpoint at `path` by
-/// what it means: a missing or forbidden file is a
-/// [`Lookup`](BunsenErrorKind::Lookup), another failure to read it is by
-/// its `io::ErrorKind`, and the rest is a file that is not the checkpoint
-/// it should be, [`InvalidResource`](BunsenErrorKind::InvalidResource).
-fn pytorch_store_error(path: &Path) -> impl FnOnce(PytorchStoreError) -> BunsenError + '_ {
-    move |error| {
-        let kind = match &error {
-            PytorchStoreError::Io(io) | PytorchStoreError::Reader(PytorchError::Io(io)) => {
-                io_error_kind(io)
-            }
-            _ => BunsenErrorKind::InvalidResource,
-        };
-        if kind == BunsenErrorKind::Lookup {
-            let problem = match &error {
-                PytorchStoreError::Io(io) | PytorchStoreError::Reader(PytorchError::Io(io))
-                    if io.kind() == std::io::ErrorKind::PermissionDenied =>
-                {
-                    LookupProblem::Denied
-                }
-                _ => LookupProblem::Missing,
-            };
-            BunsenError::lookup(LookupError::path(path, problem).with_source(error))
-        } else {
-            BunsenError::from_cause(kind, error).context(path.display())
-        }
-    }
-}
 
 fn block_layers_from_keys<S: AsRef<str>>(
     kind: &str,
@@ -106,13 +72,15 @@ impl PytorchWhisperScanner {
     /// Due to the reader, this will always set `n_heads` to 1.
     ///
     /// # Errors
-    /// - [`Lookup`](BunsenErrorKind::Lookup) when `path` is missing or
-    ///   forbidden;
-    /// - [`InvalidResource`](BunsenErrorKind::InvalidResource), with the
-    ///   [`PytorchStoreError`] as its cause, when the file is not a `PyTorch`
-    ///   checkpoint; without one, naming a tensor the layout requires and the
-    ///   checkpoint lacks, or has at another rank;
-    /// - [`Sys`](BunsenErrorKind::Sys) when reading it fails otherwise.
+    /// - [`Lookup`](crate::errors::BunsenErrorKind::Lookup) when `path` is
+    ///   missing or forbidden;
+    /// - [`InvalidResource`](crate::errors::BunsenErrorKind::InvalidResource),
+    ///   with the [`PytorchStoreError`](burn::store::PytorchStoreError) as its
+    ///   cause, when the file is not a `PyTorch` checkpoint; without one,
+    ///   naming a tensor the layout requires and the checkpoint lacks, or has
+    ///   at another rank;
+    /// - [`Sys`](crate::errors::BunsenErrorKind::Sys) when reading it fails
+    ///   otherwise.
     pub fn scan_cfg<P: AsRef<Path>>(
         &self,
         path: P,
