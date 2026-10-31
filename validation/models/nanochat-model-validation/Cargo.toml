@@ -1,0 +1,63 @@
+[package]
+name = "nanochat-model-validation"
+description = "Validates bunsen's nanochat against upstream nanochat's own decodes of community checkpoints of its 2025 and 2026 models. Fetches its model assets; hosts none."
+publish = false
+
+authors.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+version.workspace = true
+repository.workspace = true
+license.workspace = true
+
+[lints]
+workspace = true
+
+[features]
+default = []
+
+## Fetch the checkpoints compared against upstream's decodes:
+## `nanochat-students`' d20 base, mid and RL, and `nitishpandey04`'s d18
+## base and SFT.
+##
+## **Off by default.** Enabling this makes `fetch-nanochat`'s build reach the
+## network on a cold cache (~10 GB), which a plain `cargo build` must never
+## do. Every asset is verified against a pinned SHA-256, so a warm build is
+## offline and reproducible.
+download = [
+    "dep:fetch-nanochat",
+    "fetch-nanochat/base_d20",
+    "fetch-nanochat/mid_d20",
+    "fetch-nanochat/rl_d20",
+    "fetch-nanochat/d18_base",
+    "fetch-nanochat/d18_sft",
+]
+
+## Compile every test that loads a model.
+##
+## **Off by default**, and orthogonal to the backend features: this selects
+## *whether* those tests are built, a backend feature selects *which*
+## accelerator runs them, and both are passed. Needs `download` too.
+gpu-tests = []
+
+## Run the checks on `wgpu`, in f32. The usual choice.
+wgpu = ["bunsen/wgpu"]
+
+## Run the checks on Vulkan, in f32.
+vulkan = ["bunsen/vulkan"]
+
+## Run the checks on CUDA: in f32, and in bf16 against upstream's bf16 run.
+cuda = ["bunsen/cuda"]
+
+## Run the checks on Metal, in f32.
+metal = ["bunsen/metal"]
+
+[dependencies]
+burn = { workspace = true }
+bunsen = { path = "../../../crates/public/bunsen", features = ["testing", "cache"] }
+fetch-nanochat = { path = "../../assets/fetch-nanochat", optional = true }
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }
+
+[dev-dependencies]
+serial_test = { workspace = true }
