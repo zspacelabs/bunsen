@@ -15,6 +15,10 @@
 //!   causal self-attention layer (QK-norm, rotary embeddings, grouped-query
 //!   attention, an optional KV cache), and the encoders' bidirectional
 //!   attentions, relative-position and rotary.
+//! - [`conditioning`]: [`AdaptiveScale`](conditioning::AdaptiveScale), a
+//!   per-channel scale learned from a conditioning vector (adaptive
+//!   normalization), which a decoder layer can apply to its feed-forward's
+//!   input.
 //! - [`embedding`]: [`RotaryEmbedding`](embedding::RotaryEmbedding), the rotary
 //!   position embedding tables as a module, and two fixture embeddings for
 //!   tests, [`iota_embedding`](embedding::iota_embedding) and
@@ -43,6 +47,7 @@
 //! [`crate::ops::transformers`].
 
 pub mod attention;
+pub mod conditioning;
 pub mod decoders;
 pub mod embedding;
 pub mod encoders;
