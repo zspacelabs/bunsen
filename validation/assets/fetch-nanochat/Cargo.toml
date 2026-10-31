@@ -1,0 +1,44 @@
+[package]
+name = "fetch-nanochat"
+description = "nanochat validation assets: fetches community nanochat checkpoints (nanochat-students' d20 base, mid and RL; nitishpandey04's d18 base and SFT) at build time, digest-pinned, each behind a feature, laid out as a bunsen pretrained cache. Hosts none."
+publish = false
+
+authors.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+version.workspace = true
+repository.workspace = true
+license.workspace = true
+
+[dependencies]
+document-features = { workspace = true }
+
+[build-dependencies]
+bunsen-fetch = { path = "../../../crates/public/bunsen-fetch", features = ["fetch"] }
+
+[lints]
+workspace = true
+
+[features]
+## Nothing by default: building this crate as a workspace member fetches
+## nothing. `nanochat-model-validation/download` turns on every feature.
+default = []
+
+## Fetch `nanochat-students/base-d20` (step 21400): `model_021400.pt`
+## (2.1 GB), its `meta_021400.json`, `tokenizer.pkl` and `token_bytes.pt`.
+base_d20 = []
+
+## Fetch `nanochat-students/mid-d20` (step 765), as `base_d20`.
+mid_d20 = []
+
+## Fetch `nanochat-students/rl-d20` (step 650, the final RL checkpoint), as
+## `base_d20`.
+rl_d20 = []
+
+## Fetch `nitishpandey04/nanochat-d18-base` (step 3712): its
+## `base_checkpoints/d18/` checkpoint and meta (2.1 GB), and `tokenizer/`.
+d18_base = []
+
+## Fetch `nitishpandey04/nanochat-d18-sft` (step 478): its
+## `chatsft_checkpoints/d18/` checkpoint and meta (2.1 GB), and `tokenizer/`.
+d18_sft = []
