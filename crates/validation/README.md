@@ -3,7 +3,7 @@
 Expensive per-model validation crates: each holds one of bunsen's kits to an
 independent reference, a Rust model `burn-onnx` generates from upstream's
 ONNX export, and to upstream's own checkpoints. Every asset comes through a
-`bunsen-bundled-*` crate, fetched at build time and digest-pinned.
+`bind-*-onnx` crate, fetched at build time and digest-pinned.
 
 Nothing here runs by default: a plain `cargo build --workspace` or
 `cargo test` fetches nothing. Two features opt in, on each crate:

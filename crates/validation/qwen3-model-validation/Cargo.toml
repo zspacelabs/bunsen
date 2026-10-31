@@ -20,15 +20,15 @@ default = []
 ## checkpoints compared against it and against `transformers`: Qwen's
 ## `Qwen3-0.6B`, `Qwen3-1.7B`, `Qwen3-4B` and `Qwen3-4B-Instruct-2507`.
 ##
-## **Off by default.** Enabling this makes `bunsen-bundled-qwen3`'s build
+## **Off by default.** Enabling this makes `bind-qwen3-onnx`'s build
 ## reach the network on a cold cache (~24 GB), which a plain
 ## `cargo build --workspace` must never do. Every asset is verified against a
 ## pinned SHA-256, so a warm build is offline and reproducible.
 download = [
-    "dep:bunsen-bundled-qwen3",
-    "bunsen-bundled-qwen3/onnx_gen",
-    "bunsen-bundled-qwen3/checkpoint",
-    "bunsen-bundled-qwen3/large_checkpoints",
+    "dep:bind-qwen3-onnx",
+    "bind-qwen3-onnx/onnx_gen",
+    "bind-qwen3-onnx/checkpoint",
+    "bind-qwen3-onnx/large_checkpoints",
 ]
 
 ## Compile every test that loads a model.
@@ -54,8 +54,8 @@ metal = ["bunsen/metal"]
 burn = { workspace = true }
 bunsen = { path = "../../public/bunsen", features = ["testing", "cache"] }
 bunsen-chat = { path = "../../dev/bunsen-chat" }
-bunsen-bundled-qwen3 = {
-    path = "../../public/bunsen-bundled-qwen3",
+bind-qwen3-onnx = {
+    path = "../../onnx/bind-qwen3-onnx",
     optional = true
 }
 serde = { workspace = true, features = ["derive"] }

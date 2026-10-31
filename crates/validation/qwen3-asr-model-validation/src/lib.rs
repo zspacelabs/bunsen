@@ -7,7 +7,7 @@
 //!
 //! ## This crate hosts nothing, and generates nothing
 //!
-//! The generated reference comes from `bunsen-bundled-qwen3-asr`'s `onnx_gen`
+//! The generated reference comes from `bind-qwen3-asr-onnx`'s `onnx_gen`
 //! feature, which fetches its assets, pins each to a SHA-256, and caches them
 //! — all under the **`download`** feature, off by default so an ordinary
 //! `cargo build --workspace` never reaches the network.
@@ -40,7 +40,7 @@ use serde::Deserialize;
 /// The reference models, generated from the `OpenVoiceOS` export.
 #[cfg(feature = "download")]
 pub mod reference {
-    pub use bunsen_bundled_qwen3_asr::onnx_gen::*;
+    pub use bind_qwen3_asr_onnx::onnx_gen::*;
 }
 
 #[cfg(feature = "download")]
@@ -226,7 +226,7 @@ pub fn weights_cache() -> bunsen::data::pretrained::PretrainedCache {
     let options = PretrainedCacheOptions::default()
         .with_disk(
             bunsen::data::cache::BunsenDiskCacheOptions::default()
-                .with_cache_dir(Some(bunsen_bundled_qwen3_asr::cache_dir().to_path_buf())),
+                .with_cache_dir(Some(bind_qwen3_asr_onnx::cache_dir().to_path_buf())),
         )
         .with_offline(true);
     #[cfg(not(feature = "download"))]

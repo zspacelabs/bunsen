@@ -19,11 +19,11 @@ use burn::store::{
 fn test_the_transformers_checkpoint_is_base_pt() {
     let device = cpu_device();
     let (pt, pt_cfg) = PytorchWhisperScanner::new()
-        .load(bunsen_bundled_whisper::base_pt(), &device)
+        .load(bind_whisper_onnx::base_pt(), &device)
         .unwrap();
     let (hf, hf_cfg) = SafetensorsWhisperScanner::new()
         .load(
-            &SafetensorsCheckpoint::single(bunsen_bundled_whisper::base_safetensors()),
+            &SafetensorsCheckpoint::single(bind_whisper_onnx::base_safetensors()),
             &device,
         )
         .unwrap();

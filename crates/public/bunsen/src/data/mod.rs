@@ -101,7 +101,7 @@
 //! No bunsen feature reaches the network at build time. `download` is a
 //! conventional name (see `STYLE.md`), not a bunsen feature: it means "the
 //! build may reach the network", and only the validation crates offer it,
-//! turning on the `bunsen-bundled-*` crates' asset features. `fetch` is the
+//! turning on the `bind-*-onnx` crates' asset features. `fetch` is the
 //! run-time counterpart, and neither implies the other.
 //!
 //! [`BunsenDiskCache`]: cache::BunsenDiskCache

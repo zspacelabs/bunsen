@@ -1,7 +1,4 @@
-# bunsen-bundled-whisper
-
-[![Crates.io Version](https://img.shields.io/crates/v/bunsen-bundled-whisper)](https://crates.io/crates/bunsen-bundled-whisper)
-[![docs.rs](https://img.shields.io/docsrs/bunsen-bundled-whisper)](https://docs.rs/bunsen-bundled-whisper/latest/bunsen_bundled_whisper/)
+# bind-whisper-onnx
 
 Whisper's pretrained assets for [`bunsen`](https://crates.io/crates/bunsen)'s Whisper kit, fetched at build time.
 
@@ -18,7 +15,6 @@ feature, and none is on by default, so a plain build fetches nothing:
 `cache_dir()` resolves `openai/base` from it, offline. A build without the network can point the `WHISPER_*` environment
 variables at local copies; the API docs list them.
 
-- [API docs](https://docs.rs/bunsen-bundled-whisper/latest/bunsen_bundled_whisper/).
 - [Assets, bundling and the network](https://zspacelabs.ai/bunsen/book/development/assets.html), in the bunsen book:
   why bundled weights are a populated cache directory.
 

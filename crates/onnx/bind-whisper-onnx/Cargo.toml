@@ -1,7 +1,7 @@
 [package]
-name = "bunsen-bundled-whisper"
+name = "bind-whisper-onnx"
 description = "Bunsen bundled Whisper assets: fetches OpenAI's base checkpoint, its tokenizer vocabularies and an ONNX reference model at build time, digest-pinned, each behind a feature. Hosts none."
-publish = true
+publish = false
 
 authors.workspace = true
 edition.workspace = true
@@ -16,7 +16,7 @@ burn-store = { workspace = true, features = ["std"] }
 document-features = { workspace = true }
 
 [build-dependencies]
-bunsen-fetch = { version = "0.41.0", path = "../bunsen-fetch", features = ["fetch"] }
+bunsen-fetch = { path = "../../public/bunsen-fetch", features = ["fetch"] }
 burn-onnx = { workspace = true, optional = true }
 
 [lints]

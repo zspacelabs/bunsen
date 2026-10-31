@@ -18,18 +18,18 @@ workspace = true
 default = []
 
 ## Fetch `OpenAI`'s `base.pt` and both `.tiktoken` vocabularies (~150 MB) at
-## build time, through `bunsen-bundled-whisper`, and compile the checks that
+## build time, through `bind-whisper-onnx`, and compile the checks that
 ## need only them: the kit's pretrained pathway on real files (`bundled`).
 ## They load at most one model, so they run on the CPU.
 ##
-## **Off by default.** The assets arrive as `bunsen-bundled-whisper`'s
+## **Off by default.** The assets arrive as `bind-whisper-onnx`'s
 ## directory, laid out as bunsen's pretrained cache; `weights_cache()` roots
 ## the cache there, offline, so routing them through the library's own cache
 ## is also what this crate is validating.
 weights = [
-    "dep:bunsen-bundled-whisper",
-    "bunsen-bundled-whisper/checkpoint",
-    "bunsen-bundled-whisper/vocab",
+    "dep:bind-whisper-onnx",
+    "bind-whisper-onnx/checkpoint",
+    "bind-whisper-onnx/vocab",
 ]
 
 ## `weights`, and fetch `openai/whisper-base`'s `model.safetensors`
@@ -37,19 +37,19 @@ weights = [
 ## it against `base.pt` (`bundled::hf`). It loads two models on the CPU.
 hf-weights = [
     "weights",
-    "bunsen-bundled-whisper/hf_checkpoint",
+    "bind-whisper-onnx/hf_checkpoint",
 ]
 
 ## `hf-weights`, and fetch the reference graphs and generate the models from
 ## them (~725 MB in all).
 ##
-## **Off by default.** Enabling this makes `bunsen-bundled-whisper`'s build
+## **Off by default.** Enabling this makes `bind-whisper-onnx`'s build
 ## reach the network on a cold cache, which a plain `cargo build --workspace`
 ## must never do. Every asset is verified against a pinned SHA-256, so a warm
 ## build is offline and reproducible.
 download = [
     "hf-weights",
-    "bunsen-bundled-whisper/onnx_gen",
+    "bind-whisper-onnx/onnx_gen",
 ]
 
 ## Compile every test that loads a model.
@@ -78,8 +78,8 @@ metal = ["bunsen/metal"]
 burn = { workspace = true }
 bunsen = { path = "../../public/bunsen", features = ["testing", "tokenizer"] }
 bunsen-test-audio = { path = "../../dev/bunsen-test-audio" }
-bunsen-bundled-whisper = {
-    path = "../../public/bunsen-bundled-whisper",
+bind-whisper-onnx = {
+    path = "../../onnx/bind-whisper-onnx",
     optional = true
 }
 

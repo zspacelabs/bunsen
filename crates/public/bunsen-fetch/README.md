@@ -6,7 +6,7 @@ place the file where it belongs, and lay pinned files out as a bunsen
 pretrained cache.
 
 `bunsen`'s disk cache fetches through it at run time, and the
-`bunsen-bundled-*` crates' build scripts fetch through it at build time
+`bind-*-onnx` crates' build scripts fetch through it at build time
 (`Asset`), so both share one implementation and one cache layout.
 
 ## License

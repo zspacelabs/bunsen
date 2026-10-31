@@ -311,7 +311,7 @@ asked for*, and leaves no way to have one without the other. A
 — a plain `cargo build --workspace` never fetches. Assets are pinned to a
 digest, re-verified on every build, and kept in `OUT_DIR`. An environment
 variable points the build at a local file instead. A crate that exists to
-bundle an asset (`bunsen-bundled-whisper`) still fetches only under the
+bundle an asset (`bind-whisper-onnx`) still fetches only under the
 feature that names the asset, never by default.
 
 No `bunsen` feature reaches the network at build time, and a kit's tests
@@ -334,9 +334,9 @@ A fetched asset lands in the build script's `OUT_DIR`, never beside the
 manifest:
 
 ```text
-crates/public/bunsen-bundled-whisper/
+crates/onnx/bind-whisper-onnx/
     build.rs                                  the URLs and their pinned digests
-target/<profile>/build/bunsen-bundled-whisper-<hash>/out/
+target/<profile>/build/bind-whisper-onnx-<hash>/out/
                                               what the digests name
 ```
 

@@ -14,7 +14,7 @@
 //! A generated transliteration of a graph is validation machinery: it exists
 //! to be disagreed with, and shipping it would put a second, redundant Silero
 //! implementation on the public surface. Nothing of Silero's ships with
-//! bunsen at all: `bunsen-bundled-silero` fetches the graph and upstream's
+//! bunsen at all: `bind-silero-onnx` fetches the graph and upstream's
 //! safetensors at build time, under this crate's **`download`** feature.
 //!
 //! ## What is compared
@@ -51,7 +51,7 @@
 /// The reference model, generated from the upstream ONNX graph.
 #[cfg(feature = "download")]
 pub mod reference {
-    pub use bunsen_bundled_silero::onnx_gen::*;
+    pub use bind_silero_onnx::onnx_gen::*;
 
     /// Reference ONNX Model.
     pub type ReferenceModel = Model;

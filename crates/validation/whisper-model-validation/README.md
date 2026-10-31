@@ -5,12 +5,12 @@ generated from a pretrained ONNX export, and `openai-whisper`'s own decode —
 so a disagreement points at bunsen rather than at a framework difference.
 
 **This crate hosts nothing and generates nothing.** Both sides of the
-comparison come from [`bunsen-bundled-whisper`](../../public/bunsen-bundled-whisper):
+comparison come from [`bind-whisper-onnx`](../../onnx/bind-whisper-onnx):
 
 | what | how it arrives | feature |
 |---|---|---|
 | `base.pt`, the checkpoint bunsen loads | the bundle's directory, laid out as a pretrained cache → `weights_cache()` rooted there, offline → `default_whisper_factory().load("openai/base", …)` | `checkpoint` |
-| the ONNX-generated encoder/decoder | `bunsen-bundled-whisper/onnx_gen` | `onnx_gen` |
+| the ONNX-generated encoder/decoder | `bind-whisper-onnx/onnx_gen` | `onnx_gen` |
 
 Routing the checkpoint through `bunsen` rather than reading it directly is
 deliberate: the path under test is then the one users take.

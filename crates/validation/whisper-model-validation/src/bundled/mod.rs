@@ -1,5 +1,5 @@
 //! The Whisper kit's pretrained pathway on real files: `OpenAI`'s `base.pt`
-//! and both `.tiktoken` vocabularies, as `bunsen-bundled-whisper` lays them
+//! and both `.tiktoken` vocabularies, as `bind-whisper-onnx` lays them
 //! out.
 //!
 //! These ran inside `bunsen` under its `whisper-weights` feature, which made
@@ -61,7 +61,7 @@ mod vocabulary;
 
 /// A cache rooted at the bundle's directory, offline.
 pub fn offline_cache() -> PretrainedCache {
-    cache_in(bunsen_bundled_whisper::cache_dir().to_path_buf())
+    cache_in(bind_whisper_onnx::cache_dir().to_path_buf())
 }
 
 /// An offline cache rooted at `dir`.
@@ -108,14 +108,14 @@ pub fn bundled_table() -> PretrainedTable {
         .with_local_files(
             BUNDLED,
             &[
-                (CHECKPOINT, bunsen_bundled_whisper::base_pt()),
-                (VOCABULARY, bunsen_bundled_whisper::multilingual_tiktoken()),
+                (CHECKPOINT, bind_whisper_onnx::base_pt()),
+                (VOCABULARY, bind_whisper_onnx::multilingual_tiktoken()),
             ],
         )
         .unwrap();
     PretrainedTable {
         name: BUNDLED.to_string(),
-        description: "the Whisper assets bunsen-bundled-whisper ships, used in place".to_string(),
+        description: "the Whisper assets bind-whisper-onnx ships, used in place".to_string(),
         groups: vec![PretrainedGroup {
             name: OPENAI.name.to_string(),
             description: OPENAI.description.to_string(),

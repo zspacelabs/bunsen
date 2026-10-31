@@ -1,5 +1,5 @@
 [package]
-name = "bunsen-bundled-qwen3-asr"
+name = "bind-qwen3-asr-onnx"
 description = "Bunsen bundled Qwen3-ASR assets: fetches FermionResearch's Phonon-1 builds, Qwen's Qwen3-ASR-0.6B and an ONNX export of it at build time, digest-pinned, each behind a feature, and generates Rust reference models from the export. Hosts none."
 publish = false
 
@@ -16,7 +16,7 @@ burn-store = { workspace = true, features = ["std"] }
 document-features = { workspace = true }
 
 [build-dependencies]
-bunsen-fetch = { path = "../bunsen-fetch", features = ["fetch"] }
+bunsen-fetch = { path = "../../public/bunsen-fetch", features = ["fetch"] }
 burn-onnx = { workspace = true, optional = true }
 
 [lints]

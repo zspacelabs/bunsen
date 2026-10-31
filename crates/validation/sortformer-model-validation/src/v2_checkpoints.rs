@@ -69,10 +69,10 @@ fn assert_loads(path: &Path) {
 
 #[test]
 fn test_v2_checkpoint_loads() {
-    assert_loads(bunsen_bundled_sortformer::v2_nemo());
+    assert_loads(bind_sortformer_onnx::v2_nemo());
 }
 
 #[test]
 fn test_v2_1_checkpoint_loads() {
-    assert_loads(bunsen_bundled_sortformer::v2_1_nemo());
+    assert_loads(bind_sortformer_onnx::v2_1_nemo());
 }

@@ -1,7 +1,7 @@
 [package]
-name = "bunsen-bundled-silero"
+name = "bind-silero-onnx"
 description = "Bunsen bundled Silero VAD assets: fetches upstream's 16 kHz checkpoint and, for validation, its ONNX graph at build time, digest-pinned, each behind a feature, and generates the reference model from the graph. Hosts none."
-publish = true
+publish = false
 
 authors.workspace = true
 edition.workspace = true
@@ -17,7 +17,7 @@ document-features = { workspace = true }
 
 [build-dependencies]
 burn-onnx = { workspace = true, optional = true }
-bunsen-fetch = { version = "0.41.0", path = "../bunsen-fetch", features = ["fetch"], optional = true }
+bunsen-fetch = { path = "../../public/bunsen-fetch", features = ["fetch"], optional = true }
 
 [lints]
 workspace = true

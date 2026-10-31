@@ -1,7 +1,7 @@
 //! # bunsen-fetch
 //!
 //! Bunsen's file fetching, without the rest of bunsen: bunsen's disk cache
-//! fetches through it at run time, and the `bunsen-bundled-*` crates' build
+//! fetches through it at run time, and the `bind-*-onnx` crates' build
 //! scripts at build time, so both share one implementation and one cache
 //! layout.
 //!

@@ -249,7 +249,7 @@ mod tests {
             PretrainedCacheOptions::default()
                 .with_disk(
                     BunsenDiskCacheOptions::default()
-                        .with_cache_dir(Some(bunsen_bundled_silero::cache_dir().to_path_buf())),
+                        .with_cache_dir(Some(bind_silero_onnx::cache_dir().to_path_buf())),
                 )
                 .with_offline(true),
         )?;

@@ -147,7 +147,7 @@ fn test_parakeet_with_speakers() {
         .unwrap()
         .load_bundle(
             "fermion/phonon-2",
-            &cache_at(bunsen_bundled_parakeet::cache_dir()),
+            &cache_at(bind_parakeet_onnx::cache_dir()),
             &device,
         )
         .unwrap();
@@ -172,7 +172,7 @@ fn test_qwen3_asr_with_speakers() {
         .unwrap()
         .load_bundle(
             "fermion/phonon-1",
-            &cache_at(bunsen_bundled_qwen3_asr::cache_dir()),
+            &cache_at(bind_qwen3_asr_onnx::cache_dir()),
             &device,
         )
         .unwrap();
@@ -197,7 +197,7 @@ fn test_whisper_with_speakers() {
         .unwrap()
         .load_bundle(
             "openai/base",
-            &cache_at(bunsen_bundled_whisper::cache_dir()),
+            &cache_at(bind_whisper_onnx::cache_dir()),
             &device,
         )
         .unwrap();

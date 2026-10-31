@@ -51,10 +51,10 @@ const FIXTURE: &str = concat!(
     "/../../public/bunsen/testdata/silero/jfk_moon_4s.json"
 );
 
-/// Upstream's 16 kHz model, from the file `bunsen-bundled-silero` fetched.
+/// Upstream's 16 kHz model, from the file `bind-silero-onnx` fetched.
 fn upstream(device: &burn::tensor::Device) -> SileroVad {
     SileroVad::load_16khz_from_safetensors_file(
-        bunsen_bundled_silero::silero_vad_16k_safetensors(),
+        bind_silero_onnx::silero_vad_16k_safetensors(),
         device,
     )
     .unwrap()
@@ -66,7 +66,7 @@ fn bundled_cache() -> PretrainedCache {
         PretrainedCacheOptions::default()
             .with_disk(
                 BunsenDiskCacheOptions::default()
-                    .with_cache_dir(Some(bunsen_bundled_silero::cache_dir().to_path_buf()))
+                    .with_cache_dir(Some(bind_silero_onnx::cache_dir().to_path_buf()))
                     .without_transfer_observers(),
             )
             .with_offline(true),
@@ -163,7 +163,7 @@ fn test_silero_streams_as_one_call() {
 }
 
 /// `silero/vad-16k` loads through the factory from the cache
-/// `bunsen-bundled-silero` filled, offline: the file is found where the
+/// `bind-silero-onnx` filled, offline: the file is found where the
 /// build laid it out, and the model scores as the file read directly does.
 #[test]
 #[serial_test::serial]
@@ -175,10 +175,7 @@ fn test_the_bundled_cache_resolves_upstream_offline() {
         .unwrap();
     let part = loaded.resources.get(CHECKPOINT).unwrap();
     assert_eq!(part.provenance, Provenance::Cached);
-    assert_eq!(
-        part.path,
-        bunsen_bundled_silero::silero_vad_16k_safetensors()
-    );
+    assert_eq!(part.path, bind_silero_onnx::silero_vad_16k_safetensors());
 
     let a = loaded.handle.expect_branch(16000);
     let b = upstream(&device);

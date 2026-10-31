@@ -1,4 +1,4 @@
-# bunsen-bundled-parakeet
+# bind-parakeet-onnx
 
 Parakeet TDT assets for [`bunsen`](https://crates.io/crates/bunsen), fetched at build time.
 

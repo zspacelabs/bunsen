@@ -1,5 +1,5 @@
 [package]
-name = "bunsen-bundled-sortformer"
+name = "bind-sortformer-onnx"
 description = "Bunsen bundled Sortformer diarization assets: fetches NVIDIA's Nemotron-3-Diarization and streaming Sortformer v2 and v2.1 checkpoints, and ONNX exports of Nemotron and v2.1, at build time, digest-pinned, each behind a feature, and generates Rust reference models from the exports. Hosts none."
 publish = false
 
@@ -16,7 +16,7 @@ burn-store = { workspace = true, features = ["std"] }
 document-features = { workspace = true }
 
 [build-dependencies]
-bunsen-fetch = { path = "../bunsen-fetch", features = ["fetch"] }
+bunsen-fetch = { path = "../../public/bunsen-fetch", features = ["fetch"] }
 burn-onnx = { workspace = true, optional = true }
 onnx-ir = { workspace = true, optional = true }
 

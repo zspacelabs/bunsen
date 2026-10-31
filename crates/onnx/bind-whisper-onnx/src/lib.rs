@@ -61,18 +61,6 @@
 //! `WHISPER_ONNX_OUT_DIR` and the `WHISPER_*_PATH` names are the build
 //! script's outputs to the compiler, not overrides.
 //!
-//! ## On docs.rs
-//!
-//! docs.rs shows little more than this page. Every item is behind
-//! `checkpoint`, `vocab` or `onnx_gen`, and each of those downloads its
-//! asset at build time. docs.rs builds without the network, with the default
-//! features, which are none. To read the items' docs, build them locally,
-//! which fetches the assets unless the variables above point at copies:
-//!
-//! ```text
-//! cargo doc -p bunsen-bundled-whisper --no-deps --features checkpoint,vocab
-//! ```
-//!
 //! ## Crate Features
 #![doc = document_features::document_features!()]
 

@@ -22,26 +22,26 @@ default = []
 ## the speech recognizers diarized transcription is scored with (Phonon-2,
 ## Phonon-1, Whisper `base`).
 ##
-## **Off by default.** Enabling this makes `bunsen-bundled-sortformer`'s build
+## **Off by default.** Enabling this makes `bind-sortformer-onnx`'s build
 ## reach the network on a cold cache (~3 GB), which a plain
 ## `cargo build --workspace` must never do. Every asset is verified against a
 ## pinned SHA-256, so a warm build is offline and reproducible.
 download = [
-    "dep:bunsen-bundled-sortformer",
-    "bunsen-bundled-sortformer/onnx_gen",
-    "bunsen-bundled-sortformer/checkpoint_nemotron",
-    "bunsen-bundled-sortformer/onnx_gen_v2_1",
-    "bunsen-bundled-sortformer/checkpoint_v2",
-    "bunsen-bundled-sortformer/checkpoint_v2_1",
+    "dep:bind-sortformer-onnx",
+    "bind-sortformer-onnx/onnx_gen",
+    "bind-sortformer-onnx/checkpoint_nemotron",
+    "bind-sortformer-onnx/onnx_gen_v2_1",
+    "bind-sortformer-onnx/checkpoint_v2",
+    "bind-sortformer-onnx/checkpoint_v2_1",
     "bunsen-test-audio/ami",
     "bunsen/fermion",
-    "dep:bunsen-bundled-parakeet",
-    "bunsen-bundled-parakeet/checkpoint",
-    "dep:bunsen-bundled-qwen3-asr",
-    "bunsen-bundled-qwen3-asr/checkpoint",
-    "dep:bunsen-bundled-whisper",
-    "bunsen-bundled-whisper/checkpoint",
-    "bunsen-bundled-whisper/vocab",
+    "dep:bind-parakeet-onnx",
+    "bind-parakeet-onnx/checkpoint",
+    "dep:bind-qwen3-asr-onnx",
+    "bind-qwen3-asr-onnx/checkpoint",
+    "dep:bind-whisper-onnx",
+    "bind-whisper-onnx/checkpoint",
+    "bind-whisper-onnx/vocab",
 ]
 
 ## Compile every test that loads a model.
@@ -66,20 +66,20 @@ metal = ["bunsen/metal"]
 [dependencies]
 burn = { workspace = true }
 bunsen = { path = "../../public/bunsen", features = ["testing", "nemo"] }
-bunsen-bundled-sortformer = {
-    path = "../../public/bunsen-bundled-sortformer",
+bind-sortformer-onnx = {
+    path = "../../onnx/bind-sortformer-onnx",
     optional = true
 }
-bunsen-bundled-parakeet = {
-    path = "../../public/bunsen-bundled-parakeet",
+bind-parakeet-onnx = {
+    path = "../../onnx/bind-parakeet-onnx",
     optional = true
 }
-bunsen-bundled-qwen3-asr = {
-    path = "../../public/bunsen-bundled-qwen3-asr",
+bind-qwen3-asr-onnx = {
+    path = "../../onnx/bind-qwen3-asr-onnx",
     optional = true
 }
-bunsen-bundled-whisper = {
-    path = "../../public/bunsen-bundled-whisper",
+bind-whisper-onnx = {
+    path = "../../onnx/bind-whisper-onnx",
     optional = true
 }
 bunsen-test-audio = { path = "../../dev/bunsen-test-audio" }

@@ -6,7 +6,7 @@
 //!
 //! ## This crate hosts nothing, and generates nothing
 //!
-//! The generated reference comes from `bunsen-bundled-parakeet`'s `onnx_gen`
+//! The generated reference comes from `bind-parakeet-onnx`'s `onnx_gen`
 //! feature, which fetches ~2.5 GB of assets, pins each to a SHA-256, and
 //! caches them — all under the **`download`** feature, which is off by default
 //! so an ordinary `cargo build --workspace` never reaches the network.
@@ -23,7 +23,7 @@
 //!
 //! `PARAKEET_ONNX_ENCODER`, `PARAKEET_ONNX_ENCODER_DATA` and
 //! `PARAKEET_ONNX_DECODER_JOINT` point the build at local files instead; they
-//! are read by `bunsen-bundled-parakeet`'s build script, not this crate's.
+//! are read by `bind-parakeet-onnx`'s build script, not this crate's.
 //!
 //! ## The reference is itself checked
 //!
@@ -42,7 +42,7 @@ use serde::Deserialize;
 /// The reference models, generated from the `istupakov` export.
 #[cfg(feature = "download")]
 pub mod reference {
-    pub use bunsen_bundled_parakeet::onnx_gen::*;
+    pub use bind_parakeet_onnx::onnx_gen::*;
 }
 
 /// The mel channel count of `parakeet-tdt-0.6b-v3`.
@@ -213,7 +213,7 @@ pub fn synthetic_waveform(
 
 /// The pretrained cache the checkpoints come through.
 ///
-/// Under `download`, it is rooted at `bunsen-bundled-parakeet`'s directory,
+/// Under `download`, it is rooted at `bind-parakeet-onnx`'s directory,
 /// which its build laid out as one, and offline: nothing is fetched at run
 /// time. Routing the checkpoints through the library's own factory is also
 /// what this crate is validating. Without `download` it is the default
@@ -227,7 +227,7 @@ pub fn weights_cache() -> bunsen::data::pretrained::PretrainedCache {
     let options = PretrainedCacheOptions::default()
         .with_disk(
             bunsen::data::cache::BunsenDiskCacheOptions::default()
-                .with_cache_dir(Some(bunsen_bundled_parakeet::cache_dir().to_path_buf())),
+                .with_cache_dir(Some(bind_parakeet_onnx::cache_dir().to_path_buf())),
         )
         .with_offline(true);
     #[cfg(not(feature = "download"))]

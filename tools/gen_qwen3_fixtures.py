@@ -10,7 +10,7 @@ Run once; commit the outputs. Regenerating is not part of CI.
 
 - `ONNX_DIR`: `onnx-community/Qwen3-0.6B-ONNX` at 58ca03a5e7b354b480b1a82b34bde8dc7b854cc0
   (`model.onnx` + `model.onnx_data` from its `onnx/`): the published graph, not the one
-  `bunsen-bundled-qwen3` rewrites.
+  `bind-qwen3-onnx` rewrites.
 - `ROW=HF_DIR`: a bunsen row name and a directory holding that row's pinned files under their
   repo names (`config.json`, the safetensors, `tokenizer.json`, ...), for each of
   `qwen3-0.6b`, `qwen3-1.7b`, `qwen3-4b`, `qwen3-4b-instruct-2507` (revisions as bunsen's rows

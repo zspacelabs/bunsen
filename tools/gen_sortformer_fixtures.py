@@ -10,7 +10,7 @@ Run once; commit the output. Regenerating is not part of CI.
 `NEMOTRON_ONNX` is `altunenes/parakeet-rs`'s
 `nemotron-3-diarization/nemotron3_diar_v3.onnx` at revision
 4d2a8bc71f5c896ec40faa59732e6716295edaf2 (sha256 915e4fa2...): the file
-`bunsen-bundled-sortformer` fetches, before its build rewrites it for
+`bind-sortformer-onnx` fetches, before its build rewrites it for
 `burn-onnx`. `V2_1_ONNX` is `Scrybl/diar_streaming_sortformer_4spk-v2.1`'s
 `diar_streaming_sortformer_4spk-v2.1.onnx` at revision
 3be92087de17e4e9063c9cfabc104f9809b2d037 (sha256 0182539a...), which the
