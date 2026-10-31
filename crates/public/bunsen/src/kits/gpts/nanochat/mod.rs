@@ -30,6 +30,19 @@
 //!
 //! [`NanoChatGptMeta`] reads the geometry back from all three forms.
 //!
+//! # Upstream's two models
+//!
+//! The policy's defaults are upstream's model as of late 2025: an unbiased
+//! head, rotary base 10000, parameter-free norms with an explicit epsilon
+//! ([`norm_eps`](NanoChatGptContractConfig::norm_eps)). Upstream's 2026 model
+//! adds a set of options, each off by default and all on through
+//! [`with_upstream_2026`](NanoChatGptContractConfig::with_upstream_2026): the
+//! smear (each position mixes in the previous one's embedding), per-layer
+//! residual and embedding lambdas, value embeddings on every other layer
+//! ([`has_value_embed`]), the mid-stack backout, a query/key gain, sliding
+//! windows from a pattern ([`window_pattern_windows`]), rotary base 100000,
+//! and a padded vocabulary.
+//!
 //! The KV cache is injected state: the model never owns one.
 //! The model (and its configs) implement
 //! [`KVCacheModel`](crate::ops::transformers::attention::KVCacheModel):
@@ -41,7 +54,10 @@
 //! layer appends its keys and values to it, and a step's positions start
 //! where the cache's position stands, so one model can run several decodes
 //! at once. Training passes no cache, and runs the whole sequence in one
-//! call.
+//! call. A smeared model's step past the first position also reads the token
+//! before it, which the caller passes to
+//! [`forward_after`](NanoChatGpt::forward_after): the model keeps no state of
+//! its own, so a decode the caller rewinds stays correct.
 //!
 //! # Datasets
 //!
