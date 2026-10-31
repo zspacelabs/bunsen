@@ -20,7 +20,7 @@ metal = ["bunsen-app/metal"]
 vulkan = ["bunsen-app/vulkan"]
 ## Make `--device wgpu` available.
 wgpu = ["bunsen-app/wgpu"]
-## burn's fusion backend; off by default, as in `bunsen-asr`.
+## burn's fusion backend; off by default, as in `bunsen-tool`.
 fusion = ["burn/fusion"]
 
 [dependencies]

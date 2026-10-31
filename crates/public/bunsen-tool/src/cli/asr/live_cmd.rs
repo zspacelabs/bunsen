@@ -1,4 +1,4 @@
-//! `bunsen-asr family <family> live`, and what `bunsen-asr live` shares.
+//! `asr family <family> live`, and what `asr live` shares.
 use bunsen::{
     data::pretrained::PretrainedCache,
     errors::{
@@ -20,7 +20,7 @@ use bunsen_app::{
     },
 };
 
-use crate::{
+use crate::cli::asr::{
     capture::CaptureArgs,
     diarize::SpeakerArgs,
     driver::{

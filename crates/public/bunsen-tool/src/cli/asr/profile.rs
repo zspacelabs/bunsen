@@ -17,7 +17,7 @@ use clap::{
 };
 use serde::Serialize;
 
-use crate::{
+use crate::cli::asr::{
     family::Family,
     parakeet::ParakeetFlags,
     qwen3_asr::Qwen3AsrFlags,
@@ -46,12 +46,12 @@ impl Mode {
     }
 }
 
-/// One way to run a family: what `bunsen-asr family <family> transcribe|live`
-/// would be given.
+/// One way to run a family: what `bunsen-tool asr family <family>
+/// transcribe|live` would be given.
 ///
 /// The flags are kept as the family command's long flags and parsed by the
 /// family's own `clap` struct, so no second copy of any family's options
-/// lives here, and a recipe is always a command `bunsen-asr family` runs.
+/// lives here, and a recipe is always a command `bunsen-tool asr family` runs.
 #[derive(Clone, Copy, Debug)]
 pub struct Recipe {
     pub family: Family,
@@ -703,13 +703,14 @@ impl Resolved {
             })
     }
 
-    /// The `bunsen-asr family` command this runs, word by word.
+    /// The `bunsen-tool asr family` command this runs, word by word.
     ///
     /// # Errors
     /// As [`argv`](Self::argv).
     pub fn command_line(&self) -> BunsenResult<Vec<String>> {
         let mut line: Vec<String> = [
-            "bunsen-asr",
+            "bunsen-tool",
+            "asr",
             "family",
             self.family.name(),
             self.mode.command(),
@@ -984,7 +985,7 @@ mod tests {
         let r = resolve("translate-en", Mode::Live, None, &[]).unwrap();
         assert_eq!(
             shell_line(&r.command_line().unwrap()),
-            "bunsen-asr family whisper live --model openai/small --preset conservative \
+            "bunsen-tool asr family whisper live --model openai/small --preset conservative \
              --chunk-ms 250 --task translate --beam-size 1"
         );
         assert_eq!(

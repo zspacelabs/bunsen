@@ -1,4 +1,4 @@
-//! `bunsen-asr family <family> list` and `bunsen-asr diarize list`.
+//! `asr family <family> list` and `asr diarize list`.
 use bunsen::errors::BunsenResult;
 use bunsen_app::{
     cache::WeightsCacheArgs,
@@ -9,7 +9,7 @@ use bunsen_app::{
     },
 };
 
-use crate::family::Kit;
+use crate::cli::asr::family::Kit;
 
 /// Lists the models `--model` can name, their licences and files, and
 /// whether each file is cached.

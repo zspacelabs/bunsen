@@ -26,7 +26,7 @@ use bunsen::{
 };
 use burn::tensor::Device;
 
-use crate::{
+use crate::cli::asr::{
     family::Loaded,
     parakeet,
     qwen3_asr,

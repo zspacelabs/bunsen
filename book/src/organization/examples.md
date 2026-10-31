@@ -5,7 +5,7 @@ or a system end to end, and its README says which bunsen features it uses
 and how to run it. They are not published, and they are where a change to a
 public API is felt first, so CI builds all of them.
 
-Speech to text is [`bunsen-asr`](https://github.com/zspacelabs/bunsen/tree/main/crates/public/bunsen-asr),
+Speech to text is [`bunsen-tool asr`](https://github.com/zspacelabs/bunsen/tree/main/crates/public/bunsen-tool),
 a published binary rather than an example: files or the microphone, through
 the Parakeet, Qwen3-ASR and Whisper stream drivers, and who spoke when
 through the Sortformer diarizer, with commands that fetch and inspect models

@@ -1,4 +1,4 @@
-//! `bunsen-asr diarize`: who spoke when, through Sortformer.
+//! `asr diarize`: who spoke when, through Sortformer.
 use std::{
     path::{
         Path,
@@ -42,8 +42,8 @@ use burn::tensor::Device;
 use serde::Serialize;
 
 #[cfg(feature = "live")]
-use crate::capture::CaptureArgs;
-use crate::{
+use crate::cli::asr::capture::CaptureArgs;
+use crate::cli::asr::{
     family::{
         Kit,
         load_logged,

@@ -10,4 +10,4 @@ Shared command-line plumbing for [bunsen](https://crates.io/crates/bunsen)'s bin
 - `logging`: `-v`/`-q`/`--ts` log-level flags.
 - `shards`: dataset shard selection and fetch policy.
 
-[`bunsen-asr`](https://crates.io/crates/bunsen-asr) is built on it.
+[`bunsen-tool`](https://crates.io/crates/bunsen-tool) is built on it.

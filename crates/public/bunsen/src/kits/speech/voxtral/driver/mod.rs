@@ -7,7 +7,7 @@
 //! [`AsrStreamContext`](crate::kits::speech::asr_driver::AsrStreamContext)
 //! over a [`VoxtralEngine`]: what does not depend on the model (scheduling,
 //! the emission policy, the clock, the voice-activity gate, speakers) lives
-//! there, as it does for every speech-to-text kit, and `bunsen-asr` drives
+//! there, as it does for every speech-to-text kit, and `bunsen-tool` drives
 //! them all alike.
 //!
 //! # Lifecycle

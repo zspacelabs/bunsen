@@ -39,7 +39,7 @@
       <sourceFolder url="file://$MODULE_DIR$/examples/conway/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/crates/dev/book-snippets/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/crates/public/bunsen-app/src" isTestSource="false" />
-      <sourceFolder url="file://$MODULE_DIR$/crates/public/bunsen-asr/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/crates/public/bunsen-tool/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/validation/onnx/bind-parakeet-onnx/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/validation/onnx/bind-qwen3-asr-onnx/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/crates/public/bunsen-fetch/src" isTestSource="false" />

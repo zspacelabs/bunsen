@@ -1,6 +1,6 @@
 [package]
-name = "bunsen-asr"
-description = "Speech to text on bunsen, by profile (English, multilingual, translated to English) or by model family: Parakeet TDT (FermionResearch's Phonon-2 by default), Qwen3-ASR (Phonon-1), and Whisper; and who spoke when, through NVIDIA's Sortformer diarizer."
+name = "bunsen-tool"
+description = "bunsen's models on the command line. `bunsen-tool asr`: speech to text, by profile or with Parakeet TDT, Qwen3-ASR, Voxtral Realtime or Whisper, and who spoke when, through NVIDIA's Sortformer."
 publish = true
 authors.workspace = true
 edition.workspace = true
@@ -9,13 +9,13 @@ version.workspace = true
 repository.workspace = true
 license.workspace = true
 homepage = "https://zspacelabs.ai/bunsen/book/"
-documentation = "https://docs.rs/bunsen-asr/latest/"
+documentation = "https://docs.rs/bunsen-tool/latest/"
 readme = "README.md"
-keywords = ["speech-recognition", "transcription", "diarization", "whisper", "burn"]
+keywords = ["speech-recognition", "transcription", "diarization", "cli", "burn"]
 categories = ["command-line-utilities", "multimedia::audio", "science"]
 
 [[bin]]
-name = "bunsen-asr"
+name = "bunsen-tool"
 path = "src/main.rs"
 
 [lints]
@@ -23,7 +23,7 @@ workspace = true
 
 [features]
 default = ["live", "webhook", "mqtt"]
-## `<family> live`: the microphone through the host's audio API (`cpal`;
+## `asr live` and `asr family <family> live`: the microphone through the host's audio API (`cpal`;
 ## on Linux it links ALSA, `libasound2-dev`), and Ctrl-C as a clean stop.
 live = ["dep:cpal", "dep:ctrlc"]
 ## `--publish` to a `webhook` target: each record POSTed as JSON (`ureq`).

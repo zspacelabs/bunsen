@@ -89,6 +89,6 @@ release = true
 version_group = "bunsen"
 
 [[package]]
-name = "bunsen-asr"
+name = "bunsen-tool"
 release = true
 version_group = "bunsen"

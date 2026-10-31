@@ -12,7 +12,7 @@ the canonical contributor guide. This page doesn't repeat them.
 - **Nightly `rustfmt`** for formatting. The repository's `rustfmt.toml`
   uses unstable options; stable `rustfmt` silently ignores them and
   reformats the whole tree.
-- **ALSA headers** on Linux. `bunsen-asr live` captures audio through
+- **ALSA headers** on Linux. `bunsen-tool asr live` captures audio through
   `cpal`, whose Linux backend links ALSA, and clippy and the tests build
   every workspace member.
 - **cargo-make**, which runs the project's tasks, including the book's

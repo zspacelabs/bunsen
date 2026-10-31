@@ -25,7 +25,7 @@ use config::{
     Opts,
 };
 
-use crate::{
+use crate::cli::asr::{
     profile::Stamp,
     transcribe_cmd::Transcript,
 };

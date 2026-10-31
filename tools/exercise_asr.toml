@@ -1,4 +1,4 @@
-# What `tools/exercise_asr.py` runs: `bunsen-asr`, built for one GPU backend,
+# What `tools/exercise_asr.py` runs: `bunsen-tool asr`, built for one GPU backend,
 # over a real clip, one command line per case.
 #
 # `defaults` is every kit with its default model, as a user meets it: each
@@ -16,12 +16,12 @@ transcript = "crates/dev/bunsen-test-audio/testdata/jfk_moon.txt"
 # or two worse. Numbers are normalized (`35` is `thirty-five`) before scoring.
 max_wer = 0.35
 
-# The families `all` lists, and the diarizer, by their `bunsen-asr` commands.
+# The families `all` lists, and the diarizer, by their `bunsen-tool asr` commands.
 families = ["parakeet", "qwen3-asr", "voxtral", "whisper"]
 
 # `kind` says what the output is: `text`, scored against the transcript, or
 # `turns`, checked for at least one speaker turn. `args` follow
-# `bunsen-asr`; `--json`, `--quiet` and the clip are added.
+# `bunsen-tool asr`; `--json`, `--quiet` and the clip are added.
 
 [[defaults]]
 name = "parakeet (default model)"

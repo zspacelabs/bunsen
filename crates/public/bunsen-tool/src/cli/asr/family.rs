@@ -61,7 +61,7 @@ use bunsen::{
 };
 use burn::tensor::Device;
 
-use crate::{
+use crate::cli::asr::{
     transcribe_cmd::FamilyFlags,
     whisper,
 };

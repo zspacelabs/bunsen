@@ -1,4 +1,4 @@
-//! `bunsen-asr family whisper inspect` and `family whisper prefabs`.
+//! `asr family whisper inspect` and `family whisper prefabs`.
 use bunsen::{
     data::pretrained::PretrainedCache,
     errors::{
@@ -29,7 +29,7 @@ use bunsen_app::{
     },
 };
 
-use crate::whisper;
+use crate::cli::asr::whisper;
 
 /// Scans a Whisper checkpoint and checks it against its prefab: its
 /// resources and where each stands, the geometry it promised, and the one

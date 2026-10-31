@@ -25,7 +25,7 @@ use log::{
 /// The log target prefix for bunsen's crates.
 ///
 /// Targets match by string prefix, so this covers `bunsen`, `bunsen_app`,
-/// `bunsen_asr` and every other `bunsen*` crate.
+/// `bunsen_tool` and every other `bunsen*` crate.
 pub const BUNSEN_TARGET: &str = "bunsen";
 
 /// The process-wide target prefixes logged at a [`LogPolicy`]'s `ours` level.
@@ -99,7 +99,7 @@ impl LogPolicy {
 /// [`LogPolicy`] otherwise. `-v` raises the levels of the
 /// [`target_prefixes`] one step per `v` above what that filter gives them,
 /// and never lowers them; a more specific `RUST_LOG` directive, such as
-/// `bunsen_asr=error`, keeps its own level. `-q` turns logging off
+/// `bunsen_tool=error`, keeps its own level. `-q` turns logging off
 /// regardless.
 ///
 /// # Example
@@ -276,7 +276,7 @@ mod tests {
 
         assert_eq!(level(&args, policy, None, "bunsen"), LevelFilter::Info);
         assert_eq!(
-            level(&args, policy, None, "bunsen_asr::live_cmd"),
+            level(&args, policy, None, "bunsen_tool::live_cmd"),
             LevelFilter::Info
         );
         assert_eq!(
@@ -366,14 +366,14 @@ mod tests {
     #[test]
     fn test_specific_rust_log_directive_keeps_its_level() {
         let policy = LogPolicy::default();
-        let rust_log = Some("info,bunsen_asr=error");
+        let rust_log = Some("info,bunsen_tool=error");
 
         assert_eq!(
             level(&args(1), policy, rust_log, "bunsen_app"),
             LevelFilter::Debug
         );
         assert_eq!(
-            level(&args(1), policy, rust_log, "bunsen_asr"),
+            level(&args(1), policy, rust_log, "bunsen_tool"),
             LevelFilter::Error
         );
     }

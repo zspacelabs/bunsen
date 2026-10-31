@@ -1,4 +1,4 @@
-//! `bunsen-asr transcribe`, `live` and `profiles`: speech to text by profile.
+//! `asr transcribe`, `live` and `profiles`: speech to text by profile.
 use std::io::Write;
 
 use bunsen::{
@@ -19,8 +19,8 @@ use bunsen_app::{
 };
 
 #[cfg(feature = "live")]
-use crate::live_cmd::LiveIo;
-use crate::{
+use crate::cli::asr::live_cmd::LiveIo;
+use crate::cli::asr::{
     family::{
         Family,
         Kit,
@@ -104,7 +104,7 @@ pub struct ProfileArgs {
     #[arg(long)]
     pub language: Option<String>,
 
-    /// One of the family's own options, as `bunsen-asr family <family>`
+    /// One of the family's own options, as `bunsen-tool asr family <family>`
     /// takes it, without the `--` (`KEY` alone is `KEY=true`). With
     /// `FAMILY.`, it applies only while the profile runs that family, so a
     /// script keeps working when the profile moves; without, the profile's
@@ -273,7 +273,7 @@ impl ProfileArgs {
     ///
     /// # Errors
     /// As [`asked`](Self::asked) and
-    /// [`Recipe::resolve`](crate::profile::Recipe::resolve).
+    /// [`Recipe::resolve`](crate::cli::asr::profile::Recipe::resolve).
     pub fn resolve(
         &self,
         mode: Mode,
@@ -348,7 +348,7 @@ macro_rules! with_flags {
 ///
 /// The profile picks the family, the model, when to decode and the family's
 /// own flags; `--opt` changes them, `profiles show` prints them, and `-v`
-/// logs them as the `bunsen-asr family` command they are. `--json` records
+/// logs them as the `bunsen-tool asr family` command they are. `--json` records
 /// the profile and its recipe with each transcript.
 #[derive(clap::Args, Debug)]
 pub struct ProfileTranscribeCmd {
@@ -380,7 +380,7 @@ impl ProfileTranscribeCmd {
 ///
 /// The profile picks the family, the model, when to decode and the family's
 /// own flags; `--opt` changes them, `profiles show` prints them, and `-v`
-/// logs them as the `bunsen-asr family` command they are.
+/// logs them as the `bunsen-tool asr family` command they are.
 #[cfg(feature = "live")]
 #[derive(clap::Args, Debug)]
 pub struct ProfileLiveCmd {
@@ -419,7 +419,7 @@ enum ProfilesAction {
     /// files and for the microphone.
     List,
 
-    /// Show profiles: each recipe, as the `bunsen-asr family` command it
+    /// Show profiles: each recipe, as the `bunsen-tool asr family` command it
     /// runs.
     Show(ShowCmd),
 
@@ -470,7 +470,8 @@ fn list(out: &mut impl Write) -> BunsenResult<()> {
     Ok(())
 }
 
-/// Shows profiles: each recipe, as the `bunsen-asr family` command it runs.
+/// Shows profiles: each recipe, as the `bunsen-tool asr family` command it
+/// runs.
 #[derive(clap::Args, Debug)]
 struct ShowCmd {
     /// Profiles, by name or alias; every profile when none is named.

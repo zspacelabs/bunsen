@@ -42,7 +42,7 @@ jobs:
       - name: Lockfiles agree
         run: python3 tools/check_validation_lock.py
       - run: rustup toolchain install stable --profile minimal --component clippy
-      # `bunsen-asr live` captures through `cpal`, whose Linux backend
+      # `bunsen-tool asr live` captures through `cpal`, whose Linux backend
       # links ALSA.
       - run: sudo apt-get update && sudo apt-get install -y libasound2-dev
       # The caches as in the `test` job, which explains them. Clippy compiles
@@ -114,7 +114,7 @@ jobs:
       - name: Install Toolchain
         run: rustup toolchain install stable --profile minimal
 
-      # `bunsen-asr live` captures through `cpal`, whose Linux backend
+      # `bunsen-tool asr live` captures through `cpal`, whose Linux backend
       # links ALSA.
       - name: Install ALSA headers
         run: sudo apt-get update && sudo apt-get install -y libasound2-dev
@@ -215,7 +215,7 @@ jobs:
       # `bunsen-firehose` relied on `bunsen` enabling `burn/std` and failed to
       # publish at v0.31.0. One `cargo check` per crate reproduces the isolated
       # resolution; several `-p` flags in one invocation would unify again.
-      # A crate with a library checks it; `bunsen-asr` is binaries only.
+      # A crate with a library checks it; `bunsen-tool` is binaries only.
       - name: Published crates build in isolation
         run: |
           for manifest in crates/public/*/Cargo.toml; do
