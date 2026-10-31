@@ -5,6 +5,40 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and this project adheres
 to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.42.0](https://github.com/zspacelabs/bunsen/compare/bunsen-v0.41.0...bunsen-v0.42.0) - 2026-10-31
+
+### Added
+
+- *(bunsen-asr)* `family voxtral`, Mistral's Voxtral Realtime: transcribe, live, fetch and list ([#428](https://github.com/zspacelabs/bunsen/pull/428))
+- *(voxtral)* Voxtral Realtime streams through the asr_driver core, a segment per timed word ([#427](https://github.com/zspacelabs/bunsen/pull/427))
+- *(voxtral)* pretrained `mistralai/voxtral-mini-4b-realtime-2602` by name, and `hf:` repos, through `default_voxtral_factory` ([#425](https://github.com/zspacelabs/bunsen/pull/425))
+- *(voxtral)* the front end, the stream layout, greedy decoding and `VoxtralBundle::transcribe` ([#424](https://github.com/zspacelabs/bunsen/pull/424))
+- *(voxtral)* the Voxtral Realtime model on the shared blocks, held to transformers on a toy ([#423](https://github.com/zspacelabs/bunsen/pull/423))
+- *(tokens)* `TekkenVocabulary`, Mistral's `tekken.json` as an id-to-bytes table ([#422](https://github.com/zspacelabs/bunsen/pull/422))
+- *(blocks)* `AdaptiveScale`, a scale learned from a conditioning vector, on `CausalDecoderBlock`'s feed-forward input; `timestep_embedding` ([#421](https://github.com/zspacelabs/bunsen/pull/421))
+- *(attention)* [**breaking**] `CausalSelfAttention` takes projection biases, QK-norm off, and a sliding window; `GatedMlp` a down-projection bias ([#420](https://github.com/zspacelabs/bunsen/pull/420))
+- *(bunsen-chat)* the `bunsen-chat` binary: `list`, `fetch`, `run` and `chat` over a Qwen3 checkpoint, streaming each reply ([#411](https://github.com/zspacelabs/bunsen/pull/411))
+- *(decoding)* sampling truncations (top-k, top-p, min-p) in `SearchConfig`, and `decode_cached_observed`, which shows a caller each step and lets it stop ([#409](https://github.com/zspacelabs/bunsen/pull/409))
+- *(gpts)* `driver_support`, the model-generic parts of a streaming generation driver: text deltas, stop strings, and a KV cache's token history with its prefix rewind ([#407](https://github.com/zspacelabs/bunsen/pull/407))
+- *(attention)* `KVCache::truncate`, back to an earlier position without reallocating, under every storage ([#406](https://github.com/zspacelabs/bunsen/pull/406))
+- *(decoding)* [**breaking**] stop sets, candidates that record their stop token, and `decode_cached`, the shared cached decode loop; Qwen3 is a `CachedStep`, and Qwen3-ASR decodes through it ([#405](https://github.com/zspacelabs/bunsen/pull/405))
+- *(bunsen-bundled-qwen3)* fetch the Qwen3 checkpoints and generate a reference model from an ONNX export of Qwen3-0.6B ([#401](https://github.com/zspacelabs/bunsen/pull/401))
+- *(qwen3)* pretrained Qwen3 checkpoints up to 4B by name, through `default_qwen3_factory` ([#399](https://github.com/zspacelabs/bunsen/pull/399))
+- *(qwen3)* [**breaking**] load `transformers`' `Qwen3ForCausalLM` checkpoints and read their `config.json` ([#398](https://github.com/zspacelabs/bunsen/pull/398))
+
+### Fixed
+
+- *(qwen3)* the loaders read the model's dtype without initializing its lazy parameters ([#412](https://github.com/zspacelabs/bunsen/pull/412))
+- *(pretrained)* a load applies its tensors in batches and hands the device pool back its free pages between them, so it peaks near the model's size, not twice it ([#402](https://github.com/zspacelabs/bunsen/pull/402))
+
+### Other
+
+- two workspaces: the book, CONTRIBUTING, STYLE and the READMEs on `validation/` ([#433](https://github.com/zspacelabs/bunsen/pull/433))
+- the validation and ONNX reference crates move to a `validation/` workspace of their own ([#430](https://github.com/zspacelabs/bunsen/pull/430))
+- [**breaking**] the bundled-asset crates are ONNX binding crates, `crates/onnx/bind-{model}-onnx`, none published ([#416](https://github.com/zspacelabs/bunsen/pull/416))
+- *(decoding)* [**breaking**] `kits::decoding`, the search machinery Whisper's decode used, shared: logit filters, greedy and beam search, sampling, ranking, and the temperature ladder ([#404](https://github.com/zspacelabs/bunsen/pull/404))
+- *(qwen3-model-validation)* bunsen's Qwen3 held to onnxruntime, to a generated reference model, and to transformers' greedy decodes up to 4B, through every KV cache storage ([#403](https://github.com/zspacelabs/bunsen/pull/403))
+
 ## [0.40.0](https://github.com/zspacelabs/bunsen/compare/bunsen-v0.39.0...bunsen-v0.40.0) - 2026-10-23
 
 ### Added

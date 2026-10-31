@@ -1075,7 +1075,7 @@ dependencies = [
 
 [[package]]
 name = "book-snippets"
-version = "0.41.0"
+version = "0.42.0"
 dependencies = [
  "bunsen",
  "burn",
@@ -1171,7 +1171,7 @@ checksum = "72f5acc6cb2ba439de613abc23857ec3d78374d8ed5ac84e9d11336e87da8649"
 
 [[package]]
 name = "bunsen"
-version = "0.41.0"
+version = "0.42.0"
 dependencies = [
  "assert_float_eq",
  "bunsen",
@@ -1222,7 +1222,7 @@ dependencies = [
 
 [[package]]
 name = "bunsen-app"
-version = "0.41.0"
+version = "0.42.0"
 dependencies = [
  "bunsen",
  "burn",
@@ -1234,7 +1234,7 @@ dependencies = [
 
 [[package]]
 name = "bunsen-arrow-dataloaders"
-version = "0.41.0"
+version = "0.42.0"
 dependencies = [
  "arrow",
  "burn",
@@ -1248,7 +1248,7 @@ dependencies = [
 
 [[package]]
 name = "bunsen-asr"
-version = "0.41.0"
+version = "0.42.0"
 dependencies = [
  "bunsen",
  "bunsen-app",
@@ -1268,7 +1268,7 @@ dependencies = [
 
 [[package]]
 name = "bunsen-chat"
-version = "0.41.0"
+version = "0.42.0"
 dependencies = [
  "bunsen",
  "bunsen-app",
@@ -1284,7 +1284,7 @@ dependencies = [
 
 [[package]]
 name = "bunsen-contracts-macros"
-version = "0.41.0"
+version = "0.42.0"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -1293,7 +1293,7 @@ dependencies = [
 
 [[package]]
 name = "bunsen-fetch"
-version = "0.41.0"
+version = "0.42.0"
 dependencies = [
  "document-features",
  "sha2 0.11.0",
@@ -1303,7 +1303,7 @@ dependencies = [
 
 [[package]]
 name = "bunsen-firehose"
-version = "0.41.0"
+version = "0.42.0"
 dependencies = [
  "bunsen",
  "burn",
@@ -1319,7 +1319,7 @@ dependencies = [
 
 [[package]]
 name = "bunsen-firehose-image"
-version = "0.41.0"
+version = "0.42.0"
 dependencies = [
  "bunsen",
  "bunsen-firehose",
@@ -1337,7 +1337,7 @@ dependencies = [
 
 [[package]]
 name = "bunsen-test-audio"
-version = "0.41.0"
+version = "0.42.0"
 dependencies = [
  "bunsen-fetch",
  "sha2 0.11.0",
@@ -1887,7 +1887,7 @@ dependencies = [
 
 [[package]]
 name = "burn_bug_repro"
-version = "0.41.0"
+version = "0.42.0"
 dependencies = [
  "bunsen",
  "burn",
@@ -6248,7 +6248,7 @@ checksum = "e2db585e1d738fc771bf08a151420d3ed193d9d895a36df7f6f8a9456b911ddc"
 
 [[package]]
 name = "kv-cache-bench"
-version = "0.41.0"
+version = "0.42.0"
 dependencies = [
  "bunsen",
  "bunsen-app",
@@ -10129,7 +10129,7 @@ dependencies = [
 
 [[package]]
 name = "silero-bench"
-version = "0.41.0"
+version = "0.42.0"
 dependencies = [
  "bunsen",
  "burn",
