@@ -9,6 +9,7 @@ use bunsen::kits::speech::{
     },
     parakeet::ParakeetStreamContext,
     qwen3_asr::Qwen3AsrStreamContext,
+    voxtral::driver::VoxtralStreamContext,
     whisper::driver::WhisperStreamContext,
 };
 use bunsen::{
@@ -19,6 +20,7 @@ use bunsen::{
         diarization::SpeakerActivityModel,
         parakeet::ParakeetStreamDriver,
         qwen3_asr::Qwen3AsrStreamDriver,
+        voxtral::driver::VoxtralStreamDriver,
         whisper::driver::WhisperStreamDriver,
     },
 };
@@ -36,6 +38,7 @@ use crate::{
         FamilyFlags,
         Transcript,
     },
+    voxtral,
     whisper,
 };
 
@@ -43,6 +46,7 @@ use crate::{
 pub enum Driver {
     Parakeet(ParakeetStreamDriver),
     Qwen3Asr(Qwen3AsrStreamDriver),
+    Voxtral(VoxtralStreamDriver),
     Whisper(Box<WhisperStreamDriver>),
 }
 
@@ -82,6 +86,16 @@ impl Driver {
                 )?,
                 speakers,
             )?),
+            Loaded::Voxtral(bundle) => Driver::Voxtral(stream::with_speakers(
+                voxtral::driver(
+                    bundle,
+                    flags.voxtral().expect("Voxtral's flags"),
+                    preset,
+                    cache,
+                    device,
+                )?,
+                speakers,
+            )?),
             Loaded::Whisper(bundle) => Driver::Whisper(Box::new(stream::with_speakers(
                 whisper::driver(
                     bundle,
@@ -100,6 +114,7 @@ impl Driver {
         match self {
             Driver::Parakeet(d) => d.sample_rate(),
             Driver::Qwen3Asr(d) => d.sample_rate(),
+            Driver::Voxtral(d) => d.sample_rate(),
             Driver::Whisper(d) => d.sample_rate(),
         }
     }
@@ -112,6 +127,7 @@ impl Driver {
         match self {
             Driver::Parakeet(d) => stream::push_samples(d, ms),
             Driver::Qwen3Asr(d) => stream::push_samples(d, ms),
+            Driver::Voxtral(d) => stream::push_samples(d, ms),
             Driver::Whisper(d) => stream::push_samples(d, ms),
         }
     }
@@ -126,6 +142,7 @@ impl Driver {
         match self {
             Driver::Parakeet(d) => parakeet::transcribe(d, samples, chunk),
             Driver::Qwen3Asr(d) => qwen3_asr::transcribe(d, samples, chunk),
+            Driver::Voxtral(d) => voxtral::transcribe(d, samples, chunk),
             Driver::Whisper(d) => whisper::transcribe(d, samples, chunk),
         }
     }
@@ -142,6 +159,9 @@ impl Driver {
             Driver::Qwen3Asr(d) => {
                 Stream::Qwen3Asr(Box::new(d.new_context(clock(), qwen3_asr::LEVEL)?))
             }
+            Driver::Voxtral(d) => {
+                Stream::Voxtral(Box::new(d.new_context(clock(), voxtral::LEVEL)?))
+            }
             Driver::Whisper(d) => {
                 Stream::Whisper(Box::new(d.new_context(clock(), whisper::LEVEL)?))
             }
@@ -155,6 +175,7 @@ impl Driver {
 pub enum Stream {
     Parakeet(Box<ParakeetStreamContext>),
     Qwen3Asr(Box<Qwen3AsrStreamContext>),
+    Voxtral(Box<VoxtralStreamContext>),
     Whisper(Box<WhisperStreamContext>),
 }
 
@@ -165,6 +186,7 @@ macro_rules! each {
         match $stream {
             Stream::Parakeet($ctx) => $body,
             Stream::Qwen3Asr($ctx) => $body,
+            Stream::Voxtral($ctx) => $body,
             Stream::Whisper($ctx) => $body,
         }
     };
@@ -200,10 +222,11 @@ impl Stream {
         each!(self, ctx => ctx.samples_seen())
     }
 
-    /// The language, once the model has named one; Parakeet names none.
+    /// The language, once the model has named one; Parakeet and Voxtral
+    /// name none.
     pub fn language(&self) -> Option<&str> {
         match self {
-            Stream::Parakeet(_) => None,
+            Stream::Parakeet(_) | Stream::Voxtral(_) => None,
             Stream::Qwen3Asr(ctx) => ctx.language(),
             Stream::Whisper(ctx) => ctx.language(),
         }

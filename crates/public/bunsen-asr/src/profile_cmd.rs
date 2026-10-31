@@ -48,6 +48,7 @@ use crate::{
         VAD_MODEL,
     },
     transcribe_cmd::TranscribeIo,
+    voxtral::VoxtralFlags,
     whisper::WhisperFlags,
 };
 
@@ -329,6 +330,10 @@ macro_rules! with_flags {
             }
             Family::Qwen3Asr => {
                 let $flags = $resolved.parse_flags::<Qwen3AsrFlags>()?;
+                $body
+            }
+            Family::Voxtral => {
+                let $flags = $resolved.parse_flags::<VoxtralFlags>()?;
                 $body
             }
             Family::Whisper => {

@@ -17,7 +17,7 @@ transcript = "crates/dev/bunsen-test-audio/testdata/jfk_moon.txt"
 max_wer = 0.35
 
 # The families `all` lists, and the diarizer, by their `bunsen-asr` commands.
-families = ["parakeet", "qwen3-asr", "whisper"]
+families = ["parakeet", "qwen3-asr", "voxtral", "whisper"]
 
 # `kind` says what the output is: `text`, scored against the transcript, or
 # `turns`, checked for at least one speaker turn. `args` follow
@@ -32,6 +32,11 @@ args = ["family", "parakeet", "transcribe"]
 name = "qwen3-asr (default model)"
 kind = "text"
 args = ["family", "qwen3-asr", "transcribe"]
+
+[[defaults]]
+name = "voxtral (default model)"
+kind = "text"
+args = ["family", "voxtral", "transcribe"]
 
 [[defaults]]
 name = "whisper (default model)"

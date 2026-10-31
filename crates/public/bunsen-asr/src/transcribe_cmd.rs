@@ -47,6 +47,7 @@ use crate::{
     },
     qwen3_asr::Qwen3AsrFlags,
     stream::Preset,
+    voxtral::VoxtralFlags,
     whisper,
 };
 
@@ -59,6 +60,11 @@ pub trait FamilyFlags: std::fmt::Debug {
 
     /// Qwen3-ASR's, when these are Qwen3-ASR's.
     fn qwen3_asr(&self) -> Option<&Qwen3AsrFlags> {
+        None
+    }
+
+    /// Voxtral's, when these are Voxtral's.
+    fn voxtral(&self) -> Option<&VoxtralFlags> {
         None
     }
 
@@ -93,6 +99,12 @@ impl FamilyFlags for ParakeetFlags {
 
 impl FamilyFlags for Qwen3AsrFlags {
     fn qwen3_asr(&self) -> Option<&Qwen3AsrFlags> {
+        Some(self)
+    }
+}
+
+impl FamilyFlags for VoxtralFlags {
+    fn voxtral(&self) -> Option<&VoxtralFlags> {
         Some(self)
     }
 }

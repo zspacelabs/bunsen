@@ -1,7 +1,7 @@
 //! `bunsen-asr`: speech to text on bunsen. `bunsen-asr <transcribe|live>
 //! [--profile NAME] [FLAGS]` runs a profile, a model chosen by what it is
 //! for, and `bunsen-asr profiles <list|show|fetch>` shows them;
-//! `bunsen-asr family <parakeet|qwen3-asr|whisper>
+//! `bunsen-asr family <parakeet|qwen3-asr|voxtral|whisper>
 //! <list|fetch|transcribe|live> [FLAGS]` (and `family whisper
 //! inspect|prefabs`) runs a family's model by name; `bunsen-asr diarize
 //! <list|fetch|run|live>` says who spoke when, and `bunsen-asr cache
@@ -28,6 +28,7 @@ mod qwen3_asr;
 mod resample;
 mod stream;
 mod transcribe_cmd;
+mod voxtral;
 mod whisper;
 mod whisper_models;
 
@@ -62,8 +63,8 @@ enum Command {
     Diarize(diarize::DiarizeCmd),
 
     /// The weights cache every family loads through: where it is, what it
-    /// holds (by kit: `parakeet`, `qwen3-asr`, `whisper`, `sortformer`,
-    /// `silero_vad`), and clearing it.
+    /// holds (by kit: `parakeet`, `qwen3-asr`, `voxtral`, `whisper`,
+    /// `sortformer`, `silero_vad`), and clearing it.
     Cache(bunsen_app::cache::CacheCommand),
 }
 
@@ -84,6 +85,10 @@ enum FamilySub {
     #[command(name = "qwen3-asr")]
     Qwen3Asr(KitCmd<qwen3_asr::Qwen3AsrFlags>),
 
+    /// Mistral's Voxtral Realtime: `mistralai/voxtral-mini-4b-realtime-2602`
+    /// by default.
+    Voxtral(KitCmd<voxtral::VoxtralFlags>),
+
     /// `OpenAI`'s Whisper: `openai/base` by default.
     Whisper(WhisperCmd),
 }
@@ -93,6 +98,7 @@ impl FamilyCmd {
         match &self.family {
             FamilySub::Parakeet(cmd) => cmd.run(Family::Parakeet),
             FamilySub::Qwen3Asr(cmd) => cmd.run(Family::Qwen3Asr),
+            FamilySub::Voxtral(cmd) => cmd.run(Family::Voxtral),
             FamilySub::Whisper(cmd) => cmd.run(),
         }
     }
@@ -203,7 +209,7 @@ mod tests {
     /// Each family parses its own `list` and `transcribe`.
     #[test]
     fn test_families_parse() {
-        for family in ["parakeet", "qwen3-asr", "whisper"] {
+        for family in ["parakeet", "qwen3-asr", "voxtral", "whisper"] {
             Args::try_parse_from(["bunsen-asr", "family", family, "list"]).unwrap();
             Args::try_parse_from(["bunsen-asr", "family", family, "transcribe", "a.wav"]).unwrap();
         }
@@ -237,7 +243,7 @@ mod tests {
         assert!(Args::try_parse_from(["bunsen-asr", "diarize", "transcribe", "a.wav"]).is_err());
         // Every family diarizes: `--diarize` alone is the default model, and
         // never takes the file that follows it.
-        for family in ["parakeet", "qwen3-asr", "whisper"] {
+        for family in ["parakeet", "qwen3-asr", "voxtral", "whisper"] {
             let Args { command: parsed } = Args::try_parse_from([
                 "bunsen-asr",
                 "family",
@@ -316,7 +322,7 @@ mod tests {
             .is_err()
         );
         // Every family fetches, at least one name.
-        for family in ["parakeet", "qwen3-asr", "whisper"] {
+        for family in ["parakeet", "qwen3-asr", "voxtral", "whisper"] {
             Args::try_parse_from([
                 "bunsen-asr",
                 "family",
@@ -341,7 +347,7 @@ mod tests {
         }
         // Every family listens live, under any preset.
         #[cfg(feature = "live")]
-        for family in ["parakeet", "qwen3-asr", "whisper"] {
+        for family in ["parakeet", "qwen3-asr", "voxtral", "whisper"] {
             Args::try_parse_from([
                 "bunsen-asr",
                 "family",
@@ -357,7 +363,7 @@ mod tests {
             .unwrap();
         }
         // Every family takes a preset.
-        for family in ["parakeet", "qwen3-asr", "whisper"] {
+        for family in ["parakeet", "qwen3-asr", "voxtral", "whisper"] {
             Args::try_parse_from([
                 "bunsen-asr",
                 "family",
@@ -473,7 +479,7 @@ mod tests {
         }
         assert!(Args::try_parse_from(["bunsen-asr", "profiles", "fetch"]).is_err());
         // The families moved under `family`.
-        for family in ["parakeet", "qwen3-asr", "whisper"] {
+        for family in ["parakeet", "qwen3-asr", "voxtral", "whisper"] {
             assert!(
                 Args::try_parse_from(["bunsen-asr", family, "transcribe", "a.wav"]).is_err(),
                 "{family}"
