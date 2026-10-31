@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generate the Qwen3 toy-model fixture.
+"""Generate the Qwen3 toy-model fixtures.
 
 Run once; commit the outputs. Regenerating is not part of CI.
 
@@ -11,10 +11,11 @@ Run once; commit the outputs. Regenerating is not part of CI.
 Pinned versions used to produce the committed fixture:
     transformers 5.19.0, torch 2.14.1+cpu, safetensors 0.8.0
 
-A tiny `Qwen3ForCausalLM` -- `transformers`' own implementation -- with seeded random
-weights, run on the CPU in float64 and stored as float32. The toy keeps the shape rules
-that matter and nothing else: a head dimension that is not
-`hidden_size / num_attention_heads`, grouped-query attention, and a tied head.
+Two tiny `Qwen3ForCausalLM`s -- `transformers`' own implementation -- with seeded random
+weights, run on the CPU in float64 and stored as float32. Each keeps the shape rules that
+matter and nothing else: a head dimension that is not `hidden_size / num_attention_heads`,
+and grouped-query attention. `toy` has a tied head, `toy_untied` a head of its own (as
+`Qwen3-8B` has).
 
 Outputs, under `crates/public/bunsen/testdata/qwen3/`:
 
@@ -28,6 +29,9 @@ Outputs, under `crates/public/bunsen/testdata/qwen3/`:
       `logits`.
 `toy.config.json`
     The toy's `config.json`, as `save_pretrained` writes it.
+`toy_untied.safetensors`, `toy_untied.config.json`
+    The same for the untied toy: `lm_head.weight` is its head, which `io.logits` are
+    computed through.
 """
 
 import json
@@ -61,19 +65,21 @@ CONFIG = dict(
 INPUT_IDS = [1, 5, 7, 2, 9, 49, 0]
 
 
-def main() -> None:
-    OUT.mkdir(parents=True, exist_ok=True)
+def write_toy(name: str, tied: bool) -> None:
     torch.manual_seed(1234)
-    config = Qwen3Config(**CONFIG)
+    config = Qwen3Config(**{**CONFIG, "tie_word_embeddings": tied})
     model = Qwen3ForCausalLM(config).double().eval()
     with torch.no_grad():
-        for name, p in model.named_parameters():
-            if "norm" in name and name.endswith(".weight"):
+        for pname, p in model.named_parameters():
+            if "norm" in pname and pname.endswith(".weight"):
                 p.copy_(1.0 + 0.2 * torch.randn_like(p))
             else:
                 p.copy_(torch.randn_like(p) / np.sqrt(p.shape[1] if p.ndim >= 2 else 4))
-    model.tie_weights()
-    assert model.lm_head.weight.data_ptr() == model.model.embed_tokens.weight.data_ptr()
+    if tied:
+        model.tie_weights()
+        assert model.lm_head.weight.data_ptr() == model.model.embed_tokens.weight.data_ptr()
+    else:
+        assert model.lm_head.weight.data_ptr() != model.model.embed_tokens.weight.data_ptr()
 
     captured = {}
     model.model.layers[0].register_forward_hook(
@@ -90,19 +96,28 @@ def main() -> None:
         "hidden": hidden,
         "logits": logits,
     }
-    tensors = {k: v.float().contiguous()
-               for k, v in model.state_dict().items() if k != "lm_head.weight"}
-    torch.manual_seed(99)
-    tensors["lm_head.weight"] = torch.randn(CONFIG["vocab_size"], CONFIG["hidden_size"])
+    if tied:
+        tensors = {k: v.float().contiguous()
+                   for k, v in model.state_dict().items() if k != "lm_head.weight"}
+        torch.manual_seed(99)
+        tensors["lm_head.weight"] = torch.randn(CONFIG["vocab_size"], CONFIG["hidden_size"])
+    else:
+        tensors = {k: v.float().contiguous() for k, v in model.state_dict().items()}
     tensors.update({f"io.{k}": v.float().contiguous() for k, v in io.items()})
-    save_file(tensors, OUT / "toy.safetensors")
+    save_file(tensors, OUT / f"{name}.safetensors")
 
     saved = config.to_dict()
     for k in ("transformers_version", "dtype", "torch_dtype"):
         saved.pop(k, None)
     saved["architectures"] = ["Qwen3ForCausalLM"]
-    (OUT / "toy.config.json").write_text(json.dumps(saved, indent=2, sort_keys=True) + "\n")
-    print("wrote", OUT, {k: tuple(v.shape) for k, v in io.items()})
+    (OUT / f"{name}.config.json").write_text(json.dumps(saved, indent=2, sort_keys=True) + "\n")
+    print("wrote", name, {k: tuple(v.shape) for k, v in io.items()})
+
+
+def main() -> None:
+    OUT.mkdir(parents=True, exist_ok=True)
+    write_toy("toy", tied=True)
+    write_toy("toy_untied", tied=False)
 
 
 if __name__ == "__main__":

@@ -1,13 +1,18 @@
-//! The toy model against `transformers`' own forward.
+//! The toy models against `transformers`' own forward.
 //!
 //! `testdata/qwen3/toy.safetensors` holds a tiny seeded `Qwen3ForCausalLM`'s
 //! weights and its answers, computed in float64
 //! (`tools/gen_qwen3_toy_fixtures.py`), and an `lm_head.weight` that is not the
-//! embedding, which a tied loader must not read. The geometry comes from
-//! `toy.config.json` through [`qwen3_config_from_hf`], and the weights load
-//! through [`load_hf_tensors`], so the loader is under test too.
+//! embedding, which a tied loader must not read. `toy_untied.safetensors` is
+//! the same with a head of its own, which the logits are computed through.
+//! Each geometry comes from its `config.json` through
+//! [`qwen3_config_from_hf`], and the weights load through
+//! [`load_hf_tensors`], so the loader is under test too.
 
-use std::collections::BTreeMap;
+use std::{
+    collections::BTreeMap,
+    path::PathBuf,
+};
 
 use burn::{
     prelude::*,
@@ -42,18 +47,16 @@ struct Toy {
     device: Device,
 }
 
+/// The tied toy and the untied one: their names under `testdata/qwen3/`.
+const TOYS: [&str; 2] = ["toy", "toy_untied"];
+
 impl Toy {
-    fn load() -> Self {
-        let config = qwen3_config_from_hf(include_str!(concat!(
-            env!("CARGO_MANIFEST_DIR"),
-            "/testdata/qwen3/toy.config.json"
-        )))
-        .expect("read the toy config");
-        let path = concat!(
-            env!("CARGO_MANIFEST_DIR"),
-            "/testdata/qwen3/toy.safetensors"
-        );
-        let mut store = SafetensorsStore::from_file(path);
+    fn load(name: &str) -> Self {
+        let dir = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("testdata/qwen3");
+        let json = std::fs::read_to_string(dir.join(format!("{name}.config.json")))
+            .expect("read the toy config");
+        let config = qwen3_config_from_hf(&json).expect("parse the toy config");
+        let mut store = SafetensorsStore::from_file(dir.join(format!("{name}.safetensors")));
         let all = store
             .get_all_tensors()
             .expect("read the toy fixture")
@@ -64,7 +67,12 @@ impl Toy {
         let mut model: Qwen3Model = config.init(&device);
         let applied = load_hf_tensors(&mut model, weights.into_iter().map(|(_, t)| t))
             .expect("load the toy weights");
-        assert_eq!(applied.unused, ["lm_head.weight"]);
+        if config.tied_head {
+            assert_eq!(applied.unused, ["lm_head.weight"], "{name}");
+        } else {
+            assert!(applied.unused.is_empty(), "{name}: {:?}", applied.unused);
+            assert!(applied.applied.iter().any(|p| p == "lm_head.weight"));
+        }
         let io = io
             .into_iter()
             .map(|(n, t)| (n.strip_prefix("io.").unwrap().to_string(), t))
@@ -100,10 +108,15 @@ fn assert_close<const D: usize>(
 }
 
 /// An uncached pass is `transformers`' forward: the first layer, the
-/// normalized hidden states, and the tied head's logits.
+/// normalized hidden states, and the head's logits, tied or its own.
 #[test]
 fn test_toy_forward() {
-    let toy = Toy::load();
+    for name in TOYS {
+        check_forward(&Toy::load(name));
+    }
+}
+
+fn check_forward(toy: &Toy) {
     let model = &toy.model;
     let embeds = model.embed(toy.ids());
     let seq = embeds.dims()[1];
@@ -120,7 +133,12 @@ fn test_toy_forward() {
 /// that starts too small and grows, is `transformers`' uncached forward.
 #[test]
 fn test_toy_cached_decode() {
-    let toy = Toy::load();
+    for name in TOYS {
+        check_cached_decode(&Toy::load(name));
+    }
+}
+
+fn check_cached_decode(toy: &Toy) {
     let model = &toy.model;
     let embeds = model.embed(toy.ids());
     let seq = embeds.dims()[1];
