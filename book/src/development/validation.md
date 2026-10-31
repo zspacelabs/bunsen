@@ -87,12 +87,19 @@ listing at a pinned revision and writes the digest table that a
 
 ## Running validation
 
+The validation crates are a Cargo workspace of their own, under
+`validation/`, so no command in the main workspace builds them: run them from
+`validation/`, or with `--manifest-path validation/Cargo.toml`, as the
+`cargo make` tasks below do.
+
 The Whisper suite takes three features, and none implies another:
 `download` fetches the assets it compares against, `gpu-tests` compiles the
 tests that load a model, and a backend feature says what they run on.
-Without `gpu-tests` only its fixture-integrity checks run, and that is all of
-it that pull-request CI runs: it turns on none of `weights`, `download` and
-`gpu-tests` for any validation crate.
+Without `gpu-tests` only its fixture-integrity checks run.
+`cargo make check-validation` runs those, with clippy and the formatting
+check, over the whole workspace with its default features. Pull-request CI
+builds none of it: of the validation workspace it checks only that its
+lockfile agrees with the root's.
 
 `weights` is the cheap half of `download`, the checkpoints without the
 reference graphs, and compiles the checks that need only them: the Whisper
@@ -116,7 +123,7 @@ measured the CPU ([Testing and backends](./testing.md#the-silent-cpu-fallback)).
 
 A kit that claims parity with an upstream implementation gets a crate under
 `validation/models/`. Its reference and the checkpoint it is compared on
-come through a bundled-asset crate, digest-pinned
+come through a `bind-{model}-onnx` crate under `validation/onnx/`, digest-pinned
 ([Assets, bundling and the network](./assets.md)), and the crate tests in
 both layers: staged on synthetic input, composed on real input with a
 measured tolerance. [The workspace](../organization/workspace.md#validation-crates)

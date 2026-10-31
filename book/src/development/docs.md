@@ -51,8 +51,8 @@ rename.
 Only what docs.rs shows resolves. `bunsen` is built with the feature list
 in its `[package.metadata.docs.rs]`, and the other published crates with
 their defaults (docs.rs may build one with more), so an item behind a
-feature that docs.rs doesn't build can't be linked. The `crates/dev` and
-`validation/models` crates and the examples are not in that build. Link
+feature that docs.rs doesn't build can't be linked. The `crates/dev` crates,
+the validation workspace's and the examples are not in that build. Link
 them, and other repository files, as GitHub URLs, and keep those few.
 
 The base URL the links point at is chosen per build:

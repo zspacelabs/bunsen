@@ -16,7 +16,9 @@ There are two switches, and neither implies the other:
 
 - **`download`**: the *build* may reach the network. A build script fetches
   an asset, and the crate compiles against it. It is off by default, so a
-  plain `cargo build --workspace` never fetches. `download` is a
+  plain `cargo build --workspace` never fetches; and the crates that offer it
+  are in the validation workspace (`validation/`), which no command in the
+  main workspace builds. `download` is a
   conventional name rather than a bunsen feature: a crate that offers it
   turns on the per-asset features of the crates that own the assets.
 - **`fetch`**: the *program* may reach the network at run time, to bring a
@@ -63,8 +65,8 @@ Every bundled crate hosts nothing: its build script fetches the files, pins
 each one, and lays them out in `OUT_DIR` as a pretrained cache. A cache rooted
 there finds them offline without knowing they were bundled.
 
-Each is a development crate, `crates/dev/bind-{model}-onnx`, and none is
-published:
+Each is a crate of the validation workspace, `validation/onnx/bind-{model}-onnx`,
+and none is published:
 
 - [`bind-whisper-onnx`](https://github.com/zspacelabs/bunsen/tree/main/validation/onnx/bind-whisper-onnx)
   fetches Whisper's `base` checkpoint, the vocabularies and the ONNX

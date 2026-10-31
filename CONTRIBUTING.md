@@ -56,7 +56,9 @@ tests, with or without a backend; STYLE.md's
 Four jobs, each step commented in the workflow:
 
 - **Format:** `cargo +nightly fmt -- --check`.
-- **Clippy:** the hidden-module-docs check, then `cargo clippy --no-deps -- -D warnings` over the whole workspace.
+- **Clippy:** the hidden-module-docs check; the check that `validation/Cargo.lock` builds bunsen's crates at the
+  root lock's versions (`tools/check_validation_lock.py`, which reads the two lockfiles and builds nothing); then
+  `cargo clippy --no-deps -- -D warnings` over the whole workspace.
 - **Book:** `mdbook build book` with `CI` set, so every API link in the book must resolve.
 - **CI:** the API docs three ways (the workspace with an explicit feature list; `bunsen` alone with the feature list
   docs.rs uses, which `cargo make doc-docsrs` reproduces; `bunsen` with its default features), then
@@ -72,8 +74,11 @@ of these jobs fetches a model: the model validation suites run only when asked (
 ### Model validation
 
 The validation crates (`validation/models/*`) hold each speech model to an independent reference: a Rust model
-generated from upstream's ONNX export, and upstream's own checkpoints. Their build scripts fetch those assets, digest-pinned,
-so nothing runs them by default.
+generated from upstream's ONNX export, and upstream's own checkpoints. The `bind-{model}-onnx` crates under
+`validation/onnx/` fetch those assets at build time, digest-pinned, so nothing runs them by default. `validation/` is a
+Cargo workspace of its own, which no command in the root workspace builds, and which no CI job builds; run its crates
+from there, or with `--manifest-path validation/Cargo.toml`. `cargo make check-validation` formats, lints and tests it
+with its default features, by hand: run it before merging a change to an API the validation crates use.
 
 **On a pull request**, add the `validate` label to run `validation.yml`: Silero's and Whisper's whole suites, ONNX
 cross-checks included, on the CPU, over about 730 MB of assets. It runs when the label is added and again on every push
@@ -169,7 +174,7 @@ the checkpoints and reference graphs the validation crates check against, live i
 (`publish = false`).
 
 Nothing else is released: release-plz is opt-in (`release = false` for the workspace, `release = true` per crate), so
-the examples and the `crates/dev` and `validation/models` crates stay out.
+the examples and the `crates/dev` crates stay out; the validation workspace is not in release-plz's view at all.
 
 ### How a release happens
 

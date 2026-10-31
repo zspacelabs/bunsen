@@ -13,7 +13,8 @@
 [workspace]
 # Opt-in model: nothing is released unless a [[package]] entry below sets
 # `release = true`. This automatically keeps the `examples/*` binaries and the
-# `crates/dev` and `validation/models` crates out of the release process.
+# `crates/dev` crates out of the release process. The validation workspace
+# (`validation/`) is not this workspace's, so release-plz never sees it.
 release = false
 
 # Regenerate each released crate's CHANGELOG.md from git history (via git-cliff).

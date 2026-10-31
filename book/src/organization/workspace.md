@@ -1,16 +1,21 @@
 # The workspace
 
-bunsen is one Cargo workspace with five kinds of member. Only the crates
-under `crates/public` are published; everything else exists to build,
-check, validate or demonstrate them.
+bunsen is two Cargo workspaces. The main one, at the repository root, has
+three kinds of member; only the crates under `crates/public` are published,
+and everything else exists to build, check or demonstrate them. The
+validation workspace, under `validation/`, holds bunsen's models to
+reference implementations; nothing the main workspace runs builds it.
 
 ```text
 crates/public/      the published crates (released together, one version)
 crates/dev/         development tooling: upstream bug repros, benches, test audio
-validation/onnx/        the validation crates' ONNX references and checkpoints, fetched at build time
-validation/models/  cross-checks of bunsen models against reference implementations
 examples/           runnable programs, one per kit or system
 tools/              one-shot fixture generators and repo checks (Python, stdlib-first)
+
+validation/         a workspace of its own (validation/Cargo.toml, validation/Cargo.lock)
+  onnx/             the ONNX references and checkpoints, fetched at build time
+  models/           cross-checks of bunsen models against those references
+  tools/            the fixture generators whose output lands in models/
 ```
 
 ## Published crates
@@ -34,16 +39,26 @@ by release-plz ([Releasing](../development/release.md)).
 |---|---|
 | [`burn_bug_repro`](https://github.com/zspacelabs/bunsen/tree/main/crates/dev/burn_bug_repro) | Reproductions of defects in burn and its ecosystem, each paired with a pin on today's behaviour. See [Upstream bug reproductions](../development/repros.md). |
 | [`silero-bench`](https://github.com/zspacelabs/bunsen/tree/main/crates/dev/silero-bench) | A benchmark CLI for Silero VAD. See [Benchmarks](../development/benchmarks.md). |
-| [`rewrite-genai-onnx`](https://github.com/zspacelabs/bunsen/tree/main/validation/onnx/rewrite-genai-onnx) | Rewrites an onnxruntime-genai ONNX export's `com.microsoft` ops to standard ONNX, so `burn-onnx` imports it; the `bind-{model}-onnx` build scripts call it. |
 | [`bunsen-test-audio`](https://github.com/zspacelabs/bunsen/tree/main/crates/dev/bunsen-test-audio) | The audio clips the tests, the validation suites and the fixture scripts read, with their provenance and ground truth. A leaf crate, so `bunsen` takes it as a dev-dependency. |
 
-## ONNX binding crates
+## The validation workspace
+
+`validation/` depends on the main workspace's crates by path, and has a
+lockfile of its own; every package bunsen's crates reach in it is the
+version `Cargo.lock` has (`tools/check_validation_lock.py`, run in CI).
+Building it with its default features fetches nothing; `weights` and
+`download` fetch, and only the validation runs turn them on
+([Validation](../development/validation.md)). No CI job builds it;
+`cargo make check-validation` does, by hand.
+
+### ONNX binding crates
 
 | Crate | Role |
 |---|---|
+| [`rewrite-genai-onnx`](https://github.com/zspacelabs/bunsen/tree/main/validation/onnx/rewrite-genai-onnx) | Rewrites an onnxruntime-genai ONNX export's `com.microsoft` ops to standard ONNX, so `burn-onnx` imports it; the `bind-{model}-onnx` build scripts call it. |
 | `bind-{model}-onnx` ([`whisper`](https://github.com/zspacelabs/bunsen/tree/main/validation/onnx/bind-whisper-onnx), [`silero`](https://github.com/zspacelabs/bunsen/tree/main/validation/onnx/bind-silero-onnx), [`parakeet`](https://github.com/zspacelabs/bunsen/tree/main/validation/onnx/bind-parakeet-onnx), [`qwen3`](https://github.com/zspacelabs/bunsen/tree/main/validation/onnx/bind-qwen3-onnx), [`qwen3-asr`](https://github.com/zspacelabs/bunsen/tree/main/validation/onnx/bind-qwen3-asr-onnx), [`sortformer`](https://github.com/zspacelabs/bunsen/tree/main/validation/onnx/bind-sortformer-onnx), [`voxtral`](https://github.com/zspacelabs/bunsen/tree/main/validation/onnx/bind-voxtral-onnx)) | Each validation crate's assets: the checkpoints it compares, fetched and digest-pinned at build time and laid out as a pretrained cache, and the reference model `burn-onnx` generates from an upstream ONNX export. Host no files. See [Assets, bundling and the network](../development/assets.md#the-bundled-crates). |
 
-## Validation crates
+### Validation crates
 
 | Crate | Validates |
 |---|---|
@@ -51,13 +66,14 @@ by release-plz ([Releasing](../development/release.md)).
 | [`silero-model-validation`](https://github.com/zspacelabs/bunsen/tree/main/validation/models/silero-model-validation) | Silero VAD against the ONNX graph it was transliterated from, and against a committed golden trace. |
 | [`whisper-model-validation`](https://github.com/zspacelabs/bunsen/tree/main/validation/models/whisper-model-validation) | Whisper against an ONNX export, stage by stage, and against `openai-whisper`'s own decode of real speech. |
 
-These are not part of a normal build's test run; they are how a kit earns
-trust. See [Validation against reference implementations](../development/validation.md).
+Their reference checks are not part of a normal build's test run; they are
+how a kit earns trust. See [Validation against reference implementations](../development/validation.md).
 
 ## Examples and tools
 
 The [examples](./examples.md) are runnable programs, one or more per kit or
-system. `tools/` holds the Python scripts that generate committed test
-fixtures from reference implementations, run once by hand, never by CI
-([Validation](../development/validation.md)), and the repository checks CI
-runs.
+system. `tools/` holds the Python scripts that generate bunsen's committed
+test fixtures from reference implementations, and the repository checks CI
+runs; `validation/tools/` holds those that generate the validation crates'
+fixtures. Each fixture script is run once by hand, never by CI
+([Validation](../development/validation.md)).
