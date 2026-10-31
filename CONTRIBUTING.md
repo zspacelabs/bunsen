@@ -164,7 +164,7 @@ The eight published crates, in `crates/public/`, are versioned in **lockstep**: 
 - `bunsen-app`
 - `bunsen-asr` (a binary: `cargo install bunsen-asr`)
 
-The `bind-{model}-onnx` crates (`whisper`, `silero`, `parakeet`, `qwen3`, `qwen3-asr`, `sortformer`), which fetch
+The `bind-{model}-onnx` crates (`whisper`, `silero`, `parakeet`, `qwen3`, `qwen3-asr`, `sortformer`, `voxtral`), which fetch
 the checkpoints and reference graphs the validation crates check against, live in `crates/onnx/` and are not published
 (`publish = false`).
 

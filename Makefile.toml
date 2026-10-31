@@ -123,8 +123,13 @@ description = "Sortformer's whole validation suite (fetches ~3 GB, and the ASR c
 workspace = false
 script = "cargo test --release -p sortformer-model-validation --features download,gpu-tests,${VALIDATION_BACKEND:-wgpu}"
 
+[tasks.validate-voxtral]
+description = "Voxtral Realtime's whole validation suite (fetches ~19 GB)"
+workspace = false
+script = "cargo test --release -p voxtral-model-validation --features download,gpu-tests,${VALIDATION_BACKEND:-wgpu}"
+
 [tasks.validate-all]
-description = "Every model's whole validation suite (fetches ~40 GB on a cold cache)"
+description = "Every model's whole validation suite (fetches ~50 GB on a cold cache)"
 workspace = false
 dependencies = [
     "validate-silero",
@@ -133,6 +138,7 @@ dependencies = [
     "validate-qwen3-asr",
     "validate-qwen3",
     "validate-sortformer",
+    "validate-voxtral",
 ]
 
 # ── exercise ──────────────────────────────────────────────────────────────────

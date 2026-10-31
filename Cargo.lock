@@ -956,6 +956,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "bind-voxtral-onnx"
+version = "0.41.0"
+dependencies = [
+ "bunsen-fetch",
+ "burn",
+ "burn-onnx",
+ "burn-store",
+ "document-features",
+ "rewrite-genai-onnx",
+]
+
+[[package]]
 name = "bind-whisper-onnx"
 version = "0.41.0"
 dependencies = [
@@ -12125,6 +12137,18 @@ name = "void"
 version = "1.0.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6a02e4885ed3bc0f2de90ea6dd45ebcbb66dacffe03547fadbb0eeae2770887d"
+
+[[package]]
+name = "voxtral-model-validation"
+version = "0.41.0"
+dependencies = [
+ "bind-voxtral-onnx",
+ "bunsen",
+ "burn",
+ "serde",
+ "serde_json",
+ "serial_test",
+]
 
 [[package]]
 name = "vtparse"

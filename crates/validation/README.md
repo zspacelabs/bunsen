@@ -18,9 +18,9 @@ Nothing here runs by default: a plain `cargo build --workspace` or
 | `cargo make validate-cpu` | the `weights` checks, on the CPU (~150 MB) |
 | `cargo make validate-ci` | Silero's and Whisper's whole suites, on the CPU (~730 MB); `validation.yml` runs this when asked: from the Actions tab, or for a PR labelled `validate` |
 | `cargo make validate-<model>` | one model's whole suite, in release mode, on `VALIDATION_BACKEND` (default `wgpu`) |
-| `cargo make validate-all` | every model's whole suite (~40 GB on a cold cache) |
+| `cargo make validate-all` | every model's whole suite (~50 GB on a cold cache) |
 
-`<model>` is `silero`, `whisper`, `parakeet`, `qwen3-asr`, `qwen3` or `sortformer`.
+`<model>` is `silero`, `whisper`, `parakeet`, `qwen3-asr`, `qwen3`, `sortformer` or `voxtral`.
 
 bunsen's own tests read no fetched asset. A kit test that needs what a real
 model does replays a committed recording of it (for example
