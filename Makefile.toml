@@ -139,8 +139,13 @@ description = "Voxtral Realtime's whole validation suite (fetches ~28 GB)"
 workspace = false
 script = "cargo test --manifest-path validation/Cargo.toml --release -p voxtral-model-validation --features download,gpu-tests,${VALIDATION_BACKEND:-wgpu}"
 
+[tasks.validate-nanochat]
+description = "nanochat's whole validation suite, on VALIDATION_BACKEND in f32 and, on cuda, in bf16 too (fetches ~10 GB)"
+workspace = false
+script = "cargo test --manifest-path validation/Cargo.toml --release -p nanochat-model-validation --features download,gpu-tests,${VALIDATION_BACKEND:-wgpu}"
+
 [tasks.validate-all]
-description = "Every model's whole validation suite (fetches ~60 GB on a cold cache)"
+description = "Every model's whole validation suite (fetches ~70 GB on a cold cache)"
 workspace = false
 dependencies = [
     "validate-silero",
@@ -150,6 +155,7 @@ dependencies = [
     "validate-qwen3",
     "validate-sortformer",
     "validate-voxtral",
+    "validate-nanochat",
 ]
 
 # ── exercise ──────────────────────────────────────────────────────────────────

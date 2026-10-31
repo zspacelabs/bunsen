@@ -5372,6 +5372,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "nanochat-model-validation"
+version = "0.41.0"
+dependencies = [
+ "bunsen",
+ "burn",
+ "fetch-nanochat",
+ "serde",
+ "serde_json",
+ "serial_test",
+]
+
+[[package]]
 name = "nb"
 version = "0.1.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"

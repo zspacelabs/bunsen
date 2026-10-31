@@ -96,11 +96,12 @@ itself, so after a pin changes on `main`, run the workflow once on `main` from t
 |---|---|---|
 | `validate-cpu` | the checks on the checkpoints alone (`weights`), on the CPU | ~150 MB |
 | `validate-ci` | what `validation.yml` runs: Silero's and Whisper's whole suites, on the CPU | ~730 MB |
-| `validate-<model>` | one model's whole suite, in release mode, on `VALIDATION_BACKEND` (default `wgpu`) | 4 MB to ~7 GB |
-| `validate-all` | every model's whole suite | ~16 GB |
+| `validate-<model>` | one model's whole suite, in release mode, on `VALIDATION_BACKEND` (default `wgpu`) | 4 MB to ~28 GB |
+| `validate-all` | every model's whole suite | ~70 GB |
 
-`<model>` is `silero`, `whisper`, `parakeet`, `qwen3-asr` or `sortformer`. Parakeet's, Qwen3-ASR's and Sortformer's
-suites are too large for a CI runner; run them on a GPU before merging a change to those kits. Set `BUNSEN_ASSET_CACHE`
+`<model>` is `silero`, `whisper`, `parakeet`, `qwen3-asr`, `qwen3`, `sortformer`, `voxtral` or `nanochat`. All but
+Silero's and Whisper's suites are too large for a CI runner; run them on a GPU before merging a change to those kits.
+nanochat's also runs in bf16 when `VALIDATION_BACKEND` is `cuda`. Set `BUNSEN_ASSET_CACHE`
 to a directory to keep the assets across `cargo clean` and toolchain updates, or point a crate's override variables
 (`WHISPER_BASE_PT` and friends) at copies you already have.
 
